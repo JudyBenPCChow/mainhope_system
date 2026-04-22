@@ -3,100 +3,100 @@ import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMg
 import { supabase } from "@/lib/supabaseClient"
 
 export type MgmtAuditLogRow = {
-  id: string
-  created_at: string
-  actor_label: string
-  role: string
-  action: string
-  path: string | null
-  detail: string | null
+ id: string
+ created_at: string
+ actor_label: string
+ role: string
+ action: string
+ path: string | null
+ detail: string | null
 }
 
 export type MgmtSystemErrorRow = {
-  id: string
-  created_at: string
-  severity: string
-  source: string
-  message: string
-  detail: string | null
-  resolved_at: string | null
-  actor_label?: string | null
-  role?: string | null
-  path?: string | null
+ id: string
+ created_at: string
+ severity: string
+ source: string
+ message: string
+ detail: string | null
+ resolved_at: string | null
+ actor_label?: string | null
+ role?: string | null
+ path?: string | null
 }
 
 function localDayBoundsIso(ymd: string): { startIso: string; endIso: string } {
-  const [y, m, d] = ymd.split("-").map(Number)
-  if (!y || !m || !d) {
-    const now = new Date()
-    return {
-      startIso: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(),
-      endIso: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
-    }
+ const [y, m, d] = ymd.split("-").map(Number)
+ if (!y || !m || !d) {
+  const now = new Date()
+  return {
+   startIso: new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString(),
+   endIso: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString(),
   }
-  const start = new Date(y, m - 1, d, 0, 0, 0, 0)
-  const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0)
-  return { startIso: start.toISOString(), endIso: end.toISOString() }
+ }
+ const start = new Date(y, m - 1, d, 0, 0, 0, 0)
+ const end = new Date(y, m - 1, d + 1, 0, 0, 0, 0)
+ return { startIso: start.toISOString(), endIso: end.toISOString() }
 }
 
 /** 本機「今日」區間內的稽核紀錄，最多 limit 筆（新→舊） */
 export async function fetchTodayMgmtAuditLogs(limit = 20): Promise<MgmtAuditLogRow[]> {
-  if (!supabase) return []
-  const ymd = todayYmdLocal()
-  const { startIso, endIso } = localDayBoundsIso(ymd)
-  const { data, error } = await supabase
-    .from("mgmt_audit_log")
-    .select("id, created_at, actor_label, role, action, path, detail")
-    .gte("created_at", startIso)
-    .lt("created_at", endIso)
-    .order("created_at", { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return (data ?? []) as MgmtAuditLogRow[]
+ if (!supabase) return []
+ const ymd = todayYmdLocal()
+ const { startIso, endIso } = localDayBoundsIso(ymd)
+ const { data, error } = await supabase
+  .from("mgmt_audit_log")
+  .select("id, created_at, actor_label, role, action, path, detail")
+  .gte("created_at", startIso)
+  .lt("created_at", endIso)
+  .order("created_at", { ascending: false })
+  .limit(limit)
+ if (error) throw error
+ return (data ?? []) as MgmtAuditLogRow[]
 }
 
 /** 最近系統錯誤／問題紀錄，最多 limit 筆（新→舊） */
 export async function fetchRecentMgmtSystemErrors(limit = 20): Promise<MgmtSystemErrorRow[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from("mgmt_system_errors")
-    .select("id, created_at, severity, source, message, detail, resolved_at, actor_label, role, path")
-    .order("created_at", { ascending: false })
-    .limit(limit)
-  if (error) throw error
-  return (data ?? []) as MgmtSystemErrorRow[]
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("mgmt_system_errors")
+  .select("id, created_at, severity, source, message, detail, resolved_at, actor_label, role, path")
+  .order("created_at", { ascending: false })
+  .limit(limit)
+ if (error) throw error
+ return (data ?? []) as MgmtSystemErrorRow[]
 }
 
 export type AppendMgmtAuditInput = {
-  actorLabel: string
-  role: string
-  action: string
-  path?: string | null
-  detail?: string | null
+ actorLabel: string
+ role: string
+ action: string
+ path?: string | null
+ detail?: string | null
 }
 
 /** 寫入一筆稽核（登入／操作）；失敗時靜默不擋流程 */
 export async function appendMgmtAuditLog(input: AppendMgmtAuditInput): Promise<void> {
-  if (!supabase) return
-  const { error } = await supabase.from("mgmt_audit_log").insert({
-    actor_label: input.actorLabel,
-    role: input.role,
-    action: input.action,
-    path: input.path ?? null,
-    detail: input.detail ?? null,
-  })
-  if (error) console.warn("[mgmt_audit_log]", error.message)
+ if (!supabase) return
+ const { error } = await supabase.from("mgmt_audit_log").insert({
+  actor_label: input.actorLabel,
+  role: input.role,
+  action: input.action,
+  path: input.path ?? null,
+  detail: input.detail ?? null,
+ })
+ if (error) console.warn("[mgmt_audit_log]", error.message)
 }
 
 function actorFromStorage(): { actorLabel: string; role: string } {
-  if (typeof localStorage === "undefined") {
-    return { actorLabel: "系統", role: "system" }
-  }
-  const r = localStorage.getItem("mgmt_role")
-  if (r === "admin") return { actorLabel: `管理員（${DEMO_ADMIN_GREETING_NAME}）`, role: "admin" }
-  if (r === "alien") return { actorLabel: `外星人（${DEMO_ALIEN_GREETING_NAME}）`, role: "alien" }
-  if (r === "teacher") return { actorLabel: "專班老師（演示）", role: "teacher" }
-  return { actorLabel: "未登入", role: "guest" }
+ if (typeof localStorage === "undefined") {
+  return { actorLabel: "系統", role: "system" }
+ }
+ const r = localStorage.getItem("mgmt_role")
+ if (r === "admin") return { actorLabel: `管理員（${DEMO_ADMIN_GREETING_NAME}）`, role: "admin" }
+ if (r === "alien") return { actorLabel: `外星人（${DEMO_ALIEN_GREETING_NAME}）`, role: "alien" }
+ if (r === "teacher") return { actorLabel: "專班老師（演示）", role: "teacher" }
+ return { actorLabel: "未登入", role: "guest" }
 }
 
 /**
@@ -104,48 +104,52 @@ function actorFromStorage(): { actorLabel: string; role: string } {
  * `path` 預設為 `window.location.pathname`。
  */
 export async function logMgmtAuditAction(input: {
-  action: string
-  path?: string | null
-  detail?: string | null
+ action: string
+ path?: string | null
+ detail?: string | null
 }): Promise<void> {
-  const { actorLabel, role } = actorFromStorage()
-  const path =
-    input.path ??
-    (typeof window !== "undefined" ? window.location.pathname : null) ??
-    "/"
-  await appendMgmtAuditLog({
-    actorLabel,
-    role,
-    action: input.action,
-    path,
-    detail: input.detail ?? null,
-  })
+ const { actorLabel, role } = actorFromStorage()
+ const path =
+  input.path ??
+  (typeof window !== "undefined" ? window.location.pathname : null) ??
+  "/"
+ await appendMgmtAuditLog({
+  actorLabel,
+  role,
+  action: input.action,
+  path,
+  detail: input.detail ?? null,
+ })
 }
 
 export type AppendMgmtSystemErrorInput = {
-  severity: string
-  source: string
-  message: string
-  detail?: string | null
-  path?: string | null
+ severity: string
+ source: string
+ message: string
+ detail?: string | null
+ path?: string | null
 }
 
-/** 寫入系統報錯／問題（失敗不擋主流程）；附目前演示身分與路徑 */
-export async function appendMgmtSystemError(input: AppendMgmtSystemErrorInput): Promise<void> {
-  if (!supabase) return
-  const { actorLabel, role } = actorFromStorage()
-  const path =
-    input.path ??
-    (typeof window !== "undefined" ? window.location.pathname : null) ??
-    null
-  const { error } = await supabase.from("mgmt_system_errors").insert({
-    severity: input.severity,
-    source: input.source,
-    message: input.message,
-    detail: input.detail ?? null,
-    actor_label: actorLabel,
-    role,
-    path,
-  })
-  if (error) console.warn("[mgmt_system_errors]", error.message)
+/** 寫入系統報錯／問題（失敗不擋主流程）；附目前演示身分與路徑。回傳是否寫入成功（供離線佇列重試）。 */
+export async function appendMgmtSystemError(input: AppendMgmtSystemErrorInput): Promise<boolean> {
+ if (!supabase) return false
+ const { actorLabel, role } = actorFromStorage()
+ const path =
+  input.path ??
+  (typeof window !== "undefined" ? window.location.pathname : null) ??
+  null
+ const { error } = await supabase.from("mgmt_system_errors").insert({
+  severity: input.severity,
+  source: input.source,
+  message: input.message,
+  detail: input.detail ?? null,
+  actor_label: actorLabel,
+  role,
+  path,
+ })
+ if (error) {
+  console.warn("[mgmt_system_errors]", error.message)
+  return false
+ }
+ return true
 }

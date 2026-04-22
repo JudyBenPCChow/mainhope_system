@@ -1,0 +1,22 @@
+---
+description: UI 設計指令 — 表格欄位固定、表單下拉與金額快捷（見 docs/UI_DESIGN_INSTRUCTIONS.md）
+globs: src/**/*.tsx
+alwaysApply: false
+---
+
+# UI 設計指令（專案約定）
+
+完整條文與後續補充請以 **`docs/UI_DESIGN_INSTRUCTIONS.md`** 為準；修改或新增畫面時先對照該檔。
+
+## 必守（摘要）
+
+- **資料表格**：篩選、排序、分頁或資料筆數變化時，**欄位順序與表頭對齊不得改變**；不可依篩選條件增刪欄（若需不同欄位應另開檢視或說明）。
+- **欄寬穩定**：避免僅依賴瀏覽器預設 `table-layout: auto` 造成「欄位像跑掉」。列表型 `<table>` 應使用 **`table-fixed`**，並為 **`th` 設定固定比例或固定寬度**（總寬合理加總為 100% 或明確 `min-w` 策略）。
+- **長內容**：用 `min-w-0`、`truncate` 或 `break-words` 等約束，避免單欄撐爆版面；電話等可加上 `title` 顯示全文。
+- **表單有限選項**：星期、年級等固定集合用 **`<select>`**（含多選），標籤與選項與系統標準一致；人數／金額 **不可為負**（`min` + 儲存前檢查）。
+- **常見金額**：提供 **HKD 250 / 275 / 825** 等快捷鈕，並保留手動數字輸入（班別學費）。
+
+## 實作參考
+
+- 學生列表：`src/components/students/StudentsListPage.tsx`（已採用 `table-fixed` + 欄寬比例）。
+- 編輯班別：`src/components/classes/ClassDetailView.tsx`（逢星期／年級下拉、學費快捷、收生下限）。

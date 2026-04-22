@@ -2,81 +2,81 @@ import { supabase } from "@/lib/supabaseClient"
 
 /** 全站增退紀錄列表列 */
 export type EnrollmentChangeListRow = {
-  id: string
-  action: "enroll" | "withdraw"
-  effectiveDate: string
-  reason: string | null
-  enrollmentId: string | null
-  createdAt: string
-  studentId: string
-  studentName: string
-  classId: string
-  classLabel: string
-  teacherName: string | null
+ id: string
+ action: "enroll" | "withdraw"
+ effectiveDate: string
+ reason: string | null
+ enrollmentId: string | null
+ createdAt: string
+ studentId: string
+ studentName: string
+ classId: string
+ classLabel: string
+ teacherName: string | null
 }
 
 function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
-  const st = r.students as Record<string, unknown> | null
-  const cls = r.classes as Record<string, unknown> | null
-  const tch = cls?.teachers as Record<string, unknown> | null | undefined
-  const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code = cls?.course_code != null ? String(cls.course_code) : ""
-  return {
-    id: String(r.id),
-    action: r.action === "withdraw" ? "withdraw" : "enroll",
-    effectiveDate: String(r.effective_date ?? "").slice(0, 10),
-    reason: r.reason != null ? String(r.reason) : null,
-    enrollmentId: r.enrollment_id != null ? String(r.enrollment_id) : null,
-    createdAt: String(r.created_at ?? ""),
-    studentId: String(r.student_id),
-    studentName: st?.full_name != null ? String(st.full_name) : "—",
-    classId: String(r.class_id),
-    classLabel: code ? `${sub}（${code}）` : sub,
-    teacherName: tch?.full_name != null ? String(tch.full_name) : null,
-  }
+ const st = r.students as Record<string, unknown> | null
+ const cls = r.classes as Record<string, unknown> | null
+ const tch = cls?.teachers as Record<string, unknown> | null | undefined
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const code = cls?.course_code != null ? String(cls.course_code) : ""
+ return {
+  id: String(r.id),
+  action: r.action === "withdraw" ? "withdraw" : "enroll",
+  effectiveDate: String(r.effective_date ?? "").slice(0, 10),
+  reason: r.reason != null ? String(r.reason) : null,
+  enrollmentId: r.enrollment_id != null ? String(r.enrollment_id) : null,
+  createdAt: String(r.created_at ?? ""),
+  studentId: String(r.student_id),
+  studentName: st?.full_name != null ? String(st.full_name) : "—",
+  classId: String(r.class_id),
+  classLabel: code ? `${sub}（${code}）` : sub,
+  teacherName: tch?.full_name != null ? String(tch.full_name) : null,
+ }
 }
 
 export type EnrollmentChangeQuery = {
-  action?: "enroll" | "withdraw" | ""
-  fromYmd?: string
-  toYmd?: string
-  search?: string
-  limit?: number
+ action?: "enroll" | "withdraw" | ""
+ fromYmd?: string
+ toYmd?: string
+ search?: string
+ limit?: number
 }
 
 export async function fetchEnrollmentChangeEventsList(
-  opts: EnrollmentChangeQuery = {}
+ opts: EnrollmentChangeQuery = {}
 ): Promise<EnrollmentChangeListRow[]> {
-  if (!supabase) return []
-  const limit = Math.min(Math.max(opts.limit ?? 400, 1), 1000)
-  const search = opts.search?.trim().toLowerCase() ?? ""
+ if (!supabase) return []
+ const limit = Math.min(Math.max(opts.limit ?? 400, 1), 1000)
+ const search = opts.search?.trim().toLowerCase() ?? ""
 
-  let q = supabase
-    .from("enrollment_change_events")
-    .select(
-      "id, action, effective_date, reason, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, teachers ( full_name ) )"
-    )
-    .order("effective_date", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit)
+ let q = supabase
+  .from("enrollment_change_events")
+  .select(
+   "id, action, effective_date, reason, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, teachers ( full_name ) )"
+  )
+  .order("effective_date", { ascending: false })
+  .order("created_at", { ascending: false })
+  .limit(limit)
 
-  if (opts.action === "enroll" || opts.action === "withdraw") {
-    q = q.eq("action", opts.action)
-  }
-  if (opts.fromYmd) q = q.gte("effective_date", opts.fromYmd)
-  if (opts.toYmd) q = q.lte("effective_date", opts.toYmd)
+ if (opts.action === "enroll" || opts.action === "withdraw") {
+  q = q.eq("action", opts.action)
+ }
+ if (opts.fromYmd) q = q.gte("effective_date", opts.fromYmd)
+ if (opts.toYmd) q = q.lte("effective_date", opts.toYmd)
 
-  const { data, error } = await q
-  if (error) {
-    console.warn("[fetchEnrollmentChangeEventsList]", error.message)
-    return []
-  }
-  let rows = (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
-  if (search) {
-    rows = rows.filter((r) => {
-      const hay = `${r.studentName} ${r.classLabel} ${r.teacherName ?? ""} ${r.reason ?? ""}`.toLowerCase()
-      return hay.includes(search)
-    })
-  }
-  return rows
+ const { data, error } = await q
+ if (error) {
+  console.warn("[fetchEnrollmentChangeEventsList]", error.message)
+  return []
+ }
+ let rows = (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
+ if (search) {
+  rows = rows.filter((r) => {
+   const hay = `${r.studentName} ${r.classLabel} ${r.teacherName ?? ""} ${r.reason ?? ""}`.toLowerCase()
+   return hay.includes(search)
+  })
+ }
+ return rows
 }

@@ -28,38 +28,38 @@ import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 
 export default function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/Home" replace />} />
-        <Route element={<Layout />}>
-          <Route path="/Home" element={<Home />} />
-          <Route path="/Users" element={<UserManagement />} />
-          <Route path="/Students" element={<Students />} />
-          <Route path="/Students/:studentId" element={<StudentDetail />} />
-          <Route path="/Teachers" element={<Teachers />} />
-          <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
-          <Route path="/Classes" element={<Classes />} />
-          <Route path="/Classes/:classId" element={<ClassDetail />} />
-          <Route path="/Classrooms" element={<Classrooms />} />
-          <Route path="/TeacherTimetable" element={<TeacherTimetable />} />
-          <Route path="/TeacherProfile" element={<TeacherProfile />} />
-          <Route path="/Attendance" element={<Attendance />} />
-          <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
-          <Route path="/Payments" element={<Payments />} />
-          <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
-          <Route path="/Todos" element={<Todos />} />
-          <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
-          <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
-          <Route path="/Schedule" element={<Schedule />} />
-          <Route path="/RoomBooking" element={<RoomBooking />} />
-          <Route path="/RoomBookingAdmin" element={<RoomBookingAdmin />} />
-          <Route path="/LeaveManagement" element={<LeaveManagement />} />
-          <Route path="/TrialSessions" element={<TrialSessions />} />
-          <Route path="/SystemLogs" element={<SystemLogs />} />
-          <Route path="/SystemIssues" element={<SystemIssues />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
-  )
+ return (
+  <BrowserRouter>
+   <Routes>
+    <Route path="/" element={<Navigate to="/Home" replace />} />
+    <Route element={<Layout />}>
+     <Route path="/Home" element={<Home />} />
+     <Route path="/Users" element={<UserManagement />} />
+     <Route path="/Students" element={<Students />} />
+     <Route path="/Students/:studentId" element={<StudentDetail />} />
+     <Route path="/Teachers" element={<Teachers />} />
+     <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
+     <Route path="/Classes" element={<Classes />} />
+     <Route path="/Classes/:classId" element={<ClassDetail />} />
+     <Route path="/Classrooms" element={<Classrooms />} />
+     <Route path="/TeacherTimetable" element={<TeacherTimetable />} />
+     <Route path="/TeacherProfile" element={<TeacherProfile />} />
+     <Route path="/Attendance" element={<Attendance />} />
+     <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
+     <Route path="/Payments" element={<Payments />} />
+     <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
+     <Route path="/Todos" element={<Todos />} />
+     <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
+     <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
+     <Route path="/Schedule" element={<Schedule />} />
+     <Route path="/RoomBooking" element={<RoomBooking />} />
+     <Route path="/RoomBookingAdmin" element={<RoomBookingAdmin />} />
+     <Route path="/LeaveManagement" element={<LeaveManagement />} />
+     <Route path="/TrialSessions" element={<TrialSessions />} />
+     <Route path="/SystemLogs" element={<SystemLogs />} />
+     <Route path="/SystemIssues" element={<SystemIssues />} />
+    </Route>
+   </Routes>
+  </BrowserRouter>
+ )
 }

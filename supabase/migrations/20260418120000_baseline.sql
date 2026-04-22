@@ -77,6 +77,8 @@ create table if not exists public.classes (
 );
 
 -- class_id 可為 null：老師「其他」約房用（原 006）
+-- 排程（本表 schedules）：預計會發生的課堂時段，用於日曆、課室預留與點名流程之對照；方便預先點名或準備，但本身不是正式的出席／點名紀錄。
+-- 正式出勤紀錄見 attendance_details。排程亦有助管理課室在同一時段是否已被占用等供應問題。
 create table if not exists public.schedules (
   id uuid primary key default gen_random_uuid(),
   class_id uuid references public.classes (id) on delete cascade,
@@ -102,6 +104,7 @@ create table if not exists public.student_class_enrollments (
   updated_at timestamptz not null default now()
 );
 
+-- 學生層級之正式點名／出席紀錄（與 schedules 之「預定課堂時段」分開；後者見上表註解）。
 create table if not exists public.attendance_details (
   id uuid primary key default gen_random_uuid(),
   student_id uuid not null references public.students (id) on delete cascade,

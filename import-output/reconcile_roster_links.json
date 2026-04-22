@@ -1,0 +1,2036 @@
+[
+  {
+    "csv_row": 2,
+    "class_title_csv": "中四級中文科B班CFAN",
+    "class_id_db": "8f980f3a-19ae-4f3a-800d-fc1867780729",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "梁天因",
+    "student_id_db": "ffa0780b-5590-4ace-899e-91f343d78a81",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 2,
+    "class_title_csv": "中四級中文科B班CFAN",
+    "class_id_db": "8f980f3a-19ae-4f3a-800d-fc1867780729",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "范以喬",
+    "student_id_db": "9b6d6ea6-2b17-42a7-8367-50e891c6897e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 2,
+    "class_title_csv": "中四級中文科B班CFAN",
+    "class_id_db": "8f980f3a-19ae-4f3a-800d-fc1867780729",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "霍健一",
+    "student_id_db": "a84ea9f8-7c1d-4739-b347-058cee5a27e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 2,
+    "class_title_csv": "中四級中文科B班CFAN",
+    "class_id_db": "8f980f3a-19ae-4f3a-800d-fc1867780729",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "吳晉銘",
+    "student_id_db": "b9ec0998-36bc-4bc9-8b4b-6ad4e9000e98",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 3,
+    "class_title_csv": "中四級數學科A班MYU",
+    "class_id_db": "1fc83776-2eca-4b97-ba3c-3467e2f1515d",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "王晴怡",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 3,
+    "class_title_csv": "中四級數學科A班MYU",
+    "class_id_db": "1fc83776-2eca-4b97-ba3c-3467e2f1515d",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳煒傑",
+    "student_id_db": "6340373f-9c3e-42a3-85e2-672a73fd16ad",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 4,
+    "class_title_csv": "中四級數學科B班MYU",
+    "class_id_db": "c76da435-6bb2-4369-bece-f3522d592a89",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚仟渝",
+    "student_id_db": "c0cc0734-be3f-4c35-a4a4-9e94914bfea5",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 4,
+    "class_title_csv": "中四級數學科B班MYU",
+    "class_id_db": "c76da435-6bb2-4369-bece-f3522d592a89",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "梁天因",
+    "student_id_db": "ffa0780b-5590-4ace-899e-91f343d78a81",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 4,
+    "class_title_csv": "中四級數學科B班MYU",
+    "class_id_db": "c76da435-6bb2-4369-bece-f3522d592a89",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "范以喬",
+    "student_id_db": "9b6d6ea6-2b17-42a7-8367-50e891c6897e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 4,
+    "class_title_csv": "中四級數學科B班MYU",
+    "class_id_db": "c76da435-6bb2-4369-bece-f3522d592a89",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李承鋒",
+    "student_id_db": "d78cdee9-fc3f-4ffa-ab33-68861dc36143",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 4,
+    "class_title_csv": "中四級數學科B班MYU",
+    "class_id_db": "c76da435-6bb2-4369-bece-f3522d592a89",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "莫凱傑",
+    "student_id_db": "c3103566-5e93-4765-8b3d-d465306c97ba",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "黃慧淇",
+    "student_id_db": "771f28d9-790f-46e1-a803-ae64a635d68b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李昭儀",
+    "student_id_db": "c9d95382-dc26-44eb-9439-689cd9856022",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "趙佳鑫",
+    "student_id_db": "b2ed23a6-b41c-4c18-8623-0c1510616490",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "鄭恩祈",
+    "student_id_db": "5991bbd6-d744-46dd-a2db-30655bf3b150",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅兆斐",
+    "student_id_db": "ece2a51e-8095-40bf-8786-e0c7ff869d47",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "凌巧悅",
+    "student_id_db": "fc447e55-3829-4793-8a7a-51efaacb75c4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 5,
+    "class_title_csv": "中四五級英文科B班",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 6,
+    "class_title_csv": "中四級M2科A班TIMC",
+    "class_id_db": "5c0ef4f3-df66-469f-b2c6-3a7abe11b1e3",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "艾語涵",
+    "student_id_db": "f1c444db-4ae1-4cf1-89fe-bf5b316bf121",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 8,
+    "class_title_csv": "中五級中文科A班CFAN",
+    "class_id_db": "3b001d4f-eddd-45be-a0c3-1a5dcc3bd54b",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 8,
+    "class_title_csv": "中五級中文科A班CFAN",
+    "class_id_db": "3b001d4f-eddd-45be-a0c3-1a5dcc3bd54b",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "朱震軒",
+    "student_id_db": "24331c17-871b-4e56-96ca-ad72058fb371",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 8,
+    "class_title_csv": "中五級中文科A班CFAN",
+    "class_id_db": "3b001d4f-eddd-45be-a0c3-1a5dcc3bd54b",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蔡汶軒",
+    "student_id_db": "495c1b7f-a4bf-42a3-a9ba-92c70d4202ea",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 9,
+    "class_title_csv": "中五級中文科B班CFAN",
+    "class_id_db": "ae56364b-fcea-4946-842c-9cc372a1291e",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張展榮",
+    "student_id_db": "b62fffd2-f2f9-4ce9-b9a8-e8e4b39c6304",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 9,
+    "class_title_csv": "中五級中文科B班CFAN",
+    "class_id_db": "ae56364b-fcea-4946-842c-9cc372a1291e",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "趙佳鑫",
+    "student_id_db": "b2ed23a6-b41c-4c18-8623-0c1510616490",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 9,
+    "class_title_csv": "中五級中文科B班CFAN",
+    "class_id_db": "ae56364b-fcea-4946-842c-9cc372a1291e",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅兆斐",
+    "student_id_db": "ece2a51e-8095-40bf-8786-e0c7ff869d47",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 9,
+    "class_title_csv": "中五級中文科B班CFAN",
+    "class_id_db": "ae56364b-fcea-4946-842c-9cc372a1291e",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 10,
+    "class_title_csv": "中五級數學科A班MYU",
+    "class_id_db": "1b0ca179-1c80-4c3f-99b0-bb9d6ff6f654",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 10,
+    "class_title_csv": "中五級數學科A班MYU",
+    "class_id_db": "1b0ca179-1c80-4c3f-99b0-bb9d6ff6f654",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蘇子航",
+    "student_id_db": "2dfda27f-b6aa-453e-a2cc-f955cf3ef813",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "趙佳鑫",
+    "student_id_db": "b2ed23a6-b41c-4c18-8623-0c1510616490",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "朱震軒",
+    "student_id_db": "24331c17-871b-4e56-96ca-ad72058fb371",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅兆斐",
+    "student_id_db": "ece2a51e-8095-40bf-8786-e0c7ff869d47",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "葉熙桐",
+    "student_id_db": "da86a454-fb29-4b1c-bd73-1230b7455b98",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 11,
+    "class_title_csv": "中五級數學科B班MYU",
+    "class_id_db": "280fb7c0-345c-422a-90ca-26489c918974",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蘇子航",
+    "student_id_db": "2dfda27f-b6aa-453e-a2cc-f955cf3ef813",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 12,
+    "class_title_csv": "中五級M2科A班TIMC",
+    "class_id_db": "a91bdded-21b2-49e5-9481-40938006062a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 13,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 13,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "吳晉輝",
+    "student_id_db": "56a2d62d-efe0-4954-b6b1-0e5b739985c8",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 14,
+    "class_title_csv": "中五級化學科A班SBLA",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蘇子航",
+    "student_id_db": "2dfda27f-b6aa-453e-a2cc-f955cf3ef813",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 14,
+    "class_title_csv": "中五級化學科A班SBLA",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 14,
+    "class_title_csv": "中五級化學科A班SBLA",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "朱震軒",
+    "student_id_db": "24331c17-871b-4e56-96ca-ad72058fb371",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 15,
+    "class_title_csv": "中五級生物科A班JCHU",
+    "class_id_db": "41115026-61a7-4654-8ba5-e7c5b943bd42",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "趙樂怡",
+    "student_id_db": "19145380-aeb2-44f6-a27e-e2f263c7b35f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 15,
+    "class_title_csv": "中五級生物科A班JCHU",
+    "class_id_db": "41115026-61a7-4654-8ba5-e7c5b943bd42",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "伍可恩",
+    "student_id_db": "01529c73-438d-4040-9c40-944d0b0d1af0",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 15,
+    "class_title_csv": "中五級生物科A班JCHU",
+    "class_id_db": "41115026-61a7-4654-8ba5-e7c5b943bd42",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "黃艾琳",
+    "student_id_db": "37bd4518-13c0-47e0-8c45-30ac9f0a5507",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 15,
+    "class_title_csv": "中五級生物科A班JCHU",
+    "class_id_db": "41115026-61a7-4654-8ba5-e7c5b943bd42",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "葉善甯",
+    "student_id_db": "3ab0dc4c-7eab-474a-8cff-f4e6ea4bc0c2",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 16,
+    "class_title_csv": "中六級中文科A班CFAN",
+    "class_id_db": "752b1482-8ad9-4472-8a17-5aca10c45e32",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳俊鍇",
+    "student_id_db": "8fe641cb-a6e6-42a4-9b9a-6af7cc4b6acb",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 16,
+    "class_title_csv": "中六級中文科A班CFAN",
+    "class_id_db": "752b1482-8ad9-4472-8a17-5aca10c45e32",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李穎諭",
+    "student_id_db": "745ddccd-f3cc-4f18-b409-5e62f513bfcd",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 16,
+    "class_title_csv": "中六級中文科A班CFAN",
+    "class_id_db": "752b1482-8ad9-4472-8a17-5aca10c45e32",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚廣傑",
+    "student_id_db": "b6cce945-8d14-439a-9457-53ce6b82111f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 16,
+    "class_title_csv": "中六級中文科A班CFAN",
+    "class_id_db": "752b1482-8ad9-4472-8a17-5aca10c45e32",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李柏熙",
+    "student_id_db": "061dca0d-7523-405e-b10d-e4e2fc12b422",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "黃永健",
+    "student_id_db": "264e8911-ad63-49d9-a4b7-9356bd265ebd",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳肇希",
+    "student_id_db": "a5e577da-bf4f-4c97-aa15-e255a14374bf",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張朗志",
+    "student_id_db": "6a2502d0-1c78-4f00-ba93-cfdea4e5294a",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張鍏澄",
+    "student_id_db": "51939e47-073b-4189-a5cc-588773fa40be",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "袁焯楠",
+    "student_id_db": "a72586a0-ab9c-477b-b9c5-7231f1a23909",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 17,
+    "class_title_csv": "中六級中文科B班CFAN",
+    "class_id_db": "a9c3c836-6d86-4cf4-9f99-63d01a302be4",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "梁柏熹",
+    "student_id_db": "d73ff8ba-fa6a-4cb0-b977-770cc04d87f4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 18,
+    "class_title_csv": "中六級數學科A班MYU",
+    "class_id_db": "1bbd5e77-00b4-402e-8549-dadc5eb7c455",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "鍾永恒",
+    "student_id_db": "25c71966-a146-4aab-afa6-52dfeddf57fb",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 18,
+    "class_title_csv": "中六級數學科A班MYU",
+    "class_id_db": "1bbd5e77-00b4-402e-8549-dadc5eb7c455",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "袁焯楠",
+    "student_id_db": "a72586a0-ab9c-477b-b9c5-7231f1a23909",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 18,
+    "class_title_csv": "中六級數學科A班MYU",
+    "class_id_db": "1bbd5e77-00b4-402e-8549-dadc5eb7c455",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚廣傑",
+    "student_id_db": "b6cce945-8d14-439a-9457-53ce6b82111f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 18,
+    "class_title_csv": "中六級數學科A班MYU",
+    "class_id_db": "1bbd5e77-00b4-402e-8549-dadc5eb7c455",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅希文",
+    "student_id_db": "28f0d007-5359-4616-9782-2457964cdbca",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳卓賢",
+    "student_id_db": "06f6ee6f-0723-49c9-9c95-fbe177b7b7bf",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚仲景",
+    "student_id_db": "f1934160-c64f-4e4d-be4e-c90a2027ad19",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳紫晴",
+    "student_id_db": "702b4bb3-159c-4835-92cf-be10ff810e50",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "傅嘉琳",
+    "student_id_db": "15a85db9-eba7-4d60-9ed5-531dc68060d6",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "梁楚悠",
+    "student_id_db": "ae885f95-aa43-4d19-883a-8cba99ae65b9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 19,
+    "class_title_csv": "中六級數學科B班MYU",
+    "class_id_db": "eb4da7f9-2ba3-4853-8375-69a482b6d69a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅希文",
+    "student_id_db": "28f0d007-5359-4616-9782-2457964cdbca",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 20,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳俊鍇",
+    "student_id_db": "8fe641cb-a6e6-42a4-9b9a-6af7cc4b6acb",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 20,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳宣穎",
+    "student_id_db": "486dd132-f2b2-4c0e-b5e4-853e07434826",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 20,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳煒傑",
+    "student_id_db": "6340373f-9c3e-42a3-85e2-672a73fd16ad",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 20,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 21,
+    "class_title_csv": "中六級物理科A班THOM",
+    "class_id_db": "89476ee2-0af4-407e-87f2-2db30ea0ad49",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳卓賢",
+    "student_id_db": "06f6ee6f-0723-49c9-9c95-fbe177b7b7bf",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 21,
+    "class_title_csv": "中六級物理科A班THOM",
+    "class_id_db": "89476ee2-0af4-407e-87f2-2db30ea0ad49",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "駱詠",
+    "student_id_db": "d9260dcb-e6b8-4dc7-a885-c72235135645",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 21,
+    "class_title_csv": "中六級物理科A班THOM",
+    "class_id_db": "89476ee2-0af4-407e-87f2-2db30ea0ad49",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚仲景",
+    "student_id_db": "f1934160-c64f-4e4d-be4e-c90a2027ad19",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 22,
+    "class_title_csv": "中六級化學科A班SBLA",
+    "class_id_db": "47ecae0c-df23-4449-bb25-f1835977d2a6",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉穎潼",
+    "student_id_db": "08a65222-0baf-47be-976d-73685070e38d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 22,
+    "class_title_csv": "中六級化學科A班SBLA",
+    "class_id_db": "47ecae0c-df23-4449-bb25-f1835977d2a6",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "楊逸飛",
+    "student_id_db": "32de9874-da52-43c8-8f13-c10a943c4618",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 23,
+    "class_title_csv": "中六級生物科A班JCHU",
+    "class_id_db": "8d9dd312-aa7a-43b7-b271-d54b93cf9d57",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉穎潼",
+    "student_id_db": "08a65222-0baf-47be-976d-73685070e38d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 23,
+    "class_title_csv": "中六級生物科A班JCHU",
+    "class_id_db": "8d9dd312-aa7a-43b7-b271-d54b93cf9d57",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳采妍",
+    "student_id_db": "5a0cdd32-30df-4acc-89ac-d954e07904c9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 23,
+    "class_title_csv": "中六級生物科A班JCHU",
+    "class_id_db": "8d9dd312-aa7a-43b7-b271-d54b93cf9d57",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張朗志",
+    "student_id_db": "6a2502d0-1c78-4f00-ba93-cfdea4e5294a",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 23,
+    "class_title_csv": "中六級生物科A班JCHU",
+    "class_id_db": "8d9dd312-aa7a-43b7-b271-d54b93cf9d57",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張鍏澄",
+    "student_id_db": "51939e47-073b-4189-a5cc-588773fa40be",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 25,
+    "class_title_csv": "中一級數學科B班NKWO",
+    "class_id_db": "f529b5f8-2eb9-4347-8f03-890f286b386b",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張聖汶",
+    "student_id_db": "7801ffd1-6991-4a37-9015-61d33320b215",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 25,
+    "class_title_csv": "中一級數學科B班NKWO",
+    "class_id_db": "f529b5f8-2eb9-4347-8f03-890f286b386b",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅茗心",
+    "student_id_db": "8333a1b0-0ee1-4b9b-9232-a4e8caf3cd8f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 27,
+    "class_title_csv": "中一二級英文科B班CYNG",
+    "class_id_db": "42cc9646-16f3-4913-8e5e-f666037f9458",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳弘燁",
+    "student_id_db": "fbb6b90a-2eda-4d65-84b7-f32c4c774c33",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 27,
+    "class_title_csv": "中一二級英文科B班CYNG",
+    "class_id_db": "42cc9646-16f3-4913-8e5e-f666037f9458",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "梁展博",
+    "student_id_db": "b71f8795-7d99-4204-bd9c-791bf1395ffc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 27,
+    "class_title_csv": "中一二級英文科B班CYNG",
+    "class_id_db": "42cc9646-16f3-4913-8e5e-f666037f9458",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳宏熙",
+    "student_id_db": "fee10737-293b-4abc-b861-cf90c12f49e9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 28,
+    "class_title_csv": "中一二級英文科C班TIMC",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "劉子軒",
+    "student_id_db": "22fcad0f-8d89-48b1-abbd-9d0a52dc88ce",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 28,
+    "class_title_csv": "中一二級英文科C班TIMC",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "朱俊賢",
+    "student_id_db": "ed1f7de2-d8dc-44b6-91c0-7c64d03c499d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 28,
+    "class_title_csv": "中一二級英文科C班TIMC",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "阮心兒",
+    "student_id_db": "05fa33c2-cd5c-49b0-b5c9-4cfdf83038cc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 31,
+    "class_title_csv": "中二級中文科B班CFAN",
+    "class_id_db": "611974a7-8e91-494b-be09-3ceed9b14944",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉展",
+    "student_id_db": "2ca7a777-d7cd-404d-b200-5d4e9d389123",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 31,
+    "class_title_csv": "中二級中文科B班CFAN",
+    "class_id_db": "611974a7-8e91-494b-be09-3ceed9b14944",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張以諾",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 32,
+    "class_title_csv": "中二級數學科A班MYU",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陸玉瓏",
+    "student_id_db": "ca740477-7f3d-42a6-8590-1c15144a0ef4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 32,
+    "class_title_csv": "中二級數學科A班MYU",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "文覺熲",
+    "student_id_db": "5787d58f-5d75-4c5b-b1c1-fb7f223d150f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 32,
+    "class_title_csv": "中二級數學科A班MYU",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "鄧宇童",
+    "student_id_db": "6d169f47-d3cb-42e0-b4bf-ed8e77ee7b99",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 32,
+    "class_title_csv": "中二級數學科A班MYU",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉子軒",
+    "student_id_db": "22fcad0f-8d89-48b1-abbd-9d0a52dc88ce",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 32,
+    "class_title_csv": "中二級數學科A班MYU",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "阮心兒",
+    "student_id_db": "05fa33c2-cd5c-49b0-b5c9-4cfdf83038cc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 33,
+    "class_title_csv": "中二級數學科B班NKWO",
+    "class_id_db": "92e2e1d0-28c6-4e99-a9e3-96fc6046e05d",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "譚銳妍",
+    "student_id_db": "8d0c77a0-b0cf-4903-9d4e-560ae3502250",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 33,
+    "class_title_csv": "中二級數學科B班NKWO",
+    "class_id_db": "92e2e1d0-28c6-4e99-a9e3-96fc6046e05d",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "馮國璇",
+    "student_id_db": "cb245455-33e2-4a36-b948-d4f8e4e701bc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 34,
+    "class_title_csv": "中三級中文科A班CFAN",
+    "class_id_db": "81ef9480-cd8f-4d76-9745-7f4b9a04eaf6",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "莫凱晴",
+    "student_id_db": "d7b87430-5a48-4b93-a66e-6bce6d9bae5d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 34,
+    "class_title_csv": "中三級中文科A班CFAN",
+    "class_id_db": "81ef9480-cd8f-4d76-9745-7f4b9a04eaf6",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "張以諾",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 35,
+    "class_title_csv": "中三級數學科A班MYU",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "莫凱晴",
+    "student_id_db": "d7b87430-5a48-4b93-a66e-6bce6d9bae5d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 35,
+    "class_title_csv": "中三級數學科A班MYU",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "林曉柔",
+    "student_id_db": "bbc35d66-91ff-4114-9366-a0dcd261a000",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 35,
+    "class_title_csv": "中三級數學科A班MYU",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "林芍延",
+    "student_id_db": "fe2cae65-566c-42de-b757-d1807e84d9d5",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 36,
+    "class_title_csv": "中三級數學科B班NKWO",
+    "class_id_db": "3d0f0156-9fb3-4c4c-90b1-d4da8e9de784",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "蔡曉朗",
+    "student_id_db": "d70cb168-58f1-44bd-a4ee-6d5d803cf26e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 36,
+    "class_title_csv": "中三級數學科B班NKWO",
+    "class_id_db": "3d0f0156-9fb3-4c4c-90b1-d4da8e9de784",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "葉梓軒",
+    "student_id_db": "80e22011-8207-4a75-87ee-02e7f2f5be4f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 36,
+    "class_title_csv": "中三級數學科B班NKWO",
+    "class_id_db": "3d0f0156-9fb3-4c4c-90b1-d4da8e9de784",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "嚴宇婷",
+    "student_id_db": "0bf2b340-46d8-4272-90e1-48a098d220f9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 37,
+    "class_title_csv": "中三級英文科A班TIMC",
+    "class_id_db": "8ea2a79b-fe9d-40eb-9342-5bb7ac700123",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "田興宇",
+    "student_id_db": "bd9c5612-0c8b-46c8-9fe3-1fb6f06b558b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 37,
+    "class_title_csv": "中三級英文科A班TIMC",
+    "class_id_db": "8ea2a79b-fe9d-40eb-9342-5bb7ac700123",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "莫凱晴",
+    "student_id_db": "d7b87430-5a48-4b93-a66e-6bce6d9bae5d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 38,
+    "class_title_csv": "中三級科學科A班SBLA",
+    "class_id_db": "d63b2d84-bc28-4406-8a98-a9872c67860f",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "翁頌怡",
+    "student_id_db": "d6d91a52-7b94-4e15-b91f-fabeb6916e65",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 38,
+    "class_title_csv": "中三級科學科A班SBLA",
+    "class_id_db": "d63b2d84-bc28-4406-8a98-a9872c67860f",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "林曉柔",
+    "student_id_db": "bbc35d66-91ff-4114-9366-a0dcd261a000",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 39,
+    "class_title_csv": "中三級科學科B班THOM",
+    "class_id_db": "8ea2a79b-fe9d-40eb-9342-5bb7ac700123",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "翁頌怡",
+    "student_id_db": "d6d91a52-7b94-4e15-b91f-fabeb6916e65",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭樂瑩",
+    "student_id_db": "a93f497b-6e75-48dc-aad3-ca036f8dd2cd",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "區智珩",
+    "student_id_db": "eb3e8cf2-6fde-4138-b38d-99d698542306",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蘇婉容",
+    "student_id_db": "f7bda8a4-86a4-47d6-95e6-e617f7375876",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "莊凱茵",
+    "student_id_db": "11a138c8-5084-45cf-bddf-028fc1988a8b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "朱俊賢",
+    "student_id_db": "ed1f7de2-d8dc-44b6-91c0-7c64d03c499d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "林玳伊",
+    "student_id_db": "f5914901-73e4-47b9-816b-3a4bdaec7356",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 40,
+    "class_title_csv": "功課輔導班（中學）",
+    "class_id_db": "36f7e78d-2a92-4611-80fb-f30b5fda201f",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "潘柏希",
+    "student_id_db": "e510f82c-a4e5-46a7-a500-4088d677b0e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 41,
+    "class_title_csv": "功課輔導班（小學）",
+    "class_id_db": "709881b5-9fce-421f-bd74-b1ff04513109",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "區智林",
+    "student_id_db": "ea7b4737-36c9-441e-aeb0-80be03239296",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 41,
+    "class_title_csv": "功課輔導班（小學）",
+    "class_id_db": "709881b5-9fce-421f-bd74-b1ff04513109",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李婉筠",
+    "student_id_db": "3078de17-7201-4f7d-8798-6056f24e04cc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 41,
+    "class_title_csv": "功課輔導班（小學）",
+    "class_id_db": "709881b5-9fce-421f-bd74-b1ff04513109",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "鍾以澄",
+    "student_id_db": "b6bec776-7c95-41a0-ab67-b11a8027670c",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 41,
+    "class_title_csv": "功課輔導班（小學）",
+    "class_id_db": "709881b5-9fce-421f-bd74-b1ff04513109",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "張善愉",
+    "student_id_db": "348e09ea-1cd9-44e7-9556-d536f6123da0",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 42,
+    "class_title_csv": "北區百人英文科星期三組",
+    "class_id_db": "a8018965-f273-5b4f-acb1-186af2767d6f",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "關智博",
+    "student_id_db": "fef46182-4c68-4560-9d3f-99b5abc8ae8e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 42,
+    "class_title_csv": "北區百人英文科星期三組",
+    "class_id_db": "a8018965-f273-5b4f-acb1-186af2767d6f",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 42,
+    "class_title_csv": "北區百人英文科星期三組",
+    "class_id_db": "a8018965-f273-5b4f-acb1-186af2767d6f",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 43,
+    "class_title_csv": "中五級生物科B班JCHU",
+    "class_id_db": "c01e4c64-a2c7-4b78-80d2-6383a4070ae9",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "黃慧淇",
+    "student_id_db": "771f28d9-790f-46e1-a803-ae64a635d68b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 44,
+    "class_title_csv": "溫珏禧/中六數學一對一",
+    "class_id_db": "005e8d52-6109-522e-9478-2023cf91b100",
+    "class_match_method": "模糊(分數95)",
+    "student_name_csv": "溫珏禧",
+    "student_id_db": "e42d3ed1-6383-4856-9fd3-ad29e9084ed4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 45,
+    "class_title_csv": "北區百人英文科星期六組",
+    "class_id_db": "7098aa29-3066-4b46-82a8-b9d38ff2d4b3",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "李兆洪",
+    "student_id_db": "a9306a6e-1365-4a0c-bfa4-0ab21c59ee37",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 45,
+    "class_title_csv": "北區百人英文科星期六組",
+    "class_id_db": "7098aa29-3066-4b46-82a8-b9d38ff2d4b3",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "梁景維",
+    "student_id_db": "31bbcda2-e3f9-44d5-8445-5115685e1ef6",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 45,
+    "class_title_csv": "北區百人英文科星期六組",
+    "class_id_db": "7098aa29-3066-4b46-82a8-b9d38ff2d4b3",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "吳昶覦",
+    "student_id_db": "3aa01047-b955-4510-a96f-5cb7e41329b4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 45,
+    "class_title_csv": "北區百人英文科星期六組",
+    "class_id_db": "7098aa29-3066-4b46-82a8-b9d38ff2d4b3",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "黃渲棋",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 48,
+    "class_title_csv": "中一級數學科C班LIAM",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "文覺稼",
+    "student_id_db": "98b38abc-55c5-41cb-8815-5ece90f15645",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 48,
+    "class_title_csv": "中一級數學科C班LIAM",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "文覺瑩f",
+    "student_id_db": "617dd2b5-bbad-412a-a3bf-b6b17f7dbd41",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 48,
+    "class_title_csv": "中一級數學科C班LIAM",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉沛琋",
+    "student_id_db": "6023b53d-82b5-4544-86ff-1297c8664616",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 48,
+    "class_title_csv": "中一級數學科C班LIAM",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "屈卓衡",
+    "student_id_db": "6b2b2711-4d57-4db6-90aa-334b4fa98f10",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 49,
+    "class_title_csv": "中四級英文科單對單JLAU",
+    "class_id_db": "bbbe5495-4c46-50ba-b7c3-cd4960d4ab73",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "林家綺",
+    "student_id_db": "7c4427c6-234b-43b4-a598-a5fd27461fab",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 50,
+    "class_title_csv": "中四級英文科一對二JLAU",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "林家如",
+    "student_id_db": "47f6312e-52a4-4711-af4d-8dc5fc06f3e2",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 50,
+    "class_title_csv": "中四級英文科一對二JLAU",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "林冠廷",
+    "student_id_db": "9aa63afc-6ddd-4ce1-94ef-3e054523f207",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 51,
+    "class_title_csv": "中四級M2科單對單NKWO",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "林家綺",
+    "student_id_db": "7c4427c6-234b-43b4-a598-a5fd27461fab",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 52,
+    "class_title_csv": "中一級中文科A班SHEK",
+    "class_id_db": "58859fd8-187d-4c76-9e82-030529bb1ac9",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "屈卓衡",
+    "student_id_db": "6b2b2711-4d57-4db6-90aa-334b4fa98f10",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 52,
+    "class_title_csv": "中一級中文科A班SHEK",
+    "class_id_db": "58859fd8-187d-4c76-9e82-030529bb1ac9",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "雷洛驊",
+    "student_id_db": "dd4893a5-f53a-4f0e-bdff-45353a7494dd",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 52,
+    "class_title_csv": "中一級中文科A班SHEK",
+    "class_id_db": "58859fd8-187d-4c76-9e82-030529bb1ac9",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅善瀧",
+    "student_id_db": "ef0c9409-d389-47ac-9287-e4517bbe4b45",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 55,
+    "class_title_csv": "中五級BAFS科A班RALI",
+    "class_id_db": "d777b136-87e2-4c33-b784-a94ba60a4e01",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蔡汶軒",
+    "student_id_db": "495c1b7f-a4bf-42a3-a9ba-92c70d4202ea",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 56,
+    "class_title_csv": "中一級數學科單對單NKWO",
+    "class_id_db": "c91ce175-d827-595f-90c3-6196ded6c598",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "黃瑋霆",
+    "student_id_db": "d985e2e0-e140-49cf-9070-5d5f22145ef9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 57,
+    "class_title_csv": "中四級英文科一對一JLAU",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "林冠廷",
+    "student_id_db": "9aa63afc-6ddd-4ce1-94ef-3e054523f207",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 58,
+    "class_title_csv": "中五級生物科C班JCHU",
+    "class_id_db": "fabb2ef0-b023-486b-a76f-fae2ccbdc769",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳柏朗",
+    "student_id_db": "90b1d98d-d7e7-4fab-ae37-ffbe64eb1eb1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 58,
+    "class_title_csv": "中五級生物科C班JCHU",
+    "class_id_db": "fabb2ef0-b023-486b-a76f-fae2ccbdc769",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "王以靈",
+    "student_id_db": "a67d1325-ab70-4a74-8aef-5a9d73ca9e12",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 59,
+    "class_title_csv": "中五級BAFS科單對單RALI",
+    "class_id_db": "88cd19b5-db52-5f1a-9880-851eab3fc9be",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "莊靖思",
+    "student_id_db": "f80f24c8-c46d-4401-afab-7f93ebfc2f6b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 60,
+    "class_title_csv": "中三級聖誕中文科範文班CFAN",
+    "class_id_db": "b3a33113-49e2-5946-81c0-0a6f070253fa",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "莫凱晴",
+    "student_id_db": "d7b87430-5a48-4b93-a66e-6bce6d9bae5d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 60,
+    "class_title_csv": "中三級聖誕中文科範文班CFAN",
+    "class_id_db": "b3a33113-49e2-5946-81c0-0a6f070253fa",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "張以諾",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 60,
+    "class_title_csv": "中三級聖誕中文科範文班CFAN",
+    "class_id_db": "b3a33113-49e2-5946-81c0-0a6f070253fa",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "林曉柔",
+    "student_id_db": "bbc35d66-91ff-4114-9366-a0dcd261a000",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 61,
+    "class_title_csv": "中四級聖誕中文科範文班CFAN",
+    "class_id_db": "e3fc2cfb-ddde-5bcd-8079-f987585fec5c",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "霍健一",
+    "student_id_db": "a84ea9f8-7c1d-4739-b347-058cee5a27e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 61,
+    "class_title_csv": "中四級聖誕中文科範文班CFAN",
+    "class_id_db": "e3fc2cfb-ddde-5bcd-8079-f987585fec5c",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "范以喬",
+    "student_id_db": "9b6d6ea6-2b17-42a7-8367-50e891c6897e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 61,
+    "class_title_csv": "中四級聖誕中文科範文班CFAN",
+    "class_id_db": "e3fc2cfb-ddde-5bcd-8079-f987585fec5c",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "吳晉銘",
+    "student_id_db": "b9ec0998-36bc-4bc9-8b4b-6ad4e9000e98",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 62,
+    "class_title_csv": "中五級聖誕中文科範文班CFAN",
+    "class_id_db": "23545f03-b404-5400-a978-bc912c2241d3",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "蔡汶軒",
+    "student_id_db": "495c1b7f-a4bf-42a3-a9ba-92c70d4202ea",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 62,
+    "class_title_csv": "中五級聖誕中文科範文班CFAN",
+    "class_id_db": "23545f03-b404-5400-a978-bc912c2241d3",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 62,
+    "class_title_csv": "中五級聖誕中文科範文班CFAN",
+    "class_id_db": "23545f03-b404-5400-a978-bc912c2241d3",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 64,
+    "class_title_csv": "中四級聖誕英文科操卷班JLAU",
+    "class_id_db": "5c47a5e5-4aa2-4db2-b2a3-481cb0ad41f1",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "范以喬",
+    "student_id_db": "9b6d6ea6-2b17-42a7-8367-50e891c6897e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 65,
+    "class_title_csv": "中五級聖誕英文科操卷班JLAU",
+    "class_id_db": "a17e604c-21c8-5d6f-98b4-4abf21c78891",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 67,
+    "class_title_csv": "中四級數學科操卷班MYU",
+    "class_id_db": "2aee06cb-2630-53c2-911d-b55e1c288c11",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "李承鋒",
+    "student_id_db": "d78cdee9-fc3f-4ffa-ab33-68861dc36143",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 67,
+    "class_title_csv": "中四級數學科操卷班MYU",
+    "class_id_db": "2aee06cb-2630-53c2-911d-b55e1c288c11",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "霍健一",
+    "student_id_db": "a84ea9f8-7c1d-4739-b347-058cee5a27e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 67,
+    "class_title_csv": "中四級數學科操卷班MYU",
+    "class_id_db": "2aee06cb-2630-53c2-911d-b55e1c288c11",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "王晴怡",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 67,
+    "class_title_csv": "中四級數學科操卷班MYU",
+    "class_id_db": "2aee06cb-2630-53c2-911d-b55e1c288c11",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "吳晉銘",
+    "student_id_db": "b9ec0998-36bc-4bc9-8b4b-6ad4e9000e98",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 68,
+    "class_title_csv": "中五級數學科操卷班MYU",
+    "class_id_db": "91b3d1b0-dc0b-5401-b664-77e528afc602",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 68,
+    "class_title_csv": "中五級數學科操卷班MYU",
+    "class_id_db": "91b3d1b0-dc0b-5401-b664-77e528afc602",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "趙佳鑫",
+    "student_id_db": "b2ed23a6-b41c-4c18-8623-0c1510616490",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 68,
+    "class_title_csv": "中五級數學科操卷班MYU",
+    "class_id_db": "91b3d1b0-dc0b-5401-b664-77e528afc602",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "楊俊熙",
+    "student_id_db": "3636de02-c540-483c-a724-0341ef029f44",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 68,
+    "class_title_csv": "中五級數學科操卷班MYU",
+    "class_id_db": "91b3d1b0-dc0b-5401-b664-77e528afc602",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "徐思思",
+    "student_id_db": "b048d92b-aa05-487c-b0be-545ef6745e2d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 70,
+    "class_title_csv": "中一級數學科操卷班NKWO",
+    "class_id_db": "ed572526-da92-59ed-aa1e-7c54b5357c43",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "張聖汶",
+    "student_id_db": "7801ffd1-6991-4a37-9015-61d33320b215",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 70,
+    "class_title_csv": "中一級數學科操卷班NKWO",
+    "class_id_db": "ed572526-da92-59ed-aa1e-7c54b5357c43",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "文覺瑩f",
+    "student_id_db": "617dd2b5-bbad-412a-a3bf-b6b17f7dbd41",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 70,
+    "class_title_csv": "中一級數學科操卷班NKWO",
+    "class_id_db": "ed572526-da92-59ed-aa1e-7c54b5357c43",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "文覺稼",
+    "student_id_db": "98b38abc-55c5-41cb-8815-5ece90f15645",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 71,
+    "class_title_csv": "中二級數學科操卷班NKWO",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "鄧宇童",
+    "student_id_db": "6d169f47-d3cb-42e0-b4bf-ed8e77ee7b99",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 71,
+    "class_title_csv": "中二級數學科操卷班NKWO",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "梁展博",
+    "student_id_db": "b71f8795-7d99-4204-bd9c-791bf1395ffc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 71,
+    "class_title_csv": "中二級數學科操卷班NKWO",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "文覺熲",
+    "student_id_db": "5787d58f-5d75-4c5b-b1c1-fb7f223d150f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 72,
+    "class_title_csv": "中三級數學科操卷班NKWO",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "莫凱晴",
+    "student_id_db": "d7b87430-5a48-4b93-a66e-6bce6d9bae5d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 72,
+    "class_title_csv": "中三級數學科操卷班NKWO",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "張以諾",
+    "student_id_db": null,
+    "student_match_note": "姓名重複多筆"
+  },
+  {
+    "csv_row": 72,
+    "class_title_csv": "中三級數學科操卷班NKWO",
+    "class_id_db": "7add54c5-1a1a-4dc1-acd2-0f9d8bf0a5dd",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "林曉柔",
+    "student_id_db": "bbc35d66-91ff-4114-9366-a0dcd261a000",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 73,
+    "class_title_csv": "中四級會計理財操卷班LING",
+    "class_id_db": "565ec2a7-fead-5408-90be-ea7d3bc28823",
+    "class_match_method": "模糊(分數55)",
+    "student_name_csv": "范以喬",
+    "student_id_db": "9b6d6ea6-2b17-42a7-8367-50e891c6897e",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 74,
+    "class_title_csv": "中五級會計理財操卷班LING",
+    "class_id_db": "8cdc3f86-fc05-5313-b93b-bce3ffbedc1a",
+    "class_match_method": "模糊(分數55)",
+    "student_name_csv": "蔡汶軒",
+    "student_id_db": "495c1b7f-a4bf-42a3-a9ba-92c70d4202ea",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 76,
+    "class_title_csv": "中六級英文科一對一JLAU",
+    "class_id_db": "6cf56a34-42ff-59e2-964e-64186dcebf9e",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "廖俊粼",
+    "student_id_db": "805bda3f-ac9a-4acf-aca6-39f491c1b5c7",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 77,
+    "class_title_csv": "中六級數學科一對一MYU",
+    "class_id_db": "d4a698bf-e6e0-5b1c-a56a-dd8a7f311459",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "廖俊粼",
+    "student_id_db": "805bda3f-ac9a-4acf-aca6-39f491c1b5c7",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 78,
+    "class_title_csv": "中六級英文科一對二CYNG",
+    "class_id_db": "8df44c46-8f35-57b7-a5e8-39f349aace93",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "周美君",
+    "student_id_db": "77d6c2c9-9a38-45e6-88c8-e7e744c6c5b9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 78,
+    "class_title_csv": "中六級英文科一對二CYNG",
+    "class_id_db": "8df44c46-8f35-57b7-a5e8-39f349aace93",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "陳梓慧",
+    "student_id_db": "a2655bb3-6f9c-4ef2-a885-c789669c4061",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 79,
+    "class_title_csv": "（試）中四級化學科一對一SBLA",
+    "class_id_db": "e8c7604a-1f15-56a7-8253-0e8661f114ee",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "邱浩傑",
+    "student_id_db": "9ff4db86-7b9e-463d-9127-51556940b038",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 80,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "吳晉輝",
+    "student_id_db": "56a2d62d-efe0-4954-b6b1-0e5b739985c8",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 80,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 80,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳卓賢",
+    "student_id_db": "06f6ee6f-0723-49c9-9c95-fbe177b7b7bf",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 80,
+    "class_title_csv": "中五級物理科A班THOM",
+    "class_id_db": "9199979e-71c1-4bee-beb4-2ce47fe86573",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "董籽均",
+    "student_id_db": "d69612dc-a1ec-450c-8902-333eb4c0171f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 81,
+    "class_title_csv": "中五莊靖思中文科單對單",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "莊靖思",
+    "student_id_db": "f80f24c8-c46d-4401-afab-7f93ebfc2f6b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 82,
+    "class_title_csv": "中五莊靖思生物科單對單",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "莊靖思",
+    "student_id_db": "f80f24c8-c46d-4401-afab-7f93ebfc2f6b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 83,
+    "class_title_csv": "中五莊靖思物理科單對單",
+    "class_id_db": "0611f048-1abf-5d73-ab36-8b860a9ebb75",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "莊靖思",
+    "student_id_db": "f80f24c8-c46d-4401-afab-7f93ebfc2f6b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 84,
+    "class_title_csv": "中五莊靖思BAFS科單對單",
+    "class_id_db": null,
+    "class_match_method": "模糊仍無法唯一",
+    "student_name_csv": "莊靖思",
+    "student_id_db": "f80f24c8-c46d-4401-afab-7f93ebfc2f6b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 85,
+    "class_title_csv": "中一級數學科加堂Liam",
+    "class_id_db": "ed572526-da92-59ed-aa1e-7c54b5357c43",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "文覺瑩f",
+    "student_id_db": "617dd2b5-bbad-412a-a3bf-b6b17f7dbd41",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 85,
+    "class_title_csv": "中一級數學科加堂Liam",
+    "class_id_db": "ed572526-da92-59ed-aa1e-7c54b5357c43",
+    "class_match_method": "模糊(分數65)",
+    "student_name_csv": "文覺稼",
+    "student_id_db": "98b38abc-55c5-41cb-8815-5ece90f15645",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 86,
+    "class_title_csv": "中二級數學科C班LIAM",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "潘子翹",
+    "student_id_db": "9af92580-3c8f-4e34-9b0e-259f7b1d29d4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 86,
+    "class_title_csv": "中二級數學科C班LIAM",
+    "class_id_db": "72b0bb99-26f7-4a93-afad-f7462048385a",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "李柚君",
+    "student_id_db": "33d9d899-bc3e-417f-a73e-25e51ddec12c",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 87,
+    "class_title_csv": "中一級數學科單對單NKWO",
+    "class_id_db": "2b48c681-8017-590b-852f-232097fac865",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "黃瑋霆",
+    "student_id_db": "d985e2e0-e140-49cf-9070-5d5f22145ef9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 88,
+    "class_title_csv": "林家綺中文科單對單 CFAN",
+    "class_id_db": "e3fc2cfb-ddde-5bcd-8079-f987585fec5c",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "林家綺",
+    "student_id_db": "7c4427c6-234b-43b4-a598-a5fd27461fab",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 89,
+    "class_title_csv": "俞逸軒一對一 MYU",
+    "class_id_db": "0321e2d4-5ac7-5303-ba20-0f33e3126db2",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "俞逸軒",
+    "student_id_db": "5defd314-7fff-4181-90a2-12dae25e21cf",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 90,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "羅兆斐",
+    "student_id_db": "ece2a51e-8095-40bf-8786-e0c7ff869d47",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 90,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "李昭儀",
+    "student_id_db": "c9d95382-dc26-44eb-9439-689cd9856022",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 90,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "黃慧淇",
+    "student_id_db": "771f28d9-790f-46e1-a803-ae64a635d68b",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 90,
+    "class_title_csv": "中四五級英文科A班CYNG",
+    "class_id_db": "499c272e-287d-428a-a6ce-baeb1c423bab",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "趙佳鑫",
+    "student_id_db": "b2ed23a6-b41c-4c18-8623-0c1510616490",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 91,
+    "class_title_csv": "中四五級英文B班CYNG",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數95)",
+    "student_name_csv": "凌巧悅",
+    "student_id_db": "fc447e55-3829-4793-8a7a-51efaacb75c4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 91,
+    "class_title_csv": "中四五級英文B班CYNG",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數95)",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 91,
+    "class_title_csv": "中四五級英文B班CYNG",
+    "class_id_db": "a1d1feba-33f5-407a-94d0-df26cb4fd412",
+    "class_match_method": "模糊(分數95)",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 92,
+    "class_title_csv": "中一二級英B班CYNG",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "陳宏熙",
+    "student_id_db": "fee10737-293b-4abc-b861-cf90c12f49e9",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 92,
+    "class_title_csv": "中一二級英B班CYNG",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "陳弘燁",
+    "student_id_db": "fbb6b90a-2eda-4d65-84b7-f32c4c774c33",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 92,
+    "class_title_csv": "中一二級英B班CYNG",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "梁展博",
+    "student_id_db": "b71f8795-7d99-4204-bd9c-791bf1395ffc",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 92,
+    "class_title_csv": "中一二級英B班CYNG",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "羅善瀧",
+    "student_id_db": "ef0c9409-d389-47ac-9287-e4517bbe4b45",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 92,
+    "class_title_csv": "中一二級英B班CYNG",
+    "class_id_db": "16678e36-352e-4aef-abff-f32bcbefad26",
+    "class_match_method": "模糊(分數90)",
+    "student_name_csv": "謝瑋翹",
+    "student_id_db": "08c84fc8-67fc-4bba-8a53-d060de658a90",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 93,
+    "class_title_csv": "陳煒傑一對一CYND",
+    "class_id_db": "7702ea6f-bd18-506a-bee5-7605213bf5fa",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "陳煒杰",
+    "student_id_db": "7a3d4401-60e0-4022-b56a-618e1096a6eb",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 95,
+    "class_title_csv": "中六級中文科一對一CFAN",
+    "class_id_db": "2b8c7bb6-e76b-5816-9a9a-bfeaedf13561",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "楊𧘲佳",
+    "student_id_db": "98f9ffe4-4c78-4582-8f37-c3db330f5048",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 96,
+    "class_title_csv": "中六級數學科一對二 MYU",
+    "class_id_db": "92e2e1d0-28c6-4e99-a9e3-96fc6046e05d",
+    "class_match_method": "模糊(分數60)",
+    "student_name_csv": "高梓軒",
+    "student_id_db": "2d28dd37-b19d-41d8-b220-a13fdf37041d",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 96,
+    "class_title_csv": "中六級數學科一對二 MYU",
+    "class_id_db": "92e2e1d0-28c6-4e99-a9e3-96fc6046e05d",
+    "class_match_method": "模糊(分數60)",
+    "student_name_csv": "陳宣穎",
+    "student_id_db": "486dd132-f2b2-4c0e-b5e4-853e07434826",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 97,
+    "class_title_csv": "智珩功課班 Rain",
+    "class_id_db": null,
+    "class_match_method": "模糊同分多候選",
+    "student_name_csv": "區智珩",
+    "student_id_db": "eb3e8cf2-6fde-4138-b38d-99d698542306",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 99,
+    "class_title_csv": "中五級化學科A班PHBE",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蘇子航",
+    "student_id_db": "2dfda27f-b6aa-453e-a2cc-f955cf3ef813",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 99,
+    "class_title_csv": "中五級化學科A班PHBE",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "蕭馥鎣",
+    "student_id_db": "5f3684ea-1fd7-4bae-8627-940e39a5e626",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 99,
+    "class_title_csv": "中五級化學科A班PHBE",
+    "class_id_db": "d23852cd-3827-4365-853d-00e23e093e83",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "朱震軒",
+    "student_id_db": "24331c17-871b-4e56-96ca-ad72058fb371",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 101,
+    "class_title_csv": "中二級科學A班 PHEB",
+    "class_id_db": "21fae984-555b-4c0b-b63d-c7c067c18706",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "劉展",
+    "student_id_db": "2ca7a777-d7cd-404d-b200-5d4e9d389123",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 101,
+    "class_title_csv": "中二級科學A班 PHEB",
+    "class_id_db": "21fae984-555b-4c0b-b63d-c7c067c18706",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "陸玉瓏",
+    "student_id_db": "ca740477-7f3d-42a6-8590-1c15144a0ef4",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 101,
+    "class_title_csv": "中二級科學A班 PHEB",
+    "class_id_db": "21fae984-555b-4c0b-b63d-c7c067c18706",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "鄧宇童",
+    "student_id_db": "6d169f47-d3cb-42e0-b4bf-ed8e77ee7b99",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 102,
+    "class_title_csv": "中三級科學科A班PHEB",
+    "class_id_db": "d63b2d84-bc28-4406-8a98-a9872c67860f",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "翁頌怡",
+    "student_id_db": "d6d91a52-7b94-4e15-b91f-fabeb6916e65",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 103,
+    "class_title_csv": "中二級中文科A班 SHEK",
+    "class_id_db": "91f31145-3842-400b-8009-8d0e7086c536",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "文覺熲",
+    "student_id_db": "5787d58f-5d75-4c5b-b1c1-fb7f223d150f",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 104,
+    "class_title_csv": "中四級BAFS科A班 Rafael",
+    "class_id_db": "7c41cbba-adaf-413c-aa84-56273b269f28",
+    "class_match_method": "班名鍵精確/括號變體",
+    "student_name_csv": "劉雨彤",
+    "student_id_db": "89679223-91e9-4250-9c16-33c4382f1467",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 105,
+    "class_title_csv": "馮記昰一對一Kenneth",
+    "class_id_db": "9dac7c67-dd60-57cf-82b5-17d01f31228a",
+    "class_match_method": "模糊(分數55)",
+    "student_name_csv": "馮記昰",
+    "student_id_db": "c452051b-6455-4cdd-b5fc-278afdb68668",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 106,
+    "class_title_csv": "中三級物理科單對單THOM",
+    "class_id_db": "987d72f6-0aac-5032-8100-2fc1e56cec8f",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "施柔羽",
+    "student_id_db": "2d75f2ce-1a08-4e4c-b40f-9ed967d89e07",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 107,
+    "class_title_csv": "中六級中文科一對一 CFAN",
+    "class_id_db": "3f6cfda5-189d-554c-baa4-0112dd6ba5d8",
+    "class_match_method": "模糊(分數80)",
+    "student_name_csv": "廖俊粼",
+    "student_id_db": "805bda3f-ac9a-4acf-aca6-39f491c1b5c7",
+    "student_match_note": "姓名唯一"
+  },
+  {
+    "csv_row": 108,
+    "class_title_csv": "中五級英文科一對一 CYNG",
+    "class_id_db": "bc798b21-6476-5754-954e-edb5b4ba22f2",
+    "class_match_method": "模糊(分數115)",
+    "student_name_csv": "曾穎",
+    "student_id_db": "aef03d05-ea19-428b-8ae4-f2b90f54e1e1",
+    "student_match_note": "姓名唯一"
+  }
+]
