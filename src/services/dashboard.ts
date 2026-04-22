@@ -390,11 +390,12 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
     .limit(800),
    supabase.from("classrooms").select("id, name").order("name", { ascending: true }).limit(4),
    supabase
-    .from("admin_todos")
-    .select("id, title, notes")
-    .eq("due_date", today)
-    .is("completed_at", null)
-    .order("sort_order", { ascending: true })
+    .from("calendar_events")
+    .select("id, title, description")
+    .eq("event_date", today)
+    .neq("status", "cancelled")
+    .order("all_day", { ascending: false })
+    .order("start_time", { ascending: true })
     .limit(30),
    supabase.from("leave_makeup_records").select(leaveSelect).eq("leave_date", today),
   ])
@@ -445,10 +446,10 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
    todosToday = (todosRes.data as Record<string, unknown>[]).map((row) => ({
     id: String(row.id),
     title: String(row.title ?? ""),
-    notes: row.notes != null ? String(row.notes) : null,
+    notes: row.description != null ? String(row.description) : null,
    }))
   } else if (todosRes.error) {
-   console.warn("[dashboard] admin_todos:", todosRes.error.message)
+   console.warn("[dashboard] calendar_events:", todosRes.error.message)
   }
 
   const topRooms = (classroomsTop4Res.data ?? []) as { id: string; name: string }[]
