@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
+import { CalendarDays, ChevronDown, KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -78,6 +79,34 @@ function statusStyle(s: CalendarEventStatus): string {
  return "border-rose-300 bg-rose-100 text-rose-900"
 }
 
+function tagTone(seed: string): string {
+ const tones = [
+  "bg-orange-100 text-orange-700",
+  "bg-sky-100 text-sky-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+  "bg-emerald-100 text-emerald-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-violet-100 text-violet-700",
+ ]
+ let sum = 0
+ for (let i = 0; i < seed.length; i += 1) sum += seed.charCodeAt(i)
+ return tones[sum % tones.length]
+}
+
+function columnShellTone(status: CalendarEventStatus): string {
+ if (status === "todo") return "from-slate-100/90 to-white"
+ if (status === "in_progress") return "from-sky-100/90 to-white"
+ if (status === "done") return "from-emerald-100/90 to-white"
+ return "from-rose-100/90 to-white"
+}
+
+function columnAccentTone(status: CalendarEventStatus): string {
+ if (status === "todo") return "bg-slate-500"
+ if (status === "in_progress") return "bg-sky-500"
+ if (status === "done") return "bg-emerald-500"
+ return "bg-rose-500"
+}
+
 export function TodoBoardView() {
  const role = getMgmtRole()
  const isTeacher = role === "teacher"
@@ -105,6 +134,7 @@ export function TodoBoardView() {
  const [teacherQuery, setTeacherQuery] = useState("")
  const [userQuery, setUserQuery] = useState("")
  const [studentQuery, setStudentQuery] = useState("")
+ const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(() => new Set())
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -180,6 +210,39 @@ export function TodoBoardView() {
  const userLabel = (id: string) => options.users.find((u) => u.id === id)?.label ?? `${id.slice(0, 8)}…`
  const studentLabel = (id: string) => options.students.find((s) => s.id === id)?.label ?? `${id.slice(0, 8)}…`
  const toggleId = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id])
+
+ const renderTeacherLinks = (ids: string[]) => {
+  if (ids.length === 0) return <span>—</span>
+  return ids.map((id, idx) => (
+   <span key={id}>
+    {idx > 0 ? "、" : ""}
+    <Link to={`/Teachers/${id}`} className="text-primary underline-offset-2 hover:underline">
+     {teacherLabel(id)}
+    </Link>
+   </span>
+  ))
+ }
+
+ const renderStudentLinks = (ids: string[]) => {
+  if (ids.length === 0) return <span>—</span>
+  return ids.map((id, idx) => (
+   <span key={id}>
+    {idx > 0 ? "、" : ""}
+    <Link to={`/Students/${id}`} className="text-primary underline-offset-2 hover:underline">
+     {studentLabel(id)}
+    </Link>
+   </span>
+  ))
+ }
+
+ const toggleExpandCard = (id: string) => {
+  setExpandedCardIds((prev) => {
+   const next = new Set(prev)
+   if (next.has(id)) next.delete(id)
+   else next.add(id)
+   return next
+  })
+ }
 
  const openCreate = () => {
   if (!canEdit) return
@@ -307,7 +370,13 @@ export function TodoBoardView() {
          <td className="px-3 py-2"><span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{r.category || "一般"}</span></td>
          <td className="px-3 py-2"><span className={cn("rounded-full border px-2 py-0.5 text-xs", statusStyle(r.status))}>{statusLabel(r.status)}</span></td>
          <td className="px-3 py-2 text-muted-foreground">{r.description?.trim() || "—"}</td>
-         <td className="px-3 py-2 text-xs text-muted-foreground">師：{r.teacherIds.map(teacherLabel).join("、") || "—"}<br />同：{r.userIds.map(userLabel).join("、") || "—"}<br />生：{r.studentIds.map(studentLabel).join("、") || "—"}</td>
+         <td className="px-3 py-2 text-xs text-muted-foreground">
+          師：{renderTeacherLinks(r.teacherIds)}
+          <br />
+          同：{r.userIds.map(userLabel).join("、") || "—"}
+          <br />
+          生：{renderStudentLinks(r.studentIds)}
+         </td>
          {canEdit ? <td className="px-3 py-2"><div className="flex gap-1"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => void removeEvent(r)}><Trash2 className="h-3.5 w-3.5" /></Button></div></td> : null}
         </tr>
        ))}
@@ -319,22 +388,66 @@ export function TodoBoardView() {
    {!loading && viewMode === "kanban" ? (
     <div className="grid gap-4 lg:grid-cols-4">
      {(["todo", "in_progress", "done", "cancelled"] as CalendarEventStatus[]).map((status) => (
-      <section key={status} className="rounded-xl border border-border bg-card p-3 shadow-sm">
-       <header className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{statusLabel(status)}</h3>
-        <span className={cn("rounded-full border px-2 py-0.5 text-xs", statusStyle(status))}>{kanbanGroups[status].length}</span>
+      <section key={status} className={cn("rounded-2xl border border-border/80 bg-gradient-to-b p-1 shadow-sm", columnShellTone(status))}>
+       <header className="relative overflow-hidden rounded-xl border border-border/60 bg-white/80 px-4 py-3 text-center shadow-sm backdrop-blur">
+        <span className={cn("absolute left-0 top-0 h-full w-1.5", columnAccentTone(status))} aria-hidden />
+        <h3 className="text-[13px] font-semibold uppercase tracking-[0.14em]">{statusLabel(status)}</h3>
        </header>
-       <div className="space-y-2">
-        {kanbanGroups[status].length === 0 ? <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">無項目</p> : kanbanGroups[status].map((r) => (
-         <article key={r.id} className="rounded-lg border border-border/80 bg-background px-3 py-2">
-          <p className="text-xs font-medium text-muted-foreground">{r.eventDate}</p>
-          <p className="text-sm font-semibold">{r.title}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{r.category || "一般"}</p>
-          {r.description?.trim() ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.description}</p> : null}
-          <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground"><Users className="h-3.5 w-3.5" />師 {r.teacherIds.length} / 同事 {r.userIds.length} / 生 {r.studentIds.length}</div>
-          {canEdit ? <div className="mt-1 flex gap-1"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => void removeEvent(r)}><Trash2 className="h-3.5 w-3.5" /></Button></div> : null}
-         </article>
-        ))}
+       <div className="px-2 py-3">
+        <div className="mb-2 flex items-center justify-end">
+         <span className={cn("rounded-full border px-2 py-0.5 text-xs", statusStyle(status))}>{kanbanGroups[status].length}</span>
+        </div>
+        <div className="space-y-2">
+         {kanbanGroups[status].length === 0 ? <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">無項目</p> : kanbanGroups[status].map((r) => (
+          <article key={r.id} className="group relative rounded-xl border border-border/70 bg-white px-3 py-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md">
+           <span className={cn("absolute left-0 top-5 h-14 w-1 rounded-r", columnAccentTone(r.status))} aria-hidden />
+           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 pl-2.5">
+            <div className="flex flex-wrap gap-1">
+             <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", tagTone(r.category || "一般"))}>{r.category || "一般"}</span>
+             <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", tagTone(r.status))}>{statusLabel(r.status)}</span>
+             <span className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium", tagTone(r.visibility))}>{r.visibility === "teachers" ? "全體老師可見" : "指派可見"}</span>
+            </div>
+            <button
+             type="button"
+             className="rounded-md p-1 text-sky-600 transition hover:bg-sky-50"
+             onClick={() => toggleExpandCard(r.id)}
+             aria-label={expandedCardIds.has(r.id) ? "收合卡片內容" : "展開卡片內容"}
+            >
+             <ChevronDown className={cn("h-4 w-4 transition-transform", expandedCardIds.has(r.id) && "rotate-180")} />
+            </button>
+           </div>
+           <div className="pl-2.5">
+            <p className="text-[15px] font-semibold leading-snug">{r.title || "Untitled"}</p>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{r.description?.trim() ? "Description" : "No description"}</p>
+            {expandedCardIds.has(r.id) ? (
+             <>
+              {r.description?.trim() ? (
+               <>
+                <p className="mt-2 text-[11px] font-semibold text-muted-foreground">Notes:</p>
+                <p className="mt-0.5 rounded-md bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">{r.description}</p>
+               </>
+              ) : null}
+              <div className="mt-2 space-y-1 rounded-md border border-border/70 bg-muted/20 p-2 text-[11px] text-muted-foreground">
+               <div className="flex items-start gap-1">
+                <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span className="line-clamp-2">老師：{renderTeacherLinks(r.teacherIds)}</span>
+               </div>
+               <p className="line-clamp-2">同事：{r.userIds.map(userLabel).join("、") || "—"}</p>
+               <p className="line-clamp-2">學生：{renderStudentLinks(r.studentIds)}</p>
+              </div>
+             </>
+            ) : null}
+            <div className="mt-3 border-t border-border/70 pt-2 text-[11px] text-muted-foreground">
+             <div className="flex items-center justify-between gap-2">
+              <span className="rounded bg-muted/50 px-1.5 py-0.5">{r.teacherIds.length + r.userIds.length + r.studentIds.length > 0 ? "已指派" : "To be assigned"}</span>
+              <span className="inline-flex items-center gap-1 rounded bg-muted/50 px-1.5 py-0.5"><CalendarDays className="h-3.5 w-3.5" />{r.eventDate}</span>
+             </div>
+            </div>
+            {canEdit ? <div className="mt-1 flex gap-1"><Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button><Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => void removeEvent(r)}><Trash2 className="h-3.5 w-3.5" /></Button></div> : null}
+           </div>
+          </article>
+         ))}
+        </div>
        </div>
       </section>
      ))}
