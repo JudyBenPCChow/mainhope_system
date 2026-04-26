@@ -207,18 +207,18 @@ export function DashboardBoard({
 
    {/* 右 70% */}
    <section className="flex min-w-0 flex-1 flex-col gap-5 lg:w-[70%]" aria-label="今日概況">
-   {/* 待辦事項（今日） */}
+    {/* 待辦 */}
     <div className="rounded-xl border border-border/80 bg-card/90 p-5 shadow-sm md:p-6">
      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-foreground md:text-lg">
        <ListTodo className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
-       今日待辦事項
+       待辦事項
        <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground">
         {loading ? "…" : `${todosToday.length} 項`}
        </span>
       </h2>
       <Link
-       to="/Calendar"
+       to="/Todos"
        className="inline-flex items-center gap-0.5 text-sm font-medium text-primary hover:underline"
       >
        管理待辦
