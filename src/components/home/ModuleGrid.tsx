@@ -123,9 +123,9 @@ const GROUPS: { title: string; items: Mod[] }[] = [
     iconWrap: "bg-warning text-white",
    },
    {
-    to: "/Calendar",
+    to: "/Todos",
     title: "待辦事項",
-    desc: "管理待辦（日期、分類、狀態、關聯對象）",
+    desc: "新增、完成、編輯與刪除後台待辦",
     icon: ListTodo,
     card: "border-info bg-info/80 hover:bg-info",
     iconWrap: "bg-info text-white",

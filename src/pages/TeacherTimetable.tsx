@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from "react"
-import { CalendarClock } from "lucide-react"
 
 import {
  TeacherWeekTimetable,
  weekItemsFromManageRows,
 } from "@/components/teachers/TeacherWeekTimetable"
-import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { listCalendarEventsInRange, type CalendarEventRow } from "@/services/calendarQueries"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
@@ -23,7 +20,6 @@ export default function TeacherTimetablePage() {
  const toYmd = addDaysYmd(today, FUTURE_DAYS)
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
- const [calendarRows, setCalendarRows] = useState<CalendarEventRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -35,16 +31,11 @@ export default function TeacherTimetablePage() {
   setLoading(true)
   setErr(null)
   try {
-   const [list, calList] = await Promise.all([
-    fetchSchedulesInRange(fromYmd, toYmd, { teacherId }),
-    listCalendarEventsInRange(fromYmd, toYmd, { teacherId }),
-   ])
+   const list = await fetchSchedulesInRange(fromYmd, toYmd, { teacherId })
    setRows(list)
-   setCalendarRows(calList)
   } catch (e) {
-   setErr(formatUnknownError(e))
+   setErr(e instanceof Error ? e.message : String(e))
    setRows([])
-   setCalendarRows([])
   } finally {
    setLoading(false)
   }
@@ -78,33 +69,6 @@ export default function TeacherTimetablePage() {
    ) : (
     <TeacherWeekTimetable items={weekItemsFromManageRows(rows)} />
    )}
-   <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-    <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-     <CalendarClock className="h-5 w-5 text-info" aria-hidden />
-     我的行政事件
-    </h2>
-    <p className="mt-1 text-sm text-muted-foreground">此區塊來自待辦事項，與課堂排程分開。</p>
-    {loading ? (
-     <p className="mt-3 text-muted-foreground">載入中…</p>
-    ) : calendarRows.length === 0 ? (
-     <p className="mt-3 text-sm text-muted-foreground">目前沒有與您相關的行政事件。</p>
-    ) : (
-     <ul className="mt-3 space-y-2">
-      {calendarRows.map((e) => (
-       <li key={e.id} className="rounded-lg border border-border/80 bg-muted/20 px-3 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-         <p className="font-medium">{e.title}</p>
-         <span className="text-xs text-muted-foreground">
-          {e.allDay ? "全日" : `${e.startTime ?? "—"} - ${e.endTime ?? "—"}`}
-         </span>
-        </div>
-        <p className="text-xs text-muted-foreground">{e.eventDate}</p>
-        {e.description?.trim() ? <p className="mt-1 text-sm text-muted-foreground">{e.description}</p> : null}
-       </li>
-      ))}
-     </ul>
-    )}
-   </section>
   </div>
  )
 }
