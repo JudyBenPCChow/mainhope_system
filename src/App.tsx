@@ -26,12 +26,15 @@ import TeacherProfile from "@/pages/TeacherProfile"
 import TeacherTimetable from "@/pages/TeacherTimetable"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
+import Login from "@/pages/Login"
 
 export default function App() {
  return (
   <BrowserRouter>
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
+   <Route path="/Login" element={<Login />} />
+   <Route path="/login" element={<Login />} />
     <Route element={<Layout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/Users" element={<UserManagement />} />
@@ -59,6 +62,7 @@ export default function App() {
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
     </Route>
+   <Route path="*" element={<Navigate to="/Home" replace />} />
    </Routes>
   </BrowserRouter>
  )
