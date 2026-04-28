@@ -20,8 +20,8 @@
 實作方式：在 UI 層的 `catch` 內呼叫 `**reportUserFacingError`**（`src/lib/mgmtErrorReporting.ts`），並盡量傳入：
 
 - `**source`**：穩定字串，建議 `元件檔名.函式名`（例如 `ScheduleManagePage.confirmMove`），方便在報錯列表篩選。
-- `**setErr**`：將訊息寫入該頁／對話框的錯誤 state，以觸發紅字區塊。
-- `**userMessage**`（選填）：若已用 `formatUnknownError(e)` 得到較完整訊息，可傳入以覆寫預設訊息。
+- `**setErr`**：將訊息寫入該頁／對話框的錯誤 state，以觸發紅字區塊。
+- `**userMessage`**（選填）：若已用 `formatUnknownError(e)` 得到較完整訊息，可傳入以覆寫預設訊息。
 
 `reportUserFacingError` 會節流（同 `source` + 相同訊息約 **60 秒**內不重複上報），避免洗版；仍會先透過 `setErr` 讓使用者當下看到錯誤。
 
@@ -55,7 +55,7 @@
 ## 3. 快速檢查清單（新頁面／新對話框）
 
 - 所有會打 API 的按鈕皆有 **loading / disabled** 與 `**catch`**。
-- `catch` 內使用 `**formatUnknownError`** + `**reportUserFacingError**`（含 `**setErr**`），畫面有紅字區塊。
+- `catch` 內使用 `**formatUnknownError`** + `**reportUserFacingError`**（含 `**setErr`**），畫面有紅字區塊。
 - 成功路徑有關閉／重整／成功提示之一。
 - 相關按鈕為 `**type="button"**`（除非確實要整表單 submit）。
 - 只要欄位值來自「既定清單」（例如狀態、關係、分類），**不得**用自由文字 `Input`；應使用 `select`、單選按鈕或等價選項元件，避免髒資料。
@@ -108,3 +108,57 @@
 - 任務卡需提供展開/收合互動（例如 chevron），預設顯示摘要，展開後再顯示完整 Notes 與參與對象。
 - 參與對象中，老師與學生名稱需可點擊導向詳細頁；同事可保留純文字。
 - 看板卡片**不提供 file 功能**（不顯示附件區、不含上傳/下載/檔案計數），避免與待辦核心流程耦合。
+
+---
+
+## 8. Date Picker 設計規範（2026-04-23 起）
+
+- 全專案日期輸入一律使用共用 `Input type="date"`（由 `src/components/ui/input.tsx` 轉接至 `src/components/ui/date-input.tsx`）；禁止在業務頁各自實作日期彈層。
+- Date Picker 面板需維持四段式：**白底圓角容器 + 上方日期顯示區 + 中央月曆 + 底部 Reset**，保持一致視覺語言。
+- Date Picker 內容區需置中：上方日期、月份標題、月曆表格與底部 Reset 按鈕皆需以中線對齊，不得預設靠左排版。
+- Date Picker 不得混入檔案相關能力（附件區、上傳/下載、檔案數量）。
+- 對外值格式固定為 `YYYY-MM-DD`；Reset 清除回傳空字串，並需與既有查詢參數/API payload 相容。
+- 若要擴充成區間（Start/End）模式，需在共用元件層實作與維護，不可在單頁繞過共用元件另做。
+
+---
+
+## 9. 全域 Components 色彩與 Icon 規範（2026-04-23 起）
+
+- 全域顏色只使用設計 token（`neutral` + `utility`）：`success/green`、`info/blue`、`warning/orange`、`destructive(red)`，禁止在新元件直接寫臨時色號。
+- 狀態語意對應固定：成功=`success`、資訊=`info`、警示=`warning`、錯誤=`destructive`；中性容器/文字使用 `neutral` 階。
+- 共用元件（`Button`、`Input`、`Dialog`、Date Picker）應優先使用 token 顏色，避免頁面各自定義主色導致視覺漂移。
+- Icon 與箭咀（arrow/chevron）採統一筆觸規格：圓角端點、較一致線寬；若頁面需特殊尺寸，僅調整尺寸，不改筆觸風格。
+- 新增 icon 時優先沿用同一套圖示家族（目前 `lucide-react`），避免混用多套線性 icon 導致風格不一致。
+
+---
+
+## 10. 系統通知 Banner 規範（2026-04-23 起）
+
+- 全域操作通知改用 Banner；不得使用瀏覽器 `alert()`。
+- Banner 固定在頁面頂部，以滑入方式出現；多條通知直向堆疊，最新在最上方。
+- Banner 不自動消失，必須由使用者手動按 `X` 關閉。
+- Banner 色彩語意：`default`(灰) / `info`(藍) / `success`(綠) / `warning`(橙) / `error`(紅)。
+- 內容可點擊展開；若通知含 action，按鈕文案固定為 `前往XXXX頁面`，點擊後需「導頁 + 關閉該通知」。
+- 需要二次確認（確認/取消）的互動保留 Dialog，不使用 Banner 取代。
+
+---
+
+## 11. Confirm Dialog 規範（2026-04-23 起）
+
+- 需「確認 / 取消」的操作（刪除、拒絕、覆寫）必須使用全域 Confirm Dialog；不得使用瀏覽器 `confirm()`。
+- Dialog 置中顯示，背景遮罩；預設 **不可**點擊遮罩關閉。
+- 鍵盤規則：`Enter` 觸發主要動作、`Esc` 視為取消。
+- 按鈕配置：次要（outline）在左、主要（實心）在右；窄螢幕允許換行。
+- 危險操作主要按鈕使用 destructive 語意色。
+
+---
+
+## 12. Dropdown / Menu / Tag 規範（2026-04-23 起）
+
+- 全專案下拉選單一律使用共用 `Select`（`src/components/ui/select.tsx`），不得直接在頁面使用原生 `<select>`。
+- Dropdown 視覺語言：白底、圓角、細邊框、箭咀圖示一致、hover 邊框加深；disabled 項目維持低對比可辨識。
+- 需要 action menu（例如 Edit / Share / Preview）時，選單項目遵循同一套圓角容器與 hover 高亮風格，不得混入另一套 menu 樣式。
+- Tag 一律使用共用 `Tag`（`src/components/ui/tag.tsx`）或 `tagVariants`，禁止在業務頁手寫零散色塊。
+- 狀態語意對應：`booked/info`、`success`、`pending/warning`、`failed/error`、`cancelled/default`。
+- 狀態類標籤需使用共用字典 `statusToTagTone`（`src/lib/statusTag.ts`）做映射；不得在頁面各自硬編碼狀態對色邏輯。
+- 狀態映射字典採可配置表 `STATUS_TAG_RULES`；新增狀態時優先修改字典，不改頁面判斷碼。

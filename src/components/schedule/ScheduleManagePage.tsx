@@ -23,6 +23,10 @@ import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWha
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
  formatMin,
@@ -143,6 +147,7 @@ type PendingMove = {
 }
 
 export function ScheduleManagePage() {
+ const { confirmDialog } = useAppConfirm()
  const todayYmd = localYmd()
  const [searchParams] = useSearchParams()
 
@@ -494,11 +499,9 @@ export function ScheduleManagePage() {
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <CalendarDays className="h-6 w-6 shrink-0 text-sky-600" aria-hidden />
+      <CalendarDays className="h-6 w-6 shrink-0 text-info" aria-hidden />
       排程管理
-      <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-0.5 text-sm font-medium text-sky-800">
-       {stats.todayLessonCount} 堂今日
-      </span>
+      <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 text-sm text-muted-foreground">
       按日期／列表可點擊卡片展開班內學生；日視圖可拖曳調整課室與時間（需確認）。日視圖以每格{" "}
@@ -508,7 +511,7 @@ export function ScheduleManagePage() {
    </header>
 
    {teacherScopeId ? (
-    <div className="rounded-xl border border-sky-200 bg-sky-50/90 px-4 py-3 text-sm text-sky-950">
+   <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
      您正以<strong>專班老師</strong>身分瀏覽：僅顯示指派給您的排程與統計。
     </div>
    ) : null}
@@ -530,14 +533,14 @@ export function ScheduleManagePage() {
      className={cn(
       "rounded-xl border bg-card p-5 text-left shadow-sm transition-all duration-200 md:p-6",
       "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-      displayStart === todayYmd && quickFilter == null ? "ring-2 ring-sky-400/50" : "border-border"
+      displayStart === todayYmd && quickFilter == null ? "ring-2 ring-info/50" : "border-border"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-      <CalendarDays className="h-5 w-5 shrink-0 text-sky-600" />
+      <CalendarDays className="h-5 w-5 shrink-0 text-info" />
       今日課堂
      </div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-sky-700">{stats.todayLessonCount}</p>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-info">{stats.todayLessonCount}</p>
      <p className="mt-2 text-sm text-muted-foreground">點擊將列表起始日設為今天</p>
     </button>
 
@@ -546,15 +549,15 @@ export function ScheduleManagePage() {
      onClick={onPendingCardClick}
      className={cn(
       "rounded-xl border bg-card p-5 text-left shadow-sm transition-all duration-200 md:p-6",
-      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/40",
-      quickFilter === "cancelled" ? "ring-2 ring-red-400/60" : "border-border"
+      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40",
+      quickFilter === "cancelled" ? "ring-2 ring-destructive/60" : "border-border"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-      <XCircle className="h-5 w-5 shrink-0 text-red-600" />
+      <XCircle className="h-5 w-5 shrink-0 text-destructive" />
       待處理（取消）
      </div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-red-600">{stats.pendingCancelledCount}</p>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-destructive">{stats.pendingCancelledCount}</p>
      <p className="mt-2 text-sm text-muted-foreground">點擊篩選「已取消」排程（再點一次還原）</p>
     </button>
 
@@ -563,15 +566,15 @@ export function ScheduleManagePage() {
      onClick={onTodayCardClick}
      className={cn(
       "rounded-xl border bg-card p-5 text-left shadow-sm transition-all duration-200 md:p-6",
-      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/40",
+      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/40",
       "border-border"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-      <Users className="h-5 w-5 shrink-0 text-emerald-600" />
+      <Users className="h-5 w-5 shrink-0 text-success" />
       今日上堂學生
      </div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-700">{stats.todayStudentHeadcount}</p>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-success">{stats.todayStudentHeadcount}</p>
      <p className="mt-2 text-sm text-muted-foreground">依今天課表班別加總報讀人數</p>
     </button>
    </section>
@@ -589,11 +592,11 @@ export function ScheduleManagePage() {
        placeholder="搜尋班別 / 老師…"
        value={searchQ}
        onChange={(e) => setSearchQ(e.target.value)}
-       className="h-10 pl-10 text-sm transition-colors hover:border-sky-300/60"
+       className="h-10 pl-10 text-sm transition-colors hover:border-info/60"
       />
      </div>
-     <select
-      className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-sky-300/60"
+     <Select
+      className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
       value={classFilter}
       onChange={(e) => setClassFilter(e.target.value)}
      >
@@ -603,9 +606,9 @@ export function ScheduleManagePage() {
         {o.label}
        </option>
       ))}
-     </select>
-     <select
-      className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-sky-300/60"
+     </Select>
+     <Select
+      className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
       value={statusFilter}
       onChange={(e) => setStatusFilter(e.target.value)}
      >
@@ -613,7 +616,7 @@ export function ScheduleManagePage() {
       <option value="預定">預定</option>
       <option value="完成">完成</option>
       <option value="取消">取消</option>
-     </select>
+     </Select>
     </div>
 
     <div className="flex flex-wrap items-center gap-2">
@@ -660,7 +663,7 @@ export function ScheduleManagePage() {
      <Button
       type="button"
       size="default"
-      className="gap-1.5 bg-sky-600 text-sm text-white shadow-sm hover:bg-sky-700"
+      className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
       onClick={openAdd}
      >
       <Plus className="h-4 w-4" />
@@ -723,13 +726,9 @@ export function ScheduleManagePage() {
          />
          <span className="text-lg font-semibold tabular-nums text-foreground md:text-xl">{dateYmd}</span>
          {isToday ? (
-          <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-sm font-medium text-amber-950">
-           今天
-          </span>
+          <Tag tone="warning" size="sm">今天</Tag>
          ) : isRangeStart ? (
-          <span className="rounded-full bg-amber-200/90 px-2.5 py-0.5 text-sm font-medium text-amber-950">
-           起始日
-          </span>
+          <Tag tone="warning" size="sm">起始日</Tag>
          ) : null}
          <span className="text-base text-muted-foreground">{list.length} 堂</span>
         </div>
@@ -751,7 +750,7 @@ export function ScheduleManagePage() {
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
              <button
               type="button"
-              className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/50"
+              className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/50"
               aria-expanded={open}
               onClick={() =>
                setExpandedScheduleId((id) => (id === s.id ? null : s.id))
@@ -777,7 +776,7 @@ export function ScheduleManagePage() {
                 <User className="h-4 w-4 shrink-0" aria-hidden />
                 {s.teacher_name ?? "—"}
                </span>
-               <span className="inline-flex items-center gap-1 text-sky-700">
+               <span className="inline-flex items-center gap-1 text-info">
                 <Users className="h-4 w-4 opacity-70" aria-hidden />
                 {s.enrollCount} 人報讀
                </span>
@@ -788,8 +787,8 @@ export function ScheduleManagePage() {
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
              >
-              <select
-               className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-sky-400/50"
+              <Select
+               className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
                value={s.classroom_id ?? ""}
                onChange={async (e) => {
                 const v = e.target.value || null
@@ -803,9 +802,9 @@ export function ScheduleManagePage() {
                  {o.label}
                 </option>
                ))}
-              </select>
-              <select
-               className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-sky-800 transition-colors hover:border-sky-400/50"
+              </Select>
+              <Select
+               className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
                onChange={async (e) => {
                 await updateSchedule(s.id, { status: e.target.value })
@@ -815,17 +814,17 @@ export function ScheduleManagePage() {
                <option value="預定">預定</option>
                <option value="完成">完成</option>
                <option value="取消">取消</option>
-              </select>
+              </Select>
               <Link
                to="/LeaveManagement"
-               className="rounded-md border border-orange-300 px-3 py-2 text-sm font-medium text-orange-700 transition-colors hover:bg-orange-50"
+              className="rounded-md border border-warning px-3 py-2 text-sm font-medium text-warning transition-colors hover:bg-warning hover:text-warning-foreground"
                onClick={(e) => e.stopPropagation()}
               >
                +請假
               </Link>
               <Link
                to="/TrialSessions"
-               className="rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-50"
+              className="rounded-md border border-info px-3 py-2 text-sm font-medium text-info transition-colors hover:bg-info hover:text-info-foreground"
                onClick={(e) => e.stopPropagation()}
               >
                +補堂試堂
@@ -833,7 +832,7 @@ export function ScheduleManagePage() {
               <Button
                type="button"
                size="default"
-               className="h-11 gap-1.5 bg-emerald-600 px-3 text-base text-white hover:bg-emerald-700"
+               className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success"
                asChild
               >
                <Link to="/Attendance" onClick={(e) => e.stopPropagation()}>
@@ -848,7 +847,7 @@ export function ScheduleManagePage() {
                className="h-11 w-11 text-destructive hover:bg-destructive/10"
                aria-label="刪除排程"
                onClick={async () => {
-                if (!confirm("確定刪除此排程？")) return
+               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
                 await deleteSchedule(s.id)
                 await reload()
                }}
@@ -875,13 +874,13 @@ export function ScheduleManagePage() {
              </div>
             </div>
             {open ? (
-             <div className="border-t border-border bg-emerald-50/25 px-4 py-4 md:px-5">
-              <p className="text-sm font-medium text-sky-700">
+             <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
+              <p className="text-sm font-medium text-info">
                班別：{s.subject}
                {s.course_code ? `（${s.course_code}）` : ""}
                {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
               </p>
-              <p className="mb-2 mt-3 text-sm font-medium text-emerald-900">
+              <p className="mb-2 mt-3 text-sm font-medium text-success">
                班內學生（{listStudentsLoading ? "…" : listStudents.length}）
               </p>
               {listStudentsLoading ? (
@@ -889,20 +888,17 @@ export function ScheduleManagePage() {
               ) : (
                <div className="flex flex-wrap gap-2">
                 {listStudents.map((st) => (
-                 <div
-                  key={st.studentId}
-                  className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100/90 py-0.5 pl-2 pr-1"
-                 >
+                <Tag key={st.studentId} tone="success" size="sm" className="gap-1 py-0.5 pl-2 pr-1">
                   <Link
                    to={`/Students/${st.studentId}`}
-                   className="text-sm font-medium text-emerald-950 hover:underline"
+                   className="text-sm font-medium text-success hover:underline"
                    onClick={(e) => e.stopPropagation()}
                   >
                    {st.fullName}
                   </Link>
                   <StudentWhatsAppReminderButton
                    compact
-                   className="h-7 w-7 border-emerald-300/60"
+                   className="h-7 w-7 border-success/60"
                    contactPhone={st.contactPhone}
                    payload={{
                     studentName: st.fullName,
@@ -916,7 +912,7 @@ export function ScheduleManagePage() {
                     isTrial: false,
                    }}
                   />
-                 </div>
+                 </Tag>
                 ))}
                </div>
               )}
@@ -981,8 +977,8 @@ export function ScheduleManagePage() {
          <Fragment key={s.id}>
           <tr
            className={cn(
-            "cursor-pointer border-b border-border transition-colors hover:bg-sky-50/40",
-            open && "bg-sky-50/30"
+            "cursor-pointer border-b border-border transition-colors hover:bg-info/40",
+            open && "bg-info/30"
            )}
            onClick={() => setExpandedScheduleId((id) => (id === s.id ? null : s.id))}
           >
@@ -1015,7 +1011,7 @@ export function ScheduleManagePage() {
             <span className="block break-words">{s.classroom_name ?? "—"}</span>
            </td>
            <td className="align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
-            <select
+            <Select
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
              onChange={async (e) => {
@@ -1026,13 +1022,13 @@ export function ScheduleManagePage() {
              <option value="預定">預定</option>
              <option value="完成">完成</option>
              <option value="取消">取消</option>
-            </select>
+            </Select>
            </td>
            <td className="min-w-0 align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center gap-2">
              <Link
               to="/LeaveManagement"
-              className="text-sm font-medium text-orange-600 hover:underline"
+              className="text-sm font-medium text-warning hover:underline"
               onClick={(e) => e.stopPropagation()}
              >
               +請假
@@ -1043,7 +1039,7 @@ export function ScheduleManagePage() {
               className="h-auto p-0 text-sm text-destructive"
               onClick={async (e) => {
                e.stopPropagation()
-               if (!confirm("確定刪除？")) return
+              if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
                await deleteSchedule(s.id)
                await reload()
               }}
@@ -1059,9 +1055,9 @@ export function ScheduleManagePage() {
            </td>
           </tr>
           {open ? (
-           <tr className="border-b border-border bg-emerald-50/30">
+           <tr className="border-b border-border bg-success/30">
             <td colSpan={7} className="px-4 py-4">
-             <p className="mb-2 text-sm font-medium text-emerald-900">
+             <p className="mb-2 text-sm font-medium text-success">
               班內學生（{listStudentsLoading ? "…" : listStudents.length}）
              </p>
              {listStudentsLoading ? (
@@ -1069,20 +1065,17 @@ export function ScheduleManagePage() {
              ) : (
               <div className="flex flex-wrap gap-2">
                {listStudents.map((st) => (
-                <div
-                 key={st.studentId}
-                 className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100/80 py-0.5 pl-2 pr-1"
-                >
+               <Tag key={st.studentId} tone="success" size="sm" className="gap-1 py-0.5 pl-2 pr-1">
                  <Link
                   to={`/Students/${st.studentId}`}
-                  className="text-sm font-medium text-emerald-950 hover:underline"
+                  className="text-sm font-medium text-success hover:underline"
                   onClick={(e) => e.stopPropagation()}
                  >
                   {st.fullName}
                  </Link>
                  <StudentWhatsAppReminderButton
                   compact
-                  className="h-7 w-7 border-emerald-300/60"
+                  className="h-7 w-7 border-success/60"
                   contactPhone={st.contactPhone}
                   payload={{
                    studentName: st.fullName,
@@ -1096,7 +1089,7 @@ export function ScheduleManagePage() {
                    isTrial: false,
                   }}
                  />
-                </div>
+                </Tag>
                ))}
               </div>
              )}
@@ -1236,7 +1229,7 @@ export function ScheduleManagePage() {
    ) : null}
 
    <Dialog open={detailId != null} onOpenChange={(o) => !o && setDetailId(null)}>
-    <DialogContent className="max-w-md border-sky-100 text-sm">
+    <DialogContent className="max-w-md border-info text-sm">
      <DialogHeader>
       <DialogTitle className="text-lg font-semibold">排程詳細資料</DialogTitle>
      </DialogHeader>
@@ -1256,9 +1249,7 @@ export function ScheduleManagePage() {
        </p>
        <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
        <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
-       <span className="inline-flex rounded-full bg-sky-100 px-2.5 py-0.5 text-sm font-medium text-sky-900">
-        {detailRow.status}
-       </span>
+      <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
        {detailRow.remarks ? (
         <p className="text-muted-foreground">備註：{detailRow.remarks}</p>
        ) : null}
@@ -1345,7 +1336,7 @@ export function ScheduleManagePage() {
      <div className="grid gap-4 text-sm">
       <label className="grid gap-1.5">
        <span className="text-muted-foreground">班別</span>
-       <select
+       <Select
         className="h-11 w-full rounded-md border border-input px-3"
         value={addClassId}
         onChange={(e) => setAddClassId(e.target.value)}
@@ -1355,7 +1346,7 @@ export function ScheduleManagePage() {
           {c.label}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1.5">
        <span className="text-muted-foreground">日期</span>

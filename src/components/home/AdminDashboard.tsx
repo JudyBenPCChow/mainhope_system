@@ -10,7 +10,9 @@ import { UnpaidAlert } from "@/components/home/UnpaidAlert"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
+import { clearAuthState } from "@/lib/authSession"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { supabase } from "@/lib/supabaseClient"
 import {
  fetchAdminDashboard,
  fetchScheduleBoardForDate,
@@ -35,6 +37,10 @@ const empty: AdminDashboardPayload = {
 }
 
 export function AdminDashboard() {
+ const greetingName =
+  (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
+  DEMO_ADMIN_GREETING_NAME
+
  const [data, setData] = useState<AdminDashboardPayload>(empty)
  const [loading, setLoading] = useState(true)
  const [scheduleViewYmd, setScheduleViewYmd] = useState(todayYmdLocal)
@@ -79,9 +85,9 @@ export function AdminDashboard() {
   <div className="space-y-6 p-4 md:p-6 lg:space-y-8">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
-     <p className="text-sm font-medium uppercase tracking-wide text-sky-800/90">管理中心</p>
+     <p className="text-sm font-medium uppercase tracking-wide text-info/90">管理中心</p>
      <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-      你好，{DEMO_ADMIN_GREETING_NAME}！
+      你好，{greetingName}！
      </h1>
      <p className="mt-2 text-base text-muted-foreground md:text-lg">
       今日 {dashboardTitleDate()} · 儀表板與班務總覽
@@ -91,13 +97,13 @@ export function AdminDashboard() {
      type="button"
      variant="outline"
      size="default"
-     onClick={() => {
-      localStorage.removeItem("mgmt_role")
-      localStorage.removeItem("teacher_id")
-      window.location.reload()
+     onClick={async () => {
+      if (supabase) await supabase.auth.signOut()
+      clearAuthState()
+      window.location.href = "/Login"
      }}
     >
-     清除角色（演示）
+     登出
     </Button>
    </header>
 

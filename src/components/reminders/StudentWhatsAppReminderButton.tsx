@@ -39,7 +39,7 @@ export function StudentWhatsAppReminderButton({
    variant="outline"
    size={compact ? "icon" : "sm"}
    className={cn(
-    "border-emerald-600/40 text-emerald-800 hover:bg-emerald-50",
+    "border-success/40 text-success hover:bg-success",
     compact && "h-8 w-8 shrink-0",
     className
    )}

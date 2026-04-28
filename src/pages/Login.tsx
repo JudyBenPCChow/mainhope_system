@@ -1,0 +1,104 @@
+import { useState } from "react"
+import { Navigate, useNavigate } from "react-router-dom"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { clearAuthState, fetchMgmtProfileByEmail, applyProfileToStorage } from "@/lib/authSession"
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { getMgmtRole } from "@/lib/mgmtRole"
+
+export default function Login() {
+  const navigate = useNavigate()
+  const role = getMgmtRole()
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const onlyAlienEmail = (import.meta.env.VITE_ALIEN_EMAIL as string | undefined)?.trim().toLowerCase() ?? ""
+
+  if (role) return <Navigate to="/Home" replace />
+
+  const submit = async () => {
+    if (!supabase || !isSupabaseConfigured) {
+      setError("尚未設定 Supabase，暫時無法登入。")
+      return
+    }
+    if (!email.trim() || !password) {
+      setError("請輸入電郵與密碼。")
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    clearAuthState()
+    try {
+      const { error: signInError, data } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      })
+      if (signInError) throw signInError
+      const activeEmail = data.user?.email ?? email.trim().toLowerCase()
+      const profile = await fetchMgmtProfileByEmail(activeEmail)
+      if (!profile) {
+        await supabase.auth.signOut()
+        throw new Error("此帳號尚未在系統角色名單中設定，請聯絡外星人。")
+      }
+      if (profile.role === "teacher" && !profile.teacherId) {
+        await supabase.auth.signOut()
+        throw new Error("老師帳號未綁定 teacher_id，請聯絡外星人修正。")
+      }
+      if (profile.role === "alien" && onlyAlienEmail && profile.email !== onlyAlienEmail) {
+        await supabase.auth.signOut()
+        throw new Error("此帳號不是外星人指定帳號。")
+      }
+      applyProfileToStorage(profile)
+      navigate("/Home", { replace: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "登入失敗"
+      setError(msg)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-svh items-center justify-center bg-brand-bg p-6">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h1 className="text-2xl font-semibold tracking-tight">明學管理系統登入</h1>
+        <p className="mt-1 text-sm text-muted-foreground">登入後會按帳號角色自動顯示對應頁面與權限。</p>
+
+        <div className="mt-5 space-y-3">
+          <label className="grid gap-1 text-sm">
+            <span className="text-muted-foreground">電郵</span>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              autoComplete="email"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className="text-muted-foreground">密碼</span>
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submit()
+              }}
+            />
+          </label>
+        </div>
+
+        {error ? <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+
+        <Button type="button" className="mt-5 w-full" disabled={loading} onClick={() => void submit()}>
+          {loading ? "登入中…" : "登入"}
+        </Button>
+      </div>
+    </div>
+  )
+}

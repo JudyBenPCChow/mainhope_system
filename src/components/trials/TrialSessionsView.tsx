@@ -5,6 +5,9 @@ import { CalendarDays, GraduationCap, Plus, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Tag } from "@/components/ui/tag"
+import { Select } from "@/components/ui/select"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
@@ -44,13 +47,14 @@ function matchesTypeTab(r: TrialManageRow, tab: TypeTab): boolean {
 
 function typeBadgeClass(trialType: string): string {
  const c = trialTypeCategory(trialType)
- if (c === "free") return "border-emerald-300 bg-emerald-50 text-emerald-900"
+ if (c === "free") return "border-success bg-success text-success-foreground"
  if (c === "half") return "border-amber-300 bg-amber-50 text-amber-900"
- if (c === "full") return "border-sky-300 bg-sky-50 text-sky-900"
+ if (c === "full") return "border-info bg-info text-info-foreground"
  return "border-slate-300 bg-slate-50 text-slate-800"
 }
 
 export function TrialSessionsView() {
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<TrialManageRow[]>([])
  const [stats, setStats] = useState<TrialDashboardStats>({ todayCount: 0, weekCount: 0 })
  const [loading, setLoading] = useState(true)
@@ -243,15 +247,13 @@ export function TrialSessionsView() {
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Sparkles className="h-7 w-7 text-sky-600" aria-hidden />
+      <Sparkles className="h-7 w-7 text-info" aria-hidden />
       試堂紀錄
-      <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-900">
-       {rows.length} 筆
-      </span>
+      <Tag tone="info" size="sm">{rows.length} 筆</Tag>
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">試堂資料與排程連結；點學生或班別可開啟詳情頁。</p>
     </div>
-    <Button type="button" className="gap-1 bg-sky-600 text-white hover:bg-sky-700" onClick={openAdd}>
+    <Button type="button" className="gap-1 bg-info text-white hover:bg-info" onClick={openAdd}>
      <Plus className="h-4 w-4" />
      新增試堂
     </Button>
@@ -264,20 +266,20 @@ export function TrialSessionsView() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2" aria-label="試堂概覽">
-    <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-sky-900/90">
+    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
       <CalendarDays className="h-4 w-4" />
       今天試堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-sky-800">{stats.todayCount}</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.todayCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">試堂日期為今天之筆數（含各狀態）</p>
     </div>
-    <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-sky-900/90">
+    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
       <GraduationCap className="h-4 w-4" />
       本星期試堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-sky-800">{stats.weekCount}</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.weekCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">本週一至週日（依試堂日期）之筆數</p>
     </div>
    </section>
@@ -303,7 +305,7 @@ export function TrialSessionsView() {
         className={cn(
          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
          statusTab === id
-          ? "border-sky-500 bg-sky-600 text-white shadow-sm"
+          ? "border-info bg-info text-white shadow-sm"
           : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
         )}
        >
@@ -332,7 +334,7 @@ export function TrialSessionsView() {
         className={cn(
          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
          typeTab === id
-          ? "border-sky-500 bg-sky-600 text-white shadow-sm"
+          ? "border-info bg-info text-white shadow-sm"
           : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
         )}
        >
@@ -362,7 +364,7 @@ export function TrialSessionsView() {
      </label>
      <label className="grid gap-1 text-xs text-muted-foreground">
       <span>科目</span>
-      <select
+      <Select
        className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
        value={filterSubject}
        onChange={(e) => setFilterSubject(e.target.value)}
@@ -373,11 +375,11 @@ export function TrialSessionsView() {
          {sub}
         </option>
        ))}
-      </select>
+      </Select>
      </label>
      <label className="grid gap-1 text-xs text-muted-foreground">
       <span>老師</span>
-      <select
+      <Select
        className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
        value={filterTeacherId}
        onChange={(e) => setFilterTeacherId(e.target.value)}
@@ -388,11 +390,11 @@ export function TrialSessionsView() {
          {t.full_name}
         </option>
        ))}
-      </select>
+      </Select>
      </label>
      <label className="grid gap-1 text-xs text-muted-foreground">
       <span>年級</span>
-      <select
+      <Select
        className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
        value={filterGrade}
        onChange={(e) => setFilterGrade(e.target.value)}
@@ -403,7 +405,7 @@ export function TrialSessionsView() {
          {g}
         </option>
        ))}
-      </select>
+      </Select>
      </label>
     </div>
    </div>
@@ -432,13 +434,13 @@ export function TrialSessionsView() {
         <tr key={r.id} className="border-b border-border last:border-0">
          <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">{r.trial_date}</td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Students/${r.student_id}`} className="font-medium text-sky-700 hover:underline">
+          <Link to={`/Students/${r.student_id}`} className="font-medium text-info hover:underline">
            {r.student_name ?? "—"}
           </Link>
           <div className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</div>
          </td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Classes/${r.class_id}`} className="font-medium text-sky-700 hover:underline">
+          <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
            {r.class_subject ?? "—"}
           </Link>
           {r.course_code ? (
@@ -459,11 +461,11 @@ export function TrialSessionsView() {
           </span>
          </td>
          <td className="px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
-          <select
+          <Select
            className={cn(
             "h-9 rounded-md border px-2 text-xs font-medium",
             trialStatusCategory(r.status) === "done"
-             ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+             ? "border-success bg-success text-success-foreground"
              : trialStatusCategory(r.status) === "cancel"
               ? "border-slate-300 bg-slate-50"
               : "border-amber-300 bg-amber-50 text-amber-900"
@@ -477,7 +479,7 @@ export function TrialSessionsView() {
            <option value="已預約">已預約</option>
            <option value="已完成">已完成</option>
            <option value="取消">取消</option>
-          </select>
+          </Select>
          </td>
          <td className="max-w-[10rem] px-3 py-2 align-top text-xs text-muted-foreground">
           {r.remarks ?? "—"}
@@ -487,7 +489,7 @@ export function TrialSessionsView() {
            type="button"
            className="text-xs font-medium text-destructive hover:underline"
            onClick={async () => {
-            if (!confirm("確定刪除此筆試堂？")) return
+           if (!(await confirmDialog({ title: "刪除試堂紀錄", description: "確定刪除此筆試堂？", confirmText: "確認刪除", tone: "destructive" }))) return
             await deleteTrialSession(r.id)
             await reload()
            }}
@@ -514,7 +516,7 @@ export function TrialSessionsView() {
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
        <span className="text-muted-foreground">學生</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addStudentId}
         onChange={(e) => setAddStudentId(e.target.value)}
@@ -524,11 +526,11 @@ export function TrialSessionsView() {
           {s.label}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">班別</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addClassId}
         onChange={(e) => setAddClassId(e.target.value)}
@@ -539,7 +541,7 @@ export function TrialSessionsView() {
           {c.course_code ? `（${c.course_code}）` : ""}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">試堂日期</span>
@@ -547,7 +549,7 @@ export function TrialSessionsView() {
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">對應排程（該班當日堂）</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addScheduleId}
         onChange={(e) => setAddScheduleId(e.target.value)}
@@ -562,11 +564,11 @@ export function TrialSessionsView() {
           </option>
          ))
         )}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">試堂類型</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addTrialType}
         onChange={(e) => setAddTrialType(e.target.value)}
@@ -575,7 +577,7 @@ export function TrialSessionsView() {
         <option value="半價試堂">半價試堂</option>
         <option value="原價試堂">原價試堂</option>
         <option value="體驗課">體驗課</option>
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">備註（選填）</span>

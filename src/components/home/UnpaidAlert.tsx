@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
 import { formatMoney, formatDateZh } from "@/components/home/format"
+import { Tag } from "@/components/ui/tag"
 import type { UnpaidRow } from "@/services/dashboard"
 
 type Props = {
@@ -20,9 +21,7 @@ export function UnpaidAlert({ items, total, loading }: Props) {
     <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-amber-950 md:text-xl">
      <TriangleAlert className="h-6 w-6 shrink-0 text-amber-600" />
      未繳費提醒
-     <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-base font-medium text-amber-900">
-      {loading ? "…" : `${total} 筆`}
-     </span>
+     <Tag tone="warning" size="sm">{loading ? "…" : `${total} 筆`}</Tag>
     </h2>
     <Link
      to="/Payments"

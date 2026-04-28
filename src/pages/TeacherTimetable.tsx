@@ -80,7 +80,7 @@ export default function TeacherTimetablePage() {
    )}
    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
     <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-     <CalendarClock className="h-5 w-5 text-sky-600" aria-hidden />
+     <CalendarClock className="h-5 w-5 text-info" aria-hidden />
      我的行政事件
     </h2>
     <p className="mt-1 text-sm text-muted-foreground">此區塊來自待辦事項，與課堂排程分開。</p>

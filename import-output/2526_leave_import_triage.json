@@ -1,0 +1,3129 @@
+{
+  "source_csv": "/Users/hoiyingfan/Downloads/私人和共用 4/【2526】學生請假 25273b60cb0280bca768f79200e6e576_all.csv",
+  "total": 326,
+  "safe": [
+    {
+      "line": 2,
+      "student": "鄧宇童",
+      "date": "14/09/2025",
+      "class_title": "中二級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 3,
+      "student": "江啟雋",
+      "date": "03/09/2025",
+      "class_title": "中六級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 4,
+      "student": "蔡汶軒",
+      "date": "03/09/2025",
+      "class_title": "中六級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 5,
+      "student": "張傲姿",
+      "date": "05/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 7,
+      "student": "陳煒傑",
+      "date": "04/09/2025",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 8,
+      "student": "陳煒傑",
+      "date": "05/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 9,
+      "student": "何迪寶",
+      "date": "04/09/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 10,
+      "student": "文覺熲",
+      "date": "04/09/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 11,
+      "student": "吳俊羲",
+      "date": "05/09/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 12,
+      "student": "李昭儀",
+      "date": "06/09/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 16,
+      "student": "李婧彤",
+      "date": "06/09/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 17,
+      "student": "吳晉輝",
+      "date": "07/09/2025",
+      "class_title": "中五級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 18,
+      "student": "林靜",
+      "date": "12/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 19,
+      "student": "陳煒傑",
+      "date": "12/09/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 20,
+      "student": "高梓軒",
+      "date": "12/09/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 21,
+      "student": "高梓軒",
+      "date": "12/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 22,
+      "student": "梁展博",
+      "date": "13/09/2025",
+      "class_title": "中一二級英文科B班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 23,
+      "student": "李婧彤",
+      "date": "13/09/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 24,
+      "student": "陳卓賢",
+      "date": "13/09/2025",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 25,
+      "student": "吳晉銘",
+      "date": "07/09/2025",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 26,
+      "student": "張展榮",
+      "date": "28/09/2025",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 27,
+      "student": "蔡汶軒",
+      "date": "17/09/2025",
+      "class_title": "中五級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 28,
+      "student": "凌巧悅",
+      "date": "19/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 29,
+      "student": "周美君",
+      "date": "20/09/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 30,
+      "student": "陳梓慧",
+      "date": "20/09/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 31,
+      "student": "周美君",
+      "date": "27/09/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 33,
+      "student": "蕭馥鎣",
+      "date": "27/09/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 34,
+      "student": "文覺稼",
+      "date": "21/09/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 35,
+      "student": "朱震軒",
+      "date": "15/10/2025",
+      "class_title": "中五級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 37,
+      "student": "李映進",
+      "date": "26/09/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 38,
+      "student": "林可欣",
+      "date": "26/09/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 39,
+      "student": "梁顯民",
+      "date": "26/09/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 40,
+      "student": "陳煒傑",
+      "date": "26/09/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 41,
+      "student": "陳梓慧",
+      "date": "27/09/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 42,
+      "student": "范以喬",
+      "date": "18/10/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 43,
+      "student": "鄭恩祈",
+      "date": "18/10/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 44,
+      "student": "陳宣穎",
+      "date": "03/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 45,
+      "student": "高梓軒",
+      "date": "03/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 47,
+      "student": "李承鋒",
+      "date": "09/10/2025",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 48,
+      "student": "張傲姿",
+      "date": "10/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 49,
+      "student": "高梓軒",
+      "date": "10/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 50,
+      "student": "霍健一",
+      "date": "11/10/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 51,
+      "student": "蕭馥鎣",
+      "date": "11/10/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 53,
+      "student": "周美君",
+      "date": "11/10/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 54,
+      "student": "丘采怡",
+      "date": "12/10/2025",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 55,
+      "student": "文覺熲",
+      "date": "16/10/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 56,
+      "student": "文覺稼",
+      "date": "19/10/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 57,
+      "student": "文覺瑩f",
+      "date": "19/10/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 59,
+      "student": "凌巧悅",
+      "date": "17/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 60,
+      "student": "高梓軒",
+      "date": "17/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 61,
+      "student": "高梓軒",
+      "date": "17/10/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 63,
+      "student": "文覺熲",
+      "date": "23/10/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 65,
+      "student": "陳宣穎",
+      "date": "24/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 66,
+      "student": "高梓軒",
+      "date": "24/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 68,
+      "student": "周美君",
+      "date": "01/11/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 69,
+      "student": "文覺稼",
+      "date": "09/11/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 70,
+      "student": "文覺瑩f",
+      "date": "09/11/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 71,
+      "student": "陳煒傑",
+      "date": "31/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 72,
+      "student": "霍健一",
+      "date": "01/11/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 73,
+      "student": "李映進",
+      "date": "31/10/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 74,
+      "student": "林靜",
+      "date": "31/10/2025",
+      "class_title": "中四五級英文科A班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 75,
+      "student": "林靜",
+      "date": "01/11/2025",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 76,
+      "student": "譚仲景",
+      "date": "01/11/2025",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 77,
+      "student": "陸玉瓏",
+      "date": "01/11/2025",
+      "class_title": "中二級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 78,
+      "student": "艾語涵",
+      "date": "02/11/2025",
+      "class_title": "中四級M2科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 79,
+      "student": "莊靖思",
+      "date": "02/11/2025",
+      "class_title": "中五級生物科B班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 80,
+      "student": "李柏熙",
+      "date": "05/11/2025",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 81,
+      "student": "江啟雋",
+      "date": "02/11/2025",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 82,
+      "student": "陳柏朗",
+      "date": "07/11/2025",
+      "class_title": "中五級生物科A班JCHU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 83,
+      "student": "曾穎",
+      "date": "07/11/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 84,
+      "student": "關智博",
+      "date": "08/11/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 85,
+      "student": "張傲姿",
+      "date": "07/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 86,
+      "student": "凌巧悅",
+      "date": "07/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 88,
+      "student": "蕭馥鎣",
+      "date": "08/11/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 89,
+      "student": "陳肇希",
+      "date": "09/11/2025",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 90,
+      "student": "李映進",
+      "date": "14/11/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 91,
+      "student": "袁焯楠",
+      "date": "14/11/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 92,
+      "student": "艾語涵",
+      "date": "16/11/2025",
+      "class_title": "中四級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 93,
+      "student": "蕭馥鎣",
+      "date": "15/11/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 95,
+      "student": "林靜",
+      "date": "14/11/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 96,
+      "student": "林靜",
+      "date": "14/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 97,
+      "student": "凌巧悅",
+      "date": "28/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 99,
+      "student": "文覺稼",
+      "date": "23/11/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 100,
+      "student": "文覺瑩f",
+      "date": "23/11/2025",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 101,
+      "student": "陸玉瓏",
+      "date": "20/11/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 102,
+      "student": "陳俊鍇",
+      "date": "21/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 103,
+      "student": "潘燕彤",
+      "date": "21/11/2025",
+      "class_title": "中五級生物科C班JCHU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 104,
+      "student": "蕭馥鎣",
+      "date": "22/11/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 107,
+      "student": "董籽均",
+      "date": "16/11/2025",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 108,
+      "student": "李穎諭",
+      "date": "26/11/2025",
+      "class_title": "中六級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 110,
+      "student": "丘采怡",
+      "date": "23/11/2025",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 111,
+      "student": "陳梓慧",
+      "date": "29/11/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 112,
+      "student": "陳煒傑",
+      "date": "28/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 113,
+      "student": "陳宣穎",
+      "date": "28/11/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 114,
+      "student": "周美君",
+      "date": "29/11/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 116,
+      "student": "梁天因",
+      "date": "13/12/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 117,
+      "student": "李昭儀",
+      "date": "29/11/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 118,
+      "student": "陸玉瓏",
+      "date": "20/12/2025",
+      "class_title": "中二級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 119,
+      "student": "張傲姿",
+      "date": "05/12/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 120,
+      "student": "譚銳妍",
+      "date": "06/12/2025",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 121,
+      "student": "譚仟渝",
+      "date": "06/12/2025",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 123,
+      "student": "李映進",
+      "date": "05/12/2025",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 124,
+      "student": "譚銳妍",
+      "date": "20/12/2025",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 125,
+      "student": "高梓軒",
+      "date": "05/12/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "",
+      "reason_codes": []
+    },
+    {
+      "line": 127,
+      "student": "劉子軒",
+      "date": "11/12/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 129,
+      "student": "王晴怡",
+      "date": "11/12/2025",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 130,
+      "student": "張傲姿",
+      "date": "12/12/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 131,
+      "student": "李昭儀",
+      "date": "13/12/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 132,
+      "student": "鄭恩祈",
+      "date": "13/12/2025",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 133,
+      "student": "蔡汶軒",
+      "date": "19/12/2025",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 134,
+      "student": "陸玉瓏",
+      "date": "18/12/2025",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 135,
+      "student": "陳紫晴",
+      "date": "20/12/2025",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 136,
+      "student": "張傲姿",
+      "date": "19/12/2025",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 139,
+      "student": "楊俊熙",
+      "date": "19/12/2025",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 140,
+      "student": "李承鋒",
+      "date": "20/12/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 141,
+      "student": "吳晉輝",
+      "date": "21/12/2025",
+      "class_title": "中六級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 142,
+      "student": "董籽均",
+      "date": "21/12/2025",
+      "class_title": "中五級物理科A班THOM",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 143,
+      "student": "蕭馥鎣",
+      "date": "21/12/2025",
+      "class_title": "中五級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 144,
+      "student": "蕭馥鎣",
+      "date": "21/12/2025",
+      "class_title": "中五級M2科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 145,
+      "student": "蔡汶軒",
+      "date": "16/01/2026",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 146,
+      "student": "鄭恩祈",
+      "date": "24/01/2026",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 147,
+      "student": "陳卓賢",
+      "date": "03/01/2026",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 149,
+      "student": "駱詠",
+      "date": "11/01/2026",
+      "class_title": "中六級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 150,
+      "student": "王晴怡",
+      "date": "08/01/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 151,
+      "student": "李昭儀",
+      "date": "10/01/2026",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 152,
+      "student": "譚廣傑",
+      "date": "07/01/2026",
+      "class_title": "中六級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 153,
+      "student": "劉展",
+      "date": "17/01/2026",
+      "class_title": "中二級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 154,
+      "student": "蔡汶軒",
+      "date": "09/01/2026",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 156,
+      "student": "邱浩傑",
+      "date": "22/01/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 157,
+      "student": "邱浩傑",
+      "date": "15/01/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 159,
+      "student": "羅兆斐",
+      "date": "03/01/2026",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 160,
+      "student": "陳煒傑",
+      "date": "09/01/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "導師錄影技術問題順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 161,
+      "student": "王晴怡",
+      "date": "15/01/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 162,
+      "student": "張鍏澄",
+      "date": "11/01/2026",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 163,
+      "student": "張鍏澄",
+      "date": "11/01/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 165,
+      "student": "邱浩傑",
+      "date": "29/01/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 166,
+      "student": "凌巧悅",
+      "date": "16/01/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 168,
+      "student": "劉穎潼",
+      "date": "18/01/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 169,
+      "student": "陳煒傑",
+      "date": "16/01/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 170,
+      "student": "袁焯楠",
+      "date": "16/01/2026",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 171,
+      "student": "陳弘燁",
+      "date": "17/01/2026",
+      "class_title": "中一二級英文科B班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 176,
+      "student": "葉善甯",
+      "date": "23/01/2026",
+      "class_title": "中五級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 177,
+      "student": "張朗志",
+      "date": "18/01/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 180,
+      "student": "伍可恩",
+      "date": "23/01/2026",
+      "class_title": "中五級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 181,
+      "student": "梁天因",
+      "date": "31/01/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 182,
+      "student": "梁天因",
+      "date": "08/02/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 183,
+      "student": "蔡汶軒",
+      "date": "23/01/2026",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 184,
+      "student": "蔡汶軒",
+      "date": "30/01/2026",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 185,
+      "student": "曾穎",
+      "date": "23/01/2026",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 186,
+      "student": "蘇子航",
+      "date": "23/01/2026",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 187,
+      "student": "楊俊熙",
+      "date": "23/01/2026",
+      "class_title": "中五級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 188,
+      "student": "鍾永恒",
+      "date": "23/01/2026",
+      "class_title": "中六級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 189,
+      "student": "陳宣穎",
+      "date": "09/01/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "導師錄影技術問題順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 191,
+      "student": "譚銳妍",
+      "date": "24/01/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 192,
+      "student": "張展榮",
+      "date": "22/02/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 195,
+      "student": "霍健一",
+      "date": "25/01/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 197,
+      "student": "陳宏熙",
+      "date": "07/02/2026",
+      "class_title": "中一二級英文科B班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 198,
+      "student": "馮國璇",
+      "date": "31/01/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 199,
+      "student": "范以喬",
+      "date": "31/01/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 200,
+      "student": "范以喬",
+      "date": "01/02/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 201,
+      "student": "陳肇希",
+      "date": "01/02/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 202,
+      "student": "陳冠錡",
+      "date": "31/01/2026",
+      "class_title": "中一級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "",
+      "reason_codes": []
+    },
+    {
+      "line": 203,
+      "student": "张藝楠",
+      "date": "31/01/2026",
+      "class_title": "中一級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "",
+      "reason_codes": []
+    },
+    {
+      "line": 204,
+      "student": "陳卓賢",
+      "date": "31/01/2026",
+      "class_title": "中六級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 205,
+      "student": "陳卓賢",
+      "date": "01/02/2026",
+      "class_title": "中六級物理科A班THOM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 206,
+      "student": "譚仟渝",
+      "date": "31/01/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 207,
+      "student": "黃慧淇",
+      "date": "01/02/2026",
+      "class_title": "中五級生物科B班JCHU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 208,
+      "student": "丘采怡",
+      "date": "01/02/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 216,
+      "student": "劉展",
+      "date": "08/02/2026",
+      "class_title": "中二級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 219,
+      "student": "徐思思",
+      "date": "08/02/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 220,
+      "student": "徐思思",
+      "date": "14/02/2026",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 221,
+      "student": "文覺稼",
+      "date": "08/02/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 222,
+      "student": "文覺瑩f",
+      "date": "08/02/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 223,
+      "student": "陳煒傑",
+      "date": "06/02/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 224,
+      "student": "李婧彤",
+      "date": "07/02/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 225,
+      "student": "李婧彤",
+      "date": "14/02/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 226,
+      "student": "張鍏澄",
+      "date": "08/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 227,
+      "student": "霍健一",
+      "date": "01/02/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 230,
+      "student": "凌巧悅",
+      "date": "28/02/2026",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 231,
+      "student": "陳采妍",
+      "date": "22/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 232,
+      "student": "劉穎潼",
+      "date": "22/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 233,
+      "student": "張朗志",
+      "date": "22/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 234,
+      "student": "張鍏澄",
+      "date": "22/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 235,
+      "student": "黃慧淇",
+      "date": "22/02/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 236,
+      "student": "蕭馥鎣",
+      "date": "28/02/2026",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 237,
+      "student": "蔡汶軒",
+      "date": "27/02/2026",
+      "class_title": "中五級BAFS科A班RALI",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 238,
+      "student": "蕭馥鎣",
+      "date": "28/02/2026",
+      "class_title": "中五級化學科A班PHBE",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 239,
+      "student": "艾語涵",
+      "date": "22/02/2026",
+      "class_title": "中四級M2科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 240,
+      "student": "梁柏熹",
+      "date": "22/02/2026",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 241,
+      "student": "劉展",
+      "date": "22/02/2026",
+      "class_title": "中二級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 242,
+      "student": "文覺熲",
+      "date": "26/02/2026",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 244,
+      "student": "徐思思",
+      "date": "22/02/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 245,
+      "student": "張朗志",
+      "date": "22/02/2026",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 248,
+      "student": "曾穎",
+      "date": "27/02/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 249,
+      "student": "范以喬",
+      "date": "28/02/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 250,
+      "student": "蕭馥鎣",
+      "date": "28/02/2026",
+      "class_title": "中四五級英文科B班",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 251,
+      "student": "文覺稼",
+      "date": "01/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 252,
+      "student": "朱俊賢",
+      "date": "08/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 254,
+      "student": "文覺瑩f",
+      "date": "01/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 255,
+      "student": "文覺稼",
+      "date": "08/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 259,
+      "student": "張鍏澄",
+      "date": "01/03/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 261,
+      "student": "文覺瑩f",
+      "date": "08/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 262,
+      "student": "范以喬",
+      "date": "28/03/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 263,
+      "student": "范以喬",
+      "date": "15/03/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 264,
+      "student": "屈卓衡",
+      "date": "02/03/2026",
+      "class_title": "中一級中文科A班SHEK",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 266,
+      "student": "譚銳妍",
+      "date": "14/03/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 267,
+      "student": "張聖汶",
+      "date": "14/03/2026",
+      "class_title": "中一級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 274,
+      "student": "趙佳鑫",
+      "date": "08/03/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 275,
+      "student": "趙佳鑫",
+      "date": "08/03/2026",
+      "class_title": "中五級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 276,
+      "student": "譚仟渝",
+      "date": "28/03/2026",
+      "class_title": "中四級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 289,
+      "student": "阮心兒",
+      "date": "12/03/2026",
+      "class_title": "中二級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 291,
+      "student": "張朗志",
+      "date": "22/03/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 292,
+      "student": "陸玉瓏",
+      "date": "28/03/2026",
+      "class_title": "中二級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 293,
+      "student": "王晴怡",
+      "date": "02/04/2026",
+      "class_title": "中四級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 294,
+      "student": "文覺稼",
+      "date": "15/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 295,
+      "student": "文覺瑩f",
+      "date": "22/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 296,
+      "student": "文覺稼",
+      "date": "22/03/2026",
+      "class_title": "中一級數學科C班LIAM",
+      "leave_type": "",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 298,
+      "student": "馮國璇",
+      "date": "11/04/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 299,
+      "student": "艾語涵",
+      "date": "29/03/2026",
+      "class_title": "中四級M2科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    },
+    {
+      "line": 301,
+      "student": "梁天因",
+      "date": "29/03/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 304,
+      "student": "陳宣穎",
+      "date": "29/03/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "病假（沒有醫生紙）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 305,
+      "student": "張朗志",
+      "date": "29/03/2026",
+      "class_title": "中六級生物科A班JCHU",
+      "leave_type": "事假",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 306,
+      "student": "駱詠",
+      "date": "29/03/2026",
+      "class_title": "中六級物理科A班THOM",
+      "leave_type": "病假（沒有醫生紙）",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 307,
+      "student": "張朗志",
+      "date": "29/03/2026",
+      "class_title": "中六級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "同時間zoom",
+      "reason_codes": []
+    },
+    {
+      "line": 308,
+      "student": "羅兆斐",
+      "date": "29/03/2026",
+      "class_title": "中四五級英文科A班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 311,
+      "student": "丘采怡",
+      "date": "29/03/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 316,
+      "student": "劉雨彤",
+      "date": "12/04/2026",
+      "class_title": "中四級BAFS科A班 Rafael",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 319,
+      "student": "霍健一",
+      "date": "12/04/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "病假（沒有醫生紙）",
+      "makeup_method": "",
+      "reason_codes": []
+    },
+    {
+      "line": 322,
+      "student": "霍健一",
+      "date": "19/04/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": []
+    },
+    {
+      "line": 323,
+      "student": "馮國璇",
+      "date": "18/04/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": []
+    },
+    {
+      "line": 324,
+      "student": "霍健一",
+      "date": "29/03/2026",
+      "class_title": "中四級中文科B班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": []
+    },
+    {
+      "line": 325,
+      "student": "蕭馥鎣",
+      "date": "19/04/2026",
+      "class_title": "中五級M2科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": []
+    },
+    {
+      "line": 327,
+      "student": "譚銳妍",
+      "date": "25/04/2026",
+      "class_title": "中二級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": []
+    }
+  ],
+  "manual": [
+    {
+      "line": 6,
+      "student": "鄧宇童",
+      "date": "06/09/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 13,
+      "student": "梁芷澄",
+      "date": "06/09/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "duplicate_business_key"
+      ]
+    },
+    {
+      "line": 14,
+      "student": "艾語涵",
+      "date": "06/09/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 15,
+      "student": "梁芷澄",
+      "date": "06/09/2025",
+      "class_title": "中五級數學科B班MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "duplicate_business_key"
+      ]
+    },
+    {
+      "line": 32,
+      "student": "蕭馥鎣",
+      "date": "27/09/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 36,
+      "student": "劉穎潼",
+      "date": "27/09/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 46,
+      "student": "蔡曉朗",
+      "date": "11/10/2025",
+      "class_title": "中三級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 52,
+      "student": "蕭馥鎣",
+      "date": "11/10/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 58,
+      "student": "徐嘉傑",
+      "date": "18/10/2025",
+      "class_title": "小四級中文科A班SHEK",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 62,
+      "student": "莫凱晴",
+      "date": "21/10/2025",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 64,
+      "student": "徐嘉傑",
+      "date": "25/10/2025",
+      "class_title": "小四級中文科A班SHEK",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 67,
+      "student": "陳藝菁",
+      "date": "25/10/2025",
+      "class_title": "",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 87,
+      "student": "蕭馥鎣",
+      "date": "08/11/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 94,
+      "student": "蕭馥鎣",
+      "date": "15/11/2025",
+      "class_title": "",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 98,
+      "student": "葉梓軒",
+      "date": "15/11/2025",
+      "class_title": "中三級數學科B班NKWO",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 105,
+      "student": "蕭馥鎣",
+      "date": "22/11/2025",
+      "class_title": "",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 106,
+      "student": "黃瑋霆",
+      "date": "21/11/2025",
+      "class_title": "中一級數學科單對單NKWO",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 109,
+      "student": "廖珺嵛",
+      "date": "23/11/2025",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 115,
+      "student": "林曉柔",
+      "date": "25/11/2025",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 122,
+      "student": "劉穎潼",
+      "date": "06/12/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 126,
+      "student": "廖珺嵛",
+      "date": "07/12/2025",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 128,
+      "student": "蕭馥鎣",
+      "date": "13/12/2025",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 137,
+      "student": "莫凱晴",
+      "date": "22/12/2025",
+      "class_title": "中三級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 138,
+      "student": "莫凱晴",
+      "date": "23/12/2025",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 148,
+      "student": "李芷晴",
+      "date": "17/01/2026",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 155,
+      "student": "邱浩傑",
+      "date": "14/01/2026",
+      "class_title": "中四級生物A班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 158,
+      "student": "邱浩傑",
+      "date": "21/01/2026",
+      "class_title": "中四級生物A班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 164,
+      "student": "邱浩傑",
+      "date": "28/01/2026",
+      "class_title": "中四級生物A班",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 167,
+      "student": "劉穎潼",
+      "date": "17/01/2026",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 172,
+      "student": "莫凱晴",
+      "date": "13/01/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 173,
+      "student": "翁頌怡",
+      "date": "18/01/2026",
+      "class_title": "中三級科學科B班THOM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 174,
+      "student": "何錦城",
+      "date": "11/01/2026",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 175,
+      "student": "林曉柔",
+      "date": "20/01/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 178,
+      "student": "莫凱晴",
+      "date": "20/01/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 179,
+      "student": "劉子軒",
+      "date": "18/01/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 190,
+      "student": "高梓軒",
+      "date": "24/01/2026",
+      "class_title": "中六級數學科一對一MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 193,
+      "student": "李柚君",
+      "date": "10/02/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 194,
+      "student": "潘子翹",
+      "date": "10/02/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 196,
+      "student": "蔡曉朗",
+      "date": "31/01/2026",
+      "class_title": "中三級數學科B班NKWO",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 209,
+      "student": "翁頌怡",
+      "date": "07/02/2026",
+      "class_title": "中三級科學科A班SBLA",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 210,
+      "student": "翁頌怡",
+      "date": "08/02/2026",
+      "class_title": "中三級科學科B班THOM",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 211,
+      "student": "翁頌怡",
+      "date": "22/02/2026",
+      "class_title": "中三級科學科B班THOM",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 212,
+      "student": "莫凱晴",
+      "date": "03/02/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 213,
+      "student": "田興宇",
+      "date": "01/02/2026",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "病假（附有醫生證明）",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 214,
+      "student": "田興宇",
+      "date": "08/02/2026",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 215,
+      "student": "林曉柔",
+      "date": "03/02/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 217,
+      "student": "劉展",
+      "date": "28/02/2026",
+      "class_title": "中二級科學A班 PHEB",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 218,
+      "student": "嚴宇婷",
+      "date": "07/02/2026",
+      "class_title": "中三級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 228,
+      "student": "徐思思",
+      "date": "11/02/2026",
+      "class_title": "北區百人英文科星期三組",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 229,
+      "student": "關智博",
+      "date": "11/02/2026",
+      "class_title": "北區百人英文科星期三組",
+      "leave_type": "事假",
+      "makeup_method": "導師請假順延一堂",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 243,
+      "student": "張以諾",
+      "date": "23/02/2026",
+      "class_title": "中三級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 246,
+      "student": "李柚君",
+      "date": "03/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 247,
+      "student": "潘子翹",
+      "date": "03/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 253,
+      "student": "周美君",
+      "date": "15/03/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 256,
+      "student": "陳梓慧",
+      "date": "27/02/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 257,
+      "student": "陸玉瓏",
+      "date": "07/03/2026",
+      "class_title": "中二級科學A班 PHEB",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 258,
+      "student": "陳梓慧",
+      "date": "15/03/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 260,
+      "student": "周美君",
+      "date": "27/02/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 265,
+      "student": "朱俊賢",
+      "date": "08/03/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 268,
+      "student": "陳弘燁",
+      "date": "29/03/2026",
+      "class_title": "中一二級英B班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 269,
+      "student": "陳梓慧",
+      "date": "08/03/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 270,
+      "student": "周美君",
+      "date": "08/03/2026",
+      "class_title": "中六級英文科一對二CYNG",
+      "leave_type": "事假",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 271,
+      "student": "李柚君",
+      "date": "10/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 272,
+      "student": "翁頌怡",
+      "date": "08/03/2026",
+      "class_title": "中三級科學科B班THOM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 273,
+      "student": "潘子翹",
+      "date": "10/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 277,
+      "student": "林芍延",
+      "date": "31/03/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 278,
+      "student": "田興宇",
+      "date": "22/03/2026",
+      "class_title": "中三級英文科A班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 279,
+      "student": "莫凱晴",
+      "date": "31/03/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 280,
+      "student": "莫凱晴",
+      "date": "30/03/2026",
+      "class_title": "中三級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 281,
+      "student": "莫凱晴",
+      "date": "29/03/2026",
+      "class_title": "",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_ref_missing"
+      ]
+    },
+    {
+      "line": 282,
+      "student": "莫凱晴",
+      "date": "17/03/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 283,
+      "student": "潘子翹",
+      "date": "24/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 284,
+      "student": "李柚君",
+      "date": "31/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 285,
+      "student": "李柚君",
+      "date": "24/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 286,
+      "student": "潘子翹",
+      "date": "31/03/2026",
+      "class_title": "中二級數學科C班LIAM",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 287,
+      "student": "阮心兒",
+      "date": "22/03/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 288,
+      "student": "阮心兒",
+      "date": "15/03/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 290,
+      "student": "陳宏熙",
+      "date": "29/03/2026",
+      "class_title": "中一二級英B班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 297,
+      "student": "羅善瀧",
+      "date": "22/03/2026",
+      "class_title": "中一二級英B班CYNG",
+      "leave_type": "",
+      "makeup_method": "錄影補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 300,
+      "student": "林曉柔",
+      "date": "31/03/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 302,
+      "student": "蕭馥鎣",
+      "date": "29/03/2026",
+      "class_title": "中四五級英文B班CYNG",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 303,
+      "student": "林曉柔",
+      "date": "23/03/2026",
+      "class_title": "中三級中文科A班CFAN",
+      "leave_type": "事假",
+      "makeup_method": "事前請假順延",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 309,
+      "student": "羅希文",
+      "date": "04/04/2026",
+      "class_title": "中二級數學科MYU",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 310,
+      "student": "朱俊賢",
+      "date": "12/04/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 312,
+      "student": "李兆洪",
+      "date": "04/04/2026",
+      "class_title": "北區百人英文科星期六組",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 313,
+      "student": "梁景維",
+      "date": "04/04/2026",
+      "class_title": "北區百人英文科星期六組",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 314,
+      "student": "黃渲棋",
+      "date": "04/04/2026",
+      "class_title": "北區百人英文科星期六組",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 315,
+      "student": "吳昶覦",
+      "date": "04/04/2026",
+      "class_title": "北區百人英文科星期六組",
+      "leave_type": "事假",
+      "makeup_method": "無交學費不用補回",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 317,
+      "student": "林曉柔",
+      "date": "14/04/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 318,
+      "student": "蔡曉朗",
+      "date": "11/04/2026",
+      "class_title": "中三級數學科B班NKWO",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 320,
+      "student": "林芍延",
+      "date": "14/04/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 321,
+      "student": "莫凱晴",
+      "date": "14/04/2026",
+      "class_title": "中三級數學科A班MYU",
+      "leave_type": "事假",
+      "makeup_method": "調時間",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    },
+    {
+      "line": 326,
+      "student": "周凱藍",
+      "date": "19/04/2026",
+      "class_title": "中一二級英文科C班TIMC",
+      "leave_type": "",
+      "makeup_method": "",
+      "reason_codes": [
+        "class_not_found"
+      ]
+    }
+  ],
+  "other": []
+}

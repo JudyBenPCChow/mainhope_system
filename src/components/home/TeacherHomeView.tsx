@@ -17,8 +17,9 @@ import {
 
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { getTeacherScopeTeacherId, JUDY_CHU_TEACHER_ID } from "@/lib/teacherScope"
+import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
@@ -95,40 +96,64 @@ export function TeacherHomeView() {
    setSchedules(schedList)
 
    const classIds = mine.map((c) => c.id)
-   const [leaveList, trialRes] = await Promise.all([
-    fetchLeaveRowsForClassIds(classIds, 50),
-    classIds.length && supabase
-     ? supabase
-       .from("trial_sessions")
-       .select(
-        "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code )"
-       )
-       .in("class_id", classIds)
-       .gte("trial_date", today)
-       .order("trial_date", { ascending: true })
-     : Promise.resolve({ data: [], error: null as null }),
-   ])
-   setLeaves(leaveList)
-   if (trialRes.error) throw trialRes.error
-   setTrials(
-    (trialRes.data ?? []).map((row) => {
-     const r = row as Record<string, unknown>
-     const st = r.students as Record<string, unknown> | null
-     const cls = r.classes as Record<string, unknown> | null
-     const sub = cls?.subject != null ? String(cls.subject) : "—"
-     const code = cls?.course_code != null ? String(cls.course_code) : ""
-     return {
-      id: String(r.id),
-      studentName: st?.full_name != null ? String(st.full_name) : "—",
-      classLabel: code ? `${sub}（${code}）` : sub,
-      scheduleId: String(r.schedule_id ?? ""),
-      trialDate: String(r.trial_date ?? ""),
-      status: String(r.status ?? ""),
-     }
-    })
-   )
+   if (classIds.length === 0) {
+    setLeaves([])
+    setTrials([])
+    return
+   }
+
+   // 次要資料（請假/試堂）失敗時不阻斷首頁主內容（課堂卡、週時間表、班別）
+   let partialFailed = false
+
+   try {
+    const leaveList = await fetchLeaveRowsForClassIds(classIds, 50)
+    setLeaves(leaveList)
+   } catch {
+    partialFailed = true
+    setLeaves([])
+   }
+
+   try {
+    if (!supabase) {
+      setTrials([])
+    } else {
+      const trialRes = await supabase
+        .from("trial_sessions")
+        .select(
+          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code )"
+        )
+        .in("class_id", classIds)
+        .gte("trial_date", today)
+        .order("trial_date", { ascending: true })
+      if (trialRes.error) throw trialRes.error
+      setTrials(
+        (trialRes.data ?? []).map((row) => {
+          const r = row as Record<string, unknown>
+          const st = r.students as Record<string, unknown> | null
+          const cls = r.classes as Record<string, unknown> | null
+          const sub = cls?.subject != null ? String(cls.subject) : "—"
+          const code = cls?.course_code != null ? String(cls.course_code) : ""
+          return {
+            id: String(r.id),
+            studentName: st?.full_name != null ? String(st.full_name) : "—",
+            classLabel: code ? `${sub}（${code}）` : sub,
+            scheduleId: String(r.schedule_id ?? ""),
+            trialDate: String(r.trial_date ?? ""),
+            status: String(r.status ?? ""),
+          }
+        })
+      )
+    }
+   } catch {
+    partialFailed = true
+    setTrials([])
+   }
+
+   if (partialFailed) {
+    setErr("部分首頁資料暫時未能載入（請假／試堂），其餘資料已正常顯示。")
+   }
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "載入失敗")
+   setErr(formatUnknownError(e))
    setClasses([])
    setSchedules([])
    setLeaves([])
@@ -174,17 +199,8 @@ export function TeacherHomeView() {
      {loading ? "載入中…" : `您好，${teacherName}`}
     </h1>
     <p className="mt-3 max-w-3xl text-muted-foreground">
-     此頁僅顯示<strong>指派給您</strong>的班別與排程。示範帳號為 <strong>Judy Chu</strong>
-     （高中生物，中四至中六各 2 班）；資料來自資料庫種子{" "}
-     <code className="rounded bg-white/80 px-1 text-sm">005_judy_chu_demo.sql</code>。
+     此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有 {todaySchedules.length} 堂課。
     </p>
-    {teacherId === JUDY_CHU_TEACHER_ID ? (
-     <p className="mt-2 text-sm text-teal-900/90 md:text-base">
-      已模擬：<span className="font-medium">請假（病假＋調堂、事假＋錄影）</span>、
-      <span className="font-medium">試堂</span>、排程備註
-      <span className="font-medium">需錄影</span>。今日有 {todaySchedules.length} 堂課。
-     </p>
-    ) : null}
     <div className="mt-6 flex flex-wrap gap-3">
      <Button type="button" size="lg" className="gap-2 bg-teal-600 hover:bg-teal-700" asChild>
       <Link to="/Schedule">
@@ -255,14 +271,14 @@ export function TeacherHomeView() {
      to="/Classes"
      className={cn(
       "block rounded-xl border border-border bg-card p-5 shadow-sm outline-none transition-all duration-200",
-      "hover:border-sky-400/70 hover:bg-sky-50/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-sky-500/40 focus-visible:ring-offset-2"
+      "hover:border-info/70 hover:bg-info/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground md:text-base">
-      <BookOpen className="h-5 w-5 text-sky-600" />
+      <BookOpen className="h-5 w-5 text-info" />
       我的班別
      </div>
-     <p className="mt-2 text-4xl font-bold tabular-nums text-sky-700">{classes.length}</p>
+     <p className="mt-2 text-4xl font-bold tabular-nums text-info">{classes.length}</p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">僅計指派給您的班級 · 前往班別</p>
     </Link>
     <Link
@@ -353,7 +369,7 @@ export function TeacherHomeView() {
             <span>{s.enrollCount} 人報讀</span>
            </div>
            {s.remarks ? (
-            <p className="mt-2 text-sm text-sky-800 md:text-base">備註：{s.remarks}</p>
+            <p className="mt-2 text-sm text-info md:text-base">備註：{s.remarks}</p>
            ) : null}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
@@ -402,7 +418,7 @@ export function TeacherHomeView() {
       to="/Classes"
       className={cn(
        "group inline-flex items-center rounded-lg text-xl font-semibold outline-none transition-colors md:text-2xl",
-       "hover:text-sky-800 focus-visible:ring-2 focus-visible:ring-sky-500/40 focus-visible:ring-offset-2"
+       "hover:text-info focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
       )}
      >
       <span className="underline-offset-4 group-hover:underline">我的班別</span>

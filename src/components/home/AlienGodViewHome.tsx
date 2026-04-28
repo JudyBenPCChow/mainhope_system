@@ -5,7 +5,9 @@ import { AlertTriangle, FileSearch, Orbit, RefreshCw } from "lucide-react"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
+import { clearAuthState } from "@/lib/authSession"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
  fetchRecentMgmtSystemErrors,
@@ -30,6 +32,10 @@ function formatTs(iso: string): string {
 }
 
 export function AlienGodViewHome() {
+ const greetingName =
+  (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
+  DEMO_ALIEN_GREETING_NAME
+
  const [auditRows, setAuditRows] = useState<MgmtAuditLogRow[]>([])
  const [errorRows, setErrorRows] = useState<MgmtSystemErrorRow[]>([])
  const [loading, setLoading] = useState(true)
@@ -63,19 +69,19 @@ export function AlienGodViewHome() {
 
  return (
   <div className="space-y-8 p-4 md:p-6 lg:space-y-10">
-   <header className="flex flex-wrap items-end justify-between gap-4 border-b border-sky-200/60 pb-6">
+   <header className="flex flex-wrap items-end justify-between gap-4 border-b border-info/60 pb-6">
     <div>
-     <p className="text-sm font-medium uppercase tracking-wide text-sky-800/90">外星人 · 上帝視角</p>
+     <p className="text-sm font-medium uppercase tracking-wide text-info/90">外星人 · 上帝視角</p>
      <h1 className="mt-2 flex flex-wrap items-center gap-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-      <Orbit className="h-9 w-9 text-sky-600" aria-hidden />
-      你好，{DEMO_ALIEN_GREETING_NAME}！
+      <Orbit className="h-9 w-9 text-info" aria-hidden />
+      你好，{greetingName}！
      </h1>
      <p className="mt-2 text-base text-muted-foreground md:text-lg">
       本機今日 {todayYmdLocal()}（{dashboardTitleDate()}）· 全系統監看
      </p>
     </div>
     <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="default" size="sm" className="gap-2 bg-sky-700 hover:bg-sky-800" asChild>
+     <Button type="button" variant="default" size="sm" className="gap-2 bg-info hover:bg-info" asChild>
       <Link to="/SystemLogs">
        <FileSearch className="h-4 w-4" aria-hidden />
        系統日志
@@ -95,13 +101,13 @@ export function AlienGodViewHome() {
       type="button"
       variant="outline"
       size="sm"
-      onClick={() => {
-       localStorage.removeItem("mgmt_role")
-       localStorage.removeItem("teacher_id")
-       window.location.reload()
+      onClick={async () => {
+       if (supabase) await supabase.auth.signOut()
+       clearAuthState()
+       window.location.href = "/Login"
       }}
      >
-      清除角色（演示）
+      登出
      </Button>
     </div>
    </header>
@@ -210,7 +216,7 @@ export function AlienGodViewHome() {
           <td className="max-w-xs px-4 py-3 break-words md:max-w-md">{r.message}</td>
           <td className="px-4 py-3 text-muted-foreground md:pr-5">
            {r.resolved_at ? (
-            <span className="text-emerald-800">已處理 {formatTs(r.resolved_at)}</span>
+            <span className="text-success">已處理 {formatTs(r.resolved_at)}</span>
            ) : (
             <span className="font-medium text-amber-800">待處理</span>
            )}

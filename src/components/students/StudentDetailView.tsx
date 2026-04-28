@@ -21,7 +21,12 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { fetchTotalPaidLessonsForStudent } from "@/services/paymentQueries"
 import {
@@ -103,6 +108,8 @@ function localTodayYmd() {
 export function StudentDetailView() {
  const { studentId } = useParams<{ studentId: string }>()
  const navigate = useNavigate()
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [tab, setTab] = useState<TabId>("basic")
  const [student, setStudent] = useState<StudentRecord | null>(null)
  const [loading, setLoading] = useState(true)
@@ -223,9 +230,9 @@ export function StudentDetailView() {
     remarks: form.remarks,
    })
    setStudent(updated)
-   alert("已儲存")
+   pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
   } catch (e) {
-   alert(e instanceof Error ? e.message : String(e))
+   pushBanner({ tone: "error", title: "儲存失敗", message: e instanceof Error ? e.message : String(e) })
   }
  }
 
@@ -252,7 +259,7 @@ export function StudentDetailView() {
    setWithdrawReason("")
    await reloadSubs()
   } catch (e) {
-   alert(e instanceof Error ? e.message : String(e))
+   pushBanner({ tone: "error", title: "退班失敗", message: e instanceof Error ? e.message : String(e) })
   } finally {
    setWithdrawSaving(false)
   }
@@ -288,13 +295,13 @@ export function StudentDetailView() {
 
  const submitAddRelative = async () => {
   if (!relativePick || !sid) {
-   alert("請選擇學生")
+   pushBanner({ tone: "warning", title: "請先選擇學生" })
    return
   }
   const label =
    relativePreset === "其他（自訂）" ? relativeCustom.trim() : relativePreset
   if (!label) {
-   alert("請填寫關係")
+   pushBanner({ tone: "warning", title: "請填寫關係" })
    return
   }
   setRelativeSaving(true)
@@ -303,7 +310,7 @@ export function StudentDetailView() {
    setRelativeDialogOpen(false)
    await reloadSubs()
   } catch (e) {
-   alert(e instanceof Error ? e.message : String(e))
+   pushBanner({ tone: "error", title: "新增親友失敗", message: e instanceof Error ? e.message : String(e) })
   } finally {
    setRelativeSaving(false)
   }
@@ -505,9 +512,7 @@ export function StudentDetailView() {
          <h1 className="text-xl font-bold md:text-2xl">{student.full_name}</h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
-          <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-xs font-medium text-white">
-           {student.status ?? "—"}
-          </span>
+          <Tag tone={statusToTagTone(student.status)} size="sm">{student.status ?? "—"}</Tag>
          </div>
          <p className="mt-1 text-sm text-white/85">
           {(student.grade ?? "—") + " · " + (student.school ?? "—")}
@@ -579,34 +584,34 @@ export function StudentDetailView() {
          />
         </Field>
         <Field label="註冊狀態">
-         <select
+         <Select
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={normalizeRegistrationStatus(form.registration_status)}
           onChange={(e) => setForm((f) => ({ ...f, registration_status: e.target.value as "已註冊" | "僅查詢" }))}
          >
           <option value="已註冊">已註冊</option>
           <option value="僅查詢">僅查詢</option>
-         </select>
+         </Select>
         </Field>
         <Field label="就讀狀態">
-         <select
+         <Select
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={normalizeEnrollmentStatus(form.enrollment_status)}
           onChange={(e) => setForm((f) => ({ ...f, enrollment_status: e.target.value as "在讀" | "非在讀" }))}
          >
           <option value="在讀">在讀</option>
           <option value="非在讀">非在讀</option>
-         </select>
+         </Select>
         </Field>
         <Field label="學業狀態">
-         <select
+         <Select
           className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
           value={normalizeAcademicStage(form.academic_stage)}
           onChange={(e) => setForm((f) => ({ ...f, academic_stage: e.target.value as "中學中" | "中學畢業" }))}
          >
           <option value="中學中">仍在中學階段</option>
           <option value="中學畢業">已中學畢業</option>
-         </select>
+         </Select>
         </Field>
         <Field label="學校" className="sm:col-span-2">
          <Input
@@ -736,7 +741,7 @@ export function StudentDetailView() {
            </div>
           </Field>
           <Field label="關係標籤 *">
-           <select
+           <Select
             className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
             value={relativePreset}
             onChange={(e) => setRelativePreset(e.target.value)}
@@ -746,7 +751,7 @@ export function StudentDetailView() {
               {p}
              </option>
             ))}
-           </select>
+           </Select>
           </Field>
           {relativePreset === "其他（自訂）" ? (
            <Field label="自訂關係">
@@ -790,10 +795,8 @@ export function StudentDetailView() {
              ) : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-             <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-900 dark:bg-sky-900/40 dark:text-sky-100">
-              {r.relationship}
-             </span>
-             <select
+             <Tag tone="info" size="sm">{r.relationship}</Tag>
+             <Select
               className="h-8 min-w-[10rem] max-w-full rounded-md border border-input bg-background px-2 text-xs"
               aria-label="變更關係標籤"
               value={r.relationship}
@@ -803,7 +806,11 @@ export function StudentDetailView() {
                 await updateStudentRelationshipLabel(r.relationshipId, v)
                 await reloadSubs()
                } catch (err) {
-                alert(err instanceof Error ? err.message : formatLeaveError(err))
+                pushBanner({
+                 tone: "error",
+                 title: "更新關係失敗",
+                 message: err instanceof Error ? err.message : formatLeaveError(err),
+                })
                }
               }}
              >
@@ -817,7 +824,7 @@ export function StudentDetailView() {
               ).includes(r.relationship) ? (
                <option value={r.relationship}>{r.relationship}（自訂）</option>
               ) : null}
-             </select>
+             </Select>
             </div>
            </div>
            <Button
@@ -826,12 +833,24 @@ export function StudentDetailView() {
             size="sm"
             className="text-destructive hover:text-destructive"
             onClick={async () => {
-             if (!confirm(`移除與「${r.relatedName}」的親友連結？（雙方頁面皆會移除）`)) return
+             if (
+              !(await confirmDialog({
+               title: "移除親友連結",
+               description: `移除與「${r.relatedName}」的親友連結？（雙方頁面皆會移除）`,
+               confirmText: "確認移除",
+               tone: "destructive",
+              }))
+             )
+              return
              try {
               await deleteStudentRelationship(r.relationshipId)
               await reloadSubs()
              } catch (err) {
-              alert(err instanceof Error ? err.message : formatLeaveError(err))
+              pushBanner({
+               tone: "error",
+               title: "移除親友失敗",
+               message: err instanceof Error ? err.message : formatLeaveError(err),
+              })
              }
             }}
            >
@@ -852,7 +871,7 @@ export function StudentDetailView() {
     {tab === "enrollments" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-       <select
+       <Select
         className="flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
         value={pickClass}
         onChange={(e) => setPickClass(e.target.value)}
@@ -863,7 +882,7 @@ export function StudentDetailView() {
           {o.label}
          </option>
         ))}
-       </select>
+       </Select>
        <Button type="button" onClick={() => void addEnrollment()} disabled={!pickClass}>
         <Plus className="h-4 w-4" />
         加入
@@ -899,7 +918,7 @@ export function StudentDetailView() {
            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-           <select
+           <Select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={e.status}
             onChange={async (ev) => {
@@ -910,7 +929,7 @@ export function StudentDetailView() {
             <option value="就讀中">就讀中</option>
             <option value="休學">休學</option>
             <option value="退選">退選</option>
-           </select>
+           </Select>
            <Button
             type="button"
             variant="outline"
@@ -997,7 +1016,7 @@ export function StudentDetailView() {
          {totalPaidLessons != null ? (
           <span className="text-foreground">
            {" "}
-           · 已收款<strong className="mx-1 text-orange-700 tabular-nums">{totalPaidLessons}</strong>總繳堂數
+           · 已收款<strong className="mx-1 text-warning tabular-nums">{totalPaidLessons}</strong>總繳堂數
           </span>
          ) : null}
         </p>
@@ -1032,7 +1051,7 @@ export function StudentDetailView() {
              "rounded-full px-2 py-0.5 text-xs font-medium",
              p.status.includes("待")
               ? "bg-amber-100 text-amber-800"
-              : "bg-emerald-100 text-emerald-800"
+              : "bg-success text-success-foreground"
             )}
            >
             {p.status}
@@ -1042,7 +1061,7 @@ export function StudentDetailView() {
             variant="outline"
             size="sm"
             onClick={async () => {
-             if (!confirm("確定刪除此筆繳費？")) return
+             if (!(await confirmDialog({ title: "刪除繳費紀錄", description: "確定刪除此筆繳費？", confirmText: "確認刪除", tone: "destructive" }))) return
              await deletePayment(p.id)
              await reloadSubs()
             }}
@@ -1060,13 +1079,13 @@ export function StudentDetailView() {
     {tab === "attendance" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-        <div className="text-2xl font-bold text-emerald-800">{attStats.present}</div>
-        <div className="text-xs text-emerald-800/90">總上堂堂數</div>
+       <div className="rounded-xl border border-success bg-success p-4 text-center">
+        <div className="text-2xl font-bold text-success">{attStats.present}</div>
+        <div className="text-xs text-success/90">總上堂堂數</div>
        </div>
-       <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center">
-        <div className="text-2xl font-bold text-red-800">{attStats.absent}</div>
-        <div className="text-xs text-red-800/90">總缺席堂數</div>
+       <div className="rounded-xl border border-destructive bg-destructive p-4 text-center">
+        <div className="text-2xl font-bold text-destructive">{attStats.absent}</div>
+        <div className="text-xs text-destructive/90">總缺席堂數</div>
        </div>
        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
         <div className="text-2xl font-bold text-amber-800">{attStats.makeup}</div>
@@ -1083,7 +1102,7 @@ export function StudentDetailView() {
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
          <label className="grid gap-1 text-xs text-muted-foreground">
           <span>班別</span>
-          <select
+          <Select
            className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
            value={attClassFilter}
            onChange={(e) => setAttClassFilter(e.target.value)}
@@ -1094,11 +1113,11 @@ export function StudentDetailView() {
              {label}
             </option>
            ))}
-          </select>
+          </Select>
          </label>
          <label className="grid gap-1 text-xs text-muted-foreground">
           <span>狀態</span>
-          <select
+          <Select
            className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
            value={attStatusFilter}
            onChange={(e) =>
@@ -1109,7 +1128,7 @@ export function StudentDetailView() {
            <option value="present">出席類</option>
            <option value="absent">缺席類</option>
            <option value="other">其他</option>
-          </select>
+          </Select>
          </label>
          <label className="grid gap-1 text-xs text-muted-foreground">
           <span>上課日起</span>
@@ -1131,7 +1150,7 @@ export function StudentDetailView() {
          </label>
          <label className="grid gap-1 text-xs text-muted-foreground">
           <span>排序</span>
-          <select
+          <Select
            className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
            value={attSort}
            onChange={(e) => setAttSort(e.target.value as typeof attSort)}
@@ -1141,7 +1160,7 @@ export function StudentDetailView() {
            <option value="classAsc">班別名稱（A→Z）</option>
            <option value="classDesc">班別名稱（Z→A）</option>
            <option value="statusAsc">狀態（筆畫序）</option>
-          </select>
+          </Select>
          </label>
          <Button
           type="button"
@@ -1166,25 +1185,35 @@ export function StudentDetailView() {
         {filteredSortedAttendance.length === 0 ? (
          <p className="py-8 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
         ) : (
-         <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+         <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="hidden grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid">
+           <span>班別</span>
+           <span className="text-right">日期</span>
+           <span className="text-right">狀態</span>
+          </div>
+          <ul className="divide-y divide-border">
           {filteredSortedAttendance.map((a) => (
-           <li key={a.id} className="flex flex-wrap items-start justify-between gap-2 px-4 py-3 text-sm">
-            <span className="font-medium">
+           <li
+            key={a.id}
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+           >
+            <span className="min-w-0 truncate font-medium">
              {a.classId ? (
-              <Link to={`/Classes/${a.classId}`} className="text-primary hover:underline">
+              <Link to={`/Classes/${a.classId}`} className="block truncate text-primary hover:underline">
                {a.classLabel}
               </Link>
              ) : (
               a.classLabel
              )}
             </span>
-            <span className="tabular-nums text-muted-foreground">{a.attendance_date}</span>
-            <span className="w-full text-xs text-muted-foreground sm:w-auto sm:text-right">
+            <span className="text-right tabular-nums text-muted-foreground">{a.attendance_date}</span>
+            <span className="col-span-2 text-right text-xs text-muted-foreground sm:col-span-1">
              {a.status}
             </span>
            </li>
           ))}
-         </ul>
+          </ul>
+         </div>
         )}
        </>
       )}
@@ -1212,7 +1241,7 @@ export function StudentDetailView() {
         </DialogHeader>
         <div className="grid gap-3 text-sm">
          <Field label="班別（就讀中）">
-          <select
+          <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
            value={leaveClassId}
            onChange={(e) => setLeaveClassId(e.target.value)}
@@ -1231,10 +1260,10 @@ export function StudentDetailView() {
              ))}
             </>
            )}
-          </select>
+          </Select>
          </Field>
          <Field label="請假排程（今日起、未取消／完成）">
-          <select
+          <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
            value={leaveScheduleId}
            onChange={(e) => setLeaveScheduleId(e.target.value)}
@@ -1254,10 +1283,10 @@ export function StudentDetailView() {
              ))}
             </>
            )}
-          </select>
+          </Select>
          </Field>
          <Field label="原因">
-          <select
+          <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
            value={leaveReasonPick}
            onChange={(e) =>
@@ -1269,10 +1298,10 @@ export function StudentDetailView() {
              {o}
             </option>
            ))}
-          </select>
+          </Select>
          </Field>
          <Field label="補課安排">
-          <select
+          <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
            value={leaveMakeup}
            onChange={(e) => {
@@ -1286,18 +1315,18 @@ export function StudentDetailView() {
              {o}
             </option>
            ))}
-          </select>
+          </Select>
          </Field>
          {leaveMakeup === "調堂" ? (
-          <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50/40 p-3">
-           <p className="text-xs font-medium text-sky-900">補堂排程（未來一個月內、可跨班）</p>
+          <div className="space-y-2 rounded-lg border border-info bg-info/40 p-3">
+           <p className="text-xs font-medium text-info">補堂排程（未來一個月內、可跨班）</p>
            <Input
             placeholder="搜尋科目、代碼、老師、日期…"
             value={leaveMakeupSearch}
             onChange={(e) => setLeaveMakeupSearch(e.target.value)}
             className="h-9"
            />
-           <select
+           <Select
             className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
             value={leaveMakeupScheduleId}
             onChange={(e) => setLeaveMakeupScheduleId(e.target.value)}
@@ -1309,7 +1338,7 @@ export function StudentDetailView() {
               {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
              </option>
             ))}
-           </select>
+           </Select>
           </div>
          ) : null}
          <Field label="備註（選填）">
@@ -1370,8 +1399,8 @@ export function StudentDetailView() {
           key={h.id}
           className={cn(
            "rounded-xl border px-4 py-3 text-sm shadow-sm",
-           h.tone === "green" && "border-emerald-200 bg-emerald-50/80",
-           h.tone === "blue" && "border-sky-200 bg-sky-50/80",
+           h.tone === "green" && "border-success bg-success/80",
+           h.tone === "blue" && "border-info bg-info/80",
            h.tone === "amber" && "border-amber-200 bg-amber-50/80",
            h.tone === "muted" && "border-border bg-muted/30"
           )}

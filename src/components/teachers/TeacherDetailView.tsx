@@ -18,10 +18,13 @@ import {
 } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
  fetchTeacherAttendance,
@@ -66,9 +69,9 @@ function monthKey(d: Date): string {
 }
 
 function statusPillClass(status: string) {
- if (status.includes("缺席")) return "bg-red-500 text-white"
+ if (status.includes("缺席")) return "bg-destructive text-white"
  if (status.includes("請假")) return "bg-amber-500 text-white"
- if (status.includes("出席") || status.includes("準時")) return "bg-emerald-100 text-emerald-800"
+ if (status.includes("出席") || status.includes("準時")) return "bg-success text-success-foreground"
  return "bg-muted text-muted-foreground"
 }
 
@@ -282,7 +285,7 @@ export function TeacherDetailView() {
      {pageOk ? (
       <div
        role="status"
-       className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-950 md:px-6"
+      className="border-b border-success bg-success px-4 py-2 text-sm text-success-foreground md:px-6"
       >
        {pageOk}
       </div>
@@ -323,9 +326,9 @@ export function TeacherDetailView() {
            </span>
           ) : null}
          </h1>
-         <span className="mt-2 inline-block rounded-full bg-white/20 px-2 py-0.5 text-xs font-medium">
+         <Tag tone={statusToTagTone(teacher.status)} size="sm" className="mt-2 bg-white/20 text-white">
           {teacher.status ?? "—"}
-         </span>
+         </Tag>
         </>
        ) : null}
       </div>
@@ -346,7 +349,7 @@ export function TeacherDetailView() {
         className={cn(
          "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
          active
-          ? "border-b-2 border-emerald-600 text-emerald-700"
+          ? "border-b-2 border-success text-success"
           : "text-muted-foreground hover:text-foreground"
         )}
        >
@@ -422,24 +425,19 @@ export function TeacherDetailView() {
          .map((s) => s.trim())
          .filter(Boolean)
          .map((sub) => (
-          <span
-           key={sub}
-           className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
-          >
-           {sub}
-          </span>
+          <Tag key={sub} tone="info" size="sm">{sub}</Tag>
          ))}
        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center shadow-sm">
-        <div className="text-3xl font-bold text-emerald-800">{classes.length}</div>
-        <div className="text-xs font-medium text-emerald-900/90">任教班別</div>
+       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground shadow-sm">
+        <div className="text-3xl font-bold text-success-foreground">{classes.length}</div>
+        <div className="text-xs font-medium text-success-foreground/90">任教班別</div>
        </div>
-       <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-center shadow-sm">
-        <div className="text-3xl font-bold text-sky-800">{futureSchedCount}</div>
-        <div className="text-xs font-medium text-sky-900/90">未來排程</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm">
+        <div className="text-3xl font-bold text-info-foreground">{futureSchedCount}</div>
+        <div className="text-xs font-medium text-info-foreground/90">未來排程</div>
        </div>
        <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center shadow-sm">
         <div className="text-3xl font-bold text-teal-800">{pastDoneCount}</div>
@@ -449,14 +447,14 @@ export function TeacherDetailView() {
 
       <div className="max-w-md">
        <label className="text-xs font-medium text-muted-foreground">狀態</label>
-       <select
+       <Select
         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
         value={form.status === "非在職" ? "非在職" : "在職"}
         onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
        >
         <option value="在職">在職</option>
         <option value="非在職">非在職</option>
-       </select>
+       </Select>
       </div>
       <div>
        <label className="text-xs font-medium text-muted-foreground">備註</label>
@@ -497,7 +495,7 @@ export function TeacherDetailView() {
             {c.studentCount} 位學生
            </div>
           </div>
-          <div className="text-lg font-semibold text-sky-600">
+          <div className="text-lg font-semibold text-info">
            {money(c.pricePerLesson)}
           </div>
          </div>
@@ -514,13 +512,13 @@ export function TeacherDetailView() {
     {tab === "schedule" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-       <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-center">
-        <div className="text-3xl font-bold text-sky-800">{parts.todayCount}</div>
-        <div className="text-sm text-sky-900/90">本日排程</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground">
+        <div className="text-3xl font-bold text-info-foreground">{parts.todayCount}</div>
+        <div className="text-sm text-info-foreground/90">本日排程</div>
        </div>
-       <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-4 text-center">
-        <div className="text-3xl font-bold text-sky-800">{parts.next7Count}</div>
-        <div className="text-sm text-sky-900/90">未來 7 天排程</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground">
+        <div className="text-3xl font-bold text-info-foreground">{parts.next7Count}</div>
+        <div className="text-sm text-info-foreground/90">未來 7 天排程</div>
        </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -538,7 +536,7 @@ export function TeacherDetailView() {
          className={cn(
           "rounded-full border px-3 py-1.5 text-sm font-medium",
           schedFilter === key
-           ? "border-sky-500 bg-sky-600 text-white"
+           ? "border-info bg-info text-white"
            : "border-border bg-muted/50 text-foreground hover:bg-muted"
          )}
         >
@@ -568,19 +566,12 @@ export function TeacherDetailView() {
              {s.startTime && s.endTime ? `${s.startTime}-${s.endTime}` : ""}
             </div>
            </div>
-           <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
-            {s.status}
-           </span>
+          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
           </div>
           {s.studentNames.length > 0 ? (
            <div className="mt-3 flex flex-wrap gap-1">
             {s.studentNames.map((n: string, i: number) => (
-             <span
-              key={`${s.id}-${i}-${n}`}
-              className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-900"
-             >
-              {n}
-             </span>
+             <Tag key={`${s.id}-${i}-${n}`} tone="success" size="sm">{n}</Tag>
             ))}
            </div>
           ) : null}
@@ -598,11 +589,11 @@ export function TeacherDetailView() {
         <div className="text-3xl font-bold text-teal-800">{attMonthStats.sessionDays}</div>
         <div className="text-sm text-teal-900/90">本月課堂</div>
        </div>
-       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-        <div className="text-3xl font-bold text-emerald-800">
+       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground">
+        <div className="text-3xl font-bold text-success-foreground">
          {attMonthStats.presentRows}
         </div>
-        <div className="text-sm text-emerald-900/90">本月出席紀錄筆數</div>
+        <div className="text-sm text-success-foreground/90">本月出席紀錄筆數</div>
        </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">

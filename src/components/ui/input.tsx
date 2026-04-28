@@ -1,11 +1,15 @@
 import * as React from "react"
 
+import { DateInput } from "@/components/ui/date-input"
 import { cn } from "@/lib/utils"
 
 export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
  ({ className, type, ...props }, ref) => {
+  if (type === "date") {
+   return <DateInput className={className} ref={ref} {...props} />
+  }
   return (
    <input
     type={type}

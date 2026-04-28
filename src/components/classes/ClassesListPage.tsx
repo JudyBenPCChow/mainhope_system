@@ -16,6 +16,9 @@ import {
  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  GRADE_CHIPS,
  KANBAN_DAY_COLUMNS,
@@ -28,6 +31,8 @@ import {
  toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
 import { coalesceCourseCodeForDb } from "@/lib/courseCode"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import {
  deleteClass,
  duplicateClass,
@@ -68,6 +73,8 @@ function galleryCoverClass(subject: string): string {
 
 export function ClassesListPage() {
  const navigate = useNavigate()
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const teacherTid = getTeacherScopeTeacherId()
  const [rows, setRows] = useState<ClassRecord[]>([])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
@@ -178,7 +185,7 @@ export function ClassesListPage() {
   const rawPrice = form.price.trim()
   const priceNum = rawPrice === "" ? null : Number(rawPrice)
   if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
-   alert("每節學費請輸入 0 或以上的金額（HKD）")
+   pushBanner({ tone: "warning", title: "每節學費請輸入 0 或以上的金額（HKD）" })
    return
   }
   const dowRaw = form.day_of_week.trim()
@@ -213,7 +220,7 @@ export function ClassesListPage() {
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
-  if (!confirm("確定刪除此班別？")) return
+ if (!(await confirmDialog({ title: "刪除班別", description: "確定刪除此班別？", confirmText: "確認刪除", tone: "destructive" }))) return
   try {
    await deleteClass(id)
    await load()
@@ -265,9 +272,7 @@ export function ClassesListPage() {
     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
      <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
      {teacherTid ? "我的班別" : "班別管理"}
-     <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-sm font-medium text-sky-800">
-      {loading ? "…" : `${stats.total} 班`}
-     </span>
+     <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
     </h1>
     <div className="flex flex-wrap items-center gap-2">
      <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
@@ -322,11 +327,11 @@ export function ClassesListPage() {
      <div className="text-sm text-muted-foreground">班級總數</div>
     </div>
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-emerald-600">{loading ? "…" : stats.inProg}</div>
+     <div className="text-2xl font-bold text-success">{loading ? "…" : stats.inProg}</div>
      <div className="text-sm text-muted-foreground">進行中</div>
     </div>
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-sky-700">{loading ? "…" : stats.filtered}</div>
+     <div className="text-2xl font-bold text-info">{loading ? "…" : stats.filtered}</div>
      <div className="text-sm text-muted-foreground">篩選結果</div>
     </div>
    </div>
@@ -387,7 +392,7 @@ export function ClassesListPage() {
         "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
         statusKey === s
          ? s === "進行中"
-          ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
+          ? "border-success bg-success text-white shadow-sm"
           : "border-primary bg-primary text-primary-foreground shadow-sm"
          : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
        )}
@@ -415,7 +420,7 @@ export function ClassesListPage() {
         className={cn(
          "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
          kanbanGroup === key
-          ? "border-sky-500 bg-sky-600 text-white shadow-sm"
+          ? "border-info bg-info text-white shadow-sm"
           : "border-border bg-muted/50 hover:bg-muted"
         )}
        >
@@ -431,7 +436,7 @@ export function ClassesListPage() {
       <DialogTrigger asChild>
        <Button
         type="button"
-        className="bg-sky-600 text-white shadow-sm transition-all hover:bg-sky-700 hover:shadow active:scale-[0.98]"
+        className="bg-info text-white shadow-sm transition-all hover:bg-info hover:shadow active:scale-[0.98]"
        >
         <Plus className="h-4 w-4" />
         新增班別
@@ -466,7 +471,7 @@ export function ClassesListPage() {
         </div>
         <div>
          <label className="text-xs text-muted-foreground">逢星期</label>
-         <select
+         <Select
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.day_of_week}
           onChange={(e) => setForm((f) => ({ ...f, day_of_week: e.target.value }))}
@@ -477,7 +482,7 @@ export function ClassesListPage() {
             {d}
            </option>
           ))}
-         </select>
+         </Select>
         </div>
         <div>
          <label className="text-xs text-muted-foreground">時段（例 14:00-16:00）</label>
@@ -489,7 +494,7 @@ export function ClassesListPage() {
         </div>
         <div>
          <label className="text-xs text-muted-foreground">老師</label>
-         <select
+         <Select
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.teacher_id}
           onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value }))}
@@ -500,7 +505,7 @@ export function ClassesListPage() {
             {t.label}
            </option>
           ))}
-         </select>
+         </Select>
         </div>
         <div>
          <label className="text-xs text-muted-foreground">每節學費（HKD）</label>
@@ -542,7 +547,7 @@ export function ClassesListPage() {
         </div>
         <div>
          <label className="text-xs text-muted-foreground">狀態</label>
-         <select
+         <Select
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.status}
           onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
@@ -552,7 +557,7 @@ export function ClassesListPage() {
             {s}
            </option>
           ))}
-         </select>
+         </Select>
         </div>
         <Button type="button" onClick={() => void onAdd()}>
          建立
@@ -661,7 +666,7 @@ export function ClassesListPage() {
             )}
            </td>
            <td className="align-top px-3 py-3 pr-2" onClick={(e) => e.stopPropagation()}>
-            <select
+            <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
@@ -671,7 +676,7 @@ export function ClassesListPage() {
                {s}
               </option>
              ))}
-            </select>
+            </Select>
            </td>
            <td className="align-top px-3 py-3 pl-2" onClick={(e) => e.stopPropagation()}>
             <div className="flex min-w-0 flex-col items-start gap-y-1.5 leading-none">
@@ -738,9 +743,7 @@ export function ClassesListPage() {
           ) : null}
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
-          <span className="inline-flex w-fit rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-900">
-           {c.status}
-          </span>
+          <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
          </div>
         </Link>
        ))}
@@ -782,9 +785,7 @@ export function ClassesListPage() {
             <span className="font-mono text-xs text-muted-foreground">
              {c.course_code ?? "—"}
             </span>
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
-             {c.status}
-            </span>
+            <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">{c.status}</Tag>
            </div>
            <div className="text-base font-bold">{c.subject}</div>
            <div className="text-xs text-muted-foreground">{timeLabel(c)}</div>
@@ -799,7 +800,7 @@ export function ClassesListPage() {
            ) : (
             <span className="text-sm text-muted-foreground">未指派</span>
            )}
-           <div className="text-sm font-semibold text-sky-700">
+           <div className="text-sm font-semibold text-info">
             {c.price_per_lesson != null
              ? `HKD $${c.price_per_lesson}/節`
              : ""}

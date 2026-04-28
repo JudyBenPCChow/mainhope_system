@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -197,6 +199,7 @@ function lineAmountFor(
 }
 
 export function PaymentsPageView() {
+ const { confirmDialog } = useAppConfirm()
  const [searchParams, setSearchParams] = useSearchParams()
  const [mainTab, setMainTab] = useState<MainTab>("receive")
 
@@ -576,7 +579,15 @@ export function PaymentsPageView() {
  }
 
  const onDeleteRow = async (row: PaymentListRow) => {
-  if (!confirm(`確定刪除單據「${row.receiptNumber ?? row.id.slice(0, 8)}」？`)) return
+ if (
+  !(await confirmDialog({
+   title: "刪除單據",
+   description: `確定刪除單據「${row.receiptNumber ?? row.id.slice(0, 8)}」？`,
+   confirmText: "確認刪除",
+   tone: "destructive",
+  }))
+ )
+  return
   try {
    await deletePaymentRecord(row.id)
    void loadHistory()
@@ -592,7 +603,7 @@ export function PaymentsPageView() {
    <span
     className={cn(
      "rounded-full px-2 py-0.5 text-xs font-medium",
-     pending ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
+    pending ? "bg-amber-100 text-amber-900" : "bg-success text-success-foreground"
     )}
    >
     {status}
@@ -617,7 +628,7 @@ export function PaymentsPageView() {
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Wallet className="h-8 w-8 text-orange-600" aria-hidden />
+      <Wallet className="h-8 w-8 text-warning" aria-hidden />
       繳費記錄
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
@@ -638,7 +649,7 @@ export function PaymentsPageView() {
    {formOk ? (
     <div
      role="status"
-     className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950"
+    className="rounded-md border border-success bg-success px-3 py-2 text-sm text-success-foreground"
     >
      {formOk}
     </div>
@@ -652,34 +663,34 @@ export function PaymentsPageView() {
 
    {isSupabaseConfigured ? (
     <div className="grid gap-3 sm:grid-cols-2">
-     <div className="flex gap-3 rounded-xl border border-orange-200/80 bg-gradient-to-br from-orange-50 to-amber-50 p-4 shadow-sm dark:border-orange-900/50 dark:from-orange-950/40 dark:to-amber-950/30">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-orange-500 text-white shadow">
+     <div className="flex gap-3 rounded-xl border border-warning/80 bg-gradient-to-br from-orange-50 to-amber-50 p-4 shadow-sm dark:border-warning/50 dark:from-orange-950/40 dark:to-amber-950/30">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-warning text-white shadow">
        <BookOpen className="h-5 w-5" aria-hidden />
       </div>
       <div className="min-w-0">
-       <div className="text-xs font-medium uppercase tracking-wide text-orange-900/80 dark:text-orange-100/80">
+       <div className="text-xs font-medium uppercase tracking-wide text-warning/80 dark:text-warning/80">
         學生總交堂數
        </div>
-       <div className="mt-1 text-2xl font-bold tabular-nums text-orange-950 dark:text-orange-50">
+       <div className="mt-1 text-2xl font-bold tabular-nums text-warning dark:text-warning">
         {dashLoading ? "…" : (dashStats?.totalPaidLessons ?? "—")}
        </div>
-       <p className="mt-0.5 text-xs text-orange-900/70 dark:text-orange-100/70">
+       <p className="mt-0.5 text-xs text-warning/70 dark:text-warning/70">
         已收款繳費單 · 明細堂數加總
        </p>
       </div>
      </div>
-     <div className="flex gap-3 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-sm dark:border-emerald-900/50 dark:from-emerald-950/40 dark:to-teal-950/30">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-600 text-white shadow">
+     <div className="flex gap-3 rounded-xl border border-success/80 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-sm dark:border-success/50 dark:from-emerald-950/40 dark:to-teal-950/30">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-success text-white shadow">
        <ClipboardCheck className="h-5 w-5" aria-hidden />
       </div>
       <div className="min-w-0">
-       <div className="text-xs font-medium uppercase tracking-wide text-emerald-900/80 dark:text-emerald-100/80">
+       <div className="text-xs font-medium uppercase tracking-wide text-success/80 dark:text-success/80">
         學生總上堂數
        </div>
-       <div className="mt-1 text-2xl font-bold tabular-nums text-emerald-950 dark:text-emerald-50">
+       <div className="mt-1 text-2xl font-bold tabular-nums text-success dark:text-success">
         {dashLoading ? "…" : (dashStats?.totalAttendedLessons ?? "—")}
        </div>
-       <p className="mt-0.5 text-xs text-emerald-900/70 dark:text-emerald-100/70">
+       <p className="mt-0.5 text-xs text-success/70 dark:text-success/70">
         出席紀錄中計為「出席」之堂次（全庫）
        </p>
       </div>
@@ -702,7 +713,7 @@ export function PaymentsPageView() {
       className={cn(
        "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
        mainTab === key
-        ? "border-orange-600 bg-orange-600 text-white"
+        ? "border-warning bg-warning text-white"
         : "border-border bg-card hover:bg-muted/60"
       )}
      >
@@ -798,7 +809,7 @@ export function PaymentsPageView() {
             className="grid gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-[1fr_100px_120px_auto]"
            >
             <FormField label="班別">
-             <select
+             <Select
               className={selectClassName()}
               value={row.classId}
               onChange={(e) => updateLine(row.key, { classId: e.target.value })}
@@ -809,7 +820,7 @@ export function PaymentsPageView() {
                 {enrollmentLabel(e)}
                </option>
               ))}
-             </select>
+             </Select>
             </FormField>
             <FormField label="堂數 *">
              <Input
@@ -853,7 +864,7 @@ export function PaymentsPageView() {
 
       <div className="grid gap-4 sm:grid-cols-2">
        <FormField label="優惠">
-        <select
+        <Select
          className={selectClassName()}
          value={discountId}
          onChange={(e) => setDiscountId(e.target.value)}
@@ -865,7 +876,7 @@ export function PaymentsPageView() {
            {discountOptionLabel(d)}
           </option>
          ))}
-        </select>
+        </Select>
         <p className="text-xs text-muted-foreground">
          優惠項目由外星人於「優惠折扣」維護；先計百分比減免，再減固定金額。
         </p>
@@ -894,30 +905,30 @@ export function PaymentsPageView() {
        ) : null}
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
         <span>應繳總額</span>
-        <span className="tabular-nums text-orange-700 dark:text-orange-300">{money(totalDue)}</span>
+        <span className="tabular-nums text-warning dark:text-warning">{money(totalDue)}</span>
        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
        <FormField label="繳費方式">
-        <select className={selectClassName()} value={method} onChange={(e) => setMethod(e.target.value)}>
+        <Select className={selectClassName()} value={method} onChange={(e) => setMethod(e.target.value)}>
          {PAYMENT_METHOD_PRESETS.map((m) => (
           <option key={m} value={m}>
            {m}
           </option>
          ))}
-        </select>
+        </Select>
        </FormField>
        {mainTab === "invoice" ? (
         <FormField label="帳款狀態">
-         <select
+         <Select
           className={selectClassName()}
           value={invoiceStatus}
           onChange={(e) => setInvoiceStatus(e.target.value)}
          >
           <option value={PAYMENT_STATUS.pendingReceive}>{PAYMENT_STATUS.pendingReceive}</option>
           <option value={PAYMENT_STATUS.pendingPay}>{PAYMENT_STATUS.pendingPay}</option>
-         </select>
+         </Select>
         </FormField>
        ) : (
         <FormField label="帳款狀態">
@@ -950,7 +961,7 @@ export function PaymentsPageView() {
 
       <Button
        type="button"
-       className="w-full bg-orange-600 text-white hover:bg-orange-700 sm:w-auto"
+       className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
        disabled={!isSupabaseConfigured || saving}
        onClick={() => void (mainTab === "receive" ? submitReceive() : submitInvoice())}
       >
@@ -958,9 +969,9 @@ export function PaymentsPageView() {
       </Button>
      </div>
 
-     <aside className="space-y-3 rounded-xl border border-orange-200/60 bg-orange-50/50 p-4 text-sm dark:border-orange-900/40 dark:bg-orange-950/20">
-      <p className="font-medium text-orange-900 dark:text-orange-100">小提示</p>
-      <ul className="list-inside list-disc space-y-2 text-orange-900/90 dark:text-orange-100/90">
+    <aside className="space-y-3 rounded-xl border border-warning/60 bg-warning p-4 text-sm text-warning-foreground dark:border-warning/40 dark:bg-warning/80 dark:text-warning-foreground">
+     <p className="font-medium text-warning-foreground dark:text-warning-foreground">小提示</p>
+     <ul className="list-inside list-disc space-y-2 text-warning-foreground/90 dark:text-warning-foreground/90">
        <li>班別僅顯示該生「報讀中」班級；金額預設為班級每堂單價 × 堂數（可再手改）。</li>
        <li>「+ 新增班別」可同一張單據收多班費用。</li>
        <li>單據編號由系統自動產生，無法手動輸入。</li>
@@ -972,7 +983,7 @@ export function PaymentsPageView() {
     <div className="space-y-4">
      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
       <FormField label="狀態">
-       <select
+       <Select
         className={cn(selectClassName(), "min-w-[140px]")}
         value={histStatus}
         onChange={(e) => setHistStatus(e.target.value as typeof histStatus)}
@@ -981,7 +992,7 @@ export function PaymentsPageView() {
         <option value="received">已收款</option>
         <option value="pending">待繳／待收款</option>
         <option value="pendingPay">待繳費（出單）</option>
-       </select>
+       </Select>
       </FormField>
       <FormField label="起日">
        <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} className="w-[160px]" />
@@ -1212,17 +1223,17 @@ export function PaymentsPageView() {
         將 <strong>{markTarget.studentName}</strong> 的 {money(markTarget.totalAmount)} 標記為已收。收據編號將由系統自動產生。
        </p>
        <FormField label="繳費方式">
-        <select className={selectClassName()} value={markMethod} onChange={(e) => setMarkMethod(e.target.value)}>
+        <Select className={selectClassName()} value={markMethod} onChange={(e) => setMarkMethod(e.target.value)}>
          {PAYMENT_METHOD_PRESETS.map((m) => (
           <option key={m} value={m}>
            {m}
           </option>
          ))}
-        </select>
+        </Select>
        </FormField>
        <Button
         type="button"
-        className="bg-emerald-600 text-white hover:bg-emerald-700"
+        className="bg-success text-white hover:bg-success"
         disabled={saving}
         onClick={() => void confirmMarkReceived()}
        >

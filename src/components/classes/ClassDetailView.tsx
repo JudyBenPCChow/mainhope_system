@@ -12,6 +12,9 @@ import {
  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  CLASS_GRADE_FORM_OPTIONS,
  KANBAN_DAY_COLUMNS,
@@ -21,6 +24,8 @@ import {
  weekdaySelectValueFromStored,
 } from "@/components/classes/classesUi"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { normalizeCourseCode } from "@/lib/courseCode"
 import { cn } from "@/lib/utils"
@@ -107,6 +112,8 @@ export function ClassDetailView() {
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
  const [pageErr, setPageErr] = useState<string | null>(null)
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
 
  const reload = useCallback(async () => {
   if (!cid) return
@@ -192,7 +199,7 @@ export function ClassDetailView() {
   setEditErr(null)
   const cap = form.capacity
   if (cap != null && cap < 0) {
-   alert("收生上限不可為負數")
+   pushBanner({ tone: "warning", title: "收生上限不可為負數" })
    return
   }
   const gradeArr = gradeSelections.length > 0 ? gradeSelections : []
@@ -230,7 +237,7 @@ export function ClassDetailView() {
   }
   setEditOpen(false)
   await reload()
-  alert("已儲存")
+ pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
  }
 
  const addSched = async () => {
@@ -395,9 +402,7 @@ export function ClassDetailView() {
          <h1 className="text-xl font-bold md:text-2xl">{cls.subject}</h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="font-mono">{cls.course_code ?? "—"}</span>
-          <span className="rounded-full bg-emerald-500/90 px-2 py-0.5 text-xs font-medium text-white">
-           {cls.status}
-          </span>
+          <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
           <span>{timeLine(cls)}</span>
          </div>
         </>
@@ -497,17 +502,17 @@ export function ClassDetailView() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-sky-800">{students.length}</div>
-        <div className="text-xs font-medium text-sky-900/90">就讀學生</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold text-info">{students.length}</div>
+        <div className="text-xs font-medium text-info/90">就讀學生</div>
        </div>
-       <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-sky-800">{parts.fut}</div>
-        <div className="text-xs font-medium text-sky-900/90">未來排程</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold text-info">{parts.fut}</div>
+        <div className="text-xs font-medium text-info/90">未來排程</div>
        </div>
-       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-emerald-800">{parts.past}</div>
-        <div className="text-xs font-medium text-emerald-900/90">已完成課堂</div>
+       <div className="rounded-xl border border-success bg-success p-4 text-center transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold text-success">{parts.past}</div>
+        <div className="text-xs font-medium text-success/90">已完成課堂</div>
        </div>
       </div>
      </div>
@@ -582,9 +587,7 @@ export function ClassDetailView() {
            {s.grade ?? "—"} · {s.school ?? "—"} · 報讀：{s.enrollDate ?? "—"}
           </div>
          </div>
-         <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800">
-          {s.status}
-         </span>
+         <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
         </Link>
        ))
       )}
@@ -607,7 +610,7 @@ export function ClassDetailView() {
             "flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
             ev.action === "withdraw"
              ? "border-amber-200 bg-amber-50/70"
-             : "border-sky-200 bg-sky-50/70"
+             : "border-info bg-info/70"
            )}
           >
            <div className="min-w-0">
@@ -744,7 +747,7 @@ export function ClassDetailView() {
            {s.start_time && s.end_time ? `${s.start_time}-${s.end_time}` : ""}
           </Link>
           <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-           <select
+           <Select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
             value={s.status}
             onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
@@ -752,12 +755,12 @@ export function ClassDetailView() {
             <option value="預定">預定</option>
             <option value="完成">完成</option>
             <option value="取消">取消</option>
-           </select>
+           </Select>
            <button
             type="button"
             className="text-sm text-destructive hover:underline"
             onClick={async () => {
-             if (!confirm("刪除此排程？")) return
+            if (!(await confirmDialog({ title: "刪除排程", description: "刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
             await onDeleteSchedule(s.id)
             }}
            >
@@ -823,7 +826,7 @@ export function ClassDetailView() {
        </div>
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">年級（可多選）</label>
-        <select
+        <Select
          multiple
          size={8}
          className="mt-1 min-h-[8.5rem] w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
@@ -837,14 +840,14 @@ export function ClassDetailView() {
            {g}
           </option>
          ))}
-        </select>
+        </Select>
         <p className="mt-1 text-xs text-muted-foreground">
          按住 Cmd（Mac）或 Ctrl（Windows）可複選；未選表示不寫入年級（清空）。
         </p>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">逢星期</label>
-        <select
+        <Select
          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
          value={form.day_of_week ?? ""}
          onChange={(e) =>
@@ -861,7 +864,7 @@ export function ClassDetailView() {
          !(KANBAN_DAY_COLUMNS as readonly string[]).includes(form.day_of_week) ? (
           <option value={form.day_of_week}>{form.day_of_week}（原資料）</option>
          ) : null}
-        </select>
+        </Select>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">時段</label>
@@ -873,7 +876,7 @@ export function ClassDetailView() {
        </div>
        <div>
         <label className="text-xs text-muted-foreground">老師</label>
-        <select
+        <Select
          className="mt-1 flex h-9 w-full rounded-md border border-input px-2 text-sm"
          value={form.teacher_id ?? ""}
          onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value || null }))}
@@ -884,11 +887,11 @@ export function ClassDetailView() {
            {t.label}
           </option>
          ))}
-        </select>
+        </Select>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">課室</label>
-        <select
+        <Select
          className="mt-1 flex h-9 w-full rounded-md border border-input px-2 text-sm"
          value={form.classroom_id ?? ""}
          onChange={(e) => setForm((f) => ({ ...f, classroom_id: e.target.value || null }))}
@@ -899,7 +902,7 @@ export function ClassDetailView() {
            {r.label}
           </option>
          ))}
-        </select>
+        </Select>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">收生上限</label>
@@ -979,7 +982,7 @@ export function ClassDetailView() {
        </div>
       <div className="sm:col-span-2">
        <label className="text-xs text-muted-foreground">狀態</label>
-       <select
+       <Select
         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
         value={form.status ?? "進行中"}
         onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
@@ -993,7 +996,7 @@ export function ClassDetailView() {
         !(STATUS_CHIPS.filter((s) => s !== "全部") as string[]).includes(form.status) ? (
          <option value={form.status}>{form.status}（原資料）</option>
         ) : null}
-       </select>
+       </Select>
       </div>
        <div className="sm:col-span-2 flex gap-2">
         <Button type="button" disabled={savingEdit} onClick={() => void saveClass()}>

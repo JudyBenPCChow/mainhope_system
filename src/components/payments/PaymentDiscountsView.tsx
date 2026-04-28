@@ -9,6 +9,8 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
  deletePaymentDiscount,
@@ -25,6 +27,8 @@ function formatErr(e: unknown): string {
 }
 
 export function PaymentDiscountsView() {
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<PaymentDiscountRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -81,17 +85,17 @@ export function PaymentDiscountsView() {
 
  const submit = async () => {
   if (!name.trim()) {
-   alert("請填名稱")
+   pushBanner({ tone: "warning", title: "請填名稱" })
    return
   }
   const p = percentOff.trim() ? Number(percentOff) : null
   const a = amountOff.trim() ? Number(amountOff) : null
   if (p != null && (p < 0 || p > 100)) {
-   alert("折扣百分比須介於 0–100")
+   pushBanner({ tone: "warning", title: "折扣百分比須介於 0–100" })
    return
   }
   if (a != null && a < 0) {
-   alert("固定減免不可為負數")
+   pushBanner({ tone: "warning", title: "固定減免不可為負數" })
    return
   }
   setSaving(true)
@@ -117,19 +121,27 @@ export function PaymentDiscountsView() {
    setDialogOpen(false)
    await load()
   } catch (e) {
-   alert(formatErr(e))
+   pushBanner({ tone: "error", title: "儲存優惠失敗", message: formatErr(e) })
   } finally {
    setSaving(false)
   }
  }
 
  const onDelete = async (r: PaymentDiscountRow) => {
-  if (!confirm(`刪除優惠「${r.name}」？已關聯的繳費紀錄將保留欄位為空（on delete set null）。`)) return
+  if (
+   !(await confirmDialog({
+    title: "刪除優惠",
+    description: `刪除優惠「${r.name}」？已關聯的繳費紀錄將保留欄位為空（on delete set null）。`,
+    confirmText: "確認刪除",
+    tone: "destructive",
+   }))
+  )
+   return
   try {
    await deletePaymentDiscount(r.id)
    await load()
   } catch (e) {
-   alert(formatErr(e))
+   pushBanner({ tone: "error", title: "刪除優惠失敗", message: formatErr(e) })
   }
  }
 

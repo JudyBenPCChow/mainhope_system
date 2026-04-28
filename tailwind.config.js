@@ -45,6 +45,51 @@ export default {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        info: {
+          DEFAULT: "hsl(var(--info))",
+          foreground: "hsl(var(--info-foreground))",
+        },
+        warning: {
+          DEFAULT: "hsl(var(--warning))",
+          foreground: "hsl(var(--warning-foreground))",
+        },
+        neutral: {
+          950: "hsl(var(--neutral-950))",
+          900: "hsl(var(--neutral-900))",
+          700: "hsl(var(--neutral-700))",
+          600: "hsl(var(--neutral-600))",
+          500: "hsl(var(--neutral-500))",
+          400: "hsl(var(--neutral-400))",
+          300: "hsl(var(--neutral-300))",
+          200: "hsl(var(--neutral-200))",
+          100: "hsl(var(--neutral-100))",
+        },
+        utility: {
+          green: {
+            600: "hsl(var(--utility-green-600))",
+            500: "hsl(var(--utility-green-500))",
+            300: "hsl(var(--utility-green-300))",
+          },
+          blue: {
+            600: "hsl(var(--utility-blue-600))",
+            500: "hsl(var(--utility-blue-500))",
+            300: "hsl(var(--utility-blue-300))",
+          },
+          orange: {
+            600: "hsl(var(--utility-orange-600))",
+            500: "hsl(var(--utility-orange-500))",
+            300: "hsl(var(--utility-orange-300))",
+          },
+          red: {
+            600: "hsl(var(--utility-red-600))",
+            500: "hsl(var(--utility-red-500))",
+            300: "hsl(var(--utility-red-300))",
+          },
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

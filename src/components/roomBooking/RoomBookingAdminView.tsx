@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { ClipboardCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getMgmtRole } from "@/lib/mgmtRole"
@@ -14,6 +16,8 @@ import {
 
 export function RoomBookingAdminView() {
  const role = getMgmtRole()
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<RoomBookingRequestAdminRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -41,26 +45,34 @@ export function RoomBookingAdminView() {
  }, [reload])
 
  const onApprove = async (id: string) => {
-  if (!confirm("核准後將建立排程並寫入課表，確定？")) return
+ if (
+  !(await confirmDialog({
+   title: "核准約房申請",
+   description: "核准後將建立排程並寫入課表，確定？",
+   confirmText: "確認核准",
+   tone: "warning",
+  }))
+ )
+  return
   setBusyId(id)
   try {
    await approveRoomBookingRequest(id)
    await reload()
   } catch (e) {
-   alert(formatUnknownError(e))
+   pushBanner({ tone: "error", title: "核准失敗", message: formatUnknownError(e) })
   } finally {
    setBusyId(null)
   }
  }
 
  const onReject = async (id: string) => {
-  if (!confirm("拒絕此約房申請？")) return
+ if (!(await confirmDialog({ title: "拒絕約房申請", description: "拒絕此約房申請？", confirmText: "確認拒絕", tone: "destructive" }))) return
   setBusyId(id)
   try {
    await rejectRoomBookingRequest(id)
    await reload()
   } catch (e) {
-   alert(formatUnknownError(e))
+   pushBanner({ tone: "error", title: "拒絕失敗", message: formatUnknownError(e) })
   } finally {
    setBusyId(null)
   }
@@ -82,7 +94,7 @@ export function RoomBookingAdminView() {
   <div className="space-y-4">
    <header>
     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-     <ClipboardCheck className="h-7 w-7 text-sky-600" aria-hidden />
+     <ClipboardCheck className="h-7 w-7 text-info" aria-hidden />
      約房審批
     </h1>
     <p className="mt-1 text-sm text-muted-foreground">
@@ -148,7 +160,7 @@ export function RoomBookingAdminView() {
            <Button
             type="button"
             size="sm"
-            className="bg-emerald-600 text-white hover:bg-emerald-700"
+            className="bg-success text-white hover:bg-success"
             disabled={busyId === r.id}
             onClick={() => void onApprove(r.id)}
            >

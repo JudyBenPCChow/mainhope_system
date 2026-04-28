@@ -211,14 +211,18 @@ export type AttendanceRecordRow = {
  status: string
  remarks: string | null
  studentName: string | null
+ studentEnglishName: string | null
  studentGrade: string | null
  classSubject: string | null
  courseCode: string | null
+ teacherId: string | null
+ teacherName: string | null
 }
 
 function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
  const st = r.students as Record<string, unknown> | null
- const cls = r.classes as Record<string, unknown> | null
+ const cls = r.classes as (Record<string, unknown> & { teachers?: Record<string, unknown> | null }) | null
+ const teacherObj = cls?.teachers ?? null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
@@ -227,9 +231,12 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
   studentName: st?.full_name != null ? String(st.full_name) : null,
+  studentEnglishName: st?.english_name != null ? String(st.english_name) : null,
   studentGrade: st?.grade != null ? String(st.grade) : null,
   classSubject: cls?.subject != null ? String(cls.subject) : null,
   courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+  teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
+  teacherName: teacherObj?.full_name != null ? String(teacherObj.full_name) : null,
  }
 }
 
@@ -241,7 +248,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, grade ), classes ( subject, course_code )"
+   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, teacher_id, teachers ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)
@@ -292,13 +299,9 @@ export async function fetchAttendanceDashboardForDate(ymd: string): Promise<{
  }
 }
 
-export function aggregateAttendanceByDate(
- rows: AttendanceRecordRow[],
- monthYmdPrefix: string
-): AttendanceDayStats[] {
+export function aggregateAttendanceByDate(rows: AttendanceRecordRow[]): AttendanceDayStats[] {
  const byDate = new Map<string, AttendanceRecordRow[]>()
  for (const r of rows) {
-  if (!r.attendanceDate.startsWith(monthYmdPrefix)) continue
   const arr = byDate.get(r.attendanceDate) ?? []
   arr.push(r)
   byDate.set(r.attendanceDate, arr)

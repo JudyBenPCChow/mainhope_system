@@ -5,7 +5,6 @@ import { Mail, Phone, Plus, User, Users } from "lucide-react"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -15,6 +14,10 @@ import {
  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  deleteTeacher,
  fetchAllTeachers,
@@ -22,15 +25,9 @@ import {
  type TeacherRecord,
 } from "@/services/teacherQueries"
 
-function statusStyle(status: string | null) {
- const s = status ?? ""
- if (s === "非在職" || /離職|離任|非在職/.test(s)) return "bg-rose-100 text-rose-900 border-rose-200"
- if (s.includes("在職")) return "bg-emerald-100 text-emerald-800 border-emerald-200"
- return "bg-slate-100 text-slate-700 border-slate-200"
-}
-
 export function TeachersListPage() {
  const navigate = useNavigate()
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<TeacherRecord[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -96,7 +93,15 @@ export function TeachersListPage() {
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
-  if (!confirm("確定刪除此老師？若班級仍指向該老師，請先改派。")) return
+ if (
+  !(await confirmDialog({
+   title: "刪除老師",
+   description: "確定刪除此老師？若班級仍指向該老師，請先改派。",
+   confirmText: "確認刪除",
+   tone: "destructive",
+  }))
+ )
+  return
   try {
    await deleteTeacher(id)
    await load()
@@ -130,7 +135,7 @@ export function TeachersListPage() {
     {isSuperAdmin() ? (
      <Dialog open={addOpen} onOpenChange={setAddOpen}>
       <DialogTrigger asChild>
-       <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700">
+       <Button type="button" className="bg-success text-white hover:bg-success">
         <Plus className="h-4 w-4" />
         新增老師
        </Button>
@@ -189,14 +194,14 @@ export function TeachersListPage() {
         </div>
         <div>
          <label className="text-xs font-medium text-muted-foreground">狀態</label>
-         <select
+         <Select
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.status === "非在職" ? "非在職" : "在職"}
           onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
          >
           <option value="在職">在職</option>
           <option value="非在職">非在職</option>
-         </select>
+         </Select>
         </div>
         <div>
          <label className="text-xs font-medium text-muted-foreground">
@@ -252,17 +257,12 @@ export function TeachersListPage() {
           <div className="text-sm text-muted-foreground">{t.english_name}</div>
          ) : null}
          {t.abbr ? (
-          <div className="mt-1 font-mono text-xs text-sky-800">ABBR：{t.abbr}</div>
+          <div className="mt-1 font-mono text-xs text-info">ABBR：{t.abbr}</div>
          ) : null}
         </div>
-        <span
-         className={cn(
-          "absolute right-3 top-3 rounded-full border px-2 py-0.5 text-xs font-medium",
-          statusStyle(t.status)
-         )}
-        >
+        <Tag tone={statusToTagTone(t.status)} size="sm" className="absolute right-3 top-3">
          {t.status ?? "—"}
-        </span>
+        </Tag>
        </div>
        <div className="flex flex-1 flex-col gap-2 p-4 text-sm">
         {t.phone ? (
@@ -279,12 +279,7 @@ export function TeachersListPage() {
         ) : null}
         <div className="flex flex-wrap gap-1 pt-1">
          {(t.subject_speciality ?? []).map((sub) => (
-          <span
-           key={sub}
-           className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
-          >
-           {sub}
-          </span>
+          <Tag key={sub} tone="info" size="sm">{sub}</Tag>
          ))}
         </div>
        </div>

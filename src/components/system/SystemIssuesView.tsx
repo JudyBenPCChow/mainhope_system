@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronLeft, RefreshCw } from "lucide-react"
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -199,7 +200,7 @@ export function SystemIssuesView() {
       <label htmlFor="iss-role" className="text-xs font-medium text-muted-foreground">
        按角色（用戶類型）
       </label>
-      <select
+      <Select
        id="iss-role"
        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
        value={role}
@@ -210,7 +211,7 @@ export function SystemIssuesView() {
          {o.label}
         </option>
        ))}
-      </select>
+      </Select>
      </div>
      <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
       <label htmlFor="iss-actor" className="text-xs font-medium text-muted-foreground">
@@ -323,7 +324,7 @@ export function SystemIssuesView() {
          <td className="max-w-xs px-3 py-2.5 break-words md:px-4">{r.message}</td>
          <td className="max-w-sm px-3 py-2.5 text-muted-foreground md:px-4">
           {r.resolved_at ? (
-           <span className="text-emerald-800">已處理 {formatTs(r.resolved_at)}</span>
+           <span className="text-success">已處理 {formatTs(r.resolved_at)}</span>
           ) : (
            <span className="font-medium text-amber-800">待處理</span>
           )}

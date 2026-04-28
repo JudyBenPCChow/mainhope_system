@@ -5,6 +5,9 @@ import { Check, ChevronLeft, ChevronRight, Monitor, Plus, School } from "lucide-
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { fetchAllClasses, getClassById, insertScheduleForClass } from "@/services/classQueries"
@@ -320,9 +323,7 @@ export function ClassroomsManagePage() {
        <School className="h-7 w-7 text-teal-600" aria-hidden />
        課室管理
       </span>
-      <span className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-800 transition-colors">
-       {rooms.length} 間
-      </span>
+      <Tag tone="info" size="sm">{rooms.length} 間</Tag>
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">依課室檢視週排程，點選欄位或空白格可快速新增。</p>
     </div>
@@ -375,7 +376,7 @@ export function ClassroomsManagePage() {
       <span
        className={cn(
         "rounded-full px-2 py-0.5 text-xs font-medium",
-        selectedRoom.is_online ? "bg-sky-100 text-sky-800" : "bg-teal-100 text-teal-800"
+        selectedRoom.is_online ? "bg-info text-info-foreground" : "bg-teal-100 text-teal-800"
        )}
       >
        {selectedRoom.is_online ? "網課" : "實體課室"}
@@ -464,7 +465,7 @@ export function ClassroomsManagePage() {
             className={cn(
              "flex w-full flex-col items-center gap-0.5 px-2 py-2 transition-all duration-200",
              "hover:bg-teal-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500/40",
-             sel ? "bg-sky-100/90 text-teal-900" : "bg-transparent"
+             sel ? "bg-info/90 text-teal-900" : "bg-transparent"
             )}
            >
             <span className="font-medium">{d.label}</span>
@@ -496,7 +497,7 @@ export function ClassroomsManagePage() {
             key={`${d.ymd}-${slot.label}`}
             className={cn(
              "align-top border border-border p-0 transition-colors duration-150",
-             sel ? "bg-sky-50/50" : "bg-card",
+             sel ? "bg-info/50" : "bg-card",
              items.length === 0 && "cursor-pointer hover:bg-teal-50/40 active:bg-teal-100/50"
             )}
            >
@@ -549,11 +550,7 @@ export function ClassroomsManagePage() {
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
      <h2 className="text-lg font-semibold">
        {selectedDateYmd} 的排程
-      {selectedDateYmd === todayYmd ? (
-       <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
-        今天
-       </span>
-      ) : null}
+      {selectedDateYmd === todayYmd ? <Tag tone="warning" size="sm" className="ml-2">今天</Tag> : null}
      </h2>
      <Button
       type="button"
@@ -584,10 +581,12 @@ export function ClassroomsManagePage() {
           {s.subject}
           {s.course_code ? `（${s.course_code}）` : ""}
          </span>
-         <span className="text-sm tabular-nums text-muted-foreground">
-          {s.start_time ?? "—"} — {s.end_time ?? "—"}
-          {s.teacher_name ? ` · ${s.teacher_name}` : ""}
-          <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-xs">{s.status}</span>
+         <span className="inline-flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">
+          <span>
+           {s.start_time ?? "—"} — {s.end_time ?? "—"}
+           {s.teacher_name ? ` · ${s.teacher_name}` : ""}
+          </span>
+          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
          </span>
         </Link>
        </li>
@@ -604,7 +603,7 @@ export function ClassroomsManagePage() {
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
        <span className="text-muted-foreground">班別</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input bg-background px-2 transition-colors hover:border-teal-400/50"
         value={addClassId}
         onChange={(e) => setAddClassId(e.target.value)}
@@ -615,7 +614,7 @@ export function ClassroomsManagePage() {
           {o.label}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">日期</span>

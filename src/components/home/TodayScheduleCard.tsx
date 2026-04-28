@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom"
 import { CalendarDays, User } from "lucide-react"
 
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import type { TodayScheduleRow } from "@/services/dashboard"
 
 type Props = {
@@ -15,9 +17,7 @@ export function TodayScheduleCard({ schedules, loading }: Props) {
     <h2 className="flex items-center gap-2 text-base font-semibold">
      <CalendarDays className="h-5 w-5 text-primary" />
      今日課堂
-     <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-      {loading ? "…" : `${schedules.length} 堂`}
-     </span>
+     <Tag tone="default" size="sm">{loading ? "…" : `${schedules.length} 堂`}</Tag>
     </h2>
     <Link
      to="/Schedule"
@@ -44,9 +44,7 @@ export function TodayScheduleCard({ schedules, loading }: Props) {
          <User className="h-3.5 w-3.5" />
          {s.teacherName}
         </span>
-        <span className="rounded-md border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800">
-         {s.status}
-        </span>
+        <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
        </div>
       </li>
      ))}

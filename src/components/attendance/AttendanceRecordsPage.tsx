@@ -9,14 +9,18 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-input"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses } from "@/services/classQueries"
+import { fetchAllTeachers } from "@/services/teacherQueries"
 import {
  aggregateAttendanceByDate,
- fetchAttendanceDashboardForDate,
  fetchAttendanceRecordsInRange,
  groupRecordsByClass,
  localYmd,
@@ -30,32 +34,39 @@ function formatLoadError(e: unknown): string {
  return "載入失敗"
 }
 
-function monthRange(ym: string): { from: string; to: string } {
- const [y, m] = ym.split("-").map(Number)
- const last = new Date(y, m, 0)
- const from = `${y}-${String(m).padStart(2, "0")}-01`
- const to = localYmd(last)
- return { from, to }
+function currentMonthRange(): DateRangeValue {
+ const now = new Date()
+ const y = now.getFullYear()
+ const m = now.getMonth()
+ const first = new Date(y, m, 1)
+ const last = new Date(y, m + 1, 0)
+ return { from: localYmd(first), to: localYmd(last) }
 }
 
-function statusBadgeClass(status: string): string {
- if (status.includes("出席")) return "border-emerald-300 bg-emerald-50 text-emerald-900"
- if (status.includes("缺席")) return "border-red-300 bg-red-50 text-red-900"
- if (status.includes("請假") || status.includes("假")) return "border-amber-300 bg-amber-50 text-amber-900"
- if (status.includes("補")) return "border-sky-300 bg-sky-50 text-sky-900"
- if (status.includes("網課") || status.includes("線上")) return "border-sky-300 bg-sky-50 text-sky-900"
- return "border-border bg-muted text-foreground"
+function statusCount(rows: AttendanceRecordRow[]) {
+ const base = { total: rows.length, present: 0, absent: 0, leave: 0, makeup: 0, online: 0 }
+ for (const r of rows) {
+  if (r.status.includes("出席")) base.present++
+  else if (r.status.includes("缺席")) base.absent++
+  else if (r.status.includes("請假") || r.status.includes("假")) base.leave++
+  else if (r.status.includes("補")) base.makeup++
+  else if (r.status.includes("網課") || r.status.includes("線上")) base.online++
+ }
+ return base
 }
 
 export function AttendanceRecordsPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const [viewMode, setViewMode] = useState<ViewMode>("today")
- const [focusDay, setFocusDay] = useState(() => localYmd())
- const [monthYm, setMonthYm] = useState(() => localYmd().slice(0, 7))
+ const [dateRange, setDateRange] = useState<DateRangeValue>(() => currentMonthRange())
+ const [studentKeyword, setStudentKeyword] = useState("")
+ const [classFilter, setClassFilter] = useState("all")
+ const [teacherFilter, setTeacherFilter] = useState("all")
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
  const [scopeClassIds, setScopeClassIds] = useState<Set<string> | null>(null)
- const [dayBoard, setDayBoard] = useState<Awaited<ReturnType<typeof fetchAttendanceDashboardForDate>> | null>(null)
+ const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
+ const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; name: string }>>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -64,54 +75,65 @@ export function AttendanceRecordsPage() {
   setLoading(true)
   setErr(null)
   try {
-   if (viewMode === "today") {
-    const [rec, d] = await Promise.all([
-     fetchAttendanceRecordsInRange(focusDay, focusDay),
-     fetchAttendanceDashboardForDate(focusDay),
-    ])
-    setRows(rec)
-    setDayBoard(d)
-   } else if (viewMode === "month") {
-    const { from, to } = monthRange(monthYm)
-    const rec = await fetchAttendanceRecordsInRange(from, to)
-    setRows(rec)
-    const d = await fetchAttendanceDashboardForDate(focusDay)
-    setDayBoard(d)
-   } else {
-    const rec = await fetchAttendanceRecordsInRange(focusDay, focusDay)
-    setRows(rec)
-    const d = await fetchAttendanceDashboardForDate(focusDay)
-    setDayBoard(d)
-   }
+   const from = dateRange.from || localYmd()
+   const to = dateRange.to || from
+   const rec = await fetchAttendanceRecordsInRange(from, to)
+   setRows(rec)
   } catch (e) {
    setErr(formatLoadError(e))
    setRows([])
-   setDayBoard(null)
   } finally {
    setLoading(false)
   }
- }, [viewMode, focusDay, monthYm])
+ }, [dateRange.from, dateRange.to])
 
  useEffect(() => {
   void reload()
  }, [reload])
 
  useEffect(() => {
-  if (!teacherTid) {
-   setScopeClassIds(null)
-   return
-  }
-  void fetchAllClasses().then((all) => {
+  void (async () => {
+   const all = await fetchAllClasses()
+   setClassOptions(
+    all.map((c) => ({
+     id: c.id,
+     label: c.course_code ? `${c.subject} (${c.course_code})` : c.subject,
+     teacherId: c.teacher_id ?? null,
+    }))
+   )
+   if (!teacherTid) {
+    setScopeClassIds(null)
+    return
+   }
    setScopeClassIds(new Set(all.filter((c) => c.teacher_id === teacherTid).map((c) => c.id)))
-  })
+  })()
  }, [teacherTid])
 
- const displayRows = useMemo(() => {
-  if (!scopeClassIds) return rows
-  return rows.filter((r) => scopeClassIds.has(r.classId))
- }, [rows, scopeClassIds])
+ useEffect(() => {
+  void fetchAllTeachers().then((all) => {
+   setTeacherOptions(all.map((t) => ({ id: t.id, name: t.full_name })))
+  })
+ }, [])
 
- const monthAgg = useMemo(() => aggregateAttendanceByDate(displayRows, monthYm), [displayRows, monthYm])
+ const displayRows = useMemo(() => {
+  let next = rows
+  if (scopeClassIds) next = next.filter((r) => scopeClassIds.has(r.classId))
+  const keyword = studentKeyword.trim().toLowerCase()
+  if (keyword) {
+   next = next.filter((r) => {
+    const zh = (r.studentName ?? "").toLowerCase()
+    const en = (r.studentEnglishName ?? "").toLowerCase()
+    return zh.includes(keyword) || en.includes(keyword)
+   })
+  }
+  if (classFilter !== "all") next = next.filter((r) => r.classId === classFilter)
+  const activeTeacherId = teacherTid ?? teacherFilter
+  if (activeTeacherId !== "all") next = next.filter((r) => r.teacherId === activeTeacherId)
+  return next
+ }, [rows, scopeClassIds, studentKeyword, classFilter, teacherFilter, teacherTid])
+
+ const monthAgg = useMemo(() => aggregateAttendanceByDate(displayRows), [displayRows])
+ const s = useMemo(() => statusCount(displayRows), [displayRows])
 
  const kanbanMap = useMemo(() => groupRecordsByClass(displayRows), [displayRows])
 
@@ -133,7 +155,8 @@ export function AttendanceRecordsPage() {
   )
  }
 
- const s = dayBoard?.stats
+ const rangeLabel = dateRange.to ? `${dateRange.from} ～ ${dateRange.to}` : dateRange.from
+ const isSingleDay = !dateRange.to || dateRange.to === dateRange.from
 
  return (
   <div className="space-y-4">
@@ -146,8 +169,8 @@ export function AttendanceRecordsPage() {
    </header>
 
    {teacherTid ? (
-    <div className="rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-sm text-sky-950">
-     專班老師檢視：下方列表、月視表與班別看板僅含<strong>您指派的班別</strong>。頂部四格統計仍為該日<strong>全系統</strong>加總。
+   <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
+    專班老師檢視：下方資料僅含<strong>您指派的班別</strong>；老師篩選已自動鎖定為您本人。
     </div>
    ) : null}
 
@@ -164,15 +187,15 @@ export function AttendanceRecordsPage() {
       今日紀錄總筆數
      </div>
      <p className="mt-2 text-2xl font-bold tabular-nums text-teal-800">{s?.total ?? 0}</p>
-     <p className="mt-1 text-[11px] text-muted-foreground">以「檢視日」{focusDay}</p>
+     <p className="mt-1 text-[11px] text-muted-foreground">{rangeLabel || "未選擇日期"}</p>
     </div>
-    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-4 shadow-sm">
-     <div className="text-xs font-medium text-emerald-900/90">出席</div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-emerald-800">{s?.present ?? 0}</p>
+    <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
+     <div className="text-xs font-medium text-success/90">出席</div>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-success">{s?.present ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-red-200/80 bg-red-50/40 p-4 shadow-sm">
-     <div className="text-xs font-medium text-red-900/90">缺席</div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-red-800">{s?.absent ?? 0}</p>
+    <div className="rounded-xl border border-destructive/80 bg-destructive/40 p-4 shadow-sm">
+     <div className="text-xs font-medium text-destructive/90">缺席</div>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
     </div>
     <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm">
      <div className="text-xs font-medium text-amber-900/90">請假 · 補課 · 網課</div>
@@ -193,7 +216,7 @@ export function AttendanceRecordsPage() {
     >
      {(
       [
-       ["today", "今日", CalendarDays],
+       ["today", "列表形式", CalendarDays],
        ["month", "月視表", BarChart3],
        ["kanban", "班別看板", LayoutGrid],
       ] as const
@@ -217,28 +240,87 @@ export function AttendanceRecordsPage() {
      ))}
     </div>
     <div className="flex flex-wrap items-center gap-2">
-     {viewMode === "month" ? (
-      <label className="grid gap-1 text-xs text-muted-foreground">
-       <span>月份</span>
-       <Input
-        type="month"
-        value={monthYm}
-        onChange={(e) => setMonthYm(e.target.value)}
-        className="h-9 w-[11rem]"
-       />
-      </label>
-     ) : null}
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>{viewMode === "month" ? "對照日（儀表板）" : "日期"}</span>
-      <div className="flex gap-2">
-       <Input type="date" value={focusDay} onChange={(e) => setFocusDay(e.target.value)} className="h-9 w-[11rem]" />
-       <Button type="button" variant="outline" size="sm" className="h-9" onClick={() => setFocusDay(localYmd())}>
-        今天
-       </Button>
-      </div>
-     </label>
+    <DateRangeInput value={dateRange} onChange={setDateRange} className="w-[16rem]" />
+    <Button
+     type="button"
+     variant="outline"
+     size="sm"
+     className="h-9"
+     onClick={() => {
+      setDateRange(currentMonthRange())
+      setViewMode("month")
+     }}
+    >
+     今月
+    </Button>
+    <Button
+     type="button"
+     variant="outline"
+     size="sm"
+     className="h-9"
+     onClick={() => {
+      const today = localYmd()
+      setDateRange({ from: today, to: "" })
+      setViewMode("today")
+     }}
+    >
+     今天
+    </Button>
     </div>
    </div>
+
+   <section className="grid gap-2 rounded-xl border border-border bg-card p-3 shadow-sm md:grid-cols-2 xl:grid-cols-4">
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>學生（中/英）</span>
+     <Input
+      value={studentKeyword}
+      onChange={(e) => setStudentKeyword(e.target.value)}
+      placeholder="輸入學生姓名"
+      className="h-9"
+     />
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>班別（科目 + 課程代碼）</span>
+     <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="h-9">
+      <option value="all">全部班別</option>
+      {classOptions.map((c) => (
+       <option key={c.id} value={c.id}>
+        {c.label}
+       </option>
+      ))}
+     </Select>
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>老師</span>
+     <Select
+      value={teacherTid ?? teacherFilter}
+      onChange={(e) => setTeacherFilter(e.target.value)}
+      className="h-9"
+      disabled={Boolean(teacherTid)}
+     >
+      <option value="all">全部老師</option>
+      {teacherOptions.map((t) => (
+       <option key={t.id} value={t.id}>
+        {t.name}
+       </option>
+      ))}
+     </Select>
+    </label>
+    <div className="flex items-end">
+     <Button
+      type="button"
+      variant="ghost"
+      className="h-9 px-0 text-muted-foreground"
+      onClick={() => {
+       setStudentKeyword("")
+       setClassFilter("all")
+       setTeacherFilter("all")
+      }}
+     >
+      清除篩選
+     </Button>
+    </div>
+   </section>
 
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>
@@ -261,7 +343,7 @@ export function AttendanceRecordsPage() {
         {monthAgg.length === 0 ? (
          <tr>
           <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
-           此月份尚無紀錄
+           此範圍尚無紀錄
           </td>
          </tr>
         ) : (
@@ -269,8 +351,8 @@ export function AttendanceRecordsPage() {
           <tr key={d.date} className="border-b border-border last:border-0">
            <td className="px-3 py-2 font-medium tabular-nums">{d.date}</td>
            <td className="px-3 py-2 tabular-nums">{d.total}</td>
-           <td className="px-3 py-2 tabular-nums text-emerald-800">{d.present}</td>
-           <td className="px-3 py-2 tabular-nums text-red-800">{d.absent}</td>
+           <td className="px-3 py-2 tabular-nums text-success">{d.present}</td>
+           <td className="px-3 py-2 tabular-nums text-destructive">{d.absent}</td>
            <td className="px-3 py-2 tabular-nums">{d.leave}</td>
            <td className="px-3 py-2 tabular-nums">{d.makeup}</td>
            <td className="px-3 py-2 tabular-nums">{d.online}</td>
@@ -281,13 +363,13 @@ export function AttendanceRecordsPage() {
       </table>
      </div>
      <p className="text-xs text-muted-foreground">
-      月視表統計涵蓋 {monthRange(monthYm).from} ～ {monthRange(monthYm).to}；點「今天」可快速回到本日對照。
+      月視表以目前篩選結果彙總；可用「今月」快速切到本月範圍。
      </p>
     </div>
    ) : viewMode === "kanban" ? (
     <div className="space-y-3">
      <p className="text-sm text-muted-foreground">
-      看板日期：<span className="font-medium text-foreground">{focusDay}</span>（可於上方更改）
+      看板範圍：<span className="font-medium text-foreground">{rangeLabel}</span>（可於上方更改）
      </p>
      {kanbanMap.size === 0 ? (
       <p className="py-12 text-center text-sm text-muted-foreground">此日尚無出席紀錄</p>
@@ -303,7 +385,7 @@ export function AttendanceRecordsPage() {
           <div className="border-b border-border bg-card px-3 py-2">
            <Link
             to={`/Classes/${classId}`}
-            className="text-sm font-semibold text-sky-700 hover:underline"
+            className="text-sm font-semibold text-info hover:underline"
            >
             {meta?.subject ?? "班別"}
            </Link>
@@ -321,18 +403,13 @@ export function AttendanceRecordsPage() {
              <div className="flex items-start justify-between gap-2">
               <Link
                to={`/Students/${r.studentId}`}
-               className="font-medium text-sky-700 hover:underline"
+               className="font-medium text-info hover:underline"
               >
                {r.studentName ?? "—"}
               </Link>
-              <span
-               className={cn(
-                "shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium",
-                statusBadgeClass(r.status)
-               )}
-              >
+              <Tag size="sm" tone={statusToTagTone(r.status)}>
                {r.status}
-              </span>
+              </Tag>
              </div>
              <div className="mt-1 text-muted-foreground">{r.studentGrade ?? "—"}</div>
             </li>
@@ -368,13 +445,13 @@ export function AttendanceRecordsPage() {
          <tr key={r.id} className="border-b border-border last:border-0">
           <td className="px-3 py-2 tabular-nums text-muted-foreground">{r.attendanceDate}</td>
           <td className="px-3 py-2">
-           <Link to={`/Students/${r.studentId}`} className="font-medium text-sky-700 hover:underline">
+           <Link to={`/Students/${r.studentId}`} className="font-medium text-info hover:underline">
             {r.studentName ?? "—"}
            </Link>
            <div className="text-xs text-muted-foreground">{r.studentGrade ?? "—"}</div>
           </td>
           <td className="px-3 py-2">
-           <Link to={`/Classes/${r.classId}`} className="font-medium text-sky-700 hover:underline">
+           <Link to={`/Classes/${r.classId}`} className="font-medium text-info hover:underline">
             {r.classSubject ?? "—"}
            </Link>
            {r.courseCode ? (
@@ -382,14 +459,9 @@ export function AttendanceRecordsPage() {
            ) : null}
           </td>
           <td className="px-3 py-2">
-           <span
-            className={cn(
-             "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
-             statusBadgeClass(r.status)
-            )}
-           >
+           <Tag size="sm" tone={statusToTagTone(r.status)}>
             {r.status}
-           </span>
+           </Tag>
           </td>
           <td className="px-3 py-2 text-xs text-muted-foreground">{r.remarks ?? "—"}</td>
          </tr>
@@ -398,7 +470,7 @@ export function AttendanceRecordsPage() {
       </tbody>
      </table>
      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-      共 {displayRows.length} 筆（{focusDay}）
+      共 {displayRows.length} 筆（{isSingleDay ? `單日 ${dateRange.from}` : rangeLabel}）
      </div>
     </div>
    )}

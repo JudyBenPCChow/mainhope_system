@@ -5,6 +5,7 @@ import { ChevronLeft, FileSearch, RefreshCw } from "lucide-react"
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -149,7 +150,7 @@ export function SystemLogsView() {
       </Link>
      </Button>
      <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-      <FileSearch className="h-8 w-8 text-sky-600" aria-hidden />
+      <FileSearch className="h-8 w-8 text-info" aria-hidden />
       系統日志
      </h1>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">
@@ -189,7 +190,7 @@ export function SystemLogsView() {
       <label htmlFor="log-role" className="text-xs font-medium text-muted-foreground">
        按角色（用戶類型）
       </label>
-      <select
+      <Select
        id="log-role"
        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
        value={role}
@@ -200,7 +201,7 @@ export function SystemLogsView() {
          {o.label}
         </option>
        ))}
-      </select>
+      </Select>
      </div>
      <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
       <label htmlFor="log-actor" className="text-xs font-medium text-muted-foreground">

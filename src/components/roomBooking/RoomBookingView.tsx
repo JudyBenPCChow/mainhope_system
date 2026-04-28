@@ -9,6 +9,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -192,7 +193,7 @@ export function RoomBookingView() {
      預約空房
     </h1>
     <p className="mt-1 text-sm text-muted-foreground">
-     周曆以<strong>今天</strong>為第 1 日；每格 <strong>75 分鐘</strong>（09:00 起）。綠格可預約；<strong className="text-orange-700">橙色</strong>
+     周曆以<strong>今天</strong>為第 1 日；每格 <strong>75 分鐘</strong>（09:00 起）。綠格可預約；<strong className="text-warning">橙色</strong>
      為待審約房；<strong className="text-amber-800">琥珀色</strong>為已排定堂數。
     </p>
    </header>
@@ -281,7 +282,7 @@ export function RoomBookingView() {
                  type="button"
                  onClick={() => openBook(d, room, slotIdx)}
                  className={cn(
-                  "flex min-h-[3.5rem] w-full flex-col items-center justify-center rounded-md border border-emerald-300/80 bg-emerald-50/90 px-1 py-1 text-[11px] font-medium text-emerald-950 transition-colors hover:bg-emerald-100"
+                  "flex min-h-[3.5rem] w-full flex-col items-center justify-center rounded-md border border-success/80 bg-success/90 px-1 py-1 text-[11px] font-medium text-success transition-colors hover:bg-success"
                  )}
                 >
                  可預約
@@ -296,7 +297,7 @@ export function RoomBookingView() {
                     className={cn(
                      "rounded-md border p-1.5 text-[11px] leading-tight shadow-sm",
                      isPending
-                      ? "border-orange-300/90 bg-orange-50 text-orange-950"
+                      ? "border-warning/90 bg-warning text-warning-foreground"
                       : "border-amber-200/80 bg-amber-50/80 text-amber-950"
                     )}
                    >
@@ -305,7 +306,7 @@ export function RoomBookingView() {
                      <span
                       className={cn(
                        "block text-[10px]",
-                       isPending ? "text-orange-900/85" : "text-amber-900/80"
+                       isPending ? "text-warning/85" : "text-amber-900/80"
                       )}
                      >
                       {o.teacherName}
@@ -345,7 +346,7 @@ export function RoomBookingView() {
       </p>
       <label className="grid gap-1">
        <span className="text-muted-foreground">補堂所屬班別</span>
-       <select
+       <Select
         className="h-10 w-full rounded-md border border-input bg-background px-2"
         value={classChoice}
         onChange={(e) => setClassChoice(e.target.value)}
@@ -357,7 +358,7 @@ export function RoomBookingView() {
          </option>
         ))}
         <option value={OTHER_VALUE}>其他</option>
-       </select>
+       </Select>
       </label>
       {classChoice === OTHER_VALUE ? (
        <label className="grid gap-1">

@@ -4,7 +4,11 @@ import { ArrowLeft, Calendar, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
+import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
  deleteSchedule,
@@ -28,6 +32,7 @@ export function ScheduleDetailView() {
  const { scheduleId } = useParams<{ scheduleId: string }>()
  const navigate = useNavigate()
  const sid = scheduleId ?? ""
+ const { confirmDialog } = useAppConfirm()
  const [row, setRow] = useState<ScheduleDetailRecord | null>(null)
  const [ctx, setCtx] = useState<ScheduleDetailContext | null>(null)
  const [loading, setLoading] = useState(true)
@@ -107,7 +112,7 @@ export function ScheduleDetailView() {
        "rounded-2xl border border-border bg-card p-8 shadow-md transition-shadow md:p-10 md:shadow-lg"
       )}
      >
-      <div className="flex flex-wrap items-center gap-3 text-sky-700">
+      <div className="flex flex-wrap items-center gap-3 text-info">
        <Calendar className="h-8 w-8 shrink-0 md:h-9 md:w-9" />
        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">排程詳情</h1>
       </div>
@@ -126,9 +131,7 @@ export function ScheduleDetailView() {
        )}
       </div>
       <div className="mt-5 flex flex-wrap gap-3 text-sm md:text-base">
-       <span className="rounded-full bg-sky-100 px-4 py-1.5 font-medium text-sky-900">
-        {row.status}
-       </span>
+       <Tag tone={statusToTagTone(row.status)}>{row.status}</Tag>
        {row.class_id ? (
         <Link
          to={`/Classes/${row.class_id}`}
@@ -145,10 +148,10 @@ export function ScheduleDetailView() {
          老師：{row.teacher_name ?? "—"}
         </Link>
        ) : null}
-       <span className="rounded-full border border-border bg-muted/40 px-4 py-1.5 font-medium text-foreground">
+       <Tag tone="default">
         課室：{row.classroom_name ?? "未分配"}
         {row.classroom_is_online ? "（線上）" : ""}
-       </span>
+       </Tag>
       </div>
      </div>
 
@@ -182,7 +185,7 @@ export function ScheduleDetailView() {
             <span
              className={cn(
               "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium",
-              s.source === "就讀" && "bg-emerald-100 text-emerald-900",
+              s.source === "就讀" && "bg-success text-success-foreground",
               s.source === "試堂" && "bg-amber-100 text-amber-900",
               s.source === "當日紀錄" && "bg-slate-100 text-slate-800"
              )}
@@ -236,7 +239,7 @@ export function ScheduleDetailView() {
             </Link>
             <Link
              to={`/LeaveManagement?${new URLSearchParams({ studentId: l.studentId, record: l.id }).toString()}`}
-             className="shrink-0 text-xs font-medium text-orange-700 hover:underline"
+             className="shrink-0 text-xs font-medium text-warning hover:underline"
             >
              請假管理 →
             </Link>
@@ -276,7 +279,7 @@ export function ScheduleDetailView() {
          {safeCtx.makeupsHere.map((m) => (
           <li
            key={m.leaveId}
-           className="rounded-xl border border-sky-200/80 bg-sky-50/50 px-4 py-3 text-sm"
+           className="rounded-xl border border-info/80 bg-info/50 px-4 py-3 text-sm"
           >
            <div className="flex flex-wrap items-baseline justify-between gap-2">
             <Link
@@ -344,18 +347,18 @@ export function ScheduleDetailView() {
 
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
        <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
-        <Monitor className="h-5 w-5 text-sky-700" />
+        <Monitor className="h-5 w-5 text-info" />
         網課
        </div>
        <p className="mt-1 text-sm text-muted-foreground">
         線上課室名稱（來自已指派之線上課室），以及點名為「網課／線上」之紀錄與備註。
        </p>
        {row.classroom_is_online && row.classroom_name ? (
-        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3">
-         <div className="text-xs font-medium uppercase tracking-wide text-sky-800/90">
+        <div className="mt-4 rounded-xl border border-info bg-info/70 px-4 py-3">
+         <div className="text-xs font-medium uppercase tracking-wide text-info/90">
           線上課室／平台名稱
          </div>
-         <div className="mt-1 text-lg font-semibold text-sky-950">{row.classroom_name}</div>
+         <div className="mt-1 text-lg font-semibold text-info">{row.classroom_name}</div>
         </div>
        ) : (
         <p className="mt-4 text-sm text-muted-foreground">
@@ -367,11 +370,11 @@ export function ScheduleDetailView() {
        ) : (
         <ul className="mt-3 space-y-2 text-sm">
          {onlineAttendanceLines.map((a) => (
-          <li key={a.studentId} className="rounded-lg border border-sky-100 bg-sky-50/40 px-3 py-2">
+          <li key={a.studentId} className="rounded-lg border border-info bg-info/40 px-3 py-2">
            <span className="font-medium">{a.studentName}</span>
            <span className="text-muted-foreground"> · {a.status}</span>
            {a.remarks ? (
-            <div className="mt-1 text-xs text-sky-900/90">備註：{a.remarks}</div>
+            <div className="mt-1 text-xs text-info/90">備註：{a.remarks}</div>
            ) : null}
           </li>
          ))}
@@ -451,7 +454,7 @@ export function ScheduleDetailView() {
      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
       <label className="flex items-center gap-2 text-sm font-medium md:text-base">
        <span className="text-muted-foreground">變更狀態</span>
-       <select
+       <Select
         className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-primary/50 md:text-base"
         value={row.status}
         onChange={async (e) => {
@@ -462,14 +465,14 @@ export function ScheduleDetailView() {
         <option value="預定">預定</option>
         <option value="完成">完成</option>
         <option value="取消">取消</option>
-       </select>
+       </Select>
       </label>
       <Button
        type="button"
        variant="destructive"
        className="ml-auto"
        onClick={async () => {
-        if (!confirm("確定刪除此排程？")) return
+       if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
         await deleteSchedule(row.id)
         navigate(row.class_id ? `/Classes/${row.class_id}` : "/Schedule")
        }}

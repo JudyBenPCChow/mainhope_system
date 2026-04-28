@@ -11,7 +11,7 @@ type Props = {
 
 function statusClass(status: string) {
  if (status.includes("待")) return "text-amber-700 bg-amber-50 border-amber-200"
- if (status.includes("已收")) return "text-emerald-700 bg-emerald-50 border-emerald-200"
+ if (status.includes("已收")) return "text-success bg-success border-success"
  return "text-muted-foreground bg-muted border-transparent"
 }
 

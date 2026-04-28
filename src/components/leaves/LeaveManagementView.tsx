@@ -5,6 +5,9 @@ import { CalendarDays, Camera, Clock, Plus, Search, Umbrella, Users, Video } fro
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -51,6 +54,7 @@ function displayLeaveDate(r: LeaveManageRow): string {
 }
 
 export function LeaveManagementView() {
+ const { confirmDialog } = useAppConfirm()
  const [searchParams, setSearchParams] = useSearchParams()
  const recordFromUrl = searchParams.get("record")
  const studentIdFromUrl = searchParams.get("studentId")
@@ -83,6 +87,22 @@ export function LeaveManagementView() {
  const [enrolledClasses, setEnrolledClasses] = useState<EnrolledClassOption[]>([])
  const [scheduleOptions, setScheduleOptions] = useState<ClassScheduleOption[]>([])
  const [makeupCandidates, setMakeupCandidates] = useState<ScheduleManageRow[]>([])
+ const [detailOpen, setDetailOpen] = useState(false)
+ const [detailRow, setDetailRow] = useState<LeaveManageRow | null>(null)
+ const [detailStatus, setDetailStatus] = useState("")
+ const [detailReason, setDetailReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
+ const [detailMakeupType, setDetailMakeupType] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("錄影")
+ const [detailRemarks, setDetailRemarks] = useState("")
+ const [detailSaving, setDetailSaving] = useState(false)
+ const [detailErr, setDetailErr] = useState<string | null>(null)
+
+ const [linkOpen, setLinkOpen] = useState(false)
+ const [linkRow, setLinkRow] = useState<LeaveManageRow | null>(null)
+ const [linkScheduleId, setLinkScheduleId] = useState("")
+ const [linkSearch, setLinkSearch] = useState("")
+ const [linkCandidates, setLinkCandidates] = useState<ScheduleManageRow[]>([])
+ const [linkSaving, setLinkSaving] = useState(false)
+ const [linkErr, setLinkErr] = useState<string | null>(null)
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -230,10 +250,8 @@ export function LeaveManagementView() {
    return true
   })
   return [...list].sort((a, b) => {
-   const da = displayLeaveDate(a)
-   const db = displayLeaveDate(b)
-   if (da !== db) return da.localeCompare(db)
-   return a.id.localeCompare(b.id)
+   if (a.leave_date !== b.leave_date) return b.leave_date.localeCompare(a.leave_date)
+   return b.id.localeCompare(a.id)
   })
  }, [
   rows,
@@ -247,6 +265,89 @@ export function LeaveManagementView() {
  ])
 
  const openAdd = () => setAddOpen(true)
+
+ const openDetail = (row: LeaveManageRow) => {
+  setDetailRow(row)
+  setDetailStatus(row.status || "待補課")
+  setDetailReason((row.leave_reason as (typeof LEAVE_REASON_OPTIONS)[number]) || "病假")
+  setDetailMakeupType((row.makeup_type as (typeof LEAVE_MAKEUP_OPTIONS)[number]) || "錄影")
+  setDetailRemarks(row.remarks ?? "")
+  setDetailErr(null)
+  setDetailOpen(true)
+ }
+
+ const saveDetail = async () => {
+  if (!detailRow) return
+  setDetailSaving(true)
+  setDetailErr(null)
+  try {
+   await updateLeaveMakeupRecord(detailRow.id, {
+    status: detailStatus,
+    leave_reason: detailReason,
+    makeup_type: detailMakeupType,
+    remarks: detailRemarks.trim() || null,
+   })
+   setDetailOpen(false)
+   await reload()
+  } catch (e) {
+   setDetailErr(formatLoadError(e))
+  } finally {
+   setDetailSaving(false)
+  }
+ }
+
+ const openLinkSchedule = async (row: LeaveManageRow) => {
+  setLinkRow(row)
+  setLinkErr(null)
+  setLinkSearch("")
+  setLinkOpen(true)
+  try {
+   const candidates = await fetchMakeupCandidateSchedules()
+   setLinkCandidates(candidates)
+   setLinkScheduleId(row.makeup_schedule_id ?? "")
+  } catch (e) {
+   setLinkCandidates([])
+   setLinkErr(formatLoadError(e))
+  }
+ }
+
+ const linkFiltered = useMemo(() => {
+  const q = linkSearch.trim().toLowerCase()
+  if (!q) return linkCandidates
+  return linkCandidates.filter((s) =>
+   `${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date} ${s.start_time ?? ""}`
+    .toLowerCase()
+    .includes(q)
+  )
+ }, [linkCandidates, linkSearch])
+
+ const saveLinkSchedule = async () => {
+  if (!linkRow || !linkScheduleId) {
+   setLinkErr("請先選擇補堂排程。")
+   return
+  }
+  const target = linkCandidates.find((c) => c.id === linkScheduleId)
+  if (!target) {
+   setLinkErr("補堂排程無效。")
+   return
+  }
+  setLinkSaving(true)
+  setLinkErr(null)
+  try {
+   await updateLeaveMakeupRecord(linkRow.id, {
+    makeup_schedule_id: target.id,
+    makeup_date: target.scheduled_date,
+    makeup_type: "調堂",
+    status: linkRow.status.includes("待") ? "已批核" : linkRow.status,
+   })
+   setLinkOpen(false)
+   await reload()
+  } catch (e) {
+   setLinkErr(formatLoadError(e))
+  } finally {
+   setLinkSaving(false)
+  }
+ }
 
  const submitAdd = async () => {
   if (!addStudentId || !addClassId || !addScheduleId) {
@@ -302,17 +403,15 @@ export function LeaveManagementView() {
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Umbrella className="h-7 w-7 text-orange-600" aria-hidden />
+      <Umbrella className="h-7 w-7 text-warning" aria-hidden />
       請假管理
-      <span className="rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-medium text-orange-900">
-       {tabCounts.all} 則記錄
-      </span>
+      <Tag tone="warning" size="sm">{tabCounts.all} 則記錄</Tag>
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">請假與補堂紀錄；點學生或班別可開啟詳情頁，涉及排程可開排程詳情。</p>
     </div>
     <Button
      type="button"
-     className="gap-1 bg-orange-600 text-white hover:bg-orange-700"
+     className="gap-1 bg-warning text-white hover:bg-warning"
      onClick={openAdd}
     >
      <Plus className="h-4 w-4" />
@@ -327,7 +426,7 @@ export function LeaveManagementView() {
    ) : null}
 
    {studentIdFromUrl || recordFromUrl ? (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
+   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info bg-info/80 px-3 py-2 text-sm text-info-foreground dark:border-info dark:bg-info/40 dark:text-info-foreground">
      <span>
       已由學生詳情帶入篩選
       {recordFromUrl ? "（並嘗試捲動至該筆）" : ""}
@@ -340,20 +439,20 @@ export function LeaveManagementView() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2" aria-label="今日請假與補堂概覽">
-    <div className="rounded-xl border border-orange-200/80 bg-orange-50/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-orange-900/90">
+    <div className="rounded-xl border border-warning/80 bg-warning/60 p-4 shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-warning/90">
       <Users className="h-4 w-4" />
       今日請假人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-orange-800">{stats.leaveStudentCount}</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-warning">{stats.leaveStudentCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">以「請假日期」為今天之不重複學生數</p>
     </div>
-    <div className="rounded-xl border border-sky-200/80 bg-sky-50/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-sky-900/90">
+    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
       <CalendarDays className="h-4 w-4" />
       今日補堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-sky-800">{stats.makeupStudentCount}</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.makeupStudentCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">以「補課日期」為今天之不重複學生數</p>
     </div>
    </section>
@@ -377,7 +476,7 @@ export function LeaveManagementView() {
        className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
         statusTab === id
-         ? "border-orange-400 bg-orange-100 text-orange-950"
+         ? "border-warning bg-warning text-warning-foreground"
          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
        )}
       >
@@ -406,7 +505,7 @@ export function LeaveManagementView() {
      </label>
      <label className="grid gap-1 text-xs text-muted-foreground">
       <span>科目</span>
-      <select
+      <Select
        className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
        value={filterSubject}
        onChange={(e) => setFilterSubject(e.target.value)}
@@ -417,7 +516,7 @@ export function LeaveManagementView() {
          {sub}
         </option>
        ))}
-      </select>
+      </Select>
      </label>
      <label className="grid min-w-[10rem] flex-1 gap-1 text-xs text-muted-foreground">
       <span>學生（姓名）</span>
@@ -466,7 +565,7 @@ export function LeaveManagementView() {
          <td className="min-w-0 px-3 py-2 align-top">
           <Link
            to={`/Students/${r.student_id}`}
-           className="block break-words font-medium text-sky-700 hover:underline"
+           className="block break-words font-medium text-info hover:underline"
           >
            {r.student_name ?? "—"}
           </Link>
@@ -475,7 +574,7 @@ export function LeaveManagementView() {
          <td className="min-w-0 px-3 py-2 align-top">
           <Link
            to={`/Classes/${r.class_id}`}
-           className="block break-words font-medium text-sky-700 hover:underline"
+           className="block break-words font-medium text-info hover:underline"
           >
            {r.class_subject ?? "—"}
            {r.course_code ? (
@@ -495,32 +594,38 @@ export function LeaveManagementView() {
           {r.schedule_id ? (
            <Link
             to={`/Schedule/${r.schedule_id}`}
-            className="block break-words font-medium text-sky-700 hover:underline"
+            className="block break-words font-medium text-info hover:underline"
            >
             {r.sched_date ?? r.leave_date} {r.sched_start ?? ""}–{r.sched_end ?? ""}
            </Link>
           ) : (
-           <span className="text-orange-600/90">待連結排程</span>
+           <button
+            type="button"
+            className="text-warning/90 underline-offset-2 hover:underline"
+            onClick={() => void openLinkSchedule(r)}
+           >
+            待連結排程
+           </button>
           )}
          </td>
          <td className="min-w-0 px-3 py-2 align-top text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.leave_reason ?? "—"}</span>
          </td>
          <td className="min-w-0 px-3 py-2 align-top">
-          <MakeupCell row={r} />
+          <MakeupCell row={r} onChanged={reload} />
          </td>
          <td className="min-w-0 px-3 py-2 align-top text-xs text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.remarks ?? "—"}</span>
          </td>
          <td className="min-w-0 px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
-          <select
+          <Select
            className={cn(
             "h-9 max-w-[7rem] rounded-md border px-1 text-xs font-medium",
             isLeaveStatusDone(r.status)
-             ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+             ? "border-success bg-success text-success-foreground"
              : isLeaveStatusAbandoned(r.status)
               ? "border-slate-300 bg-slate-50"
-              : "border-orange-300 bg-orange-50 text-orange-900"
+              : "border-warning bg-warning text-warning-foreground"
            )}
            value={r.status}
            onChange={async (e) => {
@@ -533,14 +638,21 @@ export function LeaveManagementView() {
            <option value="已補課">已補課</option>
            <option value="已完成">已完成</option>
            <option value="放棄補課">放棄補課</option>
-          </select>
+          </Select>
          </td>
          <td className="min-w-0 px-3 py-2 align-top">
           <button
            type="button"
-           className="text-xs font-medium text-sky-700 hover:underline"
+           className="mr-2 text-xs font-medium text-info hover:underline"
+           onClick={() => openDetail(r)}
+          >
+           詳情
+          </button>
+          <button
+           type="button"
+           className="text-xs font-medium text-info hover:underline"
            onClick={async () => {
-            if (!confirm("確定刪除此筆請假紀錄？")) return
+            if (!(await confirmDialog({ title: "刪除請假紀錄", description: "確定刪除此筆請假紀錄？", confirmText: "確認刪除", tone: "destructive" }))) return
             await deleteLeaveMakeupRecord(r.id)
             await reload()
            }}
@@ -572,7 +684,7 @@ export function LeaveManagementView() {
          className="h-9 pl-8"
         />
        </div>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addStudentId}
         onChange={(e) => setAddStudentId(e.target.value)}
@@ -583,7 +695,7 @@ export function LeaveManagementView() {
           {s.label}
          </option>
         ))}
-       </select>
+       </Select>
        {studentSearch.trim() && studentsFiltered.length === 0 ? (
         <p className="text-xs text-muted-foreground">無符合學生，請調整搜尋字。</p>
        ) : null}
@@ -591,7 +703,7 @@ export function LeaveManagementView() {
 
       <label className="grid gap-1">
        <span className="text-muted-foreground">班別（僅顯示該生就讀中班別）</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addClassId}
         onChange={(e) => setAddClassId(e.target.value)}
@@ -609,12 +721,12 @@ export function LeaveManagementView() {
           </option>
          ))
         )}
-       </select>
+       </Select>
       </label>
 
       <label className="grid gap-1">
        <span className="text-muted-foreground">請假排程（未上堂：今日起、非取消／完成）</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addScheduleId}
         onChange={(e) => setAddScheduleId(e.target.value)}
@@ -631,12 +743,12 @@ export function LeaveManagementView() {
           </option>
          ))
         )}
-       </select>
+       </Select>
       </label>
 
       <label className="grid gap-1">
        <span className="text-muted-foreground">原因</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addReason}
         onChange={(e) => setAddReason(e.target.value as (typeof LEAVE_REASON_OPTIONS)[number])}
@@ -646,12 +758,12 @@ export function LeaveManagementView() {
           {o}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
 
       <label className="grid gap-1">
        <span className="text-muted-foreground">補課安排</span>
-       <select
+       <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addMakeupArrange}
         onChange={(e) => {
@@ -665,12 +777,12 @@ export function LeaveManagementView() {
           {o}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
 
       {addMakeupArrange === "調堂" ? (
-       <div className="rounded-lg border border-sky-200 bg-sky-50/40 p-3 space-y-2">
-        <p className="text-xs font-medium text-sky-900">選擇補堂排程（未來一個月內、跨班）</p>
+       <div className="rounded-lg border border-info bg-info/40 p-3 space-y-2">
+        <p className="text-xs font-medium text-info">選擇補堂排程（未來一個月內、跨班）</p>
         <div className="relative">
          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
          <Input
@@ -680,7 +792,7 @@ export function LeaveManagementView() {
           className="h-9 pl-8"
          />
         </div>
-        <select
+        <Select
          className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
          value={addMakeupScheduleId}
          onChange={(e) => setAddMakeupScheduleId(e.target.value)}
@@ -692,7 +804,7 @@ export function LeaveManagementView() {
            {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
           </option>
          ))}
-        </select>
+        </Select>
        </div>
       ) : null}
 
@@ -713,15 +825,146 @@ export function LeaveManagementView() {
      </div>
     </DialogContent>
    </Dialog>
+
+   <Dialog open={detailOpen} onOpenChange={(v) => !detailSaving && setDetailOpen(v)}>
+    <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+     <DialogHeader>
+      <DialogTitle>請假紀錄詳情</DialogTitle>
+     </DialogHeader>
+     {!detailRow ? null : (
+      <div className="grid gap-3 text-sm">
+       <p className="text-xs text-muted-foreground">
+        學生：{detailRow.student_name ?? "—"} · 班別：{detailRow.class_subject ?? "—"}
+       </p>
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">狀態</span>
+        <Select className="h-9 w-full rounded-md border border-input px-2" value={detailStatus} onChange={(e) => setDetailStatus(e.target.value)}>
+         <option value="待補課">待補課</option>
+         <option value="已批核">已批核</option>
+         <option value="已補課">已補課</option>
+         <option value="已完成">已完成</option>
+         <option value="放棄補課">放棄補課</option>
+        </Select>
+       </label>
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">原因</span>
+        <Select
+         className="h-9 w-full rounded-md border border-input px-2"
+         value={detailReason}
+         onChange={(e) => setDetailReason(e.target.value as (typeof LEAVE_REASON_OPTIONS)[number])}
+        >
+         {LEAVE_REASON_OPTIONS.map((o) => (
+          <option key={o} value={o}>{o}</option>
+         ))}
+        </Select>
+       </label>
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">補課安排</span>
+        <Select
+         className="h-9 w-full rounded-md border border-input px-2"
+         value={detailMakeupType}
+         onChange={(e) => setDetailMakeupType(e.target.value as (typeof LEAVE_MAKEUP_OPTIONS)[number])}
+        >
+         {LEAVE_MAKEUP_OPTIONS.map((o) => (
+          <option key={o} value={o}>{o}</option>
+         ))}
+        </Select>
+       </label>
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">備註</span>
+        <Input value={detailRemarks} onChange={(e) => setDetailRemarks(e.target.value)} className="h-9" />
+       </label>
+       {detailErr ? <p className="text-destructive">{detailErr}</p> : null}
+       <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" disabled={detailSaving} onClick={() => setDetailOpen(false)}>取消</Button>
+        <Button type="button" disabled={detailSaving} onClick={() => void saveDetail()}>
+         {detailSaving ? "儲存中…" : "儲存修改"}
+        </Button>
+       </div>
+      </div>
+     )}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={linkOpen} onOpenChange={(v) => !linkSaving && setLinkOpen(v)}>
+    <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+     <DialogHeader>
+      <DialogTitle>連結補堂排程</DialogTitle>
+     </DialogHeader>
+     <div className="grid gap-3 text-sm">
+      <p className="text-xs text-muted-foreground">
+       {linkRow ? `學生：${linkRow.student_name ?? "—"} · 原請假日：${linkRow.leave_date}` : "請選擇補堂排程"}
+      </p>
+      <div className="relative">
+       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+       <Input
+        placeholder="搜尋科目、代碼、老師、日期…"
+        value={linkSearch}
+        onChange={(e) => setLinkSearch(e.target.value)}
+        className="h-9 pl-8"
+       />
+      </div>
+      <Select className="h-9 w-full rounded-md border border-input px-2" value={linkScheduleId} onChange={(e) => setLinkScheduleId(e.target.value)}>
+       <option value="">請選擇補堂排程</option>
+       {linkFiltered.map((s) => (
+        <option key={s.id} value={s.id}>
+         {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.subject}
+         {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
+        </option>
+       ))}
+      </Select>
+      {linkErr ? <p className="text-destructive">{linkErr}</p> : null}
+      <div className="flex justify-end gap-2 pt-2">
+       <Button type="button" variant="outline" disabled={linkSaving} onClick={() => setLinkOpen(false)}>取消</Button>
+       <Button type="button" disabled={linkSaving} onClick={() => void saveLinkSchedule()}>
+        {linkSaving ? "連結中…" : "確認連結"}
+       </Button>
+      </div>
+     </div>
+    </DialogContent>
+   </Dialog>
   </div>
  )
 }
 
-function MakeupCell({ row }: { row: LeaveManageRow }) {
+function MakeupCell({ row, onChanged }: { row: LeaveManageRow; onChanged: () => Promise<void> }) {
  const t = (row.makeup_type ?? "").trim()
  const hasDate = !!row.makeup_date
+ const [saving, setSaving] = useState(false)
+
+ const quickSetMakeup = async (nextType: string) => {
+  if (!nextType) return
+  setSaving(true)
+  try {
+   await updateLeaveMakeupRecord(row.id, {
+    makeup_type: nextType,
+    makeup_schedule_id: null,
+    makeup_date: null,
+   })
+   await onChanged()
+  } finally {
+   setSaving(false)
+  }
+ }
+
  if (!t && !hasDate) {
-  return <span className="text-orange-600/90">待安排</span>
+  return (
+   <Select
+    className="h-8 min-w-[8.5rem] rounded-md border border-warning/80 bg-warning/20 px-2 text-xs text-warning"
+    value=""
+    disabled={saving}
+    onChange={(e) => {
+     void quickSetMakeup(e.target.value)
+    }}
+   >
+    <option value="">待安排（點選）</option>
+    {LEAVE_MAKEUP_OPTIONS.map((o) => (
+     <option key={o} value={o}>
+      {o}
+     </option>
+    ))}
+   </Select>
+  )
  }
  if (t.includes("不補回")) {
   return <span className="text-muted-foreground">不補回</span>
@@ -734,12 +977,12 @@ function MakeupCell({ row }: { row: LeaveManageRow }) {
  return (
   <div className="space-y-1 text-xs">
    {isRecord ? (
-    <span className="inline-flex items-center gap-1 text-sky-800">
+    <span className="inline-flex items-center gap-1 text-info">
      <Camera className="h-3.5 w-3.5 shrink-0" />
      {t || "錄影"}
     </span>
    ) : isResched ? (
-    <span className="inline-flex items-center gap-1 text-sky-800">
+    <span className="inline-flex items-center gap-1 text-info">
      <Clock className="h-3.5 w-3.5 shrink-0" />
      {t || "調堂"}
     </span>
@@ -750,7 +993,7 @@ function MakeupCell({ row }: { row: LeaveManageRow }) {
     </span>
    )}
    {hasDate ? (
-    <div className="tabular-nums text-sky-700">{row.makeup_date}</div>
+    <div className="tabular-nums text-info">{row.makeup_date}</div>
    ) : null}
   </div>
  )

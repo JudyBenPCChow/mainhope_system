@@ -3,12 +3,17 @@ import { CalendarDays, ChevronDown, KanbanSquare, List, Pencil, Plus, Search, Tr
 import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-input"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { getMgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -72,19 +77,12 @@ function statusLabel(s: CalendarEventStatus): string {
  return "已取消"
 }
 
-function statusStyle(s: CalendarEventStatus): string {
- if (s === "todo") return "border-slate-300 bg-slate-100 text-slate-900"
- if (s === "in_progress") return "border-sky-300 bg-sky-100 text-sky-900"
- if (s === "done") return "border-emerald-300 bg-emerald-100 text-emerald-900"
- return "border-rose-300 bg-rose-100 text-rose-900"
-}
-
 function tagTone(seed: string): string {
  const tones = [
-  "bg-orange-100 text-orange-700",
-  "bg-sky-100 text-sky-700",
+  "bg-warning text-warning-foreground",
+  "bg-info text-info-foreground",
   "bg-fuchsia-100 text-fuchsia-700",
-  "bg-emerald-100 text-emerald-700",
+  "bg-success text-success-foreground",
   "bg-cyan-100 text-cyan-700",
   "bg-violet-100 text-violet-700",
  ]
@@ -93,17 +91,10 @@ function tagTone(seed: string): string {
  return tones[sum % tones.length]
 }
 
-function columnShellTone(status: CalendarEventStatus): string {
- if (status === "todo") return "from-slate-100/90 to-white"
- if (status === "in_progress") return "from-sky-100/90 to-white"
- if (status === "done") return "from-emerald-100/90 to-white"
- return "from-rose-100/90 to-white"
-}
-
 function columnAccentTone(status: CalendarEventStatus): string {
  if (status === "todo") return "bg-slate-500"
- if (status === "in_progress") return "bg-sky-500"
- if (status === "done") return "bg-emerald-500"
+ if (status === "in_progress") return "bg-info"
+ if (status === "done") return "bg-success"
  return "bg-rose-500"
 }
 
@@ -115,8 +106,10 @@ export function TodoBoardView() {
 
  const [viewMode, setViewMode] = useState<ViewMode>("table")
  const [searchText, setSearchText] = useState("")
- const [dateFrom, setDateFrom] = useState(addDaysYmd(localYmd(), -30))
- const [dateTo, setDateTo] = useState(addDaysYmd(localYmd(), 60))
+ const [dateRange, setDateRange] = useState<DateRangeValue>(() => ({
+  from: addDaysYmd(localYmd(), -30),
+  to: addDaysYmd(localYmd(), 60),
+ }))
  const [rows, setRows] = useState<CalendarEventRow[]>([])
  const [options, setOptions] = useState<CalendarParticipantOptions>({
   teachers: [],
@@ -135,6 +128,7 @@ export function TodoBoardView() {
  const [userQuery, setUserQuery] = useState("")
  const [studentQuery, setStudentQuery] = useState("")
  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(() => new Set())
+ const { confirmDialog } = useAppConfirm()
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -146,8 +140,10 @@ export function TodoBoardView() {
   setLoading(true)
   setErr(null)
   try {
+   const from = dateRange.from || localYmd()
+   const to = dateRange.to || from
    const [events, p] = await Promise.all([
-    listCalendarEventsInRange(dateFrom, dateTo, { teacherId }),
+    listCalendarEventsInRange(from, to, { teacherId }),
     fetchCalendarParticipantOptions(),
    ])
    setRows(events)
@@ -159,7 +155,7 @@ export function TodoBoardView() {
   } finally {
    setLoading(false)
   }
- }, [dateFrom, dateTo, teacherId])
+ }, [dateRange.from, dateRange.to, teacherId])
 
  useEffect(() => {
   void load()
@@ -309,7 +305,7 @@ export function TodoBoardView() {
 
  const removeEvent = async (r: CalendarEventRow) => {
   if (!canEdit) return
-  if (!confirm(`刪除待辦「${r.title}」？`)) return
+ if (!(await confirmDialog({ title: "刪除待辦", description: `刪除待辦「${r.title}」？`, confirmText: "確認刪除", tone: "destructive" }))) return
   try {
    await deleteCalendarEvent(r.id)
    await load()
@@ -324,13 +320,13 @@ export function TodoBoardView() {
    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
-      <List className="h-8 w-8 text-sky-600" />
+      <List className="h-8 w-8 text-info" />
       待辦事項
      </h1>
      <p className="text-sm text-muted-foreground">只紀錄日期，並可關聯老師、同事、學生，支援分類與狀態。</p>
     </div>
     {canEdit ? (
-     <Button type="button" className="bg-sky-600 text-white hover:bg-sky-700" onClick={openCreate}>
+     <Button type="button" className="bg-info text-white hover:bg-info" onClick={openCreate}>
       <Plus className="mr-1.5 h-4 w-4" />
       新增待辦
      </Button>
@@ -340,10 +336,10 @@ export function TodoBoardView() {
    {err ? <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</div> : null}
    <div className="flex flex-wrap items-center gap-2">
     <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-sm">
-     <button type="button" onClick={() => setViewMode("table")} className={cn("rounded px-3 py-1.5", viewMode === "table" ? "bg-sky-600 text-white" : "text-muted-foreground")}>
+     <button type="button" onClick={() => setViewMode("table")} className={cn("rounded px-3 py-1.5", viewMode === "table" ? "bg-info text-white" : "text-muted-foreground")}>
       <span className="inline-flex items-center gap-1"><List className="h-4 w-4" />Table</span>
      </button>
-     <button type="button" onClick={() => setViewMode("kanban")} className={cn("rounded px-3 py-1.5", viewMode === "kanban" ? "bg-sky-600 text-white" : "text-muted-foreground")}>
+     <button type="button" onClick={() => setViewMode("kanban")} className={cn("rounded px-3 py-1.5", viewMode === "kanban" ? "bg-info text-white" : "text-muted-foreground")}>
       <span className="inline-flex items-center gap-1"><KanbanSquare className="h-4 w-4" />Kanban</span>
      </button>
     </div>
@@ -351,8 +347,7 @@ export function TodoBoardView() {
      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
      <Input className="pl-8" value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder="搜尋標題/內容/分類" />
     </label>
-    <Input type="date" className="w-[170px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-    <Input type="date" className="w-[170px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+    <DateRangeInput value={dateRange} onChange={setDateRange} className="w-[280px]" />
    </div>
 
    {loading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
@@ -367,8 +362,8 @@ export function TodoBoardView() {
         <tr key={r.id} className="border-t border-border/70 align-top">
          <td className="px-3 py-2 font-mono text-xs">{r.eventDate}</td>
          <td className="px-3 py-2 font-medium">{r.title}</td>
-         <td className="px-3 py-2"><span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{r.category || "一般"}</span></td>
-         <td className="px-3 py-2"><span className={cn("rounded-full border px-2 py-0.5 text-xs", statusStyle(r.status))}>{statusLabel(r.status)}</span></td>
+         <td className="px-3 py-2"><Tag size="sm" tone="default">{r.category || "一般"}</Tag></td>
+         <td className="px-3 py-2"><Tag size="sm" tone={statusToTagTone(statusLabel(r.status))}>{statusLabel(r.status)}</Tag></td>
          <td className="px-3 py-2 text-muted-foreground">{r.description?.trim() || "—"}</td>
          <td className="px-3 py-2 text-xs text-muted-foreground">
           師：{renderTeacherLinks(r.teacherIds)}
@@ -388,14 +383,14 @@ export function TodoBoardView() {
    {!loading && viewMode === "kanban" ? (
     <div className="grid gap-4 lg:grid-cols-4">
      {(["todo", "in_progress", "done", "cancelled"] as CalendarEventStatus[]).map((status) => (
-      <section key={status} className={cn("rounded-2xl border border-border/80 bg-gradient-to-b p-1 shadow-sm", columnShellTone(status))}>
+      <section key={status} className="rounded-2xl border border-border/80 bg-card p-1 shadow-sm">
        <header className="relative overflow-hidden rounded-xl border border-border/60 bg-white/80 px-4 py-3 text-center shadow-sm backdrop-blur">
         <span className={cn("absolute left-0 top-0 h-full w-1.5", columnAccentTone(status))} aria-hidden />
         <h3 className="text-[13px] font-semibold uppercase tracking-[0.14em]">{statusLabel(status)}</h3>
        </header>
        <div className="px-2 py-3">
         <div className="mb-2 flex items-center justify-end">
-         <span className={cn("rounded-full border px-2 py-0.5 text-xs", statusStyle(status))}>{kanbanGroups[status].length}</span>
+         <Tag size="sm" tone={statusToTagTone(statusLabel(status))}>{kanbanGroups[status].length}</Tag>
         </div>
         <div className="space-y-2">
          {kanbanGroups[status].length === 0 ? <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">無項目</p> : kanbanGroups[status].map((r) => (
@@ -409,7 +404,7 @@ export function TodoBoardView() {
             </div>
             <button
              type="button"
-             className="rounded-md p-1 text-sky-600 transition hover:bg-sky-50"
+             className="rounded-md p-1 text-info transition hover:bg-info"
              onClick={() => toggleExpandCard(r.id)}
              aria-label={expandedCardIds.has(r.id) ? "收合卡片內容" : "展開卡片內容"}
             >
@@ -465,8 +460,8 @@ export function TodoBoardView() {
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
        <div><label className="text-xs font-medium text-muted-foreground">分類</label><Input className="mt-1" list="todo-category-list" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} /><datalist id="todo-category-list">{categories.map((c) => <option key={c} value={c} />)}</datalist></div>
-       <div><label className="text-xs font-medium text-muted-foreground">狀態</label><select className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as CalendarEventStatus }))}><option value="todo">待處理</option><option value="in_progress">進行中</option><option value="done">已完成</option><option value="cancelled">已取消</option></select></div>
-       <div><label className="text-xs font-medium text-muted-foreground">老師可見</label><select className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.visibility} onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value as "private" | "teachers" }))}><option value="private">僅被指派老師可見</option><option value="teachers">全體老師可見</option></select></div>
+       <div><label className="text-xs font-medium text-muted-foreground">狀態</label><Select className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value as CalendarEventStatus }))}><option value="todo">待處理</option><option value="in_progress">進行中</option><option value="done">已完成</option><option value="cancelled">已取消</option></Select></div>
+       <div><label className="text-xs font-medium text-muted-foreground">老師可見</label><Select className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.visibility} onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value as "private" | "teachers" }))}><option value="private">僅被指派老師可見</option><option value="teachers">全體老師可見</option></Select></div>
       </div>
       <div><label className="text-xs font-medium text-muted-foreground">內容</label><Textarea className="mt-1" rows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} /></div>
       <div className="grid gap-3 lg:grid-cols-3">
@@ -555,7 +550,7 @@ export function TodoBoardView() {
      </div>
      <DialogFooter className="border-t border-border pt-4">
       <Button type="button" variant="outline" disabled={saving} onClick={() => setOpen(false)}>取消</Button>
-      <Button type="button" className="bg-sky-600 text-white hover:bg-sky-700" disabled={saving || !form.title.trim()} onClick={() => void submit()}>{saving ? "儲存中…" : "儲存待辦"}</Button>
+      <Button type="button" className="bg-info text-white hover:bg-info" disabled={saving || !form.title.trim()} onClick={() => void submit()}>{saving ? "儲存中…" : "儲存待辦"}</Button>
      </DialogFooter>
     </DialogContent>
    </Dialog>

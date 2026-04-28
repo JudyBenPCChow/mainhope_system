@@ -17,6 +17,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  deleteStudent,
  fetchAllStudents,
@@ -45,6 +49,21 @@ const GRADE_FILTERS = [
  { key: "中五", label: "中五" },
  { key: "中六", label: "中六" },
  { key: "其他", label: "其他" },
+] as const
+
+const GRADE_CHIPS = ["中一", "中二", "中三", "中四", "中五", "中六"] as const
+const RELATIONSHIP_CHIPS = ["父親", "母親", "祖父母", "兄姊", "親屬", "監護人", "其他"] as const
+const COMMON_HK_SCHOOLS = [
+ "英華書院",
+ "聖保羅男女中學",
+ "拔萃女書院",
+ "喇沙書院",
+ "華仁書院",
+ "協恩中學",
+ "伊利沙伯中學",
+ "皇仁書院",
+ "拔萃男書院",
+ "聖若瑟書院",
 ] as const
 
 function monthStartIso(): string {
@@ -80,6 +99,19 @@ function emptyAddForm(): Partial<StudentRecord> {
   address: "",
   remarks: "",
  }
+}
+
+function nextStudentCode(rows: StudentRecord[]): string {
+ let max = 0
+ for (const r of rows) {
+  const code = (r.student_code ?? "").trim()
+  const m = code.match(/^SNFNL(\d+)$/i)
+  if (!m) continue
+  const n = Number(m[1])
+  if (Number.isFinite(n) && n > max) max = n
+ }
+ const next = Math.max(1, max + 1)
+ return `SNFNL${String(next).padStart(4, "0")}`
 }
 
 function formatCsv(rows: StudentRecord[]): string {
@@ -121,6 +153,7 @@ function formatCsv(rows: StudentRecord[]): string {
 }
 
 export function StudentsListPage() {
+ const { confirmDialog } = useAppConfirm()
  const navigate = useNavigate()
  const [rows, setRows] = useState<StudentRecord[]>([])
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
@@ -130,11 +163,13 @@ export function StudentsListPage() {
  const [statusKey, setStatusKey] = useState<(typeof STATUS_FILTERS)[number]["key"]>("all")
  const [gradeKey, setGradeKey] = useState<(typeof GRADE_FILTERS)[number]["key"]>("all")
  const [viewMode, setViewMode] = useState<"table" | "gallery">("table")
- const [sortMode, setSortMode] = useState<"codeAsc" | "codeDesc">("codeAsc")
+ const [sortMode, setSortMode] = useState<"codeAsc" | "codeDesc">("codeDesc")
+ const [showGraduated, setShowGraduated] = useState(false)
  const [dashboardCollapsed, setDashboardCollapsed] = useState(false)
  const [search, setSearch] = useState("")
  const [addOpen, setAddOpen] = useState(false)
  const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
+ const [schoolSearch, setSchoolSearch] = useState("")
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -189,6 +224,9 @@ export function StudentsListPage() {
   if (statusKey !== "all") {
    list = list.filter((r) => normalizeStudentStatus(r.status) === statusKey)
   }
+  if (!showGraduated) {
+   list = list.filter((r) => normalizeStudentStatus(r.status) !== "畢業")
+  }
   if (gradeKey !== "all") {
    list = list.filter((r) => (r.grade ?? "") === gradeKey)
   }
@@ -219,7 +257,7 @@ export function StudentsListPage() {
    return a.full_name.localeCompare(b.full_name, "zh-Hant")
   })
   return sorted
- }, [rows, statusKey, gradeKey, search, sortMode])
+ }, [rows, statusKey, showGraduated, gradeKey, search, sortMode])
 
  const statusCounts = useMemo(() => {
   const m = new Map<string, number>()
@@ -243,15 +281,16 @@ export function StudentsListPage() {
  const onAddStudent = async () => {
   if (!(addForm.full_name ?? "").trim()) return
   try {
+   const reg = addForm.registration_status === "僅查詢" ? "僅查詢" : "已註冊"
    await insertStudent({
     full_name: (addForm.full_name ?? "").trim(),
     english_name: (addForm.english_name ?? "").trim() || null,
     student_code: (addForm.student_code ?? "").trim() || null,
     gender: (addForm.gender ?? "").trim() || null,
     grade: (addForm.grade ?? "").trim() || null,
-    registration_status: addForm.registration_status ?? "已註冊",
-    enrollment_status: addForm.enrollment_status ?? "在讀",
-    academic_stage: addForm.academic_stage ?? "中學中",
+    registration_status: reg,
+    enrollment_status: "在讀",
+    academic_stage: "中學中",
     school: (addForm.school ?? "").trim() || null,
     date_of_birth: (addForm.date_of_birth ?? "").trim() || null,
     parent_name: (addForm.parent_name ?? "").trim() || null,
@@ -270,9 +309,29 @@ export function StudentsListPage() {
   }
  }
 
+ const schoolOptions = useMemo(() => {
+  const fromRows = rows.map((r) => (r.school ?? "").trim()).filter(Boolean)
+  const all = [...COMMON_HK_SCHOOLS, ...fromRows]
+  return [...new Set(all)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+ }, [rows])
+
+ const schoolFiltered = useMemo(() => {
+  const q = schoolSearch.trim().toLowerCase()
+  if (!q) return schoolOptions
+  return schoolOptions.filter((s) => s.toLowerCase().includes(q))
+ }, [schoolOptions, schoolSearch])
+
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
-  if (!confirm("確定刪除此學生？將一併刪除關聯選課等資料（若資料庫設為 cascade）。")) return
+ if (
+  !(await confirmDialog({
+   title: "刪除學生",
+   description: "確定刪除此學生？將一併刪除關聯選課等資料（若資料庫設為 cascade）。",
+   confirmText: "確認刪除",
+   tone: "destructive",
+  }))
+ )
+  return
   try {
    await deleteStudent(id)
    await load()
@@ -303,17 +362,13 @@ export function StudentsListPage() {
      <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
      學生管理
     </h1>
-    <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-     {loading ? "…" : `${stats.total} 人`}
-    </span>
+   <Tag tone="info">{loading ? "…" : `${stats.total} 人`}</Tag>
    </div>
 
   <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
    <div className="flex items-center gap-2">
     <h2 className="text-sm font-semibold tracking-wide">學生儀表板</h2>
-    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-     目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}
-    </span>
+    <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
    </div>
    <Button
     type="button"
@@ -335,7 +390,7 @@ export function StudentsListPage() {
      <div className="text-sm text-muted-foreground">目前在讀</div>
     </div>
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-     <div className="text-3xl font-bold text-emerald-600">
+     <div className="text-3xl font-bold text-success">
       {loading ? "…" : stats.newThisMonth}
      </div>
      <div className="text-sm text-muted-foreground">本月新報讀</div>
@@ -347,12 +402,12 @@ export function StudentsListPage() {
    <button
     type="button"
     onClick={() => setSortMode("codeDesc")}
-    className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-left shadow-sm transition hover:border-sky-400/70 hover:shadow-md"
+    className="rounded-xl border border-info bg-info p-4 text-left shadow-sm transition hover:border-info/70 hover:shadow-md"
     title="按學號（最新）排序"
    >
-    <div className="text-xs font-medium uppercase tracking-wide text-sky-700">最新學號</div>
-    <div className="mt-1 text-2xl font-bold text-sky-800">{latestCodeStudent?.student_code ?? "—"}</div>
-    <div className="mt-2 text-xs text-sky-800/80">點擊後改為「按學號（最新）」排序</div>
+    <div className="text-xs font-medium uppercase tracking-wide text-info">最新學號</div>
+    <div className="mt-1 text-2xl font-bold text-info">{latestCodeStudent?.student_code ?? "—"}</div>
+    <div className="mt-2 text-xs text-info/80">點擊後改為「按學號（最新）」排序</div>
    </button>
    </div>
 
@@ -410,6 +465,19 @@ export function StudentsListPage() {
        </button>
       )
      })}
+     <button
+      type="button"
+      onClick={() => setShowGraduated((v) => !v)}
+      className={cn(
+       "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+       showGraduated
+        ? "border-border bg-card text-foreground hover:bg-muted/80"
+        : "border-primary bg-primary text-primary-foreground"
+      )}
+      title={showGraduated ? "目前同時顯示已畢業生" : "目前不顯示已畢業生"}
+     >
+      {showGraduated ? "顯示已畢業生：開" : "顯示已畢業生：關"}
+     </button>
     </div>
    </div>
 
@@ -486,7 +554,13 @@ export function StudentsListPage() {
       open={addOpen}
       onOpenChange={(open) => {
        setAddOpen(open)
-       if (!open) setAddForm(emptyAddForm())
+       if (open) {
+        setAddForm({ ...emptyAddForm(), student_code: nextStudentCode(rows) })
+        setSchoolSearch("")
+       } else {
+        setAddForm(emptyAddForm())
+        setSchoolSearch("")
+       }
       }}
      >
       <DialogTrigger asChild>
@@ -518,8 +592,9 @@ export function StudentsListPage() {
         <Field label="學生編號">
          <Input
           value={addForm.student_code ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, student_code: e.target.value }))}
-          placeholder="留空則稍後補上"
+          readOnly
+          className="bg-muted/30"
+          placeholder="系統自動生成"
          />
         </Field>
         <Field label="性別">
@@ -530,53 +605,66 @@ export function StudentsListPage() {
          />
         </Field>
         <Field label="年級">
-         <Input
-          value={addForm.grade ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, grade: e.target.value }))}
-          placeholder="例：中三"
-         />
+         <div className="flex flex-wrap gap-2">
+          {GRADE_CHIPS.map((g) => (
+           <button
+            key={g}
+            type="button"
+            onClick={() => setAddForm((f) => ({ ...f, grade: g }))}
+            className={cn(
+             "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+             (addForm.grade ?? "") === g
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-card text-foreground hover:bg-muted/80"
+            )}
+           >
+            {g}
+           </button>
+          ))}
+         </div>
         </Field>
         <Field label="註冊狀態">
-         <select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={addForm.registration_status ?? "已註冊"}
-          onChange={(e) =>
-           setAddForm((f) => ({ ...f, registration_status: e.target.value as "已註冊" | "僅查詢" }))
-          }
-         >
-          <option value="已註冊">已註冊</option>
-          <option value="僅查詢">僅查詢</option>
-         </select>
-        </Field>
-        <Field label="就讀狀態">
-         <select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={addForm.enrollment_status ?? "在讀"}
-          onChange={(e) =>
-           setAddForm((f) => ({ ...f, enrollment_status: e.target.value as "在讀" | "非在讀" }))
-          }
-         >
-          <option value="在讀">在讀</option>
-          <option value="非在讀">非在讀</option>
-         </select>
-        </Field>
-        <Field label="學業狀態">
-         <select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={addForm.academic_stage ?? "中學中"}
-          onChange={(e) =>
-           setAddForm((f) => ({ ...f, academic_stage: e.target.value as "中學中" | "中學畢業" }))
-          }
-         >
-          <option value="中學中">仍在中學階段</option>
-          <option value="中學畢業">已中學畢業</option>
-         </select>
+         <div className="flex gap-4 py-1">
+          <label className="inline-flex items-center gap-2 text-sm">
+           <input
+            type="radio"
+            name="registration-status"
+            checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
+            onChange={() => setAddForm((f) => ({ ...f, registration_status: "已註冊" }))}
+           />
+           正式註冊
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+           <input
+            type="radio"
+            name="registration-status"
+            checked={(addForm.registration_status ?? "已註冊") === "僅查詢"}
+            onChange={() => setAddForm((f) => ({ ...f, registration_status: "僅查詢" }))}
+           />
+           試堂/查詢
+          </label>
+         </div>
         </Field>
         <Field label="學校" className="sm:col-span-2">
-         <Input
-          value={addForm.school ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, school: e.target.value }))}
-         />
+         <div className="space-y-2">
+          <Input
+           value={schoolSearch}
+           onChange={(e) => setSchoolSearch(e.target.value)}
+           placeholder="搜尋學校…"
+          />
+          <Select
+           className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+           value={addForm.school ?? ""}
+           onChange={(e) => setAddForm((f) => ({ ...f, school: e.target.value }))}
+          >
+           <option value="">請選擇學校</option>
+           {schoolFiltered.map((s) => (
+            <option key={s} value={s}>
+             {s}
+            </option>
+           ))}
+          </Select>
+         </div>
         </Field>
         <Field label="出生日期">
          <Input
@@ -585,17 +673,30 @@ export function StudentsListPage() {
           onChange={(e) => setAddForm((f) => ({ ...f, date_of_birth: e.target.value }))}
          />
         </Field>
-        <Field label="家長姓名">
+        <Field label="家長稱呼">
          <Input
           value={addForm.parent_name ?? ""}
           onChange={(e) => setAddForm((f) => ({ ...f, parent_name: e.target.value }))}
          />
         </Field>
         <Field label="關係">
-         <Input
-          value={addForm.parent_relationship ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, parent_relationship: e.target.value }))}
-         />
+         <div className="flex flex-wrap gap-2">
+          {RELATIONSHIP_CHIPS.map((rel) => (
+           <button
+            key={rel}
+            type="button"
+            onClick={() => setAddForm((f) => ({ ...f, parent_relationship: rel }))}
+            className={cn(
+             "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+             (addForm.parent_relationship ?? "") === rel
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border bg-card text-foreground hover:bg-muted/80"
+            )}
+           >
+            {rel}
+           </button>
+          ))}
+         </div>
         </Field>
         <Field label="學生電話">
          <Input
@@ -615,10 +716,11 @@ export function StudentsListPage() {
           onChange={(e) => setAddForm((f) => ({ ...f, whatsapp: e.target.value }))}
          />
         </Field>
-        <Field label="地址" className="sm:col-span-2">
+        <Field label="親友連結" className="sm:col-span-2">
          <Input
           value={addForm.address ?? ""}
           onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))}
+          placeholder="例如：父親 9123xxxx；姨媽 9888xxxx"
          />
         </Field>
         <Field label="備註" className="sm:col-span-2">
@@ -709,7 +811,7 @@ export function StudentsListPage() {
                type="button"
                variant="ghost"
                size="icon"
-               className="h-8 w-8 shrink-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900"
+              className="h-8 w-8 shrink-0 text-success hover:bg-success hover:text-success-foreground"
                title="以 WhatsApp 聯絡學生電話"
                aria-label="開啟學生電話 WhatsApp"
                onClick={(e) => {
@@ -733,7 +835,7 @@ export function StudentsListPage() {
                type="button"
                variant="ghost"
                size="icon"
-               className="h-8 w-8 shrink-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900"
+              className="h-8 w-8 shrink-0 text-success hover:bg-success hover:text-success-foreground"
                title="以 WhatsApp 聯絡（優先 WhatsApp 欄，其次家長電話）"
                aria-label="開啟 WhatsApp"
                onClick={(e) => {
@@ -750,12 +852,7 @@ export function StudentsListPage() {
            <td className="min-w-0 align-top px-3 py-3">
             <div className="flex flex-wrap gap-1 break-words">
              {(tags.get(r.id) ?? []).map((sub) => (
-              <span
-               key={sub}
-               className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
-              >
-               {sub}
-              </span>
+              <Tag key={sub} tone="info" size="sm">{sub}</Tag>
              ))}
              {(tags.get(r.id) ?? []).length === 0 ? (
               <span className="text-xs text-muted-foreground">—</span>
@@ -763,9 +860,7 @@ export function StudentsListPage() {
             </div>
            </td>
            <td className="align-top px-3 py-3">
-            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-             {normalizeStudentStatus(r.status)}
-            </span>
+           <Tag tone={statusToTagTone(normalizeStudentStatus(r.status))} size="sm">{normalizeStudentStatus(r.status)}</Tag>
            </td>
            <td className="align-top px-3 py-3">
             {t?.showArrears ? (
@@ -846,9 +941,7 @@ export function StudentsListPage() {
            <h3 className="truncate text-lg font-semibold">{r.full_name}</h3>
            {r.english_name ? <p className="truncate text-sm text-muted-foreground">{r.english_name}</p> : null}
           </div>
-          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-           {normalizeStudentStatus(r.status)}
-          </span>
+          <Tag tone={statusToTagTone(normalizeStudentStatus(r.status))} size="sm">{normalizeStudentStatus(r.status)}</Tag>
          </div>
          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
           <p>年級：{r.grade ?? "—"}</p>
@@ -858,9 +951,7 @@ export function StudentsListPage() {
          </div>
          <div className="mt-3 flex flex-wrap gap-1">
           {(tags.get(r.id) ?? []).slice(0, 4).map((sub) => (
-           <span key={sub} className="rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
-            {sub}
-           </span>
+           <Tag key={sub} tone="info" size="sm">{sub}</Tag>
           ))}
          </div>
          <div className="mt-4 flex items-center justify-between">
@@ -882,7 +973,7 @@ export function StudentsListPage() {
              type="button"
              variant="ghost"
              size="icon"
-             className="h-8 w-8 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900"
+            className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground"
              title="開啟 WhatsApp"
              aria-label="開啟 WhatsApp"
              onClick={(e) => {

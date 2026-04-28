@@ -201,7 +201,7 @@ export function EnrollmentChangesView() {
          key={r.id}
          className={cn(
           "border-b border-border/80",
-          r.action === "withdraw" ? "bg-amber-50/40" : "bg-sky-50/30"
+          r.action === "withdraw" ? "bg-amber-50/40" : "bg-info/30"
          )}
         >
          <td className="min-w-0 align-top px-3 py-2.5 tabular-nums text-muted-foreground">
@@ -213,7 +213,7 @@ export function EnrollmentChangesView() {
             "rounded-full px-2 py-0.5 text-xs font-medium",
             r.action === "withdraw"
              ? "bg-amber-200/80 text-amber-950"
-             : "bg-sky-200/80 text-sky-950"
+             : "bg-info/80 text-info-foreground"
            )}
           >
            {r.action === "withdraw" ? "退讀" : "報讀"}

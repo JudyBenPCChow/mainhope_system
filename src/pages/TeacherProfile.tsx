@@ -4,6 +4,7 @@ import { CircleUser, Mail, Phone, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select } from "@/components/ui/select"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -134,7 +135,7 @@ export default function TeacherProfilePage() {
    {okMsg ? (
     <div
      role="status"
-     className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950"
+     className="rounded-lg border border-success bg-success px-4 py-3 text-sm text-success"
     >
      {okMsg}
     </div>
@@ -207,14 +208,14 @@ export default function TeacherProfilePage() {
 
      <div>
       <label className="text-xs font-medium text-muted-foreground">狀態</label>
-      <select
+      <Select
        className="mt-1 flex h-10 w-full max-w-md rounded-md border border-input bg-background px-2 text-sm"
        value={form.status === "非在職" ? "非在職" : "在職"}
        onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
       >
        <option value="在職">在職</option>
        <option value="非在職">非在職</option>
-      </select>
+      </Select>
      </div>
 
      <div>
@@ -234,7 +235,7 @@ export default function TeacherProfilePage() {
          <span
           key={sub}
           className={cn(
-           "rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800"
+           "rounded-full bg-info px-2 py-0.5 text-xs font-medium text-info"
           )}
          >
           {sub}

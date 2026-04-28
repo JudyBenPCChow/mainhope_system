@@ -1,0 +1,19 @@
+{
+  "source_csv": "/Users/hoiyingfan/Downloads/私人和共用 4/【2526】學生請假 25273b60cb0280bca768f79200e6e576_all.csv",
+  "safe_rows_requested": 233,
+  "inserted": 231,
+  "already_exists_skipped": 0,
+  "failed_count": 2,
+  "failed": [
+    {
+      "line": 153,
+      "reason": "exception",
+      "message": "<urlopen error [Errno 54] Connection reset by peer>"
+    },
+    {
+      "line": 156,
+      "reason": "exception",
+      "message": "<urlopen error [Errno 54] Connection reset by peer>"
+    }
+  ]
+}

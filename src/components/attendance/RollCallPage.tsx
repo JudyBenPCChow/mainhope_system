@@ -4,6 +4,8 @@ import { CheckCircle2, ClipboardCheck, Download, ListChecks, Sparkles } from "lu
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -323,12 +325,10 @@ export function RollCallPage() {
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ClipboardCheck className="h-7 w-7 text-emerald-600" aria-hidden />
+      <ClipboardCheck className="h-7 w-7 text-success" aria-hidden />
       進行點名
       {pendingMakeup > 0 ? (
-       <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-900">
-        {pendingMakeup} 待補課
-       </span>
+      <Tag tone="warning" size="sm">{pendingMakeup} 待補課</Tag>
       ) : null}
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
@@ -340,7 +340,7 @@ export function RollCallPage() {
    </header>
 
    {teacherTid ? (
-    <div className="rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-sm text-sky-950">
+   <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
     </div>
    ) : null}
@@ -352,9 +352,9 @@ export function RollCallPage() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2">
-    <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/50 p-4 shadow-sm">
-     <div className="text-sm font-medium text-emerald-900">已儲存點名人次</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-emerald-800">{savedFilledCount}</p>
+    <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
+     <div className="text-sm font-medium text-success">已儲存點名人次</div>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-success">{savedFilledCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">目前堂數按「確定」後已寫入資料庫的人數</p>
     </div>
     <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm">
@@ -380,7 +380,7 @@ export function RollCallPage() {
     </Button>
     <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-muted-foreground">
      <span>選擇排程</span>
-     <select
+     <Select
       className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
       value={activeScheduleId ?? ""}
       onChange={(e) => setActiveScheduleId(e.target.value || null)}
@@ -398,17 +398,13 @@ export function RollCallPage() {
         </option>
        ))
       )}
-     </select>
+     </Select>
     </label>
     <div className="ml-auto flex flex-wrap items-center gap-2">
      {isDirty ? (
-      <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-900">
-       未儲存變更
-      </span>
+     <Tag tone="warning" size="sm">未儲存變更</Tag>
      ) : null}
-     <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900">
-      已選狀態：{draftFilledCount} / {students.length}
-     </span>
+    <Tag tone="success" size="sm">已選狀態：{draftFilledCount} / {students.length}</Tag>
     </div>
    </div>
 
@@ -436,7 +432,7 @@ export function RollCallPage() {
         type="button"
         size="sm"
         variant="secondary"
-        className="gap-1 bg-sky-100 text-sky-900 hover:bg-sky-200"
+       className="gap-1 bg-info text-info-foreground hover:bg-info"
         disabled={sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyPrefill()}
        >
@@ -446,7 +442,7 @@ export function RollCallPage() {
        <Button
         type="button"
         size="sm"
-        className="gap-1 bg-emerald-600 text-white hover:bg-emerald-700"
+        className="gap-1 bg-success text-white hover:bg-success"
         disabled={sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyAllPresent()}
        >
@@ -488,7 +484,7 @@ export function RollCallPage() {
             <div className="font-medium">
              {row.fullName}
              {row.source === "trial" ? (
-              <span className="ml-2 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-800">
+              <span className="ml-2 rounded bg-info px-1.5 py-0.5 text-[10px] font-medium text-info-foreground">
                試堂
               </span>
              ) : null}
@@ -508,7 +504,7 @@ export function RollCallPage() {
                className={cn(
                 "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 statusMap.get(row.studentId) === opt
-                 ? "border-emerald-500 bg-emerald-600 text-white"
+                 ? "border-success bg-success text-white"
                  : "border-border bg-background text-muted-foreground hover:bg-muted/60"
                )}
               >
@@ -555,7 +551,7 @@ export function RollCallPage() {
        <Button
         type="button"
         size="lg"
-        className="shrink-0 gap-2 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+        className="shrink-0 gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
         disabled={
          confirmSaving ||
          sheetLoading ||

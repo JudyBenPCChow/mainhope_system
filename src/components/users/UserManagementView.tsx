@@ -12,6 +12,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -65,7 +66,7 @@ function roleMeta(role: string): { label: string; className: string; Icon: Lucid
  if (r === "teacher")
   return {
    label: "專班老師",
-   className: "border-emerald-300 bg-emerald-100 text-emerald-950",
+   className: "border-success bg-success text-success-foreground",
    Icon: GraduationCap,
   }
  return {
@@ -210,7 +211,7 @@ export function UserManagementView() {
    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border/80 pb-6">
     <div className="min-w-0 space-y-2">
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
-      <UserCog className="h-8 w-8 shrink-0 text-sky-600" aria-hidden />
+      <UserCog className="h-8 w-8 shrink-0 text-info" aria-hidden />
       用戶管理
      </h1>
      <p className="max-w-prose text-sm text-muted-foreground md:text-base">
@@ -273,7 +274,7 @@ export function UserManagementView() {
       return (
        <article
         key={u.id}
-        className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/90 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-300/60 hover:shadow-lg"
+        className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/90 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-info/60 hover:shadow-lg"
        >
         <div
          className={cn(
@@ -329,7 +330,7 @@ export function UserManagementView() {
                {tOpt.label.trim() || "（無姓名）"}
               </Link>
               {tOpt.abbr ? (
-               <span className="mt-1 block font-mono text-xs text-sky-800">
+               <span className="mt-1 block font-mono text-xs text-info">
                 <abbr title="內部簡稱／代碼（teachers.abbr）" className="no-underline">
                  ABBR
                 </abbr>
@@ -376,7 +377,7 @@ export function UserManagementView() {
      }
     }}
    >
-    <DialogContent className="max-w-md gap-0 overflow-hidden border-sky-100 p-0 sm:rounded-xl">
+    <DialogContent className="max-w-md gap-0 overflow-hidden border-info p-0 sm:rounded-xl">
      <div className="bg-gradient-to-r from-sky-600 to-indigo-600 px-6 py-4 text-white">
       <DialogHeader className="space-y-1 text-left">
        <DialogTitle className="text-lg font-semibold text-white">編輯後台使用者</DialogTitle>
@@ -406,7 +407,7 @@ export function UserManagementView() {
       </label>
       <label className="grid gap-1.5">
        <span className="text-xs font-medium text-muted-foreground">角色</span>
-       <select
+       <Select
         className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
         value={form.role}
         onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}
@@ -416,7 +417,7 @@ export function UserManagementView() {
           {o.label}
          </option>
         ))}
-       </select>
+       </Select>
       </label>
       <label className="grid gap-1.5">
        <span className="text-xs font-medium text-muted-foreground">
@@ -425,7 +426,7 @@ export function UserManagementView() {
          （選項含 <abbr title="Abbreviation，內部簡稱">ABBR</abbr>）
         </span>
        </span>
-       <select
+       <Select
         className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
         value={form.teacher_id}
         onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value }))}
@@ -436,7 +437,7 @@ export function UserManagementView() {
           {teacherSelectText(t)}
          </option>
         ))}
-       </select>
+       </Select>
        {form.teacher_id.trim() ? (
         <p className="text-xs leading-relaxed text-muted-foreground">
          目前選中老師的{" "}
@@ -479,7 +480,7 @@ export function UserManagementView() {
       </Button>
       <Button
        type="button"
-       className="bg-sky-600 text-white hover:bg-sky-700"
+       className="bg-info text-white hover:bg-info"
        disabled={saving}
        onClick={() => void saveEdit()}
       >
