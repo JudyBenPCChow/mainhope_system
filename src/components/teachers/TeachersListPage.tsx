@@ -25,6 +25,23 @@ import {
  type TeacherRecord,
 } from "@/services/teacherQueries"
 
+const SUBJECT_SPECIALITY_OPTIONS = [
+ "中文",
+ "英文",
+ "數學",
+ "綜合科學",
+ "物理",
+ "化學",
+ "生物",
+ "M2",
+ "BAFS",
+ "中史",
+ "歷史",
+ "地理",
+ "經濟",
+ "ICT",
+] as const
+
 export function TeachersListPage() {
  const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
@@ -39,8 +56,8 @@ export function TeachersListPage() {
   phone: "",
   email: "",
   status: "在職",
-  subjects: "",
  })
+ const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -60,10 +77,7 @@ export function TeachersListPage() {
 
  const onAdd = async () => {
   if (!form.full_name.trim()) return
-  const subjects = form.subjects
-   .split(/[,，、]/)
-   .map((s) => s.trim())
-   .filter(Boolean)
+  const subjects = selectedSubjects
   setErr(null)
   try {
    await insertTeacher({
@@ -83,8 +97,8 @@ export function TeachersListPage() {
     phone: "",
     email: "",
     status: "在職",
-    subjects: "",
    })
+   setSelectedSubjects([])
    await load()
   } catch (e) {
    reportUserFacingError(e, { source: "TeachersListPage.onAdd", setErr })
@@ -204,15 +218,42 @@ export function TeachersListPage() {
          </Select>
         </div>
         <div>
-         <label className="text-xs font-medium text-muted-foreground">
-          專長科目（逗號分隔）
-         </label>
-         <Input
-          className="mt-1"
-          value={form.subjects}
-          onChange={(e) => setForm((f) => ({ ...f, subjects: e.target.value }))}
-          placeholder="中文, 數學"
-         />
+         <label className="text-xs font-medium text-muted-foreground">專長科目</label>
+         <div className="mt-2 flex flex-wrap gap-2">
+          {SUBJECT_SPECIALITY_OPTIONS.map((subject) => {
+           const active = selectedSubjects.includes(subject)
+           return (
+            <button
+             key={subject}
+             type="button"
+             onClick={() => {
+              setSelectedSubjects((prev) => {
+               if (prev.includes(subject)) return prev.filter((x) => x !== subject)
+               return SUBJECT_SPECIALITY_OPTIONS.filter((x) => [...prev, subject].includes(x))
+              })
+             }}
+             className={cn(
+              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+              active
+               ? "border-info bg-info text-info-foreground"
+               : "border-border bg-card text-foreground hover:bg-muted/80"
+             )}
+             aria-pressed={active}
+            >
+             {subject}
+            </button>
+           )
+          })}
+         </div>
+         <div className="mt-2 flex flex-wrap gap-1">
+          {selectedSubjects.length === 0 ? (
+           <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
+          ) : (
+           selectedSubjects.map((sub) => (
+            <Tag key={sub} tone="info" size="sm">{sub}</Tag>
+           ))
+          )}
+         </div>
         </div>
         <Button type="button" onClick={() => void onAdd()}>
          建立

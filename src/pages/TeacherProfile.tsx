@@ -15,11 +15,28 @@ import {
  updateTeacher,
 } from "@/services/teacherQueries"
 
+const SUBJECT_SPECIALITY_OPTIONS = [
+ "中文",
+ "英文",
+ "數學",
+ "綜合科學",
+ "物理",
+ "化學",
+ "生物",
+ "M2",
+ "BAFS",
+ "中史",
+ "歷史",
+ "地理",
+ "經濟",
+ "ICT",
+] as const
+
 export default function TeacherProfilePage() {
  const teacherId = getTeacherScopeTeacherId()
  const [teacher, setTeacher] = useState<TeacherRecord | null>(null)
  const [form, setForm] = useState<Partial<TeacherRecord>>({})
- const [subjectInput, setSubjectInput] = useState("")
+ const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
  const [loading, setLoading] = useState(true)
  const [saving, setSaving] = useState(false)
  const [err, setErr] = useState<string | null>(null)
@@ -37,10 +54,10 @@ export default function TeacherProfilePage() {
    setTeacher(t)
    if (t) {
     setForm(t)
-    setSubjectInput((t.subject_speciality ?? []).join(", "))
+    setSelectedSubjects(t.subject_speciality ?? [])
    } else {
     setForm({})
-    setSubjectInput("")
+    setSelectedSubjects([])
    }
   } catch (e) {
    reportUserFacingError(e, { source: "TeacherProfile.reload", setErr })
@@ -61,10 +78,7 @@ export default function TeacherProfilePage() {
    setErr("請填寫中文姓名。")
    return
   }
-  const subjects = subjectInput
-   .split(/[,，、]/)
-   .map((s) => s.trim())
-   .filter(Boolean)
+  const subjects = selectedSubjects
   setSaving(true)
   setErr(null)
   setOkMsg(null)
@@ -80,7 +94,7 @@ export default function TeacherProfilePage() {
    })
    setTeacher(updated)
    setForm(updated)
-   setSubjectInput((updated.subject_speciality ?? []).join(", "))
+   setSelectedSubjects(updated.subject_speciality ?? [])
    setOkMsg("已儲存")
    window.setTimeout(() => setOkMsg(null), 4000)
   } catch (e) {
@@ -219,28 +233,43 @@ export default function TeacherProfilePage() {
      </div>
 
      <div>
-      <label className="text-xs font-medium text-muted-foreground">專長科目（逗號分隔）</label>
-      <Input
-       className="mt-1"
-       value={subjectInput}
-       onChange={(e) => setSubjectInput(e.target.value)}
-       placeholder="中文, 數學"
-      />
-      <div className="mt-2 flex flex-wrap gap-1">
-       {subjectInput
-        .split(/[,，、]/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((sub) => (
-         <span
-          key={sub}
+      <label className="text-xs font-medium text-muted-foreground">專長科目</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+       {SUBJECT_SPECIALITY_OPTIONS.map((subject) => {
+        const active = selectedSubjects.includes(subject)
+        return (
+         <button
+          key={subject}
+          type="button"
+          onClick={() => {
+           setSelectedSubjects((prev) => {
+            if (prev.includes(subject)) return prev.filter((x) => x !== subject)
+            return SUBJECT_SPECIALITY_OPTIONS.filter((x) => [...prev, subject].includes(x))
+           })
+          }}
           className={cn(
-           "rounded-full bg-info px-2 py-0.5 text-xs font-medium text-info"
+           "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+           active
+            ? "border-info bg-info text-info-foreground"
+            : "border-border bg-card text-foreground hover:bg-muted/80"
           )}
+          aria-pressed={active}
          >
+          {subject}
+         </button>
+        )
+       })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+       {selectedSubjects.length === 0 ? (
+        <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
+       ) : (
+        selectedSubjects.map((sub) => (
+         <span key={sub} className="rounded-full bg-info px-2 py-0.5 text-xs font-medium text-info">
           {sub}
          </span>
-        ))}
+        ))
+       )}
       </div>
      </div>
 
