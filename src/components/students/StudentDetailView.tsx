@@ -4,6 +4,7 @@ import {
  ArrowLeft,
  Banknote,
  BookOpen,
+ CalendarClock,
  ClipboardList,
  GraduationCap,
  History,
@@ -64,12 +65,14 @@ import {
 import {
  fetchEnrolledClassesForStudent,
  fetchMakeupCandidateSchedules,
+ fetchUpcomingSchedulesForStudent,
  fetchUpcomingSchedulesForClass,
  insertLeaveMakeupRecord,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
  type ClassScheduleOption,
  type EnrolledClassOption,
+ type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
@@ -85,6 +88,7 @@ type TabId =
  | "payments"
  | "attendance"
  | "leave"
+ | "futureSchedules"
  | "history"
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
@@ -93,6 +97,7 @@ const TABS: { id: TabId; label: string; icon: typeof User }[] = [
  { id: "payments", label: "繳費紀錄", icon: Banknote },
  { id: "attendance", label: "上課紀錄", icon: ClipboardList },
  { id: "leave", label: "請假紀錄", icon: Umbrella },
+ { id: "futureSchedules", label: "未來排程", icon: CalendarClock },
  { id: "history", label: "更動紀錄", icon: History },
 ]
 
@@ -117,6 +122,7 @@ export function StudentDetailView() {
  const [payments, setPayments] = useState<PaymentRow[]>([])
  const [attendance, setAttendance] = useState<AttendanceRow[]>([])
  const [leaves, setLeaves] = useState<LeaveRow[]>([])
+const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRow[]>([])
  const [history, setHistory] = useState<HistoryRow[]>([])
  const [classOptions, setClassOptions] = useState<{ id: string; label: string }[]>([])
  const [pickClass, setPickClass] = useState("")
@@ -167,11 +173,12 @@ export function StudentDetailView() {
 
  const reloadSubs = useCallback(async () => {
   if (!sid) return
-  const [e, p, a, l, h, rel, paidLessons] = await Promise.all([
+  const [e, p, a, l, fs, h, rel, paidLessons] = await Promise.all([
    fetchEnrollmentsForStudent(sid),
    fetchPaymentsForStudent(sid),
    fetchAttendanceForStudent(sid),
    fetchLeaveForStudent(sid),
+   fetchUpcomingSchedulesForStudent(sid, localTodayYmd()),
    fetchStudentActivity(sid),
    fetchRelativesForStudent(sid),
    fetchTotalPaidLessonsForStudent(sid),
@@ -181,6 +188,7 @@ export function StudentDetailView() {
   setTotalPaidLessons(paidLessons)
   setAttendance(a)
   setLeaves(l)
+  setFutureSchedules(fs)
   setHistory(h)
   setRelatives(rel)
  }, [sid])
@@ -408,6 +416,32 @@ export function StudentDetailView() {
   absent: attendance.filter((x) => x.status.includes("缺席")).length,
   makeup: attendance.filter((x) => x.status.includes("補") || x.status.includes("待")).length,
  }
+
+const csvEscape = (s: string) => `"${s.replace(/"/g, '""')}"`
+
+const exportFutureSchedulesCsv = () => {
+ const header = ["日期", "開始", "結束", "科目", "課程編號", "老師", "狀態"]
+ const rows = futureSchedules.map((row) =>
+  [
+   row.scheduled_date,
+   row.start_time ?? "",
+   row.end_time ?? "",
+   row.subject,
+   row.course_code ?? "",
+   row.teacher_name ?? "",
+   row.status,
+  ]
+   .map((x) => csvEscape(x))
+   .join(",")
+ )
+ const csv = `\uFEFF${header.map(csvEscape).join(",")}\n${rows.join("\n")}`
+ const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
+ const a = document.createElement("a")
+ a.href = URL.createObjectURL(blob)
+ a.download = `student-upcoming-schedules-${sid}-${localTodayYmd()}.csv`
+ a.click()
+ URL.revokeObjectURL(a.href)
+}
 
  function attendanceStatusCategory(status: string): "present" | "absent" | "other" {
   const s = status.trim()
@@ -1383,6 +1417,58 @@ export function StudentDetailView() {
          </li>
         ))}
        </ul>
+      )}
+     </div>
+    ) : null}
+
+    {tab === "futureSchedules" ? (
+     <div className="mx-auto max-w-3xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <p className="text-sm text-muted-foreground">
+        顯示此學生於「就讀中班別」的未來未完成排程，共 {futureSchedules.length} 筆。
+       </p>
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={exportFutureSchedulesCsv}
+        disabled={futureSchedules.length === 0}
+       >
+        匯出 CSV
+       </Button>
+      </div>
+      {futureSchedules.length === 0 ? (
+       <p className="py-8 text-center text-sm text-muted-foreground">尚無未來排程</p>
+      ) : (
+       <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="hidden grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid">
+         <span>日期 / 時間</span>
+         <span>班別</span>
+         <span className="text-right">老師</span>
+         <span className="text-right">狀態</span>
+        </div>
+        <ul className="divide-y divide-border">
+         {futureSchedules.map((row) => (
+          <li
+           key={row.id}
+           className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]"
+          >
+           <span className="tabular-nums text-muted-foreground">
+            {row.scheduled_date} {row.start_time ?? ""}
+            {row.end_time ? `-${row.end_time}` : ""}
+           </span>
+           <span className="min-w-0 truncate font-medium">
+            <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
+             {row.subject}
+             {row.course_code ? `（${row.course_code}）` : ""}
+            </Link>
+           </span>
+           <span className="text-right text-muted-foreground">{row.teacher_name ?? "—"}</span>
+           <span className="text-right text-muted-foreground">{row.status || "—"}</span>
+          </li>
+         ))}
+        </ul>
+       </div>
       )}
      </div>
     ) : null}

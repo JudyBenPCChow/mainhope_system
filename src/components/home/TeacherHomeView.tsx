@@ -174,15 +174,6 @@ export function TeacherHomeView() {
   [schedules, today]
  )
 
- const enrollHint = useMemo(() => {
-  const parts: string[] = []
-  for (const c of classes) {
-   const label = c.course_code?.trim() || c.subject.trim() || "班別"
-   parts.push(`${label.slice(0, 12)}…`)
-  }
-  return parts.slice(0, 6).join(" · ")
- }, [classes])
-
  if (!teacherId) {
   return (
    <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
@@ -508,10 +499,6 @@ export function TeacherHomeView() {
     </section>
    ) : null}
 
-   <p className="text-sm text-muted-foreground md:text-base">
-    演示教師 ID：<code className="rounded bg-muted px-1">{teacherId}</code>
-    {enrollHint ? ` · 班別代碼摘錄：${enrollHint}` : null}
-   </p>
   </div>
  )
 }

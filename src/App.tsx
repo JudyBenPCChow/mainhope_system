@@ -8,6 +8,7 @@ import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
+import Calendar from "@/pages/Calendar"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
@@ -21,20 +22,16 @@ import RoomBookingAdmin from "@/pages/RoomBookingAdmin"
 import StudentDetail from "@/pages/StudentDetail"
 import Students from "@/pages/Students"
 import Teachers from "@/pages/Teachers"
-import Todos from "@/pages/Todos"
 import TeacherProfile from "@/pages/TeacherProfile"
 import TeacherTimetable from "@/pages/TeacherTimetable"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
-import Login from "@/pages/Login"
 
 export default function App() {
  return (
   <BrowserRouter>
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
-   <Route path="/Login" element={<Login />} />
-   <Route path="/login" element={<Login />} />
     <Route element={<Layout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/Users" element={<UserManagement />} />
@@ -51,7 +48,7 @@ export default function App() {
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
-     <Route path="/Todos" element={<Todos />} />
+     <Route path="/Calendar" element={<Calendar />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />
@@ -62,7 +59,6 @@ export default function App() {
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
     </Route>
-   <Route path="*" element={<Navigate to="/Home" replace />} />
    </Routes>
   </BrowserRouter>
  )

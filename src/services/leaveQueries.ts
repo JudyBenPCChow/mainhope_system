@@ -287,6 +287,71 @@ export async function fetchUpcomingSchedulesForClass(classId: string, fromYmd: s
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
 }
 
+export type StudentUpcomingScheduleRow = {
+ id: string
+ class_id: string
+ scheduled_date: string
+ start_time: string | null
+ end_time: string | null
+ status: string
+ subject: string
+ course_code: string | null
+ teacher_name: string | null
+}
+
+/** 學生未來排程（僅限就讀中班別） */
+export async function fetchUpcomingSchedulesForStudent(
+ studentId: string,
+ fromYmd: string
+): Promise<StudentUpcomingScheduleRow[]> {
+ if (!supabase) return []
+ const { data: enrollments, error: enrollErr } = await supabase
+  .from("student_class_enrollments")
+  .select("class_id")
+  .eq("student_id", studentId)
+  .eq("status", "就讀中")
+ if (enrollErr) throwPostgrest(enrollErr)
+
+ const classIds = [
+  ...new Set(
+   (enrollments ?? [])
+    .map((row) => String((row as { class_id?: string | null }).class_id ?? ""))
+    .filter((x) => x.length > 0)
+  ),
+ ]
+ if (classIds.length === 0) return []
+
+ const { data, error } = await supabase
+  .from("schedules")
+  .select(
+   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code ), teachers ( full_name )"
+  )
+  .in("class_id", classIds)
+  .gte("scheduled_date", fromYmd)
+  .order("scheduled_date", { ascending: true })
+  .order("start_time", { ascending: true })
+ if (error) throwPostgrest(error)
+
+ return (data ?? [])
+  .map((row) => {
+   const r = row as Record<string, unknown>
+   const cls = r.classes as Record<string, unknown> | null
+   const teacher = r.teachers as Record<string, unknown> | null
+   return {
+    id: String(r.id),
+    class_id: String(r.class_id ?? ""),
+    scheduled_date: String(r.scheduled_date ?? ""),
+    start_time: r.start_time != null ? String(r.start_time) : null,
+    end_time: r.end_time != null ? String(r.end_time) : null,
+    status: String(r.status ?? ""),
+    subject: cls?.subject != null ? String(cls.subject) : "—",
+    course_code: cls?.course_code != null ? String(cls.course_code) : null,
+    teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
+   }
+  })
+  .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
+}
+
 /** 未來一個月內可選補堂排程（跨班） */
 export async function fetchMakeupCandidateSchedules(): Promise<ScheduleManageRow[]> {
  const from = localYmd()

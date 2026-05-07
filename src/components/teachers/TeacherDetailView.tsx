@@ -42,6 +42,23 @@ import {
 
 type TabId = "basic" | "classes" | "timetable" | "schedule" | "attendance"
 
+const SUBJECT_SPECIALITY_OPTIONS = [
+ "中文",
+ "英文",
+ "數學",
+ "綜合科學",
+ "物理",
+ "化學",
+ "生物",
+ "M2",
+ "BAFS",
+ "中史",
+ "歷史",
+ "地理",
+ "經濟",
+ "ICT",
+] as const
+
 const TABS: { id: TabId; label: (c: { cl: number; sc: number }) => string; icon: typeof User }[] =
  [
   { id: "basic", label: () => "基本資料", icon: User },
@@ -86,7 +103,7 @@ export function TeacherDetailView() {
  const [attendance, setAttendance] = useState<TeacherAttendanceRow[]>([])
  const [loading, setLoading] = useState(true)
  const [form, setForm] = useState<Partial<TeacherRecord>>({})
- const [subjectInput, setSubjectInput] = useState("")
+ const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
  const [schedFilter, setSchedFilter] = useState<"future" | "past" | "cancel">("future")
  const [attMonth, setAttMonth] = useState(() => monthKey(new Date()))
  const [pageErr, setPageErr] = useState<string | null>(null)
@@ -106,7 +123,7 @@ export function TeacherDetailView() {
    setTeacher(t)
    if (t) {
     setForm(t)
-    setSubjectInput((t.subject_speciality ?? []).join(", "))
+    setSelectedSubjects(t.subject_speciality ?? [])
    }
    const [clRes, scRes, attRes] = await Promise.allSettled([
     fetchTeacherClasses(tid),
@@ -198,10 +215,7 @@ export function TeacherDetailView() {
 
  const saveBasic = async () => {
   if (!tid || !teacher) return
-  const subjects = subjectInput
-   .split(/[,，、]/)
-   .map((s) => s.trim())
-   .filter(Boolean)
+  const subjects = selectedSubjects
   setSaving(true)
   setPageErr(null)
   setPageOk(null)
@@ -222,7 +236,7 @@ export function TeacherDetailView() {
    const updated = await updateTeacher(tid, patch)
    setTeacher(updated)
    setForm(updated)
-   setSubjectInput((updated.subject_speciality ?? []).join(", "))
+   setSelectedSubjects(updated.subject_speciality ?? [])
    setPageOk("已儲存")
    window.setTimeout(() => setPageOk(null), 4000)
   } catch (e) {
@@ -414,19 +428,40 @@ export function TeacherDetailView() {
 
       <div>
        <h2 className="mb-2 text-sm font-semibold">專長科目</h2>
-       <Input
-        value={subjectInput}
-        onChange={(e) => setSubjectInput(e.target.value)}
-        placeholder="中文, 歷史（逗號分隔）"
-       />
+       <div className="flex flex-wrap gap-2">
+        {SUBJECT_SPECIALITY_OPTIONS.map((subject) => {
+         const active = selectedSubjects.includes(subject)
+         return (
+          <button
+           key={subject}
+           type="button"
+           onClick={() => {
+            setSelectedSubjects((prev) => {
+             if (prev.includes(subject)) return prev.filter((x) => x !== subject)
+             return SUBJECT_SPECIALITY_OPTIONS.filter((x) => [...prev, subject].includes(x))
+            })
+           }}
+           className={cn(
+            "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+            active
+             ? "border-info bg-info text-info-foreground"
+             : "border-border bg-card text-foreground hover:bg-muted/80"
+           )}
+           aria-pressed={active}
+          >
+           {subject}
+          </button>
+         )
+        })}
+       </div>
        <div className="mt-2 flex flex-wrap gap-1">
-        {subjectInput
-         .split(/[,，、]/)
-         .map((s) => s.trim())
-         .filter(Boolean)
-         .map((sub) => (
+        {selectedSubjects.length === 0 ? (
+         <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
+        ) : (
+         selectedSubjects.map((sub) => (
           <Tag key={sub} tone="info" size="sm">{sub}</Tag>
-         ))}
+         ))
+        )}
        </div>
       </div>
 

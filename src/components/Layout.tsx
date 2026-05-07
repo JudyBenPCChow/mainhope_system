@@ -7,6 +7,7 @@ import {
  Building2,
  CalendarDays,
  CalendarRange,
+ CalendarClock,
  CalendarX,
  ChevronDown,
  ChevronLeft,
@@ -17,7 +18,6 @@ import {
  FileSearch,
  GraduationCap,
  Home,
- ListTodo,
  NotebookTabs,
  School,
  ScrollText,
@@ -31,9 +31,6 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { AppBannerViewport } from "@/lib/appBanner"
-import { clearAuthState } from "@/lib/authSession"
-import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
 type Role = "admin" | "teacher" | "alien"
@@ -122,10 +119,10 @@ const NAV_STRUCTURE: NavEntryDef[] = [
  },
  {
   kind: "leaf",
-  path: "/Todos",
+  path: "/Calendar",
   label: "待辦事項",
-  roles: ["admin", "alien"],
-  icon: ListTodo,
+  roles: ["admin", "teacher", "alien"],
+  icon: CalendarClock,
  },
  {
   kind: "leaf",
@@ -211,10 +208,10 @@ export function Layout() {
   })
  }, [location.pathname, navEntries])
 
- const logout = async () => {
-  if (supabase) await supabase.auth.signOut()
-  clearAuthState()
-  window.location.href = "/Login"
+ const logout = () => {
+  localStorage.removeItem("mgmt_role")
+  localStorage.removeItem("teacher_id")
+  window.location.href = "/"
  }
 
  if (!role) {
@@ -229,7 +226,6 @@ export function Layout() {
 
  return (
   <div className="flex h-svh min-h-0 w-full overflow-hidden bg-brand-bg">
-   <AppBannerViewport />
    <aside
     className={cn(
      "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)] transition-[width] duration-200 ease-out",
@@ -385,7 +381,7 @@ export function Layout() {
       variant="secondary"
       className={cn("w-full transition-all hover:opacity-95", collapsed && "px-2")}
       title={collapsed ? `角色：${roleLabel(role)} · 登出` : undefined}
-      onClick={() => void logout()}
+      onClick={logout}
      >
       {!collapsed ? "登出" : "出"}
      </Button>

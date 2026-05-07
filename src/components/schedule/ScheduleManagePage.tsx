@@ -42,6 +42,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
+import { getTeacherById } from "@/services/teacherQueries"
 import {
  deleteSchedule,
  fetchAllClasses,
@@ -195,6 +196,7 @@ export function ScheduleManagePage() {
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
 
  const teacherScopeId = getTeacherScopeTeacherId()
+const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
 
  const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
@@ -294,6 +296,16 @@ export function ScheduleManagePage() {
    })
   })
  }, [addOpen, teacherScopeId])
+
+useEffect(() => {
+ if (!teacherScopeId) {
+  setTeacherScopeName("專班老師")
+  return
+ }
+ void getTeacherById(teacherScopeId)
+  .then((t) => setTeacherScopeName(t?.full_name?.trim() || "專班老師"))
+  .catch(() => setTeacherScopeName("專班老師"))
+}, [teacherScopeId])
 
  const classFilterOptions = useMemo(() => {
   const m = new Map<string, string>()
@@ -534,7 +546,7 @@ export function ScheduleManagePage() {
 
    {teacherScopeId ? (
    <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
-     您正以<strong>專班老師</strong>身分瀏覽：僅顯示指派給您的排程與統計。
+     你正以<strong>{teacherScopeName}</strong>身分瀏覽：僅顯示指派給您的排程與統計。
     </div>
    ) : null}
 
