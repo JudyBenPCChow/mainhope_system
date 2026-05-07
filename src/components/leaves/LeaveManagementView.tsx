@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -69,6 +70,7 @@ export function LeaveManagementView() {
  const [filterDateTo, setFilterDateTo] = useState("")
  const [filterSubject, setFilterSubject] = useState<string>("all")
  const [filterStudent, setFilterStudent] = useState("")
+ const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
@@ -103,6 +105,11 @@ export function LeaveManagementView() {
  const [linkCandidates, setLinkCandidates] = useState<ScheduleManageRow[]>([])
  const [linkSaving, setLinkSaving] = useState(false)
  const [linkErr, setLinkErr] = useState<string | null>(null)
+ const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
+ const isHistoryView = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return pick !== currentAcademicYear
+ }, [academicYearFilter, currentAcademicYear])
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -219,8 +226,13 @@ export function LeaveManagementView() {
   return [...s].sort((a, b) => a.localeCompare(b, "zh-Hant"))
  }, [rows])
 
+ const academicYearOptions = useMemo(() => {
+  const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(displayLeaveDate(r))))]
+  return years.sort((a, b) => b.localeCompare(a))
+ }, [rows])
+
  const tabCounts = useMemo(() => {
-  let all = rows.length
+  const all = rows.length
   let pending = 0
   let done = 0
   let abandoned = 0
@@ -236,9 +248,11 @@ export function LeaveManagementView() {
   const qStudent = filterStudent.trim().toLowerCase()
   const sidFilter = studentIdFromUrl?.trim() ?? ""
   const recFocus = recordFromUrl?.trim() ?? ""
+  const pickYear = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
   const list = rows.filter((r) => {
    if (recFocus && r.id === recFocus) return true
    if (sidFilter && r.student_id !== sidFilter) return false
+   if (academicYearLabelFromStartDate(displayLeaveDate(r)) !== pickYear) return false
    if (statusTab !== "all" && classTab(r) !== statusTab) return false
    if (filterSubject !== "all" && (r.class_subject ?? "") !== filterSubject) return false
    if (filterDateFrom && r.leave_date < filterDateFrom) return false
@@ -262,9 +276,14 @@ export function LeaveManagementView() {
   filterStudent,
   studentIdFromUrl,
   recordFromUrl,
+  academicYearFilter,
+  currentAcademicYear,
  ])
 
- const openAdd = () => setAddOpen(true)
+ const openAdd = () => {
+  if (isHistoryView) return
+  setAddOpen(true)
+ }
 
  const openDetail = (row: LeaveManageRow) => {
   setDetailRow(row)
@@ -277,6 +296,7 @@ export function LeaveManagementView() {
  }
 
  const saveDetail = async () => {
+  if (isHistoryView) return
   if (!detailRow) return
   setDetailSaving(true)
   setDetailErr(null)
@@ -322,6 +342,7 @@ export function LeaveManagementView() {
  }, [linkCandidates, linkSearch])
 
  const saveLinkSchedule = async () => {
+  if (isHistoryView) return
   if (!linkRow || !linkScheduleId) {
    setLinkErr("請先選擇補堂排程。")
    return
@@ -350,6 +371,7 @@ export function LeaveManagementView() {
  }
 
  const submitAdd = async () => {
+  if (isHistoryView) return
   if (!addStudentId || !addClassId || !addScheduleId) {
    setAddErr("請完成：搜尋並選擇學生、班別，並選擇請假排程")
    return
@@ -412,6 +434,7 @@ export function LeaveManagementView() {
     <Button
      type="button"
      className="gap-1 bg-warning text-white hover:bg-warning"
+     disabled={isHistoryView}
      onClick={openAdd}
     >
      <Plus className="h-4 w-4" />
@@ -437,6 +460,12 @@ export function LeaveManagementView() {
      </Button>
     </div>
    ) : null}
+
+  {isHistoryView ? (
+   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    目前為歷史學年檢視（唯讀）：可查閱請假資料，但不可新增、修改、刪除。
+   </div>
+  ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2" aria-label="今日請假與補堂概覽">
     <div className="rounded-xl border border-warning/80 bg-warning/60 p-4 shadow-sm">
@@ -514,6 +543,21 @@ export function LeaveManagementView() {
        {subjectOptions.map((sub) => (
         <option key={sub} value={sub}>
          {sub}
+        </option>
+       ))}
+      </Select>
+     </label>
+     <label className="grid gap-1 text-xs text-muted-foreground">
+      <span>學年</span>
+      <Select
+       className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
+       value={academicYearFilter}
+       onChange={(e) => setAcademicYearFilter(e.target.value)}
+      >
+       <option value="current">目前學年（{currentAcademicYear}）</option>
+       {academicYearOptions.map((y) => (
+        <option key={y} value={y}>
+         {y} 學年
         </option>
        ))}
       </Select>
@@ -602,6 +646,7 @@ export function LeaveManagementView() {
            <button
             type="button"
             className="text-warning/90 underline-offset-2 hover:underline"
+           disabled={isHistoryView}
             onClick={() => void openLinkSchedule(r)}
            >
             待連結排程
@@ -612,7 +657,7 @@ export function LeaveManagementView() {
           <span className="line-clamp-3 break-words">{r.leave_reason ?? "—"}</span>
          </td>
          <td className="min-w-0 px-3 py-2 align-top">
-          <MakeupCell row={r} onChanged={reload} />
+          <MakeupCell row={r} onChanged={reload} readonly={isHistoryView} />
          </td>
          <td className="min-w-0 px-3 py-2 align-top text-xs text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.remarks ?? "—"}</span>
@@ -628,7 +673,9 @@ export function LeaveManagementView() {
               : "border-warning bg-warning text-warning-foreground"
            )}
            value={r.status}
+           disabled={isHistoryView}
            onChange={async (e) => {
+            if (isHistoryView) return
             await updateLeaveMakeupRecord(r.id, { status: e.target.value })
             await reload()
            }}
@@ -644,6 +691,7 @@ export function LeaveManagementView() {
           <button
            type="button"
            className="mr-2 text-xs font-medium text-info hover:underline"
+           disabled={isHistoryView}
            onClick={() => openDetail(r)}
           >
            詳情
@@ -651,7 +699,9 @@ export function LeaveManagementView() {
           <button
            type="button"
            className="text-xs font-medium text-info hover:underline"
+           disabled={isHistoryView}
            onClick={async () => {
+            if (isHistoryView) return
             if (!(await confirmDialog({ title: "刪除請假紀錄", description: "確定刪除此筆請假紀錄？", confirmText: "確認刪除", tone: "destructive" }))) return
             await deleteLeaveMakeupRecord(r.id)
             await reload()
@@ -818,7 +868,7 @@ export function LeaveManagementView() {
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
-       <Button type="button" disabled={addSaving} onClick={() => void submitAdd()}>
+       <Button type="button" disabled={addSaving || isHistoryView} onClick={() => void submitAdd()}>
         {addSaving ? "儲存中…" : "儲存"}
        </Button>
       </div>
@@ -877,7 +927,7 @@ export function LeaveManagementView() {
        {detailErr ? <p className="text-destructive">{detailErr}</p> : null}
        <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" disabled={detailSaving} onClick={() => setDetailOpen(false)}>取消</Button>
-        <Button type="button" disabled={detailSaving} onClick={() => void saveDetail()}>
+        <Button type="button" disabled={detailSaving || isHistoryView} onClick={() => void saveDetail()}>
          {detailSaving ? "儲存中…" : "儲存修改"}
         </Button>
        </div>
@@ -916,7 +966,7 @@ export function LeaveManagementView() {
       {linkErr ? <p className="text-destructive">{linkErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={linkSaving} onClick={() => setLinkOpen(false)}>取消</Button>
-       <Button type="button" disabled={linkSaving} onClick={() => void saveLinkSchedule()}>
+       <Button type="button" disabled={linkSaving || isHistoryView} onClick={() => void saveLinkSchedule()}>
         {linkSaving ? "連結中…" : "確認連結"}
        </Button>
       </div>
@@ -927,12 +977,21 @@ export function LeaveManagementView() {
  )
 }
 
-function MakeupCell({ row, onChanged }: { row: LeaveManageRow; onChanged: () => Promise<void> }) {
+function MakeupCell({
+ row,
+ onChanged,
+ readonly,
+}: {
+ row: LeaveManageRow
+ onChanged: () => Promise<void>
+ readonly: boolean
+}) {
  const t = (row.makeup_type ?? "").trim()
  const hasDate = !!row.makeup_date
  const [saving, setSaving] = useState(false)
 
  const quickSetMakeup = async (nextType: string) => {
+  if (readonly) return
   if (!nextType) return
   setSaving(true)
   try {
@@ -952,7 +1011,7 @@ function MakeupCell({ row, onChanged }: { row: LeaveManageRow; onChanged: () => 
    <Select
     className="h-8 min-w-[8.5rem] rounded-md border border-warning/80 bg-warning/20 px-2 text-xs text-warning"
     value=""
-    disabled={saving}
+   disabled={saving || readonly}
     onChange={(e) => {
      void quickSetMakeup(e.target.value)
     }}

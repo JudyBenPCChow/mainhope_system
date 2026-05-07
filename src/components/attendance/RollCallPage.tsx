@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -37,6 +38,12 @@ function formatLoadError(e: unknown): string {
 export function RollCallPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const [dateYmd, setDateYmd] = useState(() => localYmd())
+ const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
+ const selectedAcademicYear = useMemo(() => academicYearLabelFromStartDate(dateYmd), [dateYmd])
+ const isHistoryView = useMemo(
+  () => selectedAcademicYear !== currentAcademicYear,
+  [selectedAcademicYear, currentAcademicYear]
+ )
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [pendingMakeup, setPendingMakeup] = useState(0)
  const [loadingList, setLoadingList] = useState(true)
@@ -173,12 +180,14 @@ export function RollCallPage() {
  }, [activeSchedule])
 
  const setStatus = (studentId: string, status: string) => {
+  if (isHistoryView) return
   if (!activeSchedule?.class_id) return
   setStatusMap((prev) => new Map(prev).set(studentId, status))
   setSheetErr(null)
  }
 
  const applyPrefill = () => {
+  if (isHistoryView) return
   if (!activeSchedule?.class_id) {
    setSheetErr("無法預填：此排程未綁定班別。")
    return
@@ -213,6 +222,7 @@ export function RollCallPage() {
  }
 
  const applyAllPresent = () => {
+  if (isHistoryView) return
   if (!activeSchedule?.class_id) {
    setSheetErr("無法套用：此排程未綁定班別。")
    return
@@ -232,6 +242,7 @@ export function RollCallPage() {
  }
 
  const confirmRollCall = async () => {
+  if (isHistoryView) return
   if (!activeSchedule?.class_id) return
   if (students.length === 0) return
   for (const row of students) {
@@ -351,6 +362,12 @@ export function RollCallPage() {
     </div>
    ) : null}
 
+  {isHistoryView ? (
+   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    目前為歷史學年檢視（唯讀）：可查閱點名結果，但不可修改或重新送出點名。
+   </div>
+  ) : null}
+
    <section className="grid gap-3 sm:grid-cols-2">
     <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
      <div className="text-sm font-medium text-success">已儲存點名人次</div>
@@ -433,7 +450,7 @@ export function RollCallPage() {
         size="sm"
         variant="secondary"
        className="gap-1 bg-info text-info-foreground hover:bg-info"
-        disabled={sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={isHistoryView || sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyPrefill()}
        >
         <Sparkles className="h-4 w-4" />
@@ -443,7 +460,7 @@ export function RollCallPage() {
         type="button"
         size="sm"
         className="gap-1 bg-success text-white hover:bg-success"
-        disabled={sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={isHistoryView || sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyAllPresent()}
        >
         <ListChecks className="h-4 w-4" />
@@ -501,11 +518,13 @@ export function RollCallPage() {
                key={opt}
                type="button"
                onClick={() => setStatus(row.studentId, opt)}
+               disabled={isHistoryView}
                className={cn(
                 "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 statusMap.get(row.studentId) === opt
                  ? "border-success bg-success text-white"
-                 : "border-border bg-background text-muted-foreground hover:bg-muted/60"
+                 : "border-border bg-background text-muted-foreground hover:bg-muted/60",
+                isHistoryView && "cursor-not-allowed opacity-60 hover:bg-background"
                )}
               >
                {opt}
@@ -553,6 +572,7 @@ export function RollCallPage() {
         size="lg"
         className="shrink-0 gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
         disabled={
+         isHistoryView ||
          confirmSaving ||
          sheetLoading ||
          bulkAction !== null ||

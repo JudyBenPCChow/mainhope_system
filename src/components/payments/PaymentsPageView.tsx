@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -230,6 +231,7 @@ export function PaymentsPageView() {
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
+ const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
 
  const [detailOpen, setDetailOpen] = useState(false)
  const [detailPay, setDetailPay] = useState<PaymentFull | null>(null)
@@ -245,6 +247,11 @@ export function PaymentsPageView() {
  const [dashLoading, setDashLoading] = useState(false)
  const [formErr, setFormErr] = useState<string | null>(null)
  const [formOk, setFormOk] = useState<string | null>(null)
+ const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(new Date().toISOString().slice(0, 10)), [])
+ const isHistoryView = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return pick !== currentAcademicYear
+ }, [academicYearFilter, currentAcademicYear])
 
  const loadDashboardStats = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -396,6 +403,16 @@ export function PaymentsPageView() {
   if (mainTab === "history") void loadHistory()
  }, [mainTab, loadHistory])
 
+const historyRowsDisplayed = useMemo(() => {
+ const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+ return historyRows.filter((r) => academicYearLabelFromStartDate(r.paymentDate) === pick)
+}, [historyRows, academicYearFilter, currentAcademicYear])
+
+const academicYearOptions = useMemo(() => {
+ const years = [...new Set(historyRows.map((r) => academicYearLabelFromStartDate(r.paymentDate)))]
+ return years.sort((a, b) => b.localeCompare(a))
+}, [historyRows])
+
  const filteredStudents = useMemo(() => {
   const q = studentQuery.trim().toLowerCase()
   if (!q) return students.slice(0, 12)
@@ -461,6 +478,7 @@ export function PaymentsPageView() {
  }
 
  const submitReceive = async () => {
+ if (isHistoryView) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -502,6 +520,7 @@ export function PaymentsPageView() {
  }
 
  const submitInvoice = async () => {
+ if (isHistoryView) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -563,6 +582,7 @@ export function PaymentsPageView() {
  }
 
  const confirmMarkReceived = async () => {
+ if (isHistoryView) return
   if (!markTarget) return
   setSaving(true)
   try {
@@ -579,6 +599,7 @@ export function PaymentsPageView() {
  }
 
  const onDeleteRow = async (row: PaymentListRow) => {
+ if (isHistoryView) return
  if (
   !(await confirmDialog({
    title: "刪除單據",
@@ -699,6 +720,18 @@ export function PaymentsPageView() {
    ) : null}
 
    <div className="flex flex-wrap gap-2">
+    <Select
+     className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
+     value={academicYearFilter}
+     onChange={(e) => setAcademicYearFilter(e.target.value)}
+    >
+     <option value="current">目前學年（{currentAcademicYear}）</option>
+     {academicYearOptions.map((y) => (
+      <option key={y} value={y}>
+       {y} 學年
+      </option>
+     ))}
+    </Select>
     {(
      [
       ["receive", "收款登記", Banknote],
@@ -722,6 +755,12 @@ export function PaymentsPageView() {
      </button>
     ))}
    </div>
+
+  {isHistoryView ? (
+   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    目前為歷史學年檢視（唯讀）：不可新增、標記收款或刪除。
+   </div>
+  ) : null}
 
    {mainTab !== "history" ? (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -962,7 +1001,7 @@ export function PaymentsPageView() {
       <Button
        type="button"
        className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-       disabled={!isSupabaseConfigured || saving}
+       disabled={!isSupabaseConfigured || saving || isHistoryView}
        onClick={() => void (mainTab === "receive" ? submitReceive() : submitInvoice())}
       >
        {mainTab === "receive" ? "確認登記收款" : "建立通知單"}
@@ -1034,7 +1073,7 @@ export function PaymentsPageView() {
 
      {histLoading ? (
       <p className="text-sm text-muted-foreground">載入中…</p>
-     ) : historyRows.length === 0 ? (
+     ) : historyRowsDisplayed.length === 0 ? (
       <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
        沒有符合條件的紀錄。
       </div>
@@ -1054,7 +1093,7 @@ export function PaymentsPageView() {
          </tr>
         </thead>
         <tbody>
-         {historyRows.map((r) => {
+         {historyRowsDisplayed.map((r) => {
           const pending =
            r.status === PAYMENT_STATUS.pendingPay || r.status === PAYMENT_STATUS.pendingReceive
           return (
@@ -1102,7 +1141,7 @@ export function PaymentsPageView() {
                列印
               </Button>
               {pending ? (
-               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
+               <Button type="button" size="sm" disabled={isHistoryView} onClick={() => openMarkReceived(r)}>
                 標記已收
                </Button>
               ) : null}
@@ -1111,6 +1150,7 @@ export function PaymentsPageView() {
                variant="ghost"
                size="sm"
                className="text-destructive hover:text-destructive"
+               disabled={isHistoryView}
                onClick={() => void onDeleteRow(r)}
               >
                刪除
@@ -1234,7 +1274,7 @@ export function PaymentsPageView() {
        <Button
         type="button"
         className="bg-success text-white hover:bg-success"
-        disabled={saving}
+       disabled={saving || isHistoryView}
         onClick={() => void confirmMarkReceived()}
        >
         確認

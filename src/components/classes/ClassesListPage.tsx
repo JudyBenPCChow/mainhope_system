@@ -30,6 +30,7 @@ import {
  kanbanDayKey,
  toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { coalesceCourseCodeForDb } from "@/lib/courseCode"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -85,9 +86,10 @@ export function ClassesListPage() {
  const [err, setErr] = useState<string | null>(null)
  const [view, setView] = useState<"list" | "kanban" | "gallery">("list")
  const [kanbanGroup, setKanbanGroup] = useState<"day" | "teacher" | "grade">("day")
- const [gradeKey, setGradeKey] = useState<(typeof GRADE_CHIPS)[number]>("全部")
- const [subjectKey, setSubjectKey] = useState<(typeof SUBJECT_CHIPS)[number]>("全部")
- const [statusKey, setStatusKey] = useState<(typeof STATUS_CHIPS)[number]>("進行中")
+ const [gradeKey, setGradeKey] = useState<string>("全部")
+ const [subjectKey, setSubjectKey] = useState<string>("全部")
+ const [statusKey, setStatusKey] = useState<string>("進行中")
+ const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
  const [addOpen, setAddOpen] = useState(false)
  const [form, setForm] = useState({
   subject: "",
@@ -122,25 +124,83 @@ export function ClassesListPage() {
   if (!teacherTid && view === "gallery") setView("list")
  }, [teacherTid, view])
 
+ const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(null), [])
+
  const baseRows = useMemo(() => {
   if (!teacherTid) return rows
   return rows.filter((c) => c.teacher_id === teacherTid)
  }, [rows, teacherTid])
 
+ const academicYearOptions = useMemo(() => {
+  const years = [
+   ...new Set(
+    rows
+     .map((c) => academicYearLabelFromStartDate(c.start_date))
+     .filter((x) => /^\d{4}$/.test(x))
+   ),
+  ].sort((a, b) => b.localeCompare(a))
+  return years
+ }, [rows])
+
+ const yearScopedRows = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return baseRows.filter((c) => {
+   if (!pick || pick === "all") return true
+   return academicYearLabelFromStartDate(c.start_date) === pick
+  })
+ }, [baseRows, academicYearFilter, currentAcademicYear])
+
+ const isHistoryView = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return pick !== currentAcademicYear
+ }, [academicYearFilter, currentAcademicYear])
+
  const filtered = useMemo(() => {
-  return baseRows.filter(
+  return yearScopedRows.filter(
    (c) =>
     classMatchesGrade(c, gradeKey) &&
     classMatchesSubject(c, subjectKey) &&
     classMatchesStatus(c, statusKey)
   )
- }, [baseRows, gradeKey, subjectKey, statusKey])
+ }, [yearScopedRows, gradeKey, subjectKey, statusKey])
+
+ const subjectChips = useMemo(() => {
+  if (!teacherTid) return [...SUBJECT_CHIPS]
+  const uniq = [...new Set(yearScopedRows.map((c) => c.subject.trim()).filter(Boolean))]
+  return ["全部", ...uniq.sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
+
+ const gradeChips = useMemo(() => {
+  if (!teacherTid) return [...GRADE_CHIPS]
+  const uniq = [
+   ...new Set(yearScopedRows.flatMap((c) => (c.grade ?? []).map((g) => g.trim())).filter(Boolean)),
+  ]
+  return ["全部", ...uniq.sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
+
+ const statusChips = useMemo(() => {
+  if (!teacherTid) return [...STATUS_CHIPS]
+  const uniq = [...new Set(yearScopedRows.map((c) => c.status.trim()).filter(Boolean))]
+  return ["全部", ...uniq.sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
+
+ useEffect(() => {
+  if (!subjectChips.includes(subjectKey)) setSubjectKey("全部")
+ }, [subjectChips, subjectKey])
+
+ useEffect(() => {
+  if (!gradeChips.includes(gradeKey)) setGradeKey("全部")
+ }, [gradeChips, gradeKey])
+
+ useEffect(() => {
+  if (!statusChips.includes(statusKey)) setStatusKey("全部")
+ }, [statusChips, statusKey])
 
  const stats = useMemo(() => {
-  const total = baseRows.length
-  const inProg = baseRows.filter((c) => c.status.includes("進行")).length
+  const total = yearScopedRows.length
+  const inProg = yearScopedRows.filter((c) => c.status.includes("進行")).length
   return { total, inProg, filtered: filtered.length }
- }, [baseRows, filtered])
+ }, [yearScopedRows, filtered])
 
  const kanbanColumns = useMemo(() => {
   if (kanbanGroup === "day") {
@@ -181,6 +241,7 @@ export function ClassesListPage() {
  }, [filtered, kanbanGroup])
 
  const onAdd = async () => {
+  if (isHistoryView) return
   if (!form.subject.trim()) return
   const rawPrice = form.price.trim()
   const priceNum = rawPrice === "" ? null : Number(rawPrice)
@@ -219,6 +280,7 @@ export function ClassesListPage() {
  }
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
+  if (isHistoryView) return
   e.stopPropagation()
  if (!(await confirmDialog({ title: "刪除班別", description: "確定刪除此班別？", confirmText: "確認刪除", tone: "destructive" }))) return
   try {
@@ -230,6 +292,7 @@ export function ClassesListPage() {
  }
 
  const onCopy = async (e: React.MouseEvent, id: string) => {
+  if (isHistoryView) return
   e.stopPropagation()
   try {
    await duplicateClass(id)
@@ -240,6 +303,7 @@ export function ClassesListPage() {
  }
 
  const onStatusChange = async (id: string, status: string) => {
+  if (isHistoryView) return
   try {
    await updateClass(id, { status })
    await load()
@@ -275,6 +339,18 @@ export function ClassesListPage() {
      <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
     </h1>
     <div className="flex flex-wrap items-center gap-2">
+     <Select
+      className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
+      value={academicYearFilter}
+      onChange={(e) => setAcademicYearFilter(e.target.value)}
+     >
+      <option value="current">目前學年（{currentAcademicYear}）</option>
+      {academicYearOptions.map((y) => (
+       <option key={y} value={y}>
+        {y} 學年
+       </option>
+      ))}
+     </Select>
      <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
       <button
        type="button"
@@ -340,7 +416,7 @@ export function ClassesListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">科目</div>
     <div className="flex flex-wrap gap-2">
-     {SUBJECT_CHIPS.map((s) => (
+     {subjectChips.map((s) => (
       <button
        key={s}
        type="button"
@@ -361,7 +437,7 @@ export function ClassesListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">年級</div>
     <div className="flex flex-wrap gap-2">
-     {GRADE_CHIPS.map((g) => (
+     {gradeChips.map((g) => (
       <button
        key={g}
        type="button"
@@ -380,10 +456,16 @@ export function ClassesListPage() {
    </div>
   </div>
 
+   {isHistoryView ? (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+     目前為歷史學年檢視（唯讀）：可查閱資料，但不可新增、修改、刪除。
+    </div>
+   ) : null}
+
    <div className="space-y-3">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">狀態</div>
     <div className="flex flex-wrap gap-2">
-     {STATUS_CHIPS.map((s) => (
+     {statusChips.map((s) => (
       <button
        key={s}
        type="button"
@@ -431,7 +513,7 @@ export function ClassesListPage() {
     ) : (
      <span />
     )}
-    {!teacherTid ? (
+    {!teacherTid && !isHistoryView ? (
      <Dialog open={addOpen} onOpenChange={setAddOpen}>
       <DialogTrigger asChild>
        <Button
@@ -566,7 +648,9 @@ export function ClassesListPage() {
       </DialogContent>
      </Dialog>
     ) : (
-     <p className="text-sm text-muted-foreground">專班老師僅可檢視指派班別，無法新增。</p>
+     <p className="text-sm text-muted-foreground">
+      {isHistoryView ? "歷史學年為唯讀模式，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
+     </p>
     )}
    </div>
 
@@ -669,6 +753,7 @@ export function ClassesListPage() {
             <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
+             disabled={isHistoryView}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
             >
              {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
@@ -689,13 +774,19 @@ export function ClassesListPage() {
              </button>
              <button
               type="button"
-              className="text-left text-muted-foreground hover:text-foreground hover:underline"
-              onClick={(e) => void onCopy(e, c.id)}
+              className={cn(
+               "text-left text-muted-foreground",
+               isHistoryView ? "cursor-not-allowed opacity-50" : "hover:text-foreground hover:underline"
+              )}
+              onClick={(e) => {
+               if (isHistoryView) return
+               void onCopy(e, c.id)
+              }}
              >
               <Copy className="mr-0.5 inline h-3.5 w-3.5" />
               複製
              </button>
-             {isSuperAdmin() ? (
+             {isSuperAdmin() && !isHistoryView ? (
               <button
                type="button"
                className="text-left text-destructive hover:underline"
@@ -818,12 +909,18 @@ export function ClassesListPage() {
             </button>
             <button
              type="button"
-             className="text-muted-foreground hover:underline"
-             onClick={(e) => void onCopy(e, c.id)}
+             className={cn(
+              "text-muted-foreground",
+              isHistoryView ? "cursor-not-allowed opacity-50" : "hover:underline"
+             )}
+             onClick={(e) => {
+              if (isHistoryView) return
+              void onCopy(e, c.id)
+             }}
             >
              複製
             </button>
-            {isSuperAdmin() ? (
+            {isSuperAdmin() && !isHistoryView ? (
              <button
               type="button"
               className="text-destructive hover:underline"

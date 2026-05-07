@@ -41,11 +41,11 @@ export default function Login() {
       const profile = await fetchMgmtProfileByEmail(activeEmail)
       if (!profile) {
         await supabase.auth.signOut()
-        throw new Error("此帳號尚未在系統角色名單中設定，請聯絡外星人。")
+        throw new Error("此帳號尚未在系統角色名單中設定，請聯絡Christine Fan。")
       }
       if (profile.role === "teacher" && !profile.teacherId) {
         await supabase.auth.signOut()
-        throw new Error("老師帳號未綁定 teacher_id，請聯絡外星人修正。")
+        throw new Error("老師帳號未綁定 teacher_id，請聯絡Christine Fan修正。")
       }
       if (profile.role === "alien" && onlyAlienEmail && profile.email !== onlyAlienEmail) {
         await supabase.auth.signOut()
@@ -64,8 +64,8 @@ export default function Login() {
   return (
     <div className="flex min-h-svh items-center justify-center bg-brand-bg p-6">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">明學管理系統登入</h1>
-        <p className="mt-1 text-sm text-muted-foreground">登入後會按帳號角色自動顯示對應頁面與權限。</p>
+        <h1 className="text-2xl font-semibold tracking-tight">明學教育 Nova Beta 1.0</h1>
+        <p className="mt-1 text-sm text-muted-foreground">請輸入你的電郵及密碼。如不確定或遺失，請聯絡Christine Fan。</p>
 
         <div className="mt-5 space-y-3">
           <label className="grid gap-1 text-sm">

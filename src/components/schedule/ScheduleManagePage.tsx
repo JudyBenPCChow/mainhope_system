@@ -39,6 +39,7 @@ import {
 } from "@/lib/lessonSlots"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -158,6 +159,7 @@ export function ScheduleManagePage() {
  const [searchQ, setSearchQ] = useState("")
  const [classFilter, setClassFilter] = useState<string>("all")
  const [statusFilter, setStatusFilter] = useState<string>("all")
+ const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
@@ -193,6 +195,7 @@ export function ScheduleManagePage() {
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
 
  const teacherScopeId = getTeacherScopeTeacherId()
+ const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
 
  const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
 
@@ -302,9 +305,24 @@ export function ScheduleManagePage() {
   return [...m.entries()].map(([id, label]) => ({ id, label }))
  }, [rows])
 
+ const academicYearOptions = useMemo(() => {
+  const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(r.scheduled_date)))]
+  return years.sort((a, b) => b.localeCompare(a))
+ }, [rows])
+
+ const scopedRows = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
+ }, [rows, academicYearFilter, currentAcademicYear])
+
+ const isHistoryView = useMemo(() => {
+  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  return pick !== currentAcademicYear
+ }, [academicYearFilter, currentAcademicYear])
+
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
-  return rows.filter((r) => {
+  return scopedRows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
@@ -314,7 +332,7 @@ export function ScheduleManagePage() {
    }
    return true
   })
- }, [rows, quickFilter, statusFilter, classFilter, searchQ])
+ }, [scopedRows, quickFilter, statusFilter, classFilter, searchQ])
 
  const byDateGroups = useMemo(() => {
   const m = new Map<string, ScheduleManageRow[]>()
@@ -382,6 +400,7 @@ export function ScheduleManagePage() {
  }
 
  const openAdd = () => {
+  if (isHistoryView) return
   setAddErr(null)
   setAddDate(displayStart)
   setAddStart("")
@@ -390,6 +409,7 @@ export function ScheduleManagePage() {
  }
 
  const submitAdd = async () => {
+  if (isHistoryView) return
   if (!addClassId) {
    setAddErr("請選擇班別")
    return
@@ -414,6 +434,7 @@ export function ScheduleManagePage() {
  }
 
  const handleDropOnCell = (e: React.DragEvent, roomId: string | null, slotIndex: number) => {
+  if (isHistoryView) return
   e.preventDefault()
   const raw = e.dataTransfer.getData("application/json")
   if (!raw) return
@@ -425,7 +446,7 @@ export function ScheduleManagePage() {
   }
   const id = parsed.id
   if (!id) return
-  const row = rows.find((x) => x.id === id)
+  const row = scopedRows.find((x) => x.id === id)
   if (!row || row.scheduled_date !== dayViewDate) return
   const d = durationMin(row)
   const newStartMin = lessonSlotStartMinute(slotIndex)
@@ -446,6 +467,7 @@ export function ScheduleManagePage() {
  }
 
  const confirmMove = async () => {
+  if (isHistoryView) return
   if (!pendingMove) return
   setMoveErr(null)
   setMoveSaving(true)
@@ -513,6 +535,28 @@ export function ScheduleManagePage() {
    {teacherScopeId ? (
    <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
      您正以<strong>專班老師</strong>身分瀏覽：僅顯示指派給您的排程與統計。
+    </div>
+   ) : null}
+
+   <div className="flex flex-wrap items-center gap-2">
+    <span className="text-sm text-muted-foreground">學年</span>
+    <Select
+     className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
+     value={academicYearFilter}
+     onChange={(e) => setAcademicYearFilter(e.target.value)}
+    >
+     <option value="current">目前學年（{currentAcademicYear}）</option>
+     {academicYearOptions.map((y) => (
+      <option key={y} value={y}>
+       {y} 學年
+      </option>
+     ))}
+    </Select>
+   </div>
+
+   {isHistoryView ? (
+    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+     目前為歷史學年檢視（唯讀）：可查閱排程，但不可新增、修改、刪除或拖曳調整。
     </div>
    ) : null}
 
@@ -664,6 +708,7 @@ export function ScheduleManagePage() {
       type="button"
       size="default"
       className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
+      disabled={isHistoryView}
       onClick={openAdd}
      >
       <Plus className="h-4 w-4" />
@@ -790,7 +835,9 @@ export function ScheduleManagePage() {
               <Select
                className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
                value={s.classroom_id ?? ""}
+               disabled={isHistoryView}
                onChange={async (e) => {
+                if (isHistoryView) return
                 const v = e.target.value || null
                 await updateSchedule(s.id, { classroom_id: v })
                 await reload()
@@ -806,7 +853,9 @@ export function ScheduleManagePage() {
               <Select
                className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
+               disabled={isHistoryView}
                onChange={async (e) => {
+                if (isHistoryView) return
                 await updateSchedule(s.id, { status: e.target.value })
                 await reload()
                }}
@@ -845,8 +894,10 @@ export function ScheduleManagePage() {
                variant="ghost"
                size="icon"
                className="h-11 w-11 text-destructive hover:bg-destructive/10"
+               disabled={isHistoryView}
                aria-label="刪除排程"
                onClick={async () => {
+               if (isHistoryView) return
                if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
                 await deleteSchedule(s.id)
                 await reload()
@@ -1014,7 +1065,9 @@ export function ScheduleManagePage() {
             <Select
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
+             disabled={isHistoryView}
              onChange={async (e) => {
+              if (isHistoryView) return
               await updateSchedule(s.id, { status: e.target.value })
               await reload()
              }}
@@ -1037,7 +1090,9 @@ export function ScheduleManagePage() {
               type="button"
               variant="link"
               className="h-auto p-0 text-sm text-destructive"
+              disabled={isHistoryView}
               onClick={async (e) => {
+               if (isHistoryView) return
                e.stopPropagation()
               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
                await deleteSchedule(s.id)
@@ -1169,7 +1224,12 @@ export function ScheduleManagePage() {
                <div
                 key={s.id}
                 draggable
+               aria-disabled={isHistoryView}
                 onDragStart={(e) => {
+                 if (isHistoryView) {
+                  e.preventDefault()
+                  return
+                 }
                  e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
                  e.dataTransfer.effectAllowed = "move"
                 }}
@@ -1203,7 +1263,12 @@ export function ScheduleManagePage() {
               <div
                key={s.id}
                draggable
+               aria-disabled={isHistoryView}
                onDragStart={(e) => {
+                if (isHistoryView) {
+                 e.preventDefault()
+                 return
+                }
                 e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
                 e.dataTransfer.effectAllowed = "move"
                }}
