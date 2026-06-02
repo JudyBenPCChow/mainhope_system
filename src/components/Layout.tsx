@@ -75,6 +75,7 @@ const NAV_STRUCTURE: NavEntryDef[] = [
  { kind: "leaf", path: "/TeacherProfile", label: "個人資料", roles: ["teacher"], icon: CircleUser },
  { kind: "leaf", path: "/Users", label: "用戶管理", roles: ["alien"], icon: UserCog },
  { kind: "leaf", path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
+ { kind: "leaf", path: "/Courses", label: "課程管理", roles: ["alien"], icon: BookOpen },
  {
   kind: "group",
   id: "registry",

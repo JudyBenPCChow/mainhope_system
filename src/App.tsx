@@ -12,6 +12,7 @@ import Calendar from "@/pages/Calendar"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
 import Login from "@/pages/Login"
+import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
@@ -42,6 +43,7 @@ export default function App() {
      <Route path="/Teachers" element={<Teachers />} />
      <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
      <Route path="/Classes" element={<Classes />} />
+     <Route path="/Courses" element={<Courses />} />
      <Route path="/Classes/:classId" element={<ClassDetail />} />
      <Route path="/Classrooms" element={<Classrooms />} />
      <Route path="/TeacherTimetable" element={<TeacherTimetable />} />

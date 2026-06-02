@@ -169,6 +169,7 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
  })
  return {
   id: String(row.id),
+  old_student_id: row.old_student_id != null ? String(row.old_student_id) : null,
   student_code: row.student_code != null ? String(row.student_code) : null,
   full_name: String(row.full_name ?? ""),
   english_name: row.english_name != null ? String(row.english_name) : null,
