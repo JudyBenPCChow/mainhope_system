@@ -1,12 +1,6 @@
 import {
  academicYearLabelFromStartDate,
  coalesceCourseCodeForDb,
- courseCodePrefix,
- gradeChineseToCode,
- incrementCourseCodeSeed,
- normalizeCourseCode,
- subjectChineseToAbbr,
- validateCourseCode,
 } from "@/lib/courseCode"
 import { supabase } from "@/lib/supabaseClient"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
@@ -16,8 +10,17 @@ import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/service
 export type ClassRecord = {
  id: string
  course_code: string | null
+ course_code_full: string | null
+ course_id: string | null
+ section_code: string | null
  subject: string
+ subject_id?: string | null
+ subject_code?: string | null
  grade: string[] | null
+ grade_code?: string | null
+ course_seq?: number | null
+ academic_year_id?: string | null
+ academic_year_label?: string | null
  day_of_week: string | null
  time_slot: string | null
  teacher_id: string | null
@@ -36,12 +39,24 @@ export type ClassRecord = {
 function mapClassRow(row: Record<string, unknown>): ClassRecord {
  const t = row.teachers as { id?: string; full_name?: string } | null
  const r = row.classrooms as { id?: string; name?: string } | null
+ const course = row.courses as Record<string, unknown> | null
+ const subject = course?.subjects as Record<string, unknown> | null
+ const year = row.academic_years as Record<string, unknown> | null
  const g = row.grade
  return {
   id: String(row.id),
   course_code: row.course_code != null ? String(row.course_code) : null,
+  course_code_full: row.course_code_full != null ? String(row.course_code_full) : null,
+  course_id: row.course_id != null ? String(row.course_id) : null,
+  section_code: row.section_code != null ? String(row.section_code) : null,
   subject: String(row.subject ?? ""),
+  subject_id: subject?.id != null ? String(subject.id) : null,
+  subject_code: subject?.code != null ? String(subject.code) : null,
   grade: Array.isArray(g) ? (g as string[]) : null,
+  grade_code: course?.grade_code != null ? String(course.grade_code) : null,
+  course_seq: course?.course_seq != null ? Number(course.course_seq) : null,
+  academic_year_id: year?.id != null ? String(year.id) : null,
+  academic_year_label: year?.label != null ? String(year.label) : null,
   day_of_week: row.day_of_week != null ? String(row.day_of_week) : null,
   time_slot: row.time_slot != null ? String(row.time_slot) : null,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
@@ -49,7 +64,12 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   classroom_id: row.classroom_id != null ? String(row.classroom_id) : null,
   classroom_name: r?.name ?? null,
   capacity: row.capacity != null ? Number(row.capacity) : null,
-  price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
+  price_per_lesson:
+   course?.price_per_lesson != null
+    ? Number(course.price_per_lesson)
+    : row.price_per_lesson != null
+      ? Number(row.price_per_lesson)
+      : null,
   start_date: row.start_date != null ? String(row.start_date) : null,
   end_date: row.end_date != null ? String(row.end_date) : null,
   status: String(row.status ?? "進行中"),
@@ -62,8 +82,9 @@ export async function fetchAllClasses(): Promise<ClassRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name )")
-  .order("course_code", { ascending: true })
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
+  .order("course_code_full", { ascending: true, nullsFirst: false })
+  .order("course_code", { ascending: true, nullsFirst: false })
  if (error) throw error
  return (data ?? []).map((x) => mapClassRow(x as Record<string, unknown>))
 }
@@ -72,7 +93,7 @@ export async function getClassById(id: string): Promise<ClassRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name )")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
   .eq("id", id)
   .maybeSingle()
  if (error) throw error
@@ -80,59 +101,209 @@ export async function getClassById(id: string): Promise<ClassRecord | null> {
  return mapClassRow(data as Record<string, unknown>)
 }
 
-async function fetchNextSeedForCoursePrefix(prefix: string): Promise<number> {
- if (!supabase) return 1000
- const { data, error } = await supabase.from("classes").select("course_code").like("course_code", `${prefix}%`)
- if (error) throw error
- let max = 999
- for (const r of data ?? []) {
-  const code = (r as { course_code?: string | null }).course_code
-  if (code == null) continue
-  const s = String(code)
-  if (!s.startsWith(prefix)) continue
-  const tail = s.slice(prefix.length)
-  if (/^\d{4}$/.test(tail)) max = Math.max(max, Number(tail))
- }
- return Math.min(Math.max(max + 1, 1000), 9999)
+function sectionCodeFromOrdinal(ord: number): string {
+ if (ord <= 26) return String.fromCharCode(64 + ord)
+ const head = String.fromCharCode(64 + ((ord - 1) % 26) + 1)
+ const suffix = Math.floor((ord - 1) / 26) + 1
+ return `${head}${suffix}`
 }
 
-async function allocateDuplicateCourseCode(src: ClassRecord): Promise<string | null> {
- const normalized = normalizeCourseCode(src.course_code)
- if (normalized && validateCourseCode(normalized).ok) {
-  const bumped = incrementCourseCodeSeed(normalized)
-  if (bumped) return bumped
+function parseLegacySeed(courseCode: string | null | undefined): number {
+ if (!courseCode) return 1001
+ const m = String(courseCode).match(/(\d{4})$/)
+ if (!m) return 1001
+ const seed = Number(m[1])
+ return Number.isNaN(seed) ? 1001 : Math.min(Math.max(seed, 1), 9999)
+}
+
+async function allocateSectionCode(courseId: string): Promise<string> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data, error } = await supabase
+  .from("classes")
+  .select("section_code")
+  .eq("course_id", courseId)
+  .order("created_at", { ascending: true })
+ if (error) throw error
+ const used = new Set(
+  (data ?? [])
+   .map((r) => ((r as { section_code?: string | null }).section_code ?? "").trim())
+   .filter((x) => x.length > 0)
+ )
+ let ord = 1
+ while (used.has(sectionCodeFromOrdinal(ord))) ord += 1
+ return sectionCodeFromOrdinal(ord)
+}
+
+async function resolveCurrentAcademicYearLabel(): Promise<string> {
+ if (!supabase) return academicYearLabelFromStartDate(null)
+ const { data, error } = await supabase
+  .from("academic_years")
+  .select("label")
+  .eq("is_current", true)
+  .maybeSingle()
+ if (error) throw error
+ if (data?.label) return String(data.label)
+ return academicYearLabelFromStartDate(null)
+}
+
+async function resolveAcademicYearIdLabel(params: {
+ academic_year_id?: string | null
+ academic_year_label?: string | null
+}): Promise<{ academic_year_id: string; academic_year_label: string }> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ if (params.academic_year_id) {
+  const { data, error } = await supabase
+   .from("academic_years")
+   .select("id, label")
+   .eq("id", params.academic_year_id)
+   .single()
+  if (error) throw error
+  return { academic_year_id: String(data.id), academic_year_label: String(data.label) }
  }
- const year = academicYearLabelFromStartDate(src.start_date)
- const g0 = src.grade?.[0]
- const gradeCode = g0 ? gradeChineseToCode(g0) : null
- const abbr = subjectChineseToAbbr(src.subject)
- if (!gradeCode || !abbr) return null
- const prefix = courseCodePrefix(year, gradeCode, abbr)
- const next = await fetchNextSeedForCoursePrefix(prefix)
- return `${prefix}${String(next).padStart(4, "0")}`
+ const label = (params.academic_year_label ?? "").trim() || (await resolveCurrentAcademicYearLabel())
+ const { data, error } = await supabase.from("academic_years").select("id, label").eq("label", label).single()
+ if (error) throw error
+ return { academic_year_id: String(data.id), academic_year_label: String(data.label) }
+}
+
+async function ensureCourseId(params: {
+ course_id?: string | null
+ subject_id?: string | null
+ subject_code?: string | null
+ grade_code?: string | null
+ course_seq?: number | null
+ price_per_lesson?: number | null
+ subject_name?: string | null
+ legacy_course_code?: string | null
+}): Promise<{ course_id: string; subject_code: string; grade_code: string; course_seq: number }> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ if (params.course_id) {
+  const { data, error } = await supabase
+   .from("courses")
+   .select("id, grade_code, course_seq, subjects ( code )")
+   .eq("id", params.course_id)
+   .single()
+  if (error) throw error
+  const row = data as Record<string, unknown>
+  const subject = row.subjects as Record<string, unknown> | null
+  return {
+   course_id: String(row.id),
+   subject_code: String(subject?.code ?? ""),
+   grade_code: String(row.grade_code ?? ""),
+   course_seq: Number(row.course_seq ?? 1001),
+  }
+ }
+
+ const gradeCode = (params.grade_code ?? "").trim().toUpperCase()
+ const seq = params.course_seq ?? parseLegacySeed(params.legacy_course_code)
+ if (!gradeCode) throw new Error("請先選擇年級（grade_code）。")
+
+ let subjectId = params.subject_id ?? null
+ let subjectCode = (params.subject_code ?? "").trim().toUpperCase()
+ if (!subjectId) {
+  if (subjectCode) {
+   const { data, error } = await supabase.from("subjects").select("id, code").eq("code", subjectCode).single()
+   if (error) throw error
+   subjectId = String(data.id)
+   subjectCode = String(data.code)
+  } else if (params.subject_name?.trim()) {
+   const subjectName = params.subject_name.trim()
+   let { data, error } = await supabase
+    .from("subjects")
+    .select("id, code")
+    .eq("name_zh", subjectName)
+    .maybeSingle()
+   if (error) throw error
+   if (!data) {
+    const alt = await supabase.from("subjects").select("id, code").eq("short_name", subjectName).maybeSingle()
+    if (alt.error) throw alt.error
+    data = alt.data
+   }
+   if (!data) throw new Error(`找不到科目：${subjectName}`)
+   subjectId = String(data.id)
+   subjectCode = String(data.code)
+  } else {
+   throw new Error("請先選擇科目。")
+  }
+ }
+
+ const { data: found, error: findErr } = await supabase
+  .from("courses")
+  .select("id")
+  .eq("subject_id", subjectId)
+  .eq("grade_code", gradeCode)
+  .eq("course_seq", seq)
+  .maybeSingle()
+ if (findErr) throw findErr
+ if (found?.id) {
+  if (params.price_per_lesson != null && !Number.isNaN(params.price_per_lesson)) {
+   await supabase
+    .from("courses")
+    .update({ price_per_lesson: Math.max(0, Number(params.price_per_lesson)), updated_at: new Date().toISOString() })
+    .eq("id", String(found.id))
+  }
+  return { course_id: String(found.id), subject_code: subjectCode, grade_code: gradeCode, course_seq: seq }
+ }
+
+ const { data: inserted, error: insErr } = await supabase
+  .from("courses")
+  .insert({
+   subject_id: subjectId,
+   grade_code: gradeCode,
+   course_seq: seq,
+   course_code_base: `${subjectCode}${gradeCode}${String(seq).padStart(4, "0")}`,
+   price_per_lesson:
+    params.price_per_lesson != null && !Number.isNaN(params.price_per_lesson)
+     ? Math.max(0, Number(params.price_per_lesson))
+     : null,
+  })
+  .select("id")
+  .single()
+ if (insErr) throw insErr
+ return { course_id: String(inserted.id), subject_code: subjectCode, grade_code: gradeCode, course_seq: seq }
 }
 
 export async function insertClass(
  row: Partial<ClassRecord> & { subject: string }
 ): Promise<ClassRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const course = await ensureCourseId({
+  course_id: row.course_id,
+  subject_id: row.subject_id ?? null,
+  subject_code: row.subject_code ?? null,
+  grade_code: row.grade_code ?? row.grade?.[0] ?? null,
+  course_seq: row.course_seq ?? null,
+  price_per_lesson: row.price_per_lesson ?? null,
+  subject_name: row.subject,
+  legacy_course_code: row.course_code ?? null,
+ })
+ const year = await resolveAcademicYearIdLabel({
+  academic_year_id: row.academic_year_id ?? null,
+  academic_year_label: row.academic_year_label ?? null,
+ })
+ const section = row.section_code?.trim() || (await allocateSectionCode(course.course_id))
+ const courseCodeFull = `${year.academic_year_label}-${course.subject_code}${course.grade_code}${String(course.course_seq).padStart(4, "0")}-${section}`
  const { data, error } = await supabase
   .from("classes")
   .insert({
    subject: row.subject,
    course_code: coalesceCourseCodeForDb(row.course_code ?? null),
+   course_id: course.course_id,
+   academic_year_id: year.academic_year_id,
+   section_code: section,
+   course_code_full: courseCodeFull,
    grade: row.grade ?? null,
    day_of_week: row.day_of_week ?? null,
    time_slot: row.time_slot ?? null,
    teacher_id: row.teacher_id ?? null,
    classroom_id: row.classroom_id ?? null,
    capacity: row.capacity ?? null,
-   price_per_lesson: row.price_per_lesson ?? null,
+   price_per_lesson: null,
    start_date: row.start_date ?? null,
    end_date: row.end_date ?? null,
    status: row.status ?? "進行中",
   })
-  .select("*, teachers ( id, full_name ), classrooms ( id, name )")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
   .single()
  if (error) throw error
  return mapClassRow(data as Record<string, unknown>)
@@ -143,17 +314,37 @@ export async function updateClass(
  patch: Partial<Omit<ClassRecord, "id" | "created_at" | "teacher_name" | "classroom_name">>
 ): Promise<ClassRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
- const { teacher_name: _tn, classroom_name: _cn, id: _id, created_at: _ca, ...rest } =
-  patch as Record<string, unknown>
- const payload: Record<string, unknown> = { ...rest, updated_at: new Date().toISOString() }
+ const payload: Record<string, unknown> = {
+  ...(patch as Record<string, unknown>),
+  updated_at: new Date().toISOString(),
+ }
+ delete payload.teacher_name
+ delete payload.classroom_name
+ delete payload.id
+ delete payload.created_at
  if ("course_code" in patch) {
   payload.course_code = coalesceCourseCodeForDb(patch.course_code ?? null)
+ }
+ if ("course_id" in patch || "section_code" in patch) {
+  const targetCourseId = (patch.course_id as string | null | undefined) ?? null
+  const section = typeof patch.section_code === "string" ? patch.section_code.trim() : null
+  if (targetCourseId) {
+   const resolvedSection = section && section.length > 0 ? section : await allocateSectionCode(targetCourseId)
+   payload.section_code = resolvedSection
+   const info = await ensureCourseId({ course_id: targetCourseId })
+   const year = await resolveAcademicYearIdLabel({
+    academic_year_id: (patch.academic_year_id as string | null | undefined) ?? (payload.academic_year_id as string | null | undefined),
+    academic_year_label: (patch.academic_year_label as string | null | undefined) ?? null,
+   })
+   payload.academic_year_id = year.academic_year_id
+   payload.course_code_full = `${year.academic_year_label}-${info.subject_code}${info.grade_code}${String(info.course_seq).padStart(4, "0")}-${resolvedSection}`
+  }
  }
  const { data, error } = await supabase
   .from("classes")
   .update(payload)
   .eq("id", id)
-  .select("*, teachers ( id, full_name ), classrooms ( id, name )")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
   .single()
  if (error) throw error
  return mapClassRow(data as Record<string, unknown>)
@@ -168,15 +359,12 @@ export async function deleteClass(id: string): Promise<void> {
 export async function duplicateClass(id: string): Promise<ClassRecord> {
  const src = await getClassById(id)
  if (!src) throw new Error("找不到班別")
- const newCode = await allocateDuplicateCourseCode(src)
- if (!newCode) {
-  throw new Error(
-   "無法自動產生新課程編號：請確認原班有合法編號可遞增種子，或已設定「年級／科目」以利依簡稱產生編號。"
-  )
- }
  return insertClass({
   subject: src.subject,
-  course_code: newCode,
+  course_code: src.course_code,
+  course_id: src.course_id,
+  academic_year_id: src.academic_year_id ?? null,
+  academic_year_label: src.academic_year_label ?? null,
   grade: src.grade,
   day_of_week: src.day_of_week,
   time_slot: src.time_slot,
@@ -588,6 +776,160 @@ export type TeacherOption = {
  label: string
  /** `teachers.abbr`，內部簡稱；可為 null */
  abbr: string | null
+}
+
+export type SubjectOption = { id: string; code: string; name_zh: string }
+export type AcademicYearOption = { id: string; label: string; is_current: boolean }
+export type CourseOption = {
+ id: string
+ subject_id: string
+ grade_code: string
+ course_seq: number
+ price_per_lesson: number | null
+ label: string
+}
+
+export type CourseRecord = {
+ id: string
+ subject_id: string
+ subject_code: string
+ subject_name_zh: string
+ grade_code: string
+ course_seq: number
+ course_code_base: string
+ price_per_lesson: number | null
+}
+
+export async function fetchSubjectOptions(): Promise<SubjectOption[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase.from("subjects").select("id, code, name_zh").order("code")
+ if (error) throw error
+ return (data ?? []).map((r) => ({
+  id: String((r as { id: string }).id),
+  code: String((r as { code: string }).code),
+  name_zh: String((r as { name_zh: string }).name_zh),
+ }))
+}
+
+export async function fetchAcademicYearOptions(): Promise<AcademicYearOption[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("academic_years")
+  .select("id, label, is_current")
+  .order("start_date", { ascending: false })
+ if (error) throw error
+ return (data ?? []).map((r) => ({
+  id: String((r as { id: string }).id),
+  label: String((r as { label: string }).label),
+  is_current: Boolean((r as { is_current?: boolean }).is_current),
+ }))
+}
+
+export async function fetchCourseOptions(params: {
+ subject_id: string
+ grade_code: string
+}): Promise<CourseOption[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("courses")
+  .select("id, subject_id, grade_code, course_seq, price_per_lesson, subjects ( code )")
+  .eq("subject_id", params.subject_id)
+  .eq("grade_code", params.grade_code)
+  .order("course_seq", { ascending: true })
+ if (error) throw error
+ return (data ?? []).map((r) => {
+  const row = r as Record<string, unknown>
+  const sb = row.subjects as Record<string, unknown> | null
+  const code = String(sb?.code ?? "")
+  const seq = Number(row.course_seq ?? 1001)
+  return {
+   id: String(row.id),
+   subject_id: String(row.subject_id),
+   grade_code: String(row.grade_code ?? ""),
+   course_seq: seq,
+   price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
+   label: `${code}${String(row.grade_code ?? "")}${String(seq).padStart(4, "0")}`,
+  }
+ })
+}
+
+export async function fetchAllCourses(): Promise<CourseRecord[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("courses")
+  .select("id, subject_id, grade_code, course_seq, course_code_base, price_per_lesson, subjects ( code, name_zh )")
+  .order("course_code_base", { ascending: true })
+ if (error) throw error
+ return (data ?? []).map((r) => {
+  const row = r as Record<string, unknown>
+  const sb = row.subjects as Record<string, unknown> | null
+  return {
+   id: String(row.id),
+   subject_id: String(row.subject_id),
+   subject_code: String(sb?.code ?? ""),
+   subject_name_zh: String(sb?.name_zh ?? ""),
+   grade_code: String(row.grade_code ?? ""),
+   course_seq: Number(row.course_seq ?? 1001),
+   course_code_base: String(row.course_code_base ?? ""),
+   price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
+  }
+ })
+}
+
+export async function insertCourse(input: {
+ subject_id: string
+ grade_code: string
+ course_seq: number
+ price_per_lesson: number | null
+}): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const g = input.grade_code.trim().toUpperCase()
+ const seq = Math.max(1, Math.floor(input.course_seq))
+ const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", input.subject_id).single()
+ if (sErr) throw sErr
+ const code = String((sb as { code: string }).code)
+ const payload = {
+  subject_id: input.subject_id,
+  grade_code: g,
+  course_seq: seq,
+  course_code_base: `${code}${g}${String(seq).padStart(4, "0")}`,
+  price_per_lesson:
+   input.price_per_lesson != null && !Number.isNaN(input.price_per_lesson)
+    ? Math.max(0, Number(input.price_per_lesson))
+    : null,
+ }
+ const { error } = await supabase.from("courses").insert(payload)
+ if (error) throw error
+}
+
+export async function updateCourse(
+ id: string,
+ patch: {
+  subject_id: string
+  grade_code: string
+  course_seq: number
+  price_per_lesson: number | null
+ }
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const g = patch.grade_code.trim().toUpperCase()
+ const seq = Math.max(1, Math.floor(patch.course_seq))
+ const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", patch.subject_id).single()
+ if (sErr) throw sErr
+ const code = String((sb as { code: string }).code)
+ const payload = {
+  subject_id: patch.subject_id,
+  grade_code: g,
+  course_seq: seq,
+  course_code_base: `${code}${g}${String(seq).padStart(4, "0")}`,
+  price_per_lesson:
+   patch.price_per_lesson != null && !Number.isNaN(patch.price_per_lesson)
+    ? Math.max(0, Number(patch.price_per_lesson))
+    : null,
+  updated_at: new Date().toISOString(),
+ }
+ const { error } = await supabase.from("courses").update(payload).eq("id", id)
+ if (error) throw error
 }
 
 export async function fetchTeacherOptions(): Promise<TeacherOption[]> {

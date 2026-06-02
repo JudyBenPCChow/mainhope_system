@@ -5,6 +5,7 @@ import { Mail, Phone, Plus, User, Users } from "lucide-react"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,

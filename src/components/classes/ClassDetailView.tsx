@@ -304,8 +304,8 @@ export function ClassDetailView() {
   )
  }
 
- const tabCounts = { st: students.length, sc: schedules.length }
- const addableStudents = useMemo(() => {
+const tabCounts = { st: students.length, sc: schedules.length }
+const addableStudents = (() => {
   const enrolledIds = new Set(students.map((s) => s.studentId))
   const q = studentQuery.trim().toLowerCase()
   const list = allStudents.filter((s) => !enrolledIds.has(s.id))
@@ -319,7 +319,7 @@ export function ClassDetailView() {
     return hay.includes(q)
    })
    .slice(0, 50)
- }, [allStudents, studentQuery, students])
+})()
 
  const onAddStudentToClass = async (studentId: string) => {
   if (!cid) return
@@ -401,7 +401,7 @@ export function ClassDetailView() {
         <>
          <h1 className="text-xl font-bold md:text-2xl">{cls.subject}</h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
-          <span className="font-mono">{cls.course_code ?? "—"}</span>
+          <span className="font-mono">{cls.course_code_full ?? cls.course_code ?? "—"}</span>
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
           <span>{timeLine(cls)}</span>
          </div>
@@ -463,7 +463,7 @@ export function ClassDetailView() {
       <div className="grid gap-4 sm:grid-cols-2">
        {[
         { k: "科目", v: cls.subject },
-        { k: "課程編號", v: cls.course_code ?? "—" },
+        { k: "班別編碼", v: cls.course_code_full ?? cls.course_code ?? "—" },
         { k: "適用年級", v: (cls.grade ?? []).join("、") || "—" },
         { k: "星期 / 時間", v: timeLine(cls) },
         {
@@ -805,7 +805,7 @@ export function ClassDetailView() {
         />
        </div>
        <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">課程編號（可留空）</label>
+        <label className="text-xs text-muted-foreground">舊課程編號（相容期，可留空）</label>
         <Input
          className="mt-1 font-mono uppercase"
          autoCapitalize="characters"
@@ -821,8 +821,24 @@ export function ClassDetailView() {
          }
         />
         <p className="mt-1 text-xs text-muted-foreground">
-         僅大寫英文與數字：4 位學年 + 年級碼（F1–F6／S1–S6／P1–P6）+ 2–6 字母科目簡稱 + 4 位種子碼（1000–9999）。
+         新班別顯示碼由系統管理（course_id + section_code）；此欄位僅作舊資料相容保留。
         </p>
+       </div>
+       <div>
+        <label className="text-xs text-muted-foreground">課程 ID（course_id）</label>
+        <Input
+         className="mt-1 font-mono"
+         value={form.course_id ?? ""}
+         onChange={(e) => setForm((f) => ({ ...f, course_id: e.target.value }))}
+        />
+       </div>
+       <div>
+        <label className="text-xs text-muted-foreground">班號（section_code）</label>
+        <Input
+         className="mt-1 font-mono uppercase"
+         value={form.section_code ?? ""}
+         onChange={(e) => setForm((f) => ({ ...f, section_code: e.target.value.toUpperCase() }))}
+        />
        </div>
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">年級（可多選）</label>

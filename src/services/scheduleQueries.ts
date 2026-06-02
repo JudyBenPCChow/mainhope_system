@@ -47,7 +47,12 @@ function mapScheduleRow(
   remarks: row.remarks != null ? String(row.remarks) : null,
   class_id: cid,
   subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
-  course_code: cls?.course_code != null ? String(cls.course_code) : null,
+  course_code:
+   cls?.course_code_full != null
+    ? String(cls.course_code_full)
+    : cls?.course_code != null
+      ? String(cls.course_code)
+      : null,
   class_day_of_week: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   class_time_slot: cls?.time_slot != null ? String(cls.time_slot) : null,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
@@ -113,7 +118,7 @@ export async function fetchSchedulesInRange(
  let q = supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, day_of_week, time_slot ), teachers ( full_name ), classrooms ( name )"
+   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot ), teachers ( full_name ), classrooms ( name )"
   )
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)

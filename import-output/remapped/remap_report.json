@@ -1,0 +1,34 @@
+{
+  "old_to_new_class_count": 70,
+  "old_to_new_student_count": 116,
+  "unresolved_old_class_count": 0,
+  "unresolved_old_student_count": 0,
+  "remap_sources": {
+    "title_to_new_count": 88
+  },
+  "files": {
+    "2526_enrollments_insert.sql": {
+      "total_old_refs": 856,
+      "class_remapped": 412,
+      "class_unmapped": 0,
+      "student_remapped": 414,
+      "student_unmapped": 30
+    },
+    "2526_schedules_insert.sql": {
+      "total_old_refs": 1493,
+      "class_remapped": 894,
+      "class_unmapped": 599,
+      "student_remapped": 0,
+      "student_unmapped": 0
+    },
+    "2526_attendance_insert.sql": {
+      "total_old_refs": 14720,
+      "class_remapped": 7186,
+      "class_unmapped": 0,
+      "student_remapped": 6448,
+      "student_unmapped": 1086
+    }
+  },
+  "unresolved_old_class_ids": {},
+  "unresolved_old_student_ids": {}
+}

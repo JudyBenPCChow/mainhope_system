@@ -9,6 +9,7 @@ function localYmd(d = new Date()): string {
 
 export type StudentRecord = {
  id: string
+ old_student_id: string | null
  student_code: string | null
  full_name: string
  english_name: string | null

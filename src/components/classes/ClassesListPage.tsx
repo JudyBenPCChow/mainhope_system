@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
+ CLASS_GRADE_FORM_OPTIONS,
  GRADE_CHIPS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
@@ -31,13 +32,15 @@ import {
  toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { coalesceCourseCodeForDb } from "@/lib/courseCode"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
  deleteClass,
  duplicateClass,
+  fetchAcademicYearOptions,
  fetchAllClasses,
+  fetchCourseOptions,
+  fetchSubjectOptions,
  fetchTeacherOptions,
  insertClass,
  type ClassRecord,
@@ -64,6 +67,25 @@ const GALLERY_COVERS = [
  "bg-gradient-to-br from-cyan-400 to-teal-800",
 ] as const
 
+function gradeLabelToCode(label: string): string | null {
+ const t = label.trim()
+ const map: Record<string, string> = {
+  小一: "P1",
+  小二: "P2",
+  小三: "P3",
+  小四: "P4",
+  小五: "P5",
+  小六: "P6",
+  中一: "F1",
+  中二: "F2",
+  中三: "F3",
+  中四: "F4",
+  中五: "F5",
+  中六: "F6",
+ }
+ return map[t] ?? null
+}
+
 function galleryCoverClass(subject: string): string {
  let h = 0
  for (let i = 0; i < subject.length; i++) {
@@ -82,6 +104,9 @@ export function ClassesListPage() {
   () => new Map()
  )
  const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
+ const [subjectOptions, setSubjectOptions] = useState<{ id: string; code: string; name_zh: string }[]>([])
+ const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>([])
+ const [courseOptions, setCourseOptions] = useState<{ id: string; label: string; course_seq: number }[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [view, setView] = useState<"list" | "kanban" | "gallery">("list")
@@ -93,7 +118,14 @@ export function ClassesListPage() {
  const [addOpen, setAddOpen] = useState(false)
  const [form, setForm] = useState({
   subject: "",
-  course_code: "",
+  subject_id: "",
+  subject_code: "",
+  academic_year_id: "",
+  academic_year_label: "",
+  grade_code: "",
+  course_id: "",
+  course_seq: "1001",
+  section_code: "",
   day_of_week: "星期六",
   time_slot: "",
   teacher_id: "",
@@ -106,8 +138,15 @@ export function ClassesListPage() {
   setErr(null)
   try {
    const list = await fetchAllClasses()
+   const [teacherOpts, subjectOpts, yearOpts] = await Promise.all([
+    fetchTeacherOptions(),
+    fetchSubjectOptions(),
+    fetchAcademicYearOptions(),
+   ])
    setRows(list)
-   setTeachers(await fetchTeacherOptions())
+   setTeachers(teacherOpts)
+   setSubjectOptions(subjectOpts)
+   setYearOptions(yearOpts)
    setEnrollRoster(await fetchEnrollmentRosterByClassIds(list.map((c) => c.id)))
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
@@ -115,6 +154,32 @@ export function ClassesListPage() {
    setLoading(false)
   }
  }, [])
+
+ useEffect(() => {
+  const pickedYear = yearOptions.find((y) => y.is_current) ?? yearOptions[0]
+  if (!pickedYear) return
+  setForm((f) => {
+   if (f.academic_year_id) return f
+   return { ...f, academic_year_id: pickedYear.id, academic_year_label: pickedYear.label }
+  })
+ }, [yearOptions])
+
+ useEffect(() => {
+  const sid = form.subject_id
+  const g = form.grade_code
+  if (!sid || !g) {
+   setCourseOptions([])
+   return
+  }
+  void (async () => {
+   try {
+    const opts = await fetchCourseOptions({ subject_id: sid, grade_code: g })
+    setCourseOptions(opts.map((o) => ({ id: o.id, label: o.label, course_seq: o.course_seq })))
+   } catch {
+    setCourseOptions([])
+   }
+  })()
+ }, [form.subject_id, form.grade_code])
 
  useEffect(() => {
   void load()
@@ -135,7 +200,7 @@ export function ClassesListPage() {
   const years = [
    ...new Set(
     rows
-     .map((c) => academicYearLabelFromStartDate(c.start_date))
+     .map((c) => c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date))
      .filter((x) => /^\d{4}$/.test(x))
    ),
   ].sort((a, b) => b.localeCompare(a))
@@ -146,7 +211,7 @@ export function ClassesListPage() {
   const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
   return baseRows.filter((c) => {
    if (!pick || pick === "all") return true
-   return academicYearLabelFromStartDate(c.start_date) === pick
+   return (c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date)) === pick
   })
  }, [baseRows, academicYearFilter, currentAcademicYear])
 
@@ -242,7 +307,10 @@ export function ClassesListPage() {
 
  const onAdd = async () => {
   if (isHistoryView) return
-  if (!form.subject.trim()) return
+  if (!form.subject_id || !form.academic_year_id || !form.grade_code) {
+   pushBanner({ tone: "warning", title: "請先選擇學年、科目與年級" })
+   return
+  }
   const rawPrice = form.price.trim()
   const priceNum = rawPrice === "" ? null : Number(rawPrice)
   if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
@@ -252,10 +320,23 @@ export function ClassesListPage() {
   const dowRaw = form.day_of_week.trim()
   const dayStored = dowRaw === "" ? null : toCanonicalWeekdayForStore(dowRaw) ?? dowRaw
   setErr(null)
+  const selectedSubject = subjectOptions.find((s) => s.id === form.subject_id)
+  if (!selectedSubject) {
+   pushBanner({ tone: "warning", title: "科目設定無效，請重新選擇" })
+   return
+  }
   try {
    await insertClass({
-    subject: form.subject.trim(),
-    course_code: coalesceCourseCodeForDb(form.course_code.trim() || null),
+    subject: selectedSubject.name_zh,
+    subject_id: form.subject_id,
+    subject_code: selectedSubject.code,
+    academic_year_id: form.academic_year_id,
+    academic_year_label: form.academic_year_label,
+    grade_code: form.grade_code,
+    course_id: form.course_id || null,
+    course_seq: Number(form.course_seq || "1001"),
+    section_code: form.section_code.trim() || null,
+    course_code: null,
     day_of_week: dayStored,
     time_slot: form.time_slot.trim() || null,
     teacher_id: form.teacher_id || null,
@@ -269,7 +350,14 @@ export function ClassesListPage() {
   setAddOpen(false)
   setForm({
    subject: "",
-   course_code: "",
+   subject_id: "",
+   subject_code: "",
+   academic_year_id: form.academic_year_id,
+   academic_year_label: form.academic_year_label,
+   grade_code: "",
+   course_id: "",
+   course_seq: "1001",
+   section_code: "",
    day_of_week: "星期六",
    time_slot: "",
    teacher_id: "",
@@ -530,26 +618,93 @@ export function ClassesListPage() {
        </DialogHeader>
        <div className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1">
         <div>
+         <label className="text-xs text-muted-foreground">學年 *</label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={form.academic_year_id}
+          onChange={(e) => {
+           const y = yearOptions.find((x) => x.id === e.target.value)
+           setForm((f) => ({ ...f, academic_year_id: e.target.value, academic_year_label: y?.label ?? "" }))
+          }}
+         >
+          <option value="">請選擇</option>
+          {yearOptions.map((y) => (
+           <option key={y.id} value={y.id}>
+            {y.label} {y.is_current ? "（目前）" : ""}
+           </option>
+          ))}
+         </Select>
+        </div>
+        <div>
          <label className="text-xs text-muted-foreground">科目 *</label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={form.subject_id}
+          onChange={(e) => {
+           const s = subjectOptions.find((x) => x.id === e.target.value)
+           setForm((f) => ({ ...f, subject_id: e.target.value, subject: s?.name_zh ?? "", subject_code: s?.code ?? "", course_id: "" }))
+          }}
+         >
+          <option value="">請選擇</option>
+          {subjectOptions.map((s) => (
+           <option key={s.id} value={s.id}>
+            {s.name_zh}（{s.code}）
+           </option>
+          ))}
+         </Select>
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">年級 *</label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={form.grade_code}
+          onChange={(e) => setForm((f) => ({ ...f, grade_code: e.target.value, course_id: "" }))}
+         >
+          <option value="">請選擇</option>
+          {CLASS_GRADE_FORM_OPTIONS.map((g) => {
+           const code = gradeLabelToCode(g)
+           if (!code) return null
+           return (
+            <option key={g} value={code}>
+             {g}（{code}）
+            </option>
+           )
+          })}
+         </Select>
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">課程（可選既有）</label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={form.course_id}
+          onChange={(e) => {
+           const c = courseOptions.find((x) => x.id === e.target.value)
+           setForm((f) => ({ ...f, course_id: e.target.value, course_seq: c ? String(c.course_seq) : f.course_seq }))
+          }}
+         >
+          <option value="">新課程（用下方序號）</option>
+          {courseOptions.map((c) => (
+           <option key={c.id} value={c.id}>
+            {c.label}
+           </option>
+          ))}
+         </Select>
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">課程序號（預設 1001）</label>
          <Input
-          className="mt-1"
-          value={form.subject}
-          onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+          className="mt-1 font-mono"
+          value={form.course_seq}
+          onChange={(e) => setForm((f) => ({ ...f, course_seq: e.target.value }))}
          />
         </div>
         <div>
-         <label className="text-xs text-muted-foreground">課程編號（可留空）</label>
+         <label className="text-xs text-muted-foreground">班號（可留空，自動分配）</label>
          <Input
           className="mt-1 font-mono uppercase"
-          autoCapitalize="characters"
-          spellCheck={false}
-          placeholder="例：2526F6CHI1001"
-          value={form.course_code}
-          onChange={(e) => setForm((f) => ({ ...f, course_code: e.target.value }))}
+          value={form.section_code}
+          onChange={(e) => setForm((f) => ({ ...f, section_code: e.target.value }))}
          />
-         <p className="mt-1 text-xs text-muted-foreground">
-          僅大寫英文與數字：4 位學年 + 年級碼（F1–F6 等）+ 2–6 字母科目簡稱 + 4 位種子（1000–9999）。
-         </p>
         </div>
         <div>
          <label className="text-xs text-muted-foreground">逢星期</label>
@@ -700,8 +855,8 @@ export function ClassesListPage() {
            )}
           >
            <td className="min-w-0 align-top px-4 py-3 pr-2 text-muted-foreground">
-            <span className="block truncate font-mono text-xs" title={c.course_code ?? undefined}>
-             {c.course_code ?? "—"}
+            <span className="block truncate font-mono text-xs" title={c.course_code_full ?? c.course_code ?? undefined}>
+             {c.course_code_full ?? c.course_code ?? "—"}
             </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2">
@@ -829,8 +984,8 @@ export function ClassesListPage() {
           </div>
          </div>
          <div className="space-y-2 px-4 py-3">
-          {c.course_code ? (
-           <p className="font-mono text-xs text-muted-foreground">{c.course_code}</p>
+          {c.course_code_full || c.course_code ? (
+           <p className="font-mono text-xs text-muted-foreground">{c.course_code_full ?? c.course_code}</p>
           ) : null}
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
@@ -874,7 +1029,7 @@ export function ClassesListPage() {
           >
            <div className="flex items-start justify-between gap-2">
             <span className="font-mono text-xs text-muted-foreground">
-             {c.course_code ?? "—"}
+             {c.course_code_full ?? c.course_code ?? "—"}
             </span>
             <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">{c.status}</Tag>
            </div>

@@ -234,7 +234,12 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
   studentEnglishName: st?.english_name != null ? String(st.english_name) : null,
   studentGrade: st?.grade != null ? String(st.grade) : null,
   classSubject: cls?.subject != null ? String(cls.subject) : null,
-  courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+  courseCode:
+   cls?.course_code_full != null
+    ? String(cls.course_code_full)
+    : cls?.course_code != null
+      ? String(cls.course_code)
+      : null,
   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacherName: teacherObj?.full_name != null ? String(teacherObj.full_name) : null,
  }
@@ -248,7 +253,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, teacher_id, teachers ( full_name ) )"
+   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, course_code_full, teacher_id, teachers ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)

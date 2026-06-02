@@ -11,6 +11,7 @@ import Classes from "@/pages/Classes"
 import Calendar from "@/pages/Calendar"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
+import Login from "@/pages/Login"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
@@ -32,6 +33,7 @@ export default function App() {
   <BrowserRouter>
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
+    <Route path="/Login" element={<Login />} />
     <Route element={<Layout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/Users" element={<UserManagement />} />
