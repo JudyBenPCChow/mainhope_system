@@ -31,7 +31,7 @@ import {
  kanbanDayKey,
  toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { academicYearLabelFromStartDate, gradeChineseToCode } from "@/lib/courseCode"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
@@ -68,22 +68,7 @@ const GALLERY_COVERS = [
 ] as const
 
 function gradeLabelToCode(label: string): string | null {
- const t = label.trim()
- const map: Record<string, string> = {
-  小一: "P1",
-  小二: "P2",
-  小三: "P3",
-  小四: "P4",
-  小五: "P5",
-  小六: "P6",
-  中一: "F1",
-  中二: "F2",
-  中三: "F3",
-  中四: "F4",
-  中五: "F5",
-  中六: "F6",
- }
- return map[t] ?? null
+ return gradeChineseToCode(label)
 }
 
 function galleryCoverClass(subject: string): string {
@@ -124,7 +109,6 @@ export function ClassesListPage() {
   academic_year_label: "",
   grade_code: "",
   course_id: "",
-  course_seq: "1001",
   section_code: "",
   day_of_week: "星期六",
   time_slot: "",
@@ -311,6 +295,14 @@ export function ClassesListPage() {
    pushBanner({ tone: "warning", title: "請先選擇學年、科目與年級" })
    return
   }
+  if (!form.course_id) {
+   pushBanner({
+    tone: "warning",
+    title: "請選擇課程",
+    message: "新課程須於「課程管理」頁面新增，此處僅能選擇既有課程模板。",
+   })
+   return
+  }
   const rawPrice = form.price.trim()
   const priceNum = rawPrice === "" ? null : Number(rawPrice)
   if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
@@ -333,8 +325,7 @@ export function ClassesListPage() {
     academic_year_id: form.academic_year_id,
     academic_year_label: form.academic_year_label,
     grade_code: form.grade_code,
-    course_id: form.course_id || null,
-    course_seq: Number(form.course_seq || "1001"),
+    course_id: form.course_id,
     section_code: form.section_code.trim() || null,
     course_code: null,
     day_of_week: dayStored,
@@ -356,7 +347,6 @@ export function ClassesListPage() {
    academic_year_label: form.academic_year_label,
    grade_code: "",
    course_id: "",
-   course_seq: "1001",
    section_code: "",
    day_of_week: "星期六",
    time_slot: "",
@@ -672,31 +662,26 @@ export function ClassesListPage() {
           })}
          </Select>
         </div>
-        <div>
-         <label className="text-xs text-muted-foreground">課程（可選既有）</label>
+        <div className="sm:col-span-2">
+         <label className="text-xs text-muted-foreground">課程 *</label>
          <Select
           className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.course_id}
-          onChange={(e) => {
-           const c = courseOptions.find((x) => x.id === e.target.value)
-           setForm((f) => ({ ...f, course_id: e.target.value, course_seq: c ? String(c.course_seq) : f.course_seq }))
-          }}
+          onChange={(e) => setForm((f) => ({ ...f, course_id: e.target.value }))}
+          disabled={!form.subject_id || !form.grade_code}
          >
-          <option value="">新課程（用下方序號）</option>
+          <option value="">請選擇課程</option>
           {courseOptions.map((c) => (
            <option key={c.id} value={c.id}>
             {c.label}
            </option>
           ))}
          </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">課程序號（預設 1001）</label>
-         <Input
-          className="mt-1 font-mono"
-          value={form.course_seq}
-          onChange={(e) => setForm((f) => ({ ...f, course_seq: e.target.value }))}
-         />
+         <p className="mt-1 text-xs text-muted-foreground">
+          {courseOptions.length === 0 && form.subject_id && form.grade_code
+           ? "此科目與年級尚無課程模板，請至「課程管理」新增後再開班。"
+           : "新課程須於「課程管理」新增；此處僅選擇既有課程。"}
+         </p>
         </div>
         <div>
          <label className="text-xs text-muted-foreground">班號（可留空，自動分配）</label>

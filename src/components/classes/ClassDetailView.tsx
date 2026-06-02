@@ -502,17 +502,17 @@ const addableStudents = (() => {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-info bg-info p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-info">{students.length}</div>
-        <div className="text-xs font-medium text-info/90">就讀學生</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold tabular-nums">{students.length}</div>
+        <div className="text-xs font-medium opacity-90">就讀學生</div>
        </div>
-       <div className="rounded-xl border border-info bg-info p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-info">{parts.fut}</div>
-        <div className="text-xs font-medium text-info/90">未來排程</div>
+       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold tabular-nums">{parts.fut}</div>
+        <div className="text-xs font-medium opacity-90">未來排程</div>
        </div>
-       <div className="rounded-xl border border-success bg-success p-4 text-center transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold text-success">{parts.past}</div>
-        <div className="text-xs font-medium text-success/90">已完成課堂</div>
+       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground shadow-sm transition-transform hover:scale-[1.02]">
+        <div className="text-3xl font-bold tabular-nums">{parts.past}</div>
+        <div className="text-xs font-medium opacity-90">已完成課堂</div>
        </div>
       </div>
      </div>
@@ -810,7 +810,7 @@ const addableStudents = (() => {
          className="mt-1 font-mono uppercase"
          autoCapitalize="characters"
          spellCheck={false}
-         placeholder="例：2526F6CHI1001"
+         placeholder="例：2526-CHIS6001-A"
          value={form.course_code ?? ""}
          onChange={(e) => setForm((f) => ({ ...f, course_code: e.target.value }))}
          onBlur={() =>

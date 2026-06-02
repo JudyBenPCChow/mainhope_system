@@ -22,9 +22,11 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
-import { Select } from "@/components/ui/select"
+import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips } from "@/components/students/studentsUi"
+import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -549,7 +551,7 @@ const exportFutureSchedulesCsv = () => {
           <Tag tone={statusToTagTone(student.status)} size="sm">{student.status ?? "—"}</Tag>
          </div>
          <p className="mt-1 text-sm text-white/85">
-          {(student.grade ?? "—") + " · " + (student.school ?? "—")}
+          {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
          </p>
         </>
        ) : null}
@@ -605,47 +607,47 @@ const exportFutureSchedulesCsv = () => {
          <Input value={form.student_code ?? ""} disabled className="bg-muted" />
         </Field>
         <Field label="性別">
-         <Input
-          value={form.gender ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, gender: e.target.value }))}
-          placeholder="男／女"
+         <ChoiceChips
+          options={GENDER_CHIPS}
+          value={form.gender}
+          onChange={(gender) => setForm((f) => ({ ...f, gender }))}
          />
         </Field>
         <Field label="年級">
-         <Input
-          value={form.grade ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}
+         <StudentGradeChips
+          value={form.grade}
+          onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
         <Field label="註冊狀態">
-         <Select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={normalizeRegistrationStatus(form.registration_status)}
-          onChange={(e) => setForm((f) => ({ ...f, registration_status: e.target.value as "已註冊" | "僅查詢" }))}
-         >
-          <option value="已註冊">已註冊</option>
-          <option value="僅查詢">僅查詢</option>
-         </Select>
+         <StatusToggle
+          checked={normalizeRegistrationStatus(form.registration_status) === "已註冊"}
+          onCheckedChange={(on) =>
+           setForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
+          }
+          offLabel="僅查詢"
+          onLabel="已註冊"
+         />
         </Field>
         <Field label="就讀狀態">
-         <Select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={normalizeEnrollmentStatus(form.enrollment_status)}
-          onChange={(e) => setForm((f) => ({ ...f, enrollment_status: e.target.value as "在讀" | "非在讀" }))}
-         >
-          <option value="在讀">在讀</option>
-          <option value="非在讀">非在讀</option>
-         </Select>
+         <StatusToggle
+          checked={normalizeEnrollmentStatus(form.enrollment_status) === "在讀"}
+          onCheckedChange={(on) =>
+           setForm((f) => ({ ...f, enrollment_status: on ? "在讀" : "非在讀" }))
+          }
+          offLabel="非在讀"
+          onLabel="在讀"
+         />
         </Field>
         <Field label="學業狀態">
-         <Select
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-          value={normalizeAcademicStage(form.academic_stage)}
-          onChange={(e) => setForm((f) => ({ ...f, academic_stage: e.target.value as "中學中" | "中學畢業" }))}
-         >
-          <option value="中學中">仍在中學階段</option>
-          <option value="中學畢業">已中學畢業</option>
-         </Select>
+         <StatusToggle
+          checked={normalizeAcademicStage(form.academic_stage) === "中學中"}
+          onCheckedChange={(on) =>
+           setForm((f) => ({ ...f, academic_stage: on ? "中學中" : "中學畢業" }))
+          }
+          offLabel="已畢業"
+          onLabel="中學中"
+         />
         </Field>
         <Field label="學校" className="sm:col-span-2">
          <Input

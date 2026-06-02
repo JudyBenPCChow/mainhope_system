@@ -4,6 +4,11 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import {
+ ALL_GRADE_CODES,
+ clampCourseSeq,
+ DEFAULT_COURSE_SEQ,
+} from "@/lib/courseCode"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
  fetchAllCourses,
@@ -12,8 +17,6 @@ import {
  updateCourse,
  type CourseRecord,
 } from "@/services/classQueries"
-
-const GRADE_CODES = ["P1", "P2", "P3", "P4", "P5", "P6", "F1", "F2", "F3", "F4", "F5", "F6"] as const
 
 export function CoursesManagePage() {
  const [rows, setRows] = useState<CourseRecord[]>([])
@@ -25,8 +28,8 @@ export function CoursesManagePage() {
  const [saving, setSaving] = useState(false)
  const [form, setForm] = useState({
   subject_id: "",
-  grade_code: "F1",
-  course_seq: "1001",
+  grade_code: "S1",
+  course_seq: "1",
   price_per_lesson: "",
  })
 
@@ -58,7 +61,12 @@ export function CoursesManagePage() {
 
  const openCreate = () => {
   setEditingId(null)
-  setForm({ subject_id: subjects[0]?.id ?? "", grade_code: "F1", course_seq: "1001", price_per_lesson: "" })
+  setForm({
+   subject_id: subjects[0]?.id ?? "",
+   grade_code: "S1",
+   course_seq: String(DEFAULT_COURSE_SEQ),
+   price_per_lesson: "",
+  })
   setOpen(true)
  }
 
@@ -78,11 +86,12 @@ export function CoursesManagePage() {
    setErr("請先選擇科目")
    return
   }
-  const seq = Number(form.course_seq)
-  if (!Number.isFinite(seq) || seq < 1) {
-   setErr("課程序號需為正整數")
+  const seqRaw = Number(form.course_seq)
+  if (!Number.isFinite(seqRaw) || seqRaw < 1 || seqRaw > 999) {
+   setErr("課程序號需為 1–999 的正整數")
    return
   }
+  const seq = clampCourseSeq(seqRaw)
   const price = form.price_per_lesson.trim() === "" ? null : Number(form.price_per_lesson)
   if (price != null && (!Number.isFinite(price) || price < 0)) {
    setErr("學費需為 0 或以上")
@@ -193,13 +202,13 @@ export function CoursesManagePage() {
         value={form.grade_code}
         onChange={(e) => setForm((f) => ({ ...f, grade_code: e.target.value }))}
        >
-        {GRADE_CODES.map((g) => (
+        {ALL_GRADE_CODES.map((g) => (
          <option key={g} value={g}>{g}</option>
         ))}
        </Select>
       </div>
       <div>
-       <label className="text-xs text-muted-foreground">課程序號 *</label>
+       <label className="text-xs text-muted-foreground">課程序號 *（001 起）</label>
        <Input
         className="mt-1"
         type="number"

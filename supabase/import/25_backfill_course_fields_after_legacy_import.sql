@@ -58,8 +58,8 @@ begin
       else null end;
   end if;
   return case m[2]
-    when '一' then 'F1' when '二' then 'F2' when '三' then 'F3'
-    when '四' then 'F4' when '五' then 'F5' when '六' then 'F6'
+    when '一' then 'S1' when '二' then 'S2' when '三' then 'S3'
+    when '四' then 'S4' when '五' then 'S5' when '六' then 'S6'
     else null end;
 end
 $$;
@@ -134,7 +134,7 @@ with classes_normalized as (
     public.map_grade_code(c.grade) as grade_code,
     case
       when c.course_code ~ '([0-9]{4})$' then substring(c.course_code from '([0-9]{4})$')::int
-      else 1001
+      else 1
     end as course_seq
   from public.classes c
 ),
@@ -149,7 +149,7 @@ select
   s.id,
   cs.grade_code,
   cs.course_seq,
-  s.code || cs.grade_code || lpad(cs.course_seq::text, 4, '0')
+  s.code || cs.grade_code || lpad(cs.course_seq::text, 3, '0')
 from course_seed cs
 join public.subjects s on s.code = cs.subject_code
 on conflict (subject_id, grade_code, course_seq) do update
@@ -171,7 +171,7 @@ with class_course as (
     and crs.grade_code = public.map_grade_code(c.grade)
     and crs.course_seq = case
       when c.course_code ~ '([0-9]{4})$' then substring(c.course_code from '([0-9]{4})$')::int
-      else 1001
+      else 1
     end
     and ay.label = (
       lpad((
@@ -203,7 +203,7 @@ set
   course_id = r.course_id,
   academic_year_id = ay.id,
   section_code = public.section_code_from_ord(r.ord::integer),
-  course_code_full = r.ay_label || '-' || r.subject_code || r.grade_code || lpad(r.course_seq::text, 4, '0') || '-' || public.section_code_from_ord(r.ord::integer),
+  course_code_full = r.ay_label || '-' || r.subject_code || r.grade_code || lpad(r.course_seq::text, 3, '0') || '-' || public.section_code_from_ord(r.ord::integer),
   updated_at = now()
 from ranked r
 join public.academic_years ay on ay.label = r.ay_label

@@ -2,6 +2,14 @@ import {
  academicYearLabelFromStartDate,
  coalesceCourseCodeForDb,
 } from "@/lib/courseCode"
+import {
+ buildClassCourseCodeFull,
+ buildCourseCodeBase,
+ clampCourseSeq,
+ DEFAULT_COURSE_SEQ,
+ normalizeGradeCode,
+ parseCourseSeqFromCodeSuffix,
+} from "@/lib/courseCode"
 import { supabase } from "@/lib/supabaseClient"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
@@ -109,11 +117,7 @@ function sectionCodeFromOrdinal(ord: number): string {
 }
 
 function parseLegacySeed(courseCode: string | null | undefined): number {
- if (!courseCode) return 1001
- const m = String(courseCode).match(/(\d{4})$/)
- if (!m) return 1001
- const seed = Number(m[1])
- return Number.isNaN(seed) ? 1001 : Math.min(Math.max(seed, 1), 9999)
+ return parseCourseSeqFromCodeSuffix(courseCode)
 }
 
 async function allocateSectionCode(courseId: string): Promise<string> {
@@ -190,12 +194,12 @@ async function ensureCourseId(params: {
    course_id: String(row.id),
    subject_code: String(subject?.code ?? ""),
    grade_code: String(row.grade_code ?? ""),
-   course_seq: Number(row.course_seq ?? 1001),
+   course_seq: clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ)),
   }
  }
 
- const gradeCode = (params.grade_code ?? "").trim().toUpperCase()
- const seq = params.course_seq ?? parseLegacySeed(params.legacy_course_code)
+ const gradeCode = normalizeGradeCode(params.grade_code)
+ const seq = clampCourseSeq(params.course_seq ?? parseLegacySeed(params.legacy_course_code))
  if (!gradeCode) throw new Error("請先選擇年級（grade_code）。")
 
  let subjectId = params.subject_id ?? null
@@ -251,7 +255,7 @@ async function ensureCourseId(params: {
    subject_id: subjectId,
    grade_code: gradeCode,
    course_seq: seq,
-   course_code_base: `${subjectCode}${gradeCode}${String(seq).padStart(4, "0")}`,
+   course_code_base: buildCourseCodeBase(subjectCode, gradeCode, seq),
    price_per_lesson:
     params.price_per_lesson != null && !Number.isNaN(params.price_per_lesson)
      ? Math.max(0, Number(params.price_per_lesson))
@@ -267,6 +271,9 @@ export async function insertClass(
  row: Partial<ClassRecord> & { subject: string }
 ): Promise<ClassRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
+ if (!row.course_id) {
+  throw new Error("請先在「課程管理」建立課程模板，再於此選擇課程。")
+ }
  const course = await ensureCourseId({
   course_id: row.course_id,
   subject_id: row.subject_id ?? null,
@@ -282,7 +289,13 @@ export async function insertClass(
   academic_year_label: row.academic_year_label ?? null,
  })
  const section = row.section_code?.trim() || (await allocateSectionCode(course.course_id))
- const courseCodeFull = `${year.academic_year_label}-${course.subject_code}${course.grade_code}${String(course.course_seq).padStart(4, "0")}-${section}`
+ const courseCodeFull = buildClassCourseCodeFull(
+  year.academic_year_label,
+  course.subject_code,
+  course.grade_code,
+  course.course_seq,
+  section
+ )
  const { data, error } = await supabase
   .from("classes")
   .insert({
@@ -337,7 +350,13 @@ export async function updateClass(
     academic_year_label: (patch.academic_year_label as string | null | undefined) ?? null,
    })
    payload.academic_year_id = year.academic_year_id
-   payload.course_code_full = `${year.academic_year_label}-${info.subject_code}${info.grade_code}${String(info.course_seq).padStart(4, "0")}-${resolvedSection}`
+   payload.course_code_full = buildClassCourseCodeFull(
+    year.academic_year_label,
+    info.subject_code,
+    info.grade_code,
+    info.course_seq,
+    resolvedSection
+   )
   }
  }
  const { data, error } = await supabase
@@ -841,14 +860,14 @@ export async function fetchCourseOptions(params: {
   const row = r as Record<string, unknown>
   const sb = row.subjects as Record<string, unknown> | null
   const code = String(sb?.code ?? "")
-  const seq = Number(row.course_seq ?? 1001)
+  const seq = clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ))
   return {
    id: String(row.id),
    subject_id: String(row.subject_id),
    grade_code: String(row.grade_code ?? ""),
    course_seq: seq,
    price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
-   label: `${code}${String(row.grade_code ?? "")}${String(seq).padStart(4, "0")}`,
+   label: buildCourseCodeBase(code, String(row.grade_code ?? ""), seq),
   }
  })
 }
@@ -869,7 +888,7 @@ export async function fetchAllCourses(): Promise<CourseRecord[]> {
    subject_code: String(sb?.code ?? ""),
    subject_name_zh: String(sb?.name_zh ?? ""),
    grade_code: String(row.grade_code ?? ""),
-   course_seq: Number(row.course_seq ?? 1001),
+   course_seq: clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ)),
    course_code_base: String(row.course_code_base ?? ""),
    price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
   }
@@ -883,8 +902,8 @@ export async function insertCourse(input: {
  price_per_lesson: number | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const g = input.grade_code.trim().toUpperCase()
- const seq = Math.max(1, Math.floor(input.course_seq))
+ const g = normalizeGradeCode(input.grade_code)
+ const seq = clampCourseSeq(input.course_seq)
  const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", input.subject_id).single()
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
@@ -892,7 +911,7 @@ export async function insertCourse(input: {
   subject_id: input.subject_id,
   grade_code: g,
   course_seq: seq,
-  course_code_base: `${code}${g}${String(seq).padStart(4, "0")}`,
+  course_code_base: buildCourseCodeBase(code, g, seq),
   price_per_lesson:
    input.price_per_lesson != null && !Number.isNaN(input.price_per_lesson)
     ? Math.max(0, Number(input.price_per_lesson))
@@ -912,8 +931,8 @@ export async function updateCourse(
  }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const g = patch.grade_code.trim().toUpperCase()
- const seq = Math.max(1, Math.floor(patch.course_seq))
+ const g = normalizeGradeCode(patch.grade_code)
+ const seq = clampCourseSeq(patch.course_seq)
  const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", patch.subject_id).single()
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
@@ -921,7 +940,7 @@ export async function updateCourse(
   subject_id: patch.subject_id,
   grade_code: g,
   course_seq: seq,
-  course_code_base: `${code}${g}${String(seq).padStart(4, "0")}`,
+  course_code_base: buildCourseCodeBase(code, g, seq),
   price_per_lesson:
    patch.price_per_lesson != null && !Number.isNaN(patch.price_per_lesson)
     ? Math.max(0, Number(patch.price_per_lesson))

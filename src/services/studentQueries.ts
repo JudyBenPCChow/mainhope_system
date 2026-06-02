@@ -1,4 +1,9 @@
+import { normalizeStudentGrade } from "@/lib/studentGrade"
 import { supabase } from "@/lib/supabaseClient"
+
+function coerceStudentGrade(raw: string | null | undefined): string | null {
+ return normalizeStudentGrade(raw)
+}
 
 function localYmd(d = new Date()): string {
  const y = d.getFullYear()
@@ -68,7 +73,7 @@ function inferStateFromLegacy(status: string | null, grade: string | null | unde
 } {
  const g = (grade ?? "").trim().toUpperCase()
  const s = normalizeStudentStatus(status)
- if (g === "NA" || s === "畢業") {
+ if (g === "NA" || g === "GD" || s === "畢業") {
   return {
    registration_status: "已註冊",
    enrollment_status: "非在讀",
@@ -156,9 +161,10 @@ function normalizeStudentState(input: {
 }
 
 function asStudent(row: Record<string, unknown>): StudentRecord {
+ const grade = coerceStudentGrade(row.grade != null ? String(row.grade) : null)
  const inferred = inferStateFromLegacy(
   row.status != null ? String(row.status) : null,
-  row.grade != null ? String(row.grade) : null
+  grade
  )
  const state = normalizeStudentState({
   registration_status:
@@ -175,7 +181,7 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   english_name: row.english_name != null ? String(row.english_name) : null,
   gender: row.gender != null ? String(row.gender) : null,
   date_of_birth: row.date_of_birth != null ? String(row.date_of_birth) : null,
-  grade: row.grade != null ? String(row.grade) : null,
+  grade,
   school: row.school != null ? String(row.school) : null,
   registration_status: state.registration_status,
   enrollment_status: state.enrollment_status,
@@ -221,9 +227,10 @@ export async function insertStudent(
   enrollment_status: row.enrollment_status,
   academic_stage: row.academic_stage,
  })
+ const grade = coerceStudentGrade(row.grade)
  const inferred = inferStateFromLegacy(
   row.status != null ? String(row.status) : null,
-  row.grade != null ? String(row.grade) : null
+  grade
  )
  const state = normalizeStudentState({
   registration_status: row.registration_status ?? inferred.registration_status ?? baseState.registration_status,
@@ -235,7 +242,7 @@ export async function insertStudent(
   .insert({
    full_name: row.full_name,
    english_name: row.english_name ?? null,
-   grade: row.grade ?? null,
+   grade,
    school: row.school ?? null,
    registration_status: state.registration_status,
    enrollment_status: state.enrollment_status,
@@ -261,6 +268,9 @@ export async function updateStudent(
   ...patch,
   updated_at: new Date().toISOString(),
  }
+ if (patch.grade !== undefined) {
+  payload.grade = coerceStudentGrade(patch.grade)
+ }
  const touchesState =
   patch.status !== undefined ||
   patch.registration_status !== undefined ||
@@ -268,9 +278,11 @@ export async function updateStudent(
   patch.academic_stage !== undefined ||
   patch.grade !== undefined
  if (touchesState) {
+  const grade =
+   patch.grade !== undefined ? coerceStudentGrade(patch.grade) : undefined
   const inferred = inferStateFromLegacy(
    patch.status != null ? String(patch.status) : null,
-   patch.grade != null ? String(patch.grade) : null
+   grade ?? null
   )
   const state = normalizeStudentState({
    registration_status:

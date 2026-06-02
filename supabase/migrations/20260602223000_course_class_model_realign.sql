@@ -35,6 +35,9 @@ where cls.course_id = c.id
 -- courses no longer keyed by academic year
 alter table public.courses
   drop constraint if exists courses_unique_tuple;
+alter table public.courses
+  drop constraint if exists courses_unique_tuple_subject_grade_seq;
+drop index if exists public.courses_unique_tuple_subject_grade_seq;
 
 alter table public.courses
   add constraint courses_unique_tuple_subject_grade_seq
@@ -46,8 +49,13 @@ create unique index if not exists classes_ay_course_section_unique_idx
   on public.classes (academic_year_id, course_id, section_code)
   where academic_year_id is not null and course_id is not null and section_code is not null;
 
-comment on column public.courses.academic_year_id is
-  'Deprecated: academic year moved to classes.academic_year_id';
+-- courses no longer stores academic year (lives on classes)
+alter table public.courses
+  drop constraint if exists courses_academic_year_id_fkey;
+
+alter table public.courses
+  drop column if exists academic_year_id;
+
 comment on column public.courses.price_per_lesson is
   '課程模板學費（可跨學年重用）';
 comment on column public.classes.academic_year_id is

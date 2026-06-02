@@ -28,7 +28,7 @@ select
   nullif(trim(s.english_name), ''),
   nullif(trim(s.gender), ''),
   s.date_of_birth,
-  nullif(trim(s.grade), ''),
+  public.normalize_student_grade(nullif(trim(s.grade), '')),
   nullif(trim(s.school), ''),
   coalesce(nullif(trim(s.status), ''), '在讀'),
   coalesce(nullif(trim(s.registration_status), ''), '已註冊'),
@@ -75,7 +75,7 @@ select distinct
   sb.id,
   upper(trim(c.grade_code)),
   c.course_seq,
-  sb.code || upper(trim(c.grade_code)) || lpad(c.course_seq::text, 4, '0'),
+  sb.code || upper(trim(c.grade_code)) || lpad(c.course_seq::text, 3, '0'),
   c.price_per_lesson
 from staging.classes_import c
 join public.subjects sb
@@ -134,7 +134,7 @@ select
   r.course_id,
   ay.id,
   coalesce(r.section_code, public.section_code_from_ord(r.ord::integer)),
-  r.ay_label || '-' || r.subject_code || r.grade_code || lpad(r.course_seq::text, 4, '0') || '-' ||
+  r.ay_label || '-' || r.subject_code || r.grade_code || lpad(r.course_seq::text, 3, '0') || '-' ||
     coalesce(r.section_code, public.section_code_from_ord(r.ord::integer)),
   array[r.grade_code]::text[],
   nullif(trim(r.day_of_week), ''),

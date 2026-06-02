@@ -21,6 +21,12 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
+import { StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
+import {
+ normalizeStudentGrade,
+ STUDENT_GRADE_CODES,
+ STUDENT_GRADE_LABELS,
+} from "@/lib/studentGrade"
 import {
  deleteStudent,
  fetchAllStudents,
@@ -42,16 +48,12 @@ const STATUS_FILTERS = [
 
 const GRADE_FILTERS = [
  { key: "all", label: "全部" },
- { key: "中一", label: "中一" },
- { key: "中二", label: "中二" },
- { key: "中三", label: "中三" },
- { key: "中四", label: "中四" },
- { key: "中五", label: "中五" },
- { key: "中六", label: "中六" },
- { key: "其他", label: "其他" },
+ ...STUDENT_GRADE_CODES.map((code) => ({
+  key: code,
+  label: `${STUDENT_GRADE_LABELS[code]}（${code}）`,
+ })),
 ] as const
 
-const GRADE_CHIPS = ["中一", "中二", "中三", "中四", "中五", "中六"] as const
 const RELATIONSHIP_CHIPS = ["父親", "母親", "祖父母", "兄姊", "親屬", "監護人", "其他"] as const
 const COMMON_HK_SCHOOLS = [
  "英華書院",
@@ -287,7 +289,7 @@ export function StudentsListPage() {
     english_name: (addForm.english_name ?? "").trim() || null,
     student_code: (addForm.student_code ?? "").trim() || null,
     gender: (addForm.gender ?? "").trim() || null,
-    grade: (addForm.grade ?? "").trim() || null,
+    grade: normalizeStudentGrade(addForm.grade),
     registration_status: reg,
     enrollment_status: "在讀",
     academic_stage: "中學中",
@@ -420,7 +422,7 @@ export function StudentsListPage() {
       <div className="text-xs font-medium uppercase tracking-wide text-white/80">最新報讀</div>
       <div className="text-lg font-semibold">{latest.full_name}</div>
       <div className="text-sm text-white/90">
-       {(latest.grade ?? "—") + " · " + (latest.school ?? "—")}
+       {formatStudentGrade(latest.grade) + " · " + (latest.school ?? "—")}
       </div>
      </div>
      <div className="flex gap-1">
@@ -605,23 +607,10 @@ export function StudentsListPage() {
          />
         </Field>
         <Field label="年級">
-         <div className="flex flex-wrap gap-2">
-          {GRADE_CHIPS.map((g) => (
-           <button
-            key={g}
-            type="button"
-            onClick={() => setAddForm((f) => ({ ...f, grade: g }))}
-            className={cn(
-             "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-             (addForm.grade ?? "") === g
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-card text-foreground hover:bg-muted/80"
-            )}
-           >
-            {g}
-           </button>
-          ))}
-         </div>
+         <StudentGradeChips
+          value={addForm.grade}
+          onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
+         />
         </Field>
         <Field label="註冊狀態">
          <div className="flex gap-4 py-1">
@@ -800,7 +789,7 @@ export function StudentsListPage() {
              <div className="break-words text-xs text-muted-foreground">{r.english_name}</div>
             ) : null}
            </td>
-           <td className="align-top px-3 py-3">{r.grade ?? "—"}</td>
+           <td className="align-top px-3 py-3">{formatStudentGrade(r.grade)}</td>
            <td className="min-w-0 align-top px-3 py-3">
             <div className="flex min-w-0 items-center gap-1.5">
              <span className="min-w-0 truncate tabular-nums" title={r.student_phone ?? undefined}>
@@ -944,7 +933,7 @@ export function StudentsListPage() {
           <Tag tone={statusToTagTone(normalizeStudentStatus(r.status))} size="sm">{normalizeStudentStatus(r.status)}</Tag>
          </div>
          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
-          <p>年級：{r.grade ?? "—"}</p>
+          <p>年級：{formatStudentGrade(r.grade)}</p>
           <p>學校：{r.school ?? "—"}</p>
           <p className="tabular-nums">學生電話：{r.student_phone ?? "—"}</p>
           <p className="tabular-nums">家長電話：{r.parent_phone ?? "—"}</p>
