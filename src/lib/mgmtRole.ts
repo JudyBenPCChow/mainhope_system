@@ -12,3 +12,8 @@ export function getMgmtRole(): MgmtRole | null {
 export function isSuperAdmin(): boolean {
  return getMgmtRole() === "alien"
 }
+
+/** 歷史學年檢視是否鎖定寫入（外星人可照常編輯） */
+export function isHistoryYearReadOnly(isHistoryView: boolean): boolean {
+ return isHistoryView && getMgmtRole() !== "alien"
+}

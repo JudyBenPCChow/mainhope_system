@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -44,6 +45,7 @@ export function RollCallPage() {
   () => selectedAcademicYear !== currentAcademicYear,
   [selectedAcademicYear, currentAcademicYear]
  )
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [pendingMakeup, setPendingMakeup] = useState(0)
  const [loadingList, setLoadingList] = useState(true)
@@ -180,14 +182,14 @@ export function RollCallPage() {
  }, [activeSchedule])
 
  const setStatus = (studentId: string, status: string) => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!activeSchedule?.class_id) return
   setStatusMap((prev) => new Map(prev).set(studentId, status))
   setSheetErr(null)
  }
 
  const applyPrefill = () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!activeSchedule?.class_id) {
    setSheetErr("無法預填：此排程未綁定班別。")
    return
@@ -222,7 +224,7 @@ export function RollCallPage() {
  }
 
  const applyAllPresent = () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!activeSchedule?.class_id) {
    setSheetErr("無法套用：此排程未綁定班別。")
    return
@@ -242,7 +244,7 @@ export function RollCallPage() {
  }
 
  const confirmRollCall = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!activeSchedule?.class_id) return
   if (students.length === 0) return
   for (const row of students) {
@@ -362,7 +364,7 @@ export function RollCallPage() {
     </div>
    ) : null}
 
-  {isHistoryView ? (
+  {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     目前為歷史學年檢視（唯讀）：可查閱點名結果，但不可修改或重新送出點名。
    </div>
@@ -450,7 +452,7 @@ export function RollCallPage() {
         size="sm"
         variant="secondary"
        className="gap-1 bg-info text-info-foreground hover:bg-info"
-        disabled={isHistoryView || sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={historyReadOnly || sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyPrefill()}
        >
         <Sparkles className="h-4 w-4" />
@@ -460,7 +462,7 @@ export function RollCallPage() {
         type="button"
         size="sm"
         className="gap-1 bg-success text-white hover:bg-success"
-        disabled={isHistoryView || sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={historyReadOnly || sheetLoading || bulkAction !== null || students.length === 0}
         onClick={() => applyAllPresent()}
        >
         <ListChecks className="h-4 w-4" />
@@ -518,13 +520,13 @@ export function RollCallPage() {
                key={opt}
                type="button"
                onClick={() => setStatus(row.studentId, opt)}
-               disabled={isHistoryView}
+               disabled={historyReadOnly}
                className={cn(
                 "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 statusMap.get(row.studentId) === opt
                  ? "border-success bg-success text-white"
                  : "border-border bg-background text-muted-foreground hover:bg-muted/60",
-                isHistoryView && "cursor-not-allowed opacity-60 hover:bg-background"
+                historyReadOnly && "cursor-not-allowed opacity-60 hover:bg-background"
                )}
               >
                {opt}
@@ -572,7 +574,7 @@ export function RollCallPage() {
         size="lg"
         className="shrink-0 gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
         disabled={
-         isHistoryView ||
+         historyReadOnly ||
          confirmSaving ||
          sheetLoading ||
          bulkAction !== null ||

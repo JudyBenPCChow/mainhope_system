@@ -74,9 +74,10 @@ export function normalizeStudentGrade(raw: string | null | undefined): StudentGr
  return null
 }
 
+/** 顯示用：僅中文標籤（如「中一」），不含代碼 */
 export function formatStudentGrade(raw: string | null | undefined): string {
  if (raw == null || !String(raw).trim()) return "—"
  const code = normalizeStudentGrade(raw)
  if (!code) return String(raw).trim()
- return `${STUDENT_GRADE_LABELS[code]}（${code}）`
+ return STUDENT_GRADE_LABELS[code]
 }

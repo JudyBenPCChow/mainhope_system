@@ -393,7 +393,7 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
     .from("calendar_events")
     .select("id, title, description")
     .eq("event_date", today)
-    .neq("status", "cancelled")
+    .eq("status", "in_progress")
     .order("all_day", { ascending: false })
     .order("start_time", { ascending: true })
     .limit(30),
@@ -443,11 +443,32 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
 
   let todosToday: DashboardTodoItem[] = []
   if (!todosRes.error && todosRes.data) {
-   todosToday = (todosRes.data as Record<string, unknown>[]).map((row) => ({
-    id: String(row.id),
-    title: String(row.title ?? ""),
-    notes: row.description != null ? String(row.description) : null,
-   }))
+   const todoRows = todosRes.data as Record<string, unknown>[]
+   const todoIds = todoRows.map((row) => String(row.id))
+   const latestByEvent = new Map<string, string>()
+   if (todoIds.length > 0 && supabase) {
+    const { data: updateRows, error: updateErr } = await supabase
+     .from("calendar_event_updates")
+     .select("event_id, body, created_at")
+     .in("event_id", todoIds)
+     .order("created_at", { ascending: false })
+    if (!updateErr && updateRows) {
+     for (const u of updateRows as { event_id: string; body: string }[]) {
+      const eid = String(u.event_id)
+      if (!latestByEvent.has(eid)) latestByEvent.set(eid, String(u.body))
+     }
+    }
+   }
+   todosToday = todoRows.map((row) => {
+    const id = String(row.id)
+    const fromUpdate = latestByEvent.get(id)
+    const fromDesc = row.description != null ? String(row.description).trim() : ""
+    return {
+     id,
+     title: String(row.title ?? ""),
+     notes: fromUpdate || fromDesc || null,
+    }
+   })
   } else if (todosRes.error) {
    console.warn("[dashboard] calendar_events:", todosRes.error.message)
   }

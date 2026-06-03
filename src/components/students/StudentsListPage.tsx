@@ -50,7 +50,7 @@ const GRADE_FILTERS = [
  { key: "all", label: "全部" },
  ...STUDENT_GRADE_CODES.map((code) => ({
   key: code,
-  label: `${STUDENT_GRADE_LABELS[code]}（${code}）`,
+  label: STUDENT_GRADE_LABELS[code],
  })),
 ] as const
 

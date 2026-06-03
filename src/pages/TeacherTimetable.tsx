@@ -99,7 +99,9 @@ export default function TeacherTimetablePage() {
          </span>
         </div>
         <p className="text-xs text-muted-foreground">{e.eventDate}</p>
-        {e.description?.trim() ? <p className="mt-1 text-sm text-muted-foreground">{e.description}</p> : null}
+        {e.latestUpdatePreview?.trim() ? (
+         <p className="mt-1 text-sm text-muted-foreground">{e.latestUpdatePreview}</p>
+        ) : null}
        </li>
       ))}
      </ul>

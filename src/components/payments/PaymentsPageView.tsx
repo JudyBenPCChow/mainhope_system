@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -253,6 +254,8 @@ export function PaymentsPageView() {
   return pick !== currentAcademicYear
  }, [academicYearFilter, currentAcademicYear])
 
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+
  const loadDashboardStats = useCallback(async () => {
   if (!isSupabaseConfigured) {
    setDashStats(null)
@@ -478,7 +481,7 @@ const academicYearOptions = useMemo(() => {
  }
 
  const submitReceive = async () => {
- if (isHistoryView) return
+ if (historyReadOnly) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -520,7 +523,7 @@ const academicYearOptions = useMemo(() => {
  }
 
  const submitInvoice = async () => {
- if (isHistoryView) return
+ if (historyReadOnly) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -582,7 +585,7 @@ const academicYearOptions = useMemo(() => {
  }
 
  const confirmMarkReceived = async () => {
- if (isHistoryView) return
+ if (historyReadOnly) return
   if (!markTarget) return
   setSaving(true)
   try {
@@ -599,7 +602,7 @@ const academicYearOptions = useMemo(() => {
  }
 
  const onDeleteRow = async (row: PaymentListRow) => {
- if (isHistoryView) return
+ if (historyReadOnly) return
  if (
   !(await confirmDialog({
    title: "刪除單據",
@@ -756,7 +759,7 @@ const academicYearOptions = useMemo(() => {
     ))}
    </div>
 
-  {isHistoryView ? (
+  {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     目前為歷史學年檢視（唯讀）：不可新增、標記收款或刪除。
    </div>
@@ -1001,7 +1004,7 @@ const academicYearOptions = useMemo(() => {
       <Button
        type="button"
        className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-       disabled={!isSupabaseConfigured || saving || isHistoryView}
+       disabled={!isSupabaseConfigured || saving || historyReadOnly}
        onClick={() => void (mainTab === "receive" ? submitReceive() : submitInvoice())}
       >
        {mainTab === "receive" ? "確認登記收款" : "建立通知單"}
@@ -1141,7 +1144,7 @@ const academicYearOptions = useMemo(() => {
                列印
               </Button>
               {pending ? (
-               <Button type="button" size="sm" disabled={isHistoryView} onClick={() => openMarkReceived(r)}>
+               <Button type="button" size="sm" disabled={historyReadOnly} onClick={() => openMarkReceived(r)}>
                 標記已收
                </Button>
               ) : null}
@@ -1150,7 +1153,7 @@ const academicYearOptions = useMemo(() => {
                variant="ghost"
                size="sm"
                className="text-destructive hover:text-destructive"
-               disabled={isHistoryView}
+               disabled={historyReadOnly}
                onClick={() => void onDeleteRow(r)}
               >
                刪除
@@ -1274,7 +1277,7 @@ const academicYearOptions = useMemo(() => {
        <Button
         type="button"
         className="bg-success text-white hover:bg-success"
-       disabled={saving || isHistoryView}
+       disabled={saving || historyReadOnly}
         onClick={() => void confirmMarkReceived()}
        >
         確認

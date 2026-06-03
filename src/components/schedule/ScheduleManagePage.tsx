@@ -41,6 +41,7 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -332,6 +333,8 @@ useEffect(() => {
   return pick !== currentAcademicYear
  }, [academicYearFilter, currentAcademicYear])
 
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
   return scopedRows.filter((r) => {
@@ -412,7 +415,7 @@ useEffect(() => {
  }
 
  const openAdd = () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   setAddErr(null)
   setAddDate(displayStart)
   setAddStart("")
@@ -421,7 +424,7 @@ useEffect(() => {
  }
 
  const submitAdd = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!addClassId) {
    setAddErr("請選擇班別")
    return
@@ -446,7 +449,7 @@ useEffect(() => {
  }
 
  const handleDropOnCell = (e: React.DragEvent, roomId: string | null, slotIndex: number) => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   e.preventDefault()
   const raw = e.dataTransfer.getData("application/json")
   if (!raw) return
@@ -479,7 +482,7 @@ useEffect(() => {
  }
 
  const confirmMove = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!pendingMove) return
   setMoveErr(null)
   setMoveSaving(true)
@@ -566,7 +569,7 @@ useEffect(() => {
     </Select>
    </div>
 
-   {isHistoryView ? (
+   {historyReadOnly ? (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
      目前為歷史學年檢視（唯讀）：可查閱排程，但不可新增、修改、刪除或拖曳調整。
     </div>
@@ -720,7 +723,7 @@ useEffect(() => {
       type="button"
       size="default"
       className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
-      disabled={isHistoryView}
+      disabled={historyReadOnly}
       onClick={openAdd}
      >
       <Plus className="h-4 w-4" />
@@ -847,9 +850,9 @@ useEffect(() => {
               <Select
                className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
                value={s.classroom_id ?? ""}
-               disabled={isHistoryView}
+               disabled={historyReadOnly}
                onChange={async (e) => {
-                if (isHistoryView) return
+                if (historyReadOnly) return
                 const v = e.target.value || null
                 await updateSchedule(s.id, { classroom_id: v })
                 await reload()
@@ -865,9 +868,9 @@ useEffect(() => {
               <Select
                className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
-               disabled={isHistoryView}
+               disabled={historyReadOnly}
                onChange={async (e) => {
-                if (isHistoryView) return
+                if (historyReadOnly) return
                 await updateSchedule(s.id, { status: e.target.value })
                 await reload()
                }}
@@ -906,10 +909,10 @@ useEffect(() => {
                variant="ghost"
                size="icon"
                className="h-11 w-11 text-destructive hover:bg-destructive/10"
-               disabled={isHistoryView}
+               disabled={historyReadOnly}
                aria-label="刪除排程"
                onClick={async () => {
-               if (isHistoryView) return
+               if (historyReadOnly) return
                if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
                 await deleteSchedule(s.id)
                 await reload()
@@ -1077,9 +1080,9 @@ useEffect(() => {
             <Select
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
-             disabled={isHistoryView}
+             disabled={historyReadOnly}
              onChange={async (e) => {
-              if (isHistoryView) return
+              if (historyReadOnly) return
               await updateSchedule(s.id, { status: e.target.value })
               await reload()
              }}
@@ -1102,9 +1105,9 @@ useEffect(() => {
               type="button"
               variant="link"
               className="h-auto p-0 text-sm text-destructive"
-              disabled={isHistoryView}
+              disabled={historyReadOnly}
               onClick={async (e) => {
-               if (isHistoryView) return
+               if (historyReadOnly) return
                e.stopPropagation()
               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
                await deleteSchedule(s.id)
@@ -1236,9 +1239,9 @@ useEffect(() => {
                <div
                 key={s.id}
                 draggable
-               aria-disabled={isHistoryView}
+               aria-disabled={historyReadOnly}
                 onDragStart={(e) => {
-                 if (isHistoryView) {
+                 if (historyReadOnly) {
                   e.preventDefault()
                   return
                  }
@@ -1275,9 +1278,9 @@ useEffect(() => {
               <div
                key={s.id}
                draggable
-               aria-disabled={isHistoryView}
+               aria-disabled={historyReadOnly}
                onDragStart={(e) => {
-                if (isHistoryView) {
+                if (historyReadOnly) {
                  e.preventDefault()
                  return
                 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { isHistoryYearReadOnly, isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -21,13 +21,17 @@ import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
  CLASS_GRADE_FORM_OPTIONS,
+ DAY_FILTER_CHIPS,
  GRADE_CHIPS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
  SUBJECT_CHIPS,
+ classMatchesDay,
  classMatchesGrade,
  classMatchesStatus,
  classMatchesSubject,
+ classMatchesTeacher,
+ isPrimaryGradeLabel,
  kanbanDayKey,
  toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
@@ -98,6 +102,8 @@ export function ClassesListPage() {
  const [kanbanGroup, setKanbanGroup] = useState<"day" | "teacher" | "grade">("day")
  const [gradeKey, setGradeKey] = useState<string>("全部")
  const [subjectKey, setSubjectKey] = useState<string>("全部")
+ const [teacherKey, setTeacherKey] = useState<string>("全部")
+ const [dayKey, setDayKey] = useState<string>("全部")
  const [statusKey, setStatusKey] = useState<string>("進行中")
  const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
  const [addOpen, setAddOpen] = useState(false)
@@ -180,16 +186,22 @@ export function ClassesListPage() {
   return rows.filter((c) => c.teacher_id === teacherTid)
  }, [rows, teacherTid])
 
- const academicYearOptions = useMemo(() => {
-  const years = [
+ const academicYearSelectOptions = useMemo(() => {
+  if (yearOptions.length > 0) {
+   return yearOptions.map((y) => ({
+    value: y.label,
+    label: y.is_current ? `${y.label}（目前學年）` : `${y.label} 學年`,
+   }))
+  }
+  const fromRows = [
    ...new Set(
     rows
      .map((c) => c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date))
-     .filter((x) => /^\d{4}$/.test(x))
+     .filter((x) => /^\d{4}$/.test(x) || /^\d{2}SM$/i.test(x))
    ),
   ].sort((a, b) => b.localeCompare(a))
-  return years
- }, [rows])
+  return fromRows.map((y) => ({ value: y, label: `${y} 學年` }))
+ }, [yearOptions, rows])
 
  const yearScopedRows = useMemo(() => {
   const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
@@ -204,14 +216,18 @@ export function ClassesListPage() {
   return pick !== currentAcademicYear
  }, [academicYearFilter, currentAcademicYear])
 
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+
  const filtered = useMemo(() => {
   return yearScopedRows.filter(
    (c) =>
     classMatchesGrade(c, gradeKey) &&
     classMatchesSubject(c, subjectKey) &&
+    classMatchesTeacher(c, teacherKey) &&
+    classMatchesDay(c, dayKey) &&
     classMatchesStatus(c, statusKey)
   )
- }, [yearScopedRows, gradeKey, subjectKey, statusKey])
+ }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
 
  const subjectChips = useMemo(() => {
   if (!teacherTid) return [...SUBJECT_CHIPS]
@@ -222,9 +238,36 @@ export function ClassesListPage() {
  const gradeChips = useMemo(() => {
   if (!teacherTid) return [...GRADE_CHIPS]
   const uniq = [
-   ...new Set(yearScopedRows.flatMap((c) => (c.grade ?? []).map((g) => g.trim())).filter(Boolean)),
+   ...new Set(
+    yearScopedRows
+     .flatMap((c) => (c.grade ?? []).map((g) => g.trim()))
+     .filter((g) => g && !isPrimaryGradeLabel(g))
+   ),
   ]
   return ["全部", ...uniq.sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
+
+ const teacherChips = useMemo((): string[] => {
+  if (teacherTid) return ["全部"]
+  const names = new Map<string, string>()
+  for (const c of yearScopedRows) {
+   const name = (c.teacher_name ?? "").trim()
+   if (name) names.set(name, name)
+  }
+  for (const t of teachers) {
+   const name = t.label.trim()
+   if (name) names.set(name, name)
+  }
+  return ["全部", ...[...names.keys()].sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows, teachers])
+
+ const dayChips = useMemo(() => {
+  if (!teacherTid) return [...DAY_FILTER_CHIPS]
+  const present = new Set(
+   yearScopedRows.map((c) => kanbanDayKey(c.day_of_week)).filter((d) => d !== "其他")
+  )
+  const ordered = KANBAN_DAY_COLUMNS.filter((d) => present.has(d))
+  return ["全部", ...ordered]
  }, [teacherTid, yearScopedRows])
 
  const statusChips = useMemo(() => {
@@ -240,6 +283,14 @@ export function ClassesListPage() {
  useEffect(() => {
   if (!gradeChips.includes(gradeKey)) setGradeKey("全部")
  }, [gradeChips, gradeKey])
+
+ useEffect(() => {
+  if (!teacherChips.includes(teacherKey)) setTeacherKey("全部")
+ }, [teacherChips, teacherKey])
+
+ useEffect(() => {
+  if (!dayChips.includes(dayKey)) setDayKey("全部")
+ }, [dayChips, dayKey])
 
  useEffect(() => {
   if (!statusChips.includes(statusKey)) setStatusKey("全部")
@@ -290,7 +341,7 @@ export function ClassesListPage() {
  }, [filtered, kanbanGroup])
 
  const onAdd = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!form.subject_id || !form.academic_year_id || !form.grade_code) {
    pushBanner({ tone: "warning", title: "請先選擇學年、科目與年級" })
    return
@@ -358,7 +409,7 @@ export function ClassesListPage() {
  }
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   e.stopPropagation()
  if (!(await confirmDialog({ title: "刪除班別", description: "確定刪除此班別？", confirmText: "確認刪除", tone: "destructive" }))) return
   try {
@@ -370,7 +421,7 @@ export function ClassesListPage() {
  }
 
  const onCopy = async (e: React.MouseEvent, id: string) => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   e.stopPropagation()
   try {
    await duplicateClass(id)
@@ -381,7 +432,7 @@ export function ClassesListPage() {
  }
 
  const onStatusChange = async (id: string, status: string) => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   try {
    await updateClass(id, { status })
    await load()
@@ -423,9 +474,9 @@ export function ClassesListPage() {
       onChange={(e) => setAcademicYearFilter(e.target.value)}
      >
       <option value="current">目前學年（{currentAcademicYear}）</option>
-      {academicYearOptions.map((y) => (
-       <option key={y} value={y}>
-        {y} 學年
+      {academicYearSelectOptions.map((y) => (
+       <option key={y.value} value={y.value}>
+        {y.label}
        </option>
       ))}
      </Select>
@@ -532,9 +583,53 @@ export function ClassesListPage() {
      ))}
     </div>
    </div>
+
+   {!teacherTid ? (
+    <div className="space-y-2">
+     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">任教老師</div>
+     <div className="flex flex-wrap gap-2">
+      {teacherChips.map((t) => (
+       <button
+        key={t}
+        type="button"
+        onClick={() => setTeacherKey(t)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
+         teacherKey === t
+          ? "border-primary bg-primary text-primary-foreground shadow-sm"
+          : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
+        )}
+       >
+        {t}
+       </button>
+      ))}
+     </div>
+    </div>
+   ) : null}
+
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">逢星期</div>
+    <div className="flex flex-wrap gap-2">
+     {dayChips.map((d) => (
+      <button
+       key={d}
+       type="button"
+       onClick={() => setDayKey(d)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
+        dayKey === d
+         ? "border-primary bg-primary text-primary-foreground shadow-sm"
+         : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
+       )}
+      >
+       {d}
+      </button>
+     ))}
+    </div>
+   </div>
   </div>
 
-   {isHistoryView ? (
+   {historyReadOnly ? (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
      目前為歷史學年檢視（唯讀）：可查閱資料，但不可新增、修改、刪除。
     </div>
@@ -591,7 +686,7 @@ export function ClassesListPage() {
     ) : (
      <span />
     )}
-    {!teacherTid && !isHistoryView ? (
+    {!teacherTid && !historyReadOnly ? (
      <Dialog open={addOpen} onOpenChange={setAddOpen}>
       <DialogTrigger asChild>
        <Button
@@ -789,7 +884,7 @@ export function ClassesListPage() {
      </Dialog>
     ) : (
      <p className="text-sm text-muted-foreground">
-      {isHistoryView ? "歷史學年為唯讀模式，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
+      {historyReadOnly ? "歷史學年為唯讀模式，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
      </p>
     )}
    </div>
@@ -893,7 +988,7 @@ export function ClassesListPage() {
             <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
-             disabled={isHistoryView}
+             disabled={historyReadOnly}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
             >
              {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
@@ -916,17 +1011,17 @@ export function ClassesListPage() {
               type="button"
               className={cn(
                "text-left text-muted-foreground",
-               isHistoryView ? "cursor-not-allowed opacity-50" : "hover:text-foreground hover:underline"
+               historyReadOnly ? "cursor-not-allowed opacity-50" : "hover:text-foreground hover:underline"
               )}
               onClick={(e) => {
-               if (isHistoryView) return
+               if (historyReadOnly) return
                void onCopy(e, c.id)
               }}
              >
               <Copy className="mr-0.5 inline h-3.5 w-3.5" />
               複製
              </button>
-             {isSuperAdmin() && !isHistoryView ? (
+             {isSuperAdmin() && !historyReadOnly ? (
               <button
                type="button"
                className="text-left text-destructive hover:underline"
@@ -1051,16 +1146,16 @@ export function ClassesListPage() {
              type="button"
              className={cn(
               "text-muted-foreground",
-              isHistoryView ? "cursor-not-allowed opacity-50" : "hover:underline"
+              historyReadOnly ? "cursor-not-allowed opacity-50" : "hover:underline"
              )}
              onClick={(e) => {
-              if (isHistoryView) return
+              if (historyReadOnly) return
               void onCopy(e, c.id)
              }}
             >
              複製
             </button>
-            {isSuperAdmin() && !isHistoryView ? (
+            {isSuperAdmin() && !historyReadOnly ? (
              <button
               type="button"
               className="text-destructive hover:underline"

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import {
  ArrowLeft,
@@ -8,6 +8,7 @@ import {
  ClipboardList,
  GraduationCap,
  History,
+ ListTodo,
  Plus,
  Umbrella,
  User,
@@ -26,11 +27,13 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips } from "@/components/students/studentsUi"
+import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
+import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/calendarQueries"
 import { fetchTotalPaidLessonsForStudent } from "@/services/paymentQueries"
 import {
  deletePayment,
@@ -92,6 +95,7 @@ type TabId =
  | "leave"
  | "futureSchedules"
  | "history"
+ | "relatedTodos"
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
  { id: "basic", label: "基本資料", icon: User },
@@ -101,6 +105,7 @@ const TABS: { id: TabId; label: string; icon: typeof User }[] = [
  { id: "leave", label: "請假紀錄", icon: Umbrella },
  { id: "futureSchedules", label: "未來排程", icon: CalendarClock },
  { id: "history", label: "更動紀錄", icon: History },
+ { id: "relatedTodos", label: "相關事項", icon: ListTodo },
 ]
 
 function money(n: number) {
@@ -111,6 +116,37 @@ function localTodayYmd() {
  const d = new Date()
  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
+
+const BASIC_FORM_KEYS = [
+ "full_name",
+ "english_name",
+ "gender",
+ "grade",
+ "school",
+ "registration_status",
+ "enrollment_status",
+ "academic_stage",
+ "date_of_birth",
+ "parent_name",
+ "parent_relationship",
+ "student_phone",
+ "parent_phone",
+ "whatsapp",
+ "address",
+ "remarks",
+] as const satisfies readonly (keyof StudentRecord)[]
+
+function formFieldNorm(value: unknown): string | null {
+ if (value == null) return null
+ const s = String(value).trim()
+ return s === "" ? null : s
+}
+
+function isStudentBasicFormDirty(student: StudentRecord, form: Partial<StudentRecord>): boolean {
+ return BASIC_FORM_KEYS.some((key) => formFieldNorm(student[key]) !== formFieldNorm(form[key]))
+}
+
+type UnsavedLeaveChoice = "save" | "discard" | "cancel"
 
 export function StudentDetailView() {
  const { studentId } = useParams<{ studentId: string }>()
@@ -126,6 +162,8 @@ export function StudentDetailView() {
  const [leaves, setLeaves] = useState<LeaveRow[]>([])
 const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRow[]>([])
  const [history, setHistory] = useState<HistoryRow[]>([])
+ const [relatedTodos, setRelatedTodos] = useState<CalendarEventRow[]>([])
+ const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
  const [classOptions, setClassOptions] = useState<{ id: string; label: string }[]>([])
  const [pickClass, setPickClass] = useState("")
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
@@ -218,8 +256,27 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   if (student) setForm(student)
  }, [student])
 
- const saveBasic = async () => {
-  if (!sid || !student) return
+ useEffect(() => {
+  if (tab !== "relatedTodos" || !sid) return
+  let cancelled = false
+  setRelatedTodosLoading(true)
+  void listCalendarEventsForStudent(sid)
+   .then((rows) => {
+    if (!cancelled) setRelatedTodos(rows)
+   })
+   .catch(() => {
+    if (!cancelled) setRelatedTodos([])
+   })
+   .finally(() => {
+    if (!cancelled) setRelatedTodosLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [tab, sid])
+
+ const saveBasic = useCallback(async (): Promise<boolean> => {
+  if (!sid || !student) return false
   try {
    const updated = await updateStudent(sid, {
     full_name: form.full_name ?? student.full_name,
@@ -240,11 +297,44 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     remarks: form.remarks,
    })
    setStudent(updated)
+   setForm(updated)
    pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
+   return true
   } catch (e) {
    pushBanner({ tone: "error", title: "儲存失敗", message: e instanceof Error ? e.message : String(e) })
+   return false
   }
- }
+ }, [sid, student, form, pushBanner])
+
+ const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
+ const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
+
+ const promptUnsavedLeave = useCallback(
+  () =>
+   new Promise<UnsavedLeaveChoice>((resolve) => {
+    unsavedLeaveResolverRef.current = resolve
+    setUnsavedLeaveOpen(true)
+   }),
+  []
+ )
+
+ const finishUnsavedLeave = useCallback((choice: UnsavedLeaveChoice) => {
+  setUnsavedLeaveOpen(false)
+  unsavedLeaveResolverRef.current?.(choice)
+  unsavedLeaveResolverRef.current = null
+ }, [])
+
+ const requestLeave = useCallback(async () => {
+  if (student && isStudentBasicFormDirty(student, form)) {
+   const choice = await promptUnsavedLeave()
+   if (choice === "cancel") return
+   if (choice === "save") {
+    const ok = await saveBasic()
+    if (!ok) return
+   }
+  }
+  navigate("/Students")
+ }, [student, form, promptUnsavedLeave, navigate, saveBasic])
 
  const addEnrollment = async () => {
   if (!pickClass) return
@@ -520,7 +610,7 @@ const exportFutureSchedulesCsv = () => {
  return (
   <DetailLayerShell
    variant="student"
-   onDismiss={() => navigate("/Students")}
+   onDismiss={() => void requestLeave()}
    layerLabel="學生詳情 · 次層檢視"
   >
   <div className="flex min-h-full flex-col bg-background">
@@ -531,7 +621,7 @@ const exportFutureSchedulesCsv = () => {
       variant="secondary"
       size="sm"
       className="shrink-0 bg-white/90 text-foreground hover:bg-white"
-      onClick={() => navigate("/Students")}
+      onClick={() => void requestLeave()}
      >
       <ArrowLeft className="h-4 w-4" />
       返回
@@ -1475,6 +1565,58 @@ const exportFutureSchedulesCsv = () => {
      </div>
     ) : null}
 
+    {tab === "relatedTodos" ? (
+     <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">凡待辦事項勾選「涉及學生」包含此學生者，會顯示於此。</p>
+      {relatedTodosLoading ? (
+       <p className="text-sm text-muted-foreground">載入中…</p>
+      ) : relatedTodos.length === 0 ? (
+       <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+        此學生暫無關聯待辦。
+       </p>
+      ) : (
+       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+        <table className="w-full min-w-[720px] table-fixed text-sm">
+         <thead className="bg-muted/30 text-xs text-muted-foreground">
+          <tr>
+           <th className="w-[100px] px-3 py-2 text-left">日期</th>
+           <th className="w-[180px] px-3 py-2 text-left">標題</th>
+           <th className="w-[140px] px-3 py-2 text-left">標籤</th>
+           <th className="w-[90px] px-3 py-2 text-left">狀態</th>
+           <th className="px-3 py-2 text-left">最新跟進</th>
+          </tr>
+         </thead>
+         <tbody>
+          {relatedTodos.map((r) => (
+           <tr
+            key={r.id}
+            className="cursor-pointer border-t border-border/70 align-top transition-colors hover:bg-muted/30"
+            onClick={() =>
+             navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })
+            }
+           >
+            <td className="px-3 py-2 font-mono text-xs">{r.eventDate}</td>
+            <td className="px-3 py-2 font-medium">{r.title}</td>
+            <td className="px-3 py-2">
+             <TodoTagList tags={r.tags} />
+            </td>
+            <td className="px-3 py-2">
+             <Tag tone={todoStatusTone(r.status)} size="sm">
+              {todoStatusLabel(r.status)}
+             </Tag>
+            </td>
+            <td className="min-w-0 px-3 py-2 text-muted-foreground">
+             <span className="line-clamp-2">{r.latestUpdatePreview?.trim() || "—"}</span>
+            </td>
+           </tr>
+          ))}
+         </tbody>
+        </table>
+       </div>
+      )}
+     </div>
+    ) : null}
+
     {tab === "history" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <p className="text-sm text-muted-foreground">顯示所有涉及此學生的變動紀錄。</p>
@@ -1508,6 +1650,33 @@ const exportFutureSchedulesCsv = () => {
     ) : null}
    </div>
   </div>
+
+  <Dialog
+   open={unsavedLeaveOpen}
+   onOpenChange={(open) => {
+    if (!open) finishUnsavedLeave("cancel")
+   }}
+  >
+   <DialogContent className="max-w-md">
+    <DialogHeader>
+     <DialogTitle>有未儲存的變更</DialogTitle>
+    </DialogHeader>
+    <p className="text-sm text-muted-foreground">
+     基本資料已修改但尚未儲存。要儲存後離開，還是放棄變更？
+    </p>
+    <div className="mt-6 flex flex-wrap justify-end gap-2">
+     <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("cancel")}>
+      繼續編輯
+     </Button>
+     <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("discard")}>
+      放棄變更
+     </Button>
+     <Button type="button" onClick={() => finishUnsavedLeave("save")}>
+      儲存並離開
+     </Button>
+    </div>
+   </DialogContent>
+  </Dialog>
   </DetailLayerShell>
  )
 }

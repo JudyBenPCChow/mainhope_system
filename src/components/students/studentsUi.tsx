@@ -30,7 +30,7 @@ export function StudentGradeChips({ value, onChange, className }: StudentGradeCh
    options={STUDENT_GRADE_CODES}
    value={normalizeStudentGrade(value) ?? ""}
    onChange={onChange}
-   label={(code) => `${STUDENT_GRADE_LABELS[code]}（${code}）`}
+   label={(code) => STUDENT_GRADE_LABELS[code]}
    className={className}
   />
  )

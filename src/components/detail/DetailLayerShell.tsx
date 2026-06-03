@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
-type DetailLayerVariant = "student" | "teacher"
+type DetailLayerVariant = "student" | "teacher" | "todo"
 
 type DetailLayerShellProps = {
  children: React.ReactNode
@@ -19,10 +19,12 @@ const variantPanelRing: Record<DetailLayerVariant, string> = {
   "border-primary/25 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_25px_80px_rgba(0,0,0,0.22)]",
  teacher:
   "border-success/25 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_25px_80px_rgba(0,0,0,0.22)]",
+ todo:
+  "border-sky-400/25 shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_25px_80px_rgba(0,0,0,0.22)]",
 }
 
 /**
- * 第二層詳情外殼：半透明霧面背景、面板向上滑入、玻璃感邊框。
+ * 第二層詳情外殼：遮罩 + 實色面板向上滑入。
  * 使用 portal 掛到 body，避免主內容區 overflow 影響 fixed 定位。
  */
 export function DetailLayerShell({
@@ -61,7 +63,7 @@ export function DetailLayerShell({
    />
    <div
     className={cn(
-     "relative z-[1] flex h-[min(90vh,920px)] w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.25rem] border border-white/20 bg-background/92 ring-1 ring-black/10 animate-in fade-in slide-in-from-bottom-8 duration-300 ease-out fill-mode-both md:h-[min(86vh,900px)] md:rounded-2xl md:slide-in-from-bottom-4",
+     "relative z-[1] flex h-[min(90vh,920px)] w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.25rem] border border-border bg-background ring-1 ring-black/10 animate-in fade-in slide-in-from-bottom-8 duration-300 ease-out fill-mode-both md:h-[min(86vh,900px)] md:rounded-2xl md:slide-in-from-bottom-4",
      variantPanelRing[variant]
     )}
    >
@@ -69,7 +71,7 @@ export function DetailLayerShell({
      <div className="h-1 w-11 rounded-full bg-muted-foreground/30" aria-hidden />
     </div>
     {layerLabel ? (
-     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-muted/25 px-4 py-2 backdrop-blur-sm md:rounded-t-2xl">
+     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/60 bg-background px-4 py-2 md:rounded-t-2xl">
       <p className="text-xs font-medium tracking-wide text-muted-foreground">{layerLabel}</p>
       <span className="rounded-md bg-background/70 px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-border/60">
        第二層

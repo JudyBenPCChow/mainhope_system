@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -110,6 +111,8 @@ export function LeaveManagementView() {
   const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
   return pick !== currentAcademicYear
  }, [academicYearFilter, currentAcademicYear])
+
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -281,7 +284,7 @@ export function LeaveManagementView() {
  ])
 
  const openAdd = () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   setAddOpen(true)
  }
 
@@ -296,7 +299,7 @@ export function LeaveManagementView() {
  }
 
  const saveDetail = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!detailRow) return
   setDetailSaving(true)
   setDetailErr(null)
@@ -342,7 +345,7 @@ export function LeaveManagementView() {
  }, [linkCandidates, linkSearch])
 
  const saveLinkSchedule = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!linkRow || !linkScheduleId) {
    setLinkErr("請先選擇補堂排程。")
    return
@@ -371,7 +374,7 @@ export function LeaveManagementView() {
  }
 
  const submitAdd = async () => {
-  if (isHistoryView) return
+  if (historyReadOnly) return
   if (!addStudentId || !addClassId || !addScheduleId) {
    setAddErr("請完成：搜尋並選擇學生、班別，並選擇請假排程")
    return
@@ -434,7 +437,7 @@ export function LeaveManagementView() {
     <Button
      type="button"
      className="gap-1 bg-warning text-white hover:bg-warning"
-     disabled={isHistoryView}
+     disabled={historyReadOnly}
      onClick={openAdd}
     >
      <Plus className="h-4 w-4" />
@@ -461,7 +464,7 @@ export function LeaveManagementView() {
     </div>
    ) : null}
 
-  {isHistoryView ? (
+  {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     目前為歷史學年檢視（唯讀）：可查閱請假資料，但不可新增、修改、刪除。
    </div>
@@ -646,7 +649,7 @@ export function LeaveManagementView() {
            <button
             type="button"
             className="text-warning/90 underline-offset-2 hover:underline"
-           disabled={isHistoryView}
+           disabled={historyReadOnly}
             onClick={() => void openLinkSchedule(r)}
            >
             待連結排程
@@ -657,7 +660,7 @@ export function LeaveManagementView() {
           <span className="line-clamp-3 break-words">{r.leave_reason ?? "—"}</span>
          </td>
          <td className="min-w-0 px-3 py-2 align-top">
-          <MakeupCell row={r} onChanged={reload} readonly={isHistoryView} />
+          <MakeupCell row={r} onChanged={reload} readonly={historyReadOnly} />
          </td>
          <td className="min-w-0 px-3 py-2 align-top text-xs text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.remarks ?? "—"}</span>
@@ -673,9 +676,9 @@ export function LeaveManagementView() {
               : "border-warning bg-warning text-warning-foreground"
            )}
            value={r.status}
-           disabled={isHistoryView}
+           disabled={historyReadOnly}
            onChange={async (e) => {
-            if (isHistoryView) return
+            if (historyReadOnly) return
             await updateLeaveMakeupRecord(r.id, { status: e.target.value })
             await reload()
            }}
@@ -691,7 +694,7 @@ export function LeaveManagementView() {
           <button
            type="button"
            className="mr-2 text-xs font-medium text-info hover:underline"
-           disabled={isHistoryView}
+           disabled={historyReadOnly}
            onClick={() => openDetail(r)}
           >
            詳情
@@ -699,9 +702,9 @@ export function LeaveManagementView() {
           <button
            type="button"
            className="text-xs font-medium text-info hover:underline"
-           disabled={isHistoryView}
+           disabled={historyReadOnly}
            onClick={async () => {
-            if (isHistoryView) return
+            if (historyReadOnly) return
             if (!(await confirmDialog({ title: "刪除請假紀錄", description: "確定刪除此筆請假紀錄？", confirmText: "確認刪除", tone: "destructive" }))) return
             await deleteLeaveMakeupRecord(r.id)
             await reload()
@@ -868,7 +871,7 @@ export function LeaveManagementView() {
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
-       <Button type="button" disabled={addSaving || isHistoryView} onClick={() => void submitAdd()}>
+       <Button type="button" disabled={addSaving || historyReadOnly} onClick={() => void submitAdd()}>
         {addSaving ? "儲存中…" : "儲存"}
        </Button>
       </div>
@@ -927,7 +930,7 @@ export function LeaveManagementView() {
        {detailErr ? <p className="text-destructive">{detailErr}</p> : null}
        <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" disabled={detailSaving} onClick={() => setDetailOpen(false)}>取消</Button>
-        <Button type="button" disabled={detailSaving || isHistoryView} onClick={() => void saveDetail()}>
+        <Button type="button" disabled={detailSaving || historyReadOnly} onClick={() => void saveDetail()}>
          {detailSaving ? "儲存中…" : "儲存修改"}
         </Button>
        </div>
@@ -966,7 +969,7 @@ export function LeaveManagementView() {
       {linkErr ? <p className="text-destructive">{linkErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={linkSaving} onClick={() => setLinkOpen(false)}>取消</Button>
-       <Button type="button" disabled={linkSaving || isHistoryView} onClick={() => void saveLinkSchedule()}>
+       <Button type="button" disabled={linkSaving || historyReadOnly} onClick={() => void saveLinkSchedule()}>
         {linkSaving ? "連結中…" : "確認連結"}
        </Button>
       </div>

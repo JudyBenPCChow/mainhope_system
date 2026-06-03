@@ -239,8 +239,9 @@ export function DashboardBoard({
         {todosToday.map((t) => (
          <li
           key={t.id}
-          className="flex gap-3 rounded-lg border border-border/70 bg-background/80 px-4 py-3 text-base"
+          className="flex gap-3 rounded-lg border border-border/70 bg-background/80 px-4 py-3 text-base transition-colors hover:bg-muted/30"
          >
+          <Link to={`/Calendar/${t.id}`} className="flex min-w-0 flex-1 gap-3">
           <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-sky-500/70" aria-hidden />
           <div className="min-w-0">
            <div className="font-semibold text-foreground">{t.title}</div>
@@ -248,6 +249,7 @@ export function DashboardBoard({
             <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{t.notes}</p>
            ) : null}
           </div>
+          </Link>
          </li>
         ))}
        </ul>

@@ -97,17 +97,24 @@ export function normalizeClassGradeForForm(g: string): string | null {
  return null
 }
 
+/** 班別列表篩選用年級（中學；不含小學） */
 export const GRADE_CHIPS = [
  "全部",
- "小四",
- "小五",
- "小六",
  "中一",
  "中二",
  "中三",
  "中四",
  "中五",
+ "中六",
 ] as const
+
+const PRIMARY_GRADE_LABELS = new Set(["小一", "小二", "小三", "小四", "小五", "小六"])
+
+export function isPrimaryGradeLabel(label: string): boolean {
+ return PRIMARY_GRADE_LABELS.has(label.trim())
+}
+
+export const DAY_FILTER_CHIPS = ["全部", ...KANBAN_DAY_COLUMNS] as const
 
 export const SUBJECT_CHIPS = ["全部", "中文", "英文", "數學", "化學"] as const
 
@@ -127,4 +134,18 @@ export function classMatchesSubject(c: { subject: string }, key: string): boolea
 export function classMatchesStatus(c: { status: string }, key: string): boolean {
  if (key === "全部") return true
  return c.status === key || c.status.includes(key)
+}
+
+export function classMatchesTeacher(
+ c: { teacher_id: string | null; teacher_name: string | null },
+ key: string
+): boolean {
+ if (key === "全部") return true
+ const name = (c.teacher_name ?? "").trim()
+ return name === key || name.includes(key)
+}
+
+export function classMatchesDay(c: { day_of_week: string | null }, key: string): boolean {
+ if (key === "全部") return true
+ return kanbanDayKey(c.day_of_week) === key
 }

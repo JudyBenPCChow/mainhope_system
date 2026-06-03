@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -76,6 +77,8 @@ export function AttendanceRecordsPage() {
   const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
   return pick !== currentAcademicYear
  }, [academicYearFilter, currentAcademicYear])
+
+ const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -193,7 +196,7 @@ export function AttendanceRecordsPage() {
      {err}
     </div>
    ) : null}
-  {isHistoryView ? (
+  {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
     目前為歷史學年檢視（唯讀）。
    </div>

@@ -9,6 +9,7 @@ import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
 import Calendar from "@/pages/Calendar"
+import TodoDetail from "@/pages/TodoDetail"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
 import Login from "@/pages/Login"
@@ -53,6 +54,7 @@ export default function App() {
      <Route path="/Payments" element={<Payments />} />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
      <Route path="/Calendar" element={<Calendar />} />
+     <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />
