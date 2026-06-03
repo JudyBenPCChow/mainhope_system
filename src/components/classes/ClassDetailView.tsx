@@ -17,9 +17,11 @@ import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
  CLASS_GRADE_FORM_OPTIONS,
+ CLASS_TIME_SLOT_OPTIONS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
  normalizeClassGradeForForm,
+ timeSlotSelectValueFromStored,
  toCanonicalWeekdayForStore,
  weekdaySelectValueFromStored,
 } from "@/components/classes/classesUi"
@@ -884,11 +886,28 @@ const addableStudents = (() => {
        </div>
        <div>
         <label className="text-xs text-muted-foreground">時段</label>
-        <Input
-         className="mt-1"
-         value={form.time_slot ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, time_slot: e.target.value }))}
-        />
+        <Select
+         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+         value={timeSlotSelectValueFromStored(form.time_slot)}
+         onChange={(e) =>
+          setForm((f) => ({ ...f, time_slot: e.target.value || null }))
+         }
+        >
+         <option value="">未指定</option>
+         {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
+          <option key={slot} value={slot}>
+           {slot}
+          </option>
+         ))}
+         {form.time_slot &&
+         !CLASS_TIME_SLOT_OPTIONS.some(
+          (slot) =>
+           slot === form.time_slot ||
+           slot.replace(/\u2013/g, "-") === String(form.time_slot).replace(/\u2013/g, "-")
+         ) ? (
+          <option value={form.time_slot}>{form.time_slot}（原資料）</option>
+         ) : null}
+        </Select>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">老師</label>

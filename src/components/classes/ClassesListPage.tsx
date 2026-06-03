@@ -23,6 +23,7 @@ import {
  CLASS_GRADE_FORM_OPTIONS,
  DAY_FILTER_CHIPS,
  GRADE_CHIPS,
+ CLASS_TIME_SLOT_OPTIONS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
  SUBJECT_CHIPS,
@@ -802,12 +803,19 @@ export function ClassesListPage() {
          </Select>
         </div>
         <div>
-         <label className="text-xs text-muted-foreground">時段（例 14:00-16:00）</label>
-         <Input
-          className="mt-1"
+         <label className="text-xs text-muted-foreground">時段</label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
           value={form.time_slot}
           onChange={(e) => setForm((f) => ({ ...f, time_slot: e.target.value }))}
-         />
+         >
+          <option value="">未指定</option>
+          {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
+           <option key={slot} value={slot}>
+            {slot}
+           </option>
+          ))}
+         </Select>
         </div>
         <div>
          <label className="text-xs text-muted-foreground">老師</label>
