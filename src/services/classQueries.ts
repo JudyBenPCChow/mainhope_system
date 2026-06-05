@@ -215,20 +215,21 @@ async function ensureCourseId(params: {
    subjectCode = String(data.code)
   } else if (params.subject_name?.trim()) {
    const subjectName = params.subject_name.trim()
-   const { data, error } = await supabase
+   const { data: byNameZh, error } = await supabase
     .from("subjects")
     .select("id, code")
     .eq("name_zh", subjectName)
     .maybeSingle()
    if (error) throw error
-   if (!data) {
+   let subjectRow = byNameZh
+   if (!subjectRow) {
     const alt = await supabase.from("subjects").select("id, code").eq("short_name", subjectName).maybeSingle()
     if (alt.error) throw alt.error
-    data = alt.data
+    subjectRow = alt.data
    }
-   if (!data) throw new Error(`找不到科目：${subjectName}`)
-   subjectId = String(data.id)
-   subjectCode = String(data.code)
+   if (!subjectRow) throw new Error(`找不到科目：${subjectName}`)
+   subjectId = String(subjectRow.id)
+   subjectCode = String(subjectRow.code)
   } else {
    throw new Error("請先選擇科目。")
   }
