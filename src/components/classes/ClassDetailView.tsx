@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, BookOpen, CalendarDays, Pencil, Users } from "lucide-react"
+import { ArrowLeft, BookOpen, CalendarDays, Pencil, ScrollText, Users } from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
 import { Button } from "@/components/ui/button"
@@ -71,15 +71,70 @@ function nullIfBlankText(v: string | null | undefined): string | null {
  return t === "" ? null : t
 }
 
-type TabId = "basic" | "students" | "schedule"
+function normYmd(v: string | null | undefined): string | null {
+ if (v == null) return null
+ const t = String(v).trim().slice(0, 10)
+ return t === "" ? null : t
+}
+
+function normNum(v: number | null | undefined): number | null {
+ if (v == null || Number.isNaN(v)) return null
+ return v
+}
+
+function normalizedGradesFromClass(cls: ClassRecord): string[] {
+ return [
+  ...new Set(
+   (cls.grade ?? [])
+    .map((g) => normalizeClassGradeForForm(g))
+    .filter((x): x is string => x != null)
+  ),
+ ].sort()
+}
+
+function gradesEqual(a: string[] | undefined, b: string[]): boolean {
+ const sa = [...(a ?? [])].sort()
+ const sb = [...b].sort()
+ return sa.length === sb.length && sa.every((v, i) => v === sb[i])
+}
+
+function isClassEditFormDirty(
+ cls: ClassRecord,
+ form: Partial<ClassRecord>,
+ gradeSelections: string[]
+): boolean {
+ if (!gradesEqual(gradeSelections, normalizedGradesFromClass(cls))) return true
+ const mappedDay = weekdaySelectValueFromStored(cls.day_of_week)
+ const origDay = mappedDay || cls.day_of_week || null
+ const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
+ return [
+  (form.subject ?? "") !== (cls.subject ?? ""),
+  (form.course_code?.trim() || null) !== (cls.course_code?.trim() || null),
+  (form.day_of_week ?? null) !== origDay,
+  (form.time_slot ?? null) !== (cls.time_slot ?? null),
+  (form.teacher_id ?? null) !== (cls.teacher_id ?? null),
+  (form.classroom_id ?? null) !== (cls.classroom_id ?? null),
+  normNum(form.capacity ?? null) !== normNum(safeCap),
+  normNum(form.price_per_lesson ?? null) !== normNum(cls.price_per_lesson ?? null),
+  normYmd(form.start_date) !== normYmd(cls.start_date),
+  normYmd(form.end_date) !== normYmd(cls.end_date),
+  (form.status ?? "進行中") !== (cls.status ?? "進行中"),
+  (form.section_code ?? null) !== (cls.section_code ?? null),
+ ].some(Boolean)
+}
+
+type TabId = "basic" | "students" | "enrollment" | "schedule"
+
+type UnsavedLeaveChoice = "save" | "discard" | "cancel"
 
 const TABS: {
  id: TabId
- label: (n: { st: number; sc: number }) => string
+ label: (n: { st: number; ev: number; sc: number }) => string
  icon: typeof BookOpen
 }[] = [
  { id: "basic", label: () => "基本資料", icon: BookOpen },
  { id: "students", label: ({ st }) => `學生名單 (${st})`, icon: Users },
+ { id: "enrollment", label: ({ ev }) => `增退紀錄 (${ev})`, icon: ScrollText },
  { id: "schedule", label: ({ sc }) => `排程 (${sc})`, icon: CalendarDays },
 ]
 
@@ -114,8 +169,37 @@ export function ClassDetailView() {
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
  const [pageErr, setPageErr] = useState<string | null>(null)
+ const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
+ const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+
+ const promptUnsavedLeave = useCallback(
+  () =>
+   new Promise<UnsavedLeaveChoice>((resolve) => {
+    unsavedLeaveResolverRef.current = resolve
+    setUnsavedLeaveOpen(true)
+   }),
+  []
+ )
+
+ const finishUnsavedLeave = useCallback((choice: UnsavedLeaveChoice) => {
+  setUnsavedLeaveOpen(false)
+  unsavedLeaveResolverRef.current?.(choice)
+  unsavedLeaveResolverRef.current = null
+ }, [])
+
+ const resetEditFormFromClass = useCallback(() => {
+  if (!cls) return
+  const mappedDay = weekdaySelectValueFromStored(cls.day_of_week)
+  const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
+  setForm({
+   ...cls,
+   day_of_week: mappedDay || cls.day_of_week || null,
+   capacity: safeCap,
+  })
+  setGradeSelections(normalizedGradesFromClass(cls))
+ }, [cls])
 
  const reload = useCallback(async () => {
   if (!cid) return
@@ -196,13 +280,13 @@ export function ClassDetailView() {
   return { fut, past, canc }
  }, [schedules, today])
 
- const saveClass = async () => {
-  if (!cid || !cls) return
+ const saveClass = async (): Promise<boolean> => {
+  if (!cid || !cls) return false
   setEditErr(null)
   const cap = form.capacity
   if (cap != null && cap < 0) {
    pushBanner({ tone: "warning", title: "收生上限不可為負數" })
-   return
+   return false
   }
   const gradeArr = gradeSelections.length > 0 ? gradeSelections : []
   const dowRaw = form.day_of_week != null ? String(form.day_of_week).trim() : ""
@@ -233,14 +317,37 @@ export function ClassDetailView() {
     setErr: setEditErr,
     userMessage: msg,
    })
-   return
+   return false
   } finally {
    setSavingEdit(false)
   }
   setEditOpen(false)
   await reload()
- pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
+  pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
+  return true
  }
+
+ const requestCloseEdit = useCallback(async (): Promise<boolean> => {
+  if (!cls || !isClassEditFormDirty(cls, form, gradeSelections)) return true
+  const choice = await promptUnsavedLeave()
+  if (choice === "cancel") return false
+  if (choice === "save") {
+   const ok = await saveClass()
+   return ok
+  }
+  resetEditFormFromClass()
+  return true
+ }, [cls, form, gradeSelections, promptUnsavedLeave, resetEditFormFromClass])
+
+ const requestLeavePage = useCallback(async () => {
+  if (editOpen) {
+   const canClose = await requestCloseEdit()
+   if (!canClose) return
+   setEditOpen(false)
+   setEditErr(null)
+  }
+  navigate("/Classes")
+ }, [editOpen, requestCloseEdit, navigate])
 
  const addSched = async () => {
   if (!cls) return
@@ -306,7 +413,7 @@ export function ClassDetailView() {
   )
  }
 
-const tabCounts = { st: students.length, sc: schedules.length }
+const tabCounts = { st: students.length, ev: enrollmentEvents.length, sc: schedules.length }
 const addableStudents = (() => {
   const enrolledIds = new Set(students.map((s) => s.studentId))
   const q = studentQuery.trim().toLowerCase()
@@ -376,7 +483,7 @@ const addableStudents = (() => {
  return (
   <DetailLayerShell
    variant="student"
-   onDismiss={() => navigate("/Classes")}
+   onDismiss={() => void requestLeavePage()}
    layerLabel="班別詳情 · 次層檢視"
   >
    <div className="flex min-h-full flex-col bg-background">
@@ -387,7 +494,7 @@ const addableStudents = (() => {
       variant="secondary"
       size="sm"
       className="bg-white/90 text-foreground hover:bg-white"
-      onClick={() => navigate("/Classes")}
+      onClick={() => void requestLeavePage()}
      >
       <ArrowLeft className="h-4 w-4" />
       返回
@@ -593,49 +700,50 @@ const addableStudents = (() => {
         </Link>
        ))
       )}
+     </div>
+    ) : null}
 
-      <div className="mt-8 border-t border-border pt-6">
-       <h3 className="mb-3 text-sm font-semibold text-foreground">增退紀錄</h3>
-       <p className="mb-3 text-xs text-muted-foreground">
-        顯示此班別的報讀與退讀事件（含生效日）。表格定義於{" "}
-        <code className="rounded bg-muted px-1">20260418120000_baseline.sql</code>；種子見{" "}
-        <code className="rounded bg-muted px-1">supabase/seed.sql</code>。
-       </p>
-       {enrollmentEvents.length === 0 ? (
-        <p className="text-sm text-muted-foreground">尚無增退紀錄。</p>
-       ) : (
-        <ul className="space-y-2">
-         {enrollmentEvents.map((ev) => (
-          <li
-           key={ev.id}
-           className={cn(
-            "flex flex-col gap-1 rounded-lg border px-3 py-2.5 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
-            ev.action === "withdraw"
-             ? "border-amber-200 bg-amber-50/70"
-             : "border-info bg-info/70"
-           )}
-          >
-           <div className="min-w-0">
-            <Link
-             to={`/Students/${ev.studentId}`}
-             className="font-medium text-primary hover:underline"
-            >
-             {ev.studentName}
-            </Link>
-            <span className="text-muted-foreground">
-             {" "}
-             · {ev.action === "withdraw" ? "退讀" : "報讀"} · 生效{" "}
-             <span className="tabular-nums">{ev.effectiveDate}</span>
-            </span>
-           </div>
-           {ev.reason ? (
-            <span className="text-xs text-muted-foreground">原因：{ev.reason}</span>
-           ) : null}
-          </li>
-         ))}
-        </ul>
-       )}
-      </div>
+    {tab === "enrollment" ? (
+     <div className="mx-auto max-w-2xl space-y-4">
+      <p className="text-sm text-muted-foreground">
+       此班別的報讀與退讀事件（依生效日新到舊排列）。
+      </p>
+      {enrollmentEvents.length === 0 ? (
+       <p className="text-sm text-muted-foreground">尚無增退紀錄。</p>
+      ) : (
+       <ul className="space-y-2">
+        {enrollmentEvents.map((ev) => (
+         <li
+          key={ev.id}
+          className={cn(
+           "flex flex-col gap-2 rounded-xl border bg-card px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between",
+           ev.action === "withdraw" ? "border-warning/50" : "border-info/50"
+          )}
+         >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+           <Tag tone={ev.action === "withdraw" ? "warning" : "info"} size="sm">
+            {ev.action === "withdraw" ? "退讀" : "報讀"}
+           </Tag>
+           <Link
+            to={`/Students/${ev.studentId}`}
+            className="font-medium text-primary hover:underline"
+           >
+            {ev.studentName}
+           </Link>
+           <span className="text-muted-foreground">
+            · 生效{" "}
+            <span className="font-medium tabular-nums text-foreground">{ev.effectiveDate}</span>
+           </span>
+          </div>
+          {ev.reason ? (
+           <span className="text-xs text-muted-foreground sm:max-w-[40%] sm:text-right">
+            原因：{ev.reason}
+           </span>
+          ) : null}
+         </li>
+        ))}
+       </ul>
+      )}
      </div>
     ) : null}
 
@@ -780,8 +888,16 @@ const addableStudents = (() => {
    <Dialog
     open={editOpen}
     onOpenChange={(open) => {
-     setEditOpen(open)
-     if (!open) setEditErr(null)
+     if (open) {
+      setEditOpen(true)
+      return
+     }
+     void (async () => {
+      if (await requestCloseEdit()) {
+       setEditOpen(false)
+       setEditErr(null)
+      }
+     })()
     }}
    >
     <DialogContent className="max-h-[90vh] overflow-y-auto">
@@ -829,10 +945,13 @@ const addableStudents = (() => {
        <div>
         <label className="text-xs text-muted-foreground">課程 ID（course_id）</label>
         <Input
-         className="mt-1 font-mono"
-         value={form.course_id ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, course_id: e.target.value }))}
+         className="mt-1 cursor-not-allowed bg-muted font-mono text-foreground"
+         value={cls.course_id ?? "—"}
+         readOnly
+         tabIndex={-1}
+         aria-readonly="true"
         />
+        <p className="mt-1 text-xs text-muted-foreground">由系統指定，不可修改。</p>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">班號（section_code）</label>
@@ -844,24 +963,24 @@ const addableStudents = (() => {
        </div>
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">年級（可多選）</label>
-        <Select
-         multiple
-         size={8}
-         className="mt-1 min-h-[8.5rem] w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-         value={gradeSelections}
-         onChange={(e) =>
-          setGradeSelections(Array.from(e.target.selectedOptions, (o) => o.value))
-         }
-        >
+        <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
          {CLASS_GRADE_FORM_OPTIONS.map((g) => (
-          <option key={g} value={g}>
+          <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
+           <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={gradeSelections.includes(g)}
+            onChange={() =>
+             setGradeSelections((prev) =>
+              prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+             )
+            }
+           />
            {g}
-          </option>
+          </label>
          ))}
-        </Select>
-        <p className="mt-1 text-xs text-muted-foreground">
-         按住 Cmd（Mac）或 Ctrl（Windows）可複選；未選表示不寫入年級（清空）。
-        </p>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">逢星期</label>
@@ -1037,12 +1156,51 @@ const addableStudents = (() => {
         <Button type="button" disabled={savingEdit} onClick={() => void saveClass()}>
          {savingEdit ? "儲存中…" : "儲存"}
         </Button>
-        <Button type="button" variant="outline" disabled={savingEdit} onClick={() => setEditOpen(false)}>
+        <Button
+         type="button"
+         variant="outline"
+         disabled={savingEdit}
+         onClick={() =>
+          void (async () => {
+           if (await requestCloseEdit()) {
+            setEditOpen(false)
+            setEditErr(null)
+           }
+          })()
+         }
+        >
          取消
         </Button>
        </div>
       </div>
      ) : null}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={unsavedLeaveOpen}
+    onOpenChange={(open) => {
+     if (!open) finishUnsavedLeave("cancel")
+    }}
+   >
+    <DialogContent className="max-w-md">
+     <DialogHeader>
+      <DialogTitle>有未儲存的變更</DialogTitle>
+     </DialogHeader>
+     <p className="text-sm text-muted-foreground">
+      班別資料已修改但尚未儲存。要儲存後離開，還是放棄變更？
+     </p>
+     <div className="mt-6 flex flex-wrap justify-end gap-2">
+      <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("cancel")}>
+       繼續編輯
+      </Button>
+      <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("discard")}>
+       放棄變更
+      </Button>
+      <Button type="button" onClick={() => finishUnsavedLeave("save")}>
+       儲存並離開
+      </Button>
+     </div>
     </DialogContent>
    </Dialog>
   </div>

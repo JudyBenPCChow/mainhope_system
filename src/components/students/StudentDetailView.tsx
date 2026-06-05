@@ -33,6 +33,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/calendarQueries"
 import { fetchTotalPaidLessonsForStudent } from "@/services/paymentQueries"
 import {
@@ -1029,8 +1030,7 @@ const exportFutureSchedulesCsv = () => {
              to={`/Classes/${e.classId}`}
              className="text-primary hover:underline"
             >
-             {e.subject}
-             {e.courseCode ? ` ${e.courseCode}` : ""}
+             {formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })}
             </Link>
            </div>
            <div className="mt-1 text-sm text-muted-foreground">
@@ -1096,8 +1096,11 @@ const exportFutureSchedulesCsv = () => {
            <strong className="tabular-nums">{localTodayYmd()}</strong> 起退出以下班別？此操作會移除報讀並寫入更動紀錄。
           </p>
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
-           {withdrawTarget.subject}
-           {withdrawTarget.courseCode ? `（${withdrawTarget.courseCode}）` : ""}
+           {formatClassLabel({
+            subject: withdrawTarget.subject,
+            courseCode: withdrawTarget.courseCode,
+            courseName: withdrawTarget.courseName,
+           })}
           </div>
           <Field label="退讀原因（選填）">
            <Textarea

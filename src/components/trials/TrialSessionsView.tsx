@@ -166,7 +166,7 @@ export function TrialSessionsView() {
  }, [rows])
 
  const statusCounts = useMemo(() => {
-  let all = rows.length
+  const all = rows.length
   let booked = 0
   let done = 0
   let cancel = 0
@@ -180,7 +180,7 @@ export function TrialSessionsView() {
  }, [rows])
 
  const typeCounts = useMemo(() => {
-  let all = rows.length
+  const all = rows.length
   let free = 0
   let half = 0
   let full = 0

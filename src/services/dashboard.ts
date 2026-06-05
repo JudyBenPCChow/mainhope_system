@@ -7,6 +7,7 @@ import {
  parseHm,
 } from "@/lib/lessonSlots"
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
 
 export type UnpaidRow = {
@@ -160,7 +161,7 @@ function scheduleOverlapsLessonSlot(
 }
 
 const SCHEDULE_BOARD_SELECT =
- "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code, grade ), teachers ( full_name ), classrooms ( name )"
+ "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code, grade, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
 
 async function loadEnrollmentNameMapForClassIds(
  classIds: string[]
@@ -208,7 +209,9 @@ function mapScheduleRowsToTodaySchedules(
      ? row.remarks.trim()
      : "課程"
   const code = typeof cls?.course_code === "string" ? cls.course_code : ""
-  const title = code ? `${sub}（${code}）` : sub
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const title = formatClassLabel({ subject: sub, courseCode: code, courseName })
   const tch = row.teachers as Record<string, unknown> | null | undefined
   const teacherName = typeof tch?.full_name === "string" ? tch.full_name : "—"
   const st = row.start_time != null ? String(row.start_time) : ""
@@ -233,7 +236,9 @@ function mapScheduleRowsToDashboardClassCards(
   const rem = row.remarks != null ? String(row.remarks).trim() : ""
   const sub = typeof cls?.subject === "string" ? cls.subject : rem || "課程"
   const code = typeof cls?.course_code === "string" ? cls.course_code : ""
-  const className = code ? `${sub}（${code}）` : sub
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const className = formatClassLabel({ subject: sub, courseCode: code, courseName })
   const tch = row.teachers as Record<string, unknown> | null | undefined
   const teacherName = typeof tch?.full_name === "string" ? tch.full_name : "—"
   const room = row.classrooms as Record<string, unknown> | null | undefined
@@ -302,12 +307,14 @@ function mapLeaveDashboardRow(r: Record<string, unknown>): DashboardTodayLeaveRo
  const en = sc?.end_time != null ? String(sc.end_time) : ""
  const sub = typeof cls?.subject === "string" ? cls.subject : "—"
  const code = typeof cls?.course_code === "string" ? cls.course_code : ""
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
   studentName: st?.full_name != null ? String(st.full_name) : "—",
   studentGrade: st?.grade != null ? String(st.grade) : null,
-  classLabel: code ? `${sub}（${code}）` : sub,
+  classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
   teacherName: tch?.full_name != null ? String(tch.full_name) : null,
   timeRange: stt && en ? `${stt}–${en}` : stt || en || null,
   leaveReason: r.leave_reason != null ? String(r.leave_reason) : null,
@@ -329,7 +336,7 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
 
  try {
   const leaveSelect =
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, students ( full_name, grade ), classes ( subject, course_code, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, leave_date, leave_reason, students ( full_name, grade ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
 
   const [
    todaySchedCountRes,

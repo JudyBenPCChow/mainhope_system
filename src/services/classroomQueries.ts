@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 
 export type RoomRecord = {
  id: string
@@ -37,6 +38,7 @@ export type RoomScheduleRow = {
  class_id: string | null
  subject: string
  course_code: string | null
+ course_name: string | null
  teacher_id: string | null
  teacher_name: string | null
 }
@@ -50,7 +52,7 @@ export async function fetchSchedulesForRoomRange(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code ), teachers ( full_name )"
+   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code, courses ( course_name ) ), teachers ( full_name )"
   )
   .eq("classroom_id", roomId)
   .gte("scheduled_date", fromYmd)
@@ -71,6 +73,10 @@ export async function fetchSchedulesForRoomRange(
    class_id: r.class_id != null ? String(r.class_id) : null,
    subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
    course_code: cls?.course_code != null ? String(cls.course_code) : null,
+   course_name:
+    (cls?.courses as Record<string, unknown> | null)?.course_name != null
+     ? String((cls?.courses as Record<string, unknown>).course_name)
+     : null,
    teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
    teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   }
@@ -81,7 +87,7 @@ export async function fetchClassesUsingRoom(roomId: string): Promise<{ id: strin
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("id, subject, course_code")
+  .select("id, subject, course_code, courses ( course_name )")
   .eq("classroom_id", roomId)
   .order("subject")
  if (error) throw error
@@ -89,9 +95,11 @@ export async function fetchClassesUsingRoom(roomId: string): Promise<{ id: strin
   const row = r as Record<string, unknown>
   const sub = String(row.subject ?? "")
   const code = row.course_code != null ? String(row.course_code) : ""
+  const course = row.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
   return {
    id: String(row.id),
-   label: code ? `${sub}（${code}）` : sub,
+   label: formatClassLabel({ subject: sub, courseCode: code, courseName }),
   }
  })
 }

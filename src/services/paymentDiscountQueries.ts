@@ -106,3 +106,15 @@ export function applyDiscountToSubtotal(subtotal: number, d: PaymentDiscountRow 
  }
  return Math.round(t * 100) / 100
 }
+
+/** 依序套用多項優惠（各項內先百分比再固定減免） */
+export function applyDiscountsToSubtotal(
+ subtotal: number,
+ discounts: PaymentDiscountRow[]
+): number {
+ let t = subtotal
+ for (const d of discounts) {
+  t = applyDiscountToSubtotal(t, d)
+ }
+ return Math.round(t * 100) / 100
+}

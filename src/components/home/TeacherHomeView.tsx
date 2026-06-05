@@ -21,6 +21,7 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -120,7 +121,7 @@ export function TeacherHomeView() {
       const trialRes = await supabase
         .from("trial_sessions")
         .select(
-          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code )"
+          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ) )"
         )
         .in("class_id", classIds)
         .gte("trial_date", today)
@@ -133,10 +134,12 @@ export function TeacherHomeView() {
           const cls = r.classes as Record<string, unknown> | null
           const sub = cls?.subject != null ? String(cls.subject) : "—"
           const code = cls?.course_code != null ? String(cls.course_code) : ""
+          const course = cls?.courses as Record<string, unknown> | null
+          const courseName = course?.course_name != null ? String(course.course_name) : null
           return {
             id: String(r.id),
             studentName: st?.full_name != null ? String(st.full_name) : "—",
-            classLabel: code ? `${sub}（${code}）` : sub,
+            classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
             scheduleId: String(r.schedule_id ?? ""),
             trialDate: String(r.trial_date ?? ""),
             status: String(r.status ?? ""),

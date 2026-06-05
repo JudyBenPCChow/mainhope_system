@@ -153,7 +153,7 @@ function normalizeStudentState(input: {
 } {
  let registration = normalizeRegistrationStatus(input.registration_status)
  let enrollment = normalizeEnrollmentStatus(input.enrollment_status)
- let stage = normalizeAcademicStage(input.academic_stage)
+ const stage = normalizeAcademicStage(input.academic_stage)
  if (registration === "僅查詢") enrollment = "非在讀"
  if (stage === "中學畢業") enrollment = "非在讀"
  if (enrollment === "在讀") registration = "已註冊"
@@ -347,6 +347,7 @@ export type EnrollmentWithClass = {
  classId: string
  subject: string
  courseCode: string | null
+ courseName: string | null
  dayOfWeek: string | null
  timeSlot: string | null
  pricePerLesson: number | null
@@ -359,7 +360,7 @@ export async function fetchEnrollmentsForStudent(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson )"
+   "id, status, enroll_date, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, courses ( price_per_lesson, course_name ) )"
   )
   .eq("student_id", studentId)
   .order("created_at", { ascending: false })
@@ -367,6 +368,15 @@ export async function fetchEnrollmentsForStudent(
  return (data ?? []).map((row) => {
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  const coursePrice = course?.price_per_lesson
+  const classPrice = cls?.price_per_lesson
+  const pricePerLesson =
+   coursePrice != null
+    ? Number(coursePrice)
+    : classPrice != null
+      ? Number(classPrice)
+      : null
   return {
    id: String(r.id),
    status: String(r.status ?? "就讀中"),
@@ -374,10 +384,10 @@ export async function fetchEnrollmentsForStudent(
    classId: String(r.class_id),
    subject: cls?.subject != null ? String(cls.subject) : "—",
    courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+   courseName: course?.course_name != null ? String(course.course_name) : null,
    dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
    timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
-   pricePerLesson:
-    cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : null,
+   pricePerLesson: Number.isFinite(pricePerLesson) ? pricePerLesson : null,
   }
  })
 }

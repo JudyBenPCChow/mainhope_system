@@ -7,6 +7,7 @@ import {
  LESSON_SLOT_DURATION_MIN,
 } from "@/lib/lessonSlots"
 import { insertScheduleRow } from "@/services/classQueries"
+import { formatClassLabel } from "@/lib/courseLabel"
 
 export type RoomOccupant = {
  kind: "schedule" | "pending"
@@ -61,6 +62,7 @@ export function occupiersForSlot(
   status: string
   subject: string
   course_code: string | null
+ course_name?: string | null
   teacher_name: string | null
  }>,
  pending: Array<{
@@ -82,11 +84,12 @@ export function occupiersForSlot(
   if (!iv) continue
   if (!intervalsOverlapMinutes(iv.a, iv.b, slotStart, slotEnd)) continue
   const sub = s.subject
-  const code = s.course_code ? `（${s.course_code}）` : ""
+  const code = s.course_code
+  const courseName = s.course_name ?? null
   out.push({
    kind: "schedule",
    id: s.id,
-   label: `${sub}${code}`,
+   label: formatClassLabel({ subject: sub, courseCode: code, courseName }),
    teacherName: s.teacher_name,
    statusNote: s.status,
   })
@@ -122,6 +125,7 @@ export async function fetchSchedulesForRoomCalendar(
   status: string
   subject: string
   course_code: string | null
+ course_name?: string | null
   teacher_name: string | null
  }>
 > {
@@ -129,7 +133,7 @@ export async function fetchSchedulesForRoomCalendar(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code ), teachers ( full_name )"
+   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code, courses ( course_name ) ), teachers ( full_name )"
   )
   .in("classroom_id", roomIds)
   .gte("scheduled_date", fromYmd)
@@ -150,6 +154,10 @@ export async function fetchSchedulesForRoomCalendar(
    status: String(r.status ?? ""),
    subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
    course_code: cls?.course_code != null ? String(cls.course_code) : null,
+   course_name:
+    (cls?.courses as Record<string, unknown> | null)?.course_name != null
+     ? String((cls?.courses as Record<string, unknown>).course_name)
+     : null,
    teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   }
  })
@@ -174,7 +182,7 @@ export async function fetchPendingBookingRequestsDetailed(
  const { data, error } = await supabase
   .from("classroom_booking_requests")
   .select(
-   "id, classroom_id, scheduled_date, start_time, end_time, is_other, teachers ( full_name ), classes ( subject, course_code )"
+   "id, classroom_id, scheduled_date, start_time, end_time, is_other, teachers ( full_name ), classes ( subject, course_code, courses ( course_name ) )"
   )
   .eq("status", "待審批")
   .gte("scheduled_date", fromYmd)
@@ -186,7 +194,9 @@ export async function fetchPendingBookingRequestsDetailed(
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : ""
   const code = cls?.course_code != null ? String(cls.course_code) : ""
-  const targetLabel = sub ? (code ? `${sub}（${code}）` : sub) : null
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const targetLabel = sub ? formatClassLabel({ subject: sub, courseCode: code, courseName }) : null
   return {
    id: String(r.id),
    classroom_id: String(r.classroom_id ?? ""),
@@ -230,7 +240,7 @@ export async function fetchAllPendingRoomBookingRequests(): Promise<RoomBookingR
  const { data, error } = await supabase
   .from("classroom_booking_requests")
   .select(
-   "id, requesting_teacher_id, classroom_id, scheduled_date, start_time, end_time, target_class_id, is_other, reason, status, created_at, teachers ( full_name ), classrooms ( name ), classes ( subject, course_code )"
+   "id, requesting_teacher_id, classroom_id, scheduled_date, start_time, end_time, target_class_id, is_other, reason, status, created_at, teachers ( full_name ), classrooms ( name ), classes ( subject, course_code, courses ( course_name ) )"
   )
   .eq("status", "待審批")
   .order("scheduled_date", { ascending: true })
@@ -243,7 +253,9 @@ export async function fetchAllPendingRoomBookingRequests(): Promise<RoomBookingR
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : ""
   const code = cls?.course_code != null ? String(cls.course_code) : ""
-  const targetLabel = sub ? (code ? `${sub}（${code}）` : sub) : null
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const targetLabel = sub ? formatClassLabel({ subject: sub, courseCode: code, courseName }) : null
   const tid = r.target_class_id != null ? String(r.target_class_id) : null
   return {
    id: String(r.id),

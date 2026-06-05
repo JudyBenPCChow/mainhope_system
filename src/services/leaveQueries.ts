@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
@@ -204,7 +205,7 @@ export async function fetchLeaveRowsForClassIds(
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code, course_code_full )"
+   "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code, course_code_full, courses ( course_name ) )"
   )
   .in("class_id", classIds)
   .order("leave_date", { ascending: false })
@@ -221,10 +222,12 @@ export async function fetchLeaveRowsForClassIds(
     : cls?.course_code != null
       ? String(cls.course_code)
       : ""
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
   return {
    id: String(r.id),
    studentName: st?.full_name != null ? String(st.full_name) : "—",
-   classLabel: code ? `${sub}（${code}）` : sub,
+   classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
    leaveDate: String(r.leave_date ?? ""),
    leaveReason: r.leave_reason != null ? String(r.leave_reason) : null,
    makeupType: r.makeup_type != null ? String(r.makeup_type) : null,

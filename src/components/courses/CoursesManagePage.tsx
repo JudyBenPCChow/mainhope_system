@@ -30,6 +30,7 @@ export function CoursesManagePage() {
   subject_id: "",
   grade_code: "S1",
   course_seq: "1",
+ course_name: "",
   price_per_lesson: "",
  })
 
@@ -65,6 +66,7 @@ export function CoursesManagePage() {
    subject_id: subjects[0]?.id ?? "",
    grade_code: "S1",
    course_seq: String(DEFAULT_COURSE_SEQ),
+  course_name: "",
    price_per_lesson: "",
   })
   setOpen(true)
@@ -76,6 +78,7 @@ export function CoursesManagePage() {
    subject_id: row.subject_id,
    grade_code: row.grade_code,
    course_seq: String(row.course_seq),
+  course_name: row.course_name ?? "",
    price_per_lesson: row.price_per_lesson != null ? String(row.price_per_lesson) : "",
   })
   setOpen(true)
@@ -105,6 +108,7 @@ export function CoursesManagePage() {
      subject_id: form.subject_id,
      grade_code: form.grade_code,
      course_seq: seq,
+    course_name: form.course_name,
      price_per_lesson: price,
     })
    } else {
@@ -112,6 +116,7 @@ export function CoursesManagePage() {
      subject_id: form.subject_id,
      grade_code: form.grade_code,
      course_seq: seq,
+    course_name: form.course_name,
      price_per_lesson: price,
     })
    }
@@ -143,6 +148,7 @@ export function CoursesManagePage() {
       <thead>
        <tr className="border-b border-border bg-muted/50 text-left">
         <th className="px-4 py-3 font-medium">課程模板</th>
+        <th className="px-3 py-3 font-medium">課程名稱</th>
         <th className="px-3 py-3 font-medium">科目</th>
         <th className="px-3 py-3 font-medium">年級碼</th>
         <th className="px-3 py-3 font-medium">課程序號</th>
@@ -152,13 +158,14 @@ export function CoursesManagePage() {
       </thead>
       <tbody>
        {loading ? (
-        <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
+        <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
        ) : rows.length === 0 ? (
-        <tr><td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
+        <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
        ) : (
         rows.map((r) => (
          <tr key={r.id} className="border-b border-border">
           <td className="px-4 py-3 font-mono text-xs">{r.course_code_base}</td>
+          <td className="px-3 py-3">{r.course_name?.trim() || "—"}</td>
           <td className="px-3 py-3">{subjectLabelById.get(r.subject_id) ?? r.subject_name_zh}</td>
           <td className="px-3 py-3">{r.grade_code}</td>
           <td className="px-3 py-3">{r.course_seq}</td>
@@ -216,6 +223,15 @@ export function CoursesManagePage() {
         step={1}
         value={form.course_seq}
         onChange={(e) => setForm((f) => ({ ...f, course_seq: e.target.value }))}
+       />
+      </div>
+      <div>
+       <label className="text-xs text-muted-foreground">課程名稱</label>
+       <Input
+        className="mt-1"
+        value={form.course_name}
+        onChange={(e) => setForm((f) => ({ ...f, course_name: e.target.value }))}
+        placeholder="例如：中四中國歷史精修班"
        />
       </div>
       <div>

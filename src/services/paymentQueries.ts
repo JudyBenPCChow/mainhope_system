@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 
 const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "其他"] as const
 export const PAYMENT_METHOD_PRESETS = [...METHOD_OPTIONS]
@@ -134,7 +135,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
 
  const { data: det, error: e2 } = await supabase
   .from("payment_details")
-  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code )")
+  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code, courses ( course_name ) )")
   .eq("payment_id", id)
  if (e2) throw e2
 
@@ -143,10 +144,12 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
   const code = cls?.course_code != null ? String(cls.course_code) : ""
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : null,
-   classLabel: code ? `${sub}（${code}）` : sub,
+   classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
    lessonCount: r.lesson_count != null ? Number(r.lesson_count) : null,
    amount: r.amount != null ? Number(r.amount) : null,
    description: r.description != null ? String(r.description) : null,

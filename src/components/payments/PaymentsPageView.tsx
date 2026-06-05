@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -43,7 +44,7 @@ import {
  type PaymentListRow,
 } from "@/services/paymentQueries"
 import {
- applyDiscountToSubtotal,
+ applyDiscountsToSubtotal,
  fetchActivePaymentDiscounts,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
@@ -56,6 +57,8 @@ import {
 
 type MainTab = "receive" | "invoice" | "history"
 
+const DEFAULT_LESSON_COUNT = "4"
+
 type LineRow = {
  key: string
  classId: string
@@ -67,13 +70,20 @@ function newLine(): LineRow {
  return {
   key: crypto.randomUUID(),
   classId: "",
-  lessons: "",
+  lessons: DEFAULT_LESSON_COUNT,
   amount: "",
  }
 }
 
 function money(n: number) {
  return new Intl.NumberFormat("zh-Hant", { style: "currency", currency: "HKD" }).format(n)
+}
+
+function discountOptionLabel(d: PaymentDiscountRow) {
+ const bits = [d.name]
+ if (d.percentOff != null && d.percentOff > 0) bits.push(`-${d.percentOff}%`)
+ if (d.amountOff != null && d.amountOff > 0) bits.push(`-$${d.amountOff}`)
+ return bits.join(" ")
 }
 
 function escHtml(s: string) {
@@ -215,7 +225,7 @@ export function PaymentsPageView() {
  const [lines, setLines] = useState<LineRow[]>([])
 
  const [discounts, setDiscounts] = useState<PaymentDiscountRow[]>([])
- const [discountId, setDiscountId] = useState("")
+ const [discountIds, setDiscountIds] = useState<string[]>([])
 
  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
  const [method, setMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
@@ -291,14 +301,14 @@ export function PaymentsPageView() {
   return Math.round(s * 100) / 100
  }, [lines])
 
- const selectedDiscount = useMemo(
-  () => (discountId ? (discounts.find((d) => d.id === discountId) ?? null) : null),
-  [discountId, discounts]
+ const selectedDiscounts = useMemo(
+  () => discounts.filter((d) => discountIds.includes(d.id)),
+  [discountIds, discounts]
  )
 
  const totalDue = useMemo(
-  () => applyDiscountToSubtotal(subtotal, selectedDiscount),
-  [subtotal, selectedDiscount]
+  () => applyDiscountsToSubtotal(subtotal, selectedDiscounts),
+  [subtotal, selectedDiscounts]
  )
 
  const loadBasics = useCallback(async () => {
@@ -357,7 +367,7 @@ export function PaymentsPageView() {
    const list = await fetchEnrollmentsForStudent(studentId)
    setEnrollments(list)
    setLines([newLine()])
-   setDiscountId("")
+   setDiscountIds([])
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadEnrollments", setErr: setFormErr })
    setEnrollments([])
@@ -373,7 +383,7 @@ export function PaymentsPageView() {
   } else {
    setEnrollments([])
    setLines([])
-   setDiscountId("")
+   setDiscountIds([])
   }
  }, [selectedStudent, loadEnrollments])
 
@@ -434,9 +444,14 @@ const academicYearOptions = useMemo(() => {
      if (l.key !== key) return l
      const next = { ...l, ...patch }
      if (patch.classId !== undefined && !patch.classId) {
-      next.lessons = ""
+      next.lessons = DEFAULT_LESSON_COUNT
       next.amount = ""
       return next
+     }
+     if (patch.classId !== undefined && patch.classId) {
+      if (!next.lessons || next.lessons.trim() === "") {
+       next.lessons = DEFAULT_LESSON_COUNT
+      }
      }
      if (patch.classId !== undefined || patch.lessons !== undefined) {
       next.amount = lineAmountFor(next.classId, next.lessons, enrollmentByClass)
@@ -448,7 +463,37 @@ const academicYearOptions = useMemo(() => {
   [enrollmentByClass]
  )
 
- const addLine = () => setLines((prev) => [...prev, newLine()])
+ const enrollmentsForLine = useCallback(
+  (rowKey: string, currentClassId: string) => {
+   const taken = new Set(
+    lines.filter((l) => l.key !== rowKey && l.classId).map((l) => l.classId)
+   )
+   return enrollments.filter((e) => e.classId === currentClassId || !taken.has(e.classId))
+  },
+  [lines, enrollments]
+ )
+
+ const canAddLine = lines.length < enrollments.length
+
+ const addLine = () => {
+  if (!canAddLine) return
+  setLines((prev) => [...prev, newLine()])
+ }
+
+ const toggleDiscount = (id: string) => {
+  setDiscountIds((prev) =>
+   prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  )
+ }
+
+ const buildRemarksForSave = (): string | null => {
+  const parts: string[] = []
+  if (remarks.trim()) parts.push(remarks.trim())
+  if (selectedDiscounts.length > 0) {
+   parts.push(`[優惠] ${selectedDiscounts.map((d) => discountOptionLabel(d)).join("；")}`)
+  }
+  return parts.length > 0 ? parts.join("\n") : null
+ }
  const removeLine = (key: string) =>
   setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)))
 
@@ -458,9 +503,7 @@ const academicYearOptions = useMemo(() => {
    .map((l) => {
     const e = enrollmentByClass.get(l.classId)
     const amt = Number(l.amount)
-    const desc = e
-     ? `${e.subject}${e.courseCode ? `（${e.courseCode}）` : ""}`
-     : null
+   const desc = e ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName }) : null
     return {
      classId: l.classId,
      lessonCount: Number(l.lessons),
@@ -497,9 +540,9 @@ const academicYearOptions = useMemo(() => {
     totalAmount: totalDue,
     paymentMethod: method,
     status: PAYMENT_STATUS.received,
-    remarks: remarks.trim() || null,
+    remarks: buildRemarksForSave(),
     receiptKind: "RC",
-    discountId: discountId || null,
+    discountId: discountIds[0] || null,
     details: buildDetailInputs(),
    })
    if (printAfterReceive) {
@@ -509,7 +552,7 @@ const academicYearOptions = useMemo(() => {
     }
    }
    setRemarks("")
-   setDiscountId("")
+   setDiscountIds([])
    if (selectedStudent) void loadEnrollments(selectedStudent.id)
    setFormOk("已登記收款。")
    window.setTimeout(() => setFormOk(null), 5000)
@@ -539,9 +582,9 @@ const academicYearOptions = useMemo(() => {
     totalAmount: totalDue,
     paymentMethod: method,
     status: invoiceStatus,
-    remarks: remarks.trim() || null,
+    remarks: buildRemarksForSave(),
     receiptKind: "INV",
-    discountId: discountId || null,
+    discountId: discountIds[0] || null,
     details: buildDetailInputs(),
    })
    if (printAfterInvoice) {
@@ -551,7 +594,7 @@ const academicYearOptions = useMemo(() => {
     }
    }
    setRemarks("")
-   setDiscountId("")
+   setDiscountIds([])
    if (selectedStudent) void loadEnrollments(selectedStudent.id)
    setFormOk("已建立待繳／通知單。")
    window.setTimeout(() => setFormOk(null), 5000)
@@ -638,13 +681,6 @@ const academicYearOptions = useMemo(() => {
  const enrollmentLabel = (e: EnrollmentWithClass) => {
   const bits = [e.subject, e.courseCode, e.dayOfWeek, e.timeSlot].filter(Boolean)
   return bits.join(" · ")
- }
-
- const discountOptionLabel = (d: PaymentDiscountRow) => {
-  const bits = [d.name]
-  if (d.percentOff != null && d.percentOff > 0) bits.push(`-${d.percentOff}%`)
-  if (d.amountOff != null && d.amountOff > 0) bits.push(`-$${d.amountOff}`)
-  return bits.join(" ")
  }
 
  return (
@@ -839,7 +875,14 @@ const academicYearOptions = useMemo(() => {
         <div className="space-y-3">
          <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm font-medium">收費項目（已報讀班別）</span>
-          <Button type="button" variant="outline" size="sm" onClick={addLine}>
+          <Button
+           type="button"
+           variant="outline"
+           size="sm"
+           onClick={addLine}
+           disabled={!canAddLine}
+           title={canAddLine ? undefined : "所有報讀班別皆已加入收費項目"}
+          >
            <Plus className="h-4 w-4" />
            新增班別
           </Button>
@@ -857,7 +900,7 @@ const academicYearOptions = useMemo(() => {
               onChange={(e) => updateLine(row.key, { classId: e.target.value })}
              >
               <option value="">請選擇</option>
-              {enrollments.map((e) => (
+              {enrollmentsForLine(row.key, row.classId).map((e) => (
                <option key={e.classId} value={e.classId}>
                 {enrollmentLabel(e)}
                </option>
@@ -905,22 +948,32 @@ const academicYearOptions = useMemo(() => {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-       <FormField label="優惠">
-        <Select
-         className={selectClassName()}
-         value={discountId}
-         onChange={(e) => setDiscountId(e.target.value)}
-         disabled={!selectedStudent || enrollments.length === 0}
+       <FormField label="優惠（可多選）">
+        <div
+         className={cn(
+          "max-h-40 space-y-2 overflow-y-auto rounded-md border border-input bg-background p-3",
+          (!selectedStudent || enrollments.length === 0) && "opacity-60"
+         )}
         >
-         <option value="">無優惠</option>
-         {discounts.map((d) => (
-          <option key={d.id} value={d.id}>
-           {discountOptionLabel(d)}
-          </option>
-         ))}
-        </Select>
+         {discounts.length === 0 ? (
+          <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
+         ) : (
+          discounts.map((d) => (
+           <label key={d.id} className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+             type="checkbox"
+             className="h-4 w-4 rounded border-input"
+             checked={discountIds.includes(d.id)}
+             disabled={!selectedStudent || enrollments.length === 0}
+             onChange={() => toggleDiscount(d.id)}
+            />
+            {discountOptionLabel(d)}
+           </label>
+          ))
+         )}
+        </div>
         <p className="text-xs text-muted-foreground">
-         優惠項目由外星人於「優惠折扣」維護；先計百分比減免，再減固定金額。
+         優惠項目由外星人於「優惠折扣」維護；依序套用（各項先百分比減免，再減固定金額）。
         </p>
        </FormField>
        <FormField label="日期 *">
@@ -933,16 +986,22 @@ const academicYearOptions = useMemo(() => {
         <span className="text-muted-foreground">項目小計</span>
         <span className="tabular-nums font-medium">{money(subtotal)}</span>
        </div>
-       {selectedDiscount ? (
-        <div className="mt-1 flex justify-between gap-2 text-muted-foreground">
-         <span>優惠：{selectedDiscount.name}</span>
-         <span className="tabular-nums">
-          {totalDue !== subtotal
-           ? `→ ${money(totalDue)}`
-           : selectedDiscount.percentOff == null && selectedDiscount.amountOff == null
-            ? "（僅註記）"
-            : "—"}
-         </span>
+       {selectedDiscounts.length > 0 ? (
+        <div className="mt-1 space-y-1 text-muted-foreground">
+         {selectedDiscounts.map((d) => (
+          <div key={d.id} className="flex justify-between gap-2">
+           <span>優惠：{d.name}</span>
+           <span className="tabular-nums">
+            {d.percentOff == null && d.amountOff == null ? "（僅註記）" : ""}
+           </span>
+          </div>
+         ))}
+         {totalDue !== subtotal ? (
+          <div className="flex justify-between gap-2 font-medium text-foreground">
+           <span>優惠後小計</span>
+           <span className="tabular-nums">{money(totalDue)}</span>
+          </div>
+         ) : null}
         </div>
        ) : null}
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
@@ -1014,8 +1073,9 @@ const academicYearOptions = useMemo(() => {
     <aside className="space-y-3 rounded-xl border border-warning/60 bg-warning p-4 text-sm text-warning-foreground dark:border-warning/40 dark:bg-warning/80 dark:text-warning-foreground">
      <p className="font-medium text-warning-foreground dark:text-warning-foreground">小提示</p>
      <ul className="list-inside list-disc space-y-2 text-warning-foreground/90 dark:text-warning-foreground/90">
-       <li>班別僅顯示該生「報讀中」班級；金額預設為班級每堂單價 × 堂數（可再手改）。</li>
-       <li>「+ 新增班別」可同一張單據收多班費用。</li>
+       <li>班別僅顯示該生「報讀中」班級；堂數預設 4 堂，金額依每堂單價自動計算（可再手改）。</li>
+       <li>同一張單據可收多班費用，但每個班別只能選一次。</li>
+       <li>優惠可複選，依序套用百分比與固定減免。</li>
        <li>單據編號由系統自動產生，無法手動輸入。</li>
        <li>優惠選項由外星人在側欄「優惠折扣」設定。</li>
       </ul>

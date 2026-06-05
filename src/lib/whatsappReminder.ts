@@ -45,6 +45,7 @@ export type LessonReminderPayload = {
  studentName: string
  subject: string
  courseCode?: string | null
+ courseName?: string | null
  dateYmd: string
  startTime?: string | null
  endTime?: string | null
@@ -61,7 +62,8 @@ export function buildLessonReminderMessage(p: LessonReminderPayload): string {
  lines.push(`您好，這裡是明學補習社通知。`)
  lines.push("")
  lines.push(`${who} 今日課堂提醒：`)
- const title = p.courseCode ? `${p.subject}（${p.courseCode}）` : p.subject
+ const head = p.courseName?.trim() ? p.courseName.trim() : p.subject
+ const title = p.courseCode ? `${head}（${p.courseCode}）` : head
  lines.push(`班別：${title}`)
  lines.push(`日期：${p.dateYmd}`)
  const time =

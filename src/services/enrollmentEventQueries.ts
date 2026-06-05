@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 
 /** 全站增退紀錄列表列 */
 export type EnrollmentChangeListRow = {
@@ -21,6 +22,8 @@ function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
  const tch = cls?.teachers as Record<string, unknown> | null | undefined
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const code = cls?.course_code != null ? String(cls.course_code) : ""
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
  return {
   id: String(r.id),
   action: r.action === "withdraw" ? "withdraw" : "enroll",
@@ -31,7 +34,7 @@ function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
   studentId: String(r.student_id),
   studentName: st?.full_name != null ? String(st.full_name) : "—",
   classId: String(r.class_id),
-  classLabel: code ? `${sub}（${code}）` : sub,
+  classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
   teacherName: tch?.full_name != null ? String(tch.full_name) : null,
  }
 }
@@ -54,7 +57,7 @@ export async function fetchEnrollmentChangeEventsList(
  let q = supabase
   .from("enrollment_change_events")
   .select(
-   "id, action, effective_date, reason, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, teachers ( full_name ) )"
+   "id, action, effective_date, reason, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) )"
   )
   .order("effective_date", { ascending: false })
   .order("created_at", { ascending: false })
