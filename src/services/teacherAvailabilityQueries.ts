@@ -1,0 +1,269 @@
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import { supabase } from "@/lib/supabaseClient"
+import { weekdayLabelFromYmd } from "@/lib/weekdayUtils"
+import { KANBAN_DAY_COLUMNS } from "@/components/classes/classesUi"
+import { CLASS_TIME_SLOT_OPTIONS } from "@/components/classes/classesUi"
+
+function timeSlotsEqual(a: string, b: string): boolean {
+ return a === b || a.replace(/\u2013/g, "-") === b.replace(/\u2013/g, "-")
+}
+
+export type TeacherAvailabilitySlot = {
+ id: string
+ teacher_id: string
+ teacher_name: string | null
+ teacher_abbr: string | null
+ academic_year_id: string
+ academic_year_label: string | null
+ available_date: string
+ time_slot: string
+ notes: string | null
+ status: string
+ assigned_class_id: string | null
+}
+
+export type AvailabilityPatternCell = {
+ day_of_week: string
+ time_slot: string
+ dates: string[]
+ count: number
+}
+
+export type AcademicYearRange = {
+ id: string
+ label: string
+ start_date: string
+ end_date: string
+ is_current: boolean
+}
+
+function mapSlot(row: Record<string, unknown>): TeacherAvailabilitySlot {
+ const t = row.teachers as Record<string, unknown> | null
+ const y = row.academic_years as Record<string, unknown> | null
+ return {
+  id: String(row.id),
+  teacher_id: String(row.teacher_id),
+  teacher_name: t?.full_name != null ? String(t.full_name) : null,
+  teacher_abbr: t?.abbr != null ? String(t.abbr) : null,
+  academic_year_id: String(row.academic_year_id),
+  academic_year_label: y?.label != null ? String(y.label) : null,
+  available_date: String(row.available_date ?? ""),
+  time_slot: String(row.time_slot ?? ""),
+  notes: row.notes != null ? String(row.notes) : null,
+  status: String(row.status ?? "可分配"),
+  assigned_class_id: row.assigned_class_id != null ? String(row.assigned_class_id) : null,
+ }
+}
+
+export async function fetchAcademicYearsWithDates(): Promise<AcademicYearRange[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("academic_years")
+  .select("id, label, start_date, end_date, is_current")
+  .order("start_date", { ascending: false })
+ if (error) throw new Error(formatUnknownError(error))
+ return (data ?? []).map((r) => {
+  const row = r as Record<string, unknown>
+  return {
+   id: String(row.id),
+   label: String(row.label ?? ""),
+   start_date: String(row.start_date ?? ""),
+   end_date: String(row.end_date ?? ""),
+   is_current: Boolean(row.is_current),
+  }
+ })
+}
+
+export async function fetchAvailabilityInRange(
+ fromYmd: string,
+ toYmd: string,
+ filters?: { academicYearId?: string; teacherId?: string; status?: string }
+): Promise<TeacherAvailabilitySlot[]> {
+ if (!supabase) return []
+ let q = supabase
+  .from("teacher_availability_slots")
+  .select(
+   "*, teachers ( id, full_name, abbr ), academic_years ( id, label )"
+  )
+  .gte("available_date", fromYmd)
+  .lte("available_date", toYmd)
+  .order("available_date", { ascending: true })
+  .order("time_slot", { ascending: true })
+ if (filters?.academicYearId) q = q.eq("academic_year_id", filters.academicYearId)
+ if (filters?.teacherId) q = q.eq("teacher_id", filters.teacherId)
+ if (filters?.status) q = q.eq("status", filters.status)
+ const { data, error } = await q
+ if (error) throw new Error(formatUnknownError(error))
+ return (data ?? []).map((r) => mapSlot(r as Record<string, unknown>))
+}
+
+export async function fetchAvailabilityPatternSummary(
+ teacherId: string,
+ academicYearId: string
+): Promise<AvailabilityPatternCell[]> {
+ const years = await fetchAcademicYearsWithDates()
+ const year = years.find((y) => y.id === academicYearId)
+ if (!year) return []
+ const slots = await fetchAvailabilityInRange(year.start_date, year.end_date, {
+  academicYearId,
+  teacherId,
+ })
+ const map = new Map<string, string[]>()
+ for (const s of slots) {
+  const dow = weekdayLabelFromYmd(s.available_date)
+  if (!dow) continue
+  const key = `${dow}\t${s.time_slot}`
+  const list = map.get(key) ?? []
+  list.push(s.available_date)
+  map.set(key, list)
+ }
+ const out: AvailabilityPatternCell[] = []
+ for (const [key, dates] of map) {
+  const [day_of_week, time_slot] = key.split("\t")
+  out.push({
+   day_of_week: day_of_week!,
+   time_slot: time_slot!,
+   dates: dates.sort(),
+   count: dates.length,
+  })
+ }
+ out.sort((a, b) => {
+  const di = KANBAN_DAY_COLUMNS.indexOf(a.day_of_week as (typeof KANBAN_DAY_COLUMNS)[number])
+  const dj = KANBAN_DAY_COLUMNS.indexOf(b.day_of_week as (typeof KANBAN_DAY_COLUMNS)[number])
+  if (di !== dj) return di - dj
+  return a.time_slot.localeCompare(b.time_slot)
+ })
+ return out
+}
+
+export async function insertAvailabilitySlot(opts: {
+ teacher_id: string
+ academic_year_id: string
+ available_date: string
+ time_slot: string
+ notes?: string | null
+}): Promise<TeacherAvailabilitySlot> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data, error } = await supabase
+  .from("teacher_availability_slots")
+  .insert({
+   teacher_id: opts.teacher_id,
+   academic_year_id: opts.academic_year_id,
+   available_date: opts.available_date,
+   time_slot: opts.time_slot,
+   notes: opts.notes ?? null,
+   status: "可分配",
+  })
+  .select("*, teachers ( id, full_name, abbr ), academic_years ( id, label )")
+  .single()
+ if (error) throw new Error(formatUnknownError(error))
+ return mapSlot(data as Record<string, unknown>)
+}
+
+export async function updateAvailabilitySlot(
+ id: string,
+ patch: { notes?: string | null; status?: string }
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { error } = await supabase
+  .from("teacher_availability_slots")
+  .update({ ...patch, updated_at: new Date().toISOString() })
+  .eq("id", id)
+ if (error) throw new Error(formatUnknownError(error))
+}
+
+export async function deleteAvailabilitySlot(id: string): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data, error: fetchErr } = await supabase
+  .from("teacher_availability_slots")
+  .select("status")
+  .eq("id", id)
+  .single()
+ if (fetchErr) throw new Error(formatUnknownError(fetchErr))
+ if ((data as { status: string }).status === "已分配") {
+  throw new Error("已分配的檔期不可刪除；請先取消相關班別。")
+ }
+ const { error } = await supabase.from("teacher_availability_slots").delete().eq("id", id)
+ if (error) throw new Error(formatUnknownError(error))
+}
+
+export async function datesWithAvailability(params: {
+ teacherId: string
+ academicYearId: string
+ dayOfWeek: string
+ timeSlot: string
+}): Promise<string[]> {
+ const years = await fetchAcademicYearsWithDates()
+ const year = years.find((y) => y.id === params.academicYearId)
+ if (!year) return []
+ const slots = await fetchAvailabilityInRange(year.start_date, year.end_date, {
+  academicYearId: params.academicYearId,
+  teacherId: params.teacherId,
+  status: "可分配",
+ })
+ return slots
+  .filter(
+   (s) =>
+    weekdayLabelFromYmd(s.available_date) === params.dayOfWeek &&
+    timeSlotsEqual(s.time_slot, params.timeSlot)
+  )
+  .map((s) => s.available_date)
+  .sort()
+}
+
+export async function markAvailabilityForScheduleDates(params: {
+ classId: string
+ teacherId: string
+ timeSlot: string
+ dates: string[]
+}): Promise<void> {
+ if (!supabase || params.dates.length === 0) return
+ const now = new Date().toISOString()
+ for (const ymd of params.dates) {
+  const { error } = await supabase
+   .from("teacher_availability_slots")
+   .update({
+    status: "已分配",
+    assigned_class_id: params.classId,
+    updated_at: now,
+   })
+   .eq("teacher_id", params.teacherId)
+   .eq("available_date", ymd)
+   .eq("time_slot", params.timeSlot)
+   .eq("status", "可分配")
+  if (error) throw new Error(formatUnknownError(error))
+ }
+}
+
+export async function releaseAvailabilityForClass(classId: string): Promise<void> {
+ if (!supabase) return
+ const { error } = await supabase
+  .from("teacher_availability_slots")
+  .update({
+   status: "可分配",
+   assigned_class_id: null,
+   updated_at: new Date().toISOString(),
+  })
+  .eq("assigned_class_id", classId)
+ if (error) throw new Error(formatUnknownError(error))
+}
+
+export async function isAvailabilitySlotFree(params: {
+ teacherId: string
+ availableDate: string
+ timeSlot: string
+}): Promise<boolean> {
+ if (!supabase) return false
+ const { data, error } = await supabase
+  .from("teacher_availability_slots")
+  .select("id, status")
+  .eq("teacher_id", params.teacherId)
+  .eq("available_date", params.availableDate)
+  .eq("time_slot", params.timeSlot)
+  .maybeSingle()
+ if (error) throw new Error(formatUnknownError(error))
+ if (!data) return true
+ return (data as { status: string }).status === "可分配"
+}
+
+export { CLASS_TIME_SLOT_OPTIONS, timeSlotsEqual }

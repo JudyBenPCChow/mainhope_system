@@ -286,6 +286,72 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
  }
 }
 
+export type ClassScheduleSummary = {
+ classId: string
+ dates: string[]
+ hasActive: boolean
+}
+
+export async function fetchScheduleSummariesByClassIds(
+ classIds: string[]
+): Promise<Map<string, ClassScheduleSummary>> {
+ const out = new Map<string, ClassScheduleSummary>()
+ if (!supabase || classIds.length === 0) return out
+ for (const id of classIds) {
+  out.set(id, { classId: id, dates: [], hasActive: false })
+ }
+ const { data, error } = await supabase
+  .from("schedules")
+  .select("class_id, scheduled_date, status")
+  .in("class_id", classIds)
+  .order("scheduled_date", { ascending: true })
+ if (error) throw error
+ for (const row of data ?? []) {
+  const r = row as { class_id: string; scheduled_date: string; status: string }
+  const cid = String(r.class_id)
+  const entry = out.get(cid)
+  if (!entry) continue
+  if (!r.status.includes("取消")) {
+   entry.hasActive = true
+   entry.dates.push(String(r.scheduled_date))
+  }
+ }
+ return out
+}
+
+export async function cancelAllSchedulesForClass(classId: string): Promise<number> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data, error: fetchErr } = await supabase
+  .from("schedules")
+  .select("id, status")
+  .eq("class_id", classId)
+ if (fetchErr) throw fetchErr
+ const active = (data ?? []).filter((r) => !(r as { status: string }).status.includes("取消"))
+ if (active.length === 0) return 0
+ const now = new Date().toISOString()
+ for (const row of active) {
+  const { error } = await supabase
+   .from("schedules")
+   .update({ status: "取消", updated_at: now })
+   .eq("id", (row as { id: string }).id)
+  if (error) throw error
+ }
+ return active.length
+}
+
+export async function fetchActiveScheduleDatesForClass(classId: string): Promise<string[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("schedules")
+  .select("scheduled_date, status")
+  .eq("class_id", classId)
+  .order("scheduled_date", { ascending: true })
+ if (error) throw error
+ return (data ?? [])
+  .filter((r) => !(r as { status: string }).status.includes("取消"))
+  .map((r) => String((r as { scheduled_date: string }).scheduled_date))
+}
+
 export function scheduleRangeEnd(startYmd: string, daysInclusive: number): string {
  return addDaysYmd(startYmd, daysInclusive - 1)
 }

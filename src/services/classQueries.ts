@@ -13,6 +13,8 @@ import {
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
+import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
+import { releaseAvailabilityForClass } from "@/services/teacherAvailabilityQueries"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
 
@@ -377,6 +379,19 @@ export async function deleteClass(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { error } = await supabase.from("classes").delete().eq("id", id)
  if (error) throw error
+}
+
+/** 刪除班別前預覽：非取消排程日期列表 */
+export async function previewClassDeletionSchedules(classId: string): Promise<string[]> {
+ return fetchActiveScheduleDatesForClass(classId)
+}
+
+/** 取消所有排程、釋放檔期後刪除班別 */
+export async function deleteClassCascade(classId: string): Promise<{ cancelledSchedules: number }> {
+ const cancelledSchedules = await cancelAllSchedulesForClass(classId)
+ await releaseAvailabilityForClass(classId)
+ await deleteClass(classId)
+ return { cancelledSchedules }
 }
 
 export async function duplicateClass(id: string): Promise<ClassRecord> {

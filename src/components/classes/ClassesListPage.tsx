@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
+import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
 import { isHistoryYearReadOnly, isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -8,22 +8,12 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import {
- Dialog,
- DialogContent,
- DialogHeader,
- DialogTitle,
- DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
- CLASS_GRADE_FORM_OPTIONS,
  DAY_FILTER_CHIPS,
  GRADE_CHIPS,
- CLASS_TIME_SLOT_OPTIONS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
  SUBJECT_CHIPS,
@@ -34,26 +24,21 @@ import {
  classMatchesTeacher,
  isPrimaryGradeLabel,
  kanbanDayKey,
- toCanonicalWeekdayForStore,
 } from "@/components/classes/classesUi"
-import { academicYearLabelFromStartDate, gradeChineseToCode } from "@/lib/courseCode"
-import { useAppBanner } from "@/lib/appBanner"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
- deleteClass,
+ deleteClassCascade,
  duplicateClass,
-  fetchAcademicYearOptions,
+ fetchAcademicYearOptions,
  fetchAllClasses,
-  fetchCourseOptions,
-  fetchSubjectOptions,
  fetchTeacherOptions,
- insertClass,
+ previewClassDeletionSchedules,
  type ClassRecord,
  updateClass,
 } from "@/services/classQueries"
-import { fetchEnrollmentRosterByClassIds } from "@/services/scheduleQueries"
-
-const PRICE_PRESETS_HKD = [250, 275, 825] as const
+import { fetchEnrollmentRosterByClassIds, fetchScheduleSummariesByClassIds, type ClassScheduleSummary } from "@/services/scheduleQueries"
 
 const cardInteractive =
  "cursor-pointer rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -72,10 +57,6 @@ const GALLERY_COVERS = [
  "bg-gradient-to-br from-cyan-400 to-teal-800",
 ] as const
 
-function gradeLabelToCode(label: string): string | null {
- return gradeChineseToCode(label)
-}
-
 function galleryCoverClass(subject: string): string {
  let h = 0
  for (let i = 0; i < subject.length; i++) {
@@ -86,17 +67,15 @@ function galleryCoverClass(subject: string): string {
 
 export function ClassesListPage() {
  const navigate = useNavigate()
- const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const teacherTid = getTeacherScopeTeacherId()
  const [rows, setRows] = useState<ClassRecord[]>([])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
   () => new Map()
  )
+ const [scheduleSummaries, setScheduleSummaries] = useState<Map<string, ClassScheduleSummary>>(() => new Map())
  const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
- const [subjectOptions, setSubjectOptions] = useState<{ id: string; code: string; name_zh: string }[]>([])
  const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>([])
- const [courseOptions, setCourseOptions] = useState<{ id: string; label: string; course_seq: number }[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [view, setView] = useState<"list" | "kanban" | "gallery">("list")
@@ -107,70 +86,27 @@ export function ClassesListPage() {
  const [dayKey, setDayKey] = useState<string>("全部")
  const [statusKey, setStatusKey] = useState<string>("進行中")
  const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
- const [addOpen, setAddOpen] = useState(false)
- const [form, setForm] = useState({
-  subject: "",
-  subject_id: "",
-  subject_code: "",
-  academic_year_id: "",
-  academic_year_label: "",
-  grade_code: "",
-  course_id: "",
-  section_code: "",
-  day_of_week: "星期六",
-  time_slot: "",
-  teacher_id: "",
-  price: "",
-  status: "進行中",
- })
 
  const load = useCallback(async () => {
   setLoading(true)
   setErr(null)
   try {
    const list = await fetchAllClasses()
-   const [teacherOpts, subjectOpts, yearOpts] = await Promise.all([
+   const [teacherOpts, yearOpts] = await Promise.all([
     fetchTeacherOptions(),
-    fetchSubjectOptions(),
     fetchAcademicYearOptions(),
    ])
    setRows(list)
    setTeachers(teacherOpts)
-   setSubjectOptions(subjectOpts)
    setYearOptions(yearOpts)
    setEnrollRoster(await fetchEnrollmentRosterByClassIds(list.map((c) => c.id)))
+   setScheduleSummaries(await fetchScheduleSummariesByClassIds(list.map((c) => c.id)))
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
   } finally {
    setLoading(false)
   }
  }, [])
-
- useEffect(() => {
-  const pickedYear = yearOptions.find((y) => y.is_current) ?? yearOptions[0]
-  if (!pickedYear) return
-  setForm((f) => {
-   if (f.academic_year_id) return f
-   return { ...f, academic_year_id: pickedYear.id, academic_year_label: pickedYear.label }
-  })
- }, [yearOptions])
-
- useEffect(() => {
-  const sid = form.subject_id
-  const g = form.grade_code
-  if (!sid || !g) {
-   setCourseOptions([])
-   return
-  }
-  void (async () => {
-   try {
-    const opts = await fetchCourseOptions({ subject_id: sid, grade_code: g })
-    setCourseOptions(opts.map((o) => ({ id: o.id, label: o.label, course_seq: o.course_seq })))
-   } catch {
-    setCourseOptions([])
-   }
-  })()
- }, [form.subject_id, form.grade_code])
 
  useEffect(() => {
   void load()
@@ -341,80 +277,28 @@ export function ClassesListPage() {
    .map(([title, items]) => ({ title, items }))
  }, [filtered, kanbanGroup])
 
- const onAdd = async () => {
-  if (historyReadOnly) return
-  if (!form.subject_id || !form.academic_year_id || !form.grade_code) {
-   pushBanner({ tone: "warning", title: "請先選擇學年、科目與年級" })
-   return
-  }
-  if (!form.course_id) {
-   pushBanner({
-    tone: "warning",
-    title: "請選擇課程",
-    message: "新課程須於「課程管理」頁面新增，此處僅能選擇既有課程模板。",
-   })
-   return
-  }
-  const rawPrice = form.price.trim()
-  const priceNum = rawPrice === "" ? null : Number(rawPrice)
-  if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
-   pushBanner({ tone: "warning", title: "每節學費請輸入 0 或以上的金額（HKD）" })
-   return
-  }
-  const dowRaw = form.day_of_week.trim()
-  const dayStored = dowRaw === "" ? null : toCanonicalWeekdayForStore(dowRaw) ?? dowRaw
-  setErr(null)
-  const selectedSubject = subjectOptions.find((s) => s.id === form.subject_id)
-  if (!selectedSubject) {
-   pushBanner({ tone: "warning", title: "科目設定無效，請重新選擇" })
-   return
-  }
-  try {
-   await insertClass({
-    subject: selectedSubject.name_zh,
-    subject_id: form.subject_id,
-    subject_code: selectedSubject.code,
-    academic_year_id: form.academic_year_id,
-    academic_year_label: form.academic_year_label,
-    grade_code: form.grade_code,
-    course_id: form.course_id,
-    section_code: form.section_code.trim() || null,
-    course_code: null,
-    day_of_week: dayStored,
-    time_slot: form.time_slot.trim() || null,
-    teacher_id: form.teacher_id || null,
-    price_per_lesson: priceNum == null ? null : Math.max(0, priceNum),
-    status: form.status,
-   })
-  } catch (e) {
-   reportUserFacingError(e, { source: "ClassesListPage.onAdd", setErr })
-   return
-  }
-  setAddOpen(false)
-  setForm({
-   subject: "",
-   subject_id: "",
-   subject_code: "",
-   academic_year_id: form.academic_year_id,
-   academic_year_label: form.academic_year_label,
-   grade_code: "",
-   course_id: "",
-   section_code: "",
-   day_of_week: "星期六",
-   time_slot: "",
-   teacher_id: "",
-   price: "",
-   status: "進行中",
-  })
-  await load()
- }
-
  const onDelete = async (e: React.MouseEvent, id: string) => {
   if (historyReadOnly) return
   e.stopPropagation()
- if (!(await confirmDialog({ title: "刪除班別", description: "確定刪除此班別？", confirmText: "確認刪除", tone: "destructive" }))) return
+  const previewDates = await previewClassDeletionSchedules(id)
+  const dateHint =
+   previewDates.length > 0
+    ? `將同時取消 ${previewDates.length} 筆排程：${previewDates
+       .slice(0, 8)
+       .map(formatScheduleDateShort)
+       .join("、")}${previewDates.length > 8 ? "…" : ""}`
+    : "此班別目前沒有進行中的排程。"
+  if (
+   !(await confirmDialog({
+    title: "刪除班別",
+    description: `確定刪除此班別？${dateHint}`,
+    confirmText: "確認刪除",
+    tone: "destructive",
+   }))
+  )
+   return
   try {
-   await deleteClass(id)
+   await deleteClassCascade(id)
    await load()
   } catch (er) {
    reportUserFacingError(er, { source: "ClassesListPage.onDelete", setErr })
@@ -442,8 +326,16 @@ export function ClassesListPage() {
   }
  }
 
- const timeLabel = (c: ClassRecord) =>
-  [c.day_of_week, c.time_slot].filter(Boolean).join(" ") || "—"
+ const timeLabel = (c: ClassRecord) => {
+  const approx = [c.day_of_week, c.time_slot].filter(Boolean).join(" ")
+  const sum = scheduleSummaries.get(c.id)
+  const dates = sum?.dates.map(formatScheduleDateShort).join("、") ?? ""
+  if (approx && dates) return `${approx} · ${dates}`
+  if (dates) return dates
+  return approx || "—"
+ }
+
+ const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
 
  return (
   <div className="space-y-5 p-4 md:p-6">
@@ -688,208 +580,14 @@ export function ClassesListPage() {
      <span />
     )}
     {!teacherTid && !historyReadOnly ? (
-     <Dialog open={addOpen} onOpenChange={setAddOpen}>
-      <DialogTrigger asChild>
-       <Button
-        type="button"
-        className="bg-info text-white shadow-sm transition-all hover:bg-info hover:shadow active:scale-[0.98]"
-       >
-        <Plus className="h-4 w-4" />
-        新增班別
-       </Button>
-      </DialogTrigger>
-      <DialogContent>
-       <DialogHeader>
-        <DialogTitle>新增班別</DialogTitle>
-       </DialogHeader>
-       <div className="grid max-h-[70vh] gap-3 overflow-y-auto pr-1">
-        <div>
-         <label className="text-xs text-muted-foreground">學年 *</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.academic_year_id}
-          onChange={(e) => {
-           const y = yearOptions.find((x) => x.id === e.target.value)
-           setForm((f) => ({ ...f, academic_year_id: e.target.value, academic_year_label: y?.label ?? "" }))
-          }}
-         >
-          <option value="">請選擇</option>
-          {yearOptions.map((y) => (
-           <option key={y.id} value={y.id}>
-            {y.label} {y.is_current ? "（目前）" : ""}
-           </option>
-          ))}
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">科目 *</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.subject_id}
-          onChange={(e) => {
-           const s = subjectOptions.find((x) => x.id === e.target.value)
-           setForm((f) => ({ ...f, subject_id: e.target.value, subject: s?.name_zh ?? "", subject_code: s?.code ?? "", course_id: "" }))
-          }}
-         >
-          <option value="">請選擇</option>
-          {subjectOptions.map((s) => (
-           <option key={s.id} value={s.id}>
-            {s.name_zh}（{s.code}）
-           </option>
-          ))}
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">年級 *</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.grade_code}
-          onChange={(e) => setForm((f) => ({ ...f, grade_code: e.target.value, course_id: "" }))}
-         >
-          <option value="">請選擇</option>
-          {CLASS_GRADE_FORM_OPTIONS.map((g) => {
-           const code = gradeLabelToCode(g)
-           if (!code) return null
-           return (
-            <option key={g} value={code}>
-             {g}（{code}）
-            </option>
-           )
-          })}
-         </Select>
-        </div>
-        <div className="sm:col-span-2">
-         <label className="text-xs text-muted-foreground">課程 *</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.course_id}
-          onChange={(e) => setForm((f) => ({ ...f, course_id: e.target.value }))}
-          disabled={!form.subject_id || !form.grade_code}
-         >
-          <option value="">請選擇課程</option>
-          {courseOptions.map((c) => (
-           <option key={c.id} value={c.id}>
-            {c.label}
-           </option>
-          ))}
-         </Select>
-         <p className="mt-1 text-xs text-muted-foreground">
-          {courseOptions.length === 0 && form.subject_id && form.grade_code
-           ? "此科目與年級尚無課程模板，請至「課程管理」新增後再開班。"
-           : "新課程須於「課程管理」新增；此處僅選擇既有課程。"}
-         </p>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">班號（可留空，自動分配）</label>
-         <Input
-          className="mt-1 font-mono uppercase"
-          value={form.section_code}
-          onChange={(e) => setForm((f) => ({ ...f, section_code: e.target.value }))}
-         />
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">逢星期</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.day_of_week}
-          onChange={(e) => setForm((f) => ({ ...f, day_of_week: e.target.value }))}
-         >
-          <option value="">未指定</option>
-          {KANBAN_DAY_COLUMNS.map((d) => (
-           <option key={d} value={d}>
-            {d}
-           </option>
-          ))}
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">時段</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.time_slot}
-          onChange={(e) => setForm((f) => ({ ...f, time_slot: e.target.value }))}
-         >
-          <option value="">未指定</option>
-          {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
-           <option key={slot} value={slot}>
-            {slot}
-           </option>
-          ))}
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">老師</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.teacher_id}
-          onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value }))}
-         >
-          <option value="">未指定</option>
-          {teachers.map((t) => (
-           <option key={t.id} value={t.id}>
-            {t.label}
-           </option>
-          ))}
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">每節學費（HKD）</label>
-         <div className="mt-1 flex flex-wrap gap-2">
-          {PRICE_PRESETS_HKD.map((p) => (
-           <Button
-            key={p}
-            type="button"
-            size="sm"
-            variant={form.price === String(p) ? "default" : "outline"}
-            className={form.price === String(p) ? "" : "bg-background"}
-            onClick={() => setForm((f) => ({ ...f, price: String(p) }))}
-           >
-            {p}
-           </Button>
-          ))}
-         </div>
-         <Input
-          className="mt-2"
-          type="number"
-          min={0}
-          step={1}
-          placeholder="或手動輸入金額（HKD）"
-          value={form.price}
-          onChange={(e) => {
-           const v = e.target.value
-           if (v === "") {
-            setForm((f) => ({ ...f, price: "" }))
-            return
-           }
-           const n = Number(v)
-           if (Number.isNaN(n)) {
-            setForm((f) => ({ ...f, price: "" }))
-            return
-           }
-           setForm((f) => ({ ...f, price: String(Math.max(0, n)) }))
-          }}
-         />
-        </div>
-        <div>
-         <label className="text-xs text-muted-foreground">狀態</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.status}
-          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-         >
-          {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
-           <option key={s} value={s}>
-            {s}
-           </option>
-          ))}
-         </Select>
-        </div>
-        <Button type="button" onClick={() => void onAdd()}>
-         建立
-        </Button>
-       </div>
-      </DialogContent>
-     </Dialog>
+     <Button
+      type="button"
+      className="bg-info text-white shadow-sm transition-all hover:bg-info hover:shadow active:scale-[0.98]"
+      onClick={() => navigate("/Classes/New")}
+     >
+      <Plus className="h-4 w-4" />
+      新增班別
+     </Button>
     ) : (
      <p className="text-sm text-muted-foreground">
       {historyReadOnly ? "歷史學年為唯讀模式，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
@@ -943,8 +641,16 @@ export function ClassesListPage() {
            )}
           >
            <td className="min-w-0 align-top px-4 py-3 pr-2 text-muted-foreground">
-            <span className="block truncate font-mono text-xs" title={c.course_code_full ?? c.course_code ?? undefined}>
-             {c.course_code_full ?? c.course_code ?? "—"}
+            <span className="flex items-start gap-1" title={hasNoActiveSchedule(c) ? "此班別尚無進行中的排程" : undefined}>
+             {hasNoActiveSchedule(c) ? (
+              <AlertTriangle
+               className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+               aria-label="尚無排程"
+              />
+             ) : null}
+             <span className="block truncate font-mono text-xs" title={c.course_code_full ?? c.course_code ?? undefined}>
+              {c.course_code_full ?? c.course_code ?? "—"}
+             </span>
             </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2">

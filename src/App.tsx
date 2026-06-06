@@ -8,6 +8,8 @@ import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
+import ClassNew from "@/pages/ClassNew"
+import TeacherAvailability from "@/pages/TeacherAvailability"
 import Calendar from "@/pages/Calendar"
 import TodoDetail from "@/pages/TodoDetail"
 import Home from "@/pages/Home"
@@ -44,8 +46,10 @@ export default function App() {
      <Route path="/Teachers" element={<Teachers />} />
      <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
      <Route path="/Classes" element={<Classes />} />
+     <Route path="/Classes/New" element={<ClassNew />} />
      <Route path="/Courses" element={<Courses />} />
      <Route path="/Classes/:classId" element={<ClassDetail />} />
+     <Route path="/TeacherAvailability" element={<TeacherAvailability />} />
      <Route path="/Classrooms" element={<Classrooms />} />
      <Route path="/TeacherTimetable" element={<TeacherTimetable />} />
      <Route path="/TeacherProfile" element={<TeacherProfile />} />

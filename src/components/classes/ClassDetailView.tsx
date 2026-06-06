@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
+import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
 import {
  CLASS_GRADE_FORM_OPTIONS,
  CLASS_TIME_SLOT_OPTIONS,
@@ -749,6 +750,14 @@ const addableStudents = (() => {
 
     {tab === "schedule" ? (
      <div className="mx-auto max-w-3xl space-y-4">
+      {cls ? (
+       <BatchSchedulePanel
+        classId={cid}
+        cls={cls}
+        compact
+        onComplete={() => void reload()}
+       />
+      ) : null}
       {schedActionErr ? (
        <div
         role="alert"
