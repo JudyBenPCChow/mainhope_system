@@ -5,6 +5,12 @@ import {
  AvailabilityWeekGrid,
  navigateToClassNewFromSlot,
 } from "@/components/teacherAvailability/AvailabilityWeekGrid"
+import { AvailabilityRoomDayView } from "@/components/teacherAvailability/AvailabilityRoomDayView"
+import {
+ QuickClassFromSlotDialog,
+ type FreeRoomSlotContext,
+} from "@/components/teacherAvailability/QuickClassFromSlotDialog"
+import type { ClassRecord } from "@/services/classQueries"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -31,7 +37,7 @@ import {
 import type { RoomRecord } from "@/services/classroomQueries"
 import { useAppConfirm } from "@/lib/appConfirm"
 
-type Tab = "pattern" | "grid" | "list"
+type Tab = "pattern" | "grid" | "roomDay" | "list"
 
 export function TeacherAvailabilityPage() {
  const navigate = useNavigate()
@@ -52,6 +58,7 @@ export function TeacherAvailabilityPage() {
  const [rooms, setRooms] = useState<RoomRecord[]>([])
  const [roomSchedules, setRoomSchedules] = useState<RoomCalendarScheduleRow[]>([])
  const [roomPending, setRoomPending] = useState<RoomCalendarPendingRow[]>([])
+ const [freeRoomCtx, setFreeRoomCtx] = useState<FreeRoomSlotContext | null>(null)
 
  const year = useMemo(() => years.find((y) => y.id === yearId) ?? null, [years, yearId])
  const isHistoryView = useMemo(() => {
@@ -70,20 +77,44 @@ export function TeacherAvailabilityPage() {
    const to = year.end_date.slice(0, 10)
    const gridMonday = mondayYmdOfWeekContaining(weekStart.slice(0, 10))
    const gridSunday = addDaysYmd(gridMonday, 6)
-   const rangeFrom = tab === "grid" ? (gridMonday < from ? from : gridMonday) : from
-   const rangeTo = tab === "grid" ? (gridSunday > to ? to : gridSunday) : to
-   const needRoomOverlay = tab === "grid" && gridMode === "all"
+   const roomDayStart = weekStart.slice(0, 10)
+   const roomDayEnd = addDaysYmd(roomDayStart, 6)
+   const rangeFrom =
+    tab === "grid"
+     ? gridMonday < from
+       ? from
+       : gridMonday
+     : tab === "roomDay"
+       ? roomDayStart < from
+         ? from
+         : roomDayStart
+       : from
+   const rangeTo =
+    tab === "grid"
+     ? gridSunday > to
+       ? to
+       : gridSunday
+     : tab === "roomDay"
+       ? roomDayEnd > to
+         ? to
+         : roomDayEnd
+       : to
+   const needRoomData = (tab === "grid" && gridMode === "all") || tab === "roomDay"
    const [sl, pat, roomBundle] = await Promise.all([
     fetchAvailabilityInRange(rangeFrom, rangeTo, {
      academicYearId: year.id,
-     teacherId: gridMode === "single" && teacherId ? teacherId : undefined,
+     teacherId:
+      gridMode === "single" && teacherId && tab === "grid" ? teacherId : undefined,
      status: tab === "list" && listStatus !== "全部" ? listStatus : undefined,
     }),
     teacherId && tab === "pattern"
      ? fetchAvailabilityPatternSummary(teacherId, year.id)
      : Promise.resolve([] as AvailabilityPatternCell[]),
-    needRoomOverlay
-     ? fetchRoomCalendarBundle(gridMonday, gridSunday)
+    needRoomData
+     ? fetchRoomCalendarBundle(
+        tab === "roomDay" ? roomDayStart : gridMonday,
+        tab === "roomDay" ? roomDayEnd : gridSunday
+       )
      : Promise.resolve(null),
    ])
    setSlots(sl)
@@ -202,6 +233,7 @@ export function TeacherAvailabilityPage() {
      [
       ["pattern", "規律摘要"],
       ["grid", "時段格線"],
+      ["roomDay", "日期課室"],
       ["list", "檔期列表"],
      ] as const
     ).map(([key, label]) => (
@@ -314,6 +346,42 @@ export function TeacherAvailabilityPage() {
        roomSchedules={gridMode === "all" ? roomSchedules : undefined}
        roomPending={gridMode === "all" ? roomPending : undefined}
       />
+     )}
+    </div>
+   ) : null}
+
+   {tab === "roomDay" ? (
+    <div className="space-y-3">
+     {loading ? (
+      <p className="text-sm text-muted-foreground">載入中…</p>
+     ) : (
+      <>
+       <AvailabilityRoomDayView
+        windowStart={weekStart.slice(0, 10)}
+        onWindowStartChange={setWeekStart}
+        yearStart={year?.start_date.slice(0, 10)}
+        yearEnd={year?.end_date.slice(0, 10) ?? "2099-12-31"}
+        slots={slots}
+        rooms={rooms}
+        roomSchedules={roomSchedules}
+        roomPending={roomPending}
+        onTeacherSlotClick={(s) => navigateToClassNewFromSlot(navigate, s)}
+        onFreeRoomClick={historyReadOnly ? undefined : setFreeRoomCtx}
+        readOnly={historyReadOnly}
+       />
+       <QuickClassFromSlotDialog
+        open={freeRoomCtx != null}
+        onOpenChange={(open) => {
+         if (!open) setFreeRoomCtx(null)
+        }}
+        context={freeRoomCtx}
+        academicYear={year}
+        onCreated={(cls: ClassRecord) => {
+         setFreeRoomCtx(null)
+         navigate(`/Classes/${cls.id}`)
+        }}
+       />
+      </>
      )}
     </div>
    ) : null}

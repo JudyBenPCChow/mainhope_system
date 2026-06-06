@@ -1,6 +1,6 @@
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { supabase } from "@/lib/supabaseClient"
-import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
+import { classroomsActiveOnDate, UNASSIGNED_ROOM_ID } from "@/lib/classroomEligibility"
 import {
  intervalsOverlapMinutes,
  lessonSlotEndMinute,
@@ -82,7 +82,11 @@ export function occupiersForSlot(
 ): RoomOccupant[] {
  const out: RoomOccupant[] = []
  for (const s of schedules) {
-  if ((s.classroom_id ?? "") !== roomId) continue
+  if (roomId === UNASSIGNED_ROOM_ID) {
+   if (s.classroom_id != null && s.classroom_id !== "") continue
+  } else if ((s.classroom_id ?? "") !== roomId) {
+   continue
+  }
   if (s.status.includes("取消")) continue
   const iv = intervalForYmdTime(ymd, s.scheduled_date, s.start_time, s.end_time)
   if (!iv) continue
@@ -167,6 +171,57 @@ export async function fetchSchedulesForRoomCalendar(
  })
 }
 
+export async function fetchSchedulesWithoutClassroom(
+ fromYmd: string,
+ toYmd: string
+): Promise<
+ Array<{
+  id: string
+  classroom_id: string | null
+  scheduled_date: string
+  start_time: string | null
+  end_time: string | null
+  status: string
+  subject: string
+  course_code: string | null
+  course_name?: string | null
+  teacher_name: string | null
+ }>
+> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("schedules")
+  .select(
+   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code, courses ( course_name ) ), teachers ( full_name )"
+  )
+  .is("classroom_id", null)
+  .gte("scheduled_date", fromYmd)
+  .lte("scheduled_date", toYmd)
+  .order("scheduled_date", { ascending: true })
+  .order("start_time", { ascending: true })
+ if (error) throw new Error(formatUnknownError(error))
+ return (data ?? []).map((row) => {
+  const r = row as Record<string, unknown>
+  const cls = r.classes as Record<string, unknown> | null
+  const tch = r.teachers as Record<string, unknown> | null
+  return {
+   id: String(r.id),
+   classroom_id: null,
+   scheduled_date: String(r.scheduled_date ?? ""),
+   start_time: r.start_time != null ? String(r.start_time) : null,
+   end_time: r.end_time != null ? String(r.end_time) : null,
+   status: String(r.status ?? ""),
+   subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
+   course_code: cls?.course_code != null ? String(cls.course_code) : null,
+   course_name:
+    (cls?.courses as Record<string, unknown> | null)?.course_name != null
+     ? String((cls?.courses as Record<string, unknown>).course_name)
+     : null,
+   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+  }
+ })
+}
+
 export async function fetchPendingBookingRequestsDetailed(
  fromYmd: string,
  toYmd: string
@@ -224,11 +279,12 @@ export async function fetchRoomCalendarBundle(fromYmd: string, toYmd: string): P
 }> {
  const rooms = (await fetchClassrooms()).filter((r) => !r.is_online)
  const ids = rooms.map((r) => r.id)
- const [schedules, pending] = await Promise.all([
+ const [assigned, unassigned, pending] = await Promise.all([
   fetchSchedulesForRoomCalendar(ids, fromYmd, toYmd),
+  fetchSchedulesWithoutClassroom(fromYmd, toYmd),
   fetchPendingBookingRequestsDetailed(fromYmd, toYmd),
  ])
- return { rooms, schedules, pending }
+ return { rooms, schedules: [...assigned, ...unassigned], pending }
 }
 
 export function freeRoomNamesForSlot(params: {
