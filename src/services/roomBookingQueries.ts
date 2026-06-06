@@ -1,12 +1,16 @@
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { supabase } from "@/lib/supabaseClient"
+import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import {
  intervalsOverlapMinutes,
+ lessonSlotEndMinute,
+ lessonSlotStartMinute,
  parseHm,
  LESSON_FIRST_START_MIN,
  LESSON_SLOT_DURATION_MIN,
 } from "@/lib/lessonSlots"
 import { insertScheduleRow } from "@/services/classQueries"
+import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { formatClassLabel } from "@/lib/courseLabel"
 
 export type RoomOccupant = {
@@ -208,6 +212,104 @@ export async function fetchPendingBookingRequestsDetailed(
    target_label: targetLabel,
   }
  })
+}
+
+export type RoomCalendarScheduleRow = Awaited<ReturnType<typeof fetchSchedulesForRoomCalendar>>[number]
+export type RoomCalendarPendingRow = Awaited<ReturnType<typeof fetchPendingBookingRequestsDetailed>>[number]
+
+export async function fetchRoomCalendarBundle(fromYmd: string, toYmd: string): Promise<{
+ rooms: RoomRecord[]
+ schedules: RoomCalendarScheduleRow[]
+ pending: RoomCalendarPendingRow[]
+}> {
+ const rooms = (await fetchClassrooms()).filter((r) => !r.is_online)
+ const ids = rooms.map((r) => r.id)
+ const [schedules, pending] = await Promise.all([
+  fetchSchedulesForRoomCalendar(ids, fromYmd, toYmd),
+  fetchPendingBookingRequestsDetailed(fromYmd, toYmd),
+ ])
+ return { rooms, schedules, pending }
+}
+
+export function freeRoomNamesForSlot(params: {
+ ymd: string
+ slotIndex: number
+ rooms: RoomRecord[]
+ schedules: RoomCalendarScheduleRow[]
+ pending: RoomCalendarPendingRow[]
+}): string[] {
+ const { ymd, slotIndex, rooms, schedules, pending } = params
+ const slotStart = lessonSlotStartMinute(slotIndex)
+ const slotEnd = lessonSlotEndMinute(slotIndex)
+ return classroomsActiveOnDate(rooms, ymd)
+  .filter(
+   (room) =>
+    occupiersForSlot(ymd, room.id, slotStart, slotEnd, schedules, pending).length === 0
+  )
+  .map((r) => r.name)
+}
+
+export type GridSlotScheduleItem = {
+ id: string
+ kind: "schedule" | "pending"
+ label: string
+ teacherName: string | null
+ roomName: string | null
+}
+
+function roomNameById(rooms: RoomRecord[], id: string | null): string | null {
+ if (!id) return null
+ return rooms.find((r) => r.id === id)?.name ?? null
+}
+
+export function slotScheduleItemsForCell(params: {
+ ymd: string
+ slotIndex: number
+ rooms: RoomRecord[]
+ schedules: RoomCalendarScheduleRow[]
+ pending: RoomCalendarPendingRow[]
+}): GridSlotScheduleItem[] {
+ const { ymd, slotIndex, rooms, schedules, pending } = params
+ const slotStart = lessonSlotStartMinute(slotIndex)
+ const slotEnd = lessonSlotEndMinute(slotIndex)
+ const out: GridSlotScheduleItem[] = []
+ const seen = new Set<string>()
+
+ for (const s of schedules) {
+  if (s.status.includes("取消")) continue
+  const iv = intervalForYmdTime(ymd, s.scheduled_date, s.start_time, s.end_time)
+  if (!iv) continue
+  if (!intervalsOverlapMinutes(iv.a, iv.b, slotStart, slotEnd)) continue
+  if (seen.has(s.id)) continue
+  seen.add(s.id)
+  out.push({
+   id: s.id,
+   kind: "schedule",
+   label: formatClassLabel({
+    subject: s.subject,
+    courseCode: s.course_code,
+    courseName: s.course_name,
+   }),
+   teacherName: s.teacher_name,
+   roomName: roomNameById(rooms, s.classroom_id),
+  })
+ }
+
+ for (const p of pending) {
+  const iv = intervalForYmdTime(ymd, p.scheduled_date, p.start_time, p.end_time)
+  if (!iv) continue
+  if (!intervalsOverlapMinutes(iv.a, iv.b, slotStart, slotEnd)) continue
+  const tail = p.is_other ? "（其他）" : p.target_label ? `（${p.target_label}）` : ""
+  out.push({
+   id: p.id,
+   kind: "pending",
+   label: `待審約房${tail}`,
+   teacherName: p.teacher_name,
+   roomName: roomNameById(rooms, p.classroom_id),
+  })
+ }
+
+ return out
 }
 
 export async function createRoomBookingRequest(params: {

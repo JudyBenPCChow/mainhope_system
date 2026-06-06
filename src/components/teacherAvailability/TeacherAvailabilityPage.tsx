@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
-import { formatScheduleDateShort } from "@/lib/weekdayUtils"
+import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
 import { lessonSlotLabel } from "@/lib/lessonSlots"
 import { fetchTeacherOptions } from "@/services/classQueries"
@@ -23,7 +23,12 @@ import {
  type AvailabilityPatternCell,
  type TeacherAvailabilitySlot,
 } from "@/services/teacherAvailabilityQueries"
-import { localYmd } from "@/services/teacherQueries"
+import {
+ fetchRoomCalendarBundle,
+ type RoomCalendarPendingRow,
+ type RoomCalendarScheduleRow,
+} from "@/services/roomBookingQueries"
+import type { RoomRecord } from "@/services/classroomQueries"
 import { useAppConfirm } from "@/lib/appConfirm"
 
 type Tab = "pattern" | "grid" | "list"
@@ -37,12 +42,16 @@ export function TeacherAvailabilityPage() {
  const [teacherId, setTeacherId] = useState("")
  const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
  const [gridMode, setGridMode] = useState<"single" | "all">("single")
- const [weekStart, setWeekStart] = useState(localYmd())
+ const [weekStart, setWeekStart] = useState(() => mondayYmdOfWeekContaining(new Date().toISOString().slice(0, 10)))
  const [slots, setSlots] = useState<TeacherAvailabilitySlot[]>([])
  const [pattern, setPattern] = useState<AvailabilityPatternCell[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [listStatus, setListStatus] = useState<string>("可分配")
+ const [addingSlot, setAddingSlot] = useState(false)
+ const [rooms, setRooms] = useState<RoomRecord[]>([])
+ const [roomSchedules, setRoomSchedules] = useState<RoomCalendarScheduleRow[]>([])
+ const [roomPending, setRoomPending] = useState<RoomCalendarPendingRow[]>([])
 
  const year = useMemo(() => years.find((y) => y.id === yearId) ?? null, [years, yearId])
  const isHistoryView = useMemo(() => {
@@ -59,14 +68,12 @@ export function TeacherAvailabilityPage() {
   try {
    const from = year.start_date.slice(0, 10)
    const to = year.end_date.slice(0, 10)
-   const weekEnd = (() => {
-    const d = new Date(weekStart)
-    d.setDate(d.getDate() + 6)
-    return localYmd(d)
-   })()
-   const rangeFrom = tab === "grid" ? weekStart : from
-   const rangeTo = tab === "grid" ? (weekEnd > to ? to : weekEnd) : to
-   const [sl, pat] = await Promise.all([
+   const gridMonday = mondayYmdOfWeekContaining(weekStart.slice(0, 10))
+   const gridSunday = addDaysYmd(gridMonday, 6)
+   const rangeFrom = tab === "grid" ? (gridMonday < from ? from : gridMonday) : from
+   const rangeTo = tab === "grid" ? (gridSunday > to ? to : gridSunday) : to
+   const needRoomOverlay = tab === "grid" && gridMode === "all"
+   const [sl, pat, roomBundle] = await Promise.all([
     fetchAvailabilityInRange(rangeFrom, rangeTo, {
      academicYearId: year.id,
      teacherId: gridMode === "single" && teacherId ? teacherId : undefined,
@@ -75,9 +82,21 @@ export function TeacherAvailabilityPage() {
     teacherId && tab === "pattern"
      ? fetchAvailabilityPatternSummary(teacherId, year.id)
      : Promise.resolve([] as AvailabilityPatternCell[]),
+    needRoomOverlay
+     ? fetchRoomCalendarBundle(gridMonday, gridSunday)
+     : Promise.resolve(null),
    ])
    setSlots(sl)
    setPattern(pat)
+   if (roomBundle) {
+    setRooms(roomBundle.rooms)
+    setRoomSchedules(roomBundle.schedules)
+    setRoomPending(roomBundle.pending)
+   } else {
+    setRooms([])
+    setRoomSchedules([])
+    setRoomPending([])
+   }
   } catch (e) {
    setErr(e instanceof Error ? e.message : "載入失敗")
   } finally {
@@ -93,7 +112,7 @@ export function TeacherAvailabilityPage() {
    const picked = yrs.find((y) => y.is_current) ?? yrs[0]
    if (picked) {
     setYearId(picked.id)
-    setWeekStart(picked.start_date.slice(0, 10))
+    setWeekStart(mondayYmdOfWeekContaining(picked.start_date.slice(0, 10)))
    }
   })()
  }, [])
@@ -104,7 +123,9 @@ export function TeacherAvailabilityPage() {
  }, [yearId, reload])
 
  const onAddSlot = async (date: string, slotIndex: number) => {
-  if (historyReadOnly || !year || !teacherId) return
+  if (historyReadOnly || !year || !teacherId || addingSlot) return
+  setAddingSlot(true)
+  setErr(null)
   try {
    await insertAvailabilitySlot({
     teacher_id: teacherId,
@@ -115,6 +136,8 @@ export function TeacherAvailabilityPage() {
    await reload()
   } catch (e) {
    setErr(e instanceof Error ? e.message : "新增失敗")
+  } finally {
+   setAddingSlot(false)
   }
  }
 
@@ -147,7 +170,7 @@ export function TeacherAvailabilityPage() {
       onChange={(e) => {
        const y = years.find((x) => x.id === e.target.value)
        setYearId(e.target.value)
-       if (y) setWeekStart(y.start_date.slice(0, 10))
+       if (y) setWeekStart(mondayYmdOfWeekContaining(y.start_date.slice(0, 10)))
       }}
      >
       {years.map((y) => (
@@ -274,17 +297,22 @@ export function TeacherAvailabilityPage() {
       </Button>
      </div>
      {gridMode === "single" && !teacherId ? (
-      <p className="text-sm text-muted-foreground">單一老師模式請先選擇老師；點空白格可新增檔期。</p>
+      <p className="text-sm text-muted-foreground">單一老師模式請先選擇老師；點 + 新增檔期，已登記格可刪除。</p>
      ) : (
       <AvailabilityWeekGrid
        slots={slots}
        mode={gridMode}
        weekStart={weekStart}
        onWeekStartChange={setWeekStart}
+       yearStart={year?.start_date.slice(0, 10)}
        yearEnd={year?.end_date.slice(0, 10) ?? "2099-12-31"}
        onAddSlot={gridMode === "single" ? onAddSlot : undefined}
+       onDeleteSlot={gridMode === "single" && !historyReadOnly ? onDeleteSlot : undefined}
        onNavigateCreate={(s) => navigateToClassNewFromSlot(navigate, s)}
        readOnly={historyReadOnly}
+       rooms={gridMode === "all" ? rooms : undefined}
+       roomSchedules={gridMode === "all" ? roomSchedules : undefined}
+       roomPending={gridMode === "all" ? roomPending : undefined}
       />
      )}
     </div>

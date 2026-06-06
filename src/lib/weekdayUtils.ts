@@ -51,3 +51,20 @@ export function formatScheduleDateShort(ymd: string): string {
  if (!m || !d) return ymd
  return `${m}/${d}`
 }
+
+export function addDaysYmd(ymd: string, days: number): string {
+ return addDaysYmdLocal(ymd, days)
+}
+
+/** 含 ymd 的該週週一（YYYY-MM-DD） */
+export function mondayYmdOfWeekContaining(ymd: string): string {
+ const [y, m, d] = ymd.split("-").map(Number)
+ const dt = new Date(y, m - 1, d)
+ const dow = dt.getDay()
+ const diff = dow === 0 ? -6 : 1 - dow
+ dt.setDate(dt.getDate() + diff)
+ const yy = dt.getFullYear()
+ const mm = String(dt.getMonth() + 1).padStart(2, "0")
+ const dd = String(dt.getDate()).padStart(2, "0")
+ return `${yy}-${mm}-${dd}`
+}
