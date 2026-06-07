@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -107,12 +107,15 @@ export function LeaveManagementView() {
  const [linkSaving, setLinkSaving] = useState(false)
  const [linkErr, setLinkErr] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
- const isHistoryView = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return pick !== currentAcademicYear
- }, [academicYearFilter, currentAcademicYear])
+ const selectedYearLabel = useMemo(
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  [academicYearFilter, currentAcademicYear]
+ )
 
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
+  [selectedYearLabel]
+ )
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -216,7 +219,7 @@ export function LeaveManagementView() {
   const q = addMakeupSearch.trim().toLowerCase()
   if (!q) return makeupCandidates
   return makeupCandidates.filter((s) => {
-   const hay = `${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
+   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
    return hay.includes(q)
   })
  }, [makeupCandidates, addMakeupSearch])
@@ -338,7 +341,7 @@ export function LeaveManagementView() {
   const q = linkSearch.trim().toLowerCase()
   if (!q) return linkCandidates
   return linkCandidates.filter((s) =>
-   `${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date} ${s.start_time ?? ""}`
+   `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date} ${s.start_time ?? ""}`
     .toLowerCase()
     .includes(q)
   )
@@ -466,7 +469,7 @@ export function LeaveManagementView() {
 
   {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-    目前為歷史學年檢視（唯讀）：可查閱請假資料，但不可新增、修改、刪除。
+    2526 及更早學年僅供查閱：不可新增、修改、刪除。
    </div>
   ) : null}
 
@@ -853,7 +856,7 @@ export function LeaveManagementView() {
          <option value="">請選擇補堂排程</option>
          {makeupFiltered.map((s) => (
           <option key={s.id} value={s.id}>
-           {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.subject}
+           {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
            {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
           </option>
          ))}
@@ -961,7 +964,7 @@ export function LeaveManagementView() {
        <option value="">請選擇補堂排程</option>
        {linkFiltered.map((s) => (
         <option key={s.id} value={s.id}>
-         {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.subject}
+         {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
          {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
         </option>
        ))}

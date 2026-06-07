@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
@@ -537,8 +538,11 @@ export function TrialSessionsView() {
        >
         {classPickList.map((c) => (
          <option key={c.id} value={c.id}>
-          {c.subject}
-          {c.course_code ? `（${c.course_code}）` : ""}
+          {formatClassLabel({
+           subject: c.subject,
+           courseCode: c.course_code,
+           courseName: c.course_name,
+          })}
          </option>
         ))}
        </Select>

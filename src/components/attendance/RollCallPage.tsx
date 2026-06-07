@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -39,13 +39,11 @@ function formatLoadError(e: unknown): string {
 export function RollCallPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const [dateYmd, setDateYmd] = useState(() => localYmd())
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
  const selectedAcademicYear = useMemo(() => academicYearLabelFromStartDate(dateYmd), [dateYmd])
- const isHistoryView = useMemo(
-  () => selectedAcademicYear !== currentAcademicYear,
-  [selectedAcademicYear, currentAcademicYear]
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedAcademicYear),
+  [selectedAcademicYear]
  )
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [pendingMakeup, setPendingMakeup] = useState(0)
  const [loadingList, setLoadingList] = useState(true)
@@ -366,7 +364,7 @@ export function RollCallPage() {
 
   {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-    目前為歷史學年檢視（唯讀）：可查閱點名結果，但不可修改或重新送出點名。
+    2526 及更早學年僅供查閱：不可修改或重新送出點名。
    </div>
   ) : null}
 
@@ -411,7 +409,7 @@ export function RollCallPage() {
        schedules.map((s) => (
         <option key={s.id} value={s.id}>
          {s.scheduled_date}
-         {s.scheduled_date === localYmd() ? "（今天）" : ""} — {s.subject}
+         {s.scheduled_date === localYmd() ? "（今天）" : ""} — {s.classLabel}
          {s.course_code ? ` (${s.course_code})` : ""} {s.start_time ?? ""}–{s.end_time ?? ""} —{" "}
          {s.teacher_name ?? "—"}
         </option>
@@ -436,7 +434,7 @@ export function RollCallPage() {
      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
       <div>
        <h2 className="text-lg font-semibold">
-        點名表 · {activeSchedule.subject} · {activeSchedule.scheduled_date}
+        點名表 · {activeSchedule.classLabel} · {activeSchedule.scheduled_date}
        </h2>
        <p className="text-xs text-muted-foreground">
         共 {students.length} 位學生（班內報讀 + 試堂）

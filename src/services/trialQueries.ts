@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { localYmd } from "@/services/scheduleQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
@@ -37,6 +38,10 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
  const cls = r.classes as Record<string, unknown> | null
  const tch = cls?.teachers as Record<string, unknown> | null
  const sc = r.schedules as Record<string, unknown> | null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const code = cls?.course_code != null ? String(cls.course_code) : null
  return {
   id: String(r.id),
   student_id: String(r.student_id),
@@ -48,8 +53,8 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
   remarks: r.remarks != null ? String(r.remarks) : null,
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
-  class_subject: cls?.subject != null ? String(cls.subject) : null,
-  course_code: cls?.course_code != null ? String(cls.course_code) : null,
+  class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+  course_code: code,
   teacher_id: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
@@ -63,7 +68,7 @@ export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
  const { data, error } = await supabase
   .from("trial_sessions")
   .select(
-   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, students ( full_name, grade ), classes ( subject, course_code, teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, students ( full_name, grade ), classes ( subject, course_code, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time )"
   )
   .order("trial_date", { ascending: false })
   .order("created_at", { ascending: false })

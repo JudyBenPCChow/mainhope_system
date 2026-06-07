@@ -9,6 +9,16 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
+import {
+ formatMin,
+ intervalsOverlapMinutes,
+ lessonSlotEndMinute,
+ lessonSlotLabel,
+ lessonSlotStartMinute,
+ LESSON_SLOT_DURATION_MIN,
+ LESSON_SLOT_INDICES,
+} from "@/lib/lessonSlots"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { fetchAllClasses, getClassById, insertScheduleForClass } from "@/services/classQueries"
 import {
@@ -41,27 +51,11 @@ function parseYmd(ymd: string): Date {
  return new Date(y, m - 1, da)
 }
 
-function minToHm(m: number): string {
- const h = Math.floor(m / 60)
- const mm = m % 60
- return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
-}
-
-const SLOT_START_MIN = 8 * 60
-const SLOT_LEN_MIN = 75
-const DAY_END_MIN = 23 * 60
-
-const TIME_SLOTS = (() => {
- const slots: { label: string; startMin: number; endMin: number }[] = []
- for (let s = SLOT_START_MIN; s + SLOT_LEN_MIN <= DAY_END_MIN; s += SLOT_LEN_MIN) {
-  slots.push({
-   label: `${minToHm(s)}–${minToHm(s + SLOT_LEN_MIN)}`,
-   startMin: s,
-   endMin: s + SLOT_LEN_MIN,
-  })
- }
- return slots
-})()
+const TIME_SLOTS = LESSON_SLOT_INDICES.map((idx) => ({
+ label: lessonSlotLabel(idx),
+ startMin: lessonSlotStartMinute(idx),
+ endMin: lessonSlotEndMinute(idx),
+}))
 
 function parseHm(t: string | null): number | null {
  if (!t) return null
@@ -77,12 +71,12 @@ function schedTimeRange(s: RoomScheduleRow): { a: number; b: number } | null {
  const a = parseHm(s.start_time)
  if (a === null) return null
  let b = parseHm(s.end_time)
- if (b === null) b = a + SLOT_LEN_MIN
+ if (b === null) b = a + LESSON_SLOT_DURATION_MIN
  return { a, b }
 }
 
 function rangesOverlap(a0: number, a1: number, b0: number, b1: number): boolean {
- return a0 < b1 && a1 > b0
+ return intervalsOverlapMinutes(a0, a1, b0, b1)
 }
 
 function formatMdSlash(ymd: string): string {
@@ -190,9 +184,11 @@ export function ClassroomsManagePage() {
     const all = await fetchAllClasses()
     list = all.map((c) => ({
      id: c.id,
-     label: `${c.subject}${c.course_code ? `（${c.course_code}）` : ""}${
-      c.classroom_name ? ` · ${c.classroom_name}` : " · 未綁課室"
-     }`,
+     label: `${formatClassLabel({
+      subject: c.subject,
+      courseCode: c.course_code,
+      courseName: c.course_name,
+     })}${c.classroom_name ? ` · ${c.classroom_name}` : " · 未綁課室"}`,
     }))
    }
    setClassOptions(list)
@@ -510,8 +506,8 @@ export function ClassroomsManagePage() {
                setSelectedDateYmd(d.ymd)
                openAddDialog({
                 dateYmd: d.ymd,
-                start: minToHm(slot.startMin),
-                end: minToHm(slot.endMin),
+                start: formatMin(slot.startMin),
+                end: formatMin(slot.endMin),
                })
               }}
              />
@@ -527,7 +523,7 @@ export function ClassroomsManagePage() {
                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
                 )}
                >
-                {s.subject}
+                {s.classLabel}
                 {s.start_time ? ` · ${s.start_time}` : ""}
                </Link>
               ))}
@@ -578,7 +574,7 @@ export function ClassroomsManagePage() {
          )}
         >
          <span className="font-medium text-foreground">
-          {s.subject}
+          {s.classLabel}
           {s.course_code ? `（${s.course_code}）` : ""}
          </span>
          <span className="inline-flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">

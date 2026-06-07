@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
-import { isHistoryYearReadOnly, isSuperAdmin } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -25,6 +25,7 @@ import {
  isPrimaryGradeLabel,
  kanbanDayKey,
 } from "@/components/classes/classesUi"
+import { classDisplayName } from "@/lib/courseLabel"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -148,12 +149,15 @@ export function ClassesListPage() {
   })
  }, [baseRows, academicYearFilter, currentAcademicYear])
 
- const isHistoryView = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return pick !== currentAcademicYear
- }, [academicYearFilter, currentAcademicYear])
+ const selectedYearLabel = useMemo(
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  [academicYearFilter, currentAcademicYear]
+ )
 
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
+  [selectedYearLabel]
+ )
 
  const filtered = useMemo(() => {
   return yearScopedRows.filter(
@@ -524,7 +528,7 @@ export function ClassesListPage() {
 
    {historyReadOnly ? (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-     目前為歷史學年檢視（唯讀）：可查閱資料，但不可新增、修改、刪除。
+     2526 及更早學年僅供查閱：不可新增、修改、刪除。
     </div>
    ) : null}
 
@@ -590,7 +594,7 @@ export function ClassesListPage() {
      </Button>
     ) : (
      <p className="text-sm text-muted-foreground">
-      {historyReadOnly ? "歷史學年為唯讀模式，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
+      {historyReadOnly ? "2526 及更早學年僅供查閱，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
      </p>
     )}
    </div>
@@ -605,7 +609,7 @@ export function ClassesListPage() {
           課程編號
          </th>
          <th className="min-w-[5.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">年級</th>
-         <th className="min-w-[9rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">科目</th>
+         <th className="min-w-[9rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">課程名稱</th>
          <th className="min-w-[9.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">上課時間</th>
          <th className="min-w-[7rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">老師</th>
          <th className="min-w-[4.5rem] whitespace-nowrap px-3 py-3 pr-2 text-center font-medium">
@@ -657,7 +661,9 @@ export function ClassesListPage() {
             <span className="block break-words leading-relaxed">{(c.grade ?? []).join("、") || "—"}</span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2">
-            <span className="block break-words leading-relaxed font-medium">{c.subject}</span>
+            <span className="block break-words leading-relaxed font-medium">
+             {classDisplayName({ subject: c.subject, courseName: c.course_name })}
+            </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
             <span className="block break-words leading-relaxed">{timeLabel(c)}</span>
@@ -774,7 +780,9 @@ export function ClassesListPage() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.22),transparent_55%)] opacity-90 transition group-hover:opacity-100" />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent px-4 pb-4 pt-14 text-white">
            <p className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/75">班別</p>
-           <p className="line-clamp-2 text-lg font-bold leading-snug">{c.subject}</p>
+           <p className="line-clamp-2 text-lg font-bold leading-snug">
+            {classDisplayName({ subject: c.subject, courseName: c.course_name })}
+           </p>
           </div>
          </div>
          <div className="space-y-2 px-4 py-3">
@@ -827,7 +835,9 @@ export function ClassesListPage() {
             </span>
             <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">{c.status}</Tag>
            </div>
-           <div className="text-base font-bold">{c.subject}</div>
+           <div className="text-base font-bold">
+            {classDisplayName({ subject: c.subject, courseName: c.course_name })}
+           </div>
            <div className="text-xs text-muted-foreground">{timeLabel(c)}</div>
            {c.teacher_id ? (
             <Link

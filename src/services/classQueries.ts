@@ -779,7 +779,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code ), teachers ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -790,6 +790,10 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const tch = r.teachers as Record<string, unknown> | null
  const crm = r.classrooms as Record<string, unknown> | null
  const cid = r.class_id != null ? String(r.class_id) : null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const code = cls?.course_code != null ? String(cls.course_code) : null
  return {
   id: String(r.id),
   scheduled_date: String(r.scheduled_date ?? ""),
@@ -798,8 +802,8 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
   class_id: cid,
-  class_subject: cls?.subject != null ? String(cls.subject) : "—",
-  course_code: cls?.course_code != null ? String(cls.course_code) : null,
+  class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+  course_code: code,
   teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   classroom_id: r.classroom_id != null ? String(r.classroom_id) : null,

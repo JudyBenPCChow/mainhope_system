@@ -12,11 +12,11 @@ import {
 } from "@/components/classes/ClassCreateForm"
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { classDisplayName } from "@/lib/courseLabel"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { deleteClassCascade, fetchAcademicYearOptions, fetchSubjectOptions, insertClass, type ClassRecord } from "@/services/classQueries"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAppConfirm } from "@/lib/appConfirm"
 
 export function ClassCreatePage() {
@@ -45,11 +45,10 @@ export function ClassCreatePage() {
  const [err, setErr] = useState<string | null>(null)
  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name_zh: string }[]>([])
 
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(null), [])
- const historyReadOnly = useMemo(() => {
-  if (!form.academic_year_label) return false
-  return isHistoryYearReadOnly(form.academic_year_label !== currentAcademicYear)
- }, [form.academic_year_label, currentAcademicYear])
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, form.academic_year_label || null),
+  [form.academic_year_label]
+ )
 
  useEffect(() => {
   void fetchSubjectOptions().then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
@@ -142,7 +141,7 @@ export function ClassCreatePage() {
    </div>
 
    {historyReadOnly ? (
-    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">歷史學年為唯讀，無法新增班別。</p>
+    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">2526 及更早學年僅供查閱，無法新增班別。</p>
    ) : null}
 
    {err ? (
@@ -161,7 +160,10 @@ export function ClassCreatePage() {
    ) : createdClass ? (
     <>
      <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
-      已建立班別：<span className="font-medium">{createdClass.course_code_full ?? createdClass.subject}</span>
+      已建立班別：<span className="font-medium">
+       {classDisplayName({ subject: createdClass.subject, courseName: createdClass.course_name })}
+       {createdClass.course_code_full ? `（${createdClass.course_code_full}）` : ""}
+      </span>
      </div>
      <BatchSchedulePanel
       classId={createdClass.id}

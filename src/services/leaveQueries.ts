@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
-import { formatClassLabel } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
@@ -49,6 +49,15 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
  const cls = r.classes as Record<string, unknown> | null
  const tch = cls?.teachers as Record<string, unknown> | null
  const sc = r.schedules as Record<string, unknown> | null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const code =
+  cls?.course_code_full != null
+   ? String(cls.course_code_full)
+   : cls?.course_code != null
+     ? String(cls.course_code)
+     : null
  return {
   id: String(r.id),
   student_id: String(r.student_id),
@@ -63,13 +72,8 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
   remarks: r.remarks != null ? String(r.remarks) : null,
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
-  class_subject: cls?.subject != null ? String(cls.subject) : null,
-  course_code:
-   cls?.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls?.course_code != null
-      ? String(cls.course_code)
-      : null,
+  class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+  course_code: code,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
   sched_start: sc?.start_time != null ? String(sc.start_time) : null,
@@ -83,7 +87,7 @@ export async function fetchLeaveMakeupWithRelations(): Promise<LeaveManageRow[]>
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status, remarks, students ( full_name, grade ), classes ( subject, course_code, course_code_full, teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status, remarks, students ( full_name, grade ), classes ( subject, course_code, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
   )
   .order("leave_date", { ascending: true })
   .order("created_at", { ascending: true })
@@ -248,7 +252,7 @@ export async function fetchEnrolledClassesForStudent(studentId: string): Promise
  if (!supabase) return []
  const { data, error } = await supabase
   .from("student_class_enrollments")
-  .select("class_id, classes ( id, subject, course_code, course_code_full )")
+  .select("class_id, classes ( id, subject, course_code, course_code_full, courses ( course_name ) )")
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (error) throwPostgrest(error)
@@ -257,15 +261,19 @@ export async function fetchEnrolledClassesForStudent(studentId: string): Promise
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   if (!cls?.id) continue
+  const course = cls.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const sub = cls.subject != null ? String(cls.subject) : "—"
+  const code =
+   cls.course_code_full != null
+    ? String(cls.course_code_full)
+    : cls.course_code != null
+      ? String(cls.course_code)
+      : null
   out.push({
    id: String(cls.id),
-   subject: cls.subject != null ? String(cls.subject) : "—",
-   course_code:
-    cls.course_code_full != null
-     ? String(cls.course_code_full)
-     : cls.course_code != null
-       ? String(cls.course_code)
-       : null,
+   subject: classDisplayName({ subject: sub, courseName }),
+   course_code: code,
   })
  }
  out.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant"))
@@ -342,7 +350,7 @@ export async function fetchUpcomingSchedulesForStudent(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, course_code_full ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, course_code_full, courses ( course_name ) ), teachers ( full_name )"
   )
   .in("class_id", classIds)
   .gte("scheduled_date", fromYmd)
@@ -355,6 +363,15 @@ export async function fetchUpcomingSchedulesForStudent(
    const r = row as Record<string, unknown>
    const cls = r.classes as Record<string, unknown> | null
    const teacher = r.teachers as Record<string, unknown> | null
+   const sub = cls?.subject != null ? String(cls.subject) : "—"
+   const course = cls?.courses as Record<string, unknown> | null
+   const courseName = course?.course_name != null ? String(course.course_name) : null
+   const courseCode =
+    cls?.course_code_full != null
+     ? String(cls.course_code_full)
+     : cls?.course_code != null
+       ? String(cls.course_code)
+       : null
    return {
     id: String(r.id),
     class_id: String(r.class_id ?? ""),
@@ -362,13 +379,8 @@ export async function fetchUpcomingSchedulesForStudent(
     start_time: r.start_time != null ? String(r.start_time) : null,
     end_time: r.end_time != null ? String(r.end_time) : null,
     status: String(r.status ?? ""),
-    subject: cls?.subject != null ? String(cls.subject) : "—",
-    course_code:
-     cls?.course_code_full != null
-      ? String(cls.course_code_full)
-      : cls?.course_code != null
-        ? String(cls.course_code)
-        : null,
+    subject: formatClassLabel({ subject: sub, courseCode, courseName }),
+    course_code: courseCode,
     teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
    }
   })

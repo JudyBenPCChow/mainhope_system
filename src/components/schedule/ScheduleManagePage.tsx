@@ -40,8 +40,9 @@ import {
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -288,7 +289,11 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setClassPickList(
     scoped.map((c) => ({
      id: c.id,
-     label: `${c.subject}${c.course_code ? `（${c.course_code}）` : ""}`,
+     label: formatClassLabel({
+      subject: c.subject,
+      courseCode: c.course_code,
+      courseName: c.course_name,
+     }),
     }))
    )
    setAddClassId((prev) => {
@@ -312,7 +317,7 @@ useEffect(() => {
   const m = new Map<string, string>()
   for (const r of rows) {
    if (!r.class_id) continue
-   const label = `${r.subject}${r.course_code ? `（${r.course_code}）` : ""}`
+   const label = r.classLabel
    m.set(r.class_id, label)
   }
   return [...m.entries()].map(([id, label]) => ({ id, label }))
@@ -328,12 +333,15 @@ useEffect(() => {
   return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
  }, [rows, academicYearFilter, currentAcademicYear])
 
- const isHistoryView = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return pick !== currentAcademicYear
- }, [academicYearFilter, currentAcademicYear])
+ const selectedYearLabel = useMemo(
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  [academicYearFilter, currentAcademicYear]
+ )
 
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
+  [selectedYearLabel]
+ )
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
@@ -342,7 +350,7 @@ useEffect(() => {
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
    if (q) {
-    const hay = `${r.subject} ${r.course_code ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
+    const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
     if (!hay.includes(q)) return false
    }
    return true
@@ -395,7 +403,7 @@ useEffect(() => {
    ...filtered.map((r) =>
     [
      r.scheduled_date,
-     `"${r.subject.replace(/"/g, '""')}"`,
+     `"${r.classLabel.replace(/"/g, '""')}"`,
      r.course_code ?? "",
      r.start_time ?? "",
      r.end_time ?? "",
@@ -571,7 +579,7 @@ useEffect(() => {
 
    {historyReadOnly ? (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-     目前為歷史學年檢視（唯讀）：可查閱排程，但不可新增、修改、刪除或拖曳調整。
+     2526 及更早學年僅供查閱：不可新增、修改、刪除或拖曳調整。
     </div>
    ) : null}
 
@@ -818,7 +826,7 @@ useEffect(() => {
              >
               <div className="flex flex-wrap items-center gap-2">
                <span className="text-lg font-semibold text-foreground md:text-xl">
-                {s.subject}
+                {s.classLabel}
                 {s.course_code ? (
                  <span className="font-mono text-sm text-muted-foreground">
                   {" "}
@@ -942,7 +950,7 @@ useEffect(() => {
             {open ? (
              <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
               <p className="text-sm font-medium text-info">
-               班別：{s.subject}
+               班別：{s.classLabel}
                {s.course_code ? `（${s.course_code}）` : ""}
                {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
               </p>
@@ -969,6 +977,7 @@ useEffect(() => {
                    payload={{
                     studentName: st.fullName,
                     subject: s.subject,
+                    courseName: s.course_name,
                     courseCode: s.course_code,
                     dateYmd: s.scheduled_date,
                     startTime: s.start_time,
@@ -1060,7 +1069,7 @@ useEffect(() => {
             </div>
            </td>
            <td className="min-w-0 align-top px-4 py-3 font-medium">
-            <span className="block break-words">{s.subject}</span>
+            <span className="block break-words">{s.classLabel}</span>
             {s.course_code ? (
              <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
               ({s.course_code})
@@ -1150,6 +1159,7 @@ useEffect(() => {
                   payload={{
                    studentName: st.fullName,
                    subject: s.subject,
+                   courseName: s.course_name,
                    courseCode: s.course_code,
                    dateYmd: s.scheduled_date,
                    startTime: s.start_time,
@@ -1251,7 +1261,7 @@ useEffect(() => {
                 className="cursor-grab rounded-md border border-teal-300 bg-teal-50 px-2 py-1.5 text-sm font-medium text-teal-900 shadow-sm active:cursor-grabbing"
                >
                 <div className="flex items-start justify-between gap-1">
-                 <span className="line-clamp-2">{s.subject}</span>
+                 <span className="line-clamp-2">{s.classLabel}</span>
                  <ScheduleAlertIcons alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }} />
                 </div>
                 <div className="mt-0.5 tabular-nums text-xs text-teal-800/90 md:text-sm">
@@ -1290,7 +1300,7 @@ useEffect(() => {
                className="cursor-grab rounded-md border border-amber-400 bg-amber-100 px-2 py-1.5 text-sm font-medium text-amber-950 active:cursor-grabbing"
               >
                <div className="flex items-start justify-between gap-1">
-                <span className="line-clamp-2">{s.subject}</span>
+                <span className="line-clamp-2">{s.classLabel}</span>
                 <ScheduleAlertIcons alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }} />
                </div>
                <div className="mt-0.5 tabular-nums text-xs md:text-sm">
@@ -1364,7 +1374,7 @@ useEffect(() => {
      {pendingMove ? (
       <div className="space-y-3 text-sm">
        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
-        即將調整「{pendingMove.row.subject}
+        即將調整「{pendingMove.row.classLabel}
         {pendingMove.row.course_code ? `（${pendingMove.row.course_code}）` : ""}」：
         <br />
         課室 → <strong>{pendingMove.roomLabel}</strong>

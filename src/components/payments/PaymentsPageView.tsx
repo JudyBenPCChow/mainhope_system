@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -259,12 +259,15 @@ export function PaymentsPageView() {
  const [formErr, setFormErr] = useState<string | null>(null)
  const [formOk, setFormOk] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(new Date().toISOString().slice(0, 10)), [])
- const isHistoryView = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return pick !== currentAcademicYear
- }, [academicYearFilter, currentAcademicYear])
+ const selectedYearLabel = useMemo(
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  [academicYearFilter, currentAcademicYear]
+ )
 
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
+  [selectedYearLabel]
+ )
 
  const loadDashboardStats = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -797,7 +800,7 @@ const academicYearOptions = useMemo(() => {
 
   {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-    目前為歷史學年檢視（唯讀）：不可新增、標記收款或刪除。
+    2526 及更早學年僅供查閱：不可新增、標記收款或刪除。
    </div>
   ) : null}
 

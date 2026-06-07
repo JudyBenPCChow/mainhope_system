@@ -14,7 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { formatClassLabel } from "@/lib/courseLabel"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -73,12 +74,15 @@ export function AttendanceRecordsPage() {
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
- const isHistoryView = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return pick !== currentAcademicYear
- }, [academicYearFilter, currentAcademicYear])
+ const selectedYearLabel = useMemo(
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  [academicYearFilter, currentAcademicYear]
+ )
 
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+ const historyReadOnly = useMemo(
+  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
+  [selectedYearLabel]
+ )
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -107,7 +111,11 @@ export function AttendanceRecordsPage() {
    setClassOptions(
     all.map((c) => ({
      id: c.id,
-     label: c.course_code ? `${c.subject} (${c.course_code})` : c.subject,
+     label: formatClassLabel({
+      subject: c.subject,
+      courseCode: c.course_code,
+      courseName: c.course_name,
+     }),
      teacherId: c.teacher_id ?? null,
     }))
    )
@@ -198,7 +206,7 @@ export function AttendanceRecordsPage() {
    ) : null}
   {historyReadOnly ? (
    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-    目前為歷史學年檢視（唯讀）。
+    2526 及更早學年僅供查閱。
    </div>
   ) : null}
 
@@ -314,7 +322,7 @@ export function AttendanceRecordsPage() {
      />
     </label>
     <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>班別（科目 + 課程代碼）</span>
+     <span>班別（課程名稱 + 代碼）</span>
      <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} className="h-9">
       <option value="all">全部班別</option>
       {classOptions.map((c) => (

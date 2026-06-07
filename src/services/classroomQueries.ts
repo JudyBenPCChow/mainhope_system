@@ -39,6 +39,7 @@ export type RoomScheduleRow = {
  subject: string
  course_code: string | null
  course_name: string | null
+ classLabel: string
  teacher_id: string | null
  teacher_name: string | null
 }
@@ -64,6 +65,10 @@ export async function fetchSchedulesForRoomRange(
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const tch = r.teachers as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "（無班別）"
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
   return {
    id: String(r.id),
    scheduled_date: String(r.scheduled_date ?? ""),
@@ -71,12 +76,10 @@ export async function fetchSchedulesForRoomRange(
    end_time: r.end_time != null ? String(r.end_time) : null,
    status: String(r.status ?? ""),
    class_id: r.class_id != null ? String(r.class_id) : null,
-   subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
-   course_code: cls?.course_code != null ? String(cls.course_code) : null,
-   course_name:
-    (cls?.courses as Record<string, unknown> | null)?.course_name != null
-     ? String((cls?.courses as Record<string, unknown>).course_name)
-     : null,
+   subject: sub,
+   course_code: courseCode,
+   course_name: courseName,
+   classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
    teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
    teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   }

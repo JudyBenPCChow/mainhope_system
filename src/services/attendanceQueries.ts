@@ -1,4 +1,5 @@
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -223,6 +224,15 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
  const st = r.students as Record<string, unknown> | null
  const cls = r.classes as (Record<string, unknown> & { teachers?: Record<string, unknown> | null }) | null
  const teacherObj = cls?.teachers ?? null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const courseCode =
+  cls?.course_code_full != null
+   ? String(cls.course_code_full)
+   : cls?.course_code != null
+     ? String(cls.course_code)
+     : null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
@@ -233,13 +243,8 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
   studentName: st?.full_name != null ? String(st.full_name) : null,
   studentEnglishName: st?.english_name != null ? String(st.english_name) : null,
   studentGrade: st?.grade != null ? String(st.grade) : null,
-  classSubject: cls?.subject != null ? String(cls.subject) : null,
-  courseCode:
-   cls?.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls?.course_code != null
-      ? String(cls.course_code)
-      : null,
+  classSubject: formatClassLabel({ subject: sub, courseCode, courseName }),
+  courseCode,
   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacherName: teacherObj?.full_name != null ? String(teacherObj.full_name) : null,
  }
@@ -253,7 +258,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, course_code_full, teacher_id, teachers ( full_name ) )"
+   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)

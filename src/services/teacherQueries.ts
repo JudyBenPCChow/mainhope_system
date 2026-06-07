@@ -1,4 +1,5 @@
 import { isSuperAdmin } from "@/lib/mgmtRole"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 
 export type TeacherRecord = {
@@ -151,7 +152,7 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
  if (!supabase) return []
  const { data: classes, error } = await supabase
   .from("classes")
-  .select("id, subject, course_code, day_of_week, time_slot, grade, price_per_lesson")
+  .select("id, subject, course_code, day_of_week, time_slot, grade, price_per_lesson, courses ( course_name )")
   .eq("teacher_id", teacherId)
   .order("subject")
  if (error) throw error
@@ -167,16 +168,21 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
   const id = String((r as { class_id: string }).class_id)
   countMap.set(id, (countMap.get(id) ?? 0) + 1)
  }
- return cls.map((c) => ({
-  id: String(c.id),
-  subject: String(c.subject ?? ""),
-  courseCode: c.course_code != null ? String(c.course_code) : null,
+ return cls.map((c) => {
+  const course = c.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const sub = String(c.subject ?? "")
+  return {
+   id: String(c.id),
+   subject: classDisplayName({ subject: sub, courseName }),
+   courseCode: c.course_code != null ? String(c.course_code) : null,
   dayOfWeek: c.day_of_week != null ? String(c.day_of_week) : null,
   timeSlot: c.time_slot != null ? String(c.time_slot) : null,
   grades: Array.isArray(c.grade) ? (c.grade as string[]) : null,
   pricePerLesson: c.price_per_lesson != null ? Number(c.price_per_lesson) : null,
-  studentCount: countMap.get(String(c.id)) ?? 0,
- }))
+   studentCount: countMap.get(String(c.id)) ?? 0,
+  }
+ })
 }
 
 export type ScheduleRow = {
@@ -196,7 +202,7 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
  const { data: sched, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code )"
+   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, courses ( course_name ) )"
   )
   .eq("teacher_id", teacherId)
   .order("scheduled_date", { ascending: true })
@@ -229,6 +235,10 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
  }
  return rows.map((r) => {
   const cls = r.classes as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "—"
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : "",
@@ -236,8 +246,8 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
    startTime: r.start_time != null ? String(r.start_time) : null,
    endTime: r.end_time != null ? String(r.end_time) : null,
    status: String(r.status ?? "預定"),
-   subject: cls?.subject != null ? String(cls.subject) : "—",
-   courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+   subject: formatClassLabel({ subject: sub, courseCode, courseName }),
+   courseCode,
    studentNames:
     r.class_id != null ? namesByClass.get(String(r.class_id)) ?? [] : [],
   }
@@ -265,7 +275,7 @@ export async function fetchTeacherAttendance(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, attendance_date, status, remarks, classes ( subject, course_code ), students ( full_name, grade )"
+   "id, attendance_date, status, remarks, classes ( subject, course_code, courses ( course_name ) ), students ( full_name, grade )"
   )
   .in("class_id", classIds)
   .order("attendance_date", { ascending: false })
@@ -274,6 +284,10 @@ export async function fetchTeacherAttendance(
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const st = r.students as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "—"
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
   return {
    id: String(r.id),
    date: String(r.attendance_date ?? ""),
@@ -281,8 +295,8 @@ export async function fetchTeacherAttendance(
    remarks: r.remarks != null ? String(r.remarks) : null,
    studentName: st?.full_name != null ? String(st.full_name) : "—",
    studentGrade: st?.grade != null ? String(st.grade) : null,
-   subject: cls?.subject != null ? String(cls.subject) : "—",
-   courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+   subject: formatClassLabel({ subject: sub, courseCode, courseName }),
+   courseCode,
   }
  })
 }

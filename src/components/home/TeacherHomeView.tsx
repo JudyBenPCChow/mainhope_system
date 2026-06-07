@@ -21,7 +21,7 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
-import { formatClassLabel } from "@/lib/courseLabel"
+import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -349,10 +349,7 @@ export function TeacherHomeView() {
          <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
            <div className="font-semibold text-foreground">
-            {s.start_time ?? "—"}–{s.end_time ?? "—"} · {s.subject}
-            {s.course_code ? (
-             <span className="ml-1 font-mono text-sm text-muted-foreground">({s.course_code})</span>
-            ) : null}
+            {s.start_time ?? "—"}–{s.end_time ?? "—"} · {s.classLabel}
            </div>
            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground md:text-base">
             <span className="inline-flex items-center gap-1">
@@ -427,7 +424,7 @@ export function TeacherHomeView() {
         <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
          <div>
           <Link to={`/Classes/${c.id}`} className="font-semibold text-primary hover:underline">
-           {c.subject}
+           {classDisplayName({ subject: c.subject, courseName: c.course_name })}
           </Link>
           {c.course_code ? (
            <span className="ml-2 font-mono text-sm text-muted-foreground">{c.course_code}</span>

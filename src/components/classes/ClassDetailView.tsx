@@ -31,6 +31,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { normalizeCourseCode } from "@/lib/courseCode"
+import { classDisplayName } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -509,7 +510,9 @@ const addableStudents = (() => {
         <p className="text-lg">載入中…</p>
        ) : cls ? (
         <>
-         <h1 className="text-xl font-bold md:text-2xl">{cls.subject}</h1>
+         <h1 className="text-xl font-bold md:text-2xl">
+          {classDisplayName({ subject: cls.subject, courseName: cls.course_name })}
+         </h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="font-mono">{cls.course_code_full ?? cls.course_code ?? "—"}</span>
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>

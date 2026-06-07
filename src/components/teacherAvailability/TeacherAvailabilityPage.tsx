@@ -14,7 +14,7 @@ import type { ClassRecord } from "@/services/classQueries"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
-import { isHistoryYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
 import { lessonSlotLabel } from "@/lib/lessonSlots"
@@ -63,10 +63,9 @@ export function TeacherAvailabilityPage() {
  const year = useMemo(() => years.find((y) => y.id === yearId) ?? null, [years, yearId])
  const isHistoryView = useMemo(() => {
   if (!year) return false
-  const current = years.find((y) => y.is_current)
-  return current ? year.label !== current.label : false
- }, [year, years])
- const historyReadOnly = isHistoryYearReadOnly(isHistoryView)
+  return isAcademicYearReadOnly(year.end_date, year.label)
+ }, [year])
+ const historyReadOnly = isHistoryView
 
  const reload = useCallback(async () => {
   if (!year) return
@@ -252,7 +251,7 @@ export function TeacherAvailabilityPage() {
    </div>
 
    {historyReadOnly ? (
-    <p className="text-sm text-muted-foreground">歷史學年：僅供查閱，無法修改檔期。</p>
+    <p className="text-sm text-muted-foreground">2526 及更早學年僅供查閱，無法修改檔期。</p>
    ) : null}
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

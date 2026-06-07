@@ -421,7 +421,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   const q = leaveMakeupSearch.trim().toLowerCase()
   return leaveMakeupCandidates.filter((s) => {
    if (!q) return true
-   const hay = `${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
+   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
    return hay.includes(q)
   })
  }, [leaveMakeupCandidates, leaveMakeupSearch])
@@ -1463,7 +1463,7 @@ const exportFutureSchedulesCsv = () => {
             <option value="">請選擇補堂排程</option>
             {leaveMakeupFiltered.map((s) => (
              <option key={s.id} value={s.id}>
-              {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.subject}
+              {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
               {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
              </option>
             ))}

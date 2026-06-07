@@ -11,6 +11,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
  formatMin,
@@ -353,8 +354,11 @@ export function RoomBookingView() {
        >
         {mineClassOptions.map((c) => (
          <option key={c.id} value={c.id}>
-          {c.subject}
-          {c.course_code ? `（${c.course_code}）` : ""}
+          {formatClassLabel({
+           subject: c.subject,
+           courseCode: c.course_code,
+           courseName: c.course_name,
+          })}
          </option>
         ))}
         <option value={OTHER_VALUE}>其他</option>

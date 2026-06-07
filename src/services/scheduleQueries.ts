@@ -1,3 +1,4 @@
+import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
@@ -10,6 +11,9 @@ export type ScheduleManageRow = {
  remarks: string | null
  class_id: string | null
  subject: string
+ course_name: string | null
+ /** 班別顯示標籤（課程名稱 + 代碼） */
+ classLabel: string
  course_code: string | null
  /** 班別固定上課日（來自 classes.day_of_week） */
  class_day_of_week: string | null
@@ -38,6 +42,15 @@ function mapScheduleRow(
  const rm = row.classrooms as Record<string, unknown> | null
  const cidRaw = row.class_id
  const cid = cidRaw != null ? String(cidRaw) : null
+ const sub = cls?.subject != null ? String(cls.subject) : "（無班別）"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const courseCode =
+  cls?.course_code_full != null
+   ? String(cls.course_code_full)
+   : cls?.course_code != null
+     ? String(cls.course_code)
+     : null
  return {
   id: String(row.id),
   scheduled_date: String(row.scheduled_date ?? ""),
@@ -46,13 +59,10 @@ function mapScheduleRow(
   status: String(row.status ?? "預定"),
   remarks: row.remarks != null ? String(row.remarks) : null,
   class_id: cid,
-  subject: cls?.subject != null ? String(cls.subject) : "（無班別）",
-  course_code:
-   cls?.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls?.course_code != null
-      ? String(cls.course_code)
-      : null,
+  subject: sub,
+  course_name: courseName,
+  classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
+  course_code: courseCode,
   class_day_of_week: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   class_time_slot: cls?.time_slot != null ? String(cls.time_slot) : null,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
@@ -118,7 +128,7 @@ export async function fetchSchedulesInRange(
  let q = supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot ), teachers ( full_name ), classrooms ( name )"
+   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
   )
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)

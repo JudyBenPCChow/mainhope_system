@@ -1,3 +1,5 @@
+import { isClosedAcademicYear } from "@/lib/academicYearAccess"
+
 /** 與首頁演示／Layout 一致：localStorage `mgmt_role` */
 export type MgmtRole = "admin" | "teacher" | "alien"
 
@@ -13,7 +15,16 @@ export function isSuperAdmin(): boolean {
  return getMgmtRole() === "alien"
 }
 
-/** 歷史學年檢視是否鎖定寫入（外星人可照常編輯） */
+/** 2526 及更早唯讀；26SM 起可編輯（外星人不受限） */
+export function isAcademicYearReadOnly(
+ endDate?: string | null,
+ label?: string | null
+): boolean {
+ if (getMgmtRole() === "alien") return false
+ return isClosedAcademicYear(endDate, label)
+}
+
+/** @deprecated 請改用 isAcademicYearReadOnly(endDate, label) */
 export function isHistoryYearReadOnly(isHistoryView: boolean): boolean {
  return isHistoryView && getMgmtRole() !== "alien"
 }
