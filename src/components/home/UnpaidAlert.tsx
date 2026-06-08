@@ -16,40 +16,40 @@ export function UnpaidAlert({ items, total, loading }: Props) {
  const rest = Math.max(0, total - preview.length)
 
  return (
-  <section className="rounded-xl border-2 border-amber-300/80 bg-amber-50/90 p-5 shadow-sm md:p-6">
+  <section className="rounded-xl border-2 border-warning/40 bg-warning/10 p-5 shadow-sm md:p-6">
    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-    <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-amber-950 md:text-xl">
-     <TriangleAlert className="h-6 w-6 shrink-0 text-amber-600" />
+    <h2 className="flex flex-wrap items-center gap-2 text-lg font-semibold text-foreground md:text-xl">
+     <TriangleAlert className="h-6 w-6 shrink-0 text-warning" />
      未繳費提醒
      <Tag tone="warning" size="sm">{loading ? "…" : `${total} 筆`}</Tag>
     </h2>
     <Link
      to="/Payments"
-     className="text-base font-medium text-amber-800 underline-offset-4 hover:underline"
+     className="text-base font-medium text-primary underline-offset-4 hover:underline"
     >
      前往處理 →
     </Link>
    </div>
    {loading ? (
-    <p className="text-base text-amber-900/80">載入中…</p>
+    <p className="text-base text-muted-foreground">載入中…</p>
    ) : preview.length === 0 ? (
-    <p className="text-base text-amber-900/80">目前沒有待繳費／待收款紀錄。</p>
+    <p className="text-base text-muted-foreground">目前沒有待繳費／待收款紀錄。</p>
    ) : (
     <>
-     <ul className="divide-y divide-amber-200/80">
+     <ul className="divide-y divide-border/80">
       {preview.map((row) => (
        <li
         key={row.id}
         className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-base"
        >
-        <span className="font-semibold text-amber-950">{row.studentName}</span>
-        <span className="text-amber-800/90">{formatDateZh(row.paymentDate)}</span>
-        <span className="text-lg font-semibold text-amber-900">{formatMoney(row.amount)}</span>
+        <span className="font-semibold text-foreground">{row.studentName}</span>
+        <span className="text-muted-foreground">{formatDateZh(row.paymentDate)}</span>
+        <span className="text-lg font-semibold text-foreground">{formatMoney(row.amount)}</span>
        </li>
       ))}
      </ul>
      {rest > 0 ? (
-      <p className="mt-3 text-sm text-amber-800/80">還有 {rest} 筆未處理…</p>
+      <p className="mt-3 text-sm text-muted-foreground">還有 {rest} 筆未處理…</p>
      ) : null}
     </>
    )}

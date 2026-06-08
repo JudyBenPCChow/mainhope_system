@@ -9,6 +9,8 @@ import { Tag } from "@/components/ui/tag"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
@@ -27,12 +29,6 @@ import {
  type TrialManageRow,
 } from "@/services/trialQueries"
 
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "載入失敗"
-}
-
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
 
@@ -44,14 +40,6 @@ function matchesStatusTab(r: TrialManageRow, tab: StatusTab): boolean {
 function matchesTypeTab(r: TrialManageRow, tab: TypeTab): boolean {
  if (tab === "all") return true
  return trialTypeCategory(r.trial_type) === tab
-}
-
-function typeBadgeClass(trialType: string): string {
- const c = trialTypeCategory(trialType)
- if (c === "free") return "border-success bg-success text-success-foreground"
- if (c === "half") return "border-amber-300 bg-amber-50 text-amber-900"
- if (c === "full") return "border-info bg-info text-info-foreground"
- return "border-slate-300 bg-slate-50 text-slate-800"
 }
 
 export function TrialSessionsView() {
@@ -98,7 +86,7 @@ export function TrialSessionsView() {
    setStats(st)
    setTeachers(tch)
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "TrialSessionsView.reload", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -229,7 +217,7 @@ export function TrialSessionsView() {
    setAddOpen(false)
    await reload()
   } catch (e) {
-   setAddErr(formatLoadError(e) || "新增失敗")
+   reportUserFacingError(e, { source: "TrialSessionsView.onAdd", setErr: setAddErr, userMessage: "新增失敗" })
   } finally {
    setAddSaving(false)
   }
@@ -237,7 +225,7 @@ export function TrialSessionsView() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
@@ -452,25 +440,13 @@ export function TrialSessionsView() {
           {r.sched_start && r.sched_end ? `${r.sched_start}–${r.sched_end}` : "—"}
          </td>
          <td className="px-3 py-2 align-top">
-          <span
-           className={cn(
-            "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
-            typeBadgeClass(r.trial_type)
-           )}
-          >
+          <Tag tone={statusToTagTone(r.trial_type)} size="sm">
            {r.trial_type}
-          </span>
+          </Tag>
          </td>
          <td className="px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
           <Select
-           className={cn(
-            "h-9 rounded-md border px-2 text-xs font-medium",
-            trialStatusCategory(r.status) === "done"
-             ? "border-success bg-success text-success-foreground"
-             : trialStatusCategory(r.status) === "cancel"
-              ? "border-slate-300 bg-slate-50"
-              : "border-amber-300 bg-amber-50 text-amber-900"
-           )}
+           className="h-9 w-full min-w-[6.5rem] text-xs"
            value={r.status}
            onChange={async (e) => {
             await updateTrialSession(r.id, { status: e.target.value })

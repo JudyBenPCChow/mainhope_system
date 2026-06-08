@@ -144,16 +144,16 @@ export function CoursesManagePage() {
 
    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <div className="overflow-x-auto">
-     <table className="w-full min-w-[60rem] border-collapse text-sm">
+     <table className="w-full min-w-[60rem] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/50 text-left">
-        <th className="px-4 py-3 font-medium">課程模板</th>
-        <th className="px-3 py-3 font-medium">課程名稱</th>
-        <th className="px-3 py-3 font-medium">科目</th>
-        <th className="px-3 py-3 font-medium">年級碼</th>
-        <th className="px-3 py-3 font-medium">課程序號</th>
-        <th className="px-3 py-3 font-medium">學費（HKD/節）</th>
-        <th className="px-3 py-3 font-medium">操作</th>
+        <th className="w-[14%] px-4 py-3 font-medium">課程模板</th>
+        <th className="w-[18%] px-3 py-3 font-medium">課程名稱</th>
+        <th className="w-[12%] px-3 py-3 font-medium">科目</th>
+        <th className="w-[10%] px-3 py-3 font-medium">年級碼</th>
+        <th className="w-[10%] px-3 py-3 font-medium">課程序號</th>
+        <th className="w-[14%] px-3 py-3 font-medium">學費（HKD/節）</th>
+        <th className="w-[12%] px-3 py-3 font-medium">操作</th>
        </tr>
       </thead>
       <tbody>

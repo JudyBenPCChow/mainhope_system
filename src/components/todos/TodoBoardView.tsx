@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
+import { ChevronDown, ChevronUp, KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -78,6 +78,7 @@ export function TodoBoardView() {
   teachers: Map<string, string>
   students: Map<string, string>
  }>({ teachers: new Map(), students: new Map() })
+ const [expandedKanbanIds, setExpandedKanbanIds] = useState<Set<string>>(() => new Set())
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -223,13 +224,13 @@ export function TodoBoardView() {
    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
-      <List className="h-8 w-8 text-sky-600" />
+      <List className="h-8 w-8 text-primary" />
       待辦事項
      </h1>
      <p className="text-sm text-muted-foreground">點擊項目進入詳情；可標籤分類、記錄跟進時間軸，並關聯老師與學生。</p>
     </div>
     {canEdit ? (
-     <Button type="button" className="bg-sky-600 text-white hover:bg-sky-700" onClick={openCreate}>
+     <Button type="button" onClick={openCreate}>
       <Plus className="mr-1.5 h-4 w-4" />
       新增待辦
      </Button>
@@ -247,7 +248,7 @@ export function TodoBoardView() {
      <button
       type="button"
       onClick={() => setViewMode("table")}
-      className={cn("rounded px-3 py-1.5", viewMode === "table" ? "bg-sky-600 text-white" : "text-muted-foreground")}
+      className={cn("rounded px-3 py-1.5", viewMode === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
      >
       <span className="inline-flex items-center gap-1">
        <List className="h-4 w-4" />
@@ -257,7 +258,7 @@ export function TodoBoardView() {
      <button
       type="button"
       onClick={() => setViewMode("kanban")}
-      className={cn("rounded px-3 py-1.5", viewMode === "kanban" ? "bg-sky-600 text-white" : "text-muted-foreground")}
+      className={cn("rounded px-3 py-1.5", viewMode === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
      >
       <span className="inline-flex items-center gap-1">
        <KanbanSquare className="h-4 w-4" />
@@ -388,8 +389,10 @@ export function TodoBoardView() {
     <div className="grid gap-4 md:grid-cols-2">
      {(["in_progress", "done"] as CalendarEventStatus[]).map((status) => (
       <section key={status} className="rounded-xl border border-border bg-card p-3 shadow-sm">
-       <header className="mb-2 flex items-center justify-between">
-        <h3 className="text-sm font-semibold">{todoStatusLabel(status)}</h3>
+       <header className="mb-2 flex flex-col items-center gap-1 text-center">
+        <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+         {todoStatusLabel(status)}
+        </h3>
         <Tag tone={todoStatusTone(status)} size="sm">
          {kanbanGroups[status].length}
         </Tag>
@@ -398,35 +401,102 @@ export function TodoBoardView() {
         {kanbanGroups[status].length === 0 ? (
          <p className="rounded-md border border-dashed border-border px-2 py-4 text-center text-xs text-muted-foreground">無項目</p>
         ) : (
-         kanbanGroups[status].map((r) => (
+         kanbanGroups[status].map((r) => {
+          const expanded = expandedKanbanIds.has(r.id)
+          return (
           <article
            key={r.id}
-           role="button"
-           tabIndex={0}
-           className="cursor-pointer rounded-lg border border-border/80 bg-background px-3 py-2 transition-colors hover:border-sky-300/80 hover:bg-muted/20"
-           onClick={() => openDetail(r)}
-           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-             e.preventDefault()
-             openDetail(r)
-            }
-           }}
+           className="rounded-lg border border-border/80 bg-background px-3 py-2 transition-colors hover:border-info/40 hover:bg-muted/20"
           >
-           <p className="text-xs font-medium text-muted-foreground">{r.eventDate}</p>
-           <p className="text-sm font-semibold">{r.title}</p>
-           <div className="mt-1">
-            <TodoTagList tags={r.tags} />
-           </div>
-           <p className="mt-1 text-xs text-muted-foreground">{r.category || "一般"}</p>
-           {r.latestUpdatePreview?.trim() ? (
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.latestUpdatePreview}</p>
-           ) : null}
-           <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-            <Users className="h-3.5 w-3.5" />
-            師 {r.teacherIds.length} / 生 {r.studentIds.length}
+           <div className="flex items-start gap-2">
+            <button
+             type="button"
+             className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+             aria-expanded={expanded}
+             aria-label={expanded ? "收合卡片" : "展開卡片"}
+             onClick={(e) => {
+              e.stopPropagation()
+              setExpandedKanbanIds((prev) => {
+               const next = new Set(prev)
+               if (next.has(r.id)) next.delete(r.id)
+               else next.add(r.id)
+               return next
+              })
+             }}
+            >
+             {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            <div
+             role="button"
+             tabIndex={0}
+             className="min-w-0 flex-1 cursor-pointer"
+             onClick={() => openDetail(r)}
+             onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+               e.preventDefault()
+               openDetail(r)
+              }
+             }}
+            >
+             <div className="mt-0.5">
+              <TodoTagList tags={r.tags} />
+             </div>
+             <p className="text-xs font-medium text-muted-foreground">{r.eventDate}</p>
+             <p className="text-sm font-semibold">{r.title}</p>
+             <p className="mt-1 text-xs text-muted-foreground">{r.category || "一般"}</p>
+             {!expanded && r.latestUpdatePreview?.trim() ? (
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{r.latestUpdatePreview}</p>
+             ) : null}
+             {expanded && r.latestUpdatePreview?.trim() ? (
+              <p className="mt-2 whitespace-pre-wrap text-xs text-muted-foreground">{r.latestUpdatePreview}</p>
+             ) : null}
+             {expanded ? (
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+               <p>
+                <span className="font-medium text-foreground">老師：</span>
+                {r.teacherIds.length === 0
+                 ? "—"
+                 : r.teacherIds.map((id, i) => (
+                    <span key={id}>
+                     {i > 0 ? "、" : ""}
+                     <Link
+                      to={`/Teachers/${id}`}
+                      className="text-primary hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                     >
+                      {participantLabels.teachers.get(id) ?? id}
+                     </Link>
+                    </span>
+                   ))}
+               </p>
+               <p>
+                <span className="font-medium text-foreground">學生：</span>
+                {r.studentIds.length === 0
+                 ? "—"
+                 : r.studentIds.map((id, i) => (
+                    <span key={id}>
+                     {i > 0 ? "、" : ""}
+                     <Link
+                      to={`/Students/${id}`}
+                      className="text-primary hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                     >
+                      {participantLabels.students.get(id) ?? id}
+                     </Link>
+                    </span>
+                   ))}
+               </p>
+              </div>
+             ) : (
+              <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+               <Users className="h-3.5 w-3.5" />
+               師 {r.teacherIds.length} / 生 {r.studentIds.length}
+              </div>
+             )}
+            </div>
            </div>
            {canEdit ? (
-            <div className="mt-1 flex gap-1" onClick={(e) => e.stopPropagation()}>
+            <div className="mt-1 flex gap-1 pl-6" onClick={(e) => e.stopPropagation()}>
              <Button type="button" variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => openEdit(r, e)}>
               <Pencil className="h-3.5 w-3.5" />
              </Button>
@@ -442,7 +512,7 @@ export function TodoBoardView() {
             </div>
            ) : null}
           </article>
-         ))
+         )})
         )}
        </div>
       </section>

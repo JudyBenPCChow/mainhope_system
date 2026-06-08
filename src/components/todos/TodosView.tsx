@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -30,13 +32,8 @@ import {
  type TodoFilterTab,
 } from "@/services/todoQueries"
 
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "操作失敗"
-}
-
 export function TodosView() {
+ const { confirmDialog } = useAppConfirm()
  const [tab, setTab] = useState<TodoFilterTab>("pending")
  const [rows, setRows] = useState<AdminTodoRow[]>([])
  const [loading, setLoading] = useState(true)
@@ -61,7 +58,7 @@ export function TodosView() {
   try {
    setRows(await fetchAdminTodos(tab))
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "TodosView.load", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -113,7 +110,7 @@ export function TodosView() {
    setDialogOpen(false)
    await load()
   } catch (e) {
-   alert(formatLoadError(e))
+   reportUserFacingError(e, { source: "TodosView.submitForm", setErr })
   } finally {
    setSaving(false)
   }
@@ -124,17 +121,23 @@ export function TodosView() {
    await setTodoCompleted(r.id, !r.completedAt)
    await load()
   } catch (e) {
-   alert(formatLoadError(e))
+   reportUserFacingError(e, { source: "TodosView.onToggleDone", setErr })
   }
  }
 
  const onDelete = async (r: AdminTodoRow) => {
-  if (!confirm(`刪除待辦「${r.title}」？`)) return
+  const ok = await confirmDialog({
+   title: "刪除待辦",
+   description: `刪除待辦「${r.title}」？`,
+   confirmText: "刪除",
+   tone: "destructive",
+  })
+  if (!ok) return
   try {
    await deleteAdminTodo(r.id)
    await load()
   } catch (e) {
-   alert(formatLoadError(e))
+   reportUserFacingError(e, { source: "TodosView.onDelete", setErr })
   }
  }
 
@@ -143,32 +146,33 @@ export function TodosView() {
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ListTodo className="h-8 w-8 text-sky-600" aria-hidden />
+      <ListTodo className="h-8 w-8 text-primary" aria-hidden />
       待辦事項
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
       管理後台待辦；已完成項目可保留查閱或刪除。
      </p>
     </div>
-    <Button
-     type="button"
-     className="bg-sky-600 text-white hover:bg-sky-700"
-     onClick={openCreate}
-     disabled={!isSupabaseConfigured}
-    >
+    <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>
      <Plus className="mr-1.5 h-4 w-4" />
      新增待辦
     </Button>
    </header>
 
    {!isSupabaseConfigured ? (
-    <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+    <div
+     role="alert"
+     className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning"
+    >
      請設定 <code className="rounded bg-muted px-1">.env</code> 內 Supabase 後重啟 dev。
     </div>
    ) : null}
 
    {err ? (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div
+     role="alert"
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+    >
      {err}
     </div>
    ) : null}
@@ -188,7 +192,7 @@ export function TodosView() {
       className={cn(
        "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
        tab === key
-        ? "border-sky-600 bg-sky-600 text-white"
+        ? "border-primary bg-primary text-primary-foreground"
         : "border-border bg-card hover:bg-muted/60"
       )}
      >
@@ -210,14 +214,14 @@ export function TodosView() {
        key={r.id}
        className={cn(
         "flex flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm sm:flex-row sm:items-start sm:justify-between",
-        r.completedAt ? "border-border/80 opacity-90" : "border-sky-200/60"
+        r.completedAt ? "border-border/80 opacity-90" : "border-info/30"
        )}
       >
        <div className="min-w-0 flex-1">
         <div className="flex items-start gap-2">
          <button
           type="button"
-          className="mt-0.5 shrink-0 text-sky-600 hover:opacity-80"
+          className="mt-0.5 shrink-0 text-primary hover:opacity-80"
           aria-label={r.completedAt ? "標為未完成" : "標為完成"}
           onClick={() => void onToggleDone(r)}
          >
@@ -237,7 +241,7 @@ export function TodosView() {
            {r.title}
           </div>
           {r.notes ? (
-           <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">{r.notes}</p>
+           <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{r.notes}</p>
           ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
            <span className="inline-flex items-center gap-1 tabular-nums">
@@ -321,7 +325,6 @@ export function TodosView() {
        </Button>
        <Button
         type="button"
-        className="bg-sky-600 text-white hover:bg-sky-700"
         disabled={saving || !formTitle.trim()}
         onClick={() => void submitForm()}
        >

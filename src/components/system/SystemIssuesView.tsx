@@ -6,6 +6,9 @@ import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -95,7 +98,7 @@ export function SystemIssuesView() {
     setOffset(nextOffset)
     setRows((prev) => (append ? [...prev, ...batch] : batch))
    } catch (e) {
-    setErr(e instanceof Error ? e.message : "載入失敗")
+    reportUserFacingError(e, { source: "SystemIssuesView.loadPage", setErr })
     if (!append) setRows([])
    } finally {
     setLoading(false)
@@ -130,7 +133,7 @@ export function SystemIssuesView() {
     }
    } catch (e) {
     if (!cancelled) {
-     setErr(e instanceof Error ? e.message : "載入失敗")
+     reportUserFacingError(e, { source: "SystemIssuesView.initialLoad", setErr })
      setRows([])
     }
    } finally {
@@ -159,7 +162,7 @@ export function SystemIssuesView() {
       </Link>
      </Button>
      <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-      <AlertTriangle className="h-8 w-8 text-amber-600" aria-hidden />
+      <AlertTriangle className="h-8 w-8 text-warning" aria-hidden />
       報錯與問題
      </h1>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">
@@ -174,7 +177,7 @@ export function SystemIssuesView() {
    </header>
 
    {!isSupabaseConfigured ? (
-    <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">尚未設定 Supabase。</div>
+    <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-warning">尚未設定 Supabase。</div>
    ) : null}
 
    {err ? (
@@ -326,7 +329,7 @@ export function SystemIssuesView() {
           {r.resolved_at ? (
            <span className="text-success">已處理 {formatTs(r.resolved_at)}</span>
           ) : (
-           <span className="font-medium text-amber-800">待處理</span>
+           <Tag tone={statusToTagTone("待處理")} size="sm">待處理</Tag>
           )}
           {r.detail ? <span className="mt-1 block text-xs break-words">{r.detail}</span> : null}
          </td>

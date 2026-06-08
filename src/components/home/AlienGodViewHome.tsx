@@ -6,6 +6,9 @@ import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
+import { Tag } from "@/components/ui/tag"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -55,7 +58,7 @@ export function AlienGodViewHome() {
    setAuditRows(a)
    setErrorRows(e)
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "載入失敗")
+   reportUserFacingError(e, { source: "AlienGodViewHome.load", setErr })
    setAuditRows([])
    setErrorRows([])
   } finally {
@@ -114,7 +117,7 @@ export function AlienGodViewHome() {
 
    {!isSupabaseConfigured ? (
     <div
-     className="rounded-xl border border-amber-400/50 bg-amber-50 px-4 py-3 text-amber-950"
+     className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-warning"
      role="status"
     >
      尚未設定 Supabase，無法載入稽核與錯誤列表。請設定 <code className="rounded bg-white/70 px-1">.env</code> 並執行{" "}
@@ -183,7 +186,7 @@ export function AlienGodViewHome() {
    <section className="rounded-2xl border border-border bg-card shadow-sm" aria-labelledby="alien-errors-heading">
     <div className="border-b border-border px-5 py-4 md:px-6">
      <h2 id="alien-errors-heading" className="flex items-center gap-2 text-lg font-semibold md:text-xl">
-      <AlertTriangle className="h-5 w-5 text-amber-600" aria-hidden />
+      <AlertTriangle className="h-5 w-5 text-warning" aria-hidden />
       系統報錯與問題
      </h2>
      <p className="mt-1 text-sm text-muted-foreground">最近 20 筆（新→舊）；含未解決與已標記處理。</p>
@@ -218,7 +221,7 @@ export function AlienGodViewHome() {
            {r.resolved_at ? (
             <span className="text-success">已處理 {formatTs(r.resolved_at)}</span>
            ) : (
-            <span className="font-medium text-amber-800">待處理</span>
+            <Tag tone={statusToTagTone("待處理")} size="sm">待處理</Tag>
            )}
            {r.detail ? <span className="mt-1 block text-xs break-words">{r.detail}</span> : null}
           </td>

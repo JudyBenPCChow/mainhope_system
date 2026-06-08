@@ -32,7 +32,28 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
 
 const PAYMENT_RULES: StatusTagRule[] = [
  // 繳費：成功入帳態
- { tone: "success", keywords: ["已收款", "已批核"] },
+ { tone: "success", keywords: ["已收款", "已批核", "已收"] },
+]
+
+const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
+ // 試堂類型
+ { tone: "success", keywords: ["免費試堂", "免費"] },
+ { tone: "warning", keywords: ["半價試堂", "半價"] },
+ { tone: "info", keywords: ["全價", "正式試堂"] },
+ { tone: "default", keywords: ["當日紀錄"] },
+ // 試堂 / 報讀：進行與預約態
+ { tone: "info", keywords: ["試堂", "報讀", "可分配", "已分配", "就讀", "已預約"] },
+ // 試堂 / 報讀：待跟進
+ { tone: "warning", keywords: ["待跟進", "待安排", "退讀"] },
+]
+
+const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
+ // 系統問題 / 待處理
+ { tone: "warning", keywords: ["待處理", "open", "未解決"] },
+ // 角色：管理員
+ { tone: "info", keywords: ["admin", "管理員", "alien", "外星人"] },
+ // 角色：老師
+ { tone: "success", keywords: ["teacher", "老師", "專班"] },
 ]
 
 /**
@@ -48,6 +69,8 @@ export const STATUS_TAG_RULES: StatusTagRule[] = [
  ...HR_AND_ATTENDANCE_RULES,
  ...SCHEDULE_AND_TASK_RULES,
  ...PAYMENT_RULES,
+ ...TRIAL_AND_ENROLLMENT_RULES,
+ ...ISSUE_AND_ROLE_RULES,
 ]
 
 function normalize(text: string): string {

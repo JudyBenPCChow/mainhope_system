@@ -22,7 +22,9 @@ import {
  todayYmdLocal,
 } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
+import { Tag } from "@/components/ui/tag"
 import { useIdleScrollCarousel } from "@/hooks/useIdleScrollCarousel"
+import { statusToTagTone } from "@/lib/statusTag"
 import { LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
 import { cn } from "@/lib/utils"
 import {
@@ -194,9 +196,9 @@ export function DashboardBoard({
             {c.timeRange}
            </span>
           </div>
-          <span className="mt-2 inline-flex rounded-md border border-sky-200/80 bg-sky-50/90 px-2 py-0.5 text-xs font-medium text-sky-900">
+          <Tag tone={statusToTagTone(c.status)} size="sm" className="mt-2">
            {c.status}
-          </span>
+          </Tag>
          </Link>
         </li>
        ))}
@@ -211,7 +213,7 @@ export function DashboardBoard({
     <div className="rounded-xl border border-border/80 bg-card/90 p-5 shadow-sm md:p-6">
      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-foreground md:text-lg">
-       <ListTodo className="h-5 w-5 shrink-0 text-sky-600" aria-hidden />
+       <ListTodo className="h-5 w-5 shrink-0 text-primary" aria-hidden />
        今日待辦事項
        <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground">
         {loading ? "…" : `${todosToday.length} 項`}
@@ -242,7 +244,7 @@ export function DashboardBoard({
           className="flex gap-3 rounded-lg border border-border/70 bg-background/80 px-4 py-3 text-base transition-colors hover:bg-muted/30"
          >
           <Link to={`/Calendar/${t.id}`} className="flex min-w-0 flex-1 gap-3">
-          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-sky-500/70" aria-hidden />
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-info/70" aria-hidden />
           <div className="min-w-0">
            <div className="font-semibold text-foreground">{t.title}</div>
            {t.notes ? (
@@ -335,7 +337,7 @@ export function DashboardBoard({
     <div className="rounded-xl border border-border/80 bg-card/90 p-5 shadow-sm md:p-6">
      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
       <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-foreground md:text-lg">
-       <Umbrella className="h-5 w-5 shrink-0 text-amber-600" aria-hidden />
+       <Umbrella className="h-5 w-5 shrink-0 text-warning" aria-hidden />
        今日請假學生
        <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground">
         {loading ? "…" : `${todayLeaves.length} 筆`}
@@ -381,9 +383,9 @@ export function DashboardBoard({
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
            {r.leaveReason ? (
-            <span className="rounded-md bg-amber-50 px-2 py-0.5 text-sm text-amber-950">
+            <Tag tone="warning" size="sm">
              {r.leaveReason}
-            </span>
+            </Tag>
            ) : null}
            {r.scheduleId ? (
             <Link

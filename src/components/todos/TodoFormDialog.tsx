@@ -4,6 +4,7 @@ import { BookMarked, CalendarDays, Tags, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
@@ -81,7 +82,7 @@ function SectionCard({
  return (
   <section className="rounded-xl border border-border/80 bg-muted/15 p-4">
    <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-    <Icon className="h-4 w-4 text-sky-600" />
+    <Icon className="h-4 w-4 text-primary" />
     {title}
    </h3>
    {children}
@@ -201,15 +202,16 @@ export function TodoFormDialog({
         <TodoStatusChips value={form.status} onChange={(status) => setForm((f) => ({ ...f, status }))} />
        </div>
        <div>
-        <label className="text-xs font-medium text-muted-foreground">老師可見</label>
-        <select
-         className="mt-1 flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        <label className="mb-1 block text-xs font-medium text-muted-foreground">老師可見</label>
+        <Select
          value={form.visibility}
-         onChange={(e) => setForm((f) => ({ ...f, visibility: e.target.value as "private" | "teachers" }))}
+         onChange={(e) =>
+          setForm((f) => ({ ...f, visibility: e.target.value as "private" | "teachers" }))
+         }
         >
          <option value="private">僅被指派老師可見</option>
          <option value="teachers">全體老師可見</option>
-        </select>
+        </Select>
        </div>
       </div>
      </SectionCard>
@@ -277,7 +279,7 @@ export function TodoFormDialog({
       </div>
      </SectionCard>
 
-     <p className="flex items-start gap-2 rounded-lg border border-sky-200/80 bg-sky-50/80 px-3 py-2 text-xs text-sky-900">
+     <p className="flex items-start gap-2 rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
       <BookMarked className="mt-0.5 h-4 w-4 shrink-0" />
       儲存後可於詳情頁新增跟進紀錄；每次跟進會保留在時間軸，不會覆蓋過往內容。
      </p>
@@ -288,7 +290,7 @@ export function TodoFormDialog({
      </Button>
      <Button
       type="button"
-      className="bg-sky-600 text-white hover:bg-sky-700"
+      className=""
       disabled={saving || !form.title.trim()}
       onClick={() => void handleSubmit()}
      >

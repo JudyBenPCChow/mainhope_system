@@ -344,7 +344,7 @@ export function ClassesListPage() {
  return (
   <div className="space-y-5 p-4 md:p-6">
    {!isSupabaseConfigured ? (
-    <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。
     </div>
    ) : null}
@@ -527,7 +527,7 @@ export function ClassesListPage() {
   </div>
 
    {historyReadOnly ? (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+    <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
      2526 及更早學年僅供查閱：不可新增、修改、刪除。
     </div>
    ) : null}
@@ -602,7 +602,7 @@ export function ClassesListPage() {
    {view === "list" ? (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
      <div className="overflow-x-auto">
-      <table className="w-full min-w-[92rem] border-collapse text-sm">
+      <table className="w-full min-w-[92rem] table-fixed border-collapse text-sm">
        <thead>
         <tr className="border-b border-border bg-muted/50 text-left">
          <th className="min-w-[7.5rem] whitespace-nowrap px-4 py-3 pr-2 font-medium">

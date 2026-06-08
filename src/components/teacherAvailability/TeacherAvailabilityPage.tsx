@@ -14,6 +14,8 @@ import type { ClassRecord } from "@/services/classQueries"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
@@ -128,7 +130,7 @@ export function TeacherAvailabilityPage() {
     setRoomPending([])
    }
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "載入失敗")
+   reportUserFacingError(e, { source: "TeacherAvailabilityPage.load", setErr })
   } finally {
    setLoading(false)
   }
@@ -165,7 +167,7 @@ export function TeacherAvailabilityPage() {
    })
    await reload()
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "新增失敗")
+   reportUserFacingError(e, { source: "TeacherAvailabilityPage.onAddSlot", setErr })
   } finally {
    setAddingSlot(false)
   }
@@ -178,7 +180,7 @@ export function TeacherAvailabilityPage() {
    await deleteAvailabilitySlot(id)
    await reload()
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "刪除失敗")
+   reportUserFacingError(e, { source: "TeacherAvailabilityPage.onDeleteSlot", setErr })
   }
  }
 
@@ -397,14 +399,14 @@ export function TeacherAvailabilityPage() {
       <option value="已分配">已分配</option>
      </Select>
      <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full min-w-[36rem] text-sm">
+      <table className="w-full min-w-[36rem] table-fixed border-collapse text-sm">
        <thead>
         <tr className="border-b bg-muted/50 text-left">
-         <th className="px-3 py-2">日期</th>
-         <th className="px-3 py-2">時段</th>
-         <th className="px-3 py-2">老師</th>
-         <th className="px-3 py-2">狀態</th>
-         <th className="px-3 py-2">操作</th>
+         <th className="w-[18%] px-3 py-2">日期</th>
+         <th className="w-[18%] px-3 py-2">時段</th>
+         <th className="w-[28%] px-3 py-2">老師</th>
+         <th className="w-[16%] px-3 py-2">狀態</th>
+         <th className="w-[20%] px-3 py-2">操作</th>
         </tr>
        </thead>
        <tbody>
@@ -427,7 +429,7 @@ export function TeacherAvailabilityPage() {
            <td className="px-3 py-2">{s.time_slot}</td>
            <td className="px-3 py-2">{s.teacher_name ?? "—"}</td>
            <td className="px-3 py-2">
-            <Tag tone={s.status === "可分配" ? "info" : "default"}>{s.status}</Tag>
+            <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
            </td>
            <td className="px-3 py-2">
             {s.status === "可分配" && !historyReadOnly ? (

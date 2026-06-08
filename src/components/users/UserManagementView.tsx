@@ -13,9 +13,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Tag, type TagTone } from "@/components/ui/tag"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchTeacherOptions, type TeacherOption } from "@/services/classQueries"
@@ -55,24 +57,27 @@ function formatUpdated(iso: string): string {
  }
 }
 
-function roleMeta(role: string): { label: string; className: string; Icon: LucideIcon } {
+function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIcon; iconClass: string } {
  const r = role.trim().toLowerCase()
  if (r === "alien")
   return {
    label: "外星人",
-   className: "border-violet-300 bg-violet-100 text-violet-950",
+   tone: statusToTagTone("外星人"),
    Icon: Sparkles,
+   iconClass: "border-info/30 bg-info/15 text-info",
   }
  if (r === "teacher")
   return {
    label: "專班老師",
-   className: "border-success bg-success text-success-foreground",
+   tone: statusToTagTone("老師"),
    Icon: GraduationCap,
+   iconClass: "border-success/30 bg-success/15 text-success",
   }
  return {
   label: "管理員",
-  className: "border-slate-300 bg-slate-100 text-slate-900",
+  tone: statusToTagTone("管理員"),
   Icon: Shield,
+  iconClass: "border-border bg-muted text-muted-foreground",
  }
 }
 
@@ -278,12 +283,12 @@ export function UserManagementView() {
        >
         <div
          className={cn(
-          "h-1.5 w-full bg-gradient-to-r",
+          "h-1.5 w-full",
           u.role.toLowerCase() === "alien"
-           ? "from-violet-500 to-fuchsia-500"
+           ? "bg-info"
            : u.role.toLowerCase() === "teacher"
-            ? "from-emerald-500 to-teal-500"
-            : "from-slate-400 to-slate-600"
+            ? "bg-success"
+            : "bg-muted-foreground/40"
          )}
          aria-hidden
         />
@@ -291,8 +296,8 @@ export function UserManagementView() {
          <div className="flex items-start gap-3">
           <div
            className={cn(
-            "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 bg-gradient-to-br shadow-inner",
-            meta.className
+            "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border-2 shadow-inner",
+            meta.iconClass
            )}
           >
            <Icon className="h-7 w-7 opacity-90" aria-hidden />
@@ -301,15 +306,10 @@ export function UserManagementView() {
            <p className="truncate text-lg font-bold tracking-tight text-foreground">
             {u.display_name?.trim() || "（未命名）"}
            </p>
-           <span
-            className={cn(
-             "mt-2 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-             meta.className
-            )}
-           >
+           <Tag tone={meta.tone} size="sm" className="mt-2">
             {meta.label}
-            <span className="font-mono font-normal opacity-80">({u.role})</span>
-           </span>
+            <span className="font-mono font-normal opacity-80"> ({u.role})</span>
+           </Tag>
           </div>
          </div>
 

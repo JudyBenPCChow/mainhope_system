@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getMgmtRole } from "@/lib/mgmtRole"
 import {
@@ -34,7 +35,7 @@ export function RoomBookingAdminView() {
    const list = await fetchAllPendingRoomBookingRequests()
    setRows(list)
   } catch (e) {
-   setErr(formatUnknownError(e))
+   reportUserFacingError(e, { source: "RoomBookingAdminView.reload", setErr })
   } finally {
    setLoading(false)
   }
@@ -59,6 +60,7 @@ export function RoomBookingAdminView() {
    await approveRoomBookingRequest(id)
    await reload()
   } catch (e) {
+   reportUserFacingError(e, { source: "RoomBookingAdminView.onApprove" })
    pushBanner({ tone: "error", title: "核准失敗", message: formatUnknownError(e) })
   } finally {
    setBusyId(null)
@@ -72,6 +74,7 @@ export function RoomBookingAdminView() {
    await rejectRoomBookingRequest(id)
    await reload()
   } catch (e) {
+   reportUserFacingError(e, { source: "RoomBookingAdminView.onReject" })
    pushBanner({ tone: "error", title: "拒絕失敗", message: formatUnknownError(e) })
   } finally {
    setBusyId(null)
@@ -80,7 +83,7 @@ export function RoomBookingAdminView() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )

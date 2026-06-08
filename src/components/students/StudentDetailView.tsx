@@ -31,6 +31,7 @@ import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -302,6 +303,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
    return true
   } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.saveBasic" })
    pushBanner({ tone: "error", title: "儲存失敗", message: e instanceof Error ? e.message : String(e) })
    return false
   }
@@ -360,6 +362,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    setWithdrawReason("")
    await reloadSubs()
   } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.withdrawEnrollment" })
    pushBanner({ tone: "error", title: "退班失敗", message: e instanceof Error ? e.message : String(e) })
   } finally {
    setWithdrawSaving(false)
@@ -411,6 +414,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    setRelativeDialogOpen(false)
    await reloadSubs()
   } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.addRelative" })
    pushBanner({ tone: "error", title: "新增親友失敗", message: e instanceof Error ? e.message : String(e) })
   } finally {
    setRelativeSaving(false)
@@ -446,7 +450,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    setLeaveClasses(classes)
    setLeaveMakeupCandidates(makeup)
   } catch (e) {
-   setLeaveErr(formatLeaveError(e))
+   reportUserFacingError(e, { source: "StudentDetailView.openLeaveDialog", setErr: setLeaveErr })
    setLeaveClasses([])
    setLeaveMakeupCandidates([])
   }
@@ -498,7 +502,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    setLeaveDialogOpen(false)
    await reloadSubs()
   } catch (e) {
-   setLeaveErr(formatLeaveError(e))
+   reportUserFacingError(e, { source: "StudentDetailView.submitLeave", setErr: setLeaveErr })
   } finally {
    setLeaveSaving(false)
   }
@@ -1175,16 +1179,9 @@ const exportFutureSchedulesCsv = () => {
            ) : null}
           </div>
           <div className="flex items-center gap-2">
-           <span
-            className={cn(
-             "rounded-full px-2 py-0.5 text-xs font-medium",
-             p.status.includes("待")
-              ? "bg-amber-100 text-amber-800"
-              : "bg-success text-success-foreground"
-            )}
-           >
+           <Tag tone={statusToTagTone(p.status)} size="sm">
             {p.status}
-           </span>
+           </Tag>
            <Button
             type="button"
             variant="outline"

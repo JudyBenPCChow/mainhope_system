@@ -182,16 +182,9 @@ export function ScheduleDetailView() {
             {s.englishName ? (
              <span className="truncate text-muted-foreground">({s.englishName})</span>
             ) : null}
-            <span
-             className={cn(
-              "shrink-0 rounded px-1.5 py-0.5 text-xs font-medium",
-              s.source === "就讀" && "bg-success text-success-foreground",
-              s.source === "試堂" && "bg-amber-100 text-amber-900",
-              s.source === "當日紀錄" && "bg-slate-100 text-slate-800"
-             )}
-            >
+            <Tag tone={statusToTagTone(s.source)} size="sm">
              {s.source}
-            </span>
+            </Tag>
            </Link>
            <StudentWhatsAppReminderButton
             label="推送通知"

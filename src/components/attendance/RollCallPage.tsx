@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -29,12 +30,6 @@ import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import { supabase } from "@/lib/supabaseClient"
 
 type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" }
-
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "載入失敗"
-}
 
 export function RollCallPage() {
  const teacherTid = getTeacherScopeTeacherId()
@@ -84,7 +79,7 @@ export function RollCallPage() {
     return list[0]?.id ?? null
    })
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "RollCallPage.loadSchedules", setErr })
    setSchedules([])
   } finally {
    setLoadingList(false)
@@ -164,7 +159,7 @@ export function RollCallPage() {
     setSavedMap(new Map(sm))
    } catch (e) {
     if (!cancelled) {
-     setSheetErr(formatLoadError(e))
+     reportUserFacingError(e, { source: "RollCallPage.loadSheet", setErr: setSheetErr })
      setStudents([])
      setStatusMap(new Map())
      setSavedMap(new Map())
@@ -214,7 +209,7 @@ export function RollCallPage() {
     }
     setStatusMap(next)
    } catch (e) {
-    setSheetErr(formatLoadError(e))
+    reportUserFacingError(e, { source: "RollCallPage.saveRow", setErr: setSheetErr })
    } finally {
     setBulkAction(null)
    }
@@ -267,7 +262,7 @@ export function RollCallPage() {
    })
    setSavedMap(new Map(statusMap))
   } catch (e) {
-   setSheetErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "RollCallPage.saveAll", setErr: setSheetErr })
   } finally {
    setConfirmSaving(false)
   }
@@ -325,7 +320,7 @@ export function RollCallPage() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
@@ -363,7 +358,7 @@ export function RollCallPage() {
    ) : null}
 
   {historyReadOnly ? (
-   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
     2526 及更早學年僅供查閱：不可修改或重新送出點名。
    </div>
   ) : null}
@@ -374,7 +369,7 @@ export function RollCallPage() {
      <p className="mt-2 text-3xl font-bold tabular-nums text-success">{savedFilledCount}</p>
      <p className="mt-1 text-xs text-muted-foreground">目前堂數按「確定」後已寫入資料庫的人數</p>
     </div>
-    <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm">
+    <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 shadow-sm">
      <div className="text-sm font-medium text-amber-900">今日堂數</div>
      <p className="mt-2 text-3xl font-bold tabular-nums text-amber-800">{schedules.length}</p>
      <p className="mt-1 text-xs text-muted-foreground">所選日期可點名之排程（已排除取消）</p>

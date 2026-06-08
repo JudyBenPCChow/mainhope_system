@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -34,12 +35,6 @@ import {
 } from "@/services/leaveQueries"
 import { listStudents } from "@/services/queries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
-
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "載入失敗"
-}
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
 
@@ -126,7 +121,7 @@ export function LeaveManagementView() {
    setRows(list)
    setStats(st)
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "LeaveManagementView.reload", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -316,7 +311,7 @@ export function LeaveManagementView() {
    setDetailOpen(false)
    await reload()
   } catch (e) {
-   setDetailErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "LeaveManagementView.loadDetail", setErr: setDetailErr })
   } finally {
    setDetailSaving(false)
   }
@@ -333,7 +328,7 @@ export function LeaveManagementView() {
    setLinkScheduleId(row.makeup_schedule_id ?? "")
   } catch (e) {
    setLinkCandidates([])
-   setLinkErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "LeaveManagementView.loadLinkCandidates", setErr: setLinkErr })
   }
  }
 
@@ -370,7 +365,7 @@ export function LeaveManagementView() {
    setLinkOpen(false)
    await reload()
   } catch (e) {
-   setLinkErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "LeaveManagementView.linkMakeup", setErr: setLinkErr })
   } finally {
    setLinkSaving(false)
   }
@@ -412,7 +407,7 @@ export function LeaveManagementView() {
    setAddOpen(false)
    await reload()
   } catch (e) {
-   setAddErr(formatLoadError(e) || "新增失敗")
+   reportUserFacingError(e, { source: "LeaveManagementView.onAdd", setErr: setAddErr, userMessage: "新增失敗" })
   } finally {
    setAddSaving(false)
   }
@@ -420,7 +415,7 @@ export function LeaveManagementView() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
@@ -468,7 +463,7 @@ export function LeaveManagementView() {
    ) : null}
 
   {historyReadOnly ? (
-   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
     2526 及更早學年僅供查閱：不可新增、修改、刪除。
    </div>
   ) : null}
@@ -609,7 +604,7 @@ export function LeaveManagementView() {
          className={cn(
           "border-b border-border last:border-0 transition-colors",
           recordFromUrl === r.id &&
-           "bg-amber-100/90 ring-2 ring-inset ring-amber-400 dark:bg-amber-950/50 dark:ring-amber-600"
+           "bg-warning/15 ring-2 ring-inset ring-warning/50"
          )}
         >
          <td className="min-w-0 px-3 py-2 align-top">

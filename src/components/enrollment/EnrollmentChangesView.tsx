@@ -4,18 +4,15 @@ import { BookOpen, CalendarRange, RefreshCw, ScrollText, Search } from "lucide-r
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Tag } from "@/components/ui/tag"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
  fetchEnrollmentChangeEventsList,
  type EnrollmentChangeListRow,
 } from "@/services/enrollmentEventQueries"
-
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "載入失敗"
-}
 
 type ActionFilter = "" | "enroll" | "withdraw"
 
@@ -53,7 +50,7 @@ export function EnrollmentChangesView() {
    })
    setRows(data)
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "EnrollmentChangesView.load", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -100,7 +97,7 @@ export function EnrollmentChangesView() {
    </header>
 
    {!isSupabaseConfigured ? (
-    <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定 <code className="rounded bg-muted px-1">.env</code> 內 Supabase 後重啟 dev。
     </div>
    ) : null}
@@ -201,23 +198,16 @@ export function EnrollmentChangesView() {
          key={r.id}
          className={cn(
           "border-b border-border/80",
-          r.action === "withdraw" ? "bg-amber-50/40" : "bg-info/30"
+          r.action === "withdraw" ? "bg-warning/10" : "bg-info/10"
          )}
         >
          <td className="min-w-0 align-top px-3 py-2.5 tabular-nums text-muted-foreground">
           {r.effectiveDate}
          </td>
          <td className="min-w-0 align-top px-3 py-2.5">
-          <span
-           className={cn(
-            "rounded-full px-2 py-0.5 text-xs font-medium",
-            r.action === "withdraw"
-             ? "bg-amber-200/80 text-amber-950"
-             : "bg-info/80 text-info-foreground"
-           )}
-          >
+          <Tag tone={statusToTagTone(r.action === "withdraw" ? "退讀" : "報讀")} size="sm">
            {r.action === "withdraw" ? "退讀" : "報讀"}
-          </span>
+          </Tag>
          </td>
          <td className="min-w-0 align-top px-3 py-2.5">
           <Link

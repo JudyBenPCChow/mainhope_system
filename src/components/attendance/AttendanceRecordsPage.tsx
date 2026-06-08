@@ -16,6 +16,7 @@ import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -30,12 +31,6 @@ import {
  type AttendanceRecordRow,
 } from "@/services/attendanceQueries"
 type ViewMode = "today" | "month" | "kanban"
-
-function formatLoadError(e: unknown): string {
- if (e instanceof Error) return e.message
- if (e && typeof e === "object" && "message" in e) return String((e as { message: unknown }).message)
- return "載入失敗"
-}
 
 function currentMonthRange(): DateRangeValue {
  const now = new Date()
@@ -94,7 +89,7 @@ export function AttendanceRecordsPage() {
    const rec = await fetchAttendanceRecordsInRange(from, to)
    setRows(rec)
   } catch (e) {
-   setErr(formatLoadError(e))
+   reportUserFacingError(e, { source: "AttendanceRecordsPage.reload", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -174,7 +169,7 @@ export function AttendanceRecordsPage() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
@@ -187,7 +182,7 @@ export function AttendanceRecordsPage() {
   <div className="space-y-4">
    <header>
     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-     <ClipboardList className="h-7 w-7 text-teal-600" aria-hidden />
+     <ClipboardList className="h-7 w-7 text-primary" aria-hidden />
      出席紀錄
     </h1>
     <p className="mt-1 text-sm text-muted-foreground">今日列表、月彙總與班別看板；預設顯示今天各班紀錄。</p>
@@ -205,18 +200,18 @@ export function AttendanceRecordsPage() {
     </div>
    ) : null}
   {historyReadOnly ? (
-   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
     2526 及更早學年僅供查閱。
    </div>
   ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="出席儀表板">
-    <div className="rounded-xl border border-teal-200/80 bg-teal-50/50 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-xs font-medium text-teal-900/90">
+    <div className="rounded-xl border border-info/30 bg-info/10 p-4 shadow-sm">
+     <div className="flex items-center gap-2 text-xs font-medium text-info">
       <Users className="h-4 w-4" />
       今日紀錄總筆數
      </div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-teal-800">{s?.total ?? 0}</p>
+     <p className="mt-2 text-2xl font-bold tabular-nums text-info">{s?.total ?? 0}</p>
      <p className="mt-1 text-[11px] text-muted-foreground">{rangeLabel || "未選擇日期"}</p>
     </div>
     <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
@@ -227,9 +222,9 @@ export function AttendanceRecordsPage() {
      <div className="text-xs font-medium text-destructive/90">缺席</div>
      <p className="mt-2 text-2xl font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-amber-200/80 bg-amber-50/50 p-4 shadow-sm">
-     <div className="text-xs font-medium text-amber-900/90">請假 · 補課 · 網課</div>
-     <p className="mt-2 text-lg font-bold tabular-nums text-amber-900">
+    <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 shadow-sm">
+     <div className="text-xs font-medium text-warning">請假 · 補課 · 網課</div>
+     <p className="mt-2 text-lg font-bold tabular-nums text-warning">
       {(s?.leave ?? 0) + (s?.makeup ?? 0) + (s?.online ?? 0)}
      </p>
      <p className="mt-1 text-[11px] text-muted-foreground">

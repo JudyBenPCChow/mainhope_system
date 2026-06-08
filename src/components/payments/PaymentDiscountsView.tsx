@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
  deletePaymentDiscount,
@@ -52,7 +53,7 @@ export function PaymentDiscountsView() {
   try {
    setRows(await fetchAllPaymentDiscounts())
   } catch (e) {
-   setErr(formatErr(e))
+   reportUserFacingError(e, { source: "PaymentDiscountsView.load", setErr })
    setRows([])
   } finally {
    setLoading(false)
@@ -121,6 +122,7 @@ export function PaymentDiscountsView() {
    setDialogOpen(false)
    await load()
   } catch (e) {
+   reportUserFacingError(e, { source: "PaymentDiscountsView.submit" })
    pushBanner({ tone: "error", title: "儲存優惠失敗", message: formatErr(e) })
   } finally {
    setSaving(false)
@@ -141,6 +143,7 @@ export function PaymentDiscountsView() {
    await deletePaymentDiscount(r.id)
    await load()
   } catch (e) {
+   reportUserFacingError(e, { source: "PaymentDiscountsView.onDelete" })
    pushBanner({ tone: "error", title: "刪除優惠失敗", message: formatErr(e) })
   }
  }
@@ -158,7 +161,7 @@ export function PaymentDiscountsView() {
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Percent className="h-8 w-8 text-rose-600" aria-hidden />
+      <Percent className="h-8 w-8 text-primary" aria-hidden />
       優惠折扣
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
@@ -167,7 +170,6 @@ export function PaymentDiscountsView() {
     </div>
     <Button
      type="button"
-     className="bg-rose-600 text-white hover:bg-rose-700"
      onClick={openCreate}
      disabled={!isSupabaseConfigured}
     >
@@ -284,7 +286,6 @@ export function PaymentDiscountsView() {
       </label>
       <Button
        type="button"
-       className="bg-rose-600 text-white hover:bg-rose-700"
        disabled={saving}
        onClick={() => void submit()}
       >

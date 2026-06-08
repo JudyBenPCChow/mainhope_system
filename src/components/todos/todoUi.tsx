@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { cn } from "@/lib/utils"
+import { statusToTagTone } from "@/lib/statusTag"
 import { normalizeTodoTags, type CalendarEventStatus } from "@/services/calendarQueries"
 
 export const TODO_TAG_PRESETS = ["待收學費", "調堂跟進", "試堂跟進"] as const
@@ -12,8 +13,8 @@ export function todoStatusLabel(status: CalendarEventStatus): string {
  return status === "done" ? "已完成" : "處理中"
 }
 
-export function todoStatusTone(status: CalendarEventStatus): "info" | "success" {
- return status === "done" ? "success" : "info"
+export function todoStatusTone(status: CalendarEventStatus) {
+ return statusToTagTone(todoStatusLabel(status))
 }
 
 type TodoStatusChipsProps = {

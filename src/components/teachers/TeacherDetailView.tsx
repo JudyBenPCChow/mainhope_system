@@ -85,13 +85,6 @@ function monthKey(d: Date): string {
  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-function statusPillClass(status: string) {
- if (status.includes("缺席")) return "bg-destructive text-white"
- if (status.includes("請假")) return "bg-amber-500 text-white"
- if (status.includes("出席") || status.includes("準時")) return "bg-success text-success-foreground"
- return "bg-muted text-muted-foreground"
-}
-
 export function TeacherDetailView() {
  const { teacherId } = useParams<{ teacherId: string }>()
  const navigate = useNavigate()
@@ -305,7 +298,7 @@ export function TeacherDetailView() {
       </div>
      ) : null}
      {partialLoadIssues.length > 0 ? (
-      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-950 md:px-6">
+      <div role="alert" className="border-b border-warning/30 bg-warning/10 px-4 py-2 text-sm text-warning md:px-6">
        部分資料載入失敗：{partialLoadIssues.join("、")}。你仍可先查看其餘已載入內容。
       </div>
      ) : null}
@@ -677,14 +670,9 @@ export function TeacherDetailView() {
                 </span>
                ) : null}
               </div>
-              <span
-               className={cn(
-                "rounded-full px-2 py-0.5 text-xs font-medium",
-                statusPillClass(a.status)
-               )}
-              >
+              <Tag tone={statusToTagTone(a.status)} size="sm">
                {a.status}
-              </span>
+              </Tag>
              </li>
             ))}
            </ul>

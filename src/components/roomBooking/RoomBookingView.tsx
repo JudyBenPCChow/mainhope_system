@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
-import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -96,7 +96,7 @@ export function RoomBookingView() {
    setSchedules(sc)
    setPending(pend)
   } catch (e) {
-   setErr(formatUnknownError(e))
+   reportUserFacingError(e, { source: "RoomBookingView.load", setErr })
   } finally {
    setLoading(false)
   }
@@ -164,7 +164,7 @@ export function RoomBookingView() {
    setDialogOpen(false)
    await reload()
   } catch (e) {
-   setFormErr(formatUnknownError(e))
+   reportUserFacingError(e, { source: "RoomBookingView.submit", setErr: setFormErr })
   } finally {
    setSubmitting(false)
   }
@@ -172,7 +172,7 @@ export function RoomBookingView() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
@@ -299,7 +299,7 @@ export function RoomBookingView() {
                      "rounded-md border p-1.5 text-[11px] leading-tight shadow-sm",
                      isPending
                       ? "border-warning/90 bg-warning text-warning-foreground"
-                      : "border-amber-200/80 bg-amber-50/80 text-amber-950"
+                      : "border-warning/30 bg-warning/10 text-warning"
                     )}
                    >
                     <span className="font-medium">{o.label}</span>

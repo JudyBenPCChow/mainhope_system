@@ -17,7 +17,9 @@ import {
 
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
-import { formatUnknownError } from "@/lib/formatUnknownError"
+import { Tag } from "@/components/ui/tag"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
@@ -109,7 +111,8 @@ export function TeacherHomeView() {
    try {
     const leaveList = await fetchLeaveRowsForClassIds(classIds, 50)
     setLeaves(leaveList)
-   } catch {
+   } catch (e) {
+    reportUserFacingError(e, { source: "TeacherHomeView.loadLeaves" })
     partialFailed = true
     setLeaves([])
    }
@@ -147,7 +150,8 @@ export function TeacherHomeView() {
         })
       )
     }
-   } catch {
+   } catch (e) {
+    reportUserFacingError(e, { source: "TeacherHomeView.loadTrials" })
     partialFailed = true
     setTrials([])
    }
@@ -156,7 +160,7 @@ export function TeacherHomeView() {
     setErr("部分首頁資料暫時未能載入（請假／試堂），其餘資料已正常顯示。")
    }
   } catch (e) {
-   setErr(formatUnknownError(e))
+   reportUserFacingError(e, { source: "TeacherHomeView.load", setErr })
    setClasses([])
    setSchedules([])
    setLeaves([])
@@ -179,7 +183,7 @@ export function TeacherHomeView() {
 
  if (!teacherId) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+   <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-6 text-warning">
     <p className="font-medium">未設定教師身分（缺少 teacher_id）。請由登入頁以「專班老師」重新進入。</p>
    </div>
   )
@@ -187,8 +191,8 @@ export function TeacherHomeView() {
 
  return (
   <div className="space-y-8 text-base leading-relaxed md:text-lg">
-   <header className="rounded-2xl border border-teal-200 bg-gradient-to-br from-teal-50 to-sky-50 p-6 shadow-sm md:p-8">
-    <p className="text-sm font-medium uppercase tracking-wide text-teal-800/90">專班老師工作台</p>
+   <header className="rounded-2xl border border-info/30 bg-info/5 p-6 shadow-sm md:p-8">
+    <p className="text-sm font-medium uppercase tracking-wide text-info">專班老師工作台</p>
     <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
      {loading ? "載入中…" : `您好，${teacherName}`}
     </h1>
@@ -196,7 +200,7 @@ export function TeacherHomeView() {
      此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有 {todaySchedules.length} 堂課。
     </p>
     <div className="mt-6 flex flex-wrap gap-3">
-     <Button type="button" size="lg" className="gap-2 bg-teal-600 hover:bg-teal-700" asChild>
+     <Button type="button" size="lg" className="gap-2" asChild>
       <Link to="/Schedule">
        <CalendarDays className="h-5 w-5" />
        我的排程
@@ -236,7 +240,7 @@ export function TeacherHomeView() {
    </header>
 
    {!isSupabaseConfigured ? (
-    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+    <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-warning">
      尚未設定 Supabase，無法載入班別。請設定 <code className="rounded px-1">.env</code> 後執行{" "}
      <code className="rounded px-1">supabase db reset</code> 以載入 Judy Chu 演示資料。
     </div>
@@ -251,14 +255,14 @@ export function TeacherHomeView() {
      to={`/Schedule?view=day&date=${encodeURIComponent(today)}`}
      className={cn(
       "block rounded-xl border border-border bg-card p-5 shadow-sm outline-none transition-all duration-200",
-      "hover:border-teal-400/70 hover:bg-teal-50/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-teal-500/40 focus-visible:ring-offset-2"
+      "hover:border-info/40 hover:bg-info/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground md:text-base">
-      <CalendarDays className="h-5 w-5 text-teal-600" />
+      <CalendarDays className="h-5 w-5 text-info" />
       今日課堂
      </div>
-     <p className="mt-2 text-4xl font-bold tabular-nums text-teal-700">{todaySchedules.length}</p>
+     <p className="mt-2 text-4xl font-bold tabular-nums text-info">{todaySchedules.length}</p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">不含已取消排程 · 前往今日排程</p>
     </Link>
     <Link
@@ -279,14 +283,14 @@ export function TeacherHomeView() {
      to="/Schedule"
      className={cn(
       "block rounded-xl border border-border bg-card p-5 shadow-sm outline-none transition-all duration-200",
-      "hover:border-amber-400/70 hover:bg-amber-50/50 hover:shadow-md focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:ring-offset-2"
+      "hover:border-warning/40 hover:bg-warning/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-warning/40 focus-visible:ring-offset-2"
      )}
     >
      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground md:text-base">
-      <Bell className="h-5 w-5 text-amber-600" />
+      <Bell className="h-5 w-5 text-warning" />
       待留意請假
      </div>
-     <p className="mt-2 text-4xl font-bold tabular-nums text-amber-700">
+     <p className="mt-2 text-4xl font-bold tabular-nums text-warning">
       {leaves.filter((l) => l.status.includes("待")).length}
      </p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">狀態含「待」之請假／補堂 · 前往排程</p>
@@ -299,10 +303,10 @@ export function TeacherHomeView() {
       to="/TeacherTimetable"
       className={cn(
        "group flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1 pr-2 text-xl font-semibold outline-none transition-colors md:text-2xl",
-       "hover:text-teal-700 focus-visible:ring-2 focus-visible:ring-teal-500/40 focus-visible:ring-offset-2"
+       "hover:text-info focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
       )}
      >
-      <CalendarRange className="h-6 w-6 shrink-0 text-teal-600 transition-transform group-hover:scale-105" />
+      <CalendarRange className="h-6 w-6 shrink-0 text-info transition-transform group-hover:scale-105" />
       <span className="truncate underline-offset-4 group-hover:underline">本週時間表</span>
      </Link>
      <Button type="button" variant="outline" size="sm" asChild>
@@ -365,7 +369,7 @@ export function TeacherHomeView() {
           </div>
           <div className="flex shrink-0 flex-col items-end gap-2">
            {hasA ? (
-            <span className="inline-flex items-center gap-1 text-amber-700" title="排程提醒">
+            <span className="inline-flex items-center gap-1 text-warning" title="排程提醒">
              <Bell className="h-4 w-4" aria-hidden />
              {a.trial ? (
               <span title="試堂" className="inline-flex">
@@ -447,7 +451,7 @@ export function TeacherHomeView() {
       to="/Schedule"
       className={cn(
        "group inline-flex items-center rounded-lg text-xl font-semibold outline-none transition-colors md:text-2xl",
-       "hover:text-amber-900 focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:ring-offset-2"
+       "hover:text-warning focus-visible:ring-2 focus-visible:ring-warning/40 focus-visible:ring-offset-2"
       )}
      >
       <span className="underline-offset-4 group-hover:underline">近日請假與補堂</span>
@@ -478,21 +482,21 @@ export function TeacherHomeView() {
    </div>
 
    {trials.length > 0 ? (
-    <section className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5 shadow-sm md:p-6">
-     <h2 className="flex items-center gap-2 text-xl font-semibold text-indigo-950 md:text-2xl">
-      <Sparkles className="h-6 w-6" />
+    <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">
+     <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
+      <Sparkles className="h-6 w-6 text-info" />
       即將試堂（我的班）
      </h2>
      <ul className="mt-4 space-y-2">
       {trials.map((t) => (
-       <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-indigo-100 bg-white/70 px-3 py-2">
+       <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
         <span>
          <span className="font-medium">{t.studentName}</span>
          <span className="text-muted-foreground"> · {t.classLabel} · {t.trialDate}</span>
         </span>
-        <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", "bg-indigo-100 text-indigo-900")}>
+        <Tag tone={statusToTagTone(t.status)} size="sm">
          {t.status}
-        </span>
+        </Tag>
        </li>
       ))}
      </ul>

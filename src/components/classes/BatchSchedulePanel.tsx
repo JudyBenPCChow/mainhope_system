@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
 import {
  buildBatchScheduleCandidates,
@@ -54,7 +55,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    })
    setCandidates(cands)
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "載入失敗")
+   reportUserFacingError(e, { source: "BatchSchedulePanel.load", setErr })
   } finally {
    setLoading(false)
   }
@@ -133,7 +134,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    }
    await load()
   } catch (e) {
-   setErr(e instanceof Error ? e.message : "批量排程失敗")
+   reportUserFacingError(e, { source: "BatchSchedulePanel.submit", setErr, userMessage: "批量排程失敗" })
   } finally {
    setSubmitting(false)
   }

@@ -21,7 +21,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
-import { StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
+import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import {
  normalizeStudentGrade,
  STUDENT_GRADE_CODES,
@@ -345,7 +345,7 @@ export function StudentsListPage() {
  return (
   <div className="space-y-5 p-4 md:p-6">
    {!isSupabaseConfigured ? (
-    <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定純文字 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev，才能載入學生。
     </div>
    ) : null}
@@ -600,10 +600,10 @@ export function StudentsListPage() {
          />
         </Field>
         <Field label="性別">
-         <Input
+         <ChoiceChips
+          options={GENDER_CHIPS}
           value={addForm.gender ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, gender: e.target.value }))}
-          placeholder="男／女"
+          onChange={(gender) => setAddForm((f) => ({ ...f, gender }))}
          />
         </Field>
         <Field label="年級">
@@ -613,26 +613,14 @@ export function StudentsListPage() {
          />
         </Field>
         <Field label="註冊狀態">
-         <div className="flex gap-4 py-1">
-          <label className="inline-flex items-center gap-2 text-sm">
-           <input
-            type="radio"
-            name="registration-status"
-            checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
-            onChange={() => setAddForm((f) => ({ ...f, registration_status: "已註冊" }))}
-           />
-           正式註冊
-          </label>
-          <label className="inline-flex items-center gap-2 text-sm">
-           <input
-            type="radio"
-            name="registration-status"
-            checked={(addForm.registration_status ?? "已註冊") === "僅查詢"}
-            onChange={() => setAddForm((f) => ({ ...f, registration_status: "僅查詢" }))}
-           />
-           試堂/查詢
-          </label>
-         </div>
+         <StatusToggle
+          checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
+          onCheckedChange={(on) =>
+           setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
+          }
+          offLabel="僅查詢"
+          onLabel="已註冊"
+         />
         </Field>
         <Field label="學校" className="sm:col-span-2">
          <div className="space-y-2">
@@ -853,12 +841,13 @@ export function StudentsListPage() {
            </td>
            <td className="align-top px-3 py-3">
             {t?.showArrears ? (
-             <span
-              className="inline-flex rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950"
+             <Tag
+              tone="warning"
+              size="sm"
               title={`計費出席 ${t.attendedLessons} 堂 · 已繳費 ${t.paidLessons} 堂（「已收款」收據之堂數加總）`}
              >
               追收學費
-             </span>
+             </Tag>
             ) : (
              <span className="text-xs text-muted-foreground">—</span>
             )}
@@ -953,9 +942,9 @@ export function StudentsListPage() {
           </Link>
           <div className="flex items-center gap-2">
            {t?.showArrears ? (
-            <span className="rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-950">
+            <Tag tone="warning" size="sm">
              追收學費
-            </span>
+            </Tag>
            ) : null}
            {waContact ? (
             <Button

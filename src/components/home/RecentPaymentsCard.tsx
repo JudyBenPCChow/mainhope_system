@@ -1,18 +1,14 @@
 import { Link } from "react-router-dom"
 import { Banknote } from "lucide-react"
 
+import { Tag } from "@/components/ui/tag"
 import { formatMoney, formatDateZh } from "@/components/home/format"
+import { statusToTagTone } from "@/lib/statusTag"
 import type { RecentPaymentRow } from "@/services/dashboard"
 
 type Props = {
  payments: RecentPaymentRow[]
  loading?: boolean
-}
-
-function statusClass(status: string) {
- if (status.includes("待")) return "text-amber-700 bg-amber-50 border-amber-200"
- if (status.includes("已收")) return "text-success bg-success border-success"
- return "text-muted-foreground bg-muted border-transparent"
 }
 
 export function RecentPaymentsCard({ payments, loading }: Props) {
@@ -48,12 +44,10 @@ export function RecentPaymentsCard({ payments, loading }: Props) {
         </div>
        </div>
        <div className="flex items-center gap-2">
-        <span className="text-lg font-semibold tabular-nums">{formatMoney(p.amount)}</span>
-        <span
-         className={`shrink-0 rounded-md border px-2 py-0.5 text-sm font-medium ${statusClass(p.status)}`}
-        >
+        <span className="font-semibold tabular-nums text-foreground">{formatMoney(p.amount)}</span>
+        <Tag tone={statusToTagTone(p.status)} size="sm">
          {p.status}
-        </span>
+        </Tag>
        </div>
       </li>
      ))}

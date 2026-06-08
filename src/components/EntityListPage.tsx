@@ -75,7 +75,7 @@ export function EntityListPage({ title, subtitle, load, columns }: Props) {
   <div className="space-y-4 p-6">
    {!isSupabaseConfigured ? (
     <div
-     className="rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+     className="rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning"
      role="status"
     >
      <strong className="font-medium">尚未連上 Supabase：</strong>

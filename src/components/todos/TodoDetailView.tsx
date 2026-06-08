@@ -266,7 +266,18 @@ export function TodoDetailView() {
        <p className="mt-0.5">
         {event.teacherIds.length === 0
          ? "—"
-         : event.teacherIds.map((id) => labels.teachers.get(id) ?? id).join("、")}
+         : event.teacherIds.map((id) => (
+            <span key={id}>
+             <Link
+              to={`/Teachers/${id}`}
+              className="text-primary underline-offset-2 hover:underline"
+              onClick={(e) => e.stopPropagation()}
+             >
+              {labels.teachers.get(id) ?? id}
+             </Link>
+             {" "}
+            </span>
+           ))}
        </p>
       </div>
       <div>
@@ -304,7 +315,6 @@ export function TodoDetailView() {
       <div className="mt-2 flex justify-end">
        <Button
         type="button"
-        className="bg-sky-600 text-white hover:bg-sky-700"
         disabled={updateSaving || !updateBody.trim()}
         onClick={() => void submitUpdate()}
        >
@@ -329,11 +339,11 @@ export function TodoDetailView() {
          key={u.id}
          className={cn(
           "relative rounded-lg border border-border/80 bg-card px-4 py-3 pl-5",
-          i === 0 && "border-sky-200/80 bg-sky-50/50"
+          i === 0 && "border-info/30 bg-info/10"
          )}
         >
          <div className="absolute left-2 top-4 h-[calc(100%-1rem)] w-0.5 bg-border/80" aria-hidden />
-         <div className="absolute left-1.5 top-4 h-2 w-2 rounded-full bg-sky-500" aria-hidden />
+         <div className="absolute left-1.5 top-4 h-2 w-2 rounded-full bg-info" aria-hidden />
          <p className="text-xs text-muted-foreground">
           {formatDateTime(u.createdAt)}
           {u.createdByLabel ? ` · ${u.createdByLabel}` : ""}

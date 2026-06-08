@@ -6,6 +6,7 @@ import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -87,7 +88,7 @@ export function SystemLogsView() {
     setOffset(nextOffset)
     setRows((prev) => (append ? [...prev, ...batch] : batch))
    } catch (e) {
-    setErr(e instanceof Error ? e.message : "載入失敗")
+    reportUserFacingError(e, { source: "SystemLogsView.loadPage", setErr })
     if (!append) setRows([])
    } finally {
     setLoading(false)
@@ -120,7 +121,7 @@ export function SystemLogsView() {
     }
    } catch (e) {
     if (!cancelled) {
-     setErr(e instanceof Error ? e.message : "載入失敗")
+     reportUserFacingError(e, { source: "SystemLogsView.initialLoad", setErr })
      setRows([])
     }
    } finally {

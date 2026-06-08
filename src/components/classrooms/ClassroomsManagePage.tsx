@@ -20,6 +20,7 @@ import {
 } from "@/lib/lessonSlots"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { fetchAllClasses, getClassById, insertScheduleForClass } from "@/services/classQueries"
 import {
  fetchClassrooms,
@@ -142,7 +143,7 @@ export function ClassroomsManagePage() {
     return r[0]?.id ?? ""
    })
   } catch (e) {
-   setPageErr(e instanceof Error ? e.message : "載入課室失敗")
+   reportUserFacingError(e, { source: "ClassroomsManagePage.reloadRooms", setErr: setPageErr })
   }
  }, [])
 
@@ -166,7 +167,7 @@ export function ClassroomsManagePage() {
    setSchedules(data)
   } catch (e) {
    setSchedules([])
-   setPageErr(e instanceof Error ? e.message : "載入排程失敗")
+   reportUserFacingError(e, { source: "ClassroomsManagePage.reloadSchedules", setErr: setPageErr })
   } finally {
    setSchedLoading(false)
   }
@@ -277,7 +278,7 @@ export function ClassroomsManagePage() {
    setAddOpen(false)
    await reloadSchedules()
   } catch (e) {
-   setAddErr(e instanceof Error ? e.message : "新增失敗")
+   reportUserFacingError(e, { source: "ClassroomsManagePage.addSchedule", setErr: setAddErr, userMessage: "新增失敗" })
   } finally {
    setAddSaving(false)
   }

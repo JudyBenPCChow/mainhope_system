@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
@@ -30,6 +31,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
@@ -667,19 +669,11 @@ const academicYearOptions = useMemo(() => {
   }
  }
 
- const statusBadge = (status: string) => {
-  const pending = status.includes("待")
-  return (
-   <span
-    className={cn(
-     "rounded-full px-2 py-0.5 text-xs font-medium",
-    pending ? "bg-amber-100 text-amber-900" : "bg-success text-success-foreground"
-    )}
-   >
-    {status}
-   </span>
-  )
- }
+ const statusBadge = (status: string) => (
+  <Tag tone={statusToTagTone(status)} size="sm">
+   {status}
+  </Tag>
+ )
 
  const enrollmentLabel = (e: EnrollmentWithClass) => {
   const bits = [e.subject, e.courseCode, e.dayOfWeek, e.timeSlot].filter(Boolean)
@@ -719,7 +713,7 @@ const academicYearOptions = useMemo(() => {
    ) : null}
 
    {!isSupabaseConfigured ? (
-    <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定 <code className="rounded bg-muted px-1">.env</code> 內 Supabase 後重啟 dev。
     </div>
    ) : null}
@@ -799,7 +793,7 @@ const academicYearOptions = useMemo(() => {
    </div>
 
   {historyReadOnly ? (
-   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
     2526 及更早學年僅供查閱：不可新增、標記收款或刪除。
    </div>
   ) : null}
@@ -871,7 +865,7 @@ const academicYearOptions = useMemo(() => {
        enrollLoading ? (
         <p className="text-sm text-muted-foreground">載入報讀班別中…</p>
        ) : enrollments.length === 0 ? (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+        <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
          此學生尚無報讀班別，請先到「學生管理 → 該生詳情 → 報讀班別」新增後再繳費。
         </div>
        ) : (
