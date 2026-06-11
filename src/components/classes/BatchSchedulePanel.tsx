@@ -74,20 +74,25 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   [candidates]
  )
 
+ const checkedDatesKey = useMemo(() => checkedDates.slice().sort().join(","), [checkedDates])
+
  const refreshRoomConflicts = useCallback(async () => {
-  if (!cls.time_slot || checkedDates.length === 0) return
+  if (!cls.time_slot || !checkedDatesKey || !classroomId) return
+  const dates = checkedDatesKey.split(",")
   const conflicts = await checkRoomConflictsForDates({
-   dates: checkedDates,
+   dates,
    timeSlot: cls.time_slot,
-   classroomId: classroomId || null,
+   classroomId,
   })
-  setCandidates((prev) =>
-   prev.map((c) => ({
+  setCandidates((prev) => {
+   const next = prev.map((c) => ({
     ...c,
     roomConflict: conflicts.has(c.date),
    }))
-  )
- }, [checkedDates, classroomId, cls.time_slot])
+   if (next.every((c, i) => c.roomConflict === prev[i]!.roomConflict)) return prev
+   return next
+  })
+ }, [checkedDatesKey, classroomId, cls.time_slot])
 
  useEffect(() => {
   void refreshRoomConflicts()
@@ -153,7 +158,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    <div>
     <h3 className="text-sm font-semibold">快速批量排程</h3>
     <p className="mt-1 text-xs text-muted-foreground">
-     預設勾選老師有檔期的日期；可剔選不排的日子。提交後才標記檔期為已分配。
+     預設勾選老師有檔期的日期；若顯示「無檔期」仍可手動勾選以建立排程。提交後才標記檔期為已分配。
     </p>
    </div>
    <div>
@@ -205,7 +210,11 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
     </div>
    ) : null}
    <div className="flex flex-wrap gap-2">
-    <Button type="button" disabled={submitting || candidates.length === 0} onClick={() => void onSubmit()}>
+    <Button
+     type="button"
+     disabled={submitting || candidates.length === 0 || checkedDates.length === 0}
+     onClick={() => void onSubmit()}
+    >
      {submitting ? "建立中…" : `建立 ${checkedDates.length} 筆排程`}
     </Button>
    </div>
