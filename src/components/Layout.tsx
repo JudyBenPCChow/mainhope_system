@@ -32,6 +32,7 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { AppBannerViewport } from "@/lib/appBanner"
 import { cn } from "@/lib/utils"
 
 type Role = "admin" | "teacher" | "alien"
@@ -230,6 +231,7 @@ export function Layout() {
 
  return (
   <div className="flex h-svh min-h-0 w-full overflow-hidden bg-brand-bg">
+   <AppBannerViewport />
    <aside
     className={cn(
      "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)] transition-[width] duration-200 ease-out",

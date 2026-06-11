@@ -172,7 +172,8 @@ export function ClassCreatePage() {
       onComplete={({ createdCount }) => {
        pushBanner({
         tone: "success",
-        title: `已建立 ${createdCount} 筆排程`,
+        title: "已成功新增排程",
+        message: `共建立 ${createdCount} 筆排程。`,
         action: { to: `/Classes/${createdClass.id}`, pageLabel: "班別詳情" },
        })
       }}

@@ -27,7 +27,9 @@ import {
  weekdaysFromStored,
 } from "@/components/classes/classesUi"
 import { classDisplayName } from "@/lib/courseLabel"
+import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
@@ -87,7 +89,7 @@ export function ClassesListPage() {
  const [teacherKey, setTeacherKey] = useState<string>("全部")
  const [dayKey, setDayKey] = useState<string>("全部")
  const [statusKey, setStatusKey] = useState<string>("進行中")
- const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
+ const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -142,18 +144,18 @@ export function ClassesListPage() {
   return fromRows.map((y) => ({ value: y, label: `${y} 學年` }))
  }, [yearOptions, rows])
 
+ const selectedYearLabel = useMemo(
+  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
+  [academicYearFilter, currentAcademicYear]
+ )
+
  const yearScopedRows = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  const pick = selectedYearLabel
   return baseRows.filter((c) => {
    if (!pick || pick === "all") return true
    return (c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date)) === pick
   })
- }, [baseRows, academicYearFilter, currentAcademicYear])
-
- const selectedYearLabel = useMemo(
-  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
-  [academicYearFilter, currentAcademicYear]
- )
+ }, [baseRows, selectedYearLabel])
 
  const historyReadOnly = useMemo(
   () => isAcademicYearReadOnly(undefined, selectedYearLabel),

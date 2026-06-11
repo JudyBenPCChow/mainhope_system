@@ -13,7 +13,9 @@ import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -60,7 +62,7 @@ export function AttendanceRecordsPage() {
  const [studentKeyword, setStudentKeyword] = useState("")
  const [classFilter, setClassFilter] = useState("all")
  const [teacherFilter, setTeacherFilter] = useState("all")
- const [academicYearFilter, setAcademicYearFilter] = useState("current")
+ const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
  const [scopeClassIds, setScopeClassIds] = useState<Set<string> | null>(null)
@@ -70,7 +72,7 @@ export function AttendanceRecordsPage() {
  const [err, setErr] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
  const selectedYearLabel = useMemo(
-  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
   [academicYearFilter, currentAcademicYear]
  )
 
@@ -142,10 +144,10 @@ export function AttendanceRecordsPage() {
   if (classFilter !== "all") next = next.filter((r) => r.classId === classFilter)
   const activeTeacherId = teacherTid ?? teacherFilter
   if (activeTeacherId !== "all") next = next.filter((r) => r.teacherId === activeTeacherId)
-  const pickYear = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  const pickYear = selectedYearLabel
   next = next.filter((r) => academicYearLabelFromStartDate(r.attendanceDate) === pickYear)
   return next
- }, [rows, scopeClassIds, studentKeyword, classFilter, teacherFilter, teacherTid, academicYearFilter, currentAcademicYear])
+ }, [rows, scopeClassIds, studentKeyword, classFilter, teacherFilter, teacherTid, selectedYearLabel])
 
  const academicYearOptions = useMemo(() => {
   const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(r.attendanceDate)))]

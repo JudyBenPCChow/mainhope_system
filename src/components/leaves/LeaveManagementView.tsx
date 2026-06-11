@@ -9,7 +9,9 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -66,7 +68,7 @@ export function LeaveManagementView() {
  const [filterDateTo, setFilterDateTo] = useState("")
  const [filterSubject, setFilterSubject] = useState<string>("all")
  const [filterStudent, setFilterStudent] = useState("")
- const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
+ const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
@@ -103,7 +105,7 @@ export function LeaveManagementView() {
  const [linkErr, setLinkErr] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
  const selectedYearLabel = useMemo(
-  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
   [academicYearFilter, currentAcademicYear]
  )
 
@@ -249,7 +251,7 @@ export function LeaveManagementView() {
   const qStudent = filterStudent.trim().toLowerCase()
   const sidFilter = studentIdFromUrl?.trim() ?? ""
   const recFocus = recordFromUrl?.trim() ?? ""
-  const pickYear = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
+  const pickYear = selectedYearLabel
   const list = rows.filter((r) => {
    if (recFocus && r.id === recFocus) return true
    if (sidFilter && r.student_id !== sidFilter) return false
@@ -277,8 +279,7 @@ export function LeaveManagementView() {
   filterStudent,
   studentIdFromUrl,
   recordFromUrl,
-  academicYearFilter,
-  currentAcademicYear,
+  selectedYearLabel,
  ])
 
  const openAdd = () => {

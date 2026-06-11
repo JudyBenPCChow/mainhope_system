@@ -250,6 +250,7 @@ export async function datesWithAvailability(params: {
    .filter(Boolean)
  )
  if (daySet.size === 0) return []
+ const timeSlot = canonicalAvailabilityTimeSlot(params.timeSlot)
  const slots = await fetchAvailabilityInRange(year.start_date, year.end_date, {
   academicYearId: params.academicYearId,
   teacherId: params.teacherId,
@@ -259,7 +260,7 @@ export async function datesWithAvailability(params: {
   .filter(
    (s) => {
     const dow = weekdayLabelFromYmd(s.available_date)
-    return dow != null && daySet.has(dow) && timeSlotsEqual(s.time_slot, params.timeSlot)
+    return dow != null && daySet.has(dow) && timeSlotsEqual(s.time_slot, timeSlot)
    }
   )
   .map((s) => s.available_date)

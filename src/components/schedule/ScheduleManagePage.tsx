@@ -39,7 +39,9 @@ import {
 } from "@/lib/lessonSlots"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
@@ -162,7 +164,7 @@ export function ScheduleManagePage() {
  const [searchQ, setSearchQ] = useState("")
  const [classFilter, setClassFilter] = useState<string>("all")
  const [statusFilter, setStatusFilter] = useState<string>("all")
- const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
+ const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
@@ -331,15 +333,15 @@ useEffect(() => {
   return years.sort((a, b) => b.localeCompare(a))
  }, [rows])
 
- const scopedRows = useMemo(() => {
-  const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
-  return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
- }, [rows, academicYearFilter, currentAcademicYear])
-
  const selectedYearLabel = useMemo(
-  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
   [academicYearFilter, currentAcademicYear]
  )
+
+ const scopedRows = useMemo(() => {
+  const pick = selectedYearLabel
+  return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
+ }, [rows, selectedYearLabel])
 
  const historyReadOnly = useMemo(
   () => isAcademicYearReadOnly(undefined, selectedYearLabel),

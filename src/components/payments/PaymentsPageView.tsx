@@ -24,7 +24,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -161,7 +163,7 @@ export function PaymentsPageView() {
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
- const [academicYearFilter, setAcademicYearFilter] = useState<string>("current")
+ const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [detailOpen, setDetailOpen] = useState(false)
  const [detailPay, setDetailPay] = useState<PaymentFull | null>(null)
@@ -179,7 +181,7 @@ export function PaymentsPageView() {
  const [formOk, setFormOk] = useState<string | null>(null)
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(new Date().toISOString().slice(0, 10)), [])
  const selectedYearLabel = useMemo(
-  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
+  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
   [academicYearFilter, currentAcademicYear]
  )
 
@@ -357,12 +359,12 @@ export function PaymentsPageView() {
   if (mainTab === "history") void loadHistory()
  }, [mainTab, loadHistory])
 
-const historyRowsDisplayed = useMemo(() => {
- const pick = academicYearFilter === "current" ? currentAcademicYear : academicYearFilter
- return historyRows.filter((r) => academicYearLabelFromStartDate(r.paymentDate) === pick)
-}, [historyRows, academicYearFilter, currentAcademicYear])
+ const historyRowsDisplayed = useMemo(() => {
+  const pick = selectedYearLabel
+  return historyRows.filter((r) => academicYearLabelFromStartDate(r.paymentDate) === pick)
+ }, [historyRows, selectedYearLabel])
 
-const academicYearOptions = useMemo(() => {
+ const academicYearOptions = useMemo(() => {
  const years = [...new Set(historyRows.map((r) => academicYearLabelFromStartDate(r.paymentDate)))]
  return years.sort((a, b) => b.localeCompare(a))
 }, [historyRows])

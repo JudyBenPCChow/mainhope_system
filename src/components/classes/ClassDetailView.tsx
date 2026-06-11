@@ -846,7 +846,14 @@ const addableStudents = (() => {
         classId={cid}
         cls={cls}
         compact
-        onComplete={() => void reload()}
+        onComplete={({ createdCount }) => {
+         pushBanner({
+          tone: "success",
+          title: "已成功新增排程",
+          message: `共建立 ${createdCount} 筆排程。`,
+         })
+         void reload()
+        }}
        />
       ) : null}
       {schedActionErr ? (

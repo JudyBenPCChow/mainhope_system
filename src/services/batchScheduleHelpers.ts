@@ -13,6 +13,7 @@ import {
 } from "@/services/classQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
+ canonicalAvailabilityTimeSlot,
  datesWithAvailability,
  isAvailabilitySlotFree,
  markAvailabilityForScheduleDates,
@@ -71,11 +72,12 @@ export async function buildBatchScheduleCandidates(params: {
  let availSet = new Set<string>()
  if (teacherId && cls.day_of_week && cls.time_slot) {
   const weekdays = weekdaysFromStored(cls.day_of_week)
+  const timeSlot = canonicalAvailabilityTimeSlot(cls.time_slot)
   const avail = await datesWithAvailability({
    teacherId,
    academicYearId: year.id,
    dayOfWeek: weekdays,
-   timeSlot: cls.time_slot,
+   timeSlot,
   })
   availSet = new Set(avail)
  }

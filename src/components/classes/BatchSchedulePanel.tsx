@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
@@ -30,10 +31,13 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
  const [loading, setLoading] = useState(true)
  const [submitting, setSubmitting] = useState(false)
  const [err, setErr] = useState<string | null>(null)
+ const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
- const load = useCallback(async () => {
-  setLoading(true)
-  setErr(null)
+ const load = useCallback(async (opts?: { quiet?: boolean }) => {
+  if (!opts?.quiet) {
+   setLoading(true)
+   setErr(null)
+  }
   try {
    const [years, rm] = await Promise.all([fetchAcademicYearsWithDates(), fetchClassrooms()])
    setRooms(rm.filter((r) => !r.is_online))
@@ -57,7 +61,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   } catch (e) {
    reportUserFacingError(e, { source: "BatchSchedulePanel.load", setErr })
   } finally {
-   setLoading(false)
+   if (!opts?.quiet) setLoading(false)
   }
  }, [cls])
 
@@ -99,6 +103,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
  }, [refreshRoomConflicts])
 
  const toggleDate = (date: string) => {
+  setSuccessMsg(null)
   setCandidates((prev) =>
    prev.map((c) => (c.date === date ? { ...c, checked: !c.checked } : c))
   )
@@ -108,6 +113,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   if (!year) return
   setSubmitting(true)
   setErr(null)
+  setSuccessMsg(null)
   try {
    if (classroomId && classroomId !== cls.classroom_id) {
     await updateClass(classId, { classroom_id: classroomId })
@@ -125,10 +131,13 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
     classroomId: classroomId || null,
     markAvailability: true,
    })
-   onComplete?.({
-    createdCount: result.createdDates.length,
-    skippedCount: result.skippedDates.length,
-   })
+   if (result.createdDates.length > 0) {
+    setSuccessMsg(`已成功新增 ${result.createdDates.length} 筆排程`)
+    onComplete?.({
+     createdCount: result.createdDates.length,
+     skippedCount: result.skippedDates.length,
+    })
+   }
    if (result.skippedDates.length > 0) {
     setErr(
      `已建立 ${result.createdDates.length} 筆；略過 ${result.skippedDates.length} 筆（${result.skippedDates
@@ -137,7 +146,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
       .join("；")}${result.skippedDates.length > 3 ? "…" : ""}）`
     )
    }
-   await load()
+   await load({ quiet: true })
   } catch (e) {
    reportUserFacingError(e, { source: "BatchSchedulePanel.submit", setErr, userMessage: "批量排程失敗" })
   } finally {
@@ -158,7 +167,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    <div>
     <h3 className="text-sm font-semibold">快速批量排程</h3>
     <p className="mt-1 text-xs text-muted-foreground">
-     預設勾選老師有檔期的日期；若顯示「無檔期」仍可手動勾選以建立排程。提交後才標記檔期為已分配。
+     預設勾選老師有檔期的日期；其餘日期仍可手動勾選以建立排程。提交後才標記檔期為已分配。
     </p>
    </div>
    <div>
@@ -194,9 +203,11 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
         <span className="tabular-nums">{c.date}</span>
         <span className="text-muted-foreground">（{formatScheduleDateShort(c.date)}）</span>
        </label>
-       {!c.hasAvailability ? (
-        <span className="text-xs text-warning">無檔期</span>
-       ) : null}
+       {!c.hasAvailability ? null : (
+        <Tag tone="success" size="sm">
+         有檔期
+        </Tag>
+       )}
        {c.roomConflict ? (
         <span className="text-xs text-destructive">課室衝突</span>
        ) : null}
@@ -204,6 +215,14 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
      ))}
     </ul>
    )}
+   {successMsg ? (
+    <div
+     role="status"
+     className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-sm text-success"
+    >
+     {successMsg}
+    </div>
+   ) : null}
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
