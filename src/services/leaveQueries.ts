@@ -357,6 +357,7 @@ export type StudentUpcomingScheduleRow = {
  start_time: string | null
  end_time: string | null
  status: string
+ session_number: number | null
  subject: string
  course_code: string | null
  teacher_name: string | null
@@ -389,7 +390,7 @@ export async function fetchUpcomingSchedulesForStudent(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
   )
   .in("class_id", classIds)
   .gte("scheduled_date", fromYmd)
@@ -434,6 +435,10 @@ export async function fetchUpcomingSchedulesForStudent(
     start_time: r.start_time != null ? String(r.start_time) : null,
     end_time: r.end_time != null ? String(r.end_time) : null,
     status: String(r.status ?? ""),
+    session_number:
+     r.session_number != null && !Number.isNaN(Number(r.session_number))
+      ? Number(r.session_number)
+      : null,
     subject: formatClassLabel({ subject: sub, courseCode, courseName }),
     course_code: courseCode,
     teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,

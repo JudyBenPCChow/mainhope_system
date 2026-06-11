@@ -1,5 +1,6 @@
 import {
  applyDiscountToSubtotal,
+ discountRowFromApplication,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
 import type { PaymentDiscountApplicationRow, PaymentFull } from "@/services/paymentQueries"
@@ -50,16 +51,7 @@ export function buildDiscountSteps(
  let running = subtotal
  return ordered.map((app, idx) => {
   const before = running
-  const after = applyDiscountToSubtotal(before, {
-   id: app.discountId,
-   name: app.name,
-   percentOff: app.percentOff,
-   amountOff: app.amountOff,
-   isActive: true,
-   sortOrder: idx,
-   createdAt: "",
-   updatedAt: "",
-  } satisfies PaymentDiscountRow)
+  const after = applyDiscountToSubtotal(before, discountRowFromApplication(app, idx))
   const deducted =
    app.amountDeducted != null && Number.isFinite(app.amountDeducted)
     ? Math.round(app.amountDeducted * 100) / 100

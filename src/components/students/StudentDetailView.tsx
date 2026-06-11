@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
+import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -90,6 +91,10 @@ import {
  type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
 import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import {
+ fetchScheduleStudentHintsByClass,
+ type ScheduleStudentHints,
+} from "@/services/classQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 function formatLeaveError(e: unknown): string {
@@ -172,6 +177,9 @@ export function StudentDetailView() {
  const [attendance, setAttendance] = useState<AttendanceRow[]>([])
  const [leaves, setLeaves] = useState<LeaveRow[]>([])
 const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRow[]>([])
+ const [futureScheduleHints, setFutureScheduleHints] = useState<
+  Map<string, ScheduleStudentHints>
+ >(new Map())
  const [history, setHistory] = useState<HistoryRow[]>([])
  const [relatedTodos, setRelatedTodos] = useState<CalendarEventRow[]>([])
  const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
@@ -241,6 +249,14 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setAttendance(a)
   setLeaves(l)
   setFutureSchedules(fs)
+  const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
+  for (const row of fs) {
+   const arr = byClass.get(row.class_id) ?? []
+   arr.push({ id: row.id, scheduled_date: row.scheduled_date })
+   byClass.set(row.class_id, arr)
+  }
+  const hints = await fetchScheduleStudentHintsByClass(byClass)
+  setFutureScheduleHints(hints)
   setHistory(h)
   setRelatives(rel)
  }, [sid])
@@ -533,9 +549,10 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 const csvEscape = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 const exportFutureSchedulesCsv = () => {
- const header = ["日期", "開始", "結束", "科目", "課程編號", "老師", "狀態"]
+ const header = ["堂次", "日期", "開始", "結束", "科目", "課程編號", "老師", "狀態"]
  const rows = futureSchedules.map((row) =>
   [
+   row.session_number != null ? String(row.session_number) : "",
    row.scheduled_date,
    row.start_time ?? "",
    row.end_time ?? "",
@@ -1608,34 +1625,33 @@ const exportFutureSchedulesCsv = () => {
       {futureSchedules.length === 0 ? (
        <p className="py-8 text-center text-sm text-muted-foreground">尚無未來排程</p>
       ) : (
-       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        <div className="hidden grid-cols-[auto_minmax(0,1fr)_auto_auto] gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid">
-         <span>日期 / 時間</span>
-         <span>班別</span>
-         <span className="text-right">老師</span>
-         <span className="text-right">狀態</span>
-        </div>
-        <ul className="divide-y divide-border">
-         {futureSchedules.map((row) => (
-          <li
+       <div className="space-y-2">
+        {futureSchedules.map((row) => {
+         const hints = futureScheduleHints.get(row.id)
+         return (
+          <ScheduleListCard
            key={row.id}
-           className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]"
-          >
-           <span className="tabular-nums text-muted-foreground">
-            {row.scheduled_date} {row.start_time ?? ""}
-            {row.end_time ? `-${row.end_time}` : ""}
-           </span>
-           <span className="min-w-0 truncate font-medium">
+           sessionNumber={row.session_number}
+           scheduledDate={row.scheduled_date}
+           startTime={row.start_time}
+           endTime={row.end_time}
+           attendingNames={hints?.attendingNames}
+           leaveNames={hints?.leaveNames}
+           subtitle={
             <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
              {row.subject}
              {row.course_code ? `（${row.course_code}）` : ""}
             </Link>
-           </span>
-           <span className="text-right text-muted-foreground">{row.teacher_name ?? "—"}</span>
-           <span className="text-right text-muted-foreground">{row.status || "—"}</span>
-          </li>
-         ))}
-        </ul>
+           }
+           controls={
+            <div className="text-right text-sm text-muted-foreground">
+             <div>{row.teacher_name ?? "—"}</div>
+             <div>{row.status || "—"}</div>
+            </div>
+           }
+          />
+         )
+        })}
        </div>
       )}
      </div>

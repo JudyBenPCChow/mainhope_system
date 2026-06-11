@@ -28,11 +28,11 @@ TRUNCATE TABLE
   public.classrooms
 RESTART IDENTITY CASCADE;
 
-INSERT INTO public.payment_discounts (id, name, percent_off, amount_off, is_active, sort_order)
+INSERT INTO public.payment_discounts (id, name, percent_off, amount_off, is_active, sort_order, is_label_only)
 VALUES
-  ('f1ee1000-0000-4000-8000-000000000850', '舊生 95 折', 5, null, true, 0),
-  ('f1ee1000-0000-4000-8000-000000000851', '早鳥減 $100', null, 100, true, 1),
-  ('f1ee1000-0000-4000-8000-000000000852', '職員家屬優惠（僅註記）', null, null, true, 2)
+  ('f1ee1000-0000-4000-8000-000000000850', '舊生 95 折', 5, null, true, 0, false),
+  ('f1ee1000-0000-4000-8000-000000000851', '早鳥減 $100', null, 100, true, 1, false),
+  ('f1ee1000-0000-4000-8000-000000000852', '職員家屬優惠（僅註記）', null, null, true, 2, true)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.teachers (id, full_name, english_name, phone, email, status, subject_speciality, salary_per_lesson)

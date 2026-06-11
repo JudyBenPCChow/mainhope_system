@@ -16,6 +16,8 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
+import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
+import { ScheduleDateTime } from "@/lib/scheduleDisplay"
 import {
  CLASS_GRADE_FORM_OPTIONS,
  CLASS_TIME_SLOT_OPTIONS,
@@ -39,12 +41,15 @@ import {
  fetchClassStudents,
  fetchClassSchedules,
  fetchClassroomOptions,
+ fetchScheduleStudentHintsForClass,
  fetchTeacherOptions,
  getClassById,
  insertScheduleForClass,
+ nextSessionNumberForClass,
  type ClassRecord,
  type ClassScheduleRow,
  type ClassStudentRow,
+ type ScheduleStudentHints,
  updateClass,
  updateSchedule,
 } from "@/services/classQueries"
@@ -152,6 +157,10 @@ export function ClassDetailView() {
  const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
  const [enrollmentEvents, setEnrollmentEvents] = useState<ClassEnrollmentChangeEvent[]>([])
  const [schedules, setSchedules] = useState<ClassScheduleRow[]>([])
+ const [scheduleHints, setScheduleHints] = useState<Map<string, ScheduleStudentHints>>(
+  new Map()
+ )
+ const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
  const [loading, setLoading] = useState(true)
  const [editOpen, setEditOpen] = useState(false)
  const [editErr, setEditErr] = useState<string | null>(null)
@@ -164,6 +173,7 @@ export function ClassDetailView() {
  const [addSchedOpen, setAddSchedOpen] = useState(false)
  const [newSchedDate, setNewSchedDate] = useState(() => localYmd())
  const [newSchedTimeSlot, setNewSchedTimeSlot] = useState("")
+ const [newSchedSession, setNewSchedSession] = useState<number | null>(null)
  const [savingAddSched, setSavingAddSched] = useState(false)
  const [addSchedErr, setAddSchedErr] = useState<string | null>(null)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
@@ -239,6 +249,11 @@ export function ClassDetailView() {
    setStudents(st)
    setEnrollmentEvents(ev)
    setSchedules(sc)
+   const hints = await fetchScheduleStudentHintsForClass(
+    cid,
+    sc.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
+   )
+   setScheduleHints(hints)
    setTeachers(tch)
    setRooms(rm)
    setAllStudents(allSt)
@@ -354,13 +369,14 @@ export function ClassDetailView() {
  }, [editOpen, requestCloseEdit, navigate])
 
  useEffect(() => {
-  if (!addSchedOpen) return
+  if (!addSchedOpen || !cid) return
   setNewSchedDate(localYmd())
   setNewSchedTimeSlot(
    cls?.time_slot ? timeSlotSelectValueFromStored(cls.time_slot) || cls.time_slot : ""
   )
   setAddSchedErr(null)
- }, [addSchedOpen, cls?.time_slot])
+  void nextSessionNumberForClass(cid).then(setNewSchedSession)
+ }, [addSchedOpen, cls?.time_slot, cid])
 
  const addSched = async () => {
   if (!cls) return
@@ -376,6 +392,7 @@ export function ClassDetailView() {
     scheduled_date: newSchedDate,
     start_time: start,
     end_time: end,
+    session_number: newSchedSession,
    })
    setAddSchedOpen(false)
    setNewSchedDate(localYmd())
@@ -482,6 +499,26 @@ const addableStudents = (() => {
     setErr: setSchedActionErr,
     userMessage: msg,
    })
+  }
+ }
+
+ const onSaveSessionNumber = async (scheduleId: string, sessionNumber: number) => {
+  setSavingSessionId(scheduleId)
+  setSchedActionErr(null)
+  try {
+   await updateSchedule(scheduleId, { session_number: sessionNumber })
+   setSchedules((prev) =>
+    prev.map((s) => (s.id === scheduleId ? { ...s, session_number: sessionNumber } : s))
+   )
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onSaveSessionNumber",
+    setErr: setSchedActionErr,
+    userMessage: msg,
+   })
+  } finally {
+   setSavingSessionId(null)
   }
  }
 
@@ -874,6 +911,19 @@ const addableStudents = (() => {
            />
           </div>
           <div>
+           <label className="text-xs text-muted-foreground">堂次（可選）</label>
+           <Input
+            type="number"
+            min={1}
+            className="mt-1 w-24"
+            value={newSchedSession ?? ""}
+            onChange={(e) => {
+             const n = parseInt(e.target.value, 10)
+             setNewSchedSession(!Number.isNaN(n) && n >= 1 ? n : null)
+            }}
+           />
+          </div>
+          <div>
            <label className="text-xs text-muted-foreground">時段</label>
            <Select
             className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -914,41 +964,66 @@ const addableStudents = (() => {
        {schedFiltered.length === 0 ? (
         <p className="text-sm text-muted-foreground">此分類尚無排程。</p>
        ) : (
-        schedFiltered.map((s) => (
-         <div
-          key={s.id}
-          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary/30"
-         >
-          <Link
-           to={`/Schedule/${s.id}`}
-           className="min-w-0 flex-1 font-medium text-primary underline-offset-4 hover:underline"
-          >
-           {s.scheduled_date}{" "}
-           {s.start_time && s.end_time ? `${s.start_time}-${s.end_time}` : ""}
-          </Link>
-          <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-           <Select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
-            value={s.status}
-            onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
-           >
-            <option value="預定">預定</option>
-            <option value="完成">完成</option>
-            <option value="取消">取消</option>
-           </Select>
-           <button
-            type="button"
-            className="text-sm text-destructive hover:underline"
-            onClick={async () => {
-            if (!(await confirmDialog({ title: "刪除排程", description: "刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
-            await onDeleteSchedule(s.id)
-            }}
-           >
-            刪除
-           </button>
-          </div>
-         </div>
-        ))
+        schedFiltered.map((s) => {
+         const hints = scheduleHints.get(s.id)
+         return (
+          <ScheduleListCard
+           key={s.id}
+           sessionNumber={s.session_number}
+           scheduledDate={s.scheduled_date}
+           startTime={s.start_time}
+           endTime={s.end_time}
+           attendingNames={hints?.attendingNames}
+           leaveNames={hints?.leaveNames}
+           editableSessionNumber
+           savingSessionNumber={savingSessionId === s.id}
+           onSessionNumberSave={(n) => void onSaveSessionNumber(s.id, n)}
+           title={
+            <Link
+             to={`/Schedule/${s.id}`}
+             className="underline-offset-4 hover:underline"
+            >
+             <ScheduleDateTime
+              date={s.scheduled_date}
+              startTime={s.start_time}
+              endTime={s.end_time}
+             />
+            </Link>
+           }
+           controls={
+            <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
+             <Select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
+              value={s.status}
+              onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
+             >
+              <option value="預定">預定</option>
+              <option value="完成">完成</option>
+              <option value="取消">取消</option>
+             </Select>
+             <button
+              type="button"
+              className="text-sm text-destructive hover:underline"
+              onClick={async () => {
+               if (
+                !(await confirmDialog({
+                 title: "刪除排程",
+                 description: "刪除此排程？",
+                 confirmText: "確認刪除",
+                 tone: "destructive",
+                }))
+               )
+                return
+               await onDeleteSchedule(s.id)
+              }}
+             >
+              刪除
+             </button>
+            </div>
+           }
+          />
+         )
+        })
        )}
       </div>
      </div>

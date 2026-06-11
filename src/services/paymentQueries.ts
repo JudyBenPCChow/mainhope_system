@@ -1,7 +1,15 @@
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
-import { mapPaymentDiscountRow, type PaymentDiscountRow } from "@/services/paymentDiscountQueries"
+import {
+ applyDiscountsToSubtotal,
+ fetchActivePaymentDiscounts,
+ isDiscountInEffect,
+ mapPaymentDiscountRow,
+ resolveDiscountIdsFromCatalog,
+ validateDiscountSelection,
+ type PaymentDiscountRow,
+} from "@/services/paymentDiscountQueries"
 
 const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "其他"] as const
 export const PAYMENT_METHOD_PRESETS = [...METHOD_OPTIONS]
@@ -283,11 +291,15 @@ export async function insertPaymentRecord(params: {
  status: string
  remarks?: string | null
  receiptKind: "RC" | "INV"
- /** 依表單勾選順序儲存多項優惠 */
+ /** 依表單勾選的優惠 ID（套用順序依目錄 sort_order） */
  discountIds?: string[]
  /** @deprecated 請改用 discountIds */
  discountId?: string | null
  details?: PaymentDetailInput[]
+ /** 繳費日期 YYYY-MM-DD（驗證優惠有效期） */
+ paymentDateForDiscounts?: string
+ /** 學年 label（驗證優惠學年 scope） */
+ academicYearForDiscounts?: string | null
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
 
@@ -299,25 +311,52 @@ export async function insertPaymentRecord(params: {
      : []
  ).filter((id) => id.trim() !== "")
  const subtotalAmount = Math.round((params.subtotalAmount ?? params.totalAmount) * 100) / 100
+ const totalAmount = Math.round(params.totalAmount * 100) / 100
 
  let orderedDiscounts: PaymentDiscountRow[] = []
- if (discountIds.length > 0) {
+ let discountApplications: Array<{ discountId: string; sortOrder: number; amountDeducted: number }> = []
+
+ if (discountIds.length === 0) {
+  if (Math.abs(subtotalAmount - totalAmount) > 0.01) {
+   throw new Error("應繳總額與項目小計不一致")
+  }
+ } else {
   const { data: discRows, error: discErr } = await supabase
    .from("payment_discounts")
    .select("*")
    .in("id", discountIds)
   if (discErr) throw discErr
-  const byId = new Map(
-   (discRows ?? []).map((row) => {
-    const mapped = mapPaymentDiscountRow(row as Record<string, unknown>)
-    return [mapped.id, mapped] as const
-   })
+
+  const selectedCatalog = (discRows ?? []).map((row) =>
+   mapPaymentDiscountRow(row as Record<string, unknown>)
   )
-  orderedDiscounts = discountIds
-   .map((id) => byId.get(id))
-   .filter((d): d is PaymentDiscountRow => d != null)
+  orderedDiscounts = resolveDiscountIdsFromCatalog(discountIds, selectedCatalog)
+
+  const asOfDate = params.paymentDateForDiscounts ?? params.paymentDate
+  for (const d of orderedDiscounts) {
+   if (
+    !isDiscountInEffect(d, {
+     asOfDate,
+     academicYear: params.academicYearForDiscounts ?? null,
+    })
+   ) {
+    throw new Error(`優惠「${d.name}」不在有效期或學年範圍內`)
+   }
+  }
+
+  const activeCatalog = await fetchActivePaymentDiscounts({
+   asOfDate,
+   academicYear: params.academicYearForDiscounts ?? null,
+  })
+  const selectionErr = validateDiscountSelection(orderedDiscounts, activeCatalog)
+  if (selectionErr) throw new Error(selectionErr)
+
+  discountApplications = computeDiscountApplicationsForSave(subtotalAmount, orderedDiscounts)
+  const expectedTotal = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts)
+  if (Math.abs(expectedTotal - totalAmount) > 0.01) {
+   throw new Error("應繳總額與優惠試算結果不一致，請重新整理後再試")
+  }
  }
- const discountApplications = computeDiscountApplicationsForSave(subtotalAmount, orderedDiscounts)
 
  let paymentId: string | null = null
  for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
@@ -327,13 +366,13 @@ export async function insertPaymentRecord(params: {
    .insert({
     student_id: params.studentId,
     payment_date: params.paymentDate,
-    total_amount: params.totalAmount,
+    total_amount: totalAmount,
     subtotal_amount: subtotalAmount,
     payment_method: params.paymentMethod,
     status: params.status,
     remarks: params.remarks?.trim() || null,
     receipt_number: receipt,
-    payment_discount_id: discountIds[0] ?? null,
+    payment_discount_id: orderedDiscounts[0]?.id ?? null,
    })
    .select("id")
    .single()

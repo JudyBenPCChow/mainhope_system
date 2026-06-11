@@ -192,9 +192,9 @@ export type ScheduleRow = {
  startTime: string | null
  endTime: string | null
  status: string
+ sessionNumber: number | null
  subject: string
  courseCode: string | null
- studentNames: string[]
 }
 
 export async function fetchTeacherSchedules(teacherId: string): Promise<ScheduleRow[]> {
@@ -202,37 +202,13 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
  const { data: sched, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, courses ( course_name ) )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code, courses ( course_name ) )"
   )
   .eq("teacher_id", teacherId)
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
  if (error) throw error
  const rows = (sched ?? []) as Record<string, unknown>[]
- const classIds = [
-  ...new Set(
-   rows
-    .map((r) => (r.class_id != null ? String(r.class_id) : null))
-    .filter((x): x is string => x != null)
-  ),
- ]
- const namesByClass = new Map<string, string[]>()
- if (classIds.length) {
-  const { data: enr } = await supabase
-   .from("student_class_enrollments")
-   .select("class_id, students ( full_name )")
-   .in("class_id", classIds)
-  for (const r of enr ?? []) {
-   const row = r as Record<string, unknown>
-   const cid = String(row.class_id)
-   const st = row.students as { full_name?: string } | null
-   const name = st?.full_name
-   if (!name) continue
-   const arr = namesByClass.get(cid) ?? []
-   if (!arr.includes(name)) arr.push(name)
-   namesByClass.set(cid, arr)
-  }
- }
  return rows.map((r) => {
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
@@ -246,10 +222,12 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
    startTime: r.start_time != null ? String(r.start_time) : null,
    endTime: r.end_time != null ? String(r.end_time) : null,
    status: String(r.status ?? "預定"),
+   sessionNumber:
+    r.session_number != null && !Number.isNaN(Number(r.session_number))
+     ? Number(r.session_number)
+     : null,
    subject: formatClassLabel({ subject: sub, courseCode, courseName }),
    courseCode,
-   studentNames:
-    r.class_id != null ? namesByClass.get(String(r.class_id)) ?? [] : [],
   }
  })
 }

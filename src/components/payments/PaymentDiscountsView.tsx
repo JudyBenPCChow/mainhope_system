@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
-import { Pencil, Percent, Plus, Trash2 } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
+import { Calculator, GripVertical, Pencil, Percent, Plus, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -13,12 +13,19 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { cn } from "@/lib/utils"
 import {
+ applyDiscountsToSubtotal,
+ batchUpdateDiscountSortOrders,
  deletePaymentDiscount,
  fetchAllPaymentDiscounts,
+ fetchDiscountApplicationCount,
+ fetchDiscountUsageStats,
  insertPaymentDiscount,
  updatePaymentDiscount,
  type PaymentDiscountRow,
+ type PaymentDiscountUsageStats,
+ type PaymentDiscountWriteInput,
 } from "@/services/paymentDiscountQueries"
 
 function formatErr(e: unknown): string {
@@ -27,34 +34,97 @@ function formatErr(e: unknown): string {
  return "操作失敗"
 }
 
+function money(n: number): string {
+ return new Intl.NumberFormat("zh-Hant", { style: "currency", currency: "HKD" }).format(n)
+}
+
+function parseOptionalNumber(raw: string): number | null {
+ const t = raw.trim()
+ if (!t) return null
+ const n = Number(t)
+ if (!Number.isFinite(n)) return null
+ return n
+}
+
+function formatUpdatedAt(iso: string): string {
+ if (!iso) return "—"
+ const d = iso.slice(0, 10)
+ return d || "—"
+}
+
+function summarizeRule(r: PaymentDiscountRow): string {
+ if (r.isLabelOnly) return "僅註記（不計算）"
+ const parts: string[] = []
+ if (r.percentOff != null && r.percentOff > 0) parts.push(`減 ${r.percentOff}%`)
+ if (r.amountOff != null && r.amountOff > 0) parts.push(`減 $${r.amountOff}`)
+ if (parts.length === 0) return "僅註記（不計算）"
+ return parts.join("，")
+}
+
+function summarizeScope(r: PaymentDiscountRow): string {
+ const parts: string[] = []
+ if (r.validFrom || r.validTo) {
+  parts.push(`${r.validFrom ?? "…"} ~ ${r.validTo ?? "…"}`)
+ }
+ if (r.academicYear) parts.push(`學年 ${r.academicYear}`)
+ if (r.stackGroup) parts.push(`互斥：${r.stackGroup}`)
+ if (r.maxStackCount != null) parts.push(`每單≤${r.maxStackCount}項`)
+ return parts.length > 0 ? parts.join("；") : "—"
+}
+
+const emptyForm = {
+ name: "",
+ percentOff: "",
+ amountOff: "",
+ isActive: true,
+ sortOrder: "0",
+ validFrom: "",
+ validTo: "",
+ academicYear: "",
+ stackGroup: "",
+ maxStackCount: "",
+ isLabelOnly: false,
+ previewSubtotal: "1000",
+}
+
 export function PaymentDiscountsView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<PaymentDiscountRow[]>([])
+ const [usageById, setUsageById] = useState<Map<string, PaymentDiscountUsageStats>>(new Map())
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [dialogOpen, setDialogOpen] = useState(false)
  const [editing, setEditing] = useState<PaymentDiscountRow | null>(null)
- const [name, setName] = useState("")
- const [percentOff, setPercentOff] = useState("")
- const [amountOff, setAmountOff] = useState("")
- const [isActive, setIsActive] = useState(true)
- const [sortOrder, setSortOrder] = useState("0")
+ const [form, setForm] = useState(emptyForm)
  const [saving, setSaving] = useState(false)
+ const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+ const [dragId, setDragId] = useState<string | null>(null)
+ const rowsRef = useRef(rows)
+ useEffect(() => {
+  rowsRef.current = rows
+ }, [rows])
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
    setRows([])
+   setUsageById(new Map())
    setLoading(false)
    return
   }
   setLoading(true)
   setErr(null)
   try {
-   setRows(await fetchAllPaymentDiscounts())
+   const [discountRows, usageStats] = await Promise.all([
+    fetchAllPaymentDiscounts(),
+    fetchDiscountUsageStats(),
+   ])
+   setRows(discountRows)
+   setUsageById(new Map(usageStats.map((s) => [s.discountId, s])))
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentDiscountsView.load", setErr })
    setRows([])
+   setUsageById(new Map())
   } finally {
    setLoading(false)
   }
@@ -66,58 +136,83 @@ export function PaymentDiscountsView() {
 
  const openCreate = () => {
   setEditing(null)
-  setName("")
-  setPercentOff("")
-  setAmountOff("")
-  setIsActive(true)
-  setSortOrder("0")
+  setForm({
+   ...emptyForm,
+   sortOrder: String(rows.length > 0 ? Math.max(...rows.map((r) => r.sortOrder)) + 1 : 0),
+  })
   setDialogOpen(true)
  }
 
  const openEdit = (r: PaymentDiscountRow) => {
   setEditing(r)
-  setName(r.name)
-  setPercentOff(r.percentOff != null ? String(r.percentOff) : "")
-  setAmountOff(r.amountOff != null ? String(r.amountOff) : "")
-  setIsActive(r.isActive)
-  setSortOrder(String(r.sortOrder))
+  setForm({
+   name: r.name,
+   percentOff: r.percentOff != null ? String(r.percentOff) : "",
+   amountOff: r.amountOff != null ? String(r.amountOff) : "",
+   isActive: r.isActive,
+   sortOrder: String(r.sortOrder),
+   validFrom: r.validFrom ?? "",
+   validTo: r.validTo ?? "",
+   academicYear: r.academicYear ?? "",
+   stackGroup: r.stackGroup ?? "",
+   maxStackCount: r.maxStackCount != null ? String(r.maxStackCount) : "",
+   isLabelOnly: r.isLabelOnly,
+   previewSubtotal: "1000",
+  })
   setDialogOpen(true)
  }
 
+ const buildWriteInput = (): PaymentDiscountWriteInput | string => {
+  if (!form.name.trim()) return "請填名稱"
+  if (form.percentOff.trim()) {
+   const p = parseOptionalNumber(form.percentOff)
+   if (p == null) return "減免百分比須為有效數字"
+   if (p < 0 || p > 100) return "折扣百分比須介於 0–100"
+  }
+  if (form.amountOff.trim()) {
+   const a = parseOptionalNumber(form.amountOff)
+   if (a == null) return "固定減免須為有效數字"
+   if (a < 0) return "固定減免不可為負數"
+  }
+  if (form.maxStackCount.trim()) {
+   const m = parseOptionalNumber(form.maxStackCount)
+   if (m == null) return "疊加上限須為有效正整數"
+   if (m < 1 || !Number.isInteger(m)) return "疊加上限須為 ≥ 1 的整數"
+  }
+  const sortN = parseOptionalNumber(form.sortOrder)
+  if (form.sortOrder.trim() && sortN == null) return "排序須為有效數字"
+
+  const percentOff = form.percentOff.trim() ? parseOptionalNumber(form.percentOff) : null
+  const amountOff = form.amountOff.trim() ? parseOptionalNumber(form.amountOff) : null
+  const maxStackCount = form.maxStackCount.trim() ? parseOptionalNumber(form.maxStackCount) : null
+
+  return {
+   name: form.name.trim(),
+   percentOff,
+   amountOff,
+   isActive: form.isActive,
+   sortOrder: sortN ?? 0,
+   validFrom: form.validFrom.trim() || null,
+   validTo: form.validTo.trim() || null,
+   academicYear: form.academicYear.trim() || null,
+   stackGroup: form.stackGroup.trim() || null,
+   maxStackCount: maxStackCount != null ? Math.trunc(maxStackCount) : null,
+   isLabelOnly: form.isLabelOnly,
+  }
+ }
+
  const submit = async () => {
-  if (!name.trim()) {
-   pushBanner({ tone: "warning", title: "請填名稱" })
-   return
-  }
-  const p = percentOff.trim() ? Number(percentOff) : null
-  const a = amountOff.trim() ? Number(amountOff) : null
-  if (p != null && (p < 0 || p > 100)) {
-   pushBanner({ tone: "warning", title: "折扣百分比須介於 0–100" })
-   return
-  }
-  if (a != null && a < 0) {
-   pushBanner({ tone: "warning", title: "固定減免不可為負數" })
+  const input = buildWriteInput()
+  if (typeof input === "string") {
+   pushBanner({ tone: "warning", title: input })
    return
   }
   setSaving(true)
   try {
-   const sortN = Number(sortOrder) || 0
    if (editing) {
-    await updatePaymentDiscount(editing.id, {
-     name: name.trim(),
-     percentOff: p,
-     amountOff: a,
-     isActive,
-     sortOrder: sortN,
-    })
+    await updatePaymentDiscount(editing.id, input)
    } else {
-    await insertPaymentDiscount({
-     name: name.trim(),
-     percentOff: p,
-     amountOff: a,
-     isActive,
-     sortOrder: sortN,
-    })
+    await insertPaymentDiscount(input)
    }
    setDialogOpen(false)
    await load()
@@ -129,11 +224,30 @@ export function PaymentDiscountsView() {
   }
  }
 
+ const onToggleActive = async (r: PaymentDiscountRow) => {
+  try {
+   await updatePaymentDiscount(r.id, { isActive: !r.isActive })
+   await load()
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentDiscountsView.onToggleActive" })
+   pushBanner({ tone: "error", title: "更新狀態失敗", message: formatErr(e) })
+  }
+ }
+
  const onDelete = async (r: PaymentDiscountRow) => {
+  const refCount = usageById.get(r.id)?.applicationCount ?? (await fetchDiscountApplicationCount(r.id))
+  if (refCount > 0) {
+   pushBanner({
+    tone: "warning",
+    title: "無法刪除",
+    message: `優惠「${r.name}」已被 ${refCount} 筆繳費紀錄引用。請改為「停用」，以保留歷史資料。`,
+   })
+   return
+  }
   if (
    !(await confirmDialog({
     title: "刪除優惠",
-    description: `刪除優惠「${r.name}」？已關聯的繳費紀錄將保留欄位為空（on delete set null）。`,
+    description: `確定刪除優惠「${r.name}」？此操作無法復原；未被引用的項目才可刪除。`,
     confirmText: "確認刪除",
     tone: "destructive",
    }))
@@ -144,17 +258,101 @@ export function PaymentDiscountsView() {
    await load()
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentDiscountsView.onDelete" })
-   pushBanner({ tone: "error", title: "刪除優惠失敗", message: formatErr(e) })
+   pushBanner({
+    tone: "error",
+    title: "刪除優惠失敗",
+    message: formatErr(e),
+   })
   }
  }
 
- const summarize = (r: PaymentDiscountRow) => {
-  const parts: string[] = []
-  if (r.percentOff != null && r.percentOff > 0) parts.push(`減 ${r.percentOff}%`)
-  if (r.amountOff != null && r.amountOff > 0) parts.push(`減 $${r.amountOff}`)
-  if (parts.length === 0) return "僅註記（不計算）"
-  return parts.join("，")
+ const onBulkSetActive = async (active: boolean) => {
+  if (selectedIds.size === 0) return
+  try {
+   for (const id of selectedIds) {
+    await updatePaymentDiscount(id, { isActive: active })
+   }
+   setSelectedIds(new Set())
+   await load()
+   pushBanner({ tone: "success", title: active ? "已批量啟用" : "已批量停用" })
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentDiscountsView.onBulkSetActive" })
+   pushBanner({ tone: "error", title: "批量更新失敗", message: formatErr(e) })
+  }
  }
+
+ const toggleSelect = (id: string) => {
+  setSelectedIds((prev) => {
+   const next = new Set(prev)
+   if (next.has(id)) next.delete(id)
+   else next.add(id)
+   return next
+  })
+ }
+
+ const toggleSelectAll = () => {
+  if (selectedIds.size === rows.length) setSelectedIds(new Set())
+  else setSelectedIds(new Set(rows.map((r) => r.id)))
+ }
+
+ const onDragStart = (id: string) => setDragId(id)
+
+ const onDragOver = (e: DragEvent, overId: string) => {
+  e.preventDefault()
+  if (!dragId || dragId === overId) return
+  setRows((prev) => {
+   const fromIdx = prev.findIndex((r) => r.id === dragId)
+   const toIdx = prev.findIndex((r) => r.id === overId)
+   if (fromIdx < 0 || toIdx < 0) return prev
+   const next = [...prev]
+   const [moved] = next.splice(fromIdx, 1)
+   next.splice(toIdx, 0, moved)
+   rowsRef.current = next
+   return next
+  })
+ }
+
+ const onDragEnd = async () => {
+  if (!dragId) return
+  setDragId(null)
+  const finalRows = rowsRef.current
+  const updates = finalRows.map((r, idx) => ({ id: r.id, sortOrder: idx }))
+  try {
+   await batchUpdateDiscountSortOrders(updates)
+   await load()
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentDiscountsView.onDragEnd" })
+   pushBanner({ tone: "error", title: "更新排序失敗", message: formatErr(e) })
+   await load()
+  }
+ }
+
+ const previewDiscount = useMemo((): PaymentDiscountRow | null => {
+  const input = buildWriteInput()
+  if (typeof input === "string") return null
+  return {
+   id: "preview",
+   name: input.name || "（試算）",
+   percentOff: input.percentOff,
+   amountOff: input.amountOff,
+   isActive: input.isActive,
+   sortOrder: input.sortOrder,
+   validFrom: input.validFrom ?? null,
+   validTo: input.validTo ?? null,
+   academicYear: input.academicYear ?? null,
+   stackGroup: input.stackGroup ?? null,
+   maxStackCount: input.maxStackCount ?? null,
+   isLabelOnly: input.isLabelOnly ?? false,
+   createdAt: "",
+   updatedAt: "",
+  }
+ }, [form])
+
+ const previewSubtotalN = parseOptionalNumber(form.previewSubtotal) ?? 0
+ const previewTotal =
+  previewDiscount && previewSubtotalN > 0
+   ? applyDiscountsToSubtotal(previewSubtotalN, [previewDiscount])
+   : previewSubtotalN
 
  return (
   <div className="space-y-6 p-4 md:p-6">
@@ -165,14 +363,10 @@ export function PaymentDiscountsView() {
       優惠折扣
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      維護繳費表單可選的優惠項目；可設定百分比、固定減免，或僅作備註標籤。
+      維護繳費表單可選的優惠項目；套用順序依「排序」欄（非勾選順序）。
      </p>
     </div>
-    <Button
-     type="button"
-     onClick={openCreate}
-     disabled={!isSupabaseConfigured}
-    >
+    <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>
      <Plus className="h-4 w-4" />
      新增優惠
     </Button>
@@ -190,6 +384,35 @@ export function PaymentDiscountsView() {
     </div>
    ) : null}
 
+   {rows.length > 0 ? (
+    <div className="flex flex-wrap items-center gap-2">
+     <Button type="button" variant="outline" size="sm" onClick={toggleSelectAll}>
+      {selectedIds.size === rows.length ? "取消全選" : "全選"}
+     </Button>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={selectedIds.size === 0}
+      onClick={() => void onBulkSetActive(true)}
+     >
+      批量啟用
+     </Button>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={selectedIds.size === 0}
+      onClick={() => void onBulkSetActive(false)}
+     >
+      批量停用
+     </Button>
+     {selectedIds.size > 0 ? (
+      <span className="text-xs text-muted-foreground">已選 {selectedIds.size} 項</span>
+     ) : null}
+    </div>
+   ) : null}
+
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : rows.length === 0 ? (
@@ -198,97 +421,258 @@ export function PaymentDiscountsView() {
     </div>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
+     <table className="w-full min-w-[960px] border-collapse text-left text-sm">
       <thead className="border-b bg-muted/40">
        <tr>
-        <th className="w-[10%] px-3 py-2 font-medium">排序</th>
-        <th className="w-[22%] px-3 py-2 font-medium">名稱</th>
-        <th className="w-[38%] px-3 py-2 font-medium">規則</th>
-        <th className="w-[12%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[18%] px-3 py-2 font-medium">操作</th>
+        <th className="w-8 px-2 py-2" aria-label="拖曳" />
+        <th className="w-8 px-2 py-2">
+         <input
+          type="checkbox"
+          checked={selectedIds.size === rows.length && rows.length > 0}
+          onChange={toggleSelectAll}
+          aria-label="全選"
+         />
+        </th>
+        <th className="w-[5%] px-2 py-2 font-medium">序</th>
+        <th className="w-[14%] px-2 py-2 font-medium">名稱</th>
+        <th className="w-[16%] px-2 py-2 font-medium">規則</th>
+        <th className="w-[16%] px-2 py-2 font-medium">條件</th>
+        <th className="w-[8%] px-2 py-2 font-medium">引用</th>
+        <th className="w-[8%] px-2 py-2 font-medium">狀態</th>
+        <th className="w-[8%] px-2 py-2 font-medium">更新</th>
+        <th className="w-[17%] px-2 py-2 font-medium">操作</th>
        </tr>
       </thead>
       <tbody>
-       {rows.map((r) => (
-        <tr key={r.id} className="border-b border-border/80 last:border-0">
-         <td className="px-3 py-2 tabular-nums">{r.sortOrder}</td>
-         <td className="px-3 py-2 font-medium">{r.name}</td>
-         <td className="px-3 py-2 text-muted-foreground">{summarize(r)}</td>
-         <td className="px-3 py-2">{r.isActive ? "啟用" : "停用"}</td>
-         <td className="px-3 py-2">
-          <div className="flex flex-wrap gap-1">
-           <Button type="button" variant="outline" size="sm" onClick={() => openEdit(r)}>
-            <Pencil className="h-3.5 w-3.5" />
-            編輯
-           </Button>
-           <Button
+       {rows.map((r) => {
+        const usage = usageById.get(r.id)
+        return (
+         <tr
+          key={r.id}
+          draggable
+          onDragStart={() => onDragStart(r.id)}
+          onDragOver={(e) => onDragOver(e, r.id)}
+          onDragEnd={() => void onDragEnd()}
+          className={cn(
+           "border-b border-border/80 last:border-0",
+           dragId === r.id && "bg-muted/30"
+          )}
+         >
+          <td className="cursor-grab px-2 py-2 text-muted-foreground active:cursor-grabbing">
+           <GripVertical className="h-4 w-4" aria-hidden />
+          </td>
+          <td className="px-2 py-2">
+           <input
+            type="checkbox"
+            checked={selectedIds.has(r.id)}
+            onChange={() => toggleSelect(r.id)}
+            aria-label={`選取 ${r.name}`}
+           />
+          </td>
+          <td className="px-2 py-2 tabular-nums">{r.sortOrder}</td>
+          <td className="px-2 py-2 font-medium">{r.name}</td>
+          <td className="px-2 py-2 text-muted-foreground">{summarizeRule(r)}</td>
+          <td className="px-2 py-2 text-xs text-muted-foreground">{summarizeScope(r)}</td>
+          <td className="px-2 py-2 tabular-nums text-muted-foreground">
+           {usage ? (
+            <span title={usage.totalDeducted > 0 ? `累計減免 ${money(usage.totalDeducted)}` : undefined}>
+             {usage.applicationCount}
+             {usage.totalDeducted > 0 ? (
+              <span className="block text-xs">-{money(usage.totalDeducted)}</span>
+             ) : null}
+            </span>
+           ) : (
+            "0"
+           )}
+          </td>
+          <td className="px-2 py-2">
+           <button
             type="button"
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={() => void onDelete(r)}
+            className={cn(
+             "rounded px-1.5 py-0.5 text-xs font-medium",
+             r.isActive
+              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+              : "bg-muted text-muted-foreground"
+            )}
+            onClick={() => void onToggleActive(r)}
            >
-            <Trash2 className="h-3.5 w-3.5" />
-            刪除
-           </Button>
-          </div>
-         </td>
-        </tr>
-       ))}
+            {r.isActive ? "啟用" : "停用"}
+           </button>
+          </td>
+          <td className="px-2 py-2 text-xs tabular-nums text-muted-foreground">
+           {formatUpdatedAt(r.updatedAt)}
+          </td>
+          <td className="px-2 py-2">
+           <div className="flex flex-wrap gap-1">
+            <Button type="button" variant="outline" size="sm" onClick={() => openEdit(r)}>
+             <Pencil className="h-3.5 w-3.5" />
+             編輯
+            </Button>
+            <Button
+             type="button"
+             variant="ghost"
+             size="sm"
+             className="text-muted-foreground hover:text-destructive"
+             onClick={() => void onDelete(r)}
+            >
+             <Trash2 className="h-3.5 w-3.5" />
+             刪除
+            </Button>
+           </div>
+          </td>
+         </tr>
+        )
+       })}
       </tbody>
      </table>
     </div>
    )}
 
    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
      <DialogHeader>
       <DialogTitle>{editing ? "編輯優惠" : "新增優惠"}</DialogTitle>
      </DialogHeader>
      <div className="grid gap-3 text-sm">
       <div className="grid gap-1.5">
        <label className="font-medium">名稱 *</label>
-       <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：舊生 95 折" />
-      </div>
-      <div className="grid gap-1.5">
-       <label className="font-medium">減免百分比（0–100，選填）</label>
        <Input
-        type="number"
-        min={0}
-        max={100}
-        step="0.01"
-        value={percentOff}
-        onChange={(e) => setPercentOff(e.target.value)}
-        placeholder="例如 5 表示折後付 95%"
+        value={form.name}
+        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+        placeholder="例如：舊生 95 折"
        />
       </div>
-      <div className="grid gap-1.5">
-       <label className="font-medium">固定減免金額 HKD（選填）</label>
-       <Input
-        type="number"
-        min={0}
-        step="0.01"
-        value={amountOff}
-        onChange={(e) => setAmountOff(e.target.value)}
-        placeholder="例如 100"
-       />
-      </div>
-      <p className="text-xs text-muted-foreground">
-       若兩者皆留空，選擇此優惠時僅作標籤顯示，應繳金額等於各項小計加總。
-      </p>
-      <div className="grid gap-1.5">
-       <label className="font-medium">排序（數字小排前）</label>
-       <Input type="number" value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} />
+      <div className="grid gap-3 sm:grid-cols-2">
+       <div className="grid gap-1.5">
+        <label className="font-medium">減免百分比（0–100）</label>
+        <Input
+         type="number"
+         min={0}
+         max={100}
+         step="0.01"
+         value={form.percentOff}
+         onChange={(e) => setForm((f) => ({ ...f, percentOff: e.target.value }))}
+         placeholder="5 = 95 折"
+         disabled={form.isLabelOnly}
+        />
+       </div>
+       <div className="grid gap-1.5">
+        <label className="font-medium">固定減免 HKD</label>
+        <Input
+         type="number"
+         min={0}
+         step="0.01"
+         value={form.amountOff}
+         onChange={(e) => setForm((f) => ({ ...f, amountOff: e.target.value }))}
+         placeholder="100"
+         disabled={form.isLabelOnly}
+        />
+       </div>
       </div>
       <label className="flex cursor-pointer items-center gap-2">
-       <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+       <input
+        type="checkbox"
+        checked={form.isLabelOnly}
+        onChange={(e) =>
+         setForm((f) => ({
+          ...f,
+          isLabelOnly: e.target.checked,
+          ...(e.target.checked ? { percentOff: "", amountOff: "" } : {}),
+         }))
+        }
+       />
+       僅註記（不計算金額）
+      </label>
+      <div className="grid gap-3 sm:grid-cols-2">
+       <div className="grid gap-1.5">
+        <label className="font-medium">有效開始日</label>
+        <Input
+         type="date"
+         value={form.validFrom}
+         onChange={(e) => setForm((f) => ({ ...f, validFrom: e.target.value }))}
+        />
+       </div>
+       <div className="grid gap-1.5">
+        <label className="font-medium">有效結束日</label>
+        <Input
+         type="date"
+         value={form.validTo}
+         onChange={(e) => setForm((f) => ({ ...f, validTo: e.target.value }))}
+        />
+       </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+       <div className="grid gap-1.5">
+        <label className="font-medium">限定學年（選填）</label>
+        <Input
+         value={form.academicYear}
+         onChange={(e) => setForm((f) => ({ ...f, academicYear: e.target.value }))}
+         placeholder="例如 2526"
+        />
+       </div>
+       <div className="grid gap-1.5">
+        <label className="font-medium">互斥群組（選填）</label>
+        <Input
+         value={form.stackGroup}
+         onChange={(e) => setForm((f) => ({ ...f, stackGroup: e.target.value }))}
+         placeholder="同群組只能選一項"
+        />
+       </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+       <div className="grid gap-1.5">
+        <label className="font-medium">每單疊加上限（選填）</label>
+        <Input
+         type="number"
+         min={1}
+         step={1}
+         value={form.maxStackCount}
+         onChange={(e) => setForm((f) => ({ ...f, maxStackCount: e.target.value }))}
+         placeholder="留空 = 不限制"
+        />
+       </div>
+       <div className="grid gap-1.5">
+        <label className="font-medium">排序（數字小先套用）</label>
+        <Input
+         type="number"
+         value={form.sortOrder}
+         onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
+        />
+       </div>
+      </div>
+      <label className="flex cursor-pointer items-center gap-2">
+       <input
+        type="checkbox"
+        checked={form.isActive}
+        onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+       />
        啟用（停用後不會出現在繳費表單）
       </label>
-      <Button
-       type="button"
-       disabled={saving}
-       onClick={() => void submit()}
-      >
+
+      <div className="rounded-lg border border-dashed border-border bg-muted/15 p-3">
+       <div className="mb-2 flex items-center gap-1.5 font-medium">
+        <Calculator className="h-4 w-4" aria-hidden />
+        試算
+       </div>
+       <div className="grid gap-2 sm:grid-cols-2">
+        <Input
+         type="number"
+         min={0}
+         step="0.01"
+         value={form.previewSubtotal}
+         onChange={(e) => setForm((f) => ({ ...f, previewSubtotal: e.target.value }))}
+         placeholder="假設小計"
+        />
+        <div className="flex items-center justify-between rounded-md bg-background px-3 py-2">
+         <span className="text-muted-foreground">試算結果</span>
+         <span className="font-semibold tabular-nums text-warning">
+          {previewSubtotalN > 0 ? money(previewTotal) : "—"}
+         </span>
+        </div>
+       </div>
+      </div>
+
+      <Button type="button" disabled={saving} onClick={() => void submit()}>
        儲存
       </Button>
      </div>

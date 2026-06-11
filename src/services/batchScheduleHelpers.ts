@@ -6,7 +6,11 @@ import {
 } from "@/lib/lessonSlots"
 import { enumerateDatesForWeekday } from "@/lib/weekdayUtils"
 import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
-import { insertScheduleForClass, type ClassRecord } from "@/services/classQueries"
+import {
+ insertScheduleForClass,
+ nextSessionNumberForClass,
+ type ClassRecord,
+} from "@/services/classQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
  datesWithAvailability,
@@ -116,6 +120,7 @@ export async function executeBatchSchedules(params: {
  const { start, end } = parseTimeSlotBounds(timeSlot)
  const createdDates: string[] = []
  const skippedDates: { date: string; reason: string }[] = []
+ let nextSession = await nextSessionNumberForClass(classId)
 
  for (const date of dates.sort()) {
   if (teacherId && cls.time_slot) {
@@ -147,7 +152,9 @@ export async function executeBatchSchedules(params: {
     start_time: start,
     end_time: end,
     classroom_id: classroomId,
+    session_number: nextSession,
    })
+   nextSession += 1
    createdDates.push(date)
   } catch (e) {
    skippedDates.push({

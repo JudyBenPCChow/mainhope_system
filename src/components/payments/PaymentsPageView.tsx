@@ -50,6 +50,10 @@ import {
 import {
  applyDiscountsToSubtotal,
  fetchActivePaymentDiscounts,
+ getGlobalMaxStackCount,
+ isDiscountCheckboxDisabled,
+ resolveSelectedDiscounts,
+ validateDiscountSelection,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
 import {
@@ -219,13 +223,17 @@ export function PaymentsPageView() {
   return Math.round(s * 100) / 100
  }, [lines])
 
+ const paymentAcademicYear = useMemo(
+  () => academicYearLabelFromStartDate(payDate),
+  [payDate]
+ )
+
  const selectedDiscounts = useMemo(
-  () =>
-   discountIds
-    .map((id) => discounts.find((d) => d.id === id))
-    .filter((d): d is PaymentDiscountRow => d != null),
+  () => resolveSelectedDiscounts(discountIds, discounts),
   [discountIds, discounts]
  )
+
+ const maxStackCount = useMemo(() => getGlobalMaxStackCount(discounts), [discounts])
 
  const totalDue = useMemo(
   () => applyDiscountsToSubtotal(subtotal, selectedDiscounts),
@@ -240,17 +248,24 @@ export function PaymentsPageView() {
  const loadBasics = useCallback(async () => {
   if (!isSupabaseConfigured) return
   try {
-   const [st, disc] = await Promise.all([fetchAllStudents(), fetchActivePaymentDiscounts()])
+   const [st, disc] = await Promise.all([
+    fetchAllStudents(),
+    fetchActivePaymentDiscounts({ asOfDate: payDate, academicYear: paymentAcademicYear }),
+   ])
    setStudents(st)
    setDiscounts(disc)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadBasics", setErr: setFormErr })
   }
- }, [])
+ }, [payDate, paymentAcademicYear])
 
  useEffect(() => {
   void loadBasics()
  }, [loadBasics])
+
+ useEffect(() => {
+  setDiscountIds((prev) => prev.filter((id) => discounts.some((d) => d.id === id)))
+ }, [discounts])
 
  const prefStudentId = searchParams.get("studentId")?.trim() ?? ""
 
@@ -407,9 +422,18 @@ const academicYearOptions = useMemo(() => {
  }
 
  const toggleDiscount = (id: string) => {
-  setDiscountIds((prev) =>
-   prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-  )
+  setDiscountIds((prev) => {
+   if (prev.includes(id)) return prev.filter((x) => x !== id)
+   const nextIds = [...prev, id]
+   const nextSelected = resolveSelectedDiscounts(nextIds, discounts)
+   const err = validateDiscountSelection(nextSelected, discounts)
+   if (err) {
+    setFormErr(err)
+    return prev
+   }
+   setFormErr(null)
+   return nextIds
+  })
  }
 
  const buildRemarksForSave = (): string | null => {
@@ -467,6 +491,8 @@ const academicYearOptions = useMemo(() => {
     receiptKind: "RC",
     discountIds,
     details: buildDetailInputs(),
+    paymentDateForDiscounts: payDate,
+    academicYearForDiscounts: paymentAcademicYear,
    })
    if (printAfterReceive) {
     const full = await fetchPaymentFull(id)
@@ -510,6 +536,8 @@ const academicYearOptions = useMemo(() => {
     receiptKind: "INV",
     discountIds,
     details: buildDetailInputs(),
+    paymentDateForDiscounts: payDate,
+    academicYearForDiscounts: paymentAcademicYear,
    })
    if (printAfterInvoice) {
     const full = await fetchPaymentFull(id)
@@ -874,22 +902,37 @@ const academicYearOptions = useMemo(() => {
          {discounts.length === 0 ? (
           <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
          ) : (
-          discounts.map((d) => (
-           <label key={d.id} className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-             type="checkbox"
-             className="h-4 w-4 rounded border-input"
-             checked={discountIds.includes(d.id)}
-             disabled={!selectedStudent || enrollments.length === 0}
-             onChange={() => toggleDiscount(d.id)}
-            />
-            {discountOptionLabel(d)}
-           </label>
-          ))
+          discounts.map((d) => {
+           const checkboxDisabled =
+            !selectedStudent ||
+            enrollments.length === 0 ||
+            isDiscountCheckboxDisabled(d, discountIds, discounts)
+           return (
+            <label
+             key={d.id}
+             className={cn(
+              "flex items-center gap-2 text-sm",
+              checkboxDisabled && !discountIds.includes(d.id)
+               ? "cursor-not-allowed opacity-50"
+               : "cursor-pointer"
+             )}
+            >
+             <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={discountIds.includes(d.id)}
+              disabled={checkboxDisabled}
+              onChange={() => toggleDiscount(d.id)}
+             />
+             {discountOptionLabel(d)}
+            </label>
+           )
+          })
          )}
         </div>
         <p className="text-xs text-muted-foreground">
-         優惠項目由外星人於「優惠折扣」維護；依序套用（各項先百分比減免，再減固定金額）。
+         優惠由外星人於「優惠折扣」維護；依目錄排序套用（各項先百分比減免，再減固定金額）。
+         {maxStackCount != null ? ` 每單最多 ${maxStackCount} 項。` : null}
         </p>
        </FormField>
        <FormField label="日期 *">
@@ -988,7 +1031,7 @@ const academicYearOptions = useMemo(() => {
      <ul className="list-inside list-disc space-y-2 text-warning-foreground/90 dark:text-warning-foreground/90">
        <li>班別僅顯示該生「報讀中」班級；堂數預設 4 堂，金額依每堂單價自動計算（可再手改）。</li>
        <li>同一張單據可收多班費用，但每個班別只能選一次。</li>
-       <li>優惠可複選，依序套用百分比與固定減免。</li>
+       <li>優惠可複選，依目錄排序套用百分比與固定減免；互斥群組與疊加上限依設定自動限制。</li>
        <li>單據編號由系統自動產生，無法手動輸入。</li>
        <li>優惠選項由外星人在側欄「優惠折扣」設定。</li>
       </ul>

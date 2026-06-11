@@ -21,7 +21,9 @@ import {
  enrollmentCoversPeriod,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
+ type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
 import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
 
@@ -496,13 +498,14 @@ export type ClassScheduleRow = {
  start_time: string | null
  end_time: string | null
  status: string
+ session_number: number | null
 }
 
 export async function fetchClassSchedules(classId: string): Promise<ClassScheduleRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("schedules")
-  .select("id, scheduled_date, start_time, end_time, status")
+  .select("id, scheduled_date, start_time, end_time, status, session_number")
   .eq("class_id", classId)
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
@@ -515,8 +518,208 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
    start_time: row.start_time != null ? String(row.start_time) : null,
    end_time: row.end_time != null ? String(row.end_time) : null,
    status: String(row.status ?? "預定"),
+   session_number:
+    row.session_number != null && !Number.isNaN(Number(row.session_number))
+     ? Number(row.session_number)
+     : null,
   }
  })
+}
+
+/** 班別下一個堂次編號（含取消課堂） */
+export async function nextSessionNumberForClass(classId: string): Promise<number> {
+ if (!supabase) return 1
+ const { data, error } = await supabase
+  .from("schedules")
+  .select("session_number")
+  .eq("class_id", classId)
+  .order("session_number", { ascending: false })
+  .limit(1)
+ if (error) throw error
+ const max = (data ?? [])[0] as { session_number?: number | null } | undefined
+ return (max?.session_number != null ? Number(max.session_number) : 0) + 1
+}
+
+export type ScheduleStudentHints = {
+ attendingNames: string[]
+ leaveNames: string[]
+}
+
+function sortNames(names: string[]): string[] {
+ return [...new Set(names)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+}
+
+/** 批次取得班別各堂排程的預定出席／請假學生名單 */
+export async function fetchScheduleStudentHintsForClass(
+ classId: string,
+ schedules: { id: string; scheduled_date: string }[]
+): Promise<Map<string, ScheduleStudentHints>> {
+ const result = new Map<string, ScheduleStudentHints>()
+ for (const s of schedules) {
+  result.set(s.id, { attendingNames: [], leaveNames: [] })
+ }
+ if (!supabase || schedules.length === 0) return result
+
+ const scheduleIds = schedules.map((s) => s.id)
+ const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
+
+ const config = await fetchClassEnrollmentConfig(classId)
+ let periods: AcademicYearPeriodRow[] = []
+ if (config.courseMode === "summer_two_period" && config.academicYearId) {
+  periods = await fetchAcademicYearPeriods(config.academicYearId)
+ }
+
+ const { data: enrData, error: enrErr } = await supabase
+  .from("student_class_enrollments")
+  .select("student_id, enrollment_period, students ( full_name )")
+  .eq("class_id", classId)
+  .eq("status", "就讀中")
+ if (enrErr) throw enrErr
+
+ type EnrolledStudent = {
+  studentId: string
+  fullName: string
+  enrollmentPeriod: EnrollmentPeriod | null
+ }
+ const enrolled: EnrolledStudent[] = (enrData ?? []).map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  return {
+   studentId: String(r.student_id),
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+   enrollmentPeriod: normalizeEnrollmentPeriod(
+    r.enrollment_period != null ? String(r.enrollment_period) : null
+   ),
+  }
+ })
+
+ const [leavesLinkedRes, leavesDateRes, trialsRes, makeupsRes] = await Promise.all([
+  supabase
+   .from("leave_makeup_records")
+   .select("student_id, schedule_id, leave_date, students ( full_name )")
+   .in("schedule_id", scheduleIds),
+  supabase
+   .from("leave_makeup_records")
+   .select("student_id, schedule_id, leave_date, students ( full_name )")
+   .eq("class_id", classId)
+   .in("leave_date", dates)
+   .is("schedule_id", null),
+  supabase
+   .from("trial_sessions")
+   .select("schedule_id, student_id, students ( full_name )")
+   .in("schedule_id", scheduleIds),
+  supabase
+   .from("leave_makeup_records")
+   .select("makeup_schedule_id, student_id, students ( full_name )")
+   .in("makeup_schedule_id", scheduleIds),
+ ])
+
+ if (leavesLinkedRes.error) throw leavesLinkedRes.error
+ if (leavesDateRes.error) throw leavesDateRes.error
+ if (trialsRes.error) throw trialsRes.error
+ if (makeupsRes.error) throw makeupsRes.error
+
+ type LeaveRow = { studentId: string; fullName: string; scheduleId: string | null; leaveDate: string }
+ const allLeaves: LeaveRow[] = [...(leavesLinkedRes.data ?? []), ...(leavesDateRes.data ?? [])].map(
+  (row) => {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   return {
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+    scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
+    leaveDate: String(r.leave_date ?? ""),
+   }
+  }
+ )
+
+ type TrialRow = { scheduleId: string; studentId: string; fullName: string }
+ const trials: TrialRow[] = (trialsRes.data ?? []).map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  return {
+   scheduleId: String(r.schedule_id),
+   studentId: String(r.student_id),
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+  }
+ })
+
+ type MakeupRow = { makeupScheduleId: string; studentId: string; fullName: string }
+ const makeups: MakeupRow[] = (makeupsRes.data ?? []).map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  return {
+   makeupScheduleId: String(r.makeup_schedule_id),
+   studentId: String(r.student_id),
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+  }
+ })
+
+ for (const sched of schedules) {
+  const periodCode =
+   config.courseMode === "summer_two_period" && periods.length > 0
+    ? resolvePeriodCodeFromDate(sched.scheduled_date, periods)
+    : null
+
+  const leaveStudentIds = new Set<string>()
+  const leaveNames: string[] = []
+  for (const lv of allLeaves) {
+   const matches =
+    lv.scheduleId === sched.id ||
+    (lv.scheduleId == null && lv.leaveDate === sched.scheduled_date)
+   if (!matches) continue
+   if (!leaveStudentIds.has(lv.studentId)) {
+    leaveStudentIds.add(lv.studentId)
+    leaveNames.push(lv.fullName)
+   }
+  }
+
+  const attendingIds = new Set<string>()
+  const attendingNames: string[] = []
+
+  for (const e of enrolled) {
+   if (periodCode != null && !enrollmentCoversPeriod(e.enrollmentPeriod, periodCode)) continue
+   if (leaveStudentIds.has(e.studentId)) continue
+   attendingIds.add(e.studentId)
+   attendingNames.push(e.fullName)
+  }
+
+  for (const t of trials) {
+   if (t.scheduleId !== sched.id) continue
+   if (leaveStudentIds.has(t.studentId) || attendingIds.has(t.studentId)) continue
+   attendingIds.add(t.studentId)
+   attendingNames.push(t.fullName)
+  }
+
+  for (const m of makeups) {
+   if (m.makeupScheduleId !== sched.id) continue
+   if (leaveStudentIds.has(m.studentId) || attendingIds.has(m.studentId)) continue
+   attendingIds.add(m.studentId)
+   attendingNames.push(m.fullName)
+  }
+
+  result.set(sched.id, {
+   attendingNames: sortNames(attendingNames),
+   leaveNames: sortNames(leaveNames),
+  })
+ }
+
+ return result
+}
+
+/** 多班別批次取得排程學生提示（老師詳情用） */
+export async function fetchScheduleStudentHintsByClass(
+ schedulesByClass: Map<string, { id: string; scheduled_date: string }[]>
+): Promise<Map<string, ScheduleStudentHints>> {
+ const merged = new Map<string, ScheduleStudentHints>()
+ const entries = [...schedulesByClass.entries()]
+ await Promise.all(
+  entries.map(async ([classId, scheds]) => {
+   const hints = await fetchScheduleStudentHintsForClass(classId, scheds)
+   for (const [sid, h] of hints) merged.set(sid, h)
+  })
+ )
+ return merged
 }
 
 export async function insertScheduleRow(opts: {
@@ -528,6 +731,7 @@ export async function insertScheduleRow(opts: {
  status?: string
  classroom_id?: string | null
  remarks?: string | null
+ session_number?: number | null
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error } = await supabase
@@ -541,6 +745,7 @@ export async function insertScheduleRow(opts: {
    end_time: opts.end_time ?? null,
    status: opts.status ?? "預定",
    remarks: opts.remarks ?? null,
+   session_number: opts.session_number ?? null,
   })
   .select("id")
   .single()
@@ -562,6 +767,7 @@ export async function insertScheduleForClass(
   end_time?: string | null
   status?: string
   classroom_id?: string | null
+  session_number?: number | null
  }
 ): Promise<void> {
  await insertScheduleRow({
@@ -572,6 +778,7 @@ export async function insertScheduleForClass(
   end_time: row.end_time,
   status: row.status,
   classroom_id: row.classroom_id,
+  session_number: row.session_number,
  })
 }
 
@@ -583,6 +790,7 @@ export async function updateSchedule(
   end_time: string | null
   classroom_id: string | null
   remarks: string | null
+  session_number: number | null
  }>
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")

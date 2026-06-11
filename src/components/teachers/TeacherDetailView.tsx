@@ -16,6 +16,7 @@ import {
  TeacherWeekTimetable,
  weekItemsFromTeacherScheduleRows,
 } from "@/components/teachers/TeacherWeekTimetable"
+import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
@@ -26,6 +27,10 @@ import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
+import {
+ fetchScheduleStudentHintsByClass,
+ type ScheduleStudentHints,
+} from "@/services/classQueries"
 import {
  fetchTeacherAttendance,
  fetchTeacherClasses,
@@ -93,6 +98,9 @@ export function TeacherDetailView() {
  const [teacher, setTeacher] = useState<TeacherRecord | null>(null)
  const [classes, setClasses] = useState<TeacherClassRow[]>([])
  const [schedules, setSchedules] = useState<ScheduleRow[]>([])
+ const [scheduleHints, setScheduleHints] = useState<Map<string, ScheduleStudentHints>>(
+  new Map()
+ )
  const [attendance, setAttendance] = useState<TeacherAttendanceRow[]>([])
  const [loading, setLoading] = useState(true)
  const [form, setForm] = useState<Partial<TeacherRecord>>({})
@@ -123,9 +131,19 @@ export function TeacherDetailView() {
     fetchTeacherSchedules(tid),
     fetchTeacherAttendance(tid),
    ])
+   const sc = scRes.status === "fulfilled" ? scRes.value : []
    setClasses(clRes.status === "fulfilled" ? clRes.value : [])
-   setSchedules(scRes.status === "fulfilled" ? scRes.value : [])
+   setSchedules(sc)
    setAttendance(attRes.status === "fulfilled" ? attRes.value : [])
+   const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
+   for (const s of sc) {
+    if (!s.classId) continue
+    const arr = byClass.get(s.classId) ?? []
+    arr.push({ id: s.id, scheduled_date: s.scheduledDate })
+    byClass.set(s.classId, arr)
+   }
+   const hints = await fetchScheduleStudentHintsByClass(byClass)
+   setScheduleHints(hints)
    if (clRes.status === "rejected") {
     setPartialLoadIssues((prev) => [...prev, "任教班別"])
     reportUserFacingError(clRes.reason, {
@@ -576,35 +594,29 @@ export function TeacherDetailView() {
        {filteredSchedules.length === 0 ? (
         <p className="text-sm text-muted-foreground">此分類尚無排程。</p>
        ) : (
-        filteredSchedules.map((s) => (
-         <div
-          key={s.id}
-          className="rounded-xl border border-border bg-card p-4 shadow-sm"
-         >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-           <div>
-            <div className="font-semibold">
+        filteredSchedules.map((s) => {
+         const hints = scheduleHints.get(s.id)
+         return (
+          <ScheduleListCard
+           key={s.id}
+           sessionNumber={s.sessionNumber}
+           scheduledDate={s.scheduledDate}
+           startTime={s.startTime}
+           endTime={s.endTime}
+           attendingNames={hints?.attendingNames}
+           leaveNames={hints?.leaveNames}
+           subtitle={
+            <>
              {s.subject}{" "}
-             <span className="font-normal text-muted-foreground">
-              {s.courseCode ?? ""}
-             </span>
-            </div>
-            <div className="mt-1 text-sm text-muted-foreground">
-             {s.scheduledDate}{" "}
-             {s.startTime && s.endTime ? `${s.startTime}-${s.endTime}` : ""}
-            </div>
-           </div>
-          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
-          </div>
-          {s.studentNames.length > 0 ? (
-           <div className="mt-3 flex flex-wrap gap-1">
-            {s.studentNames.map((n: string, i: number) => (
-             <Tag key={`${s.id}-${i}-${n}`} tone="success" size="sm">{n}</Tag>
-            ))}
-           </div>
-          ) : null}
-         </div>
-        ))
+             {s.courseCode ? (
+              <span className="font-normal">{s.courseCode}</span>
+             ) : null}
+            </>
+           }
+           controls={<Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>}
+          />
+         )
+        })
        )}
       </div>
      </div>
