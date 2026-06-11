@@ -1,4 +1,12 @@
 import { normalizeStudentGrade } from "@/lib/studentGrade"
+import {
+ ENROLLMENT_PERIOD_OPTIONS,
+ fetchClassEnrollmentConfig,
+ normalizeEnrollmentPeriod,
+ resolvePriceForEnrollment,
+ type EnrollmentPeriod,
+ type CourseMode,
+} from "@/lib/enrollmentPeriod"
 import { supabase } from "@/lib/supabaseClient"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -344,6 +352,8 @@ export type EnrollmentWithClass = {
  id: string
  status: string
  enroll_date: string | null
+ enrollmentPeriod: EnrollmentPeriod | null
+ courseMode: CourseMode
  classId: string
  subject: string
  courseCode: string | null
@@ -360,7 +370,7 @@ export async function fetchEnrollmentsForStudent(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, courses ( price_per_lesson, course_name ) )"
+   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name ) )"
   )
   .eq("student_id", studentId)
   .order("created_at", { ascending: false })
@@ -369,35 +379,59 @@ export async function fetchEnrollmentsForStudent(
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const course = cls?.courses as Record<string, unknown> | null
-  const coursePrice = course?.price_per_lesson
-  const classPrice = cls?.price_per_lesson
-  const pricePerLesson =
-   coursePrice != null
-    ? Number(coursePrice)
-    : classPrice != null
-      ? Number(classPrice)
-      : null
+  const courseMode = course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
+  const enrollmentPeriod = normalizeEnrollmentPeriod(
+   r.enrollment_period != null ? String(r.enrollment_period) : null
+  )
+  const pricePerLesson = resolvePriceForEnrollment({
+   enrollmentPeriod,
+   classPriceOverride:
+    cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : null,
+   coursePrices: {
+    pricePerLesson:
+     course?.price_per_lesson != null ? Number(course.price_per_lesson) : null,
+    pricePerLessonPeriod2:
+     course?.price_per_lesson_period_2 != null
+      ? Number(course.price_per_lesson_period_2)
+      : null,
+    pricePerLessonBothPeriods:
+     course?.price_per_lesson_both_periods != null
+      ? Number(course.price_per_lesson_both_periods)
+      : null,
+   },
+  })
   return {
    id: String(r.id),
    status: String(r.status ?? "就讀中"),
    enroll_date: r.enroll_date != null ? String(r.enroll_date) : null,
+   enrollmentPeriod,
+   courseMode,
    classId: String(r.class_id),
    subject: cls?.subject != null ? String(cls.subject) : "—",
    courseCode: cls?.course_code != null ? String(cls.course_code) : null,
    courseName: course?.course_name != null ? String(course.course_name) : null,
    dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
    timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
-   pricePerLesson: Number.isFinite(pricePerLesson) ? pricePerLesson : null,
+   pricePerLesson,
   }
  })
 }
 
 export async function insertEnrollment(
  studentId: string,
- classId: string
+ classId: string,
+ enrollmentPeriod?: EnrollmentPeriod | null
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
+ const config = await fetchClassEnrollmentConfig(classId)
+ let periodValue =
+  enrollmentPeriod != null && ENROLLMENT_PERIOD_OPTIONS.includes(enrollmentPeriod)
+   ? enrollmentPeriod
+   : null
+ if (config.courseMode === "summer_two_period" && periodValue == null) {
+  periodValue = "兩期全報"
+ }
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .insert({
@@ -405,6 +439,7 @@ export async function insertEnrollment(
    class_id: classId,
    status: "就讀中",
    enroll_date: today,
+   enrollment_period: periodValue,
   })
   .select("id")
   .single()
@@ -417,12 +452,41 @@ export async function insertEnrollment(
   action: "enroll",
   effective_date: today,
   reason: null,
+  enrollment_period: periodValue,
  })
  if (evErr) {
   await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
   throw evErr
  }
  await syncStudentEnrollmentState(studentId)
+}
+
+export async function updateEnrollmentPeriod(
+ id: string,
+ enrollmentPeriod: EnrollmentPeriod,
+ opts: { studentId: string; classId: string; previousPeriod?: EnrollmentPeriod | null }
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const today = localYmd()
+ const { error } = await supabase
+  .from("student_class_enrollments")
+  .update({
+   enrollment_period: enrollmentPeriod,
+   updated_at: new Date().toISOString(),
+  })
+  .eq("id", id)
+ if (error) throw error
+ const prev = opts.previousPeriod ?? "—"
+ const { error: evErr } = await supabase.from("enrollment_change_events").insert({
+  student_id: opts.studentId,
+  class_id: opts.classId,
+  enrollment_id: id,
+  action: "period_change",
+  effective_date: today,
+  reason: `期數：${prev} → ${enrollmentPeriod}`,
+  enrollment_period: enrollmentPeriod,
+ })
+ if (evErr) throw evErr
 }
 
 export async function updateEnrollment(id: string, status: string, studentId?: string): Promise<void> {
@@ -478,9 +542,10 @@ export async function withdrawStudentFromClass(opts: {
 
 export type ClassEnrollmentChangeEvent = {
  id: string
- action: "enroll" | "withdraw"
+ action: "enroll" | "withdraw" | "period_change"
  effectiveDate: string
  reason: string | null
+ enrollmentPeriod: EnrollmentPeriod | null
  studentId: string
  studentName: string
  createdAt: string
@@ -494,7 +559,7 @@ export async function fetchEnrollmentChangeEventsForClass(
  const { data, error } = await supabase
   .from("enrollment_change_events")
   .select(
-   "id, action, effective_date, reason, created_at, student_id, students ( full_name )"
+   "id, action, effective_date, reason, enrollment_period, created_at, student_id, students ( full_name )"
   )
   .eq("class_id", classId)
   .order("effective_date", { ascending: false })
@@ -506,11 +571,21 @@ export async function fetchEnrollmentChangeEventsForClass(
  return (data ?? []).map((row) => {
   const r = row as Record<string, unknown>
   const st = r.students as Record<string, unknown> | null
+  const actionRaw = String(r.action ?? "enroll")
+  const action: ClassEnrollmentChangeEvent["action"] =
+   actionRaw === "withdraw"
+    ? "withdraw"
+    : actionRaw === "period_change"
+      ? "period_change"
+      : "enroll"
   return {
    id: String(r.id),
-   action: r.action === "withdraw" ? "withdraw" : "enroll",
+   action,
    effectiveDate: String(r.effective_date ?? "").slice(0, 10),
    reason: r.reason != null ? String(r.reason) : null,
+   enrollmentPeriod: normalizeEnrollmentPeriod(
+    r.enrollment_period != null ? String(r.enrollment_period) : null
+   ),
    studentId: String(r.student_id),
    studentName: st?.full_name != null ? String(st.full_name) : "—",
    createdAt: String(r.created_at ?? ""),
@@ -523,27 +598,31 @@ export type ClassOption = {
  subject: string
  courseCode: string | null
  label: string
+ courseMode: CourseMode
 }
 
 export async function fetchClassOptions(): Promise<ClassOption[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("id, subject, course_code, day_of_week, time_slot")
+  .select("id, subject, course_code, day_of_week, time_slot, courses ( course_mode )")
   .order("subject")
  if (error) throw error
  return (data ?? []).map((r) => {
   const row = r as Record<string, unknown>
+  const course = row.courses as Record<string, unknown> | null
   const sub = String(row.subject ?? "")
   const code = row.course_code != null ? String(row.course_code) : ""
   const day = row.day_of_week != null ? String(row.day_of_week) : ""
   const slot = row.time_slot != null ? String(row.time_slot) : ""
   const tail = [code, day, slot].filter(Boolean).join(" · ")
+  const courseMode = course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
   return {
    id: String(row.id),
    subject: sub,
    courseCode: code || null,
    label: tail ? `${sub} ${tail}` : sub,
+   courseMode,
   }
  })
 }

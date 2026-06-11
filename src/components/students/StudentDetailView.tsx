@@ -58,12 +58,14 @@ import {
  normalizeEnrollmentStatus,
  normalizeRegistrationStatus,
  type AttendanceRow,
+ type ClassOption,
  type EnrollmentWithClass,
  type HistoryRow,
  type LeaveRow,
  type PaymentRow,
  type StudentRecord,
  updateEnrollment,
+ updateEnrollmentPeriod,
  updateStudent,
  withdrawStudentFromClass,
 } from "@/services/studentQueries"
@@ -87,6 +89,7 @@ import {
  type EnrolledClassOption,
  type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
+import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 function formatLeaveError(e: unknown): string {
@@ -172,8 +175,9 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [history, setHistory] = useState<HistoryRow[]>([])
  const [relatedTodos, setRelatedTodos] = useState<CalendarEventRow[]>([])
  const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
- const [classOptions, setClassOptions] = useState<{ id: string; label: string }[]>([])
+ const [classOptions, setClassOptions] = useState<ClassOption[]>([])
  const [pickClass, setPickClass] = useState("")
+ const [pickPeriod, setPickPeriod] = useState<EnrollmentPeriod>("兩期全報")
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
  const [withdrawOpen, setWithdrawOpen] = useState(false)
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
@@ -248,7 +252,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    await reloadStudent()
    await reloadSubs()
    const opts = await fetchClassOptions()
-   setClassOptions(opts.map((o) => ({ id: o.id, label: o.label })))
+   setClassOptions(opts)
   } finally {
    setLoading(false)
   }
@@ -347,8 +351,12 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 
  const addEnrollment = async () => {
   if (!pickClass) return
-  await insertEnrollment(sid, pickClass)
+  const picked = classOptions.find((o) => o.id === pickClass)
+  const period =
+   picked?.courseMode === "summer_two_period" ? pickPeriod : null
+  await insertEnrollment(sid, pickClass, period)
   setPickClass("")
+  setPickPeriod("兩期全報")
   await reloadSubs()
  }
 
@@ -377,6 +385,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 
  const enrolledClassIds = new Set(enrollments.map((e) => e.classId))
  const classSelectOptions = classOptions.filter((o) => !enrolledClassIds.has(o.id))
+ const pickedClassOption = classOptions.find((o) => o.id === pickClass)
+ const showPickPeriod = pickedClassOption?.courseMode === "summer_two_period"
 
  const relatedIds = useMemo(() => new Set(relatives.map((r) => r.relatedStudentId)), [relatives])
 
@@ -468,11 +478,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    setLeaveScheduleId("")
    return
   }
-  void fetchUpcomingSchedulesForClass(leaveClassId, localTodayYmd()).then((opts) => {
+  void fetchUpcomingSchedulesForClass(leaveClassId, localTodayYmd(), sid).then((opts) => {
    setLeaveScheduleOptions(opts)
    setLeaveScheduleId("")
   })
- }, [leaveDialogOpen, leaveClassId])
+ }, [leaveDialogOpen, leaveClassId, sid])
 
  const submitStudentLeave = async () => {
   if (!sid || !leaveClassId || !leaveScheduleId) {
@@ -1020,6 +1030,19 @@ const exportFutureSchedulesCsv = () => {
          </option>
         ))}
        </Select>
+       {showPickPeriod ? (
+        <Select
+         className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm sm:w-36"
+         value={pickPeriod}
+         onChange={(e) => setPickPeriod(e.target.value as EnrollmentPeriod)}
+        >
+         {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
+          <option key={p} value={p}>
+           {p}
+          </option>
+         ))}
+        </Select>
+       ) : null}
        <Button type="button" onClick={() => void addEnrollment()} disabled={!pickClass}>
         <Plus className="h-4 w-4" />
         加入
@@ -1045,6 +1068,7 @@ const exportFutureSchedulesCsv = () => {
            </div>
            <div className="mt-1 text-sm text-muted-foreground">
             {[e.dayOfWeek, e.timeSlot].filter(Boolean).join(" ")}
+            {e.enrollmentPeriod ? ` · ${e.enrollmentPeriod}` : ""}
             {e.pricePerLesson != null
              ? ` · 每節 ${money(e.pricePerLesson)}`
              : ""}
@@ -1054,6 +1078,28 @@ const exportFutureSchedulesCsv = () => {
            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+           {e.courseMode === "summer_two_period" && e.enrollmentPeriod ? (
+            <Select
+             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+             value={e.enrollmentPeriod}
+             onChange={async (ev) => {
+              const next = ev.target.value as EnrollmentPeriod
+              if (next === e.enrollmentPeriod) return
+              await updateEnrollmentPeriod(e.id, next, {
+               studentId: sid,
+               classId: e.classId,
+               previousPeriod: e.enrollmentPeriod,
+              })
+              await reloadSubs()
+             }}
+            >
+             {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
+              <option key={p} value={p}>
+               {p}
+              </option>
+             ))}
+            </Select>
+           ) : null}
            <Select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={e.status}

@@ -1,12 +1,14 @@
+import { normalizeEnrollmentPeriod, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 
 /** 全站增退紀錄列表列 */
 export type EnrollmentChangeListRow = {
  id: string
- action: "enroll" | "withdraw"
+ action: "enroll" | "withdraw" | "period_change"
  effectiveDate: string
  reason: string | null
+ enrollmentPeriod: EnrollmentPeriod | null
  enrollmentId: string | null
  createdAt: string
  studentId: string
@@ -24,11 +26,22 @@ function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
  const code = cls?.course_code != null ? String(cls.course_code) : ""
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
+ const actionRaw = String(r.action ?? "enroll")
+ const action: EnrollmentChangeListRow["action"] =
+  actionRaw === "withdraw"
+   ? "withdraw"
+   : actionRaw === "period_change"
+     ? "period_change"
+     : "enroll"
+ const enrollmentPeriod = normalizeEnrollmentPeriod(
+  r.enrollment_period != null ? String(r.enrollment_period) : null
+ )
  return {
   id: String(r.id),
-  action: r.action === "withdraw" ? "withdraw" : "enroll",
+  action,
   effectiveDate: String(r.effective_date ?? "").slice(0, 10),
   reason: r.reason != null ? String(r.reason) : null,
+  enrollmentPeriod,
   enrollmentId: r.enrollment_id != null ? String(r.enrollment_id) : null,
   createdAt: String(r.created_at ?? ""),
   studentId: String(r.student_id),
@@ -57,7 +70,7 @@ export async function fetchEnrollmentChangeEventsList(
  let q = supabase
   .from("enrollment_change_events")
   .select(
-   "id, action, effective_date, reason, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) )"
+   "id, action, effective_date, reason, enrollment_period, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) )"
   )
   .order("effective_date", { ascending: false })
   .order("created_at", { ascending: false })

@@ -1,5 +1,14 @@
 import { supabase } from "@/lib/supabaseClient"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import {
+ enrollmentCoversPeriod,
+ fetchAcademicYearPeriods,
+ fetchClassEnrollmentConfig,
+ normalizeEnrollmentPeriod,
+ resolvePeriodCodeFromDate,
+ type EnrollmentPeriod,
+ type AcademicYearPeriodRow,
+} from "@/lib/enrollmentPeriod"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
@@ -288,8 +297,12 @@ export type ClassScheduleOption = {
  status: string
 }
 
-/** 該班「未上堂」排程：日期 ≥ fromYmd，且狀態非取消／非完成 */
-export async function fetchUpcomingSchedulesForClass(classId: string, fromYmd: string): Promise<ClassScheduleOption[]> {
+/** 該班「未上堂」排程：日期 ≥ fromYmd，且狀態非取消／非完成；暑期兩期依學生報讀期數過濾 */
+export async function fetchUpcomingSchedulesForClass(
+ classId: string,
+ fromYmd: string,
+ studentId?: string
+): Promise<ClassScheduleOption[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("schedules")
@@ -299,7 +312,7 @@ export async function fetchUpcomingSchedulesForClass(classId: string, fromYmd: s
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
  if (error) throwPostgrest(error)
- return (data ?? [])
+ let rows = (data ?? [])
   .map((row) => {
    const r = row as Record<string, unknown>
    return {
@@ -311,6 +324,30 @@ export async function fetchUpcomingSchedulesForClass(classId: string, fromYmd: s
    }
   })
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
+
+ if (studentId) {
+  const config = await fetchClassEnrollmentConfig(classId)
+  if (config.courseMode === "summer_two_period" && config.academicYearId) {
+   const { data: enr, error: enrErr } = await supabase
+    .from("student_class_enrollments")
+    .select("enrollment_period")
+    .eq("student_id", studentId)
+    .eq("class_id", classId)
+    .maybeSingle()
+   if (enrErr) throwPostgrest(enrErr)
+   const enrollmentPeriod = normalizeEnrollmentPeriod(
+    enr?.enrollment_period != null ? String(enr.enrollment_period) : null
+   )
+   const periods = await fetchAcademicYearPeriods(config.academicYearId)
+   rows = rows.filter((s) => {
+    const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
+    if (code == null) return true
+    return enrollmentCoversPeriod(enrollmentPeriod, code)
+   })
+  }
+ }
+
+ return rows
 }
 
 export type StudentUpcomingScheduleRow = {
@@ -325,7 +362,7 @@ export type StudentUpcomingScheduleRow = {
  teacher_name: string | null
 }
 
-/** 學生未來排程（僅限就讀中班別） */
+/** 學生未來排程（僅限就讀中班別；暑期兩期依報讀期數過濾） */
 export async function fetchUpcomingSchedulesForStudent(
  studentId: string,
  fromYmd: string
@@ -333,30 +370,48 @@ export async function fetchUpcomingSchedulesForStudent(
  if (!supabase) return []
  const { data: enrollments, error: enrollErr } = await supabase
   .from("student_class_enrollments")
-  .select("class_id")
+  .select("class_id, enrollment_period")
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (enrollErr) throwPostgrest(enrollErr)
 
- const classIds = [
-  ...new Set(
-   (enrollments ?? [])
-    .map((row) => String((row as { class_id?: string | null }).class_id ?? ""))
-    .filter((x) => x.length > 0)
-  ),
- ]
+ const enrollmentByClass = new Map<string, EnrollmentPeriod | null>()
+ for (const row of enrollments ?? []) {
+  const r = row as { class_id?: string; enrollment_period?: string | null }
+  const cid = String(r.class_id ?? "")
+  if (!cid) continue
+  enrollmentByClass.set(cid, normalizeEnrollmentPeriod(r.enrollment_period))
+ }
+
+ const classIds = [...enrollmentByClass.keys()]
  if (classIds.length === 0) return []
 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, course_code_full, courses ( course_name ) ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
   )
   .in("class_id", classIds)
   .gte("scheduled_date", fromYmd)
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
  if (error) throwPostgrest(error)
+
+ const yearIds = new Set<string>()
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const cls = r.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  if (course?.course_mode === "summer_two_period" && cls?.academic_year_id != null) {
+   yearIds.add(String(cls.academic_year_id))
+  }
+ }
+ const periodCache = new Map<string, AcademicYearPeriodRow[]>()
+ await Promise.all(
+  [...yearIds].map(async (yearId) => {
+   periodCache.set(yearId, await fetchAcademicYearPeriods(yearId))
+  })
+ )
 
  return (data ?? [])
   .map((row) => {
@@ -382,9 +437,20 @@ export async function fetchUpcomingSchedulesForStudent(
     subject: formatClassLabel({ subject: sub, courseCode, courseName }),
     course_code: courseCode,
     teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
+    courseMode: course?.course_mode != null ? String(course.course_mode) : "regular",
+    academicYearId: cls?.academic_year_id != null ? String(cls.academic_year_id) : null,
    }
   })
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
+  .filter((s) => {
+   if (s.courseMode !== "summer_two_period" || !s.academicYearId) return true
+   const enrollmentPeriod = enrollmentByClass.get(s.class_id) ?? null
+   const periods = periodCache.get(s.academicYearId) ?? []
+   const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
+   if (code == null) return true
+   return enrollmentCoversPeriod(enrollmentPeriod, code)
+  })
+  .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
 }
 
 /** 未來一個月內可選補堂排程（跨班） */

@@ -16,6 +16,13 @@ import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
 import { releaseAvailabilityForClass } from "@/services/teacherAvailabilityQueries"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import type { EnrollmentPeriod, CourseMode } from "@/lib/enrollmentPeriod"
+import {
+ enrollmentCoversPeriod,
+ fetchAcademicYearPeriods,
+ fetchClassEnrollmentConfig,
+ resolvePeriodCodeFromDate,
+} from "@/lib/enrollmentPeriod"
 import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
 
 export type ClassRecord = {
@@ -28,6 +35,7 @@ export type ClassRecord = {
  subject_id?: string | null
  subject_code?: string | null
  course_name?: string | null
+ course_mode?: CourseMode | null
  grade: string[] | null
  grade_code?: string | null
  course_seq?: number | null
@@ -65,6 +73,7 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   subject_id: subject?.id != null ? String(subject.id) : null,
   subject_code: subject?.code != null ? String(subject.code) : null,
   course_name: course?.course_name != null ? String(course.course_name) : null,
+  course_mode: course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
   grade: Array.isArray(g) ? (g as string[]) : null,
   grade_code: course?.grade_code != null ? String(course.grade_code) : null,
   course_seq: course?.course_seq != null ? Number(course.course_seq) : null,
@@ -95,7 +104,7 @@ export async function fetchAllClasses(): Promise<ClassRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, course_name, subjects ( id, code ) )")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
   .order("course_code_full", { ascending: true, nullsFirst: false })
   .order("course_code", { ascending: true, nullsFirst: false })
  if (error) throw error
@@ -106,7 +115,7 @@ export async function getClassById(id: string): Promise<ClassRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, course_name, subjects ( id, code ) )")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
   .eq("id", id)
   .maybeSingle()
  if (error) throw error
@@ -424,34 +433,61 @@ export type ClassStudentRow = {
  school: string | null
  enrollDate: string | null
  status: string
+ enrollmentPeriod: EnrollmentPeriod | null
  contactPhone: string | null
 }
 
-export async function fetchClassStudents(classId: string): Promise<ClassStudentRow[]> {
+export async function fetchClassStudents(
+ classId: string,
+ opts?: { scheduleDate?: string; activeOnly?: boolean }
+): Promise<ClassStudentRow[]> {
  if (!supabase) return []
- const { data, error } = await supabase
+ let q = supabase
   .from("student_class_enrollments")
-  .select("id, status, enroll_date, student_id, students ( full_name, grade, school, whatsapp, parent_phone )")
+  .select("id, status, enroll_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, parent_phone )")
   .eq("class_id", classId)
-  .order("created_at", { ascending: false })
+ if (opts?.activeOnly) q = q.eq("status", "就讀中")
+ const { data, error } = await q.order("created_at", { ascending: false })
  if (error) throw error
- return (data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  return {
-   enrollmentId: String(r.id),
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
-   grade: st?.grade != null ? String(st.grade) : null,
-   school: st?.school != null ? String(st.school) : null,
-   enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
-   status: String(r.status ?? "就讀中"),
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+
+ let periodCode: 1 | 2 | null = null
+ if (opts?.scheduleDate) {
+  const config = await fetchClassEnrollmentConfig(classId)
+  if (config.courseMode === "summer_two_period" && config.academicYearId) {
+   const periods = await fetchAcademicYearPeriods(config.academicYearId)
+   periodCode = resolvePeriodCodeFromDate(opts.scheduleDate, periods)
   }
- })
+ }
+
+ return (data ?? [])
+  .map((row) => {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   const enrollmentPeriod =
+    r.enrollment_period === "第一期" ||
+    r.enrollment_period === "第二期" ||
+    r.enrollment_period === "兩期全報"
+     ? (String(r.enrollment_period) as EnrollmentPeriod)
+     : null
+   return {
+    enrollmentId: String(r.id),
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+    grade: st?.grade != null ? String(st.grade) : null,
+    school: st?.school != null ? String(st.school) : null,
+    enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
+    status: String(r.status ?? "就讀中"),
+    enrollmentPeriod,
+    contactPhone: pickStudentContactRaw({
+     whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
+     parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
+    }),
+   }
+  })
+  .filter((row) => {
+   if (periodCode == null) return true
+   return enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)
+  })
 }
 
 export type ClassScheduleRow = {
@@ -656,7 +692,7 @@ export async function fetchScheduleDetailContext(
  const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
 
  const [roster, trials, leavesRes, makeupsRes, attRes] = await Promise.all([
-  fetchRosterForRollCall(classId),
+  fetchRosterForRollCall(classId, lessonDate),
   fetchTrialStudentsForSchedule(scheduleId),
   supabase
    .from("leave_makeup_records")
@@ -840,7 +876,10 @@ export type CourseRecord = {
  grade_code: string
  course_seq: number
  course_code_base: string
+ course_mode: CourseMode
  price_per_lesson: number | null
+ price_per_lesson_period_2: number | null
+ price_per_lesson_both_periods: number | null
  course_name: string | null
 }
 
@@ -906,7 +945,7 @@ export async function fetchAllCourses(): Promise<CourseRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("courses")
-  .select("id, subject_id, grade_code, course_seq, course_code_base, price_per_lesson, course_name, subjects ( code, name_zh )")
+  .select("id, subject_id, grade_code, course_seq, course_code_base, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh )")
   .order("course_code_base", { ascending: true })
  if (error) throw error
  return (data ?? []).map((r) => {
@@ -920,7 +959,12 @@ export async function fetchAllCourses(): Promise<CourseRecord[]> {
    grade_code: String(row.grade_code ?? ""),
    course_seq: clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ)),
    course_code_base: String(row.course_code_base ?? ""),
+   course_mode: row.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
    price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
+   price_per_lesson_period_2:
+    row.price_per_lesson_period_2 != null ? Number(row.price_per_lesson_period_2) : null,
+   price_per_lesson_both_periods:
+    row.price_per_lesson_both_periods != null ? Number(row.price_per_lesson_both_periods) : null,
    course_name: row.course_name != null ? String(row.course_name) : null,
   }
  })
@@ -930,7 +974,10 @@ export async function insertCourse(input: {
  subject_id: string
  grade_code: string
  course_seq: number
+ course_mode?: CourseMode
  price_per_lesson: number | null
+ price_per_lesson_period_2?: number | null
+ price_per_lesson_both_periods?: number | null
  course_name?: string | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
@@ -940,15 +987,25 @@ export async function insertCourse(input: {
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
  const courseNameRaw = input.course_name != null ? String(input.course_name).trim() : ""
+ const mode = input.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
  const payload = {
   subject_id: input.subject_id,
   grade_code: g,
   course_seq: seq,
   course_code_base: buildCourseCodeBase(code, g, seq),
   course_name: courseNameRaw !== "" ? courseNameRaw : null,
+  course_mode: mode,
   price_per_lesson:
    input.price_per_lesson != null && !Number.isNaN(input.price_per_lesson)
     ? Math.max(0, Number(input.price_per_lesson))
+    : null,
+  price_per_lesson_period_2:
+   input.price_per_lesson_period_2 != null && !Number.isNaN(input.price_per_lesson_period_2)
+    ? Math.max(0, Number(input.price_per_lesson_period_2))
+    : null,
+  price_per_lesson_both_periods:
+   input.price_per_lesson_both_periods != null && !Number.isNaN(input.price_per_lesson_both_periods)
+    ? Math.max(0, Number(input.price_per_lesson_both_periods))
     : null,
  }
  const { error } = await supabase.from("courses").insert(payload)
@@ -961,7 +1018,10 @@ export async function updateCourse(
   subject_id: string
   grade_code: string
   course_seq: number
+  course_mode?: CourseMode
   price_per_lesson: number | null
+  price_per_lesson_period_2?: number | null
+  price_per_lesson_both_periods?: number | null
   course_name?: string | null
  }
 ): Promise<void> {
@@ -972,15 +1032,25 @@ export async function updateCourse(
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
  const courseNameRaw = patch.course_name != null ? String(patch.course_name).trim() : ""
+ const mode = patch.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
  const payload = {
   subject_id: patch.subject_id,
   grade_code: g,
   course_seq: seq,
   course_code_base: buildCourseCodeBase(code, g, seq),
   course_name: courseNameRaw !== "" ? courseNameRaw : null,
+  course_mode: mode,
   price_per_lesson:
    patch.price_per_lesson != null && !Number.isNaN(patch.price_per_lesson)
     ? Math.max(0, Number(patch.price_per_lesson))
+    : null,
+  price_per_lesson_period_2:
+   patch.price_per_lesson_period_2 != null && !Number.isNaN(patch.price_per_lesson_period_2)
+    ? Math.max(0, Number(patch.price_per_lesson_period_2))
+    : null,
+  price_per_lesson_both_periods:
+   patch.price_per_lesson_both_periods != null && !Number.isNaN(patch.price_per_lesson_both_periods)
+    ? Math.max(0, Number(patch.price_per_lesson_both_periods))
     : null,
   updated_at: new Date().toISOString(),
  }

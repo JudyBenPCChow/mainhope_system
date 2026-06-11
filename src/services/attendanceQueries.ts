@@ -1,5 +1,12 @@
-import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import {
+ enrollmentCoversPeriod,
+ fetchAcademicYearPeriods,
+ fetchClassEnrollmentConfig,
+ normalizeEnrollmentPeriod,
+ resolvePeriodCodeFromDate,
+} from "@/lib/enrollmentPeriod"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -21,18 +28,31 @@ export type RollCallStudentRow = {
 }
 
 /** 點名表學生列（班內報讀 + 試堂等） */
-export async function fetchRosterForRollCall(classId: string): Promise<RollCallStudentRow[]> {
+export async function fetchRosterForRollCall(
+ classId: string,
+ scheduleDate?: string
+): Promise<RollCallStudentRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, student_id, students ( full_name, english_name, grade, school, whatsapp, parent_phone )"
+   "id, status, enroll_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, parent_phone )"
   )
   .eq("class_id", classId)
   .eq("status", "就讀中")
   .order("created_at", { ascending: true })
  if (error) throw error
- return (data ?? []).map((row) => {
+
+ let periodCode: 1 | 2 | null = null
+ if (scheduleDate) {
+  const config = await fetchClassEnrollmentConfig(classId)
+  if (config.courseMode === "summer_two_period" && config.academicYearId) {
+   const periods = await fetchAcademicYearPeriods(config.academicYearId)
+   periodCode = resolvePeriodCodeFromDate(scheduleDate, periods)
+  }
+ }
+
+ const rows = (data ?? []).map((row) => {
   const r = row as Record<string, unknown>
   const st = r.students as Record<string, unknown> | null
   return {
@@ -44,12 +64,23 @@ export async function fetchRosterForRollCall(classId: string): Promise<RollCallS
    school: st?.school != null ? String(st.school) : null,
    enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
    status: String(r.status ?? "就讀中"),
+   enrollmentPeriod: normalizeEnrollmentPeriod(
+    r.enrollment_period != null ? String(r.enrollment_period) : null
+   ),
    contactPhone: pickStudentContactRaw({
     whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
     parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
    }),
   }
  })
+
+ if (periodCode == null) {
+  return rows.map(({ enrollmentPeriod: _ep, ...rest }) => rest)
+ }
+
+ return rows
+  .filter((row) => enrollmentCoversPeriod(row.enrollmentPeriod, periodCode!))
+  .map(({ enrollmentPeriod: _ep, ...rest }) => rest)
 }
 
 export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise<

@@ -48,6 +48,8 @@ import {
  updateClass,
  updateSchedule,
 } from "@/services/classQueries"
+import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  fetchEnrollmentChangeEventsForClass,
  type ClassEnrollmentChangeEvent,
@@ -161,11 +163,11 @@ export function ClassDetailView() {
  const [schedFilter, setSchedFilter] = useState<"future" | "past" | "cancel">("future")
  const [addSchedOpen, setAddSchedOpen] = useState(false)
  const [newSchedDate, setNewSchedDate] = useState(() => localYmd())
- const [newSchedStart, setNewSchedStart] = useState("")
- const [newSchedEnd, setNewSchedEnd] = useState("")
+ const [newSchedTimeSlot, setNewSchedTimeSlot] = useState("")
  const [savingAddSched, setSavingAddSched] = useState(false)
  const [addSchedErr, setAddSchedErr] = useState<string | null>(null)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
+ const [addStudentPeriod, setAddStudentPeriod] = useState<EnrollmentPeriod>("兩期全報")
  const [studentQuery, setStudentQuery] = useState("")
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
@@ -351,20 +353,33 @@ export function ClassDetailView() {
   navigate("/Classes")
  }, [editOpen, requestCloseEdit, navigate])
 
+ useEffect(() => {
+  if (!addSchedOpen) return
+  setNewSchedDate(localYmd())
+  setNewSchedTimeSlot(
+   cls?.time_slot ? timeSlotSelectValueFromStored(cls.time_slot) || cls.time_slot : ""
+  )
+  setAddSchedErr(null)
+ }, [addSchedOpen, cls?.time_slot])
+
  const addSched = async () => {
   if (!cls) return
+  if (!newSchedTimeSlot.trim()) {
+   setAddSchedErr("請選擇時段")
+   return
+  }
+  const { start, end } = parseTimeSlotBounds(newSchedTimeSlot)
   setSavingAddSched(true)
   setAddSchedErr(null)
   try {
    await insertScheduleForClass(cid, cls.teacher_id, {
     scheduled_date: newSchedDate,
-    start_time: newSchedStart || null,
-    end_time: newSchedEnd || null,
+    start_time: start,
+    end_time: end,
    })
    setAddSchedOpen(false)
    setNewSchedDate(localYmd())
-   setNewSchedStart("")
-   setNewSchedEnd("")
+   setNewSchedTimeSlot("")
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -437,8 +452,11 @@ const addableStudents = (() => {
   setAddingStudentId(studentId)
   setAddStudentErr(null)
   try {
-   await insertEnrollment(studentId, cid)
+   const period =
+    cls?.course_mode === "summer_two_period" ? addStudentPeriod : null
+   await insertEnrollment(studentId, cid, period)
    setStudentQuery("")
+   setAddStudentPeriod("兩期全報")
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -651,6 +669,22 @@ const addableStudents = (() => {
           <DialogTitle>增加學生到本班</DialogTitle>
          </DialogHeader>
          <div className="space-y-3">
+          {cls?.course_mode === "summer_two_period" ? (
+           <div className="space-y-1">
+            <span className="text-sm text-muted-foreground">報讀期數</span>
+            <Select
+             className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+             value={addStudentPeriod}
+             onChange={(e) => setAddStudentPeriod(e.target.value as EnrollmentPeriod)}
+            >
+             {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
+              <option key={p} value={p}>
+               {p}
+              </option>
+             ))}
+            </Select>
+           </div>
+          ) : null}
           <Input
            placeholder="搜尋姓名 / 學號 / 電話"
            value={studentQuery}
@@ -698,6 +732,7 @@ const addableStudents = (() => {
           <div className="text-lg font-semibold text-primary">{s.fullName}</div>
           <div className="mt-1 text-sm text-muted-foreground">
            {s.grade ?? "—"} · {s.school ?? "—"} · 報讀：{s.enrollDate ?? "—"}
+           {s.enrollmentPeriod ? ` · ${s.enrollmentPeriod}` : ""}
           </div>
          </div>
          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
@@ -725,8 +760,21 @@ const addableStudents = (() => {
           )}
          >
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-           <Tag tone={ev.action === "withdraw" ? "warning" : "info"} size="sm">
-            {ev.action === "withdraw" ? "退讀" : "報讀"}
+           <Tag
+            tone={
+             ev.action === "withdraw"
+              ? "warning"
+              : ev.action === "period_change"
+                ? "info"
+                : "info"
+            }
+            size="sm"
+           >
+            {ev.action === "withdraw"
+             ? "退讀"
+             : ev.action === "period_change"
+               ? "期數變更"
+               : "報讀"}
            </Tag>
            <Link
             to={`/Students/${ev.studentId}`}
@@ -737,6 +785,7 @@ const addableStudents = (() => {
            <span className="text-muted-foreground">
             · 生效{" "}
             <span className="font-medium tabular-nums text-foreground">{ev.effectiveDate}</span>
+            {ev.enrollmentPeriod ? ` · ${ev.enrollmentPeriod}` : ""}
            </span>
           </div>
           {ev.reason ? (
@@ -815,9 +864,6 @@ const addableStudents = (() => {
             {addSchedErr}
            </div>
           ) : null}
-          <p className="text-xs text-muted-foreground">
-           建議依全社預設堂數：每格 75 分鐘，由 09:00 起（例：09:00–10:15）。
-          </p>
           <div>
            <label className="text-xs text-muted-foreground">日期</label>
            <Input
@@ -828,24 +874,36 @@ const addableStudents = (() => {
            />
           </div>
           <div>
-           <label className="text-xs text-muted-foreground">開始</label>
-           <Input
-            className="mt-1"
-            placeholder="09:00"
-            value={newSchedStart}
-            onChange={(e) => setNewSchedStart(e.target.value)}
-           />
+           <label className="text-xs text-muted-foreground">時段</label>
+           <Select
+            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={timeSlotSelectValueFromStored(newSchedTimeSlot)}
+            onChange={(e) => setNewSchedTimeSlot(e.target.value)}
+           >
+            <option value="">請選擇時段</option>
+            {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
+             <option key={slot} value={slot}>
+              {slot}
+             </option>
+            ))}
+            {newSchedTimeSlot &&
+            !CLASS_TIME_SLOT_OPTIONS.some(
+             (slot) =>
+              slot === newSchedTimeSlot ||
+              slot.replace(/\u2013/g, "-") === newSchedTimeSlot.replace(/\u2013/g, "-")
+            ) ? (
+             <option value={newSchedTimeSlot}>{newSchedTimeSlot}（原資料）</option>
+            ) : null}
+           </Select>
+           <p className="mt-1 text-xs text-muted-foreground">
+            每格 75 分鐘，由 09:00 起；預設帶入班別時段。
+           </p>
           </div>
-          <div>
-           <label className="text-xs text-muted-foreground">結束</label>
-           <Input
-            className="mt-1"
-            placeholder="10:15"
-            value={newSchedEnd}
-            onChange={(e) => setNewSchedEnd(e.target.value)}
-           />
-          </div>
-          <Button type="button" disabled={savingAddSched} onClick={() => void addSched()}>
+          <Button
+           type="button"
+           disabled={savingAddSched || !newSchedTimeSlot.trim()}
+           onClick={() => void addSched()}
+          >
            {savingAddSched ? "建立中…" : "建立"}
           </Button>
          </div>

@@ -193,11 +193,11 @@ export function LeaveManagementView() {
    setAddScheduleId("")
    return
   }
-  void fetchUpcomingSchedulesForClass(addClassId, localYmd()).then((opts) => {
+  void fetchUpcomingSchedulesForClass(addClassId, localYmd(), addStudentId || undefined).then((opts) => {
    setScheduleOptions(opts)
    setAddScheduleId((prev) => (prev && opts.some((o) => o.id === prev) ? prev : opts[0]?.id ?? ""))
   })
- }, [addOpen, addClassId])
+ }, [addOpen, addClassId, addStudentId])
 
  useEffect(() => {
   if (!addOpen || addMakeupArrange !== "調堂") return

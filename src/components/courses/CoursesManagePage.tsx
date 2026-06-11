@@ -9,6 +9,7 @@ import {
  clampCourseSeq,
  DEFAULT_COURSE_SEQ,
 } from "@/lib/courseCode"
+import type { CourseMode } from "@/lib/enrollmentPeriod"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
  fetchAllCourses,
@@ -18,6 +19,37 @@ import {
  type CourseRecord,
 } from "@/services/classQueries"
 
+const PRICE_PRESETS_HKD = [250, 275, 825] as const
+
+type CourseForm = {
+ subject_id: string
+ grade_code: string
+ course_seq: string
+ course_name: string
+ course_mode: CourseMode
+ price_per_lesson: string
+ price_per_lesson_period_2: string
+ price_per_lesson_both_periods: string
+}
+
+const EMPTY_FORM: CourseForm = {
+ subject_id: "",
+ grade_code: "S1",
+ course_seq: "1",
+ course_name: "",
+ course_mode: "regular",
+ price_per_lesson: "",
+ price_per_lesson_period_2: "",
+ price_per_lesson_both_periods: "",
+}
+
+function parsePriceField(raw: string): number | null {
+ if (raw.trim() === "") return null
+ const n = Number(raw)
+ if (!Number.isFinite(n) || n < 0) return null
+ return n
+}
+
 export function CoursesManagePage() {
  const [rows, setRows] = useState<CourseRecord[]>([])
  const [subjects, setSubjects] = useState<{ id: string; code: string; name_zh: string }[]>([])
@@ -26,13 +58,7 @@ export function CoursesManagePage() {
  const [open, setOpen] = useState(false)
  const [editingId, setEditingId] = useState<string | null>(null)
  const [saving, setSaving] = useState(false)
- const [form, setForm] = useState({
-  subject_id: "",
-  grade_code: "S1",
-  course_seq: "1",
- course_name: "",
-  price_per_lesson: "",
- })
+ const [form, setForm] = useState<CourseForm>(EMPTY_FORM)
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -63,11 +89,9 @@ export function CoursesManagePage() {
  const openCreate = () => {
   setEditingId(null)
   setForm({
+   ...EMPTY_FORM,
    subject_id: subjects[0]?.id ?? "",
-   grade_code: "S1",
    course_seq: String(DEFAULT_COURSE_SEQ),
-  course_name: "",
-   price_per_lesson: "",
   })
   setOpen(true)
  }
@@ -78,8 +102,13 @@ export function CoursesManagePage() {
    subject_id: row.subject_id,
    grade_code: row.grade_code,
    course_seq: String(row.course_seq),
-  course_name: row.course_name ?? "",
+   course_name: row.course_name ?? "",
+   course_mode: row.course_mode,
    price_per_lesson: row.price_per_lesson != null ? String(row.price_per_lesson) : "",
+   price_per_lesson_period_2:
+    row.price_per_lesson_period_2 != null ? String(row.price_per_lesson_period_2) : "",
+   price_per_lesson_both_periods:
+    row.price_per_lesson_both_periods != null ? String(row.price_per_lesson_both_periods) : "",
   })
   setOpen(true)
  }
@@ -95,30 +124,34 @@ export function CoursesManagePage() {
    return
   }
   const seq = clampCourseSeq(seqRaw)
-  const price = form.price_per_lesson.trim() === "" ? null : Number(form.price_per_lesson)
-  if (price != null && (!Number.isFinite(price) || price < 0)) {
+  const price = parsePriceField(form.price_per_lesson)
+  const priceP2 = parsePriceField(form.price_per_lesson_period_2)
+  const priceBoth = parsePriceField(form.price_per_lesson_both_periods)
+  if (
+   (form.price_per_lesson.trim() !== "" && price == null) ||
+   (form.price_per_lesson_period_2.trim() !== "" && priceP2 == null) ||
+   (form.price_per_lesson_both_periods.trim() !== "" && priceBoth == null)
+  ) {
    setErr("學費需為 0 或以上")
    return
   }
   setSaving(true)
   setErr(null)
   try {
+   const payload = {
+    subject_id: form.subject_id,
+    grade_code: form.grade_code,
+    course_seq: seq,
+    course_name: form.course_name,
+    course_mode: form.course_mode,
+    price_per_lesson: price,
+    price_per_lesson_period_2: form.course_mode === "summer_two_period" ? priceP2 : null,
+    price_per_lesson_both_periods: form.course_mode === "summer_two_period" ? priceBoth : null,
+   }
    if (editingId) {
-    await updateCourse(editingId, {
-     subject_id: form.subject_id,
-     grade_code: form.grade_code,
-     course_seq: seq,
-    course_name: form.course_name,
-     price_per_lesson: price,
-    })
+    await updateCourse(editingId, payload)
    } else {
-    await insertCourse({
-     subject_id: form.subject_id,
-     grade_code: form.grade_code,
-     course_seq: seq,
-    course_name: form.course_name,
-     price_per_lesson: price,
-    })
+    await insertCourse(payload)
    }
    setOpen(false)
    await load()
@@ -128,6 +161,8 @@ export function CoursesManagePage() {
    setSaving(false)
   }
  }
+
+ const isSummer = form.course_mode === "summer_two_period"
 
  return (
   <div className="space-y-5 p-4 md:p-6">
@@ -144,23 +179,24 @@ export function CoursesManagePage() {
 
    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <div className="overflow-x-auto">
-     <table className="w-full min-w-[60rem] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[72rem] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/50 text-left">
-        <th className="w-[14%] px-4 py-3 font-medium">課程模板</th>
-        <th className="w-[18%] px-3 py-3 font-medium">課程名稱</th>
-        <th className="w-[12%] px-3 py-3 font-medium">科目</th>
-        <th className="w-[10%] px-3 py-3 font-medium">年級碼</th>
-        <th className="w-[10%] px-3 py-3 font-medium">課程序號</th>
-        <th className="w-[14%] px-3 py-3 font-medium">學費（HKD/節）</th>
-        <th className="w-[12%] px-3 py-3 font-medium">操作</th>
+        <th className="w-[12%] px-4 py-3 font-medium">課程模板</th>
+        <th className="w-[14%] px-3 py-3 font-medium">課程名稱</th>
+        <th className="w-[10%] px-3 py-3 font-medium">科目</th>
+        <th className="w-[8%] px-3 py-3 font-medium">年級碼</th>
+        <th className="w-[8%] px-3 py-3 font-medium">課程序號</th>
+        <th className="w-[10%] px-3 py-3 font-medium">模式</th>
+        <th className="w-[18%] px-3 py-3 font-medium">學費（HKD/節）</th>
+        <th className="w-[10%] px-3 py-3 font-medium">操作</th>
        </tr>
       </thead>
       <tbody>
        {loading ? (
-        <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
+        <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
        ) : rows.length === 0 ? (
-        <tr><td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
+        <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
        ) : (
         rows.map((r) => (
          <tr key={r.id} className="border-b border-border">
@@ -169,7 +205,18 @@ export function CoursesManagePage() {
           <td className="px-3 py-3">{subjectLabelById.get(r.subject_id) ?? r.subject_name_zh}</td>
           <td className="px-3 py-3">{r.grade_code}</td>
           <td className="px-3 py-3">{r.course_seq}</td>
-          <td className="px-3 py-3">{r.price_per_lesson != null ? r.price_per_lesson : "—"}</td>
+          <td className="px-3 py-3">{r.course_mode === "summer_two_period" ? "暑期兩期" : "正規"}</td>
+          <td className="px-3 py-3 text-xs leading-relaxed">
+           {r.course_mode === "summer_two_period" ? (
+            <>
+             <div>第一期：{r.price_per_lesson ?? "—"}</div>
+             <div>第二期：{r.price_per_lesson_period_2 ?? "—"}</div>
+             <div>兩期全報：{r.price_per_lesson_both_periods ?? "—"}</div>
+            </>
+           ) : (
+            r.price_per_lesson ?? "—"
+           )}
+          </td>
           <td className="px-3 py-3">
            <button type="button" className="text-primary hover:underline" onClick={() => openEdit(r)}>
             編輯
@@ -235,9 +282,40 @@ export function CoursesManagePage() {
        />
       </div>
       <div>
-       <label className="text-xs text-muted-foreground">學費（HKD/節）</label>
+       <label className="text-xs text-muted-foreground">課程模式</label>
+       <Select
+        className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+        value={form.course_mode}
+        onChange={(e) =>
+         setForm((f) => ({
+          ...f,
+          course_mode: e.target.value === "summer_two_period" ? "summer_two_period" : "regular",
+         }))
+        }
+       >
+        <option value="regular">正規學年</option>
+        <option value="summer_two_period">暑期兩期（可選報第一期／第二期／兩期全報）</option>
+       </Select>
+      </div>
+      <div>
+       <label className="text-xs text-muted-foreground">
+        {isSummer ? "第一期學費（HKD/節）" : "學費（HKD/節）"}
+       </label>
+       <div className="mt-1 flex flex-wrap gap-2">
+        {PRICE_PRESETS_HKD.map((p) => (
+         <Button
+          key={p}
+          type="button"
+          size="sm"
+          variant={Number(form.price_per_lesson) === p ? "default" : "outline"}
+          onClick={() => setForm((f) => ({ ...f, price_per_lesson: String(p) }))}
+         >
+          {p}
+         </Button>
+        ))}
+       </div>
        <Input
-        className="mt-1"
+        className="mt-2"
         type="number"
         min={0}
         step={1}
@@ -245,6 +323,32 @@ export function CoursesManagePage() {
         onChange={(e) => setForm((f) => ({ ...f, price_per_lesson: e.target.value }))}
        />
       </div>
+      {isSummer ? (
+       <>
+        <div>
+         <label className="text-xs text-muted-foreground">第二期學費（HKD/節）</label>
+         <Input
+          className="mt-1"
+          type="number"
+          min={0}
+          step={1}
+          value={form.price_per_lesson_period_2}
+          onChange={(e) => setForm((f) => ({ ...f, price_per_lesson_period_2: e.target.value }))}
+         />
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">兩期全報學費（HKD/節）</label>
+         <Input
+          className="mt-1"
+          type="number"
+          min={0}
+          step={1}
+          value={form.price_per_lesson_both_periods}
+          onChange={(e) => setForm((f) => ({ ...f, price_per_lesson_both_periods: e.target.value }))}
+         />
+        </div>
+       </>
+      ) : null}
       <div className="flex justify-end gap-2 pt-1">
        <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>
         取消
@@ -259,4 +363,3 @@ export function CoursesManagePage() {
   </div>
  )
 }
-

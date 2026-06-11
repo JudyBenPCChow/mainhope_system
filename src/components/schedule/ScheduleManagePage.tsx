@@ -273,7 +273,10 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    return
   }
   setListStudentsLoading(true)
-  void fetchClassStudents(r.class_id)
+  void fetchClassStudents(r.class_id, {
+   scheduleDate: r.scheduled_date,
+   activeOnly: true,
+  })
    .then(setListStudents)
    .finally(() => setListStudentsLoading(false))
  }, [expandedScheduleId, rows])

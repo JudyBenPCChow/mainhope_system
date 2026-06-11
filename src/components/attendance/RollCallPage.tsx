@@ -122,7 +122,7 @@ export function RollCallPage() {
   void (async () => {
    try {
     const [roster, trials, existing] = await Promise.all([
-     fetchRosterForRollCall(classId),
+     fetchRosterForRollCall(classId, lessonDate),
      fetchTrialStudentsForSchedule(scheduleId),
      fetchExistingAttendanceMap(classId, lessonDate),
     ])
