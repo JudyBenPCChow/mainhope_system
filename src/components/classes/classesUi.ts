@@ -1,4 +1,5 @@
 import { LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
+import { SUBJECT_TO_COURSE_ABBR, academicYearLabelFromStartDate, subjectChineseToAbbr } from "@/lib/courseCode"
 
 /** 班別固定時段選項（與課表／課室 75 分鐘格一致） */
 export const CLASS_TIME_SLOT_OPTIONS = LESSON_SLOT_INDICES.map((i) => lessonSlotLabel(i))
@@ -198,22 +199,109 @@ export const DAY_FILTER_CHIPS = ["全部", ...KANBAN_DAY_COLUMNS] as const
 
 export const SUBJECT_CHIPS = ["全部", "中文", "英文", "數學", "化學"] as const
 
+/** 列表篩選 chip → 科目代碼（與 SUBJECT_TO_COURSE_ABBR 簡名一致） */
+const SUBJECT_CHIP_TO_ABBR: Record<string, string> = {
+ 中文: "CHI",
+ 英文: "ENG",
+ 數學: "MATH",
+ 化學: "CHEM",
+}
+
+export function subjectAbbrForClass(c: {
+ subject: string
+ subject_code?: string | null
+}): string | null {
+ const code = (c.subject_code ?? "").trim().toUpperCase()
+ if (code) return code
+ return subjectChineseToAbbr(c.subject)
+}
+
+/** 將班別科目對應到篩選 chip 標籤（若無對應 chip 則回傳原科目名） */
+export function subjectChipLabelForClass(c: {
+ subject: string
+ subject_code?: string | null
+}): string {
+ const subj = c.subject.trim()
+ const abbr = subjectAbbrForClass(c)
+ if (abbr) {
+  for (const [chip, chipAbbr] of Object.entries(SUBJECT_CHIP_TO_ABBR)) {
+   if (chipAbbr === abbr) return chip
+  }
+ }
+ return subj || "—"
+}
+
+export function buildSubjectFilterChips(
+ rows: { subject: string; subject_code?: string | null }[],
+ options?: { includeCommonWhenEmpty?: boolean }
+): string[] {
+ const labels = new Set<string>()
+ for (const c of rows) {
+  const label = subjectChipLabelForClass(c)
+  if (label && label !== "—") labels.add(label)
+ }
+ if (labels.size === 0 && options?.includeCommonWhenEmpty) {
+  return [...SUBJECT_CHIPS]
+ }
+ const ordered = ["全部"]
+ for (const chip of SUBJECT_CHIPS) {
+  if (chip !== "全部" && labels.has(chip)) ordered.push(chip)
+ }
+ for (const label of [...labels].sort((a, b) => a.localeCompare(b, "zh-Hant"))) {
+  if (!ordered.includes(label)) ordered.push(label)
+ }
+ return ordered
+}
+
 export const STATUS_CHIPS = ["全部", "招生中", "進行中", "已結束", "已滿班"] as const
+
+export function classAcademicYearLabel(c: {
+ academic_year_label?: string | null
+ start_date?: string | null
+}): string {
+ const fromDb = (c.academic_year_label ?? "").trim()
+ if (fromDb) return fromDb
+ return academicYearLabelFromStartDate(c.start_date)
+}
+
+export function academicYearLabelsMatch(a: string, b: string): boolean {
+ return a.trim().toUpperCase() === b.trim().toUpperCase()
+}
 
 export function classMatchesGrade(c: { grade: string[] | null }, key: string): boolean {
  if (key === "全部") return true
  const arr = c.grade ?? []
- return arr.some((g) => g === key || g.includes(key))
+ return arr.some((g) => {
+  const t = g.trim()
+  return t === key || t.includes(key)
+ })
 }
 
-export function classMatchesSubject(c: { subject: string }, key: string): boolean {
+export function classMatchesSubject(
+ c: { subject: string; subject_code?: string | null },
+ key: string
+): boolean {
  if (key === "全部") return true
- return c.subject.includes(key)
+ const subj = c.subject.trim()
+ if (subj === key || subj.includes(key)) return true
+
+ const classAbbr = subjectAbbrForClass(c)
+ const chipAbbr = SUBJECT_CHIP_TO_ABBR[key] ?? subjectChineseToAbbr(key)?.toUpperCase() ?? null
+ if (classAbbr && chipAbbr && classAbbr === chipAbbr) return true
+
+ if (chipAbbr && subj.toUpperCase() === chipAbbr) return true
+
+ for (const [name, abbr] of Object.entries(SUBJECT_TO_COURSE_ABBR)) {
+  if (abbr === chipAbbr && (subj === name || subj.includes(name) || name.includes(subj))) return true
+ }
+
+ return false
 }
 
 export function classMatchesStatus(c: { status: string }, key: string): boolean {
  if (key === "全部") return true
- return c.status === key || c.status.includes(key)
+ const status = c.status.trim()
+ return status === key || status.includes(key)
 }
 
 export function classMatchesTeacher(

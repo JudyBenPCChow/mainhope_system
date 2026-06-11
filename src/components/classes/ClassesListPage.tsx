@@ -16,7 +16,9 @@ import {
  GRADE_CHIPS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
- SUBJECT_CHIPS,
+ academicYearLabelsMatch,
+ buildSubjectFilterChips,
+ classAcademicYearLabel,
  classMatchesDay,
  classMatchesGrade,
  classMatchesStatus,
@@ -88,7 +90,7 @@ export function ClassesListPage() {
  const [subjectKey, setSubjectKey] = useState<string>("全部")
  const [teacherKey, setTeacherKey] = useState<string>("全部")
  const [dayKey, setDayKey] = useState<string>("全部")
- const [statusKey, setStatusKey] = useState<string>("進行中")
+ const [statusKey, setStatusKey] = useState<string>("全部")
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const load = useCallback(async () => {
@@ -153,7 +155,7 @@ export function ClassesListPage() {
   const pick = selectedYearLabel
   return baseRows.filter((c) => {
    if (!pick || pick === "all") return true
-   return (c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date)) === pick
+   return academicYearLabelsMatch(classAcademicYearLabel(c), pick)
   })
  }, [baseRows, selectedYearLabel])
 
@@ -173,11 +175,10 @@ export function ClassesListPage() {
   )
  }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
 
- const subjectChips = useMemo(() => {
-  if (!teacherTid) return [...SUBJECT_CHIPS]
-  const uniq = [...new Set(yearScopedRows.map((c) => c.subject.trim()).filter(Boolean))]
-  return ["全部", ...uniq.sort((a, b) => a.localeCompare(b, "zh-Hant"))]
- }, [teacherTid, yearScopedRows])
+ const subjectChips = useMemo(
+  () => buildSubjectFilterChips(yearScopedRows, { includeCommonWhenEmpty: !teacherTid }),
+  [teacherTid, yearScopedRows]
+ )
 
  const gradeChips = useMemo(() => {
   if (!teacherTid) return [...GRADE_CHIPS]
@@ -637,7 +638,9 @@ export function ClassesListPage() {
         ) : filtered.length === 0 ? (
          <tr>
           <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
-           沒有符合條件的班別
+           {yearScopedRows.length === 0 && baseRows.length > 0
+            ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+            : "沒有符合條件的班別"}
           </td>
          </tr>
         ) : (

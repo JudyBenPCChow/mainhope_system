@@ -106,6 +106,18 @@ export function ClassCreatePage() {
   if (createdClass) navigate(`/Classes/${createdClass.id}`)
  }
 
+ const onCreateAnother = () => {
+  const preservedYear = {
+   academic_year_id: form.academic_year_id,
+   academic_year_label: form.academic_year_label,
+  }
+  setCreatedClass(null)
+  setStep(1)
+  setErr(null)
+  setForm({ ...emptyClassCreateForm(), ...preservedYear })
+  navigate("/Classes/New", { replace: true })
+ }
+
  const onDiscardClass = async () => {
   if (!createdClass) return
   if (
@@ -182,7 +194,7 @@ export function ClassCreatePage() {
       <Button type="button" variant="secondary" onClick={onSkipSchedule}>
        稍後再排 · 前往班別詳情
       </Button>
-      <Button type="button" variant="outline" onClick={() => navigate("/Classes/New")}>
+      <Button type="button" variant="outline" onClick={onCreateAnother}>
        再建一班
       </Button>
       <Button type="button" variant="destructive" onClick={() => void onDiscardClass()}>

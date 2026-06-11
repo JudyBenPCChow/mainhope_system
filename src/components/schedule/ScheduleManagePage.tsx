@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { classroomsActiveOnDate, roomColumnBgClass, roomColumnHeaderBgClass } from "@/lib/classroomEligibility"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -152,6 +153,63 @@ type PendingMove = {
  roomLabel: string
 }
 
+function effectiveDayViewRoomId(
+ schedule: ScheduleManageRow,
+ activeRoomIds: ReadonlySet<string>
+): string | null {
+ const rid = schedule.classroom_id
+ if (!rid || !activeRoomIds.has(rid)) return null
+ return rid
+}
+
+function DayViewScheduleCard({
+ schedule,
+ alerts,
+ studentNames,
+ variant,
+ historyReadOnly,
+ onDragStart,
+}: {
+ schedule: ScheduleManageRow
+ alerts: ScheduleAlerts
+ studentNames: string[]
+ variant: "assigned" | "unassigned"
+ historyReadOnly: boolean
+ onDragStart: (e: React.DragEvent) => void
+}) {
+ const timeLabel =
+  schedule.start_time && schedule.end_time
+   ? `${schedule.start_time}–${schedule.end_time}`
+   : schedule.start_time ?? ""
+ return (
+  <div
+   draggable
+   aria-disabled={historyReadOnly}
+   onDragStart={onDragStart}
+   className={cn(
+    "cursor-grab rounded-lg border px-2.5 py-2.5 text-sm shadow-sm active:cursor-grabbing",
+    variant === "unassigned"
+     ? "border-amber-400 bg-amber-100 text-amber-950"
+     : "border-teal-300 bg-teal-50 text-teal-900"
+   )}
+  >
+   <div className="flex items-start justify-between gap-1.5">
+    <span className="break-words font-semibold leading-snug">{schedule.classLabel}</span>
+    <ScheduleAlertIcons alerts={alerts} />
+   </div>
+   <p className="mt-1.5 break-words text-xs leading-relaxed opacity-90">
+    老師：{schedule.teacher_name?.trim() || "—"}
+   </p>
+   <p className="mt-0.5 break-words text-xs leading-relaxed opacity-90">
+    學生：{studentNames.length > 0 ? studentNames.join("、") : "—"}
+   </p>
+   {timeLabel ? (
+    <p className="mt-1.5 tabular-nums text-xs font-medium opacity-80">{timeLabel}</p>
+   ) : null}
+  </div>
+ )
+}
+
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const todayYmd = localYmd()
@@ -185,6 +243,7 @@ export function ScheduleManagePage() {
  const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null)
  const [listStudents, setListStudents] = useState<ClassStudentRow[]>([])
  const [listStudentsLoading, setListStudentsLoading] = useState(false)
+ const [dayViewRoster, setDayViewRoster] = useState<Map<string, string[]>>(new Map())
 
  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
  const [moveSaving, setMoveSaving] = useState(false)
@@ -377,13 +436,39 @@ useEffect(() => {
   [filtered, dayViewDate]
  )
 
- const roomColumns = useMemo(() => {
-  const sorted = [...rooms].sort((a, b) => {
-   if (a.is_online !== b.is_online) return a.is_online ? 1 : -1
-   return a.name.localeCompare(b.name, "zh-Hant")
+ useEffect(() => {
+  if (viewMode !== "day") {
+   setDayViewRoster(new Map())
+   return
+  }
+  const classIds = [...new Set(dayFiltered.map((s) => s.class_id).filter(Boolean) as string[])]
+  if (classIds.length === 0) {
+   setDayViewRoster(new Map())
+   return
+  }
+  let cancelled = false
+  void Promise.all(
+   classIds.map(async (classId) => {
+    const students = await fetchClassStudents(classId, {
+     scheduleDate: dayViewDate,
+     activeOnly: true,
+    })
+    return [classId, students.map((st) => st.fullName)] as const
+   })
+  ).then((entries) => {
+   if (!cancelled) setDayViewRoster(new Map(entries))
   })
-  return sorted
- }, [rooms])
+  return () => {
+   cancelled = true
+  }
+ }, [viewMode, dayFiltered, dayViewDate])
+
+ const roomColumns = useMemo(
+  () => classroomsActiveOnDate(rooms, dayViewDate),
+  [rooms, dayViewDate]
+ )
+
+ const activeRoomIdSet = useMemo(() => new Set(roomColumns.map((r) => r.id)), [roomColumns])
 
  /** 日視圖課室表：table-fixed 下均分課室欄寬 */
  const dayViewRoomColPct = useMemo(() => {
@@ -1207,7 +1292,7 @@ useEffect(() => {
       <p className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-medium">
        {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘 · 拖曳卡片可調整課室或時段
       </p>
-      <table className="w-full min-w-[900px] table-fixed border-collapse text-sm">
+      <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
        <colgroup>
         <col style={{ width: `${dayViewRoomColPct.timePct}%` }} />
         {roomColumns.map((r) => (
@@ -1221,11 +1306,22 @@ useEffect(() => {
           時間
          </th>
          {roomColumns.map((r) => (
-          <th key={r.id} className="min-w-0 border border-border px-2 py-3 font-medium">
+          <th
+           key={r.id}
+           className={cn(
+            "min-w-0 border border-border px-2 py-3 font-medium",
+            roomColumnHeaderBgClass(r.name)
+           )}
+          >
            <span className="block break-words">{r.name}</span>
           </th>
          ))}
-         <th className="min-w-0 border border-border bg-amber-50/50 px-2 py-3 font-medium text-amber-900">
+         <th
+          className={cn(
+           "min-w-0 border border-border px-2 py-3 font-medium",
+           roomColumnHeaderBgClass("未編課室")
+          )}
+         >
           未分配教室
          </th>
         </tr>
@@ -1239,7 +1335,10 @@ useEffect(() => {
           {roomColumns.map((r) => (
            <td
             key={r.id}
-            className="align-top border border-border p-1 transition-colors hover:bg-teal-50/30"
+            className={cn(
+             "align-top border border-border p-1.5 transition-colors hover:bg-teal-50/30",
+             roomColumnBgClass(r.name)
+            )}
             data-room-id={r.id}
             onDragOver={(e) => {
              e.preventDefault()
@@ -1247,14 +1346,21 @@ useEffect(() => {
             }}
             onDrop={(e) => handleDropOnCell(e, r.id, slotIdx)}
            >
-            <div className="flex min-h-[4rem] flex-col gap-1">
+            <div className="flex min-h-[7.5rem] flex-col gap-1.5">
              {dayFiltered
-              .filter((s) => s.classroom_id === r.id && slotIndexForSchedule(s) === slotIdx)
+              .filter(
+               (s) =>
+                effectiveDayViewRoomId(s, activeRoomIdSet) === r.id &&
+                slotIndexForSchedule(s) === slotIdx
+              )
               .map((s) => (
-               <div
+               <DayViewScheduleCard
                 key={s.id}
-                draggable
-               aria-disabled={historyReadOnly}
+                schedule={s}
+                alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
+                studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
+                variant="assigned"
+                historyReadOnly={historyReadOnly}
                 onDragStart={(e) => {
                  if (historyReadOnly) {
                   e.preventDefault()
@@ -1263,22 +1369,16 @@ useEffect(() => {
                  e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
                  e.dataTransfer.effectAllowed = "move"
                 }}
-                className="cursor-grab rounded-md border border-teal-300 bg-teal-50 px-2 py-1.5 text-sm font-medium text-teal-900 shadow-sm active:cursor-grabbing"
-               >
-                <div className="flex items-start justify-between gap-1">
-                 <span className="line-clamp-2">{s.classLabel}</span>
-                 <ScheduleAlertIcons alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }} />
-                </div>
-                <div className="mt-0.5 tabular-nums text-xs text-teal-800/90 md:text-sm">
-                 {s.start_time ?? ""}–{s.end_time ?? ""}
-                </div>
-               </div>
+               />
               ))}
             </div>
            </td>
           ))}
           <td
-           className="align-top border border-border bg-amber-50/20 p-1 transition-colors hover:bg-amber-100/40"
+           className={cn(
+            "align-top border border-border p-1.5 transition-colors hover:bg-amber-100/40",
+            roomColumnBgClass("未編課室")
+           )}
            data-room-id="__none__"
            onDragOver={(e) => {
             e.preventDefault()
@@ -1286,14 +1386,21 @@ useEffect(() => {
            }}
            onDrop={(e) => handleDropOnCell(e, null, slotIdx)}
           >
-           <div className="flex min-h-[4rem] flex-col gap-1">
+           <div className="flex min-h-[7.5rem] flex-col gap-1.5">
             {dayFiltered
-             .filter((s) => !s.classroom_id && slotIndexForSchedule(s) === slotIdx)
+             .filter(
+              (s) =>
+               effectiveDayViewRoomId(s, activeRoomIdSet) === null &&
+               slotIndexForSchedule(s) === slotIdx
+             )
              .map((s) => (
-              <div
+              <DayViewScheduleCard
                key={s.id}
-               draggable
-               aria-disabled={historyReadOnly}
+               schedule={s}
+               alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
+               studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
+               variant="unassigned"
+               historyReadOnly={historyReadOnly}
                onDragStart={(e) => {
                 if (historyReadOnly) {
                  e.preventDefault()
@@ -1302,16 +1409,7 @@ useEffect(() => {
                 e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
                 e.dataTransfer.effectAllowed = "move"
                }}
-               className="cursor-grab rounded-md border border-amber-400 bg-amber-100 px-2 py-1.5 text-sm font-medium text-amber-950 active:cursor-grabbing"
-              >
-               <div className="flex items-start justify-between gap-1">
-                <span className="line-clamp-2">{s.classLabel}</span>
-                <ScheduleAlertIcons alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }} />
-               </div>
-               <div className="mt-0.5 tabular-nums text-xs md:text-sm">
-                {s.start_time ?? ""}–{s.end_time ?? ""}
-               </div>
-              </div>
+              />
              ))}
            </div>
           </td>
