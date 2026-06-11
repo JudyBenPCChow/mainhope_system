@@ -1,5 +1,7 @@
-import { supabase } from "@/lib/supabaseClient"
+import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { supabase } from "@/lib/supabaseClient"
+import { mapPaymentDiscountRow, type PaymentDiscountRow } from "@/services/paymentDiscountQueries"
 
 const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "其他"] as const
 export const PAYMENT_METHOD_PRESETS = [...METHOD_OPTIONS]
@@ -18,10 +20,41 @@ function ymdCompact(d = new Date()) {
  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`
 }
 
-/** 產生單據編號：RC=收據、INV=通知單／待繳（僅由系統呼叫） */
-export function generateReceiptRef(kind: "RC" | "INV"): string {
- const r = Math.floor(Math.random() * 9000) + 1000
- return `MX-${kind}-${ymdCompact()}-${r}`
+const RECEIPT_REF_ATTEMPTS = 8
+
+function receiptRefPrefix(kind: "RC" | "INV", d = new Date()) {
+ return `MX-${kind}-${ymdCompact(d)}-`
+}
+
+function formatReceiptRefSuffix(seq: number): string {
+ const width = seq > 9999 ? 5 : 4
+ return String(seq).padStart(width, "0")
+}
+
+function isReceiptNumberUniqueViolation(error: unknown): boolean {
+ if (!error || typeof error !== "object") return false
+ const e = error as { code?: string }
+ return e.code === "23505"
+}
+
+/** 依當日既有單號遞增序號，格式 MX-{RC|INV}-YYYYMMDD-0001 */
+async function allocateReceiptRef(kind: "RC" | "INV"): Promise<string> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const prefix = receiptRefPrefix(kind)
+ const { data, error } = await supabase
+  .from("payments")
+  .select("receipt_number")
+  .like("receipt_number", `${prefix}%`)
+  .order("receipt_number", { ascending: false })
+  .limit(1)
+ if (error) throw error
+ let next = 1
+ const latest = data?.[0]?.receipt_number
+ if (typeof latest === "string" && latest.startsWith(prefix)) {
+  const n = parseInt(latest.slice(prefix.length), 10)
+  if (Number.isFinite(n) && n >= 0) next = n + 1
+ }
+ return `${prefix}${formatReceiptRefSuffix(next)}`
 }
 
 export type PaymentListRow = {
@@ -49,15 +82,59 @@ export type PaymentDetailRow = {
  description: string | null
 }
 
+export type PaymentDiscountApplicationRow = {
+ sortOrder: number
+ discountId: string
+ name: string
+ percentOff: number | null
+ amountOff: number | null
+ amountDeducted: number | null
+}
+
 export type PaymentFull = PaymentListRow & {
+ subtotalAmount: number | null
  details: PaymentDetailRow[]
+ discountApplications: PaymentDiscountApplicationRow[]
+ /** @deprecated 請改用 discountApplications */
  discountPercentOff: number | null
+ /** @deprecated 請改用 discountApplications */
  discountAmountOff: number | null
+}
+
+function mapDiscountApplicationRow(r: Record<string, unknown>): PaymentDiscountApplicationRow | null {
+ const disc = r.payment_discounts as Record<string, unknown> | null
+ if (!disc?.id) return null
+ return {
+  sortOrder: Number(r.sort_order ?? 0),
+  discountId: String(disc.id),
+  name: disc.name != null ? String(disc.name) : "—",
+  percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
+  amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
+  amountDeducted: r.amount_deducted != null ? Number(r.amount_deducted) : null,
+ }
+}
+
+function discountNamesFromApplications(apps: PaymentDiscountApplicationRow[]): string | null {
+ if (apps.length === 0) return null
+ return [...apps]
+  .sort((a, b) => a.sortOrder - b.sortOrder)
+  .map((a) => a.name)
+  .join("；")
 }
 
 function mapListRow(r: Record<string, unknown>): PaymentListRow {
  const st = r.students as Record<string, unknown> | null
  const disc = r.payment_discounts as Record<string, unknown> | null
+ const appRows = r.payment_discount_applications as unknown
+ const apps = Array.isArray(appRows)
+  ? appRows
+     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>))
+     .filter((x): x is PaymentDiscountApplicationRow => x != null)
+  : []
+ const discountName =
+  discountNamesFromApplications(apps) ?? (disc?.name != null ? String(disc.name) : null)
+ const discountId =
+  apps[0]?.discountId ?? (r.payment_discount_id != null ? String(r.payment_discount_id) : null)
  return {
   id: String(r.id),
   studentId: String(r.student_id),
@@ -70,8 +147,8 @@ function mapListRow(r: Record<string, unknown>): PaymentListRow {
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
   createdAt: String(r.created_at ?? ""),
-  discountId: r.payment_discount_id != null ? String(r.payment_discount_id) : null,
-  discountName: disc?.name != null ? String(disc.name) : null,
+  discountId,
+  discountName,
  }
 }
 
@@ -91,7 +168,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
  let q = supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name )"
+   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .order("payment_date", { ascending: false })
   .limit(limit)
@@ -126,7 +203,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const { data: pay, error: e1 } = await supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name, percent_off, amount_off )"
+   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -157,12 +234,36 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  })
 
  const base = mapListRow(pay as Record<string, unknown>)
- const disc = (pay as Record<string, unknown>).payment_discounts as Record<string, unknown> | null
+ const payRow = pay as Record<string, unknown>
+ const disc = payRow.payment_discounts as Record<string, unknown> | null
+ const appRows = payRow.payment_discount_applications as unknown
+ let discountApplications = Array.isArray(appRows)
+  ? appRows
+     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>))
+     .filter((x): x is PaymentDiscountApplicationRow => x != null)
+  : []
+ if (discountApplications.length === 0 && base.discountId && disc) {
+  discountApplications = [
+   {
+    sortOrder: 0,
+    discountId: base.discountId,
+    name: disc.name != null ? String(disc.name) : "—",
+    percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
+    amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
+    amountDeducted: null,
+   },
+  ]
+ }
+ const subtotalAmount =
+  payRow.subtotal_amount != null ? Number(payRow.subtotal_amount) : null
+ const firstApp = discountApplications[0]
  return {
   ...base,
+  subtotalAmount,
   details,
-  discountPercentOff: disc?.percent_off != null ? Number(disc.percent_off) : null,
-  discountAmountOff: disc?.amount_off != null ? Number(disc.amount_off) : null,
+  discountApplications,
+  discountPercentOff: firstApp?.percentOff ?? (disc?.percent_off != null ? Number(disc.percent_off) : null),
+  discountAmountOff: firstApp?.amountOff ?? (disc?.amount_off != null ? Number(disc.amount_off) : null),
  }
 }
 
@@ -177,33 +278,73 @@ export async function insertPaymentRecord(params: {
  studentId: string
  paymentDate: string
  totalAmount: number
+ subtotalAmount?: number
  paymentMethod: string
  status: string
  remarks?: string | null
  receiptKind: "RC" | "INV"
+ /** 依表單勾選順序儲存多項優惠 */
+ discountIds?: string[]
+ /** @deprecated 請改用 discountIds */
  discountId?: string | null
  details?: PaymentDetailInput[]
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
 
- const receipt = generateReceiptRef(params.receiptKind)
+ const discountIds = (
+  params.discountIds?.length
+   ? params.discountIds
+   : params.discountId
+     ? [params.discountId]
+     : []
+ ).filter((id) => id.trim() !== "")
+ const subtotalAmount = Math.round((params.subtotalAmount ?? params.totalAmount) * 100) / 100
 
- const { data: ins, error: e1 } = await supabase
-  .from("payments")
-  .insert({
-   student_id: params.studentId,
-   payment_date: params.paymentDate,
-   total_amount: params.totalAmount,
-   payment_method: params.paymentMethod,
-   status: params.status,
-   remarks: params.remarks?.trim() || null,
-   receipt_number: receipt,
-   payment_discount_id: params.discountId != null && params.discountId !== "" ? params.discountId.trim() : null,
-  })
-  .select("id")
-  .single()
- if (e1) throw e1
- const paymentId = String((ins as { id: string }).id)
+ let orderedDiscounts: PaymentDiscountRow[] = []
+ if (discountIds.length > 0) {
+  const { data: discRows, error: discErr } = await supabase
+   .from("payment_discounts")
+   .select("*")
+   .in("id", discountIds)
+  if (discErr) throw discErr
+  const byId = new Map(
+   (discRows ?? []).map((row) => {
+    const mapped = mapPaymentDiscountRow(row as Record<string, unknown>)
+    return [mapped.id, mapped] as const
+   })
+  )
+  orderedDiscounts = discountIds
+   .map((id) => byId.get(id))
+   .filter((d): d is PaymentDiscountRow => d != null)
+ }
+ const discountApplications = computeDiscountApplicationsForSave(subtotalAmount, orderedDiscounts)
+
+ let paymentId: string | null = null
+ for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
+  const receipt = await allocateReceiptRef(params.receiptKind)
+  const { data: ins, error: e1 } = await supabase
+   .from("payments")
+   .insert({
+    student_id: params.studentId,
+    payment_date: params.paymentDate,
+    total_amount: params.totalAmount,
+    subtotal_amount: subtotalAmount,
+    payment_method: params.paymentMethod,
+    status: params.status,
+    remarks: params.remarks?.trim() || null,
+    receipt_number: receipt,
+    payment_discount_id: discountIds[0] ?? null,
+   })
+   .select("id")
+   .single()
+  if (!e1) {
+   paymentId = String((ins as { id: string }).id)
+   break
+  }
+  if (isReceiptNumberUniqueViolation(e1) && attempt < RECEIPT_REF_ATTEMPTS - 1) continue
+  throw e1
+ }
+ if (!paymentId) throw new Error("無法產生唯一單據編號，請稍後再試")
 
  const details = params.details?.filter((d) => d.classId || d.amount != null || d.description) ?? []
  if (details.length > 0) {
@@ -217,6 +358,18 @@ export async function insertPaymentRecord(params: {
    }))
   )
   if (e2) throw e2
+ }
+
+ if (discountApplications.length > 0) {
+  const { error: e3 } = await supabase.from("payment_discount_applications").insert(
+   discountApplications.map((app) => ({
+    payment_id: paymentId,
+    payment_discount_id: app.discountId,
+    sort_order: app.sortOrder,
+    amount_deducted: app.amountDeducted,
+   }))
+  )
+  if (e3) throw e3
  }
 
  return paymentId
@@ -309,10 +462,21 @@ export async function fetchTotalPaidLessonsForStudent(studentId: string): Promis
 
 /** 將待繳／待收款改為已收款；收據編號一律由系統產生 */
 export async function markPaymentReceived(id: string, opts?: { paymentMethod?: string }): Promise<void> {
- const receipt = generateReceiptRef("RC")
- await updatePaymentRecord(id, {
-  status: PAYMENT_STATUS.received,
-  receiptNumber: receipt,
-  ...(opts?.paymentMethod ? { paymentMethod: opts.paymentMethod } : {}),
- })
+ if (!supabase) throw new Error("Supabase 未設定")
+ for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
+  const receipt = await allocateReceiptRef("RC")
+  const { error } = await supabase
+   .from("payments")
+   .update({
+    status: PAYMENT_STATUS.received,
+    receipt_number: receipt,
+    ...(opts?.paymentMethod ? { payment_method: opts.paymentMethod } : {}),
+    updated_at: new Date().toISOString(),
+   })
+   .eq("id", id)
+  if (!error) return
+  if (isReceiptNumberUniqueViolation(error) && attempt < RECEIPT_REF_ATTEMPTS - 1) continue
+  throw error
+ }
+ throw new Error("無法產生唯一單據編號，請稍後再試")
 }

@@ -18,6 +18,8 @@ export const STUDENT_GRADE_CODES = [
 
 export type StudentGradeCode = (typeof STUDENT_GRADE_CODES)[number]
 
+export const PRIMARY_STUDENT_GRADE_CODES = ["P1", "P2", "P3", "P4", "P5", "P6"] as const
+
 export const STUDENT_GRADE_LABELS: Record<StudentGradeCode, string> = {
  P1: "小一",
  P2: "小二",
@@ -57,6 +59,11 @@ const ZH_TO_CODE: Record<string, StudentGradeCode> = {
 
 export function isStudentGradeCode(value: string): value is StudentGradeCode {
  return (STUDENT_GRADE_CODES as readonly string[]).includes(value)
+}
+
+export function isPrimaryStudentGrade(raw: string | null | undefined): boolean {
+ const code = normalizeStudentGrade(raw)
+ return code != null && (PRIMARY_STUDENT_GRADE_CODES as readonly string[]).includes(code)
 }
 
 /** 匯入／舊資料 → 標準年級碼；無法辨識則回傳 null */

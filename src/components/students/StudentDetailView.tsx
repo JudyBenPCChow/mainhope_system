@@ -10,6 +10,7 @@ import {
  History,
  ListTodo,
  Plus,
+ Printer,
  Umbrella,
  User,
 } from "lucide-react"
@@ -36,7 +37,12 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/calendarQueries"
-import { fetchTotalPaidLessonsForStudent } from "@/services/paymentQueries"
+import { printPaymentForStatus } from "@/lib/paymentPrint"
+import {
+ fetchPaymentFull,
+ fetchTotalPaidLessonsForStudent,
+ PAYMENT_STATUS,
+} from "@/services/paymentQueries"
 import {
  deletePayment,
  fetchAllStudents,
@@ -1178,10 +1184,34 @@ const exportFutureSchedulesCsv = () => {
             <div className="text-xs text-muted-foreground">收據：{p.receipt_number}</div>
            ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
            <Tag tone={statusToTagTone(p.status)} size="sm">
             {p.status}
            </Tag>
+           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+             try {
+              const full = await fetchPaymentFull(p.id)
+              if (!full) return
+              if (
+               !printPaymentForStatus(full, p.status, [
+                PAYMENT_STATUS.pendingPay,
+                PAYMENT_STATUS.pendingReceive,
+               ])
+              ) {
+               pushBanner({ tone: "warning", title: "無法列印", message: "請允許開啟彈出視窗以列印。" })
+              }
+             } catch (e) {
+              reportUserFacingError(e, { source: "StudentDetailView.printPayment" })
+             }
+            }}
+           >
+            <Printer className="h-3.5 w-3.5" />
+            列印
+           </Button>
            <Button
             type="button"
             variant="outline"

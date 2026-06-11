@@ -11,7 +11,7 @@ export type PaymentDiscountRow = {
  updatedAt: string
 }
 
-function mapRow(r: Record<string, unknown>): PaymentDiscountRow {
+export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscountRow {
  return {
   id: String(r.id),
   name: String(r.name ?? ""),
@@ -34,7 +34,7 @@ export async function fetchActivePaymentDiscounts(): Promise<PaymentDiscountRow[
   .order("sort_order", { ascending: true })
   .order("name", { ascending: true })
  if (error) throw error
- return (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
+ return (data ?? []).map((x) => mapPaymentDiscountRow(x as Record<string, unknown>))
 }
 
 /** 外星人：全部（含停用） */
@@ -46,7 +46,7 @@ export async function fetchAllPaymentDiscounts(): Promise<PaymentDiscountRow[]> 
   .order("sort_order", { ascending: true })
   .order("name", { ascending: true })
  if (error) throw error
- return (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
+ return (data ?? []).map((x) => mapPaymentDiscountRow(x as Record<string, unknown>))
 }
 
 export async function insertPaymentDiscount(row: {

@@ -28,6 +28,8 @@ import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
+import { printPayment, printPaymentForStatus } from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -88,96 +90,7 @@ function discountOptionLabel(d: PaymentDiscountRow) {
  return bits.join(" ")
 }
 
-function escHtml(s: string) {
- return s
-  .replace(/&/g, "&amp;")
-  .replace(/</g, "&lt;")
-  .replace(/>/g, "&gt;")
-  .replace(/"/g, "&quot;")
-}
-
-function openPrintableDocument(title: string, bodyHtml: string): boolean {
- const w = window.open("", "_blank", "noopener,noreferrer")
- if (!w) {
-  return false
- }
- w.document.open()
- w.document.write(`<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8"/><title>${escHtml(title)}</title>
-<style>
- body{font-family:ui-sans-serif,system-ui,sans-serif;padding:28px;max-width:720px;margin:0 auto;color:#111;line-height:1.5}
- h1{font-size:22px;margin:0 0 8px;font-weight:700}
- .sub{color:#555;font-size:14px;margin-bottom:20px}
- .row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #eee;font-size:15px}
- .label{color:#666;flex-shrink:0}
- .val{text-align:right;word-break:break-all}
- table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px}
- th,td{border:1px solid #ddd;padding:8px;text-align:left}
- th{background:#f6f6f6}
- .total{font-size:18px;font-weight:700;margin-top:20px;text-align:right}
- @media print{body{padding:12px}}
-</style></head><body>${bodyHtml}</body></html>`)
- w.document.close()
- w.focus()
- w.print()
- w.addEventListener(
-  "afterprint",
-  () => {
-   w.close()
-  },
-  { once: true }
- )
- return true
-}
-
-function buildPrintBody(p: PaymentFull, kind: "invoice" | "receipt"): string {
- const isInvoice = kind === "invoice"
- const headTitle = isInvoice ? "繳費通知單" : "收款收據"
- const sub = isInvoice
-  ? "請家長／學生依下列金額繳付；繳款後請保留收據。"
-  : "茲收到下列款項，此據。"
-
- const discParts: string[] = []
- if (p.discountName) discParts.push(escHtml(p.discountName))
- if (p.discountPercentOff != null && p.discountPercentOff > 0) {
-  discParts.push(`減免 ${p.discountPercentOff}%`)
- }
- if (p.discountAmountOff != null && p.discountAmountOff > 0) {
-  discParts.push(`固定減 ${money(p.discountAmountOff)}`)
- }
- const discRow =
-  p.discountName || discParts.length > 0
-   ? `<div class="row"><span class="label">優惠</span><span class="val">${discParts.join("；") || "—"}</span></div>`
-   : ""
-
- const lines =
-  p.details.length === 0
-   ? ""
-   : `<table><thead><tr><th>項目</th><th>堂數</th><th>金額</th><th>備註</th></tr></thead><tbody>${p.details
-     .map(
-      (d) =>
-       `<tr><td>${escHtml(d.classLabel)}</td><td>${d.lessonCount ?? "—"}</td><td>${d.amount != null ? money(d.amount) : "—"}</td><td>${escHtml(d.description ?? "—")}</td></tr>`
-     )
-     .join("")}</tbody></table>`
-
- return `
-  <h1>${escHtml(headTitle)}</h1>
-  <div class="sub">${escHtml(sub)}</div>
-  <div class="row"><span class="label">單據編號</span><span class="val">${escHtml(p.receiptNumber ?? "—")}</span></div>
-  <div class="row"><span class="label">學生</span><span class="val">${escHtml(p.studentName)}${p.studentCode ? `（${escHtml(p.studentCode)}）` : ""}</span></div>
-  <div class="row"><span class="label">日期</span><span class="val">${escHtml(p.paymentDate)}</span></div>
-  <div class="row"><span class="label">狀態</span><span class="val">${escHtml(p.status)}</span></div>
-  <div class="row"><span class="label">繳費方式</span><span class="val">${escHtml(p.paymentMethod ?? "—")}</span></div>
-  ${discRow}
-  ${p.remarks ? `<div class="row"><span class="label">備註</span><span class="val">${escHtml(p.remarks)}</span></div>` : ""}
-  ${lines}
-  <div class="total">合計 ${money(p.totalAmount)}</div>
- `
-}
-
-function printPayment(p: PaymentFull, kind: "invoice" | "receipt"): boolean {
- const title = kind === "invoice" ? "繳費通知單" : "收款收據"
- return openPrintableDocument(title, buildPrintBody(p, kind))
-}
+const PENDING_PAYMENT_STATUSES = [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive] as const
 
 function selectClassName() {
  return cn(
@@ -307,12 +220,20 @@ export function PaymentsPageView() {
  }, [lines])
 
  const selectedDiscounts = useMemo(
-  () => discounts.filter((d) => discountIds.includes(d.id)),
+  () =>
+   discountIds
+    .map((id) => discounts.find((d) => d.id === id))
+    .filter((d): d is PaymentDiscountRow => d != null),
   [discountIds, discounts]
  )
 
  const totalDue = useMemo(
   () => applyDiscountsToSubtotal(subtotal, selectedDiscounts),
+  [subtotal, selectedDiscounts]
+ )
+
+ const discountStepsPreview = useMemo(
+  () => computeDiscountApplicationsForSave(subtotal, selectedDiscounts),
   [subtotal, selectedDiscounts]
  )
 
@@ -492,12 +413,8 @@ const academicYearOptions = useMemo(() => {
  }
 
  const buildRemarksForSave = (): string | null => {
-  const parts: string[] = []
-  if (remarks.trim()) parts.push(remarks.trim())
-  if (selectedDiscounts.length > 0) {
-   parts.push(`[優惠] ${selectedDiscounts.map((d) => discountOptionLabel(d)).join("；")}`)
-  }
-  return parts.length > 0 ? parts.join("\n") : null
+  const trimmed = remarks.trim()
+  return trimmed.length > 0 ? trimmed : null
  }
  const removeLine = (key: string) =>
   setLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.key !== key)))
@@ -542,12 +459,13 @@ const academicYearOptions = useMemo(() => {
    const id = await insertPaymentRecord({
     studentId: selectedStudent!.id,
     paymentDate: payDate,
+    subtotalAmount: subtotal,
     totalAmount: totalDue,
     paymentMethod: method,
     status: PAYMENT_STATUS.received,
     remarks: buildRemarksForSave(),
     receiptKind: "RC",
-    discountId: discountIds[0] || null,
+    discountIds,
     details: buildDetailInputs(),
    })
    if (printAfterReceive) {
@@ -584,12 +502,13 @@ const academicYearOptions = useMemo(() => {
    const id = await insertPaymentRecord({
     studentId: selectedStudent!.id,
     paymentDate: payDate,
+    subtotalAmount: subtotal,
     totalAmount: totalDue,
     paymentMethod: method,
     status: invoiceStatus,
     remarks: buildRemarksForSave(),
     receiptKind: "INV",
-    discountId: discountIds[0] || null,
+    discountIds,
     details: buildDetailInputs(),
    })
    if (printAfterInvoice) {
@@ -985,20 +904,17 @@ const academicYearOptions = useMemo(() => {
        </div>
        {selectedDiscounts.length > 0 ? (
         <div className="mt-1 space-y-1 text-muted-foreground">
-         {selectedDiscounts.map((d) => (
-          <div key={d.id} className="flex justify-between gap-2">
-           <span>優惠：{d.name}</span>
-           <span className="tabular-nums">
-            {d.percentOff == null && d.amountOff == null ? "（僅註記）" : ""}
-           </span>
-          </div>
-         ))}
-         {totalDue !== subtotal ? (
-          <div className="flex justify-between gap-2 font-medium text-foreground">
-           <span>優惠後小計</span>
-           <span className="tabular-nums">{money(totalDue)}</span>
-          </div>
-         ) : null}
+         {selectedDiscounts.map((d, idx) => {
+          const step = discountStepsPreview[idx]
+          return (
+           <div key={d.id} className="flex justify-between gap-2">
+            <span>優惠：{discountOptionLabel(d)}</span>
+            <span className="tabular-nums text-warning">
+             {step && step.amountDeducted > 0 ? `-${money(step.amountDeducted)}` : "（僅註記）"}
+            </span>
+           </div>
+          )
+         })}
         </div>
        ) : null}
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
@@ -1154,8 +1070,9 @@ const academicYearOptions = useMemo(() => {
         </thead>
         <tbody>
          {historyRowsDisplayed.map((r) => {
-          const pending =
-           r.status === PAYMENT_STATUS.pendingPay || r.status === PAYMENT_STATUS.pendingReceive
+          const pending = PENDING_PAYMENT_STATUSES.includes(
+           r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
+          )
           return (
            <tr key={r.id} className="border-b border-border/80 last:border-0">
             <td className="px-3 py-2 whitespace-nowrap">{r.paymentDate}</td>
@@ -1186,7 +1103,7 @@ const academicYearOptions = useMemo(() => {
                onClick={async () => {
                 try {
                  const full = await fetchPaymentFull(r.id)
-                 if (full && !printPayment(full, pending ? "invoice" : "receipt")) {
+                 if (full && !printPaymentForStatus(full, r.status, PENDING_PAYMENT_STATUSES)) {
                   setFormErr("請允許開啟彈出視窗以列印。")
                  }
                 } catch (e) {
@@ -1250,15 +1167,26 @@ const academicYearOptions = useMemo(() => {
         <span className="text-muted-foreground">日期</span>
         <span>{detailPay.paymentDate}</span>
        </div>
-       {detailPay.discountName ? (
-        <div className="flex justify-between gap-2">
-         <span className="text-muted-foreground">優惠</span>
-         <span>{detailPay.discountName}</span>
+       <div className="rounded-md border border-border bg-muted/15 p-3">
+        <div className="mb-2 font-medium">金額明細</div>
+        <div className="space-y-1.5">
+         {buildPaymentAmountBreakdown(detailPay).lines.map((line) => (
+          <div key={line.key} className="flex justify-between gap-2">
+           <span className={line.tone === "deduction" ? "text-warning" : "text-muted-foreground"}>
+            {line.label}
+           </span>
+           <span
+            className={cn(
+             "tabular-nums",
+             line.tone === "total" && "font-semibold text-foreground",
+             line.tone === "deduction" && "text-warning"
+            )}
+           >
+            {line.tone === "deduction" ? `-${money(Math.abs(line.amount))}` : money(line.amount)}
+           </span>
+          </div>
+         ))}
         </div>
-       ) : null}
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">金額</span>
-        <span className="font-semibold">{money(detailPay.totalAmount)}</span>
        </div>
        <div className="flex justify-between gap-2">
         <span className="text-muted-foreground">方式</span>
@@ -1295,10 +1223,7 @@ const academicYearOptions = useMemo(() => {
          variant="outline"
          size="sm"
          onClick={() => {
-          const pending =
-           detailPay.status === PAYMENT_STATUS.pendingPay ||
-           detailPay.status === PAYMENT_STATUS.pendingReceive
-          if (!printPayment(detailPay, pending ? "invoice" : "receipt")) {
+          if (!printPaymentForStatus(detailPay, detailPay.status, PENDING_PAYMENT_STATUSES)) {
            setFormErr("請允許開啟彈出視窗以列印。")
           }
          }}

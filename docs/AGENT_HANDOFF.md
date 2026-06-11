@@ -82,4 +82,25 @@
 
 ---
 
+## 9. 繳費出單／列印 — 待辦優化指引
+
+目前列印實作於 `src/lib/paymentPrint.ts`（瀏覽器 `window.print()`，非程式產生 PDF 檔）；金額拆分邏輯於 `src/lib/paymentAmountBreakdown.ts`。單據編號已改為 **當日遞增序號**（`MX-{RC|INV}-YYYYMMDD-0001`）並有 DB unique index；併發時會重試分配。多項優惠存於 `payment_discount_applications`（migration `20260611130000_payment_discount_applications.sql`）。
+
+後續可依優先序實作：
+
+| 優先 | 項目 | 說明 | 狀態 |
+| --- | --- | --- | --- |
+| P1 | 版面品牌化 | 補習社名稱、logo、地址、聯絡電話、付款指引（轉數快／銀行帳號等） | 待做 |
+| P1 | 金額明細拆分 | 單據顯示項目小計、各項優惠扣減、應繳總額（勿只顯示合計） | **已完成**（`paymentAmountBreakdown` + 列印／詳情） |
+| P2 | 優惠資料一致 | 多選優惠存於 `payment_discount_applications`；`payments.subtotal_amount` 記項目小計 | **已完成** |
+| P2 | 標記已收後列印 | `markPaymentReceived` 完成後可選「同時列印收據」 | 待做 |
+| P2 | 列印預覽 | 先預覽再列印／下載，減少彈窗被擋 | 待做 |
+| P3 | 真正 PDF 下載 | 評估 jsPDF／html2canvas 等，一鍵下載 `.pdf` 檔 | 待做 |
+| P3 | 模板抽離 | 將 HTML 模板獨立為可維護檔案或設定（方便非工程師調整文案） | 待做 |
+| P3 | 明細備註欄 | 列印已移除備註欄重複；詳情列表仍可顯示 description | **部分完成** |
+
+觸發列印入口：`PaymentsPageView`（建立後／紀錄查詢／詳情）、`StudentDetailView`（繳費紀錄分頁）。
+
+---
+
 *文件版本：與 repo 內 `mingxue-admin` 程式碼結構對齊；若遷移或目錄大改，請同步修訂本檔。*

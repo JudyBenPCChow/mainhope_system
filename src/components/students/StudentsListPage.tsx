@@ -23,7 +23,9 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
 import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import {
+ isPrimaryStudentGrade,
  normalizeStudentGrade,
+ PRIMARY_STUDENT_GRADE_CODES,
  STUDENT_GRADE_CODES,
  STUDENT_GRADE_LABELS,
 } from "@/lib/studentGrade"
@@ -46,9 +48,14 @@ const STATUS_FILTERS = [
  { key: "畢業", label: "畢業" },
 ] as const
 
+const GRADE_FILTER_PRIMARY_KEY = "PRIMARY" as const
+
 const GRADE_FILTERS = [
  { key: "all", label: "全部" },
- ...STUDENT_GRADE_CODES.map((code) => ({
+ { key: GRADE_FILTER_PRIMARY_KEY, label: "小學" },
+ ...STUDENT_GRADE_CODES.filter(
+  (code) => !(PRIMARY_STUDENT_GRADE_CODES as readonly string[]).includes(code)
+ ).map((code) => ({
   key: code,
   label: STUDENT_GRADE_LABELS[code],
  })),
@@ -230,7 +237,11 @@ export function StudentsListPage() {
    list = list.filter((r) => normalizeStudentStatus(r.status) !== "畢業")
   }
   if (gradeKey !== "all") {
-   list = list.filter((r) => (r.grade ?? "") === gradeKey)
+   if (gradeKey === GRADE_FILTER_PRIMARY_KEY) {
+    list = list.filter((r) => isPrimaryStudentGrade(r.grade))
+   } else {
+    list = list.filter((r) => (r.grade ?? "") === gradeKey)
+   }
   }
   const q = search.trim().toLowerCase()
   if (q) {
