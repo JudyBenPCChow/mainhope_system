@@ -64,7 +64,10 @@ export function QuickClassFromSlotDialog({
    ...emptyClassCreateForm(),
    academic_year_id: academicYear.id,
    academic_year_label: academicYear.label,
-   day_of_week: weekdaySelectValueFromStored(dow) || dow,
+   day_of_week: (() => {
+    const canonical = weekdaySelectValueFromStored(dow) || dow
+    return canonical ? [canonical] : []
+   })(),
    time_slot: lessonSlotLabel(context.slotIndex),
    classroom_id: context.room.id,
    teacher_id: context.availableTeachers[0]?.teacher_id ?? "",

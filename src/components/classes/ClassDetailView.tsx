@@ -23,10 +23,12 @@ import {
  CLASS_TIME_SLOT_OPTIONS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
+ formatWeekdaysDisplay,
  normalizeClassGradeForForm,
  timeSlotSelectValueFromStored,
- toCanonicalWeekdayForStore,
- weekdaySelectValueFromStored,
+ weekdaysEqual,
+ weekdaysFromStored,
+ weekdaysToStored,
 } from "@/components/classes/classesUi"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
@@ -110,16 +112,15 @@ function gradesEqual(a: string[] | undefined, b: string[]): boolean {
 function isClassEditFormDirty(
  cls: ClassRecord,
  form: Partial<ClassRecord>,
- gradeSelections: string[]
+ gradeSelections: string[],
+ weekdaySelections: string[]
 ): boolean {
  if (!gradesEqual(gradeSelections, normalizedGradesFromClass(cls))) return true
- const mappedDay = weekdaySelectValueFromStored(cls.day_of_week)
- const origDay = mappedDay || cls.day_of_week || null
+ if (!weekdaysEqual(weekdaySelections, cls.day_of_week)) return true
  const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
  return [
   (form.subject ?? "") !== (cls.subject ?? ""),
   (form.course_code?.trim() || null) !== (cls.course_code?.trim() || null),
-  (form.day_of_week ?? null) !== origDay,
   (form.time_slot ?? null) !== (cls.time_slot ?? null),
   (form.teacher_id ?? null) !== (cls.teacher_id ?? null),
   (form.classroom_id ?? null) !== (cls.classroom_id ?? null),
@@ -169,6 +170,7 @@ export function ClassDetailView() {
  const [rooms, setRooms] = useState<{ id: string; label: string }[]>([])
  const [form, setForm] = useState<Partial<ClassRecord>>({})
  const [gradeSelections, setGradeSelections] = useState<string[]>([])
+ const [weekdaySelections, setWeekdaySelections] = useState<string[]>([])
  const [schedFilter, setSchedFilter] = useState<"future" | "past" | "cancel">("future")
  const [addSchedOpen, setAddSchedOpen] = useState(false)
  const [newSchedDate, setNewSchedDate] = useState(() => localYmd())
@@ -205,14 +207,13 @@ export function ClassDetailView() {
 
  const resetEditFormFromClass = useCallback(() => {
   if (!cls) return
-  const mappedDay = weekdaySelectValueFromStored(cls.day_of_week)
   const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
   setForm({
    ...cls,
-   day_of_week: mappedDay || cls.day_of_week || null,
    capacity: safeCap,
   })
   setGradeSelections(normalizedGradesFromClass(cls))
+  setWeekdaySelections(weekdaysFromStored(cls.day_of_week))
  }, [cls])
 
  const reload = useCallback(async () => {
@@ -231,20 +232,20 @@ export function ClassDetailView() {
    ])
    setCls(c)
    if (c) {
-    const mappedDay = weekdaySelectValueFromStored(c.day_of_week)
     const safeCap = c.capacity != null && c.capacity < 0 ? null : c.capacity
     setForm({
      ...c,
-     day_of_week: mappedDay || c.day_of_week || null,
      capacity: safeCap,
     })
     const grades = (c.grade ?? [])
      .map((g) => normalizeClassGradeForForm(g))
      .filter((x): x is string => x != null)
     setGradeSelections([...new Set(grades)])
+    setWeekdaySelections(weekdaysFromStored(c.day_of_week))
    } else {
     setForm({})
     setGradeSelections([])
+    setWeekdaySelections([])
    }
    setStudents(st)
    setEnrollmentEvents(ev)
@@ -308,8 +309,7 @@ export function ClassDetailView() {
    return false
   }
   const gradeArr = gradeSelections.length > 0 ? gradeSelections : []
-  const dowRaw = form.day_of_week != null ? String(form.day_of_week).trim() : ""
-  const dayStored = dowRaw === "" ? null : toCanonicalWeekdayForStore(dowRaw) ?? dowRaw
+  const dayStored = weekdaysToStored(weekdaySelections)
   setSavingEdit(true)
   try {
    await updateClass(cid, {
@@ -347,7 +347,7 @@ export function ClassDetailView() {
  }
 
  const requestCloseEdit = useCallback(async (): Promise<boolean> => {
-  if (!cls || !isClassEditFormDirty(cls, form, gradeSelections)) return true
+  if (!cls || !isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections)) return true
   const choice = await promptUnsavedLeave()
   if (choice === "cancel") return false
   if (choice === "save") {
@@ -356,7 +356,7 @@ export function ClassDetailView() {
   }
   resetEditFormFromClass()
   return true
- }, [cls, form, gradeSelections, promptUnsavedLeave, resetEditFormFromClass])
+ }, [cls, form, gradeSelections, weekdaySelections, promptUnsavedLeave, resetEditFormFromClass])
 
  const requestLeavePage = useCallback(async () => {
   if (editOpen) {
@@ -410,8 +410,10 @@ export function ClassDetailView() {
   }
  }
 
- const timeLine = (c: ClassRecord) =>
-  [c.day_of_week, c.time_slot].filter(Boolean).join(" ") || "—"
+ const timeLine = (c: ClassRecord) => {
+  const day = formatWeekdaysDisplay(c.day_of_week)
+  return [day, c.time_slot].filter(Boolean).join(" ") || "—"
+ }
 
  if (!cid) {
   return (
@@ -1127,26 +1129,26 @@ const addableStudents = (() => {
         </div>
         <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
        </div>
-       <div>
-        <label className="text-xs text-muted-foreground">逢星期</label>
-        <Select
-         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-         value={form.day_of_week ?? ""}
-         onChange={(e) =>
-          setForm((f) => ({ ...f, day_of_week: e.target.value || null }))
-         }
-        >
-         <option value="">未指定</option>
+       <div className="sm:col-span-2">
+        <label className="text-xs text-muted-foreground">逢星期（可多選）</label>
+        <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-4">
          {KANBAN_DAY_COLUMNS.map((d) => (
-          <option key={d} value={d}>
+          <label key={d} className="flex cursor-pointer items-center gap-2 text-sm">
+           <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={weekdaySelections.includes(d)}
+            onChange={() =>
+             setWeekdaySelections((prev) =>
+              prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+             )
+            }
+           />
            {d}
-          </option>
+          </label>
          ))}
-         {form.day_of_week &&
-         !(KANBAN_DAY_COLUMNS as readonly string[]).includes(form.day_of_week) ? (
-          <option value={form.day_of_week}>{form.day_of_week}（原資料）</option>
-         ) : null}
-        </Select>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">可勾選多個上課日；全部不勾表示未指定。</p>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">時段</label>

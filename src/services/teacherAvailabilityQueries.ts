@@ -238,12 +238,18 @@ export async function deleteAvailabilitySlot(id: string): Promise<void> {
 export async function datesWithAvailability(params: {
  teacherId: string
  academicYearId: string
- dayOfWeek: string
+ dayOfWeek: string | string[]
  timeSlot: string
 }): Promise<string[]> {
  const years = await fetchAcademicYearsWithDates()
  const year = years.find((y) => y.id === params.academicYearId)
  if (!year) return []
+ const daySet = new Set(
+  (Array.isArray(params.dayOfWeek) ? params.dayOfWeek : [params.dayOfWeek])
+   .map((d) => d.trim())
+   .filter(Boolean)
+ )
+ if (daySet.size === 0) return []
  const slots = await fetchAvailabilityInRange(year.start_date, year.end_date, {
   academicYearId: params.academicYearId,
   teacherId: params.teacherId,
@@ -251,9 +257,10 @@ export async function datesWithAvailability(params: {
  })
  return slots
   .filter(
-   (s) =>
-    weekdayLabelFromYmd(s.available_date) === params.dayOfWeek &&
-    timeSlotsEqual(s.time_slot, params.timeSlot)
+   (s) => {
+    const dow = weekdayLabelFromYmd(s.available_date)
+    return dow != null && daySet.has(dow) && timeSlotsEqual(s.time_slot, params.timeSlot)
+   }
   )
   .map((s) => s.available_date)
   .sort()

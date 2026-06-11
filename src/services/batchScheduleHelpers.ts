@@ -5,7 +5,7 @@ import {
  LESSON_SLOT_INDICES,
 } from "@/lib/lessonSlots"
 import { enumerateDatesForWeekday } from "@/lib/weekdayUtils"
-import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
+import { timeSlotSelectValueFromStored, weekdaysFromStored } from "@/components/classes/classesUi"
 import {
  insertScheduleForClass,
  nextSessionNumberForClass,
@@ -48,11 +48,17 @@ export function listCandidateDatesForClass(
  cls: Pick<ClassRecord, "day_of_week" | "start_date" | "end_date">,
  year: AcademicYearRange
 ): string[] {
- const dow = cls.day_of_week?.trim()
- if (!dow) return []
+ const weekdays = weekdaysFromStored(cls.day_of_week)
+ if (weekdays.length === 0) return []
  const from = cls.start_date?.slice(0, 10) || year.start_date
  const to = cls.end_date?.slice(0, 10) || year.end_date
- return enumerateDatesForWeekday(from, to, dow)
+ const seen = new Set<string>()
+ for (const dow of weekdays) {
+  for (const date of enumerateDatesForWeekday(from, to, dow)) {
+   seen.add(date)
+  }
+ }
+ return [...seen].sort()
 }
 
 export async function buildBatchScheduleCandidates(params: {
@@ -64,10 +70,11 @@ export async function buildBatchScheduleCandidates(params: {
  const allDates = listCandidateDatesForClass(cls, year)
  let availSet = new Set<string>()
  if (teacherId && cls.day_of_week && cls.time_slot) {
+  const weekdays = weekdaysFromStored(cls.day_of_week)
   const avail = await datesWithAvailability({
    teacherId,
    academicYearId: year.id,
-   dayOfWeek: cls.day_of_week,
+   dayOfWeek: weekdays,
    timeSlot: cls.time_slot,
   })
   availSet = new Set(avail)

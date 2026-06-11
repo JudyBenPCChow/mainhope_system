@@ -22,8 +22,9 @@ import {
  classMatchesStatus,
  classMatchesSubject,
  classMatchesTeacher,
+ formatWeekdaysDisplay,
  isPrimaryGradeLabel,
- kanbanDayKey,
+ weekdaysFromStored,
 } from "@/components/classes/classesUi"
 import { classDisplayName } from "@/lib/courseLabel"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
@@ -204,9 +205,7 @@ export function ClassesListPage() {
 
  const dayChips = useMemo(() => {
   if (!teacherTid) return [...DAY_FILTER_CHIPS]
-  const present = new Set(
-   yearScopedRows.map((c) => kanbanDayKey(c.day_of_week)).filter((d) => d !== "其他")
-  )
+  const present = new Set(yearScopedRows.flatMap((c) => weekdaysFromStored(c.day_of_week)))
   const ordered = KANBAN_DAY_COLUMNS.filter((d) => present.has(d))
   return ["全部", ...ordered]
  }, [teacherTid, yearScopedRows])
@@ -250,9 +249,15 @@ export function ClassesListPage() {
     m.set(d, [])
    }
    for (const c of filtered) {
-    const key = kanbanDayKey(c.day_of_week)
-    const col = m.get(key) ?? m.get("其他")!
-    col.push(c)
+    const days = weekdaysFromStored(c.day_of_week)
+    if (days.length === 0) {
+     m.get("其他")!.push(c)
+     continue
+    }
+    for (const day of days) {
+     const col = m.get(day) ?? m.get("其他")!
+     col.push(c)
+    }
    }
    return [...KANBAN_DAY_COLUMNS, "其他"].map((title) => ({
     title,
@@ -331,7 +336,7 @@ export function ClassesListPage() {
  }
 
  const timeLabel = (c: ClassRecord) => {
-  const approx = [c.day_of_week, c.time_slot].filter(Boolean).join(" ")
+  const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
   const sum = scheduleSummaries.get(c.id)
   const dates = sum?.dates.map(formatScheduleDateShort).join("、") ?? ""
   if (approx && dates) return `${approx} · ${dates}`

@@ -68,21 +68,79 @@ export function kanbanDayKey(raw: string | null | undefined): (typeof KANBAN_DAY
  return "其他"
 }
 
+function canonicalWeekdayToken(token: string): (typeof KANBAN_DAY_COLUMNS)[number] | null {
+ const t = token.trim()
+ if (!t) return null
+ const upper = t.toUpperCase()
+ if (upper.length <= 4 && DAY_ALIASES[upper]) {
+  return DAY_ALIASES[upper] as (typeof KANBAN_DAY_COLUMNS)[number]
+ }
+ if (DAY_ALIASES[t]) return DAY_ALIASES[t] as (typeof KANBAN_DAY_COLUMNS)[number]
+ const k = kanbanDayKey(t)
+ return k === "其他" ? null : k
+}
+
+/** 解析資料庫 day_of_week（支援逗號分隔多選）→ 標準 weekday 陣列 */
+export function weekdaysFromStored(raw: string | null | undefined): string[] {
+ if (!raw?.trim()) return []
+ const seen = new Set<string>()
+ const out: string[] = []
+ for (const part of raw.split(/[,，]/)) {
+  const canonical = canonicalWeekdayToken(part)
+  if (canonical && !seen.has(canonical)) {
+   seen.add(canonical)
+   out.push(canonical)
+  }
+ }
+ return out.sort(
+  (a, b) =>
+   KANBAN_DAY_COLUMNS.indexOf(a as (typeof KANBAN_DAY_COLUMNS)[number]) -
+   KANBAN_DAY_COLUMNS.indexOf(b as (typeof KANBAN_DAY_COLUMNS)[number])
+ )
+}
+
+/** 表單多選 → 寫回資料庫（英文逗號分隔）或 null */
+export function weekdaysToStored(days: string[]): string | null {
+ const canonical = days
+  .map((d) => canonicalWeekdayToken(d))
+  .filter((d): d is (typeof KANBAN_DAY_COLUMNS)[number] => d != null)
+ const unique = [...new Set(canonical)].sort(
+  (a, b) =>
+   KANBAN_DAY_COLUMNS.indexOf(a) - KANBAN_DAY_COLUMNS.indexOf(b)
+ )
+ return unique.length > 0 ? unique.join(",") : null
+}
+
+/** 顯示用：星期一,星期三 → 星期一、星期三 */
+export function formatWeekdaysDisplay(raw: string | null | undefined): string {
+ const days = weekdaysFromStored(raw)
+ if (days.length > 0) return days.join("、")
+ return raw?.trim() ?? ""
+}
+
+export function weekdaysEqual(
+ a: string[] | string | null | undefined,
+ b: string[] | string | null | undefined
+): boolean {
+ const toArr = (v: string[] | string | null | undefined) =>
+  Array.isArray(v) ? weekdaysToStored(v)?.split(",") ?? [] : weekdaysFromStored(v)
+ const sa = toArr(a)
+ const sb = toArr(b)
+ return sa.length === sb.length && sa.every((v, i) => v === sb[i])
+}
+
 /** 表單「逢星期」下拉：取第一個逗號片段，對應到「星期一」…「星期日」，否則空字串 */
 export function weekdaySelectValueFromStored(raw: string | null | undefined): string {
  if (!raw?.trim()) return ""
  const first = raw.split(/[,，]/)[0]!.trim()
- const upper = first.toUpperCase()
- if (upper.length <= 4 && DAY_ALIASES[upper]) return DAY_ALIASES[upper]
- if (DAY_ALIASES[first]) return DAY_ALIASES[first]
- const k = kanbanDayKey(first)
- return k === "其他" ? "" : k
+ const canonical = canonicalWeekdayToken(first)
+ return canonical ?? ""
 }
 
-/** 寫回資料庫前收斂為標準「星期一」…「星期日」或 null */
+/** 寫回資料庫前收斂為標準「星期一」…「星期日」或 null（支援多選逗號字串） */
 export function toCanonicalWeekdayForStore(raw: string | null | undefined): string | null {
- const v = weekdaySelectValueFromStored(raw)
- return v === "" ? null : v
+ if (!raw?.trim()) return null
+ return weekdaysToStored(weekdaysFromStored(raw))
 }
 
 /** 班別適用年級：表單多選選項（與篩選／匯入資料相容） */
@@ -169,5 +227,5 @@ export function classMatchesTeacher(
 
 export function classMatchesDay(c: { day_of_week: string | null }, key: string): boolean {
  if (key === "全部") return true
- return kanbanDayKey(c.day_of_week) === key
+ return weekdaysFromStored(c.day_of_week).includes(key)
 }

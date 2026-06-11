@@ -5,7 +5,7 @@ import {
  CLASS_TIME_SLOT_OPTIONS,
  KANBAN_DAY_COLUMNS,
  STATUS_CHIPS,
- toCanonicalWeekdayForStore,
+ weekdaysToStored,
 } from "@/components/classes/classesUi"
 import { gradeChineseToCode } from "@/lib/courseCode"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,7 @@ export type ClassCreateFormValues = {
  grade_code: string
  course_id: string
  section_code: string
- day_of_week: string
+ day_of_week: string[]
  time_slot: string
  teacher_id: string
  classroom_id: string
@@ -51,7 +51,7 @@ export const emptyClassCreateForm = (): ClassCreateFormValues => ({
  grade_code: "",
  course_id: "",
  section_code: "",
- day_of_week: "星期六",
+ day_of_week: [],
  time_slot: "",
  teacher_id: "",
  classroom_id: "",
@@ -239,21 +239,29 @@ export function ClassCreateForm({
      disabled={disabled}
     />
    </div>
-   <div>
-    <label className="text-xs text-muted-foreground">逢星期</label>
-    <Select
-     className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-     value={values.day_of_week}
-     onChange={(e) => onChange({ day_of_week: e.target.value })}
-     disabled={disabled}
-    >
-     <option value="">未指定</option>
+   <div className="sm:col-span-2">
+    <label className="text-xs text-muted-foreground">逢星期（可多選）</label>
+    <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-4">
      {KANBAN_DAY_COLUMNS.map((d) => (
-      <option key={d} value={d}>
+      <label key={d} className="flex cursor-pointer items-center gap-2 text-sm">
+       <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-input"
+        checked={values.day_of_week.includes(d)}
+        disabled={disabled}
+        onChange={() =>
+         onChange({
+          day_of_week: values.day_of_week.includes(d)
+           ? values.day_of_week.filter((x) => x !== d)
+           : [...values.day_of_week, d],
+         })
+        }
+       />
        {d}
-      </option>
+      </label>
      ))}
-    </Select>
+    </div>
+    <p className="mt-1 text-xs text-muted-foreground">可勾選多個上課日；全部不勾表示未指定。</p>
    </div>
    <div>
     <label className="text-xs text-muted-foreground">時段</label>
@@ -378,8 +386,7 @@ export function classCreateFormToInsertPayload(
  values: ClassCreateFormValues,
  selectedSubjectName: string
 ): Partial<ClassRecord> & { subject: string } {
- const dowRaw = values.day_of_week.trim()
- const dayStored = dowRaw === "" ? null : toCanonicalWeekdayForStore(dowRaw) ?? dowRaw
+ const dayStored = weekdaysToStored(values.day_of_week)
  const rawPrice = values.price.trim()
  const priceNum = rawPrice === "" ? null : Number(rawPrice)
  return {

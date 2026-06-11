@@ -15,6 +15,7 @@ import {
  XCircle,
 } from "lucide-react"
 
+import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
@@ -434,7 +435,7 @@ export function TeacherHomeView() {
            <span className="ml-2 font-mono text-sm text-muted-foreground">{c.course_code}</span>
           ) : null}
           <div className="text-sm text-muted-foreground md:text-base">
-           {(c.grade ?? []).join("、")} · {c.day_of_week} {c.time_slot}
+           {(c.grade ?? []).join("、")} · {formatWeekdaysDisplay(c.day_of_week)} {c.time_slot}
           </div>
          </div>
          <Button variant="ghost" size="sm" asChild>

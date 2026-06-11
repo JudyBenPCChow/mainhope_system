@@ -31,12 +31,13 @@ export function ClassCreatePage() {
   const teacherId = searchParams.get("teacher_id") ?? ""
   const dow = searchParams.get("day_of_week") ?? ""
   const slotRaw = searchParams.get("time_slot") ?? ""
+  const dowCanonical = dow ? weekdaySelectValueFromStored(dow) || dow : ""
   return {
    ...base,
    academic_year_id: searchParams.get("academic_year_id") ?? "",
    academic_year_label: typeof ay === "string" && !searchParams.get("academic_year_id") ? ay : "",
    teacher_id: teacherId,
-   day_of_week: dow ? weekdaySelectValueFromStored(dow) || dow : base.day_of_week,
+   day_of_week: dowCanonical ? [dowCanonical] : base.day_of_week,
    time_slot: slotRaw ? timeSlotSelectValueFromStored(decodeURIComponent(slotRaw)) || decodeURIComponent(slotRaw) : "",
   }
  })
