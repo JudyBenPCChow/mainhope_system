@@ -1,8 +1,10 @@
 import {
  applyDiscountToSubtotal,
+ computeDiscountApplicationsForContext,
  discountRowFromApplication,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
+import type { PaymentEligibilityContext } from "@/lib/paymentDiscountEligibility"
 import type { PaymentDiscountApplicationRow, PaymentFull } from "@/services/paymentQueries"
 
 export type PaymentAmountLine = {
@@ -51,10 +53,15 @@ export function buildDiscountSteps(
  let running = subtotal
  return ordered.map((app, idx) => {
   const before = running
-  const after = applyDiscountToSubtotal(before, discountRowFromApplication(app, idx))
+  const row = discountRowFromApplication(app, idx)
+  const deductedStored = app.amountDeducted
+  const after =
+   deductedStored != null && Number.isFinite(deductedStored)
+    ? Math.round((before - deductedStored) * 100) / 100
+    : applyDiscountToSubtotal(before, row)
   const deducted =
-   app.amountDeducted != null && Number.isFinite(app.amountDeducted)
-    ? Math.round(app.amountDeducted * 100) / 100
+   deductedStored != null && Number.isFinite(deductedStored)
+    ? Math.round(deductedStored * 100) / 100
     : Math.round((before - after) * 100) / 100
   running = Math.round((before - deducted) * 100) / 100
   return { ...app, sortOrder: idx, amountDeducted: deducted }
@@ -81,11 +88,13 @@ export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakd
  return { subtotal, discountSteps, total, lines }
 }
 
-/** 表單建立時，依選取順序計算各項扣減 */
+/** 表單建立時，依選取順序與資格上下文計算各項扣減 */
 export function computeDiscountApplicationsForSave(
  subtotal: number,
- discounts: PaymentDiscountRow[]
+ discounts: PaymentDiscountRow[],
+ ctx?: PaymentEligibilityContext
 ): Array<{ discountId: string; sortOrder: number; amountDeducted: number }> {
+ if (ctx) return computeDiscountApplicationsForContext(subtotal, discounts, ctx)
  let running = subtotal
  return discounts.map((d, sortOrder) => {
   const before = running

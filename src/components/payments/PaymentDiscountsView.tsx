@@ -10,6 +10,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
+import {
+ DISCOUNT_KIND_LABELS,
+ DISCOUNT_KINDS,
+ isLessonTierKind,
+ type DiscountKind,
+ type LessonTierRow,
+} from "@/lib/paymentDiscountKinds"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -56,10 +63,19 @@ function formatUpdatedAt(iso: string): string {
 
 function summarizeRule(r: PaymentDiscountRow): string {
  if (r.isLabelOnly) return "僅註記（不計算）"
- const parts: string[] = []
- if (r.percentOff != null && r.percentOff > 0) parts.push(`減 ${r.percentOff}%`)
- if (r.amountOff != null && r.amountOff > 0) parts.push(`減 $${r.amountOff}`)
- if (parts.length === 0) return "僅註記（不計算）"
+ const parts: string[] = [DISCOUNT_KIND_LABELS[r.discountKind]]
+ if (isLessonTierKind(r.discountKind) && r.lessonTiers?.tiers.length) {
+  parts.push(
+   r.lessonTiers.tiers.map((t) => `≥${t.minLessons}堂-$${t.amountOff}`).join(" / ")
+  )
+ } else {
+  if (r.percentOff != null && r.percentOff > 0) parts.push(`減 ${r.percentOff}%`)
+  if (r.amountOff != null && r.amountOff > 0) parts.push(`減 $${r.amountOff}`)
+  if (r.groupEnrollmentRules?.amountOffPerStudent) {
+   parts.push(`$${r.groupEnrollmentRules.amountOffPerStudent}/人`)
+  }
+ }
+ if (parts.length === 1 && parts[0] === DISCOUNT_KIND_LABELS.fixed_amount) return "僅註記（不計算）"
  return parts.join("，")
 }
 
@@ -76,8 +92,14 @@ function summarizeScope(r: PaymentDiscountRow): string {
  return parts.length > 0 ? parts.join("；") : "—"
 }
 
+const DEFAULT_TIER_ROWS: LessonTierRow[] = [
+ { minLessons: 24, amountOff: 200 },
+ { minLessons: 36, amountOff: 600 },
+]
+
 const emptyForm = {
  name: "",
+ discountKind: "fixed_amount" as DiscountKind,
  percentOff: "",
  amountOff: "",
  isActive: true,
@@ -89,6 +111,12 @@ const emptyForm = {
  maxStackCount: "",
  isLabelOnly: false,
  previewSubtotal: "1000",
+ tierRows: DEFAULT_TIER_ROWS.map((t) => ({
+  minLessons: String(t.minLessons),
+  amountOff: String(t.amountOff),
+ })),
+ groupMinSize: "3",
+ groupAmountPerStudent: "200",
  eligMinSubjectCount: "",
  eligMinTotalLessons: "",
  eligRequiredCodes: [] as string[],
@@ -159,6 +187,7 @@ export function PaymentDiscountsView() {
   setEditing(r)
   setForm({
    name: r.name,
+   discountKind: r.discountKind,
    percentOff: r.percentOff != null ? String(r.percentOff) : "",
    amountOff: r.amountOff != null ? String(r.amountOff) : "",
    isActive: r.isActive,
@@ -170,6 +199,24 @@ export function PaymentDiscountsView() {
    maxStackCount: r.maxStackCount != null ? String(r.maxStackCount) : "",
    isLabelOnly: r.isLabelOnly,
    previewSubtotal: "1000",
+   tierRows:
+    r.lessonTiers?.tiers.length
+     ? r.lessonTiers.tiers.map((t) => ({
+        minLessons: String(t.minLessons),
+        amountOff: String(t.amountOff),
+       }))
+     : DEFAULT_TIER_ROWS.map((t) => ({
+        minLessons: String(t.minLessons),
+        amountOff: String(t.amountOff),
+       })),
+   groupMinSize:
+    r.groupEnrollmentRules?.minGroupSize != null
+     ? String(r.groupEnrollmentRules.minGroupSize)
+     : "3",
+   groupAmountPerStudent:
+    r.groupEnrollmentRules?.amountOffPerStudent != null
+     ? String(r.groupEnrollmentRules.amountOffPerStudent)
+     : "200",
    eligMinSubjectCount:
     r.eligibilityRules?.minSubjectCount != null ? String(r.eligibilityRules.minSubjectCount) : "",
    eligMinTotalLessons:
@@ -212,6 +259,41 @@ export function PaymentDiscountsView() {
   const amountOff = form.amountOff.trim() ? parseOptionalNumber(form.amountOff) : null
   const maxStackCount = form.maxStackCount.trim() ? parseOptionalNumber(form.maxStackCount) : null
 
+  let lessonTiers = null
+  if (isLessonTierKind(form.discountKind)) {
+   const tiers: LessonTierRow[] = []
+   for (const row of form.tierRows) {
+    const minLessons = parseOptionalNumber(row.minLessons)
+    const tierAmount = parseOptionalNumber(row.amountOff)
+    if (minLessons == null || tierAmount == null || minLessons < 1 || tierAmount < 0) {
+     return "階梯表每列須為有效堂數與減免金額"
+    }
+    tiers.push({ minLessons: Math.trunc(minLessons), amountOff: tierAmount })
+   }
+   if (tiers.length === 0) return "請至少設定一級階梯"
+   lessonTiers = { selection: "highest_only" as const, tiers }
+  }
+
+  let groupEnrollmentRules = null
+  if (form.discountKind === "group_class") {
+   const minGroupSize = parseOptionalNumber(form.groupMinSize)
+   const amountOffPerStudent = parseOptionalNumber(form.groupAmountPerStudent)
+   if (minGroupSize == null || minGroupSize < 2 || !Number.isInteger(minGroupSize)) {
+    return "自組人數下限須為 ≥ 2 的整數"
+   }
+   if (amountOffPerStudent == null || amountOffPerStudent < 0) {
+    return "每人減免須為有效金額"
+   }
+   groupEnrollmentRules = {
+    minGroupSize: Math.trunc(minGroupSize),
+    requireSameClassId: true,
+    requireEnrollmentPeriod: "兩期全報",
+    requireCourseMode: "summer_two_period",
+    requireJointPayment: true,
+    amountOffPerStudent,
+   }
+  }
+
   const minSubjectCount = form.eligMinSubjectCount.trim()
    ? Math.trunc(parseOptionalNumber(form.eligMinSubjectCount)!)
    : null
@@ -233,6 +315,7 @@ export function PaymentDiscountsView() {
 
   return {
    name: form.name.trim(),
+   discountKind: form.discountKind,
    percentOff,
    amountOff,
    isActive: form.isActive,
@@ -243,6 +326,8 @@ export function PaymentDiscountsView() {
    stackGroup: form.stackGroup.trim() || null,
    maxStackCount: maxStackCount != null ? Math.trunc(maxStackCount) : null,
    isLabelOnly: form.isLabelOnly,
+   lessonTiers,
+   groupEnrollmentRules,
    eligibilityRules,
   }
  }
@@ -379,6 +464,7 @@ export function PaymentDiscountsView() {
   return {
    id: "preview",
    name: input.name || "（試算）",
+   discountKind: input.discountKind ?? "fixed_amount",
    percentOff: input.percentOff,
    amountOff: input.amountOff,
    isActive: input.isActive,
@@ -389,6 +475,8 @@ export function PaymentDiscountsView() {
    stackGroup: input.stackGroup ?? null,
    maxStackCount: input.maxStackCount ?? null,
    isLabelOnly: input.isLabelOnly ?? false,
+   lessonTiers: input.lessonTiers ?? null,
+   groupEnrollmentRules: input.groupEnrollmentRules ?? null,
    eligibilityRules: input.eligibilityRules ?? null,
    createdAt: "",
    updatedAt: "",
@@ -589,6 +677,97 @@ export function PaymentDiscountsView() {
         placeholder="例如：舊生 95 折"
        />
       </div>
+      <div className="grid gap-1.5">
+       <label className="font-medium">優惠類型</label>
+       <select
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+        value={form.discountKind}
+        onChange={(e) =>
+         setForm((f) => ({ ...f, discountKind: e.target.value as DiscountKind }))
+        }
+       >
+        {DISCOUNT_KINDS.map((k) => (
+         <option key={k} value={k}>
+          {DISCOUNT_KIND_LABELS[k]}
+         </option>
+        ))}
+       </select>
+      </div>
+      {isLessonTierKind(form.discountKind) ? (
+       <div className="rounded-lg border border-border bg-muted/10 p-3">
+        <p className="mb-2 font-medium">堂數階梯（只取最高符合級）</p>
+        <div className="space-y-2">
+         {form.tierRows.map((row, idx) => (
+          <div key={idx} className="grid grid-cols-2 gap-2">
+           <Input
+            type="number"
+            min={1}
+            value={row.minLessons}
+            onChange={(e) =>
+             setForm((f) => ({
+              ...f,
+              tierRows: f.tierRows.map((r, i) =>
+               i === idx ? { ...r, minLessons: e.target.value } : r
+              ),
+             }))
+            }
+            placeholder="最少堂數"
+           />
+           <Input
+            type="number"
+            min={0}
+            value={row.amountOff}
+            onChange={(e) =>
+             setForm((f) => ({
+              ...f,
+              tierRows: f.tierRows.map((r, i) =>
+               i === idx ? { ...r, amountOff: e.target.value } : r
+              ),
+             }))
+            }
+            placeholder="減免 HKD"
+           />
+          </div>
+         ))}
+        </div>
+        <Button
+         type="button"
+         variant="outline"
+         size="sm"
+         className="mt-2"
+         onClick={() =>
+          setForm((f) => ({
+           ...f,
+           tierRows: [...f.tierRows, { minLessons: "", amountOff: "" }],
+          }))
+         }
+        >
+         新增階梯
+        </Button>
+       </div>
+      ) : null}
+      {form.discountKind === "group_class" ? (
+       <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+         <label className="font-medium">最少人數</label>
+         <Input
+          type="number"
+          min={2}
+          value={form.groupMinSize}
+          onChange={(e) => setForm((f) => ({ ...f, groupMinSize: e.target.value }))}
+         />
+        </div>
+        <div className="grid gap-1.5">
+         <label className="font-medium">每人減免 HKD</label>
+         <Input
+          type="number"
+          min={0}
+          value={form.groupAmountPerStudent}
+          onChange={(e) => setForm((f) => ({ ...f, groupAmountPerStudent: e.target.value }))}
+         />
+        </div>
+       </div>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-2">
        <div className="grid gap-1.5">
         <label className="font-medium">減免百分比（0–100）</label>

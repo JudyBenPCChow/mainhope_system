@@ -357,6 +357,8 @@ export type EnrollmentWithClass = {
  classId: string
  subject: string
  subjectCode: string | null
+ subjectCategory: string | null
+ teacherId: string | null
  courseCode: string | null
  courseName: string | null
  dayOfWeek: string | null
@@ -371,7 +373,7 @@ export async function fetchEnrollmentsForStudent(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code ) ) )"
+   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, teacher_id, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, category ) ) )"
   )
   .eq("student_id", studentId)
   .order("created_at", { ascending: false })
@@ -411,6 +413,8 @@ export async function fetchEnrollmentsForStudent(
    classId: String(r.class_id),
    subject: cls?.subject != null ? String(cls.subject) : "—",
    subjectCode: subjectRow?.code != null ? String(subjectRow.code).trim().toUpperCase() : null,
+   subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
+   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
    courseCode: cls?.course_code != null ? String(cls.course_code) : null,
    courseName: course?.course_name != null ? String(course.course_name) : null,
    dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,

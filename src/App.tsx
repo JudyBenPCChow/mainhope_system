@@ -17,6 +17,7 @@ import LeaveManagement from "@/pages/LeaveManagement"
 import Login from "@/pages/Login"
 import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
+import ReferralRebates from "@/pages/ReferralRebates"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
@@ -57,6 +58,7 @@ export default function App() {
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
+     <Route path="/ReferralRebates" element={<ReferralRebates />} />
      <Route path="/Calendar" element={<Calendar />} />
      <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />

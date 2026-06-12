@@ -1,15 +1,29 @@
-import { supabase } from "@/lib/supabaseClient"
+import {
+ groupEnrollmentRulesToDb,
+ isLessonTierKind,
+ isTuitionDiscountKind,
+ lessonTiersToDb,
+ parseDiscountKind,
+ parseGroupEnrollmentRules,
+ parseLessonTiers,
+ type DiscountKind,
+ type GroupEnrollmentRules,
+ type LessonTiersConfig,
+} from "@/lib/paymentDiscountKinds"
 import {
  buildPaymentEligibilityContext,
  eligibilityRulesToDb,
  parseEligibilityRules,
+ resolveDiscountAmountOff,
  type PaymentDiscountEligibilityRules,
  type PaymentEligibilityContext,
 } from "@/lib/paymentDiscountEligibility"
+import { supabase } from "@/lib/supabaseClient"
 
 export type PaymentDiscountRow = {
  id: string
  name: string
+ discountKind: DiscountKind
  percentOff: number | null
  amountOff: number | null
  isActive: boolean
@@ -20,6 +34,8 @@ export type PaymentDiscountRow = {
  stackGroup: string | null
  maxStackCount: number | null
  isLabelOnly: boolean
+ lessonTiers: LessonTiersConfig | null
+ groupEnrollmentRules: GroupEnrollmentRules | null
  eligibilityRules: PaymentDiscountEligibilityRules | null
  createdAt: string
  updatedAt: string
@@ -41,13 +57,18 @@ export type FetchActivePaymentDiscountsOptions = {
 export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscountRow {
  const percentOff = r.percent_off != null ? Number(r.percent_off) : null
  const amountOff = r.amount_off != null ? Number(r.amount_off) : null
+ const discountKind = parseDiscountKind(r.discount_kind)
  const explicitLabelOnly = Boolean(r.is_label_only ?? false)
  const isLabelOnly =
   explicitLabelOnly ||
-  ((percentOff == null || percentOff === 0) && (amountOff == null || amountOff === 0))
+  discountKind === "referral_referrer_cash" ||
+  (discountKind === "fixed_amount" &&
+   (percentOff == null || percentOff === 0) &&
+   (amountOff == null || amountOff === 0))
  return {
   id: String(r.id),
   name: String(r.name ?? ""),
+  discountKind,
   percentOff,
   amountOff,
   isActive: Boolean(r.is_active ?? true),
@@ -58,6 +79,8 @@ export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscou
   stackGroup: r.stack_group != null ? String(r.stack_group).trim() || null : null,
   maxStackCount: r.max_stack_count != null ? Number(r.max_stack_count) : null,
   isLabelOnly,
+  lessonTiers: parseLessonTiers(r.lesson_tiers),
+  groupEnrollmentRules: parseGroupEnrollmentRules(r.group_enrollment_rules),
   eligibilityRules: parseEligibilityRules(r.eligibility_rules),
   createdAt: String(r.created_at ?? ""),
   updatedAt: String(r.updated_at ?? ""),
@@ -130,6 +153,7 @@ export function validateDiscountSelection(
 
 export type PaymentDiscountWriteInput = {
  name: string
+ discountKind?: DiscountKind
  percentOff: number | null
  amountOff: number | null
  isActive: boolean
@@ -140,17 +164,24 @@ export type PaymentDiscountWriteInput = {
  stackGroup?: string | null
  maxStackCount?: number | null
  isLabelOnly?: boolean
+ lessonTiers?: LessonTiersConfig | null
+ groupEnrollmentRules?: GroupEnrollmentRules | null
  eligibilityRules?: PaymentDiscountEligibilityRules | null
 }
 
 function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
  const percentOff = row.percentOff
  const amountOff = row.amountOff
+ const discountKind = row.discountKind ?? "fixed_amount"
  const isLabelOnly =
   row.isLabelOnly ??
-  ((percentOff == null || percentOff === 0) && (amountOff == null || amountOff === 0))
+  (discountKind === "referral_referrer_cash" ||
+   (discountKind === "fixed_amount" &&
+    (percentOff == null || percentOff === 0) &&
+    (amountOff == null || amountOff === 0)))
  return {
   name: row.name.trim(),
+  discount_kind: discountKind,
   percent_off: percentOff,
   amount_off: amountOff,
   is_active: row.isActive,
@@ -161,6 +192,8 @@ function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
   stack_group: row.stackGroup?.trim() || null,
   max_stack_count: row.maxStackCount ?? null,
   is_label_only: isLabelOnly,
+  lesson_tiers: lessonTiersToDb(row.lessonTiers),
+  group_enrollment_rules: groupEnrollmentRulesToDb(row.groupEnrollmentRules),
   eligibility_rules: eligibilityRulesToDb(row.eligibilityRules),
  }
 }
@@ -238,6 +271,11 @@ export async function updatePaymentDiscount(
  if (patch.stackGroup !== undefined) payload.stack_group = patch.stackGroup?.trim() || null
  if (patch.maxStackCount !== undefined) payload.max_stack_count = patch.maxStackCount
  if (patch.isLabelOnly !== undefined) payload.is_label_only = patch.isLabelOnly
+ if (patch.discountKind !== undefined) payload.discount_kind = patch.discountKind
+ if (patch.lessonTiers !== undefined) payload.lesson_tiers = lessonTiersToDb(patch.lessonTiers)
+ if (patch.groupEnrollmentRules !== undefined) {
+  payload.group_enrollment_rules = groupEnrollmentRulesToDb(patch.groupEnrollmentRules)
+ }
  if (patch.eligibilityRules !== undefined) {
   payload.eligibility_rules = eligibilityRulesToDb(patch.eligibilityRules)
  }
@@ -343,20 +381,34 @@ export function discountRowFromApplication(
   academicYear: null,
   stackGroup: null,
   maxStackCount: null,
+  discountKind: "fixed_amount",
   isLabelOnly:
    (percentOff == null || percentOff === 0) && (amountOff == null || amountOff === 0),
+  lessonTiers: null,
+  groupEnrollmentRules: null,
   eligibilityRules: null,
   createdAt: "",
   updatedAt: "",
  }
 }
 
-/** 後端：由 payment_details 輸入建立資格上下文（科目代碼來自 classes → courses → subjects） */
+export function filterTuitionDiscounts(discounts: PaymentDiscountRow[]): PaymentDiscountRow[] {
+ return discounts.filter((d) => isTuitionDiscountKind(d.discountKind))
+}
+
+/** 後端：由 payment_details 輸入建立資格上下文 */
 export async function fetchPaymentEligibilityContextFromDetails(
- details: Array<{ classId: string | null; lessonCount: number | null }>
+ details: Array<{ classId: string | null; lessonCount: number | null }>,
+ opts?: {
+  siblingExtraLessons?: number
+  isNewStudent?: boolean
+  batchMemberCount?: number
+  batchSharedClassId?: string | null
+  referrerStudentId?: string | null
+ }
 ): Promise<PaymentEligibilityContext> {
  if (!supabase) {
-  return { subjectCount: 0, totalLessons: 0, subjectCodes: [], lines: [] }
+  return { subjectCount: 0, totalLessons: 0, tierTotalLessons: 0, subjectCodes: [], subjectCategories: [], lines: [] }
  }
  const classIds = [
   ...new Set(
@@ -366,53 +418,99 @@ export async function fetchPaymentEligibilityContextFromDetails(
   ),
  ]
  if (classIds.length === 0) {
-  return { subjectCount: 0, totalLessons: 0, subjectCodes: [], lines: [] }
+  return { subjectCount: 0, totalLessons: 0, tierTotalLessons: 0, subjectCodes: [], subjectCategories: [], lines: [] }
  }
  const { data, error } = await supabase
   .from("classes")
-  .select("id, courses ( subjects ( code ) )")
+  .select(
+   "id, teacher_id, day_of_week, time_slot, courses ( course_mode, subjects ( code, category ) )"
+  )
   .in("id", classIds)
  if (error) throw error
- const codeByClassId = new Map<string, string>()
+ const metaByClassId = new Map<string, Record<string, unknown>>()
  for (const row of data ?? []) {
-  const r = row as Record<string, unknown>
-  const course = r.courses as Record<string, unknown> | null
-  const subject = course?.subjects as Record<string, unknown> | null
-  const code = subject?.code != null ? String(subject.code).trim().toUpperCase() : ""
-  if (code) codeByClassId.set(String(r.id), code)
+  metaByClassId.set(String((row as { id: unknown }).id), row as Record<string, unknown>)
  }
  return buildPaymentEligibilityContext(
   details.map((d) => ({
    classId: d.classId ?? "",
    lessons: d.lessonCount ?? 0,
   })),
-  (classId) => codeByClassId.get(classId) ?? null
+  (classId) => {
+   const r = metaByClassId.get(classId)
+   if (!r) return null
+   const course = r.courses as Record<string, unknown> | null
+   const subject = course?.subjects as Record<string, unknown> | null
+   return {
+    subjectCode: subject?.code != null ? String(subject.code) : null,
+    subjectCategory: subject?.category != null ? String(subject.category) : null,
+    courseMode: course?.course_mode != null ? String(course.course_mode) : "regular",
+    teacherId: r.teacher_id != null ? String(r.teacher_id) : null,
+    timeSlot: r.time_slot != null ? String(r.time_slot) : null,
+    dayOfWeek: r.day_of_week != null ? String(r.day_of_week) : null,
+    enrollmentPeriod: "兩期全報",
+   }
+  },
+  opts
  )
 }
 
+/** 套用單項固定減免（含階梯解析後金額） */
+export function applyFixedDiscountAmount(subtotal: number, amountOff: number): number {
+ if (subtotal <= 0 || amountOff <= 0) return Math.round(subtotal * 100) / 100
+ return Math.round(Math.max(0, subtotal - amountOff) * 100) / 100
+}
+
 /** 套用優惠：先百分比再固定減免；四捨五入至 2 位小數 */
-export function applyDiscountToSubtotal(subtotal: number, d: PaymentDiscountRow | null): number {
- if (!d || subtotal <= 0 || d.isLabelOnly) return Math.round(subtotal * 100) / 100
+export function applyDiscountToSubtotal(
+ subtotal: number,
+ d: PaymentDiscountRow | null,
+ ctx?: PaymentEligibilityContext,
+ amountOverride?: number
+): number {
+ if (!d || subtotal <= 0) return Math.round(subtotal * 100) / 100
+ const fixedAmount =
+  amountOverride ??
+  (ctx != null ? resolveDiscountAmountOff(d, ctx) : d.amountOff ?? 0)
+ if (d.isLabelOnly && fixedAmount <= 0) return Math.round(subtotal * 100) / 100
  let t = subtotal
- if (d.percentOff != null && d.percentOff > 0) {
+ if (d.percentOff != null && d.percentOff > 0 && !isLessonTierKind(d.discountKind)) {
   t = t * (1 - Math.min(100, d.percentOff) / 100)
  }
- if (d.amountOff != null && d.amountOff > 0) {
-  t = Math.max(0, t - d.amountOff)
+ if (fixedAmount > 0) {
+  t = Math.max(0, t - fixedAmount)
  }
  return Math.round(t * 100) / 100
 }
 
-/** 依序套用多項優惠（各項內先百分比再固定減免；順序依 sort_order） */
+/** 依序套用多項學費優惠（不含現金回贈類） */
 export function applyDiscountsToSubtotal(
  subtotal: number,
- discounts: PaymentDiscountRow[]
+ discounts: PaymentDiscountRow[],
+ ctx?: PaymentEligibilityContext
 ): number {
  let t = subtotal
- for (const d of orderDiscountsBySortOrder(discounts)) {
-  t = applyDiscountToSubtotal(t, d)
+ const tuition = filterTuitionDiscounts(orderDiscountsBySortOrder(discounts))
+ for (const d of tuition) {
+  t = applyDiscountToSubtotal(t, d, ctx)
  }
  return Math.round(t * 100) / 100
+}
+
+export function computeDiscountApplicationsForContext(
+ subtotal: number,
+ discounts: PaymentDiscountRow[],
+ ctx: PaymentEligibilityContext
+): Array<{ discountId: string; sortOrder: number; amountDeducted: number }> {
+ let running = subtotal
+ const tuition = filterTuitionDiscounts(orderDiscountsBySortOrder(discounts))
+ return tuition.map((d, sortOrder) => {
+  const before = running
+  const after = applyDiscountToSubtotal(before, d, ctx)
+  const amountDeducted = Math.round((before - after) * 100) / 100
+  running = after
+  return { discountId: d.id, sortOrder, amountDeducted }
+ })
 }
 
 /** 判斷優惠 checkbox 是否應禁用（互斥群組或達疊加上限） */

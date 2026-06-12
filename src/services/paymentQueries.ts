@@ -1,11 +1,14 @@
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
+import { createPaymentBatch } from "@/services/paymentBatchQueries"
+import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import {
  applyDiscountsToSubtotal,
  fetchActivePaymentDiscounts,
  fetchPaymentEligibilityContextFromDetails,
+ filterTuitionDiscounts,
  isDiscountInEffect,
  mapPaymentDiscountRow,
  resolveDiscountIdsFromCatalog,
@@ -302,6 +305,14 @@ export async function insertPaymentRecord(params: {
  paymentDateForDiscounts?: string
  /** 學年 label（驗證優惠學年 scope） */
  academicYearForDiscounts?: string | null
+ siblingExtraLessons?: number
+ isNewStudent?: boolean
+ paymentBatchId?: string | null
+ createPaymentBatchIfNeeded?: boolean
+ batchMemberCount?: number
+ batchSharedClassId?: string | null
+ referrerStudentId?: string | null
+ createReferralRecord?: boolean
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
 
@@ -354,7 +365,14 @@ export async function insertPaymentRecord(params: {
   if (selectionErr) throw new Error(selectionErr)
 
   const eligibilityCtx = await fetchPaymentEligibilityContextFromDetails(
-   params.details?.map((d) => ({ classId: d.classId, lessonCount: d.lessonCount })) ?? []
+   params.details?.map((d) => ({ classId: d.classId, lessonCount: d.lessonCount })) ?? [],
+   {
+    siblingExtraLessons: params.siblingExtraLessons ?? 0,
+    isNewStudent: params.isNewStudent,
+    batchMemberCount: params.batchMemberCount,
+    batchSharedClassId: params.batchSharedClassId ?? null,
+    referrerStudentId: params.referrerStudentId ?? null,
+   }
   )
   for (const d of orderedDiscounts) {
    const avail = evaluateDiscountAvailability(d, eligibilityCtx, {
@@ -366,11 +384,20 @@ export async function insertPaymentRecord(params: {
    }
   }
 
-  discountApplications = computeDiscountApplicationsForSave(subtotalAmount, orderedDiscounts)
-  const expectedTotal = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts)
+  discountApplications = computeDiscountApplicationsForSave(
+   subtotalAmount,
+   orderedDiscounts,
+   eligibilityCtx
+  )
+  const expectedTotal = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts, eligibilityCtx)
   if (Math.abs(expectedTotal - totalAmount) > 0.01) {
    throw new Error("應繳總額與優惠試算結果不一致，請重新整理後再試")
   }
+ }
+
+ let batchId = params.paymentBatchId ?? null
+ if (params.createPaymentBatchIfNeeded && !batchId) {
+  batchId = await createPaymentBatch(params.paymentDate, params.remarks ?? null)
  }
 
  let paymentId: string | null = null
@@ -387,7 +414,8 @@ export async function insertPaymentRecord(params: {
     status: params.status,
     remarks: params.remarks?.trim() || null,
     receipt_number: receipt,
-    payment_discount_id: orderedDiscounts[0]?.id ?? null,
+    payment_discount_id: filterTuitionDiscounts(orderedDiscounts)[0]?.id ?? null,
+    payment_batch_id: batchId,
    })
    .select("id")
    .single()
@@ -424,6 +452,22 @@ export async function insertPaymentRecord(params: {
    }))
   )
   if (e3) throw e3
+ }
+
+ if (
+  params.createReferralRecord &&
+  params.referrerStudentId &&
+  orderedDiscounts.some((d) => d.discountKind === "referral_referee")
+ ) {
+  const refereeDisc = orderedDiscounts.find((d) => d.discountKind === "referral_referee")
+  const cashDisc = orderedDiscounts.find((d) => d.discountKind === "referral_referrer_cash")
+  await insertReferralRecord({
+   referrerStudentId: params.referrerStudentId,
+   refereeStudentId: params.studentId,
+   paymentId,
+   refereeDiscountAmount: refereeDisc?.amountOff ?? 100,
+   referrerRebateAmount: cashDisc?.amountOff ?? 100,
+  })
  }
 
  return paymentId
