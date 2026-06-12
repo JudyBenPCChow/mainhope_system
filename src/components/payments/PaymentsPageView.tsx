@@ -31,6 +31,10 @@ import { formatClassLabel } from "@/lib/courseLabel"
 import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
+import {
+ buildPaymentEligibilityContext,
+ evaluateDiscountAvailability,
+} from "@/lib/paymentDiscountEligibility"
 import { printPayment, printPaymentForStatus } from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -51,7 +55,7 @@ import {
 } from "@/services/paymentQueries"
 import {
  applyDiscountsToSubtotal,
- fetchActivePaymentDiscounts,
+ fetchPaymentFormDiscounts,
  getGlobalMaxStackCount,
  isDiscountCheckboxDisabled,
  resolveSelectedDiscounts,
@@ -235,7 +239,36 @@ export function PaymentsPageView() {
   [discountIds, discounts]
  )
 
+ const paymentEligibilityCtx = useMemo(
+  () =>
+   buildPaymentEligibilityContext(lines, (classId) => {
+    const code = enrollmentByClass.get(classId)?.subjectCode
+    return code ?? null
+   }),
+  [lines, enrollmentByClass]
+ )
+
+ const discountAvailability = useMemo(() => {
+  const map = new Map<string, ReturnType<typeof evaluateDiscountAvailability>>()
+  for (const d of discounts) {
+   map.set(
+    d.id,
+    evaluateDiscountAvailability(d, paymentEligibilityCtx, {
+     asOfDate: payDate,
+     academicYear: paymentAcademicYear,
+    })
+   )
+  }
+  return map
+ }, [discounts, paymentEligibilityCtx, payDate, paymentAcademicYear])
+
  const maxStackCount = useMemo(() => getGlobalMaxStackCount(discounts), [discounts])
+
+ useEffect(() => {
+  setDiscountIds((prev) =>
+   prev.filter((id) => discountAvailability.get(id)?.eligible !== false)
+  )
+ }, [discountAvailability])
 
  const totalDue = useMemo(
   () => applyDiscountsToSubtotal(subtotal, selectedDiscounts),
@@ -250,16 +283,13 @@ export function PaymentsPageView() {
  const loadBasics = useCallback(async () => {
   if (!isSupabaseConfigured) return
   try {
-   const [st, disc] = await Promise.all([
-    fetchAllStudents(),
-    fetchActivePaymentDiscounts({ asOfDate: payDate, academicYear: paymentAcademicYear }),
-   ])
+   const [st, disc] = await Promise.all([fetchAllStudents(), fetchPaymentFormDiscounts()])
    setStudents(st)
    setDiscounts(disc)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadBasics", setErr: setFormErr })
   }
- }, [payDate, paymentAcademicYear])
+ }, [])
 
  useEffect(() => {
   void loadBasics()
@@ -424,6 +454,11 @@ export function PaymentsPageView() {
  }
 
  const toggleDiscount = (id: string) => {
+  const avail = discountAvailability.get(id)
+  if (avail && !avail.eligible) {
+   setFormErr(avail.reason ?? "不符合此優惠資格")
+   return
+  }
   setDiscountIds((prev) => {
    if (prev.includes(id)) return prev.filter((x) => x !== id)
    const nextIds = [...prev, id]
@@ -905,29 +940,46 @@ export function PaymentsPageView() {
           <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
          ) : (
           discounts.map((d) => {
+           const avail = discountAvailability.get(d.id)
+           const eligibilityBlocked = avail != null && !avail.eligible
+           const stackBlocked =
+            !eligibilityBlocked &&
+            isDiscountCheckboxDisabled(d, discountIds, discounts)
            const checkboxDisabled =
             !selectedStudent ||
             enrollments.length === 0 ||
-            isDiscountCheckboxDisabled(d, discountIds, discounts)
+            eligibilityBlocked ||
+            stackBlocked
            return (
-            <label
-             key={d.id}
-             className={cn(
-              "flex items-center gap-2 text-sm",
-              checkboxDisabled && !discountIds.includes(d.id)
-               ? "cursor-not-allowed opacity-50"
-               : "cursor-pointer"
-             )}
-            >
-             <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-input"
-              checked={discountIds.includes(d.id)}
-              disabled={checkboxDisabled}
-              onChange={() => toggleDiscount(d.id)}
-             />
-             {discountOptionLabel(d)}
-            </label>
+            <div key={d.id} className="space-y-0.5">
+             <label
+              className={cn(
+               "flex items-center gap-2 text-sm",
+               checkboxDisabled && !discountIds.includes(d.id)
+                ? "cursor-not-allowed opacity-60"
+                : "cursor-pointer"
+              )}
+             >
+              <input
+               type="checkbox"
+               className="h-4 w-4 rounded border-input"
+               checked={discountIds.includes(d.id)}
+               disabled={checkboxDisabled}
+               onChange={() => toggleDiscount(d.id)}
+              />
+              {discountOptionLabel(d)}
+             </label>
+             {eligibilityBlocked && avail?.reason ? (
+              <p className="pl-6 text-xs text-muted-foreground">{avail.reason}</p>
+             ) : null}
+             {stackBlocked && !eligibilityBlocked ? (
+              <p className="pl-6 text-xs text-muted-foreground">
+               {maxStackCount != null && discountIds.length >= maxStackCount
+                ? `每單最多 ${maxStackCount} 項優惠`
+                : "與已選優惠互斥或不可疊加"}
+              </p>
+             ) : null}
+            </div>
            )
           })
          )}

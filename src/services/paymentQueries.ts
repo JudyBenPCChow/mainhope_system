@@ -1,9 +1,11 @@
+import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import {
  applyDiscountsToSubtotal,
  fetchActivePaymentDiscounts,
+ fetchPaymentEligibilityContextFromDetails,
  isDiscountInEffect,
  mapPaymentDiscountRow,
  resolveDiscountIdsFromCatalog,
@@ -350,6 +352,19 @@ export async function insertPaymentRecord(params: {
   })
   const selectionErr = validateDiscountSelection(orderedDiscounts, activeCatalog)
   if (selectionErr) throw new Error(selectionErr)
+
+  const eligibilityCtx = await fetchPaymentEligibilityContextFromDetails(
+   params.details?.map((d) => ({ classId: d.classId, lessonCount: d.lessonCount })) ?? []
+  )
+  for (const d of orderedDiscounts) {
+   const avail = evaluateDiscountAvailability(d, eligibilityCtx, {
+    asOfDate,
+    academicYear: params.academicYearForDiscounts ?? null,
+   })
+   if (!avail.eligible) {
+    throw new Error(`優惠「${d.name}」不符合資格：${avail.reason ?? "條件未達"}`)
+   }
+  }
 
   discountApplications = computeDiscountApplicationsForSave(subtotalAmount, orderedDiscounts)
   const expectedTotal = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts)

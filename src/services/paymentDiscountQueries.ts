@@ -1,4 +1,11 @@
 import { supabase } from "@/lib/supabaseClient"
+import {
+ buildPaymentEligibilityContext,
+ eligibilityRulesToDb,
+ parseEligibilityRules,
+ type PaymentDiscountEligibilityRules,
+ type PaymentEligibilityContext,
+} from "@/lib/paymentDiscountEligibility"
 
 export type PaymentDiscountRow = {
  id: string
@@ -13,6 +20,7 @@ export type PaymentDiscountRow = {
  stackGroup: string | null
  maxStackCount: number | null
  isLabelOnly: boolean
+ eligibilityRules: PaymentDiscountEligibilityRules | null
  createdAt: string
  updatedAt: string
 }
@@ -50,6 +58,7 @@ export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscou
   stackGroup: r.stack_group != null ? String(r.stack_group).trim() || null : null,
   maxStackCount: r.max_stack_count != null ? Number(r.max_stack_count) : null,
   isLabelOnly,
+  eligibilityRules: parseEligibilityRules(r.eligibility_rules),
   createdAt: String(r.created_at ?? ""),
   updatedAt: String(r.updated_at ?? ""),
  }
@@ -131,6 +140,7 @@ export type PaymentDiscountWriteInput = {
  stackGroup?: string | null
  maxStackCount?: number | null
  isLabelOnly?: boolean
+ eligibilityRules?: PaymentDiscountEligibilityRules | null
 }
 
 function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
@@ -151,6 +161,7 @@ function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
   stack_group: row.stackGroup?.trim() || null,
   max_stack_count: row.maxStackCount ?? null,
   is_label_only: isLabelOnly,
+  eligibility_rules: eligibilityRulesToDb(row.eligibilityRules),
  }
 }
 
@@ -161,6 +172,19 @@ function filterActiveDiscountRows(
  const asOf = opts?.asOfDate ?? todayYmd()
  const academicYear = opts?.academicYear ?? null
  return rows.filter((d) => d.isActive && isDiscountInEffect(d, { asOfDate: asOf, academicYear }))
+}
+
+/** 繳費表單用：所有啟用中優惠（不在此過濾有效期／學年，改由 UI 顯示不可選原因） */
+export async function fetchPaymentFormDiscounts(): Promise<PaymentDiscountRow[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("payment_discounts")
+  .select("*")
+  .eq("is_active", true)
+  .order("sort_order", { ascending: true })
+  .order("name", { ascending: true })
+ if (error) throw error
+ return (data ?? []).map((x) => mapPaymentDiscountRow(x as Record<string, unknown>))
 }
 
 /** 繳費表單用：啟用中且在有效期／學年內的優惠，依 sort_order */
@@ -214,6 +238,9 @@ export async function updatePaymentDiscount(
  if (patch.stackGroup !== undefined) payload.stack_group = patch.stackGroup?.trim() || null
  if (patch.maxStackCount !== undefined) payload.max_stack_count = patch.maxStackCount
  if (patch.isLabelOnly !== undefined) payload.is_label_only = patch.isLabelOnly
+ if (patch.eligibilityRules !== undefined) {
+  payload.eligibility_rules = eligibilityRulesToDb(patch.eligibilityRules)
+ }
  if (patch.percentOff !== undefined || patch.amountOff !== undefined || patch.isLabelOnly !== undefined) {
   const percentOff = patch.percentOff
   const amountOff = patch.amountOff
@@ -318,9 +345,49 @@ export function discountRowFromApplication(
   maxStackCount: null,
   isLabelOnly:
    (percentOff == null || percentOff === 0) && (amountOff == null || amountOff === 0),
+  eligibilityRules: null,
   createdAt: "",
   updatedAt: "",
  }
+}
+
+/** 後端：由 payment_details 輸入建立資格上下文（科目代碼來自 classes → courses → subjects） */
+export async function fetchPaymentEligibilityContextFromDetails(
+ details: Array<{ classId: string | null; lessonCount: number | null }>
+): Promise<PaymentEligibilityContext> {
+ if (!supabase) {
+  return { subjectCount: 0, totalLessons: 0, subjectCodes: [], lines: [] }
+ }
+ const classIds = [
+  ...new Set(
+   details
+    .map((d) => d.classId?.trim())
+    .filter((id): id is string => Boolean(id))
+  ),
+ ]
+ if (classIds.length === 0) {
+  return { subjectCount: 0, totalLessons: 0, subjectCodes: [], lines: [] }
+ }
+ const { data, error } = await supabase
+  .from("classes")
+  .select("id, courses ( subjects ( code ) )")
+  .in("id", classIds)
+ if (error) throw error
+ const codeByClassId = new Map<string, string>()
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const course = r.courses as Record<string, unknown> | null
+  const subject = course?.subjects as Record<string, unknown> | null
+  const code = subject?.code != null ? String(subject.code).trim().toUpperCase() : ""
+  if (code) codeByClassId.set(String(r.id), code)
+ }
+ return buildPaymentEligibilityContext(
+  details.map((d) => ({
+   classId: d.classId ?? "",
+   lessons: d.lessonCount ?? 0,
+  })),
+  (classId) => codeByClassId.get(classId) ?? null
+ )
 }
 
 /** 套用優惠：先百分比再固定減免；四捨五入至 2 位小數 */

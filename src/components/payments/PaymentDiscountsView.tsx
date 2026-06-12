@@ -9,6 +9,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -27,6 +28,7 @@ import {
  type PaymentDiscountUsageStats,
  type PaymentDiscountWriteInput,
 } from "@/services/paymentDiscountQueries"
+import { fetchSubjectOptions, type SubjectOption } from "@/services/classQueries"
 
 function formatErr(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -69,6 +71,8 @@ function summarizeScope(r: PaymentDiscountRow): string {
  if (r.academicYear) parts.push(`學年 ${r.academicYear}`)
  if (r.stackGroup) parts.push(`互斥：${r.stackGroup}`)
  if (r.maxStackCount != null) parts.push(`每單≤${r.maxStackCount}項`)
+ const elig = summarizeEligibilityRules(r.eligibilityRules)
+ if (elig) parts.push(`資格：${elig}`)
  return parts.length > 0 ? parts.join("；") : "—"
 }
 
@@ -85,6 +89,10 @@ const emptyForm = {
  maxStackCount: "",
  isLabelOnly: false,
  previewSubtotal: "1000",
+ eligMinSubjectCount: "",
+ eligMinTotalLessons: "",
+ eligRequiredCodes: [] as string[],
+ eligAnyCodes: [] as string[],
 }
 
 export function PaymentDiscountsView() {
@@ -100,6 +108,7 @@ export function PaymentDiscountsView() {
  const [saving, setSaving] = useState(false)
  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
  const [dragId, setDragId] = useState<string | null>(null)
+ const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([])
  const rowsRef = useRef(rows)
  useEffect(() => {
   rowsRef.current = rows
@@ -132,6 +141,9 @@ export function PaymentDiscountsView() {
 
  useEffect(() => {
   void load()
+  if (isSupabaseConfigured) {
+   void fetchSubjectOptions().then(setSubjectOptions).catch(() => setSubjectOptions([]))
+  }
  }, [load])
 
  const openCreate = () => {
@@ -158,6 +170,12 @@ export function PaymentDiscountsView() {
    maxStackCount: r.maxStackCount != null ? String(r.maxStackCount) : "",
    isLabelOnly: r.isLabelOnly,
    previewSubtotal: "1000",
+   eligMinSubjectCount:
+    r.eligibilityRules?.minSubjectCount != null ? String(r.eligibilityRules.minSubjectCount) : "",
+   eligMinTotalLessons:
+    r.eligibilityRules?.minTotalLessons != null ? String(r.eligibilityRules.minTotalLessons) : "",
+   eligRequiredCodes: [...(r.eligibilityRules?.requiredSubjectCodes ?? [])],
+   eligAnyCodes: [...(r.eligibilityRules?.requireAnySubjectCodes ?? [])],
   })
   setDialogOpen(true)
  }
@@ -181,10 +199,37 @@ export function PaymentDiscountsView() {
   }
   const sortN = parseOptionalNumber(form.sortOrder)
   if (form.sortOrder.trim() && sortN == null) return "排序須為有效數字"
+  if (form.eligMinSubjectCount.trim()) {
+   const n = parseOptionalNumber(form.eligMinSubjectCount)
+   if (n == null || n < 1 || !Number.isInteger(n)) return "最少科目數須為 ≥ 1 的整數"
+  }
+  if (form.eligMinTotalLessons.trim()) {
+   const n = parseOptionalNumber(form.eligMinTotalLessons)
+   if (n == null || n < 1 || !Number.isInteger(n)) return "最少堂數須為 ≥ 1 的整數"
+  }
 
   const percentOff = form.percentOff.trim() ? parseOptionalNumber(form.percentOff) : null
   const amountOff = form.amountOff.trim() ? parseOptionalNumber(form.amountOff) : null
   const maxStackCount = form.maxStackCount.trim() ? parseOptionalNumber(form.maxStackCount) : null
+
+  const minSubjectCount = form.eligMinSubjectCount.trim()
+   ? Math.trunc(parseOptionalNumber(form.eligMinSubjectCount)!)
+   : null
+  const minTotalLessons = form.eligMinTotalLessons.trim()
+   ? Math.trunc(parseOptionalNumber(form.eligMinTotalLessons)!)
+   : null
+  const eligibilityRules =
+   minSubjectCount != null ||
+   minTotalLessons != null ||
+   form.eligRequiredCodes.length > 0 ||
+   form.eligAnyCodes.length > 0
+    ? {
+       minSubjectCount,
+       minTotalLessons,
+       requiredSubjectCodes: form.eligRequiredCodes.length > 0 ? form.eligRequiredCodes : null,
+       requireAnySubjectCodes: form.eligAnyCodes.length > 0 ? form.eligAnyCodes : null,
+      }
+    : null
 
   return {
    name: form.name.trim(),
@@ -198,6 +243,7 @@ export function PaymentDiscountsView() {
    stackGroup: form.stackGroup.trim() || null,
    maxStackCount: maxStackCount != null ? Math.trunc(maxStackCount) : null,
    isLabelOnly: form.isLabelOnly,
+   eligibilityRules,
   }
  }
 
@@ -343,6 +389,7 @@ export function PaymentDiscountsView() {
    stackGroup: input.stackGroup ?? null,
    maxStackCount: input.maxStackCount ?? null,
    isLabelOnly: input.isLabelOnly ?? false,
+   eligibilityRules: input.eligibilityRules ?? null,
    createdAt: "",
    updatedAt: "",
   }
@@ -639,6 +686,90 @@ export function PaymentDiscountsView() {
          onChange={(e) => setForm((f) => ({ ...f, sortOrder: e.target.value }))}
         />
        </div>
+      </div>
+      <div className="rounded-lg border border-border bg-muted/10 p-3">
+       <p className="mb-2 font-medium">繳費資格（選填）</p>
+       <p className="mb-3 text-xs text-muted-foreground">
+        依本次繳費明細的科目代碼（subjects.code）判斷；不符合時繳費頁仍顯示但不可選。
+       </p>
+       <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-1.5">
+         <label className="font-medium">最少科目數</label>
+         <Input
+          type="number"
+          min={1}
+          step={1}
+          value={form.eligMinSubjectCount}
+          onChange={(e) => setForm((f) => ({ ...f, eligMinSubjectCount: e.target.value }))}
+          placeholder="例如 2"
+         />
+        </div>
+        <div className="grid gap-1.5">
+         <label className="font-medium">最少總堂數</label>
+         <Input
+          type="number"
+          min={1}
+          step={1}
+          value={form.eligMinTotalLessons}
+          onChange={(e) => setForm((f) => ({ ...f, eligMinTotalLessons: e.target.value }))}
+          placeholder="例如 8"
+         />
+        </div>
+       </div>
+       {subjectOptions.length > 0 ? (
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+         <div>
+          <p className="mb-1.5 text-xs font-medium">必須包含科目（全選才符合）</p>
+          <div className="max-h-32 space-y-1 overflow-y-auto rounded border border-input p-2">
+           {subjectOptions.map((s) => (
+            <label key={`req-${s.code}`} className="flex cursor-pointer items-center gap-2 text-xs">
+             <input
+              type="checkbox"
+              checked={form.eligRequiredCodes.includes(s.code)}
+              onChange={() =>
+               setForm((f) => ({
+                ...f,
+                eligRequiredCodes: f.eligRequiredCodes.includes(s.code)
+                 ? f.eligRequiredCodes.filter((c) => c !== s.code)
+                 : [...f.eligRequiredCodes, s.code],
+               }))
+              }
+             />
+             <span>
+              {s.code} · {s.name_zh}
+             </span>
+            </label>
+           ))}
+          </div>
+         </div>
+         <div>
+          <p className="mb-1.5 text-xs font-medium">另外需包含其中一科</p>
+          <div className="max-h-32 space-y-1 overflow-y-auto rounded border border-input p-2">
+           {subjectOptions.map((s) => (
+            <label key={`any-${s.code}`} className="flex cursor-pointer items-center gap-2 text-xs">
+             <input
+              type="checkbox"
+              checked={form.eligAnyCodes.includes(s.code)}
+              onChange={() =>
+               setForm((f) => ({
+                ...f,
+                eligAnyCodes: f.eligAnyCodes.includes(s.code)
+                 ? f.eligAnyCodes.filter((c) => c !== s.code)
+                 : [...f.eligAnyCodes, s.code],
+               }))
+              }
+             />
+             <span>
+              {s.code} · {s.name_zh}
+             </span>
+            </label>
+           ))}
+          </div>
+         </div>
+        </div>
+       ) : (
+        <p className="mt-2 text-xs text-muted-foreground">載入科目清單中…</p>
+       )}
       </div>
       <label className="flex cursor-pointer items-center gap-2">
        <input
