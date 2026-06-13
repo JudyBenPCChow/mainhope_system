@@ -6,6 +6,7 @@ import {
  lessonSlotStartMinute,
  parseHm,
 } from "@/lib/lessonSlots"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
@@ -169,26 +170,32 @@ async function loadEnrollmentNameMapForClassIds(
  const enrollMap = new Map<string, string[]>()
  if (!supabase || classIds.length === 0) return enrollMap
 
- const enrollRes = await supabase
-  .from("student_class_enrollments")
-  .select("class_id, students ( full_name )")
-  .eq("status", "就讀中")
-  .in("class_id", classIds)
+ try {
+  const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const enrollRes = await supabase!
+    .from("student_class_enrollments")
+    .select("class_id, students ( full_name )")
+    .eq("status", "就讀中")
+    .in("class_id", slice)
+   if (enrollRes.error) throw enrollRes.error
+   return enrollRes.data ?? []
+  })
 
- if (enrollRes.error) {
-  console.warn("[dashboard] enrollments:", enrollRes.error.message)
+  for (const data of chunks) {
+   for (const er of data) {
+    const row = er as Record<string, unknown>
+    const cid = String(row.class_id)
+    const st = row.students as Record<string, unknown> | null
+    const name = st?.full_name != null ? String(st.full_name) : null
+    if (!name) continue
+    const arr = enrollMap.get(cid) ?? []
+    arr.push(name)
+    enrollMap.set(cid, arr)
+   }
+  }
+ } catch (error) {
+  console.warn("[dashboard] enrollments:", error instanceof Error ? error.message : error)
   return enrollMap
- }
-
- for (const er of enrollRes.data ?? []) {
-  const row = er as Record<string, unknown>
-  const cid = String(row.class_id)
-  const st = row.students as Record<string, unknown> | null
-  const name = st?.full_name != null ? String(st.full_name) : null
-  if (!name) continue
-  const arr = enrollMap.get(cid) ?? []
-  arr.push(name)
-  enrollMap.set(cid, arr)
  }
  for (const [k, arr] of enrollMap) {
   arr.sort((a, b) => a.localeCompare(b, "zh-Hant"))

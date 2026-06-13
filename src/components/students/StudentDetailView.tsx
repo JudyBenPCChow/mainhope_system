@@ -233,7 +233,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 
  const reloadSubs = useCallback(async () => {
   if (!sid) return
-  const [e, p, a, l, fs, h, rel, paidLessons] = await Promise.all([
+  const settled = await Promise.allSettled([
    fetchEnrollmentsForStudent(sid),
    fetchPaymentsForStudent(sid),
    fetchAttendanceForStudent(sid),
@@ -243,22 +243,35 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    fetchRelativesForStudent(sid),
    fetchTotalPaidLessonsForStudent(sid),
   ])
-  setEnrollments(e)
-  setPayments(p)
-  setTotalPaidLessons(paidLessons)
-  setAttendance(a)
-  setLeaves(l)
+  const pick = <T,>(i: number, fallback: T): T =>
+   settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<T>).value : fallback
+
+  if (settled[0].status === "rejected") {
+   console.error("[StudentDetailView] enrollments", settled[0].reason)
+  }
+  setEnrollments(pick(0, []))
+  setPayments(pick(1, []))
+  setTotalPaidLessons(pick(7, null))
+  setAttendance(pick(2, []))
+  setLeaves(pick(3, []))
+  const fs = pick(4, [] as StudentUpcomingScheduleRow[])
   setFutureSchedules(fs)
+  setHistory(pick(5, []))
+  setRelatives(pick(6, []))
+
   const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
   for (const row of fs) {
    const arr = byClass.get(row.class_id) ?? []
    arr.push({ id: row.id, scheduled_date: row.scheduled_date })
    byClass.set(row.class_id, arr)
   }
-  const hints = await fetchScheduleStudentHintsByClass(byClass)
-  setFutureScheduleHints(hints)
-  setHistory(h)
-  setRelatives(rel)
+  try {
+   const hints = await fetchScheduleStudentHintsByClass(byClass)
+   setFutureScheduleHints(hints)
+  } catch (e) {
+   console.error("[StudentDetailView] schedule hints", e)
+   setFutureScheduleHints(new Map())
+  }
  }, [sid])
 
  const loadAll = useCallback(async () => {

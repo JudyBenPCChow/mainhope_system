@@ -1,4 +1,5 @@
 import { formatClassLabel } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
@@ -76,15 +77,20 @@ function mapScheduleRow(
 export async function fetchEnrollmentCountByClass(classIds: string[]): Promise<Map<string, number>> {
  const m = new Map<string, number>()
  if (!supabase || classIds.length === 0) return m
- const { data, error } = await supabase
-  .from("student_class_enrollments")
-  .select("class_id")
-  .in("class_id", classIds)
-  .eq("status", "就讀中")
- if (error) throw error
- for (const row of data ?? []) {
-  const cid = String((row as { class_id: string }).class_id)
-  m.set(cid, (m.get(cid) ?? 0) + 1)
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("student_class_enrollments")
+   .select("class_id")
+   .in("class_id", slice)
+   .eq("status", "就讀中")
+  if (error) throw error
+  return data ?? []
+ })
+ for (const data of chunks) {
+  for (const row of data) {
+   const cid = String((row as { class_id: string }).class_id)
+   m.set(cid, (m.get(cid) ?? 0) + 1)
+  }
  }
  return m
 }
@@ -95,23 +101,28 @@ export async function fetchEnrollmentRosterByClassIds(
 ): Promise<Map<string, { count: number; names: string[] }>> {
  const m = new Map<string, { count: number; names: string[] }>()
  if (!supabase || classIds.length === 0) return m
- const { data, error } = await supabase
-  .from("student_class_enrollments")
-  .select("class_id, students ( full_name )")
-  .in("class_id", classIds)
-  .eq("status", "就讀中")
- if (error) throw error
- for (const row of data ?? []) {
-  const r = row as Record<string, unknown>
-  const cid = String(r.class_id ?? "")
-  if (!cid) continue
-  const st = r.students as Record<string, unknown> | null
-  const name = st?.full_name != null ? String(st.full_name).trim() : ""
-  const label = name || "—"
-  const cur = m.get(cid) ?? { count: 0, names: [] as string[] }
-  cur.count += 1
-  cur.names.push(label)
-  m.set(cid, cur)
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("student_class_enrollments")
+   .select("class_id, students ( full_name )")
+   .in("class_id", slice)
+   .eq("status", "就讀中")
+  if (error) throw error
+  return data ?? []
+ })
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const cid = String(r.class_id ?? "")
+   if (!cid) continue
+   const st = r.students as Record<string, unknown> | null
+   const name = st?.full_name != null ? String(st.full_name).trim() : ""
+   const label = name || "—"
+   const cur = m.get(cid) ?? { count: 0, names: [] as string[] }
+   cur.count += 1
+   cur.names.push(label)
+   m.set(cid, cur)
+  }
  }
  for (const v of m.values()) {
   v.names.sort((a, b) => a.localeCompare(b, "zh-Hant"))

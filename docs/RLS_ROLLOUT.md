@@ -133,3 +133,4 @@ Phase A 驗收通过后 → 開始 **Phase B**（teacher 範圍 policy + 前端 
 | 日期 | 交付 | 備註 |
 |------|------|------|
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
+| 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |

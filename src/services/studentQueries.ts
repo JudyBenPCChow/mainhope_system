@@ -1,4 +1,6 @@
 import { normalizeStudentGrade } from "@/lib/studentGrade"
+import { classDisplayName } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  fetchClassEnrollmentConfig,
@@ -320,34 +322,6 @@ export async function deleteStudent(id: string): Promise<void> {
  if (error) throw error
 }
 
-/** student_id -> 科目標籤（報讀班別） */
-export async function fetchEnrollmentSubjectsByStudentIds(
- studentIds: string[]
-): Promise<Map<string, string[]>> {
- const map = new Map<string, string[]>()
- if (!supabase || studentIds.length === 0) return map
- const { data, error } = await supabase
-  .from("student_class_enrollments")
-  .select("student_id, classes ( subject )")
-  .in("student_id", studentIds)
-  .eq("status", "就讀中")
- if (error) {
-  console.error(error)
-  return map
- }
- for (const row of data ?? []) {
-  const r = row as Record<string, unknown>
-  const sid = String(r.student_id)
-  const cls = r.classes as { subject?: string } | null
-  const sub = cls?.subject
-  if (!sub) continue
-  const arr = map.get(sid) ?? []
-  if (!arr.includes(sub)) arr.push(sub)
-  map.set(sid, arr)
- }
- return map
-}
-
 export type EnrollmentWithClass = {
  id: string
  status: string
@@ -366,6 +340,103 @@ export type EnrollmentWithClass = {
  pricePerLesson: number | null
 }
 
+/** 由 enrollment embed 的 classes 列解析顯示標籤 */
+function enrollmentClassLabel(cls: Record<string, unknown> | null | undefined): string | null {
+ if (!cls) return null
+ const course = cls.courses as Record<string, unknown> | null | undefined
+ const subjectRow = course?.subjects as Record<string, unknown> | null | undefined
+ const head = classDisplayName({
+  subject: cls.subject != null ? String(cls.subject) : null,
+  courseName: course?.course_name != null ? String(course.course_name) : null,
+ })
+ if (head !== "—") {
+  const code = cls.course_code != null ? String(cls.course_code).trim() : ""
+  return code ? `${head}（${code}）` : head
+ }
+ const nameZh = subjectRow?.name_zh != null ? String(subjectRow.name_zh).trim() : ""
+ return nameZh || null
+}
+
+function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWithClass {
+ const cls = row.classes as Record<string, unknown> | null
+ const course = cls?.courses as Record<string, unknown> | null
+ const subjectRow = course?.subjects as Record<string, unknown> | null
+ const courseMode = course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
+ const enrollmentPeriod = normalizeEnrollmentPeriod(
+  row.enrollment_period != null ? String(row.enrollment_period) : null
+ )
+ const pricePerLesson = resolvePriceForEnrollment({
+  enrollmentPeriod,
+  classPriceOverride: cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : null,
+  coursePrices: {
+   pricePerLesson: course?.price_per_lesson != null ? Number(course.price_per_lesson) : null,
+   pricePerLessonPeriod2:
+    course?.price_per_lesson_period_2 != null ? Number(course.price_per_lesson_period_2) : null,
+   pricePerLessonBothPeriods:
+    course?.price_per_lesson_both_periods != null
+     ? Number(course.price_per_lesson_both_periods)
+     : null,
+  },
+ })
+ const subjectLabel = enrollmentClassLabel(cls) ?? "—"
+ return {
+  id: String(row.id),
+  status: String(row.status ?? "就讀中"),
+  enroll_date: row.enroll_date != null ? String(row.enroll_date) : null,
+  enrollmentPeriod,
+  courseMode,
+  classId: String(row.class_id),
+  subject: subjectLabel,
+  subjectCode: subjectRow?.code != null ? String(subjectRow.code).trim().toUpperCase() : null,
+  subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
+  teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
+  courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+  courseName: course?.course_name != null ? String(course.course_name) : null,
+  dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
+  timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
+  pricePerLesson,
+ }
+}
+
+/** student_id -> 科目標籤（報讀班別） */
+export async function fetchEnrollmentSubjectsByStudentIds(
+ studentIds: string[]
+): Promise<Map<string, string[]>> {
+ const map = new Map<string, string[]>()
+ if (!supabase || studentIds.length === 0) return map
+
+ const enrollmentSelect =
+  "student_id, classes ( subject, course_code, courses ( course_name, subjects ( name_zh ) ) )"
+
+ try {
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("student_class_enrollments")
+    .select(enrollmentSelect)
+    .in("student_id", slice)
+    .eq("status", "就讀中")
+   if (error) throw error
+   return data ?? []
+  })
+
+  for (const data of chunks) {
+   for (const row of data) {
+    const r = row as Record<string, unknown>
+    const sid = String(r.student_id)
+    const cls = r.classes as Record<string, unknown> | null
+    const sub = enrollmentClassLabel(cls)
+    if (!sub) continue
+    const arr = map.get(sid) ?? []
+    if (!arr.includes(sub)) arr.push(sub)
+    map.set(sid, arr)
+   }
+  }
+ } catch (error) {
+  console.error("[fetchEnrollmentSubjectsByStudentIds]", error)
+ }
+ return map
+}
+
 export async function fetchEnrollmentsForStudent(
  studentId: string
 ): Promise<EnrollmentWithClass[]> {
@@ -373,55 +444,12 @@ export async function fetchEnrollmentsForStudent(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, teacher_id, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, category ) ) )"
+   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, teacher_id, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, category, name_zh ) ) )"
   )
   .eq("student_id", studentId)
   .order("created_at", { ascending: false })
  if (error) throw error
- return (data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const cls = r.classes as Record<string, unknown> | null
-  const course = cls?.courses as Record<string, unknown> | null
-  const subjectRow = course?.subjects as Record<string, unknown> | null
-  const courseMode = course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
-  const enrollmentPeriod = normalizeEnrollmentPeriod(
-   r.enrollment_period != null ? String(r.enrollment_period) : null
-  )
-  const pricePerLesson = resolvePriceForEnrollment({
-   enrollmentPeriod,
-   classPriceOverride:
-    cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : null,
-   coursePrices: {
-    pricePerLesson:
-     course?.price_per_lesson != null ? Number(course.price_per_lesson) : null,
-    pricePerLessonPeriod2:
-     course?.price_per_lesson_period_2 != null
-      ? Number(course.price_per_lesson_period_2)
-      : null,
-    pricePerLessonBothPeriods:
-     course?.price_per_lesson_both_periods != null
-      ? Number(course.price_per_lesson_both_periods)
-      : null,
-   },
-  })
-  return {
-   id: String(r.id),
-   status: String(r.status ?? "就讀中"),
-   enroll_date: r.enroll_date != null ? String(r.enroll_date) : null,
-   enrollmentPeriod,
-   courseMode,
-   classId: String(r.class_id),
-   subject: cls?.subject != null ? String(cls.subject) : "—",
-   subjectCode: subjectRow?.code != null ? String(subjectRow.code).trim().toUpperCase() : null,
-   subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
-   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
-   courseCode: cls?.course_code != null ? String(cls.course_code) : null,
-   courseName: course?.course_name != null ? String(course.course_name) : null,
-   dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
-   timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
-   pricePerLesson,
-  }
- })
+ return (data ?? []).map((row) => mapEnrollmentWithClassRow(row as Record<string, unknown>))
 }
 
 export async function insertEnrollment(
