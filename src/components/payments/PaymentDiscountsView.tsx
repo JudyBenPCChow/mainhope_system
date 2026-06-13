@@ -9,6 +9,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
 import {
  DISCOUNT_KIND_LABELS,
@@ -34,8 +35,9 @@ import {
  type PaymentDiscountRow,
  type PaymentDiscountUsageStats,
  type PaymentDiscountWriteInput,
+ stackGroupsFromDiscount,
 } from "@/services/paymentDiscountQueries"
-import { fetchSubjectOptions, type SubjectOption } from "@/services/classQueries"
+import { fetchAcademicYearOptions, fetchSubjectOptions, type SubjectOption } from "@/services/classQueries"
 
 function formatErr(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -84,8 +86,10 @@ function summarizeScope(r: PaymentDiscountRow): string {
  if (r.validFrom || r.validTo) {
   parts.push(`${r.validFrom ?? "…"} ~ ${r.validTo ?? "…"}`)
  }
- if (r.academicYear) parts.push(`學年 ${r.academicYear}`)
- if (r.stackGroup) parts.push(`互斥：${r.stackGroup}`)
+ const years = parseMultiValueField(r.academicYear)
+ if (years.length > 0) parts.push(`學年 ${years.join("、")}`)
+ const groups = stackGroupsFromDiscount(r)
+ if (groups.length > 0) parts.push(`互斥：${groups.join("、")}`)
  if (r.maxStackCount != null) parts.push(`每單≤${r.maxStackCount}項`)
  const elig = summarizeEligibilityRules(r.eligibilityRules)
  if (elig) parts.push(`資格：${elig}`)
@@ -106,8 +110,8 @@ const emptyForm = {
  sortOrder: "0",
  validFrom: "",
  validTo: "",
- academicYear: "",
- stackGroup: "",
+ academicYears: [] as string[],
+ stackGroups: [] as string[],
  maxStackCount: "",
  isLabelOnly: false,
  previewSubtotal: "1000",
@@ -137,6 +141,10 @@ export function PaymentDiscountsView() {
  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
  const [dragId, setDragId] = useState<string | null>(null)
  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([])
+ const [academicYearOptions, setAcademicYearOptions] = useState<
+  Array<{ value: string; label: string }>
+ >([])
+ const [newStackGroup, setNewStackGroup] = useState("")
  const rowsRef = useRef(rows)
  useEffect(() => {
   rowsRef.current = rows
@@ -171,11 +179,22 @@ export function PaymentDiscountsView() {
   void load()
   if (isSupabaseConfigured) {
    void fetchSubjectOptions().then(setSubjectOptions).catch(() => setSubjectOptions([]))
+   void fetchAcademicYearOptions()
+    .then((years) =>
+     setAcademicYearOptions(
+      years.map((y) => ({
+       value: y.label,
+       label: y.is_current ? `${y.label}（目前學年）` : `${y.label} 學年`,
+      }))
+     )
+    )
+    .catch(() => setAcademicYearOptions([]))
   }
  }, [load])
 
  const openCreate = () => {
   setEditing(null)
+  setNewStackGroup("")
   setForm({
    ...emptyForm,
    sortOrder: String(rows.length > 0 ? Math.max(...rows.map((r) => r.sortOrder)) + 1 : 0),
@@ -185,6 +204,7 @@ export function PaymentDiscountsView() {
 
  const openEdit = (r: PaymentDiscountRow) => {
   setEditing(r)
+  setNewStackGroup("")
   setForm({
    name: r.name,
    discountKind: r.discountKind,
@@ -194,8 +214,8 @@ export function PaymentDiscountsView() {
    sortOrder: String(r.sortOrder),
    validFrom: r.validFrom ?? "",
    validTo: r.validTo ?? "",
-   academicYear: r.academicYear ?? "",
-   stackGroup: r.stackGroup ?? "",
+   academicYears: parseMultiValueField(r.academicYear),
+   stackGroups: stackGroupsFromDiscount(r),
    maxStackCount: r.maxStackCount != null ? String(r.maxStackCount) : "",
    isLabelOnly: r.isLabelOnly,
    previewSubtotal: "1000",
@@ -300,18 +320,31 @@ export function PaymentDiscountsView() {
   const minTotalLessons = form.eligMinTotalLessons.trim()
    ? Math.trunc(parseOptionalNumber(form.eligMinTotalLessons)!)
    : null
-  const eligibilityRules =
-   minSubjectCount != null ||
-   minTotalLessons != null ||
-   form.eligRequiredCodes.length > 0 ||
-   form.eligAnyCodes.length > 0
-    ? {
-       minSubjectCount,
-       minTotalLessons,
-       requiredSubjectCodes: form.eligRequiredCodes.length > 0 ? form.eligRequiredCodes : null,
-       requireAnySubjectCodes: form.eligAnyCodes.length > 0 ? form.eligAnyCodes : null,
-      }
-    : null
+  const eligibilityRules = (() => {
+   const hasFormRules =
+    minSubjectCount != null ||
+    minTotalLessons != null ||
+    form.eligRequiredCodes.length > 0 ||
+    form.eligAnyCodes.length > 0
+   if (!hasFormRules && !editing?.eligibilityRules) return null
+   const merged = { ...(editing?.eligibilityRules ?? {}) }
+   merged.minSubjectCount = minSubjectCount
+   merged.minTotalLessons = minTotalLessons
+   merged.requiredSubjectCodes =
+    form.eligRequiredCodes.length > 0 ? form.eligRequiredCodes : null
+   merged.requireAnySubjectCodes =
+    form.eligAnyCodes.length > 0 ? form.eligAnyCodes : null
+   const hasAny =
+    merged.minSubjectCount != null ||
+    merged.minTotalLessons != null ||
+    (merged.requiredSubjectCodes?.length ?? 0) > 0 ||
+    (merged.requireAnySubjectCodes?.length ?? 0) > 0 ||
+    (merged.requireOneFromEachGroup?.length ?? 0) > 0 ||
+    merged.minEnrollmentPeriodPerLine != null ||
+    merged.requireNewStudent ||
+    merged.familyLessonPool?.aggregateSiblingLessons
+   return hasAny ? merged : null
+  })()
 
   return {
    name: form.name.trim(),
@@ -322,8 +355,8 @@ export function PaymentDiscountsView() {
    sortOrder: sortN ?? 0,
    validFrom: form.validFrom.trim() || null,
    validTo: form.validTo.trim() || null,
-   academicYear: form.academicYear.trim() || null,
-   stackGroup: form.stackGroup.trim() || null,
+   academicYear: joinMultiValueField(form.academicYears),
+   stackGroup: joinMultiValueField(form.stackGroups),
    maxStackCount: maxStackCount != null ? Math.trunc(maxStackCount) : null,
    isLabelOnly: form.isLabelOnly,
    lessonTiers,
@@ -482,6 +515,33 @@ export function PaymentDiscountsView() {
    updatedAt: "",
   }
  }, [form])
+
+ const academicYearSelectOptions = useMemo(() => {
+  const byValue = new Map(academicYearOptions.map((o) => [o.value, o]))
+  for (const y of form.academicYears) {
+   if (!byValue.has(y)) byValue.set(y, { value: y, label: `${y} 學年` })
+  }
+  return [...byValue.values()]
+ }, [academicYearOptions, form.academicYears])
+
+ const stackGroupCheckboxOptions = useMemo(() => {
+  const values = new Set<string>()
+  for (const r of rows) {
+   for (const g of stackGroupsFromDiscount(r)) values.add(g)
+  }
+  for (const g of form.stackGroups) values.add(g)
+  return [...values].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+ }, [rows, form.stackGroups])
+
+ const addStackGroup = () => {
+  const code = newStackGroup.trim()
+  if (!code) return
+  setForm((f) => ({
+   ...f,
+   stackGroups: f.stackGroups.includes(code) ? f.stackGroups : [...f.stackGroups, code],
+  }))
+  setNewStackGroup("")
+ }
 
  const previewSubtotalN = parseOptionalNumber(form.previewSubtotal) ?? 0
  const previewTotal =
@@ -663,7 +723,13 @@ export function PaymentDiscountsView() {
     </div>
    )}
 
-   <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+   <Dialog
+    open={dialogOpen}
+    onOpenChange={(open) => {
+     setDialogOpen(open)
+     if (!open) setNewStackGroup("")
+    }}
+   >
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
      <DialogHeader>
       <DialogTitle>{editing ? "編輯優惠" : "新增優惠"}</DialogTitle>
@@ -827,22 +893,88 @@ export function PaymentDiscountsView() {
         />
        </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="space-y-3">
        <div className="grid gap-1.5">
-        <label className="font-medium">限定學年（選填）</label>
-        <Input
-         value={form.academicYear}
-         onChange={(e) => setForm((f) => ({ ...f, academicYear: e.target.value }))}
-         placeholder="例如 2526"
-        />
+        <label className="font-medium">限定學年（選填，可多選）</label>
+        {academicYearSelectOptions.length > 0 ? (
+         <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-input bg-background p-3">
+          {academicYearSelectOptions.map((opt) => (
+           <label
+            key={opt.value}
+            className="flex cursor-pointer items-center gap-2 text-sm"
+           >
+            <input
+             type="checkbox"
+             className="h-4 w-4 rounded border-input"
+             checked={form.academicYears.includes(opt.value)}
+             onChange={() =>
+              setForm((f) => ({
+               ...f,
+               academicYears: f.academicYears.includes(opt.value)
+                ? f.academicYears.filter((y) => y !== opt.value)
+                : [...f.academicYears, opt.value],
+              }))
+             }
+            />
+            <span>{opt.label}</span>
+           </label>
+          ))}
+         </div>
+        ) : (
+         <p className="text-xs text-muted-foreground">尚無學年資料</p>
+        )}
+        <p className="text-xs text-muted-foreground">不勾選表示所有學年皆適用。</p>
        </div>
        <div className="grid gap-1.5">
-        <label className="font-medium">互斥群組（選填）</label>
-        <Input
-         value={form.stackGroup}
-         onChange={(e) => setForm((f) => ({ ...f, stackGroup: e.target.value }))}
-         placeholder="同群組只能選一項"
-        />
+        <label className="font-medium">互斥群組（選填，可多選）</label>
+        {stackGroupCheckboxOptions.length > 0 ? (
+         <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border border-input bg-background p-3">
+          {stackGroupCheckboxOptions.map((code) => (
+           <label key={code} className="flex cursor-pointer items-center gap-2 text-sm">
+            <input
+             type="checkbox"
+             className="h-4 w-4 rounded border-input"
+             checked={form.stackGroups.includes(code)}
+             onChange={() =>
+              setForm((f) => ({
+               ...f,
+               stackGroups: f.stackGroups.includes(code)
+                ? f.stackGroups.filter((g) => g !== code)
+                : [...f.stackGroups, code],
+              }))
+             }
+            />
+            <span>{code}</span>
+           </label>
+          ))}
+         </div>
+        ) : (
+         <p className="text-xs text-muted-foreground">尚無既有群組，請於下方新增。</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+         <Input
+          className="h-9 min-w-[10rem] flex-1 text-sm"
+          value={newStackGroup}
+          placeholder="新群組代碼"
+          onChange={(e) => setNewStackGroup(e.target.value)}
+          onKeyDown={(e) => {
+           if (e.key === "Enter") {
+            e.preventDefault()
+            addStackGroup()
+           }
+          }}
+         />
+         <Button type="button" variant="outline" size="sm" onClick={addStackGroup}>
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          加入群組
+         </Button>
+        </div>
+        {form.stackGroups.length > 0 ? (
+         <p className="text-xs text-muted-foreground">
+          已選：{form.stackGroups.join("、")}
+         </p>
+        ) : null}
+        <p className="text-xs text-muted-foreground">同群組在繳費單只能選一項優惠。</p>
        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

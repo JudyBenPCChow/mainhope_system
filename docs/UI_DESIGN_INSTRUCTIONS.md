@@ -59,6 +59,7 @@
 - 成功路徑有關閉／重整／成功提示之一。
 - 相關按鈕為 `**type="button"**`（除非確實要整表單 submit）。
 - 只要欄位值來自「既定清單」（例如狀態、關係、分類），**不得**用自由文字 `Input`；應使用 `select`、單選按鈕或等價選項元件，避免髒資料。
+- **學年**欄位一律使用**剔選多選**（checkbox 清單，選項來自 `academic_years` 主檔）；**禁止**以文字輸入學年代碼。可多選時以逗號串接寫入後端（見 `src/lib/multiValueField.ts`）。
 
 ---
 
@@ -173,3 +174,13 @@
 - 狀態語意對應：`booked/info`、`success`、`pending/warning`、`failed/error`、`cancelled/default`。
 - 狀態類標籤需使用共用字典 `statusToTagTone`（`src/lib/statusTag.ts`）做映射；不得在頁面各自硬編碼狀態對色邏輯。
 - 狀態映射字典採可配置表 `STATUS_TAG_RULES`；新增狀態時優先修改字典，不改頁面判斷碼。
+- 需要**多選下拉**時使用共用 `MultiSelect`（`src/components/ui/multi-select.tsx`），視覺與互動對齊 `Select`（圓角、邊框、箭咀、勾選列）；單選仍用 `Select`。
+
+---
+
+## 13. 學年與多選規範（2026-06-13 起）
+
+- **學年**：表單內任何「限定學年」「適用學年」等欄位必須為**剔選多選**（checkbox 清單），資料來源為 `fetchAcademicYearOptions()` 或等價 `academic_years` 查詢；不得使用 `Input` 手打學年 label。
+- **儲存格式**：多選學年以半形逗號串接寫入既有 `text` 欄位（如 `payment_discounts.academic_year`）；讀取時以 `parseMultiValueField` / `joinMultiValueField` 轉換。
+- **互斥群組等無主檔清單**：既有群組以 checkbox 剔選；新增代碼使用欄位下方「輸入 + 加入」列（須在對話框內直接操作，避免下拉 portal 被 Dialog 判定為外部點擊）。
+- **參考實作**：`src/components/payments/PaymentDiscountsView.tsx`（編輯優惠對話框）。

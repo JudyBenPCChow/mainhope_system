@@ -18,7 +18,18 @@ import {
  type PaymentDiscountEligibilityRules,
  type PaymentEligibilityContext,
 } from "@/lib/paymentDiscountEligibility"
+import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { supabase } from "@/lib/supabaseClient"
+
+export { parseMultiValueField, joinMultiValueField }
+
+export function academicYearsFromDiscount(d: Pick<PaymentDiscountRow, "academicYear">): string[] {
+ return parseMultiValueField(d.academicYear)
+}
+
+export function stackGroupsFromDiscount(d: Pick<PaymentDiscountRow, "stackGroup">): string[] {
+ return parseMultiValueField(d.stackGroup)
+}
 
 export type PaymentDiscountRow = {
  id: string
@@ -52,6 +63,47 @@ export type FetchActivePaymentDiscountsOptions = {
  asOfDate?: string
  /** 學年 label（如 2526）；null 表示不篩選 */
  academicYear?: string | null
+}
+
+const EXTENDED_SCHEMA_MIGRATION_HINT =
+ "資料庫尚未套用優惠類型欄位（discount_kind／lesson_tiers／group_enrollment_rules）。請於 Supabase SQL Editor 執行 supabase/migrations/20260615130000_payment_discount_26sm_kinds.sql。"
+
+let extendedDiscountSchema: boolean | null = null
+
+/** 遠端 DB 是否已有 discount_kind 等擴充欄位（快取） */
+export async function hasExtendedDiscountSchema(): Promise<boolean> {
+ if (extendedDiscountSchema != null) return extendedDiscountSchema
+ if (!supabase) {
+  extendedDiscountSchema = false
+  return false
+ }
+ const { error } = await supabase.from("payment_discounts").select("discount_kind").limit(1)
+ extendedDiscountSchema = !error?.message?.includes("discount_kind")
+ return extendedDiscountSchema
+}
+
+function assertExtendedSchemaForKind(row: Partial<PaymentDiscountWriteInput>, extended: boolean): void {
+ if (extended) return
+ const kind = row.discountKind ?? "fixed_amount"
+ if (kind !== "fixed_amount") {
+  throw new Error(EXTENDED_SCHEMA_MIGRATION_HINT)
+ }
+ if (row.lessonTiers != null || row.groupEnrollmentRules != null) {
+  throw new Error(EXTENDED_SCHEMA_MIGRATION_HINT)
+ }
+}
+
+function appendExtendedDiscountFields(
+ payload: Record<string, unknown>,
+ row: Partial<PaymentDiscountWriteInput>,
+ extended: boolean
+): void {
+ if (!extended) return
+ if (row.discountKind !== undefined) payload.discount_kind = row.discountKind
+ if (row.lessonTiers !== undefined) payload.lesson_tiers = lessonTiersToDb(row.lessonTiers)
+ if (row.groupEnrollmentRules !== undefined) {
+  payload.group_enrollment_rules = groupEnrollmentRulesToDb(row.groupEnrollmentRules)
+ }
 }
 
 export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscountRow {
@@ -99,7 +151,8 @@ export function isDiscountInEffect(
  const asOf = opts?.asOfDate ?? todayYmd()
  if (d.validFrom && asOf < d.validFrom) return false
  if (d.validTo && asOf > d.validTo) return false
- if (d.academicYear && opts?.academicYear && d.academicYear !== opts.academicYear) return false
+ const years = academicYearsFromDiscount(d)
+ if (years.length > 0 && opts?.academicYear && !years.includes(opts.academicYear)) return false
  return true
 }
 
@@ -137,11 +190,11 @@ export function validateDiscountSelection(
 ): string | null {
  const seenGroups = new Set<string>()
  for (const d of selected) {
-  if (d.stackGroup) {
-   if (seenGroups.has(d.stackGroup)) {
-    return `互斥群組「${d.stackGroup}」只能選一項優惠`
+  for (const group of stackGroupsFromDiscount(d)) {
+   if (seenGroups.has(group)) {
+    return `互斥群組「${group}」只能選一項優惠`
    }
-   seenGroups.add(d.stackGroup)
+   seenGroups.add(group)
   }
  }
  const maxStack = getGlobalMaxStackCount(catalog)
@@ -169,7 +222,7 @@ export type PaymentDiscountWriteInput = {
  eligibilityRules?: PaymentDiscountEligibilityRules | null
 }
 
-function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
+function writePayload(row: PaymentDiscountWriteInput, extended: boolean): Record<string, unknown> {
  const percentOff = row.percentOff
  const amountOff = row.amountOff
  const discountKind = row.discountKind ?? "fixed_amount"
@@ -179,23 +232,30 @@ function writePayload(row: PaymentDiscountWriteInput): Record<string, unknown> {
    (discountKind === "fixed_amount" &&
     (percentOff == null || percentOff === 0) &&
     (amountOff == null || amountOff === 0)))
- return {
+ const payload: Record<string, unknown> = {
   name: row.name.trim(),
-  discount_kind: discountKind,
   percent_off: percentOff,
   amount_off: amountOff,
   is_active: row.isActive,
   sort_order: row.sortOrder,
   valid_from: row.validFrom?.trim() || null,
   valid_to: row.validTo?.trim() || null,
-  academic_year: row.academicYear?.trim() || null,
-  stack_group: row.stackGroup?.trim() || null,
+  academic_year: joinMultiValueField(parseMultiValueField(row.academicYear)),
+  stack_group: joinMultiValueField(parseMultiValueField(row.stackGroup)),
   max_stack_count: row.maxStackCount ?? null,
   is_label_only: isLabelOnly,
-  lesson_tiers: lessonTiersToDb(row.lessonTiers),
-  group_enrollment_rules: groupEnrollmentRulesToDb(row.groupEnrollmentRules),
   eligibility_rules: eligibilityRulesToDb(row.eligibilityRules),
  }
+ appendExtendedDiscountFields(
+  payload,
+  {
+   discountKind,
+   lessonTiers: row.lessonTiers,
+   groupEnrollmentRules: row.groupEnrollmentRules,
+  },
+  extended
+ )
+ return payload
 }
 
 function filterActiveDiscountRows(
@@ -250,7 +310,9 @@ export async function fetchAllPaymentDiscounts(): Promise<PaymentDiscountRow[]> 
 
 export async function insertPaymentDiscount(row: PaymentDiscountWriteInput): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const { error } = await supabase.from("payment_discounts").insert(writePayload(row))
+ const extended = await hasExtendedDiscountSchema()
+ assertExtendedSchemaForKind(row, extended)
+ const { error } = await supabase.from("payment_discounts").insert(writePayload(row, extended))
  if (error) throw error
 }
 
@@ -259,6 +321,8 @@ export async function updatePaymentDiscount(
  patch: Partial<PaymentDiscountWriteInput>
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const extended = await hasExtendedDiscountSchema()
+ assertExtendedSchemaForKind(patch, extended)
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
  if (patch.name !== undefined) payload.name = patch.name.trim()
  if (patch.percentOff !== undefined) payload.percent_off = patch.percentOff
@@ -267,15 +331,15 @@ export async function updatePaymentDiscount(
  if (patch.sortOrder !== undefined) payload.sort_order = patch.sortOrder
  if (patch.validFrom !== undefined) payload.valid_from = patch.validFrom?.trim() || null
  if (patch.validTo !== undefined) payload.valid_to = patch.validTo?.trim() || null
- if (patch.academicYear !== undefined) payload.academic_year = patch.academicYear?.trim() || null
- if (patch.stackGroup !== undefined) payload.stack_group = patch.stackGroup?.trim() || null
+ if (patch.academicYear !== undefined) {
+  payload.academic_year = joinMultiValueField(parseMultiValueField(patch.academicYear))
+ }
+ if (patch.stackGroup !== undefined) {
+  payload.stack_group = joinMultiValueField(parseMultiValueField(patch.stackGroup))
+ }
  if (patch.maxStackCount !== undefined) payload.max_stack_count = patch.maxStackCount
  if (patch.isLabelOnly !== undefined) payload.is_label_only = patch.isLabelOnly
- if (patch.discountKind !== undefined) payload.discount_kind = patch.discountKind
- if (patch.lessonTiers !== undefined) payload.lesson_tiers = lessonTiersToDb(patch.lessonTiers)
- if (patch.groupEnrollmentRules !== undefined) {
-  payload.group_enrollment_rules = groupEnrollmentRulesToDb(patch.groupEnrollmentRules)
- }
+ appendExtendedDiscountFields(payload, patch, extended)
  if (patch.eligibilityRules !== undefined) {
   payload.eligibility_rules = eligibilityRulesToDb(patch.eligibilityRules)
  }
@@ -523,8 +587,10 @@ export function isDiscountCheckboxDisabled(
  const selected = resolveSelectedDiscounts(selectedIds, catalog)
  const maxStack = getGlobalMaxStackCount(catalog)
  if (maxStack != null && selected.length >= maxStack) return true
- if (d.stackGroup) {
-  return selected.some((s) => s.stackGroup === d.stackGroup)
- }
- return false
+ const dGroups = stackGroupsFromDiscount(d)
+ if (dGroups.length === 0) return false
+ return selected.some((s) => {
+  const sGroups = stackGroupsFromDiscount(s)
+  return dGroups.some((g) => sGroups.includes(g))
+ })
 }

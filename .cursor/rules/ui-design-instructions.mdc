@@ -14,6 +14,7 @@ alwaysApply: false
 - **欄寬穩定**：避免僅依賴瀏覽器預設 `table-layout: auto` 造成「欄位像跑掉」。列表型 `<table>` 應使用 **`table-fixed`**，並為 **`th` 設定固定比例或固定寬度**（總寬合理加總為 100% 或明確 `min-w` 策略）。
 - **長內容**：用 `min-w-0`、`truncate` 或 `break-words` 等約束，避免單欄撐爆版面；電話等可加上 `title` 顯示全文。
 - **表單有限選項**：星期、年級等固定集合用 **`<select>`**（含多選），標籤與選項與系統標準一致；人數／金額 **不可為負**（`min` + 儲存前檢查）。
+- **學年欄位**：一律用 **checkbox 剔選多選**，選項來自 `academic_years`；**禁止**文字輸入學年代碼。多選儲存見 `src/lib/multiValueField.ts`。
 - **常見金額**：提供 **HKD 250 / 275 / 825** 等快捷鈕，並保留手動數字輸入（班別學費）。
 - **Date Picker 一致性**：全專案日期輸入一律走共用 `Input type="date"`（由 `src/components/ui/input.tsx` 轉接至 `src/components/ui/date-input.tsx`）；禁止在業務頁直接寫各自版本的日期彈層。
 - **Date Picker 視覺規範**：日期面板需維持「白底圓角容器 + 上方日期顯示區 + 中央月曆 + 底部 Reset」四段式結構；不得混入附件/檔案功能。
@@ -28,7 +29,7 @@ alwaysApply: false
 - **Banner Action 文案**：若通知帶導頁行為，按鈕文案固定 `前往XXXX頁面`，點擊後需同時關閉該通知。
 - **Confirm Dialog 規範**：刪除/拒絕/覆寫等二次確認一律使用全域 Confirm Dialog，禁止使用瀏覽器 `confirm()`。
 - **Confirm 交互預設**：遮罩點擊不關閉、`Esc`=取消、`Enter`=主要動作；危險操作主鍵使用 destructive 色。
-- **Dropdown 統一**：頁面下拉選單必須使用共用 `Select`（`src/components/ui/select.tsx`），不得直接寫原生 `<select>`。
+- **Dropdown 統一**：單選下拉使用共用 `Select`（`src/components/ui/select.tsx`）；多選下拉使用共用 `MultiSelect`（`src/components/ui/multi-select.tsx`）；不得直接寫原生 `<select>`。
 - **Tag 統一**：狀態標籤必須使用共用 `Tag` / `tagVariants`（`src/components/ui/tag.tsx`），不得在頁面零散手寫 tag 色塊。
 - **狀態色語意**：`booked/info`、`success`、`pending/warning`、`failed/error`、`cancelled/default`。
 - **狀態映射統一**：涉及狀態文字到顏色的對應，必須透過 `src/lib/statusTag.ts` 的 `statusToTagTone`，禁止每頁自行寫正則或 if/else 映射。
@@ -38,3 +39,4 @@ alwaysApply: false
 
 - 學生列表：`src/components/students/StudentsListPage.tsx`（已採用 `table-fixed` + 欄寬比例）。
 - 編輯班別：`src/components/classes/ClassDetailView.tsx`（逢星期／年級下拉、學費快捷、收生下限）。
+- 編輯優惠：`src/components/payments/PaymentDiscountsView.tsx`（限定學年剔選、互斥群組剔選＋加入）。
