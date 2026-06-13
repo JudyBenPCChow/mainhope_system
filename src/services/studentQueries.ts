@@ -1,5 +1,5 @@
 import { normalizeStudentGrade } from "@/lib/studentGrade"
-import { classDisplayName } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
@@ -340,7 +340,55 @@ export type EnrollmentWithClass = {
  pricePerLesson: number | null
 }
 
-/** 由 enrollment embed 的 classes 列解析顯示標籤 */
+/** PostgREST embed：只用 baseline + course_name，避免未套用 migration 的欄位令整筆查詢失敗 */
+const ENROLLMENT_CLASS_EMBED =
+ "classes ( subject, course_code, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( price_per_lesson, course_name, subjects ( code, name_zh ) ) )"
+
+const ENROLLMENT_ROW_SELECT_BASE =
+ `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
+
+const ENROLLMENT_ROW_SELECT_WITH_PERIOD =
+ `id, status, enroll_date, enrollment_period, class_id, ${ENROLLMENT_CLASS_EMBED}`
+
+async function fetchEnrollmentRowsForStudent(studentId: string): Promise<Record<string, unknown>[]> {
+ if (!supabase) return []
+ const first = await supabase
+  .from("student_class_enrollments")
+  .select(ENROLLMENT_ROW_SELECT_WITH_PERIOD)
+  .eq("student_id", studentId)
+  .order("created_at", { ascending: false })
+ const res =
+  first.error && /does not exist/i.test(first.error.message)
+   ? await supabase
+      .from("student_class_enrollments")
+      .select(ENROLLMENT_ROW_SELECT_BASE)
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+   : first
+ if (res.error) throw res.error
+ return (res.data ?? []) as Record<string, unknown>[]
+}
+
+function buildClassOptionLabel(row: Record<string, unknown>): string {
+ const course = row.courses as Record<string, unknown> | null
+ const ay = row.academic_years as Record<string, unknown> | null
+ const head = formatClassLabel({
+  subject: String(row.subject ?? ""),
+  courseCode:
+   row.course_code_full != null
+    ? String(row.course_code_full)
+    : row.course_code != null
+      ? String(row.course_code)
+      : null,
+  courseName: course?.course_name != null ? String(course.course_name) : null,
+ })
+ const extras = [
+  ay?.label != null ? `${String(ay.label)} 學年` : null,
+  row.day_of_week != null ? String(row.day_of_week) : null,
+  row.time_slot != null ? String(row.time_slot) : null,
+ ].filter((x) => x && String(x).trim() !== "")
+ return extras.length > 0 ? `${head} · ${extras.join(" · ")}` : head
+}
 function enrollmentClassLabel(cls: Record<string, unknown> | null | undefined): string | null {
  if (!cls) return null
  const course = cls.courses as Record<string, unknown> | null | undefined
@@ -350,8 +398,13 @@ function enrollmentClassLabel(cls: Record<string, unknown> | null | undefined): 
   courseName: course?.course_name != null ? String(course.course_name) : null,
  })
  if (head !== "—") {
-  const code = cls.course_code != null ? String(cls.course_code).trim() : ""
-  return code ? `${head}（${code}）` : head
+  const codeRaw =
+   cls.course_code_full != null
+    ? String(cls.course_code_full).trim()
+    : cls.course_code != null
+      ? String(cls.course_code).trim()
+      : ""
+  return codeRaw ? `${head}（${codeRaw}）` : head
  }
  const nameZh = subjectRow?.name_zh != null ? String(subjectRow.name_zh).trim() : ""
  return nameZh || null
@@ -390,7 +443,12 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   subjectCode: subjectRow?.code != null ? String(subjectRow.code).trim().toUpperCase() : null,
   subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
-  courseCode: cls?.course_code != null ? String(cls.course_code) : null,
+  courseCode:
+   cls?.course_code_full != null
+    ? String(cls.course_code_full)
+    : cls?.course_code != null
+      ? String(cls.course_code)
+      : null,
   courseName: course?.course_name != null ? String(course.course_name) : null,
   dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
@@ -440,16 +498,8 @@ export async function fetchEnrollmentSubjectsByStudentIds(
 export async function fetchEnrollmentsForStudent(
  studentId: string
 ): Promise<EnrollmentWithClass[]> {
- if (!supabase) return []
- const { data, error } = await supabase
-  .from("student_class_enrollments")
-  .select(
-   "id, status, enroll_date, enrollment_period, class_id, classes ( subject, course_code, day_of_week, time_slot, price_per_lesson, teacher_id, courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, category, name_zh ) ) )"
-  )
-  .eq("student_id", studentId)
-  .order("created_at", { ascending: false })
- if (error) throw error
- return (data ?? []).map((row) => mapEnrollmentWithClassRow(row as Record<string, unknown>))
+ const rows = await fetchEnrollmentRowsForStudent(studentId)
+ return rows.map((row) => mapEnrollmentWithClassRow(row))
 }
 
 export async function insertEnrollment(
@@ -638,25 +688,31 @@ export type ClassOption = {
 
 export async function fetchClassOptions(): Promise<ClassOption[]> {
  if (!supabase) return []
- const { data, error } = await supabase
-  .from("classes")
-  .select("id, subject, course_code, day_of_week, time_slot, courses ( course_mode )")
-  .order("subject")
- if (error) throw error
- return (data ?? []).map((r) => {
+ const classSelectWithMode =
+  "id, subject, course_code, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
+ const classSelectBase =
+  "id, subject, course_code, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
+ const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
+ const res =
+  first.error && /does not exist/i.test(first.error.message)
+   ? await supabase.from("classes").select(classSelectBase).order("subject")
+   : first
+ if (res.error) throw res.error
+ return (res.data ?? []).map((r) => {
   const row = r as Record<string, unknown>
   const course = row.courses as Record<string, unknown> | null
-  const sub = String(row.subject ?? "")
-  const code = row.course_code != null ? String(row.course_code) : ""
-  const day = row.day_of_week != null ? String(row.day_of_week) : ""
-  const slot = row.time_slot != null ? String(row.time_slot) : ""
-  const tail = [code, day, slot].filter(Boolean).join(" · ")
-  const courseMode = course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
+  const courseMode =
+   course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
   return {
    id: String(row.id),
-   subject: sub,
-   courseCode: code || null,
-   label: tail ? `${sub} ${tail}` : sub,
+   subject: String(row.subject ?? ""),
+   courseCode:
+    row.course_code_full != null
+     ? String(row.course_code_full)
+     : row.course_code != null
+       ? String(row.course_code)
+       : null,
+   label: buildClassOptionLabel(row),
    courseMode,
   }
  })

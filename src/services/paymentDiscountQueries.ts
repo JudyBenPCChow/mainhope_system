@@ -538,7 +538,7 @@ export async function fetchPaymentEligibilityContextFromDetails(
  const { data, error } = await supabase
   .from("classes")
   .select(
-   "id, teacher_id, day_of_week, time_slot, courses ( course_mode, subjects ( code, category ) )"
+   "id, teacher_id, day_of_week, time_slot, courses ( course_mode, subjects ( code ) )"
   )
   .in("id", classIds)
  if (error) throw error
