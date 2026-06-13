@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { BookOpen, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
 import {
  ALL_GRADE_CODES,
  clampCourseSeq,
@@ -11,6 +13,17 @@ import {
 } from "@/lib/courseCode"
 import type { CourseMode } from "@/lib/enrollmentPeriod"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { cn } from "@/lib/utils"
+import {
+ buildCourseGradeFilterChips,
+ buildCourseSubjectFilterChips,
+ COURSE_MODE_FILTER_CHIPS,
+ courseMatchesGrade,
+ courseMatchesMode,
+ courseMatchesSearch,
+ courseMatchesSubject,
+ type CourseModeFilterKey,
+} from "@/components/courses/coursesUi"
 import {
  fetchAllCourses,
  fetchSubjectOptions,
@@ -59,6 +72,10 @@ export function CoursesManagePage() {
  const [editingId, setEditingId] = useState<string | null>(null)
  const [saving, setSaving] = useState(false)
  const [form, setForm] = useState<CourseForm>(EMPTY_FORM)
+ const [subjectKey, setSubjectKey] = useState("全部")
+ const [gradeKey, setGradeKey] = useState("全部")
+ const [modeKey, setModeKey] = useState<CourseModeFilterKey>("全部")
+ const [search, setSearch] = useState("")
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -84,6 +101,40 @@ export function CoursesManagePage() {
     subjects.map((s) => [s.id, `${s.name_zh}（${s.code}）`] as const)
    ),
   [subjects]
+ )
+
+ const subjectChips = useMemo(
+  () => buildCourseSubjectFilterChips(rows, subjects),
+  [rows, subjects]
+ )
+
+ const gradeChips = useMemo(() => buildCourseGradeFilterChips(rows), [rows])
+
+ useEffect(() => {
+  if (!subjectChips.some((c) => c.key === subjectKey)) setSubjectKey("全部")
+ }, [subjectChips, subjectKey])
+
+ useEffect(() => {
+  if (!gradeChips.includes(gradeKey)) setGradeKey("全部")
+ }, [gradeChips, gradeKey])
+
+ const filteredRows = useMemo(() => {
+  return rows.filter(
+   (r) =>
+    courseMatchesSubject(r, subjectKey) &&
+    courseMatchesGrade(r, gradeKey) &&
+    courseMatchesMode(r, modeKey) &&
+    courseMatchesSearch(r, search, subjectLabelById.get(r.subject_id) ?? r.subject_name_zh)
+  )
+ }, [rows, subjectKey, gradeKey, modeKey, search, subjectLabelById])
+
+ const stats = useMemo(
+  () => ({
+   total: rows.length,
+   filtered: filteredRows.length,
+   summer: rows.filter((r) => r.course_mode === "summer_two_period").length,
+  }),
+  [rows, filteredRows]
  )
 
  const openCreate = () => {
@@ -164,18 +215,109 @@ export function CoursesManagePage() {
 
  const isSummer = form.course_mode === "summer_two_period"
 
+ const chipBtn = (active: boolean) =>
+  cn(
+   "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
+   active
+    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+    : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
+  )
+
  return (
   <div className="space-y-5 p-4 md:p-6">
-   <div className="flex items-center justify-between gap-3">
-    <h1 className="text-2xl font-semibold tracking-tight">課程管理（Courses）</h1>
+   <div className="flex flex-wrap items-center justify-between gap-3">
+    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+     <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+     課程管理
+     <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 課程`}</Tag>
+    </h1>
     <Button type="button" onClick={openCreate}>新增課程</Button>
    </div>
 
    {err ? (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div
+     role="alert"
+     tabIndex={-1}
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
+    >
      {err}
     </div>
    ) : null}
+
+   <div className="grid gap-3 sm:grid-cols-3">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+     <div className="text-2xl font-bold">{loading ? "…" : stats.total}</div>
+     <div className="text-sm text-muted-foreground">課程總數</div>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+     <div className="text-2xl font-bold text-info">{loading ? "…" : stats.filtered}</div>
+     <div className="text-sm text-muted-foreground">篩選結果</div>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+     <div className="text-2xl font-bold text-warning">{loading ? "…" : stats.summer}</div>
+     <div className="text-sm text-muted-foreground">暑期兩期</div>
+    </div>
+   </div>
+
+   <div className="space-y-4">
+    <div className="space-y-2">
+     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">科目</div>
+     <div className="flex flex-wrap gap-2">
+      {subjectChips.map((chip) => (
+       <button
+        key={chip.key}
+        type="button"
+        onClick={() => setSubjectKey(chip.key)}
+        className={chipBtn(subjectKey === chip.key)}
+       >
+        {chip.label}
+       </button>
+      ))}
+     </div>
+    </div>
+
+    <div className="space-y-2">
+     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">年級碼</div>
+     <div className="flex flex-wrap gap-2">
+      {gradeChips.map((g) => (
+       <button
+        key={g}
+        type="button"
+        onClick={() => setGradeKey(g)}
+        className={chipBtn(gradeKey === g)}
+       >
+        {g}
+       </button>
+      ))}
+     </div>
+    </div>
+
+    <div className="space-y-2">
+     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">課程模式</div>
+     <div className="flex flex-wrap gap-2">
+      {COURSE_MODE_FILTER_CHIPS.map((chip) => (
+       <button
+        key={chip.key}
+        type="button"
+        onClick={() => setModeKey(chip.key)}
+        className={chipBtn(modeKey === chip.key)}
+       >
+        {chip.label}
+       </button>
+      ))}
+     </div>
+    </div>
+
+    <div className="relative">
+     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+     <Input
+      className="pl-9"
+      placeholder="搜尋課程模板、名稱、科目…"
+      value={search}
+      onChange={(e) => setSearch(e.target.value)}
+     />
+    </div>
+   </div>
 
    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <div className="overflow-x-auto">
@@ -197,8 +339,10 @@ export function CoursesManagePage() {
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
        ) : rows.length === 0 ? (
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
+       ) : filteredRows.length === 0 ? (
+        <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">沒有符合篩選條件的課程</td></tr>
        ) : (
-        rows.map((r) => (
+        filteredRows.map((r) => (
          <tr key={r.id} className="border-b border-border">
           <td className="px-4 py-3 font-mono text-xs">{r.course_code_base}</td>
           <td className="px-3 py-3">{r.course_name?.trim() || "—"}</td>

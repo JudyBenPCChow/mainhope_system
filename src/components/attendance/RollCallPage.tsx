@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -359,7 +359,7 @@ export function RollCallPage() {
 
   {historyReadOnly ? (
    <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    2526 及更早學年僅供查閱：不可修改或重新送出點名。
+    {academicYearReadOnlyHint()}
    </div>
   ) : null}
 

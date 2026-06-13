@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
-import { isAcademicYearReadOnly, isSuperAdmin } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, isSuperAdmin, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -536,7 +536,7 @@ export function ClassesListPage() {
 
    {historyReadOnly ? (
     <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-     2526 及更早學年僅供查閱：不可新增、修改、刪除。
+     {academicYearReadOnlyHint()}
     </div>
    ) : null}
 
@@ -602,7 +602,7 @@ export function ClassesListPage() {
      </Button>
     ) : (
      <p className="text-sm text-muted-foreground">
-      {historyReadOnly ? "2526 及更早學年僅供查閱，無法新增班別。" : "專班老師僅可檢視指派班別，無法新增。"}
+      {historyReadOnly ? academicYearReadOnlyHint() : "專班老師僅可檢視指派班別，無法新增。"}
      </p>
     )}
    </div>

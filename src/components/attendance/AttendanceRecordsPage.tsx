@@ -17,7 +17,7 @@ import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -203,7 +203,7 @@ export function AttendanceRecordsPage() {
    ) : null}
   {historyReadOnly ? (
    <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    2526 及更早學年僅供查閱。
+    {academicYearReadOnlyHint()}
    </div>
   ) : null}
 

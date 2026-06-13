@@ -21,7 +21,7 @@ import {
  setStoredAcademicYearFilter,
 } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
 import { lessonSlotLabel } from "@/lib/lessonSlots"
@@ -267,7 +267,7 @@ export function TeacherAvailabilityPage() {
    </div>
 
    {historyReadOnly ? (
-    <p className="text-sm text-muted-foreground">2526 及更早學年僅供查閱，無法修改檔期。</p>
+    <p className="text-sm text-muted-foreground">{academicYearReadOnlyHint()}</p>
    ) : null}
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

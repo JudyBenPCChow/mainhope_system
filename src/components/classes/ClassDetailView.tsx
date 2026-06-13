@@ -223,6 +223,7 @@ export function ClassDetailView() {
   setLoading(true)
   setPageErr(null)
   try {
+   const teacherScope = getTeacherScopeTeacherId()
    const [c, st, ev, sc, tch, rm, allSt] = await Promise.all([
     getClassById(cid),
     fetchClassStudents(cid),
@@ -230,7 +231,7 @@ export function ClassDetailView() {
     fetchClassSchedules(cid),
     fetchTeacherOptions(),
     fetchClassroomOptions(),
-    fetchAllStudents(),
+    teacherScope ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
    ])
    setCls(c)
    if (c) {
@@ -708,6 +709,7 @@ const addableStudents = (() => {
        </div>
       ) : null}
       <div className="flex justify-end">
+       {!getTeacherScopeTeacherId() ? (
        <Dialog open={addStudentOpen} onOpenChange={setAddStudentOpen}>
         <DialogTrigger asChild>
          <Button type="button">+ 增加學生</Button>
@@ -766,6 +768,7 @@ const addableStudents = (() => {
          </div>
         </DialogContent>
        </Dialog>
+       ) : null}
       </div>
       {students.length === 0 ? (
        <p className="text-sm text-muted-foreground">尚無學生名單。</p>

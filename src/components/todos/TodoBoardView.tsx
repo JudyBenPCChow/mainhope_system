@@ -89,13 +89,12 @@ export function TodoBoardView() {
   setLoading(true)
   setErr(null)
   try {
-   const [events, p] = await Promise.all([
-    listCalendarEventsInRange(dateFrom, dateTo, {
+   const events = await listCalendarEventsInRange(dateFrom, dateTo, {
      teacherId,
      tags: tagFilter.length > 0 ? tagFilter : undefined,
-    }),
-    fetchCalendarParticipantOptions(),
-   ])
+    })
+   const studentIds = [...new Set(events.flatMap((e) => e.studentIds))]
+   const p = await fetchCalendarParticipantOptions(studentIds)
    setRows(events)
    setParticipantLabels({
     teachers: new Map(p.teachers.map((t) => [t.id, t.label])),

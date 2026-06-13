@@ -13,7 +13,7 @@ import {
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
 import { classDisplayName } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { deleteClassCascade, fetchAcademicYearOptions, fetchSubjectOptions, insertClass, type ClassRecord } from "@/services/classQueries"
@@ -154,7 +154,7 @@ export function ClassCreatePage() {
    </div>
 
    {historyReadOnly ? (
-    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">2526 及更早學年僅供查閱，無法新增班別。</p>
+    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{academicYearReadOnlyHint()}</p>
    ) : null}
 
    {err ? (

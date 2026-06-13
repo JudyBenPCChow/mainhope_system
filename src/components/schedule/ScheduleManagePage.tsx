@@ -45,7 +45,7 @@ import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -669,7 +669,7 @@ useEffect(() => {
 
    {historyReadOnly ? (
     <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-     2526 及更早學年僅供查閱：不可新增、修改、刪除或拖曳調整。
+     {academicYearReadOnlyHint()}
     </div>
    ) : null}
 

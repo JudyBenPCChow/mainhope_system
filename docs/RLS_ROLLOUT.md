@@ -9,8 +9,8 @@
 
 | Phase | 目標 | 狀態 |
 |-------|------|------|
-| **A** | 阻擋 `anon`；必須 Supabase 登入；前端 session 同步 | 🔄 進行中 |
-| **B** | `teacher` 僅能存取與自己 `teacher_id` 相關資料 | ⬜ 待開始 |
+| **A** | 阻擋 `anon`；必須 Supabase 登入；前端 session 同步 | ✅ 已交付 |
+| **B** | `teacher` 僅能存取與自己 `teacher_id` 相關資料 | 🔄 進行中 |
 | **C** | `admin`／`alien` 分工；敏感表（付款、用戶、mgmt）細部權限 | ⬜ 待開始 |
 | **收尾** | Dashboard 設定、移除過渡 policy、文件更新 | ⬜ 待開始 |
 
@@ -64,29 +64,59 @@
 
 ### 下一步
 
-Phase A 驗收通过后 → 開始 **Phase B**（teacher 範圍 policy + 前端 query 調整）。
+Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 
 ---
 
 ## Phase B — 老師範圍限制
 
-### 計劃交付物
+### 交付物
 
-- [ ] migration：移除 `rls_phase_a_auth_all_*`，改為依 `current_teacher_id()` 的 SELECT/INSERT/UPDATE/DELETE
-- [ ] 涵蓋：`classes`, `schedules`, `student_class_enrollments`, `attendance_details`, `calendar_event_*`, `teacher_availability_slots` 等
-- [ ] 前端：日曆參與者選項、列表 query 與 RLS 對齊
-- [ ] `students`：teacher 僅能讀取「自己班上就讀」的學生
+- [x] `supabase/migrations/20260615180000_rls_phase_b_teacher_scope.sql`
+- [x] DB helper：`is_mgmt_staff()`, `is_teacher_role()`, `teacher_can_access_*()`
+- [x] 前端對齊：`ClassDetailView`（老師不可搜尋全校學生加入班別）、`TodoBoardView`／`calendarQueries`（老師僅載入待辦相關學生標籤）
+
+### 涵蓋範圍
+
+| 類別 | 表 | teacher 權限 |
+|------|-----|-------------|
+| 班務 | `classes`, `schedules`, `student_class_enrollments` | 僅自己班別 |
+| 學生 | `students` | 僅自己班／被指派的待辦學生（SELECT） |
+| 出勤 | `attendance_details` | 僅自己班別 |
+| 請假／試堂 | `leave_makeup_records`, `trial_sessions` | 僅自己班別（SELECT） |
+| 約房 | `classroom_booking_requests` | 僅自己提交的申請 |
+| 待辦 | `calendar_events`, `calendar_event_*`, `calendar_event_updates` | 可見待辦＋被指派的跟進 INSERT |
+| 參考 | `subjects`, `courses`, `academic_years`, `classrooms`, `teachers` | SELECT（老師可更新自己 `teachers` 列） |
+| 登入 | `app_users` | 僅讀自己列 |
+| 管理 | `payments`, `payment_*`, `mgmt_*`, `admin_todos` 等 | **禁止**（admin／alien only） |
 
 ### 你的待辦（Phase B 部署後）
 
-- [ ] 以 teacher 帳號走完整流程：我的班別 → 排程 → 點名 → 待辦
-- [ ] 確認 teacher **無法** 直接 API 讀取其他老師的班／全校付款
-- [ ] admin／alien 行為與 Phase A 一致
+1. **套用 migration**
+   ```bash
+   supabase db push
+   ```
 
-### 決策待確認（開始 Phase B 前）
+2. **以 teacher 帳號走完整流程**
+   - [ ] 我的班別 → 班別詳情 → 排程 → 點名 → 待辦跟進 → 預約空房
+   - [ ] 確認無 `permission denied`（若某頁失敗，記錄路徑與操作）
 
-- [ ] 老師能否在待辦／點名時看到**其他班**學生姓名？（建議：僅自己班）
-- [ ] 老師能否看見其他老師名單（下拉選單）？（建議：只讀 abbr，或僅自己）
+3. **越權測試（可選，用 Supabase SQL 或 REST）**
+   - [ ] teacher JWT 無法 `select * from payments`
+   - [ ] teacher JWT 無法讀取其他老師的 `classes`
+
+4. **admin／alien 回歸**
+   - [ ] 學生管理、繳費、班別新增等與 Phase A 一致
+
+### 決策（Phase B 採用）
+
+- 老師在待辦／點名時僅能看見**自己班**或**待辦指派**的學生
+- 老師可讀取**所有老師**基本資料（下拉選單用）；不可改他人資料
+- 老師**不可**在班別詳情「增加學生」（需 admin）
+
+### 下一步
+
+Phase B 驗收通过后 → 開始 **Phase C**（admin／alien 分工、付款／用戶細部權限）。
 
 ---
 
@@ -134,3 +164,4 @@ Phase A 驗收通过后 → 開始 **Phase B**（teacher 範圍 policy + 前端 
 |------|------|------|
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
 | 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |
+| 2026-06-15 | Phase B code | teacher 範圍 RLS migration + 前端 query 對齊 |

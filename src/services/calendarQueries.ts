@@ -169,21 +169,44 @@ async function appendParticipantsAndTags(events: CalendarEventRow[]): Promise<Ca
  return events
 }
 
-export async function fetchCalendarParticipantOptions(): Promise<CalendarParticipantOptions> {
+export async function fetchCalendarParticipantOptions(
+ studentIds?: string[]
+): Promise<CalendarParticipantOptions> {
  if (!supabase) return { teachers: [], students: [] }
- const [tRes, sRes] = await Promise.all([
-  supabase.from("teachers").select("id, full_name, abbr").order("full_name", { ascending: true }),
-  supabase.from("students").select("id, full_name, student_code").order("full_name", { ascending: true }),
- ])
+ const teacherScope = getTeacherScopeTeacherId()
+ const tRes = await supabase.from("teachers").select("id, full_name, abbr").order("full_name", { ascending: true })
  if (tRes.error) throw tRes.error
+
+ const teachers = (tRes.data ?? []).map((x) => {
+  const r = x as { id: string; full_name: string | null; abbr: string | null }
+  const abbrRaw = r.abbr != null ? String(r.abbr).trim() : ""
+  return { id: String(r.id), label: String(r.full_name ?? ""), abbr: abbrRaw || null }
+ })
+
+ if (teacherScope) {
+  if (!studentIds?.length) return { teachers, students: [] }
+  const sRes = await supabase
+   .from("students")
+   .select("id, full_name, student_code")
+   .in("id", studentIds)
+   .order("full_name", { ascending: true })
+  if (sRes.error) throw sRes.error
+  return {
+   teachers,
+   students: (sRes.data ?? []).map((x) => {
+    const r = x as { id: string; full_name: string | null; student_code: string | null }
+    const name = String(r.full_name ?? "")
+    const code = r.student_code != null ? String(r.student_code).trim() : ""
+    return { id: String(r.id), label: code ? `${name} (${code})` : name }
+   }),
+  }
+ }
+
+ const sRes = await supabase.from("students").select("id, full_name, student_code").order("full_name", { ascending: true })
  if (sRes.error) throw sRes.error
 
  return {
-  teachers: (tRes.data ?? []).map((x) => {
-   const r = x as { id: string; full_name: string | null; abbr: string | null }
-   const abbrRaw = r.abbr != null ? String(r.abbr).trim() : ""
-   return { id: String(r.id), label: String(r.full_name ?? ""), abbr: abbrRaw || null }
-  }),
+  teachers,
   students: (sRes.data ?? []).map((x) => {
    const r = x as { id: string; full_name: string | null; student_code: string | null }
    const name = String(r.full_name ?? "")

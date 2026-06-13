@@ -12,7 +12,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
-import { isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -465,7 +465,7 @@ export function LeaveManagementView() {
 
   {historyReadOnly ? (
    <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    2526 及更早學年僅供查閱：不可新增、修改、刪除。
+    {academicYearReadOnlyHint()}
    </div>
   ) : null}
 
