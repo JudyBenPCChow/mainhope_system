@@ -10,6 +10,7 @@ import {
  normalizeGradeCode,
  parseCourseSeqFromCodeSuffix,
 } from "@/lib/courseCode"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import { supabase } from "@/lib/supabaseClient"
 import { resolveClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -143,6 +144,52 @@ function sectionCodeFromOrdinal(ord: number): string {
 
 function parseLegacySeed(courseCode: string | null | undefined): number {
  return parseCourseSeqFromCodeSuffix(courseCode)
+}
+
+function isPgUniqueViolation(error: unknown): boolean {
+ if (!error || typeof error !== "object") return false
+ const e = error as { code?: string; message?: string }
+ return e.code === "23505" || /duplicate key|unique constraint/i.test(String(e.message ?? ""))
+}
+
+function isCourseTupleDuplicate(error: unknown): boolean {
+ if (!isPgUniqueViolation(error)) return false
+ const msg = formatUnknownError(error)
+ return /courses_unique_tuple/i.test(msg)
+}
+
+function courseTupleDuplicateMessage(
+ subjectCode?: string | null,
+ gradeCode?: string | null,
+ seq?: number | null
+): string {
+ const parts = [
+  subjectCode?.trim() || null,
+  gradeCode?.trim() || null,
+  seq != null ? String(seq) : null,
+ ].filter(Boolean)
+ if (parts.length > 0) {
+  return `此課程模板已存在（${parts.join(" · ")}），請改用其他課程序號或編輯既有課程。`
+ }
+ return "此科目、年級與課程序號的組合已存在，請改用其他課程序號或編輯既有課程。"
+}
+
+async function findCourseIdByTuple(
+ subjectId: string,
+ gradeCode: string,
+ seq: number
+): Promise<string | null> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const g = normalizeGradeCode(gradeCode)
+ const { data, error } = await supabase
+  .from("courses")
+  .select("id")
+  .eq("subject_id", subjectId)
+  .eq("grade_code", g)
+  .eq("course_seq", seq)
+  .maybeSingle()
+ if (error) throw error
+ return data?.id ? String(data.id) : null
 }
 
 async function allocateSectionCode(courseId: string): Promise<string> {
@@ -289,7 +336,21 @@ async function ensureCourseId(params: {
   })
   .select("id")
   .single()
- if (insErr) throw insErr
+ if (insErr) {
+  if (isCourseTupleDuplicate(insErr)) {
+   const existingId = await findCourseIdByTuple(subjectId, gradeCode, seq)
+   if (existingId) {
+    if (params.price_per_lesson != null && !Number.isNaN(params.price_per_lesson)) {
+     await supabase
+      .from("courses")
+      .update({ price_per_lesson: Math.max(0, Number(params.price_per_lesson)), updated_at: new Date().toISOString() })
+      .eq("id", existingId)
+    }
+    return { course_id: existingId, subject_code: subjectCode, grade_code: gradeCode, course_seq: seq }
+   }
+  }
+  throw insErr
+ }
  return { course_id: String(inserted.id), subject_code: subjectCode, grade_code: gradeCode, course_seq: seq }
 }
 
@@ -1133,11 +1194,12 @@ export async function fetchCourseOptions(params: {
  grade_code: string
 }): Promise<CourseOption[]> {
  if (!supabase) return []
+ const gradeCode = normalizeGradeCode(params.grade_code)
  const { data, error } = await supabase
   .from("courses")
   .select("id, subject_id, grade_code, course_seq, price_per_lesson, course_name, subjects ( code )")
   .eq("subject_id", params.subject_id)
-  .eq("grade_code", params.grade_code)
+  .eq("grade_code", gradeCode)
   .order("course_seq", { ascending: true })
  if (error) throw error
  return (data ?? []).map((r) => {
@@ -1228,8 +1290,17 @@ export async function insertCourse(input: {
     ? Math.max(0, Number(input.price_per_lesson_both_periods))
     : null,
  }
+ const existingId = await findCourseIdByTuple(input.subject_id, g, seq)
+ if (existingId) {
+  throw new Error(courseTupleDuplicateMessage(code, g, seq))
+ }
  const { error } = await supabase.from("courses").insert(payload)
- if (error) throw error
+ if (error) {
+  if (isCourseTupleDuplicate(error)) {
+   throw new Error(courseTupleDuplicateMessage(code, g, seq))
+  }
+  throw error
+ }
 }
 
 export async function updateCourse(
@@ -1274,8 +1345,17 @@ export async function updateCourse(
     : null,
   updated_at: new Date().toISOString(),
  }
+ const existingId = await findCourseIdByTuple(patch.subject_id, g, seq)
+ if (existingId && existingId !== id) {
+  throw new Error(courseTupleDuplicateMessage(code, g, seq))
+ }
  const { error } = await supabase.from("courses").update(payload).eq("id", id)
- if (error) throw error
+ if (error) {
+  if (isCourseTupleDuplicate(error)) {
+   throw new Error(courseTupleDuplicateMessage(code, g, seq))
+  }
+  throw error
+ }
 }
 
 export async function fetchTeacherOptions(): Promise<TeacherOption[]> {
