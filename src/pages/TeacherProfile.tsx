@@ -73,22 +73,13 @@ export default function TeacherProfilePage() {
 
  const save = async () => {
   if (!teacherId || !teacher) return
-  const name = (form.full_name ?? teacher.full_name ?? "").trim()
-  if (!name) {
-   setErr("請填寫中文姓名。")
-   return
-  }
   const subjects = selectedSubjects
   setSaving(true)
   setErr(null)
   setOkMsg(null)
   try {
    const updated = await updateTeacher(teacherId, {
-    full_name: name,
-    english_name: form.english_name?.trim() ? form.english_name.trim() : null,
     phone: form.phone?.trim() ? form.phone.trim() : null,
-    email: form.email?.trim() ? form.email.trim() : null,
-    status: form.status,
     subject_speciality: subjects.length ? subjects : null,
     remarks: form.remarks?.trim() ? form.remarks.trim() : null,
    })
@@ -129,7 +120,7 @@ export default function TeacherProfilePage() {
       個人資料
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      維護您的聯絡方式與專長；僅您本人可編輯此頁。
+      您可修改電話、專長科目及備註；姓名、電郵、狀態等由管理員維護。
      </p>
      {teacher ? (
       <p className="mt-2 font-mono text-xs text-muted-foreground">教師編號：{teacher.id}</p>
@@ -167,19 +158,21 @@ export default function TeacherProfilePage() {
        <div className="relative mt-1">
         <User className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-         className="pl-9"
+         className="pl-9 bg-muted/50"
+         readOnly
+         disabled
          value={form.full_name ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
         />
        </div>
       </div>
       <div className="sm:col-span-2">
        <label className="text-xs font-medium text-muted-foreground">英文姓名</label>
        <Input
-        className="mt-1"
+        className="mt-1 bg-muted/50"
+        readOnly
+        disabled
         value={form.english_name ?? ""}
-        onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
-        placeholder="選填"
+        placeholder="—"
        />
       </div>
       <div className="sm:col-span-2">
@@ -210,11 +203,12 @@ export default function TeacherProfilePage() {
        <div className="relative mt-1">
         <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-         className="pl-9"
+         className="pl-9 bg-muted/50"
+         readOnly
+         disabled
          type="email"
          value={form.email ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-         placeholder="選填"
+         placeholder="—"
         />
        </div>
       </div>
@@ -223,9 +217,9 @@ export default function TeacherProfilePage() {
      <div>
       <label className="text-xs font-medium text-muted-foreground">狀態</label>
       <Select
-       className="mt-1 flex h-10 w-full max-w-md rounded-md border border-input bg-background px-2 text-sm"
+       className="mt-1 flex h-10 w-full max-w-md rounded-md border border-input bg-muted/50 px-2 text-sm"
        value={form.status === "非在職" ? "非在職" : "在職"}
-       onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+       disabled
       >
        <option value="在職">在職</option>
        <option value="非在職">非在職</option>

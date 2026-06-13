@@ -45,7 +45,7 @@ import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, academicYearReadOnlyHint, isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -162,6 +162,14 @@ function effectiveDayViewRoomId(
  return rid
 }
 
+function rollCallPath(scheduledDate: string, scheduleId: string): string {
+ const q = new URLSearchParams({
+  date: scheduledDate.slice(0, 10),
+  schedule_id: scheduleId,
+ })
+ return `/Attendance?${q.toString()}`
+}
+
 function DayViewScheduleCard({
  schedule,
  alerts,
@@ -183,7 +191,7 @@ function DayViewScheduleCard({
    : schedule.start_time ?? ""
  return (
   <div
-   draggable
+   draggable={!historyReadOnly}
    aria-disabled={historyReadOnly}
    onDragStart={onDragStart}
    className={cn(
@@ -406,6 +414,8 @@ useEffect(() => {
   () => isAcademicYearReadOnly(undefined, selectedYearLabel),
   [selectedYearLabel]
  )
+ const canManageSchedules = isMgmtStaff()
+ const scheduleMgmtLocked = historyReadOnly || !canManageSchedules
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
@@ -513,7 +523,7 @@ useEffect(() => {
  }
 
  const openAdd = () => {
-  if (historyReadOnly) return
+  if (scheduleMgmtLocked) return
   setAddErr(null)
   setAddDate(displayStart)
   setAddStart("")
@@ -522,7 +532,7 @@ useEffect(() => {
  }
 
  const submitAdd = async () => {
-  if (historyReadOnly) return
+  if (scheduleMgmtLocked) return
   if (!addClassId) {
    setAddErr("請選擇班別")
    return
@@ -547,7 +557,7 @@ useEffect(() => {
  }
 
  const handleDropOnCell = (e: React.DragEvent, roomId: string | null, slotIndex: number) => {
-  if (historyReadOnly) return
+  if (scheduleMgmtLocked) return
   e.preventDefault()
   const raw = e.dataTransfer.getData("application/json")
   if (!raw) return
@@ -580,7 +590,7 @@ useEffect(() => {
  }
 
  const confirmMove = async () => {
-  if (historyReadOnly) return
+  if (scheduleMgmtLocked) return
   if (!pendingMove) return
   setMoveErr(null)
   setMoveSaving(true)
@@ -821,7 +831,7 @@ useEffect(() => {
       type="button"
       size="default"
       className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
-      disabled={historyReadOnly}
+      disabled={scheduleMgmtLocked}
       onClick={openAdd}
      >
       <Plus className="h-4 w-4" />
@@ -948,9 +958,9 @@ useEffect(() => {
               <Select
                className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
                value={s.classroom_id ?? ""}
-               disabled={historyReadOnly}
+               disabled={scheduleMgmtLocked}
                onChange={async (e) => {
-                if (historyReadOnly) return
+                if (scheduleMgmtLocked) return
                 const v = e.target.value || null
                 await updateSchedule(s.id, { classroom_id: v })
                 await reload()
@@ -977,6 +987,8 @@ useEffect(() => {
                <option value="完成">完成</option>
                <option value="取消">取消</option>
               </Select>
+              {canManageSchedules ? (
+               <>
               <Link
                to="/LeaveManagement"
               className="rounded-md border border-warning px-3 py-2 text-sm font-medium text-warning transition-colors hover:bg-warning hover:text-warning-foreground"
@@ -991,26 +1003,29 @@ useEffect(() => {
               >
                +補堂試堂
               </Link>
+               </>
+              ) : null}
               <Button
                type="button"
                size="default"
                className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success"
                asChild
               >
-               <Link to="/Attendance" onClick={(e) => e.stopPropagation()}>
+               <Link to={rollCallPath(s.scheduled_date, s.id)} onClick={(e) => e.stopPropagation()}>
                 <Check className="h-4 w-4" aria-hidden />
                 確定點名
                </Link>
               </Button>
+              {canManageSchedules ? (
               <Button
                type="button"
                variant="ghost"
                size="icon"
                className="h-11 w-11 text-destructive hover:bg-destructive/10"
-               disabled={historyReadOnly}
+               disabled={scheduleMgmtLocked}
                aria-label="刪除排程"
                onClick={async () => {
-               if (historyReadOnly) return
+               if (scheduleMgmtLocked) return
                if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
                 await deleteSchedule(s.id)
                 await reload()
@@ -1018,6 +1033,7 @@ useEffect(() => {
               >
                ×
               </Button>
+              ) : null}
               <Button
                type="button"
                variant="ghost"
@@ -1193,6 +1209,7 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center gap-2">
+             {canManageSchedules ? (
              <Link
               to="/LeaveManagement"
               className="text-sm font-medium text-warning hover:underline"
@@ -1200,13 +1217,22 @@ useEffect(() => {
              >
               +請假
              </Link>
+             ) : null}
+             <Link
+              to={rollCallPath(s.scheduled_date, s.id)}
+              className="text-sm font-medium text-success hover:underline"
+              onClick={(e) => e.stopPropagation()}
+             >
+              確定點名
+             </Link>
+             {canManageSchedules ? (
              <Button
               type="button"
               variant="link"
               className="h-auto p-0 text-sm text-destructive"
-              disabled={historyReadOnly}
+              disabled={scheduleMgmtLocked}
               onClick={async (e) => {
-               if (historyReadOnly) return
+               if (scheduleMgmtLocked) return
                e.stopPropagation()
               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
                await deleteSchedule(s.id)
@@ -1215,6 +1241,7 @@ useEffect(() => {
              >
               刪除
              </Button>
+             ) : null}
              {open ? (
               <ChevronUp className="h-5 w-5 text-muted-foreground" aria-hidden />
              ) : (
@@ -1360,9 +1387,9 @@ useEffect(() => {
                 alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
                 studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
                 variant="assigned"
-                historyReadOnly={historyReadOnly}
+                historyReadOnly={scheduleMgmtLocked}
                 onDragStart={(e) => {
-                 if (historyReadOnly) {
+                 if (scheduleMgmtLocked) {
                   e.preventDefault()
                   return
                  }
@@ -1400,9 +1427,9 @@ useEffect(() => {
                alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
                studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
                variant="unassigned"
-               historyReadOnly={historyReadOnly}
+               historyReadOnly={scheduleMgmtLocked}
                onDragStart={(e) => {
-                if (historyReadOnly) {
+                if (scheduleMgmtLocked) {
                  e.preventDefault()
                  return
                 }

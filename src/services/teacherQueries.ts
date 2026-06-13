@@ -1,4 +1,5 @@
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { getMgmtRole, isSuperAdmin } from "@/lib/mgmtRole"
+import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -108,8 +109,17 @@ export async function updateTeacher(
  patch: Partial<Omit<TeacherRecord, "id" | "created_at">>
 ): Promise<TeacherRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
- const payload: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
- if (!isSuperAdmin()) {
+ let payload: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
+ const role = getMgmtRole()
+ const selfTeacherId = getTeacherScopeTeacherId()
+ if (role === "teacher" && selfTeacherId === id) {
+  payload = {
+   updated_at: payload.updated_at,
+   phone: payload.phone,
+   subject_speciality: payload.subject_speciality,
+   remarks: payload.remarks,
+  }
+ } else if (!isSuperAdmin()) {
   if (Object.prototype.hasOwnProperty.call(payload, "abbr")) {
    delete payload.abbr
   }

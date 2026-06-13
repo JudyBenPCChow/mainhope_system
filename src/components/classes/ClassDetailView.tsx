@@ -35,6 +35,7 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { normalizeCourseCode } from "@/lib/courseCode"
 import { classDisplayName } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
@@ -154,6 +155,7 @@ export function ClassDetailView() {
  const { classId } = useParams<{ classId: string }>()
  const navigate = useNavigate()
  const cid = classId ?? ""
+ const canManageClass = isMgmtStaff()
  const [tab, setTab] = useState<TabId>("basic")
  const [cls, setCls] = useState<ClassRecord | null>(null)
  const [students, setStudents] = useState<ClassStudentRow[]>([])
@@ -583,6 +585,7 @@ const addableStudents = (() => {
        ) : null}
       </div>
      </div>
+     {canManageClass ? (
      <Button
       type="button"
       variant="secondary"
@@ -595,6 +598,7 @@ const addableStudents = (() => {
       <Pencil className="h-4 w-4" />
       編輯班別
      </Button>
+     ) : null}
     </div>
    </div>
 
@@ -853,7 +857,7 @@ const addableStudents = (() => {
 
     {tab === "schedule" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      {cls ? (
+      {cls && canManageClass ? (
        <BatchSchedulePanel
         classId={cid}
         cls={cls}
@@ -900,6 +904,7 @@ const addableStudents = (() => {
          </button>
         ))}
        </div>
+       {canManageClass ? (
        <Dialog open={addSchedOpen} onOpenChange={setAddSchedOpen}>
         <DialogTrigger asChild>
          <Button
@@ -980,6 +985,7 @@ const addableStudents = (() => {
          </div>
         </DialogContent>
        </Dialog>
+       ) : null}
       </div>
       <div className="space-y-2">
        {schedFiltered.length === 0 ? (
@@ -996,9 +1002,9 @@ const addableStudents = (() => {
            endTime={s.end_time}
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
-           editableSessionNumber
+           editableSessionNumber={canManageClass}
            savingSessionNumber={savingSessionId === s.id}
-           onSessionNumberSave={(n) => void onSaveSessionNumber(s.id, n)}
+           onSessionNumberSave={canManageClass ? (n) => void onSaveSessionNumber(s.id, n) : undefined}
            title={
             <Link
              to={`/Schedule/${s.id}`}
@@ -1012,6 +1018,7 @@ const addableStudents = (() => {
             </Link>
            }
            controls={
+            canManageClass ? (
             <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
              <Select
               className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
@@ -1041,6 +1048,9 @@ const addableStudents = (() => {
               刪除
              </button>
             </div>
+            ) : (
+             <span className="text-sm text-muted-foreground">{s.status}</span>
+            )
            }
           />
          )

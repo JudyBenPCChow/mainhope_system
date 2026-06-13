@@ -20,6 +20,12 @@ export function isSuperAdmin(): boolean {
  return getMgmtRole() === "alien"
 }
 
+/** 管理員或外星人 — 可管理班別／排程等 */
+export function isMgmtStaff(): boolean {
+ const r = getMgmtRole()
+ return r === "admin" || r === "alien"
+}
+
 /**
  * 學年唯讀判斷：
  * - alien：不受限

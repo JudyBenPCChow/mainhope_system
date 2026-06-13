@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { CheckCircle2, ClipboardCheck, Download, ListChecks, Sparkles } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
@@ -31,9 +32,17 @@ import { supabase } from "@/lib/supabaseClient"
 
 type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" }
 
+function parseYmd(raw: string | null): string | null {
+ const v = raw?.slice(0, 10) ?? ""
+ return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null
+}
+
 export function RollCallPage() {
+ const [searchParams] = useSearchParams()
+ const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
+ const urlDate = parseYmd(searchParams.get("date"))
  const teacherTid = getTeacherScopeTeacherId()
- const [dateYmd, setDateYmd] = useState(() => localYmd())
+ const [dateYmd, setDateYmd] = useState(() => urlDate ?? localYmd())
  const selectedAcademicYear = useMemo(() => academicYearLabelFromStartDate(dateYmd), [dateYmd])
  const historyReadOnly = useMemo(
   () => isAcademicYearReadOnly(undefined, selectedAcademicYear),
@@ -75,6 +84,7 @@ export function RollCallPage() {
     if (!error) setPendingMakeup(count ?? 0)
    }
    setActiveScheduleId((prev) => {
+    if (urlScheduleId && list.some((s) => s.id === urlScheduleId)) return urlScheduleId
     if (prev && list.some((s) => s.id === prev)) return prev
     return list[0]?.id ?? null
    })
@@ -84,7 +94,11 @@ export function RollCallPage() {
   } finally {
    setLoadingList(false)
   }
- }, [dateYmd])
+ }, [dateYmd, urlScheduleId])
+
+ useEffect(() => {
+  if (urlDate && urlDate !== dateYmd) setDateYmd(urlDate)
+ }, [urlDate, dateYmd])
 
  useEffect(() => {
   void reloadList()

@@ -731,7 +731,7 @@ export function ClassesListPage() {
             <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
-             disabled={historyReadOnly}
+             disabled={historyReadOnly || Boolean(teacherTid)}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
             >
              {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
@@ -748,8 +748,9 @@ export function ClassesListPage() {
               className="text-left text-primary hover:underline"
               onClick={() => navigate(`/Classes/${c.id}`)}
              >
-              編輯
+              {teacherTid ? "查看" : "編輯"}
              </button>
+             {!teacherTid ? (
              <button
               type="button"
               className={cn(
@@ -764,6 +765,7 @@ export function ClassesListPage() {
               <Copy className="mr-0.5 inline h-3.5 w-3.5" />
               複製
              </button>
+             ) : null}
              {isSuperAdmin() && !historyReadOnly ? (
               <button
                type="button"
@@ -887,30 +889,8 @@ export function ClassesListPage() {
              className="text-primary hover:underline"
              onClick={() => navigate(`/Classes/${c.id}`)}
             >
-             編輯
+             查看
             </button>
-            <button
-             type="button"
-             className={cn(
-              "text-muted-foreground",
-              historyReadOnly ? "cursor-not-allowed opacity-50" : "hover:underline"
-             )}
-             onClick={(e) => {
-              if (historyReadOnly) return
-              void onCopy(e, c.id)
-             }}
-            >
-             複製
-            </button>
-            {isSuperAdmin() && !historyReadOnly ? (
-             <button
-              type="button"
-              className="text-destructive hover:underline"
-              onClick={(e) => void onDelete(e, c.id)}
-             >
-              刪除
-             </button>
-            ) : null}
            </div>
           </div>
          ))

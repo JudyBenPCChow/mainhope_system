@@ -32,12 +32,13 @@ begin
   end loop;
 end $$;
 
--- Match app auth: role from app_users by JWT email. SECURITY INVOKER avoids privilege escalation via RPC.
+-- Match app auth: role from app_users by JWT email.
+-- SECURITY DEFINER: required when RLS policies on app_users call this helper (avoid recursion).
 create or replace function public.current_app_role()
 returns text
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select au.role

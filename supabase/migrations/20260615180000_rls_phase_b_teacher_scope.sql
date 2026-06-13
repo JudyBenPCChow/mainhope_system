@@ -32,7 +32,7 @@ create or replace function public.current_app_user_id()
 returns uuid
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select au.id
@@ -45,7 +45,7 @@ create or replace function public.teacher_can_access_class(p_class_id uuid)
 returns boolean
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select exists (
@@ -60,7 +60,7 @@ create or replace function public.teacher_can_access_schedule(p_schedule_id uuid
 returns boolean
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select exists (
@@ -79,7 +79,7 @@ create or replace function public.teacher_can_access_student(p_student_id uuid)
 returns boolean
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select exists (
@@ -102,7 +102,7 @@ create or replace function public.teacher_can_access_calendar_event(p_event_id u
 returns boolean
 language sql
 stable
-security invoker
+security definer
 set search_path = public
 as $$
   select exists (
