@@ -1,4 +1,5 @@
 import { LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
+import { resolveClassGradeLabels } from "@/lib/classGrade"
 import { SUBJECT_TO_COURSE_ABBR, academicYearLabelFromStartDate, subjectChineseToAbbr } from "@/lib/courseCode"
 
 /** 班別固定時段選項（與課表／課室 75 分鐘格一致） */
@@ -268,9 +269,12 @@ export function academicYearLabelsMatch(a: string, b: string): boolean {
  return a.trim().toUpperCase() === b.trim().toUpperCase()
 }
 
-export function classMatchesGrade(c: { grade: string[] | null }, key: string): boolean {
+export function classMatchesGrade(
+ c: { grade: string[] | null; grade_code?: string | null },
+ key: string
+): boolean {
  if (key === "全部") return true
- const arr = c.grade ?? []
+ const arr = resolveClassGradeLabels(c.grade, c.grade_code)
  return arr.some((g) => {
   const t = g.trim()
   return t === key || t.includes(key)

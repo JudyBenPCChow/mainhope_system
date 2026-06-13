@@ -11,6 +11,7 @@ import { gradeChineseToCode } from "@/lib/courseCode"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import {
  fetchAcademicYearOptions,
  fetchCourseOptions,
@@ -40,6 +41,7 @@ export type ClassCreateFormValues = {
  status: string
  start_date: string
  end_date: string
+ enrollment_notice: string
 }
 
 export const emptyClassCreateForm = (): ClassCreateFormValues => ({
@@ -59,6 +61,7 @@ export const emptyClassCreateForm = (): ClassCreateFormValues => ({
  status: "進行中",
  start_date: "",
  end_date: "",
+ enrollment_notice: "",
 })
 
 type Props = {
@@ -378,6 +381,17 @@ export function ClassCreateForm({
      ))}
     </Select>
    </div>
+   <div className="sm:col-span-2">
+    <label className="text-xs text-muted-foreground">報讀須知</label>
+    <Textarea
+     className="mt-1 min-h-[100px]"
+     value={values.enrollment_notice}
+     onChange={(e) => onChange({ enrollment_notice: e.target.value })}
+     disabled={disabled}
+     placeholder="可填寫此班報讀注意事項、課程要求或備註"
+     rows={4}
+    />
+   </div>
   </div>
  )
 }
@@ -407,5 +421,6 @@ export function classCreateFormToInsertPayload(
   start_date: values.start_date || null,
   end_date: values.end_date || null,
   status: values.status,
+  enrollment_notice: values.enrollment_notice.trim() || null,
  }
 }

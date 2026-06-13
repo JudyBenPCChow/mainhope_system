@@ -9,6 +9,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
 import {
@@ -103,6 +104,7 @@ const DEFAULT_TIER_ROWS: LessonTierRow[] = [
 
 const emptyForm = {
  name: "",
+ description: "",
  discountKind: "fixed_amount" as DiscountKind,
  percentOff: "",
  amountOff: "",
@@ -207,6 +209,7 @@ export function PaymentDiscountsView() {
   setNewStackGroup("")
   setForm({
    name: r.name,
+   description: r.description ?? "",
    discountKind: r.discountKind,
    percentOff: r.percentOff != null ? String(r.percentOff) : "",
    amountOff: r.amountOff != null ? String(r.amountOff) : "",
@@ -348,6 +351,7 @@ export function PaymentDiscountsView() {
 
   return {
    name: form.name.trim(),
+   description: form.description.trim() || null,
    discountKind: form.discountKind,
    percentOff,
    amountOff,
@@ -497,6 +501,7 @@ export function PaymentDiscountsView() {
   return {
    id: "preview",
    name: input.name || "（試算）",
+   description: input.description ?? null,
    discountKind: input.discountKind ?? "fixed_amount",
    percentOff: input.percentOff,
    amountOff: input.amountOff,
@@ -741,6 +746,15 @@ export function PaymentDiscountsView() {
         value={form.name}
         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
         placeholder="例如：舊生 95 折"
+       />
+      </div>
+      <div className="grid gap-1.5">
+       <label className="font-medium">優惠簡介（選填）</label>
+       <Textarea
+        value={form.description}
+        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+        placeholder="以文字備註說明此優惠內容、適用對象或注意事項"
+        rows={3}
        />
       </div>
       <div className="grid gap-1.5">

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
@@ -130,6 +131,7 @@ function isClassEditFormDirty(
   normYmd(form.end_date) !== normYmd(cls.end_date),
   (form.status ?? "進行中") !== (cls.status ?? "進行中"),
   (form.section_code ?? null) !== (cls.section_code ?? null),
+  (form.enrollment_notice?.trim() || null) !== (cls.enrollment_notice?.trim() || null),
  ].some(Boolean)
 }
 
@@ -328,6 +330,7 @@ export function ClassDetailView() {
     start_date: nullIfBlankYmd(form.start_date),
     end_date: nullIfBlankYmd(form.end_date),
     status: form.status ?? cls.status,
+    enrollment_notice: form.enrollment_notice?.trim() || null,
    })
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -670,6 +673,13 @@ const addableStudents = (() => {
         </div>
        ))}
       </div>
+
+      {cls.enrollment_notice?.trim() ? (
+       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="text-xs font-medium text-muted-foreground">報讀須知</div>
+        <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{cls.enrollment_notice}</p>
+       </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
        <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">
@@ -1305,6 +1315,16 @@ const addableStudents = (() => {
          <option value={form.status}>{form.status}（原資料）</option>
         ) : null}
        </Select>
+      </div>
+      <div className="sm:col-span-2">
+       <label className="text-xs text-muted-foreground">報讀須知</label>
+       <Textarea
+        className="mt-1 min-h-[100px]"
+        value={form.enrollment_notice ?? ""}
+        onChange={(e) => setForm((f) => ({ ...f, enrollment_notice: e.target.value }))}
+        placeholder="可填寫此班報讀注意事項、課程要求或備註"
+        rows={4}
+       />
       </div>
        <div className="sm:col-span-2 flex gap-2">
         <Button type="button" disabled={savingEdit} onClick={() => void saveClass()}>

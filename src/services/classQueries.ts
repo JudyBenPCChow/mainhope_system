@@ -11,6 +11,7 @@ import {
  parseCourseSeqFromCodeSuffix,
 } from "@/lib/courseCode"
 import { supabase } from "@/lib/supabaseClient"
+import { resolveClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
@@ -54,6 +55,7 @@ export type ClassRecord = {
  start_date: string | null
  end_date: string | null
  status: string
+ enrollment_notice: string | null
  created_at: string
  updated_at: string
 }
@@ -65,6 +67,11 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
  const subject = course?.subjects as Record<string, unknown> | null
  const year = row.academic_years as Record<string, unknown> | null
  const g = row.grade
+ const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
+ const resolvedGrade = resolveClassGradeLabels(
+  Array.isArray(g) ? (g as string[]) : null,
+  gradeCode
+ )
  return {
   id: String(row.id),
   course_code: row.course_code != null ? String(row.course_code) : null,
@@ -76,8 +83,8 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   subject_code: subject?.code != null ? String(subject.code) : null,
   course_name: course?.course_name != null ? String(course.course_name) : null,
   course_mode: course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
-  grade: Array.isArray(g) ? (g as string[]) : null,
-  grade_code: course?.grade_code != null ? String(course.grade_code) : null,
+  grade: resolvedGrade.length > 0 ? resolvedGrade : null,
+  grade_code: gradeCode,
   course_seq: course?.course_seq != null ? Number(course.course_seq) : null,
   academic_year_id: year?.id != null ? String(year.id) : null,
   academic_year_label: year?.label != null ? String(year.label) : null,
@@ -97,6 +104,8 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   start_date: row.start_date != null ? String(row.start_date) : null,
   end_date: row.end_date != null ? String(row.end_date) : null,
   status: String(row.status ?? "進行中"),
+  enrollment_notice:
+   row.enrollment_notice != null ? String(row.enrollment_notice) : null,
   created_at: String(row.created_at ?? ""),
   updated_at: String(row.updated_at ?? ""),
  }
@@ -313,6 +322,7 @@ export async function insertClass(
   course.course_seq,
   section
  )
+ const autoGrade = resolveClassGradeLabels(row.grade ?? null, course.grade_code)
  const { data, error } = await supabase
   .from("classes")
   .insert({
@@ -322,7 +332,7 @@ export async function insertClass(
    academic_year_id: year.academic_year_id,
    section_code: section,
    course_code_full: courseCodeFull,
-   grade: row.grade ?? null,
+   grade: autoGrade.length > 0 ? autoGrade : null,
    day_of_week: row.day_of_week ?? null,
    time_slot: row.time_slot ?? null,
    teacher_id: row.teacher_id ?? null,
@@ -332,6 +342,7 @@ export async function insertClass(
    start_date: row.start_date ?? null,
    end_date: row.end_date ?? null,
    status: row.status ?? "進行中",
+   enrollment_notice: row.enrollment_notice?.trim() || null,
   })
   .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
   .single()
@@ -424,6 +435,7 @@ export async function duplicateClass(id: string): Promise<ClassRecord> {
   start_date: src.start_date,
   end_date: src.end_date,
   status: src.status,
+  enrollment_notice: src.enrollment_notice,
  })
 }
 

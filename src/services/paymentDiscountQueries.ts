@@ -34,6 +34,7 @@ export function stackGroupsFromDiscount(d: Pick<PaymentDiscountRow, "stackGroup"
 export type PaymentDiscountRow = {
  id: string
  name: string
+ description: string | null
  discountKind: DiscountKind
  percentOff: number | null
  amountOff: number | null
@@ -68,7 +69,11 @@ export type FetchActivePaymentDiscountsOptions = {
 const EXTENDED_SCHEMA_MIGRATION_HINT =
  "資料庫尚未套用優惠類型欄位（discount_kind／lesson_tiers／group_enrollment_rules）。請於 Supabase SQL Editor 執行 supabase/migrations/20260615130000_payment_discount_26sm_kinds.sql。"
 
+const DESCRIPTION_SCHEMA_MIGRATION_HINT =
+ "資料庫尚未套用優惠簡介欄位（description）。請於 Supabase SQL Editor 執行 supabase/migrations/20260613160000_payment_discount_description.sql。"
+
 let extendedDiscountSchema: boolean | null = null
+let discountDescriptionSchema: boolean | null = null
 
 /** 遠端 DB 是否已有 discount_kind 等擴充欄位（快取） */
 export async function hasExtendedDiscountSchema(): Promise<boolean> {
@@ -80,6 +85,31 @@ export async function hasExtendedDiscountSchema(): Promise<boolean> {
  const { error } = await supabase.from("payment_discounts").select("discount_kind").limit(1)
  extendedDiscountSchema = !error?.message?.includes("discount_kind")
  return extendedDiscountSchema
+}
+
+/** 遠端 DB 是否已有 description 欄位（快取） */
+export async function hasDiscountDescriptionSchema(): Promise<boolean> {
+ if (discountDescriptionSchema != null) return discountDescriptionSchema
+ if (!supabase) {
+  discountDescriptionSchema = false
+  return false
+ }
+ const { error } = await supabase.from("payment_discounts").select("description").limit(1)
+ discountDescriptionSchema = !error?.message?.includes("description")
+ return discountDescriptionSchema
+}
+
+function assertDescriptionSchema(description: string | null | undefined, hasSchema: boolean): void {
+ if (!description?.trim() || hasSchema) return
+ throw new Error(DESCRIPTION_SCHEMA_MIGRATION_HINT)
+}
+
+function descriptionPayloadValue(
+ description: string | null | undefined,
+ hasSchema: boolean
+): string | null | undefined {
+ if (!hasSchema) return undefined
+ return description?.trim() || null
 }
 
 function assertExtendedSchemaForKind(row: Partial<PaymentDiscountWriteInput>, extended: boolean): void {
@@ -120,6 +150,7 @@ export function mapPaymentDiscountRow(r: Record<string, unknown>): PaymentDiscou
  return {
   id: String(r.id),
   name: String(r.name ?? ""),
+  description: r.description != null ? String(r.description).trim() || null : null,
   discountKind,
   percentOff,
   amountOff,
@@ -206,6 +237,7 @@ export function validateDiscountSelection(
 
 export type PaymentDiscountWriteInput = {
  name: string
+ description?: string | null
  discountKind?: DiscountKind
  percentOff: number | null
  amountOff: number | null
@@ -222,7 +254,11 @@ export type PaymentDiscountWriteInput = {
  eligibilityRules?: PaymentDiscountEligibilityRules | null
 }
 
-function writePayload(row: PaymentDiscountWriteInput, extended: boolean): Record<string, unknown> {
+function writePayload(
+ row: PaymentDiscountWriteInput,
+ extended: boolean,
+ hasDescription: boolean
+): Record<string, unknown> {
  const percentOff = row.percentOff
  const amountOff = row.amountOff
  const discountKind = row.discountKind ?? "fixed_amount"
@@ -246,6 +282,8 @@ function writePayload(row: PaymentDiscountWriteInput, extended: boolean): Record
   is_label_only: isLabelOnly,
   eligibility_rules: eligibilityRulesToDb(row.eligibilityRules),
  }
+ const description = descriptionPayloadValue(row.description, hasDescription)
+ if (description !== undefined) payload.description = description
  appendExtendedDiscountFields(
   payload,
   {
@@ -310,9 +348,15 @@ export async function fetchAllPaymentDiscounts(): Promise<PaymentDiscountRow[]> 
 
 export async function insertPaymentDiscount(row: PaymentDiscountWriteInput): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const extended = await hasExtendedDiscountSchema()
+ const [extended, hasDescription] = await Promise.all([
+  hasExtendedDiscountSchema(),
+  hasDiscountDescriptionSchema(),
+ ])
  assertExtendedSchemaForKind(row, extended)
- const { error } = await supabase.from("payment_discounts").insert(writePayload(row, extended))
+ assertDescriptionSchema(row.description, hasDescription)
+ const { error } = await supabase
+  .from("payment_discounts")
+  .insert(writePayload(row, extended, hasDescription))
  if (error) throw error
 }
 
@@ -321,10 +365,16 @@ export async function updatePaymentDiscount(
  patch: Partial<PaymentDiscountWriteInput>
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const extended = await hasExtendedDiscountSchema()
+ const [extended, hasDescription] = await Promise.all([
+  hasExtendedDiscountSchema(),
+  hasDiscountDescriptionSchema(),
+ ])
  assertExtendedSchemaForKind(patch, extended)
+ assertDescriptionSchema(patch.description, hasDescription)
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
  if (patch.name !== undefined) payload.name = patch.name.trim()
+ const description = descriptionPayloadValue(patch.description, hasDescription)
+ if (description !== undefined) payload.description = description
  if (patch.percentOff !== undefined) payload.percent_off = patch.percentOff
  if (patch.amountOff !== undefined) payload.amount_off = patch.amountOff
  if (patch.isActive !== undefined) payload.is_active = patch.isActive
@@ -436,6 +486,7 @@ export function discountRowFromApplication(
  return {
   id: app.discountId,
   name: app.name,
+  description: null,
   percentOff,
   amountOff,
   isActive: true,
