@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom"
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import type { LucideIcon } from "lucide-react"
 import {
@@ -33,7 +33,10 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
+import { clearAuthState } from "@/lib/authSession"
+import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
 type Role = "admin" | "teacher" | "alien"
@@ -196,7 +199,8 @@ function initialSidebarCollapsed(): boolean {
 export function Layout() {
  const location = useLocation()
  const [collapsed, setCollapsed] = useState(initialSidebarCollapsed)
- const role = (localStorage.getItem("mgmt_role") as Role | null) ?? null
+ const { ready, role: authRole } = useAuth()
+ const role = (authRole ?? (localStorage.getItem("mgmt_role") as Role | null)) ?? null
 
  const navEntries = useMemo(() => (role ? filterNavForRole(role, NAV_STRUCTURE) : []), [role])
 
@@ -216,17 +220,23 @@ export function Layout() {
  }, [location.pathname, navEntries])
 
  const logout = () => {
-  localStorage.removeItem("mgmt_role")
-  localStorage.removeItem("teacher_id")
-  window.location.href = "/"
+  void (async () => {
+   clearAuthState()
+   if (supabase) await supabase.auth.signOut()
+   window.location.href = "/Login"
+  })()
+ }
+
+ if (!ready) {
+  return (
+   <div className="flex min-h-svh items-center justify-center bg-brand-bg text-sm text-muted-foreground">
+    正在確認登入狀態…
+   </div>
+  )
  }
 
  if (!role) {
-  return (
-   <div className="min-h-svh bg-brand-bg">
-    <Outlet />
-   </div>
-  )
+  return <Navigate to="/Login" replace state={{ from: location.pathname }} />
  }
 
  const collapsedLinks = flattenNav(navEntries)

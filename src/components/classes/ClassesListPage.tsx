@@ -610,7 +610,7 @@ export function ClassesListPage() {
    {view === "list" ? (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
      <div className="overflow-x-auto">
-      <table className="w-full min-w-[92rem] table-fixed border-collapse text-sm">
+      <table className="w-full min-w-[104rem] table-fixed border-collapse text-sm">
        <thead>
         <tr className="border-b border-border bg-muted/50 text-left">
          <th className="min-w-[7.5rem] whitespace-nowrap px-4 py-3 pr-2 font-medium">
@@ -624,6 +624,7 @@ export function ClassesListPage() {
           學生人數
          </th>
          <th className="min-w-[20rem] px-3 py-3 pr-4 font-medium">學生名單</th>
+         <th className="min-w-[12rem] px-3 py-3 pr-2 font-medium">報讀須知</th>
          <th className="min-w-[7.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">狀態</th>
          <th className="min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium">操作</th>
         </tr>
@@ -631,13 +632,13 @@ export function ClassesListPage() {
        <tbody>
         {loading ? (
          <tr>
-          <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
            載入中…
           </td>
          </tr>
         ) : filtered.length === 0 ? (
          <tr>
-          <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
            {yearScopedRows.length === 0 && baseRows.length > 0
             ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
             : "沒有符合條件的班別"}
@@ -709,6 +710,18 @@ export function ClassesListPage() {
             {(enrollRoster.get(c.id)?.names ?? []).length > 0 ? (
              <span className="line-clamp-2 break-words leading-relaxed [overflow-wrap:anywhere]">
               {(enrollRoster.get(c.id)?.names ?? []).join("、")}
+             </span>
+            ) : (
+             "—"
+            )}
+           </td>
+           <td
+            className="min-w-[12rem] max-w-[16rem] align-top px-3 py-3 pr-2 text-xs text-muted-foreground"
+            title={c.enrollment_notice?.trim() || undefined}
+           >
+            {c.enrollment_notice?.trim() ? (
+             <span className="line-clamp-2 break-words leading-relaxed [overflow-wrap:anywhere]">
+              {c.enrollment_notice}
              </span>
             ) : (
              "—"

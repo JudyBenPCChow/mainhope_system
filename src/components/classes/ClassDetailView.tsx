@@ -672,14 +672,13 @@ const addableStudents = (() => {
          <div className="mt-1 text-sm font-semibold text-foreground">{cell.v}</div>
         </div>
        ))}
-      </div>
-
-      {cls.enrollment_notice?.trim() ? (
-       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+       <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:col-span-2">
         <div className="text-xs font-medium text-muted-foreground">報讀須知</div>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{cls.enrollment_notice}</p>
+        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+         {cls.enrollment_notice?.trim() ? cls.enrollment_notice : "—"}
+        </p>
        </div>
-      ) : null}
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
        <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">

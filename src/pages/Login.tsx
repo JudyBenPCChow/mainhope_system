@@ -3,20 +3,28 @@ import { Navigate, useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useAuth } from "@/lib/authBootstrap"
 import { clearAuthState, fetchMgmtProfileByEmail, applyProfileToStorage } from "@/lib/authSession"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
-import { getMgmtRole } from "@/lib/mgmtRole"
 
 export default function Login() {
   const navigate = useNavigate()
-  const role = getMgmtRole()
+  const { ready, role } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const onlyAlienEmail = (import.meta.env.VITE_ALIEN_EMAIL as string | undefined)?.trim().toLowerCase() ?? ""
 
-  if (role) return <Navigate to="/Home" replace />
+  if (ready && role) return <Navigate to="/Home" replace />
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-svh items-center justify-center bg-brand-bg text-sm text-muted-foreground">
+        正在確認登入狀態…
+      </div>
+    )
+  }
 
   const submit = async () => {
     if (!supabase || !isSupabaseConfigured) {
