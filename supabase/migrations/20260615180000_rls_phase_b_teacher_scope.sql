@@ -238,9 +238,10 @@ begin
   end loop;
 end $$;
 
--- app_users: mgmt full; teacher reads own row (login bootstrap)
+-- app_users: mgmt full; any authenticated user reads own row (login bootstrap)
 drop policy if exists rls_phase_b_mgmt_all_app_users on public.app_users;
 drop policy if exists rls_phase_b_teacher_select_app_users on public.app_users;
+drop policy if exists rls_phase_b_auth_select_own_app_user on public.app_users;
 create policy rls_phase_b_mgmt_all_app_users
 on public.app_users
 for all
@@ -248,14 +249,11 @@ to authenticated
 using (public.is_mgmt_staff())
 with check (public.is_mgmt_staff());
 
-create policy rls_phase_b_teacher_select_app_users
+create policy rls_phase_b_auth_select_own_app_user
 on public.app_users
 for select
 to authenticated
-using (
-  public.is_teacher_role()
-  and lower(coalesce(email, '')) = public.current_app_user_email()
-);
+using (lower(coalesce(email, '')) = public.current_app_user_email());
 
 -- teachers: mgmt full; teacher read all (dropdown labels); update own profile
 drop policy if exists rls_phase_b_mgmt_all_teachers on public.teachers;

@@ -51,7 +51,13 @@ export async function fetchMgmtProfileByEmail(email: string): Promise<MgmtProfil
     .limit(1)
     .maybeSingle()
 
-  if (error) throw error
+  if (error) {
+   const msg =
+    typeof error === "object" && error !== null && "message" in error
+     ? String((error as { message: unknown }).message)
+     : "無法讀取用戶角色"
+   throw new Error(msg)
+  }
   if (!data?.email) return null
 
   const role = normalizeRole(typeof data.role === "string" ? data.role : null)

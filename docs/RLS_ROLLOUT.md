@@ -164,4 +164,4 @@ Phase B 驗收通过后 → 開始 **Phase C**（admin／alien 分工、付款�
 |------|------|------|
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
 | 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |
-| 2026-06-15 | Phase B code | teacher 範圍 RLS migration + 前端 query 對齊 |
+| 2026-06-15 | Phase B hotfix | app_users 登入 bootstrap policy（修復全角色無法登入） |
