@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
 import { isAcademicYearReadOnly, isSuperAdmin, academicYearReadOnlyHint } from "@/lib/mgmtRole"
@@ -33,6 +33,7 @@ import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
+import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
  deleteClassCascade,
@@ -73,7 +74,9 @@ function galleryCoverClass(subject: string): string {
 
 export function ClassesListPage() {
  const navigate = useNavigate()
+ const location = useLocation()
  const { confirmDialog } = useAppConfirm()
+ const { pushBanner } = useAppBanner()
  const teacherTid = getTeacherScopeTeacherId()
  const [rows, setRows] = useState<ClassRecord[]>([])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
@@ -93,8 +96,8 @@ export function ClassesListPage() {
  const [statusKey, setStatusKey] = useState<string>("全部")
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
- const load = useCallback(async () => {
-  setLoading(true)
+ const load = useCallback(async (opts?: { silent?: boolean }) => {
+  if (!opts?.silent) setLoading(true)
   setErr(null)
   try {
    const list = await fetchAllClasses()
@@ -110,13 +113,27 @@ export function ClassesListPage() {
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
   } finally {
-   setLoading(false)
+   if (!opts?.silent) setLoading(false)
   }
+ }, [])
+
+ const removeClassFromLocalState = useCallback((id: string) => {
+  setRows((prev) => prev.filter((c) => c.id !== id))
+  setEnrollRoster((prev) => {
+   const next = new Map(prev)
+   next.delete(id)
+   return next
+  })
+  setScheduleSummaries((prev) => {
+   const next = new Map(prev)
+   next.delete(id)
+   return next
+  })
  }, [])
 
  useEffect(() => {
   void load()
- }, [load])
+ }, [location.key, load])
 
  useEffect(() => {
   if (!teacherTid && view === "gallery") setView("list")
@@ -311,7 +328,9 @@ export function ClassesListPage() {
    return
   try {
    await deleteClassCascade(id)
-   await load()
+   removeClassFromLocalState(id)
+   pushBanner({ tone: "info", title: "已刪除班別" })
+   void load({ silent: true })
   } catch (er) {
    reportUserFacingError(er, { source: "ClassesListPage.onDelete", setErr })
   }

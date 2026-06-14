@@ -427,6 +427,10 @@ export async function updateClass(
  patch: Partial<Omit<ClassRecord, "id" | "created_at" | "teacher_name" | "classroom_name">>
 ): Promise<ClassRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
+ let existingForSection: ClassRecord | null = null
+ if ("section_code" in patch && !("course_id" in patch)) {
+  existingForSection = await getClassById(id)
+ }
  const payload: Record<string, unknown> = {
   ...(patch as Record<string, unknown>),
   updated_at: new Date().toISOString(),
@@ -439,15 +443,23 @@ export async function updateClass(
   payload.course_code = coalesceCourseCodeForDb(patch.course_code ?? null)
  }
  if ("course_id" in patch || "section_code" in patch) {
-  const targetCourseId = (patch.course_id as string | null | undefined) ?? null
+  const targetCourseId =
+   (patch.course_id as string | null | undefined) ?? existingForSection?.course_id ?? null
   const section = typeof patch.section_code === "string" ? patch.section_code.trim() : null
   if (targetCourseId) {
    const resolvedSection = section && section.length > 0 ? section : await allocateSectionCode(targetCourseId)
    payload.section_code = resolvedSection
    const info = await ensureCourseId({ course_id: targetCourseId })
    const year = await resolveAcademicYearIdLabel({
-    academic_year_id: (patch.academic_year_id as string | null | undefined) ?? (payload.academic_year_id as string | null | undefined),
-    academic_year_label: (patch.academic_year_label as string | null | undefined) ?? null,
+    academic_year_id:
+     (patch.academic_year_id as string | null | undefined) ??
+     (payload.academic_year_id as string | null | undefined) ??
+     existingForSection?.academic_year_id ??
+     null,
+    academic_year_label:
+     (patch.academic_year_label as string | null | undefined) ??
+     existingForSection?.academic_year_label ??
+     null,
    })
    payload.academic_year_id = year.academic_year_id
    payload.course_code_full = buildClassCourseCodeFull(
@@ -654,6 +666,37 @@ export async function nextSessionNumberForClass(classId: string): Promise<number
  if (error) throw error
  const max = (data ?? [])[0] as { session_number?: number | null } | undefined
  return (max?.session_number != null ? Number(max.session_number) : 0) + 1
+}
+
+function compareSchedulesForSessionOrder(a: ClassScheduleRow, b: ClassScheduleRow): number {
+ const byDate = a.scheduled_date.localeCompare(b.scheduled_date)
+ if (byDate !== 0) return byDate
+ const byStart = (a.start_time ?? "").localeCompare(b.start_time ?? "")
+ if (byStart !== 0) return byStart
+ const slotA = a.consecutive_slot_index ?? Number.MAX_SAFE_INTEGER
+ const slotB = b.consecutive_slot_index ?? Number.MAX_SAFE_INTEGER
+ if (slotA !== slotB) return slotA - slotB
+ return a.id.localeCompare(b.id)
+}
+
+/** 依上課日期（及時間、連堂順序）重新編排此班所有排程的堂次編號（含取消課堂） */
+export async function reorderClassScheduleSessionNumbers(
+ classId: string
+): Promise<{ updated: number; total: number }> {
+ const rows = await fetchClassSchedules(classId)
+ const sorted = [...rows].sort(compareSchedulesForSessionOrder)
+ const updates: { id: string; session_number: number }[] = []
+ let next = 1
+ for (const row of sorted) {
+  if (row.session_number !== next) {
+   updates.push({ id: row.id, session_number: next })
+  }
+  next += 1
+ }
+ if (updates.length > 0) {
+  await Promise.all(updates.map((u) => updateSchedule(u.id, { session_number: u.session_number })))
+ }
+ return { updated: updates.length, total: sorted.length }
 }
 
 export type ScheduleStudentHints = {

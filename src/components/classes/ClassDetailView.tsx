@@ -55,6 +55,7 @@ import {
  getClassById,
  insertSchedulesForClassSession,
  nextSessionNumberForClass,
+ reorderClassScheduleSessionNumbers,
  type ClassRecord,
  type ClassScheduleRow,
  type ClassStudentRow,
@@ -186,6 +187,7 @@ export function ClassDetailView() {
  const [newSchedTimeSlot, setNewSchedTimeSlot] = useState("")
  const [newSchedSession, setNewSchedSession] = useState<number | null>(null)
  const [savingAddSched, setSavingAddSched] = useState(false)
+ const [reorderingSessions, setReorderingSessions] = useState(false)
  const [addSchedErr, setAddSchedErr] = useState<string | null>(null)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentPeriod, setAddStudentPeriod] = useState<EnrollmentPeriod>("兩期全報")
@@ -325,6 +327,7 @@ export function ClassDetailView() {
    await updateClass(cid, {
     subject: form.subject ?? cls.subject,
     course_code: form.course_code?.trim() ? form.course_code : null,
+    section_code: form.section_code?.trim() || null,
     grade: gradeArr,
     day_of_week: dayStored,
     time_slot: nullIfBlankText(form.time_slot),
@@ -553,6 +556,42 @@ const addableStudents = (() => {
     setErr: setSchedActionErr,
     userMessage: msg,
    })
+  }
+ }
+
+ const onReorderSessionNumbers = async () => {
+  if (!cid || schedules.length === 0) return
+  if (
+   !(await confirmDialog({
+    title: "按日期重排堂次",
+    description:
+     "將依上課日期、開始時間（連堂班別同一日兩節按連堂順序）重新編排堂次為 1、2、3…，包含已取消課堂。確定繼續？",
+    confirmText: "確認重排",
+   }))
+  )
+   return
+  setReorderingSessions(true)
+  setSchedActionErr(null)
+  try {
+   const { updated, total } = await reorderClassScheduleSessionNumbers(cid)
+   await reload()
+   pushBanner({
+    tone: updated > 0 ? "success" : "info",
+    title: updated > 0 ? "堂次已重排" : "堂次無需調整",
+    message:
+     updated > 0
+      ? `已更新 ${updated} 筆排程（共 ${total} 筆）。`
+      : `共 ${total} 筆排程，堂次已符合日期順序。`,
+   })
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onReorderSessionNumbers",
+    setErr: setSchedActionErr,
+    userMessage: msg,
+   })
+  } finally {
+   setReorderingSessions(false)
   }
  }
 
@@ -918,7 +957,16 @@ const addableStudents = (() => {
         ))}
        </div>
        {canManageClass ? (
-       <Dialog open={addSchedOpen} onOpenChange={setAddSchedOpen}>
+       <div className="flex flex-wrap items-center gap-2">
+        <Button
+         type="button"
+         variant="outline"
+         disabled={reorderingSessions || schedules.length === 0}
+         onClick={() => void onReorderSessionNumbers()}
+        >
+         {reorderingSessions ? "重排中…" : "按日期重排堂次"}
+        </Button>
+        <Dialog open={addSchedOpen} onOpenChange={setAddSchedOpen}>
         <DialogTrigger asChild>
          <Button
           type="button"
@@ -1001,6 +1049,7 @@ const addableStudents = (() => {
          </div>
         </DialogContent>
        </Dialog>
+       </div>
        ) : null}
       </div>
       <div className="space-y-2">
