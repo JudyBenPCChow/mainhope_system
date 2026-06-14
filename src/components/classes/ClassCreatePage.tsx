@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 
 import {
@@ -13,7 +13,7 @@ import {
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
 import { classDisplayName } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
+import { isAcademicYearReadOnly, filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { deleteClassCascade, fetchAcademicYearOptions, fetchSubjectOptions, insertClass, type ClassRecord } from "@/services/classQueries"
@@ -46,11 +46,6 @@ export function ClassCreatePage() {
  const [err, setErr] = useState<string | null>(null)
  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name_zh: string }[]>([])
 
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, form.academic_year_label || null),
-  [form.academic_year_label]
- )
-
  useEffect(() => {
   void fetchSubjectOptions().then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
  }, [])
@@ -58,11 +53,14 @@ export function ClassCreatePage() {
  useEffect(() => {
   if (form.academic_year_id) return
   void fetchAcademicYearOptions().then((years) => {
+   const editableYears = filterAcademicYearOptionsForEdit(years)
    const fromLabel = searchParams.get("academic_year")
+   const fromId = searchParams.get("academic_year_id")
    const picked =
-    (fromLabel ? years.find((y) => y.label === fromLabel) : null) ??
-    years.find((y) => y.is_current) ??
-    years[0]
+    (fromId ? editableYears.find((y) => y.id === fromId) : null) ??
+    (fromLabel ? editableYears.find((y) => y.label === fromLabel) : null) ??
+    editableYears.find((y) => y.is_current) ??
+    editableYears[0]
    if (picked) {
     setForm((f) => ({
      ...f,
@@ -78,7 +76,10 @@ export function ClassCreatePage() {
  }, [])
 
  const onStep1Next = async () => {
-  if (historyReadOnly) return
+  if (isAcademicYearReadOnly(undefined, form.academic_year_label || null)) {
+   pushBanner({ tone: "warning", title: "此學年不可新增班別" })
+   return
+  }
   if (!form.subject_id || !form.academic_year_id || !form.grade_code || !form.course_id) {
    pushBanner({ tone: "warning", title: "請填寫學年、科目、年級與課程" })
    return
@@ -153,10 +154,6 @@ export function ClassCreatePage() {
     </Button>
    </div>
 
-   {historyReadOnly ? (
-    <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm">{academicYearReadOnlyHint()}</p>
-   ) : null}
-
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
@@ -165,8 +162,8 @@ export function ClassCreatePage() {
 
    {step === 1 ? (
     <>
-     <ClassCreateForm values={form} onChange={patchForm} disabled={historyReadOnly || saving} />
-     <Button type="button" disabled={historyReadOnly || saving} onClick={() => void onStep1Next()}>
+     <ClassCreateForm values={form} onChange={patchForm} disabled={saving} />
+     <Button type="button" disabled={saving} onClick={() => void onStep1Next()}>
       {saving ? "建立中…" : "下一步：批量排程"}
      </Button>
     </>

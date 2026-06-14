@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useAppBanner } from "@/lib/appBanner"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -38,6 +39,7 @@ function parseYmd(raw: string | null): string | null {
 }
 
 export function RollCallPage() {
+ const { pushBanner } = useAppBanner()
  const [searchParams] = useSearchParams()
  const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
  const urlDate = parseYmd(searchParams.get("date"))
@@ -275,6 +277,11 @@ export function RollCallPage() {
     detail: `schedule_id=${activeSchedule.id}; class_id=${classId}; date=${lessonDate}; students=${students.length}`,
    })
    setSavedMap(new Map(statusMap))
+   pushBanner({
+    tone: "success",
+    title: "點名已儲存",
+    message: `${activeSchedule.classLabel} · ${lessonDate}：已記錄 ${students.length} 位學生的出席狀態。`,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallPage.saveAll", setErr: setSheetErr })
   } finally {
@@ -331,6 +338,12 @@ export function RollCallPage() {
   }
   return false
  }, [students, statusMap, savedMap])
+
+ /** 本堂是否已完成點名（全部學生皆已寫入資料庫） */
+ const rollCallSaved = useMemo(
+  () => students.length > 0 && savedFilledCount === students.length,
+  [students.length, savedFilledCount]
+ )
 
  if (!isSupabaseConfigured) {
   return (
@@ -442,14 +455,27 @@ export function RollCallPage() {
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
       <div>
-       <h2 className="text-lg font-semibold">
-        點名表 · {activeSchedule.classLabel} · {activeSchedule.scheduled_date}
-       </h2>
+       <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">
+         點名表 · {activeSchedule.classLabel} · {activeSchedule.scheduled_date}
+        </h2>
+        {rollCallSaved ? (
+         <Tag tone="success" size="sm">
+          已點名
+         </Tag>
+        ) : (
+         <Tag tone="warning" size="sm">
+          未點名
+         </Tag>
+        )}
+       </div>
        <p className="text-xs text-muted-foreground">
         共 {students.length} 位學生（班內報讀 + 試堂）
         {activeSchedule.classroom_name ? ` · ${activeSchedule.classroom_name}` : ""}
         <span className="mt-1 block text-amber-900/90">
-         請先點選出席狀態，再於下方按「確定」寫入資料庫。
+         {rollCallSaved
+          ? "本堂已完成點名；若要修改出席狀態，變更後再按「確定」儲存。"
+          : "請先點選出席狀態，再於下方按「確定」寫入資料庫。"}
         </span>
        </p>
       </div>

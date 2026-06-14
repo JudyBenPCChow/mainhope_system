@@ -8,6 +8,7 @@ import {
  weekdaysToStored,
 } from "@/components/classes/classesUi"
 import { gradeChineseToCode } from "@/lib/courseCode"
+import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -97,14 +98,15 @@ export function ClassCreateForm({
    ])
    setTeachers(teacherOpts)
    setSubjectOptions(subjectOpts)
-   setYearOptions(yearOpts)
+   setYearOptions(filterAcademicYearOptionsForEdit(yearOpts))
    setYearRanges(yrs)
    setRooms(rm.filter((r) => !r.is_online))
   })()
  }, [])
 
  useEffect(() => {
-  if (values.academic_year_id || yearOptions.length === 0) return
+  if (yearOptions.length === 0) return
+  if (values.academic_year_id && yearOptions.some((y) => y.id === values.academic_year_id)) return
   const picked = yearOptions.find((y) => y.is_current) ?? yearOptions[0]
   if (!picked) return
   const yr = yearRanges.find((y) => y.id === picked.id)

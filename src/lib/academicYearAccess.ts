@@ -30,9 +30,9 @@ function normalizeYearLabel(label: string | null | undefined): string {
 export function getNextAcademicYearLabel(label: string): string | null {
  const t = label.trim()
  if (/^\d{4}$/.test(t)) {
-  const yy = parseInt(t.slice(0, 2), 10)
-  if (!Number.isFinite(yy)) return null
-  return `${String(yy).padStart(2, "0")}SM`
+  const endYy = parseInt(t.slice(2, 4), 10)
+  if (!Number.isFinite(endYy)) return null
+  return `${String(endYy).padStart(2, "0")}SM`
  }
  if (/^\d{2}SM$/i.test(t)) {
   const yy = parseInt(t.slice(0, 2), 10)
@@ -40,6 +40,13 @@ export function getNextAcademicYearLabel(label: string): string | null {
   return `${String(yy).padStart(2, "0")}${String(yy + 1).padStart(2, "0")}`
  }
  return null
+}
+
+/** 管理員可新增／修改的學年 label 列表（目前 + 下一） */
+export function getAdminEditableAcademicYearLabels(referenceYmd?: string | null): string[] {
+ const current = normalizeYearLabel(academicYearLabelFromStartDate(referenceYmd ?? null))
+ const next = getNextAcademicYearLabel(current)
+ return next ? [current, next] : [current]
 }
 
 /** 管理員可編輯：以 referenceYmd 推算的目前學年，及其下一學年 */

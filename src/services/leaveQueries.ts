@@ -170,6 +170,50 @@ export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
  if (error) throwPostgrest(error)
 }
 
+const LEAVE_DUPLICATE_MESSAGE = "此學生對該排程已有請假紀錄，不可重複新增"
+
+export async function findLeaveRecordForStudentSchedule(
+ studentId: string,
+ scheduleId: string
+): Promise<{ id: string } | null> {
+ if (!supabase || !scheduleId.trim()) return null
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id")
+  .eq("student_id", studentId)
+  .eq("schedule_id", scheduleId)
+  .maybeSingle()
+ if (error) throwPostgrest(error)
+ return data?.id != null ? { id: String(data.id) } : null
+}
+
+async function fetchLeaveScheduleIdsForStudent(
+ studentId: string,
+ scheduleIds: string[]
+): Promise<Set<string>> {
+ if (!supabase || scheduleIds.length === 0) return new Set()
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("schedule_id")
+  .eq("student_id", studentId)
+  .in("schedule_id", scheduleIds)
+ if (error) throwPostgrest(error)
+ const out = new Set<string>()
+ for (const row of data ?? []) {
+  const sid = (row as { schedule_id?: string | null }).schedule_id
+  if (sid) out.add(String(sid))
+ }
+ return out
+}
+
+export async function validateLeaveScheduleNotDuplicate(
+ studentId: string,
+ scheduleId: string
+): Promise<string | null> {
+ const existing = await findLeaveRecordForStudentSchedule(studentId, scheduleId)
+ return existing ? LEAVE_DUPLICATE_MESSAGE : null
+}
+
 export async function insertLeaveMakeupRecord(row: {
  student_id: string
  class_id: string
@@ -183,6 +227,10 @@ export async function insertLeaveMakeupRecord(row: {
  status?: string
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ if (row.schedule_id) {
+  const dup = await validateLeaveScheduleNotDuplicate(row.student_id, row.schedule_id)
+  if (dup) throw new Error(dup)
+ }
  const { error } = await supabase.from("leave_makeup_records").insert({
   student_id: row.student_id,
   class_id: row.class_id,
@@ -195,7 +243,11 @@ export async function insertLeaveMakeupRecord(row: {
   remarks: row.remarks ?? null,
   status: row.status ?? "待補課",
  })
- if (error) throwPostgrest(error)
+ if (error) {
+  const code = (error as { code?: string }).code
+  if (code === "23505") throw new Error(LEAVE_DUPLICATE_MESSAGE)
+  throwPostgrest(error)
+ }
 }
 
 /** 老師首頁：所屬班請假摘要 */
@@ -347,6 +399,14 @@ export async function fetchUpcomingSchedulesForClass(
   }
  }
 
+ if (studentId && rows.length > 0) {
+  const leaveTaken = await fetchLeaveScheduleIdsForStudent(
+   studentId,
+   rows.map((r) => r.id)
+  )
+  rows = rows.filter((r) => !leaveTaken.has(r.id))
+ }
+
  return rows
 }
 
@@ -458,10 +518,107 @@ export async function fetchUpcomingSchedulesForStudent(
   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
 }
 
-/** 未來一個月內可選補堂排程（跨班） */
-export async function fetchMakeupCandidateSchedules(): Promise<ScheduleManageRow[]> {
+type MakeupCandidateOpts = {
+ /** 排除該生本來就需出席的排程（同班就讀中、含暑期期數） */
+ studentId?: string
+ /** 不可選為補堂的排程 id（例如請假當堂） */
+ excludeScheduleIds?: string[]
+}
+
+async function buildStudentRegularAttendanceChecker(
+ studentId: string
+): Promise<(row: ScheduleManageRow) => boolean> {
+ if (!supabase) return () => false
+
+ const { data: enrollments, error } = await supabase
+  .from("student_class_enrollments")
+  .select("class_id, enrollment_period")
+  .eq("student_id", studentId)
+  .eq("status", "就讀中")
+ if (error) throwPostgrest(error)
+
+ const enrollmentByClass = new Map<string, EnrollmentPeriod | null>()
+ for (const row of enrollments ?? []) {
+  const r = row as { class_id?: string; enrollment_period?: string | null }
+  const cid = String(r.class_id ?? "")
+  if (!cid) continue
+  enrollmentByClass.set(cid, normalizeEnrollmentPeriod(r.enrollment_period))
+ }
+
+ if (enrollmentByClass.size === 0) return () => false
+
+ const configCache = new Map<string, Awaited<ReturnType<typeof fetchClassEnrollmentConfig>>>()
+ const periodCache = new Map<string, AcademicYearPeriodRow[]>()
+
+ await Promise.all(
+  [...enrollmentByClass.keys()].map(async (classId) => {
+   const config = await fetchClassEnrollmentConfig(classId)
+   configCache.set(classId, config)
+   if (config.courseMode === "summer_two_period" && config.academicYearId) {
+    if (!periodCache.has(config.academicYearId)) {
+     periodCache.set(config.academicYearId, await fetchAcademicYearPeriods(config.academicYearId))
+    }
+   }
+  })
+ )
+
+ return (row: ScheduleManageRow) => {
+  if (!row.class_id) return false
+  const enrollmentPeriod = enrollmentByClass.get(row.class_id)
+  if (enrollmentPeriod === undefined) return false
+
+  const config = configCache.get(row.class_id)
+  if (!config || config.courseMode !== "summer_two_period" || !config.academicYearId) {
+   return true
+  }
+  const periods = periodCache.get(config.academicYearId) ?? []
+  const code = resolvePeriodCodeFromDate(row.scheduled_date, periods)
+  if (code == null) return true
+  return enrollmentCoversPeriod(enrollmentPeriod, code)
+ }
+}
+
+/** 是否為該生就讀班別中、依期數本來就需出席的排程（不可作補堂） */
+export async function isRegularAttendanceScheduleForStudent(
+ studentId: string,
+ schedule: Pick<ScheduleManageRow, "class_id" | "scheduled_date">
+): Promise<boolean> {
+ const checker = await buildStudentRegularAttendanceChecker(studentId)
+ return checker(schedule as ScheduleManageRow)
+}
+
+export async function validateMakeupScheduleForStudent(
+ studentId: string,
+ makeupSchedule: ScheduleManageRow,
+ leaveScheduleId?: string | null
+): Promise<string | null> {
+ if (leaveScheduleId && makeupSchedule.id === leaveScheduleId) {
+  return "補堂排程不可與請假排程相同"
+ }
+ if (await isRegularAttendanceScheduleForStudent(studentId, makeupSchedule)) {
+  return "不可選擇該生本來就需出席的課堂作為補堂"
+ }
+ return null
+}
+
+/** 未來一個月內可選補堂排程（跨班；排除就讀中本來需出席的堂次） */
+export async function fetchMakeupCandidateSchedules(
+ opts?: MakeupCandidateOpts
+): Promise<ScheduleManageRow[]> {
  const from = localYmd()
  const to = addDaysYmd(from, 30)
  const rows = await fetchSchedulesInRange(from, to)
- return rows.filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
+ const excludeIds = new Set((opts?.excludeScheduleIds ?? []).filter(Boolean))
+ let candidates = rows.filter(
+  (s) =>
+   !s.status.includes("取消") &&
+   !s.status.includes("完成") &&
+   !excludeIds.has(s.id)
+ )
+
+ const studentId = opts?.studentId?.trim()
+ if (!studentId) return candidates
+
+ const isRegularAttendance = await buildStudentRegularAttendanceChecker(studentId)
+ return candidates.filter((s) => !isRegularAttendance(s))
 }

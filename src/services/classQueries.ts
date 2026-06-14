@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { resolveClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
-import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
+import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass, localYmd } from "@/services/scheduleQueries"
 import { releaseAvailabilityForClass } from "@/services/teacherAvailabilityQueries"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import type { EnrollmentPeriod, CourseMode } from "@/lib/enrollmentPeriod"
@@ -622,6 +622,60 @@ function sortNames(names: string[]): string[] {
  return [...new Set(names)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
 }
 
+type HistEnrollmentEvent = {
+ studentId: string
+ fullName: string
+ action: "enroll" | "withdraw" | "period_change"
+ effectiveDate: string
+ enrollmentPeriod: EnrollmentPeriod | null
+ createdAt: string
+}
+
+/** 依增退紀錄還原某日班內就讀學生（含已退班者） */
+function resolveEnrolledStudentsOnDate(
+ events: HistEnrollmentEvent[],
+ date: string
+): EnrolledStudent[] {
+ const byStudent = new Map<string, HistEnrollmentEvent[]>()
+ for (const e of events) {
+  const arr = byStudent.get(e.studentId) ?? []
+  arr.push(e)
+  byStudent.set(e.studentId, arr)
+ }
+
+ const out: EnrolledStudent[] = []
+ for (const [studentId, evs] of byStudent) {
+  const prior = evs
+   .filter((e) => e.effectiveDate <= date)
+   .sort(
+    (a, b) =>
+     a.effectiveDate.localeCompare(b.effectiveDate) || a.createdAt.localeCompare(b.createdAt)
+   )
+  if (prior.length === 0) continue
+
+  let enrolled = false
+  let period: EnrollmentPeriod | null = null
+  let fullName = "—"
+  for (const e of prior) {
+   fullName = e.fullName
+   if (e.action === "enroll" || e.action === "period_change") {
+    enrolled = true
+    if (e.enrollmentPeriod) period = e.enrollmentPeriod
+   } else if (e.action === "withdraw") {
+    enrolled = false
+   }
+  }
+  if (enrolled) out.push({ studentId, fullName, enrollmentPeriod: period })
+ }
+ return out
+}
+
+type EnrolledStudent = {
+ studentId: string
+ fullName: string
+ enrollmentPeriod: EnrollmentPeriod | null
+}
+
 /** 批次取得班別各堂排程的預定出席／請假學生名單 */
 export async function fetchScheduleStudentHintsForClass(
  classId: string,
@@ -649,11 +703,6 @@ export async function fetchScheduleStudentHintsForClass(
   .eq("status", "就讀中")
  if (enrErr) throw enrErr
 
- type EnrolledStudent = {
-  studentId: string
-  fullName: string
-  enrollmentPeriod: EnrollmentPeriod | null
- }
  const enrolled: EnrolledStudent[] = (enrData ?? []).map((row) => {
   const r = row as Record<string, unknown>
   const st = r.students as Record<string, unknown> | null
@@ -666,7 +715,8 @@ export async function fetchScheduleStudentHintsForClass(
   }
  })
 
- const [leavesLinkedRes, leavesDateRes, trialsRes, makeupsRes] = await Promise.all([
+ const [leavesLinkedRes, leavesDateRes, trialsRes, makeupsRes, attRes, histEnrRes] =
+  await Promise.all([
   supabase
    .from("leave_makeup_records")
    .select("student_id, schedule_id, leave_date, students ( full_name )")
@@ -685,12 +735,66 @@ export async function fetchScheduleStudentHintsForClass(
    .from("leave_makeup_records")
    .select("makeup_schedule_id, student_id, students ( full_name )")
    .in("makeup_schedule_id", scheduleIds),
+  supabase
+   .from("attendance_details")
+   .select("student_id, attendance_date, students ( full_name )")
+   .eq("class_id", classId)
+   .in("attendance_date", dates),
+  supabase
+   .from("enrollment_change_events")
+   .select(
+    "student_id, action, effective_date, enrollment_period, created_at, students ( full_name )"
+   )
+   .eq("class_id", classId)
+   .order("effective_date", { ascending: true })
+   .order("created_at", { ascending: true }),
  ])
 
  if (leavesLinkedRes.error) throw leavesLinkedRes.error
  if (leavesDateRes.error) throw leavesDateRes.error
  if (trialsRes.error) throw trialsRes.error
  if (makeupsRes.error) throw makeupsRes.error
+ if (attRes.error) throw attRes.error
+ if (histEnrRes.error) throw histEnrRes.error
+
+ const today = localYmd()
+
+ const histEvents: HistEnrollmentEvent[] = (histEnrRes.data ?? []).map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  const actionRaw = String(r.action ?? "enroll")
+  const action: HistEnrollmentEvent["action"] =
+   actionRaw === "withdraw"
+    ? "withdraw"
+    : actionRaw === "period_change"
+      ? "period_change"
+      : "enroll"
+  return {
+   studentId: String(r.student_id),
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+   action,
+   effectiveDate: String(r.effective_date ?? "").slice(0, 10),
+   enrollmentPeriod: normalizeEnrollmentPeriod(
+    r.enrollment_period != null ? String(r.enrollment_period) : null
+   ),
+   createdAt: String(r.created_at ?? ""),
+  }
+ })
+
+ type AttendanceByDateRow = { studentId: string; fullName: string }
+ const attendanceByDate = new Map<string, AttendanceByDateRow[]>()
+ for (const row of attRes.data ?? []) {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  const date = String(r.attendance_date ?? "").slice(0, 10)
+  const item: AttendanceByDateRow = {
+   studentId: String(r.student_id),
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+  }
+  const arr = attendanceByDate.get(date) ?? []
+  arr.push(item)
+  attendanceByDate.set(date, arr)
+ }
 
  type LeaveRow = { studentId: string; fullName: string; scheduleId: string | null; leaveDate: string }
  const allLeaves: LeaveRow[] = [...(leavesLinkedRes.data ?? []), ...(leavesDateRes.data ?? [])].map(
@@ -750,25 +854,37 @@ export async function fetchScheduleStudentHintsForClass(
   const attendingIds = new Set<string>()
   const attendingNames: string[] = []
 
-  for (const e of enrolled) {
-   if (periodCode != null && !enrollmentCoversPeriod(e.enrollmentPeriod, periodCode)) continue
-   if (leaveStudentIds.has(e.studentId)) continue
-   attendingIds.add(e.studentId)
-   attendingNames.push(e.fullName)
+  const addAttending = (studentId: string, fullName: string) => {
+   if (leaveStudentIds.has(studentId) || attendingIds.has(studentId)) return
+   attendingIds.add(studentId)
+   attendingNames.push(fullName)
+  }
+
+  const isPast = sched.scheduled_date < today
+
+  if (isPast) {
+   for (const e of resolveEnrolledStudentsOnDate(histEvents, sched.scheduled_date)) {
+    if (periodCode != null && !enrollmentCoversPeriod(e.enrollmentPeriod, periodCode)) continue
+    addAttending(e.studentId, e.fullName)
+   }
+   for (const a of attendanceByDate.get(sched.scheduled_date) ?? []) {
+    addAttending(a.studentId, a.fullName)
+   }
+  } else {
+   for (const e of enrolled) {
+    if (periodCode != null && !enrollmentCoversPeriod(e.enrollmentPeriod, periodCode)) continue
+    addAttending(e.studentId, e.fullName)
+   }
   }
 
   for (const t of trials) {
    if (t.scheduleId !== sched.id) continue
-   if (leaveStudentIds.has(t.studentId) || attendingIds.has(t.studentId)) continue
-   attendingIds.add(t.studentId)
-   attendingNames.push(t.fullName)
+   addAttending(t.studentId, t.fullName)
   }
 
   for (const m of makeups) {
    if (m.makeupScheduleId !== sched.id) continue
-   if (leaveStudentIds.has(m.studentId) || attendingIds.has(m.studentId)) continue
-   attendingIds.add(m.studentId)
-   attendingNames.push(m.fullName)
+   addAttending(m.studentId, m.fullName)
   }
 
   result.set(sched.id, {

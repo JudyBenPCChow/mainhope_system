@@ -2,6 +2,7 @@ import {
  isAdminEditableAcademicYearLabel,
  isClosedAcademicYear,
  getNextAcademicYearLabel,
+ getAdminEditableAcademicYearLabels,
 } from "@/lib/academicYearAccess"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 
@@ -24,6 +25,14 @@ export function isSuperAdmin(): boolean {
 export function isMgmtStaff(): boolean {
  const r = getMgmtRole()
  return r === "admin" || r === "alien"
+}
+
+export function isAdmin(): boolean {
+ return getMgmtRole() === "admin"
+}
+
+export function isAlien(): boolean {
+ return getMgmtRole() === "alien"
 }
 
 /**
@@ -56,6 +65,22 @@ export function academicYearReadOnlyHint(role?: MgmtRole | null): string {
    : `僅 ${current} 學年可新增或修改；其他學年僅供查閱。`
  }
  return "2526 及更早學年僅供查閱；不可新增、修改、刪除。"
+}
+
+/** 新增／編輯班別等：依角色篩選可選學年（admin 僅目前 + 下一） */
+export function filterAcademicYearOptionsForEdit<T extends { label: string }>(
+ options: T[],
+ referenceYmd?: string | null
+): T[] {
+ const role = getMgmtRole()
+ if (role === "alien") return options
+ if (role === "admin") {
+  const allowed = new Set(
+   getAdminEditableAcademicYearLabels(referenceYmd).map((l) => l.trim().toUpperCase())
+  )
+  return options.filter((o) => allowed.has(o.label.trim().toUpperCase()))
+ }
+ return options.filter((o) => !isClosedAcademicYear(undefined, o.label))
 }
 
 /** @deprecated 請改用 isAcademicYearReadOnly(endDate, label) */

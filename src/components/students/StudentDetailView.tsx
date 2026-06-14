@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom"
 import {
  ArrowLeft,
  Banknote,
@@ -34,6 +34,7 @@ import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -81,6 +82,7 @@ import {
 import {
  fetchEnrolledClassesForStudent,
  fetchMakeupCandidateSchedules,
+ validateMakeupScheduleForStudent,
  fetchUpcomingSchedulesForStudent,
  fetchUpcomingSchedulesForClass,
  insertLeaveMakeupRecord,
@@ -167,6 +169,8 @@ type UnsavedLeaveChoice = "save" | "discard" | "cancel"
 export function StudentDetailView() {
  const { studentId } = useParams<{ studentId: string }>()
  const navigate = useNavigate()
+ const location = useLocation()
+ const exitPath = useMemo(() => resolveStudentDetailExitPath(location), [location])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [tab, setTab] = useState<TabId>("basic")
@@ -375,8 +379,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     if (!ok) return
    }
   }
-  navigate("/Students")
- }, [student, form, promptUnsavedLeave, navigate, saveBasic])
+  navigate(exitPath)
+ }, [student, form, promptUnsavedLeave, navigate, saveBasic, exitPath])
 
  const addEnrollment = async () => {
   if (!pickClass) return
@@ -488,18 +492,37 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLeaveRemarks("")
   setLeaveDialogOpen(true)
   try {
-   const [classes, makeup] = await Promise.all([
-    fetchEnrolledClassesForStudent(sid),
-    fetchMakeupCandidateSchedules(),
-   ])
+   const classes = await fetchEnrolledClassesForStudent(sid)
    setLeaveClasses(classes)
-   setLeaveMakeupCandidates(makeup)
+   setLeaveMakeupCandidates([])
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.openLeaveDialog", setErr: setLeaveErr })
    setLeaveClasses([])
    setLeaveMakeupCandidates([])
   }
  }
+
+ useEffect(() => {
+  if (!leaveDialogOpen || leaveMakeup !== "調堂" || !sid) {
+   if (!leaveDialogOpen || leaveMakeup !== "調堂") {
+    setLeaveMakeupCandidates([])
+    setLeaveMakeupScheduleId("")
+   }
+   return
+  }
+  void fetchMakeupCandidateSchedules({
+   studentId: sid,
+   excludeScheduleIds: leaveScheduleId ? [leaveScheduleId] : undefined,
+  })
+   .then((list) => {
+    setLeaveMakeupCandidates(list)
+    setLeaveMakeupScheduleId((prev) => (prev && list.some((s) => s.id === prev) ? prev : ""))
+   })
+   .catch((e) => {
+    reportUserFacingError(e, { source: "StudentDetailView.loadMakeupCandidates", setErr: setLeaveErr })
+    setLeaveMakeupCandidates([])
+   })
+ }, [leaveDialogOpen, leaveMakeup, sid, leaveScheduleId])
 
  useEffect(() => {
   if (!leaveDialogOpen || !leaveClassId) {
@@ -529,6 +552,13 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   }
   const makeupRow =
    leaveMakeup === "調堂" ? leaveMakeupCandidates.find((s) => s.id === leaveMakeupScheduleId) : undefined
+  if (makeupRow) {
+   const makeupErr = await validateMakeupScheduleForStudent(sid, makeupRow, leaveScheduleId)
+   if (makeupErr) {
+    setLeaveErr(makeupErr)
+    return
+   }
+  }
   setLeaveSaving(true)
   setLeaveErr(null)
   try {
@@ -637,7 +667,7 @@ const exportFutureSchedulesCsv = () => {
   return (
    <DetailLayerShell
     variant="student"
-    onDismiss={() => navigate("/Students")}
+    onDismiss={() => navigate(exitPath)}
     layerLabel={null}
    >
     <p className="p-6 text-muted-foreground">無效的學生編號</p>
@@ -647,11 +677,11 @@ const exportFutureSchedulesCsv = () => {
 
  if (!loading && !student) {
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate("/Students")} layerLabel="學生詳情">
+   <DetailLayerShell variant="student" onDismiss={() => navigate(exitPath)} layerLabel="學生詳情">
     <div className="p-6">
      <p className="text-muted-foreground">找不到此學生。</p>
      <Button type="button" variant="outline" className="mt-4" asChild>
-      <Link to="/Students">返回列表</Link>
+      <Link to={exitPath}>返回</Link>
      </Button>
     </div>
    </DetailLayerShell>

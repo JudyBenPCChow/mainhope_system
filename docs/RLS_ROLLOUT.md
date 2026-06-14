@@ -10,8 +10,8 @@
 | Phase | 目標 | 狀態 |
 |-------|------|------|
 | **A** | 阻擋 `anon`；必須 Supabase 登入；前端 session 同步 | ✅ 已交付 |
-| **B** | `teacher` 僅能存取與自己 `teacher_id` 相關資料 | 🔄 進行中 |
-| **C** | `admin`／`alien` 分工；敏感表（付款、用戶、mgmt）細部權限 | ⬜ 待開始 |
+| **B** | `teacher` 僅能存取與自己 `teacher_id` 相關資料 | ✅ 已交付 |
+| **C** | `admin`／`alien` 分工；敏感表（付款、用戶、mgmt）細部權限 | 🔄 進行中 |
 | **收尾** | Dashboard 設定、移除過渡 policy、文件更新 | ⬜ 待開始 |
 
 ---
@@ -116,25 +116,48 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 
 ### 下一步
 
-Phase B 驗收通过后 → 開始 **Phase C**（admin／alien 分工、付款／用戶細部權限）。
+Phase B 驗收通过后 → 部署 **Phase C**（見下方）。
 
 ---
 
 ## Phase C — admin／alien 分工
 
-### 計劃交付物
+### 交付物
 
-- [ ] `payments`, `payment_*`, `referral_records` — admin + alien；teacher 禁止
-- [ ] `app_users` — alien 可写；admin 只读或禁止（待決）
-- [ ] `mgmt_*` — 僅 alien
-- [ ] `payment_discounts`, `courses` — 僅 alien（對齊現有 UI）
-- [ ] 移除所有 `rls_phase_a_auth_all_*` 過渡 policy
+- [x] `supabase/migrations/20260615190000_rls_phase_c_admin_alien_split.sql`
+- [x] DB helper：`is_admin()`, `is_alien()`
+- [x] 老師 DB 收緊：`classes`／`student_class_enrollments` 僅 SELECT；`schedules` 可 SELECT+UPDATE（改狀態），不可 INSERT／DELETE
+- [x] **alien only**：`app_users`（CRUD）、`referral_records`、`payment_discounts`（寫）、`courses`（寫）、`mgmt_*`（讀）
+- [x] **admin 只讀**：`courses`、`payment_discounts`、`payment_discount_applications`（供班別／繳費頁 embed）；老師仍可 SELECT `courses`
+- [x] **admin + alien**（沿用 Phase B `is_mgmt_staff()`）：`payments`、`students`、`classes`、請假試堂等營運表
+- [x] **mgmt 寫入**：任何已登入角色可 INSERT audit／system_errors（前端錯誤回報）；僅 alien 可讀
 
 ### 你的待辦（Phase C 部署後）
 
-- [ ] 各角色走 UI 上標示為該角色專屬的頁面
-- [ ] 嘗試越權操作（teacher 開 `/Payments`）→ DB 應拒絕
-- [ ] Supabase linter `rls_policy_always_true` 應接近清零
+1. **套用 migration**
+   ```bash
+   supabase db push
+   ```
+
+2. **admin 帳號**
+   - [ ] 學生／班別／繳費／請假／試堂正常
+   - [ ] 無法開「用戶管理」「優惠折扣」「課程管理」「系統日志」（UI 本已隱藏；API 應拒絕寫入）
+   - [ ] 新增班別時仍可選課程（courses SELECT）
+
+3. **alien 帳號**
+   - [ ] 用戶管理、優惠、課程、推薦回贈、系統日志可正常使用
+   - [ ] 其餘 admin 功能仍正常
+
+4. **teacher 帳號**
+   - [ ] 點名、出席仍可寫入（`attendance_details` 未收緊）
+   - [ ] 無法透過 API 新增／刪除排程、修改班別、新增就讀（即使繞過 UI）；可更新排程狀態
+
+5. **Supabase Linter**
+   - [ ] `rls_policy_always_true` 應進一步減少（mgmt INSERT 仍為 `true`，可接受）
+
+### 下一步
+
+Phase C 驗收通过后 → **收尾**（Dashboard、清除 dev policy 殘留、文件）。
 
 ---
 
@@ -165,3 +188,4 @@ Phase B 驗收通过后 → 開始 **Phase C**（admin／alien 分工、付款�
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
 | 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |
 | 2026-06-15 | Phase B hotfix | helper functions 改 SECURITY DEFINER（修 stack depth limit exceeded） |
+| 2026-06-15 | Phase C code | admin／alien 分工 + 老師班務 DB 收緊 |

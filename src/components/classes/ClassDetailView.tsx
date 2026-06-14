@@ -781,6 +781,7 @@ const addableStudents = (() => {
         <Link
          key={s.enrollmentId}
          to={`/Students/${s.studentId}`}
+         state={{ from: `/Classes/${cid}` }}
          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
         >
          <div>
@@ -833,6 +834,7 @@ const addableStudents = (() => {
            </Tag>
            <Link
             to={`/Students/${ev.studentId}`}
+            state={{ from: `/Classes/${cid}` }}
             className="font-medium text-primary hover:underline"
            >
             {ev.studentName}

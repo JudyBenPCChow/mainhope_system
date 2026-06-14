@@ -21,6 +21,7 @@ import {
  fetchLeaveMakeupWithRelations,
  fetchLeaveTodayStats,
  fetchMakeupCandidateSchedules,
+ validateMakeupScheduleForStudent,
  fetchUpcomingSchedulesForClass,
  insertLeaveMakeupRecord,
  LEAVE_MAKEUP_OPTIONS,
@@ -72,6 +73,7 @@ export function LeaveManagementView() {
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
+ const [studentPickerOpen, setStudentPickerOpen] = useState(false)
  const [addStudentId, setAddStudentId] = useState("")
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
@@ -156,6 +158,7 @@ export function LeaveManagementView() {
   if (!addOpen) return
   setAddErr(null)
   setStudentSearch("")
+  setStudentPickerOpen(false)
   setAddStudentId("")
   setAddClassId("")
   setAddScheduleId("")
@@ -202,14 +205,23 @@ export function LeaveManagementView() {
  }, [addOpen, addClassId, addStudentId])
 
  useEffect(() => {
-  if (!addOpen || addMakeupArrange !== "調堂") return
-  void fetchMakeupCandidateSchedules().then(setMakeupCandidates)
- }, [addOpen, addMakeupArrange])
+  if (!addOpen || addMakeupArrange !== "調堂" || !addStudentId) {
+   setMakeupCandidates([])
+   return
+  }
+  void fetchMakeupCandidateSchedules({
+   studentId: addStudentId,
+   excludeScheduleIds: addScheduleId ? [addScheduleId] : undefined,
+  }).then((list) => {
+   setMakeupCandidates(list)
+   setAddMakeupScheduleId((prev) => (prev && list.some((s) => s.id === prev) ? prev : ""))
+  })
+ }, [addOpen, addMakeupArrange, addStudentId, addScheduleId])
 
  const studentsFiltered = useMemo(() => {
   const q = studentSearch.trim().toLowerCase()
-  if (!q) return studentPickList
-  return studentPickList.filter((s) => s.label.toLowerCase().includes(q))
+  if (!q) return studentPickList.slice(0, 20)
+  return studentPickList.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 20)
  }, [studentPickList, studentSearch])
 
  const makeupFiltered = useMemo(() => {
@@ -324,7 +336,10 @@ export function LeaveManagementView() {
   setLinkSearch("")
   setLinkOpen(true)
   try {
-   const candidates = await fetchMakeupCandidateSchedules()
+   const candidates = await fetchMakeupCandidateSchedules({
+    studentId: row.student_id,
+    excludeScheduleIds: row.schedule_id ? [row.schedule_id] : undefined,
+   })
    setLinkCandidates(candidates)
    setLinkScheduleId(row.makeup_schedule_id ?? "")
   } catch (e) {
@@ -352,6 +367,15 @@ export function LeaveManagementView() {
   const target = linkCandidates.find((c) => c.id === linkScheduleId)
   if (!target) {
    setLinkErr("補堂排程無效。")
+   return
+  }
+  const linkMakeupErr = await validateMakeupScheduleForStudent(
+   linkRow.student_id,
+   target,
+   linkRow.schedule_id
+  )
+  if (linkMakeupErr) {
+   setLinkErr(linkMakeupErr)
    return
   }
   setLinkSaving(true)
@@ -389,6 +413,13 @@ export function LeaveManagementView() {
   }
   const makeupRow =
    addMakeupArrange === "調堂" ? makeupCandidates.find((s) => s.id === addMakeupScheduleId) : undefined
+  if (makeupRow) {
+   const makeupErr = await validateMakeupScheduleForStudent(addStudentId, makeupRow, addScheduleId)
+   if (makeupErr) {
+    setAddErr(makeupErr)
+    return
+   }
+  }
 
   setAddSaving(true)
   setAddErr(null)
@@ -728,28 +759,55 @@ export function LeaveManagementView() {
       <label className="grid gap-1">
        <span className="text-muted-foreground">學生（可搜尋姓名／年級）</span>
        <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-         placeholder="輸入關鍵字篩選…"
-         value={studentSearch}
-         onChange={(e) => setStudentSearch(e.target.value)}
-         className="h-9 pl-8"
+         placeholder="輸入姓名或年級搜尋…"
+         value={
+          addStudentId
+           ? (studentPickList.find((s) => s.id === addStudentId)?.label ?? "")
+           : studentSearch
+         }
+         onChange={(e) => {
+          setAddStudentId("")
+          setStudentSearch(e.target.value)
+          setStudentPickerOpen(true)
+         }}
+         onFocus={() => setStudentPickerOpen(true)}
+         className="h-9"
         />
+        {studentPickerOpen && !addStudentId && studentSearch.trim() ? (
+         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+          {studentsFiltered.length === 0 ? (
+           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
+          ) : (
+           studentsFiltered.map((s) => (
+            <button
+             key={s.id}
+             type="button"
+             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+             onClick={() => {
+              setAddStudentId(s.id)
+              setStudentSearch("")
+              setStudentPickerOpen(false)
+             }}
+            >
+             {s.label}
+            </button>
+           ))
+          )}
+         </div>
+        ) : null}
        </div>
-       <Select
-        className="h-9 w-full rounded-md border border-input px-2"
-        value={addStudentId}
-        onChange={(e) => setAddStudentId(e.target.value)}
-       >
-        <option value="">請選擇學生</option>
-        {studentsFiltered.map((s) => (
-         <option key={s.id} value={s.id}>
-          {s.label}
-         </option>
-        ))}
-       </Select>
-       {studentSearch.trim() && studentsFiltered.length === 0 ? (
-        <p className="text-xs text-muted-foreground">無符合學生，請調整搜尋字。</p>
+       {addStudentId ? (
+        <button
+         type="button"
+         className="text-left text-xs text-primary underline-offset-4 hover:underline"
+         onClick={() => {
+          setAddStudentId("")
+          setStudentSearch("")
+         }}
+        >
+         清除選取
+        </button>
        ) : null}
       </label>
 

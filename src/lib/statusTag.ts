@@ -41,8 +41,10 @@ const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
  { tone: "warning", keywords: ["半價試堂", "半價"] },
  { tone: "info", keywords: ["全價", "正式試堂"] },
  { tone: "default", keywords: ["當日紀錄"] },
+ // 排程學生名單等：試堂來源（橙）；就讀來源（藍，見下一條）
+ { tone: "warning", keywords: ["試堂"] },
  // 試堂 / 報讀：進行與預約態
- { tone: "info", keywords: ["試堂", "報讀", "可分配", "已分配", "就讀", "已預約"] },
+ { tone: "info", keywords: ["報讀", "可分配", "已分配", "就讀", "已預約"] },
  // 試堂 / 報讀：待跟進
  { tone: "warning", keywords: ["待跟進", "待安排", "退讀"] },
 ]
