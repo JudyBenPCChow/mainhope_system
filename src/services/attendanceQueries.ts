@@ -114,50 +114,97 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
  })
 }
 
-/** 本堂請假（含已連結排程或僅班別+日期） */
+/** 本堂請假（含已連結排程或僅班別+日期；連堂可傳多個 schedule id） */
 export async function fetchLeaveStudentIdsForLesson(
- scheduleId: string,
+ scheduleIds: string | string[],
  classId: string,
  lessonDate: string
 ): Promise<Set<string>> {
  if (!supabase) return new Set()
+ const ids = Array.isArray(scheduleIds) ? scheduleIds : [scheduleIds]
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select("student_id, schedule_id, class_id, leave_date")
   .eq("class_id", classId)
   .eq("leave_date", lessonDate)
  if (error) throw error
- const ids = new Set<string>()
+ const idSet = new Set(ids)
+ const out = new Set<string>()
  for (const row of data ?? []) {
   const r = row as { student_id: string; schedule_id: string | null }
-  if (r.schedule_id == null || r.schedule_id === scheduleId) {
-   ids.add(String(r.student_id))
+  if (r.schedule_id == null || idSet.has(r.schedule_id)) {
+   out.add(String(r.student_id))
   }
  }
- return ids
+ return out
 }
 
-/** 本堂為補堂目標排程的學生 */
-export async function fetchMakeupStudentIdsForSchedule(scheduleId: string): Promise<Set<string>> {
- if (!supabase) return new Set()
+/** 本堂為補堂目標排程的學生（可傳多個 schedule id） */
+export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): Promise<Set<string>> {
+ if (!supabase || scheduleIds.length === 0) return new Set()
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select("student_id")
-  .eq("makeup_schedule_id", scheduleId)
+  .in("makeup_schedule_id", scheduleIds)
  if (error) throw error
  return new Set((data ?? []).map((r) => String((r as { student_id: string }).student_id)))
 }
 
+/** @deprecated 使用 fetchMakeupStudentIdsForSchedules */
+export async function fetchMakeupStudentIdsForSchedule(scheduleId: string): Promise<Set<string>> {
+ return fetchMakeupStudentIdsForSchedules([scheduleId])
+}
+
 export async function fetchExistingAttendanceMap(
  classId: string,
- attendanceDate: string
+ attendanceDate: string,
+ scheduleIds?: string[]
 ): Promise<Map<string, { id: string; status: string; remarks: string | null }>> {
  if (!supabase) return new Map()
+ if (scheduleIds != null && scheduleIds.length > 0) {
+  const { data, error } = await supabase
+   .from("attendance_details")
+   .select("id, student_id, status, remarks, schedule_id")
+   .eq("class_id", classId)
+   .eq("attendance_date", attendanceDate)
+   .in("schedule_id", scheduleIds)
+  if (error) throw error
+  const byStudent = new Map<string, { id: string; status: string; remarks: string | null }[]>()
+  for (const row of data ?? []) {
+   const r = row as {
+    id: string
+    student_id: string
+    status: string
+    remarks: string | null
+   }
+   const sid = String(r.student_id)
+   const arr = byStudent.get(sid) ?? []
+   arr.push({
+    id: String(r.id),
+    status: String(r.status ?? "出席"),
+    remarks: r.remarks != null ? String(r.remarks) : null,
+   })
+   byStudent.set(sid, arr)
+  }
+  const m = new Map<string, { id: string; status: string; remarks: string | null }>()
+  for (const [sid, rows] of byStudent) {
+   if (rows.length < scheduleIds.length) continue
+   const first = rows[0]!
+   m.set(sid, {
+    id: first.id,
+    status: first.status,
+    remarks: first.remarks,
+   })
+  }
+  return m
+ }
+
  const { data, error } = await supabase
   .from("attendance_details")
   .select("id, student_id, status, remarks")
   .eq("class_id", classId)
   .eq("attendance_date", attendanceDate)
+  .is("schedule_id", null)
  if (error) throw error
  const m = new Map<string, { id: string; status: string; remarks: string | null }>()
  for (const row of data ?? []) {
@@ -194,16 +241,22 @@ export async function saveAttendanceStatus(
  classId: string,
  attendanceDate: string,
  status: string,
- remarks?: string | null
+ remarks?: string | null,
+ scheduleId?: string | null
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const { data: existing, error: selErr } = await supabase
+ let q = supabase
   .from("attendance_details")
   .select("id")
   .eq("student_id", studentId)
   .eq("class_id", classId)
   .eq("attendance_date", attendanceDate)
-  .maybeSingle()
+ if (scheduleId) {
+  q = q.eq("schedule_id", scheduleId)
+ } else {
+  q = q.is("schedule_id", null)
+ }
+ const { data: existing, error: selErr } = await q.maybeSingle()
  if (selErr) throw selErr
  if (existing) {
   const { error } = await supabase
@@ -220,11 +273,69 @@ export async function saveAttendanceStatus(
    student_id: studentId,
    class_id: classId,
    attendance_date: attendanceDate,
+   schedule_id: scheduleId ?? null,
    status,
    remarks: remarks ?? null,
   })
   if (error) throw error
  }
+}
+
+/** 一次點名寫入多個排程（連堂） */
+export async function saveAttendanceStatusForSchedules(
+ studentId: string,
+ classId: string,
+ attendanceDate: string,
+ scheduleIds: string[],
+ status: string,
+ remarks?: string | null
+): Promise<void> {
+ for (const scheduleId of scheduleIds) {
+  await saveAttendanceStatus(studentId, classId, attendanceDate, status, remarks, scheduleId)
+ }
+}
+
+export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Promise<
+ {
+  studentId: string
+  fullName: string
+  englishName: string | null
+  grade: string | null
+  contactPhone: string | null
+ }[]
+> {
+ if (!supabase || scheduleIds.length === 0) return []
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select("student_id, students ( full_name, english_name, grade, whatsapp, parent_phone )")
+  .in("schedule_id", scheduleIds)
+ if (error) throw error
+ const seen = new Set<string>()
+ const out: {
+  studentId: string
+  fullName: string
+  englishName: string | null
+  grade: string | null
+  contactPhone: string | null
+ }[] = []
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const studentId = String(r.student_id)
+  if (seen.has(studentId)) continue
+  seen.add(studentId)
+  const st = r.students as Record<string, unknown> | null
+  out.push({
+   studentId,
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+   englishName: st?.english_name != null ? String(st.english_name) : null,
+   grade: st?.grade != null ? String(st.grade) : null,
+   contactPhone: pickStudentContactRaw({
+    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
+    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
+   }),
+  })
+ }
+ return out
 }
 
 export async function fetchSchedulesForRollCallDate(ymd: string): Promise<ScheduleManageRow[]> {

@@ -85,7 +85,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   const dates = checkedDatesKey.split(",")
   const conflicts = await checkRoomConflictsForDates({
    dates,
-   timeSlot: cls.time_slot,
+   cls,
    classroomId,
   })
   setCandidates((prev) => {

@@ -23,7 +23,7 @@ import {
  fetchMakeupCandidateSchedules,
  validateMakeupScheduleForStudent,
  fetchUpcomingSchedulesForClass,
- insertLeaveMakeupRecord,
+ insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
  isLeaveStatusAbandoned,
@@ -424,7 +424,7 @@ export function LeaveManagementView() {
   setAddSaving(true)
   setAddErr(null)
   try {
-   await insertLeaveMakeupRecord({
+   await insertLeaveMakeupForSchedule({
     student_id: addStudentId,
     class_id: addClassId,
     schedule_id: addScheduleId,

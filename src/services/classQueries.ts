@@ -28,6 +28,11 @@ import {
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
 import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
+import {
+ consecutivePairFromFirstTimeSlot,
+ isConsecutiveClass,
+ newConsecutiveGroupId,
+} from "@/lib/consecutiveLesson"
 
 export type ClassRecord = {
  id: string
@@ -47,6 +52,8 @@ export type ClassRecord = {
  academic_year_label?: string | null
  day_of_week: string | null
  time_slot: string | null
+ /** 每次上課占用格數：1=單堂；2=連堂 */
+ lesson_slots_per_session: number
  teacher_id: string | null
  teacher_name: string | null
  classroom_id: string | null
@@ -91,6 +98,8 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   academic_year_label: year?.label != null ? String(year.label) : null,
   day_of_week: row.day_of_week != null ? String(row.day_of_week) : null,
   time_slot: row.time_slot != null ? String(row.time_slot) : null,
+  lesson_slots_per_session:
+   row.lesson_slots_per_session != null && Number(row.lesson_slots_per_session) === 2 ? 2 : 1,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
   teacher_name: t?.full_name ?? null,
   classroom_id: row.classroom_id != null ? String(row.classroom_id) : null,
@@ -396,6 +405,8 @@ export async function insertClass(
    grade: autoGrade.length > 0 ? autoGrade : null,
    day_of_week: row.day_of_week ?? null,
    time_slot: row.time_slot ?? null,
+   lesson_slots_per_session:
+    row.lesson_slots_per_session === 2 ? 2 : 1,
    teacher_id: row.teacher_id ?? null,
    classroom_id: row.classroom_id ?? null,
    capacity: row.capacity ?? null,
@@ -489,6 +500,7 @@ export async function duplicateClass(id: string): Promise<ClassRecord> {
   grade: src.grade,
   day_of_week: src.day_of_week,
   time_slot: src.time_slot,
+  lesson_slots_per_session: src.lesson_slots_per_session,
   teacher_id: src.teacher_id,
   classroom_id: src.classroom_id,
   capacity: src.capacity,
@@ -572,13 +584,17 @@ export type ClassScheduleRow = {
  end_time: string | null
  status: string
  session_number: number | null
+ consecutive_group_id: string | null
+ consecutive_slot_index: number | null
 }
 
 export async function fetchClassSchedules(classId: string): Promise<ClassScheduleRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("schedules")
-  .select("id, scheduled_date, start_time, end_time, status, session_number")
+  .select(
+   "id, scheduled_date, start_time, end_time, status, session_number, consecutive_group_id, consecutive_slot_index"
+  )
   .eq("class_id", classId)
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
@@ -595,8 +611,35 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
     row.session_number != null && !Number.isNaN(Number(row.session_number))
      ? Number(row.session_number)
      : null,
+   consecutive_group_id:
+    row.consecutive_group_id != null ? String(row.consecutive_group_id) : null,
+   consecutive_slot_index:
+    row.consecutive_slot_index != null && !Number.isNaN(Number(row.consecutive_slot_index))
+     ? Number(row.consecutive_slot_index)
+     : null,
   }
  })
+}
+
+/** 連堂配對：取得同組所有排程 id（含自身） */
+export async function fetchConsecutiveScheduleIds(scheduleId: string): Promise<string[]> {
+ if (!supabase) return [scheduleId]
+ const { data: row, error: e1 } = await supabase
+  .from("schedules")
+  .select("id, consecutive_group_id")
+  .eq("id", scheduleId)
+  .maybeSingle()
+ if (e1) throw e1
+ const gid = (row as { consecutive_group_id?: string | null } | null)?.consecutive_group_id
+ if (!gid) return [scheduleId]
+ const { data, error: e2 } = await supabase
+  .from("schedules")
+  .select("id, consecutive_slot_index")
+  .eq("consecutive_group_id", gid)
+  .order("consecutive_slot_index", { ascending: true })
+ if (e2) throw e2
+ const ids = (data ?? []).map((r) => String((r as { id: string }).id))
+ return ids.length > 0 ? ids : [scheduleId]
 }
 
 /** 班別下一個堂次編號（含取消課堂） */
@@ -921,6 +964,8 @@ export async function insertScheduleRow(opts: {
  classroom_id?: string | null
  remarks?: string | null
  session_number?: number | null
+ consecutive_group_id?: string | null
+ consecutive_slot_index?: number | null
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error } = await supabase
@@ -935,6 +980,8 @@ export async function insertScheduleRow(opts: {
    status: opts.status ?? "預定",
    remarks: opts.remarks ?? null,
    session_number: opts.session_number ?? null,
+   consecutive_group_id: opts.consecutive_group_id ?? null,
+   consecutive_slot_index: opts.consecutive_slot_index ?? null,
   })
   .select("id")
   .single()
@@ -969,6 +1016,77 @@ export async function insertScheduleForClass(
   classroom_id: row.classroom_id,
   session_number: row.session_number,
  })
+}
+
+/** 依班別設定建立單堂或連堂（2 筆）排程，回傳建立的 schedule id */
+export async function insertSchedulesForClassSession(
+ classId: string,
+ cls: Pick<
+  ClassRecord,
+  "teacher_id" | "time_slot" | "lesson_slots_per_session" | "classroom_id"
+ >,
+ row: {
+  scheduled_date: string
+  start_time?: string | null
+  end_time?: string | null
+  status?: string
+  classroom_id?: string | null
+  session_number?: number | null
+ }
+): Promise<string[]> {
+ const classroomId = row.classroom_id ?? cls.classroom_id ?? null
+ const teacherId = cls.teacher_id
+
+ if (!isConsecutiveClass(cls.lesson_slots_per_session)) {
+  const id = await insertScheduleRow({
+   class_id: classId,
+   teacher_id: teacherId,
+   scheduled_date: row.scheduled_date,
+   start_time: row.start_time,
+   end_time: row.end_time,
+   status: row.status,
+   classroom_id: classroomId,
+   session_number: row.session_number ?? null,
+  })
+  return [id]
+ }
+
+ const pair = consecutivePairFromFirstTimeSlot(cls.time_slot ?? row.start_time ?? "")
+ if (!pair) {
+  throw new Error("連堂班別需選擇可連續兩格的起始時段。")
+ }
+
+ let sessionStart = row.session_number ?? null
+ if (sessionStart == null) {
+  sessionStart = await nextSessionNumberForClass(classId)
+ }
+
+ const groupId = newConsecutiveGroupId()
+ const id1 = await insertScheduleRow({
+  class_id: classId,
+  teacher_id: teacherId,
+  scheduled_date: row.scheduled_date,
+  start_time: pair.slot1.start,
+  end_time: pair.slot1.end,
+  status: row.status,
+  classroom_id: classroomId,
+  session_number: sessionStart,
+  consecutive_group_id: groupId,
+  consecutive_slot_index: 1,
+ })
+ const id2 = await insertScheduleRow({
+  class_id: classId,
+  teacher_id: teacherId,
+  scheduled_date: row.scheduled_date,
+  start_time: pair.slot2.start,
+  end_time: pair.slot2.end,
+  status: row.status,
+  classroom_id: classroomId,
+  session_number: sessionStart + 1,
+  consecutive_group_id: groupId,
+  consecutive_slot_index: 2,
+ })
+ return [id1, id2]
 }
 
 export async function updateSchedule(

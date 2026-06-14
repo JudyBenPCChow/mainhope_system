@@ -10,6 +10,9 @@ export type ScheduleManageRow = {
  end_time: string | null
  status: string
  remarks: string | null
+ session_number: number | null
+ consecutive_group_id: string | null
+ consecutive_slot_index: number | null
  class_id: string | null
  subject: string
  course_name: string | null
@@ -20,6 +23,8 @@ export type ScheduleManageRow = {
  class_day_of_week: string | null
  /** 班別固定時段（來自 classes.time_slot） */
  class_time_slot: string | null
+ /** 班別每次上課格數（1 或 2） */
+ class_lesson_slots_per_session: number
  teacher_id: string | null
  teacher_name: string | null
  classroom_id: string | null
@@ -59,6 +64,16 @@ function mapScheduleRow(
   end_time: row.end_time != null ? String(row.end_time) : null,
   status: String(row.status ?? "預定"),
   remarks: row.remarks != null ? String(row.remarks) : null,
+  session_number:
+   row.session_number != null && !Number.isNaN(Number(row.session_number))
+    ? Number(row.session_number)
+    : null,
+  consecutive_group_id:
+   row.consecutive_group_id != null ? String(row.consecutive_group_id) : null,
+  consecutive_slot_index:
+   row.consecutive_slot_index != null && !Number.isNaN(Number(row.consecutive_slot_index))
+    ? Number(row.consecutive_slot_index)
+    : null,
   class_id: cid,
   subject: sub,
   course_name: courseName,
@@ -66,6 +81,8 @@ function mapScheduleRow(
   course_code: courseCode,
   class_day_of_week: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   class_time_slot: cls?.time_slot != null ? String(cls.time_slot) : null,
+  class_lesson_slots_per_session:
+   cls?.lesson_slots_per_session != null && Number(cls.lesson_slots_per_session) === 2 ? 2 : 1,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   classroom_id: row.classroom_id != null ? String(row.classroom_id) : null,
@@ -139,7 +156,7 @@ export async function fetchSchedulesInRange(
  let q = supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
+   "id, scheduled_date, start_time, end_time, status, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
   )
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)

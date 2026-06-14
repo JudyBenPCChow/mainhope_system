@@ -85,7 +85,7 @@ import {
  validateMakeupScheduleForStudent,
  fetchUpcomingSchedulesForStudent,
  fetchUpcomingSchedulesForClass,
- insertLeaveMakeupRecord,
+ insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
  type ClassScheduleOption,
@@ -562,7 +562,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLeaveSaving(true)
   setLeaveErr(null)
   try {
-   await insertLeaveMakeupRecord({
+   await insertLeaveMakeupForSchedule({
     student_id: sid,
     class_id: leaveClassId,
     schedule_id: leaveScheduleId,

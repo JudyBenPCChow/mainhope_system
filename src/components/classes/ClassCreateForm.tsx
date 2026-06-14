@@ -7,6 +7,7 @@ import {
  STATUS_CHIPS,
  weekdaysToStored,
 } from "@/components/classes/classesUi"
+import { canUseConsecutiveFromTimeSlot } from "@/lib/consecutiveLesson"
 import { gradeChineseToCode } from "@/lib/courseCode"
 import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
 import { Button } from "@/components/ui/button"
@@ -36,6 +37,7 @@ export type ClassCreateFormValues = {
  section_code: string
  day_of_week: string[]
  time_slot: string
+ consecutive_lesson: boolean
  teacher_id: string
  classroom_id: string
  price: string
@@ -56,6 +58,7 @@ export const emptyClassCreateForm = (): ClassCreateFormValues => ({
  section_code: "",
  day_of_week: [],
  time_slot: "",
+ consecutive_lesson: false,
  teacher_id: "",
  classroom_id: "",
  price: "",
@@ -273,7 +276,14 @@ export function ClassCreateForm({
     <Select
      className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
      value={values.time_slot}
-     onChange={(e) => onChange({ time_slot: e.target.value })}
+     onChange={(e) => {
+      const next = e.target.value
+      onChange({
+       time_slot: next,
+       consecutive_lesson:
+        values.consecutive_lesson && next ? canUseConsecutiveFromTimeSlot(next) : values.consecutive_lesson,
+      })
+     }}
      disabled={disabled}
     >
      <option value="">未指定</option>
@@ -283,6 +293,21 @@ export function ClassCreateForm({
       </option>
      ))}
     </Select>
+    <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+     <input
+      type="checkbox"
+      className="h-4 w-4 rounded border-input"
+      checked={values.consecutive_lesson}
+      disabled={disabled || !values.time_slot || !canUseConsecutiveFromTimeSlot(values.time_slot)}
+      onChange={(e) => onChange({ consecutive_lesson: e.target.checked })}
+     />
+     連堂（每次 2 節 · 150 分鐘 · 計 2 堂學費）
+    </label>
+    {values.consecutive_lesson && values.time_slot ? (
+     <p className="mt-1 text-xs text-muted-foreground">
+      將占用連續兩格時段；批量排程時每次上課建立 2 個堂次。
+     </p>
+    ) : null}
    </div>
    <div>
     <label className="text-xs text-muted-foreground">老師</label>
@@ -417,6 +442,7 @@ export function classCreateFormToInsertPayload(
   course_code: null,
   day_of_week: dayStored,
   time_slot: values.time_slot.trim() || null,
+  lesson_slots_per_session: values.consecutive_lesson ? 2 : 1,
   teacher_id: values.teacher_id || null,
   classroom_id: values.classroom_id || null,
   price_per_lesson: priceNum != null && !Number.isNaN(priceNum) ? Math.max(0, priceNum) : null,

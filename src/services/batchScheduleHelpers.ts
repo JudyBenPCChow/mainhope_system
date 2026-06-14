@@ -1,4 +1,9 @@
 import {
+ consecutivePairFromFirstTimeSlot,
+ isConsecutiveClass,
+ newConsecutiveGroupId,
+} from "@/lib/consecutiveLesson"
+import {
  lessonSlotEndMinute,
  lessonSlotLabel,
  lessonSlotStartMinute,
@@ -7,14 +12,14 @@ import {
 import { enumerateDatesForWeekday } from "@/lib/weekdayUtils"
 import { timeSlotSelectValueFromStored, weekdaysFromStored } from "@/components/classes/classesUi"
 import {
- insertScheduleForClass,
+ insertScheduleRow,
  nextSessionNumberForClass,
  type ClassRecord,
 } from "@/services/classQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
  canonicalAvailabilityTimeSlot,
- datesWithAvailability,
+ datesWithAllAvailabilitySlots,
  isAvailabilitySlotFree,
  markAvailabilityForScheduleDates,
  type AcademicYearRange,
@@ -72,12 +77,12 @@ export async function buildBatchScheduleCandidates(params: {
  let availSet = new Set<string>()
  if (teacherId && cls.day_of_week && cls.time_slot) {
   const weekdays = weekdaysFromStored(cls.day_of_week)
-  const timeSlot = canonicalAvailabilityTimeSlot(cls.time_slot)
-  const avail = await datesWithAvailability({
+  const timeSlots = availabilityTimeSlotsForClass(cls)
+  const avail = await datesWithAllAvailabilitySlots({
    teacherId,
    academicYearId: year.id,
    dayOfWeek: weekdays,
-   timeSlot,
+   timeSlots,
   })
   availSet = new Set(avail)
  }
@@ -90,22 +95,47 @@ export async function buildBatchScheduleCandidates(params: {
  }))
 }
 
+function availabilityTimeSlotsForClass(cls: Pick<ClassRecord, "time_slot" | "lesson_slots_per_session">): string[] {
+ if (!cls.time_slot) return []
+ const first = canonicalAvailabilityTimeSlot(cls.time_slot)
+ if (!isConsecutiveClass(cls.lesson_slots_per_session)) return [first]
+ const pair = consecutivePairFromFirstTimeSlot(cls.time_slot)
+ if (!pair) return [first]
+ return [pair.slot1.timeSlot, pair.slot2.timeSlot]
+}
+
 export async function checkRoomConflictsForDates(params: {
  dates: string[]
- timeSlot: string
+ cls: Pick<ClassRecord, "time_slot" | "lesson_slots_per_session">
  classroomId: string | null
 }): Promise<Set<string>> {
  const conflicts = new Set<string>()
- if (!params.classroomId) return conflicts
- const { start, end } = parseTimeSlotBounds(params.timeSlot)
+ if (!params.classroomId || !params.cls.time_slot) return conflicts
+
+ const slots = isConsecutiveClass(params.cls.lesson_slots_per_session)
+  ? (() => {
+     const pair = consecutivePairFromFirstTimeSlot(params.cls.time_slot!)
+     if (!pair) return [parseTimeSlotBounds(params.cls.time_slot!)]
+     return [
+      { start: pair.slot1.start, end: pair.slot1.end },
+      { start: pair.slot2.start, end: pair.slot2.end },
+     ]
+    })()
+  : [parseTimeSlotBounds(params.cls.time_slot)]
+
  for (const date of params.dates) {
-  const free = await slotIsFreeForBooking({
-   classroomId: params.classroomId,
-   scheduledDate: date,
-   startTime: start,
-   endTime: end,
-  })
-  if (!free) conflicts.add(date)
+  for (const { start, end } of slots) {
+   const free = await slotIsFreeForBooking({
+    classroomId: params.classroomId,
+    scheduledDate: date,
+    startTime: start,
+    endTime: end,
+   })
+   if (!free) {
+    conflicts.add(date)
+    break
+   }
+  }
  }
  return conflicts
 }
@@ -113,6 +143,20 @@ export async function checkRoomConflictsForDates(params: {
 export type BatchScheduleResult = {
  createdDates: string[]
  skippedDates: { date: string; reason: string }[]
+}
+
+async function isTeacherAvailableForClassOnDate(
+ cls: ClassRecord,
+ teacherId: string,
+ date: string
+): Promise<boolean> {
+ if (!cls.time_slot) return true
+ const slots = availabilityTimeSlotsForClass(cls)
+ for (const timeSlot of slots) {
+  const free = await isAvailabilitySlotFree({ teacherId, availableDate: date, timeSlot })
+  if (!free) return false
+ }
+ return true
 }
 
 export async function executeBatchSchedules(params: {
@@ -125,45 +169,73 @@ export async function executeBatchSchedules(params: {
 }): Promise<BatchScheduleResult> {
  const { classId, cls, dates, classroomId, markAvailability } = params
  const teacherId = cls.teacher_id
- const timeSlot = cls.time_slot ?? ""
- const { start, end } = parseTimeSlotBounds(timeSlot)
  const createdDates: string[] = []
  const skippedDates: { date: string; reason: string }[] = []
  let nextSession = await nextSessionNumberForClass(classId)
+ const consecutive = isConsecutiveClass(cls.lesson_slots_per_session)
+ const pair = consecutive && cls.time_slot ? consecutivePairFromFirstTimeSlot(cls.time_slot) : null
+ if (consecutive && !pair) {
+  throw new Error("連堂班別需選擇可連續兩格的起始時段。")
+ }
 
  for (const date of dates.sort()) {
   if (teacherId && cls.time_slot) {
-   const free = await isAvailabilitySlotFree({
-    teacherId,
-    availableDate: date,
-    timeSlot: cls.time_slot,
-   })
-   if (!free) {
+   const ok = await isTeacherAvailableForClassOnDate(cls, teacherId, date)
+   if (!ok) {
     skippedDates.push({ date, reason: "檔期已被分配" })
     continue
    }
   }
   if (classroomId) {
-   const roomOk = await slotIsFreeForBooking({
+   const conflicts = await checkRoomConflictsForDates({
+    dates: [date],
+    cls,
     classroomId,
-    scheduledDate: date,
-    startTime: start,
-    endTime: end,
    })
-   if (!roomOk) {
+   if (conflicts.has(date)) {
     skippedDates.push({ date, reason: "課室已被佔用" })
     continue
    }
   }
   try {
-   await insertScheduleForClass(classId, teacherId, {
-    scheduled_date: date,
-    start_time: start,
-    end_time: end,
-    classroom_id: classroomId,
-    session_number: nextSession,
-   })
-   nextSession += 1
+   if (consecutive && pair) {
+    const groupId = newConsecutiveGroupId()
+    await insertScheduleRow({
+     class_id: classId,
+     teacher_id: teacherId,
+     scheduled_date: date,
+     start_time: pair.slot1.start,
+     end_time: pair.slot1.end,
+     classroom_id: classroomId,
+     session_number: nextSession,
+     consecutive_group_id: groupId,
+     consecutive_slot_index: 1,
+    })
+    await insertScheduleRow({
+     class_id: classId,
+     teacher_id: teacherId,
+     scheduled_date: date,
+     start_time: pair.slot2.start,
+     end_time: pair.slot2.end,
+     classroom_id: classroomId,
+     session_number: nextSession + 1,
+     consecutive_group_id: groupId,
+     consecutive_slot_index: 2,
+    })
+    nextSession += 2
+   } else {
+    const { start, end } = parseTimeSlotBounds(cls.time_slot ?? "")
+    await insertScheduleRow({
+     class_id: classId,
+     teacher_id: teacherId,
+     scheduled_date: date,
+     start_time: start,
+     end_time: end,
+     classroom_id: classroomId,
+     session_number: nextSession,
+    })
+    nextSession += 1
+   }
    createdDates.push(date)
   } catch (e) {
    skippedDates.push({
@@ -174,12 +246,15 @@ export async function executeBatchSchedules(params: {
  }
 
  if (markAvailability && teacherId && cls.time_slot && createdDates.length > 0) {
-  await markAvailabilityForScheduleDates({
-   classId,
-   teacherId,
-   timeSlot: cls.time_slot,
-   dates: createdDates,
-  })
+  const slots = availabilityTimeSlotsForClass(cls)
+  for (const timeSlot of slots) {
+   await markAvailabilityForScheduleDates({
+    classId,
+    teacherId,
+    timeSlot,
+    dates: createdDates,
+   })
+  }
  }
 
  return { createdDates, skippedDates }

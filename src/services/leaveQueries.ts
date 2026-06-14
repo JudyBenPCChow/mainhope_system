@@ -10,6 +10,7 @@ import {
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
+import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
 export { localYmd }
@@ -247,6 +248,28 @@ export async function insertLeaveMakeupRecord(row: {
   const code = (error as { code?: string }).code
   if (code === "23505") throw new Error(LEAVE_DUPLICATE_MESSAGE)
   throwPostgrest(error)
+ }
+}
+
+/** 請假：連堂時為同組每節各建一筆紀錄 */
+export async function insertLeaveMakeupForSchedule(row: {
+ student_id: string
+ class_id: string
+ schedule_id: string
+ leave_date: string
+ leave_reason?: string | null
+ makeup_type?: string | null
+ makeup_schedule_id?: string | null
+ makeup_date?: string | null
+ remarks?: string | null
+ status?: string
+}): Promise<void> {
+ const scheduleIds = await fetchConsecutiveScheduleIds(row.schedule_id)
+ for (const scheduleId of scheduleIds) {
+  await insertLeaveMakeupRecord({
+   ...row,
+   schedule_id: scheduleId,
+  })
  }
 }
 

@@ -31,6 +31,11 @@ import {
  weekdaysFromStored,
  weekdaysToStored,
 } from "@/components/classes/classesUi"
+import {
+ canUseConsecutiveFromTimeSlot,
+ formatClassTimeDisplay,
+ isConsecutiveClass,
+} from "@/lib/consecutiveLesson"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -48,7 +53,7 @@ import {
  fetchScheduleStudentHintsForClass,
  fetchTeacherOptions,
  getClassById,
- insertScheduleForClass,
+ insertSchedulesForClassSession,
  nextSessionNumberForClass,
  type ClassRecord,
  type ClassScheduleRow,
@@ -57,8 +62,6 @@ import {
  updateClass,
  updateSchedule,
 } from "@/services/classQueries"
-import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
-import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  fetchEnrollmentChangeEventsForClass,
  type ClassEnrollmentChangeEvent,
@@ -66,6 +69,7 @@ import {
  insertEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
+import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
 import { localYmd } from "@/services/teacherQueries"
 
 const PRICE_PRESETS_HKD = [250, 275, 825] as const
@@ -124,6 +128,7 @@ function isClassEditFormDirty(
   (form.subject ?? "") !== (cls.subject ?? ""),
   (form.course_code?.trim() || null) !== (cls.course_code?.trim() || null),
   (form.time_slot ?? null) !== (cls.time_slot ?? null),
+  (form.lesson_slots_per_session ?? 1) !== (cls.lesson_slots_per_session ?? 1),
   (form.teacher_id ?? null) !== (cls.teacher_id ?? null),
   (form.classroom_id ?? null) !== (cls.classroom_id ?? null),
   normNum(form.capacity ?? null) !== normNum(safeCap),
@@ -323,6 +328,7 @@ export function ClassDetailView() {
     grade: gradeArr,
     day_of_week: dayStored,
     time_slot: nullIfBlankText(form.time_slot),
+    lesson_slots_per_session: isConsecutiveClass(form.lesson_slots_per_session) ? 2 : 1,
     teacher_id: form.teacher_id ?? null,
     classroom_id: form.classroom_id ?? null,
     capacity: cap == null ? null : Math.max(0, Math.floor(cap)),
@@ -386,20 +392,23 @@ export function ClassDetailView() {
 
  const addSched = async () => {
   if (!cls) return
-  if (!newSchedTimeSlot.trim()) {
+  if (!newSchedTimeSlot.trim() && !cls.time_slot) {
    setAddSchedErr("請選擇時段")
    return
   }
-  const { start, end } = parseTimeSlotBounds(newSchedTimeSlot)
   setSavingAddSched(true)
   setAddSchedErr(null)
   try {
-   await insertScheduleForClass(cid, cls.teacher_id, {
-    scheduled_date: newSchedDate,
-    start_time: start,
-    end_time: end,
-    session_number: newSchedSession,
-   })
+   const timeSlot = newSchedTimeSlot.trim() || cls.time_slot || ""
+   await insertSchedulesForClassSession(
+    cid,
+    { ...cls, time_slot: timeSlot || cls.time_slot },
+    {
+     scheduled_date: newSchedDate,
+     session_number: newSchedSession,
+     classroom_id: cls.classroom_id,
+    }
+   )
    setAddSchedOpen(false)
    setNewSchedDate(localYmd())
    setNewSchedTimeSlot("")
@@ -416,10 +425,12 @@ export function ClassDetailView() {
   }
  }
 
- const timeLine = (c: ClassRecord) => {
-  const day = formatWeekdaysDisplay(c.day_of_week)
-  return [day, c.time_slot].filter(Boolean).join(" ") || "—"
- }
+ const timeLine = (c: ClassRecord) =>
+  formatClassTimeDisplay({
+   dayOfWeek: formatWeekdaysDisplay(c.day_of_week),
+   timeSlot: c.time_slot,
+   lessonSlotsPerSession: c.lesson_slots_per_session,
+  })
 
  if (!cid) {
   return (
@@ -975,11 +986,14 @@ const addableStudents = (() => {
            </Select>
            <p className="mt-1 text-xs text-muted-foreground">
             每格 75 分鐘，由 09:00 起；預設帶入班別時段。
+            {cls && isConsecutiveClass(cls.lesson_slots_per_session)
+             ? " 連堂班別將一次建立 2 筆排程（2 個堂次）。"
+             : ""}
            </p>
           </div>
           <Button
            type="button"
-           disabled={savingAddSched || !newSchedTimeSlot.trim()}
+           disabled={savingAddSched || (!newSchedTimeSlot.trim() && !cls?.time_slot)}
            onClick={() => void addSched()}
           >
            {savingAddSched ? "建立中…" : "建立"}
@@ -1186,9 +1200,17 @@ const addableStudents = (() => {
         <Select
          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
          value={timeSlotSelectValueFromStored(form.time_slot)}
-         onChange={(e) =>
-          setForm((f) => ({ ...f, time_slot: e.target.value || null }))
-         }
+         onChange={(e) => {
+          const next = e.target.value || null
+          setForm((f) => ({
+           ...f,
+           time_slot: next,
+           lesson_slots_per_session:
+            isConsecutiveClass(f.lesson_slots_per_session) && next && !canUseConsecutiveFromTimeSlot(next)
+             ? 1
+             : f.lesson_slots_per_session,
+          }))
+         }}
         >
          <option value="">未指定</option>
          {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
@@ -1205,6 +1227,18 @@ const addableStudents = (() => {
           <option value={form.time_slot}>{form.time_slot}（原資料）</option>
          ) : null}
         </Select>
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+         <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-input"
+          checked={isConsecutiveClass(form.lesson_slots_per_session)}
+          disabled={!form.time_slot || !canUseConsecutiveFromTimeSlot(String(form.time_slot))}
+          onChange={(e) =>
+           setForm((f) => ({ ...f, lesson_slots_per_session: e.target.checked ? 2 : 1 }))
+          }
+         />
+         連堂（每次 2 節 · 150 分鐘 · 計 2 堂學費）
+        </label>
        </div>
        <div>
         <label className="text-xs text-muted-foreground">老師</label>

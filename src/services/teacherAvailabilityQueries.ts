@@ -267,6 +267,32 @@ export async function datesWithAvailability(params: {
   .sort()
 }
 
+/** 多個時段皆「可分配」的日期（交集） */
+export async function datesWithAllAvailabilitySlots(params: {
+ teacherId: string
+ academicYearId: string
+ dayOfWeek: string | string[]
+ timeSlots: string[]
+}): Promise<string[]> {
+ if (params.timeSlots.length === 0) return []
+ let result: string[] | null = null
+ for (const timeSlot of params.timeSlots) {
+  const dates = await datesWithAvailability({
+   teacherId: params.teacherId,
+   academicYearId: params.academicYearId,
+   dayOfWeek: params.dayOfWeek,
+   timeSlot,
+  })
+  if (result == null) {
+   result = dates
+  } else {
+   const set = new Set(dates)
+   result = result.filter((d) => set.has(d))
+  }
+ }
+ return result ?? []
+}
+
 export async function markAvailabilityForScheduleDates(params: {
  classId: string
  teacherId: string

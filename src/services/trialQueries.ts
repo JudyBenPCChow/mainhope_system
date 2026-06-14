@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { localYmd } from "@/services/scheduleQueries"
+import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
 /** 以週一為一週起始（與本地日曆一致） */
@@ -128,16 +129,19 @@ export async function insertTrialSession(row: {
  remarks?: string | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const { error } = await supabase.from("trial_sessions").insert({
-  student_id: row.student_id,
-  schedule_id: row.schedule_id,
-  class_id: row.class_id,
-  trial_date: row.trial_date,
-  trial_type: row.trial_type,
-  status: row.status ?? "已預約",
-  remarks: row.remarks ?? null,
- })
- if (error) throw error
+ const scheduleIds = await fetchConsecutiveScheduleIds(row.schedule_id)
+ for (const scheduleId of scheduleIds) {
+  const { error } = await supabase.from("trial_sessions").insert({
+   student_id: row.student_id,
+   schedule_id: scheduleId,
+   class_id: row.class_id,
+   trial_date: row.trial_date,
+   trial_type: row.trial_type,
+   status: row.status ?? "已預約",
+   remarks: row.remarks ?? null,
+  })
+  if (error) throw error
+ }
 }
 
 export function trialStatusCategory(status: string): "booked" | "done" | "cancel" {

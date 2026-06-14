@@ -19,14 +19,18 @@ import {
  buildPrefillStatusMap,
  fetchExistingAttendanceMap,
  fetchLeaveStudentIdsForLesson,
- fetchMakeupStudentIdsForSchedule,
+ fetchMakeupStudentIdsForSchedules,
  fetchRosterForRollCall,
  fetchSchedulesForRollCallDate,
- fetchTrialStudentsForSchedule,
+ fetchTrialStudentsForSchedules,
  localYmd,
- saveAttendanceStatus,
+ saveAttendanceStatusForSchedules,
  type RollCallStudentRow,
 } from "@/services/attendanceQueries"
+import {
+ buildRollCallScheduleEntries,
+ formatConsecutiveSessionLabel,
+} from "@/lib/consecutiveLesson"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import { supabase } from "@/lib/supabaseClient"
@@ -55,11 +59,35 @@ export function RollCallPage() {
  const [loadingList, setLoadingList] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
- const [activeScheduleId, setActiveScheduleId] = useState<string | null>(null)
- const activeSchedule = useMemo(
-  () => schedules.find((s) => s.id === activeScheduleId) ?? null,
-  [schedules, activeScheduleId]
+ const [activeRollCallKey, setActiveRollCallKey] = useState<string | null>(null)
+ const rollCallEntries = useMemo(
+  () =>
+   buildRollCallScheduleEntries(
+    schedules.map((s) => ({
+     id: s.id,
+     scheduled_date: s.scheduled_date,
+     start_time: s.start_time,
+     end_time: s.end_time,
+     class_id: s.class_id,
+     classLabel: s.classLabel,
+     course_code: s.course_code,
+     teacher_name: s.teacher_name,
+     session_number: s.session_number ?? null,
+     consecutive_group_id: s.consecutive_group_id ?? null,
+     consecutive_slot_index: s.consecutive_slot_index ?? null,
+    }))
+   ),
+  [schedules]
  )
+ const activeEntry = useMemo(
+  () => rollCallEntries.find((e) => e.key === activeRollCallKey) ?? null,
+  [rollCallEntries, activeRollCallKey]
+ )
+ const activeScheduleMeta = useMemo(() => {
+  if (!activeEntry) return null
+  const firstId = activeEntry.scheduleIds[0]
+  return schedules.find((s) => s.id === firstId) ?? null
+ }, [activeEntry, schedules])
 
  const [students, setStudents] = useState<DisplayStudent[]>([])
  /** 畫面上選取的狀態（未按「確定」前不寫入資料庫） */
@@ -85,10 +113,28 @@ export function RollCallPage() {
      .ilike("status", "%待補%")
     if (!error) setPendingMakeup(count ?? 0)
    }
-   setActiveScheduleId((prev) => {
-    if (urlScheduleId && list.some((s) => s.id === urlScheduleId)) return urlScheduleId
-    if (prev && list.some((s) => s.id === prev)) return prev
-    return list[0]?.id ?? null
+   const entries = buildRollCallScheduleEntries(
+    list.map((s) => ({
+     id: s.id,
+     scheduled_date: s.scheduled_date,
+     start_time: s.start_time,
+     end_time: s.end_time,
+     class_id: s.class_id,
+     classLabel: s.classLabel,
+     course_code: s.course_code,
+     teacher_name: s.teacher_name,
+     session_number: s.session_number ?? null,
+     consecutive_group_id: s.consecutive_group_id ?? null,
+     consecutive_slot_index: s.consecutive_slot_index ?? null,
+    }))
+   )
+   setActiveRollCallKey((prev) => {
+    if (urlScheduleId) {
+     const entry = entries.find((e) => e.scheduleIds.includes(urlScheduleId))
+     if (entry) return entry.key
+    }
+    if (prev && entries.some((e) => e.key === prev)) return prev
+    return entries[0]?.key ?? null
    })
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallPage.loadSchedules", setErr })
@@ -109,7 +155,7 @@ export function RollCallPage() {
  useEffect(() => {
   if (!isSupabaseConfigured) return
 
-  if (!activeSchedule) {
+  if (!activeEntry) {
    setStudents([])
    setStatusMap(new Map())
    setSavedMap(new Map())
@@ -118,7 +164,7 @@ export function RollCallPage() {
    return
   }
 
-  if (!activeSchedule.class_id) {
+  if (!activeEntry.class_id) {
    setSheetErr("此排程未綁定班別，無法開啟點名表。")
    setStudents([])
    setStatusMap(new Map())
@@ -127,9 +173,9 @@ export function RollCallPage() {
    return
   }
 
-  const classId = activeSchedule.class_id
-  const scheduleId = activeSchedule.id
-  const lessonDate = activeSchedule.scheduled_date
+  const classId = activeEntry.class_id
+  const scheduleIds = activeEntry.scheduleIds
+  const lessonDate = activeEntry.scheduled_date
 
   let cancelled = false
   setSheetLoading(true)
@@ -139,8 +185,8 @@ export function RollCallPage() {
    try {
     const [roster, trials, existing] = await Promise.all([
      fetchRosterForRollCall(classId, lessonDate),
-     fetchTrialStudentsForSchedule(scheduleId),
-     fetchExistingAttendanceMap(classId, lessonDate),
+     fetchTrialStudentsForSchedules(scheduleIds),
+     fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
     ])
     if (cancelled) return
 
@@ -188,32 +234,32 @@ export function RollCallPage() {
   return () => {
    cancelled = true
   }
- }, [activeSchedule])
+ }, [activeEntry])
 
  const setStatus = (studentId: string, status: string) => {
   if (historyReadOnly) return
-  if (!activeSchedule?.class_id) return
+  if (!activeEntry?.class_id) return
   setStatusMap((prev) => new Map(prev).set(studentId, status))
   setSheetErr(null)
  }
 
  const applyPrefill = () => {
   if (historyReadOnly) return
-  if (!activeSchedule?.class_id) {
+  if (!activeEntry?.class_id) {
    setSheetErr("無法預填：此排程未綁定班別。")
    return
   }
   if (students.length === 0) return
-  const classId = activeSchedule.class_id
-  const scheduleId = activeSchedule.id
-  const lessonDate = activeSchedule.scheduled_date
+  const classId = activeEntry.class_id
+  const scheduleIds = activeEntry.scheduleIds
+  const lessonDate = activeEntry.scheduled_date
   setBulkAction("prefill")
   setSheetErr(null)
   void (async () => {
    try {
     const [leaveIds, makeupIds] = await Promise.all([
-     fetchLeaveStudentIdsForLesson(scheduleId, classId, lessonDate),
-     fetchMakeupStudentIdsForSchedule(scheduleId),
+     fetchLeaveStudentIdsForLesson(scheduleIds, classId, lessonDate),
+     fetchMakeupStudentIdsForSchedules(scheduleIds),
     ])
     const rosterIds = students.filter((s) => s.source === "enrollment").map((s) => s.studentId)
     const trialIds = new Set(students.filter((s) => s.source === "trial").map((s) => s.studentId))
@@ -234,7 +280,7 @@ export function RollCallPage() {
 
  const applyAllPresent = () => {
   if (historyReadOnly) return
-  if (!activeSchedule?.class_id) {
+  if (!activeEntry?.class_id) {
    setSheetErr("無法套用：此排程未綁定班別。")
    return
   }
@@ -254,7 +300,7 @@ export function RollCallPage() {
 
  const confirmRollCall = async () => {
   if (historyReadOnly) return
-  if (!activeSchedule?.class_id) return
+  if (!activeEntry?.class_id) return
   if (students.length === 0) return
   for (const row of students) {
    const s = (statusMap.get(row.studentId) ?? "").trim()
@@ -266,21 +312,29 @@ export function RollCallPage() {
   setConfirmSaving(true)
   setSheetErr(null)
   try {
-   const classId = activeSchedule.class_id
-   const lessonDate = activeSchedule.scheduled_date
+   const classId = activeEntry.class_id
+   const lessonDate = activeEntry.scheduled_date
+   const scheduleIds = activeEntry.scheduleIds
    for (const row of students) {
     const st = statusMap.get(row.studentId) ?? ""
-    await saveAttendanceStatus(row.studentId, classId, lessonDate, st)
+    await saveAttendanceStatusForSchedules(
+     row.studentId,
+     classId,
+     lessonDate,
+     scheduleIds,
+     st
+    )
    }
    void logMgmtAuditAction({
     action: "完成點名",
-    detail: `schedule_id=${activeSchedule.id}; class_id=${classId}; date=${lessonDate}; students=${students.length}`,
+    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${students.length}`,
    })
    setSavedMap(new Map(statusMap))
+   const sessionLabel = formatConsecutiveSessionLabel(activeEntry.sessionNumbers)
    pushBanner({
     tone: "success",
     title: "點名已儲存",
-    message: `${activeSchedule.classLabel} · ${lessonDate}：已記錄 ${students.length} 位學生的出席狀態。`,
+    message: `${activeEntry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${activeEntry.isConsecutive ? "（連堂計 2 節）" : ""}。`,
    })
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallPage.saveAll", setErr: setSheetErr })
@@ -290,7 +344,7 @@ export function RollCallPage() {
  }
 
  const exportCsv = () => {
-  if (!activeSchedule?.class_id) return
+  if (!activeEntry?.class_id) return
   const lines = [
    ["學生", "英文名", "年級", "狀態"].join(","),
    ...students.map((row) =>
@@ -305,7 +359,7 @@ export function RollCallPage() {
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
   const a = document.createElement("a")
   a.href = URL.createObjectURL(blob)
-  a.download = `rollcall-${activeSchedule.scheduled_date}-${activeSchedule.class_id.slice(0, 8)}.csv`
+  a.download = `rollcall-${activeEntry.scheduled_date}-${activeEntry.class_id.slice(0, 8)}.csv`
   a.click()
   URL.revokeObjectURL(a.href)
  }
@@ -398,8 +452,8 @@ export function RollCallPage() {
     </div>
     <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 shadow-sm">
      <div className="text-sm font-medium text-amber-900">今日堂數</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-amber-800">{schedules.length}</p>
-     <p className="mt-1 text-xs text-muted-foreground">所選日期可點名之排程（已排除取消）</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums text-amber-800">{rollCallEntries.length}</p>
+     <p className="mt-1 text-xs text-muted-foreground">所選日期可點名項目（連堂已合併；已排除取消）</p>
     </div>
    </section>
 
@@ -421,19 +475,21 @@ export function RollCallPage() {
      <span>選擇排程</span>
      <Select
       className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-      value={activeScheduleId ?? ""}
-      onChange={(e) => setActiveScheduleId(e.target.value || null)}
-      disabled={schedules.length === 0}
+      value={activeRollCallKey ?? ""}
+      onChange={(e) => setActiveRollCallKey(e.target.value || null)}
+      disabled={rollCallEntries.length === 0}
      >
-      {schedules.length === 0 ? (
+      {rollCallEntries.length === 0 ? (
        <option value="">此日無排程</option>
       ) : (
-       schedules.map((s) => (
-        <option key={s.id} value={s.id}>
-         {s.scheduled_date}
-         {s.scheduled_date === localYmd() ? "（今天）" : ""} — {s.classLabel}
-         {s.course_code ? ` (${s.course_code})` : ""} {s.start_time ?? ""}–{s.end_time ?? ""} —{" "}
-         {s.teacher_name ?? "—"}
+       rollCallEntries.map((entry) => (
+        <option key={entry.key} value={entry.key}>
+         {entry.scheduled_date}
+         {entry.scheduled_date === localYmd() ? "（今天）" : ""} — {entry.classLabel}
+         {entry.course_code ? ` (${entry.course_code})` : ""}{" "}
+         {formatConsecutiveSessionLabel(entry.sessionNumbers)} {entry.start_time ?? ""}–{entry.end_time ?? ""} —{" "}
+         {entry.teacher_name ?? "—"}
+         {entry.isConsecutive ? " · 連堂" : ""}
         </option>
        ))
       )}
@@ -449,7 +505,7 @@ export function RollCallPage() {
 
    {loadingList ? (
     <p className="text-sm text-muted-foreground">載入排程…</p>
-   ) : !activeSchedule ? (
+   ) : !activeEntry ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此日期沒有可點名的排程</p>
    ) : (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -457,7 +513,8 @@ export function RollCallPage() {
       <div>
        <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">
-         點名表 · {activeSchedule.classLabel} · {activeSchedule.scheduled_date}
+         點名表 · {activeEntry.classLabel} · {formatConsecutiveSessionLabel(activeEntry.sessionNumbers)} ·{" "}
+         {activeEntry.scheduled_date}
         </h2>
         {rollCallSaved ? (
          <Tag tone="success" size="sm">
@@ -471,7 +528,11 @@ export function RollCallPage() {
        </div>
        <p className="text-xs text-muted-foreground">
         共 {students.length} 位學生（班內報讀 + 試堂）
-        {activeSchedule.classroom_name ? ` · ${activeSchedule.classroom_name}` : ""}
+        {activeEntry.start_time && activeEntry.end_time
+         ? ` · ${activeEntry.start_time}–${activeEntry.end_time}`
+         : ""}
+        {activeScheduleMeta?.classroom_name ? ` · ${activeScheduleMeta.classroom_name}` : ""}
+        {activeEntry.isConsecutive ? " · 連堂一次點名，計 2 節學費" : ""}
         <span className="mt-1 block text-amber-900/90">
          {rollCallSaved
           ? "本堂已完成點名；若要修改出席狀態，變更後再按「確定」儲存。"
@@ -568,18 +629,18 @@ export function RollCallPage() {
             </div>
            </td>
            <td className="px-2 py-2">
-            {activeSchedule ? (
+            {activeScheduleMeta ? (
              <StudentWhatsAppReminderButton
               compact
               contactPhone={row.contactPhone}
               payload={{
                studentName: row.fullName,
-               subject: activeSchedule.subject,
-               courseCode: activeSchedule.course_code,
-               dateYmd: activeSchedule.scheduled_date,
-               startTime: activeSchedule.start_time,
-               endTime: activeSchedule.end_time,
-               classroomName: activeSchedule.classroom_name,
+               subject: activeScheduleMeta.subject,
+               courseCode: activeScheduleMeta.course_code,
+               dateYmd: activeEntry.scheduled_date,
+               startTime: activeEntry.start_time,
+               endTime: activeEntry.end_time,
+               classroomName: activeScheduleMeta.classroom_name,
                attendanceStatus: statusMap.get(row.studentId) || null,
                isTrial: row.source === "trial",
               }}
