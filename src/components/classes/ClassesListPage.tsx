@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
 
-import { isAcademicYearReadOnly, isSuperAdmin, academicYearReadOnlyHint } from "@/lib/mgmtRole"
+import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -32,6 +32,10 @@ import { classDisplayName } from "@/lib/courseLabel"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
+import {
+ academicYearEditBlockedMessage,
+ canEditAcademicYear,
+} from "@/lib/academicYearEditGuard"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -176,11 +180,6 @@ export function ClassesListPage() {
   })
  }, [baseRows, selectedYearLabel])
 
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
-  [selectedYearLabel]
- )
-
  const filtered = useMemo(() => {
   return yearScopedRows.filter(
    (c) =>
@@ -307,8 +306,12 @@ export function ClassesListPage() {
  }, [filtered, kanbanGroup])
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
-  if (historyReadOnly) return
   e.stopPropagation()
+  const target = rows.find((c) => c.id === id)
+  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
+   pushBanner({ tone: "warning", title: "無法刪除", message: academicYearEditBlockedMessage() })
+   return
+  }
   const previewDates = await previewClassDeletionSchedules(id)
   const dateHint =
    previewDates.length > 0
@@ -337,8 +340,12 @@ export function ClassesListPage() {
  }
 
  const onCopy = async (e: React.MouseEvent, id: string) => {
-  if (historyReadOnly) return
   e.stopPropagation()
+  const target = rows.find((c) => c.id === id)
+  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
+   pushBanner({ tone: "warning", title: "無法複製", message: academicYearEditBlockedMessage() })
+   return
+  }
   try {
    await duplicateClass(id)
    await load()
@@ -348,7 +355,11 @@ export function ClassesListPage() {
  }
 
  const onStatusChange = async (id: string, status: string) => {
-  if (historyReadOnly) return
+  const target = rows.find((c) => c.id === id)
+  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
+   pushBanner({ tone: "warning", title: "無法修改狀態", message: academicYearEditBlockedMessage() })
+   return
+  }
   try {
    await updateClass(id, { status })
    await load()
@@ -553,12 +564,6 @@ export function ClassesListPage() {
    </div>
   </div>
 
-   {historyReadOnly ? (
-    <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-     {academicYearReadOnlyHint()}
-    </div>
-   ) : null}
-
    <div className="space-y-3">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">狀態</div>
     <div className="flex flex-wrap gap-2">
@@ -610,7 +615,7 @@ export function ClassesListPage() {
     ) : (
      <span />
     )}
-    {!teacherTid && !historyReadOnly ? (
+    {!teacherTid ? (
      <Button
       type="button"
       className="bg-info text-white shadow-sm transition-all hover:bg-info hover:shadow active:scale-[0.98]"
@@ -621,7 +626,7 @@ export function ClassesListPage() {
      </Button>
     ) : (
      <p className="text-sm text-muted-foreground">
-      {historyReadOnly ? academicYearReadOnlyHint() : "專班老師僅可檢視指派班別，無法新增。"}
+      專班老師僅可檢視指派班別，無法新增。
      </p>
     )}
    </div>
@@ -682,8 +687,8 @@ export function ClassesListPage() {
                aria-label="尚無排程"
               />
              ) : null}
-             <span className="block truncate font-mono text-xs" title={c.course_code_full ?? c.course_code ?? undefined}>
-              {c.course_code_full ?? c.course_code ?? "—"}
+             <span className="block truncate font-mono text-xs" title={c.course_code_full ?? undefined}>
+              {c.course_code_full ?? "—"}
              </span>
             </span>
            </td>
@@ -750,7 +755,7 @@ export function ClassesListPage() {
             <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
-             disabled={historyReadOnly || Boolean(teacherTid)}
+             disabled={Boolean(teacherTid) || !canEditAcademicYear(classAcademicYearLabel(c))}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
             >
              {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
@@ -769,23 +774,17 @@ export function ClassesListPage() {
              >
               {teacherTid ? "查看" : "編輯"}
              </button>
-             {!teacherTid ? (
+             {!teacherTid && canEditAcademicYear(classAcademicYearLabel(c)) ? (
              <button
               type="button"
-              className={cn(
-               "text-left text-muted-foreground",
-               historyReadOnly ? "cursor-not-allowed opacity-50" : "hover:text-foreground hover:underline"
-              )}
-              onClick={(e) => {
-               if (historyReadOnly) return
-               void onCopy(e, c.id)
-              }}
+              className="text-left text-muted-foreground hover:text-foreground hover:underline"
+              onClick={(e) => void onCopy(e, c.id)}
              >
               <Copy className="mr-0.5 inline h-3.5 w-3.5" />
               複製
              </button>
              ) : null}
-             {isSuperAdmin() && !historyReadOnly ? (
+             {isSuperAdmin() && canEditAcademicYear(classAcademicYearLabel(c)) ? (
               <button
                type="button"
                className="text-left text-destructive hover:underline"
@@ -830,8 +829,8 @@ export function ClassesListPage() {
           </div>
          </div>
          <div className="space-y-2 px-4 py-3">
-          {c.course_code_full || c.course_code ? (
-           <p className="font-mono text-xs text-muted-foreground">{c.course_code_full ?? c.course_code}</p>
+          {c.course_code_full ? (
+           <p className="font-mono text-xs text-muted-foreground">{c.course_code_full}</p>
           ) : null}
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
@@ -875,7 +874,7 @@ export function ClassesListPage() {
           >
            <div className="flex items-start justify-between gap-2">
             <span className="font-mono text-xs text-muted-foreground">
-             {c.course_code_full ?? c.course_code ?? "—"}
+             {c.course_code_full ?? "—"}
             </span>
             <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">{c.status}</Tag>
            </div>

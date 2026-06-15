@@ -175,7 +175,7 @@ def main() -> int:
     classes = rec.supabase_fetch_all(
         sb_url,
         sb_key,
-        "classes?select=id,subject,grade,day_of_week,time_slot,course_code,teacher_id",
+        "classes?select=id,subject,grade,day_of_week,time_slot,course_code_full,teacher_id",
     )
     key_index = rec.build_db_key_index(classes)
     id_to_class = {str(c["id"]): c for c in classes}

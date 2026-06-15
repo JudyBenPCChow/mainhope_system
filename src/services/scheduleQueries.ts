@@ -18,7 +18,7 @@ export type ScheduleManageRow = {
  course_name: string | null
  /** 班別顯示標籤（課程名稱 + 代碼） */
  classLabel: string
- course_code: string | null
+ course_code_full: string | null
  /** 班別固定上課日（來自 classes.day_of_week） */
  class_day_of_week: string | null
  /** 班別固定時段（來自 classes.time_slot） */
@@ -51,12 +51,7 @@ function mapScheduleRow(
  const sub = cls?.subject != null ? String(cls.subject) : "（無班別）"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
- const courseCode =
-  cls?.course_code_full != null
-   ? String(cls.course_code_full)
-   : cls?.course_code != null
-     ? String(cls.course_code)
-     : null
+ const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
  return {
   id: String(row.id),
   scheduled_date: String(row.scheduled_date ?? ""),
@@ -78,7 +73,7 @@ function mapScheduleRow(
   subject: sub,
   course_name: courseName,
   classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
-  course_code: courseCode,
+  course_code_full: courseCode,
   class_day_of_week: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   class_time_slot: cls?.time_slot != null ? String(cls.time_slot) : null,
   class_lesson_slots_per_session:
@@ -156,7 +151,7 @@ export async function fetchSchedulesInRange(
  let q = supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
+   "id, scheduled_date, start_time, end_time, status, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
   )
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)

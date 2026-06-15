@@ -43,9 +43,13 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
+import {
+ academicYearEditBlockedMessage,
+ canEditAcademicYearForDate,
+} from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint, isMgmtStaff } from "@/lib/mgmtRole"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -363,7 +367,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,
-      courseCode: c.course_code,
+      courseCode: c.course_code_full,
       courseName: c.course_name,
      }),
     }))
@@ -410,12 +414,13 @@ useEffect(() => {
   return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
  }, [rows, selectedYearLabel])
 
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
-  [selectedYearLabel]
- )
  const canManageSchedules = isMgmtStaff()
- const scheduleMgmtLocked = historyReadOnly || !canManageSchedules
+ const scheduleMgmtLocked = !canManageSchedules
+ const scheduleRowLocked = useCallback(
+  (s: { scheduled_date: string }) =>
+   scheduleMgmtLocked || !canEditAcademicYearForDate(s.scheduled_date),
+  [scheduleMgmtLocked]
+ )
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
@@ -424,7 +429,7 @@ useEffect(() => {
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
    if (q) {
-    const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
+    const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code_full ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
     if (!hay.includes(q)) return false
    }
    return true
@@ -504,7 +509,7 @@ useEffect(() => {
     [
      r.scheduled_date,
      `"${r.classLabel.replace(/"/g, '""')}"`,
-     r.course_code ?? "",
+     r.course_code_full ?? "",
      r.start_time ?? "",
      r.end_time ?? "",
      `"${(r.teacher_name ?? "").replace(/"/g, '""')}"`,
@@ -535,6 +540,10 @@ useEffect(() => {
   if (scheduleMgmtLocked) return
   if (!addClassId) {
    setAddErr("請選擇班別")
+   return
+  }
+  if (!canEditAcademicYearForDate(addDate)) {
+   setAddErr(academicYearEditBlockedMessage())
    return
   }
   setAddSaving(true)
@@ -571,6 +580,7 @@ useEffect(() => {
   if (!id) return
   const row = scopedRows.find((x) => x.id === id)
   if (!row || row.scheduled_date !== dayViewDate) return
+  if (scheduleRowLocked(row)) return
   const d = durationMin(row)
   const newStartMin = lessonSlotStartMinute(slotIndex)
   const newEndMin = newStartMin + d
@@ -592,6 +602,10 @@ useEffect(() => {
  const confirmMove = async () => {
   if (scheduleMgmtLocked) return
   if (!pendingMove) return
+  if (scheduleRowLocked(pendingMove.row)) {
+   setMoveErr(academicYearEditBlockedMessage())
+   return
+  }
   setMoveErr(null)
   setMoveSaving(true)
   try {
@@ -676,12 +690,6 @@ useEffect(() => {
      ))}
     </Select>
    </div>
-
-   {historyReadOnly ? (
-    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-     {academicYearReadOnlyHint()}
-    </div>
-   ) : null}
 
    {pageErr ? (
     <div
@@ -927,10 +935,10 @@ useEffect(() => {
               <div className="flex flex-wrap items-center gap-2">
                <span className="text-lg font-semibold text-foreground md:text-xl">
                 {s.classLabel}
-                {s.course_code ? (
+                {s.course_code_full ? (
                  <span className="font-mono text-sm text-muted-foreground">
                   {" "}
-                  ({s.course_code})
+                  ({s.course_code_full})
                  </span>
                 ) : null}
                </span>
@@ -958,9 +966,9 @@ useEffect(() => {
               <Select
                className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
                value={s.classroom_id ?? ""}
-               disabled={scheduleMgmtLocked}
+               disabled={scheduleRowLocked(s)}
                onChange={async (e) => {
-                if (scheduleMgmtLocked) return
+                if (scheduleRowLocked(s)) return
                 const v = e.target.value || null
                 await updateSchedule(s.id, { classroom_id: v })
                 await reload()
@@ -976,9 +984,9 @@ useEffect(() => {
               <Select
                className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
-               disabled={historyReadOnly}
+               disabled={scheduleRowLocked(s)}
                onChange={async (e) => {
-                if (historyReadOnly) return
+                if (scheduleRowLocked(s)) return
                 await updateSchedule(s.id, { status: e.target.value })
                 await reload()
                }}
@@ -1022,10 +1030,10 @@ useEffect(() => {
                variant="ghost"
                size="icon"
                className="h-11 w-11 text-destructive hover:bg-destructive/10"
-               disabled={scheduleMgmtLocked}
+               disabled={scheduleRowLocked(s)}
                aria-label="刪除排程"
                onClick={async () => {
-               if (scheduleMgmtLocked) return
+               if (scheduleRowLocked(s)) return
                if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
                 await deleteSchedule(s.id)
                 await reload()
@@ -1057,7 +1065,7 @@ useEffect(() => {
              <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
               <p className="text-sm font-medium text-info">
                班別：{s.classLabel}
-               {s.course_code ? `（${s.course_code}）` : ""}
+               {s.course_code_full ? `（${s.course_code_full}）` : ""}
                {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
               </p>
               <p className="mb-2 mt-3 text-sm font-medium text-success">
@@ -1084,7 +1092,7 @@ useEffect(() => {
                     studentName: st.fullName,
                     subject: s.subject,
                     courseName: s.course_name,
-                    courseCode: s.course_code,
+                    courseCode: s.course_code_full,
                     dateYmd: s.scheduled_date,
                     startTime: s.start_time,
                     endTime: s.end_time,
@@ -1176,9 +1184,9 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3 font-medium">
             <span className="block break-words">{s.classLabel}</span>
-            {s.course_code ? (
+            {s.course_code_full ? (
              <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
-              ({s.course_code})
+              ({s.course_code_full})
              </span>
             ) : null}
            </td>
@@ -1195,9 +1203,9 @@ useEffect(() => {
             <Select
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
-             disabled={historyReadOnly}
+             disabled={scheduleRowLocked(s)}
              onChange={async (e) => {
-              if (historyReadOnly) return
+              if (scheduleRowLocked(s)) return
               await updateSchedule(s.id, { status: e.target.value })
               await reload()
              }}
@@ -1230,9 +1238,9 @@ useEffect(() => {
               type="button"
               variant="link"
               className="h-auto p-0 text-sm text-destructive"
-              disabled={scheduleMgmtLocked}
+              disabled={scheduleRowLocked(s)}
               onClick={async (e) => {
-               if (scheduleMgmtLocked) return
+               if (scheduleRowLocked(s)) return
                e.stopPropagation()
               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
                await deleteSchedule(s.id)
@@ -1277,7 +1285,7 @@ useEffect(() => {
                    studentName: st.fullName,
                    subject: s.subject,
                    courseName: s.course_name,
-                   courseCode: s.course_code,
+                   courseCode: s.course_code_full,
                    dateYmd: s.scheduled_date,
                    startTime: s.start_time,
                    endTime: s.end_time,
@@ -1387,9 +1395,9 @@ useEffect(() => {
                 alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
                 studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
                 variant="assigned"
-                historyReadOnly={scheduleMgmtLocked}
+                historyReadOnly={scheduleRowLocked(s)}
                 onDragStart={(e) => {
-                 if (scheduleMgmtLocked) {
+                 if (scheduleRowLocked(s)) {
                   e.preventDefault()
                   return
                  }
@@ -1427,9 +1435,9 @@ useEffect(() => {
                alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
                studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
                variant="unassigned"
-               historyReadOnly={scheduleMgmtLocked}
+               historyReadOnly={scheduleRowLocked(s)}
                onDragStart={(e) => {
-                if (scheduleMgmtLocked) {
+                if (scheduleRowLocked(s)) {
                  e.preventDefault()
                  return
                 }
@@ -1465,7 +1473,7 @@ useEffect(() => {
        </p>
        <p>
         {detailRow.class_subject}{" "}
-        <span className="font-mono text-muted-foreground">{detailRow.course_code ?? ""}</span>
+        <span className="font-mono text-muted-foreground">{detailRow.course_code_full ?? ""}</span>
        </p>
        <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
        <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
@@ -1505,7 +1513,7 @@ useEffect(() => {
       <div className="space-y-3 text-sm">
        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
         即將調整「{pendingMove.row.classLabel}
-        {pendingMove.row.course_code ? `（${pendingMove.row.course_code}）` : ""}」：
+        {pendingMove.row.course_code_full ? `（${pendingMove.row.course_code_full}）` : ""}」：
         <br />
         課室 → <strong>{pendingMove.roomLabel}</strong>
         <br />

@@ -21,9 +21,12 @@ import {
  setStoredAcademicYearFilter,
 } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
+import {
+ academicYearEditBlockedMessage,
+ canEditAcademicYear,
+} from "@/lib/academicYearEditGuard"
 import { lessonSlotLabel } from "@/lib/lessonSlots"
 import { fetchTeacherOptions } from "@/services/classQueries"
 import {
@@ -68,11 +71,10 @@ export function TeacherAvailabilityPage() {
  const [freeRoomCtx, setFreeRoomCtx] = useState<FreeRoomSlotContext | null>(null)
 
  const year = useMemo(() => years.find((y) => y.id === yearId) ?? null, [years, yearId])
- const isHistoryView = useMemo(() => {
-  if (!year) return false
-  return isAcademicYearReadOnly(year.end_date, year.label)
- }, [year])
- const historyReadOnly = isHistoryView
+ const yearLocked = useMemo(
+  () => (year ? !canEditAcademicYear(year.label, year.end_date) : false),
+  [year]
+ )
 
  const reload = useCallback(async () => {
   if (!year) return
@@ -166,7 +168,7 @@ export function TeacherAvailabilityPage() {
  }, [yearId, reload])
 
  const onAddSlot = async (date: string, slotIndex: number) => {
-  if (historyReadOnly || !year || !teacherId || addingSlot) return
+  if (!year || !teacherId || addingSlot || yearLocked) return
   setAddingSlot(true)
   setErr(null)
   try {
@@ -185,7 +187,7 @@ export function TeacherAvailabilityPage() {
  }
 
  const onDeleteSlot = async (id: string) => {
-  if (historyReadOnly) return
+  if (yearLocked) return
   if (!(await confirmDialog({ title: "刪除檔期", description: "確定刪除此可任教檔期？", confirmText: "確認刪除", tone: "destructive" }))) return
   try {
    await deleteAvailabilitySlot(id)
@@ -266,9 +268,15 @@ export function TeacherAvailabilityPage() {
     ))}
    </div>
 
-   {historyReadOnly ? (
-    <p className="text-sm text-muted-foreground">{academicYearReadOnlyHint()}</p>
+   {yearLocked ? (
+    <div
+     role="status"
+     className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+    >
+     {academicYearEditBlockedMessage()}
+    </div>
    ) : null}
+
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
@@ -296,26 +304,24 @@ export function TeacherAvailabilityPage() {
          <p className="mt-2 text-sm text-muted-foreground">
           {p.dates.map(formatScheduleDateShort).join("、")}
          </p>
-         {!historyReadOnly ? (
-          <Button
-           type="button"
-           size="sm"
-           className="mt-2"
-           variant="secondary"
-           onClick={() => {
-            if (!year || !teacherId) return
-            const params = new URLSearchParams({
-             academic_year_id: year.id,
-             teacher_id: teacherId,
-             day_of_week: p.day_of_week,
-             time_slot: p.time_slot,
-            })
-            navigate(`/Classes/New?${params.toString()}`)
-           }}
-          >
-           由此時段新增班別
-          </Button>
-         ) : null}
+         <Button
+          type="button"
+          size="sm"
+          className="mt-2"
+          variant="secondary"
+          onClick={() => {
+           if (!year || !teacherId) return
+           const params = new URLSearchParams({
+            academic_year_id: year.id,
+            teacher_id: teacherId,
+            day_of_week: p.day_of_week,
+            time_slot: p.time_slot,
+           })
+           navigate(`/Classes/New?${params.toString()}`)
+          }}
+         >
+          由此時段新增班別
+         </Button>
         </div>
        ))}
       </div>
@@ -353,10 +359,10 @@ export function TeacherAvailabilityPage() {
        onWeekStartChange={setWeekStart}
        yearStart={year?.start_date.slice(0, 10)}
        yearEnd={year?.end_date.slice(0, 10) ?? "2099-12-31"}
-       onAddSlot={gridMode === "single" ? onAddSlot : undefined}
-       onDeleteSlot={gridMode === "single" && !historyReadOnly ? onDeleteSlot : undefined}
+       onAddSlot={gridMode === "single" && !yearLocked ? onAddSlot : undefined}
+       onDeleteSlot={gridMode === "single" && !yearLocked ? onDeleteSlot : undefined}
+       readOnly={yearLocked}
        onNavigateCreate={(s) => navigateToClassNewFromSlot(navigate, s)}
-       readOnly={historyReadOnly}
        rooms={gridMode === "all" ? rooms : undefined}
        roomSchedules={gridMode === "all" ? roomSchedules : undefined}
        roomPending={gridMode === "all" ? roomPending : undefined}
@@ -381,8 +387,7 @@ export function TeacherAvailabilityPage() {
         roomSchedules={roomSchedules}
         roomPending={roomPending}
         onTeacherSlotClick={(s) => navigateToClassNewFromSlot(navigate, s)}
-        onFreeRoomClick={historyReadOnly ? undefined : setFreeRoomCtx}
-        readOnly={historyReadOnly}
+        onFreeRoomClick={setFreeRoomCtx}
        />
        <QuickClassFromSlotDialog
         open={freeRoomCtx != null}
@@ -446,14 +451,16 @@ export function TeacherAvailabilityPage() {
             <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
            </td>
            <td className="px-3 py-2">
-            {s.status === "可分配" && !historyReadOnly ? (
+            {s.status === "可分配" ? (
              <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="secondary" onClick={() => navigateToClassNewFromSlot(navigate, s)}>
                建班
               </Button>
+              {!yearLocked ? (
               <Button type="button" size="sm" variant="outline" onClick={() => void onDeleteSlot(s.id)}>
                刪除
               </Button>
+              ) : null}
              </div>
             ) : (
              "—"

@@ -356,7 +356,7 @@ export function RoomBookingView() {
          <option key={c.id} value={c.id}>
           {formatClassLabel({
            subject: c.subject,
-           courseCode: c.course_code,
+           courseCode: c.course_code_full,
            courseName: c.course_name,
           })}
          </option>

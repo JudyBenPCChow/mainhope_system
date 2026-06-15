@@ -70,7 +70,7 @@ def main() -> None:
     sb_url, sb_key = rec.load_env()
     students = rec.supabase_fetch_all(sb_url, sb_key, "students?select=id,full_name")
     classes = rec.supabase_fetch_all(
-        sb_url, sb_key, "classes?select=id,subject,grade,day_of_week,time_slot,course_code"
+        sb_url, sb_key, "classes?select=id,subject,grade,day_of_week,time_slot,course_code_full"
     )
 
     name_to_ids: dict[str, list[str]] = defaultdict(list)

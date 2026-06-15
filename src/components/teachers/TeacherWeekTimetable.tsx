@@ -50,7 +50,7 @@ export function weekItemsFromManageRows(rows: ScheduleManageRow[]): WeekTimetabl
   endTime: r.end_time,
   status: r.status,
   subject: r.classLabel,
-  courseCode: r.course_code,
+  courseCode: r.course_code_full,
  }))
 }
 

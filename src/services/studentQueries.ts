@@ -10,6 +10,7 @@ import {
  type CourseMode,
 } from "@/lib/enrollmentPeriod"
 import { supabase } from "@/lib/supabaseClient"
+import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
  return normalizeStudentGrade(raw)
@@ -342,7 +343,7 @@ export type EnrollmentWithClass = {
 
 /** PostgREST embed：只用 baseline + course_name，避免未套用 migration 的欄位令整筆查詢失敗 */
 const ENROLLMENT_CLASS_EMBED =
- "classes ( subject, course_code, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( price_per_lesson, course_name, subjects ( code, name_zh ) ) )"
+ "classes ( subject, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( price_per_lesson, course_name, subjects ( code, name_zh ) ) )"
 
 const ENROLLMENT_ROW_SELECT_BASE =
  `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
@@ -375,11 +376,7 @@ function buildClassOptionLabel(row: Record<string, unknown>): string {
  const head = formatClassLabel({
   subject: String(row.subject ?? ""),
   courseCode:
-   row.course_code_full != null
-    ? String(row.course_code_full)
-    : row.course_code != null
-      ? String(row.course_code)
-      : null,
+   row.course_code_full != null ? String(row.course_code_full) : null,
   courseName: course?.course_name != null ? String(course.course_name) : null,
  })
  const extras = [
@@ -398,12 +395,7 @@ function enrollmentClassLabel(cls: Record<string, unknown> | null | undefined): 
   courseName: course?.course_name != null ? String(course.course_name) : null,
  })
  if (head !== "—") {
-  const codeRaw =
-   cls.course_code_full != null
-    ? String(cls.course_code_full).trim()
-    : cls.course_code != null
-      ? String(cls.course_code).trim()
-      : ""
+  const codeRaw = cls.course_code_full != null ? String(cls.course_code_full).trim() : ""
   return codeRaw ? `${head}（${codeRaw}）` : head
  }
  const nameZh = subjectRow?.name_zh != null ? String(subjectRow.name_zh).trim() : ""
@@ -444,11 +436,7 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   courseCode:
-   cls?.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls?.course_code != null
-      ? String(cls.course_code)
-      : null,
+   cls?.course_code_full != null ? String(cls.course_code_full) : null,
   courseName: course?.course_name != null ? String(course.course_name) : null,
   dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
@@ -464,7 +452,7 @@ export async function fetchEnrollmentSubjectsByStudentIds(
  if (!supabase || studentIds.length === 0) return map
 
  const enrollmentSelect =
-  "student_id, classes ( subject, course_code, courses ( course_name, subjects ( name_zh ) ) )"
+  "student_id, classes ( subject, course_code_full, courses ( course_name, subjects ( name_zh ) ) )"
 
  try {
   const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
@@ -509,6 +497,13 @@ export async function insertEnrollment(
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
+ const { data: classRow, error: classErr } = await supabase
+  .from("classes")
+  .select("academic_year_label, start_date")
+  .eq("id", classId)
+  .maybeSingle()
+ if (classErr) throw classErr
+ if (classRow) assertClassRecordEditable(classRow as { academic_year_label?: string | null; start_date?: string | null })
  const config = await fetchClassEnrollmentConfig(classId)
  let periodValue =
   enrollmentPeriod != null && ENROLLMENT_PERIOD_OPTIONS.includes(enrollmentPeriod)
@@ -689,9 +684,9 @@ export type ClassOption = {
 export async function fetchClassOptions(): Promise<ClassOption[]> {
  if (!supabase) return []
  const classSelectWithMode =
-  "id, subject, course_code, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
+  "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
-  "id, subject, course_code, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
+  "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
  const res =
   first.error && /does not exist/i.test(first.error.message)
@@ -707,11 +702,7 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
    id: String(row.id),
    subject: String(row.subject ?? ""),
    courseCode:
-    row.course_code_full != null
-     ? String(row.course_code_full)
-     : row.course_code != null
-       ? String(row.course_code)
-       : null,
+    row.course_code_full != null ? String(row.course_code_full) : null,
    label: buildClassOptionLabel(row),
    courseMode,
   }
@@ -783,7 +774,7 @@ export async function fetchAttendanceForStudent(
  if (!supabase) return []
  const { data, error } = await supabase
   .from("attendance_details")
-  .select("id, class_id, attendance_date, status, classes ( subject, course_code )")
+  .select("id, class_id, attendance_date, status, classes ( subject, course_code_full )")
   .eq("student_id", studentId)
   .order("attendance_date", { ascending: false })
  if (error) throw error
@@ -791,7 +782,7 @@ export async function fetchAttendanceForStudent(
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code = cls?.course_code != null ? String(cls.course_code) : ""
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : "",
@@ -815,7 +806,7 @@ export async function fetchLeaveForStudent(studentId: string): Promise<LeaveRow[
  if (!supabase) return []
  const { data, error } = await supabase
   .from("leave_makeup_records")
-  .select("id, class_id, leave_date, leave_reason, status, classes ( subject, course_code )")
+  .select("id, class_id, leave_date, leave_reason, status, classes ( subject, course_code_full )")
   .eq("student_id", studentId)
   .order("leave_date", { ascending: false })
  if (error) throw error
@@ -823,7 +814,7 @@ export async function fetchLeaveForStudent(studentId: string): Promise<LeaveRow[
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code = cls?.course_code != null ? String(cls.course_code) : ""
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : "",
@@ -862,13 +853,13 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
   supabase
    .from("student_class_enrollments")
    .select(
-    "id, status, created_at, classes ( subject, course_code )"
+    "id, status, created_at, classes ( subject, course_code_full )"
    )
    .eq("student_id", studentId)
    .order("created_at", { ascending: false }),
   supabase
    .from("enrollment_change_events")
-   .select("id, effective_date, reason, classes ( subject, course_code )")
+   .select("id, effective_date, reason, classes ( subject, course_code_full )")
    .eq("student_id", studentId)
    .eq("action", "withdraw")
    .order("created_at", { ascending: false }),
@@ -903,7 +894,7 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
   for (const r of enrs.data as Record<string, unknown>[]) {
    const cls = r.classes as Record<string, unknown> | null
    const sub = cls?.subject != null ? String(cls.subject) : "—"
-   const code = cls?.course_code != null ? String(cls.course_code) : ""
+   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
    items.push({
     id: `e-${r.id}`,
     kind: "enrollment",
@@ -920,7 +911,7 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
   for (const r of evWithdraw.data as Record<string, unknown>[]) {
    const cls = r.classes as Record<string, unknown> | null
    const sub = cls?.subject != null ? String(cls.subject) : "—"
-   const code = cls?.course_code != null ? String(cls.course_code) : ""
+   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
    const eff = String(r.effective_date ?? "").slice(0, 10)
    const reason = r.reason != null ? String(r.reason) : ""
    items.push({

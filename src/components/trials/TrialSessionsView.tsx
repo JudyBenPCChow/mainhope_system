@@ -432,8 +432,8 @@ export function TrialSessionsView() {
           <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
            {r.class_subject ?? "—"}
           </Link>
-          {r.course_code ? (
-           <div className="font-mono text-xs text-muted-foreground">{r.course_code}</div>
+          {r.course_code_full ? (
+           <div className="font-mono text-xs text-muted-foreground">{r.course_code_full}</div>
           ) : null}
          </td>
          <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">
@@ -516,7 +516,7 @@ export function TrialSessionsView() {
          <option key={c.id} value={c.id}>
           {formatClassLabel({
            subject: c.subject,
-           courseCode: c.course_code,
+           courseCode: c.course_code_full,
            courseName: c.course_name,
           })}
          </option>

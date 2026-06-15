@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
+import {
+ academicYearEditBlockedMessage,
+ canEditAcademicYearForDate,
+} from "@/lib/academicYearEditGuard"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -49,11 +51,6 @@ export function RollCallPage() {
  const urlDate = parseYmd(searchParams.get("date"))
  const teacherTid = getTeacherScopeTeacherId()
  const [dateYmd, setDateYmd] = useState(() => urlDate ?? localYmd())
- const selectedAcademicYear = useMemo(() => academicYearLabelFromStartDate(dateYmd), [dateYmd])
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, selectedAcademicYear),
-  [selectedAcademicYear]
- )
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [pendingMakeup, setPendingMakeup] = useState(0)
  const [loadingList, setLoadingList] = useState(true)
@@ -70,7 +67,7 @@ export function RollCallPage() {
      end_time: s.end_time,
      class_id: s.class_id,
      classLabel: s.classLabel,
-     course_code: s.course_code,
+     course_code_full: s.course_code_full,
      teacher_name: s.teacher_name,
      session_number: s.session_number ?? null,
      consecutive_group_id: s.consecutive_group_id ?? null,
@@ -97,6 +94,7 @@ export function RollCallPage() {
  const [sheetLoading, setSheetLoading] = useState(false)
  const [bulkAction, setBulkAction] = useState<null | "prefill" | "allPresent">(null)
  const [confirmSaving, setConfirmSaving] = useState(false)
+ const dateEditable = useMemo(() => canEditAcademicYearForDate(dateYmd), [dateYmd])
  const [sheetErr, setSheetErr] = useState<string | null>(null)
 
  const reloadList = useCallback(async () => {
@@ -121,7 +119,7 @@ export function RollCallPage() {
      end_time: s.end_time,
      class_id: s.class_id,
      classLabel: s.classLabel,
-     course_code: s.course_code,
+     course_code_full: s.course_code_full,
      teacher_name: s.teacher_name,
      session_number: s.session_number ?? null,
      consecutive_group_id: s.consecutive_group_id ?? null,
@@ -237,14 +235,12 @@ export function RollCallPage() {
  }, [activeEntry])
 
  const setStatus = (studentId: string, status: string) => {
-  if (historyReadOnly) return
   if (!activeEntry?.class_id) return
   setStatusMap((prev) => new Map(prev).set(studentId, status))
   setSheetErr(null)
  }
 
  const applyPrefill = () => {
-  if (historyReadOnly) return
   if (!activeEntry?.class_id) {
    setSheetErr("無法預填：此排程未綁定班別。")
    return
@@ -279,7 +275,6 @@ export function RollCallPage() {
  }
 
  const applyAllPresent = () => {
-  if (historyReadOnly) return
   if (!activeEntry?.class_id) {
    setSheetErr("無法套用：此排程未綁定班別。")
    return
@@ -299,9 +294,12 @@ export function RollCallPage() {
  }
 
  const confirmRollCall = async () => {
-  if (historyReadOnly) return
   if (!activeEntry?.class_id) return
   if (students.length === 0) return
+  if (!dateEditable) {
+   pushBanner({ tone: "warning", title: "無法儲存點名", message: academicYearEditBlockedMessage() })
+   return
+  }
   for (const row of students) {
    const s = (statusMap.get(row.studentId) ?? "").trim()
    if (!s) {
@@ -429,6 +427,14 @@ export function RollCallPage() {
    {teacherTid ? (
    <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
+   </div>
+   ) : null}
+   {!dateEditable ? (
+    <div
+     role="status"
+     className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+    >
+     {academicYearEditBlockedMessage()}
     </div>
    ) : null}
 
@@ -437,12 +443,6 @@ export function RollCallPage() {
      {err}
     </div>
    ) : null}
-
-  {historyReadOnly ? (
-   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    {academicYearReadOnlyHint()}
-   </div>
-  ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2">
     <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
@@ -486,7 +486,7 @@ export function RollCallPage() {
         <option key={entry.key} value={entry.key}>
          {entry.scheduled_date}
          {entry.scheduled_date === localYmd() ? "（今天）" : ""} — {entry.classLabel}
-         {entry.course_code ? ` (${entry.course_code})` : ""}{" "}
+         {entry.course_code_full ? ` (${entry.course_code_full})` : ""}{" "}
          {formatConsecutiveSessionLabel(entry.sessionNumbers)} {entry.start_time ?? ""}–{entry.end_time ?? ""} —{" "}
          {entry.teacher_name ?? "—"}
          {entry.isConsecutive ? " · 連堂" : ""}
@@ -546,7 +546,7 @@ export function RollCallPage() {
         size="sm"
         variant="secondary"
        className="gap-1 bg-info text-info-foreground hover:bg-info"
-        disabled={historyReadOnly || sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={sheetLoading || bulkAction !== null || students.length === 0 || !dateEditable}
         onClick={() => applyPrefill()}
        >
         <Sparkles className="h-4 w-4" />
@@ -556,7 +556,7 @@ export function RollCallPage() {
         type="button"
         size="sm"
         className="gap-1 bg-success text-white hover:bg-success"
-        disabled={historyReadOnly || sheetLoading || bulkAction !== null || students.length === 0}
+        disabled={sheetLoading || bulkAction !== null || students.length === 0 || !dateEditable}
         onClick={() => applyAllPresent()}
        >
         <ListChecks className="h-4 w-4" />
@@ -613,14 +613,13 @@ export function RollCallPage() {
               <button
                key={opt}
                type="button"
+               disabled={!dateEditable}
                onClick={() => setStatus(row.studentId, opt)}
-               disabled={historyReadOnly}
                className={cn(
                 "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                 statusMap.get(row.studentId) === opt
                  ? "border-success bg-success text-white"
-                 : "border-border bg-background text-muted-foreground hover:bg-muted/60",
-                historyReadOnly && "cursor-not-allowed opacity-60 hover:bg-background"
+                 : "border-border bg-background text-muted-foreground hover:bg-muted/60"
                )}
               >
                {opt}
@@ -636,7 +635,7 @@ export function RollCallPage() {
               payload={{
                studentName: row.fullName,
                subject: activeScheduleMeta.subject,
-               courseCode: activeScheduleMeta.course_code,
+               courseCode: activeScheduleMeta.course_code_full,
                dateYmd: activeEntry.scheduled_date,
                startTime: activeEntry.start_time,
                endTime: activeEntry.end_time,
@@ -668,12 +667,12 @@ export function RollCallPage() {
         size="lg"
         className="shrink-0 gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
         disabled={
-         historyReadOnly ||
          confirmSaving ||
          sheetLoading ||
          bulkAction !== null ||
          students.length === 0 ||
-         !isDirty
+         !isDirty ||
+         !dateEditable
         }
         onClick={() => void confirmRollCall()}
        >

@@ -37,7 +37,7 @@ export type RoomScheduleRow = {
  status: string
  class_id: string | null
  subject: string
- course_code: string | null
+ course_code_full: string | null
  course_name: string | null
  classLabel: string
  teacher_id: string | null
@@ -53,7 +53,7 @@ export async function fetchSchedulesForRoomRange(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code, courses ( course_name ) ), teachers ( full_name )"
+   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name )"
   )
   .eq("classroom_id", roomId)
   .gte("scheduled_date", fromYmd)
@@ -68,7 +68,7 @@ export async function fetchSchedulesForRoomRange(
   const sub = cls?.subject != null ? String(cls.subject) : "（無班別）"
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
-  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
+  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
   return {
    id: String(r.id),
    scheduled_date: String(r.scheduled_date ?? ""),
@@ -77,7 +77,7 @@ export async function fetchSchedulesForRoomRange(
    status: String(r.status ?? ""),
    class_id: r.class_id != null ? String(r.class_id) : null,
    subject: sub,
-   course_code: courseCode,
+   course_code_full: courseCode,
    course_name: courseName,
    classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
    teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
@@ -90,14 +90,14 @@ export async function fetchClassesUsingRoom(roomId: string): Promise<{ id: strin
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("id, subject, course_code, courses ( course_name )")
+  .select("id, subject, course_code_full, courses ( course_name )")
   .eq("classroom_id", roomId)
   .order("subject")
  if (error) throw error
  return (data ?? []).map((r) => {
   const row = r as Record<string, unknown>
   const sub = String(row.subject ?? "")
-  const code = row.course_code != null ? String(row.course_code) : ""
+  const code = row.course_code_full != null ? String(row.course_code_full) : ""
   const course = row.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   return {

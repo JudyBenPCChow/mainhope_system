@@ -124,13 +124,12 @@ ranked as (
   from class_rows r
 )
 insert into public.classes (
-  id, subject, course_code, course_id, academic_year_id, section_code, course_code_full, grade,
+  id, subject, course_id, academic_year_id, section_code, course_code_full, grade,
   day_of_week, time_slot, teacher_id, classroom_id, capacity, start_date, end_date, status
 )
 select
   r.class_id,
   r.subject_name,
-  null,
   r.course_id,
   ay.id,
   coalesce(r.section_code, public.section_code_from_ord(r.ord::integer)),

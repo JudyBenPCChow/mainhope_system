@@ -125,7 +125,7 @@ export function TeacherHomeView() {
       const trialRes = await supabase
         .from("trial_sessions")
         .select(
-          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ) )"
+          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
         )
         .in("class_id", classIds)
         .gte("trial_date", today)
@@ -137,7 +137,7 @@ export function TeacherHomeView() {
           const st = r.students as Record<string, unknown> | null
           const cls = r.classes as Record<string, unknown> | null
           const sub = cls?.subject != null ? String(cls.subject) : "—"
-          const code = cls?.course_code != null ? String(cls.course_code) : ""
+          const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
           const course = cls?.courses as Record<string, unknown> | null
           const courseName = course?.course_name != null ? String(course.course_name) : null
           return {
@@ -431,8 +431,8 @@ export function TeacherHomeView() {
           <Link to={`/Classes/${c.id}`} className="font-semibold text-primary hover:underline">
            {classDisplayName({ subject: c.subject, courseName: c.course_name })}
           </Link>
-          {c.course_code ? (
-           <span className="ml-2 font-mono text-sm text-muted-foreground">{c.course_code}</span>
+          {c.course_code_full ? (
+           <span className="ml-2 font-mono text-sm text-muted-foreground">{c.course_code_full}</span>
           ) : null}
           <div className="text-sm text-muted-foreground md:text-base">
            {(c.grade ?? []).join("、")} · {formatWeekdaysDisplay(c.day_of_week)} {c.time_slot}

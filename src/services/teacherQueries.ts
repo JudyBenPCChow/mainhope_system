@@ -162,7 +162,7 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
  if (!supabase) return []
  const { data: classes, error } = await supabase
   .from("classes")
-  .select("id, subject, course_code, day_of_week, time_slot, grade, price_per_lesson, courses ( course_name )")
+  .select("id, subject, course_code_full, day_of_week, time_slot, grade, price_per_lesson, courses ( course_name )")
   .eq("teacher_id", teacherId)
   .order("subject")
  if (error) throw error
@@ -185,7 +185,7 @@ export async function fetchTeacherClasses(teacherId: string): Promise<TeacherCla
   return {
    id: String(c.id),
    subject: classDisplayName({ subject: sub, courseName }),
-   courseCode: c.course_code != null ? String(c.course_code) : null,
+   courseCode: c.course_code_full != null ? String(c.course_code_full) : null,
   dayOfWeek: c.day_of_week != null ? String(c.day_of_week) : null,
   timeSlot: c.time_slot != null ? String(c.time_slot) : null,
   grades: Array.isArray(c.grade) ? (c.grade as string[]) : null,
@@ -212,7 +212,7 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
  const { data: sched, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code, courses ( course_name ) )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, courses ( course_name ) )"
   )
   .eq("teacher_id", teacherId)
   .order("scheduled_date", { ascending: true })
@@ -224,7 +224,7 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
   const sub = cls?.subject != null ? String(cls.subject) : "—"
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
-  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
+  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : "",
@@ -263,7 +263,7 @@ export async function fetchTeacherAttendance(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, attendance_date, status, remarks, classes ( subject, course_code, courses ( course_name ) ), students ( full_name, grade )"
+   "id, attendance_date, status, remarks, classes ( subject, course_code_full, courses ( course_name ) ), students ( full_name, grade )"
   )
   .in("class_id", classIds)
   .order("attendance_date", { ascending: false })
@@ -275,7 +275,7 @@ export async function fetchTeacherAttendance(
   const sub = cls?.subject != null ? String(cls.subject) : "—"
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
-  const courseCode = cls?.course_code != null ? String(cls.course_code) : null
+  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
   return {
    id: String(r.id),
    date: String(r.attendance_date ?? ""),

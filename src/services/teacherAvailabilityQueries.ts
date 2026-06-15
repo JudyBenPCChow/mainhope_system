@@ -1,4 +1,5 @@
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { assertAcademicYearEditable, assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { supabase } from "@/lib/supabaseClient"
 import { weekdayLabelFromYmd } from "@/lib/weekdayUtils"
 import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
@@ -174,6 +175,10 @@ export async function insertAvailabilitySlot(opts: {
  notes?: string | null
 }): Promise<TeacherAvailabilitySlot> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const years = await fetchAcademicYearsWithDates()
+ const year = years.find((y) => y.id === opts.academic_year_id)
+ if (!year) throw new Error("找不到學年")
+ assertAcademicYearEditable(year.label, year.end_date)
  const dateYmd = opts.available_date.slice(0, 10)
  const timeSlot = canonicalAvailabilityTimeSlot(opts.time_slot)
 
@@ -224,12 +229,23 @@ export async function deleteAvailabilitySlot(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error: fetchErr } = await supabase
   .from("teacher_availability_slots")
-  .select("status")
+  .select("status, available_date, academic_years ( label, end_date )")
   .eq("id", id)
   .single()
  if (fetchErr) throw new Error(formatUnknownError(fetchErr))
- if ((data as { status: string }).status === "已分配") {
+ const row = data as {
+  status: string
+  available_date?: string
+  academic_years?: { label?: string; end_date?: string } | null
+ }
+ if (row.status === "已分配") {
   throw new Error("已分配的檔期不可刪除；請先取消相關班別。")
+ }
+ const ay = row.academic_years
+ if (ay?.label) {
+  assertAcademicYearEditable(ay.label, ay.end_date ?? null)
+ } else {
+  assertAcademicYearEditableForDate(row.available_date ?? "")
  }
  const { error } = await supabase.from("teacher_availability_slots").delete().eq("id", id)
  if (error) throw new Error(formatUnknownError(error))

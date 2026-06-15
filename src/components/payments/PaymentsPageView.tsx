@@ -27,8 +27,11 @@ import { Tag } from "@/components/ui/tag"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
+import {
+ academicYearEditBlockedMessage,
+ canEditAcademicYearForDate,
+} from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import {
@@ -196,11 +199,7 @@ export function PaymentsPageView() {
   () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
   [academicYearFilter, currentAcademicYear]
  )
-
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
-  [selectedYearLabel]
- )
+ const payDateEditable = useMemo(() => canEditAcademicYearForDate(payDate), [payDate])
 
  const loadDashboardStats = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -592,7 +591,6 @@ export function PaymentsPageView() {
  })
 
  const submitReceive = async () => {
- if (historyReadOnly) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -636,7 +634,6 @@ export function PaymentsPageView() {
  }
 
  const submitInvoice = async () => {
- if (historyReadOnly) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -700,7 +697,6 @@ export function PaymentsPageView() {
  }
 
  const confirmMarkReceived = async () => {
- if (historyReadOnly) return
   if (!markTarget) return
   setSaving(true)
   try {
@@ -717,7 +713,6 @@ export function PaymentsPageView() {
  }
 
  const onDeleteRow = async (row: PaymentListRow) => {
- if (historyReadOnly) return
  if (
   !(await confirmDialog({
    title: "刪除單據",
@@ -858,12 +853,6 @@ export function PaymentsPageView() {
      </button>
     ))}
    </div>
-
-  {historyReadOnly ? (
-   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    {academicYearReadOnlyHint()}
-   </div>
-  ) : null}
 
    {mainTab !== "history" ? (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -1143,6 +1132,9 @@ export function PaymentsPageView() {
        </FormField>
        <FormField label="日期 *">
         <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+        {!payDateEditable ? (
+         <p className="mt-1 text-xs text-amber-800">{academicYearEditBlockedMessage()}</p>
+        ) : null}
        </FormField>
       </div>
 
@@ -1226,7 +1218,7 @@ export function PaymentsPageView() {
       <Button
        type="button"
        className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-       disabled={!isSupabaseConfigured || saving || historyReadOnly}
+       disabled={!isSupabaseConfigured || saving || !payDateEditable}
        onClick={() => void (mainTab === "receive" ? submitReceive() : submitInvoice())}
       >
        {mainTab === "receive" ? "確認登記收款" : "建立通知單"}
@@ -1323,6 +1315,7 @@ export function PaymentsPageView() {
           const pending = PENDING_PAYMENT_STATUSES.includes(
            r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
           )
+          const rowEditable = canEditAcademicYearForDate(r.paymentDate)
           return (
            <tr key={r.id} className="border-b border-border/80 last:border-0">
             <td className="px-3 py-2 whitespace-nowrap">{r.paymentDate}</td>
@@ -1367,21 +1360,22 @@ export function PaymentsPageView() {
                <Printer className="h-3.5 w-3.5" />
                列印
               </Button>
-              {pending ? (
-               <Button type="button" size="sm" disabled={historyReadOnly} onClick={() => openMarkReceived(r)}>
+              {pending && rowEditable ? (
+               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
                 標記已收
                </Button>
               ) : null}
+              {rowEditable ? (
               <Button
                type="button"
                variant="ghost"
                size="sm"
                className="text-destructive hover:text-destructive"
-               disabled={historyReadOnly}
                onClick={() => void onDeleteRow(r)}
               >
                刪除
               </Button>
+              ) : null}
              </div>
             </td>
            </tr>
@@ -1509,7 +1503,7 @@ export function PaymentsPageView() {
        <Button
         type="button"
         className="bg-success text-white hover:bg-success"
-       disabled={saving || historyReadOnly}
+       disabled={saving}
         onClick={() => void confirmMarkReceived()}
        >
         確認

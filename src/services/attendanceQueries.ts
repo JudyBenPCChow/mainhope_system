@@ -6,6 +6,7 @@ import {
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -245,6 +246,7 @@ export async function saveAttendanceStatus(
  scheduleId?: string | null
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ assertAcademicYearEditableForDate(attendanceDate)
  let q = supabase
   .from("attendance_details")
   .select("id")
@@ -370,11 +372,7 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  const courseCode =
-  cls?.course_code_full != null
-   ? String(cls.course_code_full)
-   : cls?.course_code != null
-     ? String(cls.course_code)
-     : null
+  cls?.course_code_full != null ? String(cls.course_code_full) : null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
@@ -400,7 +398,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) )"
+   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)

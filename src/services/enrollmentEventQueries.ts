@@ -23,7 +23,7 @@ function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
  const cls = r.classes as Record<string, unknown> | null
  const tch = cls?.teachers as Record<string, unknown> | null | undefined
  const sub = cls?.subject != null ? String(cls.subject) : "—"
- const code = cls?.course_code != null ? String(cls.course_code) : ""
+ const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  const actionRaw = String(r.action ?? "enroll")
@@ -70,7 +70,7 @@ export async function fetchEnrollmentChangeEventsList(
  let q = supabase
   .from("enrollment_change_events")
   .select(
-   "id, action, effective_date, reason, enrollment_period, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) )"
+   "id, action, effective_date, reason, enrollment_period, enrollment_id, created_at, student_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ), teachers ( full_name ) )"
   )
   .order("effective_date", { ascending: false })
   .order("created_at", { ascending: false })

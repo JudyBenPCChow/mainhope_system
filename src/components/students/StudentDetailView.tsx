@@ -474,7 +474,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   const q = leaveMakeupSearch.trim().toLowerCase()
   return leaveMakeupCandidates.filter((s) => {
    if (!q) return true
-   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
+   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code_full ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
    return hay.includes(q)
   })
  }, [leaveMakeupCandidates, leaveMakeupSearch])
@@ -600,7 +600,7 @@ const exportFutureSchedulesCsv = () => {
    row.start_time ?? "",
    row.end_time ?? "",
    row.subject,
-   row.course_code ?? "",
+   row.course_code_full ?? "",
    row.teacher_name ?? "",
    row.status,
   ]
@@ -1517,7 +1517,7 @@ const exportFutureSchedulesCsv = () => {
              {leaveClasses.map((c) => (
               <option key={c.id} value={c.id}>
                {c.subject}
-               {c.course_code ? `（${c.course_code}）` : ""}
+               {c.course_code_full ? `（${c.course_code_full}）` : ""}
               </option>
              ))}
             </>
@@ -1597,7 +1597,7 @@ const exportFutureSchedulesCsv = () => {
             {leaveMakeupFiltered.map((s) => (
              <option key={s.id} value={s.id}>
               {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
-              {s.course_code ? ` (${s.course_code})` : ""} · {s.teacher_name ?? "—"}
+              {s.course_code_full ? ` (${s.course_code_full})` : ""} · {s.teacher_name ?? "—"}
              </option>
             ))}
            </Select>
@@ -1683,7 +1683,7 @@ const exportFutureSchedulesCsv = () => {
            subtitle={
             <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
              {row.subject}
-             {row.course_code ? `（${row.course_code}）` : ""}
+             {row.course_code_full ? `（${row.course_code_full}）` : ""}
             </Link>
            }
            controls={

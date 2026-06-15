@@ -124,7 +124,7 @@ export function ScheduleDetailView() {
        {row.class_id ? (
         <>
          {row.class_subject}{" "}
-         <span className="font-mono">{row.course_code ?? ""}</span>
+         <span className="font-mono">{row.course_code_full ?? ""}</span>
         </>
        ) : (
         <span>無綁定班別（約房／其他）</span>
@@ -192,7 +192,7 @@ export function ScheduleDetailView() {
             payload={{
              studentName: s.fullName,
              subject: row.class_subject,
-             courseCode: row.course_code,
+             courseCode: row.course_code_full,
              dateYmd: row.scheduled_date,
              startTime: row.start_time,
              endTime: row.end_time,

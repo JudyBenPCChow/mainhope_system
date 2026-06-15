@@ -162,7 +162,7 @@ function scheduleOverlapsLessonSlot(
 }
 
 const SCHEDULE_BOARD_SELECT =
- "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code, grade, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
+ "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code_full, grade, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
 
 async function loadEnrollmentNameMapForClassIds(
  classIds: string[]
@@ -215,7 +215,7 @@ function mapScheduleRowsToTodaySchedules(
     : typeof row.remarks === "string" && row.remarks.trim()
      ? row.remarks.trim()
      : "課程"
-  const code = typeof cls?.course_code === "string" ? cls.course_code : ""
+  const code = typeof cls?.course_code_full === "string" ? cls.course_code_full : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   const title = formatClassLabel({ subject: sub, courseCode: code, courseName })
@@ -242,7 +242,7 @@ function mapScheduleRowsToDashboardClassCards(
   const cls = row.classes as Record<string, unknown> | null | undefined
   const rem = row.remarks != null ? String(row.remarks).trim() : ""
   const sub = typeof cls?.subject === "string" ? cls.subject : rem || "課程"
-  const code = typeof cls?.course_code === "string" ? cls.course_code : ""
+  const code = typeof cls?.course_code_full === "string" ? cls.course_code_full : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   const className = formatClassLabel({ subject: sub, courseCode: code, courseName })
@@ -313,7 +313,7 @@ function mapLeaveDashboardRow(r: Record<string, unknown>): DashboardTodayLeaveRo
  const stt = sc?.start_time != null ? String(sc.start_time) : ""
  const en = sc?.end_time != null ? String(sc.end_time) : ""
  const sub = typeof cls?.subject === "string" ? cls.subject : "—"
- const code = typeof cls?.course_code === "string" ? cls.course_code : ""
+ const code = typeof cls?.course_code_full === "string" ? cls.course_code_full : ""
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  return {
@@ -343,7 +343,7 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
 
  try {
   const leaveSelect =
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, students ( full_name, grade ), classes ( subject, course_code, courses ( course_name ), teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, leave_date, leave_reason, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
 
   const [
    todaySchedCountRes,

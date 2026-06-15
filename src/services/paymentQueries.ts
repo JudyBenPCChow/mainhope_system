@@ -1,4 +1,5 @@
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
+import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
@@ -225,7 +226,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
 
  const { data: det, error: e2 } = await supabase
   .from("payment_details")
-  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code, courses ( course_name ) )")
+  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code_full, courses ( course_name ) )")
   .eq("payment_id", id)
  if (e2) throw e2
 
@@ -233,7 +234,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code = cls?.course_code != null ? String(cls.course_code) : ""
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   return {
@@ -315,6 +316,7 @@ export async function insertPaymentRecord(params: {
  createReferralRecord?: boolean
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
+ assertAcademicYearEditableForDate(params.paymentDate)
 
  const discountIds = (
   params.discountIds?.length
@@ -485,6 +487,15 @@ export async function updatePaymentRecord(
  }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: row, error: fetchErr } = await supabase
+  .from("payments")
+  .select("payment_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (fetchErr) throw fetchErr
+ if (!row) throw new Error("找不到繳費紀錄")
+ assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
+ if (patch.paymentDate !== undefined) assertAcademicYearEditableForDate(patch.paymentDate)
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
  if (patch.status !== undefined) payload.status = patch.status
  if (patch.paymentMethod !== undefined) payload.payment_method = patch.paymentMethod
@@ -498,6 +509,14 @@ export async function updatePaymentRecord(
 
 export async function deletePaymentRecord(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: row, error: fetchErr } = await supabase
+  .from("payments")
+  .select("payment_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (fetchErr) throw fetchErr
+ if (!row) throw new Error("找不到繳費紀錄")
+ assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
  const { error } = await supabase.from("payments").delete().eq("id", id)
  if (error) throw error
 }
@@ -561,6 +580,14 @@ export async function fetchTotalPaidLessonsForStudent(studentId: string): Promis
 /** 將待繳／待收款改為已收款；收據編號一律由系統產生 */
 export async function markPaymentReceived(id: string, opts?: { paymentMethod?: string }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: row, error: fetchErr } = await supabase
+  .from("payments")
+  .select("payment_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (fetchErr) throw fetchErr
+ if (!row) throw new Error("找不到繳費紀錄")
+ assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
  for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
   const receipt = await allocateReceiptRef("RC")
   const { error } = await supabase

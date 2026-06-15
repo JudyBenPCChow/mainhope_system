@@ -78,7 +78,7 @@ def main() -> None:
 
     lines: list[str] = [
         "-- 對照報告中「對不到」+「模糊多候選」之 CSV 列：新增 public.classes",
-        f"-- 共 {len(want)} 筆；course_code / teacher_id / classroom_id 為 NULL",
+        f"-- 共 {len(want)} 筆；teacher_id / classroom_id 為 NULL",
         "-- 執行前請備份；若與既有班別語意重複，請自行刪除或調整後再執行。",
         "",
         "BEGIN;",
@@ -125,12 +125,11 @@ def main() -> None:
 
         lines.append(
             "INSERT INTO public.classes ("
-            "id, subject, course_code, grade, day_of_week, time_slot, "
+            "id, subject, grade, day_of_week, time_slot, "
             "teacher_id, classroom_id, capacity, price_per_lesson, start_date, end_date, status"
             ") VALUES ("
             f"{sql_str(cid)}::uuid, "
             f"{sql_str(subject)}, "
-            "NULL, "
             f"{gsql}, "
             f"{sql_str(dow)}, "
             f"{sql_str(slot)}, "

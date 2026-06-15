@@ -109,7 +109,7 @@ def main() -> None:
             rows.append({k: (v or "").strip() for k, v in r.items()})
 
     lines: list[str] = [
-        "-- 一對一／單對單班別：寫入 public.classes（course_code 留空；無老師／課室）",
+        "-- 一對一／單對單班別：寫入 public.classes（無老師／課室）",
         "-- 來源：import-output/one_on_one_and_single_classes.csv",
         "-- 每列固定 uuid，便於之後寫 student_class_enrollments。執行前請備份。",
         "",
@@ -142,12 +142,11 @@ def main() -> None:
 
         lines.append(
             "INSERT INTO public.classes ("
-            "id, subject, course_code, grade, day_of_week, time_slot, "
+            "id, subject, grade, day_of_week, time_slot, "
             "teacher_id, classroom_id, capacity, price_per_lesson, start_date, end_date, status"
             ") VALUES ("
             f"{sql_str(cid)}::uuid, "
             f"{sql_str(subject)}, "
-            "NULL, "
             f"{gsql}, "
             f"{sql_str(dow)}, "
             f"{sql_str(slot)}, "

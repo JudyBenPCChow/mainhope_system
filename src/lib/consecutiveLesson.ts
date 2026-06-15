@@ -94,7 +94,7 @@ export type RollCallScheduleEntry = {
  start_time: string | null
  end_time: string | null
  classLabel: string
- course_code: string | null
+ course_code_full: string | null
  teacher_name: string | null
  isConsecutive: boolean
 }
@@ -106,7 +106,7 @@ export type ScheduleRollCallSource = {
  end_time: string | null
  class_id: string | null
  classLabel: string
- course_code: string | null
+ course_code_full: string | null
  teacher_name: string | null
  session_number?: number | null
  consecutive_group_id?: string | null
@@ -144,7 +144,7 @@ export function buildRollCallScheduleEntries(
    start_time: row.start_time,
    end_time: row.end_time,
    classLabel: row.classLabel,
-   course_code: row.course_code,
+   course_code_full: row.course_code_full,
    teacher_name: row.teacher_name,
    isConsecutive: false,
   })
@@ -166,7 +166,7 @@ export function buildRollCallScheduleEntries(
    start_time: head.start_time,
    end_time: tail?.end_time ?? head.end_time,
    classLabel: head.classLabel,
-   course_code: head.course_code,
+   course_code_full: head.course_code_full,
    teacher_name: head.teacher_name,
    isConsecutive: sorted.length > 1,
   })

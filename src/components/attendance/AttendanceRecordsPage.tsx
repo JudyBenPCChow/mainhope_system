@@ -17,7 +17,6 @@ import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly, academicYearReadOnlyHint } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -76,11 +75,6 @@ export function AttendanceRecordsPage() {
   [academicYearFilter, currentAcademicYear]
  )
 
- const historyReadOnly = useMemo(
-  () => isAcademicYearReadOnly(undefined, selectedYearLabel),
-  [selectedYearLabel]
- )
-
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
   setLoading(true)
@@ -110,7 +104,7 @@ export function AttendanceRecordsPage() {
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,
-      courseCode: c.course_code,
+      courseCode: c.course_code_full,
       courseName: c.course_name,
      }),
      teacherId: c.teacher_id ?? null,
@@ -201,11 +195,6 @@ export function AttendanceRecordsPage() {
      {err}
     </div>
    ) : null}
-  {historyReadOnly ? (
-   <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-    {academicYearReadOnlyHint()}
-   </div>
-  ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="出席儀表板">
     <div className="rounded-xl border border-info/30 bg-info/10 p-4 shadow-sm">

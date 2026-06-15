@@ -439,7 +439,6 @@ export function classCreateFormToInsertPayload(
   grade_code: values.grade_code,
   course_id: values.course_id,
   section_code: values.section_code.trim() || null,
-  course_code: null,
   day_of_week: dayStored,
   time_slot: values.time_slot.trim() || null,
   lesson_slots_per_session: values.consecutive_lesson ? 2 : 1,

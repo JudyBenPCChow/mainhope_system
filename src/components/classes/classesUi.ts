@@ -1,5 +1,5 @@
 import { LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
-import { resolveClassGradeLabels } from "@/lib/classGrade"
+import { normalizeStoredClassGradeLabel, resolveClassGradeLabels } from "@/lib/classGrade"
 import { SUBJECT_TO_COURSE_ABBR, academicYearLabelFromStartDate, subjectChineseToAbbr } from "@/lib/courseCode"
 
 /** 班別固定時段選項（與課表／課室 75 分鐘格一致） */
@@ -162,21 +162,12 @@ export const CLASS_GRADE_FORM_OPTIONS = [
  "其他",
 ] as const
 
-const GRADE_OPTION_SET = new Set<string>(CLASS_GRADE_FORM_OPTIONS)
-
 /** 將資料庫年級字串對到表單選項；無法辨識時回傳 null（不勾選） */
 export function normalizeClassGradeForForm(g: string): string | null {
+ const mapped = normalizeStoredClassGradeLabel(g)
+ if (mapped) return mapped
  const t = g.trim()
- if (!t) return null
- if (GRADE_OPTION_SET.has(t)) return t
- const noSuffix = t.replace(/級$/, "").trim()
- if (GRADE_OPTION_SET.has(noSuffix)) return noSuffix
- const m = t.match(/^(小|中)([一二三四五六])/)
- if (m) {
-  const mapped = `${m[1]}${m[2]}`
-  if (GRADE_OPTION_SET.has(mapped)) return mapped
- }
- return null
+ return t === "其他" ? "其他" : null
 }
 
 /** 班別列表篩選用年級（中學；不含小學） */

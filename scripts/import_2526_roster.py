@@ -2,7 +2,7 @@
 """
 將「【2526】課程及班別」類 CSV（班別名稱、學生名單逗號分隔…）轉成 Supabase 寫入：
   students（缺者新增；已存在則依姓名對應）
-  classes（每列一班；course_code 留空）
+  classes（每列一班）
   student_class_enrollments（每名學生每班一列；remarks 標記 [2526匯入]）
 
 用法（於專案根目錄）：
@@ -160,7 +160,7 @@ def build_import_sql(parsed: list[dict[str, Any]], all_names: set[str]) -> str:
         garr = pr["grade_arr"]
         lines.append(
             "INSERT INTO public.classes ("
-            "id, subject, course_code, grade, day_of_week, time_slot, teacher_id, classroom_id, "
+            "id, subject, grade, day_of_week, time_slot, teacher_id, classroom_id, "
             "capacity, price_per_lesson, start_date, end_date, status"
             ") VALUES ("
             f"{sql_literal(cid)}::uuid, "
@@ -585,7 +585,7 @@ def main() -> int:
         garr = pr["grade_arr"]
         class_body: dict[str, Any] = {
             "subject": pr["subject"] or "其他",
-            "course_code": None,
+            
             "grade": garr if garr else None,
             "day_of_week": pr["day_of_week"],
             "time_slot": pr["time_slot"],

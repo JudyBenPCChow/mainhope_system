@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  enrollmentCoversPeriod,
@@ -46,7 +47,7 @@ export type LeaveManageRow = {
  student_name: string | null
  student_grade: string | null
  class_subject: string | null
- course_code: string | null
+ course_code_full: string | null
  /** 班別負責老師 */
  teacher_name: string | null
  sched_date: string | null
@@ -62,12 +63,7 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
- const code =
-  cls?.course_code_full != null
-   ? String(cls.course_code_full)
-   : cls?.course_code != null
-     ? String(cls.course_code)
-     : null
+ const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
  return {
   id: String(r.id),
   student_id: String(r.student_id),
@@ -83,7 +79,7 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
-  course_code: code,
+  course_code_full: code,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
   sched_start: sc?.start_time != null ? String(sc.start_time) : null,
@@ -97,7 +93,7 @@ export async function fetchLeaveMakeupWithRelations(): Promise<LeaveManageRow[]>
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status, remarks, students ( full_name, grade ), classes ( subject, course_code, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
   )
   .order("leave_date", { ascending: true })
   .order("created_at", { ascending: true })
@@ -158,6 +154,15 @@ export async function updateLeaveMakeupRecord(
  }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: existing, error: fetchErr } = await supabase
+  .from("leave_makeup_records")
+  .select("leave_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (fetchErr) throwPostgrest(fetchErr)
+ if (!existing) throw new Error("找不到請假紀錄")
+ assertAcademicYearEditableForDate(String((existing as { leave_date?: string }).leave_date ?? ""))
+ if (patch.makeup_date) assertAcademicYearEditableForDate(patch.makeup_date)
  const { error } = await supabase
   .from("leave_makeup_records")
   .update({ ...patch, updated_at: new Date().toISOString() })
@@ -167,6 +172,14 @@ export async function updateLeaveMakeupRecord(
 
 export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: existing, error: fetchErr } = await supabase
+  .from("leave_makeup_records")
+  .select("leave_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (fetchErr) throwPostgrest(fetchErr)
+ if (!existing) throw new Error("找不到請假紀錄")
+ assertAcademicYearEditableForDate(String((existing as { leave_date?: string }).leave_date ?? ""))
  const { error } = await supabase.from("leave_makeup_records").delete().eq("id", id)
  if (error) throwPostgrest(error)
 }
@@ -228,6 +241,7 @@ export async function insertLeaveMakeupRecord(row: {
  status?: string
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ assertAcademicYearEditableForDate(row.leave_date)
  if (row.schedule_id) {
   const dup = await validateLeaveScheduleNotDuplicate(row.student_id, row.schedule_id)
   if (dup) throw new Error(dup)
@@ -293,7 +307,7 @@ export async function fetchLeaveRowsForClassIds(
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code, course_code_full, courses ( course_name ) )"
+   "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
   )
   .in("class_id", classIds)
   .order("leave_date", { ascending: false })
@@ -304,12 +318,7 @@ export async function fetchLeaveRowsForClassIds(
   const st = r.students as Record<string, unknown> | null
   const cls = r.classes as Record<string, unknown> | null
   const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code =
-   cls?.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls?.course_code != null
-      ? String(cls.course_code)
-      : ""
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   return {
@@ -328,7 +337,7 @@ export async function fetchLeaveRowsForClassIds(
 export type EnrolledClassOption = {
  id: string
  subject: string
- course_code: string | null
+ course_code_full: string | null
 }
 
 /** 學生「就讀中」班別（新增請假用） */
@@ -336,7 +345,7 @@ export async function fetchEnrolledClassesForStudent(studentId: string): Promise
  if (!supabase) return []
  const { data, error } = await supabase
   .from("student_class_enrollments")
-  .select("class_id, classes ( id, subject, course_code, course_code_full, courses ( course_name ) )")
+  .select("class_id, classes ( id, subject, course_code_full, courses ( course_name ) )")
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (error) throwPostgrest(error)
@@ -348,16 +357,11 @@ export async function fetchEnrolledClassesForStudent(studentId: string): Promise
   const course = cls.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   const sub = cls.subject != null ? String(cls.subject) : "—"
-  const code =
-   cls.course_code_full != null
-    ? String(cls.course_code_full)
-    : cls.course_code != null
-      ? String(cls.course_code)
-      : null
+  const code = cls.course_code_full != null ? String(cls.course_code_full) : null
   out.push({
    id: String(cls.id),
    subject: classDisplayName({ subject: sub, courseName }),
-   course_code: code,
+   course_code_full: code,
   })
  }
  out.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant"))
@@ -442,7 +446,7 @@ export type StudentUpcomingScheduleRow = {
  status: string
  session_number: number | null
  subject: string
- course_code: string | null
+ course_code_full: string | null
  teacher_name: string | null
 }
 
@@ -473,7 +477,7 @@ export async function fetchUpcomingSchedulesForStudent(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
   )
   .in("class_id", classIds)
   .gte("scheduled_date", fromYmd)
@@ -506,11 +510,7 @@ export async function fetchUpcomingSchedulesForStudent(
    const course = cls?.courses as Record<string, unknown> | null
    const courseName = course?.course_name != null ? String(course.course_name) : null
    const courseCode =
-    cls?.course_code_full != null
-     ? String(cls.course_code_full)
-     : cls?.course_code != null
-       ? String(cls.course_code)
-       : null
+    cls?.course_code_full != null ? String(cls.course_code_full) : null
    return {
     id: String(r.id),
     class_id: String(r.class_id ?? ""),
@@ -523,7 +523,7 @@ export async function fetchUpcomingSchedulesForStudent(
       ? Number(r.session_number)
       : null,
     subject: formatClassLabel({ subject: sub, courseCode, courseName }),
-    course_code: courseCode,
+    course_code_full: courseCode,
     teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
     courseMode: course?.course_mode != null ? String(course.course_mode) : "regular",
     academicYearId: cls?.academic_year_id != null ? String(cls.academic_year_id) : null,

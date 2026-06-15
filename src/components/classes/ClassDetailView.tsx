@@ -41,8 +41,17 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isMgmtStaff } from "@/lib/mgmtRole"
-import { normalizeCourseCode } from "@/lib/courseCode"
+import {
+ academicYearEditBlockedMessage,
+ academicYearLabelForClass,
+ canEditAcademicYear,
+ canEditAcademicYearForDate,
+} from "@/lib/academicYearEditGuard"
 import { classDisplayName } from "@/lib/courseLabel"
+import {
+ classGradeDisplayText,
+ normalizeStoredClassGradeLabels,
+} from "@/lib/classGrade"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -127,7 +136,6 @@ function isClassEditFormDirty(
  const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
  return [
   (form.subject ?? "") !== (cls.subject ?? ""),
-  (form.course_code?.trim() || null) !== (cls.course_code?.trim() || null),
   (form.time_slot ?? null) !== (cls.time_slot ?? null),
   (form.lesson_slots_per_session ?? 1) !== (cls.lesson_slots_per_session ?? 1),
   (form.teacher_id ?? null) !== (cls.teacher_id ?? null),
@@ -197,6 +205,15 @@ export function ClassDetailView() {
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
+
+ const classYearLocked = useMemo(
+  () => (cls ? !canEditAcademicYear(academicYearLabelForClass(cls)) : false),
+  [cls]
+ )
+ const canEditClass = canManageClass && !classYearLocked
+ const canEditSchedule = (scheduledDate: string) =>
+  canManageClass && canEditAcademicYearForDate(scheduledDate)
+
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -320,13 +337,14 @@ export function ClassDetailView() {
    pushBanner({ tone: "warning", title: "收生上限不可為負數" })
    return false
   }
-  const gradeArr = gradeSelections.length > 0 ? gradeSelections : []
+  const gradeArr = cls.course_id
+   ? gradeSelections
+   : normalizeStoredClassGradeLabels(gradeSelections.length > 0 ? gradeSelections : null)
   const dayStored = weekdaysToStored(weekdaySelections)
   setSavingEdit(true)
   try {
    await updateClass(cid, {
-    subject: form.subject ?? cls.subject,
-    course_code: form.course_code?.trim() ? form.course_code : null,
+    subject: cls.course_id ? cls.subject : form.subject ?? cls.subject,
     section_code: form.section_code?.trim() || null,
     grade: gradeArr,
     day_of_week: dayStored,
@@ -627,7 +645,7 @@ const addableStudents = (() => {
           {classDisplayName({ subject: cls.subject, courseName: cls.course_name })}
          </h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
-          <span className="font-mono">{cls.course_code_full ?? cls.course_code ?? "—"}</span>
+          <span className="font-mono">{cls.course_code_full ?? "—"}</span>
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
           <span>{timeLine(cls)}</span>
          </div>
@@ -635,7 +653,7 @@ const addableStudents = (() => {
        ) : null}
       </div>
      </div>
-     {canManageClass ? (
+     {canEditClass ? (
      <Button
       type="button"
       variant="secondary"
@@ -686,12 +704,20 @@ const addableStudents = (() => {
       {pageErr}
      </div>
     ) : null}
+    {classYearLocked && canManageClass ? (
+     <div
+      role="status"
+      className="mx-auto mb-4 max-w-5xl rounded-md border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+     >
+      {academicYearEditBlockedMessage()}
+     </div>
+    ) : null}
     {tab === "basic" && cls ? (
      <div className="mx-auto max-w-5xl space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
        {[
         { k: "科目", v: cls.subject },
-        { k: "班別編碼", v: cls.course_code_full ?? cls.course_code ?? "—" },
+        { k: "班別編碼", v: cls.course_code_full ?? "—" },
         { k: "適用年級", v: (cls.grade ?? []).join("、") || "—" },
         { k: "星期 / 時間", v: timeLine(cls) },
         {
@@ -763,7 +789,7 @@ const addableStudents = (() => {
        </div>
       ) : null}
       <div className="flex justify-end">
-       {!getTeacherScopeTeacherId() ? (
+       {!getTeacherScopeTeacherId() && canEditClass ? (
        <Dialog open={addStudentOpen} onOpenChange={setAddStudentOpen}>
         <DialogTrigger asChild>
          <Button type="button">+ 增加學生</Button>
@@ -909,7 +935,7 @@ const addableStudents = (() => {
 
     {tab === "schedule" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      {cls && canManageClass ? (
+      {cls && canEditClass ? (
        <BatchSchedulePanel
         classId={cid}
         cls={cls}
@@ -956,7 +982,7 @@ const addableStudents = (() => {
          </button>
         ))}
        </div>
-       {canManageClass ? (
+       {canEditClass ? (
        <div className="flex flex-wrap items-center gap-2">
         <Button
          type="button"
@@ -1067,9 +1093,13 @@ const addableStudents = (() => {
            endTime={s.end_time}
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
-           editableSessionNumber={canManageClass}
+           editableSessionNumber={canEditSchedule(s.scheduled_date)}
            savingSessionNumber={savingSessionId === s.id}
-           onSessionNumberSave={canManageClass ? (n) => void onSaveSessionNumber(s.id, n) : undefined}
+           onSessionNumberSave={
+            canEditSchedule(s.scheduled_date)
+             ? (n) => void onSaveSessionNumber(s.id, n)
+             : undefined
+           }
            title={
             <Link
              to={`/Schedule/${s.id}`}
@@ -1083,7 +1113,7 @@ const addableStudents = (() => {
             </Link>
            }
            controls={
-            canManageClass ? (
+            canEditSchedule(s.scheduled_date) ? (
             <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
              <Select
               className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
@@ -1157,31 +1187,18 @@ const addableStudents = (() => {
        ) : null}
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">科目</label>
-        <Input
-         className="mt-1"
-         value={form.subject ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-        />
-       </div>
-       <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">舊課程編號（相容期，可留空）</label>
-        <Input
-         className="mt-1 font-mono uppercase"
-         autoCapitalize="characters"
-         spellCheck={false}
-         placeholder="例：2526-CHIS6001-A"
-         value={form.course_code ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, course_code: e.target.value }))}
-         onBlur={() =>
-          setForm((f) => ({
-           ...f,
-           course_code: normalizeCourseCode(f.course_code ?? "") ?? "",
-          }))
-         }
-        />
-        <p className="mt-1 text-xs text-muted-foreground">
-         新班別顯示碼由系統管理（course_id + section_code）；此欄位僅作舊資料相容保留。
-        </p>
+        {cls.course_id ? (
+         <>
+          <Input className="mt-1 cursor-not-allowed bg-muted" value={cls.subject ?? ""} readOnly tabIndex={-1} />
+          <p className="mt-1 text-xs text-muted-foreground">由課程模板決定，不可修改。</p>
+         </>
+        ) : (
+         <Input
+          className="mt-1"
+          value={form.subject ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+         />
+        )}
        </div>
        <div>
         <label className="text-xs text-muted-foreground">課程 ID（course_id）</label>
@@ -1203,25 +1220,34 @@ const addableStudents = (() => {
         />
        </div>
        <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">年級（可多選）</label>
-        <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
-         {CLASS_GRADE_FORM_OPTIONS.map((g) => (
-          <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
-           <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-input"
-            checked={gradeSelections.includes(g)}
-            onChange={() =>
-             setGradeSelections((prev) =>
-              prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
-             )
-            }
-           />
-           {g}
-          </label>
-         ))}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
+        <label className="text-xs text-muted-foreground">年級{cls.course_id ? "" : "（可多選）"}</label>
+        {cls.course_id ? (
+         <>
+          <p className="mt-1 text-sm">{classGradeDisplayText(cls.grade, cls.grade_code)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">由課程模板決定，不可修改。</p>
+         </>
+        ) : (
+         <>
+          <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
+           {CLASS_GRADE_FORM_OPTIONS.map((g) => (
+            <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
+             <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={gradeSelections.includes(g)}
+              onChange={() =>
+               setGradeSelections((prev) =>
+                prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+               )
+              }
+             />
+             {g}
+            </label>
+           ))}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
+         </>
+        )}
        </div>
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">逢星期（可多選）</label>

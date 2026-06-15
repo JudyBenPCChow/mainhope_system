@@ -26,7 +26,7 @@ export type TrialManageRow = {
  student_name: string | null
  student_grade: string | null
  class_subject: string | null
- course_code: string | null
+ course_code_full: string | null
  teacher_id: string | null
  teacher_name: string | null
  sched_date: string | null
@@ -42,7 +42,7 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
- const code = cls?.course_code != null ? String(cls.course_code) : null
+ const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
  return {
   id: String(r.id),
   student_id: String(r.student_id),
@@ -55,7 +55,7 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
-  course_code: code,
+  course_code_full: code,
   teacher_id: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
@@ -69,7 +69,7 @@ export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
  const { data, error } = await supabase
   .from("trial_sessions")
   .select(
-   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, students ( full_name, grade ), classes ( subject, course_code, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time )"
   )
   .order("trial_date", { ascending: false })
   .order("created_at", { ascending: false })

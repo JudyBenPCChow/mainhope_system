@@ -187,7 +187,7 @@ export function ClassroomsManagePage() {
      id: c.id,
      label: `${formatClassLabel({
       subject: c.subject,
-      courseCode: c.course_code,
+      courseCode: c.course_code_full,
       courseName: c.course_name,
      })}${c.classroom_name ? ` · ${c.classroom_name}` : " · 未綁課室"}`,
     }))
@@ -576,7 +576,7 @@ export function ClassroomsManagePage() {
         >
          <span className="font-medium text-foreground">
           {s.classLabel}
-          {s.course_code ? `（${s.course_code}）` : ""}
+          {s.course_code_full ? `（${s.course_code_full}）` : ""}
          </span>
          <span className="inline-flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">
           <span>
