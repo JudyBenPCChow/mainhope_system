@@ -10,6 +10,17 @@ import {
 export { STUDENT_GRADE_CODES, STUDENT_GRADE_LABELS, formatStudentGrade, type StudentGradeCode }
 export const GENDER_CHIPS = ["男", "女"] as const
 
+/** 家長／監護人關係的固定選項（新增與詳細頁共用） */
+export const PARENT_RELATIONSHIP_OPTIONS = [
+ "父親",
+ "母親",
+ "祖父母",
+ "兄姊",
+ "親屬",
+ "監護人",
+ "其他",
+] as const
+
 type ChoiceChipsProps<T extends string> = {
  options: readonly T[]
  value: string | null | undefined
@@ -65,6 +76,30 @@ export function ChoiceChips<T extends string>({
     )
    })}
   </div>
+ )
+}
+
+type ParentRelationshipChipsProps = {
+ value: string | null | undefined
+ onChange: (value: string) => void
+ className?: string
+}
+
+/**
+ * 家長關係選項按鈕；若現有值不在固定清單（多為舊資料的自訂值），
+ * 會將其作為額外選項一併顯示並保持選取，避免編輯時遺失原值。
+ */
+export function ParentRelationshipChips({ value, onChange, className }: ParentRelationshipChipsProps) {
+ const current = (value ?? "").trim()
+ const base = PARENT_RELATIONSHIP_OPTIONS as readonly string[]
+ const options = current && !base.includes(current) ? [...base, current] : base
+ return (
+  <ChoiceChips
+   options={options}
+   value={current}
+   onChange={onChange}
+   className={className}
+  />
  )
 }
 

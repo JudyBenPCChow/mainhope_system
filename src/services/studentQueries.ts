@@ -40,12 +40,22 @@ export type StudentRecord = {
  parent_name: string | null
  parent_relationship: string | null
  parent_phone: string | null
+ parent_phone_country_code: string | null
  student_phone: string | null
+ student_phone_country_code: string | null
  whatsapp: string | null
+ preferred_contact_method: string | null
  address: string | null
  remarks: string | null
  created_at: string
  updated_at: string
+}
+
+export const PHONE_COUNTRY_CODES = ["+852", "+86"] as const
+export const PREFERRED_CONTACT_METHODS = ["WhatsApp", "WeChat"] as const
+
+export function normalizePhoneCountryCode(value: string | null | undefined): "+852" | "+86" {
+ return value === "+86" ? "+86" : "+852"
 }
 
 /** 學生狀態收斂為四種：在讀／非在讀／查詢試堂／畢業 */
@@ -202,8 +212,14 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   parent_relationship:
    row.parent_relationship != null ? String(row.parent_relationship) : null,
   parent_phone: row.parent_phone != null ? String(row.parent_phone) : null,
+  parent_phone_country_code:
+   row.parent_phone_country_code != null ? String(row.parent_phone_country_code) : null,
   student_phone: row.student_phone != null ? String(row.student_phone) : null,
+  student_phone_country_code:
+   row.student_phone_country_code != null ? String(row.student_phone_country_code) : null,
   whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
+  preferred_contact_method:
+   row.preferred_contact_method != null ? String(row.preferred_contact_method) : null,
   address: row.address != null ? String(row.address) : null,
   remarks: row.remarks != null ? String(row.remarks) : null,
   created_at: String(row.created_at ?? ""),
@@ -253,6 +269,8 @@ export async function insertStudent(
   .insert({
    full_name: row.full_name,
    english_name: row.english_name ?? null,
+   gender: row.gender ?? null,
+   date_of_birth: row.date_of_birth ?? null,
    grade,
    school: row.school ?? null,
    registration_status: state.registration_status,
@@ -260,14 +278,28 @@ export async function insertStudent(
    academic_stage: state.academic_stage,
    status: deriveDisplayStatus(state),
    parent_name: row.parent_name ?? null,
+   parent_relationship: row.parent_relationship ?? null,
    parent_phone: row.parent_phone ?? null,
+   parent_phone_country_code: normalizePhoneCountryCode(row.parent_phone_country_code),
    student_phone: row.student_phone ?? null,
+   student_phone_country_code: normalizePhoneCountryCode(row.student_phone_country_code),
+   whatsapp: row.whatsapp ?? null,
+   preferred_contact_method: row.preferred_contact_method ?? null,
+   address: row.address ?? null,
+   remarks: row.remarks ?? null,
    student_code: row.student_code ?? null,
   })
   .select("*")
   .single()
  if (error) throw error
  return asStudent(data as Record<string, unknown>)
+}
+
+/** PostgREST 唯一鍵衝突碼（學號重複時觸發） */
+export function isUniqueViolation(error: unknown): boolean {
+ if (!error || typeof error !== "object") return false
+ const code = (error as { code?: unknown }).code
+ return code === "23505"
 }
 
 export async function updateStudent(

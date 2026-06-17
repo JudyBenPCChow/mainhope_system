@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
-import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips } from "@/components/students/studentsUi"
+import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentGradeChips } from "@/components/students/studentsUi"
 import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
@@ -59,6 +59,8 @@ import {
  normalizeAcademicStage,
  normalizeEnrollmentStatus,
  normalizeRegistrationStatus,
+ PHONE_COUNTRY_CODES,
+ PREFERRED_CONTACT_METHODS,
  type AttendanceRow,
  type ClassOption,
  type EnrollmentWithClass,
@@ -148,8 +150,11 @@ const BASIC_FORM_KEYS = [
  "parent_name",
  "parent_relationship",
  "student_phone",
+ "student_phone_country_code",
  "parent_phone",
+ "parent_phone_country_code",
  "whatsapp",
+ "preferred_contact_method",
  "address",
  "remarks",
 ] as const satisfies readonly (keyof StudentRecord)[]
@@ -336,8 +341,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     parent_name: form.parent_name,
     parent_relationship: form.parent_relationship,
     student_phone: form.student_phone,
+    student_phone_country_code: form.student_phone_country_code ?? "+852",
     parent_phone: form.parent_phone,
+    parent_phone_country_code: form.parent_phone_country_code ?? "+852",
     whatsapp: form.whatsapp,
+    preferred_contact_method: form.preferred_contact_method || null,
     address: form.address,
     remarks: form.remarks,
    })
@@ -846,29 +854,51 @@ const exportFutureSchedulesCsv = () => {
          />
         </Field>
         <Field label="關係">
-         <Input
-          value={form.parent_relationship ?? ""}
-          onChange={(e) =>
-           setForm((f) => ({ ...f, parent_relationship: e.target.value }))
-          }
+         <ParentRelationshipChips
+          value={form.parent_relationship}
+          onChange={(rel) => setForm((f) => ({ ...f, parent_relationship: rel }))}
          />
         </Field>
-        <Field label="電話">
-         <Input
-          value={form.student_phone ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, student_phone: e.target.value }))}
-         />
+        <Field label="學生電話">
+         <div className="space-y-2">
+          <ChoiceChips
+           options={PHONE_COUNTRY_CODES}
+           value={form.student_phone_country_code ?? "+852"}
+           onChange={(code) => setForm((f) => ({ ...f, student_phone_country_code: code }))}
+          />
+          <Input
+           inputMode="numeric"
+           value={form.student_phone ?? ""}
+           onChange={(e) => setForm((f) => ({ ...f, student_phone: e.target.value }))}
+          />
+         </div>
         </Field>
         <Field label="家長電話">
-         <Input
-          value={form.parent_phone ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, parent_phone: e.target.value }))}
-         />
+         <div className="space-y-2">
+          <ChoiceChips
+           options={PHONE_COUNTRY_CODES}
+           value={form.parent_phone_country_code ?? "+852"}
+           onChange={(code) => setForm((f) => ({ ...f, parent_phone_country_code: code }))}
+          />
+          <Input
+           inputMode="numeric"
+           value={form.parent_phone ?? ""}
+           onChange={(e) => setForm((f) => ({ ...f, parent_phone: e.target.value }))}
+          />
+         </div>
         </Field>
-        <Field label="WhatsApp">
+        <Field label="WhatsApp 號碼">
          <Input
+          inputMode="numeric"
           value={form.whatsapp ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, whatsapp: e.target.value }))}
+         />
+        </Field>
+        <Field label="偏好通訊方式">
+         <ChoiceChips
+          options={PREFERRED_CONTACT_METHODS}
+          value={form.preferred_contact_method ?? ""}
+          onChange={(m) => setForm((f) => ({ ...f, preferred_contact_method: m }))}
          />
         </Field>
         <Field label="地址" className="sm:col-span-2">

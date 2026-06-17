@@ -21,7 +21,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
-import { ChoiceChips, GENDER_CHIPS, StatusToggle, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
+import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import {
  isPrimaryStudentGrade,
  normalizeStudentGrade,
@@ -35,7 +35,10 @@ import {
  fetchEnrollmentSubjectsByStudentIds,
  fetchStudentTuitionArrearsByStudentIds,
  insertStudent,
+ isUniqueViolation,
  normalizeStudentStatus,
+ PHONE_COUNTRY_CODES,
+ PREFERRED_CONTACT_METHODS,
  type StudentRecord,
  type StudentTuitionArrearsInfo,
 } from "@/services/studentQueries"
@@ -61,7 +64,6 @@ const GRADE_FILTERS = [
  })),
 ] as const
 
-const RELATIONSHIP_CHIPS = ["父親", "母親", "祖父母", "兄姊", "親屬", "監護人", "其他"] as const
 const COMMON_HK_SCHOOLS = [
  "英華書院",
  "聖保羅男女中學",
@@ -103,11 +105,47 @@ function emptyAddForm(): Partial<StudentRecord> {
   parent_name: "",
   parent_relationship: "",
   student_phone: "",
+  student_phone_country_code: "+852",
   parent_phone: "",
+  parent_phone_country_code: "+852",
   whatsapp: "",
+  preferred_contact_method: "",
   address: "",
   remarks: "",
  }
+}
+
+/** 依區號驗證電話位數（+852=8 位、+86=11 位，可含空格或連字號），允許留空 */
+function isValidPhoneForCode(raw: string | null | undefined, countryCode: string | null | undefined): boolean {
+ const s = (raw ?? "").trim()
+ if (!s) return true
+ const digits = s.replace(/[\s-]/g, "")
+ if (!/^\d+$/.test(digits)) return false
+ if (countryCode === "+86") return digits.length === 11
+ return digits.length === 8
+}
+
+/** WhatsApp 號碼（無區號欄位）：允許 8 或 11 位數字，允許留空 */
+function isValidWhatsApp(raw: string | null | undefined): boolean {
+ const s = (raw ?? "").trim()
+ if (!s) return true
+ const digits = s.replace(/[\s-]/g, "")
+ return /^\d{8}$/.test(digits) || /^\d{11}$/.test(digits)
+}
+
+/** 出生日期不可為未來日期 */
+function isValidBirthDate(raw: string | null | undefined): boolean {
+ const s = (raw ?? "").trim()
+ if (!s) return true
+ if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
+ return s <= localYmd()
+}
+
+function localYmd(d = new Date()): string {
+ const y = d.getFullYear()
+ const m = String(d.getMonth() + 1).padStart(2, "0")
+ const day = String(d.getDate()).padStart(2, "0")
+ return `${y}-${m}-${day}`
 }
 
 function nextStudentCode(rows: StudentRecord[]): string {
@@ -178,6 +216,8 @@ export function StudentsListPage() {
  const [search, setSearch] = useState("")
  const [addOpen, setAddOpen] = useState(false)
  const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
+ const [addErr, setAddErr] = useState<string | null>(null)
+ const [addSaving, setAddSaving] = useState(false)
  const [schoolSearch, setSchoolSearch] = useState("")
 
  const load = useCallback(async () => {
@@ -292,33 +332,88 @@ export function StudentsListPage() {
  }
 
  const onAddStudent = async () => {
-  if (!(addForm.full_name ?? "").trim()) return
+  if (addSaving) return
+  const fullName = (addForm.full_name ?? "").trim()
+  if (!fullName) {
+   setAddErr("請填寫中文姓名")
+   return
+  }
+  if (!isValidPhoneForCode(addForm.student_phone, addForm.student_phone_country_code)) {
+   setAddErr(
+    addForm.student_phone_country_code === "+86"
+     ? "學生電話格式不正確（+86 需為 11 位數字）"
+     : "學生電話格式不正確（+852 需為 8 位數字）"
+   )
+   return
+  }
+  if (!isValidPhoneForCode(addForm.parent_phone, addForm.parent_phone_country_code)) {
+   setAddErr(
+    addForm.parent_phone_country_code === "+86"
+     ? "家長電話格式不正確（+86 需為 11 位數字）"
+     : "家長電話格式不正確（+852 需為 8 位數字）"
+   )
+   return
+  }
+  if (!isValidWhatsApp(addForm.whatsapp)) {
+   setAddErr("WhatsApp 號碼格式不正確（需為 8 或 11 位數字）")
+   return
+  }
+  if (!isValidBirthDate(addForm.date_of_birth)) {
+   setAddErr("出生日期不可為未來日期")
+   return
+  }
+
+  setAddSaving(true)
+  setAddErr(null)
+  const reg = addForm.registration_status === "僅查詢" ? "僅查詢" : "已註冊"
+  const payload = {
+   full_name: fullName,
+   english_name: (addForm.english_name ?? "").trim() || null,
+   gender: (addForm.gender ?? "").trim() || null,
+   grade: normalizeStudentGrade(addForm.grade),
+   registration_status: reg,
+   enrollment_status: addForm.enrollment_status === "非在讀" ? "非在讀" : "在讀",
+   academic_stage: addForm.academic_stage === "中學畢業" ? "中學畢業" : "中學中",
+   school: (addForm.school ?? "").trim() || null,
+   date_of_birth: (addForm.date_of_birth ?? "").trim() || null,
+   parent_name: (addForm.parent_name ?? "").trim() || null,
+   parent_relationship: (addForm.parent_relationship ?? "").trim() || null,
+   student_phone: (addForm.student_phone ?? "").trim() || null,
+   student_phone_country_code: addForm.student_phone_country_code === "+86" ? "+86" : "+852",
+   parent_phone: (addForm.parent_phone ?? "").trim() || null,
+   parent_phone_country_code: addForm.parent_phone_country_code === "+86" ? "+86" : "+852",
+   whatsapp: (addForm.whatsapp ?? "").trim() || null,
+   preferred_contact_method:
+    addForm.preferred_contact_method === "WeChat" || addForm.preferred_contact_method === "WhatsApp"
+     ? addForm.preferred_contact_method
+     : null,
+   address: (addForm.address ?? "").trim() || null,
+   remarks: (addForm.remarks ?? "").trim() || null,
+  } as const
+
   try {
-   const reg = addForm.registration_status === "僅查詢" ? "僅查詢" : "已註冊"
-   await insertStudent({
-    full_name: (addForm.full_name ?? "").trim(),
-    english_name: (addForm.english_name ?? "").trim() || null,
-    student_code: (addForm.student_code ?? "").trim() || null,
-    gender: (addForm.gender ?? "").trim() || null,
-    grade: normalizeStudentGrade(addForm.grade),
-    registration_status: reg,
-    enrollment_status: "在讀",
-    academic_stage: "中學中",
-    school: (addForm.school ?? "").trim() || null,
-    date_of_birth: (addForm.date_of_birth ?? "").trim() || null,
-    parent_name: (addForm.parent_name ?? "").trim() || null,
-    parent_relationship: (addForm.parent_relationship ?? "").trim() || null,
-    student_phone: (addForm.student_phone ?? "").trim() || null,
-    parent_phone: (addForm.parent_phone ?? "").trim() || null,
-    whatsapp: (addForm.whatsapp ?? "").trim() || null,
-    address: (addForm.address ?? "").trim() || null,
-    remarks: (addForm.remarks ?? "").trim() || null,
-   })
+   try {
+    await insertStudent({ ...payload, student_code: (addForm.student_code ?? "").trim() || null })
+   } catch (e) {
+    // 學號可能因競態而重複：以最新清單重算後重試一次
+    if (isUniqueViolation(e)) {
+     const fresh = await fetchAllStudents()
+     await insertStudent({ ...payload, student_code: nextStudentCode(fresh) })
+    } else {
+     throw e
+    }
+   }
    setAddOpen(false)
    setAddForm(emptyAddForm())
    await load()
   } catch (e) {
-   reportUserFacingError(e, { source: "StudentsListPage.onAddStudent", setErr })
+   if (isUniqueViolation(e)) {
+    setAddErr("學號重複，請關閉視窗重新整理後再試。")
+   } else {
+    reportUserFacingError(e, { source: "StudentsListPage.onAddStudent", setErr: setAddErr })
+   }
+  } finally {
+   setAddSaving(false)
   }
  }
 
@@ -566,7 +661,9 @@ export function StudentsListPage() {
      <Dialog
       open={addOpen}
       onOpenChange={(open) => {
+       if (open && addSaving) return
        setAddOpen(open)
+       setAddErr(null)
        if (open) {
         setAddForm({ ...emptyAddForm(), student_code: nextStudentCode(rows) })
         setSchoolSearch("")
@@ -589,138 +686,200 @@ export function StudentsListPage() {
        <p className="text-sm text-muted-foreground">
         新增僅建立學生基本資料，不包含報讀班別；完成後請到學生詳細頁「報讀班別」分頁再新增班別。
        </p>
-       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="中文姓名 *">
-         <Input
-          value={addForm.full_name ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
-         />
-        </Field>
-        <Field label="英文姓名">
-         <Input
-          value={addForm.english_name ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, english_name: e.target.value }))}
-         />
-        </Field>
-        <Field label="學生編號">
-         <Input
-          value={addForm.student_code ?? ""}
-          readOnly
-          className="bg-muted/30"
-          placeholder="系統自動生成"
-         />
-        </Field>
-        <Field label="性別">
-         <ChoiceChips
-          options={GENDER_CHIPS}
-          value={addForm.gender ?? ""}
-          onChange={(gender) => setAddForm((f) => ({ ...f, gender }))}
-         />
-        </Field>
-        <Field label="年級">
-         <StudentGradeChips
-          value={addForm.grade}
-          onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
-         />
-        </Field>
-        <Field label="註冊狀態">
-         <StatusToggle
-          checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
-          onCheckedChange={(on) =>
-           setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
-          }
-          offLabel="僅查詢"
-          onLabel="已註冊"
-         />
-        </Field>
-        <Field label="學校" className="sm:col-span-2">
-         <div className="space-y-2">
-          <Input
-           value={schoolSearch}
-           onChange={(e) => setSchoolSearch(e.target.value)}
-           placeholder="搜尋學校…"
-          />
-          <Select
-           className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-           value={addForm.school ?? ""}
-           onChange={(e) => setAddForm((f) => ({ ...f, school: e.target.value }))}
-          >
-           <option value="">請選擇學校</option>
-           {schoolFiltered.map((s) => (
-            <option key={s} value={s}>
-             {s}
-            </option>
-           ))}
-          </Select>
+       {addErr ? (
+        <div
+         role="alert"
+         className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+         {addErr}
+        </div>
+       ) : null}
+       <div className="space-y-6">
+        <section className="space-y-4">
+         <h3 className="text-sm font-semibold text-foreground">基本資料</h3>
+         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="中文姓名 *">
+           <Input
+            value={addForm.full_name ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
+           />
+          </Field>
+          <Field label="英文姓名">
+           <Input
+            value={addForm.english_name ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, english_name: e.target.value }))}
+           />
+          </Field>
+          <Field label="學生編號">
+           <Input
+            value={addForm.student_code ?? ""}
+            readOnly
+            className="bg-muted/30"
+            placeholder="系統自動生成"
+           />
+          </Field>
+          <Field label="性別">
+           <ChoiceChips
+            options={GENDER_CHIPS}
+            value={addForm.gender ?? ""}
+            onChange={(gender) => setAddForm((f) => ({ ...f, gender }))}
+           />
+          </Field>
+          <Field label="年級">
+           <StudentGradeChips
+            value={addForm.grade}
+            onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
+           />
+          </Field>
+          <Field label="註冊狀態">
+           <StatusToggle
+            checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
+            onCheckedChange={(on) =>
+             setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
+            }
+            offLabel="僅查詢"
+            onLabel="已註冊"
+           />
+          </Field>
+          <Field label="就讀狀態">
+           <StatusToggle
+            checked={(addForm.enrollment_status ?? "在讀") === "在讀"}
+            onCheckedChange={(on) =>
+             setAddForm((f) => ({ ...f, enrollment_status: on ? "在讀" : "非在讀" }))
+            }
+            offLabel="非在讀"
+            onLabel="在讀"
+           />
+          </Field>
+          <Field label="學業狀態">
+           <StatusToggle
+            checked={(addForm.academic_stage ?? "中學中") === "中學中"}
+            onCheckedChange={(on) =>
+             setAddForm((f) => ({ ...f, academic_stage: on ? "中學中" : "中學畢業" }))
+            }
+            offLabel="已畢業"
+            onLabel="中學中"
+           />
+          </Field>
+          <Field label="學校" className="sm:col-span-2">
+           <div className="space-y-2">
+            <Input
+             value={schoolSearch}
+             onChange={(e) => setSchoolSearch(e.target.value)}
+             placeholder="搜尋學校…"
+            />
+            <Select
+             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+             value={addForm.school ?? ""}
+             onChange={(e) => setAddForm((f) => ({ ...f, school: e.target.value }))}
+            >
+             <option value="">請選擇學校</option>
+             {schoolFiltered.map((s) => (
+              <option key={s} value={s}>
+               {s}
+              </option>
+             ))}
+            </Select>
+           </div>
+          </Field>
+          <Field label="出生日期">
+           <Input
+            type="date"
+            value={(addForm.date_of_birth ?? "").slice(0, 10)}
+            onChange={(e) => setAddForm((f) => ({ ...f, date_of_birth: e.target.value }))}
+           />
+          </Field>
          </div>
-        </Field>
-        <Field label="出生日期">
-         <Input
-          type="date"
-          value={(addForm.date_of_birth ?? "").slice(0, 10)}
-          onChange={(e) => setAddForm((f) => ({ ...f, date_of_birth: e.target.value }))}
-         />
-        </Field>
-        <Field label="家長稱呼">
-         <Input
-          value={addForm.parent_name ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, parent_name: e.target.value }))}
-         />
-        </Field>
-        <Field label="關係">
-         <div className="flex flex-wrap gap-2">
-          {RELATIONSHIP_CHIPS.map((rel) => (
-           <button
-            key={rel}
-            type="button"
-            onClick={() => setAddForm((f) => ({ ...f, parent_relationship: rel }))}
-            className={cn(
-             "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-             (addForm.parent_relationship ?? "") === rel
-              ? "border-primary bg-primary text-primary-foreground"
-              : "border-border bg-card text-foreground hover:bg-muted/80"
-            )}
-           >
-            {rel}
-           </button>
-          ))}
+        </section>
+
+        <section className="space-y-4">
+         <h3 className="text-sm font-semibold text-foreground">家長聯絡</h3>
+         <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="家長姓名">
+           <Input
+            value={addForm.parent_name ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, parent_name: e.target.value }))}
+           />
+          </Field>
+          <Field label="關係">
+           <ParentRelationshipChips
+            value={addForm.parent_relationship}
+            onChange={(rel) => setAddForm((f) => ({ ...f, parent_relationship: rel }))}
+           />
+          </Field>
+          <Field label="學生電話">
+           <div className="space-y-2">
+            <ChoiceChips
+             options={PHONE_COUNTRY_CODES}
+             value={addForm.student_phone_country_code ?? "+852"}
+             onChange={(code) => setAddForm((f) => ({ ...f, student_phone_country_code: code }))}
+            />
+            <Input
+             inputMode="numeric"
+             value={addForm.student_phone ?? ""}
+             onChange={(e) => setAddForm((f) => ({ ...f, student_phone: e.target.value }))}
+            />
+           </div>
+          </Field>
+          <Field label="家長電話">
+           <div className="space-y-2">
+            <ChoiceChips
+             options={PHONE_COUNTRY_CODES}
+             value={addForm.parent_phone_country_code ?? "+852"}
+             onChange={(code) => setAddForm((f) => ({ ...f, parent_phone_country_code: code }))}
+            />
+            <Input
+             inputMode="numeric"
+             value={addForm.parent_phone ?? ""}
+             onChange={(e) => setAddForm((f) => ({ ...f, parent_phone: e.target.value }))}
+            />
+           </div>
+          </Field>
+          <Field label="WhatsApp 號碼">
+           <Input
+            inputMode="numeric"
+            value={addForm.whatsapp ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, whatsapp: e.target.value }))}
+           />
+          </Field>
+          <Field label="偏好通訊方式">
+           <ChoiceChips
+            options={PREFERRED_CONTACT_METHODS}
+            value={addForm.preferred_contact_method ?? ""}
+            onChange={(m) => setAddForm((f) => ({ ...f, preferred_contact_method: m }))}
+           />
+          </Field>
+          <Field label="地址" className="sm:col-span-2">
+           <Input
+            value={addForm.address ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))}
+           />
+          </Field>
+          <Field label="備註" className="sm:col-span-2">
+           <Textarea
+            value={addForm.remarks ?? ""}
+            onChange={(e) => setAddForm((f) => ({ ...f, remarks: e.target.value }))}
+            rows={3}
+           />
+          </Field>
          </div>
-        </Field>
-        <Field label="學生電話">
-         <Input
-          value={addForm.student_phone ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, student_phone: e.target.value }))}
-         />
-        </Field>
-        <Field label="家長電話">
-         <Input
-          value={addForm.parent_phone ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, parent_phone: e.target.value }))}
-         />
-        </Field>
-        <Field label="WhatsApp">
-         <Input
-          value={addForm.whatsapp ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, whatsapp: e.target.value }))}
-         />
-        </Field>
-        <Field label="親友連結" className="sm:col-span-2">
-         <Input
-          value={addForm.address ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))}
-          placeholder="例如：父親 9123xxxx；姨媽 9888xxxx"
-         />
-        </Field>
-        <Field label="備註" className="sm:col-span-2">
-         <Textarea
-          value={addForm.remarks ?? ""}
-          onChange={(e) => setAddForm((f) => ({ ...f, remarks: e.target.value }))}
-          rows={3}
-         />
-        </Field>
-        <div className="sm:col-span-2">
-         <Button type="button" onClick={() => void onAddStudent()} disabled={!(addForm.full_name ?? "").trim()}>
-          建立
+        </section>
+
+        <div className="flex justify-end gap-2">
+         <Button
+          type="button"
+          variant="outline"
+          disabled={addSaving}
+          onClick={() => setAddOpen(false)}
+         >
+          取消
+         </Button>
+         <Button
+          type="button"
+          onClick={() => void onAddStudent()}
+          disabled={addSaving || !(addForm.full_name ?? "").trim()}
+         >
+          {addSaving ? "建立中…" : "建立"}
          </Button>
         </div>
        </div>
