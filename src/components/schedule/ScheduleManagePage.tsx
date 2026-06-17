@@ -1,21 +1,19 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import {
- Bell,
  CalendarDays,
  Check,
  ChevronDown,
+ ChevronLeft,
+ ChevronRight,
  ChevronUp,
  Download,
- GraduationCap,
  LayoutGrid,
  List,
  Plus,
- RefreshCw,
  Search,
  User,
  Users,
- Video,
  XCircle,
 } from "lucide-react"
 
@@ -26,18 +24,26 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { classroomsActiveOnDate, roomColumnBgClass, roomColumnHeaderBgClass } from "@/lib/classroomEligibility"
+import { DayViewGrid } from "@/components/schedule/DayViewGrid"
+import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
+import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
- formatMin,
  lessonSlotLabel,
- lessonSlotStartMinute,
- LESSON_SLOT_DURATION_MIN,
  LESSON_SLOT_INDICES,
+ nearestStandardSlotIndex,
  parseHm,
- slotIndexForStartMin,
 } from "@/lib/lessonSlots"
+import {
+ durationMinForSchedule,
+ findScheduleRoomConflicts,
+ isDateInInclusiveRange,
+ isStandardSchedulePlacement,
+ snapTimesToStandardSlot,
+ standardSlotIndexForSchedule,
+} from "@/lib/scheduleDayView"
+import { addDaysYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
@@ -65,6 +71,7 @@ import {
  type ScheduleDetailRecord,
 } from "@/services/classQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
+import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
  fetchScheduleAlerts,
  fetchSchedulesInRange,
@@ -80,90 +87,13 @@ const RANGE_DAYS = 14
 
 type ViewMode = "byDate" | "list" | "day"
 
-function durationMin(row: ScheduleManageRow): number {
- const a = parseHm(row.start_time)
- const b = parseHm(row.end_time)
- if (a == null) return LESSON_SLOT_DURATION_MIN
- if (b == null) return LESSON_SLOT_DURATION_MIN
- return Math.max(LESSON_SLOT_DURATION_MIN, b - a)
-}
-
-function slotIndexForSchedule(row: ScheduleManageRow): number {
- const m = parseHm(row.start_time)
- return slotIndexForStartMin(m ?? lessonSlotStartMinute(0))
-}
-
-function alertSummary(a: ScheduleAlerts): string {
- const p: string[] = []
- if (a.trial) p.push("試堂")
- if (a.makeup) p.push("補堂")
- if (a.record) p.push("需錄影")
- if (a.leave) p.push("病／事假")
- return p.join("、")
-}
-
-function hasAnyAlert(a: ScheduleAlerts): boolean {
- return a.trial || a.makeup || a.record || a.leave
-}
-
-const ALERT_TIP_BELL =
- "排程提醒：本堂有需要留意的事項。將滑鼠移到右側小圖示可查看類別。"
-const ALERT_TIP_TRIAL = "試堂：已有試堂紀錄連結至此排程。"
-const ALERT_TIP_MAKEUP = "補堂／請假相關：有請假或補堂紀錄與本堂相關（含待補課）。"
-const ALERT_TIP_RECORD = "錄影：排程備註含「錄影」「錄像」「錄音」等需錄製相關字樣。"
-const ALERT_TIP_LEAVE =
- "請假：有學生請假與本堂相關（已連結此排程，或同班且請假日為上課日）。"
-
-function ScheduleAlertIcons({ alerts }: { alerts: ScheduleAlerts }) {
- if (!hasAnyAlert(alerts)) return null
- return (
-  <span
-   className="inline-flex items-center gap-1 text-amber-600"
-   role="group"
-   aria-label={`排程提醒：${alertSummary(alerts)}`}
-  >
-   <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_BELL}>
-    <Bell className="h-4 w-4 shrink-0 drop-shadow-sm" aria-hidden />
-   </span>
-   {alerts.trial ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_TRIAL}>
-     <GraduationCap className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
-   ) : null}
-   {alerts.makeup ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_MAKEUP}>
-     <RefreshCw className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
-   ) : null}
-   {alerts.record ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_RECORD}>
-     <Video className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
-   ) : null}
-   {alerts.leave ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_LEAVE}>
-     <XCircle className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
-   ) : null}
-  </span>
- )
-}
-
 type PendingMove = {
  row: ScheduleManageRow
  newRoomId: string | null
  newStart: string
  newEnd: string
  roomLabel: string
-}
-
-function effectiveDayViewRoomId(
- schedule: ScheduleManageRow,
- activeRoomIds: ReadonlySet<string>
-): string | null {
- const rid = schedule.classroom_id
- if (!rid || !activeRoomIds.has(rid)) return null
- return rid
+ alignedToStandard: boolean
 }
 
 function rollCallPath(scheduledDate: string, scheduleId: string): string {
@@ -174,58 +104,10 @@ function rollCallPath(scheduledDate: string, scheduleId: string): string {
  return `/Attendance?${q.toString()}`
 }
 
-function DayViewScheduleCard({
- schedule,
- alerts,
- studentNames,
- variant,
- historyReadOnly,
- onDragStart,
-}: {
- schedule: ScheduleManageRow
- alerts: ScheduleAlerts
- studentNames: string[]
- variant: "assigned" | "unassigned"
- historyReadOnly: boolean
- onDragStart: (e: React.DragEvent) => void
-}) {
- const timeLabel =
-  schedule.start_time && schedule.end_time
-   ? `${schedule.start_time}–${schedule.end_time}`
-   : schedule.start_time ?? ""
- return (
-  <div
-   draggable={!historyReadOnly}
-   aria-disabled={historyReadOnly}
-   onDragStart={onDragStart}
-   className={cn(
-    "cursor-grab rounded-lg border px-2.5 py-2.5 text-sm shadow-sm active:cursor-grabbing",
-    variant === "unassigned"
-     ? "border-amber-400 bg-amber-100 text-amber-950"
-     : "border-teal-300 bg-teal-50 text-teal-900"
-   )}
-  >
-   <div className="flex items-start justify-between gap-1.5">
-    <span className="break-words font-semibold leading-snug">{schedule.classLabel}</span>
-    <ScheduleAlertIcons alerts={alerts} />
-   </div>
-   <p className="mt-1.5 break-words text-xs leading-relaxed opacity-90">
-    老師：{schedule.teacher_name?.trim() || "—"}
-   </p>
-   <p className="mt-0.5 break-words text-xs leading-relaxed opacity-90">
-    學生：{studentNames.length > 0 ? studentNames.join("、") : "—"}
-   </p>
-   {timeLabel ? (
-    <p className="mt-1.5 tabular-nums text-xs font-medium opacity-80">{timeLabel}</p>
-   ) : null}
-  </div>
- )
-}
-
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const todayYmd = localYmd()
- const [searchParams] = useSearchParams()
+ const [searchParams, setSearchParams] = useSearchParams()
 
  const [viewMode, setViewMode] = useState<ViewMode>("byDate")
  const [displayStart, setDisplayStart] = useState(todayYmd)
@@ -260,6 +142,13 @@ export function ScheduleManagePage() {
  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
  const [moveSaving, setMoveSaving] = useState(false)
  const [moveErr, setMoveErr] = useState<string | null>(null)
+ const [moveConflicts, setMoveConflicts] = useState<ScheduleManageRow[]>([])
+ const [moveRemoteBlocked, setMoveRemoteBlocked] = useState<boolean | null>(null)
+ const [moveChecking, setMoveChecking] = useState(false)
+
+ const [moveDialogSchedule, setMoveDialogSchedule] = useState<ScheduleManageRow | null>(null)
+ const [moveDialogRoomKey, setMoveDialogRoomKey] = useState("")
+ const [moveDialogSlot, setMoveDialogSlot] = useState(0)
 
  const [addOpen, setAddOpen] = useState(false)
  const [addClassId, setAddClassId] = useState("")
@@ -321,6 +210,31 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setDisplayStart(date)
   }
  }, [searchParams])
+
+ useEffect(() => {
+  if (viewMode === "day") {
+   const params = new URLSearchParams(searchParams)
+   if (params.get("view") !== "day" || params.get("date") !== dayViewDate) {
+    params.set("view", "day")
+    params.set("date", dayViewDate)
+    setSearchParams(params, { replace: true })
+   }
+   return
+  }
+  if (searchParams.get("view") === "day") {
+   const params = new URLSearchParams(searchParams)
+   params.delete("view")
+   params.delete("date")
+   setSearchParams(params, { replace: true })
+  }
+ }, [viewMode, dayViewDate, searchParams, setSearchParams])
+
+ useEffect(() => {
+  if (viewMode !== "day") return
+  if (!isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)) {
+   setDisplayStart(dayViewDate)
+  }
+ }, [viewMode, dayViewDate, displayStart, rangeEnd])
 
  useEffect(() => {
   if (!detailId) {
@@ -451,6 +365,19 @@ useEffect(() => {
   [filtered, dayViewDate]
  )
 
+ const dayUnfilteredCount = useMemo(
+  () => scopedRows.filter((r) => r.scheduled_date === dayViewDate).length,
+  [scopedRows, dayViewDate]
+ )
+
+ const dayViewFilterActive =
+  searchQ.trim() !== "" ||
+  classFilter !== "all" ||
+  statusFilter !== "all" ||
+  quickFilter != null
+
+ const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
+
  useEffect(() => {
   if (viewMode !== "day") {
    setDayViewRoster(new Map())
@@ -495,11 +422,106 @@ useEffect(() => {
 
  const roomLabel = useCallback(
   (id: string | null) => {
-   if (!id) return "未分配教室"
+   if (!id) return "未編課室"
    return rooms.find((r) => r.id === id)?.name ?? roomOptions.find((r) => r.id === id)?.label ?? "—"
   },
   [rooms, roomOptions]
  )
+
+ const inactiveRoomNameForSchedule = useCallback(
+  (s: ScheduleManageRow) => {
+   const rid = s.classroom_id
+   if (!rid || activeRoomIdSet.has(rid)) return null
+   return s.classroom_name ?? roomLabel(rid)
+  },
+  [activeRoomIdSet, roomLabel]
+ )
+
+ const handleDayViewDateChange = useCallback(
+  (ymd: string) => {
+   setDayViewDate(ymd)
+   if (!isDateInInclusiveRange(ymd, displayStart, rangeEnd)) {
+    setDisplayStart(ymd)
+   }
+  },
+  [displayStart, rangeEnd]
+ )
+
+ const shiftDayViewDate = useCallback(
+  (delta: number) => {
+   handleDayViewDateChange(addDaysYmd(dayViewDate, delta))
+  },
+  [dayViewDate, handleDayViewDateChange]
+ )
+
+ const proposeScheduleMove = useCallback(
+  (row: ScheduleManageRow, roomId: string | null, slotIndex: number) => {
+   if (scheduleMgmtLocked || scheduleRowLocked(row)) return
+   const d = durationMinForSchedule(row)
+   const { start: newStart, end: newEnd } = snapTimesToStandardSlot(slotIndex, d)
+   const sameRoom = (row.classroom_id ?? null) === roomId
+   const sameTime = row.start_time === newStart && row.end_time === newEnd
+   if (sameRoom && sameTime) return
+   setMoveErr(null)
+   setPendingMove({
+    row,
+    newRoomId: roomId,
+    newStart,
+    newEnd,
+    roomLabel: roomLabel(roomId),
+    alignedToStandard: !isStandardSchedulePlacement(row),
+   })
+  },
+  [scheduleMgmtLocked, scheduleRowLocked, roomLabel]
+ )
+
+ useEffect(() => {
+  if (!pendingMove) {
+   setMoveConflicts([])
+   setMoveRemoteBlocked(null)
+   setMoveChecking(false)
+   return
+  }
+  const local = findScheduleRoomConflicts(dayFiltered, {
+   excludeId: pendingMove.row.id,
+   scheduledDate: dayViewDate,
+   roomId: pendingMove.newRoomId,
+   startTime: pendingMove.newStart,
+   endTime: pendingMove.newEnd,
+  })
+  setMoveConflicts(local)
+
+  if (!pendingMove.newRoomId) {
+   setMoveRemoteBlocked(false)
+   setMoveChecking(false)
+   return
+  }
+
+  let cancelled = false
+  setMoveChecking(true)
+  void slotIsFreeForBooking({
+   classroomId: pendingMove.newRoomId,
+   scheduledDate: dayViewDate,
+   startTime: pendingMove.newStart,
+   endTime: pendingMove.newEnd,
+   excludeScheduleId: pendingMove.row.id,
+  })
+   .then((free) => {
+    if (!cancelled) {
+     setMoveRemoteBlocked(!free)
+     setMoveChecking(false)
+    }
+   })
+   .catch(() => {
+    if (!cancelled) {
+     setMoveRemoteBlocked(null)
+     setMoveChecking(false)
+    }
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [pendingMove, dayFiltered, dayViewDate])
 
  const exportCsv = () => {
   const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "課室", "狀態", "報讀人數"]
@@ -581,22 +603,27 @@ useEffect(() => {
   const row = scopedRows.find((x) => x.id === id)
   if (!row || row.scheduled_date !== dayViewDate) return
   if (scheduleRowLocked(row)) return
-  const d = durationMin(row)
-  const newStartMin = lessonSlotStartMinute(slotIndex)
-  const newEndMin = newStartMin + d
-  const newStart = formatMin(newStartMin)
-  const newEnd = formatMin(newEndMin)
-  const sameRoom = (row.classroom_id ?? null) === (roomId ?? null)
-  const sameTime = row.start_time === newStart && row.end_time === newEnd
-  if (sameRoom && sameTime) return
-  setMoveErr(null)
-  setPendingMove({
-   row,
-   newRoomId: roomId,
-   newStart,
-   newEnd,
-   roomLabel: roomLabel(roomId),
-  })
+  proposeScheduleMove(row, roomId, slotIndex)
+ }
+
+ const openMoveDialog = (schedule: ScheduleManageRow) => {
+  const roomId = schedule.classroom_id
+  const active = roomId && activeRoomIdSet.has(roomId) ? roomId : null
+  setMoveDialogSchedule(schedule)
+  setMoveDialogRoomKey(active ?? "__none__")
+  const slotIdx =
+   standardSlotIndexForSchedule(schedule) ??
+   (parseHm(schedule.start_time) != null
+    ? nearestStandardSlotIndex(parseHm(schedule.start_time)!)
+    : 0)
+  setMoveDialogSlot(slotIdx)
+ }
+
+ const submitMoveDialog = () => {
+  if (!moveDialogSchedule) return
+  const roomId = moveDialogRoomKey === "__none__" ? null : moveDialogRoomKey
+  proposeScheduleMove(moveDialogSchedule, roomId, moveDialogSlot)
+  setMoveDialogSchedule(null)
  }
 
  const confirmMove = async () => {
@@ -606,6 +633,15 @@ useEffect(() => {
    setMoveErr(academicYearEditBlockedMessage())
    return
   }
+  if (moveConflicts.length > 0) {
+   setMoveErr("目標時段與同課室其他排程衝突，請選擇其他格或時段。")
+   return
+  }
+  if (moveRemoteBlocked) {
+   setMoveErr("目標時段與同課室其他排程或待審約房衝突，請選擇其他格或時段。")
+   return
+  }
+  if (moveChecking) return
   setMoveErr(null)
   setMoveSaving(true)
   try {
@@ -633,12 +669,14 @@ useEffect(() => {
   setDisplayStart(todayYmd)
   setDayViewDate(todayYmd)
   setQuickFilter(null)
+  setViewMode("day")
  }
 
  const onTodayCardClick = () => {
   setDisplayStart(todayYmd)
   setDayViewDate(todayYmd)
   setQuickFilter(null)
+  setViewMode("day")
  }
 
  const onPendingCardClick = () => {
@@ -663,7 +701,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 text-sm text-muted-foreground">
-      按日期／列表可點擊卡片展開班內學生；日視圖可拖曳調整課室與時間（需確認）。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認）。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
@@ -849,28 +887,110 @@ useEffect(() => {
    </div>
 
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm">
-    <div className="flex flex-wrap items-center gap-2">
-     <span className="text-muted-foreground">顯示起始日期：</span>
-     <Input
-      type="date"
-      value={displayStart}
-      onChange={(e) => setDisplayStart(e.target.value)}
-      className="h-10 w-[12rem] cursor-pointer text-sm"
-     />
-     <Button
-      type="button"
-      variant="outline"
-      size="default"
-      className="border-amber-400/80 text-sm text-amber-900 hover:bg-amber-50"
-      onClick={jumpToday}
-     >
-      回到今天
-     </Button>
-    </div>
-    <span className="tabular-nums text-muted-foreground">
-     {loading ? "載入中…" : `顯示 ${filtered.length} 個排程`}
-    </span>
+    {viewMode === "day" ? (
+     <>
+      <div className="flex flex-wrap items-center gap-2">
+       <span className="text-muted-foreground">日視圖日期</span>
+       <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-10 w-10 shrink-0"
+        aria-label="前一日"
+        onClick={() => shiftDayViewDate(-1)}
+       >
+        <ChevronLeft className="h-5 w-5" aria-hidden />
+       </Button>
+       <Input
+        type="date"
+        value={dayViewDate}
+        onChange={(e) => handleDayViewDateChange(e.target.value)}
+        className="h-10 w-[12rem] cursor-pointer text-sm"
+       />
+       <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-10 w-10 shrink-0"
+        aria-label="後一日"
+        onClick={() => shiftDayViewDate(1)}
+       >
+        <ChevronRight className="h-5 w-5" aria-hidden />
+       </Button>
+       <Button
+        type="button"
+        variant="outline"
+        size="default"
+        className="border-amber-400/80 text-sm text-amber-900 hover:bg-amber-50"
+        onClick={jumpToday}
+       >
+        今天
+       </Button>
+      </div>
+      <div className="text-right">
+       <span className="tabular-nums text-muted-foreground">
+        {loading ? "載入中…" : `本日 ${dayFiltered.length} 堂`}
+       </span>
+       {dayViewFilterActive && dayUnfilteredCount > dayFiltered.length ? (
+        <p className="mt-0.5 text-xs text-warning">
+         已套用篩選（本日共 {dayUnfilteredCount} 堂，顯示 {dayFiltered.length} 堂）
+        </p>
+       ) : null}
+       {!dayViewDateLoaded && !loading ? (
+        <p className="mt-0.5 text-xs text-warning">正在載入此日排程…</p>
+       ) : null}
+      </div>
+     </>
+    ) : (
+     <>
+      <div className="flex flex-wrap items-center gap-2">
+       <span className="text-muted-foreground">顯示起始日期：</span>
+       <Input
+        type="date"
+        value={displayStart}
+        onChange={(e) => setDisplayStart(e.target.value)}
+        className="h-10 w-[12rem] cursor-pointer text-sm"
+       />
+       <Button
+        type="button"
+        variant="outline"
+        size="default"
+        className="border-amber-400/80 text-sm text-amber-900 hover:bg-amber-50"
+        onClick={jumpToday}
+       >
+        回到今天
+       </Button>
+      </div>
+      <span className="tabular-nums text-muted-foreground">
+       {loading ? "載入中…" : `顯示 ${filtered.length} 個排程`}
+      </span>
+     </>
+    )}
    </div>
+
+   {viewMode === "day" && scheduleMgmtLocked ? (
+    <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
+     你目前僅能檢視日視圖；拖曳與「移動到…」需管理員權限。
+    </p>
+   ) : null}
+
+   {viewMode === "day" && dayViewFilterActive ? (
+    <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+     日視圖已套用上方搜尋或篩選條件。
+     <button
+      type="button"
+      className="ml-2 font-medium underline hover:no-underline"
+      onClick={() => {
+       setSearchQ("")
+       setClassFilter("all")
+       setStatusFilter("all")
+       setQuickFilter(null)
+      }}
+     >
+      清除篩選
+     </button>
+    </p>
+   ) : null}
 
    {viewMode === "byDate" ? (
     <div className="space-y-6">
@@ -1314,145 +1434,36 @@ useEffect(() => {
 
    {viewMode === "day" ? (
     <div className="space-y-4">
-     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm text-muted-foreground">日視圖日期</span>
-      <Input
-       type="date"
-       value={dayViewDate}
-       onChange={(e) => setDayViewDate(e.target.value)}
-       className="h-11 w-[12rem] text-base"
+     {dayFiltered.length === 0 ? (
+      <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
+       {loading ? (
+        <p className="text-muted-foreground">載入中…</p>
+       ) : !dayViewDateLoaded ? (
+        <p className="text-muted-foreground">正在載入 {dayViewDate} 的排程…</p>
+       ) : dayViewFilterActive && dayUnfilteredCount > 0 ? (
+        <p className="text-muted-foreground">
+         本日有 {dayUnfilteredCount} 堂排程，但目前篩選條件下沒有符合的項目。
+        </p>
+       ) : (
+        <p className="text-muted-foreground">本日沒有排程</p>
+       )}
+      </div>
+     ) : (
+      <DayViewGrid
+       dayViewDate={dayViewDate}
+       schedules={dayFiltered}
+       alerts={alerts}
+       studentRoster={dayViewRoster}
+       roomColumns={roomColumns}
+       activeRoomIdSet={activeRoomIdSet}
+       roomColPct={dayViewRoomColPct}
+       scheduleRowLocked={scheduleRowLocked}
+       inactiveRoomName={inactiveRoomNameForSchedule}
+       onDropOnCell={handleDropOnCell}
+       onOpenDetail={setDetailId}
+       onMoveRequest={openMoveDialog}
       />
-     </div>
-     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-      <p className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-medium">
-       {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘 · 拖曳卡片可調整課室或時段
-      </p>
-      <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
-       <colgroup>
-        <col style={{ width: `${dayViewRoomColPct.timePct}%` }} />
-        {roomColumns.map((r) => (
-         <col key={r.id} style={{ width: `${dayViewRoomColPct.each}%` }} />
-        ))}
-        <col style={{ width: `${dayViewRoomColPct.each}%` }} />
-       </colgroup>
-       <thead>
-        <tr className="bg-muted/40">
-         <th className="sticky left-0 z-[1] border border-border bg-muted/50 px-2 py-3">
-          時間
-         </th>
-         {roomColumns.map((r) => (
-          <th
-           key={r.id}
-           className={cn(
-            "min-w-0 border border-border px-2 py-3 font-medium",
-            roomColumnHeaderBgClass(r.name)
-           )}
-          >
-           <span className="block break-words">{r.name}</span>
-          </th>
-         ))}
-         <th
-          className={cn(
-           "min-w-0 border border-border px-2 py-3 font-medium",
-           roomColumnHeaderBgClass("未編課室")
-          )}
-         >
-          未分配教室
-         </th>
-        </tr>
-       </thead>
-       <tbody>
-        {LESSON_SLOT_INDICES.map((slotIdx) => (
-         <tr key={slotIdx}>
-          <td className="sticky left-0 z-[1] border border-border bg-card px-2 py-2 tabular-nums text-muted-foreground">
-           {lessonSlotLabel(slotIdx)}
-          </td>
-          {roomColumns.map((r) => (
-           <td
-            key={r.id}
-            className={cn(
-             "align-top border border-border p-1.5 transition-colors hover:bg-teal-50/30",
-             roomColumnBgClass(r.name)
-            )}
-            data-room-id={r.id}
-            onDragOver={(e) => {
-             e.preventDefault()
-             e.dataTransfer.dropEffect = "move"
-            }}
-            onDrop={(e) => handleDropOnCell(e, r.id, slotIdx)}
-           >
-            <div className="flex min-h-[7.5rem] flex-col gap-1.5">
-             {dayFiltered
-              .filter(
-               (s) =>
-                effectiveDayViewRoomId(s, activeRoomIdSet) === r.id &&
-                slotIndexForSchedule(s) === slotIdx
-              )
-              .map((s) => (
-               <DayViewScheduleCard
-                key={s.id}
-                schedule={s}
-                alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
-                studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
-                variant="assigned"
-                historyReadOnly={scheduleRowLocked(s)}
-                onDragStart={(e) => {
-                 if (scheduleRowLocked(s)) {
-                  e.preventDefault()
-                  return
-                 }
-                 e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
-                 e.dataTransfer.effectAllowed = "move"
-                }}
-               />
-              ))}
-            </div>
-           </td>
-          ))}
-          <td
-           className={cn(
-            "align-top border border-border p-1.5 transition-colors hover:bg-amber-100/40",
-            roomColumnBgClass("未編課室")
-           )}
-           data-room-id="__none__"
-           onDragOver={(e) => {
-            e.preventDefault()
-            e.dataTransfer.dropEffect = "move"
-           }}
-           onDrop={(e) => handleDropOnCell(e, null, slotIdx)}
-          >
-           <div className="flex min-h-[7.5rem] flex-col gap-1.5">
-            {dayFiltered
-             .filter(
-              (s) =>
-               effectiveDayViewRoomId(s, activeRoomIdSet) === null &&
-               slotIndexForSchedule(s) === slotIdx
-             )
-             .map((s) => (
-              <DayViewScheduleCard
-               key={s.id}
-               schedule={s}
-               alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
-               studentNames={s.class_id ? (dayViewRoster.get(s.class_id) ?? []) : []}
-               variant="unassigned"
-               historyReadOnly={scheduleRowLocked(s)}
-               onDragStart={(e) => {
-                if (scheduleRowLocked(s)) {
-                 e.preventDefault()
-                 return
-                }
-                e.dataTransfer.setData("application/json", JSON.stringify({ id: s.id }))
-                e.dataTransfer.effectAllowed = "move"
-               }}
-              />
-             ))}
-           </div>
-          </td>
-         </tr>
-        ))}
-       </tbody>
-      </table>
-     </div>
+     )}
     </div>
    ) : null}
 
@@ -1520,8 +1531,39 @@ useEffect(() => {
         時間 → <strong className="tabular-nums">
          {pendingMove.newStart}–{pendingMove.newEnd}
         </strong>
+        {pendingMove.alignedToStandard ? (
+         <>
+          <br />
+          <span className="text-sm">時間將對齊標準格（09:00 起每 75 分鐘）。</span>
+         </>
+        ) : null}
        </p>
-       <p className="text-muted-foreground">請確認無課室衝突後再儲存。</p>
+       {moveChecking ? (
+        <p className="text-sm text-muted-foreground">正在檢查課室衝突…</p>
+       ) : moveConflicts.length > 0 ? (
+        <div
+         role="alert"
+         className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+         <p className="font-medium">與以下排程衝突：</p>
+         <ul className="mt-1 list-inside list-disc">
+          {moveConflicts.map((c) => (
+           <li key={c.id}>
+            {c.classLabel}（{c.start_time ?? "—"}–{c.end_time ?? "—"}）
+           </li>
+          ))}
+         </ul>
+        </div>
+       ) : moveRemoteBlocked ? (
+        <div
+         role="alert"
+         className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+         目標時段與同課室其他排程或待審約房衝突。
+        </div>
+       ) : (
+        <p className="text-muted-foreground">未偵測到課室衝突，確認後即可儲存。</p>
+       )}
        {moveErr ? (
         <div
          role="alert"
@@ -1545,10 +1587,73 @@ useEffect(() => {
         <Button
          type="button"
          className="bg-amber-600 text-white hover:bg-amber-700"
-         disabled={moveSaving}
+         disabled={
+          moveSaving ||
+          moveChecking ||
+          moveConflicts.length > 0 ||
+          moveRemoteBlocked === true
+         }
          onClick={() => void confirmMove()}
         >
          {moveSaving ? "儲存中…" : "確定變更"}
+        </Button>
+       </div>
+      </div>
+     ) : null}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={moveDialogSchedule != null}
+    onOpenChange={(o) => {
+     if (!o) setMoveDialogSchedule(null)
+    }}
+   >
+    <DialogContent className="max-w-md text-sm">
+     <DialogHeader>
+      <DialogTitle className="text-lg font-semibold">移動排程</DialogTitle>
+     </DialogHeader>
+     {moveDialogSchedule ? (
+      <div className="grid gap-4 text-sm">
+       <p className="font-medium">{moveDialogSchedule.classLabel}</p>
+       <label className="grid gap-1.5">
+        <span className="text-muted-foreground">課室</span>
+        <Select
+         className="h-11 w-full rounded-md border border-input px-3"
+         value={moveDialogRoomKey}
+         onChange={(e) => setMoveDialogRoomKey(e.target.value)}
+        >
+         {roomColumns.map((r) => (
+          <option key={r.id} value={r.id}>
+           {r.name}
+          </option>
+         ))}
+         <option value="__none__">未編課室</option>
+        </Select>
+       </label>
+       <label className="grid gap-1.5">
+        <span className="text-muted-foreground">時段（標準格）</span>
+        <Select
+         className="h-11 w-full rounded-md border border-input px-3"
+         value={String(moveDialogSlot)}
+         onChange={(e) => setMoveDialogSlot(Number(e.target.value))}
+        >
+         {LESSON_SLOT_INDICES.map((idx) => (
+          <option key={idx} value={idx}>
+           {lessonSlotLabel(idx)}
+          </option>
+         ))}
+        </Select>
+       </label>
+       <p className="text-xs text-muted-foreground">
+        時間將對齊所選標準格的起點；若原為非標準時間，結束時間會依上課時長重新計算。
+       </p>
+       <div className="flex justify-end gap-2">
+        <Button type="button" variant="outline" onClick={() => setMoveDialogSchedule(null)}>
+         取消
+        </Button>
+        <Button type="button" onClick={submitMoveDialog}>
+         繼續確認
         </Button>
        </div>
       </div>

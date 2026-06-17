@@ -501,6 +501,8 @@ export async function slotIsFreeForBooking(params: {
  scheduledDate: string
  startTime: string
  endTime: string
+ /** 調整既有排程時排除自身 */
+ excludeScheduleId?: string
 }): Promise<boolean> {
  if (!supabase) return false
  const slotA = parseHm(params.startTime) ?? LESSON_FIRST_START_MIN
@@ -512,7 +514,8 @@ export async function slotIsFreeForBooking(params: {
   .eq("classroom_id", params.classroomId)
   .eq("scheduled_date", params.scheduledDate)
  for (const row of sched ?? []) {
-  const s = row as { start_time: string | null; end_time: string | null; status: string }
+  const s = row as { id: string; start_time: string | null; end_time: string | null; status: string }
+  if (params.excludeScheduleId && s.id === params.excludeScheduleId) continue
   if (s.status.includes("取消")) continue
   const a = parseHm(s.start_time)
   const b = parseHm(s.end_time)

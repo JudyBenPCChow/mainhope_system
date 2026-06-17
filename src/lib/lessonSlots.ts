@@ -42,6 +42,30 @@ export function slotIndexForStartMin(startMin: number): number {
  return Math.min(Math.max(0, i), LESSON_SLOT_COUNT - 1)
 }
 
+export function lessonLastSlotEndMinute(): number {
+ return lessonSlotEndMinute(LESSON_SLOT_COUNT - 1)
+}
+
+/** 開始時間是否恰為標準格起點（09:00 起每 75 分鐘） */
+export function standardSlotIndexForStartTime(startTime: string | null): number | null {
+ const m = parseHm(startTime)
+ if (m == null) return null
+ for (let i = 0; i < LESSON_SLOT_COUNT; i++) {
+  if (m === lessonSlotStartMinute(i)) return i
+ }
+ return null
+}
+
+/** 將任意開始分鐘對齊到最近的標準格起點 */
+export function nearestStandardSlotIndex(startMin: number): number {
+ if (startMin <= LESSON_FIRST_START_MIN) return 0
+ const lastStart = lessonSlotStartMinute(LESSON_SLOT_COUNT - 1)
+ if (startMin >= lastStart) return LESSON_SLOT_COUNT - 1
+ const rel = startMin - LESSON_FIRST_START_MIN
+ const idx = Math.round(rel / LESSON_SLOT_DURATION_MIN)
+ return Math.min(Math.max(0, idx), LESSON_SLOT_COUNT - 1)
+}
+
 export function intervalsOverlapMinutes(a0: number, a1: number, b0: number, b1: number): boolean {
  return a0 < b1 && b0 < a1
 }
