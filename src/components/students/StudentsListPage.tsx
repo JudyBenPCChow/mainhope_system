@@ -78,6 +78,11 @@ const COMMON_HK_SCHOOLS = [
  "聖若瑟書院",
 ] as const
 
+/** 「近期報讀」輪播最多顯示的學生數 */
+const RECENT_ENROLL_LIMIT = 5
+/** 「近期報讀」自動輪播間隔（毫秒） */
+const RECENT_ENROLL_ROTATE_MS = 5000
+
 function monthStartIso(): string {
  const d = new Date()
  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
@@ -149,6 +154,15 @@ function localYmd(d = new Date()): string {
  return `${y}-${m}-${day}`
 }
 
+/** 將 created_at（UTC timestamptz ISO）換成本機日期 YYYY-MM-DD；無法解析時回退取前 10 字元。 */
+function createdAtLocalYmd(createdAt: string | null | undefined): string {
+ const s = (createdAt ?? "").trim()
+ if (!s) return ""
+ const d = new Date(s)
+ if (Number.isNaN(d.getTime())) return s.slice(0, 10)
+ return localYmd(d)
+}
+
 function formatCsv(rows: StudentRecord[]): string {
  const headers = [
   "id",
@@ -201,6 +215,7 @@ export function StudentsListPage() {
  const [sortMode, setSortMode] = useState<"codeAsc" | "codeDesc">("codeDesc")
  const [showGraduated, setShowGraduated] = useState(false)
  const [dashboardCollapsed, setDashboardCollapsed] = useState(false)
+ const [recentIndex, setRecentIndex] = useState(0)
  const [search, setSearch] = useState("")
  const [addOpen, setAddOpen] = useState(false)
  const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
@@ -236,24 +251,50 @@ export function StudentsListPage() {
   const total = rows.length
   const enrolled = rows.filter((r) => normalizeStudentStatus(r.status) === "在讀").length
   const start = monthStartIso()
-  const newThisMonth = rows.filter((r) => r.created_at.slice(0, 10) >= start).length
+  const newThisMonth = rows.filter((r) => createdAtLocalYmd(r.created_at) >= start).length
   return { total, enrolled, newThisMonth }
  }, [rows])
 
- const latest = useMemo(() => {
-  if (rows.length === 0) return null
+ // 近期報讀：依建檔時間新→舊取前 N 位，供藍卡輪播
+ const recentStudents = useMemo(() => {
+  if (rows.length === 0) return [] as StudentRecord[]
   return [...rows]
-   .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+   .sort((a, b) => b.created_at.localeCompare(a.created_at))
+   .slice(0, RECENT_ENROLL_LIMIT)
  }, [rows])
 
+ // 資料變動時回到最新一位
+ useEffect(() => {
+  setRecentIndex(0)
+ }, [recentStudents.length])
+
+ // 閒置自動輪播；多於一位才啟動
+ useEffect(() => {
+  if (recentStudents.length <= 1) return
+  const id = window.setInterval(() => {
+   setRecentIndex((i) => (i + 1) % recentStudents.length)
+  }, RECENT_ENROLL_ROTATE_MS)
+  return () => window.clearInterval(id)
+ }, [recentStudents.length])
+
+ const recentCurrent =
+  recentStudents.length === 0
+   ? null
+   : recentStudents[Math.min(recentIndex, recentStudents.length - 1)]
+
+ // 取「學號數值最大」者；忽略無/非數字學號（rank < 0），與表格排序共用 studentCodeRank
  const latestCodeStudent = useMemo(() => {
-  if (rows.length === 0) return null
-  return [...rows].sort((a, b) => {
-   const ra = studentCodeRank(a.student_code)
-   const rb = studentCodeRank(b.student_code)
-   if (ra !== rb) return rb - ra
-   return b.created_at.localeCompare(a.created_at)
-  })[0]
+  let best: StudentRecord | null = null
+  let bestRank = -1
+  for (const r of rows) {
+   const rank = studentCodeRank(r.student_code)
+   if (rank < 0) continue
+   if (best == null || rank > bestRank) {
+    best = r
+    bestRank = rank
+   }
+  }
+  return best
  }, [rows])
 
  const filtered = useMemo(() => {
@@ -288,13 +329,15 @@ export function StudentsListPage() {
    })
   }
   const sorted = [...list].sort((a, b) => {
-   const aa = (a.student_code ?? "").trim()
-   const bb = (b.student_code ?? "").trim()
-   if (!aa && !bb) return a.full_name.localeCompare(b.full_name, "zh-Hant")
-   if (!aa) return sortMode === "codeAsc" ? 1 : -1
-   if (!bb) return sortMode === "codeAsc" ? -1 : 1
-   const ncmp = aa.localeCompare(bb, "en", { numeric: true, sensitivity: "base" })
-   if (ncmp !== 0) return sortMode === "codeAsc" ? ncmp : -ncmp
+   const ra = studentCodeRank(a.student_code)
+   const rb = studentCodeRank(b.student_code)
+   const aEmpty = ra < 0
+   const bEmpty = rb < 0
+   // 無學號一律排最後（不受升/降序影響），與「最新學號」忽略無學號的口徑一致
+   if (aEmpty && bEmpty) return a.full_name.localeCompare(b.full_name, "zh-Hant")
+   if (aEmpty) return 1
+   if (bEmpty) return -1
+   if (ra !== rb) return sortMode === "codeAsc" ? ra - rb : rb - ra
    return a.full_name.localeCompare(b.full_name, "zh-Hant")
   })
   return sorted
@@ -462,9 +505,10 @@ export function StudentsListPage() {
    </div>
 
   <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-   <div className="flex items-center gap-2">
+   <div className="flex flex-wrap items-center gap-2">
     <h2 className="text-sm font-semibold tracking-wide">學生儀表板</h2>
     <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
+    <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
    </div>
    <Button
     type="button"
@@ -507,29 +551,49 @@ export function StudentsListPage() {
    </button>
    </div>
 
-   {latest ? (
+   {recentCurrent ? (
     <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
-     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold">
-      {latest.full_name.slice(0, 1)}
-     </div>
+     <button
+      type="button"
+      onClick={() => navigate(`/Students/${recentCurrent.id}`)}
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
+      aria-label={`開啟 ${recentCurrent.full_name} 的學生詳情`}
+     >
+      {recentCurrent.full_name.slice(0, 1)}
+     </button>
      <div className="min-w-0 flex-1">
-      <div className="text-xs font-medium uppercase tracking-wide text-white/80">最新報讀</div>
-      <div className="text-lg font-semibold">{latest.full_name}</div>
+      <div className="text-xs font-medium uppercase tracking-wide text-white/80">
+       {recentIndex === 0 ? "最新報讀" : `近期報讀（第 ${recentIndex + 1} 新）`}
+      </div>
+      <button
+       type="button"
+       onClick={() => navigate(`/Students/${recentCurrent.id}`)}
+       className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
+      >
+       {recentCurrent.full_name}
+      </button>
       <div className="text-sm text-white/90">
-       {formatStudentGrade(latest.grade) + " · " + (latest.school ?? "—")}
+       {formatStudentGrade(recentCurrent.grade) + " · " + (recentCurrent.school ?? "—")}
       </div>
      </div>
-     <div className="flex gap-1">
-      {rows.slice(0, 5).map((_, i) => (
-       <span
-        key={i}
-        className={cn(
-         "h-2 w-2 rounded-full",
-         i === 0 ? "bg-white" : "bg-white/40"
-        )}
-       />
-      ))}
-     </div>
+     {recentStudents.length > 1 ? (
+      <div className="flex gap-1.5" role="tablist" aria-label="近期報讀切換">
+       {recentStudents.map((s, i) => (
+        <button
+         key={s.id}
+         type="button"
+         role="tab"
+         aria-selected={i === recentIndex}
+         aria-label={`第 ${i + 1} 位近期報讀`}
+         onClick={() => setRecentIndex(i)}
+         className={cn(
+          "h-2.5 w-2.5 rounded-full transition-colors",
+          i === recentIndex ? "bg-white" : "bg-white/40 hover:bg-white/70"
+         )}
+        />
+       ))}
+      </div>
+     ) : null}
     </div>
    ) : null}
   </>
