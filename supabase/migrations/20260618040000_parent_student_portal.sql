@@ -26,6 +26,12 @@ create unique index if not exists app_users_student_id_unique
 comment on column public.app_users.student_id is
   'Portal 帳號（role=student）對應的學生；teacher 角色用 teacher_id。';
 
+-- 角色 check 約束加入 'student'（portal 帳號角色）；否則 redeem_portal_invite 寫入會違反約束。
+alter table public.app_users drop constraint if exists app_users_role_check;
+alter table public.app_users
+  add constraint app_users_role_check
+  check (role = any (array['admin', 'teacher', 'alien', 'student']));
+
 -- ---------------------------------------------------------------------------
 -- 2. 角色 helper（SECURITY DEFINER，避免 RLS 遞迴；沿用 Phase B/C 模式）
 -- ---------------------------------------------------------------------------

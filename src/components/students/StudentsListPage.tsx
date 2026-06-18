@@ -6,6 +6,7 @@ import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { openWhatsAppChat, pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { nextStudentCode } from "@/lib/studentCode"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -146,19 +147,6 @@ function localYmd(d = new Date()): string {
  const m = String(d.getMonth() + 1).padStart(2, "0")
  const day = String(d.getDate()).padStart(2, "0")
  return `${y}-${m}-${day}`
-}
-
-function nextStudentCode(rows: StudentRecord[]): string {
- let max = 0
- for (const r of rows) {
-  const code = (r.student_code ?? "").trim()
-  const m = code.match(/^SNFNL(\d+)$/i)
-  if (!m) continue
-  const n = Number(m[1])
-  if (Number.isFinite(n) && n > max) max = n
- }
- const next = Math.max(1, max + 1)
- return `SNFNL${String(next).padStart(4, "0")}`
 }
 
 function formatCsv(rows: StudentRecord[]): string {
