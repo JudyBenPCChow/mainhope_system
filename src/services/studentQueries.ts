@@ -961,15 +961,6 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
  return items
 }
 
-/** 計入「已上課／應計堂數」的點名狀態（缺席與請假不計） */
-function attendanceCountsAsBilledLesson(status: string): boolean {
- const s = status ?? ""
- if (s.includes("缺席")) return false
- if (s.includes("請假")) return false
- if (s.includes("假") && !s.includes("補")) return false
- return true
-}
-
 export type StudentTuitionArrearsInfo = {
  paidLessons: number
  attendedLessons: number
@@ -981,6 +972,10 @@ export type StudentTuitionArrearsInfo = {
  * 依 `payment_details.lesson_count`（僅計 `payments.status = 已收款`）與 `attendance_details` 點名列，
  * 判斷是否顯示「追收學費」：出席堂數 ≥ 已繳費堂數，且（已繳堂數或出席堂數）至少一項大於 0。
  */
+/**
+ * 改由資料庫 RPC `student_tuition_arrears` 聚合（payment_details / attendance_details 在 DB 端 GROUP BY），
+ * 前端僅接收每位學生的已繳堂數與計費出席堂數，避免把明細表全量下載。
+ */
 export async function fetchStudentTuitionArrearsByStudentIds(
  studentIds: string[]
 ): Promise<Map<string, StudentTuitionArrearsInfo>> {
@@ -990,75 +985,22 @@ export async function fetchStudentTuitionArrearsByStudentIds(
   out.set(id, { paidLessons: 0, attendedLessons: 0, showArrears: false })
  }
 
- const paymentIdToStudent = new Map<string, string>()
- const idChunkPay = 200
- for (let i = 0; i < studentIds.length; i += idChunkPay) {
-  const slice = studentIds.slice(i, i + idChunkPay)
-  const { data: paidPayments, error: payErr } = await supabase
-   .from("payments")
-   .select("id, student_id")
-   .in("student_id", slice)
-   .eq("status", "已收款")
-  if (payErr) {
-   console.warn("[fetchStudentTuitionArrearsByStudentIds] payments", payErr.message)
-   break
-  }
-  for (const row of paidPayments ?? []) {
-   const r = row as Record<string, unknown>
-   paymentIdToStudent.set(String(r.id), String(r.student_id ?? ""))
-  }
- }
- {
-  const paymentIds = [...paymentIdToStudent.keys()]
-  const chunkSize = 150
-  for (let i = 0; i < paymentIds.length; i += chunkSize) {
-   const slice = paymentIds.slice(i, i + chunkSize)
-   const { data: pdRows, error: pdErr } = await supabase
-    .from("payment_details")
-    .select("payment_id, lesson_count")
-    .in("payment_id", slice)
-   if (pdErr) {
-    console.warn("[fetchStudentTuitionArrearsByStudentIds] payment_details", pdErr.message)
-    break
-   }
-   for (const row of pdRows ?? []) {
-    const r = row as Record<string, unknown>
-    const pid = String(r.payment_id ?? "")
-    const sid = paymentIdToStudent.get(pid)
-    if (!sid || !out.has(sid)) continue
-    const n = Number(r.lesson_count ?? 0)
-    if (!Number.isFinite(n) || n <= 0) continue
-    const cur = out.get(sid)!
-    out.set(sid, { ...cur, paidLessons: cur.paidLessons + n })
-   }
-  }
+ const { data, error } = await supabase.rpc("student_tuition_arrears", {
+  p_student_ids: studentIds,
+ })
+ if (error) {
+  console.warn("[fetchStudentTuitionArrearsByStudentIds] rpc", error.message)
+  return out
  }
 
- const idChunk = 200
- for (let i = 0; i < studentIds.length; i += idChunk) {
-  const slice = studentIds.slice(i, i + idChunk)
-  const { data: attRows, error: attErr } = await supabase
-   .from("attendance_details")
-   .select("student_id, status")
-   .in("student_id", slice)
-  if (attErr) {
-   console.warn("[fetchStudentTuitionArrearsByStudentIds] attendance_details", attErr.message)
-   break
-  }
-  for (const row of attRows ?? []) {
-   const r = row as Record<string, unknown>
-   const sid = String(r.student_id ?? "")
-   if (!out.has(sid)) continue
-   if (!attendanceCountsAsBilledLesson(String(r.status ?? ""))) continue
-   const cur = out.get(sid)!
-   out.set(sid, { ...cur, attendedLessons: cur.attendedLessons + 1 })
-  }
- }
-
- for (const [sid, v] of out) {
-  const show =
-   v.attendedLessons >= v.paidLessons && !(v.paidLessons === 0 && v.attendedLessons === 0)
-  out.set(sid, { ...v, showArrears: show })
+ for (const row of (data ?? []) as Record<string, unknown>[]) {
+  const sid = String(row.student_id ?? "")
+  if (!out.has(sid)) continue
+  const paidLessons = Number(row.paid_lessons ?? 0)
+  const attendedLessons = Number(row.attended_lessons ?? 0)
+  const showArrears =
+   attendedLessons >= paidLessons && !(paidLessons === 0 && attendedLessons === 0)
+  out.set(sid, { paidLessons, attendedLessons, showArrears })
  }
 
  return out

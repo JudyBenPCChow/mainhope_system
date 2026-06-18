@@ -190,7 +190,7 @@ export function ClassDetailView() {
  const [form, setForm] = useState<Partial<ClassRecord>>({})
  const [gradeSelections, setGradeSelections] = useState<string[]>([])
  const [weekdaySelections, setWeekdaySelections] = useState<string[]>([])
- const [schedFilter, setSchedFilter] = useState<"future" | "past" | "cancel">("future")
+ const [schedFilter, setSchedFilter] = useState<"all" | "future" | "past" | "cancel">("future")
  const [addSchedOpen, setAddSchedOpen] = useState(false)
  const [newSchedDate, setNewSchedDate] = useState(() => localYmd())
  const [newSchedTimeSlot, setNewSchedTimeSlot] = useState("")
@@ -310,6 +310,7 @@ export function ClassDetailView() {
 
  const schedFiltered = useMemo(() => {
   return schedules.filter((s) => {
+   if (schedFilter === "all") return true
    if (schedFilter === "cancel") return s.status.includes("取消")
    if (schedFilter === "past")
     return s.scheduled_date < today && !s.status.includes("取消")
@@ -989,6 +990,7 @@ const addableStudents = (() => {
        <div className="flex flex-wrap gap-2">
         {(
          [
+          ["all", `所有排程 (${schedules.length})`],
           ["future", `未來排程 (${parts.fut})`],
           ["past", `過去排程 (${parts.past})`],
           ["cancel", `取消課堂 (${parts.canc})`],
