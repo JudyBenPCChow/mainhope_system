@@ -466,7 +466,7 @@ export async function approveRoomBookingRequest(requestId: string): Promise<void
   end_time: String(r.end_time ?? ""),
   classroom_id: String(r.classroom_id ?? ""),
   remarks,
-  status: "預定",
+  status: "正常",
  })
 
  const { error: upErr } = await supabase

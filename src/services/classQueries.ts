@@ -660,7 +660,7 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
    scheduled_date: String(row.scheduled_date ?? ""),
    start_time: row.start_time != null ? String(row.start_time) : null,
    end_time: row.end_time != null ? String(row.end_time) : null,
-   status: String(row.status ?? "預定"),
+   status: String(row.status ?? "正常"),
    session_number:
     row.session_number != null && !Number.isNaN(Number(row.session_number))
      ? Number(row.session_number)
@@ -1051,6 +1051,7 @@ export async function insertScheduleRow(opts: {
  status?: string
  classroom_id?: string | null
  remarks?: string | null
+ is_extra_lesson?: boolean
  session_number?: number | null
  consecutive_group_id?: string | null
  consecutive_slot_index?: number | null
@@ -1065,8 +1066,9 @@ export async function insertScheduleRow(opts: {
    scheduled_date: opts.scheduled_date,
    start_time: opts.start_time ?? null,
    end_time: opts.end_time ?? null,
-   status: opts.status ?? "預定",
+   status: opts.status ?? "正常",
    remarks: opts.remarks ?? null,
+   is_extra_lesson: opts.is_extra_lesson ?? false,
    session_number: opts.session_number ?? null,
    consecutive_group_id: opts.consecutive_group_id ?? null,
    consecutive_slot_index: opts.consecutive_slot_index ?? null,
@@ -1091,6 +1093,7 @@ export async function insertScheduleForClass(
   end_time?: string | null
   status?: string
   classroom_id?: string | null
+  is_extra_lesson?: boolean
   session_number?: number | null
  }
 ): Promise<void> {
@@ -1103,6 +1106,7 @@ export async function insertScheduleForClass(
   end_time: row.end_time,
   status: row.status,
   classroom_id: row.classroom_id,
+  is_extra_lesson: row.is_extra_lesson,
   session_number: row.session_number,
  })
 }
@@ -1183,6 +1187,8 @@ export async function updateSchedule(
  id: string,
  patch: Partial<{
   status: string
+  cancel_reason: string | null
+  is_extra_lesson: boolean
   start_time: string | null
   end_time: string | null
   classroom_id: string | null
@@ -1234,6 +1240,8 @@ export type ScheduleDetailRecord = {
  start_time: string | null
  end_time: string | null
  status: string
+ cancel_reason: string | null
+ is_extra_lesson: boolean
  remarks: string | null
  class_id: string | null
  class_subject: string
@@ -1436,7 +1444,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -1457,6 +1465,8 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
   start_time: r.start_time != null ? String(r.start_time) : null,
   end_time: r.end_time != null ? String(r.end_time) : null,
   status: String(r.status ?? ""),
+  cancel_reason: r.cancel_reason != null ? String(r.cancel_reason) : null,
+  is_extra_lesson: r.is_extra_lesson === true,
   remarks: r.remarks != null ? String(r.remarks) : null,
   class_id: cid,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),

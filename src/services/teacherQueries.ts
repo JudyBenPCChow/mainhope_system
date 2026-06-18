@@ -231,7 +231,7 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
    scheduledDate: String(r.scheduled_date ?? ""),
    startTime: r.start_time != null ? String(r.start_time) : null,
    endTime: r.end_time != null ? String(r.end_time) : null,
-   status: String(r.status ?? "預定"),
+   status: String(r.status ?? "正常"),
    sessionNumber:
     r.session_number != null && !Number.isNaN(Number(r.session_number))
      ? Number(r.session_number)

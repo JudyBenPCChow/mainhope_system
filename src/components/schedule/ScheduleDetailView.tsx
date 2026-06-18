@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Calendar, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
@@ -38,6 +39,9 @@ export function ScheduleDetailView() {
  const [loading, setLoading] = useState(true)
  const [remarksDraft, setRemarksDraft] = useState("")
  const [remarksSaving, setRemarksSaving] = useState(false)
+ const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+ const [cancelSaving, setCancelSaving] = useState(false)
+ const [extraSaving, setExtraSaving] = useState(false)
 
  const load = useCallback(async () => {
   if (!sid) return
@@ -131,7 +135,11 @@ export function ScheduleDetailView() {
        )}
       </div>
       <div className="mt-5 flex flex-wrap gap-3 text-sm md:text-base">
-       <Tag tone={statusToTagTone(row.status)}>{row.status}</Tag>
+       <Tag tone={statusToTagTone(row.status)}>
+        {row.status}
+        {row.status.includes("取消") && row.cancel_reason ? ` · ${row.cancel_reason}` : ""}
+       </Tag>
+       {row.is_extra_lesson ? <Tag tone={statusToTagTone("加堂")}>加堂</Tag> : null}
        {row.class_id ? (
         <Link
          to={`/Classes/${row.class_id}`}
@@ -451,14 +459,38 @@ export function ScheduleDetailView() {
         className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-primary/50 md:text-base"
         value={row.status}
         onChange={async (e) => {
-         await updateSchedule(row.id, { status: e.target.value })
+         const next = e.target.value
+         if (next === row.status) return
+         if (next.includes("取消")) {
+          setCancelDialogOpen(true)
+          return
+         }
+         await updateSchedule(row.id, { status: next, cancel_reason: null })
          await load()
         }}
        >
-        <option value="預定">預定</option>
+        <option value="正常">正常</option>
         <option value="完成">完成</option>
         <option value="取消">取消</option>
        </Select>
+      </label>
+      <label className="flex items-center gap-2 text-sm font-medium md:text-base">
+       <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-input accent-warning"
+        checked={row.is_extra_lesson}
+        disabled={extraSaving}
+        onChange={async (e) => {
+         setExtraSaving(true)
+         try {
+          await updateSchedule(row.id, { is_extra_lesson: e.target.checked })
+          await load()
+         } finally {
+          setExtraSaving(false)
+         }
+        }}
+       />
+       <span className="text-muted-foreground">標記為加堂</span>
       </label>
       <Button
        type="button"
@@ -473,6 +505,23 @@ export function ScheduleDetailView() {
        刪除排程
       </Button>
      </div>
+
+     <CancelReasonDialog
+      open={cancelDialogOpen}
+      initialReason={row.cancel_reason ?? ""}
+      saving={cancelSaving}
+      onCancel={() => setCancelDialogOpen(false)}
+      onConfirm={async (reason) => {
+       setCancelSaving(true)
+       try {
+        await updateSchedule(row.id, { status: "取消", cancel_reason: reason })
+        setCancelDialogOpen(false)
+        await load()
+       } finally {
+        setCancelSaving(false)
+       }
+      }}
+     />
     </div>
    )}
   </div>

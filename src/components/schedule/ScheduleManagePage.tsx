@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
 import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
@@ -73,6 +74,7 @@ import {
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
+ fetchNearestScheduleDate,
  fetchScheduleAlerts,
  fetchSchedulesInRange,
  fetchScheduleStatsSnapshot,
@@ -112,6 +114,7 @@ export function ScheduleManagePage() {
  const [viewMode, setViewMode] = useState<ViewMode>("byDate")
  const [displayStart, setDisplayStart] = useState(todayYmd)
  const [dayViewDate, setDayViewDate] = useState(todayYmd)
+ const [startInitialized, setStartInitialized] = useState(false)
  const [quickFilter, setQuickFilter] = useState<null | "cancelled">(null)
  const [searchQ, setSearchQ] = useState("")
  const [classFilter, setClassFilter] = useState<string>("all")
@@ -157,7 +160,11 @@ export function ScheduleManagePage() {
  const [addEnd, setAddEnd] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
+ const [addExtra, setAddExtra] = useState(false)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
+
+ const [cancelTarget, setCancelTarget] = useState<ScheduleManageRow | null>(null)
+ const [cancelSaving, setCancelSaving] = useState(false)
 
  const teacherScopeId = getTeacherScopeTeacherId()
 const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
@@ -198,8 +205,33 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  }, [displayStart, rangeEnd, reloadStats])
 
  useEffect(() => {
+  if (!startInitialized) return
   void reload()
- }, [reload])
+ }, [reload, startInitialized])
+
+ useEffect(() => {
+  const view = searchParams.get("view")
+  const date = searchParams.get("date")
+  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+   setStartInitialized(true)
+   return
+  }
+  let cancelled = false
+  const tid = getTeacherScopeTeacherId()
+  void fetchNearestScheduleDate(tid ? { teacherId: tid } : undefined)
+   .then((nearest) => {
+    if (cancelled || !nearest) return
+    setDisplayStart(nearest)
+    setDayViewDate(nearest)
+   })
+   .finally(() => {
+    if (!cancelled) setStartInitialized(true)
+   })
+  return () => {
+   cancelled = true
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [])
 
  useEffect(() => {
   const view = searchParams.get("view")
@@ -555,6 +587,7 @@ useEffect(() => {
   setAddDate(displayStart)
   setAddStart("")
   setAddEnd("")
+  setAddExtra(false)
   setAddOpen(true)
  }
 
@@ -577,6 +610,7 @@ useEffect(() => {
     start_time: addStart || null,
     end_time: addEnd || null,
     classroom_id: cls?.classroom_id ?? null,
+    is_extra_lesson: addExtra,
    })
    setAddOpen(false)
    await reload()
@@ -664,6 +698,49 @@ useEffect(() => {
    setMoveSaving(false)
   }
  }
+
+ const handleStatusChange = useCallback(
+  async (row: ScheduleManageRow, newStatus: string) => {
+   if (scheduleRowLocked(row)) return
+   if (newStatus === row.status) return
+   if (newStatus.includes("取消")) {
+    setCancelTarget(row)
+    return
+   }
+   await updateSchedule(row.id, { status: newStatus, cancel_reason: null })
+   await reload()
+  },
+  [scheduleRowLocked, reload]
+ )
+
+ const handleToggleExtra = useCallback(
+  async (row: ScheduleManageRow, next: boolean) => {
+   if (scheduleRowLocked(row)) return
+   await updateSchedule(row.id, { is_extra_lesson: next })
+   await reload()
+  },
+  [scheduleRowLocked, reload]
+ )
+
+ const confirmCancelSchedule = useCallback(
+  async (reason: string) => {
+   if (!cancelTarget) return
+   setCancelSaving(true)
+   try {
+    await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason })
+    setCancelTarget(null)
+    await reload()
+   } catch (e) {
+    reportUserFacingError(e, {
+     source: "ScheduleManagePage.confirmCancelSchedule",
+     setErr: setPageErr,
+    })
+   } finally {
+    setCancelSaving(false)
+   }
+  },
+  [cancelTarget, reload]
+ )
 
  const jumpToday = () => {
   setDisplayStart(todayYmd)
@@ -826,7 +903,7 @@ useEffect(() => {
       onChange={(e) => setStatusFilter(e.target.value)}
      >
       <option value="all">全部狀態</option>
-      <option value="預定">預定</option>
+      <option value="正常">正常</option>
       <option value="完成">完成</option>
       <option value="取消">取消</option>
      </Select>
@@ -1105,13 +1182,9 @@ useEffect(() => {
                className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
                disabled={scheduleRowLocked(s)}
-               onChange={async (e) => {
-                if (scheduleRowLocked(s)) return
-                await updateSchedule(s.id, { status: e.target.value })
-                await reload()
-               }}
+               onChange={(e) => void handleStatusChange(s, e.target.value)}
               >
-               <option value="預定">預定</option>
+               <option value="正常">正常</option>
                <option value="完成">完成</option>
                <option value="取消">取消</option>
               </Select>
@@ -1324,16 +1397,22 @@ useEffect(() => {
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
              disabled={scheduleRowLocked(s)}
-             onChange={async (e) => {
-              if (scheduleRowLocked(s)) return
-              await updateSchedule(s.id, { status: e.target.value })
-              await reload()
-             }}
+             onChange={(e) => void handleStatusChange(s, e.target.value)}
             >
-             <option value="預定">預定</option>
+             <option value="正常">正常</option>
              <option value="完成">完成</option>
              <option value="取消">取消</option>
             </Select>
+            {s.is_extra_lesson ? (
+             <Tag tone={statusToTagTone("加堂")} size="sm" className="mt-1.5">
+              加堂
+             </Tag>
+            ) : null}
+            {s.status.includes("取消") && s.cancel_reason ? (
+             <p className="mt-1 text-xs text-muted-foreground" title={s.cancel_reason}>
+              原因：{s.cancel_reason}
+             </p>
+            ) : null}
            </td>
            <td className="min-w-0 align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center gap-2">
@@ -1695,6 +1774,15 @@ useEffect(() => {
         <Input type="time" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} className="h-11 text-base" />
        </label>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+       <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-input accent-warning"
+        checked={addExtra}
+        onChange={(e) => setAddExtra(e.target.checked)}
+       />
+       <span className="text-muted-foreground">標記為加堂（額外加開課堂）</span>
+      </label>
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>

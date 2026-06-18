@@ -131,6 +131,7 @@ declare
   v_email text := public.current_app_user_email();
   v_invite public.student_portal_invites;
   v_user_id uuid;
+  v_name text;
 begin
   if v_email is null or v_email = '' then
     raise exception 'NOT_AUTHENTICATED';
@@ -151,19 +152,23 @@ begin
     raise exception 'INVITE_EXPIRED';
   end if;
 
-  -- 綁定：建立或更新 app_users（role=student, student_id）
-  insert into public.app_users (email, display_name, role, student_id)
-  values (
-    v_email,
-    (select coalesce(full_name, '家長') from public.students where id = v_invite.student_id),
-    'student',
-    v_invite.student_id
-  )
-  on conflict (email) do update
+  select coalesce(full_name, '家長') into v_name
+  from public.students where id = v_invite.student_id;
+
+  -- 綁定：先更新既有帳號（以 lower(email) 比對，對應 app_users_email_unique 運算式索引），
+  -- 沒有才建立。避免 on conflict 與運算式索引不匹配的問題。
+  update public.app_users
     set role = 'student',
-        student_id = excluded.student_id,
+        student_id = v_invite.student_id,
         updated_at = now()
+  where lower(coalesce(email, '')) = v_email
   returning id into v_user_id;
+
+  if v_user_id is null then
+    insert into public.app_users (email, display_name, role, student_id)
+    values (v_email, v_name, 'student', v_invite.student_id)
+    returning id into v_user_id;
+  end if;
 
   update public.student_portal_invites
     set used_at = now(), used_by_email = v_email

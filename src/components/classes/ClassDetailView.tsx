@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
+import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { ScheduleDateTime } from "@/lib/scheduleDisplay"
 import {
@@ -203,6 +204,8 @@ export function ClassDetailView() {
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
+ const [cancelScheduleId, setCancelScheduleId] = useState<string | null>(null)
+ const [cancelSaving, setCancelSaving] = useState(false)
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
 
@@ -529,8 +532,12 @@ const addableStudents = (() => {
 
  const onChangeScheduleStatus = async (scheduleId: string, status: string) => {
   setSchedActionErr(null)
+  if (status.includes("取消")) {
+   setCancelScheduleId(scheduleId)
+   return
+  }
   try {
-   await updateSchedule(scheduleId, { status })
+   await updateSchedule(scheduleId, { status, cancel_reason: null })
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -539,6 +546,26 @@ const addableStudents = (() => {
     setErr: setSchedActionErr,
     userMessage: msg,
    })
+  }
+ }
+
+ const onConfirmCancelSchedule = async (reason: string) => {
+  if (!cancelScheduleId) return
+  setCancelSaving(true)
+  setSchedActionErr(null)
+  try {
+   await updateSchedule(cancelScheduleId, { status: "取消", cancel_reason: reason })
+   setCancelScheduleId(null)
+   await reload()
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onConfirmCancelSchedule",
+    setErr: setSchedActionErr,
+    userMessage: msg,
+   })
+  } finally {
+   setCancelSaving(false)
   }
  }
 
@@ -1120,7 +1147,7 @@ const addableStudents = (() => {
               value={s.status}
               onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
              >
-              <option value="預定">預定</option>
+              <option value="正常">正常</option>
               <option value="完成">完成</option>
               <option value="取消">取消</option>
              </Select>
@@ -1500,6 +1527,13 @@ const addableStudents = (() => {
      </div>
     </DialogContent>
    </Dialog>
+
+   <CancelReasonDialog
+    open={cancelScheduleId != null}
+    saving={cancelSaving}
+    onCancel={() => setCancelScheduleId(null)}
+    onConfirm={onConfirmCancelSchedule}
+   />
   </div>
   </DetailLayerShell>
  )

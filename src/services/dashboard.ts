@@ -229,7 +229,7 @@ function mapScheduleRowsToTodaySchedules(
    title,
    timeRange,
    teacherName,
-   status: String(row.status ?? "預定"),
+   status: String(row.status ?? "正常"),
   }
  })
 }
@@ -265,7 +265,7 @@ function mapScheduleRowsToDashboardClassCards(
    studentNamesLine,
    classroomName,
    timeRange,
-   status: String(row.status ?? "預定"),
+   status: String(row.status ?? "正常"),
   }
  })
 }

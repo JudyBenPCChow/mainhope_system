@@ -9,6 +9,10 @@ export type ScheduleManageRow = {
  start_time: string | null
  end_time: string | null
  status: string
+ /** 取消原因（狀態為「取消」時使用） */
+ cancel_reason: string | null
+ /** 加堂（額外加開課堂）標記，可與狀態並存 */
+ is_extra_lesson: boolean
  remarks: string | null
  session_number: number | null
  consecutive_group_id: string | null
@@ -57,7 +61,9 @@ function mapScheduleRow(
   scheduled_date: String(row.scheduled_date ?? ""),
   start_time: row.start_time != null ? String(row.start_time) : null,
   end_time: row.end_time != null ? String(row.end_time) : null,
-  status: String(row.status ?? "預定"),
+  status: String(row.status ?? "正常"),
+  cancel_reason: row.cancel_reason != null ? String(row.cancel_reason) : null,
+  is_extra_lesson: row.is_extra_lesson === true,
   remarks: row.remarks != null ? String(row.remarks) : null,
   session_number:
    row.session_number != null && !Number.isNaN(Number(row.session_number))
@@ -151,7 +157,7 @@ export async function fetchSchedulesInRange(
  let q = supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
   )
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)
@@ -387,6 +393,56 @@ export async function fetchActiveScheduleDatesForClass(classId: string): Promise
 
 export function scheduleRangeEnd(startYmd: string, daysInclusive: number): string {
  return addDaysYmd(startYmd, daysInclusive - 1)
+}
+
+/**
+ * 找出「最近的排程」日期：優先取今天或之後最接近的有課日期；
+ * 若往後沒有排程，則退回最近一次（過去）的排程日期。
+ * 排除「取消」狀態，避免落在沒有實際課堂的日子。
+ */
+export async function fetchNearestScheduleDate(
+ opts?: { teacherId?: string | null }
+): Promise<string | null> {
+ if (!supabase) return null
+ const today = localYmd()
+
+ const upcoming = (() => {
+  let q = supabase!
+   .from("schedules")
+   .select("scheduled_date")
+   .gte("scheduled_date", today)
+   .not("status", "ilike", "%取消%")
+   .order("scheduled_date", { ascending: true })
+   .limit(1)
+  if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
+  return q
+ })()
+
+ const { data: upData, error: upErr } = await upcoming
+ if (upErr) throw upErr
+ if (upData && upData.length > 0) {
+  return String((upData[0] as { scheduled_date: string }).scheduled_date)
+ }
+
+ const past = (() => {
+  let q = supabase!
+   .from("schedules")
+   .select("scheduled_date")
+   .lt("scheduled_date", today)
+   .not("status", "ilike", "%取消%")
+   .order("scheduled_date", { ascending: false })
+   .limit(1)
+  if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
+  return q
+ })()
+
+ const { data: pastData, error: pastErr } = await past
+ if (pastErr) throw pastErr
+ if (pastData && pastData.length > 0) {
+  return String((pastData[0] as { scheduled_date: string }).scheduled_date)
+ }
+
+ return null
 }
 
 export { localYmd }
