@@ -47,9 +47,6 @@ import {
 import { addDaysYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
@@ -119,8 +116,6 @@ export function ScheduleManagePage() {
  const [searchQ, setSearchQ] = useState("")
  const [classFilter, setClassFilter] = useState<string>("all")
  const [statusFilter, setStatusFilter] = useState<string>("all")
- const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
-
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [stats, setStats] = useState<ScheduleStatsSnapshot>({
@@ -168,7 +163,6 @@ export function ScheduleManagePage() {
 
  const teacherScopeId = getTeacherScopeTeacherId()
 const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
 
  const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
 
@@ -345,21 +339,6 @@ useEffect(() => {
   return [...m.entries()].map(([id, label]) => ({ id, label }))
  }, [rows])
 
- const academicYearOptions = useMemo(() => {
-  const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(r.scheduled_date)))]
-  return years.sort((a, b) => b.localeCompare(a))
- }, [rows])
-
- const selectedYearLabel = useMemo(
-  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
-  [academicYearFilter, currentAcademicYear]
- )
-
- const scopedRows = useMemo(() => {
-  const pick = selectedYearLabel
-  return rows.filter((r) => academicYearLabelFromStartDate(r.scheduled_date) === pick)
- }, [rows, selectedYearLabel])
-
  const canManageSchedules = isMgmtStaff()
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
@@ -370,7 +349,7 @@ useEffect(() => {
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
-  return scopedRows.filter((r) => {
+  return rows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
@@ -380,7 +359,7 @@ useEffect(() => {
    }
    return true
   })
- }, [scopedRows, quickFilter, statusFilter, classFilter, searchQ])
+ }, [rows, quickFilter, statusFilter, classFilter, searchQ])
 
  const byDateGroups = useMemo(() => {
   const m = new Map<string, ScheduleManageRow[]>()
@@ -398,8 +377,8 @@ useEffect(() => {
  )
 
  const dayUnfilteredCount = useMemo(
-  () => scopedRows.filter((r) => r.scheduled_date === dayViewDate).length,
-  [scopedRows, dayViewDate]
+  () => rows.filter((r) => r.scheduled_date === dayViewDate).length,
+  [rows, dayViewDate]
  )
 
  const dayViewFilterActive =
@@ -634,7 +613,7 @@ useEffect(() => {
   }
   const id = parsed.id
   if (!id) return
-  const row = scopedRows.find((x) => x.id === id)
+  const row = rows.find((x) => x.id === id)
   if (!row || row.scheduled_date !== dayViewDate) return
   if (scheduleRowLocked(row)) return
   proposeScheduleMove(row, roomId, slotIndex)
@@ -780,22 +759,6 @@ useEffect(() => {
      你正以<strong>{teacherScopeName}</strong>身分瀏覽：僅顯示指派給您的排程與統計。
     </div>
    ) : null}
-
-   <div className="flex flex-wrap items-center gap-2">
-    <span className="text-sm text-muted-foreground">學年</span>
-    <Select
-     className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
-     value={academicYearFilter}
-     onChange={(e) => setAcademicYearFilter(e.target.value)}
-    >
-     <option value="current">目前學年（{currentAcademicYear}）</option>
-     {academicYearOptions.map((y) => (
-      <option key={y} value={y}>
-       {y} 學年
-      </option>
-     ))}
-    </Select>
-   </div>
 
    {pageErr ? (
     <div
