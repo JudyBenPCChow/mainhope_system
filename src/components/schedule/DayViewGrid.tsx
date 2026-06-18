@@ -144,10 +144,18 @@ export function DayViewScheduleCard({
     <Tag tone={statusToTagTone(schedule.status)} size="sm">
      {schedule.status}
     </Tag>
+    {schedule.is_extra_lesson ? (
+     <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
+    ) : null}
     {span > 1 ? (
      <span className="text-[10px] text-muted-foreground">佔 {span} 格</span>
     ) : null}
    </div>
+   {schedule.status.includes("取消") && schedule.cancel_reason ? (
+    <p className="mt-1 break-words text-xs text-muted-foreground" title={schedule.cancel_reason}>
+     取消原因：{schedule.cancel_reason}
+    </p>
+   ) : null}
    <p className="mt-1.5 break-words text-xs leading-relaxed opacity-90">
     老師：{schedule.teacher_name?.trim() || "—"}
    </p>

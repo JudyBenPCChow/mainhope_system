@@ -713,15 +713,6 @@ useEffect(() => {
   [scheduleRowLocked, reload]
  )
 
- const handleToggleExtra = useCallback(
-  async (row: ScheduleManageRow, next: boolean) => {
-   if (scheduleRowLocked(row)) return
-   await updateSchedule(row.id, { is_extra_lesson: next })
-   await reload()
-  },
-  [scheduleRowLocked, reload]
- )
-
  const confirmCancelSchedule = useCallback(
   async (reason: string) => {
    if (!cancelTarget) return
@@ -1139,8 +1130,19 @@ useEffect(() => {
                  </span>
                 ) : null}
                </span>
+               <Tag tone={statusToTagTone(s.status)} size="sm">
+                {s.status}
+               </Tag>
+               {s.is_extra_lesson ? (
+                <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
+               ) : null}
                <ScheduleAlertIcons alerts={a} />
               </div>
+              {s.status.includes("取消") && s.cancel_reason ? (
+               <p className="mt-1 text-sm text-muted-foreground">
+                取消原因：{s.cancel_reason}
+               </p>
+              ) : null}
               <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                <span className="tabular-nums">
                 {s.start_time ?? "—"}–{s.end_time ?? "—"}
@@ -1567,7 +1569,31 @@ useEffect(() => {
        </p>
        <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
        <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
-      <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
+       <div className="flex flex-wrap items-center gap-2">
+        <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
+        {detailRow.is_extra_lesson ? (
+         <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
+        ) : null}
+       </div>
+       {detailRow.status.includes("取消") && detailRow.cancel_reason ? (
+        <p className="text-muted-foreground">取消原因：{detailRow.cancel_reason}</p>
+       ) : null}
+       {canManageSchedules ? (
+        <label className="flex items-center gap-2 text-sm">
+         <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-input accent-warning"
+          checked={detailRow.is_extra_lesson}
+          onChange={async (e) => {
+           const next = e.target.checked
+           await updateSchedule(detailRow.id, { is_extra_lesson: next })
+           setDetailRow((prev) => (prev ? { ...prev, is_extra_lesson: next } : prev))
+           await reload()
+          }}
+         />
+         <span className="text-muted-foreground">標記為加堂</span>
+        </label>
+       ) : null}
        {detailRow.remarks ? (
         <p className="text-muted-foreground">備註：{detailRow.remarks}</p>
        ) : null}
@@ -1739,6 +1765,14 @@ useEffect(() => {
      ) : null}
     </DialogContent>
    </Dialog>
+
+   <CancelReasonDialog
+    open={cancelTarget != null}
+    initialReason={cancelTarget?.cancel_reason ?? ""}
+    saving={cancelSaving}
+    onCancel={() => setCancelTarget(null)}
+    onConfirm={(reason) => void confirmCancelSchedule(reason)}
+   />
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>
     <DialogContent className="text-sm">
