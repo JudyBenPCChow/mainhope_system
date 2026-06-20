@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet } from "lucide-react"
 
 import { isSuperAdmin } from "@/lib/mgmtRole"
@@ -34,12 +35,14 @@ import {
  deleteStudent,
  fetchAllStudents,
  fetchEnrollmentSubjectsByStudentIds,
+ fetchRecentClassEnrollments,
  fetchStudentTuitionArrearsByStudentIds,
  insertStudent,
  isUniqueViolation,
  normalizeStudentStatus,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
+ type RecentClassEnrollment,
  type StudentRecord,
  type StudentTuitionArrearsInfo,
 } from "@/services/studentQueries"
@@ -207,16 +210,26 @@ export function StudentsListPage() {
  const [rows, setRows] = useState<StudentRecord[]>([])
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
  const [tuitionMap, setTuitionMap] = useState<Map<string, StudentTuitionArrearsInfo>>(new Map())
+ const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
- const [statusKey, setStatusKey] = useState<(typeof STATUS_FILTERS)[number]["key"]>("all")
- const [gradeKey, setGradeKey] = useState<(typeof GRADE_FILTERS)[number]["key"]>("all")
- const [viewMode, setViewMode] = useState<"table" | "gallery">("table")
- const [sortMode, setSortMode] = useState<"codeAsc" | "codeDesc">("codeDesc")
- const [showGraduated, setShowGraduated] = useState(false)
+ const [statusKey, setStatusKey] = usePersistentState<(typeof STATUS_FILTERS)[number]["key"]>(
+  "mgmt_students_statusKey",
+  "all"
+ )
+ const [gradeKey, setGradeKey] = usePersistentState<(typeof GRADE_FILTERS)[number]["key"]>(
+  "mgmt_students_gradeKey",
+  "all"
+ )
+ const [viewMode, setViewMode] = usePersistentState<"table" | "gallery">("mgmt_students_viewMode", "table")
+ const [sortMode, setSortMode] = usePersistentState<"codeAsc" | "codeDesc">(
+  "mgmt_students_sortMode",
+  "codeDesc"
+ )
+ const [showGraduated, setShowGraduated] = usePersistentState<boolean>("mgmt_students_showGraduated", false)
  const [dashboardCollapsed, setDashboardCollapsed] = useState(false)
  const [recentIndex, setRecentIndex] = useState(0)
- const [search, setSearch] = useState("")
+ const [search, setSearch] = usePersistentState<string>("mgmt_students_search", "")
  const [addOpen, setAddOpen] = useState(false)
  const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
  const [addErr, setAddErr] = useState<string | null>(null)
@@ -230,12 +243,14 @@ export function StudentsListPage() {
    const list = await fetchAllStudents()
    setRows(list)
    const ids = list.map((s) => s.id)
-   const [tagMap, arrearsMap] = await Promise.all([
+   const [tagMap, arrearsMap, recentEnr] = await Promise.all([
     fetchEnrollmentSubjectsByStudentIds(ids),
     fetchStudentTuitionArrearsByStudentIds(ids),
+    fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT),
    ])
    setTags(tagMap)
    setTuitionMap(arrearsMap)
+   setRecentEnrollments(recentEnr)
   } catch (e) {
    reportUserFacingError(e, { source: "StudentsListPage.load", setErr })
   } finally {
@@ -255,32 +270,24 @@ export function StudentsListPage() {
   return { total, enrolled, newThisMonth }
  }, [rows])
 
- // 近期報讀：依建檔時間新→舊取前 N 位，供藍卡輪播
- const recentStudents = useMemo(() => {
-  if (rows.length === 0) return [] as StudentRecord[]
-  return [...rows]
-   .sort((a, b) => b.created_at.localeCompare(a.created_at))
-   .slice(0, RECENT_ENROLL_LIMIT)
- }, [rows])
-
- // 資料變動時回到最新一位
+ // 資料變動時回到最新一筆報讀
  useEffect(() => {
   setRecentIndex(0)
- }, [recentStudents.length])
+ }, [recentEnrollments.length])
 
- // 閒置自動輪播；多於一位才啟動
+ // 閒置自動輪播；多於一筆才啟動
  useEffect(() => {
-  if (recentStudents.length <= 1) return
+  if (recentEnrollments.length <= 1) return
   const id = window.setInterval(() => {
-   setRecentIndex((i) => (i + 1) % recentStudents.length)
+   setRecentIndex((i) => (i + 1) % recentEnrollments.length)
   }, RECENT_ENROLL_ROTATE_MS)
   return () => window.clearInterval(id)
- }, [recentStudents.length])
+ }, [recentEnrollments.length])
 
  const recentCurrent =
-  recentStudents.length === 0
+  recentEnrollments.length === 0
    ? null
-   : recentStudents[Math.min(recentIndex, recentStudents.length - 1)]
+   : recentEnrollments[Math.min(recentIndex, recentEnrollments.length - 1)]
 
  // 取「學號數值最大」者；忽略無/非數字學號（rank < 0），與表格排序共用 studentCodeRank
  const latestCodeStudent = useMemo(() => {
@@ -303,7 +310,9 @@ export function StudentsListPage() {
    list = list.filter((r) => normalizeStudentStatus(r.status) === statusKey)
   }
   if (!showGraduated) {
-   list = list.filter((r) => normalizeStudentStatus(r.status) !== "畢業")
+   list = list.filter(
+    (r) => normalizeStudentStatus(r.status) !== "畢業" && (r.grade ?? "") !== "GD"
+   )
   }
   if (gradeKey !== "all") {
    if (gradeKey === GRADE_FILTER_PRIMARY_KEY) {
@@ -545,9 +554,9 @@ export function StudentsListPage() {
     className="rounded-xl border border-info bg-info p-4 text-left shadow-sm transition hover:border-info/70 hover:shadow-md"
     title="按學號（最新）排序"
    >
-    <div className="text-xs font-medium uppercase tracking-wide text-info">最新學號</div>
-    <div className="mt-1 text-2xl font-bold text-info">{latestCodeStudent?.student_code ?? "—"}</div>
-    <div className="mt-2 text-xs text-info/80">點擊後改為「按學號（最新）」排序</div>
+    <div className="text-xs font-medium uppercase tracking-wide text-info-foreground/90">最新學號</div>
+    <div className="mt-1 text-2xl font-bold text-info-foreground">{latestCodeStudent?.student_code ?? "—"}</div>
+    <div className="mt-2 text-xs text-info-foreground/80">點擊後改為「按學號（最新）」排序</div>
    </button>
    </div>
 
@@ -555,36 +564,36 @@ export function StudentsListPage() {
     <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
      <button
       type="button"
-      onClick={() => navigate(`/Students/${recentCurrent.id}`)}
+      onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
       className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
-      aria-label={`開啟 ${recentCurrent.full_name} 的學生詳情`}
+      aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
      >
-      {recentCurrent.full_name.slice(0, 1)}
+      {recentCurrent.studentName.slice(0, 1)}
      </button>
      <div className="min-w-0 flex-1">
       <div className="text-xs font-medium uppercase tracking-wide text-white/80">
-       {recentIndex === 0 ? "最新報讀" : `近期報讀（第 ${recentIndex + 1} 新）`}
+       {recentIndex === 0 ? "最新報讀班別" : `近期報讀班別（第 ${recentIndex + 1} 新）`}
       </div>
       <button
        type="button"
-       onClick={() => navigate(`/Students/${recentCurrent.id}`)}
+       onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
        className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
       >
-       {recentCurrent.full_name}
+       {recentCurrent.studentName} · {recentCurrent.classLabel}
       </button>
       <div className="text-sm text-white/90">
-       {formatStudentGrade(recentCurrent.grade) + " · " + (recentCurrent.school ?? "—")}
+       報讀日期：{recentCurrent.enrollDate ?? "—"}
       </div>
      </div>
-     {recentStudents.length > 1 ? (
-      <div className="flex gap-1.5" role="tablist" aria-label="近期報讀切換">
-       {recentStudents.map((s, i) => (
+     {recentEnrollments.length > 1 ? (
+      <div className="flex gap-1.5" role="tablist" aria-label="近期報讀班別切換">
+       {recentEnrollments.map((e, i) => (
         <button
-         key={s.id}
+         key={e.id}
          type="button"
          role="tab"
          aria-selected={i === recentIndex}
-         aria-label={`第 ${i + 1} 位近期報讀`}
+         aria-label={`第 ${i + 1} 筆近期報讀班別`}
          onClick={() => setRecentIndex(i)}
          className={cn(
           "h-2.5 w-2.5 rounded-full transition-colors",

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -61,11 +62,14 @@ export function TodoBoardView() {
  const canEdit = role === "admin" || role === "alien"
  const teacherId = isTeacher ? getTeacherScopeTeacherId() : null
 
- const [viewMode, setViewMode] = useState<ViewMode>("table")
- const [searchText, setSearchText] = useState("")
- const [dateFrom, setDateFrom] = useState(addDaysYmd(localYmd(), -30))
- const [dateTo, setDateTo] = useState(addDaysYmd(localYmd(), 60))
- const [tagFilter, setTagFilter] = useState<string[]>([])
+ const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_todos_viewMode", "table")
+ const [searchText, setSearchText] = usePersistentState<string>("mgmt_todos_searchText", "")
+ const [dateFrom, setDateFrom] = usePersistentState<string>(
+  "mgmt_todos_dateFrom",
+  addDaysYmd(localYmd(), -30)
+ )
+ const [dateTo, setDateTo] = usePersistentState<string>("mgmt_todos_dateTo", addDaysYmd(localYmd(), 60))
+ const [tagFilter, setTagFilter] = usePersistentState<string[]>("mgmt_todos_tagFilter", [])
  const [rows, setRows] = useState<CalendarEventRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)

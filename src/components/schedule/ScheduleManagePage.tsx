@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import {
  CalendarDays,
  Check,
@@ -112,10 +113,13 @@ export function ScheduleManagePage() {
  const [displayStart, setDisplayStart] = useState(todayYmd)
  const [dayViewDate, setDayViewDate] = useState(todayYmd)
  const [startInitialized, setStartInitialized] = useState(false)
- const [quickFilter, setQuickFilter] = useState<null | "cancelled">(null)
- const [searchQ, setSearchQ] = useState("")
- const [classFilter, setClassFilter] = useState<string>("all")
- const [statusFilter, setStatusFilter] = useState<string>("all")
+ const [quickFilter, setQuickFilter] = usePersistentState<null | "cancelled">(
+  "mgmt_schedule_quickFilter",
+  null
+ )
+ const [searchQ, setSearchQ] = usePersistentState<string>("mgmt_schedule_searchQ", "")
+ const [classFilter, setClassFilter] = usePersistentState<string>("mgmt_schedule_classFilter", "all")
+ const [statusFilter, setStatusFilter] = usePersistentState<string>("mgmt_schedule_statusFilter", "all")
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [stats, setStats] = useState<ScheduleStatsSnapshot>({

@@ -515,6 +515,53 @@ export async function fetchEnrollmentSubjectsByStudentIds(
  return map
 }
 
+/** 儀表板「最新報讀班別」一筆：某學生報讀某班別的事件（依建檔時間新→舊） */
+export type RecentClassEnrollment = {
+ id: string
+ studentId: string
+ studentName: string
+ classLabel: string
+ enrollDate: string | null
+ status: string
+}
+
+/**
+ * 最近的「報讀班別」事件（含既有學生報讀新班別），依 created_at 新→舊。
+ * 只計 status='就讀中'（真正報讀，排除已退選/取消）。錯誤時回傳空陣列、不阻斷頁面。
+ */
+export async function fetchRecentClassEnrollments(
+ limit = 5
+): Promise<RecentClassEnrollment[]> {
+ if (!supabase) return []
+ const select =
+  "id, status, enroll_date, created_at, student_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name, subjects ( name_zh ) ) )"
+ try {
+  const { data, error } = await supabase
+   .from("student_class_enrollments")
+   .select(select)
+   .eq("status", "就讀中")
+   .order("created_at", { ascending: false })
+   .limit(limit)
+  if (error) throw error
+  return (data ?? []).map((row) => {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   const cls = r.classes as Record<string, unknown> | null
+   return {
+    id: String(r.id),
+    studentId: String(r.student_id),
+    studentName: st?.full_name != null ? String(st.full_name) : "—",
+    classLabel: enrollmentClassLabel(cls) ?? "—",
+    enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
+    status: String(r.status ?? ""),
+   }
+  })
+ } catch (error) {
+  console.error("[fetchRecentClassEnrollments]", error)
+  return []
+ }
+}
+
 export async function fetchEnrollmentsForStudent(
  studentId: string
 ): Promise<EnrollmentWithClass[]> {

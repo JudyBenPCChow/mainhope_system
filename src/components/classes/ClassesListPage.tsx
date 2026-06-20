@@ -28,6 +28,11 @@ import {
  isPrimaryGradeLabel,
  weekdaysFromStored,
 } from "@/components/classes/classesUi"
+import {
+ getClassesListDataCache,
+ setClassesListDataCache,
+} from "@/components/classes/classesListState"
+import { usePersistentState } from "@/hooks/usePersistentState"
 import { classDisplayName } from "@/lib/courseLabel"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
@@ -82,22 +87,32 @@ export function ClassesListPage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const teacherTid = getTeacherScopeTeacherId()
- const [rows, setRows] = useState<ClassRecord[]>([])
+ const initialCache = useMemo(() => getClassesListDataCache(), [])
+ const [rows, setRows] = useState<ClassRecord[]>(() => initialCache?.rows ?? [])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
-  () => new Map()
+  () => initialCache?.enrollRoster ?? new Map()
  )
- const [scheduleSummaries, setScheduleSummaries] = useState<Map<string, ClassScheduleSummary>>(() => new Map())
- const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
- const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>([])
- const [loading, setLoading] = useState(true)
+ const [scheduleSummaries, setScheduleSummaries] = useState<Map<string, ClassScheduleSummary>>(
+  () => initialCache?.scheduleSummaries ?? new Map()
+ )
+ const [teachers, setTeachers] = useState<{ id: string; label: string }[]>(
+  () => initialCache?.teachers ?? []
+ )
+ const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>(
+  () => initialCache?.yearOptions ?? []
+ )
+ const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
- const [view, setView] = useState<"list" | "kanban" | "gallery">("list")
- const [kanbanGroup, setKanbanGroup] = useState<"day" | "teacher" | "grade">("day")
- const [gradeKey, setGradeKey] = useState<string>("全部")
- const [subjectKey, setSubjectKey] = useState<string>("全部")
- const [teacherKey, setTeacherKey] = useState<string>("全部")
- const [dayKey, setDayKey] = useState<string>("全部")
- const [statusKey, setStatusKey] = useState<string>("全部")
+ const [view, setView] = usePersistentState<"list" | "kanban" | "gallery">("mgmt_classes_view", "list")
+ const [kanbanGroup, setKanbanGroup] = usePersistentState<"day" | "teacher" | "grade">(
+  "mgmt_classes_kanbanGroup",
+  "day"
+ )
+ const [gradeKey, setGradeKey] = usePersistentState<string>("mgmt_classes_gradeKey", "全部")
+ const [subjectKey, setSubjectKey] = usePersistentState<string>("mgmt_classes_subjectKey", "全部")
+ const [teacherKey, setTeacherKey] = usePersistentState<string>("mgmt_classes_teacherKey", "全部")
+ const [dayKey, setDayKey] = usePersistentState<string>("mgmt_classes_dayKey", "全部")
+ const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -109,11 +124,20 @@ export function ClassesListPage() {
     fetchTeacherOptions(),
     fetchAcademicYearOptions(),
    ])
+   const roster = await fetchEnrollmentRosterByClassIds(list.map((c) => c.id))
+   const summaries = await fetchScheduleSummariesByClassIds(list.map((c) => c.id))
    setRows(list)
    setTeachers(teacherOpts)
    setYearOptions(yearOpts)
-   setEnrollRoster(await fetchEnrollmentRosterByClassIds(list.map((c) => c.id)))
-   setScheduleSummaries(await fetchScheduleSummariesByClassIds(list.map((c) => c.id)))
+   setEnrollRoster(roster)
+   setScheduleSummaries(summaries)
+   setClassesListDataCache({
+    rows: list,
+    teachers: teacherOpts,
+    yearOptions: yearOpts,
+    enrollRoster: roster,
+    scheduleSummaries: summaries,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
   } finally {
@@ -136,7 +160,9 @@ export function ClassesListPage() {
  }, [])
 
  useEffect(() => {
-  void load()
+  // 已有快取（例如自班別詳情返回）時靜默更新，避免閃「載入中」並保留篩選；
+  // 首次進入才顯示載入狀態。
+  void load({ silent: getClassesListDataCache() != null })
  }, [location.key, load])
 
  useEffect(() => {
