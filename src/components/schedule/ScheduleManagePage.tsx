@@ -66,9 +66,12 @@ import {
  getScheduleById,
  insertScheduleForClass,
  updateSchedule,
+ type ClassRecord,
  type ClassStudentRow,
  type ScheduleDetailRecord,
 } from "@/services/classQueries"
+import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
+import { consecutivePairFromFirstTimeSlot, isConsecutiveClass } from "@/lib/consecutiveLesson"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
@@ -76,11 +79,13 @@ import {
  fetchScheduleAlerts,
  fetchSchedulesInRange,
  fetchScheduleStatsSnapshot,
+ fetchTeacherScheduleConflicts,
  localYmd,
  scheduleRangeEnd,
  type ScheduleAlerts,
  type ScheduleManageRow,
  type ScheduleStatsSnapshot,
+ type TeacherScheduleConflict,
 } from "@/services/scheduleQueries"
 
 const RANGE_DAYS = 14
@@ -161,6 +166,8 @@ export function ScheduleManagePage() {
  const [addErr, setAddErr] = useState<string | null>(null)
  const [addExtra, setAddExtra] = useState(false)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
+ const [addClassRecords, setAddClassRecords] = useState<ClassRecord[]>([])
+ const [addConflicts, setAddConflicts] = useState<TeacherScheduleConflict[]>([])
 
  const [cancelTarget, setCancelTarget] = useState<ScheduleManageRow | null>(null)
  const [cancelSaving, setCancelSaving] = useState(false)
@@ -306,6 +313,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
   if (!addOpen) return
   void fetchAllClasses().then((all) => {
    const scoped = teacherScopeId ? all.filter((c) => c.teacher_id === teacherScopeId) : all
+   setAddClassRecords(scoped)
    setClassPickList(
     scoped.map((c) => ({
      id: c.id,
@@ -322,6 +330,51 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    })
   })
  }, [addOpen, teacherScopeId])
+
+ useEffect(() => {
+  if (!addOpen || !addClassId || !addDate) {
+   setAddConflicts([])
+   return
+  }
+  const cls = addClassRecords.find((c) => c.id === addClassId)
+  const teacherId = cls?.teacher_id ?? null
+  if (!teacherId) {
+   setAddConflicts([])
+   return
+  }
+  let start = addStart || null
+  let end = addEnd || null
+  if (!start && cls?.time_slot) {
+   const bounds = parseTimeSlotBounds(cls.time_slot)
+   start = bounds.start
+   if (isConsecutiveClass(cls.lesson_slots_per_session)) {
+    const pair = consecutivePairFromFirstTimeSlot(cls.time_slot)
+    end = pair ? pair.slot2.end : bounds.end
+   } else {
+    end = bounds.end
+   }
+  }
+  if (!start) {
+   setAddConflicts([])
+   return
+  }
+  let cancelled = false
+  void fetchTeacherScheduleConflicts({
+   teacherId,
+   scheduledDate: addDate,
+   startTime: start,
+   endTime: end,
+  })
+   .then((list) => {
+    if (!cancelled) setAddConflicts(list)
+   })
+   .catch(() => {
+    if (!cancelled) setAddConflicts([])
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [addOpen, addClassId, addDate, addStart, addEnd, addClassRecords])
 
 useEffect(() => {
  if (!teacherScopeId) {
@@ -1784,6 +1837,27 @@ useEffect(() => {
        />
        <span className="text-muted-foreground">標記為加堂（額外加開課堂）</span>
       </label>
+      {addConflicts.length > 0 ? (
+       <div
+        role="alert"
+        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+       >
+        <p className="font-medium text-warning">
+         此老師於 {addDate} 已有 {addConflicts.length} 筆同時段排程：
+        </p>
+        <ul className="mt-1 space-y-0.5">
+         {addConflicts.map((c) => (
+          <li key={c.id} className="tabular-nums">
+           {c.startTime ? c.startTime.slice(0, 5) : "—"}
+           {c.endTime ? `–${c.endTime.slice(0, 5)}` : ""}
+           <span className="ml-1">{c.classLabel}</span>
+           {c.classroomName ? `（${c.classroomName}）` : ""}
+          </li>
+         ))}
+        </ul>
+        <p className="mt-1 text-xs text-muted-foreground">仍可繼續儲存；請確認是否真的需要重複安排。</p>
+       </div>
+      ) : null}
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>

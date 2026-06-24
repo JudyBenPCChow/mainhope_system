@@ -7,6 +7,7 @@ import { KANBAN_DAY_COLUMNS } from "@/components/classes/classesUi"
 import {
  LESSON_SLOT_INDICES,
  lessonSlotLabel,
+ standardSlotIndexForStartTime,
 } from "@/lib/lessonSlots"
 
 function timeSlotsEqual(a: string, b: string): boolean {
@@ -334,6 +335,52 @@ export async function markAvailabilityForScheduleDates(params: {
    .eq("id", slot.id)
   if (error) throw new Error(formatUnknownError(error))
  }
+}
+
+/** 將排程開始時間（可含秒）對應回標準檔期時段標籤；非標準起點回 null */
+export function availabilityTimeSlotForStartTime(startTime: string | null): string | null {
+ if (!startTime) return null
+ const idx = standardSlotIndexForStartTime(startTime.slice(0, 5))
+ if (idx == null) return null
+ return lessonSlotLabel(idx)
+}
+
+/**
+ * 取消／刪除「單筆排程」後呼叫：若該老師於該日該時段已無有效排程，
+ * 將對應檔期由「已分配」釋放回「可分配」。
+ * 只在確認沒有其他未取消排程仍佔用該時段時才釋放，避免連堂或重複排程被誤放。
+ */
+export async function releaseAvailabilitySlotForSchedule(params: {
+ teacherId: string | null
+ scheduledDate: string
+ startTime: string | null
+}): Promise<void> {
+ if (!supabase || !params.teacherId || !params.startTime) return
+ const timeSlot = availabilityTimeSlotForStartTime(params.startTime)
+ if (!timeSlot) return
+ const dateYmd = params.scheduledDate.slice(0, 10)
+
+ const { data: remaining, error: remErr } = await supabase
+  .from("schedules")
+  .select("status, start_time")
+  .eq("teacher_id", params.teacherId)
+  .eq("scheduled_date", dateYmd)
+ if (remErr) throw new Error(formatUnknownError(remErr))
+ const stillBooked = (remaining ?? []).some((r) => {
+  const row = r as { status?: string; start_time?: string | null }
+  if (String(row.status ?? "").includes("取消")) return false
+  return availabilityTimeSlotForStartTime(row.start_time ?? null) === timeSlot
+ })
+ if (stillBooked) return
+
+ const onDate = await fetchSlotsForTeacherOnDate(params.teacherId, dateYmd)
+ const slot = onDate.find((s) => timeSlotsEqual(s.time_slot, timeSlot) && s.status === "已分配")
+ if (!slot) return
+ const { error } = await supabase
+  .from("teacher_availability_slots")
+  .update({ status: "可分配", assigned_class_id: null, updated_at: new Date().toISOString() })
+  .eq("id", slot.id)
+ if (error) throw new Error(formatUnknownError(error))
 }
 
 export async function releaseAvailabilityForClass(classId: string): Promise<void> {

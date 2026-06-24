@@ -1,4 +1,9 @@
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ LESSON_SLOT_DURATION_MIN,
+ intervalsOverlapMinutes,
+ parseHm,
+} from "@/lib/lessonSlots"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
@@ -355,6 +360,74 @@ export async function fetchScheduleSummariesByClassIds(
    entry.dates.push(String(r.scheduled_date))
   }
  }
+ return out
+}
+
+export type TeacherScheduleConflict = {
+ id: string
+ scheduledDate: string
+ startTime: string | null
+ endTime: string | null
+ status: string
+ classLabel: string
+ classroomName: string | null
+}
+
+/**
+ * 找出某老師在指定日期、與給定時間範圍重疊的「未取消」排程，用於新增排程時提醒。
+ * 若新排程只有開始時間、沒有結束時間，預設以一格課時長推算結束。
+ */
+export async function fetchTeacherScheduleConflicts(params: {
+ teacherId: string
+ scheduledDate: string
+ startTime: string | null
+ endTime: string | null
+ excludeScheduleId?: string | null
+}): Promise<TeacherScheduleConflict[]> {
+ if (!supabase || !params.teacherId) return []
+ const dateYmd = params.scheduledDate.slice(0, 10)
+ const newStart = parseHm((params.startTime ?? "").slice(0, 5))
+ if (newStart == null) return []
+ const newEnd = parseHm((params.endTime ?? "").slice(0, 5)) ?? newStart + LESSON_SLOT_DURATION_MIN
+
+ const { data, error } = await supabase
+  .from("schedules")
+  .select(
+   "id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code_full, courses ( course_name ) ), classrooms ( name )"
+  )
+  .eq("teacher_id", params.teacherId)
+  .eq("scheduled_date", dateYmd)
+ if (error) throw error
+
+ const out: TeacherScheduleConflict[] = []
+ for (const row of (data ?? []) as Record<string, unknown>[]) {
+  const id = String(row.id)
+  if (params.excludeScheduleId && id === params.excludeScheduleId) continue
+  const status = String(row.status ?? "")
+  if (status.includes("取消")) continue
+  const st = row.start_time != null ? String(row.start_time) : null
+  const et = row.end_time != null ? String(row.end_time) : null
+  const exStart = parseHm((st ?? "").slice(0, 5))
+  if (exStart == null) continue
+  const exEnd = parseHm((et ?? "").slice(0, 5)) ?? exStart + LESSON_SLOT_DURATION_MIN
+  if (!intervalsOverlapMinutes(newStart, newEnd, exStart, exEnd)) continue
+  const cls = row.classes as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "（無班別）"
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+  const rm = row.classrooms as Record<string, unknown> | null
+  out.push({
+   id,
+   scheduledDate: String(row.scheduled_date ?? "").slice(0, 10),
+   startTime: st,
+   endTime: et,
+   status,
+   classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
+   classroomName: rm?.name != null ? String(rm.name) : null,
+  })
+ }
+ out.sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""))
  return out
 }
 

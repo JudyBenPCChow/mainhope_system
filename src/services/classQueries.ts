@@ -17,7 +17,12 @@ import { gradeLabelsAlignedFromCourse, resolveClassGradeLabels, normalizeStoredC
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass, localYmd } from "@/services/scheduleQueries"
-import { releaseAvailabilityForClass } from "@/services/teacherAvailabilityQueries"
+import {
+ availabilityTimeSlotForStartTime,
+ markAvailabilityForScheduleDates,
+ releaseAvailabilityForClass,
+ releaseAvailabilitySlotForSchedule,
+} from "@/services/teacherAvailabilityQueries"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import type { EnrollmentPeriod, CourseMode } from "@/lib/enrollmentPeriod"
 import {
@@ -1199,17 +1204,47 @@ export async function updateSchedule(
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: sched, error: fetchErr } = await supabase
   .from("schedules")
-  .select("scheduled_date")
+  .select("scheduled_date, teacher_id, start_time, class_id, status")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!sched) throw new Error("找不到排程")
- assertAcademicYearEditableForDate(String((sched as { scheduled_date?: string }).scheduled_date ?? ""))
+ const prev = sched as {
+  scheduled_date?: string
+  teacher_id?: string | null
+  start_time?: string | null
+  class_id?: string | null
+  status?: string | null
+ }
+ assertAcademicYearEditableForDate(String(prev.scheduled_date ?? ""))
  const { error } = await supabase
   .from("schedules")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
  if (error) throw error
+
+ if (patch.status !== undefined && patch.status !== prev.status) {
+  const nowCancelled = patch.status.includes("取消")
+  const wasCancelled = String(prev.status ?? "").includes("取消")
+  if (nowCancelled && !wasCancelled) {
+   await releaseAvailabilitySlotForSchedule({
+    teacherId: prev.teacher_id ?? null,
+    scheduledDate: String(prev.scheduled_date ?? ""),
+    startTime: prev.start_time ?? null,
+   })
+  } else if (!nowCancelled && wasCancelled && prev.teacher_id && prev.class_id) {
+   const timeSlot = availabilityTimeSlotForStartTime(prev.start_time ?? null)
+   if (timeSlot) {
+    await markAvailabilityForScheduleDates({
+     classId: prev.class_id,
+     teacherId: prev.teacher_id,
+     timeSlot,
+     dates: [String(prev.scheduled_date ?? "").slice(0, 10)],
+    })
+   }
+  }
+ }
+
  void logMgmtAuditAction({
   action: "更新排程",
   detail: `schedule_id=${id}; patch=${JSON.stringify(patch)}`,
@@ -1220,14 +1255,24 @@ export async function deleteSchedule(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: sched, error: fetchErr } = await supabase
   .from("schedules")
-  .select("scheduled_date")
+  .select("scheduled_date, teacher_id, start_time")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!sched) throw new Error("找不到排程")
- assertAcademicYearEditableForDate(String((sched as { scheduled_date?: string }).scheduled_date ?? ""))
+ const prev = sched as {
+  scheduled_date?: string
+  teacher_id?: string | null
+  start_time?: string | null
+ }
+ assertAcademicYearEditableForDate(String(prev.scheduled_date ?? ""))
  const { error } = await supabase.from("schedules").delete().eq("id", id)
  if (error) throw error
+ await releaseAvailabilitySlotForSchedule({
+  teacherId: prev.teacher_id ?? null,
+  scheduledDate: String(prev.scheduled_date ?? ""),
+  startTime: prev.start_time ?? null,
+ })
  void logMgmtAuditAction({
   action: "刪除排程",
   detail: `schedule_id=${id}`,
