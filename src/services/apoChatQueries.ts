@@ -81,8 +81,17 @@ function normalizeContext(raw: unknown): ApoChatContext {
   const out: ApoChatContext = {}
   if (o.lastStudentId) out.lastStudentId = String(o.lastStudentId)
   if (o.lastStudentName) out.lastStudentName = String(o.lastStudentName)
+  if (o.lastTeacherId) out.lastTeacherId = String(o.lastTeacherId)
+  if (o.lastTeacherName) out.lastTeacherName = String(o.lastTeacherName)
   if (o.lastTopic) out.lastTopic = String(o.lastTopic)
   if (o.summary) out.summary = String(o.summary)
+  if (o.listOffset != null && Number.isFinite(Number(o.listOffset))) {
+    out.listOffset = Math.max(0, Math.trunc(Number(o.listOffset)))
+  }
+  if (o.listTotal != null && Number.isFinite(Number(o.listTotal))) {
+    out.listTotal = Math.max(0, Math.trunc(Number(o.listTotal)))
+  }
+  if (typeof o.listHasMore === "boolean") out.listHasMore = o.listHasMore
   return out
 }
 

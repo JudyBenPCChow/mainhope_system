@@ -3,7 +3,7 @@
 export type ApoIntent = "chitchat" | "howto" | "db_query"
 
 const DB_KEYWORDS =
-  /上堂|上唔上堂|請假|點名|出席|試堂|在讀|活躍|非活躍|排程|繳費|追收|班別|名單|學生|學號|報讀|課堂|今日有|幾點上|欠費|堂數|roster|profile/i
+  /上堂|上唔上堂|請假|點名|出席|試堂|在讀|活躍|非活躍|排程|繳費|追收|班別|名單|學生|學號|報讀|課堂|今日有|幾點上|欠費|堂數|老師|teacher|roster|profile|待補|補課/i
 
 const HOWTO_KEYWORDS =
   /如何|怎樣|點樣|在哪|邊度|怎麼|步驟|做法|新增|設定|分別|什麼是|係咩|意思|操作|入口|頁面/i
@@ -20,12 +20,20 @@ export function isFollowUpQuestion(text: string): boolean {
   return false
 }
 
-export function classifyApoIntent(text: string, hasStudentContext: boolean): ApoIntent {
+export function classifyApoIntent(
+  text: string,
+  hasEntityContext: boolean
+): ApoIntent {
   const t = text.trim()
   if (!t) return "howto"
 
   const followUp = isFollowUpQuestion(t)
-  if (followUp && hasStudentContext) return "db_query"
+  if (followUp && hasEntityContext) return "db_query"
+
+  // 老師班別查詢一律走 DB
+  if (/老師|teacher/i.test(t) && /班|課/.test(t)) return "db_query"
+  if (/係老師|是老師/.test(t)) return "db_query"
+  if (/班別|邊班|乜班|有咩班/.test(t) && /[A-Za-z]{2,}/.test(t)) return "db_query"
 
   const hasDb = DB_KEYWORDS.test(t)
   const hasHowto = HOWTO_KEYWORDS.test(t)

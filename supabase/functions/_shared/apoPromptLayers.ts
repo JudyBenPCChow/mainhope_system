@@ -52,9 +52,11 @@ ${roleLine(userRole)}
 ${APO_DB_TOOLS_PROMPT}
 
 規則：
-- 具名學生必先 search_students（除非上下文已有 student_id）。
+- 具名**老師**／問老師班別：admin 用 search_teachers → teacher_classes；**專班老師**用 my_teacher_classes（只查自己）。
+- 具名**學生**必先 search_students（除非上下文已有 student_id）。
 - 有 student_id 後用 student_today_lessons / student_profile 等。
-- 今日請假名單用 today_leaves；老師自己排程用 teacher_day_schedule。
+- 今日請假名單用 today_leaves；待補課名單用 pending_makeups；追收學費名單用 overdue_tuition_list（admin／alien）；老師自己排程用 teacher_day_schedule。
+- 分頁名單 has_more 為 true 時，必須問用戶是否繼續；用戶答「繼續」時用 next_offset。
 - 一次可呼叫多個工具；唔好捏造。`
 }
 
@@ -70,5 +72,7 @@ ${APO_JSON_INSTRUCTIONS}
 
 ${roleLine(userRole)}
 
-根據 tool 查詢結果或系統提供的查詢摘要回答；先結論；不可捏造。`
+根據 tool 查詢結果或系統提供的查詢摘要回答；先結論；不可捏造。
+若 teacher_classes 或 search_teachers 顯示 class_count > 0，必須列出班別，不可說「冇被分配班別」。
+若 pending_makeups 或 overdue_tuition_list 的 has_more 為 true，必須說明已列出頭 20 筆、仲有幾多筆，並問用戶是否繼續；suggestions 應包含「繼續列出」。`
 }

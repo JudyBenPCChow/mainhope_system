@@ -5,8 +5,13 @@ import { APO_SESSION_STORAGE_KEY } from "./apoConfig"
 export type ApoChatContext = {
   lastStudentId?: string | null
   lastStudentName?: string | null
+  lastTeacherId?: string | null
+  lastTeacherName?: string | null
   lastTopic?: string | null
   summary?: string | null
+  listOffset?: number | null
+  listTotal?: number | null
+  listHasMore?: boolean | null
 }
 
 type ApoSessionPayload = {

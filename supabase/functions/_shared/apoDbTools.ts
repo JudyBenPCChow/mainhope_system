@@ -8,9 +8,17 @@ export type AssistantDbContext = {
 export type ApoContextPatch = {
   lastStudentId?: string | null
   lastStudentName?: string | null
+  lastTeacherId?: string | null
+  lastTeacherName?: string | null
   lastTopic?: string | null
   summary?: string | null
+  /** 分頁名單：下一頁 offset（用戶答「繼續」時帶入） */
+  listOffset?: number | null
+  listTotal?: number | null
+  listHasMore?: boolean | null
 }
+
+export const APO_LIST_PAGE_SIZE = 20
 
 type ToolDef = {
   type: "function"
@@ -25,8 +33,36 @@ export const APO_DB_TOOL_DEFINITIONS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "search_teachers",
+      description: "按中文或英文姓名搜尋老師（模糊匹配）。查詢老師班別、老師資料前必先呼叫；唔好用 search_students 查老師。",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "老師姓名關鍵字" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "teacher_classes",
+      description: "查詢指定老師負責嘅班別列表（科目、代碼、星期、時段、就讀人數）。需 teacher_id（來自 search_teachers）。",
+      parameters: {
+        type: "object",
+        properties: {
+          teacher_id: { type: "string", description: "老師 UUID" },
+        },
+        required: ["teacher_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "search_students",
-      description: "按中文姓名、英文姓名或學號搜尋學生（模糊匹配）。查詢具名學生前必先呼叫。",
+      description: "按中文姓名、英文姓名或學號搜尋學生（模糊匹配）。僅用於學生；若用戶問老師請用 search_teachers。",
       parameters: {
         type: "object",
         properties: {
@@ -148,25 +184,94 @@ export const APO_DB_TOOL_DEFINITIONS: ToolDef[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "pending_makeups",
+      description:
+        "查詢待補課名單（同請假管理「待補課」分頁：未完成、未放棄）。每頁 20 筆；has_more 為 true 時告知用戶可繼續。專班老師只看到自己班別。",
+      parameters: {
+        type: "object",
+        properties: {
+          offset: { type: "integer", description: "分頁偏移，預設 0；用戶答「繼續」時用 next_offset" },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "overdue_tuition_list",
+      description:
+        "查詢需追收學費的在讀／活躍學生名單（計費出席堂數 ≥ 已繳堂數）。每頁 20 筆；僅 admin／alien。不回傳金額。",
+      parameters: {
+        type: "object",
+        properties: {
+          offset: { type: "integer", description: "分頁偏移，預設 0；用戶答「繼續」時用 next_offset" },
+        },
+      },
+    },
+  },
 ]
+
+export type ApoToolDef = (typeof APO_DB_TOOL_DEFINITIONS)[number]
+
+const TEACHER_DENIED_TOOL_NAMES = new Set([
+  "search_teachers",
+  "teacher_classes",
+  "student_tuition",
+  "overdue_tuition_list",
+])
+
+const MY_TEACHER_CLASSES_TOOL: ApoToolDef = {
+  type: "function",
+  function: {
+    name: "my_teacher_classes",
+    description: "查詢我（目前登入專班老師）負責的所有班別。專班老師查自己班別時用此工具。",
+    parameters: { type: "object", properties: {} },
+  },
+}
+
+/** 依角色回傳可用 tools（專班老師唔會見到查其他老師／繳費工具） */
+export function toolsForRole(userRole: string): ApoToolDef[] {
+  if (userRole === "teacher") {
+    const base = APO_DB_TOOL_DEFINITIONS.filter((t) => !TEACHER_DENIED_TOOL_NAMES.has(t.function.name))
+    return [...base, MY_TEACHER_CLASSES_TOOL]
+  }
+  return [...APO_DB_TOOL_DEFINITIONS]
+}
+
+function assertToolAllowed(toolName: string, ctx: AssistantDbContext): string | null {
+  if (ctx.userRole === "teacher" && TEACHER_DENIED_TOOL_NAMES.has(toolName)) {
+    return JSON.stringify({ ok: false, error: "你沒有權限使用此查詢功能" })
+  }
+  if (toolName === "my_teacher_classes" && ctx.userRole !== "teacher") {
+    return JSON.stringify({ ok: false, error: "此功能僅供專班老師使用" })
+  }
+  return null
+}
 
 export const APO_DB_TOOLS_PROMPT = `
 ## 資料庫查詢（唯讀）
 
-你可透過工具即時查詢系統資料（只讀，不可寫入）。適用場景：
-- 學生今日有冇堂、幾點、邊班、已請假未
-- 學生狀態（在讀、活躍、報讀班別）
-- 學生最近出席紀錄
-- 今日請假名單、班別點名名單
-- 老師今日排程（teacher 角色）
-- 未來試堂（admin／teacher／alien）
-- 已繳／已上堂數與追收學費提示（僅 admin／alien）
+你可透過工具即時查詢系統資料（只讀，不可寫入）。
+
+**admin／alien**：search_teachers → teacher_classes 查任意老師班別。
+**專班老師**：只用 my_teacher_classes、teacher_day_schedule 查自己；search_students 只會返回自己班學生；不可用 search_teachers、student_tuition、overdue_tuition_list。
+
+適用場景：
+- 老師班別（admin 用 search_teachers；teacher 用 my_teacher_classes）
+- 學生今日上堂、請假、狀態、出席
+- 今日請假名單、待補課名單、班別點名名單
+- 未來試堂
+- 追收學費名單（admin／alien）
+
+**分頁名單**（pending_makeups、overdue_tuition_list）：每頁 20 筆；若 has_more 為 true，必須告知用戶仲有幾多筆未列出，並問是否繼續；用戶答「繼續」時用 next_offset 再查。
 
 **流程：**
-1. 用戶提到具名學生時，先 \`search_students\`；若多名候選須列出請用戶確認。
-2. 再用 \`student_today_lessons\`、\`student_profile\` 等取得細節。
-3. 根據查詢結果回答；**不可捏造**資料庫沒有的內容。
-4. 仍不可回傳電話、地址；不可代為修改資料。
+1. 問**老師**班別：admin 用 search_teachers → teacher_classes；teacher 用 my_teacher_classes。
+2. 問**學生**：search_students → student_*；**禁止**用 search_students 查老師。
+3. 根據查詢結果回答；不可捏造。
 
 lesson_state 含義：expected=應上堂、on_leave=已請假、excused=請假已點、absent=缺席、cancelled=排程取消、marked=已點名其他狀態。
 `.trim()
@@ -227,6 +332,33 @@ export function trimToolResult(
   if (result.ok === false) return { ok: false, error: result.error }
 
   switch (toolName) {
+    case "search_teachers": {
+      const teachers = Array.isArray(result.teachers) ? result.teachers.slice(0, 8) : []
+      return {
+        ok: true,
+        count: result.count,
+        teachers: teachers.map((t) => {
+          const r = t as Record<string, unknown>
+          return {
+            id: r.id,
+            full_name: r.full_name,
+            english_name: r.english_name,
+            status: r.status,
+            class_count: r.class_count,
+          }
+        }),
+      }
+    }
+    case "teacher_classes":
+      return {
+        ok: true,
+        teacher: result.teacher,
+        teacher_id: result.teacher_id,
+        class_count: result.class_count,
+        classes: Array.isArray(result.classes) ? result.classes.slice(0, 20) : [],
+      }
+    case "my_teacher_classes":
+      return trimToolResult("teacher_classes", result)
     case "search_students": {
       const students = Array.isArray(result.students) ? result.students.slice(0, 5) : []
       return {
@@ -293,6 +425,18 @@ export function trimToolResult(
         trial_count: result.trial_count,
         trials: Array.isArray(result.trials) ? result.trials.slice(0, 15) : [],
       }
+    case "pending_makeups":
+    case "overdue_tuition_list":
+      return {
+        ok: true,
+        total_count: result.total_count,
+        offset: result.offset,
+        limit: result.limit,
+        has_more: result.has_more,
+        next_offset: result.next_offset,
+        record_count: result.record_count,
+        records: Array.isArray(result.records) ? result.records.slice(0, APO_LIST_PAGE_SIZE) : [],
+      }
     default:
       return result
   }
@@ -305,6 +449,28 @@ export function extractContextPatch(
   if (result.ok === false) return {}
 
   const patch: ApoContextPatch = { lastTopic: toolName }
+
+  if (toolName === "search_teachers" && Array.isArray(result.teachers)) {
+    const list = result.teachers as Record<string, unknown>[]
+    if (list.length === 1) {
+      patch.lastTeacherId = String(list[0].id ?? "")
+      patch.lastTeacherName = String(list[0].english_name ?? list[0].full_name ?? "")
+      patch.summary = `討論老師：${patch.lastTeacherName}`
+    } else if (list.length > 1) {
+      patch.summary = `搜尋到 ${list.length} 名候選老師`
+    }
+    return patch
+  }
+
+  if (toolName === "teacher_classes" || toolName === "my_teacher_classes") {
+    const teacher = result.teacher as Record<string, unknown> | undefined
+    if (teacher) {
+      patch.lastTeacherId = String(result.teacher_id ?? teacher.id ?? "")
+      patch.lastTeacherName = String(teacher.english_name ?? teacher.full_name ?? "")
+      patch.summary = `老師 ${patch.lastTeacherName} 有 ${result.class_count ?? 0} 個班別`
+    }
+    return patch
+  }
 
   if (toolName === "search_students" && Array.isArray(result.students)) {
     const list = result.students as Record<string, unknown>[]
@@ -331,6 +497,18 @@ export function extractContextPatch(
     patch.summary = `查詢 ${patch.lastStudentName ?? "學生"} 今日上堂（${result.lesson_count ?? 0} 堂）`
   }
 
+  if (toolName === "pending_makeups" || toolName === "overdue_tuition_list") {
+    const total = Number(result.total_count ?? 0)
+    const offset = Number(result.offset ?? 0)
+    const shown = Number(result.record_count ?? 0)
+    patch.listOffset = result.next_offset != null ? Number(result.next_offset) : null
+    patch.listTotal = total
+    patch.listHasMore = result.has_more === true
+    const label = toolName === "pending_makeups" ? "待補課" : "追收學費"
+    patch.summary = `${label}名單：第 ${offset + 1}–${offset + shown} 筆，共 ${total} 筆`
+    return patch
+  }
+
   return patch
 }
 
@@ -342,8 +520,13 @@ export function mergeContextPatches(
   for (const p of patches) {
     if (p.lastStudentId) out.lastStudentId = p.lastStudentId
     if (p.lastStudentName) out.lastStudentName = p.lastStudentName
+    if (p.lastTeacherId) out.lastTeacherId = p.lastTeacherId
+    if (p.lastTeacherName) out.lastTeacherName = p.lastTeacherName
     if (p.lastTopic) out.lastTopic = p.lastTopic
     if (p.summary) out.summary = p.summary
+    if (p.listOffset != null) out.listOffset = p.listOffset
+    if (p.listTotal != null) out.listTotal = p.listTotal
+    if (p.listHasMore != null) out.listHasMore = p.listHasMore
   }
   return out
 }
@@ -354,8 +537,14 @@ export function formatContextHint(ctx: ApoContextPatch | undefined): string {
   if (ctx.lastStudentName && ctx.lastStudentId) {
     parts.push(`當前討論學生：${ctx.lastStudentName}（id: ${ctx.lastStudentId}）`)
   }
+  if (ctx.lastTeacherName && ctx.lastTeacherId) {
+    parts.push(`當前討論老師：${ctx.lastTeacherName}（id: ${ctx.lastTeacherId}）`)
+  }
   if (ctx.summary) parts.push(ctx.summary)
   if (ctx.lastTopic) parts.push(`上次查詢類型：${ctx.lastTopic}`)
+  if (ctx.listHasMore && ctx.listOffset != null) {
+    parts.push(`名單尚有更多（下次 offset=${ctx.listOffset}）`)
+  }
   return parts.join("；")
 }
 
@@ -373,7 +562,41 @@ export async function executeApoDbTool(
   const teacherId = ctx.teacherId
 
   try {
+    const denied = assertToolAllowed(name, ctx)
+    if (denied) return denied
+
     switch (name) {
+      case "my_teacher_classes": {
+        if (ctx.userRole !== "teacher" || !ctx.teacherId) {
+          return JSON.stringify({ ok: false, error: "僅專班老師可查自己的班別" })
+        }
+        const result = await rpcJson(client, "apo_assistant_teacher_classes", {
+          p_teacher_id: ctx.teacherId,
+          p_user_role: ctx.userRole,
+          p_scope_teacher_id: ctx.teacherId,
+        })
+        return JSON.stringify(trimToolResult("my_teacher_classes", result))
+      }
+      case "search_teachers": {
+        const query = strArg(args, "query")
+        if (!query) return JSON.stringify({ ok: false, error: "缺少 query" })
+        const result = await rpcJson(client, "apo_assistant_search_teachers", {
+          p_query: query,
+          p_user_role: role,
+          p_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, result))
+      }
+      case "teacher_classes": {
+        const tid = strArg(args, "teacher_id")
+        if (!tid) return JSON.stringify({ ok: false, error: "缺少 teacher_id" })
+        const result = await rpcJson(client, "apo_assistant_teacher_classes", {
+          p_teacher_id: tid,
+          p_user_role: role,
+          p_scope_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, result))
+      }
       case "search_students": {
         const query = strArg(args, "query")
         if (!query) return JSON.stringify({ ok: false, error: "缺少 query" })
@@ -456,6 +679,24 @@ export async function executeApoDbTool(
       case "upcoming_trials": {
         const result = await rpcJson(client, "apo_assistant_upcoming_trials", {
           p_days: intArg(args, "days", 7),
+          p_user_role: role,
+          p_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, result))
+      }
+      case "pending_makeups": {
+        const result = await rpcJson(client, "apo_assistant_pending_makeups", {
+          p_offset: intArg(args, "offset", 0),
+          p_limit: APO_LIST_PAGE_SIZE,
+          p_user_role: role,
+          p_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, result))
+      }
+      case "overdue_tuition_list": {
+        const result = await rpcJson(client, "apo_assistant_overdue_tuition_list", {
+          p_offset: intArg(args, "offset", 0),
+          p_limit: APO_LIST_PAGE_SIZE,
           p_user_role: role,
           p_teacher_id: teacherId,
         })

@@ -7,9 +7,12 @@ import {
   extractContextPatch,
   formatContextHint,
   mergeContextPatches,
+  toolsForRole,
   type ApoContextPatch,
+  type ApoToolDef,
   type AssistantDbContext,
 } from "../_shared/apoDbTools.ts"
+import { logClientRoleMismatch, resolveCallerFromRequest } from "../_shared/apoAuth.ts"
 import { classifyApoIntent, type ApoIntent } from "../_shared/apoIntent.ts"
 import {
   buildCorePrompt,
@@ -97,8 +100,19 @@ function sanitizeChatContext(raw: unknown): ApoContextPatch {
     out.lastStudentId = String(o.lastStudentId)
   }
   if (o.lastStudentName) out.lastStudentName = String(o.lastStudentName).slice(0, 80)
+  if (o.lastTeacherId && /^[0-9a-f-]{36}$/i.test(String(o.lastTeacherId))) {
+    out.lastTeacherId = String(o.lastTeacherId)
+  }
+  if (o.lastTeacherName) out.lastTeacherName = String(o.lastTeacherName).slice(0, 80)
   if (o.lastTopic) out.lastTopic = String(o.lastTopic).slice(0, 40)
   if (o.summary) out.summary = String(o.summary).slice(0, 200)
+  if (o.listOffset != null && Number.isFinite(Number(o.listOffset))) {
+    out.listOffset = Math.max(0, Math.trunc(Number(o.listOffset)))
+  }
+  if (o.listTotal != null && Number.isFinite(Number(o.listTotal))) {
+    out.listTotal = Math.max(0, Math.trunc(Number(o.listTotal)))
+  }
+  if (typeof o.listHasMore === "boolean") out.listHasMore = o.listHasMore
   return out
 }
 
@@ -186,7 +200,7 @@ type DeepSeekResult =
 async function callDeepSeek(
   apiKey: string,
   messages: DeepSeekMessage[],
-  opts: { useJsonFormat: boolean; tools?: typeof APO_DB_TOOL_DEFINITIONS; maxTokens?: number }
+  opts: { useJsonFormat: boolean; tools?: ApoToolDef[]; maxTokens?: number }
 ): Promise<DeepSeekResult> {
   const upstream = await fetch(DEEPSEEK_API_URL, {
     method: "POST",
@@ -282,7 +296,7 @@ async function runToolLoop(
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const result = await callDeepSeek(apiKey, messages, {
       useJsonFormat: false,
-      tools: APO_DB_TOOL_DEFINITIONS,
+      tools: toolsForRole(ctx.userRole),
       maxTokens: 500,
     })
     if (!result.ok) throw new UpstreamError(result.status, result.detail)
@@ -346,6 +360,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "請求格式不正確" }, 400)
   }
 
+  const authResult = await resolveCallerFromRequest(req)
+  if (!authResult.ok) {
+    return jsonResponse({ error: authResult.error }, authResult.status)
+  }
+  const caller = authResult.caller
+  logClientRoleMismatch(caller, body.userRole, sanitizeTeacherId(body.teacherId))
+
   const messages = sanitizeMessages(body.messages)
   if (messages.length === 0 || messages[messages.length - 1]?.role !== "user") {
     return jsonResponse({ error: "請提供至少一則使用者訊息" }, 400)
@@ -353,13 +374,17 @@ Deno.serve(async (req) => {
 
   const chatContext = sanitizeChatContext(body.chatContext)
   const dbCtx: AssistantDbContext = {
-    userRole: body.userRole ?? "admin",
-    teacherId: sanitizeTeacherId(body.teacherId),
+    userRole: caller.userRole,
+    teacherId: caller.teacherId,
   }
+
+  const userRole = caller.userRole
 
   const lastUser = messages[messages.length - 1]?.content ?? ""
   const hasStudentCtx = Boolean(chatContext.lastStudentId)
-  const intent: ApoIntent = classifyApoIntent(lastUser, hasStudentCtx)
+  const hasTeacherCtx = Boolean(chatContext.lastTeacherId)
+  const hasEntityCtx = hasStudentCtx || hasTeacherCtx
+  const intent: ApoIntent = classifyApoIntent(lastUser, hasEntityCtx)
   const contextHint = formatContextHint(chatContext)
 
   let toolsUsed: string[] = []
@@ -371,14 +396,14 @@ Deno.serve(async (req) => {
     if (intent === "chitchat") {
       rawReply = await singleJsonCall(
         apiKey,
-        buildCorePrompt(body.userRole, contextHint),
+        buildCorePrompt(userRole, contextHint),
         messages,
         750
       )
     } else if (intent === "howto") {
       rawReply = await singleJsonCall(
         apiKey,
-        buildHowtoPrompt(body.userRole, contextHint),
+        buildHowtoPrompt(userRole, contextHint),
         messages,
         900
       )
@@ -398,14 +423,14 @@ Deno.serve(async (req) => {
         ]
         rawReply = await singleJsonCall(
           apiKey,
-          buildDbAnswerPrompt(body.userRole, formatContextHint(contextPatch)),
+          buildDbAnswerPrompt(userRole, formatContextHint(contextPatch)),
           dbMessages,
           950
         )
       } else {
         const loop = await runToolLoop(
           apiKey,
-          buildToolRouterPrompt(body.userRole, contextHint),
+          buildToolRouterPrompt(userRole, contextHint),
           messages,
           dbCtx
         )
@@ -416,7 +441,7 @@ Deno.serve(async (req) => {
           // 模型認為唔使查 DB → 用 howto 單次回答
           rawReply = await singleJsonCall(
             apiKey,
-            buildHowtoPrompt(body.userRole, contextHint),
+            buildHowtoPrompt(userRole, contextHint),
             messages,
             900
           )
@@ -427,7 +452,7 @@ Deno.serve(async (req) => {
               "請根據以上查詢結果，以 JSON（reply、suggestions、paths）回答用戶最後一則問題。先講結論；不可捏造。",
           })
           const finalMessages: DeepSeekMessage[] = [
-            { role: "system", content: buildDbAnswerPrompt(body.userRole, formatContextHint(contextPatch)) },
+            { role: "system", content: buildDbAnswerPrompt(userRole, formatContextHint(contextPatch)) },
             ...loop.messages.slice(1),
           ]
           const final = await callDeepSeek(apiKey, finalMessages, {
@@ -446,10 +471,17 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "明學IT狗回覆格式異常，請再試一次。" }, 502)
     }
 
-    const suggestions =
+    let suggestions =
       parsed.suggestions.length > 0
         ? parsed.suggestions
-        : fallbackSuggestions(intent, toolsUsed, contextPatch.lastStudentName)
+        : fallbackSuggestions(intent, toolsUsed, contextPatch.lastStudentName ?? contextPatch.lastTeacherName)
+
+    if (
+      contextPatch.listHasMore &&
+      !suggestions.some((s) => /繼續/.test(s))
+    ) {
+      suggestions = ["繼續列出", ...suggestions].slice(0, 3)
+    }
 
     const enriched = mergeReplyPaths(parsed.reply, parsed.paths)
 
