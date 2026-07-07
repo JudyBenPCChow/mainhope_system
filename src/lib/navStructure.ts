@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
  AlertTriangle,
  BookOpen,
+ Bot,
  Building2,
  CalendarDays,
  CalendarRange,
@@ -115,6 +116,20 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/LeaveManagement", label: "請假管理", roles: ["admin", "alien"], icon: CalendarX },
    { path: "/TrialSessions", label: "試堂紀錄", roles: ["admin", "alien"], icon: Sparkles },
   ],
+ },
+ {
+  kind: "leaf",
+  path: "/Apo",
+  label: "阿Po",
+  roles: ["alien"],
+  icon: Sparkles,
+ },
+ {
+  kind: "leaf",
+  path: "/AiReports",
+  label: "AI 報表",
+  roles: ["alien"],
+  icon: Bot,
  },
  {
   kind: "leaf",

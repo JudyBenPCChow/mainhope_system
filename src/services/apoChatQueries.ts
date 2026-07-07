@@ -1,8 +1,10 @@
-import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient"
+import { appendMgmtSystemError } from "@/services/mgmtGodViewQueries"
+import { sanitizeErrorDetail } from "@/lib/mgmtErrorReporting"
 import { enrichApoReply } from "@/lib/apoPaths"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import type { Role } from "@/lib/navStructure"
 import type { ApoChatContext } from "@/lib/apoSession"
+import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient"
 
 export type ApoPathHint = {
   label: string
@@ -15,7 +17,10 @@ export type ApoChatMessage = {
   content: string
   suggestions?: string[]
   paths?: ApoPathHint[]
+  /** 👍／👎 */
   feedback?: "up" | "down" | null
+  /** 可否解決你的問題 */
+  satisfaction?: "solved" | "unsolved" | null
 }
 
 export type SendApoChatInput = {
@@ -165,5 +170,51 @@ export async function submitApoChatFeedback(input: SubmitApoFeedbackInput): Prom
     if (error) console.warn("apo_chat_feedback insert failed", error.message)
   } catch (e) {
     console.warn("apo_chat_feedback insert exception", e)
+  }
+}
+
+export type SubmitApoSatisfactionInput = {
+  satisfied: boolean
+  userRole: Role
+  userMessage: string
+  assistantMessage: string
+}
+
+/** 滿意度：已解決／不滿意；不滿意時推送至外星人 SystemIssues */
+export async function submitApoChatSatisfaction(input: SubmitApoSatisfactionInput): Promise<void> {
+  if (!isSupabaseConfigured || !supabase) return
+
+  const satisfaction = input.satisfied ? "solved" : "unsolved"
+  let escalated = false
+
+  if (!input.satisfied) {
+    const detail = sanitizeErrorDetail(
+      [
+        `用戶角色：${input.userRole}`,
+        `用戶問題：${input.userMessage.slice(0, 800)}`,
+        `IT狗回覆：${input.assistantMessage.slice(0, 1200)}`,
+      ].join("\n")
+    )
+    escalated = await appendMgmtSystemError({
+      severity: "warning",
+      source: "ApoAssistant.satisfaction",
+      message: "明學IT狗回覆未解決用戶問題（用戶表示不滿意）",
+      detail,
+      path: typeof window !== "undefined" ? window.location.pathname : "/",
+    })
+  }
+
+  try {
+    const { error } = await supabase.from("apo_chat_feedback").insert({
+      helpful: input.satisfied,
+      satisfaction,
+      escalated,
+      user_role: input.userRole,
+      user_message: input.userMessage.slice(0, 2000),
+      assistant_message: input.assistantMessage.slice(0, 4000),
+    })
+    if (error) console.warn("apo_chat_feedback satisfaction insert failed", error.message)
+  } catch (e) {
+    console.warn("apo_chat_feedback satisfaction insert exception", e)
   }
 }

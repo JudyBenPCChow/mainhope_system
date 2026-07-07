@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "ui:check": "node scripts/ui-guideline-check.mjs",
+    "apo:regression": "node scripts/apo-regression-check.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

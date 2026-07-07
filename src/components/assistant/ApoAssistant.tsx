@@ -18,6 +18,7 @@ import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
  sendApoChatMessage,
  submitApoChatFeedback,
+ submitApoChatSatisfaction,
  type ApoChatMessage,
 } from "@/services/apoChatQueries"
 import { cn } from "@/lib/utils"
@@ -140,6 +141,7 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
       suggestions: result.suggestions,
       paths: result.paths,
       feedback: null,
+      satisfaction: null,
      },
     ])
    } catch (e) {
@@ -157,6 +159,36 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
    setOpen(false)
   },
   [navigate]
+ )
+
+ const setSatisfaction = useCallback(
+  (assistantId: string, satisfied: boolean) => {
+   const idx = messages.findIndex((m) => m.id === assistantId)
+   if (idx < 0 || messages[idx]?.role !== "assistant") return
+   if (messages[idx]?.satisfaction) return
+
+   let userMessage = ""
+   for (let i = idx - 1; i >= 0; i--) {
+    if (messages[i]?.role === "user") {
+     userMessage = messages[i]!.content
+     break
+    }
+   }
+
+   setMessages((prev) =>
+    prev.map((m) =>
+     m.id === assistantId ? { ...m, satisfaction: satisfied ? "solved" : "unsolved" } : m
+    )
+   )
+
+   void submitApoChatSatisfaction({
+    satisfied,
+    userRole: role,
+    userMessage,
+    assistantMessage: messages[idx]!.content,
+   })
+  },
+  [messages, role]
  )
 
  const setFeedback = useCallback(
@@ -281,47 +313,77 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
            ) : null}
 
            {isAssistant && m.id !== "welcome" ? (
-            <div className="flex items-center gap-1 pl-0.5">
-             <button
-              type="button"
-              className={cn(
-               "rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-               m.feedback === "up" && "bg-success/15 text-success"
-              )}
-              aria-label="有用"
-              disabled={Boolean(m.feedback)}
-              onClick={() => setFeedback(m.id, true)}
-             >
-              <ThumbsUp className="h-3.5 w-3.5" />
-             </button>
-             <button
-              type="button"
-              className={cn(
-               "rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-               m.feedback === "down" && "bg-destructive/15 text-destructive"
-              )}
-              aria-label="冇用"
-              disabled={Boolean(m.feedback)}
-              onClick={() => setFeedback(m.id, false)}
-             >
-              <ThumbsDown className="h-3.5 w-3.5" />
-             </button>
-             {m.feedback === "down" ? (
-              <span className="ml-1 text-[10px] text-muted-foreground">
-               {APO_MS_FAN_WHATSAPP_URL ? (
-                <a
-                 href={APO_MS_FAN_WHATSAPP_URL}
-                 target="_blank"
-                 rel="noopener noreferrer"
-                 className="underline hover:text-foreground"
+            <div className="flex flex-col gap-1.5 pl-0.5">
+             {m.satisfaction ? (
+              <p className="text-[10px] text-muted-foreground">
+               {m.satisfaction === "solved"
+                ? "多謝回饋，祝你使用愉快。"
+                : "已記錄你的不滿意，技術團隊會跟進；你亦可到「報錯與問題」查看。"}
+              </p>
+             ) : (
+              <div className="flex flex-col gap-1">
+               <span className="text-[10px] text-muted-foreground">可否解決你的問題？</span>
+               <div className="flex flex-wrap gap-1.5">
+                <button
+                 type="button"
+                 className="rounded-full border border-border bg-background px-2.5 py-0.5 text-[11px] text-foreground transition-colors hover:bg-muted"
+                 onClick={() => setSatisfaction(m.id, true)}
                 >
-                 WhatsApp 聯絡技術支援
-                </a>
-               ) : (
-                "可透過 WhatsApp 聯絡技術支援"
+                 已解決
+                </button>
+                <button
+                 type="button"
+                 className="rounded-full border border-destructive/40 bg-destructive/5 px-2.5 py-0.5 text-[11px] text-destructive transition-colors hover:bg-destructive/10"
+                 onClick={() => setSatisfaction(m.id, false)}
+                >
+                 不滿意
+                </button>
+               </div>
+              </div>
+             )}
+
+             <div className="flex items-center gap-1">
+              <button
+               type="button"
+               className={cn(
+                "rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                m.feedback === "up" && "bg-success/15 text-success"
                )}
-              </span>
-             ) : null}
+               aria-label="有用"
+               disabled={Boolean(m.feedback)}
+               onClick={() => setFeedback(m.id, true)}
+              >
+               <ThumbsUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+               type="button"
+               className={cn(
+                "rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                m.feedback === "down" && "bg-destructive/15 text-destructive"
+               )}
+               aria-label="冇用"
+               disabled={Boolean(m.feedback)}
+               onClick={() => setFeedback(m.id, false)}
+              >
+               <ThumbsDown className="h-3.5 w-3.5" />
+              </button>
+              {m.feedback === "down" ? (
+               <span className="ml-1 text-[10px] text-muted-foreground">
+                {APO_MS_FAN_WHATSAPP_URL ? (
+                 <a
+                  href={APO_MS_FAN_WHATSAPP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground"
+                 >
+                  WhatsApp 聯絡技術支援
+                 </a>
+                ) : (
+                 "可透過 WhatsApp 聯絡技術支援"
+                )}
+               </span>
+              ) : null}
+             </div>
             </div>
            ) : null}
           </div>

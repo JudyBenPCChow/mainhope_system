@@ -1,6 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
 import { tryDirectDbQuery } from "../_shared/apoDirectQuery.ts"
+import { emptyReplyFallback, tryDelegateActionReply } from "../_shared/apoDelegateRefusal.ts"
+import { tryDirectHowtoAnswer } from "../_shared/apoHowtoGuides.ts"
+import { cannotAnswerWithoutDbReply, requiresDatabaseAnswer } from "../_shared/apoNoHallucination.ts"
+import {
+  buildGroundingAnchors,
+  buildSearchStudentsStructuredReply,
+  buildStudentProfileStructuredReply,
+  buildTeacherClassesStructuredReply,
+  dbQueryNoToolsReply,
+  fallbackReplyFromToolPayloads,
+  formatToolResultsForPrompt,
+  groundingRetryInstruction,
+  parseToolPayload,
+  validateReplyAgainstAnchors,
+} from "../_shared/apoGrounding.ts"
+import { hkTodayYmd } from "../_shared/apoDate.ts"
 import {
   APO_DB_TOOL_DEFINITIONS,
   executeApoDbTool,
@@ -20,6 +36,7 @@ import {
   buildHowtoPrompt,
   buildToolRouterPrompt,
 } from "../_shared/apoPromptLayers.ts"
+import { sanitizeUserFacingReply } from "../_shared/apoReplySanitize.ts"
 import { APO_VALID_PATHS, mergeReplyPaths } from "../_shared/apoRoutes.ts"
 import { fallbackSuggestions } from "../_shared/apoSuggestions.ts"
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts"
@@ -200,7 +217,13 @@ type DeepSeekResult =
 async function callDeepSeek(
   apiKey: string,
   messages: DeepSeekMessage[],
-  opts: { useJsonFormat: boolean; tools?: ApoToolDef[]; maxTokens?: number }
+  opts: {
+    useJsonFormat: boolean
+    tools?: ApoToolDef[]
+    maxTokens?: number
+    toolChoice?: "auto" | "required" | "none"
+    temperature?: number
+  }
 ): Promise<DeepSeekResult> {
   const upstream = await fetch(DEEPSEEK_API_URL, {
     method: "POST",
@@ -211,9 +234,14 @@ async function callDeepSeek(
     body: JSON.stringify({
       model: DEEPSEEK_MODEL,
       messages,
-      temperature: 0.3,
+      temperature: opts.temperature ?? 0.3,
       max_tokens: opts.maxTokens ?? 900,
-      ...(opts.tools?.length ? { tools: opts.tools, tool_choice: "auto" } : {}),
+      ...(opts.tools?.length
+        ? {
+            tools: opts.tools,
+            tool_choice: opts.toolChoice ?? "auto",
+          }
+        : {}),
       ...(opts.useJsonFormat ? { response_format: { type: "json_object" } } : {}),
     }),
   })
@@ -260,22 +288,143 @@ async function singleJsonCall(
   apiKey: string,
   systemPrompt: string,
   history: IncomingMessage[],
-  maxTokens: number
-): Promise<string> {
+  maxTokens: number,
+  temperature = 0.2
+): Promise<string | null> {
   const messages: DeepSeekMessage[] = [
     { role: "system", content: systemPrompt },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ]
-  const result = await callDeepSeek(apiKey, messages, { useJsonFormat: true, maxTokens })
+  const result = await callDeepSeek(apiKey, messages, {
+    useJsonFormat: true,
+    maxTokens,
+    temperature,
+  })
   if (!result.ok) throw new UpstreamError(result.status, result.detail)
-  if (!result.raw) throw new UpstreamError(502, "明學IT狗沒有產生有效回覆")
+  if (!result.raw) return null
   return result.raw
+}
+
+function ensureParsedReply(
+  parsed: ParsedReply,
+  lastUser: string,
+  userRole: string | undefined
+): ParsedReply {
+  if (parsed.reply.trim()) return parsed
+  const fallback = emptyReplyFallback(lastUser, userRole)
+  return {
+    reply: fallback.reply,
+    suggestions: parsed.suggestions.length > 0 ? parsed.suggestions : fallback.suggestions,
+    paths: parsed.paths.length > 0 ? parsed.paths : fallback.paths,
+  }
+}
+
+async function summarizeDbQuery(
+  apiKey: string,
+  userRole: string,
+  contextHint: string,
+  history: IncomingMessage[],
+  extraUserContent?: string
+): Promise<string | null> {
+  const msgs: IncomingMessage[] = extraUserContent
+    ? [...history.slice(0, -1), { role: "user", content: extraUserContent }]
+    : history
+  const result = await callDeepSeek(
+    apiKey,
+    [
+      { role: "system", content: buildDbAnswerPrompt(userRole, contextHint) },
+      ...msgs.map((m) => ({ role: m.role, content: m.content })),
+    ],
+    { useJsonFormat: true, maxTokens: 950, temperature: 0.1 }
+  )
+  if (!result.ok) throw new UpstreamError(result.status, result.detail)
+  return result.raw?.trim() ? result.raw.trim() : null
+}
+
+async function parseDbAnswerFromTools(
+  apiKey: string,
+  userRole: string,
+  contextHint: string,
+  messages: IncomingMessage[],
+  lastUser: string,
+  toolsUsed: string[],
+  toolPayloads: Record<string, unknown>[]
+): Promise<ParsedReply> {
+  const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
+  const lastPayload = toolPayloads[toolPayloads.length - 1]
+
+  if (
+    lastPayload &&
+    (lastTool === "teacher_classes" || lastTool === "my_teacher_classes")
+  ) {
+    const structured = buildTeacherClassesStructuredReply(lastPayload)
+    if (structured) return structured
+  }
+
+  if (lastPayload && lastTool === "student_profile") {
+    const structured = buildStudentProfileStructuredReply(lastPayload)
+    if (structured) return structured
+  }
+
+  if (lastPayload && lastTool === "search_students") {
+    const structured = buildSearchStudentsStructuredReply(lastPayload)
+    if (structured) return structured
+  }
+
+  const fallback = fallbackReplyFromToolPayloads(toolsUsed, toolPayloads)
+  if (fallback) return fallback
+
+  return cannotAnswerWithoutDbReply()
+}
+
+function applyGroundingCheck(
+  apiKey: string,
+  userRole: string,
+  contextHint: string,
+  history: IncomingMessage[],
+  parsed: ParsedReply,
+  toolsUsed: string[],
+  toolPayloads: Record<string, unknown>[]
+): Promise<ParsedReply> {
+  return (async () => {
+    if (toolPayloads.length === 0) return parsed
+
+    const anchors = buildGroundingAnchors(toolPayloads, hkTodayYmd())
+    const check = validateReplyAgainstAnchors(parsed.reply, anchors)
+    if (check.ok) return parsed
+
+    console.warn("apo-chat grounding failed", check.issues)
+
+    const lastUser = history[history.length - 1]?.content ?? ""
+    const retryContent = `${lastUser}\n\n${formatToolResultsForPrompt(toolsUsed, toolPayloads)}\n\n${groundingRetryInstruction(check.issues)}`
+    try {
+      const rawRetry = await summarizeDbQuery(apiKey, userRole, contextHint, history, retryContent)
+      if (rawRetry) {
+        const retryParsed = parseModelOutput(rawRetry)
+        if (retryParsed.reply) {
+          const retryCheck = validateReplyAgainstAnchors(retryParsed.reply, anchors)
+          if (retryCheck.ok) return retryParsed
+          console.warn("apo-chat grounding retry failed", retryCheck.issues)
+          return {
+            ...retryParsed,
+            reply:
+              retryParsed.reply +
+              "\n\n（系統提示：以上部分細節可能未經查詢確認，請以「進行點名」或「出席紀錄」頁面為準。）",
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("apo-chat grounding retry summarize failed", e)
+    }
+    return parsed
+  })()
 }
 
 type ToolLoopResult = {
   messages: DeepSeekMessage[]
   toolsUsed: string[]
   contextPatches: ApoContextPatch[]
+  toolPayloads: Record<string, unknown>[]
   hadTools: boolean
 }
 
@@ -283,7 +432,8 @@ async function runToolLoop(
   apiKey: string,
   systemPrompt: string,
   history: IncomingMessage[],
-  ctx: AssistantDbContext
+  ctx: AssistantDbContext,
+  opts?: { forceTools?: boolean }
 ): Promise<ToolLoopResult> {
   const messages: DeepSeekMessage[] = [
     { role: "system", content: systemPrompt },
@@ -291,12 +441,15 @@ async function runToolLoop(
   ]
   const toolsUsed: string[] = []
   const contextPatches: ApoContextPatch[] = []
+  const toolPayloads: Record<string, unknown>[] = []
   let hadTools = false
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const mustUseTool = Boolean(opts?.forceTools) && !hadTools && round === 0
     const result = await callDeepSeek(apiKey, messages, {
       useJsonFormat: false,
       tools: toolsForRole(ctx.userRole),
+      toolChoice: mustUseTool ? "required" : "auto",
       maxTokens: 500,
     })
     if (!result.ok) throw new UpstreamError(result.status, result.detail)
@@ -314,9 +467,10 @@ async function runToolLoop(
       const name = tc.function.name
       toolsUsed.push(name)
       const resultJson = await executeApoDbTool(name, parseToolArgs(tc.function.arguments), ctx)
+      const parsedPayload = parseToolPayload(resultJson)
+      if (parsedPayload) toolPayloads.push(parsedPayload)
       try {
-        const parsed = JSON.parse(resultJson) as Record<string, unknown>
-        contextPatches.push(extractContextPatch(name, parsed))
+        if (parsedPayload) contextPatches.push(extractContextPatch(name, parsedPayload))
       } catch {
         // ignore
       }
@@ -324,7 +478,7 @@ async function runToolLoop(
     }
   }
 
-  return { messages, toolsUsed, contextPatches, hadTools }
+  return { messages, toolsUsed, contextPatches, toolPayloads, hadTools }
 }
 
 function mapUpstreamError(detail: string): string {
@@ -332,6 +486,76 @@ function mapUpstreamError(detail: string): string {
     return "明學IT狗暫時無法回應：DeepSeek 帳戶餘額不足，請到 platform.deepseek.com 充值後再試。"
   }
   return `明學IT狗暫時無法回應：${detail}`
+}
+
+async function respondFromDbDirect(
+  apiKey: string,
+  userRole: string | undefined,
+  messages: IncomingMessage[],
+  lastUser: string,
+  chatContext: ApoContextPatch,
+  direct: { toolName: string; resultJson: string; patch: ApoContextPatch }
+): Promise<Response> {
+  const toolsUsed = [direct.toolName]
+  const contextPatch = mergeContextPatches(chatContext, direct.patch)
+  const directPayload = parseToolPayload(direct.resultJson)
+  const toolPayloads: Record<string, unknown>[] = directPayload ? [directPayload] : []
+
+  let parsed = await parseDbAnswerFromTools(
+    apiKey,
+    userRole,
+    formatContextHint(contextPatch),
+    messages,
+    lastUser,
+    toolsUsed,
+    toolPayloads
+  )
+
+  if (parsed.reply && toolPayloads.length > 0) {
+    const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
+    const skipGrounding =
+      lastTool === "teacher_classes" ||
+      lastTool === "my_teacher_classes" ||
+      lastTool === "student_profile" ||
+      lastTool === "search_students"
+    if (!skipGrounding) {
+      parsed = await applyGroundingCheck(
+        apiKey,
+        userRole,
+        formatContextHint(contextPatch),
+        messages,
+        parsed,
+        toolsUsed,
+        toolPayloads
+      )
+    }
+  }
+
+  if (!parsed.reply) {
+    parsed = ensureParsedReply(parsed, lastUser, userRole)
+  }
+
+  let suggestions =
+    parsed.suggestions.length > 0
+      ? parsed.suggestions
+      : fallbackSuggestions(
+          "db_query",
+          toolsUsed,
+          contextPatch.lastStudentName ?? contextPatch.lastTeacherName
+        )
+
+  if (contextPatch.listHasMore && !suggestions.some((s) => /繼續/.test(s))) {
+    suggestions = ["繼續列出", ...suggestions].slice(0, 3)
+  }
+
+  const enriched = mergeReplyPaths(sanitizeUserFacingReply(parsed.reply), parsed.paths)
+
+  return jsonResponse({
+    reply: enriched.reply,
+    suggestions,
+    paths: enriched.paths,
+    context: contextPatch,
+  })
 }
 
 Deno.serve(async (req) => {
@@ -384,28 +608,86 @@ Deno.serve(async (req) => {
   const hasStudentCtx = Boolean(chatContext.lastStudentId)
   const hasTeacherCtx = Boolean(chatContext.lastTeacherId)
   const hasEntityCtx = hasStudentCtx || hasTeacherCtx
+
+  const delegateEarly = tryDelegateActionReply(lastUser, userRole)
+  if (delegateEarly) {
+    const enriched = mergeReplyPaths(sanitizeUserFacingReply(delegateEarly.reply), delegateEarly.paths)
+    return jsonResponse({
+      reply: enriched.reply,
+      suggestions: delegateEarly.suggestions,
+      paths: enriched.paths,
+      context: chatContext,
+    })
+  }
+
+  const directDbEarly = await tryDirectDbQuery(lastUser, dbCtx, chatContext)
+  if (directDbEarly) {
+    try {
+      return await respondFromDbDirect(
+        apiKey,
+        userRole,
+        messages,
+        lastUser,
+        chatContext,
+        directDbEarly
+      )
+    } catch (e) {
+      if (e instanceof UpstreamError) {
+        return jsonResponse({ error: mapUpstreamError(e.message) }, 502)
+      }
+      throw e
+    }
+  }
+
+  const directHowtoEarly = tryDirectHowtoAnswer(lastUser, userRole)
+  if (directHowtoEarly) {
+    const enriched = mergeReplyPaths(
+      sanitizeUserFacingReply(directHowtoEarly.reply),
+      directHowtoEarly.paths
+    )
+    return jsonResponse({
+      reply: enriched.reply,
+      suggestions: directHowtoEarly.suggestions,
+      paths: enriched.paths,
+      context: chatContext,
+    })
+  }
+
   const intent: ApoIntent = classifyApoIntent(lastUser, hasEntityCtx)
+
+  if (requiresDatabaseAnswer(lastUser, hasEntityCtx) && intent !== "db_query") {
+    const noData = cannotAnswerWithoutDbReply()
+    const enriched = mergeReplyPaths(sanitizeUserFacingReply(noData.reply), noData.paths)
+    return jsonResponse({
+      reply: enriched.reply,
+      suggestions: noData.suggestions,
+      paths: enriched.paths,
+      context: chatContext,
+    })
+  }
+
   const contextHint = formatContextHint(chatContext)
 
   let toolsUsed: string[] = []
   let contextPatch = { ...chatContext }
+  let toolPayloads: Record<string, unknown>[] = []
 
   try {
-    let rawReply: string
+    let parsed: ParsedReply
 
     if (intent === "chitchat") {
-      rawReply = await singleJsonCall(
-        apiKey,
-        buildCorePrompt(userRole, contextHint),
-        messages,
-        750
+      const raw = await singleJsonCall(apiKey, buildCorePrompt(userRole, contextHint), messages, 750)
+      parsed = ensureParsedReply(
+        raw ? parseModelOutput(raw) : { reply: "", suggestions: [], paths: [] },
+        lastUser,
+        userRole
       )
     } else if (intent === "howto") {
-      rawReply = await singleJsonCall(
-        apiKey,
-        buildHowtoPrompt(userRole, contextHint),
-        messages,
-        900
+      const raw = await singleJsonCall(apiKey, buildHowtoPrompt(userRole, contextHint), messages, 900)
+      parsed = ensureParsedReply(
+        raw ? parseModelOutput(raw) : { reply: "", suggestions: [], paths: [] },
+        lastUser,
+        userRole
       )
     } else {
       // db_query
@@ -414,61 +696,85 @@ Deno.serve(async (req) => {
       if (direct) {
         toolsUsed = [direct.toolName]
         contextPatch = mergeContextPatches(chatContext, direct.patch)
-        const dbMessages: IncomingMessage[] = [
-          ...messages.slice(0, -1),
-          {
-            role: "user",
-            content: `${lastUser}\n\n[系統查詢結果 ${direct.toolName}]\n${direct.resultJson}`,
-          },
-        ]
-        rawReply = await singleJsonCall(
+        const directPayload = parseToolPayload(direct.resultJson)
+        if (directPayload) toolPayloads.push(directPayload)
+
+        parsed = await parseDbAnswerFromTools(
           apiKey,
-          buildDbAnswerPrompt(userRole, formatContextHint(contextPatch)),
-          dbMessages,
-          950
+          userRole,
+          formatContextHint(contextPatch),
+          messages,
+          lastUser,
+          toolsUsed,
+          toolPayloads
         )
       } else {
-        const loop = await runToolLoop(
+        let loop = await runToolLoop(
           apiKey,
           buildToolRouterPrompt(userRole, contextHint),
           messages,
           dbCtx
         )
-        toolsUsed = loop.toolsUsed
-        contextPatch = mergeContextPatches(chatContext, ...loop.contextPatches)
 
         if (!loop.hadTools) {
-          // 模型認為唔使查 DB → 用 howto 單次回答
-          rawReply = await singleJsonCall(
+          loop = await runToolLoop(
             apiKey,
-            buildHowtoPrompt(userRole, contextHint),
+            `${buildToolRouterPrompt(userRole, contextHint)}\n\n【強制】這是資料查詢問題，你必須至少呼叫一個唯讀查詢工具；不可在無查詢結果下回答。`,
             messages,
-            900
+            dbCtx,
+            { forceTools: true }
           )
+        }
+
+        toolsUsed = loop.toolsUsed
+        contextPatch = mergeContextPatches(chatContext, ...loop.contextPatches)
+        toolPayloads = loop.toolPayloads
+
+        if (!loop.hadTools || toolPayloads.length === 0) {
+          const delegate = tryDelegateActionReply(lastUser, userRole)
+          parsed = delegate
+            ? {
+                reply: delegate.reply,
+                suggestions: delegate.suggestions,
+                paths: delegate.paths,
+              }
+            : dbQueryNoToolsReply()
         } else {
-          loop.messages.push({
-            role: "user",
-            content:
-              "請根據以上查詢結果，以 JSON（reply、suggestions、paths）回答用戶最後一則問題。先講結論；不可捏造。",
-          })
-          const finalMessages: DeepSeekMessage[] = [
-            { role: "system", content: buildDbAnswerPrompt(userRole, formatContextHint(contextPatch)) },
-            ...loop.messages.slice(1),
-          ]
-          const final = await callDeepSeek(apiKey, finalMessages, {
-            useJsonFormat: true,
-            maxTokens: 950,
-          })
-          if (!final.ok) throw new UpstreamError(final.status, final.detail)
-          if (!final.raw) throw new UpstreamError(502, "明學IT狗沒有產生有效回覆")
-          rawReply = final.raw
+          parsed = await parseDbAnswerFromTools(
+            apiKey,
+            userRole,
+            formatContextHint(contextPatch),
+            messages,
+            lastUser,
+            toolsUsed,
+            toolPayloads
+          )
         }
       }
+
+      if (parsed.reply && toolPayloads.length > 0) {
+    const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
+    const skipGrounding =
+      lastTool === "teacher_classes" ||
+      lastTool === "my_teacher_classes" ||
+      lastTool === "student_profile" ||
+      lastTool === "search_students"
+    if (!skipGrounding) {
+      parsed = await applyGroundingCheck(
+        apiKey,
+        userRole,
+        formatContextHint(contextPatch),
+        messages,
+        parsed,
+        toolsUsed,
+        toolPayloads
+      )
+    }
+  }
     }
 
-    const parsed = parseModelOutput(rawReply)
     if (!parsed.reply) {
-      return jsonResponse({ error: "明學IT狗回覆格式異常，請再試一次。" }, 502)
+      parsed = ensureParsedReply(parsed, lastUser, userRole)
     }
 
     let suggestions =
@@ -483,7 +789,7 @@ Deno.serve(async (req) => {
       suggestions = ["繼續列出", ...suggestions].slice(0, 3)
     }
 
-    const enriched = mergeReplyPaths(parsed.reply, parsed.paths)
+    const enriched = mergeReplyPaths(sanitizeUserFacingReply(parsed.reply), parsed.paths)
 
     return jsonResponse({
       reply: enriched.reply,

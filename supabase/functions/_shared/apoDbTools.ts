@@ -146,6 +146,22 @@ export const APO_DB_TOOL_DEFINITIONS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "teacher_day_attendance",
+      description:
+        "查詢指定老師在指定日期（預設今日香港）各堂嘅點名狀態：已點名／未點名、出席／缺席／請假人數。admin 可查任意老師；teacher 只查自己。",
+      parameters: {
+        type: "object",
+        properties: {
+          teacher_id: { type: "string", description: "老師 UUID（來自 search_teachers 或上下文）" },
+          date: { type: "string", description: "YYYY-MM-DD，省略則為今日" },
+        },
+        required: ["teacher_id"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "today_leaves",
       description: "查詢指定日期（預設今日）的請假學生名單。",
       parameters: {
@@ -248,6 +264,14 @@ function assertToolAllowed(toolName: string, ctx: AssistantDbContext): string | 
   if (toolName === "my_teacher_classes" && ctx.userRole !== "teacher") {
     return JSON.stringify({ ok: false, error: "此功能僅供專班老師使用" })
   }
+  if (toolName === "teacher_day_schedule" && ctx.userRole !== "teacher") {
+    return JSON.stringify({ ok: false, error: "此功能僅供專班老師使用" })
+  }
+  if (toolName === "teacher_day_attendance" && ctx.userRole === "teacher") {
+    if (!ctx.teacherId) {
+      return JSON.stringify({ ok: false, error: "老師身分未設定" })
+    }
+  }
   return null
 }
 
@@ -261,6 +285,7 @@ export const APO_DB_TOOLS_PROMPT = `
 
 適用場景：
 - 老師班別（admin 用 search_teachers；teacher 用 my_teacher_classes）
+- 老師今日各堂點名狀態（teacher_day_attendance；必須先查再答，不可憑班別星期時間推斷）
 - 學生今日上堂、請假、狀態、出席
 - 今日請假名單、待補課名單、班別點名名單
 - 未來試堂
@@ -355,7 +380,23 @@ export function trimToolResult(
         teacher: result.teacher,
         teacher_id: result.teacher_id,
         class_count: result.class_count,
-        classes: Array.isArray(result.classes) ? result.classes.slice(0, 20) : [],
+        classes: Array.isArray(result.classes)
+          ? result.classes.slice(0, 20).map((c) => {
+              const row = c as Record<string, unknown>
+              return {
+                class_id: row.class_id,
+                class_name: row.class_name ?? row.course_name,
+                course_name: row.course_name,
+                subject: row.subject,
+                section_code: row.section_code,
+                course_code_full: row.course_code_full,
+                day_of_week: row.day_of_week,
+                time_slot: row.time_slot,
+                status: row.status,
+                enrolled_count: row.enrolled_count,
+              }
+            })
+          : [],
       }
     case "my_teacher_classes":
       return trimToolResult("teacher_classes", result)
@@ -379,7 +420,27 @@ export function trimToolResult(
       return {
         ok: true,
         student: result.student,
-        enrollments: Array.isArray(result.enrollments) ? result.enrollments.slice(0, 12) : [],
+        enrollment_count: result.enrollment_count,
+        enrollments: Array.isArray(result.enrollments)
+          ? result.enrollments.slice(0, 12).map((e) => {
+              const row = e as Record<string, unknown>
+              return {
+                enrollment_id: row.enrollment_id,
+                enrollment_status: row.enrollment_status,
+                enroll_date: row.enroll_date,
+                enrollment_period: row.enrollment_period,
+                class_id: row.class_id,
+                class_name: row.class_name ?? row.course_name,
+                course_name: row.course_name,
+                subject: row.subject,
+                section_code: row.section_code,
+                course_code_full: row.course_code_full,
+                day_of_week: row.day_of_week,
+                time_slot: row.time_slot,
+                teacher_name: row.teacher_name,
+              }
+            })
+          : [],
       }
     case "student_tuition":
       return {
@@ -401,6 +462,15 @@ export function trimToolResult(
         date: result.date,
         schedule_count: result.schedule_count,
         schedules: Array.isArray(result.schedules) ? result.schedules.slice(0, 12) : [],
+      }
+    case "teacher_day_attendance":
+      return {
+        ok: true,
+        date: result.date,
+        teacher: result.teacher,
+        teacher_id: result.teacher_id,
+        class_count: result.class_count,
+        classes: Array.isArray(result.classes) ? result.classes.slice(0, 12) : [],
       }
     case "today_leaves":
       return {
@@ -469,6 +539,16 @@ export function extractContextPatch(
       patch.lastTeacherName = String(teacher.english_name ?? teacher.full_name ?? "")
       patch.summary = `老師 ${patch.lastTeacherName} 有 ${result.class_count ?? 0} 個班別`
     }
+    return patch
+  }
+
+  if (toolName === "teacher_day_attendance") {
+    const teacher = result.teacher as Record<string, unknown> | undefined
+    if (teacher) {
+      patch.lastTeacherId = String(result.teacher_id ?? teacher.id ?? "")
+      patch.lastTeacherName = String(teacher.english_name ?? teacher.full_name ?? "")
+    }
+    patch.summary = `查詢 ${patch.lastTeacherName ?? "老師"} ${result.date ?? "今日"} 點名（${result.class_count ?? 0} 堂）`
     return patch
   }
 
@@ -654,6 +734,20 @@ export async function executeApoDbTool(
           p_date: strArg(args, "date"),
           p_user_role: role,
           p_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, result))
+      }
+      case "teacher_day_attendance": {
+        const tid =
+          role === "teacher" && teacherId
+            ? teacherId
+            : strArg(args, "teacher_id")
+        if (!tid) return JSON.stringify({ ok: false, error: "缺少 teacher_id" })
+        const result = await rpcJson(client, "apo_assistant_teacher_day_attendance", {
+          p_teacher_id: tid,
+          p_date: strArg(args, "date"),
+          p_user_role: role,
+          p_scope_teacher_id: teacherId,
         })
         return JSON.stringify(trimToolResult(name, result))
       }

@@ -7,6 +7,12 @@ import {
   type AssistantDbContext,
 } from "./apoDbTools.ts"
 import { extractTeacherNameQuery, isTeacherRelatedQuery } from "./apoTeacherQuery.ts"
+import {
+  extractClassQueryFromText,
+  extractStudentNameQuery,
+  isClassRosterQuery,
+  isStudentDataQuery,
+} from "./apoStudentQuery.ts"
 
 /** 高頻查詢直連 RPC，跳過 tool-selection LLM 回合 */
 export async function tryDirectDbQuery(
@@ -37,19 +43,56 @@ export async function tryDirectDbQuery(
     }
     // 唔執行下方 search_teachers / 其他老師查詢
   } else {
-    const teacherName =
-      extractTeacherNameQuery(t) ??
+    const teacherName = extractTeacherNameQuery(t) ?? null
+
+    if (teacherName && /點名/.test(t)) {
+      const attendanceLookup = await lookupTeacherDayAttendance(ctx, teacherName, chatContext)
+      if (attendanceLookup) return attendanceLookup
+    }
+
+    const teacherNameForClass =
+      teacherName ??
       (chatContext?.lastTeacherName && /佢|她|班別|邊班/.test(t)
         ? chatContext.lastTeacherName
         : null)
 
-    if (teacherName && (isTeacherRelatedQuery(t) || chatContext?.lastTeacherId)) {
-      const teacherLookup = await lookupTeacherClasses(ctx, teacherName, chatContext)
+    if (teacherNameForClass && (isTeacherRelatedQuery(t) || chatContext?.lastTeacherId || /有(?:咩|什麼|哪些|乜)班|班別/.test(t))) {
+      const teacherLookup = await lookupTeacherClasses(ctx, teacherNameForClass, chatContext)
       if (teacherLookup) return teacherLookup
     }
 
     if (chatContext?.lastTeacherId && /班別|邊班|乜班|有咩班|哪些班/.test(t)) {
       return invoke(ctx, "teacher_classes", { teacher_id: chatContext.lastTeacherId })
+    }
+
+    if (
+      chatContext?.lastTeacherId &&
+      /點名狀態|點名.*如何|有冇點名|未點名|點名未|點咗名未/.test(t)
+    ) {
+      return invoke(ctx, "teacher_day_attendance", { teacher_id: chatContext.lastTeacherId })
+    }
+  }
+
+  if (
+    ctx.userRole === "teacher" &&
+    ctx.teacherId &&
+    /點名狀態|點名.*如何|有冇點名|未點名|點名未|點咗名未/.test(t)
+  ) {
+    return invoke(ctx, "teacher_day_attendance", { teacher_id: ctx.teacherId })
+  }
+
+  // 班別點名名單（具班別代碼或科目關鍵字）
+  if (isClassRosterQuery(t)) {
+    const classQuery = extractClassQueryFromText(t)
+    if (classQuery) return invoke(ctx, "class_roster", { class_query: classQuery })
+  }
+
+  // 具名學生查詢（唔依賴上下文）
+  if (isStudentDataQuery(t)) {
+    const studentName = extractStudentNameQuery(t)
+    if (studentName) {
+      const studentLookup = await lookupStudentData(ctx, studentName, t)
+      if (studentLookup) return studentLookup
     }
   }
 
@@ -61,7 +104,7 @@ export async function tryDirectDbQuery(
     if (/請假|請咗假|請假未/.test(t)) {
       return invoke(ctx, "student_today_lessons", { student_id: sid })
     }
-    if (/狀態|在讀|活躍|報讀|邊班/.test(t)) {
+    if (/狀態|在讀|活躍|報讀|邊班|依家報|而家報|報緊|讀緊|報乜|報咩|報什麼/.test(t)) {
       return invoke(ctx, "student_profile", { student_id: sid })
     }
     if (/出席|點名|最近/.test(t)) {
@@ -102,6 +145,105 @@ export async function tryDirectDbQuery(
 function isListContinueQuery(text: string): boolean {
   const t = text.trim()
   return /^(繼續|再列|睇多|下一頁|繼續列出)/.test(t) || /^好[，,]?\s*繼續/.test(t)
+}
+
+async function lookupStudentData(
+  ctx: AssistantDbContext,
+  nameQuery: string,
+  text: string
+): Promise<{ toolName: string; resultJson: string; patch: ApoContextPatch } | null> {
+  const search = await invoke(ctx, "search_students", { query: nameQuery })
+  let parsed: Record<string, unknown> = {}
+  try {
+    parsed = JSON.parse(search.resultJson) as Record<string, unknown>
+  } catch {
+    return search
+  }
+
+  if (parsed.ok === false) return search
+
+  const students = Array.isArray(parsed.students) ? (parsed.students as Record<string, unknown>[]) : []
+  if (students.length !== 1) return search
+
+  const sid = String(students[0].id ?? "")
+  if (!sid) return search
+
+  let followTool = "student_profile"
+  if (/上堂|上唔上|幾點|今日.*堂|洗唔洗|請假/.test(text)) {
+    followTool = "student_today_lessons"
+  } else if (/出席|點名|最近/.test(text)) {
+    followTool = "student_recent_attendance"
+  } else if (/繳費|追收|堂數|欠/.test(text) && ctx.userRole !== "teacher") {
+    followTool = "student_tuition"
+  }
+
+  const followArgs: Record<string, unknown> =
+    followTool === "student_recent_attendance"
+      ? { student_id: sid, limit: 8 }
+      : { student_id: sid }
+
+  const follow = await invoke(ctx, followTool, followArgs)
+  let followParsed: Record<string, unknown> = {}
+  try {
+    followParsed = JSON.parse(follow.resultJson) as Record<string, unknown>
+  } catch {
+    return follow
+  }
+
+  return {
+    toolName: followTool,
+    resultJson: JSON.stringify({
+      ok: true,
+      search_query: nameQuery,
+      search_count: parsed.count,
+      ...followParsed,
+    }),
+    patch: mergeContextPatches(search.patch, follow.patch),
+  }
+}
+
+async function lookupTeacherDayAttendance(
+  ctx: AssistantDbContext,
+  nameQuery: string,
+  chatContext: ApoContextPatch | undefined
+): Promise<{ toolName: string; resultJson: string; patch: ApoContextPatch } | null> {
+  if (chatContext?.lastTeacherId && chatContext.lastTeacherName) {
+    const norm = nameQuery.toLowerCase()
+    const last = chatContext.lastTeacherName.toLowerCase()
+    if (last.includes(norm) || norm.includes(last)) {
+      return invoke(ctx, "teacher_day_attendance", { teacher_id: chatContext.lastTeacherId })
+    }
+  }
+
+  const search = await invoke(ctx, "search_teachers", { query: nameQuery })
+  let parsed: Record<string, unknown> = {}
+  try {
+    parsed = JSON.parse(search.resultJson) as Record<string, unknown>
+  } catch {
+    return search
+  }
+
+  if (parsed.ok === false) return search
+
+  const teachers = Array.isArray(parsed.teachers) ? (parsed.teachers as Record<string, unknown>[]) : []
+  if (teachers.length !== 1) return search
+
+  const tid = String(teachers[0].id ?? "")
+  if (!tid) return search
+
+  const attendance = await invoke(ctx, "teacher_day_attendance", { teacher_id: tid })
+  const attParsed = JSON.parse(attendance.resultJson) as Record<string, unknown>
+
+  return {
+    toolName: "teacher_day_attendance",
+    resultJson: JSON.stringify({
+      ok: true,
+      search_query: nameQuery,
+      search_count: parsed.count,
+      ...attParsed,
+    }),
+    patch: mergeContextPatches(search.patch, attendance.patch),
+  }
 }
 
 async function lookupTeacherClasses(

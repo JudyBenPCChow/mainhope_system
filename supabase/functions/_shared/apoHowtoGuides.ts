@@ -1,0 +1,371 @@
+/** 明學IT狗：操作教學知識庫（可直答，唔經 LLM） */
+
+export type HowtoGuide = {
+  id: string
+  /** 每條命中 +10 分；須至少一條命中才會直答 */
+  keywords: RegExp[]
+  roles?: Array<"admin" | "teacher" | "alien">
+  priority?: number
+  reply: string
+  suggestions: string[]
+  paths: Array<{ label: string; path: string }>
+}
+
+export const HOWTO_GUIDES: HowtoGuide[] = [
+  {
+    id: "roll_call",
+    priority: 5,
+    keywords: [/點名/, /roll\s*call/i, /出席表/],
+    reply: `進行點名步驟如下：
+
+1. 側欄進入「進行點名」。
+2. 選擇日期（可按「今天」跳至今日）。
+3. 在「選擇排程」下拉選單揀要點名嘅堂（連堂會合併顯示）。
+4. 點名表會載入班內學生、試堂生同已安排補堂嘅學生；可用「預填請假／補堂」或「全部出席」加快填寫。
+5. 為每位學生選擇出席狀態，確認無誤後按「確定」儲存（未按確定前只係畫面變更，唔會寫入資料庫）。
+
+專班老師只會見到自己負責班別嘅排程。若該日無排程，清單會係空——要先喺「排程管理」確認有堂。
+
+你想知某班今日點名狀態（已點未、幾多人出席），可以直接問我，例如「Mark Yu 今日點名狀態如何？」。`,
+    suggestions: ["今日有邊個請假？", "如何處理待補課？", "出席紀錄邊度查？"],
+    paths: [{ label: "進行點名", path: "/Attendance" }],
+  },
+  {
+    id: "student_today_lesson",
+    priority: 4,
+    keywords: [
+      /如何查.*(?:今日|今天).*(?:上堂|上唔上)/,
+      /點樣.*(?:今日|今天).*(?:上堂|上唔上)/,
+      /怎樣查.*學生.*上堂/,
+      /查學生.*今日.*堂/,
+    ],
+    reply: `查學生今日有冇堂、幾點上、請假定點名狀態，有兩個方法：
+
+方法一（推薦）：問我
+直接講學生姓名，例如：「陳大文今日上唔上堂？」或「Cyndi Ng 今日有咩堂？」。我會查系統後話你知。
+
+方法二：學生詳情
+1. 進入「學生管理」，打開該生詳情。
+2. 可睇報讀班別、請假紀錄同出席相關分頁。
+3. 今日具體上堂時間仍以排程為準；最快係用方法一問我。`,
+    suggestions: ["今日有邊個請假？", "如何進行點名？", "在讀與活躍有什麼分別？"],
+    paths: [{ label: "學生管理", path: "/Students" }],
+  },
+  {
+    id: "enrollment_status",
+    priority: 6,
+    keywords: [
+      /在讀.*活躍|活躍.*在讀/,
+      /四維/,
+      /注冊.*(?:在讀|報讀|活躍)/,
+      /(?:在讀|活躍|注冊|報讀).*(?:分別|意思|定義|什麼是|係咩)/,
+      /(?:分別|意思|定義).*(?:在讀|活躍|注冊|報讀)/,
+    ],
+    reply: `學生狀態分四維：
+
+注冊 — 已註冊／非注冊；試堂、查詢客戶屬非注冊。手動維護。
+報讀 — 一筆紀錄 = 報讀一個班別；有就讀中／已退讀等狀態。
+在讀 — 有任一筆「就讀中」報讀即為在讀；系統自動計算。
+活躍 — 近三個月內有報讀紀錄；系統自動計算。
+
+重點：
+- 注冊日期 ≠ 報讀日期；只新增學生主檔、未加報讀班別時，在讀／活躍通常係非在讀／非活躍。
+- 「非活躍生」唔係「非在讀」嘅同義詞——兩者規則唔同。
+
+要查某學生而家狀態，可以問我：「某某學生狀態係點？」。`,
+    suggestions: ["如何新增報讀班別？", "學號點生成？", "如何進行點名？"],
+    paths: [{ label: "學生管理", path: "/Students" }],
+  },
+  {
+    id: "add_enrollment",
+    priority: 3,
+    keywords: [/新增.*報讀/, /報讀班別/, /加入班別/, /加.*班/],
+    roles: ["admin", "alien"],
+    reply: `為學生新增班別報讀：
+
+1. 進入「學生管理」，打開該生詳情。
+2. 切換到「報讀班別」分頁。
+3. 喺下拉選單揀要加入嘅班別（顯示班名同時間）。
+4. 若該課程係暑期兩期制，需再揀報讀期別。
+5. 按「加入」。
+
+完成後「在讀／活躍」會按報讀紀錄自動更新，唔使手動改。
+
+新增學生主檔時唔包含報讀；建議建立學生後即刻到詳情頁加報讀。之後要繳費，需先有報讀班別。`,
+    suggestions: ["如何登記繳費？", "如何新增班別？", "在讀與活躍有什麼分別？"],
+    paths: [{ label: "學生管理", path: "/Students" }],
+  },
+  {
+    id: "leave_makeup",
+    priority: 4,
+    keywords: [/請假/, /待補/, /補課/, /補堂/],
+    reply: `請假與待補課：
+
+新增請假（admin）
+1. 進入「請假管理」，按「新增請假」。
+2. 揀學生、班別、請假嘅課堂排程、請假原因。
+3. 選擇補課安排（例如錄影、補堂等）及備註，儲存。
+
+亦可喺學生詳情內新增請假。
+
+待補課清單
+「請假管理」頂部可切換「待補課」分頁，睇狀態仍係待補嘅紀錄；可開詳情更新狀態或連結補課排程。
+
+點名時
+進行點名頁會預填已請假學生；標題旁亦可能顯示待補課數量提示。
+
+想睇待補名單，可以直接問我：「有邊個待補課？」。`,
+    suggestions: ["有邊個待補課？", "如何進行點名？", "今日有邊個請假？"],
+    paths: [{ label: "請假管理", path: "/LeaveManagement" }],
+  },
+  {
+    id: "trial",
+    priority: 3,
+    keywords: [/試堂/],
+    roles: ["admin", "alien"],
+    reply: `試堂紀錄：
+
+1. 側欄進入「試堂紀錄」。
+2. 可新增、編輯試堂預約（學生、班別／排程、日期等）。
+3. 試堂學生通常屬「非注冊」；正式報讀後先到學生詳情加班別報讀。
+
+進行點名時，已安排試堂嘅學生會出現喺該堂點名表。
+
+想睇未來試堂，可以問我：「未來有咩試堂？」。`,
+    suggestions: ["如何新增報讀班別？", "如何進行點名？", "在讀與活躍有什麼分別？"],
+    paths: [{ label: "試堂紀錄", path: "/TrialSessions" }],
+  },
+  {
+    id: "payment",
+    priority: 4,
+    keywords: [/繳費/, /學費/, /追收/, /出單/, /待繳/],
+    roles: ["admin", "alien"],
+    reply: `繳費紀錄（admin／alien；專班老師無此頁）：
+
+1. 進入「繳費紀錄」。
+2. 登記已收款項：學生已付現金／轉帳後登記。
+3. 建立繳費通知（待繳）：出單俾家長，之後再標記已收。
+
+操作前學生需已有報讀班別；若無，請先到學生詳情「報讀班別」加入。
+
+追收學費
+我可幫你列出在讀／活躍但欠費嘅學生名單，直接問：「邊個要追收學費？」（每頁 20 筆，可答「繼續」睇更多）。
+
+查單一學生已繳堂數，可以問我學生姓名。`,
+    suggestions: ["邊個要追收學費？", "如何新增報讀班別？", "優惠折扣邊度設定？"],
+    paths: [{ label: "繳費紀錄", path: "/Payments" }],
+  },
+  {
+    id: "add_class",
+    priority: 3,
+    keywords: [/新增班別/, /開班/, /建立班別/],
+    roles: ["admin", "alien"],
+    reply: `新增班別：
+
+1. 側欄「班別管理」→「新增班別」（或「所有功能」入面搵）。
+2. 揀課程模板、老師、課室、星期時間、學年、容量、學費等。
+3. 星期、年級用下拉選單；學年用剔選多選，唔好手打代碼。
+4. 儲存後可到「排程管理」確認或調整具體上課日期。
+
+班別顯示名稱來自課程名稱（班名），課程代碼由系統生成。`,
+    suggestions: ["排程點管理？", "如何新增報讀班別？", "老師檔期邊度睇？"],
+    paths: [
+      { label: "新增班別", path: "/Classes/New" },
+      { label: "班別管理", path: "/Classes" },
+    ],
+  },
+  {
+    id: "schedule",
+    priority: 2,
+    keywords: [/排程/, /上課日期/, /調堂/, /改時間/],
+    reply: `排程管理用於維護具體上課日期同時間：
+
+1. 進入「排程管理」。
+2. 可按日期、班別、老師篩選。
+3. 可新增、移動、取消單堂排程（受學年編輯鎖定規則限制）。
+
+班別設定咗星期時間後，仍需有排程先可以點名。「進行點名」係按排程揀堂，唔係直接按班別星期推斷。`,
+    suggestions: ["如何進行點名？", "如何新增班別？", "今日有邊個請假？"],
+    paths: [{ label: "排程管理", path: "/Schedule" }],
+  },
+  {
+    id: "attendance_records",
+    priority: 3,
+    keywords: [/出席紀錄/, /出席記錄/, /歷史出席/, /查出席/],
+    reply: `出席紀錄用於事後查閱已儲存嘅點名結果：
+
+1. 進入「出席紀錄」。
+2. 可按日期範圍、班別、學生篩選。
+3. 可切換列表／儀表板檢視。
+
+要今日即時點名，請用「進行點名」；要問某老師今日點名狀態，可以直接問我。`,
+    suggestions: ["如何進行點名？", "Mark Yu 今日點名狀態", "今日有邊個請假？"],
+    paths: [{ label: "出席紀錄", path: "/AttendanceRecords" }],
+  },
+  {
+    id: "room_booking",
+    priority: 3,
+    keywords: [/預約空房/, /約房/, /借課室/, /空房/],
+    roles: ["teacher"],
+    reply: `預約空房（專班老師）：
+
+1. 側欄進入「預約空房」。
+2. 揀日期、時段、課室等所需資料提交申請。
+3. 管理員會喺「約房審批」處理。
+
+老師亦可喺「時間表」睇自己嘅排程同約房。`,
+    suggestions: ["如何進行點名？", "我的班別邊度睇？", "排程點管理？"],
+    paths: [{ label: "預約空房", path: "/RoomBooking" }],
+  },
+  {
+    id: "my_classes_teacher",
+    priority: 3,
+    keywords: [/我的班別/, /我教.*班/, /我負責.*班/],
+    roles: ["teacher"],
+    reply: `專班老師睇自己負責嘅班別：
+
+1. 側欄「我的班別」（路由同班別管理頁，但只顯示你嘅班）。
+2. 可進入班別詳情睇學生名單、報讀等。
+
+亦可以直接問我：「我有咩班？」或「我今日有咩堂？」。`,
+    suggestions: ["我今日點名狀態", "如何進行點名？", "如何預約空房？"],
+    paths: [{ label: "我的班別", path: "/Classes" }],
+  },
+  {
+    id: "roles",
+    priority: 2,
+    keywords: [/角色.*分別/, /admin.*teacher/, /老師.*權限/, /外星人/, /專班老師.*可以/],
+    reply: `系統角色大致如下：
+
+admin（管理員）— 學生、班別、排程、請假、試堂、繳費、點名、出席紀錄等日常營運。
+teacher（專班老師）— 點名、我的班別、時間表、預約空房、待辦；睇唔到繳費紀錄同學生聯絡個資。
+alien（外星人）— 最高權限：課程、優惠、用戶、系統日志、報錯與問題等。
+
+唔肯定自己有冇權限時，可以問我具體操作，我會按角色答；完整入口可去「所有功能」。`,
+    suggestions: ["如何進行點名？", "如何登記繳費？", "所有功能有咩？"],
+    paths: [{ label: "所有功能", path: "/AllFeatures" }],
+  },
+  {
+    id: "student_code",
+    priority: 4,
+    keywords: [/學號/, /student\s*code/i],
+    reply: `學號（student_code）規則：
+
+- 8 位純數字，由系統自動生成，唔可以手改。
+- 新號 = 現有數字學號最大值 +1。
+- 搜尋學生時可以學號或姓名。
+
+新增學生後會即時派號；詳情頁頂部可見。`,
+    suggestions: ["如何新增學生？", "如何新增報讀班別？", "在讀與活躍有什麼分別？"],
+    paths: [{ label: "學生管理", path: "/Students" }],
+  },
+  {
+    id: "system_error",
+    priority: 3,
+    keywords: [/系統錯誤/, /報錯/, /紅字/, /操作失敗/, /permission denied/i],
+    reply: `若頁面出現紅色錯誤提示：
+
+1. 先讀錯誤訊息內容（多數會講係權限、驗證定網絡問題）。
+2. 可以截圖或複製訊息，聯絡管理員／外星人。
+3. 外星人可喺「報錯與問題」查系統自動上報嘅錯誤列表。
+
+我無法代你改資料或修復權限，但可以教你正確操作步驟，或者幫你查唯讀資料。`,
+    suggestions: ["如何進行點名？", "角色有什麼分別？", "所有功能有咩？"],
+    paths: [{ label: "報錯與問題", path: "/SystemIssues" }],
+  },
+  {
+    id: "enrollment_changes",
+    priority: 2,
+    keywords: [/增退/, /退讀/, /更動紀錄/],
+    roles: ["admin", "alien"],
+    reply: `增退紀錄記錄學生報讀班別嘅加入同退出事件：
+
+1. 進入「增退紀錄」可搜尋、篩選歷史更動。
+2. 喺學生詳情「報讀班別」按退讀／加入時，系統會自動寫入更動紀錄。
+
+用於對帳同追溯幾時報讀或退讀邊個班。`,
+    suggestions: ["如何新增報讀班別？", "在讀與活躍有什麼分別？", "如何登記繳費？"],
+    paths: [{ label: "增退紀錄", path: "/EnrollmentChanges" }],
+  },
+  {
+    id: "all_features",
+    priority: 1,
+    keywords: [/所有功能/, /有咩功能/, /功能列表/, /邊度做/],
+    reply: `唔記得功能喺邊？可以去「所有功能」頁，按學籍、排程、請假試堂等分組列出你角色用得嘅入口。
+
+常見快捷：
+- 點名 → 進行點名
+- 查學生 → 學生管理（或直接問我姓名）
+- 請假／待補 → 請假管理
+- 繳費 → 繳費紀錄（admin／alien）
+
+你想做邊樣，我可以再講具體步驟。`,
+    suggestions: ["如何進行點名？", "在讀與活躍有什麼分別？", "如何請假？"],
+    paths: [{ label: "所有功能", path: "/AllFeatures" }],
+  },
+]
+
+export type HowtoDirectReply = {
+  reply: string
+  suggestions: string[]
+  paths: Array<{ label: string; path: string }>
+  guideId: string
+}
+
+function scoreGuide(text: string, guide: HowtoGuide): number {
+  let score = guide.priority ?? 0
+  for (const re of guide.keywords) {
+    if (re.test(text)) score += 10
+  }
+  return score
+}
+
+/** 命中知識庫條目時直答（score ≥ 10 即至少一條 keyword 命中） */
+export function tryDirectHowtoAnswer(
+  text: string,
+  userRole: string | undefined
+): HowtoDirectReply | null {
+  const t = text.trim()
+  if (!t) return null
+
+  let best: { guide: HowtoGuide; score: number } | null = null
+
+  for (const guide of HOWTO_GUIDES) {
+    if (guide.roles && userRole && !guide.roles.includes(userRole as "admin" | "teacher" | "alien")) {
+      continue
+    }
+    const score = scoreGuide(t, guide)
+    if (score < 10) continue
+    if (!best || score > best.score) {
+      best = { guide, score }
+    }
+  }
+
+  if (!best) return null
+
+  return {
+    guideId: best.guide.id,
+    reply: best.guide.reply,
+    suggestions: best.guide.suggestions,
+    paths: best.guide.paths,
+  }
+}
+
+/** LLM howto 層用：精簡索引（完整條文見 HOWTO_GUIDES） */
+export const APO_HOWTO_INDEX = `
+## 操作教學索引（詳情已內建；回答時跟條目步驟，唔好捏造按鈕）
+
+- 點名：進行點名 → 選日期 → 選排程 → 填狀態 → 確定儲存
+- 查學生今日上堂：可直接問 IT狗 學生姓名；或學生詳情
+- 四維狀態：注冊（手動）｜報讀（每班一筆）｜在讀（有就讀中報讀）｜活躍（近三個月報讀）
+- 新增報讀：學生詳情 → 報讀班別 → 選班 → 加入
+- 請假／待補：請假管理（新增請假、待補課分頁）；學生詳情亦可新增請假
+- 試堂：試堂紀錄；試堂生非注冊，正式報讀要另加班別
+- 繳費：繳費紀錄（admin／alien）；需先有報讀班別
+- 新增班別：新增班別表單；學年用 checkbox 多選
+- 排程：排程管理維護具體上課日；點名跟排程
+- 出席紀錄：事後查閱；即時點名用進行點名
+- 專班老師：我的班別、時間表、預約空房；無繳費頁
+- 學號：8 位數字自動生成，不可手改
+- 系統錯誤：頁面紅字；alien 查報錯與問題
+`.trim()

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
 import { Layout } from "@/components/Layout"
@@ -33,6 +34,9 @@ import TeacherProfile from "@/pages/TeacherProfile"
 import TeacherTimetable from "@/pages/TeacherTimetable"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
+import ApoPo from "@/pages/ApoPo"
+
+const AiReports = lazy(() => import("@/pages/AiReports"))
 
 export default function App() {
  return (
@@ -59,6 +63,21 @@ export default function App() {
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />
+     <Route path="/Apo" element={<ApoPo />} />
+     <Route
+      path="/AiReports"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入 AI 報表…
+         </div>
+        }
+       >
+        <AiReports />
+       </Suspense>
+      }
+     />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
      <Route path="/ReferralRebates" element={<ReferralRebates />} />
      <Route path="/Calendar" element={<Calendar />} />

@@ -41,7 +41,8 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAlien, isMgmtStaff } from "@/lib/mgmtRole"
+import { gradeChineseToCode } from "@/lib/courseCode"
 import {
  academicYearEditBlockedMessage,
  academicYearLabelForClass,
@@ -60,7 +61,9 @@ import {
  fetchClassStudents,
  fetchClassSchedules,
  fetchClassroomOptions,
+ fetchCourseOptions,
  fetchScheduleStudentHintsForClass,
+ fetchSubjectOptions,
  fetchTeacherOptions,
  getClassById,
  insertSchedulesForClassSession,
@@ -70,6 +73,7 @@ import {
  type ClassScheduleRow,
  type ClassStudentRow,
  type ScheduleStudentHints,
+ type SubjectOption,
  updateClass,
  updateSchedule,
 } from "@/services/classQueries"
@@ -130,8 +134,10 @@ function isClassEditFormDirty(
  cls: ClassRecord,
  form: Partial<ClassRecord>,
  gradeSelections: string[],
- weekdaySelections: string[]
+ weekdaySelections: string[],
+ templateCourseId: string
 ): boolean {
+ if (cls.course_id && templateCourseId !== (cls.course_id ?? "")) return true
  if (!gradesEqual(gradeSelections, normalizedGradesFromClass(cls))) return true
  if (!weekdaysEqual(weekdaySelections, cls.day_of_week)) return true
  const safeCap = cls.capacity != null && cls.capacity < 0 ? null : cls.capacity
@@ -187,6 +193,11 @@ export function ClassDetailView() {
  const [savingEdit, setSavingEdit] = useState(false)
  const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
  const [rooms, setRooms] = useState<{ id: string; label: string }[]>([])
+ const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([])
+ const [templateSubjectId, setTemplateSubjectId] = useState("")
+ const [templateGradeCode, setTemplateGradeCode] = useState("")
+ const [templateCourseId, setTemplateCourseId] = useState("")
+ const [templateCourseOptions, setTemplateCourseOptions] = useState<{ id: string; label: string }[]>([])
  const [form, setForm] = useState<Partial<ClassRecord>>({})
  const [gradeSelections, setGradeSelections] = useState<string[]>([])
  const [weekdaySelections, setWeekdaySelections] = useState<string[]>([])
@@ -245,6 +256,9 @@ export function ClassDetailView() {
   })
   setGradeSelections(normalizedGradesFromClass(cls))
   setWeekdaySelections(weekdaysFromStored(cls.day_of_week))
+  setTemplateSubjectId(cls.subject_id ?? "")
+  setTemplateGradeCode(cls.grade_code ?? "")
+  setTemplateCourseId(cls.course_id ?? "")
  }, [cls])
 
  const reload = useCallback(async () => {
@@ -253,7 +267,7 @@ export function ClassDetailView() {
   setPageErr(null)
   try {
    const teacherScope = getTeacherScopeTeacherId()
-   const [c, st, ev, sc, tch, rm, allSt] = await Promise.all([
+   const [c, st, ev, sc, tch, rm, allSt, subjectOpts] = await Promise.all([
     getClassById(cid),
     fetchClassStudents(cid),
     fetchEnrollmentChangeEventsForClass(cid),
@@ -261,6 +275,7 @@ export function ClassDetailView() {
     fetchTeacherOptions(),
     fetchClassroomOptions(),
     teacherScope ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
+    fetchSubjectOptions(),
    ])
    setCls(c)
    if (c) {
@@ -274,10 +289,16 @@ export function ClassDetailView() {
      .filter((x): x is string => x != null)
     setGradeSelections([...new Set(grades)])
     setWeekdaySelections(weekdaysFromStored(c.day_of_week))
+    setTemplateSubjectId(c.subject_id ?? "")
+    setTemplateGradeCode(c.grade_code ?? "")
+    setTemplateCourseId(c.course_id ?? "")
    } else {
     setForm({})
     setGradeSelections([])
     setWeekdaySelections([])
+    setTemplateSubjectId("")
+    setTemplateGradeCode("")
+    setTemplateCourseId("")
    }
    setStudents(st)
    setEnrollmentEvents(ev)
@@ -290,6 +311,7 @@ export function ClassDetailView() {
    setTeachers(tch)
    setRooms(rm)
    setAllStudents(allSt)
+   setSubjectOptions(subjectOpts)
   } catch (e) {
    const msg = formatUnknownError(e)
    reportUserFacingError(e, {
@@ -305,6 +327,24 @@ export function ClassDetailView() {
  useEffect(() => {
   void reload()
  }, [reload])
+
+ useEffect(() => {
+  if (!templateSubjectId || !templateGradeCode) {
+   setTemplateCourseOptions([])
+   return
+  }
+  void (async () => {
+   try {
+    const opts = await fetchCourseOptions({
+     subject_id: templateSubjectId,
+     grade_code: templateGradeCode,
+    })
+    setTemplateCourseOptions(opts.map((o) => ({ id: o.id, label: o.label })))
+   } catch {
+    setTemplateCourseOptions([])
+   }
+  })()
+ }, [templateSubjectId, templateGradeCode])
 
  const today = localYmd()
 
@@ -341,6 +381,30 @@ export function ClassDetailView() {
    pushBanner({ tone: "warning", title: "收生上限不可為負數" })
    return false
   }
+  const courseChanging =
+   Boolean(cls.course_id) &&
+   templateCourseId !== "" &&
+   templateCourseId !== cls.course_id
+  if (cls.course_id && !templateCourseId) {
+   pushBanner({ tone: "warning", title: "請選擇課程模板" })
+   return false
+  }
+  if (courseChanging) {
+   const parts = [
+    "更換課程模板後，班別編碼、科目與年級會一併更新。",
+    students.length > 0 ? `目前已有 ${students.length} 位就讀學生。` : null,
+    schedules.length > 0 ? `目前已有 ${schedules.length} 筆排程。` : null,
+    "這些紀錄不會自動清除。確定繼續？",
+   ].filter(Boolean)
+   if (
+    !(await confirmDialog({
+     title: "確認更換課程模板？",
+     description: parts.join("\n"),
+     confirmText: "確認更換",
+    }))
+   )
+    return false
+  }
   const gradeArr = cls.course_id
    ? gradeSelections
    : normalizeStoredClassGradeLabels(gradeSelections.length > 0 ? gradeSelections : null)
@@ -348,6 +412,7 @@ export function ClassDetailView() {
   setSavingEdit(true)
   try {
    await updateClass(cid, {
+    ...(courseChanging ? { course_id: templateCourseId } : {}),
     subject: cls.course_id ? cls.subject : form.subject ?? cls.subject,
     section_code: form.section_code?.trim() || null,
     grade: gradeArr,
@@ -384,7 +449,11 @@ export function ClassDetailView() {
  }
 
  const requestCloseEdit = useCallback(async (): Promise<boolean> => {
-  if (!cls || !isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections)) return true
+  if (
+   !cls ||
+   !isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections, templateCourseId)
+  )
+   return true
   const choice = await promptUnsavedLeave()
   if (choice === "cancel") return false
   if (choice === "save") {
@@ -393,7 +462,15 @@ export function ClassDetailView() {
   }
   resetEditFormFromClass()
   return true
- }, [cls, form, gradeSelections, weekdaySelections, promptUnsavedLeave, resetEditFormFromClass])
+ }, [
+  cls,
+  form,
+  gradeSelections,
+  weekdaySelections,
+  templateCourseId,
+  promptUnsavedLeave,
+  resetEditFormFromClass,
+ ])
 
  const requestLeavePage = useCallback(async () => {
   if (editOpen) {
@@ -1214,32 +1291,92 @@ const addableStudents = (() => {
          {editErr}
         </div>
        ) : null}
-       <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">科目</label>
-        {cls.course_id ? (
-         <>
-          <Input className="mt-1 cursor-not-allowed bg-muted" value={cls.subject ?? ""} readOnly tabIndex={-1} />
-          <p className="mt-1 text-xs text-muted-foreground">由課程模板決定，不可修改。</p>
-         </>
-        ) : (
+       {cls.course_id ? (
+        <div className="sm:col-span-2 space-y-3 rounded-md border border-border bg-muted/30 p-3">
+         <div className="text-sm font-medium text-foreground">課程模板</div>
+         <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+           <label className="text-xs text-muted-foreground">科目</label>
+           <Select
+            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={templateSubjectId}
+            onChange={(e) => {
+             setTemplateSubjectId(e.target.value)
+             setTemplateGradeCode("")
+             setTemplateCourseId("")
+            }}
+           >
+            <option value="">請選擇</option>
+            {subjectOptions.map((s) => (
+             <option key={s.id} value={s.id}>
+              {s.name_zh}（{s.code}）
+             </option>
+            ))}
+           </Select>
+          </div>
+          <div>
+           <label className="text-xs text-muted-foreground">年級</label>
+           <Select
+            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={templateGradeCode}
+            onChange={(e) => {
+             setTemplateGradeCode(e.target.value)
+             setTemplateCourseId("")
+            }}
+            disabled={!templateSubjectId}
+           >
+            <option value="">請選擇</option>
+            {CLASS_GRADE_FORM_OPTIONS.map((g) => {
+             const code = gradeChineseToCode(g)
+             if (!code) return null
+             return (
+              <option key={g} value={code}>
+               {g}（{code}）
+              </option>
+             )
+            })}
+           </Select>
+          </div>
+          <div className="sm:col-span-2">
+           <label className="text-xs text-muted-foreground">課程</label>
+           <Select
+            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={templateCourseId}
+            onChange={(e) => setTemplateCourseId(e.target.value)}
+            disabled={!templateSubjectId || !templateGradeCode}
+           >
+            <option value="">請選擇</option>
+            {templateCourseOptions.map((c) => (
+             <option key={c.id} value={c.id}>
+              {c.label}
+             </option>
+            ))}
+            {templateCourseId &&
+            !templateCourseOptions.some((c) => c.id === templateCourseId) ? (
+             <option value={templateCourseId}>目前課程（{templateCourseId.slice(0, 8)}…）</option>
+            ) : null}
+           </Select>
+          </div>
+         </div>
+         <p className="text-xs text-muted-foreground">
+          更換模板會更新班別編碼、科目與年級；已有學生與排程不會自動清除。
+         </p>
+         {isAlien() ? (
+          <Link to="/Courses" className="text-xs font-medium text-primary hover:underline">
+           前往課程管理編輯模板內容
+          </Link>
+         ) : null}
+        </div>
+       ) : (
+        <div className="sm:col-span-2">
+         <label className="text-xs text-muted-foreground">科目</label>
          <Input
           className="mt-1"
           value={form.subject ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
          />
-        )}
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">課程 ID（course_id）</label>
-        <Input
-         className="mt-1 cursor-not-allowed bg-muted font-mono text-foreground"
-         value={cls.course_id ?? "—"}
-         readOnly
-         tabIndex={-1}
-         aria-readonly="true"
-        />
-        <p className="mt-1 text-xs text-muted-foreground">由系統指定，不可修改。</p>
-       </div>
+        </div>
+       )}
        <div>
         <label className="text-xs text-muted-foreground">班號（section_code）</label>
         <Input
@@ -1250,12 +1387,7 @@ const addableStudents = (() => {
        </div>
        <div className="sm:col-span-2">
         <label className="text-xs text-muted-foreground">年級{cls.course_id ? "" : "（可多選）"}</label>
-        {cls.course_id ? (
-         <>
-          <p className="mt-1 text-sm">{classGradeDisplayText(cls.grade, cls.grade_code)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">由課程模板決定，不可修改。</p>
-         </>
-        ) : (
+        {!cls.course_id ? (
          <>
           <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
            {CLASS_GRADE_FORM_OPTIONS.map((g) => (
@@ -1276,6 +1408,10 @@ const addableStudents = (() => {
           </div>
           <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
          </>
+        ) : (
+         <p className="mt-1 text-sm text-muted-foreground">
+          由所選課程模板決定（目前：{classGradeDisplayText(cls.grade, cls.grade_code)}）
+         </p>
         )}
        </div>
        <div className="sm:col-span-2">

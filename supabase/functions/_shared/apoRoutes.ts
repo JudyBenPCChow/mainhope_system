@@ -1,3 +1,6 @@
+import { APO_NO_HALLUCINATION_RULE } from "./apoNoHallucination.ts"
+import { APO_NO_LEGACY_REPLY_RULE } from "./apoReplySanitize.ts"
+
 /** 明學IT狗可引用的真實路由 */
 export const APO_VALID_PATHS = new Set([
   "/Home",
@@ -26,6 +29,7 @@ export const APO_VALID_PATHS = new Set([
   "/Payments",
   "/Calendar",
   "/EnrollmentChanges",
+  "/AiReports",
 ])
 
 export const APO_PATH_LABELS: Record<string, string> = {
@@ -55,6 +59,7 @@ export const APO_PATH_LABELS: Record<string, string> = {
   "/Payments": "繳費紀錄",
   "/Calendar": "待辦事項",
   "/EnrollmentChanges": "增退紀錄",
+  "/AiReports": "AI 報表",
 }
 
 const SORTED_PATHS = Object.keys(APO_PATH_LABELS).sort((a, b) => b.length - a.length)
@@ -106,7 +111,8 @@ export const APO_JSON_INSTRUCTIONS = `
 }
 
 規則：
-- reply：繁體中文。**業務問題**：先結論與用戶要求嘅答案，再步驟；幽默至多一句點綴。**非業務／閒聊**：可輕鬆自嘲，令用戶開心，但仍克制、友善。自稱「明學IT狗」或「我」；**禁止自稱雞先生**。不可假稱已代用戶修改資料。
+- reply：繁體中文；**禁止 Markdown**（唔好用 ** 加粗）。**業務問題**：先結論與用戶要求嘅答案，再步驟；幽默至多一句點綴。**非業務／閒聊**：可輕鬆自嘲，令用戶開心，但仍克制、友善。自稱「明學IT狗」或「我」；禁止自稱雞先生。不可假稱已代用戶修改資料。
+- ${APO_NO_HALLUCINATION_RULE}
 - **reply 內禁止寫「路徑：/XXX」或裸路由**；只用中文功能名。路由只放在 paths。
 - suggestions：2～3 個相關追問短句（每句不超過 20 字），例如「詳細步驟是什麼？」「老師能否查看？」。
 - **paths**：回答涉及系統頁面時必須填入 1～3 項 { label, path }。

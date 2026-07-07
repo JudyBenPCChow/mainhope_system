@@ -12,9 +12,9 @@ export const APO_WELCOME_TEXT =
 
 export const APO_STARTER_SUGGESTIONS = [
  "今日有邊個學生請假？",
- "如何查學生今日上唔上堂？",
- "在讀與活躍狀態有什麼分別？",
  "如何進行點名？",
+ "在讀與活躍狀態有什麼分別？",
+ "如何新增報讀班別？",
 ] as const
 
 export const APO_ASSISTANT_NAME = "明學IT狗"

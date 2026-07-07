@@ -5,3 +5,6 @@ enabled = true
 
 [functions.apo-chat]
 verify_jwt = true
+
+[functions.ai-report]
+verify_jwt = true

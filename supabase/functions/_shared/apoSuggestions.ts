@@ -27,6 +27,10 @@ export function fallbackSuggestions(
     return ["佢今日上唔上堂？", "學生狀態係點？", "最近出席紀錄"]
   }
 
+  if (toolsUsed.includes("teacher_day_attendance")) {
+    return ["前往進行點名", "今日請假名單", "出席紀錄"]
+  }
+
   if (toolsUsed.includes("today_leaves")) {
     return ["邊個班今日上堂？", "邊個有待補？", "如何進行點名？"]
   }
@@ -36,7 +40,7 @@ export function fallbackSuggestions(
   }
 
   if (toolsUsed.includes("overdue_tuition_list")) {
-    return ["繼續列出", "如何查單一學生學費？", "前往繳費紀錄"]
+    return ["前往 AI 報表", "繼續列出", "如何查單一學生學費？"]
   }
 
   if (intent === "howto") {
