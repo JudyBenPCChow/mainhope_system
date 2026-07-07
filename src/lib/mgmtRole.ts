@@ -35,6 +35,15 @@ export function isAlien(): boolean {
  return getMgmtRole() === "alien"
 }
 
+/** 單據經手人：顯示目前登入角色 */
+export function formatMgmtRoleLabel(role?: MgmtRole | null): string {
+ const r = role ?? getMgmtRole()
+ if (r === "admin") return "管理員"
+ if (r === "teacher") return "專科班老師"
+ if (r === "alien") return "外星人"
+ return "—"
+}
+
 /**
  * 學年唯讀判斷：
  * - alien：不受限

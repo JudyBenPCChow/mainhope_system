@@ -33,9 +33,10 @@ export type StudentRecord = {
  date_of_birth: string | null
  grade: string | null
  school: string | null
- registration_status: "已註冊" | "僅查詢"
+ registration_status: "已註冊" | "非注冊"
  enrollment_status: "在讀" | "非在讀"
- academic_stage: "中學中" | "中學畢業"
+ activity_status: "活躍生" | "非活躍生"
+ academic_stage: "中學階段" | "已畢業"
  status: string | null
  parent_name: string | null
  parent_relationship: string | null
@@ -58,19 +59,13 @@ export function normalizePhoneCountryCode(value: string | null | undefined): "+8
  return value === "+86" ? "+86" : "+852"
 }
 
-/** 學生狀態收斂為四種：在讀／非在讀／查詢試堂／畢業 */
-export function normalizeStudentStatus(status: string | null): "在讀" | "非在讀" | "查詢試堂" | "畢業" {
- const s = (status ?? "").trim()
- if (!s) return "在讀"
- if (/查詢|試堂/.test(s)) return "查詢試堂"
- if (/畢業/.test(s)) return "畢業"
- if (/非在讀|休學|退學|退選|離校/.test(s)) return "非在讀"
- return "在讀"
+export function registrationStatusLabel(value: "已註冊" | "非注冊"): string {
+ return value === "非注冊" ? "非注冊（試堂／查詢）" : "注冊"
 }
 
-export function normalizeRegistrationStatus(value: string | null | undefined): "已註冊" | "僅查詢" {
+export function normalizeRegistrationStatus(value: string | null | undefined): "已註冊" | "非注冊" {
  const s = (value ?? "").trim()
- if (/僅查詢|查詢/.test(s)) return "僅查詢"
+ if (/非注冊|僅查詢|查詢|試堂/.test(s)) return "非注冊"
  return "已註冊"
 }
 
@@ -81,82 +76,151 @@ export function normalizeEnrollmentStatus(value: string | null | undefined): "�
  return "非在讀"
 }
 
-export function normalizeAcademicStage(value: string | null | undefined): "中學中" | "中學畢業" {
+export function normalizeActivityStatus(value: string | null | undefined): "活躍生" | "非活躍生" {
  const s = (value ?? "").trim()
- if (/畢業/.test(s)) return "中學畢業"
- return "中學中"
+ if (/非活躍/.test(s)) return "非活躍生"
+ if (/活躍/.test(s)) return "活躍生"
+ return "非活躍生"
+}
+
+export function normalizeAcademicStage(value: string | null | undefined): "中學階段" | "已畢業" {
+ const s = (value ?? "").trim()
+ if (/畢業/.test(s) && !/階段/.test(s)) return "已畢業"
+ if (s === "中學中") return "中學階段"
+ return "中學階段"
+}
+
+/** @deprecated 請改用四維分類欄位；保留供舊儀表板／匯入相容 */
+export function normalizeStudentStatus(status: string | null): "在讀" | "非在讀" | "非注冊" | "已畢業" {
+ const s = (status ?? "").trim()
+ if (!s) return "在讀"
+ if (/非注冊|查詢|試堂/.test(s)) return "非注冊"
+ if (/畢業/.test(s)) return "已畢業"
+ if (/非在讀|休學|退學|退選|離校/.test(s)) return "非在讀"
+ return "在讀"
+}
+
+function threeMonthsAgoYmd(): string {
+ const d = new Date()
+ d.setMonth(d.getMonth() - 3)
+ return localYmd(d)
+}
+
+type EnrollmentStateRow = {
+ status: string
+ enroll_date: string | null
+ created_at: string
+}
+
+function enrollmentEventYmd(row: EnrollmentStateRow): string {
+ const enroll = (row.enroll_date ?? "").trim()
+ if (enroll) return enroll.slice(0, 10)
+ return (row.created_at ?? "").slice(0, 10)
+}
+
+function computeDerivedFromEnrollments(
+ registration_status: "已註冊" | "非注冊",
+ academic_stage: "中學階段" | "已畢業",
+ enrollments: EnrollmentStateRow[]
+): {
+ enrollment_status: "在讀" | "非在讀"
+ activity_status: "活躍生" | "非活躍生"
+ status: string
+} {
+ const recentCutoff = threeMonthsAgoYmd()
+ const hasActiveEnrollment = enrollments.some((row) => row.status === "就讀中")
+ const hasRecentEnrollment = enrollments.some((row) => enrollmentEventYmd(row) >= recentCutoff)
+ let enrollment_status: "在讀" | "非在讀" = hasActiveEnrollment ? "在讀" : "非在讀"
+ const activity_status: "活躍生" | "非活躍生" = hasRecentEnrollment ? "活躍生" : "非活躍生"
+ if (registration_status === "非注冊") enrollment_status = "非在讀"
+ return {
+  enrollment_status,
+  activity_status,
+  status: deriveDisplayStatus({ registration_status, enrollment_status, academic_stage }),
+ }
 }
 
 function inferStateFromLegacy(status: string | null, grade: string | null | undefined): {
- registration_status: "已註冊" | "僅查詢"
+ registration_status: "已註冊" | "非注冊"
  enrollment_status: "在讀" | "非在讀"
- academic_stage: "中學中" | "中學畢業"
+ activity_status: "活躍生" | "非活躍生"
+ academic_stage: "中學階段" | "已畢業"
 } {
  const g = (grade ?? "").trim().toUpperCase()
  const s = normalizeStudentStatus(status)
- if (g === "NA" || g === "GD" || s === "畢業") {
+ if (g === "NA" || g === "GD" || s === "已畢業") {
   return {
    registration_status: "已註冊",
    enrollment_status: "非在讀",
-   academic_stage: "中學畢業",
+   activity_status: "非活躍生",
+   academic_stage: "已畢業",
   }
  }
- if (s === "查詢試堂") {
+ if (s === "非注冊") {
   return {
-   registration_status: "僅查詢",
+   registration_status: "非注冊",
    enrollment_status: "非在讀",
-   academic_stage: "中學中",
+   activity_status: "非活躍生",
+   academic_stage: "中學階段",
   }
  }
  if (s === "在讀") {
   return {
    registration_status: "已註冊",
    enrollment_status: "在讀",
-   academic_stage: "中學中",
+   activity_status: "非活躍生",
+   academic_stage: "中學階段",
   }
  }
  return {
   registration_status: "已註冊",
   enrollment_status: "非在讀",
-  academic_stage: "中學中",
+  activity_status: "非活躍生",
+  academic_stage: "中學階段",
  }
 }
 
 function deriveDisplayStatus(input: {
- registration_status: "已註冊" | "僅查詢"
+ registration_status: "已註冊" | "非注冊"
  enrollment_status: "在讀" | "非在讀"
- academic_stage: "中學中" | "中學畢業"
-}): "在讀" | "非在讀" | "查詢試堂" | "畢業" {
- if (input.academic_stage === "中學畢業") return "畢業"
- if (input.registration_status === "僅查詢") return "查詢試堂"
+ academic_stage: "中學階段" | "已畢業"
+}): string {
+ if (input.academic_stage === "已畢業") return "已畢業"
+ if (input.registration_status === "非注冊") return "非注冊"
  if (input.enrollment_status === "在讀") return "在讀"
  return "非在讀"
 }
+
+const ENROLLMENT_STATE_SELECT = "status, enroll_date, created_at"
 
 async function syncStudentEnrollmentState(studentId: string): Promise<void> {
  if (!supabase) return
  const [{ data: studentRow, error: sErr }, { data: enrRows, error: eErr }] = await Promise.all([
   supabase.from("students").select("registration_status, academic_stage").eq("id", studentId).maybeSingle(),
-  supabase.from("student_class_enrollments").select("status").eq("student_id", studentId),
+  supabase.from("student_class_enrollments").select(ENROLLMENT_STATE_SELECT).eq("student_id", studentId),
  ])
  if (sErr) throw sErr
  if (eErr) throw eErr
  if (!studentRow) return
 
- const hasActiveEnrollment = (enrRows ?? []).some((r) => String((r as Record<string, unknown>).status ?? "") === "就讀中")
- const state = normalizeStudentState({
-  registration_status: String((studentRow as Record<string, unknown>).registration_status ?? "已註冊"),
-  enrollment_status: hasActiveEnrollment ? "在讀" : "非在讀",
-  academic_stage: String((studentRow as Record<string, unknown>).academic_stage ?? "中學中"),
- })
+ const registration_status = normalizeRegistrationStatus(
+  String((studentRow as Record<string, unknown>).registration_status ?? "已註冊")
+ )
+ const academic_stage = normalizeAcademicStage(
+  String((studentRow as Record<string, unknown>).academic_stage ?? "中學階段")
+ )
+ const derived = computeDerivedFromEnrollments(
+  registration_status,
+  academic_stage,
+  (enrRows ?? []) as unknown as EnrollmentStateRow[]
+ )
 
  const { error: uErr } = await supabase
   .from("students")
   .update({
-   registration_status: state.registration_status,
-   enrollment_status: state.enrollment_status,
-   academic_stage: state.academic_stage,
-   status: deriveDisplayStatus(state),
+   enrollment_status: derived.enrollment_status,
+   activity_status: derived.activity_status,
+   status: derived.status,
    updated_at: new Date().toISOString(),
   })
   .eq("id", studentId)
@@ -166,19 +230,25 @@ async function syncStudentEnrollmentState(studentId: string): Promise<void> {
 function normalizeStudentState(input: {
  registration_status: string | null | undefined
  enrollment_status: string | null | undefined
+ activity_status: string | null | undefined
  academic_stage: string | null | undefined
 }): {
- registration_status: "已註冊" | "僅查詢"
+ registration_status: "已註冊" | "非注冊"
  enrollment_status: "在讀" | "非在讀"
- academic_stage: "中學中" | "中學畢業"
+ activity_status: "活躍生" | "非活躍生"
+ academic_stage: "中學階段" | "已畢業"
 } {
- let registration = normalizeRegistrationStatus(input.registration_status)
+ const registration = normalizeRegistrationStatus(input.registration_status)
  let enrollment = normalizeEnrollmentStatus(input.enrollment_status)
+ const activity = normalizeActivityStatus(input.activity_status)
  const stage = normalizeAcademicStage(input.academic_stage)
- if (registration === "僅查詢") enrollment = "非在讀"
- if (stage === "中學畢業") enrollment = "非在讀"
- if (enrollment === "在讀") registration = "已註冊"
- return { registration_status: registration, enrollment_status: enrollment, academic_stage: stage }
+ if (registration === "非注冊") enrollment = "非在讀"
+ return {
+  registration_status: registration,
+  enrollment_status: enrollment,
+  activity_status: activity,
+  academic_stage: stage,
+ }
 }
 
 function asStudent(row: Record<string, unknown>): StudentRecord {
@@ -192,6 +262,8 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
    row.registration_status != null ? String(row.registration_status) : inferred.registration_status,
   enrollment_status:
    row.enrollment_status != null ? String(row.enrollment_status) : inferred.enrollment_status,
+  activity_status:
+   row.activity_status != null ? String(row.activity_status) : inferred.activity_status,
   academic_stage: row.academic_stage != null ? String(row.academic_stage) : inferred.academic_stage,
  })
  return {
@@ -206,8 +278,12 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   school: row.school != null ? String(row.school) : null,
   registration_status: state.registration_status,
   enrollment_status: state.enrollment_status,
+  activity_status: state.activity_status,
   academic_stage: state.academic_stage,
-  status: deriveDisplayStatus(state),
+  status:
+   row.status != null && String(row.status).trim()
+    ? String(row.status)
+    : deriveDisplayStatus(state),
   parent_name: row.parent_name != null ? String(row.parent_name) : null,
   parent_relationship:
    row.parent_relationship != null ? String(row.parent_relationship) : null,
@@ -251,7 +327,8 @@ export async function insertStudent(
  if (!supabase) throw new Error("Supabase 未設定")
  const baseState = normalizeStudentState({
   registration_status: row.registration_status,
-  enrollment_status: row.enrollment_status,
+  enrollment_status: "非在讀",
+  activity_status: "非活躍生",
   academic_stage: row.academic_stage,
  })
  const grade = coerceStudentGrade(row.grade)
@@ -261,7 +338,8 @@ export async function insertStudent(
  )
  const state = normalizeStudentState({
   registration_status: row.registration_status ?? inferred.registration_status ?? baseState.registration_status,
-  enrollment_status: row.enrollment_status ?? inferred.enrollment_status ?? baseState.enrollment_status,
+  enrollment_status: "非在讀",
+  activity_status: "非活躍生",
   academic_stage: row.academic_stage ?? inferred.academic_stage ?? baseState.academic_stage,
  })
  const { data, error } = await supabase
@@ -275,6 +353,7 @@ export async function insertStudent(
    school: row.school ?? null,
    registration_status: state.registration_status,
    enrollment_status: state.enrollment_status,
+   activity_status: state.activity_status,
    academic_stage: state.academic_stage,
    status: deriveDisplayStatus(state),
    parent_name: row.parent_name ?? null,
@@ -314,13 +393,14 @@ export async function updateStudent(
  if (patch.grade !== undefined) {
   payload.grade = coerceStudentGrade(patch.grade)
  }
- const touchesState =
-  patch.status !== undefined ||
+ delete payload.enrollment_status
+ delete payload.activity_status
+
+ const touchesManualState =
   patch.registration_status !== undefined ||
-  patch.enrollment_status !== undefined ||
   patch.academic_stage !== undefined ||
   patch.grade !== undefined
- if (touchesState) {
+ if (touchesManualState) {
   const grade =
    patch.grade !== undefined ? coerceStudentGrade(patch.grade) : undefined
   const inferred = inferStateFromLegacy(
@@ -330,14 +410,12 @@ export async function updateStudent(
   const state = normalizeStudentState({
    registration_status:
     patch.registration_status != null ? String(patch.registration_status) : inferred.registration_status,
-   enrollment_status:
-    patch.enrollment_status != null ? String(patch.enrollment_status) : inferred.enrollment_status,
+   enrollment_status: undefined,
+   activity_status: undefined,
    academic_stage: patch.academic_stage != null ? String(patch.academic_stage) : inferred.academic_stage,
   })
   payload.registration_status = state.registration_status
-  payload.enrollment_status = state.enrollment_status
   payload.academic_stage = state.academic_stage
-  payload.status = deriveDisplayStatus(state)
  }
  const { data, error } = await supabase
   .from("students")
@@ -346,6 +424,12 @@ export async function updateStudent(
   .select("*")
   .single()
  if (error) throw error
+ if (touchesManualState) {
+  await syncStudentEnrollmentState(id)
+  const fresh = await getStudentById(id)
+  if (!fresh) throw new Error("更新後無法讀取學生")
+  return fresh
+ }
  return asStudent(data as Record<string, unknown>)
 }
 

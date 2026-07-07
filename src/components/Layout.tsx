@@ -1,185 +1,21 @@
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
-import type { LucideIcon } from "lucide-react"
-import {
- AlertTriangle,
- BookOpen,
- Building2,
- CalendarDays,
- CalendarRange,
- CalendarClock,
- CalendarX,
- ChevronDown,
- ChevronLeft,
- ChevronRight,
- ClipboardCheck,
- ClipboardList,
- DoorOpen,
- FileSearch,
- GraduationCap,
- Home,
- NotebookTabs,
- Plus,
- School,
- ScrollText,
- Percent,
- HandCoins,
- Sparkles,
- UserCog,
- UserRound,
- Users,
- CircleUser,
- Wallet,
-} from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
+import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
+import {
+ NAV_STRUCTURE,
+ filterNavForRole,
+ flattenNav,
+ pathIsActive,
+ type Role,
+} from "@/lib/navStructure"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-
-type Role = "admin" | "teacher" | "alien"
-
-type NavLeafDef = {
- path: string
- label: string
- roles: Role[]
- icon: LucideIcon
-}
-
-type NavGroupDef = {
- kind: "group"
- id: string
- label: string
- icon: LucideIcon
- children: NavLeafDef[]
-}
-
-type NavLeafOnly = {
- kind: "leaf"
- path: string
- label: string
- roles: Role[]
- icon: LucideIcon
-}
-
-type NavEntryDef = NavGroupDef | NavLeafOnly
-
-const NAV_STRUCTURE: NavEntryDef[] = [
- { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin", "teacher", "alien"], icon: Home },
- { kind: "leaf", path: "/SystemLogs", label: "系統日志", roles: ["alien"], icon: FileSearch },
- { kind: "leaf", path: "/SystemIssues", label: "報錯與問題", roles: ["alien"], icon: AlertTriangle },
- {
-  kind: "leaf",
-  path: "/Attendance",
-  label: "進行點名",
-  roles: ["admin", "teacher", "alien"],
-  icon: ClipboardCheck,
- },
- { kind: "leaf", path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
- { kind: "leaf", path: "/TeacherProfile", label: "個人資料", roles: ["teacher"], icon: CircleUser },
- { kind: "leaf", path: "/Users", label: "用戶管理", roles: ["alien"], icon: UserCog },
- { kind: "leaf", path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
- { kind: "leaf", path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
- { kind: "leaf", path: "/Courses", label: "課程管理", roles: ["alien"], icon: BookOpen },
- {
-  kind: "group",
-  id: "registry",
-  label: "學籍與班務",
-  icon: Users,
-  children: [
-   { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
-   { path: "/Teachers", label: "老師管理", roles: ["admin", "alien"], icon: UserRound },
-   { path: "/Classes", label: "班別管理", roles: ["admin", "alien"], icon: BookOpen },
-   { path: "/Classes/New", label: "新增班別", roles: ["admin", "alien"], icon: Plus },
-   { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "alien"], icon: CalendarClock },
-   { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
-   { path: "/Classrooms", label: "課室管理", roles: ["admin", "alien"], icon: School },
-  ],
- },
- {
-  kind: "group",
-  id: "schedule",
-  label: "排程與出勤",
-  icon: CalendarRange,
-  children: [
-   { path: "/Schedule", label: "排程管理", roles: ["admin", "teacher", "alien"], icon: CalendarDays },
-   { path: "/RoomBooking", label: "預約空房", roles: ["teacher"], icon: DoorOpen },
-   { path: "/RoomBookingAdmin", label: "約房審批", roles: ["admin", "alien"], icon: Building2 },
-   { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "teacher", "alien"], icon: ClipboardList },
-  ],
- },
- {
-  kind: "group",
-  id: "leave-trial",
-  label: "請假與試堂",
-  icon: NotebookTabs,
-  children: [
-   { path: "/LeaveManagement", label: "請假管理", roles: ["admin", "alien"], icon: CalendarX },
-   { path: "/TrialSessions", label: "試堂紀錄", roles: ["admin", "alien"], icon: Sparkles },
-  ],
- },
- {
-  kind: "leaf",
-  path: "/Payments",
-  label: "繳費紀錄",
-  roles: ["admin", "alien"],
-  icon: Wallet,
- },
- {
-  kind: "leaf",
-  path: "/Calendar",
-  label: "待辦事項",
-  roles: ["admin", "teacher", "alien"],
-  icon: CalendarClock,
- },
- {
-  kind: "leaf",
-  path: "/EnrollmentChanges",
-  label: "增退紀錄",
-  roles: ["admin", "alien"],
-  icon: ScrollText,
- },
-]
-
-function filterNavForRole(role: Role, entries: NavEntryDef[]): NavEntryDef[] {
- const out: NavEntryDef[] = []
- for (const e of entries) {
-  if (e.kind === "leaf") {
-   if (e.roles.includes(role)) out.push(e)
-   continue
-  }
-  const children = e.children.filter((c) => c.roles.includes(role))
-  if (children.length === 0) continue
-  // 專班老師：不顯示「學籍與班務」「排程與出勤」分組，子項目改為側欄第一層
-  if (role === "teacher" && (e.id === "registry" || e.id === "schedule")) {
-   for (const c of children) {
-    out.push({ kind: "leaf", path: c.path, label: c.label, roles: c.roles, icon: c.icon })
-   }
-   continue
-  }
-  out.push({ ...e, children })
- }
- return out
-}
-
-function pathIsActive(pathname: string, itemPath: string): boolean {
- if (itemPath === "/Home") return pathname === "/Home"
- return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
-}
-
-function flattenNav(entries: NavEntryDef[]): NavLeafDef[] {
- const out: NavLeafDef[] = []
- for (const e of entries) {
-  if (e.kind === "leaf") {
-   out.push({ path: e.path, label: e.label, roles: e.roles, icon: e.icon })
-  } else {
-   out.push(...e.children)
-  }
- }
- return out
-}
 
 function roleLabel(role: Role | null) {
  if (role === "admin") return "管／管理員"
@@ -411,6 +247,7 @@ export function Layout() {
      <Outlet />
     </div>
    </main>
+   <ApoAssistant role={role} />
   </div>
  )
 }

@@ -14,6 +14,12 @@ const COMMON_CANCELLED_RULES: StatusTagRule[] = [
  { tone: "default", keywords: ["cancel", "cancelled", "取消", "已取消", "作廢", "撤回"] },
 ]
 
+const STUDENT_CLASSIFICATION_RULES: StatusTagRule[] = [
+ { tone: "default", keywords: ["非活躍生", "非注冊", "非在讀", "中學階段"] },
+ { tone: "success", keywords: ["活躍生", "注冊", "已註冊"] },
+ { tone: "info", keywords: ["已畢業"] },
+]
+
 const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
  // 人員狀態 / 出勤：錯誤態
  { tone: "error", keywords: ["failed", "error", "錯誤", "失敗", "拒絕", "離職", "非在職", "缺席"] },
@@ -70,6 +76,7 @@ const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
  */
 export const STATUS_TAG_RULES: StatusTagRule[] = [
  ...COMMON_CANCELLED_RULES,
+ ...STUDENT_CLASSIFICATION_RULES,
  ...HR_AND_ATTENDANCE_RULES,
  ...SCHEDULE_AND_TASK_RULES,
  ...PAYMENT_RULES,

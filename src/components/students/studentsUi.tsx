@@ -1,4 +1,14 @@
 import { cn } from "@/lib/utils"
+import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
+import {
+ normalizeActivityStatus,
+ normalizeAcademicStage,
+ normalizeEnrollmentStatus,
+ normalizeRegistrationStatus,
+ registrationStatusLabel,
+ type StudentRecord,
+} from "@/services/studentQueries"
 import {
  formatStudentGrade,
  normalizeStudentGrade,
@@ -143,6 +153,72 @@ export function StatusToggle({ checked, onCheckedChange, offLabel, onLabel, id }
    >
     {onLabel}
    </span>
+  </div>
+ )
+}
+
+type StudentClassificationTagsProps = {
+ student: Pick<
+  StudentRecord,
+  "registration_status" | "enrollment_status" | "activity_status" | "academic_stage"
+ >
+ size?: "sm" | "md"
+ /** 列表等窄欄位用較短標籤文案 */
+ compact?: boolean
+ /** 主色標題列等深色底：標籤改用不透明淺底 pill */
+ surface?: "default" | "onPrimary"
+ className?: string
+}
+
+/** 學生四維業務分類標籤 */
+export function StudentClassificationTags({
+ student,
+ size = "sm",
+ compact = false,
+ surface = "default",
+ className,
+}: StudentClassificationTagsProps) {
+ const registration = normalizeRegistrationStatus(student.registration_status)
+ const enrollment = normalizeEnrollmentStatus(student.enrollment_status)
+ const activity = normalizeActivityStatus(student.activity_status)
+ const stage = normalizeAcademicStage(student.academic_stage)
+ const items = [
+  {
+   key: "registration",
+   label: compact
+    ? registration === "非注冊"
+      ? "非注冊"
+      : "注冊"
+    : registrationStatusLabel(registration),
+   title: compact ? registrationStatusLabel(registration) : undefined,
+   tone: statusToTagTone(registration),
+  },
+  {
+   key: "enrollment",
+   label: enrollment,
+   title: "在讀狀態：現時是否有就讀中報讀",
+   tone: statusToTagTone(enrollment),
+  },
+  {
+   key: "activity",
+   label: activity,
+   title: "活躍狀態：近三個月是否有報讀",
+   tone: statusToTagTone(activity),
+  },
+  {
+   key: "stage",
+   label: stage,
+   title: "學業階段",
+   tone: statusToTagTone(stage),
+  },
+ ] as const
+ return (
+  <div className={cn("flex flex-wrap gap-1", className)}>
+   {items.map((item) => (
+    <Tag key={item.key} tone={item.tone} size={size} surface={surface} title={item.title}>
+     {item.label}
+    </Tag>
+   ))}
   </div>
  )
 }

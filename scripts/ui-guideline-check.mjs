@@ -43,6 +43,68 @@ function collectTsxFiles(dir) {
   return out
 }
 
+function extractSelectInners(content) {
+  const inners = []
+  const openRe = /<Select\b/g
+  let m
+  while ((m = openRe.exec(content)) !== null) {
+    const start = m.index
+    const openEnd = content.indexOf(">", start)
+    if (openEnd === -1) continue
+    let depth = 1
+    let i = openEnd + 1
+    while (i < content.length) {
+      const nextOpen = content.indexOf("<Select", i)
+      const nextClose = content.indexOf("</Select>", i)
+      if (nextClose === -1) break
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth += 1
+        const nestedEnd = content.indexOf(">", nextOpen)
+        i = nestedEnd === -1 ? nextOpen + 7 : nestedEnd + 1
+        continue
+      }
+      depth -= 1
+      if (depth === 0) {
+        inners.push(content.slice(openEnd + 1, nextClose))
+        break
+      }
+      i = nextClose + "</Select>".length
+    }
+  }
+  return inners
+}
+
+function findSelectOptionChildViolations(content) {
+  const violations = []
+  for (const inner of extractSelectInners(content)) {
+    const hasOption = /<option\b/.test(inner)
+    if (!hasOption) continue
+
+    if (
+      /<>\s*[\s\S]*?<option\b/.test(inner) ||
+      /\{\s*<>[\s\S]*?<option\b/.test(inner) ||
+      /\?\s*\(\s*<>[\s\S]*?<option\b/.test(inner) ||
+      /<React\.Fragment\b[\s\S]*?<option\b/.test(inner)
+    ) {
+      violations.push({
+        message:
+          "Select 子元素勿用 Fragment 包裹 <option>；請改為直接子節點、陣列展開或三元回傳 <option>（見 docs/UI_DESIGN_INSTRUCTIONS.md §12）",
+      })
+      continue
+    }
+
+    const customWrapper = [...inner.matchAll(/^\s*<([A-Z][A-Za-z0-9]*)\b/gm)]
+      .map((match) => match[1])
+      .filter((name) => name !== "Select")
+    if (customWrapper.length > 0) {
+      violations.push({
+        message: `Select 子元素勿用自訂元件（${customWrapper.join(", ")}）包裹 <option>；選項須為直接子節點`,
+      })
+    }
+  }
+  return violations
+}
+
 function findHardcodedStatusTagViolations(content) {
   const violations = []
   const tagRegex = /<Tag\b([^>]*)>([\s\S]*?)<\/Tag>/g
@@ -97,6 +159,14 @@ for (const file of files) {
     violations.push({
       file,
       rule: "status-tag-mapping",
+      detail: v.message,
+    })
+  }
+
+  for (const v of findSelectOptionChildViolations(content)) {
+    violations.push({
+      file,
+      rule: "select-option-children",
       detail: v.message,
     })
   }

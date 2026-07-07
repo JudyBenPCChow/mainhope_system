@@ -31,6 +31,10 @@ function collectOptions(children: React.ReactNode, groupLabel?: string): OptionL
  const out: OptionLike[] = []
  for (const child of React.Children.toArray(children)) {
   if (!React.isValidElement(child)) continue
+  if (child.type === React.Fragment) {
+   out.push(...collectOptions(child.props.children, groupLabel))
+   continue
+  }
   if (typeof child.type !== "string") continue
   if (child.type === "optgroup") {
    const label = typeof child.props.label === "string" ? child.props.label : undefined

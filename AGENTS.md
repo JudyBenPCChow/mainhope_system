@@ -27,7 +27,7 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 | `npm run dev` | 本地開發 |
 | `npm run build` | `tsc -b` + `vite build`，**改動後的品質門檻** |
 | `npm run lint` | ESLint |
-| `npm run ui:check` | UI 規範靜態檢查（禁 `alert`/`confirm`/原生 `<select>`、狀態 Tag 須走 `statusToTagTone`） |
+| `npm run ui:check` | UI 規範靜態檢查（禁 `alert`/`confirm`/原生 `<select>`、狀態 Tag 須走 `statusToTagTone`、Select 子元素勿 Fragment 包 `<option>`） |
 
 ## 新增功能檢查清單
 
@@ -47,5 +47,6 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - 架構與資料層細節：`docs/AGENT_HANDOFF.md`
 - 學生編號（學號）生成規則：`docs/STUDENT_CODE.md`（程式來源 `src/lib/studentCode.ts`）
 - UI 設計規範：`docs/UI_DESIGN_INSTRUCTIONS.md`
+- 學生狀態分類與判定（注冊／報讀／活躍、子字串誤判防呆）：`docs/STUDENT_STATUS_CLASSIFICATION.md`
 - RLS 上線：`docs/RLS_ROLLOUT.md`
 - 資料重匯入：`docs/REIMPORT_PLAYBOOK.md`、`docs/SEED.md`

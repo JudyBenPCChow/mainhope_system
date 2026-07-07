@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
-import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentGradeChips } from "@/components/students/studentsUi"
+import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
 import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
@@ -57,7 +57,6 @@ import {
  getStudentById,
  insertEnrollment,
  normalizeAcademicStage,
- normalizeEnrollmentStatus,
  normalizeRegistrationStatus,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
@@ -144,7 +143,6 @@ const BASIC_FORM_KEYS = [
  "grade",
  "school",
  "registration_status",
- "enrollment_status",
  "academic_stage",
  "date_of_birth",
  "parent_name",
@@ -281,7 +279,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    console.error("[StudentDetailView] schedule hints", e)
    setFutureScheduleHints(new Map())
   }
- }, [sid])
+  await reloadStudent()
+ }, [sid, reloadStudent])
 
  const loadAll = useCallback(async () => {
   if (!sid) return
@@ -335,7 +334,6 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     grade: form.grade,
     school: form.school,
     registration_status: form.registration_status,
-    enrollment_status: form.enrollment_status,
     academic_stage: form.academic_stage,
     date_of_birth: form.date_of_birth,
     parent_name: form.parent_name,
@@ -584,6 +582,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    })
    setLeaveDialogOpen(false)
    await reloadSubs()
+   pushBanner({ tone: "success", title: "已新增請假", message: "請假紀錄已建立。" })
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.submitLeave", setErr: setLeaveErr })
   } finally {
@@ -727,7 +726,7 @@ const exportFutureSchedulesCsv = () => {
          <h1 className="text-xl font-bold md:text-2xl">{student.full_name}</h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
-          <Tag tone={statusToTagTone(student.status)} size="sm">{student.status ?? "—"}</Tag>
+          <StudentClassificationTags student={student} size="sm" surface="onPrimary" />
          </div>
          <p className="mt-1 text-sm text-white/85">
           {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
@@ -798,34 +797,40 @@ const exportFutureSchedulesCsv = () => {
           onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
-        <Field label="註冊狀態">
+        <Field label="注冊狀態">
          <StatusToggle
           checked={normalizeRegistrationStatus(form.registration_status) === "已註冊"}
           onCheckedChange={(on) =>
-           setForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
+           setForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
           }
-          offLabel="僅查詢"
-          onLabel="已註冊"
+          offLabel="非注冊（試堂／查詢）"
+          onLabel="注冊"
          />
         </Field>
-        <Field label="就讀狀態">
-         <StatusToggle
-          checked={normalizeEnrollmentStatus(form.enrollment_status) === "在讀"}
-          onCheckedChange={(on) =>
-           setForm((f) => ({ ...f, enrollment_status: on ? "在讀" : "非在讀" }))
-          }
-          offLabel="非在讀"
-          onLabel="在讀"
-         />
+        <Field label="在讀狀態">
+         <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+          {student.enrollment_status}
+          <span className="mt-1 block text-xs text-muted-foreground">
+           依現時就讀中報讀自動計算（退讀後為非在讀）
+          </span>
+         </p>
         </Field>
-        <Field label="學業狀態">
+        <Field label="活躍狀態（近三個月）">
+         <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+          {student.activity_status}
+          <span className="mt-1 block text-xs text-muted-foreground">
+           依近三個月報讀紀錄自動計算（含跨學年）
+          </span>
+         </p>
+        </Field>
+        <Field label="學業階段">
          <StatusToggle
-          checked={normalizeAcademicStage(form.academic_stage) === "中學中"}
+          checked={normalizeAcademicStage(form.academic_stage) === "中學階段"}
           onCheckedChange={(on) =>
-           setForm((f) => ({ ...f, academic_stage: on ? "中學中" : "中學畢業" }))
+           setForm((f) => ({ ...f, academic_stage: on ? "中學階段" : "已畢業" }))
           }
           offLabel="已畢業"
-          onLabel="中學中"
+          onLabel="中學階段"
          />
         </Field>
         <Field label="學校" className="sm:col-span-2">
@@ -1542,15 +1547,17 @@ const exportFutureSchedulesCsv = () => {
            {leaveClasses.length === 0 ? (
             <option value="">尚無就讀中班別</option>
            ) : (
-            <>
-             <option value="">請選擇班別</option>
-             {leaveClasses.map((c) => (
+            [
+             <option key="__placeholder_class__" value="">
+              請選擇班別
+             </option>,
+             ...leaveClasses.map((c) => (
               <option key={c.id} value={c.id}>
                {c.subject}
                {c.course_code_full ? `（${c.course_code_full}）` : ""}
               </option>
-             ))}
-            </>
+             )),
+            ]
            )}
           </Select>
          </Field>
@@ -1566,14 +1573,16 @@ const exportFutureSchedulesCsv = () => {
            ) : leaveScheduleOptions.length === 0 ? (
             <option value="">此班尚無符合條件之排程</option>
            ) : (
-            <>
-             <option value="">請選擇堂次</option>
-             {leaveScheduleOptions.map((s) => (
+            [
+             <option key="__placeholder_schedule__" value="">
+              請選擇堂次
+             </option>,
+             ...leaveScheduleOptions.map((s) => (
               <option key={s.id} value={s.id}>
                {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""}
               </option>
-             ))}
-            </>
+             )),
+            ]
            )}
           </Select>
          </Field>

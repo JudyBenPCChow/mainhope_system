@@ -60,6 +60,8 @@ export function TrialSessionsView() {
  const [teachers, setTeachers] = useState<TeacherRecord[]>([])
 
  const [addOpen, setAddOpen] = useState(false)
+ const [studentSearch, setStudentSearch] = useState("")
+ const [studentPickerOpen, setStudentPickerOpen] = useState(false)
  const [addStudentId, setAddStudentId] = useState("")
  const [addClassId, setAddClassId] = useState("")
  const [addTrialDate, setAddTrialDate] = useState("")
@@ -100,6 +102,9 @@ export function TrialSessionsView() {
  useEffect(() => {
   if (!addOpen) return
   setAddErr(null)
+  setStudentSearch("")
+  setStudentPickerOpen(false)
+  setAddStudentId("")
   void fetchAllClasses().then((cls) => {
    setClassPickList(cls)
    setAddClassId((c) => c || cls[0]?.id || "")
@@ -110,13 +115,18 @@ export function TrialSessionsView() {
     label: `${String(r.full_name ?? "—")}（${String(r.grade ?? "—")}）`,
    }))
    setStudentPickList(sl)
-   setAddStudentId((p) => p || sl[0]?.id || "")
   })
   setAddTrialDate(localYmd())
   setAddScheduleId("")
   setAddTrialType("免費試堂")
   setAddRemarks("")
  }, [addOpen])
+
+ const studentsFiltered = useMemo(() => {
+  const q = studentSearch.trim().toLowerCase()
+  if (!q) return studentPickList.slice(0, 20)
+  return studentPickList.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 20)
+ }, [studentPickList, studentSearch])
 
  useEffect(() => {
   if (!addOpen || !addClassId || !addTrialDate) {
@@ -492,18 +502,58 @@ export function TrialSessionsView() {
      </DialogHeader>
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
-       <span className="text-muted-foreground">學生</span>
-       <Select
-        className="h-9 w-full rounded-md border border-input px-2"
-        value={addStudentId}
-        onChange={(e) => setAddStudentId(e.target.value)}
-       >
-        {studentPickList.map((s) => (
-         <option key={s.id} value={s.id}>
-          {s.label}
-         </option>
-        ))}
-       </Select>
+       <span className="text-muted-foreground">學生（可搜尋姓名／年級）</span>
+       <div className="relative">
+        <Input
+         placeholder="輸入姓名或年級搜尋…"
+         value={
+          addStudentId
+           ? (studentPickList.find((s) => s.id === addStudentId)?.label ?? "")
+           : studentSearch
+         }
+         onChange={(e) => {
+          setAddStudentId("")
+          setStudentSearch(e.target.value)
+          setStudentPickerOpen(true)
+         }}
+         onFocus={() => setStudentPickerOpen(true)}
+         className="h-9"
+        />
+        {studentPickerOpen && !addStudentId && studentSearch.trim() ? (
+         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+          {studentsFiltered.length === 0 ? (
+           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
+          ) : (
+           studentsFiltered.map((s) => (
+            <button
+             key={s.id}
+             type="button"
+             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+             onClick={() => {
+              setAddStudentId(s.id)
+              setStudentSearch("")
+              setStudentPickerOpen(false)
+             }}
+            >
+             {s.label}
+            </button>
+           ))
+          )}
+         </div>
+        ) : null}
+       </div>
+       {addStudentId ? (
+        <button
+         type="button"
+         className="text-left text-xs text-primary underline-offset-4 hover:underline"
+         onClick={() => {
+          setAddStudentId("")
+          setStudentSearch("")
+         }}
+        >
+         清除選取
+        </button>
+       ) : null}
       </label>
       <label className="grid gap-1">
        <span className="text-muted-foreground">班別</span>

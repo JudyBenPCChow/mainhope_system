@@ -12,6 +12,7 @@ import ClassNew from "@/pages/ClassNew"
 import TeacherAvailability from "@/pages/TeacherAvailability"
 import Calendar from "@/pages/Calendar"
 import TodoDetail from "@/pages/TodoDetail"
+import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
 import Login from "@/pages/Login"
@@ -41,6 +42,7 @@ export default function App() {
     <Route path="/Login" element={<Login />} />
     <Route element={<Layout />}>
      <Route path="/Home" element={<Home />} />
+     <Route path="/AllFeatures" element={<AllFeatures />} />
      <Route path="/Users" element={<UserManagement />} />
      <Route path="/Students" element={<Students />} />
      <Route path="/Students/:studentId" element={<StudentDetail />} />

@@ -84,6 +84,47 @@ export async function fetchRosterForRollCall(
   .map(({ enrollmentPeriod: _ep, ...rest }) => rest)
 }
 
+export type ScheduleRosterStudent = {
+ studentId: string
+ fullName: string
+ contactPhone: string | null
+}
+
+/** 本堂請假學生（已連結排程，或同班同日待連結） */
+export async function fetchLeaveStudentsForSchedule(
+ scheduleId: string,
+ classId: string,
+ lessonDate: string
+): Promise<ScheduleRosterStudent[]> {
+ if (!supabase) return []
+ const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("student_id, students ( full_name, whatsapp, parent_phone )")
+  .or(orFilter)
+  .order("created_at", { ascending: true })
+ if (error) throw error
+
+ const seen = new Set<string>()
+ const out: ScheduleRosterStudent[] = []
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const sid = String(r.student_id)
+  if (seen.has(sid)) continue
+  seen.add(sid)
+  const st = r.students as Record<string, unknown> | null
+  out.push({
+   studentId: sid,
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+   contactPhone: pickStudentContactRaw({
+    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
+    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
+   }),
+  })
+ }
+ return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+}
+
 export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise<
  {
   studentId: string

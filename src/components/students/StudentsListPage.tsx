@@ -22,8 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { statusToTagTone } from "@/lib/statusTag"
-import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
+import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import {
  isPrimaryStudentGrade,
  normalizeStudentGrade,
@@ -39,7 +38,10 @@ import {
  fetchStudentTuitionArrearsByStudentIds,
  insertStudent,
  isUniqueViolation,
- normalizeStudentStatus,
+ normalizeRegistrationStatus,
+ normalizeEnrollmentStatus,
+ normalizeActivityStatus,
+ normalizeAcademicStage,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
  type RecentClassEnrollment,
@@ -47,12 +49,28 @@ import {
  type StudentTuitionArrearsInfo,
 } from "@/services/studentQueries"
 
-const STATUS_FILTERS = [
- { key: "all", label: "所有學生" },
+const REGISTRATION_FILTERS = [
+ { key: "all", label: "全部" },
+ { key: "已註冊", label: "注冊" },
+ { key: "非注冊", label: "非注冊" },
+] as const
+
+const ENROLLMENT_FILTERS = [
+ { key: "all", label: "全部" },
  { key: "在讀", label: "在讀" },
  { key: "非在讀", label: "非在讀" },
- { key: "查詢試堂", label: "查詢試堂" },
- { key: "畢業", label: "畢業" },
+] as const
+
+const ACTIVITY_FILTERS = [
+ { key: "all", label: "全部" },
+ { key: "活躍生", label: "活躍生" },
+ { key: "非活躍生", label: "非活躍生" },
+] as const
+
+const STAGE_FILTERS = [
+ { key: "all", label: "全部" },
+ { key: "中學階段", label: "中學階段" },
+ { key: "已畢業", label: "已畢業" },
 ] as const
 
 const GRADE_FILTER_PRIMARY_KEY = "PRIMARY" as const
@@ -107,8 +125,7 @@ function emptyAddForm(): Partial<StudentRecord> {
   gender: "",
   grade: "",
   registration_status: "已註冊",
-  enrollment_status: "在讀",
-  academic_stage: "中學中",
+  academic_stage: "中學階段",
   school: "",
   date_of_birth: "",
   parent_name: "",
@@ -213,8 +230,18 @@ export function StudentsListPage() {
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
- const [statusKey, setStatusKey] = usePersistentState<(typeof STATUS_FILTERS)[number]["key"]>(
-  "mgmt_students_statusKey",
+ const [registrationKey, setRegistrationKey] = usePersistentState<
+  (typeof REGISTRATION_FILTERS)[number]["key"]
+ >("mgmt_students_registrationKey", "all")
+ const [enrollmentKey, setEnrollmentKey] = usePersistentState<
+  (typeof ENROLLMENT_FILTERS)[number]["key"]
+ >("mgmt_students_enrollmentKey", "all")
+ const [activityKey, setActivityKey] = usePersistentState<(typeof ACTIVITY_FILTERS)[number]["key"]>(
+  "mgmt_students_activityKey",
+  "all"
+ )
+ const [stageKey, setStageKey] = usePersistentState<(typeof STAGE_FILTERS)[number]["key"]>(
+  "mgmt_students_stageKey",
   "all"
  )
  const [gradeKey, setGradeKey] = usePersistentState<(typeof GRADE_FILTERS)[number]["key"]>(
@@ -264,10 +291,11 @@ export function StudentsListPage() {
 
  const stats = useMemo(() => {
   const total = rows.length
-  const enrolled = rows.filter((r) => normalizeStudentStatus(r.status) === "在讀").length
+  const enrolled = rows.filter((r) => normalizeEnrollmentStatus(r.enrollment_status) === "在讀").length
+  const active = rows.filter((r) => normalizeActivityStatus(r.activity_status) === "活躍生").length
   const start = monthStartIso()
   const newThisMonth = rows.filter((r) => createdAtLocalYmd(r.created_at) >= start).length
-  return { total, enrolled, newThisMonth }
+  return { total, enrolled, active, newThisMonth }
  }, [rows])
 
  // 資料變動時回到最新一筆報讀
@@ -306,12 +334,21 @@ export function StudentsListPage() {
 
  const filtered = useMemo(() => {
   let list = rows
-  if (statusKey !== "all") {
-   list = list.filter((r) => normalizeStudentStatus(r.status) === statusKey)
+  if (registrationKey !== "all") {
+   list = list.filter((r) => normalizeRegistrationStatus(r.registration_status) === registrationKey)
+  }
+  if (enrollmentKey !== "all") {
+   list = list.filter((r) => normalizeEnrollmentStatus(r.enrollment_status) === enrollmentKey)
+  }
+  if (activityKey !== "all") {
+   list = list.filter((r) => normalizeActivityStatus(r.activity_status) === activityKey)
+  }
+  if (stageKey !== "all") {
+   list = list.filter((r) => normalizeAcademicStage(r.academic_stage) === stageKey)
   }
   if (!showGraduated) {
    list = list.filter(
-    (r) => normalizeStudentStatus(r.status) !== "畢業" && (r.grade ?? "") !== "GD"
+    (r) => normalizeAcademicStage(r.academic_stage) !== "已畢業" && (r.grade ?? "") !== "GD"
    )
   }
   if (gradeKey !== "all") {
@@ -350,15 +387,24 @@ export function StudentsListPage() {
    return a.full_name.localeCompare(b.full_name, "zh-Hant")
   })
   return sorted
- }, [rows, statusKey, showGraduated, gradeKey, search, sortMode])
+ }, [rows, registrationKey, enrollmentKey, activityKey, stageKey, showGraduated, gradeKey, search, sortMode])
 
- const statusCounts = useMemo(() => {
-  const m = new Map<string, number>()
+ const classificationCounts = useMemo(() => {
+  const registration = new Map<string, number>()
+  const enrollment = new Map<string, number>()
+  const activity = new Map<string, number>()
+  const stage = new Map<string, number>()
   for (const r of rows) {
-   const st = normalizeStudentStatus(r.status)
-   m.set(st, (m.get(st) ?? 0) + 1)
+   const reg = normalizeRegistrationStatus(r.registration_status)
+   const enr = normalizeEnrollmentStatus(r.enrollment_status)
+   const act = normalizeActivityStatus(r.activity_status)
+   const stg = normalizeAcademicStage(r.academic_stage)
+   registration.set(reg, (registration.get(reg) ?? 0) + 1)
+   enrollment.set(enr, (enrollment.get(enr) ?? 0) + 1)
+   activity.set(act, (activity.get(act) ?? 0) + 1)
+   stage.set(stg, (stage.get(stg) ?? 0) + 1)
   }
-  return m
+  return { registration, enrollment, activity, stage }
  }, [rows])
 
  const exportCsv = () => {
@@ -405,15 +451,14 @@ export function StudentsListPage() {
 
   setAddSaving(true)
   setAddErr(null)
-  const reg = addForm.registration_status === "僅查詢" ? "僅查詢" : "已註冊"
+  const reg = addForm.registration_status === "非注冊" ? "非注冊" : "已註冊"
   const payload = {
    full_name: fullName,
    english_name: (addForm.english_name ?? "").trim() || null,
    gender: (addForm.gender ?? "").trim() || null,
    grade: normalizeStudentGrade(addForm.grade),
    registration_status: reg,
-   enrollment_status: addForm.enrollment_status === "非在讀" ? "非在讀" : "在讀",
-   academic_stage: addForm.academic_stage === "中學畢業" ? "中學畢業" : "中學中",
+   academic_stage: addForm.academic_stage === "已畢業" ? "已畢業" : "中學階段",
    school: (addForm.school ?? "").trim() || null,
    date_of_birth: (addForm.date_of_birth ?? "").trim() || null,
    parent_name: (addForm.parent_name ?? "").trim() || null,
@@ -540,9 +585,9 @@ export function StudentsListPage() {
     </div>
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
      <div className="text-3xl font-bold text-success">
-      {loading ? "…" : stats.newThisMonth}
+      {loading ? "…" : stats.active}
      </div>
-     <div className="text-sm text-muted-foreground">本月新報讀</div>
+     <div className="text-sm text-muted-foreground">活躍生（近三個月報讀）</div>
     </div>
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
      <div className="text-3xl font-bold text-foreground">{loading ? "…" : stats.total}</div>
@@ -610,18 +655,101 @@ export function StudentsListPage() {
 
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     狀態
+     注冊狀態
     </div>
     <div className="flex flex-wrap gap-2">
-     {STATUS_FILTERS.map((f) => {
-      const count =
-       f.key === "all" ? rows.length : (statusCounts.get(f.key) ?? 0)
-      const active = statusKey === f.key
+     {REGISTRATION_FILTERS.map((f) => {
+      const count = f.key === "all" ? rows.length : (classificationCounts.registration.get(f.key) ?? 0)
+      const active = registrationKey === f.key
       return (
        <button
         key={f.key}
         type="button"
-        onClick={() => setStatusKey(f.key)}
+        onClick={() => setRegistrationKey(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+        {f.key !== "all" ? ` (${count})` : ` (${count})`}
+       </button>
+      )
+     })}
+    </div>
+   </div>
+
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     在讀狀態
+    </div>
+    <div className="flex flex-wrap gap-2">
+     {ENROLLMENT_FILTERS.map((f) => {
+      const count = f.key === "all" ? rows.length : (classificationCounts.enrollment.get(f.key) ?? 0)
+      const active = enrollmentKey === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        onClick={() => setEnrollmentKey(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+        {f.key !== "all" ? ` (${count})` : ` (${count})`}
+       </button>
+      )
+     })}
+    </div>
+   </div>
+
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     活躍狀態（近三個月）
+    </div>
+    <div className="flex flex-wrap gap-2">
+     {ACTIVITY_FILTERS.map((f) => {
+      const count = f.key === "all" ? rows.length : (classificationCounts.activity.get(f.key) ?? 0)
+      const active = activityKey === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        onClick={() => setActivityKey(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+        {f.key !== "all" ? ` (${count})` : ` (${count})`}
+       </button>
+      )
+     })}
+    </div>
+   </div>
+
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     學業階段
+    </div>
+    <div className="flex flex-wrap gap-2">
+     {STAGE_FILTERS.map((f) => {
+      const count = f.key === "all" ? rows.length : (classificationCounts.stage.get(f.key) ?? 0)
+      const active = stageKey === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        onClick={() => setStageKey(f.key)}
         className={cn(
          "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
          active
@@ -792,36 +920,29 @@ export function StudentsListPage() {
             onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
            />
           </Field>
-          <Field label="註冊狀態">
+          <Field label="注冊狀態">
            <StatusToggle
             checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
             onCheckedChange={(on) =>
-             setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "僅查詢" }))
+             setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
             }
-            offLabel="僅查詢"
-            onLabel="已註冊"
+            offLabel="非注冊（試堂／查詢）"
+            onLabel="注冊"
            />
           </Field>
-          <Field label="就讀狀態">
+          <Field label="學業階段">
            <StatusToggle
-            checked={(addForm.enrollment_status ?? "在讀") === "在讀"}
+            checked={(addForm.academic_stage ?? "中學階段") === "中學階段"}
             onCheckedChange={(on) =>
-             setAddForm((f) => ({ ...f, enrollment_status: on ? "在讀" : "非在讀" }))
-            }
-            offLabel="非在讀"
-            onLabel="在讀"
-           />
-          </Field>
-          <Field label="學業狀態">
-           <StatusToggle
-            checked={(addForm.academic_stage ?? "中學中") === "中學中"}
-            onCheckedChange={(on) =>
-             setAddForm((f) => ({ ...f, academic_stage: on ? "中學中" : "中學畢業" }))
+             setAddForm((f) => ({ ...f, academic_stage: on ? "中學階段" : "已畢業" }))
             }
             offLabel="已畢業"
-            onLabel="中學中"
+            onLabel="中學階段"
            />
           </Field>
+          <p className="sm:col-span-2 text-xs text-muted-foreground">
+           「在讀／非在讀」與「活躍生／非活躍生」會依報讀班別自動計算，無需手動設定。
+          </p>
           <Field label="學校" className="sm:col-span-2">
            <div className="space-y-2">
             <Input
@@ -961,7 +1082,7 @@ export function StudentsListPage() {
         <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">學生電話</th>
         <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">家長電話</th>
         <th className="w-[20%] px-3 py-3 font-medium text-muted-foreground">報讀班別</th>
-        <th className="w-[8%] px-3 py-3 font-medium text-muted-foreground">狀態</th>
+        <th className="w-[18%] px-3 py-3 font-medium text-muted-foreground">狀態</th>
         <th className="w-[7%] px-3 py-3 font-medium text-muted-foreground">學費</th>
         <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">操作</th>
        </tr>
@@ -1067,8 +1188,8 @@ export function StudentsListPage() {
              ) : null}
             </div>
            </td>
-           <td className="align-top px-3 py-3">
-           <Tag tone={statusToTagTone(normalizeStudentStatus(r.status))} size="sm">{normalizeStudentStatus(r.status)}</Tag>
+           <td className="min-w-0 align-top px-3 py-3">
+            <StudentClassificationTags student={r} size="sm" compact />
            </td>
            <td className="align-top px-3 py-3">
             {t?.showArrears ? (
@@ -1150,7 +1271,7 @@ export function StudentsListPage() {
            <h3 className="truncate text-lg font-semibold">{r.full_name}</h3>
            {r.english_name ? <p className="truncate text-sm text-muted-foreground">{r.english_name}</p> : null}
           </div>
-          <Tag tone={statusToTagTone(normalizeStudentStatus(r.status))} size="sm">{normalizeStudentStatus(r.status)}</Tag>
+          <StudentClassificationTags student={r} size="sm" compact className="max-w-[11rem] justify-end" />
          </div>
          <div className="mt-3 space-y-1 text-sm text-muted-foreground">
           <p>年級：{formatStudentGrade(r.grade)}</p>

@@ -24,9 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
-import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
@@ -178,8 +176,6 @@ export function PaymentsPageView() {
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
- const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
-
  const [detailOpen, setDetailOpen] = useState(false)
  const [detailPay, setDetailPay] = useState<PaymentFull | null>(null)
  const [detailLoading, setDetailLoading] = useState(false)
@@ -194,11 +190,6 @@ export function PaymentsPageView() {
  const [dashLoading, setDashLoading] = useState(false)
  const [formErr, setFormErr] = useState<string | null>(null)
  const [formOk, setFormOk] = useState<string | null>(null)
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(new Date().toISOString().slice(0, 10)), [])
- const selectedYearLabel = useMemo(
-  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
-  [academicYearFilter, currentAcademicYear]
- )
  const payDateEditable = useMemo(() => canEditAcademicYearForDate(payDate), [payDate])
 
  const loadDashboardStats = useCallback(async () => {
@@ -457,16 +448,6 @@ export function PaymentsPageView() {
  useEffect(() => {
   if (mainTab === "history") void loadHistory()
  }, [mainTab, loadHistory])
-
- const historyRowsDisplayed = useMemo(() => {
-  const pick = selectedYearLabel
-  return historyRows.filter((r) => academicYearLabelFromStartDate(r.paymentDate) === pick)
- }, [historyRows, selectedYearLabel])
-
- const academicYearOptions = useMemo(() => {
- const years = [...new Set(historyRows.map((r) => academicYearLabelFromStartDate(r.paymentDate)))]
- return years.sort((a, b) => b.localeCompare(a))
-}, [historyRows])
 
  const filteredStudents = useMemo(() => {
   const q = studentQuery.trim().toLowerCase()
@@ -818,18 +799,6 @@ export function PaymentsPageView() {
    ) : null}
 
    <div className="flex flex-wrap gap-2">
-    <Select
-     className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
-     value={academicYearFilter}
-     onChange={(e) => setAcademicYearFilter(e.target.value)}
-    >
-     <option value="current">目前學年（{currentAcademicYear}）</option>
-     {academicYearOptions.map((y) => (
-      <option key={y} value={y}>
-       {y} 學年
-      </option>
-     ))}
-    </Select>
     {(
      [
       ["receive", "收款登記", Banknote],
@@ -1212,7 +1181,7 @@ export function PaymentsPageView() {
           : setPrintAfterInvoice(e.target.checked)
         }
        />
-       {mainTab === "receive" ? "建立後開啟列印（收據）" : "建立後開啟列印（通知單）"}
+       建立後開啟列印（收據）
       </label>
 
       <Button
@@ -1291,7 +1260,7 @@ export function PaymentsPageView() {
 
      {histLoading ? (
       <p className="text-sm text-muted-foreground">載入中…</p>
-     ) : historyRowsDisplayed.length === 0 ? (
+     ) : historyRows.length === 0 ? (
       <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
        沒有符合條件的紀錄。
       </div>
@@ -1311,7 +1280,7 @@ export function PaymentsPageView() {
          </tr>
         </thead>
         <tbody>
-         {historyRowsDisplayed.map((r) => {
+         {historyRows.map((r) => {
           const pending = PENDING_PAYMENT_STATUSES.includes(
            r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
           )

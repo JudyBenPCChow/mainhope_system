@@ -3,7 +3,7 @@ import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
-import { formatClassLabel } from "@/lib/courseLabel"
+import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import {
  applyDiscountsToSubtotal,
@@ -91,6 +91,8 @@ export type PaymentDetailRow = {
  id: string
  classId: string | null
  classLabel: string
+ courseName: string
+ courseCode: string | null
  lessonCount: number | null
  amount: number | null
  description: string | null
@@ -107,6 +109,7 @@ export type PaymentDiscountApplicationRow = {
 
 export type PaymentFull = PaymentListRow & {
  subtotalAmount: number | null
+ studentGrade: string | null
  details: PaymentDetailRow[]
  discountApplications: PaymentDiscountApplicationRow[]
  /** @deprecated 請改用 discountApplications */
@@ -217,7 +220,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const { data: pay, error: e1 } = await supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -241,6 +244,8 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : null,
    classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+   courseName: classDisplayName({ subject: sub, courseName }),
+   courseCode: code.trim() !== "" ? code : null,
    lessonCount: r.lesson_count != null ? Number(r.lesson_count) : null,
    amount: r.amount != null ? Number(r.amount) : null,
    description: r.description != null ? String(r.description) : null,
@@ -249,6 +254,8 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
 
  const base = mapListRow(pay as Record<string, unknown>)
  const payRow = pay as Record<string, unknown>
+ const st = payRow.students as Record<string, unknown> | null
+ const studentGrade = st?.grade != null ? String(st.grade) : null
  const disc = payRow.payment_discounts as Record<string, unknown> | null
  const appRows = payRow.payment_discount_applications as unknown
  let discountApplications = Array.isArray(appRows)
@@ -274,6 +281,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  return {
   ...base,
   subtotalAmount,
+  studentGrade,
   details,
   discountApplications,
   discountPercentOff: firstApp?.percentOff ?? (disc?.percent_off != null ? Number(disc.percent_off) : null),

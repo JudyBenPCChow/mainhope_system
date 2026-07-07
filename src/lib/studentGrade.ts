@@ -81,6 +81,14 @@ export function normalizeStudentGrade(raw: string | null | undefined): StudentGr
  return null
 }
 
+/** 單據等需顯示年級代碼（如 S6） */
+export function formatStudentGradeCode(raw: string | null | undefined): string {
+ const code = normalizeStudentGrade(raw)
+ if (code) return code
+ const t = raw?.trim()
+ return t && t !== "—" ? t.toUpperCase() : "—"
+}
+
 /** 顯示用：僅中文標籤（如「中一」），不含代碼 */
 export function formatStudentGrade(raw: string | null | undefined): string {
  if (raw == null || !String(raw).trim()) return "—"

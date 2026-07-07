@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import {
@@ -20,6 +20,7 @@ import {
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
+import type { TagTone } from "@/components/ui/tag"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -57,6 +58,11 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
+import {
+ fetchLeaveStudentsForSchedule,
+ fetchTrialStudentsForSchedule,
+ type ScheduleRosterStudent,
+} from "@/services/attendanceQueries"
 import {
  deleteSchedule,
  fetchAllClasses,
@@ -109,6 +115,142 @@ function rollCallPath(scheduledDate: string, scheduleId: string): string {
  return `/Attendance?${q.toString()}`
 }
 
+type ExpandedRosterStudent = {
+ studentId: string
+ fullName: string
+ contactPhone: string | null
+}
+
+type ExpandedScheduleRosterProps = {
+ schedule: ScheduleManageRow
+ loading: boolean
+ enrolled: ExpandedRosterStudent[]
+ leave: ExpandedRosterStudent[]
+ trial: ExpandedRosterStudent[]
+ classMeta?: ReactNode
+ footer?: ReactNode
+}
+
+function ExpandedScheduleRoster({
+ schedule,
+ loading,
+ enrolled,
+ leave,
+ trial,
+ classMeta,
+ footer,
+}: ExpandedScheduleRosterProps) {
+ const sections: {
+  key: string
+  label: string
+  students: ExpandedRosterStudent[]
+  tone: TagTone
+  headerClass: string
+  linkClass: string
+  buttonBorderClass: string
+  isTrial: boolean
+  attendanceStatus: string | null
+  alwaysShow: boolean
+ }[] = [
+  {
+   key: "enrolled",
+   label: "班內學生",
+   students: enrolled,
+   tone: "success",
+   headerClass: "text-success",
+   linkClass: "text-success",
+   buttonBorderClass: "border-success/60",
+   isTrial: false,
+   attendanceStatus: null,
+   alwaysShow: true,
+  },
+  {
+   key: "leave",
+   label: "請假學生",
+   students: leave,
+   tone: "error",
+   headerClass: "text-destructive",
+   linkClass: "text-destructive",
+   buttonBorderClass: "border-destructive/60",
+   isTrial: false,
+   attendanceStatus: "請假",
+   alwaysShow: false,
+  },
+  {
+   key: "trial",
+   label: "試堂學生",
+   students: trial,
+   tone: statusToTagTone("試堂"),
+   headerClass: "text-warning",
+   linkClass: "text-warning",
+   buttonBorderClass: "border-warning/60",
+   isTrial: true,
+   attendanceStatus: null,
+   alwaysShow: false,
+  },
+ ]
+
+ return (
+  <>
+   {classMeta}
+   {loading ? (
+    <p className="mt-3 text-sm text-muted-foreground">載入名單…</p>
+   ) : (
+    sections.map((section, index) => {
+     if (!section.alwaysShow && section.students.length === 0) return null
+     return (
+      <div key={section.key} className={index === 0 && !classMeta ? undefined : "mt-3"}>
+       <p className={cn("mb-2 text-sm font-medium", section.headerClass)}>
+        {section.label}（{section.students.length}）
+       </p>
+       {section.students.length === 0 ? (
+        <p className="text-sm text-muted-foreground">尚無就讀學生。</p>
+       ) : (
+        <div className="flex flex-wrap gap-2">
+         {section.students.map((st) => (
+          <Tag
+           key={`${section.key}-${st.studentId}`}
+           tone={section.tone}
+           size="sm"
+           className="gap-1 py-0.5 pl-2 pr-1"
+          >
+           <Link
+            to={`/Students/${st.studentId}`}
+            className={cn("text-sm font-medium hover:underline", section.linkClass)}
+            onClick={(e) => e.stopPropagation()}
+           >
+            {st.fullName}
+           </Link>
+           <StudentWhatsAppReminderButton
+            compact
+            className={cn("h-7 w-7", section.buttonBorderClass)}
+            contactPhone={st.contactPhone}
+            payload={{
+             studentName: st.fullName,
+             subject: schedule.subject,
+             courseName: schedule.course_name,
+             courseCode: schedule.course_code_full,
+             dateYmd: schedule.scheduled_date,
+             startTime: schedule.start_time,
+             endTime: schedule.end_time,
+             classroomName: schedule.classroom_name,
+             attendanceStatus: section.attendanceStatus,
+             isTrial: section.isTrial,
+            }}
+           />
+          </Tag>
+         ))}
+        </div>
+       )}
+      </div>
+     )
+    })
+   )}
+   {footer}
+  </>
+ )
+}
+
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const todayYmd = localYmd()
@@ -143,6 +285,8 @@ export function ScheduleManagePage() {
 
  const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null)
  const [listStudents, setListStudents] = useState<ClassStudentRow[]>([])
+ const [listLeaveStudents, setListLeaveStudents] = useState<ScheduleRosterStudent[]>([])
+ const [listTrialStudents, setListTrialStudents] = useState<ScheduleRosterStudent[]>([])
  const [listStudentsLoading, setListStudentsLoading] = useState(false)
  const [dayViewRoster, setDayViewRoster] = useState<Map<string, string[]>>(new Map())
 
@@ -287,21 +431,42 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  useEffect(() => {
   if (!expandedScheduleId) {
    setListStudents([])
+   setListLeaveStudents([])
+   setListTrialStudents([])
    return
   }
   const r = rows.find((x) => x.id === expandedScheduleId)
   if (!r) return
   if (!r.class_id) {
    setListStudents([])
+   setListLeaveStudents([])
+   setListTrialStudents([])
    setListStudentsLoading(false)
    return
   }
   setListStudentsLoading(true)
-  void fetchClassStudents(r.class_id, {
-   scheduleDate: r.scheduled_date,
-   activeOnly: true,
-  })
-   .then(setListStudents)
+  const classId = r.class_id
+  const scheduleId = r.id
+  const scheduleDate = r.scheduled_date
+  void Promise.all([
+   fetchClassStudents(classId, {
+    scheduleDate,
+    activeOnly: true,
+   }),
+   fetchLeaveStudentsForSchedule(scheduleId, classId, scheduleDate),
+   fetchTrialStudentsForSchedule(scheduleId),
+  ])
+   .then(([enrolled, leave, trial]) => {
+    setListStudents(enrolled)
+    setListLeaveStudents(leave)
+    setListTrialStudents(
+     trial.map((st) => ({
+      studentId: st.studentId,
+      fullName: st.fullName,
+      contactPhone: st.contactPhone,
+     }))
+    )
+   })
    .finally(() => setListStudentsLoading(false))
  }, [expandedScheduleId, rows])
 
@@ -805,7 +970,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 text-sm text-muted-foreground">
-      按日期／列表可點擊卡片展開班內學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認）。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認）。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
@@ -1278,67 +1443,41 @@ useEffect(() => {
             </div>
             {open ? (
              <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
-              <p className="text-sm font-medium text-info">
-               班別：{s.classLabel}
-               {s.course_code_full ? `（${s.course_code_full}）` : ""}
-               {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
-              </p>
-              <p className="mb-2 mt-3 text-sm font-medium text-success">
-               班內學生（{listStudentsLoading ? "…" : listStudents.length}）
-              </p>
-              {listStudentsLoading ? (
-               <p className="text-sm text-muted-foreground">載入名單…</p>
-              ) : (
-               <div className="flex flex-wrap gap-2">
-                {listStudents.map((st) => (
-                <Tag key={st.studentId} tone="success" size="sm" className="gap-1 py-0.5 pl-2 pr-1">
-                  <Link
-                   to={`/Students/${st.studentId}`}
-                   className="text-sm font-medium text-success hover:underline"
-                   onClick={(e) => e.stopPropagation()}
-                  >
-                   {st.fullName}
-                  </Link>
-                  <StudentWhatsAppReminderButton
-                   compact
-                   className="h-7 w-7 border-success/60"
-                   contactPhone={st.contactPhone}
-                   payload={{
-                    studentName: st.fullName,
-                    subject: s.subject,
-                    courseName: s.course_name,
-                    courseCode: s.course_code_full,
-                    dateYmd: s.scheduled_date,
-                    startTime: s.start_time,
-                    endTime: s.end_time,
-                    classroomName: s.classroom_name,
-                    attendanceStatus: null,
-                    isTrial: false,
-                   }}
-                  />
-                 </Tag>
-                ))}
-               </div>
-              )}
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-3">
-               <Button
-                type="button"
-                variant="outline"
-                size="default"
-                className="text-base"
-                onClick={() => setDetailId(s.id)}
-               >
-                快速檢視
-               </Button>
-               <Button type="button" variant="outline" size="default" className="text-base" asChild>
-                <Link to={`/Schedule/${s.id}`}>完整排程頁</Link>
-               </Button>
-               {s.class_id ? (
-                <Button type="button" variant="outline" size="default" className="text-base" asChild>
-                 <Link to={`/Classes/${s.class_id}`}>班別詳情</Link>
-                </Button>
-               ) : null}
-              </div>
+              <ExpandedScheduleRoster
+               schedule={s}
+               loading={listStudentsLoading}
+               enrolled={listStudents}
+               leave={listLeaveStudents}
+               trial={listTrialStudents}
+               classMeta={
+                <p className="text-sm font-medium text-info">
+                 班別：{s.classLabel}
+                 {s.course_code_full ? `（${s.course_code_full}）` : ""}
+                 {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
+                </p>
+               }
+               footer={
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+                 <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className="text-base"
+                  onClick={() => setDetailId(s.id)}
+                 >
+                  快速檢視
+                 </Button>
+                 <Button type="button" variant="outline" size="default" className="text-base" asChild>
+                  <Link to={`/Schedule/${s.id}`}>完整排程頁</Link>
+                 </Button>
+                 {s.class_id ? (
+                  <Button type="button" variant="outline" size="default" className="text-base" asChild>
+                   <Link to={`/Classes/${s.class_id}`}>班別詳情</Link>
+                  </Button>
+                 ) : null}
+                </div>
+               }
+              />
              </div>
             ) : null}
            </li>
@@ -1482,43 +1621,13 @@ useEffect(() => {
           {open ? (
            <tr className="border-b border-border bg-success/30">
             <td colSpan={7} className="px-4 py-4">
-             <p className="mb-2 text-sm font-medium text-success">
-              班內學生（{listStudentsLoading ? "…" : listStudents.length}）
-             </p>
-             {listStudentsLoading ? (
-              <p className="text-sm text-muted-foreground">載入名單…</p>
-             ) : (
-              <div className="flex flex-wrap gap-2">
-               {listStudents.map((st) => (
-               <Tag key={st.studentId} tone="success" size="sm" className="gap-1 py-0.5 pl-2 pr-1">
-                 <Link
-                  to={`/Students/${st.studentId}`}
-                  className="text-sm font-medium text-success hover:underline"
-                  onClick={(e) => e.stopPropagation()}
-                 >
-                  {st.fullName}
-                 </Link>
-                 <StudentWhatsAppReminderButton
-                  compact
-                  className="h-7 w-7 border-success/60"
-                  contactPhone={st.contactPhone}
-                  payload={{
-                   studentName: st.fullName,
-                   subject: s.subject,
-                   courseName: s.course_name,
-                   courseCode: s.course_code_full,
-                   dateYmd: s.scheduled_date,
-                   startTime: s.start_time,
-                   endTime: s.end_time,
-                   classroomName: s.classroom_name,
-                   attendanceStatus: null,
-                   isTrial: false,
-                  }}
-                 />
-                </Tag>
-               ))}
-              </div>
-             )}
+             <ExpandedScheduleRoster
+              schedule={s}
+              loading={listStudentsLoading}
+              enrolled={listStudents}
+              leave={listLeaveStudents}
+              trial={listTrialStudents}
+             />
             </td>
            </tr>
           ) : null}

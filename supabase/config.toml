@@ -1,0 +1,7 @@
+# 明學 mingxue-admin — Supabase 本地／部署設定（精簡）
+
+[api]
+enabled = true
+
+[functions.apo-chat]
+verify_jwt = true

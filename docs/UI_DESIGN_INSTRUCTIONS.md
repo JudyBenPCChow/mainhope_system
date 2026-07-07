@@ -174,7 +174,16 @@
 - 狀態語意對應：`booked/info`、`success`、`pending/warning`、`failed/error`、`cancelled/default`。
 - 狀態類標籤需使用共用字典 `statusToTagTone`（`src/lib/statusTag.ts`）做映射；不得在頁面各自硬編碼狀態對色邏輯。
 - 狀態映射字典採可配置表 `STATUS_TAG_RULES`；新增狀態時優先修改字典，不改頁面判斷碼。
+- **學生四維狀態**（注冊／在讀／活躍／學業階段）的業務定義、`normalize*` 子字串誤判防呆與 DB 重算規則，見 `docs/STUDENT_STATUS_CLASSIFICATION.md`。
 - 需要**多選下拉**時使用共用 `MultiSelect`（`src/components/ui/multi-select.tsx`），視覺與互動對齊 `Select`（圓角、邊框、箭咀、勾選列）；單選仍用 `Select`。
+- **Select 子元素（`<option>`）寫法**（2026-07-07 起）：
+  - 共用 `Select` 會從 `children` 萃取原生 `<option>`／`<optgroup>` 再渲染 Radix 選單；**不得**用 `<>...</>`（Fragment）或自訂 JSX 元件包住 `<option>`，否則選項可能無法出現在下拉中（曾導致學生請假「班別」空白）。
+  - **建議寫法**（擇一）：
+    - 靜態：`<option value="">請選擇</option>` 與 `{items.map(...)}` 並列為 Select 直接子節點。
+    - 佔位 + 清單：陣列展開 `[<option key="ph" value="">請選擇</option>, ...items.map(...)]`。
+    - 條件：三元運算子直接回傳 `<option>` 或上述陣列，勿再包一層 Fragment。
+  - `MultiSelect` 使用 `options` prop，不受此條限制。
+  - 參考：`src/components/ui/select.tsx`（`collectOptions`）、`src/components/students/StudentDetailView.tsx`（請假班別／排程）、`src/components/leaves/LeaveManagementView.tsx`（班別三元寫法）。
 
 ---
 

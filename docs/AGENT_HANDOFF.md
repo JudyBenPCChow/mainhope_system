@@ -51,6 +51,8 @@
 
 **原因簡述**：`as` 不會做執行期檢查；API 或 select 一改，UI 散落的斷言不會被 TypeScript 挡下，易在執行期才出錯。集中在 service 映射可單點維護與重構。
 
+**學生狀態**：四維分類（注冊／在讀／活躍／學業階段）的 DB 重算、`normalize*` 與子字串誤判防呆，見 `docs/STUDENT_STATUS_CLASSIFICATION.md`。
+
 ---
 
 ## 5. RLS（Row Level Security）與上線風險

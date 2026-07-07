@@ -18,10 +18,43 @@ export const tagVariants = cva(
     sm: "px-2 py-0.5 text-xs",
     md: "px-3 py-1 text-sm",
    },
+   /** 主色／深色底上的標籤：使用不透明淺底，避免半透明色塊與底色混色 */
+   surface: {
+    default: "",
+    onPrimary: "",
+   },
   },
+  compoundVariants: [
+   {
+    surface: "onPrimary",
+    tone: "default",
+    class: "bg-neutral-200 text-neutral-700",
+   },
+   {
+    surface: "onPrimary",
+    tone: "success",
+    class: "bg-neutral-200 text-success",
+   },
+   {
+    surface: "onPrimary",
+    tone: "info",
+    class: "bg-neutral-200 text-info",
+   },
+   {
+    surface: "onPrimary",
+    tone: "warning",
+    class: "bg-neutral-200 text-warning",
+   },
+   {
+    surface: "onPrimary",
+    tone: "error",
+    class: "bg-neutral-200 text-destructive",
+   },
+  ],
   defaultVariants: {
    tone: "default",
    size: "md",
+   surface: "default",
   },
  }
 )
@@ -30,6 +63,6 @@ export type TagTone = NonNullable<VariantProps<typeof tagVariants>["tone"]>
 
 type TagProps = React.HTMLAttributes<HTMLSpanElement> & VariantProps<typeof tagVariants>
 
-export function Tag({ className, tone, size, ...props }: TagProps) {
- return <span className={cn(tagVariants({ tone, size }), className)} {...props} />
+export function Tag({ className, tone, size, surface, ...props }: TagProps) {
+ return <span className={cn(tagVariants({ tone, size, surface }), className)} {...props} />
 }
