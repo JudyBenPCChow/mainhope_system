@@ -17,13 +17,6 @@ import {
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
-function roleLabel(role: Role | null) {
- if (role === "admin") return "管／管理員"
- if (role === "teacher") return "師／專科班老師"
- if (role === "alien") return "外／外星人"
- return "未登入"
-}
-
 const linkBase =
  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2A4E8A]"
 
@@ -35,8 +28,14 @@ function initialSidebarCollapsed(): boolean {
 export function Layout() {
  const location = useLocation()
  const [collapsed, setCollapsed] = useState(initialSidebarCollapsed)
- const { ready, role: authRole } = useAuth()
+ const { ready, role: authRole, profile } = useAuth()
  const role = (authRole ?? (localStorage.getItem("mgmt_role") as Role | null)) ?? null
+ const userDisplayName =
+  profile?.displayName?.trim() ||
+  profile?.email ||
+  (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null)?.trim() ||
+  (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_email") : null) ||
+  "用戶"
 
  const navEntries = useMemo(() => (role ? filterNavForRole(role, NAV_STRUCTURE) : []), [role])
 
@@ -226,15 +225,15 @@ export function Layout() {
 
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-xs">
      {!collapsed && (
-      <div className="mb-3 rounded-lg bg-white/10 px-3 py-2 text-white/90">
-       角色：{roleLabel(role)}
+      <div className="mb-3 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
+       你登入為 {userDisplayName}
       </div>
      )}
      <Button
       type="button"
       variant="secondary"
       className={cn("w-full transition-all hover:opacity-95", collapsed && "px-2")}
-      title={collapsed ? `角色：${roleLabel(role)} · 登出` : undefined}
+      title={collapsed ? `你登入為 ${userDisplayName} · 登出` : undefined}
       onClick={logout}
      >
       {!collapsed ? "登出" : "出"}
