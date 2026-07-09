@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 
-import { Layout } from "@/components/Layout"
+import { AdaptiveLayout } from "@/components/AdaptiveLayout"
 import TeacherDetail from "@/components/teachers/TeacherDetail"
 import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
@@ -44,7 +44,7 @@ export default function App() {
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
     <Route path="/Login" element={<Login />} />
-    <Route element={<Layout />}>
+    <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
      <Route path="/Users" element={<UserManagement />} />
