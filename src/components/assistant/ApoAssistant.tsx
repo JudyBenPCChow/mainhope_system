@@ -71,6 +71,8 @@ type ApoAssistantProps = {
  role: Role
 }
 
+const floatingAnchorClass = "bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-4 md:bottom-6 md:right-6"
+
 export function ApoAssistant({ role }: ApoAssistantProps) {
  const navigate = useNavigate()
  const [open, setOpen] = useState(false)
@@ -230,7 +232,8 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
      type="button"
      onClick={() => setOpen(true)}
      className={cn(
-      "fixed bottom-6 right-6 z-[240] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-3 pr-5 shadow-lg",
+      "fixed z-[240] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-3 pr-5 shadow-lg",
+      floatingAnchorClass,
       "text-white hover:bg-neutral-900"
      )}
      aria-label={`開啟${APO_ASSISTANT_NAME}`}
@@ -242,7 +245,10 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
 
    {open ? (
     <div
-     className="fixed bottom-6 right-6 z-[240] flex w-[min(100vw-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+     className={cn(
+      "fixed z-[240] flex w-[min(100vw-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl",
+      floatingAnchorClass
+     )}
      role="dialog"
      aria-label={`${APO_ASSISTANT_NAME}對話`}
     >

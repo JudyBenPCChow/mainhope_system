@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.ai-report]
 verify_jwt = true
+
+[functions.create-mgmt-user]
+verify_jwt = true

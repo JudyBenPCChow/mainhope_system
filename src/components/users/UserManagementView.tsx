@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
-import { GraduationCap, Mail, Pencil, RefreshCw, Shield, Sparkles, UserCog } from "lucide-react"
+import { GraduationCap, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag, type TagTone } from "@/components/ui/tag"
+import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -21,6 +22,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchTeacherOptions, type TeacherOption } from "@/services/classQueries"
+import { createTeacherMgmtUser } from "@/services/mgmtUserQueries"
 import { listAppUsers, updateAppUser } from "@/services/queries"
 
 export type AppUserRow = {
@@ -89,6 +91,7 @@ const ROLE_OPTIONS = [
 
 export function UserManagementView() {
  const canEdit = isSuperAdmin()
+ const { pushBanner } = useAppBanner()
  const [rows, setRows] = useState<AppUserRow[]>([])
  const [teachers, setTeachers] = useState<TeacherOption[]>([])
  const [loading, setLoading] = useState(true)
@@ -103,6 +106,20 @@ export function UserManagementView() {
   teacher_id: "",
  })
  const [saving, setSaving] = useState(false)
+ const [createOpen, setCreateOpen] = useState(false)
+ const [createErr, setCreateErr] = useState<string | null>(null)
+ const [creating, setCreating] = useState(false)
+ const [createdCredential, setCreatedCredential] = useState<{
+  email: string
+  displayName: string
+  temporaryPassword: string
+  teacherName: string
+ } | null>(null)
+ const [createForm, setCreateForm] = useState({
+  email: "",
+  display_name: "",
+  teacher_id: "",
+ })
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -147,6 +164,15 @@ export function UserManagementView() {
    if (d !== 0) return d
    return (a.display_name ?? a.email ?? "").localeCompare(b.display_name ?? b.email ?? "", "zh-Hant")
   })
+ }, [rows])
+
+ const teacherUserMap = useMemo(() => {
+  const out = new Map<string, AppUserRow>()
+  for (const row of rows) {
+   if (row.role.trim().toLowerCase() !== "teacher" || !row.teacher_id) continue
+   out.set(row.teacher_id, row)
+  }
+  return out
  }, [rows])
 
  const openEdit = (u: AppUserRow) => {
@@ -203,6 +229,79 @@ export function UserManagementView() {
   return t.abbr ? `${name} · ${t.abbr}` : name
  }
 
+ const selectedCreateTeacher = teachers.find((t) => t.id === createForm.teacher_id) ?? null
+ const existingTeacherUser = createForm.teacher_id ? teacherUserMap.get(createForm.teacher_id) ?? null : null
+
+ const resetCreateForm = () => {
+  setCreateForm({ email: "", display_name: "", teacher_id: "" })
+  setCreateErr(null)
+  setCreatedCredential(null)
+ }
+
+ const openCreate = () => {
+  if (!canEdit) return
+  setErr(null)
+  resetCreateForm()
+  setCreateOpen(true)
+ }
+
+ const saveCreate = async () => {
+  const email = createForm.email.trim().toLowerCase()
+  const teacherId = createForm.teacher_id.trim()
+  if (!email) {
+   setCreateErr("請輸入電郵。")
+   return
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+   setCreateErr("請輸入有效電郵。")
+   return
+  }
+  if (!teacherId) {
+   setCreateErr("請選擇要綁定的老師。")
+   return
+  }
+  if (existingTeacherUser) {
+   setCreateErr("此老師已綁定一個老師用戶，請改用編輯流程。")
+   return
+  }
+
+  setCreating(true)
+  setCreateErr(null)
+  try {
+   const result = await createTeacherMgmtUser({
+    email,
+    displayName: createForm.display_name.trim() || selectedCreateTeacher?.label || null,
+    teacherId,
+   })
+   if (!result.ok) {
+    setCreateErr(result.message)
+    return
+   }
+   setCreatedCredential({
+    email: result.email,
+    displayName: result.displayName,
+    temporaryPassword: result.temporaryPassword,
+    teacherName: result.teacherName,
+   })
+   pushBanner({
+    tone: "success",
+    title: "已建立老師登入帳號",
+    message: `${result.displayName || result.email} 已可用新帳號登入，臨時密碼只會顯示一次。`,
+   })
+   await load()
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   setCreateErr(msg)
+   reportUserFacingError(e, {
+    source: "UserManagementView.saveCreate",
+    setErr: setCreateErr,
+    userMessage: msg,
+   })
+  } finally {
+   setCreating(false)
+  }
+ }
+
  if (!isSupabaseConfigured) {
   return (
    <div className="rounded-xl border border-amber-400/50 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -233,17 +332,25 @@ export function UserManagementView() {
       <p className="text-xs text-muted-foreground">此頁僅供檢視；編輯需切換為外星人角色。</p>
      )}
     </div>
-    <Button
-     type="button"
-     variant="outline"
-     size="sm"
-     className="gap-2 shrink-0"
-     onClick={() => void load()}
-     disabled={loading}
-    >
-     <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
-     重新載入
-    </Button>
+    <div className="flex shrink-0 flex-wrap gap-2">
+     {canEdit ? (
+      <Button type="button" size="sm" className="gap-2 bg-success text-white hover:bg-success" onClick={openCreate}>
+       <Plus className="h-4 w-4" aria-hidden />
+       新增專班老師用戶
+      </Button>
+     ) : null}
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="gap-2"
+      onClick={() => void load()}
+      disabled={loading}
+     >
+      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+      重新載入
+     </Button>
+    </div>
    </header>
 
    {err ? (
@@ -267,8 +374,8 @@ export function UserManagementView() {
     </div>
    ) : sortedRows.length === 0 ? (
     <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center text-sm text-muted-foreground">
-     目前沒有後台使用者。可於 Table Editor 新增，或執行 <code className="rounded bg-muted px-1">supabase db reset</code>{" "}
-     套用種子資料。
+     目前沒有後台使用者。
+     {canEdit ? "可直接用右上角按鈕建立專班老師登入帳號。" : null}
     </p>
    ) : (
     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -486,6 +593,142 @@ export function UserManagementView() {
       >
        {saving ? "儲存中…" : "儲存"}
       </Button>
+     </DialogFooter>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={createOpen}
+    onOpenChange={(open) => {
+     if (!open && !creating) {
+      setCreateOpen(false)
+      resetCreateForm()
+     }
+    }}
+   >
+    <DialogContent className="max-w-lg gap-0 overflow-hidden border-success p-0 sm:rounded-xl">
+     <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white">
+      <DialogHeader className="space-y-1 text-left">
+       <DialogTitle className="text-lg font-semibold text-white">新增專班老師登入帳號</DialogTitle>
+       <p className="text-xs font-normal text-white/85">
+        系統會同步建立 Supabase Auth 與 app_users，臨時密碼只顯示一次。
+       </p>
+      </DialogHeader>
+     </div>
+     <div className="space-y-4 px-6 py-5 text-sm">
+      <label className="grid gap-1.5">
+       <span className="text-xs font-medium text-muted-foreground">綁定老師</span>
+       <Select
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        value={createForm.teacher_id}
+        onChange={(e) => {
+         const nextTeacherId = e.target.value
+         const nextTeacher = teachers.find((t) => t.id === nextTeacherId) ?? null
+         setCreateForm((f) => ({
+          ...f,
+          teacher_id: nextTeacherId,
+          display_name: f.display_name.trim() ? f.display_name : nextTeacher?.label ?? "",
+         }))
+        }}
+        disabled={creating || createdCredential !== null}
+       >
+        <option value="">請選擇老師</option>
+        {teachers.map((t) => (
+         <option key={t.id} value={t.id}>
+          {teacherSelectText(t)}
+         </option>
+        ))}
+       </Select>
+       {selectedCreateTeacher ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+         目前選中老師的{" "}
+         <abbr title="teachers 表欄位 abbr，內部簡稱／代碼" className="font-mono no-underline">
+          ABBR
+         </abbr>
+         ：
+         <span className="font-mono text-foreground">{selectedCreateTeacher.abbr ?? "—"}</span>
+         。
+        </p>
+       ) : null}
+       {existingTeacherUser ? (
+        <p className="text-xs text-destructive">
+         此老師已綁定用戶：{existingTeacherUser.display_name?.trim() || existingTeacherUser.email || "（未命名）"}
+        </p>
+       ) : null}
+      </label>
+      <label className="grid gap-1.5">
+       <span className="text-xs font-medium text-muted-foreground">登入電郵</span>
+       <Input
+        type="email"
+        value={createForm.email}
+        onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+        placeholder="teacher@example.com"
+        className="h-10"
+        disabled={creating || createdCredential !== null}
+       />
+      </label>
+      <label className="grid gap-1.5">
+       <span className="text-xs font-medium text-muted-foreground">顯示名稱</span>
+       <Input
+        value={createForm.display_name}
+        onChange={(e) => setCreateForm((f) => ({ ...f, display_name: e.target.value }))}
+        placeholder="預設使用老師姓名"
+        className="h-10"
+        disabled={creating || createdCredential !== null}
+       />
+      </label>
+      <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+       建立後會自動設定角色為「專班老師」，並綁定所選老師。請把臨時密碼安全地交給該老師，首次登入後再自行更改。
+      </div>
+      {createdCredential ? (
+        <div className="rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-foreground">
+         <p className="font-medium text-success">帳號已建立</p>
+         <p className="mt-2 break-all">
+          <span className="text-muted-foreground">老師：</span>
+          {createdCredential.teacherName || "—"}
+         </p>
+         <p className="mt-1 break-all">
+          <span className="text-muted-foreground">電郵：</span>
+          {createdCredential.email}
+         </p>
+         <p className="mt-1 break-all">
+          <span className="text-muted-foreground">臨時密碼：</span>
+          <span className="font-mono text-foreground">{createdCredential.temporaryPassword}</span>
+         </p>
+         <p className="mt-2 text-xs text-muted-foreground">請立即記下臨時密碼；關閉此視窗後系統不會再次顯示。</p>
+        </div>
+      ) : null}
+      {createErr ? (
+       <div
+        role="alert"
+        className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+       >
+        {createErr}
+       </div>
+      ) : null}
+     </div>
+     <DialogFooter className="flex border-t border-border bg-muted/30 px-6 py-4 sm:justify-end">
+      <Button
+       type="button"
+       variant="outline"
+       disabled={creating}
+       onClick={() => {
+        setCreateOpen(false)
+        resetCreateForm()
+       }}
+      >
+       {createdCredential ? "完成" : "取消"}
+      </Button>
+      {createdCredential ? null : (
+       <Button
+        type="button"
+        className="bg-success text-white hover:bg-success"
+        disabled={creating}
+        onClick={() => void saveCreate()}
+       >
+        {creating ? "建立中…" : "建立帳號"}
+       </Button>
+      )}
      </DialogFooter>
     </DialogContent>
    </Dialog>
