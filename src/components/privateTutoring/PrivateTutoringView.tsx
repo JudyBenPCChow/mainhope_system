@@ -571,18 +571,19 @@ export function PrivateTutoringView() {
  }, [bookRow])
 
  const submitBooking = useCallback(async () => {
-  if (!bookRow || !bookDate || !bookRoomId) {
-   setBookErr("請選擇日期與課室")
+  if (!bookRow || !bookDate) {
+   setBookErr("請選擇日期")
    return
   }
   const startTime = formatMin(lessonSlotStartMinute(bookSlotIdx))
   const endTime = formatMin(lessonSlotEndMinute(bookSlotIdx))
   const teacherId = bookTeacherId || bookRow.teacherId
+  const classroomId = bookRoomId.trim() || null
   setBookSaving(true)
   setBookErr(null)
   try {
    const conflicts = await checkPrivateBookingConflicts({
-    classroomId: bookRoomId,
+    classroomId,
     scheduledDate: bookDate,
     startTime,
     endTime,
@@ -609,7 +610,7 @@ export function PrivateTutoringView() {
      scheduledDate: bookDate,
      startTime,
      endTime,
-     classroomId: bookRoomId,
+     classroomId,
      teacherId,
     })
     pushBanner({
@@ -623,7 +624,7 @@ export function PrivateTutoringView() {
      scheduled_date: bookDate,
      start_time: startTime,
      end_time: endTime,
-     classroom_id: bookRoomId,
+     classroom_id: classroomId,
      status: "正常",
     })
     pushBanner({
@@ -1276,9 +1277,9 @@ export function PrivateTutoringView() {
        </div>
 
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">課室（僅顯示空房）</label>
+        <label className="text-xs text-muted-foreground">課室（選填，僅顯示空房）</label>
         <Select value={bookRoomId} onChange={(e) => setBookRoomId(e.target.value)}>
-         <option value="">選擇課室</option>
+         <option value="">暫不指定課室</option>
          {bookActiveRooms
           .filter((r) => freeRoomIdsForBook.has(r.id) || r.id === bookRoomId)
           .map((r) => (
@@ -1288,7 +1289,7 @@ export function PrivateTutoringView() {
           ))}
         </Select>
         {bookDate && freeRoomIdsForBook.size === 0 && (
-         <p className="text-xs text-warning">此時段沒有空房，請改日期或時段。</p>
+         <p className="text-xs text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
         )}
        </div>
 

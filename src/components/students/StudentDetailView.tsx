@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
+import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { Button } from "@/components/ui/button"
 import {
@@ -959,6 +960,15 @@ const exportFutureSchedulesCsv = () => {
           onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
          />
         </Field>
+        {sid ? (
+         <ParentPortalInvitePanel
+          studentId={sid}
+          studentName={form.full_name ?? student?.full_name ?? ""}
+          whatsapp={form.whatsapp ?? student?.whatsapp}
+          parentPhone={form.parent_phone ?? student?.parent_phone}
+          studentPhone={form.student_phone ?? student?.student_phone}
+         />
+        ) : null}
        </div>
       </section>
 

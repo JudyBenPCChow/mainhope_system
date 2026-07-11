@@ -536,7 +536,7 @@ export async function reschedulePrivateLesson(opts: {
  scheduledDate: string
  startTime: string
  endTime: string
- classroomId: string
+ classroomId: string | null
  teacherId?: string | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
@@ -555,13 +555,13 @@ export async function reschedulePrivateLesson(opts: {
   scheduled_date: string
   start_time: string
   end_time: string
-  classroom_id: string
+  classroom_id: string | null
   teacher_id?: string | null
  } = {
   scheduled_date: opts.scheduledDate.slice(0, 10),
   start_time: opts.startTime,
   end_time: opts.endTime,
-  classroom_id: opts.classroomId,
+  classroom_id: opts.classroomId?.trim() || null,
  }
  if (opts.teacherId !== undefined) {
   patch.teacher_id = opts.teacherId?.trim() || null
@@ -579,9 +579,9 @@ export type PrivateBookingConflict = {
  label: string
 }
 
-/** 預約前檢查課室／老師／學生時段衝突 */
+/** 預約前檢查課室／老師／學生時段衝突（未指定課室時略過課室衝突） */
 export async function checkPrivateBookingConflicts(params: {
- classroomId: string
+ classroomId?: string | null
  scheduledDate: string
  startTime: string
  endTime: string
@@ -594,42 +594,45 @@ export async function checkPrivateBookingConflicts(params: {
  const dateYmd = params.scheduledDate.slice(0, 10)
  const slotA = parseHm(params.startTime) ?? 0
  const slotB = parseHm(params.endTime) ?? slotA + LESSON_SLOT_DURATION_MIN
+ const classroomId = params.classroomId?.trim() || null
 
- const { data: roomSched } = await supabase
-  .from("schedules")
-  .select("id, start_time, end_time, status, classes ( subject )")
-  .eq("classroom_id", params.classroomId)
-  .eq("scheduled_date", dateYmd)
- for (const row of roomSched ?? []) {
-  const s = row as Record<string, unknown>
-  if (params.excludeScheduleId && String(s.id) === params.excludeScheduleId) continue
-  if (String(s.status ?? "").includes("取消")) continue
-  const a = parseHm(s.start_time != null ? String(s.start_time) : null)
-  const b = parseHm(s.end_time != null ? String(s.end_time) : null)
-  if (a == null) continue
-  const bEff = b == null || b <= a ? a + LESSON_SLOT_DURATION_MIN : b
-  if (!intervalsOverlapMinutes(slotA, slotB, a, bEff)) continue
-  const cls = s.classes as Record<string, unknown> | null
-  conflicts.push({
-   kind: "room",
-   label: `課室已被佔用：${cls?.subject != null ? String(cls.subject) : "其他排程"}`,
-  })
- }
+ if (classroomId) {
+  const { data: roomSched } = await supabase
+   .from("schedules")
+   .select("id, start_time, end_time, status, classes ( subject )")
+   .eq("classroom_id", classroomId)
+   .eq("scheduled_date", dateYmd)
+  for (const row of roomSched ?? []) {
+   const s = row as Record<string, unknown>
+   if (params.excludeScheduleId && String(s.id) === params.excludeScheduleId) continue
+   if (String(s.status ?? "").includes("取消")) continue
+   const a = parseHm(s.start_time != null ? String(s.start_time) : null)
+   const b = parseHm(s.end_time != null ? String(s.end_time) : null)
+   if (a == null) continue
+   const bEff = b == null || b <= a ? a + LESSON_SLOT_DURATION_MIN : b
+   if (!intervalsOverlapMinutes(slotA, slotB, a, bEff)) continue
+   const cls = s.classes as Record<string, unknown> | null
+   conflicts.push({
+    kind: "room",
+    label: `課室已被佔用：${cls?.subject != null ? String(cls.subject) : "其他排程"}`,
+   })
+  }
 
- const { data: pend } = await supabase
-  .from("classroom_booking_requests")
-  .select("id, start_time, end_time")
-  .eq("classroom_id", params.classroomId)
-  .eq("scheduled_date", dateYmd)
-  .eq("status", "待審批")
- for (const row of pend ?? []) {
-  const p = row as { start_time: string; end_time: string }
-  const a = parseHm(p.start_time)
-  const b = parseHm(p.end_time)
-  if (a == null || b == null) continue
-  const bEff = b <= a ? a + LESSON_SLOT_DURATION_MIN : b
-  if (intervalsOverlapMinutes(slotA, slotB, a, bEff)) {
-   conflicts.push({ kind: "room", label: "課室有待審批約房" })
+  const { data: pend } = await supabase
+   .from("classroom_booking_requests")
+   .select("id, start_time, end_time")
+   .eq("classroom_id", classroomId)
+   .eq("scheduled_date", dateYmd)
+   .eq("status", "待審批")
+  for (const row of pend ?? []) {
+   const p = row as { start_time: string; end_time: string }
+   const a = parseHm(p.start_time)
+   const b = parseHm(p.end_time)
+   if (a == null || b == null) continue
+   const bEff = b <= a ? a + LESSON_SLOT_DURATION_MIN : b
+   if (intervalsOverlapMinutes(slotA, slotB, a, bEff)) {
+    conflicts.push({ kind: "room", label: "課室有待審批約房" })
+   }
   }
  }
 

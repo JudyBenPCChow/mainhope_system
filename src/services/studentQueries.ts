@@ -12,6 +12,7 @@ import {
  type EnrollmentPeriod,
  type CourseMode,
 } from "@/lib/enrollmentPeriod"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
@@ -949,30 +950,48 @@ export type ClassOption = {
 
 export async function fetchClassOptions(): Promise<ClassOption[]> {
  if (!supabase) return []
+ /** 學生詳細頁「選擇班別加入」用：排除一對一（應走一對一學生頁建立） */
  const classSelectWithMode =
-  "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
+ const classSelectLegacy =
   "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
- const res =
-  first.error && /does not exist/i.test(first.error.message)
-   ? await supabase.from("classes").select(classSelectBase).order("subject")
-   : first
+ let res = first
+ if (first.error && /does not exist/i.test(first.error.message)) {
+  const second = await supabase.from("classes").select(classSelectBase).order("subject")
+  res =
+   second.error && /does not exist/i.test(second.error.message)
+    ? await supabase.from("classes").select(classSelectLegacy).order("subject")
+    : second
+ }
  if (res.error) throw res.error
- return (res.data ?? []).map((r) => {
+ const out: ClassOption[] = []
+ for (const r of res.data ?? []) {
   const row = r as Record<string, unknown>
+  const subject = String(row.subject ?? "")
+  if (
+   resolveClassKind(
+    row.class_kind != null ? String(row.class_kind) : null,
+    subject
+   ) === "private"
+  ) {
+   continue
+  }
   const course = row.courses as Record<string, unknown> | null
   const courseMode =
    course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular"
-  return {
+  out.push({
    id: String(row.id),
-   subject: String(row.subject ?? ""),
+   subject,
    courseCode:
     row.course_code_full != null ? String(row.course_code_full) : null,
    label: buildClassOptionLabel(row),
    courseMode,
-  }
- })
+  })
+ }
+ return out
 }
 
 export type PaymentRow = {
