@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
 import {
  academicYearEditBlockedMessage,
@@ -46,6 +47,7 @@ function parseYmd(raw: string | null): string | null {
 
 export function RollCallPage() {
  const { pushBanner } = useAppBanner()
+ const isMobile = useIsMobile()
  const [searchParams] = useSearchParams()
  const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
  const urlDate = parseYmd(searchParams.get("date"))
@@ -458,9 +460,9 @@ export function RollCallPage() {
    </section>
 
    <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
-    <label className="grid gap-1 text-xs text-muted-foreground">
+    <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
      <span>日期</span>
-     <Input type="date" value={dateYmd} onChange={(e) => setDateYmd(e.target.value)} className="h-9 w-[11rem]" />
+     <Input type="date" value={dateYmd} onChange={(e) => setDateYmd(e.target.value)} className="h-9 w-full sm:w-[11rem]" />
     </label>
     <Button
      type="button"
@@ -471,7 +473,7 @@ export function RollCallPage() {
     >
      今天
     </Button>
-    <label className="grid min-w-[16rem] flex-1 gap-1 text-xs text-muted-foreground">
+    <label className="grid w-full min-w-0 flex-1 gap-1 text-xs text-muted-foreground sm:min-w-[16rem]">
      <span>選擇排程</span>
      <Select
       className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -508,7 +510,7 @@ export function RollCallPage() {
    ) : !activeEntry ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此日期沒有可點名的排程</p>
    ) : (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className={cn("space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm", isMobile && students.length > 0 && "pb-28")}>
      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
       <div>
        <div className="flex flex-wrap items-center gap-2">
@@ -577,6 +579,68 @@ export function RollCallPage() {
 
      {sheetLoading ? (
       <p className="text-sm text-muted-foreground">載入名單…</p>
+     ) : isMobile ? (
+      <div className="space-y-3">
+       {students.map((row, idx) => (
+        <article
+         key={row.studentId}
+         className="rounded-xl border border-border bg-background p-4 shadow-sm"
+        >
+         <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+           <p className="text-xs text-muted-foreground">#{idx + 1}</p>
+           <div className="font-medium">
+            {row.fullName}
+            {row.source === "trial" ? (
+             <Tag tone="info" size="sm" className="ml-2 align-middle">
+              試堂
+             </Tag>
+            ) : null}
+           </div>
+           {row.englishName ? (
+            <div className="text-xs text-muted-foreground">({row.englishName})</div>
+           ) : null}
+           <p className="mt-1 text-sm text-muted-foreground">年級：{row.grade ?? "—"}</p>
+          </div>
+          {activeScheduleMeta ? (
+           <StudentWhatsAppReminderButton
+            compact
+            contactPhone={row.contactPhone}
+            payload={{
+             studentName: row.fullName,
+             subject: activeScheduleMeta.subject,
+             courseCode: activeScheduleMeta.course_code_full,
+             dateYmd: activeEntry.scheduled_date,
+             startTime: activeEntry.start_time,
+             endTime: activeEntry.end_time,
+             classroomName: activeScheduleMeta.classroom_name,
+             attendanceStatus: statusMap.get(row.studentId) || null,
+             isTrial: row.source === "trial",
+            }}
+           />
+          ) : null}
+         </div>
+         <div className="mt-3 grid grid-cols-2 gap-2">
+          {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+           <button
+            key={opt}
+            type="button"
+            disabled={!dateEditable}
+            onClick={() => setStatus(row.studentId, opt)}
+            className={cn(
+             "min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+             statusMap.get(row.studentId) === opt
+              ? "border-success bg-success text-white"
+              : "border-border bg-background text-muted-foreground hover:bg-muted/60"
+            )}
+           >
+            {opt}
+           </button>
+          ))}
+         </div>
+        </article>
+       ))}
+      </div>
      ) : (
       <div className="overflow-x-auto">
        <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
@@ -654,6 +718,38 @@ export function RollCallPage() {
      )}
 
      {!sheetLoading && students.length > 0 ? (
+      isMobile ? (
+       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur">
+        <div className="mx-auto flex max-w-lg flex-col gap-2">
+         <p className="text-xs text-muted-foreground">
+          {isDirty ? (
+           <span className="font-medium text-amber-800">變更尚未儲存</span>
+          ) : (
+           <span>與上次儲存一致</span>
+          )}
+          <span className="mx-1">·</span>
+          已選 {draftFilledCount} / {students.length}
+         </p>
+         <Button
+          type="button"
+          size="lg"
+          className="w-full gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
+          disabled={
+           confirmSaving ||
+           sheetLoading ||
+           bulkAction !== null ||
+           students.length === 0 ||
+           !isDirty ||
+           !dateEditable
+          }
+          onClick={() => void confirmRollCall()}
+         >
+          <CheckCircle2 className="h-5 w-5" aria-hidden />
+          {confirmSaving ? "儲存中…" : "確定"}
+         </Button>
+        </div>
+       </div>
+      ) : (
       <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
        <p className="text-sm text-muted-foreground">
         {isDirty ? (
@@ -680,6 +776,7 @@ export function RollCallPage() {
         {confirmSaving ? "儲存中…" : "確定"}
        </Button>
       </div>
+      )
      ) : null}
     </div>
    )}

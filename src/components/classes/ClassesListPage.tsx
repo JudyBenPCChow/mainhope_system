@@ -33,6 +33,8 @@ import {
  setClassesListDataCache,
 } from "@/components/classes/classesListState"
 import { usePersistentState } from "@/hooks/usePersistentState"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { classDisplayName } from "@/lib/courseLabel"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
@@ -81,12 +83,25 @@ function galleryCoverClass(subject: string): string {
  return GALLERY_COVERS[h % GALLERY_COVERS.length]
 }
 
+type ClassesViewMode = "list" | "kanban" | "gallery" | "cards"
+
+function getInitialClassesView(): ClassesViewMode {
+ try {
+  const raw = sessionStorage.getItem("mgmt_classes_view")
+  if (raw != null) return JSON.parse(raw) as ClassesViewMode
+ } catch {
+  /* ignore */
+ }
+ return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT ? "cards" : "list"
+}
+
 export function ClassesListPage() {
  const navigate = useNavigate()
  const location = useLocation()
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const teacherTid = getTeacherScopeTeacherId()
+ const isMobile = useIsMobile()
  const initialCache = useMemo(() => getClassesListDataCache(), [])
  const [rows, setRows] = useState<ClassRecord[]>(() => initialCache?.rows ?? [])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
@@ -103,7 +118,8 @@ export function ClassesListPage() {
  )
  const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
- const [view, setView] = usePersistentState<"list" | "kanban" | "gallery">("mgmt_classes_view", "list")
+ const [view, setView] = usePersistentState<ClassesViewMode>("mgmt_classes_view", getInitialClassesView())
+ const displayView: ClassesViewMode = isMobile && view === "list" ? "cards" : view
  const [kanbanGroup, setKanbanGroup] = usePersistentState<"day" | "teacher" | "grade">(
   "mgmt_classes_kanbanGroup",
   "day"
@@ -406,7 +422,7 @@ export function ClassesListPage() {
  const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
 
  return (
-  <div className="space-y-5 p-4 md:p-6">
+  <div className="space-y-5 py-4 md:p-6">
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。
@@ -444,16 +460,16 @@ export function ClassesListPage() {
      <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
       <button
        type="button"
-       onClick={() => setView("list")}
+       onClick={() => setView(isMobile ? "cards" : "list")}
        className={cn(
         "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-        view === "list"
+        (isMobile ? displayView === "cards" : view === "list")
          ? "bg-primary text-primary-foreground shadow-sm"
          : "text-muted-foreground hover:text-foreground"
        )}
       >
        <List className="h-4 w-4" />
-       列表
+       {isMobile ? "卡片" : "列表"}
       </button>
       <button
        type="button"
@@ -657,7 +673,79 @@ export function ClassesListPage() {
     )}
    </div>
 
-   {view === "list" ? (
+   {displayView === "cards" ? (
+    <div className="space-y-3">
+     {loading ? (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+       載入中…
+      </div>
+     ) : filtered.length === 0 ? (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+       {yearScopedRows.length === 0 && baseRows.length > 0
+        ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+        : "沒有符合條件的班別"}
+      </div>
+     ) : (
+      filtered.map((c) => (
+       <article
+        key={c.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate(`/Classes/${c.id}`)}
+        onKeyDown={(e) => {
+         if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          navigate(`/Classes/${c.id}`)
+         }
+        }}
+        className={cn("flex flex-col gap-3 p-4", cardInteractive)}
+       >
+        <div className="flex items-start justify-between gap-3">
+         <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+           {hasNoActiveSchedule(c) ? (
+            <AlertTriangle className="h-4 w-4 shrink-0 text-warning" aria-label="尚無排程" />
+           ) : null}
+           <span className="truncate font-mono text-xs text-muted-foreground">{c.course_code_full ?? "—"}</span>
+          </div>
+          <h3 className="mt-1 text-base font-semibold leading-snug">
+           {classDisplayName({ subject: c.subject, courseName: c.course_name })}
+          </h3>
+         </div>
+         <Tag tone={statusToTagTone(c.status)} size="sm">
+          {c.status}
+         </Tag>
+        </div>
+        <div className="space-y-1 text-sm text-muted-foreground">
+         <p>{timeLabel(c)}</p>
+         <p>年級：{(c.grade ?? []).join("、") || "—"}</p>
+         <p>
+          老師：
+          {c.teacher_id ? (
+           <Link
+            to={`/Teachers/${c.teacher_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="ml-1 font-medium text-primary hover:underline"
+           >
+            {c.teacher_name ?? "—"}
+           </Link>
+          ) : (
+           "—"
+          )}
+         </p>
+         <p>就讀中學生：{enrollRoster.get(c.id)?.count ?? 0} 人</p>
+        </div>
+        {(enrollRoster.get(c.id)?.names ?? []).length > 0 ? (
+         <p className="line-clamp-2 text-xs text-muted-foreground">
+          {(enrollRoster.get(c.id)?.names ?? []).join("、")}
+         </p>
+        ) : null}
+       </article>
+      ))
+     )}
+     <p className="text-xs text-muted-foreground">共 {filtered.length} 班</p>
+    </div>
+   ) : displayView === "list" ? (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
      <div className="overflow-x-auto">
       <table className="w-full min-w-[104rem] table-fixed border-collapse text-sm">
@@ -831,7 +919,7 @@ export function ClassesListPage() {
       共 {filtered.length} 班
      </div>
     </div>
-   ) : view === "gallery" && teacherTid ? (
+   ) : displayView === "gallery" && teacherTid ? (
     <div className="rounded-xl border border-border bg-muted/20 p-4 shadow-sm md:p-6">
      {loading ? (
       <p className="py-12 text-center text-muted-foreground">載入中…</p>

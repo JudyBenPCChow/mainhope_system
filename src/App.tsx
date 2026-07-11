@@ -19,6 +19,7 @@ import LeaveManagement from "@/pages/LeaveManagement"
 import Login from "@/pages/Login"
 import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
+import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
@@ -50,6 +51,7 @@ export default function App() {
      <Route path="/Users" element={<UserManagement />} />
      <Route path="/Students" element={<Students />} />
      <Route path="/Students/:studentId" element={<StudentDetail />} />
+     <Route path="/PrivateTutoring" element={<PrivateTutoring />} />
      <Route path="/Teachers" element={<Teachers />} />
      <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
      <Route path="/Classes" element={<Classes />} />

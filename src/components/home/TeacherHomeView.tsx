@@ -19,6 +19,7 @@ import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -69,6 +70,7 @@ function alertTagsForSchedule(
 
 export function TeacherHomeView() {
  const teacherId = getTeacherScopeTeacherId()
+ const isMobile = useIsMobile()
  const [teacherName, setTeacherName] = useState<string>("老師")
  const [classes, setClasses] = useState<ClassRecord[]>([])
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
@@ -181,6 +183,17 @@ export function TeacherHomeView() {
   () => schedules.filter((s) => s.scheduled_date === today && !s.status.includes("取消")),
   [schedules, today]
  )
+
+ const upcomingDayGroups = useMemo(() => {
+  const dayKeys = [0, 1, 2].map((offset) => addDaysYmd(today, offset))
+  return dayKeys.map((ymd) => ({
+   ymd,
+   label: ymd === today ? "今日" : ymd === addDaysYmd(today, 1) ? "明日" : "後日",
+   items: schedules
+    .filter((s) => s.scheduled_date === ymd && !s.status.includes("取消"))
+    .sort((a, b) => (a.start_time ?? "").localeCompare(b.start_time ?? "")),
+  }))
+ }, [schedules, today])
 
  if (!teacherId) {
   return (
@@ -308,14 +321,55 @@ export function TeacherHomeView() {
       )}
      >
       <CalendarRange className="h-6 w-6 shrink-0 text-info transition-transform group-hover:scale-105" />
-      <span className="truncate underline-offset-4 group-hover:underline">本週時間表</span>
+      <span className="truncate underline-offset-4 group-hover:underline">
+       {isMobile ? "近三日行程" : "本週時間表"}
+      </span>
      </Link>
      <Button type="button" variant="outline" size="sm" asChild>
-      <Link to="/TeacherTimetable">全螢幕檢視</Link>
+      <Link to="/TeacherTimetable">{isMobile ? "完整時間表" : "全螢幕檢視"}</Link>
      </Button>
     </div>
     {loading ? (
      <p className="text-muted-foreground">載入中…</p>
+    ) : isMobile ? (
+     <div className="space-y-5">
+      {upcomingDayGroups.map((group) => (
+       <div key={group.ymd}>
+        <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+         {group.label}
+         <span className="ml-2 font-normal tabular-nums">{group.ymd}</span>
+        </h3>
+        {group.items.length === 0 ? (
+         <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          沒有排程
+         </p>
+        ) : (
+         <ul className="space-y-2">
+          {group.items.map((s) => {
+           const a = alertTagsForSchedule(s.id, s.remarks ?? null, leaves, trialScheduleIds)
+           return (
+            <li
+             key={s.id}
+             className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3"
+            >
+             <div className="font-semibold text-foreground">
+              {s.start_time ?? "—"}–{s.end_time ?? "—"} · {s.classLabel}
+             </div>
+             <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
+              {s.classroom_name ? <span>{s.classroom_name}</span> : null}
+              {a.trial ? <Tag tone="info" size="sm">試堂</Tag> : null}
+              {a.leave ? <Tag tone="warning" size="sm">請假</Tag> : null}
+              {a.makeup ? <Tag tone="warning" size="sm">補堂</Tag> : null}
+              {a.record ? <Tag tone="default" size="sm">錄影</Tag> : null}
+             </div>
+            </li>
+           )
+          })}
+         </ul>
+        )}
+       </div>
+      ))}
+     </div>
     ) : (
      <TeacherWeekTimetable items={weekItemsFromManageRows(schedules)} />
     )}

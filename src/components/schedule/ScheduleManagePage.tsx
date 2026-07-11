@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
  CalendarDays,
  Check,
@@ -253,10 +254,13 @@ function ExpandedScheduleRoster({
 
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
+ const isMobile = useIsMobile()
  const todayYmd = localYmd()
  const [searchParams, setSearchParams] = useSearchParams()
 
- const [viewMode, setViewMode] = useState<ViewMode>("byDate")
+ const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
+ const effectiveViewMode: ViewMode =
+  isMobile && (viewMode === "list" || viewMode === "day") ? "byDate" : viewMode
  const [displayStart, setDisplayStart] = useState(todayYmd)
  const [dayViewDate, setDayViewDate] = useState(todayYmd)
  const [startInitialized, setStartInitialized] = useState(false)
@@ -386,14 +390,14 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
   const view = searchParams.get("view")
   const date = searchParams.get("date")
   if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-   setViewMode("day")
    setDayViewDate(date)
    setDisplayStart(date)
+   if (!isMobile) setViewMode("day")
   }
- }, [searchParams])
+ }, [searchParams, isMobile, setViewMode])
 
  useEffect(() => {
-  if (viewMode === "day") {
+  if (effectiveViewMode === "day") {
    const params = new URLSearchParams(searchParams)
    if (params.get("view") !== "day" || params.get("date") !== dayViewDate) {
     params.set("view", "day")
@@ -408,14 +412,14 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    params.delete("date")
    setSearchParams(params, { replace: true })
   }
- }, [viewMode, dayViewDate, searchParams, setSearchParams])
+ }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams])
 
  useEffect(() => {
-  if (viewMode !== "day") return
+  if (effectiveViewMode !== "day") return
   if (!isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)) {
    setDisplayStart(dayViewDate)
   }
- }, [viewMode, dayViewDate, displayStart, rangeEnd])
+ }, [effectiveViewMode, dayViewDate, displayStart, rangeEnd])
 
  useEffect(() => {
   if (!detailId) {
@@ -472,7 +476,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
 
  useEffect(() => {
   setExpandedScheduleId(null)
- }, [viewMode])
+ }, [effectiveViewMode])
 
  useEffect(() => {
   if (!addOpen) return
@@ -612,7 +616,7 @@ useEffect(() => {
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
  useEffect(() => {
-  if (viewMode !== "day") {
+  if (effectiveViewMode !== "day") {
    setDayViewRoster(new Map())
    return
   }
@@ -636,7 +640,7 @@ useEffect(() => {
   return () => {
    cancelled = true
   }
- }, [viewMode, dayFiltered, dayViewDate])
+ }, [effectiveViewMode, dayFiltered, dayViewDate])
 
  const roomColumns = useMemo(
   () => classroomsActiveOnDate(rooms, dayViewDate),
@@ -1094,19 +1098,23 @@ useEffect(() => {
       {(
        [
         { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
-        { id: "list" as const, label: "列表", icon: List },
-        { id: "day" as const, label: "日視圖", icon: CalendarDays },
+        ...(!isMobile
+         ? ([
+            { id: "list" as const, label: "列表", icon: List },
+            { id: "day" as const, label: "日視圖", icon: CalendarDays },
+           ] as const)
+         : []),
        ] as const
       ).map(({ id, label, icon: Icon }) => (
        <button
         key={id}
         type="button"
         role="tab"
-        aria-selected={viewMode === id}
+        aria-selected={effectiveViewMode === id}
         onClick={() => setViewMode(id)}
         className={cn(
          "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
-         viewMode === id
+         effectiveViewMode === id
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:bg-background hover:text-foreground"
         )}
@@ -1139,8 +1147,14 @@ useEffect(() => {
     </div>
    </div>
 
+   {isMobile && (viewMode === "list" || viewMode === "day" || searchParams.get("view") === "day") ? (
+    <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+     列表與日視圖建議使用桌面版；手機已改為「按日期」顯示。
+    </p>
+   ) : null}
+
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm">
-    {viewMode === "day" ? (
+    {effectiveViewMode === "day" ? (
      <>
       <div className="flex flex-wrap items-center gap-2">
        <span className="text-muted-foreground">日視圖日期</span>
@@ -1221,13 +1235,13 @@ useEffect(() => {
     )}
    </div>
 
-   {viewMode === "day" && scheduleMgmtLocked ? (
+   {effectiveViewMode === "day" && scheduleMgmtLocked ? (
     <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
      你目前僅能檢視日視圖；拖曳與「移動到…」需管理員權限。
     </p>
    ) : null}
 
-   {viewMode === "day" && dayViewFilterActive ? (
+   {effectiveViewMode === "day" && dayViewFilterActive ? (
     <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
      日視圖已套用上方搜尋或篩選條件。
      <button
@@ -1245,7 +1259,7 @@ useEffect(() => {
     </p>
    ) : null}
 
-   {viewMode === "byDate" ? (
+   {effectiveViewMode === "byDate" ? (
     <div className="space-y-6">
      {byDateGroups.map(([dateYmd, list]) => {
       const isToday = dateYmd === todayYmd
@@ -1493,7 +1507,7 @@ useEffect(() => {
     </div>
    ) : null}
 
-   {viewMode === "list" ? (
+   {effectiveViewMode === "list" ? (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
      <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
       <thead>
@@ -1642,7 +1656,7 @@ useEffect(() => {
     </div>
    ) : null}
 
-   {viewMode === "day" ? (
+   {effectiveViewMode === "day" ? (
     <div className="space-y-4">
      {dayFiltered.length === 0 ? (
       <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">

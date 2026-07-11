@@ -52,7 +52,7 @@ export function MobileLayout() {
    <AppBannerViewport />
    <MobileHeader pathname={location.pathname} role={role} onOpenNav={() => setNavOpen(true)} />
    <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
-    <div className="mx-auto min-h-full w-full max-w-lg px-4 py-4 sm:max-w-xl">
+    <div className="mx-auto min-h-full w-full max-w-lg px-4 py-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:max-w-xl">
      <Outlet />
     </div>
    </main>

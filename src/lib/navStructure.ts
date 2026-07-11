@@ -87,6 +87,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Users,
   children: [
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
+   { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
    { path: "/Teachers", label: "老師管理", roles: ["admin", "alien"], icon: UserRound },
    { path: "/Classes", label: "班別管理", roles: ["admin", "alien"], icon: BookOpen },
    { path: "/Classes/New", label: "新增班別", roles: ["admin", "alien"], icon: Plus },

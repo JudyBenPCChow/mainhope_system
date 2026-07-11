@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
-import { ChevronDown, ChevronUp, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet } from "lucide-react"
+import { ChevronDown, ChevronUp, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
+
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -221,9 +225,21 @@ function formatCsv(rows: StudentRecord[]): string {
  return "\uFEFF" + lines.join("\n")
 }
 
+function getInitialStudentsViewMode(): "table" | "gallery" {
+ try {
+  const raw = sessionStorage.getItem("mgmt_students_viewMode")
+  if (raw != null) return JSON.parse(raw) as "table" | "gallery"
+ } catch {
+  /* ignore */
+ }
+ return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT ? "gallery" : "table"
+}
+
 export function StudentsListPage() {
  const { confirmDialog } = useAppConfirm()
  const navigate = useNavigate()
+ const isMobile = useIsMobile()
+ const [filtersOpen, setFiltersOpen] = useState(false)
  const [rows, setRows] = useState<StudentRecord[]>([])
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
  const [tuitionMap, setTuitionMap] = useState<Map<string, StudentTuitionArrearsInfo>>(new Map())
@@ -248,7 +264,10 @@ export function StudentsListPage() {
   "mgmt_students_gradeKey",
   "all"
  )
- const [viewMode, setViewMode] = usePersistentState<"table" | "gallery">("mgmt_students_viewMode", "table")
+ const [viewMode, setViewMode] = usePersistentState<"table" | "gallery">(
+  "mgmt_students_viewMode",
+  getInitialStudentsViewMode()
+ )
  const [sortMode, setSortMode] = usePersistentState<"codeAsc" | "codeDesc">(
   "mgmt_students_sortMode",
   "codeDesc"
@@ -407,6 +426,26 @@ export function StudentsListPage() {
   return { registration, enrollment, activity, stage }
  }, [rows])
 
+ const activeFilterCount = useMemo(() => {
+  let count = 0
+  if (registrationKey !== "all") count++
+  if (enrollmentKey !== "all") count++
+  if (activityKey !== "all") count++
+  if (stageKey !== "all") count++
+  if (gradeKey !== "all") count++
+  if (showGraduated) count++
+  return count
+ }, [registrationKey, enrollmentKey, activityKey, stageKey, gradeKey, showGraduated])
+
+ const resetFilters = () => {
+  setRegistrationKey("all")
+  setEnrollmentKey("all")
+  setActivityKey("all")
+  setStageKey("all")
+  setGradeKey("all")
+  setShowGraduated(false)
+ }
+
  const exportCsv = () => {
   const blob = new Blob([formatCsv(filtered)], { type: "text/csv;charset=utf-8" })
   const url = URL.createObjectURL(blob)
@@ -533,130 +572,101 @@ export function StudentsListPage() {
   }
  }
 
- return (
-  <div className="space-y-5 p-4 md:p-6">
-   {!isSupabaseConfigured ? (
-    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
-     請設定純文字 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev，才能載入學生。
-    </div>
-   ) : null}
-   {err ? (
-    <div
-     role="alert"
-     tabIndex={-1}
-     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
-    >
-     {err}
-    </div>
-   ) : null}
-
-   <div className="flex flex-wrap items-center gap-3">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     學生管理
-    </h1>
-   <Tag tone="info">{loading ? "…" : `${stats.total} 人`}</Tag>
-   </div>
-
-  <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-   <div className="flex flex-wrap items-center gap-2">
-    <h2 className="text-sm font-semibold tracking-wide">學生儀表板</h2>
-    <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
-    <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
-   </div>
-   <Button
-    type="button"
-    variant="ghost"
-    size="sm"
-    className="gap-1.5"
-    onClick={() => setDashboardCollapsed((v) => !v)}
-   >
-    {dashboardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-    {dashboardCollapsed ? "展開" : "收合"}
-   </Button>
-  </div>
-
-  {!dashboardCollapsed ? (
+ const renderFilterPanel = () => (
   <>
-  <div className="grid gap-3 sm:grid-cols-4">
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-     <div className="text-3xl font-bold text-primary">{loading ? "…" : stats.enrolled}</div>
-     <div className="text-sm text-muted-foreground">目前在讀</div>
+   <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2">
+     <h2 className="text-sm font-semibold tracking-wide">學生儀表板</h2>
+     <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
+     <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
     </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-     <div className="text-3xl font-bold text-success">
-      {loading ? "…" : stats.active}
-     </div>
-     <div className="text-sm text-muted-foreground">活躍生（近三個月報讀）</div>
-    </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-     <div className="text-3xl font-bold text-foreground">{loading ? "…" : stats.total}</div>
-     <div className="text-sm text-muted-foreground">學生總數</div>
-    </div>
-   <button
-    type="button"
-    onClick={() => setSortMode("codeDesc")}
-    className="rounded-xl border border-info bg-info p-4 text-left shadow-sm transition hover:border-info/70 hover:shadow-md"
-    title="按學號（最新）排序"
-   >
-    <div className="text-xs font-medium uppercase tracking-wide text-info-foreground/90">最新學號</div>
-    <div className="mt-1 text-2xl font-bold text-info-foreground">{latestCodeStudent?.student_code ?? "—"}</div>
-    <div className="mt-2 text-xs text-info-foreground/80">點擊後改為「按學號（最新）」排序</div>
-   </button>
+    <Button
+     type="button"
+     variant="ghost"
+     size="sm"
+     className="gap-1.5"
+     onClick={() => setDashboardCollapsed((v) => !v)}
+    >
+     {dashboardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+     {dashboardCollapsed ? "展開" : "收合"}
+    </Button>
    </div>
 
-   {recentCurrent ? (
-    <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
-     <button
-      type="button"
-      onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
-      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
-      aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
-     >
-      {recentCurrent.studentName.slice(0, 1)}
-     </button>
-     <div className="min-w-0 flex-1">
-      <div className="text-xs font-medium uppercase tracking-wide text-white/80">
-       {recentIndex === 0 ? "最新報讀班別" : `近期報讀班別（第 ${recentIndex + 1} 新）`}
+   {!dashboardCollapsed ? (
+    <>
+     <div className="grid gap-3 sm:grid-cols-4">
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+       <div className="text-3xl font-bold text-primary">{loading ? "…" : stats.enrolled}</div>
+       <div className="text-sm text-muted-foreground">目前在讀</div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+       <div className="text-3xl font-bold text-success">{loading ? "…" : stats.active}</div>
+       <div className="text-sm text-muted-foreground">活躍生（近三個月報讀）</div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+       <div className="text-3xl font-bold text-foreground">{loading ? "…" : stats.total}</div>
+       <div className="text-sm text-muted-foreground">學生總數</div>
       </div>
       <button
        type="button"
-       onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
-       className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
+       onClick={() => setSortMode("codeDesc")}
+       className="rounded-xl border border-info bg-info p-4 text-left shadow-sm transition hover:border-info/70 hover:shadow-md"
+       title="按學號（最新）排序"
       >
-       {recentCurrent.studentName} · {recentCurrent.classLabel}
+       <div className="text-xs font-medium uppercase tracking-wide text-info-foreground/90">最新學號</div>
+       <div className="mt-1 text-2xl font-bold text-info-foreground">{latestCodeStudent?.student_code ?? "—"}</div>
+       <div className="mt-2 text-xs text-info-foreground/80">點擊後改為「按學號（最新）」排序</div>
       </button>
-      <div className="text-sm text-white/90">
-       報讀日期：{recentCurrent.enrollDate ?? "—"}
-      </div>
      </div>
-     {recentEnrollments.length > 1 ? (
-      <div className="flex gap-1.5" role="tablist" aria-label="近期報讀班別切換">
-       {recentEnrollments.map((e, i) => (
+
+     {recentCurrent ? (
+      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
+       <button
+        type="button"
+        onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
+        aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
+       >
+        {recentCurrent.studentName.slice(0, 1)}
+       </button>
+       <div className="min-w-0 flex-1">
+        <div className="text-xs font-medium uppercase tracking-wide text-white/80">
+         {recentIndex === 0 ? "最新報讀班別" : `近期報讀班別（第 ${recentIndex + 1} 新）`}
+        </div>
         <button
-         key={e.id}
          type="button"
-         role="tab"
-         aria-selected={i === recentIndex}
-         aria-label={`第 ${i + 1} 筆近期報讀班別`}
-         onClick={() => setRecentIndex(i)}
-         className={cn(
-          "h-2.5 w-2.5 rounded-full transition-colors",
-          i === recentIndex ? "bg-white" : "bg-white/40 hover:bg-white/70"
-         )}
-        />
-       ))}
+         onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+         className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+         {recentCurrent.studentName} · {recentCurrent.classLabel}
+        </button>
+        <div className="text-sm text-white/90">報讀日期：{recentCurrent.enrollDate ?? "—"}</div>
+       </div>
+       {recentEnrollments.length > 1 ? (
+        <div className="flex gap-1.5" role="tablist" aria-label="近期報讀班別切換">
+         {recentEnrollments.map((e, i) => (
+          <button
+           key={e.id}
+           type="button"
+           role="tab"
+           aria-selected={i === recentIndex}
+           aria-label={`第 ${i + 1} 筆近期報讀班別`}
+           onClick={() => setRecentIndex(i)}
+           className={cn(
+            "h-2.5 w-2.5 rounded-full transition-colors",
+            i === recentIndex ? "bg-white" : "bg-white/40 hover:bg-white/70"
+           )}
+          />
+         ))}
+        </div>
+       ) : null}
       </div>
      ) : null}
-    </div>
+    </>
    ) : null}
-  </>
-  ) : null}
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     注冊狀態
-    </div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">注冊狀態</div>
     <div className="flex flex-wrap gap-2">
      {REGISTRATION_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.registration.get(f.key) ?? 0)
@@ -682,9 +692,7 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     在讀狀態
-    </div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">在讀狀態</div>
     <div className="flex flex-wrap gap-2">
      {ENROLLMENT_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.enrollment.get(f.key) ?? 0)
@@ -710,9 +718,7 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     活躍狀態（近三個月）
-    </div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">活躍狀態（近三個月）</div>
     <div className="flex flex-wrap gap-2">
      {ACTIVITY_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.activity.get(f.key) ?? 0)
@@ -738,9 +744,7 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     學業階段
-    </div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">學業階段</div>
     <div className="flex flex-wrap gap-2">
      {STAGE_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.stage.get(f.key) ?? 0)
@@ -779,9 +783,7 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     年級
-    </div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">年級</div>
     <div className="flex flex-wrap gap-2">
      {GRADE_FILTERS.map((f) => {
       const active = gradeKey === f.key
@@ -803,8 +805,60 @@ export function StudentsListPage() {
      })}
     </div>
    </div>
+  </>
+ )
+
+ return (
+  <div className="space-y-5 py-4 md:p-6">
+   {!isSupabaseConfigured ? (
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
+     請設定純文字 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev，才能載入學生。
+    </div>
+   ) : null}
+   {err ? (
+    <div
+     role="alert"
+     tabIndex={-1}
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
+    >
+     {err}
+    </div>
+   ) : null}
+
+   <div className="flex flex-wrap items-center gap-3">
+    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+     <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+     學生管理
+    </h1>
+   <Tag tone="info">{loading ? "…" : `${stats.total} 人`}</Tag>
+   </div>
+
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => setFiltersOpen(false)}
+     title="篩選學生"
+     activeCount={activeFilterCount}
+     onReset={resetFilters}
+    >
+     {renderFilterPanel()}
+    </MobileFilterSheet>
+   ) : (
+    renderFilterPanel()
+   )}
 
    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+    {isMobile ? (
+     <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+      <SlidersHorizontal className="h-4 w-4" aria-hidden />
+      篩選
+      {activeFilterCount > 0 ? (
+       <Tag tone="info" size="sm">
+        {activeFilterCount}
+       </Tag>
+      ) : null}
+     </Button>
+    ) : null}
     <div className="relative flex-1">
      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
      <Input

@@ -16,6 +16,9 @@ import { Tag } from "@/components/ui/tag"
 import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
+import { usePersistentState } from "@/hooks/usePersistentState"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -54,9 +57,23 @@ function statusCount(rows: AttendanceRecordRow[]) {
  return base
 }
 
+function getInitialAttendanceViewMode(): ViewMode {
+ try {
+  const raw = sessionStorage.getItem("mgmt_attendance_records_viewMode")
+  if (raw != null) return JSON.parse(raw) as ViewMode
+ } catch {
+  /* ignore */
+ }
+ return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT ? "kanban" : "today"
+}
+
 export function AttendanceRecordsPage() {
  const teacherTid = getTeacherScopeTeacherId()
- const [viewMode, setViewMode] = useState<ViewMode>("today")
+ const isMobile = useIsMobile()
+ const [viewMode, setViewMode] = usePersistentState<ViewMode>(
+  "mgmt_attendance_records_viewMode",
+  getInitialAttendanceViewMode()
+ )
  const [dateRange, setDateRange] = useState<DateRangeValue>(() => currentMonthRange())
  const [studentKeyword, setStudentKeyword] = useState("")
  const [classFilter, setClassFilter] = useState("all")
@@ -226,7 +243,7 @@ export function AttendanceRecordsPage() {
 
    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
     <div
-     className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5"
+     className="inline-flex w-full rounded-lg border border-border bg-muted/30 p-0.5 sm:w-auto"
      role="tablist"
      aria-label="紀錄檢視"
     >
@@ -255,9 +272,9 @@ export function AttendanceRecordsPage() {
       </button>
      ))}
     </div>
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
     <Select
-     className="h-9 min-w-[11rem]"
+     className="h-9 w-full min-w-0 sm:min-w-[11rem] sm:w-auto"
      value={academicYearFilter}
      onChange={(e) => setAcademicYearFilter(e.target.value)}
     >
@@ -268,7 +285,7 @@ export function AttendanceRecordsPage() {
       </option>
      ))}
     </Select>
-    <DateRangeInput value={dateRange} onChange={setDateRange} className="w-[16rem]" />
+    <DateRangeInput value={dateRange} onChange={setDateRange} className="w-full sm:w-[16rem]" />
     <Button
      type="button"
      variant="outline"
@@ -354,6 +371,29 @@ export function AttendanceRecordsPage() {
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : viewMode === "month" ? (
     <div className="space-y-4">
+     {isMobile ? (
+      <div className="space-y-2">
+       {monthAgg.length === 0 ? (
+        <p className="rounded-xl border border-border bg-card px-3 py-12 text-center text-sm text-muted-foreground">
+         此範圍尚無紀錄
+        </p>
+       ) : (
+        monthAgg.map((d) => (
+         <article key={d.date} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="font-medium tabular-nums">{d.date}</p>
+          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+           <p>筆數 {d.total}</p>
+           <p className="text-success">出席 {d.present}</p>
+           <p className="text-destructive">缺席 {d.absent}</p>
+           <p>請假 {d.leave}</p>
+           <p>補課 {d.makeup}</p>
+           <p>網課 {d.online}</p>
+          </div>
+         </article>
+        ))
+       )}
+      </div>
+     ) : (
      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[640px] table-fixed border-collapse text-sm">
        <thead>
@@ -390,6 +430,7 @@ export function AttendanceRecordsPage() {
        </tbody>
       </table>
      </div>
+     )}
      <p className="text-xs text-muted-foreground">
       月視表以目前篩選結果彙總；可用「今月」快速切到本月範圍。
      </p>
@@ -402,13 +443,16 @@ export function AttendanceRecordsPage() {
      {kanbanMap.size === 0 ? (
       <p className="py-12 text-center text-sm text-muted-foreground">此日尚無出席紀錄</p>
      ) : (
-      <div className="flex gap-3 overflow-x-auto pb-2">
+      <div className={cn(isMobile ? "flex flex-col gap-3" : "flex gap-3 overflow-x-auto pb-2")}>
        {[...kanbanMap.entries()].map(([classId, list]) => {
         const meta = kanbanMeta.get(classId)
         return (
          <div
           key={classId}
-          className="min-w-[16rem] max-w-[20rem] flex-shrink-0 rounded-xl border border-border bg-muted/20 shadow-sm"
+          className={cn(
+           "rounded-xl border border-border bg-muted/20 shadow-sm",
+           isMobile ? "w-full" : "min-w-[16rem] max-w-[20rem] flex-shrink-0"
+          )}
          >
           <div className="border-b border-border bg-card px-3 py-2">
            <Link
@@ -448,6 +492,41 @@ export function AttendanceRecordsPage() {
        })}
       </div>
      )}
+    </div>
+   ) : isMobile ? (
+    <div className="space-y-3">
+     {displayRows.length === 0 ? (
+      <p className="rounded-xl border border-border bg-card px-3 py-12 text-center text-sm text-muted-foreground">
+       此日尚無紀錄
+      </p>
+     ) : (
+      displayRows.map((r) => (
+       <article key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-2">
+         <div className="min-w-0">
+          <p className="text-xs tabular-nums text-muted-foreground">{r.attendanceDate}</p>
+          <Link to={`/Students/${r.studentId}`} className="font-semibold text-info hover:underline">
+           {r.studentName ?? "—"}
+          </Link>
+          <p className="text-sm text-muted-foreground">{r.studentGrade ?? "—"}</p>
+         </div>
+         <Tag size="sm" tone={statusToTagTone(r.status)}>
+          {r.status}
+         </Tag>
+        </div>
+        <div className="mt-3 space-y-1 text-sm">
+         <Link to={`/Classes/${r.classId}`} className="font-medium text-info hover:underline">
+          {r.classSubject ?? "—"}
+         </Link>
+         {r.courseCode ? <p className="font-mono text-xs text-muted-foreground">{r.courseCode}</p> : null}
+         {r.remarks ? <p className="text-xs text-muted-foreground">備註：{r.remarks}</p> : null}
+        </div>
+       </article>
+      ))
+     )}
+     <p className="text-xs text-muted-foreground">
+      共 {displayRows.length} 筆（{isSingleDay ? `單日 ${dateRange.from}` : rangeLabel}）
+     </p>
     </div>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
