@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, BookOpen, CalendarDays, Pencil, ScrollText, Users } from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
@@ -66,6 +66,7 @@ import {
  fetchSubjectOptions,
  fetchTeacherOptions,
  getClassById,
+ insertScheduleForClass,
  insertSchedulesForClassSession,
  nextSessionNumberForClass,
  reorderClassScheduleSessionNumbers,
@@ -78,6 +79,26 @@ import {
  updateSchedule,
 } from "@/services/classQueries"
 import {
+ buildWeeklyDates,
+ checkPrivateBookingConflicts,
+ createPrivateRecurringBookings,
+ previewPrivateRecurringBookings,
+ updatePrivateClassSettings,
+} from "@/services/privateTutoringQueries"
+import {
+ fetchRoomCalendarBundle,
+ occupiersForSlot,
+} from "@/services/roomBookingQueries"
+import type { RoomRecord } from "@/services/classroomQueries"
+import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
+import {
+ formatMin,
+ LESSON_SLOT_INDICES,
+ lessonSlotEndMinute,
+ lessonSlotLabel,
+ lessonSlotStartMinute,
+} from "@/lib/lessonSlots"
+import {
  fetchEnrollmentChangeEventsForClass,
  type ClassEnrollmentChangeEvent,
  fetchAllStudents,
@@ -86,7 +107,7 @@ import {
 } from "@/services/studentQueries"
 import { ENROLLMENT_PERIOD_OPTIONS, SINGLE_SESSION_ENROLLMENT, SUMMER_ENROLLMENT_FORM_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
-import { localYmd } from "@/services/teacherQueries"
+import { localYmd } from "@/services/scheduleQueries"
 
 const PRICE_PRESETS_HKD = [250, 275, 825] as const
 
@@ -176,8 +197,11 @@ const TABS: {
 export function ClassDetailView() {
  const { classId } = useParams<{ classId: string }>()
  const navigate = useNavigate()
+ const location = useLocation()
  const cid = classId ?? ""
  const canManageClass = isMgmtStaff()
+ const fromPrivateTutoring =
+  Boolean((location.state as { fromPrivateTutoring?: boolean } | null)?.fromPrivateTutoring)
  const [tab, setTab] = useState<TabId>("basic")
  const [cls, setCls] = useState<ClassRecord | null>(null)
  const [students, setStudents] = useState<ClassStudentRow[]>([])
@@ -192,6 +216,27 @@ export function ClassDetailView() {
  const [editOpen, setEditOpen] = useState(false)
  const [editErr, setEditErr] = useState<string | null>(null)
  const [savingEdit, setSavingEdit] = useState(false)
+ const [privateLightOpen, setPrivateLightOpen] = useState(false)
+ const [privateLightTeacherId, setPrivateLightTeacherId] = useState("")
+ const [privateLightPrice, setPrivateLightPrice] = useState("")
+ const [privateLightErr, setPrivateLightErr] = useState<string | null>(null)
+ const [privateLightSaving, setPrivateLightSaving] = useState(false)
+ const [privateBookOpen, setPrivateBookOpen] = useState(false)
+ const [privateBookDate, setPrivateBookDate] = useState(() => localYmd())
+ const [privateBookSlotIdx, setPrivateBookSlotIdx] = useState(0)
+ const [privateBookRoomId, setPrivateBookRoomId] = useState("")
+ const [privateBookTeacherId, setPrivateBookTeacherId] = useState("")
+ const [privateBookMode, setPrivateBookMode] = useState<"single" | "weekly">("single")
+ const [privateBookWeekCount, setPrivateBookWeekCount] = useState("4")
+ const [privateBookSaving, setPrivateBookSaving] = useState(false)
+ const [privateBookErr, setPrivateBookErr] = useState<string | null>(null)
+ const [privateBookRooms, setPrivateBookRooms] = useState<RoomRecord[]>([])
+ const [privateBookSchedules, setPrivateBookSchedules] = useState<
+  Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["schedules"]
+ >([])
+ const [privateBookPending, setPrivateBookPending] = useState<
+  Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["pending"]
+ >([])
  const [teachers, setTeachers] = useState<{ id: string; label: string }[]>([])
  const [rooms, setRooms] = useState<{ id: string; label: string }[]>([])
  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([])
@@ -222,14 +267,30 @@ export function ClassDetailView() {
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
 
+ const teacherScopeId = getTeacherScopeTeacherId()
+ const isTeacherPortal = Boolean(teacherScopeId)
+
  const classYearLocked = useMemo(
   () => (cls ? !canEditAcademicYear(academicYearLabelForClass(cls)) : false),
   [cls]
  )
  const isPrivateClass = cls?.class_kind === "private"
+ const isOwnTeacherClass = Boolean(
+  teacherScopeId && cls?.teacher_id && cls.teacher_id === teacherScopeId
+ )
+ /** 一對一：不開放小組課式「編輯班別」表單（固定星期／課室）；排程可在此管理 */
  const canEditClass = canManageClass && !classYearLocked && !isPrivateClass
+ /** 一對一輕量編輯：老師／學費（admin／alien；老師入口不可改） */
+ const canEditPrivateLight =
+  canManageClass && !classYearLocked && Boolean(isPrivateClass) && !isTeacherPortal
+ /** 一對一可在詳情頁預約（admin／alien，或指派老師本人） */
+ const canBookPrivate =
+  Boolean(isPrivateClass) &&
+  !classYearLocked &&
+  (canManageClass || isOwnTeacherClass)
  const canEditSchedule = (scheduledDate: string) =>
-  canManageClass && canEditAcademicYearForDate(scheduledDate) && !isPrivateClass
+  (canManageClass || isOwnTeacherClass) && canEditAcademicYearForDate(scheduledDate)
+ const classesListPath = isPrivateClass || fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"
 
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
  const { pushBanner } = useAppBanner()
@@ -482,8 +543,259 @@ export function ClassDetailView() {
    setEditOpen(false)
    setEditErr(null)
   }
-  navigate("/Classes")
- }, [editOpen, requestCloseEdit, navigate])
+  navigate(classesListPath)
+ }, [editOpen, requestCloseEdit, navigate, classesListPath])
+
+ const openPrivateLightEdit = useCallback(() => {
+  if (!cls) return
+  setPrivateLightTeacherId(cls.teacher_id ?? "")
+  setPrivateLightPrice(cls.price_per_lesson != null ? String(cls.price_per_lesson) : "")
+  setPrivateLightErr(null)
+  setPrivateLightOpen(true)
+ }, [cls])
+
+ const savePrivateLightEdit = useCallback(async () => {
+  if (!cls) return
+  const priceNum = privateLightPrice.trim() === "" ? null : Number(privateLightPrice)
+  if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
+   setPrivateLightErr("學費不可為負數")
+   return
+  }
+  setPrivateLightSaving(true)
+  setPrivateLightErr(null)
+  try {
+   await updatePrivateClassSettings(cls.id, {
+    teacherId: privateLightTeacherId || null,
+    pricePerLesson: priceNum,
+   })
+   pushBanner({
+    tone: "success",
+    title: "已更新一對一設定",
+    message: "老師／學費已儲存。",
+   })
+   setPrivateLightOpen(false)
+   await reload()
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "ClassDetailView.savePrivateLightEdit",
+    setErr: setPrivateLightErr,
+   })
+  } finally {
+   setPrivateLightSaving(false)
+  }
+ }, [cls, privateLightPrice, privateLightTeacherId, pushBanner, reload])
+
+ const openPrivateBook = useCallback(async () => {
+  if (!cls) return
+  const tid = getTeacherScopeTeacherId()
+  setPrivateBookDate(localYmd())
+  setPrivateBookSlotIdx(0)
+  setPrivateBookRoomId("")
+  setPrivateBookTeacherId(tid || cls.teacher_id || "")
+  setPrivateBookMode("single")
+  setPrivateBookWeekCount("4")
+  setPrivateBookErr(null)
+  setPrivateBookOpen(true)
+  try {
+   const ymd = localYmd()
+   const bundle = await fetchRoomCalendarBundle(ymd, ymd)
+   setPrivateBookRooms(bundle.rooms)
+   setPrivateBookSchedules(bundle.schedules)
+   setPrivateBookPending(bundle.pending)
+  } catch {
+   setPrivateBookRooms([])
+   setPrivateBookSchedules([])
+   setPrivateBookPending([])
+  }
+ }, [cls])
+
+ const onPrivateBookDateChange = useCallback(async (ymd: string) => {
+  setPrivateBookDate(ymd)
+  setPrivateBookRoomId("")
+  if (!ymd) return
+  try {
+   const bundle = await fetchRoomCalendarBundle(ymd, ymd)
+   setPrivateBookRooms(bundle.rooms)
+   setPrivateBookSchedules(bundle.schedules)
+   setPrivateBookPending(bundle.pending)
+  } catch {
+   /* ignore */
+  }
+ }, [])
+
+ const privateBookFreeRoomIds = useMemo(() => {
+  if (!privateBookDate) return new Set<string>()
+  const slotStart = lessonSlotStartMinute(privateBookSlotIdx)
+  const slotEnd = lessonSlotEndMinute(privateBookSlotIdx)
+  const active = classroomsActiveOnDate(
+   privateBookRooms.filter((r) => !r.is_online),
+   privateBookDate
+  )
+  return new Set(
+   active
+    .filter(
+     (room) =>
+      occupiersForSlot(
+       privateBookDate,
+       room.id,
+       slotStart,
+       slotEnd,
+       privateBookSchedules,
+       privateBookPending
+      ).length === 0
+    )
+    .map((r) => r.id)
+  )
+ }, [
+  privateBookDate,
+  privateBookSlotIdx,
+  privateBookRooms,
+  privateBookSchedules,
+  privateBookPending,
+ ])
+
+ const privateBookActiveRooms = useMemo(
+  () =>
+   classroomsActiveOnDate(
+    privateBookRooms.filter((r) => !r.is_online),
+    privateBookDate
+   ),
+  [privateBookRooms, privateBookDate]
+ )
+
+ const submitPrivateBook = useCallback(async () => {
+  if (!cls || !privateBookDate) {
+   setPrivateBookErr("請選擇日期")
+   return
+  }
+  const startTime = formatMin(lessonSlotStartMinute(privateBookSlotIdx))
+  const endTime = formatMin(lessonSlotEndMinute(privateBookSlotIdx))
+  const teacherId = teacherScopeId || privateBookTeacherId || cls.teacher_id
+  const classroomId = privateBookRoomId.trim() || null
+  const studentId = students.find((s) => s.status === "就讀中")?.studentId ?? null
+  setPrivateBookSaving(true)
+  setPrivateBookErr(null)
+  try {
+   if (privateBookMode === "weekly") {
+    const count = Number(privateBookWeekCount)
+    if (!Number.isFinite(count) || count < 1 || count > 52) {
+     setPrivateBookErr("堂數請輸入 1–52")
+     return
+    }
+    if (!studentId) {
+     setPrivateBookErr("此班尚無就讀中學生，無法做學生衝突檢查；請先確認報讀。")
+     return
+    }
+    const dates = buildWeeklyDates(privateBookDate, count)
+    const preview = await previewPrivateRecurringBookings({
+     dates,
+     classroomId,
+     startTime,
+     endTime,
+     teacherId,
+     studentId,
+    })
+    const conflictItems = preview.filter((p) => p.conflicts.length > 0)
+    let skipConflictDates = false
+    if (conflictItems.length > 0) {
+     const lines = conflictItems.map(
+      (p) => `${p.date}：${p.conflicts.map((c) => c.label).join("；")}`
+     )
+     const ok = await confirmDialog({
+      title: "週期預約有衝突",
+      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選取消則不建立任何堂。`,
+      confirmText: "略過衝突日並建立",
+      tone: "warning",
+     })
+     if (!ok) {
+      setPrivateBookErr(lines.join("\n"))
+      return
+     }
+     skipConflictDates = true
+    } else {
+     const ok = await confirmDialog({
+      title: "確認週期預約",
+      description: `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
+      confirmText: "確認建立",
+     })
+     if (!ok) return
+    }
+    const result = await createPrivateRecurringBookings({
+     classId: cls.id,
+     studentId,
+     dates,
+     classroomId,
+     startTime,
+     endTime,
+     teacherId,
+     skipConflictDates,
+    })
+    pushBanner({
+     tone: "success",
+     title: "已建立週期預約",
+     message:
+      result.skipped.length > 0
+       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 堂`
+       : `建成 ${result.created} 堂`,
+    })
+   } else {
+    const conflicts = await checkPrivateBookingConflicts({
+     classroomId,
+     scheduledDate: privateBookDate,
+     startTime,
+     endTime,
+     teacherId,
+     studentId,
+    })
+    if (conflicts.length > 0) {
+     const ok = await confirmDialog({
+      title: "發現時段衝突",
+      description: `${conflicts.map((c) => c.label).join("\n")}\n\n仍要建立預約嗎？`,
+      confirmText: "仍要預約",
+      tone: "warning",
+     })
+     if (!ok) {
+      setPrivateBookErr(conflicts.map((c) => c.label).join("\n"))
+      return
+     }
+    }
+    await insertScheduleForClass(cls.id, teacherId, {
+     scheduled_date: privateBookDate,
+     start_time: startTime,
+     end_time: endTime,
+     classroom_id: classroomId,
+     status: "正常",
+    })
+    pushBanner({
+     tone: "success",
+     title: "已建立預約",
+     message: `${privateBookDate} ${lessonSlotLabel(privateBookSlotIdx)}`,
+    })
+   }
+   setPrivateBookOpen(false)
+   await reload()
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "ClassDetailView.submitPrivateBook",
+    setErr: setPrivateBookErr,
+   })
+  } finally {
+   setPrivateBookSaving(false)
+  }
+ }, [
+  cls,
+  privateBookDate,
+  privateBookSlotIdx,
+  privateBookRoomId,
+  privateBookTeacherId,
+  privateBookMode,
+  privateBookWeekCount,
+  teacherScopeId,
+  students,
+  confirmDialog,
+  pushBanner,
+  reload,
+ ])
 
  useEffect(() => {
   if (!addSchedOpen || !cid) return
@@ -546,25 +858,29 @@ export function ClassDetailView() {
  }
  if (!loading && !cls) {
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate("/Classes")} layerLabel="班別詳情">
+   <DetailLayerShell
+    variant="student"
+    onDismiss={() => navigate(fromPrivateTutoring ? "/PrivateTutoring" : "/Classes")}
+    layerLabel="班別詳情"
+   >
     <div className="p-6">
      <p className="text-muted-foreground">找不到班別。</p>
      <Button className="mt-4" variant="outline" asChild>
-      <Link to="/Classes">返回</Link>
+      <Link to={fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"}>返回</Link>
      </Button>
     </div>
    </DetailLayerShell>
   )
  }
 
- const scopeTeacherId = getTeacherScopeTeacherId()
+ const scopeTeacherId = teacherScopeId
  if (!loading && cls && scopeTeacherId && cls.teacher_id !== scopeTeacherId) {
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate("/Classes")} layerLabel="班別詳情">
+   <DetailLayerShell variant="student" onDismiss={() => navigate(classesListPath)} layerLabel="班別詳情">
     <div className="p-6">
      <p>此班別不屬於您的指派，無法檢視。</p>
      <Button className="mt-4" variant="outline" asChild>
-      <Link to="/Classes">返回班別列表</Link>
+      <Link to={classesListPath}>返回</Link>
      </Button>
     </div>
    </DetailLayerShell>
@@ -790,13 +1106,45 @@ const addableStudents = (() => {
       編輯班別
      </Button>
      ) : isPrivateClass && canManageClass ? (
+     <div className="flex flex-wrap gap-2">
+      {canBookPrivate ? (
+       <Button
+        type="button"
+        variant="secondary"
+        className="bg-white/20 text-white hover:bg-white/30"
+        onClick={() => void openPrivateBook()}
+       >
+        預約上堂
+       </Button>
+      ) : null}
+      {canEditPrivateLight ? (
+       <Button
+        type="button"
+        variant="secondary"
+        className="bg-white/20 text-white hover:bg-white/30"
+        onClick={openPrivateLightEdit}
+       >
+        <Pencil className="h-4 w-4" />
+        編輯老師／學費
+       </Button>
+      ) : null}
+      <Button
+       type="button"
+       variant="secondary"
+       className="bg-white/20 text-white hover:bg-white/30"
+       asChild
+      >
+       <Link to="/PrivateTutoring">返回一對一學生</Link>
+      </Button>
+     </div>
+     ) : isPrivateClass && canBookPrivate ? (
      <Button
       type="button"
       variant="secondary"
       className="bg-white/20 text-white hover:bg-white/30"
-      asChild
+      onClick={() => void openPrivateBook()}
      >
-      <Link to="/PrivateTutoring">前往一對一學生</Link>
+      預約上堂
      </Button>
      ) : null}
     </div>
@@ -849,9 +1197,12 @@ const addableStudents = (() => {
       role="status"
       className="mx-auto mb-4 max-w-5xl rounded-md border border-info/40 bg-info/10 px-3 py-2 text-sm text-foreground"
      >
-      此為一對一班別（唯讀）。請至「一對一學生」頁預約、編輯學費／老師或退讀。
-      <Link to="/PrivateTutoring" className="ml-2 font-medium text-primary underline-offset-4 hover:underline">
-       前往一對一學生
+      一對一班別詳情：可在此查看報讀／排程、編輯老師／學費，並直接預約上堂（不必退回列表）。
+      <Link
+       to="/PrivateTutoring"
+       className="ml-2 font-medium text-primary underline-offset-4 hover:underline"
+      >
+       返回一對一學生
       </Link>
      </div>
     ) : null}
@@ -1260,6 +1611,14 @@ const addableStudents = (() => {
         </DialogContent>
        </Dialog>
        </div>
+       ) : canBookPrivate ? (
+       <Button
+        type="button"
+        className="bg-primary text-primary-foreground hover:bg-primary/90"
+        onClick={() => void openPrivateBook()}
+       >
+        + 預約上堂
+       </Button>
        ) : null}
       </div>
       <div className="space-y-2">
@@ -1710,6 +2069,202 @@ const addableStudents = (() => {
          }
         >
          取消
+        </Button>
+       </div>
+      </div>
+     ) : null}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={privateLightOpen} onOpenChange={setPrivateLightOpen}>
+    <DialogContent className="max-w-md">
+     <DialogHeader>
+      <DialogTitle>編輯老師／學費</DialogTitle>
+     </DialogHeader>
+     {cls ? (
+      <div className="space-y-4">
+       <p className="text-sm text-muted-foreground truncate" title={cls.subject}>
+        {cls.subject}
+       </p>
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">授課老師</label>
+        <Select
+         value={privateLightTeacherId}
+         onChange={(e) => setPrivateLightTeacherId(e.target.value)}
+        >
+         <option value="">未指定</option>
+         {teachers.map((t) => (
+          <option key={t.id} value={t.id}>
+           {t.label}
+          </option>
+         ))}
+        </Select>
+       </div>
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">每節學費</label>
+        <Input
+         type="number"
+         min={0}
+         step={1}
+         value={privateLightPrice}
+         onChange={(e) => setPrivateLightPrice(e.target.value)}
+         placeholder="金額"
+        />
+        <div className="mt-1 flex flex-wrap gap-1.5">
+         {[250, 275, 825].map((p) => (
+          <Button
+           key={p}
+           type="button"
+           size="sm"
+           variant="outline"
+           onClick={() => setPrivateLightPrice(String(p))}
+          >
+           HKD {p}
+          </Button>
+         ))}
+        </div>
+       </div>
+       {privateLightErr ? <p className="text-sm text-destructive">{privateLightErr}</p> : null}
+       <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={() => setPrivateLightOpen(false)}>
+         取消
+        </Button>
+        <Button
+         type="button"
+         disabled={privateLightSaving}
+         onClick={() => void savePrivateLightEdit()}
+        >
+         {privateLightSaving ? "儲存中…" : "儲存"}
+        </Button>
+       </div>
+      </div>
+     ) : null}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={privateBookOpen} onOpenChange={setPrivateBookOpen}>
+    <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+     <DialogHeader>
+      <DialogTitle>預約上堂</DialogTitle>
+     </DialogHeader>
+     {cls ? (
+      <div className="space-y-4">
+       <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+        <p className="font-medium truncate" title={cls.subject}>
+         {cls.subject}
+        </p>
+        <p className="text-muted-foreground">
+         {cls.teacher_name ? `老師：${cls.teacher_name}` : "老師未指定"}
+        </p>
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">預約方式</label>
+        <Select
+         value={privateBookMode}
+         onChange={(e) => setPrivateBookMode(e.target.value as "single" | "weekly")}
+        >
+         <option value="single">單堂</option>
+         <option value="weekly">每週重複（共 N 堂）</option>
+        </Select>
+       </div>
+
+       {privateBookMode === "weekly" ? (
+        <div className="space-y-1">
+         <label className="text-xs text-muted-foreground">共幾堂（1–52）</label>
+         <Input
+          type="number"
+          min={1}
+          max={52}
+          value={privateBookWeekCount}
+          onChange={(e) => setPrivateBookWeekCount(e.target.value)}
+         />
+        </div>
+       ) : null}
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">上課日期</label>
+        <Input
+         type="date"
+         value={privateBookDate}
+         onChange={(e) => void onPrivateBookDateChange(e.target.value)}
+        />
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">時段</label>
+        <Select
+         value={String(privateBookSlotIdx)}
+         onChange={(e) => {
+          setPrivateBookSlotIdx(Number(e.target.value))
+          setPrivateBookRoomId("")
+         }}
+        >
+         {LESSON_SLOT_INDICES.map((i) => (
+          <option key={i} value={String(i)}>
+           {lessonSlotLabel(i)}
+          </option>
+         ))}
+        </Select>
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">課室（選填，僅顯示空房）</label>
+        <Select
+         value={privateBookRoomId}
+         onChange={(e) => setPrivateBookRoomId(e.target.value)}
+        >
+         <option value="">暫不指定課室</option>
+         {privateBookActiveRooms
+          .filter((r) => privateBookFreeRoomIds.has(r.id) || r.id === privateBookRoomId)
+          .map((r) => (
+           <option key={r.id} value={r.id}>
+            {r.name}
+           </option>
+          ))}
+        </Select>
+        {privateBookDate && privateBookFreeRoomIds.size === 0 ? (
+         <p className="text-xs text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
+        ) : null}
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">授課老師</label>
+        <Select
+         value={privateBookTeacherId}
+         onChange={(e) => setPrivateBookTeacherId(e.target.value)}
+         disabled={isTeacherPortal}
+        >
+         <option value="">選擇老師</option>
+         {teachers.map((t) => (
+          <option key={t.id} value={t.id}>
+           {t.label}
+          </option>
+         ))}
+        </Select>
+        {isTeacherPortal ? (
+         <p className="text-xs text-muted-foreground">老師入口固定為本人授課。</p>
+        ) : null}
+       </div>
+
+       {privateBookErr ? (
+        <p className="whitespace-pre-wrap text-sm text-destructive">{privateBookErr}</p>
+       ) : null}
+
+       <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={() => setPrivateBookOpen(false)}>
+         關閉
+        </Button>
+        <Button
+         type="button"
+         disabled={privateBookSaving}
+         onClick={() => void submitPrivateBook()}
+        >
+         {privateBookSaving
+          ? "建立中…"
+          : privateBookMode === "weekly"
+            ? "預覽並建立週期"
+            : "確認預約"}
         </Button>
        </div>
       </div>

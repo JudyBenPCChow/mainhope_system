@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react"
 
 import { DashboardBoard } from "@/components/home/DashboardBoard"
 import { DashboardTopMetrics } from "@/components/home/DashboardTopMetrics"
-import { ModuleGrid } from "@/components/home/ModuleGrid"
 import { RecentPaymentsCard } from "@/components/home/RecentPaymentsCard"
 import { RevenueChart } from "@/components/home/RevenueChart"
 import { StudentStatsChart } from "@/components/home/StudentStatsChart"
@@ -140,8 +139,6 @@ export function AdminDashboard() {
     <RevenueChart bars={data.revenueBars} loading={loading} />
     <StudentStatsChart slices={data.studentStatusSlices} loading={loading} />
    </div>
-
-   <ModuleGrid />
   </div>
  )
 }

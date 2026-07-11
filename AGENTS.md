@@ -35,7 +35,7 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 2. **側欄**：同步改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `roles`：`admin`/`teacher`/`alien`），避免「有路由沒入口」或相反。
 3. **頁面**：`pages/Xxx.tsx`（薄）→ `components/<領域>/XxxView.tsx`（畫面）→ `services/xxxQueries.ts`（查詢）。
 4. 查大量 UUID 時用 `forEachIdChunk`（`src/lib/supabaseInChunks.ts`）避免 URL 超長。
-5. **一對一**：報讀／約課走 `/PrivateTutoring`；小組課走班別管理／學生詳情加入。班別列表預設隱藏一對一。詳見 `docs/AGENT_HANDOFF.md` §6.1。
+5. **一對一**：列表在 `/PrivateTutoring`；點班名進班別詳情。小組課：班別管理 → 班別詳情。詳見 `docs/AGENT_HANDOFF.md` §6.1。
 
 ## 鐵則（最常被違反，務必遵守）
 

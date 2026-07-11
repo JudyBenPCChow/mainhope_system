@@ -8,6 +8,7 @@ import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
 import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
+import PortalEnrollmentRequests from "@/pages/PortalEnrollmentRequests"
 import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
 import ClassNew from "@/pages/ClassNew"
@@ -86,6 +87,7 @@ export default function App() {
      <Route path="/Calendar" element={<Calendar />} />
      <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
+     <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />
      <Route path="/RoomBooking" element={<RoomBooking />} />

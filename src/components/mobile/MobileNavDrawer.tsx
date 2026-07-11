@@ -4,6 +4,8 @@ import { ChevronDown, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
+ filterFooterNavLeaves,
+ filterMainNavEntries,
  filterNavForRole,
  flattenNav,
  NAV_STRUCTURE,
@@ -26,7 +28,14 @@ type MobileNavDrawerProps = {
 
 export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout }: MobileNavDrawerProps) {
  const location = useLocation()
- const navEntries = useMemo(() => filterNavForRole(role, NAV_STRUCTURE), [role])
+ const navEntries = useMemo(
+  () => filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)),
+  [role]
+ )
+ const footerNavLeaves = useMemo(
+  () => filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)),
+  [role]
+ )
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
 
  useEffect(() => {
@@ -108,8 +117,30 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
     </nav>
 
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-xs">
-     <div className="mb-3 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
-      你登入為 {userDisplayName}
+     <div className="mb-3 flex items-center gap-2">
+      <div className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
+       你登入為 {userDisplayName}
+      </div>
+      {footerNavLeaves.map((item) => {
+       const active = pathIsActive(location.pathname, item.path)
+       const Icon = item.icon
+       return (
+        <Link
+         key={`${item.path}::${item.label}`}
+         to={item.path}
+         title={item.label}
+         aria-label={item.label}
+         onClick={onClose}
+         className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+          active ? "bg-white/18 ring-1 ring-white/10" : "bg-white/10 hover:bg-white/15"
+         )}
+        >
+         <Icon className="h-4 w-4 opacity-95" aria-hidden />
+         <span className="sr-only">{item.label}</span>
+        </Link>
+       )
+      })}
      </div>
      <Button
       type="button"

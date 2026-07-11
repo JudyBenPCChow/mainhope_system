@@ -9,6 +9,8 @@ import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
 import {
  NAV_STRUCTURE,
+ filterFooterNavLeaves,
+ filterMainNavEntries,
  filterNavForRole,
  flattenNav,
  pathIsActive,
@@ -37,7 +39,14 @@ export function Layout() {
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_email") : null) ||
   "用戶"
 
- const navEntries = useMemo(() => (role ? filterNavForRole(role, NAV_STRUCTURE) : []), [role])
+ const navEntries = useMemo(
+  () => (role ? filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)) : []),
+  [role]
+ )
+ const footerNavLeaves = useMemo(
+  () => (role ? filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)) : []),
+  [role]
+ )
 
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
 
@@ -225,10 +234,57 @@ export function Layout() {
 
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-xs">
      {!collapsed && (
-      <div className="mb-3 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
-       你登入為 {userDisplayName}
+      <div className="mb-3 flex items-center gap-2">
+       <div
+        className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90"
+        title={userDisplayName}
+       >
+        你登入為 {userDisplayName}
+       </div>
+       {footerNavLeaves.map((item) => {
+        const active = pathIsActive(location.pathname, item.path)
+        const Icon = item.icon
+        return (
+         <Link
+          key={`${item.path}::${item.label}`}
+          to={item.path}
+          title={item.label}
+          aria-label={item.label}
+          className={cn(
+           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+           active ? "bg-white/18 ring-1 ring-white/10" : "bg-white/10 hover:bg-white/15"
+          )}
+         >
+          <Icon className="h-4 w-4 opacity-95" aria-hidden />
+          <span className="sr-only">{item.label}</span>
+         </Link>
+        )
+       })}
       </div>
      )}
+     {collapsed && footerNavLeaves.length > 0 ? (
+      <div className="mb-2 flex flex-col items-center gap-1">
+       {footerNavLeaves.map((item) => {
+        const active = pathIsActive(location.pathname, item.path)
+        const Icon = item.icon
+        return (
+         <Link
+          key={`${item.path}::${item.label}`}
+          to={item.path}
+          title={item.label}
+          aria-label={item.label}
+          className={cn(
+           "flex h-9 w-9 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
+           active ? "bg-white/18 ring-1 ring-white/10" : "hover:bg-white/10"
+          )}
+         >
+          <Icon className="h-4 w-4 opacity-95" aria-hidden />
+          <span className="sr-only">{item.label}</span>
+         </Link>
+        )
+       })}
+      </div>
+     ) : null}
      <Button
       type="button"
       variant="secondary"

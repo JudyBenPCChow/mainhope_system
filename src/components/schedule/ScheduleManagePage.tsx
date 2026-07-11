@@ -1329,10 +1329,14 @@ useEffect(() => {
           }
           const open = expandedScheduleId === s.id
           const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
+          const noEnrollment = s.enrollCount === 0
           return (
            <li
             key={s.id}
-            className="overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+            className={cn(
+             "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
+             noEnrollment ? "border-border/80 bg-muted/70" : "bg-card"
+            )}
            >
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
              <button
@@ -1356,6 +1360,11 @@ useEffect(() => {
                <Tag tone={statusToTagTone(s.status)} size="sm">
                 {s.status}
                </Tag>
+               {noEnrollment ? (
+                <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">
+                 暫未有學生報讀
+                </Tag>
+               ) : null}
                {s.is_extra_lesson ? (
                 <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
                ) : null}
@@ -1374,7 +1383,12 @@ useEffect(() => {
                 <User className="h-4 w-4 shrink-0" aria-hidden />
                 {s.teacher_name ?? "—"}
                </span>
-               <span className="inline-flex items-center gap-1 text-info">
+               <span
+                className={cn(
+                 "inline-flex items-center gap-1",
+                 noEnrollment ? "text-muted-foreground" : "text-info"
+                )}
+               >
                 <Users className="h-4 w-4 opacity-70" aria-hidden />
                 {s.enrollCount} 人報讀
                </span>

@@ -52,6 +52,8 @@ export type NavLeafOnly = {
  label: string
  roles: Role[]
  icon: LucideIcon
+ /** 預設主選單；footer 僅顯示於側欄底部登入列（icon） */
+ placement?: "nav" | "footer"
 }
 
 export type NavEntryDef = NavGroupDef | NavLeafOnly
@@ -75,7 +77,14 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: ClipboardCheck,
  },
  { kind: "leaf", path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
- { kind: "leaf", path: "/TeacherProfile", label: "個人資料", roles: ["teacher"], icon: CircleUser },
+ {
+  kind: "leaf",
+  path: "/TeacherProfile",
+  label: "個人資料",
+  roles: ["teacher"],
+  icon: CircleUser,
+  placement: "footer",
+ },
  { kind: "leaf", path: "/Users", label: "用戶管理", roles: ["alien"], icon: UserCog },
  { kind: "leaf", path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
  { kind: "leaf", path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
@@ -88,12 +97,19 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
    { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
+   { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },
    { path: "/Teachers", label: "老師管理", roles: ["admin", "alien"], icon: UserRound },
    { path: "/Classes", label: "班別管理", roles: ["admin", "alien"], icon: BookOpen },
    { path: "/Classes/New", label: "新增班別", roles: ["admin", "alien"], icon: Plus },
    { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "alien"], icon: CalendarClock },
    { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
    { path: "/Classrooms", label: "課室管理", roles: ["admin", "alien"], icon: School },
+   {
+    path: "/PortalEnrollmentRequests",
+    label: "家長報讀申請",
+    roles: ["admin", "alien"],
+    icon: ClipboardList,
+   },
   ],
  },
  {
@@ -173,6 +189,16 @@ export function filterNavForRole(role: Role, entries: NavEntryDef[]): NavEntryDe
   out.push({ ...e, children })
  }
  return out
+}
+
+/** 側欄／抽屜主選單（排除 footer 放置項） */
+export function filterMainNavEntries(entries: NavEntryDef[]): NavEntryDef[] {
+ return entries.filter((e) => !(e.kind === "leaf" && e.placement === "footer"))
+}
+
+/** 側欄底部登入列旁的 icon 導航 */
+export function filterFooterNavLeaves(entries: NavEntryDef[]): NavLeafOnly[] {
+ return entries.filter((e): e is NavLeafOnly => e.kind === "leaf" && e.placement === "footer")
 }
 
 /** 所有功能頁：保留分組層級，僅依角色篩選可見項目 */
