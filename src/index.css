@@ -122,9 +122,22 @@
   @apply border-border;
  }
 
+ html {
+  /* 避免偶發橫向溢出讓 iOS Safari 自動縮小整頁縮放比例 */
+  overflow-x: clip;
+ }
+
  body {
   @apply bg-background text-foreground antialiased;
   font-family: "Noto Sans TC", ui-sans-serif, system-ui, sans-serif;
+  overflow-x: clip;
+  max-width: 100vw;
+ }
+
+ #root {
+  min-height: 100svh;
+  max-width: 100%;
+  overflow-x: clip;
  }
 
  svg.lucide {
