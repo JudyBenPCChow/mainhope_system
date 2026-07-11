@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { SpeedInsights } from "@vercel/speed-insights/react"
 
 import { AdaptiveLayout } from "@/components/AdaptiveLayout"
 import TeacherDetail from "@/components/teachers/TeacherDetail"
@@ -95,6 +96,7 @@ export default function App() {
      <Route path="/SystemIssues" element={<SystemIssues />} />
     </Route>
    </Routes>
+   <SpeedInsights />
   </BrowserRouter>
  )
 }
