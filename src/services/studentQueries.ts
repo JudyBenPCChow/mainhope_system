@@ -958,18 +958,18 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
  const classSelectLegacy =
   "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
- let res = first
- if (first.error && /does not exist/i.test(first.error.message)) {
-  const second = await supabase.from("classes").select(classSelectBase).order("subject")
-  res =
-   second.error && /does not exist/i.test(second.error.message)
-    ? await supabase.from("classes").select(classSelectLegacy).order("subject")
-    : second
- }
+ const second =
+  first.error && /does not exist/i.test(first.error.message)
+   ? await supabase.from("classes").select(classSelectBase).order("subject")
+   : null
+ const res =
+  second && second.error && /does not exist/i.test(second.error.message)
+   ? await supabase.from("classes").select(classSelectLegacy).order("subject")
+   : (second ?? first)
  if (res.error) throw res.error
  const out: ClassOption[] = []
- for (const r of res.data ?? []) {
-  const row = r as Record<string, unknown>
+ for (const r of (res.data ?? []) as Record<string, unknown>[]) {
+  const row = r
   const subject = String(row.subject ?? "")
   if (
    resolveClassKind(
