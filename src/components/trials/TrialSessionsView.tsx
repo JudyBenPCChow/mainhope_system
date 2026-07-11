@@ -265,21 +265,21 @@ export function TrialSessionsView() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2" aria-label="試堂概覽">
-    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
-      <CalendarDays className="h-4 w-4" />
+    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
+      <CalendarDays className="h-4 w-4" aria-hidden />
       今天試堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.todayCount}</p>
-     <p className="mt-1 text-xs text-muted-foreground">試堂日期為今天之筆數（含各狀態）</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.todayCount}</p>
+     <p className="mt-1 text-xs text-info-foreground/85">試堂日期為今天之筆數（含各狀態）</p>
     </div>
-    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
-      <GraduationCap className="h-4 w-4" />
+    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
+      <GraduationCap className="h-4 w-4" aria-hidden />
       本星期試堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.weekCount}</p>
-     <p className="mt-1 text-xs text-muted-foreground">本週一至週日（依試堂日期）之筆數</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.weekCount}</p>
+     <p className="mt-1 text-xs text-info-foreground/85">本週一至週日（依試堂日期）之筆數</p>
     </div>
    </section>
 

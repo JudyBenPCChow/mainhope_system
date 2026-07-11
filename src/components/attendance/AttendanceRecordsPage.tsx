@@ -198,11 +198,13 @@ export function AttendanceRecordsPage() {
      <ClipboardList className="h-7 w-7 text-primary" aria-hidden />
      出席紀錄
     </h1>
-    <p className="mt-1 text-sm text-muted-foreground">今日列表、月彙總與班別看板；預設顯示今天各班紀錄。</p>
+    <p className="mt-1.5 text-base leading-relaxed text-neutral-700">
+     今日列表、月彙總與班別看板；預設顯示今天各班紀錄。
+    </p>
    </header>
 
    {teacherTid ? (
-   <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
+   <div className="rounded-lg border border-info bg-info px-4 py-3 text-base leading-relaxed text-info-foreground">
     專班老師檢視：下方資料僅含<strong>您指派的班別</strong>；老師篩選已自動鎖定為您本人。
     </div>
    ) : null}
@@ -214,28 +216,28 @@ export function AttendanceRecordsPage() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="出席儀表板">
-    <div className="rounded-xl border border-info/30 bg-info/10 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-xs font-medium text-info">
-      <Users className="h-4 w-4" />
+    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground">
+      <Users className="h-4 w-4" aria-hidden />
       今日紀錄總筆數
      </div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-info">{s?.total ?? 0}</p>
-     <p className="mt-1 text-[11px] text-muted-foreground">{rangeLabel || "未選擇日期"}</p>
+     <p className="mt-2 text-2xl font-bold tabular-nums">{s?.total ?? 0}</p>
+     <p className="mt-1 text-sm text-info-foreground/90">{rangeLabel || "未選擇日期"}</p>
     </div>
-    <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
-     <div className="text-xs font-medium text-success/90">出席</div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-success">{s?.present ?? 0}</p>
+    <div className="rounded-xl border border-success bg-success p-4 text-success-foreground shadow-sm">
+     <div className="text-sm font-medium text-success-foreground">出席</div>
+     <p className="mt-2 text-2xl font-bold tabular-nums">{s?.present ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-destructive/80 bg-destructive/40 p-4 shadow-sm">
-     <div className="text-xs font-medium text-destructive/90">缺席</div>
-     <p className="mt-2 text-2xl font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
+    <div className="rounded-xl border border-destructive bg-destructive p-4 text-destructive-foreground shadow-sm">
+     <div className="text-sm font-medium text-destructive-foreground">缺席</div>
+     <p className="mt-2 text-2xl font-bold tabular-nums">{s?.absent ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 shadow-sm">
-     <div className="text-xs font-medium text-warning">請假 · 補課 · 網課</div>
-     <p className="mt-2 text-lg font-bold tabular-nums text-warning">
+    <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
+     <div className="text-sm font-medium text-warning-foreground">請假 · 補課 · 網課</div>
+     <p className="mt-2 text-lg font-bold tabular-nums">
       {(s?.leave ?? 0) + (s?.makeup ?? 0) + (s?.online ?? 0)}
      </p>
-     <p className="mt-1 text-[11px] text-muted-foreground">
+     <p className="mt-1 text-sm text-warning-foreground/90">
       假 {s?.leave ?? 0} / 補 {s?.makeup ?? 0} / 網 {s?.online ?? 0}
      </p>
     </div>

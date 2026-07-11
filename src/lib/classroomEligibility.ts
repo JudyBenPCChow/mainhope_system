@@ -42,7 +42,7 @@ export function roomColumnBgClass(roomName: string): string {
   case "矩尺座":
    return "bg-info/10"
   case UNASSIGNED_ROOM_LABEL:
-   return "bg-muted/35"
+   return "bg-warning/20"
   case "17K":
    return "bg-neutral-100/80"
   case "17D":
@@ -63,7 +63,7 @@ export function roomColumnHeaderBgClass(roomName: string): string {
   case "矩尺座":
    return "bg-info/20 text-info"
   case UNASSIGNED_ROOM_LABEL:
-   return "bg-muted/50 text-muted-foreground"
+   return "bg-warning/25 text-warning font-semibold"
   default:
    return "bg-muted/40 text-muted-foreground"
  }

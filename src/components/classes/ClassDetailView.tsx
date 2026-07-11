@@ -226,9 +226,10 @@ export function ClassDetailView() {
   () => (cls ? !canEditAcademicYear(academicYearLabelForClass(cls)) : false),
   [cls]
  )
- const canEditClass = canManageClass && !classYearLocked
+ const isPrivateClass = cls?.class_kind === "private"
+ const canEditClass = canManageClass && !classYearLocked && !isPrivateClass
  const canEditSchedule = (scheduledDate: string) =>
-  canManageClass && canEditAcademicYearForDate(scheduledDate)
+  canManageClass && canEditAcademicYearForDate(scheduledDate) && !isPrivateClass
 
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
  const { pushBanner } = useAppBanner()
@@ -763,6 +764,11 @@ const addableStudents = (() => {
          </h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="font-mono">{cls.course_code_full ?? "—"}</span>
+          {cls.class_kind === "private" ? (
+           <Tag tone="info" size="sm">
+            一對一
+           </Tag>
+          ) : null}
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
           <span>{timeLine(cls)}</span>
          </div>
@@ -782,6 +788,15 @@ const addableStudents = (() => {
      >
       <Pencil className="h-4 w-4" />
       編輯班別
+     </Button>
+     ) : isPrivateClass && canManageClass ? (
+     <Button
+      type="button"
+      variant="secondary"
+      className="bg-white/20 text-white hover:bg-white/30"
+      asChild
+     >
+      <Link to="/PrivateTutoring">前往一對一學生</Link>
      </Button>
      ) : null}
     </div>
@@ -827,6 +842,17 @@ const addableStudents = (() => {
       className="mx-auto mb-4 max-w-5xl rounded-md border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
      >
       {academicYearEditBlockedMessage()}
+     </div>
+    ) : null}
+    {isPrivateClass ? (
+     <div
+      role="status"
+      className="mx-auto mb-4 max-w-5xl rounded-md border border-info/40 bg-info/10 px-3 py-2 text-sm text-foreground"
+     >
+      此為一對一班別（唯讀）。請至「一對一學生」頁預約、編輯學費／老師或退讀。
+      <Link to="/PrivateTutoring" className="ml-2 font-medium text-primary underline-offset-4 hover:underline">
+       前往一對一學生
+      </Link>
      </div>
     ) : null}
     {tab === "basic" && cls ? (

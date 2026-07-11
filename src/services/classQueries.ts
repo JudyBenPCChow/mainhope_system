@@ -12,6 +12,7 @@ import {
  assertAcademicYearEditableForDate,
  assertClassRecordEditable,
 } from "@/lib/academicYearEditGuard"
+import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { supabase } from "@/lib/supabaseClient"
 import { gradeLabelsAlignedFromCourse, resolveClassGradeLabels, normalizeStoredClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -54,6 +55,8 @@ export type ClassRecord = {
  course_id: string | null
  section_code: string | null
  subject: string
+ /** group=小組課；private=一對一／單對單 */
+ class_kind: ClassKind
  subject_id?: string | null
  subject_code?: string | null
  course_name?: string | null
@@ -99,6 +102,10 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   course_id: row.course_id != null ? String(row.course_id) : null,
   section_code: row.section_code != null ? String(row.section_code) : null,
   subject: String(row.subject ?? ""),
+  class_kind: resolveClassKind(
+   row.class_kind != null ? String(row.class_kind) : null,
+   row.subject != null ? String(row.subject) : null
+  ),
   subject_id: subject?.id != null ? String(subject.id) : null,
   subject_code: subject?.code != null ? String(subject.code) : null,
   course_name: course?.course_name != null ? String(course.course_name) : null,

@@ -491,21 +491,21 @@ export function LeaveManagementView() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2" aria-label="今日請假與補堂概覽">
-    <div className="rounded-xl border border-warning/80 bg-warning/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-warning/90">
-      <Users className="h-4 w-4" />
+    <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-warning-foreground/90">
+      <Users className="h-4 w-4" aria-hidden />
       今日請假人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-warning">{stats.leaveStudentCount}</p>
-     <p className="mt-1 text-xs text-muted-foreground">以「請假日期」為今天之不重複學生數</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.leaveStudentCount}</p>
+     <p className="mt-1 text-xs text-warning-foreground/85">以「請假日期」為今天之不重複學生數</p>
     </div>
-    <div className="rounded-xl border border-info/80 bg-info/60 p-4 shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info/90">
-      <CalendarDays className="h-4 w-4" />
+    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
+     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
+      <CalendarDays className="h-4 w-4" aria-hidden />
       今日補堂人數
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-info">{stats.makeupStudentCount}</p>
-     <p className="mt-1 text-xs text-muted-foreground">以「補課日期」為今天之不重複學生數</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.makeupStudentCount}</p>
+     <p className="mt-1 text-xs text-info-foreground/85">以「補課日期」為今天之不重複學生數</p>
     </div>
    </section>
 

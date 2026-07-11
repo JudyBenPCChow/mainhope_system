@@ -129,6 +129,7 @@ export function ClassesListPage() {
  const [teacherKey, setTeacherKey] = usePersistentState<string>("mgmt_classes_teacherKey", "全部")
  const [dayKey, setDayKey] = usePersistentState<string>("mgmt_classes_dayKey", "全部")
  const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
+ const [kindKey, setKindKey] = usePersistentState<string>("mgmt_classes_kindKey", "小組")
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -223,15 +224,18 @@ export function ClassesListPage() {
  }, [baseRows, selectedYearLabel])
 
  const filtered = useMemo(() => {
-  return yearScopedRows.filter(
-   (c) =>
+  return yearScopedRows.filter((c) => {
+   if (kindKey === "小組" && c.class_kind !== "group") return false
+   if (kindKey === "一對一" && c.class_kind !== "private") return false
+   return (
     classMatchesGrade(c, gradeKey) &&
     classMatchesSubject(c, subjectKey) &&
     classMatchesTeacher(c, teacherKey) &&
     classMatchesDay(c, dayKey) &&
     classMatchesStatus(c, statusKey)
-  )
- }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
+   )
+  })
+ }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey, kindKey])
 
  const subjectChips = useMemo(
   () => buildSubjectFilterChips(yearScopedRows, { includeCommonWhenEmpty: !teacherTid }),
@@ -607,6 +611,30 @@ export function ClassesListPage() {
   </div>
 
    <div className="space-y-3">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">班別類型</div>
+    <div className="flex flex-wrap gap-2">
+     {(["小組", "一對一", "全部"] as const).map((k) => (
+      <button
+       key={k}
+       type="button"
+       onClick={() => setKindKey(k)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
+        kindKey === k
+         ? "border-primary bg-primary text-primary-foreground shadow-sm"
+         : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
+       )}
+      >
+       {k}
+      </button>
+     ))}
+    </div>
+    <p className="text-xs text-muted-foreground">
+     預設只顯示小組課；一對一請用「一對一學生」頁管理，或於此篩選檢視。
+    </p>
+   </div>
+
+   <div className="space-y-3">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">狀態</div>
     <div className="flex flex-wrap gap-2">
      {statusChips.map((s) => (
@@ -712,9 +740,16 @@ export function ClassesListPage() {
            {classDisplayName({ subject: c.subject, courseName: c.course_name })}
           </h3>
          </div>
-         <Tag tone={statusToTagTone(c.status)} size="sm">
-          {c.status}
-         </Tag>
+         <div className="flex shrink-0 flex-col items-end gap-1">
+          {c.class_kind === "private" ? (
+           <Tag tone="info" size="sm">
+            一對一
+           </Tag>
+          ) : null}
+          <Tag tone={statusToTagTone(c.status)} size="sm">
+           {c.status}
+          </Tag>
+         </div>
         </div>
         <div className="space-y-1 text-sm text-muted-foreground">
          <p>{timeLabel(c)}</p>
@@ -812,6 +847,11 @@ export function ClassesListPage() {
            <td className="min-w-0 align-top px-3 py-3 pr-2">
             <span className="block break-words leading-relaxed font-medium">
              {classDisplayName({ subject: c.subject, courseName: c.course_name })}
+             {c.class_kind === "private" ? (
+              <Tag tone="info" size="sm" className="ml-1.5 align-middle">
+               一對一
+              </Tag>
+             ) : null}
             </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
@@ -948,7 +988,14 @@ export function ClassesListPage() {
           ) : null}
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
-          <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
+          <div className="flex flex-wrap items-center gap-1">
+           {c.class_kind === "private" ? (
+            <Tag tone="info" size="sm">
+             一對一
+            </Tag>
+           ) : null}
+           <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
+          </div>
          </div>
         </Link>
        ))}
@@ -990,7 +1037,16 @@ export function ClassesListPage() {
             <span className="font-mono text-xs text-muted-foreground">
              {c.course_code_full ?? "—"}
             </span>
-            <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">{c.status}</Tag>
+            <div className="flex flex-col items-end gap-0.5">
+             {c.class_kind === "private" ? (
+              <Tag tone="info" size="sm" className="text-[10px]">
+               一對一
+              </Tag>
+             ) : null}
+             <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">
+              {c.status}
+             </Tag>
+            </div>
            </div>
            <div className="text-base font-bold">
             {classDisplayName({ subject: c.subject, courseName: c.course_name })}

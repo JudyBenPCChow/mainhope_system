@@ -9,7 +9,7 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
-import { updateSchedule } from "@/services/classQueries"
+import { updateSchedule, insertScheduleForClass } from "@/services/classQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { fetchTeacherScheduleConflicts } from "@/services/scheduleQueries"
 import {
@@ -87,6 +87,8 @@ export type PrivateTutoringStudentRow = {
  classId: string
  classSubject: string
  classStatus: string
+ /** 報讀列狀態：就讀中／已退讀 */
+ enrollmentRowStatus: string
  teacherId: string | null
  teacherName: string | null
  pricePerLesson: number | null
@@ -150,6 +152,7 @@ function mapPrivateStudentRow(
   classId: String(cls.id),
   classSubject: String(cls.subject ?? ""),
   classStatus: String(cls.status ?? ""),
+  enrollmentRowStatus: String(enrollment.status ?? "就讀中"),
   teacherId: cls.teacher_id != null ? String(cls.teacher_id) : null,
   teacherName: tch?.full_name != null ? String(tch.full_name) : null,
   pricePerLesson:
@@ -201,7 +204,7 @@ export async function findDuplicatePrivateEnrollment(
  return null
 }
 
-/** 取得所有一對一／單對單在讀學生（依班別報讀） */
+/** 取得所有一對一／單對單報讀（含已退讀；由 UI 篩選） */
 export async function fetchPrivateTutoringStudents(): Promise<PrivateTutoringStudentRow[]> {
  if (!supabase) return []
 
@@ -233,7 +236,7 @@ export async function fetchPrivateTutoringStudents(): Promise<PrivateTutoringStu
     "id, status, enroll_date, students ( id, student_code, full_name, grade, registration_status, enrollment_status, activity_status, academic_stage, student_phone ), classes ( id, subject, class_kind, status, teacher_id, price_per_lesson, teachers ( full_name ) )"
    )
    .in("class_id", slice)
-   .eq("status", "就讀中")
+   .in("status", ["就讀中", "已退讀"])
   if (error) throw new Error(formatUnknownError(error))
   return data ?? []
  })
@@ -697,4 +700,92 @@ export function formatNextLessonLabel(lesson: PrivateNextLesson | null): string 
  const time = lesson.startTime ? String(lesson.startTime).slice(0, 5) : ""
  const room = lesson.classroomName ? ` · ${lesson.classroomName}` : ""
  return `${lesson.scheduledDate}${time ? ` ${time}` : ""}${room}`
+}
+
+/** 由起始日每週加 7 天，產生共 N 個日期（含首日） */
+export function buildWeeklyDates(startYmd: string, count: number): string[] {
+ const n = Math.max(1, Math.min(52, Math.floor(count)))
+ const [y0, m0, d0] = startYmd.split("-").map(Number)
+ if (!y0 || !m0 || !d0) return []
+ const out: string[] = []
+ for (let i = 0; i < n; i++) {
+  const dt = new Date(y0, m0 - 1, d0 + i * 7)
+  const y = dt.getFullYear()
+  const m = String(dt.getMonth() + 1).padStart(2, "0")
+  const d = String(dt.getDate()).padStart(2, "0")
+  out.push(`${y}-${m}-${d}`)
+ }
+ return out
+}
+
+export type PrivateRecurringPreviewItem = {
+ date: string
+ conflicts: PrivateBookingConflict[]
+}
+
+/** 預覽每週 N 堂的衝突（不寫入） */
+export async function previewPrivateRecurringBookings(params: {
+ dates: string[]
+ classroomId?: string | null
+ startTime: string
+ endTime: string
+ teacherId?: string | null
+ studentId: string
+}): Promise<PrivateRecurringPreviewItem[]> {
+ const items: PrivateRecurringPreviewItem[] = []
+ for (const date of params.dates) {
+  const conflicts = await checkPrivateBookingConflicts({
+   classroomId: params.classroomId,
+   scheduledDate: date,
+   startTime: params.startTime,
+   endTime: params.endTime,
+   teacherId: params.teacherId,
+   studentId: params.studentId,
+  })
+  items.push({ date, conflicts })
+ }
+ return items
+}
+
+/** 批次建立每週預約；skipConflictDates=true 時略過有衝突的日期 */
+export async function createPrivateRecurringBookings(params: {
+ classId: string
+ studentId: string
+ dates: string[]
+ classroomId?: string | null
+ startTime: string
+ endTime: string
+ teacherId?: string | null
+ skipConflictDates: boolean
+}): Promise<{ created: number; skipped: string[] }> {
+ const skipped: string[] = []
+ let created = 0
+ for (const date of params.dates) {
+  const conflicts = await checkPrivateBookingConflicts({
+   classroomId: params.classroomId,
+   scheduledDate: date,
+   startTime: params.startTime,
+   endTime: params.endTime,
+   teacherId: params.teacherId,
+   studentId: params.studentId,
+  })
+  if (conflicts.length > 0) {
+   if (params.skipConflictDates) {
+    skipped.push(date)
+    continue
+   }
+   throw new Error(
+    `${date} 有衝突：${conflicts.map((c) => c.label).join("；")}`
+   )
+  }
+  await insertScheduleForClass(params.classId, params.teacherId ?? null, {
+   scheduled_date: date,
+   start_time: params.startTime,
+   end_time: params.endTime,
+   classroom_id: params.classroomId ?? null,
+   status: "正常",
+  })
+  created += 1
+ }
+ return { created, skipped }
 }

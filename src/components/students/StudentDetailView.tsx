@@ -13,6 +13,7 @@ import {
  Printer,
  Umbrella,
  User,
+ UserRound,
 } from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
@@ -446,6 +447,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  }
 
  const enrolledClassIds = new Set(enrollments.map((e) => e.classId))
+ const hasPrivateEnrollment = enrollments.some((e) => e.classKind === "private")
  const classSelectOptions = classOptions.filter((o) => !enrolledClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
@@ -759,6 +761,20 @@ const exportFutureSchedulesCsv = () => {
        ) : null}
       </div>
      </div>
+     {hasPrivateEnrollment ? (
+      <Button
+       type="button"
+       variant="secondary"
+       size="sm"
+       className="w-fit shrink-0 bg-white/90 text-foreground hover:bg-white"
+       asChild
+      >
+       <Link to="/PrivateTutoring">
+        <UserRound className="h-4 w-4" />
+        管理一對一
+       </Link>
+      </Button>
+     ) : null}
     </div>
    </div>
 
@@ -1921,18 +1937,28 @@ const exportFutureSchedulesCsv = () => {
           key={h.id}
           className={cn(
            "rounded-xl border px-4 py-3 text-sm shadow-sm",
-           h.tone === "green" && "border-success bg-success/80",
-           h.tone === "blue" && "border-info bg-info/80",
-           h.tone === "amber" && "border-amber-200 bg-amber-50/80",
+           h.tone === "green" && "border-success/50 bg-success/10",
+           h.tone === "blue" && "border-info/50 bg-info/10",
+           h.tone === "amber" && "border-warning/50 bg-warning/10",
            h.tone === "muted" && "border-border bg-muted/30"
           )}
          >
           <div className="flex flex-wrap items-start justify-between gap-2">
-           <div className="font-medium">{h.title}</div>
-           <div className="text-xs text-muted-foreground">{h.date}</div>
+           <div
+            className={cn(
+             "font-medium",
+             h.tone === "green" && "text-success",
+             h.tone === "blue" && "text-info",
+             h.tone === "amber" && "text-warning",
+             h.tone === "muted" && "text-foreground"
+            )}
+           >
+            {h.title}
+           </div>
+           <div className="text-xs text-neutral-700">{h.date}</div>
           </div>
           {h.subtitle ? (
-           <div className="mt-1 text-xs text-muted-foreground">{h.subtitle}</div>
+           <div className="mt-1 text-xs text-neutral-700">{h.subtitle}</div>
           ) : null}
          </li>
         ))

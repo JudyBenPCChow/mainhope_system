@@ -53,6 +53,8 @@ export type StudentRecord = {
  preferred_contact_method: string | null
  address: string | null
  remarks: string | null
+ /** Phase 2 代理人；今次僅預留欄位 */
+ assigned_agent_user_id: string | null
  created_at: string
  updated_at: string
 }
@@ -303,6 +305,8 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
    row.preferred_contact_method != null ? String(row.preferred_contact_method) : null,
   address: row.address != null ? String(row.address) : null,
   remarks: row.remarks != null ? String(row.remarks) : null,
+  assigned_agent_user_id:
+   row.assigned_agent_user_id != null ? String(row.assigned_agent_user_id) : null,
   created_at: String(row.created_at ?? ""),
   updated_at: String(row.updated_at ?? ""),
  }
@@ -456,6 +460,8 @@ export type EnrollmentWithClass = {
  courseMode: CourseMode
  classId: string
  subject: string
+ /** group / private */
+ classKind: "group" | "private"
  subjectCode: string | null
  subjectCategory: string | null
  teacherId: string | null
@@ -468,7 +474,7 @@ export type EnrollmentWithClass = {
 
 /** PostgREST embed：只用 baseline + course_name，避免未套用 migration 的欄位令整筆查詢失敗 */
 const ENROLLMENT_CLASS_EMBED =
- "classes ( subject, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh ) ) )"
+ "classes ( subject, class_kind, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh ) ) )"
 
 const ENROLLMENT_ROW_SELECT_BASE =
  `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
@@ -559,6 +565,10 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   courseMode,
   classId: String(row.class_id),
   subject: subjectLabel,
+  classKind: resolveClassKind(
+   cls?.class_kind != null ? String(cls.class_kind) : null,
+   cls?.subject != null ? String(cls.subject) : null
+  ),
   subjectCode: subjectRow?.code != null ? String(subjectRow.code).trim().toUpperCase() : null,
   subjectCategory: subjectRow?.category != null ? String(subjectRow.category) : null,
   teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
@@ -850,7 +860,7 @@ export async function deleteEnrollment(id: string): Promise<void> {
  if (error) throw error
 }
 
-/** 退讀：寫入增退紀錄後刪除報讀列（生效日為當日，依本機日曆） */
+/** 退讀：寫入增退紀錄後將報讀列標為「已退讀」（保留歷史，不硬刪） */
 export async function withdrawStudentFromClass(opts: {
  enrollmentId: string
  studentId: string
@@ -876,7 +886,7 @@ export async function withdrawStudentFromClass(opts: {
  const eventId = String((evRow as { id: string }).id)
  const { error: e2 } = await supabase
   .from("student_class_enrollments")
-  .delete()
+  .update({ status: "已退讀", updated_at: new Date().toISOString() })
   .eq("id", opts.enrollmentId)
  if (e2) {
   await supabase.from("enrollment_change_events").delete().eq("id", eventId)

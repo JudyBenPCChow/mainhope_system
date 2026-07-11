@@ -457,15 +457,15 @@ export function RollCallPage() {
    ) : null}
 
    <section className="grid gap-3 sm:grid-cols-2">
-    <div className="rounded-xl border border-success/80 bg-success/50 p-4 shadow-sm">
-     <div className="text-sm font-medium text-success">已儲存點名人次</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-success">{savedFilledCount}</p>
-     <p className="mt-1 text-xs text-muted-foreground">目前堂數按「確定」後已寫入資料庫的人數</p>
+    <div className="rounded-xl border border-success bg-success p-4 text-success-foreground shadow-sm">
+     <div className="text-sm font-medium text-success-foreground/90">已儲存點名人次</div>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{savedFilledCount}</p>
+     <p className="mt-1 text-xs text-success-foreground/85">目前堂數按「確定」後已寫入資料庫的人數</p>
     </div>
-    <div className="rounded-xl border border-warning/30 bg-warning/10 p-4 shadow-sm">
-     <div className="text-sm font-medium text-amber-900">今日堂數</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums text-amber-800">{rollCallEntries.length}</p>
-     <p className="mt-1 text-xs text-muted-foreground">所選日期可點名項目（連堂已合併；已排除取消）</p>
+    <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
+     <div className="text-sm font-medium text-warning-foreground/90">今日堂數</div>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{rollCallEntries.length}</p>
+     <p className="mt-1 text-xs text-warning-foreground/85">所選日期可點名項目（連堂已合併；已排除取消）</p>
     </div>
    </section>
 

@@ -128,8 +128,6 @@ export function AdminDashboard() {
     onScheduleViewYmdChange={setScheduleViewYmd}
     todayClassCards={scheduleBoardCards}
     scheduleColumnLoading={scheduleBoardLoading}
-    todosToday={data.todosToday}
-    roomVacancy={data.roomVacancy}
     todayLeaves={data.todayLeaves}
     loading={loading}
    />

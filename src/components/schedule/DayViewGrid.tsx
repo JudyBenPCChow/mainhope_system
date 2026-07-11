@@ -126,7 +126,7 @@ export function DayViewScheduleCard({
     "rounded-lg border px-2.5 py-2.5 text-sm shadow-sm",
     historyReadOnly ? "cursor-default opacity-75" : "cursor-grab active:cursor-grabbing",
     variant === "unassigned"
-     ? "border-warning/60 bg-warning/15 text-warning-foreground"
+     ? "border-2 border-warning bg-warning/25 text-warning"
      : "border-info/50 bg-info/10 text-info"
    )}
   >

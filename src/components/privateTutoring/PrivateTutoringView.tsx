@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { CalendarClock, DoorOpen, Pencil, Plus, Search, UserRound } from "lucide-react"
+import { CalendarClock, DoorOpen, Pencil, Plus, Search, UserRound, UserMinus } from "lucide-react"
 
 import { StudentClassificationTags } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
@@ -37,12 +37,15 @@ import {
 import type { RoomRecord } from "@/services/classroomQueries"
 import {
  buildPrivateClassSubject,
+ buildWeeklyDates,
  cancelPrivateLesson,
  checkPrivateBookingConflicts,
+ createPrivateRecurringBookings,
  createPrivateTutoringEnrollment,
  fetchPrivateClassSchedules,
  fetchPrivateTutoringStudents,
  formatNextLessonLabel,
+ previewPrivateRecurringBookings,
  reschedulePrivateLesson,
  updatePrivateClassSettings,
  withdrawPrivateEnrollment,
@@ -72,6 +75,12 @@ const ACTIVITY_FILTERS = [
  { key: "非活躍生", label: "非活躍生" },
 ] as const
 
+const ENROLLMENT_ROW_FILTERS = [
+ { key: "all", label: "全部報讀" },
+ { key: "就讀中", label: "就讀中" },
+ { key: "已退讀", label: "已退讀" },
+] as const
+
 function weekdayLabel(ymd: string): string {
  const [y, m, d] = ymd.split("-").map(Number)
  const dt = new Date(y, m - 1, d)
@@ -95,6 +104,8 @@ export function PrivateTutoringView() {
  const [search, setSearch] = useState("")
  const [regFilter, setRegFilter] = useState<(typeof REGISTRATION_FILTERS)[number]["key"]>("all")
  const [activityFilter, setActivityFilter] = useState<(typeof ACTIVITY_FILTERS)[number]["key"]>("all")
+ const [enrollRowFilter, setEnrollRowFilter] =
+  useState<(typeof ENROLLMENT_ROW_FILTERS)[number]["key"]>("all")
 
  const [roomDate, setRoomDate] = useState(() => localYmd())
  const [roomSlotIdx, setRoomSlotIdx] = useState(0)
@@ -113,6 +124,8 @@ export function PrivateTutoringView() {
  const [bookSlotIdx, setBookSlotIdx] = useState(0)
  const [bookRoomId, setBookRoomId] = useState("")
  const [bookTeacherId, setBookTeacherId] = useState("")
+ const [bookMode, setBookMode] = useState<"single" | "weekly">("single")
+ const [bookWeekCount, setBookWeekCount] = useState("4")
  const [teacherOptions, setTeacherOptions] = useState<{ id: string; label: string }[]>([])
  const [bookSaving, setBookSaving] = useState(false)
  const [bookErr, setBookErr] = useState<string | null>(null)
@@ -411,6 +424,7 @@ export function PrivateTutoringView() {
  const filteredRows = useMemo(() => {
   const q = search.trim().toLowerCase()
   return rows.filter((r) => {
+   if (enrollRowFilter !== "all" && r.enrollmentRowStatus !== enrollRowFilter) return false
    if (regFilter !== "all" && r.registrationStatus !== regFilter) return false
    if (activityFilter !== "all" && r.activityStatus !== activityFilter) return false
    if (!q) return true
@@ -421,7 +435,7 @@ export function PrivateTutoringView() {
     (r.teacherName ?? "").toLowerCase().includes(q)
    )
   })
- }, [rows, search, regFilter, activityFilter])
+ }, [rows, search, regFilter, activityFilter, enrollRowFilter])
 
  const activeRooms = useMemo(
   () => classroomsActiveOnDate(
@@ -491,6 +505,8 @@ export function PrivateTutoringView() {
   setBookSlotIdx(0)
   setBookRoomId("")
   setBookTeacherId(row.teacherId ?? "")
+  setBookMode("single")
+  setBookWeekCount("4")
   setRescheduleScheduleId(null)
   setBookErr(null)
  }, [])
@@ -533,6 +549,7 @@ export function PrivateTutoringView() {
  const enterRescheduleMode = useCallback(
   async (s: PrivateClassScheduleRow) => {
    setRescheduleScheduleId(s.id)
+   setBookMode("single")
    setBookErr(null)
    const ymd = s.scheduledDate
    setBookDate(ymd)
@@ -582,29 +599,28 @@ export function PrivateTutoringView() {
   setBookSaving(true)
   setBookErr(null)
   try {
-   const conflicts = await checkPrivateBookingConflicts({
-    classroomId,
-    scheduledDate: bookDate,
-    startTime,
-    endTime,
-    teacherId,
-    studentId: bookRow.studentId,
-    excludeScheduleId: rescheduleScheduleId,
-   })
-   if (conflicts.length > 0) {
-    const ok = await confirmDialog({
-     title: "發現時段衝突",
-     description: `${conflicts.map((c) => c.label).join("\n")}\n\n仍要${rescheduleScheduleId ? "改約" : "建立預約"}嗎？`,
-     confirmText: rescheduleScheduleId ? "仍要改約" : "仍要預約",
-     tone: "warning",
-    })
-    if (!ok) {
-     setBookErr(conflicts.map((c) => c.label).join("\n"))
-     return
-    }
-   }
-
    if (rescheduleScheduleId) {
+    const conflicts = await checkPrivateBookingConflicts({
+     classroomId,
+     scheduledDate: bookDate,
+     startTime,
+     endTime,
+     teacherId,
+     studentId: bookRow.studentId,
+     excludeScheduleId: rescheduleScheduleId,
+    })
+    if (conflicts.length > 0) {
+     const ok = await confirmDialog({
+      title: "發現時段衝突",
+      description: `${conflicts.map((c) => c.label).join("\n")}\n\n仍要改約嗎？`,
+      confirmText: "仍要改約",
+      tone: "warning",
+     })
+     if (!ok) {
+      setBookErr(conflicts.map((c) => c.label).join("\n"))
+      return
+     }
+    }
     await reschedulePrivateLesson({
      scheduleId: rescheduleScheduleId,
      scheduledDate: bookDate,
@@ -619,7 +635,85 @@ export function PrivateTutoringView() {
      message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
     })
     setRescheduleScheduleId(null)
+   } else if (bookMode === "weekly") {
+    const count = Number(bookWeekCount)
+    if (!Number.isFinite(count) || count < 1 || count > 52) {
+     setBookErr("堂數請輸入 1–52")
+     return
+    }
+    const dates = buildWeeklyDates(bookDate, count)
+    const preview = await previewPrivateRecurringBookings({
+     dates,
+     classroomId,
+     startTime,
+     endTime,
+     teacherId,
+     studentId: bookRow.studentId,
+    })
+    const conflictItems = preview.filter((p) => p.conflicts.length > 0)
+    let skipConflictDates = false
+    if (conflictItems.length > 0) {
+     const lines = conflictItems.map(
+      (p) => `${p.date}：${p.conflicts.map((c) => c.label).join("；")}`
+     )
+     const ok = await confirmDialog({
+      title: "週期預約有衝突",
+      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選取消則不建立任何堂。`,
+      confirmText: "略過衝突日並建立",
+      tone: "warning",
+     })
+     if (!ok) {
+      setBookErr(lines.join("\n"))
+      return
+     }
+     skipConflictDates = true
+    } else {
+     const ok = await confirmDialog({
+      title: "確認週期預約",
+      description: `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
+      confirmText: "確認建立",
+     })
+     if (!ok) return
+    }
+    const result = await createPrivateRecurringBookings({
+     classId: bookRow.classId,
+     studentId: bookRow.studentId,
+     dates,
+     classroomId,
+     startTime,
+     endTime,
+     teacherId,
+     skipConflictDates,
+    })
+    pushBanner({
+     tone: "success",
+     title: "已建立週期預約",
+     message:
+      result.skipped.length > 0
+       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 堂（${result.skipped.join("、")}）`
+       : `建成 ${result.created} 堂`,
+    })
    } else {
+    const conflicts = await checkPrivateBookingConflicts({
+     classroomId,
+     scheduledDate: bookDate,
+     startTime,
+     endTime,
+     teacherId,
+     studentId: bookRow.studentId,
+    })
+    if (conflicts.length > 0) {
+     const ok = await confirmDialog({
+      title: "發現時段衝突",
+      description: `${conflicts.map((c) => c.label).join("\n")}\n\n仍要建立預約嗎？`,
+      confirmText: "仍要預約",
+      tone: "warning",
+     })
+     if (!ok) {
+      setBookErr(conflicts.map((c) => c.label).join("\n"))
+      return
+     }
+    }
     await insertScheduleForClass(bookRow.classId, teacherId, {
      scheduled_date: bookDate,
      start_time: startTime,
@@ -639,6 +733,8 @@ export function PrivateTutoringView() {
    setBookSlotIdx(0)
    setBookRoomId("")
    setBookTeacherId(bookRow.teacherId ?? "")
+   setBookMode("single")
+   setBookWeekCount("4")
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.submitBooking", setErr: setBookErr })
   } finally {
@@ -650,6 +746,8 @@ export function PrivateTutoringView() {
   bookRoomId,
   bookSlotIdx,
   bookTeacherId,
+  bookMode,
+  bookWeekCount,
   rescheduleScheduleId,
   confirmDialog,
   pushBanner,
@@ -746,6 +844,18 @@ export function PrivateTutoringView() {
        />
       </div>
       <Select
+       value={enrollRowFilter}
+       onChange={(e) =>
+        setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
+       }
+      >
+       {ENROLLMENT_ROW_FILTERS.map((f) => (
+        <option key={f.key} value={f.key}>
+         {f.label}
+        </option>
+       ))}
+      </Select>
+      <Select
        value={regFilter}
        onChange={(e) =>
         setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
@@ -801,8 +911,16 @@ export function PrivateTutoringView() {
          </tr>
         </thead>
         <tbody>
-         {filteredRows.map((r) => (
-          <tr key={r.enrollmentId} className="border-b border-border/60 last:border-0">
+         {filteredRows.map((r) => {
+          const isWithdrawn = r.enrollmentRowStatus === "已退讀"
+          return (
+          <tr
+           key={r.enrollmentId}
+           className={cn(
+            "border-b border-border/60 last:border-0",
+            isWithdrawn && "bg-muted/30 text-muted-foreground"
+           )}
+          >
            <td className="min-w-0 truncate px-3 py-2">
             <Link
              to={`/Students/${r.studentId}`}
@@ -817,7 +935,14 @@ export function PrivateTutoringView() {
             {r.grade ?? "—"}
            </td>
            <td className="min-w-0 truncate px-3 py-2" title={r.classSubject}>
-            {r.classSubject}
+            <span className="inline-flex max-w-full items-center gap-1">
+             <span className="truncate">{r.classSubject}</span>
+             {isWithdrawn ? (
+              <Tag tone="default" className="shrink-0">
+               已退讀
+              </Tag>
+             ) : null}
+            </span>
            </td>
            <td className="min-w-0 truncate px-3 py-2" title={r.teacherName ?? ""}>
             {r.teacherName ?? "—"}
@@ -847,44 +972,53 @@ export function PrivateTutoringView() {
             </div>
            </td>
            <td className="px-3 py-2">
-            <div className="flex flex-wrap gap-1">
-             <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => void openBookDialog(r)}
-             >
-              <CalendarClock className="mr-1 h-3.5 w-3.5" />
-              預約
-             </Button>
-             <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              onClick={() => openEditDialog(r)}
-             >
-              <Pencil className="mr-1 h-3.5 w-3.5" />
-              編輯
-             </Button>
-             <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="text-destructive hover:text-destructive"
-              onClick={() => void onWithdraw(r)}
-             >
-              退讀
-             </Button>
-            </div>
+            {isWithdrawn ? (
+             <span className="text-xs text-muted-foreground">—</span>
+            ) : (
+             <div className="flex items-center gap-0.5">
+              <Button
+               type="button"
+               size="sm"
+               variant="outline"
+               title="預約"
+               aria-label="預約"
+               onClick={() => void openBookDialog(r)}
+              >
+               <CalendarClock className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+               type="button"
+               size="sm"
+               variant="ghost"
+               title="編輯"
+               aria-label="編輯"
+               onClick={() => openEditDialog(r)}
+              >
+               <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+               type="button"
+               size="sm"
+               variant="ghost"
+               className="text-destructive hover:text-destructive"
+               title="退讀"
+               aria-label="退讀"
+               onClick={() => void onWithdraw(r)}
+              >
+               <UserMinus className="h-3.5 w-3.5" />
+              </Button>
+             </div>
+            )}
            </td>
           </tr>
-         ))}
+          )
+         })}
         </tbody>
        </table>
       </div>
      )}
      <p className="text-xs text-muted-foreground">
-      共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一在讀報讀）
+      共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一報讀，含已退讀）
      </p>
     </div>
    )}
@@ -1199,6 +1333,35 @@ export function PrivateTutoringView() {
         <p className="text-muted-foreground">{bookRow.classSubject}</p>
        </div>
 
+       {!rescheduleScheduleId ? (
+        <div className="space-y-1">
+         <label className="text-xs text-muted-foreground">預約方式</label>
+         <Select
+          value={bookMode}
+          onChange={(e) => setBookMode(e.target.value as "single" | "weekly")}
+         >
+          <option value="single">單堂</option>
+          <option value="weekly">每週重複（共 N 堂）</option>
+         </Select>
+        </div>
+       ) : null}
+
+       {bookMode === "weekly" && !rescheduleScheduleId ? (
+        <div className="space-y-1">
+         <label className="text-xs text-muted-foreground">共幾堂（1–52）</label>
+         <Input
+          type="number"
+          min={1}
+          max={52}
+          value={bookWeekCount}
+          onChange={(e) => setBookWeekCount(e.target.value)}
+         />
+         <p className="text-xs text-muted-foreground">
+          自選定日期起每週同一時段；有衝突時會先預覽再決定是否略過。
+         </p>
+        </div>
+       ) : null}
+
        {activeUpcomingSchedules.length > 0 && (
         <div className="space-y-2">
          <p className="text-xs font-medium text-muted-foreground">已排課堂</p>
@@ -1323,10 +1486,14 @@ export function PrivateTutoringView() {
          {bookSaving
           ? rescheduleScheduleId
             ? "改約中…"
-            : "建立中…"
+            : bookMode === "weekly"
+              ? "建立中…"
+              : "建立中…"
           : rescheduleScheduleId
             ? "確認改約"
-            : "確認預約"}
+            : bookMode === "weekly"
+              ? "預覽並建立週期"
+              : "確認預約"}
         </Button>
        </div>
       </div>

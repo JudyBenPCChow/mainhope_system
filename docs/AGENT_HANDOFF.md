@@ -68,6 +68,20 @@
 
 - 演示用：`localStorage.mgmt_role` 為 `admin` | `teacher` | `alien`，`Layout` 依此過濾選單。
 - **此機制不等於 Supabase Auth**；真正上線若改用 `supabase.auth`，需把 **RLS** 與 **JWT claims**／`profiles` 對齊，並視情況移除或改寫僅依 localStorage 的前端角色邏輯。
+- **Phase 2 預留**：`students.assigned_agent_user_id` → `app_users`（代理人／外包中介）；角色 `agent` 尚未上線，見一對一分流。
+
+---
+
+## 6.1 一對一 vs 小組課
+
+| | 小組課 (`class_kind=group`) | 一對一 (`class_kind=private`) |
+| --- | --- | --- |
+| 入口 | 班別管理、學生詳情「選擇班別加入」 | **一對一學生**頁（`/PrivateTutoring`） |
+| 排程 | 固定星期／時段／課室，可批量排程 | 無固定時段；按次或「每週 N 堂」預約 |
+| 班別列表 | 預設顯示 | 預設隱藏；可篩「一對一」檢視；詳情唯讀 |
+| 退讀 | 報讀列改為「已退讀」（軟退讀） | 同左，並取消未來課堂 |
+
+判定：`src/lib/privateClassKind.ts` 的 `resolveClassKind`（`class_kind` 優先，班名含「一對一／單對單」後備）。
 
 ---
 
@@ -80,7 +94,7 @@
 
 ## 8. 架構速查（路由）
 
-完整路由以 `src/App.tsx` 為準；側欄結構以 `Layout.tsx` 的 `NAV_STRUCTURE` 為準。兩者新增項目時請一併更新。
+完整路由以 `src/App.tsx` 為準；側欄結構以 `src/lib/navStructure.ts`（由 `Layout.tsx` 消費）為準。兩者新增項目時請一併更新。
 
 ---
 
