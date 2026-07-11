@@ -103,26 +103,13 @@ export async function fetchPortalEnrollmentRequests(
  if (!supabase) return []
  const limit = Math.min(Math.max(opts.limit ?? 200, 1), 500)
 
- let q = supabase
-  .from("portal_enrollment_requests")
-  .select(
-   [
-    "id",
-    "student_id",
-    "status",
-    "estimated_subtotal",
-    "estimated_total",
-    "parent_note",
-    "staff_note",
-    "payment_id",
-    "reviewed_at",
-    "created_at",
-    "students ( id, full_name, student_code )",
-    "portal_enrollment_request_lines ( id, class_id, enrollment_period, schedule_ids, unit_price, lesson_count, line_subtotal, class_label, created_at )",
-   ].join(", ")
-  )
-  .order("created_at", { ascending: false })
-  .limit(limit)
+  let q = supabase
+    .from("portal_enrollment_requests")
+    .select(
+      "id, student_id, status, estimated_subtotal, estimated_total, parent_note, staff_note, payment_id, reviewed_at, created_at, students ( id, full_name, student_code ), portal_enrollment_request_lines ( id, class_id, enrollment_period, schedule_ids, unit_price, lesson_count, line_subtotal, class_label, created_at )"
+    )
+    .order("created_at", { ascending: false })
+    .limit(limit)
 
  if (opts.status) {
   q = q.eq("status", opts.status)
