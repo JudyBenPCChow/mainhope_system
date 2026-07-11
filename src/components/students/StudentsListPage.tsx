@@ -869,25 +869,25 @@ export function StudentsListPage() {
      />
     </div>
     <div className="flex flex-wrap gap-2">
-     <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5">
+     <div className="inline-flex w-full rounded-lg border border-border bg-muted/30 p-0.5 sm:w-auto">
       <button
        type="button"
        onClick={() => setViewMode("table")}
        className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
         viewMode === "table"
          ? "bg-primary text-primary-foreground shadow-sm"
          : "text-muted-foreground hover:text-foreground"
        )}
       >
        <List className="h-4 w-4" />
-       列表
+       {isMobile ? "精簡" : "列表"}
       </button>
       <button
        type="button"
        onClick={() => setViewMode("gallery")}
        className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
         viewMode === "gallery"
          ? "bg-primary text-primary-foreground shadow-sm"
          : "text-muted-foreground hover:text-foreground"
@@ -897,7 +897,7 @@ export function StudentsListPage() {
        圖庫
       </button>
      </div>
-     <Button type="button" variant="outline" onClick={exportCsv}>
+     <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={exportCsv}>
       <Sheet className="h-4 w-4" />
       匯出 CSV
      </Button>
@@ -1124,7 +1124,7 @@ export function StudentsListPage() {
     </div>
    </div>
 
-   {viewMode === "table" ? (
+   {viewMode === "table" && !isMobile ? (
    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <div className="overflow-x-auto">
      <table className="w-full min-w-[62rem] table-fixed border-collapse text-sm">
@@ -1287,6 +1287,82 @@ export function StudentsListPage() {
      </table>
     </div>
    </div>
+   ) : viewMode === "table" && isMobile ? (
+    <div className="space-y-2">
+     {loading ? (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+       載入中…
+      </div>
+     ) : filtered.length === 0 ? (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+       沒有符合條件的學生
+      </div>
+     ) : (
+      filtered.map((r) => {
+       const t = tuitionMap.get(r.id)
+       const waContact = pickStudentContactRaw({
+        whatsapp: r.whatsapp,
+        student_phone: r.student_phone,
+        parent_phone: r.parent_phone,
+       })
+       return (
+        <article
+         key={r.id}
+         role="button"
+         tabIndex={0}
+         onClick={() => navigate(`/Students/${r.id}`)}
+         onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+           e.preventDefault()
+           navigate(`/Students/${r.id}`)
+          }
+         }}
+         className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
+        >
+         <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+           <p className="text-xs tabular-nums text-muted-foreground">{r.student_code ?? "—"}</p>
+           <h3 className="truncate font-semibold">{r.full_name}</h3>
+           <p className="text-sm text-muted-foreground">
+            {formatStudentGrade(r.grade)}
+            {(tags.get(r.id) ?? []).length > 0
+             ? ` · ${(tags.get(r.id) ?? []).slice(0, 2).join("、")}`
+             : ""}
+           </p>
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1">
+           <StudentClassificationTags student={r} size="sm" compact className="max-w-[9rem] justify-end" />
+           {t?.showArrears ? (
+            <Tag tone="warning" size="sm">
+             追收學費
+            </Tag>
+           ) : null}
+          </div>
+         </div>
+         <div className="mt-2 flex items-center justify-between gap-2 text-sm">
+          <span className="tabular-nums text-muted-foreground">{r.student_phone ?? r.parent_phone ?? "—"}</span>
+          {waContact ? (
+           <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground"
+            aria-label="開啟 WhatsApp"
+            onClick={(e) => {
+             e.preventDefault()
+             e.stopPropagation()
+             openWhatsAppChat(waContact)
+            }}
+           >
+            <MessageCircle className="h-4 w-4" aria-hidden />
+           </Button>
+          ) : null}
+         </div>
+        </article>
+       )
+      })
+     )}
+    </div>
    ) : (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
      {loading ? (
@@ -1379,7 +1455,7 @@ export function StudentsListPage() {
    )}
 
    <p className="text-xs text-muted-foreground">
-    點選表格列可進入該學生的詳細資料（第二級頁面）。
+    {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
     <span className="mt-1 block text-[11px] leading-relaxed">
      「追收學費」：計費出席堂數（點名為出席、網課／線上、補堂等；不含缺席與請假）≥
      已繳費堂數（僅計收據狀態為「已收款」之 <code className="rounded bg-muted px-0.5">payment_details.lesson_count</code>{" "}

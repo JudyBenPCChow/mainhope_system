@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { CalendarClock, DoorOpen, Search, UserRound } from "lucide-react"
+import { CalendarClock, DoorOpen, Pencil, Plus, Search, UserRound } from "lucide-react"
 
 import { StudentClassificationTags } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
@@ -14,8 +14,10 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -26,19 +28,35 @@ import {
  lessonSlotStartMinute,
 } from "@/lib/lessonSlots"
 import { cn } from "@/lib/utils"
-import { fetchTeacherOptions, insertScheduleForClass } from "@/services/classQueries"
+import {
+ fetchSubjectOptions,
+ fetchTeacherOptions,
+ insertScheduleForClass,
+ type SubjectOption,
+} from "@/services/classQueries"
 import type { RoomRecord } from "@/services/classroomQueries"
 import {
+ buildPrivateClassSubject,
+ cancelPrivateLesson,
+ checkPrivateBookingConflicts,
+ createPrivateTutoringEnrollment,
  fetchPrivateClassSchedules,
  fetchPrivateTutoringStudents,
+ formatNextLessonLabel,
+ reschedulePrivateLesson,
+ updatePrivateClassSettings,
+ withdrawPrivateEnrollment,
+ type PrivateClassScheduleRow,
  type PrivateTutoringStudentRow,
 } from "@/services/privateTutoringQueries"
 import {
  fetchRoomCalendarBundle,
  occupiersForSlot,
- slotIsFreeForBooking,
 } from "@/services/roomBookingQueries"
 import { localYmd } from "@/services/scheduleQueries"
+import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
+
+const PRICE_QUICK = [250, 275, 625, 825] as const
 
 type Tab = "students" | "rooms"
 
@@ -61,8 +79,14 @@ function weekdayLabel(ymd: string): string {
  return `週${w}`
 }
 
+function isCancelledStatus(status: string): boolean {
+ return status.includes("取消")
+}
+
 export function PrivateTutoringView() {
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
+
  const [tab, setTab] = useState<Tab>("students")
  const [rows, setRows] = useState<PrivateTutoringStudentRow[]>([])
  const [loading, setLoading] = useState(true)
@@ -75,8 +99,12 @@ export function PrivateTutoringView() {
  const [roomDate, setRoomDate] = useState(() => localYmd())
  const [roomSlotIdx, setRoomSlotIdx] = useState(0)
  const [rooms, setRooms] = useState<RoomRecord[]>([])
- const [roomSchedules, setRoomSchedules] = useState<Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["schedules"]>([])
- const [roomPending, setRoomPending] = useState<Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["pending"]>([])
+ const [roomSchedules, setRoomSchedules] = useState<
+  Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["schedules"]
+ >([])
+ const [roomPending, setRoomPending] = useState<
+  Awaited<ReturnType<typeof fetchRoomCalendarBundle>>["pending"]
+ >([])
  const [roomLoading, setRoomLoading] = useState(false)
 
  const [bookOpen, setBookOpen] = useState(false)
@@ -88,7 +116,30 @@ export function PrivateTutoringView() {
  const [teacherOptions, setTeacherOptions] = useState<{ id: string; label: string }[]>([])
  const [bookSaving, setBookSaving] = useState(false)
  const [bookErr, setBookErr] = useState<string | null>(null)
- const [upcomingSchedules, setUpcomingSchedules] = useState<Awaited<ReturnType<typeof fetchPrivateClassSchedules>>>([])
+ const [upcomingSchedules, setUpcomingSchedules] = useState<PrivateClassScheduleRow[]>([])
+ const [rescheduleScheduleId, setRescheduleScheduleId] = useState<string | null>(null)
+
+ const [createOpen, setCreateOpen] = useState(false)
+ const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
+ const [subjects, setSubjects] = useState<SubjectOption[]>([])
+ const [createStudentSearch, setCreateStudentSearch] = useState("")
+ const [createStudentId, setCreateStudentId] = useState("")
+ const [createStudentPickerOpen, setCreateStudentPickerOpen] = useState(false)
+ const [createSubjectQuery, setCreateSubjectQuery] = useState("")
+ const [createSubjectPickerOpen, setCreateSubjectPickerOpen] = useState(false)
+ const [createTeacherId, setCreateTeacherId] = useState("")
+ const [createPrice, setCreatePrice] = useState("")
+ const [createClassNameOverride, setCreateClassNameOverride] = useState("")
+ const [createSaving, setCreateSaving] = useState(false)
+ const [createErr, setCreateErr] = useState<string | null>(null)
+
+ const [editOpen, setEditOpen] = useState(false)
+ const [editRow, setEditRow] = useState<PrivateTutoringStudentRow | null>(null)
+ const [editSubject, setEditSubject] = useState("")
+ const [editTeacherId, setEditTeacherId] = useState("")
+ const [editPrice, setEditPrice] = useState("")
+ const [editSaving, setEditSaving] = useState(false)
+ const [editErr, setEditErr] = useState<string | null>(null)
 
  const reloadStudents = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -118,6 +169,14 @@ export function PrivateTutoringView() {
   }
  }, [roomDate])
 
+ const reloadUpcomingSchedules = useCallback(async (classId: string) => {
+  try {
+   setUpcomingSchedules(await fetchPrivateClassSchedules(classId))
+  } catch {
+   setUpcomingSchedules([])
+  }
+ }, [])
+
  useEffect(() => {
   void reloadStudents()
  }, [reloadStudents])
@@ -129,6 +188,225 @@ export function PrivateTutoringView() {
  useEffect(() => {
   void fetchTeacherOptions().then(setTeacherOptions).catch(() => setTeacherOptions([]))
  }, [])
+
+ const openCreateDialog = useCallback(async () => {
+  setCreateOpen(true)
+  setCreateErr(null)
+  setCreateStudentSearch("")
+  setCreateStudentId("")
+  setCreateStudentPickerOpen(false)
+  setCreateSubjectQuery("")
+  setCreateSubjectPickerOpen(false)
+  setCreateTeacherId("")
+  setCreatePrice("")
+  setCreateClassNameOverride("")
+  try {
+   const [sts, subs] = await Promise.all([fetchAllStudents(), fetchSubjectOptions()])
+   setAllStudents(sts)
+   setSubjects(subs)
+  } catch (e) {
+   reportUserFacingError(e, { source: "PrivateTutoringView.openCreateDialog", setErr: setCreateErr })
+  }
+ }, [])
+
+ const createStudentOptions = useMemo(() => {
+  const q = createStudentSearch.trim().toLowerCase()
+  if (!q) return []
+  return allStudents
+   .filter((s) => {
+    return (
+     s.full_name.toLowerCase().includes(q) ||
+     (s.student_code ?? "").toLowerCase().includes(q) ||
+     formatStudentGrade(s.grade).toLowerCase().includes(q)
+    )
+   })
+   .slice(0, 40)
+ }, [allStudents, createStudentSearch])
+
+ const createSubjectOptions = useMemo(() => {
+  const q = createSubjectQuery.trim().toLowerCase()
+  if (!q) return subjects.slice(0, 40)
+  return subjects
+   .filter(
+    (s) =>
+     s.name_zh.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
+   )
+   .slice(0, 40)
+ }, [subjects, createSubjectQuery])
+
+ const createStudentLabel = useCallback((s: StudentRecord) => {
+  const grade = formatStudentGrade(s.grade)
+  return [
+   s.full_name,
+   s.student_code ? `（${s.student_code}）` : "",
+   grade !== "—" ? ` · ${grade}` : "",
+   s.registration_status === "非注冊" ? " · 非注冊" : "",
+  ].join("")
+ }, [])
+
+ const pickCreateStudent = useCallback((s: StudentRecord) => {
+  setCreateStudentId(s.id)
+  setCreateStudentSearch("")
+  setCreateStudentPickerOpen(false)
+ }, [])
+
+ const pickCreateSubject = useCallback((name: string) => {
+  setCreateSubjectQuery(name)
+  setCreateSubjectPickerOpen(false)
+ }, [])
+
+ const selectedCreateStudent = useMemo(
+  () => allStudents.find((s) => s.id === createStudentId) ?? null,
+  [allStudents, createStudentId]
+ )
+
+ const selectedSubjectName = createSubjectQuery.trim()
+
+ const previewClassSubject = useMemo(() => {
+  if (createClassNameOverride.trim()) return createClassNameOverride.trim()
+  if (!selectedCreateStudent) return ""
+  return buildPrivateClassSubject(selectedCreateStudent.full_name, selectedSubjectName || "科目")
+ }, [createClassNameOverride, selectedCreateStudent, selectedSubjectName])
+
+ const submitCreate = useCallback(async () => {
+  if (!createStudentId) {
+   setCreateErr("請選擇學生")
+   return
+  }
+  if (!selectedSubjectName && !createClassNameOverride.trim()) {
+   setCreateErr("請選擇或輸入科目，或輸入自訂班名")
+   return
+  }
+  const priceNum = createPrice.trim() === "" ? null : Number(createPrice)
+  if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
+   setCreateErr("學費不可為負數")
+   return
+  }
+  const grade = formatStudentGrade(selectedCreateStudent?.grade)
+  const payload = {
+   studentId: createStudentId,
+   subjectName: selectedSubjectName || "一對一",
+   teacherId: createTeacherId || null,
+   pricePerLesson: priceNum,
+   academicYearId: null as string | null,
+   gradeLabel: grade && grade !== "—" ? grade : null,
+   customClassSubject: createClassNameOverride.trim() || null,
+  }
+  setCreateSaving(true)
+  setCreateErr(null)
+  try {
+   let result
+   try {
+    result = await createPrivateTutoringEnrollment(payload)
+   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (!msg.includes("已有同科目")) throw e
+    const ok = await confirmDialog({
+     title: "已有同科目一對一",
+     description: `${msg}\n\n是否仍要強制建立另一個報讀？`,
+     confirmText: "強制建立",
+     tone: "warning",
+    })
+    if (!ok) {
+     setCreateErr(msg)
+     return
+    }
+    result = await createPrivateTutoringEnrollment({ ...payload, allowDuplicate: true })
+   }
+   pushBanner({
+    tone: "success",
+    title: "已建立一對一報讀",
+    message: `${result.studentName} · ${result.classSubject}`,
+   })
+   setCreateOpen(false)
+   void reloadStudents()
+  } catch (e) {
+   reportUserFacingError(e, { source: "PrivateTutoringView.submitCreate", setErr: setCreateErr })
+  } finally {
+   setCreateSaving(false)
+  }
+ }, [
+  createStudentId,
+  selectedSubjectName,
+  createClassNameOverride,
+  createPrice,
+  createTeacherId,
+  selectedCreateStudent,
+  pushBanner,
+  reloadStudents,
+  confirmDialog,
+ ])
+
+ const openEditDialog = useCallback((row: PrivateTutoringStudentRow) => {
+  setEditRow(row)
+  setEditSubject(row.classSubject)
+  setEditTeacherId(row.teacherId ?? "")
+  setEditPrice(row.pricePerLesson != null ? String(row.pricePerLesson) : "")
+  setEditErr(null)
+  setEditOpen(true)
+ }, [])
+
+ const submitEdit = useCallback(async () => {
+  if (!editRow) return
+  const subject = editSubject.trim()
+  if (!subject) {
+   setEditErr("班名不可為空")
+   return
+  }
+  const priceNum = editPrice.trim() === "" ? null : Number(editPrice)
+  if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
+   setEditErr("學費不可為負數")
+   return
+  }
+  setEditSaving(true)
+  setEditErr(null)
+  try {
+   await updatePrivateClassSettings(editRow.classId, {
+    subject,
+    teacherId: editTeacherId || null,
+    pricePerLesson: priceNum,
+   })
+   pushBanner({
+    tone: "success",
+    title: "已更新班別設定",
+    message: `${editRow.fullName} · ${subject}`,
+   })
+   setEditOpen(false)
+   void reloadStudents()
+  } catch (e) {
+   reportUserFacingError(e, { source: "PrivateTutoringView.submitEdit", setErr: setEditErr })
+  } finally {
+   setEditSaving(false)
+  }
+ }, [editRow, editSubject, editTeacherId, editPrice, pushBanner, reloadStudents])
+
+ const onWithdraw = useCallback(
+  async (row: PrivateTutoringStudentRow) => {
+   const ok = await confirmDialog({
+    title: "確認退讀",
+    description: `確定將 ${row.fullName} 從「${row.classSubject}」退讀？\n今日起尚未取消的預約課堂亦會一併取消。`,
+    confirmText: "確認退讀",
+    tone: "destructive",
+   })
+   if (!ok) return
+   try {
+    await withdrawPrivateEnrollment({
+     enrollmentId: row.enrollmentId,
+     studentId: row.studentId,
+     classId: row.classId,
+    })
+    pushBanner({
+     tone: "success",
+     title: "已退讀",
+     message: `${row.fullName} · ${row.classSubject}`,
+    })
+    void reloadStudents()
+   } catch (e) {
+    reportUserFacingError(e, { source: "PrivateTutoringView.onWithdraw", setErr })
+   }
+  },
+  [confirmDialog, pushBanner, reloadStudents]
+ )
 
  const filteredRows = useMemo(() => {
   const q = search.trim().toLowerCase()
@@ -146,7 +424,10 @@ export function PrivateTutoringView() {
  }, [rows, search, regFilter, activityFilter])
 
  const activeRooms = useMemo(
-  () => classroomsActiveOnDate(rooms.filter((r) => !r.is_online), roomDate),
+  () => classroomsActiveOnDate(
+   rooms.filter((r) => !r.is_online),
+   roomDate
+  ),
   [rooms, roomDate]
  )
 
@@ -167,35 +448,57 @@ export function PrivateTutoringView() {
   })
  }, [activeRooms, roomDate, roomSlotStart, roomSlotEnd, roomSchedules, roomPending])
 
+ const schedulesForBookFreeCheck = useMemo(() => {
+  if (!rescheduleScheduleId) return roomSchedules
+  return roomSchedules.filter((s) => s.id !== rescheduleScheduleId)
+ }, [roomSchedules, rescheduleScheduleId])
+
  const freeRoomIdsForBook = useMemo(() => {
   if (!bookDate) return new Set<string>()
   const slotStart = lessonSlotStartMinute(bookSlotIdx)
   const slotEnd = lessonSlotEndMinute(bookSlotIdx)
-  const active = classroomsActiveOnDate(rooms.filter((r) => !r.is_online), bookDate)
+  const active = classroomsActiveOnDate(
+   rooms.filter((r) => !r.is_online),
+   bookDate
+  )
   return new Set(
    active
     .filter(
      (room) =>
-      occupiersForSlot(bookDate, room.id, slotStart, slotEnd, roomSchedules, roomPending).length ===
-      0
+      occupiersForSlot(
+       bookDate,
+       room.id,
+       slotStart,
+       slotEnd,
+       schedulesForBookFreeCheck,
+       roomPending
+      ).length === 0
     )
     .map((r) => r.id)
   )
- }, [bookDate, bookSlotIdx, rooms, roomSchedules, roomPending])
+ }, [bookDate, bookSlotIdx, rooms, schedulesForBookFreeCheck, roomPending])
 
  const bookActiveRooms = useMemo(
-  () => classroomsActiveOnDate(rooms.filter((r) => !r.is_online), bookDate),
+  () => classroomsActiveOnDate(
+   rooms.filter((r) => !r.is_online),
+   bookDate
+  ),
   [rooms, bookDate]
  )
+
+ const resetBookForm = useCallback((row: PrivateTutoringStudentRow) => {
+  setBookDate(localYmd())
+  setBookSlotIdx(0)
+  setBookRoomId("")
+  setBookTeacherId(row.teacherId ?? "")
+  setRescheduleScheduleId(null)
+  setBookErr(null)
+ }, [])
 
  const openBookDialog = useCallback(
   async (row: PrivateTutoringStudentRow) => {
    setBookRow(row)
-   setBookDate(localYmd())
-   setBookSlotIdx(0)
-   setBookRoomId("")
-   setBookTeacherId(row.teacherId ?? "")
-   setBookErr(null)
+   resetBookForm(row)
    setBookOpen(true)
    try {
     const [schedules, bundle] = await Promise.all([
@@ -210,7 +513,7 @@ export function PrivateTutoringView() {
     setUpcomingSchedules([])
    }
   },
-  []
+  [resetBookForm]
  )
 
  const onBookDateChange = useCallback(async (ymd: string) => {
@@ -227,6 +530,46 @@ export function PrivateTutoringView() {
   }
  }, [])
 
+ const enterRescheduleMode = useCallback(
+  async (s: PrivateClassScheduleRow) => {
+   setRescheduleScheduleId(s.id)
+   setBookErr(null)
+   const ymd = s.scheduledDate
+   setBookDate(ymd)
+   setBookRoomId(s.classroomId ?? "")
+   setBookTeacherId(s.teacherId ?? bookRow?.teacherId ?? "")
+   if (s.startTime) {
+    const startMin =
+     Number(String(s.startTime).slice(0, 2)) * 60 + Number(String(s.startTime).slice(3, 5) || 0)
+    const matchIdx = LESSON_SLOT_INDICES.find((i) => lessonSlotStartMinute(i) === startMin)
+    setBookSlotIdx(matchIdx ?? 0)
+   } else {
+    setBookSlotIdx(0)
+   }
+   if (ymd) {
+    try {
+     const bundle = await fetchRoomCalendarBundle(ymd, ymd)
+     setRooms(bundle.rooms)
+     setRoomSchedules(bundle.schedules)
+     setRoomPending(bundle.pending)
+    } catch {
+     /* ignore */
+    }
+   }
+  },
+  [bookRow]
+ )
+
+ const cancelRescheduleMode = useCallback(() => {
+  if (!bookRow) return
+  setRescheduleScheduleId(null)
+  setBookDate(localYmd())
+  setBookSlotIdx(0)
+  setBookRoomId("")
+  setBookTeacherId(bookRow.teacherId ?? "")
+  setBookErr(null)
+ }, [bookRow])
+
  const submitBooking = useCallback(async () => {
   if (!bookRow || !bookDate || !bookRoomId) {
    setBookErr("請選擇日期與課室")
@@ -234,39 +577,124 @@ export function PrivateTutoringView() {
   }
   const startTime = formatMin(lessonSlotStartMinute(bookSlotIdx))
   const endTime = formatMin(lessonSlotEndMinute(bookSlotIdx))
+  const teacherId = bookTeacherId || bookRow.teacherId
   setBookSaving(true)
   setBookErr(null)
   try {
-   const free = await slotIsFreeForBooking({
+   const conflicts = await checkPrivateBookingConflicts({
     classroomId: bookRoomId,
     scheduledDate: bookDate,
     startTime,
     endTime,
+    teacherId,
+    studentId: bookRow.studentId,
+    excludeScheduleId: rescheduleScheduleId,
    })
-   if (!free) {
-    setBookErr("此課室在該時段已被佔用（含小組課與待審約房），請另選課室或時段")
-    return
+   if (conflicts.length > 0) {
+    const ok = await confirmDialog({
+     title: "發現時段衝突",
+     description: `${conflicts.map((c) => c.label).join("\n")}\n\n仍要${rescheduleScheduleId ? "改約" : "建立預約"}嗎？`,
+     confirmText: rescheduleScheduleId ? "仍要改約" : "仍要預約",
+     tone: "warning",
+    })
+    if (!ok) {
+     setBookErr(conflicts.map((c) => c.label).join("\n"))
+     return
+    }
    }
-   await insertScheduleForClass(bookRow.classId, bookTeacherId || bookRow.teacherId, {
-    scheduled_date: bookDate,
-    start_time: startTime,
-    end_time: endTime,
-    classroom_id: bookRoomId,
-    status: "正常",
-   })
-   pushBanner({
-    tone: "success",
-    title: "已建立預約",
-    message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
-   })
-   setBookOpen(false)
-   void reloadStudents()
+
+   if (rescheduleScheduleId) {
+    await reschedulePrivateLesson({
+     scheduleId: rescheduleScheduleId,
+     scheduledDate: bookDate,
+     startTime,
+     endTime,
+     classroomId: bookRoomId,
+     teacherId,
+    })
+    pushBanner({
+     tone: "success",
+     title: "已改約",
+     message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
+    })
+    setRescheduleScheduleId(null)
+   } else {
+    await insertScheduleForClass(bookRow.classId, teacherId, {
+     scheduled_date: bookDate,
+     start_time: startTime,
+     end_time: endTime,
+     classroom_id: bookRoomId,
+     status: "正常",
+    })
+    pushBanner({
+     tone: "success",
+     title: "已建立預約",
+     message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
+    })
+   }
+
+   await Promise.all([reloadUpcomingSchedules(bookRow.classId), reloadStudents()])
+   setBookDate(localYmd())
+   setBookSlotIdx(0)
+   setBookRoomId("")
+   setBookTeacherId(bookRow.teacherId ?? "")
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.submitBooking", setErr: setBookErr })
   } finally {
    setBookSaving(false)
   }
- }, [bookRow, bookDate, bookRoomId, bookSlotIdx, bookTeacherId, pushBanner, reloadStudents])
+ }, [
+  bookRow,
+  bookDate,
+  bookRoomId,
+  bookSlotIdx,
+  bookTeacherId,
+  rescheduleScheduleId,
+  confirmDialog,
+  pushBanner,
+  reloadStudents,
+  reloadUpcomingSchedules,
+ ])
+
+ const onCancelLesson = useCallback(
+  async (s: PrivateClassScheduleRow) => {
+   if (!bookRow) return
+   const ok = await confirmDialog({
+    title: "確認取消課堂",
+    description: `確定取消 ${s.scheduledDate}${s.startTime ? ` ${String(s.startTime).slice(0, 5)}` : ""} 的預約？`,
+    confirmText: "確認取消",
+    tone: "destructive",
+   })
+   if (!ok) return
+   try {
+    await cancelPrivateLesson(s.id)
+    if (rescheduleScheduleId === s.id) {
+     setRescheduleScheduleId(null)
+    }
+    pushBanner({
+     tone: "success",
+     title: "已取消課堂",
+     message: `${bookRow.fullName} · ${s.scheduledDate}`,
+    })
+    await Promise.all([reloadUpcomingSchedules(bookRow.classId), reloadStudents()])
+   } catch (e) {
+    reportUserFacingError(e, { source: "PrivateTutoringView.onCancelLesson", setErr: setBookErr })
+   }
+  },
+  [
+   bookRow,
+   confirmDialog,
+   pushBanner,
+   reloadUpcomingSchedules,
+   reloadStudents,
+   rescheduleScheduleId,
+  ]
+ )
+
+ const activeUpcomingSchedules = useMemo(
+  () => upcomingSchedules.filter((s) => !isCancelledStatus(s.status)),
+  [upcomingSchedules]
+ )
 
  return (
   <div className="space-y-6 p-4 md:p-6">
@@ -274,9 +702,13 @@ export function PrivateTutoringView() {
     <div>
      <h1 className="text-xl font-semibold text-foreground">一對一學生</h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      管理一對一／單對單課程學生，查詢課室空檔並建立預約（與小組課共用課室，自動檢查衝突）。
+      為已註冊學生建立一對一報讀、查詢空房並預約上堂（與小組課共用課室，自動檢查衝突）。
      </p>
     </div>
+    <Button type="button" onClick={() => void openCreateDialog()}>
+     <Plus className="mr-1.5 h-4 w-4" />
+     新增一對一報讀
+    </Button>
    </div>
 
    <div className="flex gap-2 border-b border-border pb-1">
@@ -314,7 +746,9 @@ export function PrivateTutoringView() {
       </div>
       <Select
        value={regFilter}
-       onChange={(e) => setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])}
+       onChange={(e) =>
+        setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
+       }
       >
        {REGISTRATION_FILTERS.map((f) => (
         <option key={f.key} value={f.key}>
@@ -324,7 +758,9 @@ export function PrivateTutoringView() {
       </Select>
       <Select
        value={activityFilter}
-       onChange={(e) => setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])}
+       onChange={(e) =>
+        setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
+       }
       >
        {ACTIVITY_FILTERS.map((f) => (
         <option key={f.key} value={f.key}>
@@ -342,6 +778,10 @@ export function PrivateTutoringView() {
 
      {loading ? (
       <p className="text-sm text-muted-foreground">載入中…</p>
+     ) : rows.length === 0 ? (
+      <p className="text-sm text-muted-foreground">
+       尚無一對一報讀。按上方「新增一對一報讀」開始。
+      </p>
      ) : filteredRows.length === 0 ? (
       <p className="text-sm text-muted-foreground">沒有符合條件的一對一學生。</p>
      ) : (
@@ -349,14 +789,14 @@ export function PrivateTutoringView() {
        <table className="w-full table-fixed text-sm">
         <thead>
          <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-          <th className="w-[14%] px-3 py-2 font-medium">學生</th>
+          <th className="w-[12%] px-3 py-2 font-medium">學生</th>
           <th className="w-[8%] px-3 py-2 font-medium">學號</th>
-          <th className="w-[8%] px-3 py-2 font-medium">年級</th>
-          <th className="w-[22%] px-3 py-2 font-medium">一對一班別</th>
-          <th className="w-[10%] px-3 py-2 font-medium">老師</th>
-          <th className="w-[18%] px-3 py-2 font-medium">狀態</th>
-          <th className="w-[8%] px-3 py-2 font-medium">待上堂</th>
-          <th className="w-[12%] px-3 py-2 font-medium">操作</th>
+          <th className="w-[7%] px-3 py-2 font-medium">年級</th>
+          <th className="w-[18%] px-3 py-2 font-medium">一對一班別</th>
+          <th className="w-[9%] px-3 py-2 font-medium">老師</th>
+          <th className="w-[16%] px-3 py-2 font-medium">狀態</th>
+          <th className="w-[14%] px-3 py-2 font-medium">下一堂</th>
+          <th className="w-[16%] px-3 py-2 font-medium">操作</th>
          </tr>
         </thead>
         <tbody>
@@ -393,18 +833,48 @@ export function PrivateTutoringView() {
              size="sm"
             />
            </td>
-           <td className="px-3 py-2 text-center">
-            {r.upcomingLessonCount > 0 ? (
-             <Tag tone="info">{r.upcomingLessonCount}</Tag>
-            ) : (
-             <span className="text-muted-foreground">0</span>
-            )}
+           <td className="min-w-0 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-1">
+             <span className="min-w-0 truncate" title={formatNextLessonLabel(r.nextLesson)}>
+              {formatNextLessonLabel(r.nextLesson)}
+             </span>
+             {r.upcomingLessonCount > 1 ? (
+              <Tag tone="info" className="shrink-0">
+               +{r.upcomingLessonCount - 1}
+              </Tag>
+             ) : null}
+            </div>
            </td>
            <td className="px-3 py-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => void openBookDialog(r)}>
-             <CalendarClock className="mr-1 h-3.5 w-3.5" />
-             預約上堂
-            </Button>
+            <div className="flex flex-wrap gap-1">
+             <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void openBookDialog(r)}
+             >
+              <CalendarClock className="mr-1 h-3.5 w-3.5" />
+              預約
+             </Button>
+             <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => openEditDialog(r)}
+             >
+              <Pencil className="mr-1 h-3.5 w-3.5" />
+              編輯
+             </Button>
+             <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => void onWithdraw(r)}
+             >
+              退讀
+             </Button>
+            </div>
            </td>
           </tr>
          ))}
@@ -477,10 +947,249 @@ export function PrivateTutoringView() {
     </div>
    )}
 
-   <Dialog open={bookOpen} onOpenChange={setBookOpen}>
+   <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+    <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+     <DialogHeader>
+      <DialogTitle>新增一對一報讀</DialogTitle>
+     </DialogHeader>
+     <div className="space-y-4">
+      <p className="text-xs text-muted-foreground">
+       會自動建立一對一班別（無固定時間／課室）並為學生報讀，無需走小組開班流程。
+      </p>
+
+      <div className="space-y-1">
+       <label className="text-xs text-muted-foreground">學生（可搜尋姓名／學號／年級）</label>
+       <div className="relative">
+        <Input
+         placeholder="輸入姓名、學號或年級搜尋…"
+         value={
+          createStudentId
+           ? selectedCreateStudent
+             ? createStudentLabel(selectedCreateStudent)
+             : ""
+           : createStudentSearch
+         }
+         onChange={(e) => {
+          setCreateStudentId("")
+          setCreateStudentSearch(e.target.value)
+          setCreateStudentPickerOpen(true)
+         }}
+         onFocus={() => setCreateStudentPickerOpen(true)}
+        />
+        {createStudentPickerOpen && !createStudentId && createStudentSearch.trim() ? (
+         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
+          {createStudentOptions.length === 0 ? (
+           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
+          ) : (
+           createStudentOptions.map((s) => (
+            <button
+             key={s.id}
+             type="button"
+             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+             onMouseDown={(e) => e.preventDefault()}
+             onClick={() => pickCreateStudent(s)}
+            >
+             {createStudentLabel(s)}
+            </button>
+           ))
+          )}
+         </div>
+        ) : null}
+       </div>
+       {createStudentId ? (
+        <button
+         type="button"
+         className="text-left text-xs text-primary underline-offset-4 hover:underline"
+         onClick={() => {
+          setCreateStudentId("")
+          setCreateStudentSearch("")
+          setCreateStudentPickerOpen(false)
+         }}
+        >
+         清除選取
+        </button>
+       ) : null}
+      </div>
+
+      <div className="space-y-1">
+       <label className="text-xs text-muted-foreground">科目（可搜尋或直接輸入）</label>
+       <div className="relative">
+        <Input
+         placeholder="輸入科目名稱（如：英文、M2、BAFS）…"
+         value={createSubjectQuery}
+         onChange={(e) => {
+          setCreateSubjectQuery(e.target.value)
+          setCreateSubjectPickerOpen(true)
+         }}
+         onFocus={() => setCreateSubjectPickerOpen(true)}
+         onBlur={() => {
+          // delay so option click can register
+          window.setTimeout(() => setCreateSubjectPickerOpen(false), 150)
+         }}
+        />
+        {createSubjectPickerOpen && createSubjectOptions.length > 0 ? (
+         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
+          {createSubjectOptions.map((s) => (
+           <button
+            key={s.id}
+            type="button"
+            className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => pickCreateSubject(s.name_zh)}
+           >
+            {s.name_zh}
+           </button>
+          ))}
+         </div>
+        ) : null}
+       </div>
+       <p className="text-xs text-muted-foreground">
+        可從列表選取，亦可直接輸入未列出的科目名稱。
+       </p>
+      </div>
+
+      <div className="space-y-1">
+       <label className="text-xs text-muted-foreground">授課老師（可留空）</label>
+       <Select value={createTeacherId} onChange={(e) => setCreateTeacherId(e.target.value)}>
+        <option value="">稍後指定</option>
+        {teacherOptions.map((t) => (
+         <option key={t.id} value={t.id}>
+          {t.label}
+         </option>
+        ))}
+       </Select>
+      </div>
+
+      <div className="space-y-1">
+       <label className="text-xs text-muted-foreground">每節學費（可留空）</label>
+       <Input
+        type="number"
+        min={0}
+        step={1}
+        value={createPrice}
+        onChange={(e) => setCreatePrice(e.target.value)}
+        placeholder="金額"
+       />
+       <div className="mt-1 flex flex-wrap gap-1.5">
+        {PRICE_QUICK.map((p) => (
+         <Button
+          key={p}
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => setCreatePrice(String(p))}
+         >
+          HKD {p}
+         </Button>
+        ))}
+       </div>
+      </div>
+
+      <div className="space-y-1">
+       <label className="text-xs text-muted-foreground">自訂班名（可留空，預設自動產生）</label>
+       <Input
+        value={createClassNameOverride}
+        onChange={(e) => setCreateClassNameOverride(e.target.value)}
+        placeholder={previewClassSubject || "例如：陳大文英文一對一"}
+       />
+       {previewClassSubject ? (
+        <p className="text-xs text-muted-foreground">將建立班別：{previewClassSubject}</p>
+       ) : null}
+      </div>
+
+      {createErr && <p className="text-sm text-destructive whitespace-pre-wrap">{createErr}</p>}
+
+      <div className="flex justify-end gap-2">
+       <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
+        取消
+       </Button>
+       <Button type="button" onClick={() => void submitCreate()} disabled={createSaving}>
+        {createSaving ? "建立中…" : "確認建立"}
+       </Button>
+      </div>
+     </div>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={editOpen} onOpenChange={setEditOpen}>
     <DialogContent className="max-w-md">
      <DialogHeader>
-      <DialogTitle>預約上堂</DialogTitle>
+      <DialogTitle>編輯一對一班別</DialogTitle>
+     </DialogHeader>
+     {editRow && (
+      <div className="space-y-4">
+       <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
+        <p className="font-medium">{editRow.fullName}</p>
+        <p className="text-muted-foreground">{editRow.studentCode || "—"}</p>
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">班名（須含「一對一」）</label>
+        <Input value={editSubject} onChange={(e) => setEditSubject(e.target.value)} />
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">授課老師</label>
+        <Select value={editTeacherId} onChange={(e) => setEditTeacherId(e.target.value)}>
+         <option value="">未指定</option>
+         {teacherOptions.map((t) => (
+          <option key={t.id} value={t.id}>
+           {t.label}
+          </option>
+         ))}
+        </Select>
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-xs text-muted-foreground">每節學費</label>
+        <Input
+         type="number"
+         min={0}
+         step={1}
+         value={editPrice}
+         onChange={(e) => setEditPrice(e.target.value)}
+         placeholder="金額"
+        />
+        <div className="mt-1 flex flex-wrap gap-1.5">
+         {PRICE_QUICK.map((p) => (
+          <Button
+           key={p}
+           type="button"
+           size="sm"
+           variant="outline"
+           onClick={() => setEditPrice(String(p))}
+          >
+           HKD {p}
+          </Button>
+         ))}
+        </div>
+       </div>
+
+       {editErr && <p className="text-sm text-destructive">{editErr}</p>}
+
+       <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>
+         取消
+        </Button>
+        <Button type="button" onClick={() => void submitEdit()} disabled={editSaving}>
+         {editSaving ? "儲存中…" : "儲存"}
+        </Button>
+       </div>
+      </div>
+     )}
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={bookOpen}
+    onOpenChange={(open) => {
+     setBookOpen(open)
+     if (!open) setRescheduleScheduleId(null)
+    }}
+   >
+    <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+     <DialogHeader>
+      <DialogTitle>{rescheduleScheduleId ? "改約上堂" : "預約上堂"}</DialogTitle>
      </DialogHeader>
      {bookRow && (
       <div className="space-y-4">
@@ -489,8 +1198,63 @@ export function PrivateTutoringView() {
         <p className="text-muted-foreground">{bookRow.classSubject}</p>
        </div>
 
+       {activeUpcomingSchedules.length > 0 && (
+        <div className="space-y-2">
+         <p className="text-xs font-medium text-muted-foreground">已排課堂</p>
+         <ul className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-border p-2">
+          {activeUpcomingSchedules.map((s) => (
+           <li
+            key={s.id}
+            className={cn(
+             "rounded-md px-2 py-1.5 text-xs",
+             rescheduleScheduleId === s.id ? "bg-info/10" : "bg-muted/40"
+            )}
+           >
+            <div className="flex flex-wrap items-center gap-1">
+             <Link
+              to={`/Schedule/${s.id}`}
+              className="font-medium text-primary hover:underline"
+             >
+              {s.scheduledDate}
+              {s.startTime ? ` ${String(s.startTime).slice(0, 5)}` : ""}
+             </Link>
+             {s.classroomName ? (
+              <span className="text-muted-foreground">· {s.classroomName}</span>
+             ) : null}
+             <Tag tone={statusToTagTone(s.status)} className="ml-auto">
+              {s.status}
+             </Tag>
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+             <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={rescheduleScheduleId === s.id}
+              onClick={() => void enterRescheduleMode(s)}
+             >
+              改約
+             </Button>
+             <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => void onCancelLesson(s)}
+             >
+              取消
+             </Button>
+            </div>
+           </li>
+          ))}
+         </ul>
+        </div>
+       )}
+
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">上課日期</label>
+        <label className="text-xs text-muted-foreground">
+         {rescheduleScheduleId ? "改約日期" : "上課日期"}
+        </label>
         <Input type="date" value={bookDate} onChange={(e) => void onBookDateChange(e.target.value)} />
        </div>
 
@@ -516,7 +1280,7 @@ export function PrivateTutoringView() {
         <Select value={bookRoomId} onChange={(e) => setBookRoomId(e.target.value)}>
          <option value="">選擇課室</option>
          {bookActiveRooms
-          .filter((r) => freeRoomIdsForBook.has(r.id))
+          .filter((r) => freeRoomIdsForBook.has(r.id) || r.id === bookRoomId)
           .map((r) => (
            <option key={r.id} value={r.id}>
             {r.name}
@@ -540,32 +1304,28 @@ export function PrivateTutoringView() {
         </Select>
        </div>
 
-       {upcomingSchedules.length > 0 && (
-        <div className="space-y-1">
-         <p className="text-xs font-medium text-muted-foreground">近期已排課堂</p>
-         <ul className="max-h-24 space-y-0.5 overflow-y-auto text-xs text-muted-foreground">
-          {upcomingSchedules.slice(0, 5).map((s) => (
-           <li key={s.id}>
-            {s.scheduledDate}
-            {s.startTime ? ` ${s.startTime}` : ""}
-            {s.classroomName ? ` · ${s.classroomName}` : ""}
-            <Tag tone={statusToTagTone(s.status)} className="ml-1">
-             {s.status}
-            </Tag>
-           </li>
-          ))}
-         </ul>
-        </div>
+       {bookErr && (
+        <p className="whitespace-pre-wrap text-sm text-destructive">{bookErr}</p>
        )}
 
-       {bookErr && <p className="text-sm text-destructive">{bookErr}</p>}
-
        <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={() => setBookOpen(false)}>
-         取消
-        </Button>
+        {rescheduleScheduleId ? (
+         <Button type="button" variant="ghost" onClick={cancelRescheduleMode}>
+          取消改約
+         </Button>
+        ) : (
+         <Button type="button" variant="ghost" onClick={() => setBookOpen(false)}>
+          關閉
+         </Button>
+        )}
         <Button type="button" onClick={() => void submitBooking()} disabled={bookSaving}>
-         {bookSaving ? "建立中…" : "確認預約"}
+         {bookSaving
+          ? rescheduleScheduleId
+            ? "改約中…"
+            : "建立中…"
+          : rescheduleScheduleId
+            ? "確認改約"
+            : "確認預約"}
         </Button>
        </div>
       </div>

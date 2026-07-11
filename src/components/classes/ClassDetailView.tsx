@@ -84,7 +84,8 @@ import {
  insertEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
-import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import { ENROLLMENT_PERIOD_OPTIONS, SINGLE_SESSION_ENROLLMENT, SUMMER_ENROLLMENT_FORM_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import { localYmd } from "@/services/teacherQueries"
 
 const PRICE_PRESETS_HKD = [250, 275, 825] as const
@@ -210,7 +211,8 @@ export function ClassDetailView() {
  const [reorderingSessions, setReorderingSessions] = useState(false)
  const [addSchedErr, setAddSchedErr] = useState<string | null>(null)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
- const [addStudentPeriod, setAddStudentPeriod] = useState<EnrollmentPeriod>("兩期全報")
+ const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
+ const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
  const [studentQuery, setStudentQuery] = useState("")
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
@@ -590,11 +592,21 @@ const addableStudents = (() => {
   setAddingStudentId(studentId)
   setAddStudentErr(null)
   try {
-   const period =
-    cls?.course_mode === "summer_two_period" ? addStudentPeriod : null
-   await insertEnrollment(studentId, cid, period)
+   const isSummer = cls?.course_mode === "summer_two_period"
+   const isSingle = addStudentForm === SINGLE_SESSION_ENROLLMENT
+   if (isSingle && addStudentScheduleIds.length === 0) {
+    setAddStudentErr("單堂報讀請至少選擇一堂")
+    return
+   }
+   let period: EnrollmentPeriod | typeof SINGLE_SESSION_ENROLLMENT | null = null
+   if (isSingle) period = SINGLE_SESSION_ENROLLMENT
+   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(addStudentForm as EnrollmentPeriod)) {
+    period = addStudentForm as EnrollmentPeriod
+   }
+   await insertEnrollment(studentId, cid, period, isSingle ? addStudentScheduleIds : undefined)
    setStudentQuery("")
-   setAddStudentPeriod("兩期全報")
+   setAddStudentForm(isSummer ? "兩期全報" : "full")
+   setAddStudentScheduleIds([])
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -895,7 +907,19 @@ const addableStudents = (() => {
       ) : null}
       <div className="flex justify-end">
        {!getTeacherScopeTeacherId() && canEditClass ? (
-       <Dialog open={addStudentOpen} onOpenChange={setAddStudentOpen}>
+       <Dialog
+        open={addStudentOpen}
+        onOpenChange={(open) => {
+         setAddStudentOpen(open)
+         if (open) {
+          setAddStudentForm(
+           cls?.course_mode === "summer_two_period" ? "兩期全報" : "full"
+          )
+          setAddStudentScheduleIds([])
+          setAddStudentErr(null)
+         }
+        }}
+       >
         <DialogTrigger asChild>
          <Button type="button">+ 增加學生</Button>
         </DialogTrigger>
@@ -904,21 +928,39 @@ const addableStudents = (() => {
           <DialogTitle>增加學生到本班</DialogTitle>
          </DialogHeader>
          <div className="space-y-3">
-          {cls?.course_mode === "summer_two_period" ? (
-           <div className="space-y-1">
-            <span className="text-sm text-muted-foreground">報讀期數</span>
-            <Select
-             className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-             value={addStudentPeriod}
-             onChange={(e) => setAddStudentPeriod(e.target.value as EnrollmentPeriod)}
-            >
-             {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
-              <option key={p} value={p}>
-               {p}
-              </option>
-             ))}
-            </Select>
-           </div>
+          <div className="space-y-1">
+           <span className="text-sm text-muted-foreground">報讀形式</span>
+           <Select
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={addStudentForm}
+            onChange={(e) => {
+             setAddStudentForm(e.target.value)
+             if (e.target.value !== SINGLE_SESSION_ENROLLMENT) setAddStudentScheduleIds([])
+            }}
+           >
+            {(cls?.course_mode === "summer_two_period"
+             ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
+                value: p,
+                label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+               }))
+             : [
+                { value: "full", label: "報足全期" },
+                { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
+               ]
+            ).map((o) => (
+             <option key={o.value} value={o.value}>
+              {o.label}
+             </option>
+            ))}
+           </Select>
+          </div>
+          {addStudentForm === SINGLE_SESSION_ENROLLMENT && cid ? (
+           <EnrollmentSessionPicker
+            classId={cid}
+            selectedIds={addStudentScheduleIds}
+            onChange={setAddStudentScheduleIds}
+            disabled={Boolean(addingStudentId)}
+           />
           ) : null}
           <Input
            placeholder="搜尋姓名 / 學號 / 電話"
@@ -933,7 +975,11 @@ const addableStudents = (() => {
              <button
               key={s.id}
               type="button"
-              disabled={addingStudentId === s.id}
+              disabled={
+               addingStudentId === s.id ||
+               (addStudentForm === SINGLE_SESSION_ENROLLMENT &&
+                addStudentScheduleIds.length === 0)
+              }
               onClick={() => void onAddStudentToClass(s.id)}
               className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
              >
@@ -967,9 +1013,15 @@ const addableStudents = (() => {
         >
          <div>
           <div className="text-lg font-semibold text-primary">{s.fullName}</div>
-          <div className="mt-1 text-sm text-muted-foreground">
-           {s.grade ?? "—"} · {s.school ?? "—"} · 報讀：{s.enrollDate ?? "—"}
-           {s.enrollmentPeriod ? ` · ${s.enrollmentPeriod}` : ""}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+           <span>
+            {s.grade ?? "—"} · {s.school ?? "—"} · 報讀：{s.enrollDate ?? "—"}
+           </span>
+           {s.enrollmentFormLabel ? (
+            <Tag tone={statusToTagTone(s.enrollmentFormLabel)} size="sm">
+             {s.enrollmentFormLabel}
+            </Tag>
+           ) : null}
           </div>
          </div>
          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
@@ -1001,9 +1053,7 @@ const addableStudents = (() => {
             tone={
              ev.action === "withdraw"
               ? "warning"
-              : ev.action === "period_change"
-                ? "info"
-                : "info"
+              : "info"
             }
             size="sm"
            >
@@ -1011,7 +1061,9 @@ const addableStudents = (() => {
              ? "退讀"
              : ev.action === "period_change"
                ? "期數變更"
-               : "報讀"}
+               : ev.action === "session_change"
+                 ? "選堂變更"
+                 : "報讀"}
            </Tag>
            <Link
             to={`/Students/${ev.studentId}`}

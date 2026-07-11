@@ -49,6 +49,8 @@ const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
  { tone: "warning", keywords: ["半價試堂", "半價"] },
  { tone: "info", keywords: ["全價", "正式試堂"] },
  { tone: "default", keywords: ["當日紀錄"] },
+ // 單堂報讀（高於泛用「報讀」）
+ { tone: "info", keywords: ["單堂報讀", "單堂", "沒有報讀此堂", "未報讀此堂"] },
  // 排程學生名單等：試堂來源（橙）；就讀來源（藍，見下一條）
  { tone: "warning", keywords: ["試堂"] },
  // 試堂 / 報讀：進行與預約態

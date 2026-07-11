@@ -85,20 +85,20 @@ export function AppConfirmProvider({ children }: PropsWithChildren) {
        if (!state?.dismissOnOverlayClick) e.preventDefault()
       }}
      >
-      <DialogPrimitive.Title className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+      <DialogPrimitive.Title className="text-xl font-semibold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
        {state?.title}
       </DialogPrimitive.Title>
       {state?.description ? (
-       <DialogPrimitive.Description className="mt-6 max-w-[32ch] text-xl leading-relaxed text-muted-foreground sm:text-2xl">
+       <DialogPrimitive.Description className="mt-4 max-w-[32ch] text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-xl lg:text-2xl">
         {state.description}
        </DialogPrimitive.Description>
       ) : null}
-      <div className="mt-10 flex flex-wrap items-center justify-end gap-3 sm:mt-12">
+      <div className="mt-8 flex flex-col-reverse gap-2 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end sm:gap-3">
        <Button
         type="button"
         variant="outline"
         size="lg"
-        className="h-14 min-w-[150px] rounded-2xl border-neutral-400 px-6 text-xl text-primary hover:bg-muted"
+        className="h-11 w-full rounded-2xl border-neutral-400 px-6 text-base text-primary hover:bg-muted sm:h-14 sm:w-auto sm:min-w-[150px] sm:text-xl"
         onClick={() => close(false)}
        >
         {state?.cancelText ?? "取消"}
@@ -107,7 +107,10 @@ export function AppConfirmProvider({ children }: PropsWithChildren) {
         ref={confirmButtonRef}
         type="button"
         size="lg"
-        className={cn("h-14 min-w-[150px] rounded-2xl px-6 text-xl", toneClass(state?.tone ?? "default"))}
+        className={cn(
+         "h-11 w-full rounded-2xl px-6 text-base sm:h-14 sm:w-auto sm:min-w-[150px] sm:text-xl",
+         toneClass(state?.tone ?? "default")
+        )}
         onClick={() => close(true)}
        >
         {state?.confirmText ?? "確定"}

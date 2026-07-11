@@ -64,6 +64,7 @@ import {
  fetchTrialStudentsForSchedule,
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
+import { fetchSingleSessionNotOnSchedule } from "@/services/enrollmentSessionQueries"
 import {
  deleteSchedule,
  fetchAllClasses,
@@ -128,6 +129,8 @@ type ExpandedScheduleRosterProps = {
  enrolled: ExpandedRosterStudent[]
  leave: ExpandedRosterStudent[]
  trial: ExpandedRosterStudent[]
+ /** 單堂報讀但本堂未選 */
+ notEnrolled: ExpandedRosterStudent[]
  classMeta?: ReactNode
  footer?: ReactNode
 }
@@ -138,6 +141,7 @@ function ExpandedScheduleRoster({
  enrolled,
  leave,
  trial,
+ notEnrolled,
  classMeta,
  footer,
 }: ExpandedScheduleRosterProps) {
@@ -152,6 +156,7 @@ function ExpandedScheduleRoster({
   isTrial: boolean
   attendanceStatus: string | null
   alwaysShow: boolean
+  nameSuffix?: string
  }[] = [
   {
    key: "enrolled",
@@ -164,6 +169,19 @@ function ExpandedScheduleRoster({
    isTrial: false,
    attendanceStatus: null,
    alwaysShow: true,
+  },
+  {
+   key: "notEnrolled",
+   label: "沒有報讀此堂（單堂生）",
+   students: notEnrolled,
+   tone: statusToTagTone("沒有報讀此堂"),
+   headerClass: "text-info",
+   linkClass: "text-info",
+   buttonBorderClass: "border-info/60",
+   isTrial: false,
+   attendanceStatus: null,
+   alwaysShow: false,
+   nameSuffix: "沒有報讀此堂",
   },
   {
    key: "leave",
@@ -220,7 +238,7 @@ function ExpandedScheduleRoster({
             className={cn("text-sm font-medium hover:underline", section.linkClass)}
             onClick={(e) => e.stopPropagation()}
            >
-            {st.fullName}
+            {section.nameSuffix ? `${st.fullName}${section.nameSuffix}` : st.fullName}
            </Link>
            <StudentWhatsAppReminderButton
             compact
@@ -291,6 +309,7 @@ export function ScheduleManagePage() {
  const [listStudents, setListStudents] = useState<ClassStudentRow[]>([])
  const [listLeaveStudents, setListLeaveStudents] = useState<ScheduleRosterStudent[]>([])
  const [listTrialStudents, setListTrialStudents] = useState<ScheduleRosterStudent[]>([])
+ const [listNotEnrolledStudents, setListNotEnrolledStudents] = useState<ScheduleRosterStudent[]>([])
  const [listStudentsLoading, setListStudentsLoading] = useState(false)
  const [dayViewRoster, setDayViewRoster] = useState<Map<string, string[]>>(new Map())
 
@@ -437,6 +456,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setListStudents([])
    setListLeaveStudents([])
    setListTrialStudents([])
+   setListNotEnrolledStudents([])
    return
   }
   const r = rows.find((x) => x.id === expandedScheduleId)
@@ -445,6 +465,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setListStudents([])
    setListLeaveStudents([])
    setListTrialStudents([])
+   setListNotEnrolledStudents([])
    setListStudentsLoading(false)
    return
   }
@@ -455,12 +476,14 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
   void Promise.all([
    fetchClassStudents(classId, {
     scheduleDate,
+    scheduleId,
     activeOnly: true,
    }),
    fetchLeaveStudentsForSchedule(scheduleId, classId, scheduleDate),
    fetchTrialStudentsForSchedule(scheduleId),
+   fetchSingleSessionNotOnSchedule(classId, scheduleId),
   ])
-   .then(([enrolled, leave, trial]) => {
+   .then(([enrolled, leave, trial, notEnrolled]) => {
     setListStudents(enrolled)
     setListLeaveStudents(leave)
     setListTrialStudents(
@@ -470,6 +493,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
       contactPhone: st.contactPhone,
      }))
     )
+    setListNotEnrolledStudents(notEnrolled)
    })
    .finally(() => setListStudentsLoading(false))
  }, [expandedScheduleId, rows])
@@ -1463,6 +1487,7 @@ useEffect(() => {
                enrolled={listStudents}
                leave={listLeaveStudents}
                trial={listTrialStudents}
+               notEnrolled={listNotEnrolledStudents}
                classMeta={
                 <p className="text-sm font-medium text-info">
                  班別：{s.classLabel}
@@ -1641,6 +1666,7 @@ useEffect(() => {
               enrolled={listStudents}
               leave={listLeaveStudents}
               trial={listTrialStudents}
+              notEnrolled={listNotEnrolledStudents}
              />
             </td>
            </tr>

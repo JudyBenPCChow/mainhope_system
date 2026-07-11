@@ -9,10 +9,12 @@ import {
  Plus,
  Printer,
  Search,
+ SlidersHorizontal,
  Trash2,
  Wallet,
 } from "lucide-react"
 
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -31,6 +33,7 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import {
  buildPaymentEligibilityContext,
@@ -141,6 +144,8 @@ function lineAmountFor(
 
 export function PaymentsPageView() {
  const { confirmDialog } = useAppConfirm()
+ const isMobile = useIsMobile()
+ const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
  const [mainTab, setMainTab] = useState<MainTab>("receive")
 
@@ -724,7 +729,7 @@ export function PaymentsPageView() {
  }
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 py-4 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -1207,6 +1212,77 @@ export function PaymentsPageView() {
     </div>
    ) : (
     <div className="space-y-4">
+     {isMobile ? (
+      <>
+       <div className="flex items-center gap-2">
+        <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+         <SlidersHorizontal className="h-4 w-4" aria-hidden />
+         篩選
+         {(histStatus !== "all" || histFrom || histTo || histSearch.trim()) ? (
+          <Tag tone="info" size="sm">
+           {[histStatus !== "all", Boolean(histFrom), Boolean(histTo), Boolean(histSearch.trim())].filter(Boolean).length}
+          </Tag>
+         ) : null}
+        </Button>
+        <Button
+         type="button"
+         variant="secondary"
+         className="shrink-0"
+         disabled={!isSupabaseConfigured}
+         onClick={() => void loadHistory()}
+        >
+         重新載入
+        </Button>
+       </div>
+       <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => {
+         setFiltersOpen(false)
+         void loadHistory()
+        }}
+        title="篩選繳費紀錄"
+        activeCount={
+         [histStatus !== "all", Boolean(histFrom), Boolean(histTo), Boolean(histSearch.trim())].filter(Boolean).length
+        }
+        onReset={() => {
+         setHistStatus("all")
+         setHistFrom("")
+         setHistTo("")
+         setHistSearch("")
+        }}
+       >
+        <FormField label="狀態">
+         <Select
+          className={cn(selectClassName(), "w-full")}
+          value={histStatus}
+          onChange={(e) => setHistStatus(e.target.value as typeof histStatus)}
+         >
+          <option value="all">全部</option>
+          <option value="received">已收款</option>
+          <option value="pending">待繳／待收款</option>
+          <option value="pendingPay">待繳費（出單）</option>
+         </Select>
+        </FormField>
+        <FormField label="起日">
+         <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} className="w-full" />
+        </FormField>
+        <FormField label="迄日">
+         <Input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)} className="w-full" />
+        </FormField>
+        <FormField label="搜尋">
+         <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+           className="pl-8"
+           placeholder="學生、學號、單號…"
+           value={histSearch}
+           onChange={(e) => setHistSearch(e.target.value)}
+          />
+         </div>
+        </FormField>
+       </MobileFilterSheet>
+      </>
+     ) : (
      <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
       <FormField label="狀態">
        <Select
@@ -1247,6 +1323,7 @@ export function PaymentsPageView() {
        套用篩選
       </Button>
      </div>
+     )}
 
      {histErr ? (
       <div
@@ -1263,6 +1340,82 @@ export function PaymentsPageView() {
      ) : historyRows.length === 0 ? (
       <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
        沒有符合條件的紀錄。
+      </div>
+     ) : isMobile ? (
+      <div className="space-y-3">
+       {historyRows.map((r) => {
+        const pending = PENDING_PAYMENT_STATUSES.includes(
+         r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
+        )
+        const rowEditable = canEditAcademicYearForDate(r.paymentDate)
+        return (
+         <article key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-2">
+           <div className="min-w-0">
+            <p className="text-xs tabular-nums text-muted-foreground">{r.paymentDate}</p>
+            <p className="font-mono text-xs">{r.receiptNumber ?? "—"}</p>
+            <Link className="mt-1 block font-semibold text-primary hover:underline" to={`/Students/${r.studentId}`}>
+             {r.studentName}
+            </Link>
+            {r.studentCode ? (
+             <p className="text-xs text-muted-foreground">({r.studentCode})</p>
+            ) : null}
+           </div>
+           {statusBadge(r.status)}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+           <p className="text-muted-foreground">金額</p>
+           <p className="text-right tabular-nums font-medium">{money(r.totalAmount)}</p>
+           <p className="text-muted-foreground">方式</p>
+           <p className="text-right">{r.paymentMethod ?? "—"}</p>
+           <p className="text-muted-foreground">優惠</p>
+           <p className="truncate text-right">{r.discountName ?? "—"}</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+           <Button type="button" variant="outline" size="sm" onClick={() => void openDetail(r)}>
+            詳情
+           </Button>
+           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+             try {
+              const full = await fetchPaymentFull(r.id)
+              if (full && !printPaymentForStatus(full, r.status, PENDING_PAYMENT_STATUSES)) {
+               setFormErr("請允許開啟彈出視窗以列印。")
+              }
+             } catch (e) {
+              reportUserFacingError(e, {
+               source: "PaymentsPageView.printFromHistory",
+               setErr: setFormErr,
+              })
+             }
+            }}
+           >
+            <Printer className="h-3.5 w-3.5" />
+            列印
+           </Button>
+           {pending && rowEditable ? (
+            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
+             標記已收
+            </Button>
+           ) : null}
+           {rowEditable ? (
+            <Button
+             type="button"
+             variant="ghost"
+             size="sm"
+             className="text-destructive hover:text-destructive"
+             onClick={() => void onDeleteRow(r)}
+            >
+             刪除
+            </Button>
+           ) : null}
+          </div>
+         </article>
+        )
+       })}
       </div>
      ) : (
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">

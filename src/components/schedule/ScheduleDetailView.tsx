@@ -193,6 +193,11 @@ export function ScheduleDetailView() {
             <Tag tone={statusToTagTone(s.source)} size="sm">
              {s.source}
             </Tag>
+            {s.isSingleSession ? (
+             <Tag tone={statusToTagTone("單堂報讀")} size="sm">
+              單堂報讀
+             </Tag>
+            ) : null}
            </Link>
            <StudentWhatsAppReminderButton
             label="推送通知"
@@ -214,6 +219,14 @@ export function ScheduleDetailView() {
         })}
        </ul>
       )}
+      {safeCtx.notEnrolledSingleSession.length > 0 ? (
+       <p className="mt-4 rounded-md border border-info/30 bg-info/5 px-3 py-2 text-sm text-foreground">
+        {safeCtx.notEnrolledSingleSession
+         .map((s) => `${s.fullName}沒有報讀此堂`)
+         .join("；")}
+        <span className="ml-1 text-muted-foreground">（單堂報讀，非請假）</span>
+       </p>
+      ) : null}
      </section>
 
      <div className="grid gap-6 lg:grid-cols-2">

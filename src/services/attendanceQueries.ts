@@ -1,7 +1,9 @@
 import {
  enrollmentCoversPeriod,
+ enrollmentVisibleOnSchedule,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
@@ -11,6 +13,10 @@ import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ fetchEnrolledScheduleIdsByEnrollmentIds,
+ fetchSingleSessionNotOnSchedule,
+} from "@/services/enrollmentSessionQueries"
 
 export const ATTENDANCE_STATUS_OPTIONS = ["出席", "缺席", "請假", "補課", "網課"] as const
 export type AttendanceStatusLabel = (typeof ATTENDANCE_STATUS_OPTIONS)[number]
@@ -26,12 +32,15 @@ export type RollCallStudentRow = {
  status: string
  /** 來自 students.whatsapp / parent_phone，供 wa.me 使用 */
  contactPhone: string | null
+ /** 是否為單堂報讀（本堂有選） */
+ isSingleSession: boolean
 }
 
 /** 點名表學生列（班內報讀 + 試堂等） */
 export async function fetchRosterForRollCall(
  classId: string,
- scheduleDate?: string
+ scheduleDate?: string,
+ scheduleIds?: string | string[]
 ): Promise<RollCallStudentRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
@@ -43,6 +52,12 @@ export async function fetchRosterForRollCall(
   .eq("status", "就讀中")
   .order("created_at", { ascending: true })
  if (error) throw error
+
+ const scheduleIdList = scheduleIds == null
+  ? []
+  : Array.isArray(scheduleIds)
+    ? scheduleIds.filter(Boolean)
+    : [scheduleIds]
 
  let periodCode: 1 | 2 | null = null
  if (scheduleDate) {
@@ -75,14 +90,35 @@ export async function fetchRosterForRollCall(
   }
  })
 
- if (periodCode == null) {
-  return rows.map(({ enrollmentPeriod: _ep, ...rest }) => rest)
- }
+ const singleIds = rows
+  .filter((row) => isSingleSessionEnrollment(row.enrollmentPeriod))
+  .map((row) => row.enrollmentId)
+ const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
 
- return rows
-  .filter((row) => enrollmentCoversPeriod(row.enrollmentPeriod, periodCode!))
-  .map(({ enrollmentPeriod: _ep, ...rest }) => rest)
+ const filtered = rows.filter((row) => {
+  if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
+   if (scheduleIdList.length === 0) return false
+   const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
+   return scheduleIdList.some((sid) =>
+    enrollmentVisibleOnSchedule({
+     enrollmentPeriod: row.enrollmentPeriod,
+     periodCode,
+     scheduleId: sid,
+     enrolledScheduleIds: enrolled,
+    })
+   )
+  }
+  if (periodCode == null) return true
+  return enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)
+ })
+
+ return filtered.map(({ enrollmentPeriod, ...rest }) => ({
+  ...rest,
+  isSingleSession: isSingleSessionEnrollment(enrollmentPeriod),
+ }))
 }
+
+export { fetchSingleSessionNotOnSchedule }
 
 export type ScheduleRosterStudent = {
  studentId: string

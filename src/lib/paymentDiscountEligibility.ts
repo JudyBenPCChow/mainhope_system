@@ -1,4 +1,5 @@
-import type { EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import type { EnrollmentFormValue, EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import { isSingleSessionEnrollment } from "@/lib/enrollmentPeriod"
 import type { CourseMode } from "@/lib/enrollmentPeriod"
 import {
  isLessonTierKind,
@@ -41,7 +42,7 @@ export type PaymentEligibilityLine = {
  classId: string
  subjectCode: string
  subjectCategory: SubjectCategory | null
- enrollmentPeriod: EnrollmentPeriod | null
+ enrollmentPeriod: EnrollmentFormValue | null
  courseMode: CourseMode
  teacherId: string | null
  timeSlot: string | null
@@ -87,9 +88,10 @@ function parseSubjectCategory(raw: unknown): SubjectCategory | null {
 }
 
 function periodMeetsMinimum(
- period: EnrollmentPeriod | null,
+ period: EnrollmentFormValue | null | undefined,
  minimum: EnrollmentPeriod | null
 ): boolean {
+ if (isSingleSessionEnrollment(period)) return false
  if (!minimum || minimum === "第一期") {
   return period === "第一期" || period === "第二期" || period === "兩期全報"
  }
@@ -208,7 +210,7 @@ export type LineResolverInput = {
  lessons: string | number
  subjectCode?: string | null
  subjectCategory?: SubjectCategory | string | null
- enrollmentPeriod?: EnrollmentPeriod | null
+ enrollmentPeriod?: EnrollmentFormValue | null
  courseMode?: CourseMode | string | null
  teacherId?: string | null
  timeSlot?: string | null

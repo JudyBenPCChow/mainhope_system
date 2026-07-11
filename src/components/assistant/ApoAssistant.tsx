@@ -232,14 +232,14 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
      type="button"
      onClick={() => setOpen(true)}
      className={cn(
-      "fixed z-[240] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-3 pr-5 shadow-lg",
+      "fixed z-[240] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-2.5 shadow-lg md:px-3 md:pr-5",
       floatingAnchorClass,
       "text-white hover:bg-neutral-900"
      )}
      aria-label={`開啟${APO_ASSISTANT_NAME}`}
     >
      <ItDogAvatar className="h-10 w-10 shrink-0 rounded-full ring-2 ring-white/20" />
-     <span className="font-medium">{APO_ASSISTANT_NAME}</span>
+     <span className="hidden font-medium md:inline">{APO_ASSISTANT_NAME}</span>
     </Button>
    ) : null}
 

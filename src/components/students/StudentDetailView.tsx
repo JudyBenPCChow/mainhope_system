@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
 import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
@@ -93,7 +94,15 @@ import {
  type EnrolledClassOption,
  type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
-import { ENROLLMENT_PERIOD_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import {
+ ENROLLMENT_PERIOD_OPTIONS,
+ SINGLE_SESSION_ENROLLMENT,
+ SUMMER_ENROLLMENT_FORM_OPTIONS,
+ isSingleSessionEnrollment,
+ type EnrollmentFormValue,
+ type EnrollmentPeriod,
+} from "@/lib/enrollmentPeriod"
+import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import {
  fetchScheduleStudentHintsByClass,
  type ScheduleStudentHints,
@@ -173,6 +182,7 @@ export function StudentDetailView() {
  const { studentId } = useParams<{ studentId: string }>()
  const navigate = useNavigate()
  const location = useLocation()
+ const isMobile = useIsMobile()
  const exitPath = useMemo(() => resolveStudentDetailExitPath(location), [location])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -192,7 +202,9 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
  const [pickClass, setPickClass] = useState("")
- const [pickPeriod, setPickPeriod] = useState<EnrollmentPeriod>("兩期全報")
+ /** 暑期：期數或單堂；正規：full | 單堂 */
+ const [pickForm, setPickForm] = useState<string>("兩期全報")
+ const [pickScheduleIds, setPickScheduleIds] = useState<string[]>([])
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
  const [withdrawOpen, setWithdrawOpen] = useState(false)
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
@@ -391,11 +403,21 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const addEnrollment = async () => {
   if (!pickClass) return
   const picked = classOptions.find((o) => o.id === pickClass)
-  const period =
-   picked?.courseMode === "summer_two_period" ? pickPeriod : null
-  await insertEnrollment(sid, pickClass, period)
+  const isSummer = picked?.courseMode === "summer_two_period"
+  const isSingle = pickForm === SINGLE_SESSION_ENROLLMENT
+  if (isSingle && pickScheduleIds.length === 0) {
+   pushBanner({ tone: "error", title: "請選擇堂數", message: "單堂報讀請至少勾選一堂" })
+   return
+  }
+  let period: EnrollmentFormValue | null = null
+  if (isSingle) period = SINGLE_SESSION_ENROLLMENT
+  else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
+   period = pickForm as EnrollmentPeriod
+  }
+  await insertEnrollment(sid, pickClass, period, isSingle ? pickScheduleIds : undefined)
   setPickClass("")
-  setPickPeriod("兩期全報")
+  setPickForm(isSummer ? "兩期全報" : "full")
+  setPickScheduleIds([])
   await reloadSubs()
  }
 
@@ -425,7 +447,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const enrolledClassIds = new Set(enrollments.map((e) => e.classId))
  const classSelectOptions = classOptions.filter((o) => !enrolledClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
- const showPickPeriod = pickedClassOption?.courseMode === "summer_two_period"
+ const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
+ const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
 
  const relatedIds = useMemo(() => new Set(relatives.map((r) => r.relatedStudentId)), [relatives])
 
@@ -703,12 +726,12 @@ const exportFutureSchedulesCsv = () => {
   >
   <div className="flex min-h-full flex-col bg-background">
    <div className="bg-primary px-4 py-4 text-primary-foreground shadow-md md:px-6">
-    <div className="flex flex-wrap items-start gap-4">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
      <Button
       type="button"
       variant="secondary"
       size="sm"
-      className="shrink-0 bg-white/90 text-foreground hover:bg-white"
+      className="w-fit shrink-0 bg-white/90 text-foreground hover:bg-white"
       onClick={() => void requestLeave()}
      >
       <ArrowLeft className="h-4 w-4" />
@@ -723,12 +746,12 @@ const exportFutureSchedulesCsv = () => {
         <p className="text-lg">載入中…</p>
        ) : student ? (
         <>
-         <h1 className="text-xl font-bold md:text-2xl">{student.full_name}</h1>
+         <h1 className="truncate text-xl font-bold md:text-2xl">{student.full_name}</h1>
          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
           <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
           <StudentClassificationTags student={student} size="sm" surface="onPrimary" />
          </div>
-         <p className="mt-1 text-sm text-white/85">
+         <p className="mt-1 truncate text-sm text-white/85">
           {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
          </p>
         </>
@@ -738,7 +761,24 @@ const exportFutureSchedulesCsv = () => {
     </div>
    </div>
 
-   <div className="border-b border-border bg-card px-2 md:px-4">
+   <div className="sticky top-0 z-10 border-b border-border bg-card px-2 md:px-4">
+    {isMobile ? (
+     <label className="grid gap-1 px-2 py-3 text-xs text-muted-foreground">
+      <span>分頁</span>
+      <Select
+       className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground"
+       value={tab}
+       onChange={(e) => setTab(e.target.value as TabId)}
+       aria-label="學生詳情分頁"
+      >
+       {TABS.map((t) => (
+        <option key={t.id} value={t.id}>
+         {t.label}
+        </option>
+       ))}
+      </Select>
+     </label>
+    ) : (
     <nav className="flex gap-1 overflow-x-auto py-1">
      {TABS.map((t) => {
       const Icon = t.icon
@@ -761,6 +801,7 @@ const exportFutureSchedulesCsv = () => {
       )
      })}
     </nav>
+    )}
    </div>
 
    <div className="p-4 md:p-6">
@@ -1116,7 +1157,13 @@ const exportFutureSchedulesCsv = () => {
        <Select
         className="flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
         value={pickClass}
-        onChange={(e) => setPickClass(e.target.value)}
+        onChange={(e) => {
+         const next = e.target.value
+         setPickClass(next)
+         setPickScheduleIds([])
+         const opt = classOptions.find((o) => o.id === next)
+         setPickForm(opt?.courseMode === "summer_two_period" ? "兩期全報" : "full")
+        }}
        >
         <option value="">選擇班別加入…</option>
         {classSelectOptions.map((o) => (
@@ -1125,24 +1172,47 @@ const exportFutureSchedulesCsv = () => {
          </option>
         ))}
        </Select>
-       {showPickPeriod ? (
+       {pickClass ? (
         <Select
-         className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm sm:w-36"
-         value={pickPeriod}
-         onChange={(e) => setPickPeriod(e.target.value as EnrollmentPeriod)}
+         className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm sm:w-40"
+         value={pickForm}
+         onChange={(e) => {
+          setPickForm(e.target.value)
+          if (e.target.value !== SINGLE_SESSION_ENROLLMENT) setPickScheduleIds([])
+         }}
         >
-         {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
-          <option key={p} value={p}>
-           {p}
+         {(isSummerPick
+          ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
+             value: p,
+             label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+            }))
+          : [
+             { value: "full", label: "報足全期" },
+             { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
+            ]
+         ).map((o) => (
+          <option key={o.value} value={o.value}>
+           {o.label}
           </option>
          ))}
         </Select>
        ) : null}
-       <Button type="button" onClick={() => void addEnrollment()} disabled={!pickClass}>
+       <Button
+        type="button"
+        onClick={() => void addEnrollment()}
+        disabled={!pickClass || (showSessionPicker && pickScheduleIds.length === 0)}
+       >
         <Plus className="h-4 w-4" />
         加入
        </Button>
       </div>
+      {showSessionPicker ? (
+       <EnrollmentSessionPicker
+        classId={pickClass}
+        selectedIds={pickScheduleIds}
+        onChange={setPickScheduleIds}
+       />
+      ) : null}
       <div className="space-y-3">
        {enrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
@@ -1161,19 +1231,23 @@ const exportFutureSchedulesCsv = () => {
              {formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })}
             </Link>
            </div>
-           <div className="mt-1 text-sm text-muted-foreground">
-            {[e.dayOfWeek, e.timeSlot].filter(Boolean).join(" ")}
-            {e.enrollmentPeriod ? ` · ${e.enrollmentPeriod}` : ""}
-            {e.pricePerLesson != null
-             ? ` · 每節 ${money(e.pricePerLesson)}`
-             : ""}
+           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <span>{[e.dayOfWeek, e.timeSlot].filter(Boolean).join(" ")}</span>
+            {e.enrollmentFormLabel ? (
+             <Tag tone={statusToTagTone(e.enrollmentFormLabel)} size="sm">
+              {e.enrollmentFormLabel}
+             </Tag>
+            ) : null}
+            {e.pricePerLesson != null ? <span>· 每節 {money(e.pricePerLesson)}</span> : null}
            </div>
            <div className="mt-1 text-xs text-muted-foreground">
             報讀日期：{e.enroll_date ?? "—"}
            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-           {e.courseMode === "summer_two_period" && e.enrollmentPeriod ? (
+           {e.courseMode === "summer_two_period" &&
+           e.enrollmentPeriod &&
+           !isSingleSessionEnrollment(e.enrollmentPeriod) ? (
             <Select
              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
              value={e.enrollmentPeriod}
@@ -1397,10 +1471,10 @@ const exportFutureSchedulesCsv = () => {
       ) : (
        <>
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
-         <label className="grid gap-1 text-xs text-muted-foreground">
+         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
           <span>班別</span>
           <Select
-           className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
+           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[10rem]"
            value={attClassFilter}
            onChange={(e) => setAttClassFilter(e.target.value)}
           >
@@ -1412,10 +1486,10 @@ const exportFutureSchedulesCsv = () => {
            ))}
           </Select>
          </label>
-         <label className="grid gap-1 text-xs text-muted-foreground">
+         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
           <span>狀態</span>
           <Select
-           className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
+           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[8rem]"
            value={attStatusFilter}
            onChange={(e) =>
             setAttStatusFilter(e.target.value as "all" | "present" | "absent" | "other")
@@ -1427,28 +1501,28 @@ const exportFutureSchedulesCsv = () => {
            <option value="other">其他</option>
           </Select>
          </label>
-         <label className="grid gap-1 text-xs text-muted-foreground">
+         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
           <span>上課日起</span>
           <Input
            type="date"
            value={attDateFrom}
            onChange={(e) => setAttDateFrom(e.target.value)}
-           className="h-9 w-[11rem]"
+           className="h-9 w-full sm:w-[11rem]"
           />
          </label>
-         <label className="grid gap-1 text-xs text-muted-foreground">
+         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
           <span>上課日迄</span>
           <Input
            type="date"
            value={attDateTo}
            onChange={(e) => setAttDateTo(e.target.value)}
-           className="h-9 w-[11rem]"
+           className="h-9 w-full sm:w-[11rem]"
           />
          </label>
-         <label className="grid gap-1 text-xs text-muted-foreground">
+         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
           <span>排序</span>
           <Select
-           className="h-9 min-w-[11rem] rounded-md border border-input bg-background px-2 text-sm"
+           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[11rem]"
            value={attSort}
            onChange={(e) => setAttSort(e.target.value as typeof attSort)}
           >
@@ -1748,6 +1822,40 @@ const exportFutureSchedulesCsv = () => {
        <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
         此學生暫無關聯待辦。
        </p>
+      ) : isMobile ? (
+       <div className="space-y-3">
+        {relatedTodos.map((r) => (
+         <article
+          key={r.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })}
+          onKeyDown={(e) => {
+           if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })
+           }
+          }}
+          className="rounded-xl border border-border bg-card p-4 shadow-sm active:bg-muted/40"
+         >
+          <div className="flex items-start justify-between gap-2">
+           <div className="min-w-0">
+            <p className="text-xs tabular-nums text-muted-foreground">{r.eventDate}</p>
+            <h3 className="font-semibold">{r.title}</h3>
+           </div>
+           <Tag tone={todoStatusTone(r.status)} size="sm">
+            {todoStatusLabel(r.status)}
+           </Tag>
+          </div>
+          <div className="mt-2">
+           <TodoTagList tags={r.tags} />
+          </div>
+          <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+           {r.latestUpdatePreview?.trim() || "尚無跟進摘要"}
+          </p>
+         </article>
+        ))}
+       </div>
       ) : (
        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
         <table className="w-full min-w-[720px] table-fixed text-sm">

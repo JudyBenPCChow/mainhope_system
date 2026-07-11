@@ -5,13 +5,15 @@ import {
  enrollmentCoversPeriod,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
- type EnrollmentPeriod,
+ type EnrollmentFormValue,
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
+import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
 export { localYmd }
@@ -405,24 +407,33 @@ export async function fetchUpcomingSchedulesForClass(
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
 
  if (studentId) {
-  const config = await fetchClassEnrollmentConfig(classId)
-  if (config.courseMode === "summer_two_period" && config.academicYearId) {
-   const { data: enr, error: enrErr } = await supabase
-    .from("student_class_enrollments")
-    .select("enrollment_period")
-    .eq("student_id", studentId)
-    .eq("class_id", classId)
-    .maybeSingle()
-   if (enrErr) throwPostgrest(enrErr)
-   const enrollmentPeriod = normalizeEnrollmentPeriod(
-    enr?.enrollment_period != null ? String(enr.enrollment_period) : null
-   )
-   const periods = await fetchAcademicYearPeriods(config.academicYearId)
-   rows = rows.filter((s) => {
-    const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
-    if (code == null) return true
-    return enrollmentCoversPeriod(enrollmentPeriod, code)
-   })
+  const { data: enr, error: enrErr } = await supabase
+   .from("student_class_enrollments")
+   .select("id, enrollment_period")
+   .eq("student_id", studentId)
+   .eq("class_id", classId)
+   .maybeSingle()
+  if (enrErr) throwPostgrest(enrErr)
+  const enrollmentPeriod = normalizeEnrollmentPeriod(
+   enr?.enrollment_period != null ? String(enr.enrollment_period) : null
+  )
+  if (isSingleSessionEnrollment(enrollmentPeriod)) {
+   const enrollmentId = enr?.id != null ? String(enr.id) : ""
+   const scheduleMap = enrollmentId
+    ? await fetchEnrolledScheduleIdsByEnrollmentIds([enrollmentId])
+    : new Map<string, Set<string>>()
+   const allowed = scheduleMap.get(enrollmentId) ?? new Set<string>()
+   rows = rows.filter((s) => allowed.has(s.id))
+  } else {
+   const config = await fetchClassEnrollmentConfig(classId)
+   if (config.courseMode === "summer_two_period" && config.academicYearId) {
+    const periods = await fetchAcademicYearPeriods(config.academicYearId)
+    rows = rows.filter((s) => {
+     const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
+     if (code == null) return true
+     return enrollmentCoversPeriod(enrollmentPeriod, code)
+    })
+   }
   }
  }
 
@@ -458,21 +469,32 @@ export async function fetchUpcomingSchedulesForStudent(
  if (!supabase) return []
  const { data: enrollments, error: enrollErr } = await supabase
   .from("student_class_enrollments")
-  .select("class_id, enrollment_period")
+  .select("id, class_id, enrollment_period")
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (enrollErr) throwPostgrest(enrollErr)
 
- const enrollmentByClass = new Map<string, EnrollmentPeriod | null>()
+ const enrollmentByClass = new Map<
+  string,
+  { enrollmentId: string; period: EnrollmentFormValue | null }
+ >()
  for (const row of enrollments ?? []) {
-  const r = row as { class_id?: string; enrollment_period?: string | null }
+  const r = row as { id?: string; class_id?: string; enrollment_period?: string | null }
   const cid = String(r.class_id ?? "")
   if (!cid) continue
-  enrollmentByClass.set(cid, normalizeEnrollmentPeriod(r.enrollment_period))
+  enrollmentByClass.set(cid, {
+   enrollmentId: String(r.id ?? ""),
+   period: normalizeEnrollmentPeriod(r.enrollment_period),
+  })
  }
 
  const classIds = [...enrollmentByClass.keys()]
  if (classIds.length === 0) return []
+
+ const singleEnrollmentIds = [...enrollmentByClass.values()]
+  .filter((e) => isSingleSessionEnrollment(e.period))
+  .map((e) => e.enrollmentId)
+ const singleScheduleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds)
 
  const { data, error } = await supabase
   .from("schedules")
@@ -531,12 +553,17 @@ export async function fetchUpcomingSchedulesForStudent(
   })
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
   .filter((s) => {
+   const enr = enrollmentByClass.get(s.class_id)
+   if (!enr) return false
+   if (isSingleSessionEnrollment(enr.period)) {
+    const allowed = singleScheduleMap.get(enr.enrollmentId) ?? new Set<string>()
+    return allowed.has(s.id)
+   }
    if (s.courseMode !== "summer_two_period" || !s.academicYearId) return true
-   const enrollmentPeriod = enrollmentByClass.get(s.class_id) ?? null
    const periods = periodCache.get(s.academicYearId) ?? []
    const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
    if (code == null) return true
-   return enrollmentCoversPeriod(enrollmentPeriod, code)
+   return enrollmentCoversPeriod(enr.period, code)
   })
   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
 }
@@ -555,20 +582,31 @@ async function buildStudentRegularAttendanceChecker(
 
  const { data: enrollments, error } = await supabase
   .from("student_class_enrollments")
-  .select("class_id, enrollment_period")
+  .select("id, class_id, enrollment_period")
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (error) throwPostgrest(error)
 
- const enrollmentByClass = new Map<string, EnrollmentPeriod | null>()
+ const enrollmentByClass = new Map<
+  string,
+  { enrollmentId: string; period: EnrollmentFormValue | null }
+ >()
  for (const row of enrollments ?? []) {
-  const r = row as { class_id?: string; enrollment_period?: string | null }
+  const r = row as { id?: string; class_id?: string; enrollment_period?: string | null }
   const cid = String(r.class_id ?? "")
   if (!cid) continue
-  enrollmentByClass.set(cid, normalizeEnrollmentPeriod(r.enrollment_period))
+  enrollmentByClass.set(cid, {
+   enrollmentId: String(r.id ?? ""),
+   period: normalizeEnrollmentPeriod(r.enrollment_period),
+  })
  }
 
  if (enrollmentByClass.size === 0) return () => false
+
+ const singleEnrollmentIds = [...enrollmentByClass.values()]
+  .filter((e) => isSingleSessionEnrollment(e.period))
+  .map((e) => e.enrollmentId)
+ const singleScheduleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds)
 
  const configCache = new Map<string, Awaited<ReturnType<typeof fetchClassEnrollmentConfig>>>()
  const periodCache = new Map<string, AcademicYearPeriodRow[]>()
@@ -587,8 +625,13 @@ async function buildStudentRegularAttendanceChecker(
 
  return (row: ScheduleManageRow) => {
   if (!row.class_id) return false
-  const enrollmentPeriod = enrollmentByClass.get(row.class_id)
-  if (enrollmentPeriod === undefined) return false
+  const enr = enrollmentByClass.get(row.class_id)
+  if (!enr) return false
+
+  if (isSingleSessionEnrollment(enr.period)) {
+   const allowed = singleScheduleMap.get(enr.enrollmentId) ?? new Set<string>()
+   return allowed.has(row.id)
+  }
 
   const config = configCache.get(row.class_id)
   if (!config || config.courseMode !== "summer_two_period" || !config.academicYearId) {
@@ -597,7 +640,7 @@ async function buildStudentRegularAttendanceChecker(
   const periods = periodCache.get(config.academicYearId) ?? []
   const code = resolvePeriodCodeFromDate(row.scheduled_date, periods)
   if (code == null) return true
-  return enrollmentCoversPeriod(enrollmentPeriod, code)
+  return enrollmentCoversPeriod(enr.period, code)
  }
 }
 

@@ -54,7 +54,7 @@ export function AllFeaturesView() {
             </span>
             <span className="min-w-0 flex-1">
              <span className="block truncate font-medium text-foreground">{item.label}</span>
-             <span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.path}</span>
+             <span className="mt-0.5 hidden truncate text-xs text-muted-foreground sm:block">{item.path}</span>
             </span>
             <ChevronRight
              className="h-4 w-4 shrink-0 text-muted-foreground opacity-60 transition-transform group-hover:translate-x-0.5 group-hover:opacity-100"

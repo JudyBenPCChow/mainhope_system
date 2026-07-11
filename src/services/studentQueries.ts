@@ -4,11 +4,15 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  fetchClassEnrollmentConfig,
+ formatEnrollmentFormLabel,
+ isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePriceForEnrollment,
+ type EnrollmentFormValue,
  type EnrollmentPeriod,
  type CourseMode,
 } from "@/lib/enrollmentPeriod"
+import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 
@@ -443,7 +447,11 @@ export type EnrollmentWithClass = {
  id: string
  status: string
  enroll_date: string | null
- enrollmentPeriod: EnrollmentPeriod | null
+ enrollmentPeriod: EnrollmentFormValue | null
+ /** 單堂報讀的堂號（已排序） */
+ sessionNumbers: number[]
+ /** 顯示用：第一期報讀／單堂報讀（第3、7堂） */
+ enrollmentFormLabel: string
  courseMode: CourseMode
  classId: string
  subject: string
@@ -459,7 +467,7 @@ export type EnrollmentWithClass = {
 
 /** PostgREST embed：只用 baseline + course_name，避免未套用 migration 的欄位令整筆查詢失敗 */
 const ENROLLMENT_CLASS_EMBED =
- "classes ( subject, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( price_per_lesson, course_name, subjects ( code, name_zh ) ) )"
+ "classes ( subject, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh ) ) )"
 
 const ENROLLMENT_ROW_SELECT_BASE =
  `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
@@ -545,6 +553,8 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   status: String(row.status ?? "就讀中"),
   enroll_date: row.enroll_date != null ? String(row.enroll_date) : null,
   enrollmentPeriod,
+  sessionNumbers: [],
+  enrollmentFormLabel: formatEnrollmentFormLabel(enrollmentPeriod),
   courseMode,
   classId: String(row.class_id),
   subject: subjectLabel,
@@ -650,13 +660,46 @@ export async function fetchEnrollmentsForStudent(
  studentId: string
 ): Promise<EnrollmentWithClass[]> {
  const rows = await fetchEnrollmentRowsForStudent(studentId)
- return rows.map((row) => mapEnrollmentWithClassRow(row))
+ const mapped = rows.map((row) => mapEnrollmentWithClassRow(row))
+ const singleIds = mapped
+  .filter((e) => isSingleSessionEnrollment(e.enrollmentPeriod))
+  .map((e) => e.id)
+ if (singleIds.length === 0) return mapped
+ const sessionMap = await fetchSessionNumbersByEnrollmentIds(singleIds)
+ return mapped.map((e) => {
+  if (!isSingleSessionEnrollment(e.enrollmentPeriod)) return e
+  const sessionNumbers = sessionMap.get(e.id) ?? []
+  return {
+   ...e,
+   sessionNumbers,
+   enrollmentFormLabel: formatEnrollmentFormLabel(e.enrollmentPeriod, sessionNumbers),
+  }
+ })
+}
+
+export async function replaceEnrollmentSessions(
+ enrollmentId: string,
+ scheduleIds: string[]
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const unique = [...new Set(scheduleIds.filter(Boolean))]
+ if (unique.length === 0) throw new Error("單堂報讀請至少選擇一堂")
+ const { error: delErr } = await supabase
+  .from("student_enrollment_sessions")
+  .delete()
+  .eq("enrollment_id", enrollmentId)
+ if (delErr) throw delErr
+ const { error: insErr } = await supabase.from("student_enrollment_sessions").insert(
+  unique.map((schedule_id) => ({ enrollment_id: enrollmentId, schedule_id }))
+ )
+ if (insErr) throw insErr
 }
 
 export async function insertEnrollment(
  studentId: string,
  classId: string,
- enrollmentPeriod?: EnrollmentPeriod | null
+ enrollmentPeriod?: EnrollmentFormValue | null,
+ scheduleIds?: string[]
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
@@ -668,11 +711,19 @@ export async function insertEnrollment(
  if (classErr) throw classErr
  if (classRow) assertClassRecordEditable(classRow as { academic_year_label?: string | null; start_date?: string | null })
  const config = await fetchClassEnrollmentConfig(classId)
- let periodValue =
-  enrollmentPeriod != null && ENROLLMENT_PERIOD_OPTIONS.includes(enrollmentPeriod)
-   ? enrollmentPeriod
-   : null
- if (config.courseMode === "summer_two_period" && periodValue == null) {
+ const isSingle = isSingleSessionEnrollment(enrollmentPeriod)
+ let periodValue: EnrollmentFormValue | null = null
+ if (isSingle) {
+  periodValue = "單堂"
+  if (!scheduleIds || scheduleIds.length === 0) {
+   throw new Error("單堂報讀請至少選擇一堂")
+  }
+ } else if (
+  enrollmentPeriod != null &&
+  ENROLLMENT_PERIOD_OPTIONS.includes(enrollmentPeriod as EnrollmentPeriod)
+ ) {
+  periodValue = enrollmentPeriod as EnrollmentPeriod
+ } else if (config.courseMode === "summer_two_period") {
   periodValue = "兩期全報"
  }
  const { data, error } = await supabase
@@ -688,29 +739,47 @@ export async function insertEnrollment(
   .single()
  if (error) throw error
  const enrollmentId = String((data as { id: string }).id)
- const { error: evErr } = await supabase.from("enrollment_change_events").insert({
-  student_id: studentId,
-  class_id: classId,
-  enrollment_id: enrollmentId,
-  action: "enroll",
-  effective_date: today,
-  reason: null,
-  enrollment_period: periodValue,
- })
- if (evErr) {
+ try {
+  if (isSingle && scheduleIds) {
+   await replaceEnrollmentSessions(enrollmentId, scheduleIds)
+  }
+  const sessionLabel =
+   isSingle && scheduleIds
+    ? `；選堂 ${scheduleIds.length} 堂`
+    : ""
+  const { error: evErr } = await supabase.from("enrollment_change_events").insert({
+   student_id: studentId,
+   class_id: classId,
+   enrollment_id: enrollmentId,
+   action: "enroll",
+   effective_date: today,
+   reason: isSingle ? `單堂報讀${sessionLabel}` : null,
+   enrollment_period: periodValue,
+  })
+  if (evErr) throw evErr
+ } catch (err) {
   await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
-  throw evErr
+  throw err
  }
  await syncStudentEnrollmentState(studentId)
 }
 
 export async function updateEnrollmentPeriod(
  id: string,
- enrollmentPeriod: EnrollmentPeriod,
- opts: { studentId: string; classId: string; previousPeriod?: EnrollmentPeriod | null }
+ enrollmentPeriod: EnrollmentFormValue,
+ opts: {
+  studentId: string
+  classId: string
+  previousPeriod?: EnrollmentFormValue | null
+  scheduleIds?: string[]
+ }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
+ const isSingle = isSingleSessionEnrollment(enrollmentPeriod)
+ if (isSingle && (!opts.scheduleIds || opts.scheduleIds.length === 0)) {
+  throw new Error("單堂報讀請至少選擇一堂")
+ }
  const { error } = await supabase
   .from("student_class_enrollments")
   .update({
@@ -719,15 +788,47 @@ export async function updateEnrollmentPeriod(
   })
   .eq("id", id)
  if (error) throw error
+ if (isSingle) {
+  await replaceEnrollmentSessions(id, opts.scheduleIds!)
+ } else {
+  const { error: delErr } = await supabase
+   .from("student_enrollment_sessions")
+   .delete()
+   .eq("enrollment_id", id)
+  if (delErr) throw delErr
+ }
  const prev = opts.previousPeriod ?? "—"
  const { error: evErr } = await supabase.from("enrollment_change_events").insert({
   student_id: opts.studentId,
   class_id: opts.classId,
   enrollment_id: id,
-  action: "period_change",
+  action: isSingle || isSingleSessionEnrollment(opts.previousPeriod)
+   ? "session_change"
+   : "period_change",
   effective_date: today,
-  reason: `期數：${prev} → ${enrollmentPeriod}`,
+  reason: `報讀形式：${prev} → ${enrollmentPeriod}`,
   enrollment_period: enrollmentPeriod,
+ })
+ if (evErr) throw evErr
+}
+
+/** 更新單堂報讀所選堂數（保持 enrollment_period=單堂） */
+export async function updateEnrollmentSessions(
+ enrollmentId: string,
+ scheduleIds: string[],
+ opts: { studentId: string; classId: string }
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ await replaceEnrollmentSessions(enrollmentId, scheduleIds)
+ const today = localYmd()
+ const { error: evErr } = await supabase.from("enrollment_change_events").insert({
+  student_id: opts.studentId,
+  class_id: opts.classId,
+  enrollment_id: enrollmentId,
+  action: "session_change",
+  effective_date: today,
+  reason: `單堂選堂更新（${scheduleIds.length} 堂）`,
+  enrollment_period: "單堂",
  })
  if (evErr) throw evErr
 }
@@ -785,10 +886,10 @@ export async function withdrawStudentFromClass(opts: {
 
 export type ClassEnrollmentChangeEvent = {
  id: string
- action: "enroll" | "withdraw" | "period_change"
+ action: "enroll" | "withdraw" | "period_change" | "session_change"
  effectiveDate: string
  reason: string | null
- enrollmentPeriod: EnrollmentPeriod | null
+ enrollmentPeriod: EnrollmentFormValue | null
  studentId: string
  studentName: string
  createdAt: string
@@ -820,7 +921,9 @@ export async function fetchEnrollmentChangeEventsForClass(
     ? "withdraw"
     : actionRaw === "period_change"
       ? "period_change"
-      : "enroll"
+      : actionRaw === "session_change"
+        ? "session_change"
+        : "enroll"
   return {
    id: String(r.id),
    action,

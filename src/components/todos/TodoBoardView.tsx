@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { ChevronDown, ChevronUp, KanbanSquare, List, Pencil, Plus, Search, Trash2, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -33,6 +35,16 @@ import { TODO_TAG_PRESETS, todoStatusLabel, todoStatusTone, TodoTagList } from "
 
 type ViewMode = "table" | "kanban"
 
+function getInitialTodosViewMode(): ViewMode {
+ try {
+  const raw = sessionStorage.getItem("mgmt_todos_viewMode")
+  if (raw != null) return JSON.parse(raw) as ViewMode
+ } catch {
+  /* ignore */
+ }
+ return typeof window !== "undefined" && window.innerWidth < MOBILE_BREAKPOINT ? "kanban" : "table"
+}
+
 function localYmd(d = new Date()): string {
  const y = d.getFullYear()
  const m = String(d.getMonth() + 1).padStart(2, "0")
@@ -57,12 +69,13 @@ function formatUpdateTime(iso: string | null): string {
 export function TodoBoardView() {
  const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
+ const isMobile = useIsMobile()
  const role = getMgmtRole()
  const isTeacher = role === "teacher"
  const canEdit = role === "admin" || role === "alien"
  const teacherId = isTeacher ? getTeacherScopeTeacherId() : null
 
- const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_todos_viewMode", "table")
+ const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_todos_viewMode", getInitialTodosViewMode())
  const [searchText, setSearchText] = usePersistentState<string>("mgmt_todos_searchText", "")
  const [dateFrom, setDateFrom] = usePersistentState<string>(
   "mgmt_todos_dateFrom",
@@ -223,7 +236,7 @@ export function TodoBoardView() {
  }
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 py-4 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
@@ -246,30 +259,30 @@ export function TodoBoardView() {
     </div>
    ) : null}
 
-   <div className="flex flex-wrap items-center gap-2">
-    <div className="inline-flex rounded-md border border-border bg-muted/30 p-0.5 text-sm">
+   <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+    <div className="inline-flex w-full rounded-md border border-border bg-muted/30 p-0.5 text-sm sm:w-auto">
      <button
       type="button"
       onClick={() => setViewMode("table")}
-      className={cn("rounded px-3 py-1.5", viewMode === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+      className={cn("flex-1 rounded px-3 py-1.5 sm:flex-none", viewMode === "table" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
      >
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex items-center justify-center gap-1">
        <List className="h-4 w-4" />
-       Table
+       列表
       </span>
      </button>
      <button
       type="button"
       onClick={() => setViewMode("kanban")}
-      className={cn("rounded px-3 py-1.5", viewMode === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
+      className={cn("flex-1 rounded px-3 py-1.5 sm:flex-none", viewMode === "kanban" ? "bg-primary text-primary-foreground" : "text-muted-foreground")}
      >
-      <span className="inline-flex items-center gap-1">
+      <span className="inline-flex items-center justify-center gap-1">
        <KanbanSquare className="h-4 w-4" />
-       Kanban
+       看板
       </span>
      </button>
     </div>
-    <label className="relative min-w-[220px] flex-1 sm:max-w-xs">
+    <label className="relative w-full flex-1 sm:min-w-[220px] sm:max-w-xs">
      <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
      <Input
       className="pl-8"
@@ -278,8 +291,8 @@ export function TodoBoardView() {
       placeholder="搜尋標題/分類/標籤/跟進"
      />
     </label>
-    <Input type="date" className="w-[170px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-    <Input type="date" className="w-[170px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+    <Input type="date" className="w-full sm:w-[170px]" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+    <Input type="date" className="w-full sm:w-[170px]" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
    </div>
 
    {allTags.length > 0 ? (
@@ -311,6 +324,65 @@ export function TodoBoardView() {
    {loading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
 
    {!loading && viewMode === "table" ? (
+    isMobile ? (
+     <div className="space-y-3">
+      {filteredRows.length === 0 ? (
+       <p className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+        暫無資料。
+       </p>
+      ) : (
+       filteredRows.map((r) => (
+        <article
+         key={r.id}
+         role="button"
+         tabIndex={0}
+         onClick={() => openDetail(r)}
+         onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+           e.preventDefault()
+           openDetail(r)
+          }
+         }}
+         className="rounded-xl border border-border bg-card p-4 shadow-sm"
+        >
+         <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+           <p className="text-xs tabular-nums text-muted-foreground">{r.eventDate}</p>
+           <h3 className="font-semibold">{r.title}</h3>
+          </div>
+          <Tag tone={todoStatusTone(r.status)} size="sm">
+           {todoStatusLabel(r.status)}
+          </Tag>
+         </div>
+         <div className="mt-2">
+          <TodoTagList tags={r.tags} />
+         </div>
+         <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+          {r.latestUpdatePreview?.trim() || "尚無跟進摘要"}
+         </p>
+         {canEdit ? (
+          <div className="mt-3 flex gap-1" onClick={(e) => e.stopPropagation()}>
+           <Button type="button" variant="outline" size="sm" onClick={(e) => openEdit(r, e)}>
+            <Pencil className="mr-1 h-3.5 w-3.5" />
+            編輯
+           </Button>
+           <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            onClick={(e) => void removeEvent(r, e)}
+           >
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            刪除
+           </Button>
+          </div>
+         ) : null}
+        </article>
+       ))
+      )}
+     </div>
+    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
      <table className="w-full min-w-[1100px] table-fixed text-sm">
       <thead className="bg-muted/30 text-xs text-muted-foreground">
@@ -386,6 +458,7 @@ export function TodoBoardView() {
       </tbody>
      </table>
     </div>
+    )
    ) : null}
 
    {!loading && viewMode === "kanban" ? (

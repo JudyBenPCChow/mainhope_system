@@ -25,11 +25,13 @@ import {
  fetchMakeupStudentIdsForSchedules,
  fetchRosterForRollCall,
  fetchSchedulesForRollCallDate,
+ fetchSingleSessionNotOnSchedule,
  fetchTrialStudentsForSchedules,
  localYmd,
  saveAttendanceStatusForSchedules,
  type RollCallStudentRow,
 } from "@/services/attendanceQueries"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
  buildRollCallScheduleEntries,
  formatConsecutiveSessionLabel,
@@ -89,6 +91,7 @@ export function RollCallPage() {
  }, [activeEntry, schedules])
 
  const [students, setStudents] = useState<DisplayStudent[]>([])
+ const [notEnrolledNames, setNotEnrolledNames] = useState<string[]>([])
  /** 畫面上選取的狀態（未按「確定」前不寫入資料庫） */
  const [statusMap, setStatusMap] = useState<Map<string, string>>(new Map())
  /** 上次成功「確定」或載入時的已儲存狀態 */
@@ -183,10 +186,14 @@ export function RollCallPage() {
 
   void (async () => {
    try {
-    const [roster, trials, existing] = await Promise.all([
-     fetchRosterForRollCall(classId, lessonDate),
+    const primaryScheduleId = scheduleIds[0] ?? ""
+    const [roster, trials, existing, notOnSchedule] = await Promise.all([
+     fetchRosterForRollCall(classId, lessonDate, scheduleIds),
      fetchTrialStudentsForSchedules(scheduleIds),
      fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
+     primaryScheduleId
+      ? fetchSingleSessionNotOnSchedule(classId, primaryScheduleId)
+      : Promise.resolve([]),
     ])
     if (cancelled) return
 
@@ -205,6 +212,7 @@ export function RollCallPage() {
       status: "試堂",
       source: "trial",
       contactPhone: t.contactPhone,
+      isSingleSession: false,
      })
     }
 
@@ -217,12 +225,14 @@ export function RollCallPage() {
     }
 
     setStudents(display)
+    setNotEnrolledNames(notOnSchedule.map((r) => r.fullName))
     setStatusMap(sm)
     setSavedMap(new Map(sm))
    } catch (e) {
     if (!cancelled) {
      reportUserFacingError(e, { source: "RollCallPage.loadSheet", setErr: setSheetErr })
      setStudents([])
+     setNotEnrolledNames([])
      setStatusMap(new Map())
      setSavedMap(new Map())
     }
@@ -541,6 +551,12 @@ export function RollCallPage() {
           : "請先點選出席狀態，再於下方按「確定」寫入資料庫。"}
         </span>
        </p>
+       {notEnrolledNames.length > 0 ? (
+        <p className="mt-2 rounded-md border border-info/30 bg-info/5 px-3 py-2 text-sm text-foreground">
+         {notEnrolledNames.map((name) => `${name}沒有報讀此堂`).join("；")}
+         <span className="ml-1 text-muted-foreground">（單堂報讀，非請假）</span>
+        </p>
+       ) : null}
       </div>
       <div className="flex flex-wrap gap-2">
        <Button
@@ -594,6 +610,11 @@ export function RollCallPage() {
             {row.source === "trial" ? (
              <Tag tone="info" size="sm" className="ml-2 align-middle">
               試堂
+             </Tag>
+            ) : null}
+            {row.source === "enrollment" && row.isSingleSession ? (
+             <Tag tone={statusToTagTone("單堂報讀")} size="sm" className="ml-2 align-middle">
+              單堂報讀
              </Tag>
             ) : null}
            </div>
@@ -664,6 +685,11 @@ export function RollCallPage() {
               <span className="ml-2 rounded bg-info px-1.5 py-0.5 text-[10px] font-medium text-info-foreground">
                試堂
               </span>
+             ) : null}
+             {row.source === "enrollment" && row.isSingleSession ? (
+              <Tag tone={statusToTagTone("單堂報讀")} size="sm" className="ml-2 align-middle">
+               單堂報讀
+              </Tag>
              ) : null}
             </div>
             {row.englishName ? (

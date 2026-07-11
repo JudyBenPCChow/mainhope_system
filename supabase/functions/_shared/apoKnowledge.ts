@@ -189,12 +189,27 @@ ${APO_SYSTEM_DIRECTIVES}
 - 優惠折扣：/PaymentDiscounts（alien）
 - admin／alien 可用工具查已繳堂數與追收提示；不回傳具體金額
 
+## 報讀形式（小組課）
+
+| 形式 | 適用 | 說明 |
+| --- | --- | --- |
+| 報足全期 | 正規學年 | enrollment_period 為空；整段學年 |
+| 第一期／第二期／兩期全報 | 暑期兩期制 | 依學術年期數 |
+| 單堂（自選堂數） | 正規或暑期 | 與上列互斥；勾選第 x 堂（綁 schedules） |
+
+- 單堂生只出現喺有報讀嘅堂嘅點名名單；未報讀堂會提示「沒有報讀此堂」，**唔係請假**。
+- 班別詳情標示例如：第一期報讀、單堂報讀（第3、7、8堂）。
+- 試堂 ≠ 單堂報讀。
+
 ## 常見操作
 
-- 新增班別報讀：/Students → 學生詳情 → 班別報讀區塊
-- 點名：/Attendance
+- 新增班別報讀：/Students → 學生詳情 → 報讀班別（可揀全期／期數／單堂）
+- 班別加學生：/Classes → 班別詳情 → 增加學生（同一套報讀形式）
+- 點名：/Attendance（單堂未報讀會有文字提醒）
 - 請假：/LeaveManagement 或學生詳情
 - 試堂：/TrialSessions
+- 新增老師主檔：/Teachers（只建主檔）
+- 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues
 
 ## 回答風格

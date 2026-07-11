@@ -1,14 +1,14 @@
-import { normalizeEnrollmentPeriod, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
+import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 
 /** 全站增退紀錄列表列 */
 export type EnrollmentChangeListRow = {
  id: string
- action: "enroll" | "withdraw" | "period_change"
+ action: "enroll" | "withdraw" | "period_change" | "session_change"
  effectiveDate: string
  reason: string | null
- enrollmentPeriod: EnrollmentPeriod | null
+ enrollmentPeriod: EnrollmentFormValue | null
  enrollmentId: string | null
  createdAt: string
  studentId: string
@@ -32,7 +32,9 @@ function mapRow(r: Record<string, unknown>): EnrollmentChangeListRow {
    ? "withdraw"
    : actionRaw === "period_change"
      ? "period_change"
-     : "enroll"
+     : actionRaw === "session_change"
+       ? "session_change"
+       : "enroll"
  const enrollmentPeriod = normalizeEnrollmentPeriod(
   r.enrollment_period != null ? String(r.enrollment_period) : null
  )

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -46,8 +47,11 @@ function weekdayLabel(ymd: string): string {
 export function RoomBookingView() {
  const role = getMgmtRole()
  const teacherId = getTeacherScopeTeacherId()
+ const isMobile = useIsMobile()
  const today = localYmd()
  const [weekStart, setWeekStart] = useState(today)
+ const [selectedRoomId, setSelectedRoomId] = useState<string>("")
+ const [selectedDay, setSelectedDay] = useState(today)
  const [rooms, setRooms] = useState<RoomRecord[]>([])
  const [schedules, setSchedules] = useState<Awaited<ReturnType<typeof fetchSchedulesForRoomCalendar>>>([])
  const [pending, setPending] = useState<Awaited<ReturnType<typeof fetchPendingBookingRequestsDetailed>>>([])
@@ -75,6 +79,27 @@ export function RoomBookingView() {
  }, [])
 
  const physicalRooms = useMemo(() => rooms.filter((r) => !r.is_online), [rooms])
+
+ useEffect(() => {
+  if (physicalRooms.length === 0) {
+   setSelectedRoomId("")
+   return
+  }
+  if (!selectedRoomId || !physicalRooms.some((r) => r.id === selectedRoomId)) {
+   setSelectedRoomId(physicalRooms[0]!.id)
+  }
+ }, [physicalRooms, selectedRoomId])
+
+ useEffect(() => {
+  if (!weekDays.includes(selectedDay)) {
+   setSelectedDay(weekDays.includes(today) ? today : weekStart)
+  }
+ }, [weekDays, weekStart, selectedDay, today])
+
+ const selectedRoom = useMemo(
+  () => physicalRooms.find((r) => r.id === selectedRoomId) ?? null,
+  [physicalRooms, selectedRoomId]
+ )
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured || !teacherId) {
@@ -234,6 +259,91 @@ export function RoomBookingView() {
 
    {loading ? (
     <p className="text-muted-foreground">載入中…</p>
+   ) : isMobile ? (
+    <div className="space-y-4">
+     {physicalRooms.length === 0 ? (
+      <p className="text-muted-foreground">尚無實體課室資料。</p>
+     ) : (
+      <>
+       <label className="grid gap-1 text-sm">
+        <span className="text-muted-foreground">課室</span>
+        <Select
+         className="h-10 w-full rounded-md border border-input bg-background px-2"
+         value={selectedRoomId}
+         onChange={(e) => setSelectedRoomId(e.target.value)}
+        >
+         {physicalRooms.map((r) => (
+          <option key={r.id} value={r.id}>
+           {r.name}
+           {r.capacity != null ? `（約 ${r.capacity} 人）` : ""}
+          </option>
+         ))}
+        </Select>
+       </label>
+       <div className="flex gap-2 overflow-x-auto pb-1">
+        {weekDays.map((d) => (
+         <button
+          key={d}
+          type="button"
+          onClick={() => setSelectedDay(d)}
+          className={cn(
+           "min-w-[4.5rem] shrink-0 rounded-lg border px-2 py-2 text-center text-xs transition-colors",
+           selectedDay === d
+            ? "border-primary bg-primary text-primary-foreground"
+            : "border-border bg-card text-muted-foreground hover:bg-muted/60"
+          )}
+         >
+          <div className="font-medium">{weekdayLabel(d)}</div>
+          <div className="tabular-nums">{d.slice(5).replace("-", "/")}</div>
+         </button>
+        ))}
+       </div>
+       {selectedRoom ? (
+        <div className="space-y-2">
+         <h2 className="text-sm font-semibold">
+          {selectedRoom.name} · {selectedDay} {weekdayLabel(selectedDay)}
+         </h2>
+         {LESSON_SLOT_INDICES.map((slotIdx) => {
+          const slotStart = lessonSlotStartMinute(slotIdx)
+          const slotEnd = lessonSlotEndMinute(slotIdx)
+          const occ = occupiersForSlot(selectedDay, selectedRoom.id, slotStart, slotEnd, schedules, pending)
+          const free = occ.length === 0
+          if (free) {
+           return (
+            <button
+             key={slotIdx}
+             type="button"
+             onClick={() => openBook(selectedDay, selectedRoom, slotIdx)}
+             className="flex min-h-12 w-full items-center justify-between rounded-xl border border-success/60 bg-success/15 px-4 py-3 text-left font-medium text-success transition-colors hover:bg-success/25"
+            >
+             <span>{lessonSlotLabel(slotIdx)}</span>
+             <span className="text-sm">可預約</span>
+            </button>
+           )
+          }
+          return (
+           <div
+            key={slotIdx}
+            className="rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm"
+           >
+            <div className="font-medium text-muted-foreground">{lessonSlotLabel(slotIdx)}</div>
+            <ul className="mt-1 space-y-1">
+             {occ.map((o) => (
+              <li key={`${o.kind}-${o.id}`} className="text-xs">
+               {o.label}
+               {o.teacherName ? ` · ${o.teacherName}` : ""}
+               {o.kind === "pending" ? "（待審）" : ""}
+              </li>
+             ))}
+            </ul>
+           </div>
+          )
+         })}
+        </div>
+       ) : null}
+      </>
+     )}
+    </div>
    ) : (
     <div className="space-y-10">
      {physicalRooms.map((room) => (
