@@ -30,7 +30,7 @@ export function StudentWhatsAppReminderButton({
 }: Props) {
  const disabled = !contactPhone?.trim()
  const title = disabled
-  ? "學生資料無 WhatsApp／家長電話／電話，請至學生檔案補齊"
+  ? "學生資料無 WhatsApp／學生電話／家長電話，請至學生檔案補齊"
   : "開啟 WhatsApp（已預填提醒文字，請自行確認後發送）"
 
  return (

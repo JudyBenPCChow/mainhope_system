@@ -6,7 +6,7 @@ import {
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 
 export type EnrollmentSessionRow = {
  enrollmentId: string
@@ -56,7 +56,7 @@ export async function fetchClassSingleSessionEnrollments(classId: string): Promi
  const { data: enrData, error: enrErr } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, student_id, enrollment_period, students ( full_name, whatsapp, parent_phone )"
+   "id, student_id, enrollment_period, students ( full_name, whatsapp, student_phone, parent_phone )"
   )
   .eq("class_id", classId)
   .eq("status", "就讀中")
@@ -70,10 +70,7 @@ export async function fetchClassSingleSessionEnrollments(classId: string): Promi
    enrollmentId: String(r.id),
    studentId: String(r.student_id),
    fullName: st?.full_name != null ? String(st.full_name) : "—",
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   }
  })
  if (enrollments.length === 0) return []

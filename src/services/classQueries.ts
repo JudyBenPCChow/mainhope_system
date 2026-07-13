@@ -24,7 +24,7 @@ import {
  releaseAvailabilityForClass,
  releaseAvailabilitySlotForSchedule,
 } from "@/services/teacherAvailabilityQueries"
-import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import type { EnrollmentFormValue, CourseMode } from "@/lib/enrollmentPeriod"
 import {
  enrollmentCoversPeriod,
@@ -47,6 +47,7 @@ import {
  consecutivePairFromFirstTimeSlot,
  isConsecutiveClass,
  newConsecutiveGroupId,
+ resolveLessonReminderTimes,
 } from "@/lib/consecutiveLesson"
 
 export type ClassRecord = {
@@ -607,7 +608,7 @@ export async function fetchClassStudents(
  if (!supabase) return []
  let q = supabase
   .from("student_class_enrollments")
-  .select("id, status, enroll_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, parent_phone )")
+  .select("id, status, enroll_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, student_phone, parent_phone )")
   .eq("class_id", classId)
  if (opts?.activeOnly) q = q.eq("status", "就讀中")
  const { data, error } = await q.order("created_at", { ascending: false })
@@ -639,10 +640,7 @@ export async function fetchClassStudents(
    enrollmentPeriod,
    sessionNumbers: [] as number[],
    enrollmentFormLabel: formatEnrollmentFormLabel(enrollmentPeriod),
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   }
  })
 
@@ -1391,6 +1389,10 @@ export type ScheduleDetailRecord = {
  classroom_name: string | null
  /** 課室是否標為線上（網課） */
  classroom_is_online: boolean
+ /** WhatsApp 提醒用（連堂已合併首末節時間） */
+ reminder_start_time: string | null
+ reminder_end_time: string | null
+ is_consecutive_lesson: boolean
 }
 
 export type ScheduleDetailStudent = {
@@ -1630,7 +1632,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -1645,11 +1647,46 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
+ const consecutiveGroupId =
+  r.consecutive_group_id != null ? String(r.consecutive_group_id) : null
+ const scheduleTimeRow = {
+  start_time: r.start_time != null ? String(r.start_time) : null,
+  end_time: r.end_time != null ? String(r.end_time) : null,
+  consecutive_group_id: consecutiveGroupId,
+  consecutive_slot_index:
+   r.consecutive_slot_index != null && !Number.isNaN(Number(r.consecutive_slot_index))
+    ? Number(r.consecutive_slot_index)
+    : null,
+ }
+ let reminderPeers: typeof scheduleTimeRow[] = [scheduleTimeRow]
+ if (consecutiveGroupId) {
+  const { data: siblings, error: sibErr } = await supabase
+   .from("schedules")
+   .select("start_time, end_time, consecutive_group_id, consecutive_slot_index")
+   .eq("consecutive_group_id", consecutiveGroupId)
+   .order("consecutive_slot_index", { ascending: true })
+  if (sibErr) throw sibErr
+  if (siblings && siblings.length > 0) {
+   reminderPeers = siblings.map((row) => {
+    const s = row as Record<string, unknown>
+    return {
+     start_time: s.start_time != null ? String(s.start_time) : null,
+     end_time: s.end_time != null ? String(s.end_time) : null,
+     consecutive_group_id: consecutiveGroupId,
+     consecutive_slot_index:
+      s.consecutive_slot_index != null && !Number.isNaN(Number(s.consecutive_slot_index))
+       ? Number(s.consecutive_slot_index)
+       : null,
+    }
+   })
+  }
+ }
+ const reminderTimes = resolveLessonReminderTimes(scheduleTimeRow, reminderPeers)
  return {
   id: String(r.id),
   scheduled_date: String(r.scheduled_date ?? ""),
-  start_time: r.start_time != null ? String(r.start_time) : null,
-  end_time: r.end_time != null ? String(r.end_time) : null,
+  start_time: scheduleTimeRow.start_time,
+  end_time: scheduleTimeRow.end_time,
   status: String(r.status ?? ""),
   cancel_reason: r.cancel_reason != null ? String(r.cancel_reason) : null,
   is_extra_lesson: r.is_extra_lesson === true,
@@ -1662,6 +1699,9 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
   classroom_id: r.classroom_id != null ? String(r.classroom_id) : null,
   classroom_name: crm?.name != null ? String(crm.name) : null,
   classroom_is_online: Boolean(crm?.is_online),
+  reminder_start_time: reminderTimes.startTime,
+  reminder_end_time: reminderTimes.endTime,
+  is_consecutive_lesson: reminderTimes.isConsecutive,
  }
 }
 

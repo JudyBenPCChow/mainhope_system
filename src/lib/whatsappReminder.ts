@@ -23,6 +23,16 @@ export function pickStudentContactRaw(st: StudentPhoneFields): string | null {
  return null
 }
 
+/** 從 Supabase students 關聯列取出聯絡電話（與 pickStudentContactRaw 優先順序一致） */
+export function pickStudentContactFromDbRow(st: Record<string, unknown> | null): string | null {
+ if (!st) return null
+ return pickStudentContactRaw({
+  whatsapp: st.whatsapp != null ? String(st.whatsapp) : null,
+  student_phone: st.student_phone != null ? String(st.student_phone) : null,
+  parent_phone: st.parent_phone != null ? String(st.parent_phone) : null,
+ })
+}
+
 /**
  * 轉成 wa.me 用的數字（僅數字，含國碼，無 +）。
  * 香港：8 位手機常省略 852，會自動補上。
@@ -49,10 +59,26 @@ export type LessonReminderPayload = {
  dateYmd: string
  startTime?: string | null
  endTime?: string | null
+ /** 連堂時顯示為「HH:MM-HH:MM (兩堂連堂)」 */
+ isConsecutive?: boolean
  classroomName?: string | null
  /** 點名／出席狀態（可選，例如「出席」「請假」） */
  attendanceStatus?: string | null
  isTrial?: boolean
+}
+
+export function formatLessonReminderTimeLine(
+ startTime: string | null | undefined,
+ endTime: string | null | undefined,
+ isConsecutive?: boolean
+): string | null {
+ const start = startTime?.trim() || null
+ const end = endTime?.trim() || null
+ if (start && end) {
+  const range = `${start}-${end}`
+  return isConsecutive ? `${range} (兩堂連堂)` : range
+ }
+ return start ?? end
 }
 
 /** 產生給家長／學生的溫馨提醒正文（可自行再改文案） */
@@ -66,14 +92,7 @@ export function buildLessonReminderMessage(p: LessonReminderPayload): string {
  const title = p.courseCode ? `${head}（${p.courseCode}）` : head
  lines.push(`班別：${title}`)
  lines.push(`日期：${p.dateYmd}`)
- const time =
-  p.startTime && p.endTime
-   ? `${p.startTime}–${p.endTime}`
-   : p.startTime
-    ? p.startTime
-    : p.endTime
-     ? p.endTime
-     : null
+ const time = formatLessonReminderTimeLine(p.startTime, p.endTime, p.isConsecutive)
  if (time) lines.push(`時間：${time}`)
  if (p.classroomName) lines.push(`課室：${p.classroomName}`)
  if (p.isTrial) lines.push(`備註：試堂`)

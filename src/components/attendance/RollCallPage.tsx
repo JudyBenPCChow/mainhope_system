@@ -35,6 +35,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import {
  buildRollCallScheduleEntries,
  formatConsecutiveSessionLabel,
+ trimTimeHm,
 } from "@/lib/consecutiveLesson"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
@@ -84,6 +85,14 @@ export function RollCallPage() {
   () => rollCallEntries.find((e) => e.key === activeRollCallKey) ?? null,
   [rollCallEntries, activeRollCallKey]
  )
+ const activeReminderTimes = useMemo(() => {
+  if (!activeEntry) return null
+  return {
+   startTime: trimTimeHm(activeEntry.start_time),
+   endTime: trimTimeHm(activeEntry.end_time),
+   isConsecutive: activeEntry.isConsecutive,
+  }
+ }, [activeEntry])
  const activeScheduleMeta = useMemo(() => {
   if (!activeEntry) return null
   const firstId = activeEntry.scheduleIds[0]
@@ -623,7 +632,7 @@ export function RollCallPage() {
            ) : null}
            <p className="mt-1 text-sm text-muted-foreground">年級：{row.grade ?? "—"}</p>
           </div>
-          {activeScheduleMeta ? (
+          {activeScheduleMeta && activeReminderTimes ? (
            <StudentWhatsAppReminderButton
             compact
             contactPhone={row.contactPhone}
@@ -632,8 +641,9 @@ export function RollCallPage() {
              subject: activeScheduleMeta.subject,
              courseCode: activeScheduleMeta.course_code_full,
              dateYmd: activeEntry.scheduled_date,
-             startTime: activeEntry.start_time,
-             endTime: activeEntry.end_time,
+             startTime: activeReminderTimes.startTime,
+             endTime: activeReminderTimes.endTime,
+             isConsecutive: activeReminderTimes.isConsecutive,
              classroomName: activeScheduleMeta.classroom_name,
              attendanceStatus: statusMap.get(row.studentId) || null,
              isTrial: row.source === "trial",
@@ -718,7 +728,7 @@ export function RollCallPage() {
             </div>
            </td>
            <td className="px-2 py-2">
-            {activeScheduleMeta ? (
+            {activeScheduleMeta && activeReminderTimes ? (
              <StudentWhatsAppReminderButton
               compact
               contactPhone={row.contactPhone}
@@ -727,8 +737,9 @@ export function RollCallPage() {
                subject: activeScheduleMeta.subject,
                courseCode: activeScheduleMeta.course_code_full,
                dateYmd: activeEntry.scheduled_date,
-               startTime: activeEntry.start_time,
-               endTime: activeEntry.end_time,
+               startTime: activeReminderTimes.startTime,
+               endTime: activeReminderTimes.endTime,
+               isConsecutive: activeReminderTimes.isConsecutive,
                classroomName: activeScheduleMeta.classroom_name,
                attendanceStatus: statusMap.get(row.studentId) || null,
                isTrial: row.source === "trial",

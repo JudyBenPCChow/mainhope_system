@@ -185,3 +185,60 @@ export function newConsecutiveGroupId(): string {
  }
  return `cg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
+
+export type ScheduleTimeRow = {
+ start_time: string | null
+ end_time: string | null
+ consecutive_group_id?: string | null
+ consecutive_slot_index?: number | null
+}
+
+/** 將 DB 時間（如 15:15:00）裁成 HH:MM */
+export function trimTimeHm(time: string | null | undefined): string | null {
+ if (!time?.trim()) return null
+ const m = time.trim().match(/^(\d{1,2}:\d{2})/)
+ return m ? m[1] : time.trim().slice(0, 5)
+}
+
+/** 解析 WhatsApp 提醒用時間：連堂取首節開始至末節結束 */
+export function resolveLessonReminderTimes(
+ schedule: ScheduleTimeRow,
+ peers?: Iterable<ScheduleTimeRow>
+): { startTime: string | null; endTime: string | null; isConsecutive: boolean } {
+ const gid = schedule.consecutive_group_id?.trim()
+ if (!gid) {
+  return {
+   startTime: trimTimeHm(schedule.start_time),
+   endTime: trimTimeHm(schedule.end_time),
+   isConsecutive: false,
+  }
+ }
+
+ const group: ScheduleTimeRow[] = []
+ if (peers) {
+  for (const p of peers) {
+   if (p.consecutive_group_id?.trim() === gid) group.push(p)
+  }
+ }
+ if (!group.some((p) => p === schedule)) group.push(schedule)
+
+ const sorted = [...group].sort(
+  (a, b) => (a.consecutive_slot_index ?? 0) - (b.consecutive_slot_index ?? 0)
+ )
+
+ if (sorted.length <= 1) {
+  return {
+   startTime: trimTimeHm(schedule.start_time),
+   endTime: trimTimeHm(schedule.end_time),
+   isConsecutive: false,
+  }
+ }
+
+ const head = sorted[0]
+ const tail = sorted[sorted.length - 1]
+ return {
+  startTime: trimTimeHm(head.start_time),
+  endTime: trimTimeHm(tail?.end_time ?? head.end_time),
+  isConsecutive: true,
+ }
+}

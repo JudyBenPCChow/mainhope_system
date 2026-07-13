@@ -9,7 +9,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
-import { pickStudentContactRaw } from "@/lib/whatsappReminder"
+import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -30,7 +30,7 @@ export type RollCallStudentRow = {
  school: string | null
  enrollDate: string | null
  status: string
- /** 來自 students.whatsapp / parent_phone，供 wa.me 使用 */
+ /** 來自 students.whatsapp / student_phone / parent_phone，供 wa.me 使用 */
  contactPhone: string | null
  /** 是否為單堂報讀（本堂有選） */
  isSingleSession: boolean
@@ -46,7 +46,7 @@ export async function fetchRosterForRollCall(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, parent_phone )"
+   "id, status, enroll_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, student_phone, parent_phone )"
   )
   .eq("class_id", classId)
   .eq("status", "就讀中")
@@ -83,10 +83,7 @@ export async function fetchRosterForRollCall(
    enrollmentPeriod: normalizeEnrollmentPeriod(
     r.enrollment_period != null ? String(r.enrollment_period) : null
    ),
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   }
  })
 
@@ -136,7 +133,7 @@ export async function fetchLeaveStudentsForSchedule(
  const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
  const { data, error } = await supabase
   .from("leave_makeup_records")
-  .select("student_id, students ( full_name, whatsapp, parent_phone )")
+  .select("student_id, students ( full_name, whatsapp, student_phone, parent_phone )")
   .or(orFilter)
   .order("created_at", { ascending: true })
  if (error) throw error
@@ -152,10 +149,7 @@ export async function fetchLeaveStudentsForSchedule(
   out.push({
    studentId: sid,
    fullName: st?.full_name != null ? String(st.full_name) : "—",
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   })
  }
  return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
@@ -173,7 +167,7 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
  if (!supabase) return []
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, students ( full_name, english_name, grade, whatsapp, parent_phone )")
+  .select("student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
   .eq("schedule_id", scheduleId)
  if (error) throw error
  return (data ?? []).map((row) => {
@@ -184,10 +178,7 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
    fullName: st?.full_name != null ? String(st.full_name) : "—",
    englishName: st?.english_name != null ? String(st.english_name) : null,
    grade: st?.grade != null ? String(st.grade) : null,
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   }
  })
 }
@@ -386,7 +377,7 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
  if (!supabase || scheduleIds.length === 0) return []
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, students ( full_name, english_name, grade, whatsapp, parent_phone )")
+  .select("student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
   .in("schedule_id", scheduleIds)
  if (error) throw error
  const seen = new Set<string>()
@@ -408,10 +399,7 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
    fullName: st?.full_name != null ? String(st.full_name) : "—",
    englishName: st?.english_name != null ? String(st.english_name) : null,
    grade: st?.grade != null ? String(st.grade) : null,
-   contactPhone: pickStudentContactRaw({
-    whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
-    parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
-   }),
+   contactPhone: pickStudentContactFromDbRow(st),
   })
  }
  return out

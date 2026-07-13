@@ -79,7 +79,7 @@ import {
  type ScheduleDetailRecord,
 } from "@/services/classQueries"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
-import { consecutivePairFromFirstTimeSlot, isConsecutiveClass } from "@/lib/consecutiveLesson"
+import { consecutivePairFromFirstTimeSlot, isConsecutiveClass, resolveLessonReminderTimes } from "@/lib/consecutiveLesson"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
@@ -125,6 +125,8 @@ type ExpandedRosterStudent = {
 
 type ExpandedScheduleRosterProps = {
  schedule: ScheduleManageRow
+ /** 同頁面已載入的排程，用於解析連堂時間 */
+ schedulePeers?: ScheduleManageRow[]
  loading: boolean
  enrolled: ExpandedRosterStudent[]
  leave: ExpandedRosterStudent[]
@@ -137,6 +139,7 @@ type ExpandedScheduleRosterProps = {
 
 function ExpandedScheduleRoster({
  schedule,
+ schedulePeers,
  loading,
  enrolled,
  leave,
@@ -145,6 +148,7 @@ function ExpandedScheduleRoster({
  classMeta,
  footer,
 }: ExpandedScheduleRosterProps) {
+ const reminderTimes = resolveLessonReminderTimes(schedule, schedulePeers)
  const sections: {
   key: string
   label: string
@@ -250,8 +254,9 @@ function ExpandedScheduleRoster({
              courseName: schedule.course_name,
              courseCode: schedule.course_code_full,
              dateYmd: schedule.scheduled_date,
-             startTime: schedule.start_time,
-             endTime: schedule.end_time,
+             startTime: reminderTimes.startTime,
+             endTime: reminderTimes.endTime,
+             isConsecutive: reminderTimes.isConsecutive,
              classroomName: schedule.classroom_name,
              attendanceStatus: section.attendanceStatus,
              isTrial: section.isTrial,
@@ -1497,6 +1502,7 @@ useEffect(() => {
              <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
               <ExpandedScheduleRoster
                schedule={s}
+               schedulePeers={rows}
                loading={listStudentsLoading}
                enrolled={listStudents}
                leave={listLeaveStudents}
@@ -1676,6 +1682,7 @@ useEffect(() => {
             <td colSpan={7} className="px-4 py-4">
              <ExpandedScheduleRoster
               schedule={s}
+              schedulePeers={rows}
               loading={listStudentsLoading}
               enrolled={listStudents}
               leave={listLeaveStudents}
