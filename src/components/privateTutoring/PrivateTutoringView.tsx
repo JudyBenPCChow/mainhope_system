@@ -608,21 +608,28 @@ export function PrivateTutoringView() {
     })
     const conflictItems = preview.filter((p) => p.conflicts.length > 0)
     let skipConflictDates = false
+    let ignoreConflicts = false
     if (conflictItems.length > 0) {
      const lines = conflictItems.map(
       (p) => `${p.date}：${p.conflicts.map((c) => c.label).join("；")}`
      )
-     const ok = await confirmDialog({
+     const choice = await confirmDialog({
       title: "週期預約有衝突",
-      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選取消則不建立任何堂。`,
+      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選「無視衝突建立排程」會建立全部堂次；選取消則不建立任何堂。`,
       confirmText: "略過衝突日並建立",
+      alternateText: "無視衝突建立排程",
       tone: "warning",
+      alternateTone: "destructive",
      })
-     if (!ok) {
+     if (!choice) {
       setBookErr(lines.join("\n"))
       return
      }
-     skipConflictDates = true
+     if (choice === "alternate") {
+      ignoreConflicts = true
+     } else {
+      skipConflictDates = true
+     }
     } else {
      const ok = await confirmDialog({
       title: "確認週期預約",
@@ -640,6 +647,7 @@ export function PrivateTutoringView() {
      endTime,
      teacherId,
      skipConflictDates,
+     ignoreConflicts,
     })
     pushBanner({
      tone: "success",
@@ -1252,7 +1260,7 @@ export function PrivateTutoringView() {
           onChange={(e) => setBookWeekCount(e.target.value)}
          />
          <p className="text-xs text-muted-foreground">
-          自選定日期起每週同一時段；有衝突時會先預覽再決定是否略過。
+          自選定日期起每週同一時段；有衝突時會先預覽，可略過衝突日或無視衝突建立。
          </p>
         </div>
        ) : null}

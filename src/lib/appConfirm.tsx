@@ -6,19 +6,23 @@ import { cn } from "@/lib/utils"
 
 type ConfirmTone = "default" | "warning" | "destructive"
 
+export type ConfirmResult = boolean | "alternate"
+
 type ConfirmOptions = {
  title: string
  description?: string
  confirmText?: string
  cancelText?: string
+ alternateText?: string
  tone?: ConfirmTone
+ alternateTone?: ConfirmTone
  dismissOnOverlayClick?: boolean
 }
 
 type ConfirmState = ConfirmOptions & { open: boolean }
 
 type AppConfirmContextValue = {
- confirmDialog: (options: ConfirmOptions) => Promise<boolean>
+ confirmDialog: (options: ConfirmOptions) => Promise<ConfirmResult>
 }
 
 const AppConfirmContext = createContext<AppConfirmContextValue | null>(null)
@@ -33,24 +37,26 @@ function toneClass(tone: ConfirmTone): string {
 }
 
 export function AppConfirmProvider({ children }: PropsWithChildren) {
- const resolverRef = useRef<((value: boolean) => void) | null>(null)
+ const resolverRef = useRef<((value: ConfirmResult) => void) | null>(null)
  const confirmButtonRef = useRef<HTMLButtonElement | null>(null)
  const [state, setState] = useState<ConfirmState | null>(null)
 
- const close = useCallback((result: boolean) => {
+ const close = useCallback((result: ConfirmResult) => {
   setState(null)
   resolverRef.current?.(result)
   resolverRef.current = null
  }, [])
 
  const confirmDialog = useCallback((options: ConfirmOptions) => {
-  return new Promise<boolean>((resolve) => {
+  return new Promise<ConfirmResult>((resolve) => {
    resolverRef.current = resolve
    setState({
     open: true,
     tone: options.tone ?? "default",
+    alternateTone: options.alternateTone ?? "destructive",
     confirmText: options.confirmText ?? "確定",
     cancelText: options.cancelText ?? "取消",
+    alternateText: options.alternateText,
     dismissOnOverlayClick: options.dismissOnOverlayClick ?? false,
     title: options.title,
     description: options.description,
@@ -103,6 +109,19 @@ export function AppConfirmProvider({ children }: PropsWithChildren) {
        >
         {state?.cancelText ?? "取消"}
        </Button>
+       {state?.alternateText ? (
+        <Button
+         type="button"
+         size="lg"
+         className={cn(
+          "h-11 w-full rounded-2xl px-6 text-base sm:h-14 sm:w-auto sm:min-w-[150px] sm:text-xl",
+          toneClass(state.alternateTone ?? "destructive")
+         )}
+         onClick={() => close("alternate")}
+        >
+         {state.alternateText}
+        </Button>
+       ) : null}
        <Button
         ref={confirmButtonRef}
         type="button"

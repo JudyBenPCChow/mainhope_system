@@ -747,7 +747,7 @@ export async function previewPrivateRecurringBookings(params: {
  return items
 }
 
-/** 批次建立每週預約；skipConflictDates=true 時略過有衝突的日期 */
+/** 批次建立每週預約；skipConflictDates=true 時略過有衝突的日期；ignoreConflicts=true 時不檢查衝突直接建立 */
 export async function createPrivateRecurringBookings(params: {
  classId: string
  studentId: string
@@ -757,26 +757,29 @@ export async function createPrivateRecurringBookings(params: {
  endTime: string
  teacherId?: string | null
  skipConflictDates: boolean
+ ignoreConflicts?: boolean
 }): Promise<{ created: number; skipped: string[] }> {
  const skipped: string[] = []
  let created = 0
  for (const date of params.dates) {
-  const conflicts = await checkPrivateBookingConflicts({
-   classroomId: params.classroomId,
-   scheduledDate: date,
-   startTime: params.startTime,
-   endTime: params.endTime,
-   teacherId: params.teacherId,
-   studentId: params.studentId,
-  })
-  if (conflicts.length > 0) {
-   if (params.skipConflictDates) {
-    skipped.push(date)
-    continue
+  if (!params.ignoreConflicts) {
+   const conflicts = await checkPrivateBookingConflicts({
+    classroomId: params.classroomId,
+    scheduledDate: date,
+    startTime: params.startTime,
+    endTime: params.endTime,
+    teacherId: params.teacherId,
+    studentId: params.studentId,
+   })
+   if (conflicts.length > 0) {
+    if (params.skipConflictDates) {
+     skipped.push(date)
+     continue
+    }
+    throw new Error(
+     `${date} 有衝突：${conflicts.map((c) => c.label).join("；")}`
+    )
    }
-   throw new Error(
-    `${date} 有衝突：${conflicts.map((c) => c.label).join("；")}`
-   )
   }
   await insertScheduleForClass(params.classId, params.teacherId ?? null, {
    scheduled_date: date,
