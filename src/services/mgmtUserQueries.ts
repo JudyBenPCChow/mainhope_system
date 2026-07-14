@@ -72,3 +72,57 @@ export async function createTeacherMgmtUser(
     temporaryPassword: String(payload.temporaryPassword ?? ""),
   }
 }
+
+export type ResetMgmtUserPasswordInput = {
+  appUserId: string
+  email?: string | null
+}
+
+export type ResetMgmtUserPasswordResult =
+  | {
+      ok: true
+      email: string
+      displayName: string
+      temporaryPassword: string
+    }
+  | { ok: false; message: string }
+
+export async function resetMgmtUserPassword(
+  input: ResetMgmtUserPasswordInput
+): Promise<ResetMgmtUserPasswordResult> {
+  if (!isSupabaseConfigured || !supabase) {
+    return { ok: false, message: "尚未設定 Supabase，暫時無法重設密碼。" }
+  }
+
+  const { data, error, response } = await supabase.functions.invoke("reset-mgmt-user-password", {
+    body: {
+      appUserId: input.appUserId,
+      email: input.email?.trim().toLowerCase() || null,
+    },
+  })
+
+  if (error) {
+    const detail = await readFunctionErrorBody(error, response)
+    return { ok: false, message: detail ?? formatUnknownError(error) }
+  }
+
+  if (!data || typeof data !== "object") {
+    return { ok: false, message: "重設密碼失敗：伺服器回覆格式異常。" }
+  }
+
+  const payload = data as Record<string, unknown>
+  if (payload.ok !== true) {
+    const message =
+      typeof payload.error === "string" && payload.error.trim()
+        ? payload.error.trim()
+        : "重設密碼失敗，請稍後再試。"
+    return { ok: false, message }
+  }
+
+  return {
+    ok: true,
+    email: String(payload.email ?? "").trim().toLowerCase(),
+    displayName: String(payload.displayName ?? "").trim(),
+    temporaryPassword: String(payload.temporaryPassword ?? ""),
+  }
+}

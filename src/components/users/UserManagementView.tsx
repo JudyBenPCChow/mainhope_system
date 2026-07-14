@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
-import { GraduationCap, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog } from "lucide-react"
+import { GraduationCap, KeyRound, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag, type TagTone } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -22,7 +23,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { fetchTeacherOptions, type TeacherOption } from "@/services/classQueries"
-import { createTeacherMgmtUser } from "@/services/mgmtUserQueries"
+import { createTeacherMgmtUser, resetMgmtUserPassword } from "@/services/mgmtUserQueries"
 import { listAppUsers, updateAppUser } from "@/services/queries"
 
 export type AppUserRow = {
@@ -89,9 +90,16 @@ const ROLE_OPTIONS = [
  { value: "alien", label: "外星人" },
 ] as const
 
+function canResetPassword(u: AppUserRow): boolean {
+ const role = u.role.trim().toLowerCase()
+ if (role === "student") return false
+ return Boolean(u.email?.trim())
+}
+
 export function UserManagementView() {
  const canEdit = isSuperAdmin()
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<AppUserRow[]>([])
  const [teachers, setTeachers] = useState<TeacherOption[]>([])
  const [loading, setLoading] = useState(true)
@@ -120,6 +128,13 @@ export function UserManagementView() {
   display_name: "",
   teacher_id: "",
  })
+ const [resettingId, setResettingId] = useState<string | null>(null)
+ const [resetCredential, setResetCredential] = useState<{
+  email: string
+  displayName: string
+  temporaryPassword: string
+ } | null>(null)
+ const [resetOpen, setResetOpen] = useState(false)
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -245,6 +260,51 @@ export function UserManagementView() {
   setCreateOpen(true)
  }
 
+ const resetPassword = async (u: AppUserRow) => {
+  if (!canEdit || !canResetPassword(u)) return
+  const label = u.display_name?.trim() || u.email || "此用戶"
+  const ok = await confirmDialog({
+   title: "重設密碼",
+   description: `確定要為「${label}」產生新臨時密碼？舊密碼將立即失效，臨時密碼只會顯示一次。`,
+   confirmText: "確認重設",
+   tone: "destructive",
+  })
+  if (!ok) return
+
+  setResettingId(u.id)
+  setErr(null)
+  try {
+   const result = await resetMgmtUserPassword({
+    appUserId: u.id,
+    email: u.email,
+   })
+   if (!result.ok) {
+    setErr(result.message)
+    return
+   }
+   setResetCredential({
+    email: result.email,
+    displayName: result.displayName || label,
+    temporaryPassword: result.temporaryPassword,
+   })
+   setResetOpen(true)
+   pushBanner({
+    tone: "success",
+    title: "已重設密碼",
+    message: `${result.displayName || result.email} 的臨時密碼已產生，請安全交給對方。`,
+   })
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "UserManagementView.resetPassword",
+    setErr,
+    userMessage: msg,
+   })
+  } finally {
+   setResettingId(null)
+  }
+ }
+
  const saveCreate = async () => {
   const email = createForm.email.trim().toLowerCase()
   const teacherId = createForm.teacher_id.trim()
@@ -320,16 +380,14 @@ export function UserManagementView() {
      </h1>
      <p className="max-w-prose text-sm text-muted-foreground md:text-base">
       資料來自 Supabase 表 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">app_users</code>
-      （後台演示身分；之後可併入 Auth）。
+      ，登入憑證由 Supabase Auth 管理。
      </p>
      {canEdit ? (
-      <p className="text-xs font-medium text-violet-800">
-       您目前為<strong>外星人</strong>：可點卡片下方「編輯」修改顯示名稱、角色與綁定老師；下拉會顯示老師
-       <abbr title="Abbreviation，內部簡稱／代碼">ABBR</abbr>
-       。修改 ABBR 本身請至「老師」詳情。
+      <p className="text-xs font-medium text-info">
+       您目前為<strong>外星人</strong>：可編輯顯示名稱／角色／綁定老師，或為既有用戶「重設密碼」產生臨時密碼。
       </p>
      ) : (
-      <p className="text-xs text-muted-foreground">此頁僅供檢視；編輯需切換為外星人角色。</p>
+      <p className="text-xs text-muted-foreground">此頁僅供檢視；編輯與重設密碼需外星人角色。</p>
      )}
     </div>
     <div className="flex shrink-0 flex-wrap gap-2">
@@ -455,16 +513,31 @@ export function UserManagementView() {
          <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-4 text-xs text-muted-foreground">
           <span className="tabular-nums">更新 {formatUpdated(u.updated_at)}</span>
           {canEdit ? (
-           <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className="gap-1.5 shadow-sm"
-            onClick={() => openEdit(u)}
-           >
-            <Pencil className="h-3.5 w-3.5" aria-hidden />
-            編輯
-           </Button>
+           <div className="flex flex-wrap gap-2">
+            {canResetPassword(u) ? (
+             <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5 shadow-sm"
+              disabled={resettingId === u.id}
+              onClick={() => void resetPassword(u)}
+             >
+              <KeyRound className="h-3.5 w-3.5" aria-hidden />
+              {resettingId === u.id ? "重設中…" : "重設密碼"}
+             </Button>
+            ) : null}
+            <Button
+             type="button"
+             size="sm"
+             variant="secondary"
+             className="gap-1.5 shadow-sm"
+             onClick={() => openEdit(u)}
+            >
+             <Pencil className="h-3.5 w-3.5" aria-hidden />
+             編輯
+            </Button>
+           </div>
           ) : null}
          </div>
         </div>
@@ -592,6 +665,55 @@ export function UserManagementView() {
        onClick={() => void saveEdit()}
       >
        {saving ? "儲存中…" : "儲存"}
+      </Button>
+     </DialogFooter>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={resetOpen}
+    onOpenChange={(open) => {
+     if (!open) {
+      setResetOpen(false)
+      setResetCredential(null)
+     }
+    }}
+   >
+    <DialogContent className="max-w-md gap-0 overflow-hidden border-warning p-0 sm:rounded-xl">
+     <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4 text-white">
+      <DialogHeader className="space-y-1 text-left">
+       <DialogTitle className="text-lg font-semibold text-white">密碼已重設</DialogTitle>
+       <p className="text-xs font-normal text-white/85">臨時密碼只顯示一次，請立即安全交給對方。</p>
+      </DialogHeader>
+     </div>
+     <div className="space-y-3 px-6 py-5 text-sm">
+      {resetCredential ? (
+       <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-foreground">
+        <p className="mt-0 break-all">
+         <span className="text-muted-foreground">用戶：</span>
+         {resetCredential.displayName || "—"}
+        </p>
+        <p className="mt-1 break-all">
+         <span className="text-muted-foreground">電郵：</span>
+         {resetCredential.email}
+        </p>
+        <p className="mt-1 break-all">
+         <span className="text-muted-foreground">臨時密碼：</span>
+         <span className="font-mono text-foreground">{resetCredential.temporaryPassword}</span>
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">舊密碼已失效；關閉此視窗後系統不會再次顯示。</p>
+       </div>
+      ) : null}
+     </div>
+     <DialogFooter className="flex border-t border-border bg-muted/30 px-6 py-4 sm:justify-end">
+      <Button
+       type="button"
+       onClick={() => {
+        setResetOpen(false)
+        setResetCredential(null)
+       }}
+      >
+       完成
       </Button>
      </DialogFooter>
     </DialogContent>

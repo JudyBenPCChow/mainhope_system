@@ -1,6 +1,11 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 
-import { assertAlienCaller, createServiceRoleClient, resolveCallerFromRequest } from "../_shared/mgmtUserAuth.ts"
+import {
+  assertAlienCaller,
+  createServiceRoleClient,
+  generateTemporaryPassword,
+  resolveCallerFromRequest,
+} from "../_shared/mgmtUserAuth.ts"
 import { jsonResponse } from "../_shared/cors.ts"
 
 type RequestBody = {
@@ -25,12 +30,6 @@ function normalizeTeacherId(raw: unknown): string | null {
   const value = String(raw ?? "").trim()
   if (!/^[0-9a-f-]{36}$/i.test(value)) return null
   return value
-}
-
-function generateTemporaryPassword(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*"
-  const bytes = crypto.getRandomValues(new Uint8Array(18))
-  return Array.from(bytes, (byte) => chars[byte % chars.length]).join("")
 }
 
 Deno.serve(async (req) => {
