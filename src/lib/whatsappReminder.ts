@@ -87,7 +87,7 @@ export function buildLessonReminderMessage(p: LessonReminderPayload): string {
  const who = p.studentName.trim() || "同學"
  lines.push(`您好，這裡是明學補習社通知。`)
  lines.push("")
- lines.push(`${who} 今日課堂提醒：`)
+ lines.push(`${who} 課堂提醒：`)
  const head = p.courseName?.trim() ? p.courseName.trim() : p.subject
  const title = p.courseCode ? `${head}（${p.courseCode}）` : head
  lines.push(`班別：${title}`)
