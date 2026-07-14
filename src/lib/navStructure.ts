@@ -16,6 +16,7 @@ import {
  HandCoins,
  Home,
  LayoutGrid,
+ MessageSquareQuote,
  NotebookTabs,
  Percent,
  Plus,
@@ -154,6 +155,13 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "繳費紀錄",
   roles: ["admin", "alien"],
   icon: Wallet,
+ },
+ {
+  kind: "leaf",
+  path: "/ScriptLibrary",
+  label: "話術庫",
+  roles: ["admin", "alien"],
+  icon: MessageSquareQuote,
  },
  {
   kind: "leaf",

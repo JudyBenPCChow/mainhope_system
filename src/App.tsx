@@ -26,6 +26,7 @@ import ReferralRebates from "@/pages/ReferralRebates"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
+import ScriptLibrary from "@/pages/ScriptLibrary"
 import SystemIssues from "@/pages/SystemIssues"
 import SystemLogs from "@/pages/SystemLogs"
 import RoomBooking from "@/pages/RoomBooking"
@@ -94,6 +95,7 @@ export default function App() {
      <Route path="/RoomBookingAdmin" element={<RoomBookingAdmin />} />
      <Route path="/LeaveManagement" element={<LeaveManagement />} />
      <Route path="/TrialSessions" element={<TrialSessions />} />
+     <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
     </Route>
