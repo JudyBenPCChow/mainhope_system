@@ -208,6 +208,49 @@ export async function fetchLeaveStudentIdsForLesson(
  return out
 }
 
+/**
+ * 批次：多個排程各自的「本堂請假」學生 id。
+ * 一筆請假紀錄套用到某排程的條件（與 fetchLeaveStudentsForSchedule 一致）：
+ * 已連結該排程（schedule_id 相符），或同班同日（class_id + leave_date 相符）。
+ * 主要用途：日視圖判斷排程是否「全員請假／沒有學生」。
+ */
+export async function fetchLeaveStudentIdsForSchedules(
+ schedules: { id: string; class_id: string | null; scheduled_date: string }[]
+): Promise<Map<string, Set<string>>> {
+ const map = new Map<string, Set<string>>()
+ for (const s of schedules) map.set(s.id, new Set())
+ if (!supabase || schedules.length === 0) return map
+
+ const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
+ const classIds = [
+  ...new Set(schedules.map((s) => s.class_id).filter((x): x is string => x != null && x !== "")),
+ ]
+ if (classIds.length === 0 || dates.length === 0) return map
+
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("student_id, schedule_id, class_id, leave_date")
+  .in("class_id", classIds)
+  .in("leave_date", dates)
+ if (error) throw error
+
+ for (const row of data ?? []) {
+  const r = row as {
+   student_id: string
+   schedule_id: string | null
+   class_id: string
+   leave_date: string
+  }
+  const sid = String(r.student_id)
+  for (const s of schedules) {
+   const linked = r.schedule_id != null && r.schedule_id === s.id
+   const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
+   if (linked || sameClassDate) map.get(s.id)?.add(sid)
+  }
+ }
+ return map
+}
+
 /** 本堂為補堂目標排程的學生（可傳多個 schedule id） */
 export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): Promise<Set<string>> {
  if (!supabase || scheduleIds.length === 0) return new Set()

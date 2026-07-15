@@ -88,6 +88,7 @@ export function DayViewScheduleCard({
  alerts,
  studentNames,
  variant,
+ empty,
  historyReadOnly,
  inactiveRoomName,
  onOpenDetail,
@@ -98,6 +99,8 @@ export function DayViewScheduleCard({
  alerts: ScheduleAlerts
  studentNames: string[]
  variant: "assigned" | "unassigned"
+ /** 本堂沒有任何學生（沒有報讀或全員請假）：以灰色淡化顯示 */
+ empty?: boolean
  historyReadOnly: boolean
  inactiveRoomName?: string | null
  onOpenDetail: () => void
@@ -125,9 +128,11 @@ export function DayViewScheduleCard({
    className={cn(
     "rounded-lg border px-2.5 py-2.5 text-sm shadow-sm",
     historyReadOnly ? "cursor-default opacity-75" : "cursor-grab active:cursor-grabbing",
-    variant === "unassigned"
-     ? "border-2 border-warning bg-warning/25 text-warning"
-     : "border-info/50 bg-info/10 text-info"
+    empty
+     ? "border-border bg-muted/70 text-muted-foreground"
+     : variant === "unassigned"
+      ? "border-2 border-warning bg-warning/25 text-warning"
+      : "border-info/50 bg-info/10 text-info"
    )}
   >
    <div className="flex items-start justify-between gap-1.5">
@@ -144,6 +149,9 @@ export function DayViewScheduleCard({
     <Tag tone={statusToTagTone(schedule.status)} size="sm">
      {schedule.status}
     </Tag>
+    {empty ? (
+     <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">無學生</Tag>
+    ) : null}
     {schedule.is_extra_lesson ? (
      <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
     ) : null}
@@ -197,6 +205,8 @@ type Props = {
  schedules: ScheduleManageRow[]
  alerts: Map<string, ScheduleAlerts>
  studentRoster: Map<string, string[]>
+ /** 沒有任何學生（沒有報讀或全員請假）的排程 id，將以灰色淡化顯示 */
+ emptyScheduleIds?: ReadonlySet<string>
  roomColumns: RoomRecord[]
  activeRoomIdSet: ReadonlySet<string>
  roomColPct: { timePct: number; each: number }
@@ -212,6 +222,7 @@ export function DayViewGrid({
  schedules,
  alerts,
  studentRoster,
+ emptyScheduleIds,
  roomColumns,
  activeRoomIdSet,
  roomColPct,
@@ -250,6 +261,7 @@ export function DayViewGrid({
    alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
    studentNames={s.class_id ? (studentRoster.get(s.class_id) ?? []) : []}
    variant={variant}
+   empty={emptyScheduleIds?.has(s.id) ?? false}
    historyReadOnly={scheduleRowLocked(s)}
    inactiveRoomName={inactiveRoomName(s)}
    onOpenDetail={() => onOpenDetail(s.id)}

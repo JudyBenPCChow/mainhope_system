@@ -266,7 +266,7 @@ export function TeacherHomeView() {
 
    <section className="grid gap-4 md:grid-cols-3" aria-label="本日重點">
     <Link
-     to={`/Schedule?view=day&date=${encodeURIComponent(today)}`}
+     to={`/Classrooms?date=${encodeURIComponent(today)}`}
      className={cn(
       "block rounded-xl border border-border bg-card p-5 shadow-sm outline-none transition-all duration-200",
       "hover:border-info/40 hover:bg-info/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
@@ -377,7 +377,7 @@ export function TeacherHomeView() {
 
    <section className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
     <Link
-     to={`/Schedule?view=day&date=${encodeURIComponent(today)}`}
+     to={`/Classrooms?date=${encodeURIComponent(today)}`}
      className={cn(
       "group mb-1 flex w-fit max-w-full items-center gap-2 rounded-lg py-1 text-xl font-semibold outline-none transition-colors md:text-2xl",
       "hover:text-primary/90 focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"
