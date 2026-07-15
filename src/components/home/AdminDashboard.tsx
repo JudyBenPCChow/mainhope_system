@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react"
 
+import { AdminHomeStudentsTrialsPanel } from "@/components/home/AdminHomeStudentsTrialsPanel"
 import { DashboardBoard } from "@/components/home/DashboardBoard"
 import { DashboardTopMetrics } from "@/components/home/DashboardTopMetrics"
 import { RecentPaymentsCard } from "@/components/home/RecentPaymentsCard"
 import { RevenueChart } from "@/components/home/RevenueChart"
-import { StudentStatsChart } from "@/components/home/StudentStatsChart"
 import { UnpaidAlert } from "@/components/home/UnpaidAlert"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -34,6 +35,10 @@ const empty: AdminDashboardPayload = {
  roomVacancy: [],
  todayLeaves: [],
 }
+
+const HOME_TAB_SCHEDULE = "schedule"
+const HOME_TAB_STUDENTS = "students-trials"
+const HOME_TAB_PAYMENTS = "payments"
 
 export function AdminDashboard() {
  const greetingName =
@@ -122,23 +127,37 @@ export function AdminDashboard() {
     loading={loading}
    />
 
-   <DashboardBoard
-    scheduleViewYmd={scheduleViewYmd}
-    onScheduleViewYmdChange={setScheduleViewYmd}
-    todayClassCards={scheduleBoardCards}
-    scheduleColumnLoading={scheduleBoardLoading}
-    todayLeaves={data.todayLeaves}
-    loading={loading}
-   />
+   <Tabs defaultValue={HOME_TAB_SCHEDULE} className="w-full min-w-0">
+    <TabsList aria-label="管理中心功能" className="w-full sm:w-auto">
+     <TabsTrigger value={HOME_TAB_SCHEDULE}>排程與今日課堂</TabsTrigger>
+     <TabsTrigger value={HOME_TAB_STUDENTS}>新增學生及試堂</TabsTrigger>
+     <TabsTrigger value={HOME_TAB_PAYMENTS}>繳費</TabsTrigger>
+    </TabsList>
 
-   <UnpaidAlert items={data.unpaid} total={data.unpaidTotal} loading={loading} />
+    <TabsContent value={HOME_TAB_SCHEDULE} className="space-y-4">
+     <DashboardBoard
+      scheduleViewYmd={scheduleViewYmd}
+      onScheduleViewYmdChange={setScheduleViewYmd}
+      todayClassCards={scheduleBoardCards}
+      scheduleColumnLoading={scheduleBoardLoading}
+      todayLeaves={data.todayLeaves}
+      loading={loading}
+     />
+    </TabsContent>
 
-   <RecentPaymentsCard payments={data.recentPayments} loading={loading} />
+    <TabsContent value={HOME_TAB_STUDENTS}>
+     <AdminHomeStudentsTrialsPanel
+      studentStatusSlices={data.studentStatusSlices}
+      loading={loading}
+     />
+    </TabsContent>
 
-   <div className="grid gap-4 lg:grid-cols-2">
-    <RevenueChart bars={data.revenueBars} loading={loading} />
-    <StudentStatsChart slices={data.studentStatusSlices} loading={loading} />
-   </div>
+    <TabsContent value={HOME_TAB_PAYMENTS} className="space-y-4">
+     <UnpaidAlert items={data.unpaid} total={data.unpaidTotal} loading={loading} />
+     <RecentPaymentsCard payments={data.recentPayments} loading={loading} />
+     <RevenueChart bars={data.revenueBars} loading={loading} />
+    </TabsContent>
+   </Tabs>
   </div>
  )
 }
