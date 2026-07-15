@@ -27,6 +27,7 @@ import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
 import ScriptLibrary from "@/pages/ScriptLibrary"
+import Settings from "@/pages/Settings"
 import SystemIssues from "@/pages/SystemIssues"
 import SystemLogs from "@/pages/SystemLogs"
 import RoomBooking from "@/pages/RoomBooking"
@@ -65,6 +66,7 @@ export default function App() {
      <Route path="/Classrooms" element={<Classrooms />} />
      <Route path="/TeacherTimetable" element={<TeacherTimetable />} />
      <Route path="/TeacherProfile" element={<TeacherProfile />} />
+     <Route path="/Settings" element={<Settings />} />
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />

@@ -469,9 +469,8 @@ export function scheduleRangeEnd(startYmd: string, daysInclusive: number): strin
 }
 
 /**
- * 找出「最近的排程」日期：優先取今天或之後最接近的有課日期；
- * 若往後沒有排程，則退回最近一次（過去）的排程日期。
- * 排除「取消」狀態，避免落在沒有實際課堂的日子。
+ * 找出「未來最接近」的有課日期（含今天若今天有未取消排程）。
+ * 排除「取消」狀態；若未來完全沒有排程則回傳 null（頁面可維持今天）。
  */
 export async function fetchNearestScheduleDate(
  opts?: { teacherId?: string | null }
@@ -479,42 +478,20 @@ export async function fetchNearestScheduleDate(
  if (!supabase) return null
  const today = localYmd()
 
- const upcoming = (() => {
-  let q = supabase!
-   .from("schedules")
-   .select("scheduled_date")
-   .gte("scheduled_date", today)
-   .not("status", "ilike", "%取消%")
-   .order("scheduled_date", { ascending: true })
-   .limit(1)
-  if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
-  return q
- })()
+ let q = supabase
+  .from("schedules")
+  .select("scheduled_date")
+  .gte("scheduled_date", today)
+  .not("status", "ilike", "%取消%")
+  .order("scheduled_date", { ascending: true })
+  .limit(1)
+ if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
 
- const { data: upData, error: upErr } = await upcoming
- if (upErr) throw upErr
- if (upData && upData.length > 0) {
-  return String((upData[0] as { scheduled_date: string }).scheduled_date)
+ const { data, error } = await q
+ if (error) throw error
+ if (data && data.length > 0) {
+  return String((data[0] as { scheduled_date: string }).scheduled_date)
  }
-
- const past = (() => {
-  let q = supabase!
-   .from("schedules")
-   .select("scheduled_date")
-   .lt("scheduled_date", today)
-   .not("status", "ilike", "%取消%")
-   .order("scheduled_date", { ascending: false })
-   .limit(1)
-  if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
-  return q
- })()
-
- const { data: pastData, error: pastErr } = await past
- if (pastErr) throw pastErr
- if (pastData && pastData.length > 0) {
-  return String((pastData[0] as { scheduled_date: string }).scheduled_date)
- }
-
  return null
 }
 

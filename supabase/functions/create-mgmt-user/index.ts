@@ -123,6 +123,7 @@ Deno.serve(async (req) => {
       display_name: effectiveDisplayName,
       source: "create-mgmt-user",
       teacher_id: teacherId,
+      must_change_password: true,
     },
     app_metadata: {
       mgmt_role: "teacher",

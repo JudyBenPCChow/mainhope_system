@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { CalendarClock, DoorOpen, Plus, Search, UserRound, UserMinus } from "lucide-react"
+import { DoorOpen, Plus, Search, UserRound } from "lucide-react"
 
-import { StudentClassificationTags } from "@/components/students/studentsUi"
+import {
+ PRIVATE_TUTORING_ROW_GRID,
+ PrivateTutoringStudentDisclosure,
+} from "@/components/privateTutoring/PrivateTutoringStudentDisclosure"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -45,7 +48,6 @@ import {
  createPrivateTutoringEnrollment,
  fetchPrivateClassSchedules,
  fetchPrivateTutoringStudents,
- formatNextLessonLabel,
  previewPrivateRecurringBookings,
  reschedulePrivateLesson,
  withdrawPrivateEnrollment,
@@ -135,6 +137,11 @@ export function PrivateTutoringView() {
  const [bookErr, setBookErr] = useState<string | null>(null)
  const [upcomingSchedules, setUpcomingSchedules] = useState<PrivateClassScheduleRow[]>([])
  const [rescheduleScheduleId, setRescheduleScheduleId] = useState<string | null>(null)
+ /** 列表 disclosure 展開後快取的未來排程（依 classId） */
+ const [rowSchedulesByClassId, setRowSchedulesByClassId] = useState<
+  Record<string, PrivateClassScheduleRow[]>
+ >({})
+ const [rowSchedulesLoadingIds, setRowSchedulesLoadingIds] = useState<Record<string, true>>({})
 
  const [createOpen, setCreateOpen] = useState(false)
  const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
@@ -182,9 +189,27 @@ export function PrivateTutoringView() {
 
  const reloadUpcomingSchedules = useCallback(async (classId: string) => {
   try {
-   setUpcomingSchedules(await fetchPrivateClassSchedules(classId))
+   const list = await fetchPrivateClassSchedules(classId)
+   setUpcomingSchedules(list)
+   setRowSchedulesByClassId((prev) => ({ ...prev, [classId]: list }))
   } catch {
    setUpcomingSchedules([])
+  }
+ }, [])
+
+ const ensureRowSchedules = useCallback(async (classId: string) => {
+  setRowSchedulesLoadingIds((prev) => ({ ...prev, [classId]: true }))
+  try {
+   const list = await fetchPrivateClassSchedules(classId)
+   setRowSchedulesByClassId((prev) => ({ ...prev, [classId]: list }))
+  } catch {
+   setRowSchedulesByClassId((prev) => ({ ...prev, [classId]: [] }))
+  } finally {
+   setRowSchedulesLoadingIds((prev) => {
+    const next = { ...prev }
+    delete next[classId]
+    return next
+   })
   }
  }, [])
 
@@ -368,6 +393,11 @@ export function PrivateTutoringView() {
      title: "已退讀",
      message: `${row.fullName} · ${row.classSubject}`,
     })
+    setRowSchedulesByClassId((prev) => {
+     const next = { ...prev }
+     delete next[row.classId]
+     return next
+    })
     void reloadStudents()
    } catch (e) {
     reportUserFacingError(e, { source: "PrivateTutoringView.onWithdraw", setErr })
@@ -478,6 +508,7 @@ export function PrivateTutoringView() {
      fetchRoomCalendarBundle(localYmd(), localYmd()),
     ])
     setUpcomingSchedules(schedules)
+    setRowSchedulesByClassId((prev) => ({ ...prev, [row.classId]: schedules }))
     setRooms(bundle.rooms)
     setRoomSchedules(bundle.schedules)
     setRoomPending(bundle.pending)
@@ -769,8 +800,8 @@ export function PrivateTutoringView() {
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
       {isTeacherPortal
-       ? "查看指派給你的一對一學生、查空房並預約上堂。點班名可進入班別詳情。"
-       : "列表負責新增報讀、預約與退讀；點班名進入詳情可編輯老師／學費並查看排程。"}
+       ? "查看指派給你的一對一學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
+       : "列表負責新增報讀、預約與退讀；點列展開可看未來排程，點班名進入詳情可編輯老師／學費。"}
      </p>
     </div>
     {canManageEnrollment ? (
@@ -870,123 +901,40 @@ export function PrivateTutoringView() {
       <p className="text-sm text-muted-foreground">沒有符合條件的一對一學生。</p>
      ) : (
       <div className="overflow-x-auto rounded-lg border border-border">
-       <table className="w-full table-fixed text-sm">
-        <thead>
-         <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-          <th className="w-[12%] px-3 py-2 font-medium">學生</th>
-          <th className="w-[8%] px-3 py-2 font-medium">學號</th>
-          <th className="w-[7%] px-3 py-2 font-medium">年級</th>
-          <th className="w-[18%] px-3 py-2 font-medium">一對一班別</th>
-          <th className="w-[9%] px-3 py-2 font-medium">老師</th>
-          <th className="w-[16%] px-3 py-2 font-medium">狀態</th>
-          <th className="w-[14%] px-3 py-2 font-medium">下一堂</th>
-          <th className="w-[16%] px-3 py-2 font-medium">操作</th>
-         </tr>
-        </thead>
-        <tbody>
-         {filteredRows.map((r) => {
-          const isWithdrawn = r.enrollmentRowStatus === "已退讀"
-          return (
-          <tr
+       <div className="min-w-[52rem]">
+        <div
+         className={cn(
+          PRIVATE_TUTORING_ROW_GRID,
+          "border-b border-border bg-muted/40 text-left text-sm text-muted-foreground"
+         )}
+        >
+         <div className="px-1 py-2" aria-hidden />
+         <div className="px-3 py-2 font-medium">學生</div>
+         <div className="px-3 py-2 font-medium">學號</div>
+         <div className="px-3 py-2 font-medium">年級</div>
+         <div className="px-3 py-2 font-medium">一對一班別</div>
+         <div className="px-3 py-2 font-medium">老師</div>
+         <div className="px-3 py-2 font-medium">狀態</div>
+         <div className="px-3 py-2 font-medium">下一堂</div>
+         <div className="px-3 py-2 font-medium">操作</div>
+        </div>
+        <div>
+         {filteredRows.map((r) => (
+          <PrivateTutoringStudentDisclosure
            key={r.enrollmentId}
-           className={cn(
-            "border-b border-border/60 last:border-0",
-            isWithdrawn && "bg-muted/30 text-muted-foreground"
-           )}
-          >
-           <td className="min-w-0 truncate px-3 py-2">
-            <Link
-             to={`/Students/${r.studentId}`}
-             className="font-medium text-primary hover:underline"
-             title={r.fullName}
-            >
-             {r.fullName}
-            </Link>
-           </td>
-           <td className="px-3 py-2 font-mono text-xs">{r.studentCode}</td>
-           <td className="min-w-0 truncate px-3 py-2" title={r.grade ?? ""}>
-            {r.grade ?? "—"}
-           </td>
-           <td className="min-w-0 truncate px-3 py-2" title={r.classSubject}>
-            <span className="inline-flex max-w-full items-center gap-1">
-             <Link
-              to={`/Classes/${r.classId}`}
-              state={{ fromPrivateTutoring: true }}
-              className="truncate font-medium text-primary hover:underline"
-              title={r.classSubject}
-             >
-              {r.classSubject}
-             </Link>
-             {isWithdrawn ? (
-              <Tag tone="default" className="shrink-0">
-               已退讀
-              </Tag>
-             ) : null}
-            </span>
-           </td>
-           <td className="min-w-0 truncate px-3 py-2" title={r.teacherName ?? ""}>
-            {r.teacherName ?? "—"}
-           </td>
-           <td className="px-3 py-2">
-            <StudentClassificationTags
-             student={{
-              registration_status: r.registrationStatus as "已註冊" | "非注冊",
-              enrollment_status: r.enrollmentStatus as "在讀" | "非在讀",
-              activity_status: r.activityStatus as "活躍生" | "非活躍生",
-              academic_stage: r.academicStage as "中學階段" | "已畢業",
-             }}
-             compact
-             size="sm"
-            />
-           </td>
-           <td className="min-w-0 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-1">
-             <span className="min-w-0 truncate" title={formatNextLessonLabel(r.nextLesson)}>
-              {formatNextLessonLabel(r.nextLesson)}
-             </span>
-             {r.upcomingLessonCount > 1 ? (
-              <Tag tone="info" className="shrink-0">
-               +{r.upcomingLessonCount - 1}
-              </Tag>
-             ) : null}
-            </div>
-           </td>
-           <td className="px-3 py-2">
-            {isWithdrawn ? (
-             <span className="text-xs text-muted-foreground">—</span>
-            ) : (
-             <div className="flex items-center gap-0.5">
-              <Button
-               type="button"
-               size="sm"
-               variant="outline"
-               title="預約"
-               aria-label="預約"
-               onClick={() => void openBookDialog(r)}
-              >
-               <CalendarClock className="h-3.5 w-3.5" />
-              </Button>
-              {canManageEnrollment ? (
-                <Button
-                 type="button"
-                 size="sm"
-                 variant="ghost"
-                 className="text-destructive hover:text-destructive"
-                 title="退讀"
-                 aria-label="退讀"
-                 onClick={() => void onWithdraw(r)}
-                >
-                 <UserMinus className="h-3.5 w-3.5" />
-                </Button>
-              ) : null}
-             </div>
-            )}
-           </td>
-          </tr>
-          )
-         })}
-        </tbody>
-       </table>
+           row={r}
+           canManageEnrollment={canManageEnrollment}
+           schedules={rowSchedulesByClassId[r.classId]}
+           schedulesLoading={Boolean(rowSchedulesLoadingIds[r.classId])}
+           onToggleOpen={(open) => {
+            if (open) void ensureRowSchedules(r.classId)
+           }}
+           onBook={() => void openBookDialog(r)}
+           onWithdraw={() => void onWithdraw(r)}
+          />
+         ))}
+        </div>
+       </div>
       </div>
      )}
      <p className="text-xs text-muted-foreground">

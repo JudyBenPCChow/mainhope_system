@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/authBootstrap"
 import { clearAuthState, fetchMgmtProfileByEmail, applyProfileToStorage } from "@/lib/authSession"
+import { setPasswordChangeNudge } from "@/lib/passwordChangeNudge"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 export default function Login() {
@@ -60,6 +61,9 @@ export default function Login() {
         throw new Error("此帳號不是外星人指定帳號。")
       }
       applyProfileToStorage(profile)
+      if (data.user?.user_metadata?.must_change_password === true) {
+        setPasswordChangeNudge()
+      }
       navigate("/Home", { replace: true })
     } catch (e) {
       const msg = e instanceof Error ? e.message : "登入失敗"

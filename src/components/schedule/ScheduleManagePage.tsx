@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -298,6 +298,13 @@ export function ScheduleManagePage() {
  const isMobile = useIsMobile()
  const todayYmd = localYmd()
  const [searchParams, setSearchParams] = useSearchParams()
+ /** 僅在「進頁當下」URL 已帶日期時才沿用（例如儀表板深連結）；之後日視圖自行寫入的今天不得蓋過「未來最近排程」初始化。 */
+ const initialUrlDayDateRef = useRef<string | null>((() => {
+  const view = searchParams.get("view")
+  const date = searchParams.get("date")
+  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  return null
+ })())
 
  const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
  const effectiveViewMode: ViewMode =
@@ -411,9 +418,10 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  }, [reload, startInitialized])
 
  useEffect(() => {
-  const view = searchParams.get("view")
-  const date = searchParams.get("date")
-  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const urlDate = initialUrlDayDateRef.current
+  if (urlDate) {
+   setDisplayStart(urlDate)
+   setDayViewDate(urlDate)
    setStartInitialized(true)
    return
   }
@@ -425,6 +433,9 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
     setDisplayStart(nearest)
     setDayViewDate(nearest)
    })
+   .catch(() => {
+    /* 查詢失敗時維持今天，仍放行載入 */
+   })
    .finally(() => {
     if (!cancelled) setStartInitialized(true)
    })
@@ -435,6 +446,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  }, [])
 
  useEffect(() => {
+  if (!startInitialized) return
   const view = searchParams.get("view")
   const date = searchParams.get("date")
   if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -442,9 +454,11 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setDisplayStart(date)
    if (!isMobile) setViewMode("day")
   }
- }, [searchParams, isMobile, setViewMode])
+ }, [searchParams, isMobile, setViewMode, startInitialized])
 
  useEffect(() => {
+  // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
+  if (!startInitialized) return
   if (effectiveViewMode === "day") {
    const params = new URLSearchParams(searchParams)
    if (params.get("view") !== "day" || params.get("date") !== dayViewDate) {
@@ -460,7 +474,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    params.delete("date")
    setSearchParams(params, { replace: true })
   }
- }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams])
+ }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams, startInitialized])
 
  useEffect(() => {
   if (effectiveViewMode !== "day") return

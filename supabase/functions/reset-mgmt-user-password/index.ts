@@ -150,6 +150,7 @@ Deno.serve(async (req) => {
   if (authLookup.ok) {
     const { error: updateError } = await admin.auth.admin.updateUserById(authLookup.userId, {
       password: temporaryPassword,
+      user_metadata: { must_change_password: true },
     })
     if (updateError) {
       console.error("reset-mgmt-user-password update password failed", updateError.message)
@@ -165,6 +166,7 @@ Deno.serve(async (req) => {
         display_name: displayName || email,
         source: "reset-mgmt-user-password",
         teacher_id: teacherId,
+        must_change_password: true,
       },
       app_metadata: {
         mgmt_role: role || "teacher",
@@ -180,6 +182,7 @@ Deno.serve(async (req) => {
       if (retry?.ok) {
         const { error: retryUpdateError } = await admin.auth.admin.updateUserById(retry.userId, {
           password: temporaryPassword,
+          user_metadata: { must_change_password: true },
         })
         if (retryUpdateError) {
           console.error("reset-mgmt-user-password retry update failed", retryUpdateError.message)
