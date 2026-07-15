@@ -688,6 +688,10 @@ export type ClassScheduleRow = {
  session_number: number | null
  consecutive_group_id: string | null
  consecutive_slot_index: number | null
+ teacher_id: string | null
+ teacher_name: string | null
+ original_teacher_id: string | null
+ original_teacher_name: string | null
 }
 
 export async function fetchClassSchedules(classId: string): Promise<ClassScheduleRow[]> {
@@ -695,7 +699,7 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, session_number, consecutive_group_id, consecutive_slot_index"
+   "id, scheduled_date, start_time, end_time, status, session_number, consecutive_group_id, consecutive_slot_index, teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name )"
   )
   .eq("class_id", classId)
   .order("scheduled_date", { ascending: true })
@@ -703,6 +707,8 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
  if (error) throw error
  return (data ?? []).map((r) => {
   const row = r as Record<string, unknown>
+  const tch = row.teachers as Record<string, unknown> | null
+  const orig = row.original_teacher as Record<string, unknown> | null
   return {
    id: String(row.id),
    scheduled_date: String(row.scheduled_date ?? ""),
@@ -719,6 +725,11 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
     row.consecutive_slot_index != null && !Number.isNaN(Number(row.consecutive_slot_index))
      ? Number(row.consecutive_slot_index)
      : null,
+   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
+   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+   original_teacher_id:
+    row.original_teacher_id != null ? String(row.original_teacher_id) : null,
+   original_teacher_name: orig?.full_name != null ? String(orig.full_name) : null,
   }
  })
 }
@@ -1385,6 +1396,9 @@ export type ScheduleDetailRecord = {
  course_code_full: string | null
  teacher_id: string | null
  teacher_name: string | null
+ original_teacher_id: string | null
+ original_teacher_name: string | null
+ consecutive_group_id: string | null
  classroom_id: string | null
  classroom_name: string | null
  /** 課室是否標為線上（網課） */
@@ -1632,7 +1646,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -1641,6 +1655,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const r = data as Record<string, unknown>
  const cls = r.classes as Record<string, unknown> | null
  const tch = r.teachers as Record<string, unknown> | null
+ const origTch = r.original_teacher as Record<string, unknown> | null
  const crm = r.classrooms as Record<string, unknown> | null
  const cid = r.class_id != null ? String(r.class_id) : null
  const sub = cls?.subject != null ? String(cls.subject) : "—"
@@ -1696,6 +1711,11 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
   course_code_full: code,
   teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+  original_teacher_id:
+   r.original_teacher_id != null ? String(r.original_teacher_id) : null,
+  original_teacher_name:
+   origTch?.full_name != null ? String(origTch.full_name) : null,
+  consecutive_group_id: consecutiveGroupId,
   classroom_id: r.classroom_id != null ? String(r.classroom_id) : null,
   classroom_name: crm?.name != null ? String(crm.name) : null,
   classroom_is_online: Boolean(crm?.is_online),

@@ -792,60 +792,61 @@ export function PrivateTutoringView() {
  )
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
-   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+  <div className="space-y-5 p-4 text-sm leading-relaxed md:p-6">
+   <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
-     <h1 className="text-xl font-semibold text-foreground">
+     <h1 className="text-2xl font-semibold tracking-tight text-foreground">
       {isTeacherPortal ? "我的一對一學生" : "一對一學生"}
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
+     <p className="mt-2 text-sm text-muted-foreground">
       {isTeacherPortal
        ? "查看指派給你的一對一學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
        : "列表負責新增報讀、預約與退讀；點列展開可看未來排程，點班名進入詳情可編輯老師／學費。"}
      </p>
     </div>
     {canManageEnrollment ? (
-     <Button type="button" onClick={() => void openCreateDialog()}>
+     <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
       <Plus className="mr-1.5 h-4 w-4" />
       新增一對一報讀
      </Button>
     ) : null}
-   </div>
+   </header>
 
-   <div className="flex gap-2 border-b border-border pb-1">
+   <div className="flex flex-wrap gap-2 border-b border-border pb-1">
     <Button
      type="button"
      variant={tab === "students" ? "default" : "ghost"}
-     size="sm"
+     className="gap-1.5 text-sm"
      onClick={() => setTab("students")}
     >
-     <UserRound className="mr-1.5 h-4 w-4" />
+     <UserRound className="h-4 w-4" />
      學生列表
     </Button>
     <Button
      type="button"
      variant={tab === "rooms" ? "default" : "ghost"}
-     size="sm"
+     className="gap-1.5 text-sm"
      onClick={() => setTab("rooms")}
     >
-     <DoorOpen className="mr-1.5 h-4 w-4" />
+     <DoorOpen className="h-4 w-4" />
      查空房
     </Button>
    </div>
 
    {tab === "students" && (
     <div className="space-y-4">
-     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
+     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
       <div className="relative min-w-[12rem] flex-1">
-       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+       <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
        <Input
-        className="pl-9"
+        className="h-10 pl-10 text-sm"
         placeholder="搜尋姓名、學號、科目、老師…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
        />
       </div>
       <Select
+       className="h-10 text-sm"
        value={enrollRowFilter}
        onChange={(e) =>
         setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
@@ -858,6 +859,7 @@ export function PrivateTutoringView() {
        ))}
       </Select>
       <Select
+       className="h-10 text-sm"
        value={regFilter}
        onChange={(e) =>
         setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
@@ -870,6 +872,7 @@ export function PrivateTutoringView() {
        ))}
       </Select>
       <Select
+       className="h-10 text-sm"
        value={activityFilter}
        onChange={(e) =>
         setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
@@ -900,23 +903,23 @@ export function PrivateTutoringView() {
      ) : filteredRows.length === 0 ? (
       <p className="text-sm text-muted-foreground">沒有符合條件的一對一學生。</p>
      ) : (
-      <div className="overflow-x-auto rounded-lg border border-border">
-       <div className="min-w-[52rem]">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+       <div className="min-w-[56rem]">
         <div
          className={cn(
           PRIVATE_TUTORING_ROW_GRID,
           "border-b border-border bg-muted/40 text-left text-sm text-muted-foreground"
          )}
         >
-         <div className="px-1 py-2" aria-hidden />
-         <div className="px-3 py-2 font-medium">學生</div>
-         <div className="px-3 py-2 font-medium">學號</div>
-         <div className="px-3 py-2 font-medium">年級</div>
-         <div className="px-3 py-2 font-medium">一對一班別</div>
-         <div className="px-3 py-2 font-medium">老師</div>
-         <div className="px-3 py-2 font-medium">狀態</div>
-         <div className="px-3 py-2 font-medium">下一堂</div>
-         <div className="px-3 py-2 font-medium">操作</div>
+         <div className="px-1 py-3" aria-hidden />
+         <div className="px-4 py-3 font-medium">學生</div>
+         <div className="px-4 py-3 font-medium">學號</div>
+         <div className="px-4 py-3 font-medium">年級</div>
+         <div className="px-4 py-3 font-medium">一對一班別</div>
+         <div className="px-4 py-3 font-medium">老師</div>
+         <div className="px-4 py-3 font-medium">狀態</div>
+         <div className="px-4 py-3 font-medium">下一堂</div>
+         <div className="px-4 py-3 font-medium">操作</div>
         </div>
         <div>
          {filteredRows.map((r) => (
@@ -937,7 +940,7 @@ export function PrivateTutoringView() {
        </div>
       </div>
      )}
-     <p className="text-xs text-muted-foreground">
+     <p className="text-sm text-muted-foreground">
       共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一報讀，含已退讀）
      </p>
     </div>
@@ -947,12 +950,21 @@ export function PrivateTutoringView() {
     <div className="space-y-4">
      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">日期</label>
-       <Input type="date" value={roomDate} onChange={(e) => setRoomDate(e.target.value)} />
+       <label className="text-sm font-medium text-muted-foreground">日期</label>
+       <Input
+        type="date"
+        className="h-10 w-[12rem] text-sm"
+        value={roomDate}
+        onChange={(e) => setRoomDate(e.target.value)}
+       />
       </div>
       <div className="min-w-[10rem] space-y-1">
-       <label className="text-xs text-muted-foreground">時段</label>
-       <Select value={String(roomSlotIdx)} onChange={(e) => setRoomSlotIdx(Number(e.target.value))}>
+       <label className="text-sm font-medium text-muted-foreground">時段</label>
+       <Select
+        className="h-10 text-sm"
+        value={String(roomSlotIdx)}
+        onChange={(e) => setRoomSlotIdx(Number(e.target.value))}
+       >
         {LESSON_SLOT_INDICES.map((i) => (
          <option key={i} value={String(i)}>
           {lessonSlotLabel(i)}
@@ -973,16 +985,16 @@ export function PrivateTutoringView() {
         <div
          key={room.id}
          className={cn(
-          "rounded-lg border px-4 py-3",
+          "rounded-xl border px-4 py-3 shadow-sm",
           free ? "border-success/40 bg-success/5" : "border-warning/40 bg-warning/5"
          )}
         >
          <div className="flex items-center justify-between gap-2">
-          <span className="font-medium">{room.name}</span>
+          <span className="text-base font-semibold">{room.name}</span>
           <Tag tone={free ? "success" : "warning"}>{free ? "空房" : "已佔用"}</Tag>
          </div>
          {!free && (
-          <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+          <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
            {occupiers.map((o) => (
             <li key={`${o.kind}-${o.id}`} className="truncate" title={o.label}>
              {o.label}
@@ -996,7 +1008,7 @@ export function PrivateTutoringView() {
        ))}
       </div>
      )}
-     <p className="text-xs text-muted-foreground">
+     <p className="text-sm text-muted-foreground">
       空房判斷包含所有小組課排程與待審批的約房申請，與老師預約空房頁面使用同一套邏輯。
      </p>
     </div>
@@ -1008,12 +1020,12 @@ export function PrivateTutoringView() {
       <DialogTitle>新增一對一報讀</DialogTitle>
      </DialogHeader>
      <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
        會自動建立一對一班別（無固定時間／課室）並為學生報讀，無需走小組開班流程。
       </p>
 
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">學生（可搜尋姓名／學號／年級）</label>
+       <label className="text-sm font-medium text-muted-foreground">學生（可搜尋姓名／學號／年級）</label>
        <div className="relative">
         <Input
          placeholder="輸入姓名、學號或年級搜尋…"
@@ -1054,7 +1066,7 @@ export function PrivateTutoringView() {
        {createStudentId ? (
         <button
          type="button"
-         className="text-left text-xs text-primary underline-offset-4 hover:underline"
+         className="text-left text-sm text-primary underline-offset-4 hover:underline"
          onClick={() => {
           setCreateStudentId("")
           setCreateStudentSearch("")
@@ -1067,7 +1079,7 @@ export function PrivateTutoringView() {
       </div>
 
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">科目（可搜尋或直接輸入）</label>
+       <label className="text-sm font-medium text-muted-foreground">科目（可搜尋或直接輸入）</label>
        <div className="relative">
         <Input
          placeholder="輸入科目名稱（如：英文、M2、BAFS）…"
@@ -1098,13 +1110,13 @@ export function PrivateTutoringView() {
          </div>
         ) : null}
        </div>
-       <p className="text-xs text-muted-foreground">
+       <p className="text-sm text-muted-foreground">
         可從列表選取，亦可直接輸入未列出的科目名稱。
        </p>
       </div>
 
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">授課老師（可留空）</label>
+       <label className="text-sm font-medium text-muted-foreground">授課老師（可留空）</label>
        <Select value={createTeacherId} onChange={(e) => setCreateTeacherId(e.target.value)}>
         <option value="">稍後指定</option>
         {teacherOptions.map((t) => (
@@ -1116,7 +1128,7 @@ export function PrivateTutoringView() {
       </div>
 
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">每節學費（可留空）</label>
+       <label className="text-sm font-medium text-muted-foreground">每節學費（可留空）</label>
        <Input
         type="number"
         min={0}
@@ -1141,14 +1153,14 @@ export function PrivateTutoringView() {
       </div>
 
       <div className="space-y-1">
-       <label className="text-xs text-muted-foreground">自訂班名（可留空，預設自動產生）</label>
+       <label className="text-sm font-medium text-muted-foreground">自訂班名（可留空，預設自動產生）</label>
        <Input
         value={createClassNameOverride}
         onChange={(e) => setCreateClassNameOverride(e.target.value)}
         placeholder={previewClassSubject || "例如：陳大文英文一對一"}
        />
        {previewClassSubject ? (
-        <p className="text-xs text-muted-foreground">將建立班別：{previewClassSubject}</p>
+        <p className="text-sm text-muted-foreground">將建立班別：{previewClassSubject}</p>
        ) : null}
       </div>
 
@@ -1186,7 +1198,7 @@ export function PrivateTutoringView() {
 
        {!rescheduleScheduleId ? (
         <div className="space-y-1">
-         <label className="text-xs text-muted-foreground">預約方式</label>
+         <label className="text-sm font-medium text-muted-foreground">預約方式</label>
          <Select
           value={bookMode}
           onChange={(e) => setBookMode(e.target.value as "single" | "weekly")}
@@ -1199,7 +1211,7 @@ export function PrivateTutoringView() {
 
        {bookMode === "weekly" && !rescheduleScheduleId ? (
         <div className="space-y-1">
-         <label className="text-xs text-muted-foreground">共幾堂（1–52）</label>
+         <label className="text-sm font-medium text-muted-foreground">共幾堂（1–52）</label>
          <Input
           type="number"
           min={1}
@@ -1207,7 +1219,7 @@ export function PrivateTutoringView() {
           value={bookWeekCount}
           onChange={(e) => setBookWeekCount(e.target.value)}
          />
-         <p className="text-xs text-muted-foreground">
+         <p className="text-sm text-muted-foreground">
           自選定日期起每週同一時段；有衝突時會先預覽，可略過衝突日或無視衝突建立。
          </p>
         </div>
@@ -1215,13 +1227,13 @@ export function PrivateTutoringView() {
 
        {activeUpcomingSchedules.length > 0 && (
         <div className="space-y-2">
-         <p className="text-xs font-medium text-muted-foreground">已排課堂</p>
+         <p className="text-sm font-medium text-muted-foreground">已排課堂</p>
          <ul className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-border p-2">
           {activeUpcomingSchedules.map((s) => (
            <li
             key={s.id}
             className={cn(
-             "rounded-md px-2 py-1.5 text-xs",
+             "rounded-md px-2.5 py-2 text-sm",
              rescheduleScheduleId === s.id ? "bg-info/10" : "bg-muted/40"
             )}
            >
@@ -1267,14 +1279,14 @@ export function PrivateTutoringView() {
        )}
 
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">
+        <label className="text-sm font-medium text-muted-foreground">
          {rescheduleScheduleId ? "改約日期" : "上課日期"}
         </label>
         <Input type="date" value={bookDate} onChange={(e) => void onBookDateChange(e.target.value)} />
        </div>
 
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">時段</label>
+        <label className="text-sm font-medium text-muted-foreground">時段</label>
         <Select
          value={String(bookSlotIdx)}
          onChange={(e) => {
@@ -1291,7 +1303,7 @@ export function PrivateTutoringView() {
        </div>
 
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">課室（選填，僅顯示空房）</label>
+        <label className="text-sm font-medium text-muted-foreground">課室（選填，僅顯示空房）</label>
         <Select value={bookRoomId} onChange={(e) => setBookRoomId(e.target.value)}>
          <option value="">暫不指定課室</option>
          {bookActiveRooms
@@ -1303,12 +1315,12 @@ export function PrivateTutoringView() {
           ))}
         </Select>
         {bookDate && freeRoomIdsForBook.size === 0 && (
-         <p className="text-xs text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
+         <p className="text-sm text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
         )}
        </div>
 
        <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">授課老師</label>
+        <label className="text-sm font-medium text-muted-foreground">授課老師</label>
         <Select
          value={bookTeacherId}
          onChange={(e) => setBookTeacherId(e.target.value)}
@@ -1322,7 +1334,7 @@ export function PrivateTutoringView() {
          ))}
         </Select>
         {isTeacherPortal ? (
-         <p className="text-xs text-muted-foreground">老師入口固定為本人授課。</p>
+         <p className="text-sm text-muted-foreground">老師入口固定為本人授課。</p>
         ) : null}
        </div>
 

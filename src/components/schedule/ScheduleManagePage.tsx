@@ -10,11 +10,14 @@ import {
  ChevronRight,
  ChevronUp,
  Download,
+ DoorOpen,
  LayoutGrid,
  List,
  Plus,
  Search,
  User,
+ UserRound,
+ UserX,
  Users,
  Wand2,
  XCircle,
@@ -30,9 +33,11 @@ import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
+import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
 import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
+import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -61,7 +66,7 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAdmin, isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -105,6 +110,19 @@ import {
 const RANGE_DAYS = 14
 
 type ViewMode = "byDate" | "list" | "day"
+
+/** 排程問題／類型篩選（可多選，條件為 AND） */
+type ScheduleIssueFilter = "noEnroll" | "private" | "noRoom"
+
+const ISSUE_FILTER_OPTIONS: {
+ id: ScheduleIssueFilter
+ label: string
+ icon: typeof UserX
+}[] = [
+ { id: "noEnroll", label: "未有學生報讀", icon: UserX },
+ { id: "private", label: "一對一班別", icon: UserRound },
+ { id: "noRoom", label: "未有課室安排", icon: DoorOpen },
+]
 
 type PendingMove = {
  row: ScheduleManageRow
@@ -319,6 +337,10 @@ export function ScheduleManagePage() {
  const [searchQ, setSearchQ] = usePersistentState<string>("mgmt_schedule_searchQ", "")
  const [classFilter, setClassFilter] = usePersistentState<string>("mgmt_schedule_classFilter", "all")
  const [statusFilter, setStatusFilter] = usePersistentState<string>("mgmt_schedule_statusFilter", "all")
+ const [issueFilters, setIssueFilters] = usePersistentState<ScheduleIssueFilter[]>(
+  "mgmt_schedule_issueFilters",
+  []
+ )
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [stats, setStats] = useState<ScheduleStatsSnapshot>({
@@ -374,6 +396,7 @@ export function ScheduleManagePage() {
 
  const [cancelTarget, setCancelTarget] = useState<ScheduleManageRow | null>(null)
  const [cancelSaving, setCancelSaving] = useState(false)
+ const [substituteTarget, setSubstituteTarget] = useState<ScheduleManageRow | null>(null)
 
  const teacherScopeId = getTeacherScopeTeacherId()
 const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
@@ -633,6 +656,7 @@ useEffect(() => {
  }, [rows])
 
  const canManageSchedules = isMgmtStaff()
+ const canAssignSubstitute = isAdmin()
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
   (s: { scheduled_date: string }) =>
@@ -642,17 +666,21 @@ useEffect(() => {
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
+  const issues = new Set(issueFilters)
   return rows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
+   if (issues.has("noEnroll") && r.enrollCount > 0) return false
+   if (issues.has("private") && r.class_kind !== "private") return false
+   if (issues.has("noRoom") && r.classroom_id != null) return false
    if (q) {
     const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code_full ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
     if (!hay.includes(q)) return false
    }
    return true
   })
- }, [rows, quickFilter, statusFilter, classFilter, searchQ])
+ }, [rows, quickFilter, statusFilter, classFilter, issueFilters, searchQ])
 
  const byDateGroups = useMemo(() => {
   const m = new Map<string, ScheduleManageRow[]>()
@@ -678,7 +706,20 @@ useEffect(() => {
   searchQ.trim() !== "" ||
   classFilter !== "all" ||
   statusFilter !== "all" ||
-  quickFilter != null
+  quickFilter != null ||
+  issueFilters.length > 0
+
+ const toggleIssueFilter = useCallback((id: ScheduleIssueFilter) => {
+  setIssueFilters((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+ }, [setIssueFilters])
+
+ const clearAllFilters = useCallback(() => {
+  setSearchQ("")
+  setClassFilter("all")
+  setStatusFilter("all")
+  setQuickFilter(null)
+  setIssueFilters([])
+ }, [setSearchQ, setClassFilter, setStatusFilter, setQuickFilter, setIssueFilters])
 
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
@@ -1300,6 +1341,32 @@ useEffect(() => {
       <option value="完成">完成</option>
       <option value="取消">取消</option>
      </Select>
+     <div
+      className="flex flex-wrap items-center gap-1.5"
+      role="group"
+      aria-label="進階篩選"
+     >
+      {ISSUE_FILTER_OPTIONS.map(({ id, label, icon: Icon }) => {
+       const active = issueFilters.includes(id)
+       return (
+        <button
+         key={id}
+         type="button"
+         aria-pressed={active}
+         onClick={() => toggleIssueFilter(id)}
+         className={cn(
+          "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
+          active
+           ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+           : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+         )}
+        >
+         <Icon className="h-4 w-4 shrink-0" aria-hidden />
+         {label}
+        </button>
+       )
+      })}
+     </div>
     </div>
 
     <div className="flex flex-wrap items-center gap-2">
@@ -1370,7 +1437,7 @@ useEffect(() => {
     {effectiveViewMode === "day" ? (
      <>
       <div className="flex flex-wrap items-center gap-2">
-       <span className="text-muted-foreground">日視圖日期</span>
+       <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
        <Button
         type="button"
         variant="outline"
@@ -1422,15 +1489,15 @@ useEffect(() => {
         {loading ? "載入中…" : `本日 ${dayFiltered.length} 堂`}
        </span>
        {!loading && dayUnassignedCount > 0 ? (
-        <p className="mt-0.5 text-xs text-warning">未編課室 {dayUnassignedCount} 堂</p>
+        <p className="mt-0.5 text-sm text-warning">未編課室 {dayUnassignedCount} 堂</p>
        ) : null}
        {dayViewFilterActive && dayUnfilteredCount > dayFiltered.length ? (
-        <p className="mt-0.5 text-xs text-warning">
+        <p className="mt-0.5 text-sm text-warning">
          已套用篩選（本日共 {dayUnfilteredCount} 堂，顯示 {dayFiltered.length} 堂）
         </p>
        ) : null}
        {!dayViewDateLoaded && !loading ? (
-        <p className="mt-0.5 text-xs text-warning">正在載入此日排程…</p>
+        <p className="mt-0.5 text-sm text-warning">正在載入此日排程…</p>
        ) : null}
       </div>
      </>
@@ -1473,12 +1540,7 @@ useEffect(() => {
      <button
       type="button"
       className="ml-2 font-medium underline hover:no-underline"
-      onClick={() => {
-       setSearchQ("")
-       setClassFilter("all")
-       setStatusFilter("all")
-       setQuickFilter(null)
-      }}
+      onClick={clearAllFilters}
      >
       清除篩選
      </button>
@@ -1570,6 +1632,14 @@ useEffect(() => {
                {s.is_extra_lesson ? (
                 <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
                ) : null}
+               {(() => {
+                const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
+                return subTag ? (
+                 <Tag tone={statusToTagTone(subTag)} size="sm">
+                  {subTag}
+                 </Tag>
+                ) : null
+               })()}
                <ScheduleAlertIcons alerts={a} />
               </div>
               {s.status.includes("取消") && s.cancel_reason ? (
@@ -1646,6 +1716,20 @@ useEffect(() => {
                +補堂試堂
               </Link>
                </>
+              ) : null}
+              {canAssignSubstitute ? (
+               <Button
+                type="button"
+                variant="outline"
+                size="default"
+                className="h-11 text-base"
+                onClick={(e) => {
+                 e.stopPropagation()
+                 setSubstituteTarget(s)
+                }}
+               >
+                {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+               </Button>
               ) : null}
               <Button
                type="button"
@@ -1805,6 +1889,14 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3">
             <span className="block break-words">{s.teacher_name ?? "—"}</span>
+            {(() => {
+             const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
+             return subTag ? (
+              <Tag tone={statusToTagTone(subTag)} size="sm" className="mt-1">
+               {subTag}
+              </Tag>
+             ) : null
+            })()}
            </td>
            <td className="min-w-0 align-top px-4 py-3 text-muted-foreground">
             <span className="block break-words">{s.classroom_name ?? "—"}</span>
@@ -1849,6 +1941,19 @@ useEffect(() => {
              >
               確定點名
              </Link>
+             {canAssignSubstitute ? (
+              <Button
+               type="button"
+               variant="link"
+               className="h-auto p-0 text-sm"
+               onClick={(e) => {
+                e.stopPropagation()
+                setSubstituteTarget(s)
+               }}
+              >
+               {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+              </Button>
+             ) : null}
              {canManageSchedules ? (
              <Button
               type="button"
@@ -1956,6 +2061,22 @@ useEffect(() => {
         <span className="font-mono text-muted-foreground">{detailRow.course_code_full ?? ""}</span>
        </p>
        <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
+       {(() => {
+        const subTag = formatScheduleSubstituteTag(
+         {
+          teacher_id: detailRow.teacher_id,
+          teacher_name: detailRow.teacher_name,
+          original_teacher_id: detailRow.original_teacher_id,
+          original_teacher_name: detailRow.original_teacher_name,
+         },
+         teacherScopeId
+        )
+        return subTag ? (
+         <Tag tone={statusToTagTone(subTag)} size="sm">
+          {subTag}
+         </Tag>
+        ) : null
+       })()}
        <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
        <div className="flex flex-wrap items-center gap-2">
         <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
@@ -1965,6 +2086,51 @@ useEffect(() => {
        </div>
        {detailRow.status.includes("取消") && detailRow.cancel_reason ? (
         <p className="text-muted-foreground">取消原因：{detailRow.cancel_reason}</p>
+       ) : null}
+       {canAssignSubstitute ? (
+        <Button
+         type="button"
+         variant="outline"
+         size="sm"
+         onClick={() => {
+          const fromList = rows.find((r) => r.id === detailRow.id)
+          if (fromList) {
+           setSubstituteTarget(fromList)
+           return
+          }
+          setSubstituteTarget({
+           id: detailRow.id,
+           scheduled_date: detailRow.scheduled_date,
+           start_time: detailRow.start_time,
+           end_time: detailRow.end_time,
+           status: detailRow.status,
+           cancel_reason: detailRow.cancel_reason,
+           is_extra_lesson: detailRow.is_extra_lesson,
+           remarks: detailRow.remarks,
+           session_number: null,
+           consecutive_group_id: detailRow.consecutive_group_id,
+           consecutive_slot_index: null,
+           class_id: detailRow.class_id,
+           subject: detailRow.class_subject,
+           class_kind: "group",
+           course_name: null,
+           classLabel: detailRow.class_subject,
+           course_code_full: detailRow.course_code_full,
+           class_day_of_week: null,
+           class_time_slot: null,
+           class_lesson_slots_per_session: 1,
+           teacher_id: detailRow.teacher_id,
+           teacher_name: detailRow.teacher_name,
+           original_teacher_id: detailRow.original_teacher_id,
+           original_teacher_name: detailRow.original_teacher_name,
+           classroom_id: detailRow.classroom_id,
+           classroom_name: detailRow.classroom_name,
+           enrollCount: 0,
+          })
+         }}
+        >
+         {detailRow.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
+        </Button>
        ) : null}
        {canManageSchedules ? (
         <label className="flex items-center gap-2 text-sm">
@@ -2160,6 +2326,19 @@ useEffect(() => {
     saving={cancelSaving}
     onCancel={() => setCancelTarget(null)}
     onConfirm={(reason) => void confirmCancelSchedule(reason)}
+   />
+
+   <AssignSubstituteDialog
+    open={substituteTarget != null}
+    schedule={substituteTarget}
+    onClose={() => setSubstituteTarget(null)}
+    onDone={async () => {
+     await reload()
+     if (detailId) {
+      const s = await getScheduleById(detailId)
+      setDetailRow(s)
+     }
+    }}
    />
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>

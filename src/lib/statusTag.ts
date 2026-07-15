@@ -30,6 +30,8 @@ const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
 const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
  // 排程：加堂（額外加開課堂，獨立標記）以橙色提示
  { tone: "warning", keywords: ["加堂"] },
+ // 排程：代堂指派（高於泛用「安排」）
+ { tone: "warning", keywords: ["已指派代堂", "代堂"] },
  // 排程 / 待辦：待處理與提醒態
  { tone: "warning", keywords: ["pending", "待", "逾期", "提醒", "補課中", "保留中"] },
  // 排程 / 待辦：正常（如常進行）／預定與進行態

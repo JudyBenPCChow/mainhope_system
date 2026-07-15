@@ -3,12 +3,15 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Calendar, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { isAdmin } from "@/lib/mgmtRole"
+import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -42,6 +45,8 @@ export function ScheduleDetailView() {
  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
+ const [substituteOpen, setSubstituteOpen] = useState(false)
+ const canAssignSubstitute = isAdmin()
 
  const load = useCallback(async () => {
   if (!sid) return
@@ -140,6 +145,15 @@ export function ScheduleDetailView() {
         {row.status.includes("取消") && row.cancel_reason ? ` · ${row.cancel_reason}` : ""}
        </Tag>
        {row.is_extra_lesson ? <Tag tone={statusToTagTone("加堂")}>加堂</Tag> : null}
+       {(() => {
+        const subTag = formatScheduleSubstituteTag({
+         teacher_id: row.teacher_id,
+         teacher_name: row.teacher_name,
+         original_teacher_id: row.original_teacher_id,
+         original_teacher_name: row.original_teacher_name,
+        })
+        return subTag ? <Tag tone={statusToTagTone(subTag)}>{subTag}</Tag> : null
+       })()}
        {row.class_id ? (
         <Link
          to={`/Classes/${row.class_id}`}
@@ -506,6 +520,11 @@ export function ScheduleDetailView() {
        />
        <span className="text-muted-foreground">標記為加堂</span>
       </label>
+      {canAssignSubstitute ? (
+       <Button type="button" variant="outline" onClick={() => setSubstituteOpen(true)}>
+        {row.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
+       </Button>
+      ) : null}
       <Button
        type="button"
        variant="destructive"
@@ -535,6 +554,25 @@ export function ScheduleDetailView() {
         setCancelSaving(false)
        }
       }}
+     />
+
+     <AssignSubstituteDialog
+      open={substituteOpen}
+      schedule={{
+       id: row.id,
+       class_subject: row.class_subject,
+       scheduled_date: row.scheduled_date,
+       start_time: row.start_time,
+       end_time: row.end_time,
+       teacher_id: row.teacher_id,
+       teacher_name: row.teacher_name,
+       original_teacher_id: row.original_teacher_id,
+       original_teacher_name: row.original_teacher_name,
+       consecutive_group_id: row.consecutive_group_id,
+       is_consecutive_lesson: row.is_consecutive_lesson,
+      }}
+      onClose={() => setSubstituteOpen(false)}
+      onDone={() => load()}
      />
     </div>
    )}

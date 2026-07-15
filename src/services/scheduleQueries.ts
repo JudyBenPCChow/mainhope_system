@@ -4,9 +4,15 @@ import {
  intervalsOverlapMinutes,
  parseHm,
 } from "@/lib/lessonSlots"
+import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
+
+/** 排程列表／點名共用 select（含代堂原老師） */
+const SCHEDULE_MANAGE_SELECT =
+ "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, class_kind, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( name )"
 
 export type ScheduleManageRow = {
  id: string
@@ -24,6 +30,8 @@ export type ScheduleManageRow = {
  consecutive_slot_index: number | null
  class_id: string | null
  subject: string
+ /** 小組／一對一（由 classes.class_kind 或 subject 推斷） */
+ class_kind: ClassKind
  course_name: string | null
  /** 班別顯示標籤（課程名稱 + 代碼） */
  classLabel: string
@@ -34,8 +42,12 @@ export type ScheduleManageRow = {
  class_time_slot: string | null
  /** 班別每次上課格數（1 或 2） */
  class_lesson_slots_per_session: number
+ /** 實際上課老師（代堂時為代堂老師） */
  teacher_id: string | null
  teacher_name: string | null
+ /** 代堂前原任老師；非空表示已指派代堂 */
+ original_teacher_id: string | null
+ original_teacher_name: string | null
  classroom_id: string | null
  classroom_name: string | null
  enrollCount: number
@@ -54,6 +66,7 @@ function mapScheduleRow(
 ): ScheduleManageRow {
  const cls = row.classes as Record<string, unknown> | null
  const tch = row.teachers as Record<string, unknown> | null
+ const origTch = row.original_teacher as Record<string, unknown> | null
  const rm = row.classrooms as Record<string, unknown> | null
  const cidRaw = row.class_id
  const cid = cidRaw != null ? String(cidRaw) : null
@@ -82,6 +95,10 @@ function mapScheduleRow(
     : null,
   class_id: cid,
   subject: sub,
+  class_kind: resolveClassKind(
+   cls?.class_kind != null ? String(cls.class_kind) : null,
+   sub
+  ),
   course_name: courseName,
   classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
   course_code_full: courseCode,
@@ -91,10 +108,22 @@ function mapScheduleRow(
    cls?.lesson_slots_per_session != null && Number(cls.lesson_slots_per_session) === 2 ? 2 : 1,
   teacher_id: row.teacher_id != null ? String(row.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+  original_teacher_id:
+   row.original_teacher_id != null ? String(row.original_teacher_id) : null,
+  original_teacher_name:
+   origTch?.full_name != null ? String(origTch.full_name) : null,
   classroom_id: row.classroom_id != null ? String(row.classroom_id) : null,
   classroom_name: rm?.name != null ? String(rm.name) : null,
   enrollCount: cid ? enrollMap.get(cid) ?? 0 : 0,
  }
+}
+
+/** 老師範圍：現任或原任（代堂後雙方都看得到） */
+function applyTeacherScheduleScope<T extends { or: (filter: string) => T }>(
+ q: T,
+ teacherId: string
+): T {
+ return q.or(`teacher_id.eq.${teacherId},original_teacher_id.eq.${teacherId}`)
 }
 
 export async function fetchEnrollmentCountByClass(classIds: string[]): Promise<Map<string, number>> {
@@ -161,12 +190,10 @@ export async function fetchSchedulesInRange(
  if (!supabase) return []
  let q = supabase
   .from("schedules")
-  .select(
-   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, classroom_id, classes ( subject, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
-  )
+  .select(SCHEDULE_MANAGE_SELECT)
   .gte("scheduled_date", fromYmd)
   .lte("scheduled_date", toYmd)
- if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
+ if (opts?.teacherId) q = applyTeacherScheduleScope(q, opts.teacherId)
  const { data, error } = await q.order("scheduled_date", { ascending: true }).order("start_time", { ascending: true })
  if (error) throw error
  const rows = (data ?? []) as Record<string, unknown>[]
@@ -287,7 +314,7 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
     .select("id", { count: "exact", head: true })
     .eq("scheduled_date", today)
     .not("status", "ilike", "%取消%")
-   if (teacherId) q = q.eq("teacher_id", teacherId)
+   if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
    return q
   })(),
   (() => {
@@ -296,7 +323,7 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
     .select("id", { count: "exact", head: true })
     .gte("scheduled_date", today)
     .ilike("status", "%取消%")
-   if (teacherId) q = q.eq("teacher_id", teacherId)
+   if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
    return q
   })(),
   (() => {
@@ -305,7 +332,7 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
     .select("class_id")
     .eq("scheduled_date", today)
     .not("status", "ilike", "%取消%")
-   if (teacherId) q = q.eq("teacher_id", teacherId)
+   if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
    return q
   })(),
  ])
@@ -383,12 +410,18 @@ export async function fetchTeacherScheduleConflicts(params: {
  startTime: string | null
  endTime: string | null
  excludeScheduleId?: string | null
+ excludeScheduleIds?: string[] | null
 }): Promise<TeacherScheduleConflict[]> {
  if (!supabase || !params.teacherId) return []
  const dateYmd = params.scheduledDate.slice(0, 10)
  const newStart = parseHm((params.startTime ?? "").slice(0, 5))
  if (newStart == null) return []
  const newEnd = parseHm((params.endTime ?? "").slice(0, 5)) ?? newStart + LESSON_SLOT_DURATION_MIN
+ const excludeIds = new Set<string>()
+ if (params.excludeScheduleId) excludeIds.add(params.excludeScheduleId)
+ for (const id of params.excludeScheduleIds ?? []) {
+  if (id) excludeIds.add(id)
+ }
 
  const { data, error } = await supabase
   .from("schedules")
@@ -402,7 +435,7 @@ export async function fetchTeacherScheduleConflicts(params: {
  const out: TeacherScheduleConflict[] = []
  for (const row of (data ?? []) as Record<string, unknown>[]) {
   const id = String(row.id)
-  if (params.excludeScheduleId && id === params.excludeScheduleId) continue
+  if (excludeIds.has(id)) continue
   const status = String(row.status ?? "")
   if (status.includes("取消")) continue
   const st = row.start_time != null ? String(row.start_time) : null
@@ -485,7 +518,7 @@ export async function fetchNearestScheduleDate(
   .not("status", "ilike", "%取消%")
   .order("scheduled_date", { ascending: true })
   .limit(1)
- if (opts?.teacherId) q = q.eq("teacher_id", opts.teacherId)
+ if (opts?.teacherId) q = applyTeacherScheduleScope(q, opts.teacherId)
 
  const { data, error } = await q
  if (error) throw error
@@ -493,6 +526,153 @@ export async function fetchNearestScheduleDate(
   return String((data[0] as { scheduled_date: string }).scheduled_date)
  }
  return null
+}
+
+export type AssignScheduleSubstituteResult = {
+ affectedIds: string[]
+ conflicts: TeacherScheduleConflict[]
+}
+
+async function resolveSubstituteTargetIds(scheduleId: string): Promise<string[]> {
+ if (!supabase) return [scheduleId]
+ const { data: row, error } = await supabase
+  .from("schedules")
+  .select("id, consecutive_group_id")
+  .eq("id", scheduleId)
+  .maybeSingle()
+ if (error) throw error
+ if (!row) throw new Error("找不到排程")
+ const gid = (row as { consecutive_group_id?: string | null }).consecutive_group_id
+ if (!gid) return [scheduleId]
+ const { data: siblings, error: sibErr } = await supabase
+  .from("schedules")
+  .select("id, consecutive_slot_index")
+  .eq("consecutive_group_id", gid)
+  .order("consecutive_slot_index", { ascending: true })
+ if (sibErr) throw sibErr
+ const ids = (siblings ?? []).map((r) => String((r as { id: string }).id))
+ return ids.length > 0 ? ids : [scheduleId]
+}
+
+/**
+ * 將排程（連堂則整組）指派給代堂老師。
+ * teacher_id → 代堂老師；original_teacher_id 保留首次指派前的原任老師。
+ * 衝突僅回傳供 UI 警告，不阻擋。
+ */
+export async function assignScheduleSubstitute(
+ scheduleId: string,
+ substituteTeacherId: string
+): Promise<AssignScheduleSubstituteResult> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ if (!substituteTeacherId) throw new Error("請選擇代堂老師")
+
+ const targetIds = await resolveSubstituteTargetIds(scheduleId)
+ const { data: rows, error: fetchErr } = await supabase
+  .from("schedules")
+  .select("id, teacher_id, original_teacher_id, scheduled_date, start_time, end_time")
+  .in("id", targetIds)
+ if (fetchErr) throw fetchErr
+ if (!rows || rows.length === 0) throw new Error("找不到排程")
+
+ for (const raw of rows) {
+  const r = raw as {
+   id: string
+   teacher_id: string | null
+   original_teacher_id: string | null
+  }
+  const originalId = r.original_teacher_id ?? r.teacher_id
+  if (!originalId) throw new Error("此排程尚未指定老師，無法代堂")
+  if (originalId === substituteTeacherId) {
+   throw new Error("不可將代堂指派給原任老師；請改用「取消代堂」")
+  }
+ }
+
+ const conflictsNested = await Promise.all(
+  (rows as { id: string; scheduled_date: string; start_time: string | null; end_time: string | null }[]).map(
+   (r) =>
+    fetchTeacherScheduleConflicts({
+     teacherId: substituteTeacherId,
+     scheduledDate: String(r.scheduled_date).slice(0, 10),
+     startTime: r.start_time,
+     endTime: r.end_time,
+     excludeScheduleIds: targetIds,
+    })
+  )
+ )
+ const conflictMap = new Map<string, TeacherScheduleConflict>()
+ for (const list of conflictsNested) {
+  for (const c of list) conflictMap.set(c.id, c)
+ }
+ const conflicts = [...conflictMap.values()].sort((a, b) =>
+  (a.startTime ?? "").localeCompare(b.startTime ?? "")
+ )
+
+ const now = new Date().toISOString()
+ for (const raw of rows) {
+  const r = raw as {
+   id: string
+   teacher_id: string | null
+   original_teacher_id: string | null
+  }
+  const originalId = r.original_teacher_id ?? r.teacher_id
+  const { error } = await supabase
+   .from("schedules")
+   .update({
+    teacher_id: substituteTeacherId,
+    original_teacher_id: originalId,
+    updated_at: now,
+   })
+   .eq("id", r.id)
+  if (error) throw error
+ }
+
+ void logMgmtAuditAction({
+  action: "指派代堂",
+  detail: `schedule_ids=${targetIds.join(",")}; substitute=${substituteTeacherId}`,
+ })
+
+ return { affectedIds: targetIds, conflicts }
+}
+
+/** 取消代堂：還原 teacher_id 為 original_teacher_id，並清空代堂標記（連堂整組） */
+export async function clearScheduleSubstitute(
+ scheduleId: string
+): Promise<{ affectedIds: string[] }> {
+ if (!supabase) throw new Error("Supabase 未設定")
+
+ const targetIds = await resolveSubstituteTargetIds(scheduleId)
+ const { data: rows, error: fetchErr } = await supabase
+  .from("schedules")
+  .select("id, teacher_id, original_teacher_id")
+  .in("id", targetIds)
+ if (fetchErr) throw fetchErr
+ if (!rows || rows.length === 0) throw new Error("找不到排程")
+
+ const now = new Date().toISOString()
+ for (const raw of rows) {
+  const r = raw as {
+   id: string
+   teacher_id: string | null
+   original_teacher_id: string | null
+  }
+  if (!r.original_teacher_id) continue
+  const { error } = await supabase
+   .from("schedules")
+   .update({
+    teacher_id: r.original_teacher_id,
+    original_teacher_id: null,
+    updated_at: now,
+   })
+   .eq("id", r.id)
+  if (error) throw error
+ }
+
+ void logMgmtAuditAction({
+  action: "取消代堂",
+  detail: `schedule_ids=${targetIds.join(",")}`,
+ })
+
+ return { affectedIds: targetIds }
 }
 
 export { localYmd }

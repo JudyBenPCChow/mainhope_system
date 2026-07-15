@@ -126,7 +126,7 @@ export function DayViewScheduleCard({
    aria-disabled={historyReadOnly}
    onDragStart={onDragStart}
    className={cn(
-    "rounded-lg border px-2.5 py-2.5 text-sm shadow-sm",
+    "rounded-lg border px-3 py-3 text-sm shadow-sm",
     historyReadOnly ? "cursor-default opacity-75" : "cursor-grab active:cursor-grabbing",
     empty
      ? "border-border bg-muted/70 text-muted-foreground"
@@ -138,14 +138,14 @@ export function DayViewScheduleCard({
    <div className="flex items-start justify-between gap-1.5">
     <button
      type="button"
-     className="min-w-0 flex-1 break-words text-left font-semibold leading-snug hover:underline"
+     className="min-w-0 flex-1 break-words text-left text-base font-semibold leading-snug hover:underline"
      onClick={onOpenDetail}
     >
      {schedule.classLabel}
     </button>
     <ScheduleAlertIcons alerts={alerts} />
    </div>
-   <div className="mt-1.5 flex flex-wrap items-center gap-1">
+   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
     <Tag tone={statusToTagTone(schedule.status)} size="sm">
      {schedule.status}
     </Tag>
@@ -156,43 +156,43 @@ export function DayViewScheduleCard({
      <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
     ) : null}
     {span > 1 ? (
-     <span className="text-[10px] text-muted-foreground">佔 {span} 格</span>
+     <span className="text-xs text-muted-foreground">佔 {span} 格</span>
     ) : null}
    </div>
    {schedule.status.includes("取消") && schedule.cancel_reason ? (
-    <p className="mt-1 break-words text-xs text-muted-foreground" title={schedule.cancel_reason}>
+    <p className="mt-1.5 break-words text-sm text-muted-foreground" title={schedule.cancel_reason}>
      取消原因：{schedule.cancel_reason}
     </p>
    ) : null}
-   <p className="mt-1.5 break-words text-xs leading-relaxed opacity-90">
+   <p className="mt-1.5 break-words text-sm leading-relaxed opacity-90">
     老師：{schedule.teacher_name?.trim() || "—"}
    </p>
-   <p className="mt-0.5 break-words text-xs leading-relaxed opacity-90" title={studentNames.join("、")}>
+   <p className="mt-0.5 break-words text-sm leading-relaxed opacity-90" title={studentNames.join("、")}>
     學生：{studentSummary}
    </p>
    {inactiveRoomName ? (
-    <p className="mt-1 text-xs text-warning">原課室：{inactiveRoomName}（此日未開放）</p>
+    <p className="mt-1 text-sm text-warning">原課室：{inactiveRoomName}（此日未開放）</p>
    ) : null}
    {timeLabel ? (
-    <p className="mt-1.5 tabular-nums text-xs font-medium opacity-80">{timeLabel}</p>
+    <p className="mt-1.5 tabular-nums text-sm font-medium opacity-80">{timeLabel}</p>
    ) : null}
    {timeHint ? (
-    <p className="mt-1 flex items-start gap-1 text-xs text-warning" title={timeHint}>
-     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+    <p className="mt-1.5 flex items-start gap-1.5 text-sm text-warning" title={timeHint}>
+     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
      <span>{timeHint}</span>
     </p>
    ) : null}
    {historyReadOnly ? (
-    <p className="mt-1 text-[10px] text-muted-foreground">僅檢視，不可拖曳調整</p>
+    <p className="mt-1.5 text-xs text-muted-foreground">僅檢視，不可拖曳調整</p>
    ) : onMoveRequest ? (
     <Button
      type="button"
      variant="outline"
      size="sm"
-     className="mt-2 h-7 w-full gap-1 text-xs"
+     className="mt-2 h-9 w-full gap-1.5 text-sm"
      onClick={onMoveRequest}
     >
-     <Move className="h-3.5 w-3.5" aria-hidden />
+     <Move className="h-4 w-4" aria-hidden />
      移動到…
     </Button>
    ) : null}
@@ -279,7 +279,7 @@ export function DayViewGrid({
 
  return (
   <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-   <p className="border-b border-border bg-muted/30 px-4 py-3 text-sm font-medium">
+   <p className="border-b border-border bg-muted/30 px-4 py-3 text-base font-medium">
     {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘 · 拖曳或「移動到…」可調整課室與時段
    </p>
    <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
@@ -291,12 +291,14 @@ export function DayViewGrid({
     </colgroup>
     <thead>
      <tr className="bg-muted/40">
-      <th className="sticky left-0 z-[1] border border-border bg-muted/50 px-2 py-3">時間</th>
+      <th className="sticky left-0 z-[1] border border-border bg-muted/50 px-3 py-3 text-sm font-medium">
+       時間
+      </th>
       {columns.map((col) => (
        <th
         key={roomColumnKey(col)}
         className={cn(
-         "min-w-0 border border-border px-2 py-3 font-medium",
+         "min-w-0 border border-border px-3 py-3 text-sm font-medium",
          roomColumnHeaderBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
         )}
        >
@@ -308,7 +310,7 @@ export function DayViewGrid({
     <tbody>
      {LESSON_SLOT_INDICES.map((slotIdx) => (
       <tr key={slotIdx}>
-       <td className="sticky left-0 z-[1] border border-border bg-card px-2 py-2 tabular-nums text-muted-foreground">
+       <td className="sticky left-0 z-[1] border border-border bg-card px-3 py-3 text-sm tabular-nums text-muted-foreground">
         {lessonSlotLabel(slotIdx)}
        </td>
        {gridPlan[slotIdx]!.map((plan, colIdx) => {
@@ -319,7 +321,7 @@ export function DayViewGrid({
           key={roomColumnKey(col)}
           rowSpan={plan.rowSpan > 1 ? plan.rowSpan : undefined}
           className={cn(
-           "align-top border border-border p-1.5 transition-colors",
+           "align-top border border-border p-2 transition-colors",
            col.isUnassigned ? "hover:bg-warning/10" : "hover:bg-info/5",
            roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
           )}
@@ -332,8 +334,8 @@ export function DayViewGrid({
          >
           <div
            className={cn(
-            "flex flex-col gap-1.5",
-            plan.rowSpan > 1 ? "min-h-full" : "min-h-[7.5rem]"
+            "flex flex-col gap-2",
+            plan.rowSpan > 1 ? "min-h-full" : "min-h-[9rem]"
            )}
           >
            {plan.schedules.map((s) =>
@@ -347,7 +349,7 @@ export function DayViewGrid({
      ))}
      {nonStandardSchedules.length > 0 ? (
       <tr className="bg-warning/5">
-       <td className="sticky left-0 z-[1] border border-border bg-warning/10 px-2 py-2 text-xs font-medium text-warning">
+       <td className="sticky left-0 z-[1] border border-border bg-warning/10 px-3 py-3 text-sm font-medium text-warning">
         其他時段
         <span className="mt-0.5 block font-normal text-muted-foreground">非標準時間</span>
        </td>
@@ -355,11 +357,11 @@ export function DayViewGrid({
         <td
          key={roomColumnKey(col)}
          className={cn(
-          "align-top border border-border p-1.5",
+          "align-top border border-border p-2",
           roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
          )}
         >
-         <div className="flex min-h-[5rem] flex-col gap-1.5">
+         <div className="flex min-h-[6rem] flex-col gap-2">
           {schedulesForRoomColumn(nonStandardSchedules, col, activeRoomIdSet, () => true).map(
            (s) => renderCard(s, col.isUnassigned ? "unassigned" : "assigned")
           )}

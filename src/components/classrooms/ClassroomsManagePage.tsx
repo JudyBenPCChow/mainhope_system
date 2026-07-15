@@ -514,20 +514,27 @@ export function ClassroomsManagePage() {
              />
             ) : (
              <div className="flex min-h-[3rem] flex-col gap-1 p-1.5">
-              {items.map((s) => (
-               <Link
-                key={s.id}
-                to={`/Schedule/${s.id}`}
-                className={cn(
-                 "block truncate rounded-md border border-teal-200/80 bg-teal-50/90 px-1.5 py-0.5 text-xs font-medium text-teal-900",
-                 "transition-all hover:border-teal-400 hover:bg-teal-100 hover:shadow-sm active:scale-[0.99]",
-                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
-                )}
-               >
-                {s.classLabel}
-                {s.start_time ? ` · ${s.start_time}` : ""}
-               </Link>
-              ))}
+              {items.map((s) => {
+               const noStudents = s.enrollCount === 0
+               return (
+                <Link
+                 key={s.id}
+                 to={`/Schedule/${s.id}`}
+                 title={noStudents ? "暫未有學生報讀" : undefined}
+                 className={cn(
+                  "block truncate rounded-md border px-1.5 py-0.5 text-xs font-medium",
+                  "transition-all hover:shadow-sm active:scale-[0.99]",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40",
+                  noStudents
+                   ? "border-border bg-muted/70 text-muted-foreground hover:border-border hover:bg-muted"
+                   : "border-teal-200/80 bg-teal-50/90 text-teal-900 hover:border-teal-400 hover:bg-teal-100"
+                 )}
+                >
+                 {s.classLabel}
+                 {s.start_time ? ` · ${s.start_time}` : ""}
+                </Link>
+               )
+              })}
              </div>
             )}
            </td>
@@ -565,29 +572,38 @@ export function ClassroomsManagePage() {
      </p>
     ) : (
      <ul className="space-y-2">
-      {daySchedules.map((s) => (
-       <li key={s.id}>
-        <Link
-         to={`/Schedule/${s.id}`}
-         className={cn(
-          "flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5 transition-all",
-          "hover:border-teal-300 hover:bg-teal-50/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40"
-         )}
-        >
-         <span className="font-medium text-foreground">
-          {s.classLabel}
-          {s.course_code_full ? `（${s.course_code_full}）` : ""}
-         </span>
-         <span className="inline-flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">
-          <span>
-           {s.start_time ?? "—"} — {s.end_time ?? "—"}
-           {s.teacher_name ? ` · ${s.teacher_name}` : ""}
+      {daySchedules.map((s) => {
+       const noStudents = s.enrollCount === 0
+       return (
+        <li key={s.id}>
+         <Link
+          to={`/Schedule/${s.id}`}
+          className={cn(
+           "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 transition-all",
+           "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40",
+           noStudents
+            ? "border-border/80 bg-muted/70 text-muted-foreground hover:bg-muted"
+            : "border-border bg-card hover:border-teal-300 hover:bg-teal-50/50"
+          )}
+         >
+          <span className={cn("font-medium", noStudents ? "text-muted-foreground" : "text-foreground")}>
+           {s.classLabel}
+           {s.course_code_full ? `（${s.course_code_full}）` : ""}
           </span>
-          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
-         </span>
-        </Link>
-       </li>
-      ))}
+          <span className="inline-flex flex-wrap items-center gap-1 text-sm tabular-nums text-muted-foreground">
+           <span>
+            {s.start_time ?? "—"} — {s.end_time ?? "—"}
+            {s.teacher_name ? ` · ${s.teacher_name}` : ""}
+           </span>
+           <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
+           {noStudents ? (
+            <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">無學生</Tag>
+           ) : null}
+          </span>
+         </Link>
+        </li>
+       )
+      })}
      </ul>
     )}
    </section>

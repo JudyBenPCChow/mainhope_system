@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { fetchEnrollmentCountByClass } from "@/services/scheduleQueries"
 
 export type RoomRecord = {
  id: string
@@ -42,6 +43,8 @@ export type RoomScheduleRow = {
  classLabel: string
  teacher_id: string | null
  teacher_name: string | null
+ /** 班別「就讀中」報讀人數 */
+ enrollCount: number
 }
 
 export async function fetchSchedulesForRoomRange(
@@ -61,7 +64,19 @@ export async function fetchSchedulesForRoomRange(
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
  if (error) throw error
- return (data ?? []).map((row) => {
+ const rows = data ?? []
+ const classIds = [
+  ...new Set(
+   rows
+    .map((row) => {
+     const cid = (row as Record<string, unknown>).class_id
+     return cid != null ? String(cid) : null
+    })
+    .filter((id): id is string => Boolean(id))
+  ),
+ ]
+ const enrollMap = await fetchEnrollmentCountByClass(classIds)
+ return rows.map((row) => {
   const r = row as Record<string, unknown>
   const cls = r.classes as Record<string, unknown> | null
   const tch = r.teachers as Record<string, unknown> | null
@@ -69,19 +84,21 @@ export async function fetchSchedulesForRoomRange(
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
   const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+  const classId = r.class_id != null ? String(r.class_id) : null
   return {
    id: String(r.id),
    scheduled_date: String(r.scheduled_date ?? ""),
    start_time: r.start_time != null ? String(r.start_time) : null,
    end_time: r.end_time != null ? String(r.end_time) : null,
    status: String(r.status ?? ""),
-   class_id: r.class_id != null ? String(r.class_id) : null,
+   class_id: classId,
    subject: sub,
    course_code_full: courseCode,
    course_name: courseName,
    classLabel: formatClassLabel({ subject: sub, courseCode, courseName }),
    teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
    teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+   enrollCount: classId ? enrollMap.get(classId) ?? 0 : 0,
   }
  })
 }

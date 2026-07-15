@@ -20,6 +20,7 @@ import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { ScheduleDateTime } from "@/lib/scheduleDisplay"
+import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import {
  CLASS_GRADE_FORM_OPTIONS,
  CLASS_TIME_SLOT_OPTIONS,
@@ -1651,6 +1652,23 @@ const addableStudents = (() => {
              ? (n) => void onSaveSessionNumber(s.id, n)
              : undefined
            }
+           subtitle={(() => {
+            const subTag = formatScheduleSubstituteTag(
+             {
+              teacher_id: s.teacher_id,
+              teacher_name: s.teacher_name,
+              original_teacher_id: s.original_teacher_id,
+              original_teacher_name: s.original_teacher_name,
+             },
+             teacherScopeId
+            )
+            if (!subTag) return null
+            return (
+             <Tag tone={statusToTagTone(subTag)} size="sm">
+              {subTag}
+             </Tag>
+            )
+           })()}
            title={
             <Link
              to={`/Schedule/${s.id}`}

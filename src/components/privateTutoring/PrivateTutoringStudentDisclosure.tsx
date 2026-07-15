@@ -15,7 +15,7 @@ import {
 
 /** 列表表頭與 summary 共用欄寬，保持未展開時與原表格對齊 */
 export const PRIVATE_TUTORING_ROW_GRID =
- "grid grid-cols-[2rem_minmax(5rem,1.1fr)_minmax(3.5rem,0.7fr)_minmax(3rem,0.55fr)_minmax(7rem,1.7fr)_minmax(3.5rem,0.75fr)_minmax(6rem,1.4fr)_minmax(5rem,1.25fr)_minmax(4.5rem,1.1fr)]"
+ "grid grid-cols-[2.5rem_minmax(5rem,1.1fr)_minmax(3.5rem,0.7fr)_minmax(3rem,0.55fr)_minmax(7rem,1.7fr)_minmax(3.5rem,0.75fr)_minmax(6rem,1.4fr)_minmax(5rem,1.25fr)_minmax(4.5rem,1.1fr)]"
 
 function isCancelledStatus(status: string): boolean {
  return status.includes("取消")
@@ -66,7 +66,7 @@ export function PrivateTutoringStudentDisclosure({
 
  const rowCells = (
   <>
-   <div className="min-w-0 truncate px-3 py-2">
+   <div className="min-w-0 truncate px-4 py-3">
     <Link
      to={`/Students/${row.studentId}`}
      className="font-medium text-primary hover:underline"
@@ -75,12 +75,12 @@ export function PrivateTutoringStudentDisclosure({
      {row.fullName}
     </Link>
    </div>
-   <div className="px-3 py-2 font-mono text-xs">{row.studentCode}</div>
-   <div className="min-w-0 truncate px-3 py-2" title={row.grade ?? ""}>
+   <div className="px-4 py-3 font-mono text-sm tabular-nums">{row.studentCode}</div>
+   <div className="min-w-0 truncate px-4 py-3" title={row.grade ?? ""}>
     {row.grade ?? "—"}
    </div>
-   <div className="min-w-0 truncate px-3 py-2" title={row.classSubject}>
-    <span className="inline-flex max-w-full items-center gap-1">
+   <div className="min-w-0 truncate px-4 py-3" title={row.classSubject}>
+    <span className="inline-flex max-w-full items-center gap-1.5">
      <Link
       to={`/Classes/${row.classId}`}
       state={{ fromPrivateTutoring: true }}
@@ -96,10 +96,10 @@ export function PrivateTutoringStudentDisclosure({
      ) : null}
     </span>
    </div>
-   <div className="min-w-0 truncate px-3 py-2" title={row.teacherName ?? ""}>
+   <div className="min-w-0 truncate px-4 py-3" title={row.teacherName ?? ""}>
     {row.teacherName ?? "—"}
    </div>
-   <div className="px-3 py-2">
+   <div className="px-4 py-3">
     <StudentClassificationTags
      student={{
       registration_status: row.registrationStatus as "已註冊" | "非注冊",
@@ -111,8 +111,8 @@ export function PrivateTutoringStudentDisclosure({
      size="sm"
     />
    </div>
-   <div className="min-w-0 px-3 py-2">
-    <div className="flex min-w-0 items-center gap-1">
+   <div className="min-w-0 px-4 py-3">
+    <div className="flex min-w-0 items-center gap-1.5">
      <span className="min-w-0 truncate" title={formatNextLessonLabel(row.nextLesson)}>
       {formatNextLessonLabel(row.nextLesson)}
      </span>
@@ -123,32 +123,33 @@ export function PrivateTutoringStudentDisclosure({
      ) : null}
     </div>
    </div>
-   <div className="px-3 py-2">
+   <div className="px-4 py-3">
     {isWithdrawn ? (
-     <span className="text-xs text-muted-foreground">—</span>
+     <span className="text-sm text-muted-foreground">—</span>
     ) : (
-     <div className="flex items-center gap-0.5">
+     <div className="flex items-center gap-1">
       <Button
        type="button"
-       size="sm"
+       size="default"
        variant="outline"
+       className="h-10 w-10 shrink-0 px-0"
        title="預約"
        aria-label="預約"
        onClick={onBook}
       >
-       <CalendarClock className="h-3.5 w-3.5" />
+       <CalendarClock className="h-4 w-4" />
       </Button>
       {canManageEnrollment ? (
        <Button
         type="button"
-        size="sm"
+        size="default"
         variant="ghost"
-        className="text-destructive hover:text-destructive"
+        className="h-10 w-10 shrink-0 px-0 text-destructive hover:text-destructive"
         title="退讀"
         aria-label="退讀"
         onClick={onWithdraw}
        >
-        <UserMinus className="h-3.5 w-3.5" />
+        <UserMinus className="h-4 w-4" />
        </Button>
       ) : null}
      </div>
@@ -167,7 +168,7 @@ export function PrivateTutoringStudentDisclosure({
     aria-disabled="true"
    >
     <div className="flex items-center justify-center px-1" aria-hidden>
-     <ChevronDown className="h-4 w-4 opacity-30" />
+     <ChevronDown className="h-5 w-5 opacity-30" />
     </div>
     {rowCells}
    </div>
@@ -192,7 +193,7 @@ export function PrivateTutoringStudentDisclosure({
    >
     <div className="flex items-center justify-center px-1">
      <ChevronDown
-      className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+      className="h-5 w-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
       aria-hidden
      />
      <span className="sr-only">展開或收合未來排程</span>
@@ -200,20 +201,20 @@ export function PrivateTutoringStudentDisclosure({
     {rowCells}
    </summary>
 
-   <div className="border-t border-border/50 bg-muted/15 px-3 py-3 sm:px-4 sm:pl-10">
-    <p className="mb-2 text-xs font-medium text-muted-foreground">未來排程</p>
+   <div className="border-t border-border/50 bg-muted/15 px-4 py-4 sm:pl-12">
+    <p className="mb-2 text-sm font-medium text-muted-foreground">未來排程</p>
     {schedulesLoading && schedules === undefined ? (
      <p className="text-sm text-muted-foreground">載入排程…</p>
     ) : activeSchedules.length === 0 ? (
      <p className="text-sm text-muted-foreground">沒有未來排程。</p>
     ) : (
-     <ul className="max-h-56 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
+     <ul className="max-h-64 space-y-2 overflow-y-auto overscroll-contain pr-1">
       {activeSchedules.map((s) => {
        const label = formatScheduleLine(s)
        return (
         <li
          key={s.id}
-         className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm"
+         className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
         >
          <Link
           to={`/Schedule/${s.id}`}
@@ -223,7 +224,7 @@ export function PrivateTutoringStudentDisclosure({
           {label}
          </Link>
          {s.teacherName ? (
-          <span className="max-w-[8rem] truncate text-xs text-muted-foreground" title={s.teacherName}>
+          <span className="max-w-[10rem] truncate text-sm text-muted-foreground" title={s.teacherName}>
            {s.teacherName}
           </span>
          ) : null}
