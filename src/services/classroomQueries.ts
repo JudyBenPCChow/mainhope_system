@@ -56,7 +56,7 @@ export async function fetchSchedulesForRoomRange(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name )"
+   "id, scheduled_date, start_time, end_time, status, class_id, teacher_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
   )
   .eq("classroom_id", roomId)
   .gte("scheduled_date", fromYmd)
