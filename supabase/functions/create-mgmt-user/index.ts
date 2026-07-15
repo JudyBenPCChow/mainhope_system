@@ -15,7 +15,8 @@ type RequestBody = {
 }
 
 function normalizeEmail(raw: unknown): string | null {
-  const value = String(raw ?? "").trim().toLowerCase()
+  // NFKC 把全形字元（如全形＠ U+FF20）轉半形，避免誤植電郵被判為無效。
+  const value = String(raw ?? "").normalize("NFKC").trim().toLowerCase()
   if (!value) return null
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null
   return value

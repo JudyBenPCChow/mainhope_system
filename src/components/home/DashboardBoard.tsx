@@ -46,7 +46,7 @@ export function DashboardBoard({
  loading,
 }: Props) {
  const today = todayYmdLocal()
- const scheduleDayLink = `/Classrooms?date=${encodeURIComponent(scheduleViewYmd)}`
+ const scheduleDayLink = `/Schedule?view=day&date=${encodeURIComponent(scheduleViewYmd)}`
  const scheduleBusy = Boolean(loading || scheduleColumnLoading)
 
  const scheduleScrollRef = useRef<HTMLDivElement>(null)
@@ -82,7 +82,7 @@ export function DashboardBoard({
        to={scheduleDayLink}
        className="shrink-0 text-xs font-medium text-primary underline-offset-4 hover:underline"
       >
-       課室管理
+       日視圖
       </Link>
      </div>
      <div className="flex flex-wrap items-center justify-center gap-1 sm:justify-between">

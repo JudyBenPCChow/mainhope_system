@@ -16,12 +16,12 @@ const cardClass =
 
 export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading }: Props) {
  const today = todayYmdLocal()
- const scheduleLink = `/Classrooms?date=${encodeURIComponent(today)}`
+ const scheduleLink = `/Schedule?view=day&date=${encodeURIComponent(today)}`
  const paymentsLink = "/Payments?tab=history&histStatus=pendingPay"
 
  return (
   <div className="grid gap-4 sm:grid-cols-2">
-   <Link to={scheduleLink} className={cn(cardClass, "text-left")} aria-label="開啟今日課室管理">
+   <Link to={scheduleLink} className={cn(cardClass, "text-left")} aria-label="開啟今日排程日視圖">
     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-200/80 text-slate-700 md:h-14 md:w-14">
      <CalendarDays className="h-6 w-6 md:h-7 md:w-7" strokeWidth={1.75} aria-hidden />
     </div>
@@ -30,7 +30,7 @@ export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading 
      <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground md:text-3xl">
       {loading ? "…" : `${todayClassCount} 堂`}
      </div>
-     <p className="mt-0.5 text-sm text-muted-foreground">開啟課室管理 →</p>
+     <p className="mt-0.5 text-sm text-muted-foreground">開啟排程日視圖 →</p>
     </div>
    </Link>
 

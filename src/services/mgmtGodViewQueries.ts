@@ -1,5 +1,5 @@
 import { todayYmdLocal } from "@/components/home/format"
-import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
+import { formatMgmtActorLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 
 export type MgmtAuditLogRow = {
@@ -92,15 +92,13 @@ function actorFromStorage(): { actorLabel: string; role: string } {
  if (typeof localStorage === "undefined") {
   return { actorLabel: "系統", role: "system" }
  }
- const r = localStorage.getItem("mgmt_role")
- if (r === "admin") return { actorLabel: `管理員（${DEMO_ADMIN_GREETING_NAME}）`, role: "admin" }
- if (r === "alien") return { actorLabel: `外星人（${DEMO_ALIEN_GREETING_NAME}）`, role: "alien" }
- if (r === "teacher") return { actorLabel: "專班老師（演示）", role: "teacher" }
+ const r = getMgmtRole()
+ if (r) return { actorLabel: formatMgmtActorLabel(r), role: r }
  return { actorLabel: "未登入", role: "guest" }
 }
 
 /**
- * 依目前瀏覽器演示身分寫入操作稽核（不擋主流程）。
+ * 依目前登入身分寫入操作稽核（不擋主流程）。
  * `path` 預設為 `window.location.pathname`。
  */
 export async function logMgmtAuditAction(input: {
@@ -130,7 +128,7 @@ export type AppendMgmtSystemErrorInput = {
  path?: string | null
 }
 
-/** 寫入系統報錯／問題（失敗不擋主流程）；附目前演示身分與路徑。回傳是否寫入成功（供離線佇列重試）。 */
+/** 寫入系統報錯／問題（失敗不擋主流程）；附目前登入身分與路徑。回傳是否寫入成功（供離線佇列重試）。 */
 export async function appendMgmtSystemError(input: AppendMgmtSystemErrorInput): Promise<boolean> {
  if (!supabase) return false
  const { actorLabel, role } = actorFromStorage()

@@ -128,13 +128,14 @@ export function UserManagementView() {
   display_name: "",
   teacher_id: "",
  })
- const [resettingId, setResettingId] = useState<string | null>(null)
- const [resetCredential, setResetCredential] = useState<{
-  email: string
-  displayName: string
-  temporaryPassword: string
- } | null>(null)
- const [resetOpen, setResetOpen] = useState(false)
+  const [resettingId, setResettingId] = useState<string | null>(null)
+  const [resetCredential, setResetCredential] = useState<{
+   email: string
+   displayName: string
+   temporaryPassword: string
+   provisioned: boolean
+  } | null>(null)
+  const [resetOpen, setResetOpen] = useState(false)
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
@@ -260,50 +261,62 @@ export function UserManagementView() {
   setCreateOpen(true)
  }
 
- const resetPassword = async (u: AppUserRow) => {
-  if (!canEdit || !canResetPassword(u)) return
-  const label = u.display_name?.trim() || u.email || "此用戶"
-  const ok = await confirmDialog({
-   title: "重設密碼",
-   description: `確定要為「${label}」產生新臨時密碼？舊密碼將立即失效，臨時密碼只會顯示一次。`,
-   confirmText: "確認重設",
-   tone: "destructive",
-  })
-  if (!ok) return
+  const resetPassword = async (u: AppUserRow) => {
+   if (!canEdit || !canResetPassword(u)) return
+   const label = u.display_name?.trim() || u.email || "此用戶"
+   const ok = await confirmDialog({
+    title: "重設密碼",
+    description: `確定要為「${label}」產生新臨時密碼？若此用戶尚未有登入帳號會一併建立；舊密碼將立即失效，臨時密碼只會顯示一次。`,
+    confirmText: "確認重設",
+    tone: "destructive",
+   })
+   if (!ok) return
 
-  setResettingId(u.id)
-  setErr(null)
-  try {
-   const result = await resetMgmtUserPassword({
-    appUserId: u.id,
-    email: u.email,
-   })
-   if (!result.ok) {
-    setErr(result.message)
-    return
+   setResettingId(u.id)
+   setErr(null)
+   try {
+    const result = await resetMgmtUserPassword({
+     appUserId: u.id,
+     email: u.email,
+    })
+    if (!result.ok) {
+     setErr(result.message)
+     pushBanner({
+      tone: "error",
+      title: "重設密碼失敗",
+      message: `無法為「${label}」重設密碼：${result.message}`,
+     })
+     return
+    }
+    setResetCredential({
+     email: result.email,
+     displayName: result.displayName || label,
+     temporaryPassword: result.temporaryPassword,
+     provisioned: result.provisioned,
+    })
+    setResetOpen(true)
+    pushBanner({
+     tone: "success",
+     title: result.provisioned ? "已建立登入並產生臨時密碼" : "已重設密碼",
+     message: `${result.displayName || result.email} 的臨時密碼已產生，請安全交給對方。`,
+    })
+    await load()
+   } catch (e) {
+    const msg = formatUnknownError(e)
+    reportUserFacingError(e, {
+     source: "UserManagementView.resetPassword",
+     setErr,
+     userMessage: msg,
+    })
+    pushBanner({
+     tone: "error",
+     title: "重設密碼失敗",
+     message: `無法為「${label}」重設密碼：${msg}`,
+    })
+   } finally {
+    setResettingId(null)
    }
-   setResetCredential({
-    email: result.email,
-    displayName: result.displayName || label,
-    temporaryPassword: result.temporaryPassword,
-   })
-   setResetOpen(true)
-   pushBanner({
-    tone: "success",
-    title: "已重設密碼",
-    message: `${result.displayName || result.email} 的臨時密碼已產生，請安全交給對方。`,
-   })
-  } catch (e) {
-   const msg = formatUnknownError(e)
-   reportUserFacingError(e, {
-    source: "UserManagementView.resetPassword",
-    setErr,
-    userMessage: msg,
-   })
-  } finally {
-   setResettingId(null)
   }
- }
 
  const saveCreate = async () => {
   const email = createForm.email.trim().toLowerCase()
@@ -682,7 +695,9 @@ export function UserManagementView() {
     <DialogContent className="max-w-md gap-0 overflow-hidden border-warning p-0 sm:rounded-xl">
      <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4 text-white">
       <DialogHeader className="space-y-1 text-left">
-       <DialogTitle className="text-lg font-semibold text-white">密碼已重設</DialogTitle>
+       <DialogTitle className="text-lg font-semibold text-white">
+        {resetCredential?.provisioned ? "登入帳號已建立" : "密碼已重設"}
+       </DialogTitle>
        <p className="text-xs font-normal text-white/85">臨時密碼只顯示一次，請立即安全交給對方。</p>
       </DialogHeader>
      </div>
@@ -701,7 +716,11 @@ export function UserManagementView() {
          <span className="text-muted-foreground">臨時密碼：</span>
          <span className="font-mono text-foreground">{resetCredential.temporaryPassword}</span>
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">舊密碼已失效；關閉此視窗後系統不會再次顯示。</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+         {resetCredential.provisioned
+          ? "此用戶原本沒有登入帳號，已一併建立；關閉此視窗後系統不會再次顯示。"
+          : "舊密碼已失效；關閉此視窗後系統不會再次顯示。"}
+        </p>
        </div>
       ) : null}
      </div>
