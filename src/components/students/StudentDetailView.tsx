@@ -114,6 +114,14 @@ import {
  type ScheduleStudentHints,
 } from "@/services/classQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ countBoundSchedulesForEnrollment,
+ fetchLessonBalancesForStudent,
+ insertPendingLesson,
+ PENDING_LESSON_REASONS,
+ updatePendingLessonStatus,
+ type LessonBalanceRow,
+} from "@/services/pendingLessonQueries"
 
 function formatLeaveError(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -211,7 +219,17 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  /** 暑期：期數或單堂；正規：full | 單堂 */
  const [pickForm, setPickForm] = useState<string>("兩期全報")
  const [pickScheduleIds, setPickScheduleIds] = useState<string[]>([])
+ /** 報讀時填寫的應享／繳費堂數；多於綁定排程則自動記待補 */
+ const [pickEntitledCount, setPickEntitledCount] = useState("")
+ const [pickBoundPreview, setPickBoundPreview] = useState<number | null>(null)
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
+ const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
+ const [pendingDialogOpen, setPendingDialogOpen] = useState(false)
+ const [pendingTarget, setPendingTarget] = useState<EnrollmentWithClass | null>(null)
+ const [pendingOwedInput, setPendingOwedInput] = useState("1")
+ const [pendingReason, setPendingReason] = useState<string>(PENDING_LESSON_REASONS[0])
+ const [pendingRemarks, setPendingRemarks] = useState("")
+ const [pendingSaving, setPendingSaving] = useState(false)
  const [withdrawOpen, setWithdrawOpen] = useState(false)
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
@@ -274,6 +292,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    fetchStudentActivity(sid),
    fetchRelativesForStudent(sid),
    fetchTotalPaidLessonsForStudent(sid),
+   fetchLessonBalancesForStudent(sid),
   ])
   const pick = <T,>(i: number, fallback: T): T =>
    settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<T>).value : fallback
@@ -281,9 +300,13 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   if (settled[0].status === "rejected") {
    console.error("[StudentDetailView] enrollments", settled[0].reason)
   }
+  if (settled[8].status === "rejected") {
+   console.error("[StudentDetailView] lessonBalances", settled[8].reason)
+  }
   setEnrollments(pick(0, []))
   setPayments(pick(1, []))
   setTotalPaidLessons(pick(7, null))
+  setLessonBalances(pick(8, []))
   setAttendance(pick(2, []))
   setLeaves(pick(3, []))
   const fs = pick(4, [] as StudentUpcomingScheduleRow[])
@@ -427,12 +450,54 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
+  const entitledRaw = pickEntitledCount.trim()
+  const entitled = entitledRaw === "" ? null : Math.floor(Number(entitledRaw))
+  if (entitledRaw !== "" && (!Number.isFinite(entitled) || (entitled ?? 0) < 1)) {
+   pushBanner({ tone: "error", title: "應享堂數無效", message: "請輸入正整數，或留空" })
+   return
+  }
+  let bound = pickBoundPreview
+  if (bound == null) {
+   try {
+    bound = await countBoundSchedulesForEnrollment({
+     classId: pickClass,
+     enrollmentPeriod: period,
+     scheduleIds: isSingle ? pickScheduleIds : undefined,
+    })
+   } catch {
+    bound = isSingle ? pickScheduleIds.length : 0
+   }
+  }
+  const owed =
+   entitled != null && bound != null && entitled > bound ? entitled - bound : 0
+  if (owed > 0) {
+   const ok = await confirmDialog({
+    title: "將記錄待補堂",
+    description: `應享 ${entitled} 堂，目前只會綁定 ${bound} 堂，將同時記錄待補 ${owed} 堂，方便同事跟進。`,
+    confirmText: "確認加入並記待補",
+   })
+   if (!ok) return
+  }
   try {
-   await insertEnrollment(sid, pickClass, period, isSingle ? pickScheduleIds : undefined)
+   await insertEnrollment(
+    sid,
+    pickClass,
+    period,
+    isSingle ? pickScheduleIds : undefined,
+    owed > 0
+     ? { owedCount: owed, reason: "遲報缺堂", remarks: `應享 ${entitled}／綁定 ${bound}` }
+     : null
+   )
    setPickClass("")
    setPickForm(isSummer ? "兩期全報" : "full")
    setPickScheduleIds([])
-   pushBanner({ tone: "success", title: "已加入班別" })
+   setPickEntitledCount("")
+   setPickBoundPreview(null)
+   pushBanner({
+    tone: "success",
+    title: "已加入班別",
+    message: owed > 0 ? `已記錄待補 ${owed} 堂` : undefined,
+   })
    await reloadSubs()
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.addEnrollment" })
@@ -476,6 +541,95 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
+ const balanceByEnrollment = useMemo(() => {
+  const map = new Map<string, LessonBalanceRow>()
+  for (const row of lessonBalances) map.set(row.enrollmentId, row)
+  return map
+ }, [lessonBalances])
+ const misalignedCount = useMemo(
+  () => lessonBalances.filter((b) => !b.isAligned || b.pendingLessons > 0).length,
+  [lessonBalances]
+ )
+ const pickEntitledNum = pickEntitledCount.trim() === "" ? null : Math.floor(Number(pickEntitledCount))
+ const pickPendingPreview =
+  pickEntitledNum != null &&
+  Number.isFinite(pickEntitledNum) &&
+  pickBoundPreview != null &&
+  pickEntitledNum > pickBoundPreview
+   ? pickEntitledNum - pickBoundPreview
+   : 0
+
+ useEffect(() => {
+  if (!pickClass) {
+   setPickBoundPreview(null)
+   return
+  }
+  let cancelled = false
+  const isSingle = pickForm === SINGLE_SESSION_ENROLLMENT
+  let period: EnrollmentFormValue | null = null
+  if (isSingle) period = SINGLE_SESSION_ENROLLMENT
+  else if (isSummerPick && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
+   period = pickForm as EnrollmentPeriod
+  }
+  void countBoundSchedulesForEnrollment({
+   classId: pickClass,
+   enrollmentPeriod: period,
+   scheduleIds: isSingle ? pickScheduleIds : undefined,
+  })
+   .then((n) => {
+    if (!cancelled) setPickBoundPreview(n)
+   })
+   .catch(() => {
+    if (!cancelled) setPickBoundPreview(isSingle ? pickScheduleIds.length : null)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [pickClass, pickForm, pickScheduleIds, isSummerPick])
+
+ const openPendingDialog = (e: EnrollmentWithClass) => {
+  const bal = balanceByEnrollment.get(e.id)
+  const suggest =
+   bal && bal.paidLessons > 0 && bal.gap > 0 ? String(bal.gap) : "1"
+  setPendingTarget(e)
+  setPendingOwedInput(suggest)
+  setPendingReason(PENDING_LESSON_REASONS[0])
+  setPendingRemarks("")
+  setPendingDialogOpen(true)
+ }
+
+ const submitPendingLesson = async () => {
+  if (!pendingTarget || !sid) return
+  const owed = Math.floor(Number(pendingOwedInput))
+  if (!Number.isFinite(owed) || owed < 1) {
+   pushBanner({ tone: "error", title: "待補堂數無效", message: "請輸入至少 1 堂" })
+   return
+  }
+  setPendingSaving(true)
+  try {
+   await insertPendingLesson({
+    studentId: sid,
+    classId: pendingTarget.classId,
+    enrollmentId: pendingTarget.id,
+    owedCount: owed,
+    reason: pendingReason,
+    remarks: pendingRemarks.trim() || null,
+   })
+   setPendingDialogOpen(false)
+   setPendingTarget(null)
+   pushBanner({ tone: "success", title: "已記錄待補堂", message: `待補 ${owed} 堂` })
+   await reloadSubs()
+  } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.submitPendingLesson" })
+   pushBanner({
+    tone: "error",
+    title: "記錄失敗",
+    message: e instanceof Error ? e.message : String(e),
+   })
+  } finally {
+   setPendingSaving(false)
+  }
+ }
 
  const openEditEnrollmentForm = async (e: EnrollmentWithClass) => {
   setEditFormTarget(e)
@@ -1315,6 +1469,15 @@ const exportFutureSchedulesCsv = () => {
 
     {tab === "enrollments" ? (
      <div className="mx-auto max-w-3xl space-y-4">
+      {misalignedCount > 0 ? (
+       <div
+        role="status"
+        className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+       >
+        有 <strong className="tabular-nums">{misalignedCount}</strong>{" "}
+        個班別的繳費堂數與排程／待補不一致，或仍有待補堂，請跟進。
+       </div>
+      ) : null}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
        <Select
         className="flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
@@ -1323,6 +1486,7 @@ const exportFutureSchedulesCsv = () => {
          const next = e.target.value
          setPickClass(next)
          setPickScheduleIds([])
+         setPickEntitledCount("")
          const opt = classOptions.find((o) => o.id === next)
          setPickForm(opt?.courseMode === "summer_two_period" ? "兩期全報" : "full")
         }}
@@ -1368,6 +1532,37 @@ const exportFutureSchedulesCsv = () => {
         加入
        </Button>
       </div>
+      {pickClass ? (
+       <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-3 sm:flex-row sm:items-end">
+        <Field label="應享／繳費堂數（選填）" className="sm:w-44">
+         <Input
+          type="number"
+          min={1}
+          inputMode="numeric"
+          placeholder="例如 12"
+          value={pickEntitledCount}
+          onChange={(e) => setPickEntitledCount(e.target.value)}
+          className="h-9"
+         />
+        </Field>
+        <div className="flex-1 text-xs text-muted-foreground sm:pb-2">
+         將綁定{" "}
+         <strong className="tabular-nums text-foreground">
+          {pickBoundPreview == null ? "…" : pickBoundPreview}
+         </strong>{" "}
+         堂
+         {pickPendingPreview > 0 ? (
+          <span className="ml-2 text-amber-800">
+           · 差額將記待補{" "}
+           <strong className="tabular-nums">{pickPendingPreview}</strong> 堂
+          </span>
+         ) : null}
+         <span className="mt-0.5 block">
+          遲報時請填應享堂數；若多於可綁定排程，加入時會一併記錄待補。
+         </span>
+        </div>
+       </div>
+      ) : null}
       {showSessionPicker ? (
        <EnrollmentSessionPicker
         classId={pickClass}
@@ -1379,11 +1574,14 @@ const exportFutureSchedulesCsv = () => {
        {activeEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
-        activeEnrollments.map((e) => (
+        activeEnrollments.map((e) => {
+         const bal = balanceByEnrollment.get(e.id)
+         return (
          <div
           key={e.id}
-          className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
          >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
            <div className="font-semibold">
             <Link
@@ -1407,6 +1605,14 @@ const exportFutureSchedulesCsv = () => {
            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => openPendingDialog(e)}
+           >
+            記錄待補堂
+           </Button>
            <Button
             type="button"
             variant="outline"
@@ -1450,8 +1656,83 @@ const exportFutureSchedulesCsv = () => {
             手誤清除
            </Button>
           </div>
+          </div>
+          {bal ? (
+           <div
+            className={cn(
+             "rounded-md border px-3 py-2 text-xs",
+             bal.isAligned && bal.pendingLessons === 0
+              ? "border-border bg-muted/40 text-muted-foreground"
+              : "border-amber-700/35 bg-amber-50 text-amber-950"
+            )}
+           >
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+             <span>
+              已繳{" "}
+              <strong className="tabular-nums text-foreground">{bal.paidLessons}</strong> 堂
+             </span>
+             <span>
+              已綁排程{" "}
+              <strong className="tabular-nums text-foreground">{bal.boundLessons}</strong> 堂
+             </span>
+             <span>
+              待補{" "}
+              <strong className="tabular-nums text-foreground">{bal.pendingLessons}</strong> 堂
+             </span>
+             {bal.paidLessons > 0 ? (
+              <Tag
+               tone={bal.isAligned ? "success" : "warning"}
+               size="sm"
+              >
+               {bal.isAligned ? "堂數一致" : `尚差 ${bal.gap} 堂未記／未排`}
+              </Tag>
+             ) : (
+              <span className="text-muted-foreground">尚未有該班已收款堂數</span>
+             )}
+            </div>
+            {bal.pendingRows.some((p) => p.status === "待補") ? (
+             <ul className="mt-2 space-y-1">
+              {bal.pendingRows
+               .filter((p) => p.status === "待補")
+               .map((p) => (
+                <li
+                 key={p.id}
+                 className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-700/20 pt-1"
+                >
+                 <span>
+                  {p.reason} · 待補 <strong className="tabular-nums">{p.owedCount}</strong> 堂
+                  {p.remarks ? `（${p.remarks}）` : ""}
+                 </span>
+                 <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={async () => {
+                   try {
+                    await updatePendingLessonStatus(p.id, "已安排")
+                    pushBanner({ tone: "success", title: "已標為已安排" })
+                    await reloadSubs()
+                   } catch (err) {
+                    pushBanner({
+                     tone: "error",
+                     title: "更新失敗",
+                     message: err instanceof Error ? err.message : String(err),
+                    })
+                   }
+                  }}
+                 >
+                  標為已安排
+                 </Button>
+                </li>
+               ))}
+             </ul>
+            ) : null}
+           </div>
+          ) : null}
          </div>
-        ))
+         )
+        })
        )}
       </div>
 
@@ -1574,6 +1855,83 @@ const exportFutureSchedulesCsv = () => {
             onClick={() => void submitEditEnrollmentForm()}
            >
             {editFormSaving ? "儲存中…" : "確認更改"}
+           </Button>
+          </div>
+         </div>
+        ) : null}
+       </DialogContent>
+      </Dialog>
+
+      <Dialog
+       open={pendingDialogOpen}
+       onOpenChange={(o) => {
+        setPendingDialogOpen(o)
+        if (!o) setPendingTarget(null)
+       }}
+      >
+       <DialogContent className="max-w-md">
+        <DialogHeader>
+         <DialogTitle>記錄待補堂</DialogTitle>
+        </DialogHeader>
+        {pendingTarget ? (
+         <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+           用於遲報或缺排程、但<strong>不是請假</strong>的情況。記錄後會顯示在該班堂數對帳區，方便同事跟進。
+          </p>
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
+           {formatClassLabel({
+            subject: pendingTarget.subject,
+            courseCode: pendingTarget.courseCode,
+            courseName: pendingTarget.courseName,
+           })}
+          </div>
+          <Field label="待補堂數">
+           <Input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={pendingOwedInput}
+            onChange={(e) => setPendingOwedInput(e.target.value)}
+            className="h-9"
+           />
+          </Field>
+          <Field label="原因">
+           <Select
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={pendingReason}
+            onChange={(e) => setPendingReason(e.target.value)}
+           >
+            {PENDING_LESSON_REASONS.map((r) => (
+             <option key={r} value={r}>
+              {r}
+             </option>
+            ))}
+           </Select>
+          </Field>
+          <Field label="備註（選填）">
+           <Textarea
+            value={pendingRemarks}
+            onChange={(e) => setPendingRemarks(e.target.value)}
+            rows={2}
+            placeholder="例如：開班後才報讀，少了第 1 堂"
+            className="resize-none"
+           />
+          </Field>
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+           <Button
+            type="button"
+            variant="outline"
+            disabled={pendingSaving}
+            onClick={() => setPendingDialogOpen(false)}
+           >
+            取消
+           </Button>
+           <Button
+            type="button"
+            disabled={pendingSaving}
+            onClick={() => void submitPendingLesson()}
+           >
+            {pendingSaving ? "儲存中…" : "確認記錄"}
            </Button>
           </div>
          </div>

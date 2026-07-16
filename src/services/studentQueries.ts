@@ -706,11 +706,19 @@ export async function replaceEnrollmentSessions(
  if (insErr) throw insErr
 }
 
+export type InsertEnrollmentPendingOpts = {
+ /** 報讀時應享／繳費堂數多於綁定排程時，一併寫入待補堂 */
+ owedCount: number
+ reason?: string
+ remarks?: string | null
+}
+
 export async function insertEnrollment(
  studentId: string,
  classId: string,
  enrollmentPeriod?: EnrollmentFormValue | null,
- scheduleIds?: string[]
+ scheduleIds?: string[],
+ pending?: InsertEnrollmentPendingOpts | null
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
@@ -800,6 +808,8 @@ export async function insertEnrollment(
    isSingle && scheduleIds
     ? `；選堂 ${scheduleIds.length} 堂`
     : ""
+  const pendingNote =
+   pending && pending.owedCount > 0 ? `；待補 ${pending.owedCount} 堂` : ""
   const { error: evErr } = await supabase.from("enrollment_change_events").insert({
    student_id: studentId,
    class_id: classId,
@@ -807,13 +817,26 @@ export async function insertEnrollment(
    action: "enroll",
    effective_date: today,
    reason: isSingle
-    ? `單堂報讀${sessionLabel}`
+    ? `單堂報讀${sessionLabel}${pendingNote}`
     : withdrawn
-      ? "退讀後重新報讀"
-      : null,
+      ? `退讀後重新報讀${pendingNote}`
+      : pendingNote
+        ? pendingNote.replace(/^；/, "")
+        : null,
    enrollment_period: periodValue,
   })
   if (evErr) throw evErr
+  if (pending && pending.owedCount > 0) {
+   const { insertPendingLesson } = await import("@/services/pendingLessonQueries")
+   await insertPendingLesson({
+    studentId,
+    classId,
+    enrollmentId,
+    owedCount: pending.owedCount,
+    reason: pending.reason ?? "遲報缺堂",
+    remarks: pending.remarks ?? null,
+   })
+  }
  } catch (err) {
   if (createdNew) {
    await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
