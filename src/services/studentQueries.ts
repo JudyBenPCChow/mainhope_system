@@ -737,19 +737,61 @@ export async function insertEnrollment(
  } else if (config.courseMode === "summer_two_period") {
   periodValue = "兩期全報"
  }
- const { data, error } = await supabase
+
+ const { data: existingRows, error: existingErr } = await supabase
   .from("student_class_enrollments")
-  .insert({
-   student_id: studentId,
-   class_id: classId,
-   status: "就讀中",
-   enroll_date: today,
-   enrollment_period: periodValue,
-  })
-  .select("id")
-  .single()
- if (error) throw error
- const enrollmentId = String((data as { id: string }).id)
+  .select("id, status, updated_at")
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+  .order("updated_at", { ascending: false })
+ if (existingErr) throw existingErr
+ const existing = (existingRows ?? []) as Array<{ id: string; status: string }>
+ const blocking = existing.find((r) => r.status !== "已退讀")
+ if (blocking) {
+  throw new Error(
+   blocking.status === "就讀中"
+    ? "此學生已報讀此班別，請先更改報讀形式，或退讀後再重新報讀"
+    : `此學生於此班別仍有報讀（${blocking.status}），請先處理後再報讀`
+  )
+ }
+ const withdrawn = existing.find((r) => r.status === "已退讀")
+
+ let enrollmentId: string
+ let createdNew = false
+ if (withdrawn) {
+  enrollmentId = String(withdrawn.id)
+  const { error: reactivateErr } = await supabase
+   .from("student_class_enrollments")
+   .update({
+    status: "就讀中",
+    enroll_date: today,
+    enrollment_period: periodValue,
+    updated_at: new Date().toISOString(),
+   })
+   .eq("id", enrollmentId)
+  if (reactivateErr) throw reactivateErr
+  const { error: clearSessErr } = await supabase
+   .from("student_enrollment_sessions")
+   .delete()
+   .eq("enrollment_id", enrollmentId)
+  if (clearSessErr) throw clearSessErr
+ } else {
+  const { data, error } = await supabase
+   .from("student_class_enrollments")
+   .insert({
+    student_id: studentId,
+    class_id: classId,
+    status: "就讀中",
+    enroll_date: today,
+    enrollment_period: periodValue,
+   })
+   .select("id")
+   .single()
+  if (error) throw error
+  enrollmentId = String((data as { id: string }).id)
+  createdNew = true
+ }
+
  try {
   if (isSingle && scheduleIds) {
    await replaceEnrollmentSessions(enrollmentId, scheduleIds)
@@ -764,12 +806,26 @@ export async function insertEnrollment(
    enrollment_id: enrollmentId,
    action: "enroll",
    effective_date: today,
-   reason: isSingle ? `單堂報讀${sessionLabel}` : null,
+   reason: isSingle
+    ? `單堂報讀${sessionLabel}`
+    : withdrawn
+      ? "退讀後重新報讀"
+      : null,
    enrollment_period: periodValue,
   })
   if (evErr) throw evErr
  } catch (err) {
-  await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
+  if (createdNew) {
+   await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
+  } else if (withdrawn) {
+   await supabase
+    .from("student_class_enrollments")
+    .update({
+     status: "已退讀",
+     updated_at: new Date().toISOString(),
+    })
+    .eq("id", enrollmentId)
+  }
   throw err
  }
  await syncStudentEnrollmentState(studentId)
@@ -777,7 +833,7 @@ export async function insertEnrollment(
 
 export async function updateEnrollmentPeriod(
  id: string,
- enrollmentPeriod: EnrollmentFormValue,
+ enrollmentPeriod: EnrollmentFormValue | null,
  opts: {
   studentId: string
   classId: string
@@ -794,7 +850,7 @@ export async function updateEnrollmentPeriod(
  const { error } = await supabase
   .from("student_class_enrollments")
   .update({
-   enrollment_period: enrollmentPeriod,
+   enrollment_period: isSingle ? "單堂" : enrollmentPeriod,
    updated_at: new Date().toISOString(),
   })
   .eq("id", id)
@@ -808,7 +864,8 @@ export async function updateEnrollmentPeriod(
    .eq("enrollment_id", id)
   if (delErr) throw delErr
  }
- const prev = opts.previousPeriod ?? "—"
+ const prevLabel = formatEnrollmentFormLabel(opts.previousPeriod)
+ const nextLabel = formatEnrollmentFormLabel(enrollmentPeriod)
  const { error: evErr } = await supabase.from("enrollment_change_events").insert({
   student_id: opts.studentId,
   class_id: opts.classId,
@@ -817,7 +874,7 @@ export async function updateEnrollmentPeriod(
    ? "session_change"
    : "period_change",
   effective_date: today,
-  reason: `報讀形式：${prev} → ${enrollmentPeriod}`,
+  reason: `報讀形式：${prevLabel} → ${nextLabel}`,
   enrollment_period: enrollmentPeriod,
  })
  if (evErr) throw evErr
@@ -858,6 +915,49 @@ export async function deleteEnrollment(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { error } = await supabase.from("student_class_enrollments").delete().eq("id", id)
  if (error) throw error
+}
+
+/**
+ * 手誤選錯：硬刪報讀列及其增退事件／選堂明細，不寫入任何新紀錄。
+ * 用於誤加學生（與「退讀」不同：退讀會保留歷史）。
+ */
+export async function purgeMistakenEnrollment(opts: {
+ enrollmentId: string
+ studentId: string
+}): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: row, error: fetchErr } = await supabase
+  .from("student_class_enrollments")
+  .select("id, student_id")
+  .eq("id", opts.enrollmentId)
+  .maybeSingle()
+ if (fetchErr) throw fetchErr
+ if (!row) throw new Error("找不到報讀紀錄")
+ const enrollmentId = String((row as { id: string }).id)
+ const studentId = String((row as { student_id: string }).student_id)
+ if (studentId !== opts.studentId) {
+  throw new Error("報讀紀錄與學生不符")
+ }
+
+ const { error: evErr } = await supabase
+  .from("enrollment_change_events")
+  .delete()
+  .eq("enrollment_id", enrollmentId)
+ if (evErr) throw evErr
+
+ const { error: sessErr } = await supabase
+  .from("student_enrollment_sessions")
+  .delete()
+  .eq("enrollment_id", enrollmentId)
+ if (sessErr) throw sessErr
+
+ const { error: delErr } = await supabase
+  .from("student_class_enrollments")
+  .delete()
+  .eq("id", enrollmentId)
+ if (delErr) throw delErr
+
+ await syncStudentEnrollmentState(studentId)
 }
 
 /** 退讀：寫入增退紀錄後將報讀列標為「已退讀」（保留歷史，不硬刪） */
@@ -1187,6 +1287,8 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
  }
  if (!enrs.error && enrs.data) {
   for (const r of enrs.data as Record<string, unknown>[]) {
+   // 已退讀由 withdraw 事件呈現；手誤清除後此列亦不存在
+   if (String(r.status ?? "") === "已退讀") continue
    const cls = r.classes as Record<string, unknown> | null
    const sub = cls?.subject != null ? String(cls.subject) : "—"
    const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""

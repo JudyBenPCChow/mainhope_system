@@ -23,7 +23,7 @@ import {
 } from "@/services/studentQueries"
 
 export type CreatePrivateTutoringInput = {
- studentId: string
+ studentIds: string[]
  /** 科目顯示名（如「英文」「數學」），會組成班名 */
  subjectName: string
  teacherId?: string | null
@@ -40,8 +40,8 @@ export type CreatePrivateTutoringInput = {
 export type CreatePrivateTutoringResult = {
  classId: string
  classSubject: string
- studentId: string
- studentName: string
+ studentIds: string[]
+ studentNames: string[]
 }
 
 export type PrivateNextLesson = {
@@ -52,23 +52,39 @@ export type PrivateNextLesson = {
  classroomName: string | null
 }
 
-/** 一對一班名：確保含「一對一」以便辨識 */
-export function buildPrivateClassSubject(studentName: string, subjectName: string): string {
- const name = studentName.trim()
- const sub = subjectName.trim().replace(/一對一|單對單/g, "").trim()
- if (!name) return sub ? `${sub}一對一` : "一對一"
- if (!sub) return `${name}一對一`
- return `${name}${sub}一對一`
+/** 一對一／一對二班名：確保含對應後綴以便辨識 */
+export function buildPrivateClassSubject(
+ studentNames: string[] | string,
+ subjectName: string,
+ mode: "1to1" | "1to2" = "1to1"
+): string {
+ const names = (Array.isArray(studentNames) ? studentNames : [studentNames])
+  .map((name) => name.trim())
+  .filter(Boolean)
+ const suffix = mode === "1to2" ? "一對二" : "一對一"
+ const name = names.join("＋")
+ const sub = subjectName.trim().replace(/一對一|一對二|單對單/g, "").trim()
+ if (!name) return sub ? `${sub}${suffix}` : suffix
+ if (!sub) return `${name}${suffix}`
+ return `${name}${sub}${suffix}`
 }
 
-/** 去掉學生名與一對一後綴，用於科目比對 */
-export function normalizePrivateSubjectKey(subject: string, studentName?: string | null): string {
+/** 去掉學生名與一對一／一對二後綴，用於科目比對 */
+export function normalizePrivateSubjectKey(
+ subject: string,
+ studentNames?: string[] | string | null
+): string {
  let s = subject.trim()
- if (studentName?.trim()) {
-  s = s.replace(studentName.trim(), "")
+ const names = Array.isArray(studentNames)
+  ? studentNames
+  : studentNames != null
+    ? [studentNames]
+    : []
+ for (const name of names) {
+  if (name?.trim()) s = s.replace(name.trim(), "")
  }
  return s
-  .replace(/一對一|單對單/g, "")
+  .replace(/一對一|一對二|單對單/g, "")
   .replace(/[／/\s]/g, "")
   .toLowerCase()
 }
@@ -316,9 +332,14 @@ export async function createPrivateTutoringEnrollment(
  input: CreatePrivateTutoringInput
 ): Promise<CreatePrivateTutoringResult> {
  if (!supabase) throw new Error("Supabase 未設定")
-
- const student = await getStudentById(input.studentId)
- if (!student) throw new Error("找不到學生")
+ const selectedIds = [...new Set((input.studentIds ?? []).map((id) => id.trim()).filter(Boolean))]
+ if (selectedIds.length === 0) throw new Error("請選擇學生")
+ if (selectedIds.length > 2) throw new Error("一對二最多只可選擇兩位學生")
+ const students = (
+  await Promise.all(selectedIds.map(async (id) => getStudentById(id)))
+ ).filter((student): student is NonNullable<typeof student> => Boolean(student))
+ if (students.length !== selectedIds.length) throw new Error("部分學生資料不存在，請重新選擇")
+ const mode = students.length === 2 ? "1to2" : "1to1"
 
  const subjectName = (input.subjectName ?? "").trim()
  if (!subjectName && !(input.customClassSubject ?? "").trim()) {
@@ -327,16 +348,22 @@ export async function createPrivateTutoringEnrollment(
 
  const classSubject =
   (input.customClassSubject ?? "").trim() ||
-  buildPrivateClassSubject(student.full_name, subjectName)
- if (!/一對一|單對單/.test(classSubject)) {
-  throw new Error("班名須包含「一對一」或「單對單」")
+  buildPrivateClassSubject(
+   students.map((student) => student.full_name),
+   subjectName,
+   mode
+  )
+ if (!/一對一|一對二|單對單/.test(classSubject)) {
+  throw new Error("班名須包含「一對一」、「一對二」或「單對單」")
  }
 
  const subjectKeySource = (input.customClassSubject ?? "").trim() || subjectName
  if (!input.allowDuplicate) {
-  const dup = await findDuplicatePrivateEnrollment(student.id, subjectKeySource, student.full_name)
-  if (dup) {
-   throw new Error(`此學生已有同科目一對一報讀：${dup.classSubject}`)
+  for (const student of students) {
+   const dup = await findDuplicatePrivateEnrollment(student.id, subjectKeySource, student.full_name)
+   if (dup) {
+    throw new Error(`此學生已有同科目一對一／一對二報讀：${student.full_name} · ${dup.classSubject}`)
+   }
   }
  }
 
@@ -368,9 +395,16 @@ export async function createPrivateTutoringEnrollment(
  }
 
  const gradeFromInput = normalizeStoredClassGradeLabel(input.gradeLabel)
- const gradeFromStudent = normalizeStoredClassGradeLabel(formatStudentGrade(student.grade))
- const gradeLabel = gradeFromInput ?? gradeFromStudent
- const gradeArr = gradeLabel ? [gradeLabel] : null
+ const gradeArr = gradeFromInput
+  ? [gradeFromInput]
+  : [
+     ...new Set(
+      students
+       .map((student) => normalizeStoredClassGradeLabel(formatStudentGrade(student.grade)))
+       .filter((label): label is string => Boolean(label))
+     ),
+    ]
+ const gradePayload = gradeArr.length > 0 ? gradeArr : null
 
  const price =
   input.pricePerLesson != null && !Number.isNaN(Number(input.pricePerLesson))
@@ -386,13 +420,13 @@ export async function createPrivateTutoringEnrollment(
    academic_year_id: academicYearId,
    section_code: null,
    course_code_full: null,
-   grade: gradeArr,
+   grade: gradePayload,
    day_of_week: null,
    time_slot: null,
    lesson_slots_per_session: 1,
    teacher_id: input.teacherId?.trim() || null,
    classroom_id: null,
-   capacity: 1,
+   capacity: students.length,
    price_per_lesson: price,
    start_date: startDate,
    end_date: endDate,
@@ -405,7 +439,9 @@ export async function createPrivateTutoringEnrollment(
 
  const classId = String((classRow as { id: string }).id)
  try {
-  await insertEnrollment(student.id, classId)
+  for (const student of students) {
+   await insertEnrollment(student.id, classId)
+  }
  } catch (e) {
   await supabase.from("classes").delete().eq("id", classId)
   throw e
@@ -413,14 +449,14 @@ export async function createPrivateTutoringEnrollment(
 
  void logMgmtAuditAction({
   action: "新增一對一報讀",
-  detail: `student_id=${student.id}; class_id=${classId}; subject=${classSubject}`,
+  detail: `student_ids=${students.map((student) => student.id).join(",")}; class_id=${classId}; subject=${classSubject}`,
  })
 
  return {
   classId,
   classSubject,
-  studentId: student.id,
-  studentName: student.full_name,
+  studentIds: students.map((student) => student.id),
+  studentNames: students.map((student) => student.full_name),
  }
 }
 
@@ -444,7 +480,9 @@ export async function updatePrivateClassSettings(
  if ("subject" in patch && patch.subject != null) {
   const sub = patch.subject.trim()
   if (!sub) throw new Error("班名不可為空")
-  if (!/一對一|單對單/.test(sub)) throw new Error("班名須包含「一對一」或「單對單」")
+  if (!/一對一|一對二|單對單/.test(sub)) {
+   throw new Error("班名須包含「一對一」、「一對二」或「單對單」")
+  }
   payload.subject = sub
  }
  const { error } = await supabase.from("classes").update(payload).eq("id", classId)
@@ -589,7 +627,7 @@ export async function checkPrivateBookingConflicts(params: {
  startTime: string
  endTime: string
  teacherId?: string | null
- studentId?: string | null
+ studentIds?: string[]
  excludeScheduleId?: string | null
 }): Promise<PrivateBookingConflict[]> {
  if (!supabase) return []
@@ -655,13 +693,18 @@ export async function checkPrivateBookingConflicts(params: {
   }
  }
 
- if (params.studentId) {
+ const studentIds = [...new Set((params.studentIds ?? []).map((id) => id.trim()).filter(Boolean))]
+ if (studentIds.length > 0) {
   const { data: enrs } = await supabase
    .from("student_class_enrollments")
    .select("class_id")
-   .eq("student_id", params.studentId)
+   .in("student_id", studentIds)
    .eq("status", "就讀中")
-  const classIds = (enrs ?? []).map((e) => String((e as { class_id: string }).class_id)).filter(Boolean)
+  const classIds = [
+   ...new Set(
+    (enrs ?? []).map((e) => String((e as { class_id: string }).class_id)).filter(Boolean)
+   ),
+  ]
   if (classIds.length > 0) {
    const chunks = await forEachIdChunk(classIds, 60, async (slice) => {
     const { data, error } = await supabase!
@@ -692,7 +735,10 @@ export async function checkPrivateBookingConflicts(params: {
   }
  }
 
- return conflicts
+ return conflicts.filter(
+  (conflict, idx, list) =>
+   list.findIndex((item) => item.kind === conflict.kind && item.label === conflict.label) === idx
+ )
 }
 
 export function formatNextLessonLabel(lesson: PrivateNextLesson | null): string {
@@ -730,7 +776,7 @@ export async function previewPrivateRecurringBookings(params: {
  startTime: string
  endTime: string
  teacherId?: string | null
- studentId: string
+ studentIds: string[]
 }): Promise<PrivateRecurringPreviewItem[]> {
  const items: PrivateRecurringPreviewItem[] = []
  for (const date of params.dates) {
@@ -740,7 +786,7 @@ export async function previewPrivateRecurringBookings(params: {
    startTime: params.startTime,
    endTime: params.endTime,
    teacherId: params.teacherId,
-   studentId: params.studentId,
+   studentIds: params.studentIds,
   })
   items.push({ date, conflicts })
  }
@@ -750,7 +796,7 @@ export async function previewPrivateRecurringBookings(params: {
 /** 批次建立每週預約；skipConflictDates=true 時略過有衝突的日期；ignoreConflicts=true 時不檢查衝突直接建立 */
 export async function createPrivateRecurringBookings(params: {
  classId: string
- studentId: string
+ studentIds: string[]
  dates: string[]
  classroomId?: string | null
  startTime: string
@@ -769,7 +815,7 @@ export async function createPrivateRecurringBookings(params: {
     startTime: params.startTime,
     endTime: params.endTime,
     teacherId: params.teacherId,
-    studentId: params.studentId,
+    studentIds: params.studentIds,
    })
    if (conflicts.length > 0) {
     if (params.skipConflictDates) {

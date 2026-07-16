@@ -104,6 +104,7 @@ import {
  type ClassEnrollmentChangeEvent,
  fetchAllStudents,
  insertEnrollment,
+ purgeMistakenEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
 import { ENROLLMENT_PERIOD_OPTIONS, SINGLE_SESSION_ENROLLMENT, SUMMER_ENROLLMENT_FORM_OPTIONS, type EnrollmentPeriod } from "@/lib/enrollmentPeriod"
@@ -276,6 +277,13 @@ export function ClassDetailView() {
   [cls]
  )
  const isPrivateClass = cls?.class_kind === "private"
+ const privateCapacity = cls?.capacity != null ? Math.max(0, cls.capacity) : null
+ const canAddPrivateStudent =
+  Boolean(isPrivateClass) &&
+  canManageClass &&
+  !classYearLocked &&
+  !isTeacherPortal &&
+  (privateCapacity == null || students.length < privateCapacity)
  const isOwnTeacherClass = Boolean(
   teacherScopeId && cls?.teacher_id && cls.teacher_id === teacherScopeId
  )
@@ -571,7 +579,7 @@ export function ClassDetailView() {
    })
    pushBanner({
     tone: "success",
-    title: "已更新一對一設定",
+    title: "已更新私人班別設定",
     message: "老師／學費已儲存。",
    })
    setPrivateLightOpen(false)
@@ -673,7 +681,9 @@ export function ClassDetailView() {
   const endTime = formatMin(lessonSlotEndMinute(privateBookSlotIdx))
   const teacherId = teacherScopeId || privateBookTeacherId || cls.teacher_id
   const classroomId = privateBookRoomId.trim() || null
-  const studentId = students.find((s) => s.status === "就讀中")?.studentId ?? null
+  const studentIds = students
+   .filter((student) => student.status === "就讀中")
+   .map((student) => student.studentId)
   setPrivateBookSaving(true)
   setPrivateBookErr(null)
   try {
@@ -683,7 +693,7 @@ export function ClassDetailView() {
      setPrivateBookErr("堂數請輸入 1–52")
      return
     }
-    if (!studentId) {
+    if (studentIds.length === 0) {
      setPrivateBookErr("此班尚無就讀中學生，無法做學生衝突檢查；請先確認報讀。")
      return
     }
@@ -694,7 +704,7 @@ export function ClassDetailView() {
      startTime,
      endTime,
      teacherId,
-     studentId,
+     studentIds,
     })
     const conflictItems = preview.filter((p) => p.conflicts.length > 0)
     let skipConflictDates = false
@@ -730,7 +740,7 @@ export function ClassDetailView() {
     }
     const result = await createPrivateRecurringBookings({
      classId: cls.id,
-     studentId,
+     studentIds,
      dates,
      classroomId,
      startTime,
@@ -754,7 +764,7 @@ export function ClassDetailView() {
      startTime,
      endTime,
      teacherId,
-     studentId,
+     studentIds,
     })
     if (conflicts.length > 0) {
      const ok = await confirmDialog({
@@ -896,11 +906,13 @@ export function ClassDetailView() {
   )
  }
 
-const tabCounts = { st: students.length, ev: enrollmentEvents.length, sc: schedules.length }
-const addableStudents = (() => {
-  const enrolledIds = new Set(students.map((s) => s.studentId))
+ /** 名單不顯示已退讀；已退讀可再次加入。休學／退選仍佔名額。 */
+ const rosterStudents = students.filter((s) => s.status !== "已退讀")
+ const tabCounts = { st: rosterStudents.length, ev: enrollmentEvents.length, sc: schedules.length }
+ const addableStudents = (() => {
+  const occupiedIds = new Set(rosterStudents.map((s) => s.studentId))
   const q = studentQuery.trim().toLowerCase()
-  const list = allStudents.filter((s) => !enrolledIds.has(s.id))
+  const list = allStudents.filter((s) => !occupiedIds.has(s.id))
   if (!q) return list.slice(0, 50)
   return list
    .filter((s) => {
@@ -911,15 +923,19 @@ const addableStudents = (() => {
     return hay.includes(q)
    })
    .slice(0, 50)
-})()
+ })()
 
  const onAddStudentToClass = async (studentId: string) => {
   if (!cid) return
   setAddingStudentId(studentId)
   setAddStudentErr(null)
   try {
+   if (isPrivateClass && privateCapacity != null && students.length >= privateCapacity) {
+    setAddStudentErr("此私人班別已達人數上限")
+    return
+   }
    const isSummer = cls?.course_mode === "summer_two_period"
-   const isSingle = addStudentForm === SINGLE_SESSION_ENROLLMENT
+   const isSingle = !isPrivateClass && addStudentForm === SINGLE_SESSION_ENROLLMENT
    if (isSingle && addStudentScheduleIds.length === 0) {
     setAddStudentErr("單堂報讀請至少選擇一堂")
     return
@@ -933,6 +949,7 @@ const addableStudents = (() => {
    setStudentQuery("")
    setAddStudentForm(isSummer ? "兩期全報" : "full")
    setAddStudentScheduleIds([])
+   setAddStudentOpen(false)
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -943,6 +960,34 @@ const addableStudents = (() => {
    })
   } finally {
    setAddingStudentId(null)
+  }
+ }
+
+ const onPurgeMistakenStudent = async (s: ClassStudentRow) => {
+  if (
+   !(await confirmDialog({
+    title: "手誤清除報讀",
+    description: `確定清除「${s.fullName}」在此班的報讀？此操作會刪除該筆報讀及相關增退紀錄，不會留下任何痕跡（與退讀不同）。`,
+    confirmText: "確認清除",
+    tone: "destructive",
+   }))
+  ) {
+   return
+  }
+  try {
+   await purgeMistakenEnrollment({
+    enrollmentId: s.enrollmentId,
+    studentId: s.studentId,
+   })
+   pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${s.fullName} 已自本班名單移除，無增退紀錄。` })
+   await reload()
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onPurgeMistakenStudent",
+    userMessage: msg,
+   })
+   pushBanner({ tone: "error", title: "清除失敗", message: msg })
   }
  }
 
@@ -1091,7 +1136,7 @@ const addableStudents = (() => {
           <span className="font-mono">{cls.course_code_full ?? "—"}</span>
           {cls.class_kind === "private" ? (
            <Tag tone="info" size="sm">
-            一對一
+            {privateCapacity === 2 ? "一對二" : "一對一"}
            </Tag>
           ) : null}
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
@@ -1143,7 +1188,7 @@ const addableStudents = (() => {
        className="bg-white/20 text-white hover:bg-white/30"
        asChild
       >
-       <Link to="/PrivateTutoring">返回一對一學生</Link>
+      <Link to="/PrivateTutoring">返回一對一／一對二學生</Link>
       </Button>
      </div>
      ) : isPrivateClass && canBookPrivate ? (
@@ -1206,12 +1251,12 @@ const addableStudents = (() => {
       role="status"
       className="mx-auto mb-4 max-w-5xl rounded-md border border-info/40 bg-info/10 px-3 py-2 text-sm text-foreground"
      >
-      一對一班別詳情：可在此查看報讀／排程、編輯老師／學費，並直接預約上堂（不必退回列表）。
+      私人班別詳情：可在此查看報讀／排程、編輯老師／學費，並直接預約上堂（不必退回列表）。
       <Link
        to="/PrivateTutoring"
        className="ml-2 font-medium text-primary underline-offset-4 hover:underline"
       >
-       返回一對一學生
+       返回一對一／一對二學生
       </Link>
      </div>
     ) : null}
@@ -1292,7 +1337,7 @@ const addableStudents = (() => {
        </div>
       ) : null}
       <div className="flex justify-end">
-       {!getTeacherScopeTeacherId() && canEditClass ? (
+       {!getTeacherScopeTeacherId() && (canEditClass || canAddPrivateStudent) ? (
        <Dialog
         open={addStudentOpen}
         onOpenChange={(open) => {
@@ -1311,9 +1356,10 @@ const addableStudents = (() => {
         </DialogTrigger>
         <DialogContent>
          <DialogHeader>
-          <DialogTitle>增加學生到本班</DialogTitle>
+          <DialogTitle>{isPrivateClass ? "增加第二位學生" : "增加學生到本班"}</DialogTitle>
          </DialogHeader>
          <div className="space-y-3">
+          {!isPrivateClass ? (
           <div className="space-y-1">
            <span className="text-sm text-muted-foreground">報讀形式</span>
            <Select
@@ -1340,7 +1386,12 @@ const addableStudents = (() => {
             ))}
            </Select>
           </div>
-          {addStudentForm === SINGLE_SESSION_ENROLLMENT && cid ? (
+          ) : (
+           <p className="text-sm text-muted-foreground">
+            私人班別最多兩位學生；加入後會共用同一班別與排程。
+           </p>
+          )}
+          {addStudentForm === SINGLE_SESSION_ENROLLMENT && cid && !isPrivateClass ? (
            <EnrollmentSessionPicker
             classId={cid}
             selectedIds={addStudentScheduleIds}
@@ -1387,17 +1438,19 @@ const addableStudents = (() => {
        </Dialog>
        ) : null}
       </div>
-      {students.length === 0 ? (
+      {rosterStudents.length === 0 ? (
        <p className="text-sm text-muted-foreground">尚無學生名單。</p>
       ) : (
-       students.map((s) => (
-        <Link
+       rosterStudents.map((s) => (
+        <div
          key={s.enrollmentId}
-         to={`/Students/${s.studentId}`}
-         state={{ from: `/Classes/${cid}` }}
-         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md active:scale-[0.99]"
+         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
         >
-         <div>
+         <Link
+          to={`/Students/${s.studentId}`}
+          state={{ from: `/Classes/${cid}` }}
+          className="min-w-0 flex-1 transition-all hover:opacity-90 active:scale-[0.99]"
+         >
           <div className="text-lg font-semibold text-primary">{s.fullName}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
            <span>
@@ -1409,9 +1462,22 @@ const addableStudents = (() => {
             </Tag>
            ) : null}
           </div>
+         </Link>
+         <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
+          {!getTeacherScopeTeacherId() && (canEditClass || canAddPrivateStudent) ? (
+           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-xs text-muted-foreground"
+            onClick={() => void onPurgeMistakenStudent(s)}
+           >
+            手誤清除
+           </Button>
+          ) : null}
          </div>
-         <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
-        </Link>
+        </div>
        ))
       )}
      </div>

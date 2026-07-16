@@ -13,7 +13,8 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
+import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { listStudents } from "@/services/queries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
@@ -63,16 +64,17 @@ export function TrialSessionsView() {
  const [studentSearch, setStudentSearch] = useState("")
  const [studentPickerOpen, setStudentPickerOpen] = useState(false)
  const [addStudentId, setAddStudentId] = useState("")
+ const [classSearch, setClassSearch] = useState("")
+ const [classPickerOpen, setClassPickerOpen] = useState(false)
  const [addClassId, setAddClassId] = useState("")
- const [addTrialDate, setAddTrialDate] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addTrialType, setAddTrialType] = useState("免費試堂")
  const [addRemarks, setAddRemarks] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
- const [classPickList, setClassPickList] = useState<ClassRecord[]>([])
+ const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
- const [schedOptions, setSchedOptions] = useState<{ id: string; label: string }[]>([])
+ const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -105,9 +107,20 @@ export function TrialSessionsView() {
   setStudentSearch("")
   setStudentPickerOpen(false)
   setAddStudentId("")
-  void fetchAllClasses().then((cls) => {
-   setClassPickList(cls)
-   setAddClassId((c) => c || cls[0]?.id || "")
+  setClassSearch("")
+  setClassPickerOpen(false)
+  setAddClassId("")
+  void fetchAllClasses().then((cls: ClassRecord[]) => {
+   setClassPickList(
+    cls.map((c) => ({
+     id: c.id,
+     label: formatClassLabel({
+      subject: c.subject,
+      courseCode: c.course_code_full,
+      courseName: c.course_name,
+     }),
+    }))
+   )
   })
   void listStudents().then((raw) => {
    const sl = (raw as Record<string, unknown>[]).map((r) => ({
@@ -116,7 +129,6 @@ export function TrialSessionsView() {
    }))
    setStudentPickList(sl)
   })
-  setAddTrialDate(localYmd())
   setAddScheduleId("")
   setAddTrialType("免費試堂")
   setAddRemarks("")
@@ -128,16 +140,22 @@ export function TrialSessionsView() {
   return studentPickList.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 20)
  }, [studentPickList, studentSearch])
 
+ const classesFiltered = useMemo(() => {
+  const q = classSearch.trim().toLowerCase()
+  if (!q) return classPickList.slice(0, 20)
+  return classPickList.filter((c) => c.label.toLowerCase().includes(q)).slice(0, 20)
+ }, [classPickList, classSearch])
+
  useEffect(() => {
-  if (!addOpen || !addClassId || !addTrialDate) {
+  if (!addOpen || !addClassId) {
    setSchedOptions([])
    setAddScheduleId("")
    return
   }
-  void fetchClassSchedules(addClassId).then((sched) => {
-   const day = sched.filter((s) => s.scheduled_date === addTrialDate && !s.status.includes("取消"))
-   const opts = day.map((s) => ({
+  void fetchUpcomingSchedulesForClass(addClassId, localYmd()).then((sched) => {
+   const opts = sched.slice(0, 10).map((s) => ({
     id: s.id,
+    date: s.scheduled_date,
     label: `${s.scheduled_date} ${s.start_time ?? "—"}–${s.end_time ?? "—"}`,
    }))
    setSchedOptions(opts)
@@ -146,7 +164,7 @@ export function TrialSessionsView() {
     return opts[0]?.id ?? ""
    })
   })
- }, [addOpen, addClassId, addTrialDate])
+ }, [addOpen, addClassId])
 
  const subjectOptions = useMemo(() => {
   const s = new Set<string>()
@@ -208,8 +226,9 @@ export function TrialSessionsView() {
  const openAdd = () => setAddOpen(true)
 
  const submitAdd = async () => {
-  if (!addStudentId || !addClassId || !addTrialDate || !addScheduleId) {
-   setAddErr("請選擇學生、班別、試堂日期，並確認該日有可用的排程")
+  const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
+  if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
+   setAddErr("請選擇學生、班別，並確認有可用的未來排程")
    return
   }
   setAddSaving(true)
@@ -219,7 +238,7 @@ export function TrialSessionsView() {
     student_id: addStudentId,
     class_id: addClassId,
     schedule_id: addScheduleId,
-    trial_date: addTrialDate,
+    trial_date: selectedSched.date,
     trial_type: addTrialType,
     status: "已預約",
     remarks: addRemarks || null,
@@ -556,37 +575,67 @@ export function TrialSessionsView() {
        ) : null}
       </label>
       <label className="grid gap-1">
-       <span className="text-muted-foreground">班別</span>
-       <Select
-        className="h-9 w-full rounded-md border border-input px-2"
-        value={addClassId}
-        onChange={(e) => setAddClassId(e.target.value)}
-       >
-        {classPickList.map((c) => (
-         <option key={c.id} value={c.id}>
-          {formatClassLabel({
-           subject: c.subject,
-           courseCode: c.course_code_full,
-           courseName: c.course_name,
-          })}
-         </option>
-        ))}
-       </Select>
+       <span className="text-muted-foreground">班別（可搜尋科目／課程代碼／名稱）</span>
+       <div className="relative">
+        <Input
+         placeholder="輸入關鍵字搜尋班別…"
+         value={addClassId ? (classPickList.find((c) => c.id === addClassId)?.label ?? "") : classSearch}
+         onChange={(e) => {
+          setAddClassId("")
+          setClassSearch(e.target.value)
+          setClassPickerOpen(true)
+         }}
+         onFocus={() => setClassPickerOpen(true)}
+         className="h-9"
+        />
+        {classPickerOpen && !addClassId ? (
+         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+          {classesFiltered.length === 0 ? (
+           <div className="px-3 py-2 text-sm text-muted-foreground">找不到班別</div>
+          ) : (
+           classesFiltered.map((c) => (
+            <button
+             key={c.id}
+             type="button"
+             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+             onClick={() => {
+              setAddClassId(c.id)
+              setClassSearch("")
+              setClassPickerOpen(false)
+             }}
+            >
+             {c.label}
+            </button>
+           ))
+          )}
+         </div>
+        ) : null}
+       </div>
+       {addClassId ? (
+        <button
+         type="button"
+         className="text-left text-xs text-primary underline-offset-4 hover:underline"
+         onClick={() => {
+          setAddClassId("")
+          setClassSearch("")
+         }}
+        >
+         清除選取
+        </button>
+       ) : null}
       </label>
       <label className="grid gap-1">
-       <span className="text-muted-foreground">試堂日期</span>
-       <Input type="date" value={addTrialDate} onChange={(e) => setAddTrialDate(e.target.value)} className="h-9" />
-      </label>
-      <label className="grid gap-1">
-       <span className="text-muted-foreground">對應排程（該班當日堂）</span>
+       <span className="text-muted-foreground">對應排程（未來 10 堂）</span>
        <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addScheduleId}
         onChange={(e) => setAddScheduleId(e.target.value)}
-        disabled={schedOptions.length === 0}
+        disabled={!addClassId || schedOptions.length === 0}
        >
-        {schedOptions.length === 0 ? (
-         <option value="">該日無排程或已全部取消</option>
+        {!addClassId ? (
+         <option value="">請先選擇班別</option>
+        ) : schedOptions.length === 0 ? (
+         <option value="">該班暫無未來排程</option>
         ) : (
          schedOptions.map((o) => (
           <option key={o.id} value={o.id}>

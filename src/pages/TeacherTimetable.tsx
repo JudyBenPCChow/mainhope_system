@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { CalendarClock } from "lucide-react"
+import { CalendarClock, Download } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
+import { downloadTeacherCalendarIcs } from "@/lib/teacherCalendarExport"
 import {
  TeacherWeekTimetable,
  weekItemsFromManageRows,
@@ -26,6 +28,7 @@ export default function TeacherTimetablePage() {
  const [calendarRows, setCalendarRows] = useState<CalendarEventRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
+ const exportDisabled = loading || (rows.length === 0 && calendarRows.length === 0)
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured || !teacherId) {
@@ -64,11 +67,31 @@ export default function TeacherTimetablePage() {
 
  return (
   <div className="space-y-6">
-   <header>
-    <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">時間表</h1>
-    <p className="mt-2 max-w-2xl text-muted-foreground">
-     週視圖與老師詳情頁相同；左右切換週次或使用日期跳轉。已載入約 {PAST_DAYS + FUTURE_DAYS} 日內的排程。
-    </p>
+   <header className="flex flex-wrap items-start justify-between gap-4">
+    <div>
+     <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">時間表</h1>
+     <p className="mt-2 max-w-2xl text-muted-foreground">
+      週視圖與老師詳情頁相同；左右切換週次或使用日期跳轉。已載入約 {PAST_DAYS + FUTURE_DAYS} 日內的排程。
+     </p>
+    </div>
+    <div className="flex max-w-sm flex-col items-stretch gap-2">
+     <Button
+      type="button"
+      variant="outline"
+      className="gap-2"
+      onClick={() => downloadTeacherCalendarIcs(rows, calendarRows, today)}
+      disabled={exportDisabled}
+     >
+      <Download className="h-4 w-4" aria-hidden />
+      下載 Apple/Google 行事曆檔
+     </Button>
+     <p className="text-xs text-muted-foreground">
+      下載 `.ics` 後，可在 iPhone 以檔案或 Safari 開啟並加入 Apple Calendar。已取消課堂不會匯出。
+     </p>
+     <p className="text-xs text-muted-foreground">
+      建議流程：下載檔案 → 以「檔案」App 或 Safari 開啟 → 點選「加入行事曆」。
+     </p>
+    </div>
    </header>
    {err ? (
     <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>

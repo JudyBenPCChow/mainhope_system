@@ -64,6 +64,7 @@ import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
 const PRICE_QUICK = [250, 275, 625, 825] as const
 
 type Tab = "students" | "rooms"
+type PrivateCreateMode = "1to1" | "1to2"
 
 const REGISTRATION_FILTERS = [
  { key: "all", label: "全部" },
@@ -147,8 +148,12 @@ export function PrivateTutoringView() {
  const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
  const [subjects, setSubjects] = useState<SubjectOption[]>([])
  const [createStudentSearch, setCreateStudentSearch] = useState("")
+ const [createMode, setCreateMode] = useState<PrivateCreateMode>("1to1")
  const [createStudentId, setCreateStudentId] = useState("")
+ const [createSecondStudentId, setCreateSecondStudentId] = useState("")
  const [createStudentPickerOpen, setCreateStudentPickerOpen] = useState(false)
+ const [createSecondStudentSearch, setCreateSecondStudentSearch] = useState("")
+ const [createSecondStudentPickerOpen, setCreateSecondStudentPickerOpen] = useState(false)
  const [createSubjectQuery, setCreateSubjectQuery] = useState("")
  const [createSubjectPickerOpen, setCreateSubjectPickerOpen] = useState(false)
  const [createTeacherId, setCreateTeacherId] = useState("")
@@ -228,9 +233,13 @@ export function PrivateTutoringView() {
  const openCreateDialog = useCallback(async () => {
   setCreateOpen(true)
   setCreateErr(null)
+  setCreateMode("1to1")
   setCreateStudentSearch("")
   setCreateStudentId("")
+  setCreateSecondStudentSearch("")
+  setCreateSecondStudentId("")
   setCreateStudentPickerOpen(false)
+  setCreateSecondStudentPickerOpen(false)
   setCreateSubjectQuery("")
   setCreateSubjectPickerOpen(false)
   setCreateTeacherId("")
@@ -259,6 +268,21 @@ export function PrivateTutoringView() {
    .slice(0, 40)
  }, [allStudents, createStudentSearch])
 
+ const createSecondStudentOptions = useMemo(() => {
+  const q = createSecondStudentSearch.trim().toLowerCase()
+  if (!q) return []
+  return allStudents
+   .filter((s) => {
+    if (s.id === createStudentId) return false
+    return (
+     s.full_name.toLowerCase().includes(q) ||
+     (s.student_code ?? "").toLowerCase().includes(q) ||
+     formatStudentGrade(s.grade).toLowerCase().includes(q)
+    )
+   })
+   .slice(0, 40)
+ }, [allStudents, createSecondStudentSearch, createStudentId])
+
  const createSubjectOptions = useMemo(() => {
   const q = createSubjectQuery.trim().toLowerCase()
   if (!q) return subjects.slice(0, 40)
@@ -282,8 +306,18 @@ export function PrivateTutoringView() {
 
  const pickCreateStudent = useCallback((s: StudentRecord) => {
   setCreateStudentId(s.id)
+  if (createSecondStudentId === s.id) {
+   setCreateSecondStudentId("")
+   setCreateSecondStudentSearch("")
+  }
   setCreateStudentSearch("")
   setCreateStudentPickerOpen(false)
+ }, [createSecondStudentId])
+
+ const pickCreateSecondStudent = useCallback((s: StudentRecord) => {
+  setCreateSecondStudentId(s.id)
+  setCreateSecondStudentSearch("")
+  setCreateSecondStudentPickerOpen(false)
  }, [])
 
  const pickCreateSubject = useCallback((name: string) => {
@@ -296,17 +330,38 @@ export function PrivateTutoringView() {
   [allStudents, createStudentId]
  )
 
+ const selectedCreateSecondStudent = useMemo(
+  () => allStudents.find((s) => s.id === createSecondStudentId) ?? null,
+  [allStudents, createSecondStudentId]
+ )
+
+ const selectedCreateStudents = useMemo(
+  () =>
+   [selectedCreateStudent, createMode === "1to2" ? selectedCreateSecondStudent : null].filter(
+    (student): student is StudentRecord => Boolean(student)
+   ),
+  [selectedCreateSecondStudent, selectedCreateStudent, createMode]
+ )
+
  const selectedSubjectName = createSubjectQuery.trim()
 
  const previewClassSubject = useMemo(() => {
   if (createClassNameOverride.trim()) return createClassNameOverride.trim()
-  if (!selectedCreateStudent) return ""
-  return buildPrivateClassSubject(selectedCreateStudent.full_name, selectedSubjectName || "科目")
- }, [createClassNameOverride, selectedCreateStudent, selectedSubjectName])
+  if (selectedCreateStudents.length === 0) return ""
+  return buildPrivateClassSubject(
+   selectedCreateStudents.map((student) => student.full_name),
+   selectedSubjectName || "科目",
+   createMode
+  )
+ }, [createClassNameOverride, selectedCreateStudents, selectedSubjectName, createMode])
 
  const submitCreate = useCallback(async () => {
   if (!createStudentId) {
-   setCreateErr("請選擇學生")
+   setCreateErr("請選擇第一位學生")
+   return
+  }
+  if (createMode === "1to2" && !createSecondStudentId) {
+   setCreateErr("請選擇第二位學生")
    return
   }
   if (!selectedSubjectName && !createClassNameOverride.trim()) {
@@ -318,9 +373,10 @@ export function PrivateTutoringView() {
    setCreateErr("學費不可為負數")
    return
   }
-  const grade = formatStudentGrade(selectedCreateStudent?.grade)
+  const selectedIds = [createStudentId, createMode === "1to2" ? createSecondStudentId : ""].filter(Boolean)
+  const grade = formatStudentGrade(selectedCreateStudents[0]?.grade)
   const payload = {
-   studentId: createStudentId,
+   studentIds: selectedIds,
    subjectName: selectedSubjectName || "一對一",
    teacherId: createTeacherId || null,
    pricePerLesson: priceNum,
@@ -351,8 +407,8 @@ export function PrivateTutoringView() {
    }
    pushBanner({
     tone: "success",
-    title: "已建立一對一報讀",
-    message: `${result.studentName} · ${result.classSubject}`,
+    title: `已建立${createMode === "1to2" ? "一對二" : "一對一"}報讀`,
+    message: `${result.studentNames.join("、")} · ${result.classSubject}`,
    })
    setCreateOpen(false)
    void reloadStudents()
@@ -363,11 +419,13 @@ export function PrivateTutoringView() {
   }
  }, [
   createStudentId,
+  createMode,
+  createSecondStudentId,
   selectedSubjectName,
   createClassNameOverride,
   createPrice,
   createTeacherId,
-  selectedCreateStudent,
+  selectedCreateStudents,
   pushBanner,
   reloadStudents,
   confirmDialog,
@@ -421,6 +479,17 @@ export function PrivateTutoringView() {
    )
   })
  }, [rows, search, regFilter, activityFilter, enrollRowFilter])
+
+ const activeStudentIdsByClass = useMemo(() => {
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+   if (row.enrollmentRowStatus !== "就讀中") continue
+   const prev = map.get(row.classId) ?? []
+   if (!prev.includes(row.studentId)) prev.push(row.studentId)
+   map.set(row.classId, prev)
+  }
+  return map
+ }, [rows])
 
  const activeRooms = useMemo(
   () => classroomsActiveOnDate(
@@ -583,6 +652,7 @@ export function PrivateTutoringView() {
   const endTime = formatMin(lessonSlotEndMinute(bookSlotIdx))
   const teacherId = teacherTid || bookTeacherId || bookRow.teacherId
   const classroomId = bookRoomId.trim() || null
+  const classStudentIds = activeStudentIdsByClass.get(bookRow.classId) ?? [bookRow.studentId]
   setBookSaving(true)
   setBookErr(null)
   try {
@@ -593,7 +663,7 @@ export function PrivateTutoringView() {
      startTime,
      endTime,
      teacherId,
-     studentId: bookRow.studentId,
+     studentIds: classStudentIds,
      excludeScheduleId: rescheduleScheduleId,
     })
     if (conflicts.length > 0) {
@@ -635,7 +705,7 @@ export function PrivateTutoringView() {
      startTime,
      endTime,
      teacherId,
-     studentId: bookRow.studentId,
+     studentIds: classStudentIds,
     })
     const conflictItems = preview.filter((p) => p.conflicts.length > 0)
     let skipConflictDates = false
@@ -671,7 +741,7 @@ export function PrivateTutoringView() {
     }
     const result = await createPrivateRecurringBookings({
      classId: bookRow.classId,
-     studentId: bookRow.studentId,
+     studentIds: classStudentIds,
      dates,
      classroomId,
      startTime,
@@ -695,7 +765,7 @@ export function PrivateTutoringView() {
      startTime,
      endTime,
      teacherId,
-     studentId: bookRow.studentId,
+     studentIds: classStudentIds,
     })
     if (conflicts.length > 0) {
      const ok = await confirmDialog({
@@ -749,6 +819,7 @@ export function PrivateTutoringView() {
   pushBanner,
   reloadStudents,
   reloadUpcomingSchedules,
+  activeStudentIdsByClass,
  ])
 
  const onCancelLesson = useCallback(
@@ -796,18 +867,18 @@ export function PrivateTutoringView() {
    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-      {isTeacherPortal ? "我的一對一學生" : "一對一學生"}
+      {isTeacherPortal ? "我的一對一／一對二學生" : "一對一／一對二學生"}
      </h1>
      <p className="mt-2 text-sm text-muted-foreground">
       {isTeacherPortal
-       ? "查看指派給你的一對一學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
-       : "列表負責新增報讀、預約與退讀；點列展開可看未來排程，點班名進入詳情可編輯老師／學費。"}
+       ? "查看指派給你的一對一／一對二學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
+       : "列表負責新增一對一／一對二報讀、預約與退讀；點列展開可看未來排程，點班名進入詳情可編輯老師／學費。"}
      </p>
     </div>
     {canManageEnrollment ? (
      <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
       <Plus className="mr-1.5 h-4 w-4" />
-      新增一對一報讀
+      新增一對一／一對二報讀
      </Button>
     ) : null}
    </header>
@@ -897,11 +968,11 @@ export function PrivateTutoringView() {
      ) : rows.length === 0 ? (
       <p className="text-sm text-muted-foreground">
        {isTeacherPortal
-        ? "目前沒有指派給你的一對一報讀。"
-        : "尚無一對一報讀。按上方「新增一對一報讀」開始。"}
+        ? "目前沒有指派給你的一對一／一對二報讀。"
+        : "尚無一對一／一對二報讀。按上方「新增一對一／一對二報讀」開始。"}
       </p>
      ) : filteredRows.length === 0 ? (
-      <p className="text-sm text-muted-foreground">沒有符合條件的一對一學生。</p>
+      <p className="text-sm text-muted-foreground">沒有符合條件的一對一／一對二學生。</p>
      ) : (
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
        <div className="min-w-[56rem]">
@@ -915,7 +986,7 @@ export function PrivateTutoringView() {
          <div className="px-4 py-3 font-medium">學生</div>
          <div className="px-4 py-3 font-medium">學號</div>
          <div className="px-4 py-3 font-medium">年級</div>
-         <div className="px-4 py-3 font-medium">一對一班別</div>
+         <div className="px-4 py-3 font-medium">私人班別</div>
          <div className="px-4 py-3 font-medium">老師</div>
          <div className="px-4 py-3 font-medium">狀態</div>
          <div className="px-4 py-3 font-medium">下一堂</div>
@@ -941,7 +1012,7 @@ export function PrivateTutoringView() {
       </div>
      )}
      <p className="text-sm text-muted-foreground">
-      共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一報讀，含已退讀）
+      共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一／一對二報讀，含已退讀）
      </p>
     </div>
    )}
@@ -1017,15 +1088,34 @@ export function PrivateTutoringView() {
    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
     <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
      <DialogHeader>
-      <DialogTitle>新增一對一報讀</DialogTitle>
+      <DialogTitle>新增一對一／一對二報讀</DialogTitle>
      </DialogHeader>
      <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-       會自動建立一對一班別（無固定時間／課室）並為學生報讀，無需走小組開班流程。
+       會自動建立私人班別（無固定時間／課室）並為學生報讀，無需走小組開班流程。
       </p>
 
       <div className="space-y-1">
-       <label className="text-sm font-medium text-muted-foreground">學生（可搜尋姓名／學號／年級）</label>
+       <label className="text-sm font-medium text-muted-foreground">報讀類型</label>
+       <Select
+        value={createMode}
+        onChange={(e) => {
+         const next = e.target.value as PrivateCreateMode
+         setCreateMode(next)
+         if (next === "1to1") {
+          setCreateSecondStudentId("")
+          setCreateSecondStudentSearch("")
+          setCreateSecondStudentPickerOpen(false)
+         }
+        }}
+       >
+        <option value="1to1">一對一</option>
+        <option value="1to2">一對二</option>
+       </Select>
+      </div>
+
+      <div className="space-y-1">
+       <label className="text-sm font-medium text-muted-foreground">第一位學生（可搜尋姓名／學號／年級）</label>
        <div className="relative">
         <Input
          placeholder="輸入姓名、學號或年級搜尋…"
@@ -1077,6 +1167,64 @@ export function PrivateTutoringView() {
         </button>
        ) : null}
       </div>
+
+      {createMode === "1to2" ? (
+       <div className="space-y-1">
+        <label className="text-sm font-medium text-muted-foreground">第二位學生（不可與第一位重複）</label>
+        <div className="relative">
+         <Input
+          placeholder="輸入姓名、學號或年級搜尋…"
+          value={
+           createSecondStudentId
+            ? selectedCreateSecondStudent
+              ? createStudentLabel(selectedCreateSecondStudent)
+              : ""
+            : createSecondStudentSearch
+          }
+          onChange={(e) => {
+           setCreateSecondStudentId("")
+           setCreateSecondStudentSearch(e.target.value)
+           setCreateSecondStudentPickerOpen(true)
+          }}
+          onFocus={() => setCreateSecondStudentPickerOpen(true)}
+         />
+         {createSecondStudentPickerOpen &&
+         !createSecondStudentId &&
+         createSecondStudentSearch.trim() ? (
+          <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
+           {createSecondStudentOptions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
+           ) : (
+            createSecondStudentOptions.map((s) => (
+             <button
+              key={s.id}
+              type="button"
+              className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pickCreateSecondStudent(s)}
+             >
+              {createStudentLabel(s)}
+             </button>
+            ))
+           )}
+          </div>
+         ) : null}
+        </div>
+        {createSecondStudentId ? (
+         <button
+          type="button"
+          className="text-left text-sm text-primary underline-offset-4 hover:underline"
+          onClick={() => {
+           setCreateSecondStudentId("")
+           setCreateSecondStudentSearch("")
+           setCreateSecondStudentPickerOpen(false)
+          }}
+         >
+          清除第二位學生
+         </button>
+        ) : null}
+       </div>
+      ) : null}
 
       <div className="space-y-1">
        <label className="text-sm font-medium text-muted-foreground">科目（可搜尋或直接輸入）</label>
@@ -1157,7 +1305,7 @@ export function PrivateTutoringView() {
        <Input
         value={createClassNameOverride}
         onChange={(e) => setCreateClassNameOverride(e.target.value)}
-        placeholder={previewClassSubject || "例如：陳大文英文一對一"}
+        placeholder={previewClassSubject || "例如：陳大文英文一對一 / 陳大文＋林小明英文一對二"}
        />
        {previewClassSubject ? (
         <p className="text-sm text-muted-foreground">將建立班別：{previewClassSubject}</p>

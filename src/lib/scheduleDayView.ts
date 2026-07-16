@@ -77,6 +77,9 @@ export function findScheduleRoomConflicts(
   endTime: string
  }
 ): ScheduleManageRow[] {
+ // 未編課室（null）可同時容納多班，不檢查課室衝突
+ if (params.roomId == null) return []
+
  const slotA = parseHm(params.startTime) ?? 0
  const slotB = parseHm(params.endTime) ?? slotA + LESSON_SLOT_DURATION_MIN
  return schedules.filter((s) => {

@@ -63,6 +63,7 @@ import {
  normalizeRegistrationStatus,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
+ purgeMistakenEnrollment,
  type AttendanceRow,
  type ClassOption,
  type EnrollmentWithClass,
@@ -72,9 +73,11 @@ import {
  type StudentRecord,
  updateEnrollment,
  updateEnrollmentPeriod,
+ updateEnrollmentSessions,
  updateStudent,
  withdrawStudentFromClass,
 } from "@/services/studentQueries"
+import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  deleteStudentRelationship,
  fetchRelativesForStudent,
@@ -96,10 +99,11 @@ import {
  type EnrolledClassOption,
  type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
-import {
+ import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
  SUMMER_ENROLLMENT_FORM_OPTIONS,
+ formatEnrollmentFormLabel,
  isSingleSessionEnrollment,
  type EnrollmentFormValue,
  type EnrollmentPeriod,
@@ -212,6 +216,13 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
  const [withdrawSaving, setWithdrawSaving] = useState(false)
+
+ const [editFormOpen, setEditFormOpen] = useState(false)
+ const [editFormTarget, setEditFormTarget] = useState<EnrollmentWithClass | null>(null)
+ const [editFormValue, setEditFormValue] = useState<string>("full")
+ const [editFormScheduleIds, setEditFormScheduleIds] = useState<string[]>([])
+ const [editFormSaving, setEditFormSaving] = useState(false)
+ const [editFormLoadingSessions, setEditFormLoadingSessions] = useState(false)
 
  const [relatives, setRelatives] = useState<StudentRelativeRow[]>([])
  const [relativeDialogOpen, setRelativeDialogOpen] = useState(false)
@@ -416,11 +427,21 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
-  await insertEnrollment(sid, pickClass, period, isSingle ? pickScheduleIds : undefined)
-  setPickClass("")
-  setPickForm(isSummer ? "兩期全報" : "full")
-  setPickScheduleIds([])
-  await reloadSubs()
+  try {
+   await insertEnrollment(sid, pickClass, period, isSingle ? pickScheduleIds : undefined)
+   setPickClass("")
+   setPickForm(isSummer ? "兩期全報" : "full")
+   setPickScheduleIds([])
+   pushBanner({ tone: "success", title: "已加入班別" })
+   await reloadSubs()
+  } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.addEnrollment" })
+   pushBanner({
+    tone: "error",
+    title: "加入失敗",
+    message: e instanceof Error ? e.message : String(e),
+   })
+  }
  }
 
  const submitWithdraw = async () => {
@@ -446,12 +467,127 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   }
  }
 
- const enrolledClassIds = new Set(enrollments.map((e) => e.classId))
- const hasPrivateEnrollment = enrollments.some((e) => e.classKind === "private")
- const classSelectOptions = classOptions.filter((o) => !enrolledClassIds.has(o.id))
+ /** 非「已退讀」皆佔用該班（就讀中／休學／退選），不可再從下拉重複加入 */
+ const activeEnrollments = enrollments.filter((e) => e.status !== "已退讀")
+ const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
+ const occupiedClassIds = new Set(activeEnrollments.map((e) => e.classId))
+ const hasPrivateEnrollment = activeEnrollments.some((e) => e.classKind === "private")
+ const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
+
+ const openEditEnrollmentForm = async (e: EnrollmentWithClass) => {
+  setEditFormTarget(e)
+  setEditFormOpen(true)
+  const isSummer = e.courseMode === "summer_two_period"
+  if (isSingleSessionEnrollment(e.enrollmentPeriod)) {
+   setEditFormValue(SINGLE_SESSION_ENROLLMENT)
+   setEditFormLoadingSessions(true)
+   try {
+    const map = await fetchEnrolledScheduleIdsByEnrollmentIds([e.id])
+    setEditFormScheduleIds([...(map.get(e.id) ?? new Set())])
+   } catch {
+    setEditFormScheduleIds([])
+   } finally {
+    setEditFormLoadingSessions(false)
+   }
+  } else if (isSummer && e.enrollmentPeriod) {
+   setEditFormValue(e.enrollmentPeriod)
+   setEditFormScheduleIds([])
+  } else {
+   setEditFormValue("full")
+   setEditFormScheduleIds([])
+  }
+ }
+
+ const submitEditEnrollmentForm = async () => {
+  if (!editFormTarget || !sid) return
+  const isSummer = editFormTarget.courseMode === "summer_two_period"
+  const isSingle = editFormValue === SINGLE_SESSION_ENROLLMENT
+  if (isSingle && editFormScheduleIds.length === 0) {
+   pushBanner({ tone: "error", title: "請選擇堂數", message: "單堂報讀請至少勾選一堂" })
+   return
+  }
+  setEditFormSaving(true)
+  try {
+   const prev = editFormTarget.enrollmentPeriod
+   const stayingSingle =
+    isSingle && isSingleSessionEnrollment(prev)
+   if (stayingSingle) {
+    await updateEnrollmentSessions(editFormTarget.id, editFormScheduleIds, {
+     studentId: sid,
+     classId: editFormTarget.classId,
+    })
+   } else {
+    let next: EnrollmentFormValue | null = null
+    if (isSingle) next = SINGLE_SESSION_ENROLLMENT
+    else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(editFormValue as EnrollmentPeriod)) {
+     next = editFormValue as EnrollmentPeriod
+    } else {
+     next = null
+    }
+    await updateEnrollmentPeriod(editFormTarget.id, next, {
+     studentId: sid,
+     classId: editFormTarget.classId,
+     previousPeriod: prev,
+     scheduleIds: isSingle ? editFormScheduleIds : undefined,
+    })
+   }
+   setEditFormOpen(false)
+   setEditFormTarget(null)
+   pushBanner({
+    tone: "success",
+    title: "已更新報讀形式",
+    message: formatEnrollmentFormLabel(
+     isSingle
+      ? SINGLE_SESSION_ENROLLMENT
+      : isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(editFormValue as EnrollmentPeriod)
+        ? (editFormValue as EnrollmentPeriod)
+        : null
+    ),
+   })
+   await reloadSubs()
+  } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.editEnrollmentForm" })
+   pushBanner({
+    tone: "error",
+    title: "更新失敗",
+    message: e instanceof Error ? e.message : String(e),
+   })
+  } finally {
+   setEditFormSaving(false)
+  }
+ }
+
+ const onPurgeMistakenEnrollment = async (e: EnrollmentWithClass) => {
+  if (
+   !(await confirmDialog({
+    title: "手誤清除報讀",
+    description: `確定清除「${formatClassLabel({
+     subject: e.subject,
+     courseCode: e.courseCode,
+     courseName: e.courseName,
+    })}」的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡（與退讀不同）。`,
+    confirmText: "確認清除",
+    tone: "destructive",
+   }))
+  ) {
+   return
+  }
+  try {
+   await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid })
+   pushBanner({ tone: "success", title: "已清除手誤報讀" })
+   await reloadSubs()
+  } catch (err) {
+   reportUserFacingError(err, { source: "StudentDetailView.purgeMistakenEnrollment" })
+   pushBanner({
+    tone: "error",
+    title: "清除失敗",
+    message: err instanceof Error ? err.message : String(err),
+   })
+  }
+ }
 
  const relatedIds = useMemo(() => new Set(relatives.map((r) => r.relatedStudentId)), [relatives])
 
@@ -1240,10 +1376,10 @@ const exportFutureSchedulesCsv = () => {
        />
       ) : null}
       <div className="space-y-3">
-       {enrollments.length === 0 ? (
+       {activeEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
-        enrollments.map((e) => (
+        activeEnrollments.map((e) => (
          <div
           key={e.id}
           className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -1271,30 +1407,14 @@ const exportFutureSchedulesCsv = () => {
            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-           {e.courseMode === "summer_two_period" &&
-           e.enrollmentPeriod &&
-           !isSingleSessionEnrollment(e.enrollmentPeriod) ? (
-            <Select
-             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-             value={e.enrollmentPeriod}
-             onChange={async (ev) => {
-              const next = ev.target.value as EnrollmentPeriod
-              if (next === e.enrollmentPeriod) return
-              await updateEnrollmentPeriod(e.id, next, {
-               studentId: sid,
-               classId: e.classId,
-               previousPeriod: e.enrollmentPeriod,
-              })
-              await reloadSubs()
-             }}
-            >
-             {ENROLLMENT_PERIOD_OPTIONS.map((p) => (
-              <option key={p} value={p}>
-               {p}
-              </option>
-             ))}
-            </Select>
-           ) : null}
+           <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void openEditEnrollmentForm(e)}
+           >
+            更改報讀形式
+           </Button>
            <Select
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={e.status}
@@ -1320,11 +1440,146 @@ const exportFutureSchedulesCsv = () => {
            >
             退讀
            </Button>
+           <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            onClick={() => void onPurgeMistakenEnrollment(e)}
+           >
+            手誤清除
+           </Button>
           </div>
          </div>
         ))
        )}
       </div>
+
+      {withdrawnEnrollments.length > 0 ? (
+       <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+        <p className="text-sm font-medium text-muted-foreground">已退讀（可重新報讀，或手誤清除）</p>
+        <div className="space-y-2">
+         {withdrawnEnrollments.map((e) => (
+          <div
+           key={e.id}
+           className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+          >
+           <div className="min-w-0">
+            <div className="font-medium text-muted-foreground">
+             {formatClassLabel({
+              subject: e.subject,
+              courseCode: e.courseCode,
+              courseName: e.courseName,
+             })}
+            </div>
+            <div className="text-xs text-muted-foreground">
+             {e.enrollmentFormLabel ?? "—"} · 報讀日 {e.enroll_date ?? "—"}
+            </div>
+           </div>
+           <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 text-muted-foreground"
+            onClick={() => void onPurgeMistakenEnrollment(e)}
+           >
+            手誤清除
+           </Button>
+          </div>
+         ))}
+        </div>
+       </div>
+      ) : null}
+
+      <Dialog
+       open={editFormOpen}
+       onOpenChange={(o) => {
+        setEditFormOpen(o)
+        if (!o) {
+         setEditFormTarget(null)
+         setEditFormScheduleIds([])
+        }
+       }}
+      >
+       <DialogContent className="max-w-lg">
+        <DialogHeader>
+         <DialogTitle>更改報讀形式</DialogTitle>
+        </DialogHeader>
+        {editFormTarget ? (
+         <div className="space-y-3 text-sm">
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
+           {formatClassLabel({
+            subject: editFormTarget.subject,
+            courseCode: editFormTarget.courseCode,
+            courseName: editFormTarget.courseName,
+           })}
+          </div>
+          <p className="text-muted-foreground">
+           目前：{editFormTarget.enrollmentFormLabel}
+           。可改為更多單堂、期數或全期報讀，無需先退讀。
+          </p>
+          <Field label="報讀形式">
+           <Select
+            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={editFormValue}
+            onChange={(ev) => {
+             setEditFormValue(ev.target.value)
+             if (ev.target.value !== SINGLE_SESSION_ENROLLMENT) setEditFormScheduleIds([])
+            }}
+           >
+            {(editFormTarget.courseMode === "summer_two_period"
+             ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
+                value: p,
+                label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+               }))
+             : [
+                { value: "full", label: "報足全期" },
+                { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
+               ]
+            ).map((o) => (
+             <option key={o.value} value={o.value}>
+              {o.label}
+             </option>
+            ))}
+           </Select>
+          </Field>
+          {editFormValue === SINGLE_SESSION_ENROLLMENT ? (
+           editFormLoadingSessions ? (
+            <p className="text-muted-foreground">載入堂數…</p>
+           ) : (
+            <EnrollmentSessionPicker
+             classId={editFormTarget.classId}
+             selectedIds={editFormScheduleIds}
+             onChange={setEditFormScheduleIds}
+             disabled={editFormSaving}
+            />
+           )
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+           <Button
+            type="button"
+            variant="outline"
+            disabled={editFormSaving}
+            onClick={() => setEditFormOpen(false)}
+           >
+            取消
+           </Button>
+           <Button
+            type="button"
+            disabled={
+             editFormSaving ||
+             editFormLoadingSessions ||
+             (editFormValue === SINGLE_SESSION_ENROLLMENT && editFormScheduleIds.length === 0)
+            }
+            onClick={() => void submitEditEnrollmentForm()}
+           >
+            {editFormSaving ? "儲存中…" : "確認更改"}
+           </Button>
+          </div>
+         </div>
+        ) : null}
+       </DialogContent>
+      </Dialog>
 
       <Dialog
        open={withdrawOpen}
@@ -1344,7 +1599,8 @@ const exportFutureSchedulesCsv = () => {
          <div className="space-y-3 text-sm">
           <p>
            確定讓 <strong>{student?.full_name ?? "此學生"}</strong> 自{" "}
-           <strong className="tabular-nums">{localTodayYmd()}</strong> 起退出以下班別？此操作會移除報讀並寫入更動紀錄。
+           <strong className="tabular-nums">{localTodayYmd()}</strong> 起退出以下班別？此操作會寫入增退紀錄。
+           若只是手誤選錯，請改用「手誤清除」。
           </p>
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
            {formatClassLabel({
@@ -1476,11 +1732,11 @@ const exportFutureSchedulesCsv = () => {
     {tab === "attendance" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-success bg-success p-4 text-center">
+       <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
         <div className="text-2xl font-bold text-success">{attStats.present}</div>
         <div className="text-xs text-success/90">總上堂堂數</div>
        </div>
-       <div className="rounded-xl border border-destructive bg-destructive p-4 text-center">
+       <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center">
         <div className="text-2xl font-bold text-destructive">{attStats.absent}</div>
         <div className="text-xs text-destructive/90">總缺席堂數</div>
        </div>

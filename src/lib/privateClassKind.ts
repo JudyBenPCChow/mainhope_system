@@ -1,5 +1,5 @@
-/** 一對一／單對單班別：subject 慣用命名（migration 回填前後皆可用） */
-export const PRIVATE_CLASS_SUBJECT_RE = /一對一|單對單/
+/** 一對一／一對二／單對單班別：subject 慣用命名（migration 回填前後皆可用） */
+export const PRIVATE_CLASS_SUBJECT_RE = /一對一|一對二|單對單/
 
 export type ClassKind = "group" | "private"
 
