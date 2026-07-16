@@ -208,6 +208,49 @@ export async function fetchLeaveStudentIdsForLesson(
  return out
 }
 
+/**
+ * 批次：多個排程各自的「本堂請假」學生 id。
+ * 一筆請假紀錄套用到某排程的條件（與 fetchLeaveStudentsForSchedule 一致）：
+ * 已連結該排程（schedule_id 相符），或同班同日（class_id + leave_date 相符）。
+ * 主要用途：日視圖判斷排程是否「全員請假／沒有學生」。
+ */
+export async function fetchLeaveStudentIdsForSchedules(
+ schedules: { id: string; class_id: string | null; scheduled_date: string }[]
+): Promise<Map<string, Set<string>>> {
+ const map = new Map<string, Set<string>>()
+ for (const s of schedules) map.set(s.id, new Set())
+ if (!supabase || schedules.length === 0) return map
+
+ const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
+ const classIds = [
+  ...new Set(schedules.map((s) => s.class_id).filter((x): x is string => x != null && x !== "")),
+ ]
+ if (classIds.length === 0 || dates.length === 0) return map
+
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("student_id, schedule_id, class_id, leave_date")
+  .in("class_id", classIds)
+  .in("leave_date", dates)
+ if (error) throw error
+
+ for (const row of data ?? []) {
+  const r = row as {
+   student_id: string
+   schedule_id: string | null
+   class_id: string
+   leave_date: string
+  }
+  const sid = String(r.student_id)
+  for (const s of schedules) {
+   const linked = r.schedule_id != null && r.schedule_id === s.id
+   const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
+   if (linked || sameClassDate) map.get(s.id)?.add(sid)
+  }
+ }
+ return map
+}
+
 /** 本堂為補堂目標排程的學生（可傳多個 schedule id） */
 export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): Promise<Set<string>> {
  if (!supabase || scheduleIds.length === 0) return new Set()
@@ -417,6 +460,7 @@ export type AttendanceRecordRow = {
  id: string
  studentId: string
  classId: string
+ scheduleId: string | null
  attendanceDate: string
  status: string
  remarks: string | null
@@ -425,23 +469,47 @@ export type AttendanceRecordRow = {
  studentGrade: string | null
  classSubject: string | null
  courseCode: string | null
+ /** 實際上課老師（有排程時取 schedules.teacher_id） */
  teacherId: string | null
  teacherName: string | null
+ /** 代堂前原任老師 */
+ originalTeacherId: string | null
+ originalTeacherName: string | null
+ /** 班別常任老師（篩選／權限用） */
+ classTeacherId: string | null
 }
 
 function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
  const st = r.students as Record<string, unknown> | null
  const cls = r.classes as (Record<string, unknown> & { teachers?: Record<string, unknown> | null }) | null
- const teacherObj = cls?.teachers ?? null
+ const sched = r.schedules as
+  | (Record<string, unknown> & {
+     teachers?: Record<string, unknown> | null
+     original_teacher?: Record<string, unknown> | null
+    })
+  | null
+ const classTeacherObj = cls?.teachers ?? null
+ const scheduleTeacherObj = sched?.teachers ?? null
+ const originalTeacherObj = sched?.original_teacher ?? null
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  const courseCode =
   cls?.course_code_full != null ? String(cls.course_code_full) : null
+ const classTeacherId = cls?.teacher_id != null ? String(cls.teacher_id) : null
+ const scheduleTeacherId = sched?.teacher_id != null ? String(sched.teacher_id) : null
+ const teachingTeacherId = scheduleTeacherId ?? classTeacherId
+ const teachingTeacherName =
+  scheduleTeacherObj?.full_name != null
+   ? String(scheduleTeacherObj.full_name)
+   : classTeacherObj?.full_name != null
+     ? String(classTeacherObj.full_name)
+     : null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
   classId: String(r.class_id),
+  scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
   attendanceDate: String(r.attendance_date ?? ""),
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
@@ -450,8 +518,13 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
   studentGrade: st?.grade != null ? String(st.grade) : null,
   classSubject: formatClassLabel({ subject: sub, courseCode, courseName }),
   courseCode,
-  teacherId: cls?.teacher_id != null ? String(cls.teacher_id) : null,
-  teacherName: teacherObj?.full_name != null ? String(teacherObj.full_name) : null,
+  teacherId: teachingTeacherId,
+  teacherName: teachingTeacherName,
+  originalTeacherId:
+   sched?.original_teacher_id != null ? String(sched.original_teacher_id) : null,
+  originalTeacherName:
+   originalTeacherObj?.full_name != null ? String(originalTeacherObj.full_name) : null,
+  classTeacherId,
  }
 }
 
@@ -463,7 +536,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) )"
+   "id, student_id, class_id, schedule_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) ), schedules ( teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)

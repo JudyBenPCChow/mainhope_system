@@ -499,7 +499,7 @@ export async function fetchPrivateClassSchedules(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, classroom_id, teacher_id, classrooms ( name ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, classroom_id, teacher_id, classrooms ( name ), teachers!schedules_teacher_id_fkey ( full_name )"
   )
   .eq("class_id", classId)
   .gte("scheduled_date", from)

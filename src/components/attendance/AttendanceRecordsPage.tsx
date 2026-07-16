@@ -81,7 +81,6 @@ export function AttendanceRecordsPage() {
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
- const [scopeClassIds, setScopeClassIds] = useState<Set<string> | null>(null)
  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
  const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; name: string }>>([])
  const [loading, setLoading] = useState(true)
@@ -127,13 +126,8 @@ export function AttendanceRecordsPage() {
      teacherId: c.teacher_id ?? null,
     }))
    )
-   if (!teacherTid) {
-    setScopeClassIds(null)
-    return
-   }
-   setScopeClassIds(new Set(all.filter((c) => c.teacher_id === teacherTid).map((c) => c.id)))
   })()
- }, [teacherTid])
+ }, [])
 
  useEffect(() => {
   void fetchAllTeachers().then((all) => {
@@ -143,7 +137,14 @@ export function AttendanceRecordsPage() {
 
  const displayRows = useMemo(() => {
   let next = rows
-  if (scopeClassIds) next = next.filter((r) => scopeClassIds.has(r.classId))
+  if (teacherTid) {
+   next = next.filter(
+    (r) =>
+     r.teacherId === teacherTid ||
+     r.originalTeacherId === teacherTid ||
+     r.classTeacherId === teacherTid
+   )
+  }
   const keyword = studentKeyword.trim().toLowerCase()
   if (keyword) {
    next = next.filter((r) => {
@@ -154,11 +155,18 @@ export function AttendanceRecordsPage() {
   }
   if (classFilter !== "all") next = next.filter((r) => r.classId === classFilter)
   const activeTeacherId = teacherTid ?? teacherFilter
-  if (activeTeacherId !== "all") next = next.filter((r) => r.teacherId === activeTeacherId)
+  if (activeTeacherId !== "all") {
+   next = next.filter(
+    (r) =>
+     r.teacherId === activeTeacherId ||
+     r.originalTeacherId === activeTeacherId ||
+     r.classTeacherId === activeTeacherId
+   )
+  }
   const pickYear = selectedYearLabel
   next = next.filter((r) => academicYearLabelFromStartDate(r.attendanceDate) === pickYear)
   return next
- }, [rows, scopeClassIds, studentKeyword, classFilter, teacherFilter, teacherTid, selectedYearLabel])
+ }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid, selectedYearLabel])
 
  const academicYearOptions = useMemo(() => {
   const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(r.attendanceDate)))]
@@ -205,7 +213,7 @@ export function AttendanceRecordsPage() {
 
    {teacherTid ? (
    <div className="rounded-lg border border-info bg-info px-4 py-3 text-base leading-relaxed text-info-foreground">
-    專班老師檢視：下方資料僅含<strong>您指派的班別</strong>；老師篩選已自動鎖定為您本人。
+    專班老師檢視：下方資料含<strong>您任教、代堂或原任被代堂</strong>的課堂；老師篩選已自動鎖定為您本人。
     </div>
    ) : null}
 

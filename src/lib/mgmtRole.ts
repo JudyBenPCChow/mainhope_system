@@ -5,6 +5,7 @@ import {
  getAdminEditableAcademicYearLabels,
 } from "@/lib/academicYearAccess"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 
 /** 與首頁演示／Layout 一致：localStorage `mgmt_role` */
 export type MgmtRole = "admin" | "teacher" | "alien"
@@ -14,6 +15,34 @@ export function getMgmtRole(): MgmtRole | null {
  const r = localStorage.getItem("mgmt_role")
  if (r === "admin" || r === "teacher" || r === "alien") return r
  return null
+}
+
+/** 目前登入者顯示名（profile → localStorage；無則角色預設／未命名） */
+export function resolveMgmtDisplayName(role?: MgmtRole | null): string {
+ const r = role ?? getMgmtRole()
+ if (typeof localStorage !== "undefined") {
+  const stored =
+   localStorage.getItem("mgmt_display_name")?.trim() ||
+   localStorage.getItem("mgmt_email")?.trim()
+  if (stored) return stored
+ }
+ if (r === "admin") return DEMO_ADMIN_GREETING_NAME
+ if (r === "alien") return DEMO_ALIEN_GREETING_NAME
+ return "未命名"
+}
+
+/**
+ * 稽核／操作紀錄用：角色＋明確用戶名，例如「專班老師（Judy Chu）」。
+ * 名稱來自登入 profile 寫入的 `mgmt_display_name`（或 email）。
+ */
+export function formatMgmtActorLabel(role?: MgmtRole | null): string {
+ const r = role ?? getMgmtRole()
+ if (!r) return "未登入"
+ const name = resolveMgmtDisplayName(r)
+ if (r === "admin") return `管理員（${name}）`
+ if (r === "teacher") return `專班老師（${name}）`
+ if (r === "alien") return `外星人（${name}）`
+ return "未登入"
 }
 
 /** 外星人（alien，舊稱超級管理）— 刪除老師／班別／學生等進階操作僅限此角色 */

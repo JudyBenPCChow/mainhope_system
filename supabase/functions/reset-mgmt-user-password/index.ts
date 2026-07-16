@@ -14,8 +14,12 @@ type RequestBody = {
   appUserId?: unknown
 }
 
+/**
+ * NFKC 正規化可把全形字元（如全形＠ U+FF20）轉為半形，避免人手輸入誤植的
+ * 「liam＠mainhope.edu.hk」被判為無效電郵而擋下重設／建立流程。
+ */
 function normalizeEmail(raw: unknown): string | null {
-  const value = String(raw ?? "").trim().toLowerCase()
+  const value = String(raw ?? "").normalize("NFKC").trim().toLowerCase()
   if (!value) return null
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return null
   return value
@@ -25,6 +29,14 @@ function normalizeAppUserId(raw: unknown): string | null {
   const value = String(raw ?? "").trim()
   if (!/^[0-9a-f-]{36}$/i.test(value)) return null
   return value
+}
+
+type AppUserRow = {
+  id: string
+  email: string | null
+  display_name: string | null
+  role: string | null
+  teacher_id: string | null
 }
 
 Deno.serve(async (req) => {
@@ -62,78 +74,142 @@ Deno.serve(async (req) => {
 
   const admin = createServiceRoleClient()
 
+  // 1) 先鎖定目標 app_users 資料列（優先用 appUserId，其次用電郵）
+  let appUser: AppUserRow | null = null
+
   if (appUserId) {
-    const { data: appUser, error: appUserError } = await admin
+    const { data, error } = await admin
       .from("app_users")
-      .select("id, email, display_name, role")
+      .select("id, email, display_name, role, teacher_id")
       .eq("id", appUserId)
       .maybeSingle()
-    if (appUserError) {
-      console.error("reset-mgmt-user-password app_users lookup failed", appUserError.message)
+    if (error) {
+      console.error("reset-mgmt-user-password app_users lookup failed", error.message)
       return jsonResponse({ error: "無法讀取系統用戶，請稍後再試。" }, 503)
     }
-    if (!appUser) {
+    if (!data) {
       return jsonResponse({ error: "找不到此系統用戶。" }, 404)
     }
-    const role = String(appUser.role ?? "").trim().toLowerCase()
-    if (role === "student") {
-      return jsonResponse({ error: "學生入口帳號請走家長／學生入口流程，不可在此重設。" }, 400)
-    }
-    const rowEmail = normalizeEmail(appUser.email)
-    if (!rowEmail) {
-      return jsonResponse({ error: "此用戶沒有電郵，無法重設密碼。" }, 400)
-    }
-    email = rowEmail
+    appUser = data as AppUserRow
   }
 
-  if (!email) {
+  if (!appUser && email) {
+    const { data, error } = await admin
+      .from("app_users")
+      .select("id, email, display_name, role, teacher_id")
+      .ilike("email", email)
+      .limit(5)
+    if (error) {
+      console.error("reset-mgmt-user-password email lookup failed", error.message)
+      return jsonResponse({ error: "無法檢查系統用戶，請稍後再試。" }, 503)
+    }
+    if (!data?.length) {
+      return jsonResponse({ error: "此電郵不在系統用戶名單中。" }, 404)
+    }
+    appUser = data[0] as AppUserRow
+  }
+
+  if (!appUser) {
     return jsonResponse({ error: "請提供有效電郵或用戶編號。" }, 400)
   }
 
-  const { data: appUsersByEmail, error: emailLookupError } = await admin
-    .from("app_users")
-    .select("id, email, display_name, role")
-    .ilike("email", email)
-    .limit(5)
-  if (emailLookupError) {
-    console.error("reset-mgmt-user-password email lookup failed", emailLookupError.message)
-    return jsonResponse({ error: "無法檢查系統用戶，請稍後再試。" }, 503)
-  }
-  if (!appUsersByEmail?.length) {
-    return jsonResponse({ error: "此電郵不在系統用戶名單中。" }, 404)
-  }
-  const primary = appUsersByEmail[0] as Record<string, unknown>
-  const role = String(primary.role ?? "").trim().toLowerCase()
+  const role = String(appUser.role ?? "").trim().toLowerCase()
   if (role === "student") {
     return jsonResponse({ error: "學生入口帳號請走家長／學生入口流程，不可在此重設。" }, 400)
   }
 
+  // 2) 以 app_users 上的電郵為準（正規化全形＠等），並在需要時回寫自我修復
+  const storedEmail = String(appUser.email ?? "")
+  const normalizedEmail = normalizeEmail(appUser.email) ?? email
+  if (!normalizedEmail) {
+    return jsonResponse({ error: "此用戶沒有有效電郵，無法重設或建立登入。" }, 400)
+  }
+  email = normalizedEmail
+
+  if (storedEmail !== normalizedEmail) {
+    const { error: healError } = await admin
+      .from("app_users")
+      .update({ email: normalizedEmail })
+      .eq("id", appUser.id)
+    if (healError) {
+      // 自我修復失敗不阻擋主流程，只記錄
+      console.error("reset-mgmt-user-password email self-heal failed", healError.message)
+    }
+  }
+
+  const displayName = String(appUser.display_name ?? "").trim()
+  const teacherId = appUser.teacher_id != null ? String(appUser.teacher_id) : null
+  const temporaryPassword = generateTemporaryPassword()
+
+  // 3) 找 Auth 帳號：有 → 重設密碼；沒有（404）→ 直接補建並設定臨時密碼
   const authLookup = await findAuthUserIdByEmail(admin, email)
-  if (!authLookup.ok) {
+
+  let authUserId: string
+  let provisioned = false
+
+  if (authLookup.ok) {
+    const { error: updateError } = await admin.auth.admin.updateUserById(authLookup.userId, {
+      password: temporaryPassword,
+      user_metadata: { must_change_password: true },
+    })
+    if (updateError) {
+      console.error("reset-mgmt-user-password update password failed", updateError.message)
+      return jsonResponse({ error: "重設密碼失敗，請稍後再試。" }, 502)
+    }
+    authUserId = authLookup.userId
+  } else if (authLookup.status === 404) {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: true,
+      user_metadata: {
+        display_name: displayName || email,
+        source: "reset-mgmt-user-password",
+        teacher_id: teacherId,
+        must_change_password: true,
+      },
+      app_metadata: {
+        mgmt_role: role || "teacher",
+      },
+    })
+    if (!createError && created.user?.id) {
+      authUserId = created.user.id
+    } else {
+      const detail = String(createError?.message ?? "").toLowerCase()
+      const looksExisting =
+        detail.includes("already") || detail.includes("exists") || detail.includes("registered")
+      const retry = looksExisting ? await findAuthUserIdByEmail(admin, email) : null
+      if (retry?.ok) {
+        const { error: retryUpdateError } = await admin.auth.admin.updateUserById(retry.userId, {
+          password: temporaryPassword,
+          user_metadata: { must_change_password: true },
+        })
+        if (retryUpdateError) {
+          console.error("reset-mgmt-user-password retry update failed", retryUpdateError.message)
+          return jsonResponse({ error: "建立登入帳號失敗，請稍後再試。" }, 502)
+        }
+        authUserId = retry.userId
+      } else {
+        console.error("reset-mgmt-user-password provision auth failed", createError?.message)
+        return jsonResponse({ error: "建立登入帳號失敗，請稍後再試。" }, 502)
+      }
+    }
+    provisioned = true
+  } else {
     return jsonResponse({ error: authLookup.error }, authLookup.status)
   }
-
-  const temporaryPassword = generateTemporaryPassword()
-  const { error: updateError } = await admin.auth.admin.updateUserById(authLookup.userId, {
-    password: temporaryPassword,
-  })
-  if (updateError) {
-    console.error("reset-mgmt-user-password update password failed", updateError.message)
-    return jsonResponse({ error: "重設密碼失敗，請稍後再試。" }, 502)
-  }
-
-  const displayName = String(primary.display_name ?? "").trim()
 
   await admin.from("mgmt_audit_log").insert({
     actor_label: authResult.caller.email,
     role: authResult.caller.userRole,
-    action: "reset_user_password",
+    action: provisioned ? "provision_user_login" : "reset_user_password",
     path: "/Users",
     detail: JSON.stringify({
-      app_user_id: String(primary.id ?? ""),
-      auth_user_id: authLookup.userId,
+      app_user_id: appUser.id,
+      auth_user_id: authUserId,
       email,
       display_name: displayName || null,
+      provisioned,
     }),
   })
 
@@ -142,5 +218,6 @@ Deno.serve(async (req) => {
     email,
     displayName,
     temporaryPassword,
+    provisioned,
   })
 })

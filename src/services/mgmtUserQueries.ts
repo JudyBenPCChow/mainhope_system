@@ -84,6 +84,8 @@ export type ResetMgmtUserPasswordResult =
       email: string
       displayName: string
       temporaryPassword: string
+      /** true 代表此用戶原本沒有登入帳號，這次一併補建 */
+      provisioned: boolean
     }
   | { ok: false; message: string }
 
@@ -124,5 +126,6 @@ export async function resetMgmtUserPassword(
     email: String(payload.email ?? "").trim().toLowerCase(),
     displayName: String(payload.displayName ?? "").trim(),
     temporaryPassword: String(payload.temporaryPassword ?? ""),
+    provisioned: payload.provisioned === true,
   }
 }

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -10,12 +10,16 @@ import {
  ChevronRight,
  ChevronUp,
  Download,
+ DoorOpen,
  LayoutGrid,
  List,
  Plus,
  Search,
  User,
+ UserRound,
+ UserX,
  Users,
+ Wand2,
  XCircle,
 } from "lucide-react"
 
@@ -26,14 +30,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
+import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
 import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
+import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
+ formatMin,
+ intervalsOverlapMinutes,
  lessonSlotLabel,
  LESSON_SLOT_INDICES,
  nearestStandardSlotIndex,
@@ -44,6 +53,7 @@ import {
  findScheduleRoomConflicts,
  isDateInInclusiveRange,
  isStandardSchedulePlacement,
+ scheduleIntervalMinutes,
  snapTimesToStandardSlot,
  standardSlotIndexForSchedule,
 } from "@/lib/scheduleDayView"
@@ -56,10 +66,11 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAdmin, isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
+ fetchLeaveStudentIdsForSchedules,
  fetchLeaveStudentsForSchedule,
  fetchTrialStudentsForSchedule,
  type ScheduleRosterStudent,
@@ -100,6 +111,19 @@ const RANGE_DAYS = 14
 
 type ViewMode = "byDate" | "list" | "day"
 
+/** 排程問題／類型篩選（可多選，條件為 AND） */
+type ScheduleIssueFilter = "noEnroll" | "private" | "noRoom"
+
+const ISSUE_FILTER_OPTIONS: {
+ id: ScheduleIssueFilter
+ label: string
+ icon: typeof UserX
+}[] = [
+ { id: "noEnroll", label: "未有學生報讀", icon: UserX },
+ { id: "private", label: "一對一班別", icon: UserRound },
+ { id: "noRoom", label: "未有課室安排", icon: DoorOpen },
+]
+
 type PendingMove = {
  row: ScheduleManageRow
  newRoomId: string | null
@@ -107,6 +131,17 @@ type PendingMove = {
  newEnd: string
  roomLabel: string
  alignedToStandard: boolean
+}
+
+type DayViewRosterStudent = { studentId: string; fullName: string }
+
+const EMPTY_LEAVE_SET: ReadonlySet<string> = new Set()
+
+/** 課室僅在該日開放時才算已編排 */
+function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string>): string | null {
+ const rid = s.classroom_id
+ if (!rid || !activeRoomIds.has(rid)) return null
+ return rid
 }
 
 function rollCallPath(scheduledDate: string, scheduleId: string): string {
@@ -277,9 +312,17 @@ function ExpandedScheduleRoster({
 
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
+ const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
  const todayYmd = localYmd()
  const [searchParams, setSearchParams] = useSearchParams()
+ /** 僅在「進頁當下」URL 已帶日期時才沿用（例如儀表板深連結）；之後日視圖自行寫入的今天不得蓋過「未來最近排程」初始化。 */
+ const initialUrlDayDateRef = useRef<string | null>((() => {
+  const view = searchParams.get("view")
+  const date = searchParams.get("date")
+  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date
+  return null
+ })())
 
  const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
  const effectiveViewMode: ViewMode =
@@ -294,6 +337,10 @@ export function ScheduleManagePage() {
  const [searchQ, setSearchQ] = usePersistentState<string>("mgmt_schedule_searchQ", "")
  const [classFilter, setClassFilter] = usePersistentState<string>("mgmt_schedule_classFilter", "all")
  const [statusFilter, setStatusFilter] = usePersistentState<string>("mgmt_schedule_statusFilter", "all")
+ const [issueFilters, setIssueFilters] = usePersistentState<ScheduleIssueFilter[]>(
+  "mgmt_schedule_issueFilters",
+  []
+ )
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [stats, setStats] = useState<ScheduleStatsSnapshot>({
@@ -316,7 +363,13 @@ export function ScheduleManagePage() {
  const [listTrialStudents, setListTrialStudents] = useState<ScheduleRosterStudent[]>([])
  const [listNotEnrolledStudents, setListNotEnrolledStudents] = useState<ScheduleRosterStudent[]>([])
  const [listStudentsLoading, setListStudentsLoading] = useState(false)
- const [dayViewRoster, setDayViewRoster] = useState<Map<string, string[]>>(new Map())
+ const [dayViewRosterByClass, setDayViewRosterByClass] = useState<Map<string, DayViewRosterStudent[]>>(
+  new Map()
+ )
+ const [dayViewLeaveByScheduleId, setDayViewLeaveByScheduleId] = useState<Map<string, Set<string>>>(
+  new Map()
+ )
+ const [assigning, setAssigning] = useState(false)
 
  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null)
  const [moveSaving, setMoveSaving] = useState(false)
@@ -343,6 +396,7 @@ export function ScheduleManagePage() {
 
  const [cancelTarget, setCancelTarget] = useState<ScheduleManageRow | null>(null)
  const [cancelSaving, setCancelSaving] = useState(false)
+ const [substituteTarget, setSubstituteTarget] = useState<ScheduleManageRow | null>(null)
 
  const teacherScopeId = getTeacherScopeTeacherId()
 const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
@@ -387,9 +441,10 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  }, [reload, startInitialized])
 
  useEffect(() => {
-  const view = searchParams.get("view")
-  const date = searchParams.get("date")
-  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const urlDate = initialUrlDayDateRef.current
+  if (urlDate) {
+   setDisplayStart(urlDate)
+   setDayViewDate(urlDate)
    setStartInitialized(true)
    return
   }
@@ -401,6 +456,9 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
     setDisplayStart(nearest)
     setDayViewDate(nearest)
    })
+   .catch(() => {
+    /* 查詢失敗時維持今天，仍放行載入 */
+   })
    .finally(() => {
     if (!cancelled) setStartInitialized(true)
    })
@@ -411,6 +469,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
  }, [])
 
  useEffect(() => {
+  if (!startInitialized) return
   const view = searchParams.get("view")
   const date = searchParams.get("date")
   if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -418,9 +477,11 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    setDisplayStart(date)
    if (!isMobile) setViewMode("day")
   }
- }, [searchParams, isMobile, setViewMode])
+ }, [searchParams, isMobile, setViewMode, startInitialized])
 
  useEffect(() => {
+  // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
+  if (!startInitialized) return
   if (effectiveViewMode === "day") {
    const params = new URLSearchParams(searchParams)
    if (params.get("view") !== "day" || params.get("date") !== dayViewDate) {
@@ -436,7 +497,7 @@ const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
    params.delete("date")
    setSearchParams(params, { replace: true })
   }
- }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams])
+ }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams, startInitialized])
 
  useEffect(() => {
   if (effectiveViewMode !== "day") return
@@ -595,6 +656,7 @@ useEffect(() => {
  }, [rows])
 
  const canManageSchedules = isMgmtStaff()
+ const canAssignSubstitute = isAdmin()
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
   (s: { scheduled_date: string }) =>
@@ -604,17 +666,21 @@ useEffect(() => {
 
  const filtered = useMemo(() => {
   const q = searchQ.trim().toLowerCase()
+  const issues = new Set(issueFilters)
   return rows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (classFilter !== "all" && r.class_id !== classFilter) return false
+   if (issues.has("noEnroll") && r.enrollCount > 0) return false
+   if (issues.has("private") && r.class_kind !== "private") return false
+   if (issues.has("noRoom") && r.classroom_id != null) return false
    if (q) {
     const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code_full ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
     if (!hay.includes(q)) return false
    }
    return true
   })
- }, [rows, quickFilter, statusFilter, classFilter, searchQ])
+ }, [rows, quickFilter, statusFilter, classFilter, issueFilters, searchQ])
 
  const byDateGroups = useMemo(() => {
   const m = new Map<string, ScheduleManageRow[]>()
@@ -640,36 +706,89 @@ useEffect(() => {
   searchQ.trim() !== "" ||
   classFilter !== "all" ||
   statusFilter !== "all" ||
-  quickFilter != null
+  quickFilter != null ||
+  issueFilters.length > 0
+
+ const toggleIssueFilter = useCallback((id: ScheduleIssueFilter) => {
+  setIssueFilters((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+ }, [setIssueFilters])
+
+ const clearAllFilters = useCallback(() => {
+  setSearchQ("")
+  setClassFilter("all")
+  setStatusFilter("all")
+  setQuickFilter(null)
+  setIssueFilters([])
+ }, [setSearchQ, setClassFilter, setStatusFilter, setQuickFilter, setIssueFilters])
 
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
  useEffect(() => {
   if (effectiveViewMode !== "day") {
-   setDayViewRoster(new Map())
+   setDayViewRosterByClass(new Map())
+   setDayViewLeaveByScheduleId(new Map())
    return
   }
   const classIds = [...new Set(dayFiltered.map((s) => s.class_id).filter(Boolean) as string[])]
   if (classIds.length === 0) {
-   setDayViewRoster(new Map())
+   setDayViewRosterByClass(new Map())
+   setDayViewLeaveByScheduleId(new Map())
    return
   }
   let cancelled = false
-  void Promise.all(
-   classIds.map(async (classId) => {
-    const students = await fetchClassStudents(classId, {
-     scheduleDate: dayViewDate,
-     activeOnly: true,
+  void Promise.all([
+   Promise.all(
+    classIds.map(async (classId) => {
+     const students = await fetchClassStudents(classId, {
+      scheduleDate: dayViewDate,
+      activeOnly: true,
+     })
+     return [
+      classId,
+      students.map((st) => ({ studentId: st.studentId, fullName: st.fullName })),
+     ] as const
     })
-    return [classId, students.map((st) => st.fullName)] as const
-   })
-  ).then((entries) => {
-   if (!cancelled) setDayViewRoster(new Map(entries))
+   ),
+   fetchLeaveStudentIdsForSchedules(dayFiltered),
+  ]).then(([rosterEntries, leaveMap]) => {
+   if (cancelled) return
+   setDayViewRosterByClass(new Map(rosterEntries))
+   setDayViewLeaveByScheduleId(leaveMap)
   })
   return () => {
    cancelled = true
   }
  }, [effectiveViewMode, dayFiltered, dayViewDate])
+
+ const dayViewRoster = useMemo(() => {
+  const m = new Map<string, string[]>()
+  for (const [classId, students] of dayViewRosterByClass.entries()) {
+   m.set(
+    classId,
+    students.map((st) => st.fullName)
+   )
+  }
+  return m
+ }, [dayViewRosterByClass])
+
+ /** 沒有任何學生（沒有報讀或全員請假，且無試堂學生）的排程 */
+ const emptyScheduleIds = useMemo(() => {
+  const out = new Set<string>()
+  for (const s of dayFiltered) {
+   if (!s.class_id) continue
+   const hasTrial = alerts.get(s.id)?.trial ?? false
+   if (hasTrial) continue
+   const roster = dayViewRosterByClass.get(s.class_id) ?? []
+   if (roster.length === 0) {
+    out.add(s.id)
+    continue
+   }
+   const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SET
+   const present = roster.filter((st) => !leave.has(st.studentId))
+   if (present.length === 0) out.add(s.id)
+  }
+  return out
+ }, [dayFiltered, dayViewRosterByClass, dayViewLeaveByScheduleId, alerts])
 
  const roomColumns = useMemo(
   () => classroomsActiveOnDate(rooms, dayViewDate),
@@ -967,6 +1086,105 @@ useEffect(() => {
   [cancelTarget, reload]
  )
 
+ const oneClickAssign = async () => {
+  if (scheduleMgmtLocked || assigning || loading) return
+  if (!canEditAcademicYearForDate(dayViewDate)) {
+   pushBanner({ tone: "warning", title: "無法一鍵分配", message: academicYearEditBlockedMessage() })
+   return
+  }
+
+  const dayRows = rows.filter((s) => s.scheduled_date === dayViewDate)
+  const unassigned = dayRows
+   .filter((s) => !s.status.includes("取消"))
+   .filter((s) => effectiveRoomId(s, activeRoomIdSet) === null)
+   .filter((s) => scheduleIntervalMinutes(s) !== null)
+   .filter((s) => !scheduleRowLocked(s))
+   .slice()
+   .sort((a, b) => (parseHm(a.start_time) ?? 0) - (parseHm(b.start_time) ?? 0))
+
+  if (roomColumns.length === 0) {
+   pushBanner({ tone: "warning", title: "本日沒有可分配的課室", message: "此日期沒有開放的實體課室。" })
+   return
+  }
+  if (unassigned.length === 0) {
+   pushBanner({ tone: "info", title: "本日沒有未編課室的排程" })
+   return
+  }
+
+  const ok = await confirmDialog({
+   title: "一鍵分配課室",
+   description: `本日有 ${unassigned.length} 堂未編課室的排程，將自動填入同時段的空置課室。`,
+   confirmText: "開始分配",
+  })
+  if (ok !== true) return
+
+  setAssigning(true)
+  try {
+   const occupancy = new Map<string, { start: number; end: number }[]>()
+   for (const r of roomColumns) occupancy.set(r.id, [])
+   for (const s of dayRows) {
+    if (s.status.includes("取消")) continue
+    const rid = effectiveRoomId(s, activeRoomIdSet)
+    if (!rid) continue
+    const iv = scheduleIntervalMinutes(s)
+    if (iv) occupancy.get(rid)?.push(iv)
+   }
+
+   const assignments: { id: string; roomId: string }[] = []
+   for (const s of unassigned) {
+    const iv = scheduleIntervalMinutes(s)
+    if (!iv) continue
+    const startStr = formatMin(iv.start)
+    const endStr = formatMin(iv.end)
+    for (const room of roomColumns) {
+     const occ = occupancy.get(room.id)!
+     const hasLocalConflict = occ.some((o) => intervalsOverlapMinutes(iv.start, iv.end, o.start, o.end))
+     if (hasLocalConflict) continue
+     const free = await slotIsFreeForBooking({
+      classroomId: room.id,
+      scheduledDate: dayViewDate,
+      startTime: startStr,
+      endTime: endStr,
+      excludeScheduleId: s.id,
+     })
+     if (!free) continue
+     occ.push(iv)
+     assignments.push({ id: s.id, roomId: room.id })
+     break
+    }
+   }
+
+   for (const a of assignments) {
+    await updateSchedule(a.id, { classroom_id: a.roomId })
+   }
+   await reload()
+
+   const assignedCount = assignments.length
+   const remaining = unassigned.length - assignedCount
+   if (assignedCount === 0) {
+    pushBanner({
+     tone: "warning",
+     title: "一鍵分配未能分配任何排程",
+     message: "同時段的課室皆已被佔用。",
+    })
+   } else {
+    pushBanner({
+     tone: "success",
+     title: `已分配 ${assignedCount} 堂課室`,
+     message: remaining > 0 ? `尚有 ${remaining} 堂因同時段無空置課室而未分配。` : undefined,
+    })
+   }
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "ScheduleManagePage.oneClickAssign",
+    setErr: setPageErr,
+    userMessage: "一鍵分配失敗",
+   })
+  } finally {
+   setAssigning(false)
+  }
+ }
+
  const jumpToday = () => {
   setDisplayStart(todayYmd)
   setDayViewDate(todayYmd)
@@ -993,6 +1211,13 @@ useEffect(() => {
   )
  }
 
+ const dayUnassignedCount = rows.filter(
+  (s) =>
+   s.scheduled_date === dayViewDate &&
+   !s.status.includes("取消") &&
+   effectiveRoomId(s, activeRoomIdSet) === null
+ ).length
+
  return (
   <div className="space-y-5 text-sm leading-relaxed">
    <header className="flex flex-wrap items-start justify-between gap-3">
@@ -1003,7 +1228,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 text-sm text-muted-foreground">
-      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認）。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。沒有任何學生（沒有報讀或全員請假）的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
@@ -1116,6 +1341,32 @@ useEffect(() => {
       <option value="完成">完成</option>
       <option value="取消">取消</option>
      </Select>
+     <div
+      className="flex flex-wrap items-center gap-1.5"
+      role="group"
+      aria-label="進階篩選"
+     >
+      {ISSUE_FILTER_OPTIONS.map(({ id, label, icon: Icon }) => {
+       const active = issueFilters.includes(id)
+       return (
+        <button
+         key={id}
+         type="button"
+         aria-pressed={active}
+         onClick={() => toggleIssueFilter(id)}
+         className={cn(
+          "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
+          active
+           ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+           : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+         )}
+        >
+         <Icon className="h-4 w-4 shrink-0" aria-hidden />
+         {label}
+        </button>
+       )
+      })}
+     </div>
     </div>
 
     <div className="flex flex-wrap items-center gap-2">
@@ -1186,7 +1437,7 @@ useEffect(() => {
     {effectiveViewMode === "day" ? (
      <>
       <div className="flex flex-wrap items-center gap-2">
-       <span className="text-muted-foreground">日視圖日期</span>
+       <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
        <Button
         type="button"
         variant="outline"
@@ -1222,18 +1473,31 @@ useEffect(() => {
        >
         今天
        </Button>
+       <Button
+        type="button"
+        size="default"
+        className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
+        disabled={scheduleMgmtLocked || assigning || loading}
+        onClick={() => void oneClickAssign()}
+       >
+        <Wand2 className="h-4 w-4" aria-hidden />
+        {assigning ? "分配中…" : "一鍵分配"}
+       </Button>
       </div>
       <div className="text-right">
        <span className="tabular-nums text-muted-foreground">
         {loading ? "載入中…" : `本日 ${dayFiltered.length} 堂`}
        </span>
+       {!loading && dayUnassignedCount > 0 ? (
+        <p className="mt-0.5 text-sm text-warning">未編課室 {dayUnassignedCount} 堂</p>
+       ) : null}
        {dayViewFilterActive && dayUnfilteredCount > dayFiltered.length ? (
-        <p className="mt-0.5 text-xs text-warning">
+        <p className="mt-0.5 text-sm text-warning">
          已套用篩選（本日共 {dayUnfilteredCount} 堂，顯示 {dayFiltered.length} 堂）
         </p>
        ) : null}
        {!dayViewDateLoaded && !loading ? (
-        <p className="mt-0.5 text-xs text-warning">正在載入此日排程…</p>
+        <p className="mt-0.5 text-sm text-warning">正在載入此日排程…</p>
        ) : null}
       </div>
      </>
@@ -1266,7 +1530,7 @@ useEffect(() => {
 
    {effectiveViewMode === "day" && scheduleMgmtLocked ? (
     <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
-     你目前僅能檢視日視圖；拖曳與「移動到…」需管理員權限。
+     你目前僅能檢視日視圖；拖曳、「移動到…」與一鍵分配需管理員權限。
     </p>
    ) : null}
 
@@ -1276,12 +1540,7 @@ useEffect(() => {
      <button
       type="button"
       className="ml-2 font-medium underline hover:no-underline"
-      onClick={() => {
-       setSearchQ("")
-       setClassFilter("all")
-       setStatusFilter("all")
-       setQuickFilter(null)
-      }}
+      onClick={clearAllFilters}
      >
       清除篩選
      </button>
@@ -1373,6 +1632,14 @@ useEffect(() => {
                {s.is_extra_lesson ? (
                 <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
                ) : null}
+               {(() => {
+                const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
+                return subTag ? (
+                 <Tag tone={statusToTagTone(subTag)} size="sm">
+                  {subTag}
+                 </Tag>
+                ) : null
+               })()}
                <ScheduleAlertIcons alerts={a} />
               </div>
               {s.status.includes("取消") && s.cancel_reason ? (
@@ -1449,6 +1716,20 @@ useEffect(() => {
                +補堂試堂
               </Link>
                </>
+              ) : null}
+              {canAssignSubstitute ? (
+               <Button
+                type="button"
+                variant="outline"
+                size="default"
+                className="h-11 text-base"
+                onClick={(e) => {
+                 e.stopPropagation()
+                 setSubstituteTarget(s)
+                }}
+               >
+                {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+               </Button>
               ) : null}
               <Button
                type="button"
@@ -1608,6 +1889,14 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3">
             <span className="block break-words">{s.teacher_name ?? "—"}</span>
+            {(() => {
+             const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
+             return subTag ? (
+              <Tag tone={statusToTagTone(subTag)} size="sm" className="mt-1">
+               {subTag}
+              </Tag>
+             ) : null
+            })()}
            </td>
            <td className="min-w-0 align-top px-4 py-3 text-muted-foreground">
             <span className="block break-words">{s.classroom_name ?? "—"}</span>
@@ -1652,6 +1941,19 @@ useEffect(() => {
              >
               確定點名
              </Link>
+             {canAssignSubstitute ? (
+              <Button
+               type="button"
+               variant="link"
+               className="h-auto p-0 text-sm"
+               onClick={(e) => {
+                e.stopPropagation()
+                setSubstituteTarget(s)
+               }}
+              >
+               {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+              </Button>
+             ) : null}
              {canManageSchedules ? (
              <Button
               type="button"
@@ -1725,6 +2027,7 @@ useEffect(() => {
        schedules={dayFiltered}
        alerts={alerts}
        studentRoster={dayViewRoster}
+       emptyScheduleIds={emptyScheduleIds}
        roomColumns={roomColumns}
        activeRoomIdSet={activeRoomIdSet}
        roomColPct={dayViewRoomColPct}
@@ -1758,6 +2061,22 @@ useEffect(() => {
         <span className="font-mono text-muted-foreground">{detailRow.course_code_full ?? ""}</span>
        </p>
        <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
+       {(() => {
+        const subTag = formatScheduleSubstituteTag(
+         {
+          teacher_id: detailRow.teacher_id,
+          teacher_name: detailRow.teacher_name,
+          original_teacher_id: detailRow.original_teacher_id,
+          original_teacher_name: detailRow.original_teacher_name,
+         },
+         teacherScopeId
+        )
+        return subTag ? (
+         <Tag tone={statusToTagTone(subTag)} size="sm">
+          {subTag}
+         </Tag>
+        ) : null
+       })()}
        <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
        <div className="flex flex-wrap items-center gap-2">
         <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
@@ -1767,6 +2086,51 @@ useEffect(() => {
        </div>
        {detailRow.status.includes("取消") && detailRow.cancel_reason ? (
         <p className="text-muted-foreground">取消原因：{detailRow.cancel_reason}</p>
+       ) : null}
+       {canAssignSubstitute ? (
+        <Button
+         type="button"
+         variant="outline"
+         size="sm"
+         onClick={() => {
+          const fromList = rows.find((r) => r.id === detailRow.id)
+          if (fromList) {
+           setSubstituteTarget(fromList)
+           return
+          }
+          setSubstituteTarget({
+           id: detailRow.id,
+           scheduled_date: detailRow.scheduled_date,
+           start_time: detailRow.start_time,
+           end_time: detailRow.end_time,
+           status: detailRow.status,
+           cancel_reason: detailRow.cancel_reason,
+           is_extra_lesson: detailRow.is_extra_lesson,
+           remarks: detailRow.remarks,
+           session_number: null,
+           consecutive_group_id: detailRow.consecutive_group_id,
+           consecutive_slot_index: null,
+           class_id: detailRow.class_id,
+           subject: detailRow.class_subject,
+           class_kind: "group",
+           course_name: null,
+           classLabel: detailRow.class_subject,
+           course_code_full: detailRow.course_code_full,
+           class_day_of_week: null,
+           class_time_slot: null,
+           class_lesson_slots_per_session: 1,
+           teacher_id: detailRow.teacher_id,
+           teacher_name: detailRow.teacher_name,
+           original_teacher_id: detailRow.original_teacher_id,
+           original_teacher_name: detailRow.original_teacher_name,
+           classroom_id: detailRow.classroom_id,
+           classroom_name: detailRow.classroom_name,
+           enrollCount: 0,
+          })
+         }}
+        >
+         {detailRow.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
+        </Button>
        ) : null}
        {canManageSchedules ? (
         <label className="flex items-center gap-2 text-sm">
@@ -1962,6 +2326,19 @@ useEffect(() => {
     saving={cancelSaving}
     onCancel={() => setCancelTarget(null)}
     onConfirm={(reason) => void confirmCancelSchedule(reason)}
+   />
+
+   <AssignSubstituteDialog
+    open={substituteTarget != null}
+    schedule={substituteTarget}
+    onClose={() => setSubstituteTarget(null)}
+    onDone={async () => {
+     await reload()
+     if (detailId) {
+      const s = await getScheduleById(detailId)
+      setDetailRow(s)
+     }
+    }}
    />
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>

@@ -8,6 +8,7 @@ import { MobileNavDrawer } from "@/components/mobile/MobileNavDrawer"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
+import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
 import type { Role } from "@/lib/navStructure"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -19,6 +20,7 @@ export function MobileLayout() {
  const location = useLocation()
  const [navOpen, setNavOpen] = useState(false)
  const { ready, role: authRole, profile } = useAuth()
+ usePasswordChangeNudgeBanner()
  const role = (authRole ?? (localStorage.getItem("mgmt_role") as Role | null)) ?? null
  const userDisplayName =
   profile?.displayName?.trim() ||

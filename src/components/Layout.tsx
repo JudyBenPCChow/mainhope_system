@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
+import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
 import {
  NAV_STRUCTURE,
  filterFooterNavLeaves,
@@ -31,6 +32,7 @@ export function Layout() {
  const location = useLocation()
  const [collapsed, setCollapsed] = useState(initialSidebarCollapsed)
  const { ready, role: authRole, profile } = useAuth()
+ usePasswordChangeNudgeBanner()
  const role = (authRole ?? (localStorage.getItem("mgmt_role") as Role | null)) ?? null
  const userDisplayName =
   profile?.displayName?.trim() ||

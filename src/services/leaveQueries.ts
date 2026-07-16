@@ -499,7 +499,7 @@ export async function fetchUpcomingSchedulesForStudent(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers ( full_name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
   )
   .in("class_id", classIds)
   .gte("scheduled_date", fromYmd)

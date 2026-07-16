@@ -162,7 +162,7 @@ function scheduleOverlapsLessonSlot(
 }
 
 const SCHEDULE_BOARD_SELECT =
- "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code_full, grade, courses ( course_name ) ), teachers ( full_name ), classrooms ( name )"
+ "id, class_id, classroom_id, start_time, end_time, status, remarks, classes ( subject, course_code_full, grade, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), classrooms ( name )"
 
 async function loadEnrollmentNameMapForClassIds(
  classIds: string[]

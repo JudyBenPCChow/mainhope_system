@@ -1,47 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { CheckCircle2, ClipboardCheck, Download, ListChecks, Sparkles } from "lucide-react"
+import { ClipboardCheck } from "lucide-react"
 
-import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import {
+ RollCallClassPanel,
+ type RollCallPanelStats,
+} from "@/components/attendance/RollCallClassPanel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useAppBanner } from "@/lib/appBanner"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
+import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { cn } from "@/lib/utils"
 import {
- ATTENDANCE_STATUS_OPTIONS,
- buildPrefillStatusMap,
- fetchExistingAttendanceMap,
- fetchLeaveStudentIdsForLesson,
- fetchMakeupStudentIdsForSchedules,
- fetchRosterForRollCall,
  fetchSchedulesForRollCallDate,
- fetchSingleSessionNotOnSchedule,
- fetchTrialStudentsForSchedules,
  localYmd,
- saveAttendanceStatusForSchedules,
- type RollCallStudentRow,
 } from "@/services/attendanceQueries"
-import { statusToTagTone } from "@/lib/statusTag"
-import {
- buildRollCallScheduleEntries,
- formatConsecutiveSessionLabel,
- trimTimeHm,
-} from "@/lib/consecutiveLesson"
-import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
-import { supabase } from "@/lib/supabaseClient"
-
-type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" }
 
 function parseYmd(raw: string | null): string | null {
  const v = raw?.slice(0, 10) ?? ""
@@ -49,7 +30,6 @@ function parseYmd(raw: string | null): string | null {
 }
 
 export function RollCallPage() {
- const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
  const [searchParams] = useSearchParams()
  const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
@@ -60,8 +40,10 @@ export function RollCallPage() {
  const [pendingMakeup, setPendingMakeup] = useState(0)
  const [loadingList, setLoadingList] = useState(true)
  const [err, setErr] = useState<string | null>(null)
+ const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
+ const [panelStats, setPanelStats] = useState<Map<string, RollCallPanelStats>>(() => new Map())
+ const dateEditable = useMemo(() => canEditAcademicYearForDate(dateYmd), [dateYmd])
 
- const [activeRollCallKey, setActiveRollCallKey] = useState<string | null>(null)
  const rollCallEntries = useMemo(
   () =>
    buildRollCallScheduleEntries(
@@ -81,35 +63,12 @@ export function RollCallPage() {
    ),
   [schedules]
  )
- const activeEntry = useMemo(
-  () => rollCallEntries.find((e) => e.key === activeRollCallKey) ?? null,
-  [rollCallEntries, activeRollCallKey]
- )
- const activeReminderTimes = useMemo(() => {
-  if (!activeEntry) return null
-  return {
-   startTime: trimTimeHm(activeEntry.start_time),
-   endTime: trimTimeHm(activeEntry.end_time),
-   isConsecutive: activeEntry.isConsecutive,
-  }
- }, [activeEntry])
- const activeScheduleMeta = useMemo(() => {
-  if (!activeEntry) return null
-  const firstId = activeEntry.scheduleIds[0]
-  return schedules.find((s) => s.id === firstId) ?? null
- }, [activeEntry, schedules])
 
- const [students, setStudents] = useState<DisplayStudent[]>([])
- const [notEnrolledNames, setNotEnrolledNames] = useState<string[]>([])
- /** 畫面上選取的狀態（未按「確定」前不寫入資料庫） */
- const [statusMap, setStatusMap] = useState<Map<string, string>>(new Map())
- /** 上次成功「確定」或載入時的已儲存狀態 */
- const [savedMap, setSavedMap] = useState<Map<string, string>>(new Map())
- const [sheetLoading, setSheetLoading] = useState(false)
- const [bulkAction, setBulkAction] = useState<null | "prefill" | "allPresent">(null)
- const [confirmSaving, setConfirmSaving] = useState(false)
- const dateEditable = useMemo(() => canEditAcademicYearForDate(dateYmd), [dateYmd])
- const [sheetErr, setSheetErr] = useState<string | null>(null)
+ const scheduleMetaById = useMemo(() => {
+  const m = new Map<string, ScheduleManageRow>()
+  for (const s of schedules) m.set(s.id, s)
+  return m
+ }, [schedules])
 
  const reloadList = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -140,17 +99,24 @@ export function RollCallPage() {
      consecutive_slot_index: s.consecutive_slot_index ?? null,
     }))
    )
-   setActiveRollCallKey((prev) => {
+   setPanelStats(new Map())
+   setExpandedKeys(() => {
+    const next = new Set<string>()
     if (urlScheduleId) {
      const entry = entries.find((e) => e.scheduleIds.includes(urlScheduleId))
-     if (entry) return entry.key
+     if (entry) {
+      next.add(entry.key)
+      return next
+     }
     }
-    if (prev && entries.some((e) => e.key === prev)) return prev
-    return entries[0]?.key ?? null
+    if (entries[0]) next.add(entries[0].key)
+    return next
    })
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallPage.loadSchedules", setErr })
    setSchedules([])
+   setExpandedKeys(new Set())
+   setPanelStats(new Map())
   } finally {
    setLoadingList(false)
   }
@@ -164,259 +130,64 @@ export function RollCallPage() {
   void reloadList()
  }, [reloadList])
 
- useEffect(() => {
-  if (!isSupabaseConfigured) return
-
-  if (!activeEntry) {
-   setStudents([])
-   setStatusMap(new Map())
-   setSavedMap(new Map())
-   setSheetLoading(false)
-   setSheetErr(null)
-   return
-  }
-
-  if (!activeEntry.class_id) {
-   setSheetErr("此排程未綁定班別，無法開啟點名表。")
-   setStudents([])
-   setStatusMap(new Map())
-   setSavedMap(new Map())
-   setSheetLoading(false)
-   return
-  }
-
-  const classId = activeEntry.class_id
-  const scheduleIds = activeEntry.scheduleIds
-  const lessonDate = activeEntry.scheduled_date
-
-  let cancelled = false
-  setSheetLoading(true)
-  setSheetErr(null)
-
-  void (async () => {
-   try {
-    const primaryScheduleId = scheduleIds[0] ?? ""
-    const [roster, trials, existing, notOnSchedule] = await Promise.all([
-     fetchRosterForRollCall(classId, lessonDate, scheduleIds),
-     fetchTrialStudentsForSchedules(scheduleIds),
-     fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
-     primaryScheduleId
-      ? fetchSingleSessionNotOnSchedule(classId, primaryScheduleId)
-      : Promise.resolve([]),
-    ])
-    if (cancelled) return
-
-    const enrolledIds = roster.map((r) => r.studentId)
-    const display: DisplayStudent[] = roster.map((r) => ({ ...r, source: "enrollment" as const }))
-    for (const t of trials) {
-     if (enrolledIds.includes(t.studentId)) continue
-     display.push({
-      enrollmentId: `trial-${t.studentId}`,
-      studentId: t.studentId,
-      fullName: t.fullName,
-      englishName: t.englishName,
-      grade: t.grade,
-      school: null,
-      enrollDate: null,
-      status: "試堂",
-      source: "trial",
-      contactPhone: t.contactPhone,
-      isSingleSession: false,
-     })
-    }
-
-    display.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
-
-    const sm = new Map<string, string>()
-    for (const row of display) {
-     const ex = existing.get(row.studentId)
-     sm.set(row.studentId, ex?.status ?? "")
-    }
-
-    setStudents(display)
-    setNotEnrolledNames(notOnSchedule.map((r) => r.fullName))
-    setStatusMap(sm)
-    setSavedMap(new Map(sm))
-   } catch (e) {
-    if (!cancelled) {
-     reportUserFacingError(e, { source: "RollCallPage.loadSheet", setErr: setSheetErr })
-     setStudents([])
-     setNotEnrolledNames([])
-     setStatusMap(new Map())
-     setSavedMap(new Map())
-    }
-   } finally {
-    if (!cancelled) setSheetLoading(false)
+ const handlePanelStats = useCallback((stats: RollCallPanelStats) => {
+  setPanelStats((prev) => {
+   const existing = prev.get(stats.key)
+   if (
+    existing &&
+    existing.loaded === stats.loaded &&
+    existing.savedFilled === stats.savedFilled &&
+    existing.studentCount === stats.studentCount &&
+    existing.rollCallSaved === stats.rollCallSaved &&
+    existing.isDirty === stats.isDirty
+   ) {
+    return prev
    }
-  })()
+   return new Map(prev).set(stats.key, stats)
+  })
+ }, [])
 
-  return () => {
-   cancelled = true
-  }
- }, [activeEntry])
+ const setPanelOpen = useCallback((key: string, open: boolean) => {
+  setExpandedKeys((prev) => {
+   const next = new Set(prev)
+   if (open) next.add(key)
+   else next.delete(key)
+   return next
+  })
+ }, [])
 
- const setStatus = (studentId: string, status: string) => {
-  if (!activeEntry?.class_id) return
-  setStatusMap((prev) => new Map(prev).set(studentId, status))
-  setSheetErr(null)
+ const expandAll = () => {
+  setExpandedKeys(new Set(rollCallEntries.map((e) => e.key)))
  }
 
- const applyPrefill = () => {
-  if (!activeEntry?.class_id) {
-   setSheetErr("無法預填：此排程未綁定班別。")
-   return
-  }
-  if (students.length === 0) return
-  const classId = activeEntry.class_id
-  const scheduleIds = activeEntry.scheduleIds
-  const lessonDate = activeEntry.scheduled_date
-  setBulkAction("prefill")
-  setSheetErr(null)
-  void (async () => {
-   try {
-    const [leaveIds, makeupIds] = await Promise.all([
-     fetchLeaveStudentIdsForLesson(scheduleIds, classId, lessonDate),
-     fetchMakeupStudentIdsForSchedules(scheduleIds),
-    ])
-    const rosterIds = students.filter((s) => s.source === "enrollment").map((s) => s.studentId)
-    const trialIds = new Set(students.filter((s) => s.source === "trial").map((s) => s.studentId))
-    const pre = buildPrefillStatusMap({ rosterIds, leaveIds, makeupIds, trialIds })
-    const next = new Map(statusMap)
-    for (const row of students) {
-     const s = pre.get(row.studentId) ?? "出席"
-     next.set(row.studentId, s)
-    }
-    setStatusMap(next)
-   } catch (e) {
-    reportUserFacingError(e, { source: "RollCallPage.saveRow", setErr: setSheetErr })
-   } finally {
-    setBulkAction(null)
-   }
-  })()
+ const collapseAll = () => {
+  setExpandedKeys(new Set())
  }
 
- const applyAllPresent = () => {
-  if (!activeEntry?.class_id) {
-   setSheetErr("無法套用：此排程未綁定班別。")
-   return
-  }
-  if (students.length === 0) return
-  setBulkAction("allPresent")
-  setSheetErr(null)
-  try {
-   const next = new Map(statusMap)
-   for (const row of students) {
-    next.set(row.studentId, "出席")
-   }
-   setStatusMap(next)
-  } finally {
-   setBulkAction(null)
-  }
- }
-
- const confirmRollCall = async () => {
-  if (!activeEntry?.class_id) return
-  if (students.length === 0) return
-  if (!dateEditable) {
-   pushBanner({ tone: "warning", title: "無法儲存點名", message: academicYearEditBlockedMessage() })
-   return
-  }
-  for (const row of students) {
-   const s = (statusMap.get(row.studentId) ?? "").trim()
-   if (!s) {
-    setSheetErr("請為每位學生選擇出席狀態後，再按「確定」完成點名。")
-    return
-   }
-  }
-  setConfirmSaving(true)
-  setSheetErr(null)
-  try {
-   const classId = activeEntry.class_id
-   const lessonDate = activeEntry.scheduled_date
-   const scheduleIds = activeEntry.scheduleIds
-   for (const row of students) {
-    const st = statusMap.get(row.studentId) ?? ""
-    await saveAttendanceStatusForSchedules(
-     row.studentId,
-     classId,
-     lessonDate,
-     scheduleIds,
-     st
-    )
-   }
-   void logMgmtAuditAction({
-    action: "完成點名",
-    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${students.length}`,
-   })
-   setSavedMap(new Map(statusMap))
-   const sessionLabel = formatConsecutiveSessionLabel(activeEntry.sessionNumbers)
-   pushBanner({
-    tone: "success",
-    title: "點名已儲存",
-    message: `${activeEntry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${activeEntry.isConsecutive ? "（連堂計 2 節）" : ""}。`,
-   })
-  } catch (e) {
-   reportUserFacingError(e, { source: "RollCallPage.saveAll", setErr: setSheetErr })
-  } finally {
-   setConfirmSaving(false)
-  }
- }
-
- const exportCsv = () => {
-  if (!activeEntry?.class_id) return
-  const lines = [
-   ["學生", "英文名", "年級", "狀態"].join(","),
-   ...students.map((row) =>
-    [
-     `"${row.fullName.replace(/"/g, '""')}"`,
-     `"${(row.englishName ?? "").replace(/"/g, '""')}"`,
-     row.grade ?? "",
-     statusMap.get(row.studentId) ?? "",
-    ].join(",")
-   ),
-  ]
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  const a = document.createElement("a")
-  a.href = URL.createObjectURL(blob)
-  a.download = `rollcall-${activeEntry.scheduled_date}-${activeEntry.class_id.slice(0, 8)}.csv`
-  a.click()
-  URL.revokeObjectURL(a.href)
- }
-
- /** 已選擇狀態（含未儲存） */
- const draftFilledCount = useMemo(() => {
+ const savedFilledTotal = useMemo(() => {
   let n = 0
-  for (const row of students) {
-   const s = statusMap.get(row.studentId)
-   if (s && s.trim().length > 0) n++
+  for (const s of panelStats.values()) {
+   if (s.loaded) n += s.savedFilled
   }
   return n
- }, [students, statusMap])
+ }, [panelStats])
 
- /** 已寫入資料庫（上次確定後） */
- const savedFilledCount = useMemo(() => {
+ const savedSessionCount = useMemo(() => {
   let n = 0
-  for (const row of students) {
-   const s = savedMap.get(row.studentId)
-   if (s && s.trim().length > 0) n++
+  for (const entry of rollCallEntries) {
+   const s = panelStats.get(entry.key)
+   if (s?.loaded && s.rollCallSaved) n++
   }
   return n
- }, [students, savedMap])
+ }, [panelStats, rollCallEntries])
 
- const isDirty = useMemo(() => {
-  for (const row of students) {
-   const a = statusMap.get(row.studentId) ?? ""
-   const b = savedMap.get(row.studentId) ?? ""
-   if (a !== b) return true
+ const dirtyCount = useMemo(() => {
+  let n = 0
+  for (const s of panelStats.values()) {
+   if (s.isDirty) n++
   }
-  return false
- }, [students, statusMap, savedMap])
-
- /** 本堂是否已完成點名（全部學生皆已寫入資料庫） */
- const rollCallSaved = useMemo(
-  () => students.length > 0 && savedFilledCount === students.length,
-  [students.length, savedFilledCount]
- )
+  return n
+ }, [panelStats])
 
  if (!isSupabaseConfigured) {
   return (
@@ -434,21 +205,23 @@ export function RollCallPage() {
       <ClipboardCheck className="h-7 w-7 text-success" aria-hidden />
       進行點名
       {pendingMakeup > 0 ? (
-      <Tag tone="warning" size="sm">{pendingMakeup} 待補課</Tag>
+       <Tag tone="warning" size="sm">
+        {pendingMakeup} 待補課
+       </Tag>
       ) : null}
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
       {teacherTid
-       ? "專班老師僅見您指派的班別在該日的排程；選擇堂數後開啟點名表。預填會合併班內名單、請假與補堂排程。"
-       : "預設顯示當日所有排程；選擇堂數後開啟點名表。預填會合併班內名單、請假與補堂排程。"}
+       ? "專班老師僅見您指派的班別在該日的排程；展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"
+       : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
      </p>
     </div>
    </header>
 
    {teacherTid ? (
-   <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
+    <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
-   </div>
+    </div>
    ) : null}
    {!dateEditable ? (
     <div
@@ -468,8 +241,10 @@ export function RollCallPage() {
    <section className="grid gap-3 sm:grid-cols-2">
     <div className="rounded-xl border border-success bg-success p-4 text-success-foreground shadow-sm">
      <div className="text-sm font-medium text-success-foreground/90">已儲存點名人次</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{savedFilledCount}</p>
-     <p className="mt-1 text-xs text-success-foreground/85">目前堂數按「確定」後已寫入資料庫的人數</p>
+     <p className="mt-2 text-3xl font-bold tabular-nums">{savedFilledTotal}</p>
+     <p className="mt-1 text-xs text-success-foreground/85">
+      當日已寫入資料庫的人次 · 已點名 {savedSessionCount} / {rollCallEntries.length} 堂
+     </p>
     </div>
     <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
      <div className="text-sm font-medium text-warning-foreground/90">今日堂數</div>
@@ -481,7 +256,12 @@ export function RollCallPage() {
    <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
     <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
      <span>日期</span>
-     <Input type="date" value={dateYmd} onChange={(e) => setDateYmd(e.target.value)} className="h-9 w-full sm:w-[11rem]" />
+     <Input
+      type="date"
+      value={dateYmd}
+      onChange={(e) => setDateYmd(e.target.value)}
+      className="h-9 w-full sm:w-[11rem]"
+     />
     </label>
     <Button
      type="button"
@@ -492,329 +272,60 @@ export function RollCallPage() {
     >
      今天
     </Button>
-    <label className="grid w-full min-w-0 flex-1 gap-1 text-xs text-muted-foreground sm:min-w-[16rem]">
-     <span>選擇排程</span>
-     <Select
-      className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-      value={activeRollCallKey ?? ""}
-      onChange={(e) => setActiveRollCallKey(e.target.value || null)}
+    <div className="flex flex-wrap gap-2">
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-9"
       disabled={rollCallEntries.length === 0}
+      onClick={expandAll}
      >
-      {rollCallEntries.length === 0 ? (
-       <option value="">此日無排程</option>
-      ) : (
-       rollCallEntries.map((entry) => (
-        <option key={entry.key} value={entry.key}>
-         {entry.scheduled_date}
-         {entry.scheduled_date === localYmd() ? "（今天）" : ""} — {entry.classLabel}
-         {entry.course_code_full ? ` (${entry.course_code_full})` : ""}{" "}
-         {formatConsecutiveSessionLabel(entry.sessionNumbers)} {entry.start_time ?? ""}–{entry.end_time ?? ""} —{" "}
-         {entry.teacher_name ?? "—"}
-         {entry.isConsecutive ? " · 連堂" : ""}
-        </option>
-       ))
-      )}
-     </Select>
-    </label>
+      全部展開
+     </Button>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="h-9"
+      disabled={expandedKeys.size === 0}
+      onClick={collapseAll}
+     >
+      全部收合
+     </Button>
+    </div>
     <div className="ml-auto flex flex-wrap items-center gap-2">
-     {isDirty ? (
-     <Tag tone="warning" size="sm">未儲存變更</Tag>
+     {dirtyCount > 0 ? (
+      <Tag tone="warning" size="sm">
+       {dirtyCount} 堂未儲存變更
+      </Tag>
      ) : null}
-    <Tag tone="success" size="sm">已選狀態：{draftFilledCount} / {students.length}</Tag>
     </div>
    </div>
 
    {loadingList ? (
     <p className="text-sm text-muted-foreground">載入排程…</p>
-   ) : !activeEntry ? (
+   ) : rollCallEntries.length === 0 ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此日期沒有可點名的排程</p>
    ) : (
-    <div className={cn("space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm", isMobile && students.length > 0 && "pb-28")}>
-     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-      <div>
-       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="text-lg font-semibold">
-         點名表 · {activeEntry.classLabel} · {formatConsecutiveSessionLabel(activeEntry.sessionNumbers)} ·{" "}
-         {activeEntry.scheduled_date}
-        </h2>
-        {rollCallSaved ? (
-         <Tag tone="success" size="sm">
-          已點名
-         </Tag>
-        ) : (
-         <Tag tone="warning" size="sm">
-          未點名
-         </Tag>
-        )}
-       </div>
-       <p className="text-xs text-muted-foreground">
-        共 {students.length} 位學生（班內報讀 + 試堂）
-        {activeEntry.start_time && activeEntry.end_time
-         ? ` · ${activeEntry.start_time}–${activeEntry.end_time}`
-         : ""}
-        {activeScheduleMeta?.classroom_name ? ` · ${activeScheduleMeta.classroom_name}` : ""}
-        {activeEntry.isConsecutive ? " · 連堂一次點名，計 2 節學費" : ""}
-        <span className="mt-1 block text-amber-900/90">
-         {rollCallSaved
-          ? "本堂已完成點名；若要修改出席狀態，變更後再按「確定」儲存。"
-          : "請先點選出席狀態，再於下方按「確定」寫入資料庫。"}
-        </span>
-       </p>
-       {notEnrolledNames.length > 0 ? (
-        <p className="mt-2 rounded-md border border-info/30 bg-info/5 px-3 py-2 text-sm text-foreground">
-         {notEnrolledNames.map((name) => `${name}沒有報讀此堂`).join("；")}
-         <span className="ml-1 text-muted-foreground">（單堂報讀，非請假）</span>
-        </p>
-       ) : null}
-      </div>
-      <div className="flex flex-wrap gap-2">
-       <Button
-        type="button"
-        size="sm"
-        variant="secondary"
-       className="gap-1 bg-info text-info-foreground hover:bg-info"
-        disabled={sheetLoading || bulkAction !== null || students.length === 0 || !dateEditable}
-        onClick={() => applyPrefill()}
-       >
-        <Sparkles className="h-4 w-4" />
-        {bulkAction === "prefill" ? "預填中…" : "預填狀態"}
-       </Button>
-       <Button
-        type="button"
-        size="sm"
-        className="gap-1 bg-success text-white hover:bg-success"
-        disabled={sheetLoading || bulkAction !== null || students.length === 0 || !dateEditable}
-        onClick={() => applyAllPresent()}
-       >
-        <ListChecks className="h-4 w-4" />
-        {bulkAction === "allPresent" ? "套用中…" : "全部出席"}
-       </Button>
-       <Button type="button" size="sm" variant="outline" className="gap-1" onClick={exportCsv}>
-        <Download className="h-4 w-4" />
-        匯出
-       </Button>
-      </div>
-     </div>
-
-     {sheetErr ? (
-      <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-       {sheetErr}
-      </div>
-     ) : null}
-
-     {sheetLoading ? (
-      <p className="text-sm text-muted-foreground">載入名單…</p>
-     ) : isMobile ? (
-      <div className="space-y-3">
-       {students.map((row, idx) => (
-        <article
-         key={row.studentId}
-         className="rounded-xl border border-border bg-background p-4 shadow-sm"
-        >
-         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-           <p className="text-xs text-muted-foreground">#{idx + 1}</p>
-           <div className="font-medium">
-            {row.fullName}
-            {row.source === "trial" ? (
-             <Tag tone="info" size="sm" className="ml-2 align-middle">
-              試堂
-             </Tag>
-            ) : null}
-            {row.source === "enrollment" && row.isSingleSession ? (
-             <Tag tone={statusToTagTone("單堂報讀")} size="sm" className="ml-2 align-middle">
-              單堂報讀
-             </Tag>
-            ) : null}
-           </div>
-           {row.englishName ? (
-            <div className="text-xs text-muted-foreground">({row.englishName})</div>
-           ) : null}
-           <p className="mt-1 text-sm text-muted-foreground">年級：{row.grade ?? "—"}</p>
-          </div>
-          {activeScheduleMeta && activeReminderTimes ? (
-           <StudentWhatsAppReminderButton
-            compact
-            contactPhone={row.contactPhone}
-            payload={{
-             studentName: row.fullName,
-             subject: activeScheduleMeta.subject,
-             courseCode: activeScheduleMeta.course_code_full,
-             dateYmd: activeEntry.scheduled_date,
-             startTime: activeReminderTimes.startTime,
-             endTime: activeReminderTimes.endTime,
-             isConsecutive: activeReminderTimes.isConsecutive,
-             classroomName: activeScheduleMeta.classroom_name,
-             attendanceStatus: statusMap.get(row.studentId) || null,
-             isTrial: row.source === "trial",
-            }}
-           />
-          ) : null}
-         </div>
-         <div className="mt-3 grid grid-cols-2 gap-2">
-          {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-           <button
-            key={opt}
-            type="button"
-            disabled={!dateEditable}
-            onClick={() => setStatus(row.studentId, opt)}
-            className={cn(
-             "min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-             statusMap.get(row.studentId) === opt
-              ? "border-success bg-success text-white"
-              : "border-border bg-background text-muted-foreground hover:bg-muted/60"
-            )}
-           >
-            {opt}
-           </button>
-          ))}
-         </div>
-        </article>
-       ))}
-      </div>
-     ) : (
-      <div className="overflow-x-auto">
-       <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
-        <thead>
-         <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-          <th className="w-[6%] px-2 py-2 font-medium">#</th>
-          <th className="w-[30%] px-2 py-2 font-medium">學生</th>
-          <th className="w-[12%] px-2 py-2 font-medium">年級</th>
-          <th className="w-[32%] px-2 py-2 font-medium">狀態</th>
-          <th className="w-[20%] px-2 py-2 font-medium">通知</th>
-         </tr>
-        </thead>
-        <tbody>
-         {students.map((row, idx) => (
-          <tr key={row.studentId} className="border-b border-border last:border-0">
-           <td className="px-2 py-2 tabular-nums text-muted-foreground">{idx + 1}</td>
-           <td className="px-2 py-2">
-            <div className="font-medium">
-             {row.fullName}
-             {row.source === "trial" ? (
-              <span className="ml-2 rounded bg-info px-1.5 py-0.5 text-[10px] font-medium text-info-foreground">
-               試堂
-              </span>
-             ) : null}
-             {row.source === "enrollment" && row.isSingleSession ? (
-              <Tag tone={statusToTagTone("單堂報讀")} size="sm" className="ml-2 align-middle">
-               單堂報讀
-              </Tag>
-             ) : null}
-            </div>
-            {row.englishName ? (
-             <div className="text-xs text-muted-foreground">({row.englishName})</div>
-            ) : null}
-           </td>
-           <td className="px-2 py-2 text-muted-foreground">{row.grade ?? "—"}</td>
-           <td className="px-2 py-2">
-            <div className="flex flex-wrap gap-1">
-             {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-              <button
-               key={opt}
-               type="button"
-               disabled={!dateEditable}
-               onClick={() => setStatus(row.studentId, opt)}
-               className={cn(
-                "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                statusMap.get(row.studentId) === opt
-                 ? "border-success bg-success text-white"
-                 : "border-border bg-background text-muted-foreground hover:bg-muted/60"
-               )}
-              >
-               {opt}
-              </button>
-             ))}
-            </div>
-           </td>
-           <td className="px-2 py-2">
-            {activeScheduleMeta && activeReminderTimes ? (
-             <StudentWhatsAppReminderButton
-              compact
-              contactPhone={row.contactPhone}
-              payload={{
-               studentName: row.fullName,
-               subject: activeScheduleMeta.subject,
-               courseCode: activeScheduleMeta.course_code_full,
-               dateYmd: activeEntry.scheduled_date,
-               startTime: activeReminderTimes.startTime,
-               endTime: activeReminderTimes.endTime,
-               isConsecutive: activeReminderTimes.isConsecutive,
-               classroomName: activeScheduleMeta.classroom_name,
-               attendanceStatus: statusMap.get(row.studentId) || null,
-               isTrial: row.source === "trial",
-              }}
-             />
-            ) : null}
-           </td>
-          </tr>
-         ))}
-        </tbody>
-       </table>
-      </div>
-     )}
-
-     {!sheetLoading && students.length > 0 ? (
-      isMobile ? (
-       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(15,23,42,0.25)] backdrop-blur">
-        <div className="mx-auto flex max-w-lg flex-col gap-2">
-         <p className="text-xs text-muted-foreground">
-          {isDirty ? (
-           <span className="font-medium text-amber-800">變更尚未儲存</span>
-          ) : (
-           <span>與上次儲存一致</span>
-          )}
-          <span className="mx-1">·</span>
-          已選 {draftFilledCount} / {students.length}
-         </p>
-         <Button
-          type="button"
-          size="lg"
-          className="w-full gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
-          disabled={
-           confirmSaving ||
-           sheetLoading ||
-           bulkAction !== null ||
-           students.length === 0 ||
-           !isDirty ||
-           !dateEditable
-          }
-          onClick={() => void confirmRollCall()}
-         >
-          <CheckCircle2 className="h-5 w-5" aria-hidden />
-          {confirmSaving ? "儲存中…" : "確定"}
-         </Button>
-        </div>
-       </div>
-      ) : (
-      <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
-       <p className="text-sm text-muted-foreground">
-        {isDirty ? (
-         <span className="font-medium text-amber-800">目前變更尚未儲存，請確認無誤後按「確定」。</span>
-        ) : (
-         <span>與上次儲存內容一致；若要修改請變更狀態後再按「確定」。</span>
-        )}
-       </p>
-       <Button
-        type="button"
-        size="lg"
-        className="shrink-0 gap-2 bg-success text-white hover:bg-success disabled:opacity-60"
-        disabled={
-         confirmSaving ||
-         sheetLoading ||
-         bulkAction !== null ||
-         students.length === 0 ||
-         !isDirty ||
-         !dateEditable
-        }
-        onClick={() => void confirmRollCall()}
-       >
-        <CheckCircle2 className="h-5 w-5" aria-hidden />
-        {confirmSaving ? "儲存中…" : "確定"}
-       </Button>
-      </div>
+    <div className="space-y-3">
+     {rollCallEntries.map((entry) => {
+      const firstId = entry.scheduleIds[0]
+      const meta = firstId ? scheduleMetaById.get(firstId) ?? null : null
+      return (
+       <RollCallClassPanel
+        key={entry.key}
+        entry={entry}
+        scheduleMeta={meta}
+        open={expandedKeys.has(entry.key)}
+        onOpenChange={(open) => setPanelOpen(entry.key, open)}
+        dateEditable={dateEditable}
+        teacherTid={teacherTid}
+        isMobile={isMobile}
+        onStats={handlePanelStats}
+       />
       )
-     ) : null}
+     })}
     </div>
    )}
   </div>

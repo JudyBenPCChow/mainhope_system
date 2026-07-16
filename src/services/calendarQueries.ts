@@ -1,5 +1,4 @@
-import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
-import { getMgmtRole } from "@/lib/mgmtRole"
+import { formatMgmtActorLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 
@@ -52,11 +51,7 @@ type EventParticipantPatch = {
 
 function todoActorLabel(): string {
  if (typeof localStorage === "undefined") return "系統"
- const r = localStorage.getItem("mgmt_role")
- if (r === "admin") return `管理員（${DEMO_ADMIN_GREETING_NAME}）`
- if (r === "alien") return `外星人（${DEMO_ALIEN_GREETING_NAME}）`
- if (r === "teacher") return "專班老師（演示）"
- return "未登入"
+ return formatMgmtActorLabel(getMgmtRole())
 }
 
 export function normalizeTodoTags(tags: string[]): string[] {

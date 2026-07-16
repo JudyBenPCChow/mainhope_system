@@ -141,7 +141,7 @@ export async function fetchSchedulesForRoomCalendar(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name )"
+   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
   )
   .in("classroom_id", roomIds)
   .gte("scheduled_date", fromYmd)
@@ -192,7 +192,7 @@ export async function fetchSchedulesWithoutClassroom(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers ( full_name )"
+   "id, classroom_id, scheduled_date, start_time, end_time, status, class_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
   )
   .is("classroom_id", null)
   .gte("scheduled_date", fromYmd)
