@@ -109,6 +109,7 @@ import {
 } from "@/services/studentQueries"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
+ SINGLE_SESSION_ENROLLMENT,
  SUMMER_ENROLLMENT_FORM_OPTIONS,
  type EnrollmentFormValue,
  type EnrollmentPeriod,
