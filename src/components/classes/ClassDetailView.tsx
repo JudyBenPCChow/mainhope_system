@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, BookOpen, CalendarDays, Pencil, ScrollText, Users } from "lucide-react"
+import {
+ ArrowLeft,
+ BookOpen,
+ CalendarDays,
+ Pencil,
+ ScrollText,
+ TriangleAlert,
+ Users,
+} from "lucide-react"
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
 import { Button } from "@/components/ui/button"
@@ -40,6 +48,8 @@ import {
  formatClassTimeDisplay,
  isConsecutiveClass,
 } from "@/lib/consecutiveLesson"
+import { summarizeClassTeacherScheduleMismatch } from "@/lib/privateClassTeacherAudit"
+import { sortSchedulesByDateTime } from "@/services/privateTutoringQueries"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -234,6 +244,7 @@ export function ClassDetailView() {
  const [privateLightPrice, setPrivateLightPrice] = useState("")
  const [privateLightErr, setPrivateLightErr] = useState<string | null>(null)
  const [privateLightSaving, setPrivateLightSaving] = useState(false)
+ const [privateTeacherSyncing, setPrivateTeacherSyncing] = useState(false)
  const [privateBookOpen, setPrivateBookOpen] = useState(false)
  const [privateBookDate, setPrivateBookDate] = useState(() => localYmd())
  const [privateBookSlotIdx, setPrivateBookSlotIdx] = useState(0)
@@ -450,14 +461,21 @@ export function ClassDetailView() {
  const today = localYmd()
 
  const schedFiltered = useMemo(() => {
-  return schedules.filter((s) => {
+  const filtered = schedules.filter((s) => {
    if (schedFilter === "all") return true
    if (schedFilter === "cancel") return s.status.includes("取消")
    if (schedFilter === "past")
     return s.scheduled_date < today && !s.status.includes("取消")
    return s.scheduled_date >= today && !s.status.includes("取消")
   })
+  /** 一對一／一對二與小組課皆依上課日期、時間先後（不依堂次編號） */
+  return sortSchedulesByDateTime(filtered)
  }, [schedules, schedFilter, today])
+
+ const privateTeacherMismatch = useMemo(() => {
+  if (!isPrivateClass || !cls) return null
+  return summarizeClassTeacherScheduleMismatch(cls.teacher_id, schedules)
+ }, [isPrivateClass, cls, schedules])
 
  const parts = useMemo(() => {
   let fut = 0
@@ -601,14 +619,17 @@ export function ClassDetailView() {
   setPrivateLightSaving(true)
   setPrivateLightErr(null)
   try {
-   await updatePrivateClassSettings(cls.id, {
+   const result = await updatePrivateClassSettings(cls.id, {
     teacherId: privateLightTeacherId || null,
     pricePerLesson: priceNum,
    })
    pushBanner({
     tone: "success",
     title: "已更新私人班別設定",
-    message: "老師／學費已儲存。",
+    message:
+     result.syncedScheduleCount > 0
+      ? `老師／學費已儲存；已同步 ${result.syncedScheduleCount} 堂未取消排程的負責老師。`
+      : "老師／學費已儲存。",
    })
    setPrivateLightOpen(false)
    await reload()
@@ -621,6 +642,40 @@ export function ClassDetailView() {
    setPrivateLightSaving(false)
   }
  }, [cls, privateLightPrice, privateLightTeacherId, pushBanner, reload])
+
+ const syncPrivateTeacherToSchedules = useCallback(async () => {
+  if (!cls?.teacher_id) {
+   pushBanner({
+    tone: "warning",
+    title: "尚未指定班別老師",
+    message: "請先在「編輯老師／學費」指定負責老師，再同步排程。",
+   })
+   return
+  }
+  setPrivateTeacherSyncing(true)
+  try {
+   const result = await updatePrivateClassSettings(cls.id, {
+    teacherId: cls.teacher_id,
+    pricePerLesson: cls.price_per_lesson,
+   })
+   pushBanner({
+    tone: "success",
+    title: "已同步排程老師",
+    message:
+     result.syncedScheduleCount > 0
+      ? `已更新 ${result.syncedScheduleCount} 堂未取消排程的負責老師。`
+      : "排程老師已與班別一致，無需變更。",
+   })
+   await reload()
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "ClassDetailView.syncPrivateTeacherToSchedules",
+    setErr: setPageErr,
+   })
+  } finally {
+   setPrivateTeacherSyncing(false)
+  }
+ }, [cls, pushBanner, reload])
 
  const openPrivateBook = useCallback(async () => {
   if (!cls) return
@@ -1444,6 +1499,48 @@ export function ClassDetailView() {
       >
        返回一對一／一對二學生
       </Link>
+     </div>
+    ) : null}
+    {isPrivateClass && privateTeacherMismatch && privateTeacherMismatch.mismatchCount > 0 ? (
+     <div
+      role="alert"
+      className="mx-auto mb-4 max-w-5xl rounded-md border border-warning/50 bg-warning/10 px-3 py-3 text-sm text-foreground"
+     >
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+       <div className="min-w-0 space-y-1">
+        <p className="flex items-start gap-2 font-medium text-warning-foreground">
+         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+         班別老師與排程老師不一致（{privateTeacherMismatch.mismatchCount}／
+         {privateTeacherMismatch.activeCount} 堂）
+        </p>
+        <p className="text-muted-foreground">
+         老師時間表只認排程上的老師。目前：排程老師為空{" "}
+         {privateTeacherMismatch.nullScheduleTeacherCount} 堂
+         {privateTeacherMismatch.differentTeacherCount > 0
+          ? `；與班別老師不同 ${privateTeacherMismatch.differentTeacherCount} 堂`
+          : ""}
+         {privateTeacherMismatch.substituteOriginalMismatchCount > 0
+          ? `；代堂原任不符 ${privateTeacherMismatch.substituteOriginalMismatchCount} 堂`
+          : ""}
+         。
+         {!cls?.teacher_id
+          ? "請先指定班別負責老師。"
+          : "可同步為班別負責老師，或到「編輯老師／學費」重新儲存。"}
+        </p>
+       </div>
+       {canEditPrivateLight && cls?.teacher_id ? (
+        <Button
+         type="button"
+         size="sm"
+         variant="outline"
+         className="shrink-0 border-warning/60"
+         disabled={privateTeacherSyncing}
+         onClick={() => void syncPrivateTeacherToSchedules()}
+        >
+         {privateTeacherSyncing ? "同步中…" : "同步排程老師"}
+        </Button>
+       ) : null}
+      </div>
      </div>
     ) : null}
     {tab === "basic" && cls ? (
@@ -2434,6 +2531,9 @@ export function ClassDetailView() {
           </option>
          ))}
         </Select>
+        <p className="text-xs text-muted-foreground">
+         變更老師後，會同步此班所有未取消排程的負責老師（老師時間表依排程老師顯示）。
+        </p>
        </div>
        <div className="space-y-1">
         <label className="text-xs text-muted-foreground">每節學費</label>

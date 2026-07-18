@@ -42,10 +42,11 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - **UI 一致性**：下拉用共用 `Select`/`MultiSelect`，狀態標籤用 `Tag` + `statusToTagTone`，日期用共用 `Input type="date"`，通知用 Banner、確認用 Confirm Dialog（禁 `alert`/`confirm`/原生 `<select>`）。完整條文見 `docs/UI_DESIGN_INSTRUCTIONS.md`。
 - **RLS**：anon key 會出現在瀏覽器；改 schema 必須一併檢視 RLS。上線前移除 `baseline.sql` 的 `dev_*` 全開政策。見 `docs/RLS_ROLLOUT.md`。
 - **角色**：目前前端角色為 `localStorage.mgmt_role`（`admin`/`teacher`/`alien`，見 `src/lib/mgmtRole.ts`），**不等於** Supabase Auth，前端隱藏按鈕不代表有權限保護。
+- **排程篩選依角色**：admin／alien 有老師多選＋三個進階篩選；專班老師資料已鎖定自己、不顯示老師篩選，進階篩選僅「未有學生報讀」。見 `docs/AGENT_HANDOFF.md` §6.2。
 
 ## 深入文件
 
-- 架構與資料層細節：`docs/AGENT_HANDOFF.md`
+- 架構與資料層細節：`docs/AGENT_HANDOFF.md`（含 §6.2 排程管理篩選依角色）
 - 學生編號（學號）生成規則：`docs/STUDENT_CODE.md`（程式來源 `src/lib/studentCode.ts`）
 - UI 設計規範：`docs/UI_DESIGN_INSTRUCTIONS.md`
 - 學生狀態分類與判定（注冊／報讀／活躍、子字串誤判防呆）：`docs/STUDENT_STATUS_CLASSIFICATION.md`

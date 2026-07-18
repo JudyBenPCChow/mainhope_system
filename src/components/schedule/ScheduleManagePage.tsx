@@ -14,7 +14,6 @@ import {
  LayoutGrid,
  List,
  Plus,
- Search,
  User,
  UserRound,
  UserX,
@@ -75,6 +74,7 @@ import {
  fetchLeaveStudentIdsForSchedules,
  fetchLeaveStudentsForSchedule,
  fetchMakeupStudentsForSchedule,
+ fetchScheduleIdsWithRollCallTargets,
  fetchTrialStudentsForSchedule,
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
@@ -130,6 +130,9 @@ const ISSUE_FILTER_OPTIONS: {
 
 /** 專班老師僅保留與自己班務相關的進階篩選 */
 const TEACHER_ISSUE_FILTER_IDS: ReadonlySet<ScheduleIssueFilter> = new Set(["noEnroll"])
+
+/** 老師篩選：未指派 teacher_id 的哨兵值 */
+const UNASSIGNED_TEACHER_ID = "__unassigned__"
 
 type PendingMove = {
  row: ScheduleManageRow
@@ -346,8 +349,10 @@ export function ScheduleManagePage() {
   "mgmt_schedule_quickFilter",
   null
  )
- const [searchQ, setSearchQ] = usePersistentState<string>("mgmt_schedule_searchQ", "")
- const [classFilter, setClassFilter] = usePersistentState<string>("mgmt_schedule_classFilter", "all")
+ const [teacherFilterIds, setTeacherFilterIds] = usePersistentState<string[]>(
+  "mgmt_schedule_teacherFilterIds",
+  []
+ )
  const [statusFilter, setStatusFilter] = usePersistentState<string>("mgmt_schedule_statusFilter", "all")
  const [issueFilters, setIssueFilters] = usePersistentState<ScheduleIssueFilter[]>(
   "mgmt_schedule_issueFilters",
@@ -412,6 +417,8 @@ export function ScheduleManagePage() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [substituteTarget, setSubstituteTarget] = useState<ScheduleManageRow | null>(null)
  const [rollCallScheduleId, setRollCallScheduleId] = useState<string | null>(null)
+ /** null = 尚未載入；載入後為有可點名對象的排程 id */
+ const [rollCallEligibleIds, setRollCallEligibleIds] = useState<Set<string> | null>(null)
 
  const teacherScopeId = getTeacherScopeTeacherId()
  const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
@@ -498,24 +505,107 @@ export function ScheduleManagePage() {
   }
  }, [searchParams, isMobile, setViewMode, startInitialized])
 
+ useEffect(() => {
+  let cancelled = false
+  const candidates = rows.filter(
+   (s) => !String(s.status ?? "").includes("取消") && s.class_id != null && String(s.class_id).length > 0
+  )
+  if (candidates.length === 0) {
+   setRollCallEligibleIds(new Set())
+   return
+  }
+  setRollCallEligibleIds(null)
+  void fetchScheduleIdsWithRollCallTargets(candidates)
+   .then((ids) => {
+    if (!cancelled) setRollCallEligibleIds(ids)
+   })
+   .catch(() => {
+    if (!cancelled) setRollCallEligibleIds(new Set())
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [rows])
+
+ const openRollCallForSchedule = useCallback(
+  (scheduleId: string) => {
+   const notifyEmpty = () => {
+    pushBanner({
+     tone: "info",
+     title: "暫無可點名學生",
+     message: "此堂沒有就讀中報讀、試堂或補堂學生，無需點名。",
+    })
+   }
+   if (rollCallEligibleIds != null) {
+    if (!rollCallEligibleIds.has(scheduleId)) {
+     notifyEmpty()
+     return
+    }
+    setRollCallScheduleId(scheduleId)
+    return
+   }
+   const schedule = rows.find((r) => r.id === scheduleId)
+   if (!schedule?.class_id) {
+    notifyEmpty()
+    return
+   }
+   void fetchScheduleIdsWithRollCallTargets([schedule]).then((ids) => {
+    if (!ids.has(scheduleId)) {
+     notifyEmpty()
+     return
+    }
+    setRollCallScheduleId(scheduleId)
+   })
+  },
+  [rollCallEligibleIds, pushBanner, rows]
+ )
+
+ const canOpenRollCall = useCallback(
+  (scheduleId: string) => rollCallEligibleIds == null || rollCallEligibleIds.has(scheduleId),
+  [rollCallEligibleIds]
+ )
+
  /** 深連結：/Schedule?schedule_id=…&rollcall=1（可附 date）→ 開點名紙後清參數 */
  useEffect(() => {
   if (!startInitialized || loading) return
   const wantRollCall = searchParams.get("rollcall") === "1"
   const sid = searchParams.get("schedule_id")?.trim()
   if (!wantRollCall || !sid) return
-  if (!rows.some((r) => r.id === sid)) return
-  setRollCallScheduleId(sid)
+  const schedule = rows.find((r) => r.id === sid)
+  if (!schedule) return
+
+  const clearRollCallParams = () => {
+   const params = new URLSearchParams(searchParams)
+   params.delete("rollcall")
+   params.delete("schedule_id")
+   setSearchParams(params, { replace: true })
+  }
+
   const date = searchParams.get("date")
   if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
    setDisplayStart(date)
    setDayViewDate(date)
   }
-  const params = new URLSearchParams(searchParams)
-  params.delete("rollcall")
-  params.delete("schedule_id")
-  setSearchParams(params, { replace: true })
- }, [startInitialized, loading, rows, searchParams, setSearchParams])
+
+  let cancelled = false
+  void fetchScheduleIdsWithRollCallTargets([schedule]).then((ids) => {
+   if (cancelled) return
+   if (!ids.has(sid)) {
+    pushBanner({
+     tone: "info",
+     title: "暫無可點名學生",
+     message: "此堂沒有就讀中報讀、試堂或補堂學生，無需點名。",
+    })
+    clearRollCallParams()
+    return
+   }
+   setRollCallScheduleId(sid)
+   clearRollCallParams()
+  })
+  return () => {
+   cancelled = true
+  }
+ }, [startInitialized, loading, rows, searchParams, setSearchParams, pushBanner])
 
  useEffect(() => {
   // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
@@ -687,14 +777,22 @@ useEffect(() => {
   .catch(() => setTeacherScopeName("專班老師"))
 }, [teacherScopeId])
 
- const classFilterOptions = useMemo(() => {
+ const teacherOptions = useMemo(() => {
   const m = new Map<string, string>()
+  let hasUnassigned = false
   for (const r of rows) {
-   if (!r.class_id) continue
-   const label = r.classLabel
-   m.set(r.class_id, label)
+   if (!r.teacher_id) {
+    hasUnassigned = true
+    continue
+   }
+   const label = r.teacher_name?.trim() || "未命名老師"
+   if (!m.has(r.teacher_id)) m.set(r.teacher_id, label)
   }
-  return [...m.entries()].map(([id, label]) => ({ id, label }))
+  const list = [...m.entries()]
+   .map(([id, label]) => ({ id, label }))
+   .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
+  if (hasUnassigned) list.push({ id: UNASSIGNED_TEACHER_ID, label: "未指派" })
+  return list
  }, [rows])
 
  const canManageSchedules = isMgmtStaff()
@@ -722,23 +820,27 @@ useEffect(() => {
   [teacherScopeId, issueFilters]
  )
 
+ const effectiveTeacherFilterIds = useMemo(
+  () => (teacherScopeId ? [] : teacherFilterIds),
+  [teacherScopeId, teacherFilterIds]
+ )
+
  const filtered = useMemo(() => {
-  const q = searchQ.trim().toLowerCase()
   const issues = new Set(effectiveIssueFilters)
+  const teacherSet = new Set(effectiveTeacherFilterIds)
   return rows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
-   if (classFilter !== "all" && r.class_id !== classFilter) return false
    if (issues.has("noEnroll") && r.enrollCount > 0) return false
    if (issues.has("private") && r.class_kind !== "private") return false
    if (issues.has("noRoom") && r.classroom_id != null) return false
-   if (q && !teacherScopeId) {
-    const hay = `${r.classLabel} ${r.course_name ?? ""} ${r.subject} ${r.course_code_full ?? ""} ${r.teacher_name ?? ""}`.toLowerCase()
-    if (!hay.includes(q)) return false
+   if (teacherSet.size > 0) {
+    const key = r.teacher_id ?? UNASSIGNED_TEACHER_ID
+    if (!teacherSet.has(key)) return false
    }
    return true
   })
- }, [rows, quickFilter, statusFilter, classFilter, effectiveIssueFilters, searchQ, teacherScopeId])
+ }, [rows, quickFilter, statusFilter, effectiveIssueFilters, effectiveTeacherFilterIds])
 
  const rollCallTarget = useMemo(() => {
   if (!rollCallScheduleId) return null
@@ -780,8 +882,7 @@ useEffect(() => {
  )
 
  const dayViewFilterActive =
-  (!teacherScopeId && searchQ.trim() !== "") ||
-  classFilter !== "all" ||
+  effectiveTeacherFilterIds.length > 0 ||
   statusFilter !== "all" ||
   quickFilter != null ||
   effectiveIssueFilters.length > 0
@@ -790,13 +891,19 @@ useEffect(() => {
   setIssueFilters((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
  }, [setIssueFilters])
 
+ const toggleTeacherFilter = useCallback(
+  (id: string) => {
+   setTeacherFilterIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  },
+  [setTeacherFilterIds]
+ )
+
  const clearAllFilters = useCallback(() => {
-  setSearchQ("")
-  setClassFilter("all")
+  setTeacherFilterIds([])
   setStatusFilter("all")
   setQuickFilter(null)
   setIssueFilters([])
- }, [setSearchQ, setClassFilter, setStatusFilter, setQuickFilter, setIssueFilters])
+ }, [setTeacherFilterIds, setStatusFilter, setQuickFilter, setIssueFilters])
 
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
@@ -1388,130 +1495,138 @@ useEffect(() => {
     鈴鐺為總覽；學士帽＝試堂、循環箭頭＝請假／補堂、攝影機＝備註需錄影、叉圈＝請假。各圖示可將滑鼠停在上面查看說明。
    </p>
 
-   <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-center lg:justify-between md:p-5">
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-     {!teacherScopeId ? (
-     <div className="relative min-w-[12rem] flex-1">
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-      <Input
-       placeholder="搜尋班別 / 老師…"
-       value={searchQ}
-       onChange={(e) => setSearchQ(e.target.value)}
-       className="h-10 pl-10 text-sm transition-colors hover:border-info/60"
-      />
+   <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
+    <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <Select
+       className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
+       value={statusFilter}
+       onChange={(e) => setStatusFilter(e.target.value)}
+      >
+       <option value="all">全部狀態</option>
+       <option value="正常">正常</option>
+       <option value="完成">完成</option>
+       <option value="取消">取消</option>
+      </Select>
+      {issueFilterOptions.length > 0 ? (
+       <div
+        className="flex flex-wrap items-center gap-1.5"
+        role="group"
+        aria-label="進階篩選"
+       >
+        {issueFilterOptions.map(({ id, label, icon: Icon }) => {
+         const active = effectiveIssueFilters.includes(id)
+         return (
+          <button
+           key={id}
+           type="button"
+           aria-pressed={active}
+           onClick={() => toggleIssueFilter(id)}
+           className={cn(
+            "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
+            active
+             ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+             : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+           )}
+          >
+           <Icon className="h-4 w-4 shrink-0" aria-hidden />
+           {label}
+          </button>
+         )
+        })}
+       </div>
+      ) : null}
      </div>
-     ) : null}
-     <Select
-      className={cn(
-       "h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60",
-       teacherScopeId && "min-w-[12rem] flex-1"
-      )}
-      value={classFilter}
-      onChange={(e) => setClassFilter(e.target.value)}
-     >
-      <option value="all">{teacherScopeId ? "全部我的班別" : "全部班別"}</option>
-      {classFilterOptions.map((o) => (
-       <option key={o.id} value={o.id}>
-        {o.label}
-       </option>
-      ))}
-     </Select>
-     <Select
-      className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
-      value={statusFilter}
-      onChange={(e) => setStatusFilter(e.target.value)}
-     >
-      <option value="all">全部狀態</option>
-      <option value="正常">正常</option>
-      <option value="完成">完成</option>
-      <option value="取消">取消</option>
-     </Select>
-     {issueFilterOptions.length > 0 ? (
-     <div
-      className="flex flex-wrap items-center gap-1.5"
-      role="group"
-      aria-label="進階篩選"
-     >
-      {issueFilterOptions.map(({ id, label, icon: Icon }) => {
-       const active = effectiveIssueFilters.includes(id)
-       return (
+
+     <div className="flex flex-wrap items-center gap-2">
+      <div
+       className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5"
+       role="tablist"
+       aria-label="檢視模式"
+      >
+       {(
+        [
+         { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
+         ...(!isMobile
+          ? ([
+             { id: "list" as const, label: "列表", icon: List },
+             { id: "day" as const, label: "日視圖", icon: CalendarDays },
+            ] as const)
+          : []),
+        ] as const
+       ).map(({ id, label, icon: Icon }) => (
         <button
          key={id}
          type="button"
-         aria-pressed={active}
-         onClick={() => toggleIssueFilter(id)}
+         role="tab"
+         aria-selected={effectiveViewMode === id}
+         onClick={() => setViewMode(id)}
          className={cn(
-          "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
-          active
-           ? "border-info bg-info/10 text-info ring-1 ring-info/40"
-           : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+          "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
+          effectiveViewMode === id
+           ? "bg-primary text-primary-foreground shadow-sm"
+           : "text-muted-foreground hover:bg-background hover:text-foreground"
          )}
         >
          <Icon className="h-4 w-4 shrink-0" aria-hidden />
          {label}
         </button>
+       ))}
+      </div>
+      <Button
+       type="button"
+       variant="outline"
+       size="default"
+       className="gap-1.5 text-sm transition-all hover:bg-muted"
+       onClick={exportCsv}
+      >
+       <Download className="h-4 w-4" />
+       匯出
+      </Button>
+      <Button
+       type="button"
+       size="default"
+       className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
+       disabled={scheduleMgmtLocked}
+       onClick={openAdd}
+      >
+       <Plus className="h-4 w-4" />
+       新增排程
+      </Button>
+     </div>
+    </div>
+
+    {!teacherScopeId && teacherOptions.length > 0 ? (
+     <div
+      className="flex max-h-28 min-w-0 flex-wrap items-center gap-1.5 overflow-y-auto border-t border-border/70 pt-3"
+      role="group"
+      aria-label="老師篩選"
+     >
+      <span className="mr-1 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
+       <User className="h-4 w-4 shrink-0" aria-hidden />
+       老師
+      </span>
+      {teacherOptions.map(({ id, label }) => {
+       const active = effectiveTeacherFilterIds.includes(id)
+       return (
+        <button
+         key={id}
+         type="button"
+         aria-pressed={active}
+         onClick={() => toggleTeacherFilter(id)}
+         className={cn(
+          "inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-all",
+          active
+           ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+           : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+         )}
+        >
+         {label}
+        </button>
        )
       })}
      </div>
-     ) : null}
-    </div>
-
-    <div className="flex flex-wrap items-center gap-2">
-     <div
-      className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5"
-      role="tablist"
-      aria-label="檢視模式"
-     >
-      {(
-       [
-        { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
-        ...(!isMobile
-         ? ([
-            { id: "list" as const, label: "列表", icon: List },
-            { id: "day" as const, label: "日視圖", icon: CalendarDays },
-           ] as const)
-         : []),
-       ] as const
-      ).map(({ id, label, icon: Icon }) => (
-       <button
-        key={id}
-        type="button"
-        role="tab"
-        aria-selected={effectiveViewMode === id}
-        onClick={() => setViewMode(id)}
-        className={cn(
-         "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
-         effectiveViewMode === id
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:bg-background hover:text-foreground"
-        )}
-       >
-        <Icon className="h-4 w-4 shrink-0" aria-hidden />
-        {label}
-       </button>
-      ))}
-     </div>
-     <Button
-      type="button"
-      variant="outline"
-      size="default"
-      className="gap-1.5 text-sm transition-all hover:bg-muted"
-      onClick={exportCsv}
-     >
-      <Download className="h-4 w-4" />
-      匯出
-     </Button>
-     <Button
-      type="button"
-      size="default"
-      className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
-      disabled={scheduleMgmtLocked}
-      onClick={openAdd}
-     >
-      <Plus className="h-4 w-4" />
-      新增排程
-     </Button>
-    </div>
+    ) : null}
    </div>
 
    {isMobile && (viewMode === "list" || viewMode === "day" || searchParams.get("view") === "day") ? (
@@ -1824,10 +1939,12 @@ useEffect(() => {
               <Button
                type="button"
                size="default"
-               className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success"
+               className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
+               disabled={!canOpenRollCall(s.id)}
+               title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
                onClick={(e) => {
                 e.stopPropagation()
-                setRollCallScheduleId(s.id)
+                openRollCallForSchedule(s.id)
                }}
               >
                <Check className="h-4 w-4" aria-hidden />
@@ -2028,10 +2145,12 @@ useEffect(() => {
              ) : null}
              <button
               type="button"
-              className="text-sm font-medium text-success hover:underline"
+              className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+              disabled={!canOpenRollCall(s.id)}
+              title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
               onClick={(e) => {
                e.stopPropagation()
-               setRollCallScheduleId(s.id)
+               openRollCallForSchedule(s.id)
               }}
              >
               確定點名

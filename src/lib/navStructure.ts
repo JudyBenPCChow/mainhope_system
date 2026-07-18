@@ -21,6 +21,7 @@ import {
  NotebookTabs,
  Percent,
  Plus,
+ Scale,
  School,
  ScrollText,
  Settings,
@@ -108,6 +109,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
+   { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
    { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
    { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },
    { path: "/Teachers", label: "老師管理", roles: ["admin", "alien"], icon: UserRound },

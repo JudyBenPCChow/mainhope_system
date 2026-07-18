@@ -9,6 +9,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
  formatNextLessonLabel,
+ sortSchedulesByDateTime,
  type PrivateClassScheduleRow,
  type PrivateTutoringStudentRow,
 } from "@/services/privateTutoringQueries"
@@ -61,7 +62,9 @@ export function PrivateTutoringStudentDisclosure({
  /** 已全部退讀且無下一堂：僅展示靜態列，不提供展開（禁用態） */
  const expandDisabled = allWithdrawn && primary.upcomingLessonCount === 0
 
- const activeSchedules = (schedules ?? []).filter((s) => !isCancelledStatus(s.status))
+ const activeSchedules = sortSchedulesByDateTime(
+  (schedules ?? []).filter((s) => !isCancelledStatus(s.status))
+ )
 
  const summaryInteractiveGuard = (e: MouseEvent<HTMLElement>) => {
   const target = e.target as HTMLElement | null

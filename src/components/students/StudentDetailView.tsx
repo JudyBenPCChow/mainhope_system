@@ -118,6 +118,7 @@ import {
  countBoundSchedulesForEnrollment,
  fetchLessonBalancesForStudent,
  insertPendingLesson,
+ isLessonBalanceNeedsFollowUp,
  PENDING_LESSON_REASONS,
  updatePendingLessonStatus,
  type LessonBalanceRow,
@@ -578,7 +579,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   return map
  }, [lessonBalances])
  const misalignedCount = useMemo(
-  () => lessonBalances.filter((b) => !b.isAligned || b.pendingLessons > 0).length,
+  () => lessonBalances.filter((b) => isLessonBalanceNeedsFollowUp(b)).length,
   [lessonBalances]
  )
  const pickEntitledNum = pickEntitledCount.trim() === "" ? null : Math.floor(Number(pickEntitledCount))

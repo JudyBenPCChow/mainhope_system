@@ -20,6 +20,7 @@ import TodoDetail from "@/pages/TodoDetail"
 import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
 import LeaveManagement from "@/pages/LeaveManagement"
+import LessonBalanceMismatch from "@/pages/LessonBalanceMismatch"
 import Login from "@/pages/Login"
 import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
@@ -62,6 +63,7 @@ export default function App() {
      <Route path="/Users" element={<UserManagement />} />
      <Route path="/Students" element={<Students />} />
      <Route path="/Students/:studentId" element={<StudentDetail />} />
+     <Route path="/LessonBalanceMismatch" element={<LessonBalanceMismatch />} />
      <Route path="/FrontDeskWizard" element={<FrontDeskWizard />} />
      <Route path="/PrivateTutoring" element={<PrivateTutoring />} />
      <Route path="/Teachers" element={<Teachers />} />

@@ -37,9 +37,7 @@ import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { classDisplayName } from "@/lib/courseLabel"
-import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYear,
@@ -131,8 +129,20 @@ export function ClassesListPage() {
  const [dayKey, setDayKey] = usePersistentState<string>("mgmt_classes_dayKey", "全部")
  const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
  const [kindKey, setKindKey] = usePersistentState<string>("mgmt_classes_kindKey", "小組")
- const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
+ /** 僅班別頁有效（session），不再跨頁同步 */
+ const [academicYearFilter, setAcademicYearFilter] = usePersistentState<string>(
+  "mgmt_classes_academicYearFilter",
+  "current"
+ )
  const [filtersOpen, setFiltersOpen] = useState(false)
+
+ useEffect(() => {
+  try {
+   localStorage.removeItem("mgmt_academic_year_filter")
+  } catch {
+   /* ignore */
+  }
+ }, [])
 
  const activeFilterCount = useMemo(() => {
   let n = 0
@@ -234,7 +244,7 @@ export function ClassesListPage() {
  }, [yearOptions, rows])
 
  const selectedYearLabel = useMemo(
-  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
+  () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
   [academicYearFilter, currentAcademicYear]
  )
 

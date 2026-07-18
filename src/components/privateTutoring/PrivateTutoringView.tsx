@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { DoorOpen, Plus, Search, UserRound } from "lucide-react"
+import { DoorOpen, Plus, Search, TriangleAlert, UserRound } from "lucide-react"
 
 import {
  PRIVATE_TUTORING_ROW_GRID,
@@ -49,13 +49,16 @@ import {
  createPrivateRecurringBookings,
  createPrivateTutoringEnrollment,
  fetchPrivateClassSchedules,
+ fetchPrivateScheduleTeacherNullAudit,
  fetchPrivateTutoringStudents,
  insertPrivateBookingSchedules,
  previewPrivateRecurringBookings,
  privateBookingTimeBounds,
  reschedulePrivateLesson,
+ sortSchedulesByDateTime,
  withdrawPrivateEnrollment,
  type PrivateClassScheduleRow,
+ type PrivateScheduleTeacherNullAuditRow,
  type PrivateTutoringStudentRow,
 } from "@/services/privateTutoringQueries"
 import {
@@ -113,6 +116,10 @@ export function PrivateTutoringView() {
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [highlightStudentId, setHighlightStudentId] = useState<string | null>(null)
+ const [teacherNullAudit, setTeacherNullAudit] = useState<PrivateScheduleTeacherNullAuditRow[]>(
+  []
+ )
+ const [teacherNullAuditLoading, setTeacherNullAuditLoading] = useState(false)
 
  const [search, setSearch] = useState("")
  const [regFilter, setRegFilter] = useState<(typeof REGISTRATION_FILTERS)[number]["key"]>("all")
@@ -169,6 +176,22 @@ export function PrivateTutoringView() {
  const [createSaving, setCreateSaving] = useState(false)
  const [createErr, setCreateErr] = useState<string | null>(null)
 
+ const reloadTeacherNullAudit = useCallback(async () => {
+  if (!isSupabaseConfigured || isTeacherPortal) {
+   setTeacherNullAudit([])
+   return
+  }
+  setTeacherNullAuditLoading(true)
+  try {
+   setTeacherNullAudit(await fetchPrivateScheduleTeacherNullAudit())
+  } catch (e) {
+   reportUserFacingError(e, { source: "PrivateTutoringView.reloadTeacherNullAudit" })
+   setTeacherNullAudit([])
+  } finally {
+   setTeacherNullAuditLoading(false)
+  }
+ }, [isTeacherPortal])
+
  const reloadStudents = useCallback(async () => {
   if (!isSupabaseConfigured) return
   setLoading(true)
@@ -177,12 +200,13 @@ export function PrivateTutoringView() {
    const list = await fetchPrivateTutoringStudents()
    const tid = getTeacherScopeTeacherId()
    setRows(tid ? list.filter((r) => r.teacherId === tid) : list)
+   if (!tid) void reloadTeacherNullAudit()
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.reloadStudents", setErr })
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [reloadTeacherNullAudit])
 
  const reloadRooms = useCallback(async () => {
   if (!isSupabaseConfigured || !roomDate) return
@@ -971,7 +995,8 @@ export function PrivateTutoringView() {
  )
 
  const activeUpcomingSchedules = useMemo(
-  () => upcomingSchedules.filter((s) => !isCancelledStatus(s.status)),
+  () =>
+   sortSchedulesByDateTime(upcomingSchedules.filter((s) => !isCancelledStatus(s.status))),
   [upcomingSchedules]
  )
 
@@ -995,6 +1020,68 @@ export function PrivateTutoringView() {
      </Button>
     ) : null}
    </header>
+
+   {!isTeacherPortal && (teacherNullAuditLoading || teacherNullAudit.length > 0) ? (
+    <section
+     role="alert"
+     className="rounded-xl border-2 border-warning/40 bg-warning/10 p-4 shadow-sm md:p-5"
+    >
+     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-foreground">
+       <TriangleAlert className="h-5 w-5 shrink-0 text-warning" aria-hidden />
+       排程老師缺漏稽核
+       <Tag tone="warning" size="sm">
+        {teacherNullAuditLoading
+         ? "…"
+         : `${teacherNullAudit.length} 班／${teacherNullAudit.reduce(
+            (n, r) => n + r.nullScheduleTeacherCount,
+            0
+           )} 堂`}
+       </Tag>
+      </h2>
+      <Button
+       type="button"
+       size="sm"
+       variant="ghost"
+       disabled={teacherNullAuditLoading}
+       onClick={() => void reloadTeacherNullAudit()}
+      >
+       重新稽核
+      </Button>
+     </div>
+     <p className="mb-3 text-sm text-muted-foreground">
+      以下私人班已指定班別老師，但仍有未取消排程的「排程老師」為空；老師時間表會看不到這些堂。請進入班別詳情按「同步排程老師」，或重新儲存老師設定。
+     </p>
+     {teacherNullAuditLoading ? (
+      <p className="text-sm text-muted-foreground">稽核載入中…</p>
+     ) : (
+      <ul className="max-h-56 space-y-2 overflow-y-auto overscroll-contain">
+       {teacherNullAudit.map((row) => (
+        <li
+         key={row.classId}
+         className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-3 py-2 text-sm"
+        >
+         <div className="min-w-0">
+          <Link
+           to={`/Classes/${row.classId}`}
+           state={{ fromPrivateTutoring: true }}
+           className="font-medium text-primary hover:underline"
+          >
+           {row.classSubject}
+          </Link>
+          <span className="ml-2 text-muted-foreground">
+           老師：{row.classTeacherName ?? "—"}
+          </span>
+         </div>
+         <Tag tone="warning" size="sm" className="shrink-0">
+          空老師 {row.nullScheduleTeacherCount}／{row.activeScheduleCount} 堂
+         </Tag>
+        </li>
+       ))}
+      </ul>
+     )}
+    </section>
+   ) : null}
 
    <div className="flex flex-wrap gap-2 border-b border-border pb-1">
     <Button

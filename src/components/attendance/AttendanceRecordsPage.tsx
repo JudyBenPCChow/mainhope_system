@@ -13,9 +13,6 @@ import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
-import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
@@ -96,18 +93,12 @@ export function AttendanceRecordsPage() {
  const [studentKeyword, setStudentKeyword] = useState("")
  const [classFilter, setClassFilter] = useState("all")
  const [teacherFilter, setTeacherFilter] = useState("all")
- const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
  const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; name: string }>>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
- const selectedYearLabel = useMemo(
-  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
-  [academicYearFilter, currentAcademicYear]
- )
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -181,15 +172,8 @@ export function AttendanceRecordsPage() {
      r.classTeacherId === activeTeacherId
    )
   }
-  const pickYear = selectedYearLabel
-  next = next.filter((r) => academicYearLabelFromStartDate(r.attendanceDate) === pickYear)
   return next
- }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid, selectedYearLabel])
-
- const academicYearOptions = useMemo(() => {
-  const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(r.attendanceDate)))]
-  return years.sort((a, b) => b.localeCompare(a))
- }, [rows])
+ }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid])
 
  const monthAgg = useMemo(() => aggregateAttendanceByDate(displayRows), [displayRows])
  const s = useMemo(() => statusCount(displayRows), [displayRows])
@@ -327,18 +311,6 @@ export function AttendanceRecordsPage() {
      ))}
     </div>
     <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-    <Select
-     className="h-9 w-full min-w-0 sm:min-w-[11rem] sm:w-auto"
-     value={academicYearFilter}
-     onChange={(e) => setAcademicYearFilter(e.target.value)}
-    >
-     <option value="current">目前學年（{currentAcademicYear}）</option>
-     {academicYearOptions.map((y) => (
-      <option key={y} value={y}>
-       {y} 學年
-      </option>
-     ))}
-    </Select>
     <DateRangeInput value={dateRange} onChange={setDateRange} className="w-full sm:w-[16rem]" />
     <Button
      type="button"

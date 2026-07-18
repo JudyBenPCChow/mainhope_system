@@ -18,6 +18,7 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import { classDisplayName } from "@/lib/courseLabel"
 import {
  insertScheduleForClass,
  insertScheduleRow,
@@ -138,6 +139,28 @@ export type PrivateClassScheduleRow = {
  classroomName: string | null
  teacherId: string | null
  teacherName: string | null
+}
+
+/** 一對一／一對二排程：日期 → 開始時間（無時間置後） */
+export function compareScheduleByDateTime(
+ a: { scheduledDate?: string; scheduled_date?: string; startTime?: string | null; start_time?: string | null },
+ b: { scheduledDate?: string; scheduled_date?: string; startTime?: string | null; start_time?: string | null }
+): number {
+ const da = String(a.scheduledDate ?? a.scheduled_date ?? "").slice(0, 10)
+ const db = String(b.scheduledDate ?? b.scheduled_date ?? "").slice(0, 10)
+ if (da !== db) return da.localeCompare(db)
+ const ta = String(a.startTime ?? a.start_time ?? "").slice(0, 8) || "\uffff"
+ const tb = String(b.startTime ?? b.start_time ?? "").slice(0, 8) || "\uffff"
+ return ta.localeCompare(tb)
+}
+
+export function sortSchedulesByDateTime<T extends {
+ scheduledDate?: string
+ scheduled_date?: string
+ startTime?: string | null
+ start_time?: string | null
+}>(rows: T[]): T[] {
+ return [...rows].sort(compareScheduleByDateTime)
 }
 
 function mapPrivateStudentRow(
@@ -476,6 +499,11 @@ export async function createPrivateTutoringEnrollment(
  }
 }
 
+/**
+ * 更新私人班別老師／學費／班名。
+ * 若變更老師：同步未取消排程（無代堂→改 teacher_id；有代堂→改 original_teacher_id，保留代堂老師），
+ * 讓老師時間表（依 schedules.teacher_id／original_teacher_id）與班別負責老師一致。
+ */
 export async function updatePrivateClassSettings(
  classId: string,
  patch: {
@@ -483,10 +511,12 @@ export async function updatePrivateClassSettings(
   pricePerLesson?: number | null
   subject?: string | null
  }
-): Promise<void> {
+): Promise<{ syncedScheduleCount: number }> {
  if (!supabase) throw new Error("Supabase 未設定")
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
- if ("teacherId" in patch) payload.teacher_id = patch.teacherId?.trim() || null
+ const teacherChanging = "teacherId" in patch
+ const nextTeacherId = teacherChanging ? patch.teacherId?.trim() || null : undefined
+ if (teacherChanging) payload.teacher_id = nextTeacherId
  if ("pricePerLesson" in patch) {
   payload.price_per_lesson =
    patch.pricePerLesson != null && !Number.isNaN(Number(patch.pricePerLesson))
@@ -503,10 +533,149 @@ export async function updatePrivateClassSettings(
  }
  const { error } = await supabase.from("classes").update(payload).eq("id", classId)
  if (error) throw new Error(formatUnknownError(error))
+
+ let syncedScheduleCount = 0
+ if (teacherChanging) {
+  const { data: schedRows, error: schedErr } = await supabase
+   .from("schedules")
+   .select("id, status, teacher_id, original_teacher_id")
+   .eq("class_id", classId)
+  if (schedErr) throw new Error(formatUnknownError(schedErr))
+
+  const directIds: string[] = []
+  const substituteIds: string[] = []
+  for (const raw of schedRows ?? []) {
+   const row = raw as {
+    id: string
+    status: string | null
+    teacher_id: string | null
+    original_teacher_id: string | null
+   }
+   if (String(row.status ?? "").includes("取消")) continue
+   const hasSubstitute =
+    row.original_teacher_id != null && String(row.original_teacher_id).trim() !== ""
+   if (hasSubstitute) {
+    if (row.original_teacher_id !== nextTeacherId) substituteIds.push(row.id)
+   } else if (row.teacher_id !== nextTeacherId) {
+    directIds.push(row.id)
+   }
+  }
+
+  if (directIds.length > 0) {
+   const { error: upErr, count } = await supabase
+    .from("schedules")
+    .update({ teacher_id: nextTeacherId }, { count: "exact" })
+    .in("id", directIds)
+   if (upErr) throw new Error(formatUnknownError(upErr))
+   syncedScheduleCount += count ?? directIds.length
+  }
+  if (substituteIds.length > 0) {
+   const { error: upErr, count } = await supabase
+    .from("schedules")
+    .update({ original_teacher_id: nextTeacherId }, { count: "exact" })
+    .in("id", substituteIds)
+   if (upErr) throw new Error(formatUnknownError(upErr))
+   syncedScheduleCount += count ?? substituteIds.length
+  }
+ }
+
  void logMgmtAuditAction({
   action: "更新一對一班別",
-  detail: `class_id=${classId}; patch=${JSON.stringify(patch)}`,
+  detail: `class_id=${classId}; patch=${JSON.stringify(patch)}; synced_schedules=${syncedScheduleCount}`,
  })
+ return { syncedScheduleCount }
+}
+
+export type PrivateScheduleTeacherNullAuditRow = {
+ classId: string
+ classSubject: string
+ classTeacherId: string
+ classTeacherName: string | null
+ /** 未取消且排程老師為空的堂數 */
+ nullScheduleTeacherCount: number
+ /** 該班未取消排程總數 */
+ activeScheduleCount: number
+}
+
+/**
+ * 後台稽核：私人班已指定班別老師，但存在未取消排程的 teacher_id 為空
+ *（老師時間表會漏堂）。
+ */
+export async function fetchPrivateScheduleTeacherNullAudit(): Promise<
+ PrivateScheduleTeacherNullAuditRow[]
+> {
+ if (!supabase) return []
+
+ const { data: privateClasses, error: classErr } = await supabase
+  .from("classes")
+  .select("id, subject, class_kind, teacher_id, teachers ( full_name )")
+  .not("teacher_id", "is", null)
+ if (classErr) throw new Error(formatUnknownError(classErr))
+
+ const classRows = (privateClasses ?? [])
+  .map((raw) => {
+   const r = raw as Record<string, unknown>
+   const kind = resolveClassKind(
+    r.class_kind != null ? String(r.class_kind) : null,
+    r.subject != null ? String(r.subject) : null
+   )
+   if (kind !== "private") return null
+   const teacherId = r.teacher_id != null ? String(r.teacher_id) : ""
+   if (!teacherId) return null
+   const tch = r.teachers as Record<string, unknown> | null
+   return {
+    classId: String(r.id),
+    classSubject: String(r.subject ?? ""),
+    classTeacherId: teacherId,
+    classTeacherName: tch?.full_name != null ? String(tch.full_name) : null,
+   }
+  })
+  .filter((row): row is NonNullable<typeof row> => Boolean(row))
+
+ if (classRows.length === 0) return []
+
+ const classById = new Map(classRows.map((c) => [c.classId, c]))
+ const nullCountByClass = new Map<string, number>()
+ const activeCountByClass = new Map<string, number>()
+
+ const classIds = classRows.map((c) => c.classId)
+ const chunks = await forEachIdChunk(classIds, 60, async (slice) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("id, class_id, status, teacher_id")
+   .in("class_id", slice)
+  if (error) throw new Error(formatUnknownError(error))
+  return data ?? []
+ })
+
+ for (const chunk of chunks) {
+  for (const raw of chunk) {
+   const s = raw as Record<string, unknown>
+   const classId = String(s.class_id ?? "")
+   if (!classById.has(classId)) continue
+   if (String(s.status ?? "").includes("取消")) continue
+   activeCountByClass.set(classId, (activeCountByClass.get(classId) ?? 0) + 1)
+   if (s.teacher_id == null || String(s.teacher_id).trim() === "") {
+    nullCountByClass.set(classId, (nullCountByClass.get(classId) ?? 0) + 1)
+   }
+  }
+ }
+
+ const out: PrivateScheduleTeacherNullAuditRow[] = []
+ for (const cls of classRows) {
+  const nullCount = nullCountByClass.get(cls.classId) ?? 0
+  if (nullCount <= 0) continue
+  out.push({
+   classId: cls.classId,
+   classSubject: classDisplayName({ subject: cls.classSubject, courseName: null }),
+   classTeacherId: cls.classTeacherId,
+   classTeacherName: cls.classTeacherName,
+   nullScheduleTeacherCount: nullCount,
+   activeScheduleCount: activeCountByClass.get(cls.classId) ?? 0,
+  })
+ }
+ out.sort((a, b) => b.nullScheduleTeacherCount - a.nullScheduleTeacherCount)
+ return out
 }
 
 export async function withdrawPrivateEnrollment(opts: {
@@ -559,26 +728,28 @@ export async function fetchPrivateClassSchedules(
   .gte("scheduled_date", from)
   .order("scheduled_date", { ascending: true })
   .order("start_time", { ascending: true })
-  .limit(30)
+  .limit(80)
  if (error) throw new Error(formatUnknownError(error))
 
- return (data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const room = r.classrooms as Record<string, unknown> | null
-  const tch = r.teachers as Record<string, unknown> | null
-  return {
-   id: String(r.id),
-   classId: String(r.class_id),
-   scheduledDate: String(r.scheduled_date ?? "").slice(0, 10),
-   startTime: r.start_time != null ? String(r.start_time) : null,
-   endTime: r.end_time != null ? String(r.end_time) : null,
-   status: String(r.status ?? ""),
-   classroomId: r.classroom_id != null ? String(r.classroom_id) : null,
-   classroomName: room?.name != null ? String(room.name) : null,
-   teacherId: r.teacher_id != null ? String(r.teacher_id) : null,
-   teacherName: tch?.full_name != null ? String(tch.full_name) : null,
-  }
- })
+ return sortSchedulesByDateTime(
+  (data ?? []).map((row) => {
+   const r = row as Record<string, unknown>
+   const room = r.classrooms as Record<string, unknown> | null
+   const tch = r.teachers as Record<string, unknown> | null
+   return {
+    id: String(r.id),
+    classId: String(r.class_id),
+    scheduledDate: String(r.scheduled_date ?? "").slice(0, 10),
+    startTime: r.start_time != null ? String(r.start_time) : null,
+    endTime: r.end_time != null ? String(r.end_time) : null,
+    status: String(r.status ?? ""),
+    classroomId: r.classroom_id != null ? String(r.classroom_id) : null,
+    classroomName: room?.name != null ? String(room.name) : null,
+    teacherId: r.teacher_id != null ? String(r.teacher_id) : null,
+    teacherName: tch?.full_name != null ? String(tch.full_name) : null,
+   }
+  })
+ )
 }
 
 export async function cancelPrivateLesson(scheduleId: string, reason?: string | null): Promise<void> {

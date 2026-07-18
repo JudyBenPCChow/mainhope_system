@@ -16,11 +16,6 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
-import {
- getStoredAcademicYearFilter,
- setStoredAcademicYearFilter,
-} from "@/lib/academicYearFilter"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
 import {
@@ -148,13 +143,7 @@ export function TeacherAvailabilityPage() {
    const [yrs, tchs] = await Promise.all([fetchAcademicYearsWithDates(), fetchTeacherOptions()])
    setYears(yrs)
    setTeachers(tchs)
-   const stored = getStoredAcademicYearFilter()
-   const currentLabel = academicYearLabelFromStartDate(null)
-   const targetLabel = stored === "current" ? currentLabel : stored
-   const picked =
-    yrs.find((y) => y.label === targetLabel) ??
-    yrs.find((y) => y.is_current) ??
-    yrs[0]
+   const picked = yrs.find((y) => y.is_current) ?? yrs[0]
    if (picked) {
     setYearId(picked.id)
     setWeekStart(mondayYmdOfWeekContaining(picked.start_date.slice(0, 10)))
@@ -216,7 +205,6 @@ export function TeacherAvailabilityPage() {
        const y = years.find((x) => x.id === e.target.value)
        setYearId(e.target.value)
        if (y) {
-        setStoredAcademicYearFilter(y.is_current ? "current" : y.label)
         setWeekStart(mondayYmdOfWeekContaining(y.start_date.slice(0, 10)))
        }
       }}

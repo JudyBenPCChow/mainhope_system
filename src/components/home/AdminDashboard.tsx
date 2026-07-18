@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
+import { Link } from "react-router-dom"
+import { TriangleAlert } from "lucide-react"
 
 import { AdminHomeStudentsTrialsPanel } from "@/components/home/AdminHomeStudentsTrialsPanel"
 import { DashboardBoard } from "@/components/home/DashboardBoard"
@@ -8,10 +10,12 @@ import { RevenueChart } from "@/components/home/RevenueChart"
 import { UnpaidAlert } from "@/components/home/UnpaidAlert"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
+import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { supabase } from "@/lib/supabaseClient"
 import {
@@ -20,6 +24,10 @@ import {
  type AdminDashboardPayload,
  type DashboardTodayClassCard,
 } from "@/services/dashboard"
+import {
+ fetchPrivateScheduleTeacherNullAudit,
+ type PrivateScheduleTeacherNullAuditRow,
+} from "@/services/privateTutoringQueries"
 
 const empty: AdminDashboardPayload = {
  todayClassCount: 0,
@@ -52,6 +60,9 @@ export function AdminDashboard() {
  const [scheduleViewYmd, setScheduleViewYmd] = useState(todayYmdLocal)
  const [scheduleBoardCards, setScheduleBoardCards] = useState<DashboardTodayClassCard[]>([])
  const [scheduleBoardLoading, setScheduleBoardLoading] = useState(false)
+ const [teacherNullAudit, setTeacherNullAudit] = useState<PrivateScheduleTeacherNullAuditRow[]>(
+  []
+ )
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -63,9 +74,23 @@ export function AdminDashboard() {
   }
  }, [])
 
+ const loadTeacherNullAudit = useCallback(async () => {
+  if (!isSupabaseConfigured) {
+   setTeacherNullAudit([])
+   return
+  }
+  try {
+   setTeacherNullAudit(await fetchPrivateScheduleTeacherNullAudit())
+  } catch (e) {
+   reportUserFacingError(e, { source: "AdminDashboard.loadTeacherNullAudit" })
+   setTeacherNullAudit([])
+  }
+ }, [])
+
  useEffect(() => {
   void load()
- }, [load])
+  void loadTeacherNullAudit()
+ }, [load, loadTeacherNullAudit])
 
  useEffect(() => {
   if (scheduleViewYmd !== todayYmdLocal()) return
@@ -130,6 +155,35 @@ export function AdminDashboard() {
     pendingPayCount={data.pendingPaymentCount}
     loading={loading}
    />
+
+   {teacherNullAudit.length > 0 ? (
+    <section
+     role="alert"
+     className="rounded-xl border-2 border-warning/40 bg-warning/10 p-4 shadow-sm md:p-5"
+    >
+     <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 space-y-1">
+       <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold text-foreground md:text-lg">
+        <TriangleAlert className="h-5 w-5 shrink-0 text-warning" aria-hidden />
+        私人班排程老師缺漏
+        <Tag tone="warning" size="sm">
+         {teacherNullAudit.length} 班／
+         {teacherNullAudit.reduce((n, r) => n + r.nullScheduleTeacherCount, 0)} 堂
+        </Tag>
+       </h2>
+       <p className="text-sm text-muted-foreground">
+        班別已指定老師，但仍有排程老師為空；老師時間表會漏堂。請至一對一學生頁稽核並同步。
+       </p>
+      </div>
+      <Link
+       to="/PrivateTutoring"
+       className="shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+      >
+       前往處理 →
+      </Link>
+     </div>
+    </section>
+   ) : null}
 
    <Tabs defaultValue={HOME_TAB_SCHEDULE} className="w-full min-w-0">
     <TabsList aria-label="管理中心功能" className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">

@@ -3,7 +3,9 @@ import {
  enrollmentVisibleOnSchedule,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ fetchClassEnrollmentConfigsByIds,
  isSingleSessionEnrollment,
+ isSummerTwoPeriodMode,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
@@ -549,12 +551,214 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
  return out
 }
 
+export type RollCallTargetScheduleRef = {
+ id: string
+ class_id: string | null
+ scheduled_date: string
+ consecutive_group_id?: string | null
+}
+
+async function fetchScheduleIdsWithActiveTrials(scheduleIds: string[]): Promise<Set<string>> {
+ const out = new Set<string>()
+ if (!supabase || scheduleIds.length === 0) return out
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select("schedule_id, status")
+   .in("schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const rows of chunks) {
+  for (const row of rows) {
+   const r = row as { schedule_id: string | null; status?: string | null }
+   const status = String(r.status ?? "")
+   if (status.includes("完成") || status.includes("取消")) continue
+   if (r.schedule_id) out.add(String(r.schedule_id))
+  }
+ }
+ return out
+}
+
+async function fetchScheduleIdsWithMakeupTargets(scheduleIds: string[]): Promise<Set<string>> {
+ const out = new Set<string>()
+ if (!supabase || scheduleIds.length === 0) return out
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select("makeup_schedule_id")
+   .in("makeup_schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const rows of chunks) {
+  for (const row of rows) {
+   const mid = (row as { makeup_schedule_id: string | null }).makeup_schedule_id
+   if (mid) out.add(String(mid))
+  }
+ }
+ return out
+}
+
+/**
+ * 哪些排程有「可點名對象」：可見就讀中報讀（含暑期／單堂）＋未完成試堂＋補堂目標。
+ * 不把全員請假當成無對象（請假生仍在報讀名單內）。
+ */
+export async function fetchScheduleIdsWithRollCallTargets(
+ schedules: RollCallTargetScheduleRef[]
+): Promise<Set<string>> {
+ const out = new Set<string>()
+ const eligible = schedules.filter(
+  (s) => s.class_id != null && String(s.class_id).length > 0
+ )
+ if (!supabase || eligible.length === 0) return out
+
+ const scheduleIds = eligible.map((s) => s.id)
+ const [trialIds, makeupIds] = await Promise.all([
+  fetchScheduleIdsWithActiveTrials(scheduleIds),
+  fetchScheduleIdsWithMakeupTargets(scheduleIds),
+ ])
+ for (const id of trialIds) out.add(id)
+ for (const id of makeupIds) out.add(id)
+
+ const classIds = [...new Set(eligible.map((s) => String(s.class_id)))]
+ const [enrollmentChunks, configByClass] = await Promise.all([
+  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("student_class_enrollments")
+    .select("id, class_id, student_id, enrollment_period")
+    .in("class_id", slice)
+    .eq("status", "就讀中")
+   if (error) throw error
+   return data ?? []
+  }),
+  fetchClassEnrollmentConfigsByIds(classIds),
+ ])
+
+ type EnrollRow = {
+  enrollmentId: string
+  classId: string
+  studentId: string
+  enrollmentPeriod: ReturnType<typeof normalizeEnrollmentPeriod>
+ }
+ const enrollments: EnrollRow[] = []
+ for (const data of enrollmentChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   enrollments.push({
+    enrollmentId: String(r.id),
+    classId: String(r.class_id),
+    studentId: String(r.student_id),
+    enrollmentPeriod: normalizeEnrollmentPeriod(
+     r.enrollment_period != null ? String(r.enrollment_period) : null
+    ),
+   })
+  }
+ }
+
+ if (enrollments.length === 0) {
+  return expandRollCallTargetsWithConsecutivePeers(out, eligible)
+ }
+
+ const yearIds = [
+  ...new Set(
+   [...configByClass.values()]
+    .filter((c) => isSummerTwoPeriodMode(c.courseMode) && c.academicYearId)
+    .map((c) => c.academicYearId as string)
+  ),
+ ]
+ const periodsByYear = new Map<string, Awaited<ReturnType<typeof fetchAcademicYearPeriods>>>()
+ await Promise.all(
+  yearIds.map(async (yid) => {
+   periodsByYear.set(yid, await fetchAcademicYearPeriods(yid))
+  })
+ )
+
+ const dates = [...new Set(eligible.map((s) => s.scheduled_date.slice(0, 10)))]
+ const periodCodeByClassDate = new Map<string, 1 | 2 | null>()
+ for (const classId of classIds) {
+  const config = configByClass.get(classId)
+  for (const d of dates) {
+   const key = `${classId}|${d}`
+   if (!config || !isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
+    periodCodeByClassDate.set(key, null)
+    continue
+   }
+   const periods = periodsByYear.get(config.academicYearId) ?? []
+   periodCodeByClassDate.set(key, resolvePeriodCodeFromDate(d, periods))
+  }
+ }
+
+ const singleIds = enrollments
+  .filter((e) => isSingleSessionEnrollment(e.enrollmentPeriod))
+  .map((e) => e.enrollmentId)
+ const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
+
+ const byClass = new Map<string, EnrollRow[]>()
+ for (const e of enrollments) {
+  const arr = byClass.get(e.classId) ?? []
+  arr.push(e)
+  byClass.set(e.classId, arr)
+ }
+
+ for (const s of eligible) {
+  if (out.has(s.id)) continue
+  const classId = String(s.class_id)
+  const rows = byClass.get(classId) ?? []
+  if (rows.length === 0) continue
+  const date = s.scheduled_date.slice(0, 10)
+  const periodCode = periodCodeByClassDate.get(`${classId}|${date}`) ?? null
+  const hasVisible = rows.some((row) => {
+   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
+    const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
+    return enrollmentVisibleOnSchedule({
+     enrollmentPeriod: row.enrollmentPeriod,
+     periodCode,
+     scheduleId: s.id,
+     enrolledScheduleIds: enrolled,
+    })
+   }
+   if (periodCode == null) return true
+   return enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)
+  })
+  if (hasVisible) out.add(s.id)
+ }
+
+ return expandRollCallTargetsWithConsecutivePeers(out, eligible)
+}
+
+/** 連堂組內任一堂有可點名對象時，整組都保留（避免拆開連堂點名紙） */
+function expandRollCallTargetsWithConsecutivePeers(
+ targetIds: Set<string>,
+ schedules: RollCallTargetScheduleRef[]
+): Set<string> {
+ if (targetIds.size === 0) return targetIds
+ const byGroup = new Map<string, string[]>()
+ for (const s of schedules) {
+  const gid = s.consecutive_group_id?.trim()
+  if (!gid) continue
+  const arr = byGroup.get(gid) ?? []
+  arr.push(s.id)
+  byGroup.set(gid, arr)
+ }
+ const out = new Set(targetIds)
+ for (const peers of byGroup.values()) {
+  if (peers.some((id) => out.has(id))) {
+   for (const id of peers) out.add(id)
+  }
+ }
+ return out
+}
+
 export async function fetchSchedulesForRollCallDate(ymd: string): Promise<ScheduleManageRow[]> {
  const tid = getTeacherScopeTeacherId()
  const list = await fetchSchedulesInRange(ymd, ymd, tid ? { teacherId: tid } : undefined)
- return list.filter(
+ const candidates = list.filter(
   (s) => !s.status.includes("取消") && s.class_id != null && String(s.class_id).length > 0
  )
+ if (candidates.length === 0) return []
+ const withTargets = await fetchScheduleIdsWithRollCallTargets(candidates)
+ return candidates.filter((s) => withTargets.has(s.id))
 }
 
 export type AttendanceRecordRow = {
@@ -759,12 +963,19 @@ async function fetchScheduleIdsWithAttendance(scheduleIds: string[]): Promise<Se
 
 /**
  * 從既有排程列篩出尚未有任何 attendance_details 者（催點名；不自動銷堂）。
- * 呼叫端自行篩老師／日期範圍；此函式會排除已取消、未綁班別。
+ * 呼叫端自行篩老師／日期範圍；此函式會排除已取消、未綁班別、無可點名對象。
  */
 export async function findSchedulesMissingAttendance(
  schedules: Pick<
   ScheduleManageRow,
-  "id" | "class_id" | "classLabel" | "scheduled_date" | "start_time" | "end_time" | "status"
+  | "id"
+  | "class_id"
+  | "classLabel"
+  | "scheduled_date"
+  | "start_time"
+  | "end_time"
+  | "status"
+  | "consecutive_group_id"
  >[]
 ): Promise<PendingRollCallReminder[]> {
  const mine = schedules.filter((s) => {
@@ -772,8 +983,11 @@ export async function findSchedulesMissingAttendance(
   return s.class_id != null && String(s.class_id).length > 0
  })
  if (mine.length === 0) return []
- const done = await fetchScheduleIdsWithAttendance(mine.map((s) => s.id))
- return mine
+ const withTargets = await fetchScheduleIdsWithRollCallTargets(mine)
+ const candidates = mine.filter((s) => withTargets.has(s.id))
+ if (candidates.length === 0) return []
+ const done = await fetchScheduleIdsWithAttendance(candidates.map((s) => s.id))
+ return candidates
   .filter((s) => !done.has(s.id))
   .map((s) => ({
    scheduleId: s.id,
@@ -792,20 +1006,37 @@ export async function findSchedulesMissingAttendance(
 
 /**
  * 老師當日尚未有任何點名列的排程（催點名；不自動銷堂）。
- * 條件：今日、未取消、已綁班別，且該 schedule_id 尚無 attendance_details。
+ * 條件：今日、未取消、已綁班別、有可點名對象，且該 schedule_id 尚無 attendance_details。
  */
 export async function fetchPendingRollCallRemindersForTeacher(
  teacherId: string,
  ymd: string = localYmd()
 ): Promise<PendingRollCallReminder[]> {
  if (!supabase || !teacherId) return []
+ // fetchSchedulesForRollCallDate 已篩過可點名對象
  const schedules = await fetchSchedulesForRollCallDate(ymd)
  const mine = schedules.filter((s) => {
   if (!s.class_id) return false
   const tid = s.teacher_id ?? s.original_teacher_id
   return tid === teacherId
  })
- return findSchedulesMissingAttendance(mine)
+ if (mine.length === 0) return []
+ const done = await fetchScheduleIdsWithAttendance(mine.map((s) => s.id))
+ return mine
+  .filter((s) => !done.has(s.id))
+  .map((s) => ({
+   scheduleId: s.id,
+   classId: s.class_id,
+   classLabel: s.classLabel,
+   scheduledDate: s.scheduled_date,
+   startTime: s.start_time,
+   endTime: s.end_time,
+  }))
+  .sort((a, b) => {
+   const byDate = b.scheduledDate.localeCompare(a.scheduledDate)
+   if (byDate !== 0) return byDate
+   return String(a.startTime ?? "").localeCompare(String(b.startTime ?? ""))
+  })
 }
 
 export { localYmd }

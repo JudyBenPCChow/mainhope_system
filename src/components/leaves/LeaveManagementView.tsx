@@ -9,9 +9,6 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { resolveAcademicYearLabel } from "@/lib/academicYearFilter"
-import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { useAcademicYearFilter } from "@/hooks/useAcademicYearFilter"
 import {
  canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
@@ -75,7 +72,6 @@ export function LeaveManagementView() {
  const [filterDateTo, setFilterDateTo] = useState("")
  const [filterSubject, setFilterSubject] = useState<string>("all")
  const [filterStudent, setFilterStudent] = useState("")
- const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
@@ -111,11 +107,6 @@ export function LeaveManagementView() {
  const [linkCandidates, setLinkCandidates] = useState<ScheduleManageRow[]>([])
  const [linkSaving, setLinkSaving] = useState(false)
  const [linkErr, setLinkErr] = useState<string | null>(null)
- const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(localYmd()), [])
- const selectedYearLabel = useMemo(
-  () => resolveAcademicYearLabel(academicYearFilter, currentAcademicYear),
-  [academicYearFilter, currentAcademicYear]
- )
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -242,11 +233,6 @@ export function LeaveManagementView() {
   return [...s].sort((a, b) => a.localeCompare(b, "zh-Hant"))
  }, [rows])
 
- const academicYearOptions = useMemo(() => {
-  const years = [...new Set(rows.map((r) => academicYearLabelFromStartDate(displayLeaveDate(r))))]
-  return years.sort((a, b) => b.localeCompare(a))
- }, [rows])
-
  const tabCounts = useMemo(() => {
   const all = rows.length
   let pending = 0
@@ -264,11 +250,9 @@ export function LeaveManagementView() {
   const qStudent = filterStudent.trim().toLowerCase()
   const sidFilter = studentIdFromUrl?.trim() ?? ""
   const recFocus = recordFromUrl?.trim() ?? ""
-  const pickYear = selectedYearLabel
   const list = rows.filter((r) => {
    if (recFocus && r.id === recFocus) return true
    if (sidFilter && r.student_id !== sidFilter) return false
-   if (academicYearLabelFromStartDate(displayLeaveDate(r)) !== pickYear) return false
    if (statusTab !== "all" && classTab(r) !== statusTab) return false
    if (filterSubject !== "all" && (r.class_subject ?? "") !== filterSubject) return false
    if (filterDateFrom && r.leave_date < filterDateFrom) return false
@@ -292,7 +276,6 @@ export function LeaveManagementView() {
   filterStudent,
   studentIdFromUrl,
   recordFromUrl,
-  selectedYearLabel,
  ])
 
  const openAdd = () => {
@@ -566,21 +549,6 @@ export function LeaveManagementView() {
        {subjectOptions.map((sub) => (
         <option key={sub} value={sub}>
          {sub}
-        </option>
-       ))}
-      </Select>
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>學年</span>
-      <Select
-       className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
-       value={academicYearFilter}
-       onChange={(e) => setAcademicYearFilter(e.target.value)}
-      >
-       <option value="current">目前學年（{currentAcademicYear}）</option>
-       {academicYearOptions.map((y) => (
-        <option key={y} value={y}>
-         {y} 學年
         </option>
        ))}
       </Select>

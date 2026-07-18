@@ -8,6 +8,7 @@ import {
  resolvePeriodCodeFromDate,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
 
@@ -47,6 +48,19 @@ export type LessonBalanceRow = {
  /** 已繳 > 0 且 gap === 0；或未繳費且無待補 */
  isAligned: boolean
  pendingRows: PendingLessonRow[]
+}
+
+/** 全站對帳列表列（已繳／排程／待補不一致） */
+export type MisalignedLessonBalanceRow = LessonBalanceRow & {
+ studentId: string
+ studentCode: string | null
+ studentName: string
+ englishName: string | null
+}
+
+/** 需跟進：堂數不一致，或仍有待補堂 */
+export function isLessonBalanceNeedsFollowUp(row: Pick<LessonBalanceRow, "isAligned" | "pendingLessons">): boolean {
+ return !row.isAligned || row.pendingLessons > 0
 }
 
 function mapPendingRow(r: Record<string, unknown>): PendingLessonRow {
@@ -347,4 +361,255 @@ export async function fetchLessonBalancesForStudent(
    pendingRows: uniquePending,
   }
  })
+}
+
+async function fetchAllActiveEnrollmentsForBalance(): Promise<Record<string, unknown>[]> {
+ if (!supabase) return []
+ const pageSize = 1000
+ const all: Record<string, unknown>[] = []
+ for (let from = 0; ; from += pageSize) {
+  const { data, error } = await supabase
+   .from("student_class_enrollments")
+   .select(
+    "id, student_id, class_id, enroll_date, enrollment_period, students ( student_code, full_name, english_name ), classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) )"
+   )
+   .eq("status", "就讀中")
+   .order("id", { ascending: true })
+   .range(from, from + pageSize - 1)
+  if (error) throw error
+  const chunk = (data ?? []) as Record<string, unknown>[]
+  all.push(...chunk)
+  if (chunk.length < pageSize) break
+ }
+ return all
+}
+
+/** 批次：多位學生各班已收款堂數（studentId → classId → lessons） */
+async function fetchPaidLessonsByStudentAndClass(
+ studentIds: string[]
+): Promise<Map<string, Map<string, number>>> {
+ const byStudent = new Map<string, Map<string, number>>()
+ if (!supabase || studentIds.length === 0) return byStudent
+
+ const paymentRows: Array<{ id: string; studentId: string }> = []
+ await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("payments")
+   .select("id, student_id")
+   .in("student_id", slice)
+   .eq("status", PAYMENT_STATUS.received)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as { id?: unknown; student_id?: unknown }
+   paymentRows.push({ id: String(r.id), studentId: String(r.student_id) })
+  }
+ })
+ if (paymentRows.length === 0) return byStudent
+
+ const paymentStudent = new Map(paymentRows.map((p) => [p.id, p.studentId]))
+ const paymentIds = paymentRows.map((p) => p.id)
+ await forEachIdChunk(paymentIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("payment_details")
+   .select("payment_id, class_id, lesson_count")
+   .in("payment_id", slice)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as { payment_id?: unknown; class_id?: unknown; lesson_count?: unknown }
+   const pid = String(r.payment_id ?? "")
+   const studentId = paymentStudent.get(pid)
+   if (!studentId) continue
+   const classId = r.class_id != null ? String(r.class_id) : ""
+   if (!classId) continue
+   const n = Number(r.lesson_count)
+   if (!Number.isFinite(n) || n <= 0) continue
+   const byClass = byStudent.get(studentId) ?? new Map<string, number>()
+   byClass.set(classId, (byClass.get(classId) ?? 0) + n)
+   byStudent.set(studentId, byClass)
+  }
+ })
+ return byStudent
+}
+
+async function fetchPendingLessonsForStudents(
+ studentIds: string[]
+): Promise<Map<string, PendingLessonRow[]>> {
+ const byStudent = new Map<string, PendingLessonRow[]>()
+ if (!supabase || studentIds.length === 0) return byStudent
+ await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("student_pending_lessons")
+   .select(
+    "id, student_id, class_id, enrollment_id, owed_count, reason, status, remarks, resolved_schedule_id, created_at"
+   )
+   .in("student_id", slice)
+   .order("created_at", { ascending: false })
+  if (error) throw error
+  for (const row of data ?? []) {
+   const mapped = mapPendingRow(row as Record<string, unknown>)
+   const list = byStudent.get(mapped.studentId) ?? []
+   list.push(mapped)
+   byStudent.set(mapped.studentId, list)
+  }
+ })
+ return byStudent
+}
+
+/**
+ * 全站就讀中報讀對帳：僅回傳已繳／排程／待補不一致，或仍有待補堂的列。
+ * 邏輯與 {@link fetchLessonBalancesForStudent} 一致。
+ */
+export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonBalanceRow[]> {
+ if (!supabase) return []
+
+ const enrollments = await fetchAllActiveEnrollmentsForBalance()
+ if (enrollments.length === 0) return []
+
+ const studentIds = [
+  ...new Set(enrollments.map((r) => String(r.student_id ?? "")).filter(Boolean)),
+ ]
+ const classIds = [
+  ...new Set(enrollments.map((r) => String(r.class_id ?? "")).filter(Boolean)),
+ ]
+
+ const [paidByStudent, pendingByStudent] = await Promise.all([
+  fetchPaidLessonsByStudentAndClass(studentIds),
+  fetchPendingLessonsForStudents(studentIds),
+ ])
+
+ const singleIds = enrollments
+  .filter((e) => isSingleSessionEnrollment(e.enrollment_period as string | null))
+  .map((e) => String(e.id))
+ const singleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
+
+ const schedulesByClass = new Map<string, Array<{ id: string; date: string; status: string }>>()
+ await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("id, class_id, scheduled_date, status")
+   .in("class_id", slice)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as { id?: string; class_id?: string; scheduled_date?: string; status?: string }
+   const cid = String(r.class_id ?? "")
+   if (!cid) continue
+   const list = schedulesByClass.get(cid) ?? []
+   list.push({
+    id: String(r.id ?? ""),
+    date: String(r.scheduled_date ?? "").slice(0, 10),
+    status: String(r.status ?? ""),
+   })
+   schedulesByClass.set(cid, list)
+  }
+ })
+
+ const yearIds = new Set<string>()
+ for (const row of enrollments) {
+  const cls = row.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  if (course?.course_mode === "summer_two_period" && cls?.academic_year_id != null) {
+   yearIds.add(String(cls.academic_year_id))
+  }
+ }
+ const periodCache = new Map<string, Awaited<ReturnType<typeof fetchAcademicYearPeriods>>>()
+ await Promise.all(
+  [...yearIds].map(async (yearId) => {
+   periodCache.set(yearId, await fetchAcademicYearPeriods(yearId))
+  })
+ )
+
+ const out: MisalignedLessonBalanceRow[] = []
+ for (const r of enrollments) {
+  const enrollmentId = String(r.id)
+  const studentId = String(r.student_id ?? "")
+  const classId = String(r.class_id ?? "")
+  if (!studentId || !classId) continue
+
+  const st = r.students as Record<string, unknown> | null
+  const studentName =
+   st?.full_name != null && String(st.full_name).trim()
+    ? String(st.full_name).trim()
+    : st?.english_name != null && String(st.english_name).trim()
+      ? String(st.english_name).trim()
+      : "（未命名）"
+  const studentCode = st?.student_code != null ? String(st.student_code) : null
+  const englishName = st?.english_name != null ? String(st.english_name) : null
+
+  const enrollDate = r.enroll_date != null ? String(r.enroll_date).slice(0, 10) : null
+  const enrollmentPeriod = (r.enrollment_period as EnrollmentFormValue | null) ?? null
+  const cls = r.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  const subject = cls?.subject != null ? String(cls.subject) : "—"
+  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  const courseMode = course?.course_mode != null ? String(course.course_mode) : "regular"
+  const academicYearId =
+   cls?.academic_year_id != null ? String(cls.academic_year_id) : null
+
+  let boundLessons = 0
+  if (isSingleSessionEnrollment(enrollmentPeriod)) {
+   boundLessons = (singleMap.get(enrollmentId) ?? new Set()).size
+  } else {
+   const fromDate = enrollDate ?? "0000-01-01"
+   const periods =
+    courseMode === "summer_two_period" && academicYearId
+     ? (periodCache.get(academicYearId) ?? [])
+     : []
+   for (const s of schedulesByClass.get(classId) ?? []) {
+    if (s.status.includes("取消")) continue
+    if (s.date < fromDate) continue
+    if (courseMode === "summer_two_period" && periods.length > 0) {
+     const code = resolvePeriodCodeFromDate(s.date, periods)
+     if (code != null && !enrollmentCoversPeriod(enrollmentPeriod, code)) continue
+    }
+    boundLessons += 1
+   }
+  }
+
+  const pendingAll = pendingByStudent.get(studentId) ?? []
+  const pendingByEnrollment = pendingAll.filter((p) => p.enrollmentId === enrollmentId)
+  const pendingByClassOnly = pendingAll.filter((p) => p.classId === classId && !p.enrollmentId)
+  const pendingRows = [...pendingByEnrollment, ...pendingByClassOnly]
+  const seen = new Set<string>()
+  const uniquePending = pendingRows.filter((p) => {
+   if (seen.has(p.id)) return false
+   seen.add(p.id)
+   return true
+  })
+  const openPending = uniquePending
+   .filter((p) => isPendingLessonOpen(p.status))
+   .reduce((sum, p) => sum + p.owedCount, 0)
+
+  const paidLessons = paidByStudent.get(studentId)?.get(classId) ?? 0
+  const gap = paidLessons > 0 ? paidLessons - boundLessons - openPending : 0
+  const isAligned = paidLessons > 0 ? gap === 0 : openPending === 0
+
+  const row: MisalignedLessonBalanceRow = {
+   enrollmentId,
+   classId,
+   classLabel: formatClassLabel({ subject, courseCode, courseName }),
+   enrollDate,
+   enrollmentPeriod,
+   paidLessons,
+   boundLessons,
+   pendingLessons: openPending,
+   gap,
+   isAligned,
+   pendingRows: uniquePending,
+   studentId,
+   studentCode,
+   studentName,
+   englishName,
+  }
+  if (isLessonBalanceNeedsFollowUp(row)) out.push(row)
+ }
+
+ out.sort((a, b) => {
+  const gapDiff = Math.abs(b.gap) - Math.abs(a.gap)
+  if (gapDiff !== 0) return gapDiff
+  const pendingDiff = b.pendingLessons - a.pendingLessons
+  if (pendingDiff !== 0) return pendingDiff
+  return a.studentName.localeCompare(b.studentName, "zh-Hant")
+ })
+ return out
 }

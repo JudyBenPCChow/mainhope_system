@@ -86,6 +86,21 @@
 
 ---
 
+## 6.2 排程管理篩選（依角色）
+
+排程頁（`ScheduleManagePage`）的篩選列**依角色不同**，改 UI 時勿假設三角色共用同一組控制項。
+
+| | admin／alien | teacher（專班，`teacherScopeId` 有值） |
+| --- | --- | --- |
+| 資料範圍 | 目前載入區間內全部排程 | 已鎖定指派給自己的排程（`getTeacherScopeTeacherId()`） |
+| 老師篩選 | 多選按鈕（OR）；選項從目前載入的 `rows` 彙出；未選＝不過濾 | **不顯示**（無需再選老師） |
+| 狀態 | 「全部狀態」下拉 | 同左 |
+| 進階篩選 | 未有學生報讀、一對一班別、未有課室安排（可多選 AND） | **僅**「未有學生報讀」；一對一／未有課室隱藏 |
+
+實作錨點：`TEACHER_ISSUE_FILTER_IDS`、`effectiveTeacherFilterIds`、`issueFilterOptions`（皆在 `src/components/schedule/ScheduleManagePage.tsx`）。
+
+---
+
 ## 7. 品質門檻
 
 - 改動後執行：`npm run build`（`tsc -b` + `vite build`）。
