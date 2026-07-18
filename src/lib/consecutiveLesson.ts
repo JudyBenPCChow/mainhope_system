@@ -30,10 +30,15 @@ export function timeBoundsForSlotIndex(index: number): { start: string; end: str
  return { start: formatMin(a), end: formatMin(b), label: lessonSlotLabel(index) }
 }
 
+/** 第一格時段索引是否可設定連堂（需有下一格） */
+export function canUseConsecutiveFromSlotIndex(index: number): boolean {
+ return Number.isInteger(index) && index >= 0 && index < LESSON_SLOT_COUNT - 1
+}
+
 /** 第一格時段是否可設定連堂（需有下一格） */
 export function canUseConsecutiveFromTimeSlot(timeSlot: string): boolean {
  const idx = slotIndexFromTimeSlot(timeSlot)
- return idx != null && idx >= 0 && idx < LESSON_SLOT_COUNT - 1
+ return idx != null && canUseConsecutiveFromSlotIndex(idx)
 }
 
 export type ConsecutiveSlotPair = {
@@ -43,17 +48,23 @@ export type ConsecutiveSlotPair = {
  displayRange: string
 }
 
-export function consecutivePairFromFirstTimeSlot(timeSlot: string): ConsecutiveSlotPair | null {
- const firstIndex = slotIndexFromTimeSlot(timeSlot)
- if (firstIndex == null || firstIndex < 0 || firstIndex >= LESSON_SLOT_COUNT - 1) return null
- const slot1 = timeBoundsForSlotIndex(firstIndex)
- const slot2 = timeBoundsForSlotIndex(firstIndex + 1)
+/** 由第一格索引取得連堂兩節（與 time_slot 字串版同等） */
+export function consecutivePairFromFirstSlotIndex(index: number): ConsecutiveSlotPair | null {
+ if (!canUseConsecutiveFromSlotIndex(index)) return null
+ const slot1 = timeBoundsForSlotIndex(index)
+ const slot2 = timeBoundsForSlotIndex(index + 1)
  return {
-  firstIndex,
+  firstIndex: index,
   slot1: { ...slot1, timeSlot: slot1.label },
   slot2: { ...slot2, timeSlot: slot2.label },
   displayRange: `${slot1.start}–${slot2.end}`,
  }
+}
+
+export function consecutivePairFromFirstTimeSlot(timeSlot: string): ConsecutiveSlotPair | null {
+ const firstIndex = slotIndexFromTimeSlot(timeSlot)
+ if (firstIndex == null) return null
+ return consecutivePairFromFirstSlotIndex(firstIndex)
 }
 
 export function formatClassTimeDisplay(params: {

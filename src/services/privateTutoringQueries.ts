@@ -1,15 +1,29 @@
+import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { normalizeStoredClassGradeLabel } from "@/lib/classGrade"
 import {
+ canUseConsecutiveFromSlotIndex,
+ consecutivePairFromFirstSlotIndex,
+ newConsecutiveGroupId,
+} from "@/lib/consecutiveLesson"
+import {
+ formatMin,
  intervalsOverlapMinutes,
  LESSON_SLOT_DURATION_MIN,
+ lessonSlotEndMinute,
+ lessonSlotStartMinute,
  parseHm,
 } from "@/lib/lessonSlots"
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
-import { updateSchedule, insertScheduleForClass } from "@/services/classQueries"
+import {
+ insertScheduleForClass,
+ insertScheduleRow,
+ nextSessionNumberForClass,
+ updateSchedule,
+} from "@/services/classQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { fetchTeacherScheduleConflicts } from "@/services/scheduleQueries"
 import {
@@ -795,12 +809,101 @@ export async function previewPrivateRecurringBookings(params: {
  return items
 }
 
+/** 私人班預約時段邊界：連堂時涵蓋連續兩格（衝突／空房檢查用） */
+export function privateBookingTimeBounds(
+ firstSlotIndex: number,
+ consecutive: boolean
+): { startTime: string; endTime: string; startMin: number; endMin: number } {
+ const startMin = lessonSlotStartMinute(firstSlotIndex)
+ const endMin = lessonSlotEndMinute(
+  consecutive && canUseConsecutiveFromSlotIndex(firstSlotIndex)
+   ? firstSlotIndex + 1
+   : firstSlotIndex
+ )
+ return {
+  startTime: formatMin(startMin),
+  endTime: formatMin(endMin),
+  startMin,
+  endMin,
+ }
+}
+
+/**
+ * 建立私人班單次預約排程。
+ * consecutive=true 時建立連堂兩筆（計 2 堂），並寫入 consecutive_group_id。
+ */
+export async function insertPrivateBookingSchedules(params: {
+ classId: string
+ teacherId?: string | null
+ scheduledDate: string
+ firstSlotIndex: number
+ consecutive?: boolean
+ classroomId?: string | null
+ status?: string
+}): Promise<string[]> {
+ const consecutive = Boolean(params.consecutive)
+ if (!consecutive) {
+  const { startTime, endTime } = privateBookingTimeBounds(params.firstSlotIndex, false)
+  await insertScheduleForClass(params.classId, params.teacherId ?? null, {
+   scheduled_date: params.scheduledDate,
+   start_time: startTime,
+   end_time: endTime,
+   classroom_id: params.classroomId ?? null,
+   status: params.status ?? "正常",
+  })
+  return []
+ }
+
+ const pair = consecutivePairFromFirstSlotIndex(params.firstSlotIndex)
+ if (!pair) {
+  throw new Error("連堂需選擇可連續兩格的起始時段（最後一格不可連堂）。")
+ }
+
+ const scheduledDate = params.scheduledDate.slice(0, 10)
+ assertAcademicYearEditableForDate(scheduledDate)
+
+ const sessionStart = await nextSessionNumberForClass(params.classId)
+ const groupId = newConsecutiveGroupId()
+ const classroomId = params.classroomId ?? null
+ const teacherId = params.teacherId ?? null
+ const status = params.status ?? "正常"
+
+ const id1 = await insertScheduleRow({
+  class_id: params.classId,
+  teacher_id: teacherId,
+  scheduled_date: scheduledDate,
+  start_time: pair.slot1.start,
+  end_time: pair.slot1.end,
+  status,
+  classroom_id: classroomId,
+  session_number: sessionStart,
+  consecutive_group_id: groupId,
+  consecutive_slot_index: 1,
+ })
+ const id2 = await insertScheduleRow({
+  class_id: params.classId,
+  teacher_id: teacherId,
+  scheduled_date: scheduledDate,
+  start_time: pair.slot2.start,
+  end_time: pair.slot2.end,
+  status,
+  classroom_id: classroomId,
+  session_number: sessionStart + 1,
+  consecutive_group_id: groupId,
+  consecutive_slot_index: 2,
+ })
+ return [id1, id2]
+}
+
 /** 批次建立每週預約；skipConflictDates=true 時略過有衝突的日期；ignoreConflicts=true 時不檢查衝突直接建立 */
 export async function createPrivateRecurringBookings(params: {
  classId: string
  studentIds: string[]
  dates: string[]
  classroomId?: string | null
+ /** 與 startTime/endTime 二選一優先：以格索引＋是否連堂建立 */
+ firstSlotIndex?: number
+ consecutive?: boolean
  startTime: string
  endTime: string
  teacherId?: string | null
@@ -809,6 +912,10 @@ export async function createPrivateRecurringBookings(params: {
 }): Promise<{ created: number; skipped: string[] }> {
  const skipped: string[] = []
  let created = 0
+ const consecutive =
+  Boolean(params.consecutive) &&
+  params.firstSlotIndex != null &&
+  canUseConsecutiveFromSlotIndex(params.firstSlotIndex)
  for (const date of params.dates) {
   if (!params.ignoreConflicts) {
    const conflicts = await checkPrivateBookingConflicts({
@@ -829,14 +936,26 @@ export async function createPrivateRecurringBookings(params: {
     )
    }
   }
-  await insertScheduleForClass(params.classId, params.teacherId ?? null, {
-   scheduled_date: date,
-   start_time: params.startTime,
-   end_time: params.endTime,
-   classroom_id: params.classroomId ?? null,
-   status: "正常",
-  })
-  created += 1
+  if (consecutive && params.firstSlotIndex != null) {
+   const ids = await insertPrivateBookingSchedules({
+    classId: params.classId,
+    teacherId: params.teacherId,
+    scheduledDate: date,
+    firstSlotIndex: params.firstSlotIndex,
+    consecutive: true,
+    classroomId: params.classroomId,
+   })
+   created += ids.length
+  } else {
+   await insertScheduleForClass(params.classId, params.teacherId ?? null, {
+    scheduled_date: date,
+    start_time: params.startTime,
+    end_time: params.endTime,
+    classroom_id: params.classroomId ?? null,
+    status: "正常",
+   })
+   created += 1
+  }
  }
  return { created, skipped }
 }

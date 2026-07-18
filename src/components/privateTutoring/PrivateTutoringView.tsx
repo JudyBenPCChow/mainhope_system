@@ -25,7 +25,10 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
- formatMin,
+ canUseConsecutiveFromSlotIndex,
+ consecutivePairFromFirstSlotIndex,
+} from "@/lib/consecutiveLesson"
+import {
  LESSON_SLOT_INDICES,
  lessonSlotEndMinute,
  lessonSlotLabel,
@@ -35,7 +38,6 @@ import { cn } from "@/lib/utils"
 import {
  fetchSubjectOptions,
  fetchTeacherOptions,
- insertScheduleForClass,
  type SubjectOption,
 } from "@/services/classQueries"
 import type { RoomRecord } from "@/services/classroomQueries"
@@ -48,7 +50,9 @@ import {
  createPrivateTutoringEnrollment,
  fetchPrivateClassSchedules,
  fetchPrivateTutoringStudents,
+ insertPrivateBookingSchedules,
  previewPrivateRecurringBookings,
+ privateBookingTimeBounds,
  reschedulePrivateLesson,
  withdrawPrivateEnrollment,
  type PrivateClassScheduleRow,
@@ -131,6 +135,7 @@ export function PrivateTutoringView() {
  const [bookRow, setBookRow] = useState<PrivateTutoringStudentRow | null>(null)
  const [bookDate, setBookDate] = useState("")
  const [bookSlotIdx, setBookSlotIdx] = useState(0)
+ const [bookConsecutive, setBookConsecutive] = useState(false)
  const [bookRoomId, setBookRoomId] = useState("")
  const [bookTeacherId, setBookTeacherId] = useState("")
  const [bookMode, setBookMode] = useState<"single" | "weekly">("single")
@@ -608,10 +613,12 @@ export function PrivateTutoringView() {
   return roomSchedules.filter((s) => s.id !== rescheduleScheduleId)
  }, [roomSchedules, rescheduleScheduleId])
 
+ const bookUsesConsecutive =
+  bookConsecutive && !rescheduleScheduleId && canUseConsecutiveFromSlotIndex(bookSlotIdx)
+
  const freeRoomIdsForBook = useMemo(() => {
   if (!bookDate) return new Set<string>()
-  const slotStart = lessonSlotStartMinute(bookSlotIdx)
-  const slotEnd = lessonSlotEndMinute(bookSlotIdx)
+  const { startMin, endMin } = privateBookingTimeBounds(bookSlotIdx, bookUsesConsecutive)
   const active = classroomsActiveOnDate(
    rooms.filter((r) => !r.is_online),
    bookDate
@@ -623,15 +630,15 @@ export function PrivateTutoringView() {
       occupiersForSlot(
        bookDate,
        room.id,
-       slotStart,
-       slotEnd,
+       startMin,
+       endMin,
        schedulesForBookFreeCheck,
        roomPending
       ).length === 0
     )
     .map((r) => r.id)
   )
- }, [bookDate, bookSlotIdx, rooms, schedulesForBookFreeCheck, roomPending])
+ }, [bookDate, bookSlotIdx, bookUsesConsecutive, rooms, schedulesForBookFreeCheck, roomPending])
 
  const bookActiveRooms = useMemo(
   () => classroomsActiveOnDate(
@@ -644,6 +651,7 @@ export function PrivateTutoringView() {
  const resetBookForm = useCallback((row: PrivateTutoringStudentRow) => {
   setBookDate(localYmd())
   setBookSlotIdx(0)
+  setBookConsecutive(false)
   setBookRoomId("")
   const tid = getTeacherScopeTeacherId()
   setBookTeacherId(tid || row.teacherId || "")
@@ -693,6 +701,7 @@ export function PrivateTutoringView() {
   async (s: PrivateClassScheduleRow) => {
    setRescheduleScheduleId(s.id)
    setBookMode("single")
+   setBookConsecutive(false)
    setBookErr(null)
    const ymd = s.scheduledDate
    setBookDate(ymd)
@@ -735,8 +744,17 @@ export function PrivateTutoringView() {
    setBookErr("請選擇日期")
    return
   }
-  const startTime = formatMin(lessonSlotStartMinute(bookSlotIdx))
-  const endTime = formatMin(lessonSlotEndMinute(bookSlotIdx))
+  const consecutive =
+   bookConsecutive && !rescheduleScheduleId && canUseConsecutiveFromSlotIndex(bookSlotIdx)
+  if (bookConsecutive && !rescheduleScheduleId && !consecutive) {
+   setBookErr("連堂需選擇可連續兩格的起始時段（最後一格不可連堂）。")
+   return
+  }
+  const { startTime, endTime } = privateBookingTimeBounds(bookSlotIdx, consecutive)
+  const pair = consecutive ? consecutivePairFromFirstSlotIndex(bookSlotIdx) : null
+  const timeLabel = pair
+   ? `${pair.displayRange}（連堂 · 計 2 堂）`
+   : lessonSlotLabel(bookSlotIdx)
   const teacherId = teacherTid || bookTeacherId || bookRow.teacherId
   const classroomId = bookRoomId.trim() || null
   const classStudentIds = activeStudentIdsByClass.get(bookRow.classId) ?? [bookRow.studentId]
@@ -776,7 +794,7 @@ export function PrivateTutoringView() {
     pushBanner({
      tone: "success",
      title: "已改約",
-     message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
+     message: `${bookRow.fullName} · ${bookDate} ${timeLabel}`,
     })
     setRescheduleScheduleId(null)
    } else if (bookMode === "weekly") {
@@ -797,13 +815,14 @@ export function PrivateTutoringView() {
     const conflictItems = preview.filter((p) => p.conflicts.length > 0)
     let skipConflictDates = false
     let ignoreConflicts = false
+    const lessonsPerDate = consecutive ? 2 : 1
     if (conflictItems.length > 0) {
      const lines = conflictItems.map(
       (p) => `${p.date}：${p.conflicts.map((c) => c.label).join("；")}`
      )
      const choice = await confirmDialog({
       title: "週期預約有衝突",
-      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選「無視衝突建立排程」會建立全部堂次；選取消則不建立任何堂。`,
+      description: `${lines.join("\n")}\n\n共 ${dates.length} 次上課${consecutive ? "（連堂每次計 2 堂）" : ""}，其中 ${conflictItems.length} 次衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選「無視衝突建立排程」會建立全部堂次；選取消則不建立任何堂。`,
       confirmText: "略過衝突日並建立",
       alternateText: "無視衝突建立排程",
       tone: "warning",
@@ -821,7 +840,9 @@ export function PrivateTutoringView() {
     } else {
      const ok = await confirmDialog({
       title: "確認週期預約",
-      description: `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
+      description: consecutive
+       ? `將建立每週共 ${dates.length} 次連堂（每次 2 節，合共最多 ${dates.length * lessonsPerDate} 堂；${dates[0]} 起）。確定繼續？`
+       : `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
       confirmText: "確認建立",
      })
      if (!ok) return
@@ -831,6 +852,8 @@ export function PrivateTutoringView() {
      studentIds: classStudentIds,
      dates,
      classroomId,
+     firstSlotIndex: bookSlotIdx,
+     consecutive,
      startTime,
      endTime,
      teacherId,
@@ -842,7 +865,7 @@ export function PrivateTutoringView() {
      title: "已建立週期預約",
      message:
       result.skipped.length > 0
-       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 堂（${result.skipped.join("、")}）`
+       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 次（${result.skipped.join("、")}）`
        : `建成 ${result.created} 堂`,
     })
    } else {
@@ -866,23 +889,25 @@ export function PrivateTutoringView() {
       return
      }
     }
-    await insertScheduleForClass(bookRow.classId, teacherId, {
-     scheduled_date: bookDate,
-     start_time: startTime,
-     end_time: endTime,
-     classroom_id: classroomId,
-     status: "正常",
+    await insertPrivateBookingSchedules({
+     classId: bookRow.classId,
+     teacherId,
+     scheduledDate: bookDate,
+     firstSlotIndex: bookSlotIdx,
+     consecutive,
+     classroomId,
     })
     pushBanner({
      tone: "success",
-     title: "已建立預約",
-     message: `${bookRow.fullName} · ${bookDate} ${lessonSlotLabel(bookSlotIdx)}`,
+     title: consecutive ? "已建立連堂預約" : "已建立預約",
+     message: `${bookRow.fullName} · ${bookDate} ${timeLabel}`,
     })
    }
 
    await Promise.all([reloadUpcomingSchedules(bookRow.classId), reloadStudents()])
    setBookDate(localYmd())
    setBookSlotIdx(0)
+   setBookConsecutive(false)
    setBookRoomId("")
    setBookTeacherId(bookRow.teacherId ?? "")
    setBookMode("single")
@@ -897,6 +922,7 @@ export function PrivateTutoringView() {
   bookDate,
   bookRoomId,
   bookSlotIdx,
+  bookConsecutive,
   bookTeacherId,
   bookMode,
   bookWeekCount,
@@ -1482,6 +1508,93 @@ export function PrivateTutoringView() {
         </div>
        ) : null}
 
+       <div className="space-y-1">
+        <label className="text-sm font-medium text-muted-foreground">
+         {rescheduleScheduleId ? "改約日期" : "上課日期"}
+        </label>
+        <Input type="date" value={bookDate} onChange={(e) => void onBookDateChange(e.target.value)} />
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-sm font-medium text-muted-foreground">時段</label>
+        <Select
+         value={String(bookSlotIdx)}
+         onChange={(e) => {
+          const next = Number(e.target.value)
+          setBookSlotIdx(next)
+          if (!canUseConsecutiveFromSlotIndex(next)) setBookConsecutive(false)
+          setBookRoomId("")
+         }}
+        >
+         {LESSON_SLOT_INDICES.map((i) => (
+          <option key={i} value={String(i)}>
+           {bookConsecutive &&
+           !rescheduleScheduleId &&
+           canUseConsecutiveFromSlotIndex(i)
+            ? `${consecutivePairFromFirstSlotIndex(i)?.displayRange ?? lessonSlotLabel(i)}（連堂）`
+            : lessonSlotLabel(i)}
+          </option>
+         ))}
+        </Select>
+        {!rescheduleScheduleId ? (
+         <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+          <input
+           type="checkbox"
+           className="h-4 w-4 rounded border-input"
+           checked={bookConsecutive && canUseConsecutiveFromSlotIndex(bookSlotIdx)}
+           disabled={!canUseConsecutiveFromSlotIndex(bookSlotIdx)}
+           onChange={(e) => {
+            setBookConsecutive(e.target.checked)
+            setBookRoomId("")
+           }}
+          />
+          連堂（連續 2 節 · 150 分鐘 · 計 2 堂學費）
+         </label>
+        ) : null}
+        {bookConsecutive && canUseConsecutiveFromSlotIndex(bookSlotIdx) ? (
+         <p className="text-sm text-muted-foreground">
+          將一次建立 2 筆排程
+          {bookMode === "weekly" ? "；週期預約每次上課亦為連堂" : ""}。
+         </p>
+        ) : null}
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-sm font-medium text-muted-foreground">課室（選填，僅顯示空房）</label>
+        <Select value={bookRoomId} onChange={(e) => setBookRoomId(e.target.value)}>
+         <option value="">暫不指定課室</option>
+         {bookActiveRooms
+          .filter((r) => freeRoomIdsForBook.has(r.id) || r.id === bookRoomId)
+          .map((r) => (
+           <option key={r.id} value={r.id}>
+            {r.name}
+           </option>
+          ))}
+        </Select>
+        {bookDate && freeRoomIdsForBook.size === 0 && (
+         <p className="text-sm text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
+        )}
+       </div>
+
+       <div className="space-y-1">
+        <label className="text-sm font-medium text-muted-foreground">授課老師</label>
+        <Select
+         value={bookTeacherId}
+         onChange={(e) => setBookTeacherId(e.target.value)}
+         disabled={isTeacherPortal}
+        >
+         <option value="">選擇老師</option>
+         {teacherOptions.map((t) => (
+          <option key={t.id} value={t.id}>
+           {t.label}
+          </option>
+         ))}
+        </Select>
+        {isTeacherPortal ? (
+         <p className="text-sm text-muted-foreground">老師入口固定為本人授課。</p>
+        ) : null}
+       </div>
+
        {activeUpcomingSchedules.length > 0 && (
         <div className="space-y-2">
          <p className="text-sm font-medium text-muted-foreground">已排課堂</p>
@@ -1534,66 +1647,6 @@ export function PrivateTutoringView() {
          </ul>
         </div>
        )}
-
-       <div className="space-y-1">
-        <label className="text-sm font-medium text-muted-foreground">
-         {rescheduleScheduleId ? "改約日期" : "上課日期"}
-        </label>
-        <Input type="date" value={bookDate} onChange={(e) => void onBookDateChange(e.target.value)} />
-       </div>
-
-       <div className="space-y-1">
-        <label className="text-sm font-medium text-muted-foreground">時段</label>
-        <Select
-         value={String(bookSlotIdx)}
-         onChange={(e) => {
-          setBookSlotIdx(Number(e.target.value))
-          setBookRoomId("")
-         }}
-        >
-         {LESSON_SLOT_INDICES.map((i) => (
-          <option key={i} value={String(i)}>
-           {lessonSlotLabel(i)}
-          </option>
-         ))}
-        </Select>
-       </div>
-
-       <div className="space-y-1">
-        <label className="text-sm font-medium text-muted-foreground">課室（選填，僅顯示空房）</label>
-        <Select value={bookRoomId} onChange={(e) => setBookRoomId(e.target.value)}>
-         <option value="">暫不指定課室</option>
-         {bookActiveRooms
-          .filter((r) => freeRoomIdsForBook.has(r.id) || r.id === bookRoomId)
-          .map((r) => (
-           <option key={r.id} value={r.id}>
-            {r.name}
-           </option>
-          ))}
-        </Select>
-        {bookDate && freeRoomIdsForBook.size === 0 && (
-         <p className="text-sm text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
-        )}
-       </div>
-
-       <div className="space-y-1">
-        <label className="text-sm font-medium text-muted-foreground">授課老師</label>
-        <Select
-         value={bookTeacherId}
-         onChange={(e) => setBookTeacherId(e.target.value)}
-         disabled={isTeacherPortal}
-        >
-         <option value="">選擇老師</option>
-         {teacherOptions.map((t) => (
-          <option key={t.id} value={t.id}>
-           {t.label}
-          </option>
-         ))}
-        </Select>
-        {isTeacherPortal ? (
-         <p className="text-sm text-muted-foreground">老師入口固定為本人授課。</p>
-        ) : null}
-       </div>
 
        {bookErr && (
         <p className="whitespace-pre-wrap text-sm text-destructive">{bookErr}</p>

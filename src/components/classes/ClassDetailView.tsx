@@ -34,7 +34,9 @@ import {
  weekdaysToStored,
 } from "@/components/classes/classesUi"
 import {
+ canUseConsecutiveFromSlotIndex,
  canUseConsecutiveFromTimeSlot,
+ consecutivePairFromFirstSlotIndex,
  formatClassTimeDisplay,
  isConsecutiveClass,
 } from "@/lib/consecutiveLesson"
@@ -67,7 +69,6 @@ import {
  fetchSubjectOptions,
  fetchTeacherOptions,
  getClassById,
- insertScheduleForClass,
  insertSchedulesForClassSession,
  nextSessionNumberForClass,
  reorderClassScheduleSessionNumbers,
@@ -83,8 +84,11 @@ import {
  buildWeeklyDates,
  checkPrivateBookingConflicts,
  createPrivateRecurringBookings,
+ insertPrivateBookingSchedules,
  previewPrivateRecurringBookings,
+ privateBookingTimeBounds,
  updatePrivateClassSettings,
+ withdrawPrivateEnrollment,
 } from "@/services/privateTutoringQueries"
 import {
  fetchRoomCalendarBundle,
@@ -93,11 +97,8 @@ import {
 import type { RoomRecord } from "@/services/classroomQueries"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import {
- formatMin,
  LESSON_SLOT_INDICES,
- lessonSlotEndMinute,
  lessonSlotLabel,
- lessonSlotStartMinute,
 } from "@/lib/lessonSlots"
 import {
  fetchEnrollmentChangeEventsForClass,
@@ -108,7 +109,6 @@ import {
  withdrawStudentFromClass,
  type StudentRecord,
 } from "@/services/studentQueries"
-import { withdrawPrivateEnrollment } from "@/services/privateTutoringQueries"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
@@ -237,6 +237,7 @@ export function ClassDetailView() {
  const [privateBookOpen, setPrivateBookOpen] = useState(false)
  const [privateBookDate, setPrivateBookDate] = useState(() => localYmd())
  const [privateBookSlotIdx, setPrivateBookSlotIdx] = useState(0)
+ const [privateBookConsecutive, setPrivateBookConsecutive] = useState(false)
  const [privateBookRoomId, setPrivateBookRoomId] = useState("")
  const [privateBookTeacherId, setPrivateBookTeacherId] = useState("")
  const [privateBookMode, setPrivateBookMode] = useState<"single" | "weekly">("single")
@@ -626,6 +627,7 @@ export function ClassDetailView() {
   const tid = getTeacherScopeTeacherId()
   setPrivateBookDate(localYmd())
   setPrivateBookSlotIdx(0)
+  setPrivateBookConsecutive(false)
   setPrivateBookRoomId("")
   setPrivateBookTeacherId(tid || cls.teacher_id || "")
   setPrivateBookMode("single")
@@ -659,10 +661,15 @@ export function ClassDetailView() {
   }
  }, [])
 
+ const privateBookUsesConsecutive =
+  privateBookConsecutive && canUseConsecutiveFromSlotIndex(privateBookSlotIdx)
+
  const privateBookFreeRoomIds = useMemo(() => {
   if (!privateBookDate) return new Set<string>()
-  const slotStart = lessonSlotStartMinute(privateBookSlotIdx)
-  const slotEnd = lessonSlotEndMinute(privateBookSlotIdx)
+  const { startMin, endMin } = privateBookingTimeBounds(
+   privateBookSlotIdx,
+   privateBookUsesConsecutive
+  )
   const active = classroomsActiveOnDate(
    privateBookRooms.filter((r) => !r.is_online),
    privateBookDate
@@ -674,8 +681,8 @@ export function ClassDetailView() {
       occupiersForSlot(
        privateBookDate,
        room.id,
-       slotStart,
-       slotEnd,
+       startMin,
+       endMin,
        privateBookSchedules,
        privateBookPending
       ).length === 0
@@ -685,6 +692,7 @@ export function ClassDetailView() {
  }, [
   privateBookDate,
   privateBookSlotIdx,
+  privateBookUsesConsecutive,
   privateBookRooms,
   privateBookSchedules,
   privateBookPending,
@@ -704,8 +712,17 @@ export function ClassDetailView() {
    setPrivateBookErr("請選擇日期")
    return
   }
-  const startTime = formatMin(lessonSlotStartMinute(privateBookSlotIdx))
-  const endTime = formatMin(lessonSlotEndMinute(privateBookSlotIdx))
+  const consecutive =
+   privateBookConsecutive && canUseConsecutiveFromSlotIndex(privateBookSlotIdx)
+  if (privateBookConsecutive && !consecutive) {
+   setPrivateBookErr("連堂需選擇可連續兩格的起始時段（最後一格不可連堂）。")
+   return
+  }
+  const { startTime, endTime } = privateBookingTimeBounds(privateBookSlotIdx, consecutive)
+  const pair = consecutive ? consecutivePairFromFirstSlotIndex(privateBookSlotIdx) : null
+  const timeLabel = pair
+   ? `${pair.displayRange}（連堂 · 計 2 堂）`
+   : lessonSlotLabel(privateBookSlotIdx)
   const teacherId = teacherScopeId || privateBookTeacherId || cls.teacher_id
   const classroomId = privateBookRoomId.trim() || null
   const studentIds = students
@@ -736,13 +753,14 @@ export function ClassDetailView() {
     const conflictItems = preview.filter((p) => p.conflicts.length > 0)
     let skipConflictDates = false
     let ignoreConflicts = false
+    const lessonsPerDate = consecutive ? 2 : 1
     if (conflictItems.length > 0) {
      const lines = conflictItems.map(
       (p) => `${p.date}：${p.conflicts.map((c) => c.label).join("；")}`
      )
      const choice = await confirmDialog({
       title: "週期預約有衝突",
-      description: `${lines.join("\n")}\n\n共 ${dates.length} 堂，其中 ${conflictItems.length} 堂衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選「無視衝突建立排程」會建立全部堂次；選取消則不建立任何堂。`,
+      description: `${lines.join("\n")}\n\n共 ${dates.length} 次上課${consecutive ? "（連堂每次計 2 堂）" : ""}，其中 ${conflictItems.length} 次衝突。\n選「略過衝突日」會建立其餘無衝突堂次；選「無視衝突建立排程」會建立全部堂次；選取消則不建立任何堂。`,
       confirmText: "略過衝突日並建立",
       alternateText: "無視衝突建立排程",
       tone: "warning",
@@ -760,7 +778,9 @@ export function ClassDetailView() {
     } else {
      const ok = await confirmDialog({
       title: "確認週期預約",
-      description: `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
+      description: consecutive
+       ? `將建立每週共 ${dates.length} 次連堂（每次 2 節，合共最多 ${dates.length * lessonsPerDate} 堂；${dates[0]} 起）。確定繼續？`
+       : `將建立每週共 ${dates.length} 堂（${dates[0]} 起）。確定繼續？`,
       confirmText: "確認建立",
      })
      if (!ok) return
@@ -770,6 +790,8 @@ export function ClassDetailView() {
      studentIds,
      dates,
      classroomId,
+     firstSlotIndex: privateBookSlotIdx,
+     consecutive,
      startTime,
      endTime,
      teacherId,
@@ -781,7 +803,7 @@ export function ClassDetailView() {
      title: "已建立週期預約",
      message:
       result.skipped.length > 0
-       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 堂`
+       ? `建成 ${result.created} 堂，略過 ${result.skipped.length} 次`
        : `建成 ${result.created} 堂`,
     })
    } else {
@@ -805,17 +827,18 @@ export function ClassDetailView() {
       return
      }
     }
-    await insertScheduleForClass(cls.id, teacherId, {
-     scheduled_date: privateBookDate,
-     start_time: startTime,
-     end_time: endTime,
-     classroom_id: classroomId,
-     status: "正常",
+    await insertPrivateBookingSchedules({
+     classId: cls.id,
+     teacherId,
+     scheduledDate: privateBookDate,
+     firstSlotIndex: privateBookSlotIdx,
+     consecutive,
+     classroomId,
     })
     pushBanner({
      tone: "success",
-     title: "已建立預約",
-     message: `${privateBookDate} ${lessonSlotLabel(privateBookSlotIdx)}`,
+     title: consecutive ? "已建立連堂預約" : "已建立預約",
+     message: `${privateBookDate} ${timeLabel}`,
     })
    }
    setPrivateBookOpen(false)
@@ -832,6 +855,7 @@ export function ClassDetailView() {
   cls,
   privateBookDate,
   privateBookSlotIdx,
+  privateBookConsecutive,
   privateBookRoomId,
   privateBookTeacherId,
   privateBookMode,
@@ -2507,16 +2531,39 @@ export function ClassDetailView() {
         <Select
          value={String(privateBookSlotIdx)}
          onChange={(e) => {
-          setPrivateBookSlotIdx(Number(e.target.value))
+          const next = Number(e.target.value)
+          setPrivateBookSlotIdx(next)
+          if (!canUseConsecutiveFromSlotIndex(next)) setPrivateBookConsecutive(false)
           setPrivateBookRoomId("")
          }}
         >
          {LESSON_SLOT_INDICES.map((i) => (
           <option key={i} value={String(i)}>
-           {lessonSlotLabel(i)}
+           {privateBookConsecutive && canUseConsecutiveFromSlotIndex(i)
+            ? `${consecutivePairFromFirstSlotIndex(i)?.displayRange ?? lessonSlotLabel(i)}（連堂）`
+            : lessonSlotLabel(i)}
           </option>
          ))}
         </Select>
+        <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+         <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-input"
+          checked={privateBookConsecutive && canUseConsecutiveFromSlotIndex(privateBookSlotIdx)}
+          disabled={!canUseConsecutiveFromSlotIndex(privateBookSlotIdx)}
+          onChange={(e) => {
+           setPrivateBookConsecutive(e.target.checked)
+           setPrivateBookRoomId("")
+          }}
+         />
+         連堂（連續 2 節 · 150 分鐘 · 計 2 堂學費）
+        </label>
+        {privateBookConsecutive && canUseConsecutiveFromSlotIndex(privateBookSlotIdx) ? (
+         <p className="text-xs text-muted-foreground">
+          將一次建立 2 筆排程
+          {privateBookMode === "weekly" ? "；週期預約每次上課亦為連堂" : ""}。
+         </p>
+        ) : null}
        </div>
 
        <div className="space-y-1">

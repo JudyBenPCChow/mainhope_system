@@ -4,6 +4,13 @@ import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 
+/** Dialog／Sheet 辨識用：portal 面板點擊不可視為「點擊外部」 */
+export const MGMT_DATE_PANEL_ATTR = "data-mgmt-date-panel"
+
+export function isMgmtDatePanelTarget(target: EventTarget | null): boolean {
+ return target instanceof Element && Boolean(target.closest(`[${MGMT_DATE_PANEL_ATTR}]`))
+}
+
 type DateInputProps = Omit<React.InputHTMLAttributes<HTMLInputElement>, "type">
 
 function parseYmd(value: string | undefined): Date | undefined {
@@ -94,8 +101,18 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
     ? createPortal(
        <div
         ref={panelRef}
+        {...{ [MGMT_DATE_PANEL_ATTR]: "" }}
         className="fixed z-[320] overflow-hidden rounded-[22px] border border-border/80 bg-white shadow-xl"
-        style={{ left: placement.left, top: placement.top, width: placement.width }}
+        style={{
+         left: placement.left,
+         top: placement.top,
+         width: placement.width,
+         /**
+          * Radix modal Dialog 會把 body 設為 pointer-events:none，只讓 DialogContent 可點。
+          * 面板 portal 到 body 後必須自行恢復，否則點擊會穿透到下方「已排課堂」等內容。
+          */
+         pointerEvents: "auto",
+        }}
        >
         <div className="border-b border-border/70 px-6 py-4 text-center text-lg text-foreground">
          {selected ? formatPanelDate(selected) : "請選擇日期"}
