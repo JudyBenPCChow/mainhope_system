@@ -1,3 +1,4 @@
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 
 export type CourseMode = "regular" | "summer_two_period"
@@ -160,6 +161,17 @@ export type ClassEnrollmentConfig = {
  academicYearLabel: string | null
 }
 
+function mapClassEnrollmentConfigRow(row: Record<string, unknown>): ClassEnrollmentConfig {
+ const course = row.courses as Record<string, unknown> | null
+ const year = row.academic_years as Record<string, unknown> | null
+ const mode = course?.course_mode != null ? String(course.course_mode) : "regular"
+ return {
+  courseMode: mode === "summer_two_period" ? "summer_two_period" : "regular",
+  academicYearId: row.academic_year_id != null ? String(row.academic_year_id) : null,
+  academicYearLabel: year?.label != null ? String(year.label) : null,
+ }
+}
+
 export async function fetchClassEnrollmentConfig(classId: string): Promise<ClassEnrollmentConfig> {
  if (!supabase) {
   return { courseMode: "regular", academicYearId: null, academicYearLabel: null }
@@ -173,15 +185,39 @@ export async function fetchClassEnrollmentConfig(classId: string): Promise<Class
  if (!data) {
   return { courseMode: "regular", academicYearId: null, academicYearLabel: null }
  }
- const row = data as Record<string, unknown>
- const course = row.courses as Record<string, unknown> | null
- const year = row.academic_years as Record<string, unknown> | null
- const mode = course?.course_mode != null ? String(course.course_mode) : "regular"
- return {
-  courseMode: mode === "summer_two_period" ? "summer_two_period" : "regular",
-  academicYearId: row.academic_year_id != null ? String(row.academic_year_id) : null,
-  academicYearLabel: year?.label != null ? String(year.label) : null,
+ return mapClassEnrollmentConfigRow(data as Record<string, unknown>)
+}
+
+/** 批次讀取班別報讀設定（日視圖 roster 等用；缺列時回傳 regular） */
+export async function fetchClassEnrollmentConfigsByIds(
+ classIds: string[]
+): Promise<Map<string, ClassEnrollmentConfig>> {
+ const m = new Map<string, ClassEnrollmentConfig>()
+ const empty: ClassEnrollmentConfig = {
+  courseMode: "regular",
+  academicYearId: null,
+  academicYearLabel: null,
  }
+ for (const id of classIds) m.set(id, empty)
+ if (!supabase || classIds.length === 0) return m
+
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("classes")
+   .select("id, academic_year_id, academic_years ( label ), courses ( course_mode )")
+   .in("id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const id = String(r.id ?? "")
+   if (!id) continue
+   m.set(id, mapClassEnrollmentConfigRow(r))
+  }
+ }
+ return m
 }
 
 /** 依排程日期判斷學生是否應出現在 roster（不含單堂選堂；單堂請用 enrollmentVisibleOnSchedule） */

@@ -7,6 +7,8 @@ const srcRoot = join(projectRoot, "src")
 
 const ALLOW_NATIVE_SELECT_FILES = new Set([
   join(srcRoot, "components/ui/select.tsx"),
+  // 長名單推薦人：流動裝置保留原生 OS picker；勿盲換 Radix Select（見 UI_DESIGN_INSTRUCTIONS §12 例外）
+  join(srcRoot, "components/payments/PaymentsPageView.tsx"),
 ])
 
 const checks = [
@@ -120,7 +122,8 @@ function findHardcodedStatusTagViolations(content) {
     const toneAttr = attrs.match(/\btone\s*=\s*(\{[^}]*\}|"[^"]*")/)
     if (!toneAttr) continue
     const toneExpr = toneAttr[1] ?? ""
-    const usesDictionary = /statusToTagTone\s*\(/.test(toneExpr)
+    const usesDictionary =
+      /statusToTagTone\s*\(/.test(toneExpr) || /todoStatusTone\s*\(/.test(toneExpr)
     if (!usesDictionary) {
       violations.push({
         index: m.index,

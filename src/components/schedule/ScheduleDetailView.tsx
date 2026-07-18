@@ -185,7 +185,7 @@ export function ScheduleDetailView() {
         （共 {safeCtx.students.length} 人）
        </span>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
        含就讀中、試堂與當日請假／補堂／點名紀錄曾出現的學生。
       </p>
       {safeCtx.students.length === 0 ? (

@@ -142,14 +142,14 @@ export function TodosView() {
  }
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
       <ListTodo className="h-8 w-8 text-primary" aria-hidden />
       待辦事項
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
       管理後台待辦；已完成項目可保留查閱或刪除。
      </p>
     </div>

@@ -128,9 +128,12 @@
 - 全專案日期輸入一律使用共用 `Input type="date"`（由 `src/components/ui/input.tsx` 轉接至 `src/components/ui/date-input.tsx`）；禁止在業務頁各自實作日期彈層。
 - Date Picker 面板需維持四段式：**白底圓角容器 + 上方日期顯示區 + 中央月曆 + 底部 Reset**，保持一致視覺語言。
 - Date Picker 內容區需置中：上方日期、月份標題、月曆表格與底部 Reset 按鈕皆需以中線對齊，不得預設靠左排版。
-- Date Picker 不得混入檔案相關能力（附件區、上傳/下載、檔案數量）。
+- Date Picker 面板須以 **fixed／portal** 掛到 `document.body`（z-index ≥ Select／DateRange 的 `320`），避免在 `MobileFilterSheet`、Dialog（`overflow-y-auto`）內被裁切；窄螢幕寬度用 `min(100vw - 16px, 偏好寬度)`。
+- 選取日顏色走 design token（單日 `success`、區間 `primary`），禁止硬編碼 hex。
+- Date Picker 不得混入檔案相關能力（附件區、上傳／下載、檔案數量）。
 - 對外值格式固定為 `YYYY-MM-DD`；Reset 清除回傳空字串，並需與既有查詢參數/API payload 相容。
 - 若要擴充成區間（Start/End）模式，需在共用元件層實作與維護，不可在單頁繞過共用元件另做。
+- **開放區間篩選**（可只填起日或只填迄日）維持兩個獨立 `Input type="date"`；僅在確認必須兩端都有時才改用 `DateRangeInput`（Reset 會一次清 from+to）。
 
 ---
 
@@ -162,12 +165,14 @@
 - 鍵盤規則：`Enter` 觸發主要動作、`Esc` 視為取消。
 - 按鈕配置：次要（outline）在左、主要（實心）在右；窄螢幕允許換行。
 - 危險操作主要按鈕使用 destructive 語意色。
+- **不可還原的清除／硬刪**（例如手誤清除報讀）：除 `tone: "destructive"` 外，應傳入 `confirmInput`（`label` + `expected`），使用者輸入與 `expected`（trim 後完全一致）後才可按確認；有 `confirmInput` 時自動 focus 輸入框，且僅在輸入正確時允許 `Enter` 確認。實作見 `src/lib/appConfirm.tsx`。
 
 ---
 
 ## 12. Dropdown / Menu / Tag 規範（2026-04-23 起）
 
 - 全專案下拉選單一律使用共用 `Select`（`src/components/ui/select.tsx`），不得直接在頁面使用原生 `<select>`。
+- **例外（長名單 picker）**：選項為大量動態實體（例如繳費「推薦人／舊生」整份學生名單）時，可保留原生 `<select>` 以使用系統 wheel picker，並在 `scripts/ui-guideline-check.mjs` 的 `ALLOW_NATIVE_SELECT_FILES` 登錄；**禁止**為通過檢查而盲換 Radix `Select`（Dialog 內長名單與流動體驗會變差）。後續若改版，優先做可搜尋 bottom sheet，而非共用 Select。
 - Dropdown 視覺語言：白底、圓角、細邊框、箭咀圖示一致、hover 邊框加深；disabled 項目維持低對比可辨識。
 - 需要 action menu（例如 Edit / Share / Preview）時，選單項目遵循同一套圓角容器與 hover 高亮風格，不得混入另一套 menu 樣式。
 - Tag 一律使用共用 `Tag`（`src/components/ui/tag.tsx`）或 `tagVariants`，禁止在業務頁手寫零散色塊。
@@ -193,3 +198,14 @@
 - **儲存格式**：多選學年以半形逗號串接寫入既有 `text` 欄位（如 `payment_discounts.academic_year`）；讀取時以 `parseMultiValueField` / `joinMultiValueField` 轉換。
 - **互斥群組等無主檔清單**：既有群組以 checkbox 剔選；新增代碼使用欄位下方「輸入 + 加入」列（須在對話框內直接操作，避免下拉 portal 被 Dialog 判定為外部點擊）。
 - **參考實作**：`src/components/payments/PaymentDiscountsView.tsx`（編輯優惠對話框）。
+---
+
+## 14. 流動裝置（`<768px`）刻意例外（2026-07-18 起）
+
+- **殼分離**：`AdaptiveLayout` 在 `MOBILE_BREAKPOINT`（768）以下使用 `MobileLayout`，與桌面側欄 `Layout` 分離；**不得**用共用 PageShell 硬合併 chrome（頂欄／底欄／drawer）。
+- **Overlay 分工**：詳情 `DetailLayerShell`、篩選 `MobileFilterSheet` = bottom sheet；導航 `MobileNavDrawer` = side drawer；Confirm／表單 = 置中 `Dialog`。**禁止**為「統一」把 sheet／drawer 改成置中 Dialog。
+- **篩選呈現**：同一篩選 state；桌面 inline、手機進 `MobileFilterSheet`（Students／Payments／Classes／Trials 為準）。
+- **觸控高度**：表單觸發優先 `h-10`／`min-h-10`（對齊共用 `Select`）；**勿**為桌面對齊把 Select 壓成 `h-9`。
+- **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。
+- **主區底部**：`pb-[calc(5.5rem+safe-area)]`；全高彈層需避開底欄。
+- **z-index（勿打亂）**：DetailLayer `200` → Dialog `260/261` → FilterSheet／NavDrawer `270` → Select／DateInput／DateRange `320`。

@@ -322,7 +322,7 @@ export function ClassroomsManagePage() {
       </span>
       <Tag tone="info" size="sm">{rooms.length} 間</Tag>
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">依課室檢視週排程，點選欄位或空白格可快速新增。</p>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">依課室檢視週排程，點選欄位或空白格可快速新增。</p>
     </div>
    </header>
 

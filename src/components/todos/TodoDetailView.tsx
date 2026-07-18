@@ -26,7 +26,8 @@ import {
 } from "@/services/calendarQueries"
 
 import { TodoFormDialog, todoFormFromEvent, type TodoFormValues } from "./TodoFormDialog"
-import { todoStatusLabel, todoStatusTone, TodoStatusChips, TodoTagList } from "./todoUi"
+import { todoStatusLabel, TodoStatusChips, TodoTagList } from "./todoUi"
+import { statusToTagTone } from "@/lib/statusTag"
 
 function formatDateTime(iso: string): string {
  const d = new Date(iso)
@@ -225,7 +226,7 @@ export function TodoDetailView() {
       <div className="min-w-0 flex-1">
        <h1 className="text-xl font-semibold tracking-tight md:text-2xl">{event.title}</h1>
        <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Tag tone={todoStatusTone(event.status)} size="sm">
+        <Tag tone={statusToTagTone(todoStatusLabel(event.status))} size="sm">
          {todoStatusLabel(event.status)}
         </Tag>
         <span className="text-xs text-muted-foreground">事項日期 {event.eventDate}</span>

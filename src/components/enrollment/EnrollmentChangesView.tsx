@@ -72,14 +72,14 @@ export function EnrollmentChangesView() {
  }, [rows])
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
       <ScrollText className="h-8 w-8 text-teal-600" aria-hidden />
       增退紀錄
      </h1>
-     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+     <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
       資料來源為 <code className="rounded bg-muted px-1 text-xs">enrollment_change_events</code>
       。報讀／退讀由學生詳情與相關流程寫入；此頁供查詢與稽核。
      </p>

@@ -227,7 +227,9 @@ export async function fetchPrivateTutoringStudents(): Promise<PrivateTutoringStu
  const { data: privateClasses, error: classErr } = await supabase
   .from("classes")
   .select("id, subject, class_kind")
-  .or("class_kind.eq.private,subject.ilike.%一對一%,subject.ilike.%單對單%")
+  .or(
+   "class_kind.eq.private,subject.ilike.%一對一%,subject.ilike.%一對二%,subject.ilike.%單對單%"
+  )
  if (classErr) throw new Error(formatUnknownError(classErr))
 
  const privateClassIds = (privateClasses ?? [])

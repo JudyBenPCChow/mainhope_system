@@ -1,5 +1,14 @@
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
+ enrollmentCoversPeriod,
+ fetchAcademicYearPeriods,
+ fetchClassEnrollmentConfigsByIds,
+ isSingleSessionEnrollment,
+ isSummerTwoPeriodMode,
+ normalizeEnrollmentPeriod,
+ resolvePeriodCodeFromDate,
+} from "@/lib/enrollmentPeriod"
+import {
  LESSON_SLOT_DURATION_MIN,
  intervalsOverlapMinutes,
  parseHm,
@@ -182,6 +191,91 @@ export async function fetchEnrollmentRosterByClassIds(
  return m
 }
 
+export type DayViewRosterStudent = { studentId: string; fullName: string }
+
+/**
+ * 日視圖專用：批次取各班就讀中學生（依 scheduleDate 過濾暑期期數；單堂一律排除）。
+ * 語意對齊 fetchClassStudents(classId, { scheduleDate, activeOnly: true })。
+ */
+export async function fetchDayViewRosterByClassIds(
+ classIds: string[],
+ scheduleDate: string
+): Promise<Map<string, DayViewRosterStudent[]>> {
+ const m = new Map<string, DayViewRosterStudent[]>()
+ for (const id of classIds) m.set(id, [])
+ if (!supabase || classIds.length === 0) return m
+
+ const [enrollmentChunks, configByClass] = await Promise.all([
+  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("student_class_enrollments")
+    .select("class_id, student_id, enrollment_period, students ( full_name )")
+    .in("class_id", slice)
+    .eq("status", "就讀中")
+   if (error) throw error
+   return data ?? []
+  }),
+  fetchClassEnrollmentConfigsByIds(classIds),
+ ])
+
+ const yearIds = [
+  ...new Set(
+   [...configByClass.values()]
+    .filter((c) => isSummerTwoPeriodMode(c.courseMode) && c.academicYearId)
+    .map((c) => c.academicYearId as string)
+  ),
+ ]
+ const periodsByYear = new Map<
+  string,
+  Awaited<ReturnType<typeof fetchAcademicYearPeriods>>
+ >()
+ await Promise.all(
+  yearIds.map(async (yid) => {
+   periodsByYear.set(yid, await fetchAcademicYearPeriods(yid))
+  })
+ )
+
+ const periodCodeByClass = new Map<string, 1 | 2 | null>()
+ for (const classId of classIds) {
+  const config = configByClass.get(classId)
+  if (!config || !isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
+   periodCodeByClass.set(classId, null)
+   continue
+  }
+  const periods = periodsByYear.get(config.academicYearId) ?? []
+  periodCodeByClass.set(classId, resolvePeriodCodeFromDate(scheduleDate, periods))
+ }
+
+ for (const data of enrollmentChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const cid = String(r.class_id ?? "")
+   if (!cid) continue
+   const enrollmentPeriod = normalizeEnrollmentPeriod(
+    r.enrollment_period != null ? String(r.enrollment_period) : null
+   )
+   // 日視圖有 scheduleDate、無 scheduleId → 單堂一律排除
+   if (isSingleSessionEnrollment(enrollmentPeriod)) continue
+   const periodCode = periodCodeByClass.get(cid) ?? null
+   if (periodCode != null && !enrollmentCoversPeriod(enrollmentPeriod, periodCode)) continue
+
+   const st = r.students as Record<string, unknown> | null
+   const fullName = st?.full_name != null ? String(st.full_name).trim() : "—"
+   const list = m.get(cid) ?? []
+   list.push({
+    studentId: String(r.student_id),
+    fullName: fullName || "—",
+   })
+   m.set(cid, list)
+  }
+ }
+
+ for (const list of m.values()) {
+  list.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+ }
+ return m
+}
+
 export async function fetchSchedulesInRange(
  fromYmd: string,
  toYmd: string,
@@ -209,7 +303,12 @@ export async function fetchSchedulesInRange(
 }
 
 export async function fetchScheduleAlerts(
- schedules: { id: string; class_id: string | null; scheduled_date: string }[]
+ schedules: {
+  id: string
+  class_id: string | null
+  scheduled_date: string
+  remarks?: string | null
+ }[]
 ): Promise<Map<string, ScheduleAlerts>> {
  const map = new Map<string, ScheduleAlerts>()
  for (const s of schedules) {
@@ -221,68 +320,105 @@ export async function fetchScheduleAlerts(
  const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
  const classIds = [...new Set(schedules.map((s) => s.class_id).filter((x): x is string => x != null))]
 
- const [trialsRes, leavesLinkedRes, leavesOrphanRes, remarksRes] = await Promise.all([
-  supabase.from("trial_sessions").select("schedule_id").in("schedule_id", ids),
-  supabase
-   .from("leave_makeup_records")
-   .select("schedule_id, makeup_type, status, leave_reason")
-   .in("schedule_id", ids),
+ const [trialChunks, leavesLinkedChunks, leavesOrphanChunks, makeupTargetChunks] = await Promise.all([
+  forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("trial_sessions")
+    .select("schedule_id, status")
+    .in("schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("leave_makeup_records")
+    .select("schedule_id, makeup_type, status, leave_reason")
+    .in("schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
   classIds.length
-   ? supabase
-     .from("leave_makeup_records")
-     .select("class_id, leave_date, leave_reason, makeup_type, schedule_id, status")
-     .in("leave_date", dates)
-     .in("class_id", classIds)
-   : Promise.resolve({ data: [] as Record<string, unknown>[], error: null as null }),
-  supabase.from("schedules").select("id, remarks").in("id", ids),
+   ? forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+      const { data, error } = await supabase!
+       .from("leave_makeup_records")
+       .select("class_id, leave_date, leave_reason, makeup_type, schedule_id, status")
+       .in("leave_date", dates)
+       .in("class_id", slice)
+      if (error) throw error
+      return data ?? []
+     })
+   : Promise.resolve([] as Record<string, unknown>[][]),
+  forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("leave_makeup_records")
+    .select("makeup_schedule_id")
+    .in("makeup_schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
  ])
 
- for (const row of trialsRes.data ?? []) {
-  const sid = String((row as { schedule_id: string }).schedule_id)
-  const a = map.get(sid)
-  if (a) a.trial = true
- }
-
- for (const row of leavesLinkedRes.data ?? []) {
-  const sid = String((row as { schedule_id: string }).schedule_id)
-  const a = map.get(sid)
-  if (!a) continue
-  a.leave = true
-  const makeupType = String((row as { makeup_type?: string }).makeup_type ?? "")
-  const st = String((row as { status?: string }).status ?? "")
-  const reason = String((row as { leave_reason?: string }).leave_reason ?? "")
-  if (makeupType.includes("補") || st.includes("補") || reason.includes("補堂")) a.makeup = true
- }
-
- for (const row of leavesOrphanRes.data ?? []) {
-  const r = row as {
-   class_id: string
-   leave_date: string
-   schedule_id: string | null
-   leave_reason?: string | null
-   makeup_type?: string | null
-   status?: string | null
+ for (const data of makeupTargetChunks) {
+  for (const row of data ?? []) {
+   const mid = String((row as { makeup_schedule_id: string }).makeup_schedule_id)
+   const a = map.get(mid)
+   if (a) a.makeup = true
   }
-  if (r.schedule_id) continue
-  const reason = String(r.leave_reason ?? "")
-  const mk = String(r.makeup_type ?? "")
-  const st = String(r.status ?? "")
-  for (const s of schedules) {
-   if (!s.class_id || s.class_id !== r.class_id || s.scheduled_date !== r.leave_date) continue
-   const a = map.get(s.id)
+ }
+
+ for (const data of trialChunks) {
+  for (const row of data) {
+   const r = row as { schedule_id: string; status?: string }
+   const st = String(r.status ?? "")
+   if (st.includes("完成") || st.includes("取消")) continue
+   const a = map.get(String(r.schedule_id))
+   if (a) a.trial = true
+  }
+ }
+
+ for (const data of leavesLinkedChunks) {
+  for (const row of data) {
+   const sid = String((row as { schedule_id: string }).schedule_id)
+   const a = map.get(sid)
    if (!a) continue
-   if (reason.includes("病") || reason.includes("事假") || reason.includes("請假") || reason.includes("假")) {
-    a.leave = true
-   }
-   if (mk.includes("補") || st.includes("補") || reason.includes("補")) a.makeup = true
+   a.leave = true
+   const makeupType = String((row as { makeup_type?: string }).makeup_type ?? "")
+   const st = String((row as { status?: string }).status ?? "")
+   const reason = String((row as { leave_reason?: string }).leave_reason ?? "")
+   if (makeupType.includes("補") || st.includes("補") || reason.includes("補堂")) a.makeup = true
   }
  }
 
- for (const row of remarksRes.data ?? []) {
-  const r = row as { id: string; remarks: string | null }
-  const rem = r.remarks ?? ""
+ for (const data of leavesOrphanChunks) {
+  for (const row of data) {
+   const r = row as {
+    class_id: string
+    leave_date: string
+    schedule_id: string | null
+    leave_reason?: string | null
+    makeup_type?: string | null
+    status?: string | null
+   }
+   if (r.schedule_id) continue
+   const reason = String(r.leave_reason ?? "")
+   const mk = String(r.makeup_type ?? "")
+   const st = String(r.status ?? "")
+   for (const s of schedules) {
+    if (!s.class_id || s.class_id !== r.class_id || s.scheduled_date !== r.leave_date) continue
+    const a = map.get(s.id)
+    if (!a) continue
+    if (reason.includes("病") || reason.includes("事假") || reason.includes("請假") || reason.includes("假")) {
+     a.leave = true
+    }
+    if (mk.includes("補") || st.includes("補") || reason.includes("補")) a.makeup = true
+   }
+  }
+ }
+
+ for (const s of schedules) {
+  const rem = s.remarks ?? ""
   if (rem.includes("錄影") || rem.includes("錄像") || rem.includes("錄音")) {
-   const a = map.get(String(r.id))
+   const a = map.get(s.id)
    if (a) a.record = true
   }
  }
@@ -371,20 +507,25 @@ export async function fetchScheduleSummariesByClassIds(
  for (const id of classIds) {
   out.set(id, { classId: id, dates: [], hasActive: false })
  }
- const { data, error } = await supabase
-  .from("schedules")
-  .select("class_id, scheduled_date, status")
-  .in("class_id", classIds)
-  .order("scheduled_date", { ascending: true })
- if (error) throw error
- for (const row of data ?? []) {
-  const r = row as { class_id: string; scheduled_date: string; status: string }
-  const cid = String(r.class_id)
-  const entry = out.get(cid)
-  if (!entry) continue
-  if (!r.status.includes("取消")) {
-   entry.hasActive = true
-   entry.dates.push(String(r.scheduled_date))
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("class_id, scheduled_date, status")
+   .in("class_id", slice)
+   .order("scheduled_date", { ascending: true })
+  if (error) throw error
+  return data ?? []
+ })
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as { class_id: string; scheduled_date: string; status: string }
+   const cid = String(r.class_id)
+   const entry = out.get(cid)
+   if (!entry) continue
+   if (!r.status.includes("取消")) {
+    entry.hasActive = true
+    entry.dates.push(String(r.scheduled_date))
+   }
   }
  }
  return out

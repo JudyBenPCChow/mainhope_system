@@ -105,8 +105,10 @@ import {
  fetchAllStudents,
  insertEnrollment,
  purgeMistakenEnrollment,
+ withdrawStudentFromClass,
  type StudentRecord,
 } from "@/services/studentQueries"
+import { withdrawPrivateEnrollment } from "@/services/privateTutoringQueries"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
@@ -220,6 +222,8 @@ export function ClassDetailView() {
  const [scheduleHints, setScheduleHints] = useState<Map<string, ScheduleStudentHints>>(
   new Map()
  )
+ const [hintsLoading, setHintsLoading] = useState(false)
+ const hintsRequestIdRef = useRef(0)
  const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
  const [loading, setLoading] = useState(true)
  const [editOpen, setEditOpen] = useState(false)
@@ -385,15 +389,30 @@ export function ClassDetailView() {
    setStudents(st)
    setEnrollmentEvents(ev)
    setSchedules(sc)
-   const hints = await fetchScheduleStudentHintsForClass(
-    cid,
-    sc.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
-   )
-   setScheduleHints(hints)
    setTeachers(tch)
    setRooms(rm)
    setAllStudents(allSt)
    setSubjectOptions(subjectOpts)
+   setLoading(false)
+
+   const reqId = ++hintsRequestIdRef.current
+   setHintsLoading(true)
+   try {
+    const hints = await fetchScheduleStudentHintsForClass(
+     cid,
+     sc.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
+    )
+    if (reqId !== hintsRequestIdRef.current) return
+    setScheduleHints(hints)
+   } catch (e) {
+    if (reqId !== hintsRequestIdRef.current) return
+    reportUserFacingError(e, {
+     source: "ClassDetailView.reload.hints",
+     userMessage: "排程學生名單載入失敗",
+    })
+   } finally {
+    if (reqId === hintsRequestIdRef.current) setHintsLoading(false)
+   }
   } catch (e) {
    const msg = formatUnknownError(e)
    reportUserFacingError(e, {
@@ -401,7 +420,6 @@ export function ClassDetailView() {
     setErr: setPageErr,
     userMessage: msg,
    })
-  } finally {
    setLoading(false)
   }
  }, [cid])
@@ -1027,6 +1045,17 @@ export function ClassDetailView() {
      ? { owedCount: owed, reason: "遲報缺堂", remarks: `應享 ${entitled}／綁定 ${bound}` }
      : null
    )
+   const addedName =
+    allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
+   pushBanner({
+    tone: "success",
+    title: `已加入報讀：${addedName}`,
+    message: owed > 0 ? `已記錄待補 ${owed} 堂。可前往收款／出單。` : "可前往收款／出單。",
+    action: {
+     pageLabel: "收款／出單",
+     to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
+    },
+   })
    setStudentQuery("")
    setAddStudentForm(isSummer ? "兩期全報" : "full")
    setAddStudentScheduleIds([])
@@ -1045,13 +1074,64 @@ export function ClassDetailView() {
   }
  }
 
+ const onWithdrawStudent = async (s: ClassStudentRow) => {
+  if (
+   !(await confirmDialog({
+    title: "確認退讀",
+    description: isPrivateClass
+     ? `確定將「${s.fullName}」自此班退讀？會保留增退紀錄，並取消今日起尚未取消的預約課堂。若只是手誤加錯人，請改用「其他操作 → 手誤清除」。`
+     : `確定將「${s.fullName}」自此班退讀？會保留增退紀錄；若只是手誤加錯人，請改用「其他操作 → 手誤清除」。`,
+    confirmText: "確認退讀",
+    tone: "destructive",
+   }))
+  ) {
+   return
+  }
+  try {
+   if (isPrivateClass) {
+    await withdrawPrivateEnrollment({
+     enrollmentId: s.enrollmentId,
+     studentId: s.studentId,
+     classId: cid,
+    })
+   } else {
+    await withdrawStudentFromClass({
+     enrollmentId: s.enrollmentId,
+     studentId: s.studentId,
+     classId: cid,
+     effectiveDate: localYmd(),
+     reason: null,
+    })
+   }
+   pushBanner({ tone: "success", title: "已退讀", message: `${s.fullName} 已標為已退讀。` })
+   await reload()
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onWithdrawStudent",
+    userMessage: msg,
+   })
+   pushBanner({ tone: "error", title: "退讀失敗", message: msg })
+  }
+ }
+
  const onPurgeMistakenStudent = async (s: ClassStudentRow) => {
+  const studentName = s.fullName.trim()
+  if (!studentName) {
+   pushBanner({ tone: "error", title: "無法清除", message: "缺少學生姓名，請重新載入頁面後再試。" })
+   return
+  }
   if (
    !(await confirmDialog({
     title: "手誤清除報讀",
-    description: `確定清除「${s.fullName}」在此班的報讀？此操作會刪除該筆報讀及相關增退紀錄，不會留下任何痕跡（與退讀不同）。`,
+    description: `確定清除「${studentName}」在此班的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡。若要保留紀錄請改用「退讀」。`,
     confirmText: "確認清除",
     tone: "destructive",
+    confirmInput: {
+     label: `請輸入學生姓名以確認：${studentName}`,
+     expected: studentName,
+     placeholder: studentName,
+    },
    }))
   ) {
    return
@@ -1061,7 +1141,7 @@ export function ClassDetailView() {
     enrollmentId: s.enrollmentId,
     studentId: s.studentId,
    })
-   pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${s.fullName} 已自本班名單移除，無增退紀錄。` })
+   pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${studentName} 已自本班名單移除，無增退紀錄。` })
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)
@@ -1391,18 +1471,18 @@ export function ClassDetailView() {
        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold tabular-nums">{students.length}</div>
-        <div className="text-xs font-medium opacity-90">就讀學生</div>
+      <div className="grid grid-cols-3 gap-2 md:gap-3">
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+        <div className="text-xl font-bold tabular-nums md:text-3xl">{students.length}</div>
+        <div className="text-[11px] font-medium opacity-90 md:text-xs">就讀學生</div>
        </div>
-       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold tabular-nums">{parts.fut}</div>
-        <div className="text-xs font-medium opacity-90">未來排程</div>
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+        <div className="text-xl font-bold tabular-nums md:text-3xl">{parts.fut}</div>
+        <div className="text-[11px] font-medium opacity-90 md:text-xs">未來排程</div>
        </div>
-       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground shadow-sm transition-transform hover:scale-[1.02]">
-        <div className="text-3xl font-bold tabular-nums">{parts.past}</div>
-        <div className="text-xs font-medium opacity-90">已完成課堂</div>
+       <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+        <div className="text-xl font-bold tabular-nums md:text-3xl">{parts.past}</div>
+        <div className="text-[11px] font-medium opacity-90 md:text-xs">已完成課堂</div>
        </div>
       </div>
      </div>
@@ -1586,15 +1666,33 @@ export function ClassDetailView() {
          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
           <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
           {!getTeacherScopeTeacherId() && (canEditClass || canAddPrivateStudent) ? (
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-xs text-muted-foreground"
-            onClick={() => void onPurgeMistakenStudent(s)}
-           >
-            手誤清除
-           </Button>
+           <>
+            <Button
+             type="button"
+             variant="outline"
+             size="sm"
+             className="border-amber-700/45 text-amber-950 hover:bg-amber-50"
+             onClick={() => void onWithdrawStudent(s)}
+            >
+             退讀
+            </Button>
+            <details className="relative">
+             <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+              其他操作
+             </summary>
+             <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
+              <Button
+               type="button"
+               variant="ghost"
+               size="sm"
+               className="h-8 w-full justify-start text-xs text-muted-foreground"
+               onClick={() => void onPurgeMistakenStudent(s)}
+              >
+               手誤清除
+              </Button>
+             </div>
+            </details>
+           </>
           ) : null}
          </div>
         </div>
@@ -1831,6 +1929,7 @@ export function ClassDetailView() {
            endTime={s.end_time}
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
+           namesLoading={hintsLoading}
            editableSessionNumber={canEditSchedule(s.scheduled_date)}
            savingSessionNumber={savingSessionId === s.id}
            onSessionNumberSave={

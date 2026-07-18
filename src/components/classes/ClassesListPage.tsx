@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus } from "lucide-react"
+import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
  DAY_FILTER_CHIPS,
@@ -131,18 +132,40 @@ export function ClassesListPage() {
  const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
  const [kindKey, setKindKey] = usePersistentState<string>("mgmt_classes_kindKey", "小組")
  const [academicYearFilter, setAcademicYearFilter] = useAcademicYearFilter()
+ const [filtersOpen, setFiltersOpen] = useState(false)
+
+ const activeFilterCount = useMemo(() => {
+  let n = 0
+  if (subjectKey !== "全部") n += 1
+  if (gradeKey !== "全部") n += 1
+  if (!teacherTid && teacherKey !== "全部") n += 1
+  if (dayKey !== "全部") n += 1
+  if (kindKey !== "小組") n += 1
+  if (statusKey !== "全部") n += 1
+  return n
+ }, [subjectKey, gradeKey, teacherKey, dayKey, kindKey, statusKey, teacherTid])
+
+ const resetFilters = useCallback(() => {
+  setSubjectKey("全部")
+  setGradeKey("全部")
+  setTeacherKey("全部")
+  setDayKey("全部")
+  setKindKey("小組")
+  setStatusKey("全部")
+ }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setKindKey, setStatusKey])
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
   if (!opts?.silent) setLoading(true)
   setErr(null)
   try {
    const list = await fetchAllClasses()
-   const [teacherOpts, yearOpts] = await Promise.all([
+   const classIds = list.map((c) => c.id)
+   const [teacherOpts, yearOpts, roster, summaries] = await Promise.all([
     fetchTeacherOptions(),
     fetchAcademicYearOptions(),
+    fetchEnrollmentRosterByClassIds(classIds),
+    fetchScheduleSummariesByClassIds(classIds),
    ])
-   const roster = await fetchEnrollmentRosterByClassIds(list.map((c) => c.id))
-   const summaries = await fetchScheduleSummariesByClassIds(list.map((c) => c.id))
    setRows(list)
    setTeachers(teacherOpts)
    setYearOptions(yearOpts)
@@ -425,104 +448,8 @@ export function ClassesListPage() {
 
  const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
 
- return (
-  <div className="space-y-5 py-4 md:p-6">
-   {!isSupabaseConfigured ? (
-    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
-     請設定 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。
-    </div>
-   ) : null}
-   {err ? (
-    <div
-     role="alert"
-     tabIndex={-1}
-     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
-    >
-     {err}
-    </div>
-   ) : null}
-
-   <div className="flex flex-wrap items-center justify-between gap-4">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     {teacherTid ? "我的班別" : "班別管理"}
-     <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
-    </h1>
-    <div className="flex flex-wrap items-center gap-2">
-     <Select
-      className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
-      value={academicYearFilter}
-      onChange={(e) => setAcademicYearFilter(e.target.value)}
-     >
-      <option value="current">目前學年（{currentAcademicYear}）</option>
-      {academicYearSelectOptions.map((y) => (
-       <option key={y.value} value={y.value}>
-        {y.label}
-       </option>
-      ))}
-     </Select>
-     <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
-      <button
-       type="button"
-       onClick={() => setView(isMobile ? "cards" : "list")}
-       className={cn(
-        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-        (isMobile ? displayView === "cards" : view === "list")
-         ? "bg-primary text-primary-foreground shadow-sm"
-         : "text-muted-foreground hover:text-foreground"
-       )}
-      >
-       <List className="h-4 w-4" />
-       {isMobile ? "卡片" : "列表"}
-      </button>
-      <button
-       type="button"
-       onClick={() => setView("kanban")}
-       className={cn(
-        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-        view === "kanban"
-         ? "bg-primary text-primary-foreground shadow-sm"
-         : "text-muted-foreground hover:text-foreground"
-       )}
-      >
-       <LayoutGrid className="h-4 w-4" />
-       看板
-      </button>
-      {teacherTid ? (
-       <button
-        type="button"
-        onClick={() => setView("gallery")}
-        className={cn(
-         "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-         view === "gallery"
-          ? "bg-primary text-primary-foreground shadow-sm"
-          : "text-muted-foreground hover:text-foreground"
-        )}
-       >
-        <Images className="h-4 w-4" />
-        圖庫
-       </button>
-      ) : null}
-     </div>
-    </div>
-   </div>
-
-   <div className="grid gap-3 sm:grid-cols-3">
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold">{loading ? "…" : stats.total}</div>
-     <div className="text-sm text-muted-foreground">班級總數</div>
-    </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-success">{loading ? "…" : stats.inProg}</div>
-     <div className="text-sm text-muted-foreground">進行中</div>
-    </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-info">{loading ? "…" : stats.filtered}</div>
-     <div className="text-sm text-muted-foreground">篩選結果</div>
-    </div>
-   </div>
-
-  <div className="space-y-2">
+ const renderClassFilterPanel = () => (
+  <div className="space-y-5">
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">科目</div>
     <div className="flex flex-wrap gap-2">
@@ -608,9 +535,8 @@ export function ClassesListPage() {
      ))}
     </div>
    </div>
-  </div>
 
-   <div className="space-y-3">
+   <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">班別類型</div>
     <div className="flex flex-wrap gap-2">
      {(["小組", "一對一", "全部"] as const).map((k) => (
@@ -630,11 +556,11 @@ export function ClassesListPage() {
      ))}
     </div>
     <p className="text-xs text-muted-foreground">
-     預設只顯示小組課；一對一請用「一對一學生」頁管理，或於此篩選檢視。
+     此頁顯示的是小組班別。如要管理一對一，請前往「一對一學生」；亦可於此篩選檢視一對一班別。
     </p>
    </div>
 
-   <div className="space-y-3">
+   <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">狀態</div>
     <div className="flex flex-wrap gap-2">
      {statusChips.map((s) => (
@@ -656,6 +582,134 @@ export function ClassesListPage() {
      ))}
     </div>
    </div>
+  </div>
+ )
+
+ return (
+  <div className="space-y-5 py-4 md:p-6">
+   {!isSupabaseConfigured ? (
+    <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
+     請設定 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。
+    </div>
+   ) : null}
+   {err ? (
+    <div
+     role="alert"
+     tabIndex={-1}
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
+    >
+     {err}
+    </div>
+   ) : null}
+
+   <div className="flex flex-wrap items-center justify-between gap-4">
+    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+     <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+     {teacherTid ? "我的班別" : "班別管理"}
+     <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
+    </h1>
+    <div className="flex flex-wrap items-center gap-2">
+     <Select
+      className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
+      value={academicYearFilter}
+      onChange={(e) => setAcademicYearFilter(e.target.value)}
+     >
+      <option value="current">目前學年（{currentAcademicYear}）</option>
+      {academicYearSelectOptions.map((y) => (
+       <option key={y.value} value={y.value}>
+        {y.label}
+       </option>
+      ))}
+     </Select>
+     <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
+      <button
+       type="button"
+       onClick={() => setView(isMobile ? "cards" : "list")}
+       className={cn(
+        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        (isMobile ? displayView === "cards" : view === "list")
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       <List className="h-4 w-4" />
+       {isMobile ? "卡片" : "列表"}
+      </button>
+      <button
+       type="button"
+       onClick={() => setView("kanban")}
+       className={cn(
+        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        view === "kanban"
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       <LayoutGrid className="h-4 w-4" />
+       看板
+      </button>
+      {teacherTid ? (
+       <button
+        type="button"
+        onClick={() => setView("gallery")}
+        className={cn(
+         "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+         view === "gallery"
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground"
+        )}
+       >
+        <Images className="h-4 w-4" />
+        圖庫
+       </button>
+      ) : null}
+     </div>
+    </div>
+   </div>
+
+   <div className="grid grid-cols-3 gap-2 md:gap-3">
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold md:text-2xl">{loading ? "…" : stats.total}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">班級總數</div>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold text-success md:text-2xl">{loading ? "…" : stats.inProg}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">進行中</div>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold text-info md:text-2xl">{loading ? "…" : stats.filtered}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">篩選結果</div>
+    </div>
+   </div>
+
+  <div className="space-y-2">
+   {isMobile ? (
+    <div className="flex flex-wrap items-center gap-2">
+     <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+      <SlidersHorizontal className="h-4 w-4" aria-hidden />
+      篩選
+      {activeFilterCount > 0 ? (
+       <Tag tone="info" size="sm">
+        {activeFilterCount}
+       </Tag>
+      ) : null}
+     </Button>
+    </div>
+   ) : null}
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => setFiltersOpen(false)}
+     title="篩選班別"
+     activeCount={activeFilterCount}
+     onReset={resetFilters}
+    >
+     {renderClassFilterPanel()}
+    </MobileFilterSheet>
+   ) : (
+    renderClassFilterPanel()
+   )}
+  </div>
 
    <div className="flex flex-wrap items-center justify-between gap-3">
     {view === "kanban" ? (
@@ -814,7 +868,7 @@ export function ClassesListPage() {
           <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
            {yearScopedRows.length === 0 && baseRows.length > 0
             ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
-            : "沒有符合條件的班別"}
+            : "沒有符合條件的小組班別。若要管理一對一，請前往「一對一學生」。"}
           </td>
          </tr>
         ) : (

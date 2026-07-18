@@ -62,6 +62,8 @@ export type ScheduleListCardProps = {
  endTime: string | null
  attendingNames?: string[]
  leaveNames?: string[]
+ /** 學生名單尚在載入：顯示占位，勿當成無人 */
+ namesLoading?: boolean
  title?: ReactNode
  subtitle?: ReactNode
  controls?: ReactNode
@@ -79,6 +81,7 @@ export function ScheduleListCard({
  endTime,
  attendingNames = [],
  leaveNames = [],
+ namesLoading = false,
  title,
  subtitle,
  controls,
@@ -115,14 +118,20 @@ export function ScheduleListCard({
       )}
      </div>
     </div>
-    {attendingNames.length > 0 ? (
-     <p className="text-xs text-muted-foreground">
-      {formatStudentNameList(attendingNames)}
-     </p>
-    ) : null}
-    {leaveNames.length > 0 ? (
-     <p className="text-xs text-destructive">{formatStudentNameList(leaveNames)}</p>
-    ) : null}
+    {namesLoading ? (
+     <p className="text-xs text-muted-foreground">學生名單更新中…</p>
+    ) : (
+     <>
+      {attendingNames.length > 0 ? (
+       <p className="text-xs text-muted-foreground">
+        {formatStudentNameList(attendingNames)}
+       </p>
+      ) : null}
+      {leaveNames.length > 0 ? (
+       <p className="text-xs text-destructive">{formatStudentNameList(leaveNames)}</p>
+      ) : null}
+     </>
+    )}
    </div>
    {controls ? (
     <div className="flex shrink-0 items-center gap-2">{controls}</div>

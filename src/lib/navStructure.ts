@@ -16,6 +16,7 @@ import {
  HandCoins,
  Home,
  LayoutGrid,
+ ListOrdered,
  MessageSquareQuote,
  NotebookTabs,
  Percent,
@@ -96,7 +97,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   placement: "footer",
  },
  { kind: "leaf", path: "/Users", label: "用戶管理", roles: ["alien"], icon: UserCog },
- { kind: "leaf", path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
+ { kind: "leaf", path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
  { kind: "leaf", path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
  { kind: "leaf", path: "/Courses", label: "課程管理", roles: ["alien"], icon: BookOpen },
  {
@@ -105,6 +106,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "學籍與班務",
   icon: Users,
   children: [
+   { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
    { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
    { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },
@@ -161,6 +163,13 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
  {
   kind: "leaf",
   path: "/Payments",
+  label: "收款登記",
+  roles: ["admin", "alien"],
+  icon: HandCoins,
+ },
+ {
+  kind: "leaf",
+  path: "/PaymentHistory",
   label: "繳費紀錄",
   roles: ["admin", "alien"],
   icon: Wallet,

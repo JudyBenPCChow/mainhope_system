@@ -20,7 +20,7 @@ export function RecentPaymentsCard({ payments, loading }: Props) {
      最近收費
     </h2>
     <Link
-     to="/Payments"
+     to="/PaymentHistory"
      className="text-sm font-medium text-primary underline-offset-4 hover:underline"
     >
      查看全部

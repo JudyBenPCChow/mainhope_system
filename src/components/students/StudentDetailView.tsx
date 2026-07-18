@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useNavigate, useParams, useLocation } from "react-router-dom"
+import { Link, useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"
 import {
  ArrowLeft,
  Banknote,
@@ -32,7 +32,7 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
-import { todoStatusLabel, todoStatusTone, TodoTagList } from "@/components/todos/todoUi"
+import { todoStatusLabel, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -196,11 +196,28 @@ export function StudentDetailView() {
  const { studentId } = useParams<{ studentId: string }>()
  const navigate = useNavigate()
  const location = useLocation()
+ const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
  const exitPath = useMemo(() => resolveStudentDetailExitPath(location), [location])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [tab, setTab] = useState<TabId>("basic")
+ const [enrollKindOpen, setEnrollKindOpen] = useState(false)
+
+ useEffect(() => {
+  const t = searchParams.get("tab")?.trim()
+  if (!t) return
+  if (!TABS.some((x) => x.id === t)) return
+  setTab(t as TabId)
+  setSearchParams(
+   (prev) => {
+    const next = new URLSearchParams(prev)
+    next.delete("tab")
+    return next
+   },
+   { replace: true }
+  )
+ }, [searchParams, setSearchParams])
  const [student, setStudent] = useState<StudentRecord | null>(null)
  const [loading, setLoading] = useState(true)
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
@@ -211,6 +228,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [futureScheduleHints, setFutureScheduleHints] = useState<
   Map<string, ScheduleStudentHints>
  >(new Map())
+ const [hintsLoading, setHintsLoading] = useState(false)
+ const hintsRequestIdRef = useRef(0)
  const [history, setHistory] = useState<HistoryRow[]>([])
  const [relatedTodos, setRelatedTodos] = useState<CalendarEventRow[]>([])
  const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
@@ -320,13 +339,20 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    arr.push({ id: row.id, scheduled_date: row.scheduled_date })
    byClass.set(row.class_id, arr)
   }
-  try {
-   const hints = await fetchScheduleStudentHintsByClass(byClass)
-   setFutureScheduleHints(hints)
-  } catch (e) {
-   console.error("[StudentDetailView] schedule hints", e)
-   setFutureScheduleHints(new Map())
-  }
+  const reqId = ++hintsRequestIdRef.current
+  setHintsLoading(true)
+  void fetchScheduleStudentHintsByClass(byClass)
+   .then((hints) => {
+    if (reqId !== hintsRequestIdRef.current) return
+    setFutureScheduleHints(hints)
+   })
+   .catch((e) => {
+    console.error("[StudentDetailView] schedule hints", e)
+    // 保留上一輪名單，避免失敗時顯示成「無人」
+   })
+   .finally(() => {
+    if (reqId === hintsRequestIdRef.current) setHintsLoading(false)
+   })
   await reloadStudent()
  }, [sid, reloadStudent])
 
@@ -335,8 +361,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLoading(true)
   try {
    await reloadStudent()
-   await reloadSubs()
-   const opts = await fetchClassOptions()
+   // 主資料與選項先就緒後解鎖頁面；hints 在 reloadSubs 內二次載入
+   const [, opts] = await Promise.all([reloadSubs(), fetchClassOptions()])
    setClassOptions(opts)
   } finally {
    setLoading(false)
@@ -496,7 +522,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    pushBanner({
     tone: "success",
     title: "已加入班別",
-    message: owed > 0 ? `已記錄待補 ${owed} 堂` : undefined,
+    message: owed > 0 ? `已記錄待補 ${owed} 堂。可前往收款／出單。` : "可前往收款／出單。",
+    action: {
+     pageLabel: "收款／出單",
+     to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
+    },
    })
    await reloadSubs()
   } catch (e) {
@@ -536,7 +566,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const activeEnrollments = enrollments.filter((e) => e.status !== "已退讀")
  const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
  const occupiedClassIds = new Set(activeEnrollments.map((e) => e.classId))
- const hasPrivateEnrollment = activeEnrollments.some((e) => e.classKind === "private")
+ const groupActiveCount = activeEnrollments.filter((e) => e.classKind !== "private").length
+ const privateActiveCount = activeEnrollments.filter((e) => e.classKind === "private").length
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
@@ -715,6 +746,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  }
 
  const onPurgeMistakenEnrollment = async (e: EnrollmentWithClass) => {
+  const studentName = (student?.full_name ?? form.full_name ?? "").trim()
+  if (!studentName) {
+   pushBanner({ tone: "error", title: "無法清除", message: "缺少學生姓名，請重新載入頁面後再試。" })
+   return
+  }
   if (
    !(await confirmDialog({
     title: "手誤清除報讀",
@@ -722,9 +758,14 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
      subject: e.subject,
      courseCode: e.courseCode,
      courseName: e.courseName,
-    })}」的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡（與退讀不同）。`,
+    })}」的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡。若要保留紀錄請改用「退讀」。`,
     confirmText: "確認清除",
     tone: "destructive",
+    confirmInput: {
+     label: `請輸入學生姓名以確認：${studentName}`,
+     expected: studentName,
+     placeholder: studentName,
+    },
    }))
   ) {
    return
@@ -907,9 +948,22 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  }
 
  const attStats = {
-  present: attendance.filter((x) => x.status.includes("出席")).length,
-  absent: attendance.filter((x) => x.status.includes("缺席")).length,
-  makeup: attendance.filter((x) => x.status.includes("補") || x.status.includes("待")).length,
+  present: attendance.filter(
+   (x) =>
+    x.status === "現場" ||
+    x.status.includes("出席") ||
+    x.status === "zoom實時網課" ||
+    x.status === "即時直播" ||
+    x.status === "錄影回放"
+  ).length,
+  absent: attendance.filter((x) => x.status === "no show" || x.status.includes("缺席")).length,
+  makeup: attendance.filter(
+   (x) =>
+    x.status === "請假而不需補回" ||
+    x.status === "不用補回" ||
+    x.status.includes("補") ||
+    x.status.includes("待")
+  ).length,
  }
 
 const csvEscape = (s: string) => `"${s.replace(/"/g, '""')}"`
@@ -1047,24 +1101,52 @@ const exportFutureSchedulesCsv = () => {
          <p className="mt-1 truncate text-sm text-white/85">
           {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
          </p>
+         <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/90">
+          <span className="rounded-md bg-white/15 px-2 py-0.5">
+           小組課：就讀中 {groupActiveCount} 班
+          </span>
+          <span className="rounded-md bg-white/15 px-2 py-0.5">
+           一對一：{privateActiveCount > 0 ? `就讀中 ${privateActiveCount}` : "無"}
+          </span>
+         </div>
         </>
        ) : null}
       </div>
      </div>
-     {hasPrivateEnrollment ? (
+     <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
       <Button
        type="button"
        variant="secondary"
        size="sm"
-       className="w-fit shrink-0 bg-white/90 text-foreground hover:bg-white"
+       className="bg-white/90 text-foreground hover:bg-white"
+       onClick={() => setEnrollKindOpen(true)}
+      >
+       <Plus className="h-4 w-4" />
+       新增報讀
+      </Button>
+      <Button
+       type="button"
+       variant="secondary"
+       size="sm"
+       className="bg-white/90 text-foreground hover:bg-white"
+       onClick={() => setTab("enrollments")}
+      >
+       <BookOpen className="h-4 w-4" />
+       管理小組報讀
+      </Button>
+      <Button
+       type="button"
+       variant="secondary"
+       size="sm"
+       className="bg-white/90 text-foreground hover:bg-white"
        asChild
       >
-       <Link to="/PrivateTutoring">
+       <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}`}>
         <UserRound className="h-4 w-4" />
         管理一對一
        </Link>
       </Button>
-     ) : null}
+     </div>
     </div>
    </div>
 
@@ -1145,29 +1227,29 @@ const exportFutureSchedulesCsv = () => {
           onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
-        <Field label="注冊狀態">
+        <Field label="客戶身份（注冊）">
          <StatusToggle
           checked={normalizeRegistrationStatus(form.registration_status) === "已註冊"}
           onCheckedChange={(on) =>
            setForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
           }
           offLabel="非注冊（試堂／查詢）"
-          onLabel="注冊"
+          onLabel="已註冊"
          />
         </Field>
-        <Field label="在讀狀態">
+        <Field label="就讀狀態">
          <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
           {student.enrollment_status}
           <span className="mt-1 block text-xs text-muted-foreground">
-           依現時就讀中報讀自動計算（退讀後為非在讀）
+           目前是否有就讀中報讀（自動計算；退讀後為非在讀）
           </span>
          </p>
         </Field>
-        <Field label="活躍狀態（近三個月）">
+        <Field label="互動狀態（活躍）">
          <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
           {student.activity_status}
           <span className="mt-1 block text-xs text-muted-foreground">
-           依近三個月報讀紀錄自動計算（含跨學年）
+           近三個月有報讀活動（自動計算；可能含近期退讀，不等於目前在讀）
           </span>
          </p>
         </Field>
@@ -1646,15 +1728,22 @@ const exportFutureSchedulesCsv = () => {
            >
             退讀
            </Button>
-           <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground"
-            onClick={() => void onPurgeMistakenEnrollment(e)}
-           >
-            手誤清除
-           </Button>
+           <details className="relative">
+            <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+             其他操作
+            </summary>
+            <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
+             <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-full justify-start text-xs text-muted-foreground"
+              onClick={() => void onPurgeMistakenEnrollment(e)}
+             >
+              手誤清除
+             </Button>
+            </div>
+           </details>
           </div>
           </div>
           {bal ? (
@@ -1738,7 +1827,7 @@ const exportFutureSchedulesCsv = () => {
 
       {withdrawnEnrollments.length > 0 ? (
        <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
-        <p className="text-sm font-medium text-muted-foreground">已退讀（可重新報讀，或手誤清除）</p>
+        <p className="text-sm font-medium text-muted-foreground">已退讀（可重新報讀；手誤才用清除）</p>
         <div className="space-y-2">
          {withdrawnEnrollments.map((e) => (
           <div
@@ -1757,15 +1846,22 @@ const exportFutureSchedulesCsv = () => {
              {e.enrollmentFormLabel ?? "—"} · 報讀日 {e.enroll_date ?? "—"}
             </div>
            </div>
-           <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="shrink-0 text-muted-foreground"
-            onClick={() => void onPurgeMistakenEnrollment(e)}
-           >
-            手誤清除
-           </Button>
+           <details className="relative shrink-0">
+            <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+             其他操作
+            </summary>
+            <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
+             <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 w-full justify-start text-xs text-muted-foreground"
+              onClick={() => void onPurgeMistakenEnrollment(e)}
+             >
+              手誤清除
+             </Button>
+            </div>
+           </details>
           </div>
          ))}
         </div>
@@ -2089,21 +2185,21 @@ const exportFutureSchedulesCsv = () => {
 
     {tab === "attendance" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-center">
-        <div className="text-2xl font-bold text-success">{attStats.present}</div>
-        <div className="text-xs text-success/90">總上堂堂數</div>
+      <div className="grid grid-cols-3 gap-2 md:gap-3">
+       <div className="rounded-xl border border-success/30 bg-success/10 p-2.5 text-center md:p-4">
+        <div className="text-xl font-bold text-success md:text-2xl">{attStats.present}</div>
+        <div className="text-[11px] text-success/90 md:text-xs">總上堂</div>
        </div>
-       <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center">
-        <div className="text-2xl font-bold text-destructive">{attStats.absent}</div>
-        <div className="text-xs text-destructive/90">總缺席堂數</div>
+       <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-2.5 text-center md:p-4">
+        <div className="text-xl font-bold text-destructive md:text-2xl">{attStats.absent}</div>
+        <div className="text-[11px] text-destructive/90 md:text-xs">總缺席</div>
        </div>
-       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center">
-        <div className="text-2xl font-bold text-amber-800">{attStats.makeup}</div>
-        <div className="text-xs text-amber-900/90">待補堂堂數</div>
+       <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-center md:p-4">
+        <div className="text-xl font-bold text-amber-800 md:text-2xl">{attStats.makeup}</div>
+        <div className="text-[11px] text-amber-900/90 md:text-xs">待補堂</div>
        </div>
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="hidden text-xs text-muted-foreground md:block">
        上方數字為<strong className="text-foreground">全部</strong>紀錄統計；下方列表可依條件篩選與排序。
       </p>
       {attendance.length === 0 ? (
@@ -2433,6 +2529,7 @@ const exportFutureSchedulesCsv = () => {
            endTime={row.end_time}
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
+           namesLoading={hintsLoading}
            subtitle={
             <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
              {row.subject}
@@ -2483,7 +2580,7 @@ const exportFutureSchedulesCsv = () => {
             <p className="text-xs tabular-nums text-muted-foreground">{r.eventDate}</p>
             <h3 className="font-semibold">{r.title}</h3>
            </div>
-           <Tag tone={todoStatusTone(r.status)} size="sm">
+           <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
             {todoStatusLabel(r.status)}
            </Tag>
           </div>
@@ -2523,7 +2620,7 @@ const exportFutureSchedulesCsv = () => {
              <TodoTagList tags={r.tags} />
             </td>
             <td className="px-3 py-2">
-             <Tag tone={todoStatusTone(r.status)} size="sm">
+             <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
               {todoStatusLabel(r.status)}
              </Tag>
             </td>
@@ -2605,6 +2702,47 @@ const exportFutureSchedulesCsv = () => {
      </Button>
      <Button type="button" onClick={() => finishUnsavedLeave("save")}>
       儲存並離開
+     </Button>
+    </div>
+   </DialogContent>
+  </Dialog>
+
+  <Dialog open={enrollKindOpen} onOpenChange={setEnrollKindOpen}>
+   <DialogContent className="max-w-md">
+    <DialogHeader>
+     <DialogTitle>新增報讀</DialogTitle>
+    </DialogHeader>
+    <p className="text-sm text-muted-foreground">請先選擇報讀類型，再進入對應流程。</p>
+    <div className="grid gap-2 pt-2">
+     <Button
+      type="button"
+      variant="outline"
+      className="h-auto justify-start px-4 py-3 text-left"
+      onClick={() => {
+       setEnrollKindOpen(false)
+       setTab("enrollments")
+      }}
+     >
+      <span className="font-medium">小組課</span>
+      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+       在本頁「報讀班別」新增小組班別
+      </span>
+     </Button>
+     <Button
+      type="button"
+      variant="outline"
+      className="h-auto justify-start px-4 py-3 text-left"
+      asChild
+     >
+      <Link
+       to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}&create=1`}
+       onClick={() => setEnrollKindOpen(false)}
+      >
+       <span className="font-medium">一對一／一對二</span>
+       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+        前往一對一學生頁新增報讀
+       </span>
+      </Link>
      </Button>
     </div>
    </DialogContent>

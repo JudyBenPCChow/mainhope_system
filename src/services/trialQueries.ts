@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ LESSON_SLOT_DURATION_MIN,
+ intervalsOverlapMinutes,
+ parseHm,
+} from "@/lib/lessonSlots"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
@@ -23,6 +28,8 @@ export type TrialManageRow = {
  trial_type: string
  status: string
  remarks: string | null
+ payment_id: string | null
+ receipt_number: string | null
  student_name: string | null
  student_grade: string | null
  class_subject: string | null
@@ -39,6 +46,7 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
  const cls = r.classes as Record<string, unknown> | null
  const tch = cls?.teachers as Record<string, unknown> | null
  const sc = r.schedules as Record<string, unknown> | null
+ const pay = r.payments as Record<string, unknown> | null
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
@@ -52,6 +60,8 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
   trial_type: String(r.trial_type ?? ""),
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
+  payment_id: r.payment_id != null ? String(r.payment_id) : null,
+  receipt_number: pay?.receipt_number != null ? String(pay.receipt_number) : null,
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
@@ -69,7 +79,7 @@ export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
  const { data, error } = await supabase
   .from("trial_sessions")
   .select(
-   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments ( receipt_number )"
   )
   .order("trial_date", { ascending: false })
   .order("created_at", { ascending: false })
@@ -119,6 +129,27 @@ export async function deleteTrialSession(id: string): Promise<void> {
  if (error) throw error
 }
 
+function isTrialStatusOpen(status: string | null | undefined): boolean {
+ const s = String(status ?? "")
+ return !s.includes("完成") && !s.includes("取消")
+}
+
+function parseTrialHm(raw: string | null | undefined): number | null {
+ if (!raw) return null
+ return parseHm(String(raw).slice(0, 5))
+}
+
+function trialSlotBounds(
+ startRaw: string | null | undefined,
+ endRaw: string | null | undefined
+): { a: number; b: number } | null {
+ const a = parseTrialHm(startRaw)
+ if (a == null) return null
+ const end = parseTrialHm(endRaw)
+ const b = end == null || end <= a ? a + LESSON_SLOT_DURATION_MIN : end
+ return { a, b }
+}
+
 export async function insertTrialSession(row: {
  student_id: string
  schedule_id: string
@@ -127,9 +158,130 @@ export async function insertTrialSession(row: {
  trial_type: string
  status?: string
  remarks?: string | null
+ payment_id?: string | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+
+ const today = localYmd()
+ const trialDate = String(row.trial_date ?? "").slice(0, 10)
+ if (trialDate && trialDate < today) {
+  throw new Error("不可新增過去日期的試堂")
+ }
+
+ const { data: enrRows, error: enrErr } = await supabase
+  .from("student_class_enrollments")
+  .select("id")
+  .eq("student_id", row.student_id)
+  .eq("class_id", row.class_id)
+  .eq("status", "就讀中")
+  .limit(1)
+ if (enrErr) throw enrErr
+ if ((enrRows ?? []).length > 0) {
+  throw new Error("此學生已報讀該班別，請直接點名／跟進，無需再新增試堂")
+ }
+
  const scheduleIds = await fetchConsecutiveScheduleIds(row.schedule_id)
+
+ const { data: schedRows, error: schedErr } = await supabase
+  .from("schedules")
+  .select("id, class_id, scheduled_date, start_time, end_time, status")
+  .in("id", scheduleIds)
+ if (schedErr) throw schedErr
+ const byId = new Map(
+  (schedRows ?? []).map((r) => {
+   const s = r as {
+    id: string
+    class_id: string
+    scheduled_date: string
+    start_time: string | null
+    end_time: string | null
+    status: string
+   }
+   return [String(s.id), s] as const
+  })
+ )
+ for (const sid of scheduleIds) {
+  const s = byId.get(sid)
+  if (!s) throw new Error("試堂排程不存在或已失效")
+  if (String(s.class_id) !== row.class_id) {
+   throw new Error("試堂排程必須屬於所選班別")
+  }
+  if (String(s.status ?? "").includes("取消")) {
+   throw new Error("不可對已取消的排程新增試堂")
+  }
+  const d = String(s.scheduled_date ?? "").slice(0, 10)
+  if (d && d < today) throw new Error("不可新增過去日期的試堂")
+ }
+
+ const { data: existingDup, error: dupErr } = await supabase
+  .from("trial_sessions")
+  .select("id, status, schedule_id")
+  .eq("student_id", row.student_id)
+  .in("schedule_id", scheduleIds)
+ if (dupErr) throw dupErr
+ const openDup = (existingDup ?? []).filter((r) =>
+  isTrialStatusOpen((r as { status?: string }).status)
+ )
+ if (openDup.length > 0) {
+  throw new Error("此學生對該排程已有未結案試堂，不可重複新增")
+ }
+
+ const { data: otherTrials, error: otherErr } = await supabase
+  .from("trial_sessions")
+  .select("id, status, schedule_id, schedules ( scheduled_date, start_time, end_time, status )")
+  .eq("student_id", row.student_id)
+ if (otherErr) throw otherErr
+ for (const sid of scheduleIds) {
+  const neu = byId.get(sid)!
+  const nb = trialSlotBounds(neu.start_time, neu.end_time)
+  if (!nb) continue
+  const neuDate = String(neu.scheduled_date ?? "").slice(0, 10)
+  for (const raw of otherTrials ?? []) {
+   const ot = raw as {
+    status?: string
+    schedule_id?: string
+    schedules?: {
+     scheduled_date?: string
+     start_time?: string | null
+     end_time?: string | null
+     status?: string
+    } | null
+   }
+   if (!isTrialStatusOpen(ot.status)) continue
+   if (scheduleIds.includes(String(ot.schedule_id ?? ""))) continue
+   const sc = ot.schedules
+   if (!sc) continue
+   if (String(sc.status ?? "").includes("取消")) continue
+   if (String(sc.scheduled_date ?? "").slice(0, 10) !== neuDate) continue
+   const eb = trialSlotBounds(sc.start_time ?? null, sc.end_time ?? null)
+   if (!eb) continue
+   if (intervalsOverlapMinutes(nb.a, nb.b, eb.a, eb.b)) {
+    throw new Error(
+     `試堂時段與該生另一未結案試堂衝突（${neuDate} ${String(neu.start_time ?? "").slice(0, 5)}）`
+    )
+   }
+  }
+ }
+
+ const { findStudentConflictsWithScheduleSlot } = await import("@/services/studentQueries")
+ for (const sid of scheduleIds) {
+  const neu = byId.get(sid)!
+  const conflicts = await findStudentConflictsWithScheduleSlot({
+   studentId: row.student_id,
+   scheduleId: sid,
+   scheduledDate: String(neu.scheduled_date ?? "").slice(0, 10),
+   startTime: neu.start_time,
+   endTime: neu.end_time,
+   classLabel: "試堂排程",
+  })
+  if (conflicts.length > 0) {
+   const c = conflicts[0]!
+   throw new Error(
+    `試堂時段與學生已報讀班別衝突：${c.date} ${c.newTime} 與「${c.existingClassLabel}」${c.existingTime}`
+   )
+  }
+ }
+
  for (const scheduleId of scheduleIds) {
   const { error } = await supabase.from("trial_sessions").insert({
    student_id: row.student_id,
@@ -139,8 +291,81 @@ export async function insertTrialSession(row: {
    trial_type: row.trial_type,
    status: row.status ?? "已預約",
    remarks: row.remarks ?? null,
+   payment_id: row.payment_id ?? null,
   })
-  if (error) throw error
+  if (error) {
+   const code = (error as { code?: string }).code
+   if (code === "23505") {
+    throw new Error("此學生對該排程已有未結案試堂，不可重複新增")
+   }
+   throw error
+  }
+ }
+}
+
+/** 半價／原價試堂：先開已收款單（lesson_count＝連堂節數），再建立試堂並關聯 payment_id */
+export async function insertPaidTrialSession(params: {
+ studentId: string
+ classId: string
+ scheduleId: string
+ trialDate: string
+ trialType: string
+ remarks?: string | null
+ paymentMethod: string
+ /** 每堂單價（半價請先乘 0.5 再傳入） */
+ unitPrice: number
+}): Promise<{ paymentId: string; receiptNumber: string | null }> {
+ const cat = trialTypeCategory(params.trialType)
+ if (cat !== "half" && cat !== "full") {
+  throw new Error("僅半價／原價試堂需先收費")
+ }
+ const scheduleIds = await fetchConsecutiveScheduleIds(params.scheduleId)
+ const lessons = Math.max(1, scheduleIds.length)
+ const unit = Math.max(0, Number(params.unitPrice))
+ const amount = Math.round(unit * lessons * 100) / 100
+ if (amount <= 0) throw new Error("試堂金額須大於 0，請確認班別／課程每堂單價")
+
+ const { insertPaymentRecord, PAYMENT_STATUS } = await import("@/services/paymentQueries")
+ const paymentId = await insertPaymentRecord({
+  studentId: params.studentId,
+  paymentDate: localYmd(),
+  totalAmount: amount,
+  subtotalAmount: amount,
+  paymentMethod: params.paymentMethod,
+  status: PAYMENT_STATUS.received,
+  remarks: `試堂（${params.trialType}）`,
+  receiptKind: "RC",
+  details: [
+   {
+    classId: params.classId,
+    lessonCount: lessons,
+    amount,
+    description: `試堂 ${params.trialType}`,
+   },
+  ],
+ })
+
+ await insertTrialSession({
+  student_id: params.studentId,
+  class_id: params.classId,
+  schedule_id: params.scheduleId,
+  trial_date: params.trialDate,
+  trial_type: params.trialType,
+  status: "已預約",
+  remarks: params.remarks ?? null,
+  payment_id: paymentId,
+ })
+
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: pay, error } = await supabase
+  .from("payments")
+  .select("receipt_number")
+  .eq("id", paymentId)
+  .maybeSingle()
+ if (error) throw error
+ return {
+  paymentId,
+  receiptNumber: pay?.receipt_number != null ? String(pay.receipt_number) : null,
  }
 }
 

@@ -97,7 +97,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
   }
 
   return (
-   <div className="relative">
+   <div className="relative min-w-0">
     <SelectPrimitive.Root
      value={currentValue}
      defaultValue={currentDefault}
@@ -109,22 +109,23 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
       id={id}
       aria-label={typeof effectivePlaceholder === "string" ? effectivePlaceholder : undefined}
       className={cn(
-       "flex h-10 w-full items-center justify-between rounded-xl border border-input bg-background px-3 text-left text-sm shadow-sm transition-colors",
+       "flex min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-input bg-background px-3 py-2 text-left text-sm shadow-sm transition-colors",
        "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
        "hover:border-neutral-400",
+       "[&>span]:min-w-0 [&>span]:flex-1 [&>span]:truncate",
        className
       )}
      >
       <SelectPrimitive.Value placeholder={effectivePlaceholder} />
       <SelectPrimitive.Icon asChild>
-       <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden />
+       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       </SelectPrimitive.Icon>
      </SelectPrimitive.Trigger>
      <SelectPrimitive.Portal>
       <SelectPrimitive.Content
        position="popper"
        sideOffset={6}
-       className="z-[320] max-h-80 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
+       className="z-[320] max-h-80 min-w-[var(--radix-select-trigger-width)] max-w-[min(100vw-1.5rem,var(--radix-select-trigger-width))] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
       >
        <SelectPrimitive.Viewport className="p-1">
         {grouped.map(([label, items]) => (
@@ -136,14 +137,16 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
             value={toUiValue(opt.value)}
             disabled={opt.disabled}
             className={cn(
-             "relative flex cursor-default select-none items-center rounded-md py-2 pl-8 pr-8 text-sm outline-none",
+             "relative flex cursor-default select-none items-start rounded-md py-2 pl-8 pr-3 text-sm outline-none",
              "data-[highlighted]:bg-muted data-[highlighted]:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
             )}
            >
-            <SelectPrimitive.ItemIndicator className="absolute left-2 inline-flex items-center">
+            <SelectPrimitive.ItemIndicator className="absolute left-2 top-2.5 inline-flex items-center">
              <Check className="h-4 w-4" />
             </SelectPrimitive.ItemIndicator>
-            <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
+            <SelectPrimitive.ItemText className="whitespace-normal break-words">
+             {opt.label}
+            </SelectPrimitive.ItemText>
            </SelectPrimitive.Item>
           ))}
           {label ? <div className="my-1 h-px bg-border/80" /> : null}

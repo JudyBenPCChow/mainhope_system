@@ -185,7 +185,7 @@ export function ScriptLibraryView() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">話術庫</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 hidden text-sm text-muted-foreground md:block">
             儲存常見客戶問題與建議回答，一鍵複製後可貼到其他通訊工具回覆客人。
           </p>
         </div>

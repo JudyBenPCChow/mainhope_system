@@ -35,11 +35,11 @@ function formatDisplay(v: DateRangeValue): string {
  return `${v.from} → ${v.to}`
 }
 
-type PanelPlacement = { left: number; top: number }
+type PanelPlacement = { left: number; top: number; width: number }
 
 export function DateRangeInput({ value, onChange, className, label = "日期範圍" }: DateRangeInputProps) {
  const [open, setOpen] = React.useState(false)
- const [placement, setPlacement] = React.useState<PanelPlacement>({ left: 0, top: 0 })
+ const [placement, setPlacement] = React.useState<PanelPlacement>({ left: 0, top: 0, width: 360 })
  const wrapperRef = React.useRef<HTMLDivElement | null>(null)
  const triggerRef = React.useRef<HTMLButtonElement | null>(null)
 
@@ -61,14 +61,16 @@ export function DateRangeInput({ value, onChange, className, label = "日期範�
   const trigger = triggerRef.current
   if (!trigger) return
   const r = trigger.getBoundingClientRect()
-  const panelW = 360
+  const preferredW = 360
+  const panelW = Math.min(preferredW, Math.max(280, window.innerWidth - 16))
   const panelH = 500
   const gap = 8
   let left = r.left
   let top = r.bottom + gap
   if (left + panelW > window.innerWidth - 8) left = Math.max(8, window.innerWidth - panelW - 8)
+  if (left < 8) left = 8
   if (top + panelH > window.innerHeight - 8) top = Math.max(8, r.top - panelH - gap)
-  setPlacement({ left, top })
+  setPlacement({ left, top, width: panelW })
  }, [])
 
  React.useEffect(() => {
@@ -107,8 +109,8 @@ export function DateRangeInput({ value, onChange, className, label = "日期範�
    </label>
    {open ? (
     <div
-     className="fixed z-[320] w-[360px] overflow-hidden rounded-[22px] border border-border/80 bg-white shadow-xl"
-     style={{ left: `${placement.left}px`, top: `${placement.top}px` }}
+     className="fixed z-[320] overflow-hidden rounded-[22px] border border-border/80 bg-white shadow-xl"
+     style={{ left: `${placement.left}px`, top: `${placement.top}px`, width: placement.width }}
     >
      <div className="border-b border-border/70 px-6 py-4 text-center text-lg text-foreground">
       {value.from && value.to ? `${value.from} → ${value.to}` : value.from || "Start Date → End Date"}
@@ -142,15 +144,13 @@ export function DateRangeInput({ value, onChange, className, label = "日期範�
         cell: "relative h-11 text-center text-base",
         day: "h-10 w-10 rounded-full p-0 font-normal hover:bg-muted",
         day_button: "mx-auto inline-flex h-10 w-10 items-center justify-center rounded-full p-0 font-normal hover:bg-muted",
-        // Keep generic selected state neutral; range-specific styles below control the final look.
         day_selected: "text-foreground",
-        // Start/End: tinted cell + dark circular date button.
         range_start:
-         "bg-[#5b2be0]/20 [&>button]:bg-[#5b2be0] [&>button]:text-white [&>button:hover]:bg-[#5b2be0]",
+         "bg-primary/20 [&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary",
         range_end:
-         "bg-[#5b2be0]/20 [&>button]:bg-[#5b2be0] [&>button]:text-white [&>button:hover]:bg-[#5b2be0]",
-        // Middle dates: only tinted strip, no circular highlight.
-        range_middle: "bg-[#5b2be0]/20 [&>button]:bg-transparent [&>button]:text-foreground [&>button]:rounded-none",
+         "bg-primary/20 [&>button]:bg-primary [&>button]:text-primary-foreground [&>button:hover]:bg-primary",
+        range_middle:
+         "bg-primary/20 [&>button]:bg-transparent [&>button]:text-foreground [&>button]:rounded-none",
         day_today: "font-semibold",
         day_outside: "text-muted-foreground opacity-30",
         day_disabled: "text-muted-foreground opacity-30",

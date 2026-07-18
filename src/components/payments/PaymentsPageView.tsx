@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import {
- Banknote,
- BookOpen,
- ClipboardCheck,
- FileText,
- History,
- Plus,
- Printer,
- Search,
- SlidersHorizontal,
- Trash2,
- Wallet,
-} from "lucide-react"
+import { Banknote, BookOpen, ClipboardCheck, FileText, History, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
-import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
+import {
+ DEFAULT_LESSON_COUNT,
+ FormField,
+ SectionCard,
+ discountOptionLabel,
+ enrollmentLabel,
+ formatStudentPhone,
+ lineAmountFor,
+ money,
+ newLine,
+ selectClassName,
+ statusBadge,
+ type LineRow,
+} from "@/components/payments/paymentsUi"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -25,34 +26,31 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
-import { Tag } from "@/components/ui/tag"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { useAppConfirm } from "@/lib/appConfirm"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import {
  buildPaymentEligibilityContext,
  evaluateDiscountAvailability,
 } from "@/lib/paymentDiscountEligibility"
-import { printPayment, printPaymentForStatus } from "@/lib/paymentPrint"
+import { summarizePaymentDiscountForAdmin } from "@/lib/paymentDiscountAdminSummary"
+import { buildPaymentReceiptDocumentHtml, printPayment } from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isSuperAdmin } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-import { statusToTagTone } from "@/lib/statusTag"
 import {
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
- deletePaymentRecord,
- fetchPaymentDashboardStats,
  fetchPaymentFull,
- fetchPaymentsList,
+ fetchRecentPaymentsForStudent,
+ fetchTotalAttendedLessonsForStudent,
+ fetchTotalPaidLessonsForStudent,
  insertPaymentRecord,
- markPaymentReceived,
  type PaymentDetailInput,
  type PaymentFull,
  type PaymentListRow,
@@ -75,79 +73,11 @@ import {
 import { fetchRelativesForStudent, type StudentRelativeRow } from "@/services/studentRelationshipQueries"
 import { isStudentNewToMingXue } from "@/services/referralQueries"
 
-type MainTab = "receive" | "invoice" | "history"
-
-const DEFAULT_LESSON_COUNT = "4"
-
-type LineRow = {
- key: string
- classId: string
- lessons: string
- amount: string
-}
-
-function newLine(): LineRow {
- return {
-  key: crypto.randomUUID(),
-  classId: "",
-  lessons: DEFAULT_LESSON_COUNT,
-  amount: "",
- }
-}
-
-function money(n: number) {
- return new Intl.NumberFormat("zh-Hant", { style: "currency", currency: "HKD" }).format(n)
-}
-
-function discountOptionLabel(d: PaymentDiscountRow, resolvedAmountOff?: number) {
- const bits = [d.name]
- if (d.percentOff != null && d.percentOff > 0) bits.push(`-${d.percentOff}%`)
- const amt = resolvedAmountOff ?? d.amountOff
- if (amt != null && amt > 0) bits.push(`-$${amt}`)
- return bits.join(" ")
-}
-
-const PENDING_PAYMENT_STATUSES = [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive] as const
-
-function selectClassName() {
- return cn(
-  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm",
-  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
- )
-}
-
-function FormField({
- label,
- children,
-}: {
- label: string
- children: ReactNode
-}) {
- return (
-  <div className="grid gap-1.5">
-   <label className="text-sm font-medium text-foreground">{label}</label>
-   {children}
-  </div>
- )
-}
-
-function lineAmountFor(
- classId: string,
- lessons: string,
- byClass: Map<string, EnrollmentWithClass>
-): string {
- const n = Number(lessons)
- const e = byClass.get(classId)
- if (!e?.pricePerLesson || !Number.isFinite(n) || n <= 0) return ""
- return String(Math.round(e.pricePerLesson * n * 100) / 100)
-}
+type CollectMode = "receive" | "invoice"
 
 export function PaymentsPageView() {
- const { confirmDialog } = useAppConfirm()
- const isMobile = useIsMobile()
- const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
- const [mainTab, setMainTab] = useState<MainTab>("receive")
+ const [collectMode, setCollectMode] = useState<CollectMode>("receive")
 
  const [students, setStudents] = useState<StudentRecord[]>([])
  const [studentQuery, setStudentQuery] = useState("")
@@ -173,49 +103,24 @@ export function PaymentsPageView() {
  const [printAfterReceive, setPrintAfterReceive] = useState(false)
  const [printAfterInvoice, setPrintAfterInvoice] = useState(true)
  const [saving, setSaving] = useState(false)
+ const [discountHelpOpen, setDiscountHelpOpen] = useState(false)
+ const [receiptPreview, setReceiptPreview] = useState<PaymentFull | null>(null)
+ const [receiptPrintHint, setReceiptPrintHint] = useState<string | null>(null)
+ const [receivedDone, setReceivedDone] = useState<{
+  paymentId: string
+  amount: number
+  studentId: string
+  studentName: string
+  kind: "receive" | "invoice"
+ } | null>(null)
 
- const [historyRows, setHistoryRows] = useState<PaymentListRow[]>([])
- const [histLoading, setHistLoading] = useState(true)
- const [histErr, setHistErr] = useState<string | null>(null)
- const [histStatus, setHistStatus] = useState<"all" | "received" | "pending" | "pendingPay">("all")
- const [histFrom, setHistFrom] = useState("")
- const [histTo, setHistTo] = useState("")
- const [histSearch, setHistSearch] = useState("")
- const [detailOpen, setDetailOpen] = useState(false)
- const [detailPay, setDetailPay] = useState<PaymentFull | null>(null)
- const [detailLoading, setDetailLoading] = useState(false)
+ const [studentCtxLoading, setStudentCtxLoading] = useState(false)
+ const [recentPayments, setRecentPayments] = useState<PaymentListRow[]>([])
+ const [paidLessons, setPaidLessons] = useState<number | null>(null)
+ const [attendedLessons, setAttendedLessons] = useState<number | null>(null)
 
- const [markOpen, setMarkOpen] = useState(false)
- const [markTarget, setMarkTarget] = useState<PaymentListRow | null>(null)
- const [markMethod, setMarkMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
-
- const [dashStats, setDashStats] = useState<{ totalPaidLessons: number; totalAttendedLessons: number } | null>(
-  null
- )
- const [dashLoading, setDashLoading] = useState(false)
  const [formErr, setFormErr] = useState<string | null>(null)
- const [formOk, setFormOk] = useState<string | null>(null)
  const payDateEditable = useMemo(() => canEditAcademicYearForDate(payDate), [payDate])
-
- const loadDashboardStats = useCallback(async () => {
-  if (!isSupabaseConfigured) {
-   setDashStats(null)
-   return
-  }
-  setDashLoading(true)
-  try {
-   setDashStats(await fetchPaymentDashboardStats())
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentsPageView.loadDashboardStats", setErr: setFormErr })
-   setDashStats(null)
-  } finally {
-   setDashLoading(false)
-  }
- }, [])
-
- useEffect(() => {
-  void loadDashboardStats()
- }, [loadDashboardStats])
 
  const enrollmentByClass = useMemo(() => {
   const m = new Map<string, EnrollmentWithClass>()
@@ -232,10 +137,7 @@ export function PaymentsPageView() {
   return Math.round(s * 100) / 100
  }, [lines])
 
- const paymentAcademicYear = useMemo(
-  () => academicYearLabelFromStartDate(payDate),
-  [payDate]
- )
+ const paymentAcademicYear = useMemo(() => academicYearLabelFromStartDate(payDate), [payDate])
 
  const selectedDiscounts = useMemo(
   () => resolveSelectedDiscounts(discountIds, discounts),
@@ -310,9 +212,7 @@ export function PaymentsPageView() {
  const maxStackCount = useMemo(() => getGlobalMaxStackCount(discounts), [discounts])
 
  useEffect(() => {
-  setDiscountIds((prev) =>
-   prev.filter((id) => discountAvailability.get(id)?.eligible !== false)
-  )
+  setDiscountIds((prev) => prev.filter((id) => discountAvailability.get(id)?.eligible !== false))
  }, [discountAvailability])
 
  const totalDue = useMemo(
@@ -360,13 +260,9 @@ export function PaymentsPageView() {
  const prefStudentId = searchParams.get("studentId")?.trim() ?? ""
 
  useEffect(() => {
-  const tab = searchParams.get("tab")
-  if (tab === "receive" || tab === "invoice" || tab === "history") {
-   setMainTab(tab)
-  }
-  const hs = searchParams.get("histStatus")
-  if (hs === "all" || hs === "received" || hs === "pending" || hs === "pendingPay") {
-   setHistStatus(hs)
+  const mode = searchParams.get("mode") ?? searchParams.get("tab")
+  if (mode === "receive" || mode === "invoice") {
+   setCollectMode(mode)
   }
  }, [searchParams])
 
@@ -377,7 +273,6 @@ export function PaymentsPageView() {
   setSelectedStudent(found)
   setStudentQuery("")
   setPickerOpen(false)
-  setMainTab("receive")
   setSearchParams(
    (prev) => {
     const next = new URLSearchParams(prev)
@@ -408,9 +303,37 @@ export function PaymentsPageView() {
   }
  }, [])
 
+ const loadStudentContext = useCallback(async (studentId: string) => {
+  if (!isSupabaseConfigured) {
+   setRecentPayments([])
+   setPaidLessons(null)
+   setAttendedLessons(null)
+   return
+  }
+  setStudentCtxLoading(true)
+  try {
+   const [recent, paid, attended] = await Promise.all([
+    fetchRecentPaymentsForStudent(studentId, 3),
+    fetchTotalPaidLessonsForStudent(studentId),
+    fetchTotalAttendedLessonsForStudent(studentId),
+   ])
+   setRecentPayments(recent)
+   setPaidLessons(paid)
+   setAttendedLessons(attended)
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentsPageView.loadStudentContext", setErr: setFormErr })
+   setRecentPayments([])
+   setPaidLessons(null)
+   setAttendedLessons(null)
+  } finally {
+   setStudentCtxLoading(false)
+  }
+ }, [])
+
  useEffect(() => {
   if (selectedStudent) {
    void loadEnrollments(selectedStudent.id)
+   void loadStudentContext(selectedStudent.id)
    void isStudentNewToMingXue(selectedStudent.id).then(setIsNewStudent).catch(() => setIsNewStudent(null))
    void fetchRelativesForStudent(selectedStudent.id).then(setRelatives).catch(() => setRelatives([]))
   } else {
@@ -422,37 +345,11 @@ export function PaymentsPageView() {
    setReferrerStudentId("")
    setSiblingExtraLessons("")
    setBatchMemberCount("")
+   setRecentPayments([])
+   setPaidLessons(null)
+   setAttendedLessons(null)
   }
- }, [selectedStudent, loadEnrollments])
-
- const loadHistory = useCallback(async () => {
-  if (!isSupabaseConfigured) {
-   setHistoryRows([])
-   setHistLoading(false)
-   return
-  }
-  setHistLoading(true)
-  setHistErr(null)
-  try {
-   const rows = await fetchPaymentsList({
-    status: histStatus,
-    fromYmd: histFrom || undefined,
-    toYmd: histTo || undefined,
-    search: histSearch || undefined,
-    limit: 500,
-   })
-   setHistoryRows(rows)
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentsPageView.loadHistory", setErr: setHistErr })
-   setHistoryRows([])
-  } finally {
-   setHistLoading(false)
-  }
- }, [histStatus, histFrom, histTo, histSearch])
-
- useEffect(() => {
-  if (mainTab === "history") void loadHistory()
- }, [mainTab, loadHistory])
+ }, [selectedStudent, loadEnrollments, loadStudentContext])
 
  const filteredStudents = useMemo(() => {
   const q = studentQuery.trim().toLowerCase()
@@ -493,9 +390,7 @@ export function PaymentsPageView() {
 
  const enrollmentsForLine = useCallback(
   (rowKey: string, currentClassId: string) => {
-   const taken = new Set(
-    lines.filter((l) => l.key !== rowKey && l.classId).map((l) => l.classId)
-   )
+   const taken = new Set(lines.filter((l) => l.key !== rowKey && l.classId).map((l) => l.classId))
    return enrollments.filter((e) => e.classId === currentClassId || !taken.has(e.classId))
   },
   [lines, enrollments]
@@ -541,7 +436,9 @@ export function PaymentsPageView() {
    .map((l) => {
     const e = enrollmentByClass.get(l.classId)
     const amt = Number(l.amount)
-   const desc = e ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName }) : null
+    const desc = e
+     ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })
+     : null
     return {
      classId: l.classId,
      lessonCount: Number(l.lessons),
@@ -554,7 +451,7 @@ export function PaymentsPageView() {
  const validateForm = (): string | null => {
   if (!selectedStudent) return "請選擇學生"
   if (enrollLoading) return "載入報讀資料中…"
-  if (enrollments.length === 0) return "此學生尚無報讀班別，請先於學生詳情「報讀班別」新增。"
+  if (enrollments.length === 0) return "此學生目前在系統中沒有可用的報讀紀錄。"
   const details = buildDetailInputs()
   if (details.length === 0) return "請至少新增一筆班別與堂數。"
   if (subtotal <= 0) return "請確認各項金額（可依班別每堂單價 × 堂數自動帶入）。"
@@ -576,7 +473,30 @@ export function PaymentsPageView() {
   createPaymentBatchIfNeeded: needsGroupBatch,
  })
 
+ const openReceiptPreview = async (paymentId: string) => {
+  setReceiptPrintHint(null)
+  try {
+   const full = await fetchPaymentFull(paymentId)
+   if (!full) {
+    setFormErr("找不到單據，無法預覽收據。")
+    return
+   }
+   setReceiptPreview(full)
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentsPageView.openReceiptPreview", setErr: setFormErr })
+  }
+ }
+
+ const printFromPreview = () => {
+  if (!receiptPreview) return
+  setReceiptPrintHint(null)
+  if (!printPayment(receiptPreview, "receipt")) {
+   setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或再按「列印」重試。")
+  }
+ }
+
  const submitReceive = async () => {
+  if (saving) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -584,7 +504,6 @@ export function PaymentsPageView() {
   }
   setSaving(true)
   setFormErr(null)
-  setFormOk(null)
   try {
    const id = await insertPaymentRecord({
     studentId: selectedStudent!.id,
@@ -599,19 +518,29 @@ export function PaymentsPageView() {
     details: buildDetailInputs(),
     ...buildPaymentExtras(),
    })
-   if (printAfterReceive) {
-    const full = await fetchPaymentFull(id)
-    if (full && !printPayment(full, "receipt")) {
-     setFormErr("請允許開啟彈出視窗以列印。")
-    }
+   const full = await fetchPaymentFull(id)
+   setReceivedDone({
+    paymentId: id,
+    amount: totalDue,
+    studentId: selectedStudent!.id,
+    studentName: selectedStudent!.full_name,
+    kind: "receive",
+   })
+   if (printAfterReceive && full) {
+    setReceiptPreview(full)
+    setReceiptPrintHint(null)
+    window.setTimeout(() => {
+     if (!printPayment(full, "receipt")) {
+      setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
+     }
+    }, 200)
    }
    setRemarks("")
    setDiscountIds([])
-   if (selectedStudent) void loadEnrollments(selectedStudent.id)
-   setFormOk("已登記收款。")
-   window.setTimeout(() => setFormOk(null), 5000)
-   void loadHistory()
-   void loadDashboardStats()
+   if (selectedStudent) {
+    void loadEnrollments(selectedStudent.id)
+    void loadStudentContext(selectedStudent.id)
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.submitReceive", setErr: setFormErr })
   } finally {
@@ -620,6 +549,7 @@ export function PaymentsPageView() {
  }
 
  const submitInvoice = async () => {
+  if (saving) return
   const err = validateForm()
   if (err) {
    setFormErr(err)
@@ -627,7 +557,6 @@ export function PaymentsPageView() {
   }
   setSaving(true)
   setFormErr(null)
-  setFormOk(null)
   try {
    const id = await insertPaymentRecord({
     studentId: selectedStudent!.id,
@@ -642,19 +571,29 @@ export function PaymentsPageView() {
     details: buildDetailInputs(),
     ...buildPaymentExtras(),
    })
-   if (printAfterInvoice) {
-    const full = await fetchPaymentFull(id)
-    if (full && !printPayment(full, "invoice")) {
-     setFormErr("請允許開啟彈出視窗以列印。")
-    }
+   const full = await fetchPaymentFull(id)
+   setReceivedDone({
+    paymentId: id,
+    amount: totalDue,
+    studentId: selectedStudent!.id,
+    studentName: selectedStudent!.full_name,
+    kind: "invoice",
+   })
+   if (printAfterInvoice && full) {
+    setReceiptPreview(full)
+    setReceiptPrintHint(null)
+    window.setTimeout(() => {
+     if (!printPayment(full, "invoice")) {
+      setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
+     }
+    }, 200)
    }
    setRemarks("")
    setDiscountIds([])
-   if (selectedStudent) void loadEnrollments(selectedStudent.id)
-   setFormOk("已建立待繳／通知單。")
-   window.setTimeout(() => setFormOk(null), 5000)
-   void loadHistory()
-   void loadDashboardStats()
+   if (selectedStudent) {
+    void loadEnrollments(selectedStudent.id)
+    void loadStudentContext(selectedStudent.id)
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.submitInvoice", setErr: setFormErr })
   } finally {
@@ -662,84 +601,114 @@ export function PaymentsPageView() {
   }
  }
 
- const openDetail = async (row: PaymentListRow) => {
-  setDetailOpen(true)
-  setDetailLoading(true)
-  setDetailPay(null)
-  try {
-   setDetailPay(await fetchPaymentFull(row.id))
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentsPageView.openDetail", setErr: setFormErr })
-   setDetailOpen(false)
-  } finally {
-   setDetailLoading(false)
-  }
+ const continueCollect = () => {
+  setReceivedDone(null)
+  setFormErr(null)
  }
 
- const openMarkReceived = (row: PaymentListRow) => {
-  setMarkTarget(row)
-  setMarkMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
-  setMarkOpen(true)
- }
-
- const confirmMarkReceived = async () => {
-  if (!markTarget) return
-  setSaving(true)
-  try {
-   await markPaymentReceived(markTarget.id, { paymentMethod: markMethod })
-   setMarkOpen(false)
-   setMarkTarget(null)
-   void loadHistory()
-   void loadDashboardStats()
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentsPageView.confirmMarkReceived", setErr: setFormErr })
-  } finally {
-   setSaving(false)
-  }
- }
-
- const onDeleteRow = async (row: PaymentListRow) => {
- if (
-  !(await confirmDialog({
-   title: "刪除單據",
-   description: `確定刪除單據「${row.receiptNumber ?? row.id.slice(0, 8)}」？`,
-   confirmText: "確認刪除",
-   tone: "destructive",
-  }))
+ const renderStudentContextPanel = (sticky: boolean) => (
+  <aside className={cn("space-y-4", sticky && "lg:sticky lg:top-4 lg:self-start")}>
+   {!selectedStudent ? (
+    <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+     請先選擇學生，以顯示上次繳費、已繳堂數與總上堂數。
+    </div>
+   ) : studentCtxLoading ? (
+    <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
+     載入學生收款上下文…
+    </div>
+   ) : (
+    <>
+     <div className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-1">
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:gap-2 md:text-xs">
+        <BookOpen className="h-3.5 w-3.5" aria-hidden />
+        已繳堂數
+       </div>
+       <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-2xl">{paidLessons ?? "—"}</p>
+       <p className="mt-1 hidden text-xs text-muted-foreground md:block">已收款單據之堂數加總</p>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:gap-2 md:text-xs">
+        <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
+        總上堂數
+       </div>
+       <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-2xl">{attendedLessons ?? "—"}</p>
+       <p className="mt-1 hidden text-xs text-muted-foreground md:block">計費出席堂次</p>
+      </div>
+     </div>
+     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+       <h3 className="text-sm font-semibold">上次繳費</h3>
+       <Button type="button" size="sm" variant="ghost" asChild>
+        <Link to={`/PaymentHistory?studentId=${encodeURIComponent(selectedStudent.id)}`}>全部紀錄</Link>
+       </Button>
+      </div>
+      {recentPayments.length > 0 ? (
+       <ul className="mt-3 space-y-3">
+        {recentPayments.map((pay, idx) => (
+         <li
+          key={pay.id}
+          className={cn(
+           "space-y-2 text-sm",
+           idx > 0 && "border-t border-border pt-3"
+          )}
+         >
+          <div className="flex justify-between gap-2">
+           <span className="text-muted-foreground">日期</span>
+           <span className="tabular-nums">{pay.paymentDate}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+           <span className="text-muted-foreground">單號</span>
+           <span className="font-mono text-xs">{pay.receiptNumber ?? "—"}</span>
+          </div>
+          <div className="flex justify-between gap-2">
+           <span className="text-muted-foreground">金額</span>
+           <span className="tabular-nums font-medium">{money(pay.totalAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+           <span className="text-muted-foreground">狀態</span>
+           {statusBadge(pay.status)}
+          </div>
+          <Button
+           type="button"
+           size="sm"
+           variant="outline"
+           className="w-full"
+           onClick={() => void openReceiptPreview(pay.id)}
+          >
+           <Printer className="h-3.5 w-3.5" />
+           預覽／重印
+          </Button>
+         </li>
+        ))}
+       </ul>
+      ) : (
+       <p className="mt-3 text-sm text-muted-foreground">尚無繳費紀錄。</p>
+      )}
+     </div>
+    </>
+   )}
+  </aside>
  )
-  return
-  try {
-   await deletePaymentRecord(row.id)
-   void loadHistory()
-   void loadDashboardStats()
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentsPageView.onDeleteRow", setErr: setFormErr })
-  }
- }
-
- const statusBadge = (status: string) => (
-  <Tag tone={statusToTagTone(status)} size="sm">
-   {status}
-  </Tag>
- )
-
- const enrollmentLabel = (e: EnrollmentWithClass) => {
-  const bits = [e.subject, e.courseCode, e.dayOfWeek, e.timeSlot].filter(Boolean)
-  return bits.join(" · ")
- }
 
  return (
-  <div className="space-y-6 py-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
       <Wallet className="h-8 w-8 text-warning" aria-hidden />
-      繳費記錄
+      收款登記
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
-      登記收款與出單；班別僅限該生已報讀項目。單據編號由系統自動產生。
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+      內部行政收款：先確認學生與應收內容，再登記收款或建立待繳通知單。
      </p>
     </div>
+    <Button type="button" variant="outline" asChild>
+     <Link to="/PaymentHistory">
+      <History className="h-4 w-4" />
+      繳費紀錄
+     </Link>
+    </Button>
    </header>
 
    {formErr ? (
@@ -751,12 +720,33 @@ export function PaymentsPageView() {
      {formErr}
     </div>
    ) : null}
-   {formOk ? (
+
+   {receivedDone ? (
     <div
      role="status"
-    className="rounded-md border border-success bg-success px-3 py-2 text-sm text-success-foreground"
+     className="flex flex-col gap-3 rounded-lg border border-success/40 bg-success/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
     >
-     {formOk}
+     <p className="text-sm font-medium text-foreground">
+      {receivedDone.kind === "receive" ? "已收款" : "已建立通知單"} {money(receivedDone.amount)}
+      <span className="ml-2 font-normal text-muted-foreground">· {receivedDone.studentName}</span>
+     </p>
+     <div className="flex flex-wrap gap-2">
+      <Button type="button" size="sm" onClick={() => void openReceiptPreview(receivedDone.paymentId)}>
+       <Printer className="h-4 w-4" />
+       {receivedDone.kind === "receive" ? "列印收據" : "列印通知單"}
+      </Button>
+      <Button type="button" size="sm" variant="outline" asChild>
+       <Link to={`/PaymentHistory?studentId=${encodeURIComponent(receivedDone.studentId)}`}>
+        查看繳費紀錄
+       </Link>
+      </Button>
+      <Button type="button" size="sm" variant="outline" asChild>
+       <Link to={`/Students/${receivedDone.studentId}`}>返回學生頁</Link>
+      </Button>
+      <Button type="button" size="sm" variant="ghost" onClick={continueCollect}>
+       繼續收款
+      </Button>
+     </div>
     </div>
    ) : null}
 
@@ -766,58 +756,20 @@ export function PaymentsPageView() {
     </div>
    ) : null}
 
-   {isSupabaseConfigured ? (
-    <div className="grid gap-3 sm:grid-cols-2">
-     <div className="flex gap-3 rounded-xl border border-warning/80 bg-gradient-to-br from-orange-50 to-amber-50 p-4 shadow-sm dark:border-warning/50 dark:from-orange-950/40 dark:to-amber-950/30">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-warning text-white shadow">
-       <BookOpen className="h-5 w-5" aria-hidden />
-      </div>
-      <div className="min-w-0">
-       <div className="text-xs font-medium uppercase tracking-wide text-warning/80 dark:text-warning/80">
-        學生總交堂數
-       </div>
-       <div className="mt-1 text-2xl font-bold tabular-nums text-warning dark:text-warning">
-        {dashLoading ? "…" : (dashStats?.totalPaidLessons ?? "—")}
-       </div>
-       <p className="mt-0.5 text-xs text-warning/70 dark:text-warning/70">
-        已收款繳費單 · 明細堂數加總
-       </p>
-      </div>
-     </div>
-     <div className="flex gap-3 rounded-xl border border-success/80 bg-gradient-to-br from-emerald-50 to-teal-50 p-4 shadow-sm dark:border-success/50 dark:from-emerald-950/40 dark:to-teal-950/30">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-success text-white shadow">
-       <ClipboardCheck className="h-5 w-5" aria-hidden />
-      </div>
-      <div className="min-w-0">
-       <div className="text-xs font-medium uppercase tracking-wide text-success/80 dark:text-success/80">
-        學生總上堂數
-       </div>
-       <div className="mt-1 text-2xl font-bold tabular-nums text-success dark:text-success">
-        {dashLoading ? "…" : (dashStats?.totalAttendedLessons ?? "—")}
-       </div>
-       <p className="mt-0.5 text-xs text-success/70 dark:text-success/70">
-        出席紀錄中計為「出席」之堂次（全庫）
-       </p>
-      </div>
-     </div>
-    </div>
-   ) : null}
-
    <div className="flex flex-wrap gap-2">
     {(
      [
       ["receive", "收款登記", Banknote],
       ["invoice", "出單（待繳）", FileText],
-      ["history", "紀錄查詢", History],
      ] as const
     ).map(([key, label, Icon]) => (
      <button
       key={key}
       type="button"
-      onClick={() => setMainTab(key)}
+      onClick={() => setCollectMode(key)}
       className={cn(
        "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
-       mainTab === key
+       collectMode === key
         ? "border-warning bg-warning text-white"
         : "border-border bg-card hover:bg-muted/60"
       )}
@@ -828,151 +780,204 @@ export function PaymentsPageView() {
     ))}
    </div>
 
-   {mainTab !== "history" ? (
-    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-     <div className="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm">
-      <h2 className="text-lg font-semibold">
-       {mainTab === "receive" ? "登記已收款項" : "建立繳費通知（待繳）"}
-      </h2>
-
+   <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,320px)] lg:gap-0">
+    <div className="space-y-5 lg:pr-6">
+     <SectionCard title="1. 學生／收款對象" description="確認現在是替哪位學生收款，避免錯收。">
       <FormField label="學生 *">
-       <div className="relative">
-        <Input
-         placeholder="輸入姓名或學號搜尋…"
-         value={
-          selectedStudent
-           ? `${selectedStudent.full_name}${selectedStudent.student_code ? `（${selectedStudent.student_code}）` : ""}`
-           : studentQuery
-         }
-         onChange={(e) => {
-          setSelectedStudent(null)
-          setStudentQuery(e.target.value)
-          setPickerOpen(true)
-         }}
-         onFocus={() => setPickerOpen(true)}
-        />
-        {pickerOpen && !selectedStudent && studentQuery.trim() ? (
-         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
-          {filteredStudents.length === 0 ? (
-           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
-          ) : (
-           filteredStudents.map((s) => (
-            <button
-             key={s.id}
-             type="button"
-             className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-muted"
-             onClick={() => {
-              setSelectedStudent(s)
-              setStudentQuery("")
-              setPickerOpen(false)
-             }}
-            >
-             <span className="font-medium">{s.full_name}</span>
-             {s.student_code ? (
-              <span className="text-xs text-muted-foreground">學號 {s.student_code}</span>
-             ) : null}
-            </button>
-           ))
-          )}
-         </div>
+       <div className="flex min-w-0 items-start gap-2">
+        <div className="relative min-w-0 flex-1">
+         <Input
+          placeholder="輸入姓名或學號搜尋…"
+          value={
+           selectedStudent
+            ? `${selectedStudent.full_name}${selectedStudent.student_code ? `（${selectedStudent.student_code}）` : ""}`
+            : studentQuery
+          }
+          onChange={(e) => {
+           setSelectedStudent(null)
+           setStudentQuery(e.target.value)
+           setPickerOpen(true)
+          }}
+          onFocus={() => setPickerOpen(true)}
+         />
+         {pickerOpen && !selectedStudent && studentQuery.trim() ? (
+          <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+           {filteredStudents.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
+           ) : (
+            filteredStudents.map((s) => (
+             <button
+              key={s.id}
+              type="button"
+              className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() => {
+               setSelectedStudent(s)
+               setStudentQuery("")
+               setPickerOpen(false)
+               setReceivedDone(null)
+              }}
+             >
+              <span className="font-medium">{s.full_name}</span>
+              {s.student_code ? (
+               <span className="text-xs text-muted-foreground">學號 {s.student_code}</span>
+              ) : null}
+             </button>
+            ))
+           )}
+          </div>
+         ) : null}
+        </div>
+        {selectedStudent ? (
+         <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-0.5 shrink-0"
+          onClick={() => {
+           setSelectedStudent(null)
+           setStudentQuery("")
+           setReceivedDone(null)
+          }}
+         >
+          清除選取
+         </Button>
         ) : null}
        </div>
-       {selectedStudent ? (
-        <button
-         type="button"
-         className="mt-1 text-xs text-primary underline-offset-4 hover:underline"
-         onClick={() => {
-          setSelectedStudent(null)
-          setStudentQuery("")
-         }}
-        >
-         清除選取
-        </button>
-       ) : null}
       </FormField>
 
       {selectedStudent ? (
-       enrollLoading ? (
-        <p className="text-sm text-muted-foreground">載入報讀班別中…</p>
-       ) : enrollments.length === 0 ? (
-        <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-         此學生尚無報讀班別，請先到「學生管理 → 該生詳情 → 報讀班別」新增後再繳費。
-        </div>
-       ) : (
-        <div className="space-y-3">
-         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-medium">收費項目（已報讀班別）</span>
-          <Button
-           type="button"
-           variant="outline"
-           size="sm"
-           onClick={addLine}
-           disabled={!canAddLine}
-           title={canAddLine ? undefined : "所有報讀班別皆已加入收費項目"}
-          >
-           <Plus className="h-4 w-4" />
-           新增班別
-          </Button>
+       <div className="space-y-3 rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm">
+        <h3 className="text-sm font-semibold text-foreground">學生詳情</h3>
+        <div className="grid gap-2 sm:grid-cols-2">
+         <div>
+          <p className="text-xs text-muted-foreground">學號</p>
+          <p className="font-medium">{selectedStudent.student_code ?? "—"}</p>
          </div>
-         <ul className="space-y-3">
-          {lines.map((row) => (
-           <li
-            key={row.key}
-            className="grid gap-3 rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-[1fr_100px_120px_auto]"
-           >
-            <FormField label="班別">
-             <Select
-              className={selectClassName()}
-              value={row.classId}
-              onChange={(e) => updateLine(row.key, { classId: e.target.value })}
-             >
-              <option value="">請選擇</option>
-              {enrollmentsForLine(row.key, row.classId).map((e) => (
-               <option key={e.classId} value={e.classId}>
-                {enrollmentLabel(e)}
-               </option>
-              ))}
-             </Select>
-            </FormField>
-            <FormField label="堂數 *">
-             <Input
-              type="number"
-              min={1}
-              step={1}
-              value={row.lessons}
-              onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
-              placeholder="例如 4"
-             />
-            </FormField>
-            <FormField label="金額（HKD）">
-             <Input
-              type="number"
-              min={0}
-              step="0.01"
-              value={row.amount}
-              onChange={(e) => updateLine(row.key, { amount: e.target.value })}
-              placeholder="自動"
-             />
-            </FormField>
-            <div className="flex items-end justify-end sm:col-span-4">
-             <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive"
-              disabled={lines.length <= 1}
-              onClick={() => removeLine(row.key)}
-              aria-label="移除此列"
-             >
-              <Trash2 className="h-4 w-4" />
-             </Button>
-            </div>
-           </li>
-          ))}
-         </ul>
+         <div>
+          <p className="text-xs text-muted-foreground">年級</p>
+          <p className="font-medium">{selectedStudent.grade ?? "—"}</p>
+         </div>
+         <div className="sm:col-span-2">
+          <p className="text-xs text-muted-foreground">聯絡</p>
+          <p className="font-medium">{formatStudentPhone(selectedStudent)}</p>
+         </div>
+         <div className="sm:col-span-2">
+          <p className="text-xs text-muted-foreground">進行中報讀</p>
+          {enrollLoading ? (
+           <p className="text-muted-foreground">載入中…</p>
+          ) : enrollments.length === 0 ? (
+           <p className="text-warning">目前沒有可用報讀</p>
+          ) : (
+           <ul className="mt-1 list-inside list-disc text-foreground">
+            {enrollments.map((e) => (
+             <li key={e.classId}>{enrollmentLabel(e)}</li>
+            ))}
+           </ul>
+          )}
+         </div>
         </div>
-       )
+       </div>
       ) : null}
+
+      <div className="lg:hidden">{renderStudentContextPanel(false)}</div>
+     </SectionCard>
+
+     <SectionCard title="2. 本次應收內容" description="選定收費項目與優惠後，核對應收總額再進入收款操作。">
+      {!selectedStudent ? (
+       <p className="text-sm text-muted-foreground">請先選擇學生。</p>
+      ) : enrollLoading ? (
+       <p className="text-sm text-muted-foreground">載入報讀班別中…</p>
+      ) : enrollments.length === 0 ? (
+       <div
+        role="alert"
+        className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-3 text-sm text-warning"
+       >
+        <p>此學生目前在系統中沒有可用的報讀紀錄，請先新增報讀後再繳費。</p>
+        <div className="flex flex-wrap gap-2">
+         <Button type="button" size="sm" variant="outline" asChild>
+          <Link to={`/Students/${selectedStudent.id}?tab=enrollments`}>前往學生報讀</Link>
+         </Button>
+         <Button type="button" size="sm" variant="outline" asChild>
+          <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(selectedStudent.id)}&create=1`}>
+           前往一對一報讀
+          </Link>
+         </Button>
+        </div>
+       </div>
+      ) : (
+       <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+         <span className="text-sm font-medium">收費項目（已報讀班別）</span>
+         <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={addLine}
+          disabled={!canAddLine}
+          title={canAddLine ? undefined : "所有報讀班別皆已加入收費項目"}
+         >
+          <Plus className="h-4 w-4" />
+          新增班別
+         </Button>
+        </div>
+        <ul className="space-y-3">
+         {lines.map((row) => (
+          <li
+           key={row.key}
+           className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_100px_120px_auto]"
+          >
+           <FormField label="班別">
+            <Select
+             className={selectClassName()}
+             value={row.classId}
+             onChange={(e) => updateLine(row.key, { classId: e.target.value })}
+            >
+             <option value="">請選擇</option>
+             {enrollmentsForLine(row.key, row.classId).map((e) => (
+              <option key={e.classId} value={e.classId}>
+               {enrollmentLabel(e)}
+              </option>
+             ))}
+            </Select>
+           </FormField>
+           <FormField label="堂數 *">
+            <Input
+             type="number"
+             min={1}
+             step={1}
+             value={row.lessons}
+             onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
+             placeholder="例如 4"
+            />
+           </FormField>
+           <FormField label="金額（HKD）">
+            <Input
+             type="number"
+             min={0}
+             step="0.01"
+             value={row.amount}
+             onChange={(e) => updateLine(row.key, { amount: e.target.value })}
+             placeholder="自動"
+            />
+           </FormField>
+           <div className="flex items-end justify-end sm:col-span-4">
+            <Button
+             type="button"
+             variant="ghost"
+             size="icon"
+             className="text-muted-foreground hover:text-destructive"
+             disabled={lines.length <= 1}
+             onClick={() => removeLine(row.key)}
+             aria-label="移除此列"
+            >
+             <Trash2 className="h-4 w-4" />
+            </Button>
+           </div>
+          </li>
+         ))}
+        </ul>
+       </div>
+      )}
 
       {selectedStudent && paymentEligibilityCtx.tierTotalLessons > paymentEligibilityCtx.totalLessons ? (
        <p className="text-xs text-muted-foreground">
@@ -1014,9 +1019,6 @@ export function PaymentsPageView() {
          onChange={(e) => setBatchMemberCount(e.target.value)}
          placeholder="3"
         />
-        <p className="mt-1 text-xs text-muted-foreground">
-         自組同班優惠需 ≥3 人同一班、兩期全報且同時付款。請確認所有明細為同一班別。
-        </p>
        </FormField>
       ) : null}
 
@@ -1043,74 +1045,72 @@ export function PaymentsPageView() {
        </FormField>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-       <FormField label="優惠（可多選）">
-        <div
-         className={cn(
-          "max-h-40 space-y-2 overflow-y-auto rounded-md border border-input bg-background p-3",
-          (!selectedStudent || enrollments.length === 0) && "opacity-60"
-         )}
-        >
-         {discounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
-         ) : (
-          discounts.map((d) => {
-           const avail = discountAvailability.get(d.id)
-           const eligibilityBlocked = avail != null && !avail.eligible
-           const stackBlocked =
-            !eligibilityBlocked &&
-            isDiscountCheckboxDisabled(d, discountIds, discounts)
-           const checkboxDisabled =
-            !selectedStudent ||
-            enrollments.length === 0 ||
-            eligibilityBlocked ||
-            stackBlocked
-           return (
-            <div key={d.id} className="space-y-0.5">
-             <label
-              className={cn(
-               "flex items-center gap-2 text-sm",
-               checkboxDisabled && !discountIds.includes(d.id)
-                ? "cursor-not-allowed opacity-60"
-                : "cursor-pointer"
-              )}
-             >
-              <input
-               type="checkbox"
-               className="h-4 w-4 rounded border-input"
-               checked={discountIds.includes(d.id)}
-               disabled={checkboxDisabled}
-               onChange={() => toggleDiscount(d.id)}
-              />
-              {discountOptionLabel(d, avail?.resolvedAmountOff)}
-             </label>
-             {eligibilityBlocked && avail?.reason ? (
-              <p className="pl-6 text-xs text-muted-foreground">{avail.reason}</p>
-             ) : null}
-             {stackBlocked && !eligibilityBlocked ? (
-              <p className="pl-6 text-xs text-muted-foreground">
-               {maxStackCount != null && discountIds.length >= maxStackCount
-                ? `每單最多 ${maxStackCount} 項優惠`
-                : "與已選優惠互斥或不可疊加"}
-              </p>
-             ) : null}
-            </div>
-           )
-          })
-         )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-         優惠由外星人於「優惠折扣」維護；依目錄排序套用（各項先百分比減免，再減固定金額）。
-         {maxStackCount != null ? ` 每單最多 ${maxStackCount} 項。` : null}
-        </p>
-       </FormField>
-       <FormField label="日期 *">
-        <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
-        {!payDateEditable ? (
-         <p className="mt-1 text-xs text-amber-800">{academicYearEditBlockedMessage()}</p>
-        ) : null}
-       </FormField>
-      </div>
+      <FormField label="優惠（可多選）">
+       <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => setDiscountHelpOpen(true)}>
+         查看優惠規則
+        </Button>
+        <Link to="/PaymentDiscounts" className="text-xs text-primary underline-offset-2 hover:underline">
+         開啟優惠目錄
+        </Link>
+       </div>
+       <div
+        className={cn(
+         "max-h-40 space-y-2 overflow-y-auto rounded-md border border-input bg-background p-3",
+         (!selectedStudent || enrollments.length === 0) && "opacity-60"
+        )}
+       >
+        {discounts.length === 0 ? (
+         <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
+        ) : (
+         discounts.map((d) => {
+          const avail = discountAvailability.get(d.id)
+          const eligibilityBlocked = avail != null && !avail.eligible
+          const stackBlocked =
+           !eligibilityBlocked && isDiscountCheckboxDisabled(d, discountIds, discounts)
+          const checkboxDisabled =
+           !selectedStudent || enrollments.length === 0 || eligibilityBlocked || stackBlocked
+          return (
+           <div key={d.id} className="space-y-0.5">
+            <label
+             className={cn(
+              "flex items-center gap-2 text-sm",
+              checkboxDisabled && !discountIds.includes(d.id)
+               ? "cursor-not-allowed opacity-60"
+               : "cursor-pointer"
+             )}
+            >
+             <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={discountIds.includes(d.id)}
+              disabled={checkboxDisabled}
+              onChange={() => toggleDiscount(d.id)}
+             />
+             {discountOptionLabel(d, avail?.resolvedAmountOff)}
+            </label>
+            {eligibilityBlocked && avail?.reason ? (
+             <p className="pl-6 text-xs text-muted-foreground">{avail.reason}</p>
+            ) : null}
+            {stackBlocked && !eligibilityBlocked ? (
+             <p className="pl-6 text-xs text-muted-foreground">
+              {maxStackCount != null && discountIds.length >= maxStackCount
+               ? `每單最多 ${maxStackCount} 項優惠`
+               : "與已選優惠互斥或不可疊加"}
+             </p>
+            ) : null}
+           </div>
+          )
+         })
+        )}
+       </div>
+       <p className="text-xs text-muted-foreground">
+        {isSuperAdmin()
+         ? "優惠規則可於「優惠折扣」維護；依目錄排序套用（先百分比再固定金額）。"
+         : "優惠規則可於「優惠折扣」查閱；修改僅限管理員。依目錄排序套用（先百分比再固定金額）。"}
+        {maxStackCount != null ? ` 每單最多 ${maxStackCount} 項。` : null}
+       </p>
+      </FormField>
 
       <div className="rounded-lg border border-dashed border-border bg-muted/15 px-3 py-3 text-sm">
        <div className="flex justify-between gap-2">
@@ -1118,28 +1118,57 @@ export function PaymentsPageView() {
         <span className="tabular-nums font-medium">{money(subtotal)}</span>
        </div>
        {selectedDiscounts.length > 0 ? (
-        <div className="mt-1 space-y-1 text-muted-foreground">
+        <div className="mt-1 space-y-2 text-muted-foreground">
          {selectedDiscounts.map((d, idx) => {
           const step = discountStepsPreview[idx]
           const avail = discountAvailability.get(d.id)
+          const summary = summarizePaymentDiscountForAdmin(d)
           return (
-           <div key={d.id} className="flex justify-between gap-2">
-            <span>優惠：{discountOptionLabel(d, avail?.resolvedAmountOff)}</span>
-            <span className="tabular-nums text-warning">
-             {step && step.amountDeducted > 0 ? `-${money(step.amountDeducted)}` : "（僅註記）"}
-            </span>
+           <div key={d.id} className="space-y-0.5">
+            <div className="flex justify-between gap-2">
+             <span>
+              已套用：{d.name}
+              {avail?.resolvedAmountOff != null || d.percentOff != null || d.amountOff != null
+               ? `（${discountOptionLabel(d, avail?.resolvedAmountOff)}）`
+               : ""}
+             </span>
+             <span className="tabular-nums text-warning">
+              {step && step.amountDeducted > 0 ? `-${money(step.amountDeducted)}` : "（僅註記）"}
+             </span>
+            </div>
+            <p className="text-xs">
+             規則：
+             {summary.descriptionText ??
+              summary.eligibilityText ??
+              "此優惠尚未提供詳細說明，如有疑問請向主管確認。"}
+            </p>
            </div>
           )
          })}
         </div>
        ) : null}
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
-        <span>應繳總額</span>
+        <span>應收總額</span>
         <span className="tabular-nums text-warning dark:text-warning">{money(totalDue)}</span>
        </div>
       </div>
+     </SectionCard>
 
+     <SectionCard
+      title={collectMode === "receive" ? "3. 本次收款操作" : "3. 本次出單操作"}
+      description={
+       collectMode === "receive"
+        ? "確認付款方式與備註後送出；送出期間請勿重複點擊。"
+        : "建立待繳／待收款通知單，之後可於繳費紀錄標記已收。"
+      }
+     >
       <div className="grid gap-4 sm:grid-cols-2">
+       <FormField label="日期 *">
+        <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+        {!payDateEditable ? (
+         <p className="mt-1 text-xs text-amber-800">{academicYearEditBlockedMessage()}</p>
+        ) : null}
+       </FormField>
        <FormField label="繳費方式">
         <Select className={selectClassName()} value={method} onChange={(e) => setMethod(e.target.value)}>
          {PAYMENT_METHOD_PRESETS.map((m) => (
@@ -1149,7 +1178,7 @@ export function PaymentsPageView() {
          ))}
         </Select>
        </FormField>
-       {mainTab === "invoice" ? (
+       {collectMode === "invoice" ? (
         <FormField label="帳款狀態">
          <Select
           className={selectClassName()}
@@ -1165,6 +1194,9 @@ export function PaymentsPageView() {
          <Input readOnly value={PAYMENT_STATUS.received} className="bg-muted/40" />
         </FormField>
        )}
+       <FormField label="實收／應收金額">
+        <Input readOnly value={money(totalDue)} className="bg-muted/40 tabular-nums font-semibold" />
+       </FormField>
       </div>
 
       <FormField label="備註">
@@ -1172,466 +1204,138 @@ export function PaymentsPageView() {
         value={remarks}
         onChange={(e) => setRemarks(e.target.value)}
         rows={2}
-        placeholder="內部備註等"
+        placeholder="內部備註、轉數快參考編號等"
        />
       </FormField>
 
       <label className="flex cursor-pointer items-center gap-2 text-sm">
        <input
         type="checkbox"
-        checked={mainTab === "receive" ? printAfterReceive : printAfterInvoice}
+        checked={collectMode === "receive" ? printAfterReceive : printAfterInvoice}
         onChange={(e) =>
-         mainTab === "receive"
+         collectMode === "receive"
           ? setPrintAfterReceive(e.target.checked)
           : setPrintAfterInvoice(e.target.checked)
         }
        />
-       建立後開啟列印（收據）
+       建立後開啟列印
       </label>
 
       <Button
        type="button"
        className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-       disabled={!isSupabaseConfigured || saving || !payDateEditable}
-       onClick={() => void (mainTab === "receive" ? submitReceive() : submitInvoice())}
+       disabled={!isSupabaseConfigured || saving || !payDateEditable || Boolean(receivedDone)}
+       onClick={() => void (collectMode === "receive" ? submitReceive() : submitInvoice())}
       >
-       {mainTab === "receive" ? "確認登記收款" : "建立通知單"}
+       {saving
+        ? "處理中…"
+        : collectMode === "receive"
+          ? "確認登記收款"
+          : "建立通知單"}
       </Button>
-     </div>
-
-    <aside className="space-y-3 rounded-xl border border-warning/60 bg-warning p-4 text-sm text-warning-foreground dark:border-warning/40 dark:bg-warning/80 dark:text-warning-foreground">
-     <p className="font-medium text-warning-foreground dark:text-warning-foreground">小提示</p>
-     <ul className="list-inside list-disc space-y-2 text-warning-foreground/90 dark:text-warning-foreground/90">
-       <li>班別僅顯示該生「報讀中」班級；堂數預設 4 堂，金額依每堂單價自動計算（可再手改）。</li>
-       <li>同一張單據可收多班費用，但每個班別只能選一次。</li>
-       <li>優惠可複選，依目錄排序套用百分比與固定減免；互斥群組與疊加上限依設定自動限制。</li>
-       <li>單據編號由系統自動產生，無法手動輸入。</li>
-       <li>優惠選項由外星人在側欄「優惠折扣」設定。</li>
-      </ul>
-     </aside>
+     </SectionCard>
     </div>
-   ) : (
-    <div className="space-y-4">
-     {isMobile ? (
-      <>
-       <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
-         <SlidersHorizontal className="h-4 w-4" aria-hidden />
-         篩選
-         {(histStatus !== "all" || histFrom || histTo || histSearch.trim()) ? (
-          <Tag tone="info" size="sm">
-           {[histStatus !== "all", Boolean(histFrom), Boolean(histTo), Boolean(histSearch.trim())].filter(Boolean).length}
-          </Tag>
-         ) : null}
+
+    <div className="hidden border-l border-border lg:block lg:pl-6">
+     {renderStudentContextPanel(true)}
+    </div>
+   </div>
+
+   <Dialog
+    open={Boolean(receiptPreview)}
+    onOpenChange={(o) => {
+     if (!o) {
+      setReceiptPreview(null)
+      setReceiptPrintHint(null)
+     }
+    }}
+   >
+    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+     <DialogHeader>
+      <DialogTitle>收據預覽</DialogTitle>
+     </DialogHeader>
+     {receiptPreview ? (
+      <div className="space-y-3">
+       <iframe
+        title="收據預覽"
+        className="h-[28rem] w-full rounded-md border border-border bg-white"
+        srcDoc={buildPaymentReceiptDocumentHtml(receiptPreview)}
+       />
+       {receiptPrintHint ? (
+        <p className="text-sm text-warning" role="status">
+         {receiptPrintHint}
+        </p>
+       ) : null}
+       <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={printFromPreview}>
+         <Printer className="h-4 w-4" />
+         列印
         </Button>
         <Button
          type="button"
-         variant="secondary"
-         className="shrink-0"
-         disabled={!isSupabaseConfigured}
-         onClick={() => void loadHistory()}
+         variant="outline"
+         onClick={() => {
+          setReceiptPreview(null)
+          setReceiptPrintHint(null)
+         }}
         >
-         重新載入
+         關閉
         </Button>
        </div>
-       <MobileFilterSheet
-        open={filtersOpen}
-        onClose={() => {
-         setFiltersOpen(false)
-         void loadHistory()
-        }}
-        title="篩選繳費紀錄"
-        activeCount={
-         [histStatus !== "all", Boolean(histFrom), Boolean(histTo), Boolean(histSearch.trim())].filter(Boolean).length
-        }
-        onReset={() => {
-         setHistStatus("all")
-         setHistFrom("")
-         setHistTo("")
-         setHistSearch("")
-        }}
-       >
-        <FormField label="狀態">
-         <Select
-          className={cn(selectClassName(), "w-full")}
-          value={histStatus}
-          onChange={(e) => setHistStatus(e.target.value as typeof histStatus)}
-         >
-          <option value="all">全部</option>
-          <option value="received">已收款</option>
-          <option value="pending">待繳／待收款</option>
-          <option value="pendingPay">待繳費（出單）</option>
-         </Select>
-        </FormField>
-        <FormField label="起日">
-         <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} className="w-full" />
-        </FormField>
-        <FormField label="迄日">
-         <Input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)} className="w-full" />
-        </FormField>
-        <FormField label="搜尋">
-         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-           className="pl-8"
-           placeholder="學生、學號、單號…"
-           value={histSearch}
-           onChange={(e) => setHistSearch(e.target.value)}
-          />
-         </div>
-        </FormField>
-       </MobileFilterSheet>
-      </>
-     ) : (
-     <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-      <FormField label="狀態">
-       <Select
-        className={cn(selectClassName(), "min-w-[140px]")}
-        value={histStatus}
-        onChange={(e) => setHistStatus(e.target.value as typeof histStatus)}
-       >
-        <option value="all">全部</option>
-        <option value="received">已收款</option>
-        <option value="pending">待繳／待收款</option>
-        <option value="pendingPay">待繳費（出單）</option>
-       </Select>
-      </FormField>
-      <FormField label="起日">
-       <Input type="date" value={histFrom} onChange={(e) => setHistFrom(e.target.value)} className="w-[160px]" />
-      </FormField>
-      <FormField label="迄日">
-       <Input type="date" value={histTo} onChange={(e) => setHistTo(e.target.value)} className="w-[160px]" />
-      </FormField>
-      <FormField label="搜尋">
-       <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-         className="pl-8"
-         placeholder="學生、學號、單號…"
-         value={histSearch}
-         onChange={(e) => setHistSearch(e.target.value)}
-        />
-       </div>
-      </FormField>
-      <Button
-       type="button"
-       variant="secondary"
-       className="shrink-0"
-       disabled={!isSupabaseConfigured}
-       onClick={() => void loadHistory()}
-      >
-       套用篩選
-      </Button>
-     </div>
-     )}
-
-     {histErr ? (
-      <div
-       role="alert"
-       tabIndex={-1}
-       className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
-      >
-       {histErr}
-      </div>
-     ) : null}
-
-     {histLoading ? (
-      <p className="text-sm text-muted-foreground">載入中…</p>
-     ) : historyRows.length === 0 ? (
-      <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-       沒有符合條件的紀錄。
-      </div>
-     ) : isMobile ? (
-      <div className="space-y-3">
-       {historyRows.map((r) => {
-        const pending = PENDING_PAYMENT_STATUSES.includes(
-         r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
-        )
-        const rowEditable = canEditAcademicYearForDate(r.paymentDate)
-        return (
-         <article key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-2">
-           <div className="min-w-0">
-            <p className="text-xs tabular-nums text-muted-foreground">{r.paymentDate}</p>
-            <p className="font-mono text-xs">{r.receiptNumber ?? "—"}</p>
-            <Link className="mt-1 block font-semibold text-primary hover:underline" to={`/Students/${r.studentId}`}>
-             {r.studentName}
-            </Link>
-            {r.studentCode ? (
-             <p className="text-xs text-muted-foreground">({r.studentCode})</p>
-            ) : null}
-           </div>
-           {statusBadge(r.status)}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-           <p className="text-muted-foreground">金額</p>
-           <p className="text-right tabular-nums font-medium">{money(r.totalAmount)}</p>
-           <p className="text-muted-foreground">方式</p>
-           <p className="text-right">{r.paymentMethod ?? "—"}</p>
-           <p className="text-muted-foreground">優惠</p>
-           <p className="truncate text-right">{r.discountName ?? "—"}</p>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-           <Button type="button" variant="outline" size="sm" onClick={() => void openDetail(r)}>
-            詳情
-           </Button>
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-             try {
-              const full = await fetchPaymentFull(r.id)
-              if (full && !printPaymentForStatus(full, r.status, PENDING_PAYMENT_STATUSES)) {
-               setFormErr("請允許開啟彈出視窗以列印。")
-              }
-             } catch (e) {
-              reportUserFacingError(e, {
-               source: "PaymentsPageView.printFromHistory",
-               setErr: setFormErr,
-              })
-             }
-            }}
-           >
-            <Printer className="h-3.5 w-3.5" />
-            列印
-           </Button>
-           {pending && rowEditable ? (
-            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
-             標記已收
-            </Button>
-           ) : null}
-           {rowEditable ? (
-            <Button
-             type="button"
-             variant="ghost"
-             size="sm"
-             className="text-destructive hover:text-destructive"
-             onClick={() => void onDeleteRow(r)}
-            >
-             刪除
-            </Button>
-           ) : null}
-          </div>
-         </article>
-        )
-       })}
-      </div>
-     ) : (
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-       <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
-        <thead className="border-b bg-muted/40">
-         <tr>
-          <th className="w-[11%] px-3 py-2 font-medium">日期</th>
-          <th className="w-[13%] px-3 py-2 font-medium">單號</th>
-          <th className="w-[18%] px-3 py-2 font-medium">學生</th>
-          <th className="w-[12%] px-3 py-2 font-medium">優惠</th>
-          <th className="w-[11%] px-3 py-2 font-medium text-right">金額</th>
-          <th className="w-[10%] px-3 py-2 font-medium">方式</th>
-          <th className="w-[13%] px-3 py-2 font-medium">狀態</th>
-          <th className="w-[12%] px-3 py-2 font-medium">操作</th>
-         </tr>
-        </thead>
-        <tbody>
-         {historyRows.map((r) => {
-          const pending = PENDING_PAYMENT_STATUSES.includes(
-           r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
-          )
-          const rowEditable = canEditAcademicYearForDate(r.paymentDate)
-          return (
-           <tr key={r.id} className="border-b border-border/80 last:border-0">
-            <td className="px-3 py-2 whitespace-nowrap">{r.paymentDate}</td>
-            <td className="px-3 py-2 font-mono text-xs">{r.receiptNumber ?? "—"}</td>
-            <td className="px-3 py-2">
-             <Link className="text-primary hover:underline" to={`/Students/${r.studentId}`}>
-              {r.studentName}
-             </Link>
-             {r.studentCode ? (
-              <span className="ml-1 text-xs text-muted-foreground">({r.studentCode})</span>
-             ) : null}
-            </td>
-            <td className="max-w-[140px] truncate px-3 py-2 text-muted-foreground">
-             {r.discountName ?? "—"}
-            </td>
-            <td className="px-3 py-2 text-right tabular-nums">{money(r.totalAmount)}</td>
-            <td className="px-3 py-2">{r.paymentMethod ?? "—"}</td>
-            <td className="px-3 py-2">{statusBadge(r.status)}</td>
-            <td className="px-3 py-2">
-             <div className="flex flex-wrap gap-1">
-              <Button type="button" variant="outline" size="sm" onClick={() => void openDetail(r)}>
-               詳情
-              </Button>
-              <Button
-               type="button"
-               variant="outline"
-               size="sm"
-               onClick={async () => {
-                try {
-                 const full = await fetchPaymentFull(r.id)
-                 if (full && !printPaymentForStatus(full, r.status, PENDING_PAYMENT_STATUSES)) {
-                  setFormErr("請允許開啟彈出視窗以列印。")
-                 }
-                } catch (e) {
-                 reportUserFacingError(e, {
-                  source: "PaymentsPageView.printFromHistory",
-                  setErr: setFormErr,
-                 })
-                }
-               }}
-              >
-               <Printer className="h-3.5 w-3.5" />
-               列印
-              </Button>
-              {pending && rowEditable ? (
-               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
-                標記已收
-               </Button>
-              ) : null}
-              {rowEditable ? (
-              <Button
-               type="button"
-               variant="ghost"
-               size="sm"
-               className="text-destructive hover:text-destructive"
-               onClick={() => void onDeleteRow(r)}
-              >
-               刪除
-              </Button>
-              ) : null}
-             </div>
-            </td>
-           </tr>
-          )
-         })}
-        </tbody>
-       </table>
-      </div>
-     )}
-    </div>
-   )}
-
-   <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-     <DialogHeader>
-      <DialogTitle>繳費詳情</DialogTitle>
-     </DialogHeader>
-     {detailLoading ? (
-      <p className="text-sm text-muted-foreground">載入中…</p>
-     ) : detailPay ? (
-      <div className="space-y-3 text-sm">
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">單號</span>
-        <span className="font-mono text-xs">{detailPay.receiptNumber ?? "—"}</span>
-       </div>
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">學生</span>
-        <Link className="text-primary hover:underline" to={`/Students/${detailPay.studentId}`}>
-         {detailPay.studentName}
-        </Link>
-       </div>
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">日期</span>
-        <span>{detailPay.paymentDate}</span>
-       </div>
-       <div className="rounded-md border border-border bg-muted/15 p-3">
-        <div className="mb-2 font-medium">金額明細</div>
-        <div className="space-y-1.5">
-         {buildPaymentAmountBreakdown(detailPay).lines.map((line) => (
-          <div key={line.key} className="flex justify-between gap-2">
-           <span className={line.tone === "deduction" ? "text-warning" : "text-muted-foreground"}>
-            {line.label}
-           </span>
-           <span
-            className={cn(
-             "tabular-nums",
-             line.tone === "total" && "font-semibold text-foreground",
-             line.tone === "deduction" && "text-warning"
-            )}
-           >
+       {receiptPreview ? (
+        <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+         {buildPaymentAmountBreakdown(receiptPreview).lines.map((line) => (
+          <div key={line.key} className="flex justify-between gap-2 py-0.5">
+           <span>{line.label}</span>
+           <span className="tabular-nums">
             {line.tone === "deduction" ? `-${money(Math.abs(line.amount))}` : money(line.amount)}
            </span>
           </div>
          ))}
         </div>
-       </div>
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">方式</span>
-        <span>{detailPay.paymentMethod ?? "—"}</span>
-       </div>
-       <div className="flex justify-between gap-2">
-        <span className="text-muted-foreground">狀態</span>
-        {statusBadge(detailPay.status)}
-       </div>
-       {detailPay.remarks ? (
-        <div>
-         <div className="text-muted-foreground">備註</div>
-         <p className="mt-1 whitespace-pre-wrap rounded-md bg-muted/40 p-2">{detailPay.remarks}</p>
-        </div>
        ) : null}
-       {detailPay.details.length > 0 ? (
-        <div>
-         <div className="mb-1 font-medium">明細</div>
-         <ul className="space-y-2 rounded-md border p-2">
-          {detailPay.details.map((d) => (
-           <li key={d.id} className="text-xs">
-            <span className="font-medium">{d.classLabel}</span>
-            {d.lessonCount != null ? ` · ${d.lessonCount} 堂` : ""}
-            {d.amount != null ? ` · ${money(d.amount)}` : ""}
-            {d.description ? ` — ${d.description}` : ""}
-           </li>
-          ))}
-         </ul>
-        </div>
-       ) : null}
-       <div className="flex flex-wrap gap-2 pt-2">
-        <Button
-         type="button"
-         variant="outline"
-         size="sm"
-         onClick={() => {
-          if (!printPaymentForStatus(detailPay, detailPay.status, PENDING_PAYMENT_STATUSES)) {
-           setFormErr("請允許開啟彈出視窗以列印。")
-          }
-         }}
-        >
-         <Printer className="h-4 w-4" />
-         列印
-        </Button>
-       </div>
       </div>
      ) : null}
     </DialogContent>
    </Dialog>
 
-   <Dialog open={markOpen} onOpenChange={setMarkOpen}>
-    <DialogContent className="sm:max-w-md">
+   <Dialog open={discountHelpOpen} onOpenChange={setDiscountHelpOpen}>
+    <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
      <DialogHeader>
-      <DialogTitle>標記為已收款</DialogTitle>
+      <DialogTitle>優惠規則說明</DialogTitle>
      </DialogHeader>
-     {markTarget ? (
-      <div className="grid gap-3 text-sm">
-       <p>
-        將 <strong>{markTarget.studentName}</strong> 的 {money(markTarget.totalAmount)} 標記為已收。收據編號將由系統自動產生。
-       </p>
-       <FormField label="繳費方式">
-        <Select className={selectClassName()} value={markMethod} onChange={(e) => setMarkMethod(e.target.value)}>
-         {PAYMENT_METHOD_PRESETS.map((m) => (
-          <option key={m} value={m}>
-           {m}
-          </option>
-         ))}
-        </Select>
-       </FormField>
-       <Button
-        type="button"
-        className="bg-success text-white hover:bg-success"
-       disabled={saving}
-        onClick={() => void confirmMarkReceived()}
-       >
-        確認
-       </Button>
-      </div>
-     ) : null}
+     <p className="text-sm text-muted-foreground">
+      以下為目前可用優惠的唯讀說明。
+      {isSuperAdmin() ? null : " 修改規則僅限管理員。"}
+     </p>
+     {discounts.length === 0 ? (
+      <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
+     ) : (
+      <ul className="space-y-3">
+       {discounts.map((d) => {
+        const s = summarizePaymentDiscountForAdmin(d)
+        return (
+         <li key={d.id} className="rounded-lg border border-border p-3 text-sm">
+          <div className="font-medium text-foreground">{d.name}</div>
+          <p className="mt-1 text-muted-foreground">{s.kindLabel}</p>
+          <p className="mt-1 text-muted-foreground">
+           {s.descriptionText ?? "此優惠尚未提供詳細說明，如有疑問請向主管確認。"}
+          </p>
+          {s.eligibilityText ? (
+           <p className="mt-1 text-xs text-muted-foreground">適用：{s.eligibilityText}</p>
+          ) : null}
+          <p className="mt-1 text-xs text-muted-foreground">{s.stackText}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{s.validityText}</p>
+         </li>
+        )
+       })}
+      </ul>
+     )}
+     <Button type="button" variant="outline" asChild>
+      <Link to="/PaymentDiscounts" onClick={() => setDiscountHelpOpen(false)}>
+       前往優惠目錄
+      </Link>
+     </Button>
     </DialogContent>
    </Dialog>
   </div>

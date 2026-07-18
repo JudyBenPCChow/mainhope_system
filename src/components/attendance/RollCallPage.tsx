@@ -210,7 +210,7 @@ export function RollCallPage() {
        </Tag>
       ) : null}
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
       {teacherTid
        ? "專班老師僅見您指派的班別在該日的排程；展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"
        : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
@@ -219,7 +219,7 @@ export function RollCallPage() {
    </header>
 
    {teacherTid ? (
-    <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
+    <div className="hidden rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground md:block">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
     </div>
    ) : null}
@@ -238,18 +238,18 @@ export function RollCallPage() {
     </div>
    ) : null}
 
-   <section className="grid gap-3 sm:grid-cols-2">
-    <div className="rounded-xl border border-success bg-success p-4 text-success-foreground shadow-sm">
-     <div className="text-sm font-medium text-success-foreground/90">已儲存點名人次</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{savedFilledTotal}</p>
-     <p className="mt-1 text-xs text-success-foreground/85">
+   <section className="grid grid-cols-2 gap-2 md:gap-3">
+    <div className="rounded-xl border border-success bg-success p-2.5 text-success-foreground shadow-sm md:p-4">
+     <div className="text-[11px] font-medium text-success-foreground/90 md:text-sm">已儲存人次</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{savedFilledTotal}</p>
+     <p className="mt-1 hidden text-xs text-success-foreground/85 md:block">
       當日已寫入資料庫的人次 · 已點名 {savedSessionCount} / {rollCallEntries.length} 堂
      </p>
     </div>
-    <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
-     <div className="text-sm font-medium text-warning-foreground/90">今日堂數</div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{rollCallEntries.length}</p>
-     <p className="mt-1 text-xs text-warning-foreground/85">所選日期可點名項目（連堂已合併；已排除取消）</p>
+    <div className="rounded-xl border border-warning bg-warning p-2.5 text-warning-foreground shadow-sm md:p-4">
+     <div className="text-[11px] font-medium text-warning-foreground/90 md:text-sm">今日堂數</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{rollCallEntries.length}</p>
+     <p className="mt-1 hidden text-xs text-warning-foreground/85 md:block">所選日期可點名項目（連堂已合併；已排除取消）</p>
     </div>
    </section>
 

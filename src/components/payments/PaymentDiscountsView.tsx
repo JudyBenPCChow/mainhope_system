@@ -9,6 +9,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
@@ -21,6 +22,7 @@ import {
 } from "@/lib/paymentDiscountKinds"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -130,6 +132,7 @@ const emptyForm = {
 }
 
 export function PaymentDiscountsView() {
+ const canEditDiscounts = isSuperAdmin()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<PaymentDiscountRow[]>([])
@@ -555,21 +558,25 @@ export function PaymentDiscountsView() {
    : previewSubtotalN
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
       <Percent className="h-8 w-8 text-primary" aria-hidden />
       優惠折扣
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
-      維護繳費表單可選的優惠項目；套用順序依「排序」欄（非勾選順序）。
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+      {canEditDiscounts
+       ? "維護繳費表單可選的優惠項目；套用順序依「排序」欄（非勾選順序）。"
+       : "此頁面為優惠規則查閱，修改僅限管理員。"}
      </p>
     </div>
-    <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>
-     <Plus className="h-4 w-4" />
-     新增優惠
-    </Button>
+    {canEditDiscounts ? (
+     <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>
+      <Plus className="h-4 w-4" />
+      新增優惠
+     </Button>
+    ) : null}
    </header>
 
    {!isSupabaseConfigured ? (
@@ -584,7 +591,7 @@ export function PaymentDiscountsView() {
     </div>
    ) : null}
 
-   {rows.length > 0 ? (
+   {canEditDiscounts && rows.length > 0 ? (
     <div className="flex flex-wrap items-center gap-2">
      <Button type="button" variant="outline" size="sm" onClick={toggleSelectAll}>
       {selectedIds.size === rows.length ? "取消全選" : "全選"}
@@ -617,7 +624,7 @@ export function PaymentDiscountsView() {
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : rows.length === 0 ? (
     <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-     尚無優惠項目，請按「新增優惠」。
+     {canEditDiscounts ? "尚無優惠項目，請按「新增優惠」。" : "尚無優惠項目。"}
     </div>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
@@ -694,7 +701,12 @@ export function PaymentDiscountsView() {
               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
               : "bg-muted text-muted-foreground"
             )}
-            onClick={() => void onToggleActive(r)}
+            onClick={() => {
+             if (!canEditDiscounts) return
+             void onToggleActive(r)
+            }}
+            disabled={!canEditDiscounts}
+            title={canEditDiscounts ? undefined : "此規則僅限管理員修改"}
            >
             {r.isActive ? "啟用" : "停用"}
            </button>
@@ -703,22 +715,26 @@ export function PaymentDiscountsView() {
            {formatUpdatedAt(r.updatedAt)}
           </td>
           <td className="px-2 py-2">
-           <div className="flex flex-wrap gap-1">
-            <Button type="button" variant="outline" size="sm" onClick={() => openEdit(r)}>
-             <Pencil className="h-3.5 w-3.5" />
-             編輯
-            </Button>
-            <Button
-             type="button"
-             variant="ghost"
-             size="sm"
-             className="text-muted-foreground hover:text-destructive"
-             onClick={() => void onDelete(r)}
-            >
-             <Trash2 className="h-3.5 w-3.5" />
-             刪除
-            </Button>
-           </div>
+           {canEditDiscounts ? (
+            <div className="flex flex-wrap gap-1">
+             <Button type="button" variant="outline" size="sm" onClick={() => openEdit(r)}>
+              <Pencil className="h-3.5 w-3.5" />
+              編輯
+             </Button>
+             <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={() => void onDelete(r)}
+             >
+              <Trash2 className="h-3.5 w-3.5" />
+              刪除
+             </Button>
+            </div>
+           ) : (
+            <span className="text-xs text-muted-foreground">僅限管理員修改</span>
+           )}
           </td>
          </tr>
         )
@@ -759,8 +775,8 @@ export function PaymentDiscountsView() {
       </div>
       <div className="grid gap-1.5">
        <label className="font-medium">優惠類型</label>
-       <select
-        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+       <Select
+        className="flex h-10 w-full min-h-10"
         value={form.discountKind}
         onChange={(e) =>
          setForm((f) => ({ ...f, discountKind: e.target.value as DiscountKind }))
@@ -771,7 +787,7 @@ export function PaymentDiscountsView() {
           {DISCOUNT_KIND_LABELS[k]}
          </option>
         ))}
-       </select>
+       </Select>
       </div>
       {isLessonTierKind(form.discountKind) ? (
        <div className="rounded-lg border border-border bg-muted/10 p-3">

@@ -165,7 +165,7 @@ export function SystemIssuesView() {
       <AlertTriangle className="h-8 w-8 text-warning" aria-hidden />
       報錯與問題
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground md:text-base">
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block md:text-base">
       操作失敗、例外與系統問題紀錄。實際寫入需於程式中呼叫{" "}
       <code className="rounded bg-muted px-1">appendMgmtSystemError</code>；種子含演示列。
      </p>

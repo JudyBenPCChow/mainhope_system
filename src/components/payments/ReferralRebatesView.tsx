@@ -67,7 +67,7 @@ export function ReferralRebatesView() {
    <div className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="text-2xl font-semibold tracking-tight">推薦回贈待發</h1>
-     <p className="mt-1 text-sm text-muted-foreground">
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
       舊生推薦新生後，被推薦人學費減免於繳費單處理；推薦人現金回贈於此清單標記已付。
      </p>
     </div>

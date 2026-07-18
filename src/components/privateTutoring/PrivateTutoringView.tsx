@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { DoorOpen, Plus, Search, UserRound } from "lucide-react"
 
 import {
@@ -98,6 +98,7 @@ function isCancelledStatus(status: string): boolean {
 export function PrivateTutoringView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const [searchParams, setSearchParams] = useSearchParams()
  const teacherTid = getTeacherScopeTeacherId()
  const isTeacherPortal = Boolean(teacherTid)
  /** 老師：可預約；不可新建報讀／改學費／退讀 */
@@ -107,6 +108,7 @@ export function PrivateTutoringView() {
  const [rows, setRows] = useState<PrivateTutoringStudentRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
+ const [highlightStudentId, setHighlightStudentId] = useState<string | null>(null)
 
  const [search, setSearch] = useState("")
  const [regFilter, setRegFilter] = useState<(typeof REGISTRATION_FILTERS)[number]["key"]>("all")
@@ -230,12 +232,12 @@ export function PrivateTutoringView() {
   void fetchTeacherOptions().then(setTeacherOptions).catch(() => setTeacherOptions([]))
  }, [])
 
- const openCreateDialog = useCallback(async () => {
+ const openCreateDialog = useCallback(async (preselectStudentId?: string) => {
   setCreateOpen(true)
   setCreateErr(null)
   setCreateMode("1to1")
   setCreateStudentSearch("")
-  setCreateStudentId("")
+  setCreateStudentId(preselectStudentId?.trim() || "")
   setCreateSecondStudentSearch("")
   setCreateSecondStudentId("")
   setCreateStudentPickerOpen(false)
@@ -249,10 +251,47 @@ export function PrivateTutoringView() {
    const [sts, subs] = await Promise.all([fetchAllStudents(), fetchSubjectOptions()])
    setAllStudents(sts)
    setSubjects(subs)
+   const pref = preselectStudentId?.trim()
+   if (pref && !sts.some((s) => s.id === pref)) {
+    setCreateStudentId("")
+    setCreateErr("找不到指定學生，請重新選擇。")
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.openCreateDialog", setErr: setCreateErr })
   }
  }, [])
+
+ useEffect(() => {
+  const prefId = searchParams.get("studentId")?.trim() ?? ""
+  const wantCreate = searchParams.get("create") === "1"
+  if (!prefId && !wantCreate) return
+  if (loading) return
+
+  if (prefId) {
+   const match = rows.find((r) => r.studentId === prefId)
+   if (match) {
+    setSearch(match.fullName)
+    setHighlightStudentId(prefId)
+    setEnrollRowFilter("all")
+   } else {
+    setHighlightStudentId(prefId)
+   }
+  }
+
+  if (wantCreate && canManageEnrollment) {
+   void openCreateDialog(prefId || undefined)
+  }
+
+  setSearchParams(
+   (prev) => {
+    const next = new URLSearchParams(prev)
+    next.delete("studentId")
+    next.delete("create")
+    return next
+   },
+   { replace: true }
+  )
+ }, [searchParams, setSearchParams, loading, rows, canManageEnrollment, openCreateDialog])
 
  const createStudentOptions = useMemo(() => {
   const q = createStudentSearch.trim().toLowerCase()
@@ -405,10 +444,17 @@ export function PrivateTutoringView() {
     }
     result = await createPrivateTutoringEnrollment({ ...payload, allowDuplicate: true })
    }
+   const payStudentId = result.studentIds[0]
    pushBanner({
     tone: "success",
     title: `已建立${createMode === "1to2" ? "一對二" : "一對一"}報讀`,
-    message: `${result.studentNames.join("、")} · ${result.classSubject}`,
+    message: `${result.studentNames.join("、")} · ${result.classSubject}。可前往收款／出單。`,
+    action: payStudentId
+     ? {
+        pageLabel: "收款／出單",
+        to: `/Payments?studentId=${encodeURIComponent(payStudentId)}&mode=receive`,
+       }
+     : undefined,
    })
    setCreateOpen(false)
    void reloadStudents()
@@ -464,21 +510,51 @@ export function PrivateTutoringView() {
   [confirmDialog, pushBanner, reloadStudents]
  )
 
- const filteredRows = useMemo(() => {
-  const q = search.trim().toLowerCase()
+ /** 狀態篩選後的報讀列（搜尋稍後以班別為單位套用，避免一對二被拆開） */
+ const statusFilteredRows = useMemo(() => {
   return rows.filter((r) => {
    if (enrollRowFilter !== "all" && r.enrollmentRowStatus !== enrollRowFilter) return false
    if (regFilter !== "all" && r.registrationStatus !== regFilter) return false
    if (activityFilter !== "all" && r.activityStatus !== activityFilter) return false
-   if (!q) return true
-   return (
-    r.fullName.toLowerCase().includes(q) ||
-    r.studentCode.toLowerCase().includes(q) ||
-    r.classSubject.toLowerCase().includes(q) ||
-    (r.teacherName ?? "").toLowerCase().includes(q)
-   )
+   return true
   })
- }, [rows, search, regFilter, activityFilter, enrollRowFilter])
+ }, [rows, regFilter, activityFilter, enrollRowFilter])
+
+ /** 同一私人班別（含一對二）合併為一列；搜尋命中任一學生則整班保留 */
+ const filteredClassGroups = useMemo(() => {
+  const q = search.trim().toLowerCase()
+  const groups = new Map<string, PrivateTutoringStudentRow[]>()
+  const order: string[] = []
+  for (const r of statusFilteredRows) {
+   const existing = groups.get(r.classId)
+   if (existing) {
+    existing.push(r)
+    continue
+   }
+   groups.set(r.classId, [r])
+   order.push(r.classId)
+  }
+  return order
+   .map((classId) => {
+    const list = groups.get(classId) ?? []
+    return [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+   })
+   .filter((group) => {
+    if (!q) return true
+    return group.some(
+     (r) =>
+      r.fullName.toLowerCase().includes(q) ||
+      r.studentCode.toLowerCase().includes(q) ||
+      r.classSubject.toLowerCase().includes(q) ||
+      (r.teacherName ?? "").toLowerCase().includes(q)
+    )
+   })
+ }, [statusFilteredRows, search])
+
+ const filteredRows = useMemo(
+  () => filteredClassGroups.flat(),
+  [filteredClassGroups]
+ )
 
  const activeStudentIdsByClass = useMemo(() => {
   const map = new Map<string, string[]>()
@@ -486,6 +562,17 @@ export function PrivateTutoringView() {
    if (row.enrollmentRowStatus !== "就讀中") continue
    const prev = map.get(row.classId) ?? []
    if (!prev.includes(row.studentId)) prev.push(row.studentId)
+   map.set(row.classId, prev)
+  }
+  return map
+ }, [rows])
+
+ const studentNamesByClassId = useMemo(() => {
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+   if (row.enrollmentRowStatus !== "就讀中") continue
+   const prev = map.get(row.classId) ?? []
+   if (!prev.includes(row.fullName)) prev.push(row.fullName)
    map.set(row.classId, prev)
   }
   return map
@@ -863,16 +950,16 @@ export function PrivateTutoringView() {
  )
 
  return (
-  <div className="space-y-5 p-4 text-sm leading-relaxed md:p-6">
+  <div className="space-y-5 text-sm leading-relaxed md:p-6">
    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
       {isTeacherPortal ? "我的一對一／一對二學生" : "一對一／一對二學生"}
      </h1>
-     <p className="mt-2 text-sm text-muted-foreground">
+     <p className="mt-2 hidden text-sm text-muted-foreground md:block">
       {isTeacherPortal
        ? "查看指派給你的一對一／一對二學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
-       : "列表負責新增一對一／一對二報讀、預約與退讀；點列展開可看未來排程，點班名進入詳情可編輯老師／學費。"}
+       : "此頁顯示一對一／一對二學生。若要查小組班別，請到學生詳情的「管理小組報讀」。列表可新增報讀、預約與退讀。"}
      </p>
     </div>
     {canManageEnrollment ? (
@@ -971,8 +1058,17 @@ export function PrivateTutoringView() {
         ? "目前沒有指派給你的一對一／一對二報讀。"
         : "尚無一對一／一對二報讀。按上方「新增一對一／一對二報讀」開始。"}
       </p>
-     ) : filteredRows.length === 0 ? (
-      <p className="text-sm text-muted-foreground">沒有符合條件的一對一／一對二學生。</p>
+     ) : filteredClassGroups.length === 0 ? (
+      <div className="space-y-1 text-sm text-muted-foreground">
+       <p>沒有符合條件的一對一／一對二學生。</p>
+       <p>
+        此頁只顯示一對一／一對二。若要查小組班別，請到{" "}
+        <Link className="text-primary underline-offset-2 hover:underline" to="/Students">
+         學生管理
+        </Link>{" "}
+        開啟學生詳情的「管理小組報讀」。
+       </p>
+      </div>
      ) : (
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
        <div className="min-w-[56rem]">
@@ -993,26 +1089,37 @@ export function PrivateTutoringView() {
          <div className="px-4 py-3 font-medium">操作</div>
         </div>
         <div>
-         {filteredRows.map((r) => (
-          <PrivateTutoringStudentDisclosure
-           key={r.enrollmentId}
-           row={r}
-           canManageEnrollment={canManageEnrollment}
-           schedules={rowSchedulesByClassId[r.classId]}
-           schedulesLoading={Boolean(rowSchedulesLoadingIds[r.classId])}
-           onToggleOpen={(open) => {
-            if (open) void ensureRowSchedules(r.classId)
-           }}
-           onBook={() => void openBookDialog(r)}
-           onWithdraw={() => void onWithdraw(r)}
-          />
-         ))}
+         {filteredClassGroups.map((group) => {
+          const primary =
+           group.find((r) => r.enrollmentRowStatus !== "已退讀") ?? group[0]
+          if (!primary) return null
+          const highlighted = group.some((r) => r.studentId === highlightStudentId)
+          return (
+           <div
+            key={primary.classId}
+            className={cn(highlighted && "bg-info/10 ring-2 ring-inset ring-info/40")}
+           >
+            <PrivateTutoringStudentDisclosure
+             rows={group}
+             canManageEnrollment={canManageEnrollment}
+             schedules={rowSchedulesByClassId[primary.classId]}
+             schedulesLoading={Boolean(rowSchedulesLoadingIds[primary.classId])}
+             onToggleOpen={(open) => {
+              if (open) void ensureRowSchedules(primary.classId)
+             }}
+             onBook={() => void openBookDialog(primary)}
+             onWithdraw={(row) => void onWithdraw(row)}
+            />
+           </div>
+          )
+         })}
         </div>
        </div>
       </div>
      )}
      <p className="text-sm text-muted-foreground">
-      共 {filteredRows.length} 筆（全部 {rows.length} 筆一對一／一對二報讀，含已退讀）
+      共 {filteredClassGroups.length} 班／{filteredRows.length} 筆報讀（全部 {rows.length}{" "}
+      筆一對一／一對二報讀，含已退讀）
      </p>
     </div>
    )}
@@ -1340,7 +1447,9 @@ export function PrivateTutoringView() {
      {bookRow && (
       <div className="space-y-4">
        <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm">
-        <p className="font-medium">{bookRow.fullName}</p>
+        <p className="font-medium">
+         {(studentNamesByClassId.get(bookRow.classId) ?? [bookRow.fullName]).join("、")}
+        </p>
         <p className="text-muted-foreground">{bookRow.classSubject}</p>
        </div>
 

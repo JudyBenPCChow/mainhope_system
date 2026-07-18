@@ -190,19 +190,22 @@ export function StudentClassificationTags({
       ? "非注冊"
       : "注冊"
     : registrationStatusLabel(registration),
-   title: compact ? registrationStatusLabel(registration) : undefined,
+   title:
+    registration === "已註冊"
+     ? "客戶身份：已註冊為正式學生"
+     : "客戶身份：非注冊（試堂／查詢等尚未註冊）",
    tone: statusToTagTone(registration),
   },
   {
    key: "enrollment",
    label: enrollment,
-   title: "在讀狀態：現時是否有就讀中報讀",
+   title: "就讀狀態：目前是否有就讀中報讀（自動計算）",
    tone: statusToTagTone(enrollment),
   },
   {
    key: "activity",
    label: activity,
-   title: "活躍狀態：近三個月是否有報讀",
+   title: "互動狀態：近三個月有報讀活動（可能含近期退讀，不等於目前在讀）",
    tone: statusToTagTone(activity),
   },
   {

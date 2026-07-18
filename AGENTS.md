@@ -49,5 +49,6 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - 學生編號（學號）生成規則：`docs/STUDENT_CODE.md`（程式來源 `src/lib/studentCode.ts`）
 - UI 設計規範：`docs/UI_DESIGN_INSTRUCTIONS.md`
 - 學生狀態分類與判定（注冊／報讀／活躍、子字串誤判防呆）：`docs/STUDENT_STATUS_CLASSIFICATION.md`
+- 點名狀態與扣堂／已上堂數：`docs/ATTENDANCE_BILLING.md`（程式 `src/lib/attendanceBilling.ts`）；獨立頁「進行點名」`/Attendance`，排程頁亦可「確定點名」滑出點名紙
 - RLS 上線：`docs/RLS_ROLLOUT.md`
 - 資料重匯入：`docs/REIMPORT_PLAYBOOK.md`、`docs/SEED.md`

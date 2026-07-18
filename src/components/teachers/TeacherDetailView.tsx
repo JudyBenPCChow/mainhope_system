@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
 import {
  ArrowLeft,
@@ -101,8 +101,10 @@ export function TeacherDetailView() {
  const [scheduleHints, setScheduleHints] = useState<Map<string, ScheduleStudentHints>>(
   new Map()
  )
+ const [hintsLoading, setHintsLoading] = useState(false)
  const [attendance, setAttendance] = useState<TeacherAttendanceRow[]>([])
  const [loading, setLoading] = useState(true)
+ const hintsRequestIdRef = useRef(0)
  const [form, setForm] = useState<Partial<TeacherRecord>>({})
  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
  const [schedFilter, setSchedFilter] = useState<"future" | "past" | "cancel">("future")
@@ -135,15 +137,6 @@ export function TeacherDetailView() {
    setClasses(clRes.status === "fulfilled" ? clRes.value : [])
    setSchedules(sc)
    setAttendance(attRes.status === "fulfilled" ? attRes.value : [])
-   const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
-   for (const s of sc) {
-    if (!s.classId) continue
-    const arr = byClass.get(s.classId) ?? []
-    arr.push({ id: s.id, scheduled_date: s.scheduledDate })
-    byClass.set(s.classId, arr)
-   }
-   const hints = await fetchScheduleStudentHintsByClass(byClass)
-   setScheduleHints(hints)
    if (clRes.status === "rejected") {
     setPartialLoadIssues((prev) => [...prev, "任教班別"])
     reportUserFacingError(clRes.reason, {
@@ -165,9 +158,32 @@ export function TeacherDetailView() {
      userMessage: "老師點名資料載入失敗",
     })
    }
+   setLoading(false)
+
+   const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
+   for (const s of sc) {
+    if (!s.classId) continue
+    const arr = byClass.get(s.classId) ?? []
+    arr.push({ id: s.id, scheduled_date: s.scheduledDate })
+    byClass.set(s.classId, arr)
+   }
+   const reqId = ++hintsRequestIdRef.current
+   setHintsLoading(true)
+   try {
+    const hints = await fetchScheduleStudentHintsByClass(byClass)
+    if (reqId !== hintsRequestIdRef.current) return
+    setScheduleHints(hints)
+   } catch (e) {
+    if (reqId !== hintsRequestIdRef.current) return
+    reportUserFacingError(e, {
+     source: "TeacherDetailView.reload.hints",
+     userMessage: "排程學生名單載入失敗",
+    })
+   } finally {
+    if (reqId === hintsRequestIdRef.current) setHintsLoading(false)
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "TeacherDetailView.reload", setErr: setPageErr })
-  } finally {
    setLoading(false)
   }
  }, [tid])
@@ -476,18 +492,18 @@ export function TeacherDetailView() {
        </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground shadow-sm">
-        <div className="text-3xl font-bold text-success-foreground">{classes.length}</div>
-        <div className="text-xs font-medium text-success-foreground/90">任教班別</div>
+      <div className="grid grid-cols-3 gap-2 md:gap-3">
+       <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground shadow-sm md:p-4">
+        <div className="text-xl font-bold text-success-foreground md:text-3xl">{classes.length}</div>
+        <div className="text-[11px] font-medium text-success-foreground/90 md:text-xs">任教班別</div>
        </div>
-       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground shadow-sm">
-        <div className="text-3xl font-bold text-info-foreground">{futureSchedCount}</div>
-        <div className="text-xs font-medium text-info-foreground/90">未來排程</div>
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm md:p-4">
+        <div className="text-xl font-bold text-info-foreground md:text-3xl">{futureSchedCount}</div>
+        <div className="text-[11px] font-medium text-info-foreground/90 md:text-xs">未來排程</div>
        </div>
-       <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center shadow-sm">
-        <div className="text-3xl font-bold text-teal-800">{pastDoneCount}</div>
-        <div className="text-xs font-medium text-teal-900/90">已上堂數</div>
+       <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 text-center shadow-sm md:p-4">
+        <div className="text-xl font-bold text-teal-800 md:text-3xl">{pastDoneCount}</div>
+        <div className="text-[11px] font-medium text-teal-900/90 md:text-xs">已上堂數</div>
        </div>
       </div>
 
@@ -557,14 +573,14 @@ export function TeacherDetailView() {
 
     {tab === "schedule" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground">
-        <div className="text-3xl font-bold text-info-foreground">{parts.todayCount}</div>
-        <div className="text-sm text-info-foreground/90">本日排程</div>
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground md:p-4">
+        <div className="text-xl font-bold text-info-foreground md:text-3xl">{parts.todayCount}</div>
+        <div className="text-[11px] text-info-foreground/90 md:text-sm">本日排程</div>
        </div>
-       <div className="rounded-xl border border-info bg-info p-4 text-center text-info-foreground">
-        <div className="text-3xl font-bold text-info-foreground">{parts.next7Count}</div>
-        <div className="text-sm text-info-foreground/90">未來 7 天排程</div>
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground md:p-4">
+        <div className="text-xl font-bold text-info-foreground md:text-3xl">{parts.next7Count}</div>
+        <div className="text-[11px] text-info-foreground/90 md:text-sm">未來 7 天</div>
        </div>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -605,6 +621,7 @@ export function TeacherDetailView() {
            endTime={s.endTime}
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
+           namesLoading={hintsLoading}
            subtitle={
             <>
              {s.subject}{" "}
@@ -624,16 +641,16 @@ export function TeacherDetailView() {
 
     {tab === "attendance" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-       <div className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-center">
-        <div className="text-3xl font-bold text-teal-800">{attMonthStats.sessionDays}</div>
-        <div className="text-sm text-teal-900/90">本月課堂</div>
+      <div className="grid grid-cols-2 gap-2 md:gap-3">
+       <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 text-center md:p-4">
+        <div className="text-xl font-bold text-teal-800 md:text-3xl">{attMonthStats.sessionDays}</div>
+        <div className="text-[11px] text-teal-900/90 md:text-sm">本月課堂</div>
        </div>
-       <div className="rounded-xl border border-success bg-success p-4 text-center text-success-foreground">
-        <div className="text-3xl font-bold text-success-foreground">
+       <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground md:p-4">
+        <div className="text-xl font-bold text-success-foreground md:text-3xl">
          {attMonthStats.presentRows}
         </div>
-        <div className="text-sm text-success-foreground/90">本月出席紀錄筆數</div>
+        <div className="text-[11px] text-success-foreground/90 md:text-sm">本月出席筆數</div>
        </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">

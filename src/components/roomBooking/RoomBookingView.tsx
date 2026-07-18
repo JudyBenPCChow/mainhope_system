@@ -218,7 +218,7 @@ export function RoomBookingView() {
      <DoorOpen className="h-7 w-7 text-teal-600" aria-hidden />
      預約空房
     </h1>
-    <p className="mt-1 text-sm text-muted-foreground">
+    <p className="mt-1 hidden text-sm text-muted-foreground md:block">
      周曆以<strong>今天</strong>為第 1 日；每格 <strong>75 分鐘</strong>（09:00 起）。綠格可預約；<strong className="text-warning">橙色</strong>
      為待審約房；<strong className="text-amber-800">琥珀色</strong>為已排定堂數。
     </p>

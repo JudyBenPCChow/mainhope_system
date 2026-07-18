@@ -459,7 +459,7 @@ export function LeaveManagementView() {
       請假管理
       <Tag tone="warning" size="sm">{tabCounts.all} 則記錄</Tag>
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">請假與補堂紀錄；點學生或班別可開啟詳情頁，涉及排程可開排程詳情。</p>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">請假與補堂紀錄；點學生或班別可開啟詳情頁，涉及排程可開排程詳情。</p>
     </div>
     <Button
      type="button"
@@ -490,22 +490,22 @@ export function LeaveManagementView() {
     </div>
    ) : null}
 
-   <section className="grid gap-3 sm:grid-cols-2" aria-label="今日請假與補堂概覽">
-    <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-warning-foreground/90">
-      <Users className="h-4 w-4" aria-hidden />
-      今日請假人數
+   <section className="grid grid-cols-2 gap-2 md:gap-3" aria-label="今日請假與補堂概覽">
+    <div className="rounded-xl border border-warning bg-warning p-2.5 text-warning-foreground shadow-sm md:p-4">
+     <div className="flex items-center gap-1 text-[11px] font-medium text-warning-foreground/90 md:gap-2 md:text-sm">
+      <Users className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
+      今日請假
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.leaveStudentCount}</p>
-     <p className="mt-1 text-xs text-warning-foreground/85">以「請假日期」為今天之不重複學生數</p>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.leaveStudentCount}</p>
+     <p className="mt-1 hidden text-xs text-warning-foreground/85 md:block">以「請假日期」為今天之不重複學生數</p>
     </div>
-    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
-      <CalendarDays className="h-4 w-4" aria-hidden />
-      今日補堂人數
+    <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
+     <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
+      <CalendarDays className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
+      今日補堂
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.makeupStudentCount}</p>
-     <p className="mt-1 text-xs text-info-foreground/85">以「補課日期」為今天之不重複學生數</p>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.makeupStudentCount}</p>
+     <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">以「補課日期」為今天之不重複學生數</p>
     </div>
    </section>
 
@@ -1084,9 +1084,6 @@ function MakeupCell({
  }
  if (t.includes("不補回")) {
   return <span className="text-muted-foreground">不補回</span>
- }
- if (t === "其他") {
-  return <span className="text-muted-foreground">其他</span>
  }
  const isRecord = t.includes("錄影") || t.includes("錄像")
  const isResched = t.includes("調堂") || t.includes("調") || t.includes("另排")

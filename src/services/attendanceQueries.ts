@@ -9,6 +9,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -17,9 +18,14 @@ import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSingleSessionNotOnSchedule,
 } from "@/services/enrollmentSessionQueries"
+import { isBillableAttendanceStatus, prefillStatusFromLeave } from "@/lib/attendanceBilling"
 
-export const ATTENDANCE_STATUS_OPTIONS = ["出席", "缺席", "請假", "補課", "網課"] as const
-export type AttendanceStatusLabel = (typeof ATTENDANCE_STATUS_OPTIONS)[number]
+export {
+ ATTENDANCE_STATUS_OPTIONS,
+ ATTENDANCE_BILLING_HELP_SHORT,
+ isBillableAttendanceStatus,
+} from "@/lib/attendanceBilling"
+export type { AttendanceStatusLabel } from "@/lib/attendanceBilling"
 
 export type RollCallStudentRow = {
  enrollmentId: string
@@ -167,10 +173,15 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
  if (!supabase) return []
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
+  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
   .eq("schedule_id", scheduleId)
  if (error) throw error
- return (data ?? []).map((row) => {
+ return (data ?? [])
+  .filter((row) => {
+   const s = String((row as { status?: string }).status ?? "")
+   return !s.includes("完成") && !s.includes("取消")
+  })
+  .map((row) => {
   const r = row as Record<string, unknown>
   const st = r.students as Record<string, unknown> | null
   return {
@@ -183,29 +194,54 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
  })
 }
 
-/** 本堂請假（含已連結排程或僅班別+日期；連堂可傳多個 schedule id） */
+export type LeavePrefillInfo = {
+ studentId: string
+ leaveReason: string | null
+ makeupType: string | null
+}
+
+/** 本堂請假（含理由／安排，供預填；連堂可傳多個 schedule id） */
+export async function fetchLeavePrefillForLesson(
+ scheduleIds: string | string[],
+ classId: string,
+ lessonDate: string
+): Promise<Map<string, LeavePrefillInfo>> {
+ const out = new Map<string, LeavePrefillInfo>()
+ if (!supabase) return out
+ const ids = Array.isArray(scheduleIds) ? scheduleIds : [scheduleIds]
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("student_id, schedule_id, class_id, leave_date, leave_reason, makeup_type")
+  .eq("class_id", classId)
+  .eq("leave_date", lessonDate)
+ if (error) throw error
+ const idSet = new Set(ids)
+ for (const row of data ?? []) {
+  const r = row as {
+   student_id: string
+   schedule_id: string | null
+   leave_reason: string | null
+   makeup_type: string | null
+  }
+  if (r.schedule_id != null && !idSet.has(r.schedule_id)) continue
+  const studentId = String(r.student_id)
+  if (out.has(studentId)) continue
+  out.set(studentId, {
+   studentId,
+   leaveReason: r.leave_reason != null ? String(r.leave_reason) : null,
+   makeupType: r.makeup_type != null ? String(r.makeup_type) : null,
+  })
+ }
+ return out
+}
+
 export async function fetchLeaveStudentIdsForLesson(
  scheduleIds: string | string[],
  classId: string,
  lessonDate: string
 ): Promise<Set<string>> {
- if (!supabase) return new Set()
- const ids = Array.isArray(scheduleIds) ? scheduleIds : [scheduleIds]
- const { data, error } = await supabase
-  .from("leave_makeup_records")
-  .select("student_id, schedule_id, class_id, leave_date")
-  .eq("class_id", classId)
-  .eq("leave_date", lessonDate)
- if (error) throw error
- const idSet = new Set(ids)
- const out = new Set<string>()
- for (const row of data ?? []) {
-  const r = row as { student_id: string; schedule_id: string | null }
-  if (r.schedule_id == null || idSet.has(r.schedule_id)) {
-   out.add(String(r.student_id))
-  }
- }
- return out
+ const m = await fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate)
+ return new Set(m.keys())
 }
 
 /**
@@ -227,25 +263,30 @@ export async function fetchLeaveStudentIdsForSchedules(
  ]
  if (classIds.length === 0 || dates.length === 0) return map
 
- const { data, error } = await supabase
-  .from("leave_makeup_records")
-  .select("student_id, schedule_id, class_id, leave_date")
-  .in("class_id", classIds)
-  .in("leave_date", dates)
- if (error) throw error
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select("student_id, schedule_id, class_id, leave_date")
+   .in("class_id", slice)
+   .in("leave_date", dates)
+  if (error) throw error
+  return data ?? []
+ })
 
- for (const row of data ?? []) {
-  const r = row as {
-   student_id: string
-   schedule_id: string | null
-   class_id: string
-   leave_date: string
-  }
-  const sid = String(r.student_id)
-  for (const s of schedules) {
-   const linked = r.schedule_id != null && r.schedule_id === s.id
-   const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
-   if (linked || sameClassDate) map.get(s.id)?.add(sid)
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as {
+    student_id: string
+    schedule_id: string | null
+    class_id: string
+    leave_date: string
+   }
+   const sid = String(r.student_id)
+   for (const s of schedules) {
+    const linked = r.schedule_id != null && r.schedule_id === s.id
+    const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
+    if (linked || sameClassDate) map.get(s.id)?.add(sid)
+   }
   }
  }
  return map
@@ -260,6 +301,60 @@ export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): 
   .in("makeup_schedule_id", scheduleIds)
  if (error) throw error
  return new Set((data ?? []).map((r) => String((r as { student_id: string }).student_id)))
+}
+
+/** 本堂為補堂目標排程的學生明細（跨班補堂點名用；可傳多個 schedule id） */
+export async function fetchMakeupStudentsForSchedules(scheduleIds: string[]): Promise<
+ {
+  studentId: string
+  fullName: string
+  englishName: string | null
+  grade: string | null
+  contactPhone: string | null
+ }[]
+> {
+ if (!supabase || scheduleIds.length === 0) return []
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select(
+   "student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )"
+  )
+  .in("makeup_schedule_id", scheduleIds)
+ if (error) throw error
+ const seen = new Set<string>()
+ const out: {
+  studentId: string
+  fullName: string
+  englishName: string | null
+  grade: string | null
+  contactPhone: string | null
+ }[] = []
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const studentId = String(r.student_id)
+  if (seen.has(studentId)) continue
+  seen.add(studentId)
+  const st = r.students as Record<string, unknown> | null
+  out.push({
+   studentId,
+   fullName: st?.full_name != null ? String(st.full_name) : "—",
+   englishName: st?.english_name != null ? String(st.english_name) : null,
+   grade: st?.grade != null ? String(st.grade) : null,
+   contactPhone: pickStudentContactFromDbRow(st),
+  })
+ }
+ return out
+}
+
+export async function fetchMakeupStudentsForSchedule(scheduleId: string): Promise<ScheduleRosterStudent[]> {
+ const rows = await fetchMakeupStudentsForSchedules([scheduleId])
+ return rows
+  .map((r) => ({
+   studentId: r.studentId,
+   fullName: r.fullName,
+   contactPhone: r.contactPhone,
+  }))
+  .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
 }
 
 /** @deprecated 使用 fetchMakeupStudentIdsForSchedules */
@@ -293,7 +388,7 @@ export async function fetchExistingAttendanceMap(
    const arr = byStudent.get(sid) ?? []
    arr.push({
     id: String(r.id),
-    status: String(r.status ?? "出席"),
+    status: String(r.status ?? "現場"),
     remarks: r.remarks != null ? String(r.remarks) : null,
    })
    byStudent.set(sid, arr)
@@ -323,7 +418,7 @@ export async function fetchExistingAttendanceMap(
   const r = row as { id: string; student_id: string; status: string; remarks: string | null }
   m.set(String(r.student_id), {
    id: String(r.id),
-   status: String(r.status ?? "出席"),
+   status: String(r.status ?? "現場"),
    remarks: r.remarks != null ? String(r.remarks) : null,
   })
  }
@@ -332,18 +427,22 @@ export async function fetchExistingAttendanceMap(
 
 export function buildPrefillStatusMap(params: {
  rosterIds: string[]
- leaveIds: Set<string>
+ leaveByStudent: Map<string, LeavePrefillInfo>
  makeupIds: Set<string>
  trialIds: Set<string>
 }): Map<string, string> {
- const { rosterIds, leaveIds, makeupIds, trialIds } = params
+ const { rosterIds, leaveByStudent, makeupIds, trialIds } = params
  const m = new Map<string, string>()
- const all = new Set([...rosterIds, ...trialIds])
- trialIds.forEach((id) => all.add(id))
+ const all = new Set([...rosterIds, ...trialIds, ...makeupIds, ...leaveByStudent.keys()])
  for (const sid of all) {
-  if (leaveIds.has(sid)) m.set(sid, "請假")
-  else if (makeupIds.has(sid) || trialIds.has(sid)) m.set(sid, "補課")
-  else m.set(sid, "出席")
+  const leave = leaveByStudent.get(sid)
+  if (leave) {
+   m.set(sid, prefillStatusFromLeave(leave))
+  } else if (makeupIds.has(sid) || trialIds.has(sid)) {
+   m.set(sid, "現場")
+  } else {
+   m.set(sid, "現場")
+  }
  }
  return m
 }
@@ -420,7 +519,7 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
  if (!supabase || scheduleIds.length === 0) return []
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
+  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
   .in("schedule_id", scheduleIds)
  if (error) throw error
  const seen = new Set<string>()
@@ -433,6 +532,8 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
  }[] = []
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
+  const status = String(r.status ?? "")
+  if (status.includes("完成") || status.includes("取消")) continue
   const studentId = String(r.student_id)
   if (seen.has(studentId)) continue
   seen.add(studentId)
@@ -564,12 +665,26 @@ function tallyStatuses(rows: AttendanceRecordRow[]): Omit<AttendanceDayStats, "d
  let online = 0
  for (const r of rows) {
   const s = r.status
-  if (s.includes("出席")) present++
-  else if (s.includes("缺席")) absent++
-  else if (s.includes("請假") || s.includes("假")) leave++
-  else if (s.includes("補")) makeup++
-  else if (s.includes("網課") || s.includes("線上")) online++
-  else present++
+  if (s === "現場" || s === "出席") present++
+  else if (s === "no show" || s.includes("缺席")) absent++
+  else if (s === "事假" || s === "病假" || s === "請假") leave++
+  else if (
+   s === "請假而不需補回" ||
+   s === "不用補回" ||
+   s.includes("補課") ||
+   s.includes("補堂")
+  )
+   makeup++
+  else if (
+   s === "錄影回放" ||
+   s === "zoom實時網課" ||
+   s === "即時直播" ||
+   s.includes("網課") ||
+   s.includes("線上")
+  )
+   online++
+  else if (isBillableAttendanceStatus(s)) present++
+  else leave++
  }
  return { total: rows.length, present, absent, leave, makeup, online }
 }
@@ -611,6 +726,86 @@ export function groupRecordsByClass(rows: AttendanceRecordRow[]): Map<string, At
   m.set(label, arr)
  }
  return m
+}
+
+export type PendingRollCallReminder = {
+ scheduleId: string
+ classId: string | null
+ classLabel: string
+ scheduledDate: string
+ startTime: string | null
+ endTime: string | null
+}
+
+async function fetchScheduleIdsWithAttendance(scheduleIds: string[]): Promise<Set<string>> {
+ if (!supabase || scheduleIds.length === 0) return new Set()
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("attendance_details")
+   .select("schedule_id")
+   .in("schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ const done = new Set<string>()
+ for (const rows of chunks) {
+  for (const r of rows) {
+   const sid = (r as { schedule_id: string | null }).schedule_id
+   if (sid) done.add(sid)
+  }
+ }
+ return done
+}
+
+/**
+ * 從既有排程列篩出尚未有任何 attendance_details 者（催點名；不自動銷堂）。
+ * 呼叫端自行篩老師／日期範圍；此函式會排除已取消、未綁班別。
+ */
+export async function findSchedulesMissingAttendance(
+ schedules: Pick<
+  ScheduleManageRow,
+  "id" | "class_id" | "classLabel" | "scheduled_date" | "start_time" | "end_time" | "status"
+ >[]
+): Promise<PendingRollCallReminder[]> {
+ const mine = schedules.filter((s) => {
+  if (String(s.status ?? "").includes("取消")) return false
+  return s.class_id != null && String(s.class_id).length > 0
+ })
+ if (mine.length === 0) return []
+ const done = await fetchScheduleIdsWithAttendance(mine.map((s) => s.id))
+ return mine
+  .filter((s) => !done.has(s.id))
+  .map((s) => ({
+   scheduleId: s.id,
+   classId: s.class_id,
+   classLabel: s.classLabel,
+   scheduledDate: s.scheduled_date,
+   startTime: s.start_time,
+   endTime: s.end_time,
+  }))
+  .sort((a, b) => {
+   const byDate = b.scheduledDate.localeCompare(a.scheduledDate)
+   if (byDate !== 0) return byDate
+   return String(a.startTime ?? "").localeCompare(String(b.startTime ?? ""))
+  })
+}
+
+/**
+ * 老師當日尚未有任何點名列的排程（催點名；不自動銷堂）。
+ * 條件：今日、未取消、已綁班別，且該 schedule_id 尚無 attendance_details。
+ */
+export async function fetchPendingRollCallRemindersForTeacher(
+ teacherId: string,
+ ymd: string = localYmd()
+): Promise<PendingRollCallReminder[]> {
+ if (!supabase || !teacherId) return []
+ const schedules = await fetchSchedulesForRollCallDate(ymd)
+ const mine = schedules.filter((s) => {
+  if (!s.class_id) return false
+  const tid = s.teacher_id ?? s.original_teacher_id
+  return tid === teacherId
+ })
+ return findSchedulesMissingAttendance(mine)
 }
 
 export { localYmd }

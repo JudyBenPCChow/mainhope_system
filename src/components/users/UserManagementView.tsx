@@ -384,14 +384,14 @@ export function UserManagementView() {
  }
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border/80 pb-6">
     <div className="min-w-0 space-y-2">
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
       <UserCog className="h-8 w-8 shrink-0 text-info" aria-hidden />
       用戶管理
      </h1>
-     <p className="max-w-prose text-sm text-muted-foreground md:text-base">
+     <p className="hidden max-w-prose text-sm text-muted-foreground md:block md:text-base">
       資料來自 Supabase 表 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">app_users</code>
       ，登入憑證由 Supabase Auth 管理。
      </p>

@@ -5,15 +5,27 @@ import {
  enrollmentCoversPeriod,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ fetchClassEnrollmentConfigsByIds,
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
  type EnrollmentFormValue,
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import {
+ LESSON_SLOT_DURATION_MIN,
+ intervalsOverlapMinutes,
+ parseHm,
+} from "@/lib/lessonSlots"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
+import {
+ describeMakeupTimeConflicts,
+ fetchStudentMustAttendScheduleSlots,
+ findStudentConflictsWithScheduleSlot,
+} from "@/services/studentQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 
 export { localYmd }
@@ -32,7 +44,8 @@ function throwPostgrest(err: unknown): never {
 }
 
 export const LEAVE_REASON_OPTIONS = ["病假", "事假"] as const
-export const LEAVE_MAKEUP_OPTIONS = ["錄影", "調堂", "不補回", "其他"] as const
+/** 請假補課安排（已去除「其他」；對應點名預填見 attendanceBilling） */
+export const LEAVE_MAKEUP_OPTIONS = ["錄影", "調堂", "不補回"] as const
 
 export type LeaveManageRow = {
  id: string
@@ -306,16 +319,19 @@ export async function fetchLeaveRowsForClassIds(
  limit = 40
 ): Promise<TeacherPortalLeaveRow[]> {
  if (!supabase || classIds.length === 0) return []
- const { data, error } = await supabase
-  .from("leave_makeup_records")
-  .select(
-   "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
-  )
-  .in("class_id", classIds)
-  .order("leave_date", { ascending: false })
-  .limit(limit)
- if (error) throwPostgrest(error)
- return (data ?? []).map((row) => {
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select(
+    "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+   )
+   .in("class_id", slice)
+   .order("leave_date", { ascending: false })
+   .limit(limit)
+  if (error) throwPostgrest(error)
+  return data ?? []
+ })
+ const mapped = chunks.flat().map((row) => {
   const r = row as Record<string, unknown>
   const st = r.students as Record<string, unknown> | null
   const cls = r.classes as Record<string, unknown> | null
@@ -332,8 +348,10 @@ export async function fetchLeaveRowsForClassIds(
    makeupType: r.makeup_type != null ? String(r.makeup_type) : null,
    status: String(r.status ?? ""),
    scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
-  }
+  } satisfies TeacherPortalLeaveRow
  })
+ mapped.sort((a, b) => b.leaveDate.localeCompare(a.leaveDate))
+ return mapped.slice(0, limit)
 }
 
 export type EnrolledClassOption = {
@@ -608,18 +626,20 @@ async function buildStudentRegularAttendanceChecker(
   .map((e) => e.enrollmentId)
  const singleScheduleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds)
 
- const configCache = new Map<string, Awaited<ReturnType<typeof fetchClassEnrollmentConfig>>>()
+ const classIds = [...enrollmentByClass.keys()]
+ const configCache = await fetchClassEnrollmentConfigsByIds(classIds)
  const periodCache = new Map<string, AcademicYearPeriodRow[]>()
 
+ const yearIds = [
+  ...new Set(
+   [...configCache.values()]
+    .filter((c) => c.courseMode === "summer_two_period" && c.academicYearId)
+    .map((c) => c.academicYearId as string)
+  ),
+ ]
  await Promise.all(
-  [...enrollmentByClass.keys()].map(async (classId) => {
-   const config = await fetchClassEnrollmentConfig(classId)
-   configCache.set(classId, config)
-   if (config.courseMode === "summer_two_period" && config.academicYearId) {
-    if (!periodCache.has(config.academicYearId)) {
-     periodCache.set(config.academicYearId, await fetchAcademicYearPeriods(config.academicYearId))
-    }
-   }
+  yearIds.map(async (yid) => {
+   periodCache.set(yid, await fetchAcademicYearPeriods(yid))
   })
  )
 
@@ -664,10 +684,38 @@ export async function validateMakeupScheduleForStudent(
  if (await isRegularAttendanceScheduleForStudent(studentId, makeupSchedule)) {
   return "不可選擇該生本來就需出席的課堂作為補堂"
  }
+ const timeConflicts = await findStudentConflictsWithScheduleSlot({
+  studentId,
+  scheduleId: makeupSchedule.id,
+  scheduledDate: makeupSchedule.scheduled_date,
+  startTime: makeupSchedule.start_time,
+  endTime: makeupSchedule.end_time,
+  classLabel: makeupSchedule.classLabel || makeupSchedule.subject,
+  excludeScheduleIds: leaveScheduleId ? [leaveScheduleId] : undefined,
+ })
+ if (timeConflicts.length > 0) {
+  return describeMakeupTimeConflicts(timeConflicts)
+ }
  return null
 }
 
-/** 未來一個月內可選補堂排程（跨班；排除就讀中本來需出席的堂次） */
+function parseScheduleHmLoose(raw: string | null | undefined): number | null {
+ if (!raw) return null
+ return parseHm(String(raw).slice(0, 5))
+}
+
+function scheduleBoundsLoose(
+ startRaw: string | null,
+ endRaw: string | null
+): { a: number; b: number } | null {
+ const a = parseScheduleHmLoose(startRaw)
+ if (a == null) return null
+ const end = parseScheduleHmLoose(endRaw)
+ const b = end == null || end <= a ? a + LESSON_SLOT_DURATION_MIN : end
+ return { a, b }
+}
+
+/** 未來一個月內可選補堂排程（跨班；排除就讀中本來需出席的堂次與時段衝突） */
 export async function fetchMakeupCandidateSchedules(
  opts?: MakeupCandidateOpts
 ): Promise<ScheduleManageRow[]> {
@@ -686,5 +734,27 @@ export async function fetchMakeupCandidateSchedules(
  if (!studentId) return candidates
 
  const isRegularAttendance = await buildStudentRegularAttendanceChecker(studentId)
- return candidates.filter((s) => !isRegularAttendance(s))
+ candidates = candidates.filter((s) => !isRegularAttendance(s))
+
+ const mustAttend = await fetchStudentMustAttendScheduleSlots(studentId)
+ const mustByDate = new Map<string, typeof mustAttend>()
+ for (const slot of mustAttend) {
+  if (excludeIds.has(slot.id)) continue
+  const list = mustByDate.get(slot.scheduled_date) ?? []
+  list.push(slot)
+  mustByDate.set(slot.scheduled_date, list)
+ }
+
+ return candidates.filter((s) => {
+  const nb = scheduleBoundsLoose(s.start_time, s.end_time)
+  if (!nb) return true
+  const peers = mustByDate.get(s.scheduled_date.slice(0, 10)) ?? []
+  for (const ex of peers) {
+   if (ex.id === s.id) continue
+   const eb = scheduleBoundsLoose(ex.start_time, ex.end_time)
+   if (!eb) continue
+   if (intervalsOverlapMinutes(nb.a, nb.b, eb.a, eb.b)) return false
+  }
+  return true
+ })
 }

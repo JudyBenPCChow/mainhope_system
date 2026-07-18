@@ -3,15 +3,24 @@ import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
+ enrollmentVisibleOnSchedule,
+ fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
  formatEnrollmentFormLabel,
  isSingleSessionEnrollment,
+ isSummerTwoPeriodMode,
  normalizeEnrollmentPeriod,
+ resolvePeriodCodeFromDate,
  resolvePriceForEnrollment,
  type EnrollmentFormValue,
  type EnrollmentPeriod,
  type CourseMode,
 } from "@/lib/enrollmentPeriod"
+import {
+ LESSON_SLOT_DURATION_MIN,
+ intervalsOverlapMinutes,
+ parseHm,
+} from "@/lib/lessonSlots"
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
@@ -695,6 +704,39 @@ export async function replaceEnrollmentSessions(
  if (!supabase) throw new Error("Supabase 未設定")
  const unique = [...new Set(scheduleIds.filter(Boolean))]
  if (unique.length === 0) throw new Error("單堂報讀請至少選擇一堂")
+
+ const { data: enr, error: enrErr } = await supabase
+  .from("student_class_enrollments")
+  .select("class_id")
+  .eq("id", enrollmentId)
+  .maybeSingle()
+ if (enrErr) throw enrErr
+ const classId = enr ? String((enr as { class_id: string }).class_id) : ""
+ if (!classId) throw new Error("找不到報讀紀錄")
+
+ const chunks = await forEachIdChunk(unique, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("id, class_id")
+   .in("id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ const found = new Map<string, string>()
+ for (const chunk of chunks) {
+  for (const row of chunk) {
+   const r = row as { id: string; class_id: string }
+   found.set(String(r.id), String(r.class_id))
+  }
+ }
+ for (const scheduleId of unique) {
+  const sidClass = found.get(scheduleId)
+  if (!sidClass) throw new Error("選堂排程不存在或已失效")
+  if (sidClass !== classId) {
+   throw new Error("單堂選堂必須屬於此報讀班別，不可選擇其他班的排程")
+  }
+ }
+
  const { error: delErr } = await supabase
   .from("student_enrollment_sessions")
   .delete()
@@ -711,6 +753,314 @@ export type InsertEnrollmentPendingOpts = {
  owedCount: number
  reason?: string
  remarks?: string | null
+}
+
+type ScheduleSlotRow = {
+ id: string
+ class_id: string
+ scheduled_date: string
+ start_time: string | null
+ end_time: string | null
+ class_label: string
+}
+
+function parseScheduleHm(raw: string | null | undefined): number | null {
+ if (!raw) return null
+ return parseHm(String(raw).slice(0, 5))
+}
+
+function scheduleSlotBounds(startRaw: string | null, endRaw: string | null): { a: number; b: number } | null {
+ const a = parseScheduleHm(startRaw)
+ if (a == null) return null
+ const end = parseScheduleHm(endRaw)
+ const b = end == null || end <= a ? a + LESSON_SLOT_DURATION_MIN : end
+ return { a, b }
+}
+
+function formatHmLabel(startRaw: string | null, endRaw: string | null): string {
+ const bounds = scheduleSlotBounds(startRaw, endRaw)
+ if (!bounds) return "—"
+ const fmt = (m: number) => {
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  return `${String(h).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+ }
+ return `${fmt(bounds.a)}–${fmt(bounds.b)}`
+}
+
+async function fetchUpcomingScheduleSlotsForClass(classId: string): Promise<ScheduleSlotRow[]> {
+ if (!supabase) return []
+ const today = localYmd()
+ const { data, error } = await supabase
+  .from("schedules")
+  .select(
+   "id, class_id, scheduled_date, start_time, end_time, status, classes ( subject, course_code_full, courses ( course_name ) )"
+  )
+  .eq("class_id", classId)
+  .gte("scheduled_date", today)
+ if (error) throw error
+ const out: ScheduleSlotRow[] = []
+ for (const raw of data ?? []) {
+  const r = raw as Record<string, unknown>
+  if (String(r.status ?? "").includes("取消")) continue
+  const cls = r.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  out.push({
+   id: String(r.id),
+   class_id: String(r.class_id),
+   scheduled_date: String(r.scheduled_date ?? "").slice(0, 10),
+   start_time: r.start_time != null ? String(r.start_time) : null,
+   end_time: r.end_time != null ? String(r.end_time) : null,
+   class_label: formatClassLabel({
+    subject: cls?.subject != null ? String(cls.subject) : "—",
+    courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : null,
+    courseName: course?.course_name != null ? String(course.course_name) : null,
+   }),
+  })
+ }
+ return out
+}
+
+async function filterSlotsForEnrollmentPeriod(
+ classId: string,
+ enrollmentPeriod: EnrollmentFormValue | null,
+ scheduleIds: string[] | undefined,
+ slots: ScheduleSlotRow[]
+): Promise<ScheduleSlotRow[]> {
+ const isSingle = isSingleSessionEnrollment(enrollmentPeriod)
+ if (isSingle) {
+  const selected = new Set((scheduleIds ?? []).filter(Boolean))
+  return slots.filter((s) => selected.has(s.id))
+ }
+ const config = await fetchClassEnrollmentConfig(classId)
+ if (!isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
+  return slots
+ }
+ const periods = await fetchAcademicYearPeriods(config.academicYearId)
+ const enrolledScheduleIds = new Set<string>()
+ return slots.filter((s) => {
+  const code = resolvePeriodCodeFromDate(s.scheduled_date, periods)
+  return enrollmentVisibleOnSchedule({
+   enrollmentPeriod,
+   periodCode: code,
+   scheduleId: s.id,
+   enrolledScheduleIds,
+  })
+ })
+}
+
+export type EnrollmentScheduleConflict = {
+ date: string
+ newClassLabel: string
+ existingClassLabel: string
+ newTime: string
+ existingTime: string
+}
+
+/** 該生就讀中班別、未來應出席的排程時段（含單堂選堂／暑期期數過濾） */
+export async function fetchStudentMustAttendScheduleSlots(
+ studentId: string,
+ opts?: { excludeClassId?: string | null }
+): Promise<ScheduleSlotRow[]> {
+ return loadStudentMustAttendSlots(studentId, opts)
+}
+
+async function loadStudentMustAttendSlots(
+ studentId: string,
+ opts?: { excludeClassId?: string | null }
+): Promise<ScheduleSlotRow[]> {
+ if (!supabase) return []
+ const { data: enrs, error: enrErr } = await supabase
+  .from("student_class_enrollments")
+  .select("id, class_id, enrollment_period")
+  .eq("student_id", studentId)
+  .eq("status", "就讀中")
+ if (enrErr) throw enrErr
+
+ const excludeClassId = opts?.excludeClassId ?? null
+ const rows = (enrs ?? []).filter(
+  (e) => String((e as { class_id: string }).class_id) !== excludeClassId
+ ) as Array<{ id: string; class_id: string; enrollment_period: string | null }>
+ if (rows.length === 0) return []
+
+ const enrollmentIds = rows.map((e) => e.id)
+ const sessionMap = new Map<string, Set<string>>()
+ if (enrollmentIds.length > 0) {
+  const chunks = await forEachIdChunk(enrollmentIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("student_enrollment_sessions")
+    .select("enrollment_id, schedule_id")
+    .in("enrollment_id", slice)
+   if (error) throw error
+   return data ?? []
+  })
+  for (const chunk of chunks) {
+   for (const row of chunk) {
+    const r = row as { enrollment_id: string; schedule_id: string }
+    const set = sessionMap.get(r.enrollment_id) ?? new Set<string>()
+    set.add(String(r.schedule_id))
+    sessionMap.set(r.enrollment_id, set)
+   }
+  }
+ }
+
+ const out: ScheduleSlotRow[] = []
+ for (const enr of rows) {
+  const period = normalizeEnrollmentPeriod(enr.enrollment_period)
+  const classSlots = await fetchUpcomingScheduleSlotsForClass(enr.class_id)
+  const scheduleIds = isSingleSessionEnrollment(period)
+   ? [...(sessionMap.get(enr.id) ?? [])]
+   : undefined
+  const visible = await filterSlotsForEnrollmentPeriod(enr.class_id, period, scheduleIds, classSlots)
+  out.push(...visible)
+ }
+ return out
+}
+
+function conflictsBetweenTargetAndExisting(
+ targetSlots: ScheduleSlotRow[],
+ existingSlots: ScheduleSlotRow[]
+): EnrollmentScheduleConflict[] {
+ const conflicts: EnrollmentScheduleConflict[] = []
+ for (const neu of targetSlots) {
+  const nb = scheduleSlotBounds(neu.start_time, neu.end_time)
+  if (!nb) continue
+  for (const ex of existingSlots) {
+   if (ex.scheduled_date !== neu.scheduled_date) continue
+   if (ex.id === neu.id) continue
+   const eb = scheduleSlotBounds(ex.start_time, ex.end_time)
+   if (!eb) continue
+   if (!intervalsOverlapMinutes(nb.a, nb.b, eb.a, eb.b)) continue
+   conflicts.push({
+    date: neu.scheduled_date,
+    newClassLabel: neu.class_label,
+    existingClassLabel: ex.class_label,
+    newTime: formatHmLabel(neu.start_time, neu.end_time),
+    existingTime: formatHmLabel(ex.start_time, ex.end_time),
+   })
+  }
+ }
+ return conflicts
+}
+
+/** 檢查擬報讀／加堂時段是否與該生其他就讀中班別重疊 */
+export async function findStudentEnrollmentScheduleConflicts(opts: {
+ studentId: string
+ classId: string
+ enrollmentPeriod: EnrollmentFormValue | null
+ scheduleIds?: string[]
+ /** 更新既有報讀時排除本班 enrollment（避免與自己比） */
+ excludeClassId?: string | null
+}): Promise<EnrollmentScheduleConflict[]> {
+ if (!supabase) return []
+ const targetSlots = await filterSlotsForEnrollmentPeriod(
+  opts.classId,
+  opts.enrollmentPeriod,
+  opts.scheduleIds,
+  await fetchUpcomingScheduleSlotsForClass(opts.classId)
+ )
+ if (targetSlots.length === 0) return []
+
+ const excludeClassId = opts.excludeClassId ?? opts.classId
+ const existingSlots = await loadStudentMustAttendSlots(opts.studentId, { excludeClassId })
+ return conflictsBetweenTargetAndExisting(targetSlots, existingSlots)
+}
+
+/**
+ * 檢查單一排程（例如補堂目標）是否與該生其他應出席堂次時段重疊。
+ * excludeScheduleIds：例如請假當堂，當日不必再當衝突來源。
+ */
+export async function findStudentConflictsWithScheduleSlot(opts: {
+ studentId: string
+ scheduleId: string
+ scheduledDate: string
+ startTime: string | null
+ endTime: string | null
+ classLabel?: string
+ excludeScheduleIds?: string[]
+}): Promise<EnrollmentScheduleConflict[]> {
+ if (!supabase) return []
+ const date = opts.scheduledDate.slice(0, 10)
+ const exclude = new Set((opts.excludeScheduleIds ?? []).filter(Boolean))
+ exclude.add(opts.scheduleId)
+
+ const mustAttend = (await loadStudentMustAttendSlots(opts.studentId)).filter(
+  (s) => s.scheduled_date === date && !exclude.has(s.id)
+ )
+ const target: ScheduleSlotRow = {
+  id: opts.scheduleId,
+  class_id: "",
+  scheduled_date: date,
+  start_time: opts.startTime,
+  end_time: opts.endTime,
+  class_label: opts.classLabel?.trim() || "補堂排程",
+ }
+ return conflictsBetweenTargetAndExisting([target], mustAttend)
+}
+
+function formatEnrollmentConflictError(conflicts: EnrollmentScheduleConflict[]): string {
+ const sample = conflicts
+  .slice(0, 3)
+  .map(
+   (c) =>
+    `${c.date} ${c.newTime}（${c.newClassLabel}）與「${c.existingClassLabel}」${c.existingTime}`
+  )
+  .join("；")
+ const more = conflicts.length > 3 ? `…另有 ${conflicts.length - 3} 堂` : ""
+ return `報讀時段與學生其他班別衝突（共 ${conflicts.length} 堂）：${sample}${more}`
+}
+
+function formatMakeupConflictError(conflicts: EnrollmentScheduleConflict[]): string {
+ const sample = conflicts
+  .slice(0, 2)
+  .map((c) => `${c.date} ${c.newTime} 與「${c.existingClassLabel}」${c.existingTime}`)
+  .join("；")
+ return `補堂時段與學生其他班別衝突：${sample}`
+}
+
+export function describeMakeupTimeConflicts(conflicts: EnrollmentScheduleConflict[]): string {
+ return formatMakeupConflictError(conflicts)
+}
+
+async function assertNoEnrollmentTimeConflicts(opts: {
+ studentId: string
+ classId: string
+ enrollmentPeriod: EnrollmentFormValue | null
+ scheduleIds?: string[]
+ excludeClassId?: string | null
+}): Promise<void> {
+ const conflicts = await findStudentEnrollmentScheduleConflicts(opts)
+ if (conflicts.length > 0) throw new Error(formatEnrollmentConflictError(conflicts))
+}
+
+/** 報讀成功後：同班未結案試堂標為已完成，避免試堂列表殘留 */
+async function closeOpenTrialsAfterEnrollment(studentId: string, classId: string): Promise<void> {
+ if (!supabase) return
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select("id, status, remarks")
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+ if (error) throw error
+ const open = (data ?? []).filter((row) => {
+  const s = String((row as { status?: string }).status ?? "")
+  return !s.includes("完成") && !s.includes("取消")
+ }) as Array<{ id: string; remarks: string | null }>
+ if (open.length === 0) return
+ const note = "報讀後自動結案"
+ for (const row of open) {
+  const prev = (row.remarks ?? "").trim()
+  const remarks = prev.includes(note) ? prev : prev ? `${prev}；${note}` : note
+  const { error: upErr } = await supabase
+   .from("trial_sessions")
+   .update({
+    status: "已完成",
+    remarks,
+    updated_at: new Date().toISOString(),
+   })
+   .eq("id", row.id)
+  if (upErr) throw upErr
+ }
 }
 
 export async function insertEnrollment(
@@ -763,6 +1113,13 @@ export async function insertEnrollment(
   )
  }
  const withdrawn = existing.find((r) => r.status === "已退讀")
+
+ await assertNoEnrollmentTimeConflicts({
+  studentId,
+  classId,
+  enrollmentPeriod: periodValue,
+  scheduleIds: isSingle ? scheduleIds : undefined,
+ })
 
  let enrollmentId: string
  let createdNew = false
@@ -852,6 +1209,11 @@ export async function insertEnrollment(
   throw err
  }
  await syncStudentEnrollmentState(studentId)
+ try {
+  await closeOpenTrialsAfterEnrollment(studentId, classId)
+ } catch (trialErr) {
+  console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", trialErr)
+ }
 }
 
 export async function updateEnrollmentPeriod(
@@ -870,6 +1232,13 @@ export async function updateEnrollmentPeriod(
  if (isSingle && (!opts.scheduleIds || opts.scheduleIds.length === 0)) {
   throw new Error("單堂報讀請至少選擇一堂")
  }
+ await assertNoEnrollmentTimeConflicts({
+  studentId: opts.studentId,
+  classId: opts.classId,
+  enrollmentPeriod: isSingle ? "單堂" : enrollmentPeriod,
+  scheduleIds: isSingle ? opts.scheduleIds : undefined,
+  excludeClassId: opts.classId,
+ })
  const { error } = await supabase
   .from("student_class_enrollments")
   .update({
@@ -910,6 +1279,13 @@ export async function updateEnrollmentSessions(
  opts: { studentId: string; classId: string }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ await assertNoEnrollmentTimeConflicts({
+  studentId: opts.studentId,
+  classId: opts.classId,
+  enrollmentPeriod: "單堂",
+  scheduleIds,
+  excludeClassId: opts.classId,
+ })
  await replaceEnrollmentSessions(enrollmentId, scheduleIds)
  const today = localYmd()
  const { error: evErr } = await supabase.from("enrollment_change_events").insert({

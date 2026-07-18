@@ -26,7 +26,13 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import {
+ fetchPendingRollCallRemindersForTeacher,
+ findSchedulesMissingAttendance,
+ type PendingRollCallReminder,
+} from "@/services/attendanceQueries"
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd, getTeacherById, localYmd } from "@/services/teacherQueries"
@@ -76,6 +82,8 @@ export function TeacherHomeView() {
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [leaves, setLeaves] = useState<TeacherPortalLeaveRow[]>([])
  const [trials, setTrials] = useState<TrialBrief[]>([])
+ const [pendingRollCalls, setPendingRollCalls] = useState<PendingRollCallReminder[]>([])
+ const [pastPendingRollCalls, setPastPendingRollCalls] = useState<PendingRollCallReminder[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -100,67 +108,90 @@ export function TeacherHomeView() {
    const mine = allClasses.filter((c) => c.teacher_id === teacherId)
    setClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
    setSchedules(schedList)
+   setLoading(false)
 
    const classIds = mine.map((c) => c.id)
    if (classIds.length === 0) {
     setLeaves([])
     setTrials([])
+    setPendingRollCalls([])
+    setPastPendingRollCalls([])
     return
    }
 
-   // 次要資料（請假/試堂）失敗時不阻斷首頁主內容（課堂卡、週時間表、班別）
-   let partialFailed = false
+   // 次要資料（請假/試堂/未點名）並行；失敗時不阻斷主內容
+   const [leaveRes, trialRes, rollRes, pastRollRes] = await Promise.allSettled([
+    fetchLeaveRowsForClassIds(classIds, 50),
+    (async () => {
+     if (!supabase) return [] as TrialBrief[]
+     const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+      const { data, error } = await supabase!
+       .from("trial_sessions")
+       .select(
+        "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+       )
+       .in("class_id", slice)
+       .gte("trial_date", today)
+       .order("trial_date", { ascending: true })
+      if (error) throw error
+      return data ?? []
+     })
+     return chunks.flat().map((row) => {
+      const r = row as Record<string, unknown>
+      const st = r.students as Record<string, unknown> | null
+      const cls = r.classes as Record<string, unknown> | null
+      const sub = cls?.subject != null ? String(cls.subject) : "—"
+      const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+      const course = cls?.courses as Record<string, unknown> | null
+      const courseName = course?.course_name != null ? String(course.course_name) : null
+      return {
+       id: String(r.id),
+       studentName: st?.full_name != null ? String(st.full_name) : "—",
+       classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+       scheduleId: String(r.schedule_id ?? ""),
+       trialDate: String(r.trial_date ?? ""),
+       status: String(r.status ?? ""),
+      } satisfies TrialBrief
+     })
+    })(),
+    fetchPendingRollCallRemindersForTeacher(teacherId, today),
+    findSchedulesMissingAttendance(
+     schedList.filter((s) => s.scheduled_date < today && s.class_id != null)
+    ),
+   ])
 
-   try {
-    const leaveList = await fetchLeaveRowsForClassIds(classIds, 50)
-    setLeaves(leaveList)
-   } catch (e) {
-    reportUserFacingError(e, { source: "TeacherHomeView.loadLeaves" })
+   let partialFailed = false
+   if (leaveRes.status === "fulfilled") {
+    setLeaves(leaveRes.value)
+   } else {
+    reportUserFacingError(leaveRes.reason, { source: "TeacherHomeView.loadLeaves" })
     partialFailed = true
     setLeaves([])
    }
-
-   try {
-    if (!supabase) {
-      setTrials([])
-    } else {
-      const trialRes = await supabase
-        .from("trial_sessions")
-        .select(
-          "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
-        )
-        .in("class_id", classIds)
-        .gte("trial_date", today)
-        .order("trial_date", { ascending: true })
-      if (trialRes.error) throw trialRes.error
-      setTrials(
-        (trialRes.data ?? []).map((row) => {
-          const r = row as Record<string, unknown>
-          const st = r.students as Record<string, unknown> | null
-          const cls = r.classes as Record<string, unknown> | null
-          const sub = cls?.subject != null ? String(cls.subject) : "—"
-          const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
-          const course = cls?.courses as Record<string, unknown> | null
-          const courseName = course?.course_name != null ? String(course.course_name) : null
-          return {
-            id: String(r.id),
-            studentName: st?.full_name != null ? String(st.full_name) : "—",
-            classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
-            scheduleId: String(r.schedule_id ?? ""),
-            trialDate: String(r.trial_date ?? ""),
-            status: String(r.status ?? ""),
-          }
-        })
-      )
-    }
-   } catch (e) {
-    reportUserFacingError(e, { source: "TeacherHomeView.loadTrials" })
+   if (trialRes.status === "fulfilled") {
+    setTrials(trialRes.value)
+   } else {
+    reportUserFacingError(trialRes.reason, { source: "TeacherHomeView.loadTrials" })
     partialFailed = true
     setTrials([])
    }
+   if (rollRes.status === "fulfilled") {
+    setPendingRollCalls(rollRes.value)
+   } else {
+    reportUserFacingError(rollRes.reason, { source: "TeacherHomeView.loadRollCallReminders" })
+    partialFailed = true
+    setPendingRollCalls([])
+   }
+   if (pastRollRes.status === "fulfilled") {
+    setPastPendingRollCalls(pastRollRes.value)
+   } else {
+    reportUserFacingError(pastRollRes.reason, { source: "TeacherHomeView.loadPastRollCallReminders" })
+    partialFailed = true
+    setPastPendingRollCalls([])
+   }
 
    if (partialFailed) {
-    setErr("部分首頁資料暫時未能載入（請假／試堂），其餘資料已正常顯示。")
+    setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
    }
   } catch (e) {
    reportUserFacingError(e, { source: "TeacherHomeView.load", setErr })
@@ -168,7 +199,8 @@ export function TeacherHomeView() {
    setSchedules([])
    setLeaves([])
    setTrials([])
-  } finally {
+   setPendingRollCalls([])
+   setPastPendingRollCalls([])
    setLoading(false)
   }
  }, [teacherId, today, scheduleFrom, scheduleTo])
@@ -204,16 +236,23 @@ export function TeacherHomeView() {
  }
 
  return (
-  <div className="space-y-8 text-base leading-relaxed md:text-lg">
-   <header className="rounded-2xl border border-info/30 bg-info/5 p-6 shadow-sm md:p-8">
+  <div className="space-y-5 text-base leading-relaxed md:space-y-8 md:text-lg">
+   <header className="rounded-2xl border border-info/30 bg-info/5 p-4 shadow-sm md:p-8">
     <p className="text-sm font-medium uppercase tracking-wide text-info">專班老師工作台</p>
-    <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+    <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
      {loading ? "載入中…" : `您好，${teacherName}`}
     </h1>
-    <p className="mt-3 max-w-3xl text-muted-foreground">
-     此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有 {todaySchedules.length} 堂課。
+    <p className="mt-2 text-sm text-muted-foreground md:mt-3 md:max-w-3xl md:text-base">
+     {isMobile ? (
+      <>今日有 {todaySchedules.length} 堂課 · 僅顯示指派給您的班別</>
+     ) : (
+      <>
+       此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有 {todaySchedules.length} 堂課。
+      </>
+     )}
     </p>
-    <div className="mt-6 flex flex-wrap gap-3">
+    {/* 手機底部導覽已涵蓋點名／時間表／更多，免重複 CTA */}
+    <div className="mt-4 hidden flex-wrap gap-3 md:mt-6 md:flex">
      <Button type="button" size="lg" className="gap-2" asChild>
       <Link to="/Schedule">
        <CalendarDays className="h-5 w-5" />
@@ -224,6 +263,12 @@ export function TeacherHomeView() {
       <Link to="/Attendance">
        <ClipboardCheck className="h-5 w-5" />
        進行點名
+      </Link>
+     </Button>
+     <Button type="button" size="lg" variant="outline" className="gap-2" asChild>
+      <Link to="/Schedule">
+       <CalendarDays className="h-5 w-5" />
+       排程點名
       </Link>
      </Button>
      <Button type="button" size="lg" variant="outline" className="gap-2" asChild>
@@ -261,10 +306,93 @@ export function TeacherHomeView() {
    ) : null}
 
    {err ? (
-    <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
+    <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
 
-   <section className="grid gap-4 md:grid-cols-3" aria-label="本日重點">
+   {pendingRollCalls.length > 0 ? (
+    <section
+     className="rounded-xl border border-warning/40 bg-warning/10 p-4 shadow-sm"
+     aria-label="今日點名提醒"
+    >
+     <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+       <p className="flex items-center gap-2 text-sm font-semibold text-warning-foreground">
+        <ClipboardCheck className="h-5 w-5 shrink-0" />
+        請盡快完成今日點名（{pendingRollCalls.length} 堂尚未點名）
+       </p>
+       <p className="mt-1 text-xs text-muted-foreground">
+        未點名不會自動扣堂；請假單只影響預填，請打開點名表確認後儲存。
+       </p>
+       <ul className="mt-2 space-y-1 text-sm text-foreground">
+        {pendingRollCalls.slice(0, 5).map((r) => (
+         <li key={r.scheduleId}>
+          <Link
+           to={`/Schedule?date=${encodeURIComponent(r.scheduledDate)}&schedule_id=${encodeURIComponent(r.scheduleId)}&rollcall=1`}
+           className="font-medium text-info underline-offset-2 hover:underline"
+          >
+           {r.startTime ?? "—"} · {r.classLabel}
+          </Link>
+         </li>
+        ))}
+       </ul>
+       {pendingRollCalls.length > 5 ? (
+        <p className="mt-1 text-xs text-muted-foreground">另有 {pendingRollCalls.length - 5} 堂…</p>
+       ) : null}
+      </div>
+      <Button type="button" size="sm" variant="outline" asChild>
+       <Link to={`/Schedule?date=${encodeURIComponent(today)}&view=day`}>前往排程點名</Link>
+      </Button>
+     </div>
+    </section>
+   ) : null}
+
+   {pastPendingRollCalls.length > 0 ? (
+    <section
+     className="rounded-xl border border-warning/40 bg-warning/10 p-4 shadow-sm"
+     aria-label="過去未點名提醒"
+    >
+     <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+       <p className="flex items-center gap-2 text-sm font-semibold text-warning-foreground">
+        <ClipboardCheck className="h-5 w-5 shrink-0" />
+        過去課堂尚未點名（{pastPendingRollCalls.length} 堂）
+       </p>
+       <p className="mt-1 text-xs text-muted-foreground">
+        昨天或更早的排程仍未寫入點名；請盡快補點，否則不會扣堂。
+       </p>
+       <ul className="mt-2 space-y-1 text-sm text-foreground">
+        {pastPendingRollCalls.slice(0, 5).map((r) => (
+         <li key={r.scheduleId}>
+          <Link
+           to={`/Attendance?date=${encodeURIComponent(r.scheduledDate)}&schedule_id=${encodeURIComponent(r.scheduleId)}`}
+           className="font-medium text-info underline-offset-2 hover:underline"
+          >
+           {r.scheduledDate} {r.startTime ?? "—"} · {r.classLabel}
+          </Link>
+         </li>
+        ))}
+       </ul>
+       {pastPendingRollCalls.length > 5 ? (
+        <p className="mt-1 text-xs text-muted-foreground">另有 {pastPendingRollCalls.length - 5} 堂…</p>
+       ) : null}
+      </div>
+      <Button type="button" size="sm" variant="outline" asChild>
+       <Link
+        to={
+         pastPendingRollCalls[0]
+          ? `/Attendance?date=${encodeURIComponent(pastPendingRollCalls[0].scheduledDate)}`
+          : "/Attendance"
+        }
+       >
+        前往補點名
+       </Link>
+      </Button>
+     </div>
+    </section>
+   ) : null}
+
+   {/* 手機以行程列表為主，略過與底部導覽重複的 KPI 卡片 */}
+   <section className="hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4" aria-label="本日重點">
     <Link
      to={`/Schedule?view=day&date=${encodeURIComponent(today)}`}
      className={cn(
@@ -309,24 +437,44 @@ export function TeacherHomeView() {
      </p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">狀態含「待」之請假／補堂 · 前往排程</p>
     </Link>
+    <Link
+     to={
+      pastPendingRollCalls[0]
+       ? `/Attendance?date=${encodeURIComponent(pastPendingRollCalls[0].scheduledDate)}`
+       : "/Attendance"
+     }
+     className={cn(
+      "block rounded-xl border border-border bg-card p-5 shadow-sm outline-none transition-all duration-200",
+      "hover:border-warning/40 hover:bg-warning/10 hover:shadow-md focus-visible:ring-2 focus-visible:ring-warning/40 focus-visible:ring-offset-2"
+     )}
+    >
+     <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground md:text-base">
+      <ClipboardCheck className="h-5 w-5 text-warning" />
+      過去未點名
+     </div>
+     <p className="mt-2 text-4xl font-bold tabular-nums text-warning">{pastPendingRollCalls.length}</p>
+     <p className="mt-1 text-sm text-muted-foreground md:text-base">
+      昨天或更早尚未點名 · 前往補點名
+     </p>
+    </Link>
    </section>
 
-   <section className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+   <section className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2 md:mb-4">
      <Link
       to="/TeacherTimetable"
       className={cn(
-       "group flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1 pr-2 text-xl font-semibold outline-none transition-colors md:text-2xl",
+       "group flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1 pr-2 text-lg font-semibold outline-none transition-colors md:text-2xl",
        "hover:text-info focus-visible:ring-2 focus-visible:ring-info/40 focus-visible:ring-offset-2"
       )}
      >
-      <CalendarRange className="h-6 w-6 shrink-0 text-info transition-transform group-hover:scale-105" />
+      <CalendarRange className="h-5 w-5 shrink-0 text-info transition-transform group-hover:scale-105 md:h-6 md:w-6" />
       <span className="truncate underline-offset-4 group-hover:underline">
        {isMobile ? "近三日行程" : "本週時間表"}
       </span>
      </Link>
      <Button type="button" variant="outline" size="sm" asChild>
-      <Link to="/TeacherTimetable">{isMobile ? "完整時間表" : "全螢幕檢視"}</Link>
+      <Link to="/TeacherTimetable">{isMobile ? "完整" : "全螢幕檢視"}</Link>
      </Button>
     </div>
     {loading ? (
@@ -375,7 +523,8 @@ export function TeacherHomeView() {
     )}
    </section>
 
-   <section className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
+   {/* 手機「近三日」已含今日，略過桌面用的詳細今日列表 */}
+   <section className="hidden rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md md:block md:p-6">
     <Link
      to={`/Schedule?view=day&date=${encodeURIComponent(today)}`}
      className={cn(
@@ -462,6 +611,46 @@ export function TeacherHomeView() {
     )}
    </section>
 
+   {/* 手機僅保留請假提醒；班別列表改為捷徑（完整列表在班別頁） */}
+   {isMobile ? (
+    <div className="space-y-4">
+     <Link
+      to="/Classes"
+      className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+     >
+      <span className="flex items-center gap-2 font-semibold text-foreground">
+       <BookOpen className="h-5 w-5 text-info" />
+       我的班別
+      </span>
+      <span className="text-sm text-muted-foreground">{classes.length} 班 →</span>
+     </Link>
+     <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <Link
+       to="/Schedule"
+       className="inline-flex items-center gap-2 text-lg font-semibold text-foreground"
+      >
+       <Bell className="h-5 w-5 text-warning" />
+       近日請假與補堂
+      </Link>
+      {loading ? (
+       <p className="mt-3 text-sm text-muted-foreground">載入中…</p>
+      ) : leaves.length === 0 ? (
+       <p className="mt-3 text-sm text-muted-foreground">沒有相關紀錄。</p>
+      ) : (
+       <ul className="mt-3 space-y-2">
+        {leaves.slice(0, 5).map((r) => (
+         <li key={r.id} className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm">
+          <div className="font-medium text-foreground">{r.studentName}</div>
+          <div className="text-muted-foreground">
+           {r.classLabel} · {r.leaveDate} · {r.status}
+          </div>
+         </li>
+        ))}
+       </ul>
+      )}
+     </section>
+    </div>
+   ) : (
    <div className="grid gap-6 lg:grid-cols-2">
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
      <Link
@@ -535,6 +724,7 @@ export function TeacherHomeView() {
      )}
     </section>
    </div>
+   )}
 
    {trials.length > 0 ? (
     <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">

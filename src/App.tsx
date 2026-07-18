@@ -8,6 +8,8 @@ import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
 import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
+import FrontDeskIntake from "@/pages/FrontDeskIntake"
+import FrontDeskWizard from "@/pages/FrontDeskWizard"
 import PortalEnrollmentRequests from "@/pages/PortalEnrollmentRequests"
 import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
@@ -23,6 +25,7 @@ import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
 import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
+import PaymentHistory from "@/pages/PaymentHistory"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
@@ -40,6 +43,8 @@ import TeacherTimetable from "@/pages/TeacherTimetable"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
+import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
+import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 
@@ -49,12 +54,15 @@ export default function App() {
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
     <Route path="/Login" element={<Login />} />
+    {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
+    <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
      <Route path="/Users" element={<UserManagement />} />
      <Route path="/Students" element={<Students />} />
      <Route path="/Students/:studentId" element={<StudentDetail />} />
+     <Route path="/FrontDeskWizard" element={<FrontDeskWizard />} />
      <Route path="/PrivateTutoring" element={<PrivateTutoring />} />
      <Route path="/Teachers" element={<Teachers />} />
      <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
@@ -70,6 +78,7 @@ export default function App() {
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />
+     <Route path="/PaymentHistory" element={<PaymentHistory />} />
      <Route path="/Apo" element={<ApoPo />} />
      <Route
       path="/AiReports"
@@ -100,6 +109,9 @@ export default function App() {
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
+     {/* 原型預覽（假資料）；不進側欄，勿與正式排程／點名混淆 */}
+     <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
+     <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
     </Route>
    </Routes>
    <SpeedInsights />

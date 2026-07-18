@@ -24,7 +24,7 @@ export function UnpaidAlert({ items, total, loading }: Props) {
      <Tag tone="warning" size="sm">{loading ? "…" : `${total} 筆`}</Tag>
     </h2>
     <Link
-     to="/Payments"
+     to="/PaymentHistory?histStatus=pendingPay"
      className="text-base font-medium text-primary underline-offset-4 hover:underline"
     >
      前往處理 →

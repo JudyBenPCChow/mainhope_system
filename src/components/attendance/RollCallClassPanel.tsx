@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2, ChevronDown, Download, ListChecks, Sparkles } from "lucide-react"
 
+import { AttendanceStatusPicker } from "@/components/attendance/attendanceStatusUi"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
@@ -8,6 +9,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import {
  academicYearEditBlockedMessage,
 } from "@/lib/academicYearEditGuard"
+import { ATTENDANCE_BILLING_HELP_SHORT } from "@/lib/attendanceBilling"
 import {
  formatConsecutiveSessionLabel,
  trimTimeHm,
@@ -21,11 +23,11 @@ import {
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
- ATTENDANCE_STATUS_OPTIONS,
  buildPrefillStatusMap,
  fetchExistingAttendanceMap,
- fetchLeaveStudentIdsForLesson,
+ fetchLeavePrefillForLesson,
  fetchMakeupStudentIdsForSchedules,
+ fetchMakeupStudentsForSchedules,
  fetchRosterForRollCall,
  fetchSingleSessionNotOnSchedule,
  fetchTrialStudentsForSchedules,
@@ -35,7 +37,7 @@ import {
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
-type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" }
+type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" | "makeup" }
 
 export type RollCallPanelStats = {
  key: string
@@ -55,6 +57,12 @@ type Props = {
  teacherTid: string | null
  isMobile: boolean
  onStats: (stats: RollCallPanelStats) => void
+ /** accordion＝獨立點名頁；sheet＝排程滑出點名紙 */
+ presentation?: "accordion" | "sheet"
+ /** 尚無已存點名時，載入後自動依請假預填（老師仍可改） */
+ autoPrefillWhenEmpty?: boolean
+ /** 成功寫入資料庫後回呼（排程點名紙用來刷新列表） */
+ onConfirmed?: () => void
 }
 
 export function RollCallClassPanel({
@@ -66,7 +74,11 @@ export function RollCallClassPanel({
  teacherTid,
  isMobile,
  onStats,
+ presentation = "accordion",
+ autoPrefillWhenEmpty = false,
+ onConfirmed,
 }: Props) {
+ const isSheet = presentation === "sheet"
  const { pushBanner } = useAppBanner()
  const canEditRollCall =
   dateEditable &&
@@ -85,12 +97,18 @@ export function RollCallClassPanel({
 
  const [students, setStudents] = useState<DisplayStudent[]>([])
  const [notEnrolledNames, setNotEnrolledNames] = useState<string[]>([])
+ const [leaveStudentIds, setLeaveStudentIds] = useState<Set<string>>(() => new Set())
  const [statusMap, setStatusMap] = useState<Map<string, string>>(new Map())
  const [savedMap, setSavedMap] = useState<Map<string, string>>(new Map())
  const [sheetLoading, setSheetLoading] = useState(true)
  const [bulkAction, setBulkAction] = useState<null | "prefill" | "allPresent">(null)
  const [confirmSaving, setConfirmSaving] = useState(false)
  const [sheetErr, setSheetErr] = useState<string | null>(null)
+ const didAutoPrefillRef = useRef(false)
+
+ useEffect(() => {
+  didAutoPrefillRef.current = false
+ }, [entry.key])
 
  useEffect(() => {
   if (!entry.class_id) {
@@ -113,16 +131,19 @@ export function RollCallClassPanel({
   void (async () => {
    try {
     const primaryScheduleId = scheduleIds[0] ?? ""
-    const [roster, trials, existing, notOnSchedule] = await Promise.all([
+    const [roster, trials, makeups, existing, notOnSchedule, leaveByStudent] = await Promise.all([
      fetchRosterForRollCall(classId, lessonDate, scheduleIds),
      fetchTrialStudentsForSchedules(scheduleIds),
+     scheduleIds.length > 0 ? fetchMakeupStudentsForSchedules(scheduleIds) : Promise.resolve([]),
      fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
      primaryScheduleId
       ? fetchSingleSessionNotOnSchedule(classId, primaryScheduleId)
       : Promise.resolve([]),
+     fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate),
     ])
     if (cancelled) return
 
+    setLeaveStudentIds(new Set(leaveByStudent.keys()))
     const enrolledIds = roster.map((r) => r.studentId)
     const display: DisplayStudent[] = roster.map((r) => ({ ...r, source: "enrollment" as const }))
     for (const t of trials) {
@@ -141,19 +162,56 @@ export function RollCallClassPanel({
       isSingleSession: false,
      })
     }
+    const onSheetIds = new Set(display.map((d) => d.studentId))
+    for (const m of makeups) {
+     if (onSheetIds.has(m.studentId)) continue
+     onSheetIds.add(m.studentId)
+     display.push({
+      enrollmentId: `makeup-${m.studentId}`,
+      studentId: m.studentId,
+      fullName: m.fullName,
+      englishName: m.englishName,
+      grade: m.grade,
+      school: null,
+      enrollDate: null,
+      status: "補堂",
+      source: "makeup",
+      contactPhone: m.contactPhone,
+      isSingleSession: false,
+     })
+    }
 
     display.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
 
-    const sm = new Map<string, string>()
+    const saved = new Map<string, string>()
     for (const row of display) {
      const ex = existing.get(row.studentId)
-     sm.set(row.studentId, ex?.status ?? "")
+     saved.set(row.studentId, ex?.status ?? "")
+    }
+
+    let draft = new Map(saved)
+    const noneSaved = display.every((row) => !(saved.get(row.studentId) ?? "").trim())
+    if (autoPrefillWhenEmpty && noneSaved && display.length > 0 && !didAutoPrefillRef.current) {
+     didAutoPrefillRef.current = true
+     const rosterIds = display.filter((s) => s.source === "enrollment").map((s) => s.studentId)
+     const trialIds = new Set(display.filter((s) => s.source === "trial").map((s) => s.studentId))
+     const makeupIds = new Set(display.filter((s) => s.source === "makeup").map((s) => s.studentId))
+     const pre = buildPrefillStatusMap({
+      rosterIds,
+      leaveByStudent,
+      makeupIds,
+      trialIds,
+     })
+     draft = new Map()
+     for (const row of display) {
+      draft.set(row.studentId, pre.get(row.studentId) ?? "現場")
+     }
     }
 
     setStudents(display)
     setNotEnrolledNames(notOnSchedule.map((r) => r.fullName))
-    setStatusMap(sm)
-    setSavedMap(new Map(sm))
+    setStatusMap(draft)
+    setSavedMap(saved)
    } catch (e) {
     if (!cancelled) {
      reportUserFacingError(e, { source: "RollCallClassPanel.loadSheet", setErr: setSheetErr })
@@ -170,7 +228,7 @@ export function RollCallClassPanel({
   return () => {
    cancelled = true
   }
- }, [entry])
+ }, [entry, autoPrefillWhenEmpty])
 
  const draftFilledCount = useMemo(() => {
   let n = 0
@@ -247,16 +305,17 @@ export function RollCallClassPanel({
   setSheetErr(null)
   void (async () => {
    try {
-    const [leaveIds, makeupIds] = await Promise.all([
-     fetchLeaveStudentIdsForLesson(scheduleIds, classId, lessonDate),
+    const [leaveByStudent, makeupIds] = await Promise.all([
+     fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate),
      fetchMakeupStudentIdsForSchedules(scheduleIds),
     ])
+    setLeaveStudentIds(new Set(leaveByStudent.keys()))
     const rosterIds = students.filter((s) => s.source === "enrollment").map((s) => s.studentId)
     const trialIds = new Set(students.filter((s) => s.source === "trial").map((s) => s.studentId))
-    const pre = buildPrefillStatusMap({ rosterIds, leaveIds, makeupIds, trialIds })
+    const pre = buildPrefillStatusMap({ rosterIds, leaveByStudent, makeupIds, trialIds })
     const next = new Map(statusMap)
     for (const row of students) {
-     const s = pre.get(row.studentId) ?? "出席"
+     const s = pre.get(row.studentId) ?? "現場"
      next.set(row.studentId, s)
     }
     setStatusMap(next)
@@ -283,7 +342,8 @@ export function RollCallClassPanel({
   try {
    const next = new Map(statusMap)
    for (const row of students) {
-    next.set(row.studentId, "出席")
+    if (leaveStudentIds.has(row.studentId)) continue
+    next.set(row.studentId, "現場")
    }
    setStatusMap(next)
   } finally {
@@ -336,6 +396,7 @@ export function RollCallClassPanel({
     title: "點名已儲存",
     message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${entry.isConsecutive ? "（連堂計 2 節）" : ""}。`,
    })
+   onConfirmed?.()
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallClassPanel.saveAll", setErr: setSheetErr })
   } finally {
@@ -368,85 +429,82 @@ export function RollCallClassPanel({
  const timeLabel =
   entry.start_time && entry.end_time ? `${entry.start_time}–${entry.end_time}` : null
 
- return (
-  <details
-   className="group rounded-xl border border-border bg-card shadow-sm open:shadow-md"
-   open={open}
-   onToggle={(e) => {
-    const next = (e.currentTarget as HTMLDetailsElement).open
-    if (next !== open) onOpenChange(next)
-   }}
-  >
-   <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
-    <ChevronDown
-     className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-     aria-hidden
-    />
-    <div className="min-w-0 flex-1">
-     <div className="flex flex-wrap items-center gap-2">
-      <span className="font-semibold text-foreground">
-       {entry.classLabel}
-       {entry.course_code_full ? (
-        <span className="ml-1 font-normal text-muted-foreground">({entry.course_code_full})</span>
-       ) : null}
-      </span>
-      <Tag tone="default" size="sm">
-       {sessionLabel}
-      </Tag>
-      {sheetLoading ? (
-       <Tag tone="default" size="sm">
-        載入中…
-       </Tag>
-      ) : rollCallSaved ? (
-       <Tag tone="success" size="sm">
-        已點名
-       </Tag>
-      ) : (
-       <Tag tone="warning" size="sm">
-        未點名
-       </Tag>
-      )}
-      {isDirty ? (
-       <Tag tone="warning" size="sm">
-        未儲存變更
-       </Tag>
-      ) : null}
-      {substituteTag ? (
-       <Tag tone="info" size="sm">
-        {substituteTag}
-       </Tag>
-      ) : null}
-      {entry.isConsecutive ? (
-       <Tag tone="info" size="sm">
-        連堂
-       </Tag>
-      ) : null}
-     </div>
-     <p className="mt-0.5 text-xs text-muted-foreground">
-      {[
-       timeLabel,
-       entry.teacher_name ?? null,
-       scheduleMeta?.classroom_name ?? null,
-       !sheetLoading ? `${draftFilledCount}/${students.length} 已選` : null,
-      ]
-       .filter(Boolean)
-       .join(" · ")}
-     </p>
-    </div>
-   </summary>
+ const titleMeta = (
+  <>
+   <div className="flex flex-wrap items-center gap-2">
+    <span className="font-semibold text-foreground">
+     {entry.classLabel}
+     {entry.course_code_full ? (
+      <span className="ml-1 font-normal text-muted-foreground">({entry.course_code_full})</span>
+     ) : null}
+    </span>
+    <Tag tone="default" size="sm">
+     {sessionLabel}
+    </Tag>
+    {sheetLoading ? (
+     <Tag tone="default" size="sm">
+      載入中…
+     </Tag>
+    ) : rollCallSaved ? (
+     <Tag tone="success" size="sm">
+      已點名
+     </Tag>
+    ) : (
+     <Tag tone="warning" size="sm">
+      未點名
+     </Tag>
+    )}
+    {isDirty ? (
+     <Tag tone="warning" size="sm">
+      未儲存變更
+     </Tag>
+    ) : null}
+    {substituteTag ? (
+     <Tag tone="info" size="sm">
+      {substituteTag}
+     </Tag>
+    ) : null}
+    {entry.isConsecutive ? (
+     <Tag tone="info" size="sm">
+      連堂
+     </Tag>
+    ) : null}
+   </div>
+   <p className="mt-0.5 text-xs text-muted-foreground">
+    {[
+     timeLabel,
+     entry.teacher_name ?? null,
+     scheduleMeta?.classroom_name ?? null,
+     !sheetLoading ? `${draftFilledCount}/${students.length} 已選` : null,
+    ]
+     .filter(Boolean)
+     .join(" · ")}
+   </p>
+  </>
+ )
 
-   <div className={cn("space-y-3 border-t border-border px-4 pb-4 pt-3", isMobile && students.length > 0 && "pb-4")}>
+ const body = (
+   <div
+    className={cn(
+     "space-y-3",
+     isSheet ? "px-1 pb-2 pt-1" : "border-t border-border px-4 pb-4 pt-3",
+     isMobile && students.length > 0 && "pb-4"
+    )}
+   >
     <div className="flex flex-wrap items-start justify-between gap-2">
      <div className="min-w-0">
       <p className="text-xs text-muted-foreground">
        共 {students.length} 位學生（班內報讀 + 試堂）
-       {entry.isConsecutive ? " · 連堂一次點名，計 2 節學費" : ""}
+       {entry.isConsecutive ? " · 連堂一次點名，計 2 堂（扣 2 堂）" : ""}
+       <span className="mt-1 block text-muted-foreground/90">{ATTENDANCE_BILLING_HELP_SHORT}</span>
        <span className="mt-1 block text-amber-900/90">
         {!canEditRollCall && dateEditable
          ? "此堂已指派代堂，僅代堂老師可修改點名；您可閱覽現有紀錄。"
          : rollCallSaved
-           ? "本堂已完成點名；若要修改出席狀態，變更後再按「確定」儲存。"
-           : "請先點選出席狀態，再於下方按「確定」寫入資料庫。"}
+           ? "本堂已完成點名；若要修改狀態，變更後再按「確定」儲存。"
+           : autoPrefillWhenEmpty
+             ? "已依請假／預設帶入狀態，可直接改選後按「確定」寫入。有請假單者按「全部現場」不會覆蓋。"
+             : "請先點選狀態，再於下方按「確定」寫入資料庫。有請假單者按「全部現場」不會覆蓋。"}
        </span>
       </p>
       {notEnrolledNames.length > 0 ? (
@@ -457,17 +515,19 @@ export function RollCallClassPanel({
       ) : null}
      </div>
      <div className="flex flex-wrap gap-2">
-      <Button
-       type="button"
-       size="sm"
-       variant="secondary"
-       className="gap-1 bg-info text-info-foreground hover:bg-info"
-       disabled={sheetLoading || bulkAction !== null || students.length === 0 || !canEditRollCall}
-       onClick={() => applyPrefill()}
-      >
-       <Sparkles className="h-4 w-4" />
-       {bulkAction === "prefill" ? "預填中…" : "預填狀態"}
-      </Button>
+      {!autoPrefillWhenEmpty ? (
+       <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        className="gap-1 bg-info text-info-foreground hover:bg-info"
+        disabled={sheetLoading || bulkAction !== null || students.length === 0 || !canEditRollCall}
+        onClick={() => applyPrefill()}
+       >
+        <Sparkles className="h-4 w-4" />
+        {bulkAction === "prefill" ? "預填中…" : "預填狀態"}
+       </Button>
+      ) : null}
       <Button
        type="button"
        size="sm"
@@ -476,7 +536,7 @@ export function RollCallClassPanel({
        onClick={() => applyAllPresent()}
       >
        <ListChecks className="h-4 w-4" />
-       {bulkAction === "allPresent" ? "套用中…" : "全部出席"}
+       {bulkAction === "allPresent" ? "套用中…" : "全部現場"}
       </Button>
       <Button type="button" size="sm" variant="outline" className="gap-1" onClick={exportCsv}>
        <Download className="h-4 w-4" />
@@ -505,6 +565,11 @@ export function RollCallClassPanel({
            {row.source === "trial" ? (
             <Tag tone="info" size="sm" className="ml-2 align-middle">
              試堂
+            </Tag>
+           ) : null}
+           {row.source === "makeup" ? (
+            <Tag tone={statusToTagTone("補堂")} size="sm" className="ml-2 align-middle">
+             補堂
             </Tag>
            ) : null}
            {row.source === "enrollment" && row.isSingleSession ? (
@@ -537,23 +602,12 @@ export function RollCallClassPanel({
           />
          ) : null}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-         {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-          <button
-           key={opt}
-           type="button"
-           disabled={!canEditRollCall}
-           onClick={() => setStatus(row.studentId, opt)}
-           className={cn(
-            "min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-            statusMap.get(row.studentId) === opt
-             ? "border-success bg-success text-white"
-             : "border-border bg-background text-muted-foreground hover:bg-muted/60"
-           )}
-          >
-           {opt}
-          </button>
-         ))}
+        <div className="mt-3">
+         <AttendanceStatusPicker
+          value={statusMap.get(row.studentId)}
+          disabled={!canEditRollCall}
+          onSelect={(opt) => setStatus(row.studentId, opt)}
+         />
         </div>
        </article>
       ))}
@@ -582,6 +636,11 @@ export function RollCallClassPanel({
               試堂
              </span>
             ) : null}
+            {row.source === "makeup" ? (
+             <Tag tone={statusToTagTone("補堂")} size="sm" className="ml-2 align-middle">
+              補堂
+             </Tag>
+            ) : null}
             {row.source === "enrollment" && row.isSingleSession ? (
              <Tag tone={statusToTagTone("單堂報讀")} size="sm" className="ml-2 align-middle">
               單堂報讀
@@ -594,24 +653,12 @@ export function RollCallClassPanel({
           </td>
           <td className="px-2 py-2 text-muted-foreground">{row.grade ?? "—"}</td>
           <td className="px-2 py-2">
-           <div className="flex flex-wrap gap-1">
-            {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
-             <button
-              key={opt}
-              type="button"
-              disabled={!canEditRollCall}
-              onClick={() => setStatus(row.studentId, opt)}
-              className={cn(
-               "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-               statusMap.get(row.studentId) === opt
-                ? "border-success bg-success text-white"
-                : "border-border bg-background text-muted-foreground hover:bg-muted/60"
-              )}
-             >
-              {opt}
-             </button>
-            ))}
-           </div>
+           <AttendanceStatusPicker
+            compact
+            value={statusMap.get(row.studentId)}
+            disabled={!canEditRollCall}
+            onSelect={(opt) => setStatus(row.studentId, opt)}
+           />
           </td>
           <td className="px-2 py-2">
            {scheduleMeta ? (
@@ -670,6 +717,34 @@ export function RollCallClassPanel({
      </div>
     ) : null}
    </div>
+ )
+
+ if (isSheet) {
+  return (
+   <div className="space-y-3">
+    <div className="min-w-0 px-1">{titleMeta}</div>
+    {body}
+   </div>
+  )
+ }
+
+ return (
+  <details
+   className="group rounded-xl border border-border bg-card shadow-sm open:shadow-md"
+   open={open}
+   onToggle={(e) => {
+    const next = (e.currentTarget as HTMLDetailsElement).open
+    if (next !== open) onOpenChange(next)
+   }}
+  >
+   <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+    <ChevronDown
+     className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+     aria-hidden
+    />
+    <div className="min-w-0 flex-1">{titleMeta}</div>
+   </summary>
+   {body}
   </details>
  )
 }

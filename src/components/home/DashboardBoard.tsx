@@ -66,7 +66,7 @@ export function DashboardBoard({
  return (
   <div className="flex flex-col gap-5">
    <section
-    className="flex min-h-[28rem] flex-col rounded-xl border border-border/80 bg-card/90 p-5 shadow-sm md:min-h-[36rem] md:p-6"
+    className="flex min-h-0 flex-col rounded-xl border border-border/80 bg-card/90 p-4 shadow-sm md:min-h-[36rem] md:p-6"
     aria-label="今日課堂"
    >
     <div className="mb-4 flex shrink-0 flex-col gap-2">
@@ -182,7 +182,7 @@ export function DashboardBoard({
    </section>
 
    <section
-    className="rounded-xl border border-border/80 bg-card/90 p-5 shadow-sm md:p-6"
+    className="rounded-xl border border-border/80 bg-card/90 p-4 shadow-sm md:p-6"
     aria-label="今日請假學生"
    >
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2">

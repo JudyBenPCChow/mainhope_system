@@ -21,10 +21,14 @@ const STUDENT_CLASSIFICATION_RULES: StatusTagRule[] = [
 ]
 
 const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
- // 人員狀態 / 出勤：錯誤態
- { tone: "error", keywords: ["failed", "error", "錯誤", "失敗", "拒絕", "離職", "非在職", "缺席"] },
+ // 人員狀態 / 出勤：錯誤／扣堂缺席態（no show 高於泛用）
+ { tone: "error", keywords: ["no show", "failed", "error", "錯誤", "失敗", "拒絕", "離職", "非在職", "缺席"] },
+ // 請假類（含扣堂之「請假而不需補回」與舊「不用補回」）
+ { tone: "warning", keywords: ["請假而不需補回", "不用補回", "事假", "病假"] },
+ // 扣堂上課形式
+ { tone: "info", keywords: ["錄影回放", "zoom實時網課", "即時直播", "網課", "線上"] },
  // 人員狀態 / 出勤：成功態
- { tone: "success", keywords: ["在職", "在讀", "出席", "準時"] },
+ { tone: "success", keywords: ["在職", "在讀", "現場", "出席", "準時"] },
 ]
 
 const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [

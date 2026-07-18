@@ -31,12 +31,14 @@ import {
  enrollmentVisibleOnSchedule,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
+ fetchClassEnrollmentConfigsByIds,
  formatEnrollmentFormLabel,
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
 import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
@@ -869,183 +871,298 @@ type EnrolledStudent = {
  enrollmentId?: string
 }
 
-/** 批次取得班別各堂排程的預定出席／請假學生名單 */
+/** 批次取得班別各堂排程的預定出席／請假學生名單（單班入口） */
 export async function fetchScheduleStudentHintsForClass(
  classId: string,
  schedules: { id: string; scheduled_date: string }[]
 ): Promise<Map<string, ScheduleStudentHints>> {
- const result = new Map<string, ScheduleStudentHints>()
- for (const s of schedules) {
-  result.set(s.id, { attendingNames: [], leaveNames: [], notEnrolledNames: [] })
- }
- if (!supabase || schedules.length === 0) return result
+ return fetchScheduleStudentHintsByClass(new Map([[classId, schedules]]))
+}
 
- const scheduleIds = schedules.map((s) => s.id)
- const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
-
- const config = await fetchClassEnrollmentConfig(classId)
- let periods: AcademicYearPeriodRow[] = []
- if (config.courseMode === "summer_two_period" && config.academicYearId) {
-  periods = await fetchAcademicYearPeriods(config.academicYearId)
- }
-
- const { data: enrData, error: enrErr } = await supabase
-  .from("student_class_enrollments")
-  .select("id, student_id, enrollment_period, students ( full_name )")
-  .eq("class_id", classId)
-  .eq("status", "就讀中")
- if (enrErr) throw enrErr
-
- const enrolled: EnrolledStudent[] = (enrData ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  return {
-   enrollmentId: String(r.id),
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
-   enrollmentPeriod: normalizeEnrollmentPeriod(
-    r.enrollment_period != null ? String(r.enrollment_period) : null
-   ),
+/**
+ * 多班別批次取得排程學生提示。
+ * schedule_id 鍵查詢跨班 chunk；class 範圍查詢批量後依 class_id 分組（避免同日他班誤掛）。
+ */
+export async function fetchScheduleStudentHintsByClass(
+ schedulesByClass: Map<string, { id: string; scheduled_date: string }[]>
+): Promise<Map<string, ScheduleStudentHints>> {
+ const merged = new Map<string, ScheduleStudentHints>()
+ const classIds = [...schedulesByClass.keys()].filter(Boolean)
+ for (const [classId, scheds] of schedulesByClass) {
+  for (const s of scheds) {
+   merged.set(s.id, { attendingNames: [], leaveNames: [], notEnrolledNames: [] })
   }
+  if (!classId) continue
+ }
+ if (!supabase || classIds.length === 0) return merged
+
+ const allSchedules: { id: string; scheduled_date: string; class_id: string }[] = []
+ for (const [classId, scheds] of schedulesByClass) {
+  if (!classId) continue
+  for (const s of scheds) {
+   allSchedules.push({ id: s.id, scheduled_date: s.scheduled_date, class_id: classId })
+  }
+ }
+ if (allSchedules.length === 0) return merged
+
+ const scheduleIds = allSchedules.map((s) => s.id)
+ const dates = [...new Set(allSchedules.map((s) => s.scheduled_date))]
+
+ const configByClass = await fetchClassEnrollmentConfigsByIds(classIds)
+ const yearIds = [
+  ...new Set(
+   [...configByClass.values()]
+    .filter((c) => c.courseMode === "summer_two_period" && c.academicYearId)
+    .map((c) => c.academicYearId as string)
+  ),
+ ]
+ const periodsByYear = new Map<string, AcademicYearPeriodRow[]>()
+ await Promise.all(
+  yearIds.map(async (yid) => {
+   periodsByYear.set(yid, await fetchAcademicYearPeriods(yid))
+  })
+ )
+
+ const enrollmentChunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("student_class_enrollments")
+   .select("id, class_id, student_id, enrollment_period, students ( full_name )")
+   .in("class_id", slice)
+   .eq("status", "就讀中")
+  if (error) throw error
+  return data ?? []
  })
 
- const singleIds = enrolled
+ const enrolledByClass = new Map<string, EnrolledStudent[]>()
+ for (const id of classIds) enrolledByClass.set(id, [])
+ for (const data of enrollmentChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const cid = String(r.class_id ?? "")
+   if (!cid) continue
+   const st = r.students as Record<string, unknown> | null
+   const list = enrolledByClass.get(cid) ?? []
+   list.push({
+    enrollmentId: String(r.id),
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+    enrollmentPeriod: normalizeEnrollmentPeriod(
+     r.enrollment_period != null ? String(r.enrollment_period) : null
+    ),
+   })
+   enrolledByClass.set(cid, list)
+  }
+ }
+
+ const allSingleIds = [...enrolledByClass.values()]
+  .flat()
   .filter((e) => isSingleSessionEnrollment(e.enrollmentPeriod))
   .map((e) => e.enrollmentId!)
- const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
+ const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(allSingleIds)
 
- const [leavesLinkedRes, leavesDateRes, trialsRes, makeupsRes, attRes, histEnrRes] =
-  await Promise.all([
-  supabase
-   .from("leave_makeup_records")
-   .select("student_id, schedule_id, leave_date, students ( full_name )")
-   .in("schedule_id", scheduleIds),
-  supabase
-   .from("leave_makeup_records")
-   .select("student_id, schedule_id, leave_date, students ( full_name )")
-   .eq("class_id", classId)
-   .in("leave_date", dates)
-   .is("schedule_id", null),
-  supabase
-   .from("trial_sessions")
-   .select("schedule_id, student_id, students ( full_name )")
-   .in("schedule_id", scheduleIds),
-  supabase
-   .from("leave_makeup_records")
-   .select("makeup_schedule_id, student_id, students ( full_name )")
-   .in("makeup_schedule_id", scheduleIds),
-  supabase
-   .from("attendance_details")
-   .select("student_id, attendance_date, students ( full_name )")
-   .eq("class_id", classId)
-   .in("attendance_date", dates),
-  supabase
-   .from("enrollment_change_events")
-   .select(
-    "student_id, action, effective_date, enrollment_period, created_at, students ( full_name )"
-   )
-   .eq("class_id", classId)
-   .order("effective_date", { ascending: true })
-   .order("created_at", { ascending: true }),
+ const [
+  leavesLinkedChunks,
+  leavesOrphanChunks,
+  trialChunks,
+  makeupChunks,
+  attChunks,
+  histChunks,
+ ] = await Promise.all([
+  forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("leave_makeup_records")
+    .select("student_id, schedule_id, leave_date, class_id, students ( full_name )")
+    .in("schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("leave_makeup_records")
+    .select("student_id, schedule_id, leave_date, class_id, students ( full_name )")
+    .in("class_id", slice)
+    .in("leave_date", dates)
+    .is("schedule_id", null)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("trial_sessions")
+    .select("schedule_id, student_id, status, students ( full_name )")
+    .in("schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("leave_makeup_records")
+    .select("makeup_schedule_id, student_id, students ( full_name )")
+    .in("makeup_schedule_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("attendance_details")
+    .select("student_id, attendance_date, class_id, students ( full_name )")
+    .in("class_id", slice)
+    .in("attendance_date", dates)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("enrollment_change_events")
+    .select(
+     "class_id, student_id, action, effective_date, enrollment_period, created_at, students ( full_name )"
+    )
+    .in("class_id", slice)
+    .order("effective_date", { ascending: true })
+    .order("created_at", { ascending: true })
+   if (error) throw error
+   return data ?? []
+  }),
  ])
 
- if (leavesLinkedRes.error) throw leavesLinkedRes.error
- if (leavesDateRes.error) throw leavesDateRes.error
- if (trialsRes.error) throw trialsRes.error
- if (makeupsRes.error) throw makeupsRes.error
- if (attRes.error) throw attRes.error
- if (histEnrRes.error) throw histEnrRes.error
-
- const today = localYmd()
-
- const histEvents: HistEnrollmentEvent[] = (histEnrRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  const actionRaw = String(r.action ?? "enroll")
-  const action: HistEnrollmentEvent["action"] =
-   actionRaw === "withdraw"
-    ? "withdraw"
-    : actionRaw === "period_change"
-      ? "period_change"
-      : actionRaw === "session_change"
-        ? "session_change"
-        : "enroll"
-  return {
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
-   action,
-   effectiveDate: String(r.effective_date ?? "").slice(0, 10),
-   enrollmentPeriod: normalizeEnrollmentPeriod(
-    r.enrollment_period != null ? String(r.enrollment_period) : null
-   ),
-   createdAt: String(r.created_at ?? ""),
-  }
- })
-
- type AttendanceByDateRow = { studentId: string; fullName: string }
- const attendanceByDate = new Map<string, AttendanceByDateRow[]>()
- for (const row of attRes.data ?? []) {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  const date = String(r.attendance_date ?? "").slice(0, 10)
-  const item: AttendanceByDateRow = {
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
-  }
-  const arr = attendanceByDate.get(date) ?? []
-  arr.push(item)
-  attendanceByDate.set(date, arr)
+ type LeaveRow = {
+  studentId: string
+  fullName: string
+  scheduleId: string | null
+  leaveDate: string
+  classId: string | null
  }
-
- type LeaveRow = { studentId: string; fullName: string; scheduleId: string | null; leaveDate: string }
- const allLeaves: LeaveRow[] = [...(leavesLinkedRes.data ?? []), ...(leavesDateRes.data ?? [])].map(
-  (row) => {
+ const allLeaves: LeaveRow[] = []
+ for (const data of leavesLinkedChunks) {
+  for (const row of data) {
    const r = row as Record<string, unknown>
    const st = r.students as Record<string, unknown> | null
-   return {
+   allLeaves.push({
     studentId: String(r.student_id),
     fullName: st?.full_name != null ? String(st.full_name) : "—",
     scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
     leaveDate: String(r.leave_date ?? ""),
-   }
+    classId: r.class_id != null ? String(r.class_id) : null,
+   })
   }
- )
+ }
+ for (const data of leavesOrphanChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   allLeaves.push({
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+    scheduleId: null,
+    leaveDate: String(r.leave_date ?? ""),
+    classId: r.class_id != null ? String(r.class_id) : null,
+   })
+  }
+ }
 
  type TrialRow = { scheduleId: string; studentId: string; fullName: string }
- const trials: TrialRow[] = (trialsRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  return {
-   scheduleId: String(r.schedule_id),
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
+ const trials: TrialRow[] = []
+ for (const data of trialChunks) {
+  for (const row of data) {
+   const s = String((row as { status?: string }).status ?? "")
+   if (s.includes("完成") || s.includes("取消")) continue
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   trials.push({
+    scheduleId: String(r.schedule_id),
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+   })
   }
- })
+ }
 
  type MakeupRow = { makeupScheduleId: string; studentId: string; fullName: string }
- const makeups: MakeupRow[] = (makeupsRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  return {
-   makeupScheduleId: String(r.makeup_schedule_id),
-   studentId: String(r.student_id),
-   fullName: st?.full_name != null ? String(st.full_name) : "—",
+ const makeups: MakeupRow[] = []
+ for (const data of makeupChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   makeups.push({
+    makeupScheduleId: String(r.makeup_schedule_id),
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+   })
   }
- })
+ }
 
- for (const sched of schedules) {
+ type AttendanceByDateRow = { studentId: string; fullName: string }
+ const attendanceByClassDate = new Map<string, AttendanceByDateRow[]>()
+ for (const data of attChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const st = r.students as Record<string, unknown> | null
+   const cid = String(r.class_id ?? "")
+   const date = String(r.attendance_date ?? "").slice(0, 10)
+   const key = `${cid}\0${date}`
+   const item: AttendanceByDateRow = {
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+   }
+   const arr = attendanceByClassDate.get(key) ?? []
+   arr.push(item)
+   attendanceByClassDate.set(key, arr)
+  }
+ }
+
+ const histByClass = new Map<string, HistEnrollmentEvent[]>()
+ for (const id of classIds) histByClass.set(id, [])
+ for (const data of histChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const cid = String(r.class_id ?? "")
+   if (!cid) continue
+   const st = r.students as Record<string, unknown> | null
+   const actionRaw = String(r.action ?? "enroll")
+   const action: HistEnrollmentEvent["action"] =
+    actionRaw === "withdraw"
+     ? "withdraw"
+     : actionRaw === "period_change"
+      ? "period_change"
+      : actionRaw === "session_change"
+       ? "session_change"
+       : "enroll"
+   const list = histByClass.get(cid) ?? []
+   list.push({
+    studentId: String(r.student_id),
+    fullName: st?.full_name != null ? String(st.full_name) : "—",
+    action,
+    effectiveDate: String(r.effective_date ?? "").slice(0, 10),
+    enrollmentPeriod: normalizeEnrollmentPeriod(
+     r.enrollment_period != null ? String(r.enrollment_period) : null
+    ),
+    createdAt: String(r.created_at ?? ""),
+   })
+   histByClass.set(cid, list)
+  }
+ }
+
+ const today = localYmd()
+
+ for (const sched of allSchedules) {
+  const config = configByClass.get(sched.class_id)
+  const periods =
+   config?.courseMode === "summer_two_period" && config.academicYearId
+    ? (periodsByYear.get(config.academicYearId) ?? [])
+    : []
   const periodCode =
-   config.courseMode === "summer_two_period" && periods.length > 0
+   config?.courseMode === "summer_two_period" && periods.length > 0
     ? resolvePeriodCodeFromDate(sched.scheduled_date, periods)
     : null
 
   const leaveStudentIds = new Set<string>()
   const leaveNames: string[] = []
   for (const lv of allLeaves) {
-   const matches =
-    lv.scheduleId === sched.id ||
-    (lv.scheduleId == null && lv.leaveDate === sched.scheduled_date)
-   if (!matches) continue
+   const matchesLinked = lv.scheduleId === sched.id
+   const matchesOrphan =
+    lv.scheduleId == null &&
+    lv.classId === sched.class_id &&
+    lv.leaveDate === sched.scheduled_date
+   if (!matchesLinked && !matchesOrphan) continue
    if (!leaveStudentIds.has(lv.studentId)) {
     leaveStudentIds.add(lv.studentId)
     leaveNames.push(lv.fullName)
@@ -1054,7 +1171,6 @@ export async function fetchScheduleStudentHintsForClass(
 
   const attendingIds = new Set<string>()
   const attendingNames: string[] = []
-
   const addAttending = (studentId: string, fullName: string) => {
    if (leaveStudentIds.has(studentId) || attendingIds.has(studentId)) return
    attendingIds.add(studentId)
@@ -1062,8 +1178,9 @@ export async function fetchScheduleStudentHintsForClass(
   }
 
   const isPast = sched.scheduled_date < today
-
   const notEnrolledNames: string[] = []
+  const enrolled = enrolledByClass.get(sched.class_id) ?? []
+  const histEvents = histByClass.get(sched.class_id) ?? []
 
   const enrollmentCoversThisSchedule = (e: EnrolledStudent) => {
    if (isSingleSessionEnrollment(e.enrollmentPeriod)) {
@@ -1089,7 +1206,7 @@ export async function fetchScheduleStudentHintsForClass(
     if (!enrollmentCoversThisSchedule(e)) continue
     addAttending(e.studentId, e.fullName)
    }
-   for (const a of attendanceByDate.get(sched.scheduled_date) ?? []) {
+   for (const a of attendanceByClassDate.get(`${sched.class_id}\0${sched.scheduled_date}`) ?? []) {
     addAttending(a.studentId, a.fullName)
    }
   } else {
@@ -1116,28 +1233,13 @@ export async function fetchScheduleStudentHintsForClass(
    addAttending(m.studentId, m.fullName)
   }
 
-  result.set(sched.id, {
+  merged.set(sched.id, {
    attendingNames: sortNames(attendingNames),
    leaveNames: sortNames(leaveNames),
    notEnrolledNames: sortNames(notEnrolledNames),
   })
  }
 
- return result
-}
-
-/** 多班別批次取得排程學生提示（老師詳情用） */
-export async function fetchScheduleStudentHintsByClass(
- schedulesByClass: Map<string, { id: string; scheduled_date: string }[]>
-): Promise<Map<string, ScheduleStudentHints>> {
- const merged = new Map<string, ScheduleStudentHints>()
- const entries = [...schedulesByClass.entries()]
- await Promise.all(
-  entries.map(async ([classId, scheds]) => {
-   const hints = await fetchScheduleStudentHintsForClass(classId, scheds)
-   for (const [sid, h] of hints) merged.set(sid, h)
-  })
- )
  return merged
 }
 

@@ -244,18 +244,18 @@ export function CoursesManagePage() {
     </div>
    ) : null}
 
-   <div className="grid gap-3 sm:grid-cols-3">
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold">{loading ? "…" : stats.total}</div>
-     <div className="text-sm text-muted-foreground">課程總數</div>
+   <div className="grid grid-cols-3 gap-2 md:gap-3">
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold md:text-2xl">{loading ? "…" : stats.total}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">課程總數</div>
     </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-info">{loading ? "…" : stats.filtered}</div>
-     <div className="text-sm text-muted-foreground">篩選結果</div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold text-info md:text-2xl">{loading ? "…" : stats.filtered}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">篩選結果</div>
     </div>
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
-     <div className="text-2xl font-bold text-warning">{loading ? "…" : stats.summer}</div>
-     <div className="text-sm text-muted-foreground">暑期兩期</div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
+     <div className="text-xl font-bold text-warning md:text-2xl">{loading ? "…" : stats.summer}</div>
+     <div className="text-[11px] text-muted-foreground md:text-sm">暑期兩期</div>
     </div>
    </div>
 

@@ -137,14 +137,14 @@ export function PortalEnrollmentRequestsView() {
  }
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
       <ClipboardList className="h-8 w-8 text-teal-600" aria-hidden />
       家長報讀申請
      </h1>
-     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+     <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
       審核家長 Portal 提交的報讀申請。核准後會建立報讀紀錄與待繳費單。
      </p>
     </div>

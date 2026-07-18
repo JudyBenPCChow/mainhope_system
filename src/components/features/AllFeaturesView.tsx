@@ -19,7 +19,7 @@ export function AllFeaturesView() {
      <LayoutGrid className="h-7 w-7 text-info" aria-hidden />
      所有功能
     </h1>
-    <p className="mt-2 text-sm text-muted-foreground">
+    <p className="mt-2 hidden text-sm text-muted-foreground md:block">
      依系統層面分類，共 {totalCount} 項你可使用的功能。
     </p>
    </header>

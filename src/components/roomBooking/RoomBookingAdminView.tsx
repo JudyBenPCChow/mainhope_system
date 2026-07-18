@@ -100,7 +100,7 @@ export function RoomBookingAdminView() {
      <ClipboardCheck className="h-7 w-7 text-info" aria-hidden />
      約房審批
     </h1>
-    <p className="mt-1 text-sm text-muted-foreground">
+    <p className="mt-1 hidden text-sm text-muted-foreground md:block">
      老師「預約空房」申請會列於此；核准後會依選擇寫入排程（無班別則備註為「○○老師預約」）。
     </p>
    </header>

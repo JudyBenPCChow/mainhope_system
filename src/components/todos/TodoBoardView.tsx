@@ -31,7 +31,8 @@ import {
  todoFormFromEvent,
  type TodoFormValues,
 } from "./TodoFormDialog"
-import { TODO_TAG_PRESETS, todoStatusLabel, todoStatusTone, TodoTagList } from "./todoUi"
+import { TODO_TAG_PRESETS, todoStatusLabel, TodoTagList } from "./todoUi"
+import { statusToTagTone } from "@/lib/statusTag"
 
 type ViewMode = "table" | "kanban"
 
@@ -236,14 +237,14 @@ export function TodoBoardView() {
  }
 
  return (
-  <div className="space-y-6 py-4 md:p-6">
+  <div className="space-y-6 md:p-6">
    <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border/80 pb-5">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
       <List className="h-8 w-8 text-primary" />
       待辦事項
      </h1>
-     <p className="text-sm text-muted-foreground">點擊項目進入詳情；可標籤分類、記錄跟進時間軸，並關聯老師與學生。</p>
+     <p className="hidden text-sm text-muted-foreground md:block">點擊項目進入詳情；可標籤分類、記錄跟進時間軸，並關聯老師與學生。</p>
     </div>
     {canEdit ? (
      <Button type="button" onClick={openCreate}>
@@ -350,7 +351,7 @@ export function TodoBoardView() {
            <p className="text-xs tabular-nums text-muted-foreground">{r.eventDate}</p>
            <h3 className="font-semibold">{r.title}</h3>
           </div>
-          <Tag tone={todoStatusTone(r.status)} size="sm">
+          <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
            {todoStatusLabel(r.status)}
           </Tag>
          </div>
@@ -421,7 +422,7 @@ export function TodoBoardView() {
            <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-xs">{r.category || "一般"}</span>
           </td>
           <td className="px-3 py-2">
-           <Tag tone={todoStatusTone(r.status)} size="sm">
+           <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
             {todoStatusLabel(r.status)}
            </Tag>
           </td>
@@ -469,7 +470,7 @@ export function TodoBoardView() {
         <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
          {todoStatusLabel(status)}
         </h3>
-        <Tag tone={todoStatusTone(status)} size="sm">
+        <Tag tone={statusToTagTone(todoStatusLabel(status))} size="sm">
          {kanbanGroups[status].length}
         </Tag>
        </header>

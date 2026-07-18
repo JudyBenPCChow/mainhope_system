@@ -9,6 +9,7 @@ import { UnpaidAlert } from "@/components/home/UnpaidAlert"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -41,6 +42,7 @@ const HOME_TAB_STUDENTS = "students-trials"
 const HOME_TAB_PAYMENTS = "payments"
 
 export function AdminDashboard() {
+ const isMobile = useIsMobile()
  const greetingName =
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
   DEMO_ADMIN_GREETING_NAME
@@ -86,21 +88,23 @@ export function AdminDashboard() {
  }, [scheduleViewYmd])
 
  return (
-  <div className="space-y-6 p-4 md:p-6 lg:space-y-8">
-   <header className="flex flex-wrap items-end justify-between gap-4">
+  <div className="space-y-4 md:space-y-6 md:p-6 lg:space-y-8">
+   <header className="flex flex-wrap items-end justify-between gap-3 md:gap-4">
     <div>
      <p className="text-sm font-medium uppercase tracking-wide text-info/90">管理中心</p>
-     <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+     <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
       你好，{greetingName}！
      </h1>
-     <p className="mt-2 text-base text-muted-foreground md:text-lg">
-      今日 {dashboardTitleDate()} · 儀表板與班務總覽
+     <p className="mt-1 text-sm text-muted-foreground md:mt-2 md:text-lg">
+      {isMobile ? dashboardTitleDate() : <>今日 {dashboardTitleDate()} · 儀表板與班務總覽</>}
      </p>
     </div>
+    {/* 手機登出在側滑選單 */}
     <Button
      type="button"
      variant="outline"
      size="default"
+     className="hidden md:inline-flex"
      onClick={async () => {
       if (supabase) await supabase.auth.signOut()
       clearAuthState()
@@ -128,9 +132,9 @@ export function AdminDashboard() {
    />
 
    <Tabs defaultValue={HOME_TAB_SCHEDULE} className="w-full min-w-0">
-    <TabsList aria-label="管理中心功能" className="w-full sm:w-auto">
-     <TabsTrigger value={HOME_TAB_SCHEDULE}>排程與今日課堂</TabsTrigger>
-     <TabsTrigger value={HOME_TAB_STUDENTS}>新增學生及試堂</TabsTrigger>
+    <TabsList aria-label="管理中心功能" className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
+     <TabsTrigger value={HOME_TAB_SCHEDULE}>{isMobile ? "排程" : "排程與今日課堂"}</TabsTrigger>
+     <TabsTrigger value={HOME_TAB_STUDENTS}>{isMobile ? "學生" : "新增學生及試堂"}</TabsTrigger>
      <TabsTrigger value={HOME_TAB_PAYMENTS}>繳費</TabsTrigger>
     </TabsList>
 
@@ -149,13 +153,14 @@ export function AdminDashboard() {
      <AdminHomeStudentsTrialsPanel
       studentStatusSlices={data.studentStatusSlices}
       loading={loading}
+      compact={isMobile}
      />
     </TabsContent>
 
     <TabsContent value={HOME_TAB_PAYMENTS} className="space-y-4">
      <UnpaidAlert items={data.unpaid} total={data.unpaidTotal} loading={loading} />
      <RecentPaymentsCard payments={data.recentPayments} loading={loading} />
-     <RevenueChart bars={data.revenueBars} loading={loading} />
+     {!isMobile ? <RevenueChart bars={data.revenueBars} loading={loading} /> : null}
     </TabsContent>
    </Tabs>
   </div>

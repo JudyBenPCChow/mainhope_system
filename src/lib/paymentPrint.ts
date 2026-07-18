@@ -216,6 +216,11 @@ function buildPrintBody(p: PaymentFull): string {
  </div>`
 }
 
+/** 完整收據 HTML（預覽 iframe／列印共用）。 */
+export function buildPaymentReceiptDocumentHtml(p: PaymentFull): string {
+ return buildPrintableHtml(buildPrintBody(p))
+}
+
 /** 開啟瀏覽器列印視窗；待繳與已收款使用同一收據樣式。 */
 export function printPayment(p: PaymentFull, _kind?: "invoice" | "receipt"): boolean {
  return openPrintableDocument(buildPrintBody(p))

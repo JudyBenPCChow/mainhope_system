@@ -48,11 +48,29 @@ function currentMonthRange(): DateRangeValue {
 function statusCount(rows: AttendanceRecordRow[]) {
  const base = { total: rows.length, present: 0, absent: 0, leave: 0, makeup: 0, online: 0 }
  for (const r of rows) {
-  if (r.status.includes("出席")) base.present++
-  else if (r.status.includes("缺席")) base.absent++
-  else if (r.status.includes("請假") || r.status.includes("假")) base.leave++
-  else if (r.status.includes("補")) base.makeup++
-  else if (r.status.includes("網課") || r.status.includes("線上")) base.online++
+  if (r.status === "現場" || r.status.includes("出席")) base.present++
+  else if (r.status === "no show" || r.status.includes("缺席")) base.absent++
+  else if (
+   r.status === "事假" ||
+   r.status === "病假" ||
+   r.status === "請假" ||
+   (r.status.includes("假") && !r.status.includes("補"))
+  )
+   base.leave++
+  else if (
+   r.status === "請假而不需補回" ||
+   r.status === "不用補回" ||
+   r.status.includes("補")
+  )
+   base.makeup++
+  else if (
+   r.status === "錄影回放" ||
+   r.status === "zoom實時網課" ||
+   r.status === "即時直播" ||
+   r.status.includes("網課") ||
+   r.status.includes("線上")
+  )
+   base.online++
  }
  return base
 }
@@ -202,16 +220,16 @@ export function AttendanceRecordsPage() {
  return (
   <div className="space-y-4">
    <header>
-    <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-     <ClipboardList className="h-7 w-7 text-primary" aria-hidden />
+    <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight md:text-2xl">
+     <ClipboardList className="h-6 w-6 text-primary md:h-7 md:w-7" aria-hidden />
      出席紀錄
     </h1>
-    <p className="mt-1.5 text-base leading-relaxed text-neutral-700">
+    <p className="mt-1.5 hidden text-base leading-relaxed text-neutral-700 md:block">
      今日列表、月彙總與班別看板；預設顯示今天各班紀錄。
     </p>
    </header>
 
-   {teacherTid ? (
+   {teacherTid && !isMobile ? (
    <div className="rounded-lg border border-info bg-info px-4 py-3 text-base leading-relaxed text-info-foreground">
     專班老師檢視：下方資料含<strong>您任教、代堂或原任被代堂</strong>的課堂；老師篩選已自動鎖定為您本人。
     </div>
@@ -223,6 +241,31 @@ export function AttendanceRecordsPage() {
     </div>
    ) : null}
 
+   {isMobile ? (
+    <section
+     className="grid grid-cols-4 gap-2 rounded-xl border border-border bg-card p-3 text-center shadow-sm"
+     aria-label="出席摘要"
+    >
+     <div>
+      <p className="text-lg font-bold tabular-nums text-info">{s?.total ?? 0}</p>
+      <p className="text-[11px] text-muted-foreground">總筆數</p>
+     </div>
+     <div>
+      <p className="text-lg font-bold tabular-nums text-success">{s?.present ?? 0}</p>
+      <p className="text-[11px] text-muted-foreground">出席</p>
+     </div>
+     <div>
+      <p className="text-lg font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
+      <p className="text-[11px] text-muted-foreground">缺席</p>
+     </div>
+     <div>
+      <p className="text-lg font-bold tabular-nums text-warning">
+       {(s?.leave ?? 0) + (s?.makeup ?? 0) + (s?.online ?? 0)}
+      </p>
+      <p className="text-[11px] text-muted-foreground">假／補／網</p>
+     </div>
+    </section>
+   ) : (
    <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="出席儀表板">
     <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
      <div className="flex items-center gap-2 text-sm font-medium text-info-foreground">
@@ -250,6 +293,7 @@ export function AttendanceRecordsPage() {
      </p>
     </div>
    </section>
+   )}
 
    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
     <div

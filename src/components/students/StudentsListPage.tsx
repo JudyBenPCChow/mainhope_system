@@ -273,7 +273,7 @@ export function StudentsListPage() {
   "codeDesc"
  )
  const [showGraduated, setShowGraduated] = usePersistentState<boolean>("mgmt_students_showGraduated", false)
- const [dashboardCollapsed, setDashboardCollapsed] = useState(false)
+ const [dashboardCollapsed, setDashboardCollapsed] = useState(isMobile)
  const [recentIndex, setRecentIndex] = useState(0)
  const [search, setSearch] = usePersistentState<string>("mgmt_students_search", "")
  const [addOpen, setAddOpen] = useState(false)
@@ -576,9 +576,13 @@ export function StudentsListPage() {
   <>
    <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
     <div className="flex flex-wrap items-center gap-2">
-     <h2 className="text-sm font-semibold tracking-wide">學生儀表板</h2>
-     <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
-     <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
+     <h2 className="text-sm font-semibold tracking-wide">{isMobile ? "統計摘要" : "學生儀表板"}</h2>
+     {!isMobile ? (
+      <>
+       <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
+       <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
+      </>
+     ) : null}
     </div>
     <Button
      type="button"
@@ -594,28 +598,28 @@ export function StudentsListPage() {
 
    {!dashboardCollapsed ? (
     <>
-     <div className="grid gap-3 sm:grid-cols-4">
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-       <div className="text-3xl font-bold text-primary">{loading ? "…" : stats.enrolled}</div>
-       <div className="text-sm text-muted-foreground">目前在讀</div>
+     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-primary md:text-3xl">{loading ? "…" : stats.enrolled}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">目前在讀</div>
       </div>
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-       <div className="text-3xl font-bold text-success">{loading ? "…" : stats.active}</div>
-       <div className="text-sm text-muted-foreground">活躍生（近三個月報讀）</div>
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-success md:text-3xl">{loading ? "…" : stats.active}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">活躍生</div>
       </div>
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-       <div className="text-3xl font-bold text-foreground">{loading ? "…" : stats.total}</div>
-       <div className="text-sm text-muted-foreground">學生總數</div>
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-foreground md:text-3xl">{loading ? "…" : stats.total}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">學生總數</div>
       </div>
       <button
        type="button"
        onClick={() => setSortMode("codeDesc")}
-       className="rounded-xl border border-info bg-info p-4 text-left shadow-sm transition hover:border-info/70 hover:shadow-md"
+       className="rounded-xl border border-info bg-info p-2.5 text-left shadow-sm transition hover:border-info/70 hover:shadow-md md:p-4"
        title="按學號（最新）排序"
       >
-       <div className="text-xs font-medium uppercase tracking-wide text-info-foreground/90">最新學號</div>
-       <div className="mt-1 text-2xl font-bold text-info-foreground">{latestCodeStudent?.student_code ?? "—"}</div>
-       <div className="mt-2 text-xs text-info-foreground/80">點擊後改為「按學號（最新）」排序</div>
+       <div className="text-[10px] font-medium uppercase tracking-wide text-info-foreground/90 md:text-xs">最新學號</div>
+       <div className="mt-0.5 text-lg font-bold text-info-foreground md:mt-1 md:text-2xl">{latestCodeStudent?.student_code ?? "—"}</div>
+       <div className="mt-2 hidden text-xs text-info-foreground/80 md:block">點擊後改為「按學號（最新）」排序</div>
       </button>
      </div>
 
@@ -666,7 +670,15 @@ export function StudentsListPage() {
    ) : null}
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">注冊狀態</div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     注冊狀態
+     <span
+      className="ml-1 font-normal normal-case text-muted-foreground/80"
+      title="已註冊＝正式學生；非注冊＝試堂／查詢等尚未註冊"
+     >
+      （？）
+     </span>
+    </div>
     <div className="flex flex-wrap gap-2">
      {REGISTRATION_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.registration.get(f.key) ?? 0)
@@ -692,7 +704,15 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">在讀狀態</div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     在讀狀態
+     <span
+      className="ml-1 font-normal normal-case text-muted-foreground/80"
+      title="目前至少有一個就讀中的報讀"
+     >
+      （？）
+     </span>
+    </div>
     <div className="flex flex-wrap gap-2">
      {ENROLLMENT_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.enrollment.get(f.key) ?? 0)
@@ -718,7 +738,15 @@ export function StudentsListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">活躍狀態（近三個月）</div>
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+     活躍狀態（近三個月有報讀活動）
+     <span
+      className="ml-1 font-normal normal-case text-muted-foreground/80"
+      title="近三個月內有報讀相關活動，可能包含近期退讀；不等於目前在讀"
+     >
+      （？）
+     </span>
+    </div>
     <div className="flex flex-wrap gap-2">
      {ACTIVITY_FILTERS.map((f) => {
       const count = f.key === "all" ? rows.length : (classificationCounts.activity.get(f.key) ?? 0)
@@ -1151,7 +1179,9 @@ export function StudentsListPage() {
        ) : filtered.length === 0 ? (
         <tr>
          <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
-          沒有符合條件的學生
+          {activityKey !== "all"
+           ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
+           : "沒有符合條件的學生"}
          </td>
         </tr>
        ) : (
@@ -1295,7 +1325,9 @@ export function StudentsListPage() {
       </div>
      ) : filtered.length === 0 ? (
       <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       沒有符合條件的學生
+       {activityKey !== "all"
+        ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
+        : "沒有符合條件的學生"}
       </div>
      ) : (
       filtered.map((r) => {
@@ -1371,7 +1403,9 @@ export function StudentsListPage() {
       </div>
      ) : filtered.length === 0 ? (
       <div className="col-span-full rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       沒有符合條件的學生
+       {activityKey !== "all"
+        ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
+        : "沒有符合條件的學生"}
       </div>
      ) : (
       filtered.map((r) => {
@@ -1457,9 +1491,9 @@ export function StudentsListPage() {
    <p className="text-xs text-muted-foreground">
     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
     <span className="mt-1 block text-[11px] leading-relaxed">
-     「追收學費」：計費出席堂數（點名為出席、網課／線上、補堂等；不含缺席與請假）≥
-     已繳費堂數（僅計收據狀態為「已收款」之 <code className="rounded bg-muted px-0.5">payment_details.lesson_count</code>{" "}
-     加總），且兩者不全為 0。
+     「追收學費」（參考）：已付堂數 ≤ 已上堂數（且不全為 0）。已上＝點名扣堂狀態（現場／錄影回放／zoom實時網課／no
+     show／請假而不需補回；舊資料相容出席／網課／補課）。已付＝已收款{" "}
+     <code className="rounded bg-muted px-0.5">payment_details.lesson_count</code> 加總。非天天催繳工具。
     </span>
    </p>
   </div>

@@ -154,7 +154,7 @@ export function SystemLogsView() {
       <FileSearch className="h-8 w-8 text-info" aria-hidden />
       系統日志
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground md:text-base">
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block md:text-base">
       所有使用者操作紀錄（依篩選；每批最多 {MGMT_LOG_PAGE_SIZE} 筆，可載入更多）。
      </p>
     </div>

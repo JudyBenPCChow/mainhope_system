@@ -96,16 +96,16 @@ export function AiReportsView() {
             <Bot className="h-6 w-6 text-primary" aria-hidden />
             <h1 className="text-2xl font-semibold tracking-tight">AI 報表</h1>
           </div>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+          <p className="mt-2 hidden max-w-2xl text-sm text-muted-foreground md:block">
             唯讀報表工作區：資料來自現有系統查詢，不會自動修改任何紀錄。AI 摘要僅供內部參考，實際追收請以
-            <Link to="/Payments" className="mx-1 text-primary underline-offset-2 hover:underline">
+            <Link to="/PaymentHistory" className="mx-1 text-primary underline-offset-2 hover:underline">
               繳費紀錄
             </Link>
             為準。
           </p>
         </div>
         <Button type="button" variant="outline" asChild>
-          <Link to="/Payments">
+          <Link to="/PaymentHistory">
             <Wallet className="h-4 w-4" />
             前往繳費紀錄
           </Link>
@@ -151,7 +151,7 @@ export function AiReportsView() {
 
       {result && (
         <>
-          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-4">
             <StatCard label="需追收學生" value={String(result.stats.total_count)} suffix="人" />
             <StatCard label="合計欠堂" value={String(result.stats.total_lesson_gap)} suffix="堂" />
             <StatCard label="平均欠堂" value={String(result.stats.avg_lesson_gap)} suffix="堂" />

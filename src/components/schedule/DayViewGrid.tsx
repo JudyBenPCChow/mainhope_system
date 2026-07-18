@@ -87,6 +87,7 @@ export function DayViewScheduleCard({
  schedule,
  alerts,
  studentNames,
+ studentsLoading,
  variant,
  empty,
  historyReadOnly,
@@ -98,6 +99,8 @@ export function DayViewScheduleCard({
  schedule: ScheduleManageRow
  alerts: ScheduleAlerts
  studentNames: string[]
+ /** 學生名單尚在載入：顯示占位，勿當成空班 */
+ studentsLoading?: boolean
  variant: "assigned" | "unassigned"
  /** 本堂沒有任何學生（沒有報讀或全員請假）：以灰色淡化顯示 */
  empty?: boolean
@@ -113,8 +116,9 @@ export function DayViewScheduleCard({
    ? `${schedule.start_time}–${schedule.end_time}`
    : schedule.start_time ?? ""
  const span = isStandardSchedulePlacement(schedule) ? slotSpanForStandardSchedule(schedule) : 1
- const studentSummary =
-  studentNames.length === 0
+ const studentSummary = studentsLoading
+  ? "學生載入中…"
+  : studentNames.length === 0
    ? "—"
    : studentNames.length <= 3
     ? studentNames.join("、")
@@ -167,7 +171,7 @@ export function DayViewScheduleCard({
    <p className="mt-1.5 break-words text-sm leading-relaxed opacity-90">
     老師：{schedule.teacher_name?.trim() || "—"}
    </p>
-   <p className="mt-0.5 break-words text-sm leading-relaxed opacity-90" title={studentNames.join("、")}>
+   <p className="mt-0.5 break-words text-sm leading-relaxed opacity-90" title={studentsLoading ? undefined : studentNames.join("、")}>
     學生：{studentSummary}
    </p>
    {inactiveRoomName ? (
@@ -205,6 +209,8 @@ type Props = {
  schedules: ScheduleManageRow[]
  alerts: Map<string, ScheduleAlerts>
  studentRoster: Map<string, string[]>
+ /** 學生名單尚在載入（顯示占位、不標空班灰卡） */
+ rosterLoading?: boolean
  /** 沒有任何學生（沒有報讀或全員請假）的排程 id，將以灰色淡化顯示 */
  emptyScheduleIds?: ReadonlySet<string>
  roomColumns: RoomRecord[]
@@ -222,6 +228,7 @@ export function DayViewGrid({
  schedules,
  alerts,
  studentRoster,
+ rosterLoading = false,
  emptyScheduleIds,
  roomColumns,
  activeRoomIdSet,
@@ -260,6 +267,7 @@ export function DayViewGrid({
    schedule={s}
    alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
    studentNames={s.class_id ? (studentRoster.get(s.class_id) ?? []) : []}
+   studentsLoading={rosterLoading}
    variant={variant}
    empty={emptyScheduleIds?.has(s.id) ?? false}
    historyReadOnly={scheduleRowLocked(s)}

@@ -1,3 +1,4 @@
+import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
@@ -174,6 +175,7 @@ export type PaymentListFilters = {
  fromYmd?: string
  toYmd?: string
  search?: string
+ studentId?: string
  limit?: number
 }
 
@@ -188,8 +190,10 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
    "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .order("payment_date", { ascending: false })
+  .order("created_at", { ascending: false })
   .limit(limit)
 
+ if (filters.studentId) q = q.eq("student_id", filters.studentId)
  if (filters.fromYmd) q = q.gte("payment_date", filters.fromYmd)
  if (filters.toYmd) q = q.lte("payment_date", filters.toYmd)
 
@@ -558,7 +562,7 @@ export async function fetchPaymentDashboardStats(): Promise<PaymentDashboardStat
  let totalAttendedLessons = 0
  for (const row of attRows ?? []) {
   const s = String((row as { status: unknown }).status ?? "")
-  if (s.includes("出席") && !s.includes("缺席")) totalAttendedLessons += 1
+  if (isBillableAttendanceStatus(s)) totalAttendedLessons += 1
  }
 
  return { totalPaidLessons, totalAttendedLessons }
@@ -583,6 +587,28 @@ export async function fetchTotalPaidLessonsForStudent(studentId: string): Promis
   if (Number.isFinite(n) && n > 0) sum += n
  }
  return sum
+}
+
+/** 單一學生：attendance_details 中計為「計費出席」之堂數 */
+export async function fetchTotalAttendedLessonsForStudent(studentId: string): Promise<number> {
+ if (!supabase) return 0
+ const { data, error } = await supabase.from("attendance_details").select("status").eq("student_id", studentId)
+ if (error) throw error
+ let total = 0
+ for (const row of data ?? []) {
+  const s = String((row as { status: unknown }).status ?? "")
+  if (isBillableAttendanceStatus(s)) total += 1
+ }
+ return total
+}
+
+/** 單一學生最近繳費（依日期／建立時間；預設最多 3 筆） */
+export async function fetchRecentPaymentsForStudent(
+ studentId: string,
+ limit = 3
+): Promise<PaymentListRow[]> {
+ const n = Math.min(Math.max(limit, 1), 10)
+ return fetchPaymentsList({ studentId, limit: n })
 }
 
 /** 將待繳／待收款改為已收款；收據編號一律由系統產生 */

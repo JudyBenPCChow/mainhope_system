@@ -1,27 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { CalendarDays, GraduationCap, Plus, Sparkles } from "lucide-react"
+import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { Select } from "@/components/ui/select"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import { fetchAllClasses, getClassById, type ClassRecord } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
+import { PAYMENT_METHOD_PRESETS } from "@/services/paymentQueries"
 import { listStudents } from "@/services/queries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
+import { useAppBanner } from "@/lib/appBanner"
 import {
  deleteTrialSession,
  fetchTrialDashboardStats,
  fetchTrialsWithRelations,
+ insertPaidTrialSession,
  insertTrialSession,
  trialStatusCategory,
  trialTypeCategory,
@@ -45,9 +50,12 @@ function matchesTypeTab(r: TrialManageRow, tab: TypeTab): boolean {
 
 export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
+ const { pushBanner } = useAppBanner()
+ const isMobile = useIsMobile()
  const [rows, setRows] = useState<TrialManageRow[]>([])
  const [stats, setStats] = useState<TrialDashboardStats>({ todayCount: 0, weekCount: 0 })
  const [loading, setLoading] = useState(true)
+ const [filtersOpen, setFiltersOpen] = useState(false)
  const [err, setErr] = useState<string | null>(null)
 
  const [statusTab, setStatusTab] = useState<StatusTab>("all")
@@ -72,6 +80,10 @@ export function TrialSessionsView() {
  const [addRemarks, setAddRemarks] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
+ const [payOpen, setPayOpen] = useState(false)
+ const [payMethod, setPayMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
+ const [payUnitPreview, setPayUnitPreview] = useState<number | null>(null)
+ const [payAmountPreview, setPayAmountPreview] = useState<number | null>(null)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
@@ -223,12 +235,186 @@ export function TrialSessionsView() {
   })
  }, [rows, statusTab, typeTab, filterSubject, filterTeacherId, filterGrade, filterDateFrom, filterDateTo])
 
+ const activeFilterCount = useMemo(() => {
+  let n = 0
+  if (statusTab !== "all") n += 1
+  if (typeTab !== "all") n += 1
+  if (filterDateFrom) n += 1
+  if (filterDateTo) n += 1
+  if (filterSubject !== "all") n += 1
+  if (filterTeacherId !== "all") n += 1
+  if (filterGrade !== "all") n += 1
+  return n
+ }, [statusTab, typeTab, filterDateFrom, filterDateTo, filterSubject, filterTeacherId, filterGrade])
+
+ const resetFilters = useCallback(() => {
+  setStatusTab("all")
+  setTypeTab("all")
+  setFilterDateFrom("")
+  setFilterDateTo("")
+  setFilterSubject("all")
+  setFilterTeacherId("all")
+  setFilterGrade("all")
+ }, [])
+
+ const renderTrialFilterPanel = () => (
+  <div className="space-y-5">
+   <div className="flex flex-col gap-2">
+    <span className="text-xs font-medium text-muted-foreground">狀態</span>
+    <div className="flex flex-wrap gap-2" role="tablist">
+     {(
+      [
+       ["all", `全部 ${statusCounts.all}`],
+       ["booked", `已預約 ${statusCounts.booked}`],
+       ["done", `已完成 ${statusCounts.done}`],
+       ["cancel", `取消 ${statusCounts.cancel}`],
+      ] as const
+     ).map(([id, label]) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={statusTab === id}
+       onClick={() => setStatusTab(id)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+        statusTab === id
+         ? "border-info bg-info text-white shadow-sm"
+         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+       )}
+      >
+       {label}
+      </button>
+     ))}
+    </div>
+   </div>
+   <div className="flex flex-col gap-2">
+    <span className="text-xs font-medium text-muted-foreground">類型</span>
+    <div className="flex flex-wrap gap-2" role="tablist">
+     {(
+      [
+       ["all", `全部 ${typeCounts.all}`],
+       ["free", `免費試堂 ${typeCounts.free}`],
+       ["half", `半價試堂 ${typeCounts.half}`],
+       ["full", `原價試堂 ${typeCounts.full}`],
+      ] as const
+     ).map(([id, label]) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={typeTab === id}
+       onClick={() => setTypeTab(id)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+        typeTab === id
+         ? "border-info bg-info text-white shadow-sm"
+         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+       )}
+      >
+       {label}
+      </button>
+     ))}
+    </div>
+   </div>
+   <div className="grid gap-3 sm:grid-cols-2">
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>試堂日起</span>
+     <Input
+      type="date"
+      value={filterDateFrom}
+      onChange={(e) => setFilterDateFrom(e.target.value)}
+      className="h-10 w-full"
+     />
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>試堂日迄</span>
+     <Input
+      type="date"
+      value={filterDateTo}
+      onChange={(e) => setFilterDateTo(e.target.value)}
+      className="h-10 w-full"
+     />
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>科目</span>
+     <Select
+      className="h-10 min-h-10 w-full"
+      value={filterSubject}
+      onChange={(e) => setFilterSubject(e.target.value)}
+     >
+      <option value="all">全部科目</option>
+      {subjectOptions.map((sub) => (
+       <option key={sub} value={sub}>
+        {sub}
+       </option>
+      ))}
+     </Select>
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground">
+     <span>老師</span>
+     <Select
+      className="h-10 min-h-10 w-full"
+      value={filterTeacherId}
+      onChange={(e) => setFilterTeacherId(e.target.value)}
+     >
+      <option value="all">全部老師</option>
+      {teachers.map((t) => (
+       <option key={t.id} value={t.id}>
+        {t.full_name}
+       </option>
+      ))}
+     </Select>
+    </label>
+    <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
+     <span>年級</span>
+     <Select
+      className="h-10 min-h-10 w-full"
+      value={filterGrade}
+      onChange={(e) => setFilterGrade(e.target.value)}
+     >
+      <option value="all">全部年級</option>
+      {gradeOptions.map((g) => (
+       <option key={g} value={g}>
+        {g}
+       </option>
+      ))}
+     </Select>
+    </label>
+   </div>
+  </div>
+ )
+
  const openAdd = () => setAddOpen(true)
 
  const submitAdd = async () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
   if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
    setAddErr("請選擇學生、班別，並確認有可用的未來排程")
+   return
+  }
+  const cat = trialTypeCategory(addTrialType)
+  if (cat === "half" || cat === "full") {
+   setAddErr(null)
+   setAddSaving(true)
+   try {
+    const cls = await getClassById(addClassId)
+    const base = cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : 0
+    if (!(base > 0)) {
+     setAddErr("此班別／課程尚未設定每堂單價，無法建立半價／原價試堂收費")
+     return
+    }
+    const unit = cat === "half" ? Math.round(base * 0.5 * 100) / 100 : base
+    setPayUnitPreview(unit)
+    setPayAmountPreview(unit)
+    setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
+    setPayOpen(true)
+   } catch (e) {
+    const msg = e instanceof Error ? e.message : "無法載入班別單價"
+    reportUserFacingError(e, { source: "TrialSessionsView.preparePay", setErr: setAddErr, userMessage: msg })
+   } finally {
+    setAddSaving(false)
+   }
    return
   }
   setAddSaving(true)
@@ -246,7 +432,43 @@ export function TrialSessionsView() {
    setAddOpen(false)
    await reload()
   } catch (e) {
-   reportUserFacingError(e, { source: "TrialSessionsView.onAdd", setErr: setAddErr, userMessage: "新增失敗" })
+   const msg = e instanceof Error ? e.message : "新增失敗"
+   reportUserFacingError(e, { source: "TrialSessionsView.onAdd", setErr: setAddErr, userMessage: msg })
+  } finally {
+   setAddSaving(false)
+  }
+ }
+
+ const confirmPaidTrial = async () => {
+  const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
+  if (!addStudentId || !addClassId || !addScheduleId || !selectedSched || payUnitPreview == null) {
+   setAddErr("付費資料不完整")
+   return
+  }
+  setAddSaving(true)
+  setAddErr(null)
+  try {
+   const { receiptNumber } = await insertPaidTrialSession({
+    studentId: addStudentId,
+    classId: addClassId,
+    scheduleId: addScheduleId,
+    trialDate: selectedSched.date,
+    trialType: addTrialType,
+    remarks: addRemarks || null,
+    paymentMethod: payMethod,
+    unitPrice: payUnitPreview,
+   })
+   setPayOpen(false)
+   setAddOpen(false)
+   pushBanner({
+    tone: "success",
+    title: "已建立試堂並入帳",
+    message: receiptNumber ? `收據編號 ${receiptNumber}` : "已收款並建立試堂紀錄",
+   })
+   await reload()
+  } catch (e) {
+   const msg = e instanceof Error ? e.message : "收費並建立試堂失敗"
+   reportUserFacingError(e, { source: "TrialSessionsView.confirmPaidTrial", setErr: setAddErr, userMessage: msg })
   } finally {
    setAddSaving(false)
   }
@@ -269,7 +491,7 @@ export function TrialSessionsView() {
       試堂紀錄
       <Tag tone="info" size="sm">{rows.length} 筆</Tag>
      </h1>
-     <p className="mt-1 text-sm text-muted-foreground">試堂資料與排程連結；點學生或班別可開啟詳情頁。</p>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">試堂資料與排程連結；點學生或班別可開啟詳情頁。</p>
     </div>
     <Button type="button" className="gap-1 bg-info text-white hover:bg-info" onClick={openAdd}>
      <Plus className="h-4 w-4" />
@@ -278,155 +500,56 @@ export function TrialSessionsView() {
    </header>
 
    {err ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
      {err}
     </div>
    ) : null}
 
-   <section className="grid gap-3 sm:grid-cols-2" aria-label="試堂概覽">
-    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
-      <CalendarDays className="h-4 w-4" aria-hidden />
-      今天試堂人數
+   <section className="grid grid-cols-2 gap-2 md:gap-3" aria-label="試堂概覽">
+    <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
+     <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
+      <CalendarDays className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
+      今天試堂
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.todayCount}</p>
-     <p className="mt-1 text-xs text-info-foreground/85">試堂日期為今天之筆數（含各狀態）</p>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.todayCount}</p>
+     <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">試堂日期為今天之筆數（含各狀態）</p>
     </div>
-    <div className="rounded-xl border border-info bg-info p-4 text-info-foreground shadow-sm">
-     <div className="flex items-center gap-2 text-sm font-medium text-info-foreground/90">
-      <GraduationCap className="h-4 w-4" aria-hidden />
-      本星期試堂人數
+    <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
+     <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
+      <GraduationCap className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
+      本星期試堂
      </div>
-     <p className="mt-2 text-3xl font-bold tabular-nums">{stats.weekCount}</p>
-     <p className="mt-1 text-xs text-info-foreground/85">本週一至週日（依試堂日期）之筆數</p>
+     <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.weekCount}</p>
+     <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">本週一至週日（依試堂日期）之筆數</p>
     </div>
    </section>
 
-   <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
-    <div className="flex flex-col gap-2">
-     <span className="text-xs font-medium text-muted-foreground">狀態</span>
-     <div className="flex flex-wrap gap-2" role="tablist">
-      {(
-       [
-        ["all", `全部 ${statusCounts.all}`],
-        ["booked", `已預約 ${statusCounts.booked}`],
-        ["done", `已完成 ${statusCounts.done}`],
-        ["cancel", `取消 ${statusCounts.cancel}`],
-       ] as const
-      ).map(([id, label]) => (
-       <button
-        key={id}
-        type="button"
-        role="tab"
-        aria-selected={statusTab === id}
-        onClick={() => setStatusTab(id)}
-        className={cn(
-         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
-         statusTab === id
-          ? "border-info bg-info text-white shadow-sm"
-          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-        )}
-       >
-        {label}
-       </button>
-      ))}
-     </div>
+   {isMobile ? (
+    <>
+     <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+      <SlidersHorizontal className="h-4 w-4" aria-hidden />
+      篩選
+      {activeFilterCount > 0 ? (
+       <Tag tone="info" size="sm">
+        {activeFilterCount}
+       </Tag>
+      ) : null}
+     </Button>
+     <MobileFilterSheet
+      open={filtersOpen}
+      onClose={() => setFiltersOpen(false)}
+      title="篩選試堂"
+      activeCount={activeFilterCount}
+      onReset={resetFilters}
+     >
+      {renderTrialFilterPanel()}
+     </MobileFilterSheet>
+    </>
+   ) : (
+    <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+     {renderTrialFilterPanel()}
     </div>
-    <div className="flex flex-col gap-2 border-t border-dashed border-border pt-3">
-     <span className="text-xs font-medium text-muted-foreground">類型</span>
-     <div className="flex flex-wrap gap-2" role="tablist">
-      {(
-       [
-        ["all", `全部 ${typeCounts.all}`],
-        ["free", `免費試堂 ${typeCounts.free}`],
-        ["half", `半價試堂 ${typeCounts.half}`],
-        ["full", `原價試堂 ${typeCounts.full}`],
-       ] as const
-      ).map(([id, label]) => (
-       <button
-        key={id}
-        type="button"
-        role="tab"
-        aria-selected={typeTab === id}
-        onClick={() => setTypeTab(id)}
-        className={cn(
-         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
-         typeTab === id
-          ? "border-info bg-info text-white shadow-sm"
-          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-        )}
-       >
-        {label}
-       </button>
-      ))}
-     </div>
-    </div>
-    <div className="flex flex-wrap items-end gap-2 border-t border-dashed border-border pt-3">
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>試堂日起</span>
-      <Input
-       type="date"
-       value={filterDateFrom}
-       onChange={(e) => setFilterDateFrom(e.target.value)}
-       className="h-9 w-[11rem]"
-      />
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>試堂日迄</span>
-      <Input
-       type="date"
-       value={filterDateTo}
-       onChange={(e) => setFilterDateTo(e.target.value)}
-       className="h-9 w-[11rem]"
-      />
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>科目</span>
-      <Select
-       className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
-       value={filterSubject}
-       onChange={(e) => setFilterSubject(e.target.value)}
-      >
-       <option value="all">全部科目</option>
-       {subjectOptions.map((sub) => (
-        <option key={sub} value={sub}>
-         {sub}
-        </option>
-       ))}
-      </Select>
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>老師</span>
-      <Select
-       className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
-       value={filterTeacherId}
-       onChange={(e) => setFilterTeacherId(e.target.value)}
-      >
-       <option value="all">全部老師</option>
-       {teachers.map((t) => (
-        <option key={t.id} value={t.id}>
-         {t.full_name}
-        </option>
-       ))}
-      </Select>
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>年級</span>
-      <Select
-       className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
-       value={filterGrade}
-       onChange={(e) => setFilterGrade(e.target.value)}
-      >
-       <option value="all">全部年級</option>
-       {gradeOptions.map((g) => (
-        <option key={g} value={g}>
-         {g}
-        </option>
-       ))}
-      </Select>
-     </label>
-    </div>
-   </div>
+   )}
 
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>
@@ -488,7 +611,10 @@ export function TrialSessionsView() {
           </Select>
          </td>
          <td className="max-w-[10rem] px-3 py-2 align-top text-xs text-muted-foreground">
-          {r.remarks ?? "—"}
+          {r.receipt_number ? (
+           <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
+          ) : null}
+          {r.remarks ?? (r.receipt_number ? null : "—")}
          </td>
          <td className="px-3 py-2 align-top">
           <button
@@ -662,13 +788,65 @@ export function TrialSessionsView() {
        <span className="text-muted-foreground">備註（選填）</span>
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
+      {(trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full") ? (
+       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+        半價／原價試堂須先完成收款（已付＋1 堂或連堂節數），再建立試堂並寫入收據編號。
+       </p>
+      ) : null}
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
        <Button type="button" disabled={addSaving} onClick={() => void submitAdd()}>
-        {addSaving ? "儲存中…" : "儲存"}
+        {addSaving
+         ? "處理中…"
+         : trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full"
+           ? "下一步：收費"
+           : "儲存"}
+       </Button>
+      </div>
+     </div>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog open={payOpen} onOpenChange={setPayOpen}>
+    <DialogContent className="max-w-md">
+     <DialogHeader>
+      <DialogTitle>試堂收費</DialogTitle>
+     </DialogHeader>
+     <div className="grid gap-3 text-sm">
+      <p className="text-muted-foreground">
+       類型：{addTrialType}
+       {payUnitPreview != null ? (
+        <>
+         {" "}
+         · 每堂 HKD {payUnitPreview}
+         {payAmountPreview != null ? `（若連堂將按節數加總）` : null}
+        </>
+       ) : null}
+      </p>
+      <label className="grid gap-1">
+       <span className="text-muted-foreground">付款方式</span>
+       <Select
+        className="h-9 w-full rounded-md border border-input px-2"
+        value={payMethod}
+        onChange={(e) => setPayMethod(e.target.value)}
+       >
+        {PAYMENT_METHOD_PRESETS.map((m) => (
+         <option key={m} value={m}>
+          {m}
+         </option>
+        ))}
+       </Select>
+      </label>
+      {addErr ? <p className="text-destructive">{addErr}</p> : null}
+      <div className="flex justify-end gap-2 pt-2">
+       <Button type="button" variant="outline" disabled={addSaving} onClick={() => setPayOpen(false)}>
+        返回
+       </Button>
+       <Button type="button" disabled={addSaving} onClick={() => void confirmPaidTrial()}>
+        {addSaving ? "入帳中…" : "確認收款並建立試堂"}
        </Button>
       </div>
      </div>
