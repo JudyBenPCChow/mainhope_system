@@ -1,6 +1,7 @@
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  enrollmentCoversPeriod,
+ enrollmentVisibleOnSchedule,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfigsByIds,
  isSingleSessionEnrollment,
@@ -8,6 +9,7 @@ import {
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
+import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  LESSON_SLOT_DURATION_MIN,
  intervalsOverlapMinutes,
@@ -193,23 +195,40 @@ export async function fetchEnrollmentRosterByClassIds(
 
 export type DayViewRosterStudent = { studentId: string; fullName: string }
 
+type DayViewEnrollmentRow = {
+ enrollmentId: string
+ classId: string
+ studentId: string
+ fullName: string
+ enrollmentPeriod: ReturnType<typeof normalizeEnrollmentPeriod>
+}
+
 /**
- * 日視圖專用：批次取各班就讀中學生（依 scheduleDate 過濾暑期期數；單堂一律排除）。
- * 語意對齊 fetchClassStudents(classId, { scheduleDate, activeOnly: true })。
+ * 日視圖專用：批次取各排程當堂就讀生（暑期期數＋單堂選堂）。
+ * 語意對齊 fetchClassStudents(classId, { scheduleDate, scheduleId, activeOnly: true })。
+ * 回傳 Map 以 schedule id 為鍵（單堂生只出現在已選堂）。
  */
-export async function fetchDayViewRosterByClassIds(
- classIds: string[],
- scheduleDate: string
+export async function fetchDayViewRosterBySchedules(
+ schedules: { id: string; class_id: string | null; scheduled_date: string }[]
 ): Promise<Map<string, DayViewRosterStudent[]>> {
  const m = new Map<string, DayViewRosterStudent[]>()
- for (const id of classIds) m.set(id, [])
- if (!supabase || classIds.length === 0) return m
+ for (const s of schedules) m.set(s.id, [])
+ if (!supabase || schedules.length === 0) return m
+
+ const classIds = [
+  ...new Set(
+   schedules
+    .map((s) => s.class_id)
+    .filter((id): id is string => id != null && id !== "")
+  ),
+ ]
+ if (classIds.length === 0) return m
 
  const [enrollmentChunks, configByClass] = await Promise.all([
   forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
    const { data, error } = await supabase!
     .from("student_class_enrollments")
-    .select("class_id, student_id, enrollment_period, students ( full_name )")
+    .select("id, class_id, student_id, enrollment_period, students ( full_name )")
     .in("class_id", slice)
     .eq("status", "就讀中")
    if (error) throw error
@@ -217,6 +236,31 @@ export async function fetchDayViewRosterByClassIds(
   }),
   fetchClassEnrollmentConfigsByIds(classIds),
  ])
+
+ const enrollments: DayViewEnrollmentRow[] = []
+ for (const data of enrollmentChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const classId = String(r.class_id ?? "")
+   if (!classId) continue
+   const st = r.students as Record<string, unknown> | null
+   const fullName = st?.full_name != null ? String(st.full_name).trim() : "—"
+   enrollments.push({
+    enrollmentId: String(r.id),
+    classId,
+    studentId: String(r.student_id),
+    fullName: fullName || "—",
+    enrollmentPeriod: normalizeEnrollmentPeriod(
+     r.enrollment_period != null ? String(r.enrollment_period) : null
+    ),
+   })
+  }
+ }
+
+ const singleIds = enrollments
+  .filter((row) => isSingleSessionEnrollment(row.enrollmentPeriod))
+  .map((row) => row.enrollmentId)
+ const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
 
  const yearIds = [
   ...new Set(
@@ -235,44 +279,45 @@ export async function fetchDayViewRosterByClassIds(
   })
  )
 
- const periodCodeByClass = new Map<string, 1 | 2 | null>()
- for (const classId of classIds) {
-  const config = configByClass.get(classId)
-  if (!config || !isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
-   periodCodeByClass.set(classId, null)
-   continue
-  }
-  const periods = periodsByYear.get(config.academicYearId) ?? []
-  periodCodeByClass.set(classId, resolvePeriodCodeFromDate(scheduleDate, periods))
+ const enrollmentsByClass = new Map<string, DayViewEnrollmentRow[]>()
+ for (const row of enrollments) {
+  const list = enrollmentsByClass.get(row.classId) ?? []
+  list.push(row)
+  enrollmentsByClass.set(row.classId, list)
  }
 
- for (const data of enrollmentChunks) {
-  for (const row of data) {
-   const r = row as Record<string, unknown>
-   const cid = String(r.class_id ?? "")
-   if (!cid) continue
-   const enrollmentPeriod = normalizeEnrollmentPeriod(
-    r.enrollment_period != null ? String(r.enrollment_period) : null
-   )
-   // 日視圖有 scheduleDate、無 scheduleId → 單堂一律排除
-   if (isSingleSessionEnrollment(enrollmentPeriod)) continue
-   const periodCode = periodCodeByClass.get(cid) ?? null
-   if (periodCode != null && !enrollmentCoversPeriod(enrollmentPeriod, periodCode)) continue
-
-   const st = r.students as Record<string, unknown> | null
-   const fullName = st?.full_name != null ? String(st.full_name).trim() : "—"
-   const list = m.get(cid) ?? []
-   list.push({
-    studentId: String(r.student_id),
-    fullName: fullName || "—",
-   })
-   m.set(cid, list)
+ for (const s of schedules) {
+  if (!s.class_id) continue
+  const config = configByClass.get(s.class_id)
+  let periodCode: 1 | 2 | null = null
+  if (config && isSummerTwoPeriodMode(config.courseMode) && config.academicYearId) {
+   const periods = periodsByYear.get(config.academicYearId) ?? []
+   periodCode = resolvePeriodCodeFromDate(s.scheduled_date, periods)
   }
- }
 
- for (const list of m.values()) {
+  const list: DayViewRosterStudent[] = []
+  for (const row of enrollmentsByClass.get(s.class_id) ?? []) {
+   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
+    const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
+    if (
+     !enrollmentVisibleOnSchedule({
+      enrollmentPeriod: row.enrollmentPeriod,
+      periodCode,
+      scheduleId: s.id,
+      enrolledScheduleIds: enrolled,
+     })
+    ) {
+     continue
+    }
+   } else if (periodCode != null && !enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)) {
+    continue
+   }
+   list.push({ studentId: row.studentId, fullName: row.fullName })
+  }
   list.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+  m.set(s.id, list)
  }
+
  return m
 }
 

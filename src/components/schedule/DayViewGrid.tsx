@@ -208,6 +208,7 @@ export function DayViewScheduleCard({
 type Props = {
  dayViewDate: string
  schedules: ScheduleManageRow[]
+ /** 各排程當堂就讀生姓名（key = schedule id；含單堂已選堂） */
  studentRoster: Map<string, string[]>
  /** 學生名單尚在載入（顯示占位、不標空班灰卡） */
  rosterLoading?: boolean
@@ -267,7 +268,7 @@ export function DayViewGrid({
   <DayViewScheduleCard
    key={s.id}
    schedule={s}
-   studentNames={s.class_id ? (studentRoster.get(s.class_id) ?? []) : []}
+   studentNames={studentRoster.get(s.id) ?? []}
    studentsLoading={rosterLoading}
    variant={variant}
    empty={emptyScheduleIds?.has(s.id) ?? false}

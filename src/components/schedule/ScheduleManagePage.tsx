@@ -101,7 +101,7 @@ import { consecutivePairFromFirstTimeSlot, isConsecutiveClass, resolveLessonRemi
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
- fetchDayViewRosterByClassIds,
+ fetchDayViewRosterBySchedules,
  fetchNearestScheduleDate,
  fetchScheduleAlerts,
  fetchSchedulesInRange,
@@ -390,9 +390,9 @@ export function ScheduleManagePage() {
  const [listMakeupStudents, setListMakeupStudents] = useState<ScheduleRosterStudent[]>([])
  const [listNotEnrolledStudents, setListNotEnrolledStudents] = useState<ScheduleRosterStudent[]>([])
  const [listStudentsLoading, setListStudentsLoading] = useState(false)
- const [dayViewRosterByClass, setDayViewRosterByClass] = useState<Map<string, DayViewRosterStudent[]>>(
-  new Map()
- )
+ const [dayViewRosterBySchedule, setDayViewRosterBySchedule] = useState<
+  Map<string, DayViewRosterStudent[]>
+ >(new Map())
  const [dayViewLeaveByScheduleId, setDayViewLeaveByScheduleId] = useState<
   Map<string, ScheduleLeaveSnapshot>
  >(new Map())
@@ -918,14 +918,13 @@ useEffect(() => {
 
  useEffect(() => {
   if (effectiveViewMode !== "day") {
-   setDayViewRosterByClass(new Map())
+   setDayViewRosterBySchedule(new Map())
    setDayViewLeaveByScheduleId(new Map())
    setDayViewRosterLoading(false)
    return
   }
-  const classIds = [...new Set(dayFiltered.map((s) => s.class_id).filter(Boolean) as string[])]
-  if (classIds.length === 0) {
-   setDayViewRosterByClass(new Map())
+  if (dayFiltered.length === 0) {
+   setDayViewRosterBySchedule(new Map())
    setDayViewLeaveByScheduleId(new Map())
    setDayViewRosterLoading(false)
    return
@@ -933,18 +932,18 @@ useEffect(() => {
   let cancelled = false
   setDayViewRosterLoading(true)
   void Promise.all([
-   fetchDayViewRosterByClassIds(classIds, dayViewDate),
+   fetchDayViewRosterBySchedules(dayFiltered),
    fetchLeaveInfoForSchedules(dayFiltered),
   ])
    .then(([rosterMap, leaveMap]) => {
     if (cancelled) return
-    setDayViewRosterByClass(rosterMap)
+    setDayViewRosterBySchedule(rosterMap)
     setDayViewLeaveByScheduleId(leaveMap)
    })
    .catch((e) => {
     if (cancelled) return
     reportUserFacingError(e, { source: "ScheduleManagePage.dayViewRoster" })
-    setDayViewRosterByClass(new Map())
+    setDayViewRosterBySchedule(new Map())
     setDayViewLeaveByScheduleId(new Map())
    })
    .finally(() => {
@@ -953,18 +952,18 @@ useEffect(() => {
   return () => {
    cancelled = true
   }
- }, [effectiveViewMode, dayFiltered, dayViewDate])
+ }, [effectiveViewMode, dayFiltered])
 
  const dayViewRoster = useMemo(() => {
   const m = new Map<string, string[]>()
-  for (const [classId, students] of dayViewRosterByClass.entries()) {
+  for (const [scheduleId, students] of dayViewRosterBySchedule.entries()) {
    m.set(
-    classId,
+    scheduleId,
     students.map((st) => st.fullName)
    )
   }
   return m
- }, [dayViewRosterByClass])
+ }, [dayViewRosterBySchedule])
 
  /** 日視圖細分標籤與灰卡；名單未就緒時不標灰／不推斷空班，避免誤判 */
  const { emptyScheduleIds, extraTagsByScheduleId } = useMemo(() => {
@@ -975,7 +974,7 @@ useEffect(() => {
   for (const s of dayFiltered) {
    if (!s.class_id) continue
    const hasTrial = alerts.get(s.id)?.trial ?? false
-   const roster = dayViewRosterByClass.get(s.class_id) ?? []
+   const roster = dayViewRosterBySchedule.get(s.id) ?? []
    const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SNAPSHOT
    const leaveAmongRosterCount = roster.filter((st) => leave.studentIds.has(st.studentId)).length
    const tagInput = {
@@ -989,7 +988,7 @@ useEffect(() => {
    if (isDayViewIdleCard(tagInput)) emptyIds.add(s.id)
   }
   return { emptyScheduleIds: emptyIds, extraTagsByScheduleId: tagsById }
- }, [dayFiltered, dayViewRosterByClass, dayViewLeaveByScheduleId, alerts, dayViewRosterLoading])
+ }, [dayFiltered, dayViewRosterBySchedule, dayViewLeaveByScheduleId, alerts, dayViewRosterLoading])
 
  const roomColumns = useMemo(
   () => classroomsActiveOnDate(rooms, dayViewDate),
