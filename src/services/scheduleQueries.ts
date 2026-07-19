@@ -203,10 +203,94 @@ type DayViewEnrollmentRow = {
  enrollmentPeriod: ReturnType<typeof normalizeEnrollmentPeriod>
 }
 
+/** 日視圖：各排程未完成／未取消的試堂生（依 schedule_id） */
+async function fetchDayViewTrialStudentsByScheduleIds(
+ scheduleIds: string[]
+): Promise<Map<string, DayViewRosterStudent[]>> {
+ const map = new Map<string, DayViewRosterStudent[]>()
+ for (const id of scheduleIds) map.set(id, [])
+ if (!supabase || scheduleIds.length === 0) return map
+
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select("schedule_id, student_id, status, students ( full_name )")
+   .in("schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const status = String(r.status ?? "")
+   if (status.includes("完成") || status.includes("取消")) continue
+   const scheduleId = r.schedule_id != null ? String(r.schedule_id) : ""
+   if (!scheduleId || !map.has(scheduleId)) continue
+   const st = r.students as Record<string, unknown> | null
+   const fullName = st?.full_name != null ? String(st.full_name).trim() : "—"
+   map.get(scheduleId)!.push({
+    studentId: String(r.student_id),
+    fullName: fullName || "—",
+   })
+  }
+ }
+ return map
+}
+
+/** 日視圖：以本排程為補堂目標的學生（makeup_schedule_id） */
+async function fetchDayViewMakeupStudentsByScheduleIds(
+ scheduleIds: string[]
+): Promise<Map<string, DayViewRosterStudent[]>> {
+ const map = new Map<string, DayViewRosterStudent[]>()
+ for (const id of scheduleIds) map.set(id, [])
+ if (!supabase || scheduleIds.length === 0) return map
+
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select("makeup_schedule_id, student_id, students ( full_name )")
+   .in("makeup_schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+
+ for (const data of chunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const scheduleId = r.makeup_schedule_id != null ? String(r.makeup_schedule_id) : ""
+   if (!scheduleId || !map.has(scheduleId)) continue
+   const st = r.students as Record<string, unknown> | null
+   const fullName = st?.full_name != null ? String(st.full_name).trim() : "—"
+   map.get(scheduleId)!.push({
+    studentId: String(r.student_id),
+    fullName: fullName || "—",
+   })
+  }
+ }
+ return map
+}
+
+function mergeDayViewRosterStudents(
+ base: DayViewRosterStudent[],
+ extras: DayViewRosterStudent[]
+): DayViewRosterStudent[] {
+ const seen = new Set(base.map((s) => s.studentId))
+ const out = [...base]
+ for (const s of extras) {
+  if (seen.has(s.studentId)) continue
+  seen.add(s.studentId)
+  out.push(s)
+ }
+ out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+ return out
+}
+
 /**
- * 日視圖專用：批次取各排程當堂就讀生（暑期期數＋單堂選堂）。
- * 語意對齊 fetchClassStudents(classId, { scheduleDate, scheduleId, activeOnly: true })。
- * 回傳 Map 以 schedule id 為鍵（單堂生只出現在已選堂）。
+ * 日視圖專用：各排程「上堂名單」＝就讀報讀（暑期期數＋單堂選堂）＋試堂生＋補堂生。
+ * 報讀語意對齊 fetchClassStudents(classId, { scheduleDate, scheduleId, activeOnly: true })；
+ * 試堂／補堂對齊點名紙（未完成／未取消試堂；makeup_schedule_id＝本堂）。
+ * 回傳 Map 以 schedule id 為鍵。
  */
 export async function fetchDayViewRosterBySchedules(
  schedules: { id: string; class_id: string | null; scheduled_date: string }[]
@@ -215,6 +299,7 @@ export async function fetchDayViewRosterBySchedules(
  for (const s of schedules) m.set(s.id, [])
  if (!supabase || schedules.length === 0) return m
 
+ const scheduleIds = schedules.map((s) => s.id)
  const classIds = [
   ...new Set(
    schedules
@@ -222,19 +307,24 @@ export async function fetchDayViewRosterBySchedules(
     .filter((id): id is string => id != null && id !== "")
   ),
  ]
- if (classIds.length === 0) return m
 
- const [enrollmentChunks, configByClass] = await Promise.all([
-  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-   const { data, error } = await supabase!
-    .from("student_class_enrollments")
-    .select("id, class_id, student_id, enrollment_period, students ( full_name )")
-    .in("class_id", slice)
-    .eq("status", "就讀中")
-   if (error) throw error
-   return data ?? []
-  }),
-  fetchClassEnrollmentConfigsByIds(classIds),
+ const [enrollmentChunks, configByClass, trialBySchedule, makeupBySchedule] = await Promise.all([
+  classIds.length > 0
+   ? forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+      const { data, error } = await supabase!
+       .from("student_class_enrollments")
+       .select("id, class_id, student_id, enrollment_period, students ( full_name )")
+       .in("class_id", slice)
+       .eq("status", "就讀中")
+      if (error) throw error
+      return data ?? []
+     })
+   : Promise.resolve([] as Record<string, unknown>[][]),
+  classIds.length > 0
+   ? fetchClassEnrollmentConfigsByIds(classIds)
+   : Promise.resolve(new Map() as Awaited<ReturnType<typeof fetchClassEnrollmentConfigsByIds>>),
+  fetchDayViewTrialStudentsByScheduleIds(scheduleIds),
+  fetchDayViewMakeupStudentsByScheduleIds(scheduleIds),
  ])
 
  const enrollments: DayViewEnrollmentRow[] = []
@@ -287,35 +377,43 @@ export async function fetchDayViewRosterBySchedules(
  }
 
  for (const s of schedules) {
-  if (!s.class_id) continue
-  const config = configByClass.get(s.class_id)
-  let periodCode: 1 | 2 | null = null
-  if (config && isSummerTwoPeriodMode(config.courseMode) && config.academicYearId) {
-   const periods = periodsByYear.get(config.academicYearId) ?? []
-   periodCode = resolvePeriodCodeFromDate(s.scheduled_date, periods)
-  }
+  const enrolledList: DayViewRosterStudent[] = []
+  if (s.class_id) {
+   const config = configByClass.get(s.class_id)
+   let periodCode: 1 | 2 | null = null
+   if (config && isSummerTwoPeriodMode(config.courseMode) && config.academicYearId) {
+    const periods = periodsByYear.get(config.academicYearId) ?? []
+    periodCode = resolvePeriodCodeFromDate(s.scheduled_date, periods)
+   }
 
-  const list: DayViewRosterStudent[] = []
-  for (const row of enrollmentsByClass.get(s.class_id) ?? []) {
-   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
-    const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
-    if (
-     !enrollmentVisibleOnSchedule({
-      enrollmentPeriod: row.enrollmentPeriod,
-      periodCode,
-      scheduleId: s.id,
-      enrolledScheduleIds: enrolled,
-     })
-    ) {
+   for (const row of enrollmentsByClass.get(s.class_id) ?? []) {
+    if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
+     const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
+     if (
+      !enrollmentVisibleOnSchedule({
+       enrollmentPeriod: row.enrollmentPeriod,
+       periodCode,
+       scheduleId: s.id,
+       enrolledScheduleIds: enrolled,
+      })
+     ) {
+      continue
+     }
+    } else if (periodCode != null && !enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)) {
      continue
     }
-   } else if (periodCode != null && !enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)) {
-    continue
+    enrolledList.push({ studentId: row.studentId, fullName: row.fullName })
    }
-   list.push({ studentId: row.studentId, fullName: row.fullName })
   }
-  list.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
-  m.set(s.id, list)
+
+  const withTrials = mergeDayViewRosterStudents(
+   enrolledList,
+   trialBySchedule.get(s.id) ?? []
+  )
+  m.set(
+   s.id,
+   mergeDayViewRosterStudents(withTrials, makeupBySchedule.get(s.id) ?? [])
+  )
  }
 
  return m

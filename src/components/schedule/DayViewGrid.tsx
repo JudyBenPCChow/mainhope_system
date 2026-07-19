@@ -100,7 +100,7 @@ export function DayViewScheduleCard({
  /** 學生名單尚在載入：顯示占位，勿當成空班 */
  studentsLoading?: boolean
  variant: "assigned" | "unassigned"
- /** 實際不用上堂（無人報讀或全員請假）：以灰色淡化顯示 */
+ /** 實際不用上堂（上堂名單空或全員請假）：以灰色淡化顯示 */
  empty?: boolean
  /** 細分標籤：無人報讀／所有學生請假／請假生／試堂生／網課生／要錄影 */
  extraTags?: string[]
@@ -212,7 +212,7 @@ type Props = {
  studentRoster: Map<string, string[]>
  /** 學生名單尚在載入（顯示占位、不標空班灰卡） */
  rosterLoading?: boolean
- /** 實際不用上堂（無人報讀或全員請假）的排程 id，將以灰色淡化顯示 */
+ /** 實際不用上堂（上堂名單空或全員請假）的排程 id，將以灰色淡化顯示 */
  emptyScheduleIds?: ReadonlySet<string>
  /** 日視圖細分標籤（不含 status／加堂） */
  extraTagsByScheduleId?: ReadonlyMap<string, string[]>

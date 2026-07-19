@@ -2,7 +2,7 @@
 
 export type DayViewTagInput = {
  rosterCount: number
- /** 班內就讀生中，當日請假人數 */
+ /** 上堂名單中，當日請假人數 */
  leaveAmongRosterCount: number
  hasTrial: boolean
  hasOnlineMakeup: boolean
@@ -25,7 +25,7 @@ export function isRecordLeaveMakeup(makeupType: string | null | undefined): bool
  return /錄影|錄像|錄音/.test(String(makeupType ?? ""))
 }
 
-/** 實際不用上堂（無人報讀或全員請假）；有試堂生則仍需上堂，不標灰 */
+/** 實際不用上堂（上堂名單空或全員請假）；有試堂生則仍需上堂，不標灰 */
 export function isDayViewIdleCard(input: {
  rosterCount: number
  leaveAmongRosterCount: number

@@ -972,7 +972,6 @@ useEffect(() => {
   if (dayViewRosterLoading) return { emptyScheduleIds: emptyIds, extraTagsByScheduleId: tagsById }
 
   for (const s of dayFiltered) {
-   if (!s.class_id) continue
    const hasTrial = alerts.get(s.id)?.trial ?? false
    const roster = dayViewRosterBySchedule.get(s.id) ?? []
    const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SNAPSHOT
@@ -1428,7 +1427,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂（無人報讀或全員請假）的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖學生列為上堂名單（報讀＋試堂＋補堂），並以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
