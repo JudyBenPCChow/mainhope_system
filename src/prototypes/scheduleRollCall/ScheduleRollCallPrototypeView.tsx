@@ -246,7 +246,6 @@ export function ScheduleRollCallPrototypeView() {
      <DayViewGrid
       dayViewDate={PROTOTYPE_TODAY}
       schedules={schedules}
-      alerts={alerts}
       studentRoster={studentRoster}
       roomColumns={rooms}
       activeRoomIdSet={activeRoomIdSet}

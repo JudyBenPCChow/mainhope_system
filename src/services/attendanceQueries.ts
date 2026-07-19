@@ -21,6 +21,7 @@ import {
  fetchSingleSessionNotOnSchedule,
 } from "@/services/enrollmentSessionQueries"
 import { isBillableAttendanceStatus, prefillStatusFromLeave } from "@/lib/attendanceBilling"
+import { isOnlineLeaveMakeup, isRecordLeaveMakeup } from "@/lib/scheduleDayViewTags"
 
 export {
  ATTENDANCE_STATUS_OPTIONS,
@@ -246,17 +247,30 @@ export async function fetchLeaveStudentIdsForLesson(
  return new Set(m.keys())
 }
 
+/** 日視圖／批次用：本堂請假學生與補堂安排類型 */
+export type ScheduleLeaveSnapshot = {
+ studentIds: Set<string>
+ /** 請假補堂安排含網課／線上／zoom 等 */
+ hasOnlineMakeup: boolean
+ /** 請假補堂安排含錄影／錄像／錄音 */
+ hasRecordMakeup: boolean
+}
+
+function emptyLeaveSnapshot(): ScheduleLeaveSnapshot {
+ return { studentIds: new Set(), hasOnlineMakeup: false, hasRecordMakeup: false }
+}
+
 /**
- * 批次：多個排程各自的「本堂請假」學生 id。
+ * 批次：多個排程各自的「本堂請假」學生與補堂類型旗標。
  * 一筆請假紀錄套用到某排程的條件（與 fetchLeaveStudentsForSchedule 一致）：
  * 已連結該排程（schedule_id 相符），或同班同日（class_id + leave_date 相符）。
- * 主要用途：日視圖判斷排程是否「全員請假／沒有學生」。
+ * 主要用途：日視圖標籤（無人報讀／全員請假／網課生／要錄影）與灰卡。
  */
-export async function fetchLeaveStudentIdsForSchedules(
+export async function fetchLeaveInfoForSchedules(
  schedules: { id: string; class_id: string | null; scheduled_date: string }[]
-): Promise<Map<string, Set<string>>> {
- const map = new Map<string, Set<string>>()
- for (const s of schedules) map.set(s.id, new Set())
+): Promise<Map<string, ScheduleLeaveSnapshot>> {
+ const map = new Map<string, ScheduleLeaveSnapshot>()
+ for (const s of schedules) map.set(s.id, emptyLeaveSnapshot())
  if (!supabase || schedules.length === 0) return map
 
  const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
@@ -268,7 +282,7 @@ export async function fetchLeaveStudentIdsForSchedules(
  const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("leave_makeup_records")
-   .select("student_id, schedule_id, class_id, leave_date")
+   .select("student_id, schedule_id, class_id, leave_date, makeup_type")
    .in("class_id", slice)
    .in("leave_date", dates)
   if (error) throw error
@@ -282,15 +296,33 @@ export async function fetchLeaveStudentIdsForSchedules(
     schedule_id: string | null
     class_id: string
     leave_date: string
+    makeup_type: string | null
    }
    const sid = String(r.student_id)
+   const online = isOnlineLeaveMakeup(r.makeup_type)
+   const record = isRecordLeaveMakeup(r.makeup_type)
    for (const s of schedules) {
     const linked = r.schedule_id != null && r.schedule_id === s.id
     const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
-    if (linked || sameClassDate) map.get(s.id)?.add(sid)
+    if (!linked && !sameClassDate) continue
+    const snap = map.get(s.id)
+    if (!snap) continue
+    snap.studentIds.add(sid)
+    if (online) snap.hasOnlineMakeup = true
+    if (record) snap.hasRecordMakeup = true
    }
   }
  }
+ return map
+}
+
+/** 批次：多個排程各自的「本堂請假」學生 id（包裝 fetchLeaveInfoForSchedules）。 */
+export async function fetchLeaveStudentIdsForSchedules(
+ schedules: { id: string; class_id: string | null; scheduled_date: string }[]
+): Promise<Map<string, Set<string>>> {
+ const info = await fetchLeaveInfoForSchedules(schedules)
+ const map = new Map<string, Set<string>>()
+ for (const [id, snap] of info) map.set(id, snap.studentIds)
  return map
 }
 

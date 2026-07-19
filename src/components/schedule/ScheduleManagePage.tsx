@@ -57,6 +57,10 @@ import {
  snapTimesToStandardSlot,
  standardSlotIndexForSchedule,
 } from "@/lib/scheduleDayView"
+import {
+ buildDayViewExtraTags,
+ isDayViewIdleCard,
+} from "@/lib/scheduleDayViewTags"
 import { addDaysYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -71,11 +75,12 @@ import { isAdmin, isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
- fetchLeaveStudentIdsForSchedules,
+ fetchLeaveInfoForSchedules,
  fetchLeaveStudentsForSchedule,
  fetchMakeupStudentsForSchedule,
  fetchScheduleIdsWithRollCallTargets,
  fetchTrialStudentsForSchedule,
+ type ScheduleLeaveSnapshot,
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
 import { fetchSingleSessionNotOnSchedule } from "@/services/enrollmentSessionQueries"
@@ -143,7 +148,11 @@ type PendingMove = {
  alignedToStandard: boolean
 }
 
-const EMPTY_LEAVE_SET: ReadonlySet<string> = new Set()
+const EMPTY_LEAVE_SNAPSHOT: ScheduleLeaveSnapshot = {
+ studentIds: new Set(),
+ hasOnlineMakeup: false,
+ hasRecordMakeup: false,
+}
 
 /** 課室僅在該日開放時才算已編排 */
 function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string>): string | null {
@@ -384,9 +393,9 @@ export function ScheduleManagePage() {
  const [dayViewRosterByClass, setDayViewRosterByClass] = useState<Map<string, DayViewRosterStudent[]>>(
   new Map()
  )
- const [dayViewLeaveByScheduleId, setDayViewLeaveByScheduleId] = useState<Map<string, Set<string>>>(
-  new Map()
- )
+ const [dayViewLeaveByScheduleId, setDayViewLeaveByScheduleId] = useState<
+  Map<string, ScheduleLeaveSnapshot>
+ >(new Map())
  const [dayViewRosterLoading, setDayViewRosterLoading] = useState(false)
  const [assigning, setAssigning] = useState(false)
 
@@ -925,7 +934,7 @@ useEffect(() => {
   setDayViewRosterLoading(true)
   void Promise.all([
    fetchDayViewRosterByClassIds(classIds, dayViewDate),
-   fetchLeaveStudentIdsForSchedules(dayFiltered),
+   fetchLeaveInfoForSchedules(dayFiltered),
   ])
    .then(([rosterMap, leaveMap]) => {
     if (cancelled) return
@@ -957,24 +966,29 @@ useEffect(() => {
   return m
  }, [dayViewRosterByClass])
 
- /** 沒有任何學生（沒有報讀或全員請假，且無試堂學生）的排程；名單未就緒時不標灰，避免誤判 */
- const emptyScheduleIds = useMemo(() => {
-  const out = new Set<string>()
-  if (dayViewRosterLoading) return out
+ /** 日視圖細分標籤與灰卡；名單未就緒時不標灰／不推斷空班，避免誤判 */
+ const { emptyScheduleIds, extraTagsByScheduleId } = useMemo(() => {
+  const emptyIds = new Set<string>()
+  const tagsById = new Map<string, string[]>()
+  if (dayViewRosterLoading) return { emptyScheduleIds: emptyIds, extraTagsByScheduleId: tagsById }
+
   for (const s of dayFiltered) {
    if (!s.class_id) continue
    const hasTrial = alerts.get(s.id)?.trial ?? false
-   if (hasTrial) continue
    const roster = dayViewRosterByClass.get(s.class_id) ?? []
-   if (roster.length === 0) {
-    out.add(s.id)
-    continue
+   const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SNAPSHOT
+   const leaveAmongRosterCount = roster.filter((st) => leave.studentIds.has(st.studentId)).length
+   const tagInput = {
+    rosterCount: roster.length,
+    leaveAmongRosterCount,
+    hasTrial,
+    hasOnlineMakeup: leave.hasOnlineMakeup,
+    hasRecordMakeup: leave.hasRecordMakeup,
    }
-   const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SET
-   const present = roster.filter((st) => !leave.has(st.studentId))
-   if (present.length === 0) out.add(s.id)
+   tagsById.set(s.id, buildDayViewExtraTags(tagInput))
+   if (isDayViewIdleCard(tagInput)) emptyIds.add(s.id)
   }
-  return out
+  return { emptyScheduleIds: emptyIds, extraTagsByScheduleId: tagsById }
  }, [dayFiltered, dayViewRosterByClass, dayViewLeaveByScheduleId, alerts, dayViewRosterLoading])
 
  const roomColumns = useMemo(
@@ -1415,7 +1429,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。沒有任何學生（沒有報讀或全員請假）的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂（無人報讀或全員請假）的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
@@ -1491,8 +1505,8 @@ useEffect(() => {
    </section>
 
    <p className="hidden rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 md:block">
-    <span className="font-medium">提醒圖示：</span>
-    鈴鐺為總覽；學士帽＝試堂、循環箭頭＝請假／補堂、攝影機＝備註需錄影、叉圈＝請假。各圖示可將滑鼠停在上面查看說明。
+    <span className="font-medium">提醒：</span>
+    按日期／列表的圖示：鈴鐺為總覽；學士帽＝試堂、循環箭頭＝請假／補堂、攝影機＝備註需錄影、叉圈＝請假（滑鼠停上可看說明）。日視圖改以文字標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影。
    </p>
 
    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
@@ -2240,10 +2254,10 @@ useEffect(() => {
       <DayViewGrid
        dayViewDate={dayViewDate}
        schedules={dayFiltered}
-       alerts={alerts}
        studentRoster={dayViewRoster}
        rosterLoading={dayViewRosterLoading}
        emptyScheduleIds={emptyScheduleIds}
+       extraTagsByScheduleId={extraTagsByScheduleId}
        roomColumns={roomColumns}
        activeRoomIdSet={activeRoomIdSet}
        roomColPct={dayViewRoomColPct}

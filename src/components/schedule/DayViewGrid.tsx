@@ -3,7 +3,6 @@ import { AlertTriangle, Move } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
-import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { roomColumnBgClass, roomColumnHeaderBgClass, UNASSIGNED_ROOM_LABEL } from "@/lib/classroomEligibility"
 import { LESSON_SLOT_COUNT, LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
 import {
@@ -15,7 +14,7 @@ import {
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import type { RoomRecord } from "@/services/classroomQueries"
-import type { ScheduleAlerts, ScheduleManageRow } from "@/services/scheduleQueries"
+import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 type RoomColumn = { id: string; label: string; isUnassigned: boolean }
 
@@ -85,11 +84,11 @@ function buildStandardGridPlan(
 
 export function DayViewScheduleCard({
  schedule,
- alerts,
  studentNames,
  studentsLoading,
  variant,
  empty,
+ extraTags,
  historyReadOnly,
  inactiveRoomName,
  onOpenDetail,
@@ -97,13 +96,14 @@ export function DayViewScheduleCard({
  onDragStart,
 }: {
  schedule: ScheduleManageRow
- alerts: ScheduleAlerts
  studentNames: string[]
  /** 學生名單尚在載入：顯示占位，勿當成空班 */
  studentsLoading?: boolean
  variant: "assigned" | "unassigned"
- /** 本堂沒有任何學生（沒有報讀或全員請假）：以灰色淡化顯示 */
+ /** 實際不用上堂（無人報讀或全員請假）：以灰色淡化顯示 */
  empty?: boolean
+ /** 細分標籤：無人報讀／所有學生請假／請假生／試堂生／網課生／要錄影 */
+ extraTags?: string[]
  historyReadOnly: boolean
  inactiveRoomName?: string | null
  onOpenDetail: () => void
@@ -147,15 +147,16 @@ export function DayViewScheduleCard({
     >
      {schedule.classLabel}
     </button>
-    <ScheduleAlertIcons alerts={alerts} />
    </div>
    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
     <Tag tone={statusToTagTone(schedule.status)} size="sm">
      {schedule.status}
     </Tag>
-    {empty ? (
-     <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">無學生</Tag>
-    ) : null}
+    {(extraTags ?? []).map((label) => (
+     <Tag key={label} tone={statusToTagTone(label)} size="sm">
+      {label}
+     </Tag>
+    ))}
     {schedule.is_extra_lesson ? (
      <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
     ) : null}
@@ -207,12 +208,13 @@ export function DayViewScheduleCard({
 type Props = {
  dayViewDate: string
  schedules: ScheduleManageRow[]
- alerts: Map<string, ScheduleAlerts>
  studentRoster: Map<string, string[]>
  /** 學生名單尚在載入（顯示占位、不標空班灰卡） */
  rosterLoading?: boolean
- /** 沒有任何學生（沒有報讀或全員請假）的排程 id，將以灰色淡化顯示 */
+ /** 實際不用上堂（無人報讀或全員請假）的排程 id，將以灰色淡化顯示 */
  emptyScheduleIds?: ReadonlySet<string>
+ /** 日視圖細分標籤（不含 status／加堂） */
+ extraTagsByScheduleId?: ReadonlyMap<string, string[]>
  roomColumns: RoomRecord[]
  activeRoomIdSet: ReadonlySet<string>
  roomColPct: { timePct: number; each: number }
@@ -226,10 +228,10 @@ type Props = {
 export function DayViewGrid({
  dayViewDate,
  schedules,
- alerts,
  studentRoster,
  rosterLoading = false,
  emptyScheduleIds,
+ extraTagsByScheduleId,
  roomColumns,
  activeRoomIdSet,
  roomColPct,
@@ -265,11 +267,11 @@ export function DayViewGrid({
   <DayViewScheduleCard
    key={s.id}
    schedule={s}
-   alerts={alerts.get(s.id) ?? { trial: false, makeup: false, leave: false, record: false }}
    studentNames={s.class_id ? (studentRoster.get(s.class_id) ?? []) : []}
    studentsLoading={rosterLoading}
    variant={variant}
    empty={emptyScheduleIds?.has(s.id) ?? false}
+   extraTags={extraTagsByScheduleId?.get(s.id) ?? []}
    historyReadOnly={scheduleRowLocked(s)}
    inactiveRoomName={inactiveRoomName(s)}
    onOpenDetail={() => onOpenDetail(s.id)}

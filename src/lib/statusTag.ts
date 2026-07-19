@@ -58,7 +58,13 @@ const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
  // 單堂報讀（高於泛用「報讀」）
  { tone: "info", keywords: ["單堂報讀", "單堂", "沒有報讀此堂", "未報讀此堂"] },
  // 排程列表：尚無報讀（高於泛用「報讀」，中性灰）
- { tone: "default", keywords: ["暫未有學生報讀"] },
+ { tone: "default", keywords: ["暫未有學生報讀", "無人報讀"] },
+ // 日視圖：全員請假／部分請假生
+ { tone: "warning", keywords: ["所有學生請假", "請假生"] },
+ // 日視圖：網課生／要錄影（高於泛用「試堂」）
+ { tone: "info", keywords: ["網課生", "要錄影"] },
+ // 日視圖：試堂生（高於泛用「試堂」）
+ { tone: "warning", keywords: ["試堂生"] },
  // 排程學生名單等：試堂來源（橙）；就讀來源（藍，見下一條）
  { tone: "warning", keywords: ["試堂"] },
  // 試堂 / 報讀：進行與預約態
