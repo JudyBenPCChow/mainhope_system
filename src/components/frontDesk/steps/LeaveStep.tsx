@@ -37,7 +37,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
  const [classId, setClassId] = useState("")
  const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([])
  const [reason, setReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
- const [makeup, setMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("錄影")
+ const [makeup, setMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [makeupScheduleId, setMakeupScheduleId] = useState("")
  const [remarks, setRemarks] = useState("")
  const [loading, setLoading] = useState(true)

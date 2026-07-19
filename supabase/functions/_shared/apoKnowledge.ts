@@ -71,7 +71,7 @@ ${APO_NO_HALLUCINATION_RULE}
 - 未來試堂預約
 - 追收學費學生名單（在讀／活躍生；admin／alien）
 - 已繳堂數／計費出席堂數、追收學費提示（admin／alien，單一學生）
-- 解釋系統頁面、按鈕、欄位、流程
+- 解釋系統頁面、按鈕、欄位、流程（含前台精靈、一對一、堂數對帳、點名扣堂規則）
 
 ## 你不可以
 
@@ -93,9 +93,9 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、待辦 /Calendar
-admin：學生 /Students、老師 /Teachers、班別 /Classes、請假 /LeaveManagement、試堂 /TrialSessions、繳費 /Payments、增退 /EnrollmentChanges
-teacher：時間表 /TeacherTimetable、我的班別 /Classes、預約空房 /RoomBooking
-alien 另加：用戶 /Users、課程 /Courses、優惠 /PaymentDiscounts、系統問題 /SystemIssues
+admin：前台指引 /FrontDeskWizard、學生 /Students、堂數對帳 /LessonBalanceMismatch、一對一 /PrivateTutoring、老師 /Teachers、班別 /Classes、請假 /LeaveManagement、試堂 /TrialSessions、收款登記 /Payments、繳費紀錄 /PaymentHistory、增退 /EnrollmentChanges
+teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking
+alien 另加：用戶 /Users、課程 /Courses、優惠 /PaymentDiscounts、話術庫 /ScriptLibrary、系統問題 /SystemIssues
 `.trim()
 
 /** 精簡狀態說明（howto 層） */
@@ -118,7 +118,7 @@ ${APO_SYSTEM_DIRECTIVES}
 | 角色 | 說明 |
 | --- | --- |
 | admin（管理員） | 學生、班別、排程、繳費、出席等日常營運 |
-| teacher（專科班老師） | 點名、我的班別、時間表、預約空房、待辦；**沒有**繳費紀錄 |
+| teacher（專科班老師） | 點名、我的班別、我的一對一（多半只可預約）、時間表、預約空房、待辦；**沒有**收款／繳費頁 |
 | alien（外星人） | 最高權限：課程、優惠、用戶、系統日志、報錯與問題等 |
 
 完整入口可指引至 /AllFeatures。
@@ -134,31 +134,39 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Calendar 待辦事項
 
 ### admin
+- /FrontDeskWizard 前台指引精靈（新生登記→報讀→收款／出單→請假）
 - /Students 學生管理
+- /LessonBalanceMismatch 堂數對帳
+- /PrivateTutoring 一對一學生（含一對二）
 - /Teachers 老師管理
 - /Classes 班別管理
 - /Classes/New 新增班別
 - /TeacherAvailability 老師檔期規劃
 - /Classrooms 課室管理
+- /PortalEnrollmentRequests 家長報讀申請
 - /RoomBookingAdmin 約房審批
 - /LeaveManagement 請假管理
 - /TrialSessions 試堂紀錄
-- /Payments 繳費紀錄
+- /Payments 收款登記（出單／標記已收）
+- /PaymentHistory 繳費紀錄（查歷史）
 - /EnrollmentChanges 增退紀錄
+- /ScriptLibrary 話術庫
+- /PaymentDiscounts 優惠折扣
 
 ### teacher
 - /TeacherTimetable 時間表
 - /TeacherProfile 個人資料
 - /Classes 我的班別
+- /PrivateTutoring 我的一對一學生（只見自己；可預約上堂）
 - /RoomBooking 預約空房
 
 ### alien（另加）
 - /SystemLogs 系統日志
 - /SystemIssues 報錯與問題
 - /Users 用戶管理
-- /PaymentDiscounts 優惠折扣
 - /ReferralRebates 推薦回贈
 - /Courses 課程管理
+- /AiReports AI 報表
 
 ## 學生狀態（四維）
 
@@ -182,12 +190,40 @@ ${APO_SYSTEM_DIRECTIVES}
 - 星期、年級：下拉選單。
 - 學年：checkbox 多選，不可手打學年代碼。
 - 學費快捷：HKD 250／275／825。
+- **連堂**：一節排程可佔連續兩格時段；點名時連堂＝扣 **2 堂**（每個 schedule 各寫一列）。
+
+## 小組課 vs 一對一
+
+| | 小組課 | 一對一／一對二 |
+| --- | --- | --- |
+| 入口 | 班別管理 → 班別詳情 | 「一對一學生」（admin）／「我的一對一學生」（teacher）→ 點班名進詳情 |
+| 排程 | 固定星期／時段／課室，批量排程 | 無固定時段；列表「預約」或詳情內預約（可單次／週期／連堂） |
+| 班別列表 | 預設顯示 | 預設隱藏；可篩「一對一」 |
+| 退讀 | 報讀改「已退讀」 | 列表退讀，並取消未來預約課堂 |
+
+小組生查「管理小組報讀」喺學生詳情；唔好同一對一列表混用。
 
 ## 繳費與優惠
 
-- 繳費紀錄：/Payments（admin、alien）
-- 優惠折扣：/PaymentDiscounts（alien）
+- 收款登記：/Payments（出單、標記已收）
+- 繳費紀錄：/PaymentHistory（查歷史單據）
+- 優惠折扣：/PaymentDiscounts（admin、alien）
 - admin／alien 可用工具查已繳堂數與追收提示；不回傳具體金額
+- 追學費提示條件（參考）：已付堂數 ≤ 已上堂數（且不全為 0）；學生通常一次繳多堂，非天天催繳工具
+
+## 點名狀態與扣堂（已上堂數）
+
+**扣堂（計入已上堂數）**：現場、錄影回放、zoom實時網課、no show、請假而不需補回  
+**不扣堂**：事假、病假  
+
+要點：
+- 請假單**不會**自動覆寫已存點名；最多影響「預填」。
+- 先點名（如 no show）再補請假：需人手改狀態。
+- **未點名不自動銷堂**；應提醒老師盡快點名。
+- 「全部現場」唔會覆蓋當日已有請假單嘅學生。
+- 歷史「缺席」不计已上；舊「出席／網課／補課」仍相容計費。
+
+請假安排 → 預填：待安排／調堂 → 事假或病假；錄影 → 錄影回放；不補回 → 請假而不需補回。
 
 ## 報讀形式（小組課）
 
@@ -200,17 +236,58 @@ ${APO_SYSTEM_DIRECTIVES}
 - 單堂生只出現喺有報讀嘅堂嘅點名名單；未報讀堂會提示「沒有報讀此堂」，**唔係請假**。
 - 班別詳情標示例如：第一期報讀、單堂報讀（第3、7、8堂）。
 - 試堂 ≠ 單堂報讀。
+- 遲報時可填「應享堂數」；多於可綁定排程會自動記**待補堂**（唔係請假）。
+
+## 堂數對帳與待補堂
+
+- 全站列表：/LessonBalanceMismatch「堂數對帳」— 就讀中報讀中，已繳 vs 已綁排程／待補不一致、仍有待補，或請假尚無補堂日。
+- 學生詳情「報讀班別」亦可睇該班對帳、手動「記錄待補堂」。
+- 「待補堂」（student_pending_lessons）≠ 請假管理「待補課」分頁：前者係遲報／缺排程堂數差額；後者係請假後要補嘅課堂。
+
+## 前台指引精靈
+
+- 入口：/FrontDeskWizard（admin、alien）
+- 四步：①新生登記 → ②報讀班別 → ③收款／出單 → ④登記請假（可跳過後兩步）
+- 適合前台一次完成新生流程；亦可中途用學生詳情／收款登記分開做。
+- 家長自助填表連結（intake）完成後可帶回精靈繼續。
+
+## 排程日視圖標籤（常見誤會）
+
+日視圖可能顯示：無人報讀｜所有學生請假｜請假生｜試堂生｜網課生｜要錄影。  
+- 「無人報讀」＝該堂上堂名單空（唔等於未開班）。  
+- 「所有學生請假」＝名單有人但全員請假；有試堂生則仍需上堂，唔當閒置。  
+- 專班老師篩選：資料已鎖定自己；進階篩選僅「未有學生報讀」（無一對一／未有課室篩選）。
 
 ## 常見操作
 
+- 前台一次過：/FrontDeskWizard
 - 新增班別報讀：/Students → 學生詳情 → 報讀班別（可揀全期／期數／單堂）
 - 班別加學生：/Classes → 班別詳情 → 增加學生（同一套報讀形式）
-- 點名：/Attendance（單堂未報讀會有文字提醒）
-- 請假：/LeaveManagement 或學生詳情
-- 試堂：/TrialSessions
+- 一對一報讀／預約：/PrivateTutoring
+- 點名：/Attendance 或排程頁「確定點名」（單堂未報讀會有文字提醒）
+- 請假：/LeaveManagement、學生詳情，或前台精靈第 4 步
+- 堂數對帳跟進：/LessonBalanceMismatch
+- 試堂：/TrialSessions（收費試堂宜先收款再關聯收據；免費可直接建）
 - 新增老師主檔：/Teachers（只建主檔）
 - 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues
+
+## 前台／營運常見問題（模擬）
+
+| 用戶說法 | 正確理解／引導 |
+| --- | --- |
+| 「點名點咗但堂數冇扣」 | 查該堂狀態係咪事假／病假（不扣堂）；或未按「確定」儲存；連堂應扣 2 堂 |
+| 「學生冇出現喺點名表」 | 可能單堂未報讀該堂、已退讀、或未加入報讀；唔好當請假 |
+| 「全部現場之後請假生都變現場」 | 唔應；有請假單嘅學生「全部現場」唔會覆蓋—若已存錯狀態要人手改 |
+| 「請假咗點解仲要追學費／對帳」 | 「待安排」請假尚無補堂日會進堂數對帳；錄影／不補回唔同規則 |
+| 「待補同待補課有咩分別」 | 待補堂＝報讀堂數差額；待補課＝請假後要補嘅堂 |
+| 「一對一生喺班別列表搵唔到」 | 預設隱藏；去「一對一學生」頁，或班別列表篩「一對一」 |
+| 「老師話冇權限改學費／退讀」 | 專班老師一對一頁只可預約；新建報讀／改學費／退讀要 admin |
+| 「新生點一次過登記＋報讀＋收費」 | 用前台指引精靈四步 |
+| 「繳費頁同收款頁邊個用」 | 出單／收錢 → 收款登記；查舊單 → 繳費紀錄 |
+| 「試堂半價點處理」 | 先收款登記（通常 1 堂），關聯試堂紀錄，當日點名先扣堂 |
+| 「日視圖灰色／無人報讀」 | 名單空或全員請假（無試堂）；先確認報讀同請假，唔係系統壞 |
+| 「我唔見側欄有某某功能」 | 按角色過濾；去「所有功能」或問我具體操作 |
 
 ## 回答風格
 

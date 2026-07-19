@@ -277,7 +277,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [leaveScheduleOptions, setLeaveScheduleOptions] = useState<ClassScheduleOption[]>([])
  const [leaveScheduleId, setLeaveScheduleId] = useState("")
  const [leaveReasonPick, setLeaveReasonPick] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
- const [leaveMakeup, setLeaveMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("錄影")
+ const [leaveMakeup, setLeaveMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [leaveMakeupScheduleId, setLeaveMakeupScheduleId] = useState("")
  const [leaveMakeupSearch, setLeaveMakeupSearch] = useState("")
  const [leaveMakeupCandidates, setLeaveMakeupCandidates] = useState<ScheduleManageRow[]>([])
@@ -850,7 +850,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLeaveScheduleId("")
   setLeaveScheduleOptions([])
   setLeaveReasonPick("病假")
-  setLeaveMakeup("錄影")
+  setLeaveMakeup("待安排")
   setLeaveMakeupScheduleId("")
   setLeaveMakeupSearch("")
   setLeaveRemarks("")
@@ -1558,7 +1558,7 @@ const exportFutureSchedulesCsv = () => {
         className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
        >
         有 <strong className="tabular-nums">{misalignedCount}</strong>{" "}
-        個班別的繳費堂數與排程／待補不一致，或仍有待補堂，請跟進。
+        個班別的繳費堂數與排程／待補不一致、仍有待補堂，或請假尚無補堂日，請跟進。
        </div>
       ) : null}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1751,7 +1751,7 @@ const exportFutureSchedulesCsv = () => {
            <div
             className={cn(
              "rounded-md border px-3 py-2 text-xs",
-             bal.isAligned && bal.pendingLessons === 0
+             bal.isAligned && bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
               ? "border-border bg-muted/40 text-muted-foreground"
               : "border-amber-700/35 bg-amber-50 text-amber-950"
             )}
@@ -1769,17 +1769,54 @@ const exportFutureSchedulesCsv = () => {
               待補{" "}
               <strong className="tabular-nums text-foreground">{bal.pendingLessons}</strong> 堂
              </span>
+             <span>
+              請假待安排{" "}
+              <strong className="tabular-nums text-foreground">{bal.leaveAwaitingMakeupCount}</strong>{" "}
+              堂
+             </span>
              {bal.paidLessons > 0 ? (
               <Tag
-               tone={bal.isAligned ? "success" : "warning"}
+               tone={
+                bal.isAligned && bal.leaveAwaitingMakeupCount === 0 ? "success" : "warning"
+               }
                size="sm"
               >
-               {bal.isAligned ? "堂數一致" : `尚差 ${bal.gap} 堂未記／未排`}
+               {!bal.isAligned
+                ? `尚差 ${bal.gap} 堂未記／未排`
+                : bal.leaveAwaitingMakeupCount > 0
+                  ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
+                  : "堂數一致"}
+              </Tag>
+             ) : bal.leaveAwaitingMakeupCount > 0 ? (
+              <Tag tone="warning" size="sm">
+               請假待安排 {bal.leaveAwaitingMakeupCount} 堂
               </Tag>
              ) : (
               <span className="text-muted-foreground">尚未有該班已收款堂數</span>
              )}
             </div>
+            {bal.leaveAwaitingMakeupRows.length > 0 ? (
+             <ul className="mt-2 space-y-1">
+              {bal.leaveAwaitingMakeupRows.map((L) => (
+               <li
+                key={L.id}
+                className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-700/20 pt-1"
+               >
+                <span>
+                 請假 {L.leaveDate}
+                 {L.leaveReason ? ` · ${L.leaveReason}` : ""}
+                 {" · "}
+                 {L.makeupType?.trim() || "待安排"}
+                </span>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" asChild>
+                 <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>
+                  前往請假管理
+                 </Link>
+                </Button>
+               </li>
+              ))}
+             </ul>
+            ) : null}
             {bal.pendingRows.some((p) => p.status === "待補") ? (
              <ul className="mt-2 space-y-1">
               {bal.pendingRows

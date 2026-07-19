@@ -76,14 +76,17 @@ export function tryDelegateActionReply(
     }
   }
 
-  if (/繳費|學費|出單/.test(t) && canAdminEnroll) {
+  if (/繳費|學費|出單|收款/.test(t) && canAdminEnroll) {
     return {
       reply:
         refusalPrefix() +
-        "登記繳費：進入「繳費紀錄」→ 揀學生 →「登記已收款項」或「建立繳費通知（待繳）」。\n\n" +
-        "學生需先有報讀班別。",
-      suggestions: ["如何登記繳費？", "邊個要追收學費？", "如何新增報讀班別？"],
-      paths: [{ label: "繳費紀錄", path: "/Payments" }],
+        "收款／出單：進入「收款登記」→ 揀學生 → 建立待繳或標記已收。查舊單請去「繳費紀錄」。\n\n" +
+        "學生需先有報讀班別；新生可用「前台指引精靈」一次過做。",
+      suggestions: ["如何登記繳費？", "如何用前台指引精靈？", "邊個要追收學費？"],
+      paths: [
+        { label: "收款登記", path: "/Payments" },
+        { label: "繳費紀錄", path: "/PaymentHistory" },
+      ],
     }
   }
 
@@ -91,10 +94,13 @@ export function tryDelegateActionReply(
     return {
       reply:
         refusalPrefix() +
-        "新增學生：進入「學生管理」→ 按新增學生，填寫基本資料後儲存。\n\n" +
-        "建立後要到該生詳情「報讀班別」分頁先加入班別（新增學生唔包含報讀）。",
-      suggestions: ["如何新增報讀班別？", "學號點生成？", "在讀與活躍有什麼分別？"],
-      paths: [{ label: "學生管理", path: "/Students" }],
+        "新增學生：可用「前台指引精靈」一次過登記＋報讀＋收款；或進入「學生管理」→ 新增學生，再去詳情「報讀班別」加入班別。\n\n" +
+        "建立主檔本身唔包含報讀。",
+      suggestions: ["如何用前台指引精靈？", "如何新增報讀班別？", "學號點生成？"],
+      paths: [
+        { label: "前台指引精靈", path: "/FrontDeskWizard" },
+        { label: "學生管理", path: "/Students" },
+      ],
     }
   }
 

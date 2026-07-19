@@ -71,6 +71,7 @@ export function prefillStatusFromLeave(params: {
 }): AttendanceStatusLabel {
  const makeup = String(params.makeupType ?? "").trim()
  const reason = String(params.leaveReason ?? "").trim()
+ // 「待安排」無補堂日：依請假理由預填事假／病假（與調堂相同）
  if (makeup.includes("錄影")) return "錄影回放"
  if (makeup.includes("不補回")) return "請假而不需補回"
  if (reason.includes("病")) return "病假"

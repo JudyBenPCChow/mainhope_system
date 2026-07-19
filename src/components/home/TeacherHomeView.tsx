@@ -316,7 +316,7 @@ export function TeacherHomeView() {
     >
      <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-       <p className="flex items-center gap-2 text-sm font-semibold text-warning-foreground">
+       <p className="flex items-center gap-2 text-sm font-semibold text-warning">
         <ClipboardCheck className="h-5 w-5 shrink-0" />
         請盡快完成今日點名（{pendingRollCalls.length} 堂尚未點名）
        </p>
@@ -353,7 +353,7 @@ export function TeacherHomeView() {
     >
      <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-       <p className="flex items-center gap-2 text-sm font-semibold text-warning-foreground">
+       <p className="flex items-center gap-2 text-sm font-semibold text-warning">
         <ClipboardCheck className="h-5 w-5 shrink-0" />
         過去課堂尚未點名（{pastPendingRollCalls.length} 堂）
        </p>

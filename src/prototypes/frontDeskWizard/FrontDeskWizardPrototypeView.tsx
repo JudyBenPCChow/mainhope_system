@@ -25,7 +25,7 @@ import {
 
 const PAY_METHODS = ["現金", "轉數快", "信用卡", "支票", "其他"] as const
 const LEAVE_REASONS = ["病假", "事假"] as const
-const LEAVE_MAKEUPS = ["錄影", "調堂", "不補回"] as const
+const LEAVE_MAKEUPS = ["待安排", "錄影", "調堂", "不補回"] as const
 
 function stepTitle(step: WizardStep | "done"): string {
  if (step === "done") return "完成"
@@ -222,7 +222,7 @@ export function FrontDeskWizardPrototypeView() {
  const [leaveClassId, setLeaveClassId] = useState("")
  const [leaveScheduleId, setLeaveScheduleId] = useState("")
  const [leaveReason, setLeaveReason] = useState<(typeof LEAVE_REASONS)[number]>("病假")
- const [leaveMakeup, setLeaveMakeup] = useState<(typeof LEAVE_MAKEUPS)[number]>("錄影")
+ const [leaveMakeup, setLeaveMakeup] = useState<(typeof LEAVE_MAKEUPS)[number]>("待安排")
  const [leaveErr, setLeaveErr] = useState<string | null>(null)
 
  const leaveClassOptions = enrolledClasses

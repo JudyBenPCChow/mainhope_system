@@ -10,6 +10,11 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
+import {
+ fetchLeavesAwaitingMakeupDateForStudent,
+ fetchLeavesAwaitingMakeupDateForStudents,
+ type LeaveAwaitingMakeupRow,
+} from "@/services/leaveQueries"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
 
 export const PENDING_LESSON_REASONS = ["遲報缺堂", "堂數差額", "其他"] as const
@@ -41,13 +46,17 @@ export type LessonBalanceRow = {
  paidLessons: number
  /** 已綁定／會出席的排程堂數（單堂＝選堂數；全期＝報讀日當日起非取消排程） */
  boundLessons: number
- /** 狀態為「待補」的尚欠堂數加總 */
+ /** 狀態為「待補」的尚欠堂數加總（遲報缺堂等，student_pending_lessons） */
  pendingLessons: number
- /** paid - bound - pending；>0 表示仍缺記錄／排程 */
+ /** 請假尚無補堂日的筆數（leave_makeup_records） */
+ leaveAwaitingMakeupCount: number
+ /** paid - bound - pending；>0 表示仍缺記錄／排程（不含請假待安排） */
  gap: number
  /** 已繳 > 0 且 gap === 0；或未繳費且無待補 */
  isAligned: boolean
  pendingRows: PendingLessonRow[]
+ /** 該班請假尚無實際補堂日（應跟進排日） */
+ leaveAwaitingMakeupRows: LeaveAwaitingMakeupRow[]
 }
 
 /** 全站對帳列表列（已繳／排程／待補不一致） */
@@ -58,9 +67,11 @@ export type MisalignedLessonBalanceRow = LessonBalanceRow & {
  englishName: string | null
 }
 
-/** 需跟進：堂數不一致，或仍有待補堂 */
-export function isLessonBalanceNeedsFollowUp(row: Pick<LessonBalanceRow, "isAligned" | "pendingLessons">): boolean {
- return !row.isAligned || row.pendingLessons > 0
+/** 需跟進：堂數不一致、仍有待補堂，或請假尚無補堂日 */
+export function isLessonBalanceNeedsFollowUp(
+ row: Pick<LessonBalanceRow, "isAligned" | "pendingLessons" | "leaveAwaitingMakeupCount">
+): boolean {
+ return !row.isAligned || row.pendingLessons > 0 || row.leaveAwaitingMakeupCount > 0
 }
 
 function mapPendingRow(r: Record<string, unknown>): PendingLessonRow {
@@ -235,13 +246,22 @@ export async function fetchLessonBalancesForStudent(
  if (!enrollments?.length) return []
 
  const paidByClass = await fetchPaidLessonsByClassForStudent(studentId)
- const pendingAll = await fetchPendingLessonsForStudent(studentId)
+ const [pendingAll, leaveAwaitingAll] = await Promise.all([
+  fetchPendingLessonsForStudent(studentId),
+  fetchLeavesAwaitingMakeupDateForStudent(studentId),
+ ])
  const pendingByEnrollment = new Map<string, PendingLessonRow[]>()
  for (const p of pendingAll) {
   if (!p.enrollmentId) continue
   const list = pendingByEnrollment.get(p.enrollmentId) ?? []
   list.push(p)
   pendingByEnrollment.set(p.enrollmentId, list)
+ }
+ const leaveAwaitingByClass = new Map<string, LeaveAwaitingMakeupRow[]>()
+ for (const L of leaveAwaitingAll) {
+  const list = leaveAwaitingByClass.get(L.classId) ?? []
+  list.push(L)
+  leaveAwaitingByClass.set(L.classId, list)
  }
 
  const singleIds = (enrollments as Array<{ id?: string; enrollment_period?: string | null }>)
@@ -346,6 +366,7 @@ export async function fetchLessonBalancesForStudent(
   const paidLessons = paidByClass.get(classId) ?? 0
   const gap = paidLessons > 0 ? paidLessons - boundLessons - openPending : 0
   const isAligned = paidLessons > 0 ? gap === 0 : openPending === 0
+  const leaveAwaitingMakeupRows = leaveAwaitingByClass.get(classId) ?? []
 
   return {
    enrollmentId,
@@ -356,9 +377,11 @@ export async function fetchLessonBalancesForStudent(
    paidLessons,
    boundLessons,
    pendingLessons: openPending,
+   leaveAwaitingMakeupCount: leaveAwaitingMakeupRows.length,
    gap,
    isAligned,
    pendingRows: uniquePending,
+   leaveAwaitingMakeupRows,
   }
  })
 }
@@ -456,7 +479,7 @@ async function fetchPendingLessonsForStudents(
 }
 
 /**
- * 全站就讀中報讀對帳：僅回傳已繳／排程／待補不一致，或仍有待補堂的列。
+ * 全站就讀中報讀對帳：僅回傳已繳／排程／待補不一致、仍有待補堂，或請假尚無補堂日的列。
  * 邏輯與 {@link fetchLessonBalancesForStudent} 一致。
  */
 export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonBalanceRow[]> {
@@ -472,9 +495,10 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
   ...new Set(enrollments.map((r) => String(r.class_id ?? "")).filter(Boolean)),
  ]
 
- const [paidByStudent, pendingByStudent] = await Promise.all([
+ const [paidByStudent, pendingByStudent, leaveAwaitingByStudent] = await Promise.all([
   fetchPaidLessonsByStudentAndClass(studentIds),
   fetchPendingLessonsForStudents(studentIds),
+  fetchLeavesAwaitingMakeupDateForStudents(studentIds),
  ])
 
  const singleIds = enrollments
@@ -583,6 +607,9 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
   const paidLessons = paidByStudent.get(studentId)?.get(classId) ?? 0
   const gap = paidLessons > 0 ? paidLessons - boundLessons - openPending : 0
   const isAligned = paidLessons > 0 ? gap === 0 : openPending === 0
+  const leaveAwaitingMakeupRows = (leaveAwaitingByStudent.get(studentId) ?? []).filter(
+   (L) => L.classId === classId
+  )
 
   const row: MisalignedLessonBalanceRow = {
    enrollmentId,
@@ -593,9 +620,11 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
    paidLessons,
    boundLessons,
    pendingLessons: openPending,
+   leaveAwaitingMakeupCount: leaveAwaitingMakeupRows.length,
    gap,
    isAligned,
    pendingRows: uniquePending,
+   leaveAwaitingMakeupRows,
    studentId,
    studentCode,
    studentName,
@@ -607,6 +636,8 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
  out.sort((a, b) => {
   const gapDiff = Math.abs(b.gap) - Math.abs(a.gap)
   if (gapDiff !== 0) return gapDiff
+  const leaveDiff = b.leaveAwaitingMakeupCount - a.leaveAwaitingMakeupCount
+  if (leaveDiff !== 0) return leaveDiff
   const pendingDiff = b.pendingLessons - a.pendingLessons
   if (pendingDiff !== 0) return pendingDiff
   return a.studentName.localeCompare(b.studentName, "zh-Hant")

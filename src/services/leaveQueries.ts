@@ -44,8 +44,38 @@ function throwPostgrest(err: unknown): never {
 }
 
 export const LEAVE_REASON_OPTIONS = ["病假", "事假"] as const
-/** 請假補課安排（已去除「其他」；對應點名預填見 attendanceBilling） */
-export const LEAVE_MAKEUP_OPTIONS = ["錄影", "調堂", "不補回"] as const
+/**
+ * 請假補課安排（對應點名預填見 attendanceBilling）。
+ * 「待安排」＝確定要補但尚無補堂日，會進堂數對帳；錄影／不補回不需另排日；調堂須選補堂排程。
+ */
+export const LEAVE_MAKEUP_OPTIONS = ["待安排", "錄影", "調堂", "不補回"] as const
+
+/** 請假是否仍缺實際補堂日期（應進堂數對帳） */
+export function leaveNeedsMakeupDate(params: {
+ makeupType: string | null | undefined
+ makeupDate: string | null | undefined
+ makeupScheduleId?: string | null | undefined
+ status?: string | null | undefined
+}): boolean {
+ const status = String(params.status ?? "").trim()
+ if (status && (isLeaveStatusDone(status) || isLeaveStatusAbandoned(status))) return false
+ if (String(params.makeupDate ?? "").trim()) return false
+ if (params.makeupScheduleId != null && String(params.makeupScheduleId).trim()) return false
+ const t = String(params.makeupType ?? "").trim()
+ if (t.includes("不補回")) return false
+ if (t.includes("錄影") || t.includes("錄像") || t.includes("錄音")) return false
+ // 待安排、空值、調堂未選日、或其他未定案類型
+ return true
+}
+
+export type LeaveAwaitingMakeupRow = {
+ id: string
+ studentId: string
+ classId: string
+ leaveDate: string
+ leaveReason: string | null
+ makeupType: string | null
+}
 
 export type LeaveManageRow = {
  id: string
@@ -155,6 +185,77 @@ export function isLeaveStatusDone(status: string): boolean {
 
 export function isLeaveStatusAbandoned(status: string): boolean {
  return status.includes("放棄")
+}
+
+function mapLeaveAwaitingMakeupRow(r: Record<string, unknown>): LeaveAwaitingMakeupRow {
+ return {
+  id: String(r.id),
+  studentId: String(r.student_id),
+  classId: String(r.class_id),
+  leaveDate: String(r.leave_date ?? "").slice(0, 10),
+  leaveReason: r.leave_reason != null ? String(r.leave_reason) : null,
+  makeupType: r.makeup_type != null ? String(r.makeup_type) : null,
+ }
+}
+
+/** 學生請假尚無補堂日的紀錄（進堂數對帳） */
+export async function fetchLeavesAwaitingMakeupDateForStudent(
+ studentId: string
+): Promise<LeaveAwaitingMakeupRow[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id, student_id, class_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status")
+  .eq("student_id", studentId)
+  .order("leave_date", { ascending: true })
+ if (error) throwPostgrest(error)
+ return (data ?? [])
+  .filter((row) => {
+   const r = row as Record<string, unknown>
+   return leaveNeedsMakeupDate({
+    makeupType: r.makeup_type as string | null,
+    makeupDate: r.makeup_date as string | null,
+    makeupScheduleId: r.makeup_schedule_id as string | null,
+    status: r.status as string | null,
+   })
+  })
+  .map((row) => mapLeaveAwaitingMakeupRow(row as Record<string, unknown>))
+}
+
+/** 批次：多位學生請假尚無補堂日 */
+export async function fetchLeavesAwaitingMakeupDateForStudents(
+ studentIds: string[]
+): Promise<Map<string, LeaveAwaitingMakeupRow[]>> {
+ const byStudent = new Map<string, LeaveAwaitingMakeupRow[]>()
+ if (!supabase || studentIds.length === 0) return byStudent
+ await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select(
+    "id, student_id, class_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status"
+   )
+   .in("student_id", slice)
+   .order("leave_date", { ascending: true })
+  if (error) throwPostgrest(error)
+  for (const row of data ?? []) {
+   const r = row as Record<string, unknown>
+   if (
+    !leaveNeedsMakeupDate({
+     makeupType: r.makeup_type as string | null,
+     makeupDate: r.makeup_date as string | null,
+     makeupScheduleId: r.makeup_schedule_id as string | null,
+     status: r.status as string | null,
+    })
+   ) {
+    continue
+   }
+   const mapped = mapLeaveAwaitingMakeupRow(r)
+   const list = byStudent.get(mapped.studentId) ?? []
+   list.push(mapped)
+   byStudent.set(mapped.studentId, list)
+  }
+ })
+ return byStudent
 }
 
 export async function updateLeaveMakeupRecord(

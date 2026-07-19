@@ -13,7 +13,7 @@ import {
  type MisalignedLessonBalanceRow,
 } from "@/services/pendingLessonQueries"
 
-type IssueFilter = "" | "gap" | "pending"
+type IssueFilter = "" | "gap" | "pending" | "leave"
 
 function matchesSearch(row: MisalignedLessonBalanceRow, q: string): boolean {
  if (!q) return true
@@ -28,6 +28,9 @@ function issueLabel(row: MisalignedLessonBalanceRow): string {
   return row.gap > 0
    ? `尚差 ${row.gap} 堂未記／未排`
    : `多記／多排 ${Math.abs(row.gap)} 堂`
+ }
+ if (row.leaveAwaitingMakeupCount > 0) {
+  return `請假待安排 ${row.leaveAwaitingMakeupCount} 堂`
  }
  if (row.pendingLessons > 0) return `待補 ${row.pendingLessons} 堂`
  return "需跟進"
@@ -73,6 +76,7 @@ export function LessonBalanceMismatchView() {
    if (!matchesSearch(r, searchDebounced)) return false
    if (issue === "gap") return r.paidLessons > 0 && !r.isAligned
    if (issue === "pending") return r.pendingLessons > 0
+   if (issue === "leave") return r.leaveAwaitingMakeupCount > 0
    return true
   })
  }, [rows, searchDebounced, issue])
@@ -80,13 +84,15 @@ export function LessonBalanceMismatchView() {
  const counts = useMemo(() => {
   let gap = 0
   let pending = 0
+  let leave = 0
   let students = new Set<string>()
   for (const r of rows) {
    students.add(r.studentId)
    if (r.paidLessons > 0 && !r.isAligned) gap++
    if (r.pendingLessons > 0) pending++
+   if (r.leaveAwaitingMakeupCount > 0) leave++
   }
-  return { total: rows.length, gap, pending, students: students.size }
+  return { total: rows.length, gap, pending, leave, students: students.size }
  }, [rows])
 
  return (
@@ -98,7 +104,7 @@ export function LessonBalanceMismatchView() {
       堂數對帳
      </h1>
      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-      彙整就讀中報讀：已繳堂數與已綁排程／待補不一致的學生，方便一次跟進。點學生可前往詳情「報讀班別」處理。
+      彙整就讀中報讀：已繳堂數與已綁排程／待補不一致，或請假尚無補堂日的學生，方便一次跟進。點學生可前往詳情「報讀班別」或請假管理處理。
      </p>
     </div>
     <Button
@@ -143,6 +149,10 @@ export function LessonBalanceMismatchView() {
      <span>
       有待補 <strong className="tabular-nums text-foreground">{counts.pending}</strong>
      </span>
+     <span>
+      請假待安排{" "}
+      <strong className="tabular-nums text-foreground">{counts.leave}</strong>
+     </span>
     </div>
 
     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
@@ -152,6 +162,7 @@ export function LessonBalanceMismatchView() {
         ["", "全部"],
         ["gap", "堂數不一致"],
         ["pending", "有待補"],
+        ["leave", "請假待安排"],
        ] as const
       ).map(([key, label]) => (
        <button
@@ -186,21 +197,22 @@ export function LessonBalanceMismatchView() {
    ) : filtered.length === 0 ? (
     <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
      {rows.length === 0
-      ? "目前沒有已繳／排程／待補不一致的就讀中報讀。"
+      ? "目前沒有已繳／排程／待補不一致，或請假尚無補堂日的就讀中報讀。"
       : "沒有符合篩選條件的紀錄。"}
     </p>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[64rem] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[70rem] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-xs font-medium text-muted-foreground">
-        <th className="w-[16%] px-3 py-2">學生</th>
-        <th className="w-[22%] px-3 py-2">班別</th>
-        <th className="w-[9%] px-3 py-2 whitespace-nowrap text-right">已繳</th>
-        <th className="w-[11%] px-3 py-2 whitespace-nowrap text-right">已綁排程</th>
-        <th className="w-[9%] px-3 py-2 whitespace-nowrap text-right">待補</th>
-        <th className="w-[22%] px-3 py-2">狀態</th>
-        <th className="w-[11%] px-3 py-2 whitespace-nowrap">報讀日</th>
+        <th className="w-[15%] px-3 py-2">學生</th>
+        <th className="w-[20%] px-3 py-2">班別</th>
+        <th className="w-[8%] px-3 py-2 whitespace-nowrap text-right">已繳</th>
+        <th className="w-[10%] px-3 py-2 whitespace-nowrap text-right">已綁排程</th>
+        <th className="w-[8%] px-3 py-2 whitespace-nowrap text-right">待補</th>
+        <th className="w-[10%] px-3 py-2 whitespace-nowrap text-right">請假待安排</th>
+        <th className="w-[19%] px-3 py-2">狀態</th>
+        <th className="w-[10%] px-3 py-2 whitespace-nowrap">報讀日</th>
        </tr>
       </thead>
       <tbody>
@@ -237,8 +249,18 @@ export function LessonBalanceMismatchView() {
          <td className="align-top px-3 py-2.5 text-right tabular-nums font-medium">
           {r.pendingLessons}
          </td>
+         <td className="align-top px-3 py-2.5 text-right tabular-nums font-medium">
+          {r.leaveAwaitingMakeupCount}
+         </td>
          <td className="min-w-0 align-top px-3 py-2.5">
-          <Tag tone={r.isAligned && r.pendingLessons === 0 ? "success" : "warning"} size="sm">
+          <Tag
+           tone={
+            r.isAligned && r.pendingLessons === 0 && r.leaveAwaitingMakeupCount === 0
+             ? "success"
+             : "warning"
+           }
+           size="sm"
+          >
            {issueLabel(r)}
           </Tag>
          </td>

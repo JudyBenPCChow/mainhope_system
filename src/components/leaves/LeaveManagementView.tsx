@@ -28,6 +28,7 @@ import {
  isLeaveStatusAbandoned,
  isLeaveStatusDone,
  isLeaveStatusPending,
+ leaveNeedsMakeupDate,
  localYmd,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
@@ -80,7 +81,7 @@ export function LeaveManagementView() {
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addReason, setAddReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
- const [addMakeupArrange, setAddMakeupArrange] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("錄影")
+ const [addMakeupArrange, setAddMakeupArrange] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [addMakeupScheduleId, setAddMakeupScheduleId] = useState("")
  const [addMakeupSearch, setAddMakeupSearch] = useState("")
  const [addRemarks, setAddRemarks] = useState("")
@@ -95,7 +96,7 @@ export function LeaveManagementView() {
  const [detailRow, setDetailRow] = useState<LeaveManageRow | null>(null)
  const [detailStatus, setDetailStatus] = useState("")
  const [detailReason, setDetailReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
- const [detailMakeupType, setDetailMakeupType] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("錄影")
+ const [detailMakeupType, setDetailMakeupType] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [detailRemarks, setDetailRemarks] = useState("")
  const [detailSaving, setDetailSaving] = useState(false)
  const [detailErr, setDetailErr] = useState<string | null>(null)
@@ -155,7 +156,7 @@ export function LeaveManagementView() {
   setAddClassId("")
   setAddScheduleId("")
   setAddReason("病假")
-  setAddMakeupArrange("錄影")
+  setAddMakeupArrange("待安排")
   setAddMakeupScheduleId("")
   setAddMakeupSearch("")
   setAddRemarks("")
@@ -286,7 +287,7 @@ export function LeaveManagementView() {
   setDetailRow(row)
   setDetailStatus(row.status || "待補課")
   setDetailReason((row.leave_reason as (typeof LEAVE_REASON_OPTIONS)[number]) || "病假")
-  setDetailMakeupType((row.makeup_type as (typeof LEAVE_MAKEUP_OPTIONS)[number]) || "錄影")
+  setDetailMakeupType((row.makeup_type as (typeof LEAVE_MAKEUP_OPTIONS)[number]) || "待安排")
   setDetailRemarks(row.remarks ?? "")
   setDetailErr(null)
   setDetailOpen(true)
@@ -302,6 +303,9 @@ export function LeaveManagementView() {
     leave_reason: detailReason,
     makeup_type: detailMakeupType,
     remarks: detailRemarks.trim() || null,
+    ...(detailMakeupType === "調堂"
+     ? {}
+     : { makeup_schedule_id: null, makeup_date: null }),
    })
    setDetailOpen(false)
    await reload()
@@ -1014,6 +1018,12 @@ function MakeupCell({
  const t = (row.makeup_type ?? "").trim()
  const hasDate = !!row.makeup_date
  const [saving, setSaving] = useState(false)
+ const awaitingDate = leaveNeedsMakeupDate({
+  makeupType: row.makeup_type,
+  makeupDate: row.makeup_date,
+  makeupScheduleId: row.makeup_schedule_id,
+  status: row.status,
+ })
 
  const quickSetMakeup = async (nextType: string) => {
   if (readonly) return
@@ -1031,17 +1041,22 @@ function MakeupCell({
   }
  }
 
- if (!t && !hasDate) {
+ if (awaitingDate) {
+  const selectValue =
+   !t || t.includes("待安排")
+    ? "待安排"
+    : (LEAVE_MAKEUP_OPTIONS as readonly string[]).includes(t)
+      ? t
+      : "待安排"
   return (
    <Select
     className="h-8 min-w-[8.5rem] rounded-md border border-warning/80 bg-warning/20 px-2 text-xs text-warning"
-    value=""
-   disabled={saving || readonly}
+    value={selectValue}
+    disabled={saving || readonly}
     onChange={(e) => {
      void quickSetMakeup(e.target.value)
     }}
    >
-    <option value="">待安排（點選）</option>
     {LEAVE_MAKEUP_OPTIONS.map((o) => (
      <option key={o} value={o}>
       {o}
