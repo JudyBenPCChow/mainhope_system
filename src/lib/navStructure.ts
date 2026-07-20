@@ -19,6 +19,7 @@ import {
  LayoutGrid,
  ListOrdered,
  MessageSquareQuote,
+ NotebookPen,
  NotebookTabs,
  Percent,
  Plus,
@@ -29,6 +30,7 @@ import {
  Sparkles,
  UserCog,
  UserRound,
+ UserRoundX,
  Users,
  CircleUser,
  Wallet,
@@ -84,6 +86,13 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
  { kind: "leaf", path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
  {
   kind: "leaf",
+  path: "/TeachingRecords",
+  label: "教學紀錄",
+  roles: ["admin", "teacher", "alien"],
+  icon: NotebookPen,
+ },
+ {
+  kind: "leaf",
   path: "/TeacherProfile",
   label: "個人資料",
   roles: ["teacher"],
@@ -109,6 +118,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Users,
   children: [
    { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
+   { path: "/TomorrowReminders", label: "明日課堂提醒", roles: ["admin", "alien"], icon: MessageSquareQuote },
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
    { path: "/EnrollmentReports", label: "人數報表", roles: ["admin", "alien"], icon: BarChart3 },
    { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
@@ -135,6 +145,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: CalendarRange,
   children: [
    { path: "/Schedule", label: "排程管理", roles: ["admin", "teacher", "alien"], icon: CalendarDays },
+   { path: "/TeacherLeaveWizard", label: "老師請假處理", roles: ["admin", "alien"], icon: UserRoundX },
    { path: "/RoomBooking", label: "預約空房", roles: ["teacher"], icon: DoorOpen },
    { path: "/RoomBookingAdmin", label: "約房審批", roles: ["admin", "alien"], icon: Building2 },
    { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "teacher", "alien"], icon: ClipboardList },

@@ -104,6 +104,83 @@ export function buildLessonReminderMessage(p: LessonReminderPayload): string {
  return lines.join("\n")
 }
 
+/** 同一日多堂合併成一則提醒（前台批次「明日課堂提醒」用） */
+export type DayLessonReminderItem = {
+ subject: string
+ courseCode?: string | null
+ courseName?: string | null
+ startTime?: string | null
+ endTime?: string | null
+ isConsecutive?: boolean
+ classroomName?: string | null
+ /** enrolled｜makeup｜trial */
+ kind?: "enrolled" | "makeup" | "trial"
+ /** 補堂／調堂說明，例如「原請假 7/14 MA101」 */
+ makeupNote?: string | null
+ isTrial?: boolean
+}
+
+export type StudentDayReminderPayload = {
+ studentName: string
+ dateYmd: string
+ lessons: DayLessonReminderItem[]
+}
+
+function formatDayLessonTitle(item: DayLessonReminderItem): string {
+ const head = item.courseName?.trim() ? item.courseName.trim() : item.subject
+ const base = item.courseCode ? `${head}（${item.courseCode}）` : head
+ if (item.kind === "makeup") return `${base} · 補堂`
+ if (item.kind === "trial" || item.isTrial) return `${base} · 試堂`
+ return base
+}
+
+/** 產生「學生 × 某日」多堂合併 WhatsApp 正文 */
+export function buildStudentDayReminderMessage(p: StudentDayReminderPayload): string {
+ const lines: string[] = []
+ const who = p.studentName.trim() || "同學"
+ const lessons = p.lessons.filter(Boolean)
+ lines.push(`您好，這裡是明學補習社通知。`)
+ lines.push("")
+ if (lessons.length <= 1) {
+  const only = lessons[0]
+  if (!only) {
+   lines.push(`${who} 課堂提醒：`)
+   lines.push(`日期：${p.dateYmd}`)
+  } else {
+   lines.push(`${who} 課堂提醒：`)
+   lines.push(`班別：${formatDayLessonTitle(only)}`)
+   lines.push(`日期：${p.dateYmd}`)
+   const time = formatLessonReminderTimeLine(only.startTime, only.endTime, only.isConsecutive)
+   if (time) lines.push(`時間：${time}`)
+   if (only.classroomName) lines.push(`課室：${only.classroomName}`)
+   if (only.kind === "makeup" && only.makeupNote?.trim()) {
+    lines.push(`備註：${only.makeupNote.trim()}`)
+   } else if (only.isTrial || only.kind === "trial") {
+    lines.push(`備註：試堂`)
+   }
+  }
+ } else {
+  lines.push(`${who} 課堂提醒（共 ${lessons.length} 堂）：`)
+  lines.push(`日期：${p.dateYmd}`)
+  lines.push("")
+  lessons.forEach((item, i) => {
+   lines.push(`${i + 1}. ${formatDayLessonTitle(item)}`)
+   const time = formatLessonReminderTimeLine(item.startTime, item.endTime, item.isConsecutive)
+   if (time) lines.push(`   時間：${time}`)
+   if (item.classroomName) lines.push(`   課室：${item.classroomName}`)
+   if (item.kind === "makeup" && item.makeupNote?.trim()) {
+    lines.push(`   備註：${item.makeupNote.trim()}`)
+   } else if (item.isTrial || item.kind === "trial") {
+    lines.push(`   備註：試堂`)
+   }
+   if (i < lessons.length - 1) lines.push("")
+  })
+ }
+ lines.push("")
+ lines.push(`請準時出席。如有疑問請回覆此訊息，謝謝！`)
+ return lines.join("\n")
+}
+
 export function buildWhatsAppMeUrl(phoneDigits: string, message: string, defaultCc = "852"): string | null {
  const digits = digitsForWhatsAppMe(phoneDigits, defaultCc)
  if (!digits) return null

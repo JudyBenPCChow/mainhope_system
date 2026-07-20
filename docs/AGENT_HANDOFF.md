@@ -99,6 +99,13 @@
 
 實作錨點：`TEACHER_ISSUE_FILTER_IDS`、`effectiveTeacherFilterIds`、`issueFilterOptions`（皆在 `src/components/schedule/ScheduleManagePage.tsx`）。
 
+### 教學紀錄（老師向，選填）
+
+- 欄位：`schedules.teaching_notes`（與營運 `remarks` 分開）；**非必填**，UI 不應以「未填」催促。
+- 專頁：`/TeachingRecords`（預設僅顯示有紀錄；可改全部堂次、搜尋、班別；列表可展開編輯）。
+- 入田入口：排程詳情、點名紙底部、教學紀錄專頁；編輯器支援快捷片語與「延續上堂」。
+- 導航：側欄「教學紀錄」；老師首頁時間表區有快捷按鈕。
+
 ---
 
 ## 7. 品質門檻

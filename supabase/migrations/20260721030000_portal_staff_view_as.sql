@@ -20,15 +20,41 @@ create index if not exists portal_staff_view_as_student_id_idx
 alter table public.portal_staff_view_as enable row level security;
 
 drop policy if exists portal_staff_view_as_mgmt_all on public.portal_staff_view_as;
-create policy portal_staff_view_as_mgmt_all
+drop policy if exists portal_staff_view_as_own on public.portal_staff_view_as;
+create policy portal_staff_view_as_own
 on public.portal_staff_view_as
 for all
 to authenticated
-using (public.is_mgmt_staff())
-with check (public.is_mgmt_staff());
+using (
+  public.is_mgmt_staff()
+  and staff_app_user_id = public.current_app_user_id()
+)
+with check (
+  public.is_mgmt_staff()
+  and staff_app_user_id = public.current_app_user_id()
+);
 
 comment on table public.portal_staff_view_as is
   '行政於家長 Portal 檢視中的學生；每位行政一列。';
+
+create or replace function public.get_portal_view_as()
+returns table (student_id uuid, student_name text)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select v.student_id, s.full_name::text
+  from public.portal_staff_view_as v
+  join public.students s on s.id = v.student_id
+  where v.staff_app_user_id = public.current_app_user_id()
+    and public.is_mgmt_staff()
+  limit 1;
+$$;
+
+revoke all on function public.get_portal_view_as() from public;
+revoke all on function public.get_portal_view_as() from anon;
+grant execute on function public.get_portal_view_as() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 2. Helpers

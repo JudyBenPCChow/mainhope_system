@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { CheckCircle2, ChevronDown, Download, ListChecks, Sparkles } from "lucide-react"
+import { CheckCircle2, ChevronDown, Download, ListChecks, NotebookPen, Sparkles } from "lucide-react"
 
 import { AttendanceStatusPicker } from "@/components/attendance/attendanceStatusUi"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
@@ -104,10 +105,12 @@ export function RollCallClassPanel({
  const [bulkAction, setBulkAction] = useState<null | "prefill" | "allPresent">(null)
  const [confirmSaving, setConfirmSaving] = useState(false)
  const [sheetErr, setSheetErr] = useState<string | null>(null)
+ const [notesSavedLocal, setNotesSavedLocal] = useState<string | null | undefined>(undefined)
  const didAutoPrefillRef = useRef(false)
 
  useEffect(() => {
   didAutoPrefillRef.current = false
+  setNotesSavedLocal(undefined)
  }, [entry.key])
 
  useEffect(() => {
@@ -714,6 +717,35 @@ export function RollCallClassPanel({
        <CheckCircle2 className="h-5 w-5" aria-hidden />
        {confirmSaving ? "儲存中…" : "確定"}
       </Button>
+     </div>
+    ) : null}
+
+    {canEditRollCall && scheduleMeta ? (
+     <div className="mt-4 space-y-2 border-t border-border pt-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+       <NotebookPen className="h-4 w-4 text-info" aria-hidden />
+       本堂教學紀錄
+       {(notesSavedLocal !== undefined
+        ? Boolean(notesSavedLocal?.trim())
+        : Boolean(scheduleMeta.teaching_notes?.trim())) ? (
+        <Tag tone="info" size="sm">
+         已有紀錄
+        </Tag>
+       ) : null}
+      </div>
+      <p className="text-xs text-muted-foreground">選填；與出席狀態分開儲存。</p>
+      <TeachingNotesEditor
+       scheduleId={scheduleMeta.id}
+       initialNotes={
+        notesSavedLocal !== undefined ? notesSavedLocal : scheduleMeta.teaching_notes
+       }
+       classId={scheduleMeta.class_id}
+       scheduledDate={scheduleMeta.scheduled_date}
+       startTime={scheduleMeta.start_time}
+       compact
+       errorSource="RollCallClassPanel"
+       onSaved={(notes) => setNotesSavedLocal(notes)}
+      />
      </div>
     ) : null}
    </div>

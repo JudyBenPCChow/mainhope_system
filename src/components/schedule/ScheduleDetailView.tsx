@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Calendar, MapPin, Monitor, NotebookPen, Users, Video } from "lucide-react"
+import { ArrowLeft, Calendar, MapPin, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
+import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
@@ -42,8 +43,6 @@ export function ScheduleDetailView() {
  const [loading, setLoading] = useState(true)
  const [remarksDraft, setRemarksDraft] = useState("")
  const [remarksSaving, setRemarksSaving] = useState(false)
- const [teachingNotesDraft, setTeachingNotesDraft] = useState("")
- const [teachingNotesSaving, setTeachingNotesSaving] = useState(false)
  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
@@ -58,7 +57,6 @@ export function ScheduleDetailView() {
    setRow(s)
    if (s) {
     setRemarksDraft(s.remarks ?? "")
-    setTeachingNotesDraft(s.teaching_notes ?? "")
     if (s.class_id) {
      const c = await fetchScheduleDetailContext(sid, s.class_id, s.scheduled_date)
      setCtx(c)
@@ -454,43 +452,23 @@ export function ScheduleDetailView() {
      </section>
 
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
-      <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
-       <NotebookPen className="h-5 w-5 text-info" />
-       教學紀錄
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-       記錄本堂教學進度、內容或備忘；僅此堂可見，與下方營運備註分開。
-      </p>
-      <Textarea
-       className="mt-4 min-h-[140px] text-base"
-       value={teachingNotesDraft}
-       onChange={(e) => setTeachingNotesDraft(e.target.value)}
-       placeholder="例如：完成第 3 章、下次測驗範圍…"
+      <TeachingNotesEditor
+       scheduleId={row.id}
+       initialNotes={row.teaching_notes}
+       classId={row.class_id}
+       scheduledDate={row.scheduled_date}
+       startTime={row.start_time}
+       errorSource="ScheduleDetailView"
+       onSaved={(notes) => {
+        setRow((prev) => (prev ? { ...prev, teaching_notes: notes } : prev))
+       }}
       />
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-       <Button
-        type="button"
-        disabled={
-         teachingNotesSaving || teachingNotesDraft === (row.teaching_notes ?? "")
-        }
-        onClick={async () => {
-         setTeachingNotesSaving(true)
-         try {
-          await updateSchedule(row.id, {
-           teaching_notes: teachingNotesDraft.trim() || null,
-          })
-          await load()
-         } finally {
-          setTeachingNotesSaving(false)
-         }
-        }}
-       >
-        {teachingNotesSaving ? "儲存中…" : "儲存教學紀錄"}
-       </Button>
-       {teachingNotesDraft !== (row.teaching_notes ?? "") ? (
-        <span className="text-xs text-amber-700">有未儲存變更</span>
-       ) : null}
-      </div>
+      <p className="mt-4 text-sm text-muted-foreground">
+       <Link to="/TeachingRecords" className="text-primary hover:underline">
+        前往教學紀錄列表
+       </Link>
+       可搜尋與補填過去堂次。
+      </p>
      </section>
 
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">

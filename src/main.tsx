@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 
 import App from "@/App"
 import { AppErrorBoundary } from "@/components/AppErrorBoundary"
+import { AppUpdateGuard } from "@/components/AppUpdateGuard"
 import { AppBannerProvider } from "@/lib/appBanner"
 import { AppConfirmProvider } from "@/lib/appConfirm"
 import { AuthProvider } from "@/lib/authBootstrap"
@@ -15,6 +16,7 @@ createRoot(document.getElementById("root")!).render(
     <AppBannerProvider>
      <AuthProvider>
       <App />
+      <AppUpdateGuard />
      </AuthProvider>
     </AppBannerProvider>
    </AppConfirmProvider>

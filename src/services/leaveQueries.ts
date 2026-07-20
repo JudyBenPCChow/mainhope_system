@@ -43,7 +43,11 @@ function throwPostgrest(err: unknown): never {
  throw new Error("操作失敗")
 }
 
-export const LEAVE_REASON_OPTIONS = ["病假", "事假"] as const
+export const LEAVE_REASON_OPTIONS = ["病假", "事假", "老師請假"] as const
+/** 學生主動請假表單用（不含老師請假） */
+export const STUDENT_LEAVE_REASON_OPTIONS = ["病假", "事假"] as const
+/** 老師請假精靈取消堂次時寫入 leave_makeup_records.leave_reason */
+export const TEACHER_ABSENCE_LEAVE_REASON = "老師請假" as const
 /**
  * 請假補課安排（對應點名預填見 attendanceBilling）。
  * 「待安排」＝確定要補但尚無補堂日，會進堂數對帳；錄影／不補回不需另排日；調堂須選補堂排程。

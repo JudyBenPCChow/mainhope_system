@@ -492,6 +492,9 @@ export function TeacherHomeView() {
       </span>
      </Link>
      <Button type="button" variant="outline" size="sm" asChild>
+      <Link to="/TeachingRecords">教學紀錄</Link>
+     </Button>
+     <Button type="button" variant="outline" size="sm" asChild>
       <Link to="/TeacherTimetable">{isMobile ? "完整" : "全螢幕檢視"}</Link>
      </Button>
     </div>
@@ -530,12 +533,19 @@ export function TeacherHomeView() {
              </div>
              <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
               <span>位置：{s.classroom_name ?? "課室未定"}</span>
-              {s.teaching_notes?.trim() ? <Tag tone="info" size="sm">已有教學紀錄</Tag> : null}
+              {s.teaching_notes?.trim() ? (
+               <Tag tone="info" size="sm">已有教學紀錄</Tag>
+              ) : null}
               {a.trial ? <Tag tone="info" size="sm">試堂</Tag> : null}
               {a.leave ? <Tag tone="warning" size="sm">請假</Tag> : null}
               {a.makeup ? <Tag tone="warning" size="sm">補堂</Tag> : null}
               {a.record ? <Tag tone="default" size="sm">錄影</Tag> : null}
              </div>
+             {s.teaching_notes?.trim() ? (
+              <p className="mt-2 line-clamp-2 text-sm text-foreground">
+               {s.teaching_notes.replace(/\s+/g, " ").trim()}
+              </p>
+             ) : null}
              </Link>
             </li>
            )

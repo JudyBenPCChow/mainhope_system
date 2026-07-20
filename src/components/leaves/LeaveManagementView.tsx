@@ -25,6 +25,7 @@ import {
  insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
+ STUDENT_LEAVE_REASON_OPTIONS,
  isLeaveStatusAbandoned,
  isLeaveStatusDone,
  isLeaveStatusPending,
@@ -80,7 +81,7 @@ export function LeaveManagementView() {
  const [addStudentId, setAddStudentId] = useState("")
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
- const [addReason, setAddReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
+ const [addReason, setAddReason] = useState<(typeof STUDENT_LEAVE_REASON_OPTIONS)[number]>("病假")
  const [addMakeupArrange, setAddMakeupArrange] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [addMakeupScheduleId, setAddMakeupScheduleId] = useState("")
  const [addMakeupSearch, setAddMakeupSearch] = useState("")
@@ -824,9 +825,9 @@ export function LeaveManagementView() {
        <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addReason}
-        onChange={(e) => setAddReason(e.target.value as (typeof LEAVE_REASON_OPTIONS)[number])}
+        onChange={(e) => setAddReason(e.target.value as (typeof STUDENT_LEAVE_REASON_OPTIONS)[number])}
        >
-        {LEAVE_REASON_OPTIONS.map((o) => (
+        {STUDENT_LEAVE_REASON_OPTIONS.map((o) => (
          <option key={o} value={o}>
           {o}
          </option>

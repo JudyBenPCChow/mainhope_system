@@ -2044,11 +2044,7 @@ useEffect(() => {
                    <p className="text-xs font-medium text-info">教學紀錄</p>
                    <p className="mt-1 whitespace-pre-wrap text-foreground">{s.teaching_notes}</p>
                   </div>
-                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                   教學紀錄：尚未填寫（可於完整排程頁編輯）
-                  </p>
-                 )}
+                 ) : null}
                 </div>
                }
                footer={
@@ -2353,9 +2349,7 @@ useEffect(() => {
          <p className="text-xs font-medium text-info">教學紀錄</p>
          <p className="mt-1 whitespace-pre-wrap text-foreground">{detailRow.teaching_notes}</p>
         </div>
-       ) : (
-        <p className="text-muted-foreground">教學紀錄：尚未填寫</p>
-       )}
+       ) : null}
        <div className="flex flex-wrap items-center gap-2">
         <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
         {detailRow.is_extra_lesson ? (

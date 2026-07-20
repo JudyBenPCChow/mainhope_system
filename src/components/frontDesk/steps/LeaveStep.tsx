@@ -13,7 +13,7 @@ import {
  fetchUpcomingSchedulesForClass,
  insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
- LEAVE_REASON_OPTIONS,
+ STUDENT_LEAVE_REASON_OPTIONS,
  validateMakeupScheduleForStudent,
  type ClassScheduleOption,
  type EnrolledClassOption,
@@ -36,7 +36,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
  const [makeupCandidates, setMakeupCandidates] = useState<ScheduleManageRow[]>([])
  const [classId, setClassId] = useState("")
  const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([])
- const [reason, setReason] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
+ const [reason, setReason] = useState<(typeof STUDENT_LEAVE_REASON_OPTIONS)[number]>("病假")
  const [makeup, setMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
  const [makeupScheduleId, setMakeupScheduleId] = useState("")
  const [remarks, setRemarks] = useState("")
@@ -283,9 +283,9 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
        <Select
         className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
         value={reason}
-        onChange={(e) => setReason(e.target.value as (typeof LEAVE_REASON_OPTIONS)[number])}
+        onChange={(e) => setReason(e.target.value as (typeof STUDENT_LEAVE_REASON_OPTIONS)[number])}
        >
-        {LEAVE_REASON_OPTIONS.map((r) => (
+        {STUDENT_LEAVE_REASON_OPTIONS.map((r) => (
          <option key={r} value={r}>
           {r}
          </option>

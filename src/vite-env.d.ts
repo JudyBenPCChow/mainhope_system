@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+/** 由 vite.config.ts `define` 注入的本次 build id。 */
+declare const __APP_BUILD_ID__: string
+
 interface ImportMetaEnv {
  readonly VITE_SUPABASE_URL?: string
  readonly VITE_SUPABASE_ANON_KEY?: string

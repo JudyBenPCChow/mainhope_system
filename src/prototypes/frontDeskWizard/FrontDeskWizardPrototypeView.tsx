@@ -294,6 +294,11 @@ export function FrontDeskWizardPrototypeView() {
      <Button type="button" variant="outline" size="sm" asChild>
       <Link to="/FrontDeskWizard">正式精靈</Link>
      </Button>
+     <Button type="button" variant="outline" size="sm" asChild>
+      <Link to="/prototype/TeacherLeaveWizard">老師請假沙盒</Link>
+      {" · "}
+      <Link to="/TomorrowReminders">明日課堂提醒</Link>
+     </Button>
     </div>
    </div>
 

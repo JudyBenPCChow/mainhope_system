@@ -28,7 +28,7 @@ import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
 import PaymentHistory from "@/pages/PaymentHistory"
 import Payments from "@/pages/Payments"
-import Schedule from "@/pages/Schedule"
+ import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
 import ScriptLibrary from "@/pages/ScriptLibrary"
 import Settings from "@/pages/Settings"
@@ -41,11 +41,15 @@ import Students from "@/pages/Students"
 import Teachers from "@/pages/Teachers"
 import TeacherProfile from "@/pages/TeacherProfile"
 import TeacherTimetable from "@/pages/TeacherTimetable"
+import TeachingRecords from "@/pages/TeachingRecords"
+import TeacherLeaveWizard from "@/pages/TeacherLeaveWizard"
+import TomorrowReminders from "@/pages/TomorrowReminders"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
+import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
 import ReceiptDemo from "@/pages/ReceiptDemo"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
@@ -69,6 +73,7 @@ export default function App() {
      <Route path="/Students/:studentId" element={<StudentDetail />} />
      <Route path="/LessonBalanceMismatch" element={<LessonBalanceMismatch />} />
      <Route path="/FrontDeskWizard" element={<FrontDeskWizard />} />
+     <Route path="/TomorrowReminders" element={<TomorrowReminders />} />
      <Route path="/PrivateTutoring" element={<PrivateTutoring />} />
      <Route path="/Teachers" element={<Teachers />} />
      <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
@@ -122,16 +127,19 @@ export default function App() {
      <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />
+     <Route path="/TeachingRecords" element={<TeachingRecords />} />
      <Route path="/RoomBooking" element={<RoomBooking />} />
      <Route path="/RoomBookingAdmin" element={<RoomBookingAdmin />} />
      <Route path="/LeaveManagement" element={<LeaveManagement />} />
+     <Route path="/TeacherLeaveWizard" element={<TeacherLeaveWizard />} />
      <Route path="/TrialSessions" element={<TrialSessions />} />
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
-     {/* 原型預覽（假資料）；不進側欄，勿與正式排程／點名混淆 */}
+     {/* 保留既有沙盒（前台精靈／排程點名／老師請假）；明日提醒已正式化 */}
      <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
      <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
+     <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
     </Route>
    </Routes>
    <SpeedInsights />
