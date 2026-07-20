@@ -970,7 +970,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 const csvEscape = (s: string) => `"${s.replace(/"/g, '""')}"`
 
 const exportFutureSchedulesCsv = () => {
- const header = ["堂次", "日期", "開始", "結束", "科目", "課程編號", "老師", "狀態"]
+ const header = ["堂次", "日期", "開始", "結束", "科目", "課程編號", "老師", "狀態", "類型"]
  const rows = futureSchedules.map((row) =>
   [
    row.session_number != null ? String(row.session_number) : "",
@@ -981,6 +981,7 @@ const exportFutureSchedulesCsv = () => {
    row.course_code_full ?? "",
    row.teacher_name ?? "",
    row.status,
+   row.source === "makeup" ? "補堂" : "就讀",
   ]
    .map((x) => csvEscape(x))
    .join(",")
@@ -2540,7 +2541,8 @@ const exportFutureSchedulesCsv = () => {
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <p className="text-sm text-muted-foreground">
-        顯示此學生於「就讀中班別」的未來未完成排程，共 {futureSchedules.length} 筆。
+        顯示就讀中班別的未來未完成排程，以及已指定的調堂補堂（可跨班），共{" "}
+        {futureSchedules.length} 筆。
        </p>
        <Button
         type="button"
@@ -2569,10 +2571,17 @@ const exportFutureSchedulesCsv = () => {
            leaveNames={hints?.leaveNames}
            namesLoading={hintsLoading}
            subtitle={
-            <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
-             {row.subject}
-             {row.course_code_full ? `（${row.course_code_full}）` : ""}
-            </Link>
+            <span className="inline-flex flex-wrap items-center gap-2">
+             <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
+              {row.subject}
+              {row.course_code_full ? `（${row.course_code_full}）` : ""}
+             </Link>
+             {row.source === "makeup" ? (
+              <Tag tone={statusToTagTone("補堂")} size="sm">
+               補堂
+              </Tag>
+             ) : null}
+            </span>
            }
            controls={
             <div className="text-right text-sm text-muted-foreground">

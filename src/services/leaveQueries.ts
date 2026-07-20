@@ -578,9 +578,48 @@ export type StudentUpcomingScheduleRow = {
  subject: string
  course_code_full: string | null
  teacher_name: string | null
+ /** enrolled＝就讀班；makeup＝請假調堂目標（可跨班） */
+ source: "enrolled" | "makeup"
 }
 
-/** 學生未來排程（僅限就讀中班別；暑期兩期依報讀期數過濾） */
+const UPCOMING_SCHEDULE_SELECT =
+ "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
+
+function mapUpcomingScheduleRow(
+ row: Record<string, unknown>,
+ source: "enrolled" | "makeup"
+): StudentUpcomingScheduleRow & { courseMode: string; academicYearId: string | null } {
+ const cls = row.classes as Record<string, unknown> | null
+ const teacher = row.teachers as Record<string, unknown> | null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const course = cls?.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+ return {
+  id: String(row.id),
+  class_id: String(row.class_id ?? ""),
+  scheduled_date: String(row.scheduled_date ?? ""),
+  start_time: row.start_time != null ? String(row.start_time) : null,
+  end_time: row.end_time != null ? String(row.end_time) : null,
+  status: String(row.status ?? ""),
+  session_number:
+   row.session_number != null && !Number.isNaN(Number(row.session_number))
+    ? Number(row.session_number)
+    : null,
+  subject: formatClassLabel({ subject: sub, courseCode, courseName }),
+  course_code_full: courseCode,
+  teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
+  source,
+  courseMode: course?.course_mode != null ? String(course.course_mode) : "regular",
+  academicYearId: cls?.academic_year_id != null ? String(cls.academic_year_id) : null,
+ }
+}
+
+function isActiveUpcomingScheduleStatus(status: string): boolean {
+ return !status.includes("取消") && !status.includes("完成")
+}
+
+/** 學生未來排程：就讀中班別（暑期兩期依報讀期數過濾）＋已指定的調堂補堂排程（可跨班） */
 export async function fetchUpcomingSchedulesForStudent(
  studentId: string,
  fromYmd: string
@@ -608,28 +647,45 @@ export async function fetchUpcomingSchedulesForStudent(
  }
 
  const classIds = [...enrollmentByClass.keys()]
- if (classIds.length === 0) return []
 
  const singleEnrollmentIds = [...enrollmentByClass.values()]
   .filter((e) => isSingleSessionEnrollment(e.period))
   .map((e) => e.enrollmentId)
- const singleScheduleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds)
+ const [singleScheduleMap, makeupLeavesRes] = await Promise.all([
+  fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds),
+  supabase
+   .from("leave_makeup_records")
+   .select("makeup_schedule_id, status")
+   .eq("student_id", studentId)
+   .not("makeup_schedule_id", "is", null),
+ ])
+ if (makeupLeavesRes.error) throwPostgrest(makeupLeavesRes.error)
 
- const { data, error } = await supabase
-  .from("schedules")
-  .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, session_number, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) ), teachers!schedules_teacher_id_fkey ( full_name )"
-  )
-  .in("class_id", classIds)
-  .gte("scheduled_date", fromYmd)
-  .order("scheduled_date", { ascending: true })
-  .order("start_time", { ascending: true })
- if (error) throwPostgrest(error)
+ const makeupScheduleIds = [
+  ...new Set(
+   (makeupLeavesRes.data ?? [])
+    .filter((row) => !isLeaveStatusAbandoned(String((row as { status?: string }).status ?? "")))
+    .map((row) => String((row as { makeup_schedule_id: string }).makeup_schedule_id))
+    .filter(Boolean)
+  ),
+ ]
+
+ let enrolledRaw: Record<string, unknown>[] = []
+ if (classIds.length > 0) {
+  const { data, error } = await supabase
+   .from("schedules")
+   .select(UPCOMING_SCHEDULE_SELECT)
+   .in("class_id", classIds)
+   .gte("scheduled_date", fromYmd)
+   .order("scheduled_date", { ascending: true })
+   .order("start_time", { ascending: true })
+  if (error) throwPostgrest(error)
+  enrolledRaw = (data ?? []) as Record<string, unknown>[]
+ }
 
  const yearIds = new Set<string>()
- for (const row of data ?? []) {
-  const r = row as Record<string, unknown>
-  const cls = r.classes as Record<string, unknown> | null
+ for (const row of enrolledRaw) {
+  const cls = row.classes as Record<string, unknown> | null
   const course = cls?.courses as Record<string, unknown> | null
   if (course?.course_mode === "summer_two_period" && cls?.academic_year_id != null) {
    yearIds.add(String(cls.academic_year_id))
@@ -642,35 +698,9 @@ export async function fetchUpcomingSchedulesForStudent(
   })
  )
 
- return (data ?? [])
-  .map((row) => {
-   const r = row as Record<string, unknown>
-   const cls = r.classes as Record<string, unknown> | null
-   const teacher = r.teachers as Record<string, unknown> | null
-   const sub = cls?.subject != null ? String(cls.subject) : "—"
-   const course = cls?.courses as Record<string, unknown> | null
-   const courseName = course?.course_name != null ? String(course.course_name) : null
-   const courseCode =
-    cls?.course_code_full != null ? String(cls.course_code_full) : null
-   return {
-    id: String(r.id),
-    class_id: String(r.class_id ?? ""),
-    scheduled_date: String(r.scheduled_date ?? ""),
-    start_time: r.start_time != null ? String(r.start_time) : null,
-    end_time: r.end_time != null ? String(r.end_time) : null,
-    status: String(r.status ?? ""),
-    session_number:
-     r.session_number != null && !Number.isNaN(Number(r.session_number))
-      ? Number(r.session_number)
-      : null,
-    subject: formatClassLabel({ subject: sub, courseCode, courseName }),
-    course_code_full: courseCode,
-    teacher_name: teacher?.full_name != null ? String(teacher.full_name) : null,
-    courseMode: course?.course_mode != null ? String(course.course_mode) : "regular",
-    academicYearId: cls?.academic_year_id != null ? String(cls.academic_year_id) : null,
-   }
-  })
-  .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))
+ const enrolled = enrolledRaw
+  .map((row) => mapUpcomingScheduleRow(row, "enrolled"))
+  .filter((s) => isActiveUpcomingScheduleStatus(s.status))
   .filter((s) => {
    const enr = enrollmentByClass.get(s.class_id)
    if (!enr) return false
@@ -685,6 +715,27 @@ export async function fetchUpcomingSchedulesForStudent(
    return enrollmentCoversPeriod(enr.period, code)
   })
   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
+
+ const enrolledIds = new Set(enrolled.map((s) => s.id))
+ const makeupIdsToFetch = makeupScheduleIds.filter((id) => !enrolledIds.has(id))
+ let makeupRows: StudentUpcomingScheduleRow[] = []
+ if (makeupIdsToFetch.length > 0) {
+  const { data: makeupData, error: makeupErr } = await supabase
+   .from("schedules")
+   .select(UPCOMING_SCHEDULE_SELECT)
+   .in("id", makeupIdsToFetch)
+   .gte("scheduled_date", fromYmd)
+  if (makeupErr) throwPostgrest(makeupErr)
+  makeupRows = ((makeupData ?? []) as Record<string, unknown>[])
+   .map((row) => mapUpcomingScheduleRow(row, "makeup"))
+   .filter((s) => isActiveUpcomingScheduleStatus(s.status))
+   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
+ }
+
+ return [...enrolled, ...makeupRows].sort((a, b) => {
+  if (a.scheduled_date !== b.scheduled_date) return a.scheduled_date.localeCompare(b.scheduled_date)
+  return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
+ })
 }
 
 type MakeupCandidateOpts = {
