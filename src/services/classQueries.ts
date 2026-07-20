@@ -1394,6 +1394,7 @@ export async function updateSchedule(
   end_time: string | null
   classroom_id: string | null
   remarks: string | null
+  teaching_notes: string | null
   session_number: number | null
   scheduled_date: string
   teacher_id: string | null
@@ -1493,6 +1494,8 @@ export type ScheduleDetailRecord = {
  cancel_reason: string | null
  is_extra_lesson: boolean
  remarks: string | null
+ /** 老師填寫的教學紀錄 */
+ teaching_notes: string | null
  class_id: string | null
  class_subject: string
  course_code_full: string | null
@@ -1748,7 +1751,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, teaching_notes, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -1808,6 +1811,7 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
   cancel_reason: r.cancel_reason != null ? String(r.cancel_reason) : null,
   is_extra_lesson: r.is_extra_lesson === true,
   remarks: r.remarks != null ? String(r.remarks) : null,
+  teaching_notes: r.teaching_notes != null ? String(r.teaching_notes) : null,
   class_id: cid,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
   course_code_full: code,

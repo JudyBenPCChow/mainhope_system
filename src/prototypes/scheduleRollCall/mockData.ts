@@ -117,6 +117,7 @@ function baseRow(
   cancel_reason: null,
   is_extra_lesson: false,
   remarks: null,
+  teaching_notes: null,
   course_name: null,
   class_day_of_week: "五",
   class_time_slot: partial.start_time,

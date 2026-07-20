@@ -496,20 +496,23 @@ export function TeacherHomeView() {
           {group.items.map((s) => {
            const a = alertTagsForSchedule(s.id, s.remarks ?? null, leaves, trialScheduleIds)
            return (
-            <li
-             key={s.id}
-             className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3"
-            >
+            <li key={s.id}>
+             <Link
+              to={`/Schedule/${s.id}`}
+              className="block rounded-xl border border-border/80 bg-muted/20 px-4 py-3 transition-colors hover:border-primary/30"
+             >
              <div className="font-semibold text-foreground">
               {s.start_time ?? "—"}–{s.end_time ?? "—"} · {s.classLabel}
              </div>
              <div className="mt-1 flex flex-wrap gap-2 text-sm text-muted-foreground">
-              {s.classroom_name ? <span>{s.classroom_name}</span> : null}
+              <span>位置：{s.classroom_name ?? "課室未定"}</span>
+              {s.teaching_notes?.trim() ? <Tag tone="info" size="sm">已有教學紀錄</Tag> : null}
               {a.trial ? <Tag tone="info" size="sm">試堂</Tag> : null}
               {a.leave ? <Tag tone="warning" size="sm">請假</Tag> : null}
               {a.makeup ? <Tag tone="warning" size="sm">補堂</Tag> : null}
               {a.record ? <Tag tone="default" size="sm">錄影</Tag> : null}
              </div>
+             </Link>
             </li>
            )
           })}
@@ -556,17 +559,28 @@ export function TeacherHomeView() {
         >
          <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-           <div className="font-semibold text-foreground">
+           <Link
+            to={`/Schedule/${s.id}`}
+            className="font-semibold text-foreground hover:text-primary hover:underline"
+           >
             {s.start_time ?? "—"}–{s.end_time ?? "—"} · {s.classLabel}
-           </div>
+           </Link>
            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground md:text-base">
             <span className="inline-flex items-center gap-1">
              <User className="h-4 w-4" />
              {s.teacher_name ?? "—"}
             </span>
-            <span>{s.classroom_name ?? "課室未定"}</span>
+            <span>位置：{s.classroom_name ?? "課室未定"}</span>
             <span>{s.enrollCount} 人報讀</span>
+            {s.teaching_notes?.trim() ? (
+             <Tag tone="info" size="sm">已有教學紀錄</Tag>
+            ) : null}
            </div>
+           {s.teaching_notes?.trim() ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm text-foreground md:text-base">
+             教學紀錄：{s.teaching_notes}
+            </p>
+           ) : null}
            {s.remarks ? (
             <p className="mt-2 text-sm text-info md:text-base">備註：{s.remarks}</p>
            ) : null}

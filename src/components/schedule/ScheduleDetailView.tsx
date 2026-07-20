@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Calendar, Monitor, Users, Video } from "lucide-react"
+import { ArrowLeft, Calendar, MapPin, Monitor, NotebookPen, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
@@ -42,6 +42,8 @@ export function ScheduleDetailView() {
  const [loading, setLoading] = useState(true)
  const [remarksDraft, setRemarksDraft] = useState("")
  const [remarksSaving, setRemarksSaving] = useState(false)
+ const [teachingNotesDraft, setTeachingNotesDraft] = useState("")
+ const [teachingNotesSaving, setTeachingNotesSaving] = useState(false)
  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
@@ -56,6 +58,7 @@ export function ScheduleDetailView() {
    setRow(s)
    if (s) {
     setRemarksDraft(s.remarks ?? "")
+    setTeachingNotesDraft(s.teaching_notes ?? "")
     if (s.class_id) {
      const c = await fetchScheduleDetailContext(sid, s.class_id, s.scheduled_date)
      setCtx(c)
@@ -171,8 +174,11 @@ export function ScheduleDetailView() {
         </Link>
        ) : null}
        <Tag tone="default">
-        課室：{row.classroom_name ?? "未分配"}
-        {row.classroom_is_online ? "（線上）" : ""}
+        <span className="inline-flex items-center gap-1">
+         <MapPin className="h-3.5 w-3.5" aria-hidden />
+         位置：{row.classroom_name ?? "未分配"}
+         {row.classroom_is_online ? "（線上）" : ""}
+        </span>
        </Tag>
       </div>
      </div>
@@ -445,6 +451,46 @@ export function ScheduleDetailView() {
         </table>
        </div>
       )}
+     </section>
+
+     <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
+      <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
+       <NotebookPen className="h-5 w-5 text-info" />
+       教學紀錄
+      </div>
+      <p className="mt-1 text-sm text-muted-foreground">
+       記錄本堂教學進度、內容或備忘；僅此堂可見，與下方營運備註分開。
+      </p>
+      <Textarea
+       className="mt-4 min-h-[140px] text-base"
+       value={teachingNotesDraft}
+       onChange={(e) => setTeachingNotesDraft(e.target.value)}
+       placeholder="例如：完成第 3 章、下次測驗範圍…"
+      />
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+       <Button
+        type="button"
+        disabled={
+         teachingNotesSaving || teachingNotesDraft === (row.teaching_notes ?? "")
+        }
+        onClick={async () => {
+         setTeachingNotesSaving(true)
+         try {
+          await updateSchedule(row.id, {
+           teaching_notes: teachingNotesDraft.trim() || null,
+          })
+          await load()
+         } finally {
+          setTeachingNotesSaving(false)
+         }
+        }}
+       >
+        {teachingNotesSaving ? "儲存中…" : "儲存教學紀錄"}
+       </Button>
+       {teachingNotesDraft !== (row.teaching_notes ?? "") ? (
+        <span className="text-xs text-amber-700">有未儲存變更</span>
+       ) : null}
+      </div>
      </section>
 
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">

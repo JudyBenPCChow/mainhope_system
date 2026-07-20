@@ -1108,7 +1108,7 @@ useEffect(() => {
  }, [pendingMove, dayFiltered, dayViewDate])
 
  const exportCsv = () => {
-  const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "課室", "狀態", "報讀人數"]
+  const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "位置", "狀態", "報讀人數", "教學紀錄"]
   const lines = [
    header.join(","),
    ...filtered.map((r) =>
@@ -1122,6 +1122,7 @@ useEffect(() => {
      `"${(r.classroom_name ?? "").replace(/"/g, '""')}"`,
      r.status,
      String(r.enrollCount),
+     `"${(r.teaching_notes ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`,
     ].join(",")
    ),
   ]
@@ -1872,6 +1873,10 @@ useEffect(() => {
                 <User className="h-4 w-4 shrink-0" aria-hidden />
                 {s.teacher_name ?? "—"}
                </span>
+               <span className="inline-flex items-center gap-1">
+                <DoorOpen className="h-4 w-4 shrink-0" aria-hidden />
+                位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
+               </span>
                <span
                 className={cn(
                  "inline-flex items-center gap-1",
@@ -1881,6 +1886,11 @@ useEffect(() => {
                 <Users className="h-4 w-4 opacity-70" aria-hidden />
                 {s.enrollCount} 人報讀
                </span>
+               {s.teaching_notes?.trim() ? (
+                <Tag tone="info" size="sm">
+                 已有教學紀錄
+                </Tag>
+               ) : null}
               </div>
              </button>
              <div
@@ -2011,11 +2021,26 @@ useEffect(() => {
                makeup={listMakeupStudents}
                notEnrolled={listNotEnrolledStudents}
                classMeta={
-                <p className="text-sm font-medium text-info">
-                 班別：{s.classLabel}
-                 {s.course_code_full ? `（${s.course_code_full}）` : ""}
-                 {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
-                </p>
+                <div className="space-y-2">
+                 <p className="text-sm font-medium text-info">
+                  班別：{s.classLabel}
+                  {s.course_code_full ? `（${s.course_code_full}）` : ""}
+                  {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
+                 </p>
+                 <p className="text-sm text-muted-foreground">
+                  位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
+                 </p>
+                 {s.teaching_notes?.trim() ? (
+                  <div className="rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm">
+                   <p className="text-xs font-medium text-info">教學紀錄</p>
+                   <p className="mt-1 whitespace-pre-wrap text-foreground">{s.teaching_notes}</p>
+                  </div>
+                 ) : (
+                  <p className="text-sm text-muted-foreground">
+                   教學紀錄：尚未填寫（可於完整排程頁編輯）
+                  </p>
+                 )}
+                </div>
                }
                footer={
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-3">
@@ -2063,7 +2088,7 @@ useEffect(() => {
         <th className="w-[26%] px-4 py-3 font-medium">班別</th>
         <th className="w-[11%] px-4 py-3 font-medium">時間</th>
         <th className="w-[14%] px-4 py-3 font-medium">老師</th>
-        <th className="w-[14%] px-4 py-3 font-medium">課室</th>
+        <th className="w-[14%] px-4 py-3 font-medium">位置</th>
         <th className="w-[12%] px-4 py-3 font-medium">狀態</th>
         <th className="w-[12%] px-4 py-3 font-medium">操作</th>
        </tr>
@@ -2121,6 +2146,11 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3 text-muted-foreground">
             <span className="block break-words">{s.classroom_name ?? "—"}</span>
+            {s.teaching_notes?.trim() ? (
+             <Tag tone="info" size="sm" className="mt-1">
+              已有教學紀錄
+             </Tag>
+            ) : null}
            </td>
            <td className="align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <Select
@@ -2305,7 +2335,18 @@ useEffect(() => {
          </Tag>
         ) : null
        })()}
-       <p className="text-muted-foreground">課室：{detailRow.classroom_name ?? "未分配"}</p>
+       <p className="text-muted-foreground">
+        位置：{detailRow.classroom_name ?? "未分配"}
+        {detailRow.classroom_is_online ? "（線上）" : ""}
+       </p>
+       {detailRow.teaching_notes?.trim() ? (
+        <div className="rounded-lg border border-info/30 bg-info/5 px-3 py-2">
+         <p className="text-xs font-medium text-info">教學紀錄</p>
+         <p className="mt-1 whitespace-pre-wrap text-foreground">{detailRow.teaching_notes}</p>
+        </div>
+       ) : (
+        <p className="text-muted-foreground">教學紀錄：尚未填寫</p>
+       )}
        <div className="flex flex-wrap items-center gap-2">
         <Tag tone={statusToTagTone(detailRow.status)} size="sm">{detailRow.status}</Tag>
         {detailRow.is_extra_lesson ? (
@@ -2335,6 +2376,7 @@ useEffect(() => {
            cancel_reason: detailRow.cancel_reason,
            is_extra_lesson: detailRow.is_extra_lesson,
            remarks: detailRow.remarks,
+           teaching_notes: detailRow.teaching_notes,
            session_number: null,
            consecutive_group_id: detailRow.consecutive_group_id,
            consecutive_slot_index: null,

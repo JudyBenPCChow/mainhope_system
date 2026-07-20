@@ -28,6 +28,8 @@ export type WeekTimetableItem = {
  status: string
  subject: string
  courseCode: string | null
+ classroomName: string | null
+ hasTeachingNotes: boolean
 }
 
 export function weekItemsFromTeacherScheduleRows(rows: ScheduleRow[]): WeekTimetableItem[] {
@@ -39,6 +41,8 @@ export function weekItemsFromTeacherScheduleRows(rows: ScheduleRow[]): WeekTimet
   status: r.status,
   subject: r.subject,
   courseCode: r.courseCode,
+  classroomName: r.classroomName,
+  hasTeachingNotes: Boolean(r.teachingNotes?.trim()),
  }))
 }
 
@@ -51,6 +55,8 @@ export function weekItemsFromManageRows(rows: ScheduleManageRow[]): WeekTimetabl
   status: r.status,
   subject: r.classLabel,
   courseCode: r.course_code_full,
+  classroomName: r.classroom_name,
+  hasTeachingNotes: Boolean(r.teaching_notes?.trim()),
  }))
 }
 
@@ -213,6 +219,10 @@ export function TeacherWeekTimetable({ items }: Props) {
                 <div className="font-semibold">{s.subject}</div>
                 <div className="tabular-nums text-muted-foreground">
                  {s.startTime ?? "—"}–{s.endTime ?? "—"}
+                </div>
+                <div className="text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
+                 {s.classroomName?.trim() ? s.classroomName : "課室未定"}
+                 {s.hasTeachingNotes ? " · 已有教學紀錄" : ""}
                 </div>
                 {s.courseCode ? (
                  <div className="font-mono text-[0.6rem] text-muted-foreground md:text-[0.65rem]">

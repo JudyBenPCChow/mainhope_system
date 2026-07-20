@@ -613,25 +613,30 @@ export function TeacherDetailView() {
         filteredSchedules.map((s) => {
          const hints = scheduleHints.get(s.id)
          return (
-          <ScheduleListCard
-           key={s.id}
-           sessionNumber={s.sessionNumber}
-           scheduledDate={s.scheduledDate}
-           startTime={s.startTime}
-           endTime={s.endTime}
-           attendingNames={hints?.attendingNames}
-           leaveNames={hints?.leaveNames}
-           namesLoading={hintsLoading}
-           subtitle={
-            <>
-             {s.subject}{" "}
-             {s.courseCode ? (
-              <span className="font-normal">{s.courseCode}</span>
-             ) : null}
-            </>
-           }
-           controls={<Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>}
-          />
+          <Link key={s.id} to={`/Schedule/${s.id}`} className="block">
+           <ScheduleListCard
+            sessionNumber={s.sessionNumber}
+            scheduledDate={s.scheduledDate}
+            startTime={s.startTime}
+            endTime={s.endTime}
+            attendingNames={hints?.attendingNames}
+            leaveNames={hints?.leaveNames}
+            namesLoading={hintsLoading}
+            subtitle={
+             <>
+              {s.subject}{" "}
+              {s.courseCode ? (
+               <span className="font-normal">{s.courseCode}</span>
+              ) : null}
+              <span className="mt-0.5 block">
+               位置：{s.classroomName?.trim() ? s.classroomName : "未分配"}
+               {s.teachingNotes?.trim() ? " · 已有教學紀錄" : ""}
+              </span>
+             </>
+            }
+            controls={<Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>}
+           />
+          </Link>
          )
         })
        )}
