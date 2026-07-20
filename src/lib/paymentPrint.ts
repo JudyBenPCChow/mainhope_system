@@ -897,6 +897,7 @@ export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
   studentId: "demo-student",
   studentName: "陳小明",
   studentCode: "STU-2024-0188",
+  contactPhone: "91234567",
   receiptNumber: "RC-20260720-0142",
   paymentDate: "2026-07-20",
   totalAmount: 4320,

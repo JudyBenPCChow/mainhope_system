@@ -10,6 +10,7 @@ import {
  selectClassName,
  statusBadge,
 } from "@/components/payments/paymentsUi"
+import { PaymentReceiptWhatsAppButton } from "@/components/payments/PaymentReceiptWhatsAppButton"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -250,7 +251,7 @@ export function PaymentHistoryView() {
       繳費紀錄
      </h1>
      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      查詢、重印收據、將待繳單據標記為已收款。收款請至「收款登記」。
+      查詢、重印收據、以 WhatsApp 傳送 PDF 收據、將待繳單據標記為已收款。收款請至「收款登記」。
      </p>
     </div>
     <Button type="button" variant="outline" asChild>
@@ -285,6 +286,7 @@ export function PaymentHistoryView() {
        <Printer className="h-4 w-4" />
        列印收據
       </Button>
+      <PaymentReceiptWhatsAppButton paymentId={receivedDone.paymentId} />
       <Button type="button" size="sm" variant="outline" asChild>
        <Link to={`/Students/${receivedDone.studentId}`}>返回學生頁</Link>
       </Button>
@@ -491,6 +493,7 @@ export function PaymentHistoryView() {
            <Printer className="h-3.5 w-3.5" />
            重印收據
           </Button>
+          <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
           {pending && rowEditable ? (
            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
             標記已收
@@ -514,17 +517,17 @@ export function PaymentHistoryView() {
      </div>
     ) : (
      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-      <table className="w-full min-w-[860px] table-fixed border-collapse text-left text-sm">
+      <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
        <thead className="border-b bg-muted/40">
         <tr>
-         <th className="w-[11%] px-3 py-2 font-medium">日期</th>
-         <th className="w-[13%] px-3 py-2 font-medium">單號</th>
-         <th className="w-[18%] px-3 py-2 font-medium">學生</th>
-         <th className="w-[12%] px-3 py-2 font-medium">優惠</th>
-         <th className="w-[11%] px-3 py-2 font-medium text-right">金額</th>
-         <th className="w-[10%] px-3 py-2 font-medium">方式</th>
-         <th className="w-[13%] px-3 py-2 font-medium">狀態</th>
-         <th className="w-[12%] px-3 py-2 font-medium">操作</th>
+         <th className="w-[10%] px-3 py-2 font-medium">日期</th>
+         <th className="w-[12%] px-3 py-2 font-medium">單號</th>
+         <th className="w-[16%] px-3 py-2 font-medium">學生</th>
+         <th className="w-[11%] px-3 py-2 font-medium">優惠</th>
+         <th className="w-[10%] px-3 py-2 font-medium text-right">金額</th>
+         <th className="w-[9%] px-3 py-2 font-medium">方式</th>
+         <th className="w-[12%] px-3 py-2 font-medium">狀態</th>
+         <th className="w-[20%] px-3 py-2 font-medium">操作</th>
         </tr>
        </thead>
        <tbody>
@@ -560,6 +563,7 @@ export function PaymentHistoryView() {
               <Printer className="h-3.5 w-3.5" />
               重印收據
              </Button>
+             <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
              {pending && rowEditable ? (
               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
                標記已收
@@ -677,6 +681,7 @@ export function PaymentHistoryView() {
          <Printer className="h-4 w-4" />
          重印收據
         </Button>
+        <PaymentReceiptWhatsAppButton payment={detailPay} contactPhone={detailPay.contactPhone} />
        </div>
       </div>
      ) : null}
@@ -750,6 +755,12 @@ export function PaymentHistoryView() {
          <Printer className="h-4 w-4" />
          列印
         </Button>
+        {receiptPreview ? (
+         <PaymentReceiptWhatsAppButton
+          payment={receiptPreview}
+          contactPhone={receiptPreview.contactPhone}
+         />
+        ) : null}
         <Button
          type="button"
          variant="outline"

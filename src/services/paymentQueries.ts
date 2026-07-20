@@ -6,6 +6,7 @@ import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
+import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import {
  applyDiscountsToSubtotal,
  fetchActivePaymentDiscounts,
@@ -77,6 +78,8 @@ export type PaymentListRow = {
  studentId: string
  studentName: string
  studentCode: string | null
+ /** WhatsApp／學生電話／家長電話（優先序與 pickStudentContactRaw 一致） */
+ contactPhone: string | null
  receiptNumber: string | null
  paymentDate: string
  totalAmount: number
@@ -158,6 +161,7 @@ function mapListRow(r: Record<string, unknown>): PaymentListRow {
   studentId: String(r.student_id),
   studentName: st?.full_name != null ? String(st.full_name) : "—",
   studentCode: st?.student_code != null ? String(st.student_code) : null,
+  contactPhone: pickStudentContactFromDbRow(st),
   receiptNumber: r.receipt_number != null ? String(r.receipt_number) : null,
   paymentDate: String(r.payment_date ?? "").slice(0, 10),
   totalAmount: Number(r.total_amount ?? 0),
@@ -187,7 +191,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
  let q = supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, whatsapp, student_phone, parent_phone ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .order("payment_date", { ascending: false })
   .order("created_at", { ascending: false })
@@ -224,7 +228,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const { data: pay, error: e1 } = await supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade, whatsapp, student_phone, parent_phone ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .eq("id", id)
   .maybeSingle()
