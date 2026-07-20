@@ -3,11 +3,14 @@ import QRCode from "qrcode"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
-import { getPortalBaseUrl } from "@/lib/portalConfig"
+import { buildPortalActivateUrl, getPortalBaseUrl } from "@/lib/portalConfig"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd, weekdayLabelFromYmd } from "@/lib/weekdayUtils"
 import { PAYMENT_STATUS, type PaymentFull } from "@/services/paymentQueries"
-import { fetchPortalInvitesForStudent } from "@/services/portalInviteQueries"
+import {
+ createPortalInviteForStudent,
+ fetchPortalInvitesForStudent,
+} from "@/services/portalInviteQueries"
 import { fetchLeaveForStudent } from "@/services/studentQueries"
 
 const COMPANY = {
@@ -487,6 +490,10 @@ function buildPrintStyles(): string {
     color: #333;
     line-height: 1.4;
   }
+  .portal-invite .copy .note {
+    font-weight: 600;
+    color: ${BRAND.ink};
+  }
   .portal-invite .copy .url {
     font-size: 8.5pt;
     color: ${BRAND.muted};
@@ -695,15 +702,21 @@ function buildLeaveSectionHtml(leaves: ReceiptLeaveRow[]): string {
  </section>`
 }
 
-function buildPortalInviteSectionHtml(url: string, qrDataUrl: string | null): string {
+function buildPortalInviteSectionHtml(
+ url: string,
+ qrDataUrl: string | null,
+ studentName: string
+): string {
+ const who = studentName.trim() || "該學生"
  const qrHtml = qrDataUrl
-  ? `<img class="qr" src="${qrDataUrl}" alt="學生自助平台 QR code" width="112" height="112" />`
+  ? `<img class="qr" src="${qrDataUrl}" alt="${escHtml(`${who} 專屬開通 QR code`)}" width="112" height="112" />`
   : `<div class="qr" aria-hidden="true" style="display:flex;align-items:center;justify-content:center;font-size:8pt;color:#888;text-align:center;padding:8px">QR</div>`
  return `<section class="portal-invite">
   ${qrHtml}
   <div class="copy">
-   <h3>加入學生自助平台</h3>
-   <p>請用手機掃描 QR code，開通／登入家長查閱系統，可查看課堂時間表、出席與繳費資料。</p>
+   <h3>開通家長查閱帳戶</h3>
+   <p>請用手機掃描此 QR code，為「${escHtml(who)}」開設家長查閱帳戶（設定電郵與密碼），可查看課堂時間表、出席與繳費資料。</p>
+   <p class="note">此開通碼僅供「${escHtml(who)}」使用，請勿轉傳或與其他學生共用。</p>
    <p class="url">${escHtml(url)}</p>
   </div>
  </section>`
@@ -766,7 +779,7 @@ function buildPrintBody(p: PaymentFull, opts: PaymentReceiptOptions = {}): strin
 
   ${buildScheduleSectionHtml(p, schedules)}
   ${buildLeaveSectionHtml(leaves)}
-  ${buildPortalInviteSectionHtml(portalUrl, portalQr)}
+  ${buildPortalInviteSectionHtml(portalUrl, portalQr, p.studentName)}
  </div>`
 }
 
@@ -783,11 +796,21 @@ async function buildPortalQrDataUrl(url: string): Promise<string | null> {
  }
 }
 
+/**
+ * 解析該生專屬開通連結（含 token）。
+ * 優先使用既有未過期邀請；若無則自動產生一筆，避免收據 QR 落到通用首頁。
+ */
 async function resolvePortalInviteUrl(studentId: string): Promise<string> {
+ if (!studentId.trim()) {
+  return getPortalBaseUrl() || COMPANY.website
+ }
  try {
   const invites = await fetchPortalInvitesForStudent(studentId)
   const active = invites.find((i) => i.isActive && i.activateUrl)
   if (active?.activateUrl) return active.activateUrl
+
+  const created = await createPortalInviteForStudent(studentId)
+  if (created.activateUrl) return created.activateUrl
  } catch {
   // ignore — 改用 portal 首頁
  }
@@ -937,7 +960,10 @@ export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
   { date: "2026-05-28", classLabel: "英文小組 ENG-S3-B", reason: "學校考試", status: "待補堂" },
  ]
 
- const portalInviteUrl = getPortalBaseUrl() || COMPANY.website
+ const demoToken = "demo-chenxiaoming-activate-only"
+ const portalInviteUrl =
+  buildPortalActivateUrl(demoToken) ??
+  `${getPortalBaseUrl() || "https://mainhopeportal.vercel.app"}/activate?token=${encodeURIComponent(demoToken)}`
  const portalQrDataUrl = await buildPortalQrDataUrl(portalInviteUrl)
  return buildPaymentReceiptDocumentHtml(demo, { schedules, leaves, portalInviteUrl, portalQrDataUrl })
 }

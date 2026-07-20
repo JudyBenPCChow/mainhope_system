@@ -1,29 +1,38 @@
 import { useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
 import { Plus, Trash2 } from "lucide-react"
 
 import { localTodayYmd } from "@/components/frontDesk/frontDeskUi"
 import {
- enrollmentLabel,
+ DEFAULT_LESSON_COUNT,
+ DEFAULT_TRIAL_LESSON_COUNT,
  FormField,
+ TRIAL_SELECT_VALUE,
+ TrialClassPicker,
+ classRecordToPriceInfo,
+ enrollmentLabel,
  money,
  newLine,
  SectionCard,
  selectClassName,
+ type ClassPriceInfo,
  type LineRow,
+ type TrialPayType,
 } from "@/components/payments/paymentsUi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
+import { fetchAllClasses } from "@/services/classQueries"
 import {
  insertPaymentRecord,
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
+ type PaymentDetailInput,
 } from "@/services/paymentQueries"
 import {
  fetchEnrollmentsForStudent,
@@ -31,10 +40,22 @@ import {
  type StudentRecord,
 } from "@/services/studentQueries"
 
-function lineAmountFor(enrollments: EnrollmentWithClass[], classId: string, lessons: string): string {
- const e = enrollments.find((x) => x.classId === classId)
- const n = Number(lessons)
- if (!e?.pricePerLesson || !Number.isFinite(n) || n <= 0) return ""
+function lineAmount(
+ line: LineRow,
+ enrollments: EnrollmentWithClass[],
+ trialById: Map<string, ClassPriceInfo>
+): string {
+ const n = Number(line.lessons)
+ if (!Number.isFinite(n) || n <= 0) return ""
+ if (line.kind === "trial") {
+  const c = trialById.get(line.classId)
+  const base = c?.pricePerLesson
+  if (!(base != null && base > 0)) return ""
+  const unit = line.trialType === "半價試堂" ? base * 0.5 : base
+  return String(Math.round(unit * n * 100) / 100)
+ }
+ const e = enrollments.find((x) => x.classId === line.classId)
+ if (!e?.pricePerLesson) return ""
  return String(Math.round(e.pricePerLesson * n * 100) / 100)
 }
 
@@ -48,6 +69,7 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
+ const [trialClasses, setTrialClasses] = useState<ClassPriceInfo[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [mode, setMode] = useState<"receive" | "invoice">("receive")
@@ -55,28 +77,39 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
  const [method, setMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
  const [invoiceStatus, setInvoiceStatus] = useState<string>(PAYMENT_STATUS.pendingReceive)
  const [remarks, setRemarks] = useState("")
- const [lines, setLines] = useState<LineRow[]>([newLine()])
+ const [lines, setLines] = useState<LineRow[]>([newLine("trial")])
  const [saving, setSaving] = useState(false)
+
+ const trialById = useMemo(() => {
+  const m = new Map<string, ClassPriceInfo>()
+  for (const c of trialClasses) m.set(c.id, c)
+  return m
+ }, [trialClasses])
 
  useEffect(() => {
   let cancelled = false
   setLoading(true)
-  void fetchEnrollmentsForStudent(student.id)
-   .then((list) => {
+  void Promise.all([fetchEnrollmentsForStudent(student.id), fetchAllClasses()])
+   .then(([list, classes]) => {
     if (cancelled) return
     const active = list.filter((e) => e.status !== "已退讀")
     setEnrollments(active)
+    setTrialClasses(classes.map(classRecordToPriceInfo))
     if (active.length > 0) {
-     const first = active[0]
+     const first = active[0]!
      setLines([
       {
-       ...newLine(),
+       ...newLine("enrollment"),
        classId: first.classId,
-       amount: lineAmountFor(active, first.classId, "4"),
+       amount: lineAmount(
+        { ...newLine("enrollment"), classId: first.classId, lessons: DEFAULT_LESSON_COUNT },
+        active,
+        new Map()
+       ),
       },
      ])
     } else {
-     setLines([newLine()])
+     setLines([newLine("trial")])
     }
    })
    .catch((e) => {
@@ -89,9 +122,6 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
    cancelled = true
   }
  }, [student.id])
-
- const usedClassIds = useMemo(() => new Set(lines.map((l) => l.classId).filter(Boolean)), [lines])
- const canAddLine = enrollments.some((e) => !usedClassIds.has(e.classId))
 
  const subtotal = useMemo(() => {
   return lines.reduce((sum, line) => {
@@ -108,17 +138,39 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
  }, [lines])
 
  const enrollmentsForLine = (key: string, classId: string) => {
-  const locked = new Set(lines.filter((l) => l.key !== key && l.classId).map((l) => l.classId))
+  const locked = new Set(
+   lines.filter((l) => l.key !== key && l.kind === "enrollment" && l.classId).map((l) => l.classId)
+  )
   return enrollments.filter((e) => e.classId === classId || !locked.has(e.classId))
  }
 
- const updateLine = (key: string, patch: Partial<LineRow>) => {
+ const updateLine = (
+  key: string,
+  patch: Partial<Pick<LineRow, "kind" | "classId" | "lessons" | "amount" | "trialType">>
+ ) => {
   setLines((prev) =>
    prev.map((line) => {
     if (line.key !== key) return line
     const next = { ...line, ...patch }
-    if (patch.classId != null || patch.lessons != null) {
-     const auto = lineAmountFor(enrollments, next.classId, next.lessons)
+    if (patch.kind === "trial") {
+     next.classId = patch.classId ?? ""
+     if (!next.lessons || next.lessons === DEFAULT_LESSON_COUNT) {
+      next.lessons = DEFAULT_TRIAL_LESSON_COUNT
+     }
+    }
+    if (patch.kind === "enrollment") {
+     next.trialType = "原價試堂"
+     if (!next.lessons || next.lessons === DEFAULT_TRIAL_LESSON_COUNT) {
+      next.lessons = DEFAULT_LESSON_COUNT
+     }
+    }
+    if (
+     patch.classId != null ||
+     patch.lessons != null ||
+     patch.kind != null ||
+     patch.trialType != null
+    ) {
+     const auto = lineAmount(next, enrollments, trialById)
      if (auto) next.amount = auto
     }
     return next
@@ -126,133 +178,136 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
   )
  }
 
- const addLine = () => {
-  const nextClass = enrollments.find((e) => !usedClassIds.has(e.classId))
-  if (!nextClass) return
-  setLines((prev) => [
-   ...prev,
-   {
-    ...newLine(),
-    classId: nextClass.classId,
-    amount: lineAmountFor(enrollments, nextClass.classId, "4"),
-   },
-  ])
+ const onLineSelectChange = (rowKey: string, value: string) => {
+  if (value === TRIAL_SELECT_VALUE) {
+   updateLine(rowKey, { kind: "trial", classId: "", lessons: DEFAULT_TRIAL_LESSON_COUNT })
+   return
+  }
+  updateLine(rowKey, {
+   kind: "enrollment",
+   classId: value,
+   lessons: DEFAULT_LESSON_COUNT,
+  })
  }
+
+ const addLine = () => {
+  const taken = new Set(
+   lines.filter((l) => l.kind === "enrollment" && l.classId).map((l) => l.classId)
+  )
+  const nextClass = enrollments.find((e) => !taken.has(e.classId))
+  if (nextClass) {
+   setLines((prev) => [
+    ...prev,
+    {
+     ...newLine("enrollment"),
+     classId: nextClass.classId,
+     amount: lineAmount(
+      { ...newLine("enrollment"), classId: nextClass.classId },
+      enrollments,
+      trialById
+     ),
+    },
+   ])
+   return
+  }
+  setLines((prev) => [...prev, newLine("trial")])
+ }
+
+ const buildDetails = (): PaymentDetailInput[] =>
+  lines
+   .filter((l) => l.classId && Number(l.lessons) > 0)
+   .map((l) => {
+    const amt = Number(l.amount)
+    if (l.kind === "trial") {
+     const t = trialById.get(l.classId)
+     const classLabel = t
+      ? formatClassLabel({
+         subject: t.subject,
+         courseCode: t.courseCode,
+         courseName: t.courseName,
+        })
+      : null
+     return {
+      classId: l.classId,
+      lessonCount: Number(l.lessons),
+      amount: Number.isFinite(amt) && amt > 0 ? amt : null,
+      description: classLabel ? `試堂（${l.trialType}）· ${classLabel}` : `試堂（${l.trialType}）`,
+     }
+    }
+    const e = enrollments.find((x) => x.classId === l.classId)
+    return {
+     classId: l.classId,
+     lessonCount: Number(l.lessons),
+     amount: Number.isFinite(amt) && amt > 0 ? amt : null,
+     description: e
+      ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })
+      : null,
+    }
+   })
 
  const onSubmit = async () => {
   if (saving) return
   if (loading) {
-   setErr("載入報讀資料中…")
+   setErr("載入收費資料中…")
    return
   }
-  if (enrollments.length === 0) {
-   setErr("此學生沒有可用的報讀紀錄，請先回到上一步報讀。")
-   return
-  }
-  const details = lines
-   .map((line) => {
-    const lessons = Math.floor(Number(line.lessons))
-    const amount = Number(line.amount)
-    if (!line.classId || !Number.isFinite(lessons) || lessons < 1 || !Number.isFinite(amount) || amount <= 0) {
-     return null
-    }
-    return {
-     classId: line.classId,
-     lessonCount: lessons,
-     amount,
-     description: null as string | null,
-    }
-   })
-   .filter((x): x is NonNullable<typeof x> => x != null)
+  const details = buildDetails()
   if (details.length === 0) {
-   setErr("請至少新增一筆班別、堂數與金額。")
+   const hasTrialWithoutClass = lines.some((l) => l.kind === "trial" && !l.classId)
+   setErr(hasTrialWithoutClass ? "請為試堂項目選擇班別。" : "請至少新增一筆班別與堂數。")
    return
   }
   if (subtotal <= 0) {
    setErr("請確認各項金額。")
    return
   }
-
+  if (
+   !(await confirmDialog({
+    title: mode === "receive" ? "確認收款" : "確認出單",
+    description: `應收 ${money(subtotal)}，確定送出？`,
+    confirmText: mode === "receive" ? "確認收款" : "確認出單",
+   }))
+  ) {
+   return
+  }
   setSaving(true)
   setErr(null)
   try {
    await insertPaymentRecord({
     studentId: student.id,
     paymentDate: payDate,
-    subtotalAmount: subtotal,
     totalAmount: subtotal,
+    subtotalAmount: subtotal,
     paymentMethod: method,
     status: mode === "receive" ? PAYMENT_STATUS.received : invoiceStatus,
     remarks: remarks.trim() || null,
-    receiptKind: mode === "receive" ? "RC" : "INV",
+    receiptKind: "RC",
     details,
    })
    pushBanner({
     tone: "success",
-    title: mode === "receive" ? "已登記收款" : "已出單",
-    message: "單據已建立。",
-    action: {
-     pageLabel: "繳費紀錄",
-     to: `/Payments?studentId=${encodeURIComponent(student.id)}&tab=history`,
-    },
+    title: mode === "receive" ? "收款成功" : "已建立繳費單",
+    message: `${student.full_name} · ${money(subtotal)}`,
    })
    onPaymentDone()
   } catch (e) {
-   reportUserFacingError(e, { source: "PaymentStep.onSubmit", setErr })
+   reportUserFacingError(e, { source: "PaymentStep.submit", setErr })
   } finally {
    setSaving(false)
   }
  }
 
- const onSkip = async () => {
-  const ok = await confirmDialog({
-   title: "稍後付款？",
-   description: "確定略過本步驟？之後可在繳費紀錄頁為該生收款／出單。",
-   confirmText: "稍後付款",
-  })
-  if (!ok) return
-  onSkipPayment()
- }
-
- const modePill = (active: boolean) =>
-  cn(
-   "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-   active
-    ? "border-warning bg-warning text-white"
-    : "border-border bg-card text-foreground hover:border-warning/40"
-  )
-
  return (
   <div className="space-y-4">
-   <div className="flex flex-wrap items-center justify-between gap-2">
-    <div className="flex flex-wrap gap-2">
-     <button type="button" className={modePill(mode === "receive")} onClick={() => setMode("receive")}>
-      收款登記
-     </button>
-     <button type="button" className={modePill(mode === "invoice")} onClick={() => setMode("invoice")}>
-      出單（待繳）
-     </button>
-    </div>
-    <Button type="button" variant="ghost" size="sm" asChild>
-     <Link to={`/Payments?studentId=${encodeURIComponent(student.id)}&tab=receive`}>前往繳費紀錄頁面</Link>
-    </Button>
-   </div>
-
-   {err ? (
-    <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-     {err}
-    </div>
-   ) : null}
-
-   <SectionCard title="1. 學生／收款對象" description="精靈已鎖定學生；以下為進行中報讀摘要。">
-    <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-sm">
-     <div className="font-medium">
+   <SectionCard title="1. 學生" description="確認本次收款學生與報讀概況。">
+    <div className="rounded-lg border border-border bg-muted/20 px-3 py-3 text-sm">
+     <div className="font-medium text-foreground">
       {student.full_name}
       {student.student_code ? `（${student.student_code}）` : ""}
      </div>
      <div className="mt-1 text-muted-foreground">
       年級 {student.grade || "—"}
-      {loading ? " · 載入報讀中…" : ` · 報讀 ${enrollments.length} 班`}
+      {loading ? " · 載入中…" : ` · 報讀 ${enrollments.length} 班`}
      </div>
      {enrollments.length > 0 ? (
       <ul className="mt-2 list-inside list-disc text-xs text-muted-foreground">
@@ -261,23 +316,19 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
        ))}
       </ul>
      ) : !loading ? (
-      <p className="mt-2 text-warning">尚無報讀紀錄，請先回到上一步。</p>
+      <p className="mt-2 text-info-foreground">尚無報讀，可直接以「試堂」收費。</p>
      ) : null}
     </div>
    </SectionCard>
 
    <SectionCard title="2. 本次應收內容" description="選定收費項目後，核對應收總額再進入收款操作。">
     {loading ? (
-     <p className="text-sm text-muted-foreground">載入報讀班別中…</p>
-    ) : enrollments.length === 0 ? (
-     <div role="alert" className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-3 text-sm text-warning">
-      此學生目前沒有可用的報讀紀錄。
-     </div>
+     <p className="text-sm text-muted-foreground">載入收費資料中…</p>
     ) : (
      <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-       <span className="text-sm font-medium">收費項目（已報讀班別）</span>
-       <Button type="button" variant="outline" size="sm" onClick={addLine} disabled={!canAddLine}>
+       <span className="text-sm font-medium">收費項目（已報讀或試堂）</span>
+       <Button type="button" variant="outline" size="sm" onClick={addLine}>
         <Plus className="h-4 w-4" />
         新增班別
        </Button>
@@ -286,41 +337,76 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
        {lines.map((row) => (
         <li
          key={row.key}
-         className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_100px_120px_auto]"
+         className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3"
         >
-         <FormField label="班別">
-          <Select
-           className={selectClassName()}
-           value={row.classId}
-           onChange={(e) => updateLine(row.key, { classId: e.target.value })}
-          >
-           <option value="">請選擇</option>
-           {enrollmentsForLine(row.key, row.classId).map((e) => (
-            <option key={e.classId} value={e.classId}>
-             {enrollmentLabel(e)}
-            </option>
-           ))}
-          </Select>
-         </FormField>
-         <FormField label="堂數 *">
-          <Input
-           type="number"
-           min={1}
-           step={1}
-           value={row.lessons}
-           onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
-          />
-         </FormField>
-         <FormField label="金額（HKD）">
-          <Input
-           type="number"
-           min={0}
-           step="0.01"
-           value={row.amount}
-           onChange={(e) => updateLine(row.key, { amount: e.target.value })}
-          />
-         </FormField>
-         <div className="flex items-end justify-end">
+         <div
+          className={cn(
+           "grid min-w-0 gap-3",
+           row.kind === "trial" ? "sm:grid-cols-2" : "sm:grid-cols-[minmax(0,1fr)_100px_120px]"
+          )}
+         >
+          <FormField label="班別">
+           <Select
+            className={selectClassName()}
+            value={row.kind === "trial" ? TRIAL_SELECT_VALUE : row.classId}
+            onChange={(e) => onLineSelectChange(row.key, e.target.value)}
+           >
+            <option value="">請選擇</option>
+            {enrollmentsForLine(row.key, row.classId).length > 0 ? (
+             <optgroup label="已報讀">
+              {enrollmentsForLine(row.key, row.classId).map((e) => (
+               <option key={e.classId} value={e.classId}>
+                {enrollmentLabel(e)}
+               </option>
+              ))}
+             </optgroup>
+            ) : null}
+            <optgroup label="試堂">
+             <option value={TRIAL_SELECT_VALUE}>試堂</option>
+            </optgroup>
+           </Select>
+          </FormField>
+          {row.kind === "trial" ? (
+           <>
+            <FormField label="試堂班別 *">
+             <TrialClassPicker
+              classes={trialClasses}
+              value={row.classId}
+              onChange={(classId) => updateLine(row.key, { classId })}
+             />
+            </FormField>
+            <FormField label="試堂類型">
+             <Select
+              className={selectClassName()}
+              value={row.trialType}
+              onChange={(e) => updateLine(row.key, { trialType: e.target.value as TrialPayType })}
+             >
+              <option value="原價試堂">原價試堂</option>
+              <option value="半價試堂">半價試堂</option>
+             </Select>
+            </FormField>
+           </>
+          ) : null}
+          <FormField label="堂數 *">
+           <Input
+            type="number"
+            min={1}
+            step={1}
+            value={row.lessons}
+            onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
+           />
+          </FormField>
+          <FormField label="金額（HKD）">
+           <Input
+            type="number"
+            min={0}
+            step="0.01"
+            value={row.amount}
+            onChange={(e) => updateLine(row.key, { amount: e.target.value })}
+           />
+          </FormField>
+         </div>
+         <div className="flex justify-end">
           <Button
            type="button"
            variant="ghost"
@@ -348,9 +434,6 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
         <span>應收總額</span>
         <span className="tabular-nums text-warning">{money(subtotal)}</span>
        </div>
-       <p className="mt-2 text-xs text-muted-foreground">
-        優惠／轉介／聯合收費請使用完整繳費頁。
-       </p>
       </div>
      </div>
     )}
@@ -358,13 +441,27 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
 
    <SectionCard
     title={mode === "receive" ? "3. 本次收款操作" : "3. 本次出單操作"}
-    description={
-     mode === "receive"
-      ? "確認付款方式與備註後送出；送出期間請勿重複點擊。"
-      : "建立待繳／待收款通知單，之後可於繳費紀錄標記已收。"
-    }
+    description="確認後送出；亦可略過收款稍後再處理。"
    >
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="mb-3 flex flex-wrap gap-2">
+     <Button
+      type="button"
+      size="sm"
+      variant={mode === "receive" ? "default" : "outline"}
+      onClick={() => setMode("receive")}
+     >
+      即時收款
+     </Button>
+     <Button
+      type="button"
+      size="sm"
+      variant={mode === "invoice" ? "default" : "outline"}
+      onClick={() => setMode("invoice")}
+     >
+      先出單
+     </Button>
+    </div>
+    <div className="grid gap-3 sm:grid-cols-2">
      <FormField label="日期 *">
       <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
      </FormField>
@@ -388,34 +485,22 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
         <option value={PAYMENT_STATUS.pendingPay}>{PAYMENT_STATUS.pendingPay}</option>
        </Select>
       </FormField>
-     ) : (
-      <FormField label="帳款狀態">
-       <Input readOnly value={PAYMENT_STATUS.received} className="bg-muted/40" />
-      </FormField>
-     )}
-     <FormField label="實收／應收金額">
-      <Input readOnly value={money(subtotal)} className="bg-muted/40 tabular-nums font-semibold" />
+     ) : null}
+     <FormField label="備註">
+      <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={2} />
      </FormField>
     </div>
-    <FormField label="備註">
-     <Textarea
-      value={remarks}
-      onChange={(e) => setRemarks(e.target.value)}
-      rows={2}
-      placeholder="內部備註、轉數快參考編號等"
-     />
-    </FormField>
-    <div className="flex flex-wrap gap-2">
-     <Button
-      type="button"
-      className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-      disabled={saving || enrollments.length === 0}
-      onClick={() => void onSubmit()}
-     >
-      {saving ? "處理中…" : mode === "receive" ? "確認登記收款" : "建立通知單"}
+    {err ? (
+     <p role="alert" className="mt-3 text-sm text-destructive">
+      {err}
+     </p>
+    ) : null}
+    <div className="mt-4 flex flex-wrap gap-2">
+     <Button type="button" onClick={() => void onSubmit()} disabled={saving || loading}>
+      {saving ? "送出中…" : mode === "receive" ? "確認收款" : "確認出單"}
      </Button>
-     <Button type="button" variant="outline" disabled={saving} onClick={() => void onSkip()}>
-      稍後付款
+     <Button type="button" variant="outline" onClick={onSkipPayment} disabled={saving}>
+      略過收款
      </Button>
     </div>
    </SectionCard>

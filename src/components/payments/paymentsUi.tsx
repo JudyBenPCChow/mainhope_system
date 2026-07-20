@@ -1,29 +1,56 @@
-import type { ReactNode } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 
+import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { formatClassLabel } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
 import { statusToTagTone } from "@/lib/statusTag"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
 import type { PaymentDiscountRow } from "@/services/paymentDiscountQueries"
+import type { ClassRecord } from "@/services/classQueries"
 import type { EnrollmentWithClass } from "@/services/studentQueries"
 
 export const DEFAULT_LESSON_COUNT = "4"
+export const DEFAULT_TRIAL_LESSON_COUNT = "1"
+
+/** 班別下拉中代表「試堂」模式的固定值（實際 classId 另選） */
+export const TRIAL_SELECT_VALUE = "__trial__"
 
 export const PENDING_PAYMENT_STATUSES = [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive] as const
 
+export type PaymentLineKind = "enrollment" | "trial"
+export type TrialPayType = "半價試堂" | "原價試堂"
+
 export type LineRow = {
  key: string
+ kind: PaymentLineKind
  classId: string
  lessons: string
  amount: string
+ trialType: TrialPayType
 }
 
-export function newLine(): LineRow {
+export type ClassPriceInfo = {
+ id: string
+ label: string
+ pricePerLesson: number | null
+ subject: string
+ courseCode: string | null
+ courseName: string | null
+ subjectCode: string | null
+ teacherId: string | null
+ dayOfWeek: string | null
+ timeSlot: string | null
+}
+
+export function newLine(kind: PaymentLineKind = "enrollment"): LineRow {
  return {
   key: crypto.randomUUID(),
+  kind,
   classId: "",
-  lessons: DEFAULT_LESSON_COUNT,
+  lessons: kind === "trial" ? DEFAULT_TRIAL_LESSON_COUNT : DEFAULT_LESSON_COUNT,
   amount: "",
+  trialType: "原價試堂",
  }
 }
 
@@ -88,14 +115,51 @@ export function enrollmentLabel(e: EnrollmentWithClass) {
  return bits.join(" · ")
 }
 
+export function classRecordToPriceInfo(c: ClassRecord): ClassPriceInfo {
+ const labelBits = [
+  formatClassLabel({
+   subject: c.subject,
+   courseCode: c.course_code_full,
+   courseName: c.course_name,
+  }),
+  c.day_of_week,
+  c.time_slot,
+ ].filter(Boolean)
+ return {
+  id: c.id,
+  label: labelBits.join(" · "),
+  pricePerLesson: c.price_per_lesson,
+  subject: c.subject,
+  courseCode: c.course_code_full,
+  courseName: c.course_name ?? null,
+  subjectCode: c.subject_code ?? null,
+  teacherId: c.teacher_id,
+  dayOfWeek: c.day_of_week,
+  timeSlot: c.time_slot,
+ }
+}
+
 export function lineAmountFor(
  classId: string,
  lessons: string,
- byClass: Map<string, EnrollmentWithClass>
+ byClass: Map<string, EnrollmentWithClass>,
+ options?: {
+  kind?: PaymentLineKind
+  trialType?: TrialPayType
+  trialClasses?: Map<string, ClassPriceInfo>
+ }
 ): string {
  const n = Number(lessons)
+ if (!Number.isFinite(n) || n <= 0) return ""
+ if (options?.kind === "trial") {
+  const c = options.trialClasses?.get(classId)
+  const base = c?.pricePerLesson
+  if (!(base != null && base > 0)) return ""
+  const unit = options.trialType === "半價試堂" ? base * 0.5 : base
+  return String(Math.round(unit * n * 100) / 100)
+ }
  const e = byClass.get(classId)
- if (!e?.pricePerLesson || !Number.isFinite(n) || n <= 0) return ""
+ if (!e?.pricePerLesson) return ""
  return String(Math.round(e.pricePerLesson * n * 100) / 100)
 }
 
@@ -117,4 +181,80 @@ export function formatStudentPhone(s: {
   bits.push(`學生 ${cc ? `${cc} ` : ""}${student}`)
  }
  return bits.length > 0 ? bits.join(" · ") : "—"
+}
+
+/** 試堂收費：搜尋選班別 */
+export function TrialClassPicker({
+ classes,
+ value,
+ onChange,
+ disabled,
+}: {
+ classes: ClassPriceInfo[]
+ value: string
+ onChange: (classId: string) => void
+ disabled?: boolean
+}) {
+ const [search, setSearch] = useState("")
+ const [open, setOpen] = useState(false)
+ const selected = classes.find((c) => c.id === value)
+
+ const filtered = useMemo(() => {
+  const q = search.trim().toLowerCase()
+  if (!q) return classes.slice(0, 20)
+  return classes.filter((c) => c.label.toLowerCase().includes(q)).slice(0, 20)
+ }, [classes, search])
+
+ return (
+  <div className="relative min-w-0">
+   <Input
+    disabled={disabled}
+    placeholder="搜尋科目／課程代碼…"
+    value={selected ? selected.label : search}
+    onChange={(e) => {
+     onChange("")
+     setSearch(e.target.value)
+     setOpen(true)
+    }}
+    onFocus={() => setOpen(true)}
+    className="h-10"
+   />
+   {open && !selected && !disabled ? (
+    <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+     {filtered.length === 0 ? (
+      <div className="px-3 py-2 text-sm text-muted-foreground">找不到班別</div>
+     ) : (
+      filtered.map((c) => (
+       <button
+        key={c.id}
+        type="button"
+        className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+        onClick={() => {
+         onChange(c.id)
+         setSearch("")
+         setOpen(false)
+        }}
+       >
+        {c.label}
+       </button>
+      ))
+     )}
+    </div>
+   ) : null}
+   {selected ? (
+    <button
+     type="button"
+     className="mt-1 text-left text-xs text-primary underline-offset-4 hover:underline"
+     disabled={disabled}
+     onClick={() => {
+      onChange("")
+      setSearch("")
+      setOpen(true)
+     }}
+    >
+     清除班別
+    </button>
+   ) : null}
+  </div>
+ )
 }

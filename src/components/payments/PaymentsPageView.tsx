@@ -4,8 +4,12 @@ import { Banknote, BookOpen, ClipboardCheck, FileText, History, Plus, Printer, T
 
 import {
  DEFAULT_LESSON_COUNT,
+ DEFAULT_TRIAL_LESSON_COUNT,
  FormField,
  SectionCard,
+ TRIAL_SELECT_VALUE,
+ TrialClassPicker,
+ classRecordToPriceInfo,
  discountOptionLabel,
  enrollmentLabel,
  formatStudentPhone,
@@ -14,7 +18,9 @@ import {
  newLine,
  selectClassName,
  statusBadge,
+ type ClassPriceInfo,
  type LineRow,
+ type TrialPayType,
 } from "@/components/payments/paymentsUi"
 import { Button } from "@/components/ui/button"
 import {
@@ -67,6 +73,7 @@ import {
  validateDiscountSelection,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
+import { fetchAllClasses } from "@/services/classQueries"
 import {
  fetchAllStudents,
  fetchEnrollmentsForStudent,
@@ -89,6 +96,8 @@ export function PaymentsPageView() {
 
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
  const [enrollLoading, setEnrollLoading] = useState(false)
+ const [trialClasses, setTrialClasses] = useState<ClassPriceInfo[]>([])
+ const [trialClassesLoading, setTrialClassesLoading] = useState(false)
  const [lines, setLines] = useState<LineRow[]>([])
 
  const [discounts, setDiscounts] = useState<PaymentDiscountRow[]>([])
@@ -132,6 +141,38 @@ export function PaymentsPageView() {
   return m
  }, [enrollments])
 
+ const trialClassById = useMemo(() => {
+  const m = new Map<string, ClassPriceInfo>()
+  for (const c of trialClasses) m.set(c.id, c)
+  return m
+ }, [trialClasses])
+
+ useEffect(() => {
+  if (!isSupabaseConfigured) {
+   setTrialClasses([])
+   return
+  }
+  let cancelled = false
+  setTrialClassesLoading(true)
+  void fetchAllClasses()
+   .then((list) => {
+    if (cancelled) return
+    setTrialClasses(list.map(classRecordToPriceInfo))
+   })
+   .catch((e) => {
+    if (!cancelled) {
+     reportUserFacingError(e, { source: "PaymentsPageView.loadTrialClasses", setErr: setFormErr })
+     setTrialClasses([])
+    }
+   })
+   .finally(() => {
+    if (!cancelled) setTrialClassesLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [])
+
  const subtotal = useMemo(() => {
   let s = 0
   for (const l of lines) {
@@ -169,15 +210,24 @@ export function PaymentsPageView() {
     lines.map((l) => ({ classId: l.classId, lessons: l.lessons })),
     (classId) => {
      const e = enrollmentByClass.get(classId)
-     if (!e) return null
+     if (e) {
+      return {
+       subjectCode: e.subjectCode,
+       subjectCategory: e.subjectCategory,
+       enrollmentPeriod: e.enrollmentPeriod,
+       courseMode: e.courseMode,
+       teacherId: e.teacherId,
+       timeSlot: e.timeSlot,
+       dayOfWeek: e.dayOfWeek,
+      }
+     }
+     const t = trialClassById.get(classId)
+     if (!t) return null
      return {
-      subjectCode: e.subjectCode,
-      subjectCategory: e.subjectCategory,
-      enrollmentPeriod: e.enrollmentPeriod,
-      courseMode: e.courseMode,
-      teacherId: e.teacherId,
-      timeSlot: e.timeSlot,
-      dayOfWeek: e.dayOfWeek,
+      subjectCode: t.subjectCode,
+      teacherId: t.teacherId,
+      timeSlot: t.timeSlot,
+      dayOfWeek: t.dayOfWeek,
      }
     },
     {
@@ -191,6 +241,7 @@ export function PaymentsPageView() {
   [
    lines,
    enrollmentByClass,
+   trialClassById,
    siblingExtraN,
    isNewStudent,
    batchMemberCountN,
@@ -296,12 +347,12 @@ export function PaymentsPageView() {
   try {
    const list = await fetchEnrollmentsForStudent(studentId)
    setEnrollments(list)
-   setLines([newLine()])
+   setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
    setDiscountIds([])
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadEnrollments", setErr: setFormErr })
    setEnrollments([])
-   setLines([])
+   setLines([newLine("trial")])
   } finally {
    setEnrollLoading(false)
   }
@@ -367,44 +418,99 @@ export function PaymentsPageView() {
  }, [students, studentQuery])
 
  const updateLine = useCallback(
-  (key: string, patch: Partial<Pick<LineRow, "classId" | "lessons" | "amount">>) => {
+  (
+   key: string,
+   patch: Partial<Pick<LineRow, "kind" | "classId" | "lessons" | "amount" | "trialType">>
+  ) => {
    setLines((prev) =>
     prev.map((l) => {
      if (l.key !== key) return l
      const next = { ...l, ...patch }
-     if (patch.classId !== undefined && !patch.classId) {
-      next.lessons = DEFAULT_LESSON_COUNT
+     if (patch.kind === "trial") {
+      next.classId = patch.classId ?? ""
+      if (!next.lessons || next.lessons === DEFAULT_LESSON_COUNT) {
+       next.lessons = DEFAULT_TRIAL_LESSON_COUNT
+      }
+     }
+     if (patch.kind === "enrollment") {
+      next.classId = patch.classId ?? ""
+      next.trialType = "原價試堂"
+      if (!next.lessons || next.lessons === DEFAULT_TRIAL_LESSON_COUNT) {
+       next.lessons = DEFAULT_LESSON_COUNT
+      }
+     }
+     if (patch.classId !== undefined && !patch.classId && patch.kind === undefined) {
+      next.lessons = next.kind === "trial" ? DEFAULT_TRIAL_LESSON_COUNT : DEFAULT_LESSON_COUNT
       next.amount = ""
       return next
      }
      if (patch.classId !== undefined && patch.classId) {
       if (!next.lessons || next.lessons.trim() === "") {
-       next.lessons = DEFAULT_LESSON_COUNT
+       next.lessons = next.kind === "trial" ? DEFAULT_TRIAL_LESSON_COUNT : DEFAULT_LESSON_COUNT
       }
      }
-     if (patch.classId !== undefined || patch.lessons !== undefined) {
-      next.amount = lineAmountFor(next.classId, next.lessons, enrollmentByClass)
+     if (
+      patch.classId !== undefined ||
+      patch.lessons !== undefined ||
+      patch.kind !== undefined ||
+      patch.trialType !== undefined
+     ) {
+      next.amount = lineAmountFor(next.classId, next.lessons, enrollmentByClass, {
+       kind: next.kind,
+       trialType: next.trialType,
+       trialClasses: trialClassById,
+      })
      }
      return next
     })
    )
   },
-  [enrollmentByClass]
+  [enrollmentByClass, trialClassById]
  )
 
  const enrollmentsForLine = useCallback(
   (rowKey: string, currentClassId: string) => {
-   const taken = new Set(lines.filter((l) => l.key !== rowKey && l.classId).map((l) => l.classId))
+   const taken = new Set(
+    lines
+     .filter((l) => l.key !== rowKey && l.kind === "enrollment" && l.classId)
+     .map((l) => l.classId)
+   )
    return enrollments.filter((e) => e.classId === currentClassId || !taken.has(e.classId))
   },
   [lines, enrollments]
  )
 
- const canAddLine = lines.length < enrollments.length
+ const canAddLine = true
 
  const addLine = () => {
-  if (!canAddLine) return
-  setLines((prev) => [...prev, newLine()])
+  const taken = new Set(
+   lines.filter((l) => l.kind === "enrollment" && l.classId).map((l) => l.classId)
+  )
+  const nextEnrollment = enrollments.find((e) => !taken.has(e.classId))
+  if (nextEnrollment) {
+   setLines((prev) => [
+    ...prev,
+    {
+     ...newLine("enrollment"),
+     classId: nextEnrollment.classId,
+     amount: lineAmountFor(nextEnrollment.classId, DEFAULT_LESSON_COUNT, enrollmentByClass),
+    },
+   ])
+   return
+  }
+  setLines((prev) => [...prev, newLine("trial")])
+ }
+
+ const onLineSelectChange = (rowKey: string, value: string) => {
+  if (value === TRIAL_SELECT_VALUE) {
+   updateLine(rowKey, { kind: "trial", classId: "", lessons: DEFAULT_TRIAL_LESSON_COUNT })
+   return
+  }
+  updateLine(rowKey, {
+   kind: "enrollment",
+   classId: value,
+   lessons: DEFAULT_LESSON_COUNT,
+  })
  }
 
  const toggleDiscount = (id: string) => {
@@ -438,8 +544,24 @@ export function PaymentsPageView() {
   return lines
    .filter((l) => l.classId && Number(l.lessons) > 0)
    .map((l) => {
-    const e = enrollmentByClass.get(l.classId)
     const amt = Number(l.amount)
+    if (l.kind === "trial") {
+     const t = trialClassById.get(l.classId)
+     const classLabel = t
+      ? formatClassLabel({
+         subject: t.subject,
+         courseCode: t.courseCode,
+         courseName: t.courseName,
+        })
+      : null
+     return {
+      classId: l.classId,
+      lessonCount: Number(l.lessons),
+      amount: Number.isFinite(amt) && amt > 0 ? amt : null,
+      description: classLabel ? `試堂（${l.trialType}）· ${classLabel}` : `試堂（${l.trialType}）`,
+     }
+    }
+    const e = enrollmentByClass.get(l.classId)
     const desc = e
      ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })
      : null
@@ -454,10 +576,13 @@ export function PaymentsPageView() {
 
  const validateForm = (): string | null => {
   if (!selectedStudent) return "請選擇學生"
-  if (enrollLoading) return "載入報讀資料中…"
-  if (enrollments.length === 0) return "此學生目前在系統中沒有可用的報讀紀錄。"
+  if (enrollLoading || trialClassesLoading) return "載入收費資料中…"
   const details = buildDetailInputs()
-  if (details.length === 0) return "請至少新增一筆班別與堂數。"
+  if (details.length === 0) {
+   const hasTrialWithoutClass = lines.some((l) => l.kind === "trial" && !l.classId)
+   if (hasTrialWithoutClass) return "請為試堂項目選擇班別。"
+   return "請至少新增一筆班別與堂數。"
+  }
   if (subtotal <= 0) return "請確認各項金額（可依班別每堂單價 × 堂數自動帶入）。"
   if (needsReferrer && !referrerStudentId.trim()) return "請選擇推薦人（舊生）。"
   if (needsGroupBatch && batchMemberCountN < 3) return "自組同班優惠需填寫聯合收費人數（至少 3 人）。"
@@ -880,7 +1005,7 @@ export function PaymentsPageView() {
           {enrollLoading ? (
            <p className="text-muted-foreground">載入中…</p>
           ) : enrollments.length === 0 ? (
-           <p className="text-warning">目前沒有可用報讀</p>
+           <p className="text-muted-foreground">目前沒有可用報讀（仍可以試堂收費）</p>
           ) : (
            <ul className="mt-1 list-inside list-disc text-foreground">
             {enrollments.map((e) => (
@@ -901,34 +1026,22 @@ export function PaymentsPageView() {
        <p className="text-sm text-muted-foreground">請先選擇學生。</p>
       ) : enrollLoading ? (
        <p className="text-sm text-muted-foreground">載入報讀班別中…</p>
-      ) : enrollments.length === 0 ? (
-       <div
-        role="alert"
-        className="space-y-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-3 text-sm text-warning"
-       >
-        <p>此學生目前在系統中沒有可用的報讀紀錄，請先新增報讀後再繳費。</p>
-        <div className="flex flex-wrap gap-2">
-         <Button type="button" size="sm" variant="outline" asChild>
-          <Link to={`/Students/${selectedStudent.id}?tab=enrollments`}>前往學生報讀</Link>
-         </Button>
-         <Button type="button" size="sm" variant="outline" asChild>
-          <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(selectedStudent.id)}&create=1`}>
-           前往一對一報讀
-          </Link>
-         </Button>
-        </div>
-       </div>
       ) : (
        <div className="space-y-3">
+        {enrollments.length === 0 ? (
+         <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info-foreground">
+          此學生尚無報讀班別，可直接以「試堂」收費；正式報讀後亦可在此補繳學費。
+         </p>
+        ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
-         <span className="text-sm font-medium">收費項目（已報讀班別）</span>
+         <span className="text-sm font-medium">收費項目（已報讀或試堂）</span>
          <Button
           type="button"
           variant="outline"
           size="sm"
           onClick={addLine}
           disabled={!canAddLine}
-          title={canAddLine ? undefined : "所有報讀班別皆已加入收費項目"}
+          title="可新增已報讀班別或試堂收費"
          >
           <Plus className="h-4 w-4" />
           新增班別
@@ -938,22 +1051,61 @@ export function PaymentsPageView() {
          {lines.map((row) => (
           <li
            key={row.key}
-           className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-[minmax(0,1fr)_100px_120px_auto]"
+           className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3"
           >
+           <div
+            className={cn(
+             "grid min-w-0 gap-3",
+             row.kind === "trial"
+              ? "sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_100px_120px]"
+              : "sm:grid-cols-[minmax(0,1fr)_100px_120px]"
+            )}
+           >
            <FormField label="班別">
             <Select
              className={selectClassName()}
-             value={row.classId}
-             onChange={(e) => updateLine(row.key, { classId: e.target.value })}
+             value={row.kind === "trial" ? TRIAL_SELECT_VALUE : row.classId}
+             onChange={(e) => onLineSelectChange(row.key, e.target.value)}
             >
              <option value="">請選擇</option>
-             {enrollmentsForLine(row.key, row.classId).map((e) => (
-              <option key={e.classId} value={e.classId}>
-               {enrollmentLabel(e)}
-              </option>
-             ))}
+             {enrollmentsForLine(row.key, row.classId).length > 0 ? (
+              <optgroup label="已報讀">
+               {enrollmentsForLine(row.key, row.classId).map((e) => (
+                <option key={e.classId} value={e.classId}>
+                 {enrollmentLabel(e)}
+                </option>
+               ))}
+              </optgroup>
+             ) : null}
+             <optgroup label="試堂">
+              <option value={TRIAL_SELECT_VALUE}>試堂</option>
+             </optgroup>
             </Select>
            </FormField>
+           {row.kind === "trial" ? (
+            <>
+             <FormField label="試堂班別 *">
+              <TrialClassPicker
+               classes={trialClasses}
+               value={row.classId}
+               disabled={trialClassesLoading}
+               onChange={(classId) => updateLine(row.key, { classId })}
+              />
+             </FormField>
+             <FormField label="試堂類型">
+              <Select
+               className={selectClassName()}
+               value={row.trialType}
+               onChange={(e) =>
+                updateLine(row.key, { trialType: e.target.value as TrialPayType })
+               }
+              >
+               <option value="原價試堂">原價試堂</option>
+               <option value="半價試堂">半價試堂</option>
+              </Select>
+             </FormField>
+            </>
+           ) : null}
            <FormField label="堂數 *">
             <Input
              type="number"
@@ -961,7 +1113,7 @@ export function PaymentsPageView() {
              step={1}
              value={row.lessons}
              onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
-             placeholder="例如 4"
+             placeholder={row.kind === "trial" ? "例如 1" : "例如 4"}
             />
            </FormField>
            <FormField label="金額（HKD）">
@@ -974,7 +1126,8 @@ export function PaymentsPageView() {
              placeholder="自動"
             />
            </FormField>
-           <div className="flex items-end justify-end sm:col-span-4">
+           </div>
+           <div className="flex justify-end">
             <Button
              type="button"
              variant="ghost"
@@ -1071,7 +1224,7 @@ export function PaymentsPageView() {
        <div
         className={cn(
          "max-h-40 space-y-2 overflow-y-auto rounded-md border border-input bg-background p-3",
-         (!selectedStudent || enrollments.length === 0) && "opacity-60"
+         !selectedStudent && "opacity-60"
         )}
        >
         {discounts.length === 0 ? (
@@ -1083,7 +1236,7 @@ export function PaymentsPageView() {
           const stackBlocked =
            !eligibilityBlocked && isDiscountCheckboxDisabled(d, discountIds, discounts)
           const checkboxDisabled =
-           !selectedStudent || enrollments.length === 0 || eligibilityBlocked || stackBlocked
+           !selectedStudent || eligibilityBlocked || stackBlocked
           return (
            <div key={d.id} className="space-y-0.5">
             <label

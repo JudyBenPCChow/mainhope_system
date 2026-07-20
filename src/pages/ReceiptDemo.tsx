@@ -68,7 +68,7 @@ export default function ReceiptDemo() {
      <div>
       <h1 className="text-base font-semibold tracking-tight">收款收據 · 模擬示範</h1>
       <p className="text-xs text-muted-foreground">
-       A4 · 已付款排程 · 請假紀錄 · 學生自助平台 QR（假資料）
+       A4 · 已付款排程 · 請假紀錄 · 學生專屬開通 QR（假資料）
       </p>
      </div>
      <div className="flex flex-wrap gap-2">

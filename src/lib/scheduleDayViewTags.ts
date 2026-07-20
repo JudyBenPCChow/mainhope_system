@@ -5,6 +5,8 @@ export type DayViewTagInput = {
  /** 上堂名單中，當日請假人數 */
  leaveAmongRosterCount: number
  hasTrial: boolean
+ /** 有學生以本堂為調堂／補堂目標 */
+ hasMakeupTarget?: boolean
  hasOnlineMakeup: boolean
  hasRecordMakeup: boolean
 }
@@ -25,19 +27,20 @@ export function isRecordLeaveMakeup(makeupType: string | null | undefined): bool
  return /錄影|錄像|錄音/.test(String(makeupType ?? ""))
 }
 
-/** 實際不用上堂（上堂名單空或全員請假）；有試堂生則仍需上堂，不標灰 */
+/** 實際不用上堂（上堂名單空或全員請假）；有試堂／補堂生則仍需上堂，不標灰 */
 export function isDayViewIdleCard(input: {
  rosterCount: number
  leaveAmongRosterCount: number
  hasTrial: boolean
+ hasMakeupTarget?: boolean
 }): boolean {
- if (input.hasTrial) return false
+ if (input.hasTrial || input.hasMakeupTarget) return false
  if (input.rosterCount === 0) return true
  return input.leaveAmongRosterCount >= input.rosterCount
 }
 
 /**
- * 額外標籤順序：無人報讀｜所有學生請假｜請假生｜試堂生｜網課生｜要錄影
+ * 額外標籤順序：無人報讀｜所有學生請假｜請假生｜試堂生｜補堂生｜網課生｜要錄影
  * 「無人報讀」與「所有學生請假」互斥；全員請假時不重複掛「請假生」。
  */
 export function buildDayViewExtraTags(input: DayViewTagInput): string[] {
@@ -45,7 +48,7 @@ export function buildDayViewExtraTags(input: DayViewTagInput): string[] {
  const allLeave =
   input.rosterCount > 0 && input.leaveAmongRosterCount >= input.rosterCount
 
- if (input.rosterCount === 0) {
+ if (input.rosterCount === 0 && !input.hasMakeupTarget) {
   tags.push("無人報讀")
  } else if (allLeave) {
   tags.push("所有學生請假")
@@ -54,6 +57,7 @@ export function buildDayViewExtraTags(input: DayViewTagInput): string[] {
  }
 
  if (input.hasTrial) tags.push("試堂生")
+ if (input.hasMakeupTarget) tags.push("補堂生")
  if (input.hasOnlineMakeup) tags.push("網課生")
  if (input.hasRecordMakeup) tags.push("要錄影")
  return tags

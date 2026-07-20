@@ -973,6 +973,7 @@ useEffect(() => {
 
   for (const s of dayFiltered) {
    const hasTrial = alerts.get(s.id)?.trial ?? false
+   const hasMakeupTarget = alerts.get(s.id)?.makeup ?? false
    const roster = dayViewRosterBySchedule.get(s.id) ?? []
    const leave = dayViewLeaveByScheduleId.get(s.id) ?? EMPTY_LEAVE_SNAPSHOT
    const leaveAmongRosterCount = roster.filter((st) => leave.studentIds.has(st.studentId)).length
@@ -980,6 +981,7 @@ useEffect(() => {
     rosterCount: roster.length,
     leaveAmongRosterCount,
     hasTrial,
+    hasMakeupTarget,
     hasOnlineMakeup: leave.hasOnlineMakeup,
     hasRecordMakeup: leave.hasRecordMakeup,
    }
@@ -1811,13 +1813,15 @@ useEffect(() => {
           }
           const open = expandedScheduleId === s.id
           const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
-          const noEnrollment = s.enrollCount === 0
+          const hasAttendees =
+           s.enrollCount > 0 || a.makeup || a.trial || (rollCallEligibleIds?.has(s.id) ?? false)
+          const emptyEnrollOnly = s.enrollCount === 0 && !a.makeup && !a.trial
           return (
            <li
             key={s.id}
             className={cn(
              "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
-             noEnrollment ? "border-border/80 bg-muted/70" : "bg-card"
+             !hasAttendees ? "border-border/80 bg-muted/70" : "bg-card"
             )}
            >
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
@@ -1842,9 +1846,14 @@ useEffect(() => {
                <Tag tone={statusToTagTone(s.status)} size="sm">
                 {s.status}
                </Tag>
-               {noEnrollment ? (
+               {emptyEnrollOnly ? (
                 <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">
                  暫未有學生報讀
+                </Tag>
+               ) : null}
+               {s.enrollCount === 0 && (a.makeup || a.trial) ? (
+                <Tag tone={statusToTagTone(a.makeup ? "補堂" : "試堂")} size="sm">
+                 {a.makeup && a.trial ? "補堂／試堂" : a.makeup ? "有補堂生" : "有試堂生"}
                 </Tag>
                ) : null}
                {s.is_extra_lesson ? (
@@ -1880,7 +1889,7 @@ useEffect(() => {
                <span
                 className={cn(
                  "inline-flex items-center gap-1",
-                 noEnrollment ? "text-muted-foreground" : "text-info"
+                 !hasAttendees ? "text-muted-foreground" : "text-info"
                 )}
                >
                 <Users className="h-4 w-4 opacity-70" aria-hidden />

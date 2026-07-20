@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "ui:check": "node scripts/ui-guideline-check.mjs",
     "apo:regression": "node scripts/apo-regression-check.mjs",
+    "makeup:regression": "node scripts/makeup-visibility-regression.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

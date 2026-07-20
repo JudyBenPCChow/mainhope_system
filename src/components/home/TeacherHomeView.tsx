@@ -34,7 +34,12 @@ import {
  type PendingRollCallReminder,
 } from "@/services/attendanceQueries"
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
-import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ fetchScheduleAlerts,
+ fetchSchedulesInRange,
+ type ScheduleAlerts,
+ type ScheduleManageRow,
+} from "@/services/scheduleQueries"
 import { addDaysYmd, getTeacherById, localYmd } from "@/services/teacherQueries"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -55,12 +60,13 @@ function alertTagsForSchedule(
  scheduleId: string,
  remarks: string | null,
  leaveRows: TeacherPortalLeaveRow[],
- trialIds: Set<string>
+ trialIds: Set<string>,
+ scheduleAlerts?: ScheduleAlerts | null
 ): { trial: boolean; makeup: boolean; leave: boolean; record: boolean } {
  let record = /錄影|錄像|錄音/.test(remarks ?? "")
- const trial = trialIds.has(scheduleId)
- let leave = false
- let makeup = false
+ const trial = trialIds.has(scheduleId) || (scheduleAlerts?.trial ?? false)
+ let leave = scheduleAlerts?.leave ?? false
+ let makeup = scheduleAlerts?.makeup ?? false
  for (const r of leaveRows) {
   if (r.scheduleId !== scheduleId) continue
   leave = true
@@ -71,6 +77,7 @@ function alertTagsForSchedule(
    makeup = true
   }
  }
+ if (scheduleAlerts?.record) record = true
  return { trial, makeup, leave, record }
 }
 
@@ -82,6 +89,7 @@ export function TeacherHomeView() {
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [leaves, setLeaves] = useState<TeacherPortalLeaveRow[]>([])
  const [trials, setTrials] = useState<TrialBrief[]>([])
+ const [scheduleAlerts, setScheduleAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [pendingRollCalls, setPendingRollCalls] = useState<PendingRollCallReminder[]>([])
  const [pastPendingRollCalls, setPastPendingRollCalls] = useState<PendingRollCallReminder[]>([])
  const [loading, setLoading] = useState(true)
@@ -114,13 +122,14 @@ export function TeacherHomeView() {
    if (classIds.length === 0) {
     setLeaves([])
     setTrials([])
+    setScheduleAlerts(new Map())
     setPendingRollCalls([])
     setPastPendingRollCalls([])
     return
    }
 
-   // 次要資料（請假/試堂/未點名）並行；失敗時不阻斷主內容
-   const [leaveRes, trialRes, rollRes, pastRollRes] = await Promise.allSettled([
+   // 次要資料（請假/試堂/未點名／排程警示）並行；失敗時不阻斷主內容
+   const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
     fetchLeaveRowsForClassIds(classIds, 50),
     (async () => {
      if (!supabase) return [] as TrialBrief[]
@@ -158,6 +167,7 @@ export function TeacherHomeView() {
     findSchedulesMissingAttendance(
      schedList.filter((s) => s.scheduled_date < today && s.class_id != null)
     ),
+    fetchScheduleAlerts(schedList),
    ])
 
    let partialFailed = false
@@ -189,6 +199,13 @@ export function TeacherHomeView() {
     partialFailed = true
     setPastPendingRollCalls([])
    }
+   if (alertsRes.status === "fulfilled") {
+    setScheduleAlerts(alertsRes.value)
+   } else {
+    reportUserFacingError(alertsRes.reason, { source: "TeacherHomeView.loadScheduleAlerts" })
+    partialFailed = true
+    setScheduleAlerts(new Map())
+   }
 
    if (partialFailed) {
     setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
@@ -199,6 +216,7 @@ export function TeacherHomeView() {
    setSchedules([])
    setLeaves([])
    setTrials([])
+   setScheduleAlerts(new Map())
    setPendingRollCalls([])
    setPastPendingRollCalls([])
    setLoading(false)
@@ -494,7 +512,13 @@ export function TeacherHomeView() {
         ) : (
          <ul className="space-y-2">
           {group.items.map((s) => {
-           const a = alertTagsForSchedule(s.id, s.remarks ?? null, leaves, trialScheduleIds)
+           const a = alertTagsForSchedule(
+            s.id,
+            s.remarks ?? null,
+            leaves,
+            trialScheduleIds,
+            scheduleAlerts.get(s.id)
+           )
            return (
             <li key={s.id}>
              <Link
@@ -550,7 +574,13 @@ export function TeacherHomeView() {
     ) : (
      <ul className="mt-4 space-y-3">
       {todaySchedules.map((s) => {
-       const a = alertTagsForSchedule(s.id, s.remarks ?? null, leaves, trialScheduleIds)
+       const a = alertTagsForSchedule(
+        s.id,
+        s.remarks ?? null,
+        leaves,
+        trialScheduleIds,
+        scheduleAlerts.get(s.id)
+       )
        const hasA = a.trial || a.makeup || a.leave || a.record
        return (
         <li
