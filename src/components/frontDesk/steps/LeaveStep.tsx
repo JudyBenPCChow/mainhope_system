@@ -151,7 +151,8 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
      schedule_id: sched.id,
      leave_date: sched.scheduled_date,
      leave_reason: reason,
-     makeup_type: makeup,
+     // 調堂排程僅套用至第一堂；其餘先標「待安排」，之後可在請假管理選調堂日
+     makeup_type: makeup === "調堂" && i > 0 ? "待安排" : makeup,
      makeup_schedule_id: makeup === "調堂" && i === 0 ? makeupScheduleId : null,
      makeup_date: makeup === "調堂" && i === 0 ? (makeupRow?.scheduled_date ?? null) : null,
      remarks: remarks.trim() || null,

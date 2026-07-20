@@ -651,7 +651,12 @@ export function LeaveManagementView() {
           <span className="line-clamp-3 break-words">{r.leave_reason ?? "—"}</span>
          </td>
          <td className="min-w-0 px-3 py-2 align-top">
-          <MakeupCell row={r} onChanged={reload} readonly={!leaveRowEditable(r)} />
+          <MakeupCell
+           row={r}
+           onChanged={reload}
+           readonly={!leaveRowEditable(r)}
+           onPickMakeupSchedule={(row) => void openLinkSchedule(row)}
+          />
          </td>
          <td className="min-w-0 px-3 py-2 align-top text-xs text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.remarks ?? "—"}</span>
@@ -945,6 +950,29 @@ export function LeaveManagementView() {
          ))}
         </Select>
        </label>
+       {detailMakeupType === "調堂" || detailMakeupType === "待安排" ? (
+        <div className="rounded-lg border border-info bg-info/40 p-3 space-y-2">
+         <p className="text-xs text-muted-foreground">
+          {detailRow.makeup_schedule_id && detailRow.makeup_date
+           ? `已指定調堂日：${detailRow.makeup_date}`
+           : "尚未指定調堂排程，可事後選擇補堂日子。"}
+         </p>
+         {leaveRowEditable(detailRow) ? (
+          <Button
+           type="button"
+           variant="outline"
+           size="sm"
+           className="h-8"
+           onClick={() => {
+            setDetailOpen(false)
+            void openLinkSchedule(detailRow)
+           }}
+          >
+           {detailRow.makeup_schedule_id ? "更改調堂排程" : "選擇調堂日"}
+          </Button>
+         ) : null}
+        </div>
+       ) : null}
        <label className="grid gap-1">
         <span className="text-muted-foreground">備註</span>
         <Input value={detailRemarks} disabled={!leaveRowEditable(detailRow)} onChange={(e) => setDetailRemarks(e.target.value)} className="h-9" />
@@ -1009,10 +1037,12 @@ export function LeaveManagementView() {
 function MakeupCell({
  row,
  onChanged,
+ onPickMakeupSchedule,
  readonly = false,
 }: {
  row: LeaveManageRow
  onChanged: () => Promise<void>
+ onPickMakeupSchedule?: (row: LeaveManageRow) => void
  readonly?: boolean
 }) {
  const t = (row.makeup_type ?? "").trim()
@@ -1028,6 +1058,11 @@ function MakeupCell({
  const quickSetMakeup = async (nextType: string) => {
   if (readonly) return
   if (!nextType) return
+  // 選「調堂」時開啟連結排程，避免只寫類型卻沒有補堂日
+  if (nextType === "調堂") {
+   onPickMakeupSchedule?.(row)
+   return
+  }
   setSaving(true)
   try {
    await updateLeaveMakeupRecord(row.id, {
@@ -1049,20 +1084,31 @@ function MakeupCell({
       ? t
       : "待安排"
   return (
-   <Select
-    className="h-8 min-w-[8.5rem] rounded-md border border-warning/80 bg-warning/20 px-2 text-xs text-warning"
-    value={selectValue}
-    disabled={saving || readonly}
-    onChange={(e) => {
-     void quickSetMakeup(e.target.value)
-    }}
-   >
-    {LEAVE_MAKEUP_OPTIONS.map((o) => (
-     <option key={o} value={o}>
-      {o}
-     </option>
-    ))}
-   </Select>
+   <div className="space-y-1">
+    <Select
+     className="h-8 min-w-[8.5rem] rounded-md border border-warning/80 bg-warning/20 px-2 text-xs text-warning"
+     value={selectValue}
+     disabled={saving || readonly}
+     onChange={(e) => {
+      void quickSetMakeup(e.target.value)
+     }}
+    >
+     {LEAVE_MAKEUP_OPTIONS.map((o) => (
+      <option key={o} value={o}>
+       {o}
+      </option>
+     ))}
+    </Select>
+    {!readonly && onPickMakeupSchedule ? (
+     <button
+      type="button"
+      className="block text-xs font-medium text-info hover:underline"
+      onClick={() => onPickMakeupSchedule(row)}
+     >
+      選擇調堂日
+     </button>
+    ) : null}
+   </div>
   )
  }
  if (t.includes("不補回")) {
@@ -1090,6 +1136,15 @@ function MakeupCell({
    )}
    {hasDate ? (
     <div className="tabular-nums text-info">{row.makeup_date}</div>
+   ) : null}
+   {!readonly && isResched && onPickMakeupSchedule ? (
+    <button
+     type="button"
+     className="block text-xs font-medium text-info hover:underline"
+     onClick={() => onPickMakeupSchedule(row)}
+    >
+     更改調堂日
+    </button>
    ) : null}
   </div>
  )
