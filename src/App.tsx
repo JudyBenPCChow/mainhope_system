@@ -46,8 +46,10 @@ import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
+import ReceiptDemo from "@/pages/ReceiptDemo"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
+const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 
 export default function App() {
  return (
@@ -55,6 +57,8 @@ export default function App() {
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
     <Route path="/Login" element={<Login />} />
+    <Route path="/receipt-demo" element={<ReceiptDemo />} />
+    <Route path="/prototype/ReceiptDemo" element={<ReceiptDemo />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route element={<AdaptiveLayout />}>
@@ -93,6 +97,20 @@ export default function App() {
         }
        >
         <AiReports />
+       </Suspense>
+      }
+     />
+     <Route
+      path="/EnrollmentReports"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入人數報表…
+         </div>
+        }
+       >
+        <EnrollmentReports />
        </Suspense>
       }
      />

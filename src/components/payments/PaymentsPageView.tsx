@@ -38,7 +38,10 @@ import {
  evaluateDiscountAvailability,
 } from "@/lib/paymentDiscountEligibility"
 import { summarizePaymentDiscountForAdmin } from "@/lib/paymentDiscountAdminSummary"
-import { buildPaymentReceiptDocumentHtml, printPayment } from "@/lib/paymentPrint"
+import {
+ buildPaymentReceiptDocumentHtmlAsync,
+ printPayment,
+} from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -105,6 +108,7 @@ export function PaymentsPageView() {
  const [saving, setSaving] = useState(false)
  const [discountHelpOpen, setDiscountHelpOpen] = useState(false)
  const [receiptPreview, setReceiptPreview] = useState<PaymentFull | null>(null)
+ const [receiptPreviewHtml, setReceiptPreviewHtml] = useState<string | null>(null)
  const [receiptPrintHint, setReceiptPrintHint] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{
   paymentId: string
@@ -481,16 +485,18 @@ export function PaymentsPageView() {
     setFormErr("找不到單據，無法預覽收據。")
     return
    }
+   const html = await buildPaymentReceiptDocumentHtmlAsync(full)
    setReceiptPreview(full)
+   setReceiptPreviewHtml(html)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.openReceiptPreview", setErr: setFormErr })
   }
  }
 
- const printFromPreview = () => {
+ const printFromPreview = async () => {
   if (!receiptPreview) return
   setReceiptPrintHint(null)
-  if (!printPayment(receiptPreview, "receipt")) {
+  if (!(await printPayment(receiptPreview, "receipt"))) {
    setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或再按「列印」重試。")
   }
  }
@@ -527,12 +533,16 @@ export function PaymentsPageView() {
     kind: "receive",
    })
    if (printAfterReceive && full) {
+    const html = await buildPaymentReceiptDocumentHtmlAsync(full)
     setReceiptPreview(full)
+    setReceiptPreviewHtml(html)
     setReceiptPrintHint(null)
     window.setTimeout(() => {
-     if (!printPayment(full, "receipt")) {
-      setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
-     }
+     void (async () => {
+      if (!(await printPayment(full, "receipt"))) {
+       setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
+      }
+     })()
     }, 200)
    }
    setRemarks("")
@@ -580,12 +590,16 @@ export function PaymentsPageView() {
     kind: "invoice",
    })
    if (printAfterInvoice && full) {
+    const html = await buildPaymentReceiptDocumentHtmlAsync(full)
     setReceiptPreview(full)
+    setReceiptPreviewHtml(html)
     setReceiptPrintHint(null)
     window.setTimeout(() => {
-     if (!printPayment(full, "invoice")) {
-      setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
-     }
+     void (async () => {
+      if (!(await printPayment(full, "invoice"))) {
+       setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或按「列印」重試。")
+      }
+     })()
     }, 200)
    }
    setRemarks("")
@@ -1246,11 +1260,12 @@ export function PaymentsPageView() {
     onOpenChange={(o) => {
      if (!o) {
       setReceiptPreview(null)
+      setReceiptPreviewHtml(null)
       setReceiptPrintHint(null)
      }
     }}
    >
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
      <DialogHeader>
       <DialogTitle>收據預覽</DialogTitle>
      </DialogHeader>
@@ -1258,8 +1273,8 @@ export function PaymentsPageView() {
       <div className="space-y-3">
        <iframe
         title="收據預覽"
-        className="h-[28rem] w-full rounded-md border border-border bg-white"
-        srcDoc={buildPaymentReceiptDocumentHtml(receiptPreview)}
+        className="h-[min(70vh,40rem)] w-full rounded-md border border-border bg-[#ececec]"
+        srcDoc={receiptPreviewHtml ?? ""}
        />
        {receiptPrintHint ? (
         <p className="text-sm text-warning" role="status">
@@ -1267,7 +1282,7 @@ export function PaymentsPageView() {
         </p>
        ) : null}
        <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={printFromPreview}>
+        <Button type="button" onClick={() => void printFromPreview()}>
          <Printer className="h-4 w-4" />
          列印
         </Button>
@@ -1276,6 +1291,7 @@ export function PaymentsPageView() {
          variant="outline"
          onClick={() => {
           setReceiptPreview(null)
+          setReceiptPreviewHtml(null)
           setReceiptPrintHint(null)
          }}
         >

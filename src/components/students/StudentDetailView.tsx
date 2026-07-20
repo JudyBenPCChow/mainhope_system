@@ -2186,10 +2186,10 @@ const exportFutureSchedulesCsv = () => {
               const full = await fetchPaymentFull(p.id)
               if (!full) return
               if (
-               !printPaymentForStatus(full, p.status, [
+               !(await printPaymentForStatus(full, p.status, [
                 PAYMENT_STATUS.pendingPay,
                 PAYMENT_STATUS.pendingReceive,
-               ])
+               ]))
               ) {
                pushBanner({ tone: "warning", title: "無法列印", message: "請允許開啟彈出視窗以列印。" })
               }

@@ -445,14 +445,24 @@ export function evaluateDiscountAvailability(
  const result = evaluateEligibilityRules(discount.eligibilityRules, ctx, discount)
  if (!result.eligible) return result
 
- const amount = resolveDiscountAmountOff(discount, ctx)
- if (discount.discountKind === "referral_referrer_cash") {
-  return { eligible: true, reason: null, resolvedAmountOff: discount.amountOff ?? 100 }
- }
- if (!discount.isLabelOnly && amount <= 0 && !isLessonTierKind(discount.discountKind)) {
-  return { eligible: false, reason: "減免金額為 0" }
- }
- return { ...result, resolvedAmountOff: amount }
+  const amount = resolveDiscountAmountOff(discount, ctx)
+  if (discount.discountKind === "referral_referrer_cash") {
+   return { eligible: true, reason: null, resolvedAmountOff: discount.amountOff ?? 100 }
+  }
+  // percent-only discounts have amountOff 0 but still provide a benefit via percentOff
+  const hasPercentOff =
+   discount.percentOff != null &&
+   discount.percentOff > 0 &&
+   !isLessonTierKind(discount.discountKind)
+  if (
+   !discount.isLabelOnly &&
+   amount <= 0 &&
+   !hasPercentOff &&
+   !isLessonTierKind(discount.discountKind)
+  ) {
+   return { eligible: false, reason: "減免金額為 0" }
+  }
+  return { ...result, resolvedAmountOff: amount }
 }
 
 export type { DiscountKind, GroupEnrollmentRules, LessonTiersConfig }

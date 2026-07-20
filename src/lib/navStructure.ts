@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import {
  AlertTriangle,
+ BarChart3,
  BookOpen,
  Bot,
  Building2,
@@ -109,6 +110,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
    { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
+   { path: "/EnrollmentReports", label: "人數報表", roles: ["admin", "alien"], icon: BarChart3 },
    { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
    { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
    { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },

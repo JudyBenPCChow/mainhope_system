@@ -27,7 +27,10 @@ import {
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
-import { buildPaymentReceiptDocumentHtml, printPayment } from "@/lib/paymentPrint"
+import {
+ buildPaymentReceiptDocumentHtmlAsync,
+ printPayment,
+} from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -68,6 +71,7 @@ export function PaymentHistoryView() {
  const [saving, setSaving] = useState(false)
 
  const [receiptPreview, setReceiptPreview] = useState<PaymentFull | null>(null)
+ const [receiptPreviewHtml, setReceiptPreviewHtml] = useState<string | null>(null)
  const [receiptPrintHint, setReceiptPrintHint] = useState<string | null>(null)
  const [formErr, setFormErr] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{
@@ -153,16 +157,18 @@ export function PaymentHistoryView() {
     setFormErr("找不到單據，無法預覽收據。")
     return
    }
+   const html = await buildPaymentReceiptDocumentHtmlAsync(full)
    setReceiptPreview(full)
+   setReceiptPreviewHtml(html)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentHistoryView.openReceiptPreview", setErr: setFormErr })
   }
  }
 
- const printFromPreview = () => {
+ const printFromPreview = async () => {
   if (!receiptPreview) return
   setReceiptPrintHint(null)
-  if (!printPayment(receiptPreview, "receipt")) {
+  if (!(await printPayment(receiptPreview, "receipt"))) {
    setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或再按「列印」重試。")
   }
  }
@@ -660,8 +666,12 @@ export function PaymentHistoryView() {
          variant="outline"
          size="sm"
          onClick={() => {
-          setReceiptPreview(detailPay)
-          setReceiptPrintHint(null)
+          void (async () => {
+           const html = await buildPaymentReceiptDocumentHtmlAsync(detailPay)
+           setReceiptPreview(detailPay)
+           setReceiptPreviewHtml(html)
+           setReceiptPrintHint(null)
+          })()
          }}
         >
          <Printer className="h-4 w-4" />
@@ -714,11 +724,12 @@ export function PaymentHistoryView() {
     onOpenChange={(o) => {
      if (!o) {
       setReceiptPreview(null)
+      setReceiptPreviewHtml(null)
       setReceiptPrintHint(null)
      }
     }}
    >
-    <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
      <DialogHeader>
       <DialogTitle>收據預覽</DialogTitle>
      </DialogHeader>
@@ -726,8 +737,8 @@ export function PaymentHistoryView() {
       <div className="space-y-3">
        <iframe
         title="收據預覽"
-        className="h-[28rem] w-full rounded-md border border-border bg-white"
-        srcDoc={buildPaymentReceiptDocumentHtml(receiptPreview)}
+        className="h-[min(70vh,40rem)] w-full rounded-md border border-border bg-[#ececec]"
+        srcDoc={receiptPreviewHtml ?? ""}
        />
        {receiptPrintHint ? (
         <p className="text-sm text-warning" role="status">
@@ -735,7 +746,7 @@ export function PaymentHistoryView() {
         </p>
        ) : null}
        <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={printFromPreview}>
+        <Button type="button" onClick={() => void printFromPreview()}>
          <Printer className="h-4 w-4" />
          列印
         </Button>
@@ -744,11 +755,22 @@ export function PaymentHistoryView() {
          variant="outline"
          onClick={() => {
           setReceiptPreview(null)
+          setReceiptPreviewHtml(null)
           setReceiptPrintHint(null)
          }}
         >
          關閉
         </Button>
+       </div>
+       <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
+        {buildPaymentAmountBreakdown(receiptPreview).lines.map((line) => (
+         <div key={line.key} className="flex justify-between gap-2 py-0.5">
+          <span>{line.label}</span>
+          <span className="tabular-nums">
+           {line.tone === "deduction" ? `-${money(Math.abs(line.amount))}` : money(line.amount)}
+          </span>
+         </div>
+        ))}
        </div>
       </div>
      ) : null}
