@@ -205,8 +205,10 @@ export function TrialClassPicker({
   return classes.filter((c) => c.label.toLowerCase().includes(q)).slice(0, 20)
  }, [classes, search])
 
+ const listOpen = open && !selected && !disabled
+
  return (
-  <div className="relative min-w-0">
+  <div className={cn("relative min-w-0", listOpen && "z-50")}>
    <Input
     disabled={disabled}
     placeholder="搜尋科目／課程代碼…"
@@ -217,10 +219,14 @@ export function TrialClassPicker({
      setOpen(true)
     }}
     onFocus={() => setOpen(true)}
+    onBlur={() => {
+     // Delay so option click can register before list unmounts
+     window.setTimeout(() => setOpen(false), 150)
+    }}
     className="h-10"
    />
-   {open && !selected && !disabled ? (
-    <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
+   {listOpen ? (
+    <div className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-auto rounded-md border bg-popover shadow-md">
      {filtered.length === 0 ? (
       <div className="px-3 py-2 text-sm text-muted-foreground">找不到班別</div>
      ) : (
@@ -229,6 +235,7 @@ export function TrialClassPicker({
         key={c.id}
         type="button"
         className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => {
          onChange(c.id)
          setSearch("")

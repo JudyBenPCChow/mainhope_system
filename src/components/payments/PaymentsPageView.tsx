@@ -1051,7 +1051,7 @@ export function PaymentsPageView() {
          {lines.map((row) => (
           <li
            key={row.key}
-           className="grid min-w-0 gap-3 overflow-hidden rounded-lg border border-border bg-muted/20 p-3"
+           className="relative grid min-w-0 gap-3 overflow-visible rounded-lg border border-border bg-muted/20 p-3"
           >
            <div
             className={cn(
