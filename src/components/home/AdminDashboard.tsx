@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
 import { AdminHomeStudentsTrialsPanel } from "@/components/home/AdminHomeStudentsTrialsPanel"
+import { AdminQuickActions } from "@/components/home/AdminQuickActions"
 import { DashboardBoard } from "@/components/home/DashboardBoard"
 import { DashboardTopMetrics } from "@/components/home/DashboardTopMetrics"
 import { RecentPaymentsCard } from "@/components/home/RecentPaymentsCard"
@@ -155,6 +156,8 @@ export function AdminDashboard() {
     pendingPayCount={data.pendingPaymentCount}
     loading={loading}
    />
+
+   <AdminQuickActions />
 
    {teacherNullAudit.length > 0 ? (
     <section

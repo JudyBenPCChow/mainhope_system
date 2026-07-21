@@ -25,7 +25,7 @@ const linkBase =
 
 function initialSidebarCollapsed(): boolean {
  if (typeof localStorage === "undefined") return false
- return localStorage.getItem("mgmt_role") === "alien"
+ return localStorage.getItem("mgmt_sidebar_collapsed") === "true"
 }
 
 export function Layout() {
@@ -111,7 +111,13 @@ export function Layout() {
        "h-9 w-9 shrink-0 text-white hover:bg-white/10",
        collapsed && "mx-auto"
       )}
-      onClick={() => setCollapsed((c) => !c)}
+     onClick={() =>
+      setCollapsed((current) => {
+       const next = !current
+       localStorage.setItem("mgmt_sidebar_collapsed", String(next))
+       return next
+      })
+     }
       aria-label={collapsed ? "展開側欄" : "收起側欄"}
      >
       {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
