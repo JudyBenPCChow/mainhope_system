@@ -302,6 +302,7 @@ export type PaymentDetailInput = {
  lessonCount: number | null
  amount: number | null
  description: string | null
+ monthlyTuitionChargeId?: string | null
 }
 
 export async function insertPaymentRecord(params: {
@@ -455,6 +456,7 @@ export async function insertPaymentRecord(params: {
     lesson_count: d.lessonCount,
     amount: d.amount,
     description: d.description?.trim() || null,
+    monthly_tuition_charge_id: d.monthlyTuitionChargeId ?? null,
    }))
   )
   if (e2) throw e2

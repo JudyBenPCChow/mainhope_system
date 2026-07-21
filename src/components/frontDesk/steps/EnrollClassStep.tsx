@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
-import { Field } from "@/components/frontDesk/frontDeskUi"
+import { Field, localTodayYmd } from "@/components/frontDesk/frontDeskUi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { classDisplayName } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
@@ -16,9 +17,16 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
+import { fetchAllClasses, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
+import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { countBoundSchedulesForEnrollment } from "@/services/pendingLessonQueries"
 import { createPrivateTutoringEnrollment } from "@/services/privateTutoringQueries"
+import {
+ fetchOpenTrialsForStudent,
+ insertTrialSession,
+ trialTypeCategory,
+ type StudentTrialSummary,
+} from "@/services/trialQueries"
 import {
  fetchClassOptions,
  fetchEnrollmentsForStudent,
@@ -32,15 +40,25 @@ type Props = {
  student: StudentRecord
  /** 報讀筆數變更（不跳步） */
  onEnrollmentCountChange: (count: number) => void
+ /** 試堂筆數變更（不跳步） */
+ onTrialCountChange: (count: number) => void
  /** 使用者確認進入收款 */
- onContinueToPayment: (count: number) => void
+ onContinueToPayment: (counts: { enrolledCount: number; trialCount: number }) => void
 }
 
-export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueToPayment }: Props) {
+const TRIAL_TYPE_OPTIONS = ["免費試堂", "半價試堂", "原價試堂", "體驗課"] as const
+
+export function EnrollClassStep({
+ student,
+ onEnrollmentCountChange,
+ onTrialCountChange,
+ onContinueToPayment,
+}: Props) {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const [mode, setMode] = useState<"group" | "private">("group")
+ const [mode, setMode] = useState<"group" | "private" | "trial">("group")
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
+ const [trials, setTrials] = useState<StudentTrialSummary[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -60,19 +78,52 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
  const [privateClassName, setPrivateClassName] = useState("")
  const [privateSaving, setPrivateSaving] = useState(false)
 
+ const [trialClassOptions, setTrialClassOptions] = useState<{ id: string; label: string }[]>([])
+ const [trialClassId, setTrialClassId] = useState("")
+ const [trialScheduleId, setTrialScheduleId] = useState("")
+ const [trialScheduleOptions, setTrialScheduleOptions] = useState<
+  { id: string; label: string; date: string }[]
+ >([])
+ const [trialType, setTrialType] = useState<string>("免費試堂")
+ const [trialRemarks, setTrialRemarks] = useState("")
+ const [trialSaving, setTrialSaving] = useState(false)
+
  const reloadEnrollments = async () => {
   const list = await fetchEnrollmentsForStudent(student.id)
   setEnrollments(list)
   return list
  }
 
+ const reloadTrials = async () => {
+  const list = await fetchOpenTrialsForStudent(student.id)
+  setTrials(list)
+  return list
+ }
+
  useEffect(() => {
   let cancelled = false
   setLoading(true)
-  void Promise.all([fetchClassOptions(), reloadEnrollments(), fetchSubjectOptions(), fetchTeacherOptions()])
-   .then(([classes, , subjects, teachers]) => {
+  void Promise.all([
+   fetchClassOptions(),
+   reloadEnrollments(),
+   reloadTrials(),
+   fetchSubjectOptions(),
+   fetchTeacherOptions(),
+   fetchAllClasses(),
+  ])
+   .then(([classes, , , subjects, teachers, allClasses]) => {
     if (cancelled) return
     setClassOptions(classes)
+    setTrialClassOptions(
+     allClasses.map((c) => ({
+      id: c.id,
+      label: formatClassLabel({
+       subject: c.subject,
+       courseCode: c.course_code_full,
+       courseName: c.course_name,
+      }),
+     }))
+    )
     setSubjectOptions(subjects.map((s) => ({ id: s.id, name_zh: s.name_zh })))
     setTeacherOptions(teachers.map((t) => ({ id: t.id, label: t.label })))
    })
@@ -87,6 +138,28 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when student changes
  }, [student.id])
+
+ useEffect(() => {
+  if (!trialClassId) {
+   setTrialScheduleOptions([])
+   setTrialScheduleId("")
+   return
+  }
+  let cancelled = false
+  void fetchUpcomingSchedulesForClass(trialClassId, localTodayYmd(), student.id).then((sched) => {
+   if (cancelled) return
+   const opts = sched.slice(0, 15).map((s) => ({
+    id: s.id,
+    date: s.scheduled_date,
+    label: `${s.scheduled_date} ${s.start_time?.slice(0, 5) ?? "—"}–${s.end_time?.slice(0, 5) ?? "—"}`,
+   }))
+   setTrialScheduleOptions(opts)
+   setTrialScheduleId((prev) => (prev && opts.some((o) => o.id === prev) ? prev : (opts[0]?.id ?? "")))
+  })
+  return () => {
+   cancelled = true
+  }
+ }, [trialClassId, student.id])
 
  const occupiedClassIds = useMemo(
   () => new Set(enrollments.filter((e) => e.status !== "已退讀").map((e) => e.classId)),
@@ -131,6 +204,24 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
  }, [pickClass, pickForm, pickScheduleIds, isSummerPick])
 
  const activeCount = enrollments.filter((e) => e.status !== "已退讀").length
+ const trialCount = trials.length
+ const canContinue = activeCount > 0 || trialCount > 0
+
+ const continueLabel = () => {
+  if (activeCount > 0 && trialCount > 0) {
+   return `已報讀 ${activeCount} 班、試堂 ${trialCount} 堂，繼續收款／出單`
+  }
+  if (trialCount > 0) return `已登記 ${trialCount} 堂試堂，繼續收款／出單`
+  return `已報讀 ${activeCount} 班，繼續收款／出單`
+ }
+
+ const syncCounts = async () => {
+  const [enrList, trialList] = await Promise.all([reloadEnrollments(), reloadTrials()])
+  const enr = enrList.filter((e) => e.status !== "已退讀").length
+  onEnrollmentCountChange(enr)
+  onTrialCountChange(trialList.length)
+  return { enrolledCount: enr, trialCount: trialList.length }
+ }
 
  const addGroupEnrollment = async () => {
   if (!pickClass || groupSaving) return
@@ -260,6 +351,52 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
   }
  }
 
+ const addTrialSession = async () => {
+  if (trialSaving) return
+  const selectedSched = trialScheduleOptions.find((o) => o.id === trialScheduleId)
+  if (!trialClassId || !trialScheduleId || !selectedSched) {
+   setErr("請選擇班別與試堂排程")
+   return
+  }
+  const cat = trialTypeCategory(trialType)
+  if (cat === "half" || cat === "full") {
+   pushBanner({
+    tone: "info",
+    title: "半價／原價試堂",
+    message: "試堂紀錄將先建立；收費請於下一步「收款／出單」處理。",
+   })
+  }
+
+  setTrialSaving(true)
+  setErr(null)
+  try {
+   await insertTrialSession({
+    student_id: student.id,
+    class_id: trialClassId,
+    schedule_id: trialScheduleId,
+    trial_date: selectedSched.date,
+    trial_type: trialType,
+    status: "已預約",
+    remarks: trialRemarks.trim() || null,
+   })
+   setTrialClassId("")
+   setTrialScheduleId("")
+   setTrialType("免費試堂")
+   setTrialRemarks("")
+   const counts = await syncCounts()
+   pushBanner({
+    tone: "success",
+    title: "已登記試堂",
+    message: "學生已加入該堂點名名單；可再新增試堂或報讀，或繼續收款。",
+   })
+   onTrialCountChange(counts.trialCount)
+  } catch (e) {
+   reportUserFacingError(e, { source: "EnrollClassStep.addTrial", setErr })
+  } finally {
+   setTrialSaving(false)
+  }
+ }
+
  const canSubmitGroup =
   Boolean(pickClass) &&
   !groupSaving &&
@@ -268,7 +405,7 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
  return (
   <div className="space-y-6">
    <p className="text-sm text-muted-foreground">
-    可連續「新增班別」報讀多於一班；至少完成一筆後再進入收款。選「單堂」時必須勾選要報讀的堂次。
+    可正式報讀班別，或<strong className="font-medium text-foreground">只登記試堂</strong>（無需報讀）。至少完成一筆報讀或試堂後再進入收款。選「單堂」報讀時必須勾選要報讀的堂次。
    </p>
    {err ? (
     <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -296,12 +433,28 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
     </div>
    ) : null}
 
+   {trials.length > 0 ? (
+    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+     <div className="font-medium">已登記試堂（{trialCount}）— 可繼續新增</div>
+     <ul className="mt-1 list-inside list-disc text-muted-foreground">
+      {trials.map((t) => (
+       <li key={t.id}>
+        {t.classLabel} · {t.trialType} · {t.scheduleLabel}
+       </li>
+      ))}
+     </ul>
+    </div>
+   ) : null}
+
    <div className="flex flex-wrap gap-2">
     <Button type="button" variant={mode === "group" ? "default" : "outline"} onClick={() => setMode("group")}>
-     小組課
+     小組課報讀
     </Button>
     <Button type="button" variant={mode === "private" ? "default" : "outline"} onClick={() => setMode("private")}>
      一對一／一對二
+    </Button>
+    <Button type="button" variant={mode === "trial" ? "default" : "outline"} onClick={() => setMode("trial")}>
+     只登記試堂
     </Button>
    </div>
 
@@ -383,14 +536,18 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
       <Button type="button" disabled={!canSubmitGroup} onClick={() => void addGroupEnrollment()}>
        {groupSaving ? "加入中…" : activeCount > 0 ? "新增另一班報讀" : "新增此班報讀"}
       </Button>
-      {activeCount > 0 ? (
-       <Button type="button" variant="outline" onClick={() => onContinueToPayment(activeCount)}>
-        已報讀 {activeCount} 班，繼續收款／出單
+      {canContinue ? (
+       <Button
+        type="button"
+        variant="outline"
+        onClick={() => void syncCounts().then((c) => onContinueToPayment(c))}
+       >
+        {continueLabel()}
        </Button>
       ) : null}
      </div>
     </div>
-   ) : (
+   ) : mode === "private" ? (
     <div className="space-y-4">
      <Field label="科目">
       <Select
@@ -430,9 +587,88 @@ export function EnrollClassStep({ student, onEnrollmentCountChange, onContinueTo
       <Button type="button" disabled={privateSaving} onClick={() => void addPrivateEnrollment()}>
        {privateSaving ? "建立中…" : activeCount > 0 ? "再新增一對一報讀" : "建立一對一報讀"}
       </Button>
-      {activeCount > 0 ? (
-       <Button type="button" variant="outline" onClick={() => onContinueToPayment(activeCount)}>
-        已報讀 {activeCount} 班，繼續收款／出單
+      {canContinue ? (
+       <Button
+        type="button"
+        variant="outline"
+        onClick={() => void syncCounts().then((c) => onContinueToPayment(c))}
+       >
+        {continueLabel()}
+       </Button>
+      ) : null}
+     </div>
+    </div>
+   ) : (
+    <div className="space-y-4">
+     <p className="text-sm text-info-foreground">
+      僅試讀／試堂：不需建立報讀，登記後學生會出現在該堂點名名單。
+     </p>
+     <Field label="試堂班別 *">
+      <Select
+       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+       value={trialClassId}
+       onChange={(e) => setTrialClassId(e.target.value)}
+      >
+       <option value="">請選擇班別</option>
+       {trialClassOptions.map((c) => (
+        <option key={c.id} value={c.id}>
+         {c.label}
+        </option>
+       ))}
+      </Select>
+     </Field>
+     {trialClassId ? (
+      <>
+       <Field label="試堂排程 *">
+        {trialScheduleOptions.length === 0 ? (
+         <p className="text-sm text-warning">此班別沒有可用的未來排程</p>
+        ) : (
+         <Select
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={trialScheduleId}
+          onChange={(e) => setTrialScheduleId(e.target.value)}
+         >
+          {trialScheduleOptions.map((s) => (
+           <option key={s.id} value={s.id}>
+            {s.label}
+           </option>
+          ))}
+         </Select>
+        )}
+       </Field>
+       <Field label="試堂類型">
+        <Select
+         className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+         value={trialType}
+         onChange={(e) => setTrialType(e.target.value)}
+        >
+         {TRIAL_TYPE_OPTIONS.map((opt) => (
+          <option key={opt} value={opt}>
+           {opt}
+          </option>
+         ))}
+        </Select>
+       </Field>
+       <Field label="備註（選填）">
+        <Textarea value={trialRemarks} onChange={(e) => setTrialRemarks(e.target.value)} rows={2} />
+       </Field>
+      </>
+     ) : null}
+     <div className="flex flex-wrap gap-2">
+      <Button
+       type="button"
+       disabled={trialSaving || !trialClassId || !trialScheduleId}
+       onClick={() => void addTrialSession()}
+      >
+       {trialSaving ? "登記中…" : trialCount > 0 ? "再登記一堂試堂" : "登記試堂"}
+      </Button>
+      {canContinue ? (
+       <Button
+        type="button"
+        variant="outline"
+        onClick={() => void syncCounts().then((c) => onContinueToPayment(c))}
+       >
+        {continueLabel()}
        </Button>
       ) : null}
      </div>

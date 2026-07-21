@@ -72,6 +72,7 @@ flowchart LR
 | 能力 | 行為 |
 | --- | --- |
 | 時間表 | 當日老師與原任（`original_teacher_id`）皆可見該堂 |
+| 排程名單 | 班別主責、當日老師與原任透過 `get_teacher_schedule_roster_context(schedule_id[])` 讀取該堂最小名單資料；不因此取得整班 `students` 權限 |
 | 點名寫入 | **僅當日 `schedules.teacher_id`** 可寫；原任通常可看不可改 |
 | 連堂 | 代堂以連堂組一併處理 |
 
@@ -98,6 +99,16 @@ flowchart LR
 3. 是否會在點名後 `clearScheduleSubstitute`，導致歷史歸屬漂移？
 4. 小組課改 `classes.teacher_id` 時，要不要動未來排程？**已過去堂次應保留當日老師**。
 5. 班別愈多、代課愈頻時：UI／匯出應顯示「主責／當日／代堂」標示，避免只顯示一個老師名造成誤解。
+6. 代堂名單查詢必須以 `schedule_id` 呼叫排程限定 RPC；不可把 `teacher_can_access_class` 擴闊為「曾代過堂即可永久讀整班」。
+
+### 排程限定名單契約
+
+- RPC：`public.get_teacher_schedule_roster_context(uuid[])`
+- teacher：每一個傳入排程都必須通過 `teacher_can_access_schedule`；混入無權排程會整次拒絕。
+- admin／alien：可按指定排程載入；每次 DB 呼叫最多 100 個排程，前端 service 會分批。
+- 回傳內容只供排程／點名：班別顯示與期數設定、就讀中報讀、單堂選堂、試堂、補堂、請假、該堂出席，以及姓名／英文名／年級／學校／單一聯絡電話。
+- 不回傳付款、地址、家庭關係或完整學生檔案；亦不改動 `students`、`student_class_enrollments` 的基礎 RLS。
+- 點名寫入不經此 RPC，仍由 `teacher_can_write_attendance(class_id, schedule_id)` 判斷。
 
 相關 UI：「指派代堂」「更改／取消代堂」在排程管理／排程詳情；請假流程「即日代堂」見 `TeacherLeaveWizardView`。
 

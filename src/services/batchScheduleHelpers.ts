@@ -24,6 +24,7 @@ import {
  markAvailabilityForScheduleDates,
  type AcademicYearRange,
 } from "@/services/teacherAvailabilityQueries"
+import { fetchAcademicCalendarClosureMap } from "@/services/academicCalendarQueries"
 
 export type BatchScheduleCandidate = {
  date: string
@@ -31,6 +32,8 @@ export type BatchScheduleCandidate = {
  checked: boolean
  roomConflict: boolean
  slotTaken: boolean
+ isClosure: boolean
+ closureName: string | null
 }
 
 export function parseTimeSlotBounds(timeSlot: string): { start: string; end: string } {
@@ -74,6 +77,7 @@ export async function buildBatchScheduleCandidates(params: {
 }): Promise<BatchScheduleCandidate[]> {
  const { cls, year, teacherId } = params
  const allDates = listCandidateDatesForClass(cls, year)
+ const closureMap = await fetchAcademicCalendarClosureMap(year.id)
  let availSet = new Set<string>()
  if (teacherId && cls.day_of_week && cls.time_slot) {
   const weekdays = weekdaysFromStored(cls.day_of_week)
@@ -89,9 +93,11 @@ export async function buildBatchScheduleCandidates(params: {
  return allDates.map((date) => ({
   date,
   hasAvailability: availSet.has(date),
-  checked: availSet.has(date),
+  checked: availSet.has(date) && !closureMap.has(date),
   roomConflict: false,
   slotTaken: false,
+  isClosure: closureMap.has(date),
+  closureName: closureMap.get(date)?.name ?? null,
  }))
 }
 

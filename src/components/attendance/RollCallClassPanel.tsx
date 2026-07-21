@@ -30,12 +30,16 @@ import {
  fetchMakeupStudentIdsForSchedules,
  fetchMakeupStudentsForSchedules,
  fetchRosterForRollCall,
- fetchSingleSessionNotOnSchedule,
  fetchTrialStudentsForSchedules,
  saveAttendanceStatusForSchedules,
  type RollCallStudentRow,
 } from "@/services/attendanceQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
+import {
+ fetchScheduleRosterContext,
+ singleSessionNotOnSchedule,
+ type ScheduleRosterContext,
+} from "@/services/scheduleRosterQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" | "makeup" }
@@ -105,6 +109,7 @@ export function RollCallClassPanel({
  const [bulkAction, setBulkAction] = useState<null | "prefill" | "allPresent">(null)
  const [confirmSaving, setConfirmSaving] = useState(false)
  const [sheetErr, setSheetErr] = useState<string | null>(null)
+ const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
  const [notesSavedLocal, setNotesSavedLocal] = useState<string | null | undefined>(undefined)
  const didAutoPrefillRef = useRef(false)
 
@@ -134,16 +139,22 @@ export function RollCallClassPanel({
   void (async () => {
    try {
     const primaryScheduleId = scheduleIds[0] ?? ""
-    const [roster, trials, makeups, existing, notOnSchedule, leaveByStudent] = await Promise.all([
-     fetchRosterForRollCall(classId, lessonDate, scheduleIds),
-     fetchTrialStudentsForSchedules(scheduleIds),
-     scheduleIds.length > 0 ? fetchMakeupStudentsForSchedules(scheduleIds) : Promise.resolve([]),
+    const [rosterContext, existing] = await Promise.all([
+     fetchScheduleRosterContext(scheduleIds),
      fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
-     primaryScheduleId
-      ? fetchSingleSessionNotOnSchedule(classId, primaryScheduleId)
-      : Promise.resolve([]),
-     fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate),
     ])
+    setRosterContext(rosterContext)
+    const [roster, trials, makeups, leaveByStudent] = await Promise.all([
+     fetchRosterForRollCall(classId, lessonDate, scheduleIds, rosterContext),
+     fetchTrialStudentsForSchedules(scheduleIds, rosterContext),
+     scheduleIds.length > 0
+      ? fetchMakeupStudentsForSchedules(scheduleIds, rosterContext)
+      : Promise.resolve([]),
+     fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate, rosterContext),
+    ])
+    const notOnSchedule = primaryScheduleId
+     ? singleSessionNotOnSchedule(rosterContext, primaryScheduleId)
+     : []
     if (cancelled) return
 
     setLeaveStudentIds(new Set(leaveByStudent.keys()))
@@ -309,8 +320,13 @@ export function RollCallClassPanel({
   void (async () => {
    try {
     const [leaveByStudent, makeupIds] = await Promise.all([
-     fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate),
-     fetchMakeupStudentIdsForSchedules(scheduleIds),
+     fetchLeavePrefillForLesson(
+      scheduleIds,
+      classId,
+      lessonDate,
+      rosterContext ?? undefined
+     ),
+     fetchMakeupStudentIdsForSchedules(scheduleIds, rosterContext ?? undefined),
     ])
     setLeaveStudentIds(new Set(leaveByStudent.keys()))
     const rosterIds = students.filter((s) => s.source === "enrollment").map((s) => s.studentId)

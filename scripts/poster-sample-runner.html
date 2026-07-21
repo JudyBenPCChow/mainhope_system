@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Promotion Match Poster Samples</title>
+  </head>
+  <body>
+    <script type="module">
+      import {
+        buildBafsPosterSample,
+        buildSamplePosterClasses,
+        renderPromotionMatchPoster,
+      } from "/src/lib/promotionMatchPoster.ts"
+
+      window.samples = {}
+      for (const count of [1, 2, 4, 7]) {
+        window.samples[count] = await renderPromotionMatchPoster({
+          classes: buildSamplePosterClasses(count),
+        })
+      }
+      window.samples.bafs = await renderPromotionMatchPoster({
+        classes: buildBafsPosterSample(),
+      })
+      window.done = true
+    </script>
+  </body>
+</html>

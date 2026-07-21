@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { Banknote, BookOpen, ClipboardCheck, FileText, History, Plus, Printer, Trash2, Wallet } from "lucide-react"
+import { Banknote, BookOpen, CalendarRange, ClipboardCheck, FileText, History, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
 import {
  DEFAULT_LESSON_COUNT,
@@ -842,12 +842,20 @@ export function PaymentsPageView() {
       內部行政收款：先確認學生與應收內容，再登記收款或建立待繳通知單。
      </p>
     </div>
-    <Button type="button" variant="outline" asChild>
-     <Link to="/PaymentHistory">
-      <History className="h-4 w-4" />
-      繳費紀錄
-     </Link>
-    </Button>
+    <div className="flex flex-wrap gap-2">
+     <Button type="button" variant="outline" asChild>
+      <Link to="/MonthlyTuition">
+       <CalendarRange className="h-4 w-4" />
+       每月學費
+      </Link>
+     </Button>
+     <Button type="button" variant="outline" asChild>
+      <Link to="/PaymentHistory">
+       <History className="h-4 w-4" />
+       繳費紀錄
+      </Link>
+     </Button>
+    </div>
    </header>
 
    {formErr ? (

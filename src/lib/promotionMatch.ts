@@ -85,6 +85,8 @@ export type PromotionStudentRow = {
   gradeLabel: string
   contactPhone: string | null
   registrationStatus: "已註冊" | "非注冊"
+  /** 2026 日曆年內至少一筆班別報讀（宣傳配對活躍生篩選；非學年制） */
+  activeIn2026: boolean
 }
 
 export type PromotionEnrollmentRow = {

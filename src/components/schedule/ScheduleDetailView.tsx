@@ -24,6 +24,7 @@ import {
  type ScheduleDetailRecord,
  updateSchedule,
 } from "@/services/classQueries"
+import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 
 function mentionsRecording(text: string): boolean {
  return /錄影|錄像|錄音/.test(text)
@@ -53,12 +54,18 @@ export function ScheduleDetailView() {
   if (!sid) return
   setLoading(true)
   try {
-   const s = await getScheduleById(sid)
+   const rosterContext = await fetchScheduleRosterContext([sid])
+   const s = await getScheduleById(sid, rosterContext)
    setRow(s)
    if (s) {
     setRemarksDraft(s.remarks ?? "")
     if (s.class_id) {
-     const c = await fetchScheduleDetailContext(sid, s.class_id, s.scheduled_date)
+     const c = await fetchScheduleDetailContext(
+      sid,
+      s.class_id,
+      s.scheduled_date,
+      rosterContext
+     )
      setCtx(c)
     } else {
      setCtx(EMPTY_SCHEDULE_DETAIL_CONTEXT)

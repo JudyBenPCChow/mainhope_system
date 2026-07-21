@@ -12,13 +12,87 @@ import {
 } from "@/lib/promotionMatch"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
-import { formatStudentGrade } from "@/lib/studentGrade"
+import { formatStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import { pickStudentContactRaw } from "@/lib/whatsappReminder"
 import { fetchAllClasses } from "@/services/classQueries"
 import {
+  enrollmentEventYmd,
   fetchAllStudents,
+  normalizeAcademicStage,
   normalizeRegistrationStatus,
 } from "@/services/studentQueries"
+
+/** 宣傳配對「活躍生」：日曆年內有報讀（非學年制）。 */
+export const PROMOTION_MATCH_ACTIVE_CALENDAR_YEAR = 2026
+
+export function isEnrollmentInCalendarYear(
+  row: { enroll_date: string | null; created_at: string },
+  year: number
+): boolean {
+  const ymd = enrollmentEventYmd(row)
+  return ymd >= `${year}-01-01` && ymd <= `${year}-12-31`
+}
+
+export function isLegacyPeriodInCalendarYear(
+  periodStart: string,
+  periodEnd: string,
+  year: number
+): boolean {
+  const start = periodStart.slice(0, 10)
+  const end = periodEnd.slice(0, 10)
+  return start <= `${year}-12-31` && end >= `${year}-01-01`
+}
+
+export function buildStudentIdsWithCalendarYearEnrollment(
+  rows: Array<{ student_id: string; enroll_date: string | null; created_at: string }>,
+  year: number
+): Set<string> {
+  const out = new Set<string>()
+  for (const row of rows) {
+    if (isEnrollmentInCalendarYear(row, year)) {
+      out.add(String(row.student_id))
+    }
+  }
+  return out
+}
+
+export function buildStudentIdsWithLegacyCalendarYearEnrollment(
+  rows: Array<{ student_id: string; period_start: string; period_end: string }>,
+  year: number
+): Set<string> {
+  const out = new Set<string>()
+  for (const row of rows) {
+    if (isLegacyPeriodInCalendarYear(row.period_start, row.period_end, year)) {
+      out.add(String(row.student_id))
+    }
+  }
+  return out
+}
+
+export function mergeStudentIdsActiveInCalendarYear(
+  enrollmentRows: Array<{ student_id: string; enroll_date: string | null; created_at: string }>,
+  legacyRows: Array<{ student_id: string; period_start: string; period_end: string }>,
+  year: number
+): Set<string> {
+  const out = buildStudentIdsWithCalendarYearEnrollment(enrollmentRows, year)
+  for (const id of buildStudentIdsWithLegacyCalendarYearEnrollment(legacyRows, year)) {
+    out.add(id)
+  }
+  return out
+}
+
+/** 宣傳配對只納入已註冊、未畢業、且有有效年級的學生。 */
+export function isPromotionMatchStudentCandidate(s: {
+  registration_status: string | null | undefined
+  academic_stage: string | null | undefined
+  grade: string | null | undefined
+}): boolean {
+  if (normalizeRegistrationStatus(s.registration_status) !== "已註冊") return false
+  if (normalizeAcademicStage(s.academic_stage) === "已畢業") return false
+  if (normalizeStudentGrade(s.grade) === "GD") return false
+  const gradeLabel = formatStudentGrade(s.grade)
+  return Boolean(gradeLabel && gradeLabel !== "—")
+}
 
 export type PromotionMatchSnapshot = {
   classes: PromotionClassRow[]
@@ -81,6 +155,65 @@ async function fetchActiveEnrollmentsForStudents(
   return out
 }
 
+async function fetchEnrollmentDatesForStudents(
+  studentIds: string[]
+): Promise<Array<{ student_id: string; enroll_date: string | null; created_at: string }>> {
+  if (!supabase || studentIds.length === 0) return []
+
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!
+      .from("student_class_enrollments")
+      .select("student_id, enroll_date, created_at")
+      .in("student_id", slice)
+    if (error) throw error
+    return data ?? []
+  })
+
+  const out: Array<{ student_id: string; enroll_date: string | null; created_at: string }> = []
+  for (const data of chunks) {
+    for (const row of data) {
+      const r = row as Record<string, unknown>
+      out.push({
+        student_id: String(r.student_id),
+        enroll_date: r.enroll_date != null ? String(r.enroll_date) : null,
+        created_at: String(r.created_at ?? ""),
+      })
+    }
+  }
+  return out
+}
+
+async function fetchLegacyEnrollmentPeriodsForStudents(
+  studentIds: string[]
+): Promise<Array<{ student_id: string; period_start: string; period_end: string }>> {
+  if (!supabase || studentIds.length === 0) return []
+
+  const year = PROMOTION_MATCH_ACTIVE_CALENDAR_YEAR
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!
+      .from("legacy_student_subject_enrollments")
+      .select("student_id, period_start, period_end")
+      .in("student_id", slice)
+      .lte("period_start", `${year}-12-31`)
+      .gte("period_end", `${year}-01-01`)
+    if (error) throw error
+    return data ?? []
+  })
+
+  const out: Array<{ student_id: string; period_start: string; period_end: string }> = []
+  for (const data of chunks) {
+    for (const row of data) {
+      const r = row as Record<string, unknown>
+      out.push({
+        student_id: String(r.student_id),
+        period_start: String(r.period_start),
+        period_end: String(r.period_end),
+      })
+    }
+  }
+  return out
+}
+
 async function fetchHistoricalSubjectsForStudents(
   studentIds: string[]
 ): Promise<PromotionHistoricalSubjectRow[]> {
@@ -111,7 +244,7 @@ async function fetchHistoricalSubjectsForStudents(
   return [...unique.values()]
 }
 
-/** 載入宣傳配對所需快照（小組進行中班別 × 已註冊學生 × 就讀中報讀） */
+/** 載入宣傳配對所需快照（小組進行中班別 × 已註冊未畢業學生 × 就讀中報讀） */
 export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnapshot> {
   const [allClasses, allStudents] = await Promise.all([fetchAllClasses(), fetchAllStudents()])
 
@@ -136,8 +269,26 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
       status: c.status,
     }))
 
+  const studentIds = allStudents
+    .filter((s) => isPromotionMatchStudentCandidate(s))
+    .map((s) => s.id)
+
+  const [enrollmentDateRows, legacyEnrollmentRows, enrollments, historicalSubjects] =
+    await Promise.all([
+      fetchEnrollmentDatesForStudents(studentIds),
+      fetchLegacyEnrollmentPeriodsForStudents(studentIds),
+      fetchActiveEnrollmentsForStudents(studentIds),
+      fetchHistoricalSubjectsForStudents(studentIds),
+    ])
+
+  const activeIn2026Ids = mergeStudentIdsActiveInCalendarYear(
+    enrollmentDateRows,
+    legacyEnrollmentRows,
+    PROMOTION_MATCH_ACTIVE_CALENDAR_YEAR
+  )
+
   const students: PromotionStudentRow[] = allStudents
-    .filter((s) => normalizeRegistrationStatus(s.registration_status) === "已註冊")
+    .filter((s) => isPromotionMatchStudentCandidate(s))
     .map((s) => ({
       id: s.id,
       studentCode: s.student_code,
@@ -150,14 +301,8 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
         parent_phone: s.parent_phone,
       }),
       registrationStatus: "已註冊" as const,
+      activeIn2026: activeIn2026Ids.has(s.id),
     }))
-    .filter((s) => s.gradeLabel && s.gradeLabel !== "—")
-
-  const studentIds = students.map((s) => s.id)
-  const [enrollments, historicalSubjects] = await Promise.all([
-    fetchActiveEnrollmentsForStudents(studentIds),
-    fetchHistoricalSubjectsForStudents(studentIds),
-  ])
 
   return {
     classes,

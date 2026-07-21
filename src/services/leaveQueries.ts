@@ -53,6 +53,8 @@ export const TEACHER_ABSENCE_LEAVE_REASON = "老師請假" as const
  * 「待安排」＝確定要補但尚無補堂日，會進堂數對帳；錄影／不補回不需另排日；調堂須選補堂排程。
  */
 export const LEAVE_MAKEUP_OPTIONS = ["待安排", "錄影", "調堂", "不補回"] as const
+export const LEAVE_TUITION_DISPOSITION_OPTIONS = ["減收", "轉結餘", "調堂", "錄影"] as const
+export type LeaveTuitionDisposition = (typeof LEAVE_TUITION_DISPOSITION_OPTIONS)[number]
 
 /** 請假是否仍缺實際補堂日期（應進堂數對帳） */
 export function leaveNeedsMakeupDate(params: {
@@ -91,6 +93,7 @@ export type LeaveManageRow = {
  makeup_type: string | null
  makeup_date: string | null
  makeup_schedule_id: string | null
+ tuition_disposition: LeaveTuitionDisposition | null
  status: string
  remarks: string | null
  student_name: string | null
@@ -123,6 +126,10 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
   makeup_type: r.makeup_type != null ? String(r.makeup_type) : null,
   makeup_date: r.makeup_date != null ? String(r.makeup_date) : null,
   makeup_schedule_id: r.makeup_schedule_id != null ? String(r.makeup_schedule_id) : null,
+  tuition_disposition:
+   r.tuition_disposition != null
+    ? (String(r.tuition_disposition) as LeaveTuitionDisposition)
+    : null,
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
   student_name: st?.full_name != null ? String(st.full_name) : null,
@@ -142,7 +149,7 @@ export async function fetchLeaveMakeupWithRelations(): Promise<LeaveManageRow[]>
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
   )
   .order("leave_date", { ascending: true })
   .order("created_at", { ascending: true })
@@ -271,6 +278,7 @@ export async function updateLeaveMakeupRecord(
   leave_reason?: string | null
   remarks?: string | null
   makeup_schedule_id?: string | null
+  tuition_disposition?: LeaveTuitionDisposition | null
  }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
@@ -288,6 +296,101 @@ export async function updateLeaveMakeupRecord(
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
  if (error) throwPostgrest(error)
+}
+
+export async function setLeaveTuitionDisposition(
+ id: string,
+ disposition: LeaveTuitionDisposition
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: leave, error: leaveErr } = await supabase
+  .from("leave_makeup_records")
+  .select("id, student_id, class_id, leave_date")
+  .eq("id", id)
+  .maybeSingle()
+ if (leaveErr) throwPostgrest(leaveErr)
+ if (!leave) throw new Error("找不到請假紀錄")
+ const row = leave as Record<string, unknown>
+ const leaveDate = String(row.leave_date).slice(0, 10)
+ assertAcademicYearEditableForDate(leaveDate)
+ const billingMonth = `${leaveDate.slice(0, 7)}-01`
+ const { data: charge, error: chargeErr } = await supabase
+  .from("monthly_tuition_charges")
+  .select("id, unit_price, status")
+  .eq("student_id", String(row.student_id))
+  .eq("class_id", String(row.class_id))
+  .eq("billing_month", billingMonth)
+  .neq("status", "作廢")
+  .maybeSingle()
+ if (chargeErr) throwPostgrest(chargeErr)
+ const chargeStatus = charge ? String((charge as Record<string, unknown>).status) : ""
+ if (disposition === "減收" && ["已繳", "已抵扣"].includes(chargeStatus)) {
+  throw new Error("此月份已收款，請改選「轉結餘」、調堂或錄影")
+ }
+ if (disposition === "轉結餘" && !["已繳", "已抵扣"].includes(chargeStatus)) {
+  throw new Error("只有已收款月份才可轉成堂費結餘；未收款請選「減收」")
+ }
+
+ const { data: existingCredit, error: creditErr } = await supabase
+  .from("tuition_credit_entries")
+  .select("id, status")
+  .eq("source_leave_id", id)
+  .neq("status", "作廢")
+  .maybeSingle()
+ if (creditErr) throwPostgrest(creditErr)
+ if (existingCredit && String((existingCredit as Record<string, unknown>).status) === "已抵扣") {
+  if (disposition !== "轉結餘") throw new Error("此結餘已用於其他帳單，不能更改處理方式")
+ }
+
+ if (disposition === "轉結餘") {
+  const amount = Number((charge as Record<string, unknown>).unit_price ?? 0)
+  if (!(amount > 0)) throw new Error("找不到有效每堂價格，無法建立結餘")
+  if (existingCredit) {
+   const { error } = await supabase
+    .from("tuition_credit_entries")
+    .update({
+     amount,
+     lesson_count: 1,
+     status: "可用",
+     source_charge_id: String((charge as Record<string, unknown>).id),
+     applied_charge_id: null,
+     applied_at: null,
+    })
+    .eq("id", String((existingCredit as Record<string, unknown>).id))
+   if (error) throwPostgrest(error)
+  } else {
+   const { error } = await supabase.from("tuition_credit_entries").insert({
+    student_id: String(row.student_id),
+    class_id: String(row.class_id),
+    source_leave_id: id,
+    source_charge_id: String((charge as Record<string, unknown>).id),
+    lesson_count: 1,
+    amount,
+    status: "可用",
+    notes: `${leaveDate} 請假轉下次月費結餘`,
+   })
+   if (error) throwPostgrest(error)
+  }
+ } else if (existingCredit) {
+  const { error } = await supabase
+   .from("tuition_credit_entries")
+   .update({ status: "作廢" })
+   .eq("id", String((existingCredit as Record<string, unknown>).id))
+   .eq("status", "可用")
+  if (error) throwPostgrest(error)
+ }
+
+ const makeupType =
+  disposition === "調堂" ? "調堂" : disposition === "錄影" ? "錄影" : undefined
+ const { error: updateErr } = await supabase
+  .from("leave_makeup_records")
+  .update({
+   tuition_disposition: disposition,
+   ...(makeupType ? { makeup_type: makeupType } : {}),
+   updated_at: new Date().toISOString(),
+  })
+  .eq("id", id)
+ if (updateErr) throwPostgrest(updateErr)
 }
 
 export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
@@ -359,6 +462,7 @@ export async function insertLeaveMakeupRecord(row: {
  makeup_date?: string | null
  remarks?: string | null
  status?: string
+ tuition_disposition?: LeaveTuitionDisposition | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  assertAcademicYearEditableForDate(row.leave_date)
@@ -366,22 +470,36 @@ export async function insertLeaveMakeupRecord(row: {
   const dup = await validateLeaveScheduleNotDuplicate(row.student_id, row.schedule_id)
   if (dup) throw new Error(dup)
  }
- const { error } = await supabase.from("leave_makeup_records").insert({
-  student_id: row.student_id,
-  class_id: row.class_id,
-  schedule_id: row.schedule_id ?? null,
-  leave_date: row.leave_date,
-  leave_reason: row.leave_reason ?? null,
-  makeup_type: row.makeup_type ?? null,
-  makeup_schedule_id: row.makeup_schedule_id ?? null,
-  makeup_date: row.makeup_date ?? null,
-  remarks: row.remarks ?? null,
-  status: row.status ?? "待補課",
- })
+ const { data: inserted, error } = await supabase
+  .from("leave_makeup_records")
+  .insert({
+   student_id: row.student_id,
+   class_id: row.class_id,
+   schedule_id: row.schedule_id ?? null,
+   leave_date: row.leave_date,
+   leave_reason: row.leave_reason ?? null,
+   makeup_type: row.makeup_type ?? null,
+   makeup_schedule_id: row.makeup_schedule_id ?? null,
+   makeup_date: row.makeup_date ?? null,
+   remarks: row.remarks ?? null,
+   status: row.status ?? "待補課",
+   tuition_disposition: null,
+  })
+  .select("id")
+  .single()
  if (error) {
   const code = (error as { code?: string }).code
   if (code === "23505") throw new Error(LEAVE_DUPLICATE_MESSAGE)
   throwPostgrest(error)
+ }
+ if (row.tuition_disposition) {
+  const insertedId = String((inserted as { id: string }).id)
+  try {
+   await setLeaveTuitionDisposition(insertedId, row.tuition_disposition)
+  } catch (dispositionError) {
+   await supabase.from("leave_makeup_records").delete().eq("id", insertedId)
+   throw dispositionError
+  }
  }
 }
 
@@ -397,6 +515,7 @@ export async function insertLeaveMakeupForSchedule(row: {
  makeup_date?: string | null
  remarks?: string | null
  status?: string
+ tuition_disposition?: LeaveTuitionDisposition | null
 }): Promise<void> {
  const scheduleIds = await fetchConsecutiveScheduleIds(row.schedule_id)
  for (const scheduleId of scheduleIds) {

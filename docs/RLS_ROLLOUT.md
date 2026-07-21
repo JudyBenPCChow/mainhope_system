@@ -81,6 +81,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 | 類別 | 表 | teacher 權限 |
 |------|-----|-------------|
 | 班務 | `classes`, `schedules`, `student_class_enrollments` | 僅自己班別 |
+| 代堂名單 | `get_teacher_schedule_roster_context(uuid[])` | 班別主責／當日老師／原任僅按獲授權排程讀取最小名單資料；不擴闊基礎表 RLS |
 | 學生 | `students` | 僅自己班／被指派的待辦學生（SELECT） |
 | 出勤 | `attendance_details` | 僅自己班別 |
 | 請假／試堂 | `leave_makeup_records`, `trial_sessions` | 僅自己班別（SELECT） |
@@ -104,6 +105,9 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 3. **越權測試（可選，用 Supabase SQL 或 REST）**
    - [ ] teacher JWT 無法 `select * from payments`
    - [ ] teacher JWT 無法讀取其他老師的 `classes`
+   - [ ] 代堂 teacher 可讀獲指派排程的 roster RPC，但混入其他老師 schedule_id 時整次拒絕
+   - [ ] 代堂 teacher 仍無法直接枚舉 `students`／`student_class_enrollments`
+   - [ ] 僅 `schedules.teacher_id` 可寫該堂 `attendance_details`；`original_teacher_id` 只讀
 
 4. **admin／alien 回歸**
    - [ ] 學生管理、繳費、班別新增等與 Phase A 一致
@@ -111,6 +115,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 ### 決策（Phase B 採用）
 
 - 老師在待辦／點名時僅能看見**自己班**或**待辦指派**的學生
+- 代堂屬排程級授權：用 schedule-scoped RPC 回傳最小名單，不授予永久整班學生權限
 - 老師可讀取**所有老師**基本資料（下拉選單用）；不可改他人資料
 - 老師**不可**在班別詳情「增加學生」（需 admin）
 
@@ -186,6 +191,7 @@ Phase C 驗收通过后 → **收尾**（Dashboard、清除 dev policy 殘留、
 
 | 日期 | 交付 | 備註 |
 |------|------|------|
+| 2026-07-22 | Portal 試堂 + 安全加固 | `list_portal_my_trial_schedules`（不擴 schedules RLS）；`redeem_portal_invite` 拒覆寫 admin/teacher/alien；grade helpers 僅本人／mgmt |
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
 | 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |
 | 2026-06-15 | Phase B hotfix | helper functions 改 SECURITY DEFINER（修 stack depth limit exceeded） |

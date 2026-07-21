@@ -369,6 +369,59 @@ export async function insertPaidTrialSession(params: {
  }
 }
 
+export type StudentTrialSummary = {
+ id: string
+ classId: string
+ scheduleId: string
+ trialDate: string
+ trialType: string
+ status: string
+ remarks: string | null
+ classLabel: string
+ scheduleLabel: string
+}
+
+/** 學生未結案試堂（前台精靈／學生詳情用） */
+export async function fetchOpenTrialsForStudent(studentId: string): Promise<StudentTrialSummary[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select(
+   "id, class_id, schedule_id, trial_date, trial_type, status, remarks, classes ( subject, course_code_full, courses ( course_name ) ), schedules ( scheduled_date, start_time, end_time )"
+  )
+  .eq("student_id", studentId)
+  .order("trial_date", { ascending: true })
+  .order("created_at", { ascending: true })
+ if (error) throw error
+ return (data ?? [])
+  .map((raw) => {
+   const r = raw as Record<string, unknown>
+   const status = String(r.status ?? "")
+   if (!isTrialStatusOpen(status)) return null
+   const cls = r.classes as Record<string, unknown> | null
+   const course = cls?.courses as Record<string, unknown> | null
+   const sub = cls?.subject != null ? String(cls.subject) : "—"
+   const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
+   const courseName = course?.course_name != null ? String(course.course_name) : null
+   const sc = r.schedules as Record<string, unknown> | null
+   const date = sc?.scheduled_date != null ? String(sc.scheduled_date) : String(r.trial_date ?? "")
+   const start = sc?.start_time != null ? String(sc.start_time).slice(0, 5) : "—"
+   const end = sc?.end_time != null ? String(sc.end_time).slice(0, 5) : "—"
+   return {
+    id: String(r.id),
+    classId: String(r.class_id),
+    scheduleId: String(r.schedule_id),
+    trialDate: String(r.trial_date ?? "").slice(0, 10),
+    trialType: String(r.trial_type ?? ""),
+    status,
+    remarks: r.remarks != null ? String(r.remarks) : null,
+    classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+    scheduleLabel: `${date} ${start}–${end}`,
+   } satisfies StudentTrialSummary
+  })
+  .filter((x): x is StudentTrialSummary => x != null)
+}
+
 export function trialStatusCategory(status: string): "booked" | "done" | "cancel" {
  const s = status.trim()
  if (s.includes("取消")) return "cancel"

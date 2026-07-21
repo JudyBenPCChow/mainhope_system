@@ -83,7 +83,6 @@ import {
  type ScheduleLeaveSnapshot,
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
-import { fetchSingleSessionNotOnSchedule } from "@/services/enrollmentSessionQueries"
 import {
  deleteSchedule,
  fetchAllClasses,
@@ -96,6 +95,11 @@ import {
  type ClassStudentRow,
  type ScheduleDetailRecord,
 } from "@/services/classQueries"
+import {
+ fetchScheduleRosterContext,
+ singleSessionNotOnSchedule,
+ type ScheduleRosterContext,
+} from "@/services/scheduleRosterQueries"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import { consecutivePairFromFirstTimeSlot, isConsecutiveClass, resolveLessonReminderTimes } from "@/lib/consecutiveLesson"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
@@ -104,7 +108,7 @@ import {
  fetchDayViewRosterBySchedules,
  fetchNearestScheduleDate,
  fetchScheduleAlerts,
- fetchSchedulesInRange,
+ fetchSchedulesInRangeWithRosterContext,
  fetchScheduleStatsSnapshot,
  fetchTeacherScheduleConflicts,
  localYmd,
@@ -369,6 +373,7 @@ export function ScheduleManagePage() {
  )
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
+ const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
  const [stats, setStats] = useState<ScheduleStatsSnapshot>({
   todayLessonCount: 0,
   pendingCancelledCount: 0,
@@ -448,10 +453,15 @@ export function ScheduleManagePage() {
   setPageErr(null)
   try {
    const tid = getTeacherScopeTeacherId()
-   const [list, rms] = await Promise.all([
-    fetchSchedulesInRange(displayStart, rangeEnd, tid ? { teacherId: tid } : undefined),
+   const [scheduleResult, rms] = await Promise.all([
+    fetchSchedulesInRangeWithRosterContext(
+     displayStart,
+     rangeEnd,
+     tid ? { teacherId: tid } : undefined
+    ),
     fetchClassrooms(),
    ])
+   const { rows: list, rosterContext: nextRosterContext } = scheduleResult
    setRows(list)
    setRooms(rms)
    setRoomOptions(
@@ -459,12 +469,14 @@ export function ScheduleManagePage() {
      .map((r) => ({ id: r.id, label: r.name }))
      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
    )
+   setRosterContext(nextRosterContext)
    // stats 不擋主畫面；alerts 仍 await，避免試堂 badge 晚到造成短暫誤灰
    void reloadStats(tid)
-   setAlerts(await fetchScheduleAlerts(list))
+   setAlerts(await fetchScheduleAlerts(list, nextRosterContext))
   } catch (e) {
    reportUserFacingError(e, { source: "ScheduleManagePage.reload", setErr: setPageErr })
    setRows([])
+   setRosterContext(null)
   } finally {
    setLoading(false)
   }
@@ -500,7 +512,6 @@ export function ScheduleManagePage() {
   return () => {
    cancelled = true
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [])
 
  useEffect(() => {
@@ -524,7 +535,7 @@ export function ScheduleManagePage() {
    return
   }
   setRollCallEligibleIds(null)
-  void fetchScheduleIdsWithRollCallTargets(candidates)
+  void fetchScheduleIdsWithRollCallTargets(candidates, rosterContext ?? undefined)
    .then((ids) => {
     if (!cancelled) setRollCallEligibleIds(ids)
    })
@@ -534,7 +545,7 @@ export function ScheduleManagePage() {
   return () => {
    cancelled = true
   }
- }, [rows])
+ }, [rows, rosterContext])
 
  const openRollCallForSchedule = useCallback(
   (scheduleId: string) => {
@@ -558,7 +569,7 @@ export function ScheduleManagePage() {
     notifyEmpty()
     return
    }
-   void fetchScheduleIdsWithRollCallTargets([schedule]).then((ids) => {
+   void fetchScheduleIdsWithRollCallTargets([schedule], rosterContext ?? undefined).then((ids) => {
     if (!ids.has(scheduleId)) {
      notifyEmpty()
      return
@@ -566,7 +577,7 @@ export function ScheduleManagePage() {
     setRollCallScheduleId(scheduleId)
    })
   },
-  [rollCallEligibleIds, pushBanner, rows]
+  [rollCallEligibleIds, pushBanner, rows, rosterContext]
  )
 
  const canOpenRollCall = useCallback(
@@ -597,7 +608,7 @@ export function ScheduleManagePage() {
   }
 
   let cancelled = false
-  void fetchScheduleIdsWithRollCallTargets([schedule]).then((ids) => {
+  void fetchScheduleIdsWithRollCallTargets([schedule], rosterContext ?? undefined).then((ids) => {
    if (cancelled) return
    if (!ids.has(sid)) {
     pushBanner({
@@ -614,7 +625,15 @@ export function ScheduleManagePage() {
   return () => {
    cancelled = true
   }
- }, [startInitialized, loading, rows, searchParams, setSearchParams, pushBanner])
+ }, [
+  startInitialized,
+  loading,
+  rows,
+  searchParams,
+  setSearchParams,
+  pushBanner,
+  rosterContext,
+ ])
 
  useEffect(() => {
   // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
@@ -678,18 +697,31 @@ export function ScheduleManagePage() {
   const classId = r.class_id
   const scheduleId = r.id
   const scheduleDate = r.scheduled_date
-  void Promise.all([
-   fetchClassStudents(classId, {
-    scheduleDate,
-    scheduleId,
-    activeOnly: true,
-   }),
-   fetchLeaveStudentsForSchedule(scheduleId, classId, scheduleDate),
-   fetchTrialStudentsForSchedule(scheduleId),
-   fetchMakeupStudentsForSchedule(scheduleId),
-   fetchSingleSessionNotOnSchedule(classId, scheduleId),
-  ])
-   .then(([enrolled, leave, trial, makeup, notEnrolled]) => {
+  const contextPromise = rosterContext?.schedules.some((schedule) => schedule.id === scheduleId)
+   ? Promise.resolve(rosterContext)
+   : fetchScheduleRosterContext([scheduleId])
+  void contextPromise
+   .then(async (rosterContext) => {
+    const [enrolled, leave, trial, makeup] = await Promise.all([
+     fetchClassStudents(classId, {
+      scheduleDate,
+      scheduleId,
+      activeOnly: true,
+      rosterContext,
+     }),
+     fetchLeaveStudentsForSchedule(scheduleId, classId, scheduleDate, rosterContext),
+     fetchTrialStudentsForSchedule(scheduleId, rosterContext),
+     fetchMakeupStudentsForSchedule(scheduleId, rosterContext),
+    ])
+    return {
+     enrolled,
+     leave,
+     trial,
+     makeup,
+     notEnrolled: singleSessionNotOnSchedule(rosterContext, scheduleId),
+    }
+   })
+   .then(({ enrolled, leave, trial, makeup, notEnrolled }) => {
     setListStudents(enrolled)
     setListLeaveStudents(leave)
     setListTrialStudents(
@@ -703,7 +735,7 @@ export function ScheduleManagePage() {
     setListNotEnrolledStudents(notEnrolled)
    })
    .finally(() => setListStudentsLoading(false))
- }, [expandedScheduleId, rows])
+ }, [expandedScheduleId, rows, rosterContext])
 
  useEffect(() => {
   setExpandedScheduleId(null)
@@ -923,7 +955,7 @@ useEffect(() => {
    setDayViewRosterLoading(false)
    return
   }
-  if (dayFiltered.length === 0) {
+  if (dayFiltered.length === 0 || !rosterContext) {
    setDayViewRosterBySchedule(new Map())
    setDayViewLeaveByScheduleId(new Map())
    setDayViewRosterLoading(false)
@@ -932,8 +964,8 @@ useEffect(() => {
   let cancelled = false
   setDayViewRosterLoading(true)
   void Promise.all([
-   fetchDayViewRosterBySchedules(dayFiltered),
-   fetchLeaveInfoForSchedules(dayFiltered),
+   fetchDayViewRosterBySchedules(dayFiltered, rosterContext),
+   fetchLeaveInfoForSchedules(dayFiltered, rosterContext),
   ])
    .then(([rosterMap, leaveMap]) => {
     if (cancelled) return
@@ -952,7 +984,7 @@ useEffect(() => {
   return () => {
    cancelled = true
   }
- }, [effectiveViewMode, dayFiltered])
+ }, [effectiveViewMode, dayFiltered, rosterContext])
 
  const dayViewRoster = useMemo(() => {
   const m = new Map<string, string[]>()

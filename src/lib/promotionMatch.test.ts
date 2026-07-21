@@ -31,6 +31,7 @@ function student(id: string, gradeLabel = "中四"): PromotionStudentRow {
     gradeLabel,
     contactPhone: null,
     registrationStatus: "已註冊",
+    activeIn2026: false,
   }
 }
 

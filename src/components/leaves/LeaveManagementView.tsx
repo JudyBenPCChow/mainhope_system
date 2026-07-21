@@ -25,17 +25,20 @@ import {
  insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
+ LEAVE_TUITION_DISPOSITION_OPTIONS,
  STUDENT_LEAVE_REASON_OPTIONS,
  isLeaveStatusAbandoned,
  isLeaveStatusDone,
  isLeaveStatusPending,
  leaveNeedsMakeupDate,
  localYmd,
+ setLeaveTuitionDisposition,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
  type EnrolledClassOption,
  type LeaveManageRow,
  type LeaveTodayStats,
+ type LeaveTuitionDisposition,
 } from "@/services/leaveQueries"
 import { listStudents } from "@/services/queries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
@@ -83,6 +86,7 @@ export function LeaveManagementView() {
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addReason, setAddReason] = useState<(typeof STUDENT_LEAVE_REASON_OPTIONS)[number]>("病假")
  const [addMakeupArrange, setAddMakeupArrange] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
+ const [addTuitionDisposition, setAddTuitionDisposition] = useState<LeaveTuitionDisposition>("減收")
  const [addMakeupScheduleId, setAddMakeupScheduleId] = useState("")
  const [addMakeupSearch, setAddMakeupSearch] = useState("")
  const [addRemarks, setAddRemarks] = useState("")
@@ -158,6 +162,7 @@ export function LeaveManagementView() {
   setAddScheduleId("")
   setAddReason("病假")
   setAddMakeupArrange("待安排")
+  setAddTuitionDisposition("減收")
   setAddMakeupScheduleId("")
   setAddMakeupSearch("")
   setAddRemarks("")
@@ -373,6 +378,7 @@ export function LeaveManagementView() {
     makeup_type: "調堂",
     status: linkRow.status.includes("待") ? "已批核" : linkRow.status,
    })
+   await setLeaveTuitionDisposition(linkRow.id, "調堂")
    setLinkOpen(false)
    await reload()
   } catch (e) {
@@ -420,6 +426,7 @@ export function LeaveManagementView() {
     makeup_date: makeupRow?.scheduled_date ?? null,
     remarks: addRemarks.trim() || null,
     status: "待補課",
+    tuition_disposition: addTuitionDisposition,
    })
    setAddOpen(false)
    await reload()
@@ -576,17 +583,18 @@ export function LeaveManagementView() {
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[11%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[14%] px-3 py-2 font-medium">請假班別</th>
-        <th className="w-[10%] px-3 py-2 font-medium">所屬老師</th>
-        <th className="w-[9%] px-3 py-2 font-medium">請假日期</th>
-        <th className="w-[12%] px-3 py-2 font-medium">涉及排程</th>
-        <th className="w-[11%] px-3 py-2 font-medium">原因</th>
-        <th className="w-[12%] px-3 py-2 font-medium">補課安排</th>
-        <th className="w-[9%] px-3 py-2 font-medium">備註</th>
+        <th className="w-[10%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[13%] px-3 py-2 font-medium">請假班別</th>
+        <th className="w-[9%] px-3 py-2 font-medium">所屬老師</th>
+        <th className="w-[8%] px-3 py-2 font-medium">請假日期</th>
+        <th className="w-[11%] px-3 py-2 font-medium">涉及排程</th>
+        <th className="w-[9%] px-3 py-2 font-medium">原因</th>
+        <th className="w-[10%] px-3 py-2 font-medium">補課安排</th>
+        <th className="w-[10%] px-3 py-2 font-medium">學費處理</th>
+        <th className="w-[8%] px-3 py-2 font-medium">備註</th>
         <th className="w-[7%] px-3 py-2 font-medium">狀態</th>
         <th className="w-[5%] px-3 py-2 font-medium">操作</th>
        </tr>
@@ -659,6 +667,32 @@ export function LeaveManagementView() {
            onPickMakeupSchedule={(row) => void openLinkSchedule(row)}
           />
          </td>
+        <td className="min-w-0 px-3 py-2 align-top">
+         <Select
+          className="h-9 w-full text-xs"
+          value={r.tuition_disposition ?? ""}
+          disabled={!leaveRowEditable(r)}
+          onChange={async (event) => {
+           try {
+            await setLeaveTuitionDisposition(
+             r.id,
+             event.target.value as LeaveTuitionDisposition
+            )
+            await reload()
+           } catch (error) {
+            reportUserFacingError(error, {
+             source: "LeaveManagementView.tuitionDisposition",
+             setErr,
+            })
+           }
+          }}
+         >
+          <option value="" disabled>請選擇</option>
+          {LEAVE_TUITION_DISPOSITION_OPTIONS.map((option) => (
+           <option key={option} value={option}>{option}</option>
+          ))}
+         </Select>
+        </td>
          <td className="min-w-0 px-3 py-2 align-top text-xs text-muted-foreground">
           <span className="line-clamp-3 break-words">{r.remarks ?? "—"}</span>
          </td>
@@ -843,6 +877,7 @@ export function LeaveManagementView() {
         onChange={(e) => {
          const v = e.target.value as (typeof LEAVE_MAKEUP_OPTIONS)[number]
          setAddMakeupArrange(v)
+        if (v === "調堂" || v === "錄影") setAddTuitionDisposition(v)
          if (v !== "調堂") setAddMakeupScheduleId("")
         }}
        >
@@ -852,6 +887,22 @@ export function LeaveManagementView() {
          </option>
         ))}
        </Select>
+      </label>
+
+      <label className="grid gap-1">
+       <span className="text-muted-foreground">學費處理</span>
+       <Select
+        className="h-9 w-full rounded-md border border-input px-2"
+        value={addTuitionDisposition}
+        onChange={(e) => setAddTuitionDisposition(e.target.value as LeaveTuitionDisposition)}
+       >
+        {LEAVE_TUITION_DISPOSITION_OPTIONS.map((option) => (
+         <option key={option} value={option}>{option}</option>
+        ))}
+       </Select>
+       <span className="text-xs text-muted-foreground">
+        未收款選「減收」；已預繳選「轉結餘」；調堂／錄影不減費。
+       </span>
       </label>
 
       {addMakeupArrange === "調堂" ? (

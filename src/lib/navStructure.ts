@@ -136,6 +136,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: CalendarRange,
   children: [
    { path: "/Schedule", label: "排程管理", roles: ["admin", "teacher", "alien"], icon: CalendarDays },
+   { path: "/AcademicCalendar", label: "學院校曆", roles: ["admin", "alien"], icon: CalendarX },
    { path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
    {
     path: "/TeachingRecords",
@@ -156,6 +157,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "收費與優惠",
   icon: Wallet,
   children: [
+   { path: "/MonthlyTuition", label: "每月學費", roles: ["admin", "alien"], icon: CalendarRange },
    { path: "/Payments", label: "收款登記", roles: ["admin", "alien"], icon: HandCoins },
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "alien"], icon: Wallet },
    { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
@@ -168,6 +170,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "智能分析",
   icon: Bot,
   children: [
+   { path: "/MgmtDashboard", label: "營運總覽", roles: ["admin", "alien"], icon: BarChart3 },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],

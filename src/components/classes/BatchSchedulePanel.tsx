@@ -78,6 +78,19 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   [candidates]
  )
 
+ const monthCounts = useMemo(() => {
+  const counts = new Map<string, { available: number; selected: number; closures: number }>()
+  for (const candidate of candidates) {
+   const month = candidate.date.slice(0, 7)
+   const row = counts.get(month) ?? { available: 0, selected: 0, closures: 0 }
+   if (candidate.isClosure) row.closures += 1
+   else row.available += 1
+   if (candidate.checked && !candidate.isClosure) row.selected += 1
+   counts.set(month, row)
+  }
+  return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b))
+ }, [candidates])
+
  const checkedDatesKey = useMemo(() => checkedDates.slice().sort().join(","), [checkedDates])
 
  const refreshRoomConflicts = useCallback(async () => {
@@ -105,7 +118,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
  const toggleDate = (date: string) => {
   setSuccessMsg(null)
   setCandidates((prev) =>
-   prev.map((c) => (c.date === date ? { ...c, checked: !c.checked } : c))
+   prev.map((c) => (c.date === date && !c.isClosure ? { ...c, checked: !c.checked } : c))
   )
  }
 
@@ -118,7 +131,9 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    if (classroomId && classroomId !== cls.classroom_id) {
     await updateClass(classId, { classroom_id: classroomId })
    }
-   const toCreate = candidates.filter((c) => c.checked && !c.roomConflict).map((c) => c.date)
+   const toCreate = candidates
+    .filter((c) => c.checked && !c.isClosure && !c.roomConflict)
+    .map((c) => c.date)
    if (toCreate.length === 0) {
     setErr("請至少勾選一個可排程且課室無衝突的日期")
     return
@@ -190,30 +205,56 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
      此班別的逢星期或學年日期區間內沒有符合的候選日。
     </p>
    ) : (
-    <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-     {candidates.map((c) => (
-      <li key={c.date} className="flex flex-wrap items-center gap-2 text-sm">
-       <label className="flex cursor-pointer items-center gap-2">
-        <input
-         type="checkbox"
-         checked={c.checked}
-         onChange={() => toggleDate(c.date)}
-         className="rounded border-border"
-        />
-        <span className="tabular-nums">{c.date}</span>
-        <span className="text-muted-foreground">（{formatScheduleDateShort(c.date)}）</span>
-       </label>
-       {!c.hasAvailability ? null : (
-        <Tag tone="success" size="sm">
-         有檔期
-        </Tag>
-       )}
-       {c.roomConflict ? (
-        <span className="text-xs text-destructive">課室衝突</span>
-       ) : null}
-      </li>
-     ))}
-    </ul>
+    <div className="space-y-3">
+     <div className="rounded-lg border border-border bg-muted/20 p-3">
+      <p className="text-xs font-medium text-foreground">每月最終候選堂數</p>
+      <ul className="mt-2 grid gap-1 text-xs sm:grid-cols-2 lg:grid-cols-3">
+       {monthCounts.map(([month, count]) => (
+        <li key={month} className="flex items-center justify-between gap-2 rounded-md bg-background px-2 py-1.5">
+         <span className="tabular-nums">{month}</span>
+         <span className={count.selected === 4 ? "text-success" : "font-medium text-warning"}>
+          已選 {count.selected} 堂
+          {count.closures > 0 ? ` · 停課 ${count.closures}` : ""}
+         </span>
+        </li>
+       ))}
+      </ul>
+      {monthCounts.some(([, count]) => count.selected !== 4) ? (
+       <p className="mt-2 text-xs text-warning">
+        有月份不是 4 堂；請先核對校曆、老師檔期及手動選擇的日期。
+       </p>
+      ) : null}
+     </div>
+     <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+      {candidates.map((c) => (
+       <li key={c.date} className="flex flex-wrap items-center gap-2 text-sm">
+        <label className={cn("flex items-center gap-2", c.isClosure ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+         <input
+          type="checkbox"
+          checked={c.checked}
+          disabled={c.isClosure}
+          onChange={() => toggleDate(c.date)}
+          className="rounded border-border"
+         />
+         <span className="tabular-nums">{c.date}</span>
+         <span className="text-muted-foreground">（{formatScheduleDateShort(c.date)}）</span>
+        </label>
+        {c.isClosure ? (
+         <Tag tone="warning" size="sm">
+          校曆停課{c.closureName ? `：${c.closureName}` : ""}
+         </Tag>
+        ) : c.hasAvailability ? (
+         <Tag tone="success" size="sm">
+          有檔期
+         </Tag>
+        ) : null}
+        {c.roomConflict ? (
+         <span className="text-xs text-destructive">課室衝突</span>
+        ) : null}
+       </li>
+      ))}
+     </ul>
+    </div>
    )}
    {successMsg ? (
     <div

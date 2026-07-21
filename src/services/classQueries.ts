@@ -39,12 +39,21 @@ import {
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { fetchRosterForRollCall, fetchTrialStudentsForSchedule } from "@/services/attendanceQueries"
+import { fetchRosterForRollCall } from "@/services/attendanceQueries"
 import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSessionNumbersByEnrollmentIds,
- fetchSingleSessionNotOnSchedule,
 } from "@/services/enrollmentSessionQueries"
+import {
+ activeTrialsForSchedules,
+ attendanceForSchedule,
+ enrollmentsForSchedules,
+ fetchScheduleRosterContext,
+ leavesForSchedule,
+ makeupsForSchedules,
+ singleSessionNotOnSchedule,
+ type ScheduleRosterContext,
+} from "@/services/scheduleRosterQueries"
 import {
  consecutivePairFromFirstTimeSlot,
  isConsecutiveClass,
@@ -605,12 +614,37 @@ export type ClassStudentRow = {
 
 export async function fetchClassStudents(
  classId: string,
- opts?: { scheduleDate?: string; scheduleId?: string; activeOnly?: boolean }
+ opts?: {
+  scheduleDate?: string
+  scheduleId?: string
+  activeOnly?: boolean
+  rosterContext?: ScheduleRosterContext
+ }
 ): Promise<ClassStudentRow[]> {
  if (!supabase) return []
+ if (opts?.scheduleId && opts.rosterContext && opts.activeOnly !== false) {
+  return enrollmentsForSchedules(opts.rosterContext, [opts.scheduleId])
+   .filter((row) => row.classId === classId)
+   .map((row) => {
+    const sessionNumbers = opts.rosterContext?.enrollmentSessionNumbers.get(row.id) ?? []
+    return {
+     enrollmentId: row.id,
+     studentId: row.studentId,
+     fullName: row.fullName,
+     grade: row.grade,
+     school: row.school,
+     enrollDate: row.enrollDate,
+     status: row.status,
+     enrollmentPeriod: row.enrollmentPeriod,
+     sessionNumbers,
+     enrollmentFormLabel: formatEnrollmentFormLabel(row.enrollmentPeriod, sessionNumbers),
+     contactPhone: row.contactPhone,
+    }
+   })
+ }
  let q = supabase
   .from("student_class_enrollments")
-  .select("id, status, enroll_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, student_phone, parent_phone )")
+  .select("id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, student_phone, parent_phone )")
   .eq("class_id", classId)
  if (opts?.activeOnly) q = q.eq("status", "就讀中")
  const { data, error } = await q.order("created_at", { ascending: false })
@@ -638,6 +672,10 @@ export async function fetchClassStudents(
    grade: st?.grade != null ? String(st.grade) : null,
    school: st?.school != null ? String(st.school) : null,
    enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
+   withdrawEffectiveDate:
+    r.withdraw_effective_date != null
+     ? String(r.withdraw_effective_date).slice(0, 10)
+     : null,
    status: String(r.status ?? "就讀中"),
    enrollmentPeriod,
    sessionNumbers: [] as number[],
@@ -665,6 +703,14 @@ export async function fetchClassStudents(
  })
 
  return withSessions.filter((row) => {
+  if (opts?.scheduleDate && row.enrollDate && opts.scheduleDate < row.enrollDate) return false
+  if (
+   opts?.scheduleDate &&
+   row.withdrawEffectiveDate &&
+   opts.scheduleDate >= row.withdrawEffectiveDate
+  ) {
+   return false
+  }
   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
    // 班別詳情（無指定堂／日）仍顯示全部單堂生
    if (!opts?.scheduleId) return !opts?.scheduleDate
@@ -1578,7 +1624,8 @@ export const EMPTY_SCHEDULE_DETAIL_CONTEXT: ScheduleDetailContext = {
 export async function fetchScheduleDetailContext(
  scheduleId: string,
  classId: string,
- lessonDate: string
+ lessonDate: string,
+ providedRosterContext?: ScheduleRosterContext
 ): Promise<ScheduleDetailContext> {
  const empty: ScheduleDetailContext = {
   students: [],
@@ -1589,37 +1636,18 @@ export async function fetchScheduleDetailContext(
  }
  if (!supabase) return empty
 
- const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
-
- const [roster, trials, leavesRes, makeupsRes, attRes, notEnrolledSingle] = await Promise.all([
-  fetchRosterForRollCall(classId, lessonDate, scheduleId),
-  fetchTrialStudentsForSchedule(scheduleId),
-  supabase
-   .from("leave_makeup_records")
-   .select(
-    "id, student_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_schedule_id, status, students ( full_name, english_name )"
-   )
-   .or(orFilter)
-   .order("created_at", { ascending: true }),
-  supabase
-   .from("leave_makeup_records")
-   .select(
-    "id, student_id, leave_date, leave_reason, makeup_type, status, students ( full_name, english_name )"
-   )
-   .eq("makeup_schedule_id", scheduleId)
-   .order("leave_date", { ascending: true }),
-  supabase
-   .from("attendance_details")
-   .select("student_id, status, remarks, students ( full_name, english_name )")
-   .eq("class_id", classId)
-   .eq("attendance_date", lessonDate)
-   .order("created_at", { ascending: true }),
-  fetchSingleSessionNotOnSchedule(classId, scheduleId),
- ])
-
- if (leavesRes.error) throw leavesRes.error
- if (makeupsRes.error) throw makeupsRes.error
- if (attRes.error) throw attRes.error
+ const rosterContext = providedRosterContext ?? await fetchScheduleRosterContext([scheduleId])
+ const roster = await fetchRosterForRollCall(
+  classId,
+  lessonDate,
+  scheduleId,
+  rosterContext
+ )
+ const trials = activeTrialsForSchedules(rosterContext, [scheduleId])
+ const leaveRows = leavesForSchedule(rosterContext, scheduleId)
+ const makeupRows = makeupsForSchedules(rosterContext, [scheduleId])
+ const attendanceRows = attendanceForSchedule(rosterContext, scheduleId)
+ const notEnrolledSingle = singleSessionNotOnSchedule(rosterContext, scheduleId)
 
  type Src = ScheduleDetailStudent["source"]
  const rank = (s: Src) => (s === "就讀" ? 0 : s === "試堂" ? 1 : 2)
@@ -1679,54 +1707,48 @@ export async function fetchScheduleDetailContext(
   upsertStudent(t.studentId, t.fullName, t.englishName, "試堂", t.contactPhone)
  }
 
- const leaves = (leavesRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  const sid = String(r.student_id)
-  const name = st?.full_name != null ? String(st.full_name) : "—"
-  const en = st?.english_name != null ? String(st.english_name) : null
+ const leaves = leaveRows.map((row) => {
+  const sid = row.studentId
+  const name = row.fullName
+  const en = row.englishName
   upsertStudent(sid, name, en, "當日紀錄", null)
   return {
-   id: String(r.id),
+   id: row.id,
    studentId: sid,
    studentName: name,
-   leaveReason: r.leave_reason != null ? String(r.leave_reason) : null,
-   makeupType: r.makeup_type != null ? String(r.makeup_type) : null,
-   makeupScheduleId: r.makeup_schedule_id != null ? String(r.makeup_schedule_id) : null,
-   status: String(r.status ?? ""),
-   linkedToThisSchedule: r.schedule_id != null ? String(r.schedule_id) === scheduleId : false,
+   leaveReason: row.leaveReason,
+   makeupType: row.makeupType,
+   makeupScheduleId: row.makeupScheduleId,
+   status: row.status,
+   linkedToThisSchedule: row.scheduleId === scheduleId,
   }
  })
 
- const makeupsHere = (makeupsRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  const sid = String(r.student_id)
-  const name = st?.full_name != null ? String(st.full_name) : "—"
-  const en = st?.english_name != null ? String(st.english_name) : null
+ const makeupsHere = makeupRows.map((row) => {
+  const sid = row.studentId
+  const name = row.fullName
+  const en = row.englishName
   upsertStudent(sid, name, en, "當日紀錄", null)
   return {
-   leaveId: String(r.id),
+   leaveId: row.id,
    studentId: sid,
    studentName: name,
-   leaveDate: String(r.leave_date ?? ""),
-   makeupType: r.makeup_type != null ? String(r.makeup_type) : null,
-   status: String(r.status ?? ""),
+   leaveDate: row.leaveDate,
+   makeupType: row.makeupType,
+   status: row.status,
   }
  })
 
- const attendance = (attRes.data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const st = r.students as Record<string, unknown> | null
-  const sid = String(r.student_id)
-  const name = st?.full_name != null ? String(st.full_name) : "—"
-  const en = st?.english_name != null ? String(st.english_name) : null
+ const attendance = attendanceRows.map((row) => {
+  const sid = row.studentId
+  const name = row.fullName
+  const en = row.englishName
   upsertStudent(sid, name, en, "當日紀錄", null)
   return {
    studentId: sid,
    studentName: name,
-   status: String(r.status ?? ""),
-   remarks: r.remarks != null ? String(r.remarks) : null,
+   status: row.status,
+   remarks: row.remarks,
   }
  })
 
@@ -1746,7 +1768,10 @@ export async function fetchScheduleDetailContext(
  }
 }
 
-export async function getScheduleById(id: string): Promise<ScheduleDetailRecord | null> {
+export async function getScheduleById(
+ id: string,
+ providedRosterContext?: ScheduleRosterContext
+): Promise<ScheduleDetailRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase
   .from("schedules")
@@ -1763,10 +1788,15 @@ export async function getScheduleById(id: string): Promise<ScheduleDetailRecord 
  const origTch = r.original_teacher as Record<string, unknown> | null
  const crm = r.classrooms as Record<string, unknown> | null
  const cid = r.class_id != null ? String(r.class_id) : null
- const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const rosterContext = providedRosterContext ?? await fetchScheduleRosterContext([id])
+ const rosterSchedule = rosterContext.schedules.find((schedule) => schedule.id === id)
+ const sub = rosterSchedule?.subject
+  ?? (cls?.subject != null ? String(cls.subject) : "—")
  const course = cls?.courses as Record<string, unknown> | null
- const courseName = course?.course_name != null ? String(course.course_name) : null
- const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
+ const courseName = rosterSchedule?.courseName
+  ?? (course?.course_name != null ? String(course.course_name) : null)
+ const code = rosterSchedule?.courseCodeFull
+  ?? (cls?.course_code_full != null ? String(cls.course_code_full) : null)
  const consecutiveGroupId =
   r.consecutive_group_id != null ? String(r.consecutive_group_id) : null
  const scheduleTimeRow = {

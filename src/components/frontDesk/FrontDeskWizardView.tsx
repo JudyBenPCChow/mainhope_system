@@ -26,6 +26,7 @@ export function FrontDeskWizardView() {
  const [student, setStudent] = useState<StudentRecord | null>(null)
  const [summary, setSummary] = useState<WizardSummary>({
   enrolledCount: 0,
+  trialCount: 0,
   paymentStatus: "none",
   leaveCount: 0,
  })
@@ -84,7 +85,7 @@ export function FrontDeskWizardView() {
  const onRegistered = (created: StudentRecord) => {
   setStudent(created)
   syncStudentId(created.id)
-  setSummary({ enrolledCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
   advanceTo(2)
  }
 
@@ -92,8 +93,12 @@ export function FrontDeskWizardView() {
   setSummary((s) => ({ ...s, enrolledCount: count }))
  }
 
- const onContinueToPayment = (count: number) => {
-  setSummary((s) => ({ ...s, enrolledCount: count }))
+ const onTrialCountChange = (count: number) => {
+  setSummary((s) => ({ ...s, trialCount: count }))
+ }
+
+ const onContinueToPayment = (counts: { enrolledCount: number; trialCount: number }) => {
+  setSummary((s) => ({ ...s, enrolledCount: counts.enrolledCount, trialCount: counts.trialCount }))
   advanceTo(3)
  }
 
@@ -119,7 +124,7 @@ export function FrontDeskWizardView() {
   setStudent(null)
   setStep(1)
   setMaxReached(1)
-  setSummary({ enrolledCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
   setHydrateErr(null)
   syncStudentId(null)
   clearIntakeResume()
@@ -213,6 +218,7 @@ export function FrontDeskWizardView() {
     <EnrollClassStep
      student={student}
      onEnrollmentCountChange={onEnrollmentCountChange}
+     onTrialCountChange={onTrialCountChange}
      onContinueToPayment={onContinueToPayment}
     />
    ) : null}
@@ -240,6 +246,7 @@ export function FrontDeskWizardView() {
        {student.student_code ? `（${student.student_code}）` : ""}
       </li>
       <li>報讀：{summary.enrolledCount} 筆</li>
+      <li>試堂：{summary.trialCount} 筆</li>
       <li>
        付款：
        {summary.paymentStatus === "done"
@@ -256,6 +263,9 @@ export function FrontDeskWizardView() {
       </Button>
       <Button type="button" variant="outline" asChild>
        <Link to={`/Payments?studentId=${encodeURIComponent(student.id)}`}>前往收款登記頁面</Link>
+      </Button>
+      <Button type="button" variant="outline" asChild>
+       <Link to={`/TrialSessions?studentId=${encodeURIComponent(student.id)}`}>前往試堂紀錄</Link>
       </Button>
       <Button type="button" variant="outline" asChild>
        <Link to={`/LeaveManagement?studentId=${encodeURIComponent(student.id)}`}>前往請假管理頁面</Link>

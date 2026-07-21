@@ -6,7 +6,9 @@ import {
   ChevronDown,
   ChevronRight,
   GraduationCap,
+  MessageCircle,
   RefreshCw,
+  RotateCcw,
   UserPlus,
   Users,
 } from "lucide-react"
@@ -16,6 +18,8 @@ import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { Textarea } from "@/components/ui/textarea"
+import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isPrimaryStudentGrade } from "@/lib/studentGrade"
@@ -25,11 +29,15 @@ import type {
   PromotionStudentRow,
   StudentMatchBundle,
 } from "@/lib/promotionMatch"
+import { renderPromotionMatchPoster } from "@/lib/promotionMatchPoster"
+import { buildPromotionMatchWhatsAppMessage } from "@/lib/promotionMatchWhatsApp"
 import { cn } from "@/lib/utils"
+import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
+type ActivityFilter = "all" | "active" | "inactive"
 type CandidateFilter = "all" | "formerSubject"
 
 const FULL_TERM_COUNT_OPTIONS = [1, 2, 3] as const
@@ -296,7 +304,15 @@ function FullTermRoster({ bundle }: { bundle: ClassMatchBundle }) {
   )
 }
 
-function EligibleClassesList({ bundle }: { bundle: StudentMatchBundle }) {
+function EligibleClassesList({
+  bundle,
+  selectedClassIds,
+  onToggle,
+}: {
+  bundle: StudentMatchBundle
+  selectedClassIds: ReadonlySet<string>
+  onToggle: (classId: string) => void
+}) {
   if (bundle.eligible.length === 0) {
     return (
       <p className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-4 text-sm text-muted-foreground">
@@ -307,43 +323,267 @@ function EligibleClassesList({ bundle }: { bundle: StudentMatchBundle }) {
 
   return (
     <ul className="divide-y divide-border rounded-md border border-border bg-card">
-      {bundle.eligible.map((item) => (
-        <li
-          key={item.cls.id}
-          className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between"
-        >
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                to={`/Classes/${item.cls.id}`}
-                className="font-medium text-foreground hover:underline"
-              >
-                {item.cls.label}
-              </Link>
-              <Tag tone="info" size="sm">
-                {item.cls.subject}
-              </Tag>
-              <Tag tone={item.isHotFullTerm ? "success" : "default"} size="sm">
-                全期 {item.fullTermCount} 人
-              </Tag>
+      {bundle.eligible.map((item) => {
+        const selected = selectedClassIds.has(item.cls.id)
+        return (
+          <li
+            key={item.cls.id}
+            className={cn(
+              "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between",
+              selected && "bg-primary/5"
+            )}
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  to={`/Classes/${item.cls.id}`}
+                  className="font-medium text-foreground hover:underline"
+                >
+                  {item.cls.label}
+                </Link>
+                <Tag tone="info" size="sm">
+                  {item.cls.subject}
+                </Tag>
+                <Tag tone={item.isHotFullTerm ? "success" : "default"} size="sm">
+                  全期 {item.fullTermCount} 人
+                </Tag>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  {scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)}
+                </span>
+                {item.cls.teacherName ? <span>{item.cls.teacherName}</span> : null}
+                {item.cls.grades.length > 0 ? (
+                  <span>適用 {item.cls.grades.join("、")}</span>
+                ) : null}
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <CalendarClock className="h-3.5 w-3.5" />
-                {scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)}
-              </span>
-              {item.cls.teacherName ? <span>{item.cls.teacherName}</span> : null}
-              {item.cls.grades.length > 0 ? (
-                <span>適用 {item.cls.grades.join("、")}</span>
-              ) : null}
+            <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-stretch">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-primary"
+                  checked={selected}
+                  onChange={() => onToggle(item.cls.id)}
+                />
+                加入推薦
+              </label>
+              <Button type="button" size="sm" variant="outline" asChild>
+                <Link to={`/Classes/${item.cls.id}`}>前往班別</Link>
+              </Button>
             </div>
-          </div>
-          <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
-            <Link to={`/Classes/${item.cls.id}`}>前往班別</Link>
-          </Button>
-        </li>
-      ))}
+          </li>
+        )
+      })}
     </ul>
+  )
+}
+
+function recommendationSignature(classIds: ReadonlySet<string>): string {
+  return [...classIds].sort().join(",")
+}
+
+function selectedPromotionClasses(
+  bundle: StudentMatchBundle,
+  classIds: ReadonlySet<string>
+) {
+  return bundle.eligible
+    .filter((item) => classIds.has(item.cls.id))
+    .map((item) => ({
+      label: item.cls.label,
+      subject: item.cls.subject,
+      schedule:
+        item.cls.dayOfWeek || item.cls.timeSlot
+          ? scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)
+          : null,
+      teacherName: item.cls.teacherName,
+    }))
+}
+
+function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
+  const { pushBanner } = useAppBanner()
+  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set())
+  const [generatedSignature, setGeneratedSignature] = useState("")
+  const [posterUrl, setPosterUrl] = useState<string | null>(null)
+  const [posterLoading, setPosterLoading] = useState(false)
+  const [posterError, setPosterError] = useState<string | null>(null)
+
+  const buildMessage = useCallback(
+    (classIds: ReadonlySet<string>) =>
+      buildPromotionMatchWhatsAppMessage({
+        studentName: bundle.student.fullName,
+        gradeLabel: bundle.student.gradeLabel,
+        classes: selectedPromotionClasses(bundle, classIds),
+      }),
+    [bundle]
+  )
+  const [draft, setDraft] = useState(() => buildMessage(new Set<string>()))
+
+  const selectedSignature = recommendationSignature(selectedClassIds)
+  const messageOutOfDate = selectedSignature !== generatedSignature
+  const selectedCount = selectedClassIds.size
+  const phone = bundle.student.contactPhone?.trim() ?? ""
+
+  useEffect(() => {
+    if (selectedCount === 0) {
+      setPosterUrl(null)
+      setPosterError(null)
+      setPosterLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setPosterLoading(true)
+    setPosterError(null)
+
+    void renderPromotionMatchPoster({
+      classes: selectedPromotionClasses(bundle, selectedClassIds),
+    })
+      .then((url) => {
+        if (cancelled) return
+        setPosterUrl(url)
+        setPosterLoading(false)
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return
+        setPosterUrl(null)
+        setPosterLoading(false)
+        setPosterError(formatUnknownError(error) || "無法產生宣傳海報")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [bundle, selectedClassIds, selectedCount])
+
+  const toggleClass = (classId: string) => {
+    setSelectedClassIds((current) => {
+      const next = new Set(current)
+      if (next.has(classId)) next.delete(classId)
+      else next.add(classId)
+      return next
+    })
+  }
+
+  const regenerateMessage = () => {
+    setDraft(buildMessage(selectedClassIds))
+    setGeneratedSignature(selectedSignature)
+  }
+
+  const openWhatsApp = () => {
+    if (!phone || selectedCount === 0 || !draft.trim()) return
+    const opened = openWhatsAppWithPrefilledText(phone, draft.trim())
+    if (!opened) {
+      pushBanner({
+        tone: "warning",
+        title: "無法開啟 WhatsApp",
+        message: "請檢查學生聯絡電話格式後再試。",
+      })
+    }
+  }
+
+  const whatsAppDisabled = !phone || selectedCount === 0 || !draft.trim()
+  const whatsAppTitle = !phone
+    ? "此學生沒有聯絡電話"
+    : selectedCount === 0
+      ? "請先選擇至少一個推薦班別"
+      : !draft.trim()
+        ? "請先填寫宣傳文案"
+        : undefined
+
+  return (
+    <>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-medium text-foreground">
+          可報班別（{bundle.eligible.length}）
+          <span className="ml-2 font-normal text-muted-foreground">年級合適 · 時段無衝突</span>
+        </h3>
+        <span className="text-xs font-medium text-primary">已選 {selectedCount} 個推薦</span>
+      </div>
+      <EligibleClassesList
+        bundle={bundle}
+        selectedClassIds={selectedClassIds}
+        onToggle={toggleClass}
+      />
+
+      <section className="mt-4 rounded-lg border border-border bg-muted/30 p-3 sm:p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">建議宣傳文案</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              可直接修改內容；切換學生時會重新開始。
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={selectedCount === 0}
+            onClick={regenerateMessage}
+          >
+            <RotateCcw />
+            按已選班別重新產生
+          </Button>
+        </div>
+
+        {messageOutOfDate ? (
+          <p className="mt-3 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+            推薦班別已變更。你可自行更新文案，或按「重新產生」套用最新選擇。
+          </p>
+        ) : null}
+
+        <Textarea
+          className="mt-3 min-h-[220px] resize-y bg-background"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          aria-label={`${bundle.student.fullName}的建議宣傳文案`}
+        />
+
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            {phone ? `將傳送至 ${phone}` : "此學生未有聯絡電話，請先到學生資料補充。"}
+          </p>
+          <Button
+            type="button"
+            variant="success"
+            disabled={whatsAppDisabled}
+            title={whatsAppTitle}
+            onClick={openWhatsApp}
+          >
+            <MessageCircle />
+            WhatsApp
+          </Button>
+        </div>
+
+        <div className="mt-4 border-t border-border pt-4">
+          <h3 className="text-sm font-semibold text-foreground">宣傳海報</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            依已選班別自動產生正方形圖片；可於電腦上自行複製後貼到 WhatsApp。
+          </p>
+
+          {selectedCount === 0 ? (
+            <p className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
+              請先勾選上方推薦班別，即可預覽海報。
+            </p>
+          ) : posterLoading ? (
+            <p className="mt-3 text-sm text-muted-foreground">正在產生海報…</p>
+          ) : posterError ? (
+            <p className="mt-3 text-sm text-destructive" role="alert">
+              {posterError}
+            </p>
+          ) : posterUrl ? (
+            <div className="mt-3 flex justify-center">
+              <img
+                src={posterUrl}
+                alt={`${bundle.student.fullName}宣傳海報`}
+                className="w-full max-w-[420px] rounded-md border border-border bg-background shadow-sm"
+              />
+            </div>
+          ) : null}
+        </div>
+      </section>
+    </>
   )
 }
 
@@ -548,11 +788,7 @@ function ByStudentPanel({
               </div>
             ) : null}
 
-            <h3 className="mb-2 text-sm font-medium text-foreground">
-              可報班別（{selected.eligible.length}）
-              <span className="ml-2 font-normal text-muted-foreground">年級合適 · 時段無衝突</span>
-            </h3>
-            <EligibleClassesList bundle={selected} />
+            <StudentPromotionWorkspace key={selected.student.id} bundle={selected} />
             <BlockedClassesList bundle={selected} />
           </>
         ) : (
@@ -575,6 +811,7 @@ export function PromotionMatchView() {
   )
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all")
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
@@ -638,9 +875,11 @@ export function PromotionMatchView() {
       const hasEnroll = b.currentClasses.length > 0
       if (enrollmentFilter === "none" && hasEnroll) return false
       if (enrollmentFilter === "has" && !hasEnroll) return false
+      if (activityFilter === "active" && !b.student.activeIn2026) return false
+      if (activityFilter === "inactive" && b.student.activeIn2026) return false
       return true
     })
-  }, [allStudentBundles, studentGrades, enrollmentFilter])
+  }, [allStudentBundles, studentGrades, enrollmentFilter, activityFilter])
 
   useEffect(() => {
     if (classBundles.length === 0) {
@@ -763,7 +1002,7 @@ export function PromotionMatchView() {
             </FilterBar>
           ) : (
             <FilterBar>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                     年級
@@ -788,9 +1027,22 @@ export function PromotionMatchView() {
                     <option value="has">已有報讀</option>
                   </Select>
                 </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    活躍生
+                  </label>
+                  <Select
+                    value={activityFilter}
+                    onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
+                  >
+                    <option value="all">全部</option>
+                    <option value="active">活躍生</option>
+                    <option value="inactive">非活躍生</option>
+                  </Select>
+                </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                年級未選代表全部；打開選單後才會選取篩選項目。
+                年級未選代表全部。「活躍生」= 2026 日曆年內有班別報讀或 Notion 舊資料紀錄（非學年制）。
               </p>
             </FilterBar>
           )}

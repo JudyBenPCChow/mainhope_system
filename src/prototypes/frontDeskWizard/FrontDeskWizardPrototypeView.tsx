@@ -45,6 +45,7 @@ export function FrontDeskWizardPrototypeView() {
  const [leaves, setLeaves] = useState<MockLeave[]>([])
  const [summary, setSummary] = useState<WizardSummary>({
   enrolledCount: 0,
+  trialCount: 0,
   paymentStatus: "none",
   leaveCount: 0,
  })
@@ -78,7 +79,7 @@ export function FrontDeskWizardPrototypeView() {
   setEnrollments([])
   setPayments([])
   setLeaves([])
-  setSummary({ enrolledCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
   setEventLog([])
   setRegForm({
    full_name: "",
@@ -118,7 +119,7 @@ export function FrontDeskWizardPrototypeView() {
   setEnrollments([])
   setPayments([])
   setLeaves([])
-  setSummary({ enrolledCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
   log(`新生登記（記憶體）：${created.full_name}／${created.student_code}`)
   pushBanner({
    tone: "success",

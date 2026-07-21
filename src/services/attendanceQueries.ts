@@ -3,9 +3,7 @@ import {
  enrollmentVisibleOnSchedule,
  fetchAcademicYearPeriods,
  fetchClassEnrollmentConfig,
- fetchClassEnrollmentConfigsByIds,
  isSingleSessionEnrollment,
- isSummerTwoPeriodMode,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
@@ -15,11 +13,23 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ fetchSchedulesInRangeWithRosterContext,
+ localYmd,
+ type ScheduleManageRow,
+} from "@/services/scheduleQueries"
 import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSingleSessionNotOnSchedule,
 } from "@/services/enrollmentSessionQueries"
+import {
+ activeTrialsForSchedules,
+ enrollmentsForSchedules,
+ fetchScheduleRosterContext,
+ leavesForSchedule,
+ makeupsForSchedules,
+ type ScheduleRosterContext,
+} from "@/services/scheduleRosterQueries"
 import { isBillableAttendanceStatus, prefillStatusFromLeave } from "@/lib/attendanceBilling"
 import { isOnlineLeaveMakeup, isRecordLeaveMakeup } from "@/lib/scheduleDayViewTags"
 
@@ -49,24 +59,43 @@ export type RollCallStudentRow = {
 export async function fetchRosterForRollCall(
  classId: string,
  scheduleDate?: string,
- scheduleIds?: string | string[]
+ scheduleIds?: string | string[],
+ rosterContext?: ScheduleRosterContext
 ): Promise<RollCallStudentRow[]> {
  if (!supabase) return []
- const { data, error } = await supabase
-  .from("student_class_enrollments")
-  .select(
-   "id, status, enroll_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, student_phone, parent_phone )"
-  )
-  .eq("class_id", classId)
-  .eq("status", "就讀中")
-  .order("created_at", { ascending: true })
- if (error) throw error
-
  const scheduleIdList = scheduleIds == null
   ? []
   : Array.isArray(scheduleIds)
     ? scheduleIds.filter(Boolean)
     : [scheduleIds]
+
+ if (scheduleIdList.length > 0) {
+  const context = rosterContext ?? await fetchScheduleRosterContext(scheduleIdList)
+  return enrollmentsForSchedules(context, scheduleIdList)
+   .filter((row) => row.classId === classId)
+   .map((row) => ({
+    enrollmentId: row.id,
+    studentId: row.studentId,
+    fullName: row.fullName,
+    englishName: row.englishName,
+    grade: row.grade,
+    school: row.school,
+    enrollDate: row.enrollDate,
+    status: row.status,
+    contactPhone: row.contactPhone,
+    isSingleSession: isSingleSessionEnrollment(row.enrollmentPeriod),
+   }))
+ }
+
+ const { data, error } = await supabase
+  .from("student_class_enrollments")
+  .select(
+   "id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, student_phone, parent_phone )"
+  )
+  .eq("class_id", classId)
+  .eq("status", "就讀中")
+  .order("created_at", { ascending: true })
+ if (error) throw error
 
  let periodCode: 1 | 2 | null = null
  if (scheduleDate) {
@@ -89,6 +118,10 @@ export async function fetchRosterForRollCall(
    school: st?.school != null ? String(st.school) : null,
    enrollDate: r.enroll_date != null ? String(r.enroll_date) : null,
    status: String(r.status ?? "就讀中"),
+   withdrawEffectiveDate:
+    r.withdraw_effective_date != null
+     ? String(r.withdraw_effective_date).slice(0, 10)
+     : null,
    enrollmentPeriod: normalizeEnrollmentPeriod(
     r.enrollment_period != null ? String(r.enrollment_period) : null
    ),
@@ -102,6 +135,14 @@ export async function fetchRosterForRollCall(
  const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
 
  const filtered = rows.filter((row) => {
+  if (scheduleDate && row.enrollDate && scheduleDate < row.enrollDate) return false
+  if (
+   scheduleDate &&
+   row.withdrawEffectiveDate &&
+   scheduleDate >= row.withdrawEffectiveDate
+  ) {
+   return false
+  }
   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
    if (scheduleIdList.length === 0) return false
    const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
@@ -118,7 +159,7 @@ export async function fetchRosterForRollCall(
   return enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)
  })
 
- return filtered.map(({ enrollmentPeriod, ...rest }) => ({
+ return filtered.map(({ enrollmentPeriod, withdrawEffectiveDate: _withdrawEffectiveDate, ...rest }) => ({
   ...rest,
   isSingleSession: isSingleSessionEnrollment(enrollmentPeriod),
  }))
@@ -136,9 +177,19 @@ export type ScheduleRosterStudent = {
 export async function fetchLeaveStudentsForSchedule(
  scheduleId: string,
  classId: string,
- lessonDate: string
+ lessonDate: string,
+ rosterContext?: ScheduleRosterContext
 ): Promise<ScheduleRosterStudent[]> {
  if (!supabase) return []
+ if (rosterContext) {
+  return leavesForSchedule(rosterContext, scheduleId)
+   .map((row) => ({
+    studentId: row.studentId,
+    fullName: row.fullName,
+    contactPhone: row.contactPhone,
+   }))
+   .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+ }
  const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
  const { data, error } = await supabase
   .from("leave_makeup_records")
@@ -164,7 +215,10 @@ export async function fetchLeaveStudentsForSchedule(
  return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
 }
 
-export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise<
+export async function fetchTrialStudentsForSchedule(
+ scheduleId: string,
+ rosterContext?: ScheduleRosterContext
+): Promise<
  {
   studentId: string
   fullName: string
@@ -174,6 +228,15 @@ export async function fetchTrialStudentsForSchedule(scheduleId: string): Promise
  }[]
 > {
  if (!supabase) return []
+ if (rosterContext) {
+  return activeTrialsForSchedules(rosterContext, [scheduleId]).map((row) => ({
+   studentId: row.studentId,
+   fullName: row.fullName,
+   englishName: row.englishName,
+   grade: row.grade,
+   contactPhone: row.contactPhone,
+  }))
+ }
  const { data, error } = await supabase
   .from("trial_sessions")
   .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
@@ -207,11 +270,27 @@ export type LeavePrefillInfo = {
 export async function fetchLeavePrefillForLesson(
  scheduleIds: string | string[],
  classId: string,
- lessonDate: string
+ lessonDate: string,
+ rosterContext?: ScheduleRosterContext
 ): Promise<Map<string, LeavePrefillInfo>> {
  const out = new Map<string, LeavePrefillInfo>()
  if (!supabase) return out
  const ids = Array.isArray(scheduleIds) ? scheduleIds : [scheduleIds]
+ if (rosterContext) {
+  const seen = new Set<string>()
+  for (const scheduleId of ids) {
+   for (const row of leavesForSchedule(rosterContext, scheduleId)) {
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    out.set(row.studentId, {
+     studentId: row.studentId,
+     leaveReason: row.leaveReason,
+     makeupType: row.makeupType,
+    })
+   }
+  }
+  return out
+ }
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select("student_id, schedule_id, class_id, leave_date, leave_reason, makeup_type")
@@ -267,50 +346,20 @@ function emptyLeaveSnapshot(): ScheduleLeaveSnapshot {
  * 主要用途：日視圖標籤（無人報讀／全員請假／網課生／要錄影）與灰卡。
  */
 export async function fetchLeaveInfoForSchedules(
- schedules: { id: string; class_id: string | null; scheduled_date: string }[]
+ schedules: { id: string; class_id: string | null; scheduled_date: string }[],
+ rosterContext?: ScheduleRosterContext
 ): Promise<Map<string, ScheduleLeaveSnapshot>> {
  const map = new Map<string, ScheduleLeaveSnapshot>()
  for (const s of schedules) map.set(s.id, emptyLeaveSnapshot())
  if (!supabase || schedules.length === 0) return map
-
- const dates = [...new Set(schedules.map((s) => s.scheduled_date))]
- const classIds = [
-  ...new Set(schedules.map((s) => s.class_id).filter((x): x is string => x != null && x !== "")),
- ]
- if (classIds.length === 0 || dates.length === 0) return map
-
- const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("leave_makeup_records")
-   .select("student_id, schedule_id, class_id, leave_date, makeup_type")
-   .in("class_id", slice)
-   .in("leave_date", dates)
-  if (error) throw error
-  return data ?? []
- })
-
- for (const data of chunks) {
-  for (const row of data) {
-   const r = row as {
-    student_id: string
-    schedule_id: string | null
-    class_id: string
-    leave_date: string
-    makeup_type: string | null
-   }
-   const sid = String(r.student_id)
-   const online = isOnlineLeaveMakeup(r.makeup_type)
-   const record = isRecordLeaveMakeup(r.makeup_type)
-   for (const s of schedules) {
-    const linked = r.schedule_id != null && r.schedule_id === s.id
-    const sameClassDate = s.class_id === r.class_id && s.scheduled_date === r.leave_date
-    if (!linked && !sameClassDate) continue
-    const snap = map.get(s.id)
-    if (!snap) continue
-    snap.studentIds.add(sid)
-    if (online) snap.hasOnlineMakeup = true
-    if (record) snap.hasRecordMakeup = true
-   }
+ const context = rosterContext ?? await fetchScheduleRosterContext(schedules.map((row) => row.id))
+ for (const schedule of schedules) {
+  const snapshot = map.get(schedule.id)
+  if (!snapshot) continue
+  for (const row of leavesForSchedule(context, schedule.id)) {
+   snapshot.studentIds.add(row.studentId)
+   if (isOnlineLeaveMakeup(row.makeupType)) snapshot.hasOnlineMakeup = true
+   if (isRecordLeaveMakeup(row.makeupType)) snapshot.hasRecordMakeup = true
   }
  }
  return map
@@ -327,8 +376,14 @@ export async function fetchLeaveStudentIdsForSchedules(
 }
 
 /** 本堂為補堂目標排程的學生（可傳多個 schedule id） */
-export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): Promise<Set<string>> {
+export async function fetchMakeupStudentIdsForSchedules(
+ scheduleIds: string[],
+ rosterContext?: ScheduleRosterContext
+): Promise<Set<string>> {
  if (!supabase || scheduleIds.length === 0) return new Set()
+ if (rosterContext) {
+  return new Set(makeupsForSchedules(rosterContext, scheduleIds).map((row) => row.studentId))
+ }
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select("student_id")
@@ -338,7 +393,10 @@ export async function fetchMakeupStudentIdsForSchedules(scheduleIds: string[]): 
 }
 
 /** 本堂為補堂目標排程的學生明細（跨班補堂點名用；可傳多個 schedule id） */
-export async function fetchMakeupStudentsForSchedules(scheduleIds: string[]): Promise<
+export async function fetchMakeupStudentsForSchedules(
+ scheduleIds: string[],
+ rosterContext?: ScheduleRosterContext
+): Promise<
  {
   studentId: string
   fullName: string
@@ -348,6 +406,22 @@ export async function fetchMakeupStudentsForSchedules(scheduleIds: string[]): Pr
  }[]
 > {
  if (!supabase || scheduleIds.length === 0) return []
+ if (rosterContext) {
+  const seen = new Set<string>()
+  return makeupsForSchedules(rosterContext, scheduleIds)
+   .filter((row) => {
+    if (seen.has(row.studentId)) return false
+    seen.add(row.studentId)
+    return true
+   })
+   .map((row) => ({
+    studentId: row.studentId,
+    fullName: row.fullName,
+    englishName: row.englishName,
+    grade: row.grade,
+    contactPhone: row.contactPhone,
+   }))
+ }
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
@@ -380,8 +454,11 @@ export async function fetchMakeupStudentsForSchedules(scheduleIds: string[]): Pr
  return out
 }
 
-export async function fetchMakeupStudentsForSchedule(scheduleId: string): Promise<ScheduleRosterStudent[]> {
- const rows = await fetchMakeupStudentsForSchedules([scheduleId])
+export async function fetchMakeupStudentsForSchedule(
+ scheduleId: string,
+ rosterContext?: ScheduleRosterContext
+): Promise<ScheduleRosterStudent[]> {
+ const rows = await fetchMakeupStudentsForSchedules([scheduleId], rosterContext)
  return rows
   .map((r) => ({
    studentId: r.studentId,
@@ -392,8 +469,11 @@ export async function fetchMakeupStudentsForSchedule(scheduleId: string): Promis
 }
 
 /** @deprecated 使用 fetchMakeupStudentIdsForSchedules */
-export async function fetchMakeupStudentIdsForSchedule(scheduleId: string): Promise<Set<string>> {
- return fetchMakeupStudentIdsForSchedules([scheduleId])
+export async function fetchMakeupStudentIdsForSchedule(
+ scheduleId: string,
+ rosterContext?: ScheduleRosterContext
+): Promise<Set<string>> {
+ return fetchMakeupStudentIdsForSchedules([scheduleId], rosterContext)
 }
 
 export async function fetchExistingAttendanceMap(
@@ -541,7 +621,10 @@ export async function saveAttendanceStatusForSchedules(
  }
 }
 
-export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Promise<
+export async function fetchTrialStudentsForSchedules(
+ scheduleIds: string[],
+ rosterContext?: ScheduleRosterContext
+): Promise<
  {
   studentId: string
   fullName: string
@@ -551,6 +634,22 @@ export async function fetchTrialStudentsForSchedules(scheduleIds: string[]): Pro
  }[]
 > {
  if (!supabase || scheduleIds.length === 0) return []
+ if (rosterContext) {
+  const seen = new Set<string>()
+  return activeTrialsForSchedules(rosterContext, scheduleIds)
+   .filter((row) => {
+    if (seen.has(row.studentId)) return false
+    seen.add(row.studentId)
+    return true
+   })
+   .map((row) => ({
+    studentId: row.studentId,
+    fullName: row.fullName,
+    englishName: row.englishName,
+    grade: row.grade,
+    contactPhone: row.contactPhone,
+   }))
+ }
  const { data, error } = await supabase
   .from("trial_sessions")
   .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
@@ -590,54 +689,13 @@ export type RollCallTargetScheduleRef = {
  consecutive_group_id?: string | null
 }
 
-async function fetchScheduleIdsWithActiveTrials(scheduleIds: string[]): Promise<Set<string>> {
- const out = new Set<string>()
- if (!supabase || scheduleIds.length === 0) return out
- const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("trial_sessions")
-   .select("schedule_id, status")
-   .in("schedule_id", slice)
-  if (error) throw error
-  return data ?? []
- })
- for (const rows of chunks) {
-  for (const row of rows) {
-   const r = row as { schedule_id: string | null; status?: string | null }
-   const status = String(r.status ?? "")
-   if (status.includes("完成") || status.includes("取消")) continue
-   if (r.schedule_id) out.add(String(r.schedule_id))
-  }
- }
- return out
-}
-
-async function fetchScheduleIdsWithMakeupTargets(scheduleIds: string[]): Promise<Set<string>> {
- const out = new Set<string>()
- if (!supabase || scheduleIds.length === 0) return out
- const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("leave_makeup_records")
-   .select("makeup_schedule_id")
-   .in("makeup_schedule_id", slice)
-  if (error) throw error
-  return data ?? []
- })
- for (const rows of chunks) {
-  for (const row of rows) {
-   const mid = (row as { makeup_schedule_id: string | null }).makeup_schedule_id
-   if (mid) out.add(String(mid))
-  }
- }
- return out
-}
-
 /**
  * 哪些排程有「可點名對象」：可見就讀中報讀（含暑期／單堂）＋未完成試堂＋補堂目標。
  * 不把全員請假當成無對象（請假生仍在報讀名單內）。
  */
 export async function fetchScheduleIdsWithRollCallTargets(
- schedules: RollCallTargetScheduleRef[]
+ schedules: RollCallTargetScheduleRef[],
+ rosterContext?: ScheduleRosterContext
 ): Promise<Set<string>> {
  const out = new Set<string>()
  const eligible = schedules.filter(
@@ -646,114 +704,13 @@ export async function fetchScheduleIdsWithRollCallTargets(
  if (!supabase || eligible.length === 0) return out
 
  const scheduleIds = eligible.map((s) => s.id)
- const [trialIds, makeupIds] = await Promise.all([
-  fetchScheduleIdsWithActiveTrials(scheduleIds),
-  fetchScheduleIdsWithMakeupTargets(scheduleIds),
- ])
- for (const id of trialIds) out.add(id)
- for (const id of makeupIds) out.add(id)
-
- const classIds = [...new Set(eligible.map((s) => String(s.class_id)))]
- const [enrollmentChunks, configByClass] = await Promise.all([
-  forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-   const { data, error } = await supabase!
-    .from("student_class_enrollments")
-    .select("id, class_id, student_id, enrollment_period")
-    .in("class_id", slice)
-    .eq("status", "就讀中")
-   if (error) throw error
-   return data ?? []
-  }),
-  fetchClassEnrollmentConfigsByIds(classIds),
- ])
-
- type EnrollRow = {
-  enrollmentId: string
-  classId: string
-  studentId: string
-  enrollmentPeriod: ReturnType<typeof normalizeEnrollmentPeriod>
+ const context = rosterContext ?? await fetchScheduleRosterContext(scheduleIds)
+ for (const trial of activeTrialsForSchedules(context, scheduleIds)) out.add(trial.scheduleId)
+ for (const makeup of makeupsForSchedules(context, scheduleIds)) {
+  if (makeup.makeupScheduleId) out.add(makeup.makeupScheduleId)
  }
- const enrollments: EnrollRow[] = []
- for (const data of enrollmentChunks) {
-  for (const row of data) {
-   const r = row as Record<string, unknown>
-   enrollments.push({
-    enrollmentId: String(r.id),
-    classId: String(r.class_id),
-    studentId: String(r.student_id),
-    enrollmentPeriod: normalizeEnrollmentPeriod(
-     r.enrollment_period != null ? String(r.enrollment_period) : null
-    ),
-   })
-  }
- }
-
- if (enrollments.length === 0) {
-  return expandRollCallTargetsWithConsecutivePeers(out, eligible)
- }
-
- const yearIds = [
-  ...new Set(
-   [...configByClass.values()]
-    .filter((c) => isSummerTwoPeriodMode(c.courseMode) && c.academicYearId)
-    .map((c) => c.academicYearId as string)
-  ),
- ]
- const periodsByYear = new Map<string, Awaited<ReturnType<typeof fetchAcademicYearPeriods>>>()
- await Promise.all(
-  yearIds.map(async (yid) => {
-   periodsByYear.set(yid, await fetchAcademicYearPeriods(yid))
-  })
- )
-
- const dates = [...new Set(eligible.map((s) => s.scheduled_date.slice(0, 10)))]
- const periodCodeByClassDate = new Map<string, 1 | 2 | null>()
- for (const classId of classIds) {
-  const config = configByClass.get(classId)
-  for (const d of dates) {
-   const key = `${classId}|${d}`
-   if (!config || !isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
-    periodCodeByClassDate.set(key, null)
-    continue
-   }
-   const periods = periodsByYear.get(config.academicYearId) ?? []
-   periodCodeByClassDate.set(key, resolvePeriodCodeFromDate(d, periods))
-  }
- }
-
- const singleIds = enrollments
-  .filter((e) => isSingleSessionEnrollment(e.enrollmentPeriod))
-  .map((e) => e.enrollmentId)
- const scheduleIdByEnrollment = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
-
- const byClass = new Map<string, EnrollRow[]>()
- for (const e of enrollments) {
-  const arr = byClass.get(e.classId) ?? []
-  arr.push(e)
-  byClass.set(e.classId, arr)
- }
-
- for (const s of eligible) {
-  if (out.has(s.id)) continue
-  const classId = String(s.class_id)
-  const rows = byClass.get(classId) ?? []
-  if (rows.length === 0) continue
-  const date = s.scheduled_date.slice(0, 10)
-  const periodCode = periodCodeByClassDate.get(`${classId}|${date}`) ?? null
-  const hasVisible = rows.some((row) => {
-   if (isSingleSessionEnrollment(row.enrollmentPeriod)) {
-    const enrolled = scheduleIdByEnrollment.get(row.enrollmentId) ?? new Set<string>()
-    return enrollmentVisibleOnSchedule({
-     enrollmentPeriod: row.enrollmentPeriod,
-     periodCode,
-     scheduleId: s.id,
-     enrolledScheduleIds: enrolled,
-    })
-   }
-   if (periodCode == null) return true
-   return enrollmentCoversPeriod(row.enrollmentPeriod, periodCode)
-  })
-  if (hasVisible) out.add(s.id)
+ for (const schedule of context.schedules) {
+  if (enrollmentsForSchedules(context, [schedule.id]).length > 0) out.add(schedule.id)
  }
 
  return expandRollCallTargetsWithConsecutivePeers(out, eligible)
@@ -784,12 +741,16 @@ function expandRollCallTargetsWithConsecutivePeers(
 
 export async function fetchSchedulesForRollCallDate(ymd: string): Promise<ScheduleManageRow[]> {
  const tid = getTeacherScopeTeacherId()
- const list = await fetchSchedulesInRange(ymd, ymd, tid ? { teacherId: tid } : undefined)
+ const { rows: list, rosterContext } = await fetchSchedulesInRangeWithRosterContext(
+  ymd,
+  ymd,
+  tid ? { teacherId: tid } : undefined
+ )
  const candidates = list.filter(
   (s) => !s.status.includes("取消") && s.class_id != null && String(s.class_id).length > 0
  )
  if (candidates.length === 0) return []
- const withTargets = await fetchScheduleIdsWithRollCallTargets(candidates)
+ const withTargets = await fetchScheduleIdsWithRollCallTargets(candidates, rosterContext)
  return candidates.filter((s) => withTargets.has(s.id))
 }
 
@@ -880,7 +841,33 @@ export async function fetchAttendanceRecordsInRange(
   .order("attendance_date", { ascending: false })
   .order("created_at", { ascending: false })
  if (error) throw error
- return (data ?? []).map((x) => mapAttendanceRecord(x as Record<string, unknown>))
+ const mapped = (data ?? []).map((x) => mapAttendanceRecord(x as Record<string, unknown>))
+ const scheduleIds = [
+  ...new Set(mapped.map((row) => row.scheduleId).filter((id): id is string => id != null)),
+ ]
+ if (scheduleIds.length === 0) return mapped
+ const rosterContext = await fetchScheduleRosterContext(scheduleIds)
+ const attendanceById = new Map(rosterContext.attendance.map((row) => [row.id, row]))
+ const scheduleById = new Map(rosterContext.schedules.map((row) => [row.id, row]))
+ return mapped.map((row) => {
+  const attendance = attendanceById.get(row.id)
+  const schedule = row.scheduleId ? scheduleById.get(row.scheduleId) : null
+  if (!attendance && !schedule) return row
+  const subject = schedule?.subject ?? row.classSubject ?? "—"
+  return {
+   ...row,
+   studentName: attendance?.fullName ?? row.studentName,
+   studentEnglishName: attendance?.englishName ?? row.studentEnglishName,
+   classSubject: schedule
+    ? formatClassLabel({
+       subject,
+       courseCode: schedule.courseCodeFull,
+       courseName: schedule.courseName,
+      })
+    : row.classSubject,
+   courseCode: schedule?.courseCodeFull ?? row.courseCode,
+  }
+ })
 }
 
 export type AttendanceDayStats = {

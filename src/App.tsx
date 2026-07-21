@@ -16,6 +16,7 @@ import Classes from "@/pages/Classes"
 import ClassNew from "@/pages/ClassNew"
 import TeacherAvailability from "@/pages/TeacherAvailability"
 import Calendar from "@/pages/Calendar"
+import AcademicCalendar from "@/pages/AcademicCalendar"
 import TodoDetail from "@/pages/TodoDetail"
 import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
@@ -28,6 +29,7 @@ import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
 import PaymentHistory from "@/pages/PaymentHistory"
 import Payments from "@/pages/Payments"
+import MonthlyTuition from "@/pages/MonthlyTuition"
  import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
 import ScriptLibrary from "@/pages/ScriptLibrary"
@@ -55,6 +57,7 @@ import ReceiptDemo from "@/pages/ReceiptDemo"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
+const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
 
 export default function App() {
  return (
@@ -90,6 +93,7 @@ export default function App() {
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Payments" element={<Payments />} />
+     <Route path="/MonthlyTuition" element={<MonthlyTuition />} />
      <Route path="/PaymentHistory" element={<PaymentHistory />} />
      <Route path="/Apo" element={<ApoPo />} />
      <Route
@@ -120,9 +124,24 @@ export default function App() {
        </Suspense>
       }
      />
+     <Route
+      path="/MgmtDashboard"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入營運總覽…
+         </div>
+        }
+       >
+        <MgmtDashboard />
+       </Suspense>
+      }
+     />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
      <Route path="/ReferralRebates" element={<ReferralRebates />} />
      <Route path="/Calendar" element={<Calendar />} />
+     <Route path="/AcademicCalendar" element={<AcademicCalendar />} />
      <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
      <Route path="/PromotionMatch" element={<PromotionMatch />} />

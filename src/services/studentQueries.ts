@@ -128,7 +128,9 @@ type EnrollmentStateRow = {
  created_at: string
 }
 
-function enrollmentEventYmd(row: EnrollmentStateRow): string {
+type EnrollmentEventDateRow = Pick<EnrollmentStateRow, "enroll_date" | "created_at">
+
+export function enrollmentEventYmd(row: EnrollmentEventDateRow): string {
  const enroll = (row.enroll_date ?? "").trim()
  if (enroll) return enroll.slice(0, 10)
  return (row.created_at ?? "").slice(0, 10)
@@ -461,6 +463,8 @@ export type EnrollmentWithClass = {
  id: string
  status: string
  enroll_date: string | null
+ withdrawEffectiveDate: string | null
+ withdrawReason: string | null
  enrollmentPeriod: EnrollmentFormValue | null
  /** 單堂報讀的堂號（已排序） */
  sessionNumbers: number[]
@@ -489,7 +493,7 @@ const ENROLLMENT_ROW_SELECT_BASE =
  `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
 
 const ENROLLMENT_ROW_SELECT_WITH_PERIOD =
- `id, status, enroll_date, enrollment_period, class_id, ${ENROLLMENT_CLASS_EMBED}`
+ `id, status, enroll_date, enrollment_period, withdraw_effective_date, withdraw_reason, class_id, ${ENROLLMENT_CLASS_EMBED}`
 
 async function fetchEnrollmentRowsForStudent(studentId: string): Promise<Record<string, unknown>[]> {
  if (!supabase) return []
@@ -568,6 +572,11 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   id: String(row.id),
   status: String(row.status ?? "就讀中"),
   enroll_date: row.enroll_date != null ? String(row.enroll_date) : null,
+  withdrawEffectiveDate:
+   row.withdraw_effective_date != null
+    ? String(row.withdraw_effective_date).slice(0, 10)
+    : null,
+  withdrawReason: row.withdraw_reason != null ? String(row.withdraw_reason) : null,
   enrollmentPeriod,
   sessionNumbers: [],
   enrollmentFormLabel: formatEnrollmentFormLabel(enrollmentPeriod),
@@ -1131,6 +1140,8 @@ export async function insertEnrollment(
     status: "就讀中",
     enroll_date: today,
     enrollment_period: periodValue,
+    withdraw_effective_date: null,
+    withdraw_reason: null,
     updated_at: new Date().toISOString(),
    })
    .eq("id", enrollmentId)
@@ -1359,7 +1370,7 @@ export async function purgeMistakenEnrollment(opts: {
  await syncStudentEnrollmentState(studentId)
 }
 
-/** 退讀：寫入增退紀錄後將報讀列標為「已退讀」（保留歷史，不硬刪） */
+/** 退讀：可指定未來生效日；生效日前維持就讀中，生效日起標為已退讀。 */
 export async function withdrawStudentFromClass(opts: {
  enrollmentId: string
  studentId: string
@@ -1369,6 +1380,19 @@ export async function withdrawStudentFromClass(opts: {
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const reason = opts.reason?.trim() || null
+ const effectiveDate = opts.effectiveDate.slice(0, 10)
+ if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) throw new Error("退讀生效日期無效")
+ const today = localYmd()
+ const scheduled = effectiveDate > today
+ if (scheduled) {
+  const { error: clearEventErr } = await supabase
+   .from("enrollment_change_events")
+   .delete()
+   .eq("enrollment_id", opts.enrollmentId)
+   .eq("action", "withdraw")
+   .gt("effective_date", today)
+  if (clearEventErr) throw clearEventErr
+ }
  const { data: evRow, error: e1 } = await supabase
   .from("enrollment_change_events")
   .insert({
@@ -1376,7 +1400,7 @@ export async function withdrawStudentFromClass(opts: {
    class_id: opts.classId,
    enrollment_id: opts.enrollmentId,
    action: "withdraw",
-   effective_date: opts.effectiveDate,
+   effective_date: effectiveDate,
    reason,
   })
   .select("id")
@@ -1385,7 +1409,12 @@ export async function withdrawStudentFromClass(opts: {
  const eventId = String((evRow as { id: string }).id)
  const { error: e2 } = await supabase
   .from("student_class_enrollments")
-  .update({ status: "已退讀", updated_at: new Date().toISOString() })
+  .update({
+   status: scheduled ? "就讀中" : "已退讀",
+   withdraw_effective_date: effectiveDate,
+   withdraw_reason: reason,
+   updated_at: new Date().toISOString(),
+  })
   .eq("id", opts.enrollmentId)
  if (e2) {
   await supabase.from("enrollment_change_events").delete().eq("id", eventId)
