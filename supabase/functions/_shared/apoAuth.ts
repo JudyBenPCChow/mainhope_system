@@ -25,7 +25,7 @@ function normalizeUuid(raw: unknown): string | null {
   return s
 }
 
-/** 從 JWT 解析 app_users 身份；不信任 client 傳入的 role／teacherId */
+/** 從 JWT 解析資料庫中的有效身份；不信任 client 傳入的 role／teacherId */
 export async function resolveCallerFromRequest(req: Request): Promise<ResolveCallerResult> {
   const authHeader = req.headers.get("Authorization")
   if (!authHeader?.match(/^Bearer\s+/i)) {
@@ -47,11 +47,22 @@ export async function resolveCallerFromRequest(req: Request): Promise<ResolveCal
   }
 
   const email = userData.user.email.trim().toLowerCase()
-  const { data, error: profileError } = await admin
+  let { data, error: profileError } = await admin
     .from("app_users")
-    .select("role, teacher_id")
-    .ilike("email", email)
+    .select("id, role, teacher_id")
+    .eq("auth_user_id", userData.user.id)
     .maybeSingle()
+
+  // 過渡期兼容尚未回填 auth_user_id 的舊帳戶。
+  if (!data && !profileError) {
+    const fallback = await admin
+      .from("app_users")
+      .select("id, role, teacher_id")
+      .ilike("email", email)
+      .maybeSingle()
+    data = fallback.data
+    profileError = fallback.error
+  }
 
   if (profileError) {
     console.error("apo-chat app_users lookup failed", profileError.message)
@@ -62,12 +73,39 @@ export async function resolveCallerFromRequest(req: Request): Promise<ResolveCal
     return { ok: false, error: "找不到你的系統帳號，請聯絡管理員。", status: 403 }
   }
 
-  const userRole = normalizeRole(data.role)
+  let userRole = normalizeRole(data.role)
+  let teacherId = normalizeUuid(data.teacher_id)
+
+  const { data: activeRole, error: activeRoleError } = await admin
+    .from("mgmt_active_roles")
+    .select("active_role")
+    .eq("app_user_id", data.id)
+    .maybeSingle()
+  if (activeRoleError) {
+    console.error("apo-chat active role lookup failed", activeRoleError.message)
+    return { ok: false, error: "無法驗證你目前的操作身份。", status: 503 }
+  }
+
+  if (activeRole?.active_role) {
+    const { data: assignedRole, error: assignedRoleError } = await admin
+      .from("app_user_roles")
+      .select("role, teacher_id")
+      .eq("app_user_id", data.id)
+      .eq("role", activeRole.active_role)
+      .maybeSingle()
+    if (assignedRoleError) {
+      console.error("apo-chat assigned role lookup failed", assignedRoleError.message)
+      return { ok: false, error: "無法驗證你目前的操作身份。", status: 503 }
+    }
+    if (assignedRole) {
+      userRole = normalizeRole(assignedRole.role)
+      teacherId = normalizeUuid(assignedRole.teacher_id)
+    }
+  }
+
   if (!userRole) {
     return { ok: false, error: "你沒有使用明學IT狗的權限。", status: 403 }
   }
-
-  const teacherId = normalizeUuid(data.teacher_id)
 
   if (userRole === "teacher" && !teacherId) {
     return {

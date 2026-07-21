@@ -1,21 +1,11 @@
 import type { Session } from "@supabase/supabase-js"
 
-import type { MgmtRole } from "@/lib/mgmtRole"
-import { supabase } from "@/lib/supabaseClient"
+import {
+ fetchCurrentMgmtProfile,
+ type MgmtProfile,
+} from "@/services/authRoleQueries"
 
-export type MgmtProfile = {
-  role: MgmtRole
-  teacherId: string | null
-  displayName: string | null
-  email: string
-}
-
-function normalizeRole(raw: string | null | undefined): MgmtRole | null {
-  if (!raw) return null
-  const role = raw.trim().toLowerCase()
-  if (role === "admin" || role === "teacher" || role === "alien") return role
-  return null
-}
+export type { MgmtProfile } from "@/services/authRoleQueries"
 
 function clearRoleStorage() {
   if (typeof localStorage === "undefined") return
@@ -39,44 +29,12 @@ export function clearAuthState() {
   clearRoleStorage()
 }
 
-export async function fetchMgmtProfileByEmail(email: string): Promise<MgmtProfile | null> {
-  if (!supabase) return null
-  const normalized = email.trim().toLowerCase()
-  if (!normalized) return null
-
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("email, display_name, role, teacher_id")
-    .ilike("email", normalized)
-    .limit(1)
-    .maybeSingle()
-
-  if (error) {
-   const msg =
-    typeof error === "object" && error !== null && "message" in error
-     ? String((error as { message: unknown }).message)
-     : "無法讀取用戶角色"
-   throw new Error(msg)
-  }
-  if (!data?.email) return null
-
-  const role = normalizeRole(typeof data.role === "string" ? data.role : null)
-  if (!role) return null
-
-  return {
-    role,
-    teacherId: data.teacher_id ? String(data.teacher_id) : null,
-    displayName: data.display_name ? String(data.display_name) : null,
-    email: String(data.email).toLowerCase(),
-  }
-}
-
 export async function bootstrapRoleFromSession(session: Session | null): Promise<MgmtProfile | null> {
   if (!session?.user?.email) {
     clearRoleStorage()
     return null
   }
-  const profile = await fetchMgmtProfileByEmail(session.user.email)
+  const profile = await fetchCurrentMgmtProfile()
   if (!profile) {
     clearRoleStorage()
     return null

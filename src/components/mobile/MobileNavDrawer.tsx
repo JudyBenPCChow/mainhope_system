@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { Link, useLocation } from "react-router-dom"
 import { ChevronDown, X } from "lucide-react"
 
+import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { Button } from "@/components/ui/button"
 import {
  filterFooterNavLeaves,
@@ -117,6 +118,9 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
     </nav>
 
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-xs">
+     <div className="mb-3">
+      <RoleSwitcher />
+     </div>
      <div className="mb-3 flex items-center gap-2">
       <div className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
        你登入為 {userDisplayName}

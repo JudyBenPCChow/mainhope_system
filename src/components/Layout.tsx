@@ -2,6 +2,7 @@ import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
 
+import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/authBootstrap"
@@ -15,7 +16,6 @@ import {
  filterNavForRole,
  flattenNav,
  pathIsActive,
- type Role,
 } from "@/lib/navStructure"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -33,7 +33,7 @@ export function Layout() {
  const [collapsed, setCollapsed] = useState(initialSidebarCollapsed)
  const { ready, role: authRole, profile } = useAuth()
  usePasswordChangeNudgeBanner()
- const role = (authRole ?? (localStorage.getItem("mgmt_role") as Role | null)) ?? null
+ const role = authRole
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -241,6 +241,11 @@ export function Layout() {
     </nav>
 
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-xs">
+     {!collapsed ? (
+      <div className="mb-3">
+       <RoleSwitcher />
+      </div>
+     ) : null}
      {!collapsed && (
       <div className="mb-3 flex items-center gap-2">
        <div

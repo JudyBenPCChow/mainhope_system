@@ -140,12 +140,17 @@ Deno.serve(async (req) => {
 
   const authUserId = createdAuth.user.id
 
-  const { error: insertAppUserError } = await admin.from("app_users").insert({
-    email,
-    display_name: effectiveDisplayName,
-    role: "teacher",
-    teacher_id: teacherId,
-  })
+  const { data: createdAppUser, error: insertAppUserError } = await admin
+    .from("app_users")
+    .insert({
+      auth_user_id: authUserId,
+      email,
+      display_name: effectiveDisplayName,
+      role: "teacher",
+      teacher_id: teacherId,
+    })
+    .select("id")
+    .single()
 
   if (insertAppUserError) {
     console.error("create-mgmt-user insert app_user failed", insertAppUserError.message)
@@ -154,6 +159,22 @@ Deno.serve(async (req) => {
       console.error("create-mgmt-user rollback auth delete failed", rollbackError.message)
     }
     return jsonResponse({ error: "系統用戶建立失敗，已取消登入帳號建立。請稍後再試。" }, 502)
+  }
+
+  const appUserId = String(createdAppUser.id)
+  const { error: insertRoleError } = await admin.from("app_user_roles").insert({
+    app_user_id: appUserId,
+    role: "teacher",
+    teacher_id: teacherId,
+  })
+  if (insertRoleError) {
+    console.error("create-mgmt-user insert app_user_role failed", insertRoleError.message)
+    await admin.from("app_users").delete().eq("id", appUserId)
+    const { error: rollbackError } = await admin.auth.admin.deleteUser(authUserId)
+    if (rollbackError) {
+      console.error("create-mgmt-user rollback auth delete failed", rollbackError.message)
+    }
+    return jsonResponse({ error: "系統角色建立失敗，已取消登入帳號建立。請稍後再試。" }, 502)
   }
 
   await admin.from("mgmt_audit_log").insert({

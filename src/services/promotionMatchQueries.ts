@@ -6,6 +6,7 @@ import {
   type ClassMatchBundle,
   type PromotionClassRow,
   type PromotionEnrollmentRow,
+  type PromotionHistoricalSubjectRow,
   type PromotionStudentRow,
   type StudentMatchBundle,
 } from "@/lib/promotionMatch"
@@ -23,6 +24,7 @@ export type PromotionMatchSnapshot = {
   classes: PromotionClassRow[]
   students: PromotionStudentRow[]
   enrollments: PromotionEnrollmentRow[]
+  historicalSubjects: PromotionHistoricalSubjectRow[]
   classBundles: ClassMatchBundle[]
   studentBundles: StudentMatchBundle[]
 }
@@ -37,7 +39,7 @@ async function fetchActiveEnrollmentsForStudents(
   if (!supabase || studentIds.length === 0) return []
 
   const select =
-    "id, student_id, class_id, enrollment_period, status, classes ( subject, course_code_full, day_of_week, time_slot, lesson_slots_per_session, class_kind, courses ( course_name ) )"
+    "id, student_id, class_id, enrollment_period, status, classes ( subject, course_id, course_code_full, day_of_week, time_slot, lesson_slots_per_session, class_kind, courses ( course_name, subject_id ) )"
 
   const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
     const { data, error } = await supabase!
@@ -63,6 +65,8 @@ async function fetchActiveEnrollmentsForStudents(
         id: String(r.id),
         studentId: String(r.student_id),
         classId: String(r.class_id),
+        courseId: cls?.course_id != null ? String(cls.course_id) : null,
+        subjectId: course?.subject_id != null ? String(course.subject_id) : null,
         period: normalizeEnrollmentPeriod(
           r.enrollment_period != null ? String(r.enrollment_period) : null
         ),
@@ -77,6 +81,36 @@ async function fetchActiveEnrollmentsForStudents(
   return out
 }
 
+async function fetchHistoricalSubjectsForStudents(
+  studentIds: string[]
+): Promise<PromotionHistoricalSubjectRow[]> {
+  if (!supabase || studentIds.length === 0) return []
+
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!
+      .from("legacy_student_subject_enrollments")
+      .select("student_id, subject_id")
+      .in("student_id", slice)
+      .lte("period_start", "2026-06-30")
+      .gte("period_end", "2026-01-01")
+    if (error) throw error
+    return data ?? []
+  })
+
+  const unique = new Map<string, PromotionHistoricalSubjectRow>()
+  for (const data of chunks) {
+    for (const row of data) {
+      const value = row as Record<string, unknown>
+      const item = {
+        studentId: String(value.student_id),
+        subjectId: String(value.subject_id),
+      }
+      unique.set(`${item.studentId}:${item.subjectId}`, item)
+    }
+  }
+  return [...unique.values()]
+}
+
 /** 載入宣傳配對所需快照（小組進行中班別 × 已註冊學生 × 就讀中報讀） */
 export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnapshot> {
   const [allClasses, allStudents] = await Promise.all([fetchAllClasses(), fetchAllStudents()])
@@ -85,6 +119,8 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
     .filter((c) => isActiveGroupClass(c.status, c.class_kind))
     .map((c) => ({
       id: c.id,
+      courseId: c.course_id,
+      subjectId: c.subject_id ?? null,
       label: formatClassLabel({
         subject: c.subject,
         courseCode: c.course_code_full,
@@ -117,13 +153,24 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
     }))
     .filter((s) => s.gradeLabel && s.gradeLabel !== "—")
 
-  const enrollments = await fetchActiveEnrollmentsForStudents(students.map((s) => s.id))
+  const studentIds = students.map((s) => s.id)
+  const [enrollments, historicalSubjects] = await Promise.all([
+    fetchActiveEnrollmentsForStudents(studentIds),
+    fetchHistoricalSubjectsForStudents(studentIds),
+  ])
 
   return {
     classes,
     students,
     enrollments,
-    classBundles: buildClassMatchBundles({ classes, students, enrollments, minFullTerm: 1 }),
+    historicalSubjects,
+    classBundles: buildClassMatchBundles({
+      classes,
+      students,
+      enrollments,
+      historicalSubjects,
+      minFullTerm: 1,
+    }),
     studentBundles: buildStudentMatchBundles({
       classes,
       students,

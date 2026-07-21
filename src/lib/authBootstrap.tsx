@@ -1,5 +1,6 @@
 import {
  createContext,
+ useCallback,
  useContext,
  useEffect,
  useMemo,
@@ -15,18 +16,21 @@ import {
 import { flushMgmtErrorQueue } from "@/lib/mgmtErrorReporting"
 import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { switchCurrentMgmtRole } from "@/services/authRoleQueries"
 
 type AuthContextValue = {
  /** Auth bootstrap finished (session checked at least once). */
  ready: boolean
  profile: MgmtProfile | null
  role: MgmtRole | null
+ switchRole: (role: MgmtRole) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue>({
  ready: false,
  profile: null,
  role: null,
+ switchRole: async () => {},
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -82,14 +86,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  }, [])
 
  const role = profile?.role ?? getMgmtRole()
+ const switchRole = useCallback(async (nextRole: MgmtRole) => {
+  const client = supabase
+  if (!client) throw new Error("尚未設定 Supabase，暫時無法切換身份。")
+  await switchCurrentMgmtRole(nextRole)
+  const { data, error } = await client.auth.getSession()
+  if (error) throw error
+  const nextProfile = await bootstrapRoleFromSession(data.session)
+  setProfile(nextProfile)
+ }, [])
 
  const value = useMemo(
   () => ({
    ready,
    profile,
    role,
+   switchRole,
   }),
-  [ready, profile, role]
+  [ready, profile, role, switchRole]
  )
 
  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

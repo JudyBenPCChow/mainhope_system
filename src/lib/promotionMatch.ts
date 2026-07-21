@@ -58,10 +58,13 @@ export type PromotionExclusionReason =
   | "年級不合"
   | "時間衝突"
   | "已報讀本班"
+  | "已報讀同課程"
   | "已退讀本班"
 
 export type PromotionClassRow = {
   id: string
+  courseId: string | null
+  subjectId: string | null
   label: string
   subject: string
   grades: string[]
@@ -88,6 +91,8 @@ export type PromotionEnrollmentRow = {
   id: string
   studentId: string
   classId: string
+  courseId: string | null
+  subjectId: string | null
   period: EnrollmentFormValue | null
   status: string
   classLabel: string
@@ -96,8 +101,15 @@ export type PromotionEnrollmentRow = {
   lessonSlotsPerSession: number
 }
 
+export type PromotionHistoricalSubjectRow = {
+  studentId: string
+  subjectId: string
+}
+
 export type EligibleCandidate = {
   student: PromotionStudentRow
+  previouslyStudiedTargetSubject: boolean
+  currentlyStudiesTargetSubject: boolean
   currentClasses: Array<{
     classId: string
     label: string
@@ -162,6 +174,35 @@ function currentClassesOf(
     }))
 }
 
+function hasHistoricalSubject(
+  studentId: string,
+  subjectId: string | null,
+  historicalSubjects: PromotionHistoricalSubjectRow[]
+): boolean {
+  return Boolean(
+    subjectId &&
+      historicalSubjects.some(
+        (row) => row.studentId === studentId && row.subjectId === subjectId
+      )
+  )
+}
+
+function hasCurrentSubject(
+  studentId: string,
+  subjectId: string | null,
+  enrollments: PromotionEnrollmentRow[]
+): boolean {
+  return Boolean(
+    subjectId &&
+      enrollments.some(
+        (row) =>
+          row.studentId === studentId &&
+          row.status === "就讀中" &&
+          row.subjectId === subjectId
+      )
+  )
+}
+
 export function evaluateStudentForClass(opts: {
   student: PromotionStudentRow
   cls: PromotionClassRow
@@ -183,6 +224,8 @@ export function evaluateStudentForClass(opts: {
   const already = ens.find((e) => e.classId === cls.id)
   if (already) {
     reasons.push("已報讀本班")
+  } else if (cls.courseId && ens.some((e) => e.courseId === cls.courseId)) {
+    reasons.push("已報讀同課程")
   }
 
   for (const en of ens) {
@@ -214,9 +257,10 @@ export function buildClassMatchBundles(opts: {
   classes: PromotionClassRow[]
   students: PromotionStudentRow[]
   enrollments: PromotionEnrollmentRow[]
+  historicalSubjects?: PromotionHistoricalSubjectRow[]
   minFullTerm?: number
 }): ClassMatchBundle[] {
-  const { classes, students, enrollments, minFullTerm = 1 } = opts
+  const { classes, students, enrollments, historicalSubjects = [], minFullTerm = 1 } = opts
   const studentById = new Map(students.map((s) => [s.id, s]))
   const bundles: ClassMatchBundle[] = []
 
@@ -238,6 +282,16 @@ export function buildClassMatchBundles(opts: {
       if (reasons.length === 0) {
         eligible.push({
           student,
+          previouslyStudiedTargetSubject: hasHistoricalSubject(
+            student.id,
+            cls.subjectId,
+            historicalSubjects
+          ),
+          currentlyStudiesTargetSubject: hasCurrentSubject(
+            student.id,
+            cls.subjectId,
+            enrollments
+          ),
           currentClasses: currentClassesOf(student.id, enrollments),
         })
       } else {

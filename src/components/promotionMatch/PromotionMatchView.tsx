@@ -13,9 +13,12 @@ import {
 
 import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
+import { MultiSelect } from "@/components/ui/multi-select"
+import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isPrimaryStudentGrade } from "@/lib/studentGrade"
 import type {
   ClassMatchBundle,
   PromotionExclusionReason,
@@ -27,6 +30,7 @@ import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
+type CandidateFilter = "all" | "formerSubject"
 
 const FULL_TERM_COUNT_OPTIONS = [1, 2, 3] as const
 type FullTermCountOption = (typeof FULL_TERM_COUNT_OPTIONS)[number]
@@ -36,6 +40,7 @@ const REASON_LABEL: Record<PromotionExclusionReason, string> = {
   年級不合: "年級不合",
   時間衝突: "時間衝突",
   已報讀本班: "已報讀本班",
+  已報讀同課程: "已報讀同科",
   已退讀本班: "已退讀本班",
 }
 
@@ -98,48 +103,6 @@ function ModeToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
         <Users className="h-3.5 w-3.5" />
         按學生
       </button>
-    </div>
-  )
-}
-
-type ChipOption<T extends string | number> = { value: T; label: string }
-
-function FilterChipGroup<T extends string | number>({
-  label,
-  options,
-  selected,
-  onToggle,
-}: {
-  label: string
-  options: ChipOption<T>[]
-  selected: Set<T> | T
-  onToggle: (value: T) => void
-}) {
-  const isOn = (v: T) => (selected instanceof Set ? selected.has(v) : selected === v)
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <span className="shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
-      <div className="flex flex-wrap gap-1.5">
-        {options.map((opt) => {
-          const on = isOn(opt.value)
-          return (
-            <button
-              key={String(opt.value)}
-              type="button"
-              aria-pressed={on}
-              onClick={() => onToggle(opt.value)}
-              className={cn(
-                "rounded-md border px-2.5 py-1 text-xs transition",
-                on
-                  ? "border-primary/40 bg-primary/10 font-medium text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
-              )}
-            >
-              {opt.label}
-            </button>
-          )
-        })}
-      </div>
     </div>
   )
 }
@@ -239,6 +202,13 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
             <UserPlus className="mt-0.5 h-4 w-4 shrink-0 text-success" />
             <div>
               <StudentMeta student={item.student} />
+              {item.previouslyStudiedTargetSubject ? (
+                <div className="mt-1.5">
+                  <Tag tone="info" size="sm">
+                    曾讀本科
+                  </Tag>
+                </div>
+              ) : null}
               {item.currentClasses.length > 0 ? (
                 <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
                   <div>現有班別（無衝突）</div>
@@ -601,10 +571,11 @@ export function PromotionMatchView() {
 
   const [mode, setMode] = useState<ViewMode>("byClass")
   const [fullTermCounts, setFullTermCounts] = useState<Set<FullTermCountOption>>(
-    () => new Set<FullTermCountOption>([1, 2, 3])
+    () => new Set()
   )
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+  const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all")
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
@@ -631,19 +602,35 @@ export function PromotionMatchView() {
   }, [load])
 
   const gradeOptions = useMemo(() => {
-    const grades = [...new Set(allStudentBundles.map((b) => b.student.gradeLabel))]
+    const grades = [
+      ...new Set(
+        allStudentBundles
+          .map((b) => b.student.gradeLabel)
+          .filter((grade) => !isPrimaryStudentGrade(grade))
+      ),
+    ]
     return grades.sort((a, b) => a.localeCompare(b, "zh-Hant"))
   }, [allStudentBundles])
 
   const classBundles = useMemo(() => {
-    if (fullTermCounts.size === 0) return []
-    return allClassBundles.filter((b) => {
-      const n = b.fullTermCount
-      if (n >= 1 && n <= 3) return fullTermCounts.has(n as FullTermCountOption)
-      if (n > 3) return fullTermCounts.has(3)
-      return false
-    })
-  }, [allClassBundles, fullTermCounts])
+    const byClassSize =
+      fullTermCounts.size === 0
+        ? allClassBundles
+        : allClassBundles.filter((b) => {
+            const n = b.fullTermCount
+            if (n >= 1 && n <= 3) return fullTermCounts.has(n as FullTermCountOption)
+            if (n > 3) return fullTermCounts.has(3)
+            return false
+          })
+    if (candidateFilter === "all") return byClassSize
+    return byClassSize.map((bundle) => ({
+      ...bundle,
+      eligible: bundle.eligible.filter(
+        (item) =>
+          item.previouslyStudiedTargetSubject && !item.currentlyStudiesTargetSubject
+      ),
+    }))
+  }, [allClassBundles, fullTermCounts, candidateFilter])
 
   const studentBundles = useMemo(() => {
     return allStudentBundles.filter((b) => {
@@ -681,18 +668,9 @@ export function PromotionMatchView() {
   const studentsWithOptions = studentBundles.filter((b) => b.eligible.length > 0).length
   const studentEligiblePairs = studentBundles.reduce((n, b) => n + b.eligible.length, 0)
 
-  const toggleFullTermCount = (n: FullTermCountOption) => {
-    setFullTermCounts((prev) => {
-      const next = new Set(prev)
-      if (next.has(n)) next.delete(n)
-      else next.add(n)
-      return next
-    })
-  }
-
   const countLabel =
     fullTermCounts.size === 0
-      ? "未選"
+      ? "全部"
       : [...fullTermCounts]
           .sort((a, b) => a - b)
           .map((n) => `${n}人`)
@@ -741,76 +719,79 @@ export function PromotionMatchView() {
         <>
           {mode === "byClass" ? (
             <FilterBar>
-              <FilterChipGroup
-                label="全期報讀人數"
-                options={FULL_TERM_COUNT_OPTIONS.map((n) => ({
-                  value: n,
-                  label: `${n} 人`,
-                }))}
-                selected={fullTermCounts}
-                onToggle={toggleFullTermCount}
-              />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    全期報讀人數
+                  </label>
+                  <MultiSelect
+                    value={[...fullTermCounts].map(String)}
+                    options={FULL_TERM_COUNT_OPTIONS.map((n) => ({
+                      value: String(n),
+                      label: `${n} 人`,
+                    }))}
+                    placeholder="全部人數"
+                    onChange={(next) => {
+                      const valid = next
+                        .map(Number)
+                        .filter((n): n is FullTermCountOption =>
+                          FULL_TERM_COUNT_OPTIONS.includes(n as FullTermCountOption)
+                        )
+                      setFullTermCounts(new Set(valid))
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    宣傳對象
+                  </label>
+                  <Select
+                    value={candidateFilter}
+                    onChange={(e) => setCandidateFilter(e.target.value as CandidateFilter)}
+                  >
+                    <option value="all">全部可報讀學生</option>
+                    <option value="formerSubject">曾讀本科、現未讀本科</option>
+                  </Select>
+                </div>
+              </div>
               <p className="text-[11px] text-muted-foreground">
-                可多選。目前勾選：{countLabel}
+                未選代表全部；可按需要多選。目前篩選：{countLabel}
                 {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
-                。全期 = 常規報足全期或暑期兩期全報。
+                。全期 = 常規報足全期或暑期兩期全報。「曾讀本科」只參考 2026 年 1–6
+                月舊資料。
               </p>
             </FilterBar>
           ) : (
             <FilterBar>
-              <FilterChipGroup
-                label="年級"
-                options={gradeOptions.map((g) => ({ value: g, label: g }))}
-                selected={studentGrades.size === 0 ? new Set(gradeOptions) : studentGrades}
-                onToggle={(g) => {
-                  setStudentGrades((prev) => {
-                    const effective =
-                      prev.size === 0 ? new Set(gradeOptions) : new Set(prev)
-                    if (effective.has(g)) effective.delete(g)
-                    else effective.add(g)
-                    if (effective.size === 0 || effective.size === gradeOptions.length) {
-                      return new Set()
-                    }
-                    return effective
-                  })
-                }}
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="shrink-0 text-xs font-medium text-muted-foreground">已有報讀</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {(
-                    [
-                      { value: "all", label: "全部" },
-                      { value: "none", label: "尚未報讀" },
-                      { value: "has", label: "已有報讀" },
-                    ] as const
-                  ).map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      aria-pressed={enrollmentFilter === opt.value}
-                      onClick={() => setEnrollmentFilter(opt.value)}
-                      className={cn(
-                        "rounded-md border px-2.5 py-1 text-xs transition",
-                        enrollmentFilter === opt.value
-                          ? "border-primary/40 bg-primary/10 font-medium text-foreground"
-                          : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    年級
+                  </label>
+                  <MultiSelect
+                    value={[...studentGrades]}
+                    options={gradeOptions.map((g) => ({ value: g, label: g }))}
+                    placeholder="全部年級"
+                    onChange={(next) => setStudentGrades(new Set(next))}
+                  />
                 </div>
-                {studentGrades.size > 0 ? (
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                    onClick={() => setStudentGrades(new Set())}
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    已有報讀
+                  </label>
+                  <Select
+                    value={enrollmentFilter}
+                    onChange={(e) => setEnrollmentFilter(e.target.value as EnrollmentFilter)}
                   >
-                    清除年級篩選
-                  </button>
-                ) : null}
+                    <option value="all">全部</option>
+                    <option value="none">尚未報讀</option>
+                    <option value="has">已有報讀</option>
+                  </Select>
+                </div>
               </div>
+              <p className="text-[11px] text-muted-foreground">
+                年級未選代表全部；打開選單後才會選取篩選項目。
+              </p>
             </FilterBar>
           )}
 

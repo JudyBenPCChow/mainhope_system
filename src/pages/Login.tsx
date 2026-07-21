@@ -4,9 +4,10 @@ import { Navigate, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/authBootstrap"
-import { clearAuthState, fetchMgmtProfileByEmail, applyProfileToStorage } from "@/lib/authSession"
+import { clearAuthState, applyProfileToStorage } from "@/lib/authSession"
 import { setPasswordChangeNudge } from "@/lib/passwordChangeNudge"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { fetchCurrentMgmtProfile } from "@/services/authRoleQueries"
 
 export default function Login() {
   const navigate = useNavigate()
@@ -46,8 +47,7 @@ export default function Login() {
         password,
       })
       if (signInError) throw signInError
-      const activeEmail = data.user?.email ?? email.trim().toLowerCase()
-      const profile = await fetchMgmtProfileByEmail(activeEmail)
+      const profile = await fetchCurrentMgmtProfile()
       if (!profile) {
         await supabase.auth.signOut()
         throw new Error("此帳號尚未在系統角色名單中設定，請聯絡Christine Fan。")
