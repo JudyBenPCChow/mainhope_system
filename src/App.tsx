@@ -47,10 +47,10 @@ import TomorrowReminders from "@/pages/TomorrowReminders"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
-import PrototypeEligibleEnrollmentMatch from "@/pages/PrototypeEligibleEnrollmentMatch"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
+import PromotionMatch from "@/pages/PromotionMatch"
 import ReceiptDemo from "@/pages/ReceiptDemo"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
@@ -64,8 +64,6 @@ export default function App() {
     <Route path="/Login" element={<Login />} />
     <Route path="/receipt-demo" element={<ReceiptDemo />} />
     <Route path="/prototype/ReceiptDemo" element={<ReceiptDemo />} />
-    {/* 沙盒可先不經登入閘，方便對稿 */}
-    <Route path="/prototype/EligibleEnrollmentMatch" element={<PrototypeEligibleEnrollmentMatch />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route element={<AdaptiveLayout />}>
@@ -127,6 +125,7 @@ export default function App() {
      <Route path="/Calendar" element={<Calendar />} />
      <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
+     <Route path="/PromotionMatch" element={<PromotionMatch />} />
      <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />

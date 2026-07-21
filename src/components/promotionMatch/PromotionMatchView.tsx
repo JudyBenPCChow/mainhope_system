@@ -1,29 +1,29 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import {
   BookOpen,
   CalendarClock,
   ChevronDown,
   ChevronRight,
-  FlaskConical,
   GraduationCap,
+  RefreshCw,
   UserPlus,
   Users,
 } from "lucide-react"
 
+import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import type {
+  ClassMatchBundle,
+  PromotionExclusionReason,
+  PromotionStudentRow,
+  StudentMatchBundle,
+} from "@/lib/promotionMatch"
 import { cn } from "@/lib/utils"
-
-import {
-  buildClassMatchBundles,
-  buildStudentMatchBundles,
-  formatWeekdays,
-  type ClassMatchBundle,
-  type ExclusionReason,
-  type MockStudent,
-  type StudentMatchBundle,
-} from "./mockData"
+import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
@@ -31,7 +31,7 @@ type EnrollmentFilter = "all" | "none" | "has"
 const FULL_TERM_COUNT_OPTIONS = [1, 2, 3] as const
 type FullTermCountOption = (typeof FULL_TERM_COUNT_OPTIONS)[number]
 
-const REASON_LABEL: Record<ExclusionReason, string> = {
+const REASON_LABEL: Record<PromotionExclusionReason, string> = {
   非注冊: "非注冊",
   年級不合: "年級不合",
   時間衝突: "時間衝突",
@@ -39,15 +39,31 @@ const REASON_LABEL: Record<ExclusionReason, string> = {
   已退讀本班: "已退讀本班",
 }
 
-function StudentMeta({ student }: { student: MockStudent }) {
+function scheduleText(dayOfWeek: string | null, timeSlot: string | null): string {
+  const day = formatWeekdaysDisplay(dayOfWeek)
+  const slot = (timeSlot ?? "").trim()
+  if (day && slot) return `${day} ${slot}`
+  return day || slot || "—"
+}
+
+function StudentMeta({ student }: { student: PromotionStudentRow }) {
   return (
     <div className="min-w-0">
       <div className="truncate font-medium text-foreground">
-        {student.fullName}
-        <span className="ml-2 font-normal text-muted-foreground">{student.englishName}</span>
+        <Link
+          to={`/Students/${student.id}`}
+          className="hover:underline"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {student.fullName}
+        </Link>
+        {student.englishName ? (
+          <span className="ml-2 font-normal text-muted-foreground">{student.englishName}</span>
+        ) : null}
       </div>
       <div className="mt-0.5 truncate text-xs text-muted-foreground">
-        {student.studentCode} · {student.grade} · {student.parentPhone}
+        {[student.studentCode, student.gradeLabel, student.contactPhone].filter(Boolean).join(" · ") ||
+          "—"}
       </div>
     </div>
   )
@@ -149,18 +165,21 @@ function ClassHeader({ bundle, expanded }: { bundle: ClassMatchBundle; expanded:
           <Tag tone="info" size="sm">
             {cls.subject}
           </Tag>
-          <Tag tone="default" size="sm">
-            {cls.grades.join("、")}
-          </Tag>
+          {cls.grades.length > 0 ? (
+            <Tag tone="default" size="sm">
+              {cls.grades.join("、")}
+            </Tag>
+          ) : null}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <CalendarClock className="h-3.5 w-3.5" />
-            {formatWeekdays(cls.dayOfWeek)} {cls.timeSlot}
+            {scheduleText(cls.dayOfWeek, cls.timeSlot)}
           </span>
-          <span>{cls.teacherName}</span>
+          {cls.teacherName ? <span>{cls.teacherName}</span> : null}
           <span>
-            全期 {fullTermCount}/{cls.capacity} 人
+            全期 {fullTermCount}
+            {cls.capacity != null ? `/${cls.capacity}` : ""} 人
           </span>
         </div>
       </div>
@@ -184,7 +203,7 @@ function StudentHeader({ bundle, expanded }: { bundle: StudentMatchBundle; expan
           <div className="mt-1 text-xs text-muted-foreground">
             現讀 {bundle.currentClasses.length} 班
             {bundle.currentClasses.slice(0, 2).map((c) => (
-              <span key={c.classId}> · {c.label.replace(/（.*）$/, "")}</span>
+              <span key={c.classId}> · {c.label}</span>
             ))}
             {bundle.currentClasses.length > 2 ? " …" : ""}
           </div>
@@ -222,10 +241,10 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
               <StudentMeta student={item.student} />
               {item.currentClasses.length > 0 ? (
                 <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                  <div className="text-muted-foreground/80">現有班別（無衝突）</div>
+                  <div>現有班別（無衝突）</div>
                   {item.currentClasses.map((c) => (
                     <div key={c.classId}>
-                      {c.label} · {formatWeekdays(c.dayOfWeek)} {c.timeSlot}
+                      {c.label} · {scheduleText(c.dayOfWeek, c.timeSlot)}
                     </div>
                   ))}
                 </div>
@@ -234,8 +253,8 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
               )}
             </div>
           </div>
-          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled>
-            報讀（mock）
+          <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
+            <Link to={`/Students/${item.student.id}`}>前往學生</Link>
           </Button>
         </li>
       ))}
@@ -293,13 +312,14 @@ function FullTermRoster({ bundle }: { bundle: ClassMatchBundle }) {
       </div>
       <div className="flex flex-wrap gap-1.5">
         {bundle.fullTermStudents.map((s) => (
-          <span
+          <Link
             key={s.id}
-            className="inline-flex items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs text-foreground"
+            to={`/Students/${s.id}`}
+            className="inline-flex items-center rounded-full border border-border bg-card px-2 py-0.5 text-xs text-foreground hover:border-primary/40"
           >
             {s.fullName}
-            <span className="ml-1 text-muted-foreground">{s.grade}</span>
-          </span>
+            <span className="ml-1 text-muted-foreground">{s.gradeLabel}</span>
+          </Link>
         ))}
       </div>
     </div>
@@ -324,31 +344,32 @@ function EligibleClassesList({ bundle }: { bundle: StudentMatchBundle }) {
         >
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium text-foreground">{item.cls.label}</span>
+              <Link
+                to={`/Classes/${item.cls.id}`}
+                className="font-medium text-foreground hover:underline"
+              >
+                {item.cls.label}
+              </Link>
               <Tag tone="info" size="sm">
                 {item.cls.subject}
               </Tag>
-              {item.isHotFullTerm ? (
-                <Tag tone="success" size="sm">
-                  全期 {item.fullTermCount} 人
-                </Tag>
-              ) : (
-                <Tag tone="default" size="sm">
-                  全期 {item.fullTermCount} 人
-                </Tag>
-              )}
+              <Tag tone={item.isHotFullTerm ? "success" : "default"} size="sm">
+                全期 {item.fullTermCount} 人
+              </Tag>
             </div>
             <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <CalendarClock className="h-3.5 w-3.5" />
-                {formatWeekdays(item.cls.dayOfWeek)} {item.cls.timeSlot}
+                {scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)}
               </span>
-              <span>{item.cls.teacherName}</span>
-              <span>適用 {item.cls.grades.join("、")}</span>
+              {item.cls.teacherName ? <span>{item.cls.teacherName}</span> : null}
+              {item.cls.grades.length > 0 ? (
+                <span>適用 {item.cls.grades.join("、")}</span>
+              ) : null}
             </div>
           </div>
-          <Button type="button" size="sm" variant="outline" className="shrink-0" disabled>
-            報讀（mock）
+          <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
+            <Link to={`/Classes/${item.cls.id}`}>前往班別</Link>
           </Button>
         </li>
       ))}
@@ -378,7 +399,7 @@ function BlockedClassesList({ bundle }: { bundle: StudentMatchBundle }) {
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{item.cls.label}</div>
                   <div className="text-xs text-muted-foreground">
-                    {formatWeekdays(item.cls.dayOfWeek)} {item.cls.timeSlot}
+                    {scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -416,7 +437,7 @@ function ByClassPanel({
       <section className="space-y-2">
         <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Users className="h-4 w-4" />
-          符合門檻的班別
+          符合條件的班別
         </h2>
         <div className="space-y-2">
           {bundles.map((bundle) => {
@@ -437,11 +458,11 @@ function ByClassPanel({
               </button>
             )
           })}
-            {bundles.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
-                沒有符合篩選條件的班別。
-              </p>
-            ) : null}
+          {bundles.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
+              沒有符合篩選條件的班別。
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -449,10 +470,14 @@ function ByClassPanel({
         {selected ? (
           <>
             <div className="mb-3">
-              <h2 className="text-base font-semibold text-foreground">{selected.cls.label}</h2>
+              <h2 className="text-base font-semibold text-foreground">
+                <Link to={`/Classes/${selected.cls.id}`} className="hover:underline">
+                  {selected.cls.label}
+                </Link>
+              </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {formatWeekdays(selected.cls.dayOfWeek)} {selected.cls.timeSlot} · 適用{" "}
-                {selected.cls.grades.join("、")}
+                {scheduleText(selected.cls.dayOfWeek, selected.cls.timeSlot)}
+                {selected.cls.grades.length > 0 ? ` · 適用 ${selected.cls.grades.join("、")}` : ""}
               </p>
             </div>
             <FullTermRoster bundle={selected} />
@@ -520,13 +545,17 @@ function ByStudentPanel({
           <>
             <div className="mb-3">
               <h2 className="text-base font-semibold text-foreground">
-                {selected.student.fullName}
+                <Link to={`/Students/${selected.student.id}`} className="hover:underline">
+                  {selected.student.fullName}
+                </Link>
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {selected.student.grade}
+                  {selected.student.gradeLabel}
                 </span>
               </h2>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                {selected.student.studentCode} · {selected.student.englishName}
+                {[selected.student.studentCode, selected.student.englishName]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
               </p>
             </div>
 
@@ -538,7 +567,11 @@ function ByStudentPanel({
                 <div className="space-y-0.5 text-xs text-foreground">
                   {selected.currentClasses.map((c) => (
                     <div key={c.classId}>
-                      {c.label} · {formatWeekdays(c.dayOfWeek)} {c.timeSlot}
+                      <Link to={`/Classes/${c.classId}`} className="hover:underline">
+                        {c.label}
+                      </Link>
+                      {" · "}
+                      {scheduleText(c.dayOfWeek, c.timeSlot)}
                     </div>
                   ))}
                 </div>
@@ -560,34 +593,53 @@ function ByStudentPanel({
   )
 }
 
-export function EligibleEnrollmentMatchPrototypeView() {
-  const allClassBundles = useMemo(() => buildClassMatchBundles(1), [])
-  const allStudentBundles = useMemo(() => buildStudentMatchBundles(2), [])
-
-  const gradeOptions = useMemo(() => {
-    const grades = [...new Set(allStudentBundles.map((b) => b.student.grade))]
-    return grades.sort((a, b) => a.localeCompare(b, "zh-Hant"))
-  }, [allStudentBundles])
+export function PromotionMatchView() {
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+  const [allClassBundles, setAllClassBundles] = useState<ClassMatchBundle[]>([])
+  const [allStudentBundles, setAllStudentBundles] = useState<StudentMatchBundle[]>([])
 
   const [mode, setMode] = useState<ViewMode>("byClass")
-  const [showRules, setShowRules] = useState(true)
-
-  /** 按班別：全期報讀人數（可多選 1／2／3） */
   const [fullTermCounts, setFullTermCounts] = useState<Set<FullTermCountOption>>(
     () => new Set<FullTermCountOption>([1, 2, 3])
   )
-
-  /** 按學生：年級（空 Set = 全部） */
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
-  /** 按學生：已有報讀 */
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setErr(null)
+    try {
+      const snap = await fetchPromotionMatchSnapshot()
+      setAllClassBundles(snap.classBundles)
+      setAllStudentBundles(snap.studentBundles)
+    } catch (e) {
+      reportUserFacingError(e, {
+        source: "PromotionMatchView.load",
+        setErr,
+        userMessage: formatUnknownError(e),
+      })
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const gradeOptions = useMemo(() => {
+    const grades = [...new Set(allStudentBundles.map((b) => b.student.gradeLabel))]
+    return grades.sort((a, b) => a.localeCompare(b, "zh-Hant"))
+  }, [allStudentBundles])
 
   const classBundles = useMemo(() => {
     if (fullTermCounts.size === 0) return []
     return allClassBundles.filter((b) => {
-      const n = b.fullTermCount as number
+      const n = b.fullTermCount
       if (n >= 1 && n <= 3) return fullTermCounts.has(n as FullTermCountOption)
-      // 超過 3 人：勾選「3人」時一併顯示
       if (n > 3) return fullTermCounts.has(3)
       return false
     })
@@ -595,16 +647,13 @@ export function EligibleEnrollmentMatchPrototypeView() {
 
   const studentBundles = useMemo(() => {
     return allStudentBundles.filter((b) => {
-      if (studentGrades.size > 0 && !studentGrades.has(b.student.grade)) return false
+      if (studentGrades.size > 0 && !studentGrades.has(b.student.gradeLabel)) return false
       const hasEnroll = b.currentClasses.length > 0
       if (enrollmentFilter === "none" && hasEnroll) return false
       if (enrollmentFilter === "has" && !hasEnroll) return false
       return true
     })
   }, [allStudentBundles, studentGrades, enrollmentFilter])
-
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
   useEffect(() => {
     if (classBundles.length === 0) {
@@ -650,220 +699,198 @@ export function EligibleEnrollmentMatchPrototypeView() {
           .join("／")
 
   return (
-    <div className="min-h-svh bg-background text-foreground">
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-6 sm:py-8">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <div className="mb-1 inline-flex items-center gap-1.5 rounded-full border border-warning/30 bg-warning/10 px-2.5 py-0.5 text-xs font-medium text-warning">
-              <FlaskConical className="h-3.5 w-3.5" />
-              沙盒 · 假資料
-            </div>
-            <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              可報讀配對
-            </h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              {mode === "byClass"
-                ? "以班別為單位，依全期報讀人數篩選，列出年級合適、時段無衝突的已註冊學生。"
-                : "以已註冊學生為單位，可按年級／已有報讀篩選，列出可報班別。"}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <ModeToggle mode={mode} onChange={setMode} />
-            <Link
-              to="/prototype/FrontDeskWizard"
-              className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              其他沙盒
-            </Link>
-          </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+            宣傳配對
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+            {mode === "byClass"
+              ? "以進行中小組班為單位，依全期報讀人數篩選，找出年級合適、時段無衝突的已註冊學生。"
+              : "以已註冊學生為單位，按年級／已有報讀篩選，列出可宣傳跟進的班別。"}
+          </p>
         </div>
-
-        {mode === "byClass" ? (
-          <FilterBar>
-            <FilterChipGroup
-              label="全期報讀人數"
-              options={FULL_TERM_COUNT_OPTIONS.map((n) => ({
-                value: n,
-                label: `${n} 人`,
-              }))}
-              selected={fullTermCounts}
-              onToggle={toggleFullTermCount}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              可多選。目前勾選：{countLabel}
-              {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
-            </p>
-          </FilterBar>
-        ) : (
-          <FilterBar>
-            <FilterChipGroup
-              label="年級"
-              options={gradeOptions.map((g) => ({ value: g, label: g }))}
-              selected={studentGrades.size === 0 ? new Set(gradeOptions) : studentGrades}
-              onToggle={(g) => {
-                setStudentGrades((prev) => {
-                  const effective =
-                    prev.size === 0 ? new Set(gradeOptions) : new Set(prev)
-                  if (effective.has(g)) effective.delete(g)
-                  else effective.add(g)
-                  if (effective.size === 0 || effective.size === gradeOptions.length) {
-                    return new Set()
-                  }
-                  return effective
-                })
-              }}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="shrink-0 text-xs font-medium text-muted-foreground">已有報讀</span>
-              <div className="flex flex-wrap gap-1.5">
-                {(
-                  [
-                    { value: "all", label: "全部" },
-                    { value: "none", label: "尚未報讀" },
-                    { value: "has", label: "已有報讀" },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    aria-pressed={enrollmentFilter === opt.value}
-                    onClick={() => setEnrollmentFilter(opt.value)}
-                    className={cn(
-                      "rounded-md border px-2.5 py-1 text-xs transition",
-                      enrollmentFilter === opt.value
-                        ? "border-primary/40 bg-primary/10 font-medium text-foreground"
-                        : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              {studentGrades.size > 0 ? (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                  onClick={() => setStudentGrades(new Set())}
-                >
-                  清除年級篩選
-                </button>
-              ) : null}
-            </div>
-          </FilterBar>
-        )}
-
-        <div className="grid gap-3 sm:grid-cols-3">
-          {mode === "byClass" ? (
-            <>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  目標班別
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                  {classBundles.length}
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  可報讀人次
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">
-                  {classEligiblePairs}
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <GraduationCap className="h-3.5 w-3.5" />
-                  全期人數
-                </div>
-                <div className="mt-1 text-sm font-medium text-foreground">{countLabel}</div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" />
-                  篩選後學生
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                  {studentBundles.length}
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <UserPlus className="h-3.5 w-3.5" />
-                  有可報選項
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">
-                  {studentsWithOptions}
-                </div>
-              </div>
-              <div className="rounded-lg border border-border bg-card px-4 py-3">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  可報班人次
-                </div>
-                <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-                  {studentEligiblePairs}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        {showRules ? (
-          <div className="rounded-lg border border-info/20 bg-info/10 px-4 py-3 text-sm text-foreground">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="font-medium">Mock 配對規則</div>
-                <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-muted-foreground">
-                  {mode === "byClass" ? (
-                    <>
-                      <li>只看小組班；全期 =「報足全期」或「兩期全報」（單堂／單期不計）。</li>
-                      <li>可用「全期報讀人數」篩選 1／2／3 人班別。</li>
-                      <li>候選須為「已註冊」，且尚未就讀該班；年級與時段需合適。</li>
-                    </>
-                  ) : (
-                    <>
-                      <li>可按年級、是否已有報讀篩選學生。</li>
-                      <li>可報班別：年級合適、尚未報讀、時段無衝突。</li>
-                      <li>綠標「全期 N 人」= 全期報讀 &gt; 1。</li>
-                    </>
-                  )}
-                </ol>
-              </div>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowRules(false)}>
-                收起
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <button
+        <div className="flex flex-wrap items-center gap-2">
+          <ModeToggle mode={mode} onChange={setMode} />
+          <Button
             type="button"
-            className="text-xs text-info underline-offset-2 hover:underline"
-            onClick={() => setShowRules(true)}
+            size="sm"
+            variant="outline"
+            disabled={loading}
+            onClick={() => void load()}
           >
-            顯示配對規則
-          </button>
-        )}
-
-        {mode === "byClass" ? (
-          <ByClassPanel
-            bundles={classBundles}
-            selectedId={selectedClassId}
-            onSelect={setSelectedClassId}
-          />
-        ) : (
-          <ByStudentPanel
-            bundles={studentBundles}
-            selectedId={selectedStudentId}
-            onSelect={setSelectedStudentId}
-          />
-        )}
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            重新整理
+          </Button>
+        </div>
       </div>
+
+      {err ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+        >
+          {err}
+        </div>
+      ) : null}
+
+      {loading && allClassBundles.length === 0 ? (
+        <p className="text-sm text-muted-foreground">載入中…</p>
+      ) : (
+        <>
+          {mode === "byClass" ? (
+            <FilterBar>
+              <FilterChipGroup
+                label="全期報讀人數"
+                options={FULL_TERM_COUNT_OPTIONS.map((n) => ({
+                  value: n,
+                  label: `${n} 人`,
+                }))}
+                selected={fullTermCounts}
+                onToggle={toggleFullTermCount}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                可多選。目前勾選：{countLabel}
+                {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
+                。全期 = 常規報足全期或暑期兩期全報。
+              </p>
+            </FilterBar>
+          ) : (
+            <FilterBar>
+              <FilterChipGroup
+                label="年級"
+                options={gradeOptions.map((g) => ({ value: g, label: g }))}
+                selected={studentGrades.size === 0 ? new Set(gradeOptions) : studentGrades}
+                onToggle={(g) => {
+                  setStudentGrades((prev) => {
+                    const effective =
+                      prev.size === 0 ? new Set(gradeOptions) : new Set(prev)
+                    if (effective.has(g)) effective.delete(g)
+                    else effective.add(g)
+                    if (effective.size === 0 || effective.size === gradeOptions.length) {
+                      return new Set()
+                    }
+                    return effective
+                  })
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="shrink-0 text-xs font-medium text-muted-foreground">已有報讀</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { value: "all", label: "全部" },
+                      { value: "none", label: "尚未報讀" },
+                      { value: "has", label: "已有報讀" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={enrollmentFilter === opt.value}
+                      onClick={() => setEnrollmentFilter(opt.value)}
+                      className={cn(
+                        "rounded-md border px-2.5 py-1 text-xs transition",
+                        enrollmentFilter === opt.value
+                          ? "border-primary/40 bg-primary/10 font-medium text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {studentGrades.size > 0 ? (
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    onClick={() => setStudentGrades(new Set())}
+                  >
+                    清除年級篩選
+                  </button>
+                ) : null}
+              </div>
+            </FilterBar>
+          )}
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {mode === "byClass" ? (
+              <>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    目標班別
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {classBundles.length}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    可報讀人次
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">
+                    {classEligiblePairs}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <GraduationCap className="h-3.5 w-3.5" />
+                    全期人數
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-foreground">{countLabel}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Users className="h-3.5 w-3.5" />
+                    篩選後學生
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {studentBundles.length}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <UserPlus className="h-3.5 w-3.5" />
+                    有可報選項
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tabular-nums text-primary">
+                    {studentsWithOptions}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <BookOpen className="h-3.5 w-3.5" />
+                    可報班人次
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+                    {studentEligiblePairs}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {mode === "byClass" ? (
+            <ByClassPanel
+              bundles={classBundles}
+              selectedId={selectedClassId}
+              onSelect={setSelectedClassId}
+            />
+          ) : (
+            <ByStudentPanel
+              bundles={studentBundles}
+              selectedId={selectedStudentId}
+              onSelect={setSelectedStudentId}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }

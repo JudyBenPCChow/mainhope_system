@@ -107,8 +107,8 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/EnrollmentReports", label: "人數報表", roles: ["admin", "alien"], icon: BarChart3 },
    { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
    {
-    path: "/prototype/EligibleEnrollmentMatch",
-    label: "全期班可報讀（沙盒）",
+    path: "/PromotionMatch",
+    label: "宣傳配對",
     roles: ["admin", "alien"],
     icon: UserPlus,
    },
