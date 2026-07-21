@@ -47,6 +47,7 @@ import TomorrowReminders from "@/pages/TomorrowReminders"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
+import PrototypeEligibleEnrollmentMatch from "@/pages/PrototypeEligibleEnrollmentMatch"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
@@ -63,6 +64,8 @@ export default function App() {
     <Route path="/Login" element={<Login />} />
     <Route path="/receipt-demo" element={<ReceiptDemo />} />
     <Route path="/prototype/ReceiptDemo" element={<ReceiptDemo />} />
+    {/* 沙盒可先不經登入閘，方便對稿 */}
+    <Route path="/prototype/EligibleEnrollmentMatch" element={<PrototypeEligibleEnrollmentMatch />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route element={<AdaptiveLayout />}>

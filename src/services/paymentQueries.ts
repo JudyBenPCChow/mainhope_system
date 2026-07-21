@@ -19,7 +19,7 @@ import {
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
 
-const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "其他"] as const
+const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "支付寶", "微信支付", "其他"] as const
 export const PAYMENT_METHOD_PRESETS = [...METHOD_OPTIONS]
 
 export const PAYMENT_STATUS = {
