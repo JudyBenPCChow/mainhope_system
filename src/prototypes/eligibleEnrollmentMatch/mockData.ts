@@ -475,7 +475,7 @@ function evaluateStudentForClass(
   return { reasons: [...new Set(reasons)], conflictWith }
 }
 
-export function buildClassMatchBundles(minFullTerm = 2): ClassMatchBundle[] {
+export function buildClassMatchBundles(minFullTerm = 1): ClassMatchBundle[] {
   const bundles: ClassMatchBundle[] = []
 
   for (const cls of MOCK_CLASSES) {

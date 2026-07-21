@@ -108,6 +108,15 @@
 
 ---
 
+## 6.3 同班偶發代課（代堂）
+
+- **班別** `classes.teacher_id`＝常任主責；**排程** `schedules.teacher_id`＝當日實際；代堂另存 `original_teacher_id`。
+- 偶發／輪流代課：維持主責，用「指派代堂」改該堂；**不要**為偶發代課改班別主責。
+- 算堂數／薪資／「誰上了幾堂」以排程 `teacher_id` 為準；已點名勿隨便取消代堂（點名不凍結老師名，取消會改寫歷史歸屬）。
+- 完整案例、風險表與檢查清單：`docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
+
+---
+
 ## 7. 品質門檻
 
 - 改動後執行：`npm run build`（`tsc -b` + `vite build`）。

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import {
   BookOpen,
@@ -26,6 +26,10 @@ import {
 } from "./mockData"
 
 type ViewMode = "byClass" | "byStudent"
+type EnrollmentFilter = "all" | "none" | "has"
+
+const FULL_TERM_COUNT_OPTIONS = [1, 2, 3] as const
+type FullTermCountOption = (typeof FULL_TERM_COUNT_OPTIONS)[number]
 
 const REASON_LABEL: Record<ExclusionReason, string> = {
   非注冊: "非注冊",
@@ -78,6 +82,56 @@ function ModeToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
         <Users className="h-3.5 w-3.5" />
         按學生
       </button>
+    </div>
+  )
+}
+
+type ChipOption<T extends string | number> = { value: T; label: string }
+
+function FilterChipGroup<T extends string | number>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string
+  options: ChipOption<T>[]
+  selected: Set<T> | T
+  onToggle: (value: T) => void
+}) {
+  const isOn = (v: T) => (selected instanceof Set ? selected.has(v) : selected === v)
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="shrink-0 text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((opt) => {
+          const on = isOn(opt.value)
+          return (
+            <button
+              key={String(opt.value)}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onToggle(opt.value)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-xs transition",
+                on
+                  ? "border-primary/40 bg-primary/10 font-medium text-foreground"
+                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              )}
+            >
+              {opt.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function FilterBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="space-y-2.5 rounded-lg border border-border bg-card px-3 py-3 sm:px-4">
+      {children}
     </div>
   )
 }
@@ -383,11 +437,11 @@ function ByClassPanel({
               </button>
             )
           })}
-          {bundles.length === 0 ? (
-            <p className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
-              沒有全期報讀超過 1 人的班別。
-            </p>
-          ) : null}
+            {bundles.length === 0 ? (
+              <p className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
+                沒有符合篩選條件的班別。
+              </p>
+            ) : null}
         </div>
       </section>
 
@@ -453,6 +507,11 @@ function ByStudentPanel({
               </button>
             )
           })}
+          {bundles.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-6 text-sm text-muted-foreground">
+              沒有符合篩選條件的學生。
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -502,21 +561,93 @@ function ByStudentPanel({
 }
 
 export function EligibleEnrollmentMatchPrototypeView() {
-  const classBundles = useMemo(() => buildClassMatchBundles(2), [])
-  const studentBundles = useMemo(() => buildStudentMatchBundles(2), [])
+  const allClassBundles = useMemo(() => buildClassMatchBundles(1), [])
+  const allStudentBundles = useMemo(() => buildStudentMatchBundles(2), [])
+
+  const gradeOptions = useMemo(() => {
+    const grades = [...new Set(allStudentBundles.map((b) => b.student.grade))]
+    return grades.sort((a, b) => a.localeCompare(b, "zh-Hant"))
+  }, [allStudentBundles])
 
   const [mode, setMode] = useState<ViewMode>("byClass")
-  const [selectedClassId, setSelectedClassId] = useState<string | null>(
-    () => classBundles[0]?.cls.id ?? null
-  )
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    () => studentBundles[0]?.student.id ?? null
-  )
   const [showRules, setShowRules] = useState(true)
+
+  /** 按班別：全期報讀人數（可多選 1／2／3） */
+  const [fullTermCounts, setFullTermCounts] = useState<Set<FullTermCountOption>>(
+    () => new Set<FullTermCountOption>([1, 2, 3])
+  )
+
+  /** 按學生：年級（空 Set = 全部） */
+  const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
+  /** 按學生：已有報讀 */
+  const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+
+  const classBundles = useMemo(() => {
+    if (fullTermCounts.size === 0) return []
+    return allClassBundles.filter((b) => {
+      const n = b.fullTermCount as number
+      if (n >= 1 && n <= 3) return fullTermCounts.has(n as FullTermCountOption)
+      // 超過 3 人：勾選「3人」時一併顯示
+      if (n > 3) return fullTermCounts.has(3)
+      return false
+    })
+  }, [allClassBundles, fullTermCounts])
+
+  const studentBundles = useMemo(() => {
+    return allStudentBundles.filter((b) => {
+      if (studentGrades.size > 0 && !studentGrades.has(b.student.grade)) return false
+      const hasEnroll = b.currentClasses.length > 0
+      if (enrollmentFilter === "none" && hasEnroll) return false
+      if (enrollmentFilter === "has" && !hasEnroll) return false
+      return true
+    })
+  }, [allStudentBundles, studentGrades, enrollmentFilter])
+
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (classBundles.length === 0) {
+      setSelectedClassId(null)
+      return
+    }
+    setSelectedClassId((prev) =>
+      prev && classBundles.some((b) => b.cls.id === prev) ? prev : classBundles[0]!.cls.id
+    )
+  }, [classBundles])
+
+  useEffect(() => {
+    if (studentBundles.length === 0) {
+      setSelectedStudentId(null)
+      return
+    }
+    setSelectedStudentId((prev) =>
+      prev && studentBundles.some((b) => b.student.id === prev)
+        ? prev
+        : studentBundles[0]!.student.id
+    )
+  }, [studentBundles])
 
   const classEligiblePairs = classBundles.reduce((n, b) => n + b.eligible.length, 0)
   const studentsWithOptions = studentBundles.filter((b) => b.eligible.length > 0).length
   const studentEligiblePairs = studentBundles.reduce((n, b) => n + b.eligible.length, 0)
+
+  const toggleFullTermCount = (n: FullTermCountOption) => {
+    setFullTermCounts((prev) => {
+      const next = new Set(prev)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
+      return next
+    })
+  }
+
+  const countLabel =
+    fullTermCounts.size === 0
+      ? "未選"
+      : [...fullTermCounts]
+          .sort((a, b) => a - b)
+          .map((n) => `${n}人`)
+          .join("／")
 
   return (
     <div className="min-h-svh bg-background text-foreground">
@@ -532,8 +663,8 @@ export function EligibleEnrollmentMatchPrototypeView() {
             </h1>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               {mode === "byClass"
-                ? "以「全期報讀超過 1 人」的班別為單位，列出年級合適、時段無衝突的已註冊學生。"
-                : "以已註冊學生為單位，列出符合其年級、且時段無衝突的可報班別。"}
+                ? "以班別為單位，依全期報讀人數篩選，列出年級合適、時段無衝突的已註冊學生。"
+                : "以已註冊學生為單位，可按年級／已有報讀篩選，列出可報班別。"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-2">
@@ -546,6 +677,80 @@ export function EligibleEnrollmentMatchPrototypeView() {
             </Link>
           </div>
         </div>
+
+        {mode === "byClass" ? (
+          <FilterBar>
+            <FilterChipGroup
+              label="全期報讀人數"
+              options={FULL_TERM_COUNT_OPTIONS.map((n) => ({
+                value: n,
+                label: `${n} 人`,
+              }))}
+              selected={fullTermCounts}
+              onToggle={toggleFullTermCount}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              可多選。目前勾選：{countLabel}
+              {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
+            </p>
+          </FilterBar>
+        ) : (
+          <FilterBar>
+            <FilterChipGroup
+              label="年級"
+              options={gradeOptions.map((g) => ({ value: g, label: g }))}
+              selected={studentGrades.size === 0 ? new Set(gradeOptions) : studentGrades}
+              onToggle={(g) => {
+                setStudentGrades((prev) => {
+                  const effective =
+                    prev.size === 0 ? new Set(gradeOptions) : new Set(prev)
+                  if (effective.has(g)) effective.delete(g)
+                  else effective.add(g)
+                  if (effective.size === 0 || effective.size === gradeOptions.length) {
+                    return new Set()
+                  }
+                  return effective
+                })
+              }}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="shrink-0 text-xs font-medium text-muted-foreground">已有報讀</span>
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { value: "all", label: "全部" },
+                    { value: "none", label: "尚未報讀" },
+                    { value: "has", label: "已有報讀" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={enrollmentFilter === opt.value}
+                    onClick={() => setEnrollmentFilter(opt.value)}
+                    className={cn(
+                      "rounded-md border px-2.5 py-1 text-xs transition",
+                      enrollmentFilter === opt.value
+                        ? "border-primary/40 bg-primary/10 font-medium text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {studentGrades.size > 0 ? (
+                <button
+                  type="button"
+                  className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                  onClick={() => setStudentGrades(new Set())}
+                >
+                  清除年級篩選
+                </button>
+              ) : null}
+            </div>
+          </FilterBar>
+        )}
 
         <div className="grid gap-3 sm:grid-cols-3">
           {mode === "byClass" ? (
@@ -571,9 +776,9 @@ export function EligibleEnrollmentMatchPrototypeView() {
               <div className="rounded-lg border border-border bg-card px-4 py-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <GraduationCap className="h-3.5 w-3.5" />
-                  門檻
+                  全期人數
                 </div>
-                <div className="mt-1 text-sm font-medium text-foreground">全期報讀 &gt; 1 人</div>
+                <div className="mt-1 text-sm font-medium text-foreground">{countLabel}</div>
               </div>
             </>
           ) : (
@@ -581,7 +786,7 @@ export function EligibleEnrollmentMatchPrototypeView() {
               <div className="rounded-lg border border-border bg-card px-4 py-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Users className="h-3.5 w-3.5" />
-                  已註冊學生
+                  篩選後學生
                 </div>
                 <div className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
                   {studentBundles.length}
@@ -617,19 +822,15 @@ export function EligibleEnrollmentMatchPrototypeView() {
                 <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-muted-foreground">
                   {mode === "byClass" ? (
                     <>
-                      <li>只看小組班；全期 =「報足全期」或「兩期全報」（單堂／單期不計入門檻）。</li>
-                      <li>候選須為「已註冊」，且尚未就讀該班。</li>
-                      <li>年級：學生年級標籤須落在班別適用年級內。</li>
-                      <li>時間：與學生現有就讀班別的「星期 × 時段」不重疊。</li>
+                      <li>只看小組班；全期 =「報足全期」或「兩期全報」（單堂／單期不計）。</li>
+                      <li>可用「全期報讀人數」篩選 1／2／3 人班別。</li>
+                      <li>候選須為「已註冊」，且尚未就讀該班；年級與時段需合適。</li>
                     </>
                   ) : (
                     <>
-                      <li>列出所有「已註冊」學生；非注冊不顯示。</li>
-                      <li>可報班別：班別適用年級包含該生年級、尚未報讀、時段無衝突。</li>
-                      <li>
-                        「全期 N 人」綠標 = 已達熱門門檻（全期 &gt; 1）；其餘仍可報但人數較少。
-                      </li>
-                      <li>可展開「同年級但未能報讀」查看已報讀／時間衝突原因。</li>
+                      <li>可按年級、是否已有報讀篩選學生。</li>
+                      <li>可報班別：年級合適、尚未報讀、時段無衝突。</li>
+                      <li>綠標「全期 N 人」= 全期報讀 &gt; 1。</li>
                     </>
                   )}
                 </ol>

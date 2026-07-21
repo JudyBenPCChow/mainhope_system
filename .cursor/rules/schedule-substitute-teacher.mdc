@@ -1,0 +1,15 @@
+---
+description: 同班偶發代課／代堂——班別主責 vs 排程當日老師，避免歸屬與報表錯誤
+globs: src/services/schedule*.ts,src/services/attendance*.ts,src/services/classQueries.ts,src/services/privateTutoringQueries.ts,src/services/teacherLeaveWizardQueries.ts,src/lib/scheduleSubstitute.ts,src/components/schedule/**,src/components/attendance/**
+alwaysApply: false
+---
+
+# 代堂／同班多老師
+
+詳見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
+
+- `classes.teacher_id`＝常任主責；`schedules.teacher_id`＝當日實際；`original_teacher_id`＝代堂前原任。
+- 偶發代課只用「指派代堂」，勿改班別主責。
+- 報表／薪資／堂數統計必須能區分主責與當日老師；優先以 `schedules.teacher_id`。
+- 已點名後勿輕易 `clearScheduleSubstitute`（點名列不存老師，取消代堂會改寫歷史歸屬）。
+- 篩選／RLS 常需同時考慮 `teacher_id` 與 `original_teacher_id`。

@@ -43,6 +43,7 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - **RLS**：anon key 會出現在瀏覽器；改 schema 必須一併檢視 RLS。上線前移除 `baseline.sql` 的 `dev_*` 全開政策。見 `docs/RLS_ROLLOUT.md`。
 - **角色**：目前前端角色為 `localStorage.mgmt_role`（`admin`/`teacher`/`alien`，見 `src/lib/mgmtRole.ts`），**不等於** Supabase Auth，前端隱藏按鈕不代表有權限保護。
 - **排程篩選依角色**：admin／alien 有老師多選＋三個進階篩選；專班老師資料已鎖定自己、不顯示老師篩選，進階篩選僅「未有學生報讀」。見 `docs/AGENT_HANDOFF.md` §6.2。
+- **代堂 ≠ 改主責**：同班偶發／輪流代課只改該堂 `schedules.teacher_id`（指派代堂），勿改 `classes.teacher_id`；算堂數看排程老師。見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
 
 ## 深入文件
 
@@ -51,5 +52,6 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - UI 設計規範：`docs/UI_DESIGN_INSTRUCTIONS.md`
 - 學生狀態分類與判定（注冊／報讀／活躍、子字串誤判防呆）：`docs/STUDENT_STATUS_CLASSIFICATION.md`
 - 點名狀態與扣堂／已上堂數：`docs/ATTENDANCE_BILLING.md`（程式 `src/lib/attendanceBilling.ts`）；獨立頁「進行點名」`/Attendance`，排程頁亦可「確定點名」滑出點名紙
+- 同班偶發代課／代堂（主責 vs 當日老師、報表風險）：`docs/SCHEDULE_SUBSTITUTE_TEACHER.md`
 - RLS 上線：`docs/RLS_ROLLOUT.md`
 - 資料重匯入：`docs/REIMPORT_PLAYBOOK.md`、`docs/SEED.md`
