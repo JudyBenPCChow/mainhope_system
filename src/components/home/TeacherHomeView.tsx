@@ -36,7 +36,7 @@ import {
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import {
  fetchScheduleAlerts,
- fetchSchedulesInRange,
+ fetchSchedulesInRangeWithRosterContext,
  type ScheduleAlerts,
  type ScheduleManageRow,
 } from "@/services/scheduleQueries"
@@ -107,13 +107,15 @@ export function TeacherHomeView() {
   setLoading(true)
   setErr(null)
   try {
-   const [tch, allClasses, schedList] = await Promise.all([
+   const [tch, allClasses, scheduleResult] = await Promise.all([
     getTeacherById(teacherId),
     fetchAllClasses(),
-    fetchSchedulesInRange(scheduleFrom, scheduleTo, { teacherId }),
+    fetchSchedulesInRangeWithRosterContext(scheduleFrom, scheduleTo, { teacherId }),
    ])
    if (tch) setTeacherName(tch.full_name)
    const mine = allClasses.filter((c) => c.teacher_id === teacherId)
+   const schedList = scheduleResult.rows
+   const rosterContext = scheduleResult.rosterContext
    setClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
    setSchedules(schedList)
    setLoading(false)
@@ -129,6 +131,7 @@ export function TeacherHomeView() {
    }
 
    // 次要資料（請假/試堂/未點名／排程警示）並行；失敗時不阻斷主內容
+   // alerts 重用上面 rosterContext，避免老師首頁再打一次全區間名單 RPC
    const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
     fetchLeaveRowsForClassIds(classIds, 50),
     (async () => {
@@ -167,7 +170,7 @@ export function TeacherHomeView() {
     findSchedulesMissingAttendance(
      schedList.filter((s) => s.scheduled_date < today && s.class_id != null)
     ),
-    fetchScheduleAlerts(schedList),
+    fetchScheduleAlerts(schedList, rosterContext),
    ])
 
    let partialFailed = false

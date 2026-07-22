@@ -240,29 +240,9 @@ export async function fetchScheduleRosterContext(
    }
    throw error
   }
-  const context = mapContext(data)
-  const enrollmentIds = context.enrollments.map((row) => row.id)
-  if (enrollmentIds.length > 0) {
-   const { data: dateRows, error: dateError } = await supabase!.rpc(
-    "get_enrollment_effective_dates",
-    { p_enrollment_ids: enrollmentIds }
-   )
-   if (dateError) throw dateError
-   const byId = new Map(
-    ((dateRows ?? []) as Array<Record<string, unknown>>).map((row) => [
-     String(row.enrollment_id),
-     {
-      enrollDate: nullableString(row.enroll_date),
-      withdrawEffectiveDate: nullableString(row.withdraw_effective_date),
-     },
-    ])
-   )
-   context.enrollments = context.enrollments.map((row) => ({
-    ...row,
-    ...(byId.get(row.id) ?? {}),
-   }))
-  }
-  return context
+  // enroll_date / withdraw_effective_date 已由 get_teacher_schedule_roster_context 回傳
+  // （勿再呼叫 get_enrollment_effective_dates：舊實作會對每列排程跑 teacher_can_access_schedule，平均數秒）
+  return mapContext(data)
  }))
  if (contexts.length === 1) return contexts[0]!
 
