@@ -105,10 +105,11 @@ import { consecutivePairFromFirstTimeSlot, isConsecutiveClass, resolveLessonRemi
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
+ enrichScheduleRowsWithRosterContext,
  fetchDayViewRosterBySchedules,
  fetchNearestScheduleDate,
  fetchScheduleAlerts,
- fetchSchedulesInRangeWithRosterContext,
+ fetchSchedulesInRange,
  fetchScheduleStatsSnapshot,
  fetchTeacherScheduleConflicts,
  localYmd,
@@ -382,7 +383,14 @@ export function ScheduleManagePage() {
  const [rooms, setRooms] = useState<RoomRecord[]>([])
  const [roomOptions, setRoomOptions] = useState<{ id: string; label: string }[]>([])
  const [loading, setLoading] = useState(false)
+ /** 排程列已出、人數／badge 仍在載 */
+ const [rosterLoading, setRosterLoading] = useState(false)
+ /** 換區間時保留舊列半透明，直到新列到達 */
+ const [rowsStale, setRowsStale] = useState(false)
  const [pageErr, setPageErr] = useState<string | null>(null)
+ const rowsRef = useRef(rows)
+ rowsRef.current = rows
+ const reloadGenRef = useRef(0)
 
  const [detailId, setDetailId] = useState<string | null>(null)
  const [detailRow, setDetailRow] = useState<ScheduleDetailRecord | null>(null)
@@ -449,36 +457,48 @@ export function ScheduleManagePage() {
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const gen = ++reloadGenRef.current
+  const hasExistingRows = rowsRef.current.length > 0
+  setLoading(!hasExistingRows)
+  setRowsStale(hasExistingRows)
+  setRosterLoading(true)
   setPageErr(null)
   try {
    const tid = getTeacherScopeTeacherId()
-   const [scheduleResult, rms] = await Promise.all([
-    fetchSchedulesInRangeWithRosterContext(
-     displayStart,
-     rangeEnd,
-     tid ? { teacherId: tid } : undefined
-    ),
+   const [list, rms] = await Promise.all([
+    fetchSchedulesInRange(displayStart, rangeEnd, tid ? { teacherId: tid } : undefined),
     fetchClassrooms(),
    ])
-   const { rows: list, rosterContext: nextRosterContext } = scheduleResult
+   if (reloadGenRef.current !== gen) return
    setRows(list)
+   setRowsStale(false)
+   setLoading(false)
    setRooms(rms)
    setRoomOptions(
     [...rms]
      .map((r) => ({ id: r.id, label: r.name }))
      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
    )
-   setRosterContext(nextRosterContext)
-   // stats 不擋主畫面；alerts 仍 await，避免試堂 badge 晚到造成短暫誤灰
    void reloadStats(tid)
+
+   const nextRosterContext = await fetchScheduleRosterContext(list.map((row) => row.id))
+   if (reloadGenRef.current !== gen) return
+   setRows(enrichScheduleRowsWithRosterContext(list, nextRosterContext))
+   setRosterContext(nextRosterContext)
    setAlerts(await fetchScheduleAlerts(list, nextRosterContext))
   } catch (e) {
+   if (reloadGenRef.current !== gen) return
    reportUserFacingError(e, { source: "ScheduleManagePage.reload", setErr: setPageErr })
-   setRows([])
-   setRosterContext(null)
+   if (!hasExistingRows) {
+    setRows([])
+    setRosterContext(null)
+   }
   } finally {
-   setLoading(false)
+   if (reloadGenRef.current === gen) {
+    setLoading(false)
+    setRowsStale(false)
+    setRosterLoading(false)
+   }
   }
  }, [displayStart, rangeEnd, reloadStats])
 
@@ -872,7 +892,10 @@ useEffect(() => {
   return rows.filter((r) => {
    if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
-   if (issues.has("noEnroll") && r.enrollCount > 0) return false
+   if (issues.has("noEnroll")) {
+    if (r.enrollCount == null) return false
+    if ((r.enrollCount ?? 0) > 0) return false
+   }
    if (issues.has("private") && r.class_kind !== "private") return false
    if (issues.has("noRoom") && r.classroom_id != null) return false
    if (teacherSet.size > 0) {
@@ -1155,7 +1178,7 @@ useEffect(() => {
      `"${(r.teacher_name ?? "").replace(/"/g, '""')}"`,
      `"${(r.classroom_name ?? "").replace(/"/g, '""')}"`,
      r.status,
-     String(r.enrollCount),
+     String(r.enrollCount ?? ""),
      `"${(r.teaching_notes ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`,
     ].join(",")
    ),
@@ -1563,14 +1586,18 @@ useEffect(() => {
        >
         {issueFilterOptions.map(({ id, label, icon: Icon }) => {
          const active = effectiveIssueFilters.includes(id)
+         const disabled = id === "noEnroll" && rosterLoading
          return (
           <button
            key={id}
            type="button"
            aria-pressed={active}
+           disabled={disabled}
+           title={disabled ? "報讀人數載入中，請稍候再篩選" : undefined}
            onClick={() => toggleIssueFilter(id)}
            className={cn(
             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
+            disabled && "cursor-not-allowed opacity-50",
             active
              ? "border-info bg-info/10 text-info ring-1 ring-info/40"
              : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
@@ -1774,7 +1801,11 @@ useEffect(() => {
        </Button>
       </div>
       <span className="tabular-nums text-muted-foreground">
-       {loading ? "載入中…" : `顯示 ${filtered.length} 個排程`}
+       {loading
+        ? "載入課堂中…"
+        : rosterLoading
+         ? `已顯示 ${filtered.length} 堂 · 標記載入中…`
+         : `顯示 ${filtered.length} 個排程`}
       </span>
      </>
     )}
@@ -1845,15 +1876,21 @@ useEffect(() => {
           }
           const open = expandedScheduleId === s.id
           const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
+          const enrollKnown = s.enrollCount != null
           const hasAttendees =
-           s.enrollCount > 0 || a.makeup || a.trial || (rollCallEligibleIds?.has(s.id) ?? false)
-          const emptyEnrollOnly = s.enrollCount === 0 && !a.makeup && !a.trial
+           (s.enrollCount != null && s.enrollCount > 0) ||
+           a.makeup ||
+           a.trial ||
+           (rollCallEligibleIds?.has(s.id) ?? false)
+          const emptyEnrollOnly =
+           enrollKnown && s.enrollCount === 0 && !a.makeup && !a.trial && !rosterLoading
           return (
            <li
             key={s.id}
             className={cn(
              "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
-             !hasAttendees ? "border-border/80 bg-muted/70" : "bg-card"
+             rowsStale && "opacity-60",
+             enrollKnown && !hasAttendees ? "border-border/80 bg-muted/70" : "bg-card"
             )}
            >
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
@@ -1883,7 +1920,7 @@ useEffect(() => {
                  暫未有學生報讀
                 </Tag>
                ) : null}
-               {s.enrollCount === 0 && (a.makeup || a.trial) ? (
+               {enrollKnown && s.enrollCount === 0 && (a.makeup || a.trial) ? (
                 <Tag tone={statusToTagTone(a.makeup ? "補堂" : "試堂")} size="sm">
                  {a.makeup && a.trial ? "補堂／試堂" : a.makeup ? "有補堂生" : "有試堂生"}
                 </Tag>
@@ -1899,7 +1936,14 @@ useEffect(() => {
                  </Tag>
                 ) : null
                })()}
-               <ScheduleAlertIcons alerts={a} />
+               {rosterLoading ? (
+                <span
+                 className="inline-block h-5 w-16 animate-pulse rounded-md bg-muted"
+                 aria-label="標記載入中"
+                />
+               ) : (
+                <ScheduleAlertIcons alerts={a} />
+               )}
               </div>
               {s.status.includes("取消") && s.cancel_reason ? (
                <p className="mt-1 text-sm text-muted-foreground">
@@ -1921,11 +1965,18 @@ useEffect(() => {
                <span
                 className={cn(
                  "inline-flex items-center gap-1",
-                 !hasAttendees ? "text-muted-foreground" : "text-info"
+                 enrollKnown && !hasAttendees ? "text-muted-foreground" : "text-info"
                 )}
                >
                 <Users className="h-4 w-4 opacity-70" aria-hidden />
-                {s.enrollCount} 人報讀
+                {rosterLoading || s.enrollCount == null ? (
+                 <span
+                  className="inline-block h-4 w-14 animate-pulse rounded bg-muted"
+                  aria-label="報讀人數載入中"
+                 />
+                ) : (
+                 `${s.enrollCount} 人報讀`
+                )}
                </span>
                {s.teaching_notes?.trim() ? (
                 <Tag tone="info" size="sm">
@@ -2156,7 +2207,14 @@ useEffect(() => {
                今天
               </span>
              ) : null}
-             <ScheduleAlertIcons alerts={a} />
+             {rosterLoading ? (
+              <span
+               className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
+               aria-label="標記載入中"
+              />
+             ) : (
+              <ScheduleAlertIcons alerts={a} />
+             )}
             </div>
            </td>
            <td className="min-w-0 align-top px-4 py-3 font-medium">
@@ -2430,7 +2488,7 @@ useEffect(() => {
            original_teacher_name: detailRow.original_teacher_name,
            classroom_id: detailRow.classroom_id,
            classroom_name: detailRow.classroom_name,
-           enrollCount: 0,
+           enrollCount: null,
           })
          }}
         >

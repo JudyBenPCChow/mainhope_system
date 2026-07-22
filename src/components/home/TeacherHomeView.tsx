@@ -27,7 +27,7 @@ import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import { fetchClassesByTeacherId, type ClassRecord } from "@/services/classQueries"
 import {
  fetchPendingRollCallRemindersForTeacher,
  findSchedulesMissingAttendance,
@@ -36,16 +36,18 @@ import {
 import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import {
  fetchScheduleAlerts,
- fetchSchedulesInRangeWithRosterContext,
+ fetchSchedulesInRange,
  type ScheduleAlerts,
  type ScheduleManageRow,
 } from "@/services/scheduleQueries"
+import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 import { addDaysYmd, getTeacherById, localYmd } from "@/services/teacherQueries"
 import { supabase } from "@/lib/supabaseClient"
 
-/** 向後／向前載入日數，供首頁週視圖翻週與今日列表 */
-const SCHEDULE_PAST_DAYS = 28
-const SCHEDULE_FUTURE_DAYS = 98
+/** 首屏近 14 天；更遠由週視圖邊界加載 */
+const INITIAL_FUTURE_DAYS = 13
+const EXTEND_DAYS = 14
+const PAST_ROLLCALL_LOOKBACK_DAYS = 14
 
 type TrialBrief = {
  id: string
@@ -84,6 +86,7 @@ function alertTagsForSchedule(
 export function TeacherHomeView() {
  const teacherId = getTeacherScopeTeacherId()
  const isMobile = useIsMobile()
+ const today = localYmd()
  const [teacherName, setTeacherName] = useState<string>("老師")
  const [classes, setClasses] = useState<ClassRecord[]>([])
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
@@ -93,11 +96,119 @@ export function TeacherHomeView() {
  const [pendingRollCalls, setPendingRollCalls] = useState<PendingRollCallReminder[]>([])
  const [pastPendingRollCalls, setPastPendingRollCalls] = useState<PendingRollCallReminder[]>([])
  const [loading, setLoading] = useState(true)
+ const [metaLoading, setMetaLoading] = useState(false)
+ const [rangeExtending, setRangeExtending] = useState(false)
+ const [loadedFromYmd, setLoadedFromYmd] = useState(today)
+ const [loadedToYmd, setLoadedToYmd] = useState(() => addDaysYmd(today, INITIAL_FUTURE_DAYS))
  const [err, setErr] = useState<string | null>(null)
 
- const today = localYmd()
- const scheduleFrom = useMemo(() => addDaysYmd(today, -SCHEDULE_PAST_DAYS), [today])
- const scheduleTo = useMemo(() => addDaysYmd(today, SCHEDULE_FUTURE_DAYS), [today])
+ const mergeSchedules = useCallback((prev: ScheduleManageRow[], next: ScheduleManageRow[]) => {
+  const byId = new Map(prev.map((s) => [s.id, s]))
+  for (const row of next) byId.set(row.id, row)
+  return [...byId.values()].sort((a, b) => {
+   const byDate = a.scheduled_date.localeCompare(b.scheduled_date)
+   if (byDate !== 0) return byDate
+   return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
+  })
+ }, [])
+
+ const loadMetaForSchedules = useCallback(
+  async (schedList: ScheduleManageRow[], classIds: string[]) => {
+   if (!teacherId) return
+   setMetaLoading(true)
+   try {
+    const todayIds = schedList.filter((s) => s.scheduled_date === today).map((s) => s.id)
+    const pastCandidates = schedList.filter(
+     (s) => s.scheduled_date < today && s.scheduled_date >= addDaysYmd(today, -PAST_ROLLCALL_LOOKBACK_DAYS)
+    )
+    const rosterIds = [
+     ...todayIds,
+     ...pastCandidates.map((s) => s.id),
+    ]
+    const rosterContext = await fetchScheduleRosterContext([...new Set(rosterIds)])
+
+    const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
+     classIds.length ? fetchLeaveRowsForClassIds(classIds, 50) : Promise.resolve([]),
+     (async () => {
+      if (!supabase || classIds.length === 0) return [] as TrialBrief[]
+      const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+       const { data, error } = await supabase!
+        .from("trial_sessions")
+        .select(
+         "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+        )
+        .in("class_id", slice)
+        .gte("trial_date", today)
+        .order("trial_date", { ascending: true })
+       if (error) throw error
+       return data ?? []
+      })
+      return chunks.flat().map((row) => {
+       const r = row as Record<string, unknown>
+       const st = r.students as Record<string, unknown> | null
+       const cls = r.classes as Record<string, unknown> | null
+       const sub = cls?.subject != null ? String(cls.subject) : "—"
+       const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+       const course = cls?.courses as Record<string, unknown> | null
+       const courseName = course?.course_name != null ? String(course.course_name) : null
+       return {
+        id: String(r.id),
+        studentName: st?.full_name != null ? String(st.full_name) : "—",
+        classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+        scheduleId: String(r.schedule_id ?? ""),
+        trialDate: String(r.trial_date ?? ""),
+        status: String(r.status ?? ""),
+       } satisfies TrialBrief
+      })
+     })(),
+     fetchPendingRollCallRemindersForTeacher(teacherId, today),
+     findSchedulesMissingAttendance(pastCandidates, rosterContext),
+     fetchScheduleAlerts(
+      schedList.filter((s) => s.scheduled_date >= today && s.scheduled_date <= addDaysYmd(today, 2)),
+      rosterContext
+     ),
+    ])
+
+    let partialFailed = false
+    if (leaveRes.status === "fulfilled") setLeaves(leaveRes.value)
+    else {
+     reportUserFacingError(leaveRes.reason, { source: "TeacherHomeView.loadLeaves" })
+     partialFailed = true
+     setLeaves([])
+    }
+    if (trialRes.status === "fulfilled") setTrials(trialRes.value)
+    else {
+     reportUserFacingError(trialRes.reason, { source: "TeacherHomeView.loadTrials" })
+     partialFailed = true
+     setTrials([])
+    }
+    if (rollRes.status === "fulfilled") setPendingRollCalls(rollRes.value)
+    else {
+     reportUserFacingError(rollRes.reason, { source: "TeacherHomeView.loadRollCallReminders" })
+     partialFailed = true
+     setPendingRollCalls([])
+    }
+    if (pastRollRes.status === "fulfilled") setPastPendingRollCalls(pastRollRes.value)
+    else {
+     reportUserFacingError(pastRollRes.reason, { source: "TeacherHomeView.loadPastRollCallReminders" })
+     partialFailed = true
+     setPastPendingRollCalls([])
+    }
+    if (alertsRes.status === "fulfilled") setScheduleAlerts(alertsRes.value)
+    else {
+     reportUserFacingError(alertsRes.reason, { source: "TeacherHomeView.loadScheduleAlerts" })
+     partialFailed = true
+     setScheduleAlerts(new Map())
+    }
+    if (partialFailed) {
+     setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
+    }
+   } finally {
+    setMetaLoading(false)
+   }
+  },
+  [teacherId, today]
+ )
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured || !teacherId) {
@@ -106,113 +217,36 @@ export function TeacherHomeView() {
   }
   setLoading(true)
   setErr(null)
+  const toYmd = addDaysYmd(today, INITIAL_FUTURE_DAYS)
   try {
-   const [tch, allClasses, scheduleResult] = await Promise.all([
+   const [tch, mine, todayRows] = await Promise.all([
     getTeacherById(teacherId),
-    fetchAllClasses(),
-    fetchSchedulesInRangeWithRosterContext(scheduleFrom, scheduleTo, { teacherId }),
+    fetchClassesByTeacherId(teacherId),
+    fetchSchedulesInRange(today, today, { teacherId }),
    ])
    if (tch) setTeacherName(tch.full_name)
-   const mine = allClasses.filter((c) => c.teacher_id === teacherId)
-   const schedList = scheduleResult.rows
-   const rosterContext = scheduleResult.rosterContext
    setClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
-   setSchedules(schedList)
+   setSchedules(todayRows)
+   setLoadedFromYmd(today)
+   setLoadedToYmd(today)
    setLoading(false)
 
-   const classIds = mine.map((c) => c.id)
-   if (classIds.length === 0) {
-    setLeaves([])
-    setTrials([])
-    setScheduleAlerts(new Map())
-    setPendingRollCalls([])
-    setPastPendingRollCalls([])
-    return
-   }
-
-   // 次要資料（請假/試堂/未點名／排程警示）並行；失敗時不阻斷主內容
-   // alerts 重用上面 rosterContext，避免老師首頁再打一次全區間名單 RPC
-   const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
-    fetchLeaveRowsForClassIds(classIds, 50),
-    (async () => {
-     if (!supabase) return [] as TrialBrief[]
-     const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-      const { data, error } = await supabase!
-       .from("trial_sessions")
-       .select(
-        "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+   const restFuture =
+    toYmd > today ? await fetchSchedulesInRange(addDaysYmd(today, 1), toYmd, { teacherId }) : []
+   const pastForRoll =
+    PAST_ROLLCALL_LOOKBACK_DAYS > 0
+     ? await fetchSchedulesInRange(
+        addDaysYmd(today, -PAST_ROLLCALL_LOOKBACK_DAYS),
+        addDaysYmd(today, -1),
+        { teacherId }
        )
-       .in("class_id", slice)
-       .gte("trial_date", today)
-       .order("trial_date", { ascending: true })
-      if (error) throw error
-      return data ?? []
-     })
-     return chunks.flat().map((row) => {
-      const r = row as Record<string, unknown>
-      const st = r.students as Record<string, unknown> | null
-      const cls = r.classes as Record<string, unknown> | null
-      const sub = cls?.subject != null ? String(cls.subject) : "—"
-      const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
-      const course = cls?.courses as Record<string, unknown> | null
-      const courseName = course?.course_name != null ? String(course.course_name) : null
-      return {
-       id: String(r.id),
-       studentName: st?.full_name != null ? String(st.full_name) : "—",
-       classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
-       scheduleId: String(r.schedule_id ?? ""),
-       trialDate: String(r.trial_date ?? ""),
-       status: String(r.status ?? ""),
-      } satisfies TrialBrief
-     })
-    })(),
-    fetchPendingRollCallRemindersForTeacher(teacherId, today),
-    findSchedulesMissingAttendance(
-     schedList.filter((s) => s.scheduled_date < today && s.class_id != null)
-    ),
-    fetchScheduleAlerts(schedList, rosterContext),
-   ])
+     : []
+   const merged = mergeSchedules(mergeSchedules(todayRows, restFuture), pastForRoll)
+   setSchedules(merged)
+   setLoadedFromYmd(addDaysYmd(today, -PAST_ROLLCALL_LOOKBACK_DAYS))
+   setLoadedToYmd(toYmd)
 
-   let partialFailed = false
-   if (leaveRes.status === "fulfilled") {
-    setLeaves(leaveRes.value)
-   } else {
-    reportUserFacingError(leaveRes.reason, { source: "TeacherHomeView.loadLeaves" })
-    partialFailed = true
-    setLeaves([])
-   }
-   if (trialRes.status === "fulfilled") {
-    setTrials(trialRes.value)
-   } else {
-    reportUserFacingError(trialRes.reason, { source: "TeacherHomeView.loadTrials" })
-    partialFailed = true
-    setTrials([])
-   }
-   if (rollRes.status === "fulfilled") {
-    setPendingRollCalls(rollRes.value)
-   } else {
-    reportUserFacingError(rollRes.reason, { source: "TeacherHomeView.loadRollCallReminders" })
-    partialFailed = true
-    setPendingRollCalls([])
-   }
-   if (pastRollRes.status === "fulfilled") {
-    setPastPendingRollCalls(pastRollRes.value)
-   } else {
-    reportUserFacingError(pastRollRes.reason, { source: "TeacherHomeView.loadPastRollCallReminders" })
-    partialFailed = true
-    setPastPendingRollCalls([])
-   }
-   if (alertsRes.status === "fulfilled") {
-    setScheduleAlerts(alertsRes.value)
-   } else {
-    reportUserFacingError(alertsRes.reason, { source: "TeacherHomeView.loadScheduleAlerts" })
-    partialFailed = true
-    setScheduleAlerts(new Map())
-   }
-
-   if (partialFailed) {
-    setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
-   }
+   void loadMetaForSchedules(merged, mine.map((c) => c.id))
   } catch (e) {
    reportUserFacingError(e, { source: "TeacherHomeView.load", setErr })
    setClasses([])
@@ -224,7 +258,35 @@ export function TeacherHomeView() {
    setPastPendingRollCalls([])
    setLoading(false)
   }
- }, [teacherId, today, scheduleFrom, scheduleTo])
+ }, [teacherId, today, mergeSchedules, loadMetaForSchedules])
+
+ const extendLoadedRange = useCallback(
+  async (direction: "earlier" | "later") => {
+   if (!teacherId || rangeExtending) return
+   setRangeExtending(true)
+   try {
+    if (direction === "earlier") {
+     const newFrom = addDaysYmd(loadedFromYmd, -EXTEND_DAYS)
+     const newTo = addDaysYmd(loadedFromYmd, -1)
+     if (newTo < newFrom) return
+     const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
+     setSchedules((prev) => mergeSchedules(prev, more))
+     setLoadedFromYmd(newFrom)
+    } else {
+     const newFrom = addDaysYmd(loadedToYmd, 1)
+     const newTo = addDaysYmd(loadedToYmd, EXTEND_DAYS)
+     const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
+     setSchedules((prev) => mergeSchedules(prev, more))
+     setLoadedToYmd(newTo)
+    }
+   } catch (e) {
+    reportUserFacingError(e, { source: "TeacherHomeView.extendLoadedRange", setErr })
+   } finally {
+    setRangeExtending(false)
+   }
+  },
+  [teacherId, rangeExtending, loadedFromYmd, loadedToYmd, mergeSchedules]
+ )
 
  useEffect(() => {
   void load()
@@ -261,14 +323,24 @@ export function TeacherHomeView() {
    <header className="rounded-2xl border border-info/30 bg-info/5 p-4 shadow-sm md:p-8">
     <p className="text-sm font-medium uppercase tracking-wide text-info">專班老師工作台</p>
     <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
-     {loading ? "載入中…" : `您好，${teacherName}`}
+     {loading && teacherName === "老師" ? (
+      <span className="inline-block h-9 w-48 animate-pulse rounded-md bg-muted" aria-label="載入中" />
+     ) : (
+      `您好，${teacherName}`
+     )}
     </h1>
     <p className="mt-2 text-sm text-muted-foreground md:mt-3 md:max-w-3xl md:text-base">
      {isMobile ? (
-      <>今日有 {todaySchedules.length} 堂課 · 僅顯示指派給您的班別</>
+      <>
+       今日有 {loading ? "…" : todaySchedules.length} 堂課
+       {metaLoading ? " · 標記載入中…" : null}
+      </>
      ) : (
       <>
-       此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有 {todaySchedules.length} 堂課。
+       此頁僅顯示<strong>指派給您</strong>的班別與排程。今日有{" "}
+       {loading ? "…" : todaySchedules.length} 堂課
+       {metaLoading ? " · 試堂／請假標記載入中…" : null}
+       。預設載入近 14 天，更遠課堂請在時間表用箭咀繼續載入。
       </>
      )}
     </p>
@@ -502,7 +574,10 @@ export function TeacherHomeView() {
      </Button>
     </div>
     {loading ? (
-     <p className="text-muted-foreground">載入中…</p>
+     <div className="space-y-3" aria-label="載入中">
+      <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
+      <div className="h-48 animate-pulse rounded-xl bg-muted/70" />
+     </div>
     ) : isMobile ? (
      <div className="space-y-5">
       {upcomingDayGroups.map((group) => (
@@ -559,7 +634,14 @@ export function TeacherHomeView() {
       ))}
      </div>
     ) : (
-     <TeacherWeekTimetable items={weekItemsFromManageRows(schedules)} />
+     <TeacherWeekTimetable
+      items={weekItemsFromManageRows(schedules)}
+      loadedFromYmd={loadedFromYmd}
+      loadedToYmd={loadedToYmd}
+      rangeExtending={rangeExtending}
+      onRequestLoadEarlier={() => extendLoadedRange("earlier")}
+      onRequestLoadLater={() => extendLoadedRange("later")}
+     />
     )}
    </section>
 
@@ -614,7 +696,13 @@ export function TeacherHomeView() {
              {s.teacher_name ?? "—"}
             </span>
             <span>位置：{s.classroom_name ?? "課室未定"}</span>
-            <span>{s.enrollCount} 人報讀</span>
+            <span>
+             {s.enrollCount == null ? (
+              <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle" />
+             ) : (
+              `${s.enrollCount} 人報讀`
+             )}
+            </span>
             {s.teaching_notes?.trim() ? (
              <Tag tone="info" size="sm">已有教學紀錄</Tag>
             ) : null}

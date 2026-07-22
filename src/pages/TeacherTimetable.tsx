@@ -14,21 +14,33 @@ import { listCalendarEventsInRange, type CalendarEventRow } from "@/services/cal
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
-/** 約 ±18 週，供週視圖前後翻頁不需再請求 */
-const PAST_DAYS = 120
-const FUTURE_DAYS = 120
+/** 首屏近 14 天；翻週超出時再加載 */
+const INITIAL_FUTURE_DAYS = 13
+const INITIAL_PAST_DAYS = 14
+const EXTEND_DAYS = 14
 
 export default function TeacherTimetablePage() {
  const teacherId = getTeacherScopeTeacherId()
  const today = localYmd()
- const fromYmd = addDaysYmd(today, -PAST_DAYS)
- const toYmd = addDaysYmd(today, FUTURE_DAYS)
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [calendarRows, setCalendarRows] = useState<CalendarEventRow[]>([])
  const [loading, setLoading] = useState(true)
+ const [rangeExtending, setRangeExtending] = useState(false)
+ const [loadedFromYmd, setLoadedFromYmd] = useState(() => addDaysYmd(today, -INITIAL_PAST_DAYS))
+ const [loadedToYmd, setLoadedToYmd] = useState(() => addDaysYmd(today, INITIAL_FUTURE_DAYS))
  const [err, setErr] = useState<string | null>(null)
  const exportDisabled = loading || (rows.length === 0 && calendarRows.length === 0)
+
+ const mergeSchedules = useCallback((prev: ScheduleManageRow[], next: ScheduleManageRow[]) => {
+  const byId = new Map(prev.map((s) => [s.id, s]))
+  for (const row of next) byId.set(row.id, row)
+  return [...byId.values()].sort((a, b) => {
+   const byDate = a.scheduled_date.localeCompare(b.scheduled_date)
+   if (byDate !== 0) return byDate
+   return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
+  })
+ }, [])
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured || !teacherId) {
@@ -37,13 +49,21 @@ export default function TeacherTimetablePage() {
   }
   setLoading(true)
   setErr(null)
+  const fromYmd = addDaysYmd(today, -INITIAL_PAST_DAYS)
+  const toYmd = addDaysYmd(today, INITIAL_FUTURE_DAYS)
   try {
+   const todayRows = await fetchSchedulesInRange(today, today, { teacherId })
+   setRows(todayRows)
+   setLoading(false)
+
    const [list, calList] = await Promise.all([
     fetchSchedulesInRange(fromYmd, toYmd, { teacherId }),
     listCalendarEventsInRange(fromYmd, toYmd, { teacherId }),
    ])
    setRows(list)
    setCalendarRows(calList)
+   setLoadedFromYmd(fromYmd)
+   setLoadedToYmd(toYmd)
   } catch (e) {
    setErr(formatUnknownError(e))
    setRows([])
@@ -51,7 +71,50 @@ export default function TeacherTimetablePage() {
   } finally {
    setLoading(false)
   }
- }, [teacherId, fromYmd, toYmd])
+ }, [teacherId, today])
+
+ const extendLoadedRange = useCallback(
+  async (direction: "earlier" | "later") => {
+   if (!teacherId || rangeExtending) return
+   setRangeExtending(true)
+   try {
+    if (direction === "earlier") {
+     const newFrom = addDaysYmd(loadedFromYmd, -EXTEND_DAYS)
+     const newTo = addDaysYmd(loadedFromYmd, -1)
+     const [more, calMore] = await Promise.all([
+      fetchSchedulesInRange(newFrom, newTo, { teacherId }),
+      listCalendarEventsInRange(newFrom, newTo, { teacherId }),
+     ])
+     setRows((prev) => mergeSchedules(prev, more))
+     setCalendarRows((prev) => {
+      const byId = new Map(prev.map((e) => [e.id, e]))
+      for (const e of calMore) byId.set(e.id, e)
+      return [...byId.values()]
+     })
+     setLoadedFromYmd(newFrom)
+    } else {
+     const newFrom = addDaysYmd(loadedToYmd, 1)
+     const newTo = addDaysYmd(loadedToYmd, EXTEND_DAYS)
+     const [more, calMore] = await Promise.all([
+      fetchSchedulesInRange(newFrom, newTo, { teacherId }),
+      listCalendarEventsInRange(newFrom, newTo, { teacherId }),
+     ])
+     setRows((prev) => mergeSchedules(prev, more))
+     setCalendarRows((prev) => {
+      const byId = new Map(prev.map((e) => [e.id, e]))
+      for (const e of calMore) byId.set(e.id, e)
+      return [...byId.values()]
+     })
+     setLoadedToYmd(newTo)
+    }
+   } catch (e) {
+    setErr(formatUnknownError(e))
+   } finally {
+    setRangeExtending(false)
+   }
+  },
+  [teacherId, rangeExtending, loadedFromYmd, loadedToYmd, mergeSchedules]
+ )
 
  useEffect(() => {
   void load()
@@ -71,7 +134,8 @@ export default function TeacherTimetablePage() {
     <div>
      <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">時間表</h1>
      <p className="mt-2 max-w-2xl text-muted-foreground">
-      週視圖與老師詳情頁相同；左右切換週次或使用日期跳轉。已載入約 {PAST_DAYS + FUTURE_DAYS} 日內的排程。
+      預設載入近 {INITIAL_PAST_DAYS + INITIAL_FUTURE_DAYS + 1}{" "}
+      天；翻到已載入範圍外時會提示繼續載入。今日課堂會優先顯示。
      </p>
     </div>
     <div className="flex max-w-sm flex-col items-stretch gap-2">
@@ -96,10 +160,20 @@ export default function TeacherTimetablePage() {
    {err ? (
     <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
-   {loading ? (
-    <p className="text-muted-foreground">載入中…</p>
+   {loading && rows.length === 0 ? (
+    <div className="space-y-3" aria-label="載入中">
+     <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
+     <div className="h-64 animate-pulse rounded-xl bg-muted/70" />
+    </div>
    ) : (
-    <TeacherWeekTimetable items={weekItemsFromManageRows(rows)} />
+    <TeacherWeekTimetable
+     items={weekItemsFromManageRows(rows)}
+     loadedFromYmd={loadedFromYmd}
+     loadedToYmd={loadedToYmd}
+     rangeExtending={rangeExtending}
+     onRequestLoadEarlier={() => extendLoadedRange("earlier")}
+     onRequestLoadLater={() => extendLoadedRange("later")}
+    />
    )}
    <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
     <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
@@ -107,7 +181,7 @@ export default function TeacherTimetablePage() {
      我的行政事件
     </h2>
     <p className="mt-1 text-sm text-muted-foreground">此區塊來自待辦事項，與課堂排程分開。</p>
-    {loading ? (
+    {loading && calendarRows.length === 0 ? (
      <p className="mt-3 text-muted-foreground">載入中…</p>
     ) : calendarRows.length === 0 ? (
      <p className="mt-3 text-sm text-muted-foreground">目前沒有與您相關的行政事件。</p>

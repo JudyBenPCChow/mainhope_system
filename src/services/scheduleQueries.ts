@@ -60,7 +60,8 @@ export type ScheduleManageRow = {
  original_teacher_name: string | null
  classroom_id: string | null
  classroom_name: string | null
- enrollCount: number
+ /** null＝名單／報讀人數尚未載入（勿當成 0） */
+ enrollCount: number | null
 }
 
 export type ScheduleAlerts = {
@@ -72,7 +73,7 @@ export type ScheduleAlerts = {
 
 function mapScheduleRow(
  row: Record<string, unknown>,
- enrollMap: Map<string, number>
+ enrollMap?: Map<string, number> | null
 ): ScheduleManageRow {
  const cls = row.classes as Record<string, unknown> | null
  const tch = row.teachers as Record<string, unknown> | null
@@ -125,8 +126,42 @@ function mapScheduleRow(
    origTch?.full_name != null ? String(origTch.full_name) : null,
   classroom_id: row.classroom_id != null ? String(row.classroom_id) : null,
   classroom_name: rm?.name != null ? String(rm.name) : null,
-  enrollCount: cid ? enrollMap.get(cid) ?? 0 : 0,
+  enrollCount: enrollMap == null ? null : cid ? (enrollMap.get(cid) ?? 0) : 0,
  }
+}
+
+/** 用 roster 補報讀人數（及 roster 內較完整的班別 meta） */
+export function enrichScheduleRowsWithRosterContext(
+ rows: ScheduleManageRow[],
+ rosterContext: ScheduleRosterContext
+): ScheduleManageRow[] {
+ const enrollMap = new Map<string, number>()
+ for (const enrollment of rosterContext.enrollments) {
+  enrollMap.set(enrollment.classId, (enrollMap.get(enrollment.classId) ?? 0) + 1)
+ }
+ const scheduleContextById = new Map(rosterContext.schedules.map((row) => [row.id, row]))
+ return rows.map((mapped) => {
+  const context = scheduleContextById.get(mapped.id)
+  const enrollCount = mapped.class_id ? (enrollMap.get(mapped.class_id) ?? 0) : 0
+  if (!context?.classId) return { ...mapped, enrollCount }
+  const subject = context.subject ?? mapped.subject
+  return {
+   ...mapped,
+   enrollCount,
+   subject,
+   class_kind: resolveClassKind(context.classKind, subject),
+   course_name: context.courseName ?? mapped.course_name,
+   classLabel: formatClassLabel({
+    subject,
+    courseCode: context.courseCodeFull ?? mapped.course_code_full,
+    courseName: context.courseName ?? mapped.course_name,
+   }),
+   course_code_full: context.courseCodeFull ?? mapped.course_code_full,
+   class_day_of_week: context.dayOfWeek ?? mapped.class_day_of_week,
+   class_time_slot: context.timeSlot ?? mapped.class_time_slot,
+   class_lesson_slots_per_session: context.lessonSlotsPerSession ?? mapped.class_lesson_slots_per_session,
+  }
+ })
 }
 
 /** 老師範圍：現任或原任（代堂後雙方都看得到） */
@@ -243,14 +278,13 @@ export async function fetchDayViewRosterBySchedules(
  return m
 }
 
-export async function fetchSchedulesInRangeWithRosterContext(
+/** 只撈排程列（不含 roster／報讀人數）。班名等來自 schedules↔classes join。 */
+export async function fetchSchedulesInRange(
  fromYmd: string,
  toYmd: string,
  opts?: { teacherId?: string | null }
-): Promise<{ rows: ScheduleManageRow[]; rosterContext: ScheduleRosterContext }> {
- if (!supabase) {
-  return { rows: [], rosterContext: await fetchScheduleRosterContext([]) }
- }
+): Promise<ScheduleManageRow[]> {
+ if (!supabase) return []
  let q = supabase
   .from("schedules")
   .select(SCHEDULE_MANAGE_SELECT)
@@ -259,43 +293,21 @@ export async function fetchSchedulesInRangeWithRosterContext(
  if (opts?.teacherId) q = applyTeacherScheduleScope(q, opts.teacherId)
  const { data, error } = await q.order("scheduled_date", { ascending: true }).order("start_time", { ascending: true })
  if (error) throw error
- const rows = (data ?? []) as Record<string, unknown>[]
- const rosterContext = await fetchScheduleRosterContext(rows.map((row) => String(row.id)))
- const enrollMap = new Map<string, number>()
- for (const enrollment of rosterContext.enrollments) {
-  enrollMap.set(enrollment.classId, (enrollMap.get(enrollment.classId) ?? 0) + 1)
- }
- const scheduleContextById = new Map(rosterContext.schedules.map((row) => [row.id, row]))
- const mappedRows = rows.map((r) => {
-  const mapped = mapScheduleRow(r, enrollMap)
-  const context = scheduleContextById.get(mapped.id)
-  if (!context?.classId) return mapped
-  const subject = context.subject ?? mapped.subject
-  return {
-   ...mapped,
-   subject,
-   class_kind: resolveClassKind(context.classKind, subject),
-   course_name: context.courseName,
-   classLabel: formatClassLabel({
-    subject,
-    courseCode: context.courseCodeFull,
-    courseName: context.courseName,
-   }),
-   course_code_full: context.courseCodeFull,
-   class_day_of_week: context.dayOfWeek,
-   class_time_slot: context.timeSlot,
-   class_lesson_slots_per_session: context.lessonSlotsPerSession,
-  }
- })
- return { rows: mappedRows, rosterContext }
+ return ((data ?? []) as Record<string, unknown>[]).map((r) => mapScheduleRow(r, null))
 }
 
-export async function fetchSchedulesInRange(
+/** 排程列 + 全區間 roster（點名資格／badge／人數）。列表首屏請先用 fetchSchedulesInRange。 */
+export async function fetchSchedulesInRangeWithRosterContext(
  fromYmd: string,
  toYmd: string,
  opts?: { teacherId?: string | null }
-): Promise<ScheduleManageRow[]> {
- return (await fetchSchedulesInRangeWithRosterContext(fromYmd, toYmd, opts)).rows
+): Promise<{ rows: ScheduleManageRow[]; rosterContext: ScheduleRosterContext }> {
+ const rows = await fetchSchedulesInRange(fromYmd, toYmd, opts)
+ const rosterContext = await fetchScheduleRosterContext(rows.map((row) => row.id))
+ return {
+  rows: enrichScheduleRowsWithRosterContext(rows, rosterContext),
+  rosterContext,
+ }
 }
 
 export async function fetchScheduleAlerts(

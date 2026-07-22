@@ -995,14 +995,15 @@ export async function findSchedulesMissingAttendance(
   | "end_time"
   | "status"
   | "consecutive_group_id"
- >[]
+ >[],
+ rosterContext?: ScheduleRosterContext
 ): Promise<PendingRollCallReminder[]> {
  const mine = schedules.filter((s) => {
   if (String(s.status ?? "").includes("取消")) return false
   return s.class_id != null && String(s.class_id).length > 0
  })
  if (mine.length === 0) return []
- const withTargets = await fetchScheduleIdsWithRollCallTargets(mine)
+ const withTargets = await fetchScheduleIdsWithRollCallTargets(mine, rosterContext)
  const candidates = mine.filter((s) => withTargets.has(s.id))
  if (candidates.length === 0) return []
  const done = await fetchScheduleIdsWithAttendance(candidates.map((s) => s.id))

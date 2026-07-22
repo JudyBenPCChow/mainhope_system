@@ -90,9 +90,23 @@ function formatWeekTitle(mondayYmd: string): string {
 
 type Props = {
  items: WeekTimetableItem[]
+ /** 目前已載入的日期下界（含） */
+ loadedFromYmd?: string
+ /** 目前已載入的日期上界（含） */
+ loadedToYmd?: string
+ rangeExtending?: boolean
+ onRequestLoadEarlier?: () => void | Promise<void>
+ onRequestLoadLater?: () => void | Promise<void>
 }
 
-export function TeacherWeekTimetable({ items }: Props) {
+export function TeacherWeekTimetable({
+ items,
+ loadedFromYmd,
+ loadedToYmd,
+ rangeExtending,
+ onRequestLoadEarlier,
+ onRequestLoadLater,
+}: Props) {
  const [weekMondayYmd, setWeekMondayYmd] = useState(() => mondayYmdOfWeekContaining(localYmd()))
  const [pickerYmd, setPickerYmd] = useState(() => localYmd())
 
@@ -100,6 +114,12 @@ export function TeacherWeekTimetable({ items }: Props) {
   () => Array.from({ length: 7 }, (_, i) => addDaysYmd(weekMondayYmd, i)),
   [weekMondayYmd]
  )
+
+ const weekEndYmd = useMemo(() => addDaysYmd(weekMondayYmd, 6), [weekMondayYmd])
+ const needEarlier =
+  loadedFromYmd != null && weekMondayYmd < loadedFromYmd && Boolean(onRequestLoadEarlier)
+ const needLater =
+  loadedToYmd != null && weekEndYmd > loadedToYmd && Boolean(onRequestLoadLater)
 
  const slotMatches = useMemo(() => {
   const grid = new Map<string, WeekTimetableItem[]>()
@@ -120,21 +140,59 @@ export function TeacherWeekTimetable({ items }: Props) {
   return { timePct, each }
  }, [])
 
- const goPrevWeek = () => setWeekMondayYmd((m) => addDaysYmd(m, -7))
- const goNextWeek = () => setWeekMondayYmd((m) => addDaysYmd(m, 7))
+ const goPrevWeek = () => {
+  const nextMonday = addDaysYmd(weekMondayYmd, -7)
+  if (loadedFromYmd && nextMonday < loadedFromYmd && onRequestLoadEarlier) {
+   void Promise.resolve(onRequestLoadEarlier()).then(() => setWeekMondayYmd(nextMonday))
+   return
+  }
+  setWeekMondayYmd(nextMonday)
+ }
+ const goNextWeek = () => {
+  const nextMonday = addDaysYmd(weekMondayYmd, 7)
+  const nextEnd = addDaysYmd(nextMonday, 6)
+  if (loadedToYmd && nextEnd > loadedToYmd && onRequestLoadLater) {
+   void Promise.resolve(onRequestLoadLater()).then(() => setWeekMondayYmd(nextMonday))
+   return
+  }
+  setWeekMondayYmd(nextMonday)
+ }
 
  const applyPicker = () => {
-  setWeekMondayYmd(mondayYmdOfWeekContaining(pickerYmd))
+  const monday = mondayYmdOfWeekContaining(pickerYmd)
+  const end = addDaysYmd(monday, 6)
+  const tasks: Promise<void>[] = []
+  if (loadedFromYmd && monday < loadedFromYmd && onRequestLoadEarlier) {
+   tasks.push(Promise.resolve(onRequestLoadEarlier()))
+  }
+  if (loadedToYmd && end > loadedToYmd && onRequestLoadLater) {
+   tasks.push(Promise.resolve(onRequestLoadLater()))
+  }
+  void Promise.all(tasks).then(() => setWeekMondayYmd(monday))
  }
 
  return (
   <div className="mx-auto max-w-[110rem] space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-3">
     <div className="flex flex-wrap items-center gap-2">
-     <Button type="button" variant="outline" size="icon" onClick={goPrevWeek} aria-label="上一週">
+     <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      onClick={goPrevWeek}
+      disabled={rangeExtending}
+      aria-label="上一週"
+     >
       <ChevronLeft className="h-4 w-4" />
      </Button>
-     <Button type="button" variant="outline" size="icon" onClick={goNextWeek} aria-label="下一週">
+     <Button
+      type="button"
+      variant="outline"
+      size="icon"
+      onClick={goNextWeek}
+      disabled={rangeExtending}
+      aria-label="下一週"
+     >
       <ChevronRight className="h-4 w-4" />
      </Button>
      <h2 className="text-base font-semibold text-foreground md:text-lg">
@@ -149,7 +207,7 @@ export function TeacherWeekTimetable({ items }: Props) {
       value={pickerYmd}
       onChange={(e) => setPickerYmd(e.target.value)}
      />
-     <Button type="button" variant="secondary" size="sm" onClick={applyPicker}>
+     <Button type="button" variant="secondary" size="sm" onClick={applyPicker} disabled={rangeExtending}>
       顯示該週
      </Button>
     </div>
@@ -157,7 +215,23 @@ export function TeacherWeekTimetable({ items }: Props) {
 
    <p className="text-sm text-muted-foreground">
     橫軸為本週一至日；直軸為預設堂數格（每格 75 分鐘）。點卡片可開啟排程詳情。
+    {rangeExtending ? " 正在載入更多課堂…" : null}
    </p>
+
+   {(needEarlier || needLater) && !rangeExtending ? (
+    <div className="flex flex-wrap gap-2">
+     {needEarlier ? (
+      <Button type="button" variant="outline" size="sm" onClick={() => void onRequestLoadEarlier?.()}>
+       載入更早的課堂
+      </Button>
+     ) : null}
+     {needLater ? (
+      <Button type="button" variant="outline" size="sm" onClick={() => void onRequestLoadLater?.()}>
+       載入更晚的課堂
+      </Button>
+     ) : null}
+    </div>
+   ) : null}
 
    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
     <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-xs md:text-sm">

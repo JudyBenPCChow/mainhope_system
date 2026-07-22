@@ -162,6 +162,18 @@ export async function fetchAllClasses(): Promise<ClassRecord[]> {
  return (data ?? []).map((x) => mapClassRow(x as Record<string, unknown>))
 }
 
+/** 僅主責老師的班別（老師首頁用，避免全表 fetchAllClasses） */
+export async function fetchClassesByTeacherId(teacherId: string): Promise<ClassRecord[]> {
+ if (!supabase || !teacherId) return []
+ const { data, error } = await supabase
+  .from("classes")
+  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
+  .eq("teacher_id", teacherId)
+  .order("course_code_full", { ascending: true, nullsFirst: false })
+ if (error) throw error
+ return (data ?? []).map((x) => mapClassRow(x as Record<string, unknown>))
+}
+
 export async function getClassById(id: string): Promise<ClassRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase
