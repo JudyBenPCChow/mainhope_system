@@ -1,17 +1,13 @@
 import QRCode from "qrcode"
 
-import { formatClassLabel } from "@/lib/courseLabel"
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
 import { buildPortalActivateUrl, getPortalBaseUrl } from "@/lib/portalConfig"
-import { supabase } from "@/lib/supabaseClient"
-import { addDaysYmd, weekdayLabelFromYmd } from "@/lib/weekdayUtils"
 import { PAYMENT_STATUS, type PaymentFull } from "@/services/paymentQueries"
 import {
  createPortalInviteForStudent,
  fetchPortalInvitesForStudent,
 } from "@/services/portalInviteQueries"
-import { fetchLeaveForStudent } from "@/services/studentQueries"
 
 const COMPANY = {
  nameZh: "明學教育",
@@ -38,29 +34,8 @@ const BRAND = {
 } as const
 
 const PRINT_TITLE = "收據"
-const SCHEDULE_HORIZON_DAYS = 62
-const SCHEDULE_ROW_CAP = 80
-const LEAVE_ROW_CAP = 20
-
-export type ReceiptScheduleRow = {
- date: string
- weekdayShort: string
- timeLabel: string
- classLabel: string
- teacherName: string
- roomName: string
-}
-
-export type ReceiptLeaveRow = {
- date: string
- classLabel: string
- reason: string
- status: string
-}
 
 export type PaymentReceiptOptions = {
- schedules?: ReceiptScheduleRow[]
- leaves?: ReceiptLeaveRow[]
  portalInviteUrl?: string
  portalQrDataUrl?: string | null
 }
@@ -81,32 +56,11 @@ function hkd(n: number): string {
  })}`
 }
 
-function hmSlice(raw: string | null | undefined): string | null {
- if (!raw) return null
- const s = String(raw).trim()
- if (!s) return null
- return s.slice(0, 5)
-}
-
-function formatTimeRange(start: string | null, end: string | null): string {
- const a = hmSlice(start)
- const b = hmSlice(end)
- if (a && b) return `${a}–${b}`
- if (a) return a
- return "—"
-}
-
-function weekdayShortFromYmd(ymd: string): string {
- const full = weekdayLabelFromYmd(ymd)
- if (!full) return ""
- return full.replace(/^星期/, "")
-}
-
 function isReceivedStatus(status: string): boolean {
  return status === PAYMENT_STATUS.received || status.includes("已收")
 }
 
-function docTitleFor(_p: PaymentFull): string {
+function docTitleFor(): string {
  return "收據"
 }
 
@@ -123,88 +77,6 @@ function discountStepLabel(step: {
  if (step.percentOff != null && step.percentOff > 0) bits.push(`減免 ${step.percentOff}%`)
  else if (step.amountOff != null && step.amountOff > 0) bits.push(`減 ${hkd(step.amountOff)}`)
  return bits.join(" · ")
-}
-
-function paidLessonCap(p: PaymentFull): number | null {
- let n = 0
- let any = false
- for (const d of p.details) {
-  if (d.lessonCount != null && Number.isFinite(d.lessonCount) && d.lessonCount > 0) {
-   n += d.lessonCount
-   any = true
-  }
- }
- return any ? n : null
-}
-
-function addMonthsApproxYmd(ymd: string, months: number): string {
- const [y, m, d] = ymd.split("-").map(Number)
- if (!y || !m || !d) return addDaysYmd(ymd, SCHEDULE_HORIZON_DAYS)
- const dt = new Date(y, m - 1 + months, d)
- const yy = dt.getFullYear()
- const mm = String(dt.getMonth() + 1).padStart(2, "0")
- const dd = String(dt.getDate()).padStart(2, "0")
- return `${yy}-${mm}-${dd}`
-}
-
-/** 依本單班別，取收款日起約兩個月內的預定排程（排除取消）。 */
-export async function fetchPaymentReceiptSchedules(p: PaymentFull): Promise<ReceiptScheduleRow[]> {
- if (!supabase) return []
- const classIds = [
-  ...new Set(p.details.map((d) => d.classId).filter((id): id is string => Boolean(id))),
- ]
- if (classIds.length === 0) return []
-
- const fromYmd = (p.paymentDate || "").slice(0, 10) || addDaysYmd(new Date().toISOString().slice(0, 10), 0)
- const toYmd = addMonthsApproxYmd(fromYmd, 2)
-
- const { data, error } = await supabase
-  .from("schedules")
-  .select(
-   "scheduled_date, start_time, end_time, status, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), classrooms ( name )"
-  )
-  .in("class_id", classIds)
-  .gte("scheduled_date", fromYmd)
-  .lte("scheduled_date", toYmd)
-  .order("scheduled_date", { ascending: true })
-  .order("start_time", { ascending: true })
-  .limit(SCHEDULE_ROW_CAP)
-
- if (error) throw error
-
- const rows: ReceiptScheduleRow[] = []
- for (const raw of data ?? []) {
-  const r = raw as Record<string, unknown>
-  if (String(r.status ?? "").includes("取消")) continue
-  const date = String(r.scheduled_date ?? "").slice(0, 10)
-  if (!date) continue
-  const cls = r.classes as Record<string, unknown> | null
-  const course = cls?.courses as Record<string, unknown> | null
-  const tch = r.teachers as Record<string, unknown> | null
-  const room = r.classrooms as Record<string, unknown> | null
-  const code = cls?.course_code_full != null ? String(cls.course_code_full).trim() : ""
-  const classLabel =
-   code ||
-   formatClassLabel({
-    subject: cls?.subject != null ? String(cls.subject) : "—",
-    courseCode: code || null,
-    courseName: course?.course_name != null ? String(course.course_name) : null,
-   })
-  rows.push({
-   date,
-   weekdayShort: weekdayShortFromYmd(date),
-   timeLabel: formatTimeRange(
-    r.start_time != null ? String(r.start_time) : null,
-    r.end_time != null ? String(r.end_time) : null
-   ),
-   classLabel,
-   teacherName: tch?.full_name != null ? String(tch.full_name) : "—",
-   roomName: room?.name != null ? String(room.name) : "—",
-  })
- }
-
- const cap = paidLessonCap(p)
- return cap != null ? rows.slice(0, cap) : rows
 }
 
 function buildPrintStyles(): string {
@@ -247,6 +119,8 @@ function buildPrintStyles(): string {
       padding: 0;
       box-shadow: none;
     }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
   }
   .header {
     display: flex;
@@ -499,19 +373,6 @@ function buildPrintStyles(): string {
     color: ${BRAND.muted};
     word-break: break-all;
   }
-  .empty-note {
-    margin: 0;
-    font-size: 10pt;
-    color: #666;
-  }
-  @media print {
-    .section-schedule, .section-leave {
-      break-inside: auto;
-      page-break-inside: auto;
-    }
-    thead { display: table-header-group; }
-    tfoot { display: table-footer-group; }
-  }
  `
 }
 
@@ -616,92 +477,6 @@ function buildChargesTableHtml(p: PaymentFull): string {
  </div>`
 }
 
-function buildScheduleSectionHtml(p: PaymentFull, schedules: ReceiptScheduleRow[]): string {
- const fromYmd = schedules[0]?.date ?? p.paymentDate
- const toYmd =
-  schedules.length > 0
-   ? schedules[schedules.length - 1]?.date ?? addMonthsApproxYmd(p.paymentDate, 2)
-   : addMonthsApproxYmd(p.paymentDate || new Date().toISOString().slice(0, 10), 2)
- const meta =
-  schedules.length > 0
-   ? `${fromYmd} → ${toYmd}　共 ${schedules.length} 堂　按日期排序`
-   : "本單暫無對應排程"
-
- const rows =
-  schedules.length === 0
-   ? `<tr><td colspan="5"><p class="empty-note">暫無已付款排程</p></td></tr>`
-   : schedules
-      .map((s) => {
-       const dateLabel = s.weekdayShort ? `${s.date} (${s.weekdayShort})` : s.date
-       return `<tr>
-        <td>${escHtml(dateLabel)}</td>
-        <td>${escHtml(s.timeLabel)}</td>
-        <td>${escHtml(s.classLabel)}</td>
-        <td>${escHtml(s.teacherName)}</td>
-        <td>${escHtml(s.roomName)}</td>
-       </tr>`
-      })
-      .join("")
-
- return `<section class="section section-schedule">
-  <div class="section-head">
-   <h2 class="section-title">已付款排程</h2>
-   <div class="section-meta">${escHtml(meta)}</div>
-  </div>
-  <table class="data zebra">
-   <thead>
-    <tr>
-     <th>日期</th>
-     <th>時間</th>
-     <th>班別</th>
-     <th>老師</th>
-     <th>課室</th>
-    </tr>
-   </thead>
-   <tbody>${rows}</tbody>
-  </table>
-  <p class="footnote">如時間有改動，以補習社最新通知 / 家長 Portal 為準。</p>
- </section>`
-}
-
-function buildLeaveSectionHtml(leaves: ReceiptLeaveRow[]): string {
- const body =
-  leaves.length === 0
-   ? `<tr><td colspan="4"><p class="empty-note">暫無請假紀錄</p></td></tr>`
-   : leaves
-      .map((l) => {
-       const dateLabel = (() => {
-        const w = weekdayShortFromYmd(l.date)
-        return w ? `${l.date} (${w})` : l.date
-       })()
-       return `<tr>
-        <td>${escHtml(dateLabel)}</td>
-        <td>${escHtml(l.classLabel)}</td>
-        <td>${escHtml(l.reason || "—")}</td>
-        <td>${escHtml(l.status || "—")}</td>
-       </tr>`
-      })
-      .join("")
-
- return `<section class="section section-leave">
-  <div class="section-head">
-   <h2 class="section-title">學生請假紀錄</h2>
-   <div class="section-meta">${leaves.length > 0 ? `共 ${leaves.length} 筆` : ""}</div>
-  </div>
-  <table class="data zebra">
-   <thead>
-    <tr>
-     <th>請假日期</th>
-     <th>班別</th>
-     <th>原因</th>
-     <th>狀態</th>
-    </tr>
-   </thead>
-   <tbody>${body}</tbody>
-  </table>
- </section>`
-}
-
 function buildPortalInviteSectionHtml(
  url: string,
  qrDataUrl: string | null,
@@ -741,10 +516,8 @@ function buildContactLines(): string {
 }
 
 function buildPrintBody(p: PaymentFull, opts: PaymentReceiptOptions = {}): string {
- const schedules = opts.schedules ?? []
- const leaves = opts.leaves ?? []
  const studentLabel = p.studentCode ? `${p.studentName} (${p.studentCode})` : p.studentName
- const title = docTitleFor(p)
+ const title = docTitleFor()
  const portalUrl = opts.portalInviteUrl?.trim() || getPortalBaseUrl() || COMPANY.website
  const portalQr = opts.portalQrDataUrl?.trim() || null
 
@@ -777,8 +550,6 @@ function buildPrintBody(p: PaymentFull, opts: PaymentReceiptOptions = {}): strin
    ${buildChargesTableHtml(p)}
   </section>
 
-  ${buildScheduleSectionHtml(p, schedules)}
-  ${buildLeaveSectionHtml(leaves)}
   ${buildPortalInviteSectionHtml(portalUrl, portalQr, p.studentName)}
  </div>`
 }
@@ -819,47 +590,21 @@ async function resolvePortalInviteUrl(studentId: string): Promise<string> {
  return COMPANY.website
 }
 
-/** 學生請假紀錄（優先本單班別；若無則顯示近期請假）。 */
-export async function fetchPaymentReceiptLeaves(p: PaymentFull): Promise<ReceiptLeaveRow[]> {
- if (!p.studentId) return []
- try {
-  const rows = await fetchLeaveForStudent(p.studentId)
-  const classIds = new Set(
-   p.details.map((d) => d.classId).filter((id): id is string => Boolean(id))
-  )
-  const preferred =
-   classIds.size > 0 ? rows.filter((r) => r.classId && classIds.has(r.classId)) : rows
-  const list = preferred.length > 0 ? preferred : rows
-  return list.slice(0, LEAVE_ROW_CAP).map((r) => ({
-   date: String(r.leave_date ?? "").slice(0, 10),
-   classLabel: r.classLabel || "—",
-   reason: r.leave_reason?.trim() || "—",
-   status: r.status || "—",
-  }))
- } catch {
-  return []
- }
-}
-
 async function loadReceiptExtras(p: PaymentFull): Promise<PaymentReceiptOptions> {
- const [schedules, leaves, portalInviteUrl] = await Promise.all([
-  fetchPaymentReceiptSchedules(p).catch(() => [] as ReceiptScheduleRow[]),
-  fetchPaymentReceiptLeaves(p),
-  resolvePortalInviteUrl(p.studentId),
- ])
+ const portalInviteUrl = await resolvePortalInviteUrl(p.studentId)
  const portalQrDataUrl = await buildPortalQrDataUrl(portalInviteUrl)
- return { schedules, leaves, portalInviteUrl, portalQrDataUrl }
+ return { portalInviteUrl, portalQrDataUrl }
 }
 
-/** 完整收據 HTML（預覽 iframe／列印共用）。可傳入已查好的排程／請假／QR。 */
+/** 完整收據 HTML（預覽 iframe／列印共用）。可傳入已查好的 Portal QR。 */
 export function buildPaymentReceiptDocumentHtml(
  p: PaymentFull,
  opts: PaymentReceiptOptions = {}
 ): string {
- return buildPrintableHtml(buildPrintBody(p, opts), docTitleFor(p))
+ return buildPrintableHtml(buildPrintBody(p, opts), docTitleFor())
 }
 
-/** 查排程、請假與 Portal QR 後產生完整收據 HTML。 */
+/** 查 Portal QR 後產生完整收據 HTML。 */
 export async function buildPaymentReceiptDocumentHtmlAsync(p: PaymentFull): Promise<string> {
  const extras = await loadReceiptExtras(p)
  return buildPaymentReceiptDocumentHtml(p, extras)
@@ -868,29 +613,29 @@ export async function buildPaymentReceiptDocumentHtmlAsync(p: PaymentFull): Prom
 /** 開啟瀏覽器列印視窗；待繳與已收款使用同一收據樣式（A4，可分頁）。 */
 export async function printPayment(
  p: PaymentFull,
- _kind?: "invoice" | "receipt",
+ kind?: "invoice" | "receipt",
  opts?: PaymentReceiptOptions
 ): Promise<boolean> {
+ void kind
  const extras =
-  opts?.schedules !== undefined &&
-  opts?.leaves !== undefined &&
-  opts?.portalQrDataUrl &&
-  opts?.portalInviteUrl
+  opts?.portalQrDataUrl && opts?.portalInviteUrl
    ? opts
    : { ...(await loadReceiptExtras(p)), ...opts }
- return openPrintableDocument(buildPrintBody(p, extras), docTitleFor(p))
+ return openPrintableDocument(buildPrintBody(p, extras), docTitleFor())
 }
 
 /** 待繳／待收款與已收款皆列印同一收據樣式。 */
 export async function printPaymentForStatus(
  p: PaymentFull,
- _status: string,
- _pendingStatuses: readonly string[]
+ status: string,
+ pendingStatuses: readonly string[]
 ): Promise<boolean> {
+ void status
+ void pendingStatuses
  return printPayment(p)
 }
 
-/** 模擬示範用假資料收據（含 logo、排程、請假、Portal QR）。 */
+/** 模擬示範用假資料收據（含 logo、Portal QR）。 */
 export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
  const demo: PaymentFull = {
   id: "demo-payment",
@@ -945,26 +690,10 @@ export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
   discountAmountOff: null,
  }
 
- const schedules: ReceiptScheduleRow[] = [
-  { date: "2026-07-20", weekdayShort: "一", timeLabel: "16:00–17:30", classLabel: "CHI-S3-A", teacherName: "樊老師", roomName: "課室 A" },
-  { date: "2026-07-22", weekdayShort: "三", timeLabel: "16:00–17:30", classLabel: "ENG-S3-B", teacherName: "Miss Cyndi", roomName: "課室 B" },
-  { date: "2026-07-27", weekdayShort: "一", timeLabel: "16:00–17:30", classLabel: "CHI-S3-A", teacherName: "樊老師", roomName: "課室 A" },
-  { date: "2026-07-29", weekdayShort: "三", timeLabel: "16:00–17:30", classLabel: "ENG-S3-B", teacherName: "Miss Cyndi", roomName: "課室 B" },
-  { date: "2026-08-03", weekdayShort: "一", timeLabel: "16:00–17:30", classLabel: "CHI-S3-A", teacherName: "樊老師", roomName: "課室 A" },
-  { date: "2026-08-05", weekdayShort: "三", timeLabel: "16:00–17:30", classLabel: "ENG-S3-B", teacherName: "Miss Cyndi", roomName: "課室 B" },
-  { date: "2026-08-10", weekdayShort: "一", timeLabel: "16:00–17:30", classLabel: "CHI-S3-A", teacherName: "樊老師", roomName: "課室 A" },
-  { date: "2026-08-12", weekdayShort: "三", timeLabel: "16:00–17:30", classLabel: "ENG-S3-B", teacherName: "Miss Cyndi", roomName: "課室 B" },
- ]
-
- const leaves: ReceiptLeaveRow[] = [
-  { date: "2026-06-15", classLabel: "中文專班 CHI-S3-A", reason: "身體不適", status: "已批核" },
-  { date: "2026-05-28", classLabel: "英文小組 ENG-S3-B", reason: "學校考試", status: "待補堂" },
- ]
-
  const demoToken = "demo-chenxiaoming-activate-only"
  const portalInviteUrl =
   buildPortalActivateUrl(demoToken) ??
   `${getPortalBaseUrl() || "https://mainhopeportal.vercel.app"}/activate?token=${encodeURIComponent(demoToken)}`
  const portalQrDataUrl = await buildPortalQrDataUrl(portalInviteUrl)
- return buildPaymentReceiptDocumentHtml(demo, { schedules, leaves, portalInviteUrl, portalQrDataUrl })
+ return buildPaymentReceiptDocumentHtml(demo, { portalInviteUrl, portalQrDataUrl })
 }
