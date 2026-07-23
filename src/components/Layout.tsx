@@ -17,11 +17,18 @@ import {
  flattenNav,
  pathIsActive,
 } from "@/lib/navStructure"
+import {
+ navCollapsedIconClass,
+ navFooterIconClass,
+ navGroupClass,
+ navL1Class,
+ navL1IconClass,
+ navL2Class,
+ navL2IconClass,
+ navL2RailClass,
+} from "@/lib/navItemStyles"
 import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
-
-const linkBase =
- "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2A4E8A]"
 
 function initialSidebarCollapsed(): boolean {
  if (typeof localStorage === "undefined") return false
@@ -140,13 +147,9 @@ export function Layout() {
           key={`${item.path}::${item.label}`}
           to={item.path}
           title={item.label}
-          className={cn(
-           linkBase,
-           "w-10 justify-center px-0 py-2.5",
-           active && "bg-white/18 font-medium shadow-inner ring-1 ring-white/10"
-          )}
+          className={navCollapsedIconClass({ active })}
          >
-          <Icon className="h-5 w-5 shrink-0 opacity-95" aria-hidden />
+          <Icon className={navL1IconClass} aria-hidden />
           <span className="sr-only">{item.label}</span>
          </Link>
         )
@@ -159,13 +162,9 @@ export function Layout() {
           <Link
            key={`${entry.path}::${entry.label}`}
            to={entry.path}
-           className={cn(
-            linkBase,
-            active && "bg-white/18 font-medium shadow-sm ring-1 ring-white/10",
-            !active && "hover:bg-white/10 hover:shadow-sm"
-           )}
+           className={navL1Class({ active })}
           >
-           <Icon className="h-5 w-5 shrink-0 opacity-95" aria-hidden />
+           <Icon className={navL1IconClass} aria-hidden />
            <span className="truncate">{entry.label}</span>
           </Link>
          )
@@ -179,12 +178,7 @@ export function Layout() {
          <div key={entry.id} className="flex flex-col gap-0.5">
           <button
            type="button"
-           className={cn(
-            linkBase,
-            "w-full justify-between text-left",
-            groupActive && "bg-white/10",
-            !groupActive && "hover:bg-white/10"
-           )}
+           className={navGroupClass({ childActive: groupActive })}
            aria-expanded={open}
            onClick={() =>
             setOpenGroups((prev) => {
@@ -196,7 +190,7 @@ export function Layout() {
            }
           >
            <span className="flex min-w-0 items-center gap-3">
-            <GroupIcon className="h-5 w-5 shrink-0 opacity-95" aria-hidden />
+            <GroupIcon className={navL1IconClass} aria-hidden />
             <span className="truncate font-medium">{entry.label}</span>
            </span>
            <ChevronDown
@@ -207,12 +201,7 @@ export function Layout() {
             aria-hidden
            />
           </button>
-          <div
-           className={cn(
-            "ml-2 space-y-0.5 overflow-hidden border-l border-white/15 pl-2 transition-all duration-200",
-            open ? "max-h-[28rem] py-1 opacity-100" : "max-h-0 py-0 opacity-0"
-           )}
-          >
+          <div className={navL2RailClass({ open })}>
            {open
             ? entry.children.map((child) => {
               const active = pathIsActive(location.pathname, child.path)
@@ -221,14 +210,9 @@ export function Layout() {
                <Link
                 key={`${child.path}::${child.label}`}
                 to={child.path}
-                className={cn(
-                 linkBase,
-                 "gap-2.5 py-2 pl-3 pr-2 text-[13px]",
-                 active && "bg-white/20 font-medium shadow-sm ring-1 ring-white/10",
-                 !active && "hover:bg-white/10"
-                )}
+                className={navL2Class({ active })}
                >
-                <ChildIcon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+                <ChildIcon className={navL2IconClass} aria-hidden />
                 <span className="truncate">{child.label}</span>
                </Link>
               )
@@ -263,10 +247,7 @@ export function Layout() {
           to={item.path}
           title={item.label}
           aria-label={item.label}
-          className={cn(
-           "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
-           active ? "bg-white/18 ring-1 ring-white/10" : "bg-white/10 hover:bg-white/15"
-          )}
+          className={navFooterIconClass({ active })}
          >
           <Icon className="h-4 w-4 opacity-95" aria-hidden />
           <span className="sr-only">{item.label}</span>
@@ -286,10 +267,7 @@ export function Layout() {
           to={item.path}
           title={item.label}
           aria-label={item.label}
-          className={cn(
-           "flex h-9 w-9 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
-           active ? "bg-white/18 ring-1 ring-white/10" : "hover:bg-white/10"
-          )}
+          className={navFooterIconClass({ active })}
          >
           <Icon className="h-4 w-4 opacity-95" aria-hidden />
           <span className="sr-only">{item.label}</span>
