@@ -14,10 +14,16 @@ import {
  type NavEntryDef,
  type Role,
 } from "@/lib/navStructure"
+import {
+ navFooterIconClass,
+ navGroupClass,
+ navL1Class,
+ navL1IconClass,
+ navL2Class,
+ navL2IconClass,
+ navL2RailClass,
+} from "@/lib/navItemStyles"
 import { cn } from "@/lib/utils"
-
-const linkBase =
- "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-white/40"
 
 type MobileNavDrawerProps = {
  open: boolean
@@ -135,10 +141,7 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
          title={item.label}
          aria-label={item.label}
          onClick={onClose}
-         className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/40",
-          active ? "bg-white/18 ring-1 ring-white/10" : "bg-white/10 hover:bg-white/15"
-         )}
+         className={navFooterIconClass({ active })}
         >
          <Icon className="h-4 w-4 opacity-95" aria-hidden />
          <span className="sr-only">{item.label}</span>
@@ -179,13 +182,9 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
    <Link
     to={entry.path}
     onClick={onNavigate}
-    className={cn(
-     linkBase,
-     active && "bg-white/18 font-medium shadow-sm ring-1 ring-white/10",
-     !active && "hover:bg-white/10"
-    )}
+    className={navL1Class({ active })}
    >
-    <Icon className="h-5 w-5 shrink-0 opacity-95" aria-hidden />
+    <Icon className={navL1IconClass} aria-hidden />
     <span className="truncate">{entry.label}</span>
    </Link>
   )
@@ -199,12 +198,7 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
   <div className="flex flex-col gap-0.5">
    <button
     type="button"
-    className={cn(
-     linkBase,
-     "w-full justify-between text-left",
-     groupActive && "bg-white/10",
-     !groupActive && "hover:bg-white/10"
-    )}
+    className={navGroupClass({ childActive: groupActive })}
     aria-expanded={open}
     onClick={() =>
      setOpenGroups((prev) => {
@@ -216,7 +210,7 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
     }
    >
     <span className="flex min-w-0 items-center gap-3">
-     <GroupIcon className="h-5 w-5 shrink-0 opacity-95" aria-hidden />
+     <GroupIcon className={navL1IconClass} aria-hidden />
      <span className="truncate font-medium">{entry.label}</span>
     </span>
     <ChevronDown
@@ -224,12 +218,7 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
      aria-hidden
     />
    </button>
-   <div
-    className={cn(
-     "ml-2 space-y-0.5 overflow-hidden border-l border-white/15 pl-2 transition-all duration-200",
-     open ? "max-h-[28rem] py-1 opacity-100" : "max-h-0 py-0 opacity-0"
-    )}
-   >
+   <div className={navL2RailClass({ open })}>
     {open
      ? entry.children.map((child) => {
        const active = pathIsActive(pathname, child.path)
@@ -239,14 +228,9 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
          key={`${child.path}::${child.label}`}
          to={child.path}
          onClick={onNavigate}
-         className={cn(
-          linkBase,
-          "gap-2.5 py-2 pl-3 pr-2 text-[13px]",
-          active && "bg-white/20 font-medium shadow-sm ring-1 ring-white/10",
-          !active && "hover:bg-white/10"
-         )}
+         className={navL2Class({ active })}
         >
-         <ChildIcon className="h-4 w-4 shrink-0 opacity-90" aria-hidden />
+         <ChildIcon className={navL2IconClass} aria-hidden />
          <span className="truncate">{child.label}</span>
         </Link>
        )
