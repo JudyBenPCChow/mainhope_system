@@ -393,6 +393,8 @@ function selectedPromotionClasses(
     .map((item) => ({
       label: item.cls.label,
       subject: item.cls.subject,
+      dayOfWeek: item.cls.dayOfWeek,
+      timeSlot: item.cls.timeSlot,
       schedule:
         item.cls.dayOfWeek || item.cls.timeSlot
           ? scheduleText(item.cls.dayOfWeek, item.cls.timeSlot)

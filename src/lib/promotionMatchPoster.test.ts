@@ -8,10 +8,13 @@ import {
   computeCardLayout,
   displayClassTitle,
   extractClassCode,
+  formatPosterTimeSlot,
+  formatPosterWeekday,
   getPosterLayoutMode,
   getSubjectTagStyle,
   POSTER_BACKGROUND_SIZE,
   POSTER_CLASSES_PER_IMAGE,
+  splitPosterSchedule,
   wrapCanvasText,
 } from "./promotionMatchPoster"
 
@@ -72,6 +75,34 @@ describe("chunkPosterClasses", () => {
       [5, 6, 7, 8],
       [9, 10, 11, 12],
     ])
+  })
+})
+
+describe("splitPosterSchedule", () => {
+  it("prefers dayOfWeek and timeSlot fields", () => {
+    expect(
+      splitPosterSchedule({
+        dayOfWeek: "星期三、星期四",
+        timeSlot: "17:45—19:00",
+        schedule: "ignored",
+      })
+    ).toEqual({
+      weekday: "逢星期三、星期四",
+      time: "17:45 - 19:00",
+    })
+  })
+
+  it("parses combined schedule strings", () => {
+    expect(splitPosterSchedule({ schedule: "星期二 11:30-12:45" })).toEqual({
+      weekday: "逢星期二",
+      time: "11:30 - 12:45",
+    })
+  })
+
+  it("formats weekday prefix and time slot helpers", () => {
+    expect(formatPosterWeekday("星期一")).toBe("逢星期一")
+    expect(formatPosterWeekday("逢星期日")).toBe("逢星期日")
+    expect(formatPosterTimeSlot("14:00—15:00")).toBe("14:00 - 15:00")
   })
 })
 

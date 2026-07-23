@@ -3,16 +3,16 @@ import posterBackgroundUrl from "@/assets/promotion-match-poster-bg.png"
 export type PromotionPosterClass = {
   label: string
   subject?: string | null
+  /** 合併顯示用（兼容舊呼叫）；有 dayOfWeek／timeSlot 時優先用分欄 */
   schedule?: string | null
+  dayOfWeek?: string | null
+  timeSlot?: string | null
   teacherName?: string | null
 }
 
 export type PromotionPosterInput = {
   classes: PromotionPosterClass[]
 }
-
-/** 是否在卡片右上角顯示科目標籤 */
-export const SHOW_SUBJECT_TAG = true
 
 /** 每張宣傳海報最多展示的班別數；超過則分頁產生多張圖 */
 export const POSTER_CLASSES_PER_IMAGE = 4
@@ -78,8 +78,6 @@ export function buildPosterCanvasSpec(
     scaleY,
   }
 }
-
-const SUBJECT_TAG_MAX_WIDTH_RATIO = 0.35
 
 const SUBJECT_COLORS: Record<string, { bg: string; text: string }> = {
   數學: { bg: "#e6f0ff", text: "#1d4ed8" },
@@ -181,6 +179,91 @@ export function displayClassTitle(label: string): string {
   return withoutCode || trimmed
 }
 
+const TIME_RANGE_RE =
+  /(\d{1,2}:\d{2})\s*[–—\-至到]\s*(\d{1,2}:\d{2})/
+const TIME_ONLY_RE = /\d{1,2}:\d{2}/
+
+/** 將時間字串正規成「14:00 - 15:00」 */
+export function formatPosterTimeSlot(raw: string | null | undefined): string {
+  const t = (raw ?? "").trim()
+  if (!t) return ""
+  const range = TIME_RANGE_RE.exec(t)
+  if (range) return `${range[1]} - ${range[2]}`
+  return t.replace(/\s*[–—]\s*/g, " - ")
+}
+
+/** 星期顯示：補上「逢」前綴（已有則不重複） */
+export function formatPosterWeekday(raw: string | null | undefined): string {
+  const day = (raw ?? "").trim()
+  if (!day) return ""
+  if (day.startsWith("逢")) return day
+  return `逢${day}`
+}
+
+/**
+ * 拆成海報用的「逢星期」與「時段」兩行。
+ * 優先用獨立欄位；否則從合併 schedule 字串解析。
+ */
+export function splitPosterSchedule(cls: {
+  schedule?: string | null
+  dayOfWeek?: string | null
+  timeSlot?: string | null
+}): { weekday: string; time: string } {
+  const dayField = (cls.dayOfWeek ?? "").trim()
+  const timeField = formatPosterTimeSlot(cls.timeSlot)
+  if (dayField || timeField) {
+    return {
+      weekday: formatPosterWeekday(dayField) || "—",
+      time: timeField || "—",
+    }
+  }
+
+  const raw = (cls.schedule ?? "").trim().replace(/\s+/g, " ")
+  if (!raw) return { weekday: "—", time: "—" }
+
+  const range = TIME_RANGE_RE.exec(raw)
+  if (range) {
+    const time = `${range[1]} - ${range[2]}`
+    const dayPart = raw.slice(0, range.index).trim().replace(/[，,]$/, "")
+    return {
+      weekday: formatPosterWeekday(dayPart) || "—",
+      time,
+    }
+  }
+
+  const timeOnly = TIME_ONLY_RE.exec(raw)
+  if (timeOnly && timeOnly.index !== undefined && timeOnly.index > 0) {
+    return {
+      weekday: formatPosterWeekday(raw.slice(0, timeOnly.index).trim()) || "—",
+      time: formatPosterTimeSlot(raw.slice(timeOnly.index)) || "—",
+    }
+  }
+
+  if (TIME_ONLY_RE.test(raw) && !/星期|週|周/.test(raw)) {
+    return { weekday: "—", time: formatPosterTimeSlot(raw) || raw }
+  }
+
+  return { weekday: formatPosterWeekday(raw) || raw, time: "—" }
+}
+
+/** 在可用寬度內盡量放大文字字級 */
+function fitTextFontSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  preferredSize: number,
+  minSize: number,
+  weight = 700
+): number {
+  let size = preferredSize
+  while (size > minSize) {
+    ctx.font = `${weight} ${size}px ${FONT}`
+    if (ctx.measureText(text).width <= maxWidth) return size
+    size -= 1
+  }
+  return minSize
+}
+
 export function getSubjectTagStyle(subject: string | null | undefined): {
   bg: string
   text: string
@@ -210,36 +293,6 @@ function getContentAreaBounds(spec: PosterCanvasSpec) {
   return { contentAreaTop, contentAreaBottom, contentAreaHeight }
 }
 
-function truncateSubjectTagText(
-  ctx: CanvasRenderingContext2D,
-  subject: string,
-  maxTextWidth: number,
-  fontSize: number
-): { text: string; fontSize: number } {
-  const raw = subject.trim()
-  if (!raw) return { text: "—", fontSize }
-
-  const measure = (text: string, size: number) => {
-    ctx.font = `700 ${size}px ${FONT}`
-    return ctx.measureText(text).width
-  }
-
-  if (measure(raw, fontSize) <= maxTextWidth) {
-    return { text: raw, fontSize }
-  }
-
-  if (fontSize > 12) {
-    return truncateSubjectTagText(ctx, raw, maxTextWidth, fontSize - 2)
-  }
-
-  let clipped = ""
-  for (const ch of raw) {
-    if (measure(clipped + ch + "…", 12) > maxTextWidth) break
-    clipped += ch
-  }
-  return { text: clipped ? `${clipped}…` : "…", fontSize: 12 }
-}
-
 export function computeCardLayout(
   classCount: number,
   spec: PosterCanvasSpec = buildPosterCanvasSpec(
@@ -255,21 +308,20 @@ export function computeCardLayout(
 
   let cols = 1
   let gapX = 0
-  let gapY = Math.round(12 * scaleY)
-  // large（1–2 班）：卡片較高，三區（班別／時間／老師）都可放大
-  let prefMinH = Math.round(155 * scaleY)
-  let prefMaxH = Math.round(190 * scaleY)
-  let titleSize = Math.round(28 * scaleY)
-  let subSize = Math.round(18 * scaleY)
+  let gapY = Math.round(14 * scaleY)
+  // 橫向列卡：較扁，方便 4 班直向堆疊
+  let prefMinH = Math.round(96 * scaleY)
+  let prefMaxH = Math.round(118 * scaleY)
+  let titleSize = Math.round(22 * scaleY)
+  let subSize = Math.round(16 * scaleY)
   let compact = false
 
   if (mode === "standard") {
-    // 3–4 班：預留剛好容納三區的高度，避免時間列蓋過班名
-    gapY = Math.round(8 * scaleY)
-    prefMinH = Math.round(112 * scaleY)
-    prefMaxH = Math.round(128 * scaleY)
-    titleSize = Math.round(22 * scaleY)
-    subSize = Math.round(16 * scaleY)
+    gapY = Math.round(10 * scaleY)
+    prefMinH = Math.round(82 * scaleY)
+    prefMaxH = Math.round(98 * scaleY)
+    titleSize = Math.round(18 * scaleY)
+    subSize = Math.round(14 * scaleY)
   } else if (mode === "grid") {
     cols = 2
     gapX = Math.round(16 * scaleX)
@@ -322,11 +374,11 @@ export function computeCardLayout(
     centered,
     compactMetaMaxH: Math.round(102 * scaleY),
     cardPad: compact
-      ? Math.round(14 * scaleY)
+      ? Math.round(12 * scaleY)
       : mode === "standard"
-        ? Math.round(14 * scaleY)
-        : Math.round(18 * scaleY),
-    cardRadius: Math.round(16 * scaleY),
+        ? Math.round(12 * scaleY)
+        : Math.round(14 * scaleY),
+    cardRadius: Math.round(18 * scaleY),
   }
 }
 
@@ -432,27 +484,6 @@ function drawPillTag(
   return { w, h }
 }
 
-/** 在可用寬度內盡量放大時間／星期文字字級 */
-function fitScheduleFontSize(
-  ctx: CanvasRenderingContext2D,
-  schedule: string,
-  maxWidth: number,
-  preferredSize: number,
-  minSize: number
-): number {
-  let size = preferredSize
-  while (size > minSize) {
-    const iconSize = Math.round(size + 8)
-    const padX = Math.max(10, Math.round(size * 0.45))
-    const gap = Math.max(8, Math.round(size * 0.35))
-    ctx.font = `700 ${size}px ${FONT}`
-    const textW = ctx.measureText(schedule).width
-    if (iconSize + gap + textW + padX * 2 <= maxWidth) return size
-    size -= 1
-  }
-  return minSize
-}
-
 function drawNumberBadge(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -475,45 +506,6 @@ function drawNumberBadge(
   ctx.fillText(String(index + 1).padStart(2, "0"), x, y + 1)
 }
 
-function measureSubjectTagBox(
-  ctx: CanvasRenderingContext2D,
-  subject: string,
-  cardW: number
-): { width: number; height: number; text: string; fontSize: number } {
-  const tagPadX = 16
-  const tagH = 28
-  const maxTagW = cardW * SUBJECT_TAG_MAX_WIDTH_RATIO
-  const maxTextW = maxTagW - tagPadX * 2
-  const { text, fontSize } = truncateSubjectTagText(ctx, subject, maxTextW, 14)
-  ctx.font = `700 ${fontSize}px ${FONT}`
-  const textW = ctx.measureText(text).width
-  const width = Math.min(maxTagW, textW + tagPadX * 2)
-  return { width, height: tagH, text, fontSize }
-}
-
-function drawSubjectTag(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  subject: string,
-  cardW: number,
-  measured?: ReturnType<typeof measureSubjectTagBox>
-) {
-  const style = getSubjectTagStyle(subject)
-  const tagPadX = 16
-  const box = measured ?? measureSubjectTagBox(ctx, subject, cardW)
-  const { width: w, height: tagH, text, fontSize } = box
-
-  ctx.font = `700 ${fontSize}px ${FONT}`
-  ctx.fillStyle = style.bg
-  roundRect(ctx, x - w, y, w, tagH, tagH / 2)
-  ctx.fill()
-  ctx.fillStyle = style.text
-  ctx.textAlign = "right"
-  ctx.textBaseline = "middle"
-  ctx.fillText(text, x - tagPadX, y + tagH / 2)
-}
-
 function drawClassCard(
   ctx: CanvasRenderingContext2D,
   cls: PromotionPosterClass,
@@ -522,15 +514,14 @@ function drawClassCard(
   y: number,
   layout: CardLayoutSpec
 ) {
-  const { cardW, cardH, titleSize, subSize, compact, compactMetaMaxH, cardPad, cardRadius } =
-    layout
+  const { cardW, cardH, titleSize, subSize, compact, cardPad, cardRadius } = layout
   const pad = cardPad
   const radius = cardRadius
 
   ctx.save()
   ctx.shadowColor = "rgba(28, 36, 56, 0.12)"
-  ctx.shadowBlur = compact ? 10 : 14
-  ctx.shadowOffsetY = compact ? 3 : 5
+  ctx.shadowBlur = compact ? 8 : 12
+  ctx.shadowOffsetY = compact ? 2 : 4
   ctx.fillStyle = PALETTE.card
   roundRect(ctx, x, y, cardW, cardH, radius)
   ctx.fill()
@@ -541,191 +532,103 @@ function drawClassCard(
   roundRect(ctx, x, y, cardW, cardH, radius)
   ctx.stroke()
 
-  const badgeSize = compact ? 18 : 22
-  const badgeX = x + (compact ? 20 : 24)
-  const badgeY = y + (compact ? 20 : 24)
-  drawNumberBadge(ctx, badgeX, badgeY, index, badgeSize)
-
   const title = displayClassTitle(cls.label)
   const code = extractClassCode(cls.label)
-  const textX = x + pad + badgeSize + (compact ? 6 : 10)
-  const subjectTagBox =
-    SHOW_SUBJECT_TAG && cls.subject?.trim() && !compact
-      ? measureSubjectTagBox(ctx, cls.subject, cardW)
-      : null
-  const subjectGap = subjectTagBox ? 12 : 0
-  const titleMaxW =
-    cardW -
-    pad -
-    (textX - x) -
-    (subjectTagBox ? subjectTagBox.width + subjectGap : pad)
-
-  const schedule = (cls.schedule?.trim() || "—").replace(/\s+/g, " ")
+  const { weekday, time } = splitPosterSchedule(cls)
   const teacher = cls.teacherName?.trim() || "—"
-  const metaMaxW = cardW - pad * 2
 
-  if (compact && cardH < compactMetaMaxH) {
-    ctx.textAlign = "left"
-    ctx.textBaseline = "top"
-    ctx.fillStyle = PALETTE.ink
-    ctx.font = `700 ${titleSize}px ${FONT}`
-    const titleLine =
-      wrapCanvasText(ctx, title, titleMaxW).slice(0, 1)[0] ?? title
-    ctx.fillText(titleLine, textX, y + pad + 4)
-    ctx.fillStyle = PALETTE.muted
-    ctx.font = `500 ${subSize}px ${FONT}`
-    const meta = `${schedule} · ${teacher}`
-    const metaLine = wrapCanvasText(ctx, meta, metaMaxW).slice(0, 1)[0] ?? "—"
-    ctx.textBaseline = "bottom"
-    ctx.fillText(metaLine, x + pad, y + cardH - pad)
-    return
-  }
+  // 手繪排版：橫向三欄 ——① 班別｜逢星期＋時間｜老師 pill
+  const badgeSize = Math.min(compact ? 16 : 20, Math.round(cardH * 0.28))
+  const colGap = Math.max(8, Math.round(cardW * 0.018))
+  const teacherColW = Math.round(cardW * (compact ? 0.26 : 0.24))
+  const scheduleColW = Math.round(cardW * (compact ? 0.3 : 0.32))
+  const leftColW = cardW - pad * 2 - badgeSize - colGap * 3 - scheduleColW - teacherColW
 
-  if (compact) {
-    ctx.textAlign = "left"
-    ctx.textBaseline = "top"
-    ctx.fillStyle = PALETTE.ink
-    ctx.font = `700 ${titleSize}px ${FONT}`
-    const titleLine =
-      wrapCanvasText(ctx, title, titleMaxW).slice(0, 1)[0] ?? title
-    ctx.fillText(titleLine, textX, y + pad + 4)
-    const tagMaxW = metaMaxW / 2 - 6
-    const tagY = y + cardH - pad - 30
-    drawPillTag(ctx, x + pad, tagY, tagMaxW, schedule, PALETTE.accentSoft, "clock", subSize)
-    drawPillTag(
-      ctx,
-      x + pad + tagMaxW + 10,
-      tagY,
-      tagMaxW,
-      teacher,
-      PALETTE.tagBlue,
-      "person",
-      subSize - 1
-    )
-    return
-  }
+  const badgeX = x + pad + badgeSize / 2
+  const badgeY = y + cardH / 2
+  drawNumberBadge(ctx, badgeX, badgeY, index, badgeSize)
 
-  // 標準／大卡：由上而下三區——班別 → 時間 → 老師，各自清楚、互不重疊
+  const leftX = x + pad + badgeSize + colGap
+  const scheduleX = leftX + leftColW + colGap
+  const teacherColX = scheduleX + scheduleColW + colGap
+
   const innerH = cardH - pad * 2
-  const sectionGap = Math.max(4, Math.round(innerH * 0.05))
-  let drawTitleSize = titleSize
-  let codeSize = Math.max(12, subSize - 2)
-  let teacherFont = Math.max(14, subSize)
-  let titleLineCount = 2
+  const lineGap = Math.max(3, Math.round(innerH * 0.08))
 
-  const measureTitleBlockH = (size: number, lines: number, showCode: boolean) =>
-    lines * (size + 2) + (showCode ? codeSize + 2 : 0)
-
-  const measureTeacherH = (size: number) => {
-    const padY = Math.max(4, Math.round(size * 0.22))
-    return size + 6 + padY * 2
+  // 左欄：班名（上）＋代碼（下）
+  let classTitleSize = titleSize
+  let codeSize = Math.max(11, subSize - 1)
+  ctx.font = `700 ${classTitleSize}px ${FONT}`
+  let titleLine = wrapCanvasText(ctx, title, leftColW).slice(0, 1)[0] ?? title
+  classTitleSize = fitTextFontSize(ctx, titleLine, leftColW, classTitleSize, 13)
+  ctx.font = `700 ${classTitleSize}px ${FONT}`
+  titleLine = wrapCanvasText(ctx, title, leftColW).slice(0, 1)[0] ?? title
+  if (code) {
+    codeSize = fitTextFontSize(ctx, code, leftColW, codeSize, 10, 600)
   }
 
-  const measureScheduleH = (size: number) => {
-    const icon = Math.round(size + 6)
-    const padY = Math.max(4, Math.round(size * 0.2))
-    return icon + padY * 2
-  }
+  const leftBlockH = classTitleSize + (code ? lineGap + codeSize : 0)
+  let leftY = y + (cardH - leftBlockH) / 2
 
-  // 若高度不足：先限班名一行，再略縮字級，保證三區都放得下
-  let teacherH = measureTeacherH(teacherFont)
-  let minScheduleH = measureScheduleH(Math.max(14, subSize - 1))
-  let titleBlockH = measureTitleBlockH(drawTitleSize, titleLineCount, Boolean(code))
-  const minTotal =
-    titleBlockH + minScheduleH + teacherH + sectionGap * 2
-
-  if (minTotal > innerH) {
-    titleLineCount = 1
-    titleBlockH = measureTitleBlockH(drawTitleSize, 1, Boolean(code))
-  }
-  while (
-    titleBlockH + minScheduleH + teacherH + sectionGap * 2 > innerH &&
-    drawTitleSize > 16
-  ) {
-    drawTitleSize -= 1
-    codeSize = Math.max(11, codeSize - 1)
-    teacherFont = Math.max(13, teacherFont - 1)
-    teacherH = measureTeacherH(teacherFont)
-    minScheduleH = measureScheduleH(Math.max(13, teacherFont - 1))
-    titleBlockH = measureTitleBlockH(drawTitleSize, titleLineCount, Boolean(code))
-  }
-
-  const afterTitleBudget =
-    innerH - titleBlockH - teacherH - sectionGap * 2
-  const scheduleBudget = Math.max(minScheduleH, afterTitleBudget)
-
-  const heightCap = Math.max(14, scheduleBudget - 10)
-  const preferredScheduleSize = Math.min(
-    Math.round(drawTitleSize * 1.1),
-    Math.round(heightCap * 0.75),
-    Math.max(16, Math.round(innerH * 0.22))
-  )
-  const scheduleFont = fitScheduleFontSize(
-    ctx,
-    schedule,
-    metaMaxW,
-    preferredScheduleSize,
-    Math.max(13, Math.min(subSize, heightCap))
-  )
-  let scheduleH = measureScheduleH(scheduleFont)
-  if (scheduleH > scheduleBudget) scheduleH = scheduleBudget
-
-  if (SHOW_SUBJECT_TAG && cls.subject?.trim() && subjectTagBox) {
-    drawSubjectTag(
-      ctx,
-      x + cardW - pad,
-      y + pad,
-      cls.subject,
-      cardW,
-      subjectTagBox
-    )
-  }
-
-  ctx.font = `700 ${drawTitleSize}px ${FONT}`
-  const titleLines = wrapCanvasText(ctx, title, titleMaxW).slice(0, titleLineCount)
-
-  // 1) 班別名稱（＋代碼）
   ctx.textAlign = "left"
   ctx.textBaseline = "top"
   ctx.fillStyle = PALETTE.ink
-  ctx.font = `700 ${drawTitleSize}px ${FONT}`
-  let cursorY = y + pad
-  for (const line of titleLines) {
-    ctx.fillText(line, textX, cursorY)
-    cursorY += drawTitleSize + 2
-  }
+  ctx.font = `700 ${classTitleSize}px ${FONT}`
+  ctx.fillText(titleLine, leftX, leftY)
   if (code) {
     ctx.fillStyle = PALETTE.muted
     ctx.font = `600 ${codeSize}px ${FONT}`
-    ctx.fillText(code, textX, cursorY + 1)
-    cursorY += codeSize + 2
+    ctx.fillText(code, leftX, leftY + classTitleSize + lineGap)
   }
 
-  // 2) 時間／星期（獨立一列）
-  const scheduleY = y + pad + titleBlockH + sectionGap
-  drawPillTag(
-    ctx,
-    x + pad,
-    scheduleY,
-    metaMaxW,
-    schedule,
-    PALETTE.accentSoft,
-    "clock",
-    scheduleFont,
-    { fillWidth: true, fontWeight: 700, padY: Math.max(4, Math.round(scheduleFont * 0.2)) }
+  // 中欄：逢星期（上）＋時段（下），放大填滿欄寬
+  const weekdayPreferred = Math.min(
+    Math.round(titleSize * 1.15),
+    Math.round(innerH * 0.38)
   )
+  const timePreferred = Math.min(
+    Math.round(titleSize * 1.25),
+    Math.round(innerH * 0.42)
+  )
+  const weekdaySize = fitTextFontSize(ctx, weekday, scheduleColW, weekdayPreferred, 12)
+  const timeSize = fitTextFontSize(ctx, time, scheduleColW, timePreferred, 13)
+  const scheduleBlockH = weekdaySize + lineGap + timeSize
+  const scheduleTop = y + (cardH - scheduleBlockH) / 2
 
-  // 3) 老師名稱（獨立一列）
-  const teacherY = scheduleY + scheduleH + sectionGap
+  ctx.textAlign = "left"
+  ctx.textBaseline = "top"
+  ctx.fillStyle = PALETTE.ink
+  ctx.font = `700 ${weekdaySize}px ${FONT}`
+  ctx.fillText(weekday, scheduleX, scheduleTop)
+  ctx.fillStyle = PALETTE.navyDeep
+  ctx.font = `700 ${timeSize}px ${FONT}`
+  ctx.fillText(time, scheduleX, scheduleTop + weekdaySize + lineGap)
+
+  // 右欄：老師名稱 pill（垂直置中）
+  const teacherFont = Math.max(
+    12,
+    fitTextFontSize(
+      ctx,
+      teacher,
+      Math.max(40, teacherColW - 36),
+      Math.max(13, subSize),
+      11,
+      600
+    )
+  )
+  const teacherPadY = Math.max(4, Math.round(teacherFont * 0.22))
+  const teacherH = teacherFont + 6 + teacherPadY * 2
+  const teacherY = y + (cardH - teacherH) / 2
   drawPillTag(
     ctx,
-    x + pad,
+    teacherColX,
     teacherY,
-    Math.min(metaMaxW, Math.round(cardW * 0.62)),
+    teacherColW,
     teacher,
     PALETTE.tagBlue,
     "person",
-    teacherFont
+    teacherFont,
+    { padY: teacherPadY }
   )
 }
 
@@ -784,42 +687,56 @@ export function buildSamplePosterClasses(count: number): PromotionPosterClass[] 
     {
       label: "Summer S5 Math M2 Class (26SM-M2M5013-A)",
       subject: "數學延伸部分（單）",
+      dayOfWeek: "星期一",
+      timeSlot: "18:00-19:30",
       schedule: "星期一 18:00-19:30",
       teacherName: "Mr. Ng",
     },
     {
       label: "Summer S5 Physics Class (26SM-PHYS5015-A)",
       subject: "物理",
+      dayOfWeek: "星期三",
+      timeSlot: "17:45-19:00",
       schedule: "星期三 17:45-19:00",
       teacherName: "Dr. Lam",
     },
     {
       label: "Summer S5 Chinese Class (26SM-CHIS5008-A)",
       subject: "中國語文",
+      dayOfWeek: "星期二",
+      timeSlot: "11:30-12:45",
       schedule: "星期二 11:30-12:45",
       teacherName: "Christine Fan",
     },
     {
       label: "Summer S5 English Class (26SM-ENGS5009-A)",
       subject: "English Language",
+      dayOfWeek: "星期三",
+      timeSlot: "17:45-19:00",
       schedule: "星期三 17:45-19:00",
       teacherName: "Mr. Lee",
     },
     {
       label: "Summer S5 Chemistry Class (26SM-CHEM5010-A)",
       subject: "化學",
+      dayOfWeek: "星期四",
+      timeSlot: "19:15-20:30",
       schedule: "星期四 19:15-20:30",
       teacherName: "Dr. Wong",
     },
     {
       label: "Summer S5 Biology Class (26SM-BIO5011-A)",
       subject: "生物",
+      dayOfWeek: "星期五",
+      timeSlot: "16:00-17:15",
       schedule: "星期五 16:00-17:15",
       teacherName: "Ms. Chan",
     },
     {
       label: "Summer S5 Economics Class (26SM-ECON5014-A)",
       subject: "經濟",
+      dayOfWeek: "星期日",
+      timeSlot: "14:00-15:30",
       schedule: "星期日 14:00-15:30",
       teacherName: "Ms. Cheung",
     },
@@ -833,6 +750,8 @@ export function buildBafsPosterSample(): PromotionPosterClass[] {
     {
       label: "暑期升中五級企會財班 (26SM-BAFSS5 008-A)",
       subject: "企業、會計與財務概論",
+      dayOfWeek: "星期一、星期二",
+      timeSlot: "11:30",
       schedule: "星期一、星期二 11:30",
       teacherName: "Rafael Ling",
     },
