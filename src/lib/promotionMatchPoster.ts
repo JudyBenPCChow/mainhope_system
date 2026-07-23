@@ -255,20 +255,21 @@ export function computeCardLayout(
 
   let cols = 1
   let gapX = 0
-  let gapY = Math.round(14 * scaleY)
-  // large：預留較高卡片給放大後的時間／星期列
-  let prefMinH = Math.round(150 * scaleY)
-  let prefMaxH = Math.round(178 * scaleY)
-  let titleSize = Math.round(30 * scaleY)
-  let subSize = Math.round(20 * scaleY)
+  let gapY = Math.round(12 * scaleY)
+  // large（1–2 班）：卡片較高，三區（班別／時間／老師）都可放大
+  let prefMinH = Math.round(155 * scaleY)
+  let prefMaxH = Math.round(190 * scaleY)
+  let titleSize = Math.round(28 * scaleY)
+  let subSize = Math.round(18 * scaleY)
   let compact = false
 
   if (mode === "standard") {
-    gapY = Math.round(10 * scaleY)
-    prefMinH = Math.round(122 * scaleY)
-    prefMaxH = Math.round(148 * scaleY)
-    titleSize = Math.round(26 * scaleY)
-    subSize = Math.round(18 * scaleY)
+    // 3–4 班：預留剛好容納三區的高度，避免時間列蓋過班名
+    gapY = Math.round(8 * scaleY)
+    prefMinH = Math.round(112 * scaleY)
+    prefMaxH = Math.round(128 * scaleY)
+    titleSize = Math.round(22 * scaleY)
+    subSize = Math.round(16 * scaleY)
   } else if (mode === "grid") {
     cols = 2
     gapX = Math.round(16 * scaleX)
@@ -320,7 +321,11 @@ export function computeCardLayout(
     compact,
     centered,
     compactMetaMaxH: Math.round(102 * scaleY),
-    cardPad: compact ? Math.round(16 * scaleY) : Math.round(22 * scaleY),
+    cardPad: compact
+      ? Math.round(14 * scaleY)
+      : mode === "standard"
+        ? Math.round(14 * scaleY)
+        : Math.round(18 * scaleY),
     cardRadius: Math.round(16 * scaleY),
   }
 }
@@ -537,76 +542,59 @@ function drawClassCard(
   ctx.stroke()
 
   const badgeSize = compact ? 18 : 22
-  drawNumberBadge(ctx, x + (compact ? 20 : 24), y + (compact ? 20 : 24), index, badgeSize)
+  const badgeX = x + (compact ? 20 : 24)
+  const badgeY = y + (compact ? 20 : 24)
+  drawNumberBadge(ctx, badgeX, badgeY, index, badgeSize)
 
   const title = displayClassTitle(cls.label)
   const code = extractClassCode(cls.label)
-  const textX = x + pad + (compact ? 8 : 12)
-  const badgeClearance = compact ? 8 : 12
+  const textX = x + pad + badgeSize + (compact ? 6 : 10)
   const subjectTagBox =
     SHOW_SUBJECT_TAG && cls.subject?.trim() && !compact
       ? measureSubjectTagBox(ctx, cls.subject, cardW)
       : null
-  const subjectGap = subjectTagBox ? 14 : 0
-  const textMaxW =
+  const subjectGap = subjectTagBox ? 12 : 0
+  const titleMaxW =
     cardW -
-    pad * 2 -
-    badgeClearance -
-    (subjectTagBox ? subjectTagBox.width + subjectGap : 0)
-
-  ctx.textAlign = "left"
-  ctx.textBaseline = "top"
-  ctx.fillStyle = PALETTE.ink
-  ctx.font = `700 ${titleSize}px ${FONT}`
-  const titleLines = wrapCanvasText(ctx, title, textMaxW).slice(0, compact ? 1 : 2)
-  let cursorY = y + pad + (compact ? 4 : 8)
-  for (const line of titleLines) {
-    ctx.fillText(line, textX, cursorY)
-    cursorY += titleSize + 4
-  }
-
-  if (code && !compact) {
-    ctx.fillStyle = PALETTE.mutedLight
-    ctx.font = `500 ${subSize - 2}px ${FONT}`
-    ctx.fillText(code, textX, cursorY + 2)
-    cursorY += subSize + 6
-  } else {
-    cursorY += 6
-  }
-
-  if (SHOW_SUBJECT_TAG && cls.subject?.trim() && !compact && subjectTagBox) {
-    drawSubjectTag(
-      ctx,
-      x + cardW - pad,
-      y + pad,
-      cls.subject,
-      cardW,
-      subjectTagBox
-    )
-  }
+    pad -
+    (textX - x) -
+    (subjectTagBox ? subjectTagBox.width + subjectGap : pad)
 
   const schedule = (cls.schedule?.trim() || "—").replace(/\s+/g, " ")
   const teacher = cls.teacherName?.trim() || "—"
   const metaMaxW = cardW - pad * 2
 
   if (compact && cardH < compactMetaMaxH) {
+    ctx.textAlign = "left"
+    ctx.textBaseline = "top"
+    ctx.fillStyle = PALETTE.ink
+    ctx.font = `700 ${titleSize}px ${FONT}`
+    const titleLine =
+      wrapCanvasText(ctx, title, titleMaxW).slice(0, 1)[0] ?? title
+    ctx.fillText(titleLine, textX, y + pad + 4)
     ctx.fillStyle = PALETTE.muted
     ctx.font = `500 ${subSize}px ${FONT}`
     const meta = `${schedule} · ${teacher}`
-    const metaLine = wrapCanvasText(ctx, meta, textMaxW).slice(0, 1)[0] ?? "—"
+    const metaLine = wrapCanvasText(ctx, meta, metaMaxW).slice(0, 1)[0] ?? "—"
     ctx.textBaseline = "bottom"
-    ctx.fillText(metaLine, textX, y + cardH - pad)
-    ctx.textBaseline = "top"
+    ctx.fillText(metaLine, x + pad, y + cardH - pad)
     return
   }
 
   if (compact) {
+    ctx.textAlign = "left"
+    ctx.textBaseline = "top"
+    ctx.fillStyle = PALETTE.ink
+    ctx.font = `700 ${titleSize}px ${FONT}`
+    const titleLine =
+      wrapCanvasText(ctx, title, titleMaxW).slice(0, 1)[0] ?? title
+    ctx.fillText(titleLine, textX, y + pad + 4)
     const tagMaxW = metaMaxW / 2 - 6
     const tagY = y + cardH - pad - 30
-    drawPillTag(ctx, textX, tagY, tagMaxW, schedule, PALETTE.accentSoft, "clock", subSize)
+    drawPillTag(ctx, x + pad, tagY, tagMaxW, schedule, PALETTE.accentSoft, "clock", subSize)
     drawPillTag(
       ctx,
-      textX + tagMaxW + 10,
+      x + pad + tagMaxW + 10,
       tagY,
       tagMaxW,
       teacher,
@@ -617,43 +605,123 @@ function drawClassCard(
     return
   }
 
-  // 非 compact：時間／星期放大並橫向撐滿白卡底部可用空間，老師標籤疊於其下
-  const teacherFont = Math.max(14, subSize - 1)
-  const teacherH = teacherFont + 6 + Math.max(6, Math.round(teacherFont * 0.28)) * 2
-  const scheduleGap = 8
+  // 標準／大卡：由上而下三區——班別 → 時間 → 老師，各自清楚、互不重疊
+  const innerH = cardH - pad * 2
+  const sectionGap = Math.max(4, Math.round(innerH * 0.05))
+  let drawTitleSize = titleSize
+  let codeSize = Math.max(12, subSize - 2)
+  let teacherFont = Math.max(14, subSize)
+  let titleLineCount = 2
+
+  const measureTitleBlockH = (size: number, lines: number, showCode: boolean) =>
+    lines * (size + 2) + (showCode ? codeSize + 2 : 0)
+
+  const measureTeacherH = (size: number) => {
+    const padY = Math.max(4, Math.round(size * 0.22))
+    return size + 6 + padY * 2
+  }
+
+  const measureScheduleH = (size: number) => {
+    const icon = Math.round(size + 6)
+    const padY = Math.max(4, Math.round(size * 0.2))
+    return icon + padY * 2
+  }
+
+  // 若高度不足：先限班名一行，再略縮字級，保證三區都放得下
+  let teacherH = measureTeacherH(teacherFont)
+  let minScheduleH = measureScheduleH(Math.max(14, subSize - 1))
+  let titleBlockH = measureTitleBlockH(drawTitleSize, titleLineCount, Boolean(code))
+  const minTotal =
+    titleBlockH + minScheduleH + teacherH + sectionGap * 2
+
+  if (minTotal > innerH) {
+    titleLineCount = 1
+    titleBlockH = measureTitleBlockH(drawTitleSize, 1, Boolean(code))
+  }
+  while (
+    titleBlockH + minScheduleH + teacherH + sectionGap * 2 > innerH &&
+    drawTitleSize > 16
+  ) {
+    drawTitleSize -= 1
+    codeSize = Math.max(11, codeSize - 1)
+    teacherFont = Math.max(13, teacherFont - 1)
+    teacherH = measureTeacherH(teacherFont)
+    minScheduleH = measureScheduleH(Math.max(13, teacherFont - 1))
+    titleBlockH = measureTitleBlockH(drawTitleSize, titleLineCount, Boolean(code))
+  }
+
+  const afterTitleBudget =
+    innerH - titleBlockH - teacherH - sectionGap * 2
+  const scheduleBudget = Math.max(minScheduleH, afterTitleBudget)
+
+  const heightCap = Math.max(14, scheduleBudget - 10)
   const preferredScheduleSize = Math.min(
-    Math.round(titleSize * 1.15),
-    Math.max(22, Math.round((cardH - pad * 2) * 0.28))
+    Math.round(drawTitleSize * 1.1),
+    Math.round(heightCap * 0.75),
+    Math.max(16, Math.round(innerH * 0.22))
   )
   const scheduleFont = fitScheduleFontSize(
     ctx,
     schedule,
     metaMaxW,
     preferredScheduleSize,
-    Math.max(16, subSize)
+    Math.max(13, Math.min(subSize, heightCap))
   )
-  const scheduleIconSize = Math.round(scheduleFont + 8)
-  const schedulePadY = Math.max(6, Math.round(scheduleFont * 0.28))
-  const scheduleH = scheduleIconSize + schedulePadY * 2
-  const metaBlockH = scheduleH + scheduleGap + teacherH
-  const metaTop = y + cardH - pad - metaBlockH
+  let scheduleH = measureScheduleH(scheduleFont)
+  if (scheduleH > scheduleBudget) scheduleH = scheduleBudget
 
+  if (SHOW_SUBJECT_TAG && cls.subject?.trim() && subjectTagBox) {
+    drawSubjectTag(
+      ctx,
+      x + cardW - pad,
+      y + pad,
+      cls.subject,
+      cardW,
+      subjectTagBox
+    )
+  }
+
+  ctx.font = `700 ${drawTitleSize}px ${FONT}`
+  const titleLines = wrapCanvasText(ctx, title, titleMaxW).slice(0, titleLineCount)
+
+  // 1) 班別名稱（＋代碼）
+  ctx.textAlign = "left"
+  ctx.textBaseline = "top"
+  ctx.fillStyle = PALETTE.ink
+  ctx.font = `700 ${drawTitleSize}px ${FONT}`
+  let cursorY = y + pad
+  for (const line of titleLines) {
+    ctx.fillText(line, textX, cursorY)
+    cursorY += drawTitleSize + 2
+  }
+  if (code) {
+    ctx.fillStyle = PALETTE.muted
+    ctx.font = `600 ${codeSize}px ${FONT}`
+    ctx.fillText(code, textX, cursorY + 1)
+    cursorY += codeSize + 2
+  }
+
+  // 2) 時間／星期（獨立一列）
+  const scheduleY = y + pad + titleBlockH + sectionGap
   drawPillTag(
     ctx,
-    textX,
-    metaTop,
+    x + pad,
+    scheduleY,
     metaMaxW,
     schedule,
     PALETTE.accentSoft,
     "clock",
     scheduleFont,
-    { fillWidth: true, fontWeight: 700 }
+    { fillWidth: true, fontWeight: 700, padY: Math.max(4, Math.round(scheduleFont * 0.2)) }
   )
+
+  // 3) 老師名稱（獨立一列）
+  const teacherY = scheduleY + scheduleH + sectionGap
   drawPillTag(
     ctx,
-    textX,
-    metaTop + scheduleH + scheduleGap,
-    Math.min(metaMaxW, 280),
+    x + pad,
+    teacherY,
+    Math.min(metaMaxW, Math.round(cardW * 0.62)),
     teacher,
     PALETTE.tagBlue,
     "person",
