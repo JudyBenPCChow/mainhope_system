@@ -39,7 +39,7 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
  // 排程 / 待辦：待處理與提醒態
  { tone: "warning", keywords: ["pending", "待", "逾期", "提醒", "補課中", "保留中"] },
  // 排程 / 待辦：正常（如常進行）／預定與進行態
- { tone: "info", keywords: ["booked", "正常", "預定", "安排", "處理中", "in progress"] },
+ { tone: "info", keywords: ["booked", "預定", "安排", "處理中", "in progress"] },
  // 排程 / 待辦：完成態
  { tone: "success", keywords: ["success", "完成", "已完成", "done", "ok"] },
 ]
@@ -82,6 +82,13 @@ const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
  { tone: "success", keywords: ["teacher", "老師", "專班"] },
 ]
 
+const OPS_DASHBOARD_STATUS_RULES: StatusTagRule[] = [
+ // 營運總覽 KPI／警示：綠=正常、橙=注意、紅=警示（置頂優先）
+ { tone: "error", keywords: ["警示"] },
+ { tone: "warning", keywords: ["注意"] },
+ { tone: "success", keywords: ["正常"] },
+]
+
 /**
  * 狀態字典（可配置）
  *
@@ -91,6 +98,7 @@ const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
  * 3) 盡量將關鍵字放到最貼近業務模組的分段
  */
 export const STATUS_TAG_RULES: StatusTagRule[] = [
+ ...OPS_DASHBOARD_STATUS_RULES,
  ...COMMON_CANCELLED_RULES,
  ...STUDENT_CLASSIFICATION_RULES,
  ...HR_AND_ATTENDANCE_RULES,

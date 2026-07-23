@@ -51,6 +51,7 @@ import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
+import PrototypeSecondaryAttendanceReport from "@/pages/PrototypeSecondaryAttendanceReport"
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
 import PromotionMatch from "@/pages/PromotionMatch"
 import ReceiptDemo from "@/pages/ReceiptDemo"
@@ -58,6 +59,7 @@ import ReceiptDemo from "@/pages/ReceiptDemo"
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
+const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
 
 export default function App() {
  return (
@@ -125,6 +127,20 @@ export default function App() {
       }
      />
      <Route
+      path="/SecondaryAttendanceReport"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入中學出席統計…
+         </div>
+        }
+       >
+        <SecondaryAttendanceReport />
+       </Suspense>
+      }
+     />
+     <Route
       path="/MgmtDashboard"
       element={
        <Suspense
@@ -161,6 +177,10 @@ export default function App() {
      <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
      <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
      <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
+     <Route
+      path="/prototype/SecondaryAttendanceReport"
+      element={<PrototypeSecondaryAttendanceReport />}
+     />
     </Route>
    </Routes>
    <SpeedInsights />
