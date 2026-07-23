@@ -26,7 +26,7 @@ export function buildPromotionMatchWhatsAppMessage({
     "",
     "暑期差不多已過一半，明學教育現時尚餘少量課程接受報讀，暑期課程第二期將於8月開始。",
     "",
-    `我們根據 ${who} 目前的年級${gradePhrase}，為您推介以下合適班別：`,
+    `我們根據 ${who}目前的年級${gradePhrase}，為您推介以下合適班別：`,
   ]
 
   if (classes.length === 0) {
@@ -43,7 +43,7 @@ export function buildPromotionMatchWhatsAppMessage({
   }
 
   lines.push("")
-  lines.push("凡經此訊息報名，更可享每科學費減 $100 優惠 🎉")
+  lines.push("凡經此訊息報名，更可享每科學費減 $200優惠 🎉")
   lines.push("名額有限，建議把握暑期最後時光，為成績打好基礎 📚")
   lines.push("")
   lines.push("如有興趣，歡迎回覆想了解的班別，我們可再為您介紹詳情，謝謝！🙏")

@@ -19,10 +19,10 @@ describe("buildPromotionMatchWhatsAppMessage", () => {
 
     expect(message).toContain("關智博家長 ︰")
     expect(message).toContain("暑期課程第二期將於8月開始")
-    expect(message).toContain("我們根據 關智博 目前的年級（中五），為您推介以下合適班別：")
+    expect(message).toContain("我們根據 關智博目前的年級（中五），為您推介以下合適班別：")
     expect(message).toContain("1. 暑期升中五級中文班（26SM-CHIS5008-A）")
     expect(message).toContain("科目：中國語文")
-    expect(message).toContain("凡經此訊息報名，更可享每科學費減 $100 優惠 🎉")
+    expect(message).toContain("凡經此訊息報名，更可享每科學費減 $200優惠 🎉")
     expect(message).toContain("明學教育示")
   })
 
@@ -50,7 +50,7 @@ describe("buildPromotionMatchWhatsAppMessage", () => {
     })
 
     expect(message).toContain("李同學家長 ︰")
-    expect(message).toContain("我們根據 李同學 目前的年級（中三），為您推介以下合適班別：")
+    expect(message).toContain("我們根據 李同學目前的年級（中三），為您推介以下合適班別：")
     expect(message).toContain("［請先從上方選擇推薦班別］")
     expect(message).not.toContain("1. ")
   })
