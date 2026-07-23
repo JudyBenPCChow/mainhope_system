@@ -4,12 +4,14 @@ import {
   buildBafsPosterSample,
   buildPosterCanvasSpec,
   buildSamplePosterClasses,
+  chunkPosterClasses,
   computeCardLayout,
   displayClassTitle,
   extractClassCode,
   getPosterLayoutMode,
   getSubjectTagStyle,
   POSTER_BACKGROUND_SIZE,
+  POSTER_CLASSES_PER_IMAGE,
   wrapCanvasText,
 } from "./promotionMatchPoster"
 
@@ -43,9 +45,33 @@ describe("getPosterLayoutMode", () => {
     expect(getPosterLayoutMode(4)).toBe("standard")
   })
 
-  it("uses grid layout for 5+ classes", () => {
+  it("uses grid layout only if a page somehow exceeds the per-image cap", () => {
     expect(getPosterLayoutMode(5)).toBe("grid")
     expect(getPosterLayoutMode(7)).toBe("grid")
+  })
+})
+
+describe("chunkPosterClasses", () => {
+  it("keeps up to 4 classes on a single page", () => {
+    expect(chunkPosterClasses([1, 2, 3, 4])).toEqual([[1, 2, 3, 4]])
+    expect(POSTER_CLASSES_PER_IMAGE).toBe(4)
+  })
+
+  it("splits 5–8 classes into 2 pages of at most 4", () => {
+    expect(chunkPosterClasses([1, 2, 3, 4, 5])).toEqual([[1, 2, 3, 4], [5]])
+    expect(chunkPosterClasses([1, 2, 3, 4, 5, 6, 7, 8])).toEqual([
+      [1, 2, 3, 4],
+      [5, 6, 7, 8],
+    ])
+  })
+
+  it("splits 9–12 classes into 3 pages", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => i + 1)
+    expect(chunkPosterClasses(ids)).toEqual([
+      [1, 2, 3, 4],
+      [5, 6, 7, 8],
+      [9, 10, 11, 12],
+    ])
   })
 })
 

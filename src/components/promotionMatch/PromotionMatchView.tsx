@@ -405,7 +405,7 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
   const { pushBanner } = useAppBanner()
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set())
   const [generatedSignature, setGeneratedSignature] = useState("")
-  const [posterUrl, setPosterUrl] = useState<string | null>(null)
+  const [posterUrls, setPosterUrls] = useState<string[]>([])
   const [posterLoading, setPosterLoading] = useState(false)
   const [posterError, setPosterError] = useState<string | null>(null)
 
@@ -427,7 +427,7 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
 
   useEffect(() => {
     if (selectedCount === 0) {
-      setPosterUrl(null)
+      setPosterUrls([])
       setPosterError(null)
       setPosterLoading(false)
       return
@@ -440,14 +440,14 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
     void renderPromotionMatchPoster({
       classes: selectedPromotionClasses(bundle, selectedClassIds),
     })
-      .then((url) => {
+      .then((urls) => {
         if (cancelled) return
-        setPosterUrl(url)
+        setPosterUrls(urls)
         setPosterLoading(false)
       })
       .catch((error: unknown) => {
         if (cancelled) return
-        setPosterUrl(null)
+        setPosterUrls([])
         setPosterLoading(false)
         setPosterError(formatUnknownError(error) || "無法產生宣傳海報")
       })
@@ -559,7 +559,8 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
         <div className="mt-4 border-t border-border pt-4">
           <h3 className="text-sm font-semibold text-foreground">宣傳海報</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            依已選班別自動產生正方形圖片；可於電腦上自行複製後貼到 WhatsApp。
+            依已選班別自動產生圖片（每張最多 4 班；超過會分成多張）；可於電腦上自行複製後貼到
+            WhatsApp。
           </p>
 
           {selectedCount === 0 ? (
@@ -572,13 +573,26 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
             <p className="mt-3 text-sm text-destructive" role="alert">
               {posterError}
             </p>
-          ) : posterUrl ? (
-            <div className="mt-3 flex justify-center">
-              <img
-                src={posterUrl}
-                alt={`${bundle.student.fullName}宣傳海報`}
-                className="w-full max-w-[420px] rounded-md border border-border bg-background shadow-sm"
-              />
+          ) : posterUrls.length > 0 ? (
+            <div className="mt-3 flex flex-col items-center gap-4">
+              {posterUrls.map((url, index) => (
+                <div key={`${index}-${url.slice(0, 48)}`} className="w-full max-w-[420px]">
+                  {posterUrls.length > 1 ? (
+                    <p className="mb-1.5 text-center text-xs text-muted-foreground">
+                      第 {index + 1} / {posterUrls.length} 張
+                    </p>
+                  ) : null}
+                  <img
+                    src={url}
+                    alt={
+                      posterUrls.length > 1
+                        ? `${bundle.student.fullName}宣傳海報（第 ${index + 1} 張）`
+                        : `${bundle.student.fullName}宣傳海報`
+                    }
+                    className="w-full rounded-md border border-border bg-background shadow-sm"
+                  />
+                </div>
+              ))}
             </div>
           ) : null}
         </div>

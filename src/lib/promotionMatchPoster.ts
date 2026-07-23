@@ -14,6 +14,9 @@ export type PromotionPosterInput = {
 /** 是否在卡片右上角顯示科目標籤 */
 export const SHOW_SUBJECT_TAG = true
 
+/** 每張宣傳海報最多展示的班別數；超過則分頁產生多張圖 */
+export const POSTER_CLASSES_PER_IMAGE = 4
+
 export type PosterLayoutMode = "large" | "standard" | "grid"
 
 export type CardLayoutSpec = {
@@ -149,8 +152,22 @@ export function wrapCanvasText(
 
 export function getPosterLayoutMode(classCount: number): PosterLayoutMode {
   if (classCount <= 2) return "large"
-  if (classCount <= 4) return "standard"
+  if (classCount <= POSTER_CLASSES_PER_IMAGE) return "standard"
   return "grid"
+}
+
+/** 將班別依每張最多 4 班切成多頁（5–8 → 2 張，9–12 → 3 張…） */
+export function chunkPosterClasses<T>(
+  classes: T[],
+  perImage: number = POSTER_CLASSES_PER_IMAGE
+): T[][] {
+  const size = Math.max(1, perImage)
+  if (classes.length === 0) return []
+  const pages: T[][] = []
+  for (let i = 0; i < classes.length; i += size) {
+    pages.push(classes.slice(i, i + size))
+  }
+  return pages
 }
 
 export function extractClassCode(label: string): string | null {
@@ -238,17 +255,18 @@ export function computeCardLayout(
 
   let cols = 1
   let gapX = 0
-  let gapY = Math.round(18 * scaleY)
-  let prefMinH = Math.round(140 * scaleY)
-  let prefMaxH = Math.round(160 * scaleY)
+  let gapY = Math.round(14 * scaleY)
+  // large：預留較高卡片給放大後的時間／星期列
+  let prefMinH = Math.round(150 * scaleY)
+  let prefMaxH = Math.round(178 * scaleY)
   let titleSize = Math.round(30 * scaleY)
   let subSize = Math.round(20 * scaleY)
   let compact = false
 
   if (mode === "standard") {
-    gapY = Math.round(12 * scaleY)
-    prefMinH = Math.round(110 * scaleY)
-    prefMaxH = Math.round(130 * scaleY)
+    gapY = Math.round(10 * scaleY)
+    prefMinH = Math.round(122 * scaleY)
+    prefMaxH = Math.round(148 * scaleY)
     titleSize = Math.round(26 * scaleY)
     subSize = Math.round(18 * scaleY)
   } else if (mode === "grid") {
@@ -377,17 +395,22 @@ function drawPillTag(
   text: string,
   bg: string,
   icon: "clock" | "person",
-  fontSize: number
+  fontSize: number,
+  options?: { fillWidth?: boolean; fontWeight?: number; padX?: number; padY?: number }
 ) {
-  const iconSize = fontSize + 6
-  const padX = 10
-  const padY = 6
-  ctx.font = `600 ${fontSize}px ${FONT}`
+  const fillWidth = options?.fillWidth ?? false
+  const fontWeight = options?.fontWeight ?? 600
+  const padX = options?.padX ?? Math.max(10, Math.round(fontSize * 0.45))
+  const padY = options?.padY ?? Math.max(6, Math.round(fontSize * 0.28))
+  const iconSize = Math.round(fontSize + (fillWidth ? 8 : 6))
+  const gap = Math.max(8, Math.round(fontSize * 0.35))
+  ctx.font = `${fontWeight} ${fontSize}px ${FONT}`
   const label = text.trim() || "—"
-  const lines = wrapCanvasText(ctx, label, maxW - iconSize - padX * 2 - 8).slice(0, 1)
+  const lines = wrapCanvasText(ctx, label, maxW - iconSize - padX * 2 - gap).slice(0, 1)
   const line = lines[0] ?? "—"
   const textW = ctx.measureText(line).width
-  const w = Math.min(maxW, iconSize + 8 + textW + padX * 2)
+  const contentW = iconSize + gap + textW + padX * 2
+  const w = fillWidth ? maxW : Math.min(maxW, contentW)
   const h = iconSize + padY * 2
 
   ctx.fillStyle = bg
@@ -400,8 +423,29 @@ function drawPillTag(
   ctx.fillStyle = PALETTE.ink
   ctx.textAlign = "left"
   ctx.textBaseline = "middle"
-  ctx.fillText(line, x + padX + iconSize + 8, y + h / 2)
+  ctx.fillText(line, x + padX + iconSize + gap, y + h / 2)
   return { w, h }
+}
+
+/** 在可用寬度內盡量放大時間／星期文字字級 */
+function fitScheduleFontSize(
+  ctx: CanvasRenderingContext2D,
+  schedule: string,
+  maxWidth: number,
+  preferredSize: number,
+  minSize: number
+): number {
+  let size = preferredSize
+  while (size > minSize) {
+    const iconSize = Math.round(size + 8)
+    const padX = Math.max(10, Math.round(size * 0.45))
+    const gap = Math.max(8, Math.round(size * 0.35))
+    ctx.font = `700 ${size}px ${FONT}`
+    const textW = ctx.measureText(schedule).width
+    if (iconSize + gap + textW + padX * 2 <= maxWidth) return size
+    size -= 1
+  }
+  return minSize
 }
 
 function drawNumberBadge(
@@ -543,6 +587,7 @@ function drawClassCard(
 
   const schedule = (cls.schedule?.trim() || "—").replace(/\s+/g, " ")
   const teacher = cls.teacherName?.trim() || "—"
+  const metaMaxW = cardW - pad * 2
 
   if (compact && cardH < compactMetaMaxH) {
     ctx.fillStyle = PALETTE.muted
@@ -555,37 +600,73 @@ function drawClassCard(
     return
   }
 
-  const tagMaxW = compact ? (cardW - pad * 2) / 2 - 6 : 260
-  const tagY = y + cardH - pad - (compact ? 30 : 34)
+  if (compact) {
+    const tagMaxW = metaMaxW / 2 - 6
+    const tagY = y + cardH - pad - 30
+    drawPillTag(ctx, textX, tagY, tagMaxW, schedule, PALETTE.accentSoft, "clock", subSize)
+    drawPillTag(
+      ctx,
+      textX + tagMaxW + 10,
+      tagY,
+      tagMaxW,
+      teacher,
+      PALETTE.tagBlue,
+      "person",
+      subSize - 1
+    )
+    return
+  }
 
-  drawPillTag(ctx, textX, tagY, tagMaxW, schedule, PALETTE.accentSoft, "clock", subSize)
+  // 非 compact：時間／星期放大並橫向撐滿白卡底部可用空間，老師標籤疊於其下
+  const teacherFont = Math.max(14, subSize - 1)
+  const teacherH = teacherFont + 6 + Math.max(6, Math.round(teacherFont * 0.28)) * 2
+  const scheduleGap = 8
+  const preferredScheduleSize = Math.min(
+    Math.round(titleSize * 1.15),
+    Math.max(22, Math.round((cardH - pad * 2) * 0.28))
+  )
+  const scheduleFont = fitScheduleFontSize(
+    ctx,
+    schedule,
+    metaMaxW,
+    preferredScheduleSize,
+    Math.max(16, subSize)
+  )
+  const scheduleIconSize = Math.round(scheduleFont + 8)
+  const schedulePadY = Math.max(6, Math.round(scheduleFont * 0.28))
+  const scheduleH = scheduleIconSize + schedulePadY * 2
+  const metaBlockH = scheduleH + scheduleGap + teacherH
+  const metaTop = y + cardH - pad - metaBlockH
+
   drawPillTag(
     ctx,
-    textX + tagMaxW + (compact ? 10 : 14),
-    tagY,
-    tagMaxW,
+    textX,
+    metaTop,
+    metaMaxW,
+    schedule,
+    PALETTE.accentSoft,
+    "clock",
+    scheduleFont,
+    { fillWidth: true, fontWeight: 700 }
+  )
+  drawPillTag(
+    ctx,
+    textX,
+    metaTop + scheduleH + scheduleGap,
+    Math.min(metaMaxW, 280),
     teacher,
     PALETTE.tagBlue,
     "person",
-    compact ? subSize - 1 : subSize
+    teacherFont
   )
 }
 
-/**
- * 以 Canvas 產生宣傳海報（data URL）。
- * 背景以原圖像素尺寸 1:1 繪製，僅在中間區域疊加班別卡片文字。
- */
-export async function renderPromotionMatchPoster(
-  input: PromotionPosterInput
-): Promise<string> {
-  const classes = input.classes.filter((c) => c.label.trim())
-  if (classes.length === 0) {
-    throw new Error("請先選擇至少一個推薦班別")
-  }
-
-  const background = await loadPosterBackground()
+function renderPosterPage(
+  background: HTMLImageElement,
+  pageClasses: PromotionPosterClass[],
+  indexOffset: number
+): string {
   const spec = buildPosterCanvasSpec(background.naturalWidth, background.naturalHeight)
-
   const canvas = document.createElement("canvas")
   canvas.width = spec.width
   canvas.height = spec.height
@@ -595,17 +676,38 @@ export async function renderPromotionMatchPoster(
   ctx.imageSmoothingEnabled = false
   ctx.drawImage(background, 0, 0)
 
-  const layout = computeCardLayout(classes.length, spec)
+  const layout = computeCardLayout(pageClasses.length, spec)
 
-  classes.forEach((cls, index) => {
+  pageClasses.forEach((cls, index) => {
     const col = index % layout.cols
     const row = Math.floor(index / layout.cols)
     const x = layout.contentX + col * (layout.cardW + layout.gapX)
     const y = layout.startY + row * (layout.cardH + layout.gapY)
-    drawClassCard(ctx, cls, index, x, y, layout)
+    drawClassCard(ctx, cls, indexOffset + index, x, y, layout)
   })
 
   return canvas.toDataURL("image/png")
+}
+
+/**
+ * 以 Canvas 產生宣傳海報（data URL 陣列）。
+ * 每張最多 4 班；超過則依序分頁（5–8 → 2 張，9–12 → 3 張…）。
+ * 背景以原圖像素尺寸 1:1 繪製，僅在中間區域疊加班別卡片文字。
+ */
+export async function renderPromotionMatchPoster(
+  input: PromotionPosterInput
+): Promise<string[]> {
+  const classes = input.classes.filter((c) => c.label.trim())
+  if (classes.length === 0) {
+    throw new Error("請先選擇至少一個推薦班別")
+  }
+
+  const background = await loadPosterBackground()
+  const pages = chunkPosterClasses(classes, POSTER_CLASSES_PER_IMAGE)
+
+  return pages.map((pageClasses, pageIndex) =>
+    renderPosterPage(background, pageClasses, pageIndex * POSTER_CLASSES_PER_IMAGE)
+  )
 }
 
 /** 測試／預覽用：產生指定班別數量的假資料 */
