@@ -20,6 +20,7 @@ import AcademicCalendar from "@/pages/AcademicCalendar"
 import TodoDetail from "@/pages/TodoDetail"
 import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
+import Inbox from "@/pages/Inbox"
 import LeaveManagement from "@/pages/LeaveManagement"
 import LessonBalanceMismatch from "@/pages/LessonBalanceMismatch"
 import Login from "@/pages/Login"
@@ -94,6 +95,7 @@ export default function App() {
      <Route path="/Settings" element={<Settings />} />
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
+     <Route path="/Inbox" element={<Inbox />} />
      <Route path="/Payments" element={<Payments />} />
      <Route path="/MonthlyTuition" element={<MonthlyTuition />} />
      <Route path="/PaymentHistory" element={<PaymentHistory />} />

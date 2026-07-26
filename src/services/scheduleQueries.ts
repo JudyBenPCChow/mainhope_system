@@ -8,6 +8,7 @@ import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
  activeTrialsForSchedules,
  enrollmentsForSchedules,
@@ -634,7 +635,7 @@ export async function assignScheduleSubstitute(
  const targetIds = await resolveSubstituteTargetIds(scheduleId)
  const { data: rows, error: fetchErr } = await supabase
   .from("schedules")
-  .select("id, teacher_id, original_teacher_id, scheduled_date, start_time, end_time")
+  .select("id, teacher_id, original_teacher_id, scheduled_date, start_time, end_time, class_id")
   .in("id", targetIds)
  if (fetchErr) throw fetchErr
  if (!rows || rows.length === 0) throw new Error("找不到排程")
@@ -695,6 +696,30 @@ export async function assignScheduleSubstitute(
   action: "指派代堂",
   detail: `schedule_ids=${targetIds.join(",")}; substitute=${substituteTeacherId}`,
  })
+
+ {
+  const primary = rows[0] as {
+   id: string
+   teacher_id: string | null
+   original_teacher_id: string | null
+   class_id?: string | null
+   scheduled_date?: string
+  }
+  const originalId = primary.original_teacher_id ?? primary.teacher_id
+  void recordInboxEvent({
+   eventType: "schedule_substitute",
+   title: `已指派代堂（${String(primary.scheduled_date ?? "").slice(0, 10) || "排程"}）`,
+   body:
+    targetIds.length > 1
+     ? `連堂共 ${targetIds.length} 節；原任／代課老師請留意當日安排`
+     : "原任／代課老師請留意當日安排",
+   actionPath: `/Schedule/${scheduleId}`,
+   classId: primary.class_id ?? null,
+   scheduleId,
+   audienceTeacherIds: [originalId, substituteTeacherId],
+   payload: { substituteTeacherId, originalTeacherId: originalId, affectedIds: targetIds },
+  })
+ }
 
  return { affectedIds: targetIds, conflicts }
 }

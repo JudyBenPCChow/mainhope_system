@@ -16,7 +16,13 @@
 
 新建排程時會從班別主責複製 `teacher_id`。之後若有人代上，應改**該堂排程**，不要改班別主責。
 
-點名（`attendance_details`）掛 `schedule_id`／`class_id`，**不另存老師**；畫面上「誰上這堂」是讀排程的 `teacher_id`（缺則回退班別主責）。
+**防呆（2026-07）：** 老師時間表／排程管理／點名紙皆以 `schedules.teacher_id`（或 `original_teacher_id`）篩選。若排程 `teacher_id` 空白，即使 `classes.teacher_id` 已指定，老師登入也看不到該堂。因此：
+
+1. 批量排程前必須已指定班別負責老師（前端會拒絕）。
+2. DB：`schedules` INSERT 時若未帶 `teacher_id`，自動取 `classes.teacher_id`。
+3. DB：班別首次指定／更換主責時，回填該班仍空白且非代堂的排程（不覆寫已有老師或代堂列）。
+
+點名（`attendance_details`）掛 `schedule_id`／`class_id`，**不另存老師**；畫面上「誰上這堂」是讀排程的 `teacher_id`（缺則回退班別主責）。寫入點名仍要求當日 `schedules.teacher_id`＝登入老師。
 
 ```mermaid
 flowchart LR

@@ -92,7 +92,8 @@ ${APO_NO_HALLUCINATION_RULE}
 /** 精簡路由（howto 層用，慳 token） */
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
-全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、待辦 /Calendar
+全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox
+（舊待辦 /Calendar 仍保留路由但已從側欄隱藏）
 admin：前台指引 /FrontDeskWizard、學生 /Students、堂數對帳 /LessonBalanceMismatch、一對一 /PrivateTutoring、老師 /Teachers、班別 /Classes、請假 /LeaveManagement、試堂 /TrialSessions、收款登記 /Payments、繳費紀錄 /PaymentHistory、增退 /EnrollmentChanges
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking
 alien 另加：用戶 /Users、課程 /Courses、優惠 /PaymentDiscounts、話術庫 /ScriptLibrary、系統問題 /SystemIssues
@@ -118,7 +119,7 @@ ${APO_SYSTEM_DIRECTIVES}
 | 角色 | 說明 |
 | --- | --- |
 | admin（管理員） | 學生、班別、排程、繳費、出席等日常營運 |
-| teacher（專科班老師） | 點名、我的班別、我的一對一（多半只可預約）、時間表、預約空房、待辦；**沒有**收款／繳費頁 |
+| teacher（專科班老師） | 點名、我的班別、我的一對一（多半只可預約）、時間表、預約空房、收件匣；**沒有**收款／繳費頁 |
 | alien（外星人） | 最高權限：課程、優惠、用戶、系統日志、報錯與問題等 |
 
 完整入口可指引至 /AllFeatures。
@@ -131,7 +132,8 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Attendance 進行點名
 - /Schedule 排程管理
 - /AttendanceRecords 出席紀錄
-- /Calendar 待辦事項
+- /Inbox 收件匣（排程／班別變動、增退讀、請假、點名提醒）
+- /Calendar 待辦事項（已自側欄隱藏，路由保留）
 
 ### admin
 - /FrontDeskWizard 前台指引精靈（新生登記→報讀→收款／出單→請假）

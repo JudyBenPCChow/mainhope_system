@@ -122,8 +122,12 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   )
  }
 
- const onSubmit = async () => {
+  const onSubmit = async () => {
   if (!year) return
+  if (!cls.teacher_id) {
+   setErr("請先指定班別負責老師，再建立排程")
+   return
+  }
   setSubmitting(true)
   setErr(null)
   setSuccessMsg(null)

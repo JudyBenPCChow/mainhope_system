@@ -17,6 +17,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { gradeLabelsAlignedFromCourse, resolveClassGradeLabels, normalizeStoredClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass, localYmd } from "@/services/scheduleQueries"
 import {
  availabilityTimeSlotForStartTime,
@@ -562,7 +563,33 @@ export async function updateClass(
   .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
   .single()
  if (error) throw error
- return mapClassRow(data as Record<string, unknown>)
+ const mapped = mapClassRow(data as Record<string, unknown>)
+
+ const teacherChanged =
+  "teacher_id" in patch && (patch.teacher_id ?? null) !== (existing.teacher_id ?? null)
+ const statusChanged = "status" in patch && String(patch.status ?? "") !== String(existing.status ?? "")
+ if (teacherChanged || statusChanged) {
+  const label = formatClassLabel({
+   subject: mapped.subject,
+   courseCode: mapped.course_code_full,
+   courseName: mapped.course_name ?? null,
+  })
+  void recordInboxEvent({
+   eventType: teacherChanged ? "class_teacher_changed" : "class_updated",
+   title: teacherChanged ? `班別主責變更：${label}` : `班別變動：${label}`,
+   body: teacherChanged
+    ? `主責老師已更新`
+    : statusChanged
+      ? `狀態：${String(existing.status ?? "—")} → ${String(patch.status ?? "—")}`
+      : null,
+   actionPath: `/Classes/${id}`,
+   classId: id,
+   audienceTeacherIds: [existing.teacher_id, mapped.teacher_id],
+   payload: { teacherChanged, statusChanged },
+  })
+ }
+
+ return mapped
 }
 
 export async function deleteClass(id: string): Promise<void> {
@@ -1461,7 +1488,7 @@ export async function updateSchedule(
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: sched, error: fetchErr } = await supabase
   .from("schedules")
-  .select("scheduled_date, teacher_id, start_time, class_id, status")
+  .select("scheduled_date, teacher_id, start_time, end_time, class_id, status")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
@@ -1470,6 +1497,7 @@ export async function updateSchedule(
   scheduled_date?: string
   teacher_id?: string | null
   start_time?: string | null
+  end_time?: string | null
   class_id?: string | null
   status?: string | null
  }
@@ -1507,6 +1535,45 @@ export async function updateSchedule(
     })
    }
   }
+ }
+
+ const dateChanged =
+  patch.scheduled_date != null &&
+  String(patch.scheduled_date).slice(0, 10) !== String(prev.scheduled_date ?? "").slice(0, 10)
+ const startChanged =
+  patch.start_time !== undefined && patch.start_time !== (prev.start_time ?? null)
+ const endChanged =
+  patch.end_time !== undefined && patch.end_time !== (prev.end_time ?? null)
+ const teacherChanged =
+  patch.teacher_id !== undefined && (patch.teacher_id ?? null) !== (prev.teacher_id ?? null)
+ const nowCancelled =
+  patch.status !== undefined &&
+  patch.status.includes("取消") &&
+  !String(prev.status ?? "").includes("取消")
+ const material = nowCancelled || dateChanged || teacherChanged || startChanged || endChanged
+
+ if (material) {
+  const dateLabel = String(patch.scheduled_date ?? prev.scheduled_date ?? "").slice(0, 10)
+  void recordInboxEvent({
+   eventType: nowCancelled ? "schedule_cancelled" : "schedule_updated",
+   title: nowCancelled ? `排程已取消（${dateLabel}）` : `排程已更新（${dateLabel}）`,
+   body: nowCancelled
+    ? patch.cancel_reason
+      ? `原因：${patch.cancel_reason}`
+      : null
+    : [
+       dateChanged ? `日期變更` : null,
+       startChanged || endChanged ? `時間變更` : null,
+       teacherChanged ? `當日老師變更` : null,
+      ]
+       .filter(Boolean)
+       .join(" · ") || null,
+   actionPath: `/Schedule/${id}`,
+   classId: prev.class_id ?? null,
+   scheduleId: id,
+   audienceTeacherIds: [prev.teacher_id, patch.teacher_id],
+   payload: { dateChanged, teacherChanged, cancelled: nowCancelled },
+  })
  }
 
  void logMgmtAuditAction({

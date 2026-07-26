@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import {
  AlertTriangle,
- CalendarClock,
  ClipboardCheck,
  Home,
+ Inbox,
  LayoutGrid,
  CalendarRange,
 } from "lucide-react"
@@ -37,14 +37,14 @@ export function getMobileBottomTabs(role: Role): MobileTabItem[] {
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/AllFeatures", label: "功能", icon: LayoutGrid },
     { path: "/SystemIssues", label: "報錯", icon: AlertTriangle },
-    { path: "/Calendar", label: "待辦", icon: CalendarClock },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
    ]
   case "admin":
   default:
    return [
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
-    { path: "/Calendar", label: "待辦", icon: CalendarClock },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
  }
@@ -73,6 +73,7 @@ export function resolveMobilePageTitle(pathname: string, role: Role): string {
  }
  if (pathname.startsWith("/Schedule/")) return "排程詳情"
  if (pathname.startsWith("/Calendar/")) return "待辦詳情"
+ if (pathname.startsWith("/Inbox")) return "收件匣"
 
  return "明學管理"
 }

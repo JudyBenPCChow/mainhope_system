@@ -175,6 +175,9 @@ export async function executeBatchSchedules(params: {
 }): Promise<BatchScheduleResult> {
  const { classId, cls, dates, classroomId, markAvailability } = params
  const teacherId = cls.teacher_id
+ if (!teacherId) {
+  throw new Error("請先指定班別負責老師，再建立排程（否則老師時間表／點名紙會看不到這些堂次）。")
+ }
  const createdDates: string[] = []
  const skippedDates: { date: string; reason: string }[] = []
  let nextSession = await nextSessionNumberForClass(classId)
