@@ -30,7 +30,7 @@ export function RoleSwitcher() {
 
  return (
   <label className="block space-y-1.5">
-   <span className="text-[11px] font-medium text-white/75">目前操作身份</span>
+   <span className="text-[0.790625rem] font-medium text-white/75">目前操作身份</span>
    <Select
     value={role}
     disabled={switching}

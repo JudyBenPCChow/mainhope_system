@@ -95,8 +95,8 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
    >
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
      <div className="min-w-0 leading-tight">
-      <div className="text-sm font-semibold tracking-tight">明學補習社</div>
-      <div className="text-xs text-white/80">管理系統</div>
+      <div className="text-[1.00625rem] font-semibold tracking-tight">明學補習社</div>
+      <div className="text-[0.8625rem] text-white/80">管理系統</div>
      </div>
      <Button
       type="button"
@@ -123,7 +123,7 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
      ))}
     </nav>
 
-    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-xs">
+    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[0.8625rem]">
      <div className="mb-3">
       <RoleSwitcher />
      </div>

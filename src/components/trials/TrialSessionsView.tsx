@@ -1,7 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
+import { TrialConvertDialog, type TrialConvertDialogTarget } from "@/components/trials/TrialConvertDialog"
+import {
+ TrialOutcomeDialog,
+ formatOutcomeSummary,
+ type TrialOutcomeDialogTarget,
+} from "@/components/trials/TrialOutcomeDialog"
+import {
+ TRIAL_CONVERT_DEMO_TODAY,
+ TRIAL_OUTCOME_LABELS,
+ cloneTrialConvertDemoRows,
+ demoCanConvert,
+ demoCanRecordOutcome,
+ demoConvertBlockedReason,
+ demoHasClosedOutcome,
+ outcomeTagTone,
+ type TrialConvertDemoRow,
+ type TrialOutcome,
+} from "@/components/trials/trialConvertDemoData"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -37,6 +55,7 @@ import {
 
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
+type OutcomeTab = "all" | TrialOutcome
 
 function matchesStatusTab(r: TrialManageRow, tab: StatusTab): boolean {
  if (tab === "all") return true
@@ -48,15 +67,47 @@ function matchesTypeTab(r: TrialManageRow, tab: TypeTab): boolean {
  return trialTypeCategory(r.trial_type) === tab
 }
 
+function demoRowToManage(r: TrialConvertDemoRow): TrialManageRow {
+ return {
+  id: r.id,
+  student_id: r.student_id,
+  class_id: r.class_id,
+  schedule_id: r.schedule_id,
+  trial_date: r.trial_date,
+  trial_type: r.trial_type,
+  status: r.status,
+  remarks: r.remarks,
+  payment_id: r.payment_id,
+  receipt_number: r.receipt_number,
+  student_name: r.student_name,
+  student_grade: r.student_grade,
+  class_subject: r.class_subject,
+  course_code_full: r.course_code_full,
+  teacher_id: r.teacher_id,
+  teacher_name: r.teacher_name,
+  sched_date: r.sched_date,
+  sched_start: r.sched_start,
+  sched_end: r.sched_end,
+ }
+}
+
 export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
+ const [searchParams, setSearchParams] = useSearchParams()
+ const isDemo = searchParams.get("demo") === "1"
+
  const [rows, setRows] = useState<TrialManageRow[]>([])
+ const [demoRows, setDemoRows] = useState<TrialConvertDemoRow[]>([])
  const [stats, setStats] = useState<TrialDashboardStats>({ todayCount: 0, weekCount: 0 })
  const [loading, setLoading] = useState(true)
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [err, setErr] = useState<string | null>(null)
+ const [convertId, setConvertId] = useState<string | null>(null)
+ const [outcomeId, setOutcomeId] = useState<string | null>(null)
+ const [outcomeDefault, setOutcomeDefault] = useState<"lost" | "other">("lost")
+ const [outcomeTab, setOutcomeTab] = useState<OutcomeTab>("all")
 
  const [statusTab, setStatusTab] = useState<StatusTab>("all")
  const [typeTab, setTypeTab] = useState<TypeTab>("all")
@@ -88,7 +139,21 @@ export function TrialSessionsView() {
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
 
+ const applyDemoRows = useCallback((list: TrialConvertDemoRow[]) => {
+  setDemoRows(list)
+  setRows(list.map(demoRowToManage))
+  const today = list.filter((r) => r.trial_date === TRIAL_CONVERT_DEMO_TODAY).length
+  setStats({ todayCount: today, weekCount: list.filter((r) => r.status !== "取消").length })
+  setTeachers([])
+ }, [])
+
  const reload = useCallback(async () => {
+  if (isDemo) {
+   applyDemoRows(cloneTrialConvertDemoRows())
+   setLoading(false)
+   setErr(null)
+   return
+  }
   if (!isSupabaseConfigured) return
   setLoading(true)
   setErr(null)
@@ -99,6 +164,7 @@ export function TrialSessionsView() {
     fetchAllTeachers(),
    ])
    setRows(list)
+   setDemoRows([])
    setStats(st)
    setTeachers(tch)
   } catch (e) {
@@ -107,11 +173,76 @@ export function TrialSessionsView() {
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [applyDemoRows, isDemo])
 
  useEffect(() => {
   void reload()
  }, [reload])
+
+ const setDemoMode = (on: boolean) => {
+  const next = new URLSearchParams(searchParams)
+  if (on) next.set("demo", "1")
+  else next.delete("demo")
+  setSearchParams(next, { replace: true })
+ }
+
+ const convertTarget: TrialConvertDialogTarget | null = useMemo(() => {
+  if (!convertId || !isDemo) return null
+  const d = demoRows.find((r) => r.id === convertId)
+  if (!d) return null
+  return {
+   id: d.id,
+   studentName: d.student_name ?? "—",
+   studentGrade: d.student_grade,
+   classLabel: d.class_subject ?? "—",
+   trialDate: d.trial_date,
+   schedStart: d.sched_start,
+   schedEnd: d.sched_end,
+   courseMode: d.courseMode,
+   pricePerLesson: d.pricePerLesson,
+  }
+ }, [convertId, demoRows, isDemo])
+
+ const outcomeTarget: TrialOutcomeDialogTarget | null = useMemo(() => {
+  if (!outcomeId || !isDemo) return null
+  const d = demoRows.find((r) => r.id === outcomeId)
+  if (!d) return null
+  return {
+   id: d.id,
+   studentName: d.student_name ?? "—",
+   studentGrade: d.student_grade,
+   classLabel: d.class_subject ?? "—",
+   trialDate: d.trial_date,
+  }
+ }, [demoRows, isDemo, outcomeId])
+
+ const openOutcome = (id: string, kind: "lost" | "other") => {
+  setOutcomeDefault(kind)
+  setOutcomeId(id)
+ }
+
+ const markDemoRollCall = (id: string) => {
+  const next = demoRows.map((r) =>
+   r.id === id ? { ...r, rollCallDone: true, status: "已完成" } : r
+  )
+  applyDemoRows(next)
+  pushBanner({
+   tone: "info",
+   title: "預覽：模擬點名完成",
+   message: "可轉正，或登記流失／其他結果。",
+  })
+ }
+
+ const demoOutcomeStats = useMemo(() => {
+  if (!isDemo) return null
+  const open = demoRows.filter((r) => r.outcome === "open").length
+  const converted = demoRows.filter((r) => r.outcome === "converted").length
+  const lost = demoRows.filter((r) => r.outcome === "lost").length
+  const other = demoRows.filter((r) => r.outcome === "other").length
+  const closed = converted + lost + other
+  const rate = closed > 0 ? Math.round((converted / closed) * 1000) / 10 : null
+  return { open, converted, lost, other, closed, rate }
+ }, [demoRows, isDemo])
 
  useEffect(() => {
   if (!addOpen) return
@@ -226,6 +357,10 @@ export function TrialSessionsView() {
   return rows.filter((r) => {
    if (!matchesStatusTab(r, statusTab)) return false
    if (!matchesTypeTab(r, typeTab)) return false
+   if (isDemo && outcomeTab !== "all") {
+    const d = demoRows.find((x) => x.id === r.id)
+    if ((d?.outcome ?? "open") !== outcomeTab) return false
+   }
    if (filterSubject !== "all" && (r.class_subject ?? "") !== filterSubject) return false
    if (filterTeacherId !== "all" && (r.teacher_id ?? "") !== filterTeacherId) return false
    if (filterGrade !== "all" && (r.student_grade ?? "") !== filterGrade) return false
@@ -233,23 +368,47 @@ export function TrialSessionsView() {
    if (filterDateTo && r.trial_date > filterDateTo) return false
    return true
   })
- }, [rows, statusTab, typeTab, filterSubject, filterTeacherId, filterGrade, filterDateFrom, filterDateTo])
+ }, [
+  rows,
+  demoRows,
+  isDemo,
+  statusTab,
+  typeTab,
+  outcomeTab,
+  filterSubject,
+  filterTeacherId,
+  filterGrade,
+  filterDateFrom,
+  filterDateTo,
+ ])
 
  const activeFilterCount = useMemo(() => {
   let n = 0
   if (statusTab !== "all") n += 1
   if (typeTab !== "all") n += 1
+  if (isDemo && outcomeTab !== "all") n += 1
   if (filterDateFrom) n += 1
   if (filterDateTo) n += 1
   if (filterSubject !== "all") n += 1
   if (filterTeacherId !== "all") n += 1
   if (filterGrade !== "all") n += 1
   return n
- }, [statusTab, typeTab, filterDateFrom, filterDateTo, filterSubject, filterTeacherId, filterGrade])
+ }, [
+  statusTab,
+  typeTab,
+  outcomeTab,
+  isDemo,
+  filterDateFrom,
+  filterDateTo,
+  filterSubject,
+  filterTeacherId,
+  filterGrade,
+ ])
 
  const resetFilters = useCallback(() => {
   setStatusTab("all")
   setTypeTab("all")
+  setOutcomeTab("all")
   setFilterDateFrom("")
   setFilterDateTo("")
   setFilterSubject("all")
@@ -288,6 +447,38 @@ export function TrialSessionsView() {
      ))}
     </div>
    </div>
+   {isDemo && demoOutcomeStats ? (
+    <div className="flex flex-col gap-2">
+     <span className="text-xs font-medium text-muted-foreground">結果（復盤）</span>
+     <div className="flex flex-wrap gap-2" role="tablist">
+      {(
+       [
+        ["all", `全部 ${demoRows.length}`],
+        ["open", `${TRIAL_OUTCOME_LABELS.open} ${demoOutcomeStats.open}`],
+        ["converted", `${TRIAL_OUTCOME_LABELS.converted} ${demoOutcomeStats.converted}`],
+        ["lost", `${TRIAL_OUTCOME_LABELS.lost} ${demoOutcomeStats.lost}`],
+        ["other", `${TRIAL_OUTCOME_LABELS.other} ${demoOutcomeStats.other}`],
+       ] as const
+      ).map(([id, label]) => (
+       <button
+        key={id}
+        type="button"
+        role="tab"
+        aria-selected={outcomeTab === id}
+        onClick={() => setOutcomeTab(id)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+         outcomeTab === id
+          ? "border-info bg-info text-white shadow-sm"
+          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+        )}
+       >
+        {label}
+       </button>
+      ))}
+     </div>
+    </div>
+   ) : null}
    <div className="flex flex-col gap-2">
     <span className="text-xs font-medium text-muted-foreground">類型</span>
     <div className="flex flex-wrap gap-2" role="tablist">
@@ -474,10 +665,15 @@ export function TrialSessionsView() {
   }
  }
 
- if (!isSupabaseConfigured) {
+ if (!isDemo && !isSupabaseConfigured) {
   return (
    <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-warning">
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
+    <div className="mt-2">
+     <Button type="button" size="sm" variant="outline" onClick={() => setDemoMode(true)}>
+      改以假資料預覽轉化 UI
+     </Button>
+    </div>
    </div>
   )
  }
@@ -490,14 +686,78 @@ export function TrialSessionsView() {
       <Sparkles className="h-7 w-7 text-info" aria-hidden />
       試堂紀錄
       <Tag tone="info" size="sm">{rows.length} 筆</Tag>
+      {isDemo ? (
+       <Tag tone="warning" size="sm">
+        轉化 UI 預覽
+       </Tag>
+      ) : null}
      </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block">試堂資料與排程連結；點學生或班別可開啟詳情頁。</p>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+      試堂資料與排程連結；點學生或班別可開啟詳情頁。
+     </p>
     </div>
-    <Button type="button" className="gap-1 bg-info text-white hover:bg-info" onClick={openAdd}>
-     <Plus className="h-4 w-4" />
-     新增試堂
-    </Button>
+    <div className="flex flex-wrap gap-2">
+     {isDemo ? (
+      <Button type="button" variant="outline" onClick={() => setDemoMode(false)}>
+       離開預覽
+      </Button>
+     ) : (
+      <Button type="button" variant="outline" onClick={() => setDemoMode(true)}>
+       預覽轉化 UI
+      </Button>
+     )}
+     <Button
+      type="button"
+      className="gap-1 bg-info text-white hover:bg-info"
+      onClick={openAdd}
+      disabled={isDemo}
+      title={isDemo ? "預覽模式不支援新增真實試堂" : undefined}
+     >
+      <Plus className="h-4 w-4" />
+      新增試堂
+     </Button>
+    </div>
    </header>
+
+   {isDemo ? (
+    <div
+     role="status"
+     className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+    >
+     正在用假資料預覽試堂結果：轉正、流失、其他結果（復盤）。不會寫入資料庫。
+    </div>
+   ) : null}
+
+   {isDemo && demoOutcomeStats ? (
+    <section
+     className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3"
+     aria-label="結果復盤概覽"
+    >
+     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+      <div className="text-[11px] text-muted-foreground md:text-xs">已結案轉化率</div>
+      <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">
+       {demoOutcomeStats.rate != null ? `${demoOutcomeStats.rate}%` : "—"}
+      </p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">轉化 ÷（轉化＋流失＋其他）</p>
+     </div>
+     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+      <div className="text-[11px] text-muted-foreground md:text-xs">已轉化</div>
+      <p className="mt-1 text-xl font-bold tabular-nums text-success md:text-2xl">
+       {demoOutcomeStats.converted}
+      </p>
+     </div>
+     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+      <div className="text-[11px] text-muted-foreground md:text-xs">已流失</div>
+      <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">
+       {demoOutcomeStats.lost}
+      </p>
+     </div>
+     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+      <div className="text-[11px] text-muted-foreground md:text-xs">待跟進</div>
+      <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">{demoOutcomeStats.open}</p>
+     </div>
+    </section>
+   ) : null}
 
    {err ? (
     <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
@@ -557,33 +817,47 @@ export function TrialSessionsView() {
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[880px] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[12%] px-3 py-2 font-medium">日期</th>
-        <th className="w-[16%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[20%] px-3 py-2 font-medium">班別</th>
-        <th className="w-[12%] px-3 py-2 font-medium">時間</th>
-        <th className="w-[10%] px-3 py-2 font-medium">類型</th>
-        <th className="w-[10%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[12%] px-3 py-2 font-medium">備註</th>
-        <th className="w-[8%] px-3 py-2 font-medium">操作</th>
+        <th className="w-[11%] px-3 py-2 font-medium">日期</th>
+        <th className="w-[13%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[16%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[9%] px-3 py-2 font-medium">時間</th>
+        <th className="w-[8%] px-3 py-2 font-medium">類型</th>
+        <th className="w-[8%] px-3 py-2 font-medium">狀態</th>
+        <th className="w-[14%] px-3 py-2 font-medium">{isDemo ? "結果" : "備註"}</th>
+        <th className="w-[21%] px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
       <tbody>
-       {filtered.map((r) => (
+       {filtered.map((r) => {
+        const demo = isDemo ? demoRows.find((d) => d.id === r.id) : undefined
+        const canConvert = demo ? demoCanConvert(demo) : false
+        const blocked = demo ? demoConvertBlockedReason(demo) : null
+        const canOutcome = demo ? demoCanRecordOutcome(demo) : false
+        const closed = demo ? demoHasClosedOutcome(demo) : false
+        return (
         <tr key={r.id} className="border-b border-border last:border-0">
          <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">{r.trial_date}</td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Students/${r.student_id}`} className="font-medium text-info hover:underline">
-           {r.student_name ?? "—"}
-          </Link>
+          {isDemo ? (
+           <span className="font-medium">{r.student_name ?? "—"}</span>
+          ) : (
+           <Link to={`/Students/${r.student_id}`} className="font-medium text-info hover:underline">
+            {r.student_name ?? "—"}
+           </Link>
+          )}
           <div className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</div>
          </td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
-           {r.class_subject ?? "—"}
-          </Link>
+          {isDemo ? (
+           <span className="font-medium">{r.class_subject ?? "—"}</span>
+          ) : (
+           <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
+            {r.class_subject ?? "—"}
+           </Link>
+          )}
           {r.course_code_full ? (
            <div className="font-mono text-xs text-muted-foreground">{r.course_code_full}</div>
           ) : null}
@@ -597,40 +871,115 @@ export function TrialSessionsView() {
           </Tag>
          </td>
          <td className="px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
-          <Select
-           className="h-9 w-full min-w-[6.5rem] text-xs"
-           value={r.status}
-           onChange={async (e) => {
-            await updateTrialSession(r.id, { status: e.target.value })
-            await reload()
-           }}
-          >
-           <option value="已預約">已預約</option>
-           <option value="已完成">已完成</option>
-           <option value="取消">取消</option>
-          </Select>
+          {isDemo ? (
+           <Tag tone={statusToTagTone(r.status)} size="sm">
+            {r.status}
+           </Tag>
+          ) : (
+           <Select
+            className="h-9 w-full min-w-[6.5rem] text-xs"
+            value={r.status}
+            onChange={async (e) => {
+             await updateTrialSession(r.id, { status: e.target.value })
+             await reload()
+            }}
+           >
+            <option value="已預約">已預約</option>
+            <option value="已完成">已完成</option>
+            <option value="取消">取消</option>
+           </Select>
+          )}
          </td>
-         <td className="max-w-[10rem] px-3 py-2 align-top text-xs text-muted-foreground">
-          {r.receipt_number ? (
-           <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
-          ) : null}
-          {r.remarks ?? (r.receipt_number ? null : "—")}
+         <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+          {isDemo && demo ? (
+           <div className="space-y-1">
+            <Tag tone={outcomeTagTone(demo.outcome)} size="sm">
+             {TRIAL_OUTCOME_LABELS[demo.outcome]}
+            </Tag>
+            {demo.outcomeReason ? <div>{demo.outcomeReason}</div> : null}
+            {demo.outcomeNote ? <div className="text-[11px]">{demo.outcomeNote}</div> : null}
+            {demo.outcomeAt ? (
+             <div className="tabular-nums text-[11px]">{demo.outcomeAt}</div>
+            ) : null}
+            {r.receipt_number ? (
+             <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
+            ) : null}
+           </div>
+          ) : (
+           <>
+            {r.receipt_number ? (
+             <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
+            ) : null}
+            {r.remarks ?? (r.receipt_number ? null : "—")}
+           </>
+          )}
          </td>
          <td className="px-3 py-2 align-top">
-          <button
-           type="button"
-           className="text-xs font-medium text-destructive hover:underline"
-           onClick={async () => {
-           if (!(await confirmDialog({ title: "刪除試堂紀錄", description: "確定刪除此筆試堂？", confirmText: "確認刪除", tone: "destructive" }))) return
-            await deleteTrialSession(r.id)
-            await reload()
-           }}
-          >
-           刪除
-          </button>
+          <div className="flex flex-col items-start gap-1">
+           {isDemo && demo ? (
+            <>
+             {closed ? null : (
+              <>
+               <Button
+                type="button"
+                size="sm"
+                disabled={!canConvert}
+                title={blocked ?? undefined}
+                onClick={() => setConvertId(r.id)}
+               >
+                轉正式報讀
+               </Button>
+               {canOutcome ? (
+                <div className="flex flex-wrap gap-2">
+                 <button
+                  type="button"
+                  className="text-xs font-medium text-destructive hover:underline"
+                  onClick={() => openOutcome(r.id, "lost")}
+                 >
+                  標流失
+                 </button>
+                 <button
+                  type="button"
+                  className="text-xs font-medium text-info hover:underline"
+                  onClick={() => openOutcome(r.id, "other")}
+                 >
+                  其他結果
+                 </button>
+                </div>
+               ) : null}
+               {blocked && !canConvert ? (
+                <span className="text-xs text-muted-foreground">{blocked}</span>
+               ) : null}
+               {!demo.rollCallDone && !String(demo.status).includes("取消") ? (
+                <button
+                 type="button"
+                 className="text-xs font-medium text-info hover:underline"
+                 onClick={() => markDemoRollCall(r.id)}
+                >
+                 模擬完成點名
+                </button>
+               ) : null}
+              </>
+             )}
+            </>
+           ) : (
+            <button
+             type="button"
+             className="text-xs font-medium text-destructive hover:underline"
+             onClick={async () => {
+             if (!(await confirmDialog({ title: "刪除試堂紀錄", description: "確定刪除此筆試堂？", confirmText: "確認刪除", tone: "destructive" }))) return
+              await deleteTrialSession(r.id)
+              await reload()
+             }}
+            >
+             刪除
+            </button>
+           )}
+          </div>
          </td>
         </tr>
-       ))}
+        )
+       })}
       </tbody>
      </table>
      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
@@ -852,6 +1201,78 @@ export function TrialSessionsView() {
      </div>
     </DialogContent>
    </Dialog>
+
+   <TrialConvertDialog
+    open={convertId != null && convertTarget != null}
+    target={convertTarget}
+    onOpenChange={(open) => {
+     if (!open) setConvertId(null)
+    }}
+    onSubmit={(payload) => {
+     if (!convertId) return
+     const next = demoRows.map((r) =>
+      r.id === convertId
+       ? {
+          ...r,
+          outcome: "converted" as const,
+          outcomeReason: payload.formLabel,
+          outcomeNote: payload.payLabel,
+          outcomeAt: `${TRIAL_CONVERT_DEMO_TODAY} 16:45`,
+          status: "已完成",
+          remarks: `轉正式報讀：${payload.formLabel}；${payload.payLabel}`,
+          receipt_number:
+           payload.payMode === "receive"
+            ? `RC-MOCK-${String(Math.floor(Math.random() * 900) + 100)}`
+            : r.receipt_number,
+         }
+       : r
+     )
+     applyDemoRows(next)
+     setConvertId(null)
+     pushBanner({
+      tone: "success",
+      title: "預覽：已轉正式報讀（假資料）",
+      message: `${payload.formLabel} · ${payload.payLabel}`,
+     })
+    }}
+   />
+
+   <TrialOutcomeDialog
+    open={outcomeId != null && outcomeTarget != null}
+    target={outcomeTarget}
+    defaultOutcome={outcomeDefault}
+    onOpenChange={(open) => {
+     if (!open) setOutcomeId(null)
+    }}
+    onSubmit={(payload) => {
+     if (!outcomeId) return
+     const summary = formatOutcomeSummary({
+      outcome: payload.outcome,
+      reason: payload.reason,
+      note: payload.note,
+     })
+     const next = demoRows.map((r) =>
+      r.id === outcomeId
+       ? {
+          ...r,
+          outcome: payload.outcome,
+          outcomeReason: payload.reason,
+          outcomeNote: payload.note,
+          outcomeAt: `${TRIAL_CONVERT_DEMO_TODAY} 17:10`,
+          status: r.status === "取消" ? r.status : "已完成",
+          remarks: summary,
+         }
+       : r
+     )
+     applyDemoRows(next)
+     setOutcomeId(null)
+     pushBanner({
+      tone: payload.outcome === "lost" ? "warning" : "info",
+      title: `預覽：已登記${TRIAL_OUTCOME_LABELS[payload.outcome]}`,
+      message: summary,
+     })
+    }}
+   />
   </div>
  )
 }

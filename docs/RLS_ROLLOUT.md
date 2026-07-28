@@ -133,9 +133,10 @@ Phase B 驗收通过后 → 部署 **Phase C**（見下方）。
 - [x] DB helper：`is_admin()`, `is_alien()`
 - [x] 老師 DB 收緊：`classes`／`student_class_enrollments` 僅 SELECT；`schedules` 可 SELECT+UPDATE（改狀態），不可 INSERT／DELETE
 - [x] **alien only**：`app_users`（CRUD）、`referral_records`、`payment_discounts`（寫）、`courses`（寫）、`mgmt_*`（讀）
-- [x] **admin 只讀**：`courses`、`payment_discounts`、`payment_discount_applications`（供班別／繳費頁 embed）；老師仍可 SELECT `courses`
-- [x] **admin + alien**（沿用 Phase B `is_mgmt_staff()`）：`payments`、`students`、`classes`、請假試堂等營運表
+- [x] **admin 只讀**：`courses`、`payment_discounts`（供班別／繳費頁 embed／收款勾選目錄）；老師仍可 SELECT `courses`
+- [x] **admin + alien**（沿用 Phase B `is_mgmt_staff()`）：`payments`、`payment_discount_applications`（收款套用優惠）、`students`、`classes`、請假試堂等營運表
 - [x] **mgmt 寫入**：任何已登入角色可 INSERT audit／system_errors（前端錯誤回報）；僅 alien 可讀
+- [x] Hotfix：`20260723180000_admin_payment_discount_applications_write.sql`（admin 收款勾選優惠需可寫 applications；目錄維護仍僅 alien）
 
 ### 你的待辦（Phase C 部署後）
 
@@ -191,6 +192,7 @@ Phase C 驗收通过后 → **收尾**（Dashboard、清除 dev policy 殘留、
 
 | 日期 | 交付 | 備註 |
 |------|------|------|
+| 2026-07-23 | admin 收款套用優惠 | `payment_discount_applications` 改 `is_mgmt_staff()` 可寫；`payment_discounts` 目錄寫入仍僅 alien |
 | 2026-07-22 | Portal 試堂 + 安全加固 | `list_portal_my_trial_schedules`（不擴 schedules RLS）；`redeem_portal_invite` 拒覆寫 admin/teacher/alien；grade helpers 僅本人／mgmt |
 | 2026-06-15 | Phase A code | migration + authBootstrap + Layout 守衛 |
 | 2026-06-15 | Phase A hotfix | admin 就讀班別：分批 `.in()` 查詢 + 課程標籤 fallback |

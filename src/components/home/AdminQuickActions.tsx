@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom"
 import {
  CalendarCheck,
- CalendarClock,
  CalendarDays,
  ChevronRight,
  ClipboardCheck,
  GraduationCap,
  HandCoins,
+ Inbox,
  ListOrdered,
  MessageSquareQuote,
  School,
@@ -62,10 +62,10 @@ const QUICK_ACTIONS = [
   icon: MessageSquareQuote,
  },
  {
-  path: "/Calendar",
-  label: "待辦事項",
-  description: "管理行政工作、期限及同事跟進事項。",
-  icon: CalendarClock,
+  path: "/Inbox",
+  label: "收件匣",
+  description: "查看排程／班別變動、增退讀、請假與點名提醒。",
+  icon: Inbox,
  },
 ] as const
 

@@ -106,8 +106,8 @@ export function Layout() {
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-4">
      {!collapsed && (
       <div className="min-w-0 leading-tight">
-       <div className="text-sm font-semibold tracking-tight">明學補習社</div>
-       <div className="text-xs text-white/80">管理系統</div>
+       <div className="text-[1.00625rem] font-semibold tracking-tight">明學補習社</div>
+       <div className="text-[0.8625rem] text-white/80">管理系統</div>
       </div>
      )}
      <Button
@@ -224,7 +224,7 @@ export function Layout() {
        })}
     </nav>
 
-    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-xs">
+    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-[0.8625rem]">
      {!collapsed ? (
       <div className="mb-3">
        <RoleSwitcher />

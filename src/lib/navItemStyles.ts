@@ -2,12 +2,12 @@ import { cn } from "@/lib/utils"
 
 /** Shared focus + transition base for sidebar nav interactive items. */
 export const navLinkBase =
- "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2A4E8A]"
+ "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-[1.00625rem] transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#2A4E8A]"
 
 export const navL1IconClass = "h-5 w-5 shrink-0 opacity-95 transition-opacity group-hover:opacity-100"
 
 export const navL2IconClass =
- "h-4 w-4 shrink-0 opacity-70 transition-opacity group-hover:opacity-100"
+ "h-4 w-4 shrink-0 opacity-95 transition-opacity group-hover:opacity-100"
 
 export function navL1Class({ active }: { active: boolean }) {
  return cn(
@@ -39,9 +39,9 @@ export function navL2RailClass({ open }: { open: boolean }) {
 export function navL2Class({ active }: { active: boolean }) {
  return cn(
   navLinkBase,
-  "gap-2.5 py-2 pl-3 pr-2 text-[13px] text-white/70",
-  active && "bg-white/20 font-medium text-white shadow-sm ring-1 ring-white/12",
-  !active && "hover:translate-x-0.5 hover:bg-white/14 hover:text-white"
+  "gap-2.5 py-2 pl-3 pr-2 text-[0.934375rem] text-white",
+  active && "bg-white/20 font-medium shadow-sm ring-1 ring-white/12",
+  !active && "hover:translate-x-0.5 hover:bg-white/14"
  )
 }
 
