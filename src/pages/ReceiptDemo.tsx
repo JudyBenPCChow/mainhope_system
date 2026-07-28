@@ -4,7 +4,7 @@ import { Printer } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { buildDemoPaymentReceiptDocumentHtml } from "@/lib/paymentPrint"
 
-/** 免登入：A4 收據模擬示範（含 logo、請假、Portal QR） */
+/** 免登入：A4 收據模擬示範（含 logo、Portal QR） */
 export default function ReceiptDemo() {
  const [html, setHtml] = useState<string>("")
  const [loading, setLoading] = useState(true)
@@ -68,7 +68,7 @@ export default function ReceiptDemo() {
      <div>
       <h1 className="text-base font-semibold tracking-tight">收款收據 · 模擬示範</h1>
       <p className="text-xs text-muted-foreground">
-       A4 · 已付款排程 · 請假紀錄 · 學生專屬開通 QR（假資料）
+       A4 · 收費明細 · 學生專屬開通 QR（假資料）
       </p>
      </div>
      <div className="flex flex-wrap gap-2">

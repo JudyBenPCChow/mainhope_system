@@ -20,6 +20,7 @@ import AcademicCalendar from "@/pages/AcademicCalendar"
 import TodoDetail from "@/pages/TodoDetail"
 import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
+import Inbox from "@/pages/Inbox"
 import LeaveManagement from "@/pages/LeaveManagement"
 import LessonBalanceMismatch from "@/pages/LessonBalanceMismatch"
 import Login from "@/pages/Login"
@@ -51,6 +52,7 @@ import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
+import PrototypeSecondaryAttendanceReport from "@/pages/PrototypeSecondaryAttendanceReport"
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
 import PromotionMatch from "@/pages/PromotionMatch"
 import ReceiptDemo from "@/pages/ReceiptDemo"
@@ -58,6 +60,7 @@ import ReceiptDemo from "@/pages/ReceiptDemo"
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
+const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
 
 export default function App() {
  return (
@@ -92,6 +95,7 @@ export default function App() {
      <Route path="/Settings" element={<Settings />} />
      <Route path="/Attendance" element={<Attendance />} />
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
+     <Route path="/Inbox" element={<Inbox />} />
      <Route path="/Payments" element={<Payments />} />
      <Route path="/MonthlyTuition" element={<MonthlyTuition />} />
      <Route path="/PaymentHistory" element={<PaymentHistory />} />
@@ -121,6 +125,20 @@ export default function App() {
         }
        >
         <EnrollmentReports />
+       </Suspense>
+      }
+     />
+     <Route
+      path="/SecondaryAttendanceReport"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入中學出席統計…
+         </div>
+        }
+       >
+        <SecondaryAttendanceReport />
        </Suspense>
       }
      />
@@ -161,6 +179,10 @@ export default function App() {
      <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
      <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
      <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
+     <Route
+      path="/prototype/SecondaryAttendanceReport"
+      element={<PrototypeSecondaryAttendanceReport />}
+     />
     </Route>
    </Routes>
    <SpeedInsights />

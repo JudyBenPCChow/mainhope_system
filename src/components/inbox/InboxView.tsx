@@ -1,0 +1,264 @@
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { CheckCheck, Inbox, RefreshCw } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { useAppBanner } from "@/lib/appBanner"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
+import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { cn } from "@/lib/utils"
+ import {
+ fetchInboxFeed,
+ markAllInboxItemsRead,
+ markInboxItemRead,
+ type InboxItem,
+ type InboxTypeFilter,
+} from "@/services/inboxQueries"
+
+const TYPE_FILTER_OPTIONS: { value: InboxTypeFilter; label: string }[] = [
+ { value: "", label: "全部類型" },
+ { value: "schedule_updated", label: "排程變動" },
+ { value: "schedule_cancelled", label: "排程取消" },
+ { value: "schedule_substitute", label: "代堂" },
+ { value: "class_updated", label: "班別變動" },
+ { value: "class_teacher_changed", label: "主責變更" },
+ { value: "enrollment_enroll", label: "新增報讀" },
+ { value: "enrollment_withdraw", label: "學生退讀" },
+ { value: "leave_created", label: "學生請假" },
+ { value: "attendance_reminder", label: "提醒點名" },
+]
+
+function formatWhen(iso: string): string {
+ const s = iso.trim()
+ if (!s) return "—"
+ const d = s.slice(0, 10)
+ const t = s.length >= 16 ? s.slice(11, 16) : ""
+ return t ? `${d} ${t}` : d
+}
+
+function matchesTypeFilter(item: InboxItem, filter: InboxTypeFilter): boolean {
+ if (!filter) return true
+ if (filter === "schedule_updated") {
+  return (
+   item.type === "schedule_updated" ||
+   item.type === "schedule_created" ||
+   item.type === "schedule_cancelled" ||
+   item.type === "schedule_substitute"
+  )
+ }
+ if (filter === "class_updated") {
+  return item.type === "class_updated" || item.type === "class_teacher_changed"
+ }
+ return item.type === filter
+}
+
+export function InboxView() {
+ const navigate = useNavigate()
+ const { pushBanner } = useAppBanner()
+ const [items, setItems] = useState<InboxItem[]>([])
+ const [loading, setLoading] = useState(true)
+ const [err, setErr] = useState<string | null>(null)
+ const [typeFilter, setTypeFilter] = useState<InboxTypeFilter>("")
+ const [unreadOnly, setUnreadOnly] = useState(false)
+ const [busyKey, setBusyKey] = useState<string | null>(null)
+
+ const load = useCallback(async () => {
+  if (!isSupabaseConfigured) {
+   setItems([])
+   setLoading(false)
+   return
+  }
+  setLoading(true)
+  setErr(null)
+  try {
+   const data = await fetchInboxFeed({ unreadOnly })
+   setItems(data)
+  } catch (e) {
+   reportUserFacingError(e, { source: "InboxView.load", setErr })
+   setItems([])
+  } finally {
+   setLoading(false)
+  }
+ }, [unreadOnly])
+
+ useEffect(() => {
+  void load()
+ }, [load])
+
+ const visible = useMemo(
+  () => items.filter((i) => matchesTypeFilter(i, typeFilter)),
+  [items, typeFilter]
+ )
+
+ const unreadCount = useMemo(() => items.filter((i) => !i.read).length, [items])
+
+ const openItem = async (item: InboxItem) => {
+  setBusyKey(item.sourceKey)
+  try {
+   if (!item.read) {
+    await markInboxItemRead(item.sourceKey, item.eventId)
+    setItems((prev) =>
+     prev.map((x) => (x.sourceKey === item.sourceKey ? { ...x, read: true } : x))
+    )
+   }
+   if (item.actionPath) navigate(item.actionPath)
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "InboxView.openItem",
+    setErr,
+    userMessage: "標記已讀失敗",
+   })
+  } finally {
+   setBusyKey(null)
+  }
+ }
+
+ const markAll = async () => {
+  setBusyKey("__all__")
+  try {
+   await markAllInboxItemsRead(visible)
+   setItems((prev) =>
+    prev.map((x) => (matchesTypeFilter(x, typeFilter) ? { ...x, read: true } : x))
+   )
+   pushBanner({ tone: "success", title: "已全部標記為已讀" })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "InboxView.markAll",
+    setErr,
+    userMessage: "標記已讀失敗",
+   })
+  } finally {
+   setBusyKey(null)
+  }
+ }
+
+ return (
+  <div className="space-y-6 md:p-6">
+   <header className="flex flex-wrap items-end justify-between gap-4">
+    <div>
+     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      <Inbox className="h-8 w-8 text-teal-600" aria-hidden />
+      收件匣
+     </h1>
+     <p className="mt-1 text-sm text-muted-foreground">
+      彙整排程／班別變動、增退讀、請假與點名提醒。
+      {unreadCount > 0 ? ` 未讀 ${unreadCount} 則。` : ""}
+     </p>
+    </div>
+    <div className="flex flex-wrap gap-2">
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void markAll()}
+      disabled={loading || busyKey != null || visible.every((i) => i.read)}
+     >
+      <CheckCheck className="mr-1.5 h-4 w-4" aria-hidden />
+      全部已讀
+     </Button>
+     <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+      <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} aria-hidden />
+      重新整理
+     </Button>
+    </div>
+   </header>
+
+   <div className="flex flex-wrap items-end gap-3">
+    <label className="space-y-1 text-sm">
+     <span className="text-muted-foreground">類型</span>
+     <Select
+      value={typeFilter}
+      onChange={(e) => setTypeFilter(e.target.value as InboxTypeFilter)}
+      className="min-w-[10rem]"
+     >
+      {TYPE_FILTER_OPTIONS.map((o) => (
+       <option key={o.value || "all"} value={o.value}>
+        {o.label}
+       </option>
+      ))}
+     </Select>
+    </label>
+    <label className="flex items-center gap-2 pb-2 text-sm">
+     <input
+      type="checkbox"
+      checked={unreadOnly}
+      onChange={(e) => setUnreadOnly(e.target.checked)}
+      className="h-4 w-4 rounded border-input"
+     />
+     只看未讀
+    </label>
+   </div>
+
+   {err ? (
+    <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+     {err}
+    </p>
+   ) : null}
+
+   {!isSupabaseConfigured ? (
+    <p className="text-sm text-muted-foreground">尚未設定 Supabase，無法載入收件匣。</p>
+   ) : loading ? (
+    <p className="text-sm text-muted-foreground">載入中…</p>
+   ) : visible.length === 0 ? (
+    <p className="text-sm text-muted-foreground">目前沒有符合條件的項目。</p>
+   ) : (
+    <div className="overflow-x-auto rounded-lg border border-border">
+     <table className="w-full min-w-[640px] table-fixed text-sm">
+      <thead className="border-b border-border bg-muted/40 text-left text-muted-foreground">
+       <tr>
+        <th className="w-[14%] px-3 py-2.5 font-medium">類型</th>
+        <th className="w-[46%] px-3 py-2.5 font-medium">內容</th>
+        <th className="w-[18%] px-3 py-2.5 font-medium">時間</th>
+        <th className="w-[10%] px-3 py-2.5 font-medium">狀態</th>
+        <th className="w-[12%] px-3 py-2.5 font-medium">動作</th>
+       </tr>
+      </thead>
+      <tbody>
+       {visible.map((item) => (
+        <tr
+         key={item.sourceKey}
+         className={cn(
+          "border-b border-border/80 last:border-0",
+          !item.read && "bg-info/5"
+         )}
+        >
+         <td className="min-w-0 px-3 py-2.5 align-top">
+          <Tag tone={statusToTagTone(item.statusLabel)}>{item.statusLabel}</Tag>
+         </td>
+         <td className="min-w-0 px-3 py-2.5 align-top">
+          <p className={cn("truncate font-medium", !item.read && "text-foreground")}>{item.title}</p>
+          {item.body ? (
+           <p className="mt-0.5 truncate text-muted-foreground" title={item.body}>
+            {item.body}
+           </p>
+          ) : null}
+         </td>
+         <td className="min-w-0 px-3 py-2.5 align-top text-muted-foreground">
+          {formatWhen(item.createdAt)}
+         </td>
+         <td className="min-w-0 px-3 py-2.5 align-top">
+          <Tag tone={item.read ? "default" : "warning"}>{item.read ? "已讀" : "未讀"}</Tag>
+         </td>
+         <td className="min-w-0 px-3 py-2.5 align-top">
+          <Button
+           type="button"
+           size="sm"
+           variant="outline"
+           disabled={busyKey === item.sourceKey}
+           onClick={() => void openItem(item)}
+          >
+           {item.actionPath ? "前往" : "已讀"}
+          </Button>
+         </td>
+        </tr>
+       ))}
+      </tbody>
+     </table>
+    </div>
+   )}
+  </div>
+ )
+}

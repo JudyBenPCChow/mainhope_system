@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { History, Printer, Search, SlidersHorizontal, Wallet } from "lucide-react"
+import { History, Search, SlidersHorizontal, Wallet } from "lucide-react"
 
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import {
@@ -10,6 +10,7 @@ import {
  selectClassName,
  statusBadge,
 } from "@/components/payments/paymentsUi"
+import { PaymentReceiptDownloadButton } from "@/components/payments/PaymentReceiptDownloadButton"
 import { PaymentReceiptWhatsAppButton } from "@/components/payments/PaymentReceiptWhatsAppButton"
 import { Button } from "@/components/ui/button"
 import {
@@ -28,11 +29,8 @@ import {
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
-import {
- buildPaymentReceiptDocumentHtmlAsync,
- printPayment,
-} from "@/lib/paymentPrint"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH } from "@/lib/receiptDownloadFolder"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -71,9 +69,6 @@ export function PaymentHistoryView() {
  const [markMethod, setMarkMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
  const [saving, setSaving] = useState(false)
 
- const [receiptPreview, setReceiptPreview] = useState<PaymentFull | null>(null)
- const [receiptPreviewHtml, setReceiptPreviewHtml] = useState<string | null>(null)
- const [receiptPrintHint, setReceiptPrintHint] = useState<string | null>(null)
  const [formErr, setFormErr] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{
   paymentId: string
@@ -149,30 +144,6 @@ export function PaymentHistoryView() {
  useEffect(() => {
   void loadHistory()
  }, [loadHistory])
-
- const openReceiptPreview = async (paymentId: string) => {
-  setReceiptPrintHint(null)
-  try {
-   const full = await fetchPaymentFull(paymentId)
-   if (!full) {
-    setFormErr("找不到單據，無法預覽收據。")
-    return
-   }
-   const html = await buildPaymentReceiptDocumentHtmlAsync(full)
-   setReceiptPreview(full)
-   setReceiptPreviewHtml(html)
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentHistoryView.openReceiptPreview", setErr: setFormErr })
-  }
- }
-
- const printFromPreview = async () => {
-  if (!receiptPreview) return
-  setReceiptPrintHint(null)
-  if (!(await printPayment(receiptPreview, "receipt"))) {
-   setReceiptPrintHint("如未開啟列印視窗，請檢查瀏覽器是否阻擋彈出視窗，或再按「列印」重試。")
-  }
- }
 
  const openDetail = async (row: PaymentListRow) => {
   setDetailOpen(true)
@@ -251,7 +222,10 @@ export function PaymentHistoryView() {
       繳費紀錄
      </h1>
      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      查詢、重印收據、以 WhatsApp 傳送 PDF 收據、將待繳單據標記為已收款。收款請至「收款登記」。
+      查詢、下載收據、以 WhatsApp 傳送 PDF 收據、將待繳單據標記為已收款。收款請至「收款登記」。
+     </p>
+     <p className="mt-1 hidden max-w-3xl text-xs text-muted-foreground md:block">
+      下載收據（Chrome）：首次請選取資料夾「{RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH}」，之後會自動存入。
      </p>
     </div>
     <Button type="button" variant="outline" asChild>
@@ -282,10 +256,7 @@ export function PaymentHistoryView() {
       <span className="ml-2 font-normal text-muted-foreground">· {receivedDone.studentName}</span>
      </p>
      <div className="flex flex-wrap gap-2">
-      <Button type="button" size="sm" onClick={() => void openReceiptPreview(receivedDone.paymentId)}>
-       <Printer className="h-4 w-4" />
-       列印收據
-      </Button>
+      <PaymentReceiptDownloadButton paymentId={receivedDone.paymentId} />
       <PaymentReceiptWhatsAppButton paymentId={receivedDone.paymentId} />
       <Button type="button" size="sm" variant="outline" asChild>
        <Link to={`/Students/${receivedDone.studentId}`}>返回學生頁</Link>
@@ -489,10 +460,7 @@ export function PaymentHistoryView() {
           <Button type="button" variant="outline" size="sm" onClick={() => void openDetail(r)}>
            詳情
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => void openReceiptPreview(r.id)}>
-           <Printer className="h-3.5 w-3.5" />
-           重印收據
-          </Button>
+          <PaymentReceiptDownloadButton paymentId={r.id} />
           <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
           {pending && rowEditable ? (
            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
@@ -559,10 +527,7 @@ export function PaymentHistoryView() {
              <Button type="button" variant="outline" size="sm" onClick={() => void openDetail(r)}>
               詳情
              </Button>
-             <Button type="button" variant="outline" size="sm" onClick={() => void openReceiptPreview(r.id)}>
-              <Printer className="h-3.5 w-3.5" />
-              重印收據
-             </Button>
+             <PaymentReceiptDownloadButton paymentId={r.id} />
              <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
              {pending && rowEditable ? (
               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
@@ -665,22 +630,7 @@ export function PaymentHistoryView() {
         </div>
        ) : null}
        <div className="flex flex-wrap gap-2 pt-2">
-        <Button
-         type="button"
-         variant="outline"
-         size="sm"
-         onClick={() => {
-          void (async () => {
-           const html = await buildPaymentReceiptDocumentHtmlAsync(detailPay)
-           setReceiptPreview(detailPay)
-           setReceiptPreviewHtml(html)
-           setReceiptPrintHint(null)
-          })()
-         }}
-        >
-         <Printer className="h-4 w-4" />
-         重印收據
-        </Button>
+        <PaymentReceiptDownloadButton payment={detailPay} />
         <PaymentReceiptWhatsAppButton payment={detailPay} contactPhone={detailPay.contactPhone} />
        </div>
       </div>
@@ -719,70 +669,6 @@ export function PaymentHistoryView() {
        >
         {saving ? "處理中…" : "確認"}
        </Button>
-      </div>
-     ) : null}
-    </DialogContent>
-   </Dialog>
-
-   <Dialog
-    open={Boolean(receiptPreview)}
-    onOpenChange={(o) => {
-     if (!o) {
-      setReceiptPreview(null)
-      setReceiptPreviewHtml(null)
-      setReceiptPrintHint(null)
-     }
-    }}
-   >
-    <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-     <DialogHeader>
-      <DialogTitle>收據預覽</DialogTitle>
-     </DialogHeader>
-     {receiptPreview ? (
-      <div className="space-y-3">
-       <iframe
-        title="收據預覽"
-        className="h-[min(70vh,40rem)] w-full rounded-md border border-border bg-[#ececec]"
-        srcDoc={receiptPreviewHtml ?? ""}
-       />
-       {receiptPrintHint ? (
-        <p className="text-sm text-warning" role="status">
-         {receiptPrintHint}
-        </p>
-       ) : null}
-       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => void printFromPreview()}>
-         <Printer className="h-4 w-4" />
-         列印
-        </Button>
-        {receiptPreview ? (
-         <PaymentReceiptWhatsAppButton
-          payment={receiptPreview}
-          contactPhone={receiptPreview.contactPhone}
-         />
-        ) : null}
-        <Button
-         type="button"
-         variant="outline"
-         onClick={() => {
-          setReceiptPreview(null)
-          setReceiptPreviewHtml(null)
-          setReceiptPrintHint(null)
-         }}
-        >
-         關閉
-        </Button>
-       </div>
-       <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-        {buildPaymentAmountBreakdown(receiptPreview).lines.map((line) => (
-         <div key={line.key} className="flex justify-between gap-2 py-0.5">
-          <span>{line.label}</span>
-          <span className="tabular-nums">
-           {line.tone === "deduction" ? `-${money(Math.abs(line.amount))}` : money(line.amount)}
-          </span>
-         </div>
-        ))}
-       </div>
       </div>
      ) : null}
     </DialogContent>
