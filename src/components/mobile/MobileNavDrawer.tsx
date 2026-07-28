@@ -89,20 +89,20 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
    <aside
     className={cn(
      "absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col overflow-hidden",
-     "border-r border-neutral-700 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-800 text-white shadow-xl",
+     "border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-xl",
      "animate-in slide-in-from-left duration-200"
     )}
    >
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-700 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
      <div className="min-w-0 leading-tight">
-      <div className="text-[1.00625rem] font-semibold tracking-tight text-white">明學補習社</div>
-      <div className="text-[0.8625rem] text-neutral-400">管理系統</div>
+      <div className="text-[1.00625rem] font-semibold tracking-tight">明學補習社</div>
+      <div className="text-[0.8625rem] text-white/80">管理系統</div>
      </div>
      <Button
       type="button"
       variant="ghost"
       size="icon"
-      className="h-9 w-9 shrink-0 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+      className="h-9 w-9 shrink-0 text-white hover:bg-white/10"
       onClick={onClose}
       aria-label="關閉選單"
      >
@@ -123,12 +123,12 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
      ))}
     </nav>
 
-    <div className="shrink-0 border-t border-neutral-700 bg-gradient-to-t from-black/80 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[0.8625rem]">
+    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[0.8625rem]">
      <div className="mb-3">
       <RoleSwitcher />
      </div>
      <div className="mb-3 flex items-center gap-2">
-      <div className="min-w-0 flex-1 truncate rounded-lg bg-neutral-800 px-3 py-2 text-neutral-200" title={userDisplayName}>
+      <div className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
        你登入為 {userDisplayName}
       </div>
       {footerNavLeaves.map((item) => {

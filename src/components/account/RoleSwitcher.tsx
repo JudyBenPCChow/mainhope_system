@@ -30,11 +30,11 @@ export function RoleSwitcher() {
 
  return (
   <label className="block space-y-1.5">
-   <span className="text-[0.790625rem] font-medium text-neutral-400">目前操作身份</span>
+   <span className="text-[0.790625rem] font-medium text-white/75">目前操作身份</span>
    <Select
     value={role}
     disabled={switching}
-    className="min-h-9 border-neutral-600 bg-neutral-800 text-white shadow-none hover:border-neutral-500"
+    className="min-h-9 border-white/20 bg-white/10 text-white shadow-none hover:border-white/35"
     onChange={(event) => void handleChange(event.target.value as MgmtRole)}
    >
     {profile.availableRoles.map((availableRole) => (
