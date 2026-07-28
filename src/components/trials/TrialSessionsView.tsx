@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
+<<<<<<< Updated upstream
 import { TrialConvertDialog, type TrialConvertDialogTarget } from "@/components/trials/TrialConvertDialog"
 import {
  TrialOutcomeDialog,
@@ -20,6 +21,17 @@ import {
  type TrialConvertDemoRow,
  type TrialOutcome,
 } from "@/components/trials/trialConvertDemoData"
+=======
+import {
+ TrialConvertDialog,
+ type TrialConvertDialogTarget,
+ type TrialConvertSessionOption,
+} from "@/components/trials/TrialConvertDialog"
+import {
+ TrialOutcomeDialog,
+ type TrialOutcomeDialogTarget,
+} from "@/components/trials/TrialOutcomeDialog"
+>>>>>>> Stashed changes
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -27,9 +39,16 @@ import { Tag } from "@/components/ui/tag"
 import { Select } from "@/components/ui/select"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import {
+ TRIAL_OUTCOME_LABELS,
+ formatOutcomeSummary,
+ outcomeTagTone,
+ type TrialOutcome,
+} from "@/lib/trialOutcome"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -39,13 +58,17 @@ import { PAYMENT_METHOD_PRESETS } from "@/services/paymentQueries"
 import { listStudents } from "@/services/queries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
-import { useAppBanner } from "@/lib/appBanner"
 import {
+ convertTrialToEnrollment,
  deleteTrialSession,
  fetchTrialDashboardStats,
  fetchTrialsWithRelations,
  insertPaidTrialSession,
  insertTrialSession,
+ recordTrialOutcome,
+ trialCanConvert,
+ trialCanRecordOutcome,
+ trialConvertBlockedReason,
  trialStatusCategory,
  trialTypeCategory,
  updateTrialSession,
@@ -95,8 +118,11 @@ export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
+<<<<<<< Updated upstream
  const [searchParams, setSearchParams] = useSearchParams()
  const isDemo = searchParams.get("demo") === "1"
+=======
+>>>>>>> Stashed changes
 
  const [rows, setRows] = useState<TrialManageRow[]>([])
  const [demoRows, setDemoRows] = useState<TrialConvertDemoRow[]>([])
@@ -111,6 +137,7 @@ export function TrialSessionsView() {
 
  const [statusTab, setStatusTab] = useState<StatusTab>("all")
  const [typeTab, setTypeTab] = useState<TypeTab>("all")
+ const [outcomeTab, setOutcomeTab] = useState<OutcomeTab>("all")
  const [filterDateFrom, setFilterDateFrom] = useState("")
  const [filterDateTo, setFilterDateTo] = useState("")
  const [filterSubject, setFilterSubject] = useState("all")
@@ -139,6 +166,7 @@ export function TrialSessionsView() {
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
 
+<<<<<<< Updated upstream
  const applyDemoRows = useCallback((list: TrialConvertDemoRow[]) => {
   setDemoRows(list)
   setRows(list.map(demoRowToManage))
@@ -146,6 +174,15 @@ export function TrialSessionsView() {
   setStats({ todayCount: today, weekCount: list.filter((r) => r.status !== "取消").length })
   setTeachers([])
  }, [])
+=======
+ const [convertId, setConvertId] = useState<string | null>(null)
+ const [convertSessions, setConvertSessions] = useState<TrialConvertSessionOption[]>([])
+ const [convertSessionsLoading, setConvertSessionsLoading] = useState(false)
+ const [convertSaving, setConvertSaving] = useState(false)
+ const [outcomeId, setOutcomeId] = useState<string | null>(null)
+ const [outcomeDefault, setOutcomeDefault] = useState<"lost" | "other">("lost")
+ const [outcomeSaving, setOutcomeSaving] = useState(false)
+>>>>>>> Stashed changes
 
  const reload = useCallback(async () => {
   if (isDemo) {
@@ -309,6 +346,33 @@ export function TrialSessionsView() {
   })
  }, [addOpen, addClassId])
 
+ useEffect(() => {
+  if (!convertId) {
+   setConvertSessions([])
+   return
+  }
+  const row = rows.find((r) => r.id === convertId)
+  if (!row) return
+  setConvertSessionsLoading(true)
+  void fetchUpcomingSchedulesForClass(row.class_id, localYmd())
+   .then((sched) => {
+    setConvertSessions(
+     sched.map((s) => ({
+      id: s.id,
+      sessionNumber: null,
+      date: s.scheduled_date,
+      start: (s.start_time ?? "—").slice(0, 5),
+      end: (s.end_time ?? "—").slice(0, 5),
+     }))
+    )
+   })
+   .catch((e) => {
+    reportUserFacingError(e, { source: "TrialSessionsView.convertSessions" })
+    setConvertSessions([])
+   })
+   .finally(() => setConvertSessionsLoading(false))
+ }, [convertId, rows])
+
  const subjectOptions = useMemo(() => {
   const s = new Set<string>()
   for (const r of rows) {
@@ -326,7 +390,6 @@ export function TrialSessionsView() {
  }, [rows])
 
  const statusCounts = useMemo(() => {
-  const all = rows.length
   let booked = 0
   let done = 0
   let cancel = 0
@@ -336,11 +399,10 @@ export function TrialSessionsView() {
    else if (c === "done") done++
    else booked++
   }
-  return { all, booked, done, cancel }
+  return { all: rows.length, booked, done, cancel }
  }, [rows])
 
  const typeCounts = useMemo(() => {
-  const all = rows.length
   let free = 0
   let half = 0
   let full = 0
@@ -350,17 +412,31 @@ export function TrialSessionsView() {
    else if (c === "half") half++
    else if (c === "full") full++
   }
-  return { all, free, half, full }
+  return { all: rows.length, free, half, full }
+ }, [rows])
+
+ const outcomeStats = useMemo(() => {
+  const open = rows.filter((r) => r.outcome === "open").length
+  const converted = rows.filter((r) => r.outcome === "converted").length
+  const lost = rows.filter((r) => r.outcome === "lost").length
+  const other = rows.filter((r) => r.outcome === "other").length
+  const closed = converted + lost + other
+  const rate = closed > 0 ? Math.round((converted / closed) * 1000) / 10 : null
+  return { open, converted, lost, other, closed, rate }
  }, [rows])
 
  const filtered = useMemo(() => {
   return rows.filter((r) => {
    if (!matchesStatusTab(r, statusTab)) return false
    if (!matchesTypeTab(r, typeTab)) return false
+<<<<<<< Updated upstream
    if (isDemo && outcomeTab !== "all") {
     const d = demoRows.find((x) => x.id === r.id)
     if ((d?.outcome ?? "open") !== outcomeTab) return false
    }
+=======
+   if (outcomeTab !== "all" && r.outcome !== outcomeTab) return false
+>>>>>>> Stashed changes
    if (filterSubject !== "all" && (r.class_subject ?? "") !== filterSubject) return false
    if (filterTeacherId !== "all" && (r.teacher_id ?? "") !== filterTeacherId) return false
    if (filterGrade !== "all" && (r.student_grade ?? "") !== filterGrade) return false
@@ -370,8 +446,11 @@ export function TrialSessionsView() {
   })
  }, [
   rows,
+<<<<<<< Updated upstream
   demoRows,
   isDemo,
+=======
+>>>>>>> Stashed changes
   statusTab,
   typeTab,
   outcomeTab,
@@ -386,7 +465,11 @@ export function TrialSessionsView() {
   let n = 0
   if (statusTab !== "all") n += 1
   if (typeTab !== "all") n += 1
+<<<<<<< Updated upstream
   if (isDemo && outcomeTab !== "all") n += 1
+=======
+  if (outcomeTab !== "all") n += 1
+>>>>>>> Stashed changes
   if (filterDateFrom) n += 1
   if (filterDateTo) n += 1
   if (filterSubject !== "all") n += 1
@@ -397,7 +480,10 @@ export function TrialSessionsView() {
   statusTab,
   typeTab,
   outcomeTab,
+<<<<<<< Updated upstream
   isDemo,
+=======
+>>>>>>> Stashed changes
   filterDateFrom,
   filterDateTo,
   filterSubject,
@@ -415,6 +501,49 @@ export function TrialSessionsView() {
   setFilterTeacherId("all")
   setFilterGrade("all")
  }, [])
+
+ const convertTarget: TrialConvertDialogTarget | null = useMemo(() => {
+  if (!convertId) return null
+  const r = rows.find((x) => x.id === convertId)
+  if (!r) return null
+  return {
+   id: r.id,
+   studentName: r.student_name ?? "—",
+   studentGrade: r.student_grade,
+   classLabel: r.class_subject ?? "—",
+   trialDate: r.trial_date,
+   schedStart: r.sched_start,
+   schedEnd: r.sched_end,
+   courseMode: r.course_mode,
+   pricePerLesson: r.price_per_lesson != null && r.price_per_lesson > 0 ? r.price_per_lesson : 0,
+  }
+ }, [convertId, rows])
+
+ const outcomeTarget: TrialOutcomeDialogTarget | null = useMemo(() => {
+  if (!outcomeId) return null
+  const r = rows.find((x) => x.id === outcomeId)
+  if (!r) return null
+  return {
+   id: r.id,
+   studentName: r.student_name ?? "—",
+   studentGrade: r.student_grade,
+   classLabel: r.class_subject ?? "—",
+   trialDate: r.trial_date,
+  }
+ }, [outcomeId, rows])
+
+ const openOutcome = (id: string, kind: "lost" | "other") => {
+  setOutcomeDefault(kind)
+  setOutcomeId(id)
+ }
+
+ const chipClass = (active: boolean) =>
+  cn(
+   "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+   active
+    ? "border-info bg-info text-white shadow-sm"
+    : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+  )
 
  const renderTrialFilterPanel = () => (
   <div className="space-y-5">
@@ -435,12 +564,32 @@ export function TrialSessionsView() {
        role="tab"
        aria-selected={statusTab === id}
        onClick={() => setStatusTab(id)}
-       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
-        statusTab === id
-         ? "border-info bg-info text-white shadow-sm"
-         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-       )}
+       className={chipClass(statusTab === id)}
+      >
+       {label}
+      </button>
+     ))}
+    </div>
+   </div>
+   <div className="flex flex-col gap-2">
+    <span className="text-xs font-medium text-muted-foreground">結果（復盤）</span>
+    <div className="flex flex-wrap gap-2" role="tablist">
+     {(
+      [
+       ["all", `全部 ${rows.length}`],
+       ["open", `${TRIAL_OUTCOME_LABELS.open} ${outcomeStats.open}`],
+       ["converted", `${TRIAL_OUTCOME_LABELS.converted} ${outcomeStats.converted}`],
+       ["lost", `${TRIAL_OUTCOME_LABELS.lost} ${outcomeStats.lost}`],
+       ["other", `${TRIAL_OUTCOME_LABELS.other} ${outcomeStats.other}`],
+      ] as const
+     ).map(([id, label]) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={outcomeTab === id}
+       onClick={() => setOutcomeTab(id)}
+       className={chipClass(outcomeTab === id)}
       >
        {label}
       </button>
@@ -496,60 +645,37 @@ export function TrialSessionsView() {
        role="tab"
        aria-selected={typeTab === id}
        onClick={() => setTypeTab(id)}
-       className={cn(
-        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
-        typeTab === id
-         ? "border-info bg-info text-white shadow-sm"
-         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
-       )}
+       className={chipClass(typeTab === id)}
       >
        {label}
       </button>
      ))}
     </div>
    </div>
-   <div className="grid gap-3 sm:grid-cols-2">
-    <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>試堂日起</span>
-     <Input
-      type="date"
-      value={filterDateFrom}
-      onChange={(e) => setFilterDateFrom(e.target.value)}
-      className="h-10 w-full"
-     />
+   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <label className="grid gap-1 text-xs">
+     <span className="text-muted-foreground">試堂日起</span>
+     <Input type="date" className="h-9" value={filterDateFrom} onChange={(e) => setFilterDateFrom(e.target.value)} />
     </label>
-    <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>試堂日迄</span>
-     <Input
-      type="date"
-      value={filterDateTo}
-      onChange={(e) => setFilterDateTo(e.target.value)}
-      className="h-10 w-full"
-     />
+    <label className="grid gap-1 text-xs">
+     <span className="text-muted-foreground">試堂日迄</span>
+     <Input type="date" className="h-9" value={filterDateTo} onChange={(e) => setFilterDateTo(e.target.value)} />
     </label>
-    <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>科目</span>
-     <Select
-      className="h-10 min-h-10 w-full"
-      value={filterSubject}
-      onChange={(e) => setFilterSubject(e.target.value)}
-     >
-      <option value="all">全部科目</option>
-      {subjectOptions.map((sub) => (
-       <option key={sub} value={sub}>
-        {sub}
+    <label className="grid gap-1 text-xs">
+     <span className="text-muted-foreground">班別</span>
+     <Select className="h-9" value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)}>
+      <option value="all">全部</option>
+      {subjectOptions.map((s) => (
+       <option key={s} value={s}>
+        {s}
        </option>
       ))}
      </Select>
     </label>
-    <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>老師</span>
-     <Select
-      className="h-10 min-h-10 w-full"
-      value={filterTeacherId}
-      onChange={(e) => setFilterTeacherId(e.target.value)}
-     >
-      <option value="all">全部老師</option>
+    <label className="grid gap-1 text-xs">
+     <span className="text-muted-foreground">老師</span>
+     <Select className="h-9" value={filterTeacherId} onChange={(e) => setFilterTeacherId(e.target.value)}>
+      <option value="all">全部</option>
       {teachers.map((t) => (
        <option key={t.id} value={t.id}>
         {t.full_name}
@@ -557,14 +683,10 @@ export function TrialSessionsView() {
       ))}
      </Select>
     </label>
-    <label className="grid gap-1 text-xs text-muted-foreground sm:col-span-2">
-     <span>年級</span>
-     <Select
-      className="h-10 min-h-10 w-full"
-      value={filterGrade}
-      onChange={(e) => setFilterGrade(e.target.value)}
-     >
-      <option value="all">全部年級</option>
+    <label className="grid gap-1 text-xs">
+     <span className="text-muted-foreground">年級</span>
+     <Select className="h-9" value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)}>
+      <option value="all">全部</option>
       {gradeOptions.map((g) => (
        <option key={g} value={g}>
         {g}
@@ -685,6 +807,7 @@ export function TrialSessionsView() {
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
       <Sparkles className="h-7 w-7 text-info" aria-hidden />
       試堂紀錄
+<<<<<<< Updated upstream
       <Tag tone="info" size="sm">{rows.length} 筆</Tag>
       {isDemo ? (
        <Tag tone="warning" size="sm">
@@ -716,6 +839,15 @@ export function TrialSessionsView() {
       <Plus className="h-4 w-4" />
       新增試堂
      </Button>
+=======
+      <Tag tone="info" size="sm">
+       {rows.length} 筆
+      </Tag>
+     </h1>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+      試堂資料與排程連結；點名完成後可轉正式報讀，或登記流失／其他結果以便復盤。
+     </p>
+>>>>>>> Stashed changes
     </div>
    </header>
 
@@ -760,7 +892,10 @@ export function TrialSessionsView() {
    ) : null}
 
    {err ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
+    <div
+     className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+     role="alert"
+    >
      {err}
     </div>
    ) : null}
@@ -781,6 +916,28 @@ export function TrialSessionsView() {
      </div>
      <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.weekCount}</p>
      <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">本週一至週日（依試堂日期）之筆數</p>
+    </div>
+   </section>
+
+   <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3" aria-label="結果復盤概覽">
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">已結案轉化率</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">
+      {outcomeStats.rate != null ? `${outcomeStats.rate}%` : "—"}
+     </p>
+     <p className="mt-0.5 text-[11px] text-muted-foreground">轉化 ÷（轉化＋流失＋其他）</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">已轉化</div>
+     <p className="mt-1 text-xl font-bold tabular-nums text-success md:text-2xl">{outcomeStats.converted}</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">已流失</div>
+     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">{outcomeStats.lost}</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">待跟進</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">{outcomeStats.open}</p>
     </div>
    </section>
 
@@ -806,9 +963,7 @@ export function TrialSessionsView() {
      </MobileFilterSheet>
     </>
    ) : (
-    <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
-     {renderTrialFilterPanel()}
-    </div>
+    <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">{renderTrialFilterPanel()}</div>
    )}
 
    {loading ? (
@@ -817,6 +972,7 @@ export function TrialSessionsView() {
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+<<<<<<< Updated upstream
      <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
@@ -828,10 +984,24 @@ export function TrialSessionsView() {
         <th className="w-[8%] px-3 py-2 font-medium">狀態</th>
         <th className="w-[14%] px-3 py-2 font-medium">{isDemo ? "結果" : "備註"}</th>
         <th className="w-[21%] px-3 py-2 font-medium">操作</th>
+=======
+     <table className="w-full min-w-[1000px] table-fixed border-collapse text-sm">
+      <thead>
+       <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
+        <th className="w-[10%] px-3 py-2 font-medium">日期</th>
+        <th className="w-[12%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[16%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[9%] px-3 py-2 font-medium">時間</th>
+        <th className="w-[8%] px-3 py-2 font-medium">類型</th>
+        <th className="w-[9%] px-3 py-2 font-medium">狀態</th>
+        <th className="w-[14%] px-3 py-2 font-medium">結果</th>
+        <th className="w-[22%] px-3 py-2 font-medium">操作</th>
+>>>>>>> Stashed changes
        </tr>
       </thead>
       <tbody>
        {filtered.map((r) => {
+<<<<<<< Updated upstream
         const demo = isDemo ? demoRows.find((d) => d.id === r.id) : undefined
         const canConvert = demo ? demoCanConvert(demo) : false
         const blocked = demo ? demoConvertBlockedReason(demo) : null
@@ -876,6 +1046,37 @@ export function TrialSessionsView() {
             {r.status}
            </Tag>
           ) : (
+=======
+        const canConvert = trialCanConvert(r)
+        const blocked = trialConvertBlockedReason(r)
+        const canOutcome = trialCanRecordOutcome(r)
+        return (
+         <tr key={r.id} className="border-b border-border last:border-0">
+          <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">{r.trial_date}</td>
+          <td className="px-3 py-2 align-top">
+           <Link to={`/Students/${r.student_id}`} className="font-medium text-info hover:underline">
+            {r.student_name ?? "—"}
+           </Link>
+           <div className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</div>
+          </td>
+          <td className="px-3 py-2 align-top">
+           <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
+            {r.class_subject ?? "—"}
+           </Link>
+           {r.course_code_full ? (
+            <div className="font-mono text-xs text-muted-foreground">{r.course_code_full}</div>
+           ) : null}
+          </td>
+          <td className="px-3 py-2 align-top tabular-nums text-muted-foreground">
+           {r.sched_start && r.sched_end ? `${r.sched_start}–${r.sched_end}` : "—"}
+          </td>
+          <td className="px-3 py-2 align-top">
+           <Tag tone={statusToTagTone(r.trial_type)} size="sm">
+            {r.trial_type}
+           </Tag>
+          </td>
+          <td className="px-3 py-2 align-top" onClick={(e) => e.stopPropagation()}>
+>>>>>>> Stashed changes
            <Select
             className="h-9 w-full min-w-[6.5rem] text-xs"
             value={r.status}
@@ -888,6 +1089,7 @@ export function TrialSessionsView() {
             <option value="已完成">已完成</option>
             <option value="取消">取消</option>
            </Select>
+<<<<<<< Updated upstream
           )}
          </td>
          <td className="px-3 py-2 align-top text-xs text-muted-foreground">
@@ -963,21 +1165,88 @@ export function TrialSessionsView() {
              )}
             </>
            ) : (
+=======
+          </td>
+          <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+           <div className="space-y-1">
+            <Tag tone={outcomeTagTone(r.outcome)} size="sm">
+             {TRIAL_OUTCOME_LABELS[r.outcome]}
+            </Tag>
+            {r.outcome_reason ? <div>{r.outcome_reason}</div> : null}
+            {r.outcome_note ? <div className="text-[11px]">{r.outcome_note}</div> : null}
+            {r.receipt_number ? (
+             <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
+            ) : null}
+            {!r.outcome_reason && !r.outcome_note && !r.receipt_number && r.remarks ? (
+             <div>{r.remarks}</div>
+            ) : null}
+           </div>
+          </td>
+          <td className="px-3 py-2 align-top">
+           <div className="flex flex-col items-start gap-1">
+            {canConvert || canOutcome ? (
+             <>
+              {canConvert ? (
+               <Button type="button" size="sm" onClick={() => setConvertId(r.id)}>
+                轉正式報讀
+               </Button>
+              ) : blocked ? (
+               <span className="text-xs text-muted-foreground">{blocked}</span>
+              ) : null}
+              {canOutcome ? (
+               <div className="flex flex-wrap gap-2">
+                <button
+                 type="button"
+                 className="text-xs font-medium text-destructive hover:underline"
+                 onClick={() => openOutcome(r.id, "lost")}
+                >
+                 標流失
+                </button>
+                <button
+                 type="button"
+                 className="text-xs font-medium text-info hover:underline"
+                 onClick={() => openOutcome(r.id, "other")}
+                >
+                 其他結果
+                </button>
+               </div>
+              ) : null}
+             </>
+            ) : null}
+>>>>>>> Stashed changes
             <button
              type="button"
              className="text-xs font-medium text-destructive hover:underline"
              onClick={async () => {
+<<<<<<< Updated upstream
              if (!(await confirmDialog({ title: "刪除試堂紀錄", description: "確定刪除此筆試堂？", confirmText: "確認刪除", tone: "destructive" }))) return
+=======
+              if (
+               !(await confirmDialog({
+                title: "刪除試堂紀錄",
+                description: "確定刪除此筆試堂？",
+                confirmText: "確認刪除",
+                tone: "destructive",
+               }))
+              )
+               return
+>>>>>>> Stashed changes
               await deleteTrialSession(r.id)
               await reload()
              }}
             >
              刪除
             </button>
+<<<<<<< Updated upstream
            )}
           </div>
          </td>
         </tr>
+=======
+           </div>
+          </td>
+         </tr>
+>>>>>>> Stashed changes
         )
        })}
       </tbody>
@@ -1137,7 +1406,7 @@ export function TrialSessionsView() {
        <span className="text-muted-foreground">備註（選填）</span>
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
-      {(trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full") ? (
+      {trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full" ? (
        <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
         半價／原價試堂須先完成收款（已付＋1 堂或連堂節數），再建立試堂並寫入收據編號。
        </p>
@@ -1205,11 +1474,18 @@ export function TrialSessionsView() {
    <TrialConvertDialog
     open={convertId != null && convertTarget != null}
     target={convertTarget}
+<<<<<<< Updated upstream
+=======
+    sessions={convertSessions}
+    sessionsLoading={convertSessionsLoading}
+    saving={convertSaving}
+>>>>>>> Stashed changes
     onOpenChange={(open) => {
      if (!open) setConvertId(null)
     }}
     onSubmit={(payload) => {
      if (!convertId) return
+<<<<<<< Updated upstream
      const next = demoRows.map((r) =>
       r.id === convertId
        ? {
@@ -1234,6 +1510,45 @@ export function TrialSessionsView() {
       title: "預覽：已轉正式報讀（假資料）",
       message: `${payload.formLabel} · ${payload.payLabel}`,
      })
+=======
+     void (async () => {
+      setConvertSaving(true)
+      try {
+       const { paymentId } = await convertTrialToEnrollment({
+        trialId: convertId,
+        enrollmentPeriod: payload.enrollmentPeriod,
+        scheduleIds: payload.scheduleIds.length > 0 ? payload.scheduleIds : undefined,
+        payment:
+         payload.payMode === "skip"
+          ? null
+          : {
+             lessonCount: payload.lessonCount,
+             amount: payload.amount,
+             paymentMethod: payload.paymentMethod,
+             status: payload.paymentStatus,
+            },
+       })
+       setConvertId(null)
+       pushBanner({
+        tone: "success",
+        title: "已轉正式報讀",
+        message: paymentId
+         ? `${payload.formLabel}；已建立收費／待繳單`
+         : `${payload.formLabel}；稍後再收費`,
+       })
+       await reload()
+      } catch (e) {
+       reportUserFacingError(e, { source: "TrialSessionsView.convert" })
+       pushBanner({
+        tone: "error",
+        title: "轉正失敗",
+        message: e instanceof Error ? e.message : "請稍後再試",
+       })
+      } finally {
+       setConvertSaving(false)
+      }
+     })()
+>>>>>>> Stashed changes
     }}
    />
 
@@ -1241,11 +1556,16 @@ export function TrialSessionsView() {
     open={outcomeId != null && outcomeTarget != null}
     target={outcomeTarget}
     defaultOutcome={outcomeDefault}
+<<<<<<< Updated upstream
+=======
+    saving={outcomeSaving}
+>>>>>>> Stashed changes
     onOpenChange={(open) => {
      if (!open) setOutcomeId(null)
     }}
     onSubmit={(payload) => {
      if (!outcomeId) return
+<<<<<<< Updated upstream
      const summary = formatOutcomeSummary({
       outcome: payload.outcome,
       reason: payload.reason,
@@ -1271,6 +1591,39 @@ export function TrialSessionsView() {
       title: `預覽：已登記${TRIAL_OUTCOME_LABELS[payload.outcome]}`,
       message: summary,
      })
+=======
+     void (async () => {
+      setOutcomeSaving(true)
+      try {
+       await recordTrialOutcome({
+        trialId: outcomeId,
+        outcome: payload.outcome,
+        reason: payload.reason,
+        note: payload.note,
+       })
+       setOutcomeId(null)
+       pushBanner({
+        tone: payload.outcome === "lost" ? "warning" : "info",
+        title: `已登記${TRIAL_OUTCOME_LABELS[payload.outcome]}`,
+        message: formatOutcomeSummary({
+         outcome: payload.outcome,
+         reason: payload.reason,
+         note: payload.note,
+        }),
+       })
+       await reload()
+      } catch (e) {
+       reportUserFacingError(e, { source: "TrialSessionsView.outcome" })
+       pushBanner({
+        tone: "error",
+        title: "登記失敗",
+        message: e instanceof Error ? e.message : "請稍後再試",
+       })
+      } finally {
+       setOutcomeSaving(false)
+      }
+     })()
+>>>>>>> Stashed changes
     }}
    />
   </div>

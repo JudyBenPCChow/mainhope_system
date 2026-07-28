@@ -22,6 +22,7 @@ import {
  parseHm,
 } from "@/lib/lessonSlots"
 import { resolveClassKind } from "@/lib/privateClassKind"
+import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
@@ -1042,18 +1043,26 @@ async function assertNoEnrollmentTimeConflicts(opts: {
  if (conflicts.length > 0) throw new Error(formatEnrollmentConflictError(conflicts))
 }
 
-/** 報讀成功後：同班未結案試堂標為已完成，避免試堂列表殘留 */
-async function closeOpenTrialsAfterEnrollment(studentId: string, classId: string): Promise<void> {
+/** 報讀成功後：同班未結案試堂標為已完成並寫轉化結果，避免試堂列表殘留 */
+async function closeOpenTrialsAfterEnrollment(
+ studentId: string,
+ classId: string,
+ enrollmentId: string
+): Promise<void> {
  if (!supabase) return
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("id, status, remarks")
+  .select("id, status, remarks, outcome")
   .eq("student_id", studentId)
   .eq("class_id", classId)
  if (error) throw error
+ const now = new Date().toISOString()
  const open = (data ?? []).filter((row) => {
   const s = String((row as { status?: string }).status ?? "")
-  return !s.includes("完成") && !s.includes("取消")
+  const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
+  if (s.includes("取消")) return false
+  if (trialOutcomeClosed(outcome)) return false
+  return true
  }) as Array<{ id: string; remarks: string | null }>
  if (open.length === 0) return
  const note = "報讀後自動結案"
@@ -1065,7 +1074,11 @@ async function closeOpenTrialsAfterEnrollment(studentId: string, classId: string
    .update({
     status: "已完成",
     remarks,
-    updated_at: new Date().toISOString(),
+    outcome: "converted",
+    outcome_reason: note,
+    outcome_at: now,
+    converted_enrollment_id: enrollmentId,
+    updated_at: now,
    })
    .eq("id", row.id)
   if (upErr) throw upErr
@@ -1078,7 +1091,7 @@ export async function insertEnrollment(
  enrollmentPeriod?: EnrollmentFormValue | null,
  scheduleIds?: string[],
  pending?: InsertEnrollmentPendingOpts | null
-): Promise<void> {
+): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
  const { data: classRow, error: classErr } = await supabase
@@ -1221,10 +1234,11 @@ export async function insertEnrollment(
  }
  await syncStudentEnrollmentState(studentId)
  try {
-  await closeOpenTrialsAfterEnrollment(studentId, classId)
+  await closeOpenTrialsAfterEnrollment(studentId, classId, enrollmentId)
  } catch (trialErr) {
   console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", trialErr)
  }
+ return enrollmentId
 }
 
 export async function updateEnrollmentPeriod(

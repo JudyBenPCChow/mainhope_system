@@ -5,9 +5,16 @@ import {
  intervalsOverlapMinutes,
  parseHm,
 } from "@/lib/lessonSlots"
+import {
+ normalizeTrialOutcome,
+ trialOutcomeClosed,
+ type TrialOutcome,
+} from "@/lib/trialOutcome"
+import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
+import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
 
 /** 以週一為一週起始（與本地日曆一致） */
 export function mondayYmdOfWeekContaining(ymd: string): string {
@@ -39,9 +46,19 @@ export type TrialManageRow = {
  sched_date: string | null
  sched_start: string | null
  sched_end: string | null
+ outcome: TrialOutcome
+ outcome_reason: string | null
+ outcome_note: string | null
+ outcome_at: string | null
+ converted_enrollment_id: string | null
+ converted_payment_id: string | null
+ course_mode: CourseMode
+ price_per_lesson: number | null
+ /** 該試堂排程是否已有點名列 */
+ roll_call_done: boolean
 }
 
-function mapRow(r: Record<string, unknown>): TrialManageRow {
+function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageRow {
  const st = r.students as Record<string, unknown> | null
  const cls = r.classes as Record<string, unknown> | null
  const tch = cls?.teachers as Record<string, unknown> | null
@@ -51,6 +68,14 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
  const code = cls?.course_code_full != null ? String(cls.course_code_full) : null
+ const coursePrice =
+  course?.price_per_lesson != null && Number.isFinite(Number(course.price_per_lesson))
+   ? Number(course.price_per_lesson)
+   : null
+ const classPrice =
+  cls?.price_per_lesson != null && Number.isFinite(Number(cls.price_per_lesson))
+   ? Number(cls.price_per_lesson)
+   : null
  return {
   id: String(r.id),
   student_id: String(r.student_id),
@@ -71,6 +96,16 @@ function mapRow(r: Record<string, unknown>): TrialManageRow {
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
   sched_start: sc?.start_time != null ? String(sc.start_time) : null,
   sched_end: sc?.end_time != null ? String(sc.end_time) : null,
+  outcome: normalizeTrialOutcome(r.outcome != null ? String(r.outcome) : "open"),
+  outcome_reason: r.outcome_reason != null ? String(r.outcome_reason) : null,
+  outcome_note: r.outcome_note != null ? String(r.outcome_note) : null,
+  outcome_at: r.outcome_at != null ? String(r.outcome_at) : null,
+  converted_enrollment_id:
+   r.converted_enrollment_id != null ? String(r.converted_enrollment_id) : null,
+  converted_payment_id: r.converted_payment_id != null ? String(r.converted_payment_id) : null,
+  course_mode: course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
+  price_per_lesson: classPrice != null && classPrice > 0 ? classPrice : coursePrice,
+  roll_call_done: rollCallDone,
  }
 }
 
@@ -79,12 +114,21 @@ export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
  const { data, error } = await supabase
   .from("trial_sessions")
   .select(
-   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments ( receipt_number )"
+   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes ( subject, course_code_full, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
   )
   .order("trial_date", { ascending: false })
   .order("created_at", { ascending: false })
  if (error) throw error
- return (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
+ const raw = data ?? []
+ const scheduleIds = [
+  ...new Set(raw.map((x) => String((x as { schedule_id?: string }).schedule_id ?? "")).filter(Boolean)),
+ ]
+ const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
+ return raw.map((x) => {
+  const row = x as Record<string, unknown>
+  const sid = String(row.schedule_id ?? "")
+  return mapRow(row, attended.has(sid))
+ })
 }
 
 export type TrialDashboardStats = {
@@ -435,4 +479,201 @@ export function trialTypeCategory(trialType: string): "free" | "half" | "full" |
  if (t.includes("半價")) return "half"
  if (t.includes("原價")) return "full"
  return "other"
+}
+
+export function trialCanConvert(row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">): boolean {
+ if (trialOutcomeClosed(row.outcome)) return false
+ if (String(row.status).includes("取消")) return false
+ return Boolean(row.roll_call_done)
+}
+
+export function trialConvertBlockedReason(
+ row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">
+): string | null {
+ if (row.outcome === "converted") return "已轉正式報讀"
+ if (row.outcome === "lost") return "已標流失"
+ if (row.outcome === "other") return "已有其他結果"
+ if (String(row.status).includes("取消")) return "已取消，不可轉正"
+ if (!row.roll_call_done) return "請先完成該堂點名"
+ return null
+}
+
+export function trialCanRecordOutcome(
+ row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">
+): boolean {
+ if (trialOutcomeClosed(row.outcome)) return false
+ if (String(row.status).includes("取消")) return true
+ return Boolean(row.roll_call_done)
+}
+
+export async function recordTrialOutcome(params: {
+ trialId: string
+ outcome: "lost" | "other"
+ reason: string
+ note?: string | null
+}): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const reason = params.reason.trim()
+ if (!reason) throw new Error("請選擇原因／結果")
+ const { data: row, error: loadErr } = await supabase
+  .from("trial_sessions")
+  .select("id, status, outcome")
+  .eq("id", params.trialId)
+  .maybeSingle()
+ if (loadErr) throw loadErr
+ if (!row) throw new Error("找不到試堂紀錄")
+ const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
+ if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
+ const now = new Date().toISOString()
+ const status = String((row as { status?: string }).status ?? "")
+ const { error } = await supabase
+  .from("trial_sessions")
+  .update({
+   outcome: params.outcome,
+   outcome_reason: reason,
+   outcome_note: params.note?.trim() || null,
+   outcome_at: now,
+   status: status.includes("取消") ? status : "已完成",
+   updated_at: now,
+  })
+  .eq("id", params.trialId)
+ if (error) throw error
+}
+
+export type ConvertTrialPaymentInput = {
+ lessonCount: number
+ amount: number
+ paymentMethod: string
+ /** 已收款 | 待繳費 | 待收款 */
+ status: string
+}
+
+/** 試堂轉正式報讀（同班）＋可選收費；寫入 outcome=converted */
+export async function convertTrialToEnrollment(params: {
+ trialId: string
+ enrollmentPeriod: EnrollmentFormValue | null
+ scheduleIds?: string[]
+ pending?: { owedCount: number; reason?: string; remarks?: string | null } | null
+ payment?: ConvertTrialPaymentInput | null
+}): Promise<{ enrollmentId: string; paymentId: string | null }> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: trial, error: trialErr } = await supabase
+  .from("trial_sessions")
+  .select("id, student_id, class_id, schedule_id, status, outcome")
+  .eq("id", params.trialId)
+  .maybeSingle()
+ if (trialErr) throw trialErr
+ if (!trial) throw new Error("找不到試堂紀錄")
+ const t = trial as {
+  id: string
+  student_id: string
+  class_id: string
+  schedule_id: string
+  status: string
+  outcome: string | null
+ }
+ const outcome = normalizeTrialOutcome(t.outcome)
+ if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可再轉正")
+ if (String(t.status).includes("取消")) throw new Error("已取消試堂不可轉正")
+
+ const attended = await fetchScheduleIdsThatHaveAttendance([t.schedule_id])
+ if (!attended.has(t.schedule_id)) {
+  throw new Error("請先完成該堂點名後再轉正式報讀")
+ }
+
+ const { data: enr, error: enrErr } = await supabase
+  .from("student_class_enrollments")
+  .select("id")
+  .eq("student_id", t.student_id)
+  .eq("class_id", t.class_id)
+  .eq("status", "就讀中")
+  .limit(1)
+ if (enrErr) throw enrErr
+ if ((enr ?? []).length > 0) {
+  throw new Error("此學生已報讀該班別")
+ }
+
+ const { insertEnrollment } = await import("@/services/studentQueries")
+ const enrollmentId = await insertEnrollment(
+  t.student_id,
+  t.class_id,
+  params.enrollmentPeriod,
+  params.scheduleIds,
+  params.pending ?? null
+ )
+
+ let paymentId: string | null = null
+ if (params.payment) {
+  const pay = params.payment
+  if (!(pay.lessonCount > 0)) throw new Error("堂數須大於 0")
+  if (!(pay.amount >= 0)) throw new Error("金額不可為負")
+  const { data: cls, error: clsErr } = await supabase
+   .from("classes")
+   .select("subject, course_code_full, courses ( course_name )")
+   .eq("id", t.class_id)
+   .maybeSingle()
+  if (clsErr) throw clsErr
+  const c = cls as Record<string, unknown> | null
+  const course = c?.courses as Record<string, unknown> | null
+  const label = formatClassLabel({
+   subject: c?.subject != null ? String(c.subject) : "—",
+   courseCode: c?.course_code_full != null ? String(c.course_code_full) : null,
+   courseName: course?.course_name != null ? String(course.course_name) : null,
+  })
+  const { insertPaymentRecord } = await import("@/services/paymentQueries")
+  paymentId = await insertPaymentRecord({
+   studentId: t.student_id,
+   paymentDate: localYmd(),
+   totalAmount: pay.amount,
+   subtotalAmount: pay.amount,
+   paymentMethod: pay.paymentMethod,
+   status: pay.status,
+   remarks: "試堂轉正式報讀",
+   receiptKind: pay.status.includes("待") ? "INV" : "RC",
+   details: [
+    {
+     classId: t.class_id,
+     lessonCount: pay.lessonCount,
+     amount: pay.amount,
+     description: label,
+    },
+   ],
+  })
+ }
+
+ const now = new Date().toISOString()
+ const { error: upErr } = await supabase
+  .from("trial_sessions")
+  .update({
+   outcome: "converted",
+   outcome_reason: params.enrollmentPeriod ?? "報足全期",
+   outcome_note: paymentId ? "已一併收費／出單" : null,
+   outcome_at: now,
+   converted_enrollment_id: enrollmentId,
+   converted_payment_id: paymentId,
+   status: "已完成",
+   updated_at: now,
+  })
+  .eq("student_id", t.student_id)
+  .eq("class_id", t.class_id)
+  .neq("outcome", "lost")
+  .neq("outcome", "other")
+ if (upErr) throw upErr
+
+ const { data: stu, error: stuErr } = await supabase
+  .from("students")
+  .select("id, registration_status")
+  .eq("id", t.student_id)
+  .maybeSingle()
+ if (stuErr) throw stuErr
+ const reg = String((stu as { registration_status?: string } | null)?.registration_status ?? "")
+ if (reg.includes("非注冊") || reg.includes("試堂") || reg.includes("查詢")) {
+  const { error: regErr } = await supabase
+   .from("students")
+   .update({ registration_status: "已註冊", updated_at: now })
+   .eq("id", t.student_id)
+  if (regErr) console.warn("[convertTrialToEnrollment] registration_status", regErr)
+ }
+
+ return { enrollmentId, paymentId }
 }

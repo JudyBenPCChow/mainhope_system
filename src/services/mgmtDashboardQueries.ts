@@ -161,6 +161,22 @@ async function countTrials(from: string, to: string): Promise<number> {
  return count ?? 0
 }
 
+/** 期間試堂 cohort 中已轉化筆數（outcome=converted 或有 converted_enrollment_id） */
+async function countConvertedTrials(from: string, to: string): Promise<number> {
+ if (!supabase) return 0
+ const { count, error } = await supabase
+  .from("trial_sessions")
+  .select("id", { count: "exact", head: true })
+  .gte("trial_date", from)
+  .lte("trial_date", to)
+  .or("outcome.eq.converted,converted_enrollment_id.not.is.null")
+ if (error) {
+  console.warn("[countConvertedTrials]", error.message)
+  return 0
+ }
+ return count ?? 0
+}
+
 /**
  * 消堂價值：每一筆「扣堂」點名各算一次單堂價再加總。
  * 單價優先序：
@@ -680,12 +696,12 @@ async function fetchRecentWithdrawals(
  })
 }
 
-function buildFunnel(trials: number, enroll: number, enrolledStudents: number): FunnelStage[] {
+function buildFunnel(trials: number, converted: number, enrolledStudents: number): FunnelStage[] {
  const trialToEnroll =
-  trials > 0 ? Math.round((enroll / trials) * 1000) / 10 : enroll > 0 ? null : 0
+  trials > 0 ? Math.round((converted / trials) * 1000) / 10 : converted > 0 ? null : 0
  return [
   { stage: "試堂", count: trials, conversionPct: null },
-  { stage: "新報讀", count: enroll, conversionPct: trialToEnroll },
+  { stage: "已轉化", count: converted, conversionPct: trialToEnroll },
   { stage: "在讀", count: enrolledStudents, conversionPct: null },
  ]
 }
@@ -992,13 +1008,17 @@ function buildKpis(input: {
  prevAttendanceTotal: number
  trials: number
  prevTrials: number
+ convertedTrials: number
+ prevConvertedTrials: number
  teacherLoadAvg: number | null
  revenueSparkline: number[]
 }): KpiCardModel[] {
  const conversion =
-  input.trials > 0 ? Math.round((input.enroll / input.trials) * 1000) / 10 : null
+  input.trials > 0 ? Math.round((input.convertedTrials / input.trials) * 1000) / 10 : null
  const prevConversion =
-  input.prevTrials > 0 ? Math.round((input.prevEnroll / input.prevTrials) * 1000) / 10 : null
+  input.prevTrials > 0
+   ? Math.round((input.prevConvertedTrials / input.prevTrials) * 1000) / 10
+   : null
  const conversionDelta =
   conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
 
@@ -1117,7 +1137,7 @@ function buildKpis(input: {
    targetGapUnit: "percent",
    status: conversion == null ? "注意" : kpiStatusFromTone(conversionTone),
    tone: conversion == null ? "warning" : conversionTone,
-   hint: conversion == null ? "無法計算（缺試堂數）" : "試堂→報讀；目標 65%",
+   hint: conversion == null ? "無法計算（缺試堂數）" : "試堂 cohort 轉化；目標 65%",
   },
   {
    id: "teacherLoad",
@@ -1178,6 +1198,8 @@ export async function fetchMgmtDashboard(
   prevWithdraw,
   trials,
   prevTrials,
+  convertedTrials,
+  prevConvertedTrials,
   overall,
   enrollmentReport,
   revenueSeries,
@@ -1199,6 +1221,8 @@ export async function fetchMgmtDashboard(
   countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter),
   countTrials(filters.dateFrom, filters.dateTo),
   countTrials(prev.dateFrom, prev.dateTo),
+  countConvertedTrials(filters.dateFrom, filters.dateTo),
+  countConvertedTrials(prev.dateFrom, prev.dateTo),
   fetchOverallStudentAnalysis(),
   fetchEnrollmentReport({ academicYearId: "", classKind: filters.classKind }),
   fetchRevenueSeries(filters.dateFrom, filters.dateTo),
@@ -1286,9 +1310,9 @@ export async function fetchMgmtDashboard(
   .sort((a, b) => b.enrollmentCount - a.enrollmentCount)
 
  const conversion =
-  trials > 0 ? Math.round((enroll / trials) * 1000) / 10 : null
+  trials > 0 ? Math.round((convertedTrials / trials) * 1000) / 10 : null
  const prevConversion =
-  prevTrials > 0 ? Math.round((prevEnroll / prevTrials) * 1000) / 10 : null
+  prevTrials > 0 ? Math.round((prevConvertedTrials / prevTrials) * 1000) / 10 : null
  const conversionDeltaPct =
   conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
 
@@ -1305,6 +1329,8 @@ export async function fetchMgmtDashboard(
   prevAttendanceTotal: prevAttendanceVisits.total,
   trials,
   prevTrials,
+  convertedTrials,
+  prevConvertedTrials,
   teacherLoadAvg,
   revenueSparkline: revenueSeries.map((r) => Math.round(r.amount / 1000)),
  })
@@ -1333,7 +1359,7 @@ export async function fetchMgmtDashboard(
   asOf,
   kpis,
   revenueSeries,
-  funnel: buildFunnel(trials, enroll, overall.enrolledStudents),
+  funnel: buildFunnel(trials, convertedTrials, overall.enrolledStudents),
   withdrawalAnalysis,
   unpaidOverdue,
   opsAlerts,

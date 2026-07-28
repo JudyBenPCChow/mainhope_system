@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+<<<<<<< Updated upstream
 import { PAYMENT_METHOD_PRESETS } from "@/services/paymentQueries"
 
 import {
@@ -12,6 +13,18 @@ import {
  type TrialConvertDemoCourseMode,
  type TrialConvertDemoSession,
 } from "@/components/trials/trialConvertDemoData"
+=======
+import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
+import { PAYMENT_METHOD_PRESETS, PAYMENT_STATUS } from "@/services/paymentQueries"
+
+export type TrialConvertSessionOption = {
+ id: string
+ sessionNumber: number | null
+ date: string
+ start: string
+ end: string
+}
+>>>>>>> Stashed changes
 
 export type TrialConvertDialogTarget = {
  id: string
@@ -21,25 +34,45 @@ export type TrialConvertDialogTarget = {
  trialDate: string
  schedStart: string | null
  schedEnd: string | null
+<<<<<<< Updated upstream
  courseMode: TrialConvertDemoCourseMode
+=======
+ courseMode: CourseMode
+>>>>>>> Stashed changes
  pricePerLesson: number
 }
 
 export type TrialConvertSubmitPayload = {
+<<<<<<< Updated upstream
  enrollForm: "full" | "single" | "第一期" | "第二期" | "兩期全報"
  pickedSessionIds: string[]
+=======
+ enrollmentPeriod: EnrollmentFormValue | null
+ scheduleIds: string[]
+>>>>>>> Stashed changes
  payMode: "receive" | "pending" | "skip"
  lessonCount: number
  amount: number
  paymentMethod: string
+<<<<<<< Updated upstream
  formLabel: string
  payLabel: string
+=======
+ paymentStatus: string
+ formLabel: string
+>>>>>>> Stashed changes
 }
 
 type Props = {
  open: boolean
  target: TrialConvertDialogTarget | null
+<<<<<<< Updated upstream
  sessions?: TrialConvertDemoSession[]
+=======
+ sessions: TrialConvertSessionOption[]
+ sessionsLoading?: boolean
+ saving?: boolean
+>>>>>>> Stashed changes
  onOpenChange: (open: boolean) => void
  onSubmit: (payload: TrialConvertSubmitPayload) => void
 }
@@ -47,7 +80,13 @@ type Props = {
 export function TrialConvertDialog({
  open,
  target,
+<<<<<<< Updated upstream
  sessions = TRIAL_CONVERT_DEMO_SESSIONS,
+=======
+ sessions,
+ sessionsLoading = false,
+ saving = false,
+>>>>>>> Stashed changes
  onOpenChange,
  onSubmit,
 }: Props) {
@@ -118,6 +157,7 @@ export function TrialConvertDialog({
     return
    }
   }
+<<<<<<< Updated upstream
   const payLabel =
    payMode === "skip"
     ? "略過收費"
@@ -127,12 +167,34 @@ export function TrialConvertDialog({
   onSubmit({
    enrollForm,
    pickedSessionIds: pickedSessions,
+=======
+  const enrollmentPeriod: EnrollmentFormValue | null =
+   enrollForm === "full"
+    ? null
+    : enrollForm === "single"
+      ? "單堂"
+      : enrollForm
+  const paymentStatus =
+   payMode === "receive"
+    ? PAYMENT_STATUS.received
+    : payMode === "pending"
+      ? PAYMENT_STATUS.pendingPay
+      : ""
+  onSubmit({
+   enrollmentPeriod,
+   scheduleIds: enrollForm === "single" ? pickedSessions : [],
+>>>>>>> Stashed changes
    payMode,
    lessonCount: Number.isFinite(n) ? n : 0,
    amount: Number.isFinite(a) ? a : 0,
    paymentMethod: payMethod,
+<<<<<<< Updated upstream
    formLabel,
    payLabel,
+=======
+   paymentStatus,
+   formLabel,
+>>>>>>> Stashed changes
   })
  }
 
@@ -166,6 +228,10 @@ export function TrialConvertDialog({
         <Select
          className="h-9"
          value={enrollForm === "single" ? "single" : "full"}
+<<<<<<< Updated upstream
+=======
+         disabled={saving}
+>>>>>>> Stashed changes
          onChange={(e) => setEnrollForm(e.target.value === "single" ? "single" : "full")}
         >
          <option value="full">報足全期（九月正規）</option>
@@ -175,6 +241,10 @@ export function TrialConvertDialog({
         <Select
          className="h-9"
          value={enrollForm}
+<<<<<<< Updated upstream
+=======
+         disabled={saving}
+>>>>>>> Stashed changes
          onChange={(e) =>
           setEnrollForm(e.target.value as "full" | "single" | "第一期" | "第二期" | "兩期全報")
          }
@@ -188,6 +258,7 @@ export function TrialConvertDialog({
        {enrollForm === "single" ? (
         <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
          <p className="mb-1 text-xs text-muted-foreground">勾選要報讀的堂次</p>
+<<<<<<< Updated upstream
          {sessions.map((s) => {
           const checked = pickedSessions.includes(s.id)
           return (
@@ -210,6 +281,38 @@ export function TrialConvertDialog({
            </label>
           )
          })}
+=======
+         {sessionsLoading ? (
+          <p className="text-xs text-muted-foreground">載入堂次中…</p>
+         ) : sessions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">此班暫無未來排程可選</p>
+         ) : (
+          sessions.map((s) => {
+           const checked = pickedSessions.includes(s.id)
+           return (
+            <label
+             key={s.id}
+             className={cn(
+              "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60",
+              checked && "bg-muted/40"
+             )}
+            >
+             <input
+              type="checkbox"
+              className="size-4 rounded border-border"
+              checked={checked}
+              disabled={saving}
+              onChange={() => toggleSession(s.id)}
+             />
+             <span>
+              {s.sessionNumber != null ? `第${s.sessionNumber}堂 · ` : null}
+              {s.date} {s.start}–{s.end}
+             </span>
+            </label>
+           )
+          })
+         )}
+>>>>>>> Stashed changes
         </div>
        ) : null}
       </fieldset>
@@ -219,6 +322,10 @@ export function TrialConvertDialog({
        <Select
         className="h-9"
         value={payMode}
+<<<<<<< Updated upstream
+=======
+        disabled={saving}
+>>>>>>> Stashed changes
         onChange={(e) => setPayMode(e.target.value as "receive" | "pending" | "skip")}
        >
         <option value="receive">立即收款</option>
@@ -234,6 +341,10 @@ export function TrialConvertDialog({
            min={1}
            className="h-9"
            value={lessonCount}
+<<<<<<< Updated upstream
+=======
+           disabled={saving}
+>>>>>>> Stashed changes
            onChange={(e) => onLessonCountChange(e.target.value)}
           />
          </label>
@@ -247,6 +358,10 @@ export function TrialConvertDialog({
            step="0.01"
            className="h-9"
            value={amount}
+<<<<<<< Updated upstream
+=======
+           disabled={saving}
+>>>>>>> Stashed changes
            onChange={(e) => setAmount(e.target.value)}
           />
          </label>
@@ -255,6 +370,10 @@ export function TrialConvertDialog({
           <Select
            className="h-9"
            value={payMethod}
+<<<<<<< Updated upstream
+=======
+           disabled={saving}
+>>>>>>> Stashed changes
            onChange={(e) => setPayMethod(e.target.value)}
           >
            {PAYMENT_METHOD_PRESETS.map((m) => (
@@ -278,11 +397,19 @@ export function TrialConvertDialog({
       ) : null}
 
       <div className="flex justify-end gap-2">
+<<<<<<< Updated upstream
        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
         取消
        </Button>
        <Button type="button" onClick={submit}>
         確認轉正
+=======
+       <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+        取消
+       </Button>
+       <Button type="button" disabled={saving} onClick={submit}>
+        {saving ? "處理中…" : "確認轉正"}
+>>>>>>> Stashed changes
        </Button>
       </div>
      </div>

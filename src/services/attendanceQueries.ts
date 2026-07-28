@@ -980,6 +980,13 @@ async function fetchScheduleIdsWithAttendance(scheduleIds: string[]): Promise<Se
  return done
 }
 
+/** 哪些排程已有至少一筆點名列（試堂轉正資格等） */
+export async function fetchScheduleIdsThatHaveAttendance(
+ scheduleIds: string[]
+): Promise<Set<string>> {
+ return fetchScheduleIdsWithAttendance(scheduleIds)
+}
+
 /**
  * 從既有排程列篩出尚未有任何 attendance_details 者（催點名；不自動銷堂）。
  * 呼叫端自行篩老師／日期範圍；此函式會排除已取消、未綁班別、無可點名對象。

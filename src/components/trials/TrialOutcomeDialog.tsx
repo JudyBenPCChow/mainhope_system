@@ -9,8 +9,12 @@ import {
  TRIAL_LOST_REASON_OPTIONS,
  TRIAL_OTHER_RESULT_OPTIONS,
  TRIAL_OUTCOME_LABELS,
+<<<<<<< Updated upstream
  type TrialOutcome,
 } from "@/components/trials/trialConvertDemoData"
+=======
+} from "@/lib/trialOutcome"
+>>>>>>> Stashed changes
 
 export type TrialOutcomeDialogTarget = {
  id: string
@@ -29,8 +33,13 @@ export type TrialOutcomeSubmitPayload = {
 type Props = {
  open: boolean
  target: TrialOutcomeDialogTarget | null
+<<<<<<< Updated upstream
  /** 預設開啟的結果類型 */
  defaultOutcome?: "lost" | "other"
+=======
+ defaultOutcome?: "lost" | "other"
+ saving?: boolean
+>>>>>>> Stashed changes
  onOpenChange: (open: boolean) => void
  onSubmit: (payload: TrialOutcomeSubmitPayload) => void
 }
@@ -39,6 +48,10 @@ export function TrialOutcomeDialog({
  open,
  target,
  defaultOutcome = "lost",
+<<<<<<< Updated upstream
+=======
+ saving = false,
+>>>>>>> Stashed changes
  onOpenChange,
  onSubmit,
 }: Props) {
@@ -95,6 +108,10 @@ export function TrialOutcomeDialog({
        <Select
         className="h-9"
         value={outcome}
+<<<<<<< Updated upstream
+=======
+        disabled={saving}
+>>>>>>> Stashed changes
         onChange={(e) => {
          const next = e.target.value as "lost" | "other"
          setOutcome(next)
@@ -117,7 +134,16 @@ export function TrialOutcomeDialog({
        <span className="text-xs font-medium text-muted-foreground">
         {outcome === "lost" ? "流失原因" : "結果說明"}
        </span>
+<<<<<<< Updated upstream
        <Select className="h-9" value={reason} onChange={(e) => setReason(e.target.value)}>
+=======
+       <Select
+        className="h-9"
+        value={reason}
+        disabled={saving}
+        onChange={(e) => setReason(e.target.value)}
+       >
+>>>>>>> Stashed changes
         {reasonOptions.map((opt) => (
          <option key={opt} value={opt}>
           {opt}
@@ -132,6 +158,10 @@ export function TrialOutcomeDialog({
         className="h-9"
         placeholder="例如比較對象、跟進日期…"
         value={note}
+<<<<<<< Updated upstream
+=======
+        disabled={saving}
+>>>>>>> Stashed changes
         onChange={(e) => setNote(e.target.value)}
        />
       </label>
@@ -146,11 +176,24 @@ export function TrialOutcomeDialog({
       ) : null}
 
       <div className="flex justify-end gap-2">
+<<<<<<< Updated upstream
        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
         取消
        </Button>
        <Button type="button" variant={outcome === "lost" ? "destructive" : "default"} onClick={submit}>
         確認登記
+=======
+       <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
+        取消
+       </Button>
+       <Button
+        type="button"
+        variant={outcome === "lost" ? "destructive" : "default"}
+        disabled={saving}
+        onClick={submit}
+       >
+        {saving ? "儲存中…" : "確認登記"}
+>>>>>>> Stashed changes
        </Button>
       </div>
      </div>
@@ -159,6 +202,7 @@ export function TrialOutcomeDialog({
   </Dialog>
  )
 }
+<<<<<<< Updated upstream
 
 export function formatOutcomeSummary(opts: {
  outcome: TrialOutcome
@@ -171,3 +215,5 @@ export function formatOutcomeSummary(opts: {
  if (opts.note) bits.push(opts.note)
  return bits.join(" · ")
 }
+=======
+>>>>>>> Stashed changes

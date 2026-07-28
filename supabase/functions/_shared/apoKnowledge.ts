@@ -95,7 +95,7 @@ export const APO_ROUTES_COMPACT = `
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox
 （舊待辦 /Calendar 仍保留路由但已從側欄隱藏）
 admin：前台指引 /FrontDeskWizard、學生 /Students、堂數對帳 /LessonBalanceMismatch、一對一 /PrivateTutoring、老師 /Teachers、班別 /Classes、請假 /LeaveManagement、試堂 /TrialSessions、收款登記 /Payments、繳費紀錄 /PaymentHistory、增退 /EnrollmentChanges
-teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking
+teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、優惠 /PaymentDiscounts、話術庫 /ScriptLibrary、系統問題 /SystemIssues
 `.trim()
 
@@ -253,6 +253,21 @@ ${APO_SYSTEM_DIRECTIVES}
 - 適合前台一次完成新生流程；亦可中途用學生詳情／收款登記分開做。
 - 家長自助填表連結（intake）完成後可帶回精靈繼續。
 
+## 試堂轉化與復盤
+
+- 入口：/TrialSessions（admin、alien）
+- **轉正式報讀**：須先完成該堂點名；預設同班；可揀報讀形式（全期／暑期期數／單堂）並可一併收費；結果＝已轉化。
+- **流失／其他**：標流失（時間不合、學費等）或其他結果（改期、轉介、暫掛）；與「已預約／已完成／取消」status 分開。
+- 轉化率：已轉化 ÷（已轉化＋已流失＋其他）。已結案或已報讀該班不可再轉正。
+- 試堂生會出現喺該堂點名表；試堂 ≠ 單堂報讀。
+
+## 收件匣
+
+- 入口：/Inbox（admin、teacher、alien）
+- 內容：排程新增／變動／取消／代堂、班別變動、主責變更、學生請假、新增報讀／退讀、提醒點名。
+- 專班老師側欄已攤平：收件匣喺「進行點名」正下方；亦可由「所有功能」進入。
+- 舊／Calendar 待辦已自側欄隱藏，日常通知請用收件匣。
+
 ## 排程日視圖標籤（常見誤會）
 
 日視圖可能顯示：無人報讀｜所有學生請假｜請假生｜試堂生｜網課生｜要錄影。  
@@ -270,6 +285,9 @@ ${APO_SYSTEM_DIRECTIVES}
 - 請假：/LeaveManagement、學生詳情，或前台精靈第 4 步
 - 堂數對帳跟進：/LessonBalanceMismatch
 - 試堂：/TrialSessions（收費試堂宜先收款再關聯收據；免費可直接建）
+- 試堂轉正式報讀：須先完成該堂點名 →「轉正式報讀」（同班；可揀全期／期數／單堂；可一併收費）→ 結果「已轉化」
+- 試堂復盤：可「標流失」或「其他結果」（改期／轉介等）；與 status（已預約／已完成／取消）分開
+- 收件匣：/Inbox（排程／班別／請假／增退讀／點名提醒；舊待辦側欄已隱藏）
 - 新增老師主檔：/Teachers（只建主檔）
 - 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues
@@ -288,6 +306,9 @@ ${APO_SYSTEM_DIRECTIVES}
 | 「新生點一次過登記＋報讀＋收費」 | 用前台指引精靈四步 |
 | 「繳費頁同收款頁邊個用」 | 出單／收錢 → 收款登記；查舊單 → 繳費紀錄 |
 | 「試堂半價點處理」 | 先收款登記（通常 1 堂），關聯試堂紀錄，當日點名先扣堂 |
+| 「試堂點轉正式報讀」 | 先完成該堂點名 → 試堂紀錄「轉正式報讀」；可揀報讀形式同收費 |
+| 「試堂流失點記」 | 試堂紀錄「標流失」或「其他結果」，方便轉化率復盤 |
+| 「收件匣邊度／老師冇入口」 | 全角色有；老師側欄已攤平，喺「進行點名」下方；或「所有功能」 |
 | 「日視圖灰色／無人報讀」 | 名單空或全員請假（無試堂）；先確認報讀同請假，唔係系統壞 |
 | 「我唔見側欄有某某功能」 | 按角色過濾；去「所有功能」或問我具體操作 |
 
