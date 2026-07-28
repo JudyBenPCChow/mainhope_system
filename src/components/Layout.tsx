@@ -99,15 +99,15 @@ export function Layout() {
    <AppBannerViewport />
    <aside
     className={cn(
-     "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-neutral-700 bg-gradient-to-b from-neutral-950 via-neutral-900 to-neutral-800 text-white shadow-[4px_0_24px_-4px_rgba(0,0,0,0.45)] transition-[width] duration-200 ease-out",
+     "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)] transition-[width] duration-200 ease-out",
      collapsed ? "w-[4.25rem]" : "w-60 md:w-64"
     )}
    >
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-neutral-700 px-3 py-4">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-4">
      {!collapsed && (
       <div className="min-w-0 leading-tight">
-       <div className="text-[1.00625rem] font-semibold tracking-tight text-white">明學補習社</div>
-       <div className="text-[0.8625rem] text-neutral-400">管理系統</div>
+       <div className="text-[1.00625rem] font-semibold tracking-tight">明學補習社</div>
+       <div className="text-[0.8625rem] text-white/80">管理系統</div>
       </div>
      )}
      <Button
@@ -115,7 +115,7 @@ export function Layout() {
       variant="ghost"
       size="icon"
       className={cn(
-       "h-9 w-9 shrink-0 text-neutral-300 hover:bg-neutral-800 hover:text-white",
+       "h-9 w-9 shrink-0 text-white hover:bg-white/10",
        collapsed && "mx-auto"
       )}
      onClick={() =>
@@ -224,7 +224,7 @@ export function Layout() {
        })}
     </nav>
 
-    <div className="shrink-0 border-t border-neutral-700 bg-gradient-to-t from-black/80 to-transparent p-3 md:p-4 text-[0.8625rem]">
+    <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-[0.8625rem]">
      {!collapsed ? (
       <div className="mb-3">
        <RoleSwitcher />
@@ -233,7 +233,7 @@ export function Layout() {
      {!collapsed && (
       <div className="mb-3 flex items-center gap-2">
        <div
-        className="min-w-0 flex-1 truncate rounded-lg bg-neutral-800 px-3 py-2 text-neutral-200"
+        className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90"
         title={userDisplayName}
        >
         你登入為 {userDisplayName}
