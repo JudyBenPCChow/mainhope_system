@@ -109,7 +109,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    {
     path: "/SecondaryAttendanceReport",
     label: "中學出席統計",
-    roles: ["alien"],
+    roles: ["admin", "alien"],
     icon: BarChart3,
    },
    { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
