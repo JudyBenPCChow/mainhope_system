@@ -19,7 +19,13 @@ export type FrontDeskIntakePayload = {
  parent_phone?: string | null
  parent_phone_country_code?: string | null
  whatsapp?: string | null
+ /** @deprecated 用 parent／student_preferred_contact_method */
  preferred_contact_method?: string | null
+ student_preferred_contact_method?: string | null
+ parent_preferred_contact_method?: string | null
+ student_wechat_id?: string | null
+ parent_wechat_id?: string | null
+ primary_contact_person?: string | null
  address?: string | null
  remarks?: string | null
 }
@@ -60,6 +66,12 @@ function asSession(raw: Record<string, unknown>): FrontDeskIntakeSession {
    parent_phone_country_code: payload.parent_phone_country_code ?? null,
    whatsapp: payload.whatsapp ?? null,
    preferred_contact_method: payload.preferred_contact_method ?? null,
+   student_preferred_contact_method: payload.student_preferred_contact_method ?? null,
+   parent_preferred_contact_method:
+    payload.parent_preferred_contact_method ?? payload.preferred_contact_method ?? null,
+   student_wechat_id: payload.student_wechat_id ?? null,
+   parent_wechat_id: payload.parent_wechat_id ?? null,
+   primary_contact_person: payload.primary_contact_person ?? null,
    address: payload.address ?? null,
    remarks: payload.remarks ?? null,
   },

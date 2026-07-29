@@ -77,7 +77,7 @@ export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakd
  for (const step of discountSteps) {
   if ((step.amountDeducted ?? 0) <= 0) continue
   lines.push({
-   key: `disc-${step.discountId}-${step.sortOrder}`,
+   key: `disc-${step.discountId ?? "special"}-${step.sortOrder}`,
    label: `優惠：${discountStepLabel(step)}`,
    amount: -(step.amountDeducted ?? 0),
    tone: "deduction",

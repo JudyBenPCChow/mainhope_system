@@ -3,7 +3,7 @@
 ## Current Scope (already implemented)
 
 - Banner is used for frontend operation notifications (success/info/warning/error).
-- Notifications appear as fixed top banners with manual close (`X`), newest first.
+- Notifications appear as fixed top banners, auto-dismiss after 2s (manual `X` still available), newest first.
 - Optional action button supports in-app navigation (`前往XXXX頁面`).
 
 ## Future Scope (to be planned)

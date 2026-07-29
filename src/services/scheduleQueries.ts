@@ -534,19 +534,37 @@ export async function cancelAllSchedulesForClass(classId: string): Promise<numbe
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error: fetchErr } = await supabase
   .from("schedules")
-  .select("id, status")
+  .select("id, status, teacher_id, original_teacher_id")
   .eq("class_id", classId)
  if (fetchErr) throw fetchErr
  const active = (data ?? []).filter((r) => !(r as { status: string }).status.includes("取消"))
  if (active.length === 0) return 0
  const now = new Date().toISOString()
+ const audience: Array<string | null | undefined> = []
  for (const row of active) {
+  const r = row as {
+   id: string
+   teacher_id?: string | null
+   original_teacher_id?: string | null
+  }
+  audience.push(r.teacher_id, r.original_teacher_id)
   const { error } = await supabase
    .from("schedules")
    .update({ status: "取消", updated_at: now })
-   .eq("id", (row as { id: string }).id)
+   .eq("id", r.id)
   if (error) throw error
  }
+ const { data: cls } = await supabase.from("classes").select("teacher_id").eq("id", classId).maybeSingle()
+ audience.push((cls as { teacher_id?: string | null } | null)?.teacher_id)
+ void recordInboxEvent({
+  eventType: "schedule_cancelled",
+  title: `班別排程已整批取消（${active.length} 堂）`,
+  body: "該班未取消之排程已全部標為取消",
+  actionPath: `/Classes/${classId}`,
+  classId,
+  audienceTeacherIds: audience,
+  payload: { cancelledCount: active.length, bulk: true },
+ })
  return active.length
 }
 
@@ -733,10 +751,20 @@ export async function clearScheduleSubstitute(
  const targetIds = await resolveSubstituteTargetIds(scheduleId)
  const { data: rows, error: fetchErr } = await supabase
   .from("schedules")
-  .select("id, teacher_id, original_teacher_id")
+  .select("id, teacher_id, original_teacher_id, class_id, scheduled_date")
   .in("id", targetIds)
  if (fetchErr) throw fetchErr
  if (!rows || rows.length === 0) throw new Error("找不到排程")
+
+ const primary = rows[0] as {
+  id: string
+  teacher_id: string | null
+  original_teacher_id: string | null
+  class_id?: string | null
+  scheduled_date?: string
+ }
+ const substituteBefore = primary.teacher_id
+ const originalId = primary.original_teacher_id
 
  const now = new Date().toISOString()
  for (const raw of rows) {
@@ -761,6 +789,27 @@ export async function clearScheduleSubstitute(
   action: "取消代堂",
   detail: `schedule_ids=${targetIds.join(",")}`,
  })
+
+ if (originalId) {
+  void recordInboxEvent({
+   eventType: "schedule_substitute",
+   title: `已取消代堂（${String(primary.scheduled_date ?? "").slice(0, 10) || "排程"}）`,
+   body:
+    targetIds.length > 1
+     ? `連堂共 ${targetIds.length} 節；已還原為原任老師`
+     : "已還原為原任老師",
+   actionPath: `/Schedule/${scheduleId}`,
+   classId: primary.class_id ?? null,
+   scheduleId,
+   audienceTeacherIds: [originalId, substituteBefore],
+   payload: {
+    cleared: true,
+    originalTeacherId: originalId,
+    formerSubstituteTeacherId: substituteBefore,
+    affectedIds: targetIds,
+   },
+  })
+ }
 
  return { affectedIds: targetIds }
 }

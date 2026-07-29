@@ -24,7 +24,7 @@ export function UnpaidAlert({ items, total, loading }: Props) {
      <Tag tone="warning" size="sm">{loading ? "…" : `${total} 筆`}</Tag>
     </h2>
     <Link
-     to="/PaymentHistory?histStatus=pendingPay"
+     to="/PaymentHistory?histStatus=pending"
      className="text-base font-medium text-primary underline-offset-4 hover:underline"
     >
      前往處理 →
@@ -33,7 +33,7 @@ export function UnpaidAlert({ items, total, loading }: Props) {
    {loading ? (
     <p className="text-base text-muted-foreground">載入中…</p>
    ) : preview.length === 0 ? (
-    <p className="text-base text-muted-foreground">目前沒有待繳費／待收款紀錄。</p>
+    <p className="text-base text-muted-foreground">目前沒有待收款紀錄。</p>
    ) : (
     <>
      <ul className="divide-y divide-border/80">

@@ -749,6 +749,7 @@ export function ScheduleManagePage() {
       studentId: st.studentId,
       fullName: st.fullName,
       contactPhone: st.contactPhone,
+      messagingTarget: st.messagingTarget,
      }))
     )
     setListMakeupStudents(makeup)

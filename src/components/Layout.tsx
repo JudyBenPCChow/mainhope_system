@@ -1,10 +1,11 @@
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, Flame, Inbox } from "lucide-react"
 
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { Button } from "@/components/ui/button"
+import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
@@ -56,6 +57,7 @@ export function Layout() {
   () => (role ? filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)) : []),
   [role]
  )
+ const { unreadCount } = useInboxUnreadCount(location.pathname)
 
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
 
@@ -230,6 +232,39 @@ export function Layout() {
        <RoleSwitcher />
       </div>
      ) : null}
+     {!collapsed ? (
+      <Link
+       to="/Inbox"
+       className={cn(
+        "mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 transition-colors hover:bg-white/10",
+        pathIsActive(location.pathname, "/Inbox") && "bg-white/15 text-white"
+       )}
+       aria-label={unreadCount > 0 ? `收件匣，${unreadCount} 則未讀` : "收件匣"}
+      >
+       <Inbox className="h-4 w-4 shrink-0 opacity-95" aria-hidden />
+       <span className="min-w-0 flex-1 truncate font-medium">收件匣</span>
+       {unreadCount > 0 ? (
+        <Flame className="h-4 w-4 shrink-0 text-orange-400" aria-hidden />
+       ) : null}
+      </Link>
+     ) : (
+      <Link
+       to="/Inbox"
+       title={unreadCount > 0 ? `收件匣（${unreadCount} 未讀）` : "收件匣"}
+       aria-label={unreadCount > 0 ? `收件匣，${unreadCount} 則未讀` : "收件匣"}
+       className={cn(
+        "mb-2 flex items-center justify-center rounded-lg p-2 text-white/90 hover:bg-white/10",
+        pathIsActive(location.pathname, "/Inbox") && "bg-white/15 text-white"
+       )}
+      >
+       <span className="relative inline-flex">
+        <Inbox className="h-4 w-4 opacity-95" aria-hidden />
+        {unreadCount > 0 ? (
+         <Flame className="absolute -right-2 -top-2 h-3 w-3 text-orange-400" aria-hidden />
+        ) : null}
+       </span>
+      </Link>
+     )}
      {!collapsed && (
       <div className="mb-3 flex items-center gap-2">
        <div

@@ -16,6 +16,7 @@ import {
  nextSessionNumberForClass,
  type ClassRecord,
 } from "@/services/classQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
  canonicalAvailabilityTimeSlot,
@@ -209,40 +210,49 @@ export async function executeBatchSchedules(params: {
   try {
    if (consecutive && pair) {
     const groupId = newConsecutiveGroupId()
-    await insertScheduleRow({
-     class_id: classId,
-     teacher_id: teacherId,
-     scheduled_date: date,
-     start_time: pair.slot1.start,
-     end_time: pair.slot1.end,
-     classroom_id: classroomId,
-     session_number: nextSession,
-     consecutive_group_id: groupId,
-     consecutive_slot_index: 1,
-    })
-    await insertScheduleRow({
-     class_id: classId,
-     teacher_id: teacherId,
-     scheduled_date: date,
-     start_time: pair.slot2.start,
-     end_time: pair.slot2.end,
-     classroom_id: classroomId,
-     session_number: nextSession + 1,
-     consecutive_group_id: groupId,
-     consecutive_slot_index: 2,
-    })
+    await insertScheduleRow(
+     {
+      class_id: classId,
+      teacher_id: teacherId,
+      scheduled_date: date,
+      start_time: pair.slot1.start,
+      end_time: pair.slot1.end,
+      classroom_id: classroomId,
+      session_number: nextSession,
+      consecutive_group_id: groupId,
+      consecutive_slot_index: 1,
+     },
+     { skipInboxEvent: true }
+    )
+    await insertScheduleRow(
+     {
+      class_id: classId,
+      teacher_id: teacherId,
+      scheduled_date: date,
+      start_time: pair.slot2.start,
+      end_time: pair.slot2.end,
+      classroom_id: classroomId,
+      session_number: nextSession + 1,
+      consecutive_group_id: groupId,
+      consecutive_slot_index: 2,
+     },
+     { skipInboxEvent: true }
+    )
     nextSession += 2
    } else {
     const { start, end } = parseTimeSlotBounds(cls.time_slot ?? "")
-    await insertScheduleRow({
-     class_id: classId,
-     teacher_id: teacherId,
-     scheduled_date: date,
-     start_time: start,
-     end_time: end,
-     classroom_id: classroomId,
-     session_number: nextSession,
-    })
+    await insertScheduleRow(
+     {
+      class_id: classId,
+      teacher_id: teacherId,
+      scheduled_date: date,
+      start_time: start,
+      end_time: end,
+      classroom_id: classroomId,
+      session_number: nextSession,
+     },
+     { skipInboxEvent: true }
+    )
     nextSession += 1
    }
    createdDates.push(date)
@@ -264,6 +274,21 @@ export async function executeBatchSchedules(params: {
     dates: createdDates,
    })
   }
+ }
+
+ if (createdDates.length > 0) {
+  const sorted = [...createdDates].sort()
+  const rangeLabel =
+   sorted.length === 1 ? sorted[0]! : `${sorted[0]}～${sorted[sorted.length - 1]}`
+  void recordInboxEvent({
+   eventType: "schedule_created",
+   title: `批次新增排程：${createdDates.length} 堂`,
+   body: `日期 ${rangeLabel}${skippedDates.length > 0 ? `（略過 ${skippedDates.length} 日）` : ""}`,
+   actionPath: `/Classes/${classId}`,
+   classId,
+   audienceTeacherIds: [teacherId],
+   payload: { createdDates, skippedCount: skippedDates.length, bulk: true },
+  })
  }
 
  return { createdDates, skippedDates }

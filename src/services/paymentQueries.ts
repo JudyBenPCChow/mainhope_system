@@ -2,6 +2,10 @@ import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
+import {
+ normalizeSpecialDiscountAmount,
+ SPECIAL_DISCOUNT_LABEL,
+} from "@/lib/paymentSpecialDiscount"
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
@@ -9,6 +13,7 @@ import { supabase } from "@/lib/supabaseClient"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import {
  applyDiscountsToSubtotal,
+ applyFixedDiscountAmount,
  fetchActivePaymentDiscounts,
  fetchPaymentEligibilityContextFromDetails,
  filterTuitionDiscounts,
@@ -19,13 +24,28 @@ import {
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
 
-const METHOD_OPTIONS = ["現金", "轉數快", "信用卡", "支票", "支付寶", "微信支付", "其他"] as const
+const METHOD_OPTIONS = [
+ "現金",
+ "轉數快",
+ "信用卡",
+ "支票",
+ "PayMe",
+ "八達通",
+ "易辦事",
+ "銀聯",
+ "銀行轉帳",
+ "內地支付寶",
+ "香港支付寶",
+ "微信支付",
+ "其他",
+] as const
 export const PAYMENT_METHOD_PRESETS = [...METHOD_OPTIONS]
 
 export const PAYMENT_STATUS = {
  received: "已收款",
  pendingPay: "待繳費",
  pendingReceive: "待收款",
+ voided: "作廢",
 } as const
 
 function pad2(n: number) {
@@ -104,7 +124,8 @@ export type PaymentDetailRow = {
 
 export type PaymentDiscountApplicationRow = {
  sortOrder: number
- discountId: string
+ /** null＝Special discount（無目錄列） */
+ discountId: string | null
  name: string
  percentOff: number | null
  amountOff: number | null
@@ -124,15 +145,29 @@ export type PaymentFull = PaymentListRow & {
 
 function mapDiscountApplicationRow(r: Record<string, unknown>): PaymentDiscountApplicationRow | null {
  const disc = r.payment_discounts as Record<string, unknown> | null
- if (!disc?.id) return null
- return {
-  sortOrder: Number(r.sort_order ?? 0),
-  discountId: String(disc.id),
-  name: disc.name != null ? String(disc.name) : "—",
-  percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
-  amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
-  amountDeducted: r.amount_deducted != null ? Number(r.amount_deducted) : null,
+ const amountDeducted = r.amount_deducted != null ? Number(r.amount_deducted) : null
+ if (disc?.id) {
+  return {
+   sortOrder: Number(r.sort_order ?? 0),
+   discountId: String(disc.id),
+   name: disc.name != null ? String(disc.name) : "—",
+   percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
+   amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
+   amountDeducted,
+  }
  }
+ // Special discount：無目錄 FK
+ if (amountDeducted != null && Number.isFinite(amountDeducted) && amountDeducted > 0) {
+  return {
+   sortOrder: Number(r.sort_order ?? 0),
+   discountId: null,
+   name: SPECIAL_DISCOUNT_LABEL,
+   percentOff: null,
+   amountOff: null,
+   amountDeducted,
+  }
+ }
+ return null
 }
 
 function discountNamesFromApplications(apps: PaymentDiscountApplicationRow[]): string | null {
@@ -175,7 +210,7 @@ function mapListRow(r: Record<string, unknown>): PaymentListRow {
 }
 
 export type PaymentListFilters = {
- status?: "all" | "received" | "pending" | "pendingPay"
+ status?: "all" | "received" | "pending" | "pendingPay" | "pendingReceive" | "voided"
  fromYmd?: string
  toYmd?: string
  search?: string
@@ -191,7 +226,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
  let q = supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, whatsapp, student_phone, parent_phone ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .order("payment_date", { ascending: false })
   .order("created_at", { ascending: false })
@@ -207,6 +242,10 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
   q = q.in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
  } else if (filters.status === "pendingPay") {
   q = q.eq("status", PAYMENT_STATUS.pendingPay)
+ } else if (filters.status === "pendingReceive") {
+  q = q.eq("status", PAYMENT_STATUS.pendingReceive)
+ } else if (filters.status === "voided") {
+  q = q.eq("status", PAYMENT_STATUS.voided)
  }
 
  const { data, error } = await q
@@ -228,7 +267,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const { data: pay, error: e1 } = await supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade, whatsapp, student_phone, parent_phone ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -331,8 +370,15 @@ export async function insertPaymentRecord(params: {
  batchSharedClassId?: string | null
  referrerStudentId?: string | null
  createReferralRecord?: boolean
+ /** Special discount 減免定金額（HKD）；不寫入優惠目錄 */
+ specialDiscountAmount?: number | null
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
+ if (params.status === PAYMENT_STATUS.pendingPay) {
+  throw new Error(
+   "已停用「待繳費」出單；請改用已收款或待收款，或以文字提醒家長繳付下期學費。"
+  )
+ }
  assertAcademicYearEditableForDate(params.paymentDate)
 
  const discountIds = (
@@ -344,15 +390,17 @@ export async function insertPaymentRecord(params: {
  ).filter((id) => id.trim() !== "")
  const subtotalAmount = Math.round((params.subtotalAmount ?? params.totalAmount) * 100) / 100
  const totalAmount = Math.round(params.totalAmount * 100) / 100
+ const specialAmount = normalizeSpecialDiscountAmount(params.specialDiscountAmount ?? 0)
 
  let orderedDiscounts: PaymentDiscountRow[] = []
- let discountApplications: Array<{ discountId: string; sortOrder: number; amountDeducted: number }> = []
+ let discountApplications: Array<{
+  discountId: string | null
+  sortOrder: number
+  amountDeducted: number
+ }> = []
+ let afterCatalog = subtotalAmount
 
- if (discountIds.length === 0) {
-  if (Math.abs(subtotalAmount - totalAmount) > 0.01) {
-   throw new Error("應繳總額與項目小計不一致")
-  }
- } else {
+ if (discountIds.length > 0) {
   const { data: discRows, error: discErr } = await supabase
    .from("payment_discounts")
    .select("*")
@@ -408,10 +456,26 @@ export async function insertPaymentRecord(params: {
    orderedDiscounts,
    eligibilityCtx
   )
-  const expectedTotal = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts, eligibilityCtx)
-  if (Math.abs(expectedTotal - totalAmount) > 0.01) {
-   throw new Error("應繳總額與優惠試算結果不一致，請重新整理後再試")
+  afterCatalog = applyDiscountsToSubtotal(subtotalAmount, orderedDiscounts, eligibilityCtx)
+ }
+
+ if (specialAmount > 0) {
+  if (specialAmount > afterCatalog + 0.01) {
+   throw new Error(`${SPECIAL_DISCOUNT_LABEL} 不可大於剩餘應收金額`)
   }
+  discountApplications.push({
+   discountId: null,
+   sortOrder: discountApplications.length,
+   amountDeducted: specialAmount,
+  })
+ }
+
+ const expectedTotal = applyFixedDiscountAmount(afterCatalog, specialAmount)
+ if (Math.abs(expectedTotal - totalAmount) > 0.01) {
+  if (discountIds.length === 0 && specialAmount <= 0) {
+   throw new Error("應繳總額與項目小計不一致")
+  }
+  throw new Error("應繳總額與優惠試算結果不一致，請重新整理後再試")
  }
 
  let batchId = params.paymentBatchId ?? null
@@ -507,11 +571,18 @@ export async function updatePaymentRecord(
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("payments")
-  .select("payment_date")
+  .select("payment_date, status")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!row) throw new Error("找不到繳費紀錄")
+ const currentStatus = String((row as { status?: string }).status ?? "")
+ if (currentStatus === PAYMENT_STATUS.voided) {
+  throw new Error("已作廢單據不可修改。")
+ }
+ if (patch.status === PAYMENT_STATUS.voided) {
+  throw new Error("請使用「作廢」流程，不可直接將狀態改為作廢。")
+ }
  assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
  if (patch.paymentDate !== undefined) assertAcademicYearEditableForDate(patch.paymentDate)
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -521,22 +592,13 @@ export async function updatePaymentRecord(
  if (patch.receiptNumber !== undefined) payload.receipt_number = patch.receiptNumber
  if (patch.remarks !== undefined) payload.remarks = patch.remarks
  if (patch.totalAmount !== undefined) payload.total_amount = patch.totalAmount
- const { error } = await supabase.from("payments").update(payload).eq("id", id)
+ const { error } = await supabase.from("payments").update(payload).eq("id", id).neq("status", PAYMENT_STATUS.voided)
  if (error) throw error
 }
 
-export async function deletePaymentRecord(id: string): Promise<void> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { data: row, error: fetchErr } = await supabase
-  .from("payments")
-  .select("payment_date")
-  .eq("id", id)
-  .maybeSingle()
- if (fetchErr) throw fetchErr
- if (!row) throw new Error("找不到繳費紀錄")
- assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
- const { error } = await supabase.from("payments").delete().eq("id", id)
- if (error) throw error
+/** @deprecated 已禁止硬刪；請改用 voidPaymentRecord */
+export async function deletePaymentRecord(_id: string): Promise<void> {
+ throw new Error("已禁止刪除單據；請使用「作廢」流程保留操作紀錄。")
 }
 
 /** 繳費頁儀表板：已收款明細之堂數加總、全庫「出席類」上課紀錄筆數 */
@@ -622,11 +684,18 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("payments")
-  .select("payment_date")
+  .select("payment_date, status")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!row) throw new Error("找不到繳費紀錄")
+ const status = String((row as { status?: string }).status ?? "")
+ if (status === PAYMENT_STATUS.voided) {
+  throw new Error("已作廢單據不可標記為已收款。")
+ }
+ if (status !== PAYMENT_STATUS.pendingPay && status !== PAYMENT_STATUS.pendingReceive) {
+  throw new Error("僅待繳費／待收款單據可標記為已收款。")
+ }
  assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
  for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
   const receipt = await allocateReceiptRef("RC")
@@ -639,9 +708,100 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
     updated_at: new Date().toISOString(),
    })
    .eq("id", id)
+   .in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
   if (!error) return
   if (isReceiptNumberUniqueViolation(error) && attempt < RECEIPT_REF_ATTEMPTS - 1) continue
   throw error
  }
  throw new Error("無法產生唯一單據編號，請稍後再試")
+}
+
+export type VoidPaymentResult =
+ | {
+    ok: true
+    alreadyVoided: boolean
+    emailSent: boolean
+    emailError: string | null
+    receiptNumber: string | null
+    previousStatus: string
+    notifySkipped?: boolean
+   }
+ | { ok: false; message: string }
+
+async function readVoidPaymentError(error: unknown, response?: Response): Promise<string | null> {
+ const res = response ?? (error as { context?: Response } | null)?.context
+ if (!res || typeof res.json !== "function") return null
+ try {
+  const body = (await res.clone().json()) as { error?: unknown }
+  if (typeof body.error === "string" && body.error.trim()) return body.error.trim()
+ } catch {
+  // ignore
+ }
+ return null
+}
+
+/** 作廢單據（密碼二次確認 + 伺服端連動轉介／月費；已收款會電郵通知管理層） */
+export async function voidPaymentRecord(input: {
+ paymentId: string
+ reason: string
+ password: string
+}): Promise<VoidPaymentResult> {
+ if (!supabase) return { ok: false, message: "尚未設定 Supabase，暫時無法作廢。" }
+
+ const { data: row, error: fetchErr } = await supabase
+  .from("payments")
+  .select("payment_date, status")
+  .eq("id", input.paymentId)
+  .maybeSingle()
+ if (fetchErr) return { ok: false, message: fetchErr.message }
+ if (!row) return { ok: false, message: "找不到繳費紀錄。" }
+ const paymentDate = String((row as { payment_date?: string }).payment_date ?? "")
+ try {
+  assertAcademicYearEditableForDate(paymentDate)
+ } catch (e) {
+  return { ok: false, message: e instanceof Error ? e.message : String(e) }
+ }
+ if (String((row as { status?: string }).status ?? "") === PAYMENT_STATUS.voided) {
+  return {
+   ok: true,
+   alreadyVoided: true,
+   emailSent: false,
+   emailError: null,
+   receiptNumber: null,
+   previousStatus: PAYMENT_STATUS.voided,
+  }
+ }
+
+ const { data, error, response } = await supabase.functions.invoke("void-payment", {
+  body: {
+   paymentId: input.paymentId,
+   reason: input.reason.trim(),
+   password: input.password,
+  },
+ })
+
+ if (error) {
+  const detail = await readVoidPaymentError(error, response)
+  return { ok: false, message: detail ?? (error instanceof Error ? error.message : String(error)) }
+ }
+ if (!data || typeof data !== "object") {
+  return { ok: false, message: "作廢失敗：伺服器回覆格式異常。" }
+ }
+ const payload = data as Record<string, unknown>
+ if (payload.ok !== true) {
+  const message =
+   typeof payload.error === "string" && payload.error.trim()
+    ? payload.error.trim()
+    : "作廢失敗，請稍後再試。"
+  return { ok: false, message }
+ }
+ return {
+  ok: true,
+  alreadyVoided: Boolean(payload.alreadyVoided),
+  emailSent: Boolean(payload.emailSent),
+  emailError: typeof payload.emailError === "string" ? payload.emailError : null,
+  receiptNumber: payload.receiptNumber != null ? String(payload.receiptNumber) : null,
+  previousStatus: payload.previousStatus != null ? String(payload.previousStatus) : "",
+  notifySkipped: Boolean(payload.notifySkipped),
+ }
 }

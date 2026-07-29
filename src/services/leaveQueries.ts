@@ -21,6 +21,7 @@ import {
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
  describeMakeupTimeConflicts,
  fetchStudentMustAttendScheduleSlots,
@@ -284,18 +285,74 @@ export async function updateLeaveMakeupRecord(
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: existing, error: fetchErr } = await supabase
   .from("leave_makeup_records")
-  .select("leave_date")
+  .select(
+   "leave_date, class_id, student_id, schedule_id, makeup_date, makeup_schedule_id, students ( full_name ), classes ( teacher_id, subject, course_code_full, courses ( course_name ) )"
+  )
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throwPostgrest(fetchErr)
  if (!existing) throw new Error("找不到請假紀錄")
- assertAcademicYearEditableForDate(String((existing as { leave_date?: string }).leave_date ?? ""))
+ const prev = existing as Record<string, unknown>
+ assertAcademicYearEditableForDate(String(prev.leave_date ?? ""))
  if (patch.makeup_date) assertAcademicYearEditableForDate(patch.makeup_date)
  const { error } = await supabase
   .from("leave_makeup_records")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
  if (error) throwPostgrest(error)
+
+ const prevMakeupDate = prev.makeup_date != null ? String(prev.makeup_date).slice(0, 10) : ""
+ const prevMakeupSched =
+  prev.makeup_schedule_id != null ? String(prev.makeup_schedule_id) : ""
+ const nextMakeupDate =
+  patch.makeup_date !== undefined
+   ? patch.makeup_date
+     ? String(patch.makeup_date).slice(0, 10)
+     : ""
+   : prevMakeupDate
+ const nextMakeupSched =
+  patch.makeup_schedule_id !== undefined
+   ? patch.makeup_schedule_id
+     ? String(patch.makeup_schedule_id)
+     : ""
+   : prevMakeupSched
+ const arranged =
+  (Boolean(nextMakeupDate) || Boolean(nextMakeupSched)) &&
+  (nextMakeupDate !== prevMakeupDate || nextMakeupSched !== prevMakeupSched)
+ if (arranged) {
+  const st = prev.students as Record<string, unknown> | null
+  const cls = prev.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  const studentName = st?.full_name != null ? String(st.full_name) : "學生"
+  const classLabel = formatClassLabel({
+   subject: cls?.subject != null ? String(cls.subject) : "—",
+   courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : "",
+   courseName: course?.course_name != null ? String(course.course_name) : null,
+  })
+  const classId = prev.class_id != null ? String(prev.class_id) : null
+  const teacherId = cls?.teacher_id != null ? String(cls.teacher_id) : null
+  const makeupScheduleId = nextMakeupSched || null
+  void recordInboxEvent({
+   eventType: "leave_created",
+   title: `補堂已排定：${studentName}`,
+   body: `${classLabel}${nextMakeupDate ? ` · 補堂日 ${nextMakeupDate}` : ""}`,
+   actionPath: makeupScheduleId
+    ? `/Schedule/${makeupScheduleId}`
+    : prev.schedule_id
+      ? `/Schedule/${String(prev.schedule_id)}`
+      : "/LeaveManagement",
+   classId,
+   scheduleId: makeupScheduleId,
+   studentId: prev.student_id != null ? String(prev.student_id) : null,
+   audienceTeacherIds: [teacherId],
+   payload: {
+    leaveRecordId: id,
+    makeupDate: nextMakeupDate || null,
+    makeupScheduleId,
+    arranged: true,
+   },
+  })
+ }
 }
 
 export async function setLeaveTuitionDisposition(
@@ -503,7 +560,7 @@ export async function insertLeaveMakeupRecord(row: {
  }
 }
 
-/** 請假：連堂時為同組每節各建一筆紀錄 */
+/** 請假：預設連堂整組各建一筆；consecutiveScope=this_slot 時只建所選那一節 */
 export async function insertLeaveMakeupForSchedule(row: {
  student_id: string
  class_id: string
@@ -516,14 +573,75 @@ export async function insertLeaveMakeupForSchedule(row: {
  remarks?: string | null
  status?: string
  tuition_disposition?: LeaveTuitionDisposition | null
+ /** all＝連堂兩節（預設）；this_slot＝只請本節 */
+ consecutiveScope?: ConsecutiveLeaveScope
 }): Promise<void> {
- const scheduleIds = await fetchConsecutiveScheduleIds(row.schedule_id)
- for (const scheduleId of scheduleIds) {
+ const scope = row.consecutiveScope ?? "all"
+ const scheduleIds =
+  scope === "this_slot"
+   ? [row.schedule_id]
+   : await fetchConsecutiveScheduleIds(row.schedule_id)
+ const multi = scheduleIds.length > 1
+ for (let i = 0; i < scheduleIds.length; i++) {
+  const scheduleId = scheduleIds[i]!
+  const applyMakeupHere = !multi || i === 0
   await insertLeaveMakeupRecord({
-   ...row,
+   student_id: row.student_id,
+   class_id: row.class_id,
    schedule_id: scheduleId,
+   leave_date: row.leave_date,
+   leave_reason: row.leave_reason,
+   makeup_type:
+    applyMakeupHere
+     ? row.makeup_type
+     : row.makeup_type === "調堂"
+       ? "待安排"
+       : row.makeup_type,
+   makeup_schedule_id: applyMakeupHere ? row.makeup_schedule_id : null,
+   makeup_date: applyMakeupHere ? row.makeup_date : null,
+   remarks: row.remarks,
+   status: row.status,
+   tuition_disposition: row.tuition_disposition,
   })
  }
+}
+
+/** 請假排程選項顯示（含連堂節次） */
+export function formatLeaveScheduleOptionLabel(s: {
+ scheduled_date: string
+ start_time: string | null
+ end_time: string | null
+ consecutive_group_id?: string | null
+ consecutive_slot_index?: number | null
+}): string {
+ const time = `${s.start_time ?? ""}–${s.end_time ?? ""}`.trim()
+ const base = `${s.scheduled_date} ${time}`.trim()
+ if (s.consecutive_group_id && s.consecutive_slot_index != null) {
+  return `${base}（連堂·第 ${s.consecutive_slot_index} 節）`
+ }
+ return base
+}
+
+/** 補堂候選顯示：連堂標第幾節，方便單項綁定 */
+export function formatMakeupCandidateLabel(s: {
+ scheduled_date: string
+ start_time: string | null
+ end_time: string | null
+ classLabel?: string | null
+ subject?: string | null
+ course_code_full?: string | null
+ teacher_name?: string | null
+ consecutive_group_id?: string | null
+ consecutive_slot_index?: number | null
+}): string {
+ const cls = s.classLabel || s.subject || "—"
+ const code = s.course_code_full ? ` (${s.course_code_full})` : ""
+ const teacher = s.teacher_name ?? "—"
+ const slot =
+  s.consecutive_group_id && s.consecutive_slot_index != null
+   ? ` · 連堂第 ${s.consecutive_slot_index} 節`
+   : ""
+ return `${s.scheduled_date} ${s.start_time ?? ""}–${s.end_time ?? ""} · ${cls}${code} · ${teacher}${slot}`
 }
 
 /** 老師首頁：所屬班請假摘要 */
@@ -618,7 +736,12 @@ export type ClassScheduleOption = {
  start_time: string | null
  end_time: string | null
  status: string
+ consecutive_group_id: string | null
+ consecutive_slot_index: number | null
 }
+
+/** 連堂請假範圍：整組兩節，或只請所選那一節 */
+export type ConsecutiveLeaveScope = "all" | "this_slot"
 
 /** 該班「未上堂」排程：日期 ≥ fromYmd，且狀態非取消／非完成；暑期兩期依學生報讀期數過濾 */
 export async function fetchUpcomingSchedulesForClass(
@@ -629,7 +752,7 @@ export async function fetchUpcomingSchedulesForClass(
  if (!supabase) return []
  const { data, error } = await supabase
   .from("schedules")
-  .select("id, scheduled_date, start_time, end_time, status")
+  .select("id, scheduled_date, start_time, end_time, status, consecutive_group_id, consecutive_slot_index")
   .eq("class_id", classId)
   .gte("scheduled_date", fromYmd)
   .order("scheduled_date", { ascending: true })
@@ -638,12 +761,19 @@ export async function fetchUpcomingSchedulesForClass(
  let rows = (data ?? [])
   .map((row) => {
    const r = row as Record<string, unknown>
+   const slotIdx =
+    r.consecutive_slot_index != null && !Number.isNaN(Number(r.consecutive_slot_index))
+     ? Number(r.consecutive_slot_index)
+     : null
    return {
     id: String(r.id),
     scheduled_date: String(r.scheduled_date ?? ""),
     start_time: r.start_time != null ? String(r.start_time) : null,
     end_time: r.end_time != null ? String(r.end_time) : null,
     status: String(r.status ?? ""),
+    consecutive_group_id:
+     r.consecutive_group_id != null ? String(r.consecutive_group_id) : null,
+    consecutive_slot_index: slotIdx,
    }
   })
   .filter((s) => !s.status.includes("取消") && !s.status.includes("完成"))

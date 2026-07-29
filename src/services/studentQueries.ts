@@ -60,7 +60,14 @@ export type StudentRecord = {
  student_phone: string | null
  student_phone_country_code: string | null
  whatsapp: string | null
+ /** @deprecated 請用 parent_preferred_contact_method／student_preferred_contact_method */
  preferred_contact_method: string | null
+ student_preferred_contact_method: string | null
+ parent_preferred_contact_method: string | null
+ student_wechat_id: string | null
+ parent_wechat_id: string | null
+ /** 第一聯絡人：學生 | 家長 */
+ primary_contact_person: string | null
  address: string | null
  remarks: string | null
  /** Phase 2 代理人；今次僅預留欄位 */
@@ -71,9 +78,26 @@ export type StudentRecord = {
 
 export const PHONE_COUNTRY_CODES = ["+852", "+86"] as const
 export const PREFERRED_CONTACT_METHODS = ["WhatsApp", "WeChat"] as const
+export const PRIMARY_CONTACT_PERSONS = ["學生", "家長"] as const
 
 export function normalizePhoneCountryCode(value: string | null | undefined): "+852" | "+86" {
  return value === "+86" ? "+86" : "+852"
+}
+
+export function normalizePreferredContactMethod(
+ value: string | null | undefined
+): "WhatsApp" | "WeChat" | null {
+ const s = (value ?? "").trim()
+ if (s === "WhatsApp" || s === "WeChat") return s
+ return null
+}
+
+export function normalizePrimaryContactPerson(
+ value: string | null | undefined
+): "學生" | "家長" | null {
+ const s = (value ?? "").trim()
+ if (s === "學生" || s === "家長") return s
+ return null
 }
 
 export function registrationStatusLabel(value: "已註冊" | "非注冊"): string {
@@ -313,8 +337,26 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   student_phone_country_code:
    row.student_phone_country_code != null ? String(row.student_phone_country_code) : null,
   whatsapp: row.whatsapp != null ? String(row.whatsapp) : null,
-  preferred_contact_method:
-   row.preferred_contact_method != null ? String(row.preferred_contact_method) : null,
+  preferred_contact_method: normalizePreferredContactMethod(
+   row.preferred_contact_method != null ? String(row.preferred_contact_method) : null
+  ),
+  student_preferred_contact_method: normalizePreferredContactMethod(
+   row.student_preferred_contact_method != null
+    ? String(row.student_preferred_contact_method)
+    : null
+  ),
+  parent_preferred_contact_method: normalizePreferredContactMethod(
+   row.parent_preferred_contact_method != null
+    ? String(row.parent_preferred_contact_method)
+    : row.preferred_contact_method != null
+      ? String(row.preferred_contact_method)
+      : null
+  ),
+  student_wechat_id: row.student_wechat_id != null ? String(row.student_wechat_id) : null,
+  parent_wechat_id: row.parent_wechat_id != null ? String(row.parent_wechat_id) : null,
+  primary_contact_person: normalizePrimaryContactPerson(
+   row.primary_contact_person != null ? String(row.primary_contact_person) : null
+  ),
   address: row.address != null ? String(row.address) : null,
   remarks: row.remarks != null ? String(row.remarks) : null,
   assigned_agent_user_id:
@@ -384,7 +426,19 @@ export async function insertStudent(
    student_phone: row.student_phone ?? null,
    student_phone_country_code: normalizePhoneCountryCode(row.student_phone_country_code),
    whatsapp: row.whatsapp ?? null,
-   preferred_contact_method: row.preferred_contact_method ?? null,
+   student_preferred_contact_method: normalizePreferredContactMethod(
+    row.student_preferred_contact_method
+   ),
+   parent_preferred_contact_method: normalizePreferredContactMethod(
+    row.parent_preferred_contact_method ?? row.preferred_contact_method
+   ),
+   student_wechat_id: (row.student_wechat_id ?? "").trim() || null,
+   parent_wechat_id: (row.parent_wechat_id ?? "").trim() || null,
+   primary_contact_person: normalizePrimaryContactPerson(row.primary_contact_person),
+   // 舊欄位：與家長偏好同步，避免舊查詢讀到空白
+   preferred_contact_method: normalizePreferredContactMethod(
+    row.parent_preferred_contact_method ?? row.preferred_contact_method
+   ),
    address: row.address ?? null,
    remarks: row.remarks ?? null,
    student_code: row.student_code ?? null,
@@ -413,6 +467,25 @@ export async function updateStudent(
  }
  if (patch.grade !== undefined) {
   payload.grade = coerceStudentGrade(patch.grade)
+ }
+ if (patch.student_preferred_contact_method !== undefined) {
+  payload.student_preferred_contact_method = normalizePreferredContactMethod(
+   patch.student_preferred_contact_method
+  )
+ }
+ if (patch.parent_preferred_contact_method !== undefined) {
+  const parentMethod = normalizePreferredContactMethod(patch.parent_preferred_contact_method)
+  payload.parent_preferred_contact_method = parentMethod
+  payload.preferred_contact_method = parentMethod
+ }
+ if (patch.primary_contact_person !== undefined) {
+  payload.primary_contact_person = normalizePrimaryContactPerson(patch.primary_contact_person)
+ }
+ if (patch.student_wechat_id !== undefined) {
+  payload.student_wechat_id = (patch.student_wechat_id ?? "").trim() || null
+ }
+ if (patch.parent_wechat_id !== undefined) {
+  payload.parent_wechat_id = (patch.parent_wechat_id ?? "").trim() || null
  }
  delete payload.enrollment_status
  delete payload.activity_status
@@ -1591,10 +1664,8 @@ export async function insertPaymentForStudent(
  if (error) throw error
 }
 
-export async function deletePayment(id: string): Promise<void> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { error } = await supabase.from("payments").delete().eq("id", id)
- if (error) throw error
+export async function deletePayment(_id: string): Promise<void> {
+ throw new Error("已禁止刪除單據；請使用「作廢」流程保留操作紀錄。")
 }
 
 export type AttendanceRow = {

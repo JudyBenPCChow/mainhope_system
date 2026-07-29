@@ -47,7 +47,11 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 
 ## 深入文件
 
-- 架構與資料層細節：`docs/AGENT_HANDOFF.md`（含 §6.2 排程管理篩選依角色）
+- **系統說明書（營運操作現況）**：`docs/SYSTEM_MANUAL.md`（篇章目錄）；繳費收據：`docs/manual/PAYMENT_RECEIPTS.md`
+- **營運政策索引**：`docs/OPS_POLICIES.md`（正規／暑期學年、學費節奏與逾期罰款、點名扣堂、代堂、學生狀態等姊妹篇）
+- 正規／暑期學年與報讀：`docs/ACADEMIC_YEARS.md`
+- 學費學期節奏與逾期罰款（部分尚未系統強制）：`docs/TUITION_TERM_AND_LATE_FEE_POLICY.md`
+- 架構與資料層細節：`docs/AGENT_HANDOFF.md`（含 §6.2 排程管理篩選依角色；§9 繳費列印現況）
 - 學生編號（學號）生成規則：`docs/STUDENT_CODE.md`（程式來源 `src/lib/studentCode.ts`）
 - UI 設計規範：`docs/UI_DESIGN_INSTRUCTIONS.md`
 - 學生狀態分類與判定（注冊／報讀／活躍、子字串誤判防呆）：`docs/STUDENT_STATUS_CLASSIFICATION.md`

@@ -32,7 +32,7 @@ import {
  type CourseRecord,
 } from "@/services/classQueries"
 
-const PRICE_PRESETS_HKD = [250, 275, 825] as const
+import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 
 type CourseForm = {
  subject_id: string
@@ -446,7 +446,7 @@ export function CoursesManagePage() {
         {isSummer ? "第一期學費（HKD/節）" : "學費（HKD/節）"}
        </label>
        <div className="mt-1 flex flex-wrap gap-2">
-        {PRICE_PRESETS_HKD.map((p) => (
+        {TUITION_PRICE_PRESETS_HKD.map((p) => (
          <Button
           key={p}
           type="button"

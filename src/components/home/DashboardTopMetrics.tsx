@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 type Props = {
  todayClassCount: number
- /** 狀態為「待繳費」之出單／通知單筆數（對應繳費紀錄篩選） */
+ /** 狀態為「待收款」之筆數（對應繳費紀錄篩選） */
  pendingPayCount: number
  loading?: boolean
 }
@@ -17,7 +17,7 @@ const cardClass =
 export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading }: Props) {
  const today = todayYmdLocal()
  const scheduleLink = `/Schedule?view=day&date=${encodeURIComponent(today)}`
- const paymentsLink = "/PaymentHistory?histStatus=pendingPay"
+ const paymentsLink = "/PaymentHistory?histStatus=pendingReceive"
 
  return (
   <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -34,16 +34,16 @@ export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading 
     </div>
    </Link>
 
-   <Link to={paymentsLink} className={cn(cardClass, "text-left")} aria-label="前往繳費紀錄（待繳費／出單）">
+   <Link to={paymentsLink} className={cn(cardClass, "text-left")} aria-label="前往繳費紀錄（待收款）">
     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800 md:h-14 md:w-14">
      <FileText className="h-5 w-5 md:h-7 md:w-7" strokeWidth={1.75} aria-hidden />
     </div>
     <div className="min-w-0">
-     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">待繳費</div>
+     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">待收款</div>
      <div className="mt-0.5 text-xl font-semibold tabular-nums text-foreground md:mt-1 md:text-3xl">
       {loading ? "…" : `${pendingPayCount} 筆`}
      </div>
-     <p className="mt-0.5 hidden text-sm text-muted-foreground md:block">出單（待繳）紀錄 →</p>
+     <p className="mt-0.5 hidden text-sm text-muted-foreground md:block">未入帳單據 →</p>
     </div>
    </Link>
   </div>

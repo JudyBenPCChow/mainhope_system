@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { Banknote, BookOpen, CalendarRange, ClipboardCheck, FileText, History, Plus, Printer, Trash2, Wallet } from "lucide-react"
+import { Banknote, BookOpen, ClipboardCheck, FileText, History, MessageCircle, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
 import {
  DEFAULT_LESSON_COUNT,
@@ -33,11 +33,17 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { useAppBanner } from "@/lib/appBanner"
+import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
 import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ normalizeSpecialDiscountAmount,
+ SPECIAL_DISCOUNT_LABEL,
+} from "@/lib/paymentSpecialDiscount"
 import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import {
  buildPaymentEligibilityContext,
@@ -66,6 +72,7 @@ import {
 } from "@/services/paymentQueries"
 import {
  applyDiscountsToSubtotal,
+ applyFixedDiscountAmount,
  fetchPaymentFormDiscounts,
  getGlobalMaxStackCount,
  isDiscountCheckboxDisabled,
@@ -86,6 +93,7 @@ import { isStudentNewToMingXue } from "@/services/referralQueries"
 type CollectMode = "receive" | "invoice"
 
 export function PaymentsPageView() {
+ const { pushBanner } = useAppBanner()
  const [searchParams, setSearchParams] = useSearchParams()
  const [collectMode, setCollectMode] = useState<CollectMode>("receive")
 
@@ -102,6 +110,8 @@ export function PaymentsPageView() {
 
  const [discounts, setDiscounts] = useState<PaymentDiscountRow[]>([])
  const [discountIds, setDiscountIds] = useState<string[]>([])
+ const [specialDiscountEnabled, setSpecialDiscountEnabled] = useState(false)
+ const [specialDiscountAmount, setSpecialDiscountAmount] = useState("")
  const [siblingExtraLessons, setSiblingExtraLessons] = useState("")
  const [isNewStudent, setIsNewStudent] = useState<boolean | null>(null)
  const [relatives, setRelatives] = useState<StudentRelativeRow[]>([])
@@ -110,7 +120,6 @@ export function PaymentsPageView() {
 
  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10))
  const [method, setMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
- const [invoiceStatus, setInvoiceStatus] = useState<string>(PAYMENT_STATUS.pendingReceive)
  const [remarks, setRemarks] = useState("")
  const [printAfterReceive, setPrintAfterReceive] = useState(false)
  const [printAfterInvoice, setPrintAfterInvoice] = useState(true)
@@ -270,9 +279,19 @@ export function PaymentsPageView() {
   setDiscountIds((prev) => prev.filter((id) => discountAvailability.get(id)?.eligible !== false))
  }, [discountAvailability])
 
- const totalDue = useMemo(
+ const afterCatalogDue = useMemo(
   () => applyDiscountsToSubtotal(subtotal, selectedDiscounts, paymentEligibilityCtx),
   [subtotal, selectedDiscounts, paymentEligibilityCtx]
+ )
+
+ const specialAmountN = useMemo(() => {
+  if (!specialDiscountEnabled) return 0
+  return normalizeSpecialDiscountAmount(specialDiscountAmount)
+ }, [specialDiscountEnabled, specialDiscountAmount])
+
+ const totalDue = useMemo(
+  () => applyFixedDiscountAmount(afterCatalogDue, specialAmountN),
+  [afterCatalogDue, specialAmountN]
  )
 
  const discountStepsPreview = useMemo(
@@ -349,6 +368,8 @@ export function PaymentsPageView() {
    setEnrollments(list)
    setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
    setDiscountIds([])
+   setSpecialDiscountEnabled(false)
+   setSpecialDiscountAmount("")
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadEnrollments", setErr: setFormErr })
    setEnrollments([])
@@ -395,6 +416,8 @@ export function PaymentsPageView() {
    setEnrollments([])
    setLines([])
    setDiscountIds([])
+   setSpecialDiscountEnabled(false)
+   setSpecialDiscountAmount("")
    setIsNewStudent(null)
    setRelatives([])
    setReferrerStudentId("")
@@ -587,6 +610,12 @@ export function PaymentsPageView() {
   if (needsReferrer && !referrerStudentId.trim()) return "請選擇推薦人（舊生）。"
   if (needsGroupBatch && batchMemberCountN < 3) return "自組同班優惠需填寫聯合收費人數（至少 3 人）。"
   if (needsGroupBatch && !batchSharedClassId) return "自組同班優惠需所有明細為同一班別。"
+  if (specialDiscountEnabled) {
+   if (specialAmountN <= 0) return `請輸入 ${SPECIAL_DISCOUNT_LABEL} 減免定金額。`
+   if (specialAmountN > afterCatalogDue + 0.01) {
+    return `${SPECIAL_DISCOUNT_LABEL} 不可大於剩餘應收（${money(afterCatalogDue)}）。`
+   }
+  }
   return null
  }
 
@@ -646,6 +675,7 @@ export function PaymentsPageView() {
     remarks: buildRemarksForSave(),
     receiptKind: "RC",
     discountIds,
+    specialDiscountAmount: specialAmountN > 0 ? specialAmountN : null,
     details: buildDetailInputs(),
     ...buildPaymentExtras(),
    })
@@ -672,6 +702,8 @@ export function PaymentsPageView() {
    }
    setRemarks("")
    setDiscountIds([])
+   setSpecialDiscountEnabled(false)
+   setSpecialDiscountAmount("")
    if (selectedStudent) {
     void loadEnrollments(selectedStudent.id)
     void loadStudentContext(selectedStudent.id)
@@ -699,10 +731,11 @@ export function PaymentsPageView() {
     subtotalAmount: subtotal,
     totalAmount: totalDue,
     paymentMethod: method,
-    status: invoiceStatus,
+    status: PAYMENT_STATUS.pendingReceive,
     remarks: buildRemarksForSave(),
     receiptKind: "INV",
     discountIds,
+    specialDiscountAmount: specialAmountN > 0 ? specialAmountN : null,
     details: buildDetailInputs(),
     ...buildPaymentExtras(),
    })
@@ -729,6 +762,8 @@ export function PaymentsPageView() {
    }
    setRemarks("")
    setDiscountIds([])
+   setSpecialDiscountEnabled(false)
+   setSpecialDiscountAmount("")
    if (selectedStudent) {
     void loadEnrollments(selectedStudent.id)
     void loadStudentContext(selectedStudent.id)
@@ -839,16 +874,10 @@ export function PaymentsPageView() {
       收款登記
      </h1>
      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      內部行政收款：先確認學生與應收內容，再登記收款或建立待繳通知單。
+      內部行政收款：先確認學生與應收內容，再登記已收款或待收款。下期學費請用文字提醒家長，勿再開收據式待繳費單。
      </p>
     </div>
     <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="outline" asChild>
-      <Link to="/MonthlyTuition">
-       <CalendarRange className="h-4 w-4" />
-       每月學費
-      </Link>
-     </Button>
      <Button type="button" variant="outline" asChild>
       <Link to="/PaymentHistory">
        <History className="h-4 w-4" />
@@ -874,13 +903,13 @@ export function PaymentsPageView() {
      className="flex flex-col gap-3 rounded-lg border border-success/40 bg-success/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
     >
      <p className="text-sm font-medium text-foreground">
-      {receivedDone.kind === "receive" ? "已收款" : "已建立通知單"} {money(receivedDone.amount)}
+      {receivedDone.kind === "receive" ? "已收款" : "已建立待收款單"} {money(receivedDone.amount)}
       <span className="ml-2 font-normal text-muted-foreground">· {receivedDone.studentName}</span>
      </p>
      <div className="flex flex-wrap gap-2">
       <Button type="button" size="sm" onClick={() => void openReceiptPreview(receivedDone.paymentId)}>
        <Printer className="h-4 w-4" />
-       {receivedDone.kind === "receive" ? "列印收據" : "列印通知單"}
+       {receivedDone.kind === "receive" ? "列印收據" : "列印待收款單"}
       </Button>
       <Button type="button" size="sm" variant="outline" asChild>
        <Link to={`/PaymentHistory?studentId=${encodeURIComponent(receivedDone.studentId)}`}>
@@ -907,7 +936,7 @@ export function PaymentsPageView() {
     {(
      [
       ["receive", "收款登記", Banknote],
-      ["invoice", "出單（待繳）", FileText],
+      ["invoice", "待收款", FileText],
      ] as const
     ).map(([key, label, Icon]) => (
      <button
@@ -975,19 +1004,45 @@ export function PaymentsPageView() {
          ) : null}
         </div>
         {selectedStudent ? (
-         <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-0.5 shrink-0"
-          onClick={() => {
-           setSelectedStudent(null)
-           setStudentQuery("")
-           setReceivedDone(null)
-          }}
-         >
-          清除選取
-         </Button>
+         <>
+          <Button
+           type="button"
+           variant="outline"
+           size="sm"
+           className="mt-0.5 shrink-0"
+           onClick={() => {
+            void openNextTuitionReminder(selectedStudent, {
+             classLabels: enrollments
+              .map((e) => e.subject || e.courseName || e.courseCode || "")
+              .filter(Boolean),
+            }).then((result) => {
+             if (result === "whatsapp") {
+              pushBanner({ tone: "success", title: "已開啟 WhatsApp", message: "請確認預填文字後手動發送。" })
+             } else if (result === "wechat") {
+              pushBanner({ tone: "success", title: "已複製 WeChat ID", message: "請到 WeChat 貼上學費提醒文字。" })
+             } else {
+              pushBanner({ tone: "warning", title: "無法開啟通訊", message: "請先確認學生／家長電話或 WeChat。" })
+             }
+            })
+           }}
+          >
+           <MessageCircle className="h-4 w-4" />
+           提醒繳付下期學費
+          </Button>
+          <Button
+           type="button"
+           variant="outline"
+           size="sm"
+           className="mt-0.5 shrink-0"
+           onClick={() => {
+            setSelectedStudent(null)
+            setStudentQuery("")
+            setReceivedDone(null)
+           }}
+          >
+           清除選取
+          </Button>
+         </>
         ) : null}
        </div>
       </FormField>
@@ -1287,6 +1342,43 @@ export function PaymentsPageView() {
        </p>
       </FormField>
 
+      <FormField label={SPECIAL_DISCOUNT_LABEL}>
+       <label
+        className={cn(
+         "flex items-center gap-2 text-sm",
+         !selectedStudent ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+        )}
+       >
+        <input
+         type="checkbox"
+         className="h-4 w-4 rounded border-input"
+         checked={specialDiscountEnabled}
+         disabled={!selectedStudent}
+         onChange={(e) => {
+          setSpecialDiscountEnabled(e.target.checked)
+          if (!e.target.checked) setSpecialDiscountAmount("")
+         }}
+        />
+        套用臨時減免（收據固定顯示 {SPECIAL_DISCOUNT_LABEL}）
+       </label>
+       {specialDiscountEnabled ? (
+        <div className="mt-2 max-w-xs">
+         <Input
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          placeholder="減免金額（HKD）"
+          value={specialDiscountAmount}
+          onChange={(e) => setSpecialDiscountAmount(e.target.value)}
+         />
+         <p className="mt-1 text-xs text-muted-foreground">
+          於目錄優惠之後扣除；不可大於剩餘應收 {money(afterCatalogDue)}。
+         </p>
+        </div>
+       ) : null}
+      </FormField>
+
       <div className="rounded-lg border border-dashed border-border bg-muted/15 px-3 py-3 text-sm">
        <div className="flex justify-between gap-2">
         <span className="text-muted-foreground">項目小計</span>
@@ -1322,6 +1414,12 @@ export function PaymentsPageView() {
          })}
         </div>
        ) : null}
+       {specialAmountN > 0 ? (
+        <div className="mt-1 flex justify-between gap-2 text-muted-foreground">
+         <span>已套用：{SPECIAL_DISCOUNT_LABEL}</span>
+         <span className="tabular-nums text-warning">-{money(specialAmountN)}</span>
+        </div>
+       ) : null}
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
         <span>應收總額</span>
         <span className="tabular-nums text-warning dark:text-warning">{money(totalDue)}</span>
@@ -1330,11 +1428,11 @@ export function PaymentsPageView() {
      </SectionCard>
 
      <SectionCard
-      title={collectMode === "receive" ? "3. 本次收款操作" : "3. 本次出單操作"}
+      title={collectMode === "receive" ? "3. 本次收款操作" : "3. 本次待收款操作"}
       description={
        collectMode === "receive"
         ? "確認付款方式與備註後送出；送出期間請勿重複點擊。"
-        : "建立待繳／待收款通知單，之後可於繳費紀錄標記已收。"
+        : "建立待收款單（未入帳）；下期學費請另以文字提醒家長，勿再開待繳費通知單。"
       }
      >
       <div className="grid gap-4 sm:grid-cols-2">
@@ -1355,14 +1453,7 @@ export function PaymentsPageView() {
        </FormField>
        {collectMode === "invoice" ? (
         <FormField label="帳款狀態">
-         <Select
-          className={selectClassName()}
-          value={invoiceStatus}
-          onChange={(e) => setInvoiceStatus(e.target.value)}
-         >
-          <option value={PAYMENT_STATUS.pendingReceive}>{PAYMENT_STATUS.pendingReceive}</option>
-          <option value={PAYMENT_STATUS.pendingPay}>{PAYMENT_STATUS.pendingPay}</option>
-         </Select>
+         <Input readOnly value={PAYMENT_STATUS.pendingReceive} className="bg-muted/40" />
         </FormField>
        ) : (
         <FormField label="帳款狀態">
@@ -1406,7 +1497,7 @@ export function PaymentsPageView() {
         ? "處理中…"
         : collectMode === "receive"
           ? "確認登記收款"
-          : "建立通知單"}
+          : "建立待收款單"}
       </Button>
      </SectionCard>
     </div>

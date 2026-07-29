@@ -481,20 +481,45 @@ export function trialTypeCategory(trialType: string): "free" | "half" | "full" |
  return "other"
 }
 
-export function trialCanConvert(row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">): boolean {
+export function trialCanConvert(row: Pick<TrialManageRow, "outcome" | "status">): boolean {
  if (trialOutcomeClosed(row.outcome)) return false
  if (String(row.status).includes("取消")) return false
- return Boolean(row.roll_call_done)
+ return true
 }
 
 export function trialConvertBlockedReason(
- row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">
+ row: Pick<TrialManageRow, "outcome" | "status">
 ): string | null {
  if (row.outcome === "converted") return "已轉正式報讀"
  if (row.outcome === "lost") return "已標流失"
  if (row.outcome === "other") return "已有其他結果"
  if (String(row.status).includes("取消")) return "已取消，不可轉正"
- if (!row.roll_call_done) return "請先完成該堂點名"
+ return null
+}
+
+/** 未點名仍可轉正，但 UI 必須先警告（堂數／點名／學費對帳風險） */
+export function trialConvertRollCallWarning(
+ row: Pick<TrialManageRow, "roll_call_done" | "status">
+): string | null {
+ if (String(row.status).includes("取消")) return null
+ if (row.roll_call_done) return null
+ return "學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。仍要繼續轉正？"
+}
+
+export function trialCanRecordLost(
+ row: Pick<TrialManageRow, "outcome" | "status">
+): boolean {
+ if (trialOutcomeClosed(row.outcome)) return false
+ return String(row.status).includes("取消")
+}
+
+export function trialLostBlockedReason(
+ row: Pick<TrialManageRow, "outcome" | "status">
+): string | null {
+ if (row.outcome === "converted") return "已轉正式報讀"
+ if (row.outcome === "lost") return "已標流失"
+ if (row.outcome === "other") return "已有其他結果"
+ if (!String(row.status).includes("取消")) return "請先取消試堂，再標流失"
  return null
 }
 
@@ -524,8 +549,11 @@ export async function recordTrialOutcome(params: {
  if (!row) throw new Error("找不到試堂紀錄")
  const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
  if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
- const now = new Date().toISOString()
  const status = String((row as { status?: string }).status ?? "")
+ if (params.outcome === "lost" && !status.includes("取消")) {
+  throw new Error("請先取消試堂，再標流失")
+ }
+ const now = new Date().toISOString()
  const { error } = await supabase
   .from("trial_sessions")
   .update({
@@ -540,22 +568,20 @@ export async function recordTrialOutcome(params: {
  if (error) throw error
 }
 
-export type ConvertTrialPaymentInput = {
- lessonCount: number
- amount: number
- paymentMethod: string
- /** 已收款 | 待繳費 | 待收款 */
- status: string
-}
-
-/** 試堂轉正式報讀（同班）＋可選收費；寫入 outcome=converted */
+/** 試堂轉正式報讀；學費請到 /Payments。未點名可轉，回傳 rollCallPending 供 UI 事前警告。 */
 export async function convertTrialToEnrollment(params: {
  trialId: string
+ /** 報讀班；省略＝試堂班（可跨班） */
+ targetClassId?: string
  enrollmentPeriod: EnrollmentFormValue | null
  scheduleIds?: string[]
  pending?: { owedCount: number; reason?: string; remarks?: string | null } | null
- payment?: ConvertTrialPaymentInput | null
-}): Promise<{ enrollmentId: string; paymentId: string | null }> {
+}): Promise<{
+ enrollmentId: string
+ rollCallPending: boolean
+ trialClassId: string
+ targetClassId: string
+}> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: trial, error: trialErr } = await supabase
   .from("trial_sessions")
@@ -576,16 +602,17 @@ export async function convertTrialToEnrollment(params: {
  if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可再轉正")
  if (String(t.status).includes("取消")) throw new Error("已取消試堂不可轉正")
 
+ const targetClassId = (params.targetClassId ?? t.class_id).trim()
+ if (!targetClassId) throw new Error("請選擇報讀班別")
+
  const attended = await fetchScheduleIdsThatHaveAttendance([t.schedule_id])
- if (!attended.has(t.schedule_id)) {
-  throw new Error("請先完成該堂點名後再轉正式報讀")
- }
+ const rollCallPending = !attended.has(t.schedule_id)
 
  const { data: enr, error: enrErr } = await supabase
   .from("student_class_enrollments")
   .select("id")
   .eq("student_id", t.student_id)
-  .eq("class_id", t.class_id)
+  .eq("class_id", targetClassId)
   .eq("status", "就讀中")
   .limit(1)
  if (enrErr) throw enrErr
@@ -596,69 +623,64 @@ export async function convertTrialToEnrollment(params: {
  const { insertEnrollment } = await import("@/services/studentQueries")
  const enrollmentId = await insertEnrollment(
   t.student_id,
-  t.class_id,
+  targetClassId,
   params.enrollmentPeriod,
   params.scheduleIds,
   params.pending ?? null
  )
 
- let paymentId: string | null = null
- if (params.payment) {
-  const pay = params.payment
-  if (!(pay.lessonCount > 0)) throw new Error("堂數須大於 0")
-  if (!(pay.amount >= 0)) throw new Error("金額不可為負")
-  const { data: cls, error: clsErr } = await supabase
-   .from("classes")
-   .select("subject, course_code_full, courses ( course_name )")
-   .eq("id", t.class_id)
-   .maybeSingle()
-  if (clsErr) throw clsErr
-  const c = cls as Record<string, unknown> | null
-  const course = c?.courses as Record<string, unknown> | null
-  const label = formatClassLabel({
-   subject: c?.subject != null ? String(c.subject) : "—",
-   courseCode: c?.course_code_full != null ? String(c.course_code_full) : null,
-   courseName: course?.course_name != null ? String(course.course_name) : null,
-  })
-  const { insertPaymentRecord } = await import("@/services/paymentQueries")
-  paymentId = await insertPaymentRecord({
-   studentId: t.student_id,
-   paymentDate: localYmd(),
-   totalAmount: pay.amount,
-   subtotalAmount: pay.amount,
-   paymentMethod: pay.paymentMethod,
-   status: pay.status,
-   remarks: "試堂轉正式報讀",
-   receiptKind: pay.status.includes("待") ? "INV" : "RC",
-   details: [
-    {
-     classId: t.class_id,
-     lessonCount: pay.lessonCount,
-     amount: pay.amount,
-     description: label,
-    },
-   ],
-  })
- }
-
+ const periodLabel =
+  params.enrollmentPeriod == null
+   ? "報足全期"
+   : String(params.enrollmentPeriod)
  const now = new Date().toISOString()
- const { error: upErr } = await supabase
+ const crossNote =
+  targetClassId !== t.class_id ? "跨班轉化：歸因至新報讀" : null
+
+ // 原試堂班未結案試堂一律標 converted；同班時 insertEnrollment 可能已結案，仍補上 enrollment 連結
+ const { data: classTrials, error: openErr } = await supabase
   .from("trial_sessions")
-  .update({
-   outcome: "converted",
-   outcome_reason: params.enrollmentPeriod ?? "報足全期",
-   outcome_note: paymentId ? "已一併收費／出單" : null,
-   outcome_at: now,
-   converted_enrollment_id: enrollmentId,
-   converted_payment_id: paymentId,
-   status: "已完成",
-   updated_at: now,
-  })
+  .select("id, status, outcome, remarks")
   .eq("student_id", t.student_id)
   .eq("class_id", t.class_id)
-  .neq("outcome", "lost")
-  .neq("outcome", "other")
- if (upErr) throw upErr
+ if (openErr) throw openErr
+
+ const rows = (classTrials ?? []) as Array<{
+  id: string
+  status: string
+  outcome: string | null
+  remarks: string | null
+ }>
+ const targets = rows.filter((row) => {
+  if (row.id === t.id) return true
+  const s = String(row.status ?? "")
+  const o = normalizeTrialOutcome(row.outcome)
+  if (s.includes("取消")) return false
+  if (trialOutcomeClosed(o)) return false
+  return true
+ })
+
+ for (const row of targets) {
+  const prevRemarks = (row.remarks ?? "").trim()
+  let remarks: string | null = prevRemarks || null
+  if (crossNote && !prevRemarks.includes("跨班轉化")) {
+   remarks = prevRemarks ? `${prevRemarks}；${crossNote}` : crossNote
+  }
+  const { error: upErr } = await supabase
+   .from("trial_sessions")
+   .update({
+    outcome: "converted",
+    outcome_reason: periodLabel,
+    outcome_note: rollCallPending ? "轉正時尚未完成試堂點名" : null,
+    outcome_at: now,
+    converted_enrollment_id: enrollmentId,
+    status: String(row.status).includes("取消") ? row.status : "已完成",
+    remarks,
+    updated_at: now,
+   })
+   .eq("id", row.id)
+  if (upErr) throw upErr
+ }
 
  const { data: stu, error: stuErr } = await supabase
   .from("students")
@@ -675,5 +697,75 @@ export async function convertTrialToEnrollment(params: {
   if (regErr) console.warn("[convertTrialToEnrollment] registration_status", regErr)
  }
 
- return { enrollmentId, paymentId }
+ return {
+  enrollmentId,
+  rollCallPending,
+  trialClassId: t.class_id,
+  targetClassId,
+ }
+}
+
+/** 改期：只換 schedule_id／trial_date；status 不變；舊堂名單自然消失 */
+export async function rescheduleTrialSession(params: {
+ trialId: string
+ newScheduleId: string
+}): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: trial, error: trialErr } = await supabase
+  .from("trial_sessions")
+  .select("id, student_id, class_id, schedule_id, status, outcome")
+  .eq("id", params.trialId)
+  .maybeSingle()
+ if (trialErr) throw trialErr
+ if (!trial) throw new Error("找不到試堂紀錄")
+ const t = trial as {
+  id: string
+  student_id: string
+  class_id: string
+  schedule_id: string
+  status: string
+  outcome: string | null
+ }
+ if (trialOutcomeClosed(normalizeTrialOutcome(t.outcome))) {
+  throw new Error("已有結果的試堂不可改期")
+ }
+ if (String(t.status).includes("取消")) throw new Error("已取消試堂不可改期")
+ if (params.newScheduleId === t.schedule_id) throw new Error("請選擇不同排程")
+
+ const { data: sch, error: schErr } = await supabase
+  .from("schedules")
+  .select("id, class_id, scheduled_date, status")
+  .eq("id", params.newScheduleId)
+  .maybeSingle()
+ if (schErr) throw schErr
+ if (!sch) throw new Error("找不到新排程")
+ const s = sch as { id: string; class_id: string; scheduled_date: string; status: string | null }
+ if (s.class_id !== t.class_id) throw new Error("改期僅可選同一班別的其他排程")
+ if (String(s.status ?? "").includes("取消")) throw new Error("不可改期至已取消排程")
+
+ const today = localYmd()
+ const newDate = String(s.scheduled_date).slice(0, 10)
+ if (newDate < today) throw new Error("不可改期至過去日期")
+
+ const { data: clash, error: clashErr } = await supabase
+  .from("trial_sessions")
+  .select("id, status")
+  .eq("student_id", t.student_id)
+  .eq("schedule_id", params.newScheduleId)
+ if (clashErr) throw clashErr
+ const openClash = (clash ?? []).some((row) => {
+  if (String((row as { id: string }).id) === t.id) return false
+  return isTrialStatusOpen((row as { status?: string }).status)
+ })
+ if (openClash) throw new Error("該生在此排程已有未結案試堂")
+
+ const { error: upErr } = await supabase
+  .from("trial_sessions")
+  .update({
+   schedule_id: params.newScheduleId,
+   trial_date: newDate,
+   updated_at: new Date().toISOString(),
+  })
+  .eq("id", t.id)
+ if (upErr) throw upErr
 }

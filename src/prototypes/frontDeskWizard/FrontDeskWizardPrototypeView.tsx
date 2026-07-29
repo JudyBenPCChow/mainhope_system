@@ -23,7 +23,21 @@ import {
  type MockStudent,
 } from "./mockData"
 
-const PAY_METHODS = ["現金", "轉數快", "信用卡", "支票", "支付寶", "微信支付", "其他"] as const
+const PAY_METHODS = [
+ "現金",
+ "轉數快",
+ "信用卡",
+ "支票",
+ "PayMe",
+ "八達通",
+ "易辦事",
+ "銀聯",
+ "銀行轉帳",
+ "內地支付寶",
+ "香港支付寶",
+ "微信支付",
+ "其他",
+] as const
 const LEAVE_REASONS = ["病假", "事假"] as const
 const LEAVE_MAKEUPS = ["待安排", "錄影", "調堂", "不補回"] as const
 

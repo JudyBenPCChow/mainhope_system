@@ -27,6 +27,8 @@ import {
  LEAVE_REASON_OPTIONS,
  LEAVE_TUITION_DISPOSITION_OPTIONS,
  STUDENT_LEAVE_REASON_OPTIONS,
+ formatLeaveScheduleOptionLabel,
+ formatMakeupCandidateLabel,
  isLeaveStatusAbandoned,
  isLeaveStatusDone,
  isLeaveStatusPending,
@@ -35,6 +37,7 @@ import {
  setLeaveTuitionDisposition,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
+ type ConsecutiveLeaveScope,
  type EnrolledClassOption,
  type LeaveManageRow,
  type LeaveTodayStats,
@@ -89,6 +92,7 @@ export function LeaveManagementView() {
  const [addTuitionDisposition, setAddTuitionDisposition] = useState<LeaveTuitionDisposition>("減收")
  const [addMakeupScheduleId, setAddMakeupScheduleId] = useState("")
  const [addMakeupSearch, setAddMakeupSearch] = useState("")
+ const [addConsecutiveScope, setAddConsecutiveScope] = useState<ConsecutiveLeaveScope>("all")
  const [addRemarks, setAddRemarks] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
@@ -165,6 +169,7 @@ export function LeaveManagementView() {
   setAddTuitionDisposition("減收")
   setAddMakeupScheduleId("")
   setAddMakeupSearch("")
+  setAddConsecutiveScope("all")
   setAddRemarks("")
   setEnrolledClasses([])
   setScheduleOptions([])
@@ -427,6 +432,7 @@ export function LeaveManagementView() {
     remarks: addRemarks.trim() || null,
     status: "待補課",
     tuition_disposition: addTuitionDisposition,
+    consecutiveScope: sched.consecutive_group_id ? addConsecutiveScope : "this_slot",
    })
    setAddOpen(false)
    await reload()
@@ -837,7 +843,10 @@ export function LeaveManagementView() {
        <Select
         className="h-9 w-full rounded-md border border-input px-2"
         value={addScheduleId}
-        onChange={(e) => setAddScheduleId(e.target.value)}
+        onChange={(e) => {
+         setAddScheduleId(e.target.value)
+         setAddConsecutiveScope("all")
+        }}
         disabled={!addClassId || scheduleOptions.length === 0}
        >
         {!addClassId ? (
@@ -847,12 +856,26 @@ export function LeaveManagementView() {
         ) : (
          scheduleOptions.map((s) => (
           <option key={s.id} value={s.id}>
-           {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""}
+           {formatLeaveScheduleOptionLabel(s)}
           </option>
          ))
         )}
        </Select>
       </label>
+
+      {scheduleOptions.find((s) => s.id === addScheduleId)?.consecutive_group_id ? (
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">連堂請假範圍</span>
+        <Select
+         className="h-9 w-full rounded-md border border-input px-2"
+         value={addConsecutiveScope}
+         onChange={(e) => setAddConsecutiveScope(e.target.value as ConsecutiveLeaveScope)}
+        >
+         <option value="all">連堂兩節一併請假（欠最多 2 堂）</option>
+         <option value="this_slot">只請本節（欠 1 堂；可另約連堂其中一節補回）</option>
+        </Select>
+       </label>
+      ) : null}
 
       <label className="grid gap-1">
        <span className="text-muted-foreground">原因</span>
@@ -925,8 +948,7 @@ export function LeaveManagementView() {
          <option value="">請選擇補堂排程</option>
          {makeupFiltered.map((s) => (
           <option key={s.id} value={s.id}>
-           {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
-           {s.course_code_full ? ` (${s.course_code_full})` : ""} · {s.teacher_name ?? "—"}
+           {formatMakeupCandidateLabel(s)}
           </option>
          ))}
         </Select>
@@ -1053,6 +1075,7 @@ export function LeaveManagementView() {
      <div className="grid gap-3 text-sm">
       <p className="text-xs text-muted-foreground">
        {linkRow ? `學生：${linkRow.student_name ?? "—"} · 原請假日：${linkRow.leave_date}` : "請選擇補堂排程"}
+       。若補入連堂，請選正確那一節（點名只計該節 1 堂）。
       </p>
       <div className="relative">
        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1067,8 +1090,7 @@ export function LeaveManagementView() {
        <option value="">請選擇補堂排程</option>
        {linkFiltered.map((s) => (
         <option key={s.id} value={s.id}>
-         {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
-         {s.course_code_full ? ` (${s.course_code_full})` : ""} · {s.teacher_name ?? "—"}
+         {formatMakeupCandidateLabel(s)}
         </option>
        ))}
       </Select>

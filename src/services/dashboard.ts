@@ -78,7 +78,7 @@ export type DashboardTodayLeaveRow = {
 
 export type AdminDashboardPayload = {
  todayClassCount: number
- /** 狀態為「待繳費」之筆數（出單／通知單；不含「待收款」） */
+ /** 狀態為「待收款」之筆數（未入帳；歷史「待繳費」仍計入未繳列表，但不作 KPI） */
  pendingPaymentCount: number
  monthRevenue: number
  unpaid: UnpaidRow[]
@@ -366,7 +366,7 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
    supabase
     .from("payments")
     .select("id", { count: "exact", head: true })
-    .eq("status", PAYMENT_STATUS.pendingPay),
+    .eq("status", PAYMENT_STATUS.pendingReceive),
    supabase
     .from("payments")
     .select("id", { count: "exact", head: true })
@@ -393,6 +393,7 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
     .select(
      "id, payment_date, total_amount, payment_method, status, students ( full_name )"
     )
+    .neq("status", "作廢")
     .order("payment_date", { ascending: false })
     .limit(8),
    supabase.from("students").select("status"),

@@ -96,9 +96,19 @@ export function formatConsecutiveSessionLabel(sessionNumbers: (number | null | u
  return nums.map((n) => `第 ${n} 堂`).join("、")
 }
 
+export type RollCallSlotDetail = {
+ id: string
+ start_time: string | null
+ end_time: string | null
+ consecutive_slot_index: number | null
+ session_number: number | null
+}
+
 export type RollCallScheduleEntry = {
  key: string
  scheduleIds: string[]
+ /** 與 scheduleIds 對應的各節時間（連堂單項補堂提醒／標籤用） */
+ slotDetails: RollCallSlotDetail[]
  sessionNumbers: (number | null)[]
  class_id: string
  scheduled_date: string
@@ -108,6 +118,21 @@ export type RollCallScheduleEntry = {
  course_code_full: string | null
  teacher_name: string | null
  isConsecutive: boolean
+}
+
+/** 連堂節次標籤：第 1／第 2 節（資料庫 consecutive_slot_index 為 1|2） */
+export function formatConsecutiveSlotOnlyLabel(
+ slotIndex: number | null | undefined
+): string {
+ if (slotIndex == null || Number.isNaN(Number(slotIndex))) return "僅一節"
+ return `僅第 ${Number(slotIndex)} 節`
+}
+
+export function rollCallSlotDetailForSchedule(
+ entry: RollCallScheduleEntry,
+ scheduleId: string
+): RollCallSlotDetail | null {
+ return entry.slotDetails.find((s) => s.id === scheduleId) ?? null
 }
 
 export type ScheduleRollCallSource = {
@@ -149,6 +174,15 @@ export function buildRollCallScheduleEntries(
   out.push({
    key: row.id,
    scheduleIds: [row.id],
+   slotDetails: [
+    {
+     id: row.id,
+     start_time: row.start_time,
+     end_time: row.end_time,
+     consecutive_slot_index: row.consecutive_slot_index ?? null,
+     session_number: row.session_number ?? null,
+    },
+   ],
    sessionNumbers: [row.session_number ?? null],
    class_id: row.class_id,
    scheduled_date: row.scheduled_date,
@@ -171,6 +205,13 @@ export function buildRollCallScheduleEntries(
   out.push({
    key: gid,
    scheduleIds: sorted.map((r) => r.id),
+   slotDetails: sorted.map((r) => ({
+    id: r.id,
+    start_time: r.start_time,
+    end_time: r.end_time,
+    consecutive_slot_index: r.consecutive_slot_index ?? null,
+    session_number: r.session_number ?? null,
+   })),
    sessionNumbers: sorted.map((r) => r.session_number ?? null),
    class_id: head.class_id,
    scheduled_date: head.scheduled_date,

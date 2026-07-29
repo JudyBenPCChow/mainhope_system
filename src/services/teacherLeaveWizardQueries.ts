@@ -13,6 +13,7 @@ import {
   fetchSchedulesInRange,
   type ScheduleManageRow,
 } from "@/services/scheduleQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 
@@ -421,6 +422,24 @@ export async function executeTeacherLeaveDay(params: {
       const msg = e instanceof Error ? e.message : String(e)
       result.errors.push(`${unit.classLabel}：${msg}`)
     }
+  }
+
+  if (result.substituted.length > 0 || result.cancelled.length > 0) {
+    const subIds = result.substituted.map((s) => s.substituteTeacherId)
+    void recordInboxEvent({
+      eventType: "schedule_updated",
+      title: `老師請假日已處理（${params.leaveDate}）`,
+      body: `代堂 ${result.substituted.length}、取消 ${result.cancelled.length}、照常 ${result.kept.length}`,
+      actionPath: `/Schedule?view=day&date=${params.leaveDate}`,
+      audienceTeacherIds: [params.leaveTeacherId, ...subIds],
+      payload: {
+        teacherLeaveDay: true,
+        leaveDate: params.leaveDate,
+        substituted: result.substituted.length,
+        cancelled: result.cancelled.length,
+        kept: result.kept.length,
+      },
+    })
   }
 
   return result

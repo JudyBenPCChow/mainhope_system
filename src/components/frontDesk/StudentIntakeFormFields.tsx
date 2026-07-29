@@ -13,7 +13,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeStudentGrade } from "@/lib/studentGrade"
 import type { FrontDeskIntakePayload } from "@/services/frontDeskIntakeQueries"
-import { PHONE_COUNTRY_CODES, PREFERRED_CONTACT_METHODS } from "@/services/studentQueries"
+import { PHONE_COUNTRY_CODES, PREFERRED_CONTACT_METHODS, PRIMARY_CONTACT_PERSONS } from "@/services/studentQueries"
 
 const COMMON_HK_SCHOOLS = [
  "英華書院",
@@ -44,8 +44,11 @@ export function emptyIntakeForm(): FrontDeskIntakePayload {
   student_phone_country_code: "+852",
   parent_phone: "",
   parent_phone_country_code: "+852",
-  whatsapp: "",
-  preferred_contact_method: "",
+  student_preferred_contact_method: "",
+  parent_preferred_contact_method: "",
+  student_wechat_id: "",
+  parent_wechat_id: "",
+  primary_contact_person: "",
   address: "",
   remarks: "",
  }
@@ -191,6 +194,13 @@ export function StudentIntakeFormFields({
        onChange={(rel) => patch({ parent_relationship: rel })}
       />
      </Field>
+     <Field label="第一聯絡人" className="sm:col-span-2">
+      <ChoiceChips
+       options={PRIMARY_CONTACT_PERSONS}
+       value={value.primary_contact_person ?? ""}
+       onChange={(v) => patch({ primary_contact_person: v })}
+      />
+     </Field>
      <Field label="學生電話">
       <div className="space-y-2">
        <ChoiceChips
@@ -204,6 +214,28 @@ export function StudentIntakeFormFields({
         value={value.student_phone ?? ""}
         onChange={(e) => patch({ student_phone: e.target.value })}
        />
+      </div>
+     </Field>
+     <Field label="學生偏好通訊方式">
+      <div className="space-y-2">
+       <ChoiceChips
+        options={PREFERRED_CONTACT_METHODS}
+        value={value.student_preferred_contact_method ?? ""}
+        onChange={(m) =>
+         patch({
+          student_preferred_contact_method: m,
+          ...(m !== "WeChat" ? { student_wechat_id: "" } : {}),
+         })
+        }
+       />
+       {value.student_preferred_contact_method === "WeChat" ? (
+        <Input
+         disabled={disabled}
+         placeholder="學生 WeChat ID"
+         value={value.student_wechat_id ?? ""}
+         onChange={(e) => patch({ student_wechat_id: e.target.value })}
+        />
+       ) : null}
       </div>
      </Field>
      <Field label="家長電話">
@@ -221,20 +253,27 @@ export function StudentIntakeFormFields({
        />
       </div>
      </Field>
-     <Field label="WhatsApp 號碼">
-      <Input
-       disabled={disabled}
-       inputMode="numeric"
-       value={value.whatsapp ?? ""}
-       onChange={(e) => patch({ whatsapp: e.target.value })}
-      />
-     </Field>
-     <Field label="偏好通訊方式">
-      <ChoiceChips
-       options={PREFERRED_CONTACT_METHODS}
-       value={value.preferred_contact_method ?? ""}
-       onChange={(m) => patch({ preferred_contact_method: m })}
-      />
+     <Field label="家長偏好通訊方式">
+      <div className="space-y-2">
+       <ChoiceChips
+        options={PREFERRED_CONTACT_METHODS}
+        value={value.parent_preferred_contact_method ?? ""}
+        onChange={(m) =>
+         patch({
+          parent_preferred_contact_method: m,
+          ...(m !== "WeChat" ? { parent_wechat_id: "" } : {}),
+         })
+        }
+       />
+       {value.parent_preferred_contact_method === "WeChat" ? (
+        <Input
+         disabled={disabled}
+         placeholder="家長 WeChat ID"
+         value={value.parent_wechat_id ?? ""}
+         onChange={(e) => patch({ parent_wechat_id: e.target.value })}
+        />
+       ) : null}
+      </div>
      </Field>
      <Field label="地址" className="sm:col-span-2">
       <Input
@@ -274,10 +313,30 @@ export function normalizeIntakeForInsert(form: FrontDeskIntakePayload) {
   student_phone_country_code: form.student_phone_country_code === "+86" ? "+86" : "+852",
   parent_phone: (form.parent_phone ?? "").trim() || null,
   parent_phone_country_code: form.parent_phone_country_code === "+86" ? "+86" : "+852",
-  whatsapp: (form.whatsapp ?? "").trim() || null,
-  preferred_contact_method:
-   form.preferred_contact_method === "WeChat" || form.preferred_contact_method === "WhatsApp"
-    ? form.preferred_contact_method
+  student_preferred_contact_method:
+   form.student_preferred_contact_method === "WeChat" ||
+   form.student_preferred_contact_method === "WhatsApp"
+    ? form.student_preferred_contact_method
+    : null,
+  parent_preferred_contact_method:
+   form.parent_preferred_contact_method === "WeChat" ||
+   form.parent_preferred_contact_method === "WhatsApp"
+    ? form.parent_preferred_contact_method
+    : form.preferred_contact_method === "WeChat" || form.preferred_contact_method === "WhatsApp"
+      ? form.preferred_contact_method
+      : null,
+  student_wechat_id:
+   form.student_preferred_contact_method === "WeChat"
+    ? (form.student_wechat_id ?? "").trim() || null
+    : null,
+  parent_wechat_id:
+   form.parent_preferred_contact_method === "WeChat" ||
+   (form.parent_preferred_contact_method == null && form.preferred_contact_method === "WeChat")
+    ? (form.parent_wechat_id ?? "").trim() || null
+    : null,
+  primary_contact_person:
+   form.primary_contact_person === "學生" || form.primary_contact_person === "家長"
+    ? form.primary_contact_person
     : null,
   address: (form.address ?? "").trim() || null,
   remarks: (form.remarks ?? "").trim() || null,

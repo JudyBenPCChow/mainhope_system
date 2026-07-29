@@ -2,7 +2,8 @@
 
 本文件約束**學生四維業務狀態**的資料來源、計算規則與前端正規化方式，避免「資料庫正確、畫面全錯」或「子字串誤判」等問題再次發生。
 
-介面用語：**繁體中文**。程式入口見 `src/services/studentQueries.ts`、`src/lib/statusTag.ts`、`supabase/migrations/*students*`。
+介面用語：**繁體中文**。程式入口見 `src/services/studentQueries.ts`、`src/lib/statusTag.ts`、`supabase/migrations/*students*`。  
+營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
 
 ---
 

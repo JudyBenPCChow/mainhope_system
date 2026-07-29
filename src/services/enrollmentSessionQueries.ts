@@ -56,7 +56,7 @@ export async function fetchClassSingleSessionEnrollments(classId: string): Promi
  const { data: enrData, error: enrErr } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, student_id, enrollment_period, students ( full_name, whatsapp, student_phone, parent_phone )"
+   "id, student_id, enrollment_period, students ( full_name, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )"
   )
   .eq("class_id", classId)
   .eq("status", "就讀中")

@@ -65,6 +65,9 @@ function docTitleFor(): string {
 }
 
 function openingLineFor(p: PaymentFull): string {
+ if (p.status === PAYMENT_STATUS.voided || p.status.includes("作廢")) {
+  return "（此單據已作廢，僅供存檔查閱︰）"
+ }
  return isReceivedStatus(p.status) ? "茲收到下列款項︰" : "茲開立下列應繳款項︰"
 }
 
@@ -522,6 +525,11 @@ function buildPrintBody(p: PaymentFull, opts: PaymentReceiptOptions = {}): strin
  const portalQr = opts.portalQrDataUrl?.trim() || null
 
  return `<div class="sheet">
+  ${
+   p.status === PAYMENT_STATUS.voided || p.status.includes("作廢")
+    ? `<div class="void-banner" style="border:2px solid #991b1b;background:#fef2f2;color:#991b1b;text-align:center;font-weight:700;padding:10px 12px;margin-bottom:14px;letter-spacing:0.12em;">已作廢 VOID</div>`
+    : ""
+  }
   <header class="header">
    <div class="brand">
     <img class="brand-logo" src="${MAINHOPE_LOGO_DATA_URL}" alt="${escHtml(`${COMPANY.nameZh} ${COMPANY.nameEn}`)}" />
@@ -635,9 +643,9 @@ export async function printPaymentForStatus(
  return printPayment(p)
 }
 
-/** 模擬示範用假資料收據（含 logo、Portal QR）。 */
-export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
- const demo: PaymentFull = {
+/** 模擬示範用假資料（收據預覽／列印／截圖 PDF 示範共用）。 */
+export function getDemoPaymentFull(): PaymentFull {
+ return {
   id: "demo-payment",
   studentId: "demo-student",
   studentName: "陳小明",
@@ -689,11 +697,20 @@ export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
   discountPercentOff: 10,
   discountAmountOff: null,
  }
+}
 
+export function getDemoPortalInviteUrl(): string {
  const demoToken = "demo-chenxiaoming-activate-only"
- const portalInviteUrl =
+ return (
   buildPortalActivateUrl(demoToken) ??
   `${getPortalBaseUrl() || "https://mainhopeportal.vercel.app"}/activate?token=${encodeURIComponent(demoToken)}`
+ )
+}
+
+/** 模擬示範用假資料收據（含 logo、Portal QR）。 */
+export async function buildDemoPaymentReceiptDocumentHtml(): Promise<string> {
+ const demo = getDemoPaymentFull()
+ const portalInviteUrl = getDemoPortalInviteUrl()
  const portalQrDataUrl = await buildPortalQrDataUrl(portalInviteUrl)
  return buildPaymentReceiptDocumentHtml(demo, { portalInviteUrl, portalQrDataUrl })
 }

@@ -26,6 +26,7 @@ export async function isStudentNewToMingXue(studentId: string): Promise<boolean>
   .from("payments")
   .select("id", { count: "exact", head: true })
   .eq("student_id", studentId)
+  .neq("status", "作廢")
  if (e2) throw e2
  return (payCount ?? 0) === 0
 }

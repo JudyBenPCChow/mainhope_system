@@ -1,420 +1,295 @@
 import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-<<<<<<< Updated upstream
-import { PAYMENT_METHOD_PRESETS } from "@/services/paymentQueries"
-
-import {
- TRIAL_CONVERT_DEMO_SESSIONS,
- type TrialConvertDemoCourseMode,
- type TrialConvertDemoSession,
-} from "@/components/trials/trialConvertDemoData"
-=======
 import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
-import { PAYMENT_METHOD_PRESETS, PAYMENT_STATUS } from "@/services/paymentQueries"
+import { SINGLE_SESSION_ENROLLMENT } from "@/lib/enrollmentPeriod"
+
+export type TrialConvertClassOption = {
+  id: string
+  label: string
+  courseMode: CourseMode
+}
 
 export type TrialConvertSessionOption = {
- id: string
- sessionNumber: number | null
- date: string
- start: string
- end: string
+  id: string
+  sessionNumber: number
+  date: string
+  start: string
+  end: string
 }
->>>>>>> Stashed changes
 
 export type TrialConvertDialogTarget = {
- id: string
- studentName: string
- studentGrade: string | null
- classLabel: string
- trialDate: string
- schedStart: string | null
- schedEnd: string | null
-<<<<<<< Updated upstream
- courseMode: TrialConvertDemoCourseMode
-=======
- courseMode: CourseMode
->>>>>>> Stashed changes
- pricePerLesson: number
+  id: string
+  studentId: string
+  studentName: string
+  studentGrade: string | null
+  trialClassId: string
+  trialClassLabel: string
+  trialDate: string
+  schedStart: string | null
+  schedEnd: string | null
+  rollCallDone: boolean
+  courseMode: CourseMode
 }
 
 export type TrialConvertSubmitPayload = {
-<<<<<<< Updated upstream
- enrollForm: "full" | "single" | "第一期" | "第二期" | "兩期全報"
- pickedSessionIds: string[]
-=======
- enrollmentPeriod: EnrollmentFormValue | null
- scheduleIds: string[]
->>>>>>> Stashed changes
- payMode: "receive" | "pending" | "skip"
- lessonCount: number
- amount: number
- paymentMethod: string
-<<<<<<< Updated upstream
- formLabel: string
- payLabel: string
-=======
- paymentStatus: string
- formLabel: string
->>>>>>> Stashed changes
+  targetClassId: string
+  enrollmentPeriod: EnrollmentFormValue | null
+  scheduleIds: string[]
+  formLabel: string
 }
 
 type Props = {
- open: boolean
- target: TrialConvertDialogTarget | null
-<<<<<<< Updated upstream
- sessions?: TrialConvertDemoSession[]
-=======
- sessions: TrialConvertSessionOption[]
- sessionsLoading?: boolean
- saving?: boolean
->>>>>>> Stashed changes
- onOpenChange: (open: boolean) => void
- onSubmit: (payload: TrialConvertSubmitPayload) => void
+  open: boolean
+  target: TrialConvertDialogTarget | null
+  classOptions: TrialConvertClassOption[]
+  /** 目標班單堂選項；由父層依 convertClassId 載入 */
+  sessions: TrialConvertSessionOption[]
+  sessionsLoading?: boolean
+  onTargetClassChange?: (classId: string) => void
+  onOpenChange: (open: boolean) => void
+  onSubmit: (payload: TrialConvertSubmitPayload) => void | Promise<void>
+  saving?: boolean
 }
 
 export function TrialConvertDialog({
- open,
- target,
-<<<<<<< Updated upstream
- sessions = TRIAL_CONVERT_DEMO_SESSIONS,
-=======
- sessions,
- sessionsLoading = false,
- saving = false,
->>>>>>> Stashed changes
- onOpenChange,
- onSubmit,
+  open,
+  target,
+  classOptions,
+  sessions,
+  sessionsLoading = false,
+  onTargetClassChange,
+  onOpenChange,
+  onSubmit,
+  saving = false,
 }: Props) {
- const [enrollForm, setEnrollForm] = useState<"full" | "single" | "第一期" | "第二期" | "兩期全報">(
-  "full"
- )
- const [pickedSessions, setPickedSessions] = useState<string[]>([])
- const [payMode, setPayMode] = useState<"receive" | "pending" | "skip">("receive")
- const [lessonCount, setLessonCount] = useState("4")
- const [amount, setAmount] = useState("")
- const [payMethod, setPayMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
- const [dlgErr, setDlgErr] = useState<string | null>(null)
-
- useEffect(() => {
-  if (!open || !target) return
-  setEnrollForm(target.courseMode === "summer_two_period" ? "兩期全報" : "full")
-  setPickedSessions([])
-  setPayMode("receive")
-  setLessonCount("4")
-  setAmount(String(Math.round(target.pricePerLesson * 4 * 100) / 100))
-  setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
-  setDlgErr(null)
- }, [open, target])
-
- const toggleSession = (id: string) => {
-  setPickedSessions((prev) =>
-   prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  const [targetClassId, setTargetClassId] = useState("")
+  const [enrollForm, setEnrollForm] = useState<"full" | "single" | "第一期" | "第二期" | "兩期全報">(
+    "full"
   )
- }
+  const [pickedSessions, setPickedSessions] = useState<string[]>([])
+  const [dlgErr, setDlgErr] = useState<string | null>(null)
 
- const onLessonCountChange = (raw: string) => {
-  setLessonCount(raw)
-  if (!target) return
-  const n = Number(raw)
-  if (Number.isFinite(n) && n > 0) {
-   setAmount(String(Math.round(target.pricePerLesson * n * 100) / 100))
+  const selectedClass = useMemo(
+    () => classOptions.find((c) => c.id === targetClassId) ?? null,
+    [classOptions, targetClassId]
+  )
+  const courseMode: CourseMode = selectedClass?.courseMode ?? target?.courseMode ?? "regular"
+
+  useEffect(() => {
+    if (!open || !target) return
+    setTargetClassId(target.trialClassId)
+    setEnrollForm(target.courseMode === "summer_two_period" ? "兩期全報" : "full")
+    setPickedSessions([])
+    setDlgErr(null)
+    onTargetClassChange?.(target.trialClassId)
+  }, [open, target, onTargetClassChange])
+
+  const toggleSession = (id: string) => {
+    setPickedSessions((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
   }
- }
 
- const formLabel = useMemo(() => {
-  if (!target) return ""
-  if (enrollForm === "single") {
-   const nums = pickedSessions
-    .map((id) => sessions.find((s) => s.id === id)?.sessionNumber)
-    .filter((n): n is number => n != null)
-    .sort((a, b) => a - b)
-   return nums.length ? `單堂報讀（第${nums.join("、")}堂）` : "單堂報讀"
+  const formLabel = useMemo(() => {
+    if (!target) return ""
+    if (enrollForm === "single") {
+      const nums = pickedSessions
+        .map((id) => sessions.find((s) => s.id === id)?.sessionNumber)
+        .filter((n): n is number => n != null)
+        .sort((a, b) => a - b)
+      return nums.length ? `單堂報讀（第${nums.join("、")}堂）` : "單堂報讀"
+    }
+    if (courseMode === "summer_two_period") return String(enrollForm)
+    return "報足全期"
+  }, [courseMode, enrollForm, pickedSessions, sessions, target])
+
+  const submit = async () => {
+    if (!target || !targetClassId) return
+    if (enrollForm === "single" && pickedSessions.length === 0) {
+      setDlgErr("單堂報讀請至少勾選一堂")
+      return
+    }
+    const enrollmentPeriod: EnrollmentFormValue | null =
+      enrollForm === "full"
+        ? null
+        : enrollForm === "single"
+          ? SINGLE_SESSION_ENROLLMENT
+          : enrollForm
+    setDlgErr(null)
+    try {
+      await onSubmit({
+        targetClassId,
+        enrollmentPeriod,
+        scheduleIds: enrollForm === "single" ? pickedSessions : [],
+        formLabel,
+      })
+    } catch (e) {
+      setDlgErr(e instanceof Error ? e.message : "轉正失敗")
+    }
   }
-  if (target.courseMode === "summer_two_period") return String(enrollForm)
-  return "報足全期"
- }, [enrollForm, pickedSessions, sessions, target])
 
- const submit = () => {
-  if (!target) return
-  if (enrollForm === "single" && pickedSessions.length === 0) {
-   setDlgErr("單堂報讀請至少勾選一堂")
-   return
-  }
-  const n = Number(lessonCount)
-  const a = Number(amount)
-  if (payMode !== "skip") {
-   if (!Number.isFinite(n) || n <= 0) {
-    setDlgErr("堂數須大於 0")
-    return
-   }
-   if (!Number.isFinite(a) || a < 0) {
-    setDlgErr("金額不可為負")
-    return
-   }
-  }
-<<<<<<< Updated upstream
-  const payLabel =
-   payMode === "skip"
-    ? "略過收費"
-    : payMode === "pending"
-      ? `待繳 $${amount}（${lessonCount} 堂）`
-      : `已收款 $${amount}（${lessonCount} 堂）`
-  onSubmit({
-   enrollForm,
-   pickedSessionIds: pickedSessions,
-=======
-  const enrollmentPeriod: EnrollmentFormValue | null =
-   enrollForm === "full"
-    ? null
-    : enrollForm === "single"
-      ? "單堂"
-      : enrollForm
-  const paymentStatus =
-   payMode === "receive"
-    ? PAYMENT_STATUS.received
-    : payMode === "pending"
-      ? PAYMENT_STATUS.pendingPay
-      : ""
-  onSubmit({
-   enrollmentPeriod,
-   scheduleIds: enrollForm === "single" ? pickedSessions : [],
->>>>>>> Stashed changes
-   payMode,
-   lessonCount: Number.isFinite(n) ? n : 0,
-   amount: Number.isFinite(a) ? a : 0,
-   paymentMethod: payMethod,
-<<<<<<< Updated upstream
-   formLabel,
-   payLabel,
-=======
-   paymentStatus,
-   formLabel,
->>>>>>> Stashed changes
-  })
- }
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>正式報讀（轉化）</DialogTitle>
+        </DialogHeader>
+        {target ? (
+          <div className="grid gap-4 text-sm">
+            <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
+              <div className="font-medium">
+                <Link
+                  to={`/Students/${target.studentId}`}
+                  className="text-info hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {target.studentName}
+                </Link>
+                {target.studentGrade ? (
+                  <span className="ml-2 text-muted-foreground">{target.studentGrade}</span>
+                ) : null}
+              </div>
+              <div className="mt-0.5 text-muted-foreground">試堂班：{target.trialClassLabel}</div>
+              <div className="mt-0.5 tabular-nums text-xs text-muted-foreground">
+                試堂 {target.trialDate}
+                {target.schedStart && target.schedEnd
+                  ? ` ${target.schedStart}–${target.schedEnd}`
+                  : null}
+              </div>
+            </div>
 
- return (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-   <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-    <DialogHeader>
-     <DialogTitle>轉正式報讀</DialogTitle>
-    </DialogHeader>
-    {target ? (
-     <div className="grid gap-4 text-sm">
-      <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
-       <div className="font-medium">
-        {target.studentName}
-        {target.studentGrade ? (
-         <span className="ml-2 text-muted-foreground">{target.studentGrade}</span>
-        ) : null}
-       </div>
-       <div className="mt-0.5 text-muted-foreground">{target.classLabel}</div>
-       <div className="mt-0.5 tabular-nums text-xs text-muted-foreground">
-        試堂 {target.trialDate}
-        {target.schedStart && target.schedEnd
-         ? ` ${target.schedStart}–${target.schedEnd}`
-         : null}
-       </div>
-      </div>
+            {!target.rollCallDone ? (
+              <div
+                role="status"
+                className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+              >
+                學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認轉正前請再核對。
+              </div>
+            ) : null}
 
-      <fieldset className="grid gap-2">
-       <legend className="text-xs font-medium text-muted-foreground">報讀形式</legend>
-       {target.courseMode === "regular" ? (
-        <Select
-         className="h-9"
-         value={enrollForm === "single" ? "single" : "full"}
-<<<<<<< Updated upstream
-=======
-         disabled={saving}
->>>>>>> Stashed changes
-         onChange={(e) => setEnrollForm(e.target.value === "single" ? "single" : "full")}
-        >
-         <option value="full">報足全期（九月正規）</option>
-         <option value="single">單堂（自選堂數）</option>
-        </Select>
-       ) : (
-        <Select
-         className="h-9"
-         value={enrollForm}
-<<<<<<< Updated upstream
-=======
-         disabled={saving}
->>>>>>> Stashed changes
-         onChange={(e) =>
-          setEnrollForm(e.target.value as "full" | "single" | "第一期" | "第二期" | "兩期全報")
-         }
-        >
-         <option value="第一期">第一期</option>
-         <option value="第二期">第二期</option>
-         <option value="兩期全報">兩期全報</option>
-         <option value="single">單堂（自選堂數）</option>
-        </Select>
-       )}
-       {enrollForm === "single" ? (
-        <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-         <p className="mb-1 text-xs text-muted-foreground">勾選要報讀的堂次</p>
-<<<<<<< Updated upstream
-         {sessions.map((s) => {
-          const checked = pickedSessions.includes(s.id)
-          return (
-           <label
-            key={s.id}
-            className={cn(
-             "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60",
-             checked && "bg-muted/40"
-            )}
-           >
-            <input
-             type="checkbox"
-             className="size-4 rounded border-border"
-             checked={checked}
-             onChange={() => toggleSession(s.id)}
-            />
-            <span>
-             第{s.sessionNumber}堂 · {s.date} {s.start}–{s.end}
-            </span>
-           </label>
-          )
-         })}
-=======
-         {sessionsLoading ? (
-          <p className="text-xs text-muted-foreground">載入堂次中…</p>
-         ) : sessions.length === 0 ? (
-          <p className="text-xs text-muted-foreground">此班暫無未來排程可選</p>
-         ) : (
-          sessions.map((s) => {
-           const checked = pickedSessions.includes(s.id)
-           return (
-            <label
-             key={s.id}
-             className={cn(
-              "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60",
-              checked && "bg-muted/40"
-             )}
-            >
-             <input
-              type="checkbox"
-              className="size-4 rounded border-border"
-              checked={checked}
-              disabled={saving}
-              onChange={() => toggleSession(s.id)}
-             />
-             <span>
-              {s.sessionNumber != null ? `第${s.sessionNumber}堂 · ` : null}
-              {s.date} {s.start}–{s.end}
-             </span>
+            <label className="grid gap-1 text-xs text-muted-foreground">
+              <span>報讀班別 *</span>
+              <Select
+                className="h-10 min-h-10 w-full"
+                value={targetClassId}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setTargetClassId(id)
+                  setPickedSessions([])
+                  const cls = classOptions.find((c) => c.id === id)
+                  setEnrollForm(cls?.courseMode === "summer_two_period" ? "兩期全報" : "full")
+                  onTargetClassChange?.(id)
+                }}
+              >
+                {classOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                    {c.id === target.trialClassId ? "（試堂班）" : ""}
+                  </option>
+                ))}
+              </Select>
             </label>
-           )
-          })
-         )}
->>>>>>> Stashed changes
-        </div>
-       ) : null}
-      </fieldset>
 
-      <fieldset className="grid gap-2">
-       <legend className="text-xs font-medium text-muted-foreground">收費</legend>
-       <Select
-        className="h-9"
-        value={payMode}
-<<<<<<< Updated upstream
-=======
-        disabled={saving}
->>>>>>> Stashed changes
-        onChange={(e) => setPayMode(e.target.value as "receive" | "pending" | "skip")}
-       >
-        <option value="receive">立即收款</option>
-        <option value="pending">開待繳費單</option>
-        <option value="skip">稍後再收（只報讀）</option>
-       </Select>
-       {payMode !== "skip" ? (
-        <div className="grid grid-cols-2 gap-2">
-         <label className="grid gap-1">
-          <span className="text-xs text-muted-foreground">堂數（正規預設 4）</span>
-          <Input
-           type="number"
-           min={1}
-           className="h-9"
-           value={lessonCount}
-<<<<<<< Updated upstream
-=======
-           disabled={saving}
->>>>>>> Stashed changes
-           onChange={(e) => onLessonCountChange(e.target.value)}
-          />
-         </label>
-         <label className="grid gap-1">
-          <span className="text-xs text-muted-foreground">
-           金額（單價 ${target.pricePerLesson}）
-          </span>
-          <Input
-           type="number"
-           min={0}
-           step="0.01"
-           className="h-9"
-           value={amount}
-<<<<<<< Updated upstream
-=======
-           disabled={saving}
->>>>>>> Stashed changes
-           onChange={(e) => setAmount(e.target.value)}
-          />
-         </label>
-         <label className="col-span-2 grid gap-1">
-          <span className="text-xs text-muted-foreground">付款方式</span>
-          <Select
-           className="h-9"
-           value={payMethod}
-<<<<<<< Updated upstream
-=======
-           disabled={saving}
->>>>>>> Stashed changes
-           onChange={(e) => setPayMethod(e.target.value)}
-          >
-           {PAYMENT_METHOD_PRESETS.map((m) => (
-            <option key={m} value={m}>
-             {m}
-            </option>
-           ))}
-          </Select>
-         </label>
-        </div>
-       ) : null}
-      </fieldset>
+            <fieldset className="grid gap-2">
+              <legend className="text-xs font-medium text-muted-foreground">報讀形式</legend>
+              {courseMode === "regular" ? (
+                <Select
+                  className="h-10 min-h-10"
+                  value={enrollForm === "single" ? "single" : "full"}
+                  onChange={(e) => setEnrollForm(e.target.value === "single" ? "single" : "full")}
+                >
+                  <option value="full">報足全期（九月正規）</option>
+                  <option value="single">單堂（自選堂數）</option>
+                </Select>
+              ) : (
+                <Select
+                  className="h-10 min-h-10"
+                  value={enrollForm}
+                  onChange={(e) =>
+                    setEnrollForm(
+                      e.target.value as "full" | "single" | "第一期" | "第二期" | "兩期全報"
+                    )
+                  }
+                >
+                  <option value="第一期">第一期</option>
+                  <option value="第二期">第二期</option>
+                  <option value="兩期全報">兩期全報</option>
+                  <option value="single">單堂（自選堂數）</option>
+                </Select>
+              )}
+              {enrollForm === "single" ? (
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+                  <p className="mb-1 text-xs text-muted-foreground">勾選要報讀的堂次</p>
+                  {sessionsLoading ? (
+                    <p className="text-xs text-muted-foreground">載入排程…</p>
+                  ) : sessions.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">此班暫無可選堂次</p>
+                  ) : (
+                    sessions.map((s) => {
+                      const checked = pickedSessions.includes(s.id)
+                      return (
+                        <label
+                          key={s.id}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60",
+                            checked && "bg-muted/40"
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-border"
+                            checked={checked}
+                            onChange={() => toggleSession(s.id)}
+                          />
+                          <span>
+                            第{s.sessionNumber}堂 · {s.date} {s.start}–{s.end}
+                          </span>
+                        </label>
+                      )
+                    })
+                  )}
+                </div>
+              ) : null}
+            </fieldset>
 
-      {dlgErr ? (
-       <div
-        role="alert"
-        className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive"
-       >
-        {dlgErr}
-       </div>
-      ) : null}
+            <p className="text-xs text-muted-foreground">
+              學費請到{" "}
+              <Link className="text-info hover:underline" to={`/Payments?studentId=${target.studentId}`}>
+                收款頁
+              </Link>{" "}
+              處理；本對話框只建立報讀並標轉化。
+            </p>
 
-      <div className="flex justify-end gap-2">
-<<<<<<< Updated upstream
-       <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-        取消
-       </Button>
-       <Button type="button" onClick={submit}>
-        確認轉正
-=======
-       <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
-        取消
-       </Button>
-       <Button type="button" disabled={saving} onClick={submit}>
-        {saving ? "處理中…" : "確認轉正"}
->>>>>>> Stashed changes
-       </Button>
-      </div>
-     </div>
-    ) : null}
-   </DialogContent>
-  </Dialog>
- )
+            {dlgErr ? (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive"
+              >
+                {dlgErr}
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => onOpenChange(false)}
+              >
+                取消
+              </Button>
+              <Button type="button" disabled={saving || !targetClassId} onClick={() => void submit()}>
+                {saving ? "處理中…" : "確認轉正"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  )
 }

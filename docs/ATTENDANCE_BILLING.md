@@ -1,11 +1,13 @@
 # 點名狀態與扣堂（已上堂數）
 
-介面用語繁體中文。程式來源：`src/lib/attendanceBilling.ts`、`src/services/attendanceQueries.ts`。
+介面用語繁體中文。程式來源：`src/lib/attendanceBilling.ts`、`src/services/attendanceQueries.ts`。  
+營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
 
 ## 計費單位
 
 - 學費以**堂數**為單位；一堂對應一堂權益。
-- **連堂＝2 堂**：點名對每個 `schedule_id` 各寫一列，扣 2 堂。
+- **連堂＝2 堂**：原班學生點名對每個 `schedule_id` 各寫一列，扣 2 堂。
+- **連堂單項補堂**：補堂生可只綁連堂其中一節；點名紙仍可見，但只寫入所綁那一節，**只計 1 堂**（並清除同組另一節的多餘列）。點名紙會標「補堂·僅第 N 節」。
 
 ## 點名狀態
 
@@ -49,8 +51,10 @@
 ## 追學費（參考）
 
 顯示條件：**已付堂數 ≤ 已上堂數**（且不全為 0）。  
-已付＝已收款收據之 `payment_details.lesson_count` 加總。  
+已付＝已收款收據之 `payment_details.lesson_count` 加總（**作廢單據不計**；見 [`PAYMENT_RECEIPT_VOID_POLICY.md`](PAYMENT_RECEIPT_VOID_POLICY.md)）。  
 用途為前台參考；學生通常一次繳多堂，非天天催繳工具。
+
+**勿與「逾期罰款／禁止入室」混淆：** 本節是堂數缺口參考。正規學年按月學費遲交、第 2 堂罰款、第 3 堂起不得入室等，見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md)（部分尚未系統強制）。營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
 
 ## 試堂
 
@@ -67,4 +71,4 @@
 | `lost` | 已流失（含原因） |
 | `other` | 其他結果（改期、轉介等） |
 
-點名完成該堂後，可在「試堂紀錄」轉正式報讀（同班＋收費）或標流失／其他結果。轉正後學生以就讀名單出現，不再當未結案試堂併入點名。
+點名完成該堂後，建議再轉正式報讀或標結果；**未點名仍可轉正**，但介面必須警告「尚未完成試堂點名」，以免已繳學費與堂數／出席對不上。跨班轉正時，原試堂列一律標 `converted` 並歸因到新報讀。**流失須先取消試堂**再登記原因。學費／出單在 `/Payments`，試堂頁不內嵌收費。轉正後學生以就讀名單出現，不再當未結案試堂併入點名。

@@ -72,7 +72,7 @@ export const MOCK_CLASSES: MockClass[] = [
   label: "數學 · F4 小組（逢日 14:00）",
   subject: "數學",
   courseCode: "MATH-F4-SUN",
-  pricePerLesson: 275,
+  pricePerLesson: 300,
   kind: "group",
  },
  {

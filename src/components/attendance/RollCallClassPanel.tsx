@@ -13,6 +13,8 @@ import {
 import { ATTENDANCE_BILLING_HELP_SHORT } from "@/lib/attendanceBilling"
 import {
  formatConsecutiveSessionLabel,
+ formatConsecutiveSlotOnlyLabel,
+ rollCallSlotDetailForSchedule,
  trimTimeHm,
  type RollCallScheduleEntry,
 } from "@/lib/consecutiveLesson"
@@ -27,11 +29,10 @@ import {
  buildPrefillStatusMap,
  fetchExistingAttendanceMap,
  fetchLeavePrefillForLesson,
- fetchMakeupStudentIdsForSchedules,
  fetchMakeupStudentsForSchedules,
  fetchRosterForRollCall,
  fetchTrialStudentsForSchedules,
- saveAttendanceStatusForSchedules,
+ saveAttendanceStatusForStudentScheduleScope,
  type RollCallStudentRow,
 } from "@/services/attendanceQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
@@ -42,7 +43,15 @@ import {
 } from "@/services/scheduleRosterQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
-type DisplayStudent = RollCallStudentRow & { source: "enrollment" | "trial" | "makeup" }
+type DisplayStudent = RollCallStudentRow & {
+ source: "enrollment" | "trial" | "makeup"
+ /** 補堂所綁 schedule id（連堂可能只綁一節） */
+ makeupScheduleId?: string | null
+ makeupSlotLabel?: string | null
+ reminderStartTime?: string | null
+ reminderEndTime?: string | null
+ reminderIsConsecutive?: boolean
+}
 
 export type RollCallPanelStats = {
  key: string
@@ -139,10 +148,7 @@ export function RollCallClassPanel({
   void (async () => {
    try {
     const primaryScheduleId = scheduleIds[0] ?? ""
-    const [rosterContext, existing] = await Promise.all([
-     fetchScheduleRosterContext(scheduleIds),
-     fetchExistingAttendanceMap(classId, lessonDate, scheduleIds),
-    ])
+    const rosterContext = await fetchScheduleRosterContext(scheduleIds)
     setRosterContext(rosterContext)
     const [roster, trials, makeups, leaveByStudent] = await Promise.all([
      fetchRosterForRollCall(classId, lessonDate, scheduleIds, rosterContext),
@@ -152,6 +158,17 @@ export function RollCallClassPanel({
       : Promise.resolve([]),
      fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate, rosterContext),
     ])
+
+    const completeWhenHas = new Map<string, string[]>()
+    for (const m of makeups) {
+     if (scheduleIds.includes(m.makeupScheduleId)) {
+      completeWhenHas.set(m.studentId, [m.makeupScheduleId])
+     }
+    }
+    const existing = await fetchExistingAttendanceMap(classId, lessonDate, scheduleIds, {
+     completeWhenHas,
+    })
+
     const notOnSchedule = primaryScheduleId
      ? singleSessionNotOnSchedule(rosterContext, primaryScheduleId)
      : []
@@ -173,6 +190,7 @@ export function RollCallClassPanel({
       status: "試堂",
       source: "trial",
       contactPhone: t.contactPhone,
+      messagingTarget: t.messagingTarget,
       isSingleSession: false,
      })
     }
@@ -180,6 +198,12 @@ export function RollCallClassPanel({
     for (const m of makeups) {
      if (onSheetIds.has(m.studentId)) continue
      onSheetIds.add(m.studentId)
+     const slot = rollCallSlotDetailForSchedule(entry, m.makeupScheduleId)
+     const onlyOneSlot =
+      entry.isConsecutive &&
+      m.makeupScheduleId &&
+      scheduleIds.includes(m.makeupScheduleId) &&
+      scheduleIds.length > 1
      display.push({
       enrollmentId: `makeup-${m.studentId}`,
       studentId: m.studentId,
@@ -191,7 +215,15 @@ export function RollCallClassPanel({
       status: "補堂",
       source: "makeup",
       contactPhone: m.contactPhone,
+      messagingTarget: m.messagingTarget,
       isSingleSession: false,
+      makeupScheduleId: m.makeupScheduleId,
+      makeupSlotLabel: onlyOneSlot
+       ? formatConsecutiveSlotOnlyLabel(slot?.consecutive_slot_index)
+       : null,
+      reminderStartTime: onlyOneSlot ? trimTimeHm(slot?.start_time) : undefined,
+      reminderEndTime: onlyOneSlot ? trimTimeHm(slot?.end_time) : undefined,
+      reminderIsConsecutive: onlyOneSlot ? false : undefined,
      })
     }
 
@@ -319,18 +351,16 @@ export function RollCallClassPanel({
   setSheetErr(null)
   void (async () => {
    try {
-    const [leaveByStudent, makeupIds] = await Promise.all([
-     fetchLeavePrefillForLesson(
-      scheduleIds,
-      classId,
-      lessonDate,
-      rosterContext ?? undefined
-     ),
-     fetchMakeupStudentIdsForSchedules(scheduleIds, rosterContext ?? undefined),
-    ])
+    const leaveByStudent = await fetchLeavePrefillForLesson(
+     scheduleIds,
+     classId,
+     lessonDate,
+     rosterContext ?? undefined
+    )
     setLeaveStudentIds(new Set(leaveByStudent.keys()))
     const rosterIds = students.filter((s) => s.source === "enrollment").map((s) => s.studentId)
     const trialIds = new Set(students.filter((s) => s.source === "trial").map((s) => s.studentId))
+    const makeupIds = new Set(students.filter((s) => s.source === "makeup").map((s) => s.studentId))
     const pre = buildPrefillStatusMap({ rosterIds, leaveByStudent, makeupIds, trialIds })
     const next = new Map(statusMap)
     for (const row of students) {
@@ -400,20 +430,39 @@ export function RollCallClassPanel({
    const classId = entry.class_id
    const lessonDate = entry.scheduled_date
    const scheduleIds = entry.scheduleIds
+   let singleSlotMakeupCount = 0
    for (const row of students) {
     const st = statusMap.get(row.studentId) ?? ""
-    await saveAttendanceStatusForSchedules(row.studentId, classId, lessonDate, scheduleIds, st)
+    const writeIds =
+     row.source === "makeup" &&
+     row.makeupScheduleId &&
+     scheduleIds.includes(row.makeupScheduleId)
+      ? [row.makeupScheduleId]
+      : scheduleIds
+    if (writeIds.length === 1 && scheduleIds.length > 1) singleSlotMakeupCount += 1
+    await saveAttendanceStatusForStudentScheduleScope({
+     studentId: row.studentId,
+     classId,
+     attendanceDate: lessonDate,
+     writeScheduleIds: writeIds,
+     peerScheduleIds: scheduleIds,
+     status: st,
+    })
    }
    void logMgmtAuditAction({
     action: "完成點名",
-    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${students.length}`,
+    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${students.length}; single_slot_makeup=${singleSlotMakeupCount}`,
    })
    setSavedMap(new Map(statusMap))
    const sessionLabel = formatConsecutiveSessionLabel(entry.sessionNumbers)
+   const makeupNote =
+    singleSlotMakeupCount > 0
+     ? `；其中 ${singleSlotMakeupCount} 位補堂生只計所綁那一節`
+     : ""
    pushBanner({
     tone: "success",
     title: "點名已儲存",
-    message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${entry.isConsecutive ? "（連堂計 2 節）" : ""}。`,
+    message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${entry.isConsecutive ? "（連堂原班計 2 節）" : ""}${makeupNote}。`,
    })
    onConfirmed?.()
   } catch (e) {
@@ -514,7 +563,7 @@ export function RollCallClassPanel({
      <div className="min-w-0">
       <p className="text-xs text-muted-foreground">
        共 {students.length} 位學生（班內報讀 + 試堂）
-       {entry.isConsecutive ? " · 連堂一次點名，計 2 堂（扣 2 堂）" : ""}
+       {entry.isConsecutive ? " · 連堂原班一次點名計 2 堂；只綁一節的補堂生只計 1 堂" : ""}
        <span className="mt-1 block text-muted-foreground/90">{ATTENDANCE_BILLING_HELP_SHORT}</span>
        <span className="mt-1 block text-amber-900/90">
         {!canEditRollCall && dateEditable
@@ -588,7 +637,7 @@ export function RollCallClassPanel({
            ) : null}
            {row.source === "makeup" ? (
             <Tag tone={statusToTagTone("補堂")} size="sm" className="ml-2 align-middle">
-             補堂
+             補堂{row.makeupSlotLabel ? `·${row.makeupSlotLabel}` : ""}
             </Tag>
            ) : null}
            {row.source === "enrollment" && row.isSingleSession ? (
@@ -605,15 +654,16 @@ export function RollCallClassPanel({
          {scheduleMeta ? (
           <StudentWhatsAppReminderButton
            compact
+           messagingTarget={row.messagingTarget}
            contactPhone={row.contactPhone}
            payload={{
             studentName: row.fullName,
             subject: scheduleMeta.subject,
             courseCode: scheduleMeta.course_code_full,
             dateYmd: entry.scheduled_date,
-            startTime: reminderTimes.startTime,
-            endTime: reminderTimes.endTime,
-            isConsecutive: reminderTimes.isConsecutive,
+            startTime: row.reminderStartTime ?? reminderTimes.startTime,
+            endTime: row.reminderEndTime ?? reminderTimes.endTime,
+            isConsecutive: row.reminderIsConsecutive ?? reminderTimes.isConsecutive,
             classroomName: scheduleMeta.classroom_name,
             attendanceStatus: statusMap.get(row.studentId) || null,
             isTrial: row.source === "trial",
@@ -657,7 +707,7 @@ export function RollCallClassPanel({
             ) : null}
             {row.source === "makeup" ? (
              <Tag tone={statusToTagTone("補堂")} size="sm" className="ml-2 align-middle">
-              補堂
+              補堂{row.makeupSlotLabel ? `·${row.makeupSlotLabel}` : ""}
              </Tag>
             ) : null}
             {row.source === "enrollment" && row.isSingleSession ? (
@@ -683,15 +733,16 @@ export function RollCallClassPanel({
            {scheduleMeta ? (
             <StudentWhatsAppReminderButton
              compact
+             messagingTarget={row.messagingTarget}
              contactPhone={row.contactPhone}
              payload={{
               studentName: row.fullName,
               subject: scheduleMeta.subject,
               courseCode: scheduleMeta.course_code_full,
               dateYmd: entry.scheduled_date,
-              startTime: reminderTimes.startTime,
-              endTime: reminderTimes.endTime,
-              isConsecutive: reminderTimes.isConsecutive,
+              startTime: row.reminderStartTime ?? reminderTimes.startTime,
+              endTime: row.reminderEndTime ?? reminderTimes.endTime,
+              isConsecutive: row.reminderIsConsecutive ?? reminderTimes.isConsecutive,
               classroomName: scheduleMeta.classroom_name,
               attendanceStatus: statusMap.get(row.studentId) || null,
               isTrial: row.source === "trial",

@@ -1,11 +1,23 @@
 import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from "lucide-react"
-import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren } from "react"
+import {
+ createContext,
+ useCallback,
+ useContext,
+ useEffect,
+ useMemo,
+ useRef,
+ useState,
+ type PropsWithChildren,
+} from "react"
 import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 export type BannerTone = "default" | "info" | "success" | "warning" | "error"
+
+/** 自動關閉秒數（毫秒） */
+export const BANNER_AUTO_DISMISS_MS = 2000
 
 type BannerAction = {
  pageLabel: string
@@ -54,17 +66,45 @@ function nextBannerId(): string {
 
 export function AppBannerProvider({ children }: PropsWithChildren) {
  const [banners, setBanners] = useState<BannerItem[]>([])
+ const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
 
- const pushBanner = useCallback((input: AppBannerInput) => {
-  setBanners((prev) => [{ id: nextBannerId(), expanded: false, tone: input.tone ?? "default", ...input }, ...prev])
+ const clearBannerTimer = useCallback((id: string) => {
+  const timer = timersRef.current.get(id)
+  if (!timer) return
+  clearTimeout(timer)
+  timersRef.current.delete(id)
  }, [])
 
- const dismissBanner = useCallback((id: string) => {
-  setBanners((prev) => prev.filter((b) => b.id !== id))
- }, [])
+ const dismissBanner = useCallback(
+  (id: string) => {
+   clearBannerTimer(id)
+   setBanners((prev) => prev.filter((b) => b.id !== id))
+  },
+  [clearBannerTimer]
+ )
+
+ const pushBanner = useCallback(
+  (input: AppBannerInput) => {
+   const id = nextBannerId()
+   setBanners((prev) => [{ id, expanded: false, tone: input.tone ?? "default", ...input }, ...prev])
+   const timer = setTimeout(() => {
+    timersRef.current.delete(id)
+    setBanners((prev) => prev.filter((b) => b.id !== id))
+   }, BANNER_AUTO_DISMISS_MS)
+   timersRef.current.set(id, timer)
+  },
+  []
+ )
 
  const toggleExpand = useCallback((id: string) => {
   setBanners((prev) => prev.map((b) => (b.id === id ? { ...b, expanded: !b.expanded } : b)))
+ }, [])
+
+ useEffect(() => {
+  return () => {
+   for (const timer of timersRef.current.values()) clearTimeout(timer)
+   timersRef.current.clear()
+  }
  }, [])
 
  const value = useMemo<AppBannerContextValue>(

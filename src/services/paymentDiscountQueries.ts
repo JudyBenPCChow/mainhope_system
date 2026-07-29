@@ -414,12 +414,13 @@ export async function deletePaymentDiscount(id: string): Promise<void> {
 /** 優惠被繳費單引用次數 */
 export async function fetchDiscountApplicationCount(discountId: string): Promise<number> {
  if (!supabase) return 0
- const { count, error } = await supabase
+ const { data, error } = await supabase
   .from("payment_discount_applications")
-  .select("id", { count: "exact", head: true })
+  .select("id, payments!inner ( status )")
   .eq("payment_discount_id", discountId)
+  .neq("payments.status", "作廢")
  if (error) throw error
- return count ?? 0
+ return (data ?? []).length
 }
 
 /** 各優惠引用次數與累計減免 */
@@ -427,7 +428,8 @@ export async function fetchDiscountUsageStats(): Promise<PaymentDiscountUsageSta
  if (!supabase) return []
  const { data, error } = await supabase
   .from("payment_discount_applications")
-  .select("payment_discount_id, amount_deducted")
+  .select("payment_discount_id, amount_deducted, payments!inner ( status )")
+  .neq("payments.status", "作廢")
  if (error) throw error
  const byId = new Map<string, PaymentDiscountUsageStats>()
  for (const row of data ?? []) {
@@ -478,13 +480,18 @@ export function resolveDiscountIdsFromCatalog(
 
 /** 由套用紀錄重建計算用 PaymentDiscountRow（歷史單據） */
 export function discountRowFromApplication(
- app: { discountId: string; name: string; percentOff: number | null; amountOff: number | null },
+ app: {
+  discountId: string | null
+  name: string
+  percentOff: number | null
+  amountOff: number | null
+ },
  sortOrder = 0
 ): PaymentDiscountRow {
  const percentOff = app.percentOff
  const amountOff = app.amountOff
  return {
-  id: app.discountId,
+  id: app.discountId ?? "special-discount",
   name: app.name,
   description: null,
   percentOff,

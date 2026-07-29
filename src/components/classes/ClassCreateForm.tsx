@@ -23,8 +23,7 @@ import {
 } from "@/services/classQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { fetchAcademicYearsWithDates, type AcademicYearRange } from "@/services/teacherAvailabilityQueries"
-
-const PRICE_PRESETS_HKD = [250, 275, 825] as const
+import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 
 export type ClassCreateFormValues = {
  subject: string
@@ -370,7 +369,7 @@ export function ClassCreateForm({
    <div className="sm:col-span-2">
     <label className="text-xs text-muted-foreground">每節學費（HKD）</label>
     <div className="mt-1 flex flex-wrap gap-2">
-     {PRICE_PRESETS_HKD.map((p) => (
+     {TUITION_PRICE_PRESETS_HKD.map((p) => (
       <Button
        key={p}
        type="button"

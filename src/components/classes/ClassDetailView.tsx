@@ -67,6 +67,7 @@ import {
  classGradeDisplayText,
  normalizeStoredClassGradeLabels,
 } from "@/lib/classGrade"
+import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -130,7 +131,6 @@ import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessi
 import { localYmd } from "@/services/scheduleQueries"
 import { countBoundSchedulesForEnrollment } from "@/services/pendingLessonQueries"
 
-const PRICE_PRESETS_HKD = [250, 275, 825] as const
 
 /** 日期／文字欄清空時勿送 "" 給 Postgres（date 欄位會報錯） */
 function nullIfBlankYmd(v: string | null | undefined): string | null {
@@ -2402,7 +2402,7 @@ export function ClassDetailView() {
        <div>
         <label className="text-xs text-muted-foreground">每節學費（HKD）</label>
         <div className="mt-1 flex flex-wrap gap-2">
-         {PRICE_PRESETS_HKD.map((p) => (
+         {TUITION_PRICE_PRESETS_HKD.map((p) => (
           <Button
            key={p}
            type="button"
@@ -2546,7 +2546,7 @@ export function ClassDetailView() {
          placeholder="金額"
         />
         <div className="mt-1 flex flex-wrap gap-1.5">
-         {[250, 275, 825].map((p) => (
+         {TUITION_PRICE_PRESETS_HKD.map((p) => (
           <Button
            key={p}
            type="button"

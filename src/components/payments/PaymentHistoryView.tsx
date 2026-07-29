@@ -12,6 +12,7 @@ import {
 } from "@/components/payments/paymentsUi"
 import { PaymentReceiptDownloadButton } from "@/components/payments/PaymentReceiptDownloadButton"
 import { PaymentReceiptWhatsAppButton } from "@/components/payments/PaymentReceiptWhatsAppButton"
+import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -26,7 +27,6 @@ import {
  academicYearEditBlockedMessage,
  canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
-import { useAppConfirm } from "@/lib/appConfirm"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -35,7 +35,7 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
  PAYMENT_METHOD_PRESETS,
- deletePaymentRecord,
+ PAYMENT_STATUS,
  fetchPaymentFull,
  fetchPaymentsList,
  markPaymentReceived,
@@ -45,7 +45,6 @@ import {
 import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
 
 export function PaymentHistoryView() {
- const { confirmDialog } = useAppConfirm()
  const isMobile = useIsMobile()
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
@@ -53,7 +52,9 @@ export function PaymentHistoryView() {
  const [historyRows, setHistoryRows] = useState<PaymentListRow[]>([])
  const [histLoading, setHistLoading] = useState(true)
  const [histErr, setHistErr] = useState<string | null>(null)
- const [histStatus, setHistStatus] = useState<"all" | "received" | "pending" | "pendingPay">("all")
+ const [histStatus, setHistStatus] = useState<
+  "all" | "received" | "pending" | "pendingPay" | "pendingReceive" | "voided"
+ >("all")
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
@@ -69,6 +70,9 @@ export function PaymentHistoryView() {
  const [markMethod, setMarkMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
  const [saving, setSaving] = useState(false)
 
+ const [voidOpen, setVoidOpen] = useState(false)
+ const [voidTarget, setVoidTarget] = useState<VoidPaymentTarget | null>(null)
+
  const [formErr, setFormErr] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{
   paymentId: string
@@ -79,7 +83,14 @@ export function PaymentHistoryView() {
 
  useEffect(() => {
   const hs = searchParams.get("histStatus")
-  if (hs === "all" || hs === "received" || hs === "pending" || hs === "pendingPay") {
+  if (
+   hs === "all" ||
+   hs === "received" ||
+   hs === "pending" ||
+   hs === "pendingPay" ||
+   hs === "pendingReceive" ||
+   hs === "voided"
+  ) {
    setHistStatus(hs)
   }
   const sid = searchParams.get("studentId")?.trim() ?? ""
@@ -187,22 +198,17 @@ export function PaymentHistoryView() {
   }
  }
 
- const onDeleteRow = async (row: PaymentListRow) => {
-  if (
-   !(await confirmDialog({
-    title: "刪除單據",
-    description: `確定刪除單據「${row.receiptNumber ?? row.id.slice(0, 8)}」？`,
-    confirmText: "確認刪除",
-    tone: "destructive",
-   }))
-  )
-   return
-  try {
-   await deletePaymentRecord(row.id)
-   void loadHistory()
-  } catch (e) {
-   reportUserFacingError(e, { source: "PaymentHistoryView.onDeleteRow", setErr: setFormErr })
-  }
+ const onVoidRow = (row: PaymentListRow) => {
+  if (row.status === PAYMENT_STATUS.voided) return
+  setVoidTarget({
+   id: row.id,
+   receiptNumber: row.receiptNumber,
+   studentName: row.studentName,
+   totalAmount: row.totalAmount,
+   paymentDate: row.paymentDate,
+   status: row.status,
+  })
+  setVoidOpen(true)
  }
 
  const activeFilterCount = [
@@ -222,7 +228,7 @@ export function PaymentHistoryView() {
       繳費紀錄
      </h1>
      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      查詢、下載收據、以 WhatsApp 傳送 PDF 收據、將待繳單據標記為已收款。收款請至「收款登記」。
+      查詢、下載收據、以 WhatsApp 傳送 PDF 收據、將待收款（及歷史待繳費）單據標記為已收款。收款請至「收款登記」。下期學費請用文字提醒，勿再開收據式待繳費單。
      </p>
      <p className="mt-1 hidden max-w-3xl text-xs text-muted-foreground md:block">
       下載收據（Chrome）：首次請選取資料夾「{RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH}」，之後會自動存入。
@@ -346,8 +352,10 @@ export function PaymentHistoryView() {
         >
          <option value="all">全部</option>
          <option value="received">已收款</option>
-         <option value="pending">待繳／待收款</option>
-         <option value="pendingPay">待繳費（出單）</option>
+         <option value="pending">待收款／歷史待繳</option>
+         <option value="pendingReceive">待收款</option>
+         <option value="pendingPay">歷史待繳費</option>
+         <option value="voided">作廢</option>
         </Select>
        </FormField>
        <FormField label="起日">
@@ -379,8 +387,10 @@ export function PaymentHistoryView() {
        >
         <option value="all">全部</option>
         <option value="received">已收款</option>
-        <option value="pending">待繳／待收款</option>
-        <option value="pendingPay">待繳費（出單）</option>
+         <option value="pending">待收款／歷史待繳</option>
+         <option value="pendingReceive">待收款</option>
+         <option value="pendingPay">歷史待繳費</option>
+        <option value="voided">作廢</option>
        </Select>
       </FormField>
       <FormField label="起日">
@@ -467,15 +477,15 @@ export function PaymentHistoryView() {
             標記已收
            </Button>
           ) : null}
-          {rowEditable ? (
+          {rowEditable && r.status !== PAYMENT_STATUS.voided ? (
            <Button
             type="button"
             variant="ghost"
             size="sm"
             className="text-destructive hover:text-destructive"
-            onClick={() => void onDeleteRow(r)}
+            onClick={() => onVoidRow(r)}
            >
-            刪除
+            作廢
            </Button>
           ) : null}
          </div>
@@ -534,15 +544,15 @@ export function PaymentHistoryView() {
                標記已收
               </Button>
              ) : null}
-             {rowEditable ? (
+             {rowEditable && r.status !== PAYMENT_STATUS.voided ? (
               <Button
                type="button"
                variant="ghost"
                size="sm"
                className="text-destructive hover:text-destructive"
-               onClick={() => void onDeleteRow(r)}
+               onClick={() => onVoidRow(r)}
               >
-               刪除
+               作廢
               </Button>
              ) : null}
             </div>
@@ -555,6 +565,16 @@ export function PaymentHistoryView() {
      </div>
     )}
    </div>
+
+   <VoidPaymentDialog
+    open={voidOpen}
+    target={voidTarget}
+    onOpenChange={(open) => {
+     setVoidOpen(open)
+     if (!open) setVoidTarget(null)
+    }}
+    onVoided={() => void loadHistory()}
+   />
 
    <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
     <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">

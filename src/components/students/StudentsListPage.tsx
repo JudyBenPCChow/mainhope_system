@@ -9,7 +9,8 @@ import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { openWhatsAppChat, pickStudentContactRaw } from "@/lib/whatsappReminder"
+import { openPrimaryMessagingTarget, resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
+import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { nextStudentCode } from "@/lib/studentCode"
 import { cn } from "@/lib/utils"
@@ -39,7 +40,6 @@ import {
  fetchAllStudents,
  fetchEnrollmentSubjectsByStudentIds,
  fetchRecentClassEnrollments,
- fetchStudentTuitionArrearsByStudentIds,
  insertStudent,
  isUniqueViolation,
  normalizeRegistrationStatus,
@@ -48,9 +48,9 @@ import {
  normalizeAcademicStage,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
+ PRIMARY_CONTACT_PERSONS,
  type RecentClassEnrollment,
  type StudentRecord,
- type StudentTuitionArrearsInfo,
 } from "@/services/studentQueries"
 
 const REGISTRATION_FILTERS = [
@@ -138,8 +138,11 @@ function emptyAddForm(): Partial<StudentRecord> {
   student_phone_country_code: "+852",
   parent_phone: "",
   parent_phone_country_code: "+852",
-  whatsapp: "",
-  preferred_contact_method: "",
+  student_preferred_contact_method: "",
+  parent_preferred_contact_method: "",
+  student_wechat_id: "",
+  parent_wechat_id: "",
+  primary_contact_person: "",
   address: "",
   remarks: "",
  }
@@ -153,14 +156,6 @@ function isValidPhoneForCode(raw: string | null | undefined, countryCode: string
  if (!/^\d+$/.test(digits)) return false
  if (countryCode === "+86") return digits.length === 11
  return digits.length === 8
-}
-
-/** WhatsApp 號碼（無區號欄位）：允許 8 或 11 位數字，允許留空 */
-function isValidWhatsApp(raw: string | null | undefined): boolean {
- const s = (raw ?? "").trim()
- if (!s) return true
- const digits = s.replace(/[\s-]/g, "")
- return /^\d{8}$/.test(digits) || /^\d{11}$/.test(digits)
 }
 
 /** 出生日期不可為未來日期 */
@@ -237,12 +232,12 @@ function getInitialStudentsViewMode(): "table" | "gallery" {
 
 export function StudentsListPage() {
  const { confirmDialog } = useAppConfirm()
+ const { pushBanner } = useAppBanner()
  const navigate = useNavigate()
  const isMobile = useIsMobile()
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [rows, setRows] = useState<StudentRecord[]>([])
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
- const [tuitionMap, setTuitionMap] = useState<Map<string, StudentTuitionArrearsInfo>>(new Map())
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -289,13 +284,11 @@ export function StudentsListPage() {
    const list = await fetchAllStudents()
    setRows(list)
    const ids = list.map((s) => s.id)
-   const [tagMap, arrearsMap, recentEnr] = await Promise.all([
+   const [tagMap, recentEnr] = await Promise.all([
     fetchEnrollmentSubjectsByStudentIds(ids),
-    fetchStudentTuitionArrearsByStudentIds(ids),
     fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT),
    ])
    setTags(tagMap)
-   setTuitionMap(arrearsMap)
    setRecentEnrollments(recentEnr)
   } catch (e) {
    reportUserFacingError(e, { source: "StudentsListPage.load", setErr })
@@ -479,10 +472,6 @@ export function StudentsListPage() {
    )
    return
   }
-  if (!isValidWhatsApp(addForm.whatsapp)) {
-   setAddErr("WhatsApp 號碼格式不正確（需為 8 或 11 位數字）")
-   return
-  }
   if (!isValidBirthDate(addForm.date_of_birth)) {
    setAddErr("出生日期不可為未來日期")
    return
@@ -506,10 +495,27 @@ export function StudentsListPage() {
    student_phone_country_code: addForm.student_phone_country_code === "+86" ? "+86" : "+852",
    parent_phone: (addForm.parent_phone ?? "").trim() || null,
    parent_phone_country_code: addForm.parent_phone_country_code === "+86" ? "+86" : "+852",
-   whatsapp: (addForm.whatsapp ?? "").trim() || null,
-   preferred_contact_method:
-    addForm.preferred_contact_method === "WeChat" || addForm.preferred_contact_method === "WhatsApp"
-     ? addForm.preferred_contact_method
+   student_preferred_contact_method:
+    addForm.student_preferred_contact_method === "WeChat" ||
+    addForm.student_preferred_contact_method === "WhatsApp"
+     ? addForm.student_preferred_contact_method
+     : null,
+   parent_preferred_contact_method:
+    addForm.parent_preferred_contact_method === "WeChat" ||
+    addForm.parent_preferred_contact_method === "WhatsApp"
+     ? addForm.parent_preferred_contact_method
+     : null,
+   student_wechat_id:
+    addForm.student_preferred_contact_method === "WeChat"
+     ? (addForm.student_wechat_id ?? "").trim() || null
+     : null,
+   parent_wechat_id:
+    addForm.parent_preferred_contact_method === "WeChat"
+     ? (addForm.parent_wechat_id ?? "").trim() || null
+     : null,
+   primary_contact_person:
+    addForm.primary_contact_person === "學生" || addForm.primary_contact_person === "家長"
+     ? addForm.primary_contact_person
      : null,
    address: (addForm.address ?? "").trim() || null,
    remarks: (addForm.remarks ?? "").trim() || null,
@@ -1071,6 +1077,13 @@ export function StudentsListPage() {
             onChange={(rel) => setAddForm((f) => ({ ...f, parent_relationship: rel }))}
            />
           </Field>
+          <Field label="第一聯絡人" className="sm:col-span-2">
+           <ChoiceChips
+            options={PRIMARY_CONTACT_PERSONS}
+            value={addForm.primary_contact_person ?? ""}
+            onChange={(v) => setAddForm((f) => ({ ...f, primary_contact_person: v }))}
+           />
+          </Field>
           <Field label="學生電話">
            <div className="space-y-2">
             <ChoiceChips
@@ -1083,6 +1096,28 @@ export function StudentsListPage() {
              value={addForm.student_phone ?? ""}
              onChange={(e) => setAddForm((f) => ({ ...f, student_phone: e.target.value }))}
             />
+           </div>
+          </Field>
+          <Field label="學生偏好通訊方式">
+           <div className="space-y-2">
+            <ChoiceChips
+             options={PREFERRED_CONTACT_METHODS}
+             value={addForm.student_preferred_contact_method ?? ""}
+             onChange={(m) =>
+              setAddForm((f) => ({
+               ...f,
+               student_preferred_contact_method: m,
+               ...(m !== "WeChat" ? { student_wechat_id: "" } : {}),
+              }))
+             }
+            />
+            {addForm.student_preferred_contact_method === "WeChat" ? (
+             <Input
+              placeholder="學生 WeChat ID"
+              value={addForm.student_wechat_id ?? ""}
+              onChange={(e) => setAddForm((f) => ({ ...f, student_wechat_id: e.target.value }))}
+             />
+            ) : null}
            </div>
           </Field>
           <Field label="家長電話">
@@ -1099,19 +1134,27 @@ export function StudentsListPage() {
             />
            </div>
           </Field>
-          <Field label="WhatsApp 號碼">
-           <Input
-            inputMode="numeric"
-            value={addForm.whatsapp ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, whatsapp: e.target.value }))}
-           />
-          </Field>
-          <Field label="偏好通訊方式">
-           <ChoiceChips
-            options={PREFERRED_CONTACT_METHODS}
-            value={addForm.preferred_contact_method ?? ""}
-            onChange={(m) => setAddForm((f) => ({ ...f, preferred_contact_method: m }))}
-           />
+          <Field label="家長偏好通訊方式">
+           <div className="space-y-2">
+            <ChoiceChips
+             options={PREFERRED_CONTACT_METHODS}
+             value={addForm.parent_preferred_contact_method ?? ""}
+             onChange={(m) =>
+              setAddForm((f) => ({
+               ...f,
+               parent_preferred_contact_method: m,
+               ...(m !== "WeChat" ? { parent_wechat_id: "" } : {}),
+              }))
+             }
+            />
+            {addForm.parent_preferred_contact_method === "WeChat" ? (
+             <Input
+              placeholder="家長 WeChat ID"
+              value={addForm.parent_wechat_id ?? ""}
+              onChange={(e) => setAddForm((f) => ({ ...f, parent_wechat_id: e.target.value }))}
+             />
+            ) : null}
+           </div>
           </Field>
           <Field label="地址" className="sm:col-span-2">
            <Input
@@ -1155,30 +1198,29 @@ export function StudentsListPage() {
    {viewMode === "table" && !isMobile ? (
    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
     <div className="overflow-x-auto">
-     <table className="w-full min-w-[62rem] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/50 text-left">
-        <th className="w-[9%] px-3 py-3 font-medium text-muted-foreground">學號</th>
-        <th className="w-[14%] px-3 py-3 font-medium text-muted-foreground">姓名</th>
-        <th className="w-[6%] px-3 py-3 font-medium text-muted-foreground">年級</th>
-        <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">學生電話</th>
-        <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">家長電話</th>
-        <th className="w-[20%] px-3 py-3 font-medium text-muted-foreground">報讀班別</th>
-        <th className="w-[18%] px-3 py-3 font-medium text-muted-foreground">狀態</th>
-        <th className="w-[7%] px-3 py-3 font-medium text-muted-foreground">學費</th>
+        <th className="w-[10%] px-3 py-3 font-medium text-muted-foreground">學號</th>
+        <th className="w-[16%] px-3 py-3 font-medium text-muted-foreground">姓名</th>
+        <th className="w-[7%] px-3 py-3 font-medium text-muted-foreground">年級</th>
+        <th className="w-[13%] px-3 py-3 font-medium text-muted-foreground">學生電話</th>
+        <th className="w-[13%] px-3 py-3 font-medium text-muted-foreground">家長電話</th>
+        <th className="w-[22%] px-3 py-3 font-medium text-muted-foreground">報讀班別</th>
+        <th className="w-[19%] px-3 py-3 font-medium text-muted-foreground">狀態</th>
         <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">操作</th>
        </tr>
       </thead>
       <tbody>
        {loading ? (
         <tr>
-         <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+         <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
           載入中…
          </td>
         </tr>
        ) : filtered.length === 0 ? (
         <tr>
-         <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+         <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
           {activityKey !== "all"
            ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
            : "沒有符合條件的學生"}
@@ -1186,13 +1228,11 @@ export function StudentsListPage() {
         </tr>
        ) : (
         filtered.map((r, idx) => {
-         const t = tuitionMap.get(r.id)
-         const waContact = pickStudentContactRaw({
-          whatsapp: r.whatsapp,
-          student_phone: r.student_phone,
-          parent_phone: r.parent_phone,
-         })
-         const studentWaPhone = r.student_phone?.trim() || null
+         const messaging = resolvePrimaryMessagingTarget(r)
+         const canMessage =
+          messaging?.channel === "WeChat"
+           ? Boolean(messaging.wechatId?.trim())
+           : Boolean(messaging?.phone?.trim())
          return (
           <tr
            key={r.id}
@@ -1215,46 +1255,44 @@ export function StudentsListPage() {
            </td>
            <td className="align-top px-3 py-3">{formatStudentGrade(r.grade)}</td>
            <td className="min-w-0 align-top px-3 py-3">
-            <div className="flex min-w-0 items-center gap-1.5">
-             <span className="min-w-0 truncate tabular-nums" title={r.student_phone ?? undefined}>
-              {r.student_phone ?? "—"}
-             </span>
-             {studentWaPhone ? (
-              <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-              className="h-8 w-8 shrink-0 text-success hover:bg-success hover:text-success-foreground"
-               title="以 WhatsApp 聯絡學生電話"
-               aria-label="開啟學生電話 WhatsApp"
-               onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                openWhatsAppChat(studentWaPhone)
-               }}
-              >
-               <MessageCircle className="h-4 w-4" aria-hidden />
-              </Button>
-             ) : null}
-            </div>
+            <span className="min-w-0 truncate tabular-nums" title={r.student_phone ?? undefined}>
+             {r.student_phone ?? "—"}
+            </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3">
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="min-w-0 truncate tabular-nums" title={r.parent_phone ?? undefined}>
                {r.parent_phone ?? "—"}
               </span>
-             {waContact ? (
+             {canMessage && messaging ? (
               <Button
                type="button"
                variant="ghost"
                size="icon"
-              className="h-8 w-8 shrink-0 text-success hover:bg-success hover:text-success-foreground"
-               title="以 WhatsApp 聯絡（優先 WhatsApp 欄，其次家長電話）"
-               aria-label="開啟 WhatsApp"
+               className={cn(
+                "h-8 w-8 shrink-0",
+                messaging.channel === "WeChat"
+                 ? "text-sky-700 hover:bg-sky-600 hover:text-white"
+                 : "text-success hover:bg-success hover:text-success-foreground"
+               )}
+               title={
+                messaging.channel === "WeChat"
+                 ? `複製第一聯絡人（${messaging.person}）WeChat ID`
+                 : `以 WhatsApp 聯絡第一聯絡人（${messaging.person}）`
+               }
+               aria-label={messaging.channel === "WeChat" ? "複製 WeChat ID" : "開啟 WhatsApp"}
                onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
-                openWhatsAppChat(waContact)
+                void openPrimaryMessagingTarget(messaging).then((result) => {
+                 if (result === "wechat") {
+                  pushBanner({
+                   tone: "success",
+                   title: "已複製 WeChat ID",
+                   message: messaging.wechatId ?? "",
+                  })
+                 }
+                })
                }}
               >
                <MessageCircle className="h-4 w-4" aria-hidden />
@@ -1274,19 +1312,6 @@ export function StudentsListPage() {
            </td>
            <td className="min-w-0 align-top px-3 py-3">
             <StudentClassificationTags student={r} size="sm" compact />
-           </td>
-           <td className="align-top px-3 py-3">
-            {t?.showArrears ? (
-             <Tag
-              tone="warning"
-              size="sm"
-              title={`計費出席 ${t.attendedLessons} 堂 · 已繳費 ${t.paidLessons} 堂（「已收款」收據之堂數加總）`}
-             >
-              追收學費
-             </Tag>
-            ) : (
-             <span className="text-xs text-muted-foreground">—</span>
-            )}
            </td>
            <td className="align-top px-3 py-3">
             <Link
@@ -1331,12 +1356,11 @@ export function StudentsListPage() {
       </div>
      ) : (
       filtered.map((r) => {
-       const t = tuitionMap.get(r.id)
-       const waContact = pickStudentContactRaw({
-        whatsapp: r.whatsapp,
-        student_phone: r.student_phone,
-        parent_phone: r.parent_phone,
-       })
+       const messaging = resolvePrimaryMessagingTarget(r)
+       const canMessage =
+        messaging?.channel === "WeChat"
+         ? Boolean(messaging.wechatId?.trim())
+         : Boolean(messaging?.phone?.trim())
        return (
         <article
          key={r.id}
@@ -1364,26 +1388,34 @@ export function StudentsListPage() {
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
            <StudentClassificationTags student={r} size="sm" compact className="max-w-[9rem] justify-end" />
-           {t?.showArrears ? (
-            <Tag tone="warning" size="sm">
-             追收學費
-            </Tag>
-           ) : null}
           </div>
          </div>
          <div className="mt-2 flex items-center justify-between gap-2 text-sm">
           <span className="tabular-nums text-muted-foreground">{r.student_phone ?? r.parent_phone ?? "—"}</span>
-          {waContact ? (
+          {canMessage && messaging ? (
            <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground"
-            aria-label="開啟 WhatsApp"
+            className={cn(
+             "h-8 w-8",
+             messaging.channel === "WeChat"
+              ? "text-sky-700 hover:bg-sky-600 hover:text-white"
+              : "text-success hover:bg-success hover:text-success-foreground"
+            )}
+            aria-label={messaging.channel === "WeChat" ? "複製 WeChat ID" : "開啟 WhatsApp"}
             onClick={(e) => {
              e.preventDefault()
              e.stopPropagation()
-             openWhatsAppChat(waContact)
+             void openPrimaryMessagingTarget(messaging).then((result) => {
+              if (result === "wechat") {
+               pushBanner({
+                tone: "success",
+                title: "已複製 WeChat ID",
+                message: messaging.wechatId ?? "",
+               })
+              }
+             })
             }}
            >
             <MessageCircle className="h-4 w-4" aria-hidden />
@@ -1409,12 +1441,11 @@ export function StudentsListPage() {
       </div>
      ) : (
       filtered.map((r) => {
-       const waContact = pickStudentContactRaw({
-        whatsapp: r.whatsapp,
-        student_phone: r.student_phone,
-        parent_phone: r.parent_phone,
-       })
-       const t = tuitionMap.get(r.id)
+       const messaging = resolvePrimaryMessagingTarget(r)
+       const canMessage =
+        messaging?.channel === "WeChat"
+         ? Boolean(messaging.wechatId?.trim())
+         : Boolean(messaging?.phone?.trim())
        return (
         <article
          key={r.id}
@@ -1457,23 +1488,31 @@ export function StudentsListPage() {
            查看詳細
           </Link>
           <div className="flex items-center gap-2">
-           {t?.showArrears ? (
-            <Tag tone="warning" size="sm">
-             追收學費
-            </Tag>
-           ) : null}
-           {waContact ? (
+           {canMessage && messaging ? (
             <Button
              type="button"
              variant="ghost"
              size="icon"
-            className="h-8 w-8 text-success hover:bg-success hover:text-success-foreground"
-             title="開啟 WhatsApp"
-             aria-label="開啟 WhatsApp"
+             className={cn(
+              "h-8 w-8",
+              messaging.channel === "WeChat"
+               ? "text-sky-700 hover:bg-sky-600 hover:text-white"
+               : "text-success hover:bg-success hover:text-success-foreground"
+             )}
+             title={messaging.channel === "WeChat" ? "複製 WeChat ID" : "開啟 WhatsApp"}
+             aria-label={messaging.channel === "WeChat" ? "複製 WeChat ID" : "開啟 WhatsApp"}
              onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
-              openWhatsAppChat(waContact)
+              void openPrimaryMessagingTarget(messaging).then((result) => {
+               if (result === "wechat") {
+                pushBanner({
+                 tone: "success",
+                 title: "已複製 WeChat ID",
+                 message: messaging.wechatId ?? "",
+                })
+               }
+              })
              }}
             >
              <MessageCircle className="h-4 w-4" aria-hidden />
@@ -1490,11 +1529,6 @@ export function StudentsListPage() {
 
    <p className="text-xs text-muted-foreground">
     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
-    <span className="mt-1 block text-[11px] leading-relaxed">
-     「追收學費」（參考）：已付堂數 ≤ 已上堂數（且不全為 0）。已上＝點名扣堂狀態（現場／錄影回放／zoom實時網課／no
-     show／請假而不需補回；舊資料相容出席／網課／補課）。已付＝已收款{" "}
-     <code className="rounded bg-muted px-0.5">payment_details.lesson_count</code> 加總。非天天催繳工具。
-    </span>
    </p>
   </div>
  )

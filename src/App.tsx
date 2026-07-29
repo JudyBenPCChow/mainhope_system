@@ -30,8 +30,7 @@ import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
 import PaymentHistory from "@/pages/PaymentHistory"
 import Payments from "@/pages/Payments"
-import MonthlyTuition from "@/pages/MonthlyTuition"
- import Schedule from "@/pages/Schedule"
+import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
 import ScriptLibrary from "@/pages/ScriptLibrary"
 import Settings from "@/pages/Settings"
@@ -54,6 +53,9 @@ import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
 import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
 import PrototypeSecondaryAttendanceReport from "@/pages/PrototypeSecondaryAttendanceReport"
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
+import PrototypeInboxSystemNotices from "@/pages/PrototypeInboxSystemNotices"
+import PrototypeContactUpdate from "@/pages/PrototypeContactUpdate"
+import PrototypeTrialRecords from "@/pages/PrototypeTrialRecords"
 import PromotionMatch from "@/pages/PromotionMatch"
 import ReceiptDemo from "@/pages/ReceiptDemo"
 
@@ -72,6 +74,8 @@ export default function App() {
     <Route path="/prototype/ReceiptDemo" element={<ReceiptDemo />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
+    {/* 聯絡資料自助更新 UI 沙盒：不接 DB、不經側欄 */}
+    <Route path="/prototype/ContactUpdate" element={<PrototypeContactUpdate />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
@@ -97,7 +101,7 @@ export default function App() {
      <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
      <Route path="/Inbox" element={<Inbox />} />
      <Route path="/Payments" element={<Payments />} />
-     <Route path="/MonthlyTuition" element={<MonthlyTuition />} />
+     <Route path="/MonthlyTuition" element={<Navigate to="/Payments" replace />} />
      <Route path="/PaymentHistory" element={<PaymentHistory />} />
      <Route path="/Apo" element={<ApoPo />} />
      <Route
@@ -175,7 +179,7 @@ export default function App() {
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
-     {/* 保留既有沙盒（前台精靈／排程點名／老師請假）；明日提醒已正式化 */}
+     {/* 保留既有沙盒；試堂紀錄 UI mock 僅直達 URL，不連側欄／正式試堂頁 */}
      <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
      <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
      <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
@@ -183,6 +187,8 @@ export default function App() {
       path="/prototype/SecondaryAttendanceReport"
       element={<PrototypeSecondaryAttendanceReport />}
      />
+     <Route path="/prototype/TrialRecords" element={<PrototypeTrialRecords />} />
+     <Route path="/prototype/InboxSystemNotices" element={<PrototypeInboxSystemNotices />} />
     </Route>
    </Routes>
    <SpeedInsights />

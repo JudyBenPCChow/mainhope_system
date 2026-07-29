@@ -155,7 +155,7 @@ async function fetchStudentsContactByIds(studentIds: string[]): Promise<
  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("students")
-   .select("id, full_name, student_code, whatsapp, student_phone, parent_phone")
+   .select("id, full_name, student_code, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id")
    .in("id", slice)
   if (error) throw error
   return data ?? []

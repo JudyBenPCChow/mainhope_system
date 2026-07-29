@@ -114,7 +114,7 @@ export function PortalEnrollmentRequestsView() {
     pushBanner({
      tone: "success",
      title: "已核准",
-     message: "已建立報讀與待繳費單",
+     message: "已建立報讀；請於收款登記入帳，並可用文字提醒家長繳付學費（不再自動開待繳費單）。",
     })
    } else {
     pushBanner({
@@ -145,7 +145,7 @@ export function PortalEnrollmentRequestsView() {
       家長報讀申請
      </h1>
      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-      審核家長 Portal 提交的報讀申請。核准後會建立報讀紀錄與待繳費單。
+      審核家長 Portal 提交的報讀申請。核准後會建立報讀紀錄；學費請職員於收款登記處理，並可用文字提醒家長。
      </p>
     </div>
     <Button
@@ -414,7 +414,7 @@ export function PortalEnrollmentRequestsView() {
      <div className="space-y-3 text-sm">
       {reviewMode === "approve" ? (
        <p className="text-muted-foreground">
-        核准後將建立報讀紀錄與待繳費單，確定繼續？
+        核准後將建立報讀紀錄（不再自動開待繳費單），確定繼續？
        </p>
       ) : (
        <p className="text-muted-foreground">拒絕後申請狀態會改為已拒絕。</p>

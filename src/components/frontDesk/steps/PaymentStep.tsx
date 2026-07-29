@@ -482,7 +482,6 @@ export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
         onChange={(e) => setInvoiceStatus(e.target.value)}
        >
         <option value={PAYMENT_STATUS.pendingReceive}>{PAYMENT_STATUS.pendingReceive}</option>
-        <option value={PAYMENT_STATUS.pendingPay}>{PAYMENT_STATUS.pendingPay}</option>
        </Select>
       </FormField>
      ) : null}

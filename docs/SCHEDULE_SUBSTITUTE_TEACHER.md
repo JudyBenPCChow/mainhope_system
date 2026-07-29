@@ -1,6 +1,7 @@
 # 同班偶發代課（代堂）— 營運與開發指引
 
-介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute`）、`src/lib/scheduleSubstitute.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。
+介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute`）、`src/lib/scheduleSubstitute.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。  
+營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
 
 班別／排程／功能愈多時，**最容易犯錯的是把「班別主責老師」與「當日實際上堂老師」混為一談**。本檔記錄正確做法與已知行政風險，避免同類問題重演。
 

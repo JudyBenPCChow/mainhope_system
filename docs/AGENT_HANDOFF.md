@@ -130,24 +130,29 @@
 
 ---
 
-## 9. 繳費出單／列印 — 待辦優化指引
+## 9. 繳費出單／列印（現況已完成）
 
-目前列印實作於 `src/lib/paymentPrint.ts`（瀏覽器 `window.print()`，非程式產生 PDF 檔）；金額拆分邏輯於 `src/lib/paymentAmountBreakdown.ts`。單據編號已改為 **當日遞增序號**（`MX-{RC|INV}-YYYYMMDD-0001`）並有 DB unique index；併發時會重試分配。多項優惠存於 `payment_discount_applications`（migration `20260611130000_payment_discount_applications.sql`）。
+**操作說明（人讀）**：[系統說明書 → 繳費收據](manual/PAYMENT_RECEIPTS.md)（目錄見 [SYSTEM_MANUAL.md](SYSTEM_MANUAL.md)）。含列印／PDF／WhatsApp，以及**作廢**（禁硬刪、密碼二次確認、已收款電郵通知管理層、收件匣系統通知 admin／alien）。  
+**營運政策**：[收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md)（索引見 [OPS_POLICIES.md](OPS_POLICIES.md)）。
 
-後續可依優先序實作：
+### 已完成能力
 
-| 優先 | 項目 | 說明 | 狀態 |
-| --- | --- | --- | --- |
-| P1 | 版面品牌化 | 補習社名稱、logo、地址、聯絡電話、付款指引（轉數快／銀行帳號等） | 待做 |
-| P1 | 金額明細拆分 | 單據顯示項目小計、各項優惠扣減、應繳總額（勿只顯示合計） | **已完成**（`paymentAmountBreakdown` + 列印／詳情） |
-| P2 | 優惠資料一致 | 多選優惠存於 `payment_discount_applications`；`payments.subtotal_amount` 記項目小計 | **已完成** |
-| P2 | 標記已收後列印 | `markPaymentReceived` 完成後可選「同時列印收據」 | 待做 |
-| P2 | 列印預覽 | 先預覽再列印／下載，減少彈窗被擋 | 待做 |
-| P3 | 真正 PDF 下載 | 評估 jsPDF／html2canvas 等，一鍵下載 `.pdf` 檔 | 待做 |
-| P3 | 模板抽離 | 將 HTML 模板獨立為可維護檔案或設定（方便非工程師調整文案） | 待做 |
-| P3 | 明細備註欄 | 列印已移除備註欄重複；詳情列表仍可顯示 description | **部分完成** |
+- **品牌收據版面**：logo、社名、地址、電話、WhatsApp、網站（`src/lib/paymentPrint.ts`）。
+- **金額明細**：項目小計、各優惠扣減、折實價（`paymentAmountBreakdown`；列印／預覽／詳情共用）。
+- **優惠寫入**：多選優惠存 `payment_discount_applications`；`payments.subtotal_amount` 記項目小計。
+- **單據編號**：當日遞增 `MX-{RC|INV}-YYYYMMDD-0001`，DB unique index，併發重試。
+- **預覽／列印**：收款登記有收據預覽 Dialog；可勾選「建立後開啟列印」；列印走瀏覽器 `window.print()`（隱藏 iframe）。
+- **PDF 下載**：`paymentReceiptPdf`（html2canvas + jsPDF）產生與預覽同版面之 PDF（含 logo）；`PaymentReceiptDownloadButton`；可寫入接待處 OneDrive 學生收據資料夾。
+- **WhatsApp**：產生 PDF 後開啟 WhatsApp 供附加傳送。
+- **家長開通 QR**：收據附該生專屬開通連結／QR。
+- **作廢**：禁硬刪；`void-payment` Edge Function（密碼確認、audit、月費／轉介連動）；已收款可電郵管理層；收件匣系統通知 admin／alien。
 
-觸發列印入口：`PaymentsPageView`（建立後／紀錄查詢／詳情）、`StudentDetailView`（繳費紀錄分頁）。
+觸發入口：`PaymentsPageView`、`PaymentHistoryView`、`StudentDetailView`（繳費分頁）；示範 `/receipt-demo`。
+
+### 開發備註（非操作手冊）
+
+- PDF 為「畫面轉檔」以保留現有 HTML 版面與 logo；不以另畫一套文字 PDF 取代（版面／logo 不可妥協）。
+- 機構聯絡資料目前為程式常數；日後若做「機構主檔設定」再改讀設定。
 
 ---
 

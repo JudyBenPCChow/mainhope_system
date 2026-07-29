@@ -17,6 +17,7 @@ export async function countPaymentsInBatch(batchId: string): Promise<number> {
   .from("payments")
   .select("id", { count: "exact", head: true })
   .eq("payment_batch_id", batchId)
+  .neq("status", "作廢")
  if (error) throw error
  return count ?? 0
 }
@@ -33,6 +34,7 @@ export async function fetchBatchPaymentMembers(batchId: string): Promise<BatchPa
   .from("payments")
   .select("id, student_id")
   .eq("payment_batch_id", batchId)
+  .neq("status", "作廢")
  if (e1) throw e1
  const members: BatchPaymentMember[] = []
  for (const pay of pays ?? []) {

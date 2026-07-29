@@ -11,6 +11,8 @@ import {
  fetchEnrolledClassesForStudent,
  fetchMakeupCandidateSchedules,
  fetchUpcomingSchedulesForClass,
+ formatLeaveScheduleOptionLabel,
+ formatMakeupCandidateLabel,
  insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  STUDENT_LEAVE_REASON_OPTIONS,
@@ -143,29 +145,58 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
   setErr(null)
   const dates: string[] = []
   try {
-   for (let i = 0; i < selectedSorted.length; i++) {
-    const sched = selectedSorted[i]
+   const selectedSet = new Set(selectedScheduleIds)
+   const handled = new Set<string>()
+   let makeupApplied = false
+
+   const insertOne = async (
+    sched: ClassScheduleOption,
+    scope: "all" | "this_slot"
+   ) => {
+    const applyMakeup = !makeupApplied && makeup === "調堂"
+    if (applyMakeup) makeupApplied = true
     await insertLeaveMakeupForSchedule({
      student_id: student.id,
      class_id: classId,
      schedule_id: sched.id,
      leave_date: sched.scheduled_date,
      leave_reason: reason,
-     // 調堂排程僅套用至第一堂；其餘先標「待安排」，之後可在請假管理選調堂日
-     makeup_type: makeup === "調堂" && i > 0 ? "待安排" : makeup,
-     makeup_schedule_id: makeup === "調堂" && i === 0 ? makeupScheduleId : null,
-     makeup_date: makeup === "調堂" && i === 0 ? (makeupRow?.scheduled_date ?? null) : null,
+     makeup_type: applyMakeup ? makeup : makeup === "調堂" ? "待安排" : makeup,
+     makeup_schedule_id: applyMakeup ? makeupScheduleId : null,
+     makeup_date: applyMakeup ? (makeupRow?.scheduled_date ?? null) : null,
      remarks: remarks.trim() || null,
      status: "待補課",
+     consecutiveScope: scope,
     })
     dates.push(sched.scheduled_date)
     onLeaveAdded()
+   }
+
+   for (const sched of selectedSorted) {
+    if (handled.has(sched.id)) continue
+    if (sched.consecutive_group_id) {
+     const peersInList = schedules.filter(
+      (s) => s.consecutive_group_id === sched.consecutive_group_id
+     )
+     const selectedPeers = peersInList.filter((s) => selectedSet.has(s.id))
+     for (const p of selectedPeers) handled.add(p.id)
+     if (peersInList.length > 1 && selectedPeers.length >= peersInList.length) {
+      await insertOne(selectedPeers[0]!, "all")
+     } else {
+      for (const p of selectedPeers) {
+       await insertOne(p, "this_slot")
+      }
+     }
+    } else {
+     handled.add(sched.id)
+     await insertOne(sched, "this_slot")
+    }
    }
    setRegisteredDates((prev) => [...prev, ...dates])
    pushBanner({
     tone: "success",
     title: "已登記請假",
-    message: `共 ${dates.length} 天：${dates.join("、")}`,
+    message: `共 ${dates.length} 筆：${dates.join("、")}`,
    })
    setSelectedScheduleIds([])
    setMakeupScheduleId("")
@@ -262,11 +293,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
              checked={checked}
              onChange={() => toggleSchedule(s.id)}
             />
-            <span>
-             {s.scheduled_date}
-             {s.start_time ? ` ${s.start_time.slice(0, 5)}` : ""}
-             {s.end_time ? `–${s.end_time.slice(0, 5)}` : ""}
-            </span>
+            <span>{formatLeaveScheduleOptionLabel(s)}</span>
            </label>
           </li>
          )
@@ -274,7 +301,9 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
        </ul>
       )}
       {selectedScheduleIds.length > 0 ? (
-       <p className="text-xs text-success">已選 {selectedScheduleIds.length} 天</p>
+       <p className="text-xs text-success">
+        已選 {selectedScheduleIds.length} 項（連堂若只勾一節＝只請該節；兩節都勾＝整組請假）
+       </p>
       ) : null}
      </div>
 
@@ -307,7 +336,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
       </Field>
      </div>
      {makeup === "調堂" ? (
-      <Field label="補堂排程（套用至勾選的第一堂）">
+      <Field label="補堂排程（套用至第一筆請假；連堂請選正確那一節）">
        <Select
         className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
         value={makeupScheduleId}
@@ -316,8 +345,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
         <option value="">請選擇補堂</option>
         {makeupCandidates.map((s) => (
          <option key={s.id} value={s.id}>
-          {s.scheduled_date}
-          {s.start_time ? ` ${String(s.start_time).slice(0, 5)}` : ""}
+          {formatMakeupCandidateLabel(s)}
          </option>
         ))}
        </Select>

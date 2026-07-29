@@ -32,6 +32,9 @@ const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
 ]
 
 const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
+ // 收件匣類型標籤
+ { tone: "info", keywords: ["排程新增", "排程變動", "班別變動", "主責變更", "報讀形式", "選堂變更", "新增報讀", "系統更新"] },
+ { tone: "warning", keywords: ["排程取消", "代堂", "學生請假", "學生退讀", "提醒點名"] },
  // 排程：加堂（額外加開課堂，獨立標記）以橙色提示
  { tone: "warning", keywords: ["加堂"] },
  // 排程：代堂指派（高於泛用「安排」）
@@ -46,14 +49,24 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
 
 const PAYMENT_RULES: StatusTagRule[] = [
  // 繳費：成功入帳態
- { tone: "success", keywords: ["已收款", "已批核", "已收"] },
+ { tone: "success", keywords: ["已收款", "已批核", "已收", "已繳費"] },
+ { tone: "warning", keywords: ["未繳費", "待繳費", "待收款"] },
 ]
 
 const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
+ // 試堂紀錄：學生類別（高於泛用「新」）
+ { tone: "warning", keywords: ["新生"] },
+ { tone: "info", keywords: ["現有學生"] },
+ // 試堂排程點名狀態
+ { tone: "success", keywords: ["已點名"] },
+ { tone: "info", keywords: ["未點名"] },
+ // 試堂結果
+ { tone: "success", keywords: ["已轉化"] },
+ { tone: "error", keywords: ["流失", "不報讀"] },
  // 試堂類型
  { tone: "success", keywords: ["免費試堂", "免費"] },
  { tone: "warning", keywords: ["半價試堂", "半價"] },
- { tone: "info", keywords: ["全價", "正式試堂"] },
+ { tone: "info", keywords: ["全價", "正式試堂", "原價試堂"] },
  { tone: "default", keywords: ["當日紀錄"] },
  // 單堂報讀（高於泛用「報讀」）
  { tone: "info", keywords: ["單堂報讀", "單堂", "沒有報讀此堂", "未報讀此堂"] },

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { ChevronDown, X } from "lucide-react"
+import { ChevronDown, Flame, Inbox, X } from "lucide-react"
 
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { Button } from "@/components/ui/button"
+import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import {
  filterFooterNavLeaves,
  filterMainNavEntries,
@@ -35,6 +36,7 @@ type MobileNavDrawerProps = {
 
 export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout }: MobileNavDrawerProps) {
  const location = useLocation()
+ const { unreadCount } = useInboxUnreadCount(location.pathname)
  const navEntries = useMemo(
   () => filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)),
   [role]
@@ -127,6 +129,19 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
      <div className="mb-3">
       <RoleSwitcher />
      </div>
+     <Link
+      to="/Inbox"
+      onClick={onClose}
+      className={cn(
+       "mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-white/90 transition-colors hover:bg-white/10",
+       pathIsActive(location.pathname, "/Inbox") && "bg-white/15 text-white"
+      )}
+      aria-label={unreadCount > 0 ? `收件匣，${unreadCount} 則未讀` : "收件匣"}
+     >
+      <Inbox className="h-4 w-4 shrink-0 opacity-95" aria-hidden />
+      <span className="min-w-0 flex-1 truncate font-medium">收件匣</span>
+      {unreadCount > 0 ? <Flame className="h-4 w-4 shrink-0 text-orange-400" aria-hidden /> : null}
+     </Link>
      <div className="mb-3 flex items-center gap-2">
       <div className="min-w-0 flex-1 truncate rounded-lg bg-white/10 px-3 py-2 text-white/90" title={userDisplayName}>
        你登入為 {userDisplayName}

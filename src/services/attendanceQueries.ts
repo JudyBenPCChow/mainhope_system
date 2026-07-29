@@ -10,7 +10,11 @@ import {
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
+import {
+ pickStudentContactFromDbRow,
+ resolvePrimaryMessagingTargetFromDbRow,
+ type PrimaryMessagingTarget,
+} from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -49,8 +53,10 @@ export type RollCallStudentRow = {
  school: string | null
  enrollDate: string | null
  status: string
- /** 來自 students.whatsapp / student_phone / parent_phone，供 wa.me 使用 */
+ /** 第一聯絡人 WhatsApp 電話（偏好 WeChat 時為 null） */
  contactPhone: string | null
+ /** 第一聯絡人通知目標（WhatsApp／WeChat） */
+ messagingTarget?: PrimaryMessagingTarget | null
  /** 是否為單堂報讀（本堂有選） */
  isSingleSession: boolean
 }
@@ -83,6 +89,15 @@ export async function fetchRosterForRollCall(
     enrollDate: row.enrollDate,
     status: row.status,
     contactPhone: row.contactPhone,
+    messagingTarget: row.contactPhone
+     ? {
+        person: "家長" as const,
+        channel: "WhatsApp" as const,
+        phone: row.contactPhone,
+        phoneCountryCode: "+852" as const,
+        wechatId: null,
+       }
+     : null,
     isSingleSession: isSingleSessionEnrollment(row.enrollmentPeriod),
    }))
  }
@@ -90,7 +105,7 @@ export async function fetchRosterForRollCall(
  const { data, error } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, student_phone, parent_phone )"
+   "id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, english_name, grade, school, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )"
   )
   .eq("class_id", classId)
   .eq("status", "就讀中")
@@ -126,6 +141,7 @@ export async function fetchRosterForRollCall(
     r.enrollment_period != null ? String(r.enrollment_period) : null
    ),
    contactPhone: pickStudentContactFromDbRow(st),
+   messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   }
  })
 
@@ -171,6 +187,7 @@ export type ScheduleRosterStudent = {
  studentId: string
  fullName: string
  contactPhone: string | null
+ messagingTarget?: PrimaryMessagingTarget | null
 }
 
 /** 本堂請假學生（已連結排程，或同班同日待連結） */
@@ -187,13 +204,22 @@ export async function fetchLeaveStudentsForSchedule(
     studentId: row.studentId,
     fullName: row.fullName,
     contactPhone: row.contactPhone,
+    messagingTarget: row.contactPhone
+     ? {
+        person: "家長" as const,
+        channel: "WhatsApp" as const,
+        phone: row.contactPhone,
+        phoneCountryCode: "+852" as const,
+        wechatId: null,
+       }
+     : null,
    }))
    .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
  }
  const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
  const { data, error } = await supabase
   .from("leave_makeup_records")
-  .select("student_id, students ( full_name, whatsapp, student_phone, parent_phone )")
+  .select("student_id, students ( full_name, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .or(orFilter)
   .order("created_at", { ascending: true })
  if (error) throw error
@@ -210,6 +236,7 @@ export async function fetchLeaveStudentsForSchedule(
    studentId: sid,
    fullName: st?.full_name != null ? String(st.full_name) : "—",
    contactPhone: pickStudentContactFromDbRow(st),
+   messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   })
  }
  return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
@@ -225,6 +252,7 @@ export async function fetchTrialStudentsForSchedule(
   englishName: string | null
   grade: string | null
   contactPhone: string | null
+  messagingTarget?: PrimaryMessagingTarget | null
  }[]
 > {
  if (!supabase) return []
@@ -235,11 +263,20 @@ export async function fetchTrialStudentsForSchedule(
    englishName: row.englishName,
    grade: row.grade,
    contactPhone: row.contactPhone,
+   messagingTarget: row.contactPhone
+    ? {
+       person: "家長" as const,
+       channel: "WhatsApp" as const,
+       phone: row.contactPhone,
+       phoneCountryCode: "+852" as const,
+       wechatId: null,
+      }
+    : null,
   }))
  }
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
+  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .eq("schedule_id", scheduleId)
  if (error) throw error
  return (data ?? [])
@@ -256,6 +293,7 @@ export async function fetchTrialStudentsForSchedule(
    englishName: st?.english_name != null ? String(st.english_name) : null,
    grade: st?.grade != null ? String(st.grade) : null,
    contactPhone: pickStudentContactFromDbRow(st),
+   messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   }
  })
 }
@@ -403,6 +441,9 @@ export async function fetchMakeupStudentsForSchedules(
   englishName: string | null
   grade: string | null
   contactPhone: string | null
+  messagingTarget?: PrimaryMessagingTarget | null
+  /** 所綁補堂排程（連堂時可能只綁其中一節） */
+  makeupScheduleId: string
  }[]
 > {
  if (!supabase || scheduleIds.length === 0) return []
@@ -410,7 +451,7 @@ export async function fetchMakeupStudentsForSchedules(
   const seen = new Set<string>()
   return makeupsForSchedules(rosterContext, scheduleIds)
    .filter((row) => {
-    if (seen.has(row.studentId)) return false
+    if (!row.makeupScheduleId || seen.has(row.studentId)) return false
     seen.add(row.studentId)
     return true
    })
@@ -420,12 +461,22 @@ export async function fetchMakeupStudentsForSchedules(
     englishName: row.englishName,
     grade: row.grade,
     contactPhone: row.contactPhone,
+    makeupScheduleId: row.makeupScheduleId!,
+    messagingTarget: row.contactPhone
+     ? {
+        person: "家長" as const,
+        channel: "WhatsApp" as const,
+        phone: row.contactPhone,
+        phoneCountryCode: "+852" as const,
+        wechatId: null,
+       }
+     : null,
    }))
  }
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select(
-   "student_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )"
+   "student_id, makeup_schedule_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )"
   )
   .in("makeup_schedule_id", scheduleIds)
  if (error) throw error
@@ -436,11 +487,15 @@ export async function fetchMakeupStudentsForSchedules(
   englishName: string | null
   grade: string | null
   contactPhone: string | null
+  messagingTarget?: PrimaryMessagingTarget | null
+  makeupScheduleId: string
  }[] = []
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
   const studentId = String(r.student_id)
-  if (seen.has(studentId)) continue
+  const makeupScheduleId =
+   r.makeup_schedule_id != null ? String(r.makeup_schedule_id) : ""
+  if (!makeupScheduleId || seen.has(studentId)) continue
   seen.add(studentId)
   const st = r.students as Record<string, unknown> | null
   out.push({
@@ -449,6 +504,8 @@ export async function fetchMakeupStudentsForSchedules(
    englishName: st?.english_name != null ? String(st.english_name) : null,
    grade: st?.grade != null ? String(st.grade) : null,
    contactPhone: pickStudentContactFromDbRow(st),
+   makeupScheduleId,
+   messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   })
  }
  return out
@@ -479,7 +536,15 @@ export async function fetchMakeupStudentIdsForSchedule(
 export async function fetchExistingAttendanceMap(
  classId: string,
  attendanceDate: string,
- scheduleIds?: string[]
+ scheduleIds?: string[],
+ opts?: {
+  /**
+   * 該生視為「已完整儲存」所需的 schedule id。
+   * 未列出的學生：需齊全 scheduleIds（連堂原班）。
+   * 單項補堂生通常只傳所綁那一節。
+   */
+  completeWhenHas?: Map<string, string[]>
+ }
 ): Promise<Map<string, { id: string; status: string; remarks: string | null }>> {
  if (!supabase) return new Map()
  if (scheduleIds != null && scheduleIds.length > 0) {
@@ -490,13 +555,17 @@ export async function fetchExistingAttendanceMap(
    .eq("attendance_date", attendanceDate)
    .in("schedule_id", scheduleIds)
   if (error) throw error
-  const byStudent = new Map<string, { id: string; status: string; remarks: string | null }[]>()
+  const byStudent = new Map<
+   string,
+   { id: string; status: string; remarks: string | null; scheduleId: string }[]
+  >()
   for (const row of data ?? []) {
    const r = row as {
     id: string
     student_id: string
     status: string
     remarks: string | null
+    schedule_id: string
    }
    const sid = String(r.student_id)
    const arr = byStudent.get(sid) ?? []
@@ -504,17 +573,21 @@ export async function fetchExistingAttendanceMap(
     id: String(r.id),
     status: String(r.status ?? "現場"),
     remarks: r.remarks != null ? String(r.remarks) : null,
+    scheduleId: String(r.schedule_id),
    })
    byStudent.set(sid, arr)
   }
   const m = new Map<string, { id: string; status: string; remarks: string | null }>()
   for (const [sid, rows] of byStudent) {
-   if (rows.length < scheduleIds.length) continue
-   const first = rows[0]!
+   const required = opts?.completeWhenHas?.get(sid) ?? scheduleIds
+   const present = new Set(rows.map((r) => r.scheduleId))
+   if (!required.every((id) => present.has(id))) continue
+   const preferred =
+    rows.find((r) => r.scheduleId === required[0]) ?? rows[0]!
    m.set(sid, {
-    id: first.id,
-    status: first.status,
-    remarks: first.remarks,
+    id: preferred.id,
+    status: preferred.status,
+    remarks: preferred.remarks,
    })
   }
   return m
@@ -621,6 +694,61 @@ export async function saveAttendanceStatusForSchedules(
  }
 }
 
+/** 刪除某生在指定排程的點名列（連堂單項補堂清多餘列用） */
+export async function deleteAttendanceStatusForSchedule(
+ studentId: string,
+ classId: string,
+ attendanceDate: string,
+ scheduleId: string
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ assertAcademicYearEditableForDate(attendanceDate)
+ const { error } = await supabase
+  .from("attendance_details")
+  .delete()
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+  .eq("attendance_date", attendanceDate)
+  .eq("schedule_id", scheduleId)
+ if (error) throw error
+}
+
+/**
+ * 依學生應寫入的排程儲存；並清除 peerScheduleIds 內、但不在 writeScheduleIds 的多餘列。
+ * 用於連堂點名紙上「只綁一節」的補堂生：只計 1 堂、清掉誤寫的另一節。
+ */
+export async function saveAttendanceStatusForStudentScheduleScope(params: {
+ studentId: string
+ classId: string
+ attendanceDate: string
+ writeScheduleIds: string[]
+ /** 連堂整組 id；會清掉 write 以外的列 */
+ peerScheduleIds: string[]
+ status: string
+ remarks?: string | null
+}): Promise<void> {
+ const writeSet = new Set(params.writeScheduleIds.filter(Boolean))
+ for (const scheduleId of writeSet) {
+  await saveAttendanceStatus(
+   params.studentId,
+   params.classId,
+   params.attendanceDate,
+   params.status,
+   params.remarks,
+   scheduleId
+  )
+ }
+ for (const scheduleId of params.peerScheduleIds) {
+  if (writeSet.has(scheduleId)) continue
+  await deleteAttendanceStatusForSchedule(
+   params.studentId,
+   params.classId,
+   params.attendanceDate,
+   scheduleId
+  )
+ }
+}
+
 export async function fetchTrialStudentsForSchedules(
  scheduleIds: string[],
  rosterContext?: ScheduleRosterContext
@@ -631,6 +759,7 @@ export async function fetchTrialStudentsForSchedules(
   englishName: string | null
   grade: string | null
   contactPhone: string | null
+  messagingTarget?: PrimaryMessagingTarget | null
  }[]
 > {
  if (!supabase || scheduleIds.length === 0) return []
@@ -648,11 +777,20 @@ export async function fetchTrialStudentsForSchedules(
     englishName: row.englishName,
     grade: row.grade,
     contactPhone: row.contactPhone,
+    messagingTarget: row.contactPhone
+     ? {
+        person: "家長" as const,
+        channel: "WhatsApp" as const,
+        phone: row.contactPhone,
+        phoneCountryCode: "+852" as const,
+        wechatId: null,
+       }
+     : null,
    }))
  }
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone )")
+  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .in("schedule_id", scheduleIds)
  if (error) throw error
  const seen = new Set<string>()
@@ -662,6 +800,7 @@ export async function fetchTrialStudentsForSchedules(
   englishName: string | null
   grade: string | null
   contactPhone: string | null
+  messagingTarget?: PrimaryMessagingTarget | null
  }[] = []
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
@@ -677,6 +816,7 @@ export async function fetchTrialStudentsForSchedules(
    englishName: st?.english_name != null ? String(st.english_name) : null,
    grade: st?.grade != null ? String(st.grade) : null,
    contactPhone: pickStudentContactFromDbRow(st),
+   messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   })
  }
  return out

@@ -11,8 +11,8 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isPortalBaseUrlConfigured } from "@/lib/portalConfig"
 import { cn } from "@/lib/utils"
 import {
- pickStudentContactRaw,
- openWhatsAppWithPrefilledText,
+ openPrimaryMessagingTarget,
+ resolvePrimaryMessagingTarget,
 } from "@/lib/whatsappReminder"
 import {
  buildPortalInviteWhatsAppMessage,
@@ -26,9 +26,15 @@ import {
 type Props = {
  studentId: string
  studentName: string
- whatsapp?: string | null
  parentPhone?: string | null
  studentPhone?: string | null
+ primaryContactPerson?: string | null
+ studentPreferredContactMethod?: string | null
+ parentPreferredContactMethod?: string | null
+ studentWechatId?: string | null
+ parentWechatId?: string | null
+ studentPhoneCountryCode?: string | null
+ parentPhoneCountryCode?: string | null
 }
 
 function formatWhen(iso: string): string {
@@ -49,9 +55,15 @@ function formatWhen(iso: string): string {
 export function ParentPortalInvitePanel({
  studentId,
  studentName,
- whatsapp,
  parentPhone,
  studentPhone,
+ primaryContactPerson,
+ studentPreferredContactMethod,
+ parentPreferredContactMethod,
+ studentWechatId,
+ parentWechatId,
+ studentPhoneCountryCode,
+ parentPhoneCountryCode,
 }: Props) {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -64,11 +76,21 @@ export function ParentPortalInvitePanel({
  const [boundEmail, setBoundEmail] = useState<string | null>(null)
  const [copiedId, setCopiedId] = useState<string | null>(null)
 
- const contactPhone = pickStudentContactRaw({
-  whatsapp,
+ const messaging = resolvePrimaryMessagingTarget({
   parent_phone: parentPhone,
   student_phone: studentPhone,
+  primary_contact_person: primaryContactPerson,
+  student_preferred_contact_method: studentPreferredContactMethod,
+  parent_preferred_contact_method: parentPreferredContactMethod,
+  student_wechat_id: studentWechatId,
+  parent_wechat_id: parentWechatId,
+  student_phone_country_code: studentPhoneCountryCode,
+  parent_phone_country_code: parentPhoneCountryCode,
  })
+ const canMessage =
+  messaging?.channel === "WeChat"
+   ? Boolean(messaging.wechatId?.trim())
+   : Boolean(messaging?.phone?.trim())
 
  const load = useCallback(async () => {
   if (!canManage) {
@@ -183,11 +205,11 @@ export function ParentPortalInvitePanel({
    })
    return
   }
-  if (!contactPhone) {
+  if (!canMessage || !messaging) {
    pushBanner({
     tone: "warning",
-    title: "沒有聯絡電話",
-    message: "請先於上方填寫 WhatsApp 或家長電話。",
+    title: "沒有可用的第一聯絡人通訊",
+    message: "請先設定第一聯絡人電話，或 WeChat ID（若偏好 WeChat）。",
    })
    return
   }
@@ -196,14 +218,22 @@ export function ParentPortalInvitePanel({
    activateUrl: invite.activateUrl,
    expiresAt: invite.expiresAt,
   })
-  const opened = openWhatsAppWithPrefilledText(contactPhone, msg)
-  if (!opened) {
-   pushBanner({
-    tone: "warning",
-    title: "無法開啟 WhatsApp",
-    message: "請檢查電話號碼格式後再試。",
-   })
-  }
+  void openPrimaryMessagingTarget(messaging, msg).then((result) => {
+   if (result === "wechat") {
+    pushBanner({
+     tone: "success",
+     title: "已複製 WeChat ID",
+     message: messaging.wechatId ?? "",
+    })
+    void navigator.clipboard.writeText(msg).catch(() => undefined)
+   } else if (!result) {
+    pushBanner({
+     tone: "warning",
+     title: "無法開啟通訊",
+     message: "請檢查第一聯絡人電話／WeChat ID 後再試。",
+    })
+   }
+  })
  }
 
  if (!canManage) return null
@@ -290,17 +320,23 @@ export function ParentPortalInvitePanel({
        type="button"
        size="sm"
        variant="outline"
-       className="border-success/40 text-success hover:bg-success"
-       disabled={!contactPhone}
+       className={
+        messaging?.channel === "WeChat"
+         ? "border-sky-500/40 text-sky-700 hover:bg-sky-600 hover:text-white"
+         : "border-success/40 text-success hover:bg-success"
+       }
+       disabled={!canMessage}
        title={
-        contactPhone
-         ? "開啟 WhatsApp（已預填邀請文字，請自行確認後發送）"
-         : "請先填寫 WhatsApp 或家長電話"
+        canMessage
+         ? messaging?.channel === "WeChat"
+           ? "複製第一聯絡人 WeChat ID（並嘗試複製邀請文案）"
+           : "開啟 WhatsApp（已預填邀請文字，請自行確認後發送）"
+         : "請先設定第一聯絡人電話或 WeChat ID"
        }
        onClick={() => onWhatsApp(activeInvite)}
       >
        <MessageCircle className="h-4 w-4" aria-hidden />
-       WhatsApp 傳送
+       {messaging?.channel === "WeChat" ? "WeChat 傳送" : "WhatsApp 傳送"}
       </Button>
      </div>
     </div>

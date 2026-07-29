@@ -42,14 +42,17 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/calendarQueries"
+import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
+import {
+ canEditAcademicYearForDate,
+} from "@/lib/academicYearEditGuard"
 import {
  fetchPaymentFull,
  fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
 } from "@/services/paymentQueries"
 import {
- deletePayment,
  fetchAllStudents,
  fetchAttendanceForStudent,
  fetchClassOptions,
@@ -63,6 +66,7 @@ import {
  normalizeRegistrationStatus,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
+ PRIMARY_CONTACT_PERSONS,
  purgeMistakenEnrollment,
  type AttendanceRow,
  type ClassOption,
@@ -95,7 +99,10 @@ import {
  insertLeaveMakeupForSchedule,
  LEAVE_MAKEUP_OPTIONS,
  LEAVE_REASON_OPTIONS,
+ formatLeaveScheduleOptionLabel,
+ formatMakeupCandidateLabel,
  type ClassScheduleOption,
+ type ConsecutiveLeaveScope,
  type EnrolledClassOption,
  type StudentUpcomingScheduleRow,
 } from "@/services/leaveQueries"
@@ -175,8 +182,11 @@ const BASIC_FORM_KEYS = [
  "student_phone_country_code",
  "parent_phone",
  "parent_phone_country_code",
- "whatsapp",
- "preferred_contact_method",
+ "student_preferred_contact_method",
+ "parent_preferred_contact_method",
+ "student_wechat_id",
+ "parent_wechat_id",
+ "primary_contact_person",
  "address",
  "remarks",
 ] as const satisfies readonly (keyof StudentRecord)[]
@@ -254,6 +264,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
  const [withdrawSaving, setWithdrawSaving] = useState(false)
+ const [voidPayOpen, setVoidPayOpen] = useState(false)
+ const [voidPayTarget, setVoidPayTarget] = useState<VoidPaymentTarget | null>(null)
 
  const [editFormOpen, setEditFormOpen] = useState(false)
  const [editFormTarget, setEditFormTarget] = useState<EnrollmentWithClass | null>(null)
@@ -281,6 +293,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [leaveMakeupScheduleId, setLeaveMakeupScheduleId] = useState("")
  const [leaveMakeupSearch, setLeaveMakeupSearch] = useState("")
  const [leaveMakeupCandidates, setLeaveMakeupCandidates] = useState<ScheduleManageRow[]>([])
+ const [leaveConsecutiveScope, setLeaveConsecutiveScope] = useState<ConsecutiveLeaveScope>("all")
  const [leaveRemarks, setLeaveRemarks] = useState("")
  const [leaveSaving, setLeaveSaving] = useState(false)
  const [leaveErr, setLeaveErr] = useState<string | null>(null)
@@ -417,8 +430,15 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     student_phone_country_code: form.student_phone_country_code ?? "+852",
     parent_phone: form.parent_phone,
     parent_phone_country_code: form.parent_phone_country_code ?? "+852",
-    whatsapp: form.whatsapp,
-    preferred_contact_method: form.preferred_contact_method || null,
+    student_preferred_contact_method: form.student_preferred_contact_method || null,
+    parent_preferred_contact_method: form.parent_preferred_contact_method || null,
+    student_wechat_id:
+     form.student_preferred_contact_method === "WeChat"
+      ? form.student_wechat_id || null
+      : null,
+    parent_wechat_id:
+     form.parent_preferred_contact_method === "WeChat" ? form.parent_wechat_id || null : null,
+    primary_contact_person: form.primary_contact_person || null,
     address: form.address,
     remarks: form.remarks,
    })
@@ -853,6 +873,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLeaveMakeup("待安排")
   setLeaveMakeupScheduleId("")
   setLeaveMakeupSearch("")
+  setLeaveConsecutiveScope("all")
   setLeaveRemarks("")
   setLeaveDialogOpen(true)
   try {
@@ -937,6 +958,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     makeup_date: makeupRow?.scheduled_date ?? null,
     remarks: leaveRemarks.trim() || null,
     status: "待補課",
+    consecutiveScope: sched.consecutive_group_id ? leaveConsecutiveScope : "this_slot",
    })
    setLeaveDialogOpen(false)
    await reloadSubs()
@@ -1296,6 +1318,13 @@ const exportFutureSchedulesCsv = () => {
           onChange={(rel) => setForm((f) => ({ ...f, parent_relationship: rel }))}
          />
         </Field>
+        <Field label="第一聯絡人" className="sm:col-span-2">
+         <ChoiceChips
+          options={PRIMARY_CONTACT_PERSONS}
+          value={form.primary_contact_person ?? ""}
+          onChange={(v) => setForm((f) => ({ ...f, primary_contact_person: v }))}
+         />
+        </Field>
         <Field label="學生電話">
          <div className="space-y-2">
           <ChoiceChips
@@ -1308,6 +1337,28 @@ const exportFutureSchedulesCsv = () => {
            value={form.student_phone ?? ""}
            onChange={(e) => setForm((f) => ({ ...f, student_phone: e.target.value }))}
           />
+         </div>
+        </Field>
+        <Field label="學生偏好通訊方式">
+         <div className="space-y-2">
+          <ChoiceChips
+           options={PREFERRED_CONTACT_METHODS}
+           value={form.student_preferred_contact_method ?? ""}
+           onChange={(m) =>
+            setForm((f) => ({
+             ...f,
+             student_preferred_contact_method: m,
+             ...(m !== "WeChat" ? { student_wechat_id: null } : {}),
+            }))
+           }
+          />
+          {form.student_preferred_contact_method === "WeChat" ? (
+           <Input
+            placeholder="學生 WeChat ID"
+            value={form.student_wechat_id ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, student_wechat_id: e.target.value }))}
+           />
+          ) : null}
          </div>
         </Field>
         <Field label="家長電話">
@@ -1324,19 +1375,27 @@ const exportFutureSchedulesCsv = () => {
           />
          </div>
         </Field>
-        <Field label="WhatsApp 號碼">
-         <Input
-          inputMode="numeric"
-          value={form.whatsapp ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, whatsapp: e.target.value }))}
-         />
-        </Field>
-        <Field label="偏好通訊方式">
-         <ChoiceChips
-          options={PREFERRED_CONTACT_METHODS}
-          value={form.preferred_contact_method ?? ""}
-          onChange={(m) => setForm((f) => ({ ...f, preferred_contact_method: m }))}
-         />
+        <Field label="家長偏好通訊方式">
+         <div className="space-y-2">
+          <ChoiceChips
+           options={PREFERRED_CONTACT_METHODS}
+           value={form.parent_preferred_contact_method ?? ""}
+           onChange={(m) =>
+            setForm((f) => ({
+             ...f,
+             parent_preferred_contact_method: m,
+             ...(m !== "WeChat" ? { parent_wechat_id: null } : {}),
+            }))
+           }
+          />
+          {form.parent_preferred_contact_method === "WeChat" ? (
+           <Input
+            placeholder="家長 WeChat ID"
+            value={form.parent_wechat_id ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, parent_wechat_id: e.target.value }))}
+           />
+          ) : null}
+         </div>
         </Field>
         <Field label="地址" className="sm:col-span-2">
          <Input
@@ -1354,9 +1413,23 @@ const exportFutureSchedulesCsv = () => {
          <ParentPortalInvitePanel
           studentId={sid}
           studentName={form.full_name ?? student?.full_name ?? ""}
-          whatsapp={form.whatsapp ?? student?.whatsapp}
           parentPhone={form.parent_phone ?? student?.parent_phone}
           studentPhone={form.student_phone ?? student?.student_phone}
+          primaryContactPerson={form.primary_contact_person ?? student?.primary_contact_person}
+          studentPreferredContactMethod={
+           form.student_preferred_contact_method ?? student?.student_preferred_contact_method
+          }
+          parentPreferredContactMethod={
+           form.parent_preferred_contact_method ?? student?.parent_preferred_contact_method
+          }
+          studentWechatId={form.student_wechat_id ?? student?.student_wechat_id}
+          parentWechatId={form.parent_wechat_id ?? student?.parent_wechat_id}
+          studentPhoneCountryCode={
+           form.student_phone_country_code ?? student?.student_phone_country_code
+          }
+          parentPhoneCountryCode={
+           form.parent_phone_country_code ?? student?.parent_phone_country_code
+          }
          />
         ) : null}
        </div>
@@ -2136,6 +2209,16 @@ const exportFutureSchedulesCsv = () => {
      </div>
     ) : null}
 
+    <VoidPaymentDialog
+     open={voidPayOpen}
+     target={voidPayTarget}
+     onOpenChange={(open) => {
+      setVoidPayOpen(open)
+      if (!open) setVoidPayTarget(null)
+     }}
+     onVoided={() => void reloadSubs()}
+    />
+
     {tab === "payments" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2202,18 +2285,27 @@ const exportFutureSchedulesCsv = () => {
             <Printer className="h-3.5 w-3.5" />
             列印
            </Button>
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-             if (!(await confirmDialog({ title: "刪除繳費紀錄", description: "確定刪除此筆繳費？", confirmText: "確認刪除", tone: "destructive" }))) return
-             await deletePayment(p.id)
-             await reloadSubs()
-            }}
-           >
-            刪除
-           </Button>
+           {p.status !== PAYMENT_STATUS.voided && canEditAcademicYearForDate(p.payment_date) ? (
+            <Button
+             type="button"
+             variant="outline"
+             size="sm"
+             className="text-destructive hover:text-destructive"
+             onClick={() => {
+              setVoidPayTarget({
+               id: p.id,
+               receiptNumber: p.receipt_number,
+               studentName: student?.full_name ?? "—",
+               totalAmount: p.total_amount,
+               paymentDate: p.payment_date,
+               status: p.status,
+              })
+              setVoidPayOpen(true)
+             }}
+            >
+             作廢
+            </Button>
+           ) : null}
           </div>
          </div>
         ))
@@ -2414,7 +2506,10 @@ const exportFutureSchedulesCsv = () => {
           <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
            value={leaveScheduleId}
-           onChange={(e) => setLeaveScheduleId(e.target.value)}
+           onChange={(e) => {
+            setLeaveScheduleId(e.target.value)
+            setLeaveConsecutiveScope("all")
+           }}
            disabled={!leaveClassId || leaveScheduleOptions.length === 0}
           >
            {!leaveClassId ? (
@@ -2428,13 +2523,25 @@ const exportFutureSchedulesCsv = () => {
              </option>,
              ...leaveScheduleOptions.map((s) => (
               <option key={s.id} value={s.id}>
-               {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""}
+               {formatLeaveScheduleOptionLabel(s)}
               </option>
              )),
             ]
            )}
           </Select>
          </Field>
+         {leaveScheduleOptions.find((s) => s.id === leaveScheduleId)?.consecutive_group_id ? (
+          <Field label="連堂請假範圍">
+           <Select
+            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
+            value={leaveConsecutiveScope}
+            onChange={(e) => setLeaveConsecutiveScope(e.target.value as ConsecutiveLeaveScope)}
+           >
+            <option value="all">連堂兩節一併請假（欠最多 2 堂）</option>
+            <option value="this_slot">只請本節（欠 1 堂）</option>
+           </Select>
+          </Field>
+         ) : null}
          <Field label="原因">
           <Select
            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
@@ -2469,7 +2576,9 @@ const exportFutureSchedulesCsv = () => {
          </Field>
          {leaveMakeup === "調堂" ? (
           <div className="space-y-2 rounded-lg border border-info bg-info/40 p-3">
-           <p className="text-xs font-medium text-info">補堂排程（未來一個月內、可跨班）</p>
+           <p className="text-xs font-medium text-info">
+            補堂排程（未來一個月內、可跨班；連堂請選正確那一節，只計 1 堂）
+           </p>
            <Input
             placeholder="搜尋科目、代碼、老師、日期…"
             value={leaveMakeupSearch}
@@ -2484,8 +2593,7 @@ const exportFutureSchedulesCsv = () => {
             <option value="">請選擇補堂排程</option>
             {leaveMakeupFiltered.map((s) => (
              <option key={s.id} value={s.id}>
-              {s.scheduled_date} {s.start_time ?? ""}–{s.end_time ?? ""} · {s.classLabel}
-              {s.course_code_full ? ` (${s.course_code_full})` : ""} · {s.teacher_name ?? "—"}
+              {formatMakeupCandidateLabel(s)}
              </option>
             ))}
            </Select>

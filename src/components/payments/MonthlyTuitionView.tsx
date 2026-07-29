@@ -53,7 +53,7 @@ export function MonthlyTuitionView() {
  const [paymentDate, setPaymentDate] = useState(localToday())
  const [paymentMethod, setPaymentMethod] = useState(PAYMENT_METHOD_PRESETS[0] ?? "現金")
  const [paymentStatus, setPaymentStatus] = useState<
-  typeof PAYMENT_STATUS.received | typeof PAYMENT_STATUS.pendingPay | typeof PAYMENT_STATUS.pendingReceive
+  typeof PAYMENT_STATUS.received | typeof PAYMENT_STATUS.pendingReceive
  >(PAYMENT_STATUS.received)
  const [remarks, setRemarks] = useState("")
  const [loading, setLoading] = useState(false)
@@ -279,7 +279,6 @@ export function MonthlyTuitionView() {
        <span className="mb-1 block text-muted-foreground">操作</span>
        <Select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as typeof paymentStatus)}>
         <option value={PAYMENT_STATUS.received}>即時收款</option>
-        <option value={PAYMENT_STATUS.pendingPay}>出單（待繳費）</option>
         <option value={PAYMENT_STATUS.pendingReceive}>待收款</option>
        </Select>
       </label>

@@ -18,13 +18,14 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
-import { classDisplayName } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  insertScheduleForClass,
  insertScheduleRow,
  nextSessionNumberForClass,
  updateSchedule,
 } from "@/services/classQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { fetchTeacherScheduleConflicts } from "@/services/scheduleQueries"
 import {
@@ -513,6 +514,21 @@ export async function updatePrivateClassSettings(
  }
 ): Promise<{ syncedScheduleCount: number }> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: beforeRaw, error: beforeErr } = await supabase
+  .from("classes")
+  .select("teacher_id, subject, course_code_full, courses ( course_name )")
+  .eq("id", classId)
+  .maybeSingle()
+ if (beforeErr) throw new Error(formatUnknownError(beforeErr))
+ if (!beforeRaw) throw new Error("找不到班別")
+ const before = beforeRaw as {
+  teacher_id?: string | null
+  subject?: string | null
+  course_code_full?: string | null
+  courses?: { course_name?: string | null } | null
+ }
+ const prevTeacherId = before.teacher_id ?? null
+
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
  const teacherChanging = "teacherId" in patch
  const nextTeacherId = teacherChanging ? patch.teacherId?.trim() || null : undefined
@@ -576,6 +592,23 @@ export async function updatePrivateClassSettings(
     .in("id", substituteIds)
    if (upErr) throw new Error(formatUnknownError(upErr))
    syncedScheduleCount += count ?? substituteIds.length
+  }
+
+  if ((nextTeacherId ?? null) !== prevTeacherId) {
+   const label = formatClassLabel({
+    subject: String(patch.subject ?? before.subject ?? "一對一"),
+    courseCode: before.course_code_full != null ? String(before.course_code_full) : "",
+    courseName: before.courses?.course_name != null ? String(before.courses.course_name) : null,
+   })
+   void recordInboxEvent({
+    eventType: "class_teacher_changed",
+    title: `一對一主責變更：${label}`,
+    body: syncedScheduleCount > 0 ? `已同步 ${syncedScheduleCount} 堂未來排程老師` : "主責老師已更新",
+    actionPath: `/Classes/${classId}`,
+    classId,
+    audienceTeacherIds: [prevTeacherId, nextTeacherId],
+    payload: { syncedScheduleCount, private: true },
+   })
   }
  }
 
@@ -1011,17 +1044,23 @@ export async function insertPrivateBookingSchedules(params: {
  consecutive?: boolean
  classroomId?: string | null
  status?: string
+ skipInboxEvent?: boolean
 }): Promise<string[]> {
  const consecutive = Boolean(params.consecutive)
  if (!consecutive) {
   const { startTime, endTime } = privateBookingTimeBounds(params.firstSlotIndex, false)
-  await insertScheduleForClass(params.classId, params.teacherId ?? null, {
-   scheduled_date: params.scheduledDate,
-   start_time: startTime,
-   end_time: endTime,
-   classroom_id: params.classroomId ?? null,
-   status: params.status ?? "正常",
-  })
+  await insertScheduleForClass(
+   params.classId,
+   params.teacherId ?? null,
+   {
+    scheduled_date: params.scheduledDate,
+    start_time: startTime,
+    end_time: endTime,
+    classroom_id: params.classroomId ?? null,
+    status: params.status ?? "正常",
+   },
+   { skipInboxEvent: params.skipInboxEvent }
+  )
   return []
  }
 
@@ -1039,30 +1078,48 @@ export async function insertPrivateBookingSchedules(params: {
  const teacherId = params.teacherId ?? null
  const status = params.status ?? "正常"
 
- const id1 = await insertScheduleRow({
-  class_id: params.classId,
-  teacher_id: teacherId,
-  scheduled_date: scheduledDate,
-  start_time: pair.slot1.start,
-  end_time: pair.slot1.end,
-  status,
-  classroom_id: classroomId,
-  session_number: sessionStart,
-  consecutive_group_id: groupId,
-  consecutive_slot_index: 1,
- })
- const id2 = await insertScheduleRow({
-  class_id: params.classId,
-  teacher_id: teacherId,
-  scheduled_date: scheduledDate,
-  start_time: pair.slot2.start,
-  end_time: pair.slot2.end,
-  status,
-  classroom_id: classroomId,
-  session_number: sessionStart + 1,
-  consecutive_group_id: groupId,
-  consecutive_slot_index: 2,
- })
+ const id1 = await insertScheduleRow(
+  {
+   class_id: params.classId,
+   teacher_id: teacherId,
+   scheduled_date: scheduledDate,
+   start_time: pair.slot1.start,
+   end_time: pair.slot1.end,
+   status,
+   classroom_id: classroomId,
+   session_number: sessionStart,
+   consecutive_group_id: groupId,
+   consecutive_slot_index: 1,
+  },
+  { skipInboxEvent: true }
+ )
+ const id2 = await insertScheduleRow(
+  {
+   class_id: params.classId,
+   teacher_id: teacherId,
+   scheduled_date: scheduledDate,
+   start_time: pair.slot2.start,
+   end_time: pair.slot2.end,
+   status,
+   classroom_id: classroomId,
+   session_number: sessionStart + 1,
+   consecutive_group_id: groupId,
+   consecutive_slot_index: 2,
+  },
+  { skipInboxEvent: true }
+ )
+ if (!params.skipInboxEvent) {
+  void recordInboxEvent({
+   eventType: "schedule_created",
+   title: `新增排程（連堂・${scheduledDate}）`,
+   body: "一對一／連堂已建立",
+   actionPath: `/Schedule/${id1}`,
+   classId: params.classId,
+   scheduleId: id1,
+   audienceTeacherIds: [teacherId],
+   payload: { consecutive: true, scheduleIds: [id1, id2], private: true },
+  })
+ }
  return [id1, id2]
 }
 
@@ -1115,18 +1172,38 @@ export async function createPrivateRecurringBookings(params: {
     firstSlotIndex: params.firstSlotIndex,
     consecutive: true,
     classroomId: params.classroomId,
+    skipInboxEvent: true,
    })
    created += ids.length
   } else {
-   await insertScheduleForClass(params.classId, params.teacherId ?? null, {
-    scheduled_date: date,
-    start_time: params.startTime,
-    end_time: params.endTime,
-    classroom_id: params.classroomId ?? null,
-    status: "正常",
-   })
+   await insertScheduleForClass(
+    params.classId,
+    params.teacherId ?? null,
+    {
+     scheduled_date: date,
+     start_time: params.startTime,
+     end_time: params.endTime,
+     classroom_id: params.classroomId ?? null,
+     status: "正常",
+    },
+    { skipInboxEvent: true }
+   )
    created += 1
   }
+ }
+ if (created > 0) {
+  const sorted = [...params.dates].filter((d) => !skipped.includes(d)).sort()
+  const rangeLabel =
+   sorted.length <= 1 ? sorted[0] ?? "" : `${sorted[0]}～${sorted[sorted.length - 1]}`
+  void recordInboxEvent({
+   eventType: "schedule_created",
+   title: `批次新增一對一排程：${created} 堂`,
+   body: rangeLabel ? `日期 ${rangeLabel}` : null,
+   actionPath: `/Classes/${params.classId}`,
+   classId: params.classId,
+   audienceTeacherIds: [params.teacherId],
+   payload: { created, skipped: skipped.length, bulk: true, private: true },
+  })
  }
  return { created, skipped }
 }

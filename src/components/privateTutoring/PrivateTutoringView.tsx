@@ -67,8 +67,7 @@ import {
 } from "@/services/roomBookingQueries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
-
-const PRICE_QUICK = [250, 275, 625, 825] as const
+import { PRIVATE_TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 
 type Tab = "students" | "rooms"
 type PrivateCreateMode = "1to1" | "1to2"
@@ -1506,7 +1505,7 @@ export function PrivateTutoringView() {
         placeholder="金額"
        />
        <div className="mt-1 flex flex-wrap gap-1.5">
-        {PRICE_QUICK.map((p) => (
+        {PRIVATE_TUITION_PRICE_PRESETS_HKD.map((p) => (
          <Button
           key={p}
           type="button"

@@ -683,7 +683,7 @@ export async function fetchClassStudents(
  }
  let q = supabase
   .from("student_class_enrollments")
-  .select("id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, student_phone, parent_phone )")
+  .select("id, status, enroll_date, withdraw_effective_date, enrollment_period, student_id, students ( full_name, grade, school, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .eq("class_id", classId)
  if (opts?.activeOnly) q = q.eq("status", "就讀中")
  const { data, error } = await q.order("created_at", { ascending: false })
@@ -1328,20 +1328,23 @@ export async function fetchScheduleStudentHintsByClass(
  return merged
 }
 
-export async function insertScheduleRow(opts: {
- class_id: string | null
- teacher_id: string | null
- scheduled_date: string
- start_time?: string | null
- end_time?: string | null
- status?: string
- classroom_id?: string | null
- remarks?: string | null
- is_extra_lesson?: boolean
- session_number?: number | null
- consecutive_group_id?: string | null
- consecutive_slot_index?: number | null
-}): Promise<string> {
+export async function insertScheduleRow(
+ opts: {
+  class_id: string | null
+  teacher_id: string | null
+  scheduled_date: string
+  start_time?: string | null
+  end_time?: string | null
+  status?: string
+  classroom_id?: string | null
+  remarks?: string | null
+  is_extra_lesson?: boolean
+  session_number?: number | null
+  consecutive_group_id?: string | null
+  consecutive_slot_index?: number | null
+ },
+ flags?: { skipInboxEvent?: boolean }
+): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error } = await supabase
   .from("schedules")
@@ -1367,6 +1370,18 @@ export async function insertScheduleRow(opts: {
   action: "新增排程",
   detail: `schedule_id=${id}; class_id=${opts.class_id ?? "null"}; date=${opts.scheduled_date}`,
  })
+ if (!flags?.skipInboxEvent) {
+  void recordInboxEvent({
+   eventType: "schedule_created",
+   title: `新增排程（${String(opts.scheduled_date).slice(0, 10)}）`,
+   body: null,
+   actionPath: `/Schedule/${id}`,
+   classId: opts.class_id,
+   scheduleId: id,
+   audienceTeacherIds: [opts.teacher_id],
+   payload: { scheduledDate: opts.scheduled_date },
+  })
+ }
  return id
 }
 
@@ -1381,20 +1396,24 @@ export async function insertScheduleForClass(
   classroom_id?: string | null
   is_extra_lesson?: boolean
   session_number?: number | null
- }
+ },
+ flags?: { skipInboxEvent?: boolean }
 ): Promise<void> {
  assertAcademicYearEditableForDate(row.scheduled_date)
- await insertScheduleRow({
-  class_id: classId,
-  teacher_id: teacherId,
-  scheduled_date: row.scheduled_date,
-  start_time: row.start_time,
-  end_time: row.end_time,
-  status: row.status,
-  classroom_id: row.classroom_id,
-  is_extra_lesson: row.is_extra_lesson,
-  session_number: row.session_number,
- })
+ await insertScheduleRow(
+  {
+   class_id: classId,
+   teacher_id: teacherId,
+   scheduled_date: row.scheduled_date,
+   start_time: row.start_time,
+   end_time: row.end_time,
+   status: row.status,
+   classroom_id: row.classroom_id,
+   is_extra_lesson: row.is_extra_lesson,
+   session_number: row.session_number,
+  },
+  flags
+ )
 }
 
 /** 依班別設定建立單堂或連堂（2 筆）排程，回傳建立的 schedule id */
@@ -1442,29 +1461,45 @@ export async function insertSchedulesForClassSession(
  }
 
  const groupId = newConsecutiveGroupId()
- const id1 = await insertScheduleRow({
-  class_id: classId,
-  teacher_id: teacherId,
-  scheduled_date: row.scheduled_date,
-  start_time: pair.slot1.start,
-  end_time: pair.slot1.end,
-  status: row.status,
-  classroom_id: classroomId,
-  session_number: sessionStart,
-  consecutive_group_id: groupId,
-  consecutive_slot_index: 1,
- })
- const id2 = await insertScheduleRow({
-  class_id: classId,
-  teacher_id: teacherId,
-  scheduled_date: row.scheduled_date,
-  start_time: pair.slot2.start,
-  end_time: pair.slot2.end,
-  status: row.status,
-  classroom_id: classroomId,
-  session_number: sessionStart + 1,
-  consecutive_group_id: groupId,
-  consecutive_slot_index: 2,
+ const id1 = await insertScheduleRow(
+  {
+   class_id: classId,
+   teacher_id: teacherId,
+   scheduled_date: row.scheduled_date,
+   start_time: pair.slot1.start,
+   end_time: pair.slot1.end,
+   status: row.status,
+   classroom_id: classroomId,
+   session_number: sessionStart,
+   consecutive_group_id: groupId,
+   consecutive_slot_index: 1,
+  },
+  { skipInboxEvent: true }
+ )
+ const id2 = await insertScheduleRow(
+  {
+   class_id: classId,
+   teacher_id: teacherId,
+   scheduled_date: row.scheduled_date,
+   start_time: pair.slot2.start,
+   end_time: pair.slot2.end,
+   status: row.status,
+   classroom_id: classroomId,
+   session_number: sessionStart + 1,
+   consecutive_group_id: groupId,
+   consecutive_slot_index: 2,
+  },
+  { skipInboxEvent: true }
+ )
+ void recordInboxEvent({
+  eventType: "schedule_created",
+  title: `新增排程（連堂・${String(row.scheduled_date).slice(0, 10)}）`,
+  body: "已建立連堂兩節",
+  actionPath: `/Schedule/${id1}`,
+  classId,
+  scheduleId: id1,
+  audienceTeacherIds: [teacherId],
+  payload: { consecutive: true, scheduleIds: [id1, id2] },
  })
  return [id1, id2]
 }
