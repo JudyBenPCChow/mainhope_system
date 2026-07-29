@@ -19,7 +19,7 @@
 | --- | --- |
 | [學年與報讀形式](ACADEMIC_YEARS.md) | 正規（約九至六）vs 暑期（\*SM）；label、日期、報讀選項、兩期字典 |
 | [學費學期節奏與逾期罰款](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 按月約四堂 vs 暑期預繳；第 2 堂罰款／第 3 堂禁入（部分尚未系統強制） |
-| [點名狀態與扣堂](ATTENDANCE_BILLING.md) | 哪些點名狀態計「已上堂數」；「追學費」= 已付堂數 vs 已上堂數 |
+| [點名狀態與扣堂](ATTENDANCE_BILLING.md) | 哪些點名狀態計「已上堂數」；連堂單項補堂只計 1 堂；「追學費」= 已付堂數 vs 已上堂數 |
 | [同班偶發代課（代堂）](SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 改主責；算堂／薪資看排程老師 |
 | [學生狀態分類與判定](STUDENT_STATUS_CLASSIFICATION.md) | 注冊／報讀／在讀／活躍等四維狀態 |
 | [收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪、作廢須密碼；不自動退班；收件匣通知行政／外星人 |
