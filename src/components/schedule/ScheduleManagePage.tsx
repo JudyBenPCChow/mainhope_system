@@ -35,6 +35,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
+import { MobileDayViewGrid } from "@/components/schedule/MobileDayViewGrid"
 import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
@@ -343,6 +344,8 @@ export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
+ /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
+ const allowMobileDayView = isMgmtStaff()
  const todayYmd = localYmd()
  const [searchParams, setSearchParams] = useSearchParams()
  /** 僅在「進頁當下」URL 已帶日期時才沿用（例如儀表板深連結）；之後日視圖自行寫入的今天不得蓋過「未來最近排程」初始化。 */
@@ -355,7 +358,9 @@ export function ScheduleManagePage() {
 
  const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
  const effectiveViewMode: ViewMode =
-  isMobile && (viewMode === "list" || viewMode === "day") ? "byDate" : viewMode
+  isMobile && (viewMode === "list" || (viewMode === "day" && !allowMobileDayView))
+   ? "byDate"
+   : viewMode
  const [displayStart, setDisplayStart] = useState(todayYmd)
  const [dayViewDate, setDayViewDate] = useState(todayYmd)
  const [startInitialized, setStartInitialized] = useState(false)
@@ -541,9 +546,9 @@ export function ScheduleManagePage() {
   if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
    setDayViewDate(date)
    setDisplayStart(date)
-   if (!isMobile) setViewMode("day")
+   if (!isMobile || allowMobileDayView) setViewMode("day")
   }
- }, [searchParams, isMobile, setViewMode, startInitialized])
+ }, [searchParams, isMobile, allowMobileDayView, setViewMode, startInitialized])
 
  useEffect(() => {
   let cancelled = false
@@ -1627,7 +1632,9 @@ useEffect(() => {
              { id: "list" as const, label: "列表", icon: List },
              { id: "day" as const, label: "日視圖", icon: CalendarDays },
             ] as const)
-          : []),
+          : allowMobileDayView
+            ? ([{ id: "day" as const, label: "週曆", icon: CalendarDays }] as const)
+            : []),
         ] as const
        ).map(({ id, label, icon: Icon }) => (
         <button
@@ -1704,9 +1711,14 @@ useEffect(() => {
     ) : null}
    </div>
 
-   {isMobile && (viewMode === "list" || viewMode === "day" || searchParams.get("view") === "day") ? (
+   {isMobile && viewMode === "list" ? (
     <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-     列表與日視圖建議使用桌面版；手機已改為「按日期」顯示。
+     列表建議使用桌面版；手機已改為「按日期」顯示。
+    </p>
+   ) : null}
+   {isMobile && !allowMobileDayView && (viewMode === "day" || searchParams.get("view") === "day") ? (
+    <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+     日視圖建議使用桌面版或管理員身份；手機已改為「按日期」顯示。
     </p>
    ) : null}
 
@@ -1714,33 +1726,45 @@ useEffect(() => {
     {effectiveViewMode === "day" ? (
      <>
       <div className="flex flex-wrap items-center gap-2">
-       <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
-       <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="h-10 w-10 shrink-0"
-        aria-label="前一日"
-        onClick={() => shiftDayViewDate(-1)}
-       >
-        <ChevronLeft className="h-5 w-5" aria-hidden />
-       </Button>
-       <Input
-        type="date"
-        value={dayViewDate}
-        onChange={(e) => handleDayViewDateChange(e.target.value)}
-        className="h-10 w-[12rem] cursor-pointer text-sm"
-       />
-       <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="h-10 w-10 shrink-0"
-        aria-label="後一日"
-        onClick={() => shiftDayViewDate(1)}
-       >
-        <ChevronRight className="h-5 w-5" aria-hidden />
-       </Button>
+       {!isMobile ? (
+        <>
+         <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
+         <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          aria-label="前一日"
+          onClick={() => shiftDayViewDate(-1)}
+         >
+          <ChevronLeft className="h-5 w-5" aria-hidden />
+         </Button>
+         <Input
+          type="date"
+          value={dayViewDate}
+          onChange={(e) => handleDayViewDateChange(e.target.value)}
+          className="h-10 w-[12rem] cursor-pointer text-sm"
+         />
+         <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-10 w-10 shrink-0"
+          aria-label="後一日"
+          onClick={() => shiftDayViewDate(1)}
+         >
+          <ChevronRight className="h-5 w-5" aria-hidden />
+         </Button>
+        </>
+       ) : (
+        <Input
+         type="date"
+         value={dayViewDate}
+         onChange={(e) => handleDayViewDateChange(e.target.value)}
+         className="h-10 w-[11rem] cursor-pointer text-sm"
+         aria-label="跳至日期"
+        />
+       )}
        <Button
         type="button"
         variant="outline"
@@ -1761,7 +1785,7 @@ useEffect(() => {
         {assigning ? "分配中…" : "一鍵分配"}
        </Button>
       </div>
-      <div className="text-right">
+      <div className={cn("text-right", isMobile && "w-full text-left sm:w-auto sm:text-right")}>
        <span className="tabular-nums text-muted-foreground">
         {loading
          ? "載入中…"
@@ -2360,7 +2384,31 @@ useEffect(() => {
 
    {effectiveViewMode === "day" ? (
     <div className="space-y-4">
-     {dayFiltered.length === 0 ? (
+     {isMobile && allowMobileDayView ? (
+      loading && !dayViewDateLoaded ? (
+       <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
+        <p className="text-muted-foreground">載入中…</p>
+       </div>
+      ) : (
+       <MobileDayViewGrid
+        dayViewDate={dayViewDate}
+        onDayViewDateChange={handleDayViewDateChange}
+        schedules={dayFiltered}
+        studentRoster={dayViewRoster}
+        rosterLoading={dayViewRosterLoading}
+        emptyScheduleIds={emptyScheduleIds}
+        extraTagsByScheduleId={extraTagsByScheduleId}
+        roomColumns={roomColumns}
+        activeRoomIdSet={activeRoomIdSet}
+        scheduleRowLocked={scheduleRowLocked}
+        inactiveRoomName={inactiveRoomNameForSchedule}
+        onOpenDetail={setDetailId}
+        onMoveRequest={scheduleMgmtLocked ? undefined : openMoveDialog}
+        loading={loading}
+        dateLoaded={dayViewDateLoaded}
+       />
+      )
+     ) : dayFiltered.length === 0 ? (
       <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
        {loading ? (
         <p className="text-muted-foreground">載入中…</p>

@@ -1,9 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import {
  AlertTriangle,
+ CalendarDays,
  ClipboardCheck,
  Home,
- Inbox,
  LayoutGrid,
  CalendarRange,
 } from "lucide-react"
@@ -35,16 +35,16 @@ export function getMobileBottomTabs(role: Role): MobileTabItem[] {
   case "alien":
    return [
     { path: "/Home", label: "首頁", icon: Home },
-    { path: "/AllFeatures", label: "功能", icon: LayoutGrid },
+    { path: "/Schedule", label: "排程", icon: CalendarDays },
     { path: "/SystemIssues", label: "報錯", icon: AlertTriangle },
-    { path: "/Inbox", label: "收件匣", icon: Inbox },
+    { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "admin":
   default:
    return [
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
-    { path: "/Inbox", label: "收件匣", icon: Inbox },
+    { path: "/Schedule", label: "排程", icon: CalendarDays },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
  }

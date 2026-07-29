@@ -55,7 +55,6 @@ import PrototypeSecondaryAttendanceReport from "@/pages/PrototypeSecondaryAttend
 import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
 import PrototypeInboxSystemNotices from "@/pages/PrototypeInboxSystemNotices"
 import PrototypeContactUpdate from "@/pages/PrototypeContactUpdate"
-import PrototypeTrialRecords from "@/pages/PrototypeTrialRecords"
 import PromotionMatch from "@/pages/PromotionMatch"
 import ReceiptDemo from "@/pages/ReceiptDemo"
 
@@ -179,7 +178,7 @@ export default function App() {
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
-     {/* 保留既有沙盒；試堂紀錄 UI mock 僅直達 URL，不連側欄／正式試堂頁 */}
+     {/* 保留既有沙盒；不連側欄 */}
      <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
      <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
      <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
@@ -187,7 +186,6 @@ export default function App() {
       path="/prototype/SecondaryAttendanceReport"
       element={<PrototypeSecondaryAttendanceReport />}
      />
-     <Route path="/prototype/TrialRecords" element={<PrototypeTrialRecords />} />
      <Route path="/prototype/InboxSystemNotices" element={<PrototypeInboxSystemNotices />} />
     </Route>
    </Routes>

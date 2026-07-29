@@ -44,9 +44,11 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - **角色**：目前前端角色為 `localStorage.mgmt_role`（`admin`/`teacher`/`alien`，見 `src/lib/mgmtRole.ts`），**不等於** Supabase Auth，前端隱藏按鈕不代表有權限保護。
 - **排程篩選依角色**：admin／alien 有老師多選＋三個進階篩選；專班老師資料已鎖定自己、不顯示老師篩選，進階篩選僅「未有學生報讀」。見 `docs/AGENT_HANDOFF.md` §6.2。
 - **代堂 ≠ 改主責**：同班偶發／輪流代課只改該堂 `schedules.teacher_id`（指派代堂），勿改 `classes.teacher_id`；算堂數看排程老師。見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
+- **Migration 套用**：寫完本任務需要的 `supabase/migrations/*.sql` 後**主動**對 linked 遠端單檔套用（`npm run db:apply -- <檔>`）。遠端／本地歷史不一致時**禁止**全量 `db push`。見 `docs/SUPABASE_MIGRATION_APPLY.md`。
 
 ## 深入文件
 
+- **工程待跟進**：`docs/BACKLOG.md`（問「有咩未做」時讀此；細節見 `docs/backlog/`）
 - **系統說明書（營運操作現況）**：`docs/SYSTEM_MANUAL.md`（篇章目錄）；繳費收據：`docs/manual/PAYMENT_RECEIPTS.md`；連堂單項請假／補堂：`docs/manual/LEAVE_MAKEUP_CONSECUTIVE.md`
 - **營運政策索引**：`docs/OPS_POLICIES.md`（正規／暑期學年、學費節奏與逾期罰款、點名扣堂、代堂、學生狀態等姊妹篇）
 - 正規／暑期學年與報讀：`docs/ACADEMIC_YEARS.md`
@@ -58,4 +60,5 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - 點名狀態與扣堂／已上堂數：`docs/ATTENDANCE_BILLING.md`（程式 `src/lib/attendanceBilling.ts`）；獨立頁「進行點名」`/Attendance`，排程頁亦可「確定點名」滑出點名紙
 - 同班偶發代課／代堂（主責 vs 當日老師、報表風險）：`docs/SCHEDULE_SUBSTITUTE_TEACHER.md`
 - RLS 上線：`docs/RLS_ROLLOUT.md`
+- 遠端單檔套用 migration：`docs/SUPABASE_MIGRATION_APPLY.md`（`npm run db:apply`）
 - 資料重匯入：`docs/REIMPORT_PLAYBOOK.md`、`docs/SEED.md`

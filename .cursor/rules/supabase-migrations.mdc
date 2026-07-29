@@ -1,0 +1,12 @@
+---
+description: 新增 migration 後必須單檔套用到 linked 遠端；禁止全量 db push
+globs: supabase/migrations/**/*.sql
+alwaysApply: false
+---
+
+# Supabase migrations
+
+- **只新增、不改既有** migration 檔。
+- 本任務需要的 schema 變更寫完後，**主動**套用：`npm run db:apply -- <本檔路徑>`。
+- 遠端／本地歷史不一致時**禁止** `supabase db push`；見 `docs/SUPABASE_MIGRATION_APPLY.md` 與 skill `apply-supabase-migration`。
+- 一次只套本任務相關檔，勿順便推其他 pending 本地 migration。

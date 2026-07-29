@@ -71,3 +71,11 @@ export function intervalsOverlapMinutes(a0: number, a1: number, b0: number, b1: 
 }
 
 export const LESSON_SLOT_INDICES = Array.from({ length: LESSON_SLOT_COUNT }, (_, i) => i)
+
+/**
+ * 行政手機日視圖預設「朝 9 晚 6」：最後一格 16:30–17:45（最接近 18:00 的標準格）。
+ * 晚間格（17:45 起）可另行展開。
+ */
+export const DAYTIME_LAST_SLOT_INDEX = 6
+export const DAYTIME_SLOT_INDICES = LESSON_SLOT_INDICES.filter((i) => i <= DAYTIME_LAST_SLOT_INDEX)
+export const EVENING_SLOT_INDICES = LESSON_SLOT_INDICES.filter((i) => i > DAYTIME_LAST_SLOT_INDEX)

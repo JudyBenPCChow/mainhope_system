@@ -84,6 +84,7 @@ export function EnrollClassStep({
  const [trialScheduleOptions, setTrialScheduleOptions] = useState<
   { id: string; label: string; date: string }[]
  >([])
+ const [trialSchedulesLoading, setTrialSchedulesLoading] = useState(false)
  const [trialType, setTrialType] = useState<string>("免費試堂")
  const [trialRemarks, setTrialRemarks] = useState("")
  const [trialSaving, setTrialSaving] = useState(false)
@@ -143,19 +144,30 @@ export function EnrollClassStep({
   if (!trialClassId) {
    setTrialScheduleOptions([])
    setTrialScheduleId("")
+   setTrialSchedulesLoading(false)
    return
   }
   let cancelled = false
-  void fetchUpcomingSchedulesForClass(trialClassId, localTodayYmd(), student.id).then((sched) => {
-   if (cancelled) return
-   const opts = sched.slice(0, 15).map((s) => ({
-    id: s.id,
-    date: s.scheduled_date,
-    label: `${s.scheduled_date} ${s.start_time?.slice(0, 5) ?? "—"}–${s.end_time?.slice(0, 5) ?? "—"}`,
-   }))
-   setTrialScheduleOptions(opts)
-   setTrialScheduleId((prev) => (prev && opts.some((o) => o.id === prev) ? prev : (opts[0]?.id ?? "")))
-  })
+  setTrialSchedulesLoading(true)
+  setTrialScheduleOptions([])
+  setTrialScheduleId("")
+  void fetchUpcomingSchedulesForClass(trialClassId, localTodayYmd(), student.id)
+   .then((sched) => {
+    if (cancelled) return
+    const opts = sched.slice(0, 15).map((s) => ({
+     id: s.id,
+     date: s.scheduled_date,
+     label: `${s.scheduled_date} ${s.start_time?.slice(0, 5) ?? "—"}–${s.end_time?.slice(0, 5) ?? "—"}`,
+    }))
+    setTrialScheduleOptions(opts)
+    setTrialScheduleId((prev) => (prev && opts.some((o) => o.id === prev) ? prev : (opts[0]?.id ?? "")))
+   })
+   .catch((e) => {
+    if (!cancelled) reportUserFacingError(e, { source: "EnrollClassStep.loadTrialSchedules", setErr })
+   })
+   .finally(() => {
+    if (!cancelled) setTrialSchedulesLoading(false)
+   })
   return () => {
    cancelled = true
   }
@@ -620,7 +632,9 @@ export function EnrollClassStep({
      {trialClassId ? (
       <>
        <Field label="試堂排程 *">
-        {trialScheduleOptions.length === 0 ? (
+        {trialSchedulesLoading ? (
+         <p className="text-sm text-muted-foreground">載入排程…</p>
+        ) : trialScheduleOptions.length === 0 ? (
          <p className="text-sm text-warning">此班別沒有可用的未來排程</p>
         ) : (
          <Select

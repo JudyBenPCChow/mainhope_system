@@ -299,8 +299,15 @@ export function TrialSessionsView() {
   const converted = rows.filter((r) => r.outcome === "converted").length
   const lost = rows.filter((r) => r.outcome === "lost").length
   const other = rows.filter((r) => r.outcome === "other").length
-  return { open, converted, lost, other }
+  const closed = converted + lost + other
+  const rate = closed > 0 ? Math.round((converted / closed) * 1000) / 10 : null
+  return { open, converted, lost, other, closed, rate }
  }, [rows])
+
+ const paidTrialCount = useMemo(
+  () => rows.filter((r) => Boolean(r.payment_id)).length,
+  [rows]
+ )
 
  useEffect(() => {
   if (!addOpen) return
@@ -754,6 +761,28 @@ export function TrialSessionsView() {
     </div>
    ) : null}
 
+   <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3" aria-label="結果復盤概覽">
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">轉化率</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">
+      {outcomeStats.rate != null ? `${outcomeStats.rate}%` : "—"}
+     </p>
+     <p className="mt-0.5 text-[11px] text-muted-foreground">轉化 ÷（轉化＋流失＋其他）</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">已轉化</div>
+     <p className="mt-1 text-xl font-bold tabular-nums text-success md:text-2xl">{outcomeStats.converted}</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">流失</div>
+     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">{outcomeStats.lost}</p>
+    </div>
+    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
+     <div className="text-[11px] text-muted-foreground md:text-xs">待跟進</div>
+     <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">{outcomeStats.open}</p>
+    </div>
+   </section>
+
    <section className="grid grid-cols-2 gap-2 md:gap-3" aria-label="試堂概覽">
     <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
      <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
@@ -772,6 +801,13 @@ export function TrialSessionsView() {
      <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">本週一至週日（依試堂日期）之筆數</p>
     </div>
    </section>
+
+   {!loading ? (
+    <p className="text-xs text-muted-foreground">
+     已關聯試堂收費單（payment_id）：{paidTrialCount}／{rows.length} 筆
+     {paidTrialCount > 0 ? " · 列表收據欄可對收款頁" : " · 免費／體驗或未走試堂頁收費則為 0"}
+    </p>
+   ) : null}
 
    {isMobile ? (
     <>

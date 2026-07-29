@@ -76,8 +76,12 @@ export function InboxView() {
  const { pushBanner } = useAppBanner()
  const role = getMgmtRole()
  const canPublish = role === "alien"
+ /** 行政預設看系統更新；老師／外星人仍預設營運通知 */
+ const preferSystemFirst = role === "admin"
 
- const [category, setCategory] = useState<InboxEventCategory>("ops")
+ const [category, setCategory] = useState<InboxEventCategory>(
+  preferSystemFirst ? "system" : "ops"
+ )
  const [items, setItems] = useState<InboxItem[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -298,30 +302,24 @@ export function InboxView() {
    </header>
 
    <div className="flex flex-wrap gap-2" role="tablist" aria-label="通知分類">
-    <button
-     type="button"
-     role="tab"
-     aria-selected={category === "ops"}
-     className={tabClass(category === "ops")}
-     onClick={() => {
-      setCategory("ops")
-      setDetailKey(null)
-     }}
-    >
-     營運通知
-    </button>
-    <button
-     type="button"
-     role="tab"
-     aria-selected={category === "system"}
-     className={tabClass(category === "system")}
-     onClick={() => {
-      setCategory("system")
-      setDetailKey(null)
-     }}
-    >
-     系統通知
-    </button>
+    {(preferSystemFirst
+     ? (["system", "ops"] as const)
+     : (["ops", "system"] as const)
+    ).map((tab) => (
+     <button
+      key={tab}
+      type="button"
+      role="tab"
+      aria-selected={category === tab}
+      className={tabClass(category === tab)}
+      onClick={() => {
+       setCategory(tab)
+       setDetailKey(null)
+      }}
+     >
+      {tab === "system" ? "系統通知" : "營運通知"}
+     </button>
+    ))}
    </div>
 
    <div className="flex flex-wrap items-end gap-3">

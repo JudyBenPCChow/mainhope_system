@@ -7,9 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
+ DAYTIME_SLOT_INDICES,
+ EVENING_SLOT_INDICES,
  formatMin,
  intervalsOverlapMinutes,
  lessonSlotEndMinute,
@@ -56,7 +59,10 @@ const TIME_SLOTS = LESSON_SLOT_INDICES.map((idx) => ({
  label: lessonSlotLabel(idx),
  startMin: lessonSlotStartMinute(idx),
  endMin: lessonSlotEndMinute(idx),
+ index: idx,
 }))
+
+const DAYTIME_TIME_SLOTS = TIME_SLOTS.filter((s) => DAYTIME_SLOT_INDICES.includes(s.index))
 
 function parseHm(t: string | null): number | null {
  if (!t) return null
@@ -86,6 +92,7 @@ function formatMdSlash(ymd: string): string {
 }
 
 export function ClassroomsManagePage() {
+ const isMobile = useIsMobile()
  const [rooms, setRooms] = useState<RoomRecord[]>([])
  const [selectedRoomId, setSelectedRoomId] = useState("")
  const [weekMonday, setWeekMonday] = useState(() => startOfWeekMonday(new Date()))
@@ -93,6 +100,7 @@ export function ClassroomsManagePage() {
  const [schedules, setSchedules] = useState<RoomScheduleRow[]>([])
  const [schedLoading, setSchedLoading] = useState(false)
  const [pageErr, setPageErr] = useState<string | null>(null)
+ const [showEvening, setShowEvening] = useState(false)
 
  const [addOpen, setAddOpen] = useState(false)
  const [classOptions, setClassOptions] = useState<{ id: string; label: string }[]>([])
@@ -122,10 +130,27 @@ export function ClassroomsManagePage() {
  }, [weekMonday])
 
  const weekGridColPct = useMemo(() => {
-  const timePct = 10
+  const timePct = isMobile ? 14 : 10
   const each = (100 - timePct) / 7
   return { timePct, each }
- }, [])
+ }, [isMobile])
+
+ const visibleSlots = useMemo(
+  () => (showEvening || !isMobile ? TIME_SLOTS : DAYTIME_TIME_SLOTS),
+  [showEvening, isMobile]
+ )
+
+ const hasEveningSchedules = useMemo(() => {
+  return schedules.some((s) => {
+   const range = schedTimeRange(s)
+   if (!range) return false
+   return EVENING_SLOT_INDICES.some((idx) => {
+    const s0 = lessonSlotStartMinute(idx)
+    const s1 = lessonSlotEndMinute(idx)
+    return rangesOverlap(range.a, range.b, s0, s1)
+   })
+  })
+ }, [schedules])
 
  const selectedRoom = useMemo(
   () => rooms.find((r) => r.id === selectedRoomId) ?? null,
@@ -390,7 +415,7 @@ export function ClassroomsManagePage() {
     className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
     aria-label="週曆"
    >
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
      <div className="flex flex-wrap items-center gap-2">
       <Button
        type="button"
@@ -417,6 +442,18 @@ export function ClassroomsManagePage() {
       </Button>
      </div>
      <div className="flex flex-wrap items-center gap-2">
+      {isMobile ? (
+       <Button
+        type="button"
+        variant={showEvening ? "secondary" : "outline"}
+        size="sm"
+        className="text-xs"
+        aria-pressed={showEvening}
+        onClick={() => setShowEvening((v) => !v)}
+       >
+        {showEvening ? "只看朝 9–晚 6" : "顯示晚間"}
+       </Button>
+      ) : null}
       <Input
        type="date"
        value={selectedDateYmd}
@@ -434,13 +471,25 @@ export function ClassroomsManagePage() {
      </div>
     </div>
 
+    {isMobile ? (
+     <p className="mb-3 text-xs text-muted-foreground">
+      可左右滑動查看整週；時間欄固定。預設顯示朝 9–晚 6（至 17:45）。
+      {hasEveningSchedules && !showEvening ? " 晚間尚有課堂，可點「顯示晚間」。" : ""}
+     </p>
+    ) : null}
+
     <div className="relative overflow-x-auto rounded-lg border border-border">
      {schedLoading ? (
       <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60 text-sm text-muted-foreground backdrop-blur-[1px]">
        載入排程…
       </div>
      ) : null}
-     <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
+     <table
+      className={cn(
+       "w-full table-fixed border-collapse text-sm",
+       isMobile ? "min-w-[640px]" : "min-w-[720px]"
+      )}
+     >
       <colgroup>
        <col style={{ width: `${weekGridColPct.timePct}%` }} />
        {weekDays.map((d) => (
@@ -481,7 +530,7 @@ export function ClassroomsManagePage() {
        </tr>
       </thead>
       <tbody>
-       {TIME_SLOTS.map((slot) => (
+       {visibleSlots.map((slot) => (
         <tr key={slot.label}>
          <td className="sticky left-0 z-[1] border-r border-border bg-card px-2 py-1.5 text-xs text-muted-foreground tabular-nums">
           {slot.label}
