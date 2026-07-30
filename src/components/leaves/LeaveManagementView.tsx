@@ -34,6 +34,7 @@ import {
  isLeaveStatusPending,
  leaveNeedsMakeupDate,
  localYmd,
+ previewLeaveMakeupAttendanceImpact,
  setLeaveTuitionDisposition,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
@@ -43,10 +44,42 @@ import {
  type LeaveTodayStats,
  type LeaveTuitionDisposition,
 } from "@/services/leaveQueries"
+import {
+ formatAttendanceHitsDescription,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 import { listStudents } from "@/services/queries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
+import type { ConfirmResult } from "@/lib/appConfirm"
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
+
+/** O1：有補堂宿主出席時三路 Confirm；無則回 keep（呼叫端可再做一般 Confirm） */
+async function resolveLeaveAttendanceChoice(
+ confirmDialog: (options: {
+  title: string
+  description?: string
+  confirmText?: string
+  cancelText?: string
+  alternateText?: string
+  tone?: "default" | "warning" | "destructive"
+ }) => Promise<ConfirmResult>,
+ hits: AttendanceLifecycleHit[],
+ title: string
+): Promise<"delete" | "keep" | "abort"> {
+ if (hits.length === 0) return "keep"
+ const result = await confirmDialog({
+  title,
+  description: `${formatAttendanceHitsDescription(hits)}\n\n一併刪除會影響已上堂數；保留則點名紙無名但出席仍計。`,
+  confirmText: "一併刪除出席",
+  alternateText: "只改請假、保留出席",
+  cancelText: "取消",
+  tone: "destructive",
+ })
+ if (result === true) return "delete"
+ if (result === "alternate") return "keep"
+ return "abort"
+}
 
 function classTab(row: LeaveManageRow): StatusTab {
  if (isLeaveStatusAbandoned(row.status)) return "abandoned"
@@ -309,14 +342,24 @@ export function LeaveManagementView() {
   setDetailSaving(true)
   setDetailErr(null)
   try {
-   await updateLeaveMakeupRecord(detailRow.id, {
+   const patch = {
     status: detailStatus,
     leave_reason: detailReason,
     makeup_type: detailMakeupType,
     remarks: detailRemarks.trim() || null,
     ...(detailMakeupType === "調堂"
      ? {}
-     : { makeup_schedule_id: null, makeup_date: null }),
+     : { makeup_schedule_id: null as string | null, makeup_date: null as string | null }),
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(detailRow.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(
+    confirmDialog,
+    hits,
+    "儲存請假修改"
+   )
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(detailRow.id, patch, {
+    deleteAttendanceIds: choice === "delete" ? hits.map((h) => h.id) : undefined,
    })
    setDetailOpen(false)
    await reload()
@@ -377,11 +420,21 @@ export function LeaveManagementView() {
   setLinkSaving(true)
   setLinkErr(null)
   try {
-   await updateLeaveMakeupRecord(linkRow.id, {
+   const patch = {
     makeup_schedule_id: target.id,
     makeup_date: target.scheduled_date,
-    makeup_type: "調堂",
+    makeup_type: "調堂" as const,
     status: linkRow.status.includes("待") ? "已批核" : linkRow.status,
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(linkRow.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(
+    confirmDialog,
+    hits,
+    "更改調堂排程"
+   )
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(linkRow.id, patch, {
+    deleteAttendanceIds: choice === "delete" ? hits.map((h) => h.id) : undefined,
    })
    await setLeaveTuitionDisposition(linkRow.id, "調堂")
    setLinkOpen(false)
@@ -670,6 +723,7 @@ export function LeaveManagementView() {
            row={r}
            onChanged={reload}
            readonly={!leaveRowEditable(r)}
+           confirmDialog={confirmDialog}
            onPickMakeupSchedule={(row) => void openLinkSchedule(row)}
           />
          </td>
@@ -739,8 +793,29 @@ export function LeaveManagementView() {
            className="text-xs font-medium text-info hover:underline disabled:cursor-not-allowed disabled:opacity-50"
            disabled={!leaveRowEditable(r)}
            onClick={async () => {
-            if (!(await confirmDialog({ title: "刪除請假紀錄", description: "確定刪除此筆請假紀錄？", confirmText: "確認刪除", tone: "destructive" }))) return
-            await deleteLeaveMakeupRecord(r.id)
+            const hits = await previewLeaveMakeupAttendanceImpact(r.id, { forDelete: true })
+            if (hits.length === 0) {
+             if (
+              !(await confirmDialog({
+               title: "刪除請假紀錄",
+               description: "確定刪除此筆請假紀錄？",
+               confirmText: "確認刪除",
+               tone: "destructive",
+              }))
+             )
+              return
+             await deleteLeaveMakeupRecord(r.id)
+            } else {
+             const choice = await resolveLeaveAttendanceChoice(
+              confirmDialog,
+              hits,
+              "刪除請假紀錄"
+             )
+             if (choice === "abort") return
+             await deleteLeaveMakeupRecord(r.id, {
+              deleteAttendanceIds: choice === "delete" ? hits.map((h) => h.id) : undefined,
+             })
+            }
             await reload()
            }}
           >
@@ -1112,11 +1187,20 @@ function MakeupCell({
  row,
  onChanged,
  onPickMakeupSchedule,
+ confirmDialog,
  readonly = false,
 }: {
  row: LeaveManageRow
  onChanged: () => Promise<void>
  onPickMakeupSchedule?: (row: LeaveManageRow) => void
+ confirmDialog: (options: {
+  title: string
+  description?: string
+  confirmText?: string
+  cancelText?: string
+  alternateText?: string
+  tone?: "default" | "warning" | "destructive"
+ }) => Promise<ConfirmResult>
  readonly?: boolean
 }) {
  const t = (row.makeup_type ?? "").trim()
@@ -1139,10 +1223,16 @@ function MakeupCell({
   }
   setSaving(true)
   try {
-   await updateLeaveMakeupRecord(row.id, {
+   const patch = {
     makeup_type: nextType,
-    makeup_schedule_id: null,
-    makeup_date: null,
+    makeup_schedule_id: null as string | null,
+    makeup_date: null as string | null,
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(row.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(confirmDialog, hits, "更改補課安排")
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(row.id, patch, {
+    deleteAttendanceIds: choice === "delete" ? hits.map((h) => h.id) : undefined,
    })
    await onChanged()
   } finally {

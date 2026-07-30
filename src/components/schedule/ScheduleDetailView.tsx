@@ -11,7 +11,8 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { isAdmin } from "@/lib/mgmtRole"
+import { isMgmtStaff } from "@/lib/mgmtRole"
+import { resolveScheduleCancelOptions } from "@/lib/scheduleCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -48,7 +49,7 @@ export function ScheduleDetailView() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
  const [substituteOpen, setSubstituteOpen] = useState(false)
- const canAssignSubstitute = isAdmin()
+ const canAssignSubstitute = isMgmtStaff()
 
  const load = useCallback(async () => {
   if (!sid) return
@@ -578,7 +579,9 @@ export function ScheduleDetailView() {
       onConfirm={async (reason) => {
        setCancelSaving(true)
        try {
-        await updateSchedule(row.id, { status: "取消", cancel_reason: reason })
+        const opts = await resolveScheduleCancelOptions(confirmDialog, row.id)
+        if (!opts) return
+        await updateSchedule(row.id, { status: "取消", cancel_reason: reason }, opts)
         setCancelDialogOpen(false)
         await load()
        } finally {

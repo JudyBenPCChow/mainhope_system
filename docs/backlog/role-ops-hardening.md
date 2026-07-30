@@ -20,13 +20,13 @@ Production live 探測確認：老師／行政日常讀取與付款封鎖大致�
 | --- | --- | --- | --- | --- | --- |
 | open | P0-1 | 高 | 老師不可取消／亂改課堂狀態；列表與詳情一致 | UI 僅 mgmt staff + RLS／RPC 白名單欄 | `ScheduleDetailView`、`ClassDetailView`、schedules UPDATE policy |
 | open | P0-2 | 高 | Admin 檔期學年鎖：勿把 `end_date` 當「今天」 | 修正 `isAcademicYearReadOnly`／呼叫點 | `mgmtRole.ts`、`academicYearEditGuard.ts`、`TeacherAvailabilityPage` |
-| open | P1-3 | 高 | 外星人可指派代堂 | `canAssignSubstitute = isMgmtStaff()` | `ScheduleManagePage`、`ScheduleDetailView` |
+| done | P1-3 | 高 | 外星人可指派代堂 | `canAssignSubstitute = isMgmtStaff()` | `ScheduleManagePage`、`ScheduleDetailView` |
 | open | P1-2 | 高 | `inbox_reads` 僅自己的 actor | migration 收窄 policy | `inbox_reads` RLS；對齊 `getInboxActorKey` |
 | open | P1-1 | 高 | 老師不可讀他師 phone／email／薪資 | teacher SELECT 目錄欄位；query 分流 | `teachers` RLS、`teacherQueries.ts`；可選擋 `/Teachers` |
 | open | P1-5 | 中 | 敏感頁 route guard | 先高風險頁，再 `RequireRoles` | `App.tsx`、Payments／Teachers／Leave／Trial／Users |
-| open | P1-6 | 中 | 優惠折扣 nav 僅 alien | nav `roles: ["alien"]` | `navStructure.ts` |
+| done | P1-6 | 中 | 優惠折扣 nav 僅 alien | nav `roles: ["alien"]` | `navStructure.ts` |
 | open | P1-7 | 中 | Leave／Trial 老師 deep-link | 與 P1-5 一併導向／守衛 | `LeaveManagement`、`TrialSessions` |
-| open | P1-4 | 中 | 隱藏老師一對一「預約上堂」 | 對齊文件（不可新增排程） | `ClassDetailView` `canBookPrivate` |
+| done | P1-4 | 中 | 隱藏老師一對一「預約上堂」 | 對齊文件（不可新增排程） | `ClassDetailView` `canBookPrivate` |
 
 ## 驗收（全部或分批）
 

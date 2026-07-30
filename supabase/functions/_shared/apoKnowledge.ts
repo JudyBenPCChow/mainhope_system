@@ -92,11 +92,11 @@ ${APO_NO_HALLUCINATION_RULE}
 /** 精簡路由（howto 層用，慳 token） */
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
-全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox
+全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
 （舊待辦 /Calendar 仍保留路由但已從側欄隱藏）
-admin：前台指引 /FrontDeskWizard、學生 /Students、堂數對帳 /LessonBalanceMismatch、一對一 /PrivateTutoring、老師 /Teachers、班別 /Classes、請假 /LeaveManagement、試堂 /TrialSessions、收款登記 /Payments、繳費紀錄 /PaymentHistory、增退 /EnrollmentChanges
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、學院校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
-alien 另加：用戶 /Users、課程 /Courses、優惠 /PaymentDiscounts、話術庫 /ScriptLibrary、系統問題 /SystemIssues
+alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
 
 /** 精簡狀態說明（howto 層） */
@@ -137,23 +137,31 @@ ${APO_SYSTEM_DIRECTIVES}
 
 ### admin
 - /FrontDeskWizard 前台指引精靈（新生登記→報讀→收款／出單→請假）
+- /TomorrowReminders 明日課堂提醒（WhatsApp 提醒家長）
+- /ScriptLibrary 話術庫
 - /Students 學生管理
-- /LessonBalanceMismatch 堂數對帳
+- /PortalEnrollmentRequests 家長報讀申請（核准唔自動開單）
+- /EnrollmentChanges 增退紀錄
+- /TrialSessions 試堂紀錄（轉正／流失復盤）
 - /PrivateTutoring 一對一學生（含一對二）
+- /EnrollmentReports 人數報表
+- /SecondaryAttendanceReport 中學出席統計
+- /LessonBalanceMismatch 堂數對帳
+- /PromotionMatch 宣傳配對
 - /Teachers 老師管理
 - /Classes 班別管理
 - /Classes/New 新增班別
 - /TeacherAvailability 老師檔期規劃
 - /Classrooms 課室管理
-- /PortalEnrollmentRequests 家長報讀申請
+- /AcademicCalendar 學院校曆（停課日）
+- /TeachingRecords 教學紀錄
+- /TeacherLeaveWizard 老師請假處理（代堂／取消另約）
+- /LeaveManagement 請假管理（學生請假／待補課）
 - /RoomBookingAdmin 約房審批
-- /LeaveManagement 請假管理
-- /TrialSessions 試堂紀錄
-- /Payments 收款登記（出單／標記已收）
-- /PaymentHistory 繳費紀錄（查歷史）
-- /EnrollmentChanges 增退紀錄
-- /ScriptLibrary 話術庫
-- /PaymentDiscounts 優惠折扣
+- /Payments 收款登記
+- /PaymentHistory 繳費紀錄（含作廢）
+- /PaymentDiscounts 優惠折扣（編輯多半 alien）
+- /MgmtDashboard 營運總覽
 
 ### teacher
 - /TeacherTimetable 時間表
@@ -161,6 +169,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Classes 我的班別
 - /PrivateTutoring 我的一對一學生（只見自己；可預約上堂）
 - /RoomBooking 預約空房
+- /TeachingRecords 教學紀錄
 
 ### alien（另加）
 - /SystemLogs 系統日志
@@ -169,6 +178,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /ReferralRebates 推薦回贈
 - /Courses 課程管理
 - /AiReports AI 報表
+- /Apo 阿Po（對話開班等）
 
 ## 學生狀態（四維）
 

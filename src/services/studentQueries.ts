@@ -25,6 +25,10 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
+import {
+ deleteAttendanceHitsWithAudit,
+ fetchAttendanceHitsForStudentClass,
+} from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -1421,19 +1425,31 @@ export async function deleteEnrollment(id: string): Promise<void> {
 export async function purgeMistakenEnrollment(opts: {
  enrollmentId: string
  studentId: string
+ deleteAttendanceIds?: string[]
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("student_class_enrollments")
-  .select("id, student_id")
+  .select("id, student_id, class_id")
   .eq("id", opts.enrollmentId)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!row) throw new Error("找不到報讀紀錄")
  const enrollmentId = String((row as { id: string }).id)
  const studentId = String((row as { student_id: string }).student_id)
+ const classId = String((row as { class_id: string }).class_id)
  if (studentId !== opts.studentId) {
   throw new Error("報讀紀錄與學生不符")
+ }
+
+ const deleteIds = opts.deleteAttendanceIds?.filter(Boolean) ?? []
+ if (deleteIds.length > 0) {
+  const hits = await fetchAttendanceHitsForStudentClass(studentId, classId)
+  const allow = new Set(deleteIds)
+  await deleteAttendanceHitsWithAudit(
+   hits.filter((h) => allow.has(h.id)),
+   "purge_enrollment"
+  )
  }
 
  const { error: evErr } = await supabase
@@ -1464,11 +1480,23 @@ export async function withdrawStudentFromClass(opts: {
  classId: string
  effectiveDate: string
  reason: string | null
+ deleteAttendanceIds?: string[]
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const reason = opts.reason?.trim() || null
  const effectiveDate = opts.effectiveDate.slice(0, 10)
  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) throw new Error("退讀生效日期無效")
+
+ const deleteIds = opts.deleteAttendanceIds?.filter(Boolean) ?? []
+ if (deleteIds.length > 0) {
+  const hits = await fetchAttendanceHitsForStudentClass(opts.studentId, opts.classId)
+  const allow = new Set(deleteIds)
+  await deleteAttendanceHitsWithAudit(
+   hits.filter((h) => allow.has(h.id)),
+   "withdraw_enrollment"
+  )
+ }
+
  const today = localYmd()
  const scheduled = effectiveDate > today
  if (scheduled) {

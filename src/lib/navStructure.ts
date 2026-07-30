@@ -166,7 +166,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin", "alien"], icon: HandCoins },
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "alien"], icon: Wallet },
-   { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
+   { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
    { path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
   ],
  },

@@ -88,6 +88,7 @@ export async function tryDirectDbQuery(
   }
 
   // 具名學生查詢（唔依賴上下文）；短姓名如「霍健一呢」亦直接搜學生
+  // 操作教學（如何／點樣刪除出席等）唔走資料庫搜尋
   {
     const studentName = extractStudentNameQuery(t)
     if (studentName && (isStudentDataQuery(t) || isBareStudentNameQuery(t))) {
@@ -152,7 +153,7 @@ function isBareStudentNameQuery(text: string): boolean {
   const name = extractStudentNameQuery(text)
   if (!name) return false
   const t = text.trim()
-  if (/^[\u4e00-\u9fff]{2,4}[呢呀嗎嘛？?！!\s]*$/.test(t)) return true
+  if (/^[\u4e00-\u9fff]{2,5}[？?！!\s]*$/.test(t)) return true
   if (/^[A-Za-z][A-Za-z\s.'-]{1,40}?[?？!！\s]*$/.test(t) && !/\b(hi|hello|ok)\b/i.test(t)) {
     return true
   }

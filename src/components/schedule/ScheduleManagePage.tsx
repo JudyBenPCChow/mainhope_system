@@ -32,6 +32,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { resolveScheduleCancelOptions } from "@/lib/scheduleCancelConfirm"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
@@ -72,7 +73,7 @@ import {
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isAdmin, isMgmtStaff } from "@/lib/mgmtRole"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -863,7 +864,7 @@ useEffect(() => {
  }, [rows])
 
  const canManageSchedules = isMgmtStaff()
- const canAssignSubstitute = isAdmin()
+ const canAssignSubstitute = isMgmtStaff()
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
   (s: { scheduled_date: string }) =>
@@ -1345,7 +1346,9 @@ useEffect(() => {
    if (!cancelTarget) return
    setCancelSaving(true)
    try {
-    await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason })
+    const opts = await resolveScheduleCancelOptions(confirmDialog, cancelTarget.id)
+    if (!opts) return
+    await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason }, opts)
     setCancelTarget(null)
     await reload()
    } catch (e) {
@@ -1357,7 +1360,7 @@ useEffect(() => {
     setCancelSaving(false)
    }
   },
-  [cancelTarget, reload]
+  [cancelTarget, reload, confirmDialog]
  )
 
  const oneClickAssign = async () => {

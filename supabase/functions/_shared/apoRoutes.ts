@@ -15,6 +15,7 @@ export const APO_VALID_PATHS = new Set([
   "/ReferralRebates",
   "/Courses",
   "/FrontDeskWizard",
+  "/TomorrowReminders",
   "/Students",
   "/LessonBalanceMismatch",
   "/PrivateTutoring",
@@ -25,6 +26,9 @@ export const APO_VALID_PATHS = new Set([
   "/Classrooms",
   "/PortalEnrollmentRequests",
   "/Schedule",
+  "/AcademicCalendar",
+  "/TeachingRecords",
+  "/TeacherLeaveWizard",
   "/RoomBooking",
   "/RoomBookingAdmin",
   "/AttendanceRecords",
@@ -36,7 +40,13 @@ export const APO_VALID_PATHS = new Set([
   "/ScriptLibrary",
   "/Calendar",
   "/EnrollmentChanges",
+  "/EnrollmentReports",
+  "/SecondaryAttendanceReport",
+  "/PromotionMatch",
+  "/MgmtDashboard",
   "/AiReports",
+  "/Apo",
+  "/Settings",
 ])
 
 export const APO_PATH_LABELS: Record<string, string> = {
@@ -52,6 +62,7 @@ export const APO_PATH_LABELS: Record<string, string> = {
   "/ReferralRebates": "推薦回贈",
   "/Courses": "課程管理",
   "/FrontDeskWizard": "前台指引精靈",
+  "/TomorrowReminders": "明日課堂提醒",
   "/Students": "學生管理",
   "/LessonBalanceMismatch": "堂數對帳",
   "/PrivateTutoring": "一對一學生",
@@ -62,6 +73,9 @@ export const APO_PATH_LABELS: Record<string, string> = {
   "/Classrooms": "課室管理",
   "/PortalEnrollmentRequests": "家長報讀申請",
   "/Schedule": "排程管理",
+  "/AcademicCalendar": "學院校曆",
+  "/TeachingRecords": "教學紀錄",
+  "/TeacherLeaveWizard": "老師請假處理",
   "/RoomBooking": "預約空房",
   "/RoomBookingAdmin": "約房審批",
   "/AttendanceRecords": "出席紀錄",
@@ -73,7 +87,13 @@ export const APO_PATH_LABELS: Record<string, string> = {
   "/ScriptLibrary": "話術庫",
   "/Calendar": "待辦事項",
   "/EnrollmentChanges": "增退紀錄",
+  "/EnrollmentReports": "人數報表",
+  "/SecondaryAttendanceReport": "中學出席統計",
+  "/PromotionMatch": "宣傳配對",
+  "/MgmtDashboard": "營運總覽",
   "/AiReports": "AI 報表",
+  "/Apo": "阿Po",
+  "/Settings": "設定",
 }
 
 const SORTED_PATHS = Object.keys(APO_PATH_LABELS).sort((a, b) => b.length - a.length)
