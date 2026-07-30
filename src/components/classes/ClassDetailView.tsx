@@ -27,7 +27,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
-import { ScheduleDateTime } from "@/lib/scheduleDisplay"
+import { ScheduleDateTime, formatStudentNameList } from "@/lib/scheduleDisplay"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
@@ -92,6 +92,11 @@ import {
  updateClass,
  updateSchedule,
 } from "@/services/classQueries"
+import {
+ arrangeMakeupForCancelledSchedule,
+ previewMakeupForCancelledSchedule,
+ type MakeupPreview,
+} from "@/services/scheduleMakeupQueries"
 import {
  buildWeeklyDates,
  checkPrivateBookingConflicts,
@@ -292,6 +297,12 @@ export function ClassDetailView() {
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
  const [cancelScheduleId, setCancelScheduleId] = useState<string | null>(null)
  const [cancelSaving, setCancelSaving] = useState(false)
+ const [makeupTargetId, setMakeupTargetId] = useState<string | null>(null)
+ const [makeupPreview, setMakeupPreview] = useState<MakeupPreview | null>(null)
+ const [makeupDate, setMakeupDate] = useState("")
+ const [makeupLoading, setMakeupLoading] = useState(false)
+ const [makeupSaving, setMakeupSaving] = useState(false)
+ const [makeupErr, setMakeupErr] = useState<string | null>(null)
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
 
@@ -1279,6 +1290,85 @@ export function ClassDetailView() {
   }
  }
 
+ const openArrangeMakeup = async (scheduleId: string) => {
+  setMakeupTargetId(scheduleId)
+  setMakeupPreview(null)
+  setMakeupErr(null)
+  setMakeupDate("")
+  setMakeupLoading(true)
+  try {
+   const preview = await previewMakeupForCancelledSchedule(scheduleId)
+   setMakeupPreview(preview)
+   setMakeupDate("")
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.openArrangeMakeup",
+    setErr: setMakeupErr,
+    userMessage: msg,
+   })
+  } finally {
+   setMakeupLoading(false)
+  }
+ }
+
+ const closeArrangeMakeup = () => {
+  if (makeupSaving) return
+  setMakeupTargetId(null)
+  setMakeupPreview(null)
+  setMakeupErr(null)
+  setMakeupDate("")
+ }
+
+ const onConfirmArrangeMakeup = async () => {
+  if (!makeupTargetId) return
+  if (!makeupDate.trim()) {
+   setMakeupErr("請選擇補堂日期")
+   return
+  }
+  if (makeupPreview && makeupPreview.alreadyHasMakeupIds.length > 0) {
+   setMakeupErr("此取消堂已安排過補回排程，請勿重複建立。")
+   return
+  }
+  setMakeupSaving(true)
+  setMakeupErr(null)
+  try {
+   const result = await arrangeMakeupForCancelledSchedule({
+    cancelledScheduleId: makeupTargetId,
+    newDate: makeupDate,
+   })
+   setMakeupTargetId(null)
+   setMakeupPreview(null)
+   setMakeupErr(null)
+   setMakeupDate("")
+   pushBanner({
+    tone: "success",
+    title: "已安排補回加堂",
+    message: [
+     `${result.newDate} 已建立 ${result.newScheduleIds.length} 筆排程`,
+     result.attendingNames.length > 0
+      ? `原應出席：${formatStudentNameList(result.attendingNames)}`
+      : null,
+     result.singleSessionMoved > 0
+      ? `單堂選堂已改掛 ${result.singleSessionMoved} 人`
+      : null,
+    ]
+     .filter(Boolean)
+     .join("。"),
+   })
+   await reload()
+  } catch (e) {
+   const msg = formatUnknownError(e)
+   reportUserFacingError(e, {
+    source: "ClassDetailView.onConfirmArrangeMakeup",
+    setErr: setMakeupErr,
+    userMessage: msg,
+   })
+  } finally {
+   setMakeupSaving(false)
+  }
+ }
+
  const onSaveSessionNumber = async (scheduleId: string, sessionNumber: number) => {
   setSavingSessionId(scheduleId)
   setSchedActionErr(null)
@@ -2059,6 +2149,7 @@ export function ClassDetailView() {
            attendingNames={hints?.attendingNames}
            leaveNames={hints?.leaveNames}
            namesLoading={hintsLoading}
+           cancelReason={s.status.includes("取消") ? s.cancel_reason : null}
            editableSessionNumber={canEditSchedule(s.scheduled_date)}
            savingSessionNumber={savingSessionId === s.id}
            onSessionNumberSave={
@@ -2094,6 +2185,17 @@ export function ClassDetailView() {
               endTime={s.end_time}
              />
             </Link>
+           }
+           actions={
+            s.status.includes("取消") && canManageClass && !classYearLocked ? (
+             <button
+              type="button"
+              className="text-sm font-medium text-primary hover:underline"
+              onClick={() => void openArrangeMakeup(s.id)}
+             >
+              安排補堂
+             </button>
+            ) : null
            }
            controls={
             canEditSchedule(s.scheduled_date) ? (
@@ -2771,6 +2873,94 @@ export function ClassDetailView() {
     onCancel={() => setCancelScheduleId(null)}
     onConfirm={onConfirmCancelSchedule}
    />
+
+   <Dialog
+    open={makeupTargetId != null}
+    onOpenChange={(open) => {
+     if (!open) closeArrangeMakeup()
+    }}
+   >
+    <DialogContent className="max-w-md text-sm">
+     <DialogHeader>
+      <DialogTitle className="text-lg font-semibold">安排補堂</DialogTitle>
+     </DialogHeader>
+     <div className="grid gap-3">
+      {makeupLoading ? (
+       <p className="text-muted-foreground">載入中…</p>
+      ) : null}
+      {makeupErr ? (
+       <div
+        role="alert"
+        className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+       >
+        {makeupErr}
+       </div>
+      ) : null}
+      {makeupPreview ? (
+       <>
+        <p className="text-muted-foreground">
+         將於同班新建加堂排程（沿用原時段／老師／課室）
+         {makeupPreview.isConsecutive ? "；連堂已取消的節次會一併補回" : ""}
+         。全期就讀生依報讀自動出現在新日子點名紙；單堂報讀會把原堂選堂改掛到新堂。
+        </p>
+        <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+         <p>
+          原堂日期：{makeupPreview.originalDate}
+          {makeupPreview.cancelReason
+           ? ` · 取消原因：${makeupPreview.cancelReason}`
+           : ""}
+         </p>
+         {makeupPreview.attendingNames.length > 0 ? (
+          <p className="mt-1 text-muted-foreground">
+           原應出席：{formatStudentNameList(makeupPreview.attendingNames)}
+          </p>
+         ) : (
+          <p className="mt-1 text-muted-foreground">原堂點名冊暫無應出席學生</p>
+         )}
+         {makeupPreview.singleSessionMoveCount > 0 ? (
+          <p className="mt-1 text-muted-foreground">
+           將改掛單堂選堂 {makeupPreview.singleSessionMoveCount} 人
+          </p>
+         ) : null}
+         {makeupPreview.alreadyHasMakeupIds.length > 0 ? (
+          <p className="mt-1 text-destructive">此取消堂已安排過補回，請勿重複建立。</p>
+         ) : null}
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">補堂日期</label>
+         <Input
+          type="date"
+          className="mt-1"
+          value={makeupDate}
+          disabled={makeupSaving || makeupPreview.alreadyHasMakeupIds.length > 0}
+          onChange={(e) => {
+           setMakeupDate(e.target.value)
+           if (makeupErr) setMakeupErr(null)
+          }}
+         />
+        </div>
+       </>
+      ) : null}
+      <div className="flex justify-end gap-2">
+       <Button type="button" variant="outline" disabled={makeupSaving} onClick={closeArrangeMakeup}>
+        返回
+       </Button>
+       <Button
+        type="button"
+        disabled={
+         makeupSaving ||
+         makeupLoading ||
+         !makeupPreview ||
+         makeupPreview.alreadyHasMakeupIds.length > 0
+        }
+        onClick={() => void onConfirmArrangeMakeup()}
+       >
+        {makeupSaving ? "建立中…" : "確認安排"}
+       </Button>
+      </div>
+     </div>
+    </DialogContent>
+   </Dialog>
   </div>
   </DetailLayerShell>
  )

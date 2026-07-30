@@ -62,11 +62,15 @@ export type ScheduleListCardProps = {
  endTime: string | null
  attendingNames?: string[]
  leaveNames?: string[]
+ /** 取消原因（狀態為取消時顯示） */
+ cancelReason?: string | null
  /** 學生名單尚在載入：顯示占位，勿當成無人 */
  namesLoading?: boolean
  title?: ReactNode
  subtitle?: ReactNode
  controls?: ReactNode
+ /** 取消課堂額外操作（如安排補堂） */
+ actions?: ReactNode
  editableSessionNumber?: boolean
  savingSessionNumber?: boolean
  onSessionNumberChange?: (value: number) => void
@@ -81,16 +85,19 @@ export function ScheduleListCard({
  endTime,
  attendingNames = [],
  leaveNames = [],
+ cancelReason,
  namesLoading = false,
  title,
  subtitle,
  controls,
+ actions,
  editableSessionNumber,
  savingSessionNumber,
  onSessionNumberChange,
  onSessionNumberSave,
  className,
 }: ScheduleListCardProps) {
+ const reason = cancelReason?.trim() || ""
  return (
   <div
    className={cn(
@@ -132,6 +139,12 @@ export function ScheduleListCard({
       ) : null}
      </>
     )}
+    {reason ? (
+     <p className="text-xs text-muted-foreground" title={reason}>
+      取消原因：{reason}
+     </p>
+    ) : null}
+    {actions ? <div className="pt-1">{actions}</div> : null}
    </div>
    {controls ? (
     <div className="flex shrink-0 items-center gap-2">{controls}</div>

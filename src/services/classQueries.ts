@@ -772,6 +772,7 @@ export type ClassScheduleRow = {
  start_time: string | null
  end_time: string | null
  status: string
+ cancel_reason: string | null
  session_number: number | null
  consecutive_group_id: string | null
  consecutive_slot_index: number | null
@@ -786,7 +787,7 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, session_number, consecutive_group_id, consecutive_slot_index, teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, session_number, consecutive_group_id, consecutive_slot_index, teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name )"
   )
   .eq("class_id", classId)
   .order("scheduled_date", { ascending: true })
@@ -802,6 +803,7 @@ export async function fetchClassSchedules(classId: string): Promise<ClassSchedul
    start_time: row.start_time != null ? String(row.start_time) : null,
    end_time: row.end_time != null ? String(row.end_time) : null,
    status: String(row.status ?? "正常"),
+   cancel_reason: row.cancel_reason != null ? String(row.cancel_reason) : null,
    session_number:
     row.session_number != null && !Number.isNaN(Number(row.session_number))
      ? Number(row.session_number)
