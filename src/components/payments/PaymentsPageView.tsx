@@ -34,11 +34,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  normalizeSpecialDiscountAmount,
@@ -94,6 +92,7 @@ type CollectMode = "receive" | "invoice"
 
 export function PaymentsPageView() {
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [searchParams, setSearchParams] = useSearchParams()
  const [collectMode, setCollectMode] = useState<CollectMode>("receive")
 
@@ -142,7 +141,6 @@ export function PaymentsPageView() {
  const [attendedLessons, setAttendedLessons] = useState<number | null>(null)
 
  const [formErr, setFormErr] = useState<string | null>(null)
- const payDateEditable = useMemo(() => canEditAcademicYearForDate(payDate), [payDate])
 
  const enrollmentByClass = useMemo(() => {
   const m = new Map<string, EnrollmentWithClass>()
@@ -662,6 +660,14 @@ export function PaymentsPageView() {
    setFormErr(err)
    return
   }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: payDate,
+    source: "PaymentsPageView.submitReceive",
+   }))
+  ) {
+   return
+  }
   setSaving(true)
   setFormErr(null)
   try {
@@ -720,6 +726,14 @@ export function PaymentsPageView() {
   const err = validateForm()
   if (err) {
    setFormErr(err)
+   return
+  }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: payDate,
+    source: "PaymentsPageView.submitInvoice",
+   }))
+  ) {
    return
   }
   setSaving(true)
@@ -1438,9 +1452,6 @@ export function PaymentsPageView() {
       <div className="grid gap-4 sm:grid-cols-2">
        <FormField label="日期 *">
         <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
-        {!payDateEditable ? (
-         <p className="mt-1 text-xs text-amber-800">{academicYearEditBlockedMessage()}</p>
-        ) : null}
        </FormField>
        <FormField label="繳費方式">
         <Select className={selectClassName()} value={method} onChange={(e) => setMethod(e.target.value)}>
@@ -1490,7 +1501,7 @@ export function PaymentsPageView() {
       <Button
        type="button"
        className="w-full bg-warning text-white hover:bg-warning sm:w-auto"
-       disabled={!isSupabaseConfigured || saving || !payDateEditable || Boolean(receivedDone)}
+       disabled={!isSupabaseConfigured || saving || Boolean(receivedDone)}
        onClick={() => void (collectMode === "receive" ? submitReceive() : submitInvoice())}
       >
        {saving

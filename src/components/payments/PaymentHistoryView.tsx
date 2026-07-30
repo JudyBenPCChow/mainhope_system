@@ -23,10 +23,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -46,6 +44,7 @@ import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
 
 export function PaymentHistoryView() {
  const isMobile = useIsMobile()
+ const { confirmDialog } = useAppConfirm()
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
 
@@ -178,6 +177,14 @@ export function PaymentHistoryView() {
 
  const confirmMarkReceived = async () => {
   if (!markTarget || saving) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: markTarget.paymentDate,
+    source: "PaymentHistoryView.confirmMarkReceived",
+   }))
+  ) {
+   return
+  }
   setSaving(true)
   setFormErr(null)
   try {
@@ -444,7 +451,6 @@ export function PaymentHistoryView() {
        const pending = PENDING_PAYMENT_STATUSES.includes(
         r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
        )
-       const rowEditable = canEditAcademicYearForDate(r.paymentDate)
        return (
         <article key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
          <div className="flex items-start justify-between gap-2">
@@ -472,12 +478,12 @@ export function PaymentHistoryView() {
           </Button>
           <PaymentReceiptDownloadButton paymentId={r.id} />
           <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
-          {pending && rowEditable ? (
+          {pending ? (
            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
             標記已收
            </Button>
           ) : null}
-          {rowEditable && r.status !== PAYMENT_STATUS.voided ? (
+          {r.status !== PAYMENT_STATUS.voided ? (
            <Button
             type="button"
             variant="ghost"
@@ -513,7 +519,6 @@ export function PaymentHistoryView() {
          const pending = PENDING_PAYMENT_STATUSES.includes(
           r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
          )
-         const rowEditable = canEditAcademicYearForDate(r.paymentDate)
          return (
           <tr key={r.id} className="border-b border-border/80 last:border-0">
            <td className="px-3 py-2 whitespace-nowrap">{r.paymentDate}</td>
@@ -539,12 +544,12 @@ export function PaymentHistoryView() {
              </Button>
              <PaymentReceiptDownloadButton paymentId={r.id} />
              <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
-             {pending && rowEditable ? (
+             {pending ? (
               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
                標記已收
               </Button>
              ) : null}
-             {rowEditable && r.status !== PAYMENT_STATUS.voided ? (
+             {r.status !== PAYMENT_STATUS.voided ? (
               <Button
                type="button"
                variant="ghost"
@@ -669,9 +674,6 @@ export function PaymentHistoryView() {
         將 <strong>{markTarget.studentName}</strong> 的 {money(markTarget.totalAmount)}{" "}
         標記為已收。收據編號將由系統自動產生。
        </p>
-       {!canEditAcademicYearForDate(markTarget.paymentDate) ? (
-        <p className="text-xs text-amber-800">{academicYearEditBlockedMessage()}</p>
-       ) : null}
        <FormField label="繳費方式">
         <Select className={selectClassName()} value={markMethod} onChange={(e) => setMarkMethod(e.target.value)}>
          {PAYMENT_METHOD_PRESETS.map((m) => (
@@ -684,7 +686,7 @@ export function PaymentHistoryView() {
        <Button
         type="button"
         className="bg-success text-white hover:bg-success"
-        disabled={saving || !canEditAcademicYearForDate(markTarget.paymentDate)}
+        disabled={saving}
         onClick={() => void confirmMarkReceived()}
        >
         {saving ? "處理中…" : "確認"}

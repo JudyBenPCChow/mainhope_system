@@ -26,7 +26,7 @@ migration `20260612120000_summer_two_period_enrollment.sql`；cutover 學年種�
 
 **時間順序**（同「年段」內）：正規結束 → 暑期 → 下一正規。例：`2526` &lt; `26SM` &lt; `2627`（見 `academicYearOrderKey`）。
 
-**可編輯門檻**：自 `26SM`（2026-07-01）起前台可編輯；`2526` 及更早對部分角色唯讀（`ACADEMIC_YEAR_EDITABLE_FROM_YMD`）。
+**可編輯門檻（2026-07-31）**：不採學年硬鎖。目前與下一學年可直接寫入；其他學年寫入前會 Confirm Dialog，並寫入稽核（`non_current_academic_year_write`／`non_current_academic_year_write_confirmed`）。服務層 `assertAcademicYearEditable*` 僅記 audit、不再拋錯。詳見 [`backlog/academic-year-unlock-soft-guard.md`](./backlog/academic-year-unlock-soft-guard.md)、`src/lib/academicYearSoftGuard.ts`。自 `26SM`（2026-07-01）起之前的 cutover／硬鎖敘述僅作歷史參考（`ACADEMIC_YEAR_EDITABLE_FROM_YMD`）。
 
 ---
 

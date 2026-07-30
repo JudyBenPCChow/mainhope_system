@@ -38,10 +38,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { classDisplayName } from "@/lib/courseLabel"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYear,
-} from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -387,8 +384,13 @@ export function ClassesListPage() {
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
   const target = rows.find((c) => c.id === id)
-  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
-   pushBanner({ tone: "warning", title: "無法刪除", message: academicYearEditBlockedMessage() })
+  if (
+   target &&
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: classAcademicYearLabel(target),
+    source: "ClassesListPage.onDelete",
+   }))
+  ) {
    return
   }
   const previewDates = await previewClassDeletionSchedules(id)
@@ -421,8 +423,13 @@ export function ClassesListPage() {
  const onCopy = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
   const target = rows.find((c) => c.id === id)
-  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
-   pushBanner({ tone: "warning", title: "無法複製", message: academicYearEditBlockedMessage() })
+  if (
+   target &&
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: classAcademicYearLabel(target),
+    source: "ClassesListPage.onCopy",
+   }))
+  ) {
    return
   }
   try {
@@ -435,8 +442,13 @@ export function ClassesListPage() {
 
  const onStatusChange = async (id: string, status: string) => {
   const target = rows.find((c) => c.id === id)
-  if (target && !canEditAcademicYear(classAcademicYearLabel(target))) {
-   pushBanner({ tone: "warning", title: "無法修改狀態", message: academicYearEditBlockedMessage() })
+  if (
+   target &&
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: classAcademicYearLabel(target),
+    source: "ClassesListPage.onStatusChange",
+   }))
+  ) {
    return
   }
   try {
@@ -973,7 +985,7 @@ export function ClassesListPage() {
             <Select
              className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
              value={c.status}
-             disabled={Boolean(teacherTid) || !canEditAcademicYear(classAcademicYearLabel(c))}
+             disabled={Boolean(teacherTid)}
              onChange={(e) => void onStatusChange(c.id, e.target.value)}
             >
              {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
@@ -992,7 +1004,7 @@ export function ClassesListPage() {
              >
               {teacherTid ? "查看" : "編輯"}
              </button>
-             {!teacherTid && canEditAcademicYear(classAcademicYearLabel(c)) ? (
+             {!teacherTid ? (
              <button
               type="button"
               className="text-left text-muted-foreground hover:text-foreground hover:underline"
@@ -1002,7 +1014,7 @@ export function ClassesListPage() {
               複製
              </button>
              ) : null}
-             {isSuperAdmin() && canEditAcademicYear(classAcademicYearLabel(c)) ? (
+             {isSuperAdmin() ? (
               <button
                type="button"
                className="text-left text-destructive hover:underline"

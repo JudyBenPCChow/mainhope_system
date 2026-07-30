@@ -13,7 +13,8 @@ import {
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { Button } from "@/components/ui/button"
 import { classDisplayName } from "@/lib/courseLabel"
-import { isAcademicYearReadOnly, filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
+import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { deleteClassCascade, fetchAcademicYearOptions, fetchSubjectOptions, insertClass, type ClassRecord } from "@/services/classQueries"
@@ -76,8 +77,12 @@ export function ClassCreatePage() {
  }, [])
 
  const onStep1Next = async () => {
-  if (isAcademicYearReadOnly(undefined, form.academic_year_label || null)) {
-   pushBanner({ tone: "warning", title: "此學年不可新增班別" })
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: form.academic_year_label || null,
+    source: "ClassCreatePage.onStep1Next",
+   }))
+  ) {
    return
   }
   if (!form.subject_id || !form.academic_year_id || !form.grade_code || !form.course_id) {

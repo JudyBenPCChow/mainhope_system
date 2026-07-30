@@ -11,6 +11,8 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { money } from "@/components/payments/paymentsUi"
 import { voidPaymentRecord } from "@/services/paymentQueries"
 
@@ -32,6 +34,7 @@ type Props = {
 
 export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Props) {
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [reason, setReason] = useState("")
  const [password, setPassword] = useState("")
  const [err, setErr] = useState<string | null>(null)
@@ -55,6 +58,14 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
   }
   if (!password) {
    setErr("請輸入登入密碼以確認作廢。")
+   return
+  }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: target.paymentDate,
+    source: "VoidPaymentDialog.submit",
+   }))
+  ) {
    return
   }
   setSaving(true)

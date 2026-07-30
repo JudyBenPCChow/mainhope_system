@@ -58,11 +58,9 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isAlien, isMgmtStaff } from "@/lib/mgmtRole"
 import { gradeChineseToCode } from "@/lib/courseCode"
 import {
- academicYearEditBlockedMessage,
  academicYearLabelForClass,
- canEditAcademicYear,
- canEditAcademicYearForDate,
 } from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { classDisplayName } from "@/lib/courseLabel"
 import {
  classGradeDisplayText,
@@ -310,10 +308,7 @@ export function ClassDetailView() {
  const teacherScopeId = getTeacherScopeTeacherId()
  const isTeacherPortal = Boolean(teacherScopeId)
 
- const classYearLocked = useMemo(
-  () => (cls ? !canEditAcademicYear(academicYearLabelForClass(cls)) : false),
-  [cls]
- )
+ const classYearLocked = false
  const isPrivateClass = cls?.class_kind === "private"
  const privateCapacity = cls?.capacity != null ? Math.max(0, cls.capacity) : null
  const canAddPrivateStudent =
@@ -335,8 +330,7 @@ export function ClassDetailView() {
   Boolean(isPrivateClass) &&
   !classYearLocked &&
   (canManageClass || isOwnTeacherClass)
- const canEditSchedule = (scheduledDate: string) =>
-  (canManageClass || isOwnTeacherClass) && canEditAcademicYearForDate(scheduledDate)
+ const canEditSchedule = (_scheduledDate: string) => canManageClass || isOwnTeacherClass
  const classesListPath = isPrivateClass || fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"
 
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
@@ -508,6 +502,14 @@ export function ClassDetailView() {
  const saveClass = async (): Promise<boolean> => {
   if (!cid || !cls) return false
   setEditErr(null)
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: academicYearLabelForClass(cls),
+    source: "ClassDetailView.saveClass",
+   }))
+  ) {
+   return false
+  }
   const cap = form.capacity
   if (cap != null && cap < 0) {
    pushBanner({ tone: "warning", title: "收生上限不可為負數" })
@@ -1258,6 +1260,16 @@ export function ClassDetailView() {
    setCancelScheduleId(scheduleId)
    return
   }
+  const sched = schedules.find((x) => x.id === scheduleId)
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: sched?.scheduled_date,
+    label: cls ? academicYearLabelForClass(cls) : null,
+    source: "ClassDetailView.onChangeScheduleStatus",
+   }))
+  ) {
+   return
+  }
   try {
    await updateSchedule(scheduleId, { status, cancel_reason: null })
    await reload()
@@ -1273,6 +1285,16 @@ export function ClassDetailView() {
 
  const onConfirmCancelSchedule = async (reason: string) => {
   if (!cancelScheduleId) return
+  const sched = schedules.find((x) => x.id === cancelScheduleId)
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: sched?.scheduled_date,
+    label: cls ? academicYearLabelForClass(cls) : null,
+    source: "ClassDetailView.onConfirmCancelSchedule",
+   }))
+  ) {
+   return
+  }
   setCancelSaving(true)
   setSchedActionErr(null)
   try {
@@ -1402,6 +1424,16 @@ export function ClassDetailView() {
 
  const onDeleteSchedule = async (scheduleId: string) => {
   setSchedActionErr(null)
+  const sched = schedules.find((x) => x.id === scheduleId)
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: sched?.scheduled_date,
+    label: cls ? academicYearLabelForClass(cls) : null,
+    source: "ClassDetailView.onDeleteSchedule",
+   }))
+  ) {
+   return
+  }
   try {
    await deleteSchedule(scheduleId)
    await reload()
@@ -1586,14 +1618,6 @@ export function ClassDetailView() {
       className="mx-auto mb-4 max-w-5xl rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
      >
       {pageErr}
-     </div>
-    ) : null}
-    {classYearLocked && canManageClass ? (
-     <div
-      role="status"
-      className="mx-auto mb-4 max-w-5xl rounded-md border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-     >
-      {academicYearEditBlockedMessage()}
      </div>
     ) : null}
     {isPrivateClass ? (
@@ -2209,36 +2233,36 @@ export function ClassDetailView() {
             ) : null
            }
            controls={
-            canEditSchedule(s.scheduled_date) ? (
-            <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
-             <Select
-              className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
-              value={s.status}
-              onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
-             >
-              <option value="正常">正常</option>
-              <option value="完成">完成</option>
-              <option value="取消">取消</option>
-             </Select>
-             <button
-              type="button"
-              className="text-sm text-destructive hover:underline"
-              onClick={async () => {
-               if (
-                !(await confirmDialog({
-                 title: "刪除排程",
-                 description: "刪除此排程？",
-                 confirmText: "確認刪除",
-                 tone: "destructive",
-                }))
-               )
-                return
-               await onDeleteSchedule(s.id)
-              }}
-             >
-              刪除
-             </button>
-            </div>
+            canManageClass ? (
+             <div className="flex items-center gap-2" onClick={(e) => e.preventDefault()}>
+              <Select
+               className="h-9 rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-primary/50"
+               value={s.status}
+               onChange={(e) => void onChangeScheduleStatus(s.id, e.target.value)}
+              >
+               <option value="正常">正常</option>
+               <option value="完成">完成</option>
+               <option value="取消">取消</option>
+              </Select>
+              <button
+               type="button"
+               className="text-sm text-destructive hover:underline"
+               onClick={async () => {
+                if (
+                 !(await confirmDialog({
+                  title: "刪除排程",
+                  description: "刪除此排程？",
+                  confirmText: "確認刪除",
+                  tone: "destructive",
+                 }))
+                )
+                 return
+                await onDeleteSchedule(s.id)
+               }}
+              >
+               刪除
+              </button>
+             </div>
             ) : (
              <span className="text-sm text-muted-foreground">{s.status}</span>
             )

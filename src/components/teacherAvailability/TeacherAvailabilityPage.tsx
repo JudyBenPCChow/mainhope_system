@@ -18,10 +18,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import { cn } from "@/lib/utils"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYear,
-} from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { lessonSlotLabel } from "@/lib/lessonSlots"
 import { fetchTeacherOptions } from "@/services/classQueries"
 import {
@@ -66,10 +63,7 @@ export function TeacherAvailabilityPage() {
  const [freeRoomCtx, setFreeRoomCtx] = useState<FreeRoomSlotContext | null>(null)
 
  const year = useMemo(() => years.find((y) => y.id === yearId) ?? null, [years, yearId])
- const yearLocked = useMemo(
-  () => (year ? !canEditAcademicYear(year.label, year.end_date) : false),
-  [year]
- )
+ const yearLocked = false
 
  const reload = useCallback(async () => {
   if (!year) return
@@ -158,6 +152,15 @@ export function TeacherAvailabilityPage() {
 
  const onAddSlot = async (date: string, slotIndex: number) => {
   if (!year || !teacherId || addingSlot || yearLocked) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: year.label,
+    dateYmd: date,
+    source: "TeacherAvailabilityPage.onAddSlot",
+   }))
+  ) {
+   return
+  }
   setAddingSlot(true)
   setErr(null)
   try {
@@ -177,6 +180,14 @@ export function TeacherAvailabilityPage() {
 
  const onDeleteSlot = async (id: string) => {
   if (yearLocked) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: year?.label,
+    source: "TeacherAvailabilityPage.onDeleteSlot",
+   }))
+  ) {
+   return
+  }
   if (!(await confirmDialog({ title: "刪除檔期", description: "確定刪除此可任教檔期？", confirmText: "確認刪除", tone: "destructive" }))) return
   try {
    await deleteAvailabilitySlot(id)
@@ -255,15 +266,6 @@ export function TeacherAvailabilityPage() {
      </button>
     ))}
    </div>
-
-   {yearLocked ? (
-    <div
-     role="status"
-     className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-    >
-     {academicYearEditBlockedMessage()}
-    </div>
-   ) : null}
 
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

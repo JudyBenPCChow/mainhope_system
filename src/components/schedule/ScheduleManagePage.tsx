@@ -65,14 +65,11 @@ import {
 import { addDaysYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isAdmin, isMgmtStaff } from "@/lib/mgmtRole"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -863,11 +860,10 @@ useEffect(() => {
  }, [rows])
 
  const canManageSchedules = isMgmtStaff()
- const canAssignSubstitute = isAdmin()
+ const canAssignSubstitute = canManageSchedules
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
-  (s: { scheduled_date: string }) =>
-   scheduleMgmtLocked || !canEditAcademicYearForDate(s.scheduled_date),
+  (_s?: { scheduled_date: string }) => scheduleMgmtLocked,
   [scheduleMgmtLocked]
  )
 
@@ -1213,8 +1209,12 @@ useEffect(() => {
    setAddErr("請選擇班別")
    return
   }
-  if (!canEditAcademicYearForDate(addDate)) {
-   setAddErr(academicYearEditBlockedMessage())
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: addDate,
+    source: "ScheduleManagePage.submitAdd",
+   }))
+  ) {
    return
   }
   setAddSaving(true)
@@ -1291,7 +1291,7 @@ useEffect(() => {
   if (scheduleMgmtLocked) return
   if (!pendingMove) return
   if (scheduleRowLocked(pendingMove.row)) {
-   setMoveErr(academicYearEditBlockedMessage())
+   setMoveErr("僅管理員可移動排程。")
    return
   }
   if (moveConflicts.length > 0) {
@@ -1303,6 +1303,14 @@ useEffect(() => {
    return
   }
   if (moveChecking) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: pendingMove.row.scheduled_date,
+    source: "ScheduleManagePage.confirmMove",
+   }))
+  ) {
+   return
+  }
   setMoveErr(null)
   setMoveSaving(true)
   try {
@@ -1334,15 +1342,31 @@ useEffect(() => {
     setCancelTarget(row)
     return
    }
+   if (
+    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+     dateYmd: row.scheduled_date,
+     source: "ScheduleManagePage.handleStatusChange",
+    }))
+   ) {
+    return
+   }
    await updateSchedule(row.id, { status: newStatus, cancel_reason: null })
    await reload()
   },
-  [scheduleRowLocked, reload]
+  [scheduleRowLocked, reload, confirmDialog]
  )
 
  const confirmCancelSchedule = useCallback(
   async (reason: string) => {
    if (!cancelTarget) return
+   if (
+    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+     dateYmd: cancelTarget.scheduled_date,
+     source: "ScheduleManagePage.confirmCancelSchedule",
+    }))
+   ) {
+    return
+   }
    setCancelSaving(true)
    try {
     await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason })
@@ -1357,13 +1381,17 @@ useEffect(() => {
     setCancelSaving(false)
    }
   },
-  [cancelTarget, reload]
+  [cancelTarget, reload, confirmDialog]
  )
 
  const oneClickAssign = async () => {
   if (scheduleMgmtLocked || assigning || loading) return
-  if (!canEditAcademicYearForDate(dayViewDate)) {
-   pushBanner({ tone: "warning", title: "無法一鍵分配", message: academicYearEditBlockedMessage() })
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: dayViewDate,
+    source: "ScheduleManagePage.oneClickAssign",
+   }))
+  ) {
    return
   }
 
@@ -2845,7 +2873,7 @@ useEffect(() => {
     <RollCallSheet
      entry={rollCallTarget.entry}
      scheduleMeta={rollCallTarget.schedule}
-     dateEditable={canEditAcademicYearForDate(rollCallTarget.schedule.scheduled_date)}
+     dateEditable={true}
      teacherTid={teacherScopeId}
      isMobile={isMobile}
      onClose={() => setRollCallScheduleId(null)}

@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
  deleteAcademicCalendarClosure,
@@ -102,6 +103,15 @@ export function AcademicCalendarView() {
    setErr(`日期必須在 ${selectedYear.start_date} 至 ${selectedYear.end_date} 內`)
    return
   }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: selectedYear?.label,
+    dateYmd: date,
+    source: "AcademicCalendarView.add",
+   }))
+  ) {
+   return
+  }
   setSaving(true)
   setErr(null)
   try {
@@ -139,6 +149,14 @@ export function AcademicCalendarView() {
    setErr(`所有日期必須在 ${selectedYear.start_date} 至 ${selectedYear.end_date} 內`)
    return
   }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: selectedYear?.label,
+    source: "AcademicCalendarView.import",
+   }))
+  ) {
+   return
+  }
   setSaving(true)
   setErr(null)
   try {
@@ -154,6 +172,15 @@ export function AcademicCalendarView() {
  }
 
  const removeClosure = async (row: AcademicCalendarClosure) => {
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: selectedYear?.label,
+    dateYmd: row.closureDate,
+    source: "AcademicCalendarView.delete",
+   }))
+  ) {
+   return
+  }
   if (
    !(await confirmDialog({
     title: "刪除停課日",

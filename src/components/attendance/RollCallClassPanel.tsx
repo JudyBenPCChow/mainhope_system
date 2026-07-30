@@ -7,9 +7,8 @@ import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
-import {
- academicYearEditBlockedMessage,
-} from "@/lib/academicYearEditGuard"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { ATTENDANCE_BILLING_HELP_SHORT } from "@/lib/attendanceBilling"
 import {
  formatConsecutiveSessionLabel,
@@ -94,6 +93,7 @@ export function RollCallClassPanel({
 }: Props) {
  const isSheet = presentation === "sheet"
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const canEditRollCall =
   dateEditable &&
   canTeacherEditScheduleRollCall({ teacher_id: scheduleMeta?.teacher_id ?? null }, teacherTid)
@@ -407,14 +407,8 @@ export function RollCallClassPanel({
    pushBanner({
     tone: "warning",
     title: "無法儲存點名",
-    message: dateEditable
-     ? "此堂已指派代堂，僅代堂老師可完成點名；您可閱覽現有紀錄。"
-     : academicYearEditBlockedMessage(),
+    message: "此堂已指派代堂，僅代堂老師可完成點名；您可閱覽現有紀錄。",
    })
-   return
-  }
-  if (!dateEditable) {
-   pushBanner({ tone: "warning", title: "無法儲存點名", message: academicYearEditBlockedMessage() })
    return
   }
   for (const row of students) {
@@ -423,6 +417,14 @@ export function RollCallClassPanel({
     setSheetErr("請為每位學生選擇出席狀態後，再按「確定」完成點名。")
     return
    }
+  }
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: entry.scheduled_date,
+    source: "RollCallClassPanel.confirmRollCall",
+   }))
+  ) {
+   return
   }
   setConfirmSaving(true)
   setSheetErr(null)

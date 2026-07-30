@@ -10,10 +10,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
-import {
- academicYearEditBlockedMessage,
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
@@ -42,7 +38,7 @@ export function RollCallPage() {
  const [err, setErr] = useState<string | null>(null)
  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
  const [panelStats, setPanelStats] = useState<Map<string, RollCallPanelStats>>(() => new Map())
- const dateEditable = useMemo(() => canEditAcademicYearForDate(dateYmd), [dateYmd])
+ const dateEditable = true
 
  const rollCallEntries = useMemo(
   () =>
@@ -221,14 +217,6 @@ export function RollCallPage() {
    {teacherTid ? (
     <div className="hidden rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground md:block">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
-    </div>
-   ) : null}
-   {!dateEditable ? (
-    <div
-     role="status"
-     className="rounded-lg border border-amber-300/80 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-    >
-     {academicYearEditBlockedMessage()}
     </div>
    ) : null}
 

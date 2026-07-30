@@ -1,9 +1,4 @@
-import {
- isAdminEditableAcademicYearLabel,
- isClosedAcademicYear,
- getNextAcademicYearLabel,
- getAdminEditableAcademicYearLabels,
-} from "@/lib/academicYearAccess"
+import { getNextAcademicYearLabel } from "@/lib/academicYearAccess"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 
@@ -74,51 +69,31 @@ export function formatMgmtRoleLabel(role?: MgmtRole | null): string {
 }
 
 /**
- * 學年唯讀判斷：
- * - alien：不受限
- * - admin：僅可編輯「目前學年」及「下一學年」
- * - teacher 等：2526 及更早唯讀；26SM 起可編輯
+ * @deprecated 學年硬鎖已撤銷（2026-07-31）。恒回 false；防呆改見 `academicYearSoftGuard`。
+ * 舊語意：alien 永不鎖；admin 僅目前＋下一；teacher 依 cutoff。
  */
 export function isAcademicYearReadOnly(
- endDate?: string | null,
- label?: string | null
+ _endDate?: string | null,
+ _label?: string | null
 ): boolean {
- const role = getMgmtRole()
- if (role === "alien") return false
- if (role === "admin") {
-  if (!label?.trim()) return false
-  return !isAdminEditableAcademicYearLabel(label, endDate?.slice(0, 10) ?? null)
- }
- return isClosedAcademicYear(endDate, label)
+ return false
 }
 
-/** 學年唯讀提示（依角色顯示不同說明） */
-export function academicYearReadOnlyHint(role?: MgmtRole | null): string {
- const r = role ?? getMgmtRole()
- if (r === "admin") {
-  const current = academicYearLabelFromStartDate(null)
-  const next = getNextAcademicYearLabel(current)
-  return next
-   ? `僅 ${current} 及 ${next} 學年可新增或修改；其他學年僅供查閱。`
-   : `僅 ${current} 學年可新增或修改；其他學年僅供查閱。`
- }
- return "2526 及更早學年僅供查閱；不可新增、修改、刪除。"
+/** @deprecated 硬鎖已撤；改為非當期 confirm 提示。 */
+export function academicYearReadOnlyHint(_role?: MgmtRole | null): string {
+ const current = academicYearLabelFromStartDate(null)
+ const next = getNextAcademicYearLabel(current)
+ return next
+  ? `目前／下一學年（${current}、${next}）可直接修改；其他學年儲存前會要求確認並留下稽核。`
+  : `目前學年（${current}）可直接修改；其他學年儲存前會要求確認並留下稽核。`
 }
 
-/** 新增／編輯班別等：依角色篩選可選學年（admin 僅目前 + 下一） */
+/** 開班等選單：硬鎖撤銷後不再依角色過濾學年 */
 export function filterAcademicYearOptionsForEdit<T extends { label: string }>(
  options: T[],
- referenceYmd?: string | null
+ _referenceYmd?: string | null
 ): T[] {
- const role = getMgmtRole()
- if (role === "alien") return options
- if (role === "admin") {
-  const allowed = new Set(
-   getAdminEditableAcademicYearLabels(referenceYmd).map((l) => l.trim().toUpperCase())
-  )
-  return options.filter((o) => allowed.has(o.label.trim().toUpperCase()))
- }
- return options.filter((o) => !isClosedAcademicYear(undefined, o.label))
+ return options
 }
 
 /** @deprecated 請改用 isAcademicYearReadOnly(endDate, label) */

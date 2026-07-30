@@ -45,9 +45,6 @@ import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
-import {
  fetchPaymentFull,
  fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
@@ -2285,7 +2282,7 @@ const exportFutureSchedulesCsv = () => {
             <Printer className="h-3.5 w-3.5" />
             列印
            </Button>
-           {p.status !== PAYMENT_STATUS.voided && canEditAcademicYearForDate(p.payment_date) ? (
+           {p.status !== PAYMENT_STATUS.voided ? (
             <Button
              type="button"
              variant="outline"

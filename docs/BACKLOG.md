@@ -26,6 +26,8 @@
 | --- | --- | --- | --- | --- |
 | in_progress | 高 | 生命週期孤兒 | 方案已定（攔截＋行政刪＋健康檢查）；**功能未實作**，審閱方案中 | [lifecycle-orphans.md](./backlog/lifecycle-orphans.md) · [plans/2026-07-31-lifecycle-orphans.md](./plans/2026-07-31-lifecycle-orphans.md) |
 | open | 高 | 角色／權限日常加固 | 對抗性稽核後：老師取消課堂、檔期學年鎖、inbox／老師通訊錄（代堂／nav／route guard 已修） | [role-ops-hardening.md](./backlog/role-ops-hardening.md)（報告：[audits/2026-07-30-role-ops-adversarial.md](./audits/2026-07-30-role-ops-adversarial.md)） |
+| cancelled | 高 | 學年鎖整固 | 不整固；改撤硬鎖＋confirm＋audit | [academic-year-lock.md](./backlog/academic-year-lock.md)（歷史）· [rethink](./audits/2026-07-31-academic-year-lock-rethink.md) |
+| done | 高 | 撤學年硬鎖＋輕量防呆 | 清硬鎖；非當期 confirm＋audit | [academic-year-unlock-soft-guard.md](./backlog/academic-year-unlock-soft-guard.md) |
 | open | 高 | 流動裝置介面 | 後台三角色（行政／老師／外星人）手機版面；底欄高頻頁多為橫滑表格，少數殼層遮擋 | [mobile-ui.md](./backlog/mobile-ui.md) |
 | open | 中 | 聯絡資料自助更新（一次性活動） | 批量派發專屬連結／QR，家長核對電話與偏好後職員審核寫入；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
 | open | 中 | 試堂紀錄收尾 | 新增收費是否脫鉤、點名人頭／改期名單驗收、收費對帳；快速登記暫不做；手機卡片可選 | [trial-sessions.md](./backlog/trial-sessions.md) |

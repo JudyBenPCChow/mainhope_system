@@ -1,5 +1,7 @@
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { academicYearReadOnlyHint, isAcademicYearReadOnly } from "@/lib/mgmtRole"
+import {
+ noteNonCurrentAcademicYearWrite,
+} from "@/lib/academicYearSoftGuard"
 
 export function academicYearLabelForClass(c: {
  academic_year_label?: string | null
@@ -10,63 +12,69 @@ export function academicYearLabelForClass(c: {
  return academicYearLabelFromStartDate(c.start_date)
 }
 
-/** 此學年是否允許寫入（依角色與學年 label／結束日） */
+/**
+ * @deprecated 硬鎖已撤銷；恒為可編輯。非當期防呆見 `confirmNonCurrentAcademicYearWrite`。
+ */
 export function canEditAcademicYear(
- label: string | null | undefined,
- endDate?: string | null
+ _label: string | null | undefined,
+ _endDate?: string | null
 ): boolean {
- return !isAcademicYearReadOnly(endDate, label)
+ return true
 }
 
-/** 此日期所屬學年是否允許寫入 */
-export function canEditAcademicYearForDate(ymd: string | null | undefined): boolean {
- if (!ymd?.trim()) return true
- return canEditAcademicYear(academicYearLabelFromStartDate(ymd.slice(0, 10)))
+/** @deprecated 硬鎖已撤銷；恒為可編輯。 */
+export function canEditAcademicYearForDate(_ymd: string | null | undefined): boolean {
+ return true
 }
 
+/** @deprecated 硬鎖已撤；勿再用於擋寫入。 */
 export function academicYearEditBlockedMessage(): string {
- return academicYearReadOnlyHint()
+ return "此學年資料仍可修改；若非目前或下一學年，儲存前會要求確認。"
 }
 
-/** 不可寫入時回傳提示文字；可寫入則回傳 null */
+/** @deprecated 硬鎖已撤；恒回 null。 */
 export function guardAcademicYearEdit(
- label: string | null | undefined,
- endDate?: string | null
+ _label: string | null | undefined,
+ _endDate?: string | null
 ): string | null {
- if (canEditAcademicYear(label, endDate)) return null
- return academicYearEditBlockedMessage()
+ return null
 }
 
-export function guardAcademicYearEditForDate(ymd: string | null | undefined): string | null {
- if (!ymd?.trim()) return null
- return guardAcademicYearEdit(academicYearLabelFromStartDate(ymd.slice(0, 10)))
+/** @deprecated 硬鎖已撤；恒回 null。 */
+export function guardAcademicYearEditForDate(_ymd: string | null | undefined): string | null {
+ return null
 }
 
-export function guardClassRecordEdit(c: {
+export function guardClassRecordEdit(_c: {
  academic_year_label?: string | null
  start_date?: string | null
 }): string | null {
- return guardAcademicYearEdit(academicYearLabelForClass(c))
+ return null
 }
 
-/** 服務層：不可寫入時拋錯 */
+/**
+ * 服務層：不再拋錯。若屬非目前／下一學年，寫入稽核標記。
+ */
 export function assertAcademicYearEditable(
  label: string | null | undefined,
- endDate?: string | null
+ _endDate?: string | null
 ): void {
- const blocked = guardAcademicYearEdit(label, endDate)
- if (blocked) throw new Error(blocked)
+ noteNonCurrentAcademicYearWrite({ label, source: "assertAcademicYearEditable" })
 }
 
 export function assertAcademicYearEditableForDate(ymd: string | null | undefined): void {
- const blocked = guardAcademicYearEditForDate(ymd)
- if (blocked) throw new Error(blocked)
+ noteNonCurrentAcademicYearWrite({
+  dateYmd: ymd,
+  source: "assertAcademicYearEditableForDate",
+ })
 }
 
 export function assertClassRecordEditable(c: {
  academic_year_label?: string | null
  start_date?: string | null
 }): void {
- const blocked = guardClassRecordEdit(c)
- if (blocked) throw new Error(blocked)
+ noteNonCurrentAcademicYearWrite({
+  label: academicYearLabelForClass(c),
+  source: "assertClassRecordEditable",
+ })
 }

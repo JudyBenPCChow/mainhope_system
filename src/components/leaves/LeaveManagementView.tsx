@@ -9,9 +9,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import {
- canEditAcademicYearForDate,
-} from "@/lib/academicYearEditGuard"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -60,8 +58,9 @@ function displayLeaveDate(r: LeaveManageRow): string {
  return r.sched_date ?? r.leave_date
 }
 
-function leaveRowEditable(r: LeaveManageRow): boolean {
- return canEditAcademicYearForDate(displayLeaveDate(r))
+/** @deprecated 硬鎖已撤；恒可編輯（非當期寫入前會 soft confirm）。 */
+function leaveRowEditable(_r: LeaveManageRow): boolean {
+ return true
 }
 
 export function LeaveManagementView() {
@@ -306,6 +305,14 @@ export function LeaveManagementView() {
 
  const saveDetail = async () => {
   if (!detailRow) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: displayLeaveDate(detailRow),
+    source: "LeaveManagementView.saveDetail",
+   }))
+  ) {
+   return
+  }
   setDetailSaving(true)
   setDetailErr(null)
   try {
@@ -415,6 +422,15 @@ export function LeaveManagementView() {
     setAddErr(makeupErr)
     return
    }
+  }
+
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: sched.scheduled_date,
+    source: "LeaveManagementView.submitAdd",
+   }))
+  ) {
+   return
   }
 
   setAddSaving(true)
@@ -983,11 +999,6 @@ export function LeaveManagementView() {
        <p className="text-xs text-muted-foreground">
         學生：{detailRow.student_name ?? "—"} · 班別：{detailRow.class_subject ?? "—"}
        </p>
-       {!leaveRowEditable(detailRow) ? (
-        <p className="rounded-md border border-amber-300/80 bg-amber-50 px-2 py-1.5 text-xs text-amber-950">
-         此學年紀錄僅供查閱，無法修改。
-        </p>
-       ) : null}
        <label className="grid gap-1">
         <span className="text-muted-foreground">狀態</span>
         <Select className="h-9 w-full rounded-md border border-input px-2" value={detailStatus} disabled={!leaveRowEditable(detailRow)} onChange={(e) => setDetailStatus(e.target.value)}>
