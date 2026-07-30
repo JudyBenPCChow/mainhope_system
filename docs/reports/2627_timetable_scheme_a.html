@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>明學教育 2627 常規時間表 — 方案A</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, "SF Pro TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; background:#f5f6fa; color:#2c3e50; padding:20px; }
+.container { max-width:1600px; margin:0 auto; }
+.header { background:white; border-radius:12px; padding:24px 32px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+.header h1 { font-size:24px; margin-bottom:4px; }
+.header .subtitle { color:#7f8c8d; font-size:14px; }
+.header .badge { display:inline-block; background:#e8f4fd; color:#2980b9; padding:4px 12px; border-radius:20px; font-size:13px; margin-left:8px; }
+.legend { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.legend-item { display:flex; align-items:center; gap:4px; font-size:13px; }
+.legend-dot { width:12px; height:12px; border-radius:3px; }
+.stats-row { display:flex; gap:16px; margin-bottom:20px; }
+.stat-card { background:white; border-radius:12px; padding:16px 24px; box-shadow:0 1px 3px rgba(0,0,0,0.08); flex:1; text-align:center; }
+.stat-card .num { font-size:32px; font-weight:700; }
+.stat-card .label { font-size:13px; color:#7f8c8d; }
+.timetable-wrap { background:white; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.08); overflow-x:auto; margin-bottom:20px; }
+.timetable-wrap h2 { font-size:18px; margin-bottom:12px; padding:0 8px; }
+table { width:100%; border-collapse:collapse; font-size:12px; table-layout:fixed; }
+th { background:#f8f9fa; padding:8px 4px; border:1px solid #e9ecef; font-weight:600; font-size:13px; text-align:center; }
+th.weekend { background:#fff3e0; }
+.time-cell { background:#f8f9fa; font-weight:600; text-align:center; width:70px; border:1px solid #e9ecef; font-size:11px; color:#666; white-space:nowrap; }
+td { border:1px solid #e9ecef; vertical-align:top; padding:2px; min-width:130px; height:70px; }
+td.empty-cell { background:#fafafa; }
+td.has-class { background:white; }
+.class-card { background:#f8f9fa; border-radius:4px; padding:4px 6px; margin:1px 0; font-size:11px; display:flex; flex-direction:column; gap:1px; }
+.class-subj { font-weight:700; font-size:12px; }
+.class-grade { color:#555; }
+.class-teacher { color:#888; font-size:10px; }
+.class-room { color:#888; font-size:10px; }
+.class-note { color:#e67e22; font-size:10px; font-style:italic; }
+.summary-section { background:white; border-radius:12px; padding:20px 24px; box-shadow:0 1px 3px rgba(0,0,0,0.08); margin-bottom:20px; }
+.summary-section h2 { font-size:18px; margin-bottom:12px; }
+.summary-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.summary-grid table { font-size:13px; }
+.summary-grid td, .summary-grid th { padding:6px 12px; text-align:left; border:1px solid #e9ecef; }
+.summary-grid th { font-size:12px; }
+.constraint-ok { color:#27ae60; }
+.constraint-warn { color:#e67e22; }
+.gap-section { background:#fffbf0; border:1px dashed #e67e22; border-radius:12px; padding:20px 24px; margin-bottom:20px; }
+.gap-section h2 { font-size:16px; color:#e67e22; margin-bottom:8px; }
+.gap-section ul { margin-left:20px; color:#555; font-size:14px; }
+.gap-section li { margin:4px 0; }
+.footer { text-align:center; color:#aaa; font-size:12px; padding:20px; }
+@media print {
+  body { background:white; padding:0; }
+  .stat-card, .summary-section, .gap-section { box-shadow:none; border:1px solid #ddd; }
+  .timetable-wrap { box-shadow:none; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>明學教育 · 2627 常規學年時間表 <span class="badge">方案A</span></h1>
+  <div class="subtitle">核心平日 · 術科周末 — 中英數集中平日晚上，術科/副科全放周末，傳統清晰分離｜2026年9月起｜小組課固定週期表｜生成日：2026-07-31</div>
+  <div class="legend">
+<div class="legend-item"><div class="legend-dot" style="background:#e74c3c"></div>中文</div><div class="legend-item"><div class="legend-dot" style="background:#3498db"></div>英文</div><div class="legend-item"><div class="legend-dot" style="background:#2ecc71"></div>數學</div><div class="legend-item"><div class="legend-dot" style="background:#9b59b6"></div>物理</div><div class="legend-item"><div class="legend-dot" style="background:#e67e22"></div>化學</div><div class="legend-item"><div class="legend-dot" style="background:#1abc9c"></div>生物</div><div class="legend-item"><div class="legend-dot" style="background:#f39c12"></div>科學</div><div class="legend-item"><div class="legend-dot" style="background:#e91e63"></div>企會財</div><div class="legend-item"><div class="legend-dot" style="background:#00bcd4"></div>數學延伸</div>
+  </div>
+</div>
+
+<div class="stats-row">
+  <div class="stat-card"><div class="num">37</div><div class="label">總班數</div></div>
+  <div class="stat-card"><div class="num">16</div><div class="label">已分配老師</div></div>
+  <div class="stat-card"><div class="num">21</div><div class="label">待確認 (TBD)</div></div>
+  <div class="stat-card"><div class="num">5</div><div class="label">可用課室</div></div>
+  <div class="stat-card"><div class="num">9</div><div class="label">科目數</div></div>
+</div>
+
+<div class="timetable-wrap">
+<h2>📅 每周時間表</h2>
+<table>
+<thead>
+<tr>
+  <th></th>
+<th class="">星期一</th><th class="">星期二</th><th class="">星期三</th><th class="">星期四</th><th class="">星期五</th><th class="weekend">星期六</th><th class="weekend">星期日</th>
+</tr>
+</thead>
+<tbody>
+<tr><td class="time-cell">09:00-10:15</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td></tr>
+<tr><td class="time-cell">10:15-11:30</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td></tr>
+<tr><td class="time-cell">11:30-12:45</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S3+S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17E</span><span class="class-note">合班，待確認老師</span></div><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 矩尺座</span><span class="class-note">數學B班</span></div><div class="class-card" style="border-left:4px solid #9b59b6"><span class="class-subj" style="color:#9b59b6">物理</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 英仙座</span><span class="class-note">術科/副科</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 Jackson</span><span class="class-room">📍 17E</span><span class="class-note">Jackson 2班之二</span></div></td></tr>
+<tr><td class="time-cell">12:45-14:00</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 矩尺座</span><span class="class-note">數學B班</span></div><div class="class-card" style="border-left:4px solid #e67e22"><span class="class-subj" style="color:#e67e22">化學</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 山案座</span><span class="class-note">術科/副科</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S5+S6</span><span class="class-teacher">👨‍🏫 Cyndi</span><span class="class-room">📍 17E</span><span class="class-note">合班，Cyndi 2班之一</span></div><div class="class-card" style="border-left:4px solid #e91e63"><span class="class-subj" style="color:#e91e63">企會財</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 矩尺座</span><span class="class-note">術科/副科</span></div></td></tr>
+<tr><td class="time-cell">14:00-15:15</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 Christine</span><span class="class-room">📍 17D</span><span class="class-note">周末時段</span></div><div class="class-card" style="border-left:4px solid #9b59b6"><span class="class-subj" style="color:#9b59b6">物理</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 英仙座</span><span class="class-note">術科/副科</span></div><div class="class-card" style="border-left:4px solid #e67e22"><span class="class-subj" style="color:#e67e22">化學</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 山案座</span><span class="class-note">術科/副科</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S4+S5</span><span class="class-teacher">👨‍🏫 Cyndi</span><span class="class-room">📍 17E</span><span class="class-note">合班，Cyndi 2班之二</span></div><div class="class-card" style="border-left:4px solid #1abc9c"><span class="class-subj" style="color:#1abc9c">生物</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 英仙座</span><span class="class-note">術科/副科</span></div><div class="class-card" style="border-left:4px solid #e91e63"><span class="class-subj" style="color:#e91e63">企會財</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 矩尺座</span><span class="class-note">術科/副科</span></div></td></tr>
+<tr><td class="time-cell">15:15-16:30</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #9b59b6"><span class="class-subj" style="color:#9b59b6">物理</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 英仙座</span><span class="class-note">術科/副科</span></div><div class="class-card" style="border-left:4px solid #e67e22"><span class="class-subj" style="color:#e67e22">化學</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 山案座</span><span class="class-note">術科/副科</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #1abc9c"><span class="class-subj" style="color:#1abc9c">生物</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 英仙座</span><span class="class-note">術科/副科</span></div><div class="class-card" style="border-left:4px solid #00bcd4"><span class="class-subj" style="color:#00bcd4">數學延伸</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 山案座</span><span class="class-note">術科/副科</span></div></td></tr>
+<tr><td class="time-cell">16:30-17:45</td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S1</span><span class="class-teacher">👨‍🏫 Katie</span><span class="class-room">📍 17D</span></div><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S3</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S2</span><span class="class-teacher">👨‍🏫 Katie</span><span class="class-room">📍 17D</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S1+S2</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17E</span><span class="class-note">初中英文合班，待確認老師</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S1+S2</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17E</span><span class="class-note">初中英文B班</span></div></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #f39c12"><span class="class-subj" style="color:#f39c12">科學</span><span class="class-grade">S1</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17D</span><span class="class-note">術科/副科</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #00bcd4"><span class="class-subj" style="color:#00bcd4">數學延伸</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 山案座</span><span class="class-note">術科/副科</span></div></td></tr>
+<tr><td class="time-cell">17:45-19:00</td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S3</span><span class="class-teacher">👨‍🏫 Christine</span><span class="class-room">📍 17D</span><span class="class-note">同S1中文順接</span></div><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17E</span><span class="class-note">待確認老師</span></div><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S1</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span><span class="class-note">與S1中文同日順接</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 Christine</span><span class="class-room">📍 17D</span></div><div class="class-card" style="border-left:4px solid #3498db"><span class="class-subj" style="color:#3498db">英文</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 Jackson</span><span class="class-room">📍 山案座</span><span class="class-note">Jackson 2班之一</span></div><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S2</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span><span class="class-note">與S2中文同日順接</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #e74c3c"><span class="class-subj" style="color:#e74c3c">中文</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 Christine</span><span class="class-room">📍 17D</span></div></td><td class="has-class"><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S4</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span></div></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #f39c12"><span class="class-subj" style="color:#f39c12">科學</span><span class="class-grade">S2</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17D</span><span class="class-note">術科/副科</span></div></td><td class="empty-cell"></td></tr>
+<tr><td class="time-cell">19:00-20:15</td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S6</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span></div></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #2ecc71"><span class="class-subj" style="color:#2ecc71">數學</span><span class="class-grade">S5</span><span class="class-teacher">👨‍🏫 Mark</span><span class="class-room">📍 矩尺座</span><span class="class-note">與S4數學同日順接</span></div></td><td class="empty-cell"></td><td class="has-class"><div class="class-card" style="border-left:4px solid #f39c12"><span class="class-subj" style="color:#f39c12">科學</span><span class="class-grade">S3</span><span class="class-teacher">👨‍🏫 ⏳ TBD</span><span class="class-room">📍 17D</span><span class="class-note">術科/副科</span></div></td><td class="empty-cell"></td></tr>
+<tr><td class="time-cell">20:15-21:30</td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td><td class="empty-cell"></td></tr>
+
+</tbody>
+</table>
+</div>
+
+<div class="summary-grid">
+<div class="summary-section">
+<h2>📊 科目分佈</h2>
+<table><thead><tr><th>科目</th><th>班數</th></tr></thead><tbody>
+<tr><td>中文</td><td>6 班</td></tr><tr><td>企會財</td><td>2 班</td></tr><tr><td>化學</td><td>3 班</td></tr><tr><td>數學</td><td>8 班</td></tr><tr><td>數學延伸</td><td>2 班</td></tr><tr><td>物理</td><td>3 班</td></tr><tr><td>生物</td><td>2 班</td></tr><tr><td>科學</td><td>3 班</td></tr><tr><td>英文</td><td>8 班</td></tr>
+</tbody></table>
+</div>
+
+<div class="summary-section">
+<h2>👨‍🏫 老師負荷</h2>
+<table><thead><tr><th>老師</th><th>堂數</th><th>科目</th><th>狀態</th></tr></thead><tbody>
+<tr><td><strong>Christine</strong></td><td>4 班</td><td>中文</td><td>✅ 已確認</td></tr><tr><td><strong>Cyndi</strong></td><td>2 班</td><td>英文</td><td>✅ 已確認</td></tr><tr><td><strong>Jackson</strong></td><td>2 班</td><td>英文</td><td>✅ 已確認</td></tr><tr><td><strong>Katie</strong></td><td>2 班</td><td>中文</td><td>✅ 已確認</td></tr><tr><td><strong>Mark</strong></td><td>6 班</td><td>數學</td><td>✅ 已確認</td></tr><tr><td>TBD</td><td>21 班</td><td>企會財、化學、數學、數學延伸、物理、生物、科學、英文</td><td>⏳ 待確認</td></tr>
+</tbody></table>
+</div>
+</div>
+
+<div class="summary-section">
+<h2>📋 已知老師約束檢查</h2>
+<table><thead><tr><th>老師</th><th>科目</th><th>年級</th><th>放假</th><th>備註</th><th>實際負荷</th></tr></thead><tbody>
+<tr><td><strong>Mark</strong></td><td>數學</td><td>S1-S6</td><td>星期三、星期五</td><td>教初+高中</td><td>6 班 / 上限 8</td></tr><tr><td><strong>Katie</strong></td><td>中文</td><td>S1-S3</td><td>星期五、星期六</td><td>教初中</td><td>2 班 / 上限 6</td></tr><tr><td><strong>Cyndi</strong></td><td>英文</td><td>S4-S6</td><td>—</td><td>逢日上班，集中高中</td><td>2 班 / 上限 2</td></tr><tr><td><strong>Christine</strong></td><td>中文</td><td>S3-S6</td><td>星期四、星期五</td><td>中三至中六</td><td>4 班 / 上限 6</td></tr><tr><td><strong>Jackson</strong></td><td>英文</td><td>S4-S6</td><td>—</td><td>高中</td><td>2 班 / 上限 2</td></tr>
+</tbody></table>
+</div>
+
+<div class="gap-section">
+<h2>⚠️ 待確認事項 (§8 缺口)</h2>
+<ul>
+  <li><strong>課室容量：</strong>目前全為 null，需營運確認每間課室可容納人數</li>
+  <li><strong>未確認老師 (TBD)：</strong>共 {tbd} 班待其他老師確認檔期後分配（8月下旬）</li>
+  <li><strong>功輔班：</strong>星期一至五全日霸佔 1 間課室（本表已扣除該課室）</li>
+  <li><strong>公眾假期：</strong>未納入本表；僅為招生用每周常規時間表</li>
+  <li><strong>每班目標人數：</strong>待營運確認</li>
+  <li><strong>首堂週：</strong>待確認是否9/1當週開課</li>
+  <li><strong>必開科目清單：</strong>目前基於 2526 歷史數據推斷，非正式政策</li>
+</ul>
+</div>
+
+<div class="footer">
+明學教育 mainhope_system · 2627 常規學年時間表方案 · Generated by Claude · 僅供規劃參考
+</div>
+
+</div>
+</body>
+</html>
