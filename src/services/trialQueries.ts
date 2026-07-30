@@ -15,11 +15,6 @@ import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
-import {
- deleteAttendanceHitsWithAudit,
- fetchAttendanceHitsForStudentSchedules,
- type AttendanceLifecycleHit,
-} from "@/services/attendanceLifecycleQueries"
 
 /** 以週一為一週起始（與本地日曆一致） */
 export function mondayYmdOfWeekContaining(ymd: string): string {
@@ -163,21 +158,8 @@ export async function fetchTrialDashboardStats(): Promise<TrialDashboardStats> {
  }
 }
 
-export async function updateTrialSession(
- id: string,
- patch: { status?: string; remarks?: string | null },
- options?: { deleteAttendanceIds?: string[] }
-): Promise<void> {
+export async function updateTrialSession(id: string, patch: { status?: string; remarks?: string | null }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const deleteIds = options?.deleteAttendanceIds?.filter(Boolean) ?? []
- if (deleteIds.length > 0) {
-  const hits = await previewTrialAttendanceImpact(id)
-  const allow = new Set(deleteIds)
-  await deleteAttendanceHitsWithAudit(
-   hits.filter((h) => allow.has(h.id)),
-   "trial_cancel"
-  )
- }
  const { error } = await supabase
   .from("trial_sessions")
   .update({ ...patch, updated_at: new Date().toISOString() })
@@ -185,37 +167,10 @@ export async function updateTrialSession(
  if (error) throw error
 }
 
-export async function deleteTrialSession(
- id: string,
- options?: { deleteAttendanceIds?: string[] }
-): Promise<void> {
+export async function deleteTrialSession(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
- const deleteIds = options?.deleteAttendanceIds?.filter(Boolean) ?? []
- if (deleteIds.length > 0) {
-  const hits = await previewTrialAttendanceImpact(id)
-  const allow = new Set(deleteIds)
-  await deleteAttendanceHitsWithAudit(
-   hits.filter((h) => allow.has(h.id)),
-   "trial_delete"
-  )
- }
  const { error } = await supabase.from("trial_sessions").delete().eq("id", id)
  if (error) throw error
-}
-
-/** O4：試堂取消／刪除／改期前掃描舊堂出席 */
-export async function previewTrialAttendanceImpact(trialId: string): Promise<AttendanceLifecycleHit[]> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { data, error } = await supabase
-  .from("trial_sessions")
-  .select("student_id, schedule_id")
-  .eq("id", trialId)
-  .maybeSingle()
- if (error) throw error
- if (!data) throw new Error("找不到試堂紀錄")
- const studentId = String((data as { student_id: string }).student_id)
- const scheduleId = String((data as { schedule_id: string }).schedule_id)
- return fetchAttendanceHitsForStudentSchedules(studentId, [scheduleId])
 }
 
 function isTrialStatusOpen(status: string | null | undefined): boolean {
@@ -772,7 +727,6 @@ export async function convertTrialToEnrollment(params: {
 export async function rescheduleTrialSession(params: {
  trialId: string
  newScheduleId: string
- deleteOldAttendanceIds?: string[]
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: trial, error: trialErr } = await supabase
@@ -810,16 +764,6 @@ export async function rescheduleTrialSession(params: {
  const today = localYmd()
  const newDate = String(s.scheduled_date).slice(0, 10)
  if (newDate < today) throw new Error("不可改期至過去日期")
-
- const deleteIds = params.deleteOldAttendanceIds?.filter(Boolean) ?? []
- if (deleteIds.length > 0) {
-  const hits = await fetchAttendanceHitsForStudentSchedules(t.student_id, [t.schedule_id])
-  const allow = new Set(deleteIds)
-  await deleteAttendanceHitsWithAudit(
-   hits.filter((h) => allow.has(h.id)),
-   "trial_reschedule"
-  )
- }
 
  const { data: clash, error: clashErr } = await supabase
   .from("trial_sessions")

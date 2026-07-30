@@ -54,11 +54,6 @@ import { sortSchedulesByDateTime } from "@/services/privateTutoringQueries"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { resolveScheduleCancelOptions } from "@/lib/scheduleCancelConfirm"
-import {
- fetchAttendanceHitsForStudentClass,
- formatAttendanceHitsDescription,
-} from "@/services/attendanceLifecycleQueries"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isAlien, isMgmtStaff } from "@/lib/mgmtRole"
 import { gradeChineseToCode } from "@/lib/courseCode"
@@ -335,9 +330,11 @@ export function ClassDetailView() {
  /** 一對一輕量編輯：老師／學費（admin／alien；老師入口不可改） */
  const canEditPrivateLight =
   canManageClass && !classYearLocked && Boolean(isPrivateClass) && !isTeacherPortal
- /** 一對一可在詳情頁預約（僅 admin／alien；老師不可新增排程） */
+ /** 一對一可在詳情頁預約（admin／alien，或指派老師本人） */
  const canBookPrivate =
-  Boolean(isPrivateClass) && !classYearLocked && canManageClass
+  Boolean(isPrivateClass) &&
+  !classYearLocked &&
+  (canManageClass || isOwnTeacherClass)
  const canEditSchedule = (scheduledDate: string) =>
   (canManageClass || isOwnTeacherClass) && canEditAcademicYearForDate(scheduledDate)
  const classesListPath = isPrivateClass || fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"
@@ -1190,20 +1187,6 @@ export function ClassDetailView() {
    return
   }
   try {
-   const hits = await fetchAttendanceHitsForStudentClass(s.studentId, cid)
-   let deleteAttendanceIds: string[] | undefined
-   if (hits.length > 0 && !isPrivateClass) {
-    const choice = await confirmDialog({
-     title: "退讀：已有出席紀錄",
-     description: `${formatAttendanceHitsDescription(hits)}\n\n真上課應保留；誤點才刪。預設建議保留。`,
-     confirmText: "保留出席並退讀",
-     alternateText: "一併刪除出席",
-     cancelText: "取消退讀",
-     tone: "warning",
-    })
-    if (choice === false) return
-    if (choice === "alternate") deleteAttendanceIds = hits.map((h) => h.id)
-   }
    if (isPrivateClass) {
     await withdrawPrivateEnrollment({
      enrollmentId: s.enrollmentId,
@@ -1217,7 +1200,6 @@ export function ClassDetailView() {
      classId: cid,
      effectiveDate: localYmd(),
      reason: null,
-     deleteAttendanceIds,
     })
    }
    pushBanner({ tone: "success", title: "已退讀", message: `${s.fullName} 已標為已退讀。` })
@@ -1254,24 +1236,9 @@ export function ClassDetailView() {
    return
   }
   try {
-   const hits = await fetchAttendanceHitsForStudentClass(s.studentId, cid)
-   let deleteAttendanceIds: string[] | undefined
-   if (hits.length > 0) {
-    const choice = await confirmDialog({
-     title: "手誤清除：已有出席紀錄",
-     description: `${formatAttendanceHitsDescription(hits)}\n\n手誤報讀通常應一併刪出席；若曾真上課請保留。`,
-     confirmText: "一併刪除出席",
-     alternateText: "只清報讀、保留出席",
-     cancelText: "取消清除",
-     tone: "destructive",
-    })
-    if (choice === false) return
-    if (choice === true) deleteAttendanceIds = hits.map((h) => h.id)
-   }
    await purgeMistakenEnrollment({
     enrollmentId: s.enrollmentId,
     studentId: s.studentId,
-    deleteAttendanceIds,
    })
    pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${studentName} 已自本班名單移除，無增退紀錄。` })
    await reload()
@@ -1309,9 +1276,7 @@ export function ClassDetailView() {
   setCancelSaving(true)
   setSchedActionErr(null)
   try {
-   const opts = await resolveScheduleCancelOptions(confirmDialog, cancelScheduleId)
-   if (!opts) return
-   await updateSchedule(cancelScheduleId, { status: "取消", cancel_reason: reason }, opts)
+   await updateSchedule(cancelScheduleId, { status: "取消", cancel_reason: reason })
    setCancelScheduleId(null)
    await reload()
   } catch (e) {

@@ -1,9 +1,12 @@
 # 生命週期孤兒：明學操作方案
 
-> 狀態：`done`（O0–O6 已實作；本檔保留操作模擬與定案）  
+> 狀態：`方案已定／未實作`（功能 code 已從 main 撤回；僅供審閱與操作模擬）  
 > 日期：2026-07-31  
 > 分題：[`docs/backlog/lifecycle-orphans.md`](../backlog/lifecycle-orphans.md)  
-> 索引：[`docs/BACKLOG.md`](../BACKLOG.md)
+> 索引：[`docs/BACKLOG.md`](../BACKLOG.md)  
+> 暫存實作（勿當已上線）：git branch `wip/lifecycle-orphans-impl`（含誤交的實作快照）；另見 [`patches/`](./patches/README.md)
+
+本檔＝操作／實作方案（含操作模擬）。**現階段不寫入應用程式功能。**
 
 ---
 

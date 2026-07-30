@@ -23,11 +23,6 @@ import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
- deleteAttendanceHitsWithAudit,
- fetchAttendanceHitsForStudentSchedules,
- type AttendanceLifecycleHit,
-} from "@/services/attendanceLifecycleQueries"
-import {
  describeMakeupTimeConflicts,
  fetchStudentMustAttendScheduleSlots,
  findStudentConflictsWithScheduleSlot,
@@ -275,55 +270,6 @@ export async function fetchLeavesAwaitingMakeupDateForStudents(
  return byStudent
 }
 
-/**
- * 預覽：刪請假或清／改調堂時，補堂宿主上已寫入的出席（不掃請假日原班）。
- * `patch` 含 `makeup_schedule_id` 時只掃會被拆掉的舊宿主；刪整筆時傳 `forDelete: true`。
- */
-export async function previewLeaveMakeupAttendanceImpact(
- id: string,
- opts?: {
-  forDelete?: boolean
-  patch?: { makeup_schedule_id?: string | null; makeup_type?: string | null }
- }
-): Promise<AttendanceLifecycleHit[]> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { data: existing, error: fetchErr } = await supabase
-  .from("leave_makeup_records")
-  .select("student_id, makeup_schedule_id")
-  .eq("id", id)
-  .maybeSingle()
- if (fetchErr) throwPostgrest(fetchErr)
- if (!existing) throw new Error("找不到請假紀錄")
- const prev = existing as Record<string, unknown>
- const studentId = String(prev.student_id ?? "")
- const prevMakeup =
-  prev.makeup_schedule_id != null ? String(prev.makeup_schedule_id) : ""
- if (!studentId || !prevMakeup) return []
-
- const patch = opts?.patch
- if (opts?.forDelete) {
-  return fetchAttendanceHitsForStudentSchedules(studentId, [prevMakeup])
- }
- if (!patch) return []
-
- const nullsMakeup =
-  patch.makeup_schedule_id !== undefined && patch.makeup_schedule_id === null
- const changesMakeup =
-  patch.makeup_schedule_id !== undefined &&
-  patch.makeup_schedule_id !== null &&
-  String(patch.makeup_schedule_id) !== prevMakeup
- /** 改非調堂但未帶 makeup_schedule_id（少數路徑）仍視為清宿主 */
- const typeClears =
-  patch.makeup_type != null &&
-  String(patch.makeup_type).trim() !== "調堂" &&
-  patch.makeup_schedule_id === undefined
-
- if (nullsMakeup || changesMakeup || typeClears) {
-  return fetchAttendanceHitsForStudentSchedules(studentId, [prevMakeup])
- }
- return []
-}
-
 export async function updateLeaveMakeupRecord(
  id: string,
  patch: {
@@ -334,8 +280,7 @@ export async function updateLeaveMakeupRecord(
   remarks?: string | null
   makeup_schedule_id?: string | null
   tuition_disposition?: LeaveTuitionDisposition | null
- },
- options?: { deleteAttendanceIds?: string[] }
+ }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: existing, error: fetchErr } = await supabase
@@ -350,15 +295,6 @@ export async function updateLeaveMakeupRecord(
  const prev = existing as Record<string, unknown>
  assertAcademicYearEditableForDate(String(prev.leave_date ?? ""))
  if (patch.makeup_date) assertAcademicYearEditableForDate(patch.makeup_date)
-
- const deleteIds = options?.deleteAttendanceIds?.filter(Boolean) ?? []
- if (deleteIds.length > 0) {
-  const hits = await previewLeaveMakeupAttendanceImpact(id, { patch })
-  const allow = new Set(deleteIds)
-  const toDelete = hits.filter((h) => allow.has(h.id))
-  await deleteAttendanceHitsWithAudit(toDelete, "leave_cancel")
- }
-
  const { error } = await supabase
   .from("leave_makeup_records")
   .update({ ...patch, updated_at: new Date().toISOString() })
@@ -514,10 +450,7 @@ export async function setLeaveTuitionDisposition(
  if (updateErr) throwPostgrest(updateErr)
 }
 
-export async function deleteLeaveMakeupRecord(
- id: string,
- options?: { deleteAttendanceIds?: string[] }
-): Promise<void> {
+export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: existing, error: fetchErr } = await supabase
   .from("leave_makeup_records")
@@ -527,15 +460,6 @@ export async function deleteLeaveMakeupRecord(
  if (fetchErr) throwPostgrest(fetchErr)
  if (!existing) throw new Error("找不到請假紀錄")
  assertAcademicYearEditableForDate(String((existing as { leave_date?: string }).leave_date ?? ""))
-
- const deleteIds = options?.deleteAttendanceIds?.filter(Boolean) ?? []
- if (deleteIds.length > 0) {
-  const hits = await previewLeaveMakeupAttendanceImpact(id, { forDelete: true })
-  const allow = new Set(deleteIds)
-  const toDelete = hits.filter((h) => allow.has(h.id))
-  await deleteAttendanceHitsWithAudit(toDelete, "leave_cancel")
- }
-
  const { error } = await supabase.from("leave_makeup_records").delete().eq("id", id)
  if (error) throwPostgrest(error)
 }

@@ -15,22 +15,15 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useAppConfirm } from "@/lib/appConfirm"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isAdmin } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses } from "@/services/classQueries"
 import { fetchAllTeachers } from "@/services/teacherQueries"
-import {
- deleteAttendanceDetailAsAdmin,
- flagAttendanceEligibility,
- type AttendanceEligibilityFlag,
-} from "@/services/attendanceLifecycleQueries"
 import {
  aggregateAttendanceByDate,
  fetchAttendanceRecordsInRange,
@@ -92,8 +85,6 @@ function getInitialAttendanceViewMode(): ViewMode {
 export function AttendanceRecordsPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const isMobile = useIsMobile()
- const { confirmDialog } = useAppConfirm()
- const canDeleteAttendance = isAdmin()
  const [viewMode, setViewMode] = usePersistentState<ViewMode>(
   "mgmt_attendance_records_viewMode",
   getInitialAttendanceViewMode()
@@ -102,12 +93,8 @@ export function AttendanceRecordsPage() {
  const [studentKeyword, setStudentKeyword] = useState("")
  const [classFilter, setClassFilter] = useState("all")
  const [teacherFilter, setTeacherFilter] = useState("all")
- const [onlyEndedEligibility, setOnlyEndedEligibility] = useState(false)
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
- const [eligibilityById, setEligibilityById] = useState<Map<string, AttendanceEligibilityFlag>>(
-  () => new Map()
- )
  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
  const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; name: string }>>([])
  const [loading, setLoading] = useState(true)
@@ -122,47 +109,13 @@ export function AttendanceRecordsPage() {
    const to = dateRange.to || from
    const rec = await fetchAttendanceRecordsInRange(from, to)
    setRows(rec)
-   const flags = await flagAttendanceEligibility(
-    rec.map((r) => ({ id: r.id, studentId: r.studentId, scheduleId: r.scheduleId }))
-   )
-   setEligibilityById(flags)
   } catch (e) {
    reportUserFacingError(e, { source: "AttendanceRecordsPage.reload", setErr })
    setRows([])
-   setEligibilityById(new Map())
   } finally {
    setLoading(false)
   }
  }, [dateRange.from, dateRange.to])
-
- const deleteRow = async (r: AttendanceRecordRow) => {
-  if (!canDeleteAttendance) return
-  const ended = eligibilityById.get(r.id) === "ended"
-  const ok = await confirmDialog({
-   title: "刪除出席紀錄",
-   description: ended
-    ? `確定刪除 ${r.studentName ?? "學生"}（${r.attendanceDate} · ${r.status}）？此列已無應到資格；刪除會影響已上堂數。`
-    : `確定刪除 ${r.studentName ?? "學生"}（${r.attendanceDate} · ${r.status}）？學生可能仍在名冊；刪除會影響已上堂數。`,
-   confirmText: "確認刪除",
-   tone: "destructive",
-   confirmInput: { label: "請輸入學生姓名以確認", expected: (r.studentName ?? "").trim() || "刪除" },
-  })
-  if (!ok) return
-  try {
-   await deleteAttendanceDetailAsAdmin({
-    id: r.id,
-    studentId: r.studentId,
-    classId: r.classId,
-    scheduleId: r.scheduleId,
-    attendanceDate: r.attendanceDate,
-    status: r.status,
-    studentName: r.studentName,
-   })
-   await reload()
-  } catch (e) {
-   reportUserFacingError(e, { source: "AttendanceRecordsPage.deleteRow", setErr })
-  }
- }
 
  useEffect(() => {
   void reload()
@@ -219,11 +172,8 @@ export function AttendanceRecordsPage() {
      r.classTeacherId === activeTeacherId
    )
   }
-  if (onlyEndedEligibility) {
-   next = next.filter((r) => eligibilityById.get(r.id) === "ended")
-  }
   return next
- }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid, onlyEndedEligibility, eligibilityById])
+ }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid])
 
  const monthAgg = useMemo(() => aggregateAttendanceByDate(displayRows), [displayRows])
  const s = useMemo(() => statusCount(displayRows), [displayRows])
@@ -427,15 +377,6 @@ export function AttendanceRecordsPage() {
       ))}
      </Select>
     </label>
-    <label className="flex items-end gap-2 pb-1 text-xs text-muted-foreground">
-     <input
-      type="checkbox"
-      className="h-4 w-4 rounded border-border"
-      checked={onlyEndedEligibility}
-      onChange={(e) => setOnlyEndedEligibility(e.target.checked)}
-     />
-     <span>僅顯示資格已結束（歷史出席仍計）</span>
-    </label>
     <div className="flex items-end">
      <Button
       type="button"
@@ -569,18 +510,6 @@ export function AttendanceRecordsPage() {
               </Tag>
              </div>
              <div className="mt-1 text-muted-foreground">{r.studentGrade ?? "—"}</div>
-             {eligibilityById.get(r.id) === "ended" ? (
-              <p className="mt-1 text-[11px] text-warning">資格已結束（歷史出席仍計）</p>
-             ) : null}
-             {canDeleteAttendance ? (
-              <button
-               type="button"
-               className="mt-1 text-[11px] font-medium text-destructive hover:underline"
-               onClick={() => void deleteRow(r)}
-              >
-               刪除
-              </button>
-             ) : null}
             </li>
            ))}
           </ul>
@@ -617,18 +546,6 @@ export function AttendanceRecordsPage() {
          </Link>
          {r.courseCode ? <p className="font-mono text-xs text-muted-foreground">{r.courseCode}</p> : null}
          {r.remarks ? <p className="text-xs text-muted-foreground">備註：{r.remarks}</p> : null}
-         {eligibilityById.get(r.id) === "ended" ? (
-          <p className="text-xs text-warning">資格已結束（歷史出席仍計）</p>
-         ) : null}
-         {canDeleteAttendance ? (
-          <button
-           type="button"
-           className="text-xs font-medium text-destructive hover:underline"
-           onClick={() => void deleteRow(r)}
-          >
-           刪除出席
-          </button>
-         ) : null}
         </div>
        </article>
       ))
@@ -642,18 +559,17 @@ export function AttendanceRecordsPage() {
      <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[12%] px-3 py-2 font-medium">日期</th>
-        <th className="w-[18%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[20%] px-3 py-2 font-medium">班別</th>
-        <th className="w-[14%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[20%] px-3 py-2 font-medium">備註</th>
-        <th className="w-[16%] px-3 py-2 font-medium">操作</th>
+        <th className="w-[14%] px-3 py-2 font-medium">日期</th>
+        <th className="w-[22%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[24%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[18%] px-3 py-2 font-medium">狀態</th>
+        <th className="w-[22%] px-3 py-2 font-medium">備註</th>
        </tr>
       </thead>
       <tbody>
        {displayRows.length === 0 ? (
         <tr>
-         <td colSpan={6} className="px-3 py-12 text-center text-muted-foreground">
+         <td colSpan={5} className="px-3 py-12 text-center text-muted-foreground">
           此日尚無紀錄
          </td>
         </tr>
@@ -679,24 +595,8 @@ export function AttendanceRecordsPage() {
            <Tag size="sm" tone={statusToTagTone(r.status)}>
             {r.status}
            </Tag>
-           {eligibilityById.get(r.id) === "ended" ? (
-            <div className="mt-1 text-[11px] text-warning">資格已結束</div>
-           ) : null}
           </td>
           <td className="px-3 py-2 text-xs text-muted-foreground">{r.remarks ?? "—"}</td>
-          <td className="px-3 py-2">
-           {canDeleteAttendance ? (
-            <button
-             type="button"
-             className="text-xs font-medium text-destructive hover:underline"
-             onClick={() => void deleteRow(r)}
-            >
-             刪除
-            </button>
-           ) : (
-            <span className="text-xs text-muted-foreground">—</span>
-           )}
-          </td>
          </tr>
         ))
        )}

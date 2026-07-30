@@ -1,10 +1,9 @@
-import { updateSchedule, previewScheduleCancelImpact } from "@/services/classQueries"
+import { updateSchedule } from "@/services/classQueries"
 import {
   fetchLeaveStudentIdsForSchedules,
 } from "@/services/attendanceQueries"
 import {
   insertLeaveMakeupForSchedule,
-  previewLeaveMakeupAttendanceImpact,
   TEACHER_ABSENCE_LEAVE_REASON,
   updateLeaveMakeupRecord,
 } from "@/services/leaveQueries"
@@ -368,19 +367,9 @@ export async function executeTeacherLeaveDay(params: {
         throw new Error(`${unit.classLabel}：無班別，無法建立待另約`)
       }
 
-      let cancelledOk = true
       for (const sid of unit.scheduleIds) {
-        const impact = await previewScheduleCancelImpact(sid)
-        if (impact.attendanceHits.length > 0) {
-          result.errors.push(
-            `${unit.classLabel}：課堂已有 ${impact.attendanceHits.length} 筆出席，請至請假管理／出席紀錄處理後再取消`
-          )
-          cancelledOk = false
-          break
-        }
         await updateSchedule(sid, { status: "取消", cancel_reason: cancelReason })
       }
-      if (!cancelledOk) continue
 
       const expected = unit.students.filter((s) => s.kind === "expected")
       const leaveOnly = unit.students.filter((s) => s.kind === "leave")
@@ -411,15 +400,6 @@ export async function executeTeacherLeaveDay(params: {
 
       for (const st of makeup) {
         if (!st.leaveRecordId) continue
-        const hits = await previewLeaveMakeupAttendanceImpact(st.leaveRecordId, {
-          patch: { makeup_schedule_id: null, makeup_type: "待安排" },
-        })
-        if (hits.length > 0) {
-          result.errors.push(
-            `${st.fullName}：補堂宿主已有 ${hits.length} 筆出席，請至請假管理決定是否一併刪除後再取消調堂`
-          )
-          continue
-        }
         const suffix = "原補堂因老師請假取消"
         const prev = st.makeupFromHint ?? ""
         const remarks = [prev && `原：${prev}`, suffix].filter(Boolean).join("；")

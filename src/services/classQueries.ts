@@ -18,11 +18,6 @@ import { gradeLabelsAlignedFromCourse, resolveClassGradeLabels, normalizeStoredC
 import { formatClassLabel } from "@/lib/courseLabel"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
-import {
- deleteAttendanceHitsWithAudit,
- fetchAttendanceHitsForSchedule,
- type AttendanceLifecycleHit,
-} from "@/services/attendanceLifecycleQueries"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
 import {
  availabilityTimeSlotForStartTime,
@@ -1162,13 +1157,7 @@ export async function updateSchedule(
   session_number: number | null
   scheduled_date: string
   teacher_id: string | null
- }>,
- options?: {
-  /** 取消時一併取消仍開著的試堂 */
-  cancelOpenTrials?: boolean
-  /** 取消時一併刪除的出席 id */
-  deleteAttendanceIds?: string[]
- }
+ }>
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: sched, error: fetchErr } = await supabase
@@ -1209,54 +1198,6 @@ export async function updateSchedule(
     scheduledDate: String(prev.scheduled_date ?? ""),
     startTime: prev.start_time ?? null,
    })
-   // O3：掛此堂的調堂改回待安排（對齊老師請假精靈）
-   const { data: makeupLeaves, error: makeupErr } = await supabase
-    .from("leave_makeup_records")
-    .select("id, remarks")
-    .eq("makeup_schedule_id", id)
-   if (makeupErr) throw makeupErr
-   for (const leave of makeupLeaves ?? []) {
-    const lid = String((leave as { id: string }).id)
-    const prevRemarks = (leave as { remarks?: string | null }).remarks
-    const suffix = "原補堂因課堂取消改回待安排"
-    const remarks = [prevRemarks?.trim(), suffix].filter(Boolean).join("；")
-    const { error: upErr } = await supabase
-     .from("leave_makeup_records")
-     .update({
-      makeup_type: "待安排",
-      makeup_schedule_id: null,
-      makeup_date: null,
-      remarks,
-      updated_at: new Date().toISOString(),
-     })
-     .eq("id", lid)
-    if (upErr) throw upErr
-   }
-   if (options?.cancelOpenTrials) {
-    const { data: trials, error: trialErr } = await supabase
-     .from("trial_sessions")
-     .select("id, status")
-     .eq("schedule_id", id)
-    if (trialErr) throw trialErr
-    for (const t of trials ?? []) {
-     const st = String((t as { status?: string }).status ?? "")
-     if (st.includes("完成") || st.includes("取消")) continue
-     const { error: tUp } = await supabase
-      .from("trial_sessions")
-      .update({ status: "取消", updated_at: new Date().toISOString() })
-      .eq("id", String((t as { id: string }).id))
-     if (tUp) throw tUp
-    }
-   }
-   const deleteIds = options?.deleteAttendanceIds?.filter(Boolean) ?? []
-   if (deleteIds.length > 0) {
-    const hits = await fetchAttendanceHitsForSchedule(id)
-    const allow = new Set(deleteIds)
-    await deleteAttendanceHitsWithAudit(
-     hits.filter((h) => allow.has(h.id)),
-     "schedule_cancel"
-    )
-   }
   } else if (!nowCancelled && wasCancelled && prev.teacher_id && prev.class_id) {
    const timeSlot = availabilityTimeSlotForStartTime(prev.start_time ?? null)
    if (timeSlot) {
@@ -1313,43 +1254,6 @@ export async function updateSchedule(
   action: "更新排程",
   detail: `schedule_id=${id}; patch=${JSON.stringify(patch)}`,
  })
-}
-
-/** O3：取消排程前預覽——調堂連結、開著試堂、已寫出席 */
-export async function previewScheduleCancelImpact(scheduleId: string): Promise<{
- makeupLeaveIds: string[]
- openTrialIds: string[]
- openTrialLabels: string[]
- attendanceHits: AttendanceLifecycleHit[]
-}> {
- if (!supabase) throw new Error("Supabase 未設定")
- const [{ data: leaves, error: leaveErr }, { data: trials, error: trialErr }, attendanceHits] =
-  await Promise.all([
-   supabase
-    .from("leave_makeup_records")
-    .select("id")
-    .eq("makeup_schedule_id", scheduleId),
-   supabase
-    .from("trial_sessions")
-    .select("id, status, students ( full_name )")
-    .eq("schedule_id", scheduleId),
-   fetchAttendanceHitsForSchedule(scheduleId),
-  ])
- if (leaveErr) throw leaveErr
- if (trialErr) throw trialErr
- const openTrials = (trials ?? []).filter((t) => {
-  const s = String((t as { status?: string }).status ?? "")
-  return !s.includes("完成") && !s.includes("取消")
- })
- return {
-  makeupLeaveIds: (leaves ?? []).map((r) => String((r as { id: string }).id)),
-  openTrialIds: openTrials.map((t) => String((t as { id: string }).id)),
-  openTrialLabels: openTrials.map((t) => {
-   const st = (t as { students?: { full_name?: string } | null }).students
-   return st?.full_name != null ? String(st.full_name) : "試堂生"
-  }),
-  attendanceHits,
- }
 }
 
 export async function deleteSchedule(id: string): Promise<void> {

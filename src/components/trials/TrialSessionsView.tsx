@@ -40,7 +40,6 @@ import {
  fetchTrialsWithRelations,
  insertPaidTrialSession,
  insertTrialSession,
- previewTrialAttendanceImpact,
  recordTrialOutcome,
  rescheduleTrialSession,
  trialCanConvert,
@@ -55,9 +54,6 @@ import {
  type TrialDashboardStats,
  type TrialManageRow,
 } from "@/services/trialQueries"
-import {
- formatAttendanceHitsDescription,
-} from "@/services/attendanceLifecycleQueries"
 
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
@@ -924,30 +920,7 @@ export function TrialSessionsView() {
            className="h-9 w-full min-w-[6.5rem] text-xs"
            value={r.status}
            onChange={async (e) => {
-            const next = e.target.value
-            if (String(next).includes("取消")) {
-             const hits = await previewTrialAttendanceImpact(r.id)
-             if (hits.length > 0) {
-              const choice = await confirmDialog({
-               title: "取消試堂",
-               description: `${formatAttendanceHitsDescription(hits)}\n\n預設建議：若未真正上課可一併刪除。`,
-               confirmText: "一併刪除出席",
-               alternateText: "只取消試堂、保留出席",
-               cancelText: "取消",
-               tone: "destructive",
-              })
-              if (choice === false) return
-              await updateTrialSession(
-               r.id,
-               { status: next },
-               { deleteAttendanceIds: choice === true ? hits.map((h) => h.id) : undefined }
-              )
-             } else {
-              await updateTrialSession(r.id, { status: next })
-             }
-            } else {
-             await updateTrialSession(r.id, { status: next })
-            }
+            await updateTrialSession(r.id, { status: e.target.value })
             await reload()
            }}
           >
@@ -1024,32 +997,16 @@ export function TrialSessionsView() {
               type="button"
               className="text-xs font-medium text-destructive hover:underline"
               onClick={async () => {
-               const hits = await previewTrialAttendanceImpact(r.id)
-               if (hits.length === 0) {
-                if (
-                 !(await confirmDialog({
-                  title: "刪除試堂紀錄",
-                  description: "確定刪除此筆試堂？",
-                  confirmText: "確認刪除",
-                  tone: "destructive",
-                 }))
-                )
-                 return
-                await deleteTrialSession(r.id)
-               } else {
-                const choice = await confirmDialog({
+               if (
+                !(await confirmDialog({
                  title: "刪除試堂紀錄",
-                 description: `${formatAttendanceHitsDescription(hits)}\n\n確定刪除試堂？`,
-                 confirmText: "一併刪除出席",
-                 alternateText: "只刪試堂、保留出席",
-                 cancelText: "取消",
+                 description: "確定刪除此筆試堂？",
+                 confirmText: "確認刪除",
                  tone: "destructive",
-                })
-                if (choice === false) return
-                await deleteTrialSession(r.id, {
-                 deleteAttendanceIds: choice === true ? hits.map((h) => h.id) : undefined,
-                })
-               }
+                }))
+               )
+                return
+               await deleteTrialSession(r.id)
                await reload()
               }}
              >
@@ -1415,24 +1372,9 @@ export function TrialSessionsView() {
          setRescheduleSaving(true)
          setRescheduleErr(null)
          try {
-          const hits = await previewTrialAttendanceImpact(rescheduleId)
-          let deleteOldAttendanceIds: string[] | undefined
-          if (hits.length > 0) {
-           const choice = await confirmDialog({
-            title: "試堂改期：舊堂出席",
-            description: `${formatAttendanceHitsDescription(hits)}\n\n建議刪除舊堂出席，避免雙計。`,
-            confirmText: "刪除舊堂出席",
-            alternateText: "保留舊堂出席",
-            cancelText: "取消改期",
-            tone: "destructive",
-           })
-           if (choice === false) return
-           if (choice === true) deleteOldAttendanceIds = hits.map((h) => h.id)
-          }
           await rescheduleTrialSession({
            trialId: rescheduleId,
            newScheduleId: rescheduleScheduleId,
-           deleteOldAttendanceIds,
           })
           setRescheduleId(null)
           await reload()

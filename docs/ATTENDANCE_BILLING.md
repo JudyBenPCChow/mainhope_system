@@ -48,20 +48,6 @@
 
 「全部現場」：**當日有請假單的學生一律不覆蓋**。
 
-## 反操作與生命週期孤兒
-
-**孤兒**＝點名紙已無此人（報讀／試堂／補堂資格沒了），但 `attendance_details` 仍在，且計費白名單 status 仍計入已上堂數。
-
-| 情境 | 系統行為（定案） |
-| --- | --- |
-| 取消請假／清調堂／改調堂日 | 掃描補堂宿主出席 → Confirm：一併刪或保留（不靜默刪） |
-| 行政刪單列 | `/AttendanceRecords` 僅 **admin**；需輸入姓名確認；寫稽核 |
-| 退讀 | 預設**保留**歷史出席；可選一併刪 |
-| 手誤清報讀／取消試堂／改期 | Confirm 可一併刪舊堂出席 |
-| 軟取消排程 | 調堂改回待安排；試堂／出席另 Confirm |
-
-詳見：[`plans/2026-07-31-lifecycle-orphans.md`](plans/2026-07-31-lifecycle-orphans.md)、[`backlog/lifecycle-orphans.md`](backlog/lifecycle-orphans.md)。
-
 ## 連堂請假與單項補堂（營運）
 
 操作細節見系統說明書：[請假與補堂：連堂單項處理](manual/LEAVE_MAKEUP_CONSECUTIVE.md)。

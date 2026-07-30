@@ -2,12 +2,13 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done` |
+| 狀態 | `in_progress`（方案審閱；**功能未實作**） |
 | 優先 | 高 |
 | 範圍 | 資格撤銷後下游事實列仍留；以 `attendance_details` 為核心，並涵蓋請假調堂、試堂、軟取消排程 |
 | 觸發個案 | 林藝涵：取消 7/24 請假＋7/25 補堂後，點名紙無名但出席紀錄仍有 7/25 兩堂 |
 | 原則（定案） | **不**靜默刪計費出席；資格變更時攔截＋Confirm；行政可單列刪（admin＋稽核） |
 | 操作方案 | [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md)（市場組合＋分階段 A／B／C＋操作模擬） |
+| 暫存實作 | branch `wip/lifecycle-orphans-impl`；[`plans/patches/`](../plans/patches/README.md)（勿當已上線） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 相關政策 | [`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)、[`LEAVE_MAKEUP_CONSECUTIVE.md`](../manual/LEAVE_MAKEUP_CONSECUTIVE.md) |
 | 更新日期 | 2026-07-31 |
@@ -62,13 +63,13 @@
 
 | ID | 階段 | 項目 | 說明 | 建議 |
 | --- | --- | --- | --- | --- |
-| O1 | A | 取消請假／調堂攔截 | 已實作：刪／清／改調堂掃描＋三路 Confirm；精靈遇已點名則擋 | done |
-| O6 | A | 文件 | `LEAVE_MAKEUP_CONSECUTIVE`／`ATTENDANCE_BILLING` 已寫反操作 | done |
-| O2 | A | 行政刪單列點名 | `/AttendanceRecords` admin 刪＋姓名確認＋audit | done |
-| O0 | B | 可見性 | 出席紀錄標「資格已結束」；可篩僅顯示 | done |
-| O3 | B | 軟取消排程對齊 | 取消時調堂改待安排；試堂／出席 Confirm | done |
-| O4 | C | 退讀／清報讀／試堂取消改期 | 變更前掃描＋Confirm（退讀預設保留） | done |
-| O5 | C | 對帳健康檢查 | 出席紀錄「僅顯示資格已結束」＋可單列清 | done（併入出席紀錄） |
+| O1 | A | 取消請假／調堂攔截 | 刪請假或清／改 `makeup_schedule_id` 前查已有出席 → Confirm 一併刪；改調堂日問是否刪舊宿主 | **對齊林藝涵案，優先** |
+| O6 | A | 文件 | `LEAVE_MAKEUP_CONSECUTIVE` 加「取消請假」；`ATTENDANCE_BILLING` 寫反操作 | 隨 O1 一併 |
+| O2 | A | 行政刪單列點名 | `/AttendanceRecords` 或學生詳情；僅 admin；呼叫既有 delete helper；簡單稽核 | 應急／歷史案 |
+| O0 | B | 可見性 | 出席紀錄／排程詳情標「資格已結束（歷史出席仍計）」類（對照報讀＋試堂＋補堂） | 資訊標籤，非一鍵刪 |
+| O3 | B | 軟取消排程對齊 | 掛該堂的調堂改回待安排（比照老師請假精靈）；開著試堂提示／改取消 | 消死連結 |
+| O4 | C | 退讀／清報讀／試堂取消改期 | 同一套「變更前掃描出席＋Confirm」；預設偏向保留已點名 | 與 O1 共用掃描 API |
+| O5 | C | 對帳健康檢查 | 列出無對應應到資格的 `attendance_details`（唯讀＋一鍵清，admin） | 可後做 |
 
 ## 個案應急（林藝涵）
 
