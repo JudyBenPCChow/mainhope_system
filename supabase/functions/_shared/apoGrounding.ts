@@ -276,13 +276,88 @@ export function buildSearchStudentsStructuredReply(
   }
 }
 
+/** 學生今日上堂：由查詢結果直接組裝（例如「梁天因今日有冇堂」） */
+export function buildStudentTodayLessonsStructuredReply(
+  payload: Record<string, unknown>
+): ParsedReply | null {
+  if (payload.ok === false) {
+    const err = String(payload.error ?? "").trim()
+    return {
+      reply: err || "未能查詢此學生今日上堂資料。",
+      suggestions: ["如何進行點名？", "今日有邊個請假？"],
+      paths: [{ label: "進行點名", path: "/Attendance" }],
+    }
+  }
+
+  const student = payload.student as Record<string, unknown> | undefined
+  const name =
+    String(student?.full_name ?? student?.english_name ?? "").trim() ||
+    String(payload.search_query ?? "").trim() ||
+    "該學生"
+  const date = String(payload.date ?? "").trim() || "今日"
+  const lessons = Array.isArray(payload.lessons) ? payload.lessons : []
+  const count = Number(payload.lesson_count ?? lessons.length)
+
+  if (count === 0) {
+    return {
+      reply: `${name} 在 ${date} 沒有排程課堂。`,
+      suggestions: [`${name}依家報什麼？`, "今日有邊個請假？", "如何進行點名？"],
+      paths: [{ label: "學生管理", path: "/Students" }],
+    }
+  }
+
+  const stateLabel = (state: string, leaveReason: string, attendance: string): string => {
+    if (state === "cancelled") return "已取消"
+    if (state === "on_leave") return leaveReason ? `請假（${leaveReason}）` : "請假"
+    if (state === "excused") return attendance || "事假／病假"
+    if (state === "absent") return "缺席／no show"
+    if (state === "marked") return attendance || "已點名"
+    return "預計上堂"
+  }
+
+  const lines = lessons.slice(0, 8).map((item) => {
+    const row = item as Record<string, unknown>
+    const label = classDisplayName({
+      subject: row.subject,
+      courseName: row.course_name ?? row.class_name,
+    })
+    const start = String(row.start_time ?? "").slice(0, 5)
+    const end = String(row.end_time ?? "").slice(0, 5)
+    const time = start && end ? `${start}–${end}` : start || "時間待定"
+    const room = String(row.classroom_name ?? "").trim()
+    const teacher = String(row.teacher_name ?? "").trim()
+    const state = stateLabel(
+      String(row.lesson_state ?? ""),
+      String(row.leave_reason ?? "").trim(),
+      String(row.attendance_status ?? "").trim()
+    )
+    const bits = [`• ${time} ${label}`, state]
+    if (teacher) bits.push(teacher)
+    if (room) bits.push(room)
+    return bits.join("｜")
+  })
+  const more = count > 8 ? `\n（另有 ${count - 8} 堂未列出）` : ""
+
+  return {
+    reply: `${name} 在 ${date} 有 ${count} 堂：\n${lines.join("\n")}${more}`,
+    suggestions: [`${name}依家報什麼？`, "今日有邊個請假？", "如何進行點名？"],
+    paths: [
+      { label: "進行點名", path: "/Attendance" },
+      { label: "學生管理", path: "/Students" },
+    ],
+  }
+}
+
 /** LLM 總結失敗時，盡量用 tool 結果組最短事實回覆 */
 export function fallbackReplyFromToolPayloads(
   toolsUsed: string[],
   toolPayloads: Record<string, unknown>[]
 ): ParsedReply | null {
   const last = toolPayloads[toolPayloads.length - 1]
-  if (!last || last.ok === false) return null
+  if (!last) return null
+  if (last.ok === false && toolsUsed[toolsUsed.length - 1] !== "student_today_lessons") {
+    return null
+  }
 
   const toolName = toolsUsed[toolsUsed.length - 1] ?? ""
 
@@ -298,7 +373,12 @@ export function fallbackReplyFromToolPayloads(
     return buildSearchStudentsStructuredReply(last)
   }
 
+  if (toolName === "student_today_lessons") {
+    return buildStudentTodayLessonsStructuredReply(last)
+  }
+
   if (toolName === "teacher_day_attendance") {
+    if (last.ok === false) return null
     const date = String(last.date ?? "")
     const teacher = last.teacher as Record<string, unknown> | undefined
     const name = String(teacher?.english_name ?? teacher?.full_name ?? "老師")

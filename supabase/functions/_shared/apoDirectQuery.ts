@@ -87,10 +87,10 @@ export async function tryDirectDbQuery(
     if (classQuery) return invoke(ctx, "class_roster", { class_query: classQuery })
   }
 
-  // 具名學生查詢（唔依賴上下文）
-  if (isStudentDataQuery(t)) {
+  // 具名學生查詢（唔依賴上下文）；短姓名如「霍健一呢」亦直接搜學生
+  {
     const studentName = extractStudentNameQuery(t)
-    if (studentName) {
+    if (studentName && (isStudentDataQuery(t) || isBareStudentNameQuery(t))) {
       const studentLookup = await lookupStudentData(ctx, studentName, t)
       if (studentLookup) return studentLookup
     }
@@ -147,6 +147,18 @@ function isListContinueQuery(text: string): boolean {
   return /^(繼續|再列|睇多|下一頁|繼續列出)/.test(t) || /^好[，,]?\s*繼續/.test(t)
 }
 
+/** 幾乎只有姓名嘅短問（例如「霍健一呢」） */
+function isBareStudentNameQuery(text: string): boolean {
+  const name = extractStudentNameQuery(text)
+  if (!name) return false
+  const t = text.trim()
+  if (/^[\u4e00-\u9fff]{2,4}[呢呀嗎嘛？?！!\s]*$/.test(t)) return true
+  if (/^[A-Za-z][A-Za-z\s.'-]{1,40}?[?？!！\s]*$/.test(t) && !/\b(hi|hello|ok)\b/i.test(t)) {
+    return true
+  }
+  return false
+}
+
 async function lookupStudentData(
   ctx: AssistantDbContext,
   nameQuery: string,
@@ -169,7 +181,7 @@ async function lookupStudentData(
   if (!sid) return search
 
   let followTool = "student_profile"
-  if (/上堂|上唔上|幾點|今日.*堂|洗唔洗|請假/.test(text)) {
+  if (/上堂|上唔上|幾點|今日.*堂|今天.*堂|有冇堂|有沒有堂|洗唔洗|請假/.test(text)) {
     followTool = "student_today_lessons"
   } else if (/出席|點名|最近/.test(text)) {
     followTool = "student_recent_attendance"
@@ -196,6 +208,7 @@ async function lookupStudentData(
       ok: true,
       search_query: nameQuery,
       search_count: parsed.count,
+      student: students[0],
       ...followParsed,
     }),
     patch: mergeContextPatches(search.patch, follow.patch),

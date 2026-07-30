@@ -8,6 +8,7 @@ import {
   buildGroundingAnchors,
   buildSearchStudentsStructuredReply,
   buildStudentProfileStructuredReply,
+  buildStudentTodayLessonsStructuredReply,
   buildTeacherClassesStructuredReply,
   dbQueryNoToolsReply,
   fallbackReplyFromToolPayloads,
@@ -371,8 +372,29 @@ async function parseDbAnswerFromTools(
     if (structured) return structured
   }
 
+  if (lastPayload && lastTool === "student_today_lessons") {
+    const structured = buildStudentTodayLessonsStructuredReply(lastPayload)
+    if (structured) return structured
+  }
+
   const fallback = fallbackReplyFromToolPayloads(toolsUsed, toolPayloads)
   if (fallback) return fallback
+
+  // 其餘工具（今日請假、待補課等）用 LLM 根據查詢 JSON 組答；唔好喺有資料時直接話查唔到
+  if (toolPayloads.length > 0) {
+    const toolBlock = formatToolResultsForPrompt(toolsUsed, toolPayloads)
+    const raw = await summarizeDbQuery(
+      apiKey,
+      userRole,
+      contextHint,
+      messages,
+      `${lastUser}\n\n${toolBlock}`
+    )
+    if (raw) {
+      const parsed = parseModelOutput(raw)
+      if (parsed.reply.trim()) return parsed
+    }
+  }
 
   return cannotAnswerWithoutDbReply()
 }
@@ -517,7 +539,8 @@ async function respondFromDbDirect(
       lastTool === "teacher_classes" ||
       lastTool === "my_teacher_classes" ||
       lastTool === "student_profile" ||
-      lastTool === "search_students"
+      lastTool === "search_students" ||
+      lastTool === "student_today_lessons"
     if (!skipGrounding) {
       parsed = await applyGroundingCheck(
         apiKey,
@@ -653,17 +676,11 @@ Deno.serve(async (req) => {
     })
   }
 
-  const intent: ApoIntent = classifyApoIntent(lastUser, hasEntityCtx)
+  let intent: ApoIntent = classifyApoIntent(lastUser, hasEntityCtx)
 
+  // 需要資料佐證但意圖被誤判為 howto／閒聊時，改走資料查詢，唔好直接話查唔到
   if (requiresDatabaseAnswer(lastUser, hasEntityCtx) && intent !== "db_query") {
-    const noData = cannotAnswerWithoutDbReply()
-    const enriched = mergeReplyPaths(sanitizeUserFacingReply(noData.reply), noData.paths)
-    return jsonResponse({
-      reply: enriched.reply,
-      suggestions: noData.suggestions,
-      paths: enriched.paths,
-      context: chatContext,
-    })
+    intent = "db_query"
   }
 
   const contextHint = formatContextHint(chatContext)
@@ -758,7 +775,8 @@ Deno.serve(async (req) => {
       lastTool === "teacher_classes" ||
       lastTool === "my_teacher_classes" ||
       lastTool === "student_profile" ||
-      lastTool === "search_students"
+      lastTool === "search_students" ||
+      lastTool === "student_today_lessons"
     if (!skipGrounding) {
       parsed = await applyGroundingCheck(
         apiKey,

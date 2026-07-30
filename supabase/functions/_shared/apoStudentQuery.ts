@@ -22,7 +22,27 @@ export function extractStudentNameQuery(text: string): string | null {
     }
   }
 
+  // 短問「霍健一呢／陳大文？」——當學生姓名搜尋（排除業務關鍵字）
+  const bareCn = t.match(/^([\u4e00-\u9fff]{2,4})[呢呀嗎嘛？?！!\s]*$/)
+  if (bareCn?.[1] && !isReservedBareQueryToken(bareCn[1])) return bareCn[1]
+
+  const bareEn = t.match(/^([A-Za-z][A-Za-z\s.'-]{1,40}?)[?？!！\s]*$/)
+  if (
+    bareEn?.[1] &&
+    bareEn[1].trim().length >= 2 &&
+    !/\b(hi|hello|ok|help|thanks|thank you)\b/i.test(bareEn[1])
+  ) {
+    return bareEn[1].trim()
+  }
+
   return null
+}
+
+/** 唔應當成學生姓名嘅短詞（系統功能／狀態詞） */
+function isReservedBareQueryToken(token: string): boolean {
+  return /^(?:點名|請假|報讀|試堂|出席|繳費|學費|追收|排程|班別|學生|老師|學號|在讀|活躍|待補|補課|收件匣|待辦|首頁|功能|幫助|你好|早晨|午安|謝謝|多謝)$/.test(
+    token
+  )
 }
 
 export function extractClassQueryFromText(text: string): string | null {
@@ -40,7 +60,7 @@ export function extractClassQueryFromText(text: string): string | null {
 }
 
 export function isStudentDataQuery(text: string): boolean {
-  return /上堂|上唔上|請假|狀態|出席|點名|繳費|追收|在讀|活躍|報讀|依家報|而家報|報緊|讀緊|報乜|報咩|報什麼/.test(
+  return /上堂|上唔上|有冇堂|有沒有堂|今日.*堂|今天.*堂|請假|狀態|出席|點名|繳費|追收|在讀|活躍|報讀|依家報|而家報|報緊|讀緊|報乜|報咩|報什麼/.test(
     text
   )
 }

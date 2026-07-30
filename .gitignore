@@ -27,3 +27,5 @@ dist-ssr
 .env
 .env.*
 !.env.example
+docs/BACKLOG.md
+docs/BACKLOG.md

@@ -1,5 +1,7 @@
 /** 明學IT狗：意圖分流（免 LLM，慳 token） */
 
+import { extractStudentNameQuery } from "./apoStudentQuery.ts"
+
 export type ApoIntent = "chitchat" | "howto" | "db_query"
 
 const DB_KEYWORDS =
@@ -71,6 +73,14 @@ export function classifyApoIntent(
 
   // 資料查詢優先
   if (hasDb) return "db_query"
+
+  // 短姓名查詢（例如「霍健一呢」）；業務關鍵字已由 extract 排除
+  if (extractStudentNameQuery(t) && /^[\u4e00-\u9fffA-Za-z]/.test(t) && t.length <= 40) {
+    const onlyName =
+      /^[\u4e00-\u9fff]{2,4}[呢呀嗎嘛？?！!\s]*$/.test(t) ||
+      /^[A-Za-z][A-Za-z\s.'-]{1,40}?[?？!！\s]*$/.test(t)
+    if (onlyName) return "db_query"
+  }
 
   // 概念／操作教學
   if (hasHowto) return "howto"
