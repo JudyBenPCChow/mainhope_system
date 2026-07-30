@@ -48,6 +48,13 @@
 
 「全部現場」：**當日有請假單的學生一律不覆蓋**。
 
+## 取消補堂／清調堂與出席（反操作）
+
+- 取消請假或清／改調堂**不會**靜默刪出席；有可刪補堂出席時會 Confirm（預設一併刪，可選保留）。  
+- **孤兒**＝已無應到資格但仍有 `attendance_details`，且計費 status 仍計入已上堂數。  
+- 操作細節與覆蓋範圍：[`manual/LEAVE_MAKEUP_CONSECUTIVE.md`](manual/LEAVE_MAKEUP_CONSECUTIVE.md) §6；現況清：[`manual/LIFECYCLE_ORPHAN_CLEANUP_RUNBOOK.md`](manual/LIFECYCLE_ORPHAN_CLEANUP_RUNBOOK.md)。  
+- **勿硬刪已點名排程**（會令 `schedule_id` 變 null 更難對帳）；應軟取消。
+
 ## 連堂請假與單項補堂（營運）
 
 操作細節見系統說明書：[請假與補堂：連堂單項處理](manual/LEAVE_MAKEUP_CONSECUTIVE.md)。

@@ -40,9 +40,10 @@ supabase migration repair --status applied YYYYMMDDHHMMSS --linked
 4. 套用後用簡短 SQL 或功能驗收確認；在回覆交代檔名與結果。
 5. 缺 `SUPABASE_ACCESS_TOKEN`／未 login 時：請使用者在同一終端 `supabase login` 或 export token，再繼續；不要假裝已套用。
 
-## 長期（另開任務，勿夾帶日常功能）
+## 歷史對齊（已結案 2026-07-31）
 
-幽靈版本（遠端獨有）若已清完，仍可能有一批「本地有、遠端未標記」。第二段建議表（只分析、預設未執行）：[`SUPABASE_MIGRATION_PHASE2_RECOMMENDATIONS.md`](SUPABASE_MIGRATION_PHASE2_RECOMMENDATIONS.md)。完成對齊前繼續用單檔流程。
+幽靈已清、本地／遠端版本已對齊（見 [`backlog/supabase-migration-history.md`](backlog/supabase-migration-history.md)）。  
+`supabase db push --dry-run` 可顯示 up to date；日常新檔仍建議用上方單檔 `db:apply`（較可控）。過程紀錄：[`SUPABASE_MIGRATION_PHASE2_RECOMMENDATIONS.md`](SUPABASE_MIGRATION_PHASE2_RECOMMENDATIONS.md)。
 
 ## 相關
 

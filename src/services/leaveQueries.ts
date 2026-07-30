@@ -23,6 +23,11 @@ import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
+ deleteAttendanceHitsWithAuditOrThrow,
+ scanDeletableAttendanceForMakeupSchedule,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
+import {
  describeMakeupTimeConflicts,
  fetchStudentMustAttendScheduleSlots,
  findStudentConflictsWithScheduleSlot,
@@ -199,6 +204,95 @@ export function isLeaveStatusAbandoned(status: string): boolean {
  return status.includes("放棄")
 }
 
+export type LeaveAttendanceAction = "delete" | "keep"
+
+export type LeaveAttendanceChangeOptions = {
+ /** 有可刪出席時必填：一併刪或保留 */
+ attendanceAction?: LeaveAttendanceAction
+ /** attendanceAction=delete 時：只刪掃描結果內的這些 id */
+ deleteAttendanceIds?: string[]
+}
+
+function formatLeaveOrphanGateError(hits: AttendanceLifecycleHit[], leaveId: string): string {
+ const names = [...new Set(hits.map((h) => h.studentName).filter(Boolean))]
+ const namePart = names.length > 0 ? names.join("、") : "學生"
+ return (
+  `此請假變更會使 ${hits.length} 筆補堂出席失去資格（${namePart}）。` +
+  `請至請假管理確認一併刪除或保留出席。請假 id=${leaveId}`
+ )
+}
+
+/** A1：取消請假／清／改調堂前掃描可刪出席（含 peers＋eligibility） */
+export async function previewLeaveMakeupAttendanceImpact(
+ id: string,
+ opts?: { forDelete?: boolean; patch?: { makeup_schedule_id?: string | null; makeup_type?: string | null } }
+): Promise<AttendanceLifecycleHit[]> {
+ if (!supabase) return []
+ const { data: existing, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id, student_id, makeup_schedule_id, makeup_type")
+  .eq("id", id)
+  .maybeSingle()
+ if (error) throwPostgrest(error)
+ if (!existing) return []
+ const row = existing as Record<string, unknown>
+ const studentId = row.student_id != null ? String(row.student_id) : ""
+ const prevMakeup = row.makeup_schedule_id != null ? String(row.makeup_schedule_id) : ""
+ if (!studentId || !prevMakeup) return []
+
+ if (opts?.forDelete) {
+  return scanDeletableAttendanceForMakeupSchedule({
+   studentId,
+   leaveId: id,
+   oldMakeupScheduleId: prevMakeup,
+  })
+ }
+
+ const patch = opts?.patch
+ if (!patch) return []
+
+ const nextSched = patch.makeup_schedule_id
+ // A1：只掃 makeup_schedule_id 清／改；type 離調堂未帶 schedule 清屬 A2（UI 路徑會帶 null）
+ if (nextSched === undefined) return []
+ if (nextSched === null) {
+  return scanDeletableAttendanceForMakeupSchedule({
+   studentId,
+   leaveId: id,
+   oldMakeupScheduleId: prevMakeup,
+  })
+ }
+ if (String(nextSched) !== prevMakeup) {
+  return scanDeletableAttendanceForMakeupSchedule({
+   studentId,
+   leaveId: id,
+   oldMakeupScheduleId: prevMakeup,
+  })
+ }
+ return []
+}
+
+async function applyLeaveAttendanceDeletes(
+ leaveId: string,
+ hits: AttendanceLifecycleHit[],
+ options?: LeaveAttendanceChangeOptions
+): Promise<void> {
+ if (hits.length === 0) return
+ const action = options?.attendanceAction
+ if (action === "keep") return
+ if (action !== "delete") {
+  throw new Error(formatLeaveOrphanGateError(hits, leaveId))
+ }
+ const allow = new Set((options?.deleteAttendanceIds ?? []).filter(Boolean))
+ if (allow.size === 0) {
+  throw new Error(formatLeaveOrphanGateError(hits, leaveId))
+ }
+ const toDelete = hits.filter((h) => allow.has(h.id))
+ if (toDelete.length === 0) {
+  throw new Error(formatLeaveOrphanGateError(hits, leaveId))
+ }
+ await deleteAttendanceHitsWithAuditOrThrow(toDelete, "leave_cancel")
+}
+
 function mapLeaveAwaitingMakeupRow(r: Record<string, unknown>): LeaveAwaitingMakeupRow {
  return {
   id: String(r.id),
@@ -280,7 +374,8 @@ export async function updateLeaveMakeupRecord(
   remarks?: string | null
   makeup_schedule_id?: string | null
   tuition_disposition?: LeaveTuitionDisposition | null
- }
+ },
+ options?: LeaveAttendanceChangeOptions
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: existing, error: fetchErr } = await supabase
@@ -295,11 +390,26 @@ export async function updateLeaveMakeupRecord(
  const prev = existing as Record<string, unknown>
  assertAcademicYearEditableForDate(String(prev.leave_date ?? ""))
  if (patch.makeup_date) assertAcademicYearEditableForDate(patch.makeup_date)
+
+ const orphanHits = await previewLeaveMakeupAttendanceImpact(id, { patch })
+ try {
+  await applyLeaveAttendanceDeletes(id, orphanHits, options)
+ } catch (e) {
+  throw e
+ }
+
  const { error } = await supabase
   .from("leave_makeup_records")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
- if (error) throwPostgrest(error)
+ if (error) {
+  if (orphanHits.length > 0 && options?.attendanceAction === "delete") {
+   throw new Error(
+    `出席已刪、請假未改，請重試清調堂／刪請假。原錯誤：${error.message}`
+   )
+  }
+  throwPostgrest(error)
+ }
 
  const prevMakeupDate = prev.makeup_date != null ? String(prev.makeup_date).slice(0, 10) : ""
  const prevMakeupSched =
@@ -450,7 +560,10 @@ export async function setLeaveTuitionDisposition(
  if (updateErr) throwPostgrest(updateErr)
 }
 
-export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
+export async function deleteLeaveMakeupRecord(
+ id: string,
+ options?: LeaveAttendanceChangeOptions
+): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: existing, error: fetchErr } = await supabase
   .from("leave_makeup_records")
@@ -460,8 +573,19 @@ export async function deleteLeaveMakeupRecord(id: string): Promise<void> {
  if (fetchErr) throwPostgrest(fetchErr)
  if (!existing) throw new Error("找不到請假紀錄")
  assertAcademicYearEditableForDate(String((existing as { leave_date?: string }).leave_date ?? ""))
+
+ const orphanHits = await previewLeaveMakeupAttendanceImpact(id, { forDelete: true })
+ await applyLeaveAttendanceDeletes(id, orphanHits, options)
+
  const { error } = await supabase.from("leave_makeup_records").delete().eq("id", id)
- if (error) throwPostgrest(error)
+ if (error) {
+  if (orphanHits.length > 0 && options?.attendanceAction === "delete") {
+   throw new Error(
+    `出席已刪、請假未改，請重試刪除請假。原錯誤：${error.message}`
+   )
+  }
+  throwPostgrest(error)
+ }
 }
 
 const LEAVE_DUPLICATE_MESSAGE = "此學生對該排程已有請假紀錄，不可重複新增"

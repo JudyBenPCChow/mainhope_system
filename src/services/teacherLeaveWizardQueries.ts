@@ -409,6 +409,7 @@ export async function executeTeacherLeaveDay(params: {
           makeup_date: null,
           remarks,
         })
+        // 有可刪出席時 service 會拋錯（須行政在請假管理處理）；見 O6 SOP
       }
 
       result.cancelled.push({

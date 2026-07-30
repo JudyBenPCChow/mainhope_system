@@ -11,7 +11,7 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { isAdmin } from "@/lib/mgmtRole"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -48,7 +48,8 @@ export function ScheduleDetailView() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
  const [substituteOpen, setSubstituteOpen] = useState(false)
- const canAssignSubstitute = isAdmin()
+ const canManageSchedules = isMgmtStaff()
+ const canAssignSubstitute = canManageSchedules
 
  const load = useCallback(async () => {
   if (!sid) return
@@ -511,100 +512,124 @@ export function ScheduleDetailView() {
       </div>
      </section>
 
-     <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
-      <label className="flex items-center gap-2 text-sm font-medium md:text-base">
-       <span className="text-muted-foreground">變更狀態</span>
-       <Select
-        className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-primary/50 md:text-base"
-        value={row.status}
-        onChange={async (e) => {
-         const next = e.target.value
-         if (next === row.status) return
-         if (next.includes("取消")) {
-          setCancelDialogOpen(true)
+     {canManageSchedules ? (
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
+       <label className="flex items-center gap-2 text-sm font-medium md:text-base">
+        <span className="text-muted-foreground">變更狀態</span>
+        <Select
+         className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-primary/50 md:text-base"
+         value={row.status}
+         onChange={async (e) => {
+          const next = e.target.value
+          if (next === row.status) return
+          if (next.includes("取消")) {
+           setCancelDialogOpen(true)
+           return
+          }
+          await updateSchedule(row.id, { status: next, cancel_reason: null })
+          await load()
+         }}
+        >
+         <option value="正常">正常</option>
+         <option value="完成">完成</option>
+         <option value="取消">取消</option>
+        </Select>
+       </label>
+       <label className="flex items-center gap-2 text-sm font-medium md:text-base">
+        <input
+         type="checkbox"
+         className="h-4 w-4 rounded border-input accent-warning"
+         checked={row.is_extra_lesson}
+         disabled={extraSaving}
+         onChange={async (e) => {
+          setExtraSaving(true)
+          try {
+           await updateSchedule(row.id, { is_extra_lesson: e.target.checked })
+           await load()
+          } finally {
+           setExtraSaving(false)
+          }
+         }}
+        />
+        <span className="text-muted-foreground">標記為加堂</span>
+       </label>
+       {canAssignSubstitute ? (
+        <Button type="button" variant="outline" onClick={() => setSubstituteOpen(true)}>
+         {row.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
+        </Button>
+       ) : null}
+       <Button
+        type="button"
+        variant="destructive"
+        className="ml-auto"
+        onClick={async () => {
+         if (
+          !(await confirmDialog({
+           title: "刪除排程",
+           description: "確定刪除此排程？",
+           confirmText: "確認刪除",
+           tone: "destructive",
+          }))
+         )
           return
-         }
-         await updateSchedule(row.id, { status: next, cancel_reason: null })
-         await load()
+         await deleteSchedule(row.id)
+         navigate(row.class_id ? `/Classes/${row.class_id}` : "/Schedule")
         }}
        >
-        <option value="正常">正常</option>
-        <option value="完成">完成</option>
-        <option value="取消">取消</option>
-       </Select>
-      </label>
-      <label className="flex items-center gap-2 text-sm font-medium md:text-base">
-       <input
-        type="checkbox"
-        className="h-4 w-4 rounded border-input accent-warning"
-        checked={row.is_extra_lesson}
-        disabled={extraSaving}
-        onChange={async (e) => {
-         setExtraSaving(true)
-         try {
-          await updateSchedule(row.id, { is_extra_lesson: e.target.checked })
-          await load()
-         } finally {
-          setExtraSaving(false)
-         }
-        }}
-       />
-       <span className="text-muted-foreground">標記為加堂</span>
-      </label>
-      {canAssignSubstitute ? (
-       <Button type="button" variant="outline" onClick={() => setSubstituteOpen(true)}>
-        {row.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
+        刪除排程
        </Button>
-      ) : null}
-      <Button
-       type="button"
-       variant="destructive"
-       className="ml-auto"
-       onClick={async () => {
-       if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
-        await deleteSchedule(row.id)
-        navigate(row.class_id ? `/Classes/${row.class_id}` : "/Schedule")
+      </div>
+     ) : (
+      <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
+       <p className="text-sm text-muted-foreground">
+        課堂狀態：
+        <Tag tone={statusToTagTone(row.status)} size="sm" className="ml-2 align-middle">
+         {row.status}
+        </Tag>
+        <span className="ml-2">（取消／變更狀態僅限行政／外星人）</span>
+       </p>
+      </div>
+     )}
+
+     {canManageSchedules ? (
+      <CancelReasonDialog
+       open={cancelDialogOpen}
+       initialReason={row.cancel_reason ?? ""}
+       saving={cancelSaving}
+       onCancel={() => setCancelDialogOpen(false)}
+       onConfirm={async (reason) => {
+        setCancelSaving(true)
+        try {
+         await updateSchedule(row.id, { status: "取消", cancel_reason: reason })
+         setCancelDialogOpen(false)
+         await load()
+        } finally {
+         setCancelSaving(false)
+        }
        }}
-      >
-       刪除排程
-      </Button>
-     </div>
+      />
+     ) : null}
 
-     <CancelReasonDialog
-      open={cancelDialogOpen}
-      initialReason={row.cancel_reason ?? ""}
-      saving={cancelSaving}
-      onCancel={() => setCancelDialogOpen(false)}
-      onConfirm={async (reason) => {
-       setCancelSaving(true)
-       try {
-        await updateSchedule(row.id, { status: "取消", cancel_reason: reason })
-        setCancelDialogOpen(false)
-        await load()
-       } finally {
-        setCancelSaving(false)
-       }
-      }}
-     />
-
-     <AssignSubstituteDialog
-      open={substituteOpen}
-      schedule={{
-       id: row.id,
-       class_subject: row.class_subject,
-       scheduled_date: row.scheduled_date,
-       start_time: row.start_time,
-       end_time: row.end_time,
-       teacher_id: row.teacher_id,
-       teacher_name: row.teacher_name,
-       original_teacher_id: row.original_teacher_id,
-       original_teacher_name: row.original_teacher_name,
-       consecutive_group_id: row.consecutive_group_id,
-       is_consecutive_lesson: row.is_consecutive_lesson,
-      }}
-      onClose={() => setSubstituteOpen(false)}
-      onDone={() => load()}
-     />
+     {canAssignSubstitute ? (
+      <AssignSubstituteDialog
+       open={substituteOpen}
+       schedule={{
+        id: row.id,
+        class_subject: row.class_subject,
+        scheduled_date: row.scheduled_date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        teacher_id: row.teacher_id,
+        teacher_name: row.teacher_name,
+        original_teacher_id: row.original_teacher_id,
+        original_teacher_name: row.original_teacher_name,
+        consecutive_group_id: row.consecutive_group_id,
+        is_consecutive_lesson: row.is_consecutive_lesson,
+       }}
+       onClose={() => setSubstituteOpen(false)}
+       onDone={() => load()}
+      />
+     ) : null}
     </div>
    )}
   </div>

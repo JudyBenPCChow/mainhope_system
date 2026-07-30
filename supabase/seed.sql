@@ -18,13 +18,14 @@ TRUNCATE TABLE
   public.student_status_history,
   public.student_class_enrollments,
   public.enrollment_change_events,
+  public.teachers_private,
+  public.teachers,
   public.student_relationships,
   public.admin_todos,
   public.schedules,
   public.classes,
   public.students,
   public.app_users,
-  public.teachers,
   public.classrooms
 RESTART IDENTITY CASCADE;
 
@@ -35,16 +36,32 @@ VALUES
   ('f1ee1000-0000-4000-8000-000000000852', '職員家屬優惠（僅註記）', null, null, true, 2, true)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.teachers (id, full_name, english_name, phone, email, status, subject_speciality, salary_per_lesson)
+INSERT INTO public.teachers (id, full_name, english_name, status, subject_speciality)
 VALUES
-  ('f1ee1000-0000-4000-8000-000000001001', 'Judy Chu', '9000-1001', 'judychu@demo.hk', '在職', ARRAY['生物']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001002', 'Christine Fan', '9000-1002', 'christinefan@demo.hk', '在職', ARRAY['中文']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001003', 'Mark Yu', '9000-1003', 'markyu@demo.hk', '在職', ARRAY['數學']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001004', 'Jackson Lau', '9000-1004', 'jacksonlau@demo.hk', '在職', ARRAY['英文']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001005', 'Tim Cheung', '9000-1005', 'timcheung@demo.hk', '在職', ARRAY['英文']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001006', 'Thom Cheong', '9000-1006', 'thomcheong@demo.hk', '在職', ARRAY['物理']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001007', 'Natalie Kwok', '9000-1007', 'nataliekwok@demo.hk', '在職', ARRAY['數學']::text[], 260),
-  ('f1ee1000-0000-4000-8000-000000001008', 'Billy Shek', '9000-1008', 'billyshek@demo.hk', '在職', ARRAY['中文']::text[], 260);
+  ('f1ee1000-0000-4000-8000-000000001001', 'Judy Chu', null, '在職', ARRAY['生物']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001002', 'Christine Fan', null, '在職', ARRAY['中文']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001003', 'Mark Yu', null, '在職', ARRAY['數學']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001004', 'Jackson Lau', null, '在職', ARRAY['英文']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001005', 'Tim Cheung', null, '在職', ARRAY['英文']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001006', 'Thom Cheong', null, '在職', ARRAY['物理']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001007', 'Natalie Kwok', null, '在職', ARRAY['數學']::text[]),
+  ('f1ee1000-0000-4000-8000-000000001008', 'Billy Shek', null, '在職', ARRAY['中文']::text[]);
+
+INSERT INTO public.teachers_private (teacher_id, phone, email, salary_per_lesson)
+VALUES
+  ('f1ee1000-0000-4000-8000-000000001001', '9000-1001', 'judychu@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001002', '9000-1002', 'christinefan@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001003', '9000-1003', 'markyu@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001004', '9000-1004', 'jacksonlau@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001005', '9000-1005', 'timcheung@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001006', '9000-1006', 'thomcheong@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001007', '9000-1007', 'nataliekwok@demo.hk', 260),
+  ('f1ee1000-0000-4000-8000-000000001008', '9000-1008', 'billyshek@demo.hk', 260)
+ON CONFLICT (teacher_id) DO UPDATE SET
+  phone = excluded.phone,
+  email = excluded.email,
+  salary_per_lesson = excluded.salary_per_lesson,
+  updated_at = now();
 
 INSERT INTO public.classrooms (id, name, capacity, is_online, remarks)
 VALUES

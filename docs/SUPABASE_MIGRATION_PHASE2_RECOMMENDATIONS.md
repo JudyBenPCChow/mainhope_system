@@ -2,8 +2,11 @@
 
 > 產生時間：2026-07-30  
 > 遠端證據來自唯讀 `information_schema`／`pg_proc`／`inbox_events` 查詢。  
-> **Batch A（2026-07-30）：** 已對 21 個「信心＝高」項目執行 `migration repair --status applied`（**未**跑 SQL）。  
-> **Batch B1（2026-07-30）：** 已標記 16 個（Apo／IT狗系列、Special discount、中高信心配套；**未**跑 SQL）。使用者確認阿Po、IT狗、Special discount 正常。
+> **結案（2026-07-31）：** Batch A–D 全部完成；`migration list` local-only／remote-only 皆 0；`db push --dry-run` → up to date。  
+> **Batch A（2026-07-30）：** 21 個高信心只標記。  
+> **Batch B1（2026-07-30）：** 16 個（Apo／IT狗、Special discount 等）只標記。  
+> **Batch B2／C／M2（2026-07-31）：** 16 個依探針／確認只標記。  
+> **Batch D（2026-07-31）：** `17120000`、`30053000` 已 `db:apply`（孤兒試堂清理＋作廢通告）。
 
 ## 總覽
 
@@ -94,26 +97,24 @@
 已 `repair --status applied`（21 個，唔跑 SQL）：  
 `20260615120000` `20260618030000` `20260619010000` `20260707193000` `20260708130000` `20260710130000` `20260711063758` `20260712040000` `20260715210933` `20260716120000` `20260718030000` `20260718031000` `20260719013000` `20260719120000` `20260720170000` `20260721030000` `20260721030200` `20260721040000` `20260725030000` `20260729234500` `20260730020000`
 
-### Batch B — 功能確認後標記
-- **B1 ✅ 已完成 2026-07-30（16 個只標記）：**  
-  `20260707200000` `20260708140000` `20260709020000`–`09050000` `09070000` `09080000` `11180500` `17123000` `19123000` `21030100` `21164301` `21172118` `21175957` `23180000`  
-  （含 Apo／IT狗、Special discount；使用者確認正常）
-- **B2 未做：** 單堂／軟退／補堂 host／portal／雙角色等（待你再確認或授權）
-- **B 邊角未做：** `20260709060000`（satisfaction 再探一欄）
+### Batch B — ✅ 完成
+- **B1**（2026-07-30）：Apo／IT狗、Special discount 等 16 個只標記  
+- **B2**（2026-07-31）：單堂／軟退／補堂 host／portal／雙角色／legacy／RLS perf 等只標記（探針＋使用者確認雙角色）  
+- **M2** `20260709060000` satisfaction 欄已在 → 只標記
 
-### Batch C — 人工對照
-- `20260618140000` status_reason vs 遠端 `cancel_reason`
-- `20260709092225` / `20260709173000` teacher_mgmt 成對
-- `20260714055439` / `20260714140000` script_library 成對
+### Batch C — ✅ 完成（2026-07-31）
+- `20260618140000`：檔實際加 `cancel_reason`／`is_extra_lesson`（遠端已有）→ 只標記  
+- `09092225` 空檔、`09173000` 有 teacher unique index → 只標記  
+- `14055439` 空檔、`14140000` → `script_library_entries` 已在 → 只標記
 
-### Batch D — 可能要真跑 SQL
-- `20260721020000` peek_portal_invite_student_name（探針未見）
-- `20260717120000` close_orphan*（探針未見）
-- `20260730053000` 作廢通告（inbox 未見對應標題）→ 優先 `npm run db:apply`
+### Batch D — ✅ 完成（2026-07-31）
+- `20260721020000`：遠端已有 `peek_portal_invite` → 只標記  
+- `20260717120000`：已 `db:apply`（歷史孤兒試堂 UPDATE）  
+- `20260730053000`：已 `db:apply`；inbox 已有「收款單據改為「作廢」（不可刪除）」
 
-### 餘項追蹤
+### 追蹤
 
-未完成的 B2／C／D（含煙霧測入口）已列入 backlog：[`backlog/supabase-migration-history.md`](backlog/supabase-migration-history.md)（索引 [`BACKLOG.md`](BACKLOG.md)）。雙角色 Mark／Katie 已確認正常，待授權後與 B2 一併只標記。
+主題結案：[`backlog/supabase-migration-history.md`](backlog/supabase-migration-history.md)（[`BACKLOG.md`](BACKLOG.md) 狀態 `done`）。
 
 ## 相關
 

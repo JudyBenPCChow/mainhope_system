@@ -27,23 +27,64 @@ export function normalizeTeacherEmploymentStatus(status: string | null): "在職
  return "在職"
 }
 
-function asTeacher(row: Record<string, unknown>): TeacherRecord {
+type TeacherPrivateRow = {
+ teacher_id: string
+ phone: string | null
+ email: string | null
+ salary_per_lesson: number | null
+ remarks: string | null
+}
+
+function asTeacher(
+ row: Record<string, unknown>,
+ priv?: TeacherPrivateRow | null
+): TeacherRecord {
  const subj = row.subject_speciality
  return {
   id: String(row.id),
   full_name: String(row.full_name ?? ""),
   english_name: row.english_name != null ? String(row.english_name) : null,
   abbr: row.abbr != null && String(row.abbr).trim() !== "" ? String(row.abbr).trim() : null,
-  phone: row.phone != null ? String(row.phone) : null,
-  email: row.email != null ? String(row.email) : null,
+  phone: priv?.phone != null ? String(priv.phone) : null,
+  email: priv?.email != null ? String(priv.email) : null,
   status: normalizeTeacherEmploymentStatus(row.status != null ? String(row.status) : null),
   subject_speciality: Array.isArray(subj) ? (subj as string[]) : null,
-  salary_per_lesson:
-   row.salary_per_lesson != null ? Number(row.salary_per_lesson) : null,
-  remarks: row.remarks != null ? String(row.remarks) : null,
+  salary_per_lesson: priv?.salary_per_lesson != null ? Number(priv.salary_per_lesson) : null,
+  remarks: priv?.remarks != null ? String(priv.remarks) : null,
   created_at: String(row.created_at ?? ""),
   updated_at: String(row.updated_at ?? ""),
  }
+}
+
+function mapPrivateRow(r: Record<string, unknown>): TeacherPrivateRow {
+ return {
+  teacher_id: String(r.teacher_id),
+  phone: r.phone != null ? String(r.phone) : null,
+  email: r.email != null ? String(r.email) : null,
+  salary_per_lesson: r.salary_per_lesson != null ? Number(r.salary_per_lesson) : null,
+  remarks: r.remarks != null ? String(r.remarks) : null,
+ }
+}
+
+/** RLS：行政可見全部；老師只得自己。無權限列不會出現在 map。 */
+async function fetchTeachersPrivateByIds(
+ ids: string[]
+): Promise<Map<string, TeacherPrivateRow>> {
+ const map = new Map<string, TeacherPrivateRow>()
+ if (!supabase || ids.length === 0) return map
+ const { data, error } = await supabase
+  .from("teachers_private")
+  .select("teacher_id, phone, email, salary_per_lesson, remarks")
+  .in("teacher_id", ids)
+ if (error) {
+  console.warn("[fetchTeachersPrivateByIds]", error.message)
+  return map
+ }
+ for (const row of data ?? []) {
+  const p = mapPrivateRow(row as Record<string, unknown>)
+  map.set(p.teacher_id, p)
+ }
+ return map
 }
 
 function localYmd(d = new Date()): string {
@@ -64,18 +105,25 @@ export async function fetchAllTeachers(): Promise<TeacherRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("teachers")
-  .select("*")
+  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
   .order("full_name", { ascending: true })
  if (error) throw error
- return (data ?? []).map((r) => asTeacher(r as Record<string, unknown>))
+ const rows = (data ?? []) as Record<string, unknown>[]
+ const priv = await fetchTeachersPrivateByIds(rows.map((r) => String(r.id)))
+ return rows.map((r) => asTeacher(r, priv.get(String(r.id)) ?? null))
 }
 
 export async function getTeacherById(id: string): Promise<TeacherRecord | null> {
  if (!supabase) return null
- const { data, error } = await supabase.from("teachers").select("*").eq("id", id).maybeSingle()
+ const { data, error } = await supabase
+  .from("teachers")
+  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
+  .eq("id", id)
+  .maybeSingle()
  if (error) throw error
  if (!data) return null
- return asTeacher(data as Record<string, unknown>)
+ const priv = await fetchTeachersPrivateByIds([id])
+ return asTeacher(data as Record<string, unknown>, priv.get(id) ?? null)
 }
 
 export async function insertTeacher(
@@ -93,15 +141,32 @@ export async function insertTeacher(
    full_name: row.full_name,
    english_name: row.english_name ?? null,
    abbr: abbrVal,
-   phone: row.phone ?? null,
-   email: row.email ?? null,
    status: normalizeTeacherEmploymentStatus(row.status != null ? String(row.status) : null),
    subject_speciality: row.subject_speciality ?? [],
   })
-  .select("*")
+  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
   .single()
  if (error) throw error
- return asTeacher(data as Record<string, unknown>)
+ const id = String((data as { id: string }).id)
+ const { error: privErr } = await supabase.from("teachers_private").upsert(
+  {
+   teacher_id: id,
+   phone: row.phone ?? null,
+   email: row.email ?? null,
+   salary_per_lesson: row.salary_per_lesson ?? null,
+   remarks: row.remarks ?? null,
+   updated_at: new Date().toISOString(),
+  },
+  { onConflict: "teacher_id" }
+ )
+ if (privErr) throw privErr
+ return asTeacher(data as Record<string, unknown>, {
+  teacher_id: id,
+  phone: row.phone ?? null,
+  email: row.email ?? null,
+  salary_per_lesson: row.salary_per_lesson ?? null,
+  remarks: row.remarks ?? null,
+ })
 }
 
 export async function updateTeacher(
@@ -109,36 +174,74 @@ export async function updateTeacher(
  patch: Partial<Omit<TeacherRecord, "id" | "created_at">>
 ): Promise<TeacherRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
- let payload: Record<string, unknown> = { ...patch, updated_at: new Date().toISOString() }
  const role = getMgmtRole()
  const selfTeacherId = getTeacherScopeTeacherId()
- if (role === "teacher" && selfTeacherId === id) {
-  payload = {
-   updated_at: payload.updated_at,
-   phone: payload.phone,
-   subject_speciality: payload.subject_speciality,
-   remarks: payload.remarks,
+ const isSelfTeacher = role === "teacher" && selfTeacherId === id
+
+ const publicPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+ const privatePatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+
+ if (isSelfTeacher) {
+  if (Object.prototype.hasOwnProperty.call(patch, "subject_speciality")) {
+   publicPatch.subject_speciality = patch.subject_speciality
   }
- } else if (!isSuperAdmin()) {
-  if (Object.prototype.hasOwnProperty.call(payload, "abbr")) {
-   delete payload.abbr
+  if (Object.prototype.hasOwnProperty.call(patch, "phone")) privatePatch.phone = patch.phone
+  if (Object.prototype.hasOwnProperty.call(patch, "remarks")) privatePatch.remarks = patch.remarks
+ } else {
+  if (Object.prototype.hasOwnProperty.call(patch, "full_name")) publicPatch.full_name = patch.full_name
+  if (Object.prototype.hasOwnProperty.call(patch, "english_name")) {
+   publicPatch.english_name = patch.english_name
   }
- } else if (Object.prototype.hasOwnProperty.call(payload, "abbr")) {
-  const a = payload.abbr
-  if (a == null || String(a).trim() === "") {
-   payload.abbr = null
-  } else {
-   payload.abbr = String(a).trim().slice(0, 64)
+  if (Object.prototype.hasOwnProperty.call(patch, "status")) {
+   publicPatch.status = normalizeTeacherEmploymentStatus(
+    patch.status != null ? String(patch.status) : null
+   )
   }
+  if (Object.prototype.hasOwnProperty.call(patch, "subject_speciality")) {
+   publicPatch.subject_speciality = patch.subject_speciality
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "abbr")) {
+   if (isSuperAdmin()) {
+    const a = patch.abbr
+    publicPatch.abbr =
+     a == null || String(a).trim() === "" ? null : String(a).trim().slice(0, 64)
+   }
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "phone")) privatePatch.phone = patch.phone
+  if (Object.prototype.hasOwnProperty.call(patch, "email")) privatePatch.email = patch.email
+  if (Object.prototype.hasOwnProperty.call(patch, "salary_per_lesson")) {
+   privatePatch.salary_per_lesson = patch.salary_per_lesson
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "remarks")) privatePatch.remarks = patch.remarks
  }
+
  const { data, error } = await supabase
   .from("teachers")
-  .update(payload)
+  .update(publicPatch)
   .eq("id", id)
-  .select("*")
+  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
   .single()
  if (error) throw error
- return asTeacher(data as Record<string, unknown>)
+
+ const privateKeys = Object.keys(privatePatch).filter((k) => k !== "updated_at")
+ if (privateKeys.length > 0) {
+  if (isSelfTeacher) {
+   const { error: privErr } = await supabase
+    .from("teachers_private")
+    .update(privatePatch)
+    .eq("teacher_id", id)
+   if (privErr) throw privErr
+  } else {
+   const { error: privErr } = await supabase.from("teachers_private").upsert(
+    { teacher_id: id, ...privatePatch },
+    { onConflict: "teacher_id" }
+   )
+   if (privErr) throw privErr
+  }
+ }
+
+ const priv = await fetchTeachersPrivateByIds([id])
+ return asTeacher(data as Record<string, unknown>, priv.get(id) ?? null)
 }
 
 export async function deleteTeacher(id: string): Promise<void> {

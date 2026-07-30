@@ -120,6 +120,28 @@ export async function logMgmtAuditAction(input: {
  })
 }
 
+/** 寫入稽核；失敗則拋錯（刪計費出席等不可靜默略過的路徑） */
+export async function logMgmtAuditActionOrThrow(input: {
+ action: string
+ path?: string | null
+ detail?: string | null
+}): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定，無法寫入稽核")
+ const { actorLabel, role } = actorFromStorage()
+ const path =
+  input.path ??
+  (typeof window !== "undefined" ? window.location.pathname : null) ??
+  "/"
+ const { error } = await supabase.from("mgmt_audit_log").insert({
+  actor_label: actorLabel,
+  role,
+  action: input.action,
+  path,
+  detail: input.detail ?? null,
+ })
+ if (error) throw new Error(`稽核寫入失敗，已中止操作：${error.message}`)
+}
+
 export type AppendMgmtSystemErrorInput = {
  severity: string
  source: string

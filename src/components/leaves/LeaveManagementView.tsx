@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
-import { useAppConfirm } from "@/lib/appConfirm"
+import { useAppConfirm, type ConfirmResult } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -32,19 +32,93 @@ import {
  isLeaveStatusPending,
  leaveNeedsMakeupDate,
  localYmd,
+ previewLeaveMakeupAttendanceImpact,
  setLeaveTuitionDisposition,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
  type ConsecutiveLeaveScope,
  type EnrolledClassOption,
+ type LeaveAttendanceChangeOptions,
  type LeaveManageRow,
  type LeaveTodayStats,
  type LeaveTuitionDisposition,
 } from "@/services/leaveQueries"
+import {
+ formatAttendanceHitsDescription,
+ hitsHaveBillable,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 import { listStudents } from "@/services/queries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
+
+type ConfirmFn = (options: {
+ title: string
+ description?: string
+ confirmText?: string
+ cancelText?: string
+ alternateText?: string
+ tone?: "default" | "warning" | "destructive"
+ alternateTone?: "default" | "warning" | "destructive"
+ confirmInput?: { label: string; expected: string; placeholder?: string }
+}) => Promise<ConfirmResult>
+
+/** O1：有可刪出席時三路 Confirm（預設一併刪；保留需二次確認） */
+async function resolveLeaveAttendanceChoice(
+ confirmDialog: ConfirmFn,
+ hits: AttendanceLifecycleHit[],
+ title: string
+): Promise<"delete" | "keep" | "abort"> {
+ if (hits.length === 0) return "keep"
+ const billable = hitsHaveBillable(hits)
+ const studentName = hits.find((h) => h.studentName)?.studentName?.trim() ?? ""
+ const surname = studentName.slice(0, 1)
+ const result = await confirmDialog({
+  title,
+  description: `${formatAttendanceHitsDescription(hits)}\n\n預設建議一併刪除。保留則點名紙無名但已上堂數仍可能計入。`,
+  confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "一併刪除出席",
+  alternateText: "⚠️ 保留出席（將脫離資格，仍計入已上堂數）",
+  cancelText: "取消",
+  tone: "destructive",
+  alternateTone: "default",
+  ...(billable && surname
+   ? {
+      confirmInput: {
+       label: `請輸入學生姓氏「${surname}」以確認刪除計費出席`,
+       expected: surname,
+       placeholder: surname,
+      },
+     }
+   : {}),
+ })
+ if (result === true) return "delete"
+ if (result === "alternate") {
+  const second = await confirmDialog({
+   title: "確認保留出席？",
+   description:
+    "將只改請假／調堂，出席列會變成孤兒（點名紙無名但已上堂數仍計）。確定保留？",
+   confirmText: "確定保留出席",
+   cancelText: "取消（整筆中止）",
+   tone: "warning",
+  })
+  if (second === true) return "keep"
+  return "abort"
+ }
+ return "abort"
+}
+
+function attendanceOptionsFromChoice(
+ choice: "delete" | "keep",
+ hits: AttendanceLifecycleHit[]
+): LeaveAttendanceChangeOptions | undefined {
+ if (hits.length === 0) return undefined
+ if (choice === "keep") return { attendanceAction: "keep" }
+ return {
+  attendanceAction: "delete",
+  deleteAttendanceIds: hits.map((h) => h.id),
+ }
+}
 
 function classTab(row: LeaveManageRow): StatusTab {
  if (isLeaveStatusAbandoned(row.status)) return "abandoned"
@@ -316,15 +390,23 @@ export function LeaveManagementView() {
   setDetailSaving(true)
   setDetailErr(null)
   try {
-   await updateLeaveMakeupRecord(detailRow.id, {
+   const patch = {
     status: detailStatus,
     leave_reason: detailReason,
     makeup_type: detailMakeupType,
     remarks: detailRemarks.trim() || null,
     ...(detailMakeupType === "調堂"
      ? {}
-     : { makeup_schedule_id: null, makeup_date: null }),
-   })
+     : { makeup_schedule_id: null as string | null, makeup_date: null as string | null }),
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(detailRow.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(
+    confirmDialog,
+    hits,
+    "清調堂／改類型：補堂出席處理"
+   )
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(detailRow.id, patch, attendanceOptionsFromChoice(choice, hits))
    setDetailOpen(false)
    await reload()
   } catch (e) {
@@ -384,12 +466,20 @@ export function LeaveManagementView() {
   setLinkSaving(true)
   setLinkErr(null)
   try {
-   await updateLeaveMakeupRecord(linkRow.id, {
+   const patch = {
     makeup_schedule_id: target.id,
     makeup_date: target.scheduled_date,
-    makeup_type: "調堂",
+    makeup_type: "調堂" as const,
     status: linkRow.status.includes("待") ? "已批核" : linkRow.status,
-   })
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(linkRow.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(
+    confirmDialog,
+    hits,
+    "更改調堂排程：舊宿主出席處理"
+   )
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(linkRow.id, patch, attendanceOptionsFromChoice(choice, hits))
    await setLeaveTuitionDisposition(linkRow.id, "調堂")
    setLinkOpen(false)
    await reload()
@@ -755,9 +845,36 @@ export function LeaveManagementView() {
            className="text-xs font-medium text-info hover:underline disabled:cursor-not-allowed disabled:opacity-50"
            disabled={!leaveRowEditable(r)}
            onClick={async () => {
-            if (!(await confirmDialog({ title: "刪除請假紀錄", description: "確定刪除此筆請假紀錄？", confirmText: "確認刪除", tone: "destructive" }))) return
-            await deleteLeaveMakeupRecord(r.id)
-            await reload()
+            try {
+             const hits = await previewLeaveMakeupAttendanceImpact(r.id, { forDelete: true })
+             if (hits.length === 0) {
+              if (
+               !(await confirmDialog({
+                title: "刪除請假紀錄",
+                description: "確定刪除此筆請假紀錄？",
+                confirmText: "確認刪除",
+                tone: "destructive",
+               }))
+              ) {
+               return
+              }
+              await deleteLeaveMakeupRecord(r.id)
+             } else {
+              const choice = await resolveLeaveAttendanceChoice(
+               confirmDialog,
+               hits,
+               "刪除請假：補堂出席處理"
+              )
+              if (choice === "abort") return
+              await deleteLeaveMakeupRecord(r.id, attendanceOptionsFromChoice(choice, hits))
+             }
+             await reload()
+            } catch (error) {
+             reportUserFacingError(error, {
+              source: "LeaveManagementView.deleteLeave",
+              setErr,
+             })
+            }
            }}
           >
            刪除
@@ -1130,6 +1247,7 @@ function MakeupCell({
  onPickMakeupSchedule?: (row: LeaveManageRow) => void
  readonly?: boolean
 }) {
+ const { confirmDialog } = useAppConfirm()
  const t = (row.makeup_type ?? "").trim()
  const hasDate = !!row.makeup_date
  const [saving, setSaving] = useState(false)
@@ -1150,12 +1268,22 @@ function MakeupCell({
   }
   setSaving(true)
   try {
-   await updateLeaveMakeupRecord(row.id, {
+   const patch = {
     makeup_type: nextType,
-    makeup_schedule_id: null,
-    makeup_date: null,
-   })
+    makeup_schedule_id: null as string | null,
+    makeup_date: null as string | null,
+   }
+   const hits = await previewLeaveMakeupAttendanceImpact(row.id, { patch })
+   const choice = await resolveLeaveAttendanceChoice(
+    confirmDialog,
+    hits,
+    "更改補課安排：補堂出席處理"
+   )
+   if (choice === "abort") return
+   await updateLeaveMakeupRecord(row.id, patch, attendanceOptionsFromChoice(choice, hits))
    await onChanged()
+  } catch (e) {
+   reportUserFacingError(e, { source: "LeaveManagementView.MakeupCell" })
   } finally {
    setSaving(false)
   }

@@ -23,6 +23,7 @@
 | [同班偶發代課（代堂）](SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 改主責；算堂／薪資看排程老師 |
 | [學生狀態分類與判定](STUDENT_STATUS_CLASSIFICATION.md) | 注冊／報讀／在讀／活躍等四維狀態 |
 | [收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪、作廢須密碼；不自動退班；收件匣通知行政／外星人 |
+| [課室與場地](CLASSROOMS_OPS.md) | 可用課室清單；**17K 2026-07-31 退租停用**（系統尚未有停用狀態欄） |
 
 ---
 

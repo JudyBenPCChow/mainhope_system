@@ -2,27 +2,27 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
+| 狀態 | `done` |
 | 優先 | 高 |
 | 範圍 | admin／teacher／alien 後台；RLS + 路由／UI 對齊 |
-| 不含 | 家長 Portal；新增 `manager` 角色（見 [mgmt-manager-role.md](./mgmt-manager-role.md)） |
+| 不含 | 家長 Portal；新增 `manager` 角色（見 [mgmt-manager-role.md](./mgmt-manager-role.md)）；**學年鎖整固**（見 [academic-year-lock.md](./academic-year-lock.md)） |
 | 稽核報告 | [2026-07-30-role-ops-adversarial.md](../audits/2026-07-30-role-ops-adversarial.md) |
 | 索引 | [BACKLOG.md](../BACKLOG.md) |
 | 盤點日期 | 2026-07-30 |
 
 ## 結論
 
-Production live 探測確認：老師／行政日常讀取與付款封鎖大致正常；**課堂取消權限過寬、老師通訊錄／inbox 已讀外洩、外星人不能代堂、學年鎖誤用**需優先修。完整現象與方案取捨見稽核報告；本檔只跟進**採用預設方案**的勾選。
+Production live 探測確認後嘅角色日常漏洞：**本主題工作項已清完**（含代堂／inbox／通訊錄／取消課堂／nav／route guard）。學年鎖（原 P0-2）改由專題 [academic-year-lock.md](./academic-year-lock.md) 跟進。
 
 ## 工作項（按建議優先序）
 
 | 狀態 | ID | 優先 | 工作 | 預設方案 | 主要觸點 |
 | --- | --- | --- | --- | --- | --- |
-| open | P0-1 | 高 | 老師不可取消／亂改課堂狀態；列表與詳情一致 | UI 僅 mgmt staff + RLS／RPC 白名單欄 | `ScheduleDetailView`、`ClassDetailView`、schedules UPDATE policy |
-| open | P0-2 | 高 | Admin 檔期學年鎖：勿把 `end_date` 當「今天」 | 修正 `isAcademicYearReadOnly`／呼叫點 | `mgmtRole.ts`、`academicYearEditGuard.ts`、`TeacherAvailabilityPage` |
+| done | P0-1 | 高 | 老師不可取消／亂改課堂狀態；列表與詳情一致 | UI 僅 mgmt staff + trigger 白名單欄 | `ScheduleDetailView`、`ClassDetailView`、`20260731022000_schedules_teacher_update_column_guard` |
+| moved | P0-2 | 高 | Admin 檔期學年鎖：勿把 `end_date` 當「今天」 | **已遷至** [academic-year-lock.md](./academic-year-lock.md) L1 | （本主題不再跟進） |
 | done | P1-3 | 高 | 外星人可指派代堂 | `canAssignSubstitute = isMgmtStaff()` | `ScheduleManagePage`、`ScheduleDetailView` |
-| open | P1-2 | 高 | `inbox_reads` 僅自己的 actor | migration 收窄 policy | `inbox_reads` RLS；對齊 `getInboxActorKey` |
-| open | P1-1 | 高 | 老師不可讀他師 phone／email／薪資 | teacher SELECT 目錄欄位；query 分流 | `teachers` RLS、`teacherQueries.ts`；可選擋 `/Teachers` |
+| done | P1-2 | 高 | `inbox_reads` 僅自己的 actor | migration 收窄 teacher policy | `20260731024500_inbox_reads_teacher_own_actor`；`current_inbox_actor_key()` |
+| done | P1-1 | 高 | 老師不可讀他師 phone／email／薪資 | 敏感欄移 `teachers_private` + query 分流 | `20260731025000_teachers_private_sensitive_fields`、`teacherQueries.ts` |
 | done | P1-5 | 中 | 敏感頁 route guard | `RequireMgmtRoles` 對齊 nav roles | Payments／PaymentHistory／Teachers／Leave／Trial／Users |
 | done | P1-6 | 中 | 優惠折扣 nav 僅 alien | nav `roles: ["alien"]` | `navStructure.ts` |
 | done | P1-7 | 中 | Leave／Trial 老師 deep-link | 與 P1-5 一併導向／守衛 | `LeaveManagement`、`TrialSessions` |

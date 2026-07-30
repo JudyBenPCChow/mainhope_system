@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
 
   const { data: teacher, error: teacherError } = await admin
     .from("teachers")
-    .select("id, full_name, english_name, email")
+    .select("id, full_name, english_name")
     .eq("id", teacherId)
     .maybeSingle()
   if (teacherError) {
