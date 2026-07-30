@@ -1,6 +1,12 @@
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
+import {
+ consecutivePairFromFirstTimeSlot,
+ newConsecutiveGroupId,
+} from "@/lib/consecutiveLesson"
 import { formatStudentNameList } from "@/lib/scheduleDisplay"
 import { supabase } from "@/lib/supabaseClient"
+import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
+import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  fetchConsecutiveScheduleIds,
  fetchScheduleStudentHintsForClass,
@@ -8,7 +14,6 @@ import {
  nextSessionNumberForClass,
 } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
-import { newConsecutiveGroupId } from "@/lib/consecutiveLesson"
 
 /** remarks 標記：用於查重「此取消堂是否已安排過補回」 */
 export function makeupOfRemarkMarker(cancelledScheduleId: string): string {
@@ -109,12 +114,41 @@ export async function findExistingMakeupScheduleIds(
 export type MakeupPreview = {
  cancelledScheduleIds: string[]
  originalDate: string
+ /** 原堂第一節時段（供表單預填） */
+ originalTimeSlot: string
  cancelReason: string | null
  isConsecutive: boolean
  attendingNames: string[]
  /** 單堂報讀且選了被取消堂、將改掛到新堂的人數 */
  singleSessionMoveCount: number
  alreadyHasMakeupIds: string[]
+}
+
+function timeSlotLabelFromBounds(start: string | null, end: string | null): string {
+ if (!start?.trim() || !end?.trim()) return ""
+ const raw = `${start.trim().slice(0, 5)}–${end.trim().slice(0, 5)}`
+ return timeSlotSelectValueFromStored(raw) || raw
+}
+
+function resolveMakeupTimeBounds(
+ timeSlot: string,
+ slotCount: number
+): Array<{ start: string; end: string }> {
+ const trimmed = timeSlot.trim()
+ if (!trimmed) throw new Error("請選擇補堂時段")
+ if (slotCount <= 1) {
+  const b = parseTimeSlotBounds(trimmed)
+  if (!b.start || !b.end) throw new Error("補堂時段無效")
+  return [b]
+ }
+ const pair = consecutivePairFromFirstTimeSlot(trimmed)
+ if (!pair) {
+  throw new Error("連堂補回請選擇可連續兩格的起始時段（最後一格無法連堂）")
+ }
+ return [
+  { start: pair.slot1.start, end: pair.slot1.end },
+  { start: pair.slot2.start, end: pair.slot2.end },
+ ]
 }
 
 function onlyCancelledSlots(slots: CancelledSlotRow[]): CancelledSlotRow[] {
@@ -144,6 +178,7 @@ export async function previewMakeupForCancelledSchedule(
  return {
   cancelledScheduleIds: cancelledIds,
   originalDate: primary.scheduled_date,
+  originalTimeSlot: timeSlotLabelFromBounds(primary.start_time, primary.end_time),
   cancelReason: primary.cancel_reason,
   isConsecutive: slots.length > 1,
   attendingNames: [...nameSet].sort((a, b) => a.localeCompare(b, "zh-Hant")),
@@ -229,6 +264,8 @@ export type ArrangeMakeupResult = {
 export async function arrangeMakeupForCancelledSchedule(opts: {
  cancelledScheduleId: string
  newDate: string
+ /** 補堂時段（標準 75 分鐘格；連堂為第一節起始時段） */
+ timeSlot: string
 }): Promise<ArrangeMakeupResult> {
  const newDate = opts.newDate.trim().slice(0, 10)
  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
@@ -248,6 +285,8 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
   throw new Error("此取消堂已安排過補回排程，請勿重複建立。可至未來排程查看加堂。")
  }
 
+ const timeBounds = resolveMakeupTimeBounds(opts.timeSlot, slots.length)
+
  const hints = await fetchScheduleStudentHintsForClass(
   primary.class_id,
   slots.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
@@ -265,6 +304,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
 
  if (slots.length === 1) {
   const s = slots[0]!
+  const bounds = timeBounds[0]!
   const remark = [
    makeupOfRemarkMarker(s.id),
    `補回 ${s.scheduled_date}`,
@@ -278,8 +318,8 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
     teacher_id: s.teacher_id,
     classroom_id: s.classroom_id,
     scheduled_date: newDate,
-    start_time: s.start_time,
-    end_time: s.end_time,
+    start_time: bounds.start,
+    end_time: bounds.end,
     status: "正常",
     is_extra_lesson: true,
     session_number: sessionStart,
@@ -293,6 +333,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
   const groupId = newConsecutiveGroupId()
   for (let i = 0; i < slots.length; i++) {
    const s = slots[i]!
+   const bounds = timeBounds[i] ?? timeBounds[timeBounds.length - 1]!
    const remark = [
     makeupOfRemarkMarker(s.id),
     `補回 ${s.scheduled_date}`,
@@ -306,8 +347,8 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
      teacher_id: s.teacher_id,
      classroom_id: s.classroom_id,
      scheduled_date: newDate,
-     start_time: s.start_time,
-     end_time: s.end_time,
+     start_time: bounds.start,
+     end_time: bounds.end,
      status: "正常",
      is_extra_lesson: true,
      session_number: sessionStart + i,
@@ -330,6 +371,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
   title: `已安排補回加堂（${newDate}）`,
   body: [
    `補回取消堂 ${primary.scheduled_date}`,
+   `時段：${opts.timeSlot.trim()}`,
    reasonHint ? `原因：${reasonHint}` : null,
    attendingNames.length > 0 ? `原應出席：${formatStudentNameList(attendingNames)}` : null,
    slots.length > 1 ? `連堂 ${slots.length} 節` : null,
@@ -345,6 +387,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
    makeupOf: cancelledIds,
    newScheduleIds,
    newDate,
+   timeSlot: opts.timeSlot.trim(),
   },
  })
 

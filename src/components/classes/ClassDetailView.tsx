@@ -300,6 +300,7 @@ export function ClassDetailView() {
  const [makeupTargetId, setMakeupTargetId] = useState<string | null>(null)
  const [makeupPreview, setMakeupPreview] = useState<MakeupPreview | null>(null)
  const [makeupDate, setMakeupDate] = useState("")
+ const [makeupTimeSlot, setMakeupTimeSlot] = useState("")
  const [makeupLoading, setMakeupLoading] = useState(false)
  const [makeupSaving, setMakeupSaving] = useState(false)
  const [makeupErr, setMakeupErr] = useState<string | null>(null)
@@ -1295,11 +1296,13 @@ export function ClassDetailView() {
   setMakeupPreview(null)
   setMakeupErr(null)
   setMakeupDate("")
+  setMakeupTimeSlot("")
   setMakeupLoading(true)
   try {
    const preview = await previewMakeupForCancelledSchedule(scheduleId)
    setMakeupPreview(preview)
    setMakeupDate("")
+   setMakeupTimeSlot(preview.originalTimeSlot)
   } catch (e) {
    const msg = formatUnknownError(e)
    reportUserFacingError(e, {
@@ -1318,12 +1321,17 @@ export function ClassDetailView() {
   setMakeupPreview(null)
   setMakeupErr(null)
   setMakeupDate("")
+  setMakeupTimeSlot("")
  }
 
  const onConfirmArrangeMakeup = async () => {
   if (!makeupTargetId) return
   if (!makeupDate.trim()) {
    setMakeupErr("請選擇補堂日期")
+   return
+  }
+  if (!makeupTimeSlot.trim()) {
+   setMakeupErr("請選擇補堂時段")
    return
   }
   if (makeupPreview && makeupPreview.alreadyHasMakeupIds.length > 0) {
@@ -1336,16 +1344,19 @@ export function ClassDetailView() {
    const result = await arrangeMakeupForCancelledSchedule({
     cancelledScheduleId: makeupTargetId,
     newDate: makeupDate,
+    timeSlot: makeupTimeSlot,
    })
+   const slotLabel = makeupTimeSlot.trim()
    setMakeupTargetId(null)
    setMakeupPreview(null)
    setMakeupErr(null)
    setMakeupDate("")
+   setMakeupTimeSlot("")
    pushBanner({
     tone: "success",
     title: "已安排補回加堂",
     message: [
-     `${result.newDate} 已建立 ${result.newScheduleIds.length} 筆排程`,
+     `${result.newDate}${slotLabel ? ` ${slotLabel}` : ""} 已建立 ${result.newScheduleIds.length} 筆排程`,
      result.attendingNames.length > 0
       ? `原應出席：${formatStudentNameList(result.attendingNames)}`
       : null,
@@ -2899,13 +2910,14 @@ export function ClassDetailView() {
       {makeupPreview ? (
        <>
         <p className="text-muted-foreground">
-         將於同班新建加堂排程（沿用原時段／老師／課室）
+         將於同班新建加堂排程（沿用原老師／課室；日期與時段可改）
          {makeupPreview.isConsecutive ? "；連堂已取消的節次會一併補回" : ""}
          。全期就讀生依報讀自動出現在新日子點名紙；單堂報讀會把原堂選堂改掛到新堂。
         </p>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
          <p>
-          原堂日期：{makeupPreview.originalDate}
+          原堂：{makeupPreview.originalDate}
+          {makeupPreview.originalTimeSlot ? ` ${makeupPreview.originalTimeSlot}` : ""}
           {makeupPreview.cancelReason
            ? ` · 取消原因：${makeupPreview.cancelReason}`
            : ""}
@@ -2938,6 +2950,39 @@ export function ClassDetailView() {
            if (makeupErr) setMakeupErr(null)
           }}
          />
+        </div>
+        <div>
+         <label className="text-xs text-muted-foreground">
+          補堂時段{makeupPreview.isConsecutive ? "（連堂起始格）" : ""}
+         </label>
+         <Select
+          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={timeSlotSelectValueFromStored(makeupTimeSlot)}
+          disabled={makeupSaving || makeupPreview.alreadyHasMakeupIds.length > 0}
+          onChange={(e) => {
+           setMakeupTimeSlot(e.target.value)
+           if (makeupErr) setMakeupErr(null)
+          }}
+         >
+          <option value="">請選擇時段</option>
+          {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
+           <option key={slot} value={slot}>
+            {slot}
+           </option>
+          ))}
+          {makeupTimeSlot &&
+          !CLASS_TIME_SLOT_OPTIONS.some(
+           (slot) =>
+            slot === makeupTimeSlot ||
+            slot.replace(/\u2013/g, "-") === makeupTimeSlot.replace(/\u2013/g, "-")
+          ) ? (
+           <option value={makeupTimeSlot}>{makeupTimeSlot}（原資料）</option>
+          ) : null}
+         </Select>
+         <p className="mt-1 text-xs text-muted-foreground">
+          每格 75 分鐘，由 09:00 起
+          {makeupPreview.isConsecutive ? "；連堂會自動帶下一格。" : "。"}
+         </p>
         </div>
        </>
       ) : null}
