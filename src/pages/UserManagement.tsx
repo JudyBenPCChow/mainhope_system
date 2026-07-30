@@ -1,5 +1,10 @@
 import { UserManagementView } from "@/components/users/UserManagementView"
+import { RequireMgmtRoles } from "@/components/auth/RequireMgmtRoles"
 
 export default function UserManagementPage() {
- return <UserManagementView />
+ return (
+  <RequireMgmtRoles roles={["alien"]}>
+   <UserManagementView />
+  </RequireMgmtRoles>
+ )
 }

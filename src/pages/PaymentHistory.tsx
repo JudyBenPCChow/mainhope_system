@@ -1,5 +1,10 @@
 import { PaymentHistoryView } from "@/components/payments/PaymentHistoryView"
+import { RequireMgmtRoles } from "@/components/auth/RequireMgmtRoles"
 
 export default function PaymentHistoryPage() {
- return <PaymentHistoryView />
+ return (
+  <RequireMgmtRoles roles={["admin", "alien"]}>
+   <PaymentHistoryView />
+  </RequireMgmtRoles>
+ )
 }

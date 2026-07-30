@@ -1,5 +1,10 @@
 import { TrialSessionsView } from "@/components/trials/TrialSessionsView"
+import { RequireMgmtRoles } from "@/components/auth/RequireMgmtRoles"
 
 export default function TrialSessions() {
- return <TrialSessionsView />
+ return (
+  <RequireMgmtRoles roles={["admin", "alien"]}>
+   <TrialSessionsView />
+  </RequireMgmtRoles>
+ )
 }
