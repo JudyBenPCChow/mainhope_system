@@ -119,7 +119,7 @@ export function ScheduleListCard({
      </div>
     </div>
     {namesLoading ? (
-     <p className="text-xs text-muted-foreground">學生名單更新中…</p>
+     <p className="text-xs text-muted-foreground">點名冊更新中…</p>
     ) : (
      <>
       {attendingNames.length > 0 ? (

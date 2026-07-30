@@ -11,10 +11,11 @@ import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
  activeTrialsForSchedules,
- enrollmentsForSchedules,
  fetchScheduleRosterContext,
  leavesForSchedule,
  makeupsForSchedules,
+ rosterHeadcountForSchedule,
+ rosterStudentsForSchedule,
  type ScheduleRosterContext,
 } from "@/services/scheduleRosterQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
@@ -61,7 +62,7 @@ export type ScheduleManageRow = {
  original_teacher_name: string | null
  classroom_id: string | null
  classroom_name: string | null
- /** null＝名單／報讀人數尚未載入（勿當成 0） */
+ /** null＝點名冊人數尚未載入（勿當成 0） */
  enrollCount: number | null
 }
 
@@ -131,19 +132,15 @@ function mapScheduleRow(
  }
 }
 
-/** 用 roster 補報讀人數（及 roster 內較完整的班別 meta） */
+/** 用 roster 補各堂點名冊人數（及 roster 內較完整的班別 meta） */
 export function enrichScheduleRowsWithRosterContext(
  rows: ScheduleManageRow[],
  rosterContext: ScheduleRosterContext
 ): ScheduleManageRow[] {
- const enrollMap = new Map<string, number>()
- for (const enrollment of rosterContext.enrollments) {
-  enrollMap.set(enrollment.classId, (enrollMap.get(enrollment.classId) ?? 0) + 1)
- }
  const scheduleContextById = new Map(rosterContext.schedules.map((row) => [row.id, row]))
  return rows.map((mapped) => {
   const context = scheduleContextById.get(mapped.id)
-  const enrollCount = mapped.class_id ? (enrollMap.get(mapped.class_id) ?? 0) : 0
+  const enrollCount = rosterHeadcountForSchedule(rosterContext, mapped.id)
   if (!context?.classId) return { ...mapped, enrollCount }
   const subject = context.subject ?? mapped.subject
   return {
@@ -160,7 +157,8 @@ export function enrichScheduleRowsWithRosterContext(
    course_code_full: context.courseCodeFull ?? mapped.course_code_full,
    class_day_of_week: context.dayOfWeek ?? mapped.class_day_of_week,
    class_time_slot: context.timeSlot ?? mapped.class_time_slot,
-   class_lesson_slots_per_session: context.lessonSlotsPerSession ?? mapped.class_lesson_slots_per_session,
+   class_lesson_slots_per_session:
+    context.lessonSlotsPerSession ?? mapped.class_lesson_slots_per_session,
   }
  })
 }
@@ -231,25 +229,9 @@ export async function fetchEnrollmentRosterByClassIds(
 
 export type DayViewRosterStudent = { studentId: string; fullName: string }
 
-function mergeDayViewRosterStudents(
- base: DayViewRosterStudent[],
- extras: DayViewRosterStudent[]
-): DayViewRosterStudent[] {
- const seen = new Set(base.map((s) => s.studentId))
- const out = [...base]
- for (const s of extras) {
-  if (seen.has(s.studentId)) continue
-  seen.add(s.studentId)
-  out.push(s)
- }
- out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
- return out
-}
-
 /**
- * 日視圖專用：各排程「上堂名單」＝就讀報讀（暑期期數＋單堂選堂）＋試堂生＋補堂生。
- * 報讀語意對齊 fetchClassStudents(classId, { scheduleDate, scheduleId, activeOnly: true })；
- * 試堂／補堂對齊點名紙（未完成／未取消試堂；makeup_schedule_id＝本堂）。
+ * 日視圖專用：各排程「上堂名單」＝點名冊（當堂可見報讀＋試堂生＋補堂生）。
+ * 與點名紙／班別詳情排程名單同源（scheduleRosterQueries）。
  * 回傳 Map 以 schedule id 為鍵。
  */
 export async function fetchDayViewRosterBySchedules(
@@ -263,17 +245,7 @@ export async function fetchDayViewRosterBySchedules(
  const scheduleIds = schedules.map((s) => s.id)
  const context = rosterContext ?? await fetchScheduleRosterContext(scheduleIds)
  for (const s of schedules) {
-  const enrolledList = enrollmentsForSchedules(context, [s.id])
-   .map((row) => ({ studentId: row.studentId, fullName: row.fullName }))
-  const trialList = activeTrialsForSchedules(context, [s.id])
-   .map((row) => ({ studentId: row.studentId, fullName: row.fullName }))
-  const makeupList = makeupsForSchedules(context, [s.id])
-   .map((row) => ({ studentId: row.studentId, fullName: row.fullName }))
-  const withTrials = mergeDayViewRosterStudents(enrolledList, trialList)
-  m.set(
-   s.id,
-   mergeDayViewRosterStudents(withTrials, makeupList)
-  )
+  m.set(s.id, rosterStudentsForSchedule(context, s.id))
  }
 
  return m
@@ -390,7 +362,7 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
   (() => {
    let q = supabase
     .from("schedules")
-    .select("class_id")
+    .select("id")
     .eq("scheduled_date", today)
     .not("status", "ilike", "%取消%")
    if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
@@ -398,17 +370,15 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
   })(),
  ])
 
- const classIds = [
-  ...new Set(
-   (todaySchedRows.data ?? [])
-    .map((r) => (r as { class_id: string | null }).class_id)
-    .filter((x): x is string => x != null && x !== "")
-  ),
- ]
- const enrollMap = await fetchEnrollmentCountByClass(classIds)
+ const scheduleIds = (todaySchedRows.data ?? [])
+  .map((r) => String((r as { id: string }).id))
+  .filter(Boolean)
  let todayStudentHeadcount = 0
- for (const cid of classIds) {
-  todayStudentHeadcount += enrollMap.get(cid) ?? 0
+ if (scheduleIds.length > 0) {
+  const rosterContext = await fetchScheduleRosterContext(scheduleIds)
+  for (const scheduleId of scheduleIds) {
+   todayStudentHeadcount += rosterHeadcountForSchedule(rosterContext, scheduleId)
+  }
  }
 
  return {

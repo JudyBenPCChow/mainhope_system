@@ -1171,7 +1171,7 @@ useEffect(() => {
  }, [pendingMove, dayFiltered, dayViewDate])
 
  const exportCsv = () => {
-  const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "位置", "狀態", "報讀人數", "教學紀錄"]
+  const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "位置", "狀態", "點名冊人數", "教學紀錄"]
   const lines = [
    header.join(","),
    ...filtered.map((r) =>
@@ -1221,10 +1221,21 @@ useEffect(() => {
   setAddErr(null)
   try {
    const cls = await getClassById(addClassId)
+   let start = addStart || null
+   let end = addEnd || null
+   if (!start && cls?.time_slot) {
+    const bounds = parseTimeSlotBounds(cls.time_slot)
+    start = bounds.start
+    end = bounds.end
+   }
+   if (!start || !end) {
+    setAddErr("請填寫開始與結束時間，或先為班別設定時段")
+    return
+   }
    await insertScheduleForClass(addClassId, cls?.teacher_id ?? null, {
     scheduled_date: addDate,
-    start_time: addStart || null,
-    end_time: addEnd || null,
+    start_time: start,
+    end_time: end,
     classroom_id: cls?.classroom_id ?? null,
     is_extra_lesson: addExtra,
    })
@@ -1491,7 +1502,7 @@ useEffect(() => {
       <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖學生列為上堂名單（報讀＋試堂＋補堂），並以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
+      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖學生列為點名冊（當堂可見報讀＋試堂＋補堂），並以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
       <strong>75 分鐘</strong>（09:00 起）對齊。
      </p>
     </div>
@@ -1562,7 +1573,7 @@ useEffect(() => {
       <span className="truncate">上堂學生</span>
      </div>
      <p className="mt-1 text-xl font-bold tabular-nums text-success md:mt-2 md:text-2xl">{stats.todayStudentHeadcount}</p>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">依今天課表班別加總報讀人數</p>
+     <p className="mt-2 hidden text-sm text-muted-foreground md:block">依今天各堂點名冊加總人數</p>
     </button>
    </section>
 
@@ -1599,7 +1610,7 @@ useEffect(() => {
            type="button"
            aria-pressed={active}
            disabled={disabled}
-           title={disabled ? "報讀人數載入中，請稍候再篩選" : undefined}
+           title={disabled ? "點名冊人數載入中，請稍候再篩選" : undefined}
            onClick={() => toggleIssueFilter(id)}
            className={cn(
             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
@@ -1792,7 +1803,7 @@ useEffect(() => {
          : !dayViewDateLoaded
           ? `正在載入 ${dayViewDate} 的排程…`
           : dayViewRosterLoading
-           ? `本日 ${dayFiltered.length} 堂 · 學生名單更新中…`
+           ? `本日 ${dayFiltered.length} 堂 · 點名冊更新中…`
            : `本日 ${dayFiltered.length} 堂`}
        </span>
        {!loading && dayViewDateLoaded && dayUnassignedCount > 0 ? (
@@ -1997,10 +2008,10 @@ useEffect(() => {
                 {rosterLoading || s.enrollCount == null ? (
                  <span
                   className="inline-block h-4 w-14 animate-pulse rounded bg-muted"
-                  aria-label="報讀人數載入中"
+                  aria-label="點名冊人數載入中"
                  />
                 ) : (
-                 `${s.enrollCount} 人報讀`
+                 `${s.enrollCount} 人`
                 )}
                </span>
                {s.teaching_notes?.trim() ? (

@@ -347,7 +347,26 @@ export async function insertTrialSession(row: {
  }
 }
 
-/** 半價／原價試堂：先開已收款單（lesson_count＝連堂節數），再建立試堂並關聯 payment_id */
+/** 依每堂收費金額推斷試堂類型（列表篩選／標籤用） */
+export function trialTypeFromUnitPrice(
+ unitPrice: number,
+ classPricePerLesson?: number | null
+): string {
+ const unit = Math.round(Number(unitPrice) * 100) / 100
+ if (!(unit > 0)) return "免費試堂"
+ const base =
+  classPricePerLesson != null && Number(classPricePerLesson) > 0
+   ? Math.round(Number(classPricePerLesson) * 100) / 100
+   : null
+ if (base != null) {
+  const half = Math.round(base * 0.5 * 100) / 100
+  if (Math.abs(unit - half) < 0.005) return "半價試堂"
+  if (Math.abs(unit - base) < 0.005) return "原價試堂"
+ }
+ return "原價試堂"
+}
+
+/** 付費試堂：先開已收款單（lesson_count＝連堂節數），再建立試堂並關聯 payment_id */
 export async function insertPaidTrialSession(params: {
  studentId: string
  classId: string
@@ -356,18 +375,17 @@ export async function insertPaidTrialSession(params: {
  trialType: string
  remarks?: string | null
  paymentMethod: string
- /** 每堂單價（半價請先乘 0.5 再傳入） */
+ /** 每堂單價（連堂會按節數加總） */
  unitPrice: number
 }): Promise<{ paymentId: string; receiptNumber: string | null }> {
- const cat = trialTypeCategory(params.trialType)
- if (cat !== "half" && cat !== "full") {
-  throw new Error("僅半價／原價試堂需先收費")
+ if (trialTypeCategory(params.trialType) === "free") {
+  throw new Error("免費試堂無需先收費，請直接建立試堂")
  }
  const scheduleIds = await fetchConsecutiveScheduleIds(params.scheduleId)
  const lessons = Math.max(1, scheduleIds.length)
  const unit = Math.max(0, Number(params.unitPrice))
  const amount = Math.round(unit * lessons * 100) / 100
- if (amount <= 0) throw new Error("試堂金額須大於 0，請確認班別／課程每堂單價")
+ if (amount <= 0) throw new Error("試堂金額須大於 0")
 
  const { insertPaymentRecord, PAYMENT_STATUS } = await import("@/services/paymentQueries")
  const paymentId = await insertPaymentRecord({

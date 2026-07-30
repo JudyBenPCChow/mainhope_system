@@ -6,6 +6,9 @@ import {
  enrollmentsForSchedules,
  leavesForSchedule,
  makeupsForSchedules,
+ rosterHeadcountForSchedule,
+ rosterStudentsForSchedule,
+ scheduleStudentHintsFromContext,
  singleSessionNotOnSchedule,
  type ScheduleRosterContext,
  type ScheduleRosterEnrollment,
@@ -223,6 +226,33 @@ describe("schedule roster selectors", () => {
   const ctx = context()
   const foreign = { ...enrollment("foreign", "其他班學生", null), classId: "class-b" }
   expect(enrollmentIsVisibleOnRosterSchedule(ctx, foreign, ctx.schedules[0]!)).toBe(false)
+ })
+
+ it("點名冊合併當堂可見報讀＋試堂＋補堂並去重", () => {
+  const ctx = context()
+  expect(rosterStudentsForSchedule(ctx, "schedule-1").map((row) => row.fullName).sort()).toEqual(
+   ["同班同日請假", "兩期生", "單堂未選", "第一期生"].sort()
+  )
+  expect(rosterStudentsForSchedule(ctx, "schedule-2").map((row) => row.fullName).sort()).toEqual(
+   ["兩期生", "單堂已選", "第二期生", "試堂生"].sort()
+  )
+  expect(rosterHeadcountForSchedule(ctx, "schedule-2")).toBe(4)
+ })
+
+ it("排程名單提示對齊點名冊並把請假生另列", () => {
+  const hints = scheduleStudentHintsFromContext(context(), ["schedule-1", "schedule-2"])
+  const s1 = hints.get("schedule-1")!
+  expect([...s1.attendingNames].sort()).toEqual(
+   ["同班同日請假", "兩期生", "單堂未選", "第一期生"].sort()
+  )
+  expect(s1.leaveNames).toEqual([])
+  expect(s1.notEnrolledNames).toEqual(["單堂已選"])
+  const s2 = hints.get("schedule-2")!
+  expect([...s2.attendingNames].sort()).toEqual(
+   ["兩期生", "單堂已選", "第二期生", "試堂生"].sort()
+  )
+  expect([...s2.leaveNames].sort()).toEqual(["同班同日請假", "已連結請假"].sort())
+  expect(s2.notEnrolledNames).toEqual(["單堂未選"])
  })
 })
 

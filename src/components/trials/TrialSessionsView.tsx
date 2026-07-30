@@ -49,6 +49,7 @@ import {
  trialLostBlockedReason,
  trialStatusCategory,
  trialTypeCategory,
+ trialTypeFromUnitPrice,
  updateTrialSession,
  type TrialDashboardStats,
  type TrialManageRow,
@@ -57,6 +58,16 @@ import {
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
 type OutcomeTab = "all" | TrialOutcome
+/** 試堂收費：預設金額或自訂 */
+type PayAmountPreset = "0" | "250" | "275" | "300" | "custom"
+
+const PAY_AMOUNT_PRESETS: { value: PayAmountPreset; label: string }[] = [
+ { value: "0", label: "免費（$0）" },
+ { value: "250", label: "$250" },
+ { value: "275", label: "$275" },
+ { value: "300", label: "$300" },
+ { value: "custom", label: "其他金額" },
+]
 
 function matchesStatusTab(r: TrialManageRow, tab: StatusTab): boolean {
  if (tab === "all") return true
@@ -112,17 +123,29 @@ export function TrialSessionsView() {
  const [classPickerOpen, setClassPickerOpen] = useState(false)
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
- const [addTrialType, setAddTrialType] = useState("免費試堂")
  const [addRemarks, setAddRemarks] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
  const [payOpen, setPayOpen] = useState(false)
  const [payMethod, setPayMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
- const [payUnitPreview, setPayUnitPreview] = useState<number | null>(null)
- const [payAmountPreview, setPayAmountPreview] = useState<number | null>(null)
+ const [payAmountPreset, setPayAmountPreset] = useState<PayAmountPreset>("300")
+ const [payCustomAmount, setPayCustomAmount] = useState("")
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
+
+ const resolvePayUnit = (): number | null => {
+  if (payAmountPreset === "custom") {
+   const raw = payCustomAmount.trim()
+   if (!raw) return null
+   const n = Number(raw)
+   if (!Number.isFinite(n) || n < 0) return null
+   return Math.round(n * 100) / 100
+  }
+  return Number(payAmountPreset)
+ }
+ const payUnit = resolvePayUnit()
+ const isFreeCharge = payUnit != null && payUnit <= 0
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -338,8 +361,10 @@ export function TrialSessionsView() {
    setStudentPickList(sl)
   })
   setAddScheduleId("")
-  setAddTrialType("免費試堂")
   setAddRemarks("")
+  setPayAmountPreset("300")
+  setPayCustomAmount("")
+  setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
  }, [addOpen])
 
  const studentsFiltered = useMemo(() => {
@@ -635,76 +660,61 @@ export function TrialSessionsView() {
 
  const openAdd = () => setAddOpen(true)
 
- const submitAdd = async () => {
+ const submitAdd = () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
   if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
    setAddErr("請選擇學生、班別，並確認有可用的未來排程")
    return
   }
-  const cat = trialTypeCategory(addTrialType)
-  if (cat === "half" || cat === "full") {
-   setAddErr(null)
-   setAddSaving(true)
-   try {
-    const cls = await getClassById(addClassId)
-    const base = cls?.price_per_lesson != null ? Number(cls.price_per_lesson) : 0
-    if (!(base > 0)) {
-     setAddErr("此班別／課程尚未設定每堂單價，無法建立半價／原價試堂收費")
-     return
-    }
-    const unit = cat === "half" ? Math.round(base * 0.5 * 100) / 100 : base
-    setPayUnitPreview(unit)
-    setPayAmountPreview(unit)
-    setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
-    setPayOpen(true)
-   } catch (e) {
-    const msg = e instanceof Error ? e.message : "無法載入班別單價"
-    reportUserFacingError(e, { source: "TrialSessionsView.preparePay", setErr: setAddErr, userMessage: msg })
-   } finally {
-    setAddSaving(false)
-   }
-   return
-  }
-  setAddSaving(true)
   setAddErr(null)
-  try {
-   await insertTrialSession({
-    student_id: addStudentId,
-    class_id: addClassId,
-    schedule_id: addScheduleId,
-    trial_date: selectedSched.date,
-    trial_type: addTrialType,
-    status: "已預約",
-    remarks: addRemarks || null,
-   })
-   setAddOpen(false)
-   await reload()
-  } catch (e) {
-   const msg = e instanceof Error ? e.message : "新增失敗"
-   reportUserFacingError(e, { source: "TrialSessionsView.onAdd", setErr: setAddErr, userMessage: msg })
-  } finally {
-   setAddSaving(false)
-  }
+  setPayAmountPreset("300")
+  setPayCustomAmount("")
+  setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
+  setPayOpen(true)
  }
 
- const confirmPaidTrial = async () => {
+ const confirmTrialCharge = async () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
-  if (!addStudentId || !addClassId || !addScheduleId || !selectedSched || payUnitPreview == null) {
-   setAddErr("付費資料不完整")
+  const unit = resolvePayUnit()
+  if (!addStudentId || !addClassId || !addScheduleId || !selectedSched || unit == null) {
+   setAddErr(payAmountPreset === "custom" ? "請輸入有效的收費金額（可為 0）" : "付費資料不完整")
    return
   }
   setAddSaving(true)
   setAddErr(null)
   try {
+   if (unit <= 0) {
+    await insertTrialSession({
+     student_id: addStudentId,
+     class_id: addClassId,
+     schedule_id: addScheduleId,
+     trial_date: selectedSched.date,
+     trial_type: "免費試堂",
+     status: "已預約",
+     remarks: addRemarks || null,
+    })
+    setPayOpen(false)
+    setAddOpen(false)
+    pushBanner({
+     tone: "success",
+     title: "已建立免費試堂",
+     message: "學生已加入該堂點名名單",
+    })
+    await reload()
+    return
+   }
+
+   const cls = await getClassById(addClassId)
+   const trialType = trialTypeFromUnitPrice(unit, cls?.price_per_lesson)
    const { receiptNumber } = await insertPaidTrialSession({
     studentId: addStudentId,
     classId: addClassId,
     scheduleId: addScheduleId,
     trialDate: selectedSched.date,
-    trialType: addTrialType,
+    trialType,
     remarks: addRemarks || null,
     paymentMethod: payMethod,
-    unitPrice: payUnitPreview,
+    unitPrice: unit,
    })
    setPayOpen(false)
    setAddOpen(false)
@@ -716,7 +726,7 @@ export function TrialSessionsView() {
    await reload()
   } catch (e) {
    const msg = e instanceof Error ? e.message : "收費並建立試堂失敗"
-   reportUserFacingError(e, { source: "TrialSessionsView.confirmPaidTrial", setErr: setAddErr, userMessage: msg })
+   reportUserFacingError(e, { source: "TrialSessionsView.confirmTrialCharge", setErr: setAddErr, userMessage: msg })
   } finally {
    setAddSaving(false)
   }
@@ -1150,38 +1160,19 @@ export function TrialSessionsView() {
        </Select>
       </label>
       <label className="grid gap-1">
-       <span className="text-muted-foreground">試堂類型</span>
-       <Select
-        className="h-9 w-full rounded-md border border-input px-2"
-        value={addTrialType}
-        onChange={(e) => setAddTrialType(e.target.value)}
-       >
-        <option value="免費試堂">免費試堂</option>
-        <option value="半價試堂">半價試堂</option>
-        <option value="原價試堂">原價試堂</option>
-        <option value="體驗課">體驗課</option>
-       </Select>
-      </label>
-      <label className="grid gap-1">
        <span className="text-muted-foreground">備註（選填）</span>
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
-      {(trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full") ? (
-       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-        半價／原價試堂須先完成收款（已付＋1 堂或連堂節數），再建立試堂並寫入收據編號。
-       </p>
-      ) : null}
+      <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+       下一步選擇收費金額（免費／$250／$275／$300／其他）。付費試堂會先完成收款再建立紀錄並寫入收據編號。
+      </p>
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
-       <Button type="button" disabled={addSaving} onClick={() => void submitAdd()}>
-        {addSaving
-         ? "處理中…"
-         : trialTypeCategory(addTrialType) === "half" || trialTypeCategory(addTrialType) === "full"
-           ? "下一步：收費"
-           : "儲存"}
+       <Button type="button" disabled={addSaving} onClick={() => submitAdd()}>
+        下一步：收費
        </Button>
       </div>
      </div>
@@ -1194,37 +1185,59 @@ export function TrialSessionsView() {
       <DialogTitle>試堂收費</DialogTitle>
      </DialogHeader>
      <div className="grid gap-3 text-sm">
-      <p className="text-muted-foreground">
-       類型：{addTrialType}
-       {payUnitPreview != null ? (
-        <>
-         {" "}
-         · 每堂 HKD {payUnitPreview}
-         {payAmountPreview != null ? `（若連堂將按節數加總）` : null}
-        </>
-       ) : null}
-      </p>
       <label className="grid gap-1">
-       <span className="text-muted-foreground">付款方式</span>
+       <span className="text-muted-foreground">收費金額（每堂）</span>
        <Select
         className="h-9 w-full rounded-md border border-input px-2"
-        value={payMethod}
-        onChange={(e) => setPayMethod(e.target.value)}
+        value={payAmountPreset}
+        onChange={(e) => setPayAmountPreset(e.target.value as PayAmountPreset)}
        >
-        {PAYMENT_METHOD_PRESETS.map((m) => (
-         <option key={m} value={m}>
-          {m}
+        {PAY_AMOUNT_PRESETS.map((p) => (
+         <option key={p.value} value={p.value}>
+          {p.label}
          </option>
         ))}
        </Select>
       </label>
+      {payAmountPreset === "custom" ? (
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">其他金額（HKD）</span>
+        <Input
+         type="number"
+         min={0}
+         step="1"
+         inputMode="decimal"
+         placeholder="例如 200"
+         value={payCustomAmount}
+         onChange={(e) => setPayCustomAmount(e.target.value)}
+         className="h-9"
+        />
+       </label>
+      ) : null}
+      <p className="text-xs text-muted-foreground">若為連堂，將按節數以每堂金額加總入帳。</p>
+      {!isFreeCharge ? (
+       <label className="grid gap-1">
+        <span className="text-muted-foreground">付款方式</span>
+        <Select
+         className="h-9 w-full rounded-md border border-input px-2"
+         value={payMethod}
+         onChange={(e) => setPayMethod(e.target.value)}
+        >
+         {PAYMENT_METHOD_PRESETS.map((m) => (
+          <option key={m} value={m}>
+           {m}
+          </option>
+         ))}
+        </Select>
+       </label>
+      ) : null}
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setPayOpen(false)}>
         返回
        </Button>
-       <Button type="button" disabled={addSaving} onClick={() => void confirmPaidTrial()}>
-        {addSaving ? "入帳中…" : "確認收款並建立試堂"}
+       <Button type="button" disabled={addSaving || payUnit == null} onClick={() => void confirmTrialCharge()}>
+        {addSaving ? "處理中…" : isFreeCharge ? "確認建立免費試堂" : "確認收款並建立試堂"}
        </Button>
       </div>
      </div>

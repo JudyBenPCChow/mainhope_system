@@ -700,7 +700,7 @@ export function TeacherHomeView() {
              {s.enrollCount == null ? (
               <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle" />
              ) : (
-              `${s.enrollCount} 人報讀`
+              `${s.enrollCount} 人`
              )}
             </span>
             {s.teaching_notes?.trim() ? (

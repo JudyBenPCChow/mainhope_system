@@ -23,6 +23,7 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
+| open | 高 | 生命週期孤兒 | 取消請假／補堂／試堂／退讀後點名紙無名但出席仍在；分階段可見性→攔截→行政刪→健康檢查 | [lifecycle-orphans.md](./backlog/lifecycle-orphans.md) |
 | open | 高 | 流動裝置介面 | 後台三角色（行政／老師／外星人）手機版面；底欄高頻頁多為橫滑表格，少數殼層遮擋 | [mobile-ui.md](./backlog/mobile-ui.md) |
 | open | 中 | 聯絡資料自助更新（一次性活動） | 批量派發專屬連結／QR，家長核對電話與偏好後職員審核寫入；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
 | open | 中 | 試堂紀錄收尾 | 新增收費是否脫鉤、點名人頭／改期名單驗收、收費對帳；快速登記暫不做；手機卡片可選 | [trial-sessions.md](./backlog/trial-sessions.md) |

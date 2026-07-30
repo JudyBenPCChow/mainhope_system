@@ -382,3 +382,72 @@ export function attendanceForSchedule(
  )
 }
 
+export type ScheduleRosterNameHints = {
+ /** 點名冊上應到（不含當日請假） */
+ attendingNames: string[]
+ /** 點名冊上當日請假 */
+ leaveNames: string[]
+ /** 單堂報讀但本堂未選（提醒用，非請假） */
+ notEnrolledNames: string[]
+}
+
+function sortRosterNames(names: string[]): string[] {
+ return [...new Set(names)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+}
+
+/**
+ * 該堂點名冊學生（與點名紙一致）：當堂可見報讀＋未完成試堂＋來此補堂。
+ * 以 studentId 去重；就讀優先於試堂／補堂。
+ */
+export function rosterStudentsForSchedule(
+ context: ScheduleRosterContext,
+ scheduleId: string
+): { studentId: string; fullName: string }[] {
+ const byId = new Map<string, string>()
+ for (const row of enrollmentsForSchedules(context, [scheduleId])) {
+  byId.set(row.studentId, row.fullName)
+ }
+ for (const row of activeTrialsForSchedules(context, [scheduleId])) {
+  if (!byId.has(row.studentId)) byId.set(row.studentId, row.fullName)
+ }
+ for (const row of makeupsForSchedules(context, [scheduleId])) {
+  if (!byId.has(row.studentId)) byId.set(row.studentId, row.fullName)
+ }
+ return [...byId.entries()]
+  .map(([studentId, fullName]) => ({ studentId, fullName }))
+  .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+}
+
+/** 該堂點名冊人數（報讀可見＋試堂＋補堂，去重） */
+export function rosterHeadcountForSchedule(
+ context: ScheduleRosterContext,
+ scheduleId: string
+): number {
+ return rosterStudentsForSchedule(context, scheduleId).length
+}
+
+/**
+ * 排程列表／卡片用名單提示：對齊點名冊，請假生另列（紅字）。
+ */
+export function scheduleStudentHintsFromContext(
+ context: ScheduleRosterContext,
+ scheduleIds: string[]
+): Map<string, ScheduleRosterNameHints> {
+ const out = new Map<string, ScheduleRosterNameHints>()
+ for (const scheduleId of scheduleIds) {
+  const leaveRows = leavesForSchedule(context, scheduleId)
+  const leaveIds = new Set(leaveRows.map((row) => row.studentId))
+  const leaveNames = sortRosterNames(leaveRows.map((row) => row.fullName))
+  const attendingNames = sortRosterNames(
+   rosterStudentsForSchedule(context, scheduleId)
+    .filter((row) => !leaveIds.has(row.studentId))
+    .map((row) => row.fullName)
+  )
+  const notEnrolledNames = sortRosterNames(
+   singleSessionNotOnSchedule(context, scheduleId).map((row) => row.fullName)
+  )
+  out.set(scheduleId, { attendingNames, leaveNames, notEnrolledNames })
+ }
+ return out
+}
+

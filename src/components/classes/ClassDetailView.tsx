@@ -29,6 +29,7 @@ import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { ScheduleDateTime } from "@/lib/scheduleDisplay"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
+import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  CLASS_GRADE_FORM_OPTIONS,
  CLASS_TIME_SLOT_OPTIONS,
@@ -934,19 +935,26 @@ export function ClassDetailView() {
 
  const addSched = async () => {
   if (!cls) return
-  if (!newSchedTimeSlot.trim() && !cls.time_slot) {
+  const timeSlot = newSchedTimeSlot.trim() || cls.time_slot?.trim() || ""
+  if (!timeSlot) {
    setAddSchedErr("請選擇時段")
+   return
+  }
+  const { start, end } = parseTimeSlotBounds(timeSlot)
+  if (!start || !end) {
+   setAddSchedErr("時段格式無效，請重新選擇")
    return
   }
   setSavingAddSched(true)
   setAddSchedErr(null)
   try {
-   const timeSlot = newSchedTimeSlot.trim() || cls.time_slot || ""
    await insertSchedulesForClassSession(
     cid,
-    { ...cls, time_slot: timeSlot || cls.time_slot },
+    { ...cls, time_slot: timeSlot },
     {
      scheduled_date: newSchedDate,
+     start_time: start,
+     end_time: end,
      session_number: newSchedSession,
      classroom_id: cls.classroom_id,
     }
@@ -2016,7 +2024,7 @@ export function ClassDetailView() {
           </div>
           <Button
            type="button"
-           disabled={savingAddSched || (!newSchedTimeSlot.trim() && !cls?.time_slot)}
+           disabled={savingAddSched || !newSchedTimeSlot.trim()}
            onClick={() => void addSched()}
           >
            {savingAddSched ? "建立中…" : "建立"}
