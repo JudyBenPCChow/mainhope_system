@@ -214,10 +214,10 @@
 
 | 要 | 唔好 |
 | --- | --- |
-| 錢一律經**收款登記** `/Payments`（`insertPaymentRecord` → 繳費紀錄可見） | 喺試堂／請假／報讀等業務頁內嵌「當場收款」另開元件或新路由 |
+| 錢一律經**收款登記** `/Payments`（`insertPaymentRecord` → 繳費紀錄可見） | 喺試堂／請假／報讀／前台精靈等業務頁內嵌「當場收款」另開元件或新路由 |
 | 業務頁只管業務（例：試堂頁只建／改／取消試堂）；要收錢 → 連去 `/Payments?studentId=…` | 複製一份收款表單喺精靈／其他頁「圖方便」 |
-| 學生詳情「新增繳費」→ navigate 去 `/Payments`（已係正確習慣） | 新做第三套出單 UI |
+| 學生詳情「新增繳費」→ navigate 去 `/Payments`；前台精靈收款步 → 導向 `/Payments` | 新做第三套出單 UI |
 
-**已知例外（待收斂，唔好再加）：** 前台精靈 `PaymentStep` 仍內嵌出單（邏輯近似收款頁）。新功能**唔准**再開第四扇門；收斂方向係精靈收錢步改為導向 `/Payments`，或共用同一套收款表單元件（仍只一個入口體驗）。
+前台精靈步驟「收款／出單」只作導引（前往／略過），**唔再**內嵌出單表單（2026-08-01 收斂）。
 
 操作說明見 [`manual/PAYMENT_RECEIPTS.md`](./manual/PAYMENT_RECEIPTS.md)；架構備註見 [`AGENT_HANDOFF.md`](./AGENT_HANDOFF.md) §9。

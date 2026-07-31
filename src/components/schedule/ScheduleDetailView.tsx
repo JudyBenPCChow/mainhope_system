@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { isMgmtStaff } from "@/lib/mgmtRole"
+import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -600,7 +601,9 @@ export function ScheduleDetailView() {
        onConfirm={async (reason) => {
         setCancelSaving(true)
         try {
-         await updateSchedule(row.id, { status: "取消", cancel_reason: reason })
+         const softOpts = await resolveSoftCancelScheduleOptions(confirmDialog, [row.id])
+         if (softOpts === "abort") return
+         await updateSchedule(row.id, { status: "取消", cancel_reason: reason }, softOpts)
          setCancelDialogOpen(false)
          await load()
         } finally {

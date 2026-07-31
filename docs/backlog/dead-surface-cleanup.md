@@ -16,12 +16,13 @@
 | --- | --- |
 | 沙盒／demo **路由**下線 | **done** |
 | 待辦看板廢除（UI＋歷史資料＋文件） | **done** |
-| 月費獨立頁／queries 殘碼刪除 | **open** |
-| Prototype／ReceiptDemo **原始碼**刪除 | **open** |
+| 月費獨立頁／queries 殘碼 | **暫緩・勿刪**（之後可能重用／改寫） |
+| `contactUpdate` prototype | **暫緩・勿刪**（活動頁未做；欄位藍本） |
+| 其餘 Prototype／ReceiptDemo **原始碼**刪除 | **open** |
 | `src/api/entities.ts`（可選） | **open** |
 | `/Courses` nav／深連結對齊 | **open**（低） |
 | 點名雙入口文案 | **open**（低；功能刻意保留） |
-| 試堂收費路徑 | **移交** [`trial-sessions.md`](./trial-sessions.md)（勿喺本檔重複推） |
+| 試堂收費路徑 | **已結** [`trial-sessions.md`](./trial-sessions.md)（零頁內收款；統一 `/Payments`） |
 
 ---
 
@@ -43,23 +44,37 @@
 
 ---
 
-## 後續工程（本主題剩餘）
+## 暫緩・先不要改（產品可能重用）
 
-### D1 — 月費獨立頁死碼（中）
+Agent／清碼時**勿刪、勿重構**下列殘碼，直至產品明確決定退役或正式接上：
 
-刪除未掛載 UI／queries（`/MonthlyTuition` 早已 redirect → `/Payments`）：
+### D1 — 月費獨立頁（暫緩）
+
+路由仍 redirect → `/Payments`；未掛載 UI／queries **刻意保留**作日後改寫藍本：
 
 - `src/pages/MonthlyTuition.tsx`
 - `src/components/payments/MonthlyTuitionView.tsx`
 - `src/services/monthlyTuitionQueries.ts`
-- **保留** `src/lib/monthlyTuition.ts`（計算／測試仍用）
+- `src/lib/monthlyTuition.ts`（計算／測試／報表仍在用，本來就保留）
 
-### D2 — Prototype／ReceiptDemo 原始碼（中）
+### D2a — `contactUpdate` prototype（暫緩）
 
-路由已無入口；殘檔仍佔 repo：
+正式 [`contact-update-campaign`](./contact-update-campaign.md) 活動頁未做；保留作欄位／流程參考：
 
-- `src/pages/ReceiptDemo.tsx`、`src/pages/Prototype*.tsx`
-- `src/prototypes/**`（含 `contactUpdate/`——正式 `/ContactUpdate/:token` 上線前，刪前先對齊 [`contact-update-campaign.md`](./contact-update-campaign.md) 欄位文件；可改留假資料於該分題備查）
+- `src/pages/PrototypeContactUpdate.tsx`
+- `src/prototypes/contactUpdate/**`
+
+---
+
+## 後續工程（本主題可做）
+
+### D2b — 其餘 Prototype／ReceiptDemo 原始碼（中）
+
+路由已無入口；**可刪**（勿動上方 D2a）：
+
+- `src/pages/ReceiptDemo.tsx`
+- `src/pages/Prototype*.tsx`（除 `PrototypeContactUpdate`）
+- `src/prototypes/**`（除 `contactUpdate/`）
 
 ### D3 — `src/api/entities.ts`（低／可選）
 
@@ -67,7 +82,7 @@
 
 ### D4 — `/Courses` 角色入口對齊（低）
 
-側欄僅 alien，但班別詳情對 admin 仍有連到 `/Courses`；要麼 nav 開放 admin，要麼頁面／連結加守衛。
+側欄僅 alien；班別詳情「前往課程管理」已限 `isAlien()`。餘：路由本身無角色守衛（admin 深連結仍可開）——要麼 nav 開放 admin，要麼頁面加守衛。
 
 ### D5 — 點名雙入口文案（低）
 
@@ -77,6 +92,8 @@
 
 ## 不做本期
 
+- 刪月費獨立頁／`monthlyTuitionQueries`（見上方暫緩）
+- 刪 `contactUpdate` prototype（見上方暫緩）
 - drop `calendar_events`／`admin_todos` 表
 - 重開待辦看板
 - 試堂建立／收費收斂（見 trial-sessions）

@@ -84,25 +84,44 @@ function versionFromFile(filePath) {
   return m[1];
 }
 
+/**
+ * List linked migrations. Prefer plain `migration list --linked` (already JSON).
+ * Do NOT pass `--output-format json` — that path often times out (LegacyDbConnectError)
+ * even when login/link is fine, and the old error message falsely blamed auth.
+ */
 function listMigrations(bin) {
-  const r = run(bin, ["migration", "list", "--linked", "--output-format", "json"], {
+  const r = run(bin, ["migration", "list", "--linked"], {
     inherit: false,
   });
+  const text = `${r.stdout || ""}\n${r.stderr || ""}`.trim();
   if (r.status !== 0) {
-    console.error(r.stderr || r.stdout);
-    die("Failed to list migrations. Need supabase login / SUPABASE_ACCESS_TOKEN and linked project.");
+    console.error(text.slice(-800));
+    return null;
   }
-  const text = (r.stdout || "").trim();
   // CLI may print progress lines before JSON
   const jsonStart = text.indexOf("{");
-  if (jsonStart < 0) die(`Unexpected migration list output:\n${text.slice(-800)}`);
-  let data;
-  try {
-    data = JSON.parse(text.slice(jsonStart));
-  } catch (e) {
-    die(`Failed to parse migration list JSON: ${e}\n${text.slice(-800)}`);
+  if (jsonStart < 0) {
+    console.error(`Unexpected migration list output:\n${text.slice(-800)}`);
+    return null;
   }
-  return data.migrations ?? [];
+  try {
+    const data = JSON.parse(text.slice(jsonStart));
+    return data.migrations ?? [];
+  } catch (e) {
+    console.error(`Failed to parse migration list JSON: ${e}\n${text.slice(-800)}`);
+    return null;
+  }
+}
+
+function isAuthFailureText(text) {
+  const t = (text || "").toLowerCase();
+  return (
+    t.includes("access token") ||
+    t.includes("supabase login") ||
+    t.includes("not logged in") ||
+    t.includes("unauthorized") ||
+    t.includes("invalid jwt")
+  );
 }
 
 function remoteStatus(rows, version) {
@@ -127,40 +146,68 @@ console.log(`Version:   ${version}`);
 console.log(`CLI:       ${bin}`);
 
 const rows = listMigrations(bin);
-const st = remoteStatus(rows, version);
-
-if (st.remote) {
-  console.log(`Already applied on remote (version ${version}). Nothing to do.`);
-  process.exit(0);
-}
-
-if (!st.local) {
+if (rows) {
+  const st = remoteStatus(rows, version);
+  if (st.remote) {
+    console.log(`Already applied on remote (version ${version}). Nothing to do.`);
+    process.exit(0);
+  }
+  if (!st.local) {
+    console.warn(
+      `Warning: version ${version} not listed as local in migration list (file exists). Continuing.`,
+    );
+  }
+  if (checkOnly) {
+    console.log(`Pending on remote. Would apply: ${rel}`);
+    process.exit(0);
+  }
+} else {
   console.warn(
-    `Warning: version ${version} not listed as local in migration list (file exists). Continuing.`,
+    "Could not list migrations (timeout/CLI flake common). Falling back to direct apply: db query + repair.",
   );
-}
-
-if (checkOnly) {
-  console.log(`Pending on remote. Would apply: ${rel}`);
-  process.exit(0);
+  if (checkOnly) {
+    die("Cannot --check without migration list. Retry, or apply without --check.");
+  }
 }
 
 console.log("Applying SQL via db query --linked …");
-const q = run(bin, ["db", "query", "--linked", "-f", filePath]);
-if (q.status !== 0) die("db query failed; SQL not marked applied.");
+const q = run(bin, ["db", "query", "--linked", "-f", filePath], { inherit: false });
+if (q.status !== 0) {
+  const errText = `${q.stderr || ""}\n${q.stdout || ""}`;
+  console.error(errText);
+  if (isAuthFailureText(errText)) {
+    die(
+      "db query failed: need `supabase login` or SUPABASE_ACCESS_TOKEN in this shell, and linked project.",
+    );
+  }
+  die("db query failed; SQL not marked applied.");
+}
+if (q.stdout) process.stdout.write(q.stdout);
+if (q.stderr) process.stderr.write(q.stderr);
 
 console.log(`Marking applied: migration repair --status applied ${version} --linked`);
-const repair = run(bin, ["migration", "repair", "--status", "applied", version, "--linked"]);
+const repair = run(bin, ["migration", "repair", "--status", "applied", version, "--linked"], {
+  inherit: false,
+});
 if (repair.status !== 0) {
+  const errText = `${repair.stderr || ""}\n${repair.stdout || ""}`;
+  console.error(errText);
   die(
     "SQL may have run but repair failed. Re-check with: supabase migration list --linked\n" +
       `Then manually: supabase migration repair --status applied ${version} --linked`,
   );
 }
+if (repair.stdout) process.stdout.write(repair.stdout);
+if (repair.stderr) process.stderr.write(repair.stderr);
 
-const after = remoteStatus(listMigrations(bin), version);
-if (!after.remote) {
-  die("Repair finished but version still not remote. Inspect migration list.");
+const afterRows = listMigrations(bin);
+if (afterRows) {
+  const after = remoteStatus(afterRows, version);
+  if (!after.remote) {
+    die("Repair finished but version still not remote. Inspect migration list.");
+  }
+} else {
+  console.warn("Could not re-list migrations after repair; assume OK if repair exited 0.");
 }
 
 console.log(`OK: ${version} applied on linked remote.`);

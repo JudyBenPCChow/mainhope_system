@@ -37,7 +37,7 @@ import {
  Wallet,
 } from "lucide-react"
 
-export type Role = "admin" | "teacher" | "alien"
+export type Role = "admin" | "manager" | "teacher" | "alien"
 
 export type NavLeafDef = {
  path: string
@@ -67,12 +67,12 @@ export type NavLeafOnly = {
 export type NavEntryDef = NavGroupDef | NavLeafOnly
 
 export const NAV_STRUCTURE: NavEntryDef[] = [
- { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin", "teacher", "alien"], icon: Home },
+ { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin", "manager", "teacher", "alien"], icon: Home },
  {
   kind: "leaf",
   path: "/AllFeatures",
   label: "所有功能",
-  roles: ["admin", "teacher", "alien"],
+  roles: ["admin", "manager", "teacher", "alien"],
   icon: LayoutGrid,
  },
  {
@@ -84,7 +84,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
    { path: "/TomorrowReminders", label: "明日課堂提醒", roles: ["admin", "alien"], icon: MessageSquareQuote },
    { path: "/Attendance", label: "進行點名", roles: ["admin", "teacher", "alien"], icon: ClipboardCheck },
-   { path: "/Inbox", label: "收件匣", roles: ["admin", "teacher", "alien"], icon: Inbox },
+   { path: "/Inbox", label: "收件匣", roles: ["admin", "manager", "teacher", "alien"], icon: Inbox },
    { path: "/ScriptLibrary", label: "話術庫", roles: ["admin", "alien"], icon: MessageSquareQuote },
   ],
  },
@@ -94,25 +94,25 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "學生與報讀",
   icon: Users,
   children: [
-   { path: "/Students", label: "學生管理", roles: ["admin", "alien"], icon: GraduationCap },
+   { path: "/Students", label: "學生管理", roles: ["admin", "manager", "alien"], icon: GraduationCap },
    {
     path: "/PortalEnrollmentRequests",
     label: "家長報讀申請",
     roles: ["admin", "alien"],
     icon: ClipboardList,
    },
-   { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin", "alien"], icon: ScrollText },
+   { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin", "manager", "alien"], icon: ScrollText },
    { path: "/TrialSessions", label: "試堂紀錄", roles: ["admin", "alien"], icon: Sparkles },
-   { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "alien"], icon: UserRound },
+   { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "manager", "alien"], icon: UserRound },
    { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },
-   { path: "/EnrollmentReports", label: "人數報表", roles: ["admin", "alien"], icon: BarChart3 },
+   { path: "/EnrollmentReports", label: "人數報表", roles: ["manager", "alien"], icon: BarChart3 },
    {
     path: "/SecondaryAttendanceReport",
     label: "中學出席統計",
-    roles: ["admin", "alien"],
+    roles: ["manager", "alien"],
     icon: BarChart3,
    },
-   { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "alien"], icon: Scale },
+   { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "manager", "alien"], icon: Scale },
    {
     path: "/PromotionMatch",
     label: "宣傳配對",
@@ -127,11 +127,11 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "班別與教務",
   icon: BookOpen,
   children: [
-   { path: "/Classes", label: "班別管理", roles: ["admin", "alien"], icon: BookOpen },
-   { path: "/Classes/New", label: "新增班別", roles: ["admin", "alien"], icon: Plus },
+   { path: "/Classes", label: "班別管理", roles: ["admin", "manager", "alien"], icon: BookOpen },
+   { path: "/Classes/New", label: "新增班別", roles: ["admin", "manager", "alien"], icon: Plus },
    { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
-   { path: "/Teachers", label: "老師管理", roles: ["admin", "alien"], icon: UserRound },
-   { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "alien"], icon: CalendarClock },
+   { path: "/Teachers", label: "老師管理", roles: ["admin", "manager", "alien"], icon: UserRound },
+   { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "manager", "alien"], icon: CalendarClock },
    { path: "/Courses", label: "課程管理", roles: ["alien"], icon: BookOpen },
    { path: "/Classrooms", label: "課室管理", roles: ["admin", "alien"], icon: School },
   ],
@@ -142,20 +142,20 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "排程與出勤",
   icon: CalendarRange,
   children: [
-   { path: "/Schedule", label: "排程管理", roles: ["admin", "teacher", "alien"], icon: CalendarDays },
-   { path: "/AcademicCalendar", label: "校曆", roles: ["admin", "alien"], icon: CalendarX },
+   { path: "/Schedule", label: "排程管理", roles: ["admin", "manager", "teacher", "alien"], icon: CalendarDays },
+   { path: "/AcademicCalendar", label: "校曆", roles: ["admin", "manager", "alien"], icon: CalendarX },
    { path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
    {
     path: "/TeachingRecords",
     label: "教學紀錄",
-    roles: ["admin", "teacher", "alien"],
+    roles: ["admin", "manager", "teacher", "alien"],
     icon: NotebookPen,
    },
    { path: "/TeacherLeaveWizard", label: "老師請假處理", roles: ["admin", "alien"], icon: UserRoundX },
-   { path: "/LeaveManagement", label: "請假管理", roles: ["admin", "alien"], icon: CalendarX },
+   { path: "/LeaveManagement", label: "請假管理", roles: ["admin", "manager", "alien"], icon: CalendarX },
    { path: "/RoomBooking", label: "預約空房", roles: ["teacher"], icon: DoorOpen },
    { path: "/RoomBookingAdmin", label: "約房審批", roles: ["admin", "alien"], icon: Building2 },
-   { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "teacher", "alien"], icon: ClipboardList },
+   { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "manager", "teacher", "alien"], icon: ClipboardList },
   ],
  },
  {
@@ -165,8 +165,8 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Wallet,
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin", "alien"], icon: HandCoins },
-   { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "alien"], icon: Wallet },
-   { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["alien"], icon: Percent },
+   { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "manager", "alien"], icon: Wallet },
+   { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
    { path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
   ],
  },
@@ -176,7 +176,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "智能分析",
   icon: Bot,
   children: [
-   { path: "/MgmtDashboard", label: "營運總覽", roles: ["admin", "alien"], icon: BarChart3 },
+   { path: "/MgmtDashboard", label: "營運總覽", roles: ["manager", "alien"], icon: BarChart3 },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],
@@ -204,7 +204,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   kind: "leaf",
   path: "/Settings",
   label: "設定",
-  roles: ["admin", "teacher", "alien"],
+  roles: ["admin", "manager", "teacher", "alien"],
   icon: Settings,
   placement: "footer",
  },

@@ -231,9 +231,11 @@ export async function updatePendingLessonStatus(
 
 /** 依就讀中報讀，對帳：已繳 vs 已綁排程 vs 待補 */
 export async function fetchLessonBalancesForStudent(
- studentId: string
+ studentId: string,
+ opts?: { includePaidLessons?: boolean }
 ): Promise<LessonBalanceRow[]> {
  if (!supabase) return []
+ const includePaidLessons = opts?.includePaidLessons ?? true
 
  const { data: enrollments, error: enrErr } = await supabase
   .from("student_class_enrollments")
@@ -245,7 +247,9 @@ export async function fetchLessonBalancesForStudent(
  if (enrErr) throw enrErr
  if (!enrollments?.length) return []
 
- const paidByClass = await fetchPaidLessonsByClassForStudent(studentId)
+ const paidByClass = includePaidLessons
+  ? await fetchPaidLessonsByClassForStudent(studentId)
+  : new Map<string, number>()
  const [pendingAll, leaveAwaitingAll] = await Promise.all([
   fetchPendingLessonsForStudent(studentId),
   fetchLeavesAwaitingMakeupDateForStudent(studentId),

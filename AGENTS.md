@@ -32,7 +32,7 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 ## 新增功能檢查清單
 
 1. **路由**：在 `src/App.tsx` 的 `<Route element={<Layout />}>` 內新增。
-2. **側欄**：同步改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `roles`：`admin`/`teacher`/`alien`），避免「有路由沒入口」或相反。
+2. **側欄**：同步改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `roles`：`admin`/`manager`/`teacher`/`alien`），避免「有路由沒入口」或相反。
 3. **頁面**：`pages/Xxx.tsx`（薄）→ `components/<領域>/XxxView.tsx`（畫面）→ `services/xxxQueries.ts`（查詢）。
 4. 查大量 UUID 時用 `forEachIdChunk`（`src/lib/supabaseInChunks.ts`）避免 URL 超長。
 5. **一對一**：列表在 `/PrivateTutoring`；點班名進班別詳情。小組課：班別管理 → 班別詳情。詳見 `docs/AGENT_HANDOFF.md` §6.1。
@@ -41,10 +41,16 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 
 - **UI 一致性**：下拉用共用 `Select`/`MultiSelect`，狀態標籤用 `Tag` + `statusToTagTone`，日期用共用 `Input type="date"`，通知用 Banner、確認用 Confirm Dialog（禁 `alert`/`confirm`/原生 `<select>`）。完整條文見 `docs/UI_DESIGN_INSTRUCTIONS.md`。
 - **RLS**：anon key 會出現在瀏覽器；改 schema 必須一併檢視 RLS。上線前移除 `baseline.sql` 的 `dev_*` 全開政策。見 `docs/RLS_ROLLOUT.md`。
-- **角色**：目前前端角色為 `localStorage.mgmt_role`（`admin`/`teacher`/`alien`，見 `src/lib/mgmtRole.ts`），**不等於** Supabase Auth，前端隱藏按鈕不代表有權限保護。
+- **角色**：目前前端角色為 `localStorage.mgmt_role`（`admin`/`manager`/`teacher`/`alien`，見 `src/lib/mgmtRole.ts`），**不等於** Supabase Auth，前端隱藏按鈕不代表有權限保護。管理層分流見 `docs/backlog/mgmt-manager-role.md`。
 - **排程篩選依角色**：admin／alien 有老師多選＋三個進階篩選；專班老師資料已鎖定自己、不顯示老師篩選，進階篩選僅「未有學生報讀」。見 `docs/AGENT_HANDOFF.md` §6.2。
 - **代堂 ≠ 改主責**：同班偶發／輪流代課只改該堂 `schedules.teacher_id`（指派代堂），勿改 `classes.teacher_id`；算堂數看排程老師。見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
-- **Migration 套用**：寫完本任務需要的 `supabase/migrations/*.sql` 後**主動**對 linked 遠端單檔套用（`npm run db:apply -- <檔>`）。遠端／本地歷史不一致時**禁止**全量 `db push`。見 `docs/SUPABASE_MIGRATION_APPLY.md`。
+- **Migration 套用（寫完即套，勿等使用者提醒）**：寫完本任務需要的 `supabase/migrations/*.sql` 後**主動**對 linked 遠端（`MainHope_production`）單檔套用。優先 `npm run db:apply -- <檔>`；若失敗／超時，立刻改手動兩步（勿誤判成未 login）：
+  ```bash
+  export PATH="$HOME/.local/bin:$PATH"
+  supabase db query --linked -f supabase/migrations/YYYYMMDDHHMMSS_描述.sql
+  supabase migration repair --status applied YYYYMMDDHHMMSS --linked
+  ```
+  遠端／本地歷史不一致時**禁止**全量 `db push`。詳見 `docs/SUPABASE_MIGRATION_APPLY.md` 與 skill `apply-supabase-migration`。
 
 ## 深入文件
 
@@ -63,5 +69,5 @@ Vite + React 18 + TypeScript + Tailwind，路由 react-router-dom v6，資料層
 - 點名狀態與扣堂／已上堂數：`docs/ATTENDANCE_BILLING.md`（程式 `src/lib/attendanceBilling.ts`）；獨立頁「進行點名」`/Attendance`，排程頁亦可「確定點名」滑出點名紙
 - 同班偶發代課／代堂（主責 vs 當日老師、報表風險）：`docs/SCHEDULE_SUBSTITUTE_TEACHER.md`
 - RLS 上線：`docs/RLS_ROLLOUT.md`
-- 遠端單檔套用 migration：`docs/SUPABASE_MIGRATION_APPLY.md`（`npm run db:apply`）
+- 遠端單檔套用 migration：`docs/SUPABASE_MIGRATION_APPLY.md`（`npm run db:apply`；fallback：`db query` + `migration repair`）
 - 資料重匯入：`docs/REIMPORT_PLAYBOOK.md`、`docs/SEED.md`

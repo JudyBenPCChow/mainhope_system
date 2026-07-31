@@ -36,8 +36,9 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
+import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAdminOrAlien, isMgmtStaff } from "@/lib/mgmtRole"
 import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -69,6 +70,7 @@ import {
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
  PRIMARY_CONTACT_PERSONS,
+ previewEnrollmentAttendanceImpact,
  purgeMistakenEnrollment,
  type AttendanceRow,
  type ClassOption,
@@ -212,23 +214,57 @@ export function StudentDetailView() {
  const exitPath = useMemo(() => resolveStudentDetailExitPath(location), [location])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const [tab, setTab] = useState<TabId>("basic")
+ const [tab, setTabState] = useState<TabId>("basic")
  const [enrollKindOpen, setEnrollKindOpen] = useState(false)
+
+ const isStaff = isMgmtStaff()
+ /** 繳費紀錄唯讀（含 manager） */
+ const canViewMoney = isStaff
+ /** 學生詳情代請假／新增請假（日常行政；manager 用請假管理頁） */
+ const canMutateLeave = isAdminOrAlien()
+ /** 報讀／待補／基本資料寫入（日常行政） */
+ const canMutateStudentOps = isAdminOrAlien()
+ /** 開啟請假管理深連結（admin／manager／alien） */
+ const canOpenLeaveManagement = isStaff
+ const canDeleteAttendance = isAdminOrAlien()
+ const canVoidPayment = isAdminOrAlien()
+ const canRegisterPayment = isAdminOrAlien()
+
+ const visibleTabs = useMemo(
+  () => TABS.filter((t) => canViewMoney || t.id !== "payments"),
+  [canViewMoney]
+ )
+
+ const setTab = useCallback(
+  (next: TabId) => {
+   if (next === "payments" && !canViewMoney) {
+    setTabState("basic")
+    return
+   }
+   setTabState(next)
+  },
+  [canViewMoney]
+ )
+
+ useEffect(() => {
+  if (tab === "payments" && !canViewMoney) setTabState("basic")
+ }, [tab, canViewMoney])
 
  useEffect(() => {
   const t = searchParams.get("tab")?.trim()
   if (!t) return
   if (!TABS.some((x) => x.id === t)) return
-  setTab(t as TabId)
+  const next = t as TabId
+  setTab(next)
   setSearchParams(
    (prev) => {
-    const next = new URLSearchParams(prev)
-    next.delete("tab")
-    return next
+    const nextParams = new URLSearchParams(prev)
+    nextParams.delete("tab")
+    return nextParams
    },
    { replace: true }
   )
- }, [searchParams, setSearchParams])
+ }, [searchParams, setSearchParams, setTab])
  const [student, setStudent] = useState<StudentRecord | null>(null)
  const [loading, setLoading] = useState(true)
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
@@ -303,7 +339,6 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [attSort, setAttSort] = useState<
   "dateDesc" | "dateAsc" | "classAsc" | "classDesc" | "statusAsc"
  >("dateDesc")
- const canDeleteAttendance = isMgmtStaff()
 
  const sid = studentId ?? ""
 
@@ -368,16 +403,17 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
 
  const reloadSubs = useCallback(async () => {
   if (!sid) return
+  const staff = isMgmtStaff()
   const settled = await Promise.allSettled([
    fetchEnrollmentsForStudent(sid),
-   fetchPaymentsForStudent(sid),
+   staff ? fetchPaymentsForStudent(sid) : Promise.resolve([] as PaymentRow[]),
    fetchAttendanceForStudent(sid),
    fetchLeaveForStudent(sid),
    fetchUpcomingSchedulesForStudent(sid, localTodayYmd()),
-   fetchStudentActivity(sid),
+   fetchStudentActivity(sid, { includePayments: staff }),
    fetchRelativesForStudent(sid),
-   fetchTotalPaidLessonsForStudent(sid),
-   fetchLessonBalancesForStudent(sid),
+   staff ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
+   fetchLessonBalancesForStudent(sid, { includePaidLessons: staff }),
   ])
   const pick = <T,>(i: number, fallback: T): T =>
    settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<T>).value : fallback
@@ -597,12 +633,22 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   if (!withdrawTarget || !sid) return
   setWithdrawSaving(true)
   try {
+   const studentName = (student?.full_name ?? form.full_name ?? "").trim() || "學生"
+   const hits = await previewEnrollmentAttendanceImpact(sid, withdrawTarget.classId)
+   const attOpts = await resolveEnrollmentAttendanceOptions(
+    confirmDialog,
+    hits,
+    "withdraw",
+    studentName
+   )
+   if (attOpts === "abort") return
    await withdrawStudentFromClass({
     enrollmentId: withdrawTarget.id,
     studentId: sid,
     classId: withdrawTarget.classId,
     effectiveDate: localTodayYmd(),
     reason: withdrawReason.trim() || null,
+    ...attOpts,
    })
    setWithdrawOpen(false)
    setWithdrawTarget(null)
@@ -633,6 +679,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  }, [lessonBalances])
  const misalignedCount = useMemo(
   () => lessonBalances.filter((b) => isLessonBalanceNeedsFollowUp(b)).length,
+  [lessonBalances]
+ )
+ const teacherFollowUpCount = useMemo(
+  () =>
+   lessonBalances.filter((b) => b.pendingLessons > 0 || b.leaveAwaitingMakeupCount > 0).length,
   [lessonBalances]
  )
  const pickEntitledNum = pickEntitledCount.trim() === "" ? null : Math.floor(Number(pickEntitledCount))
@@ -825,7 +876,15 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    return
   }
   try {
-   await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid })
+   const hits = await previewEnrollmentAttendanceImpact(sid, e.classId)
+   const attOpts = await resolveEnrollmentAttendanceOptions(
+    confirmDialog,
+    hits,
+    "purge",
+    studentName
+   )
+   if (attOpts === "abort") return
+   await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid, ...attOpts })
    pushBanner({ tone: "success", title: "已清除手誤報讀" })
    await reloadSubs()
   } catch (err) {
@@ -897,7 +956,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  }, [leaveMakeupCandidates, leaveMakeupSearch])
 
  const openLeaveDialog = async () => {
-  if (!sid) return
+  if (!sid || !canMutateLeave) return
   setLeaveErr(null)
   setLeaveClassId("")
   setLeaveScheduleId("")
@@ -1171,16 +1230,18 @@ const exportFutureSchedulesCsv = () => {
       </div>
      </div>
      <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
-      <Button
-       type="button"
-       variant="secondary"
-       size="sm"
-       className="bg-white/90 text-foreground hover:bg-white"
-       onClick={() => setEnrollKindOpen(true)}
-      >
-       <Plus className="h-4 w-4" />
-       新增報讀
-      </Button>
+      {canMutateStudentOps ? (
+       <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="bg-white/90 text-foreground hover:bg-white"
+        onClick={() => setEnrollKindOpen(true)}
+       >
+        <Plus className="h-4 w-4" />
+        新增報讀
+       </Button>
+      ) : null}
       <Button
        type="button"
        variant="secondary"
@@ -1189,7 +1250,7 @@ const exportFutureSchedulesCsv = () => {
        onClick={() => setTab("enrollments")}
       >
        <BookOpen className="h-4 w-4" />
-       管理小組報讀
+       {canMutateStudentOps ? "管理小組報讀" : "查看報讀"}
       </Button>
       <Button
        type="button"
@@ -1200,7 +1261,7 @@ const exportFutureSchedulesCsv = () => {
       >
        <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}`}>
         <UserRound className="h-4 w-4" />
-        管理一對一
+        {canMutateStudentOps ? "管理一對一" : "查看一對一"}
        </Link>
       </Button>
      </div>
@@ -1217,7 +1278,7 @@ const exportFutureSchedulesCsv = () => {
        onChange={(e) => setTab(e.target.value as TabId)}
        aria-label="學生詳情分頁"
       >
-       {TABS.map((t) => (
+       {visibleTabs.map((t) => (
         <option key={t.id} value={t.id}>
          {t.label}
         </option>
@@ -1226,7 +1287,7 @@ const exportFutureSchedulesCsv = () => {
      </label>
     ) : (
     <nav className="flex gap-1 overflow-x-auto py-1">
-     {TABS.map((t) => {
+     {visibleTabs.map((t) => {
       const Icon = t.icon
       const active = tab === t.id
       return (
@@ -1253,6 +1314,10 @@ const exportFutureSchedulesCsv = () => {
    <div className="p-4 md:p-6">
     {tab === "basic" && student ? (
      <div className="mx-auto max-w-4xl space-y-8">
+      <fieldset
+       disabled={!canMutateStudentOps}
+       className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
+      >
       <section className="space-y-4">
        <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
        <div className="grid gap-4 sm:grid-cols-2">
@@ -1477,10 +1542,12 @@ const exportFutureSchedulesCsv = () => {
           {student ? `「${student.full_name}」` : "此學生"}與相同關係標籤。
          </p>
         </div>
-        <Button type="button" size="sm" className="shrink-0" onClick={openAddRelative}>
-         <Plus className="h-4 w-4" />
-         新增親友
-        </Button>
+        {canMutateStudentOps ? (
+         <Button type="button" size="sm" className="shrink-0" onClick={openAddRelative}>
+          <Plus className="h-4 w-4" />
+          新增親友
+         </Button>
+        ) : null}
        </div>
 
        <Dialog open={relativeDialogOpen} onOpenChange={setRelativeDialogOpen}>
@@ -1585,6 +1652,7 @@ const exportFutureSchedulesCsv = () => {
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
              <Tag tone="info" size="sm">{r.relationship}</Tag>
+             {canMutateStudentOps ? (
              <Select
               className="h-8 min-w-[10rem] max-w-full rounded-md border border-input bg-background px-2 text-xs"
               aria-label="變更關係標籤"
@@ -1614,8 +1682,10 @@ const exportFutureSchedulesCsv = () => {
                <option value={r.relationship}>{r.relationship}（自訂）</option>
               ) : null}
              </Select>
+             ) : null}
             </div>
            </div>
+           {canMutateStudentOps ? (
            <Button
             type="button"
             variant="outline"
@@ -1645,21 +1715,25 @@ const exportFutureSchedulesCsv = () => {
            >
             移除
            </Button>
+           ) : null}
           </li>
          ))}
         </ul>
        )}
       </section>
 
-      <Button type="button" onClick={() => void saveBasic()}>
-       儲存變更
-      </Button>
+      {canMutateStudentOps ? (
+       <Button type="button" onClick={() => void saveBasic()}>
+        儲存變更
+       </Button>
+      ) : null}
+      </fieldset>
      </div>
     ) : null}
 
     {tab === "enrollments" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      {misalignedCount > 0 ? (
+      {canViewMoney && misalignedCount > 0 ? (
        <div
         role="status"
         className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
@@ -1668,6 +1742,20 @@ const exportFutureSchedulesCsv = () => {
         個班別的繳費堂數與排程／待補不一致、仍有待補堂，或請假尚無補堂日，請跟進。
        </div>
       ) : null}
+      {!canViewMoney && teacherFollowUpCount > 0 ? (
+       <div
+        role="status"
+        className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+       >
+        有 <strong className="tabular-nums">{teacherFollowUpCount}</strong>{" "}
+        個班別仍有待補堂，或請假尚無補堂日。
+        <span className="mt-1 block text-amber-900/90">
+         補堂安排請交行政處理；你可在「請假紀錄」查看詳情。
+        </span>
+       </div>
+      ) : null}
+      {canMutateStudentOps ? (
+      <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
        <Select
         className="flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
@@ -1760,6 +1848,8 @@ const exportFutureSchedulesCsv = () => {
         onChange={setPickScheduleIds}
        />
       ) : null}
+      </>
+      ) : null}
       <div className="space-y-3">
        {activeEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
@@ -1788,12 +1878,15 @@ const exportFutureSchedulesCsv = () => {
               {e.enrollmentFormLabel}
              </Tag>
             ) : null}
-            {e.pricePerLesson != null ? <span>· 每節 {money(e.pricePerLesson)}</span> : null}
+            {canViewMoney && e.pricePerLesson != null ? (
+             <span>· 每節 {money(e.pricePerLesson)}</span>
+            ) : null}
            </div>
            <div className="mt-1 text-xs text-muted-foreground">
             報讀日期：{e.enroll_date ?? "—"}
            </div>
           </div>
+          {canMutateStudentOps ? (
           <div className="flex flex-wrap items-center gap-2">
            <Button
             type="button"
@@ -1853,25 +1946,38 @@ const exportFutureSchedulesCsv = () => {
             </div>
            </details>
           </div>
+          ) : (
+           <Tag tone={statusToTagTone(e.status)} size="sm">
+            {e.status}
+           </Tag>
+          )}
           </div>
           {bal ? (
            <div
             className={cn(
              "rounded-md border px-3 py-2 text-xs",
-             bal.isAligned && bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
-              ? "border-border bg-muted/40 text-muted-foreground"
-              : "border-amber-700/35 bg-amber-50 text-amber-950"
+             canViewMoney
+              ? bal.isAligned && bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
+                ? "border-border bg-muted/40 text-muted-foreground"
+                : "border-amber-700/35 bg-amber-50 text-amber-950"
+              : bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
+                ? "border-border bg-muted/40 text-muted-foreground"
+                : "border-amber-700/35 bg-amber-50 text-amber-950"
             )}
            >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-             <span>
-              已繳{" "}
-              <strong className="tabular-nums text-foreground">{bal.paidLessons}</strong> 堂
-             </span>
-             <span>
-              已綁排程{" "}
-              <strong className="tabular-nums text-foreground">{bal.boundLessons}</strong> 堂
-             </span>
+             {canViewMoney ? (
+              <>
+               <span>
+                已繳{" "}
+                <strong className="tabular-nums text-foreground">{bal.paidLessons}</strong> 堂
+               </span>
+               <span>
+                已綁排程{" "}
+                <strong className="tabular-nums text-foreground">{bal.boundLessons}</strong> 堂
+               </span>
+              </>
+             ) : null}
              <span>
               待補{" "}
               <strong className="tabular-nums text-foreground">{bal.pendingLessons}</strong> 堂
@@ -1881,26 +1987,32 @@ const exportFutureSchedulesCsv = () => {
               <strong className="tabular-nums text-foreground">{bal.leaveAwaitingMakeupCount}</strong>{" "}
               堂
              </span>
-             {bal.paidLessons > 0 ? (
-              <Tag
-               tone={
-                bal.isAligned && bal.leaveAwaitingMakeupCount === 0 ? "success" : "warning"
-               }
-               size="sm"
-              >
-               {!bal.isAligned
-                ? `尚差 ${bal.gap} 堂未記／未排`
-                : bal.leaveAwaitingMakeupCount > 0
-                  ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
-                  : "堂數一致"}
-              </Tag>
+             {canViewMoney ? (
+              bal.paidLessons > 0 ? (
+               <Tag
+                tone={
+                 bal.isAligned && bal.leaveAwaitingMakeupCount === 0 ? "success" : "warning"
+                }
+                size="sm"
+               >
+                {!bal.isAligned
+                 ? `尚差 ${bal.gap} 堂未記／未排`
+                 : bal.leaveAwaitingMakeupCount > 0
+                   ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
+                   : "堂數一致"}
+               </Tag>
+              ) : bal.leaveAwaitingMakeupCount > 0 ? (
+               <Tag tone="warning" size="sm">
+                請假待安排 {bal.leaveAwaitingMakeupCount} 堂
+               </Tag>
+              ) : (
+               <span className="text-muted-foreground">尚未有該班已收款堂數</span>
+              )
              ) : bal.leaveAwaitingMakeupCount > 0 ? (
               <Tag tone="warning" size="sm">
                請假待安排 {bal.leaveAwaitingMakeupCount} 堂
               </Tag>
-             ) : (
-              <span className="text-muted-foreground">尚未有該班已收款堂數</span>
-             )}
+             ) : null}
             </div>
             {bal.leaveAwaitingMakeupRows.length > 0 ? (
              <ul className="mt-2 space-y-1">
@@ -1915,11 +2027,23 @@ const exportFutureSchedulesCsv = () => {
                  {" · "}
                  {L.makeupType?.trim() || "待安排"}
                 </span>
-                <Button type="button" variant="outline" size="sm" className="h-7 text-xs" asChild>
-                 <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>
-                  前往請假管理
-                 </Link>
-                </Button>
+                {canOpenLeaveManagement ? (
+                 <Button type="button" variant="outline" size="sm" className="h-7 text-xs" asChild>
+                  <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>
+                   前往請假管理
+                  </Link>
+                 </Button>
+                ) : (
+                 <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setTab("leave")}
+                 >
+                  查看請假紀錄
+                 </Button>
+                )}
                </li>
               ))}
              </ul>
@@ -1937,27 +2061,29 @@ const exportFutureSchedulesCsv = () => {
                   {p.reason} · 待補 <strong className="tabular-nums">{p.owedCount}</strong> 堂
                   {p.remarks ? `（${p.remarks}）` : ""}
                  </span>
-                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={async () => {
-                   try {
-                    await updatePendingLessonStatus(p.id, "已安排")
-                    pushBanner({ tone: "success", title: "已標為已安排" })
-                    await reloadSubs()
-                   } catch (err) {
-                    pushBanner({
-                     tone: "error",
-                     title: "更新失敗",
-                     message: err instanceof Error ? err.message : String(err),
-                    })
-                   }
-                  }}
-                 >
-                  標為已安排
-                 </Button>
+                 {canMutateStudentOps ? (
+                  <Button
+                   type="button"
+                   variant="outline"
+                   size="sm"
+                   className="h-7 text-xs"
+                   onClick={async () => {
+                    try {
+                     await updatePendingLessonStatus(p.id, "已安排")
+                     pushBanner({ tone: "success", title: "已標為已安排" })
+                     await reloadSubs()
+                    } catch (err) {
+                     pushBanner({
+                      tone: "error",
+                      title: "更新失敗",
+                      message: err instanceof Error ? err.message : String(err),
+                     })
+                    }
+                   }}
+                  >
+                   標為已安排
+                  </Button>
+                 ) : null}
                 </li>
                ))}
              </ul>
@@ -1972,7 +2098,9 @@ const exportFutureSchedulesCsv = () => {
 
       {withdrawnEnrollments.length > 0 ? (
        <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
-        <p className="text-sm font-medium text-muted-foreground">已退讀（可重新報讀；手誤才用清除）</p>
+        <p className="text-sm font-medium text-muted-foreground">
+         {canMutateStudentOps ? "已退讀（可重新報讀；手誤才用清除）" : "已退讀"}
+        </p>
         <div className="space-y-2">
          {withdrawnEnrollments.map((e) => (
           <div
@@ -1991,6 +2119,7 @@ const exportFutureSchedulesCsv = () => {
              {e.enrollmentFormLabel ?? "—"} · 報讀日 {e.enroll_date ?? "—"}
             </div>
            </div>
+           {canMutateStudentOps ? (
            <details className="relative shrink-0">
             <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
              其他操作
@@ -2007,6 +2136,7 @@ const exportFutureSchedulesCsv = () => {
              </Button>
             </div>
            </details>
+           ) : null}
           </div>
          ))}
         </div>
@@ -2242,6 +2372,7 @@ const exportFutureSchedulesCsv = () => {
      </div>
     ) : null}
 
+    {canViewMoney ? (
     <VoidPaymentDialog
      open={voidPayOpen}
      target={voidPayTarget}
@@ -2251,8 +2382,9 @@ const exportFutureSchedulesCsv = () => {
      }}
      onVoided={() => void reloadSubs()}
     />
+    ) : null}
 
-    {tab === "payments" ? (
+    {tab === "payments" && canViewMoney ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <div className="space-y-1 text-sm text-muted-foreground">
@@ -2267,10 +2399,14 @@ const exportFutureSchedulesCsv = () => {
         </p>
         <p className="text-xs">總繳堂數依「已收款」單據之明細堂數加總。</p>
        </div>
-       <Button type="button" size="sm" onClick={() => navigate(`/Payments?studentId=${encodeURIComponent(sid)}`)}>
-        <Plus className="h-4 w-4" />
-        新增繳費
-       </Button>
+       {canRegisterPayment ? (
+        <Button type="button" size="sm" onClick={() => navigate(`/Payments?studentId=${encodeURIComponent(sid)}`)}>
+         <Plus className="h-4 w-4" />
+         新增繳費
+        </Button>
+       ) : (
+        <p className="text-xs text-muted-foreground">收款登記請由行政／外星人處理。</p>
+       )}
       </div>
       <div className="space-y-3">
        {payments.length === 0 ? (
@@ -2318,7 +2454,7 @@ const exportFutureSchedulesCsv = () => {
             <Printer className="h-3.5 w-3.5" />
             列印
            </Button>
-           {p.status !== PAYMENT_STATUS.voided ? (
+           {canVoidPayment && p.status !== PAYMENT_STATUS.voided ? (
             <Button
              type="button"
              variant="outline"
@@ -2524,14 +2660,23 @@ const exportFutureSchedulesCsv = () => {
        <p className="text-sm text-muted-foreground">
         共 {leaves.length} 筆請假記錄 · 待補{" "}
         {leaves.filter((x) => x.status.includes("待")).length} 堂。
-        <span className="hidden sm:inline"> 點一筆可開啟請假管理並定位該紀錄。</span>
+        {canOpenLeaveManagement ? (
+         <span className="hidden sm:inline"> 點一筆可開啟請假管理並定位該紀錄。</span>
+        ) : (
+         <span className="mt-1 block text-xs text-muted-foreground sm:mt-0 sm:ml-1 sm:inline">
+          補堂安排請交行政處理。
+         </span>
+        )}
        </p>
-       <Button type="button" variant="secondary" size="sm" onClick={() => void openLeaveDialog()}>
-        <Plus className="h-4 w-4" />
-        新增請假
-       </Button>
+       {canMutateLeave ? (
+        <Button type="button" variant="secondary" size="sm" onClick={() => void openLeaveDialog()}>
+         <Plus className="h-4 w-4" />
+         新增請假
+        </Button>
+       ) : null}
       </div>
 
+      {canMutateLeave ? (
       <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
@@ -2679,6 +2824,7 @@ const exportFutureSchedulesCsv = () => {
         </div>
        </DialogContent>
       </Dialog>
+      ) : null}
 
       {leaves.length === 0 ? (
        <p className="py-8 text-center text-sm text-muted-foreground">尚無請假記錄</p>
@@ -2686,18 +2832,29 @@ const exportFutureSchedulesCsv = () => {
        <ul className="space-y-2">
         {leaves.map((x) => (
          <li key={x.id}>
-          <Link
-           to={`/LeaveManagement?${new URLSearchParams({ studentId: sid, record: x.id }).toString()}`}
-           className="block rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/40"
-          >
-           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="font-medium text-primary">{x.classLabel}</span>
-            <span className="text-xs text-muted-foreground">請假管理 →</span>
+          {canOpenLeaveManagement ? (
+           <Link
+            to={`/LeaveManagement?${new URLSearchParams({ studentId: sid, record: x.id }).toString()}`}
+            className="block rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/40"
+           >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+             <span className="font-medium text-primary">{x.classLabel}</span>
+             <span className="text-xs text-muted-foreground">請假管理 →</span>
+            </div>
+            <div className="mt-1 text-muted-foreground">
+             {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
+            </div>
+           </Link>
+          ) : (
+           <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+             <span className="font-medium">{x.classLabel}</span>
+            </div>
+            <div className="mt-1 text-muted-foreground">
+             {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
+            </div>
            </div>
-           <div className="mt-1 text-muted-foreground">
-            {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
-           </div>
-          </Link>
+          )}
          </li>
         ))}
        </ul>

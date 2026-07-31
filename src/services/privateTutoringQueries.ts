@@ -25,6 +25,7 @@ import {
  nextSessionNumberForClass,
  updateSchedule,
 } from "@/services/classQueries"
+import type { SoftCancelScheduleOptions } from "@/services/scheduleLifecycleQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { fetchTeacherScheduleConflicts } from "@/services/scheduleQueries"
@@ -36,6 +37,7 @@ import {
  normalizeEnrollmentStatus,
  normalizeRegistrationStatus,
  withdrawStudentFromClass,
+ type EnrollmentAttendanceChangeOptions,
 } from "@/services/studentQueries"
 
 export type CreatePrivateTutoringInput = {
@@ -716,7 +718,7 @@ export async function withdrawPrivateEnrollment(opts: {
  studentId: string
  classId: string
  reason?: string | null
-}): Promise<void> {
+} & EnrollmentAttendanceChangeOptions): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = new Date().toISOString().slice(0, 10)
 
@@ -727,13 +729,22 @@ export async function withdrawPrivateEnrollment(opts: {
   .gte("scheduled_date", today)
  if (schedErr) throw new Error(formatUnknownError(schedErr))
 
+ const softCancelOpts = {
+  cancelOpenTrials: true,
+  attendanceAction: "keep" as const,
+ }
+
  for (const row of futureScheds ?? []) {
   const s = row as { id: string; status: string }
   if (String(s.status ?? "").includes("取消")) continue
-  await updateSchedule(s.id, {
-   status: "取消",
-   cancel_reason: "一對一退讀，取消未來課堂",
-  })
+  await updateSchedule(
+   s.id,
+   {
+    status: "取消",
+    cancel_reason: "一對一退讀，取消未來課堂",
+   },
+   softCancelOpts
+  )
  }
 
  await withdrawStudentFromClass({
@@ -742,6 +753,8 @@ export async function withdrawPrivateEnrollment(opts: {
   classId: opts.classId,
   effectiveDate: today,
   reason: opts.reason?.trim() || "一對一頁退讀",
+  attendanceAction: opts.attendanceAction,
+  deleteAttendanceIds: opts.deleteAttendanceIds,
  })
 }
 
@@ -785,11 +798,23 @@ export async function fetchPrivateClassSchedules(
  )
 }
 
-export async function cancelPrivateLesson(scheduleId: string, reason?: string | null): Promise<void> {
- await updateSchedule(scheduleId, {
-  status: "取消",
-  cancel_reason: reason?.trim() || "一對一預約取消",
- })
+export async function cancelPrivateLesson(
+ scheduleId: string,
+ reason?: string | null,
+ options?: SoftCancelScheduleOptions
+): Promise<void> {
+ await updateSchedule(
+  scheduleId,
+  {
+   status: "取消",
+   cancel_reason: reason?.trim() || "一對一預約取消",
+  },
+  {
+   cancelOpenTrials: true,
+   attendanceAction: "keep",
+   ...options,
+  }
+ )
 }
 
 export async function reschedulePrivateLesson(opts: {

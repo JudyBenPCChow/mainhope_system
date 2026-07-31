@@ -22,7 +22,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -97,7 +97,7 @@ export function AttendanceRecordsPage() {
  const isMobile = useIsMobile()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const canDeleteAttendance = isMgmtStaff()
+ const canDeleteAttendance = isAdminOrAlien()
  const [viewMode, setViewMode] = usePersistentState<ViewMode>(
   "mgmt_attendance_records_viewMode",
   getInitialAttendanceViewMode()

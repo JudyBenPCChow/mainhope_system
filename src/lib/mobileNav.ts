@@ -4,6 +4,7 @@ import {
  CalendarDays,
  ClipboardCheck,
  Home,
+ Inbox,
  LayoutGrid,
  CalendarRange,
 } from "lucide-react"
@@ -30,6 +31,13 @@ export function getMobileBottomTabs(role: Role): MobileTabItem[] {
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
     { path: "/TeacherTimetable", label: "時間表", icon: CalendarRange },
+    { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
+   ]
+  case "manager":
+   return [
+    { path: "/Home", label: "首頁", icon: Home },
+    { path: "/Schedule", label: "排程", icon: CalendarDays },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "alien":

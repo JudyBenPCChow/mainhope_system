@@ -1,8 +1,9 @@
 # 管理層角色分流（manager）
 
-狀態：**open**（已規劃，未開工）  
+狀態：**done**（第一期已落地；RLS 讀寫分離屬第二期）  
 優先：中  
-來源計畫：Cursor plan「管理層角色分流」（本機 `.cursor/plans/`；下文保留矩陣摘要）
+來源計畫：[2026-08-01-mgmt-manager-role.md](../plans/2026-08-01-mgmt-manager-role.md)（實作計劃＋市場研究第二期 roadmap）  
+顧問審查：[2026-08-01-mgmt-manager-role-review.md](../audits/2026-08-01-mgmt-manager-role-review.md)（有條件通過；紅黃項已全數吸收進計劃）
 
 ## 目標
 
@@ -14,12 +15,28 @@
 
 雙角色沿用 `app_user_roles`／`switch_my_mgmt_role`。
 
+## 三條硬規則
+
+1. **首頁固定**：`manager` 的 `/Home` 一律為營運總覽（`MgmtDashboardView`）
+2. **日常入口不顯示**：側欄／深連結不含前台精靈、明日提醒、點名、話術庫、家長報讀申請、試堂、宣傳配對、課室、老師請假處理、約房審批、收款登記
+3. **敏感主控仍限 admin|alien**：用 `isAdminOrAlien()` 保護收款、點名刪改、優惠折扣、用戶管理
+
 ## 首頁
 
 | 角色 | `/Home` |
 | --- | --- |
 | admin | 現有 `AdminDashboard`（管理中心） |
 | manager | 重用營運總覽 `MgmtDashboardView` |
+
+## 權限語義
+
+| 層級 | manager 第一期 |
+| --- | --- |
+| 可看 | 營運總覽、人數報表、中學出席、收件匣、學生／班別／老師／檔期／排程／校曆／教學紀錄／請假管理／出席一覽、繳費紀錄（唯讀）、堂數對帳、增退 |
+| 可編（有限） | 非金錢／非點名破壞性監督項；無唯讀模式則「可進頁＋藏寫入鈕」 |
+| 不可 | 收款、前台／試堂日常、點名刪改、優惠折扣、用戶／系統、角色授予 |
+
+RLS 已知債：`is_mgmt_staff()` 第一期仍含 manager；第二期拆 reader／writer。
 
 ## 可見矩陣（摘要）
 
@@ -34,19 +51,25 @@
 | 課室／請假處理精靈／約房審批 | ✓ | — |
 | 排程／校曆／教學紀錄／請假管理／出席紀錄 | ✓ | ✓ |
 | 收款登記 | ✓ | — |
-| 繳費紀錄／優惠折扣 | ✓ | ✓ |
+| 繳費紀錄 | ✓ | ✓（唯讀監督） |
+| 優惠折扣 | ✓ | —（僅 admin＋alien） |
 | 阿Po／AI 報表／用戶／系統日志 | —（alien） | — |
 
 ## 第一期實作（開工時）
 
-1. `MgmtRole`／`navStructure` 加 `manager`，按矩陣改 `roles`
-2. `Home` 分流；`MgmtDashboard` 守衛改 manager（暫留 alien）
-3. Migration：role check、`is_mgmt_staff`、profile／switch 支援 manager
-4. 收件匣 `audience_roles` 評估加 manager；更新 `AGENTS.md`／角色文件
-5. RLS 第一期視同職員可讀寫（靠 UI 隱藏）；第二期再收緊寫入
+詳見計劃檔；摘要：
+
+1. `MgmtRole`／`navStructure` 加 `manager`，按矩陣改 `roles`（⚠️ `MgmtRole` 與 `Role` 是兩個獨立 union type，都要加）
+2. **必須**新增 `isAdminOrAlien()` helper；破壞性操作**不可**用擴張後的 `isMgmtStaff()`
+3. `Home` 分流；`MgmtDashboard`／`EnrollmentReports`／`SecondaryAttendanceReport` 守衛改 explicit manager\|alien（**不可**用 `isMgmtStaff()`）
+4. Migration：CHECK constraint 用 DROP + ADD（PG 不支援直接 ALTER）；`is_mgmt_staff` 含 manager；所有 `current_app_role() in/not in (...)` 處加 `'manager'`；附 rollback SQL
+5. 收件匣 `audience_roles` 加 manager；系統通知預設含 manager；`void-payment` edge 同步
+6. RLS 第一期視同職員可讀寫（靠 UI＋守衛＋assert 隔離；標已知債）；第二期再收緊寫入
+7. 更新 `AGENTS.md`／`TERMINOLOGY.md`／角色文件
 
 ## 明確不做（第一期）
 
 - 不改 alien／teacher 矩陣
 - 不做出糧引擎（仍用中學出席統計作算堂）
 - 不做全新管理儀表板設計
+- 優惠折扣不開給 manager（維持 admin＋alien）

@@ -9,6 +9,8 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
+import { applySoftCancelScheduleSideEffects } from "@/services/scheduleLifecycleQueries"
+import type { SoftCancelScheduleOptions } from "@/services/scheduleLifecycleQueries"
 import {
  activeTrialsForSchedules,
  fetchScheduleRosterContext,
@@ -500,7 +502,10 @@ export async function fetchTeacherScheduleConflicts(params: {
  return out
 }
 
-export async function cancelAllSchedulesForClass(classId: string): Promise<number> {
+export async function cancelAllSchedulesForClass(
+ classId: string,
+ options?: SoftCancelScheduleOptions
+): Promise<number> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error: fetchErr } = await supabase
   .from("schedules")
@@ -509,6 +514,13 @@ export async function cancelAllSchedulesForClass(classId: string): Promise<numbe
  if (fetchErr) throw fetchErr
  const active = (data ?? []).filter((r) => !(r as { status: string }).status.includes("取消"))
  if (active.length === 0) return 0
+ const ids = active.map((r) => String((r as { id: string }).id))
+ // O3：整批一次閘門／清調堂／試堂
+ await applySoftCancelScheduleSideEffects(ids, {
+  cancelOpenTrials: true,
+  attendanceAction: "keep",
+  ...options,
+ })
  const now = new Date().toISOString()
  const audience: Array<string | null | undefined> = []
  for (const row of active) {
@@ -529,7 +541,7 @@ export async function cancelAllSchedulesForClass(classId: string): Promise<numbe
  void recordInboxEvent({
   eventType: "schedule_cancelled",
   title: `班別排程已整批取消（${active.length} 堂）`,
-  body: "該班未取消之排程已全部標為取消",
+  body: "該班未取消之排程已全部標為取消；掛住調堂已改回待安排",
   actionPath: `/Classes/${classId}`,
   classId,
   audienceTeacherIds: audience,

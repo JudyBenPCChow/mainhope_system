@@ -13,32 +13,44 @@ linked 專案：`MainHope_production`（`supabase/.temp/project-ref`）。
 ## 標準指令（給人／Agent）
 
 ```bash
-# 套用單一 migration（含：檢查是否已套用 → 執行 SQL → repair 標記）
+export PATH="$HOME/.local/bin:$PATH"
+
+# 套用單一 migration（含：可選 list 檢查 → 執行 SQL → repair 標記）
 npm run db:apply -- supabase/migrations/YYYYMMDDHHMMSS_描述.sql
 ```
 
-等價手動步驟：
+### `db:apply` 失敗／超時時：立刻改手動兩步（勿等使用者提醒）
 
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 
-# 1) 看本地 vs 遠端（找出 local 有、remote 空的版本）
-supabase migration list --linked
-
-# 2) 只執行該檔
+# 1) 只執行該檔
 supabase db query --linked -f supabase/migrations/YYYYMMDDHHMMSS_描述.sql
 
-# 3) 標記歷史（版本號＝檔名前綴數字）
+# 2) 標記歷史（版本號＝檔名前綴數字）
 supabase migration repair --status applied YYYYMMDDHHMMSS --linked
+```
+
+可選診斷（唔好用 `--output-format json`，該 flag 常 timeout）：
+
+```bash
+supabase migration list --linked
+supabase projects list   # 確認已 login／linked
 ```
 
 ## Agent 約定
 
-1. **新增／改完本功能需要的 migration 後，主動套用**，勿等使用者再說「請執行」。
+1. **新增／改完本功能需要的 migration 後，主動套用**，勿等使用者再說「請執行／請套用」。
 2. **禁止**在歷史不一致時對 production 跑全量 `db push`／`db reset --linked`。
 3. 一次只套**本任務相關**的檔；不要順便套其他「local 有、remote 無」的舊檔（可能未審核或已用別版幽靈版本涵蓋）。
-4. 套用後用簡短 SQL 或功能驗收確認；在回覆交代檔名與結果。
-5. 缺 `SUPABASE_ACCESS_TOKEN`／未 login 時：請使用者在同一終端 `supabase login` 或 export token，再繼續；不要假裝已套用。
+4. `npm run db:apply` 失敗時**立刻**走上方手動 `db query` + `migration repair`；唔好因為腳本印「Need login」就停——該訊息常見於 list timeout，唔等於未登入。
+5. 套用後用簡短 SQL 或功能驗收確認；在回覆交代檔名與結果。
+6. 僅當 `db query`／`projects list` **明確**要求 token／login 時，先請使用者 `supabase login` 或 export `SUPABASE_ACCESS_TOKEN`，再繼續；不要假裝已套用。
+
+## 已知 CLI 坑（2026-08）
+
+- `supabase migration list --linked --output-format json` 常 `LegacyDbConnectError`／連線 timeout；plain `migration list --linked` 通常正常。
+- `scripts/apply-one-migration.mjs` 已改為唔用該 flag；list 失敗會 fallback 直接 query + repair。
 
 ## 歷史對齊（已結案 2026-07-31）
 

@@ -61,6 +61,8 @@ import {
  academicYearLabelForClass,
 } from "@/lib/academicYearEditGuard"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
+import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { classDisplayName } from "@/lib/courseLabel"
 import {
  classGradeDisplayText,
@@ -120,6 +122,7 @@ import {
  type ClassEnrollmentChangeEvent,
  fetchAllStudents,
  insertEnrollment,
+ previewEnrollmentAttendanceImpact,
  purgeMistakenEnrollment,
  withdrawStudentFromClass,
  type StudentRecord,
@@ -1189,11 +1192,20 @@ export function ClassDetailView() {
    return
   }
   try {
+   const hits = await previewEnrollmentAttendanceImpact(s.studentId, cid)
+   const attOpts = await resolveEnrollmentAttendanceOptions(
+    confirmDialog,
+    hits,
+    "withdraw",
+    s.fullName
+   )
+   if (attOpts === "abort") return
    if (isPrivateClass) {
     await withdrawPrivateEnrollment({
      enrollmentId: s.enrollmentId,
      studentId: s.studentId,
      classId: cid,
+     ...attOpts,
     })
    } else {
     await withdrawStudentFromClass({
@@ -1202,6 +1214,7 @@ export function ClassDetailView() {
      classId: cid,
      effectiveDate: localYmd(),
      reason: null,
+     ...attOpts,
     })
    }
    pushBanner({ tone: "success", title: "已退讀", message: `${s.fullName} 已標為已退讀。` })
@@ -1238,9 +1251,18 @@ export function ClassDetailView() {
    return
   }
   try {
+   const hits = await previewEnrollmentAttendanceImpact(s.studentId, cid)
+   const attOpts = await resolveEnrollmentAttendanceOptions(
+    confirmDialog,
+    hits,
+    "purge",
+    studentName
+   )
+   if (attOpts === "abort") return
    await purgeMistakenEnrollment({
     enrollmentId: s.enrollmentId,
     studentId: s.studentId,
+    ...attOpts,
    })
    pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${studentName} 已自本班名單移除，無增退紀錄。` })
    await reload()
@@ -1298,7 +1320,9 @@ export function ClassDetailView() {
   setCancelSaving(true)
   setSchedActionErr(null)
   try {
-   await updateSchedule(cancelScheduleId, { status: "取消", cancel_reason: reason })
+   const softOpts = await resolveSoftCancelScheduleOptions(confirmDialog, [cancelScheduleId])
+   if (softOpts === "abort") return
+   await updateSchedule(cancelScheduleId, { status: "取消", cancel_reason: reason }, softOpts)
    setCancelScheduleId(null)
    await reload()
   } catch (e) {

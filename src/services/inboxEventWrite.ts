@@ -44,7 +44,7 @@ function normalizeAudienceRoles(
  audience: MgmtRole[] | "all" | undefined
 ): string[] {
  if (audience == null || audience === "all") return []
- const allowed: MgmtRole[] = ["admin", "alien", "teacher"]
+ const allowed: MgmtRole[] = ["admin", "manager", "alien", "teacher"]
  return audience.filter((r) => allowed.includes(r))
 }
 

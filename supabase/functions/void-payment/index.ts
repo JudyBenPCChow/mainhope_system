@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
     action_path: "/PaymentHistory",
     student_id: row.student_id != null ? String(row.student_id) : null,
     audience_teacher_ids: [],
-    audience_roles: ["admin", "alien"],
+    audience_roles: ["admin", "manager", "alien"],
     payload: {
       kind: "payment_voided",
       payment_id: paymentId,

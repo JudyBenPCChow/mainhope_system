@@ -3,7 +3,7 @@ import { RequireMgmtRoles } from "@/components/auth/RequireMgmtRoles"
 
 export default function TeachersPage() {
  return (
-  <RequireMgmtRoles roles={["admin", "alien"]}>
+  <RequireMgmtRoles roles={["admin", "manager", "alien"]}>
    <TeachersListPage />
   </RequireMgmtRoles>
  )

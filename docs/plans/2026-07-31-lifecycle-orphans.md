@@ -1,7 +1,7 @@
 # 生命週期孤兒：明學操作方案
 
-> 狀態：`階段 A 完成`（A1＋A2a＋A2b O2 已落 code；B／C 未做）  
-> 日期：2026-07-31（狀態更新 2026-08-01）  
+> 狀態：`done`（A1／A2／O3／O4 已落；O0／O5 本期不做）  
+> 日期：2026-07-31（結案 2026-08-01）  
 > 分題：[`docs/backlog/lifecycle-orphans.md`](../backlog/lifecycle-orphans.md)  
 > 索引：[`docs/BACKLOG.md`](../BACKLOG.md)  
 > 暫存實作（歷史）：git branch `wip/lifecycle-orphans-impl`；另見 [`patches/`](./patches/README.md)  
@@ -12,7 +12,7 @@
 > 審閱 #05／#06：[`review-05`](./2026-07-31-lifecycle-orphans-review-05.md) · [`review-06`](./2026-07-31-lifecycle-orphans-review-06.md)  
 > SELF 對抗：[`a2-adversarial-self`](./2026-07-31-lifecycle-orphans-a2-adversarial-self.md)
 
-本檔＝操作／實作方案（含操作模擬）。**階段 A（A1＋A2）已落 code**；餘 B／C。
+本檔＝操作／實作方案（含操作模擬）。**本主題工程已結案**（A＋O3＋O4）；O0／O5 需要時另開。
 
 ---
 

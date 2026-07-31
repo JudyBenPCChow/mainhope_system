@@ -19,6 +19,8 @@ import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
+import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
+import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -66,7 +68,7 @@ import {
  occupiersForSlot,
 } from "@/services/roomBookingQueries"
 import { localYmd } from "@/services/scheduleQueries"
-import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
+import { fetchAllStudents, previewEnrollmentAttendanceImpact, type StudentRecord } from "@/services/studentQueries"
 import { PRIVATE_TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 
 type Tab = "students" | "rooms"
@@ -515,10 +517,19 @@ export function PrivateTutoringView() {
    })
    if (!ok) return
    try {
+    const hits = await previewEnrollmentAttendanceImpact(row.studentId, row.classId)
+    const attOpts = await resolveEnrollmentAttendanceOptions(
+     confirmDialog,
+     hits,
+     "withdraw",
+     row.fullName
+    )
+    if (attOpts === "abort") return
     await withdrawPrivateEnrollment({
      enrollmentId: row.enrollmentId,
      studentId: row.studentId,
      classId: row.classId,
+     ...attOpts,
     })
     pushBanner({
      tone: "success",
@@ -969,7 +980,9 @@ export function PrivateTutoringView() {
    })
    if (!ok) return
    try {
-    await cancelPrivateLesson(s.id)
+    const softOpts = await resolveSoftCancelScheduleOptions(confirmDialog, [s.id])
+    if (softOpts === "abort") return
+    await cancelPrivateLesson(s.id, undefined, softOpts)
     if (rescheduleScheduleId === s.id) {
      setRescheduleScheduleId(null)
     }

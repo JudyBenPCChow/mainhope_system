@@ -9,7 +9,7 @@ import {
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
@@ -51,7 +51,7 @@ export async function expandScheduleIdsWithPeers(scheduleIds: string[]): Promise
  return [...out]
 }
 
-/** 學生在指定 schedule_id 上的出席列 */
+ /** 學生在指定 schedule_id 上的出席列 */
 export async function fetchAttendanceHitsForStudentSchedules(
  studentId: string,
  scheduleIds: string[]
@@ -71,6 +71,44 @@ export async function fetchAttendanceHitsForStudentSchedules(
   for (const row of data ?? []) out.push(mapHit(row as Record<string, unknown>))
  })
  return out
+}
+
+/** 指定排程上所有學生的出席列（O3 軟取消掃描） */
+export async function fetchAttendanceHitsForSchedules(
+ scheduleIds: string[]
+): Promise<AttendanceLifecycleHit[]> {
+ if (!supabase || scheduleIds.length === 0) return []
+ const uniq = [...new Set(scheduleIds.filter(Boolean))]
+ const out: AttendanceLifecycleHit[] = []
+ await forEachIdChunk(uniq, DEFAULT_ID_CHUNK, async (chunk) => {
+  const { data, error } = await supabase!
+   .from("attendance_details")
+   .select(
+    "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, students ( full_name )"
+   )
+   .in("schedule_id", chunk)
+  if (error) throw error
+  for (const row of data ?? []) out.push(mapHit(row as Record<string, unknown>))
+ })
+ return out
+}
+
+/** 學生在某班的全部出席列（O4 退讀／清報讀掃描） */
+export async function fetchAttendanceHitsForStudentClass(
+ studentId: string,
+ classId: string
+): Promise<AttendanceLifecycleHit[]> {
+ if (!supabase || !studentId || !classId) return []
+ const { data, error } = await supabase
+  .from("attendance_details")
+  .select(
+   "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, students ( full_name )"
+  )
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+  .order("attendance_date", { ascending: false })
+ if (error) throw error
+ return (data ?? []).map((row) => mapHit(row as Record<string, unknown>))
 }
 
 /**
@@ -425,7 +463,7 @@ export async function fetchAttendanceLifecycleHitById(
 }
 
 function assertCanDeleteAttendanceAsMgmt(): void {
- if (!isMgmtStaff()) {
+ if (!isAdminOrAlien()) {
   throw new Error("僅管理員或外星人可刪除單筆出席紀錄（過渡權限＝mgmtRole，非 Auth）")
  }
 }

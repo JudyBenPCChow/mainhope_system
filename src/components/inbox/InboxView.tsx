@@ -42,6 +42,7 @@ const OPS_TYPE_FILTER_OPTIONS: { value: InboxTypeFilter; label: string }[] = [
 
 const AUDIENCE_ROLE_OPTIONS: { value: MgmtRole; label: string }[] = [
  { value: "admin", label: "行政" },
+ { value: "manager", label: "管理層" },
  { value: "alien", label: "外星人" },
  { value: "teacher", label: "老師" },
 ]
@@ -76,8 +77,8 @@ export function InboxView() {
  const { pushBanner } = useAppBanner()
  const role = getMgmtRole()
  const canPublish = role === "alien"
- /** 行政預設看系統更新；老師／外星人仍預設營運通知 */
- const preferSystemFirst = role === "admin"
+ /** 行政／管理層預設看系統更新；老師／外星人仍預設營運通知 */
+ const preferSystemFirst = role === "admin" || role === "manager"
 
  const [category, setCategory] = useState<InboxEventCategory>(
   preferSystemFirst ? "system" : "ops"
@@ -94,7 +95,7 @@ export function InboxView() {
  const [publishBody, setPublishBody] = useState("")
  const [publishPath, setPublishPath] = useState("")
  const [audienceMode, setAudienceMode] = useState<"all" | "roles">("all")
- const [audienceRoles, setAudienceRoles] = useState<MgmtRole[]>(["admin", "alien"])
+ const [audienceRoles, setAudienceRoles] = useState<MgmtRole[]>(["admin", "manager", "alien"])
  const [publishing, setPublishing] = useState(false)
 
  const load = useCallback(async () => {
@@ -194,7 +195,7 @@ export function InboxView() {
    setPublishBody("")
    setPublishPath("")
    setAudienceMode("all")
-   setAudienceRoles(["admin", "alien"])
+   setAudienceRoles(["admin", "manager", "alien"])
    setCategory("system")
    setDetailKey(null)
    pushBanner({ tone: "success", title: "已發佈系統通知" })

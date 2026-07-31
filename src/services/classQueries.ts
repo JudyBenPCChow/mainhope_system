@@ -39,6 +39,10 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { fetchRosterForRollCall } from "@/services/attendanceQueries"
 import {
+ applySoftCancelScheduleSideEffects,
+ type SoftCancelScheduleOptions,
+} from "@/services/scheduleLifecycleQueries"
+import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSessionNumbersByEnrollmentIds,
 } from "@/services/enrollmentSessionQueries"
@@ -1157,7 +1161,9 @@ export async function updateSchedule(
   session_number: number | null
   scheduled_date: string
   teacher_id: string | null
- }>
+ }>,
+ /** O3：軟取消時試堂／出席閘門選項 */
+ options?: SoftCancelScheduleOptions
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: sched, error: fetchErr } = await supabase
@@ -1183,6 +1189,20 @@ export async function updateSchedule(
  if (patch.scheduled_date != null) {
   assertAcademicYearEditableForDate(String(prev.scheduled_date ?? ""))
  }
+
+ const nowCancelled =
+  patch.status !== undefined &&
+  patch.status.includes("取消") &&
+  !String(prev.status ?? "").includes("取消")
+
+ // O3：先副作用（清調堂／取消試堂／出席閘門），再改 status
+ if (nowCancelled) {
+  await applySoftCancelScheduleSideEffects([id], {
+   cancel_reason: patch.cancel_reason,
+   ...options,
+  })
+ }
+
  const { error } = await supabase
   .from("schedules")
   .update({ ...patch, updated_at: new Date().toISOString() })
@@ -1190,15 +1210,15 @@ export async function updateSchedule(
  if (error) throw error
 
  if (patch.status !== undefined && patch.status !== prev.status) {
-  const nowCancelled = patch.status.includes("取消")
+  const becameCancelled = patch.status.includes("取消")
   const wasCancelled = String(prev.status ?? "").includes("取消")
-  if (nowCancelled && !wasCancelled) {
+  if (becameCancelled && !wasCancelled) {
    await releaseAvailabilitySlotForSchedule({
     teacherId: prev.teacher_id ?? null,
     scheduledDate: String(prev.scheduled_date ?? ""),
     startTime: prev.start_time ?? null,
    })
-  } else if (!nowCancelled && wasCancelled && prev.teacher_id && prev.class_id) {
+  } else if (!becameCancelled && wasCancelled && prev.teacher_id && prev.class_id) {
    const timeSlot = availabilityTimeSlotForStartTime(prev.start_time ?? null)
    if (timeSlot) {
     await markAvailabilityForScheduleDates({
@@ -1220,10 +1240,6 @@ export async function updateSchedule(
   patch.end_time !== undefined && patch.end_time !== (prev.end_time ?? null)
  const teacherChanged =
   patch.teacher_id !== undefined && (patch.teacher_id ?? null) !== (prev.teacher_id ?? null)
- const nowCancelled =
-  patch.status !== undefined &&
-  patch.status.includes("取消") &&
-  !String(prev.status ?? "").includes("取消")
  const material = nowCancelled || dateChanged || teacherChanged || startChanged || endChanged
 
  if (material) {

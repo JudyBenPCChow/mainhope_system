@@ -69,6 +69,13 @@ function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIco
    Icon: Sparkles,
    iconClass: "border-info/30 bg-info/15 text-info",
   }
+ if (r === "manager")
+  return {
+   label: "管理層",
+   tone: statusToTagTone("管理員"),
+   Icon: Shield,
+   iconClass: "border-primary/30 bg-primary/10 text-primary",
+  }
  if (r === "teacher")
   return {
    label: "專班老師",
@@ -86,6 +93,7 @@ function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIco
 
 const ROLE_OPTIONS = [
  { value: "admin", label: "管理員" },
+ { value: "manager", label: "管理層" },
  { value: "teacher", label: "專班老師" },
  { value: "alien", label: "外星人" },
 ] as const
@@ -172,7 +180,8 @@ export function UserManagementView() {
    const x = r.toLowerCase()
    if (x === "alien") return 0
    if (x === "admin") return 1
-   if (x === "teacher") return 2
+   if (x === "manager") return 2
+   if (x === "teacher") return 3
    return 9
   }
   return [...rows].sort((a, b) => {
@@ -464,6 +473,8 @@ export function UserManagementView() {
           "h-1.5 w-full",
           u.role.toLowerCase() === "alien"
            ? "bg-info"
+           : u.role.toLowerCase() === "manager"
+            ? "bg-primary"
            : u.role.toLowerCase() === "teacher"
             ? "bg-success"
             : "bg-muted-foreground/40"

@@ -2,6 +2,7 @@ import { Navigate } from "react-router-dom"
 
 import { AdminDashboard } from "@/components/home/AdminDashboard"
 import { AlienGodViewHome } from "@/components/home/AlienGodViewHome"
+import { MgmtDashboardView } from "@/components/mgmtDashboard/MgmtDashboardView"
 import { TeacherHomeView } from "@/components/home/TeacherHomeView"
 import { getMgmtRole } from "@/lib/mgmtRole"
 
@@ -14,6 +15,10 @@ export default function Home() {
 
  if (role === "alien") {
   return <AlienGodViewHome />
+ }
+
+ if (role === "manager") {
+  return <MgmtDashboardView />
  }
 
  if (role === "admin") {

@@ -32,7 +32,7 @@
 ## 3. 新增功能時的檢查清單
 
 1. **路由**：在 `src/App.tsx` 的 `<Route element={<Layout />}>` 內新增 `path` 與對應 `pages/*` 元件。
-2. **側欄**：若要在選單顯示，**同步**修改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `path`、`label`、**roles**：`admin` / `teacher` / `alien`）。避免「有路由但選單沒入口」或相反。
+2. **側欄**：若要在選單顯示，**同步**修改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `path`、`label`、**roles**：`admin` / `manager` / `teacher` / `alien`）。避免「有路由但選單沒入口」或相反。
 3. **頁面結構**：優先 `pages/NewXxx.tsx` → `components/xxx/XxxView.tsx`，複雜查詢放 `services/xxxQueries.ts`。
 4. **文案**：介面用語以專案既有 **繁體中文** 為主，與現有頁一致；機構自稱見 [`TERMINOLOGY.md`](TERMINOLOGY.md)（**明學教育**；校方／本校／補習社；禁院方、禁「明學補習社」、禁以書院／學院自稱）。
 
@@ -66,7 +66,7 @@
 
 ## 6. 角色與登入（現況）
 
-- 演示用：`localStorage.mgmt_role` 為 `admin` | `teacher` | `alien`，`Layout` 依此過濾選單。
+- 演示用：`localStorage.mgmt_role` 為 `admin` | `manager` | `teacher` | `alien`，`Layout` 依此過濾選單。管理層（`manager`）首頁為營運總覽；見 `docs/backlog/mgmt-manager-role.md`。
 - **此機制不等於 Supabase Auth**；真正上線若改用 `supabase.auth`，需把 **RLS** 與 **JWT claims**／`profiles` 對齊，並視情況移除或改寫僅依 localStorage 的前端角色邏輯。
 - **Phase 2 預留**：`students.assigned_agent_user_id` → `app_users`（代理人／外包中介）；角色 `agent` 尚未上線，見一對一分流。
 
@@ -152,7 +152,7 @@
 
 ### 開發備註（非操作手冊）
 
-- **單一收款入口：** 新功能若要收錢，只連 `/Payments`（或呼叫既有 `insertPaymentRecord` 且 UI 必須係收款頁／其共用表單）。禁止在試堂、請假、報讀等頁再造收款 Dialog。已知例外：前台精靈 `PaymentStep`（待收斂，見 UI §15）。
+- **單一收款入口：** 新功能若要收錢，只連 `/Payments`（或呼叫既有 `insertPaymentRecord` 且 UI 必須係收款頁／其共用表單）。禁止在試堂、請假、報讀、前台精靈等頁再造收款 Dialog。前台精靈收款步已收斂為導向 `/Payments`（見 UI §15）。
 - PDF 為「畫面轉檔」以保留現有 HTML 版面與 logo；不以另畫一套文字 PDF 取代（版面／logo 不可妥協）。
 - 機構聯絡資料目前為程式常數；日後若做「機構主檔設定」再改讀設定。
 

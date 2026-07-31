@@ -25,6 +25,11 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { supabase } from "@/lib/supabaseClient"
+import {
+ deleteAttendanceHitsWithAuditOrThrow,
+ fetchAttendanceHitsForStudentClass,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -1418,23 +1423,62 @@ export async function deleteEnrollment(id: string): Promise<void> {
  * 手誤選錯：硬刪報讀列及其增退事件／選堂明細，不寫入任何新紀錄。
  * 用於誤加學生（與「退讀」不同：退讀會保留歷史）。
  */
+export type EnrollmentAttendanceChangeOptions = {
+ attendanceAction?: "delete" | "keep"
+ deleteAttendanceIds?: string[]
+}
+
+export async function previewEnrollmentAttendanceImpact(
+ studentId: string,
+ classId: string
+): Promise<AttendanceLifecycleHit[]> {
+ return fetchAttendanceHitsForStudentClass(studentId, classId)
+}
+
+async function applyEnrollmentAttendanceDeletes(
+ hits: AttendanceLifecycleHit[],
+ options: EnrollmentAttendanceChangeOptions | undefined,
+ reason: string
+): Promise<void> {
+ if (hits.length === 0) return
+ const action = options?.attendanceAction
+ if (action === "keep") return
+ if (action !== "delete") {
+  throw new Error(
+   `此生在本班有 ${hits.length} 筆出席。請確認保留或一併刪除後再繼續。`
+  )
+ }
+ const allow = new Set((options?.deleteAttendanceIds ?? []).filter(Boolean))
+ const toDelete = hits.filter((h) => allow.has(h.id))
+ if (toDelete.length === 0) {
+  throw new Error(
+   `此生在本班有 ${hits.length} 筆出席。請確認保留或一併刪除後再繼續。`
+  )
+ }
+ await deleteAttendanceHitsWithAuditOrThrow(toDelete, reason)
+}
+
 export async function purgeMistakenEnrollment(opts: {
  enrollmentId: string
  studentId: string
-}): Promise<void> {
+} & EnrollmentAttendanceChangeOptions): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("student_class_enrollments")
-  .select("id, student_id")
+  .select("id, student_id, class_id")
   .eq("id", opts.enrollmentId)
   .maybeSingle()
  if (fetchErr) throw fetchErr
  if (!row) throw new Error("找不到報讀紀錄")
  const enrollmentId = String((row as { id: string }).id)
  const studentId = String((row as { student_id: string }).student_id)
+ const classId = String((row as { class_id: string }).class_id)
  if (studentId !== opts.studentId) {
   throw new Error("報讀紀錄與學生不符")
  }
+
+ const hits = await previewEnrollmentAttendanceImpact(studentId, classId)
+ await applyEnrollmentAttendanceDeletes(hits, opts, "purge_mistaken_enrollment")
 
  const { error: evErr } = await supabase
   .from("enrollment_change_events")
@@ -1464,11 +1508,15 @@ export async function withdrawStudentFromClass(opts: {
  classId: string
  effectiveDate: string
  reason: string | null
-}): Promise<void> {
+} & EnrollmentAttendanceChangeOptions): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const reason = opts.reason?.trim() || null
  const effectiveDate = opts.effectiveDate.slice(0, 10)
  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) throw new Error("退讀生效日期無效")
+
+ const hits = await previewEnrollmentAttendanceImpact(opts.studentId, opts.classId)
+ await applyEnrollmentAttendanceDeletes(hits, opts, "withdraw_enrollment")
+
  const today = localYmd()
  const scheduled = effectiveDate > today
  if (scheduled) {
@@ -1752,9 +1800,13 @@ export type HistoryRow = {
  tone: "green" | "blue" | "muted" | "amber"
 }
 
-export async function fetchStudentActivity(studentId: string): Promise<HistoryRow[]> {
+export async function fetchStudentActivity(
+ studentId: string,
+ opts?: { includePayments?: boolean }
+): Promise<HistoryRow[]> {
  const items: HistoryRow[] = []
  if (!supabase) return items
+ const includePayments = opts?.includePayments ?? true
 
  const [hist, pays, enrs, evWithdraw] = await Promise.all([
   supabase
@@ -1762,11 +1814,13 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
    .select("id, old_status, new_status, changed_date, reason, created_at")
    .eq("student_id", studentId)
    .order("created_at", { ascending: false }),
-  supabase
-   .from("payments")
-   .select("id, total_amount, payment_method, status, payment_date, created_at")
-   .eq("student_id", studentId)
-   .order("created_at", { ascending: false }),
+  includePayments
+   ? supabase
+      .from("payments")
+      .select("id, total_amount, payment_method, status, payment_date, created_at")
+      .eq("student_id", studentId)
+      .order("created_at", { ascending: false })
+   : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
   supabase
    .from("student_class_enrollments")
    .select(
@@ -1794,7 +1848,7 @@ export async function fetchStudentActivity(studentId: string): Promise<HistoryRo
    })
   }
  }
- if (!pays.error && pays.data) {
+ if (includePayments && !pays.error && pays.data) {
   for (const r of pays.data as Record<string, unknown>[]) {
    const amt = Number(r.total_amount ?? 0)
    items.push({

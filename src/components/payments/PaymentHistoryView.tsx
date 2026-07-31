@@ -28,6 +28,7 @@ import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH } from "@/lib/receiptDownloadFolder"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -71,6 +72,8 @@ export function PaymentHistoryView() {
 
  const [voidOpen, setVoidOpen] = useState(false)
  const [voidTarget, setVoidTarget] = useState<VoidPaymentTarget | null>(null)
+ const canVoidPayment = isAdminOrAlien()
+ const canMarkReceived = isAdminOrAlien()
 
  const [formErr, setFormErr] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{
@@ -478,12 +481,12 @@ export function PaymentHistoryView() {
           </Button>
           <PaymentReceiptDownloadButton paymentId={r.id} />
           <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
-          {pending ? (
+          {pending && canMarkReceived ? (
            <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
             標記已收
            </Button>
           ) : null}
-          {r.status !== PAYMENT_STATUS.voided ? (
+          {canVoidPayment && r.status !== PAYMENT_STATUS.voided ? (
            <Button
             type="button"
             variant="ghost"
@@ -544,12 +547,12 @@ export function PaymentHistoryView() {
              </Button>
              <PaymentReceiptDownloadButton paymentId={r.id} />
              <PaymentReceiptWhatsAppButton paymentId={r.id} contactPhone={r.contactPhone} />
-             {pending ? (
+             {pending && canMarkReceived ? (
               <Button type="button" size="sm" onClick={() => openMarkReceived(r)}>
                標記已收
               </Button>
              ) : null}
-             {r.status !== PAYMENT_STATUS.voided ? (
+             {canVoidPayment && r.status !== PAYMENT_STATUS.voided ? (
               <Button
                type="button"
                variant="ghost"

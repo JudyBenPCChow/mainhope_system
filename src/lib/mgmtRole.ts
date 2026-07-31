@@ -3,12 +3,12 @@ import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 
 /** 與首頁演示／Layout 一致：localStorage `mgmt_role` */
-export type MgmtRole = "admin" | "teacher" | "alien"
+export type MgmtRole = "admin" | "manager" | "teacher" | "alien"
 
 export function getMgmtRole(): MgmtRole | null {
  if (typeof localStorage === "undefined") return null
  const r = localStorage.getItem("mgmt_role")
- if (r === "admin" || r === "teacher" || r === "alien") return r
+ if (r === "admin" || r === "manager" || r === "teacher" || r === "alien") return r
  return null
 }
 
@@ -35,6 +35,7 @@ export function formatMgmtActorLabel(role?: MgmtRole | null): string {
  if (!r) return "未登入"
  const name = resolveMgmtDisplayName(r)
  if (r === "admin") return `管理員（${name}）`
+ if (r === "manager") return `管理層（${name}）`
  if (r === "teacher") return `專班老師（${name}）`
  if (r === "alien") return `外星人（${name}）`
  return "未登入"
@@ -45,24 +46,41 @@ export function isSuperAdmin(): boolean {
  return getMgmtRole() === "alien"
 }
 
-/** 管理員或外星人 — 可管理班別／排程等 */
+/** 行政／管理層／外星人 — 一般職員讀取權（非破壞性） */
 export function isMgmtStaff(): boolean {
  const r = getMgmtRole()
- return r === "admin" || r === "alien"
+ return r === "admin" || r === "manager" || r === "alien"
 }
 
 export function isAdmin(): boolean {
  return getMgmtRole() === "admin"
 }
 
+export function isManager(): boolean {
+ return getMgmtRole() === "manager"
+}
+
 export function isAlien(): boolean {
  return getMgmtRole() === "alien"
+}
+
+/** 破壞性／敏感操作守衛：僅 admin 與 alien（不含 manager） */
+export function isAdminOrAlien(): boolean {
+ const r = getMgmtRole()
+ return r === "admin" || r === "alien"
+}
+
+/** 可否查看營運總覽／分析頁：manager + alien（刻意排除 admin） */
+export function canAccessMgmtDashboard(): boolean {
+ const r = getMgmtRole()
+ return r === "manager" || r === "alien"
 }
 
 /** 單據經手人：顯示目前登入角色 */
 export function formatMgmtRoleLabel(role?: MgmtRole | null): string {
  const r = role ?? getMgmtRole()
  if (r === "admin") return "管理員"
+ if (r === "manager") return "管理層"
  if (r === "teacher") return "專科班老師"
  if (r === "alien") return "外星人"
  return "—"

@@ -221,10 +221,10 @@ export function EnrollClassStep({
 
  const continueLabel = () => {
   if (activeCount > 0 && trialCount > 0) {
-   return `已報讀 ${activeCount} 班、試堂 ${trialCount} 堂，繼續收款／出單`
+   return `已報讀 ${activeCount} 班、試堂 ${trialCount} 堂，繼續前往收款`
   }
-  if (trialCount > 0) return `已登記 ${trialCount} 堂試堂，繼續收款／出單`
-  return `已報讀 ${activeCount} 班，繼續收款／出單`
+  if (trialCount > 0) return `已登記 ${trialCount} 堂試堂，繼續前往收款`
+  return `已報讀 ${activeCount} 班，繼續前往收款`
  }
 
  const syncCounts = async () => {
@@ -375,7 +375,7 @@ export function EnrollClassStep({
    pushBanner({
     tone: "info",
     title: "半價／原價試堂",
-    message: "試堂紀錄將先建立；收費請於下一步「收款／出單」處理。",
+    message: "試堂紀錄將先建立；收費請於下一步前往「收款登記」處理。",
    })
   }
 

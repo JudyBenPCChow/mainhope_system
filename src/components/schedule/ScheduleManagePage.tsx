@@ -68,6 +68,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { isMgmtStaff } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -1369,7 +1370,9 @@ useEffect(() => {
    }
    setCancelSaving(true)
    try {
-    await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason })
+    const softOpts = await resolveSoftCancelScheduleOptions(confirmDialog, [cancelTarget.id])
+    if (softOpts === "abort") return
+    await updateSchedule(cancelTarget.id, { status: "取消", cancel_reason: reason }, softOpts)
     setCancelTarget(null)
     await reload()
    } catch (e) {

@@ -368,7 +368,11 @@ export async function executeTeacherLeaveDay(params: {
       }
 
       for (const sid of unit.scheduleIds) {
-        await updateSchedule(sid, { status: "取消", cancel_reason: cancelReason })
+        await updateSchedule(
+          sid,
+          { status: "取消", cancel_reason: cancelReason },
+          { cancelOpenTrials: true, attendanceAction: "keep" }
+        )
       }
 
       const expected = unit.students.filter((s) => s.kind === "expected")

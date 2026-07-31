@@ -82,6 +82,7 @@ const TYPE_STATUS_LABEL: Record<InboxItemType, string> = {
 
 const ROLE_LABEL: Record<MgmtRole, string> = {
  admin: "行政",
+ manager: "管理層",
  alien: "外星人",
  teacher: "老師",
 }
@@ -108,7 +109,7 @@ function parseAudienceRoles(raw: unknown): MgmtRole[] {
  const out: MgmtRole[] = []
  for (const x of raw) {
   const s = String(x)
-  if (s === "admin" || s === "alien" || s === "teacher") out.push(s)
+  if (s === "admin" || s === "manager" || s === "alien" || s === "teacher") out.push(s)
  }
  return out
 }

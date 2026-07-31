@@ -28,17 +28,13 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
-| in_progress | 高 | 生命週期孤兒 | **階段 A 完成**（A1＋A2a＋A2b O2）；餘 B／C（可見性／軟取消／退讀／健康檢查） | [lifecycle-orphans.md](./backlog/lifecycle-orphans.md) · [plans](./plans/2026-07-31-lifecycle-orphans.md) · [a2-kickoff](./plans/2026-07-31-lifecycle-orphans-a2-kickoff.md) |
-| open | 高 | 角色／權限日常加固 | 對抗性批次已清；殘項：學生詳情繳費／請假對老師旁路 | [role-ops-hardening.md](./backlog/role-ops-hardening.md)（R1–R2 · [老師對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)） |
 | open | 高 | 流動裝置介面 | 三角色手機版面；老師對照＋行政模擬 S19（Inbox／請假橫滑） | [mobile-ui.md](./backlog/mobile-ui.md)（§E · §F） |
 | open | 高 | 正規逾期罰款／禁止入室 | 政策已有、系統未強制；行政模擬 S10：第 N 堂／$50／入室警示 | [tuition-late-fee-enforcement.md](./backlog/tuition-late-fee-enforcement.md) |
 | open | 中 | 聯絡資料自助更新（一次性活動） | 批量派發專屬連結／QR，家長核對電話與偏好後職員審核寫入；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
-| in_progress | 中 | 試堂紀錄收尾 | 階段1＋O1t 已落；T2 人手驗；PaymentStep 另票 · [對抗](./audits/2026-08-01-trial-sessions-wrapup-adversarial.md) | [trial-sessions.md](./backlog/trial-sessions.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | open | 中 | 代堂算薪／出勤報表 | 部分查詢偏 `classes.teacher_id`；模擬 S07 易錯 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) |
-| open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；餘：月費頁／prototype 殘碼（D1–D2）、可選 entities／Courses 對齊 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md)（D1–D5）· [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
-| open | 中 | 管理層角色分流 | 新增 `manager`；與行政分開首頁（營運總覽 vs 管理中心）及側欄；外星人／老師本期不改 | [mgmt-manager-role.md](./backlog/mgmt-manager-role.md) |
+| open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 
 ---
 
@@ -48,6 +44,10 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
+| done | 中 | 管理層角色分流 | 新增 `manager`；首頁／側欄分流；`isAdminOrAlien` 敏感主控；migration 已套用 | [mgmt-manager-role.md](./backlog/mgmt-manager-role.md) · [計劃](./plans/2026-08-01-mgmt-manager-role.md) |
+| done | 高 | 角色／權限日常加固 | P0／P1＋R1／R2／§6 已清（老師學生詳情藏金錢／禁代請假／藏假開放寫入） | [role-ops-hardening.md](./backlog/role-ops-hardening.md) · [計劃](./plans/2026-08-01-student-detail-teacher-hardening.md) |
+| done | 高 | 生命週期孤兒 | A1／A2／O3／O4 已落；O0／O5 本期不做（可見性／健康檢查可另開） | [lifecycle-orphans.md](./backlog/lifecycle-orphans.md) · [plans](./plans/2026-07-31-lifecycle-orphans.md) |
+| done | 中 | 試堂紀錄收尾 | 零頁內收款、對帳／O1t／PaymentStep／作廢解掛／系統通知已齊；視為完全解決 | [trial-sessions.md](./backlog/trial-sessions.md) |
 | done | 高 | 撤學年硬鎖＋輕量防呆 | 清硬鎖；非當期 confirm＋audit | [academic-year-unlock-soft-guard.md](./backlog/academic-year-unlock-soft-guard.md) |
 | cancelled | 高 | 學年鎖整固 | 不整固；改撤硬鎖＋confirm＋audit | [academic-year-lock.md](./backlog/academic-year-lock.md)（歷史）· [rethink](./audits/2026-07-31-academic-year-lock-rethink.md) |
 | done | 中 | Migration 歷史對齊 | 幽靈已清；A–D 完成；local/remote 對齊；`db push --dry-run` up to date（2026-07-31） | [supabase-migration-history.md](./backlog/supabase-migration-history.md) |
