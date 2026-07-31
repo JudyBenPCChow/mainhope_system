@@ -935,6 +935,8 @@ export type AttendanceRecordRow = {
  attendanceDate: string
  status: string
  remarks: string | null
+ /** DB 原字串；樂觀鎖用 */
+ updatedAt: string | null
  studentName: string | null
  studentEnglishName: string | null
  studentGrade: string | null
@@ -984,6 +986,7 @@ function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
   attendanceDate: String(r.attendance_date ?? ""),
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
+  updatedAt: r.updated_at != null ? String(r.updated_at) : null,
   studentName: st?.full_name != null ? String(st.full_name) : null,
   studentEnglishName: st?.english_name != null ? String(st.english_name) : null,
   studentGrade: st?.grade != null ? String(st.grade) : null,
@@ -1007,7 +1010,7 @@ export async function fetchAttendanceRecordsInRange(
  const { data, error } = await supabase
   .from("attendance_details")
   .select(
-   "id, student_id, class_id, schedule_id, attendance_date, status, remarks, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) ), schedules ( teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ) )"
+   "id, student_id, class_id, schedule_id, attendance_date, status, remarks, updated_at, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) ), schedules ( teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ) )"
   )
   .gte("attendance_date", fromYmd)
   .lte("attendance_date", toYmd)

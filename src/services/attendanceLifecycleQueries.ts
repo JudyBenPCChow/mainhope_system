@@ -406,3 +406,40 @@ export async function deleteAttendanceHitsWithAuditOrThrow(
   }
  }
 }
+
+/** A2b O2：載入單列（弱鎖用最新 status／updated_at） */
+export async function fetchAttendanceLifecycleHitById(
+ id: string
+): Promise<AttendanceLifecycleHit | null> {
+ if (!supabase || !id) return null
+ const { data, error } = await supabase
+  .from("attendance_details")
+  .select(
+   "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, students ( full_name )"
+  )
+  .eq("id", id)
+  .maybeSingle()
+ if (error) throw error
+ if (!data) return null
+ return mapHit(data as Record<string, unknown>)
+}
+
+function assertCanDeleteAttendanceAsMgmt(): void {
+ if (!isMgmtStaff()) {
+  throw new Error("僅管理員或外星人可刪除單筆出席紀錄（過渡權限＝mgmtRole，非 Auth）")
+ }
+}
+
+/**
+ * A2b O2：admin／alien 刪單一出席列。
+ * 會先 re-read 最新列再走 audit＋樂觀鎖刪除。
+ */
+export async function deleteAttendanceDetailAsMgmt(
+ attendanceDetailId: string,
+ reason = "mgmt_single_delete"
+): Promise<void> {
+ assertCanDeleteAttendanceAsMgmt()
+ const hit = await fetchAttendanceLifecycleHitById(attendanceDetailId)
+ if (!hit) return // 已不存在＝idempotent
+ await deleteAttendanceHitsWithAuditOrThrow([hit], reason)
+}

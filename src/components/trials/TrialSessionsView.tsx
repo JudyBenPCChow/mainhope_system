@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
@@ -26,9 +26,8 @@ import {
  type TrialOutcome,
 } from "@/lib/trialOutcome"
 import { cn } from "@/lib/utils"
-import { fetchAllClasses, fetchClassSchedules, getClassById, type ClassRecord } from "@/services/classQueries"
+import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
-import { PAYMENT_METHOD_PRESETS } from "@/services/paymentQueries"
 import { listStudents } from "@/services/queries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
@@ -38,7 +37,6 @@ import {
  deleteTrialSession,
  fetchTrialDashboardStats,
  fetchTrialsWithRelations,
- insertPaidTrialSession,
  insertTrialSession,
  previewTrialAttendanceImpact,
  recordTrialOutcome,
@@ -50,7 +48,6 @@ import {
  trialLostBlockedReason,
  trialStatusCategory,
  trialTypeCategory,
- trialTypeFromUnitPrice,
  updateTrialSession,
  type TrialDashboardStats,
  type TrialManageRow,
@@ -64,16 +61,8 @@ import {
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
 type OutcomeTab = "all" | TrialOutcome
-/** 試堂收費：預設金額或自訂 */
-type PayAmountPreset = "0" | "250" | "275" | "300" | "custom"
 
-const PAY_AMOUNT_PRESETS: { value: PayAmountPreset; label: string }[] = [
- { value: "0", label: "免費（$0）" },
- { value: "250", label: "$250" },
- { value: "275", label: "$275" },
- { value: "300", label: "$300" },
- { value: "custom", label: "其他金額" },
-]
+const ADD_TRIAL_TYPE_OPTIONS = ["免費試堂", "半價試堂", "原價試堂", "體驗課"] as const
 
 function matchesStatusTab(r: TrialManageRow, tab: StatusTab): boolean {
  if (tab === "all") return true
@@ -135,6 +124,7 @@ function trialAttendanceOptionsFromHits(
 export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
+ const navigate = useNavigate()
  const isMobile = useIsMobile()
 
  const [rows, setRows] = useState<TrialManageRow[]>([])
@@ -177,28 +167,13 @@ export function TrialSessionsView() {
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addRemarks, setAddRemarks] = useState("")
+ const [addTrialType, setAddTrialType] = useState<string>("免費試堂")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
- const [payOpen, setPayOpen] = useState(false)
- const [payMethod, setPayMethod] = useState<string>(PAYMENT_METHOD_PRESETS[0] ?? "現金")
- const [payAmountPreset, setPayAmountPreset] = useState<PayAmountPreset>("300")
- const [payCustomAmount, setPayCustomAmount] = useState("")
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
 
- const resolvePayUnit = (): number | null => {
-  if (payAmountPreset === "custom") {
-   const raw = payCustomAmount.trim()
-   if (!raw) return null
-   const n = Number(raw)
-   if (!Number.isFinite(n) || n < 0) return null
-   return Math.round(n * 100) / 100
-  }
-  return Number(payAmountPreset)
- }
- const payUnit = resolvePayUnit()
- const isFreeCharge = payUnit != null && payUnit <= 0
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
@@ -415,9 +390,7 @@ export function TrialSessionsView() {
   })
   setAddScheduleId("")
   setAddRemarks("")
-  setPayAmountPreset("300")
-  setPayCustomAmount("")
-  setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
+  setAddTrialType("免費試堂")
  }, [addOpen])
 
  const studentsFiltered = useMemo(() => {
@@ -713,73 +686,40 @@ export function TrialSessionsView() {
 
  const openAdd = () => setAddOpen(true)
 
- const submitAdd = () => {
+ const submitAdd = async () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
   if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
    setAddErr("請選擇學生、班別，並確認有可用的未來排程")
    return
   }
-  setAddErr(null)
-  setPayAmountPreset("300")
-  setPayCustomAmount("")
-  setPayMethod(PAYMENT_METHOD_PRESETS[0] ?? "現金")
-  setPayOpen(true)
- }
-
- const confirmTrialCharge = async () => {
-  const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
-  const unit = resolvePayUnit()
-  if (!addStudentId || !addClassId || !addScheduleId || !selectedSched || unit == null) {
-   setAddErr(payAmountPreset === "custom" ? "請輸入有效的收費金額（可為 0）" : "付費資料不完整")
-   return
-  }
   setAddSaving(true)
   setAddErr(null)
   try {
-   if (unit <= 0) {
-    await insertTrialSession({
-     student_id: addStudentId,
-     class_id: addClassId,
-     schedule_id: addScheduleId,
-     trial_date: selectedSched.date,
-     trial_type: "免費試堂",
-     status: "已預約",
-     remarks: addRemarks || null,
-    })
-    setPayOpen(false)
-    setAddOpen(false)
-    pushBanner({
-     tone: "success",
-     title: "已建立免費試堂",
-     message: "學生已加入該堂點名名單",
-    })
-    await reload()
-    return
-   }
-
-   const cls = await getClassById(addClassId)
-   const trialType = trialTypeFromUnitPrice(unit, cls?.price_per_lesson)
-   const { receiptNumber } = await insertPaidTrialSession({
-    studentId: addStudentId,
-    classId: addClassId,
-    scheduleId: addScheduleId,
-    trialDate: selectedSched.date,
-    trialType,
+   await insertTrialSession({
+    student_id: addStudentId,
+    class_id: addClassId,
+    schedule_id: addScheduleId,
+    trial_date: selectedSched.date,
+    trial_type: addTrialType,
+    status: "已預約",
     remarks: addRemarks || null,
-    paymentMethod: payMethod,
-    unitPrice: unit,
    })
-   setPayOpen(false)
    setAddOpen(false)
+   const needsPay = addTrialType === "半價試堂" || addTrialType === "原價試堂"
    pushBanner({
     tone: "success",
-    title: "已建立試堂並入帳",
-    message: receiptNumber ? `收據編號 ${receiptNumber}` : "已收款並建立試堂紀錄",
+    title: "已建立試堂",
+    message: needsPay
+     ? "學生已加入該堂點名名單。請到收款登記出單（原價／半價可改金額；連堂請核對堂數）。完整對帳以繳費紀錄為準。"
+     : "學生已加入該堂點名名單",
    })
    await reload()
+   if (needsPay) {
+    navigate(`/Payments?studentId=${encodeURIComponent(addStudentId)}&mode=receive`)
+   }
   } catch (e) {
-   const msg = e instanceof Error ? e.message : "收費並建立試堂失敗"
-   reportUserFacingError(e, { source: "TrialSessionsView.confirmTrialCharge", setErr: setAddErr, userMessage: msg })
+   const msg = e instanceof Error ? e.message : "建立試堂失敗"
+   reportUserFacingError(e, { source: "TrialSessionsView.submitAdd", setErr: setAddErr, userMessage: msg })
   } finally {
    setAddSaving(false)
   }
@@ -867,8 +807,8 @@ export function TrialSessionsView() {
 
    {!loading ? (
     <p className="text-xs text-muted-foreground">
-     已關聯試堂收費單（payment_id）：{paidTrialCount}／{rows.length} 筆
-     {paidTrialCount > 0 ? " · 列表收據欄可對收款頁" : " · 免費／體驗或未走試堂頁收費則為 0"}
+     已關聯收據的試堂：{paidTrialCount}／{rows.length} 筆
+     {" · 完整金額對帳請以繳費紀錄為準（僅新單保證自動關聯）"}
     </p>
    ) : null}
 
@@ -1068,24 +1008,39 @@ export function TrialSessionsView() {
               onClick={async () => {
                try {
                 const hits = await previewTrialAttendanceImpact(r.id)
+                const receiptWarn = r.receipt_number
+                 ? `此試堂有關聯收據（${r.receipt_number}），刪除後收據仍在繳費紀錄，但無法從試堂列表對帳。\n\n`
+                 : r.payment_id
+                   ? "此試堂有關聯收據，刪除後收據仍在繳費紀錄，但無法從試堂列表對帳。\n\n"
+                   : ""
                 if (hits.length > 0) {
                  const choice = await resolveTrialAttendanceDelete(
                   confirmDialog,
                   hits,
-                  "刪除試堂會一併刪除出席"
+                  receiptWarn ? "刪除試堂（有收據＋出席）" : "刪除試堂會一併刪除出席"
                  )
                  if (choice === "abort") return
+                 if (receiptWarn) {
+                  const okReceipt = await confirmDialog({
+                   title: "刪除試堂紀錄",
+                   description: `${receiptWarn}並將一併刪除相關出席。確定刪除？`,
+                   confirmText: "確認刪除",
+                   tone: "destructive",
+                  })
+                  if (!okReceipt) return
+                 }
                  await deleteTrialSession(r.id, trialAttendanceOptionsFromHits(choice, hits))
-                } else if (
-                 !(await confirmDialog({
-                  title: "刪除試堂紀錄",
-                  description: "確定刪除此筆試堂？",
-                  confirmText: "確認刪除",
-                  tone: "destructive",
-                 }))
-                ) {
-                 return
                 } else {
+                 if (
+                  !(await confirmDialog({
+                   title: "刪除試堂紀錄",
+                   description: `${receiptWarn}確定刪除此筆試堂？`,
+                   confirmText: "確認刪除",
+                   tone: "destructive",
+                  }))
+                 ) {
+                  return
+                 }
                  await deleteTrialSession(r.id)
                 }
                 await reload()
@@ -1244,84 +1199,33 @@ export function TrialSessionsView() {
        </Select>
       </label>
       <label className="grid gap-1">
+       <span className="text-muted-foreground">試堂類型</span>
+       <Select
+        className="h-9 w-full rounded-md border border-input px-2"
+        value={addTrialType}
+        onChange={(e) => setAddTrialType(e.target.value)}
+       >
+        {ADD_TRIAL_TYPE_OPTIONS.map((t) => (
+         <option key={t} value={t}>
+          {t}
+         </option>
+        ))}
+       </Select>
+      </label>
+      <label className="grid gap-1">
        <span className="text-muted-foreground">備註（選填）</span>
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-       下一步選擇收費金額（免費／$250／$275／$300／其他）。付費試堂會先完成收款再建立紀錄並寫入收據編號。
+       試堂頁只登記試堂。半價／原價建立後會前往收款登記出單；金額可人手修改。對帳請睇繳費紀錄。
       </p>
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
-       <Button type="button" disabled={addSaving} onClick={() => submitAdd()}>
-        下一步：收費
-       </Button>
-      </div>
-     </div>
-    </DialogContent>
-   </Dialog>
-
-   <Dialog open={payOpen} onOpenChange={setPayOpen}>
-    <DialogContent className="max-w-md">
-     <DialogHeader>
-      <DialogTitle>試堂收費</DialogTitle>
-     </DialogHeader>
-     <div className="grid gap-3 text-sm">
-      <label className="grid gap-1">
-       <span className="text-muted-foreground">收費金額（每堂）</span>
-       <Select
-        className="h-9 w-full rounded-md border border-input px-2"
-        value={payAmountPreset}
-        onChange={(e) => setPayAmountPreset(e.target.value as PayAmountPreset)}
-       >
-        {PAY_AMOUNT_PRESETS.map((p) => (
-         <option key={p.value} value={p.value}>
-          {p.label}
-         </option>
-        ))}
-       </Select>
-      </label>
-      {payAmountPreset === "custom" ? (
-       <label className="grid gap-1">
-        <span className="text-muted-foreground">其他金額（HKD）</span>
-        <Input
-         type="number"
-         min={0}
-         step="1"
-         inputMode="decimal"
-         placeholder="例如 200"
-         value={payCustomAmount}
-         onChange={(e) => setPayCustomAmount(e.target.value)}
-         className="h-9"
-        />
-       </label>
-      ) : null}
-      <p className="text-xs text-muted-foreground">若為連堂，將按節數以每堂金額加總入帳。</p>
-      {!isFreeCharge ? (
-       <label className="grid gap-1">
-        <span className="text-muted-foreground">付款方式</span>
-        <Select
-         className="h-9 w-full rounded-md border border-input px-2"
-         value={payMethod}
-         onChange={(e) => setPayMethod(e.target.value)}
-        >
-         {PAYMENT_METHOD_PRESETS.map((m) => (
-          <option key={m} value={m}>
-           {m}
-          </option>
-         ))}
-        </Select>
-       </label>
-      ) : null}
-      {addErr ? <p className="text-destructive">{addErr}</p> : null}
-      <div className="flex justify-end gap-2 pt-2">
-       <Button type="button" variant="outline" disabled={addSaving} onClick={() => setPayOpen(false)}>
-        返回
-       </Button>
-       <Button type="button" disabled={addSaving || payUnit == null} onClick={() => void confirmTrialCharge()}>
-        {addSaving ? "處理中…" : isFreeCharge ? "確認建立免費試堂" : "確認收款並建立試堂"}
+       <Button type="button" disabled={addSaving} onClick={() => void submitAdd()}>
+        {addSaving ? "處理中…" : "確認建立試堂"}
        </Button>
       </div>
      </div>

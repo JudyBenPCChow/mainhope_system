@@ -13,17 +13,27 @@ import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses } from "@/services/classQueries"
 import { fetchAllTeachers } from "@/services/teacherQueries"
+import {
+ formatAttendanceHitsDescription,
+ deleteAttendanceDetailAsMgmt,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 import {
  aggregateAttendanceByDate,
  fetchAttendanceRecordsInRange,
@@ -85,6 +95,9 @@ function getInitialAttendanceViewMode(): ViewMode {
 export function AttendanceRecordsPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const isMobile = useIsMobile()
+ const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
+ const canDeleteAttendance = isMgmtStaff()
  const [viewMode, setViewMode] = usePersistentState<ViewMode>(
   "mgmt_attendance_records_viewMode",
   getInitialAttendanceViewMode()
@@ -116,6 +129,58 @@ export function AttendanceRecordsPage() {
    setLoading(false)
   }
  }, [dateRange.from, dateRange.to])
+
+ const deleteAttendanceRow = async (r: AttendanceRecordRow) => {
+  const studentName = (r.studentName ?? "").trim()
+  const surname = studentName.slice(0, 1)
+  const hit: AttendanceLifecycleHit = {
+   id: r.id,
+   studentId: r.studentId,
+   classId: r.classId,
+   scheduleId: r.scheduleId,
+   attendanceDate: r.attendanceDate,
+   status: r.status,
+   updatedAt: r.updatedAt,
+   studentName: studentName || null,
+  }
+  const billable = isBillableAttendanceStatus(r.status)
+  const ok = await confirmDialog({
+   title: "刪除單筆出席紀錄？",
+   description: `${formatAttendanceHitsDescription([hit])}\n\n此操作不可還原（除非重新點名）。過渡權限＝mgmtRole（admin／外星人），非 Auth。`,
+   confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "確認刪除",
+   cancelText: "取消",
+   tone: "destructive",
+   ...(billable && surname
+    ? {
+       confirmInput: {
+        label: `請輸入學生姓氏「${surname}」以確認刪除計費出席`,
+        expected: surname,
+        placeholder: surname,
+       },
+      }
+    : {}),
+  })
+  if (ok !== true) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: r.attendanceDate,
+    source: "AttendanceRecordsPage.deleteAttendance",
+   }))
+  ) {
+   return
+  }
+  try {
+   await deleteAttendanceDetailAsMgmt(r.id, "mgmt_single_delete_attendance_records")
+   pushBanner({
+    tone: "success",
+    title: "已刪除出席",
+    message: `${r.studentName ?? "學生"} · ${r.attendanceDate} · ${r.status}`,
+   })
+   await reload()
+  } catch (e) {
+   reportUserFacingError(e, { source: "AttendanceRecordsPage.deleteAttendance", setErr })
+  }
+ }
 
  useEffect(() => {
   void reload()
@@ -510,6 +575,17 @@ export function AttendanceRecordsPage() {
               </Tag>
              </div>
              <div className="mt-1 text-muted-foreground">{r.studentGrade ?? "—"}</div>
+             {canDeleteAttendance ? (
+              <div className="mt-2 text-right">
+               <button
+                type="button"
+                className="text-[11px] font-medium text-destructive hover:underline"
+                onClick={() => void deleteAttendanceRow(r)}
+               >
+                刪除
+               </button>
+              </div>
+             ) : null}
             </li>
            ))}
           </ul>
@@ -547,6 +623,17 @@ export function AttendanceRecordsPage() {
          {r.courseCode ? <p className="font-mono text-xs text-muted-foreground">{r.courseCode}</p> : null}
          {r.remarks ? <p className="text-xs text-muted-foreground">備註：{r.remarks}</p> : null}
         </div>
+        {canDeleteAttendance ? (
+         <div className="mt-3 text-right">
+          <button
+           type="button"
+           className="text-xs font-medium text-destructive hover:underline"
+           onClick={() => void deleteAttendanceRow(r)}
+          >
+           刪除出席
+          </button>
+         </div>
+        ) : null}
        </article>
       ))
      )}
@@ -559,17 +646,21 @@ export function AttendanceRecordsPage() {
      <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[14%] px-3 py-2 font-medium">日期</th>
-        <th className="w-[22%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[24%] px-3 py-2 font-medium">班別</th>
-        <th className="w-[18%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[22%] px-3 py-2 font-medium">備註</th>
+        <th className="w-[12%] px-3 py-2 font-medium">日期</th>
+        <th className="w-[20%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[22%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[16%] px-3 py-2 font-medium">狀態</th>
+        <th className="w-[18%] px-3 py-2 font-medium">備註</th>
+        {canDeleteAttendance ? <th className="w-[12%] px-3 py-2 font-medium">操作</th> : null}
        </tr>
       </thead>
       <tbody>
        {displayRows.length === 0 ? (
         <tr>
-         <td colSpan={5} className="px-3 py-12 text-center text-muted-foreground">
+         <td
+          colSpan={canDeleteAttendance ? 6 : 5}
+          className="px-3 py-12 text-center text-muted-foreground"
+         >
           此日尚無紀錄
          </td>
         </tr>
@@ -597,6 +688,17 @@ export function AttendanceRecordsPage() {
            </Tag>
           </td>
           <td className="px-3 py-2 text-xs text-muted-foreground">{r.remarks ?? "—"}</td>
+          {canDeleteAttendance ? (
+           <td className="px-3 py-2">
+            <button
+             type="button"
+             className="text-xs font-medium text-destructive hover:underline"
+             onClick={() => void deleteAttendanceRow(r)}
+            >
+             刪除
+            </button>
+           </td>
+          ) : null}
          </tr>
         ))
        )}

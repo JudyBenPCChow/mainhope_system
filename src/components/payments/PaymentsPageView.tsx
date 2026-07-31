@@ -747,6 +747,8 @@ export function PaymentsPageView() {
   ) {
    return
   }
+  const details = buildDetailInputs()
+  if (!(await warnIfTrialWithoutOpenSession(details))) return
   setSaving(true)
   setFormErr(null)
   try {
@@ -761,9 +763,10 @@ export function PaymentsPageView() {
     receiptKind: "RC",
     discountIds,
     specialDiscountAmount: specialAmountN > 0 ? specialAmountN : null,
-    details: buildDetailInputs(),
+    details,
     ...buildPaymentExtras(),
    })
+   await linkTrialsAfterPayment(id, details)
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,
@@ -815,6 +818,8 @@ export function PaymentsPageView() {
   ) {
    return
   }
+  const details = buildDetailInputs()
+  if (!(await warnIfTrialWithoutOpenSession(details))) return
   setSaving(true)
   setFormErr(null)
   try {
@@ -829,9 +834,10 @@ export function PaymentsPageView() {
     receiptKind: "INV",
     discountIds,
     specialDiscountAmount: specialAmountN > 0 ? specialAmountN : null,
-    details: buildDetailInputs(),
+    details,
     ...buildPaymentExtras(),
    })
+   await linkTrialsAfterPayment(id, details)
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,
@@ -1245,7 +1251,10 @@ export function PaymentsPageView() {
                classes={trialClasses}
                value={row.classId}
                disabled={trialClassesLoading}
-               onChange={(classId) => updateLine(row.key, { classId })}
+               onChange={(classId) => {
+                updateLine(row.key, { classId })
+                void applyTrialLessonHint(row.key, classId)
+               }}
               />
              </FormField>
              <FormField label="試堂類型">

@@ -243,8 +243,27 @@ export async function deleteTrialSession(
  options?: TrialAttendanceChangeOptions
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const { data: row, error: loadErr } = await supabase
+  .from("trial_sessions")
+  .select("id, student_id, class_id, schedule_id, payment_id, status")
+  .eq("id", id)
+  .maybeSingle()
+ if (loadErr) throw loadErr
+ if (!row) throw new Error("找不到試堂紀錄")
  const hits = await previewTrialAttendanceImpact(id)
  await applyTrialAttendanceDeletes(id, hits, options, "trial_delete")
+ const { logMgmtAuditActionOrThrow } = await import("@/services/mgmtGodViewQueries")
+ await logMgmtAuditActionOrThrow({
+  action: "trial_delete",
+  detail: JSON.stringify({
+   trialId: id,
+   student_id: (row as { student_id?: string }).student_id ?? null,
+   class_id: (row as { class_id?: string }).class_id ?? null,
+   schedule_id: (row as { schedule_id?: string }).schedule_id ?? null,
+   payment_id: (row as { payment_id?: string | null }).payment_id ?? null,
+   status: (row as { status?: string }).status ?? null,
+  }),
+ })
  const { error } = await supabase.from("trial_sessions").delete().eq("id", id)
  if (error) {
   if (hits.length > 0 && options?.attendanceAction === "delete") {
@@ -447,7 +466,7 @@ export function trialTypeFromUnitPrice(
  return "原價試堂"
 }
 
-/** 付費試堂：先開已收款單（lesson_count＝連堂節數），再建立試堂並關聯 payment_id */
+/** @deprecated 試堂頁唔再內嵌收費；請 insertTrialSession 後去 /Payments，再 linkOpenTrialsToPayment。 */
 export async function insertPaidTrialSession(params: {
  studentId: string
  classId: string
@@ -510,6 +529,105 @@ export async function insertPaidTrialSession(params: {
   paymentId,
   receiptNumber: pay?.receipt_number != null ? String(pay.receipt_number) : null,
  }
+}
+
+
+/** 明細描述是否試堂收費 */
+export function isTrialPaymentDetailDescription(description: string | null | undefined): boolean {
+ return String(description ?? "").includes("試堂")
+}
+
+export type LinkOpenTrialsToPaymentResult = {
+ linkedTrialIds: string[]
+ skippedMessages: string[]
+}
+
+/**
+ * 收款出單後回寫開著試堂的 payment_id。
+ * 同生＋班；僅一筆可掛則掛；多筆拒掛。由 PaymentsPageView caller 呼叫。
+ */
+export async function linkOpenTrialsToPayment(params: {
+ paymentId: string
+ studentId: string
+ details: Array<{ classId: string | null; description?: string | null }>
+}): Promise<LinkOpenTrialsToPaymentResult> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const linkedTrialIds: string[] = []
+ const skippedMessages: string[] = []
+ const classIds = [
+  ...new Set(
+   params.details
+    .filter((d) => isTrialPaymentDetailDescription(d.description) && d.classId)
+    .map((d) => String(d.classId))
+  ),
+ ]
+ if (classIds.length === 0) return { linkedTrialIds, skippedMessages }
+
+ for (const classId of classIds) {
+  const { data, error } = await supabase
+   .from("trial_sessions")
+   .select("id, status, trial_date, payment_id")
+   .eq("student_id", params.studentId)
+   .eq("class_id", classId)
+   .is("payment_id", null)
+   .order("trial_date", { ascending: false })
+  if (error) throw error
+  const open = (data ?? []).filter((row) => isTrialStatusOpen((row as { status?: string }).status))
+  if (open.length === 0) {
+   skippedMessages.push(`該班無未關聯收據的開著試堂`)
+   continue
+  }
+  if (open.length > 1) {
+   skippedMessages.push(`同班有 ${open.length} 筆開著試堂未掛收據，無法自動關聯`)
+   continue
+  }
+  const trialId = String((open[0] as { id: string }).id)
+  const { error: upErr } = await supabase
+   .from("trial_sessions")
+   .update({ payment_id: params.paymentId, updated_at: new Date().toISOString() })
+   .eq("id", trialId)
+   .is("payment_id", null)
+  if (upErr) throw upErr
+  linkedTrialIds.push(trialId)
+ }
+ return { linkedTrialIds, skippedMessages }
+}
+
+/** 依開著試堂排程建議連堂節數 */
+export async function fetchOpenTrialLessonCountHint(params: {
+ studentId: string
+ classId: string
+}): Promise<number | null> {
+ if (!supabase) return null
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select("id, schedule_id, status, trial_date, payment_id")
+  .eq("student_id", params.studentId)
+  .eq("class_id", params.classId)
+  .order("trial_date", { ascending: false })
+ if (error) throw error
+ const open = (data ?? []).filter((row) => isTrialStatusOpen((row as { status?: string }).status))
+ if (open.length === 0) return null
+ const preferred =
+  open.find((r) => (r as { payment_id?: string | null }).payment_id == null) ?? open[0]
+ const scheduleId = String((preferred as { schedule_id: string }).schedule_id ?? "")
+ if (!scheduleId) return null
+ const ids = await fetchConsecutiveScheduleIds(scheduleId)
+ return Math.max(1, ids.length)
+}
+
+export async function studentHasOpenTrialForClass(params: {
+ studentId: string
+ classId: string
+}): Promise<boolean> {
+ if (!supabase) return false
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select("id, status")
+  .eq("student_id", params.studentId)
+  .eq("class_id", params.classId)
+ if (error) throw error
+ return (data ?? []).some((row) => isTrialStatusOpen((row as { status?: string }).status))
 }
 
 export type StudentTrialSummary = {

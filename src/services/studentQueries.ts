@@ -1670,9 +1670,13 @@ export async function deletePayment(_id: string): Promise<void> {
 
 export type AttendanceRow = {
  id: string
+ studentId: string
  classId: string
+ scheduleId: string | null
  attendance_date: string
  status: string
+ /** DB 原字串；樂觀鎖用 */
+ updatedAt: string | null
  classLabel: string
 }
 
@@ -1682,7 +1686,9 @@ export async function fetchAttendanceForStudent(
  if (!supabase) return []
  const { data, error } = await supabase
   .from("attendance_details")
-  .select("id, class_id, attendance_date, status, classes ( subject, course_code_full )")
+  .select(
+   "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, classes ( subject, course_code_full )"
+  )
   .eq("student_id", studentId)
   .order("attendance_date", { ascending: false })
  if (error) throw error
@@ -1693,9 +1699,12 @@ export async function fetchAttendanceForStudent(
   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   return {
    id: String(r.id),
+   studentId: r.student_id != null ? String(r.student_id) : studentId,
    classId: r.class_id != null ? String(r.class_id) : "",
-   attendance_date: String(r.attendance_date ?? ""),
+   scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
+   attendance_date: String(r.attendance_date ?? "").slice(0, 10),
    status: String(r.status ?? ""),
+   updatedAt: r.updated_at != null ? String(r.updated_at) : null,
    classLabel: code ? `${sub} ${code}` : sub,
   }
  })

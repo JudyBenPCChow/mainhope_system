@@ -34,13 +34,21 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
+import {
+ formatAttendanceHitsDescription,
+ deleteAttendanceDetailAsMgmt,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 import {
  fetchPaymentFull,
  fetchTotalPaidLessonsForStudent,
@@ -295,8 +303,62 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [attSort, setAttSort] = useState<
   "dateDesc" | "dateAsc" | "classAsc" | "classDesc" | "statusAsc"
  >("dateDesc")
+ const canDeleteAttendance = isMgmtStaff()
 
  const sid = studentId ?? ""
+
+ const deleteAttendanceRow = async (row: AttendanceRow) => {
+  const studentName = (student?.full_name ?? "").trim()
+  const surname = studentName.slice(0, 1)
+  const hit: AttendanceLifecycleHit = {
+   id: row.id,
+   studentId: row.studentId,
+   classId: row.classId,
+   scheduleId: row.scheduleId,
+   attendanceDate: row.attendance_date,
+   status: row.status,
+   updatedAt: row.updatedAt,
+   studentName: studentName || null,
+  }
+  const billable = isBillableAttendanceStatus(row.status)
+  const ok = await confirmDialog({
+   title: "刪除單筆出席紀錄？",
+   description: `${formatAttendanceHitsDescription([hit])}\n\n此操作不可還原（除非重新點名）。過渡權限＝mgmtRole（admin／外星人），非 Auth。`,
+   confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "確認刪除",
+   cancelText: "取消",
+   tone: "destructive",
+   ...(billable && surname
+    ? {
+       confirmInput: {
+        label: `請輸入學生姓氏「${surname}」以確認刪除計費出席`,
+        expected: surname,
+        placeholder: surname,
+       },
+      }
+    : {}),
+  })
+  if (ok !== true) return
+  if (
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    dateYmd: row.attendance_date,
+    source: "StudentDetailView.deleteAttendance",
+   }))
+  ) {
+   return
+  }
+  try {
+   await deleteAttendanceDetailAsMgmt(row.id, "mgmt_single_delete_student_detail")
+   pushBanner({ tone: "success", title: "已刪除出席", message: `${row.attendance_date} · ${row.status}` })
+   await reloadSubs()
+  } catch (e) {
+   reportUserFacingError(e, { source: "StudentDetailView.deleteAttendance" })
+   pushBanner({
+    tone: "error",
+    title: "刪除失敗",
+    message: e instanceof Error ? e.message : String(e),
+   })
+  }
+ }
 
  const reloadStudent = useCallback(async () => {
   if (!sid) return
@@ -2303,6 +2365,9 @@ const exportFutureSchedulesCsv = () => {
       </div>
       <p className="hidden text-xs text-muted-foreground md:block">
        上方數字為<strong className="text-foreground">全部</strong>紀錄統計；下方列表可依條件篩選與排序。
+       {canDeleteAttendance
+        ? " 管理員／外星人可刪單筆出席（須確認；計費列會影響已上堂數）。"
+        : null}
       </p>
       {attendance.length === 0 ? (
        <p className="py-8 text-center text-sm text-muted-foreground">尚無出勤紀錄</p>
@@ -2395,16 +2460,29 @@ const exportFutureSchedulesCsv = () => {
          <p className="py-8 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
         ) : (
          <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <div className="hidden grid-cols-[minmax(0,1fr)_auto_auto] gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid">
+          <div
+           className={cn(
+            "hidden gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid",
+            canDeleteAttendance
+             ? "grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+             : "grid-cols-[minmax(0,1fr)_auto_auto]"
+           )}
+          >
            <span>班別</span>
            <span className="text-right">日期</span>
            <span className="text-right">狀態</span>
+           {canDeleteAttendance ? <span className="text-right">操作</span> : null}
           </div>
           <ul className="divide-y divide-border">
           {filteredSortedAttendance.map((a) => (
            <li
             key={a.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+            className={cn(
+             "grid items-center gap-x-3 gap-y-1 px-4 py-3 text-sm",
+             canDeleteAttendance
+              ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+              : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+            )}
            >
             <span className="min-w-0 truncate font-medium">
              {a.classId ? (
@@ -2419,6 +2497,17 @@ const exportFutureSchedulesCsv = () => {
             <span className="col-span-2 text-right text-xs text-muted-foreground sm:col-span-1">
              {a.status}
             </span>
+            {canDeleteAttendance ? (
+             <span className="col-span-2 text-right sm:col-span-1">
+              <button
+               type="button"
+               className="text-xs font-medium text-destructive hover:underline"
+               onClick={() => void deleteAttendanceRow(a)}
+              >
+               刪除
+              </button>
+             </span>
+            ) : null}
            </li>
           ))}
           </ul>

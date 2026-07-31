@@ -287,6 +287,13 @@ Deno.serve(async (req) => {
     .eq("rebate_status", "pending")
   if (refErr) console.error("void-payment referral cancel", refErr.message)
 
+  // 試堂解掛：作廢後唔再喺試堂列表顯示收據號
+  const { error: trialUnlinkErr } = await admin
+    .from("trial_sessions")
+    .update({ payment_id: null, updated_at: now })
+    .eq("payment_id", paymentId)
+  if (trialUnlinkErr) console.error("void-payment trial unlink", trialUnlinkErr.message)
+
   // 月費 charge／credit 回滾
   const { data: details, error: detErr } = await admin
     .from("payment_details")
