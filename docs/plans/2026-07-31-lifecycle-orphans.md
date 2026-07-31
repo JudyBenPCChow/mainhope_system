@@ -1,10 +1,10 @@
 # 生命週期孤兒：明學操作方案
 
-> 狀態：`A1 已落 code` · `A2 計劃定案可開工`（見 a2-kickoff 定案版；尚未寫 A2 code）  
-> 日期：2026-07-31  
+> 狀態：`階段 A 完成`（A1＋A2a＋A2b O2 已落 code；B／C 未做）  
+> 日期：2026-07-31（狀態更新 2026-08-01）  
 > 分題：[`docs/backlog/lifecycle-orphans.md`](../backlog/lifecycle-orphans.md)  
 > 索引：[`docs/BACKLOG.md`](../BACKLOG.md)  
-> 暫存實作（勿當已上線）：git branch `wip/lifecycle-orphans-impl`；另見 [`patches/`](./patches/README.md)  
+> 暫存實作（歷史）：git branch `wip/lifecycle-orphans-impl`；另見 [`patches/`](./patches/README.md)  
 > 外部審閱：[`review.md`](./2026-07-31-lifecycle-orphans-review.md)（#01）· [`review-02.md`](./2026-07-31-lifecycle-orphans-review-02.md)（#02）· [`review-03.md`](./2026-07-31-lifecycle-orphans-review-03.md)（#03）· [`review-04.md`](./2026-07-31-lifecycle-orphans-review-04.md)（#04；第一性）  
 > 實作前對抗模擬：[`adversarial-sim.md`](./2026-07-31-lifecycle-orphans-adversarial-sim.md)（#01）· [`adversarial-sim-02.md`](./2026-07-31-lifecycle-orphans-adversarial-sim-02.md)（#02；A1／A2 切分後）  
 > 第一性檢查：[`first-principles.md`](./2026-07-31-lifecycle-orphans-first-principles.md)  
@@ -12,7 +12,7 @@
 > 審閱 #05／#06：[`review-05`](./2026-07-31-lifecycle-orphans-review-05.md) · [`review-06`](./2026-07-31-lifecycle-orphans-review-06.md)  
 > SELF 對抗：[`a2-adversarial-self`](./2026-07-31-lifecycle-orphans-a2-adversarial-self.md)
 
-本檔＝操作／實作方案（含操作模擬）。A1 已落 code；**A2 依 kickoff 定案版實作**（先 A2a 再 A2b）。
+本檔＝操作／實作方案（含操作模擬）。**階段 A（A1＋A2）已落 code**；餘 B／C。
 
 ---
 
