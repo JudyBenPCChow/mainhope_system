@@ -11,7 +11,7 @@
 | 更新日期 | 2026-07-31 |
 | 行政模擬 | 見下方「行政邊緣模擬」 |
 | 複查 | 2026-07-31 晚：頁面改版後 code 複查，見下方「複查結論」 |
-| 對抗檢查 | 2026-08-01：[audits/2026-08-01-trial-sessions-wrapup-adversarial.md](../audits/2026-08-01-trial-sessions-wrapup-adversarial.md)（P0：收費只走 `/Payments`，唔好再推 PaymentStep 做主路徑） |
+| 對抗檢查 | 2026-08-01：[audits/2026-08-01-trial-sessions-wrapup-adversarial.md](../audits/2026-08-01-trial-sessions-wrapup-adversarial.md) · [補充 code 對讀](../audits/2026-08-01-trial-sessions-wrapup-adversarial-supplement.md) |
 | 收款鐵則 | [`UI_DESIGN_INSTRUCTIONS.md` §15](../UI_DESIGN_INSTRUCTIONS.md) |
 
 ## 未做（簡明）

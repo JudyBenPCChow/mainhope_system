@@ -3,7 +3,7 @@
 > 日期：2026-08-01  
 > 對象：[`試堂紀錄收尾方案`](../../.cursor/plans/試堂紀錄收尾方案_0bba82e4.plan.md)（Cursor plan）  
 > 定案補充：收款單一入口 — [`UI_DESIGN_INSTRUCTIONS.md` §15](../UI_DESIGN_INSTRUCTIONS.md)、[`PAYMENT_RECEIPTS.md` §1.1](../manual/PAYMENT_RECEIPTS.md)  
-> 性質：動工前自審；嚴於「前台對帳信唔信得過」同「計劃有冇同新鐵則撞車」
+> 後續補充（code 對讀）：[`2026-08-01-trial-sessions-wrapup-adversarial-supplement.md`](./2026-08-01-trial-sessions-wrapup-adversarial-supplement.md)（hard delete／void 解掛／連堂／回寫架構／status 旁路實證）
 
 ---
 

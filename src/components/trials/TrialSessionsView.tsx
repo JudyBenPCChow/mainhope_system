@@ -85,6 +85,53 @@ function matchesTypeTab(r: TrialManageRow, tab: TypeTab): boolean {
  return trialTypeCategory(r.trial_type) === tab
 }
 
+/** O1t：有可刪出席時强制一併刪（無保留路） */
+async function resolveTrialAttendanceDelete(
+ confirmDialog: (opts: {
+  title: string
+  description: string
+  confirmText?: string
+  cancelText?: string
+  tone?: "default" | "warning" | "destructive"
+  confirmInput?: { label: string; expected: string; placeholder?: string }
+ }) => Promise<boolean | "alternate">,
+ hits: AttendanceLifecycleHit[],
+ title: string
+): Promise<"delete" | "abort" | "none"> {
+ if (hits.length === 0) return "none"
+ const billable = hitsHaveBillable(hits)
+ const studentName = hits.find((h) => h.studentName)?.studentName?.trim() ?? ""
+ const surname = studentName.slice(0, 1)
+ const ok = await confirmDialog({
+  title,
+  description: `${formatAttendanceHitsDescription(hits)}\n\n取消／刪除／改期試堂將一併刪除以上出席（無保留選項；要留出席請勿取消試堂）。`,
+  confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "一併刪除出席並繼續",
+  cancelText: "取消操作",
+  tone: "destructive",
+  ...(billable && surname
+   ? {
+      confirmInput: {
+       label: `請輸入學生姓氏「${surname}」以確認刪除計費出席`,
+       expected: surname,
+       placeholder: surname,
+      },
+     }
+   : {}),
+ })
+ return ok === true ? "delete" : "abort"
+}
+
+function trialAttendanceOptionsFromHits(
+ choice: "delete" | "none",
+ hits: AttendanceLifecycleHit[]
+): { attendanceAction: "delete"; deleteAttendanceIds: string[] } | undefined {
+ if (choice === "none" || hits.length === 0) return undefined
+ return {
+  attendanceAction: "delete",
+  deleteAttendanceIds: hits.map((h) => h.id),
+ }
+}
+
 export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
@@ -926,8 +973,24 @@ export function TrialSessionsView() {
            className="h-9 w-full min-w-[6.5rem] text-xs"
            value={r.status}
            onChange={async (e) => {
-            await updateTrialSession(r.id, { status: e.target.value })
-            await reload()
+            const next = e.target.value
+            try {
+             if (String(next).includes("取消")) {
+              const hits = await previewTrialAttendanceImpact(r.id)
+              const choice = await resolveTrialAttendanceDelete(
+               confirmDialog,
+               hits,
+               "取消試堂會影響出席紀錄"
+              )
+              if (choice === "abort") return
+              await updateTrialSession(r.id, { status: next }, trialAttendanceOptionsFromHits(choice, hits))
+             } else {
+              await updateTrialSession(r.id, { status: next })
+             }
+             await reload()
+            } catch (err) {
+             reportUserFacingError(err, { source: "TrialSessionsView.status", setErr })
+            }
            }}
           >
            <option value="已預約">已預約</option>
@@ -1003,17 +1066,32 @@ export function TrialSessionsView() {
               type="button"
               className="text-xs font-medium text-destructive hover:underline"
               onClick={async () => {
-               if (
-                !(await confirmDialog({
-                 title: "刪除試堂紀錄",
-                 description: "確定刪除此筆試堂？",
-                 confirmText: "確認刪除",
-                 tone: "destructive",
-                }))
-               )
-                return
-               await deleteTrialSession(r.id)
-               await reload()
+               try {
+                const hits = await previewTrialAttendanceImpact(r.id)
+                if (hits.length > 0) {
+                 const choice = await resolveTrialAttendanceDelete(
+                  confirmDialog,
+                  hits,
+                  "刪除試堂會一併刪除出席"
+                 )
+                 if (choice === "abort") return
+                 await deleteTrialSession(r.id, trialAttendanceOptionsFromHits(choice, hits))
+                } else if (
+                 !(await confirmDialog({
+                  title: "刪除試堂紀錄",
+                  description: "確定刪除此筆試堂？",
+                  confirmText: "確認刪除",
+                  tone: "destructive",
+                 }))
+                ) {
+                 return
+                } else {
+                 await deleteTrialSession(r.id)
+                }
+                await reload()
+               } catch (err) {
+                reportUserFacingError(err, { source: "TrialSessionsView.delete", setErr })
+               }
               }}
              >
               刪除
@@ -1378,9 +1456,17 @@ export function TrialSessionsView() {
          setRescheduleSaving(true)
          setRescheduleErr(null)
          try {
+          const hits = await previewTrialAttendanceImpact(rescheduleId)
+          const choice = await resolveTrialAttendanceDelete(
+           confirmDialog,
+           hits,
+           "改期會刪除舊堂出席"
+          )
+          if (choice === "abort") return
           await rescheduleTrialSession({
            trialId: rescheduleId,
            newScheduleId: rescheduleScheduleId,
+           ...trialAttendanceOptionsFromHits(choice, hits),
           })
           setRescheduleId(null)
           await reload()

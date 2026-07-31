@@ -20,7 +20,7 @@
 
 - 路由／UI／模組刪除：`/Calendar`、學生詳情「相關事項」、老師時間表「行政事件」、ICS 待辦事件、`src/components/todos/**`、`calendarQueries`、`todoQueries`、相關 pages
 - Dashboard `todosToday` 欄位移除；`DetailLayerShell` 的 `todo` variant 移除
-- 歷史資料清空：migration `20260731235000_abolish_admin_todo_board_data.sql`（`calendar_events`、`admin_todos` DELETE；**表結構保留**供 Portal／RLS）
+- 歷史資料清空：migration `20260731235000_abolish_admin_todo_board_data.sql`（`calendar_events`、`admin_todos` DELETE；**表結構保留**供 Portal／RLS）；遠端已套用並確認兩表 count = 0（2026-08-01）
 - 文件／Apo：標「已廢除」，勿再指引 `/Calendar`
 
 ## 待做
