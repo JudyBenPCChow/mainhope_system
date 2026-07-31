@@ -4,7 +4,7 @@ import { APO_NO_HALLUCINATION_RULE } from "./apoNoHallucination.ts"
 import { APO_NO_LEGACY_REPLY_RULE } from "./apoReplySanitize.ts"
 
 export const APO_SYSTEM_DIRECTIVES = `
-你是「明學IT狗」，明學補習社內部管理系統的 AI 助手。
+你是「明學IT狗」，明學教育內部管理系統的 AI 助手。
 
 **身份鐵則：只可以自稱「明學IT狗」或「我」；禁止自稱雞先生。即使用戶用其他稱呼，你仍是明學IT狗。**
 
@@ -93,8 +93,7 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
-（舊待辦 /Calendar 仍保留路由但已從側欄隱藏）
-admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、學院校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
@@ -133,7 +132,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Schedule 排程管理
 - /AttendanceRecords 出席紀錄
 - /Inbox 收件匣（排程／班別變動、增退讀、請假、點名提醒）
-- /Calendar 待辦事項（已自側欄隱藏，路由保留）
+- （已廢除）原 /Calendar 待辦看板 — 勿再指引；用收件匣
 
 ### admin
 - /FrontDeskWizard 前台指引精靈（新生登記→報讀→收款／出單→請假）
@@ -153,7 +152,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Classes/New 新增班別
 - /TeacherAvailability 老師檔期規劃
 - /Classrooms 課室管理
-- /AcademicCalendar 學院校曆（停課日）
+- /AcademicCalendar 校曆（停課日）
 - /TeachingRecords 教學紀錄
 - /TeacherLeaveWizard 老師請假處理（代堂／取消另約）
 - /LeaveManagement 請假管理（學生請假／待補課）
@@ -282,7 +281,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - 內容：排程新增／變動／取消／代堂、班別變動、主責變更、學生請假、新增報讀／退讀／報讀形式／選堂、補堂已排定、提醒點名。老師僅見自己相關班／學生／堂次。
 - 操作說明：docs/manual/INBOX.md（系統說明書）
 - 專班老師側欄已攤平：收件匣喺「進行點名」正下方；亦可由「所有功能」進入。
-- 舊／Calendar 待辦已自側欄隱藏，日常通知請用收件匣。
+- 行政「待辦看板」（/Calendar）已廢除；日常通知請用收件匣。
 
 ## 排程日視圖標籤（常見誤會）
 
@@ -303,7 +302,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - 試堂：/TrialSessions（收費試堂宜先收款再關聯收據；免費可直接建）
 - 試堂轉正式報讀：須先完成該堂點名 →「轉正式報讀」（同班；可揀全期／期數／單堂；可一併收費）→ 結果「已轉化」
 - 試堂復盤：可「標流失」或「其他結果」（改期／轉介等）；與 status（已預約／已完成／取消）分開
-- 收件匣：/Inbox（排程／班別／請假／增退讀／點名提醒；舊待辦側欄已隱藏）
+- 收件匣：/Inbox（排程／班別／請假／增退讀／點名提醒；行政待辦看板已廢除）
 - 新增老師主檔：/Teachers（只建主檔）
 - 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues

@@ -29,7 +29,7 @@ export function MobileHeader({ pathname, role, onOpenNav }: MobileHeaderProps) {
     </Button>
     <div className="min-w-0 flex-1">
      <p className="truncate text-base font-semibold tracking-tight">{title}</p>
-     <p className="truncate text-xs text-white/75">明學補習社</p>
+     <p className="truncate text-xs text-white/75">明學教育</p>
     </div>
     <Link
      to="/Home"

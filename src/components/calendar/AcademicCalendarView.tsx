@@ -206,10 +206,10 @@ export function AcademicCalendarView() {
    <header>
     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
      <CalendarX className="h-7 w-7 text-warning" aria-hidden />
-     學院校曆
+     校曆
     </h1>
     <p className="mt-1 text-sm text-muted-foreground">
-     登記全院停課日；批量排程會自動排除，月費亦按最終上課日計算。
+     登記全校停課日；批量排程會自動排除，月費亦按最終上課日計算。
     </p>
    </header>
 

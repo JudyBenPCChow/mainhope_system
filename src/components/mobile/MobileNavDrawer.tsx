@@ -97,7 +97,7 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
    >
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
      <div className="min-w-0 leading-tight">
-      <div className="text-[1.00625rem] font-semibold tracking-tight">明學補習社</div>
+      <div className="text-[1.00625rem] font-semibold tracking-tight">明學教育</div>
       <div className="text-[0.8625rem] text-white/80">管理系統</div>
      </div>
      <Button

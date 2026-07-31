@@ -48,15 +48,18 @@
 
 ### P0-2 Admin 學年鎖在「老師檔期」失效
 
+> **結案（2026-07-31）**：不再「修好硬鎖」；產品改**撤硬鎖＋confirm＋audit**。見 [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1、[`academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md)。下文為當日發現。
+
 - **現象：** `canEditAcademicYear(label, endDate)` → `isAcademicYearReadOnly(endDate, label)` 把學年 `end_date` 當成 admin 的 referenceYmd（「今天」）。選 2526 時誤判可編輯。
 - **相關：** [`academicYearEditGuard.ts`](../../src/lib/academicYearEditGuard.ts)、[`mgmtRole.ts`](../../src/lib/mgmtRole.ts)、[`TeacherAvailabilityPage.tsx`](../../src/components/teacherAvailability/TeacherAvailabilityPage.tsx)
 
 | 方案 | 做法 |
 | --- | --- |
-| **A（建議）** | 檔期頁／assert 只傳 label；admin reference 永遠用真實今天；`end_date` 只供「已過學年」判斷 |
+| **A（當日建議）** | 檔期頁／assert 只傳 label；admin reference 永遠用真實今天；`end_date` 只供「已過學年」判斷 |
 | **B** | 第二參數改名／註解防誤用；呼叫點全面 audit |
+| **最終** | **撤硬鎖**；非當期寫入 Confirm＋audit（不再驗「歷史檔期唯讀」） |
 
-**採用預設：A+B。**
+**當日採用預設：A+B。最終：撤鎖路線（見上）。**
 
 ### P1-1 老師可讀全校老師電話／email
 
@@ -111,7 +114,7 @@
 ## 3. 修復優先序
 
 1. P0-1 課堂取消／狀態（UI + RLS）
-2. P0-2 學年鎖誤用 end_date
+2. ~~P0-2 學年鎖誤用 end_date~~ → **已改撤硬鎖**（非修 L1）
 3. P1-3 代堂 `isMgmtStaff()`
 4. P1-2 inbox_reads 收窄（migration）
 5. P1-1 teachers SELECT 收窄（migration + query）
@@ -123,7 +126,7 @@
 ## 4. 驗收清單
 
 - 老師：不可取消課堂；可點名／睇自己排程；不可讀他師 phone／email；inbox 已讀僅自己
-- Admin：歷史檔期（如 2526）唯讀；當前／下一學年可編
+- Admin：~~歷史檔期（如 2526）唯讀；當前／下一學年可編~~ → **已廢止硬鎖**；非當期寫入 Confirm＋audit（[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1）
 - Alien：可指派代堂；優惠折扣可進；audit 仍可讀
 - Mark：teacher↔admin 切換後學生／付款範圍正確
 - 老師 deep-link `/Payments`、`/LeaveManagement` → 導走或明確無權限

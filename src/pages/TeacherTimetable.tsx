@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
-import { CalendarClock, Download } from "lucide-react"
+import { Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { downloadTeacherCalendarIcs } from "@/lib/teacherCalendarExport"
@@ -10,7 +10,6 @@ import {
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { listCalendarEventsInRange, type CalendarEventRow } from "@/services/calendarQueries"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
@@ -24,13 +23,12 @@ export default function TeacherTimetablePage() {
  const today = localYmd()
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
- const [calendarRows, setCalendarRows] = useState<CalendarEventRow[]>([])
  const [loading, setLoading] = useState(true)
  const [rangeExtending, setRangeExtending] = useState(false)
  const [loadedFromYmd, setLoadedFromYmd] = useState(() => addDaysYmd(today, -INITIAL_PAST_DAYS))
  const [loadedToYmd, setLoadedToYmd] = useState(() => addDaysYmd(today, INITIAL_FUTURE_DAYS))
  const [err, setErr] = useState<string | null>(null)
- const exportDisabled = loading || (rows.length === 0 && calendarRows.length === 0)
+ const exportDisabled = loading || rows.length === 0
 
  const mergeSchedules = useCallback((prev: ScheduleManageRow[], next: ScheduleManageRow[]) => {
   const byId = new Map(prev.map((s) => [s.id, s]))
@@ -56,18 +54,13 @@ export default function TeacherTimetablePage() {
    setRows(todayRows)
    setLoading(false)
 
-   const [list, calList] = await Promise.all([
-    fetchSchedulesInRange(fromYmd, toYmd, { teacherId }),
-    listCalendarEventsInRange(fromYmd, toYmd, { teacherId }),
-   ])
+   const list = await fetchSchedulesInRange(fromYmd, toYmd, { teacherId })
    setRows(list)
-   setCalendarRows(calList)
    setLoadedFromYmd(fromYmd)
    setLoadedToYmd(toYmd)
   } catch (e) {
    setErr(formatUnknownError(e))
    setRows([])
-   setCalendarRows([])
   } finally {
    setLoading(false)
   }
@@ -81,30 +74,14 @@ export default function TeacherTimetablePage() {
     if (direction === "earlier") {
      const newFrom = addDaysYmd(loadedFromYmd, -EXTEND_DAYS)
      const newTo = addDaysYmd(loadedFromYmd, -1)
-     const [more, calMore] = await Promise.all([
-      fetchSchedulesInRange(newFrom, newTo, { teacherId }),
-      listCalendarEventsInRange(newFrom, newTo, { teacherId }),
-     ])
+     const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
      setRows((prev) => mergeSchedules(prev, more))
-     setCalendarRows((prev) => {
-      const byId = new Map(prev.map((e) => [e.id, e]))
-      for (const e of calMore) byId.set(e.id, e)
-      return [...byId.values()]
-     })
      setLoadedFromYmd(newFrom)
     } else {
      const newFrom = addDaysYmd(loadedToYmd, 1)
      const newTo = addDaysYmd(loadedToYmd, EXTEND_DAYS)
-     const [more, calMore] = await Promise.all([
-      fetchSchedulesInRange(newFrom, newTo, { teacherId }),
-      listCalendarEventsInRange(newFrom, newTo, { teacherId }),
-     ])
+     const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
      setRows((prev) => mergeSchedules(prev, more))
-     setCalendarRows((prev) => {
-      const byId = new Map(prev.map((e) => [e.id, e]))
-      for (const e of calMore) byId.set(e.id, e)
-      return [...byId.values()]
-     })
      setLoadedToYmd(newTo)
     }
    } catch (e) {
@@ -143,7 +120,7 @@ export default function TeacherTimetablePage() {
       type="button"
       variant="outline"
       className="gap-2"
-      onClick={() => downloadTeacherCalendarIcs(rows, calendarRows, today)}
+      onClick={() => downloadTeacherCalendarIcs(rows, today)}
       disabled={exportDisabled}
      >
       <Download className="h-4 w-4" aria-hidden />
@@ -175,35 +152,6 @@ export default function TeacherTimetablePage() {
      onRequestLoadLater={() => extendLoadedRange("later")}
     />
    )}
-   <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-    <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-     <CalendarClock className="h-5 w-5 text-sky-600" aria-hidden />
-     我的行政事件
-    </h2>
-    <p className="mt-1 text-sm text-muted-foreground">此區塊來自待辦事項，與課堂排程分開。</p>
-    {loading && calendarRows.length === 0 ? (
-     <p className="mt-3 text-muted-foreground">載入中…</p>
-    ) : calendarRows.length === 0 ? (
-     <p className="mt-3 text-sm text-muted-foreground">目前沒有與您相關的行政事件。</p>
-    ) : (
-     <ul className="mt-3 space-y-2">
-      {calendarRows.map((e) => (
-       <li key={e.id} className="rounded-lg border border-border/80 bg-muted/20 px-3 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-         <p className="font-medium">{e.title}</p>
-         <span className="text-xs text-muted-foreground">
-          {e.allDay ? "全日" : `${e.startTime ?? "—"} - ${e.endTime ?? "—"}`}
-         </span>
-        </div>
-        <p className="text-xs text-muted-foreground">{e.eventDate}</p>
-        {e.latestUpdatePreview?.trim() ? (
-         <p className="mt-1 text-sm text-muted-foreground">{e.latestUpdatePreview}</p>
-        ) : null}
-       </li>
-      ))}
-     </ul>
-    )}
-   </section>
   </div>
  )
 }

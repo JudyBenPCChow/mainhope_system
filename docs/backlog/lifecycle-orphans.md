@@ -2,16 +2,17 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**A1 實作中／已落 code**；A2 未做） |
+| 狀態 | `in_progress`（**A1 已落 code**；**A2 計劃定案可開工**，見 a2-kickoff） |
 | 優先 | 高 |
 | 範圍 | 資格撤銷後下游事實列仍留；以 `attendance_details` 為核心，並涵蓋請假調堂、試堂、軟取消排程 |
 | 觸發個案 | 林藝涵：取消 7/24 請假＋7/25 補堂後，點名紙無名但出席紀錄仍有 7/25 兩堂 |
-| 原則（定案） | **不**靜默刪計費出席；資格變更時攔截＋Confirm；行政可單列刪（admin＋稽核） |
-| 操作方案 | [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md)（市場組合＋分階段 A／B／C＋操作模擬） |
+| 原則（定案） | **不**靜默刪計費出席；資格變更時攔截＋Confirm；行政可單列刪（admin＋alien＋稽核） |
+| 操作方案 | [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md) |
+| A2 開工 | [`plans/2026-07-31-lifecycle-orphans-a2-kickoff.md`](../plans/2026-07-31-lifecycle-orphans-a2-kickoff.md)（定案版） |
 | 暫存實作 | branch `wip/lifecycle-orphans-impl`；[`plans/patches/`](../plans/patches/README.md)（勿當已上線） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 相關政策 | [`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)、[`LEAVE_MAKEUP_CONSECUTIVE.md`](../manual/LEAVE_MAKEUP_CONSECUTIVE.md) |
-| 更新日期 | 2026-07-31 |
+| 更新日期 | 2026-08-01 |
 
 ## 問題定義
 
@@ -61,15 +62,41 @@
 
 操作細節、Confirm 預設、模擬風險 → [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md)。
 
-| ID | 階段 | 項目 | 說明 | 建議 |
+| ID | 階段 | 狀態 | 項目 | 說明 | 建議 |
+| --- | --- | --- | --- | --- | --- |
+| O1 | A1 | **已落** | 取消請假／調堂攔截 | 刪請假或清／改 `makeup_schedule_id` 前查已有出席 → Confirm 一併刪；改調堂日問是否刪舊宿主 | 對齊林藝涵；見模擬 S01 |
+| O6 | A1 | **已落** | 文件 | `LEAVE_MAKEUP_CONSECUTIVE` §6；`ATTENDANCE_BILLING` 反操作 | 隨 O1 |
+| O1-type | A2a | 未做 | disposition 離調堂 | `disposition≠調堂 && schedule≠null`；刪出席先於 credit；强制清 schedule | **P0**；S03；kickoff §3.1 |
+| GAP-P0-1 | A2a | 未做 | otherMakeup×已取消 schedule | eligibility 唔 retain 已取消／完成目標堂 | 隨 type；kickoff §3.1b |
+| O1-rollcall | A2a | 未做 | 點名唔寫回已無名冊 | Panel 重拉名冊＋`saveAttendanceStatus` 名冊檢查 | **P0**；S15 |
+| O1t | A2a | 未做 | 試堂取消／刪／改期 | 强制一併刪；peers；無保留路 | S11 試堂部分 |
+| O2 | A2b | 未做 | 行政刪單列點名 | 主：學生詳情；admin＋alien；audit | **P0**；S13；可隔週 |
+| O0 | B | 未做 | 可見性 | 標「資格已結束（歷史出席仍計）」 | 模擬 S02／S14 |
+| O3 | B | 未做 | 軟取消排程對齊 | 調堂改回待安排；試堂提示／取消 | 模擬 S12 |
+| O4 | C | 未做 | 退讀／清報讀／試堂取消改期 | 變更前掃出席＋Confirm（退讀預設保留） | 模擬 S11／S13／S14 |
+| O5 | C | 未做 | 對帳健康檢查 | 無應到資格（含 `schedule_id` null）唯讀＋一鍵清 | 可後做 |
+
+## 行政邊緣模擬（2026-07-31）
+
+來源：行政視角桌面能力模擬（20 案）；方法＝對齊現況程式／文件，非瀏覽器 UAT。完整矩陣見 Cursor Canvas `admin-edge-case-simulation.canvas.tsx`。
+
+與**本主題**直接相關的案：
+
+| 模擬 ID | 個案 | 判定 | 發現的問題 | 對應分項 |
 | --- | --- | --- | --- | --- |
-| O1 | A | 取消請假／調堂攔截 | 刪請假或清／改 `makeup_schedule_id` 前查已有出席 → Confirm 一併刪；改調堂日問是否刪舊宿主 | **對齊林藝涵案，優先** |
-| O6 | A | 文件 | `LEAVE_MAKEUP_CONSECUTIVE` 加「取消請假」；`ATTENDANCE_BILLING` 寫反操作 | 隨 O1 一併 |
-| O2 | A | 行政刪單列點名 | `/AttendanceRecords` 或學生詳情；僅 admin；呼叫既有 delete helper；簡單稽核 | 應急／歷史案 |
-| O0 | B | 可見性 | 出席紀錄／排程詳情標「資格已結束（歷史出席仍計）」類（對照報讀＋試堂＋補堂） | 資訊標籤，非一鍵刪 |
-| O3 | B | 軟取消排程對齊 | 掛該堂的調堂改回待安排（比照老師請假精靈）；開著試堂提示／改取消 | 消死連結 |
-| O4 | C | 退讀／清報讀／試堂取消改期 | 同一套「變更前掃描出席＋Confirm」；預設偏向保留已點名 | 與 O1 共用掃描 API |
-| O5 | C | 對帳健康檢查 | 列出無對應應到資格的 `attendance_details`（唯讀＋一鍵清，admin） | 可後做 |
+| S01 | 林藝涵型：取消已點名補堂 | 可完成 | A1 Confirm／peers／eligibility 可收尾；手機請假仍難用（→ mobile-ui） | O1（已落） |
+| S02 | 學生真有來補堂、行政誤取消 | 可完成但易錯 | 保留路徑有摩擦；選錯一併刪難還原；**O0 未做**則選「保留」後難在 UI 發現孤兒 | O0；Confirm 文案維持 |
+| S03 | 只清調堂／改調堂日 | 可完成但易錯 | 主路徑 A1 OK；**列表 disposition→錄影且不清 schedule** 仍旁路產髒狀態 | A2 O1-type |
+| S11 | 已點名試堂取消／改期 | 半完成 | 舊出席可留成孤兒；名冊驗收仍人手 | O4；另見 [trial-sessions.md](./trial-sessions.md) T2 |
+| S12 | 軟取消整堂（掛調堂／試堂） | 半完成 | cancel 留死連結；與老師請假精靈行為不一致；出席仍可計費 | O3 |
+| S13 | 手誤 purge 報讀後出席仍在 | **無法在 UI 收尾** | 無 O2 單列刪；須 SQL runbook | O2；O4 |
+| S14 | 退讀後歷史真上課應保留 | 可完成但易錯 | 預設保留正確；無「資格已結束」標易被當 bug | O0；O4 |
+| S15 | 行政一併刪＋老師同時重存點名 | 半完成 | A1 期間老師可把已刪出席寫回 | **A2 O1-rollcall（P0）** |
+| S20 | 老師精靈撞已點名補堂 | 可完成 | 老師失敗轉行政；依賴行政懂去請假管理 | O1t／O6 SOP |
+
+**接手優先（本主題內）：** A2a（GAP-P0-1 → O1-type → O1-rollcall → O1t）→ A2b O2 → B O0＋O3 → C O4＋O5。詳見 [a2-kickoff](../plans/2026-07-31-lifecycle-orphans-a2-kickoff.md)。
+
+不屬本主題、已另立 backlog：原班連堂分節點名（S06）、連堂請假預設 UX（S04）、逾期入室（S10）、代堂算薪報表（S07）、手機 Inbox／請假（S19）。
 
 ## 個案應急（林藝涵）
 

@@ -1,10 +1,12 @@
 # 學年鎖整固 — 技術顧問審閱
 
+> **最終狀態（2026-07-31）**：不整固；改撤硬鎖。見 [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1、[`academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md)。下文為當日審閱，**勿再當待辦**。
+
 > 角色：**外部技術顧問** ⚠️ 非團隊成員，獨立審閱  
-> 對象：[`2026-07-31-academic-year-lock-review.md`](./2026-07-31-academic-year-lock-review.md)（團隊檢查報告）及 [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md)（工程待辦 L1–L15）  
+> 對象：[`2026-07-31-academic-year-lock-review.md`](./2026-07-31-academic-year-lock-review.md)（團隊檢查報告）及 [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md)（工程待辦 L1–L15；其後 `cancelled`）  
 > 基於：程式盤點（`academicYearAccess.ts`、`mgmtRole.ts`、`academicYearEditGuard.ts`）、對抗性稽核 §P0-2、學年政策文件  
 > 日期：2026-07-31  
-> 狀態：**等待團隊回應**
+> 狀態：**歷史審閱（已結案：撤鎖）**
 
 ---
 

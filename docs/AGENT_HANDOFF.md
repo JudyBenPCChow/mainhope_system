@@ -34,7 +34,7 @@
 1. **路由**：在 `src/App.tsx` 的 `<Route element={<Layout />}>` 內新增 `path` 與對應 `pages/*` 元件。
 2. **側欄**：若要在選單顯示，**同步**修改 `src/components/Layout.tsx` 的 `NAV_STRUCTURE`（含 `path`、`label`、**roles**：`admin` / `teacher` / `alien`）。避免「有路由但選單沒入口」或相反。
 3. **頁面結構**：優先 `pages/NewXxx.tsx` → `components/xxx/XxxView.tsx`，複雜查詢放 `services/xxxQueries.ts`。
-4. **文案**：介面用語以專案既有 **繁體中文** 為主，與現有頁一致。
+4. **文案**：介面用語以專案既有 **繁體中文** 為主，與現有頁一致；機構自稱見 [`TERMINOLOGY.md`](TERMINOLOGY.md)（**明學教育**；校方／本校／補習社；禁院方、禁「明學補習社」、禁以書院／學院自稱）。
 
 ---
 
@@ -133,7 +133,8 @@
 ## 9. 繳費出單／列印（現況已完成）
 
 **操作說明（人讀）**：[系統說明書 → 繳費收據](manual/PAYMENT_RECEIPTS.md)（目錄見 [SYSTEM_MANUAL.md](SYSTEM_MANUAL.md)）。含列印／PDF／WhatsApp，以及**作廢**（禁硬刪、密碼二次確認、已收款電郵通知管理層、收件匣系統通知 admin／alien）。  
-**營運政策**：[收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md)（索引見 [OPS_POLICIES.md](OPS_POLICIES.md)）。
+**營運政策**：[收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md)（索引見 [OPS_POLICIES.md](OPS_POLICIES.md)）。  
+**設計鐵則（UI）**：[UI_DESIGN_INSTRUCTIONS.md §15](UI_DESIGN_INSTRUCTIONS.md) — **收款單一入口**：錢只經 `/Payments` 入帳，前台對帳只信 `/PaymentHistory`；業務頁（試堂等）唔好內嵌收款／開新收款頁。
 
 ### 已完成能力
 
@@ -147,10 +148,11 @@
 - **家長開通 QR**：收據附該生專屬開通連結／QR。
 - **作廢**：禁硬刪；`void-payment` Edge Function（密碼確認、audit、月費／轉介連動）；已收款可電郵管理層；收件匣系統通知 admin／alien。
 
-觸發入口：`PaymentsPageView`、`PaymentHistoryView`、`StudentDetailView`（繳費分頁）；示範 `/receipt-demo`。
+觸發入口：`PaymentsPageView`、`PaymentHistoryView`、`StudentDetailView`（繳費分頁導向收款）。（原 `/receipt-demo` 已下線。）
 
 ### 開發備註（非操作手冊）
 
+- **單一收款入口：** 新功能若要收錢，只連 `/Payments`（或呼叫既有 `insertPaymentRecord` 且 UI 必須係收款頁／其共用表單）。禁止在試堂、請假、報讀等頁再造收款 Dialog。已知例外：前台精靈 `PaymentStep`（待收斂，見 UI §15）。
 - PDF 為「畫面轉檔」以保留現有 HTML 版面與 logo；不以另畫一套文字 PDF 取代（版面／logo 不可妥協）。
 - 機構聯絡資料目前為程式常數；日後若做「機構主檔設定」再改讀設定。
 

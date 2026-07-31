@@ -102,6 +102,5 @@
 
 - 技術入口：`src/components/inbox/InboxView.tsx`、`src/services/inboxQueries.ts`、`src/services/inboxEventWrite.ts`
 - 側欄未讀：`src/hooks/useInboxUnreadCount.ts`（Layout／MobileNavDrawer）
-- UI 沙盒（假資料）：`/prototype/InboxSystemNotices`
 - Schema：`supabase/migrations/20260725030000_inbox_events.sql`、`20260729235000_inbox_system_notices.sql`
 - 代堂語意：[`SCHEDULE_SUBSTITUTE_TEACHER.md`](../SCHEDULE_SUBSTITUTE_TEACHER.md)

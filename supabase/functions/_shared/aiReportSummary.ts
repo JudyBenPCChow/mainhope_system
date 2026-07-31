@@ -15,7 +15,7 @@ export async function summarizeOverdueTuitionWithLlm(
     lesson_gap: r.lesson_gap,
   }))
 
-  const system = `你是明學補習社內部報表助理。根據提供的追收學費統計，撰寫繁體中文摘要（3～5 段）。
+  const system = `你是明學教育內部報表助理。根據提供的追收學費統計，撰寫繁體中文摘要（3～5 段）。
 規則：
 - 只根據數據陳述，不可捏造學生或金額
 - 先講整體人數與欠堂總量，再講重點年級或個案

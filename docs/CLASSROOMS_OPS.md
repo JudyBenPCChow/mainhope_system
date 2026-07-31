@@ -17,7 +17,7 @@
 | 矩尺座 | 待確認 | 可用 |
 | 英仙座 | 待確認 | 可用 |
 
-排班衝突檢查以以上五間為準（另見功輔佔用規則：[`2627_scheduling_requirements.md`](reports/2627_scheduling_requirements.md)）。
+排班衝突檢查以以上五間為準（功輔佔用、年級時段等見 [`SCHEDULING_RULES.md`](SCHEDULING_RULES.md)）。
 
 ---
 

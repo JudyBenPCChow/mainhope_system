@@ -39,11 +39,11 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
  { tone: "warning", keywords: ["加堂"] },
  // 排程：代堂指派（高於泛用「安排」）
  { tone: "warning", keywords: ["已指派代堂", "代堂"] },
- // 排程 / 待辦：待處理與提醒態
+ // 排程：待處理與提醒態
  { tone: "warning", keywords: ["pending", "待", "逾期", "提醒", "補課中", "保留中"] },
- // 排程 / 待辦：正常（如常進行）／預定與進行態
+ // 排程：正常（如常進行）／預定與進行態
  { tone: "info", keywords: ["booked", "預定", "安排", "處理中", "in progress"] },
- // 排程 / 待辦：完成態
+ // 排程：完成態
  { tone: "success", keywords: ["success", "完成", "已完成", "done", "ok"] },
 ]
 

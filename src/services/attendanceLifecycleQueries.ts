@@ -77,10 +77,17 @@ export async function fetchAttendanceHitsForStudentSchedules(
  * 必須排除正在取消／清調堂的本筆 leave。
  * 用直接查表（不走老師名冊 RPC），請假管理／腳本／service_role 皆可用。
  */
+function scheduleStatusEndsMakeupRetain(status: string | null | undefined): boolean {
+ const st = String(status ?? "")
+ return st.includes("取消") || st.includes("完成")
+}
+
 export async function fetchRetainScheduleIdsForStudent(params: {
  studentId: string
  excludeLeaveId: string
  candidateScheduleIds: string[]
+ /** 試堂取消／刪／改期：唔因本筆試堂而 retain */
+ excludeTrialId?: string
 }): Promise<Set<string>> {
  const retain = new Set<string>()
  const candidates = [...new Set(params.candidateScheduleIds.filter(Boolean))]
@@ -117,11 +124,13 @@ export async function fetchRetainScheduleIdsForStudent(params: {
  if (candidates.length > 0) {
   const { data: trials, error: trialErr } = await supabase
    .from("trial_sessions")
-   .select("schedule_id, status")
+   .select("id, schedule_id, status")
    .eq("student_id", params.studentId)
    .in("schedule_id", candidates)
   if (trialErr) throw trialErr
   for (const row of trials ?? []) {
+   const tid = String((row as { id?: string }).id ?? "")
+   if (params.excludeTrialId && tid === params.excludeTrialId) continue
    const st = String((row as { status?: string }).status ?? "")
    if (st.includes("完成") || st.includes("取消")) continue
    const sid = (row as { schedule_id?: string }).schedule_id
@@ -233,9 +242,22 @@ export async function fetchRetainScheduleIdsForStudent(params: {
   const mid = r.makeup_schedule_id != null ? String(r.makeup_schedule_id) : ""
   if (mid) otherMakeupIds.push(mid)
  }
+ // GAP-P0-1：目標 schedule 已取消／完成 → 唔因 otherMakeup retain
  if (otherMakeupIds.length > 0) {
-  for (const sid of await expandScheduleIdsWithPeers(otherMakeupIds)) {
-   if (candidates.includes(sid)) retain.add(sid)
+  const expanded = (await expandScheduleIdsWithPeers(otherMakeupIds)).filter((sid) =>
+   candidates.includes(sid)
+  )
+  if (expanded.length > 0) {
+   const { data: makeupScheds, error: msErr } = await supabase
+    .from("schedules")
+    .select("id, status")
+    .in("id", expanded)
+   if (msErr) throw msErr
+   for (const s of makeupScheds ?? []) {
+    const row = s as { id: string; status?: string | null }
+    if (scheduleStatusEndsMakeupRetain(row.status)) continue
+    retain.add(String(row.id))
+   }
   }
  }
 
@@ -270,6 +292,31 @@ export async function scanDeletableAttendanceForMakeupSchedule(params: {
   candidateScheduleIds: peers,
  })
  return filterDeletableHits(candidates, retain)
+}
+
+/** 試堂：舊 schedule＋peers → eligibility（可 exclude 本筆試堂）→ 可刪列 */
+export async function scanDeletableAttendanceForTrialSchedule(params: {
+ studentId: string
+ scheduleId: string | null | undefined
+ excludeTrialId: string
+}): Promise<AttendanceLifecycleHit[]> {
+ const old = params.scheduleId?.trim()
+ if (!old || !params.studentId) return []
+ const peers = await expandScheduleIdsWithPeers([old])
+ const candidates = await fetchAttendanceHitsForStudentSchedules(params.studentId, peers)
+ if (candidates.length === 0) return []
+ const retain = await fetchRetainScheduleIdsForStudent({
+  studentId: params.studentId,
+  excludeLeaveId: "",
+  excludeTrialId: params.excludeTrialId,
+  candidateScheduleIds: peers,
+ })
+ return filterDeletableHits(candidates, retain)
+}
+
+/** 供單測：已取消／完成 schedule 唔應因 makeup 連結而 retain */
+export function shouldRetainOtherMakeupSchedule(status: string | null | undefined): boolean {
+ return !scheduleStatusEndsMakeupRetain(status)
 }
 
 export function formatAttendanceHitsDescription(hits: AttendanceLifecycleHit[]): string {

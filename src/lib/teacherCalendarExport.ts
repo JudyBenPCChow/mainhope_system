@@ -1,11 +1,9 @@
-import type { CalendarEventRow } from "@/services/calendarQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 const CALENDAR_PROD_ID = "-//Mingxue//Teacher Calendar//zh-Hant"
 const CALENDAR_NAME = "銘學老師排程"
 const CALENDAR_TZID = "Asia/Hong_Kong"
 const DEFAULT_SCHEDULE_DURATION_MIN = 75
-const DEFAULT_EVENT_DURATION_MIN = 30
 
 function pad(value: number): string {
  return String(value).padStart(2, "0")
@@ -119,39 +117,8 @@ function scheduleEventLines(row: ScheduleManageRow, nowStamp: string): string[] 
  return lines
 }
 
-function buildCalendarEventDescription(row: CalendarEventRow): string {
- const parts = [
-  row.description?.trim() ? row.description.trim() : null,
-  row.tags.length > 0 ? `標籤：${row.tags.join("、")}` : null,
-  row.latestUpdatePreview?.trim() ? `最新跟進：${row.latestUpdatePreview.trim()}` : null,
- ]
- return parts.filter((part): part is string => Boolean(part)).join("\n")
-}
-
-function calendarEventLines(row: CalendarEventRow, nowStamp: string): string[] {
- const lines = ["BEGIN:VEVENT"]
- pushRawProp(lines, "UID", `calendar-event-${row.id}@mingxue`)
- pushRawProp(lines, "DTSTAMP", nowStamp)
- pushProp(lines, "SUMMARY", row.title)
- const description = buildCalendarEventDescription(row)
- if (description) pushProp(lines, "DESCRIPTION", description)
- if (row.allDay) {
-  pushRawProp(lines, "DTSTART;VALUE=DATE", formatLocalDate(row.eventDate))
-  pushRawProp(lines, "DTEND;VALUE=DATE", formatLocalDate(addDaysYmd(row.eventDate, 1)))
- } else {
-  const startTime = row.startTime ?? "00:00"
-  const endTime = row.endTime ?? addMinutesToHm(startTime, DEFAULT_EVENT_DURATION_MIN)
-  pushRawProp(lines, `DTSTART;TZID=${CALENDAR_TZID}`, formatLocalDateTime(row.eventDate, startTime))
-  pushRawProp(lines, `DTEND;TZID=${CALENDAR_TZID}`, formatLocalDateTime(row.eventDate, endTime))
- }
- lines.push("END:VEVENT")
- return lines
-}
-
-export function buildTeacherCalendarIcs(
- schedules: ScheduleManageRow[],
- calendarEvents: CalendarEventRow[]
-): string {
+/** 僅匯出課堂排程（行政待辦看板已廢除，不再夾帶 calendar_events）。 */
+export function buildTeacherCalendarIcs(schedules: ScheduleManageRow[]): string {
  const nowStamp = formatUtcTimestamp(new Date())
  const lines = [
   "BEGIN:VCALENDAR",
@@ -167,19 +134,12 @@ export function buildTeacherCalendarIcs(
   if (row.status.includes("取消")) continue
   lines.push(...scheduleEventLines(row, nowStamp))
  }
- for (const row of calendarEvents) {
-  lines.push(...calendarEventLines(row, nowStamp))
- }
  lines.push("END:VCALENDAR")
  return `${lines.join("\r\n")}\r\n`
 }
 
-export function downloadTeacherCalendarIcs(
- schedules: ScheduleManageRow[],
- calendarEvents: CalendarEventRow[],
- todayYmd: string
-): void {
- const content = buildTeacherCalendarIcs(schedules, calendarEvents)
+export function downloadTeacherCalendarIcs(schedules: ScheduleManageRow[], todayYmd: string): void {
+ const content = buildTeacherCalendarIcs(schedules)
  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" })
  const url = URL.createObjectURL(blob)
  const anchor = document.createElement("a")

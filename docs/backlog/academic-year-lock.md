@@ -18,9 +18,12 @@
 
 ---
 
-## 現行機制（程式錨點）— 撤鎖前快照
+## 現行機制（程式錨點）— **撤鎖前快照（已過時）**
 
-| 層 | 檔案 | 行為 |
+> 下表描述撤硬鎖**之前**的行為，僅供稽核鏈備查。  
+> **現行政策**見 [academic-year-unlock-soft-guard.md](./academic-year-unlock-soft-guard.md) 與 [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1。
+
+| 層 | 檔案 | 行為（舊） |
 | --- | --- | --- |
 | 門檻常數 | `src/lib/academicYearAccess.ts` | `ACADEMIC_YEAR_EDITABLE_FROM_YMD = 2026-07-01`；teacher 用 `isClosedAcademicYear`；admin 用 `isAdminEditableAcademicYearLabel(label, referenceYmd)` |
 | 角色閘 | `src/lib/mgmtRole.ts` → `isAcademicYearReadOnly` | alien 永不鎖；admin／teacher 見上 |

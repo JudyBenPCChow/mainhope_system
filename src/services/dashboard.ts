@@ -51,13 +51,6 @@ export type DashboardTodayClassCard = {
  status: string
 }
 
-export type DashboardTodoItem = {
- id: string
- title: string
- notes: string | null
-}
-
-/** 首頁課室空缺：每欄對應一間課室，occupied 與預設堂數格（09:00 起每格 75 分鐘）對齊 */
 export type DashboardRoomVacancyColumn = {
  roomId: string
  roomName: string
@@ -88,7 +81,6 @@ export type AdminDashboardPayload = {
  revenueBars: RevenueBar[]
  studentStatusSlices: StatusSlice[]
  todayClassCards: DashboardTodayClassCard[]
- todosToday: DashboardTodoItem[]
  roomVacancy: DashboardRoomVacancyColumn[]
  todayLeaves: DashboardTodayLeaveRow[]
 }
@@ -127,7 +119,6 @@ function emptyPayload(): AdminDashboardPayload {
   revenueBars: [],
   studentStatusSlices: [],
   todayClassCards: [],
-  todosToday: [],
   roomVacancy: [],
   todayLeaves: [],
  }
@@ -356,7 +347,6 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
    allStudentsRes,
    paidForChartRes,
    classroomsTop4Res,
-   todosRes,
    leaveTodayRes,
   ] = await Promise.all([
    supabase
@@ -404,14 +394,6 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
     .gte("payment_date", chartStart)
     .limit(800),
    supabase.from("classrooms").select("id, name").order("name", { ascending: true }).limit(4),
-   supabase
-    .from("calendar_events")
-    .select("id, title, description")
-    .eq("event_date", today)
-    .eq("status", "in_progress")
-    .order("all_day", { ascending: false })
-    .order("start_time", { ascending: true })
-    .limit(30),
    supabase.from("leave_makeup_records").select(leaveSelect).eq("leave_date", today),
   ])
 
@@ -455,38 +437,6 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
 
   const todaySchedules = mapScheduleRowsToTodaySchedules(scheduleRows)
   const todayClassCards = mapScheduleRowsToDashboardClassCards(scheduleRows, enrollMap)
-
-  let todosToday: DashboardTodoItem[] = []
-  if (!todosRes.error && todosRes.data) {
-   const todoRows = todosRes.data as Record<string, unknown>[]
-   const todoIds = todoRows.map((row) => String(row.id))
-   const latestByEvent = new Map<string, string>()
-   if (todoIds.length > 0 && supabase) {
-    const { data: updateRows, error: updateErr } = await supabase
-     .from("calendar_event_updates")
-     .select("event_id, body, created_at")
-     .in("event_id", todoIds)
-     .order("created_at", { ascending: false })
-    if (!updateErr && updateRows) {
-     for (const u of updateRows as { event_id: string; body: string }[]) {
-      const eid = String(u.event_id)
-      if (!latestByEvent.has(eid)) latestByEvent.set(eid, String(u.body))
-     }
-    }
-   }
-   todosToday = todoRows.map((row) => {
-    const id = String(row.id)
-    const fromUpdate = latestByEvent.get(id)
-    const fromDesc = row.description != null ? String(row.description).trim() : ""
-    return {
-     id,
-     title: String(row.title ?? ""),
-     notes: fromUpdate || fromDesc || null,
-    }
-   })
-  } else if (todosRes.error) {
-   console.warn("[dashboard] calendar_events:", todosRes.error.message)
-  }
 
   const topRooms = (classroomsTop4Res.data ?? []) as { id: string; name: string }[]
   const roomVacancy: DashboardRoomVacancyColumn[] = topRooms.map((room) => ({
@@ -608,7 +558,6 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
    revenueBars,
    studentStatusSlices,
    todayClassCards,
-   todosToday,
    roomVacancy,
    todayLeaves,
   }

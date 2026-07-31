@@ -3,7 +3,7 @@ import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
-type DetailLayerVariant = "student" | "teacher" | "todo"
+type DetailLayerVariant = "student" | "teacher"
 
 type DetailLayerShellProps = {
  children: React.ReactNode
@@ -19,8 +19,6 @@ const variantPanelRing: Record<DetailLayerVariant, string> = {
   "border-primary/25 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_25px_80px_rgba(0,0,0,0.22)]",
  teacher:
   "border-success/25 shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_rgba(16,185,129,0.15),0_25px_80px_rgba(0,0,0,0.22)]",
- todo:
-  "border-sky-400/25 shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_-12px_48px_rgba(0,0,0,0.2)] md:shadow-[0_0_0_1px_rgba(14,165,233,0.15),0_25px_80px_rgba(0,0,0,0.22)]",
 }
 
 /**

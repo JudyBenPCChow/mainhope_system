@@ -15,9 +15,7 @@ import Classrooms from "@/pages/Classrooms"
 import Classes from "@/pages/Classes"
 import ClassNew from "@/pages/ClassNew"
 import TeacherAvailability from "@/pages/TeacherAvailability"
-import Calendar from "@/pages/Calendar"
 import AcademicCalendar from "@/pages/AcademicCalendar"
-import TodoDetail from "@/pages/TodoDetail"
 import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
 import Inbox from "@/pages/Inbox"
@@ -49,14 +47,7 @@ import TomorrowReminders from "@/pages/TomorrowReminders"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
-import PrototypeFrontDeskWizard from "@/pages/PrototypeFrontDeskWizard"
-import PrototypeScheduleRollCall from "@/pages/PrototypeScheduleRollCall"
-import PrototypeSecondaryAttendanceReport from "@/pages/PrototypeSecondaryAttendanceReport"
-import PrototypeTeacherLeaveWizard from "@/pages/PrototypeTeacherLeaveWizard"
-import PrototypeInboxSystemNotices from "@/pages/PrototypeInboxSystemNotices"
-import PrototypeContactUpdate from "@/pages/PrototypeContactUpdate"
 import PromotionMatch from "@/pages/PromotionMatch"
-import ReceiptDemo from "@/pages/ReceiptDemo"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
@@ -69,12 +60,8 @@ export default function App() {
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
     <Route path="/Login" element={<Login />} />
-    <Route path="/receipt-demo" element={<ReceiptDemo />} />
-    <Route path="/prototype/ReceiptDemo" element={<ReceiptDemo />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
-    {/* 聯絡資料自助更新 UI 沙盒：不接 DB、不經側欄 */}
-    <Route path="/prototype/ContactUpdate" element={<PrototypeContactUpdate />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
@@ -161,9 +148,7 @@ export default function App() {
      />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
      <Route path="/ReferralRebates" element={<ReferralRebates />} />
-     <Route path="/Calendar" element={<Calendar />} />
      <Route path="/AcademicCalendar" element={<AcademicCalendar />} />
-     <Route path="/Calendar/:eventId" element={<TodoDetail />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
      <Route path="/PromotionMatch" element={<PromotionMatch />} />
      <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
@@ -178,15 +163,6 @@ export default function App() {
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
-     {/* 保留既有沙盒；不連側欄 */}
-     <Route path="/prototype/ScheduleRollCall" element={<PrototypeScheduleRollCall />} />
-     <Route path="/prototype/FrontDeskWizard" element={<PrototypeFrontDeskWizard />} />
-     <Route path="/prototype/TeacherLeaveWizard" element={<PrototypeTeacherLeaveWizard />} />
-     <Route
-      path="/prototype/SecondaryAttendanceReport"
-      element={<PrototypeSecondaryAttendanceReport />}
-     />
-     <Route path="/prototype/InboxSystemNotices" element={<PrototypeInboxSystemNotices />} />
     </Route>
    </Routes>
    <SpeedInsights />

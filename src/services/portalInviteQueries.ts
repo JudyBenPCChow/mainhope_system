@@ -158,7 +158,7 @@ export function buildPortalInviteWhatsAppMessage(opts: {
   // keep raw
  }
  return [
-  "您好，這裡是明學補習社。",
+  "您好，這裡是明學教育。",
   "",
   `請使用以下連結為 ${who} 開通家長查閱系統（設定電郵與密碼）：`,
   opts.activateUrl,

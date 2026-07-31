@@ -1,20 +1,22 @@
 # 學年鎖問題：經過與全面檢查報告
 
+> **最終狀態（2026-07-31）**：不整固硬鎖；已改**撤硬鎖＋confirm＋audit**（[`academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md) `done`）。現行營運政策：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1。下文為當日盤點，**勿再當待辦勾選**。
+
 | 欄位 | 值 |
 | --- | --- |
 | 日期 | 2026-07-31 |
 | 性質 | 技術顧問交接／調查備忘（非實作計畫） |
 | 作者角色 | 本 repo coding agent（對話內盤點） |
 | 環境時點 | 使用者日為 2026-07-31（約落在暑期學年 `26SM`） |
-| 工程追蹤 | [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md) |
+| 工程追蹤 | [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md)（`cancelled`）→ [`../backlog/academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md) |
 | 前身稽核 | [`2026-07-30-role-ops-adversarial.md`](./2026-07-30-role-ops-adversarial.md) §P0-2 |
-| 學年政策正文 | [`../ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) |
+| 學年政策正文 | [`../ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1 |
 
 ---
 
 ## 1. 給技術顧問的一句話
 
-學年鎖本意是「過期／非當期學年不可改寫」，但現況**參數語意混亂、admin／teacher 雙軌、鎖寫入卻污染瀏覽 UI**；且已證實檔期頁會把學年 `end_date` 誤當成「今天」而錯誤解鎖。問題已從「角色權限加固」拆成獨立 backlog 主題，**尚未實作整固**。
+學年鎖本意是「過期／非當期學年不可改寫」，但當時現況**參數語意混亂、admin／teacher 雙軌、鎖寫入卻污染瀏覽 UI**；且已證實檔期頁會把學年 `end_date` 誤當成「今天」而錯誤解鎖。其後產品決策改為**撤硬鎖**（見檔首最終狀態），**不再**走「整固硬鎖」路線。
 
 ---
 
@@ -79,7 +81,7 @@ Agent 完成程式盤點後：
 | **admin** | 僅可編「以 referenceYmd 推算的目前學年」及其「下一學年」 |
 | **teacher**（及其他非 admin／alien） | `end_date < 2026-07-01` 或 label 早於 `26SM` → 唯讀 |
 
-文件對照：[`../ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §可編輯門檻。
+文件對照：[`../ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1（現行：不硬鎖；下文盤點時仍寫舊硬鎖）。
 
 ### 3.3 危險的 API 形狀（顧問必讀）
 
@@ -105,7 +107,7 @@ canEditAcademicYear(year.label, year.end_date)  // admin 下 end_date ≡ 偽「
 
 ### 3.4 寫入攔截覆蓋面（service assert）
 
-`assertAcademicYearEditable*` 出現在（非完整列表）：排程增刪改、點名儲存、請假、繳費、補堂、一對一預約、學院校曆休課、老師檔期寫入等。  
+`assertAcademicYearEditable*` 出現在（非完整列表）：排程增刪改、點名儲存、請假、繳費、補堂、一對一預約、校曆休課、老師檔期寫入等。  
 **DB 層無對應「學年鎖」RLS**——屬前端／service 約定。
 
 ### 3.5 UI 掛鉤（瀏覽體驗相關）

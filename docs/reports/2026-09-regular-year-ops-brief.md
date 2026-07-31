@@ -27,6 +27,7 @@
 | 連堂請假／補堂 | [`docs/manual/LEAVE_MAKEUP_CONSECUTIVE.md`](../manual/LEAVE_MAKEUP_CONSECUTIVE.md) |
 | 2627 fresh-start cutover | [`docs/CLASS_RESTRUCTURE_CUTOVER_RUNBOOK_2026_07.md`](../CLASS_RESTRUCTURE_CUTOVER_RUNBOOK_2026_07.md) |
 | 政策索引 | [`docs/OPS_POLICIES.md`](../OPS_POLICIES.md) |
+| 小組課排課規則 | [`docs/SCHEDULING_RULES.md`](../SCHEDULING_RULES.md) |
 
 ---
 
@@ -281,7 +282,7 @@ Production `subjects` 字典（含中英數）：
 ### A4. 年級範圍與每級每科班數
 
 - 系統年級碼支援 **P1–P6 與 S1–S6**；正規學年政策無寫「必須 S1–S6 全開」。
-- 班號 `section_code` 自動編 A、B、C…；程式**無硬上限 2 班**。「每課程上限 2 班」若係院方口頭規矩，屬**營運假設，非系統強制**——請人手確認實際目標（0／1／2）。
+- 班號 `section_code` 自動編 A、B、C…；程式**無硬上限 2 班**。「每課程上限 2 班」若係校方口頭規矩，屬**營運假設，非系統強制**——請人手確認實際目標（0／1／2）。
 - 2526 匯入年級偏中學（中一～中六為主，小學零星）；**唔等於** 2627 目標配額。
 
 ### A5. 2526 班表可否作基線？
@@ -294,7 +295,7 @@ Production `subjects` 字典（含中英數）：
 
 ### A6. 2026 年 9–12 月公眾假期
 
-Production `academic_calendar_closures` 喺 2026-09-01～12-31：**空白**（學院校曆未錄入）。可用香港政府 **2026 general holidays**（[GovHK](https://www.gov.hk/en/about/abouthk/holiday/2026.htm)）作參考——**停課日仍待營運確認是否全跟**：
+Production `academic_calendar_closures` 喺 2026-09-01～12-31：**空白**（校曆未錄入）。可用香港政府 **2026 general holidays**（[GovHK](https://www.gov.hk/en/about/abouthk/holiday/2026.htm)）作參考——**停課日仍待營運確認是否全跟**：
 
 | 日期 | 星期 | 名稱 |
 | --- | --- | --- |

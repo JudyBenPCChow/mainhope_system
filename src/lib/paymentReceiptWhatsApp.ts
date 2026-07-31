@@ -21,7 +21,7 @@ function hkd(n: number): string {
 export function buildPaymentReceiptWhatsAppMessage(p: PaymentFull): string {
  const who = p.studentName.trim() || "同學"
  const lines: string[] = [
-  `您好，這裡是明學補習社。`,
+  `您好，這裡是明學教育。`,
   "",
   `附件為「${who}」的繳費收據：`,
   `單號：${p.receiptNumber ?? "—"}`,

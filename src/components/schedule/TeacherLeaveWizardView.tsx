@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
-import { CheckCircle2, Copy, FlaskConical, RotateCcw, UserRoundX } from "lucide-react"
+import { CheckCircle2, Copy, RotateCcw, UserRoundX } from "lucide-react"
 
 import { Field } from "@/components/frontDesk/frontDeskUi"
 import { StudentAvatarWall } from "@/components/schedule/teacherLeave/StudentAvatarWall"
@@ -444,12 +444,6 @@ export function TeacherLeaveWizardView() {
           <Button type="button" variant="outline" size="sm" onClick={() => void resetFlow()}>
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
             重設
-          </Button>
-          <Button type="button" variant="outline" size="sm" asChild>
-            <Link to="/prototype/TeacherLeaveWizard">
-              <FlaskConical className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-              沙盒
-            </Link>
           </Button>
         </div>
       </div>

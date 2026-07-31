@@ -1,4 +1,4 @@
-# 明學補習社 — 管理系統（遷移骨架）
+# 明學教育 — 管理系統（遷移骨架）
 
 由 Base44 遷移計畫產生的 **Vite + React + TypeScript + Tailwind + React Router** 專案。目前為 **可執行骨架**：路由與側欄對齊舊版 `App.jsx`／`Layout.jsx`，資料層為 **`src/api/entities.ts` stub**，之後改接 Supabase。
 

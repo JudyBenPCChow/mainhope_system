@@ -173,7 +173,7 @@ export function formatLessonReminderTimeLine(
 export function buildLessonReminderMessage(p: LessonReminderPayload): string {
  const lines: string[] = []
  const who = p.studentName.trim() || "同學"
- lines.push(`您好，這裡是明學補習社通知。`)
+ lines.push(`您好，這裡是明學教育通知。`)
  lines.push("")
  lines.push(`${who} 課堂提醒：`)
  const head = p.courseName?.trim() ? p.courseName.trim() : p.subject
@@ -227,7 +227,7 @@ export function buildStudentDayReminderMessage(p: StudentDayReminderPayload): st
  const lines: string[] = []
  const who = p.studentName.trim() || "同學"
  const lessons = p.lessons.filter(Boolean)
- lines.push(`您好，這裡是明學補習社通知。`)
+ lines.push(`您好，這裡是明學教育通知。`)
  lines.push("")
  if (lessons.length <= 1) {
   const only = lessons[0]

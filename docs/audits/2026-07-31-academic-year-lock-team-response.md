@@ -1,10 +1,12 @@
 # 學年鎖整固 — 團隊對顧問審閱的觀察與疑問
 
+> **最終狀態（2026-07-31）**：已改撤硬鎖；見 [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1。下文為當日問答，**勿再當待辦**。
+
 | 欄位 | 值 |
 | --- | --- |
 | 日期 | 2026-07-31 |
 | 對象 | 外部技術顧問（請對照 [`2026-07-31-academic-year-lock-review-consultant.md`](./2026-07-31-academic-year-lock-review-consultant.md)） |
-| 背景 | 團隊檢查報告 [`2026-07-31-academic-year-lock-review.md`](./2026-07-31-academic-year-lock-review.md)；工程追蹤 [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md) |
+| 背景 | 團隊檢查報告 [`2026-07-31-academic-year-lock-review.md`](./2026-07-31-academic-year-lock-review.md)；工程追蹤 [`../backlog/academic-year-lock.md`](../backlog/academic-year-lock.md)（其後 `cancelled`） |
 | 撰寫 | 本 repo coding agent（對話內盤點／實作方）；待產品負責人拍板處已標明 |
 | 狀態 | **請顧問回覆文內「疑問」小節** |
 

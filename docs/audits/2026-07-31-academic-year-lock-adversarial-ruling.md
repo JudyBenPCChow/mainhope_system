@@ -1,9 +1,11 @@
 # 學年鎖整固 — 顧問對抗模擬裁定
 
+> **最終狀態（2026-07-31）**：其後產品決策改**撤硬鎖**（非執行本裁定之 A1b／A2）。現行政策：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1；[`academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md)。下文保留作歷史裁定備查。
+
 > 角色：**外部技術顧問** ⚠️ 非團隊成員，獨立裁定  
 > 對象：[`2026-07-31-academic-year-lock-adversarial.md`](./2026-07-31-academic-year-lock-adversarial.md)（團隊對抗模擬 ADV-1～10）  
 > 日期：2026-07-31  
-> 狀態：**裁定完成；請團隊據此更新 backlog 並排程**
+> 狀態：**裁定完成**（工程路線其後改撤鎖；**勿再當待辦**）
 
 ---
 

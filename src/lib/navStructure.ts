@@ -143,7 +143,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: CalendarRange,
   children: [
    { path: "/Schedule", label: "排程管理", roles: ["admin", "teacher", "alien"], icon: CalendarDays },
-   { path: "/AcademicCalendar", label: "學院校曆", roles: ["admin", "alien"], icon: CalendarX },
+   { path: "/AcademicCalendar", label: "校曆", roles: ["admin", "alien"], icon: CalendarX },
    { path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
    {
     path: "/TeachingRecords",

@@ -1,9 +1,11 @@
 # 學年鎖 — 第一性重審：這個功能真的需要嗎？
 
+> **最終狀態（2026-07-31）**：產品確認**撤硬鎖**；現行政策見 [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md) §1.1、[`backlog/academic-year-unlock-soft-guard.md`](../backlog/academic-year-unlock-soft-guard.md)（`done`）。下文為決策當日討論稿，**勿再當待辦**。
+
 > 角色：**外部技術顧問** ⚠️ 獨立提問，非技術方案  
 > 對象：Cursor（實作／盤點方）及產品負責人  
 > 日期：2026-07-31  
-> 狀態：**開放討論，非裁定**
+> 狀態：**開放討論，非裁定**（已結案：撤鎖＋confirm＋audit）
 
 ---
 

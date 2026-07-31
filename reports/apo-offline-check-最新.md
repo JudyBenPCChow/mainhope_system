@@ -159,7 +159,7 @@ _無_
 - ✓ APO_PATH_LABELS 含 /Schedule — 排程管理
 - ✓ 側欄 nav 含 /Schedule — navStructure 無此 path
 - ✓ APO_VALID_PATHS 含 /AcademicCalendar
-- ✓ APO_PATH_LABELS 含 /AcademicCalendar — 學院校曆
+- ✓ APO_PATH_LABELS 含 /AcademicCalendar — 校曆
 - ✓ 側欄 nav 含 /AcademicCalendar — navStructure 無此 path
 - ✓ APO_VALID_PATHS 含 /TeachingRecords
 - ✓ APO_PATH_LABELS 含 /TeachingRecords — 教學紀錄

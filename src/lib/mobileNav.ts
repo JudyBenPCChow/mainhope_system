@@ -72,7 +72,6 @@ export function resolveMobilePageTitle(pathname: string, role: Role): string {
   return pathname.endsWith("/New") ? "新增班別" : "班別詳情"
  }
  if (pathname.startsWith("/Schedule/")) return "排程詳情"
- if (pathname.startsWith("/Calendar/")) return "待辦詳情"
  if (pathname.startsWith("/Inbox")) return "收件匣"
 
  return "明學管理"

@@ -20,7 +20,7 @@ export function buildNextTuitionReminderText(opts: {
   const classes =
     (opts.classLabels ?? []).map((c) => c.trim()).filter(Boolean).join("、") || null
   const lines = [
-    `您好，明學補習社提醒：請盡快為${name}繳付${period ? `${period}之` : "下期"}學費。`,
+    `您好，明學教育提醒：請盡快為${name}繳付${period ? `${period}之` : "下期"}學費。`,
   ]
   if (classes) lines.push(`班別：${classes}`)
   lines.push("繳費後請向職員確認入帳。如有查詢請回覆本訊息，謝謝。")

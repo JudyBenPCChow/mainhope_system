@@ -41,7 +41,6 @@ const empty: AdminDashboardPayload = {
  revenueBars: [],
  studentStatusSlices: [],
  todayClassCards: [],
- todosToday: [],
  roomVacancy: [],
  todayLeaves: [],
 }

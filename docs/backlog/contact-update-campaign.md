@@ -26,7 +26,7 @@
 
 ## 已完成
 
-- UI 沙盒：[`/prototype/ContactUpdate`](../../src/pages/PrototypeContactUpdate.tsx)（硬編碼假資料，不接 DB／正式頁）
+- UI 沙盒：原 [`/prototype/ContactUpdate`](../../src/pages/PrototypeContactUpdate.tsx) **路由已下線**；原始碼仍留作欄位對齊參考（清碼見 [dead-surface-cleanup](./dead-surface-cleanup.md)）
 - Schema：`student_preferred_contact_method`、`parent_preferred_contact_method`、`student_wechat_id`、`parent_wechat_id`、`primary_contact_person`（migration `20260729233000_students_dual_contact_preference`，已套 production）
 - 學生詳情／新增學生／前台 intake 表單已對齊新欄；已移除「WhatsApp 號碼」編輯欄
 - 聯絡解析：[`whatsappReminder.ts`](../../src/lib/whatsappReminder.ts) `resolvePrimaryMessagingTarget`；列表／提醒按鈕跟第一聯絡人

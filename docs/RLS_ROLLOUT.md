@@ -23,8 +23,8 @@
 - **人事**：`teachers`, `app_users`, `classrooms`
 - **出勤／請假／試堂**：`attendance_details`, `leave_makeup_records`, `trial_sessions`
 - **財務**：`payments`, `payment_details`, `payment_batches`, `payment_discounts`, `payment_discount_applications`, `referral_records`
-- **日曆／待辦**：`calendar_events`, `calendar_event_*`（teachers, students, users, tags, updates）
-- **其他**：`classroom_booking_requests`, `admin_todos`
+- **日曆／通告（行政待辦看板已廢除；表保留供 Portal／RLS）**：`calendar_events`, `calendar_event_*`（teachers, students, users, tags, updates）；歷史列已清空
+- **其他**：`classroom_booking_requests`, `admin_todos`（行政舊待辦表；列已清空，後台無 UI）
 - **系統**：`mgmt_audit_log`, `mgmt_system_errors`
 
 ---
@@ -74,7 +74,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 
 - [x] `supabase/migrations/20260615180000_rls_phase_b_teacher_scope.sql`
 - [x] DB helper：`is_mgmt_staff()`, `is_teacher_role()`, `teacher_can_access_*()`
-- [x] 前端對齊：`ClassDetailView`（老師不可搜尋全校學生加入班別）、`TodoBoardView`／`calendarQueries`（老師僅載入待辦相關學生標籤）
+- [x] 前端對齊：`ClassDetailView`（老師不可搜尋全校學生加入班別）；原 `TodoBoardView`／行政待辦看板 **已廢除**（2026-07-31）
 
 ### 涵蓋範圍
 
@@ -86,7 +86,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 | 出勤 | `attendance_details` | 僅自己班別 |
 | 請假／試堂 | `leave_makeup_records`, `trial_sessions` | 僅自己班別（SELECT） |
 | 約房 | `classroom_booking_requests` | 僅自己提交的申請 |
-| 待辦 | `calendar_events`, `calendar_event_*`, `calendar_event_updates` | 可見待辦＋被指派的跟進 INSERT |
+| 通告／舊待辦表（後台已廢除看板） | `calendar_events`, `calendar_event_*`, `calendar_event_updates` | 老師 RLS 路徑仍在；後台無寫入 UI；Portal 可讀通告 |
 | 參考 | `subjects`, `courses`, `academic_years`, `classrooms`, `teachers` | SELECT（老師可更新自己 `teachers` 列） |
 | 登入 | `app_users` | 僅讀自己列 |
 | 管理 | `payments`, `payment_*`, `mgmt_*`, `admin_todos` 等 | **禁止**（admin／alien only） |
@@ -99,7 +99,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
    ```
 
 2. **以 teacher 帳號走完整流程**
-   - [ ] 我的班別 → 班別詳情 → 排程 → 點名 → 待辦跟進 → 預約空房
+   - [ ] 我的班別 → 班別詳情 → 排程 → 點名 → 收件匣 → 預約空房
    - [ ] 確認無 `permission denied`（若某頁失敗，記錄路徑與操作）
 
 3. **越權測試（可選，用 Supabase SQL 或 REST）**
@@ -114,7 +114,7 @@ Phase A 驗收通过后 → 部署 **Phase B**（見下方）。
 
 ### 決策（Phase B 採用）
 
-- 老師在待辦／點名時僅能看見**自己班**或**待辦指派**的學生
+- 老師在點名時僅能看見**自己班**的學生（舊待辦指派路徑仍在 RLS，後台已無指派 UI）
 - 代堂屬排程級授權：用 schedule-scoped RPC 回傳最小名單，不授予永久整班學生權限
 - 老師可讀取**所有老師**基本資料（下拉選單用）；不可改他人資料
 - 老師**不可**在班別詳情「增加學生」（需 admin）

@@ -1,15 +1,18 @@
 # 生命週期孤兒：明學操作方案
 
-> 狀態：`A1 實作中`（功能已落 code；A2 未做；現況清屬驗收人工）  
+> 狀態：`A1 已落 code` · `A2 計劃定案可開工`（見 a2-kickoff 定案版；尚未寫 A2 code）  
 > 日期：2026-07-31  
 > 分題：[`docs/backlog/lifecycle-orphans.md`](../backlog/lifecycle-orphans.md)  
 > 索引：[`docs/BACKLOG.md`](../BACKLOG.md)  
 > 暫存實作（勿當已上線）：git branch `wip/lifecycle-orphans-impl`；另見 [`patches/`](./patches/README.md)  
 > 外部審閱：[`review.md`](./2026-07-31-lifecycle-orphans-review.md)（#01）· [`review-02.md`](./2026-07-31-lifecycle-orphans-review-02.md)（#02）· [`review-03.md`](./2026-07-31-lifecycle-orphans-review-03.md)（#03）· [`review-04.md`](./2026-07-31-lifecycle-orphans-review-04.md)（#04；第一性）  
 > 實作前對抗模擬：[`adversarial-sim.md`](./2026-07-31-lifecycle-orphans-adversarial-sim.md)（#01）· [`adversarial-sim-02.md`](./2026-07-31-lifecycle-orphans-adversarial-sim-02.md)（#02；A1／A2 切分後）  
-> 第一性檢查：[`first-principles.md`](./2026-07-31-lifecycle-orphans-first-principles.md)
+> 第一性檢查：[`first-principles.md`](./2026-07-31-lifecycle-orphans-first-principles.md)  
+> A2 開工說明（**定案版**，#05／#06）：[`a2-kickoff.md`](./2026-07-31-lifecycle-orphans-a2-kickoff.md)  
+> 審閱 #05／#06：[`review-05`](./2026-07-31-lifecycle-orphans-review-05.md) · [`review-06`](./2026-07-31-lifecycle-orphans-review-06.md)  
+> SELF 對抗：[`a2-adversarial-self`](./2026-07-31-lifecycle-orphans-a2-adversarial-self.md)
 
-本檔＝操作／實作方案（含操作模擬）。**現階段不寫入應用程式功能。** 開工順序：**先 A1，再 A2**（審閱 #04）。
+本檔＝操作／實作方案（含操作模擬）。A1 已落 code；**A2 依 kickoff 定案版實作**（先 A2a 再 A2b）。
 
 ---
 
@@ -42,14 +45,15 @@
 | **O6** | 文件：取消路徑、覆蓋範圍（FP-3）、老師 SOP（FP-6）、勿硬刪已點名排程；**A1 未覆蓋 disposition 旁路**（用補課安排／詳情改類型）；**A1 期間勿開著點名紙未存時清該堂調堂** |
 | **現況清** | 驗收：production 已知孤兒已人工清；runbook 須對照 eligibility，勿只憑「點名紙無名」刪 |
 
-**A2（隨後，可隔週）** — 護欄與擴面；**不擋 A1 上線**：
+**A2（隨後；#05／#06 定案拆批）** — 細節以 [`a2-kickoff.md`](./2026-07-31-lifecycle-orphans-a2-kickoff.md) 為準：
 
-| ID | 內容 |
-| --- | --- |
-| **O1-rollcall** | 點名存檔前重拉名冊，只 upsert 名冊內（ADV-P1-6） |
-| **O1t** | 試堂 lightweight |
-| **O1-type** | `makeup_type`／**尤其 `setLeaveTuitionDisposition`** 離調堂且 schedule 仍在 ≡ 清調堂（ADV-P1-7）。註：詳情／MakeupCell 改離調堂已清 schedule，**A1 已覆蓋**；A2 補 disposition 旁路 |
-| **O2** | admin 單列刪；過渡可用 mgmtRole＋audit 包既有 delete；RPC 就緒後替換 |
+| 批次 | ID | 內容 |
+| --- | --- | --- |
+| **A2a** | **GAP-P0-1** | eligibility：`otherMakeup` 排除目標 schedule 已取消／完成 |
+| **A2a** | **O1-type** | disposition ≠ 調堂且 schedule 仍在 ≡ 清調堂；刪出席**先於** credit；强制清 schedule／對齊 type |
+| **A2a** | **O1-rollcall** | Panel 重拉名冊＋`saveAttendanceStatus` 名冊檢查；只防寫回 |
+| **A2a** | **O1t** | 試堂取消／刪／改期；强制一併刪；無保留路 |
+| **A2b** | **O2** | admin＋alien 單列刪；主入口學生詳情出席區；過渡 mgmtRole＋audit |
 
 ### 審閱 #03 三題直答（對抗模擬評估）
 

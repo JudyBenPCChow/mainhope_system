@@ -150,9 +150,6 @@ export function FrontDeskWizardView() {
      </p>
     </div>
     <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="outline" size="sm" asChild>
-      <Link to="/prototype/FrontDeskWizard">沙盒試用（假資料）</Link>
-     </Button>
      <Button type="button" variant="outline" size="sm" onClick={() => void restart()}>
       重新開始
      </Button>

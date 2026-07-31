@@ -8,7 +8,6 @@ import {
  ClipboardList,
  GraduationCap,
  History,
- ListTodo,
  Plus,
  Printer,
  Umbrella,
@@ -32,7 +31,6 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
-import { todoStatusLabel, TodoTagList } from "@/components/todos/todoUi"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -41,7 +39,6 @@ import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { listCalendarEventsForStudent, type CalendarEventRow } from "@/services/calendarQueries"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
@@ -142,7 +139,6 @@ type TabId =
  | "leave"
  | "futureSchedules"
  | "history"
- | "relatedTodos"
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
  { id: "basic", label: "基本資料", icon: User },
@@ -152,7 +148,6 @@ const TABS: { id: TabId; label: string; icon: typeof User }[] = [
  { id: "leave", label: "請假紀錄", icon: Umbrella },
  { id: "futureSchedules", label: "未來排程", icon: CalendarClock },
  { id: "history", label: "更動紀錄", icon: History },
- { id: "relatedTodos", label: "相關事項", icon: ListTodo },
 ]
 
 function money(n: number) {
@@ -239,8 +234,6 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [hintsLoading, setHintsLoading] = useState(false)
  const hintsRequestIdRef = useRef(0)
  const [history, setHistory] = useState<HistoryRow[]>([])
- const [relatedTodos, setRelatedTodos] = useState<CalendarEventRow[]>([])
- const [relatedTodosLoading, setRelatedTodosLoading] = useState(false)
  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
  const [pickClass, setPickClass] = useState("")
  /** 暑期：期數或單堂；正規：full | 單堂 */
@@ -389,25 +382,6 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  useEffect(() => {
   if (student) setForm(student)
  }, [student])
-
- useEffect(() => {
-  if (tab !== "relatedTodos" || !sid) return
-  let cancelled = false
-  setRelatedTodosLoading(true)
-  void listCalendarEventsForStudent(sid)
-   .then((rows) => {
-    if (!cancelled) setRelatedTodos(rows)
-   })
-   .catch(() => {
-    if (!cancelled) setRelatedTodos([])
-   })
-   .finally(() => {
-    if (!cancelled) setRelatedTodosLoading(false)
-   })
-  return () => {
-   cancelled = true
-  }
- }, [tab, sid])
 
  const saveBasic = useCallback(async (): Promise<boolean> => {
   if (!sid || !student) return false
@@ -2697,92 +2671,6 @@ const exportFutureSchedulesCsv = () => {
           />
          )
         })}
-       </div>
-      )}
-     </div>
-    ) : null}
-
-    {tab === "relatedTodos" ? (
-     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">凡待辦事項勾選「涉及學生」包含此學生者，會顯示於此。</p>
-      {relatedTodosLoading ? (
-       <p className="text-sm text-muted-foreground">載入中…</p>
-      ) : relatedTodos.length === 0 ? (
-       <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
-        此學生暫無關聯待辦。
-       </p>
-      ) : isMobile ? (
-       <div className="space-y-3">
-        {relatedTodos.map((r) => (
-         <article
-          key={r.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })}
-          onKeyDown={(e) => {
-           if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault()
-            navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })
-           }
-          }}
-          className="rounded-xl border border-border bg-card p-4 shadow-sm active:bg-muted/40"
-         >
-          <div className="flex items-start justify-between gap-2">
-           <div className="min-w-0">
-            <p className="text-xs tabular-nums text-muted-foreground">{r.eventDate}</p>
-            <h3 className="font-semibold">{r.title}</h3>
-           </div>
-           <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
-            {todoStatusLabel(r.status)}
-           </Tag>
-          </div>
-          <div className="mt-2">
-           <TodoTagList tags={r.tags} />
-          </div>
-          <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
-           {r.latestUpdatePreview?.trim() || "尚無跟進摘要"}
-          </p>
-         </article>
-        ))}
-       </div>
-      ) : (
-       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[720px] table-fixed text-sm">
-         <thead className="bg-muted/30 text-xs text-muted-foreground">
-          <tr>
-           <th className="w-[100px] px-3 py-2 text-left">日期</th>
-           <th className="w-[180px] px-3 py-2 text-left">標題</th>
-           <th className="w-[140px] px-3 py-2 text-left">標籤</th>
-           <th className="w-[90px] px-3 py-2 text-left">狀態</th>
-           <th className="px-3 py-2 text-left">最新跟進</th>
-          </tr>
-         </thead>
-         <tbody>
-          {relatedTodos.map((r) => (
-           <tr
-            key={r.id}
-            className="cursor-pointer border-t border-border/70 align-top transition-colors hover:bg-muted/30"
-            onClick={() =>
-             navigate(`/Calendar/${r.id}`, { state: { from: `/Students/${sid}` } })
-            }
-           >
-            <td className="px-3 py-2 font-mono text-xs">{r.eventDate}</td>
-            <td className="px-3 py-2 font-medium">{r.title}</td>
-            <td className="px-3 py-2">
-             <TodoTagList tags={r.tags} />
-            </td>
-            <td className="px-3 py-2">
-             <Tag tone={statusToTagTone(todoStatusLabel(r.status))} size="sm">
-              {todoStatusLabel(r.status)}
-             </Tag>
-            </td>
-            <td className="min-w-0 px-3 py-2 text-muted-foreground">
-             <span className="line-clamp-2">{r.latestUpdatePreview?.trim() || "—"}</span>
-            </td>
-           </tr>
-          ))}
-         </tbody>
-        </table>
        </div>
       )}
      </div>

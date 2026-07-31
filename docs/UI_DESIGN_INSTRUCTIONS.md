@@ -113,13 +113,9 @@
 
 ---
 
-## 7. 待辦事項看板（Kanban）UI 規範（2026-04-23 起）
+## 7. 待辦事項看板（已廢除 · 2026-07-31）
 
-- 欄位採卡片容器設計：欄頭置中、狀態名稱使用大寫視覺語氣，右上顯示該欄數量 badge。
-- 任務卡需分層：上方 `tag`（分類/狀態/可見性）、中段主資訊（標題/摘要）、下方日期與指派狀態，避免資訊擠在單行。
-- 任務卡需提供展開/收合互動（例如 chevron），預設顯示摘要，展開後再顯示完整 Notes 與參與對象。
-- 參與對象中，老師與學生名稱需可點擊導向詳細頁；同事可保留純文字。
-- 看板卡片**不提供 file 功能**（不顯示附件區、不含上傳/下載/檔案計數），避免與待辦核心流程耦合。
+行政後台「待辦看板」（原 `/Calendar`／Kanban／學生詳情「相關事項」）**已廢除**：路由、UI、查詢模組已移除；歷史 `calendar_events`／`admin_todos` 列已清空。日常通知請用收件匣 `/Inbox`。家長 Portal 通告若日後重用同表，屬 Portal 範圍，與行政看板無關。
 
 ---
 
@@ -209,3 +205,19 @@
 - **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。
 - **主區底部**：`pb-[calc(5.5rem+safe-area)]`；全高彈層需避開底欄。
 - **z-index（勿打亂）**：DetailLayer `200` → Dialog `260/261` → FilterSheet／NavDrawer `270` → Select／DateInput／DateRange `320`。
+
+---
+
+## 15. 收款單一入口（2026-08-01 起）
+
+前台對帳以**繳費紀錄**（`/PaymentHistory`）為準。任何「收咗錢」必須能喺繳費紀錄搵到同一張單；**禁止**另開收款頁／另造一套收款 Dialog 令錢唔入 `payments`。
+
+| 要 | 唔好 |
+| --- | --- |
+| 錢一律經**收款登記** `/Payments`（`insertPaymentRecord` → 繳費紀錄可見） | 喺試堂／請假／報讀等業務頁內嵌「當場收款」另開元件或新路由 |
+| 業務頁只管業務（例：試堂頁只建／改／取消試堂）；要收錢 → 連去 `/Payments?studentId=…` | 複製一份收款表單喺精靈／其他頁「圖方便」 |
+| 學生詳情「新增繳費」→ navigate 去 `/Payments`（已係正確習慣） | 新做第三套出單 UI |
+
+**已知例外（待收斂，唔好再加）：** 前台精靈 `PaymentStep` 仍內嵌出單（邏輯近似收款頁）。新功能**唔准**再開第四扇門；收斂方向係精靈收錢步改為導向 `/Payments`，或共用同一套收款表單元件（仍只一個入口體驗）。
+
+操作說明見 [`manual/PAYMENT_RECEIPTS.md`](./manual/PAYMENT_RECEIPTS.md)；架構備註見 [`AGENT_HANDOFF.md`](./AGENT_HANDOFF.md) §9。

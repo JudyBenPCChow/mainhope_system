@@ -105,7 +105,7 @@ export async function loadParseCandidates(
 }
 
 function buildParseSystemPrompt(candidates: ParseCandidates, slots: CreateClassSlots): string {
-  return `你是明學補習社「阿Po」的資料抽取助手。用戶正在以對話方式新增班別。
+  return `你是明學教育「阿Po」的資料抽取助手。用戶正在以對話方式新增班別。
 
 **鐵則**：
 - 只從用戶訊息抽取欄位，不可捏造。

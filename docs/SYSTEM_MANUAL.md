@@ -23,8 +23,9 @@
 | 文件 | 讀者／用途 |
 | --- | --- |
 | 本說明書（`SYSTEM_MANUAL` + `manual/*`） | 人讀：功能怎麼用、已上線行為 |
-| [`OPS_POLICIES.md`](OPS_POLICIES.md) | 營運政策索引（院方規條／正確做法；可含尚未系統強制條款） |
-| [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md) | 正規／暑期學年與報讀形式 |
+| [`OPS_POLICIES.md`](OPS_POLICIES.md) | 營運政策索引（校方規條／正確做法；可含尚未系統強制條款） |
+| [`TERMINOLOGY.md`](TERMINOLOGY.md) | 文案與稱呼（**明學教育**；校方／本校／補習社；禁院方、禁明學補習社） |
+| [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md) | 正規／暑期學年與報讀形式；後台寫入不硬鎖歷史學年（非當期會 Confirm＋稽核，見該檔 §1.1） |
 | [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 學費學期節奏與逾期罰款政策 |
 | `AGENTS.md` / `AGENT_HANDOFF.md` | 開發／AI：架構與改碼約定 |
 | `apoHowtoGuides.ts` 等 | 阿Po 口語回覆；應與說明書現況一致 |

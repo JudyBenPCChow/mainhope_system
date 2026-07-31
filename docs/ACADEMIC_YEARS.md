@@ -26,7 +26,28 @@ migration `20260612120000_summer_two_period_enrollment.sql`；cutover 學年種�
 
 **時間順序**（同「年段」內）：正規結束 → 暑期 → 下一正規。例：`2526` &lt; `26SM` &lt; `2627`（見 `academicYearOrderKey`）。
 
-**可編輯門檻（2026-07-31）**：不採學年硬鎖。目前與下一學年可直接寫入；其他學年寫入前會 Confirm Dialog，並寫入稽核（`non_current_academic_year_write`／`non_current_academic_year_write_confirmed`）。服務層 `assertAcademicYearEditable*` 僅記 audit、不再拋錯。詳見 [`backlog/academic-year-unlock-soft-guard.md`](./backlog/academic-year-unlock-soft-guard.md)、`src/lib/academicYearSoftGuard.ts`。自 `26SM`（2026-07-01）起之前的 cutover／硬鎖敘述僅作歷史參考（`ACADEMIC_YEAR_EDITABLE_FROM_YMD`）。
+---
+
+## 1.1 後台寫入與學年防呆（現行政策）
+
+**系統現況（2026-07-31 起）：不採「歷史學年硬鎖／唯讀」。**
+
+| 情況 | 行為 |
+| --- | --- |
+| **目前學年**或**下一學年** | 可直接新增／修改（點名、請假、繳費、排程、班別、檔期、校曆等） |
+| **其他學年**（較早或更遠） | 仍可修改；儲存前會出現 **Confirm Dialog**（顯示學年 label），確認後才寫入，並留下稽核 |
+| **瀏覽舊資料** | 可開可睇；不再顯示「僅供查閱／學年已鎖」黃橫幅，也不再灰掉整頁寫入控件 |
+
+**稽核 action**（`mgmt_audit_log`）：
+
+- `non_current_academic_year_write` — 服務層偵測到非當期寫入（不擋流程）
+- `non_current_academic_year_write_confirmed` — 使用者在 UI 確認後
+
+**程式錨點**：`src/lib/academicYearSoftGuard.ts`；舊閘 `assertAcademicYearEditable*`／`canEditAcademicYear*` 已改為 audit-only／恒可編（見 [`backlog/academic-year-unlock-soft-guard.md`](./backlog/academic-year-unlock-soft-guard.md)）。
+
+**歷史參考**：cutover 常數 `ACADEMIC_YEAR_EDITABLE_FROM_YMD`（`26SM`／2026-07-01）及舊「admin／teacher 硬鎖」敘述**不再是現行規則**；決策過程見 [`audits/2026-07-31-academic-year-lock-rethink.md`](./audits/2026-07-31-academic-year-lock-rethink.md)。
+
+**營運注意**：改舊年資料前請確認學年／日期無誤；Confirm 只係防呆，唔等於禁止。角色權限（admin／teacher／alien）同 RLS 仍照常。
 
 ---
 

@@ -9,10 +9,14 @@
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點日期 | 2026-07-30 |
+| 老師對照 | 2026-07-31 模擬：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
+| 行政模擬 | 2026-07-31：見 §F |
 
 ## 結論
 
 [`AdaptiveLayout`](../../src/components/AdaptiveLayout.tsx) → [`MobileLayout`](../../src/components/mobile/MobileLayout.tsx) 殼可用；學生／班別／試堂／繳費紀錄／老師首頁／點名名冊已有卡片或簡化版。真正痛點是**底欄高頻頁仍靠橫向捲動表格**，以及少數 **z-index／橫幅遮擋**。
+
+老師角色另見 §E：點名／班別手機大致對等，落差在排程日視圖、一對一橫滑、底欄無排程；學生詳情繳費／請假屬權限殘項（見 [role-ops-hardening.md](./role-ops-hardening.md)）。
 
 ## 問題類型
 
@@ -70,12 +74,15 @@
 
 | 頁面 | 嚴重度 | 現況 |
 | --- | --- | --- |
-| 時間表 TeacherTimetable | 高 | **底欄主入口**仍是 `min-w-[720px]` 週格 + 極小字 |
-| 一對一 PrivateTutoring | 高 | 同行政，表格無替代 |
-| 點名／排程 | 中 | 核心可用，篩選／次要控制偏桌面 |
-| 約房 RoomBooking | 中 | 有 `useIsMobile`，部分日表仍 `min-w-[720px]` |
-| 老師首頁／我的班別 | 低 | 適配較好 |
-| 收件匣 | 中 | 無底欄、進 drawer 後仍是表格 |
+| 時間表 TeacherTimetable | 高 | **底欄主入口**仍是 `min-w-[720px]` 週格 + 極小字（`text-[0.65rem]`） |
+| 一對一 PrivateTutoring | 高 | `min-w-[56rem]` 表格無替代；預約在最右欄，375px 須橫滑 |
+| 排程 Schedule | 高 | 老師手機**不能**用日視圖（`allowMobileDayView = isMgmtStaff()`）；強制按日期；列表亦降級 |
+| 點名 Attendance | 低 | 名冊卡片可用；功能對等甚至較適合觸控 |
+| 約房 RoomBooking | 中 | 手機單課室單日；功能保留但找空房切換多 |
+| 老師首頁 | 低 | 近三日卡片；桌面 CTA／KPI `hidden md:*`（刻意） |
+| 我的班別 | 低 | 強制 cards + FilterSheet |
+| 收件匣 | 中 | 無底欄、進 drawer 後仍是 `min-w-[640px]` 表格 |
+| 出席／教學紀錄 | 低 | 卡片／accordion，大致對等 |
 
 ### 外星人（alien）
 
@@ -96,12 +103,41 @@ Inbox、Alien 首頁、TeacherWeekTimetable、LeaveManagement、PrivateTutoring�
 
 ---
 
+## E. 老師桌面／手機對照（2026-07-31 模擬）
+
+來源：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md)。方法：靜態推演，非真機。
+
+| 優先 | 項 | 類型 | 觸點 |
+| --- | --- | --- | --- |
+| P1 | 老師手機排程可視化：開放 `MobileDayViewGrid` 或「今日課室摘要」卡片 | 功能缺口 | `ScheduleManagePage.tsx` `allowMobileDayView` |
+| P2 | 一對一列表手機卡片化（預約／改約放首屏） | 體驗 | `PrivateTutoringView.tsx`、`PrivateTutoringStudentDisclosure.tsx` |
+| P2 | 收件匣手機卡片／簡表 | 體驗 | `InboxView.tsx` |
+| P3 | 底欄或首頁恢復排程捷徑（現底欄無 `/Schedule`；首頁 CTA `hidden md:flex`） | 導覽 | `mobileNav.ts`、`TeacherHomeView.tsx` |
+| P3 | 老師 scope 提示勿只桌面顯示（`hidden md:block`／`!isMobile`） | 文案 | RollCall／AttendanceRecords／TeacherHome |
+| — | 學生詳情繳費／請假對老師可見 | **權限**（裝置無關） | → [role-ops-hardening.md](./role-ops-hardening.md) 殘項 R1 |
+
+---
+
 ## 建議實作波次（尚未開工）
 
 1. **殼層擋操作**：阿Po z-index、更新橫幅 vs 底欄、Dialog `max-h`／safe-area。
 2. **底欄高頻無替代頁**：Inbox（行政／外星人）、TeacherTimetable（老師）、Alien 首頁、SystemIssues。
-3. **行政日常**：Leave、PrivateTutoring、Schedule FilterSheet、MgmtDashboard 簡化。
-4. **共用規範**：表格→卡片慣例、FilterSheet 擴覆蓋、觸控高度對齊 §14。
-5. **次要 CRUD／報表**：Courses、Availability、Enrollment、Reports 等。
+3. **老師對照 P1–P3**（§E）：排程日視圖／摘要 → 一對一／收件匣卡片 → 底欄／首頁捷徑。
+4. **行政日常**：Leave、PrivateTutoring、Schedule FilterSheet、MgmtDashboard 簡化。
+5. **共用規範**：表格→卡片慣例、FilterSheet 擴覆蓋、觸控高度對齊 §14。
+6. **次要 CRUD／報表**：Courses、Availability、Enrollment、Reports 等。
 
-驗收建議：三角色各用真機或 Chrome 375px 走底欄全部 tab + drawer 前 5 個功能，對照「高」項是否改為卡片／按日列表／簡化圖，且無遮擋。
+驗收建議：三角色各用真機或 Chrome 375px 走底欄全部 tab + drawer 前 5 個功能，對照「高」項是否改為卡片／按日列表／簡化圖，且無遮擋。老師另走 audit 報告 W1–W5。
+
+---
+
+## F. 行政邊緣模擬（2026-07-31）
+
+來源：行政桌面能力模擬 20 案（Canvas `admin-edge-case-simulation.canvas.tsx`）。與本主題相關：
+
+| 模擬 ID | 個案 | 判定 | 發現的問題 | 建議落點 |
+| --- | --- | --- | --- | --- |
+| S19 | 接待用手機處理請假＋收件匣作廢跟進 | 半完成 | Inbox／Leave 仍 `min-w` 大表；阿Po／更新橫幅可遮操作；複雜邊緣案不宜只靠手機 | §C 行政 Inbox／Leave；殼層 z-index（§A）；波次 1–2／4 |
+| S01 | 林藝涵型取消補堂（附帶） | 桌面可完成 | 手機請假表難操作，不影響桌面 A1 收尾 | Leave 卡片化優先於複雜 Confirm 流程 |
+
+**接手：** 行政高頻先做 Inbox＋Leave 卡片／簡表；邊緣個案操作指引寫「回桌面」。
