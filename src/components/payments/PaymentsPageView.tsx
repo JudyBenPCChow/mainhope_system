@@ -80,6 +80,11 @@ import {
 } from "@/services/paymentDiscountQueries"
 import { fetchAllClasses } from "@/services/classQueries"
 import {
+ fetchOpenTrialLessonCountHint,
+ linkOpenTrialsToPayment,
+ studentHasOpenTrialForClass,
+} from "@/services/trialQueries"
+import {
  fetchAllStudents,
  fetchEnrollmentsForStudent,
  type EnrollmentWithClass,
@@ -552,6 +557,80 @@ export function PaymentsPageView() {
    setFormErr(null)
    return nextIds
   })
+ }
+
+ const applyTrialLessonHint = async (rowKey: string, classId: string) => {
+  if (!selectedStudent?.id || !classId) return
+  try {
+   const hint = await fetchOpenTrialLessonCountHint({
+    studentId: selectedStudent.id,
+    classId,
+   })
+   if (hint != null && hint > 0) {
+    updateLine(rowKey, { lessons: String(hint) })
+   }
+  } catch {
+   /* 預填失敗不擋收款 */
+  }
+ }
+
+ const warnIfTrialWithoutOpenSession = async (details: PaymentDetailInput[]): Promise<boolean> => {
+  if (!selectedStudent?.id) return true
+  const trialDetails = details.filter((d) => String(d.description ?? "").includes("試堂") && d.classId)
+  for (const d of trialDetails) {
+   const classId = String(d.classId)
+   const has = await studentHasOpenTrialForClass({
+    studentId: selectedStudent.id,
+    classId,
+   })
+   if (!has) {
+    const ok = await confirmDialog({
+     title: "尚未有試堂紀錄",
+     description:
+      "此學生該班暫無開著的試堂紀錄。仍可出單（例如先收訂），但不會自動掛到試堂列表。建議先到試堂紀錄登記。確定繼續出單？",
+     confirmText: "仍要出單",
+     cancelText: "返回",
+     tone: "warning",
+    })
+    if (!ok) return false
+   }
+  }
+  return true
+ }
+
+ const linkTrialsAfterPayment = async (paymentId: string, details: PaymentDetailInput[]) => {
+  if (!selectedStudent?.id) return
+  const trialDetails = details.filter((d) => String(d.description ?? "").includes("試堂"))
+  if (trialDetails.length === 0) return
+  try {
+   const result = await linkOpenTrialsToPayment({
+    paymentId,
+    studentId: selectedStudent.id,
+    details: trialDetails.map((d) => ({
+     classId: d.classId,
+     description: d.description,
+    })),
+   })
+   if (result.linkedTrialIds.length > 0) {
+    pushBanner({
+     tone: "success",
+     title: "已關聯試堂收據",
+     message: `已掛 ${result.linkedTrialIds.length} 筆試堂`,
+    })
+   }
+   if (result.skippedMessages.length > 0) {
+    pushBanner({
+     tone: "warning",
+     title: "部分試堂未自動關聯",
+     message: result.skippedMessages.join("；"),
+    })
+   }
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "PaymentsPageView.linkTrialsAfterPayment",
+    userMessage: "收款成功，但試堂收據關聯失敗，請到試堂列表人手核對",
+   })
+  }
  }
 
  const buildRemarksForSave = (): string | null => {

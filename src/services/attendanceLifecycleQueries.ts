@@ -9,6 +9,7 @@ import {
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
+import { isMgmtStaff } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"

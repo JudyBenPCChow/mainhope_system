@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**A1 已落 code**；**A2 計劃定案可開工**，見 a2-kickoff） |
+| 狀態 | `in_progress`（**A1＋A2a 已落 code**；A2b O2 未做） |
 | 優先 | 高 |
 | 範圍 | 資格撤銷後下游事實列仍留；以 `attendance_details` 為核心，並涵蓋請假調堂、試堂、軟取消排程 |
 | 觸發個案 | 林藝涵：取消 7/24 請假＋7/25 補堂後，點名紙無名但出席紀錄仍有 7/25 兩堂 |
@@ -66,10 +66,10 @@
 | --- | --- | --- | --- | --- | --- |
 | O1 | A1 | **已落** | 取消請假／調堂攔截 | 刪請假或清／改 `makeup_schedule_id` 前查已有出席 → Confirm 一併刪；改調堂日問是否刪舊宿主 | 對齊林藝涵；見模擬 S01 |
 | O6 | A1 | **已落** | 文件 | `LEAVE_MAKEUP_CONSECUTIVE` §6；`ATTENDANCE_BILLING` 反操作 | 隨 O1 |
-| O1-type | A2a | 未做 | disposition 離調堂 | `disposition≠調堂 && schedule≠null`；刪出席先於 credit；强制清 schedule | **P0**；S03；kickoff §3.1 |
-| GAP-P0-1 | A2a | 未做 | otherMakeup×已取消 schedule | eligibility 唔 retain 已取消／完成目標堂 | 隨 type；kickoff §3.1b |
-| O1-rollcall | A2a | 未做 | 點名唔寫回已無名冊 | Panel 重拉名冊＋`saveAttendanceStatus` 名冊檢查 | **P0**；S15 |
-| O1t | A2a | 未做 | 試堂取消／刪／改期 | 强制一併刪；peers；無保留路 | S11 試堂部分 |
+| O1-type | A2a | **已落** | disposition 離調堂 | `disposition≠調堂 && schedule≠null`；刪出席先於 credit；强制清 schedule | **P0**；S03；kickoff §3.1 |
+| GAP-P0-1 | A2a | **已落** | otherMakeup×已取消 schedule | eligibility 唔 retain 已取消／完成目標堂 | 隨 type；kickoff §3.1b |
+| O1-rollcall | A2a | **已落** | 點名唔寫回已無名冊 | Panel 重拉名冊＋`saveAttendanceStatus` 名冊檢查 | **P0**；S15 |
+| O1t | A2a | **已落** | 試堂取消／刪／改期 | 强制一併刪；peers；無保留路 | S11 試堂部分 |
 | O2 | A2b | 未做 | 行政刪單列點名 | 主：學生詳情；admin＋alien；audit | **P0**；S13；可隔週 |
 | O0 | B | 未做 | 可見性 | 標「資格已結束（歷史出席仍計）」 | 模擬 S02／S14 |
 | O3 | B | 未做 | 軟取消排程對齊 | 調堂改回待安排；試堂提示／取消 | 模擬 S12 |
