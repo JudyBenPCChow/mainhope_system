@@ -4,7 +4,7 @@
 
 | 想找… | 去邊 |
 | --- | --- |
-| 手機該點做（規範） | [`UI_DESIGN_INSTRUCTIONS.md`](./UI_DESIGN_INSTRUCTIONS.md) §14 |
+| 手機該點做（規範） | [`UI_DESIGN_INSTRUCTIONS.md`](./UI_DESIGN_INSTRUCTIONS.md) §14；收款單一入口 §15 |
 | 進行中實作步驟 | [`docs/plans/`](./plans/) |
 | 稽核報告（已完成的調查） | [`docs/audits/`](./audits/)（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)） |
 | 行政邊緣模擬（2026-07-31） | Cursor Canvas `admin-edge-case-simulation.canvas.tsx`；發現已回寫各 backlog 分題「行政邊緣模擬」節 |
@@ -32,7 +32,7 @@
 | open | 高 | 流動裝置介面 | 三角色手機版面；老師對照＋行政模擬 S19（Inbox／請假橫滑） | [mobile-ui.md](./backlog/mobile-ui.md)（§E · §F） |
 | open | 高 | 正規逾期罰款／禁止入室 | 政策已有、系統未強制；行政模擬 S10：第 N 堂／$50／入室警示 | [tuition-late-fee-enforcement.md](./backlog/tuition-late-fee-enforcement.md) |
 | open | 中 | 聯絡資料自助更新（一次性活動） | 批量派發專屬連結／QR，家長核對電話與偏好後職員審核寫入；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
-| open | 中 | 試堂紀錄收尾 | 2026-07-31 複查：T1／T3／T5／S11 仍在；T2 欠人手驗；T4 仍暫不做 | [trial-sessions.md](./backlog/trial-sessions.md) |
+| open | 中 | 試堂紀錄收尾 | 對抗後定案：只經 `/Payments` 收款；O1t 清點名；T4／T5 defer · [對抗](./audits/2026-08-01-trial-sessions-wrapup-adversarial.md) | [trial-sessions.md](./backlog/trial-sessions.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | open | 中 | 代堂算薪／出勤報表 | 部分查詢偏 `classes.teacher_id`；模擬 S07 易錯 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) |
