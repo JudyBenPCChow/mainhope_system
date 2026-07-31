@@ -37,7 +37,7 @@
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | open | 中 | 代堂算薪／出勤報表 | 部分查詢偏 `classes.teacher_id`；模擬 S07 易錯 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) |
-| open | 中 | 死碼／路由表面清理 | 沙盒下線＋**待辦看板已廢除**（含歷史資料）；待刪 MonthlyTuition／prototype 殘碼 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
+| open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；餘：月費頁／prototype 殘碼（D1–D2）、可選 entities／Courses 對齊 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md)（D1–D5）· [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 | open | 中 | 管理層角色分流 | 新增 `manager`；與行政分開首頁（營運總覽 vs 管理中心）及側欄；外星人／老師本期不改 | [mgmt-manager-role.md](./backlog/mgmt-manager-role.md) |
 
 ---
