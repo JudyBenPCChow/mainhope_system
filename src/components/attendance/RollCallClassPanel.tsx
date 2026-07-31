@@ -32,6 +32,7 @@ import {
  fetchRosterForRollCall,
  fetchTrialStudentsForSchedules,
  saveAttendanceStatusForStudentScheduleScope,
+ writableStudentIdsFromRosterContext,
  type RollCallStudentRow,
 } from "@/services/attendanceQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
@@ -411,13 +412,6 @@ export function RollCallClassPanel({
    })
    return
   }
-  for (const row of students) {
-   const s = (statusMap.get(row.studentId) ?? "").trim()
-   if (!s) {
-    setSheetErr("請為每位學生選擇出席狀態後，再按「確定」完成點名。")
-    return
-   }
-  }
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
     dateYmd: entry.scheduled_date,
@@ -432,8 +426,23 @@ export function RollCallClassPanel({
    const classId = entry.class_id
    const lessonDate = entry.scheduled_date
    const scheduleIds = entry.scheduleIds
+   // A2 O1-rollcall：存檔前重拉名冊，名冊外不寫
+   const freshRoster = await fetchScheduleRosterContext(scheduleIds)
+   const writableIds = writableStudentIdsFromRosterContext(freshRoster, scheduleIds)
+   const skipped = students.filter((row) => !writableIds.has(row.studentId))
+   const toSave = students.filter((row) => writableIds.has(row.studentId))
+   if (toSave.length === 0) {
+    throw new Error("目前名冊已無學生可點名（可能已取消補堂／試堂），請關閉後重開點名紙")
+   }
+   for (const row of toSave) {
+    const s = (statusMap.get(row.studentId) ?? "").trim()
+    if (!s) {
+     setSheetErr("請為每位仍在名冊的學生選擇出席狀態後，再按「確定」完成點名。")
+     return
+    }
+   }
    let singleSlotMakeupCount = 0
-   for (const row of students) {
+   for (const row of toSave) {
     const st = statusMap.get(row.studentId) ?? ""
     const writeIds =
      row.source === "makeup" &&
@@ -453,7 +462,7 @@ export function RollCallClassPanel({
    }
    void logMgmtAuditAction({
     action: "完成點名",
-    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${students.length}; single_slot_makeup=${singleSlotMakeupCount}`,
+    detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${toSave.length}; skipped=${skipped.length}; single_slot_makeup=${singleSlotMakeupCount}`,
    })
    setSavedMap(new Map(statusMap))
    const sessionLabel = formatConsecutiveSessionLabel(entry.sessionNumbers)
@@ -461,10 +470,14 @@ export function RollCallClassPanel({
     singleSlotMakeupCount > 0
      ? `；其中 ${singleSlotMakeupCount} 位補堂生只計所綁那一節`
      : ""
+   const skipNote =
+    skipped.length > 0
+     ? `；已略過 ${skipped.length} 位已不在名冊的學生（${skipped.map((s) => s.fullName).join("、")}）`
+     : ""
    pushBanner({
     tone: "success",
     title: "點名已儲存",
-    message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${students.length} 位學生${entry.isConsecutive ? "（連堂原班計 2 節）" : ""}${makeupNote}。`,
+    message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${toSave.length} 位學生${entry.isConsecutive ? "（連堂原班計 2 節）" : ""}${makeupNote}${skipNote}。`,
    })
    onConfirmed?.()
   } catch (e) {

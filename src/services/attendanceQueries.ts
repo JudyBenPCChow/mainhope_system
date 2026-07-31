@@ -32,6 +32,7 @@ import {
  fetchScheduleRosterContext,
  leavesForSchedule,
  makeupsForSchedules,
+ rosterStudentsForSchedule,
  type ScheduleRosterContext,
 } from "@/services/scheduleRosterQueries"
 import { isBillableAttendanceStatus, prefillStatusFromLeave } from "@/lib/attendanceBilling"
@@ -644,6 +645,10 @@ export async function saveAttendanceStatus(
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  assertAcademicYearEditableForDate(attendanceDate)
+ // A2 O1-rollcall：有 schedule 時必須仍在名冊，否則拒絕寫回（防並發產孤兒）
+ if (scheduleId) {
+  await assertStudentOnScheduleRoster(studentId, scheduleId)
+ }
  let q = supabase
   .from("attendance_details")
   .select("id")
@@ -678,6 +683,34 @@ export async function saveAttendanceStatus(
   })
   if (error) throw error
  }
+}
+
+/** A2：學生是否仍在該堂點名名冊（報讀∪試堂∪補堂） */
+export async function assertStudentOnScheduleRoster(
+ studentId: string,
+ scheduleId: string
+): Promise<void> {
+ const context = await fetchScheduleRosterContext([scheduleId])
+ const onRoster = rosterStudentsForSchedule(context, scheduleId).some(
+  (row) => row.studentId === studentId
+ )
+ if (!onRoster) {
+  throw new Error("此學生已不在本堂名冊，無法寫入／更新出席（請重新開啟點名紙）")
+ }
+}
+
+/** 多堂 id 上仍可寫入的學生集合（重拉名冊後過濾用） */
+export function writableStudentIdsFromRosterContext(
+ context: ScheduleRosterContext,
+ scheduleIds: string[]
+): Set<string> {
+ const ids = new Set<string>()
+ for (const sid of scheduleIds) {
+  for (const row of rosterStudentsForSchedule(context, sid)) {
+   ids.add(row.studentId)
+  }
+ }
+ return ids
 }
 
 /** 一次點名寫入多個排程（連堂） */

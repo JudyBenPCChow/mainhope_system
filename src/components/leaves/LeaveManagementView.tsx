@@ -33,6 +33,7 @@ import {
  leaveNeedsMakeupDate,
  localYmd,
  previewLeaveMakeupAttendanceImpact,
+ previewLeaveDispositionAttendanceImpact,
  setLeaveTuitionDisposition,
  updateLeaveMakeupRecord,
  type ClassScheduleOption,
@@ -785,10 +786,19 @@ export function LeaveManagementView() {
           value={r.tuition_disposition ?? ""}
           disabled={!leaveRowEditable(r)}
           onChange={async (event) => {
+           const next = event.target.value as LeaveTuitionDisposition
            try {
+            const hits = await previewLeaveDispositionAttendanceImpact(r.id, next)
+            const choice = await resolveLeaveAttendanceChoice(
+             confirmDialog,
+             hits,
+             "更改學費處理會影響補堂出席"
+            )
+            if (choice === "abort") return
             await setLeaveTuitionDisposition(
              r.id,
-             event.target.value as LeaveTuitionDisposition
+             next,
+             attendanceOptionsFromChoice(choice, hits)
             )
             await reload()
            } catch (error) {

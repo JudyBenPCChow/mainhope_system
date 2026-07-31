@@ -274,7 +274,8 @@ export async function previewLeaveMakeupAttendanceImpact(
 async function applyLeaveAttendanceDeletes(
  leaveId: string,
  hits: AttendanceLifecycleHit[],
- options?: LeaveAttendanceChangeOptions
+ options?: LeaveAttendanceChangeOptions,
+ reason = "leave_cancel"
 ): Promise<void> {
  if (hits.length === 0) return
  const action = options?.attendanceAction
@@ -290,7 +291,32 @@ async function applyLeaveAttendanceDeletes(
  if (toDelete.length === 0) {
   throw new Error(formatLeaveOrphanGateError(hits, leaveId))
  }
- await deleteAttendanceHitsWithAuditOrThrow(toDelete, "leave_cancel")
+ await deleteAttendanceHitsWithAuditOrThrow(toDelete, reason)
+}
+
+/** A2 O1-type：disposition≠調堂且仍有 makeup schedule → 掃可刪出席 */
+export async function previewLeaveDispositionAttendanceImpact(
+ id: string,
+ nextDisposition: LeaveTuitionDisposition
+): Promise<AttendanceLifecycleHit[]> {
+ if (!supabase) return []
+ if (nextDisposition === "調堂") return []
+ const { data: existing, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id, student_id, makeup_schedule_id")
+  .eq("id", id)
+  .maybeSingle()
+ if (error) throwPostgrest(error)
+ if (!existing) return []
+ const row = existing as Record<string, unknown>
+ const studentId = row.student_id != null ? String(row.student_id) : ""
+ const prevMakeup = row.makeup_schedule_id != null ? String(row.makeup_schedule_id) : ""
+ if (!studentId || !prevMakeup) return []
+ return scanDeletableAttendanceForMakeupSchedule({
+  studentId,
+  leaveId: id,
+  oldMakeupScheduleId: prevMakeup,
+ })
 }
 
 function mapLeaveAwaitingMakeupRow(r: Record<string, unknown>): LeaveAwaitingMakeupRow {
@@ -467,12 +493,13 @@ export async function updateLeaveMakeupRecord(
 
 export async function setLeaveTuitionDisposition(
  id: string,
- disposition: LeaveTuitionDisposition
+ disposition: LeaveTuitionDisposition,
+ options?: LeaveAttendanceChangeOptions
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: leave, error: leaveErr } = await supabase
   .from("leave_makeup_records")
-  .select("id, student_id, class_id, leave_date")
+  .select("id, student_id, class_id, leave_date, makeup_schedule_id")
   .eq("id", id)
   .maybeSingle()
  if (leaveErr) throwPostgrest(leaveErr)
@@ -508,6 +535,10 @@ export async function setLeaveTuitionDisposition(
  if (existingCredit && String((existingCredit as Record<string, unknown>).status) === "已抵扣") {
   if (disposition !== "轉結餘") throw new Error("此結餘已用於其他帳單，不能更改處理方式")
  }
+
+ // A2：Confirm／刪出席 → 再寫 credit／update（禁止 Confirm 前寫 credit）
+ const orphanHits = await previewLeaveDispositionAttendanceImpact(id, disposition)
+ await applyLeaveAttendanceDeletes(id, orphanHits, options, "leave_disposition")
 
  if (disposition === "轉結餘") {
   const amount = Number((charge as Record<string, unknown>).unit_price ?? 0)
@@ -547,17 +578,28 @@ export async function setLeaveTuitionDisposition(
   if (error) throwPostgrest(error)
  }
 
- const makeupType =
-  disposition === "調堂" ? "調堂" : disposition === "錄影" ? "錄影" : undefined
+ const clearMakeupSchedule = disposition !== "調堂"
+ const makeupType: string | null =
+  disposition === "調堂" ? "調堂" : disposition === "錄影" ? "錄影" : null
  const { error: updateErr } = await supabase
   .from("leave_makeup_records")
   .update({
    tuition_disposition: disposition,
-   ...(makeupType ? { makeup_type: makeupType } : {}),
+   makeup_type: makeupType,
+   ...(clearMakeupSchedule
+    ? { makeup_schedule_id: null, makeup_date: null }
+    : {}),
    updated_at: new Date().toISOString(),
   })
   .eq("id", id)
- if (updateErr) throwPostgrest(updateErr)
+ if (updateErr) {
+  if (orphanHits.length > 0 && options?.attendanceAction === "delete") {
+   throw new Error(
+    `出席已刪、學費處理未改，請重試。原錯誤：${updateErr.message}`
+   )
+  }
+  throwPostgrest(updateErr)
+ }
 }
 
 export async function deleteLeaveMakeupRecord(
