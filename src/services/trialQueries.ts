@@ -15,6 +15,62 @@ import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
+import {
+ deleteAttendanceHitsWithAuditOrThrow,
+ scanDeletableAttendanceForTrialSchedule,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
+
+export type TrialAttendanceChangeOptions = {
+ /** 有可刪出席時必填 delete（試堂無保留路） */
+ attendanceAction?: "delete"
+ deleteAttendanceIds?: string[]
+}
+
+function formatTrialOrphanGateError(hits: AttendanceLifecycleHit[], trialId: string): string {
+ const names = [...new Set(hits.map((h) => h.studentName).filter(Boolean))]
+ const namePart = names.length > 0 ? names.join("、") : "學生"
+ return (
+  `此試堂變更會使 ${hits.length} 筆出席失去資格（${namePart}）。` +
+  `請確認一併刪除出席後再操作。試堂 id=${trialId}`
+ )
+}
+
+async function applyTrialAttendanceDeletes(
+ trialId: string,
+ hits: AttendanceLifecycleHit[],
+ options: TrialAttendanceChangeOptions | undefined,
+ reason: string
+): Promise<void> {
+ if (hits.length === 0) return
+ if (options?.attendanceAction !== "delete") {
+  throw new Error(formatTrialOrphanGateError(hits, trialId))
+ }
+ const allow = new Set((options.deleteAttendanceIds ?? []).filter(Boolean))
+ const toDelete = hits.filter((h) => allow.has(h.id))
+ if (toDelete.length === 0) {
+  throw new Error(formatTrialOrphanGateError(hits, trialId))
+ }
+ await deleteAttendanceHitsWithAuditOrThrow(toDelete, reason)
+}
+
+/** A2 O1t：取消／刪／改期前掃描舊堂＋peers 可刪出席 */
+export async function previewTrialAttendanceImpact(trialId: string): Promise<AttendanceLifecycleHit[]> {
+ if (!supabase) return []
+ const { data: trial, error } = await supabase
+  .from("trial_sessions")
+  .select("id, student_id, schedule_id")
+  .eq("id", trialId)
+  .maybeSingle()
+ if (error) throw error
+ if (!trial) return []
+ const t = trial as { id: string; student_id: string; schedule_id: string }
+ return scanDeletableAttendanceForTrialSchedule({
+  studentId: String(t.student_id),
+  scheduleId: String(t.schedule_id),
+  excludeTrialId: String(t.id),
+ })
+}
 
 /** 以週一為一週起始（與本地日曆一致） */
 export function mondayYmdOfWeekContaining(ymd: string): string {
@@ -158,19 +214,44 @@ export async function fetchTrialDashboardStats(): Promise<TrialDashboardStats> {
  }
 }
 
-export async function updateTrialSession(id: string, patch: { status?: string; remarks?: string | null }): Promise<void> {
+export async function updateTrialSession(
+ id: string,
+ patch: { status?: string; remarks?: string | null },
+ options?: TrialAttendanceChangeOptions
+): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const nextStatus = patch.status != null ? String(patch.status) : ""
+ const cancelling = nextStatus.includes("取消")
+ if (cancelling) {
+  const hits = await previewTrialAttendanceImpact(id)
+  await applyTrialAttendanceDeletes(id, hits, options, "trial_cancel")
+ }
  const { error } = await supabase
   .from("trial_sessions")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
- if (error) throw error
+ if (error) {
+  if (cancelling && options?.attendanceAction === "delete") {
+   throw new Error(`出席已刪、試堂未改為取消，請重試。原錯誤：${error.message}`)
+  }
+  throw error
+ }
 }
 
-export async function deleteTrialSession(id: string): Promise<void> {
+export async function deleteTrialSession(
+ id: string,
+ options?: TrialAttendanceChangeOptions
+): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const hits = await previewTrialAttendanceImpact(id)
+ await applyTrialAttendanceDeletes(id, hits, options, "trial_delete")
  const { error } = await supabase.from("trial_sessions").delete().eq("id", id)
- if (error) throw error
+ if (error) {
+  if (hits.length > 0 && options?.attendanceAction === "delete") {
+   throw new Error(`出席已刪、試堂列未刪，請重試。原錯誤：${error.message}`)
+  }
+  throw error
+ }
 }
 
 function isTrialStatusOpen(status: string | null | undefined): boolean {
@@ -727,7 +808,7 @@ export async function convertTrialToEnrollment(params: {
 export async function rescheduleTrialSession(params: {
  trialId: string
  newScheduleId: string
-}): Promise<void> {
+} & TrialAttendanceChangeOptions): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: trial, error: trialErr } = await supabase
   .from("trial_sessions")
@@ -777,6 +858,13 @@ export async function rescheduleTrialSession(params: {
  })
  if (openClash) throw new Error("該生在此排程已有未結案試堂")
 
+ const hits = await scanDeletableAttendanceForTrialSchedule({
+  studentId: t.student_id,
+  scheduleId: t.schedule_id,
+  excludeTrialId: t.id,
+ })
+ await applyTrialAttendanceDeletes(t.id, hits, params, "trial_reschedule")
+
  const { error: upErr } = await supabase
   .from("trial_sessions")
   .update({
@@ -785,5 +873,10 @@ export async function rescheduleTrialSession(params: {
    updated_at: new Date().toISOString(),
   })
   .eq("id", t.id)
- if (upErr) throw upErr
+ if (upErr) {
+  if (hits.length > 0 && params.attendanceAction === "delete") {
+   throw new Error(`出席已刪、試堂未改期，請重試。原錯誤：${upErr.message}`)
+  }
+  throw upErr
+ }
 }

@@ -40,6 +40,7 @@ import {
  fetchTrialsWithRelations,
  insertPaidTrialSession,
  insertTrialSession,
+ previewTrialAttendanceImpact,
  recordTrialOutcome,
  rescheduleTrialSession,
  trialCanConvert,
@@ -54,6 +55,11 @@ import {
  type TrialDashboardStats,
  type TrialManageRow,
 } from "@/services/trialQueries"
+import {
+ formatAttendanceHitsDescription,
+ hitsHaveBillable,
+ type AttendanceLifecycleHit,
+} from "@/services/attendanceLifecycleQueries"
 
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
