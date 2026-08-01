@@ -1,7 +1,8 @@
 # 同班偶發代課（代堂）— 營運與開發指引
 
-介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute`）、`src/lib/scheduleSubstitute.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。  
-營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
+介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute` / `isClearScheduleSubstituteBlocked`）、`src/lib/scheduleSubstitute.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。  
+營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。  
+**前線守則（前台／行政執行）：** [`manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md`](manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md)。
 
 班別／排程／功能愈多時，**最容易犯錯的是把「班別主責老師」與「當日實際上堂老師」混為一談**。本檔記錄正確做法與已知行政風險，避免同類問題重演。
 
@@ -89,10 +90,14 @@ flowchart LR
 
 | 風險 | 說明 | 應對 |
 | --- | --- | --- |
-| 老師堂數／出勤歸屬偏主責 | 部分查詢（如老師詳情出勤）偏 `classes.teacher_id`，代課堂可能算在主責名下、代課老師偏少 | 算薪／「誰上了幾堂」必須以 **`schedules.teacher_id`** 為準 |
-| 事後取消代堂改寫歷史 | 點名列**沒有凍結當日老師**；清掉代堂後，報表讀取會像變成原老師上的 | **已點名的代堂勿隨便取消**；要改老師用「更改代堂」 |
-| 「我的班別」不含代課班 | 代課老師不會在班別列表擁有該班，只透過當日排程進入 | 預期行為；勿因此把主責改給代課老師 |
-| 撞堂僅警告 | 指派代堂時雙重預約未必硬擋 | 行政人手核對時間表 |
+| 老師堂數／出勤歸屬偏主責 | 部分查詢曾偏 `classes.teacher_id` | 算薪／「誰上了幾堂」必須以 **`schedules.teacher_id`** 為準；老師詳情出勤已改（2026-08） |
+| 事後取消代堂改寫歷史 | 點名列**沒有凍結當日老師** | **已點名禁止取消代堂**（`clearScheduleSubstitute`＋UI）；要改用「更改代堂」 |
+| 「我的班別」不含代課班 | 代課老師不會在班別列表擁有該班，只透過當日排程進入 | 預期行為；額外提醒暫緩 |
+| 撞堂僅警告 | 指派代堂時雙重預約未必硬擋 | 警告後行政可確認繼續 |
+| 連堂 | 代堂以連堂組一併處理 | **只可整組代堂**（產品定案） |
+| 空白排程老師 | 殘留 `teacher_id` null | 排程管理／詳情對行政以上警告 |
+| 換主責 vs 開新班 | 同班換常任應用換主責，勿停舊開新 | 見前線守則；同步未來堂／一對一只改未來待加強 |
+| 結算後改代堂／主責 | 多程序錯誤 | 異常處理；引擎不自動重算 |
 | 提醒點名 | 催促對象是當日老師 | 預期行為 |
 
 ---

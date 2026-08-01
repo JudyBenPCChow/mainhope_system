@@ -12,19 +12,29 @@ import {
   gradeAmount,
   gradeBillableHc,
   gradeLessonCount,
+  isPresentStatus,
   lessonAbsentCount,
   lessonPresentCount,
+  mpfBandSteps,
   statusLabel,
+  studentHcStatusLabel,
   teacherAbsentTotal,
   teacherBillableHc,
   teacherCategoryTotals,
   teacherGradeKindRows,
   teacherPresentTotal,
+  type CalcVersionMeta,
   type PayrollClassBlock,
   type PayrollLesson,
   type PayrollRunStatus,
   type PayrollTeacherRow,
 } from "./mockData"
+
+export type LessonVerifyTarget = {
+  lesson: PayrollLesson
+  className: string
+  teacherName: string
+}
 
 export function statusTag(status: PayrollRunStatus) {
   const label = statusLabel(status)
@@ -32,6 +42,47 @@ export function statusTag(status: PayrollRunStatus) {
   if (status === "待管理層核實") return <Tag tone={statusToTagTone("待審核")}>{label}</Tag>
   if (status === "財務審閱中") return <Tag tone={statusToTagTone("審閱")}>{label}</Tag>
   return <Tag tone={statusToTagTone("草稿")}>{label}</Tag>
+}
+
+export function VersionBar({
+  calc,
+  onViewDiff,
+}: {
+  calc?: CalcVersionMeta
+  onViewDiff?: () => void
+}) {
+  if (!calc) return null
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <span>
+        資料截至 <span className="font-medium text-foreground">{calc.dataCutoffAt}</span>
+      </span>
+      <span aria-hidden>·</span>
+      <span>
+        計算版本{" "}
+        <span className="font-medium text-foreground">#{calc.version}</span>（
+        {calc.computedAt}）
+      </span>
+      {calc.previousVersion != null ? (
+        <>
+          <span aria-hidden>·</span>
+          <span>
+            前版 #{calc.previousVersion}
+            {calc.previousComputedAt ? `（${calc.previousComputedAt}）` : ""}
+          </span>
+          {onViewDiff ? (
+            <button
+              type="button"
+              className="font-medium text-foreground underline-offset-2 hover:underline"
+              onClick={onViewDiff}
+            >
+              查看差異
+            </button>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  )
 }
 
 export function SummaryTile({
@@ -59,26 +110,32 @@ export function SummaryTile({
   )
 }
 
-function NameList({ label, names, empty }: { label: string; names: string[]; empty: string }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-0.5 break-words text-sm text-foreground">
-        {names.length > 0 ? names.join("、") : empty}
-      </p>
-    </div>
-  )
-}
-
 function LessonCard({
   lesson,
+  className,
+  teacherName,
   highlight,
+  onVerify,
+  onRemindRollcall,
 }: {
   lesson: PayrollLesson
+  className: string
+  teacherName: string
   highlight?: boolean
+  onVerify?: (target: LessonVerifyTarget) => void
+  onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
   const present = lessonPresentCount(lesson)
   const absent = lessonAbsentCount(lesson)
+  const rows = lesson.studentRows ?? []
+  const presentRows = rows.filter((r) => isPresentStatus(r.status))
+  const absentBillable = rows.filter((r) => r.status === "no_show")
+  const absentNonBillable = rows.filter(
+    (r) => r.status === "sick" || r.status === "personal"
+  )
+  const roster = lesson.rosterCount ?? rows.length
+  const target: LessonVerifyTarget = { lesson, className, teacherName }
+
   return (
     <div
       id={`lesson-${lesson.id}`}
@@ -101,7 +158,10 @@ function LessonCard({
             </Tag>
           ) : (
             <>
-              <span className="tabular-nums text-foreground">扣堂 {lesson.billableHc} 人</span>
+              <span className="tabular-nums text-foreground">
+                計薪 {lesson.billableHc}
+                {roster > 0 ? `／名冊 ${roster}` : ""} 人
+              </span>
               <span className="tabular-nums text-muted-foreground">出席 {present}</span>
               <span className="tabular-nums text-muted-foreground">缺席 {absent}</span>
               <span className="font-semibold tabular-nums text-foreground">
@@ -121,31 +181,139 @@ function LessonCard({
           ) : null}
         </div>
       </div>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="text-xs font-medium text-foreground underline-offset-2 hover:underline"
+          onClick={() => onVerify?.(target)}
+        >
+          查證排程／點名表
+        </button>
+        {lesson.notRolled && onRemindRollcall ? (
+          <button
+            type="button"
+            className="text-xs font-medium text-warning underline-offset-2 hover:underline"
+            onClick={() => onRemindRollcall(target)}
+          >
+            發送點名提醒
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        {lesson.classTypeSnapshot ? <p>班型：{lesson.classTypeSnapshot}</p> : null}
+        {lesson.subject ? <p>科目：{lesson.subject}</p> : null}
+        {lesson.listPrice != null ? (
+          <p>
+            原價基數：{formatHkd(lesson.listPrice)}
+            {lesson.listPriceAsOf ? `（${lesson.listPriceAsOf}）` : ""}
+            {roster > lesson.billableHc
+              ? ` · 已剔除不扣堂缺席 ${roster - lesson.billableHc} 人`
+              : ""}
+          </p>
+        ) : null}
+        {lesson.poolDisposition && lesson.poolDisposition !== "n/a" ? (
+          <p>
+            分成池：
+            {lesson.poolDisposition === "in_pool" ? "納入" : "排除"}
+            {lesson.poolDispositionReason ? ` — ${lesson.poolDispositionReason}` : ""}
+          </p>
+        ) : lesson.poolDispositionReason ? (
+          <p>{lesson.poolDispositionReason}</p>
+        ) : null}
+        {lesson.eventTimeline ? <p>本節事件：{lesson.eventTimeline}</p> : null}
+      </div>
+
       {lesson.formula ? (
         <p className="mt-1 text-xs font-medium text-foreground">計法：{lesson.formula}</p>
       ) : null}
-      {lesson.listPrice != null ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">原價基數 {formatHkd(lesson.listPrice)}</p>
+      {lesson.rateSource ? (
+        <p className="mt-0.5 text-xs text-muted-foreground">費率來源：{lesson.rateSource}</p>
       ) : null}
       {lesson.note ? <p className="mt-1 text-xs text-muted-foreground">{lesson.note}</p> : null}
+
       {lesson.notRolled ? (
-        <p className="mt-2 text-sm text-muted-foreground">尚無點名紀錄，未計入薪酬</p>
-      ) : (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <NameList label="出席學生" names={lesson.presentStudents} empty="—" />
-          <NameList label="缺席學生" names={lesson.absentStudents} empty="—" />
+        <p className="mt-2 text-sm text-muted-foreground">
+          尚無點名紀錄，未計入薪酬。可發送點名提醒予授課老師。
+        </p>
+      ) : rows.length > 0 ? (
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          <div className="overflow-x-auto rounded-md border border-border/70">
+            <p className="border-b border-border bg-muted/40 px-2 py-1.5 text-xs font-medium">
+              出席（現場／Zoom／錄影）· 計入
+            </p>
+            <ul className="max-h-40 space-y-1 overflow-y-auto px-2 py-2 text-xs">
+              {presentRows.length === 0 ? (
+                <li className="text-muted-foreground">—</li>
+              ) : (
+                presentRows.map((r) => (
+                  <li key={`p-${r.name}`} className="flex justify-between gap-2">
+                    <span>{r.name}</span>
+                    <Tag tone="info" size="sm">
+                      {studentHcStatusLabel(r.status)}
+                    </Tag>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+          <div className="space-y-2">
+            <div className="overflow-x-auto rounded-md border border-border/70">
+              <p className="border-b border-border bg-muted/40 px-2 py-1.5 text-xs font-medium">
+                缺席 · 照扣堂（no show）
+              </p>
+              <ul className="px-2 py-2 text-xs">
+                {absentBillable.length === 0 ? (
+                  <li className="text-muted-foreground">—</li>
+                ) : (
+                  absentBillable.map((r) => (
+                    <li key={`ab-${r.name}`} className="flex justify-between gap-2">
+                      <span>{r.name}</span>
+                      <span className="text-foreground">✓ 計入 HC</span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+            <div className="overflow-x-auto rounded-md border border-warning/30">
+              <p className="border-b border-border bg-warning/10 px-2 py-1.5 text-xs font-medium">
+                缺席 · 不扣堂（病假／事假）
+              </p>
+              <ul className="px-2 py-2 text-xs">
+                {absentNonBillable.length === 0 ? (
+                  <li className="text-muted-foreground">—</li>
+                ) : (
+                  absentNonBillable.map((r) => (
+                    <li key={`an-${r.name}`} className="flex justify-between gap-2">
+                      <span>{r.name}</span>
+                      <span className="text-muted-foreground">
+                        {studentHcStatusLabel(r.status)} · 不計費
+                      </span>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
 
 function ClassDetail({
   block,
+  teacherName,
   highlightLessonId,
+  onVerify,
+  onRemindRollcall,
 }: {
   block: PayrollClassBlock
+  teacherName: string
   highlightLessonId?: string | null
+  onVerify?: (target: LessonVerifyTarget) => void
+  onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
   return (
     <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -164,7 +332,15 @@ function ClassDetail({
       </div>
       <div className="mt-3 space-y-2">
         {block.lessons.map((l) => (
-          <LessonCard key={l.id} lesson={l} highlight={l.id === highlightLessonId} />
+          <LessonCard
+            key={l.id}
+            lesson={l}
+            className={block.name}
+            teacherName={teacherName}
+            highlight={l.id === highlightLessonId}
+            onVerify={onVerify}
+            onRemindRollcall={onRemindRollcall}
+          />
         ))}
       </div>
     </section>
@@ -175,7 +351,10 @@ export function SplitAuditPanel({ teacher }: { teacher: PayrollTeacherRow }) {
   if (!teacher.personalSplit && !teacher.commissionPool) return null
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
-      <h3 className="text-sm font-semibold">分成核對（原價基數）</h3>
+      <h3 className="text-sm font-semibold">分成核對（原價基數 · 歷史價）</h3>
+      <p className="text-xs text-muted-foreground">
+        原價取自各節課堂當日 course price 快照，非今日價。
+      </p>
       {teacher.personalSplit ? (
         <div className="text-sm">
           <p className="font-medium">個人授課</p>
@@ -192,29 +371,60 @@ export function SplitAuditPanel({ teacher }: { teacher: PayrollTeacherRow }) {
         <div className="space-y-2 text-sm">
           <p className="font-medium">{teacher.commissionPool.label}</p>
           <p className="text-muted-foreground">
-            原價合計 {formatHkd(teacher.commissionPool.listPriceTotal)} ×{" "}
+            納入原價合計 {formatHkd(teacher.commissionPool.listPriceTotal)} ×{" "}
             {Math.round(teacher.commissionPool.rate * 100)}% ={" "}
             <span className="font-semibold text-foreground">
               {formatHkd(teacher.commissionPool.amount)}
             </span>
           </p>
           <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[28rem] text-sm">
+            <table className="w-full min-w-[32rem] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
                   <th className="px-2 py-2">授課教師</th>
-                  <th className="px-2 py-2">班／說明</th>
+                  <th className="px-2 py-2">班／科目</th>
                   <th className="px-2 py-2">日期</th>
                   <th className="px-2 py-2">原價</th>
+                  <th className="px-2 py-2">池</th>
                 </tr>
               </thead>
               <tbody>
                 {teacher.commissionPool.items.map((it, i) => (
-                  <tr key={`${it.teacherName}-${it.date}-${i}`} className="border-b border-border last:border-0">
+                  <tr
+                    key={`${it.teacherName}-${it.date}-${i}`}
+                    className={cn(
+                      "border-b border-border last:border-0",
+                      !it.included ? "bg-muted/30 text-muted-foreground" : null
+                    )}
+                  >
                     <td className="px-2 py-2">{it.teacherName}</td>
-                    <td className="px-2 py-2 text-muted-foreground">{it.className}</td>
+                    <td className="px-2 py-2">
+                      {it.className}
+                      {it.subject ? (
+                        <span className="block text-xs">科目：{it.subject}</span>
+                      ) : null}
+                      {it.reason ? (
+                        <span className="block text-xs text-warning">{it.reason}</span>
+                      ) : null}
+                      {it.listPriceAsOf ? (
+                        <span className="block text-xs">{it.listPriceAsOf}</span>
+                      ) : null}
+                    </td>
                     <td className="px-2 py-2 tabular-nums">{it.date}</td>
-                    <td className="px-2 py-2 tabular-nums font-medium">{formatHkd(it.listPrice)}</td>
+                    <td className="px-2 py-2 tabular-nums font-medium">
+                      {formatHkd(it.listPrice)}
+                    </td>
+                    <td className="px-2 py-2">
+                      {it.included ? (
+                        <Tag tone="success" size="sm">
+                          納入
+                        </Tag>
+                      ) : (
+                        <Tag tone="warning" size="sm">
+                          排除
+                        </Tag>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -226,15 +436,65 @@ export function SplitAuditPanel({ teacher }: { teacher: PayrollTeacherRow }) {
   )
 }
 
+export function ModeStreamsPanel({ teacher }: { teacher: PayrollTeacherRow }) {
+  if (!teacher.modeStreams?.length) return null
+  return (
+    <div className="space-y-2 rounded-xl border border-info/35 bg-info/5 px-3 py-3 sm:px-4">
+      <h3 className="text-sm font-semibold">跨模式拆分</h3>
+      <ul className="space-y-2 text-sm">
+        {teacher.modeStreams.map((s) => (
+          <li
+            key={s.id}
+            className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+          >
+            <div>
+              <p className="font-medium">
+                {s.label}{" "}
+                <Tag tone="default" size="sm">
+                  {s.mode}
+                </Tag>
+              </p>
+              <p className="text-xs text-muted-foreground">{s.detail}</p>
+            </div>
+            <p className="font-semibold tabular-nums">{formatHkd(s.amount)}</p>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        合計 {formatHkd(teacher.modeStreams.reduce((n, s) => n + s.amount, 0))}（應對齊總薪酬）
+      </p>
+    </div>
+  )
+}
+
+export function SalaryEvidencePanel({ teacher }: { teacher: PayrollTeacherRow }) {
+  if (!teacher.salaryEvidence) return null
+  const e = teacher.salaryEvidence
+  return (
+    <div className="rounded-xl border border-border bg-card px-3 py-3 text-sm sm:px-4">
+      <h3 className="text-sm font-semibold">固定月薪適用證據</h3>
+      <p className="mt-1 text-muted-foreground">
+        {formatHkd(e.amount)} · 自 {e.effectiveFrom} 起
+        {e.effectiveTo ? ` 至 ${e.effectiveTo}` : "（無結束日）"}
+      </p>
+      <p className="mt-1 text-muted-foreground">本月狀態：{e.monthStatus}</p>
+      <p className="mt-1 font-medium">→ 本月薪酬：{formatHkd(e.amount)}</p>
+    </div>
+  )
+}
+
 export function TeacherLessonStats({
   teacher,
   compact,
   highlightLessonId,
+  onVerify,
+  onRemindRollcall,
 }: {
   teacher: PayrollTeacherRow
-  /** manager 預設較短：只顯示兩張合計表，不展開逐堂 */
   compact?: boolean
   highlightLessonId?: string | null
+  onVerify?: (target: LessonVerifyTarget) => void
+  onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
   const cats = teacherCategoryTotals(teacher)
   const gradeKindRows = teacherGradeKindRows(teacher)
@@ -242,7 +502,7 @@ export function TeacherLessonStats({
   if (teacher.grades.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-        此同事本月無授課排程統計（固定月薪／在家工作時薪等）。薪酬見下方明細。
+        此同事本月無授課排程統計（固定月薪／在家工作時薪／無堂 $0 等）。薪酬見下方明細。
       </p>
     )
   }
@@ -349,7 +609,10 @@ export function TeacherLessonStats({
                 <ClassDetail
                   key={`${g.gradeLabel}-${c.id}-${c.classKind}`}
                   block={c}
+                  teacherName={teacher.name}
                   highlightLessonId={highlightLessonId}
+                  onVerify={onVerify}
+                  onRemindRollcall={onRemindRollcall}
                 />
               ))}
             </div>
@@ -360,6 +623,14 @@ export function TeacherLessonStats({
 }
 
 export function TeacherPayFooter({ teacher }: { teacher: PayrollTeacherRow }) {
+  const mpf = ["Mark Yu", "Christine Fan", "Sophie Yu", "Katie Lee"].includes(teacher.name)
+    ? mpfBandSteps(teacher.gross)
+    : null
+  const momDetail =
+    teacher.previousGross != null && teacher.gross != null
+      ? teacher.gross - teacher.previousGross
+      : null
+
   return (
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-foreground">薪酬結算</h3>
@@ -408,9 +679,23 @@ export function TeacherPayFooter({ teacher }: { teacher: PayrollTeacherRow }) {
           <p className="font-semibold tabular-nums">{formatHkd(teacher.net)}</p>
         </div>
       </div>
+      {mpf ? (
+        <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">強積金步驟（適用四人）</p>
+          <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+            <li>適用薪酬：{mpf.applicable}</li>
+            <li>band：{mpf.band}</li>
+            <li>僱員供款：{mpf.employee}</li>
+            <li>僱主供款：{mpf.employer}</li>
+          </ol>
+        </div>
+      ) : null}
       {teacher.previousGross != null ? (
         <p className="text-xs text-muted-foreground">
           上月總薪酬對照：{formatHkd(teacher.previousGross)}
+          {momDetail != null
+            ? `（差額 ${momDetail >= 0 ? "+" : ""}${formatHkd(momDetail).replace("$", "$")}；波動請對照逐堂課量）`
+            : ""}
         </p>
       ) : null}
     </div>

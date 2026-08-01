@@ -724,6 +724,30 @@ export async function assignScheduleSubstitute(
  return { affectedIds: targetIds, conflicts }
 }
 
+const CLEAR_SUBSTITUTE_BLOCKED_MSG =
+ "此堂（或連堂組）已有點名紀錄，不可取消代堂。請改用「更改代堂」修正當日老師。"
+
+async function schedulesHaveAttendanceRows(scheduleIds: string[]): Promise<boolean> {
+ if (!supabase || scheduleIds.length === 0) return false
+ const flags = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("attendance_details")
+   .select("id")
+   .in("schedule_id", slice)
+   .limit(1)
+  if (error) throw error
+  return (data ?? []).length > 0
+ })
+ return flags.some(Boolean)
+}
+
+/** 已點名（含連堂組任一節）則不可取消代堂；供 UI 預先禁用按鈕 */
+export async function isClearScheduleSubstituteBlocked(scheduleId: string): Promise<boolean> {
+ if (!supabase) return false
+ const targetIds = await resolveSubstituteTargetIds(scheduleId)
+ return schedulesHaveAttendanceRows(targetIds)
+}
+
 /** 取消代堂：還原 teacher_id 為 original_teacher_id，並清空代堂標記（連堂整組） */
 export async function clearScheduleSubstitute(
  scheduleId: string
@@ -731,6 +755,10 @@ export async function clearScheduleSubstitute(
  if (!supabase) throw new Error("Supabase 未設定")
 
  const targetIds = await resolveSubstituteTargetIds(scheduleId)
+ if (await schedulesHaveAttendanceRows(targetIds)) {
+  throw new Error(CLEAR_SUBSTITUTE_BLOCKED_MSG)
+ }
+
  const { data: rows, error: fetchErr } = await supabase
   .from("schedules")
   .select("id, teacher_id, original_teacher_id, class_id, scheduled_date")

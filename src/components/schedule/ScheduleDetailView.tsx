@@ -149,6 +149,14 @@ export function ScheduleDetailView() {
         <span>無綁定班別（約房／其他）</span>
        )}
       </div>
+      {canManageSchedules && !row.teacher_id && !row.status.includes("取消") ? (
+       <div
+        role="status"
+        className="mt-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+       >
+        此排程未指定當日老師。老師時間表／點名紙可能看不到此堂；請先補班別主責或指派／指定該堂老師。
+       </div>
+      ) : null}
       <div className="mt-5 flex flex-wrap gap-3 text-sm md:text-base">
        <Tag tone={statusToTagTone(row.status)}>
         {row.status}
@@ -179,6 +187,8 @@ export function ScheduleDetailView() {
         >
          老師：{row.teacher_name ?? "—"}
         </Link>
+       ) : canManageSchedules ? (
+        <Tag tone="warning">未指定老師</Tag>
        ) : null}
        <Tag tone="default">
         <span className="inline-flex items-center gap-1">

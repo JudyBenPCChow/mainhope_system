@@ -1524,6 +1524,10 @@ useEffect(() => {
    effectiveRoomId(s, activeRoomIdSet) === null
  ).length
 
+ const blankTeacherCount = rows.filter(
+  (s) => !s.teacher_id && !s.status.includes("取消")
+ ).length
+
  return (
   <div className="space-y-5 text-sm leading-relaxed">
    <header className="flex flex-wrap items-start justify-between gap-3">
@@ -1543,6 +1547,16 @@ useEffect(() => {
    {teacherScopeId ? (
    <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
      你正以<strong>{teacherScopeName}</strong>身分瀏覽：僅顯示指派給您的排程與統計。
+    </div>
+   ) : null}
+
+   {canManageSchedules && blankTeacherCount > 0 ? (
+    <div
+     role="status"
+     className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+    >
+     目前載入範圍有 <strong className="tabular-nums">{blankTeacherCount}</strong>{" "}
+     堂排程未指定當日老師。老師時間表／點名紙可能看不到這些堂；請先補班別主責或為該堂指定老師。篩選老師選「未指派」可列出。
     </div>
    ) : null}
 
@@ -2022,9 +2036,14 @@ useEffect(() => {
                <span className="tabular-nums">
                 {s.start_time ?? "—"}–{s.end_time ?? "—"}
                </span>
-               <span className="inline-flex items-center gap-1">
+               <span
+                className={cn(
+                 "inline-flex items-center gap-1",
+                 canManageSchedules && !s.teacher_id && "font-medium text-warning"
+                )}
+               >
                 <User className="h-4 w-4 shrink-0" aria-hidden />
-                {s.teacher_name ?? "—"}
+                {s.teacher_name ?? (canManageSchedules && !s.teacher_id ? "未指定老師" : "—")}
                </span>
                <span className="inline-flex items-center gap-1">
                 <DoorOpen className="h-4 w-4 shrink-0" aria-hidden />
@@ -2297,7 +2316,14 @@ useEffect(() => {
             {s.start_time ?? "—"}–{s.end_time ?? "—"}
            </td>
            <td className="min-w-0 align-top px-4 py-3">
-            <span className="block break-words">{s.teacher_name ?? "—"}</span>
+            <span
+             className={cn(
+              "block break-words",
+              canManageSchedules && !s.teacher_id && "font-medium text-warning"
+             )}
+            >
+             {s.teacher_name ?? (canManageSchedules && !s.teacher_id ? "未指定老師" : "—")}
+            </span>
             {(() => {
              const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
              return subTag ? (
@@ -2505,7 +2531,21 @@ useEffect(() => {
         {detailRow.class_subject}{" "}
         <span className="font-mono text-muted-foreground">{detailRow.course_code_full ?? ""}</span>
        </p>
-       <p className="text-muted-foreground">老師：{detailRow.teacher_name ?? "—"}</p>
+       <p
+        className={cn(
+         "text-muted-foreground",
+         canManageSchedules && !detailRow.teacher_id && "font-medium text-warning"
+        )}
+       >
+        老師：
+        {detailRow.teacher_name ??
+         (canManageSchedules && !detailRow.teacher_id ? "未指定老師" : "—")}
+       </p>
+       {canManageSchedules && !detailRow.teacher_id && !detailRow.status.includes("取消") ? (
+        <p className="text-xs text-warning">
+         未指定當日老師時，老師時間表／點名紙可能看不到此堂。
+        </p>
+       ) : null}
        {(() => {
         const subTag = formatScheduleSubstituteTag(
          {

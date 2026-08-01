@@ -1,6 +1,7 @@
 import { getMgmtRole, isSuperAdmin } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 
 export type TeacherRecord = {
@@ -361,40 +362,51 @@ export type TeacherAttendanceRow = {
  courseCode: string | null
 }
 
+/** 老師詳情出勤：以 schedules.teacher_id（當日實際）歸屬，勿用 classes.teacher_id（主責） */
 export async function fetchTeacherAttendance(
  teacherId: string
 ): Promise<TeacherAttendanceRow[]> {
  if (!supabase) return []
- const { data: classes } = await supabase.from("classes").select("id").eq("teacher_id", teacherId)
- const classIds = (classes ?? []).map((c) => String((c as { id: string }).id))
- if (classIds.length === 0) return []
- const { data, error } = await supabase
-  .from("attendance_details")
-  .select(
-   "id, attendance_date, status, remarks, classes ( subject, course_code_full, courses ( course_name ) ), students ( full_name, grade )"
-  )
-  .in("class_id", classIds)
-  .order("attendance_date", { ascending: false })
- if (error) throw error
- return (data ?? []).map((row) => {
-  const r = row as Record<string, unknown>
-  const cls = r.classes as Record<string, unknown> | null
-  const st = r.students as Record<string, unknown> | null
-  const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const course = cls?.courses as Record<string, unknown> | null
-  const courseName = course?.course_name != null ? String(course.course_name) : null
-  const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
-  return {
-   id: String(r.id),
-   date: String(r.attendance_date ?? ""),
-   status: String(r.status ?? ""),
-   remarks: r.remarks != null ? String(r.remarks) : null,
-   studentName: st?.full_name != null ? String(st.full_name) : "—",
-   studentGrade: st?.grade != null ? String(st.grade) : null,
-   subject: formatClassLabel({ subject: sub, courseCode, courseName }),
-   courseCode,
-  }
+ const { data: sched, error: schedErr } = await supabase
+  .from("schedules")
+  .select("id")
+  .eq("teacher_id", teacherId)
+ if (schedErr) throw schedErr
+ const scheduleIds = (sched ?? []).map((r) => String((r as { id: string }).id))
+ if (scheduleIds.length === 0) return []
+
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("attendance_details")
+   .select(
+    "id, attendance_date, status, remarks, classes ( subject, course_code_full, courses ( course_name ) ), students ( full_name, grade )"
+   )
+   .in("schedule_id", slice)
+  if (error) throw error
+  return (data ?? []) as Record<string, unknown>[]
  })
+
+ return chunks
+  .flat()
+  .map((r) => {
+   const cls = r.classes as Record<string, unknown> | null
+   const st = r.students as Record<string, unknown> | null
+   const sub = cls?.subject != null ? String(cls.subject) : "—"
+   const course = cls?.courses as Record<string, unknown> | null
+   const courseName = course?.course_name != null ? String(course.course_name) : null
+   const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+   return {
+    id: String(r.id),
+    date: String(r.attendance_date ?? ""),
+    status: String(r.status ?? ""),
+    remarks: r.remarks != null ? String(r.remarks) : null,
+    studentName: st?.full_name != null ? String(st.full_name) : "—",
+    studentGrade: st?.grade != null ? String(st.grade) : null,
+    subject: formatClassLabel({ subject: sub, courseCode, courseName }),
+    courseCode,
+   }
+  })
+  .sort((a, b) => b.date.localeCompare(a.date))
 }
 
 export { localYmd, addDaysYmd }

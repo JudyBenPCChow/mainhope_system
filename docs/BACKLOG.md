@@ -40,7 +40,7 @@
 | open | 中 | 聯絡資料自助更新（一次性活動） | **執行窗：2026-08 下旬**（與 9 月招生／收費同步）；專屬連結／QR → 家長核對 → 職員審核；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
-| open | 中 | 代堂算薪／出勤報表 | 部分查詢偏 `classes.teacher_id`；模擬 S07 易錯 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) |
+| in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) · [前線](./manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
 | open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 | open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./backlog/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
 | open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./backlog/ops-docs-viewer.md) |

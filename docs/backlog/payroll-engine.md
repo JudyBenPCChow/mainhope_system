@@ -73,7 +73,7 @@
 1. 未回覆項目不得以工程預設取代。
 2. 功課班未定案前，功課班計算暫不開工。
 3. 更新完整計算範例（原始「本人指定科目 60%+10%」理解已作廢）。
-4. 逐節授課以 `schedules.teacher_id` 為準，見 [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md)。
+4. 逐節授課以 `schedules.teacher_id` 為準（層 A 前置；老師詳情出勤／禁點名後取消代堂已落一部分，見 [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md)）。
 
 ## 相關文件
 

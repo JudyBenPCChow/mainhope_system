@@ -10,6 +10,7 @@ import { fetchTeacherOptions, type TeacherOption } from "@/services/classQueries
 import {
  assignScheduleSubstitute,
  clearScheduleSubstitute,
+ isClearScheduleSubstituteBlocked,
  type TeacherScheduleConflict,
 } from "@/services/scheduleQueries"
 
@@ -49,6 +50,8 @@ export function AssignSubstituteDialog({
  const [clearing, setClearing] = useState(false)
  const [err, setErr] = useState<string | null>(null)
  const [conflicts, setConflicts] = useState<TeacherScheduleConflict[]>([])
+ const [clearBlocked, setClearBlocked] = useState(false)
+ const [checkingClear, setCheckingClear] = useState(false)
 
  const isSubstituted = Boolean(schedule?.original_teacher_id)
  const label = schedule?.classLabel ?? schedule?.class_subject ?? "排程"
@@ -66,6 +69,29 @@ export function AssignSubstituteDialog({
    .catch((e) => reportUserFacingError(e, { source: "AssignSubstituteDialog.teachers", setErr }))
    .finally(() => setLoadingTeachers(false))
  }, [open, schedule, isSubstituted])
+
+ useEffect(() => {
+  if (!open || !schedule?.id || !isSubstituted) {
+   setClearBlocked(false)
+   setCheckingClear(false)
+   return
+  }
+  let cancelled = false
+  setCheckingClear(true)
+  void isClearScheduleSubstituteBlocked(schedule.id)
+   .then((blocked) => {
+    if (!cancelled) setClearBlocked(blocked)
+   })
+   .catch(() => {
+    if (!cancelled) setClearBlocked(false)
+   })
+   .finally(() => {
+    if (!cancelled) setCheckingClear(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [open, schedule?.id, isSubstituted])
 
  const excludeTeacherIds = useMemo(() => {
   const ids = new Set<string>()
@@ -117,7 +143,7 @@ export function AssignSubstituteDialog({
  }
 
  const submitClear = async () => {
-  if (!schedule) return
+  if (!schedule || clearBlocked) return
   setClearing(true)
   setErr(null)
   try {
@@ -136,6 +162,12 @@ export function AssignSubstituteDialog({
   }
  }
 
+ const dialogTitle = !isSubstituted
+  ? "指派代堂老師"
+  : clearBlocked
+   ? "更改代堂"
+   : "更改／取消代堂"
+
  return (
   <Dialog
    open={open}
@@ -145,9 +177,7 @@ export function AssignSubstituteDialog({
   >
    <DialogContent className="max-w-md text-sm">
     <DialogHeader>
-     <DialogTitle className="text-lg font-semibold">
-      {isSubstituted ? "更改／取消代堂" : "指派代堂老師"}
-     </DialogTitle>
+     <DialogTitle className="text-lg font-semibold">{dialogTitle}</DialogTitle>
     </DialogHeader>
     {schedule ? (
      <div className="space-y-4">
@@ -160,7 +190,7 @@ export function AssignSubstituteDialog({
          : ""}
        </p>
        {isConsecutive ? (
-        <p className="mt-1 text-xs text-warning">連堂將一併指派／取消代堂。</p>
+        <p className="mt-1 text-xs text-warning">連堂將一併指派／更改代堂。</p>
        ) : null}
        {currentTag ? (
         <p className="mt-2 text-sm text-warning">{currentTag}</p>
@@ -170,6 +200,15 @@ export function AssignSubstituteDialog({
         </p>
        )}
       </div>
+
+      {clearBlocked ? (
+       <div
+        role="status"
+        className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+       >
+        此堂（或連堂組）已有點名紀錄，不可取消代堂。若當日老師有誤，請改用下方「更改代堂老師」。
+       </div>
+      ) : null}
 
       {err ? (
        <div
@@ -215,11 +254,11 @@ export function AssignSubstituteDialog({
        <Button type="button" variant="outline" disabled={saving || clearing} onClick={onClose}>
         關閉
        </Button>
-       {isSubstituted ? (
+       {isSubstituted && !clearBlocked ? (
         <Button
          type="button"
          variant="outline"
-         disabled={saving || clearing}
+         disabled={saving || clearing || checkingClear}
          onClick={() => void submitClear()}
         >
          {clearing ? "取消中…" : "取消代堂"}
