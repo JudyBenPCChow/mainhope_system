@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { DoorOpen, Plus, Search, TriangleAlert, UserRound } from "lucide-react"
+import { CalendarClock, DoorOpen, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus, UserRound } from "lucide-react"
 
 import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
 } from "@/components/privateTutoring/PrivateTutoringStudentDisclosure"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -16,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
@@ -53,6 +55,7 @@ import {
  fetchPrivateClassSchedules,
  fetchPrivateScheduleTeacherNullAudit,
  fetchPrivateTutoringStudents,
+ formatNextLessonLabel,
  insertPrivateBookingSchedules,
  previewPrivateRecurringBookings,
  privateBookingTimeBounds,
@@ -106,6 +109,7 @@ function isCancelledStatus(status: string): boolean {
 export function PrivateTutoringView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const isMobile = useIsMobile()
  const [searchParams, setSearchParams] = useSearchParams()
  const teacherTid = getTeacherScopeTeacherId()
  const isTeacherPortal = Boolean(teacherTid)
@@ -127,6 +131,7 @@ export function PrivateTutoringView() {
  const [activityFilter, setActivityFilter] = useState<(typeof ACTIVITY_FILTERS)[number]["key"]>("all")
  const [enrollRowFilter, setEnrollRowFilter] =
   useState<(typeof ENROLLMENT_ROW_FILTERS)[number]["key"]>("all")
+ const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [roomDate, setRoomDate] = useState(() => localYmd())
  const [roomSlotIdx, setRoomSlotIdx] = useState(0)
@@ -594,6 +599,14 @@ export function PrivateTutoringView() {
   () => filteredClassGroups.flat(),
   [filteredClassGroups]
  )
+
+ const activeFilterCount = useMemo(() => {
+  let n = 0
+  if (enrollRowFilter !== "all") n++
+  if (regFilter !== "all") n++
+  if (activityFilter !== "all") n++
+  return n
+ }, [enrollRowFilter, regFilter, activityFilter])
 
  const activeStudentIdsByClass = useMemo(() => {
   const map = new Map<string, string[]>()
@@ -1118,56 +1131,151 @@ export function PrivateTutoringView() {
 
    {tab === "students" && (
     <div className="space-y-4">
-     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-      <div className="relative min-w-[12rem] flex-1">
-       <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-       <Input
-        className="h-10 pl-10 text-sm"
-        placeholder="搜尋姓名、學號、科目、老師…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-       />
+     {isMobile ? (
+      <>
+       <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+         <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+         <Input
+          className="h-10 pl-10 text-sm"
+          placeholder="搜尋姓名、學號、科目…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+         />
+        </div>
+        <Button type="button" variant="outline" className="h-10 shrink-0 gap-2" onClick={() => setFiltersOpen(true)}>
+         <SlidersHorizontal className="h-4 w-4" aria-hidden />
+         篩選
+         {activeFilterCount > 0 ? (
+          <Tag tone="info" size="sm">
+           {activeFilterCount}
+          </Tag>
+         ) : null}
+        </Button>
+       </div>
+       <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="篩選一對一"
+        activeCount={activeFilterCount}
+        onReset={() => {
+         setSearch("")
+         setEnrollRowFilter("all")
+         setRegFilter("all")
+         setActivityFilter("all")
+        }}
+       >
+        <label className="grid gap-1 text-sm">
+         <span className="text-muted-foreground">搜尋</span>
+         <Input
+          className="h-10"
+          placeholder="姓名、學號、科目、老師…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+         />
+        </label>
+        <label className="grid gap-1 text-sm">
+         <span className="text-muted-foreground">報讀狀態</span>
+         <Select
+          className="h-10 text-sm"
+          value={enrollRowFilter}
+          onChange={(e) =>
+           setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
+          }
+         >
+          {ENROLLMENT_ROW_FILTERS.map((f) => (
+           <option key={f.key} value={f.key}>
+            {f.label}
+           </option>
+          ))}
+         </Select>
+        </label>
+        <label className="grid gap-1 text-sm">
+         <span className="text-muted-foreground">註冊</span>
+         <Select
+          className="h-10 text-sm"
+          value={regFilter}
+          onChange={(e) =>
+           setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
+          }
+         >
+          {REGISTRATION_FILTERS.map((f) => (
+           <option key={f.key} value={f.key}>
+            {f.label}
+           </option>
+          ))}
+         </Select>
+        </label>
+        <label className="grid gap-1 text-sm">
+         <span className="text-muted-foreground">活躍</span>
+         <Select
+          className="h-10 text-sm"
+          value={activityFilter}
+          onChange={(e) =>
+           setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
+          }
+         >
+          {ACTIVITY_FILTERS.map((f) => (
+           <option key={f.key} value={f.key}>
+            {f.label}
+           </option>
+          ))}
+         </Select>
+        </label>
+       </MobileFilterSheet>
+      </>
+     ) : (
+      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+       <div className="relative min-w-[12rem] flex-1">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+         className="h-10 pl-10 text-sm"
+         placeholder="搜尋姓名、學號、科目、老師…"
+         value={search}
+         onChange={(e) => setSearch(e.target.value)}
+        />
+       </div>
+       <Select
+        className="h-10 text-sm"
+        value={enrollRowFilter}
+        onChange={(e) =>
+         setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
+        }
+       >
+        {ENROLLMENT_ROW_FILTERS.map((f) => (
+         <option key={f.key} value={f.key}>
+          {f.label}
+         </option>
+        ))}
+       </Select>
+       <Select
+        className="h-10 text-sm"
+        value={regFilter}
+        onChange={(e) =>
+         setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
+        }
+       >
+        {REGISTRATION_FILTERS.map((f) => (
+         <option key={f.key} value={f.key}>
+          {f.label}
+         </option>
+        ))}
+       </Select>
+       <Select
+        className="h-10 text-sm"
+        value={activityFilter}
+        onChange={(e) =>
+         setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
+        }
+       >
+        {ACTIVITY_FILTERS.map((f) => (
+         <option key={f.key} value={f.key}>
+          {f.label}
+         </option>
+        ))}
+       </Select>
       </div>
-      <Select
-       className="h-10 text-sm"
-       value={enrollRowFilter}
-       onChange={(e) =>
-        setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
-       }
-      >
-       {ENROLLMENT_ROW_FILTERS.map((f) => (
-        <option key={f.key} value={f.key}>
-         {f.label}
-        </option>
-       ))}
-      </Select>
-      <Select
-       className="h-10 text-sm"
-       value={regFilter}
-       onChange={(e) =>
-        setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
-       }
-      >
-       {REGISTRATION_FILTERS.map((f) => (
-        <option key={f.key} value={f.key}>
-         {f.label}
-        </option>
-       ))}
-      </Select>
-      <Select
-       className="h-10 text-sm"
-       value={activityFilter}
-       onChange={(e) =>
-        setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
-       }
-      >
-       {ACTIVITY_FILTERS.map((f) => (
-        <option key={f.key} value={f.key}>
-         {f.label}
-        </option>
-       ))}
-      </Select>
-     </div>
+     )}
 
      {err && (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -1193,6 +1301,109 @@ export function PrivateTutoringView() {
         </Link>{" "}
         開啟學生詳情的「管理小組報讀」。
        </p>
+      </div>
+     ) : isMobile ? (
+      <div className="space-y-3">
+       {filteredClassGroups.map((group) => {
+        const primary =
+         group.find((r) => r.enrollmentRowStatus !== "已退讀") ?? group[0]
+        if (!primary) return null
+        const activeRows = group.filter((r) => r.enrollmentRowStatus !== "已退讀")
+        const allWithdrawn = activeRows.length === 0
+        const highlighted = group.some((r) => r.studentId === highlightStudentId)
+        return (
+         <article
+          key={primary.classId}
+          className={cn(
+           "rounded-xl border border-border bg-card p-4 shadow-sm",
+           highlighted && "ring-2 ring-info/40"
+          )}
+         >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+           <div className="min-w-0 space-y-0.5">
+            {group.map((r) => (
+             <Link
+              key={r.enrollmentId}
+              to={`/Students/${r.studentId}`}
+              className="block font-semibold text-primary hover:underline"
+             >
+              {r.fullName}
+             </Link>
+            ))}
+           </div>
+           {allWithdrawn ? (
+            <Tag tone="default" size="sm">
+             已退讀
+            </Tag>
+           ) : group.some((r) => r.enrollmentRowStatus === "已退讀") ? (
+            <Tag tone="default" size="sm">
+             部分退讀
+            </Tag>
+           ) : (
+            <Tag tone={statusToTagTone(primary.enrollmentRowStatus)} size="sm">
+             {primary.enrollmentRowStatus}
+            </Tag>
+           )}
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+           <p className="text-muted-foreground">私人班別</p>
+           <p className="truncate text-right">
+            <Link
+             to={`/Classes/${primary.classId}`}
+             state={{ fromPrivateTutoring: true }}
+             className="text-primary hover:underline"
+            >
+             {primary.classSubject}
+            </Link>
+           </p>
+           {!isTeacherPortal ? (
+            <>
+             <p className="text-muted-foreground">老師</p>
+             <p className="truncate text-right">{primary.teacherName ?? "—"}</p>
+            </>
+           ) : null}
+           <p className="text-muted-foreground">下一堂</p>
+           <p className="truncate text-right tabular-nums">
+            {formatNextLessonLabel(primary.nextLesson)}
+            {primary.upcomingLessonCount > 1 ? (
+             <span className="ml-1 text-xs text-muted-foreground">
+              +{primary.upcomingLessonCount - 1}
+             </span>
+            ) : null}
+           </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+           {!allWithdrawn ? (
+            <Button
+             type="button"
+             size="sm"
+             variant="outline"
+             className="gap-1.5"
+             onClick={() => void openBookDialog(primary)}
+            >
+             <CalendarClock className="h-4 w-4" aria-hidden />
+             預約
+            </Button>
+           ) : null}
+           {canManageEnrollment
+            ? activeRows.map((r) => (
+               <Button
+                key={r.enrollmentId}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-destructive"
+                onClick={() => void onWithdraw(r)}
+               >
+                <UserMinus className="h-4 w-4" aria-hidden />
+                {group.length > 1 ? `退讀：${r.fullName}` : "退讀"}
+               </Button>
+              ))
+            : null}
+          </div>
+         </article>
+        )
+       })}
       </div>
      ) : (
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">

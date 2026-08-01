@@ -14,21 +14,23 @@
 | 角色 | 定位 | `/Home` |
 | --- | --- | --- |
 | `admin`（行政） | 日常：前台、報讀、收款、點名、請假 | 現有 `AdminDashboard`（管理中心） |
-| `manager`（管理層） | 少做日常；看收入／營運分析／算堂相關 | 重用 `MgmtDashboardView`（營運總覽） |
+| `manager`（管理層） | 工作節奏異於行政；入口偏決策／營運監督（非第二個行政台） | 重用 `MgmtDashboardView`（營運總覽） |
 | `teacher`／`alien` | **本期不改矩陣** | 維持現狀 |
 
 雙角色沿用 `app_user_roles`／`switch_my_mgmt_role`。
+
+> **體感 vs 權限（後續定案，見 backlog）**：「少做日常」指首頁／側欄資訊架構與用戶體感，**不是**收窄讀權限。資料層 **manager ≥ admin 可讀**；側欄隱藏日常入口 ≠ RLS 禁止讀取。寫入／破壞性仍可窄過 admin。權威說明：[mgmt-manager-role.md](../backlog/mgmt-manager-role.md)「體感 vs 權限」。
 
 ---
 
 ## 0.1 三條硬規則（定案，不可協商）
 
 1. **首頁固定**：`manager` 的 `/Home` 一律為營運總覽（`MgmtDashboardView`）。
-2. **日常入口不顯示**：側欄／深連結不含前台精靈、明日提醒、進行點名、話術庫、家長報讀申請、試堂、宣傳配對、課室、老師請假處理、約房審批、收款登記。
+2. **日常入口不主推**：側欄／預設深連結不含前台精靈、明日提醒、進行點名、話術庫、家長報讀申請、試堂、宣傳配對、課室、老師請假處理、約房審批、收款登記（體感分流，非讀權限否定）。
 3. **敏感主控仍限 admin|alien**：UI＋service assert 用 **必須存在的** `isAdminOrAlien()`：
    - 收款登記／作廢寫入
    - 點名列刪除／強制改寫出席
-   - **優惠折扣**維護（manager **無**入口；維持僅 admin＋alien）
+   - **優惠折扣**維護（manager **無**維護入口；維持僅 admin＋alien）
    - 用戶角色授予／系統設定（仍僅 alien）
    - 本人雙角色切換仍走 `switch_my_mgmt_role`
 

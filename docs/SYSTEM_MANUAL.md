@@ -26,7 +26,8 @@
 | [`OPS_POLICIES.md`](OPS_POLICIES.md) | 營運政策索引（校方規條／正確做法；可含尚未系統強制條款） |
 | [`TERMINOLOGY.md`](TERMINOLOGY.md) | 文案與稱呼（**明學教育**；校方／本校／補習社；禁院方、禁明學補習社） |
 | [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md) | 正規／暑期學年與報讀形式；後台寫入不硬鎖歷史學年（非當期會 Confirm＋稽核，見該檔 §1.1） |
-| [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 學費學期節奏與逾期罰款政策 |
+| [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 學費學期節奏與逾期罰款政策（工程／政策錨點） |
+| [`manual/TUITION_LATE_FEE_FRONTLINE.md`](manual/TUITION_LATE_FEE_FRONTLINE.md) | 前線：逾期學費罰款營運規則與解說（完整可單獨閱讀） |
 | `AGENTS.md` / `AGENT_HANDOFF.md` | 開發／AI：架構與改碼約定 |
 | `apoHowtoGuides.ts` 等 | 阿Po 口語回覆；應與說明書現況一致 |
 | `UI_DESIGN_INSTRUCTIONS.md` 等 | 設計／實作規範，非操作手冊 |

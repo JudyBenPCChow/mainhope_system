@@ -134,7 +134,7 @@ export function AppUpdateGuard() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-[100] border-t border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80"
+      className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[100] border-t border-border bg-background/95 p-4 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80 md:bottom-0"
       role="alertdialog"
       aria-labelledby="app-update-title"
       aria-describedby="app-update-desc"

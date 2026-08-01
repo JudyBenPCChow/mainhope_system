@@ -19,6 +19,7 @@ import {
  downloadMgmtDashboardCsv,
  exportMgmtDashboardCsv,
  fetchMgmtDashboard,
+ fetchMgmtDashboardSummary,
 } from "@/services/mgmtDashboardQueries"
 import { fetchAllTeachers } from "@/services/teacherQueries"
 
@@ -49,18 +50,28 @@ export function MgmtDashboardView() {
  const [filters, setFilters] = useState<MgmtDashboardFilters>(defaultMgmtDashboardFilters)
  const [data, setData] = useState<MgmtDashboardPayload>(emptyPayload)
  const [loading, setLoading] = useState(true)
+ const [detailsLoading, setDetailsLoading] = useState(false)
  const [err, setErr] = useState<string | null>(null)
  const [teacherOptions, setTeacherOptions] = useState<{ value: string; label: string }[]>([])
  const [subjectOptions, setSubjectOptions] = useState<{ value: string; label: string }[]>([])
  const [classOptions, setClassOptions] = useState<{ value: string; label: string }[]>([])
  const [focus, setFocus] = useState<DrilldownFocus>(null)
  const detailRef = useRef<HTMLDivElement | null>(null)
+ const loadGenRef = useRef(0)
 
  const load = useCallback(async () => {
+  const gen = ++loadGenRef.current
   setLoading(true)
+  setDetailsLoading(true)
   setErr(null)
   try {
+   const summary = await fetchMgmtDashboardSummary(filters)
+   if (gen !== loadGenRef.current) return
+   setData(summary)
+   setLoading(false)
+
    const payload = await fetchMgmtDashboard(filters)
+   if (gen !== loadGenRef.current) return
    setData(payload)
    setClassOptions(
     payload.distribution.classFill.map((c) => ({
@@ -69,10 +80,14 @@ export function MgmtDashboardView() {
     }))
    )
   } catch (e) {
+   if (gen !== loadGenRef.current) return
    reportUserFacingError(e, { source: "MgmtDashboardView.load", setErr })
    setData(emptyPayload)
   } finally {
-   setLoading(false)
+   if (gen === loadGenRef.current) {
+    setLoading(false)
+    setDetailsLoading(false)
+   }
   }
  }, [filters])
 
@@ -132,7 +147,6 @@ export function MgmtDashboardView() {
 
  const selectFocus = (next: DrilldownFocus) => {
   setFocus(next)
-  // 稍後滾動到明細區，讓 drill-down 有體感
   requestAnimationFrame(() => {
    detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
   })
@@ -151,7 +165,6 @@ export function MgmtDashboardView() {
     </p>
    </header>
 
-   {/* A. 頂部控制列 */}
    <MgmtDashboardFilterBar
     filters={filters}
     onChange={setFilters}
@@ -160,7 +173,7 @@ export function MgmtDashboardView() {
     classOptions={classOptions}
     onExport={onExport}
     onRefresh={() => void load()}
-    loading={loading}
+    loading={loading || detailsLoading}
     asOf={data.asOf || null}
    />
 
@@ -180,7 +193,6 @@ export function MgmtDashboardView() {
     </div>
    ) : (
     <>
-     {/* B. 總覽 KPI */}
      <section className="space-y-3">
       <div>
        <h2 className="text-lg font-semibold tracking-tight">總覽 KPI</h2>
@@ -206,18 +218,22 @@ export function MgmtDashboardView() {
       )}
      </section>
 
-     {/* C. 核心分析 */}
+     {detailsLoading ? (
+      <p className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+       正在載入分析圖表與跟進清單…
+      </p>
+     ) : null}
+
      <MgmtAnalysisSection
       data={data}
-      loading={loading}
+      loading={detailsLoading}
       focus={focus}
       onFocus={selectFocus}
      />
 
-     {/* D. 營運警示 */}
      <MgmtOpsAlertsSection alerts={data.opsAlerts} focus={focus} onFocus={selectFocus} />
 
-     {/* E. 明細表格 */}
      <div ref={detailRef}>
       <MgmtDetailTablesSection data={data} focus={focus} />
      </div>

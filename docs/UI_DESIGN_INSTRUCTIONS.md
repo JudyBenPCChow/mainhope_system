@@ -204,7 +204,7 @@
 - **觸控高度**：表單觸發優先 `h-10`／`min-h-10`（對齊共用 `Select`）；**勿**為桌面對齊把 Select 壓成 `h-9`。
 - **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。
 - **主區底部**：`pb-[calc(5.5rem+safe-area)]`；全高彈層需避開底欄。
-- **z-index（勿打亂）**：DetailLayer `200` → Dialog `260/261` → FilterSheet／NavDrawer `270` → Select／DateInput／DateRange `320`。
+- **z-index（勿打亂）**：明學IT狗（阿Po）FAB `90` → 更新橫幅 `100` → DetailLayer／點名紙 `200` → FilterSheet／NavDrawer `250` → Dialog `260/261` → Confirm `270/271` → Select／DateInput／DateRange `320`。
 
 ---
 

@@ -1,11 +1,12 @@
 # 學生詳情老師加固 — 實作計劃（R1／R2／§6）
 
 > 日期：2026-08-01  
-> 狀態：**已落 code**  
+> 狀態：**已落 code**（含對抗 P1 修補）  
 > 報告：[2026-08-01-student-detail-teacher-exposure.md](../audits/2026-08-01-student-detail-teacher-exposure.md)  
 > 審閱：[2026-08-01-student-detail-teacher-review.md](../audits/2026-08-01-student-detail-teacher-review.md)  
 > 審閱回應（含回覆）：[2026-08-01-student-detail-teacher-review-response.md](../audits/2026-08-01-student-detail-teacher-review-response.md)  
-> Backlog：[role-ops-hardening.md](../backlog/role-ops-hardening.md) R1／R2  
+> 對抗模擬：[2026-08-01-student-detail-teacher-adversarial.md](../audits/2026-08-01-student-detail-teacher-adversarial.md)  
+> Backlog：[role-ops-hardening.md](../backlog/role-ops-hardening.md)（`done`）  
 
 ---
 

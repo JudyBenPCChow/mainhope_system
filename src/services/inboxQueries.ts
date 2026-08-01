@@ -133,6 +133,22 @@ async function fetchReadSourceKeys(actorKey: string): Promise<Set<string>> {
  return new Set((data ?? []).map((r) => String((r as { source_key: string }).source_key)))
 }
 
+/** 側欄未讀變更：標記已讀／發佈後廣播，令 Layout 強制刷新（唔靠每次轉頁） */
+export const INBOX_UNREAD_CHANGED_EVENT = "mgmt-inbox-unread-changed"
+
+const UNREAD_CACHE_TTL_MS = 45_000
+let unreadCountCache: { actorKey: string; count: number; at: number } | null = null
+
+export function invalidateInboxUnreadCountCache(): void {
+ unreadCountCache = null
+}
+
+export function notifyInboxUnreadChanged(): void {
+ invalidateInboxUnreadCountCache()
+ if (typeof window === "undefined") return
+ window.dispatchEvent(new Event(INBOX_UNREAD_CHANGED_EVENT))
+}
+
 export async function markInboxItemRead(sourceKey: string, eventId?: string | null): Promise<void> {
  if (!supabase || !sourceKey) return
  const actorKey = getInboxActorKey()
@@ -146,6 +162,7 @@ export async function markInboxItemRead(sourceKey: string, eventId?: string | nu
   { onConflict: "actor_key,source_key" }
  )
  if (error) throw error
+ notifyInboxUnreadChanged()
 }
 
 export async function markAllInboxItemsRead(items: InboxItem[]): Promise<void> {
@@ -161,6 +178,7 @@ export async function markAllInboxItemsRead(items: InboxItem[]): Promise<void> {
  }))
  const { error } = await supabase.from("inbox_reads").upsert(rows, { onConflict: "actor_key,source_key" })
  if (error) throw error
+ notifyInboxUnreadChanged()
 }
 
 function mapStoredEvent(r: Record<string, unknown>, readKeys: Set<string>): InboxItem {
@@ -449,11 +467,23 @@ export async function fetchInboxFeed(opts?: {
  return out
 }
 
-/** 側欄未讀火圖示：營運＋系統未讀合計（對目前角色可見者） */
-export async function fetchInboxUnreadCount(): Promise<number> {
+/** 側欄未讀火圖示：營運＋系統未讀合計（對目前角色可見者；預設 45s 內用快取） */
+export async function fetchInboxUnreadCount(opts?: { force?: boolean }): Promise<number> {
+ const actorKey = getInboxActorKey()
+ const now = Date.now()
+ if (
+  !opts?.force &&
+  unreadCountCache &&
+  unreadCountCache.actorKey === actorKey &&
+  now - unreadCountCache.at < UNREAD_CACHE_TTL_MS
+ ) {
+  return unreadCountCache.count
+ }
  const [ops, system] = await Promise.all([
   fetchInboxFeed({ category: "ops", unreadOnly: true }),
   fetchInboxFeed({ category: "system", unreadOnly: true }),
  ])
- return ops.length + system.length
+ const count = ops.length + system.length
+ unreadCountCache = { actorKey, count, at: Date.now() }
+ return count
 }

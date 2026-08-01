@@ -2,28 +2,49 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
-| 優先 | 高 |
-| 範圍 | 行政 `admin`／老師 `teacher`／外星人 `alien`（本 repo 管理後台） |
+| 狀態 | `in_progress`（行政／老師**高頻波次 1–3 已落**；餘營運總覽／外星人／次要頁） |
+| 優先 | 高 → 實務上次優先（高頻夠用後；跟 Mgmt／外星人頁） |
+| 範圍 | 行政 `admin`／老師 `teacher`（外星人專屬頁可後做） |
 | 不含 | 家長 Portal、學生端登入殼 |
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 盤點日期 | 2026-07-30 |
-| 老師對照 | 2026-07-31 模擬：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
-| 行政模擬 | 2026-07-31：見 §F |
+| 盤點 | 2026-07-30；落地＋模擬：2026-08-01 |
+| 模擬 | [波次 1 殼層](../audits/2026-08-01-mobile-shell-wave1-sim.md) · [波次 2](../audits/2026-08-01-mobile-wave2-sim.md) · [波次 3 一對一](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
+| 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
+| 行政模擬 | 見 §F |
 
-## 結論
+## 結論（2026-08-01）
 
-[`AdaptiveLayout`](../../src/components/AdaptiveLayout.tsx) → [`MobileLayout`](../../src/components/mobile/MobileLayout.tsx) 殼可用；學生／班別／試堂／繳費紀錄／老師首頁／點名名冊已有卡片或簡化版。真正痛點是**底欄高頻頁仍靠橫向捲動表格**，以及少數 **z-index／橫幅遮擋**。
+殼層＋行政／老師**日常高頻頁**已有手機替代（卡片／FilterSheet／日視圖），模擬報告無中高嚴重度擋操作項。  
+**仍欠**：營運總覽、外星人底欄專屬頁、底欄 IA／P3 捷徑、觸控高度統一、大量次要 CRUD／報表。
 
-老師角色另見 §E：點名／班別手機大致對等，落差在排程日視圖、一對一橫滑、底欄無排程；學生詳情繳費／請假屬權限殘項（見 [role-ops-hardening.md](./role-ops-hardening.md)）。
+學生詳情老師繳費／請假旁路已清 → [role-ops-hardening.md](./role-ops-hardening.md) `done`。
 
-## 問題類型
+---
 
-- **會擋操作（少數）**：更新橫幅蓋底欄、阿Po 蓋點名／詳情 sheet、部分高 Dialog 無捲動。
-- **無手機替代（多數痛點）**：Inbox、Alien 首頁、SystemIssues、Leave、PrivateTutoring、TeacherTimetable、MgmtDashboard 等。
-- **彆扭但能用**：排程按日期、Payments 長表單、雙重 padding、底欄 IA、kanban 橫滑。
-- **已適配**：學生／班別卡片、繳費紀錄、老師首頁、點名名冊、AdaptiveLayout。
+## 已落波次（勿當待辦）
+
+| 波次 | 日期 | 內容 | 模擬 |
+| --- | --- | --- | --- |
+| 1 殼層 | 2026-08-01 | 阿Po z-index；更新橫幅 vs 底欄（M1→`5rem`）；Dialog `max-h`／safe-area；FilterSheet／NavDrawer ＜ Dialog | [wave1-sim](../audits/2026-08-01-mobile-shell-wave1-sim.md) |
+| 2 高頻列表 | 2026-08-01 | Inbox 卡片；Leave FilterSheet＋卡片；老師開放 `MobileDayViewGrid`；TeacherWeekTimetable 按日卡片 | [wave2-sim](../audits/2026-08-01-mobile-wave2-sim.md) |
+| 3 一對一 | 2026-08-01 | PrivateTutoring 學生列表 FilterSheet＋卡片；預約首屏；改約經 Dialog | [wave3-sim](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
+
+**先前已有（非本系列波次）**：Students／Classes 卡片、TrialSessions、PaymentHistory、TeacherHome 近三日、RollCall 名冊、AdaptiveLayout／MobileLayout。
+
+---
+
+## 仍欠（進行中範圍）
+
+| 優先 | 項 | 說明 |
+| --- | --- | --- |
+| 下一波 | 營運總覽 MgmtDashboard | 多表橫滑＋圖表擠壓；無手機簡化版 |
+| 可後做 | 外星人 AlienGodViewHome、SystemIssues | 底欄入口仍 `min-w` 大表 |
+| P3 | 老師底欄／首頁排程捷徑；scope 提示勿只桌面顯示 | §E |
+| 共用 | Schedule FilterSheet；觸控對齊 §14 `h-10`；雙重 padding | §A／§B |
+| 低 | 次要 CRUD／報表（Courses、Availability、Enrollment、Reports…） | §D |
+
+低嚴重度模擬取捨（非擋操作，可選收斂）：W2-1～W2-4、W3-1～W3-3（見各 sim 報告 §4）。
 
 ---
 
@@ -31,13 +52,12 @@
 
 | 嚴重度 | 問題 | 依據 |
 | --- | --- | --- |
-| 高 | 主區鎖 `max-w-lg`，時間表／多欄作業被擠壓後再橫向捲 | [`MobileLayout.tsx`](../../src/components/mobile/MobileLayout.tsx) |
-| 中 | 底欄資訊架構偏角色：行政無排程／學生；老師無收件匣；外星人無點名／排程 → 高頻功能埋在「更多」／drawer | [`mobileNav.ts`](../../src/lib/mobileNav.ts) |
-| 中 | 更新橫幅 `fixed bottom-0 z-[100]` 可能蓋住底欄 | [`AppUpdateGuard.tsx`](../../src/components/AppUpdateGuard.tsx) |
-| 中 | 阿Po FAB `z-[240]` 高於詳情／點名 sheet `z-[200]`，可蓋住操作層 | [`ApoAssistant.tsx`](../../src/components/assistant/ApoAssistant.tsx)、[`DetailLayerShell.tsx`](../../src/components/detail/DetailLayerShell.tsx)、[`RollCallSheet.tsx`](../../src/components/attendance/RollCallSheet.tsx) |
-| 中 | FilterSheet／NavDrawer `270` > Dialog `260`：兩者同時開時 sheet 蓋 Dialog | UI §14 |
-| 低 | 頁面自帶 `p-4` + MobileLayout 已有 padding → 雙重留白 | 多頁（Students、FrontDesk、Availability 等） |
-| 低 | Header「首頁」與底欄「首頁」重複；部分關閉鈕觸控小於 `h-10` | [`MobileHeader.tsx`](../../src/components/mobile/MobileHeader.tsx) |
+| 中 | 主區鎖 `max-w-lg`；多欄作業仍可能擠（高頻列表已改卡片後影響下降） | [`MobileLayout.tsx`](../../src/components/mobile/MobileLayout.tsx) |
+| 中 | 底欄 IA 偏角色：行政無排程／學生；老師無收件匣 | [`mobileNav.ts`](../../src/lib/mobileNav.ts) |
+| ~~中~~ | ~~更新橫幅蓋底欄~~ | **已修** |
+| ~~中~~ | ~~阿Po 蓋詳情／點名 sheet~~ | **已修** |
+| ~~中~~ | ~~FilterSheet／NavDrawer 蓋 Dialog~~ | **已修** |
+| 低 | 雙重 padding；Header／底欄「首頁」重複；部分觸控 &lt; `h-10` | 多頁／[`MobileHeader.tsx`](../../src/components/mobile/MobileHeader.tsx) |
 
 ---
 
@@ -45,99 +65,91 @@
 
 | 嚴重度 | 問題 | 說明 |
 | --- | --- | --- |
-| 高 | 多數列表僅 `overflow-x-auto` + `min-w-[640px~1180px]`，**沒有卡片／列表替代** | 可用但難用（橫滑） |
-| 高 | [`MobileFilterSheet`](../../src/components/mobile/MobileFilterSheet.tsx) 覆蓋不足：僅 Students／Classes／Trials／PaymentHistory；Payments 主流程、排程、請假、收件匣等篩選仍擠在窄螢幕 | 與 §14 標準不一致 |
-| 中 | 基礎 [`Dialog`](../../src/components/ui/dialog.tsx) 無預設 `max-h`／safe-area；矮螢幕上未自行加 overflow 的對話框可能裁切 | 偶發「壞掉」 |
-| 中 | 觸控高度：文件要求 `h-10`，[`Button`](../../src/components/ui/button.tsx) 預設仍 `h-9`／`sm:h-8` | 觸控偏小 |
-| 中 | 圖表：行政首頁手機隱藏營收圖（刻意）；營運總覽圖表仍塞進窄殼，無簡化版 | [`AdminDashboard.tsx`](../../src/components/home/AdminDashboard.tsx)、[`MgmtCharts.tsx`](../../src/components/mgmtDashboard/MgmtCharts.tsx) |
-| 低 | 詳情分頁：Student 手機改 Select；Class／Teacher 仍橫向 tab 捲動 | 不一致 |
+| 中 | 其餘列表仍僅 `overflow-x-auto`＋`min-w`（Mgmt／Alien／次要頁） | 高頻頁多數已有卡片 |
+| 中 | FilterSheet：Payments 主流程、排程等仍擠；Students／Classes／Trials／PaymentHistory／Leave／PrivateTutoring **已有** | §14 |
+| ~~中~~ | ~~Dialog 無 max-h／safe-area~~ | **已修** |
+| 中 | 觸控高度：文件 `h-10`，Button 預設仍偏矮 | [`button.tsx`](../../src/components/ui/button.tsx) |
+| 中 | 營運總覽圖表塞窄殼 | [`MgmtCharts.tsx`](../../src/components/mgmtDashboard/MgmtCharts.tsx) |
+| 低 | Class／Teacher 詳情 tab 仍橫向捲 | 不一致 |
 
 ---
 
-## C. 依角色：高頻頁
+## C. 依角色：高頻頁現況
 
 ### 行政（admin）
 
 | 頁面 | 嚴重度 | 現況 |
 | --- | --- | --- |
-| 收件匣 Inbox | 高 | 底欄主入口，僅 `min-w-[640px]` 表格，無卡片版 |
-| 請假管理 Leave | 高 | 篩選 inline + 表 `min-w-[1180px]` |
-| 一對一 PrivateTutoring | 高 | 主列表 `min-w-[56rem]` 表格 |
-| 營運總覽 MgmtDashboard | 高 | 桌面 padding／sticky 篩選 + 多表橫滑 + 圖表擠壓 |
-| 排程 Schedule | 中 | 已強制「按日期」；篩選 chips 仍擠、無 FilterSheet |
-| 繳費 Payments | 中 | 表單可堆疊，但長流程／收據 Dialog 偏重 |
-| 點名 Attendance | 中 | 名冊卡片可用；Apo z-index、次要鈕偏小 |
-| 前台精靈 FrontDesk | 中 | 可用但密、雙重 padding |
-| 學生／班別／繳費紀錄／首頁 | 低 | 已有較完整手機適配 |
+| Inbox | — | **已適配**（卡片） |
+| Leave | — | **已適配**（FilterSheet＋卡片） |
+| PrivateTutoring | — | **已適配**（FilterSheet＋卡片；預約首屏） |
+| Schedule | 低 | 手機週曆日視圖已開放 |
+| MgmtDashboard | 高 | **仍欠**手機簡化 |
+| Payments | 中 | 可堆疊；長流程偏重 |
+| Attendance／FrontDesk | 中 | 大致可用 |
+| 學生／班別／繳費紀錄／首頁 | 低 | 已適配 |
 
 ### 老師（teacher）
 
 | 頁面 | 嚴重度 | 現況 |
 | --- | --- | --- |
-| 時間表 TeacherTimetable | 高 | **底欄主入口**仍是 `min-w-[720px]` 週格 + 極小字（`text-[0.65rem]`） |
-| 一對一 PrivateTutoring | 高 | `min-w-[56rem]` 表格無替代；預約在最右欄，375px 須橫滑 |
-| 排程 Schedule | 高 | 老師手機**不能**用日視圖（`allowMobileDayView = isMgmtStaff()`）；強制按日期；列表亦降級 |
-| 點名 Attendance | 低 | 名冊卡片可用；功能對等甚至較適合觸控 |
-| 約房 RoomBooking | 中 | 手機單課室單日；功能保留但找空房切換多 |
-| 老師首頁 | 低 | 近三日卡片；桌面 CTA／KPI `hidden md:*`（刻意） |
-| 我的班別 | 低 | 強制 cards + FilterSheet |
-| 收件匣 | 中 | 無底欄、進 drawer 後仍是 `min-w-[640px]` 表格 |
-| 出席／教學紀錄 | 低 | 卡片／accordion，大致對等 |
+| TeacherTimetable | — | **已適配**（按日卡片） |
+| PrivateTutoring | — | **已適配**（預約首屏；改約經 Dialog） |
+| Schedule | — | **已適配**（`MobileDayViewGrid`） |
+| Inbox | — | **已適配**（卡片；仍無底欄入口） |
+| Attendance／我的班別／首頁 | 低 | 已適配或對等 |
+| RoomBooking | 中 | 可用但切換多 |
 
 ### 外星人（alien）
 
 | 頁面 | 嚴重度 | 現況 |
 | --- | --- | --- |
-| 首頁 AlienGodViewHome | 高 | 底欄「首頁」= 兩個 `min-w-[640px]` 表格 |
-| 報錯 SystemIssues | 高 | 底欄入口 + `min-w-[880px]` 表格 |
-| 收件匣 Inbox | 高 | 底欄入口 + 表格 |
-| 進「更多」後的行政頁 | 同行政缺口 | Leave／Mgmt／PrivateTutoring 等 |
+| AlienGodViewHome | 高 | **仍欠**（`min-w` 表） |
+| SystemIssues | 高 | **仍欠**（`min-w` 表） |
+| Inbox | — | **已適配**（共用） |
+| 進「更多」行政頁 | — | 跟行政：一對一／Leave 已適配；Mgmt 仍欠 |
 
 ---
 
-## D. 幾乎無手機適配（抽樣）
+## D. 仍幾乎無手機適配（抽樣 · 非高頻）
 
-Inbox、Alien 首頁、TeacherWeekTimetable、LeaveManagement、PrivateTutoring、MgmtDashboard（含 FilterBar／DetailTables／Charts）、SystemIssues／SystemLogs、DayViewGrid、MonthlyTuition、PaymentDiscounts、ReferralRebates、Courses、Classrooms、TeacherAvailability（含 WeekGrid／RoomDay）、EnrollmentChanges、PortalEnrollmentRequests、LessonBalanceMismatch、SecondaryAttendanceReport、EnrollmentReports、AcademicCalendar、RoomBookingAdmin、UserManagement、AiReports、EntityListPage 等。
+MgmtDashboard、AlienGodViewHome、SystemIssues／SystemLogs、MonthlyTuition、PaymentDiscounts、ReferralRebates、Courses、Classrooms、TeacherAvailability、EnrollmentChanges、PortalEnrollmentRequests、LessonBalanceMismatch、SecondaryAttendanceReport、EnrollmentReports、AcademicCalendar、RoomBookingAdmin、UserManagement、AiReports、EntityListPage、桌面 DayViewGrid 等。
 
-**已相對可用**：StudentsList、ClassesList（卡片）、TrialSessions、PaymentHistory、TeacherHome、RollCall 名冊、Mobile 殼本身。
-
----
-
-## E. 老師桌面／手機對照（2026-07-31 模擬）
-
-來源：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md)。方法：靜態推演，非真機。
-
-| 優先 | 項 | 類型 | 觸點 |
-| --- | --- | --- | --- |
-| P1 | 老師手機排程可視化：開放 `MobileDayViewGrid` 或「今日課室摘要」卡片 | 功能缺口 | `ScheduleManagePage.tsx` `allowMobileDayView` |
-| P2 | 一對一列表手機卡片化（預約／改約放首屏） | 體驗 | `PrivateTutoringView.tsx`、`PrivateTutoringStudentDisclosure.tsx` |
-| P2 | 收件匣手機卡片／簡表 | 體驗 | `InboxView.tsx` |
-| P3 | 底欄或首頁恢復排程捷徑（現底欄無 `/Schedule`；首頁 CTA `hidden md:flex`） | 導覽 | `mobileNav.ts`、`TeacherHomeView.tsx` |
-| P3 | 老師 scope 提示勿只桌面顯示（`hidden md:block`／`!isMobile`） | 文案 | RollCall／AttendanceRecords／TeacherHome |
-| — | 學生詳情繳費／請假對老師可見 | **權限**（裝置無關） | → [role-ops-hardening.md](./role-ops-hardening.md) 殘項 R1 |
+**已相對可用（含波次 1–3）**：Mobile 殼、Students、Classes、Trials、PaymentHistory、TeacherHome、RollCall、Inbox、Leave、PrivateTutoring、TeacherWeekTimetable（手機）、Schedule 手機週曆。
 
 ---
 
-## 建議實作波次（尚未開工）
+## E. 老師桌面／手機對照
 
-1. **殼層擋操作**：阿Po z-index、更新橫幅 vs 底欄、Dialog `max-h`／safe-area。
-2. **底欄高頻無替代頁**：Inbox（行政／外星人）、TeacherTimetable（老師）、Alien 首頁、SystemIssues。
-3. **老師對照 P1–P3**（§E）：排程日視圖／摘要 → 一對一／收件匣卡片 → 底欄／首頁捷徑。
-4. **行政日常**：Leave、PrivateTutoring、Schedule FilterSheet、MgmtDashboard 簡化。
-5. **共用規範**：表格→卡片慣例、FilterSheet 擴覆蓋、觸控高度對齊 §14。
-6. **次要 CRUD／報表**：Courses、Availability、Enrollment、Reports 等。
+來源：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md)。
 
-驗收建議：三角色各用真機或 Chrome 375px 走底欄全部 tab + drawer 前 5 個功能，對照「高」項是否改為卡片／按日列表／簡化圖，且無遮擋。老師另走 audit 報告 W1–W5。
+| 優先 | 項 | 狀態 |
+| --- | --- | --- |
+| P1 | 老師手機排程日視圖 | **已落** |
+| P2 | 一對一卡片＋預約首屏 | **已落** |
+| P2 | 收件匣卡片 | **已落** |
+| P3 | 底欄／首頁排程捷徑 | **仍欠** |
+| P3 | scope 提示勿只桌面顯示 | **仍欠** |
+| — | 學生詳情老師見繳費／請假 | **已清** → role-ops-hardening |
+
+---
+
+## 建議實作波次（更新後）
+
+1. ~~殼層擋操作~~ **已落**
+2. ~~Inbox／時間表／一對一等高頻~~ **已落**（外星人專屬可後做）
+3. ~~老師 P1–P2~~ **已落** → 餘 P3 捷徑／文案
+4. ~~Leave／PrivateTutoring~~ **已落** → 餘 Schedule FilterSheet、**MgmtDashboard**
+5. 共用：觸控 `h-10`、FilterSheet 擴覆蓋
+6. 次要 CRUD／報表
+
+**接手：** 下一優先 **MgmtDashboard** 或外星人頁。逾期罰款已 `done`（見 [tuition-late-fee-enforcement.md](./tuition-late-fee-enforcement.md)）。邊緣個案複雜操作仍寫「回桌面」。
 
 ---
 
 ## F. 行政邊緣模擬（2026-07-31）
 
-來源：行政桌面能力模擬 20 案（Canvas `admin-edge-case-simulation.canvas.tsx`）。與本主題相關：
-
-| 模擬 ID | 個案 | 判定 | 發現的問題 | 建議落點 |
-| --- | --- | --- | --- | --- |
-| S19 | 接待用手機處理請假＋收件匣作廢跟進 | 半完成 | Inbox／Leave 仍 `min-w` 大表；阿Po／更新橫幅可遮操作；複雜邊緣案不宜只靠手機 | §C 行政 Inbox／Leave；殼層 z-index（§A）；波次 1–2／4 |
-| S01 | 林藝涵型取消補堂（附帶） | 桌面可完成 | 手機請假表難操作，不影響桌面 A1 收尾 | Leave 卡片化優先於複雜 Confirm 流程 |
-
-**接手：** 行政高頻先做 Inbox＋Leave 卡片／簡表；邊緣個案操作指引寫「回桌面」。
+| 模擬 ID | 個案 | 與流動相關 | 現況 |
+| --- | --- | --- | --- |
+| S19 | 手機請假＋收件匣 | 曾卡大表／層級 | Inbox／Leave 卡片＋殼層已修；複雜案回桌面 |
+| S01 | 取消補堂（附帶） | 手機請假難操作 | Leave 卡片可開詳情；複雜 Confirm 回桌面 |

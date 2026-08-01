@@ -48,11 +48,18 @@ import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PromotionMatch from "@/pages/PromotionMatch"
+import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
+const Payroll = lazy(() => import("@/pages/Payroll"))
+const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
 const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
+
+/** 免登入計糧 mock 預覽：本地 DEV，或建置時 VITE_PAYROLL_UI_PREVIEW=1（勿用於正式 production） */
+const enablePayrollUiPreview =
+ import.meta.env.DEV || import.meta.env.VITE_PAYROLL_UI_PREVIEW === "1"
 
 export default function App() {
  return (
@@ -62,6 +69,22 @@ export default function App() {
     <Route path="/Login" element={<Login />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
+    {enablePayrollUiPreview ? (
+     <Route
+      path="/PayrollUiPreview"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入計糧預覽…
+         </div>
+        }
+       >
+        <PayrollUiPreview />
+       </Suspense>
+      }
+     />
+    ) : null}
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
@@ -146,6 +169,20 @@ export default function App() {
        </Suspense>
       }
      />
+     <Route
+      path="/Payroll"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入計糧預覽…
+         </div>
+        }
+       >
+        <Payroll />
+       </Suspense>
+      }
+     />
      <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
      <Route path="/ReferralRebates" element={<ReferralRebates />} />
      <Route path="/AcademicCalendar" element={<AcademicCalendar />} />
@@ -163,6 +200,8 @@ export default function App() {
      <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
      <Route path="/SystemLogs" element={<SystemLogs />} />
      <Route path="/SystemIssues" element={<SystemIssues />} />
+     {/* UI 沙盒：假資料，不接 DB；不掛側欄正式入口 */}
+     <Route path="/prototype/HomeworkTutoring" element={<PrototypeHomeworkTutoring />} />
     </Route>
    </Routes>
    <SpeedInsights />

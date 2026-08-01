@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { CalendarDays, Camera, Clock, Plus, Search, Umbrella, Users, Video } from "lucide-react"
+import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella, Users, Video } from "lucide-react"
 
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm, type ConfirmResult } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -138,8 +140,15 @@ function leaveRowEditable(_r: LeaveManageRow): boolean {
  return true
 }
 
+function leaveStatusTone(status: string): "success" | "warning" | "default" {
+ if (isLeaveStatusDone(status)) return "success"
+ if (isLeaveStatusAbandoned(status)) return "default"
+ return "warning"
+}
+
 export function LeaveManagementView() {
  const { confirmDialog } = useAppConfirm()
+ const isMobile = useIsMobile()
  const [searchParams, setSearchParams] = useSearchParams()
  const recordFromUrl = searchParams.get("record")
  const studentIdFromUrl = searchParams.get("studentId")
@@ -154,6 +163,7 @@ export function LeaveManagementView() {
  const [filterDateTo, setFilterDateTo] = useState("")
  const [filterSubject, setFilterSubject] = useState<string>("all")
  const [filterStudent, setFilterStudent] = useState("")
+ const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
@@ -364,6 +374,15 @@ export function LeaveManagementView() {
   recordFromUrl,
  ])
 
+ const activeFilterCount = useMemo(() => {
+  let n = 0
+  if (filterDateFrom) n++
+  if (filterDateTo) n++
+  if (filterSubject !== "all") n++
+  if (filterStudent.trim()) n++
+  return n
+ }, [filterDateFrom, filterDateTo, filterSubject, filterStudent])
+
  const openAdd = () => {
   setAddOpen(true)
  }
@@ -376,6 +395,39 @@ export function LeaveManagementView() {
   setDetailRemarks(row.remarks ?? "")
   setDetailErr(null)
   setDetailOpen(true)
+ }
+
+ const deleteLeaveRow = async (r: LeaveManageRow) => {
+  try {
+   const hits = await previewLeaveMakeupAttendanceImpact(r.id, { forDelete: true })
+   if (hits.length === 0) {
+    if (
+     !(await confirmDialog({
+      title: "刪除請假紀錄",
+      description: "確定刪除此筆請假紀錄？",
+      confirmText: "確認刪除",
+      tone: "destructive",
+     }))
+    ) {
+     return
+    }
+    await deleteLeaveMakeupRecord(r.id)
+   } else {
+    const choice = await resolveLeaveAttendanceChoice(
+     confirmDialog,
+     hits,
+     "刪除請假：補堂出席處理"
+    )
+    if (choice === "abort") return
+    await deleteLeaveMakeupRecord(r.id, attendanceOptionsFromChoice(choice, hits))
+   }
+   await reload()
+  } catch (error) {
+   reportUserFacingError(error, {
+    source: "LeaveManagementView.deleteLeave",
+    setErr,
+   })
+  }
  }
 
  const saveDetail = async () => {
@@ -617,7 +669,7 @@ export function LeaveManagementView() {
     </div>
    </section>
 
-   <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm lg:flex-row lg:flex-wrap lg:items-end">
+   <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="狀態篩選">
      {(
       [
@@ -644,56 +696,185 @@ export function LeaveManagementView() {
       </button>
      ))}
     </div>
-    <div className="flex flex-wrap items-end gap-2 border-t border-dashed border-border pt-3 lg:border-0 lg:pt-0">
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>請假日起</span>
-      <Input
-       type="date"
-       value={filterDateFrom}
-       onChange={(e) => setFilterDateFrom(e.target.value)}
-       className="h-9 w-[11rem]"
-      />
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>請假日迄</span>
-      <Input
-       type="date"
-       value={filterDateTo}
-       onChange={(e) => setFilterDateTo(e.target.value)}
-       className="h-9 w-[11rem]"
-      />
-     </label>
-     <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>科目</span>
-      <Select
-       className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
-       value={filterSubject}
-       onChange={(e) => setFilterSubject(e.target.value)}
+    {isMobile ? (
+     <>
+      <div className="flex items-center gap-2 border-t border-dashed border-border pt-3">
+       <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+        <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        篩選
+        {activeFilterCount > 0 ? (
+         <Tag tone="info" size="sm">
+          {activeFilterCount}
+         </Tag>
+        ) : null}
+       </Button>
+      </div>
+      <MobileFilterSheet
+       open={filtersOpen}
+       onClose={() => setFiltersOpen(false)}
+       title="篩選請假紀錄"
+       activeCount={activeFilterCount}
+       onReset={() => {
+        setFilterDateFrom("")
+        setFilterDateTo("")
+        setFilterSubject("all")
+        setFilterStudent("")
+       }}
       >
-       <option value="all">全部科目</option>
-       {subjectOptions.map((sub) => (
-        <option key={sub} value={sub}>
-         {sub}
-        </option>
-       ))}
-      </Select>
-     </label>
-     <label className="grid min-w-[10rem] flex-1 gap-1 text-xs text-muted-foreground">
-      <span>學生（姓名）</span>
-      <Input
-       placeholder="搜尋姓名…"
-       value={filterStudent}
-       onChange={(e) => setFilterStudent(e.target.value)}
-       className="h-9"
-      />
-     </label>
-    </div>
+       <label className="grid gap-1 text-sm">
+        <span className="text-muted-foreground">請假日起</span>
+        <Input
+         type="date"
+         value={filterDateFrom}
+         onChange={(e) => setFilterDateFrom(e.target.value)}
+         className="h-10 w-full"
+        />
+       </label>
+       <label className="grid gap-1 text-sm">
+        <span className="text-muted-foreground">請假日迄</span>
+        <Input
+         type="date"
+         value={filterDateTo}
+         onChange={(e) => setFilterDateTo(e.target.value)}
+         className="h-10 w-full"
+        />
+       </label>
+       <label className="grid gap-1 text-sm">
+        <span className="text-muted-foreground">科目</span>
+        <Select
+         className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+         value={filterSubject}
+         onChange={(e) => setFilterSubject(e.target.value)}
+        >
+         <option value="all">全部科目</option>
+         {subjectOptions.map((sub) => (
+          <option key={sub} value={sub}>
+           {sub}
+          </option>
+         ))}
+        </Select>
+       </label>
+       <label className="grid gap-1 text-sm">
+        <span className="text-muted-foreground">學生（姓名）</span>
+        <Input
+         placeholder="搜尋姓名…"
+         value={filterStudent}
+         onChange={(e) => setFilterStudent(e.target.value)}
+         className="h-10"
+        />
+       </label>
+      </MobileFilterSheet>
+     </>
+    ) : (
+     <div className="flex flex-wrap items-end gap-2 border-t border-dashed border-border pt-3">
+      <label className="grid gap-1 text-xs text-muted-foreground">
+       <span>請假日起</span>
+       <Input
+        type="date"
+        value={filterDateFrom}
+        onChange={(e) => setFilterDateFrom(e.target.value)}
+        className="h-9 w-[11rem]"
+       />
+      </label>
+      <label className="grid gap-1 text-xs text-muted-foreground">
+       <span>請假日迄</span>
+       <Input
+        type="date"
+        value={filterDateTo}
+        onChange={(e) => setFilterDateTo(e.target.value)}
+        className="h-9 w-[11rem]"
+       />
+      </label>
+      <label className="grid gap-1 text-xs text-muted-foreground">
+       <span>科目</span>
+       <Select
+        className="h-9 min-w-[8rem] rounded-md border border-input bg-background px-2 text-sm"
+        value={filterSubject}
+        onChange={(e) => setFilterSubject(e.target.value)}
+       >
+        <option value="all">全部科目</option>
+        {subjectOptions.map((sub) => (
+         <option key={sub} value={sub}>
+          {sub}
+         </option>
+        ))}
+       </Select>
+      </label>
+      <label className="grid min-w-[10rem] flex-1 gap-1 text-xs text-muted-foreground">
+       <span>學生（姓名）</span>
+       <Input
+        placeholder="搜尋姓名…"
+        value={filterStudent}
+        onChange={(e) => setFilterStudent(e.target.value)}
+        className="h-9"
+       />
+      </label>
+     </div>
+    )}
    </div>
 
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : filteredSorted.length === 0 ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
+   ) : isMobile ? (
+    <div className="space-y-3">
+     {filteredSorted.map((r) => (
+      <article
+       key={r.id}
+       id={`leave-record-${r.id}`}
+       className={cn(
+        "rounded-xl border border-border bg-card p-4 shadow-sm",
+        recordFromUrl === r.id && "ring-2 ring-warning/50"
+       )}
+      >
+       <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+         <Link
+          to={`/Students/${r.student_id}`}
+          className="font-semibold text-info hover:underline"
+         >
+          {r.student_name ?? "—"}
+         </Link>
+         <p className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</p>
+        </div>
+        <Tag tone={leaveStatusTone(r.status)} size="sm">
+         {r.status || "—"}
+        </Tag>
+       </div>
+       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm">
+        <p className="text-muted-foreground">請假日</p>
+        <p className="text-right tabular-nums">{displayLeaveDate(r)}</p>
+        <p className="text-muted-foreground">班別</p>
+        <p className="truncate text-right">
+         <Link to={`/Classes/${r.class_id}`} className="text-info hover:underline">
+          {r.class_subject ?? "—"}
+         </Link>
+        </p>
+        <p className="text-muted-foreground">補課</p>
+        <p className="truncate text-right">{r.makeup_type ?? "—"}</p>
+        <p className="text-muted-foreground">原因</p>
+        <p className="truncate text-right">{r.leave_reason ?? "—"}</p>
+       </div>
+       <div className="mt-3 flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={() => openDetail(r)}>
+         詳情
+        </Button>
+        {leaveRowEditable(r) ? (
+         <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="text-destructive"
+          onClick={() => void deleteLeaveRow(r)}
+         >
+          刪除
+         </Button>
+        ) : null}
+       </div>
+      </article>
+     ))}
+    </div>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
      <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
@@ -854,38 +1035,7 @@ export function LeaveManagementView() {
            type="button"
            className="text-xs font-medium text-info hover:underline disabled:cursor-not-allowed disabled:opacity-50"
            disabled={!leaveRowEditable(r)}
-           onClick={async () => {
-            try {
-             const hits = await previewLeaveMakeupAttendanceImpact(r.id, { forDelete: true })
-             if (hits.length === 0) {
-              if (
-               !(await confirmDialog({
-                title: "刪除請假紀錄",
-                description: "確定刪除此筆請假紀錄？",
-                confirmText: "確認刪除",
-                tone: "destructive",
-               }))
-              ) {
-               return
-              }
-              await deleteLeaveMakeupRecord(r.id)
-             } else {
-              const choice = await resolveLeaveAttendanceChoice(
-               confirmDialog,
-               hits,
-               "刪除請假：補堂出席處理"
-              )
-              if (choice === "abort") return
-              await deleteLeaveMakeupRecord(r.id, attendanceOptionsFromChoice(choice, hits))
-             }
-             await reload()
-            } catch (error) {
-             reportUserFacingError(error, {
-              source: "LeaveManagementView.deleteLeave",
-              setErr,
-             })
-            }
-           }}
+           onClick={() => void deleteLeaveRow(r)}
           >
            刪除
           </button>

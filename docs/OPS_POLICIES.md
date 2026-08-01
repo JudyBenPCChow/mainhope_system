@@ -18,9 +18,11 @@
 | 文件 | 主題 |
 | --- | --- |
 | [學年與報讀形式](ACADEMIC_YEARS.md) | 正規（約九至六）vs 暑期（\*SM）；label、日期、報讀選項、兩期字典；**後台寫入：不硬鎖歷史學年，非當期 confirm＋audit**（§1.1） |
-| [學費學期節奏與逾期罰款](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 按月約四堂 vs 暑期預繳；第 2 堂罰款／第 3 堂禁入（部分尚未系統強制） |
+| [學費學期節奏與逾期罰款](TUITION_TERM_AND_LATE_FEE_POLICY.md) | 正規按月堂數節奏；逾期罰款 $50（池模型；2026-10-01 起）；禁止入室不系統化 |
+| [正規課程逾期學費罰款指引（前線）](manual/TUITION_LATE_FEE_FRONTLINE.md) | 前線執行與家長解說：適用範圍、每月每科一次、試堂／一對一不罰、豁免、例子 |
 | [點名狀態與扣堂](ATTENDANCE_BILLING.md) | 哪些點名狀態計「已上堂數」；連堂單項補堂只計 1 堂；「追學費」= 已付堂數 vs 已上堂數 |
 | [同班偶發代課（代堂）](SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 改主責；算堂／薪資看排程老師 |
+| [計糧指南](PAYROLL_GUIDE.md) | 財務／管理層用：通用規則、各教師計法、強積金、出糧流程與異常處理（功課班暫不納入） |
 | [學生狀態分類與判定](STUDENT_STATUS_CLASSIFICATION.md) | 注冊／報讀／在讀／活躍等四維狀態 |
 | [收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪、作廢須密碼；不自動退班；收件匣通知行政／外星人 |
 | [課室與場地](CLASSROOMS_OPS.md) | 可用課室清單；**17K 2026-07-31 退租停用**（系統尚未有停用狀態欄） |

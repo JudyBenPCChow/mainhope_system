@@ -36,7 +36,7 @@ type MobileNavDrawerProps = {
 
 export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout }: MobileNavDrawerProps) {
  const location = useLocation()
- const { unreadCount } = useInboxUnreadCount(location.pathname)
+ const { unreadCount } = useInboxUnreadCount()
  const navEntries = useMemo(
   () => filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)),
   [role]
@@ -81,7 +81,7 @@ export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout
  if (!open) return null
 
  return (
-  <div className="fixed inset-0 z-[270]" role="dialog" aria-modal="true" aria-label="主選單">
+  <div className="fixed inset-0 z-[250]" role="dialog" aria-modal="true" aria-label="主選單">
    <button
     type="button"
     className="absolute inset-0 bg-black/50"

@@ -9,7 +9,9 @@ import {
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
+import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
 import { supabase } from "@/lib/supabaseClient"
+import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import {
  applyDiscountsToSubtotal,
@@ -132,31 +134,80 @@ export type PaymentDiscountApplicationRow = {
  amountDeducted: number | null
 }
 
+export type PaymentLateFeeFullRow = {
+ id: string
+ classId: string
+ classLabel: string
+ amount: number
+ billingMonth: string
+ waived: boolean
+ waiverReason: string | null
+}
+
 export type PaymentFull = PaymentListRow & {
  subtotalAmount: number | null
  studentGrade: string | null
  details: PaymentDetailRow[]
  discountApplications: PaymentDiscountApplicationRow[]
+ lateFeeItems: PaymentLateFeeFullRow[]
  /** @deprecated 請改用 discountApplications */
  discountPercentOff: number | null
  /** @deprecated 請改用 discountApplications */
  discountAmountOff: number | null
 }
 
-function mapDiscountApplicationRow(r: Record<string, unknown>): PaymentDiscountApplicationRow | null {
- const disc = r.payment_discounts as Record<string, unknown> | null
+type DiscountCatalogMeta = {
+ name: string
+ percentOff: number | null
+ amountOff: number | null
+}
+
+/** PostgREST embed 有時回 object、有時回單元素 array */
+function embedOne(rel: unknown): Record<string, unknown> | null {
+ if (rel == null) return null
+ if (Array.isArray(rel)) {
+  const first = rel[0]
+  return first && typeof first === "object" ? (first as Record<string, unknown>) : null
+ }
+ if (typeof rel === "object") return rel as Record<string, unknown>
+ return null
+}
+
+function mapDiscountApplicationRow(
+ r: Record<string, unknown>,
+ catalogById?: Map<string, DiscountCatalogMeta>
+): PaymentDiscountApplicationRow | null {
+ const disc = embedOne(r.payment_discounts)
  const amountDeducted = r.amount_deducted != null ? Number(r.amount_deducted) : null
- if (disc?.id) {
+ const rawDiscountId = r.payment_discount_id
+ const catalogIdFromRow =
+  rawDiscountId != null && String(rawDiscountId).trim() !== "" ? String(rawDiscountId) : null
+ const catalogId = disc?.id != null ? String(disc.id) : catalogIdFromRow
+ const catalogMeta = catalogId ? catalogById?.get(catalogId) : undefined
+
+ // 目錄優惠：有 payment_discount_id → 一律用目錄原名，不可標成 Special discount
+ if (catalogId) {
+  const name =
+   disc?.name != null
+    ? String(disc.name)
+    : catalogMeta?.name != null
+      ? catalogMeta.name
+      : "（目錄優惠）"
   return {
    sortOrder: Number(r.sort_order ?? 0),
-   discountId: String(disc.id),
-   name: disc.name != null ? String(disc.name) : "—",
-   percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
-   amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
+   discountId: catalogId,
+   name,
+   percentOff:
+    disc?.percent_off != null
+     ? Number(disc.percent_off)
+     : (catalogMeta?.percentOff ?? null),
+   amountOff:
+    disc?.amount_off != null ? Number(disc.amount_off) : (catalogMeta?.amountOff ?? null),
    amountDeducted,
   }
  }
- // Special discount：無目錄 FK
+
+ // Special discount：僅 payment_discount_id 為 null 的臨時減免
  if (amountDeducted != null && Number.isFinite(amountDeducted) && amountDeducted > 0) {
   return {
    sortOrder: Number(r.sort_order ?? 0),
@@ -178,19 +229,81 @@ function discountNamesFromApplications(apps: PaymentDiscountApplicationRow[]): s
   .join("；")
 }
 
-function mapListRow(r: Record<string, unknown>): PaymentListRow {
- const st = r.students as Record<string, unknown> | null
- const disc = r.payment_discounts as Record<string, unknown> | null
+function collectCatalogDiscountIdsFromPaymentRow(r: Record<string, unknown>): string[] {
+ const ids: string[] = []
+ if (r.payment_discount_id != null && String(r.payment_discount_id).trim() !== "") {
+  ids.push(String(r.payment_discount_id))
+ }
+ const appRows = r.payment_discount_applications
+ if (Array.isArray(appRows)) {
+  for (const row of appRows) {
+   if (!row || typeof row !== "object") continue
+   const app = row as Record<string, unknown>
+   if (app.payment_discount_id != null && String(app.payment_discount_id).trim() !== "") {
+    ids.push(String(app.payment_discount_id))
+    continue
+   }
+   const disc = embedOne(app.payment_discounts)
+   if (disc?.id != null) ids.push(String(disc.id))
+  }
+ }
+ return ids
+}
+
+async function fetchDiscountCatalogMetaByIds(
+ ids: string[]
+): Promise<Map<string, DiscountCatalogMeta>> {
+ const map = new Map<string, DiscountCatalogMeta>()
+ const unique = [...new Set(ids.filter((id) => id.trim() !== ""))]
+ if (!supabase || unique.length === 0) return map
+ const client = supabase
+ const chunks = await forEachIdChunk(unique, 80, async (slice) => {
+  const { data, error } = await client
+   .from("payment_discounts")
+   .select("id, name, percent_off, amount_off")
+   .in("id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const rows of chunks) {
+  for (const row of rows) {
+   const r = row as Record<string, unknown>
+   const id = r.id != null ? String(r.id) : ""
+   if (!id) continue
+   map.set(id, {
+    name: r.name != null ? String(r.name) : "（目錄優惠）",
+    percentOff: r.percent_off != null ? Number(r.percent_off) : null,
+    amountOff: r.amount_off != null ? Number(r.amount_off) : null,
+   })
+  }
+ }
+ return map
+}
+
+function mapListRow(
+ r: Record<string, unknown>,
+ catalogById?: Map<string, DiscountCatalogMeta>
+): PaymentListRow {
+ const st = embedOne(r.students) ?? (r.students as Record<string, unknown> | null)
+ const disc = embedOne(r.payment_discounts)
  const appRows = r.payment_discount_applications as unknown
  const apps = Array.isArray(appRows)
   ? appRows
-     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>))
+     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>, catalogById))
      .filter((x): x is PaymentDiscountApplicationRow => x != null)
   : []
- const discountName =
-  discountNamesFromApplications(apps) ?? (disc?.name != null ? String(disc.name) : null)
- const discountId =
-  apps[0]?.discountId ?? (r.payment_discount_id != null ? String(r.payment_discount_id) : null)
+ const fallbackId =
+  r.payment_discount_id != null && String(r.payment_discount_id).trim() !== ""
+   ? String(r.payment_discount_id)
+   : null
+ const fallbackName =
+  disc?.name != null
+   ? String(disc.name)
+   : fallbackId
+     ? (catalogById?.get(fallbackId)?.name ?? null)
+     : null
+ const discountName = discountNamesFromApplications(apps) ?? fallbackName
+ const discountId = apps[0]?.discountId ?? fallbackId
  return {
   id: String(r.id),
   studentId: String(r.student_id),
@@ -226,7 +339,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
  let q = supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name ), payment_discount_applications ( sort_order, amount_deducted, payment_discount_id, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .order("payment_date", { ascending: false })
   .order("created_at", { ascending: false })
@@ -250,7 +363,10 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
 
  const { data, error } = await q
  if (error) throw error
- let rows = (data ?? []).map((x) => mapListRow(x as Record<string, unknown>))
+ const rawRows = (data ?? []) as Record<string, unknown>[]
+ const catalogIds = rawRows.flatMap((row) => collectCatalogDiscountIdsFromPaymentRow(row))
+ const catalogById = await fetchDiscountCatalogMetaByIds(catalogIds)
+ let rows = rawRows.map((x) => mapListRow(x, catalogById))
  const s = filters.search?.trim().toLowerCase() ?? ""
  if (s) {
   rows = rows.filter((r) => {
@@ -267,7 +383,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const { data: pay, error: e1 } = await supabase
   .from("payments")
   .select(
-   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discounts ( id, name, percent_off, amount_off ) )"
+   "id, student_id, receipt_number, payment_date, total_amount, subtotal_amount, payment_method, status, remarks, created_at, payment_discount_id, students ( full_name, student_code, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id ), payment_discounts ( name, percent_off, amount_off ), payment_discount_applications ( sort_order, amount_deducted, payment_discount_id, payment_discounts ( id, name, percent_off, amount_off ) )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -299,25 +415,31 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   }
  })
 
- const base = mapListRow(pay as Record<string, unknown>)
  const payRow = pay as Record<string, unknown>
- const st = payRow.students as Record<string, unknown> | null
+ const catalogById = await fetchDiscountCatalogMetaByIds(
+  collectCatalogDiscountIdsFromPaymentRow(payRow)
+ )
+ const base = mapListRow(payRow, catalogById)
+ const st = embedOne(payRow.students) ?? (payRow.students as Record<string, unknown> | null)
  const studentGrade = st?.grade != null ? String(st.grade) : null
- const disc = payRow.payment_discounts as Record<string, unknown> | null
+ const disc = embedOne(payRow.payment_discounts)
  const appRows = payRow.payment_discount_applications as unknown
  let discountApplications = Array.isArray(appRows)
   ? appRows
-     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>))
+     .map((row) => mapDiscountApplicationRow(row as Record<string, unknown>, catalogById))
      .filter((x): x is PaymentDiscountApplicationRow => x != null)
   : []
- if (discountApplications.length === 0 && base.discountId && disc) {
+ if (discountApplications.length === 0 && base.discountId) {
+  const meta = catalogById.get(base.discountId)
   discountApplications = [
    {
     sortOrder: 0,
     discountId: base.discountId,
-    name: disc.name != null ? String(disc.name) : "—",
-    percentOff: disc.percent_off != null ? Number(disc.percent_off) : null,
-    amountOff: disc.amount_off != null ? Number(disc.amount_off) : null,
+    name: disc?.name != null ? String(disc.name) : (meta?.name ?? "—"),
+    percentOff:
+     disc?.percent_off != null ? Number(disc.percent_off) : (meta?.percentOff ?? null),
+    amountOff:
+     disc?.amount_off != null ? Number(disc.amount_off) : (meta?.amountOff ?? null),
     amountDeducted: null,
    },
   ]
@@ -325,12 +447,46 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  const subtotalAmount =
   payRow.subtotal_amount != null ? Number(payRow.subtotal_amount) : null
  const firstApp = discountApplications[0]
+
+ let lateFeeItems: PaymentLateFeeFullRow[] = []
+ try {
+  const { data: lfRows, error: lfErr } = await supabase
+   .from("payment_late_fee_items")
+   .select(
+    "id, class_id, amount, billing_month, waived, waiver_reason, classes ( subject, course_code_full, courses ( course_name ) )"
+   )
+   .eq("payment_id", id)
+  if (lfErr) throw lfErr
+  lateFeeItems = (lfRows ?? []).map((row) => {
+   const r = row as Record<string, unknown>
+   const cls = r.classes as Record<string, unknown> | null
+   const course = cls?.courses as Record<string, unknown> | null
+   const subject = cls?.subject != null ? String(cls.subject) : "—"
+   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+   const courseName = course?.course_name != null ? String(course.course_name) : null
+   return {
+    id: String(r.id),
+    classId: String(r.class_id),
+    classLabel: formatClassLabel({ subject, courseCode: code, courseName }),
+    amount: Number(r.amount ?? 50),
+    billingMonth: String(r.billing_month ?? ""),
+    waived: Boolean(r.waived),
+    waiverReason: r.waiver_reason != null ? String(r.waiver_reason) : null,
+   }
+  })
+ } catch (e) {
+  // 表未套用 migration 時唔阻舊單讀取
+  console.warn("[fetchPaymentFull] late fee items", e)
+  lateFeeItems = []
+ }
+
  return {
   ...base,
   subtotalAmount,
   studentGrade,
   details,
   discountApplications,
+  lateFeeItems,
   discountPercentOff: firstApp?.percentOff ?? (disc?.percent_off != null ? Number(disc.percent_off) : null),
   discountAmountOff: firstApp?.amountOff ?? (disc?.amount_off != null ? Number(disc.amount_off) : null),
  }
@@ -372,6 +528,14 @@ export async function insertPaymentRecord(params: {
  createReferralRecord?: boolean
  /** Special discount 減免定金額（HKD）；不寫入優惠目錄 */
  specialDiscountAmount?: number | null
+ /** 逾期罰款列（獨立表；唔入折扣基數） */
+ lateFeeItems?: Array<{
+  classId: string
+  amount?: number
+  billingMonth: string
+  waived: boolean
+  waiverReason?: string | null
+ }>
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  if (params.status === PAYMENT_STATUS.pendingPay) {
@@ -470,12 +634,29 @@ export async function insertPaymentRecord(params: {
   })
  }
 
- const expectedTotal = applyFixedDiscountAmount(afterCatalog, specialAmount)
+ const lateFeeItems = params.lateFeeItems ?? []
+ for (const lf of lateFeeItems) {
+  if (!lf.classId?.trim()) throw new Error("逾期罰款缺少班別")
+  if (!/^\d{4}-\d{2}$/.test(lf.billingMonth.trim())) {
+   throw new Error("逾期罰款 billing_month 格式無效")
+  }
+  if (lf.waived) {
+   const reason = String(lf.waiverReason ?? "").trim()
+   if (!reason) throw new Error("豁免逾期罰款必須填寫原因")
+  }
+ }
+ const lateFeeTotal = lateFeeItems.reduce((sum, lf) => {
+  if (lf.waived) return sum
+  const amt = lf.amount != null && Number.isFinite(lf.amount) ? Number(lf.amount) : LATE_FEE_AMOUNT
+  return sum + (amt > 0 ? amt : 0)
+ }, 0)
+ const tuitionAfterDiscounts = applyFixedDiscountAmount(afterCatalog, specialAmount)
+ const expectedTotal = Math.round((tuitionAfterDiscounts + lateFeeTotal) * 100) / 100
  if (Math.abs(expectedTotal - totalAmount) > 0.01) {
-  if (discountIds.length === 0 && specialAmount <= 0) {
+  if (discountIds.length === 0 && specialAmount <= 0 && lateFeeItems.length === 0) {
    throw new Error("應繳總額與項目小計不一致")
   }
-  throw new Error("應繳總額與優惠試算結果不一致，請重新整理後再試")
+  throw new Error("應繳總額與優惠／罰款試算結果不一致，請重新整理後再試")
  }
 
  let batchId = params.paymentBatchId ?? null
@@ -536,6 +717,20 @@ export async function insertPaymentRecord(params: {
    }))
   )
   if (e3) throw e3
+ }
+
+ if (lateFeeItems.length > 0) {
+  const { error: eLf } = await supabase.from("payment_late_fee_items").insert(
+   lateFeeItems.map((lf) => ({
+    payment_id: paymentId,
+    class_id: lf.classId,
+    amount: lf.amount != null && Number.isFinite(lf.amount) ? Number(lf.amount) : LATE_FEE_AMOUNT,
+    billing_month: lf.billingMonth.trim(),
+    waived: lf.waived,
+    waiver_reason: lf.waived ? String(lf.waiverReason ?? "").trim() : null,
+   }))
+  )
+  if (eLf) throw eLf
  }
 
  if (

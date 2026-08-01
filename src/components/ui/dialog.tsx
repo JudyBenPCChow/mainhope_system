@@ -10,7 +10,7 @@ const DialogTrigger = DialogPrimitive.Trigger
 const DialogPortal = DialogPrimitive.Portal
 const DialogClose = DialogPrimitive.Close
 
-/** z 須高於 DetailLayerShell（z-200），否則學生／老師詳情內的 Dialog 會被蓋住 */
+/** z 須高於 DetailLayerShell（z-200）與 MobileFilterSheet／NavDrawer（z-250），否則詳情／篩選內 Dialog 會被蓋住 */
 const DIALOG_Z_OVERLAY = "z-[260]"
 const DIALOG_Z_CONTENT = "z-[261]"
 
@@ -50,7 +50,7 @@ const DialogContent = React.forwardRef<
    <DialogPrimitive.Content
     ref={ref}
     className={cn(
-     "fixed left-[50%] top-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+     "fixed left-[50%] top-[50%] grid w-[calc(100%-1.5rem)] max-w-lg max-h-[min(90dvh,calc(100dvh-2rem))] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto overscroll-contain border border-border bg-background p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1.5rem,env(safe-area-inset-top))] shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:w-full sm:rounded-lg sm:pt-6",
      DIALOG_Z_CONTENT,
      className
     )}

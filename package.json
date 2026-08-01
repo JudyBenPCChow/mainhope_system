@@ -13,7 +13,10 @@
     "apo:check": "node --experimental-strip-types scripts/apo-offline-check.mjs",
     "makeup:regression": "node scripts/makeup-visibility-regression.mjs",
     "db:apply": "node scripts/apply-one-migration.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sandbox:payroll": "vite --config sandbox/payroll-ui/vite.config.ts",
+    "sandbox:payroll:build": "vite build --config sandbox/payroll-ui/vite.config.ts",
+    "sandbox:payroll:deploy": "npm run sandbox:payroll:build && mkdir -p sandbox/payroll-ui/dist/.vercel && cp sandbox/payroll-ui/vercel.json sandbox/payroll-ui/dist/vercel.json && cp sandbox/payroll-ui/.vercel/project.json sandbox/payroll-ui/dist/.vercel/project.json && npx vercel deploy sandbox/payroll-ui/dist --yes --prod"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",

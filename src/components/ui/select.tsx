@@ -67,6 +67,7 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
    name,
    required,
    placeholder,
+   "aria-label": ariaLabel,
   },
   ref
  ) => {
@@ -107,7 +108,10 @@ const Select = React.forwardRef<HTMLButtonElement, SelectProps>(
      <SelectPrimitive.Trigger
       ref={ref}
       id={id}
-      aria-label={typeof effectivePlaceholder === "string" ? effectivePlaceholder : undefined}
+      aria-label={
+       ariaLabel ??
+       (typeof effectivePlaceholder === "string" ? effectivePlaceholder : undefined)
+      }
       className={cn(
        "flex min-h-10 w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-input bg-background px-3 py-2 text-left text-sm shadow-sm transition-colors",
        "focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",

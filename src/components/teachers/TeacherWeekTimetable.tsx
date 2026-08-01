@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
  intervalsOverlapMinutes,
  LESSON_SLOT_DURATION_MIN,
@@ -107,6 +108,7 @@ export function TeacherWeekTimetable({
  onRequestLoadEarlier,
  onRequestLoadLater,
 }: Props) {
+ const isMobile = useIsMobile()
  const [weekMondayYmd, setWeekMondayYmd] = useState(() => mondayYmdOfWeekContaining(localYmd()))
  const [pickerYmd, setPickerYmd] = useState(() => localYmd())
 
@@ -133,6 +135,16 @@ export function TeacherWeekTimetable({
   }
   return grid
  }, [items, weekMondayYmd])
+
+ const dayGroups = useMemo(() => {
+  return columnDates.map((ymd, i) => {
+   const dayItems = items
+    .filter((s) => s.scheduledDate === ymd)
+    .slice()
+    .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""))
+   return { ymd, weekday: WEEKDAY_LABELS[i], items: dayItems }
+  })
+ }, [columnDates, items])
 
  const weekGridColPct = useMemo(() => {
   const timePct = 10
@@ -214,7 +226,9 @@ export function TeacherWeekTimetable({
    </div>
 
    <p className="text-sm text-muted-foreground">
-    橫軸為本週一至日；直軸為預設堂數格（每格 75 分鐘）。點卡片可開啟排程詳情。
+    {isMobile
+     ? "按日列出本週課堂；點卡片可開啟排程詳情。"
+     : "橫軸為本週一至日；直軸為預設堂數格（每格 75 分鐘）。點卡片可開啟排程詳情。"}
     {rangeExtending ? " 正在載入更多課堂…" : null}
    </p>
 
@@ -233,89 +247,135 @@ export function TeacherWeekTimetable({
     </div>
    ) : null}
 
-   <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-    <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-xs md:text-sm">
-     <colgroup>
-      <col style={{ width: `${weekGridColPct.timePct}%` }} />
-      {columnDates.map((ymd) => (
-       <col key={ymd} style={{ width: `${weekGridColPct.each}%` }} />
-      ))}
-     </colgroup>
-     <thead>
-      <tr>
-       <th className="sticky left-0 z-10 border-b border-r border-border bg-muted/90 px-2 py-2 font-medium text-muted-foreground">
-        節次
-       </th>
-       {columnDates.map((ymd, i) => (
-        <th
-         key={ymd}
-         className="min-w-0 border-b border-border bg-muted/60 px-1.5 py-2 text-center font-medium leading-tight"
-        >
-         <div className="text-muted-foreground">週{WEEKDAY_LABELS[i]}</div>
-         <div className="tabular-nums text-foreground">{ymd.slice(5).replace("-", "/")}</div>
-        </th>
+   {isMobile ? (
+    <div className="space-y-5">
+     {dayGroups.map((group) => (
+      <div key={group.ymd}>
+       <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+        週{group.weekday}
+        <span className="ml-2 font-normal tabular-nums">{group.ymd}</span>
+       </h3>
+       {group.items.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+         沒有排程
+        </p>
+       ) : (
+        <ul className="space-y-2">
+         {group.items.map((s) => {
+          const cancelled = s.status.includes("取消")
+          return (
+           <li key={s.id}>
+            <Link
+             to={`/Schedule/${s.id}`}
+             className={cn(
+              "block rounded-xl border px-4 py-3 transition-colors",
+              cancelled
+               ? "border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground line-through"
+               : "border-border/80 bg-muted/20 hover:border-primary/30"
+             )}
+            >
+             <div className="font-semibold text-foreground">
+              {s.startTime ?? "—"}–{s.endTime ?? "—"} · {s.subject}
+             </div>
+             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
+              <span>{s.classroomName?.trim() ? s.classroomName : "課室未定"}</span>
+              {s.hasTeachingNotes ? <span>已有教學紀錄</span> : null}
+              {s.courseCode ? <span className="font-mono text-xs">{s.courseCode}</span> : null}
+             </div>
+            </Link>
+           </li>
+          )
+         })}
+        </ul>
+       )}
+      </div>
+     ))}
+    </div>
+   ) : (
+    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+     <table className="w-full min-w-[720px] table-fixed border-collapse text-left text-xs md:text-sm">
+      <colgroup>
+       <col style={{ width: `${weekGridColPct.timePct}%` }} />
+       {columnDates.map((ymd) => (
+        <col key={ymd} style={{ width: `${weekGridColPct.each}%` }} />
        ))}
-      </tr>
-     </thead>
-     <tbody>
-      {LESSON_SLOT_INDICES.map((slot) => (
-       <tr key={slot}>
-        <th className="sticky left-0 z-10 border-b border-r border-border bg-muted/40 px-2 py-1.5 text-xs font-medium tabular-nums text-muted-foreground md:text-sm">
-         {lessonSlotLabel(slot)}
+      </colgroup>
+      <thead>
+       <tr>
+        <th className="sticky left-0 z-10 border-b border-r border-border bg-muted/90 px-2 py-2 font-medium text-muted-foreground">
+         節次
         </th>
-        {columnDates.map((ymd, col) => {
-         const key = `${slot}-${col}`
-         const list = slotMatches.get(key) ?? []
-         return (
-          <td
-           key={`${slot}-${ymd}`}
-           className="border-b border-border bg-background/80 p-1 align-top"
-          >
-           <div className="flex min-h-[3.25rem] flex-col gap-1">
-            {list.length === 0 ? (
-             <span className="block min-h-[2rem] text-[0.65rem] text-muted-foreground/40 md:text-xs">
-              —
-             </span>
-            ) : (
-             list.map((s) => {
-              const cancelled = s.status.includes("取消")
-              return (
-               <Link
-                key={s.id}
-                to={`/Schedule/${s.id}`}
-                className={cn(
-                 "block rounded-md border px-1 py-0.5 text-[0.65rem] leading-snug shadow-sm transition-colors hover:border-primary hover:bg-primary/5 md:text-xs",
-                 cancelled
-                  ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground line-through"
-                  : "border-teal-200 bg-teal-50/90 text-teal-950"
-                )}
-               >
-                <div className="font-semibold">{s.subject}</div>
-                <div className="tabular-nums text-muted-foreground">
-                 {s.startTime ?? "—"}–{s.endTime ?? "—"}
-                </div>
-                <div className="text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
-                 {s.classroomName?.trim() ? s.classroomName : "課室未定"}
-                 {s.hasTeachingNotes ? " · 已有教學紀錄" : ""}
-                </div>
-                {s.courseCode ? (
-                 <div className="font-mono text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
-                  {s.courseCode}
-                 </div>
-                ) : null}
-               </Link>
-              )
-             })
-            )}
-           </div>
-          </td>
-         )
-        })}
+        {columnDates.map((ymd, i) => (
+         <th
+          key={ymd}
+          className="min-w-0 border-b border-border bg-muted/60 px-1.5 py-2 text-center font-medium leading-tight"
+         >
+          <div className="text-muted-foreground">週{WEEKDAY_LABELS[i]}</div>
+          <div className="tabular-nums text-foreground">{ymd.slice(5).replace("-", "/")}</div>
+         </th>
+        ))}
        </tr>
-      ))}
-     </tbody>
-    </table>
-   </div>
+      </thead>
+      <tbody>
+       {LESSON_SLOT_INDICES.map((slot) => (
+        <tr key={slot}>
+         <th className="sticky left-0 z-10 border-b border-r border-border bg-muted/40 px-2 py-1.5 text-xs font-medium tabular-nums text-muted-foreground md:text-sm">
+          {lessonSlotLabel(slot)}
+         </th>
+         {columnDates.map((ymd, col) => {
+          const key = `${slot}-${col}`
+          const list = slotMatches.get(key) ?? []
+          return (
+           <td
+            key={`${slot}-${ymd}`}
+            className="border-b border-border bg-background/80 p-1 align-top"
+           >
+            <div className="flex min-h-[3.25rem] flex-col gap-1">
+             {list.length === 0 ? (
+              <span className="block min-h-[2rem] text-[0.65rem] text-muted-foreground/40 md:text-xs">
+               —
+              </span>
+             ) : (
+              list.map((s) => {
+               const cancelled = s.status.includes("取消")
+               return (
+                <Link
+                 key={s.id}
+                 to={`/Schedule/${s.id}`}
+                 className={cn(
+                  "block rounded-md border px-1 py-0.5 text-[0.65rem] leading-snug shadow-sm transition-colors hover:border-primary hover:bg-primary/5 md:text-xs",
+                  cancelled
+                   ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground line-through"
+                   : "border-teal-200 bg-teal-50/90 text-teal-950"
+                 )}
+                >
+                 <div className="font-semibold">{s.subject}</div>
+                 <div className="tabular-nums text-muted-foreground">
+                  {s.startTime ?? "—"}–{s.endTime ?? "—"}
+                 </div>
+                 <div className="text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
+                  {s.classroomName?.trim() ? s.classroomName : "課室未定"}
+                  {s.hasTeachingNotes ? " · 已有教學紀錄" : ""}
+                 </div>
+                 {s.courseCode ? (
+                  <div className="font-mono text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
+                   {s.courseCode}
+                  </div>
+                 ) : null}
+                </Link>
+               )
+              })
+             )}
+            </div>
+           </td>
+          )
+         })}
+        </tr>
+       ))}
+      </tbody>
+     </table>
+    </div>
+   )}
   </div>
  )
 }

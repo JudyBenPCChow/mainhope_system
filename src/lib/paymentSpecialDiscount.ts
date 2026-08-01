@@ -1,4 +1,7 @@
-/** 收款臨時減免定顯示名（行政不可自訂） */
+/**
+ * 僅用於「目錄以外」的臨時減免顯示名（行政不可自訂）。
+ * 優惠目錄內的規則優惠仍顯示各自原名，不可一律改為此字串。
+ */
 export const SPECIAL_DISCOUNT_LABEL = "Special discount"
 
 export function normalizeSpecialDiscountAmount(raw: unknown): number {

@@ -1,36 +1,38 @@
-# 正規逾期罰款／禁止入室（系統化）
+# 正規逾期罰款（系統化）
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
+| 狀態 | `done`（2026-08-01：收款自動加罰已上線；2026-10-01 起生效） |
 | 優先 | 高 |
-| 範圍 | 正規學年按月學費：月內第 2 堂 $50、第 3 堂起禁止入室警示；前台／點名提示（不鎖死點名存檔） |
-| 不含 | 暑期班（政策不適用）；堂數缺口「追學費」指標（已另有 RPC／阿Po，且列表 Tag 已下線） |
+| 範圍 | 正規小組課：已繳／已扣池判定拖欠 → 收款自動加 HK$50；同一科每曆月最多一次；豁免須原因並可統計 |
+| 不含 | 禁止入室警示／門禁；暑期；試堂；一對一；家長 WhatsApp 自動通告（可後做） |
+| 施行 | **2026-10-01** 起；此前拖欠不追溯 |
+| 前線指引 | [`../manual/TUITION_LATE_FEE_FRONTLINE.md`](../manual/TUITION_LATE_FEE_FRONTLINE.md) |
+| 政策錨點 | [`../TUITION_TERM_AND_LATE_FEE_POLICY.md`](../TUITION_TERM_AND_LATE_FEE_POLICY.md) |
+| 實作計劃 | Cursor plan `late_fee_fifty_63951e4b` |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 政策 | [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../TUITION_TERM_AND_LATE_FEE_POLICY.md)、[`OPS_POLICIES.md`](../OPS_POLICIES.md) |
-| 盤點日期 | 2026-07-31 |
+| 盤點／定案 | 2026-07-31 立項；2026-08-01 產品定案＋前線指引＋系統實作 |
 
 ## 結論
 
-校方規條已寫清；**系統尚未強制**。行政全靠經驗判斷「該月第 N 堂」與是否擋入室，UI 不協助 → 易漏催／不一致。
+`/Payments` **已收款**會按池模型自動加入逾期罰款（獨立表 `payment_late_fee_items`）；豁免必填原因；優惠不打罰款。前端以 `localToday()` 曆月做 Rule B；系統化開關日為 **2026-10-01**（`LATE_FEE_EFFECTIVE_DATE`）。
 
-實作前須再確認：未繳判定以堂數包定月費為主、第 N 堂計數（排程 vs 出席、連堂算幾堂）、繳清後 $50 是否豁免。見政策檔 §5。
+## 已完成
 
-## 行政邊緣模擬（2026-07-31）
+1. Migration：`payment_late_fee_items`＋RPC `student_class_late_fee_pools`（`20260801160000`）
+2. 收款金額：學費 → 優惠 → 非豁免罰款＝總額；罰款不入 `payment_details`
+3. `/Payments`：自動加罰、豁免對話、本月已處理／其他科拖欠提示；待收款不加罰
+4. 收據／金額明細顯示罰款列
+5. 系統通知（admin／alien）：`20260801170000`「收款登記：正規課逾期罰款可自動加 $50」
 
-| 模擬 ID | 個案 | 判定 | 發現的問題 |
-| --- | --- | --- | --- |
-| S10 | 正規學年：月內第 3 堂仍未交月費 | 半完成 | 無自動罰款項、無禁止入室警示、無門禁；學生列表追學費 Tag 已下線；行政能靠經驗做但 UI 不判定第 N 堂 |
+## 已知限制（本階段接受）
 
-## 待做（摘要）
-
-1. 罰款項目與出單／豁免
-2. 自動判定「該月未交」＋月內第 N 堂（僅正規）
-3. 前台／點名「禁止入室」警示（不鎖死點名存檔）
-4. 行政通告／WhatsApp 預填（職員＋家長）
-5. 與堂數包收款節奏對齊；勿與「已上≥已繳」堂數缺口混標
+- 跨班補堂掛 host class 的扣堂，可能影響該班池（見計劃 adversarial）
+- 誤豁免後同月不能再自動加罰（Rule B 設計）
+- 作廢單據的罰款列不計「已處理」，可再罰；UI 未特別警示
 
 ## 相關
 
-- 收款：`/Payments`；作廢政策見 `PAYMENT_RECEIPT_VOID_POLICY`
+- 收款：`/Payments`；作廢見 `PAYMENT_RECEIPT_VOID_POLICY`
 - 點名扣堂：[`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)
+- 收件匣：[`manual/INBOX.md`](../manual/INBOX.md)

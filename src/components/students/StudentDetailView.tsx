@@ -8,6 +8,7 @@ import {
  ClipboardList,
  GraduationCap,
  History,
+ Loader2,
  Plus,
  Printer,
  Umbrella,
@@ -395,46 +396,10 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   }
  }
 
- const reloadStudent = useCallback(async () => {
-  if (!sid) return
-  const s = await getStudentById(sid)
-  setStudent(s)
- }, [sid])
+ const tabLoadedRef = useRef<Set<TabId>>(new Set(["basic"]))
+ const [tabLoading, setTabLoading] = useState(false)
 
- const reloadSubs = useCallback(async () => {
-  if (!sid) return
-  const staff = isMgmtStaff()
-  const settled = await Promise.allSettled([
-   fetchEnrollmentsForStudent(sid),
-   staff ? fetchPaymentsForStudent(sid) : Promise.resolve([] as PaymentRow[]),
-   fetchAttendanceForStudent(sid),
-   fetchLeaveForStudent(sid),
-   fetchUpcomingSchedulesForStudent(sid, localTodayYmd()),
-   fetchStudentActivity(sid, { includePayments: staff }),
-   fetchRelativesForStudent(sid),
-   staff ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
-   fetchLessonBalancesForStudent(sid, { includePaidLessons: staff }),
-  ])
-  const pick = <T,>(i: number, fallback: T): T =>
-   settled[i].status === "fulfilled" ? (settled[i] as PromiseFulfilledResult<T>).value : fallback
-
-  if (settled[0].status === "rejected") {
-   console.error("[StudentDetailView] enrollments", settled[0].reason)
-  }
-  if (settled[8].status === "rejected") {
-   console.error("[StudentDetailView] lessonBalances", settled[8].reason)
-  }
-  setEnrollments(pick(0, []))
-  setPayments(pick(1, []))
-  setTotalPaidLessons(pick(7, null))
-  setLessonBalances(pick(8, []))
-  setAttendance(pick(2, []))
-  setLeaves(pick(3, []))
-  const fs = pick(4, [] as StudentUpcomingScheduleRow[])
-  setFutureSchedules(fs)
-  setHistory(pick(5, []))
-  setRelatives(pick(6, []))
-
+ const loadFutureScheduleHints = useCallback((fs: StudentUpcomingScheduleRow[]) => {
   const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
   for (const row of fs) {
    const arr = byClass.get(row.class_id) ?? []
@@ -450,30 +415,128 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
    })
    .catch((e) => {
     console.error("[StudentDetailView] schedule hints", e)
-    // 保留上一輪名單，避免失敗時顯示成「無人」
    })
    .finally(() => {
     if (reqId === hintsRequestIdRef.current) setHintsLoading(false)
    })
-  await reloadStudent()
- }, [sid, reloadStudent])
+ }, [])
+
+ /** 首屏：學生＋報讀摘要＋親屬（基本資料 tab） */
+ const reloadCore = useCallback(async () => {
+  if (!sid) return
+  const settled = await Promise.allSettled([
+   getStudentById(sid),
+   fetchEnrollmentsForStudent(sid),
+   fetchRelativesForStudent(sid),
+  ])
+  if (settled[0].status === "fulfilled") setStudent(settled[0].value)
+  else console.error("[StudentDetailView] student", settled[0].reason)
+  if (settled[1].status === "fulfilled") setEnrollments(settled[1].value)
+  else {
+   console.error("[StudentDetailView] enrollments", settled[1].reason)
+   setEnrollments([])
+  }
+  if (settled[2].status === "fulfilled") setRelatives(settled[2].value)
+  else setRelatives([])
+ }, [sid])
+
+ /** 按分頁懶載；force 時重拉（寫入後） */
+ const ensureTabData = useCallback(
+  async (tabId: TabId, force = false) => {
+   if (!sid) return
+   if (!force && tabLoadedRef.current.has(tabId)) return
+   const staff = isMgmtStaff()
+   setTabLoading(true)
+   try {
+    if (tabId === "basic") {
+     const rels = await fetchRelativesForStudent(sid)
+     setRelatives(rels)
+    } else if (tabId === "enrollments") {
+     const settled = await Promise.allSettled([
+      fetchEnrollmentsForStudent(sid),
+      staff ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
+      fetchLessonBalancesForStudent(sid, { includePaidLessons: staff }),
+      fetchClassOptions(),
+     ])
+     if (settled[0].status === "fulfilled") setEnrollments(settled[0].value)
+     if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
+     if (settled[2].status === "fulfilled") setLessonBalances(settled[2].value)
+     else console.error("[StudentDetailView] lessonBalances", settled[2].reason)
+     if (settled[3].status === "fulfilled") setClassOptions(settled[3].value)
+    } else if (tabId === "payments") {
+     if (!staff) {
+      setPayments([])
+     } else {
+      const settled = await Promise.allSettled([
+       fetchPaymentsForStudent(sid),
+       fetchTotalPaidLessonsForStudent(sid),
+      ])
+      if (settled[0].status === "fulfilled") setPayments(settled[0].value)
+      else setPayments([])
+      if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
+     }
+    } else if (tabId === "attendance") {
+     const rows = await fetchAttendanceForStudent(sid)
+     setAttendance(rows)
+    } else if (tabId === "leave") {
+     const rows = await fetchLeaveForStudent(sid)
+     setLeaves(rows)
+    } else if (tabId === "futureSchedules") {
+     const fs = await fetchUpcomingSchedulesForStudent(sid, localTodayYmd())
+     setFutureSchedules(fs)
+     loadFutureScheduleHints(fs)
+    } else if (tabId === "history") {
+     const rows = await fetchStudentActivity(sid, { includePayments: staff })
+     setHistory(rows)
+    }
+    tabLoadedRef.current.add(tabId)
+   } catch (e) {
+    console.error(`[StudentDetailView] tab ${tabId}`, e)
+   } finally {
+    setTabLoading(false)
+   }
+  },
+  [sid, loadFutureScheduleHints]
+ )
+
+ /** 寫入後：重載核心＋已開過／而家嘅分頁 */
+ const reloadSubs = useCallback(async () => {
+  if (!sid) return
+  const tabsToReload = new Set<TabId>(tabLoadedRef.current)
+  tabsToReload.add(tab)
+  await reloadCore()
+  tabLoadedRef.current = new Set(["basic"])
+  await Promise.all(
+   [...tabsToReload]
+    .filter((t) => t !== "basic")
+    .map((t) => ensureTabData(t, true))
+  )
+ }, [sid, tab, reloadCore, ensureTabData])
 
  const loadAll = useCallback(async () => {
   if (!sid) return
   setLoading(true)
+  tabLoadedRef.current = new Set(["basic"])
   try {
-   await reloadStudent()
-   // 主資料與選項先就緒後解鎖頁面；hints 在 reloadSubs 內二次載入
-   const [, opts] = await Promise.all([reloadSubs(), fetchClassOptions()])
-   setClassOptions(opts)
+   await reloadCore()
   } finally {
    setLoading(false)
   }
- }, [sid, reloadStudent, reloadSubs])
+ }, [sid, reloadCore])
 
  useEffect(() => {
   void loadAll()
  }, [loadAll])
+
+ useEffect(() => {
+  if (loading || !sid || !student) return
+  void ensureTabData(tab)
+ }, [tab, loading, sid, student, ensureTabData])
+
+ useEffect(() => {
+  if (!enrollKindOpen) return
+  void ensureTabData("enrollments")
+ }, [enrollKindOpen, ensureTabData])
 
  const [form, setForm] = useState<Partial<StudentRecord>>({})
 
@@ -1312,6 +1375,12 @@ const exportFutureSchedulesCsv = () => {
    </div>
 
    <div className="p-4 md:p-6">
+    {tabLoading && tab !== "basic" ? (
+     <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+      載入此分頁…
+     </p>
+    ) : null}
     {tab === "basic" && student ? (
      <div className="mx-auto max-w-4xl space-y-8">
       <fieldset

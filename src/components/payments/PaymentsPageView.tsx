@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import {
  Dialog,
  DialogContent,
+ DialogFooter,
  DialogHeader,
  DialogTitle,
 } from "@/components/ui/dialog"
@@ -55,6 +56,17 @@ import {
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSuperAdmin } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import {
+ LATE_FEE_AMOUNT,
+ LATE_FEE_LABEL,
+ billingMonthFromYmd,
+ isLateFeeEligibleCourse,
+ isLateFeeSystemActive,
+ localTodayYmd,
+ selectAutoLateFeeClassIds,
+ sumNonWaivedLateFees,
+ type LateFeePoolRow,
+} from "@/lib/tuitionLateFee"
 import { cn } from "@/lib/utils"
 import {
  PAYMENT_METHOD_PRESETS,
@@ -68,6 +80,7 @@ import {
  type PaymentFull,
  type PaymentListRow,
 } from "@/services/paymentQueries"
+import { fetchStudentClassLateFeePools } from "@/services/tuitionLateFeeQueries"
 import {
  applyDiscountsToSubtotal,
  applyFixedDiscountAmount,
@@ -144,6 +157,15 @@ export function PaymentsPageView() {
  const [recentPayments, setRecentPayments] = useState<PaymentListRow[]>([])
  const [paidLessons, setPaidLessons] = useState<number | null>(null)
  const [attendedLessons, setAttendedLessons] = useState<number | null>(null)
+
+ const [lateFeePools, setLateFeePools] = useState<LateFeePoolRow[]>([])
+ const [lateFeePoolsLoading, setLateFeePoolsLoading] = useState(false)
+ const [lateFeePoolsWarn, setLateFeePoolsWarn] = useState<string | null>(null)
+ const [lateFeeWaivers, setLateFeeWaivers] = useState<
+  Record<string, { waived: boolean; reason: string }>
+ >({})
+ const [waiveDialogClassId, setWaiveDialogClassId] = useState<string | null>(null)
+ const [waiveDialogReason, setWaiveDialogReason] = useState("")
 
  const [formErr, setFormErr] = useState<string | null>(null)
 
@@ -292,9 +314,89 @@ export function PaymentsPageView() {
   return normalizeSpecialDiscountAmount(specialDiscountAmount)
  }, [specialDiscountEnabled, specialDiscountAmount])
 
- const totalDue = useMemo(
+ const tuitionDue = useMemo(
   () => applyFixedDiscountAmount(afterCatalogDue, specialAmountN),
   [afterCatalogDue, specialAmountN]
+ )
+
+ const tuitionClassIdsOnReceipt = useMemo(
+  () =>
+   lines
+    .filter((l) => l.kind === "enrollment" && l.classId && Number(l.lessons) > 0)
+    .map((l) => l.classId),
+  [lines]
+ )
+
+ const autoLateFeePools = useMemo(() => {
+  if (!isLateFeeSystemActive() || collectMode !== "receive") return []
+  return selectAutoLateFeeClassIds({
+   pools: lateFeePools,
+   tuitionClassIdsOnReceipt,
+  })
+ }, [lateFeePools, tuitionClassIdsOnReceipt, collectMode])
+
+ const lateFeeDraftItems = useMemo(() => {
+  const billingMonth = billingMonthFromYmd(localTodayYmd())
+  return autoLateFeePools.map((p) => {
+   const w = lateFeeWaivers[p.classId]
+   const waived = Boolean(w?.waived)
+   return {
+    classId: p.classId,
+    amount: LATE_FEE_AMOUNT,
+    billingMonth,
+    waived,
+    waiverReason: waived ? String(w?.reason ?? "").trim() : null,
+   }
+  })
+ }, [autoLateFeePools, lateFeeWaivers])
+
+ const lateFeeChargeTotal = useMemo(
+  () => sumNonWaivedLateFees(lateFeeDraftItems),
+  [lateFeeDraftItems]
+ )
+
+ const totalDue = useMemo(() => {
+  if (collectMode !== "receive") return tuitionDue
+  return Math.round((tuitionDue + lateFeeChargeTotal) * 100) / 100
+ }, [collectMode, tuitionDue, lateFeeChargeTotal])
+
+ const otherArrearsHints = useMemo(() => {
+  if (!isLateFeeSystemActive() || collectMode !== "receive") return []
+  const onReceipt = new Set(tuitionClassIdsOnReceipt)
+  return lateFeePools.filter(
+   (p) =>
+    isLateFeeEligibleCourse(p) &&
+    p.triggerLateFee &&
+    !p.alreadyHandledMonth &&
+    !onReceipt.has(p.classId)
+  )
+ }, [lateFeePools, tuitionClassIdsOnReceipt, collectMode])
+
+ const alreadyHandledHints = useMemo(() => {
+  if (!isLateFeeSystemActive() || collectMode !== "receive") return []
+  const onReceipt = new Set(tuitionClassIdsOnReceipt)
+  return lateFeePools.filter(
+   (p) =>
+    onReceipt.has(p.classId) &&
+    isLateFeeEligibleCourse(p) &&
+    p.triggerLateFee &&
+    p.alreadyHandledMonth
+  )
+ }, [lateFeePools, tuitionClassIdsOnReceipt, collectMode])
+
+ const classLabelForLateFee = useCallback(
+  (classId: string) => {
+   const e = enrollmentByClass.get(classId)
+   if (e) {
+    return formatClassLabel({
+     subject: e.subject,
+     courseCode: e.courseCode,
+     courseName: e.courseName,
+    })
+   }
+   return "班別"
+  },
+  [enrollmentByClass]
  )
 
  const discountStepsPreview = useMemo(
@@ -409,10 +511,35 @@ export function PaymentsPageView() {
   }
  }, [])
 
+ const loadLateFeePools = useCallback(async (studentId: string) => {
+  if (!isLateFeeSystemActive()) {
+   setLateFeePools([])
+   setLateFeePoolsWarn(null)
+   setLateFeePoolsLoading(false)
+   return
+  }
+  setLateFeePoolsLoading(true)
+  setLateFeePoolsWarn(null)
+  try {
+   const pools = await fetchStudentClassLateFeePools(studentId)
+   setLateFeePools(pools)
+  } catch (e) {
+   setLateFeePools([])
+   setLateFeePoolsWarn("無法載入逾期罰款資料。請稍後再試，或人手核對拖欠後再收款。")
+   console.warn("[PaymentsPageView.loadLateFeePools]", e)
+  } finally {
+   setLateFeePoolsLoading(false)
+  }
+ }, [])
+
  useEffect(() => {
   if (selectedStudent) {
    void loadEnrollments(selectedStudent.id)
    void loadStudentContext(selectedStudent.id)
+   void loadLateFeePools(selectedStudent.id)
+   setLateFeeWaivers({})
+   setWaiveDialogClassId(null)
+   setWaiveDialogReason("")
    void isStudentNewToMingXue(selectedStudent.id).then(setIsNewStudent).catch(() => setIsNewStudent(null))
    void fetchRelativesForStudent(selectedStudent.id).then(setRelatives).catch(() => setRelatives([]))
   } else {
@@ -429,8 +556,13 @@ export function PaymentsPageView() {
    setRecentPayments([])
    setPaidLessons(null)
    setAttendedLessons(null)
+   setLateFeePools([])
+   setLateFeePoolsWarn(null)
+   setLateFeeWaivers({})
+   setWaiveDialogClassId(null)
+   setWaiveDialogReason("")
   }
- }, [selectedStudent, loadEnrollments, loadStudentContext])
+ }, [selectedStudent, loadEnrollments, loadStudentContext, loadLateFeePools])
 
  const filteredStudents = useMemo(() => {
   const q = studentQuery.trim().toLowerCase()
@@ -693,6 +825,16 @@ export function PaymentsPageView() {
     return `${SPECIAL_DISCOUNT_LABEL} 不可大於剩餘應收（${money(afterCatalogDue)}）。`
    }
   }
+  if (collectMode === "receive" && lateFeePoolsLoading) {
+   return "載入逾期罰款資料中…"
+  }
+  if (collectMode === "receive") {
+   for (const lf of lateFeeDraftItems) {
+    if (lf.waived && !String(lf.waiverReason ?? "").trim()) {
+     return "豁免逾期罰款必須填寫原因。"
+    }
+   }
+  }
   return null
  }
 
@@ -764,6 +906,7 @@ export function PaymentsPageView() {
     discountIds,
     specialDiscountAmount: specialAmountN > 0 ? specialAmountN : null,
     details,
+    lateFeeItems: lateFeeDraftItems,
     ...buildPaymentExtras(),
    })
    await linkTrialsAfterPayment(id, details)
@@ -792,9 +935,11 @@ export function PaymentsPageView() {
    setDiscountIds([])
    setSpecialDiscountEnabled(false)
    setSpecialDiscountAmount("")
+   setLateFeeWaivers({})
    if (selectedStudent) {
     void loadEnrollments(selectedStudent.id)
     void loadStudentContext(selectedStudent.id)
+    void loadLateFeePools(selectedStudent.id)
    }
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.submitReceive", setErr: setFormErr })
@@ -1444,7 +1589,7 @@ export function PaymentsPageView() {
        </p>
       </FormField>
 
-      <FormField label={SPECIAL_DISCOUNT_LABEL}>
+      <FormField label={`臨時減免（${SPECIAL_DISCOUNT_LABEL}）`}>
        <label
         className={cn(
          "flex items-center gap-2 text-sm",
@@ -1461,7 +1606,7 @@ export function PaymentsPageView() {
           if (!e.target.checked) setSpecialDiscountAmount("")
          }}
         />
-        套用臨時減免（收據固定顯示 {SPECIAL_DISCOUNT_LABEL}）
+        套用臨時減免（收據只將此項顯示為 {SPECIAL_DISCOUNT_LABEL}）
        </label>
        {specialDiscountEnabled ? (
         <div className="mt-2 max-w-xs">
@@ -1475,7 +1620,8 @@ export function PaymentsPageView() {
           onChange={(e) => setSpecialDiscountAmount(e.target.value)}
          />
          <p className="mt-1 text-xs text-muted-foreground">
-          於目錄優惠之後扣除；不可大於剩餘應收 {money(afterCatalogDue)}。
+          僅用於目錄未涵蓋的減免；上方已選目錄優惠仍顯示原名。於目錄優惠之後扣除，不可大於剩餘應收{" "}
+          {money(afterCatalogDue)}。
          </p>
         </div>
        ) : null}
@@ -1522,6 +1668,96 @@ export function PaymentsPageView() {
          <span className="tabular-nums text-warning">-{money(specialAmountN)}</span>
         </div>
        ) : null}
+
+       {collectMode === "receive" && isLateFeeSystemActive() ? (
+        <div className="mt-2 space-y-2 border-t border-border pt-2">
+         {lateFeePoolsWarn ? (
+          <p className="text-xs text-warning" role="status">
+           {lateFeePoolsWarn}
+          </p>
+         ) : null}
+         {lateFeePoolsLoading ? (
+          <p className="text-xs text-muted-foreground">核對逾期罰款中…</p>
+         ) : null}
+         {autoLateFeePools.length > 0 ? (
+          <div className="space-y-2">
+           <p className="text-xs text-muted-foreground">
+            本單正規班拖欠，自動加入 {LATE_FEE_LABEL}（每科每月最多一次；優惠不適用於罰款）。
+           </p>
+           {autoLateFeePools.map((p) => {
+            const waived = Boolean(lateFeeWaivers[p.classId]?.waived)
+            const label = classLabelForLateFee(p.classId)
+            return (
+             <div key={p.classId} className="rounded-md border border-border bg-background/60 px-2.5 py-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+               <div className="min-w-0 flex-1">
+                <div className="flex justify-between gap-2 text-sm">
+                 <span>
+                  {LATE_FEE_LABEL} · {label}
+                  {waived ? "（已豁免）" : ""}
+                 </span>
+                 <span className={cn("tabular-nums", waived ? "text-muted-foreground line-through" : "")}>
+                  {money(LATE_FEE_AMOUNT)}
+                 </span>
+                </div>
+                {waived ? (
+                 <p className="mt-1 text-xs text-muted-foreground">
+                  豁免原因：{lateFeeWaivers[p.classId]?.reason || "—"}
+                 </p>
+                ) : null}
+               </div>
+               <div className="flex shrink-0 gap-1">
+                {waived ? (
+                 <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                   setLateFeeWaivers((prev) => {
+                    const next = { ...prev }
+                    delete next[p.classId]
+                    return next
+                   })
+                  }
+                 >
+                  取消豁免
+                 </Button>
+                ) : (
+                 <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                   setWaiveDialogClassId(p.classId)
+                   setWaiveDialogReason("")
+                  }}
+                 >
+                  豁免
+                 </Button>
+                )}
+               </div>
+              </div>
+             </div>
+            )
+           })}
+          </div>
+         ) : null}
+         {alreadyHandledHints.length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+           本月已處理罰款（不再自動加罰）：
+           {alreadyHandledHints.map((p) => classLabelForLateFee(p.classId)).join("、")}
+          </p>
+         ) : null}
+         {otherArrearsHints.length > 0 ? (
+          <p className="text-xs text-warning" role="status">
+           其他科亦有拖欠、但未列入本單學費行，不會自動加罰：
+           {otherArrearsHints.map((p) => classLabelForLateFee(p.classId)).join("、")}
+           。如需一併處理，請先加入該科學費項目。
+          </p>
+         ) : null}
+        </div>
+       ) : null}
+
        <div className="mt-2 flex justify-between gap-2 border-t border-border pt-2 text-base font-semibold">
         <span>應收總額</span>
         <span className="tabular-nums text-warning dark:text-warning">{money(totalDue)}</span>
@@ -1703,6 +1939,67 @@ export function PaymentsPageView() {
        前往優惠目錄
       </Link>
      </Button>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={Boolean(waiveDialogClassId)}
+    onOpenChange={(o) => {
+     if (!o) {
+      setWaiveDialogClassId(null)
+      setWaiveDialogReason("")
+     }
+    }}
+   >
+    <DialogContent className="sm:max-w-md">
+     <DialogHeader>
+      <DialogTitle>豁免{LATE_FEE_LABEL}</DialogTitle>
+     </DialogHeader>
+     <p className="text-sm text-muted-foreground">
+      {waiveDialogClassId ? classLabelForLateFee(waiveDialogClassId) : ""}
+      ：豁免後本月該科不會再自動加罰；請填寫原因以便統計。
+     </p>
+     <FormField label="豁免原因（必填）">
+      <Textarea
+       value={waiveDialogReason}
+       onChange={(e) => setWaiveDialogReason(e.target.value)}
+       placeholder="例如：主管批准／特殊情況說明"
+       rows={3}
+      />
+     </FormField>
+     <DialogFooter className="gap-2 sm:gap-0">
+      <Button
+       type="button"
+       variant="outline"
+       onClick={() => {
+        setWaiveDialogClassId(null)
+        setWaiveDialogReason("")
+       }}
+      >
+       取消
+      </Button>
+      <Button
+       type="button"
+       onClick={() => {
+        const classId = waiveDialogClassId
+        const reason = waiveDialogReason.trim()
+        if (!classId) return
+        if (!reason) {
+         setFormErr("豁免逾期罰款必須填寫原因。")
+         return
+        }
+        setLateFeeWaivers((prev) => ({
+         ...prev,
+         [classId]: { waived: true, reason },
+        }))
+        setWaiveDialogClassId(null)
+        setWaiveDialogReason("")
+        setFormErr(null)
+       }}
+      >
+       確認豁免
+      </Button>
+     </DialogFooter>
     </DialogContent>
    </Dialog>
   </div>

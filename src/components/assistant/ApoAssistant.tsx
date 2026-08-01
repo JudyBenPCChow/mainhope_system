@@ -232,7 +232,7 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
      type="button"
      onClick={() => setOpen(true)}
      className={cn(
-      "fixed z-[240] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-2.5 shadow-lg md:px-3 md:pr-5",
+      "fixed z-[90] h-14 gap-2.5 rounded-full border border-black/10 bg-neutral-950 px-2.5 shadow-lg md:px-3 md:pr-5",
       floatingAnchorClass,
       "text-white hover:bg-neutral-900"
      )}
@@ -246,7 +246,7 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
    {open ? (
     <div
      className={cn(
-      "fixed z-[240] flex w-[min(100vw-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl",
+      "fixed z-[90] flex w-[min(100vw-1.5rem,24rem)] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl",
       floatingAnchorClass
      )}
      role="dialog"

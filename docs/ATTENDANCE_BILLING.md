@@ -71,7 +71,7 @@
 已付＝已收款收據之 `payment_details.lesson_count` 加總（**作廢單據不計**；見 [`PAYMENT_RECEIPT_VOID_POLICY.md`](PAYMENT_RECEIPT_VOID_POLICY.md)）。  
 用途為前台參考；學生通常一次繳多堂，非天天催繳工具。
 
-**勿與「逾期罰款／禁止入室」混淆：** 本節是堂數缺口參考。正規學年按月學費遲交、第 2 堂罰款、第 3 堂起不得入室等，見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md)（部分尚未系統強制）。營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
+**勿與「逾期罰款」混淆：** 本節是堂數缺口參考。正規小組課拖欠學費之 **HK$50** 罰款（每月每科一次；試堂／一對一不罰）見 [`manual/TUITION_LATE_FEE_FRONTLINE.md`](manual/TUITION_LATE_FEE_FRONTLINE.md) 與 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md)。禁止入室不系統化。營運政策索引：[`OPS_POLICIES.md`](OPS_POLICIES.md)。
 
 ## 試堂
 

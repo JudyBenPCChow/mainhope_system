@@ -57,7 +57,7 @@ export function Layout() {
   () => (role ? filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)) : []),
   [role]
  )
- const { unreadCount } = useInboxUnreadCount(location.pathname)
+ const { unreadCount } = useInboxUnreadCount()
 
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
 

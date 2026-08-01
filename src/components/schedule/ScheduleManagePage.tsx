@@ -343,7 +343,8 @@ export function ScheduleManagePage() {
  const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
  /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
- const allowMobileDayView = isMgmtStaff()
+ /** 手機日／週曆視圖：行政與老師皆可用（資料仍依角色 scope） */
+ const allowMobileDayView = true
  const todayYmd = localYmd()
  const [searchParams, setSearchParams] = useSearchParams()
  /** 僅在「進頁當下」URL 已帶日期時才沿用（例如儀表板深連結）；之後日視圖自行寫入的今天不得蓋過「未來最近排程」初始化。 */

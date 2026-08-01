@@ -71,6 +71,7 @@ export function buildDiscountSteps(
 export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakdown {
  const subtotal = resolvePaymentSubtotal(p)
  const discountSteps = buildDiscountSteps(subtotal, p.discountApplications)
+ const lateFees = (p.lateFeeItems ?? []).filter((lf) => !lf.waived && lf.amount > 0)
  const total = Math.round(p.totalAmount * 100) / 100
 
  const lines: PaymentAmountLine[] = [{ key: "subtotal", label: "項目小計", amount: subtotal }]
@@ -81,6 +82,13 @@ export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakd
    label: `優惠：${discountStepLabel(step)}`,
    amount: -(step.amountDeducted ?? 0),
    tone: "deduction",
+  })
+ }
+ for (const lf of lateFees) {
+  lines.push({
+   key: `late-${lf.id}`,
+   label: `逾期罰款 · ${lf.classLabel}`,
+   amount: lf.amount,
   })
  }
  lines.push({ key: "total", label: "應繳總額", amount: total, tone: "total" })

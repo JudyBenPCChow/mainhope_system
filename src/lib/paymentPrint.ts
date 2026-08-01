@@ -454,6 +454,17 @@ function buildChargesTableHtml(p: PaymentFull): string {
   )
   .join("")
 
+ const lateFeeRows = (p.lateFeeItems ?? [])
+  .filter((lf) => !lf.waived && lf.amount > 0)
+  .map(
+   (lf) =>
+    `<div class="row">
+      <span class="label">逾期罰款 · ${escHtml(lf.classLabel)}</span>
+      <span class="value">${escHtml(hkd(lf.amount))}</span>
+    </div>`
+  )
+  .join("")
+
  return `<table class="data">
   <thead>
    <tr>
@@ -473,6 +484,7 @@ function buildChargesTableHtml(p: PaymentFull): string {
    <span class="value">${escHtml(hkd(breakdown.subtotal))}</span>
   </div>
   ${discountRows}
+  ${lateFeeRows}
   <div class="row net">
    <span class="label">折實價</span>
    <span class="value">${escHtml(hkd(breakdown.total))}</span>
@@ -694,6 +706,7 @@ export function getDemoPaymentFull(): PaymentFull {
     amountDeducted: 480,
    },
   ],
+  lateFeeItems: [],
   discountPercentOff: 10,
   discountAmountOff: null,
  }

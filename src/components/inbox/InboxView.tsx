@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
 import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -18,6 +19,7 @@ import {
  formatInboxAudienceLabel,
  markAllInboxItemsRead,
  markInboxItemRead,
+ notifyInboxUnreadChanged,
  publishSystemNotice,
  type InboxEventCategory,
  type InboxItem,
@@ -75,6 +77,7 @@ function tabClass(on: boolean) {
 export function InboxView() {
  const navigate = useNavigate()
  const { pushBanner } = useAppBanner()
+ const isMobile = useIsMobile()
  const role = getMgmtRole()
  const canPublish = role === "alien"
  /** 行政／管理層預設看系統更新；老師／外星人仍預設營運通知 */
@@ -201,6 +204,7 @@ export function InboxView() {
    pushBanner({ tone: "success", title: "已發佈系統通知" })
    const data = await fetchInboxFeed({ category: "system", unreadOnly })
    setItems(data)
+   notifyInboxUnreadChanged()
   } catch (e) {
    reportUserFacingError(e, {
     source: "InboxView.publish",
@@ -448,6 +452,42 @@ export function InboxView() {
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : visible.length === 0 ? (
     <p className="text-sm text-muted-foreground">目前沒有符合條件的項目。</p>
+   ) : isMobile ? (
+    <div className="space-y-3">
+     {visible.map((item) => (
+      <article
+       key={item.sourceKey}
+       className={cn(
+        "rounded-xl border border-border bg-card p-4 shadow-sm",
+        !item.read && "border-info/40 bg-info/5"
+       )}
+      >
+       <div className="flex flex-wrap items-start justify-between gap-2">
+        <Tag tone={statusToTagTone(item.statusLabel)}>{item.statusLabel}</Tag>
+        <Tag tone={item.read ? "success" : "warning"}>{item.read ? "已讀" : "未讀"}</Tag>
+       </div>
+       <p className={cn("mt-2 font-medium", !item.read && "text-foreground")}>{item.title}</p>
+       {item.body ? (
+        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.body.replace(/\n/g, " ")}</p>
+       ) : null}
+       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span className="tabular-nums">{formatWhen(item.createdAt)}</span>
+        {category === "system" ? <span>{formatInboxAudienceLabel(item.audienceRoles)}</span> : null}
+       </div>
+       <div className="mt-3">
+        <Button
+         type="button"
+         size="sm"
+         variant="outline"
+         disabled={busyKey === item.sourceKey}
+         onClick={() => void openDetail(item)}
+        >
+         查看
+        </Button>
+       </div>
+      </article>
+     ))}
+    </div>
    ) : (
     <div className="overflow-x-auto rounded-lg border border-border">
      <table className="w-full min-w-[640px] table-fixed text-sm">

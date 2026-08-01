@@ -1169,6 +1169,114 @@ export function defaultMgmtDashboardFilters(): MgmtDashboardFilters {
  }
 }
 
+export async function fetchMgmtDashboardSummary(
+ filters: MgmtDashboardFilters
+): Promise<MgmtDashboardPayload> {
+ if (!isSupabaseConfigured || !supabase) {
+  return buildMgmtDashboardMock()
+ }
+
+ const prev = previousPeriod(filters)
+ const eventFilter = { classKind: filters.classKind, teacherIds: filters.teacherIds }
+ const asOfPad = (n: number) => String(n).padStart(2, "0")
+ const now = new Date()
+ const asOf = `${localYmd(now)} ${asOfPad(now.getHours())}:${asOfPad(now.getMinutes())}`
+ const seatFilter = {
+  classKind: filters.classKind,
+  teacherIds: filters.teacherIds,
+  classIds: filters.classIds,
+ }
+
+ const [
+  revenue,
+  prevRevenue,
+  unpaid,
+  enroll,
+  prevEnroll,
+  withdraw,
+  prevWithdraw,
+  trials,
+  prevTrials,
+  convertedTrials,
+  prevConvertedTrials,
+  overall,
+  revenueSeries,
+  enrollmentSeats,
+  attendanceVisits,
+  prevAttendanceVisits,
+ ] = await Promise.all([
+  sumPaidAmount(filters.dateFrom, filters.dateTo),
+  sumPaidAmount(prev.dateFrom, prev.dateTo),
+  sumUnpaidAmount(),
+  countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter),
+  countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter),
+  countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter),
+  countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter),
+  countTrials(filters.dateFrom, filters.dateTo),
+  countTrials(prev.dateFrom, prev.dateTo),
+  countConvertedTrials(filters.dateFrom, filters.dateTo),
+  countConvertedTrials(prev.dateFrom, prev.dateTo),
+  fetchOverallStudentAnalysis(),
+  fetchRevenueSeries(filters.dateFrom, filters.dateTo),
+  countActiveEnrollmentSeats(seatFilter),
+  countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter),
+  countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter),
+ ])
+
+ const conversion =
+  trials > 0 ? Math.round((convertedTrials / trials) * 1000) / 10 : null
+ const prevConversion =
+  prevTrials > 0 ? Math.round((prevConvertedTrials / prevTrials) * 1000) / 10 : null
+ const conversionDeltaPct =
+  conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
+
+ const kpis = buildKpis({
+  revenue,
+  prevRevenue,
+  enroll,
+  prevEnroll,
+  withdraw,
+  prevWithdraw,
+  enrolledStudents: overall.enrolledStudents,
+  enrollmentSeats,
+  attendanceVisits,
+  prevAttendanceTotal: prevAttendanceVisits.total,
+  trials,
+  prevTrials,
+  convertedTrials,
+  prevConvertedTrials,
+  teacherLoadAvg: null,
+  revenueSparkline: revenueSeries.map((r) => Math.round(r.amount / 1000)),
+ })
+
+ const opsAlerts = buildPlaceholderOpsAlerts({
+  unpaidCount: unpaid.count,
+  unpaidAmount: unpaid.amount,
+  recentWithdrawCount: 0,
+  nearFullCount: 0,
+  highLoadTeachers: [],
+  conversionDeltaPct,
+ }).filter((a) => !(a.category === "lowAttendance" && a.count === 0))
+
+ return {
+  asOf,
+  kpis,
+  revenueSeries,
+  funnel: buildFunnel(trials, convertedTrials, overall.enrolledStudents),
+  withdrawalAnalysis: { bySubject: [], byTeacher: [], byClass: [], byDate: [] },
+  unpaidOverdue: [],
+  opsAlerts,
+  distribution: {
+   bySubject: [],
+   byClassKind: [],
+   statusBuckets: overall.buckets,
+   classFill: [],
+   byTeacher: [],
+  },
+  alerts: { unpaid: [], lessonGaps: [], nearFullClasses: [], recentWithdrawals: [] },
+ }
+}
+
 export async function fetchMgmtDashboard(
  filters: MgmtDashboardFilters
 ): Promise<MgmtDashboardPayload> {
