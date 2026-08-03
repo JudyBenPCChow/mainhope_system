@@ -6,6 +6,8 @@ import {
  type AcademicYearPeriodRow,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { parseMakeupOfScheduleId } from "@/lib/scheduleMakeupMarkers"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 
 const MAX_SCHEDULE_IDS = 100
@@ -14,6 +16,11 @@ export type ScheduleRosterSchedule = {
  id: string
  classId: string | null
  scheduledDate: string
+ /**
+  * 暑期期數判定用日期。補回加堂若跨期（如第一期取消堂補到第二期日），
+  * 應沿用原取消堂日期，否則只報第一期的學生會被濾走。
+  */
+ enrollmentEligibilityDate?: string | null
  sessionNumber: number | null
  academicYearId: string | null
  academicYearLabel: string | null
@@ -244,7 +251,9 @@ export async function fetchScheduleRosterContext(
   // （勿再呼叫 get_enrollment_effective_dates：舊實作會對每列排程跑 teacher_can_access_schedule，平均數秒）
   return mapContext(data)
  }))
- if (contexts.length === 1) return contexts[0]!
+ if (contexts.length === 1) {
+  return enrichMakeupEnrollmentEligibilityDates(contexts[0]!)
+ }
 
  const merged = mapContext({})
  for (const context of contexts) {
@@ -273,7 +282,65 @@ export async function fetchScheduleRosterContext(
  merged.trials = [...new Map(merged.trials.map((row) => [row.id, row])).values()]
  merged.leaves = [...new Map(merged.leaves.map((row) => [row.id, row])).values()]
  merged.attendance = [...new Map(merged.attendance.map((row) => [row.id, row])).values()]
- return merged
+ return enrichMakeupEnrollmentEligibilityDates(merged)
+}
+
+/**
+ * 補回加堂（remarks 含 makeup_of=<原堂id>）的暑期期數，沿用原取消堂日期。
+ * RPC 未回傳 remarks，故另撈 schedules.remarks／原堂 scheduled_date。
+ */
+async function enrichMakeupEnrollmentEligibilityDates(
+ context: ScheduleRosterContext
+): Promise<ScheduleRosterContext> {
+ if (!supabase || context.schedules.length === 0) return context
+
+ const scheduleIds = context.schedules.map((row) => row.id)
+ const remarkById = new Map<string, string | null>()
+ await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (chunk) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("id, remarks")
+   .in("id", chunk)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as Record<string, unknown>
+   remarkById.set(String(r.id), r.remarks != null ? String(r.remarks) : null)
+  }
+ })
+
+ const makeupOfByScheduleId = new Map<string, string>()
+ for (const [scheduleId, remarks] of remarkById) {
+  const originalId = parseMakeupOfScheduleId(remarks)
+  if (originalId) makeupOfByScheduleId.set(scheduleId, originalId)
+ }
+ if (makeupOfByScheduleId.size === 0) return context
+
+ const originalIds = [...new Set(makeupOfByScheduleId.values())]
+ const originalDateById = new Map<string, string>()
+ await forEachIdChunk(originalIds, DEFAULT_ID_CHUNK, async (chunk) => {
+  const { data, error } = await supabase!
+   .from("schedules")
+   .select("id, scheduled_date")
+   .in("id", chunk)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as Record<string, unknown>
+   const id = String(r.id ?? "")
+   const date = String(r.scheduled_date ?? "").slice(0, 10)
+   if (id && /^\d{4}-\d{2}-\d{2}$/.test(date)) originalDateById.set(id, date)
+  }
+ })
+
+ return {
+  ...context,
+  schedules: context.schedules.map((schedule) => {
+   const originalId = makeupOfByScheduleId.get(schedule.id)
+   if (!originalId) return schedule
+   const eligibilityDate = originalDateById.get(originalId)
+   if (!eligibilityDate) return schedule
+   return { ...schedule, enrollmentEligibilityDate: eligibilityDate }
+  }),
+ }
 }
 
 function periodCodeForSchedule(
@@ -281,8 +348,9 @@ function periodCodeForSchedule(
  schedule: ScheduleRosterSchedule
 ): 1 | 2 | null {
  if (schedule.courseMode !== "summer_two_period" || !schedule.academicYearId) return null
+ const dateForPeriod = schedule.enrollmentEligibilityDate ?? schedule.scheduledDate
  return resolvePeriodCodeFromDate(
-  schedule.scheduledDate,
+  dateForPeriod,
   context.periods.filter((period) => period.academicYearId === schedule.academicYearId)
  )
 }

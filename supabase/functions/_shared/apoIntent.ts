@@ -63,7 +63,7 @@ export function classifyApoIntent(
     return "howto"
   }
   if (/有.?什麼分別|有.?咩分別|意思是|定義|係咩|是什麼|什麼是/.test(t)) {
-    if (/在讀|活躍|注冊|報讀|四維|學號|學業/.test(t)) return "howto"
+    if (/在讀|活躍|注冊|報讀|四維|學號|學業|補堂|排程|加堂|待補|請假/.test(t)) return "howto"
     // 「報什麼」係查資料，唔係概念教學
     if (/依家報|而家報|報緊|讀緊|報什麼|報咩|報乜/.test(t)) return "db_query"
   }

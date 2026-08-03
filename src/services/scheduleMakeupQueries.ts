@@ -4,6 +4,10 @@ import {
  newConsecutiveGroupId,
 } from "@/lib/consecutiveLesson"
 import { formatStudentNameList } from "@/lib/scheduleDisplay"
+import {
+ makeupOfRemarkMarker,
+ remarksIndicateMakeupOf,
+} from "@/lib/scheduleMakeupMarkers"
 import { supabase } from "@/lib/supabaseClient"
 import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
@@ -15,15 +19,11 @@ import {
 } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 
-/** remarks 標記：用於查重「此取消堂是否已安排過補回」 */
-export function makeupOfRemarkMarker(cancelledScheduleId: string): string {
- return `makeup_of=${cancelledScheduleId}`
-}
-
-export function remarksIndicateMakeupOf(remarks: string | null | undefined, cancelledId: string): boolean {
- const r = String(remarks ?? "")
- return r.includes(makeupOfRemarkMarker(cancelledId))
-}
+export {
+ makeupOfRemarkMarker,
+ parseMakeupOfScheduleId,
+ remarksIndicateMakeupOf,
+} from "@/lib/scheduleMakeupMarkers"
 
 type CancelledSlotRow = {
  id: string
@@ -260,6 +260,7 @@ export type ArrangeMakeupResult = {
 /**
  * 為已取消排程安排同班補回加堂：新建 is_extra_lesson 排程，單堂選堂改掛到新堂。
  * 不批量建立 leave_makeup（避免請假管理灌水）。
+ * 暑期跨期補堂：點名期數沿用原取消堂日期（見 scheduleRosterQueries enrollmentEligibilityDate）。
  */
 export async function arrangeMakeupForCancelledSchedule(opts: {
  cancelledScheduleId: string

@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react"
 import { FlaskConical } from "lucide-react"
 
 import { Select } from "@/components/ui/select"
+import { useAppConfirm } from "@/lib/appConfirm"
 
 import { FinancePayrollView } from "./FinancePayrollView"
 import { ManagerPayrollView } from "./ManagerPayrollView"
@@ -23,6 +24,7 @@ import {
 } from "./mockData"
 
 export function PayrollPrototypeView() {
+  const { confirmDialog } = useAppConfirm()
   const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>("finance")
   const [monthKey, setMonthKey] = useState("2026-08")
   const [overrides, setOverrides] = useState<
@@ -95,13 +97,27 @@ export function PayrollPrototypeView() {
     }))
   }
 
-  const onMonthChange = (value: string) => {
+  const applyMonthChange = (value: string) => {
     setMonthKey(value)
     setReviewAudits([])
     setExcludedIds(new Set())
     setTeacherSubmits([])
     setCodyHours(null)
     setCodyStatus("missing")
+  }
+
+  const onMonthChange = (value: string) => {
+    if (value === monthKey) return
+    void (async () => {
+      const ok = await confirmDialog({
+        title: "切換月份？",
+        description: "將清除目前月份的審核進度、排除標記與單人送核佇列（示範）。",
+        confirmText: "切換",
+        cancelText: "取消",
+        tone: "warning",
+      })
+      if (ok) applyMonthChange(value)
+    })()
   }
 
   const onSubmitTeacher = (teacherId: string) => {
@@ -207,25 +223,10 @@ export function PayrollPrototypeView() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
-      <div className="mb-4 space-y-3">
-        <div className="rounded-xl border border-warning/35 bg-warning/10 px-3 py-3 text-sm sm:px-4">
-          <div className="flex items-start gap-2">
-            <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
-            <div>
-              <p className="font-medium text-foreground">計糧 UI 沙盒（審計證據鏈 mock）</p>
-              <p className="mt-1 text-muted-foreground">
-                版本／截止、母名單、$0 人、跨模式、逐學生 HC、原價時點、Cody
-                職責分離、已審審計、重算 diff、管理層抽查。不連 Supabase。
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card px-3 py-3 sm:px-4">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end gap-3">
           <label className="block min-w-[12rem]">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              預覽身份（非正式角色）
-            </span>
+            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">預覽身份</span>
             <Select
               aria-label="預覽身份"
               value={previewRole}
@@ -237,10 +238,14 @@ export function PayrollPrototypeView() {
           </label>
           <p className="pb-1 text-xs text-muted-foreground sm:max-w-md">
             {previewRole === "finance"
-              ? "財務：逐人審核 → 下載工資單 PDF → 可單人送核；缺點名可發提醒"
-              : "管理層：收單人送核佇列 → 核准工時／調整 → 抽查 → 結算"}
+              ? "此頁面協助你審核及提交每月教師薪酬（分頁：概覽 → 審核 → 調整 → 提交）"
+              : "管理層：概覽 → 待核佇列 → 抽查 → 結算"}
           </p>
         </div>
+        <p className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+          <FlaskConical className="h-3 w-3" aria-hidden />
+          示範數據 · 不連資料庫
+        </p>
       </div>
 
       {previewRole === "finance" ? (

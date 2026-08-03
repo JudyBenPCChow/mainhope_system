@@ -106,6 +106,22 @@ const howtoCases = [
     expectIntent: "howto",
   },
   {
+    id: "課堂取消後安排補堂",
+    q: "課堂取消後點樣安排補堂？",
+    role: "admin",
+    expectGuide: "cancelled_class_makeup",
+    expectName: null,
+    expectIntent: "howto",
+  },
+  {
+    id: "安排補堂 vs 新增排程",
+    q: "安排補堂同新增排程有咩分別？",
+    role: "admin",
+    expectGuide: "cancelled_class_makeup",
+    expectName: null,
+    expectIntent: "howto",
+  },
+  {
     id: "在讀活躍分別 → howto",
     q: "在讀與活躍有什麼分別？",
     role: "admin",

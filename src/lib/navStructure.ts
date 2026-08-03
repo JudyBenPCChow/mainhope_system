@@ -28,6 +28,7 @@ import {
  ScrollText,
  Settings,
  Sparkles,
+ TrendingUp,
  UserCog,
  UserPlus,
  UserRound,
@@ -183,6 +184,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Bot,
   children: [
    { path: "/MgmtDashboard", label: "營運總覽", roles: ["manager", "alien"], icon: BarChart3 },
+   { path: "/StaffPerformance", label: "員工績效", roles: ["manager", "alien"], icon: TrendingUp },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],

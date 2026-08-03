@@ -1,3 +1,6 @@
+import { ChevronDown, ChevronRight } from "lucide-react"
+import { Fragment, useMemo, useState } from "react"
+
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -20,8 +23,7 @@ import {
   studentHcStatusLabel,
   teacherAbsentTotal,
   teacherBillableHc,
-  teacherCategoryTotals,
-  teacherGradeKindRows,
+  teacherCategoryHierarchy,
   teacherPresentTotal,
   type CalcVersionMeta,
   type PayrollClassBlock,
@@ -90,24 +92,39 @@ export function SummaryTile({
   value,
   hint,
   warn,
+  onClick,
+  selected,
 }: {
   label: string
   value: string
   hint?: string
   warn?: boolean
+  /** 可點時對齊 MgmtStatCard 互動（hover／focus ring） */
+  onClick?: () => void
+  selected?: boolean
 }) {
-  return (
-    <div
-      className={cn(
-        "rounded-xl border bg-card px-4 py-3 shadow-sm",
-        warn ? "border-warning/40" : "border-border"
-      )}
-    >
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-      {hint ? <p className="mt-1 text-[11px] text-muted-foreground">{hint}</p> : null}
-    </div>
+  const className = cn(
+    "flex h-full w-full flex-col rounded-xl border bg-card px-4 py-3 text-left shadow-sm",
+    warn ? "border-warning/40" : "border-border",
+    onClick &&
+      "cursor-pointer transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    selected && "ring-2 ring-primary/40"
   )
+  const body = (
+    <>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    </>
+  )
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {body}
+      </button>
+    )
+  }
+  return <div className={className}>{body}</div>
 }
 
 function LessonCard({
@@ -496,9 +513,6 @@ export function TeacherLessonStats({
   onVerify?: (target: LessonVerifyTarget) => void
   onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
-  const cats = teacherCategoryTotals(teacher)
-  const gradeKindRows = teacherGradeKindRows(teacher)
-
   if (teacher.grades.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
@@ -508,13 +522,53 @@ export function TeacherLessonStats({
   }
 
   return (
+    <TeacherLessonStatsBody
+      key={teacher.id}
+      teacher={teacher}
+      compact={compact}
+      highlightLessonId={highlightLessonId}
+      onVerify={onVerify}
+      onRemindRollcall={onRemindRollcall}
+    />
+  )
+}
+
+function TeacherLessonStatsBody({
+  teacher,
+  compact,
+  highlightLessonId,
+  onVerify,
+  onRemindRollcall,
+}: {
+  teacher: PayrollTeacherRow
+  compact?: boolean
+  highlightLessonId?: string | null
+  onVerify?: (target: LessonVerifyTarget) => void
+  onRemindRollcall?: (target: LessonVerifyTarget) => void
+}) {
+  const hierarchy = useMemo(() => teacherCategoryHierarchy(teacher), [teacher])
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
+    () => new Set(hierarchy.filter((h) => h.children.length > 0).map((h) => h.category.key))
+  )
+
+  const toggle = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const cats = hierarchy.map((h) => h.category)
+
+  return (
     <div className="space-y-5">
       <div className="overflow-x-auto rounded-xl border border-border">
         <table className="w-full min-w-[36rem] table-fixed text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2.5 font-medium">類別</th>
-              <th className="px-3 py-2.5 font-medium">年級數</th>
+              <th className="px-3 py-2.5 font-medium">類別／年級</th>
               <th className="px-3 py-2.5 font-medium">班數</th>
               <th className="px-3 py-2.5 font-medium">堂數</th>
               <th className="px-3 py-2.5 font-medium">扣堂人次</th>
@@ -523,22 +577,76 @@ export function TeacherLessonStats({
             </tr>
           </thead>
           <tbody>
-            {cats.map((b) => (
-              <tr key={b.key} className="border-b border-border">
-                <td className="px-3 py-2.5 font-medium">{b.label}</td>
-                <td className="px-3 py-2.5 tabular-nums">{b.gradeIds.size}</td>
-                <td className="px-3 py-2.5 tabular-nums">{b.classCount}</td>
-                <td className="px-3 py-2.5 tabular-nums">{b.lessonCount}</td>
-                <td className="px-3 py-2.5 tabular-nums font-semibold">{b.billableHc}</td>
-                <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
-                  {b.presentVisits} / {b.absentVisits}
-                </td>
-                <td className="px-3 py-2.5 tabular-nums font-semibold">{formatHkd(b.amount)}</td>
-              </tr>
-            ))}
-            <tr className="bg-muted/20">
+            {hierarchy.map(({ category: b, children }) => {
+              const canExpand = children.length > 0
+              const open = canExpand && expandedKeys.has(b.key)
+              return (
+                <Fragment key={b.key}>
+                  <tr
+                    className={cn(
+                      "border-b border-border",
+                      canExpand ? "bg-muted/15" : undefined
+                    )}
+                  >
+                    <td className="px-3 py-2.5">
+                      {canExpand ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1.5 font-semibold text-foreground"
+                          aria-expanded={open}
+                          onClick={() => toggle(b.key)}
+                        >
+                          {open ? (
+                            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          )}
+                          {b.label}
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            {children.length} 個年級
+                          </span>
+                        </button>
+                      ) : (
+                        <span className="pl-5 font-medium text-muted-foreground">{b.label}</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums font-medium">{b.classCount}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-medium">{b.lessonCount}</td>
+                    <td className="px-3 py-2.5 tabular-nums font-semibold">{b.billableHc}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {b.presentVisits} / {b.absentVisits}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums font-semibold">
+                      {formatHkd(b.amount)}
+                    </td>
+                  </tr>
+                  {open
+                    ? children.map((r) => (
+                        <tr
+                          key={`${b.key}-${r.gradeLabel}-${r.classKind}`}
+                          className="border-b border-border bg-background"
+                        >
+                          <td className="px-3 py-2 pl-10 text-muted-foreground">
+                            <span className="font-medium text-foreground">{r.gradeLabel}</span>
+                            <span className="ml-1.5 text-xs">{classKindLabel(r.classKind)}</span>
+                          </td>
+                          <td className="px-3 py-2 tabular-nums">{r.classCount}</td>
+                          <td className="px-3 py-2 tabular-nums">{r.lessonCount}</td>
+                          <td className="px-3 py-2 tabular-nums font-semibold">{r.billableHc}</td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {r.presentVisits} / {r.absentVisits}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums font-semibold">
+                            {formatHkd(r.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    : null}
+                </Fragment>
+              )
+            })}
+            <tr className="bg-muted/25">
               <td className="px-3 py-2.5 font-semibold">合計</td>
-              <td className="px-3 py-2.5 text-muted-foreground">—</td>
               <td className="px-3 py-2.5 tabular-nums font-semibold">
                 {cats.reduce((s, c) => s + c.classCount, 0)}
               </td>
@@ -555,42 +663,6 @@ export function TeacherLessonStats({
                 {formatHkd(cats.reduce((s, c) => s + c.amount, 0))}
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[32rem] table-fixed text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
-              <th className="px-3 py-2.5 font-medium">年級</th>
-              <th className="px-3 py-2.5 font-medium">類型</th>
-              <th className="px-3 py-2.5 font-medium">班數</th>
-              <th className="px-3 py-2.5 font-medium">堂數</th>
-              <th className="px-3 py-2.5 font-medium">扣堂人次</th>
-              <th className="px-3 py-2.5 font-medium">出席／缺席</th>
-              <th className="px-3 py-2.5 font-medium">薪酬小計</th>
-            </tr>
-          </thead>
-          <tbody>
-            {gradeKindRows.map((r) => (
-              <tr
-                key={`${r.gradeLabel}-${r.classKind}`}
-                className="border-b border-border last:border-0"
-              >
-                <td className="px-3 py-2.5 font-medium">{r.gradeLabel}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">
-                  {classKindLabel(r.classKind)}
-                </td>
-                <td className="px-3 py-2.5 tabular-nums">{r.classCount}</td>
-                <td className="px-3 py-2.5 tabular-nums">{r.lessonCount}</td>
-                <td className="px-3 py-2.5 tabular-nums font-semibold">{r.billableHc}</td>
-                <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
-                  {r.presentVisits} / {r.absentVisits}
-                </td>
-                <td className="px-3 py-2.5 tabular-nums font-semibold">{formatHkd(r.amount)}</td>
-              </tr>
-            ))}
           </tbody>
         </table>
       </div>

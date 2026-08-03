@@ -9,6 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 營運指南（財務／管理層） | [`PAYROLL_GUIDE.md`](../PAYROLL_GUIDE.md)（另有 `.docx`） |
 | 最新方法（工程規格） | [`2026-08-01-payroll-method-revised.md`](../plans/2026-08-01-payroll-method-revised.md) |
+| 沙盒 UI 下一步（分頁 IA＋首次 UX） | [`2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md)（對應 [`audits/2026-08-01-payroll-first-time-ux.md`](../audits/2026-08-01-payroll-first-time-ux.md)） |
 | 待回覆文件 | [`2026-08-01-payroll-questions-for-response.docx`](../plans/2026-08-01-payroll-questions-for-response.docx) |
 
 ## 目前進度（2026-08-01）
@@ -43,6 +44,9 @@
 - **獨立沙盒站**（給 Mark 遠端撳）：`sandbox/payroll-ui/`；建置 `npm run sandbox:payroll:build`；部署 `npm run sandbox:payroll:deploy`（Vercel 專案 `mainhope-payroll-ui-sandbox`，無 Supabase／無登入）
 - **財務審核便利性審查**（2026-08-01）：[`../audits/2026-08-01-payroll-finance-ui-review.md`](../audits/2026-08-01-payroll-finance-ui-review.md)
 - **Cody 財務孤軍審核模擬**（2026-08-01）：[`../audits/2026-08-01-payroll-cody-finance-audit-simulation.md`](../audits/2026-08-01-payroll-cody-finance-audit-simulation.md)
+- **首次使用 UX 審計**（2026-08-01）：[`../audits/2026-08-01-payroll-first-time-ux.md`](../audits/2026-08-01-payroll-first-time-ux.md)
+- **分頁 IA＋首次 UX 計劃**（2026-08-02，未開工）：[`../plans/2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md) — 財務／管理層頂層 Tab、逐人子 Tab、P0–P3
+- **營運流程模擬**（2026-08-02）：[`../audits/2026-08-02-payroll-operational-simulation.md`](../audits/2026-08-02-payroll-operational-simulation.md)；P1：未處理人手調整仍可結算、未結算月份可匯出「正式」CSV；P2：逐節查證未提供正式頁面入口。
 - 正式 `finance` 角色尚未入 `mgmtRole`／RLS
 
 ### 尚未開始：正式程式實作

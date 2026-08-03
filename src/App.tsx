@@ -53,6 +53,7 @@ import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
+const StaffPerformance = lazy(() => import("@/pages/StaffPerformance"))
 const Payroll = lazy(() => import("@/pages/Payroll"))
 const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
 const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
@@ -166,6 +167,20 @@ export default function App() {
         }
        >
         <MgmtDashboard />
+       </Suspense>
+      }
+     />
+     <Route
+      path="/StaffPerformance"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入員工績效…
+         </div>
+        }
+       >
+        <StaffPerformance />
        </Suspense>
       }
      />

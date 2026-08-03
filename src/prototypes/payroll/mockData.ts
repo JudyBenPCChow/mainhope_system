@@ -723,6 +723,23 @@ export function teacherGradeKindRows(t: PayrollTeacherRow): GradeKindSummaryRow[
   return rows
 }
 
+export type CategoryHierarchyRow = {
+  category: CategoryTotals
+  children: GradeKindSummaryRow[]
+}
+
+/** 類別 → 年級（兩層；高中小組 = 中四／中五… 之和） */
+export function teacherCategoryHierarchy(t: PayrollTeacherRow): CategoryHierarchyRow[] {
+  const grades = teacherGradeKindRows(t)
+  return teacherCategoryTotals(t).map((category) => {
+    const kind: ClassKind =
+      category.key === "juniorPrivate" || category.key === "seniorPrivate" ? "private" : "group"
+    const band = category.key.startsWith("junior") ? "junior" : "senior"
+    const children = grades.filter((r) => bandOf(r.gradeLabel) === band && r.classKind === kind)
+    return { category, children }
+  })
+}
+
 const augustTeachers: PayrollTeacherRow[] = [
   withMpf({
     id: "mark",

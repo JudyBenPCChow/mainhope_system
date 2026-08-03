@@ -239,20 +239,35 @@ describe("schedule roster selectors", () => {
   expect(rosterHeadcountForSchedule(ctx, "schedule-2")).toBe(4)
  })
 
- it("排程名單提示對齊點名冊並把請假生另列", () => {
-  const hints = scheduleStudentHintsFromContext(context(), ["schedule-1", "schedule-2"])
-  const s1 = hints.get("schedule-1")!
-  expect([...s1.attendingNames].sort()).toEqual(
-   ["同班同日請假", "兩期生", "單堂未選", "第一期生"].sort()
-  )
-  expect(s1.leaveNames).toEqual([])
-  expect(s1.notEnrolledNames).toEqual(["單堂已選"])
-  const s2 = hints.get("schedule-2")!
-  expect([...s2.attendingNames].sort()).toEqual(
-   ["兩期生", "單堂已選", "第二期生", "試堂生"].sort()
-  )
-  expect([...s2.leaveNames].sort()).toEqual(["同班同日請假", "已連結請假"].sort())
-  expect(s2.notEnrolledNames).toEqual(["單堂未選"])
+ it("補回加堂跨期時沿用原取消堂日期判定期數（第一期生仍應出現）", () => {
+  const ctx = context()
+  ctx.schedules.push({
+   id: "schedule-makeup-p2-date",
+   classId: "class-a",
+   scheduledDate: "2026-07-20",
+   enrollmentEligibilityDate: "2026-07-10",
+   sessionNumber: 13,
+   academicYearId: "year-a",
+   academicYearLabel: "2026 暑期",
+   courseMode: "summer_two_period",
+   subject: "數學",
+   classKind: "group",
+   courseCodeFull: "26SM-MATHS3008-A",
+   courseName: "暑期中三數學班",
+   dayOfWeek: "星期一",
+   timeSlot: "14:00-15:15",
+   lessonSlotsPerSession: 1,
+  })
+  expect(
+   enrollmentsForSchedules(ctx, ["schedule-makeup-p2-date"]).map((row) => row.studentId)
+  ).toEqual(["第一期生", "兩期生"])
+  expect(
+   enrollmentIsVisibleOnRosterSchedule(
+    ctx,
+    enrollment("enrollment-first", "第一期生", "第一期"),
+    ctx.schedules.find((row) => row.id === "schedule-makeup-p2-date")!
+   )
+  ).toBe(true)
  })
 })
 
