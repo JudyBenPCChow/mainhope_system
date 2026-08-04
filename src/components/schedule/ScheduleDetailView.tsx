@@ -11,7 +11,7 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { canManageSchedules as canManageSchedulesRole } from "@/lib/mgmtRole"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -49,7 +49,7 @@ export function ScheduleDetailView() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
  const [substituteOpen, setSubstituteOpen] = useState(false)
- const canManageSchedules = isMgmtStaff()
+ const canManageSchedules = canManageSchedulesRole()
  const canAssignSubstitute = canManageSchedules
 
  const load = useCallback(async () => {

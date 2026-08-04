@@ -70,7 +70,7 @@ import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { canManageSchedules as canManageSchedulesRole, canTakeAttendance } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -573,6 +573,7 @@ export function ScheduleManagePage() {
 
  const openRollCallForSchedule = useCallback(
   (scheduleId: string) => {
+   if (!canTakeAttendance()) return
    const notifyEmpty = () => {
     pushBanner({
      tone: "info",
@@ -612,6 +613,7 @@ export function ScheduleManagePage() {
  /** 深連結：/Schedule?schedule_id=…&rollcall=1（可附 date）→ 開點名紙後清參數 */
  useEffect(() => {
   if (!startInitialized || loading) return
+  if (!canTakeAttendance()) return
   const wantRollCall = searchParams.get("rollcall") === "1"
   const sid = searchParams.get("schedule_id")?.trim()
   if (!wantRollCall || !sid) return
@@ -861,7 +863,8 @@ useEffect(() => {
   return list
  }, [rows])
 
- const canManageSchedules = isMgmtStaff()
+ const canManageSchedules = canManageSchedulesRole()
+ const canRollCall = canTakeAttendance()
  const canAssignSubstitute = canManageSchedules
  const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
@@ -2137,6 +2140,7 @@ useEffect(() => {
                 {s.original_teacher_id ? "更改代堂" : "指派代堂"}
                </Button>
               ) : null}
+              {canRollCall ? (
               <Button
                type="button"
                size="default"
@@ -2151,6 +2155,7 @@ useEffect(() => {
                <Check className="h-4 w-4" aria-hidden />
                確定點名
               </Button>
+              ) : null}
               {canManageSchedules ? (
               <Button
                type="button"
@@ -2374,6 +2379,7 @@ useEffect(() => {
               +請假
              </Link>
              ) : null}
+             {canRollCall ? (
              <button
               type="button"
               className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
@@ -2386,6 +2392,7 @@ useEffect(() => {
              >
               確定點名
              </button>
+             ) : null}
              {canAssignSubstitute ? (
               <Button
                type="button"

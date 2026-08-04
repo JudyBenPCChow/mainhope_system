@@ -69,6 +69,21 @@ export function isAlien(): boolean {
  return getMgmtRole() === "alien"
 }
 
+/**
+ * 排程寫入（狀態／代堂／取消／拖曳調課等）：admin／manager／alien。
+ * finance 可讀排程與點名作核對，不可改排程。
+ */
+export function canManageSchedules(): boolean {
+ const r = getMgmtRole()
+ return r === "admin" || r === "manager" || r === "alien"
+}
+
+/** 進行點名：admin／manager／teacher／alien（finance 只核對、不點名） */
+export function canTakeAttendance(): boolean {
+ const r = getMgmtRole()
+ return r === "admin" || r === "manager" || r === "teacher" || r === "alien"
+}
+
 /** 破壞性／敏感操作守衛：僅 admin 與 alien（不含 manager／finance） */
 export function isAdminOrAlien(): boolean {
  const r = getMgmtRole()

@@ -38,7 +38,7 @@ export function getMobileBottomTabs(role: Role): MobileTabItem[] {
    return [
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Payroll", label: "計糧", icon: Wallet },
-    { path: "/Inbox", label: "收件匣", icon: Inbox },
+    { path: "/AttendanceRecords", label: "出席", icon: ClipboardCheck },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "manager":

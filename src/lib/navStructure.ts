@@ -150,7 +150,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   label: "排程與出勤",
   icon: CalendarRange,
   children: [
-   { path: "/Schedule", label: "排程管理", roles: ["admin", "manager", "teacher", "alien"], icon: CalendarDays },
+   { path: "/Schedule", label: "排程管理", roles: ["admin", "manager", "finance", "teacher", "alien"], icon: CalendarDays },
    { path: "/AcademicCalendar", label: "校曆", roles: ["admin", "manager", "alien"], icon: CalendarX },
    { path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
    {
@@ -163,7 +163,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/LeaveManagement", label: "請假管理", roles: ["admin", "manager", "alien"], icon: CalendarX },
    { path: "/RoomBooking", label: "預約空房", roles: ["teacher"], icon: DoorOpen },
    { path: "/RoomBookingAdmin", label: "約房審批", roles: ["admin", "alien"], icon: Building2 },
-   { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "manager", "teacher", "alien"], icon: ClipboardList },
+   { path: "/AttendanceRecords", label: "出席紀錄", roles: ["admin", "manager", "finance", "teacher", "alien"], icon: ClipboardList },
   ],
  },
  {
