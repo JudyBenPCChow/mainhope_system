@@ -5,6 +5,7 @@ import {
   Download,
   FlaskConical,
   Link2,
+  MessageCircle,
   Printer,
   Search,
 } from "lucide-react"
@@ -20,6 +21,11 @@ import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
+import {
+  openPrimaryMessagingTarget,
+  resolvePrimaryMessagingTarget,
+  type PrimaryMessagingTarget,
+} from "@/lib/whatsappReminder"
 
 import {
   CAMPAIGN_STATUSES,
@@ -31,6 +37,73 @@ import {
   type CampaignStatus,
 } from "./campaignMockData"
 import { ContactUpdatePrintSlips } from "./ContactUpdatePrintSlips"
+
+function messagingTargetFromRow(row: CampaignRow): PrimaryMessagingTarget | null {
+  return resolvePrimaryMessagingTarget({
+    student_phone: row.current.student_phone,
+    parent_phone: row.current.parent_phone,
+    student_phone_country_code: row.current.student_phone_country_code,
+    parent_phone_country_code: row.current.parent_phone_country_code,
+    primary_contact_person: row.current.primary_contact_person,
+    student_preferred_contact_method: row.current.student_preferred_contact_method,
+    parent_preferred_contact_method: row.current.parent_preferred_contact_method,
+    student_wechat_id: row.current.student_wechat_id,
+    parent_wechat_id: row.current.parent_wechat_id,
+  })
+}
+
+function buildContactUpdateNotifyMessage(row: CampaignRow & { token: string }): string {
+  const url = mockPublicLink(row.token)
+  return [
+    `您好，明學教育請核對「${row.full_name}」（學號 ${row.student_code}）嘅聯絡資料。`,
+    "",
+    "請開啟以下專屬連結，核對／更新電話同通訊偏好：",
+    url,
+    "",
+    "提交後由職員審核，核准後先寫入學生檔案。如有疑問請回覆此訊息，謝謝！",
+  ].join("\n")
+}
+
+function RowNotifyButton({
+  row,
+  onNotify,
+}: {
+  row: CampaignRow
+  onNotify: (row: CampaignRow) => void
+}) {
+  const target = messagingTargetFromRow(row)
+  const channel = target?.channel ?? "WhatsApp"
+  const canNotify =
+    channel === "WeChat"
+      ? Boolean(target?.wechatId?.trim())
+      : Boolean(target?.phone?.trim())
+  const label = channel === "WeChat" ? "WeChat" : "WhatsApp"
+  const title = !canNotify
+    ? "第一聯絡人未有電話／WeChat ID"
+    : channel === "WeChat"
+      ? `複製通知文案（含連結）；WeChat ID：${target?.wechatId}`
+      : `開啟 WhatsApp 預填通知（第一聯絡人：${target?.person}）`
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={!canNotify}
+      title={title}
+      aria-label={title}
+      className={
+        channel === "WeChat"
+          ? "border-sky-500/40 text-sky-700 hover:bg-sky-600 hover:text-white"
+          : "border-success/40 text-success hover:bg-success"
+      }
+      onClick={() => onNotify(row)}
+    >
+      <MessageCircle className="mr-1 h-3.5 w-3.5" aria-hidden />
+      {label}
+    </Button>
+  )
+}
 
 function statusTone(status: CampaignStatus) {
   if (status === "已核准") return statusToTagTone("已批核")
@@ -204,6 +277,39 @@ export function ContactUpdateCampaignPrototypeView() {
       return
     }
     setPrintRows(slips)
+  }
+
+  const notifyContactUpdate = async (row: CampaignRow) => {
+    const target = messagingTargetFromRow(row)
+    if (!target) {
+      showFlash("第一聯絡人未有電話／WeChat ID，無法通知")
+      return
+    }
+    const [withToken] = ensureTokens([row.id])
+    if (!withToken?.token) {
+      showFlash("無法產生更新連結")
+      return
+    }
+    const message = buildContactUpdateNotifyMessage(withToken)
+
+    if (target.channel === "WeChat") {
+      try {
+        await navigator.clipboard.writeText(message)
+        showFlash(
+          `沙盒：已複製通知文案（含連結）。WeChat ID：${target.wechatId ?? "—"}，請手動貼上發送`
+        )
+      } catch {
+        showFlash("沙盒：無法複製文案，請先複製連結再發 WeChat")
+      }
+      return
+    }
+
+    const result = await openPrimaryMessagingTarget(target, message)
+    if (result === "whatsapp") {
+      showFlash(`沙盒：已開啟 WhatsApp（${target.person}），請確認後手動發送`)
+    } else {
+      showFlash("無法開啟 WhatsApp，請檢查電話格式")
+    }
   }
 
   const copyLink = async (token: string) => {
@@ -449,6 +555,10 @@ export function ContactUpdateCampaignPrototypeView() {
                   </td>
                   <td className="px-3 py-3 align-middle">
                     <div className="flex flex-wrap gap-1.5">
+                      <RowNotifyButton
+                        row={r}
+                        onNotify={(row) => void notifyContactUpdate(row)}
+                      />
                       {r.token ? (
                         <Button
                           type="button"

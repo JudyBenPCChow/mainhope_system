@@ -8,6 +8,8 @@ import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
 import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
+import ContactUpdate from "@/pages/ContactUpdate"
+import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
 import FrontDeskIntake from "@/pages/FrontDeskIntake"
 import FrontDeskWizard from "@/pages/FrontDeskWizard"
 import PortalEnrollmentRequests from "@/pages/PortalEnrollmentRequests"
@@ -71,6 +73,7 @@ export default function App() {
     <Route path="/Login" element={<Login />} />
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
+    <Route path="/ContactUpdate/:token" element={<ContactUpdate />} />
     {enablePayrollUiPreview ? (
      <Route
       path="/PayrollUiPreview"
@@ -204,6 +207,7 @@ export default function App() {
      <Route path="/AcademicCalendar" element={<AcademicCalendar />} />
      <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
      <Route path="/PromotionMatch" element={<PromotionMatch />} />
+     <Route path="/ContactUpdateCampaign" element={<ContactUpdateCampaign />} />
      <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
      <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
      <Route path="/Schedule" element={<Schedule />} />

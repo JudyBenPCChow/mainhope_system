@@ -17,7 +17,7 @@
 | 沙盒／demo **路由**下線 | **done** |
 | 待辦看板廢除（UI＋歷史資料＋文件） | **done** |
 | 月費獨立頁／queries 殘碼 | **暫緩・勿刪**（之後可能重用／改寫） |
-| `contactUpdate` prototype | **暫緩・勿刪**（公開表單＋活動頁沙盒；正式頁未接） |
+| `contactUpdate` prototype | **暫緩・勿刪**（正式頁已上；沙盒仍作藍本） |
 | 其餘 Prototype／ReceiptDemo **原始碼**刪除 | **open** |
 | `src/api/entities.ts`（可選） | **open** |
 | `/Courses` nav／深連結對齊 | **open**（低） |
