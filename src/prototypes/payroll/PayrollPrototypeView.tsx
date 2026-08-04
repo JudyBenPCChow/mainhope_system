@@ -1,147 +1,246 @@
-import { useMemo, useState, type ReactNode } from "react"
-import { FlaskConical } from "lucide-react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 
 import { Select } from "@/components/ui/select"
+import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { getMgmtRole } from "@/lib/mgmtRole"
+import {
+  acceptTeacherSubmit,
+  createPayrollAdjustment,
+  listPayrollMonthOptions,
+  loadPayrollWorkbench,
+  recalcPayrollRun,
+  returnPayrollMonth,
+  returnTeacherSubmit,
+  reviewPayrollAdjustment,
+  setFinanceReviewed,
+  setTeacherExcluded,
+  settlePayrollMonth,
+  submitPayrollMonth,
+  submitTeacherForReview,
+  upsertManualHours,
+  type PayrollWorkbench,
+} from "@/services/payrollQueries"
 
 import { FinancePayrollView } from "./FinancePayrollView"
 import { ManagerPayrollView } from "./ManagerPayrollView"
 import {
-  DEFAULT_CALC_META,
-  PAYROLL_MOCK_BY_MONTH,
-  PAYROLL_MONTH_OPTIONS,
-  withMpf,
-  withWfhApplied,
-  type CalcVersionMeta,
   type ManualAdjustment,
   type PayrollMonthMock,
   type PayrollPreviewRole,
   type PayrollRunStatus,
-  type PayrollTeacherRow,
   type ReviewAudit,
   type TeacherSubmitState,
   type WfhMockState,
 } from "./mockData"
 
+function actorLabel(): string {
+  const role = getMgmtRole()
+  if (role === "finance") return "Cody Cheong（財務）"
+  if (role === "manager") return "管理層"
+  if (role === "alien") return "外星人"
+  return "行政"
+}
+
 export function PayrollPrototypeView() {
   const { confirmDialog } = useAppConfirm()
+  const { pushBanner } = useAppBanner()
   const realRole = getMgmtRole()
   const isFinanceUser = realRole === "finance"
   const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>(
     realRole === "manager" ? "manager" : "finance"
   )
   const effectiveRole: PayrollPreviewRole = isFinanceUser ? "finance" : previewRole
-  const [monthKey, setMonthKey] = useState("2026-08")
-  const [overrides, setOverrides] = useState<
-    Record<string, { status: PayrollRunStatus } & Partial<PayrollMonthMock>>
-  >({})
-  const [calcByMonth, setCalcByMonth] = useState<Record<string, CalcVersionMeta>>({
-    "2026-08": { ...DEFAULT_CALC_META },
-    "2026-07": {
-      version: 1,
-      computedAt: "2026-07-28 16:00",
-      dataCutoffAt: "2026-07-28 15:30",
-    },
-  })
-  const [codyHours, setCodyHours] = useState<number | null>(null)
-  const [codyStatus, setCodyStatus] = useState<WfhMockState["status"]>("missing")
-  const [adjustments, setAdjustments] = useState<ManualAdjustment[]>([])
-  const [reviewAudits, setReviewAudits] = useState<ReviewAudit[]>([])
-  const [excludedIds, setExcludedIds] = useState<Set<string>>(() => new Set())
-  const [teacherSubmits, setTeacherSubmits] = useState<TeacherSubmitState[]>([])
 
-  const base = PAYROLL_MOCK_BY_MONTH[monthKey] ?? PAYROLL_MOCK_BY_MONTH["2026-08"]
-  const calc = calcByMonth[monthKey] ?? DEFAULT_CALC_META
+  const monthOptions = useMemo(() => listPayrollMonthOptions(), [])
+  const [monthKey, setMonthKey] = useState(() => monthOptions[1]?.value ?? monthOptions[0]?.value ?? "2026-07")
+  const [workbench, setWorkbench] = useState<PayrollWorkbench | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const teachers: PayrollTeacherRow[] = useMemo(() => {
-    const o = overrides[monthKey]
-    const statusTeachers = o?.teachers ?? base.teachers
-    return statusTeachers.map((t) => {
-      let row = t
-      if (t.id === "cody") {
-        row = withWfhApplied(t, codyHours, codyStatus)
-      }
-      const approved = adjustments.filter(
-        (a) => a.teacherId === row.id && a.status === "approved"
-      )
-      if (approved.length > 0) {
-        const latest = approved[0]!
-        row = withMpf({
-          ...row,
-          gross: latest.toAmount,
-        })
-      }
-      return row
-    })
-  }, [base.teachers, monthKey, overrides, codyHours, codyStatus, adjustments])
-
-  const month: PayrollMonthMock = useMemo(() => {
-    const o = overrides[monthKey]
-    return {
-      ...base,
-      ...o,
-      teachers,
-      calc,
+  const reload = useCallback(async (key: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      const wb = await loadPayrollWorkbench(key)
+      setWorkbench(wb)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "載入計糧失敗")
+      setWorkbench(null)
+    } finally {
+      setLoading(false)
     }
-  }, [base, monthKey, overrides, teachers, calc])
+  }, [])
 
+  useEffect(() => {
+    void reload(monthKey)
+  }, [monthKey, reload])
+
+  const month: PayrollMonthMock = workbench?.month ?? {
+    monthKey,
+    monthLabel: monthKey,
+    status: "財務審閱中",
+    teachers: [],
+  }
+  const teachers = month.teachers
   const status = month.status
-  const reviewedIds = useMemo(
-    () => new Set(reviewAudits.filter((r) => r.calcVersion === calc.version).map((r) => r.teacherId)),
-    [reviewAudits, calc.version]
-  )
+  const adjustments = workbench?.adjustments ?? []
+  const runId = workbench?.run.id
 
-  const onStatusChange = (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => {
-    setOverrides((prev) => ({
-      ...prev,
-      [monthKey]: {
-        ...prev[monthKey],
-        status: next,
-        ...meta,
-      },
-    }))
-  }
+  const reviewedIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const s of workbench?.teacherStates ?? []) {
+      if (s.financeReviewed) ids.add(s.teacherId)
+    }
+    return ids
+  }, [workbench?.teacherStates])
 
-  const applyMonthChange = (value: string) => {
-    setMonthKey(value)
-    setReviewAudits([])
-    setExcludedIds(new Set())
-    setTeacherSubmits([])
-    setCodyHours(null)
-    setCodyStatus("missing")
-  }
+  const reviewAudits: ReviewAudit[] = useMemo(() => {
+    return (workbench?.teacherStates ?? [])
+      .filter((s) => s.financeReviewed)
+      .map((s) => {
+        const t = teachers.find((x) => x.id === s.teacherId)
+        return {
+          teacherId: s.teacherId,
+          teacherName: t?.name ?? s.teacherId,
+          reviewer: actorLabel(),
+          reviewedAt: "—",
+          calcVersion: workbench?.run.calcVersion ?? 1,
+          scope: (t?.anomalies.length ?? 0) > 0 ? "已審核有異常／已知悉" : "已審核無異常",
+          note: t?.anomalies[0],
+        }
+      })
+  }, [workbench, teachers])
+
+  const excludedIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const s of workbench?.teacherStates ?? []) {
+      if (s.excluded) ids.add(s.teacherId)
+    }
+    return ids
+  }, [workbench?.teacherStates])
+
+  const teacherSubmits: TeacherSubmitState[] = useMemo(() => {
+    return (workbench?.teacherStates ?? [])
+      .filter((s) => s.submitStatus !== "not_submitted")
+      .map((s) => ({
+        teacherId: s.teacherId,
+        status: s.submitStatus,
+        returnNote: s.submitNote ?? undefined,
+      }))
+  }, [workbench?.teacherStates])
+
+  const codyTeacher = teachers.find((t) => t.mode === "WFH 時薪")
+  const codyHours = codyTeacher?.wfh?.hours ?? null
+  const codyStatus: WfhMockState["status"] = codyTeacher?.wfh?.status ?? "missing"
 
   const onMonthChange = (value: string) => {
     if (value === monthKey) return
     void (async () => {
       const ok = await confirmDialog({
         title: "切換月份？",
-        description: "將清除目前月份的審核進度、排除標記與單人送核佇列（示範）。",
+        description: "將載入該月份的計糧資料與審核狀態。",
         confirmText: "切換",
         cancelText: "取消",
         tone: "warning",
       })
-      if (ok) applyMonthChange(value)
+      if (ok) setMonthKey(value)
+    })()
+  }
+
+  const onStatusChange = (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => {
+    if (!runId) return
+    void (async () => {
+      try {
+        if (next === "待管理層核實") {
+          await submitPayrollMonth(runId, actorLabel())
+        } else if (next === "財務審閱中" && status === "待管理層核實") {
+          await returnPayrollMonth(runId, meta?.returnReason ?? "退回財務")
+        } else if (next === "已結算") {
+          await settlePayrollMonth(runId, actorLabel(), teachers)
+        } else {
+          pushBanner({ tone: "warning", title: `未支援的狀態變更：${next}` })
+          return
+        }
+        await reload(monthKey)
+        pushBanner({ tone: "success", title: `月份狀態已更新為「${next}」` })
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "更新狀態失敗",
+        })
+      }
+    })()
+  }
+
+  const onRecalc = () => {
+    void (async () => {
+      const ok = await confirmDialog({
+        title: "重新計算？",
+        description: "將依最新點名／排程重算本月薪酬，並遞增計算版本。已標記的「已審核」會保留於資料庫。",
+        confirmText: "重算",
+        cancelText: "取消",
+        tone: "warning",
+      })
+      if (!ok) return
+      try {
+        const wb = await recalcPayrollRun(monthKey)
+        setWorkbench(wb)
+        pushBanner({ tone: "success", title: `已重算（v${wb.run.calcVersion}）` })
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "重算失敗",
+        })
+      }
+    })()
+  }
+
+  const onToggleReviewed = (teacherId: string) => {
+    if (!runId) return
+    const next = !reviewedIds.has(teacherId)
+    void (async () => {
+      try {
+        await setFinanceReviewed(runId, teacherId, next)
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "更新審核狀態失敗",
+        })
+      }
+    })()
+  }
+
+  const onToggleExcluded = (id: string) => {
+    if (!runId) return
+    const next = !excludedIds.has(id)
+    void (async () => {
+      try {
+        await setTeacherExcluded(runId, id, next, next ? "財務排除／移交跟進" : undefined)
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "更新排除狀態失敗",
+        })
+      }
     })()
   }
 
   const onSubmitTeacher = (teacherId: string) => {
-    const t = teachers.find((x) => x.id === teacherId)
-    if (!t) return
-    setTeacherSubmits((prev) => {
-      const rest = prev.filter((s) => s.teacherId !== teacherId)
-      return [
-        ...rest,
-        {
-          teacherId,
-          status: "submitted",
-          submittedAt: new Date().toLocaleString("zh-HK"),
-          submittedBy: "Cody Cheong（財務示範）",
-        },
-      ]
-    })
-    // 單人送核不鎖整月；財務可繼續審其他人。管理層佇列依 teacherSubmits 顯示。
+    if (!runId) return
+    void (async () => {
+      try {
+        await submitTeacherForReview(runId, teacherId)
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "送核失敗",
+        })
+      }
+    })()
   }
 
   const onResolveTeacherSubmit = (
@@ -149,67 +248,86 @@ export function PayrollPrototypeView() {
     next: "accepted" | "returned",
     note?: string
   ) => {
-    setTeacherSubmits((prev) =>
-      prev.map((s) =>
-        s.teacherId === teacherId
-          ? {
-              ...s,
-              status: next,
-              returnNote: note,
-            }
-          : s
-      )
-    )
+    if (!runId) return
+    void (async () => {
+      try {
+        if (next === "accepted") await acceptTeacherSubmit(runId, teacherId)
+        else await returnTeacherSubmit(runId, teacherId, note ?? "退回")
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "處理送核失敗",
+        })
+      }
+    })()
   }
 
-  const onRecalc = () => {
-    const now = new Date().toLocaleString("zh-HK", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    })
-    setCalcByMonth((prev) => {
-      const cur = prev[monthKey] ?? DEFAULT_CALC_META
-      return {
-        ...prev,
-        [monthKey]: {
-          version: cur.version + 1,
-          computedAt: now,
-          dataCutoffAt: now,
-          previousVersion: cur.version,
-          previousComputedAt: cur.computedAt,
-        },
+  const onAddAdjustment = (adj: ManualAdjustment) => {
+    if (!runId) return
+    void (async () => {
+      try {
+        await createPayrollAdjustment({
+          runId,
+          teacherId: adj.teacherId,
+          fromAmount: adj.fromAmount ?? 0,
+          toAmount: adj.toAmount,
+          reason: adj.reason,
+          createdBy: actorLabel(),
+        })
+        await reload(monthKey)
+        pushBanner({ tone: "success", title: "已建立人手調整申請" })
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "建立調整失敗",
+        })
       }
-    })
-    setReviewAudits([])
+    })()
   }
 
-  const onToggleReviewed = (teacherId: string) => {
-    const t = teachers.find((x) => x.id === teacherId)
-    if (!t) return
-    setReviewAudits((prev) => {
-      const existing = prev.find(
-        (r) => r.teacherId === teacherId && r.calcVersion === calc.version
-      )
-      if (existing) {
-        return prev.filter((r) => r !== existing)
+  const onResolveAdjustment = (
+    id: string,
+    st: "approved" | "rejected",
+    _note?: string
+  ) => {
+    void (async () => {
+      try {
+        await reviewPayrollAdjustment(id, st, actorLabel())
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "審批調整失敗",
+        })
       }
-      return [
-        ...prev,
-        {
-          teacherId,
-          teacherName: t.name,
-          reviewer: "Cody Cheong（財務示範）",
-          reviewedAt: new Date().toLocaleString("zh-HK"),
-          calcVersion: calc.version,
-          scope: t.anomalies.length > 0 ? "已審核有異常／已知悉" : "已審核無異常",
-          note: t.anomalies[0],
-        },
-      ]
-    })
+    })()
+  }
+
+  const onCodyChange = (hours: number | null, st: WfhMockState["status"]) => {
+    if (!codyTeacher || hours == null) return
+    void (async () => {
+      try {
+        const dbStatus = st === "approved" ? "approved" : st === "submitted" ? "submitted" : "draft"
+        await upsertManualHours({
+          monthKey,
+          teacherId: codyTeacher.id,
+          hours,
+          status: dbStatus,
+          actor: actorLabel(),
+        })
+        await reload(monthKey)
+      } catch (e) {
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "更新工時失敗",
+        })
+      }
+    })()
+  }
+
+  const onCodyApprove = (hours: number) => {
+    onCodyChange(hours, "approved")
   }
 
   const monthSelect: ReactNode = (
@@ -219,7 +337,7 @@ export function PayrollPrototypeView() {
       onChange={(e) => onMonthChange(e.target.value)}
       className="w-full sm:w-56"
     >
-      {PAYROLL_MONTH_OPTIONS.map((opt) => (
+      {monthOptions.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
         </option>
@@ -256,13 +374,18 @@ export function PayrollPrototypeView() {
             </>
           )}
         </div>
-        <p className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-          <FlaskConical className="h-3 w-3" aria-hidden />
-          示範數據 · 不連資料庫
+        <p className="rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+          正式資料 · 點名／排程即時計算
         </p>
       </div>
 
-      {effectiveRole === "finance" ? (
+      {loading ? (
+        <p className="text-sm text-muted-foreground">載入計糧中…</p>
+      ) : error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      ) : effectiveRole === "finance" ? (
         <FinancePayrollView
           month={month}
           status={status}
@@ -272,27 +395,10 @@ export function PayrollPrototypeView() {
           reviewAudits={reviewAudits}
           excludedIds={excludedIds}
           onToggleReviewed={onToggleReviewed}
-          onToggleExcluded={(id) =>
-            setExcludedIds((prev) => {
-              const next = new Set(prev)
-              if (next.has(id)) next.delete(id)
-              else next.add(id)
-              return next
-            })
-          }
+          onToggleExcluded={onToggleExcluded}
           onStatusChange={onStatusChange}
-          onAddAdjustment={(adj) => setAdjustments((prev) => [adj, ...prev])}
-          onCodyChange={(hours, st) => {
-            setCodyHours(hours)
-            setCodyStatus(st)
-            if (st === "approved") {
-              setExcludedIds((prev) => {
-                const next = new Set(prev)
-                next.delete("cody")
-                return next
-              })
-            }
-          }}
+          onAddAdjustment={onAddAdjustment}
+          onCodyChange={onCodyChange}
           onRecalc={onRecalc}
           teacherSubmits={teacherSubmits}
           onSubmitTeacher={onSubmitTeacher}
@@ -309,23 +415,9 @@ export function PayrollPrototypeView() {
           codyStatus={codyStatus}
           codyHours={codyHours}
           onStatusChange={onStatusChange}
-          onResolveAdjustment={(id, st, note) =>
-            setAdjustments((prev) =>
-              prev.map((a) =>
-                a.id === id ? { ...a, status: st, reviewerNote: note } : a
-              )
-            )
-          }
+          onResolveAdjustment={onResolveAdjustment}
           onResolveTeacherSubmit={onResolveTeacherSubmit}
-          onCodyApprove={(hours) => {
-            setCodyHours(hours)
-            setCodyStatus("approved")
-            setExcludedIds((prev) => {
-              const next = new Set(prev)
-              next.delete("cody")
-              return next
-            })
-          }}
+          onCodyApprove={onCodyApprove}
           monthSelect={monthSelect}
         />
       )}

@@ -178,7 +178,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
    {
     path: "/Payroll",
-    label: "計糧（UI 預覽）",
+    label: "計糧",
     roles: ["admin", "manager", "finance", "alien"],
     icon: Wallet,
    },

@@ -24,7 +24,7 @@ function mockHash(month: PayrollMonthMock, kind: string): string {
   return h.toString(16).padStart(8, "0")
 }
 
-/** 產生計糧 mock CSV（UTF-8 BOM）並觸發下載 */
+/** 產生計糧 CSV（UTF-8 BOM）並觸發下載；正式版以當月計算／snapshot 為準 */
 export function downloadPayrollMockCsv(
   month: PayrollMonthMock,
   kind: "preview" | "formal"
@@ -33,7 +33,7 @@ export function downloadPayrollMockCsv(
   const ver = month.calc?.version ?? 0
   const cutoff = month.calc?.dataCutoffAt ?? ""
   const exportedAt = new Date().toLocaleString("zh-HK")
-  const exporter = kind === "formal" ? "管理層（示範）" : "財務（示範）"
+  const exporter = kind === "formal" ? "管理層" : "財務"
   const hash = mockHash(month, kind)
 
   lines.push(`# 月份=${month.monthLabel}`)
