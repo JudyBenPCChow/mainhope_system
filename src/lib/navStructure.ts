@@ -39,7 +39,7 @@ import {
  Wallet,
 } from "lucide-react"
 
-export type Role = "admin" | "manager" | "teacher" | "alien"
+export type Role = "admin" | "manager" | "finance" | "teacher" | "alien"
 
 export type NavLeafDef = {
  path: string
@@ -69,12 +69,12 @@ export type NavLeafOnly = {
 export type NavEntryDef = NavGroupDef | NavLeafOnly
 
 export const NAV_STRUCTURE: NavEntryDef[] = [
- { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin", "manager", "teacher", "alien"], icon: Home },
+ { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin", "manager", "finance", "teacher", "alien"], icon: Home },
  {
   kind: "leaf",
   path: "/AllFeatures",
   label: "所有功能",
-  roles: ["admin", "manager", "teacher", "alien"],
+  roles: ["admin", "manager", "finance", "teacher", "alien"],
   icon: LayoutGrid,
  },
  {
@@ -86,7 +86,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/FrontDeskWizard", label: "前台指引精靈", roles: ["admin", "alien"], icon: ListOrdered },
    { path: "/TomorrowReminders", label: "明日課堂提醒", roles: ["admin", "alien"], icon: MessageSquareQuote },
    { path: "/Attendance", label: "進行點名", roles: ["admin", "teacher", "alien"], icon: ClipboardCheck },
-   { path: "/Inbox", label: "收件匣", roles: ["admin", "manager", "teacher", "alien"], icon: Inbox },
+   { path: "/Inbox", label: "收件匣", roles: ["admin", "manager", "finance", "teacher", "alien"], icon: Inbox },
    { path: "/ScriptLibrary", label: "話術庫", roles: ["admin", "alien"], icon: MessageSquareQuote },
   ],
  },
@@ -173,13 +173,13 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Wallet,
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin", "alien"], icon: HandCoins },
-   { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "manager", "alien"], icon: Wallet },
+   { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "manager", "finance", "alien"], icon: Wallet },
    { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
    { path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
    {
     path: "/Payroll",
     label: "計糧（UI 預覽）",
-    roles: ["admin", "manager", "alien"],
+    roles: ["admin", "manager", "finance", "alien"],
     icon: Wallet,
    },
   ],
@@ -219,7 +219,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   kind: "leaf",
   path: "/Settings",
   label: "設定",
-  roles: ["admin", "manager", "teacher", "alien"],
+  roles: ["admin", "manager", "finance", "teacher", "alien"],
   icon: Settings,
   placement: "footer",
  },

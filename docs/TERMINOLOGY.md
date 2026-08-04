@@ -51,7 +51,7 @@
 | 概念 | 用詞 |
 | --- | --- |
 | 介面語言 | **繁體中文** |
-| 角色 | `admin`／`manager`／`teacher`／`alien`；文案可用行政／管理層／老師／外星人。管理層「少做日常」= 入口體感（非讀權限收窄），見 [`backlog/mgmt-manager-role.md`](backlog/mgmt-manager-role.md) |
+| 角色 | `admin`／`manager`／`finance`／`teacher`／`alien`；文案可用行政／管理層／財務／老師／外星人。管理層「少做日常」= 入口體感（非讀權限收窄），見 [`backlog/mgmt-manager-role.md`](backlog/mgmt-manager-role.md)；財務見 [`backlog/payroll-engine.md`](backlog/payroll-engine.md) |
 | 正規 vs 暑期 | 見 [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md) |
 | UI 元件／錯誤 | 見 [`UI_DESIGN_INSTRUCTIONS.md`](UI_DESIGN_INSTRUCTIONS.md) |
 

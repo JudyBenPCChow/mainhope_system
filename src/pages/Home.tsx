@@ -21,6 +21,10 @@ export default function Home() {
   return <MgmtDashboardView />
  }
 
+ if (role === "finance") {
+  return <Navigate to="/Payroll" replace />
+ }
+
  if (role === "admin") {
   return <AdminDashboard />
  }

@@ -34,7 +34,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 
 - **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。詳見 `docs/UI_DESIGN_INSTRUCTIONS.md`。
 - **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/RLS_ROLLOUT.md`。
-- **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin；分流見 `docs/backlog/mgmt-manager-role.md`。
+- **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧）；分流見 `docs/backlog/mgmt-manager-role.md`／計糧見 `docs/backlog/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 

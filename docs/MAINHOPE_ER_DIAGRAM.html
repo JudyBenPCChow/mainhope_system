@@ -1,0 +1,853 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta charset="utf-8" />
+<title>MainHope ER Diagram — &#26126;&#23416;&#25945;&#32946;</title>
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'neutral',
+    themeVariables: {
+      fontFamily: '"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif'
+    },
+    er: {
+      layoutDirection: 'TB',
+      minEntityWidth: 100,
+      minEntityHeight: 50,
+      entityPadding: 12,
+      useMaxWidth: true
+    },
+    securityLevel: 'loose'
+  });
+</script>
+<style>
+  :root { --ink:#1a1a1a; --muted:#555; --line:#ccc; --bg:#fff; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background: #e8e8e8;
+  }
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    padding: 12px 20px; background: #222; color: #fff;
+  }
+  .toolbar button {
+    appearance: none; border: 0; border-radius: 6px;
+    padding: 8px 14px; background: #fff; color: #111;
+    font: inherit; cursor: pointer;
+  }
+  .toolbar .hint { color: #bbb; font-size: 13px; }
+  .page {
+    background: var(--bg); margin: 16px auto; padding: 18mm 14mm;
+    width: 297mm; min-height: 200mm; box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  header { margin-bottom: 12px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .brand { font-size: 12px; letter-spacing: .04em; color: var(--muted); }
+  h1 { margin: 4px 0 2px; font-size: 22px; font-weight: 650; }
+  .en { margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+  .meta { margin: 0; font-size: 12px; color: var(--muted); }
+  .mermaid { display: flex; justify-content: center; overflow: visible; font-size: 13px; }
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none !important; }
+    .page {
+      box-shadow: none; margin: 0; width: auto; min-height: auto; padding: 8mm;
+      page-break-after: always; break-after: page;
+    }
+    .page:last-child { page-break-after: auto; }
+  }
+  @page { size: A3 landscape; margin: 8mm; }
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <strong>&#26126;&#23416;&#25945;&#32946; · ER &#22294;&#65288;&#21487;&#25171;&#21360;&#65289;</strong>
+    <button type="button" onclick="window.print()">&#25171;&#21360; / Save PDF</button>
+    <span class="hint">&#24314;&#35696;&#65306;&#32025;&#24373;&#36984; A3 &#27243;&#21521;&#65307;&#38283;&#21855;&#12300;&#32972;&#26223;&#22294;&#24418;&#12301;&#12290;&#20849; 8 &#38913;&#12290;</span>
+  </div>
+  
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>0. &#32317;&#35261;&#65288;&#26680;&#24515;&#23526;&#39636;&#65289;</h1>
+      <p class="en">0. Overview — core entities</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#21482;&#39023;&#31034;&#26680;&#24515;&#34920;&#33287;&#22806;&#37749;&#65307;&#32048;&#31680;&#35211;&#24460;&#32396;&#20998;&#38913;&#12290; Core tables + FKs only.</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    students {
+        uuid id PK
+    }
+    teachers {
+        uuid id PK
+    }
+    classrooms {
+        uuid id PK
+    }
+    subjects {
+        uuid id PK
+    }
+    courses {
+        uuid id PK
+    }
+    academic_years {
+        uuid id PK
+    }
+    classes {
+        uuid id PK
+    }
+    schedules {
+        uuid id PK
+    }
+    student_class_enrollments {
+        uuid id PK
+    }
+    attendance_details {
+        uuid id PK
+    }
+    leave_makeup_records {
+        uuid id PK
+    }
+    trial_sessions {
+        uuid id PK
+    }
+    payments {
+        uuid id PK
+    }
+    payment_details {
+        uuid id PK
+    }
+    student_entitlement_pools {
+        uuid id PK
+    }
+    attendance_declarations {
+        uuid id PK
+    }
+    app_users {
+        uuid id PK
+    }
+    app_users }o--|| students : student_id
+    app_users }o--|| teachers : teacher_id
+    attendance_declarations }o--|| student_entitlement_pools : pool_id
+    attendance_declarations }o--|| schedules : schedule_id
+    attendance_declarations }o--|| students : student_id
+    attendance_declarations }o--|| attendance_declarations : superseded_by
+    attendance_details }o--|| classes : class_id
+    attendance_details }o--|| schedules : schedule_id
+    attendance_details }o--|| students : student_id
+    classes }o--|| academic_years : academic_year_id
+    classes }o--|| classrooms : classroom_id
+    classes }o--|| courses : course_id
+    classes }o--|| teachers : teacher_id
+    courses }o--|| subjects : subject_id
+    leave_makeup_records }o--|| classes : class_id
+    leave_makeup_records }o--|| schedules : makeup_schedule_id
+    leave_makeup_records }o--|| schedules : schedule_id
+    leave_makeup_records }o--|| students : student_id
+    payment_details }o--|| classes : class_id
+    payment_details }o--|| payments : payment_id
+    payments }o--|| students : student_id
+    schedules }o--|| classes : class_id
+    schedules }o--|| classrooms : classroom_id
+    schedules }o--|| teachers : original_teacher_id
+    schedules }o--|| teachers : teacher_id
+    student_class_enrollments }o--|| classes : class_id
+    student_class_enrollments }o--|| students : student_id
+    student_entitlement_pools }o--|| academic_years : academic_year_id
+    student_entitlement_pools }o--|| classes : class_id
+    student_entitlement_pools }o--|| student_class_enrollments : source_enrollment_id
+    student_entitlement_pools }o--|| students : student_id
+    students }o--|| app_users : assigned_agent_user_id
+    trial_sessions }o--|| classes : class_id
+    trial_sessions }o--|| student_class_enrollments : converted_enrollment_id
+    trial_sessions }o--|| payments : converted_payment_id
+    trial_sessions }o--|| payments : payment_id
+    trial_sessions }o--|| schedules : schedule_id
+    trial_sessions }o--|| students : student_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>1. &#26680;&#24515;&#25945;&#23416;</h1>
+      <p class="en">1. Teaching core</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;13 · 13 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    academic_years {
+        uuid id PK
+        boolean is_current
+    }
+    academic_year_periods {
+        uuid id PK
+        uuid academic_year_id FK
+        date start_date
+        date end_date
+    }
+    academic_calendar_closures {
+        uuid id PK
+        uuid academic_year_id FK
+        date closure_date
+    }
+    subjects {
+        uuid id PK
+        text short_name
+        text category
+    }
+    courses {
+        uuid id PK
+        uuid subject_id FK
+        text course_name
+    }
+    teachers {
+        uuid id PK
+        text full_name
+        text status
+        text abbr
+    }
+    teachers_private {
+        uuid teacher_id FK
+        numeric salary_per_lesson
+    }
+    classrooms {
+        uuid id PK
+        text name
+        integer capacity
+        boolean is_online
+    }
+    classes {
+        uuid id PK
+        text subject
+        uuid teacher_id FK
+        uuid classroom_id FK
+        uuid academic_year_id FK
+        uuid course_id FK
+        text status
+        text class_kind
+    }
+    schedules {
+        uuid id PK
+        uuid class_id FK
+        uuid teacher_id FK
+        uuid original_teacher_id FK
+        uuid classroom_id FK
+        date scheduled_date
+        text status
+        integer session_number
+    }
+    student_class_enrollments {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        text status
+        date enroll_date
+    }
+    enrollment_change_events {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid enrollment_id
+    }
+    teacher_availability_slots {
+        uuid id PK
+        uuid teacher_id FK
+        uuid academic_year_id FK
+        uuid assigned_class_id FK
+    }
+    academic_calendar_closures }o--|| academic_years : academic_year_id
+    academic_year_periods }o--|| academic_years : academic_year_id
+    classes }o--|| academic_years : academic_year_id
+    classes }o--|| classrooms : classroom_id
+    classes }o--|| courses : course_id
+    classes }o--|| teachers : teacher_id
+    courses }o--|| subjects : subject_id
+    enrollment_change_events }o--|| classes : class_id
+    schedules }o--|| classes : class_id
+    schedules }o--|| classrooms : classroom_id
+    schedules }o--|| teachers : original_teacher_id
+    schedules }o--|| teachers : teacher_id
+    student_class_enrollments }o--|| classes : class_id
+    teacher_availability_slots }o--|| academic_years : academic_year_id
+    teacher_availability_slots }o--|| classes : assigned_class_id
+    teacher_availability_slots }o--|| teachers : teacher_id
+    teachers_private }o--|| teachers : teacher_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>2. &#23416;&#29983;&#33287;&#32879;&#32097;</h1>
+      <p class="en">2. Students &amp; contacts</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;7 · 7 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    students {
+        uuid id PK
+        text student_code
+        text full_name
+        text status
+        text grade
+        uuid assigned_agent_user_id FK
+    }
+    student_relationships {
+        uuid id PK
+        uuid student_a_id FK
+        uuid student_b_id FK
+        text relationship
+    }
+    student_status_history {
+        uuid id PK
+        uuid student_id FK
+        text old_status
+        text new_status
+    }
+    contact_update_tokens {
+        uuid id PK
+        uuid student_id FK
+        text token
+        timestamptz expires_at
+    }
+    student_portal_invites {
+        uuid id PK
+        uuid student_id FK
+        uuid created_by FK
+    }
+    referral_records {
+        uuid id PK
+        uuid referrer_student_id FK
+        uuid referee_student_id FK
+    }
+    legacy_student_subject_enrollments {
+        uuid id PK
+        uuid student_id FK
+        uuid subject_id FK
+    }
+    contact_update_tokens }o--|| students : student_id
+    legacy_student_subject_enrollments }o--|| students : student_id
+    referral_records }o--|| students : referee_student_id
+    referral_records }o--|| students : referrer_student_id
+    student_portal_invites }o--|| students : student_id
+    student_relationships }o--|| students : student_a_id
+    student_relationships }o--|| students : student_b_id
+    student_status_history }o--|| students : student_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>3. &#20986;&#24109;&#12289;&#35531;&#20551;&#33287;&#27402;&#30410;</h1>
+      <p class="en">3. Attendance, leave &amp; entitlements</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;13 · 13 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    attendance_details {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid schedule_id FK
+        date attendance_date
+        text status
+    }
+    leave_makeup_records {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid schedule_id FK
+        uuid makeup_schedule_id FK
+        text status
+    }
+    trial_sessions {
+        uuid id PK
+        uuid student_id FK
+        uuid schedule_id FK
+        uuid class_id FK
+        text status
+        uuid payment_id FK
+        uuid converted_enrollment_id FK
+    }
+    student_pending_lessons {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid enrollment_id FK
+        uuid resolved_schedule_id FK
+    }
+    student_entitlement_pools {
+        uuid id PK
+        uuid student_id FK
+        uuid academic_year_id FK
+    }
+    attendance_declarations {
+        uuid id PK
+        uuid student_id FK
+        uuid schedule_id FK
+        uuid pool_id FK
+        text status
+        uuid superseded_by FK
+    }
+    attendance_declaration_exceptions {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid schedule_id FK
+        uuid academic_year_id FK
+    }
+    entitlement_consumption_events {
+        uuid id PK
+        uuid student_id FK
+        uuid pool_id FK
+        uuid declaration_id FK
+        uuid attendance_detail_id FK
+    }
+    students {
+        uuid id PK
+        text student_code
+        text full_name
+        text status
+        text grade
+        uuid assigned_agent_user_id FK
+    }
+    classes {
+        uuid id PK
+        text subject
+        uuid teacher_id FK
+        uuid classroom_id FK
+        uuid academic_year_id FK
+        uuid course_id FK
+        text status
+        text class_kind
+    }
+    schedules {
+        uuid id PK
+        uuid class_id FK
+        uuid teacher_id FK
+        uuid original_teacher_id FK
+        uuid classroom_id FK
+        date scheduled_date
+        text status
+        integer session_number
+    }
+    student_class_enrollments {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        text status
+        date enroll_date
+    }
+    payments {
+        uuid id PK
+        uuid student_id FK
+        date payment_date
+        numeric total_amount
+        text status
+        uuid payment_discount_id FK
+    }
+    attendance_declaration_exceptions }o--|| classes : class_id
+    attendance_declaration_exceptions }o--|| schedules : schedule_id
+    attendance_declaration_exceptions }o--|| students : student_id
+    attendance_declarations }o--|| student_entitlement_pools : pool_id
+    attendance_declarations }o--|| schedules : schedule_id
+    attendance_declarations }o--|| students : student_id
+    attendance_declarations }o--|| attendance_declarations : superseded_by
+    attendance_details }o--|| classes : class_id
+    attendance_details }o--|| schedules : schedule_id
+    attendance_details }o--|| students : student_id
+    entitlement_consumption_events }o--|| attendance_details : attendance_detail_id
+    entitlement_consumption_events }o--|| attendance_declarations : declaration_id
+    entitlement_consumption_events }o--|| student_entitlement_pools : pool_id
+    entitlement_consumption_events }o--|| schedules : schedule_id
+    entitlement_consumption_events }o--|| students : student_id
+    leave_makeup_records }o--|| classes : class_id
+    leave_makeup_records }o--|| schedules : makeup_schedule_id
+    leave_makeup_records }o--|| schedules : schedule_id
+    leave_makeup_records }o--|| students : student_id
+    payments }o--|| students : student_id
+    schedules }o--|| classes : class_id
+    student_class_enrollments }o--|| classes : class_id
+    student_class_enrollments }o--|| students : student_id
+    student_entitlement_pools }o--|| classes : class_id
+    student_entitlement_pools }o--|| student_class_enrollments : source_enrollment_id
+    student_entitlement_pools }o--|| students : student_id
+    student_pending_lessons }o--|| classes : class_id
+    student_pending_lessons }o--|| student_class_enrollments : enrollment_id
+    student_pending_lessons }o--|| schedules : resolved_schedule_id
+    student_pending_lessons }o--|| students : student_id
+    trial_sessions }o--|| classes : class_id
+    trial_sessions }o--|| student_class_enrollments : converted_enrollment_id
+    trial_sessions }o--|| payments : converted_payment_id
+    trial_sessions }o--|| payments : payment_id
+    trial_sessions }o--|| schedules : schedule_id
+    trial_sessions }o--|| students : student_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>4. &#25910;&#36027;&#33287;&#23416;&#36027;</h1>
+      <p class="en">4. Payments &amp; tuition</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;11 · 11 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    payment_discounts {
+        uuid id PK
+        text name
+        numeric percent_off
+        numeric amount_off
+        boolean is_active
+    }
+    payments {
+        uuid id PK
+        uuid student_id FK
+        date payment_date
+        numeric total_amount
+        text status
+        uuid payment_discount_id FK
+    }
+    payment_details {
+        uuid id PK
+        uuid payment_id FK
+        uuid class_id FK
+        integer lesson_count
+        numeric amount
+    }
+    payment_batches {
+        uuid id PK
+    }
+    payment_discount_applications {
+        uuid id PK
+        uuid payment_id FK
+    }
+    payment_late_fee_items {
+        uuid id PK
+        uuid payment_id FK
+        numeric amount
+    }
+    monthly_tuition_charges {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        text status
+    }
+    tuition_credit_entries {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid source_leave_id FK
+        uuid source_charge_id FK
+        uuid applied_charge_id FK
+    }
+    students {
+        uuid id PK
+        text student_code
+        text full_name
+        text status
+        text grade
+        uuid assigned_agent_user_id FK
+    }
+    classes {
+        uuid id PK
+        text subject
+        uuid teacher_id FK
+        uuid classroom_id FK
+        uuid academic_year_id FK
+        uuid course_id FK
+        text status
+        text class_kind
+    }
+    leave_makeup_records {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid schedule_id FK
+        uuid makeup_schedule_id FK
+        text status
+    }
+    leave_makeup_records }o--|| classes : class_id
+    leave_makeup_records }o--|| students : student_id
+    monthly_tuition_charges }o--|| classes : class_id
+    monthly_tuition_charges }o--|| students : student_id
+    payment_details }o--|| classes : class_id
+    payment_details }o--|| monthly_tuition_charges : monthly_tuition_charge_id
+    payment_details }o--|| payments : payment_id
+    payment_discount_applications }o--|| payment_discounts : payment_discount_id
+    payment_discount_applications }o--|| payments : payment_id
+    payment_late_fee_items }o--|| classes : class_id
+    payment_late_fee_items }o--|| payments : payment_id
+    payments }o--|| payment_batches : payment_batch_id
+    payments }o--|| payment_discounts : payment_discount_id
+    payments }o--|| students : student_id
+    tuition_credit_entries }o--|| monthly_tuition_charges : applied_charge_id
+    tuition_credit_entries }o--|| classes : class_id
+    tuition_credit_entries }o--|| monthly_tuition_charges : source_charge_id
+    tuition_credit_entries }o--|| leave_makeup_records : source_leave_id
+    tuition_credit_entries }o--|| students : student_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>5. &#24115;&#34399;&#12289;&#27402;&#38480;&#33287;&#25910;&#20214;&#31665;</h1>
+      <p class="en">5. Accounts, roles &amp; inbox</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;13 · 13 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    app_users {
+        uuid id PK
+        text email
+        text role
+        uuid teacher_id FK
+        uuid student_id FK
+        uuid auth_user_id FK
+    }
+    app_user_roles {
+        uuid app_user_id FK
+        text role
+        uuid teacher_id FK
+    }
+    mgmt_active_roles {
+        uuid app_user_id FK
+    }
+    inbox_events {
+        uuid id PK
+        uuid student_id FK
+        uuid class_id FK
+        uuid schedule_id FK
+        text event_type
+    }
+    inbox_reads {
+        uuid id PK
+        uuid event_id FK
+    }
+    lesson_reminder_logs {
+        uuid id PK
+        uuid student_id FK
+    }
+    portal_enrollment_requests {
+        uuid id PK
+        uuid student_id FK
+        text status
+        uuid reviewed_by FK
+    }
+    portal_enrollment_request_lines {
+        uuid id PK
+        uuid request_id FK
+        uuid class_id FK
+    }
+    portal_staff_view_as {
+        uuid staff_app_user_id FK
+        uuid student_id FK
+    }
+    teachers {
+        uuid id PK
+        text full_name
+        text status
+        text abbr
+    }
+    students {
+        uuid id PK
+        text student_code
+        text full_name
+        text status
+        text grade
+        uuid assigned_agent_user_id FK
+    }
+    classes {
+        uuid id PK
+        text subject
+        uuid teacher_id FK
+        uuid classroom_id FK
+        uuid academic_year_id FK
+        uuid course_id FK
+        text status
+        text class_kind
+    }
+    schedules {
+        uuid id PK
+        uuid class_id FK
+        uuid teacher_id FK
+        uuid original_teacher_id FK
+        uuid classroom_id FK
+        date scheduled_date
+        text status
+        integer session_number
+    }
+    app_user_roles }o--|| app_users : app_user_id
+    app_user_roles }o--|| teachers : teacher_id
+    app_users }o--|| students : student_id
+    app_users }o--|| teachers : teacher_id
+    classes }o--|| teachers : teacher_id
+    inbox_events }o--|| classes : class_id
+    inbox_events }o--|| schedules : schedule_id
+    inbox_events }o--|| students : student_id
+    inbox_reads }o--|| inbox_events : event_id
+    lesson_reminder_logs }o--|| students : student_id
+    mgmt_active_roles }o--|| app_users : app_user_id
+    portal_enrollment_request_lines }o--|| classes : class_id
+    portal_enrollment_request_lines }o--|| portal_enrollment_requests : request_id
+    portal_enrollment_requests }o--|| app_users : reviewed_by
+    portal_enrollment_requests }o--|| students : student_id
+    portal_staff_view_as }o--|| app_users : staff_app_user_id
+    portal_staff_view_as }o--|| students : student_id
+    schedules }o--|| classes : class_id
+    schedules }o--|| teachers : original_teacher_id
+    schedules }o--|| teachers : teacher_id
+    students }o--|| app_users : assigned_agent_user_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>6. &#26085;&#26310;&#33287;&#38620;&#38917;</h1>
+      <p class="en">6. Calendar &amp; misc</p>
+      <p class="meta">&#20358;&#28304;&#65306;MainHope_production（public）· 64 tables · 117 FKs · 2026-08-04 · &#34920;&#25976;&#65306;23 · 23 tables</p>
+    </header>
+    <pre class="mermaid">
+erDiagram
+    calendar_events {
+        uuid id PK
+        text title
+        uuid created_by FK
+    }
+    calendar_event_tags {
+        uuid event_id FK
+    }
+    calendar_event_updates {
+        uuid id PK
+        uuid event_id FK
+    }
+    calendar_event_students {
+        uuid event_id FK
+        uuid student_id FK
+    }
+    calendar_event_teachers {
+        uuid event_id FK
+        uuid teacher_id FK
+    }
+    calendar_event_users {
+        uuid event_id FK
+        uuid user_id FK
+    }
+    classroom_booking_requests {
+        uuid id PK
+        uuid classroom_id FK
+        uuid requesting_teacher_id FK
+        uuid target_class_id FK
+        text status
+    }
+    admin_todos {
+        uuid id PK
+        text title
+    }
+    apo_chat_feedback {
+        uuid id PK
+    }
+    class_restructure_audit_logs {
+        uuid id PK
+    }
+    weekday_aliases {
+        text placeholder
+    }
+    mgmt_system_errors {
+        uuid id PK
+    }
+    front_desk_intake_sessions {
+        uuid id PK
+        text status
+    }
+    legacy_import_batches {
+        uuid id PK
+    }
+    mgmt_audit_log {
+        uuid id PK
+    }
+    script_library_entries {
+        uuid id PK
+    }
+    student_code_counters {
+        text placeholder
+    }
+    student_enrollment_sessions {
+        uuid id PK
+        uuid enrollment_id FK
+        uuid schedule_id FK
+    }
+    app_users {
+        uuid id PK
+        text email
+        text role
+        uuid teacher_id FK
+        uuid student_id FK
+        uuid auth_user_id FK
+    }
+    students {
+        uuid id PK
+        text student_code
+        text full_name
+        text status
+        text grade
+        uuid assigned_agent_user_id FK
+    }
+    teachers {
+        uuid id PK
+        text full_name
+        text status
+        text abbr
+    }
+    classrooms {
+        uuid id PK
+        text name
+        integer capacity
+        boolean is_online
+    }
+    classes {
+        uuid id PK
+        text subject
+        uuid teacher_id FK
+        uuid classroom_id FK
+        uuid academic_year_id FK
+        uuid course_id FK
+        text status
+        text class_kind
+    }
+    app_users }o--|| students : student_id
+    app_users }o--|| teachers : teacher_id
+    calendar_event_students }o--|| calendar_events : event_id
+    calendar_event_students }o--|| students : student_id
+    calendar_event_tags }o--|| calendar_events : event_id
+    calendar_event_teachers }o--|| calendar_events : event_id
+    calendar_event_teachers }o--|| teachers : teacher_id
+    calendar_event_updates }o--|| calendar_events : event_id
+    calendar_event_users }o--|| calendar_events : event_id
+    calendar_event_users }o--|| app_users : user_id
+    calendar_events }o--|| app_users : created_by
+    classes }o--|| classrooms : classroom_id
+    classes }o--|| teachers : teacher_id
+    classroom_booking_requests }o--|| classrooms : classroom_id
+    classroom_booking_requests }o--|| teachers : requesting_teacher_id
+    classroom_booking_requests }o--|| classes : target_class_id
+    students }o--|| app_users : assigned_agent_user_id
+    </pre>
+  </section>
+  <section class="page">
+    <header>
+      <div class="brand">&#26126;&#23416;&#25945;&#32946; MainHope · &#31995;&#32113; ER &#22294;</div>
+      <h1>&#38468;&#37636;&#65306;&#20840;&#37096;&#36039;&#26009;&#34920;&#28165;&#21934;</h1>
+      <p class="en">Appendix — all public tables</p>
+      <p class="meta">&#20849; 64 &#24373; public &#34920;</p>
+    </header>
+    <ol style="columns:3; font-size:12px; line-height:1.6;">
+      <li><code>academic_calendar_closures</code> · 7 cols</li><li><code>academic_year_periods</code> · 8 cols</li><li><code>academic_years</code> · 7 cols</li><li><code>admin_todos</code> · 7 cols</li><li><code>apo_chat_feedback</code> · 8 cols</li><li><code>app_user_roles</code> · 4 cols</li><li><code>app_users</code> · 9 cols</li><li><code>attendance_declaration_exceptions</code> · 12 cols</li><li><code>attendance_declarations</code> · 12 cols</li><li><code>attendance_details</code> · 9 cols</li><li><code>calendar_event_students</code> · 3 cols</li><li><code>calendar_event_tags</code> · 3 cols</li><li><code>calendar_event_teachers</code> · 3 cols</li><li><code>calendar_event_updates</code> · 5 cols</li><li><code>calendar_event_users</code> · 3 cols</li><li><code>calendar_events</code> · 13 cols</li><li><code>class_restructure_audit_logs</code> · 5 cols</li><li><code>classes</code> · 22 cols</li><li><code>classroom_booking_requests</code> · 14 cols</li><li><code>classrooms</code> · 7 cols</li><li><code>contact_update_tokens</code> · 10 cols</li><li><code>courses</code> · 12 cols</li><li><code>enrollment_change_events</code> · 9 cols</li><li><code>entitlement_consumption_events</code> · 10 cols</li><li><code>front_desk_intake_sessions</code> · 8 cols</li><li><code>inbox_events</code> · 13 cols</li><li><code>inbox_reads</code> · 5 cols</li><li><code>leave_makeup_records</code> · 14 cols</li><li><code>legacy_import_batches</code> · 10 cols</li><li><code>legacy_student_subject_enrollments</code> · 11 cols</li><li><code>lesson_reminder_logs</code> · 7 cols</li><li><code>mgmt_active_roles</code> · 3 cols</li><li><code>mgmt_audit_log</code> · 7 cols</li><li><code>mgmt_system_errors</code> · 10 cols</li><li><code>monthly_tuition_charges</code> · 16 cols</li><li><code>payment_batches</code> · 4 cols</li><li><code>payment_details</code> · 9 cols</li><li><code>payment_discount_applications</code> · 6 cols</li><li><code>payment_discounts</code> · 19 cols</li><li><code>payment_late_fee_items</code> · 8 cols</li><li><code>payments</code> · 17 cols</li><li><code>portal_enrollment_request_lines</code> · 10 cols</li><li><code>portal_enrollment_requests</code> · 13 cols</li><li><code>portal_staff_view_as</code> · 3 cols</li><li><code>referral_records</code> · 10 cols</li><li><code>schedules</code> · 18 cols</li><li><code>script_library_entries</code> · 8 cols</li><li><code>student_class_enrollments</code> · 11 cols</li><li><code>student_code_counters</code> · 3 cols</li><li><code>student_enrollment_sessions</code> · 4 cols</li><li><code>student_entitlement_pools</code> · 12 cols</li><li><code>student_pending_lessons</code> · 11 cols</li><li><code>student_portal_invites</code> · 8 cols</li><li><code>student_relationships</code> · 6 cols</li><li><code>student_status_history</code> · 8 cols</li><li><code>students</code> · 32 cols</li><li><code>subjects</code> · 8 cols</li><li><code>teacher_availability_slots</code> · 10 cols</li><li><code>teachers</code> · 8 cols</li><li><code>teachers_private</code> · 6 cols</li><li><code>tmp_students_import</code> · 16 cols</li><li><code>trial_sessions</code> · 17 cols</li><li><code>tuition_credit_entries</code> · 12 cols</li><li><code>weekday_aliases</code> · 5 cols</li>
+    </ol>
+  </section>
+</body>
+</html>

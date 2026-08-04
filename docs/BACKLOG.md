@@ -36,13 +36,14 @@
 | --- | --- | --- | --- | --- |
 | in_progress | 高 | 報讀包裝與點名權益 | Wave 1 ✅；**下一波 Wave 2**（事件宣告＋消耗／返還＋入口收斂）；`2627` 報讀前須齊；`26SM` 不強制切 | [summer-enrollment-roster-consistency.md](./backlog/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [顧問評審](./backlog/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
 | in_progress | 高 | 流動裝置介面 | 行政／老師高頻波次 1–3 已落（殼層、Inbox、Leave、一對一、排程日視圖、時間表）；餘 Mgmt／外星人／P3 | [mobile-ui.md](./backlog/mobile-ui.md) · [sim 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
-| in_progress | 中 | 計糧引擎 | 規格／指南已齊；**UI 預覽** `/Payroll` mock；沙盒下一步：分頁 IA＋首次 UX（計劃已落檔）；引擎暫等 Mark Yu；功課班暫緩 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [分頁 IA 計劃](./plans/2026-08-02-payroll-tabbed-ia.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
+| in_progress | 中 | 計糧引擎 | 規則阻塞已清（原價＋§13.4）；**`finance`／Cody** 已開；UI 預覽 `/Payroll`；正式引擎可開工；沙盒 P2–P3；功課班暫緩 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [分頁 IA 計劃](./plans/2026-08-02-payroll-tabbed-ia.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
 | open | 中 | 功課輔導班產品 | v2 全角色沙盒已落地（待審閱）；功課進度留 Notion；餘價錢／計費／校曆／讓房；未接正式 DB | [homework-tutoring.md](./backlog/homework-tutoring.md) · [UI v2](./plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) · [前線](./manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
 | open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 | open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./backlog/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
+| open | 中 | HK 成本統計／入帳 | 儀表板＋系統入帳；歷史 Excel∪Notion 合併匯入（pending）；報銷不理；計劃已納 Notion 修正 | [hk-expense-cost-stats.md](./backlog/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-04-hk-expense-cost-stats.md) |
 | open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./backlog/ops-docs-viewer.md) |
 
 ---

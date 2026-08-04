@@ -6,6 +6,7 @@ import { PagePlaceholder } from "@/pages/PagePlaceholder"
 const ROLE_LABEL: Record<MgmtRole, string> = {
  admin: "行政",
  manager: "管理層",
+ finance: "財務",
  teacher: "專班老師",
  alien: "外星人",
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
-import { GraduationCap, KeyRound, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog } from "lucide-react"
+import { GraduationCap, KeyRound, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog, Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -76,6 +76,13 @@ function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIco
    Icon: Shield,
    iconClass: "border-primary/30 bg-primary/10 text-primary",
   }
+ if (r === "finance")
+  return {
+   label: "財務",
+   tone: statusToTagTone("管理員"),
+   Icon: Wallet,
+   iconClass: "border-warning/30 bg-warning/15 text-warning",
+  }
  if (r === "teacher")
   return {
    label: "專班老師",
@@ -94,6 +101,7 @@ function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIco
 const ROLE_OPTIONS = [
  { value: "admin", label: "管理員" },
  { value: "manager", label: "管理層" },
+ { value: "finance", label: "財務" },
  { value: "teacher", label: "專班老師" },
  { value: "alien", label: "外星人" },
 ] as const

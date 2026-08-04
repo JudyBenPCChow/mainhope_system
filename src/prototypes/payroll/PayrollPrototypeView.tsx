@@ -3,6 +3,7 @@ import { FlaskConical } from "lucide-react"
 
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { getMgmtRole } from "@/lib/mgmtRole"
 
 import { FinancePayrollView } from "./FinancePayrollView"
 import { ManagerPayrollView } from "./ManagerPayrollView"
@@ -25,7 +26,12 @@ import {
 
 export function PayrollPrototypeView() {
   const { confirmDialog } = useAppConfirm()
-  const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>("finance")
+  const realRole = getMgmtRole()
+  const isFinanceUser = realRole === "finance"
+  const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>(
+    realRole === "manager" ? "manager" : "finance"
+  )
+  const effectiveRole: PayrollPreviewRole = isFinanceUser ? "finance" : previewRole
   const [monthKey, setMonthKey] = useState("2026-08")
   const [overrides, setOverrides] = useState<
     Record<string, { status: PayrollRunStatus } & Partial<PayrollMonthMock>>
@@ -225,22 +231,30 @@ export function PayrollPrototypeView() {
     <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="block min-w-[12rem]">
-            <span className="mb-1.5 block text-xs font-medium text-muted-foreground">預覽身份</span>
-            <Select
-              aria-label="預覽身份"
-              value={previewRole}
-              onChange={(e) => setPreviewRole(e.target.value as PayrollPreviewRole)}
-            >
-              <option value="finance">財務 — 計糧工作台</option>
-              <option value="manager">管理層 — 計糧核實</option>
-            </Select>
-          </label>
-          <p className="pb-1 text-xs text-muted-foreground sm:max-w-md">
-            {previewRole === "finance"
-              ? "此頁面協助你審核及提交每月教師薪酬（分頁：概覽 → 審核 → 調整 → 提交）"
-              : "管理層：概覽 → 待核佇列 → 抽查 → 結算"}
-          </p>
+          {isFinanceUser ? (
+            <p className="pb-1 text-sm text-muted-foreground sm:max-w-md">
+              財務工作台：審核及提交每月教師薪酬（分頁：概覽 → 審核 → 調整 → 提交）
+            </p>
+          ) : (
+            <>
+              <label className="block min-w-[12rem]">
+                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">預覽身份</span>
+                <Select
+                  aria-label="預覽身份"
+                  value={previewRole}
+                  onChange={(e) => setPreviewRole(e.target.value as PayrollPreviewRole)}
+                >
+                  <option value="finance">財務 — 計糧工作台</option>
+                  <option value="manager">管理層 — 計糧核實</option>
+                </Select>
+              </label>
+              <p className="pb-1 text-xs text-muted-foreground sm:max-w-md">
+                {effectiveRole === "finance"
+                  ? "此頁面協助你審核及提交每月教師薪酬（分頁：概覽 → 審核 → 調整 → 提交）"
+                  : "管理層：概覽 → 待核佇列 → 抽查 → 結算"}
+              </p>
+            </>
+          )}
         </div>
         <p className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
           <FlaskConical className="h-3 w-3" aria-hidden />
@@ -248,7 +262,7 @@ export function PayrollPrototypeView() {
         </p>
       </div>
 
-      {previewRole === "finance" ? (
+      {effectiveRole === "finance" ? (
         <FinancePayrollView
           month={month}
           status={status}

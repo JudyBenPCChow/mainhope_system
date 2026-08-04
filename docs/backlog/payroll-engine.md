@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**暫等 Mark Yu 回覆**；規格已整理；**UI 預覽已上** `/Payroll`，示範資料不接真實計算） |
+| 狀態 | `in_progress`（**規則阻塞已清**；§8.5／§13.4 已定案；**`finance` 角色＋Cody 帳戶已開**；UI 預覽 `/Payroll`；正式引擎／schema 可開工） |
 | 優先 | 中 |
 | 範圍 | **本期**：專科班分成／HC、固定月薪、獨立定價、WFH、MPF、月結明細。**暫緩**：功課班時薪及 Christine Fan 功課班佣金 |
 | 不含 | 完整會計／HR 系統、銀行付款執行、未獲營運確認的規則自動化；本期亦不做功課班計糧 |
@@ -10,13 +10,14 @@
 | 營運指南（財務／管理層） | [`PAYROLL_GUIDE.md`](../PAYROLL_GUIDE.md)（另有 `.docx`） |
 | 最新方法（工程規格） | [`2026-08-01-payroll-method-revised.md`](../plans/2026-08-01-payroll-method-revised.md) |
 | 沙盒 UI 下一步（分頁 IA＋首次 UX） | [`2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md)（對應 [`audits/2026-08-01-payroll-first-time-ux.md`](../audits/2026-08-01-payroll-first-time-ux.md)） |
-| 待回覆文件 | [`2026-08-01-payroll-questions-for-response.docx`](../plans/2026-08-01-payroll-questions-for-response.docx) |
+| 待回覆文件 | [`2026-08-01-payroll-questions-for-response.docx`](../plans/2026-08-01-payroll-questions-for-response.docx)（規則項已回覆完） |
 
-## 目前進度（2026-08-01）
+## 目前進度（2026-08-04）
 
 ### 阻塞／等待
 
-- **暫等 Mark Yu 回覆**。其餘可定案規則已寫入營運指南；**正式計算引擎／schema 待其回覆後再開工**。
+- **規則阻塞已清**（Mark 確認無問題；§8.5 一律原價；§13.4 異常阻擋表已採納）。
+- **帳戶**：原 `carolfanwl@gmail.com`（Carol Fan／admin）改為 **Cody Cheong／`finance`**；側欄可進 `/Payroll`（財務工作台）。登入電郵暫仍為原址，密碼由營運另行交接。
 
 ### 已完成：規格與文件
 
@@ -31,23 +32,20 @@
    - PT HC 按實際扣堂人數；單對單＝一對一；一對二剩一人則改開一對一；
    - MPF 只計 Mark Yu、Christine Fan、Sophie Yu、Katie Lee（含法定上下限）；
    - 退款／已結算後改數屬異常，人手調整並由管理層核准；
-   - 功課班本期暫緩；Christine Fan 功課班佣金門檻記下為報讀人數 ≥ 12。
+   - 功課班本期暫緩；Christine Fan 功課班佣金門檻記下為報讀人數 ≥ 12；
+   - **過渡期一律原價**（§8.5）；**異常阻擋結算表已採納**（§13.4）。
 
-### 已完成：UI 預覽（示範資料）
+### 已完成：UI 預覽（示範資料）＋財務角色
 
-- 路由 `/Payroll`（側欄「計糧（UI 預覽）」；`admin`／`manager`／`alien` 可開；頁內切換預覽身份）
+- 路由 `/Payroll`（側欄「計糧（UI 預覽）」；`admin`／`manager`／`alien`／**`finance`** 可開）
 - 程式：`src/prototypes/payroll/*` + 薄頁 `src/pages/Payroll.tsx`
-- **不接** Supabase／點名／學費；狀態只存在本頁
+- **不接** Supabase／點名／學費；狀態只存在本頁（正式引擎待開工）
 - **財務工作台**：異常待辦（硬阻擋／提醒）、堂數總覽、逐堂明細、人手調整入口、**提交核實**（不可結算）
 - **管理層核實台**：待核實卡片摘要、較上月%、抽查明細、**退回財務**／**核實並結算**、結算後正式 CSV
 - 流程 mock：`財務審閱中` → `待管理層核實` → `已結算`（或退回）
-- **獨立沙盒站**（給 Mark 遠端撳）：`sandbox/payroll-ui/`；建置 `npm run sandbox:payroll:build`；部署 `npm run sandbox:payroll:deploy`（Vercel 專案 `mainhope-payroll-ui-sandbox`，無 Supabase／無登入）
-- **財務審核便利性審查**（2026-08-01）：[`../audits/2026-08-01-payroll-finance-ui-review.md`](../audits/2026-08-01-payroll-finance-ui-review.md)
-- **Cody 財務孤軍審核模擬**（2026-08-01）：[`../audits/2026-08-01-payroll-cody-finance-audit-simulation.md`](../audits/2026-08-01-payroll-cody-finance-audit-simulation.md)
-- **首次使用 UX 審計**（2026-08-01）：[`../audits/2026-08-01-payroll-first-time-ux.md`](../audits/2026-08-01-payroll-first-time-ux.md)
-- **分頁 IA＋首次 UX 計劃**（2026-08-02，未開工）：[`../plans/2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md) — 財務／管理層頂層 Tab、逐人子 Tab、P0–P3
-- **營運流程模擬**（2026-08-02）：[`../audits/2026-08-02-payroll-operational-simulation.md`](../audits/2026-08-02-payroll-operational-simulation.md)；P1：未處理人手調整仍可結算、未結算月份可匯出「正式」CSV；P2：逐節查證未提供正式頁面入口。
-- 正式 `finance` 角色尚未入 `mgmtRole`／RLS
+- **`finance` 角色**：migration 已加 CHECK／`is_mgmt_staff`／profile；Cody 登入後鎖財務工作台（無預覽身份切換）
+- **獨立沙盒站**（給 Mark 遠端撳）：`sandbox/payroll-ui/`；建置 `npm run sandbox:payroll:build`；部署 `npm run sandbox:payroll:deploy`
+- **分頁 IA＋首次 UX 計劃**（2026-08-02）：[`../plans/2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md) — P0／P1 已落沙盒；P2–P3 未完
 
 ### 尚未開始：正式程式實作
 
@@ -55,29 +53,28 @@
 - 計糧 service、純計算引擎及查詢；
 - 正式 `/Payroll`（接真實資料）及月結 snapshot；
 - 費率或人手工時輸入；
-- CSV／糧單匯出；
+- CSV／糧單匯出（正式）；
 - golden test；
-- linked production migration。
+- linked production migration（引擎相關）。
 
 ## 仍待回覆（再開工前）
 
-1. **Mark Yu 的回覆**（目前主阻塞）；
-2. 異常阻擋結算建議表是否採納（見修訂方法 §13.4／指南 §15.4）；
-3. §8.5 過渡期若仍有「其他」做法需書面確認（工程暫按原價）。
+無（規則項已清）。
 
 已定案／暫緩，不再列為阻塞：
 
 - MPF；
 - 分成制代堂；
 - 折扣基數一律原價；退款人手處理；
+- §8.5 過渡期；§13.4 異常阻擋；
 - 功課班整組（本期不做；日後見 [`homework-tutoring.md`](./homework-tutoring.md)）。
 
-## 工程前置（Mark Yu 回覆後）
+## 工程前置（規則已清後）
 
-1. 未回覆項目不得以工程預設取代。
-2. 功課班未定案前，功課班計算暫不開工。
-3. 更新完整計算範例（原始「本人指定科目 60%+10%」理解已作廢）。
-4. 逐節授課以 `schedules.teacher_id` 為準（層 A 前置；老師詳情出勤／禁點名後取消代堂已落一部分，見 [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md)）。
+1. 功課班未定案前，功課班計算暫不開工。
+2. 更新完整計算範例（原始「本人指定科目 60%+10%」理解已作廢）。
+3. 逐節授課以 `schedules.teacher_id` 為準（層 A 前置；老師詳情出勤／禁點名後取消代堂已落一部分，見 [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md)）。
+4. 沙盒 UI 可並行完成 P2–P3。
 
 ## 相關文件
 

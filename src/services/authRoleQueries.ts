@@ -12,7 +12,7 @@ export type MgmtProfile = {
 function normalizeRole(raw: unknown): MgmtRole | null {
  if (typeof raw !== "string") return null
  const role = raw.trim().toLowerCase()
- if (role === "admin" || role === "manager" || role === "teacher" || role === "alien") return role
+ if (role === "admin" || role === "manager" || role === "finance" || role === "teacher" || role === "alien") return role
  return null
 }
 
