@@ -40,6 +40,11 @@ const PRINT_CSS = `
   }
 }
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 14mm;
+  }
+  /* visibility 隱藏仍佔位；absolute 頂置，避免內容被推到頁底 */
   body * {
     visibility: hidden !important;
   }
@@ -48,8 +53,12 @@ const PRINT_CSS = `
     visibility: visible !important;
   }
   .cu-print-root {
-    position: static !important;
-    inset: auto !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: visible !important;
     background: #fff !important;
   }
@@ -60,7 +69,7 @@ const PRINT_CSS = `
     width: auto;
     min-height: auto;
     margin: 0;
-    padding: 12mm 14mm;
+    padding: 0;
     box-shadow: none;
     page-break-after: always;
     break-after: page;
