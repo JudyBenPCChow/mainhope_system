@@ -8,7 +8,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 來源稽核 | [`../audits/2026-07-31-unused-overlap-routes.md`](../audits/2026-07-31-unused-overlap-routes.md) |
 | 盤點日期 | 2026-07-31 |
-| 上次更新 | 2026-08-01 |
+| 上次更新 | 2026-08-04 |
 
 ## 進度摘要（2026-08-01）
 
@@ -17,7 +17,7 @@
 | 沙盒／demo **路由**下線 | **done** |
 | 待辦看板廢除（UI＋歷史資料＋文件） | **done** |
 | 月費獨立頁／queries 殘碼 | **暫緩・勿刪**（之後可能重用／改寫） |
-| `contactUpdate` prototype | **暫緩・勿刪**（活動頁未做；欄位藍本） |
+| `contactUpdate` prototype | **暫緩・勿刪**（公開表單＋活動頁沙盒；正式頁未接） |
 | 其餘 Prototype／ReceiptDemo **原始碼**刪除 | **open** |
 | `src/api/entities.ts`（可選） | **open** |
 | `/Courses` nav／深連結對齊 | **open**（低） |
@@ -59,9 +59,10 @@ Agent／清碼時**勿刪、勿重構**下列殘碼，直至產品明確決定�
 
 ### D2a — `contactUpdate` prototype（暫緩）
 
-正式 [`contact-update-campaign`](./contact-update-campaign.md) 活動頁未做；保留作欄位／流程參考：
+正式 [`contact-update-campaign`](./contact-update-campaign.md) 未接 DB／正式頁；保留作欄位／流程參考：
 
-- `src/pages/PrototypeContactUpdate.tsx`
+- `src/pages/PrototypeContactUpdate.tsx`（公開表單；路由已下線）
+- `src/pages/PrototypeContactUpdateCampaign.tsx` + `/prototype/ContactUpdateCampaign`（批量活動頁沙盒）
 - `src/prototypes/contactUpdate/**`
 
 ---

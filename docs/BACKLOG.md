@@ -38,7 +38,7 @@
 | in_progress | 高 | 流動裝置介面 | 行政／老師高頻波次 1–3 已落（殼層、Inbox、Leave、一對一、排程日視圖、時間表）；餘 Mgmt／外星人／P3 | [mobile-ui.md](./backlog/mobile-ui.md) · [sim 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
 | in_progress | 中 | 計糧引擎 | 規格／指南已齊；**UI 預覽** `/Payroll` mock；沙盒下一步：分頁 IA＋首次 UX（計劃已落檔）；引擎暫等 Mark Yu；功課班暫緩 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [分頁 IA 計劃](./plans/2026-08-02-payroll-tabbed-ia.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
 | open | 中 | 功課輔導班產品 | v2 全角色沙盒已落地（待審閱）；功課進度留 Notion；餘價錢／計費／校曆／讓房；未接正式 DB | [homework-tutoring.md](./backlog/homework-tutoring.md) · [UI v2](./plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
-| open | 中 | 聯絡資料自助更新（一次性活動） | **執行窗：2026-08 下旬**（與 9 月招生／收費同步）；專屬連結／QR → 家長核對 → 職員審核；活動完可收埋 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
+| open | 中 | 聯絡資料自助更新（一次性活動） | **執行窗：2026-08 下旬**；公開表單＋**活動頁沙盒**已有；餘 token／正式頁 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) · [前線](./manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |

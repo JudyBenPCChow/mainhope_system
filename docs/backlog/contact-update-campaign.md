@@ -8,7 +8,7 @@
 | 不含 | 前台指引精靈新生流程、家長 Portal 自助改、長期催促自動化 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點日期 | 2026-07-30 |
-| 上次更新 | 2026-08-01 |
+| 上次更新 | 2026-08-04 |
 | 執行窗 | **2026-08 下旬**（與 9 月課程招生及收費同步進行） |
 
 ## 結論
@@ -30,7 +30,8 @@
 
 ## 已完成
 
-- UI 沙盒：原 [`/prototype/ContactUpdate`](../../src/pages/PrototypeContactUpdate.tsx) **路由已下線**；原始碼**暫緩勿刪**（欄位／流程藍本；見 [dead-surface-cleanup](./dead-surface-cleanup.md) D2a）
+- UI 沙盒（公開表單）：原 [`/prototype/ContactUpdate`](../../src/pages/PrototypeContactUpdate.tsx) **路由已下線**；原始碼**暫緩勿刪**（欄位／流程藍本；見 [dead-surface-cleanup](./dead-surface-cleanup.md) D2a）
+- UI 沙盒（批量活動頁）：[`/prototype/ContactUpdateCampaign`](../../src/pages/PrototypeContactUpdateCampaign.tsx) — 篩選／批量產連結／**一人一頁打印（姓名／學號／QR／指引／連結）**／CSV／狀態／審核 diff；假資料，不接 DB／正式側欄
 - Schema：`student_preferred_contact_method`、`parent_preferred_contact_method`、`student_wechat_id`、`parent_wechat_id`、`primary_contact_person`（migration `20260729233000_students_dual_contact_preference`，已套 production）
 - 學生詳情／新增學生／前台 intake 表單已對齊新欄；已移除「WhatsApp 號碼」編輯欄
 - 聯絡解析：[`whatsappReminder.ts`](../../src/lib/whatsappReminder.ts) `resolvePrimaryMessagingTarget`；列表／提醒按鈕跟第一聯絡人
@@ -38,8 +39,8 @@
 ## 待做
 
 1. 表 `contact_update_tokens` + RPC：`create`（職員）／`get`／`submit`（anon）／`approve`／`void`（職員）
-2. 正式公開頁 `/ContactUpdate/:token`（對齊沙盒欄位；預填舊值）
-3. 批量活動頁：篩選現有學生、批量產生連結、CSV 匯出、狀態（未交／待審核／已核准／過期）、審核 diff 寫入
+2. 正式公開頁 `/ContactUpdate/:token`（對齊公開表單沙盒欄位；預填舊值）
+3. 正式批量活動頁 `/ContactUpdateCampaign`（對齊活動頁沙盒；接 token／審核寫入）
 4. （可選尾巴）學生詳情單人「產生／複製連結」
 5. 活動結束：側欄入口收埋或標已結束
 
@@ -61,7 +62,8 @@
 
 | 用途 | 路徑 |
 | --- | --- |
-| 沙盒 UI | `src/prototypes/contactUpdate/`、`src/pages/PrototypeContactUpdate.tsx` |
+| 公開表單沙盒 | `src/prototypes/contactUpdate/ContactUpdatePrototypeView.tsx`（路由已下線） |
+| 批量活動頁沙盒 | `/prototype/ContactUpdateCampaign` · `ContactUpdateCampaignPrototypeView`／`ContactUpdatePrintSlips` |
 | Migration | `supabase/migrations/20260729233000_students_dual_contact_preference.sql` |
 | 學生表單 | `StudentDetailView`、`StudentsListPage`、`StudentIntakeFormFields` |
 | 通知解析 | `src/lib/whatsappReminder.ts` |
