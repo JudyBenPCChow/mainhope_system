@@ -43,7 +43,7 @@
 | in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) · [前線](./manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
 | open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 | open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./backlog/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
-| open | 中 | HK 成本統計／入帳 | 儀表板＋系統入帳；歷史 Excel∪Notion 合併匯入（pending）；報銷不理；計劃已納 Notion 修正 | [hk-expense-cost-stats.md](./backlog/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-04-hk-expense-cost-stats.md) |
+| open | 中 | HK 成本統計／入帳 | 系統入帳＋儀表板；歷史 Excel∪Notion 只匯入一次（pending）；之後停用兩本帳；報銷不理 | [hk-expense-cost-stats.md](./backlog/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-04-hk-expense-cost-stats.md) |
 | open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./backlog/ops-docs-viewer.md) |
 
 ---
