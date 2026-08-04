@@ -83,6 +83,7 @@ const TYPE_STATUS_LABEL: Record<InboxItemType, string> = {
 const ROLE_LABEL: Record<MgmtRole, string> = {
  admin: "行政",
  manager: "管理層",
+ finance: "財務",
  alien: "外星人",
  teacher: "老師",
 }
