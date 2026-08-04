@@ -22,6 +22,7 @@ function rate(
 }
 
 function lesson( partial: Partial<PayrollLessonInput> & Pick<PayrollLessonInput, "scheduleId" | "teacherId">): PayrollLessonInput {
+  const students = partial.students ?? []
   return {
     classId: "c1",
     classLabel: "MATH S1",
@@ -39,9 +40,10 @@ function lesson( partial: Partial<PayrollLessonInput> & Pick<PayrollLessonInput,
     originalTeacherName: null,
     classOwnerTeacherId: null,
     listPricePerLesson: 600,
-    students: [],
     missingRollCall: false,
     ...partial,
+    students,
+    expectedRosterCount: partial.expectedRosterCount ?? students.length,
   }
 }
 
@@ -147,20 +149,44 @@ describe("payroll month compute", () => {
     expect(billy.grossBeforeAdj).toBe(180)
   })
 
-  it("hard-blocks missing rate and missing roll-call", () => {
+  it("hard-blocks missing roll-call only when roster expected", () => {
+    const billyRate = rate("billy", "兼職 HC", {
+      junior: { base: 120, per_extra: 60 },
+      one_to_one_hc: 3,
+      one_to_two_hc: 4,
+    })
+    const teachers: PayrollTeacherInput[] = [
+      { teacherId: "billy", teacherName: "Billy", rate: billyRate, approvedHours: 0 },
+    ]
+    const withRoster = computePayrollMonth({
+      monthKey: "2026-08",
+      teachers,
+      lessons: [
+        lesson({
+          scheduleId: "s",
+          teacherId: "billy",
+          expectedRosterCount: 3,
+          missingRollCall: true,
+          students: [],
+        }),
+      ],
+    })
+    expect(withRoster.teachers[0].hardBlock).toBe(true)
+    expect(withRoster.teachers[0].anomalies.some((a) => a.includes("缺點名"))).toBe(true)
+
+    const emptyRoster = computePayrollMonth({
+      monthKey: "2026-08",
+      teachers,
+      lessons: [], // 無人報讀課堂已在 service 層略過
+    })
+    expect(emptyRoster.teachers[0].hardBlock).toBe(false)
+  })
+
+  it("hard-blocks missing rate", () => {
     const teachers: PayrollTeacherInput[] = [
       { teacherId: "x", teacherName: "No Rate", rate: null, approvedHours: 0 },
     ]
-    const lessons: PayrollLessonInput[] = [
-      lesson({
-        scheduleId: "s",
-        teacherId: "x",
-        missingRollCall: true,
-        students: [],
-      }),
-    ]
-    // teacher with no rate — hard block even without needing lesson
-    const r1 = computePayrollMonth({ monthKey: "2026-08", teachers, lessons })
+    const r1 = computePayrollMonth({ monthKey: "2026-08", teachers, lessons: [] })
     expect(r1.teachers[0].hardBlock).toBe(true)
     expect(r1.teachers[0].anomalies).toContain("缺有效費率")
   })

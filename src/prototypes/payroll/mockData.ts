@@ -1965,9 +1965,11 @@ export function hardBlockAnomalies(teachers: PayrollTeacherRow[]): { name: strin
     for (const msg of t.anomalies) {
       if (
         msg.includes("未點名") ||
+        msg.includes("缺點名") ||
         msg.includes("未有已核准") ||
         msg.includes("時數") ||
-        msg.includes("費率")
+        msg.includes("費率") ||
+        msg.includes("WFH")
       ) {
         out.push({ name: t.name, msg })
       }

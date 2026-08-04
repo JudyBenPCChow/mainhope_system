@@ -75,7 +75,9 @@ export type PayrollLessonInput = {
   classOwnerTeacherId: string | null
   listPricePerLesson: number
   students: PayrollStudentRow[]
-  /** 已排程但完全無點名列 */
+  /** 當日應點名名冊人數（就讀中報讀）；0＝無人報讀，不視為缺點名 */
+  expectedRosterCount: number
+  /** 已排程、有人應點名，但完全無點名列 */
   missingRollCall: boolean
 }
 
@@ -103,6 +105,8 @@ export type ComputedLessonLine = {
   substitute: boolean
   originalTeacherName: string | null
   missingRollCall: boolean
+  /** 就讀中名冊人數（無人報讀時為 0） */
+  expectedRosterCount: number
   students: PayrollStudentRow[]
   /** 計入本人分成基數的原價合計 */
   personalSplitBase: number

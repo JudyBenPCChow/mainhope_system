@@ -216,6 +216,7 @@ export function buildLessonLine(
     substitute: lesson.originalTeacherId != null && lesson.originalTeacherId !== lesson.teacherId,
     originalTeacherName: lesson.originalTeacherName,
     missingRollCall: lesson.missingRollCall,
+    expectedRosterCount: lesson.expectedRosterCount,
     students: lesson.students,
     personalSplitBase: partial.personalSplitBase ?? 0,
     commissionPoolBase: partial.commissionPoolBase ?? 0,

@@ -26,6 +26,7 @@ import {
   coursePricesFromClassEmbed,
   unitPriceForConsumedLesson,
 } from "@/services/mgmtDashboardQueries"
+import { fetchEnrollmentCountByClass } from "@/services/scheduleQueries"
 import { fetchAllTeachers, normalizeTeacherEmploymentStatus } from "@/services/teacherQueries"
 import type {
   ManualAdjustment,
@@ -283,14 +284,21 @@ export async function buildLessonInputsForMonth(monthKey: string): Promise<Payro
   for (const a of attendance) {
     pricePairs.push({ studentId: a.studentId, classId: a.classId })
   }
-  const enrMap = await fetchEnrollmentPeriods(pricePairs)
+  const classIds = [...new Set(schedules.map((s) => s.classId).filter(Boolean))]
+  const [enrMap, rosterByClass] = await Promise.all([
+    fetchEnrollmentPeriods(pricePairs),
+    fetchEnrollmentCountByClass(classIds),
+  ])
 
   const lessons: PayrollLessonInput[] = []
   for (const s of schedules) {
     if (isHomeworkClass(s.subject, s.courseName)) continue
     const cancelled = isScheduleCancelled(s.status)
     const att = bySchedule.get(s.id) ?? []
-    const missingRollCall = !cancelled && att.length === 0
+    const expectedRosterCount = rosterByClass.get(s.classId) ?? 0
+    // 無人報讀 → 不會有點名，不計入、不標異常
+    if (!cancelled && att.length === 0 && expectedRosterCount === 0) continue
+    const missingRollCall = !cancelled && att.length === 0 && expectedRosterCount > 0
     const { labels, band } = resolvePayrollGradeBand(s.grade, s.gradeCode)
     const classKind = resolveClassKind(s.classKind, s.subject)
     const privateSlot = resolvePrivateSlotKind(s.classKind, s.subject)
@@ -337,6 +345,7 @@ export async function buildLessonInputsForMonth(monthKey: string): Promise<Payro
       classOwnerTeacherId: s.classOwnerTeacherId,
       listPricePerLesson: s.pricePerLesson ?? 0,
       students,
+      expectedRosterCount,
       missingRollCall,
     })
   }
@@ -397,7 +406,7 @@ function mapComputedToUiRow(
       substitutePeer: l.substitute ? (l.originalTeacherName ?? undefined) : undefined,
       listPrice: l.listPriceTotal || undefined,
       scheduleId: l.scheduleId,
-      rosterCount: l.students.length,
+      rosterCount: Math.max(l.expectedRosterCount, l.students.length),
     })
   }
 
