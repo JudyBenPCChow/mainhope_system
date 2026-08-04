@@ -6,12 +6,17 @@ import {
  type AcademicYearPeriodRow,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import {
  parseMakeupOfScheduleId,
  parseMakeupOriginalDate,
 } from "@/lib/scheduleMakeupMarkers"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import {
+ fetchActiveDeclarationsForSchedules,
+ type AttendanceDeclarationRow,
+} from "@/services/entitlementQueries"
 
 const MAX_SCHEDULE_IDS = 100
 
@@ -104,6 +109,8 @@ export type ScheduleRosterContext = {
  trials: ScheduleRosterTrial[]
  leaves: ScheduleRosterLeave[]
  attendance: ScheduleRosterAttendance[]
+ /** 權益模型學年用：active 到課宣告（舊路徑可為空） */
+ activeDeclarations?: AttendanceDeclarationRow[]
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -228,6 +235,7 @@ function mapContext(raw: unknown): ScheduleRosterContext {
    fullName: String(row.full_name ?? "—") || "—",
    englishName: nullableString(row.english_name),
   })).filter((row) => row.id && row.studentId),
+  activeDeclarations: [],
  }
 }
 
@@ -255,7 +263,7 @@ export async function fetchScheduleRosterContext(
   return mapContext(data)
  }))
  if (contexts.length === 1) {
-  return enrichMakeupEnrollmentEligibilityDates(contexts[0]!)
+  return attachActiveDeclarations(await enrichMakeupEnrollmentEligibilityDates(contexts[0]!))
  }
 
  const merged = mapContext({})
@@ -285,7 +293,20 @@ export async function fetchScheduleRosterContext(
  merged.trials = [...new Map(merged.trials.map((row) => [row.id, row])).values()]
  merged.leaves = [...new Map(merged.leaves.map((row) => [row.id, row])).values()]
  merged.attendance = [...new Map(merged.attendance.map((row) => [row.id, row])).values()]
- return enrichMakeupEnrollmentEligibilityDates(merged)
+ return attachActiveDeclarations(await enrichMakeupEnrollmentEligibilityDates(merged))
+}
+
+async function attachActiveDeclarations(
+ context: ScheduleRosterContext
+): Promise<ScheduleRosterContext> {
+ const gatedIds = context.schedules
+  .filter((s) => usesEntitlementRosterModel(s.academicYearLabel))
+  .map((s) => s.id)
+ if (gatedIds.length === 0) {
+  return { ...context, activeDeclarations: [] }
+ }
+ const activeDeclarations = await fetchActiveDeclarationsForSchedules(gatedIds)
+ return { ...context, activeDeclarations }
 }
 
 /**
@@ -477,10 +498,10 @@ function sortRosterNames(names: string[]): string[] {
 }
 
 /**
- * 該堂點名冊學生（與點名紙一致）：當堂可見報讀＋未完成試堂＋來此補堂。
- * 以 studentId 去重；就讀優先於試堂／補堂。
+ * 舊路徑名單：當堂可見報讀＋未完成試堂＋來此補堂。
+ * shadow／對照用；正式入口請用 rosterStudentsForSchedule。
  */
-export function rosterStudentsForSchedule(
+export function legacyRosterStudentsForSchedule(
  context: ScheduleRosterContext,
  scheduleId: string
 ): { studentId: string; fullName: string }[] {
@@ -497,6 +518,42 @@ export function rosterStudentsForSchedule(
  return [...byId.entries()]
   .map(([studentId, fullName]) => ({ studentId, fullName }))
   .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+}
+
+/**
+ * 該堂點名冊學生（與點名紙一致）。
+ * 學年硬閘：`2627+` 正規 → 宣告∪試堂∪（過渡）leave makeup；暑期／較舊 → 舊路徑。
+ */
+export function rosterStudentsForSchedule(
+ context: ScheduleRosterContext,
+ scheduleId: string
+): { studentId: string; fullName: string }[] {
+ const schedule = context.schedules.find((row) => row.id === scheduleId)
+ if (schedule && usesEntitlementRosterModel(schedule.academicYearLabel)) {
+  const byId = new Map<string, string>()
+  const nameByStudent = new Map<string, string>()
+  for (const e of context.enrollments) nameByStudent.set(e.studentId, e.fullName)
+  for (const t of context.trials) {
+   if (!nameByStudent.has(t.studentId)) nameByStudent.set(t.studentId, t.fullName)
+  }
+  for (const l of context.leaves) {
+   if (!nameByStudent.has(l.studentId)) nameByStudent.set(l.studentId, l.fullName)
+  }
+  for (const d of context.activeDeclarations ?? []) {
+   if (d.scheduleId !== scheduleId || d.status !== "active") continue
+   byId.set(d.studentId, nameByStudent.get(d.studentId) ?? "—")
+  }
+  for (const row of activeTrialsForSchedules(context, [scheduleId])) {
+   if (!byId.has(row.studentId)) byId.set(row.studentId, row.fullName)
+  }
+  for (const row of makeupsForSchedules(context, [scheduleId])) {
+   if (!byId.has(row.studentId)) byId.set(row.studentId, row.fullName)
+  }
+  return [...byId.entries()]
+   .map(([studentId, fullName]) => ({ studentId, fullName }))
+   .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+ }
+ return legacyRosterStudentsForSchedule(context, scheduleId)
 }
 
 /** 該堂點名冊人數（報讀可見＋試堂＋補堂，去重） */

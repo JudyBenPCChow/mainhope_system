@@ -2,14 +2,16 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
+| 狀態 | `in_progress` |
 | 優先 | 高 |
 | 範圍 | 暑期（兩期／單堂）與正規（全期／單堂）之點名紙、安排補堂、取消改期；包裝與權益模型一致；收款／權益／到課宣告／消課收入之帳本對齊 |
 | 不含 | 原班連堂分節點名（另題）；生命週期孤兒攔截（已完成）；欠費門禁政策（另議）；計糧 UI／出糧流程（另題） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
+| 計劃 | [`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md) |
 | 政策／說明 | [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)；[`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)；[`LEAVE_MAKEUP_CONSECUTIVE.md`](../manual/LEAVE_MAKEUP_CONSECUTIVE.md) §5；[`enrollmentPeriod.ts`](../../src/lib/enrollmentPeriod.ts) |
 | 觸發個案 | 2026-08-02：`26SM-ENGS5009-A` 第一期生黃渲棋，跨期補回堂點名紙缺人 |
-| 修訂 | 2026-08-03：繁體重述；釐清問題／已回絕／現行方案；納入評審有用項（池唯一鍵、優先序、扣權益、宣告生命週期、事件、手動加名、shadow、reason code、消耗≠認列）。同日再補：補回≠轉池、順延可批次、反消耗／返還、細粒度池優先、手動加名駁回收口。**會計／收入認列另議，暫不開工實作。** |
+| 生效里程碑 | **`2627` 正規開始接受報讀時**，新方案（權益池＋到課宣告）須已對該學年路徑啟用；唔以 9/1 第一堂為唯一閘 |
+| 修訂 | 2026-08-03：繁體重述；釐清問題／已回絕／現行方案；納入評審有用項（池唯一鍵、優先序、扣權益、宣告生命週期、事件、手動加名、shadow、reason code、消耗≠認列）。同日再補：補回≠轉池、順延可批次、反消耗／返還、細粒度池優先、手動加名駁回收口。會計／收入認列另議。**2026-08-04：產品確認採 §三方案；上線改為正規 `2627` 先、`26SM` 不強制切換；報讀開口＝生效點；即時開工（勿等 8/31）；過渡只准學年硬閘雙路徑，禁止正式行為混用。同日 Wave 1 落地（schema／硬閘／鑄池／shadow）；下一波＝Wave 2（事件寫宣告＋消耗／返還＋入口收斂）。** |
 
 ---
 
@@ -78,7 +80,7 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 
 ## 三、目前的方案及細節
 
-### 3.1 定調（產品暫定；仍待正式拍板）
+### 3.1 定調（2026-08-04 產品已確認採納；會計仍另案）
 
 **承認四本帳，各自獨立、各有生命週期與政策；分階段落地。**
 
@@ -108,7 +110,7 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 6. **權益消耗 ≠ 收入認列**。欄位與事件命名用營運語意（如 `entitlement_consumed`、`lesson_right_used`），禁用 `revenue_recognized`／`earned_lesson`／`recognized_at` 等會計語義。資料註明：operational entitlement consumption, not accounting revenue recognition。
 7. 第一期稽核鏈：宣告與消耗記錄綁 `pool_id`（及來源 enrollment／事件 id）；**不**要求本階段改寫 `payment_details` 強制綁新 right id。
 
-### 3.2 權益池命名空間（唯一鍵，產品暫定）
+### 3.2 權益池命名空間（唯一鍵，2026-08-04 已確認）
 
 權益池由下列欄位唯一決定（對齊現有報讀／學年模型；實作欄名可微調，語意不可鬆）：
 
@@ -165,7 +167,7 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 
 ### 3.5 多權益池消耗優先序（暫定寫死）
 
-學生可能同時持有多個池（例如第一期剩餘＋另購單堂＋順延）。適用於**同班＋同學年**、且宣告**未**指定 `pool_id` 時。**選定規則（產品暫定，正式拍板時確認或改句，不可留空）：**
+學生可能同時持有多個池（例如第一期剩餘＋另購單堂＋順延）。適用於**同班＋同學年**、且宣告**未**指定 `pool_id` 時。**選定規則（2026-08-04 已確認；實作若改句須回寫）：**
 
 1. 宣告已指定 `pool_id` → 扣該池。
 2. 否則，細粒度／特殊包裝優先於大包裝：`single_lesson`（及同類加購／贈送單堂）→ 單期（`summer_phase_1`／`summer_phase_2`）→ 全期（`summer_full`／`regular_full`）。避免短效單堂過期浪費、誤扣長效期數池。
@@ -271,11 +273,17 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 | 單堂改掛 | 宣告層既有片段 | 終局納入統一宣告模型 |
 | 所有產名單入口 | 未盤點齊 | 最終只經 §3.9 |
 
-遷移分三步（開工前寫死腳本與通過標準）：
+遷移分三步（開工同步寫死腳本與通過標準）：
 
 1. **Shadow**：生成新池與新宣告，**不**影響正式點名紙；輸出差異（`old_roster_count`／`new_roster_count`／`missing_in_new`／`extra_in_new`／`reason`）。
 2. **對照可讀**：班別／點名側可看舊規則 vs 新宣告是否出現及原因（reason code）。
-3. **分批切換**：先暑期班 → 正規班 → 單堂與特殊補堂；保留快速回退（舊查詢路徑至日落）。切換前必須通過對帳報告；每個 R 風險對應驗證查詢（見 §3.12）。
+3. **分批切換（2026-08-04 改定）**：**先正規 `2627`**（對齊「開始接受報讀」即啟用）→ 單堂與特殊補堂（同學年）→ **`26SM` 暑期不強制本輪切換**，維持舊路徑至日落。保留快速回退（舊查詢路徑按學年硬閘至日落）。切換前必須通過對帳報告；每個 R 風險對應驗證查詢（見 §3.12）。
+
+**雙路徑約束（防「正式行為又新又舊」）：**
+
+- 允許 codebase 暫存舊／新兩條查詢，但必須以 **`academic_year`（或同等 feature gate）** 切開：`26SM` 正式點名紙只走舊；`2627` 啟用後只走新。
+- **禁止**同一堂／同一學年入口混用「日期推期數」與「宣告→池」作正式名單。
+- 8 月 `26SM` 對前線應感覺零變化；新模型先服務即將開口嘅 `2627` 報讀。
 
 ### 3.12 對現有學生學費與權益（開工約束）
 
@@ -293,7 +301,7 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 | **R4** | 禁手動加名又無補救 | §3.8 緊急補宣告／pending exception |
 | **R5** | 命名空間過寬或過窄 | §3.2 唯一鍵＋跨命名空間拒扣；抽樣跨期補回／轉科個案 |
 
-開工前仍須：產品正式拍板；遷移與歷史回填規則寫死；會計另案。
+開工閘門（2026-08-04）：產品方案已拍板；遷移與歷史回填規則開工時同步寫死；會計另案不擋第一期。**生效閘＝`2627` 開始接受報讀前**，新報讀須能鑄池，隨後有排程／點名時讀宣告。
 
 ### 3.13 現況帳本盤點（為何需要新方案）
 
@@ -353,20 +361,23 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 
 ## 四、待辦
 
-1. **產品正式拍板**：承認四本帳；確認 §3.2 池唯一鍵（含補回≠轉池）、§3.5 多池優先序（含細粒度優先）、§3.6 扣／返還、§3.7 事件表、§3.8 手動加名與駁回收口；宣告生命週期採 §3.4。
-2. **會計定案**（另開討論，勿趕工；須有負責人）：每月收款收入、消課收入、預收餘額；與營運「權益消耗」切斷依賴。
-3. **遷移／回填規則寫死**：池初始化來源；歷史宣告回填；R1–R5 驗證查詢；shadow 差異報告通過標準。
-4. **過渡**：入口盤點 → 收斂至 §3.9；`makeup_of` 止血日落；回歸（第一期生＋第二期日補回堂）。
-5. **手動加名**：盤點直寫 `attendance_details` 路徑；實作 §3.8 與覆核報表。
-6. **reason code**：資格／加名拒因接入 UI（§3.10）。
-7. **介面／文件**：安排補堂與新增排程之區分；跨期／補堂窗提示；APO 說明。
-8. **實作**：上述齊備後另開計劃；上線順序 shadow → 對照 → 分批切換。會計未清前不改收入認列。本檔不是開工 API／schema 明細。
+1. **產品正式拍板**：✅ 2026-08-04 確認採 §三；上線順序＝正規 `2627` 先、`26SM` 不強制；生效點＝開始接受 `2627` 報讀；§3.2／3.4／3.5／3.6／3.7／3.8 按現行暫定執行（細則實作中若改句須回寫本檔）。
+2. **會計定案**（另開討論，勿趕工；須有負責人）：每月收款收入、消課收入、預收餘額；與營運「權益消耗」切斷依賴。**不擋本輪開工。**
+3. **遷移／回填規則寫死**：✅ 見計劃 §2（池來源、宣告回填、shadow 標準）；實作腳本隨 Wave 深化。
+4. **Wave 1（基盤）**：✅ 2026-08-04 — schema／RLS；學年硬閘；報讀鑄池＋自動宣告；roster 分支；shadow compare。詳見計劃。
+5. **Wave 2（下一波 · 必做）**：補堂／取消／請假／新增排程寫宣告；§3.6 消耗與返還；名單入口收斂至 §3.9；排程後補宣告鉤子。詳見計劃 §3／§8。
+6. **過渡（與 Wave 2–4 重疊）**：入口盤點 → 收斂；`makeup_of` 止血在新模型覆蓋範圍日落；回歸含跨學年拒扣（暑期權益不得入九月正規紙）。
+7. **Wave 3**：手動加名 §3.8 UI＋例外／覆核；reason code 上紙（§3.10）；舊 vs 新對照 UI。
+8. **Wave 4／介面文件**：`26SM` 日落評估；廢 `makeup_of`；安排補堂與新增排程區分／跨期提示／APO 說明。
+9. **實作索引**：計劃 [`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md)。會計未清前不改收入認列。
 
 ---
 
 ## 五、相關
 
-- 程式：[`scheduleRosterQueries.ts`](../../src/services/scheduleRosterQueries.ts)、[`scheduleMakeupQueries.ts`](../../src/services/scheduleMakeupQueries.ts)、[`scheduleMakeupMarkers.ts`](../../src/lib/scheduleMakeupMarkers.ts)、[`enrollmentPeriod.ts`](../../src/lib/enrollmentPeriod.ts)、[`attendanceBilling.ts`](../../src/lib/attendanceBilling.ts)、[`RollCallClassPanel.tsx`](../../src/components/attendance/RollCallClassPanel.tsx)
+- 程式：[`scheduleRosterQueries.ts`](../../src/services/scheduleRosterQueries.ts)、[`entitlementQueries.ts`](../../src/services/entitlementQueries.ts)、[`rosterEligibilityService.ts`](../../src/services/rosterEligibilityService.ts)、[`rosterEligibilityGate.ts`](../../src/lib/rosterEligibilityGate.ts)、[`entitlementPackage.ts`](../../src/lib/entitlementPackage.ts)、[`scheduleMakeupQueries.ts`](../../src/services/scheduleMakeupQueries.ts)、[`scheduleMakeupMarkers.ts`](../../src/lib/scheduleMakeupMarkers.ts)、[`enrollmentPeriod.ts`](../../src/lib/enrollmentPeriod.ts)、[`attendanceBilling.ts`](../../src/lib/attendanceBilling.ts)、[`RollCallClassPanel.tsx`](../../src/components/attendance/RollCallClassPanel.tsx)
+- 計劃：[`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md)
+- Migration：`20260804010000_entitlement_pools_and_declarations.sql`
 - 即時通知：`20260802100000_inbox_notice_cross_period_makeup_roster.sql`
 - 學年：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)
 - 扣堂：[`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)

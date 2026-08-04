@@ -24,6 +24,11 @@ import {
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
+import {
+ ensureEntitlementPoolAndDeclarations,
+ remintPoolAfterPeriodChange,
+ syncSingleLessonDeclarations,
+} from "@/services/entitlementQueries"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -1316,6 +1321,19 @@ export async function insertEnrollment(
  } catch (trialErr) {
   console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", trialErr)
  }
+ try {
+  await ensureEntitlementPoolAndDeclarations({
+   enrollmentId,
+   studentId,
+   classId,
+   enrollmentPeriod: periodValue,
+   enrollDate: today,
+   scheduleIds: isSingle ? scheduleIds : undefined,
+   sourceEventType: "enrollment_auto",
+  })
+ } catch (poolErr) {
+  console.warn("[insertEnrollment] ensureEntitlementPoolAndDeclarations", poolErr)
+ }
  return enrollmentId
 }
 
@@ -1373,6 +1391,17 @@ export async function updateEnrollmentPeriod(
   enrollment_period: enrollmentPeriod,
  })
  if (evErr) throw evErr
+ try {
+  await remintPoolAfterPeriodChange({
+   enrollmentId: id,
+   studentId: opts.studentId,
+   classId: opts.classId,
+   enrollmentPeriod: isSingle ? "單堂" : enrollmentPeriod,
+   scheduleIds: isSingle ? opts.scheduleIds : undefined,
+  })
+ } catch (poolErr) {
+  console.warn("[updateEnrollmentPeriod] remintPoolAfterPeriodChange", poolErr)
+ }
 }
 
 /** 更新單堂報讀所選堂數（保持 enrollment_period=單堂） */
@@ -1401,6 +1430,16 @@ export async function updateEnrollmentSessions(
   enrollment_period: "單堂",
  })
  if (evErr) throw evErr
+ try {
+  await syncSingleLessonDeclarations({
+   enrollmentId,
+   studentId: opts.studentId,
+   classId: opts.classId,
+   scheduleIds,
+  })
+ } catch (poolErr) {
+  console.warn("[updateEnrollmentSessions] syncSingleLessonDeclarations", poolErr)
+ }
 }
 
 export async function updateEnrollment(id: string, status: string, studentId?: string): Promise<void> {

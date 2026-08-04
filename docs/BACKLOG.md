@@ -34,7 +34,7 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
-| open | 高 | 報讀包裝與點名權益 | 四本帳＋池／宣告必做；決策已寫入（優先序含細粒度、扣／返還、補回≠轉池、手動加名駁回收口、shadow 等）；**會計另議、暫不開工** | [summer-enrollment-roster-consistency.md](./backlog/summer-enrollment-roster-consistency.md) · [顧問評審](./backlog/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
+| in_progress | 高 | 報讀包裝與點名權益 | Wave 1 ✅；**下一波 Wave 2**（事件宣告＋消耗／返還＋入口收斂）；`2627` 報讀前須齊；`26SM` 不強制切 | [summer-enrollment-roster-consistency.md](./backlog/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [顧問評審](./backlog/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
 | in_progress | 高 | 流動裝置介面 | 行政／老師高頻波次 1–3 已落（殼層、Inbox、Leave、一對一、排程日視圖、時間表）；餘 Mgmt／外星人／P3 | [mobile-ui.md](./backlog/mobile-ui.md) · [sim 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
 | in_progress | 中 | 計糧引擎 | 規格／指南已齊；**UI 預覽** `/Payroll` mock；沙盒下一步：分頁 IA＋首次 UX（計劃已落檔）；引擎暫等 Mark Yu；功課班暫緩 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [分頁 IA 計劃](./plans/2026-08-02-payroll-tabbed-ia.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
 | open | 中 | 功課輔導班產品 | v2 全角色沙盒已落地（待審閱）；功課進度留 Notion；餘價錢／計費／校曆／讓房；未接正式 DB | [homework-tutoring.md](./backlog/homework-tutoring.md) · [UI v2](./plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
