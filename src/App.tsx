@@ -52,6 +52,7 @@ import ApoPo from "@/pages/ApoPo"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
+import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))

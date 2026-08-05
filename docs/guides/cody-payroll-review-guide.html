@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<title>每月薪酬複核工作指引（給 Cody）</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "PingFang TC", "Hiragino Sans GB", "Songti TC", "Noto Sans TC", sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+    margin: 0;
+  }
+  h1 {
+    font-size: 18pt;
+    font-weight: 600;
+    margin: 0 0 8pt;
+    line-height: 1.3;
+  }
+  h2 {
+    font-size: 13.5pt;
+    font-weight: 600;
+    margin: 22pt 0 8pt;
+    padding-bottom: 4pt;
+    border-bottom: 1px solid #ccc;
+    page-break-after: avoid;
+  }
+  h3 {
+    font-size: 11.5pt;
+    font-weight: 600;
+    margin: 14pt 0 6pt;
+    page-break-after: avoid;
+  }
+  p { margin: 0 0 8pt; }
+  ul, ol { margin: 0 0 10pt; padding-left: 1.35em; }
+  li { margin-bottom: 3pt; }
+  .meta {
+    font-size: 10pt;
+    color: #333;
+    margin-bottom: 14pt;
+  }
+  .meta p { margin: 0 0 4pt; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8pt 0 12pt;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #999;
+    padding: 5pt 6pt;
+    vertical-align: top;
+    text-align: left;
+  }
+  th { background: #f2f2f2; font-weight: 600; }
+  .box {
+    border: 1px solid #bbb;
+    background: #fafafa;
+    padding: 10pt 12pt;
+    margin: 8pt 0 12pt;
+    white-space: pre-wrap;
+    font-size: 9.5pt;
+    line-height: 1.45;
+    page-break-inside: avoid;
+  }
+  .note {
+    font-size: 10pt;
+    color: #333;
+  }
+  .checklist li { list-style: none; margin-left: -0.3em; }
+  .checklist li::before { content: "☐ "; }
+  .footer-note {
+    margin-top: 28pt;
+    padding-top: 10pt;
+    border-top: 1px solid #ccc;
+    font-size: 9.5pt;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<h1>每月薪酬複核工作指引（給 Cody）</h1>
+
+<div class="meta">
+  <p><strong>目的：</strong>用獨立方法核對同事收入是否正確，不單信系統顯示的總數。</p>
+  <p><strong>原則：</strong>先查「課堂事實」是否正確，再按規則自行計算，最後才對照系統。發現差異時，先分清是資料問題還是計算問題，再交 Mark 裁定。</p>
+  <p><strong>參考文件：</strong>《明學教育計糧指南》</p>
+</div>
+
+<h2>第一步：先檢查該月點名是否齊備（最重要）</h2>
+
+<p>系統算出來的金額，建基於已點名、已扣堂的課堂。點名未完成，任何總數都<strong>有機會不準確</strong>。</p>
+
+<h3>1.1 要看甚麼</h3>
+<p>到「排程與出勤」相關頁面，核對該月：</p>
+<ol>
+  <li><strong>排程管理：</strong>該月應上的課堂是否齊全、時段與教師是否正確。</li>
+  <li><strong>出席紀錄／點名：</strong>每一節是否已完成點名。</li>
+  <li>特別留意：<strong>有排程、有學生應到，但未點名</strong>的課堂——這類必須先補點名，否則不能讓該教師進入結算。</li>
+</ol>
+
+<h3>1.2 如何判斷「這節應否計薪」</h3>
+<p>逐節看每位學生的點名狀態：</p>
+<p><strong>計入人頭／分成基數（已扣堂）：</strong></p>
+<ul>
+  <li>現場</li>
+  <li>錄影回放</li>
+  <li>Zoom 實時網課</li>
+  <li>no show（突然缺席、沒有請假）</li>
+  <li>請假而不需補回</li>
+</ul>
+<p><strong>不計入（不扣堂）：</strong></p>
+<ul>
+  <li>事假</li>
+  <li>病假</li>
+</ul>
+<p>補充：</p>
+<ul>
+  <li>錄影或網課也算已上堂，必須計入。</li>
+  <li>正式請假並另約補堂：原堂不計該生；待補堂完成並扣堂後，才計入補堂當日所屬月份。</li>
+  <li>若整節最終無人被扣堂：<strong>該節不計薪</strong>。</li>
+</ul>
+
+<h3>1.3 本步完成標準</h3>
+<ul>
+  <li>該月應點名的課堂已全部點名；或</li>
+  <li>未點名者已列出清單，並要求相關同事補齊後才繼續。</li>
+</ul>
+<p><strong>未達標準，不要進入下一步。</strong></p>
+
+<p class="note">另請記住：薪酬按「該節實際發生並完成點名的月份」計算，<strong>不是</strong>按學生何時交學費。</p>
+
+<p>建議同時準備核對表（可用試算表），欄位如下：</p>
+<table>
+  <thead>
+    <tr>
+      <th>同事姓名</th>
+      <th>計法類型</th>
+      <th>自行計算金額</th>
+      <th>系統顯示金額</th>
+      <th>差異</th>
+      <th>差異原因判斷</th>
+      <th>處理狀態</th>
+      <th>備註</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+  </tbody>
+</table>
+
+<h2>第二步：檢查代堂是否正確</h2>
+<p>規則：<strong>誰實際上堂，該節授課薪酬歸誰。</strong></p>
+
+<h3>2.1 要核對甚麼</h3>
+<ol>
+  <li>該節排程上的授課教師，是否為真正上課的人。</li>
+  <li>若有代堂：薪酬應歸代堂教師（按其本人計法），<strong>不是</strong>班別主責教師。</li>
+  <li>對 Mark／Christine 這類分成制：
+    <ul>
+      <li>他人代其班 → 代堂者取自己的授課薪酬；</li>
+      <li>Mark／Christine 若未親自上該節，<strong>沒有</strong>該節「親自授課」部分；</li>
+      <li>若科目屬其佣金範圍，仍可能有佣金（見指南第 4、5 章）。</li>
+    </ul>
+  </li>
+</ol>
+
+<h3>2.2 發現可疑時</h3>
+<p>用出席紀錄對照當日實際情況（可問行政／教師），不要只信班別主責姓名。</p>
+
+<h2>第三步：抽樣核對「課堂事實」與「人頭」</h2>
+<p>不要一開始就看總薪酬。先抽樣，用原始資料自己數。</p>
+
+<h3>3.1 建議抽樣方式（每月至少做）</h3>
+<ol>
+  <li><strong>每人至少抽 2–3 節</strong>（尤其金額大、代堂、一對一／一對二、月初月末課堂）。</li>
+  <li><strong>額外必抽：</strong>
+    <ul>
+      <li>金額較上月明顯偏高或偏低的同事（約 ±30% 或以上）；</li>
+      <li>新同事、新費率、特別協議；</li>
+      <li>有人手調整紀錄的月份。</li>
+    </ul>
+  </li>
+</ol>
+
+<h3>3.2 每一節自行核對清單</h3>
+<p>對抽出來的每一節，逐項打勾：</p>
+<ol>
+  <li>上課日期是否屬於本月。</li>
+  <li>授課教師是否正確（含代堂）。</li>
+  <li>班別級別（初中／高中）是否正確——按<strong>班別所屬年級</strong>，不是學生個人年級。</li>
+  <li>該節有多少人屬「已扣堂」狀態（自行數人頭）。</li>
+  <li>一對一應視為 3 人頭；一對二應視為 4 人頭（適用兼職按人頭計法時）。</li>
+  <li>分成制：基數是否用<strong>原價</strong>（不理優惠／特別折扣）；教材費、試堂費、行政費、逾期費等<strong>不納入</strong>分成。</li>
+</ol>
+
+<h3>3.3 把抽樣結果寫進核對表</h3>
+<p>每節寫下：日期、班別、教師、人頭或原價基數、你算出的該節薪酬。之後才與系統明細對照。</p>
+
+<h2>第四步：按同事類型自行計算（不依賴系統總數）</h2>
+<p>依計糧指南，分類處理。建議順序如下。</p>
+
+<h3>A. 固定月薪（Sophie、Katie）</h3>
+<ol>
+  <li>確認該月是否在職、是否應發全額。</li>
+  <li>月薪金額是否與指南一致。</li>
+  <li>若需強積金：按第 13 章自行計僱員供款與實收。</li>
+</ol>
+
+<h3>B. 兼職專科（按人頭）</h3>
+<ol>
+  <li>列出該教師本月每一節的人頭。</li>
+  <li>按初中／高中費率：第一人頭 + 其後每人頭。</li>
+  <li>Judy 用特別費率；一般兼職用一般費率。</li>
+  <li>自行加總後，才看系統。</li>
+</ol>
+
+<h3>C. 獨立定價（Sum、Cyndi）</h3>
+<ol>
+  <li>分清：小組班／一對一／一對二。</li>
+  <li>Cyndi 專科小組班：原價 × 50%。</li>
+  <li>自行加總後再對照。</li>
+</ol>
+
+<h3>D. 分成制（Mark、Christine）</h3>
+<p>分開兩條線，<strong>不可把同一堂重複計算</strong>：</p>
+<ol>
+  <li><strong>親自授課：</strong>本人已上堂且已扣堂的專科班原價 × 60%。</li>
+  <li><strong>他人佣金：</strong>其他人已扣堂、且屬其佣金科目的原價 × 10%。
+    <ul>
+      <li>Mark：數學／M1／M2</li>
+      <li>Christine：中國語文</li>
+    </ul>
+  </li>
+  <li>本人親自上的堂：只取 60%，<strong>不再加</strong> 10%。</li>
+</ol>
+
+<h3>E. 在家工作時薪（Cody 本人）</h3>
+<ol>
+  <li>只計<strong>已申報並獲核准</strong>的時數。</li>
+  <li>金額＝核准小時 × $60。</li>
+  <li>未核准工時：<strong>不可</strong>計入。</li>
+</ol>
+
+<h3>F. 跨模式同事</h3>
+<p>各部分分開算，最後加總（例如專科授課 + 其他工作）。功課班現階段<strong>暫不納入</strong>每月計糧。</p>
+
+<h2>第五步：對照系統，並判斷差異屬哪一類</h2>
+<p>把「自行計算金額」與「計糧頁顯示金額」逐人比較。請注意：系統總數<strong>有機會不準確</strong>，因此必須以自行計算與原始課堂事實為主，再作對照。</p>
+
+<h3>5.1 差異分類（必做）</h3>
+<table>
+  <thead>
+    <tr>
+      <th>類型</th>
+      <th>典型徵兆</th>
+      <th>正確處理</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>資料／操作問題</strong></td>
+      <td>漏點名、點錯狀態、代堂未改、工時未核准、人頭數錯</td>
+      <td>先改回正確點名／排程／工時，再重算</td>
+    </tr>
+    <tr>
+      <td><strong>規則理解問題</strong></td>
+      <td>你與指南不一致（例如誤用折後價、誤把事假計入）</td>
+      <td>重讀指南；仍不清楚則問 Mark</td>
+    </tr>
+    <tr>
+      <td><strong>系統計算可疑</strong></td>
+      <td>原始課堂事實正確，你按指南手算也正確，但系統總數仍不同</td>
+      <td><strong>不要自行改數硬湊</strong>；記錄差異，交 Mark／工程跟進</td>
+    </tr>
+    <tr>
+      <td><strong>需人手調整的特殊情況</strong></td>
+      <td>退學費、結算後發現錯、特別協議</td>
+      <td>列入異常，經管理層核准後才調整</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>5.2 常見必阻結算的情況</h3>
+<p>出現以下情況，<strong>不可</strong>把該人／該批送去結算：</p>
+<ol>
+  <li>應點名而未點名。</li>
+  <li>同事未有有效費率或月薪設定。</li>
+  <li>Cody 的在家工時未核准卻被計入。</li>
+</ol>
+
+<h2>第六步：整理呈交 Mark 的核對包</h2>
+<p>送 Mark 前，準備一份清楚、可覆核的材料，建議包括：</p>
+<ol>
+  <li><strong>月份與狀態：</strong>本月計糧進度（例如：審閱中／待提交）。</li>
+  <li><strong>齊備檢查結果：</strong>未點名清單、代堂異常清單、未核准工時（如有）。</li>
+  <li><strong>逐人核對表：</strong>自行計算、系統金額、差異、你的判斷。</li>
+  <li><strong>抽樣明細：</strong>至少列出抽查過的課堂（日期、班、教師、人頭／原價、手算過程）。</li>
+  <li><strong>待裁決事項：</strong>你無法自行決定的項目（用問題形式寫清楚）。</li>
+  <li><strong>建議：</strong>哪些人可提交、哪些人必須暫緩。</li>
+</ol>
+
+<h3>給 Mark 的簡短呈文格式（可複製）</h3>
+<div class="box">致 Mark：
+
+主題：YYYY年M月薪酬複核結果（Cody）
+
+一、資料齊備
+- 未點名課堂：__ 節（詳見附件）
+- 代堂待確認：__ 項
+- 其他阻擋項：__
+
+二、金額核對
+- 已完成自行計算人數：__
+- 與系統一致：__ 人
+- 有差異待查：__ 人（詳見核對表）
+
+三、建議
+- 可進入下一階段：__
+- 必須暫緩：__
+- 請 Mark 裁定：__
+
+附件：核對表、抽樣明細、異常清單</div>
+
+<p>Mark 核對並同意後，才按系統流程提交／進入管理層結算。</p>
+
+<h2>第七步：結算後發現錯誤時</h2>
+<ol>
+  <li><strong>原則：</strong>調整<strong>出錯那個月份</strong>的糧單，不要只在下個月隨意加減而令歷史月份永遠不正確。</li>
+  <li><strong>程序：</strong>財務提出調整及原因 → 管理層核准 → 才可改動。</li>
+  <li>保留紀錄：原金額、調整後金額、原因、經手人、核准人、日期時間。</li>
+</ol>
+
+<h2>Cody 每月自我檢查清單（可列印）</h2>
+<ul class="checklist">
+  <li>確認月份</li>
+  <li>點名齊備（或未點名已暫緩）</li>
+  <li>代堂歸屬正確</li>
+  <li>已抽樣核對人頭／原價／級別</li>
+  <li>已按指南自行計算（非只看系統總數）</li>
+  <li>差異已分類（資料／規則／系統／特殊）</li>
+  <li>強積金只套用於適用同事</li>
+  <li>功課班未誤計入</li>
+  <li>核對包已交 Mark</li>
+  <li>Mark 同意後才提交／結算</li>
+</ul>
+
+<div class="footer-note">
+  本指引供財務複核使用。如薪酬制度有變更，應同步更新本指引，並經 Mark 核可後生效。
+</div>
+
+</body>
+</html>
