@@ -11,6 +11,7 @@
 | 對抗 | [`audits/2026-08-01-soft-archive-adversarial.md`](../audits/2026-08-01-soft-archive-adversarial.md) |
 | Canvas | `soft-archive-adversarial.canvas.tsx` · `growth-after-narrowing.canvas.tsx` |
 | 相關已做 | 側欄未讀快取、學生詳情分頁懶載、營運總覽 KPI 先出（唔代替本主題） |
+| 相關另題 | 計糧／營運總覽載入偏慢（重複查詢／live 重算／按需載）→ [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)；本主題收窄冷資料，唔代替該題 |
 
 ## 業務定界（已確認）
 

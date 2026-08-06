@@ -3,7 +3,7 @@ import { HomeWayfindingPrototypeView } from "@/prototypes/homeWayfinding/HomeWay
 
 /**
  * 免登入首頁 wayfinding UX 沙盒（示範資料）。
- * 唔掛正式側欄；唔接 DB。
+ * 不掛正式側欄；不連接資料庫。
  */
 export default function PrototypeHomeWayfinding() {
   return (

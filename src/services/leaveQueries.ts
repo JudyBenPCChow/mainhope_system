@@ -20,6 +20,7 @@ import {
 } from "@/lib/lessonSlots"
 import { fetchSchedulesInRange, localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
+import { syncStudentMakeupDeclaration } from "@/services/entitlementQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import {
@@ -452,6 +453,22 @@ export async function updateLeaveMakeupRecord(
      ? String(patch.makeup_schedule_id)
      : ""
    : prevMakeupSched
+
+ if (
+  patch.makeup_schedule_id !== undefined
+  && prev.student_id != null
+  && prev.class_id != null
+ ) {
+  await syncStudentMakeupDeclaration({
+   studentId: String(prev.student_id),
+   classId: String(prev.class_id),
+   leaveScheduleId: prev.schedule_id != null ? String(prev.schedule_id) : null,
+   leaveRecordId: id,
+   prevMakeupScheduleId: prevMakeupSched || null,
+   nextMakeupScheduleId: nextMakeupSched || null,
+  })
+ }
+
  const arranged =
   (Boolean(nextMakeupDate) || Boolean(nextMakeupSched)) &&
   (nextMakeupDate !== prevMakeupDate || nextMakeupSched !== prevMakeupSched)
@@ -581,6 +598,8 @@ export async function setLeaveTuitionDisposition(
  const clearMakeupSchedule = disposition !== "調堂"
  const makeupType: string | null =
   disposition === "調堂" ? "調堂" : disposition === "錄影" ? "錄影" : null
+ const prevMakeupSched =
+  row.makeup_schedule_id != null ? String(row.makeup_schedule_id) : null
  const { error: updateErr } = await supabase
   .from("leave_makeup_records")
   .update({
@@ -599,6 +618,16 @@ export async function setLeaveTuitionDisposition(
    )
   }
   throwPostgrest(updateErr)
+ }
+
+ if (clearMakeupSchedule && prevMakeupSched && row.student_id != null && row.class_id != null) {
+  await syncStudentMakeupDeclaration({
+   studentId: String(row.student_id),
+   classId: String(row.class_id),
+   leaveRecordId: id,
+   prevMakeupScheduleId: prevMakeupSched,
+   nextMakeupScheduleId: null,
+  })
  }
 }
 

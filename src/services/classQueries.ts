@@ -26,6 +26,7 @@ import {
  releaseAvailabilitySlotForSchedule,
 } from "@/services/teacherAvailabilityQueries"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
+import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import type { EnrollmentFormValue, CourseMode } from "@/lib/enrollmentPeriod"
 import {
  enrollmentCoversPeriod,
@@ -42,6 +43,7 @@ import {
  applySoftCancelScheduleSideEffects,
  type SoftCancelScheduleOptions,
 } from "@/services/scheduleLifecycleQueries"
+import { syncDeclarationsAfterSchedulesAdded } from "@/services/entitlementQueries"
 import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSessionNumbersByEnrollmentIds,
@@ -49,6 +51,7 @@ import {
 import {
  activeTrialsForSchedules,
  attendanceForSchedule,
+ enrollmentPassesDateGates,
  enrollmentsForSchedules,
  fetchScheduleRosterContext,
  leavesForSchedule,
@@ -666,6 +669,35 @@ export async function fetchClassStudents(
 ): Promise<ClassStudentRow[]> {
  if (!supabase) return []
  if (opts?.scheduleId && opts.rosterContext && opts.activeOnly !== false) {
+  const schedule = opts.rosterContext.schedules.find((s) => s.id === opts.scheduleId)
+  if (usesEntitlementRosterModel(schedule?.academicYearLabel ?? null)) {
+   const declared = new Set(
+    (opts.rosterContext.activeDeclarations ?? [])
+     .filter((d) => d.scheduleId === opts.scheduleId && d.status === "active")
+     .map((d) => d.studentId)
+   )
+   return opts.rosterContext.enrollments
+    .filter((row) => {
+     if (row.classId !== classId || !declared.has(row.studentId) || !schedule) return false
+     return enrollmentPassesDateGates(row, schedule)
+    })
+    .map((row) => {
+     const sessionNumbers = opts.rosterContext?.enrollmentSessionNumbers.get(row.id) ?? []
+     return {
+      enrollmentId: row.id,
+      studentId: row.studentId,
+      fullName: row.fullName,
+      grade: row.grade,
+      school: row.school,
+      enrollDate: row.enrollDate,
+      status: row.status,
+      enrollmentPeriod: row.enrollmentPeriod,
+      sessionNumbers,
+      enrollmentFormLabel: formatEnrollmentFormLabel(row.enrollmentPeriod, sessionNumbers),
+      contactPhone: row.contactPhone,
+     }
+    })
+  }
   return enrollmentsForSchedules(opts.rosterContext, [opts.scheduleId])
    .filter((row) => row.classId === classId)
    .map((row) => {
@@ -951,7 +983,7 @@ export async function insertScheduleRow(
   consecutive_group_id?: string | null
   consecutive_slot_index?: number | null
  },
- flags?: { skipInboxEvent?: boolean }
+ flags?: { skipInboxEvent?: boolean; skipDeclarationSync?: boolean }
 ): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data, error } = await supabase
@@ -989,6 +1021,14 @@ export async function insertScheduleRow(
    audienceTeacherIds: [opts.teacher_id],
    payload: { scheduledDate: opts.scheduled_date },
   })
+ }
+ // Wave 2：gated 學年補缺宣告（補回／批次可 skip，改由呼叫端一次同步）
+ if (opts.class_id && !flags?.skipDeclarationSync) {
+  try {
+   await syncDeclarationsAfterSchedulesAdded(opts.class_id)
+  } catch (err) {
+   console.error("syncDeclarationsAfterSchedulesAdded failed", opts.class_id, err)
+  }
  }
  return id
 }
@@ -1117,7 +1157,7 @@ export async function insertSchedulesForClassSession(
    consecutive_group_id: groupId,
    consecutive_slot_index: 1,
   },
-  { skipInboxEvent: true }
+  { skipInboxEvent: true, skipDeclarationSync: true }
  )
  const id2 = await insertScheduleRow(
   {
@@ -1132,8 +1172,13 @@ export async function insertSchedulesForClassSession(
    consecutive_group_id: groupId,
    consecutive_slot_index: 2,
   },
-  { skipInboxEvent: true }
+  { skipInboxEvent: true, skipDeclarationSync: true }
  )
+ try {
+  await syncDeclarationsAfterSchedulesAdded(classId)
+ } catch (err) {
+  console.error("syncDeclarationsAfterSchedulesAdded failed", classId, err)
+ }
  void recordInboxEvent({
   eventType: "schedule_created",
   title: `新增排程（連堂・${String(row.scheduled_date).slice(0, 10)}）`,

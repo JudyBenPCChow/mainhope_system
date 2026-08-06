@@ -106,7 +106,7 @@ function ShortcutButton({
 }
 
 /**
- * 老師首頁改善草案：先點名、再今日課堂；次要入口收斂，唔再堆七粒掣。
+ * 老師首頁改善草案：先點名、再今日課堂；次要入口收斂，不再堆疊多個近似按鈕。
  */
 export function TeacherHomeSandbox({ onPreviewAction }: Props) {
   const pending = MOCK_TEACHER_PENDING_ROLL.length
@@ -120,7 +120,7 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
           您好，{MOCK_TEACHER_NAME}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground md:text-base">
-          {MOCK_TODAY_LABEL} · 今日 {todayCount} 堂 · 只顯示指派給您的班
+          {MOCK_TODAY_LABEL} · 今日 {todayCount} 堂 · 僅顯示指派給您的班別
         </p>
       </header>
 
@@ -139,7 +139,7 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
                 請先完成點名（{pending} 堂）
               </h2>
               <p className="text-sm text-muted-foreground">
-                未點名唔會扣堂。請假單只影響預填，請打開點名表確認後儲存。
+                未點名不會扣堂。請假單僅影響預填，請開啟點名表確認後儲存。
               </p>
               <ul className="mt-2 space-y-1 text-sm">
                 {MOCK_TEACHER_PENDING_ROLL.map((r) => (
@@ -163,7 +163,7 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
                 "hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               )}
             >
-              一次過處理
+              一次處理
               <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
           </div>
@@ -175,7 +175,9 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
           <h2 id="teacher-today-title" className="text-lg font-semibold text-foreground">
             今日課堂
           </h2>
-          <p className="mt-1 text-sm text-muted-foreground">主工作區；唔使再喺頂部揀「排程／點名／時間表」邊粒。</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            主要工作區；無須再於頂部在「排程／點名／時間表」之間選擇。
+          </p>
         </div>
         <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card shadow-sm">
           {MOCK_TEACHER_TODAY.map((row) => (
@@ -190,7 +192,7 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
             其他常用
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            刻意收斂：唔再並排「我的排程／進行點名／排程點名／時間表」四粒近似掣。
+            刻意收斂：不再並排「我的排程／進行點名／排程點名／時間表」等近似按鈕。
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -214,7 +216,7 @@ export function TeacherHomeSandbox({ onPreviewAction }: Props) {
           onClick={() => onPreviewAction("時間表")}
           className="text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
-          睇完整時間表 →
+          查看完整時間表 →
         </button>
       </section>
     </div>

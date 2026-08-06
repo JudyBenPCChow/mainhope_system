@@ -17,6 +17,10 @@ import {
  insertScheduleRow,
  nextSessionNumberForClass,
 } from "@/services/classQueries"
+import {
+ inheritDeclarationsAcrossSchedules,
+ syncSingleLessonDeclarations,
+} from "@/services/entitlementQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 
 export {
@@ -199,7 +203,7 @@ async function countSingleSessionEnrollmentsOnSchedules(scheduleIds: string[]): 
 
 /**
  * 將單堂報讀從已取消堂改掛到新補回堂（避免 boundLessons 重複計算取消＋新堂）。
- * old→new 成對對應（連堂各節對各節）。
+ * old→new 成對對應（連堂各節對各節）；並同步單堂宣告（同池）。
  */
 async function remountSingleSessionSelections(
  pairs: Array<{ oldId: string; newId: string }>
@@ -244,6 +248,29 @@ async function remountSingleSessionSelections(
    .from("student_enrollment_sessions")
    .upsert(inserts, { onConflict: "enrollment_id,schedule_id", ignoreDuplicates: true })
   if (insErr) throw insErr
+ }
+
+ const eids = [...enrollmentIds]
+ if (eids.length > 0) {
+  const { data: enrs, error: enrErr } = await supabase
+   .from("student_class_enrollments")
+   .select("id, student_id, class_id")
+   .in("id", eids)
+  if (enrErr) throw enrErr
+  for (const raw of enrs ?? []) {
+   const e = raw as { id: string; student_id: string; class_id: string }
+   const { data: sessions, error: sessErr } = await supabase
+    .from("student_enrollment_sessions")
+    .select("schedule_id")
+    .eq("enrollment_id", e.id)
+   if (sessErr) throw sessErr
+   await syncSingleLessonDeclarations({
+    enrollmentId: e.id,
+    studentId: e.student_id,
+    classId: e.class_id,
+    scheduleIds: (sessions ?? []).map((s) => String((s as { schedule_id: string }).schedule_id)),
+   })
+  }
  }
 
  return enrollmentIds.size
@@ -326,7 +353,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
     session_number: sessionStart,
     remarks: remark,
    },
-   { skipInboxEvent: true }
+   { skipInboxEvent: true, skipDeclarationSync: true }
   )
   newScheduleIds.push(id)
   pairs.push({ oldId: s.id, newId: id })
@@ -357,12 +384,18 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
      consecutive_slot_index: s.consecutive_slot_index ?? i + 1,
      remarks: remark,
     },
-    { skipInboxEvent: true }
+    { skipInboxEvent: true, skipDeclarationSync: true }
    )
    newScheduleIds.push(id)
    pairs.push({ oldId: s.id, newId: id })
   }
  }
+
+ // Wave 2：原堂宣告 void；新堂繼承原 pool_id（補回≠轉池）
+ await inheritDeclarationsAcrossSchedules(
+  pairs.map((p) => ({ fromScheduleId: p.oldId, toScheduleId: p.newId })),
+  { sourceEventType: "class_reschedule" }
+ )
 
  const singleSessionMoved = await remountSingleSessionSelections(pairs)
  const primaryNewId = newScheduleIds[0]!

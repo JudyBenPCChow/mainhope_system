@@ -7,6 +7,7 @@ import {
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
+import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
@@ -27,7 +28,11 @@ import {
  fetchSingleSessionNotOnSchedule,
 } from "@/services/enrollmentSessionQueries"
 import {
+ applyEntitlementConsumptionDelta,
+} from "@/services/entitlementQueries"
+import {
  activeTrialsForSchedules,
+ enrollmentPassesDateGates,
  enrollmentsForSchedules,
  fetchScheduleRosterContext,
  leavesForSchedule,
@@ -78,6 +83,45 @@ export async function fetchRosterForRollCall(
 
  if (scheduleIdList.length > 0) {
   const context = rosterContext ?? await fetchScheduleRosterContext(scheduleIdList)
+  const gated = scheduleIdList.some((sid) => {
+   const schedule = context.schedules.find((s) => s.id === sid)
+   return usesEntitlementRosterModel(schedule?.academicYearLabel ?? null)
+  })
+  if (gated) {
+   // Wave 2：2627+ 正式名單只經宣告，禁止日期推期數；仍套報讀／退讀日閘
+   const schedules = context.schedules.filter((s) => scheduleIdList.includes(s.id))
+   const declaredStudentIds = new Set<string>()
+   for (const d of context.activeDeclarations ?? []) {
+    if (d.status !== "active" || !scheduleIdList.includes(d.scheduleId)) continue
+    declaredStudentIds.add(d.studentId)
+   }
+   return context.enrollments
+    .filter((row) => {
+     if (row.classId !== classId || !declaredStudentIds.has(row.studentId)) return false
+     return schedules.some((schedule) => enrollmentPassesDateGates(row, schedule))
+    })
+    .map((row) => ({
+     enrollmentId: row.id,
+     studentId: row.studentId,
+     fullName: row.fullName,
+     englishName: row.englishName,
+     grade: row.grade,
+     school: row.school,
+     enrollDate: row.enrollDate,
+     status: row.status,
+     contactPhone: row.contactPhone,
+     messagingTarget: row.contactPhone
+      ? {
+         person: "家長" as const,
+         channel: "WhatsApp" as const,
+         phone: row.contactPhone,
+         phoneCountryCode: "+852" as const,
+         wechatId: null,
+        }
+      : null,
+     isSingleSession: isSingleSessionEnrollment(row.enrollmentPeriod),
+    }))
+  }
   return enrollmentsForSchedules(context, scheduleIdList)
    .filter((row) => row.classId === classId)
    .map((row) => ({
@@ -651,7 +695,7 @@ export async function saveAttendanceStatus(
  }
  let q = supabase
   .from("attendance_details")
-  .select("id")
+  .select("id, status")
   .eq("student_id", studentId)
   .eq("class_id", classId)
   .eq("attendance_date", attendanceDate)
@@ -662,6 +706,10 @@ export async function saveAttendanceStatus(
  }
  const { data: existing, error: selErr } = await q.maybeSingle()
  if (selErr) throw selErr
+ const previousStatus =
+  existing != null ? String((existing as { status?: string }).status ?? "") : null
+ let attendanceDetailId: string | null =
+  existing != null ? String((existing as { id: string }).id) : null
  if (existing) {
   const { error } = await supabase
    .from("attendance_details")
@@ -673,15 +721,36 @@ export async function saveAttendanceStatus(
    .eq("id", (existing as { id: string }).id)
   if (error) throw error
  } else {
-  const { error } = await supabase.from("attendance_details").insert({
-   student_id: studentId,
-   class_id: classId,
-   attendance_date: attendanceDate,
-   schedule_id: scheduleId ?? null,
-   status,
-   remarks: remarks ?? null,
-  })
+  const { data: inserted, error } = await supabase
+   .from("attendance_details")
+   .insert({
+    student_id: studentId,
+    class_id: classId,
+    attendance_date: attendanceDate,
+    schedule_id: scheduleId ?? null,
+    status,
+    remarks: remarks ?? null,
+   })
+   .select("id")
+   .single()
   if (error) throw error
+  attendanceDetailId = String((inserted as { id: string }).id)
+ }
+
+ // Wave 2：gated 學年營運消耗／返還（≠ 收入認列）
+ if (scheduleId) {
+  try {
+   await applyEntitlementConsumptionDelta({
+    studentId,
+    scheduleId,
+    classId,
+    attendanceDetailId,
+    previousStatus,
+    nextStatus: status,
+   })
+  } catch (err) {
+   console.error("applyEntitlementConsumptionDelta failed", scheduleId, err)
+  }
  }
 }
 
@@ -736,6 +805,19 @@ export async function deleteAttendanceStatusForSchedule(
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  assertAcademicYearEditableForDate(attendanceDate)
+ const { data: existing, error: selErr } = await supabase
+  .from("attendance_details")
+  .select("id, status")
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+  .eq("attendance_date", attendanceDate)
+  .eq("schedule_id", scheduleId)
+  .maybeSingle()
+ if (selErr) throw selErr
+ const previousStatus =
+  existing != null ? String((existing as { status?: string }).status ?? "") : null
+ const attendanceDetailId =
+  existing != null ? String((existing as { id: string }).id) : null
  const { error } = await supabase
   .from("attendance_details")
   .delete()
@@ -744,6 +826,20 @@ export async function deleteAttendanceStatusForSchedule(
   .eq("attendance_date", attendanceDate)
   .eq("schedule_id", scheduleId)
  if (error) throw error
+ if (previousStatus) {
+  try {
+   await applyEntitlementConsumptionDelta({
+    studentId,
+    scheduleId,
+    classId,
+    attendanceDetailId,
+    previousStatus,
+    nextStatus: null,
+   })
+  } catch (err) {
+   console.error("applyEntitlementConsumptionDelta (delete) failed", scheduleId, err)
+  }
+ }
 }
 
 /**
@@ -883,7 +979,7 @@ export async function fetchScheduleIdsWithRollCallTargets(
   if (makeup.makeupScheduleId) out.add(makeup.makeupScheduleId)
  }
  for (const schedule of context.schedules) {
-  if (enrollmentsForSchedules(context, [schedule.id]).length > 0) out.add(schedule.id)
+  if (rosterStudentsForSchedule(context, schedule.id).length > 0) out.add(schedule.id)
  }
 
  return expandRollCallTargetsWithConsecutivePeers(out, eligible)

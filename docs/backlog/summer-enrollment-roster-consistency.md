@@ -11,7 +11,7 @@
 | 政策／說明 | [`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)；[`ATTENDANCE_BILLING.md`](../ATTENDANCE_BILLING.md)；[`LEAVE_MAKEUP_CONSECUTIVE.md`](../manual/LEAVE_MAKEUP_CONSECUTIVE.md) §5；[`enrollmentPeriod.ts`](../../src/lib/enrollmentPeriod.ts) |
 | 觸發個案 | 2026-08-02：`26SM-ENGS5009-A` 第一期生黃渲棋，跨期補回堂點名紙缺人 |
 | 生效里程碑 | **`2627` 正規開始接受報讀時**，新方案（權益池＋到課宣告）須已對該學年路徑啟用；唔以 9/1 第一堂為唯一閘 |
-| 修訂 | 2026-08-03：繁體重述；釐清問題／已回絕／現行方案；納入評審有用項（池唯一鍵、優先序、扣權益、宣告生命週期、事件、手動加名、shadow、reason code、消耗≠認列）。同日再補：補回≠轉池、順延可批次、反消耗／返還、細粒度池優先、手動加名駁回收口。會計／收入認列另議。**2026-08-04：產品確認採 §三方案；上線改為正規 `2627` 先、`26SM` 不強制切換；報讀開口＝生效點；即時開工（勿等 8/31）；過渡只准學年硬閘雙路徑，禁止正式行為混用。同日 Wave 1 落地（schema／硬閘／鑄池／shadow）；下一波＝Wave 2（事件寫宣告＋消耗／返還＋入口收斂）。** |
+| 修訂 | 2026-08-03：繁體重述；釐清問題／已回絕／現行方案；納入評審有用項（池唯一鍵、優先序、扣權益、宣告生命週期、事件、手動加名、shadow、reason code、消耗≠認列）。同日再補：補回≠轉池、順延可批次、反消耗／返還、細粒度池優先、手動加名駁回收口。會計／收入認列另議。**2026-08-04：產品確認採 §三方案；上線改為正規 `2627` 先、`26SM` 不強制切換；報讀開口＝生效點；即時開工（勿等 8/31）；過渡只准學年硬閘雙路徑，禁止正式行為混用。同日 Wave 1 落地（schema／硬閘／鑄池／shadow）；下一波＝Wave 2（事件寫宣告＋消耗／返還＋入口收斂）。2026-08-05：Wave 2 核心落地；跟飛單元＋26SM 觸發班 ✅；live 2627 E2E 阻（prod 0 班；staging INACTIVE）。同日產品討論（未正式簽核）：收款→堂數入權益池（唔以錢包做主帳）；請假遲用＝唔扣池、唔經轉結餘；閉環 Phase A 仍禁（§12 未過）。工程節奏：產品思考期間 Wave 3 非必做；`2627` 開口近先做 Wave 3 作安全網，否則可緩。** |
 
 ---
 
@@ -365,11 +365,12 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 2. **會計定案**（另開討論，勿趕工；須有負責人）：每月收款收入、消課收入、預收餘額；與營運「權益消耗」切斷依賴。**不擋本輪開工。**
 3. **遷移／回填規則寫死**：✅ 見計劃 §2（池來源、宣告回填、shadow 標準）；實作腳本隨 Wave 深化。
 4. **Wave 1（基盤）**：✅ 2026-08-04 — schema／RLS；學年硬閘；報讀鑄池＋自動宣告；roster 分支；shadow compare。詳見計劃。
-5. **Wave 2（下一波 · 必做）**：補堂／取消／請假／新增排程寫宣告；§3.6 消耗與返還；名單入口收斂至 §3.9；排程後補宣告鉤子。詳見計劃 §3／§8。
+5. **Wave 2（宣告生命週期＋入口收斂）**：✅ 2026-08-05 — 取消 void／補回繼承 pool／請假調堂宣告／加排程補缺宣告（不抬池）；`fetchRosterForRollCall` 等 2627 禁日期推期數；消耗／返還薄做。詳見計劃 §8.6。**跟飛（2026-08-05）**：單元（取消→補回繼承池、消耗 delta、shadow）＋`26SM-ENGS5009-A` 黃渲棋補回堂點名仍在 ✅；**prod live `2627` E2E／真實 shadow 仍阻**（`2627` 班＝0、池／宣告＝0；staging INACTIVE）。
 6. **過渡（與 Wave 2–4 重疊）**：入口盤點 → 收斂；`makeup_of` 止血在新模型覆蓋範圍日落；回歸含跨學年拒扣（暑期權益不得入九月正規紙）。
-7. **Wave 3**：手動加名 §3.8 UI＋例外／覆核；reason code 上紙（§3.10）；舊 vs 新對照 UI。
-8. **Wave 4／介面文件**：`26SM` 日落評估；廢 `makeup_of`；安排補堂與新增排程區分／跨期提示／APO 說明。
-9. **實作索引**：計劃 [`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md)。會計未清前不改收入認列。
+7. **Wave 3**（手動加名 §3.8 UI＋例外／覆核；reason code 上紙；舊 vs 新對照）：⬜ **可緩**。與閉環產品句正交；`2627` 開口近先做作 R4 安全網，否則產品思考期間唔優先硬開。
+8. **子題：支付→權益閉環（Phase A）**：⬜ **禁開工**（閉環計劃 `draft`／§12 未過）。暫定共識見 [`2026-08-05-leave-deferral-pool-vs-credit-discussion.md`](../plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md)（收款→入池；遲用唔扣池、唔經轉結餘）；正式簽核／回寫閉環 §4 前只可產品討論。計劃 [`2026-08-04-tuition-entitlement-closed-loop.md`](../plans/2026-08-04-tuition-entitlement-closed-loop.md)。
+9. **Wave 4／介面文件**：`26SM` 日落評估；廢 `makeup_of`；安排補堂與新增排程區分／跨期提示／APO 說明。
+10. **實作索引**：母題計劃 [`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md)。會計未清前不改收入認列。
 
 ---
 
@@ -377,6 +378,8 @@ Jackson Lau 班 `26SM-ENGS5009-A`：原定 7/15、7/16 因老師請假取消，�
 
 - 程式：[`scheduleRosterQueries.ts`](../../src/services/scheduleRosterQueries.ts)、[`entitlementQueries.ts`](../../src/services/entitlementQueries.ts)、[`rosterEligibilityService.ts`](../../src/services/rosterEligibilityService.ts)、[`rosterEligibilityGate.ts`](../../src/lib/rosterEligibilityGate.ts)、[`entitlementPackage.ts`](../../src/lib/entitlementPackage.ts)、[`scheduleMakeupQueries.ts`](../../src/services/scheduleMakeupQueries.ts)、[`scheduleMakeupMarkers.ts`](../../src/lib/scheduleMakeupMarkers.ts)、[`enrollmentPeriod.ts`](../../src/lib/enrollmentPeriod.ts)、[`attendanceBilling.ts`](../../src/lib/attendanceBilling.ts)、[`RollCallClassPanel.tsx`](../../src/components/attendance/RollCallClassPanel.tsx)
 - 計劃：[`2026-08-04-enrollment-entitlement-roster.md`](../plans/2026-08-04-enrollment-entitlement-roster.md)
+- 子題閉環 draft：[`2026-08-04-tuition-entitlement-closed-loop.md`](../plans/2026-08-04-tuition-entitlement-closed-loop.md)
+- 請假遲用討論：[`2026-08-05-leave-deferral-pool-vs-credit-discussion.md`](../plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md)
 - Migration：`20260804010000_entitlement_pools_and_declarations.sql`
 - 即時通知：`20260802100000_inbox_notice_cross_period_makeup_roster.sql`
 - 學年：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)

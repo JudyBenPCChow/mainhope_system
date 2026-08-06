@@ -1,15 +1,15 @@
 import {
   CalendarDays,
+  CalendarX,
   ChevronRight,
   ClipboardCheck,
   HandCoins,
-  Inbox,
+  LayoutGrid,
   ListOrdered,
   MessageSquareQuote,
   School,
   UserRoundX,
   Users,
-  CalendarX,
 } from "lucide-react"
 
 import { Tag } from "@/components/ui/tag"
@@ -94,7 +94,7 @@ function ScenarioCard({
       </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 text-xs text-muted-foreground">
         <span>
-          去到：<span className="font-medium text-foreground">{scenario.goesTo}</span>
+          前往：<span className="font-medium text-foreground">{scenario.goesTo}</span>
         </span>
         <Tag tone="default" size="sm">
           側欄 · {scenario.sidebarHint}
@@ -118,16 +118,16 @@ export function AdminHomeSandbox({ onPreviewAction }: Props) {
           你好，{MOCK_ADMIN_NAME}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground md:text-base">
-          {MOCK_TODAY_LABEL} · 先處理待辦，再用「我想做…」搵入口
+          {MOCK_TODAY_LABEL} · 請先處理待辦，再以「我想做…」尋找入口
         </p>
       </header>
 
       <section className="space-y-3" aria-labelledby="admin-followups-title">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <h2 id="admin-followups-title" className="text-lg font-semibold text-foreground">
-            今日要跟進
+            今日須跟進
           </h2>
-          <p className="text-xs text-muted-foreground">有事先出；無事可收埋呢段</p>
+          <p className="text-xs text-muted-foreground">有事項時顯示；無事項可隱藏此區</p>
         </div>
         <div className="space-y-2">
           {MOCK_ADMIN_ALERTS.map((a) => (
@@ -142,7 +142,7 @@ export function AdminHomeSandbox({ onPreviewAction }: Props) {
             我想做…
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            用日常情境搵頁，唔使記系統功能名。每張卡底標示會去邊同側欄大概位置。
+            依日常情境尋找頁面，無須強記系統功能名稱。每張卡片底部標示目的頁與側欄大致位置。
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -155,8 +155,8 @@ export function AdminHomeSandbox({ onPreviewAction }: Props) {
           onClick={() => onPreviewAction("所有功能（瀏覽／搜尋）")}
           className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
         >
-          <Inbox className="h-4 w-4" aria-hidden />
-          唔係以上情況？開「所有功能」搜尋
+          <LayoutGrid className="h-4 w-4" aria-hidden />
+          非以上情況？開啟「所有功能」搜尋
         </button>
       </section>
 
@@ -167,7 +167,7 @@ export function AdminHomeSandbox({ onPreviewAction }: Props) {
               今日課堂（概覽）
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              參考用；詳細改堂請由「改課堂時間／課室」入去。未點名 {pendingRoll} 堂。
+              僅供參考；詳情請由「調整課堂時間／課室」進入。尚未點名 {pendingRoll} 堂。
             </p>
           </div>
           <button

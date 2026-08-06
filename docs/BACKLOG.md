@@ -5,7 +5,7 @@
 | 想找… | 去邊 |
 | --- | --- |
 | 手機該點做（規範） | [`UI_DESIGN_INSTRUCTIONS.md`](./UI_DESIGN_INSTRUCTIONS.md) §14；收款單一入口 §15 |
-| 流動介面進度／模擬 | [`backlog/mobile-ui.md`](./backlog/mobile-ui.md)；[波次 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
+| 流動介面進度／模擬 | [`backlog/mobile-ui.md`](./backlog/mobile-ui.md)；[波次 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md)／[三角色裝置 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) |
 | 進行中實作步驟 | [`docs/plans/`](./plans/) |
 | 稽核報告（已完成的調查） | [`docs/audits/`](./audits/)（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)） |
 | 行政邊緣模擬（2026-07-31） | Cursor Canvas `admin-edge-case-simulation.canvas.tsx`；發現已回寫各 backlog 分題「行政邊緣模擬」節 |
@@ -34,17 +34,18 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
-| in_progress | 高 | 報讀包裝與點名權益 | Wave 1 ✅；**下一波 Wave 2**（事件宣告＋消耗／返還＋入口收斂）；`2627` 報讀前須齊；`26SM` 不強制切 | [summer-enrollment-roster-consistency.md](./backlog/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [顧問評審](./backlog/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
-| in_progress | 高 | 流動裝置介面 | 行政／老師高頻波次 1–3 已落（殼層、Inbox、Leave、一對一、排程日視圖、時間表）；餘 Mgmt／外星人／P3 | [mobile-ui.md](./backlog/mobile-ui.md) · [sim 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
-| in_progress | 中 | 計糧引擎 | 規則阻塞已清（原價＋§13.4）；**`finance`／Cody** 已開；UI 預覽 `/Payroll`；正式引擎可開工；沙盒 P2–P3；功課班暫緩 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [分頁 IA 計劃](./plans/2026-08-02-payroll-tabbed-ia.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
+| in_progress | 高 | 報讀包裝與點名權益 | Wave 1–2 ✅；跟飛單元＋`26SM` ✅；**live `2627` E2E 阻**（0 班）；產品思考中：收款→池／請假遲用唔經轉結餘（禁 Phase A）；Wave 3 開口近先做否則緩；`26SM` 切換不做 | [summer-enrollment-roster-consistency.md](./backlog/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [閉環 draft](./plans/2026-08-04-tuition-entitlement-closed-loop.md) · [請假遲用討論](./plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md) · [顧問評審](./backlog/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
+| in_progress | 高 | 流動裝置介面 | 高頻波次 1–3 回歸 Pass；2026-08-05 三角色模擬：餘 Mgmt／外星人大表／老師 P3／FilterSheet | [mobile-ui.md](./backlog/mobile-ui.md) · [sim 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) · [1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
 | open | 中 | 功課輔導班產品 | v2 全角色沙盒已落地（待審閱）；功課進度留 Notion；餘價錢／計費／校曆／讓房；未接正式 DB | [homework-tutoring.md](./backlog/homework-tutoring.md) · [UI v2](./plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
 | open | 中 | 原班連堂分節點名 | 第 1 節假、第 2 節到尚未支援；行政模擬 S06 判定 UI 無法收尾 | [consecutive-half-session-attendance.md](./backlog/consecutive-half-session-attendance.md) |
 | open | 中 | 連堂請假預設 UX | 預設「兩節一併」易多欠 1；行政模擬 S04 | [consecutive-leave-default-ux.md](./backlog/consecutive-leave-default-ux.md) |
 | in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./backlog/substitute-teacher-reporting.md) · [前線](./manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
 | open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./backlog/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
 | open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./backlog/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
-| open | 中 | HK 成本統計／入帳 | 系統入帳＋儀表板；歷史 Excel∪Notion 只匯入一次（pending）；之後停用兩本帳；報銷不理 | [hk-expense-cost-stats.md](./backlog/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-04-hk-expense-cost-stats.md) |
+| open | 中 | 計糧／營運總覽載入偏慢 | 診斷：未結算計糧每次 live 重算；營運總覽 summary→full 重複查詢＋重活；與軟封存互補另做；稍後開工 | [page-load-perf-payroll-mgmt.md](./backlog/page-load-perf-payroll-mgmt.md) |
+| in_progress | 中 | HK 成本統計／入帳 | 7 月非薪金已確認（剩按金 1 筆）；計糧結算後驗薪金 void／過帳；純利另題 | [hk-expense-cost-stats.md](./backlog/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-05-hk-expense-cost-stats.md) |
 | open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./backlog/ops-docs-viewer.md) |
+| open | 中 | Alien 模擬職員身份 | idea：對方報畫面問題時以該職員視角檢視；前端-only → 可選 DB view-as；先不實作 | [alien-mgmt-view-as.md](./backlog/alien-mgmt-view-as.md) |
 
 ---
 
@@ -54,6 +55,7 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
+| done | 中 | 計糧引擎 | 正式引擎已接線（schema／計算／`/Payroll` 真點名；審閱→結算已持久化）；功課班暫緩；費率頁／銀行帳號／Sophie·Cody 入冊屬下一波 | [payroll-engine.md](./backlog/payroll-engine.md) · [指南](./PAYROLL_GUIDE.md) · [修訂方法](./plans/2026-08-01-payroll-method-revised.md) |
 | done | 中 | 聯絡資料自助更新（一次性活動） | token／公開頁／活動頁已上；admin／alien；執行窗 8 月下旬 | [contact-update-campaign.md](./backlog/contact-update-campaign.md) |
 | done | 高 | 正規逾期罰款 | 收款自動加 $50（池模型；每月每科一次；豁免須原因；2026-10-01 起生效；禁入室不系統化；admin／alien 系統通知已發） | [tuition-late-fee-enforcement.md](./backlog/tuition-late-fee-enforcement.md) · [前線指引](./manual/TUITION_LATE_FEE_FRONTLINE.md) |
 | done | 中 | 管理層角色分流 | 新增 `manager`；首頁／側欄分流；`isAdminOrAlien` 敏感主控；migration 已套用 | [mgmt-manager-role.md](./backlog/mgmt-manager-role.md) · [計劃](./plans/2026-08-01-mgmt-manager-role.md) |

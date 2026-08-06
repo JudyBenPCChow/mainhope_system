@@ -6,6 +6,7 @@ import {
 } from "@/services/entitlementQueries"
 import {
  activeTrialsForSchedules,
+ enrollmentPassesDateGates,
  enrollmentsForSchedules,
  legacyRosterStudentsForSchedule,
  makeupsForSchedules,
@@ -34,28 +35,26 @@ function sortByName<T extends { fullName: string }>(rows: T[]): T[] {
  return [...rows].sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
 }
 
-/** 新路徑：active 宣告 ∪ 試堂 ∪（過渡）leave makeup */
+/** 新路徑：active 宣告（須仍就讀＋日閘）∪ 試堂 ∪（過渡）leave makeup */
 export function rosterStudentsFromDeclarations(
  context: ScheduleRosterContext,
  scheduleId: string,
  declarations: AttendanceDeclarationRow[]
 ): RosterStudentWithReason[] {
+ const schedule = context.schedules.find((s) => s.id === scheduleId)
  const byId = new Map<string, RosterStudentWithReason>()
- const nameByStudent = new Map<string, string>()
- for (const e of context.enrollments) {
-  nameByStudent.set(e.studentId, e.fullName)
- }
- for (const t of context.trials) {
-  if (!nameByStudent.has(t.studentId)) nameByStudent.set(t.studentId, t.fullName)
- }
- for (const l of context.leaves) {
-  if (!nameByStudent.has(l.studentId)) nameByStudent.set(l.studentId, l.fullName)
- }
+ const enrollmentByStudent = new Map(
+  context.enrollments
+   .filter((e) => !schedule || e.classId === schedule.classId)
+   .map((e) => [e.studentId, e] as const)
+ )
 
  for (const d of declarations.filter((row) => row.scheduleId === scheduleId && row.status === "active")) {
+  const enrollment = enrollmentByStudent.get(d.studentId)
+  if (!enrollment || !schedule || !enrollmentPassesDateGates(enrollment, schedule)) continue
   byId.set(d.studentId, {
    studentId: d.studentId,
-   fullName: nameByStudent.get(d.studentId) ?? "—",
+   fullName: enrollment.fullName,
    reasonCode: "eligible_declared",
   })
  }

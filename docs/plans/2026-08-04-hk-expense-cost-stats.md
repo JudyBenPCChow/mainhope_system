@@ -1,7 +1,12 @@
-# HK 成本統計（儀表板＋入帳）— 實作計劃
+# HK 成本統計（儀表板＋入帳）— 實作計劃（已取代）
+
+> **已取代**：產品方向改為「管理分析＋計糧過帳＋預留純利」。請用  
+> [`2026-08-05-hk-expense-cost-stats.md`](./2026-08-05-hk-expense-cost-stats.md)  
+> 與分題 [`../backlog/hk-expense-cost-stats.md`](../backlog/hk-expense-cost-stats.md)。  
+> 下文僅作 2026-08-04 歷史備查（Excel／Notion 對齊語態；live／雙源細節已過時）。
 
 > 日期：2026-08-04（修訂：納入 Notion 日記帳）  
-> 狀態：**待實作**（計劃已 rev；索引／分題見落地順序 §7）  
+> 狀態：**superseded**（2026-08-05）  
 > 索引：[`docs/BACKLOG.md`](../BACKLOG.md) · 分題 [`docs/backlog/hk-expense-cost-stats.md`](../backlog/hk-expense-cost-stats.md)  
 > 歷史資料來源（只匯入一次，之後改系統入帳）：  
 > 1. Excel：`…/Accounting/26-27 會計年度/26-27 mainhope accounting .xlsx`（**只 HK 月表**）  

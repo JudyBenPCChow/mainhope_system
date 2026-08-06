@@ -26,9 +26,12 @@ import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  ensureEntitlementPoolAndDeclarations,
+ fetchActiveDeclarationsForSchedules,
  remintPoolAfterPeriodChange,
  syncSingleLessonDeclarations,
+ voidStudentDeclarationsOnClassFromDate,
 } from "@/services/entitlementQueries"
+import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -918,7 +921,8 @@ async function filterSlotsForEnrollmentPeriod(
  classId: string,
  enrollmentPeriod: EnrollmentFormValue | null,
  scheduleIds: string[] | undefined,
- slots: ScheduleSlotRow[]
+ slots: ScheduleSlotRow[],
+ opts?: { studentId?: string }
 ): Promise<ScheduleSlotRow[]> {
  const isSingle = isSingleSessionEnrollment(enrollmentPeriod)
  if (isSingle) {
@@ -926,6 +930,20 @@ async function filterSlotsForEnrollmentPeriod(
   return slots.filter((s) => selected.has(s.id))
  }
  const config = await fetchClassEnrollmentConfig(classId)
+ // Wave 2：2627+ 應到 slots 改讀宣告，禁止日期推期數
+ if (usesEntitlementRosterModel(config.academicYearLabel) && opts?.studentId) {
+  const decls = await fetchActiveDeclarationsForSchedules(slots.map((s) => s.id))
+  const declared = new Set(
+   decls.filter((d) => d.studentId === opts.studentId).map((d) => d.scheduleId)
+  )
+  if (declared.size > 0) {
+   return slots.filter((s) => declared.has(s.id))
+  }
+  // 尚無宣告（新報讀／未同步）：正規全期暫用全部未來堂做衝突檢查
+  if (!isSummerTwoPeriodMode(config.courseMode)) {
+   return slots
+  }
+ }
  if (!isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
   return slots
  }
@@ -1004,7 +1022,13 @@ async function loadStudentMustAttendSlots(
   const scheduleIds = isSingleSessionEnrollment(period)
    ? [...(sessionMap.get(enr.id) ?? [])]
    : undefined
-  const visible = await filterSlotsForEnrollmentPeriod(enr.class_id, period, scheduleIds, classSlots)
+  const visible = await filterSlotsForEnrollmentPeriod(
+   enr.class_id,
+   period,
+   scheduleIds,
+   classSlots,
+   { studentId }
+  )
   out.push(...visible)
  }
  return out
@@ -1050,7 +1074,8 @@ export async function findStudentEnrollmentScheduleConflicts(opts: {
   opts.classId,
   opts.enrollmentPeriod,
   opts.scheduleIds,
-  await fetchUpcomingScheduleSlotsForClass(opts.classId)
+  await fetchUpcomingScheduleSlotsForClass(opts.classId),
+  { studentId: opts.studentId }
  )
  if (targetSlots.length === 0) return []
 
@@ -1593,6 +1618,16 @@ export async function withdrawStudentFromClass(opts: {
  if (e2) {
   await supabase.from("enrollment_change_events").delete().eq("id", eventId)
   throw e2
+ }
+ // Wave 2：退讀生效日起 void 該班宣告（預約退讀亦清未來堂）
+ try {
+  await voidStudentDeclarationsOnClassFromDate({
+   studentId: opts.studentId,
+   classId: opts.classId,
+   fromDate: effectiveDate,
+  })
+ } catch (err) {
+  console.error("voidStudentDeclarationsOnClassFromDate failed", opts.enrollmentId, err)
  }
  await syncStudentEnrollmentState(opts.studentId)
 }

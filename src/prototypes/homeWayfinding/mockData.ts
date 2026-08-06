@@ -41,15 +41,15 @@ export const MOCK_ADMIN_ALERTS: MockAlert[] = [
     tone: "warning",
     title: "3 堂尚未點名",
     detail: "今日仍有課堂未完成點名；未點名不會扣堂。",
-    actionLabel: "去點名",
+    actionLabel: "前往點名",
     destinationHint: "進行點名",
   },
   {
     id: "a2",
     tone: "error",
     title: "5 位學生欠費需跟進",
-    detail: "含 2 位已逾期；可先查繳費紀錄再決定是否收款。",
-    actionLabel: "睇欠費",
+    detail: "其中 2 位已逾期；可先查閱繳費紀錄再決定是否收款。",
+    actionLabel: "查看欠費",
     destinationHint: "繳費／欠費跟進",
   },
   {
@@ -57,7 +57,7 @@ export const MOCK_ADMIN_ALERTS: MockAlert[] = [
     tone: "info",
     title: "收件匣有 2 則新通知",
     detail: "老師請假 ethan.b@example.com；家長報讀申請待審。",
-    actionLabel: "打開收件匣",
+    actionLabel: "開啟收件匣",
     destinationHint: "收件匣",
   },
 ]
@@ -65,42 +65,42 @@ export const MOCK_ADMIN_ALERTS: MockAlert[] = [
 export const MOCK_ADMIN_SCENARIOS: MockScenario[] = [
   {
     id: "s1",
-    title: "家長／學生嚟前台",
+    title: "家長／學生到前台",
     situation: "查詢、新生登記、報讀、收款一條龍",
     goesTo: "前台指引精靈",
     sidebarHint: "今日／前線",
   },
   {
     id: "s2",
-    title: "收學費／出收據",
-    situation: "已有學生檔，只係要登記付款",
+    title: "收取學費／開立收據",
+    situation: "學生資料已建檔，只需登記付款",
     goesTo: "收款登記",
     sidebarHint: "財務",
   },
   {
     id: "s3",
     title: "學生請假或補堂",
-    situation: "請假、補堂、調堂行政處理",
+    situation: "請假、補堂、調堂之行政處理",
     goesTo: "請假管理",
     sidebarHint: "課堂節奏",
   },
   {
     id: "s4",
-    title: "老師請假要搵代堂",
+    title: "老師請假需安排代堂",
     situation: "整理受影響課堂，安排代課",
     goesTo: "老師請假處理",
     sidebarHint: "今日／前線",
   },
   {
     id: "s5",
-    title: "搵或改學生資料",
+    title: "查詢或修改學生資料",
     situation: "電話、家長、報讀班別",
     goesTo: "學生管理",
     sidebarHint: "學生營運",
   },
   {
     id: "s6",
-    title: "改課堂時間／課室",
+    title: "調整課堂時間／課室",
     situation: "搬堂、取消、加開",
     goesTo: "排程管理",
     sidebarHint: "課堂節奏",
@@ -108,13 +108,13 @@ export const MOCK_ADMIN_SCENARIOS: MockScenario[] = [
   {
     id: "s7",
     title: "準備明日家長提醒",
-    situation: "睇明日課堂並起草通知",
+    situation: "查看明日課堂並起草通知",
     goesTo: "明日課堂提醒",
     sidebarHint: "今日／前線",
   },
   {
     id: "s8",
-    title: "開新班／改班務",
+    title: "開設新班／調整班務",
     situation: "班別名額、老師、上課日",
     goesTo: "班別管理",
     sidebarHint: "班務與人手",
@@ -206,9 +206,9 @@ export type MockTeacherShortcut = {
   detail: string
 }
 
-/** 老師次要用途：刻意少過而家首頁七粒掣 */
+/** 老師次要入口：刻意少於現行首頁多個近似按鈕 */
 export const MOCK_TEACHER_SHORTCUTS: MockTeacherShortcut[] = [
-  { id: "ts1", label: "時間表", detail: "睇未來幾日課堂" },
+  { id: "ts1", label: "時間表", detail: "查看未來數日課堂" },
   { id: "ts2", label: "我的班別", detail: "學生名單與班務" },
   { id: "ts3", label: "我的一對一", detail: "私人班學生" },
   { id: "ts4", label: "預約空房", detail: "申請課室" },

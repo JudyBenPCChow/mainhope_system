@@ -23,6 +23,7 @@ import {
  MessageSquareQuote,
  NotebookPen,
  Percent,
+ PieChart,
  Plus,
  Scale,
  School,
@@ -192,6 +193,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/MgmtDashboard", label: "營運總覽", roles: ["manager", "alien"], icon: BarChart3 },
    { path: "/StaffPerformance", label: "員工績效", roles: ["manager", "alien"], icon: TrendingUp },
+   { path: "/HkExpenses", label: "成本統計", roles: ["manager", "alien"], icon: PieChart },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],

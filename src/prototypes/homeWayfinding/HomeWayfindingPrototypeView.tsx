@@ -14,7 +14,7 @@ const ROLE_OPTIONS: { value: SandboxRole; label: string }[] = [
 
 /**
  * 首頁 wayfinding UX 沙盒。
- * 硬編碼假資料；不呼叫 services／Supabase；按鈕唔跳正式路由。
+ * 硬編碼假資料；不呼叫 services／Supabase；按鈕不跳轉正式路由。
  */
 export function HomeWayfindingPrototypeView() {
   const [role, setRole] = useState<SandboxRole>("admin")
@@ -38,18 +38,18 @@ export function HomeWayfindingPrototypeView() {
           <div className="min-w-0 space-y-1">
             <p className="font-medium text-foreground">首頁指引 UX 沙盒（行政／老師）</p>
             <p className="text-muted-foreground">
-              純畫面參考：唔接真實資料庫、唔跳去正式系統頁。撳任何掣只會顯示底部提示，方便對齊「員工點樣搵功能」。
+              純畫面參考：不連接真實資料庫，亦不跳轉至正式系統頁面。點選任何按鈕僅顯示底部提示，用以核對「職員如何找到功能」。
             </p>
             <ul className="list-inside list-disc text-muted-foreground">
-              <li>行政：今日待辦 +「我想做…」情境卡（取代功能目錄式快速入口）</li>
-              <li>老師：先點名、再今日課堂；次要入口收斂，減少近似掣</li>
+              <li>行政：今日待辦＋「我想做…」情境卡（取代功能目錄式快速入口）</li>
+              <li>老師：先點名、再今日課堂；次要入口收斂，減少近似按鈕</li>
             </ul>
           </div>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-muted-foreground">切換角色睇兩套首頁草案</p>
+        <p className="text-sm text-muted-foreground">切換角色以檢視兩套首頁草案</p>
         <div
           className="flex rounded-lg border border-border bg-muted/30 p-0.5"
           role="group"
@@ -88,7 +88,7 @@ export function HomeWayfindingPrototypeView() {
             <p className="min-w-0 flex-1">
               <span className="font-medium">沙盒預覽</span>
               <span className="mt-0.5 block text-background/80">
-                已模擬撳「{previewLabel}」— 唔會進入正式系統。
+                已模擬點選「{previewLabel}」— 不會進入正式系統。
               </span>
             </p>
             <button

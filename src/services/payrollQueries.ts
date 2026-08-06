@@ -26,7 +26,10 @@ import {
   coursePricesFromClassEmbed,
   unitPriceForConsumedLesson,
 } from "@/services/mgmtDashboardQueries"
-import { fetchEnrollmentCountByClass } from "@/services/scheduleQueries"
+import {
+  fetchScheduleRosterContext,
+  rosterHeadcountForSchedule,
+} from "@/services/scheduleRosterQueries"
 import { fetchAllTeachers, normalizeTeacherEmploymentStatus } from "@/services/teacherQueries"
 import type {
   ManualAdjustment,
@@ -284,10 +287,11 @@ export async function buildLessonInputsForMonth(monthKey: string): Promise<Payro
   for (const a of attendance) {
     pricePairs.push({ studentId: a.studentId, classId: a.classId })
   }
-  const classIds = [...new Set(schedules.map((s) => s.classId).filter(Boolean))]
-  const [enrMap, rosterByClass] = await Promise.all([
+  // 未點名判定必須跟點名紙一致：該堂日期可見報讀（期數／報讀日／退讀日）＋試堂＋補堂；
+  // 不可只用班別「而家就讀中」人數（會把第二期生誤判成七月未點名）。
+  const [enrMap, rosterContext] = await Promise.all([
     fetchEnrollmentPeriods(pricePairs),
-    fetchEnrollmentCountByClass(classIds),
+    fetchScheduleRosterContext(schedules.map((s) => s.id)),
   ])
 
   const lessons: PayrollLessonInput[] = []
@@ -295,8 +299,8 @@ export async function buildLessonInputsForMonth(monthKey: string): Promise<Payro
     if (isHomeworkClass(s.subject, s.courseName)) continue
     const cancelled = isScheduleCancelled(s.status)
     const att = bySchedule.get(s.id) ?? []
-    const expectedRosterCount = rosterByClass.get(s.classId) ?? 0
-    // 無人報讀 → 不會有點名，不計入、不標異常
+    const expectedRosterCount = rosterHeadcountForSchedule(rosterContext, s.id)
+    // 該堂點名紙無人 → 不會有點名，不計入、不標異常
     if (!cancelled && att.length === 0 && expectedRosterCount === 0) continue
     const missingRollCall = !cancelled && att.length === 0 && expectedRosterCount > 0
     const { labels, band } = resolvePayrollGradeBand(s.grade, s.gradeCode)
@@ -938,7 +942,7 @@ export async function settlePayrollMonth(
   const nowIso = new Date().toISOString()
   const { data: run, error: fetchErr } = await supabase
     .from("payroll_runs")
-    .select("calc_version, status")
+    .select("calc_version, status, month_key")
     .eq("id", runId)
     .single()
   if (fetchErr) throw new Error(fetchErr.message)
@@ -958,6 +962,29 @@ export async function settlePayrollMonth(
     })
     .eq("id", runId)
   if (error) throw new Error(error.message)
+
+  // 成本帳過帳（老師粒度；排除老師跟 teacher_states；origin_key 冪等）
+  const monthKey = String(run.month_key ?? "")
+  if (monthKey) {
+    try {
+      const states = await fetchTeacherStates(runId)
+      const excludedTeacherIds = new Set(
+        states.filter((s) => s.excluded).map((s) => s.teacherId)
+      )
+      const { postPayrollSettleToExpenseLedger } = await import(
+        "@/services/expenseQueries"
+      )
+      await postPayrollSettleToExpenseLedger({
+        monthKey,
+        settledBy,
+        teachers,
+        excludedTeacherIds,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      throw new Error(`計糧已結算，但成本帳過帳失敗：${msg}`)
+    }
+  }
 }
 
 export async function createPayrollAdjustment(input: {

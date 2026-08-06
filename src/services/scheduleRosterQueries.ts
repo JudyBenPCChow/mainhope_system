@@ -389,10 +389,13 @@ function periodCodeForSchedule(
  )
 }
 
-export function enrollmentIsVisibleOnRosterSchedule(
- context: ScheduleRosterContext,
- enrollment: ScheduleRosterEnrollment,
- schedule: ScheduleRosterSchedule
+/** 報讀／退讀生效日閘（宣告路徑與舊路徑共用；不含期數／單堂可見規則） */
+export function enrollmentPassesDateGates(
+ enrollment: Pick<
+  ScheduleRosterEnrollment,
+  "classId" | "enrollDate" | "withdrawEffectiveDate"
+ >,
+ schedule: Pick<ScheduleRosterSchedule, "classId" | "scheduledDate">
 ): boolean {
  if (schedule.classId !== enrollment.classId) return false
  if (enrollment.enrollDate && schedule.scheduledDate < enrollment.enrollDate) return false
@@ -402,6 +405,15 @@ export function enrollmentIsVisibleOnRosterSchedule(
  ) {
   return false
  }
+ return true
+}
+
+export function enrollmentIsVisibleOnRosterSchedule(
+ context: ScheduleRosterContext,
+ enrollment: ScheduleRosterEnrollment,
+ schedule: ScheduleRosterSchedule
+): boolean {
+ if (!enrollmentPassesDateGates(enrollment, schedule)) return false
  return enrollmentVisibleOnSchedule({
   enrollmentPeriod: enrollment.enrollmentPeriod,
   periodCode: periodCodeForSchedule(context, schedule),
@@ -531,17 +543,17 @@ export function rosterStudentsForSchedule(
  const schedule = context.schedules.find((row) => row.id === scheduleId)
  if (schedule && usesEntitlementRosterModel(schedule.academicYearLabel)) {
   const byId = new Map<string, string>()
-  const nameByStudent = new Map<string, string>()
-  for (const e of context.enrollments) nameByStudent.set(e.studentId, e.fullName)
-  for (const t of context.trials) {
-   if (!nameByStudent.has(t.studentId)) nameByStudent.set(t.studentId, t.fullName)
-  }
-  for (const l of context.leaves) {
-   if (!nameByStudent.has(l.studentId)) nameByStudent.set(l.studentId, l.fullName)
-  }
+  const enrollmentByStudent = new Map(
+   context.enrollments
+    .filter((e) => e.classId === schedule.classId)
+    .map((e) => [e.studentId, e] as const)
+  )
   for (const d of context.activeDeclarations ?? []) {
    if (d.scheduleId !== scheduleId || d.status !== "active") continue
-   byId.set(d.studentId, nameByStudent.get(d.studentId) ?? "—")
+   const enrollment = enrollmentByStudent.get(d.studentId)
+   // 須仍在就讀名單（RPC 已濾已退讀）且通過報讀／退讀日閘
+   if (!enrollment || !enrollmentPassesDateGates(enrollment, schedule)) continue
+   byId.set(d.studentId, enrollment.fullName)
   }
   for (const row of activeTrialsForSchedules(context, [scheduleId])) {
    if (!byId.has(row.studentId)) byId.set(row.studentId, row.fullName)

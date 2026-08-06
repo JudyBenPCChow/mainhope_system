@@ -1,7 +1,7 @@
 # 報讀權益池＋到課宣告 — 實作計劃
 
 > 日期：2026-08-04  
-> 狀態：**in_progress**（Wave 1 ✅；**下一波 Wave 2**）  
+> 狀態：**in_progress**（Wave 1 ✅；Wave 2 宣告生命週期＋入口收斂 ✅；消耗／返還薄做 ✅；跟飛 2026-08-05：單元＋26SM 抽樣 ✅；prod live `2627` E2E 仍阻＝0 班）  
 > Backlog：[summer-enrollment-roster-consistency.md](../backlog/summer-enrollment-roster-consistency.md)  
 > 性質：開工清單；schema／服務／學年硬閘；**非**會計認列
 
@@ -86,7 +86,7 @@ usesEntitlementRosterModel(label):
 | --- | --- | --- |
 | **0** | 計劃＋遷移／回填寫死（本檔） | ✅ |
 | **1** | Schema＋RLS；lib gate／package／reason；entitlement＋eligibility service；roster 硬閘；`insertEnrollment`／改期鑄池＋自動宣告；shadow compare | ✅ 2026-08-04 |
-| **2** | 補堂／取消／請假／新增排程寫宣告；消耗／返還對齊 §3.6；入口全面收斂；見 §8 | ⬜ **下一波** |
+| **2** | 補堂／取消／請假／新增排程寫宣告；消耗／返還對齊 §3.6；入口全面收斂；見 §8 | ✅ **本波已落地核心**（2026-08-05；抬池雙源／閉環 Phase A 仍不做） |
 | **3** | 手動加名 §3.8 UI＋例外；reason code 上紙；對照 UI | ⬜ |
 | **4** | `26SM` 日落評估；廢 `makeup_of` 止血 | ⬜ |
 
@@ -177,11 +177,14 @@ usesEntitlementRosterModel(label):
 
 ### 8.4 驗證（Wave 2 出門檻）
 
-- [ ] `2627`：報讀 → 加排程 → 點名紙有人；取消再補回 → 同生仍在新堂、池未轉包裝
-- [ ] 點名計費狀態 → `remaining` 減；改病假／事假 → 返還
-- [ ] `26SM` 抽樣（含觸發班跨期補回）行為不變
-- [ ] Shadow：抽樣 `2627` 班 `missing_in_new`＝0（或僅已解釋例外）
-- [ ] `npm run build`
+- [x] `2627` 取消→補回繼承同 `pool_id`、無宣告不上紙（單元：`scheduleRosterQueries.test` Wave2 跟飛；2026-08-05）
+- [ ] `2627` **prod／sandbox live**：報讀→加排程→點名紙→取消再補回（**阻**：prod `2627` 班＝0、池／宣告／消耗事件＝0；staging INACTIVE）
+- [x] 點名計費→消耗／病假事假→返還之 **delta 語意**（單元：`entitlementConsumptionDelta.test`；寫入路徑仍靠 `saveAttendanceStatus` 薄接，live 待有 `2627` 堂）
+- [x] `26SM` 觸發班抽樣：`26SM-ENGS5009-A` 黃渲棋（第一期）於 8/2 補回堂仍有點名列「現場」×2；`makeup_of`＋補回日備註仍在（舊路徑未壞）
+- [x] Shadow helper：缺宣告 → `missingInNew`；有宣告 → 空差（單元：`rosterEligibilityService.test`）
+- [ ] Shadow：**真實** `2627` 班抽樣 `missing_in_new`＝0（阻：尚無 `2627` 班）
+- [x] `npm run build`（2026-08-05 複驗通過；本波＋日閘修補無新 TS 錯）
+- [x] `vitest` Wave2 相關 20 測通過（gate／消耗 delta／roster／shadow；2026-08-05）
 
 ### 8.5 Wave 2 明確不做
 
@@ -189,4 +192,16 @@ usesEntitlementRosterModel(label):
 - reason code 點名紙展示（→ Wave 3）
 - `26SM` 切換／廢 `makeup_of`（→ Wave 4）
 - 收款／月費／收入認列
+- 加排程強制抬 `remaining`（真源未鎖；`allowRaisePool: false`）
 
+### 8.6 Wave 2 落地索引（2026-08-05）
+
+| 事件 | 落點 |
+| --- | --- |
+| 取消 void 宣告 | `scheduleLifecycleQueries.applySoftCancelScheduleSideEffects` → `voidActiveDeclarationsForSchedules` |
+| 補回繼承 pool | `scheduleMakeupQueries.arrangeMakeupForCancelledSchedule` → `inheritDeclarationsAcrossSchedules`（含讀已 void 原堂）＋單堂 `syncSingleLessonDeclarations` |
+| 請假調堂 | `leaveQueries.updateLeaveMakeupRecord`／`setLeaveTuitionDisposition` → `syncStudentMakeupDeclaration` |
+| 加／批次排程補缺宣告 | `insertScheduleRow`／`insertSchedulesForClassSession`／`executeBatchSchedules` → `syncDeclarationsAfterSchedulesAdded`（不抬池） |
+| 消耗／返還 | `attendanceQueries.saveAttendanceStatus`／`deleteAttendanceStatusForSchedule` → `applyEntitlementConsumptionDelta` |
+| 入口收斂 | `fetchRosterForRollCall`、`fetchClassStudents`、`filterSlotsForEnrollmentPeriod`、`fetchScheduleIdsWithRollCallTargets`、`fetchRetainScheduleIdsForStudent`：gated 年禁日期推期數；宣告路徑另套報讀／退讀日閘 |
+| 退讀 void 未來宣告 | `withdrawStudentFromClass` → `voidStudentDeclarationsOnClassFromDate` |

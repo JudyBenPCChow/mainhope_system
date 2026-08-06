@@ -58,6 +58,7 @@ const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
 const StaffPerformance = lazy(() => import("@/pages/StaffPerformance"))
+const HkExpenses = lazy(() => import("@/pages/HkExpenses"))
 const Payroll = lazy(() => import("@/pages/Payroll"))
 const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
 const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
@@ -91,6 +92,8 @@ export default function App() {
       }
      />
     ) : null}
+    {/* 首頁 wayfinding UX 沙盒：免登入、不掛側欄、不接 DB */}
+    <Route path="/prototype/HomeWayfinding" element={<PrototypeHomeWayfinding />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
@@ -186,6 +189,20 @@ export default function App() {
         }
        >
         <StaffPerformance />
+       </Suspense>
+      }
+     />
+     <Route
+      path="/HkExpenses"
+      element={
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入成本統計…
+         </div>
+        }
+       >
+        <HkExpenses />
        </Suspense>
       }
      />

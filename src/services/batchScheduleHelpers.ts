@@ -16,6 +16,7 @@ import {
  nextSessionNumberForClass,
  type ClassRecord,
 } from "@/services/classQueries"
+import { syncDeclarationsAfterSchedulesAdded } from "@/services/entitlementQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
@@ -222,7 +223,7 @@ export async function executeBatchSchedules(params: {
       consecutive_group_id: groupId,
       consecutive_slot_index: 1,
      },
-     { skipInboxEvent: true }
+     { skipInboxEvent: true, skipDeclarationSync: true }
     )
     await insertScheduleRow(
      {
@@ -236,7 +237,7 @@ export async function executeBatchSchedules(params: {
       consecutive_group_id: groupId,
       consecutive_slot_index: 2,
      },
-     { skipInboxEvent: true }
+     { skipInboxEvent: true, skipDeclarationSync: true }
     )
     nextSession += 2
    } else {
@@ -251,7 +252,7 @@ export async function executeBatchSchedules(params: {
       classroom_id: classroomId,
       session_number: nextSession,
      },
-     { skipInboxEvent: true }
+     { skipInboxEvent: true, skipDeclarationSync: true }
     )
     nextSession += 1
    }
@@ -277,6 +278,7 @@ export async function executeBatchSchedules(params: {
  }
 
  if (createdDates.length > 0) {
+  await syncDeclarationsAfterSchedulesAdded(classId)
   const sorted = [...createdDates].sort()
   const rangeLabel =
    sorted.length === 1 ? sorted[0]! : `${sorted[0]}～${sorted[sorted.length - 1]}`

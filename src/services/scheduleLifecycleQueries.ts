@@ -9,6 +9,7 @@ import {
  formatAttendanceHitsDescription,
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
+import { voidActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
 
 export type SoftCancelScheduleOptions = {
  cancel_reason?: string | null
@@ -127,7 +128,7 @@ function formatSoftCancelGateError(impact: SoftCancelScheduleImpact): string {
 
 /**
  * 軟取消副作用（唔改 schedules.status；由 updateSchedule／bulk 呼叫）。
- * 序：閘門 → 刪出席（若選）→ 取消試堂 → 調堂改待安排。
+ * 序：閘門 → 刪出席（若選）→ 取消試堂 → 調堂改待安排 → void 宣告。
  */
 export async function applySoftCancelScheduleSideEffects(
  scheduleIds: string[],
@@ -182,6 +183,9 @@ export async function applySoftCancelScheduleSideEffects(
    if (error) throw error
   }
  }
+
+ // Wave 2：取消原堂 → active 宣告 void；不扣池
+ await voidActiveDeclarationsForSchedules(impact.scheduleIds)
 
  return impact
 }

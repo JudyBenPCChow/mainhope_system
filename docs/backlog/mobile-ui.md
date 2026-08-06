@@ -8,15 +8,17 @@
 | 不含 | 家長 Portal、學生端登入殼 |
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 盤點 | 2026-07-30；落地＋模擬：2026-08-01 |
-| 模擬 | [波次 1 殼層](../audits/2026-08-01-mobile-shell-wave1-sim.md) · [波次 2](../audits/2026-08-01-mobile-wave2-sim.md) · [波次 3 一對一](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
+| 盤點 | 2026-07-30；落地＋模擬：2026-08-01；三角色覆核：2026-08-05 |
+| 模擬 | [波次 1 殼層](../audits/2026-08-01-mobile-shell-wave1-sim.md) · [波次 2](../audits/2026-08-01-mobile-wave2-sim.md) · [波次 3 一對一](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) · [三角色裝置](../audits/2026-08-05-mobile-roles-devices-sim.md) |
 | 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
 | 行政模擬 | 見 §F |
 
-## 結論（2026-08-01）
+## 結論（2026-08-05 覆核）
 
-殼層＋行政／老師**日常高頻頁**已有手機替代（卡片／FilterSheet／日視圖），模擬報告無中高嚴重度擋操作項。  
-**仍欠**：營運總覽、外星人底欄專屬頁、底欄 IA／P3 捷徑、觸控高度統一、大量次要 CRUD／報表。
+殼層＋行政／老師**日常高頻頁**仍 Pass（波次 1–3 **無回歸惡化**）。  
+**仍欠（高）**：營運總覽、外星人首頁／報錯／日志（`min-w` 大表）。  
+**仍欠（中）**：老師 P3 排程捷徑／scope 文案、Inbox 底欄到達、Schedule／Payments FilterSheet、觸控 `h-10`、約房多步。  
+**更正**：行政底欄**已有排程**（舊述「無排程」過時）；仍無學生／Inbox／收款捷徑。
 
 學生詳情老師繳費／請假旁路已清 → [role-ops-hardening.md](./role-ops-hardening.md) `done`。
 
@@ -38,13 +40,13 @@
 
 | 優先 | 項 | 說明 |
 | --- | --- | --- |
-| 下一波 | 營運總覽 MgmtDashboard | 多表橫滑＋圖表擠壓；無手機簡化版 |
-| 可後做 | 外星人 AlienGodViewHome、SystemIssues | 底欄入口仍 `min-w` 大表 |
-| P3 | 老師底欄／首頁排程捷徑；scope 提示勿只桌面顯示 | §E |
-| 共用 | Schedule FilterSheet；觸控對齊 §14 `h-10`；雙重 padding | §A／§B |
+| 下一波 | 營運總覽 MgmtDashboard | 多表橫滑＋圖表擠壓；無手機簡化版（[08-05 M-1](../audits/2026-08-05-mobile-roles-devices-sim.md)） |
+| 可後做 | 外星人 AlienGodViewHome、SystemIssues、SystemLogs | 底欄有報錯入口，內容仍 `min-w` 大表（M-2～M-4） |
+| P3 | 老師底欄／首頁排程捷徑；scope 提示勿只桌面顯示 | §E；M-5／M-6 |
+| 共用 | Schedule／Payments FilterSheet；觸控對齊 §14 `h-10`；雙重 padding；Inbox 底欄到達 | §A／§B；M-7～M-11 |
 | 低 | 次要 CRUD／報表（Courses、Availability、Enrollment、Reports…） | §D |
 
-低嚴重度模擬取捨（非擋操作，可選收斂）：W2-1～W2-4、W3-1～W3-3（見各 sim 報告 §4）。
+低嚴重度模擬取捨（非擋操作，可選收斂）：W2-1～W2-4、W3-1～W3-3；08-05 M-13～M-18。
 
 ---
 
@@ -53,7 +55,7 @@
 | 嚴重度 | 問題 | 依據 |
 | --- | --- | --- |
 | 中 | 主區鎖 `max-w-lg`；多欄作業仍可能擠（高頻列表已改卡片後影響下降） | [`MobileLayout.tsx`](../../src/components/mobile/MobileLayout.tsx) |
-| 中 | 底欄 IA 偏角色：行政無排程／學生；老師無收件匣 | [`mobileNav.ts`](../../src/lib/mobileNav.ts) |
+| 中 | 底欄 IA 偏角色：行政有排程、仍無學生／Inbox／收款；老師無排程／Inbox；外星人無 Inbox | [`mobileNav.ts`](../../src/lib/mobileNav.ts)；[2026-08-05 sim](../audits/2026-08-05-mobile-roles-devices-sim.md) §2 |
 | ~~中~~ | ~~更新橫幅蓋底欄~~ | **已修** |
 | ~~中~~ | ~~阿Po 蓋詳情／點名 sheet~~ | **已修** |
 | ~~中~~ | ~~FilterSheet／NavDrawer 蓋 Dialog~~ | **已修** |

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
  activeTrialsForSchedules,
  enrollmentIsVisibleOnRosterSchedule,
+ enrollmentPassesDateGates,
  enrollmentsForSchedules,
  leavesForSchedule,
  makeupsForSchedules,
@@ -268,6 +269,168 @@ describe("schedule roster selectors", () => {
     ctx.schedules.find((row) => row.id === "schedule-makeup-p2-date")!
    )
   ).toBe(true)
+ })
+
+ it("2627 宣告路徑：須有就讀＋宣告，並套退讀生效日閘", () => {
+  const ctx = context()
+  const schedule = {
+   id: "schedule-2627",
+   classId: "class-a",
+   scheduledDate: "2026-09-15",
+   sessionNumber: 1,
+   academicYearId: "year-2627",
+   academicYearLabel: "2627",
+   courseMode: "regular" as const,
+   subject: "數學",
+   classKind: "group",
+   courseCodeFull: "2627-MATHS-A",
+   courseName: "正規數學",
+   dayOfWeek: "星期一",
+   timeSlot: "10:00-11:15",
+   lessonSlotsPerSession: 1 as const,
+  }
+  ctx.schedules.push(schedule)
+  const staying = enrollment("enrollment-stay", "仍就讀", null)
+  staying.enrollDate = "2026-09-01"
+  const leaving = enrollment("enrollment-leave", "將退讀", null)
+  leaving.enrollDate = "2026-09-01"
+  leaving.withdrawEffectiveDate = "2026-09-15"
+  ctx.enrollments.push(staying, leaving)
+  ctx.activeDeclarations = [
+   {
+    id: "d1",
+    scheduleId: "schedule-2627",
+    studentId: "仍就讀",
+    poolId: "p1",
+    status: "active",
+    supersededBy: null,
+    sourceEventType: "enrollment_auto",
+    sourceEventId: null,
+    manualReason: null,
+    createdAt: "2026-09-01T00:00:00Z",
+   },
+   {
+    id: "d2",
+    scheduleId: "schedule-2627",
+    studentId: "將退讀",
+    poolId: "p2",
+    status: "active",
+    supersededBy: null,
+    sourceEventType: "enrollment_auto",
+    sourceEventId: null,
+    manualReason: null,
+    createdAt: "2026-09-01T00:00:00Z",
+   },
+   {
+    id: "d3",
+    scheduleId: "schedule-2627",
+    studentId: "已退讀殘留",
+    poolId: "p3",
+    status: "active",
+    supersededBy: null,
+    sourceEventType: "enrollment_auto",
+    sourceEventId: null,
+    manualReason: null,
+    createdAt: "2026-09-01T00:00:00Z",
+   },
+  ]
+  expect(enrollmentPassesDateGates(leaving, schedule)).toBe(false)
+  expect(rosterStudentsForSchedule(ctx, "schedule-2627").map((r) => r.studentId)).toEqual([
+   "仍就讀",
+  ])
+ })
+
+ it("Wave2 跟飛：2627 取消後補回繼承同 pool 宣告；無宣告則不上紙", () => {
+  const cancelled = {
+   id: "sched-cancelled",
+   classId: "class-a",
+   scheduledDate: "2026-09-10",
+   sessionNumber: 1,
+   academicYearId: "year-2627",
+   academicYearLabel: "2627",
+   courseMode: "regular" as const,
+   subject: "數學",
+   classKind: "group",
+   courseCodeFull: "2627-MATHS-A",
+   courseName: "正規數學",
+   dayOfWeek: "星期四",
+   timeSlot: "10:00-11:15",
+   lessonSlotsPerSession: 1 as const,
+  }
+  const makeup = {
+   ...cancelled,
+   id: "sched-makeup",
+   scheduledDate: "2026-10-01",
+   sessionNumber: 20,
+  }
+  const student = enrollment("enrollment-full", "跟飛生", null)
+  student.enrollDate = "2026-09-01"
+  const ctx: ScheduleRosterContext = {
+   schedules: [cancelled, makeup],
+   periods: [],
+   enrollments: [student],
+   enrollmentScheduleIds: new Map(),
+   enrollmentSessionNumbers: new Map(),
+   trials: [],
+   leaves: [],
+   attendance: [],
+   // 模擬取消後 void 原堂；補回繼承同一 pool_id
+   activeDeclarations: [
+    {
+     id: "decl-void",
+     scheduleId: "sched-cancelled",
+     studentId: "跟飛生",
+     poolId: "pool-regular",
+     status: "void",
+     supersededBy: null,
+     sourceEventType: "class_cancel",
+     sourceEventId: null,
+     manualReason: null,
+     createdAt: "2026-09-01T00:00:00Z",
+    },
+    {
+     id: "decl-inherited",
+     scheduleId: "sched-makeup",
+     studentId: "跟飛生",
+     poolId: "pool-regular",
+     status: "active",
+     supersededBy: null,
+     sourceEventType: "class_reschedule",
+     sourceEventId: null,
+     manualReason: null,
+     createdAt: "2026-09-11T00:00:00Z",
+    },
+   ],
+  }
+  expect(rosterStudentsForSchedule(ctx, "sched-cancelled").map((r) => r.studentId)).toEqual([])
+  expect(rosterStudentsForSchedule(ctx, "sched-makeup").map((r) => r.studentId)).toEqual([
+   "跟飛生",
+  ])
+  expect(ctx.activeDeclarations!.find((d) => d.scheduleId === "sched-makeup")!.poolId).toBe(
+   "pool-regular"
+  )
+
+  // 無宣告：即使就讀中亦不應出現（禁止日期推期數）
+  const noDecl = { ...ctx, activeDeclarations: [] }
+  expect(rosterStudentsForSchedule(noDecl, "sched-makeup").map((r) => r.studentId)).toEqual([])
+ })
+
+ it("報讀日在排程之後：第二期生不應出現在第一期堂點名紙（計糧未點名勿誤判）", () => {
+  const ctx = context()
+  const late = enrollment("enrollment-p2-late", "朱俊賢", "第二期")
+  late.enrollDate = "2026-08-02"
+  ctx.enrollments = [late, enrollment("enrollment-both", "兩期生", "兩期全報")]
+  ctx.trials = []
+  ctx.leaves = []
+  // schedule-1 = 2026-07-10（第一期）
+  expect(enrollmentPassesDateGates(late, ctx.schedules[0]!)).toBe(false)
+  expect(
+   enrollmentIsVisibleOnRosterSchedule(ctx, late, ctx.schedules[0]!)
+  ).toBe(false)
+  expect(rosterStudentsForSchedule(ctx, "schedule-1").map((r) => r.studentId)).toEqual([
+   "兩期生",
+  ])
+  expect(rosterHeadcountForSchedule(ctx, "schedule-1")).toBe(1)
  })
 })
 

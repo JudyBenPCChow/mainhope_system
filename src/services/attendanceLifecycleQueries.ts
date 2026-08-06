@@ -9,10 +9,12 @@ import {
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
+import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
+import { fetchActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
 import { logMgmtAuditActionOrThrow } from "@/services/mgmtGodViewQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 
@@ -147,15 +149,24 @@ export async function fetchRetainScheduleIdsForStudent(params: {
  ]
 
  const classYear = new Map<string, string | null>()
+ const classYearLabel = new Map<string, string | null>()
  if (classIds.length > 0) {
   const { data: classes, error: classErr } = await supabase
    .from("classes")
-   .select("id, academic_year_id")
+   .select("id, academic_year_id, academic_years ( label )")
    .in("id", classIds)
   if (classErr) throw classErr
   for (const c of classes ?? []) {
-   const row = c as { id: string; academic_year_id?: string | null }
+   const row = c as {
+    id: string
+    academic_year_id?: string | null
+    academic_years?: { label?: string } | null
+   }
    classYear.set(String(row.id), row.academic_year_id != null ? String(row.academic_year_id) : null)
+   classYearLabel.set(
+    String(row.id),
+    row.academic_years?.label != null ? String(row.academic_years.label) : null
+   )
   }
  }
 
@@ -202,7 +213,22 @@ export async function fetchRetainScheduleIdsForStudent(params: {
    .map((row) => String((row as { id: string }).id))
   const enrolledScheduleIds = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
 
-  // periods for period-code visibility
+  // Wave 2：gated 學年以宣告決定 retain，禁止日期推期數
+  const gatedCandidateIds = (schedRows ?? [])
+   .filter((s) => {
+    const classId = (s as { class_id?: string | null }).class_id
+    if (!classId) return false
+    return usesEntitlementRosterModel(classYearLabel.get(String(classId)) ?? null)
+   })
+   .map((s) => String((s as { id: string }).id))
+  if (gatedCandidateIds.length > 0) {
+   const decls = await fetchActiveDeclarationsForSchedules(gatedCandidateIds)
+   for (const d of decls) {
+    if (d.studentId === params.studentId) retain.add(d.scheduleId)
+   }
+  }
+
+  // periods for period-code visibility（僅 legacy／非 gated）
   const yearIds = [...new Set([...classYear.values()].filter((id): id is string => Boolean(id)))]
   const periodByYearDate = new Map<string, string>()
   if (yearIds.length > 0) {
@@ -228,6 +254,7 @@ export async function fetchRetainScheduleIdsForStudent(params: {
    const ymd = String((s as { scheduled_date?: string }).scheduled_date ?? "").slice(0, 10)
    const yearId = classId ? classYear.get(String(classId)) : null
    if (!classId) continue
+   if (usesEntitlementRosterModel(classYearLabel.get(String(classId)) ?? null)) continue
 
    let periodCode: 1 | 2 | null = null
    if (yearId) {
