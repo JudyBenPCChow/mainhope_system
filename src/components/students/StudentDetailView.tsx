@@ -328,7 +328,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [leaveMakeupScheduleId, setLeaveMakeupScheduleId] = useState("")
  const [leaveMakeupSearch, setLeaveMakeupSearch] = useState("")
  const [leaveMakeupCandidates, setLeaveMakeupCandidates] = useState<ScheduleManageRow[]>([])
- const [leaveConsecutiveScope, setLeaveConsecutiveScope] = useState<ConsecutiveLeaveScope>("all")
+ const [leaveConsecutiveScope, setLeaveConsecutiveScope] = useState<ConsecutiveLeaveScope>("this_slot")
  const [leaveRemarks, setLeaveRemarks] = useState("")
  const [leaveSaving, setLeaveSaving] = useState(false)
  const [leaveErr, setLeaveErr] = useState<string | null>(null)
@@ -1028,7 +1028,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   setLeaveMakeup("待安排")
   setLeaveMakeupScheduleId("")
   setLeaveMakeupSearch("")
-  setLeaveConsecutiveScope("all")
+  setLeaveConsecutiveScope("this_slot")
   setLeaveRemarks("")
   setLeaveDialogOpen(true)
   try {
@@ -1099,6 +1099,18 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     return
    }
   }
+  const consecutiveScope = sched.consecutive_group_id ? leaveConsecutiveScope : "this_slot"
+  if (
+   consecutiveScope === "all" &&
+   !(await confirmDialog({
+    title: "連堂兩節一併請假",
+    description: "將建立兩筆請假，欠補最多 2 堂。若只欠一節，請改選「只請本節」。",
+    confirmText: "確認兩節一併",
+    tone: "warning",
+   }))
+  ) {
+   return
+  }
   setLeaveSaving(true)
   setLeaveErr(null)
   try {
@@ -1113,7 +1125,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
     makeup_date: makeupRow?.scheduled_date ?? null,
     remarks: leaveRemarks.trim() || null,
     status: "待補課",
-    consecutiveScope: sched.consecutive_group_id ? leaveConsecutiveScope : "this_slot",
+    consecutiveScope,
    })
    setLeaveDialogOpen(false)
    await reloadSubs()
@@ -2782,7 +2794,7 @@ const exportFutureSchedulesCsv = () => {
            value={leaveScheduleId}
            onChange={(e) => {
             setLeaveScheduleId(e.target.value)
-            setLeaveConsecutiveScope("all")
+            setLeaveConsecutiveScope("this_slot")
            }}
            disabled={!leaveClassId || leaveScheduleOptions.length === 0}
           >
@@ -2811,9 +2823,14 @@ const exportFutureSchedulesCsv = () => {
             value={leaveConsecutiveScope}
             onChange={(e) => setLeaveConsecutiveScope(e.target.value as ConsecutiveLeaveScope)}
            >
+            <option value="this_slot">只請本節（欠 1 堂；預設）</option>
             <option value="all">連堂兩節一併請假（欠最多 2 堂）</option>
-            <option value="this_slot">只請本節（欠 1 堂）</option>
            </Select>
+           {leaveConsecutiveScope === "all" ? (
+            <p className="text-xs text-warning">將欠補 2 堂；若只欠一節請改回「只請本節」。</p>
+           ) : (
+            <p className="text-xs text-muted-foreground">只欠一節時請維持此選項；兩節都欠才改「兩節一併」。</p>
+           )}
           </Field>
          ) : null}
          <Field label="原因">

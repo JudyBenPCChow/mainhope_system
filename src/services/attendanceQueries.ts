@@ -1048,98 +1048,67 @@ export type AttendanceRecordRow = {
  classTeacherId: string | null
 }
 
-function mapAttendanceRecord(r: Record<string, unknown>): AttendanceRecordRow {
- const st = r.students as Record<string, unknown> | null
- const cls = r.classes as (Record<string, unknown> & { teachers?: Record<string, unknown> | null }) | null
- const sched = r.schedules as
-  | (Record<string, unknown> & {
-     teachers?: Record<string, unknown> | null
-     original_teacher?: Record<string, unknown> | null
-    })
-  | null
- const classTeacherObj = cls?.teachers ?? null
- const scheduleTeacherObj = sched?.teachers ?? null
- const originalTeacherObj = sched?.original_teacher ?? null
- const sub = cls?.subject != null ? String(cls.subject) : "—"
- const course = cls?.courses as Record<string, unknown> | null
- const courseName = course?.course_name != null ? String(course.course_name) : null
- const courseCode =
-  cls?.course_code_full != null ? String(cls.course_code_full) : null
- const classTeacherId = cls?.teacher_id != null ? String(cls.teacher_id) : null
- const scheduleTeacherId = sched?.teacher_id != null ? String(sched.teacher_id) : null
- const teachingTeacherId = scheduleTeacherId ?? classTeacherId
- const teachingTeacherName =
-  scheduleTeacherObj?.full_name != null
-   ? String(scheduleTeacherObj.full_name)
-   : classTeacherObj?.full_name != null
-     ? String(classTeacherObj.full_name)
-     : null
+type AttendanceRecordRpcRow = {
+ id: string
+ student_id: string
+ class_id: string
+ schedule_id: string | null
+ attendance_date: string
+ status: string
+ remarks: string | null
+ updated_at: string | null
+ full_name: string | null
+ english_name: string | null
+ grade: string | null
+ subject: string | null
+ course_code_full: string | null
+ course_name: string | null
+ teacher_id: string | null
+ teacher_name: string | null
+ original_teacher_id: string | null
+ original_teacher_name: string | null
+ class_teacher_id: string | null
+}
+
+function mapAttendanceRecordRpc(r: AttendanceRecordRpcRow): AttendanceRecordRow {
+ const subject = r.subject != null ? String(r.subject) : "—"
+ const courseCode = r.course_code_full != null ? String(r.course_code_full) : null
+ const courseName = r.course_name != null ? String(r.course_name) : null
  return {
   id: String(r.id),
   studentId: String(r.student_id),
   classId: String(r.class_id),
   scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
-  attendanceDate: String(r.attendance_date ?? ""),
+  attendanceDate: String(r.attendance_date ?? "").slice(0, 10),
   status: String(r.status ?? ""),
   remarks: r.remarks != null ? String(r.remarks) : null,
   updatedAt: r.updated_at != null ? String(r.updated_at) : null,
-  studentName: st?.full_name != null ? String(st.full_name) : null,
-  studentEnglishName: st?.english_name != null ? String(st.english_name) : null,
-  studentGrade: st?.grade != null ? String(st.grade) : null,
-  classSubject: formatClassLabel({ subject: sub, courseCode, courseName }),
+  studentName: r.full_name != null ? String(r.full_name) : null,
+  studentEnglishName: r.english_name != null ? String(r.english_name) : null,
+  studentGrade: r.grade != null ? String(r.grade) : null,
+  classSubject: formatClassLabel({ subject, courseCode, courseName }),
   courseCode,
-  teacherId: teachingTeacherId,
-  teacherName: teachingTeacherName,
-  originalTeacherId:
-   sched?.original_teacher_id != null ? String(sched.original_teacher_id) : null,
+  teacherId: r.teacher_id != null ? String(r.teacher_id) : null,
+  teacherName: r.teacher_name != null ? String(r.teacher_name) : null,
+  originalTeacherId: r.original_teacher_id != null ? String(r.original_teacher_id) : null,
   originalTeacherName:
-   originalTeacherObj?.full_name != null ? String(originalTeacherObj.full_name) : null,
-  classTeacherId,
+   r.original_teacher_name != null ? String(r.original_teacher_name) : null,
+  classTeacherId: r.class_teacher_id != null ? String(r.class_teacher_id) : null,
  }
 }
 
+/** 日期範圍出席列表（專用 RPC；唔打 roster／深 embed） */
 export async function fetchAttendanceRecordsInRange(
  fromYmd: string,
  toYmd: string
 ): Promise<AttendanceRecordRow[]> {
  if (!supabase) return []
- const { data, error } = await supabase
-  .from("attendance_details")
-  .select(
-   "id, student_id, class_id, schedule_id, attendance_date, status, remarks, updated_at, students ( full_name, english_name, grade ), classes ( subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name ) ), schedules ( teacher_id, original_teacher_id, teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ) )"
-  )
-  .gte("attendance_date", fromYmd)
-  .lte("attendance_date", toYmd)
-  .order("attendance_date", { ascending: false })
-  .order("created_at", { ascending: false })
- if (error) throw error
- const mapped = (data ?? []).map((x) => mapAttendanceRecord(x as Record<string, unknown>))
- const scheduleIds = [
-  ...new Set(mapped.map((row) => row.scheduleId).filter((id): id is string => id != null)),
- ]
- if (scheduleIds.length === 0) return mapped
- const rosterContext = await fetchScheduleRosterContext(scheduleIds)
- const attendanceById = new Map(rosterContext.attendance.map((row) => [row.id, row]))
- const scheduleById = new Map(rosterContext.schedules.map((row) => [row.id, row]))
- return mapped.map((row) => {
-  const attendance = attendanceById.get(row.id)
-  const schedule = row.scheduleId ? scheduleById.get(row.scheduleId) : null
-  if (!attendance && !schedule) return row
-  const subject = schedule?.subject ?? row.classSubject ?? "—"
-  return {
-   ...row,
-   studentName: attendance?.fullName ?? row.studentName,
-   studentEnglishName: attendance?.englishName ?? row.studentEnglishName,
-   classSubject: schedule
-    ? formatClassLabel({
-       subject,
-       courseCode: schedule.courseCodeFull,
-       courseName: schedule.courseName,
-      })
-    : row.classSubject,
-   courseCode: schedule?.courseCodeFull ?? row.courseCode,
-  }
+ const { data, error } = await supabase.rpc("get_attendance_records_in_range", {
+  p_from_date: fromYmd,
+  p_to_date: toYmd,
  })
+ if (error) throw error
+ return ((data ?? []) as AttendanceRecordRpcRow[]).map(mapAttendanceRecordRpc)
 }
 
 export type AttendanceDayStats = {

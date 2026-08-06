@@ -176,7 +176,7 @@ export function LeaveManagementView() {
  const [addTuitionDisposition, setAddTuitionDisposition] = useState<LeaveTuitionDisposition>("減收")
  const [addMakeupScheduleId, setAddMakeupScheduleId] = useState("")
  const [addMakeupSearch, setAddMakeupSearch] = useState("")
- const [addConsecutiveScope, setAddConsecutiveScope] = useState<ConsecutiveLeaveScope>("all")
+ const [addConsecutiveScope, setAddConsecutiveScope] = useState<ConsecutiveLeaveScope>("this_slot")
  const [addRemarks, setAddRemarks] = useState("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
@@ -253,7 +253,7 @@ export function LeaveManagementView() {
   setAddTuitionDisposition("減收")
   setAddMakeupScheduleId("")
   setAddMakeupSearch("")
-  setAddConsecutiveScope("all")
+  setAddConsecutiveScope("this_slot")
   setAddRemarks("")
   setEnrolledClasses([])
   setScheduleOptions([])
@@ -576,6 +576,19 @@ export function LeaveManagementView() {
    return
   }
 
+  const consecutiveScope = sched.consecutive_group_id ? addConsecutiveScope : "this_slot"
+  if (
+   consecutiveScope === "all" &&
+   !(await confirmDialog({
+    title: "連堂兩節一併請假",
+    description: "將建立兩筆請假，欠補最多 2 堂。若只欠一節，請改選「只請本節」。",
+    confirmText: "確認兩節一併",
+    tone: "warning",
+   }))
+  ) {
+   return
+  }
+
   setAddSaving(true)
   setAddErr(null)
   try {
@@ -591,7 +604,7 @@ export function LeaveManagementView() {
     remarks: addRemarks.trim() || null,
     status: "待補課",
     tuition_disposition: addTuitionDisposition,
-    consecutiveScope: sched.consecutive_group_id ? addConsecutiveScope : "this_slot",
+    consecutiveScope,
    })
    setAddOpen(false)
    await reload()
@@ -1138,7 +1151,7 @@ export function LeaveManagementView() {
         value={addScheduleId}
         onChange={(e) => {
          setAddScheduleId(e.target.value)
-         setAddConsecutiveScope("all")
+         setAddConsecutiveScope("this_slot")
         }}
         disabled={!addClassId || scheduleOptions.length === 0}
        >
@@ -1164,9 +1177,14 @@ export function LeaveManagementView() {
          value={addConsecutiveScope}
          onChange={(e) => setAddConsecutiveScope(e.target.value as ConsecutiveLeaveScope)}
         >
+         <option value="this_slot">只請本節（欠 1 堂；預設）</option>
          <option value="all">連堂兩節一併請假（欠最多 2 堂）</option>
-         <option value="this_slot">只請本節（欠 1 堂；可另約連堂其中一節補回）</option>
         </Select>
+        {addConsecutiveScope === "all" ? (
+         <span className="text-xs text-warning">將欠補 2 堂；若只欠一節請改回「只請本節」。</span>
+        ) : (
+         <span className="text-xs text-muted-foreground">只欠一節時請維持此選項；兩節都欠才改「兩節一併」。</span>
+        )}
        </label>
       ) : null}
 

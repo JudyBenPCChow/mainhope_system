@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
 import {
@@ -33,6 +34,7 @@ type Props = {
 
 export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish }: Props) {
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [classes, setClasses] = useState<EnrolledClassOption[]>([])
  const [schedules, setSchedules] = useState<ClassScheduleOption[]>([])
  const [makeupCandidates, setMakeupCandidates] = useState<ScheduleManageRow[]>([])
@@ -122,6 +124,20 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
   return schedules.filter((s) => set.has(s.id))
  }, [schedules, selectedScheduleIds])
 
+ /** 有幾組連堂被整組勾選（兩節都勾＝欠 2 堂／組） */
+ const fullConsecutiveGroupCount = useMemo(() => {
+  const selectedSet = new Set(selectedScheduleIds)
+  const seenGroups = new Set<string>()
+  let count = 0
+  for (const s of schedules) {
+   if (!s.consecutive_group_id || seenGroups.has(s.consecutive_group_id)) continue
+   seenGroups.add(s.consecutive_group_id)
+   const peers = schedules.filter((p) => p.consecutive_group_id === s.consecutive_group_id)
+   if (peers.length > 1 && peers.every((p) => selectedSet.has(p.id))) count += 1
+  }
+  return count
+ }, [schedules, selectedScheduleIds])
+
  const onSubmit = async () => {
   if (saving) return
   if (!classId || selectedSorted.length === 0) {
@@ -139,6 +155,21 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
     setErr(makeupErr)
     return
    }
+  }
+
+  if (
+   fullConsecutiveGroupCount > 0 &&
+   !(await confirmDialog({
+    title: "連堂兩節一併請假",
+    description:
+     fullConsecutiveGroupCount === 1
+      ? "已勾選連堂兩節，將建立兩筆請假，欠補最多 2 堂。若只欠一節，請只勾其中一節。"
+      : `已有 ${fullConsecutiveGroupCount} 組連堂兩節都勾選，每組將欠補 2 堂。若只欠一節，請只勾該節。`,
+    confirmText: "確認兩節一併",
+    tone: "warning",
+   }))
+  ) {
+   return
   }
 
   setSaving(true)
@@ -301,10 +332,21 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
        </ul>
       )}
       {selectedScheduleIds.length > 0 ? (
-       <p className="text-xs text-success">
-        已選 {selectedScheduleIds.length} 項（連堂若只勾一節＝只請該節；兩節都勾＝整組請假）
+       <p
+        className={cn(
+         "text-xs",
+         fullConsecutiveGroupCount > 0 ? "text-warning" : "text-success"
+        )}
+       >
+        {fullConsecutiveGroupCount > 0
+         ? `已選 ${selectedScheduleIds.length} 項；其中 ${fullConsecutiveGroupCount} 組連堂兩節都勾＝整組請假（每組欠最多 2 堂）。只欠一節請只勾該節。`
+         : `已選 ${selectedScheduleIds.length} 項（連堂只勾一節＝只請該節、欠 1 堂；兩節都勾＝整組請假）`}
        </p>
-      ) : null}
+      ) : (
+       <p className="text-xs text-muted-foreground">
+        連堂預設只請所勾那一節；兩節都欠才要兩節都勾（提交時會再確認）。
+       </p>
+      )}
      </div>
 
      <div className="grid gap-4 sm:grid-cols-2">

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<title>Phoebe Tam 排程表</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "PingFang TC", "Hiragino Sans GB", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: #1a1a1a;
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 0;
+  }
+  h1 {
+    font-size: 18px;
+    margin: 0 0 4px;
+    font-weight: 700;
+  }
+  .meta {
+    color: #444;
+    margin-bottom: 14px;
+    font-size: 11px;
+  }
+  .meta strong { color: #111; }
+  h2 {
+    font-size: 13px;
+    margin: 16px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1.5px solid #222;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 5px 6px;
+    vertical-align: top;
+    word-wrap: break-word;
+  }
+  th {
+    background: #f3f3f3;
+    font-weight: 600;
+    text-align: left;
+  }
+  td.num, th.num { width: 28px; text-align: center; }
+  .muted { color: #777; font-size: 10px; }
+  .day-break td { border-top: 2px solid #888; }
+  .note {
+    margin-top: 12px;
+    color: #555;
+    font-size: 10px;
+  }
+  .summary {
+    display: flex;
+    gap: 18px;
+    margin: 8px 0 4px;
+  }
+  .summary span { white-space: nowrap; }
+</style>
+</head>
+<body>
+  <h1>Phoebe Tam 排程表</h1>
+  <div class="meta">
+    <div><strong>明學教育</strong>｜教師排程（含學生名單）</div>
+    <div class="summary">
+      <span>範圍：<strong>2026-08-07 至 2026-08-21</strong>（餘下正常堂）</span>
+      <span>班數：<strong>6</strong></span>
+      <span>堂數：<strong>30</strong></span>
+      <span>就讀中學生：<strong>4</strong></span>
+    </div>
+    <div>產生日期：2026-08-06</div>
+  </div>
+
+  <h2>一、班別與學生名單</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th style="width:18%">時段</th>
+        <th style="width:16%">科目／代碼</th>
+        <th style="width:28%">班別</th>
+        <th>學生名單</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+      <td class="num">1</td>
+      <td>10:15–11:30<br><span class="muted">星期五、星期六</span></td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td><span class="muted">（暫無就讀中學生）</span></td>
+    </tr>
+<tr>
+      <td class="num">2</td>
+      <td>11:30–12:45<br><span class="muted">星期五、星期六</span></td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>1. 蕭馥鎣（S6）</td>
+    </tr>
+<tr>
+      <td class="num">3</td>
+      <td>12:45–14:00<br><span class="muted">星期五、星期六</span></td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>1. 何迪寶（S3）<br>2. 蕭樂瑩（S3）<br>3. 鄧宇童（S3）</td>
+    </tr>
+<tr>
+      <td class="num">4</td>
+      <td>15:15–16:30<br><span class="muted">星期五、星期六</span></td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td><span class="muted">（暫無就讀中學生）</span></td>
+    </tr>
+<tr>
+      <td class="num">5</td>
+      <td>16:30–17:45<br><span class="muted">星期五、星期六</span></td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td><span class="muted">（暫無就讀中學生）</span></td>
+    </tr>
+<tr>
+      <td class="num">6</td>
+      <td>17:45–19:00<br><span class="muted">星期五、星期六</span></td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td><span class="muted">（暫無就讀中學生）</span></td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>二、逐堂排程列表</h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="num">#</th>
+        <th style="width:14%">日期</th>
+        <th style="width:12%">時間</th>
+        <th style="width:14%">科目／代碼</th>
+        <th style="width:22%">班別</th>
+        <th style="width:10%">課室</th>
+        <th>學生</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="">
+      <td class="num">1</td>
+      <td>2026-08-07<br><span class="muted">星期五</span></td>
+      <td>10:15–11:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">2</td>
+      <td></td>
+      <td>11:30–12:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>英仙座</td>
+      <td>蕭馥鎣（S6）</td>
+    </tr>
+<tr class="">
+      <td class="num">3</td>
+      <td></td>
+      <td>12:45–14:00</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>（未編課室）</td>
+      <td>何迪寶（S3）、蕭樂瑩（S3）、鄧宇童（S3）</td>
+    </tr>
+<tr class="">
+      <td class="num">4</td>
+      <td></td>
+      <td>15:15–16:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">5</td>
+      <td></td>
+      <td>16:30–17:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">6</td>
+      <td></td>
+      <td>17:45–19:00</td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="day-break">
+      <td class="num">7</td>
+      <td>2026-08-08<br><span class="muted">星期六</span></td>
+      <td>10:15–11:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">8</td>
+      <td></td>
+      <td>11:30–12:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>英仙座</td>
+      <td>蕭馥鎣（S6）</td>
+    </tr>
+<tr class="">
+      <td class="num">9</td>
+      <td></td>
+      <td>12:45–14:00</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>英仙座</td>
+      <td>何迪寶（S3）、蕭樂瑩（S3）、鄧宇童（S3）</td>
+    </tr>
+<tr class="">
+      <td class="num">10</td>
+      <td></td>
+      <td>15:15–16:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">11</td>
+      <td></td>
+      <td>16:30–17:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">12</td>
+      <td></td>
+      <td>17:45–19:00</td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="day-break">
+      <td class="num">13</td>
+      <td>2026-08-14<br><span class="muted">星期五</span></td>
+      <td>10:15–11:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">14</td>
+      <td></td>
+      <td>11:30–12:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>英仙座</td>
+      <td>蕭馥鎣（S6）</td>
+    </tr>
+<tr class="">
+      <td class="num">15</td>
+      <td></td>
+      <td>12:45–14:00</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>山案座</td>
+      <td>何迪寶（S3）、蕭樂瑩（S3）、鄧宇童（S3）</td>
+    </tr>
+<tr class="">
+      <td class="num">16</td>
+      <td></td>
+      <td>15:15–16:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">17</td>
+      <td></td>
+      <td>16:30–17:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">18</td>
+      <td></td>
+      <td>17:45–19:00</td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="day-break">
+      <td class="num">19</td>
+      <td>2026-08-15<br><span class="muted">星期六</span></td>
+      <td>10:15–11:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">20</td>
+      <td></td>
+      <td>11:30–12:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>英仙座</td>
+      <td>蕭馥鎣（S6）</td>
+    </tr>
+<tr class="">
+      <td class="num">21</td>
+      <td></td>
+      <td>12:45–14:00</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>英仙座</td>
+      <td>何迪寶（S3）、蕭樂瑩（S3）、鄧宇童（S3）</td>
+    </tr>
+<tr class="">
+      <td class="num">22</td>
+      <td></td>
+      <td>15:15–16:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">23</td>
+      <td></td>
+      <td>16:30–17:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">24</td>
+      <td></td>
+      <td>17:45–19:00</td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="day-break">
+      <td class="num">25</td>
+      <td>2026-08-21<br><span class="muted">星期五</span></td>
+      <td>10:15–11:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS1008-A</span></td>
+      <td>暑期升中一級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">26</td>
+      <td></td>
+      <td>11:30–12:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS6008-A</span></td>
+      <td>暑期升中六級化學班</td>
+      <td>英仙座</td>
+      <td>蕭馥鎣（S6）</td>
+    </tr>
+<tr class="">
+      <td class="num">27</td>
+      <td></td>
+      <td>12:45–14:00</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS3008-A</span></td>
+      <td>暑期升中三級綜合科學班</td>
+      <td>山案座</td>
+      <td>何迪寶（S3）、蕭樂瑩（S3）、鄧宇童（S3）</td>
+    </tr>
+<tr class="">
+      <td class="num">28</td>
+      <td></td>
+      <td>15:15–16:30</td>
+      <td>綜合科學<br><span class="muted">26SM-SCIS2008-A</span></td>
+      <td>暑期升中二級綜合科學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">29</td>
+      <td></td>
+      <td>16:30–17:45</td>
+      <td>化學<br><span class="muted">26SM-CHEMS4008-A</span></td>
+      <td>暑期升中四級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+<tr class="">
+      <td class="num">30</td>
+      <td></td>
+      <td>17:45–19:00</td>
+      <td>化學<br><span class="muted">26SM-CHEMS5008-A</span></td>
+      <td>暑期升中五級化學班</td>
+      <td>英仙座</td>
+      <td><span class="muted">—</span></td>
+    </tr>
+    </tbody>
+  </table>
+
+  <p class="note">備註：學生名單取自系統「就讀中」報讀紀錄（截至產生當日）。未列出學生之班別在系統中暫無就讀中報讀。</p>
+</body>
+</html>

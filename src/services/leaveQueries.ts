@@ -755,7 +755,7 @@ export async function insertLeaveMakeupRecord(row: {
  }
 }
 
-/** 請假：預設連堂整組各建一筆；consecutiveScope=this_slot 時只建所選那一節 */
+/** 請假：預設只請本節；consecutiveScope=all 時連堂整組各建一筆 */
 export async function insertLeaveMakeupForSchedule(row: {
  student_id: string
  class_id: string
@@ -768,10 +768,10 @@ export async function insertLeaveMakeupForSchedule(row: {
  remarks?: string | null
  status?: string
  tuition_disposition?: LeaveTuitionDisposition | null
- /** all＝連堂兩節（預設）；this_slot＝只請本節 */
+ /** this_slot＝只請本節（預設）；all＝連堂兩節 */
  consecutiveScope?: ConsecutiveLeaveScope
 }): Promise<void> {
- const scope = row.consecutiveScope ?? "all"
+ const scope = row.consecutiveScope ?? "this_slot"
  const scheduleIds =
   scope === "this_slot"
    ? [row.schedule_id]

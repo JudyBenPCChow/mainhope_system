@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>請假遲用：權益池 vs 轉結餘 — 產品議題說明</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "PingFang TC", "Helvetica Neue", "Noto Sans TC", sans-serif;
+      font-size: 11pt;
+      line-height: 1.55;
+      color: #1a1a1a;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 8px 4px 24px;
+    }
+    h1 {
+      font-size: 16pt;
+      margin: 0 0 4px;
+      line-height: 1.3;
+    }
+    .meta {
+      font-size: 9.5pt;
+      color: #555;
+      margin-bottom: 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+    h2 {
+      font-size: 12.5pt;
+      margin: 18px 0 8px;
+      padding-top: 4px;
+      border-top: 1px solid #e0e0e0;
+      page-break-after: avoid;
+    }
+    h2:first-of-type { border-top: none; }
+    h3 {
+      font-size: 11pt;
+      margin: 14px 0 6px;
+      page-break-after: avoid;
+    }
+    p { margin: 0 0 8px; }
+    ul, ol { margin: 0 0 10px; padding-left: 1.35em; }
+    li { margin-bottom: 4px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 10pt;
+      margin: 8px 0 12px;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid #bbb;
+      padding: 6px 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f3f3f3; font-weight: 600; }
+    blockquote {
+      margin: 8px 0 12px;
+      padding: 8px 12px;
+      background: #f7f7f7;
+      border-left: 3px solid #888;
+      font-size: 10.5pt;
+    }
+    .example {
+      background: #fafafa;
+      border: 1px solid #ddd;
+      padding: 10px 12px;
+      margin: 8px 0 12px;
+      page-break-inside: avoid;
+      font-size: 10.5pt;
+    }
+    .example strong { display: block; margin-bottom: 4px; }
+    .summary {
+      background: #f0f4f8;
+      border: 1px solid #c5d0dc;
+      padding: 12px 14px;
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .summary ol { margin-bottom: 0; }
+    .note {
+      font-size: 9.5pt;
+      color: #444;
+      margin-top: 16px;
+    }
+    .wrong { color: #8b0000; }
+    .right { color: #0a5c2e; }
+  </style>
+</head>
+<body>
+
+  <h1>請假遲用：權益池 vs 轉結餘</h1>
+  <p class="meta">
+    產品議題說明（討論用 · 未正式拍板）<br />
+    來源：docs/plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md<br />
+    整理日期：2026-08-06 · 僅供打印閱讀
+  </p>
+
+  <h2>核心問題</h2>
+  <p><strong>錢已經變成「池入面嘅堂」之後，請假想遲啲先上，系統應該點樣跟帳？</strong></p>
+
+  <h2>而家有兩本帳</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>帳</th>
+        <th>答咩問題</th>
+        <th>單位</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>權益池</strong></td>
+        <td>仲剩幾堂可以上</td>
+        <td>堂</td>
+      </tr>
+      <tr>
+        <td><strong>轉結餘</strong></td>
+        <td>下張月費可以抵幾多錢</td>
+        <td>$</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>以前請假「順延」好多時係寫轉結餘（少收下月學費）。新方向係：收款確認後堂數入池。咁一來，如果池已經有「未用堂」，仲要唔要寫轉結餘？</p>
+
+  <h2>暫定共識（已經大致同意）</h2>
+  <p>假設 9 月收咗 4 堂錢 → 池入 4 堂；上咗 3，請假 1，想遲啲先上。</p>
+  <ul>
+    <li><span class="wrong"><strong>錯做法</strong></span>：請假時池再 +1 → 變成 5（錢只買咗 4，雙計）</li>
+    <li><span class="right"><strong>啱做法</strong></span>：<strong>唔扣嗰堂</strong> → 池留住 1 堂；下月計費時用呢 1 堂去減應收</li>
+  </ul>
+  <p>即係：遲用＝「呢堂權益仲喺」，唔係「再送一堂」或者「一定要轉成錢」。</p>
+  <p>另外：<strong>「遲啲嚟上」</strong>同<strong>「唔上、只要錢／退費」</strong>係兩種意圖，唔好用同一個掣。</p>
+
+  <h2>未拍板議題（逐條）</h2>
+
+  <h3>1. 正式唔正式採納「唔扣池＋下月少收」？</h3>
+  <div class="example">
+    <strong>建議穩態例子</strong>
+    <ul>
+      <li>9 月：收 4、上 3、請假 1 唔扣 → 池剩 1</li>
+      <li>10 月：本應收 4 → 減未用池 1 → <strong>只收 3</strong> → 入池 +3 → 池變 4 → 上齊扣完</li>
+    </ul>
+  </div>
+  <p>要產品拍板：呢句係唔係正式規則，定暫時只係討論方向。</p>
+
+  <h3>2. 遲用路徑禁唔禁轉結餘？</h3>
+  <p>若採納上面規則，遲用時<strong>再寫轉結餘</strong>會出事：</p>
+  <ul>
+    <li>池唔扣 → 仲可以上</li>
+    <li>又寫轉結餘 → 下月又少收錢</li>
+  </ul>
+  <p>＝「錢抵咗、堂仲喺」——假閉環。</p>
+  <p>所以要決定：請假選「遲用」時，系統<strong>禁止</strong>寫轉結餘，只靠池滾堂。</p>
+
+  <h3>3. 「唔再上、只要錢」叫咩、點處理池？</h3>
+  <p>家長有時意思唔係遲用，而係：</p>
+  <blockquote>呢堂唔上喇，錢退／抵下月學費就得。</blockquote>
+  <p>呢條路徑：</p>
+  <ul>
+    <li><strong>必須減／凍結池</strong>（否則以為仲可以上）</li>
+    <li>錢先用轉結餘／退款等工具</li>
+  </ul>
+  <p>未定：</p>
+  <ul>
+    <li>前線掣叫咩名（棄權益、退款、舊「轉結餘」？）</li>
+    <li>同閉環計劃入面嘅 <strong>C2</strong>（減收／轉結餘同時減池）係唔係同一樣</li>
+  </ul>
+
+  <h3>4. 月費基數用咩？</h3>
+  <p>「下月應收 = 需求 − 池」入面嘅「需求」係：</p>
+  <ul>
+    <li><strong>A</strong>：純日曆堂數（例如 10 月有 4 堂正規）</li>
+    <li><strong>B</strong>：預計會消耗嘅單位（正規 <strong>＋</strong> 已安排補回）</li>
+  </ul>
+  <p>例：10 月日曆 4 堂，另外有 1 堂補回要上 → 若用 A 只收「4−池」，實際要交付 5，可能<strong>少收、池唔夠</strong>。風險討論傾向 <strong>B</strong>，但未正式拍板。</p>
+
+  <h3>5. remaining 幾時「拍照」用嚟計費？</h3>
+  <p>下月出單時要用「未用池剩幾多」減應收。但：</p>
+  <ul>
+    <li>開月第一日影？</li>
+    <li>出單日影？</li>
+    <li>月底影？</li>
+  </ul>
+  <p>出單後再改假（例如改請假／取消請假），帳會飄。要寫死：邊個時點凍結、改假後重唔重算。</p>
+
+  <h3>6. 整月不用交費（池夠用）點樣？</h3>
+  <p>例如 10 月應交付 4，池剩 4 → 應收堂數 = 0。</p>
+  <p>要唔要：</p>
+  <ul>
+    <li>出一張 $0／「已用餘額抵扣」單？</li>
+    <li>定完全唔出單、只喺畫面顯示「本月已抵」？</li>
+  </ul>
+  <p>影響對帳同家長收據習慣。</p>
+
+  <h3>7. 要唔要改閉環計劃正文？</h3>
+  <p>而家呢套討論係<strong>獨立筆記</strong>，刻意<strong>唔改</strong>閉環計劃 §4.6（C1／C2／C3）。</p>
+  <p>閉環入面三個選項大致係：</p>
+  <ul>
+    <li><strong>C1</strong>：轉結餘只動錢，池唔變（對抗話易變假閉環）</li>
+    <li><strong>C2</strong>：轉結餘同時減／凍結池（接近「棄權益」）</li>
+    <li><strong>C3</strong>：轉結餘可以兌換成下月池堂數</li>
+  </ul>
+  <p>今次偏好嘅「遲用」其實係第四種敘事：<strong>唔經轉結餘，直接唔扣池＋下月少收</strong>。所以要決定：拍板後另寫產品句，定回寫改 §4.6。</p>
+
+  <h3>8. 工程上而家仲唔開工</h3>
+  <p>即使產品想通，<strong>閉環 Phase A（收款抬池）仍然禁開工</strong>——因為母題閘門同雙計風險未清。呢啲議題而家只係產品思考，唔觸發寫碼。</p>
+
+  <div class="summary">
+    <h2 style="border:none;margin-top:0;padding-top:0;">一句總結：產品要答嘅五句</h2>
+    <ol>
+      <li>遲用＝唔扣池、下月少收——<strong>做唔做正規則？</strong></li>
+      <li>遲用時——<strong>禁唔禁轉結餘？</strong></li>
+      <li>唔上只要錢——<strong>叫咩、池減唔減？</strong></li>
+      <li>少收個「需求」——<strong>包唔包補回？幾時影池餘？</strong></li>
+      <li>拍板後——<strong>寫入閉環計劃未？</strong></li>
+    </ol>
+  </div>
+
+  <p class="note">
+    備註：本 PDF 由對話說明整理，非正式簽核文件。正式討論筆記見<br />
+    docs/plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md
+  </p>
+
+</body>
+</html>

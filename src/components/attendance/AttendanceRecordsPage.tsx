@@ -211,14 +211,8 @@ export function AttendanceRecordsPage() {
 
  const displayRows = useMemo(() => {
   let next = rows
-  if (teacherTid) {
-   next = next.filter(
-    (r) =>
-     r.teacherId === teacherTid ||
-     r.originalTeacherId === teacherTid ||
-     r.classTeacherId === teacherTid
-   )
-  }
+  // 老師路徑：RPC 已按 teacher_can_read_attendance 過濾；唔再以 teacherTid 前端裁切
+  //（謂詞若擴張，舊條件會 silent 藏合法列）。職員篩選仍用下方 teacherFilter。
   const keyword = studentKeyword.trim().toLowerCase()
   if (keyword) {
    next = next.filter((r) => {
@@ -228,13 +222,12 @@ export function AttendanceRecordsPage() {
    })
   }
   if (classFilter !== "all") next = next.filter((r) => r.classId === classFilter)
-  const activeTeacherId = teacherTid ?? teacherFilter
-  if (activeTeacherId !== "all") {
+  if (!teacherTid && teacherFilter !== "all") {
    next = next.filter(
     (r) =>
-     r.teacherId === activeTeacherId ||
-     r.originalTeacherId === activeTeacherId ||
-     r.classTeacherId === activeTeacherId
+     r.teacherId === teacherFilter ||
+     r.originalTeacherId === teacherFilter ||
+     r.classTeacherId === teacherFilter
    )
   }
   return next
@@ -274,7 +267,7 @@ export function AttendanceRecordsPage() {
      出席紀錄
     </h1>
     <p className="mt-1.5 hidden text-base leading-relaxed text-neutral-700 md:block">
-     今日列表、月彙總與班別看板；預設顯示今天各班紀錄。
+     今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。
     </p>
    </header>
 
@@ -285,12 +278,27 @@ export function AttendanceRecordsPage() {
    ) : null}
 
    {err ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-     {err}
+    <div
+     role="alert"
+     className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+    >
+     <p className="font-medium">載入出席紀錄失敗</p>
+     <p className="mt-1 leading-relaxed">{err}</p>
+     <p className="mt-1 text-destructive/80">統計已隱藏；請重試成功後再核對列表與數字。</p>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="mt-3 border-destructive/40"
+      onClick={() => void reload()}
+      disabled={loading}
+     >
+      {loading ? "重試中…" : "重試"}
+     </Button>
     </div>
    ) : null}
 
-   {isMobile ? (
+   {err ? null : isMobile ? (
     <section
      className="grid grid-cols-4 gap-2 rounded-xl border border-border bg-card p-3 text-center shadow-sm"
      aria-label="出席摘要"
