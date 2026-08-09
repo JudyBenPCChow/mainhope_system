@@ -29,3 +29,6 @@ dist-ssr
 !.env.example
 docs/BACKLOG.md
 docs/BACKLOG.md
+
+# Extracted CJK fonts for local PDF generation (from Word mingliu.ttc)
+docs/reports/.fonts/

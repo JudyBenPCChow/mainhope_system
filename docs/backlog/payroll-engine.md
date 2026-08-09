@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-05：本期正式引擎已接線；schema／計算／`/Payroll` 真點名；審閱／核實／結算已持久化。功課班仍暫緩；費率頁／銀行帳號／Sophie·Cody 入冊屬下一波，非本期阻塞） |
+| 狀態 | `done`（2026-08-05：本期正式引擎已接線；schema／計算／`/Payroll` 真點名；審閱／核實／結算已持久化。2026-08-07：Sophie Yu 已入冊＋固定月薪。功課班仍暫緩；費率頁／銀行帳號／Cody 入冊屬下一波） |
 | 優先 | 中 |
 | 範圍 | **本期**：專科班分成／HC、固定月薪、獨立定價、WFH、MPF、月結明細。**暫緩**：功課班時薪及 Christine Fan 功課班佣金 |
 | 不含 | 完整會計／HR 系統、銀行付款執行、未獲營運確認的規則自動化；本期亦不做功課班計糧 |
@@ -29,7 +29,8 @@
 
 ### 已知缺口／跟進
 
-- **Sophie Yu**、**Cody Cheong** 不在 `teachers` 表 → 月薪／WFH 列暫不會出現
+- **Sophie Yu**（2026-08-07）：已入 `teachers`＋`payroll_rates` 固定月薪 $16,000（MPF 前；`mpf: true`）；migration `20260807094500_sophie_yu_payroll_enrollment.sql`
+- **Cody Cheong** 不在 `teachers` 表 → WFH 列暫不會出現
 - 功課班整組仍暫緩
 - 費率管理 UI（`/Payroll/Rates`）未做
 - CSV 銀行帳號仍為佔位
@@ -47,7 +48,7 @@
 
 ## 工程下一波
 
-1. Sophie／Cody 入冊＋費率
+1. Cody 入冊＋WFH 費率
 2. 費率管理頁
 3. 真實銀行帳號欄
 4. 功課班（待 backlog）

@@ -1,13 +1,23 @@
-# 2627 時間表方案 A／B（日視圖）
+# 2627 時間表方案索引
 
-> 生成：2026-07-31  
 > **排課規則（權威）：** [`../SCHEDULING_RULES.md`](../SCHEDULING_RULES.md)
 
-版面：**仿排程管理日視圖**——每日一格，橫軸課室、縱軸時段。平日 **17D＝功輔全日**；其餘 4 間排常規班。
+## 現行候選（2026-08-08）
 
-| 方案 | 檔案 | 定位 |
+| 項目 | 值 |
+| --- | --- |
+| 紀錄文件 | [`2627_timetable_scheme_2026-08-08.docx`](2627_timetable_scheme_2026-08-08.docx)／[`2627_timetable_scheme_2026-08-08.pdf`](2627_timetable_scheme_2026-08-08.pdf) |
+| 老師一周排程（獨立附件） | [`2627_timetable_teachers_week_2026-08-08.docx`](2627_timetable_teachers_week_2026-08-08.docx)／[`2627_timetable_teachers_week_2026-08-08.pdf`](2627_timetable_teachers_week_2026-08-08.pdf) |
+| 生成腳本 | [`../../scripts/generate_2627_timetable_doc.py`](../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **36** 班（全具名老師；無待確認老師） |
+| 本輪新增約束 | 同日同室；Christine 日最早 11:30；禁 TBD；Jackson 三＋六各一；六／日不排 09:00；Cyndi Ng 日最早 10:15＋一對一高中英文預留 |
+
+**文件結構：** 排程原則 → 各員工出勤／班數／科目 → 各級各科班數 → 未排缺口 → 一周總覽 → 各天詳細表（無驗證摘要）。
+
+## 歷史試排（2026-07-31；已過時，僅備查）
+
+| 方案 | 檔案 | 備註 |
 | --- | --- | --- |
-| **A** | [`2627_timetable_scheme_A.html`](2627_timetable_scheme_A.html) | Mark **一／二／六**；Christine **日／一／四**；Cyndi 日密排 15:15→19:00；Jackson 六＋五 |
-| **B** | [`2627_timetable_scheme_B.html`](2627_timetable_scheme_B.html) | Mark **六／二／四**；Christine **日／一／三**；Cyndi 日密排 11:30→16:30；Jackson 六＋五 |
-
-**兩案共通（已按規則驗證）：** 兼職密排（僅 Katie 可大空檔）；六無 Christine、日無 Mark；Jackson ≥1 六；開會空檔四 16:30；禁 20:15；連≤2休1；全日≤5；功輔 17D。
+| A | [`2627_timetable_scheme_a.html`](2627_timetable_scheme_a.html) | 含 TBD；Jackson 五＋六 |
+| B | [`2627_timetable_scheme_b.html`](2627_timetable_scheme_b.html) | 含 TBD；Christine 日／一／三 |
+| v3–v5 | `2627_timetable_v3.html`～`v5.html` | 較早草案 |
