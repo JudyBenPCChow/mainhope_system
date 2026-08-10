@@ -113,6 +113,8 @@ function context(): ScheduleRosterContext {
     classId: "class-a",
     studentId: "trial-active-student",
     status: "已預約",
+    paymentId: "pay-trial-1",
+    countsTowardHeadcount: true,
     fullName: "試堂生",
     englishName: null,
     grade: "S3",
@@ -124,6 +126,8 @@ function context(): ScheduleRosterContext {
     classId: "class-a",
     studentId: "trial-completed-student",
     status: "已完成",
+    paymentId: "pay-trial-2",
+    countsTowardHeadcount: true,
     fullName: "已完成試堂",
     englishName: null,
     grade: "S3",
@@ -135,6 +139,8 @@ function context(): ScheduleRosterContext {
     classId: "class-a",
     studentId: "trial-cancelled-student",
     status: "已取消",
+    paymentId: "pay-trial-3",
+    countsTowardHeadcount: false,
     fullName: "已取消試堂",
     englishName: null,
     grade: "S3",
@@ -206,10 +212,15 @@ describe("schedule roster selectors", () => {
   expect(rows.map((row) => row.studentId)).toEqual(["單堂未選"])
  })
 
- it("試堂只保留未完成及未取消紀錄", () => {
+ it("試堂只保留未完成／未取消且已確認收款", () => {
   expect(activeTrialsForSchedules(context(), ["schedule-2"]).map((row) => row.id)).toEqual([
    "trial-active",
   ])
+  const unpaid = context()
+  unpaid.trials = unpaid.trials.map((t) =>
+   t.id === "trial-active" ? { ...t, paymentId: null } : t
+  )
+  expect(activeTrialsForSchedules(unpaid, ["schedule-2"]).map((row) => row.id)).toEqual([])
  })
 
  it("請假同時支援 schedule 連結及同班同日，補堂按目標排程", () => {

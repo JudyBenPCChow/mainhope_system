@@ -303,6 +303,8 @@ export async function insertTrialSession(row: {
  status?: string
  remarks?: string | null
  payment_id?: string | null
+ /** 計人頭：true／false；免費須手選，不可省略 */
+ counts_toward_headcount: boolean
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
 
@@ -436,6 +438,7 @@ export async function insertTrialSession(row: {
    status: row.status ?? "已預約",
    remarks: row.remarks ?? null,
    payment_id: row.payment_id ?? null,
+   counts_toward_headcount: row.counts_toward_headcount,
   })
   if (error) {
    const code = (error as { code?: string }).code
@@ -516,6 +519,7 @@ export async function insertPaidTrialSession(params: {
   status: "已預約",
   remarks: params.remarks ?? null,
   payment_id: paymentId,
+  counts_toward_headcount: true,
  })
 
  if (!supabase) throw new Error("Supabase 未設定")

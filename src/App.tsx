@@ -29,6 +29,7 @@ import PaymentDiscounts from "@/pages/PaymentDiscounts"
 import PrivateTutoring from "@/pages/PrivateTutoring"
 import ReferralRebates from "@/pages/ReferralRebates"
 import PaymentHistory from "@/pages/PaymentHistory"
+import PaymentCorrection from "@/pages/PaymentCorrection"
 import Payments from "@/pages/Payments"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
@@ -121,6 +122,7 @@ export default function App() {
      <Route path="/Payments" element={<Payments />} />
      <Route path="/MonthlyTuition" element={<Navigate to="/Payments" replace />} />
      <Route path="/PaymentHistory" element={<PaymentHistory />} />
+     <Route path="/PaymentCorrection" element={<PaymentCorrection />} />
      <Route path="/Apo" element={<ApoPo />} />
      <Route
       path="/AiReports"

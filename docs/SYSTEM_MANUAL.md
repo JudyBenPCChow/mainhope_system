@@ -14,7 +14,7 @@
 
 | 篇章 | 簡介 |
 | --- | --- |
-| [繳費收據：列印／下載／傳送／作廢](manual/PAYMENT_RECEIPTS.md) | 收款登記與繳費紀錄的收據預覽、列印、PDF、WhatsApp；作廢流程（禁刪、密碼確認、管理層電郵、收件匣通知） |
+| [繳費收據：列印／下載／傳送／作廢](manual/PAYMENT_RECEIPTS.md) | 收款登記與繳費紀錄的收據預覽、列印、PDF、WhatsApp；作廢流程（禁刪、密碼確認、管理層電郵、收件匣通知）。**G2 更正頁／池調動待做**—見 [`backlog/payment-entitlement-correction-ui.md`](backlog/payment-entitlement-correction-ui.md) |
 | [收件匣](manual/INBOX.md) | 營運／系統兩分頁、詳情自動已讀、外星人發佈系統通知、側欄未讀火圖示 |
 | [請假與補堂：連堂單項處理](manual/LEAVE_MAKEUP_CONSECUTIVE.md) | 連堂只欠／只補一堂；**§6 取消請假／清調堂與出席** |
 

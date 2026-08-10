@@ -1748,13 +1748,14 @@ export type PaymentRow = {
  total_amount: number
  payment_method: string | null
  status: string
+ created_at: string
 }
 
 export async function fetchPaymentsForStudent(studentId: string): Promise<PaymentRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("payments")
-  .select("id, receipt_number, payment_date, total_amount, payment_method, status")
+  .select("id, receipt_number, payment_date, total_amount, payment_method, status, created_at")
   .eq("student_id", studentId)
   .order("payment_date", { ascending: false })
  if (error) throw error
@@ -1767,6 +1768,7 @@ export async function fetchPaymentsForStudent(studentId: string): Promise<Paymen
    total_amount: Number(row.total_amount ?? 0),
    payment_method: row.payment_method != null ? String(row.payment_method) : null,
    status: String(row.status ?? ""),
+   created_at: String(row.created_at ?? ""),
   }
  })
 }

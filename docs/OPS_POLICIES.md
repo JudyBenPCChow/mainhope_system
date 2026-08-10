@@ -25,7 +25,8 @@
 | [同班偶發代課（代堂）](SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 改主責；算堂／薪資看排程老師；工程與對抗定案 |
 | [計糧指南](PAYROLL_GUIDE.md) | 財務／管理層用：通用規則、各教師計法、強積金、出糧流程與異常處理（功課班暫不納入） |
 | [學生狀態分類與判定](STUDENT_STATUS_CLASSIFICATION.md) | 注冊／報讀／在讀／活躍等四維狀態 |
-| [收款單據作廢](PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪、作廢須密碼；不自動退班；收件匣通知行政／外星人 |
+| [收款單據作廢與更正](PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪；按錯類型分流（堂數／科班→池調動；金額／優惠／重複→作廢±重開）；作廢 ≤30 分／>30 分第二人；不自動退班；收件匣通知行政／外星人 |
+| [試堂出單先上紙](TRIAL_RECEIPT_BEFORE_ROSTER.md) | 試堂須出學費單並確認後先入池、先上點名紙；未出單／未確認唔入池唔上紙；免費亦出 $0 單（堂數 1）；計人頭與收錢分開。工程／發佈餘項見 [`backlog/frontline-ops-update.md`](backlog/frontline-ops-update.md) |
 | [課室與場地](CLASSROOMS_OPS.md) | 可用課室清單；**17K 2026-07-31 退租停用**（系統尚未有停用狀態欄） |
 | [小組課排課規則](SCHEDULING_RULES.md) | 格網、平日時段、功輔 17D、兼職密排、老師檔期、開會空檔、驗證清單（2627 起） |
 | [文案與稱呼](TERMINOLOGY.md) | **明學教育**（禁「明學補習社」）；校方／本校／補習社；禁院方、禁以書院／學院自稱 |
@@ -37,5 +38,5 @@
 1. **一篇一主題**：勿把代堂、扣堂、學費罰款揉成單一巨檔。
 2. **交叉引用**：相關概念用連結（例如追學費 ≠ 逾期罰款）。
 3. **尚未系統化**：文首或相關節標明 `系統現況：…`，避免被当成已上線功能。
-4. **改政策時**：同步檢查阿Po（`apoKnowledge`／`apoHowtoGuides`）與系統說明書是否需更新。
+4. **改規則時**：先改本索引下對應政策篇（權威），再改員工讀本 [`manual/2627_REGULAR_YEAR_OPS_GUIDE.md`](manual/2627_REGULAR_YEAR_OPS_GUIDE.md) 相關章（可較短）；只改寫法／例子則可只改 2627。另包再查阿Po（`apoKnowledge`／`apoHowtoGuides`）與系統說明書。
 5. **稱呼**：見 [`TERMINOLOGY.md`](TERMINOLOGY.md)（明學教育；校方／本校／補習社；禁院方、禁書院／學院自稱）。

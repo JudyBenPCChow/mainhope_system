@@ -708,7 +708,7 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-4">
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
-            <p className="mt-2 text-sm">15:30–19:30（佔用自 15:15）· 上下節分界 17:30</p>
+            <p className="mt-2 text-sm">15:30–19:30（佔用自 15:15）· 上下節分界 17:00</p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">價目表</h2>

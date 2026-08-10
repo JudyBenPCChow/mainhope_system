@@ -48,13 +48,13 @@
 
 Agent／清碼時**勿刪、勿重構**下列殘碼，直至產品明確決定退役或正式接上：
 
-### D1 — 月費獨立頁（暫緩）
+### D1 — 月費獨立頁（暫緩刪檔；收款路徑已退役）
 
-路由仍 redirect → `/Payments`；未掛載 UI／queries **刻意保留**作日後改寫藍本：
+路由仍 redirect → `/Payments`。**2026-08-09：** `createMonthlyTuitionPayment` 已 throw 拒用（改走收款登記＋權益池）。檔案暫留作藍本，**勿當可收款入口**：
 
 - `src/pages/MonthlyTuition.tsx`
 - `src/components/payments/MonthlyTuitionView.tsx`
-- `src/services/monthlyTuitionQueries.ts`
+- `src/services/monthlyTuitionQueries.ts`（preview／列表仍可讀；收款函式已拒）
 - `src/lib/monthlyTuition.ts`（計算／測試／報表仍在用，本來就保留）
 
 ### D2a — `contactUpdate` prototype（暫緩）

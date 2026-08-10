@@ -43,3 +43,5 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 預設只靠本檔。問未做 → `docs/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/backlog/<topic>.md`（＋現行 `docs/plans/`）。  
 `docs/audits/`／已完成 plans：除非對對抗、查決策、或用戶點名，否則唔開。  
 其餘索引由 `docs/` 自行尋，唔好預讀。
+
+**MD↔DOCX：** 改 `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。

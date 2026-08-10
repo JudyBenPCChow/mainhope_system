@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -13,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { voidRequiresSecondConfirmer } from "@/lib/entitlementAdjustment"
 import { money } from "@/components/payments/paymentsUi"
 import { voidPaymentRecord } from "@/services/paymentQueries"
 
@@ -20,9 +22,12 @@ export type VoidPaymentTarget = {
  id: string
  receiptNumber: string | null
  studentName: string
+ studentId?: string
  totalAmount: number
  paymentDate: string
  status: string
+ /** ISO；用於判斷是否超過 30 分鐘 */
+ createdAt?: string | null
 }
 
 type Props = {
@@ -37,13 +42,22 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
  const { confirmDialog } = useAppConfirm()
  const [reason, setReason] = useState("")
  const [password, setPassword] = useState("")
+ const [secondEmail, setSecondEmail] = useState("")
+ const [secondPassword, setSecondPassword] = useState("")
  const [err, setErr] = useState<string | null>(null)
  const [saving, setSaving] = useState(false)
+
+ const needsSecond = useMemo(
+  () => (target ? voidRequiresSecondConfirmer(target.createdAt) : false),
+  [target]
+ )
 
  useEffect(() => {
   if (!open) {
    setReason("")
    setPassword("")
+   setSecondEmail("")
+   setSecondPassword("")
    setErr(null)
    setSaving(false)
   }
@@ -60,6 +74,12 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
    setErr("請輸入登入密碼以確認作廢。")
    return
   }
+  if (needsSecond) {
+   if (!secondEmail.trim() || !secondPassword) {
+    setErr("此單已超過 30 分鐘，請由另一位管理層或外星人輸入電郵與密碼。")
+    return
+   }
+  }
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
     dateYmd: target.paymentDate,
@@ -75,6 +95,12 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
     paymentId: target.id,
     reason: r,
     password,
+    ...(needsSecond
+     ? {
+        secondConfirmerEmail: secondEmail.trim(),
+        secondConfirmerPassword: secondPassword,
+       }
+     : {}),
    })
    if (!result.ok) {
     setErr(result.message)
@@ -90,6 +116,9 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
    if (result.emailSent) bits.unshift("已電郵通知管理層。")
    else if (result.emailError) bits.unshift(`通知未送出：${result.emailError}`)
    else if (result.notifySkipped) bits.unshift("待繳單據作廢，未寄管理層電郵。")
+   if (target.studentId) {
+    bits.push("金額錯請到收款登記重開正確單。")
+   }
    pushBanner({
     tone: result.emailError ? "warning" : "success",
     title: "單據已作廢",
@@ -129,8 +158,19 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
        </div>
       </div>
       <p className="text-xs text-muted-foreground">
-       作廢後單據會保留並標示「作廢」，不可刪除或改回已收款。已收款作廢會電郵通知管理層。正式報讀不會自動取消（可視為未付款，對帳／追收仍會顯示）。
+       作廢後單據會保留並標示「作廢」，不可刪除。堂數／科班錯請改用
+       <Link className="mx-1 text-primary underline" to="/PaymentCorrection">
+        單據／權益更正
+       </Link>
+       嘅池調動；金額錯先作廢再重開。
       </p>
+      {needsSecond ? (
+       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+        此單開立已超過 30 分鐘，須另一位<strong>管理層或外星人</strong>輸入電郵與密碼作第二確認（不可同你本人）。
+       </p>
+      ) : (
+       <p className="text-xs text-muted-foreground">開立未滿 30 分鐘：只需你本人密碼即可作廢。</p>
+      )}
       <div className="grid gap-1.5">
        <label className="text-sm font-medium" htmlFor="void-reason">
         作廢原因
@@ -147,7 +187,7 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
       </div>
       <div className="grid gap-1.5">
        <label className="text-sm font-medium" htmlFor="void-password">
-        登入密碼（二次確認）
+        你的登入密碼
        </label>
        <Input
         id="void-password"
@@ -156,17 +196,51 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         disabled={saving}
-        onKeyDown={(e) => {
-         if (e.key === "Enter") {
-          e.preventDefault()
-          void submit()
-         }
-        }}
        />
       </div>
+      {needsSecond ? (
+       <>
+        <div className="grid gap-1.5">
+         <label className="text-sm font-medium" htmlFor="void-second-email">
+          第二確認人電郵
+         </label>
+         <Input
+          id="void-second-email"
+          type="email"
+          autoComplete="off"
+          value={secondEmail}
+          onChange={(e) => setSecondEmail(e.target.value)}
+          disabled={saving}
+          placeholder="manager 或 alien 帳號"
+         />
+        </div>
+        <div className="grid gap-1.5">
+         <label className="text-sm font-medium" htmlFor="void-second-password">
+          第二確認人密碼
+         </label>
+         <Input
+          id="void-second-password"
+          type="password"
+          autoComplete="off"
+          value={secondPassword}
+          onChange={(e) => setSecondPassword(e.target.value)}
+          disabled={saving}
+         />
+        </div>
+       </>
+      ) : null}
       {err ? (
        <p role="alert" className="text-sm text-destructive">
         {err}
+       </p>
+      ) : null}
+      {target.studentId ? (
+       <p className="text-xs text-muted-foreground">
+        作廢後可到{" "}
+        <Link className="text-primary underline" to={`/Payments?studentId=${target.studentId}`}>
+         收款登記
+        </Link>{" "}
+        重開正確單。
        </p>
       ) : null}
      </div>

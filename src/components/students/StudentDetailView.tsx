@@ -2546,9 +2546,11 @@ const exportFutureSchedulesCsv = () => {
                id: p.id,
                receiptNumber: p.receipt_number,
                studentName: student?.full_name ?? "—",
+               studentId: student?.id,
                totalAmount: p.total_amount,
                paymentDate: p.payment_date,
                status: p.status,
+               createdAt: p.created_at ?? null,
               })
               setVoidPayOpen(true)
              }}

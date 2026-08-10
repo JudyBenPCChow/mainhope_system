@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { Banknote, BookOpen, ClipboardCheck, FileText, History, MessageCircle, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
@@ -7,6 +7,7 @@ import {
  DEFAULT_TRIAL_LESSON_COUNT,
  FormField,
  SectionCard,
+ TRIAL_HALF_PRICE_DISCOUNT_ID,
  TRIAL_SELECT_VALUE,
  TrialClassPicker,
  classRecordToPriceInfo,
@@ -97,6 +98,7 @@ import {
  linkOpenTrialsToPayment,
  studentHasOpenTrialForClass,
 } from "@/services/trialQueries"
+import { fetchTuitionPaymentSuggestion } from "@/services/entitlementQueries"
 import {
  fetchAllStudents,
  fetchEnrollmentsForStudent,
@@ -437,6 +439,10 @@ export function PaymentsPageView() {
  }, [discounts])
 
  const prefStudentId = searchParams.get("studentId")?.trim() ?? ""
+ const pendingTrialPrefRef = useRef<{
+  trialPay: "free" | "half" | "full"
+  classId: string
+ } | null>(null)
 
  useEffect(() => {
   const mode = searchParams.get("mode") ?? searchParams.get("tab")
@@ -452,15 +458,32 @@ export function PaymentsPageView() {
   setSelectedStudent(found)
   setStudentQuery("")
   setPickerOpen(false)
+  const trialPay = searchParams.get("trialPay")?.trim()
+  const classId = searchParams.get("classId")?.trim() ?? ""
+  if (trialPay === "free" || trialPay === "half" || trialPay === "full") {
+   pendingTrialPrefRef.current = { trialPay, classId }
+  }
   setSearchParams(
    (prev) => {
     const next = new URLSearchParams(prev)
     next.delete("studentId")
+    next.delete("trialPay")
+    next.delete("classId")
     return next
    },
    { replace: true }
   )
- }, [prefStudentId, students, setSearchParams])
+ }, [prefStudentId, students, searchParams, setSearchParams])
+
+ useEffect(() => {
+  const hasHalf = lines.some((l) => l.kind === "trial" && l.trialType === "半價試堂")
+  setDiscountIds((prev) => {
+   const has = prev.includes(TRIAL_HALF_PRICE_DISCOUNT_ID)
+   if (hasHalf && !has) return [...prev, TRIAL_HALF_PRICE_DISCOUNT_ID]
+   if (!hasHalf && has) return prev.filter((id) => id !== TRIAL_HALF_PRICE_DISCOUNT_ID)
+   return prev
+  })
+ }, [lines])
 
  const loadEnrollments = useCallback(async (studentId: string) => {
   if (!isSupabaseConfigured) {
@@ -471,8 +494,31 @@ export function PaymentsPageView() {
   try {
    const list = await fetchEnrollmentsForStudent(studentId)
    setEnrollments(list)
-   setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
-   setDiscountIds([])
+   const pref = pendingTrialPrefRef.current
+   pendingTrialPrefRef.current = null
+   if (pref) {
+    const trialType: TrialPayType =
+     pref.trialPay === "half" ? "半價試堂" : pref.trialPay === "full" ? "原價試堂" : "免費試堂"
+    const line = newLine("trial")
+    line.trialType = trialType
+    if (pref.classId) {
+     line.classId = pref.classId
+     const trialMap = new Map(trialClasses.map((c) => [c.id, c]))
+     line.amount = lineAmountFor(pref.classId, line.lessons, new Map(), {
+      kind: "trial",
+      trialType,
+      trialClasses: trialMap,
+     })
+     if (trialType === "免費試堂" && !line.amount) line.amount = "0"
+    } else if (trialType === "免費試堂") {
+     line.amount = "0"
+    }
+    setLines([line])
+    setDiscountIds(trialType === "半價試堂" ? [TRIAL_HALF_PRICE_DISCOUNT_ID] : [])
+   } else {
+    setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
+    setDiscountIds([])
+   }
    setSpecialDiscountEnabled(false)
    setSpecialDiscountAmount("")
   } catch (e) {
@@ -482,7 +528,7 @@ export function PaymentsPageView() {
   } finally {
    setEnrollLoading(false)
   }
- }, [])
+ }, [trialClasses])
 
  const loadStudentContext = useCallback(async (studentId: string) => {
   if (!isSupabaseConfigured) {
@@ -659,6 +705,24 @@ export function PaymentsPageView() {
   setLines((prev) => [...prev, newLine("trial")])
  }
 
+ const applyEnrollmentLessonSuggestion = async (rowKey: string, classId: string) => {
+  if (!selectedStudent?.id || !classId) return
+  try {
+   const suggestion = await fetchTuitionPaymentSuggestion({
+    studentId: selectedStudent.id,
+    classId,
+   })
+   if (!suggestion) return
+   const lessons =
+    suggestion.suggestedLessons > 0
+     ? String(suggestion.suggestedLessons)
+     : DEFAULT_LESSON_COUNT
+   updateLine(rowKey, { lessons })
+  } catch (e) {
+   console.warn("[PaymentsPageView] tuition suggestion", e)
+  }
+ }
+
  const onLineSelectChange = (rowKey: string, value: string) => {
   if (value === TRIAL_SELECT_VALUE) {
    updateLine(rowKey, { kind: "trial", classId: "", lessons: DEFAULT_TRIAL_LESSON_COUNT })
@@ -669,6 +733,7 @@ export function PaymentsPageView() {
    classId: value,
    lessons: DEFAULT_LESSON_COUNT,
   })
+  void applyEnrollmentLessonSuggestion(rowKey, value)
  }
 
  const toggleDiscount = (id: string) => {
@@ -789,7 +854,7 @@ export function PaymentsPageView() {
      return {
       classId: l.classId,
       lessonCount: Number(l.lessons),
-      amount: Number.isFinite(amt) && amt > 0 ? amt : null,
+      amount: Number.isFinite(amt) && amt >= 0 ? amt : null,
       description: classLabel ? `試堂（${l.trialType}）· ${classLabel}` : `試堂（${l.trialType}）`,
      }
     }
@@ -815,7 +880,17 @@ export function PaymentsPageView() {
    if (hasTrialWithoutClass) return "請為試堂項目選擇班別。"
    return "請至少新增一筆班別與堂數。"
   }
-  if (subtotal <= 0) return "請確認各項金額（可依班別每堂單價 × 堂數自動帶入）。"
+  const onlyZeroTrialReceipts =
+   details.length > 0 &&
+   details.every(
+    (d) =>
+     String(d.description ?? "").includes("試堂") &&
+     (d.lessonCount ?? 0) > 0 &&
+     (d.amount == null || d.amount === 0)
+   )
+  if (subtotal <= 0 && !onlyZeroTrialReceipts) {
+   return "請確認各項金額（可依班別每堂單價 × 堂數自動帶入）。"
+  }
   if (needsReferrer && !referrerStudentId.trim()) return "請選擇推薦人（舊生）。"
   if (needsGroupBatch && batchMemberCountN < 3) return "自組同班優惠需填寫聯合收費人數（至少 3 人）。"
   if (needsGroupBatch && !batchSharedClassId) return "自組同班優惠需所有明細為同一班別。"
@@ -1411,7 +1486,8 @@ export function PaymentsPageView() {
                }
               >
                <option value="原價試堂">原價試堂</option>
-               <option value="半價試堂">半價試堂</option>
+               <option value="半價試堂">半價試堂（正價＋50% 優惠）</option>
+               <option value="免費試堂">免費試堂（$0）</option>
               </Select>
              </FormField>
             </>
@@ -1419,12 +1495,17 @@ export function PaymentsPageView() {
            <FormField label="堂數 *">
             <Input
              type="number"
-             min={1}
+             min={0}
              step={1}
              value={row.lessons}
              onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
              placeholder={row.kind === "trial" ? "例如 1" : "例如 4"}
             />
+            {row.kind === "enrollment" ? (
+             <p className="mt-1 text-xs text-muted-foreground">
+              建議＝本月排程堂數 − 權益池餘額（可改；0＝本月唔使交）
+             </p>
+            ) : null}
            </FormField>
            <FormField label="金額（HKD）">
             <Input

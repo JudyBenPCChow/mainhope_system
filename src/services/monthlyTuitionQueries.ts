@@ -3,7 +3,6 @@ import {
  billingMonthBounds,
  billingMonthDate,
  calculateMonthlyTuition,
- formatBillingMonth,
  normalizeBillingMonth,
 } from "@/lib/monthlyTuition"
 import {
@@ -12,11 +11,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
-import {
- insertPaymentRecord,
- PAYMENT_STATUS,
- type PaymentDetailInput,
-} from "@/services/paymentQueries"
+import { PAYMENT_STATUS } from "@/services/paymentQueries"
 
 type CreditAllocation = {
  creditEntryId: string
@@ -360,48 +355,6 @@ export async function fetchMonthlyTuitionPreview(
  }
 }
 
-async function saveCharge(
- studentId: string,
- line: MonthlyTuitionPreviewLine,
- status: string
-): Promise<string> {
- if (!supabase) throw new Error("Supabase 未設定")
- const values = {
-  student_id: studentId,
-  class_id: line.classId,
-  enrollment_id: line.enrollmentId,
-  billing_month: billingMonthDate(line.billingMonth),
-  calendar_lesson_count: line.calendarLessonCount,
-  leave_deduction_count: line.leaveDeductionCount,
-  chargeable_lesson_count: line.chargeableLessonCount,
-  unit_price: line.unitPrice,
-  gross_amount: line.grossAmount,
-  credit_applied: line.creditApplied,
-  net_amount: line.netAmount,
-  status,
-  updated_at: new Date().toISOString(),
- }
- if (line.existingChargeId) {
-  const { error } = await supabase
-   .from("monthly_tuition_charges")
-   .update(values)
-   .eq("id", line.existingChargeId)
-   .in("status", ["草稿", "待繳費", "待收款"])
-  if (error) throw error
-  return line.existingChargeId
- }
- const { data, error } = await supabase
-  .from("monthly_tuition_charges")
-  .insert(values)
-  .select("id")
-  .single()
- if (error) {
-  if (error.code === "23505") throw new Error(`${formatBillingMonth(line.billingMonth)}已有此班月費`)
-  throw error
- }
- return String((data as { id: string }).id)
-}
-
 export async function createMonthlyTuitionPayment(input: {
  studentId: string
  selectedKeys: string[]
@@ -411,87 +364,10 @@ export async function createMonthlyTuitionPayment(input: {
  paymentStatus: typeof PAYMENT_STATUS.received | typeof PAYMENT_STATUS.pendingPay | typeof PAYMENT_STATUS.pendingReceive
  remarks?: string | null
 }): Promise<string> {
- if (!supabase) throw new Error("Supabase 未設定")
- const preview = await fetchMonthlyTuitionPreview(input.studentId, input.billingMonths)
- const selected = new Set(input.selectedKeys)
- const lines = preview.lines.filter((line) => selected.has(line.key))
- if (lines.length === 0) throw new Error("請至少選擇一個未收款帳期")
- const blocked = lines.find((line) => line.status === "已繳" || line.status === "已抵扣")
- if (blocked) throw new Error(`${formatBillingMonth(blocked.billingMonth)}已有收款紀錄`)
- const missingPrice = lines.find((line) => line.unitPrice <= 0)
- if (missingPrice) throw new Error(`${missingPrice.classLabel}未設定每堂價格`)
-
- const chargeStatus =
-  input.paymentStatus === PAYMENT_STATUS.received
-   ? "已繳"
-   : input.paymentStatus === PAYMENT_STATUS.pendingPay
-     ? "待繳費"
-     : "待收款"
- const saved = await Promise.all(
-  lines.map(async (line) => ({ line, chargeId: await saveCharge(input.studentId, line, chargeStatus) }))
+ void input
+ throw new Error(
+  "月費獨立收款路徑已退役。請改用「收款登記」：按班填堂數（建議＝本月排程−池餘），確認收款後會抬權益池。"
  )
- const details: PaymentDetailInput[] = saved.map(({ line, chargeId }) => ({
-  classId: line.classId,
-  lessonCount: line.chargeableLessonCount,
-  amount: line.netAmount,
-  description: `${formatBillingMonth(line.billingMonth)}月費 · ${line.classLabel}`,
-  monthlyTuitionChargeId: chargeId,
- }))
- const totalAmount = Math.round(lines.reduce((sum, line) => sum + line.netAmount, 0) * 100) / 100
- const paymentId = await insertPaymentRecord({
-  studentId: input.studentId,
-  paymentDate: input.paymentDate,
-  totalAmount,
-  subtotalAmount: totalAmount,
-  paymentMethod: input.paymentMethod,
-  status: input.paymentStatus,
-  remarks: input.remarks,
-  receiptKind: input.paymentStatus === PAYMENT_STATUS.received ? "RC" : "INV",
-  details,
- })
-
- const allocations = saved.flatMap(({ line, chargeId }) =>
-   line.creditAllocations.map((allocation) => ({
-    ...allocation,
-     chargeId,
-     studentId: input.studentId,
-     classId: line.classId,
-   }))
- )
- for (const allocation of allocations) {
-   if (allocation.amount < allocation.originalAmount) {
-    const remaining = Math.round((allocation.originalAmount - allocation.amount) * 100) / 100
-    const { error: keepErr } = await supabase
-     .from("tuition_credit_entries")
-     .update({ amount: remaining })
-     .eq("id", allocation.creditEntryId)
-     .eq("status", "可用")
-    if (keepErr) throw keepErr
-    const { error: appliedErr } = await supabase.from("tuition_credit_entries").insert({
-     student_id: allocation.studentId,
-     class_id: allocation.classId,
-     applied_charge_id: allocation.chargeId,
-     lesson_count: 1,
-     amount: allocation.amount,
-     status: "已抵扣",
-     applied_at: new Date().toISOString(),
-     notes: `由結餘 ${allocation.creditEntryId} 部分抵扣`,
-    })
-    if (appliedErr) throw appliedErr
-   } else {
-    const { error } = await supabase
-     .from("tuition_credit_entries")
-     .update({
-      status: "已抵扣",
-      applied_charge_id: allocation.chargeId,
-      applied_at: new Date().toISOString(),
-     })
-     .eq("id", allocation.creditEntryId)
-     .eq("status", "可用")
-    if (error) throw error
-   }
- }
- return paymentId
 }
 
 export async function fetchMonthlyTuitionCharges(input: {

@@ -24,7 +24,6 @@ import { createPrivateTutoringEnrollment } from "@/services/privateTutoringQueri
 import {
  fetchOpenTrialsForStudent,
  insertTrialSession,
- trialTypeCategory,
  type StudentTrialSummary,
 } from "@/services/trialQueries"
 import {
@@ -86,6 +85,8 @@ export function EnrollClassStep({
  >([])
  const [trialSchedulesLoading, setTrialSchedulesLoading] = useState(false)
  const [trialType, setTrialType] = useState<string>("免費試堂")
+ /** ""＝未選；"1"＝計；"0"＝唔計 */
+ const [trialCountsHeadcount, setTrialCountsHeadcount] = useState<"" | "1" | "0">("")
  const [trialRemarks, setTrialRemarks] = useState("")
  const [trialSaving, setTrialSaving] = useState(false)
 
@@ -370,13 +371,9 @@ export function EnrollClassStep({
    setErr("請選擇班別與試堂排程")
    return
   }
-  const cat = trialTypeCategory(trialType)
-  if (cat === "half" || cat === "full") {
-   pushBanner({
-    tone: "info",
-    title: "半價／原價試堂",
-    message: "試堂紀錄將先建立；收費請於下一步前往「收款登記」處理。",
-   })
+  if (trialCountsHeadcount !== "1" && trialCountsHeadcount !== "0") {
+   setErr("請選擇是否計老師人頭（無預設，須手選）")
+   return
   }
 
   setTrialSaving(true)
@@ -390,16 +387,18 @@ export function EnrollClassStep({
     trial_type: trialType,
     status: "已預約",
     remarks: trialRemarks.trim() || null,
+    counts_toward_headcount: trialCountsHeadcount === "1",
    })
    setTrialClassId("")
    setTrialScheduleId("")
    setTrialType("免費試堂")
+   setTrialCountsHeadcount("")
    setTrialRemarks("")
    const counts = await syncCounts()
    pushBanner({
     tone: "success",
     title: "已登記試堂",
-    message: "學生已加入該堂點名名單；可再新增試堂或報讀，或繼續收款。",
+    message: "請繼續收款出單並確認；確認後先上點名紙（含 $0 免費試堂）。",
    })
    onTrialCountChange(counts.trialCount)
   } catch (e) {
@@ -613,7 +612,7 @@ export function EnrollClassStep({
    ) : (
     <div className="space-y-4">
      <p className="text-sm text-info-foreground">
-      僅試讀／試堂：不需建立報讀，登記後學生會出現在該堂點名名單。
+      僅試讀／試堂：不需建立報讀；出單並確認收款後，學生先會出現在該堂點名名單。
      </p>
      <Field label="試堂班別 *">
       <Select
@@ -661,6 +660,17 @@ export function EnrollClassStep({
            {opt}
           </option>
          ))}
+        </Select>
+       </Field>
+       <Field label="計老師人頭 *">
+        <Select
+         className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+         value={trialCountsHeadcount}
+         onChange={(e) => setTrialCountsHeadcount(e.target.value as "" | "1" | "0")}
+        >
+         <option value="">請選擇（無預設）</option>
+         <option value="1">計人頭</option>
+         <option value="0">唔計人頭</option>
         </Select>
        </Field>
        <Field label="備註（選填）">

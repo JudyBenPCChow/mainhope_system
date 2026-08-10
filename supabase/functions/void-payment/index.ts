@@ -14,6 +14,19 @@ type RequestBody = {
   paymentId?: unknown
   reason?: unknown
   password?: unknown
+  /** 開單超過 30 分鐘：第二確認人電郵（manager／alien，不可同操作者） */
+  secondConfirmerEmail?: unknown
+  secondConfirmerPassword?: unknown
+}
+
+const VOID_SINGLE_OPERATOR_WINDOW_MS = 30 * 60 * 1000
+
+function voidRequiresSecondConfirmer(createdAt: string | null | undefined): boolean {
+  const raw = String(createdAt ?? "").trim()
+  if (!raw) return true
+  const t = Date.parse(raw)
+  if (!Number.isFinite(t)) return true
+  return Date.now() - t > VOID_SINGLE_OPERATOR_WINDOW_MS
 }
 
 function academicYearLabelFromYmd(ymd: string): string {
@@ -169,6 +182,8 @@ Deno.serve(async (req) => {
   const paymentId = String(body.paymentId ?? "").trim()
   const reason = String(body.reason ?? "").trim()
   const password = String(body.password ?? "")
+  const secondEmail = String(body.secondConfirmerEmail ?? "").trim().toLowerCase()
+  const secondPassword = String(body.secondConfirmerPassword ?? "")
   if (!/^[0-9a-f-]{36}$/i.test(paymentId)) {
     return jsonResponse({ error: "單據編號無效。" }, 400)
   }
@@ -213,7 +228,7 @@ Deno.serve(async (req) => {
   const { data: pay, error: payErr } = await admin
     .from("payments")
     .select(
-      "id, student_id, receipt_number, payment_date, total_amount, status, students ( full_name )"
+      "id, student_id, receipt_number, payment_date, total_amount, status, created_at, students ( full_name )"
     )
     .eq("id", paymentId)
     .maybeSingle()
@@ -228,6 +243,7 @@ Deno.serve(async (req) => {
   const row = pay as Record<string, unknown>
   const prevStatus = String(row.status ?? "")
   const paymentDate = String(row.payment_date ?? "").slice(0, 10)
+  const createdAt = row.created_at != null ? String(row.created_at) : null
   const receiptNumber = row.receipt_number != null ? String(row.receipt_number) : null
   const totalAmount = Number(row.total_amount ?? 0)
   const student = row.students as { full_name?: string } | null
@@ -249,6 +265,58 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: yearBlocked }, 403)
   }
 
+  let secondConfirmerEmail: string | null = null
+  let secondConfirmerName: string | null = null
+  if (voidRequiresSecondConfirmer(createdAt)) {
+    if (!secondEmail || !secondPassword) {
+      return jsonResponse(
+        {
+          error:
+            "此單開立已超過 30 分鐘，須由另一位管理層（manager）或外星人再輸入電郵與密碼確認。",
+        },
+        403
+      )
+    }
+    if (secondEmail === caller.email.trim().toLowerCase()) {
+      return jsonResponse({ error: "第二確認人不可與操作者相同。" }, 403)
+    }
+    const { error: secondVerifyErr } = await verifyClient.auth.signInWithPassword({
+      email: secondEmail,
+      password: secondPassword,
+    })
+    if (secondVerifyErr) {
+      return jsonResponse({ error: "第二確認人電郵或密碼不正確。" }, 401)
+    }
+    const { data: secondProfile } = await admin
+      .from("app_users")
+      .select("id, display_name, role")
+      .ilike("email", secondEmail)
+      .maybeSingle()
+    if (!secondProfile) {
+      return jsonResponse({ error: "找不到第二確認人帳號資料。" }, 403)
+    }
+    const secondUserId = String((secondProfile as { id: string }).id)
+    let secondRole = String((secondProfile as { role?: string }).role ?? "").trim().toLowerCase()
+    const { data: assigned } = await admin
+      .from("app_user_roles")
+      .select("role")
+      .eq("app_user_id", secondUserId)
+    const roles = new Set(
+      (assigned ?? []).map((r) => String((r as { role?: string }).role ?? "").toLowerCase())
+    )
+    if (secondRole) roles.add(secondRole)
+    if (!roles.has("manager") && !roles.has("alien")) {
+      return jsonResponse(
+        { error: "第二確認人須為管理層（manager）或外星人（alien）。" },
+        403
+      )
+    }
+    secondConfirmerEmail = secondEmail
+    secondConfirmerName =
+      String((secondProfile as { display_name?: string }).display_name ?? "").trim() ||
+      secondEmail
+  }
+
   const now = new Date().toISOString()
   const { data: updated, error: updErr } = await admin
     .from("payments")
@@ -258,6 +326,8 @@ Deno.serve(async (req) => {
       voided_by_email: caller.email,
       voided_by_name: actorName,
       void_reason: reason.slice(0, 500),
+      void_second_confirmer_email: secondConfirmerEmail,
+      void_second_confirmer_name: secondConfirmerName,
       updated_at: now,
     })
     .eq("id", paymentId)

@@ -31,6 +31,8 @@
 3. 首堂日策略與校曆缺口  
 4. 錄入方式：人手後台 vs 批次／import（須過規則驗證清單）
 
+**下游：** 員工營運指引**不載**每周課表、**不列**老師（已決）；時間表簽收／錄入仍按本分題獨立推進。
+
 ## 待做（摘要）
 
 1. 營運定稿（招生簡表可同步）  
@@ -43,3 +45,4 @@
 - 學年字典：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)
 - 政策索引：[`OPS_POLICIES.md`](../OPS_POLICIES.md)
 - 報讀／點名權益（依賴有班）：[summer-enrollment-roster-consistency.md](./summer-enrollment-roster-consistency.md)
+- 員工守則（下游，勿重複拍板老師／時間表現況）：[`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)

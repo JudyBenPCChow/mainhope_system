@@ -25,6 +25,10 @@ import {
  validateDiscountSelection,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
+import {
+ clawbackEntitlementsForPayment,
+ topUpEntitlementsForPayment,
+} from "@/services/entitlementQueries"
 
 const METHOD_OPTIONS = [
  "現金",
@@ -749,6 +753,13 @@ export async function insertPaymentRecord(params: {
   })
  }
 
+ if (params.status === PAYMENT_STATUS.received) {
+  await topUpEntitlementsForPayment({
+   paymentId,
+   studentId: params.studentId,
+  })
+ }
+
  return paymentId
 }
 
@@ -879,7 +890,7 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("payments")
-  .select("payment_date, status")
+  .select("payment_date, status, student_id")
   .eq("id", id)
   .maybeSingle()
  if (fetchErr) throw fetchErr
@@ -892,6 +903,7 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
   throw new Error("僅待繳費／待收款單據可標記為已收款。")
  }
  assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
+ let updated = false
  for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
   const receipt = await allocateReceiptRef("RC")
   const { error } = await supabase
@@ -904,11 +916,19 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
    })
    .eq("id", id)
    .in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
-  if (!error) return
+  if (!error) {
+   updated = true
+   break
+  }
   if (isReceiptNumberUniqueViolation(error) && attempt < RECEIPT_REF_ATTEMPTS - 1) continue
   throw error
  }
- throw new Error("無法產生唯一單據編號，請稍後再試")
+ if (!updated) throw new Error("無法產生唯一單據編號，請稍後再試")
+
+ const studentId = String((row as { student_id?: string }).student_id ?? "")
+ if (studentId) {
+  await topUpEntitlementsForPayment({ paymentId: id, studentId })
+ }
 }
 
 export type VoidPaymentResult =
@@ -940,12 +960,14 @@ export async function voidPaymentRecord(input: {
  paymentId: string
  reason: string
  password: string
+ secondConfirmerEmail?: string
+ secondConfirmerPassword?: string
 }): Promise<VoidPaymentResult> {
  if (!supabase) return { ok: false, message: "尚未設定 Supabase，暫時無法作廢。" }
 
  const { data: row, error: fetchErr } = await supabase
   .from("payments")
-  .select("payment_date, status")
+  .select("payment_date, status, student_id")
   .eq("id", input.paymentId)
   .maybeSingle()
  if (fetchErr) return { ok: false, message: fetchErr.message }
@@ -972,6 +994,12 @@ export async function voidPaymentRecord(input: {
    paymentId: input.paymentId,
    reason: input.reason.trim(),
    password: input.password,
+   ...(input.secondConfirmerEmail
+    ? {
+       secondConfirmerEmail: input.secondConfirmerEmail.trim(),
+       secondConfirmerPassword: input.secondConfirmerPassword ?? "",
+      }
+    : {}),
   },
  })
 
@@ -990,6 +1018,26 @@ export async function voidPaymentRecord(input: {
     : "作廢失敗，請稍後再試。"
   return { ok: false, message }
  }
+
+ const studentId = String((row as { student_id?: string }).student_id ?? "")
+ if (studentId && !payload.alreadyVoided) {
+  try {
+   await clawbackEntitlementsForPayment({
+    paymentId: input.paymentId,
+    studentId,
+   })
+  } catch (e) {
+   console.error("[voidPaymentRecord] entitlement clawback failed", e)
+   return {
+    ok: false,
+    message:
+     e instanceof Error
+      ? `單據已作廢，但權益池收回失敗：${e.message}`
+      : "單據已作廢，但權益池收回失敗。",
+   }
+  }
+ }
+
  return {
   ok: true,
   alreadyVoided: Boolean(payload.alreadyVoided),

@@ -321,13 +321,15 @@ export async function fetchTrialStudentsForSchedule(
  }
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
+  .select("student_id, status, payment_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .eq("schedule_id", scheduleId)
+  .not("payment_id", "is", null)
  if (error) throw error
  return (data ?? [])
   .filter((row) => {
    const s = String((row as { status?: string }).status ?? "")
-   return !s.includes("完成") && !s.includes("取消")
+   const paymentId = (row as { payment_id?: string | null }).payment_id
+   return Boolean(paymentId) && !s.includes("完成") && !s.includes("取消")
   })
   .map((row) => {
   const r = row as Record<string, unknown>
@@ -919,8 +921,9 @@ export async function fetchTrialStudentsForSchedules(
  }
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("student_id, status, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
+  .select("student_id, status, payment_id, students ( full_name, english_name, grade, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
   .in("schedule_id", scheduleIds)
+  .not("payment_id", "is", null)
  if (error) throw error
  const seen = new Set<string>()
  const out: {
@@ -934,7 +937,7 @@ export async function fetchTrialStudentsForSchedules(
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
   const status = String(r.status ?? "")
-  if (status.includes("完成") || status.includes("取消")) continue
+  if (!r.payment_id || status.includes("完成") || status.includes("取消")) continue
   const studentId = String(r.student_id)
   if (seen.has(studentId)) continue
   seen.add(studentId)

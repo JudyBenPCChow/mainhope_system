@@ -67,10 +67,10 @@ export const MOCK_MONTH_LABEL = "2026年9月"
 export const MOCK_ROSTER_MONTH_LABEL = "2026年10月"
 export const MOCK_ROSTER_MONTH_KEY = "2026-10"
 export const MOCK_ACADEMIC_YEAR = "2627"
-export const MOCK_DEFAULT_ROOM = "17E"
-export const MOCK_SPLIT_NOTE = "上節 15:15–17:30｜下節 17:30–19:30｜佔用自 15:15"
-/** 沙盒示範：報更截止說明 */
-export const MOCK_SUBMIT_DEADLINE_NOTE = "請於上月 25 日前提交（示範文案；正式截止日後補）"
+export const MOCK_DEFAULT_ROOM = "17D"
+export const MOCK_SPLIT_NOTE = "上節 15:15–17:00｜下節 17:00–19:30｜佔用自 15:15"
+/** 沙盒示範：報更截止＝該月末日倒數第 3 日（含末日）＝末日 − 2；過截止仍可補交至發布前 */
+export const MOCK_SUBMIT_DEADLINE_NOTE = "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）；過期仍可補交至月工作表發布前"
 
 export const DUTY_CYCLE: DutySlot[] = ["全日", "上節", "下節", "—"]
 

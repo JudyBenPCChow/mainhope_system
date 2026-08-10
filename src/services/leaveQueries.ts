@@ -60,7 +60,7 @@ export const TEACHER_ABSENCE_LEAVE_REASON = "老師請假" as const
  * 「待安排」＝確定要補但尚無補堂日，會進堂數對帳；錄影／不補回不需另排日；調堂須選補堂排程。
  */
 export const LEAVE_MAKEUP_OPTIONS = ["待安排", "錄影", "調堂", "不補回"] as const
-export const LEAVE_TUITION_DISPOSITION_OPTIONS = ["減收", "轉結餘", "調堂", "錄影"] as const
+export const LEAVE_TUITION_DISPOSITION_OPTIONS = ["減收", "調堂", "錄影"] as const
 export type LeaveTuitionDisposition = (typeof LEAVE_TUITION_DISPOSITION_OPTIONS)[number]
 
 /** 請假是否仍缺實際補堂日期（應進堂數對帳） */
@@ -535,11 +535,13 @@ export async function setLeaveTuitionDisposition(
   .maybeSingle()
  if (chargeErr) throwPostgrest(chargeErr)
  const chargeStatus = charge ? String((charge as Record<string, unknown>).status) : ""
- if (disposition === "減收" && ["已繳", "已抵扣"].includes(chargeStatus)) {
-  throw new Error("此月份已收款，請改選「轉結餘」、調堂或錄影")
+ if ((disposition as string) === "轉結餘") {
+  throw new Error(
+   "已停用「轉結餘」：日常學費以權益池滾堂。請假唔嚟請用調堂／錄影／不補回（唔扣堂）；退讀退款另案處理。"
+  )
  }
- if (disposition === "轉結餘" && !["已繳", "已抵扣"].includes(chargeStatus)) {
-  throw new Error("只有已收款月份才可轉成堂費結餘；未收款請選「減收」")
+ if (disposition === "減收" && ["已繳", "已抵扣"].includes(chargeStatus)) {
+  throw new Error("此月份已收款，請改選調堂、錄影或不補回（已停用轉結餘）")
  }
 
  const { data: existingCredit, error: creditErr } = await supabase
@@ -550,43 +552,14 @@ export async function setLeaveTuitionDisposition(
   .maybeSingle()
  if (creditErr) throwPostgrest(creditErr)
  if (existingCredit && String((existingCredit as Record<string, unknown>).status) === "已抵扣") {
-  if (disposition !== "轉結餘") throw new Error("此結餘已用於其他帳單，不能更改處理方式")
+  throw new Error("此結餘已用於其他帳單，不能更改處理方式")
  }
 
- // A2：Confirm／刪出席 → 再寫 credit／update（禁止 Confirm 前寫 credit）
+ // A2：Confirm／刪出席 → 再寫／作廢 credit（禁止 Confirm 前寫 credit）
  const orphanHits = await previewLeaveDispositionAttendanceImpact(id, disposition)
  await applyLeaveAttendanceDeletes(id, orphanHits, options, "leave_disposition")
 
- if (disposition === "轉結餘") {
-  const amount = Number((charge as Record<string, unknown>).unit_price ?? 0)
-  if (!(amount > 0)) throw new Error("找不到有效每堂價格，無法建立結餘")
-  if (existingCredit) {
-   const { error } = await supabase
-    .from("tuition_credit_entries")
-    .update({
-     amount,
-     lesson_count: 1,
-     status: "可用",
-     source_charge_id: String((charge as Record<string, unknown>).id),
-     applied_charge_id: null,
-     applied_at: null,
-    })
-    .eq("id", String((existingCredit as Record<string, unknown>).id))
-   if (error) throwPostgrest(error)
-  } else {
-   const { error } = await supabase.from("tuition_credit_entries").insert({
-    student_id: String(row.student_id),
-    class_id: String(row.class_id),
-    source_leave_id: id,
-    source_charge_id: String((charge as Record<string, unknown>).id),
-    lesson_count: 1,
-    amount,
-    status: "可用",
-    notes: `${leaveDate} 請假轉下次月費結餘`,
-   })
-   if (error) throwPostgrest(error)
-  }
- } else if (existingCredit) {
+ if (existingCredit) {
   const { error } = await supabase
    .from("tuition_credit_entries")
    .update({ status: "作廢" })

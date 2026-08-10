@@ -64,6 +64,10 @@ export type ScheduleRosterTrial = {
  classId: string
  studentId: string
  status: string
+ /** 已確認收款之 payment id；無則唔應上點名紙 */
+ paymentId: string | null
+ /** 計老師人頭：true＝計、false＝唔計、null＝未選 */
+ countsTowardHeadcount: boolean | null
  fullName: string
  englishName: string | null
  grade: string | null
@@ -202,6 +206,13 @@ function mapContext(raw: unknown): ScheduleRosterContext {
    classId: String(row.class_id ?? ""),
    studentId: String(row.student_id ?? ""),
    status: String(row.status ?? ""),
+   paymentId: nullableString(row.payment_id),
+   countsTowardHeadcount:
+    row.counts_toward_headcount === true
+     ? true
+     : row.counts_toward_headcount === false
+       ? false
+       : null,
    fullName: String(row.full_name ?? "—") || "—",
    englishName: nullableString(row.english_name),
    grade: nullableString(row.grade),
@@ -433,6 +444,7 @@ export function enrollmentsForSchedules(
  )
 }
 
+/** 點名紙用：未完成／未取消，且已有確認收款（出單先上紙） */
 export function activeTrialsForSchedules(
  context: ScheduleRosterContext,
  scheduleIds: string[]
@@ -442,6 +454,7 @@ export function activeTrialsForSchedules(
   idSet.has(trial.scheduleId)
   && !trial.status.includes("完成")
   && !trial.status.includes("取消")
+  && Boolean(trial.paymentId)
  )
 }
 
@@ -568,12 +581,28 @@ export function rosterStudentsForSchedule(
  return legacyRosterStudentsForSchedule(context, scheduleId)
 }
 
-/** 該堂點名冊人數（報讀可見＋試堂＋補堂，去重） */
+/** 該堂人頭數：報讀／宣告／補堂照計；純試堂生只計 countsTowardHeadcount===true */
 export function rosterHeadcountForSchedule(
  context: ScheduleRosterContext,
  scheduleId: string
 ): number {
- return rosterStudentsForSchedule(context, scheduleId).length
+ const makeupIds = new Set(makeupsForSchedules(context, [scheduleId]).map((row) => row.studentId))
+ const enrolledIds = new Set(enrollmentsForSchedules(context, [scheduleId]).map((row) => row.studentId))
+ const declaredIds = new Set(
+  (context.activeDeclarations ?? [])
+   .filter((d) => d.scheduleId === scheduleId && d.status === "active")
+   .map((d) => d.studentId)
+ )
+ const trialByStudent = new Map(
+  activeTrialsForSchedules(context, [scheduleId]).map((t) => [t.studentId, t] as const)
+ )
+ return rosterStudentsForSchedule(context, scheduleId).filter((row) => {
+  if (enrolledIds.has(row.studentId) || declaredIds.has(row.studentId) || makeupIds.has(row.studentId)) {
+   return true
+  }
+  const trial = trialByStudent.get(row.studentId)
+  return trial?.countsTowardHeadcount === true
+ }).length
 }
 
 /**

@@ -1235,7 +1235,7 @@ export function LeaveManagementView() {
         ))}
        </Select>
        <span className="text-xs text-muted-foreground">
-        未收款選「減收」；已預繳選「轉結餘」；調堂／錄影不減費。
+        未收款可選「減收」；已預繳請用調堂／錄影／不補回（權益池滾堂；已停用轉結餘）。
        </span>
       </label>
 

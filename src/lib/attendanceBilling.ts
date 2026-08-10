@@ -32,7 +32,7 @@ export const ATTENDANCE_STATUS_HELP: Record<AttendanceStatusLabel, string> = {
  錄影回放: "當日已交付錄影／回放連結即銷堂，不論學生何時觀看。",
  zoom實時網課: "經 Zoom 等同步上網課，計入已上堂數（扣堂）。",
  "no show": "突然缺席且沒有請假通知，仍扣堂。",
- 請假而不需補回: "有請假，本可補回但學生自願放棄，仍扣堂。",
+ 請假而不需補回: "有請假且自願放棄已購堂（扣堂）。一般「唔嚟唔補」請用事假／病假（不扣堂）。",
  事假: "已請假（事假），不扣堂。",
  病假: "已請假（病假），不扣堂。",
 }
@@ -73,7 +73,8 @@ export function prefillStatusFromLeave(params: {
  const reason = String(params.leaveReason ?? "").trim()
  // 「待安排」無補堂日：依請假理由預填事假／病假（與調堂相同）
  if (makeup.includes("錄影")) return "錄影回放"
- if (makeup.includes("不補回")) return "請假而不需補回"
+ // G1：唔嚟唔補 → 預填不扣堂（事假）；「請假而不需補回」仍可人手選（放棄已購堂／扣堂）
+ if (makeup.includes("不補回")) return "事假"
  if (reason.includes("病")) return "病假"
  if (reason.includes("事")) return "事假"
  return "事假"

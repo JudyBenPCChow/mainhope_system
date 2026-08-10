@@ -1,0 +1,16 @@
+---
+description: 改有對應 docx 的營運 md 時必須同步重出 Word
+globs: docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md,docs/PAYROLL_GUIDE.md
+alwaysApply: false
+---
+
+# MD ↔ DOCX 同步
+
+用戶要求改上述（或其他已有成對 `.docx` 的）**markdown 正文**時：
+
+1. 先改 `.md`（真相來源）。
+2. **同一輪必須**用對應腳本重出 `.docx`，勿只改 md 就收工。
+3. 2627 常規學年營運指引：`python3 scripts/generate_2627_ops_guide_doc.py`（產出 `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.docx`）。Word 若卡住可用 `--no-word`，再請用戶在 Word 內更新目錄。
+4. Docx 排版跟腳本內嵌規範（新細明體、黑白、A4、左右 25mm、頁碼 `— N —`、內建 TOC 等）；唔好另手改 docx 當主稿。
+
+例外：用戶明確說「只改 md／唔使 docx」先可跳過。

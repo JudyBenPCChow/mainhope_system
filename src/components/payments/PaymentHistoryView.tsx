@@ -214,9 +214,11 @@ export function PaymentHistoryView() {
    id: row.id,
    receiptNumber: row.receiptNumber,
    studentName: row.studentName,
+   studentId: row.studentId,
    totalAmount: row.totalAmount,
    paymentDate: row.paymentDate,
    status: row.status,
+   createdAt: row.createdAt,
   })
   setVoidOpen(true)
  }

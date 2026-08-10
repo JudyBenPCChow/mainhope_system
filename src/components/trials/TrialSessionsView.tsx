@@ -168,6 +168,8 @@ export function TrialSessionsView() {
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addRemarks, setAddRemarks] = useState("")
  const [addTrialType, setAddTrialType] = useState<string>("免費試堂")
+ /** ""＝未選；"1"＝計；"0"＝唔計 */
+ const [addCountsHeadcount, setAddCountsHeadcount] = useState<"" | "1" | "0">("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
@@ -391,6 +393,7 @@ export function TrialSessionsView() {
   setAddScheduleId("")
   setAddRemarks("")
   setAddTrialType("免費試堂")
+  setAddCountsHeadcount("")
  }, [addOpen])
 
  const studentsFiltered = useMemo(() => {
@@ -692,6 +695,10 @@ export function TrialSessionsView() {
    setAddErr("請選擇學生、班別，並確認有可用的未來排程")
    return
   }
+  if (addCountsHeadcount !== "1" && addCountsHeadcount !== "0") {
+   setAddErr("請選擇是否計老師人頭（無預設，須手選）")
+   return
+  }
   setAddSaving(true)
   setAddErr(null)
   try {
@@ -703,20 +710,25 @@ export function TrialSessionsView() {
     trial_type: addTrialType,
     status: "已預約",
     remarks: addRemarks || null,
+    counts_toward_headcount: addCountsHeadcount === "1",
    })
    setAddOpen(false)
-   const needsPay = addTrialType === "半價試堂" || addTrialType === "原價試堂"
+   const trialPay =
+    addTrialType === "半價試堂" ? "half" : addTrialType === "原價試堂" ? "full" : "free"
    pushBanner({
     tone: "success",
     title: "已建立試堂",
-    message: needsPay
-     ? "學生已加入該堂點名名單。請到收款登記出單（原價／半價可改金額；連堂請核對堂數）。完整對帳以繳費紀錄為準。"
-     : "學生已加入該堂點名名單",
+    message:
+     "請到收款登記出單並確認收款後，學生先會出現喺點名紙（含 $0 免費試堂）。連堂請核對堂數。",
    })
    await reload()
-   if (needsPay) {
-    navigate(`/Payments?studentId=${encodeURIComponent(addStudentId)}&mode=receive`)
-   }
+   const q = new URLSearchParams({
+    studentId: addStudentId,
+    mode: "receive",
+    trialPay,
+    classId: addClassId,
+   })
+   navigate(`/Payments?${q.toString()}`)
   } catch (e) {
    const msg = e instanceof Error ? e.message : "建立試堂失敗"
    reportUserFacingError(e, { source: "TrialSessionsView.submitAdd", setErr: setAddErr, userMessage: msg })
@@ -1213,11 +1225,23 @@ export function TrialSessionsView() {
        </Select>
       </label>
       <label className="grid gap-1">
+       <span className="text-muted-foreground">計老師人頭 *</span>
+       <Select
+        className="h-9 w-full rounded-md border border-input px-2"
+        value={addCountsHeadcount}
+        onChange={(e) => setAddCountsHeadcount(e.target.value as "" | "1" | "0")}
+       >
+        <option value="">請選擇（無預設）</option>
+        <option value="1">計人頭</option>
+        <option value="0">唔計人頭</option>
+       </Select>
+      </label>
+      <label className="grid gap-1">
        <span className="text-muted-foreground">備註（選填）</span>
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-       試堂頁只登記試堂。半價／原價建立後會前往收款登記出單；金額可人手修改。對帳請睇繳費紀錄。
+       試堂頁只登記試堂。建立後會前往收款登記出單（免費亦出 $0 單）；確認收款後先上點名紙。對帳請睇繳費紀錄。
       </p>
       {addErr ? <p className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">

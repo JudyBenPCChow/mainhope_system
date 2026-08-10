@@ -2,94 +2,82 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
+| 狀態 | `open`（**v1.0 已寫**＋列印 docx；待產品審閱；§7 功輔留空；索引未掛；**§11 待跟出單先上紙**） |
 | 優先 | 中 |
-| 範圍 | 整理 `2627`（2026-09-01 → 2027-06-30）正規學年營運規則，寫成全公司員工可讀的繁體中文守則（排程、報讀、課室、老師／科目等） |
-| 不含 | 技術實作說明、給 AI／開發用指令、暑期兩期制全文、計糧細節（可一句指向既有指南） |
+| 範圍 | `2627`（2026-09-01 → 2027-06-30）正規學年全公司員工守則（繁中、可列印） |
+| 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
+| 產物 | [`manual/2627_REGULAR_YEAR_OPS_GUIDE.md`](../manual/2627_REGULAR_YEAR_OPS_GUIDE.md)（**v1.0**／2026-08-09）；[`manual/2627_REGULAR_YEAR_OPS_GUIDE.docx`](../manual/2627_REGULAR_YEAR_OPS_GUIDE.docx)（由腳本重出） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
+| 上次更新 | 2026-08-11 |
 
 ## 結論
 
-倉庫目前**沒有**單一「全公司 2627 常規學年守則」；規則散落 [`OPS_POLICIES.md`](../OPS_POLICIES.md) 姊妹篇與 [`SYSTEM_MANUAL.md`](../SYSTEM_MANUAL.md)。管理層／前線需要一份專業、客觀、可獨立閱讀的綜合指引。
+v1.0 員工守則已寫入 [`docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`](../manual/2627_REGULAR_YEAR_OPS_GUIDE.md)：§1–6、§8–12 齊；**§7 功課輔導暫留空**。已有列印用 docx（Word 內建目錄＋頁碼 `— N —`；改 md 須同步重出，見 `.cursor/rules/md-docx-sync.mdc`）。
 
-**已確認寫作要求（產品）：**
+職員以 WhatsApp／列印發佈；repo 目錄（`OPS_POLICIES`／`SYSTEM_MANUAL`）**尚未掛連結**。
 
-- 繁體中文；目錄；各章先列重點再分節；例子可配
-- 黑白為主、無 emoji、無斜體
-- 無「給 AI」類指示；對象＝全公司員工（非只管理層）
-- 動筆前先釐清待決（見下）；不確定細節須先問產品
+權威細節仍以各政策專篇為準；本指引為彙編，政策改時須同步升版。**2026-08-11：** 試堂「出單先上紙」已寫入 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../TRIAL_RECEIPT_BEFORE_ROSTER.md)；本指引 **§11 仍有「免費可不經付費」舊句，待升版同步 docx**。
 
-## 建議產物
+## 章節一覽（v1.0）
 
-| 項目 | 暫定 |
+| 章 | 狀態 |
 | --- | --- |
-| 路徑 | `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`（待確認） |
-| 索引 | 完成後掛入 [`OPS_POLICIES.md`](../OPS_POLICIES.md)、[`SYSTEM_MANUAL.md`](../SYSTEM_MANUAL.md) |
-| 權威來源 | 既有政策篇為準；本指引為員工可讀彙編，政策改時須同步 |
+| 1 文件說明 | 已寫 |
+| 2 學年與報讀 | 已寫 |
+| 3 排課規則 | 已寫（只規則；無課表／無具名老師） |
+| 4 課室與場地 | 已寫（容量寫「未公佈」） |
+| 5 專科班 | 已寫 |
+| 6 一對一課程 | 已寫 |
+| 7 功課輔導 | **留空**（待 [`homework-tutoring.md`](./homework-tutoring.md)） |
+| 8 學費與逾期罰款 | 已寫（含參考價；$50 罰款） |
+| 9 點名、請假與補堂 | 已寫 |
+| 10 代堂與換主責老師 | 已寫 |
+| 11 試堂 | 已寫；**待跟** [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../TRIAL_RECEIPT_BEFORE_ROSTER.md) |
+| 12 收款與單據 | 已寫（註更正流程可能更新；禁硬刪不變） |
 
-## 待決（動筆前 · 產品拍板）
+## 已定產品決策（摘要）
 
-以下為 2026-08-08 盤點後提出、須產品決定後才動筆。決策記入本節「決定」欄（或刪選項只留定案）。
+| 項目 | 決定 |
+| --- | --- |
+| 路徑 | `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`；封面寫 version／更新日期 |
+| 完整度 | 列印即完整（正文抄齊） |
+| 發佈 | 職員 WhatsApp／列印；唔靠系統搵文件 |
+| repo 索引 | 審閱後建議掛 `OPS_POLICIES`＋`SYSTEM_MANUAL`（維護用） |
+| 課表／老師 | 不載每周課表；不列個別老師 |
+| 功輔章 | 先留空 |
+| 機構稱呼專章 | 不設 |
+| 計糧 | 不寫入本指引 |
+| 課室容量 | 寫「未公佈」 |
+| 學費參考價 | 寫入 §8.2（以當期收費表為準） |
+| 文風 | 白話；少寫系統欄位名；§1 一句不適用暑期 |
+| docx | 由 `scripts/generate_2627_ops_guide_doc.py` 重出；改 md 同步 docx |
 
-### 1. 文件定位
+## 依賴（餘下）
 
-| 項目 | 選項／說明 | 決定 |
+| 項目 | 依賴 | 狀態 |
 | --- | --- | --- |
-| 檔名／路徑 | A：`docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`（與前線指引同層）／B：其他（請寫明） |  |
-| 與既有政策關係 | A：員工可獨立讀完的總則，細節仍連結專篇／B：盡量抄齊正文、少跳轉 |  |
-| 完成後索引 | 掛入 [`OPS_POLICIES.md`](../OPS_POLICIES.md)、[`SYSTEM_MANUAL.md`](../SYSTEM_MANUAL.md)（預設是） |  |
+| 補寫 §7 | [`homework-tutoring.md`](./homework-tutoring.md)（課室預設 17D／分界 17:00 已定；餘價錢／校曆／讓房） | 仍缺價／曆先可寫骨架 |
+| §11 試堂升版 | [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../TRIAL_RECEIPT_BEFORE_ROSTER.md)／[`frontline-ops-update.md`](./frontline-ops-update.md) | **待寫入 md＋重出 docx** |
+| 收款 §12 更正分流措辭 | [`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md)／作廢政策更新 | 正文已預留「流程可能更新」 |
 
-### 2. 章節範圍
+## 待做
 
-你已點名四核：排程、報讀、課室、老師／科目。以下職員日常常碰到——逐項納入或排除：
-
-| 主題 | 建議 | 決定（納入／排除） |
-| --- | --- | --- |
-| 學費節奏／逾期罰款 | 正規按月、罰款規則；前線已有專篇可摘要 |  |
-| 點名與扣堂 | 哪些狀態算已上 |  |
-| 請假／補堂／連堂 | 前線常見 |  |
-| 代堂 vs 換主責老師 | 前線守則已有；可摘要 |  |
-| 試堂 | 是否納入 |  |
-| 功課輔導 | 平日佔室、不按逢星期扣堂 |  |
-| 計糧／薪資 | 多數職員不需；建議排除或一句指向 [`PAYROLL_GUIDE.md`](../PAYROLL_GUIDE.md) |  |
-
-### 3. 時間表與老師名單（現況未定稿）
-
-| 項目 | 選項／說明 | 決定 |
-| --- | --- | --- |
-| 背景 | Production 仍 **0** 班 `2627`；2026-08-08 方案（36 班）**尚未營運簽收** | （事實，毋須選） |
-| 老師章深度 | A：只寫 [`SCHEDULING_RULES.md`](../SCHEDULING_RULES.md) 已確認約束（Mark／Katie／Christine／Cyndi／Jackson）／B：連 08-08 方案其他具名老師一併列出 |  |
-| 開首現況註記 | A：寫明「每周時間表仍為候選、未寫入系統」／B：只寫規則、不提錄入現況 |  |
-
-### 4. 未齊／互相打架的政策
-
-| 項目 | 現況 | 選項 | 決定 |
-| --- | --- | --- | --- |
-| 課室容量 | 五間皆「待確認」 | A：守則寫「容量未公佈」／B：產品現在補數字入文 |  |
-| 功輔課室 | [`SCHEDULING_RULES.md`](../SCHEDULING_RULES.md) §4 寫「非固定房號」；驗證清單仍寫「平日功輔全日 17D」 | A：以 §4 非固定為準／B：以 17D 為準／C：寫明待確認 |  |
-| 功輔末節讓房（約 19:00 後） | 規則待定 | A：寫入「暫未定案」／B：本指引不提 |  |
-| 學費參考價 | 初中／高中約 $275／$300、試堂 $250（排課規則 §10 參考） | A：寫入員工守則／B：不寫、另指學費政策 |  |
-
-### 5. 文風與深度
-
-| 項目 | 選項 | 決定 |
-| --- | --- | --- |
-| 系統用語 | A：完全避開欄位名（如 enrollment_period）與角色英文（admin）／B：正文用白話，必要時括註「系統稱作……」 |  |
-| 暑期對照 | A：一句「本守則不適用暑期；暑期另有兩期制」／B：完全不提暑期 |  |
-
-## 待做（摘要）
-
-1. 產品填寫上表「決定」欄  
-2. 起草指引（目錄＋各章）  
-3. 掛索引；必要時與 [`ops-docs-viewer.md`](./ops-docs-viewer.md) 白名單對齊  
+1. 產品審閱 v1.0；按意見修訂並升版（v1.1…）  
+2. **§11 跟出單先上紙**；升版後重出 docx  
+3. 審閱通過後掛 [`OPS_POLICIES.md`](../OPS_POLICIES.md)、[`SYSTEM_MANUAL.md`](../SYSTEM_MANUAL.md)  
+4. 職員 WhatsApp／列印發佈  
+5. §7：功輔拍板後補寫  
+6. 刪 WIP：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)（審閱後可刪）  
 
 ## 相關
 
+- 正文：[`manual/2627_REGULAR_YEAR_OPS_GUIDE.md`](../manual/2627_REGULAR_YEAR_OPS_GUIDE.md)
+- 列印：[`manual/2627_REGULAR_YEAR_OPS_GUIDE.docx`](../manual/2627_REGULAR_YEAR_OPS_GUIDE.docx)
+- 試堂總則：[`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../TRIAL_RECEIPT_BEFORE_ROSTER.md)
+- WIP（可刪）：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)
+- 功輔：[`homework-tutoring.md`](./homework-tutoring.md)
+- 時間表（獨立；本指引不載課表）：[`2627-september-timetable.md`](./2627-september-timetable.md)
 - 政策索引：[`OPS_POLICIES.md`](../OPS_POLICIES.md)
-- 排課：[`SCHEDULING_RULES.md`](../SCHEDULING_RULES.md)
-- 學年／報讀：[`ACADEMIC_YEARS.md`](../ACADEMIC_YEARS.md)
-- 課室：[`CLASSROOMS_OPS.md`](../CLASSROOMS_OPS.md)
-- 時間表候選：[`2627-september-timetable.md`](./2627-september-timetable.md)
-- 規劃 brief（非員工守則）：[`reports/2026-09-regular-year-ops-brief.md`](../reports/2026-09-regular-year-ops-brief.md)
+- 說明書目錄：[`SYSTEM_MANUAL.md`](../SYSTEM_MANUAL.md)
 - 應用內閱讀（另題）：[`ops-docs-viewer.md`](./ops-docs-viewer.md)

@@ -13,13 +13,16 @@ import type { EnrollmentWithClass } from "@/services/studentQueries"
 export const DEFAULT_LESSON_COUNT = "4"
 export const DEFAULT_TRIAL_LESSON_COUNT = "1"
 
+/** 優惠目錄：試堂半價 50%（填正價後套用；migration 固定 id） */
+export const TRIAL_HALF_PRICE_DISCOUNT_ID = "f1ee1000-0000-4000-8000-000000000853"
+
 /** 班別下拉中代表「試堂」模式的固定值（實際 classId 另選） */
 export const TRIAL_SELECT_VALUE = "__trial__"
 
 export const PENDING_PAYMENT_STATUSES = [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive] as const
 
 export type PaymentLineKind = "enrollment" | "trial"
-export type TrialPayType = "半價試堂" | "原價試堂"
+export type TrialPayType = "半價試堂" | "原價試堂" | "免費試堂"
 
 export type LineRow = {
  key: string
@@ -152,11 +155,12 @@ export function lineAmountFor(
  const n = Number(lessons)
  if (!Number.isFinite(n) || n <= 0) return ""
  if (options?.kind === "trial") {
+  if (options.trialType === "免費試堂") return "0"
   const c = options.trialClasses?.get(classId)
   const base = c?.pricePerLesson
   if (!(base != null && base > 0)) return ""
-  const unit = options.trialType === "半價試堂" ? base * 0.5 : base
-  return String(Math.round(unit * n * 100) / 100)
+  // 半價亦填正價；折扣由「試堂半價（50%）」優惠套用
+  return String(Math.round(base * n * 100) / 100)
  }
  const e = byClass.get(classId)
  if (!e?.pricePerLesson) return ""
