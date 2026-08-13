@@ -18,7 +18,7 @@ After writing or completing a migration needed by the current task:
 2. **Never** run full `supabase db push` / `db reset --linked` on production while histories diverge.
 3. Apply **only** the migration(s) for this task, not every local-only version.
 
-Playbook: `docs/SUPABASE_MIGRATION_APPLY.md`.
+Playbook: `docs/meta/SUPABASE_MIGRATION_APPLY.md`.
 
 ## Preferred command
 

@@ -9,7 +9,7 @@ disable-model-invocation: true
 ## 原則
 
 - 先以 `git status`、完整 staged／unstaged diff、相關測試結果及最近提交為事實來源；不可依記憶撰寫摘要。
-- 讀 `docs/BACKLOG.md` 的維護約定，再只讀與本次變更有關的 backlog 分題。
+- 讀 `docs/product/BACKLOG.md` 的維護約定，再只讀與本次變更有關的 backlog 分題。
 - 不改 `dist/` 建置產物；若它已被其他工作改動，摘要中不把它列為本次功能變更。
 - 不把未驗證、mock、原型或未套用 migration 描述成正式可用。
 - 預設只產生收件匣草稿。沒有明確渠道、收件人與「立即發送」指令時，絕不發送外部訊息。
@@ -18,11 +18,11 @@ disable-model-invocation: true
 
 1. 蒐集本次變更、涉及路由／角色／資料庫／操作流程、已跑命令及其結果。
 2. 對照相關 backlog 分題：
-   - 已完成：更新摘要與狀態；在 `docs/BACKLOG.md` 把整列移至「已完成／已取消」。
+   - 已完成：更新摘要與狀態；在 `docs/product/BACKLOG.md` 把整列移至「已完成／已取消」。
    - 部分完成：保留 `open`／`in_progress`，更新真實進度、餘項與任何新限制。
    - 不清楚歸屬：不要新開或搬移 backlog 項目，先在交接摘要列作待確認。
 3. 以行政語言撰寫摘要：說明「現在可做什麼、誰會受影響、如何操作、已知限制／跟進」。避免程式檔名、內部實作細節和未證實好處。
-4. 產生收件匣草稿，格式適合指定渠道；預設保存於 `docs/handoffs/YYYY-MM-DD-<scope>-admin-update.md`。目錄不存在時可建立。
+4. 產生收件匣草稿，格式適合指定渠道；預設保存於 `docs/meta/handoffs/YYYY-MM-DD-<scope>-admin-update.md`。目錄不存在時可建立。
 5. 若使用者提供渠道、收件人、訊息內容確認與發送指令，先展示最終內容再使用已授權的整合發送；不能使用未配置或未授權的渠道。
 
 ## 交接摘要格式

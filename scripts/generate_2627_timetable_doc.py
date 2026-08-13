@@ -13,7 +13,7 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT_DIR = ROOT / "docs" / "reports"
+OUT_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
 STEM = "2627_timetable_scheme_2026-08-08"
 STEM_TEACHERS = "2627_timetable_teachers_week_2026-08-08"
 FONT_DIR = OUT_DIR / ".fonts"
@@ -79,40 +79,48 @@ def class_cell_text(grade: str, subject: str, teacher: str, code: str, slot_idx:
 
 
 # (day_idx, slot_idx, room, subject, grade, teacher, code)
+# Katie：放假五、六；一×1；二至四各連排三堂（16:30–20:15）；日×3。
+# Mark：一、二各連排三堂；四高中兩班（17:45–20:15）；六×1；無三／五／日。
 CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
+    # Monday — Mark 17E 連三；Katie 矩尺座×1；Christine 山案座
     (0, 6, "17E", "數學", "S1", "Mark Yu", "S1數A"),
     (0, 6, "矩尺座", "中文", "S2", "Katie", "S2中B"),
+    (0, 7, "17E", "數學", "S5", "Mark Yu", "S5數B"),
     (0, 7, "山案座", "中文", "S6", "Christine Fan", "S6中B"),
     (0, 8, "17E", "數學", "S4", "Mark Yu", "S4數B"),
     (0, 8, "山案座", "中文", "S5", "Christine Fan", "S5中C"),
+    # Tuesday — Mark 17E 連三；Katie 矩尺座 連三
+    (1, 6, "17E", "數學", "S2", "Mark Yu", "S2數A"),
     (1, 6, "矩尺座", "中文", "S3", "Katie", "S3中B"),
     (1, 7, "17E", "數學", "S6", "Mark Yu", "S6數B"),
-    (1, 8, "17E", "數學", "S5", "Mark Yu", "S5數B"),
-    (1, 8, "矩尺座", "中文", "S1", "Katie", "S1中C"),
+    (1, 7, "矩尺座", "中文", "S1", "Katie", "S1中C"),
+    (1, 8, "17E", "數學", "S4", "Mark Yu", "S4數A"),
+    (1, 8, "矩尺座", "中文", "S2", "Katie", "S2中C"),
+    # Wednesday — Katie 連三；Jackson 英仙座
     (2, 6, "矩尺座", "中文", "S1", "Katie", "S1中D"),
-    (2, 7, "矩尺座", "中文", "S2", "Katie", "S2中C"),
+    (2, 7, "矩尺座", "中文", "S2", "Katie", "S2中D"),
     (2, 7, "英仙座", "英文", "S5", "Jackson Lau", "S5英B"),
-    (3, 7, "矩尺座", "中文", "S3", "Katie", "S3中C"),
+    (2, 8, "矩尺座", "中文", "S3", "Katie", "S3中C"),
+    # Thursday — Mark 17E 高中兩班；Katie 連三；Christine 山案座
+    # （同年級不撞：slot7 唔排 S6 數／slot8 唔排 S4 數）
+    (3, 6, "矩尺座", "中文", "S3", "Katie", "S3中D"),
+    (3, 7, "17E", "數學", "S5", "Mark Yu", "S5數A"),
+    (3, 7, "矩尺座", "中文", "S1", "Katie", "S1中E"),
     (3, 7, "山案座", "中文", "S6", "Christine Fan", "S6中C"),
-    (3, 8, "矩尺座", "中文", "S2", "Katie", "S2中D"),
+    (3, 8, "17E", "數學", "S6", "Mark Yu", "S6數A"),
+    (3, 8, "矩尺座", "中文", "S1", "Katie", "S1中B"),
     (3, 8, "山案座", "中文", "S4", "Christine Fan", "S4中C"),
-    (4, 6, "矩尺座", "中文", "S3", "Katie", "S3中D"),
-    (4, 7, "矩尺座", "中文", "S1", "Katie", "S1中E"),
-    # Saturday — no 09:00; Mark 17D; Jackson 17E
-    (5, 1, "17D", "數學", "S6", "Mark Yu", "S6數A"),
-    (5, 2, "17D", "數學", "S5", "Mark Yu", "S5數A"),
+    # Friday — Katie／Mark 放假；開會空檔 16:30-17:45
+    # Saturday — no 09:00; Mark 17D×1；Jackson 17E
+    (5, 1, "17D", "數學", "S3", "Mark Yu", "S3數A"),
     (5, 3, "17E", "英文", "S4", "Jackson Lau", "S4英B"),
-    (5, 4, "17D", "數學", "S4", "Mark Yu", "S4數A"),
-    (5, 5, "17D", "數學", "S3", "Mark Yu", "S3數A"),
-    (5, 7, "17D", "數學", "S2", "Mark Yu", "S2數A"),
-    # Sunday — no 09:00; Christine 17D from 11:30; Katie 17E from 10:15; Cyndi Ng 英仙座 from 10:15
+    # Sunday — no 09:00; Christine 17D from 11:30; Katie 17E×3; Cyndi Ng 英仙座
     (6, 1, "17E", "中文", "S1", "Katie", "S1中A"),
     (6, 2, "17E", "中文", "S2", "Katie", "S2中A"),
     (6, 2, "17D", "中文", "S4", "Christine Fan", "S4中A"),
     (6, 3, "17D", "中文", "S5", "Christine Fan", "S5中A"),
     (6, 4, "17E", "中文", "S3", "Katie", "S3中A"),
     (6, 4, "英仙座", "英文", "S4", "Cyndi Ng", "S4英A"),
-    (6, 5, "17E", "中文", "S1", "Katie", "S1中B"),
     (6, 5, "17D", "中文", "S6", "Christine Fan", "S6中A"),
     (6, 6, "17D", "中文", "S4", "Christine Fan", "S4中B"),
     (6, 8, "17D", "中文", "S5", "Christine Fan", "S5中B"),
@@ -126,9 +134,23 @@ RESERVED: list[tuple[int, int, str, str, str]] = [
     (6, 5, "英仙座", "Cyndi Ng", "一對一高中英文科（預留）"),
 ]
 
+MINUTES_PER_CLASS = 75
+
 STAFF = [
-    ("Mark Yu", "數學科", 9, "星期一、星期二、星期六", "兼職。必須星期六出勤；不排星期三、星期五、星期日。"),
-    ("Katie", "中文科", 13, "星期一至星期五、星期日", "全職。星期日四班；星期一一班；星期二至五每日兩班。"),
+    (
+        "Mark Yu",
+        "數學科",
+        9,
+        "星期一、星期二、星期四、星期六",
+        "兼職。必須星期六出勤；不排星期三、星期五、星期日。星期一、二連排三堂；星期四高中兩班（17:45-20:15）；星期六一班。",
+    ),
+    (
+        "Katie",
+        "中文科",
+        13,
+        "星期一至星期四、星期日",
+        "全職。放假星期五、星期六。星期一一班；星期二至四每日連排三堂；星期日三班。",
+    ),
     (
         "Christine Fan",
         "中文科（中四級至中六級）",
@@ -153,15 +175,25 @@ PRINCIPLES = [
     "可用課室為 17D、17E、矩尺座、英仙座、山案座；17K 停用。平日 17D 全日列作功課輔導班專用，常規班不使用 17D。",
     "平日年級時段：中一級至中三級自 16:30 起；中四級至中六級自 17:45 起。週末除上述 09:00 限制外，年級不限最早時段，仍禁止末節。",
     "同一老師、同一課室、同年級不同科目，同時段均不可重疊。",
-    "同一老師連堂最多兩節，其後須空至少一格；同日最多五節。兼職相鄰堂之間空檔最多一格；僅 Katie 可留較大空檔。",
+    "一般連堂最多兩節，其後須空至少一格；同日最多五節。例外：Mark Yu 星期一、二連排三堂；Katie 星期二至四連排三堂。兼職相鄰堂之間空檔最多一格；僅 Katie 可留較大空檔。",
     "同一老師同一出勤日，班別盡量安排於同一課室。",
+    "Mark Yu 星期四排高中數學兩班（17:45-20:15）；不排星期三、星期五、星期日。",
+    "Katie 放假星期五、星期六；星期一一班；星期二至四每日三班；星期日三班。",
     "Christine Fan 星期日班別最早於 11:30 開始。",
     "Cyndi Ng 星期日小組班自 10:15 開始；同日另預留一個一對一高中英文時段。",
     "時間表不出現「待確認老師」。未有具名老師承接的班數，另列未排缺口。",
     "Jackson Lau 出勤為星期三一班、星期六一班。",
-    "Mark Yu、Christine Fan、Katie 開會空檔為星期四 16:30-17:45。",
+    "Mark Yu、Christine Fan、Katie 開會空檔為星期五 16:30-17:45。",
     "核心科目標為中文科、英文科、數學科每級至少兩班。本方案僅排已確認老師配額；不足者見未排缺口。",
 ]
+
+
+def teacher_hours_text(n_classes: int) -> str:
+    total_min = n_classes * MINUTES_PER_CLASS
+    hours, minutes = divmod(total_min, 60)
+    if minutes:
+        return f"{n_classes} 班 × {MINUTES_PER_CLASS} 分鐘＝每周授課 {hours} 小時 {minutes} 分鐘（合共 {total_min} 分鐘）"
+    return f"{n_classes} 班 × {MINUTES_PER_CLASS} 分鐘＝每周授課 {hours} 小時（合共 {total_min} 分鐘）"
 
 
 def ensure_pmingliu() -> Path:
@@ -312,7 +344,7 @@ def day_grid(day_idx: int) -> list[list[str]]:
             if hits:
                 extra = "\n\n".join(hits)
                 cell = extra if not cell else f"{cell}\n{extra}"
-            if day_idx == 3 and s == 6 and room != "17D":
+            if day_idx == 4 and s == 6 and room != "17D":
                 meet = "開會空檔\nMark Yu／Christine Fan／Katie\n16:30-17:45"
                 cell = meet if not cell else f"{cell}\n{meet}"
             row.append(cell if cell else "—")
@@ -348,7 +380,7 @@ def build_docx(path: Path) -> None:
 
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = meta.add_run("方案紀錄｜2026-08-08｜未定稿入庫")
+    run = meta.add_run("方案紀錄｜2026-08-08｜修訂 2026-08-12｜未定稿入庫")
     set_run_font(run, 12)
 
     add_para(doc, "本文件為規劃方案紀錄，供營運審閱。內容以排課規則為準，尚未寫入正式班別與排程。", size=12)
@@ -440,7 +472,7 @@ def build_docx(path: Path) -> None:
         note = "平日。17D 為功課輔導班專用。最遲 19:00-20:15。"
         if day_idx >= 5:
             note = "週末。五室皆可排常規班。最遲 19:00-20:15。本日不排 09:00-10:15。"
-        if day_idx == 3:
+        if day_idx == 4:
             note += " 16:30-17:45 為 Mark Yu、Christine Fan、Katie 開會空檔。"
         if day_idx == 6:
             note += " Christine Fan 班別自 11:30 起。Cyndi Ng 小組班自 10:15 起，並預留一個一對一高中英文時段。"
@@ -572,7 +604,7 @@ def build_pdf(path: Path, font_path: Path) -> None:
     story: list = []
     story.append(P("明學教育", "BWCenter"))
     story.append(P("2627 學年常規小組課時間表", "BWCenter"))
-    story.append(P("方案紀錄｜2026-08-08｜未定稿入庫", "BWCenter"))
+    story.append(P("方案紀錄｜2026-08-08｜修訂 2026-08-12｜未定稿入庫", "BWCenter"))
     story.append(P("本文件為規劃方案紀錄，供營運審閱。內容以排課規則為準，尚未寫入正式班別與排程。"))
 
     story.append(PageBreak())
@@ -625,7 +657,7 @@ def build_pdf(path: Path, font_path: Path) -> None:
         note = "平日。17D 為功課輔導班專用。最遲 19:00-20:15。"
         if day_idx >= 5:
             note = "週末。五室皆可排常規班。最遲 19:00-20:15。本日不排 09:00-10:15。"
-        if day_idx == 3:
+        if day_idx == 4:
             note += " 16:30-17:45 為 Mark Yu、Christine Fan、Katie 開會空檔。"
         if day_idx == 6:
             note += " Christine Fan 班別自 11:30 起。Cyndi Ng 小組班自 10:15 起，並預留一個一對一高中英文時段。"
@@ -666,6 +698,21 @@ def validate() -> None:
         if d >= 5:
             assert s >= 1
     assert {c[0] for c in CLASSES if c[5] == "Jackson Lau"} == {2, 5}
+    assert {c[0] for c in CLASSES if c[5] == "Katie"} == {0, 1, 2, 3, 6}
+    assert {c[0] for c in CLASSES if c[5] == "Mark Yu"} == {0, 1, 3, 5}
+    # Mark／Katie weekday blocks of 3 (slots 6–8)
+    for teacher, days in (("Mark Yu", (0, 1)), ("Katie", (1, 2, 3))):
+        for d in days:
+            slots = sorted(c[1] for c in CLASSES if c[5] == teacher and c[0] == d)
+            assert slots == [6, 7, 8], (teacher, d, slots)
+    katie_mon = [c[1] for c in CLASSES if c[5] == "Katie" and c[0] == 0]
+    assert katie_mon == [6]
+    mark_thu = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 3)
+    assert mark_thu == [7, 8]
+    mark_thu_grades = {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 3}
+    assert mark_thu_grades <= {"S4", "S5", "S6"}
+    mark_sat = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5)
+    assert mark_sat == [1]
     assert len(RESERVED) == 1 and RESERVED[0][4].startswith("一對一高中英文科")
     rooms = defaultdict(set)
     for d, _, room, _, _, teacher, _ in CLASSES:
@@ -732,12 +779,12 @@ def build_teachers_docx(path: Path) -> None:
 
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = meta.add_run("獨立附件｜對應方案紀錄 2026-08-08｜未定稿入庫")
+    run = meta.add_run("獨立附件｜對應方案紀錄 2026-08-08（修訂 2026-08-12）｜未定稿入庫")
     set_run_font(run, 12)
 
     add_para(
         doc,
-        "本文件獨立於全校課室時間表，只按老師列出一周職務。每位老師含一周總覽表，以及大學課表式周視圖（橫軸星期、縱軸時段）。班別名稱與時段寫法與方案紀錄一致。",
+        "本文件獨立於全校課室時間表，只按老師列出一周職務。每位老師先列一周總覽，周視圖另頁（橫軸星期、縱軸時段）。班別名稱與時段寫法與方案紀錄一致。",
         size=12,
     )
 
@@ -749,6 +796,7 @@ def build_teachers_docx(path: Path) -> None:
         if reserved_n:
             load += f"；預留時段：{reserved_n} 個"
         add_para(doc, load, size=12, space_after=4)
+        add_para(doc, teacher_hours_text(n), size=12, space_after=4)
         add_para(doc, f"出勤日：{days}", size=12, space_after=4)
         add_para(doc, note, size=12, space_after=8)
 
@@ -762,7 +810,10 @@ def build_teachers_docx(path: Path) -> None:
                 if ri == 0:
                     shade_cell(t.rows[ri].cells[j])
 
-        add_para(doc, "周視圖", size=12, bold=True, space_after=6)
+        # 周視圖獨立一頁
+        add_page_break(doc)
+        add_para(doc, f"{name}｜周視圖", size=12, bold=True, space_after=6)
+        add_para(doc, f"科目：{subject}；{teacher_hours_text(n)}", size=12, space_after=8)
         grid = teacher_week_grid(name)
         tg = doc.add_table(rows=len(grid), cols=len(grid[0]))
         tg.style = "Table Grid"
@@ -885,10 +936,10 @@ def build_teachers_pdf(path: Path, font_path: Path) -> None:
     story: list = []
     story.append(P("明學教育", "BWCenter"))
     story.append(P("2627 學年各老師一周排程", "BWCenter"))
-    story.append(P("獨立附件｜對應方案紀錄 2026-08-08｜未定稿入庫", "BWCenter"))
+    story.append(P("獨立附件｜對應方案紀錄 2026-08-08（修訂 2026-08-12）｜未定稿入庫", "BWCenter"))
     story.append(
         P(
-            "本文件獨立於全校課室時間表，只按老師列出一周職務。每位老師含一周總覽表，以及大學課表式周視圖（橫軸星期、縱軸時段）。班別名稱與時段寫法與方案紀錄一致。"
+            "本文件獨立於全校課室時間表，只按老師列出一周職務。每位老師先列一周總覽，周視圖另頁（橫軸星期、縱軸時段）。班別名稱與時段寫法與方案紀錄一致。"
         )
     )
 
@@ -901,13 +952,18 @@ def build_teachers_pdf(path: Path, font_path: Path) -> None:
             load += f"；預留時段：{reserved_n} 個"
         story.append(P(f"科目：{subject}"))
         story.append(P(load))
+        story.append(P(teacher_hours_text(n)))
         story.append(P(f"出勤日：{days}"))
         story.append(P(note))
         story.append(Spacer(1, 6))
         story.append(BoldTitle("一周總覽"))
         story.append(bw_table(teacher_week_rows(name), [3.2 * cm, 3.2 * cm, 2.8 * cm, 7.0 * cm]))
-        story.append(Spacer(1, 10))
-        story.append(BoldTitle("周視圖"))
+
+        # 周視圖獨立一頁
+        story.append(PageBreak())
+        story.append(BoldTitle(f"{name}｜周視圖"))
+        story.append(P(f"科目：{subject}；{teacher_hours_text(n)}"))
+        story.append(Spacer(1, 6))
         # Landscape A4 usable width ≈ 26.7cm with 1.5cm margins.
         week_widths = [2.6 * cm] + [3.3 * cm] * 7
         styles_small = ParagraphStyle(

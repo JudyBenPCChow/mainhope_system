@@ -21,8 +21,8 @@ from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "docs" / "manual" / "2627_REGULAR_YEAR_OPS_GUIDE.md"
-OUT = ROOT / "docs" / "manual" / "2627_REGULAR_YEAR_OPS_GUIDE.docx"
+SRC = ROOT / "docs" / "year" / "2627" / "ops-guide.md"
+OUT = ROOT / "docs" / "generated" / "2627" / "2627_REGULAR_YEAR_OPS_GUIDE.docx"
 
 FONT_NAME_EA = "新細明體"
 BODY_SIZE = 11

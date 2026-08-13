@@ -90,7 +90,7 @@ function findSelectOptionChildViolations(content) {
     ) {
       violations.push({
         message:
-          "Select 子元素勿用 Fragment 包裹 <option>；請改為直接子節點、陣列展開或三元回傳 <option>（見 docs/UI_DESIGN_INSTRUCTIONS.md §12）",
+          "Select 子元素勿用 Fragment 包裹 <option>；請改為直接子節點、陣列展開或三元回傳 <option>（見 docs/meta/UI_DESIGN_INSTRUCTIONS.md §12）",
       })
       continue
     }

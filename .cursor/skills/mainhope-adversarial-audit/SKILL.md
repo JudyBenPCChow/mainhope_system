@@ -24,7 +24,7 @@ disable-model-invocation: true
    - **完整性**：代堂不應改主責、點名／扣堂／繳費／學年等關鍵規則是否可被不當操作繞過。
 4. 對每項發現給出可重現但不會洩露敏感資料的證據。把「已確認」與「僅靜態推測」分開。
 5. 風險分級：Critical（可造成嚴重未授權存取或不可逆資料損失）、High、Medium、Low。每項說明受影響角色與資料。
-6. 報告寫入 `docs/audits/YYYY-MM-DD-<scope>-adversarial.md`。只在確認有對應工程主題時，回寫該 backlog 分題；不要在稽核時自行修正產品。
+6. 報告寫入 `docs/product/audits/YYYY-MM-DD-<scope>-adversarial.md`。只在確認有對應工程主題時，回寫該 backlog 分題；不要在稽核時自行修正產品。
 
 ## 報告格式
 

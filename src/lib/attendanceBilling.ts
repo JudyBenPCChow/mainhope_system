@@ -1,6 +1,6 @@
 /**
  * 點名狀態與「已上堂數／扣堂」判定（嚴格白名單）。
- * 業務說明見 docs/ATTENDANCE_BILLING.md
+ * 業務說明見 docs/policies/attendance/ATTENDANCE_BILLING.md
  */
 
 /** 點名可選狀態（新寫入） */

@@ -16,8 +16,8 @@ description: >-
 | --- | --- | --- |
 | 本 skill → session HANDOFF | 呢次任務**進度狀態** | — |
 | `mainhope-release-handoff` | 工程完工 → **行政摘要**／收件匣草稿 | 唔寫行政文案 |
-| `docs/AGENT_HANDOFF.md` | 長期架構／分層／RLS 慣例 | 唔覆寫、唔塞 session 進度 |
-| `docs/BACKLOG.md` + `docs/backlog/<topic>.md` | 主題真相來源 | HANDOFF 只**指過去**，唔複製長規格 |
+| `docs/meta/AGENT_HANDOFF.md` | 長期架構／分層／RLS 慣例 | 唔覆寫、唔塞 session 進度 |
+| `docs/product/BACKLOG.md` + `docs/product/topics/<topic>.md` | 主題真相來源 | HANDOFF 只**指過去**，唔複製長規格 |
 | `AGENTS.md`／`.cursor/rules`／skills | 長期規則 | 錯題本重複出現先升格 |
 
 ## 推薦順序
@@ -33,7 +33,7 @@ description: >-
 
 ## 1. Session HANDOFF（狀態）
 
-**路徑**：`docs/handoffs/YYYY-MM-DD-<scope>-session.md`  
+**路徑**：`docs/meta/handoffs/YYYY-MM-DD-<scope>-session.md`  
 目錄唔存在就建立。`<scope>` 用短英文／拼音主題（例：`payroll-tab-ia`、`summer-roster`）。
 
 **只記狀態**，唔寫長篇敘事、唔貼大段 code、唔重抄 backlog 規格。
@@ -41,7 +41,7 @@ description: >-
 ### 寫之前先核對事實
 
 - 相關 `git status`／關鍵 diff（若有未提交變更）
-- 對應 `docs/backlog/<topic>.md` 現況（若有主題）
+- 對應 `docs/product/topics/<topic>.md` 現況（若有主題）
 - 已跑驗證（`build`／`lint`／測試）同結果；未跑就寫「未驗證」
 
 ### 模板
@@ -52,7 +52,7 @@ description: >-
 | 欄位 | 值 |
 | --- | --- |
 | 日期 | YYYY-MM-DD |
-| 主題／backlog | `docs/backlog/<topic>.md` 或「無分題」 |
+| 主題／backlog | `docs/product/topics/<topic>.md` 或「無分題」 |
 | 分支／工作樹 | <branch；有未提交就列關鍵路徑> |
 
 ## 目標
@@ -92,7 +92,7 @@ description: >-
 適用：用戶要求回顧、或收尾時本會話確有被糾正。
 
 **預設只輸出在聊天**；用戶明確要求存檔先寫  
-`docs/handoffs/YYYY-MM-DD-<scope>-retro.md`。
+`docs/meta/handoffs/YYYY-MM-DD-<scope>-retro.md`。
 
 逐條列出**被用戶糾正**嘅內容（唔係所有改動）。歸因只准兩類：
 
@@ -107,13 +107,13 @@ description: >-
 | … | 信息不足／判斷錯 | 給用戶可直接貼嘅一句提示 |
 ```
 
-「下次開局指令建議」要可執行（例：「先讀 `docs/backlog/payroll-engine.md` 再改 UI，唔好動引擎」），唔好空泛「要小心」。
+「下次開局指令建議」要可執行（例：「先讀 `docs/product/topics/payroll-engine.md` 再改 UI，唔好動引擎」），唔好空泛「要小心」。
 
 ---
 
 ## 3. 錯題本（可復用經驗）
 
-**路徑**：`docs/AGENT_LESSONS.md`（無則新建，用下方結構）。
+**路徑**：`docs/meta/AGENT_LESSONS.md`（無則新建，用下方結構）。
 
 **只錄**：
 
@@ -126,12 +126,12 @@ description: >-
 - 已寫進 `AGENTS.md`／`.cursor/rules`／既有 skill 嘅條文（改加一句「見 xxx」，唔重複全文）
 - 未經確認嘅推測
 
-### `docs/AGENT_LESSONS.md` 結構
+### `docs/meta/AGENT_LESSONS.md` 結構
 
 ```markdown
 # Agent 錯題本
 
-可復用教訓。Session 進度見 `docs/handoffs/*-session.md`。長期鐵則見 `AGENTS.md`。
+可復用教訓。Session 進度見 `docs/meta/handoffs/*-session.md`。長期鐵則見 `AGENTS.md`。
 
 ## 教訓
 
@@ -158,6 +158,6 @@ description: >-
 
 ## 觸發用語（用戶可直接貼）
 
-1. 「呢個會話要結束。寫一份交接俾完全冇上下文嘅新會話，存到 `docs/handoffs/`。」
+1. 「呢個會話要結束。寫一份交接俾完全冇上下文嘅新會話，存到 `docs/meta/handoffs/`。」
 2. 「回顧今次協作，把所有被我糾正過嘅內容逐條列出；用表：修改內容、錯誤歸因、下次指令建議。」
 3. 「把啱啱嘅經驗錄入錯題本，只記糾錯同有效方法；已有就更新。」

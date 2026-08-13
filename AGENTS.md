@@ -1,6 +1,6 @@
 # AGENTS.md — 明學（MainHope）行政後台
 
-介面用語：**繁體中文**。機構自稱見 `docs/TERMINOLOGY.md`（**明學教育**／**MainHope**；禁 mingxue、院方、「明學補習社」、書院／學院自稱）。
+介面用語：**繁體中文**。機構自稱見 `docs/meta/TERMINOLOGY.md`（**明學教育**／**MainHope**；禁 mingxue、院方、「明學補習社」、書院／學院自稱）。
 
 ## 技術棧
 
@@ -32,16 +32,17 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 
 ## 鐵則
 
-- **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。詳見 `docs/UI_DESIGN_INSTRUCTIONS.md`。
-- **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/RLS_ROLLOUT.md`。
-- **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/backlog/mgmt-manager-role.md`／計糧見 `docs/backlog/payroll-engine.md`。
-- **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/SCHEDULE_SUBSTITUTE_TEACHER.md`。
+- **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。詳見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md`。
+- **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/meta/RLS_ROLLOUT.md`。
+- **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
+- **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 
 ## 讀檔階梯
 
-預設只靠本檔。問未做 → `docs/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/backlog/<topic>.md`（＋現行 `docs/plans/`）。  
-`docs/audits/`／已完成 plans：除非對對抗、查決策、或用戶點名，否則唔開。  
-其餘索引由 `docs/` 自行尋，唔好預讀。
+文件總門牌：`docs/README.md`（政策／操作／學年／工程／meta 四門）。  
+預設只靠本檔。問未做 → `docs/product/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。  
+`docs/product/audits/`／已完成 plans：除非對對抗、查決策、或用戶點名，否則唔開。  
+營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘唔好預讀。
 
-**MD↔DOCX：** 改 `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。
+**MD↔DOCX：** 改 `docs/year/2627/ops-guide.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。

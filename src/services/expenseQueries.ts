@@ -1,6 +1,6 @@
 /**
  * HK 成本帳：科目／建議／入帳／儀表板彙總；計糧結算過帳。
- * 計劃：docs/plans/2026-08-05-hk-expense-cost-stats.md
+ * 計劃：docs/product/plans/2026-08-05-hk-expense-cost-stats.md
  */
 import {
   expensePayMethodLabel,

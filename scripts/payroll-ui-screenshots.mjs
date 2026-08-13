@@ -5,7 +5,7 @@
  *   npm run dev -- --host 127.0.0.1 --port 5174
  *   PAYROLL_PREVIEW_URL=http://127.0.0.1:5174/PayrollUiPreview node scripts/payroll-ui-screenshots.mjs
  *
- * 輸出：docs/payroll-ui-preview/*.png
+ * 輸出：docs/product/payroll-ui-preview/*.png
  */
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"

@@ -1,6 +1,6 @@
 /**
  * 生命週期孤兒 A1：出席掃描／eligibility／稽核刪除。
- * 方案見 docs/plans/2026-07-31-lifecycle-orphans.md
+ * 方案見 docs/product/plans/2026-07-31-lifecycle-orphans.md
  */
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"

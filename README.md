@@ -2,7 +2,8 @@
 
 由 Base44 遷移計畫產生的 **Vite + React + TypeScript + Tailwind + React Router** 專案。目前為 **可執行骨架**：路由與側欄對齊舊版 `App.jsx`／`Layout.jsx`，資料層為 **`src/api/entities.ts` stub**，之後改接 Supabase。
 
-**協作／交給 AI Agent 的約定**（目錄職責、`services` 型別映射、RLS 上線注意、路由與側欄同步）：見 **[docs/AGENT_HANDOFF.md](docs/AGENT_HANDOFF.md)**。
+**文件總門牌**（政策／操作／學年／工程）：**[docs/README.md](docs/README.md)**。  
+**協作／交給 AI Agent 的約定**（目錄職責、`services` 型別映射、RLS 上線注意、路由與側欄同步）：見 **[docs/meta/AGENT_HANDOFF.md](docs/meta/AGENT_HANDOFF.md)**。
 
 ## 本機執行
 

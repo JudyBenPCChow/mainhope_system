@@ -1,6 +1,6 @@
 /**
  * 正規課程逾期學費罰款（收款自動加 $50）。
- * 前線口徑：docs/manual/TUITION_LATE_FEE_FRONTLINE.md
+ * 前線口徑：docs/playbooks/frontdesk/TUITION_LATE_FEE_FRONTLINE.md
  */
 
 /** 固定金額；日後可改 config／DB */

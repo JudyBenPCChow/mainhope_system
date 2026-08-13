@@ -279,7 +279,7 @@ ${APO_SYSTEM_DIRECTIVES}
 
 - 入口：/Inbox（admin、teacher、alien）
 - 內容：排程新增／變動／取消／代堂、班別變動、主責變更、學生請假、新增報讀／退讀／報讀形式／選堂、補堂已排定、提醒點名。老師僅見自己相關班／學生／堂次。
-- 操作說明：docs/manual/INBOX.md（系統說明書）
+- 操作說明：docs/playbooks/frontdesk/INBOX.md（系統說明書）
 - 專班老師側欄已攤平：收件匣喺「進行點名」正下方；亦可由「所有功能」進入。
 - 行政「待辦看板」（/Calendar）已廢除；日常通知請用收件匣。
 

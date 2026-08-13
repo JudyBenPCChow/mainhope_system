@@ -1,6 +1,6 @@
 /**
  * 繳費建議堂數：max(0, 本月會扣堂排程單位 − 池餘)
- * 產品：docs/backlog/summer-enrollment-roster-consistency.md §4.4／§4.6
+ * 產品：docs/product/topics/summer-enrollment-roster-consistency.md §4.4／§4.6
  */
 
 export function suggestedTuitionLessons(params: {

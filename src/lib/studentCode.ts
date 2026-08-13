@@ -1,5 +1,5 @@
 // 學生編號（student_code）生成規則 — 全域單一真實來源。
-// 規則說明見 docs/STUDENT_CODE.md。
+// 規則說明見 docs/policies/enrollment/STUDENT_CODE.md。
 //
 // 重點：
 // - 學號為「純數字」字串（目前為 8 位，皆以 2026 起頭，為歷史匯入批次年份）。
