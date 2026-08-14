@@ -12,6 +12,7 @@
 | 政策  | `[ACADEMIC_YEARS.md](../policies/academic/ACADEMIC_YEARS.md)`；`[ATTENDANCE_BILLING.md](../policies/attendance/ATTENDANCE_BILLING.md)`；`[LEAVE_MAKEUP_CONSECUTIVE.md](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md)` §5 |
 | 生效閘 | `2627` **開始接受報讀前**，新報讀須鑄池；有排程／點名時讀宣告。`26SM` 維持舊路徑至日落                                                                                                                      |
 | 修訂  | 2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
+| 技術債歸屬 | 2026-08-14 全盤檢視 P1-1（權益雙路徑／`2627` live E2E 未驗）沿用本題，不另開重複工程 |
 
 
 ---

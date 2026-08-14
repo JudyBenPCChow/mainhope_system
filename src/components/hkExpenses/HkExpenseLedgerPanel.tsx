@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { statusToTagTone } from "@/lib/statusTag"
 import {
   EXPENSE_PAY_METHODS,
   EXPENSE_PAY_METHOD_LABEL,
@@ -39,14 +40,6 @@ function todayIso(): string {
 
 function hkd(n: number): string {
   return `HK$ ${n.toLocaleString("en-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function statusTone(
-  status: ExpenseLedgerStatus,
-  voided: boolean
-): "default" | "success" | "warning" | "error" {
-  if (voided) return "default"
-  return status === "confirmed" ? "success" : "warning"
 }
 
 function statusLabel(status: ExpenseLedgerStatus, voided: boolean): string {
@@ -387,7 +380,7 @@ export function HkExpenseLedgerPanel({
                         {e.ownerLabel ?? "—"}
                       </td>
                       <td className="px-3 py-2">
-                        <Tag size="sm" tone={statusTone(e.ledgerStatus, voided)}>
+                        <Tag size="sm" tone={statusToTagTone(statusLabel(e.ledgerStatus, voided))}>
                           {statusLabel(e.ledgerStatus, voided)}
                         </Tag>
                       </td>

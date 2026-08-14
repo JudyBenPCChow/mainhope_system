@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom"
 
 import { AppBannerProvider, AppBannerViewport } from "@/lib/appBanner"
 import { AppConfirmProvider } from "@/lib/appConfirm"
-import { PayrollPrototypeView } from "@/prototypes/payroll/PayrollPrototypeView"
+import { PayrollView } from "@/components/payroll/PayrollView"
 import "@/index.css"
 
 /**
@@ -19,7 +19,7 @@ createRoot(document.getElementById("root")!).render(
         <AppBannerProvider>
           <AppBannerViewport />
           <div className="min-h-svh bg-background text-foreground">
-            <PayrollPrototypeView />
+            <PayrollView />
           </div>
         </AppBannerProvider>
       </AppConfirmProvider>

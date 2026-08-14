@@ -42,7 +42,7 @@ function actorLabel(): string {
   return "行政"
 }
 
-export function PayrollPrototypeView() {
+export function PayrollView() {
   const { confirmDialog } = useAppConfirm()
   const { pushBanner } = useAppBanner()
   const realRole = getMgmtRole()

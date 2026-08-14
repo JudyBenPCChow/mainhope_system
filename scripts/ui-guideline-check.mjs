@@ -36,7 +36,7 @@ function collectTsxFiles(dir) {
     const full = join(dir, entry)
     const st = statSync(full)
     if (st.isDirectory()) {
-      if (entry === "node_modules" || entry === "dist" || entry.startsWith(".")) continue
+      if (entry === "node_modules" || entry === "dist" || entry.startsWith(".") || entry === "prototypes") continue
       out.push(...collectTsxFiles(full))
       continue
     }

@@ -267,7 +267,7 @@ function LessonCard({
                 presentRows.map((r) => (
                   <li key={`p-${r.name}`} className="flex justify-between gap-2">
                     <span>{r.name}</span>
-                    <Tag tone="info" size="sm">
+                    <Tag tone={statusToTagTone(r.status)} size="sm">
                       {studentHcStatusLabel(r.status)}
                     </Tag>
                   </li>

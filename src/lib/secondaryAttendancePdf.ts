@@ -92,7 +92,7 @@ function classTableHtml(c: SecondaryClassBlock): string {
       <tr class="class-title">
         <th colspan="6" class="left">
           ${esc(c.name)}
-          <span class="sub">　${kind} · 本班出席 ${classPresentTotal(c)} 人次 · 缺席 ${classAbsentTotal(c)} 人次 · ${c.lessons.length} 堂</span>
+          <span class="sub">\u3000${kind} · 本班出席 ${classPresentTotal(c)} 人次 · 缺席 ${classAbsentTotal(c)} 人次 · ${c.lessons.length} 堂</span>
         </th>
       </tr>
       <tr>

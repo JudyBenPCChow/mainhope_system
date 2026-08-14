@@ -218,7 +218,7 @@ function lessonRowHtml(cName: string, l: PayrollLesson): string {
 
 function teacherDetailBlocks(t: PayrollTeacherRow): string {
   const kpi = `<div class="keep-block">
-    <p class="teacher-title">${esc(t.name)}　${esc(t.mode)}</p>
+    <p class="teacher-title">${esc(t.name)}\u3000${esc(t.mode)}</p>
     <div class="kv-panel">
       <table class="kv">
         <tr><th>總薪酬</th><td>${hkd(t.gross)}</td></tr>

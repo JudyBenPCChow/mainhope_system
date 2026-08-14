@@ -9,7 +9,6 @@ import {
  makeupsForSchedules,
  rosterHeadcountForSchedule,
  rosterStudentsForSchedule,
- scheduleStudentHintsFromContext,
  singleSessionNotOnSchedule,
  type ScheduleRosterContext,
  type ScheduleRosterEnrollment,

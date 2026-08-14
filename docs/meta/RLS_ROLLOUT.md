@@ -169,7 +169,7 @@ Phase C 驗收通过后 → **收尾**（Dashboard、清除 dev policy 殘留、
 
 ## 收尾
 
-- [ ] Dashboard：啟用 **Leaked password protection**
+- [ ] Dashboard：啟用 **Leaked password protection**（工程跟進：[`auth-leaked-password-protection.md`](../product/topics/auth-leaked-password-protection.md)）
 - [ ] 確認無 `dev_anon_all_*` / `dev_auth_all_*` 殘留
 - [x] 移除 production 人手加嘅 `temp_frontend_read_*`（`20260711180500_drop_temp_frontend_read_policies.sql`，2026-07-11）
 - [ ] 更新 baseline 註解或新增 production RLS 說明

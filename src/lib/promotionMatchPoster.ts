@@ -568,7 +568,7 @@ function drawClassCard(
   }
 
   const leftBlockH = classTitleSize + (code ? lineGap + codeSize : 0)
-  let leftY = y + (cardH - leftBlockH) / 2
+  const leftY = y + (cardH - leftBlockH) / 2
 
   ctx.textAlign = "left"
   ctx.textBaseline = "top"

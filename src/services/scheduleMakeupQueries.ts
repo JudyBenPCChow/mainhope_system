@@ -325,7 +325,7 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
  }
  const attendingNames = [...nameSet].sort((a, b) => a.localeCompare(b, "zh-Hant"))
 
- let sessionStart = await nextSessionNumberForClass(primary.class_id)
+ const sessionStart = await nextSessionNumberForClass(primary.class_id)
  const reasonHint = primary.cancel_reason?.trim()
  const newScheduleIds: string[] = []
  const pairs: Array<{ oldId: string; newId: string }> = []

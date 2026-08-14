@@ -44,7 +44,7 @@ import type {
   StudentHcRow,
   TeacherSubmitState,
   WfhMockState,
-} from "@/prototypes/payroll/mockData"
+} from "@/components/payroll/mockData"
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null

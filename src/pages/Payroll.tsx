@@ -1,10 +1,10 @@
 import { RequireMgmtRoles } from "@/components/auth/RequireMgmtRoles"
-import { PayrollPrototypeView } from "@/prototypes/payroll/PayrollPrototypeView"
+import { PayrollView } from "@/components/payroll/PayrollView"
 
 export default function PayrollPage() {
   return (
     <RequireMgmtRoles roles={["admin", "manager", "finance", "alien"]}>
-      <PayrollPrototypeView />
+      <PayrollView />
     </RequireMgmtRoles>
   )
 }

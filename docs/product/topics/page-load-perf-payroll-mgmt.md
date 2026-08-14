@@ -9,6 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 相關 | [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)、[`payroll-engine.md`](./payroll-engine.md)、[`mgmt-manager-role.md`](./mgmt-manager-role.md) |
 | 記錄 | 2026-08-06 用戶反映計糧／營運總覽慢；代碼路徑診斷 |
+| 技術債歸屬 | 2026-08-14 全盤檢視 P2-2；沿用本題，不另開重複工程 |
 
 ## 目標（一句）
 
@@ -20,7 +21,7 @@
 
 ### 計糧 `/Payroll`
 
-- 入口：`PayrollPrototypeView` → `loadPayrollWorkbench(monthKey)`。
+- 入口：`PayrollView` → `loadPayrollWorkbench(monthKey)`。
 - **已結算**：讀 snapshot＋少量 metadata → 快。
 - **未結算（常見）**：每次進入 **live 重算**——月內全部排程、點名、`fetchScheduleRosterContext`、enrollment chunks，再 client `computePayrollMonth`；並 `UPDATE calc_at`。
 - 熱點：`src/services/payrollQueries.ts`（`buildLessonInputsForMonth`／`loadPayrollWorkbench`）、`scheduleRosterQueries.ts` roster RPC。

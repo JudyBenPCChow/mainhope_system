@@ -95,7 +95,7 @@ export async function buildPaymentReceiptPdfBlob(html: string): Promise<Blob> {
 }
 
 export function paymentReceiptPdfFilename(p: PaymentFull): string {
- const no = (p.receiptNumber ?? p.id.slice(0, 8)).replace(/[^\w\-]+/g, "_")
+ const no = (p.receiptNumber ?? p.id.slice(0, 8)).replace(/[^\w-]+/g, "_")
  const name = p.studentName.trim().replace(/[\\/:*?"<>|]+/g, "_") || "學生"
  return `收據_${no}_${name}.pdf`
 }

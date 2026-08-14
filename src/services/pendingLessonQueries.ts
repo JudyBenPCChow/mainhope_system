@@ -114,7 +114,7 @@ export async function countBoundSchedulesForEnrollment(opts: {
   .gte("scheduled_date", enrollDate)
  if (error) throw error
 
- let periods =
+ const periods =
   config.courseMode === "summer_two_period" && config.academicYearId
    ? await fetchAcademicYearPeriods(config.academicYearId)
    : []

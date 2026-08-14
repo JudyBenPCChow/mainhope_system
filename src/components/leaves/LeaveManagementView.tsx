@@ -11,6 +11,7 @@ import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm, type ConfirmResult } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -138,12 +139,6 @@ function displayLeaveDate(r: LeaveManageRow): string {
 /** @deprecated 硬鎖已撤；恒可編輯（非當期寫入前會 soft confirm）。 */
 function leaveRowEditable(_r: LeaveManageRow): boolean {
  return true
-}
-
-function leaveStatusTone(status: string): "success" | "warning" | "default" {
- if (isLeaveStatusDone(status)) return "success"
- if (isLeaveStatusAbandoned(status)) return "default"
- return "warning"
 }
 
 export function LeaveManagementView() {
@@ -851,7 +846,7 @@ export function LeaveManagementView() {
          </Link>
          <p className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</p>
         </div>
-        <Tag tone={leaveStatusTone(r.status)} size="sm">
+        <Tag tone={statusToTagTone(r.status)} size="sm">
          {r.status || "—"}
         </Tag>
        </div>

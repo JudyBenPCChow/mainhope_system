@@ -4,7 +4,7 @@
 | --- | --- |
 | 狀態 | `open`（稍後開工；設計＋對抗已齊） |
 | 優先 | 中（增長下先爆全撈頁；非即時擋營運） |
-| 範圍 | 列表／報表預設少 load；永不 DELETE；已畢業≠停補 |
+| 範圍 | 列表／報表預設少 load；窄欄位 select；永不 DELETE；已畢業≠停補（含技術債 P1-6） |
 | 不含 | 物理搬 `archive_*` 表、停讀自動封存、完整校友／LTV 產品、ORM 全域 scope |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 計劃 | Cursor：[`archive_cold_data_3e9934eb.plan.md`](/Users/hoiyingfan/.cursor/plans/archive_cold_data_3e9934eb.plan.md) |
@@ -47,6 +47,16 @@
 | 6 | 畢業 Confirm＋欠費／待補警示；feature flag rollback |
 | 7 | 索引／EXPLAIN；回歸測（列表預設帶排除；id 路徑仍通） |
 | 可選 | 結業預覽；舊生／行銷匯出入口 |
+
+### P1-6 合併範圍（2026-08-15）
+
+全盤技術債檢視發現 `queries.listStudents()` 以 `select("*")` 全表讀學生，請假及試堂頁仍有呼叫。呢項同本題「列表／picker 查詢收窄」係同一工程，故不另開重複題。
+
+實作時：
+
+- 請假／試堂頁改用各自用途的學生 option service，只選必要欄位及必要狀態。
+- 唔好直接把共用 `fetchAllStudents()`／`listStudents()` 默認改窄，避免破壞學號、深連結、核數等全庫語意。
+- 完成 callers 遷移後，確認 `src/services/queries.ts` 及 `src/api/entities.ts` 無正式依賴；刪除殘 shim 交 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)。
 
 ## 日常運作預期（正確實作下）
 

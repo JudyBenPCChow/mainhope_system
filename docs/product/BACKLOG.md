@@ -7,7 +7,7 @@
 | 手機該點做（規範） | [`UI_DESIGN_INSTRUCTIONS.md`](../meta/UI_DESIGN_INSTRUCTIONS.md) §14；收款單一入口 §15 |
 | 流動介面進度／模擬 | [`backlog/mobile-ui.md`](./topics/mobile-ui.md)；[波次 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md)／[三角色裝置 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) |
 | 進行中實作步驟 | [`docs/product/plans/`](./plans/) |
-| 稽核報告（已完成的調查） | [`docs/product/audits/`](./audits/)（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)） |
+| 稽核報告（已完成的調查） | [`docs/product/audits/`](./audits/)（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)、[2026-08-14 技術債](./audits/2026-08-14-tech-debt-review.md)） |
 | 行政邊緣模擬（2026-07-31） | Cursor Canvas `admin-edge-case-simulation.canvas.tsx`；發現已回寫各 topics 分題「行政邊緣模擬」節 |
 | 未規劃功能構想 | [`FUTURE_*.md`](./future/FUTURE_BANNER_PUSH_NOTIFICATIONS.md) 等 |
 | 架構習慣 | [`AGENT_HANDOFF.md`](../meta/AGENT_HANDOFF.md) |
@@ -30,25 +30,32 @@
 
 ---
 
+表內順序＝優先 **高 → 中 → 低**；同級內先安全／學年擋路，再品質閘與架構，再產品收尾。2026-08-15 技術債 P1–P3 已歸屬（見 [稽核](./audits/2026-08-14-tech-debt-review.md)）。
+
 ## 進行中／未完成
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
-| in_progress | 高 | 報讀包裝與點名權益 | Wave 1–2 ✅；**主波支付→池 ✅**（空池＋top_up／clawback／建議／停轉結餘）；**live `2627` E2E 仍阻**；下一：G2 更正頁／G3／轉科頁 | [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [閉環 draft](./plans/2026-08-04-tuition-entitlement-closed-loop.md) · [請假遲用討論](./plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md) · [顧問評審](./topics/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
+| open | 高 | 技術債／工程硬化 | P0-1／P0-2＋**P1-4**：RLS 寫入面過闊、localStorage 當權限、頁級守衛／Role 型收斂；P0-3／P0-4 已拆出；未開工 | [tech-debt-hardening.md](./topics/tech-debt-hardening.md) · [稽核](./audits/2026-08-14-tech-debt-review.md) · [P0-1 重評](./topics/p0-1-authorization-redesign.md) |
+| in_progress | 高 | 報讀包裝與點名權益 | Wave 1–2 ✅；**主波支付→池 ✅**；**live `2627` E2E 仍阻**（P1-1 雙路徑）；下一：G2／G3／轉科頁 | [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) · [計劃](./plans/2026-08-04-enrollment-entitlement-roster.md) · [閉環 draft](./plans/2026-08-04-tuition-entitlement-closed-loop.md) · [請假遲用討論](./plans/2026-08-05-leave-deferral-pool-vs-credit-discussion.md) · [顧問評審](./topics/summer-enrollment-roster-consistency-consulting-review.md) · [影響模擬](./audits/2026-08-03-summer-enrollment-tuition-rights-impact.md) |
+| open | 高 | 2627 九月常規時間表 | 2026-08-12 修訂候選已備（36 班）；待簽收；prod 仍 0 班（擋 P1-1 live E2E）；餘缺口＋錄入 | [2627-september-timetable.md](./topics/2627-september-timetable.md) · [全校 pdf](../year/2627/timetable/2627_timetable_scheme_2026-08-08.pdf) · [老師 pdf](../year/2627/timetable/2627_timetable_teachers_week_2026-08-08.pdf) · [排課規則](../policies/scheduling/SCHEDULING_RULES.md) · [session](../meta/handoffs/2026-08-12-2627-september-timetable-session.md) |
 | open | 高 | 單據／權益更正頁（G2） | **核心已上**：`/PaymentCorrection`＋池調動表＋作廢 30 分／第二人；餘阿Po／政策全文同步 | [payment-entitlement-correction-ui.md](./topics/payment-entitlement-correction-ui.md) · [母題 §4.13](./topics/summer-enrollment-roster-consistency.md) |
 | in_progress | 高 | 前台規模／流程更新（試堂原則） | **核心工程已上**：出單閘紙／免費跳收款／$0／計人頭／半價50%；餘 manual／阿Po／2627§11 | [frontline-ops-update.md](./topics/frontline-ops-update.md) · [試堂 WIP](./topics/trial-promo-receipt-frontline-wip.md) · [政策](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) |
-| open | 中 | 營運總覽 KPI 規格 | 寫清 `/MgmtDashboard` 要顯示邊啲數；已收產品 1–7（收學費／堂數／試堂／免費／消堂） | [mgmt-dashboard-kpi-spec.md](./topics/mgmt-dashboard-kpi-spec.md) |
+| open | 高 | 主線品質閘（P0-3） | 熄紅燈已完成（lint／test／ui:check／build）；合併前仍無 CI／branch protection；**P2-3**＝test typecheck＋風險導向 regression（不設 coverage 門檻） | [mainline-quality-gate.md](./topics/mainline-quality-gate.md) |
+| open | 高 | 前端架構邊界／God files | **P1-2＋P2-5**：拆超大元件／service；component 禁直打 DB；KPI 失敗唔當 0 | [frontend-architecture-boundaries.md](./topics/frontend-architecture-boundaries.md) · [稽核](./audits/2026-08-14-tech-debt-review.md) |
+| open | 高 | Database schema contract／advisor | **P1-3＋P2-1＋P3-1 DB**：generated types、SECURITY DEFINER／FK index 分類、重複 index／殘留表 | [database-contract-advisor-hygiene.md](./topics/database-contract-advisor-hygiene.md) · [稽核](./audits/2026-08-14-tech-debt-review.md) |
 | in_progress | 高 | 流動裝置介面 | 高頻波次 1–3 回歸 Pass；2026-08-05 三角色模擬：餘 Mgmt／外星人大表／老師 P3／FilterSheet | [mobile-ui.md](./topics/mobile-ui.md) · [sim 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) · [1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
-| open | 高 | 2627 九月常規時間表 | 2026-08-12 修訂候選已備（36 班；Katie 放假五六＋連三；Mark 一／二連三＋四高中兩班；周視圖另頁）；待簽收；prod 仍 0 班；餘缺口＋錄入 | [2627-september-timetable.md](./topics/2627-september-timetable.md) · [全校 pdf](../year/2627/timetable/2627_timetable_scheme_2026-08-08.pdf) · [老師 pdf](../year/2627/timetable/2627_timetable_teachers_week_2026-08-08.pdf) · [排課規則](../policies/scheduling/SCHEDULING_RULES.md) · [session](../meta/handoffs/2026-08-12-2627-september-timetable-session.md) |
+| open | 中 | 計糧／營運總覽載入偏慢 | **P2-2**：未結算計糧每次 live 重算；營運總覽 summary→full 重複查詢＋重活；與軟封存互補另做；稍後開工 | [page-load-perf-payroll-mgmt.md](./topics/page-load-perf-payroll-mgmt.md) |
+| open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；**P1-6**＝請假／試堂停用 `listStudents()` 全表 `select *`；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./topics/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
+| open | 中 | 死碼／路由表面清理 | **P2-4＋P3-1 前端**：`/prototype/*` 其後加返（含免登入 HomeWayfinding）；月費／contactUpdate 暫緩勿刪；餘 D2b／D3／D6 Base44／包名 | [dead-surface-cleanup.md](./topics/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
+| open | 中 | 登入洩露密碼保護（原 P0-4） | Supabase Auth 開 HaveIBeenPwned 檢查；無程式；自技術債拆出 | [auth-leaked-password-protection.md](./topics/auth-leaked-password-protection.md) · [RLS 收尾](../meta/RLS_ROLLOUT.md) |
+| in_progress | 中 | HK 成本統計／入帳 | 7 月：計糧已結算＋`payroll_settle` 已過帳；歷史薪金已 void；Cody 非計糧 $420 已補；**剩按金待定**；非老師人工未產品化；4–6 月／純利另波 | [hk-expense-cost-stats.md](./topics/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-05-hk-expense-cost-stats.md) |
+| in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./topics/substitute-teacher-reporting.md) · [前線](../playbooks/frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
+| open | 中 | 營運總覽 KPI 規格 | 寫清 `/MgmtDashboard` 要顯示邊啲數；已收產品 1–7（收學費／堂數／試堂／免費／消堂） | [mgmt-dashboard-kpi-spec.md](./topics/mgmt-dashboard-kpi-spec.md) |
 | open | 中 | 2627 常規學年營運指引 | **v1.2**＋docx；書面語＋附件甲校曆；§11 已跟出單先上紙；§7 留空；待發佈／掛 SYSTEM_MANUAL | [2627-regular-year-ops-guide.md](./topics/2627-regular-year-ops-guide.md) · [指引](../year/2627/ops-guide.md) · [docx](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) |
 | open | 中 | 功課輔導班產品 | H1–H3／H8–H10 已定；§4＋沙盒已跟 17D／17:00；餘 H5–H7 價曆、H4 讓房、H11 審閱；未接 DB | [homework-tutoring.md](./topics/homework-tutoring.md) · [待決 WIP](./topics/homework-tutoring-decisions-wip.md) · [UI v2](./plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
-| in_progress | 中 | 代堂算薪／出勤報表 | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；餘匯出／KPI 盤點、換主責只同步未來 | [substitute-teacher-reporting.md](./topics/substitute-teacher-reporting.md) · [前線](../playbooks/frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
-| open | 中 | 死碼／路由表面清理 | 沙盒＋待辦看板**已廢除**；**月費頁／contactUpdate 暫緩勿刪**；餘 D2b／D3–D5 | [dead-surface-cleanup.md](./topics/dead-surface-cleanup.md) · [稽核](./audits/2026-07-31-unused-overlap-routes.md) |
-| open | 中 | 軟封存與查詢收窄 | 已畢業＋近兩學年預設唔 load（唔刪）；對抗紅線已寫；稍後開工 | [soft-archive-query-scope.md](./topics/soft-archive-query-scope.md) · [對抗](./audits/2026-08-01-soft-archive-adversarial.md) |
-| open | 中 | 計糧／營運總覽載入偏慢 | 診斷：未結算計糧每次 live 重算；營運總覽 summary→full 重複查詢＋重活；與軟封存互補另做；稍後開工 | [page-load-perf-payroll-mgmt.md](./topics/page-load-perf-payroll-mgmt.md) |
-| in_progress | 中 | HK 成本統計／入帳 | 7 月：計糧已結算＋`payroll_settle` 已過帳；歷史薪金已 void；Cody 非計糧 $420 已補；**剩按金待定**；非老師人工未產品化；4–6 月／純利另波 | [hk-expense-cost-stats.md](./topics/hk-expense-cost-stats.md) · [計劃](./plans/2026-08-05-hk-expense-cost-stats.md) |
-| open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./topics/ops-docs-viewer.md) |
 | open | 中 | Alien 模擬職員身份 | idea：對方報畫面問題時以該職員視角檢視；前端-only → 可選 DB view-as；先不實作 | [alien-mgmt-view-as.md](./topics/alien-mgmt-view-as.md) |
+| open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./topics/ops-docs-viewer.md) |
 
 ---
 

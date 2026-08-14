@@ -475,7 +475,7 @@ export function SecondaryAttendanceReportView() {
           {selected ? (
             <div className="space-y-2">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {selected.name}　明細
+                {selected.name}{"\u3000"}明細
               </h2>
               <TeacherDetail teacher={selected} />
             </div>

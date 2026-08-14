@@ -795,7 +795,7 @@ export async function applyEntitlementConsumptionDelta(opts: {
   .maybeSingle()
  if (declErr) throw declErr
  let poolId = decl?.pool_id != null ? String(decl.pool_id) : null
- let declarationId = decl?.id != null ? String(decl.id) : null
+ const declarationId = decl?.id != null ? String(decl.id) : null
  if (!poolId) {
   poolId = await resolvePoolIdForStudentClass(opts.studentId, opts.classId, opts.scheduleId)
  }

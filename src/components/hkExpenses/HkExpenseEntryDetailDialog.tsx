@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { statusToTagTone } from "@/lib/statusTag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   confirmExpenseEntries,
@@ -35,14 +36,6 @@ type Props = {
 
 function hkd(n: number): string {
   return `HK$ ${n.toLocaleString("en-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-function statusTone(
-  status: ExpenseLedgerStatus,
-  voided: boolean
-): "default" | "success" | "warning" | "error" {
-  if (voided) return "default"
-  return status === "confirmed" ? "success" : "warning"
 }
 
 function statusLabel(status: ExpenseLedgerStatus, voided: boolean): string {
@@ -193,7 +186,7 @@ export function HkExpenseEntryDetailDialog({
 
         <div className="grid gap-3 text-sm">
           <div className="flex flex-wrap items-center gap-2">
-            <Tag size="sm" tone={statusTone(entry.ledgerStatus, voided)}>
+            <Tag size="sm" tone={statusToTagTone(statusLabel(entry.ledgerStatus, voided))}>
               {statusLabel(entry.ledgerStatus, voided)}
             </Tag>
             <span className="text-xs text-muted-foreground">

@@ -85,7 +85,7 @@ export function LessonBalanceMismatchView() {
   let gap = 0
   let pending = 0
   let leave = 0
-  let students = new Set<string>()
+  const students = new Set<string>()
   for (const r of rows) {
    students.add(r.studentId)
    if (r.paidLessons > 0 && !r.isAligned) gap++

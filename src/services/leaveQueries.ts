@@ -419,11 +419,7 @@ export async function updateLeaveMakeupRecord(
  if (patch.makeup_date) assertAcademicYearEditableForDate(patch.makeup_date)
 
  const orphanHits = await previewLeaveMakeupAttendanceImpact(id, { patch })
- try {
-  await applyLeaveAttendanceDeletes(id, orphanHits, options)
- } catch (e) {
-  throw e
- }
+ await applyLeaveAttendanceDeletes(id, orphanHits, options)
 
  const { error } = await supabase
   .from("leave_makeup_records")

@@ -1,5 +1,5 @@
 import { AppBannerViewport } from "@/lib/appBanner"
-import { PayrollPrototypeView } from "@/prototypes/payroll/PayrollPrototypeView"
+import { PayrollView } from "@/components/payroll/PayrollView"
 
 /**
  * 免登入計糧 UI 預覽（示範資料）。
@@ -9,7 +9,7 @@ export default function PayrollUiPreviewPage() {
   return (
     <div className="min-h-svh bg-background text-foreground">
       <AppBannerViewport />
-      <PayrollPrototypeView />
+      <PayrollView />
     </div>
   )
 }

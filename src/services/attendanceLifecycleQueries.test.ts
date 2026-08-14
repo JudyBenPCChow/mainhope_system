@@ -63,7 +63,7 @@ describe("attendanceLifecycleQueries helpers", () => {
 })
 
 describe("A2 rollcall roster filter helper", () => {
- it("writableStudentIdsFromRosterContext 合併報讀與試堂", () => {
+ it("writableStudentIdsFromRosterContext：報讀在冊；無單試堂唔入紙", () => {
   const ctx: ScheduleRosterContext = {
    schedules: [
     {
@@ -110,7 +110,22 @@ describe("A2 rollcall roster filter helper", () => {
      classId: "c1",
      studentId: "stu-b",
      status: "已預約",
+     paymentId: null,
+     countsTowardHeadcount: null,
      fullName: "乙",
+     englishName: null,
+     grade: null,
+     contactPhone: null,
+    },
+    {
+     id: "t2",
+     scheduleId: "s1",
+     classId: "c1",
+     studentId: "stu-paid",
+     status: "已預約",
+     paymentId: "pay-1",
+     countsTowardHeadcount: true,
+     fullName: "丙",
      englishName: null,
      grade: null,
      contactPhone: null,
@@ -121,7 +136,8 @@ describe("A2 rollcall roster filter helper", () => {
   }
   const ids = writableStudentIdsFromRosterContext(ctx, ["s1"])
   expect(ids.has("stu-a")).toBe(true)
-  expect(ids.has("stu-b")).toBe(true)
+  expect(ids.has("stu-b")).toBe(false)
+  expect(ids.has("stu-paid")).toBe(true)
   expect(ids.has("stu-c")).toBe(false)
  })
 })
