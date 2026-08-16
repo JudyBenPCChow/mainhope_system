@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint .",
     "ui:check": "node scripts/ui-guideline-check.mjs",
     "apo:regression": "node scripts/apo-regression-check.mjs",

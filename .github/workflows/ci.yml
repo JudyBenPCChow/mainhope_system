@@ -1,0 +1,48 @@
+# 主線品質閘（P0-3）：合併前跑 lint／測試 typecheck／test／ui:check／build。
+# 第一期只擋 error，唔擋 eslint warning。唔跑阿Po。
+# 紅燈可唔可以照合併＝GitHub Settings → Branches（branch protection），唔喺本檔自動生效。
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint · typecheck:test · test · ui:check · build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck tests
+        run: npm run typecheck:test
+
+      - name: Test
+        run: npm test
+
+      - name: UI guideline check
+        run: npm run ui:check
+
+      - name: Build
+        run: npm run build

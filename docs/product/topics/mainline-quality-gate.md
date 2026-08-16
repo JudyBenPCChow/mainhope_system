@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（熄紅燈已完成 2026-08-15；加 CI／branch protection 未做） |
+| 狀態 | `in_progress`（CI＋測試 typecheck 已加 2026-08-16；branch protection 未開；阿Po 留） |
 | 優先 | 高 |
 | 來源 | 2026-08-14 全盤檢視 P0-3＋P2-3；由 [`tech-debt-hardening.md`](./tech-debt-hardening.md) 拆出獨立討論 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
@@ -14,11 +14,13 @@
 
 ## 白話（一句）
 
-改完可以照樣交給同事用，沒有一道必須通過的檢查關。已經亮紅的燈，也沒有人被逼先修好。
+PR／push 去 main 會跑檢查；未開 branch protection 前，紅燈仍可合併。
 
 ## 現況
 
-**2026-08-15 熄紅燈後（本機）：** `npm run lint` 0 error（仍有 warning）；`npm test` 95 pass／2 skip；`npm run ui:check` 通過；`npm run build` 通過（`tsc -b && vite build`）。合併前仍無 GitHub 閘。
+**2026-08-16：** `.github/workflows/ci.yml` 於 pull request 同 push 去 main 跑 `lint` → `typecheck:test` → `test` → `ui:check` → `build`。`tsconfig.test.json`＋`npm run typecheck:test` 已加。阿Po／每日 `apo-check.yml` 今輪唔刪。GitHub branch protection 未開。
+
+**2026-08-15 熄紅燈後（本機）：** `npm run lint` 0 error（仍有 warning）；`npm test` 95 pass／2 skip；`npm run ui:check` 通過；`npm run build` 通過（`tsc -b && vite build`）。
 
 **2026-08-14 量過（歷史）：**
 
@@ -96,8 +98,8 @@
 
 ### B. 加「要上主線先跑」嘅檢查
 
-5. 喺**本倉庫**新增 `.github/workflows/` 檔（例如 `ci.yml`），於 pull request 同 push 去 main 跑：`npm ci` → `lint` → `test` → `ui:check` → `build`。點解：指令寫喺 repo；GitHub 見到檔就會跑。而家每日阿Po 同應用壞唔壞無關。
-6. 四個指令：lint 捉筆誤；test 鎖校規；ui:check 執行畫面鐵則；build 令組唔過嘅唔當可交同事（唔好等到 Vercel 先爆）。
+5. ~~加 `ci.yml`~~ **已完成 2026-08-16**（`.github/workflows/ci.yml`；PR／push main；唔跑阿Po）。
+6. 五個指令：lint 捉筆誤；typecheck:test 鎖測試型別；test 鎖校規；ui:check 執行畫面鐵則；build 令組唔過嘅唔當可交同事（唔好等到 Vercel 先爆）。
 7. 第一期只擋 error，唔擋 eslint warning。點解：45 條 warning 一齊擋會逼人抄捷徑。
 8. **GitHub 網站**該 repo → Settings → Branches：規定上述 job 必須綠先可合併。點解：只加 workflow 唔開必過，紅燈仍可進主線。呢項喺 GitHub 網頁 set，唔喺 md／yml 就自動生效。
 
@@ -105,7 +107,7 @@
 
 ### C. 測試自己都要正確
 
-9. 測試檔納入 TypeScript 檢查（獨立 `tsconfig.test.json` 或 CI 多一步）。點解：而家正式 build 跳過測試檔。
+9. ~~測試檔納入 TypeScript 檢查~~ **已完成**（`tsconfig.test.json`；`npm run typecheck:test`；CI 另步。`tsc -b`／Vercel build 仍跳過測試檔）。
 10. CI 用同一條 `npm test`（`vitest run`）。點解：部機同閘結果要一致。
 
 ### C2. P2-3 風險導向測試（合併入本題）
@@ -123,8 +125,8 @@ Playwright 只保留少量跨層 smoke 候選；唔喺本題一次過補全面 E
 
 ### D. 用唔著嘅工具
 
-11. Playwright：本主題**唔新寫**大套 E2E。要就極短 smoke，否則移出 dependencies。點解：裝咗 0 劇本係假安全感。
-12. **每日阿Po 可刪。** 刪 `.github/workflows/apo-check.yml` 再推上去就會停。同本閘無關：刪阿Po ≠ 有品質閘；加閘亦唔需要留阿Po。唔好把阿Po 塞進 PR 必過。
+11. Playwright：**暫留、唔入 CI。** `scripts/payroll-ui-screenshots.mjs`、`scripts/generatePosterSamples.mjs` 用本機 Chromium；本主題唔新寫 E2E。
+12. **阿Po／IT狗／工作台今輪留。** 每日 `apo-check.yml` 唔刪、唔塞進 PR 必過。刪阿Po ≠ 有品質閘。
 
 ### E. 明確唔做
 
@@ -135,20 +137,20 @@ Playwright 只保留少量跨層 smoke 候選；唔喺本題一次過補全面 E
 
 ---
 
-## 待決（加閘前）
+## 待決
 
-1. 每日阿Po workflow：刪／留（預設可刪；今輪**唔刪**）。
+1. ~~每日阿Po workflow~~ **留**（同事會用 IT狗；今輪唔刪產品、唔刪每日檢查）。
 2. ~~沙盒檢查排除~~ **已做**（其餘 `src/prototypes/**` 剔出；計糧已遷正式）。主站 `/prototype/…` 拆唔拆另題。
-3. GitHub branch protection：邊個有 Settings 權限去開「必須綠先合併」。**今輪唔開。**
-4. Playwright：留短 smoke vs 卸走（預設卸走或暫不理）。
-5. 加 `ci.yml`：用戶未拍板前**唔加**。
+3. GitHub branch protection：Settings → Branches 開「CI quality 必須綠先合併」。只加 yml 唔開必過，紅燈仍可進主線。
+4. ~~Playwright~~ **暫留、唔入 CI**（截圖／海報腳本有用）。
+5. ~~加 `ci.yml`~~ **已做**。
 
 ## 建議波次（僅本主題）
 
 | 步 | 做 |
 | --- | --- |
 | 1 | ~~熄紅燈~~ **已完成 2026-08-15**（測試跟出單先上紙；正式 lint／Tag；計糧遷出；其餘沙盒剔出檢查） |
-| 2 | 加 `ci.yml`（未做） |
-| 3 | GitHub 開 branch protection（未做） |
-| 4 | 測試檔納入 typecheck；為下一個高風險改動補對應 regression（未做） |
-| 5 | 可選：刪 `apo-check.yml`（未做） |
+| 2 | ~~加 `ci.yml`~~ **已完成 2026-08-16** |
+| 3 | GitHub 開 branch protection（未做；要 Settings 權限） |
+| 4 | ~~測試檔納入 typecheck~~ **已完成**；其後高風險改動先補針對性 regression（過程約束，唔一次過補網） |
+| 5 | ~~刪 `apo-check.yml`~~ **今輪唔做** |

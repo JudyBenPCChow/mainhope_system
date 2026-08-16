@@ -92,7 +92,7 @@ describe("A2 rollcall roster filter helper", () => {
      status: "就讀中",
      enrollDate: null,
      withdrawEffectiveDate: null,
-     enrollmentPeriod: "both",
+     enrollmentPeriod: "兩期全報",
      createdAt: "",
      fullName: "甲",
      englishName: null,

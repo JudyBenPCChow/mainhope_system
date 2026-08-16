@@ -1,7 +1,7 @@
 /**
  * 對指定測試生跑 A1 煙霧（需 LIFECYCLE_A1_SMOKE=1 + SUPABASE_SERVICE_ROLE_KEY）
  */
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 
 const RUN = process.env.LIFECYCLE_A1_SMOKE === "1"
@@ -33,7 +33,7 @@ describe.runIf(RUN)("lifecycle orphan A1 smoke (student 20261973)", () => {
   let peerScheduleIds: string[] = []
   let leaveId = ""
   let enrollmentId = ""
-  let admin: ReturnType<typeof createClient>
+  let admin: SupabaseClient
   let leaveQueries: typeof import("@/services/leaveQueries")
 
   beforeAll(async () => {
