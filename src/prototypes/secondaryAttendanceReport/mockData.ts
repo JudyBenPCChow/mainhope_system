@@ -16,7 +16,7 @@ export type MockLessonRow = {
 export type MockClassBlock = {
   id: string
   name: string
-  /** 小組／一對一 */
+  /** 專科班／私人課程 */
   classKind: "group" | "private"
   lessons: MockLessonRow[]
 }
@@ -696,10 +696,10 @@ export function secondaryBandOfGrade(gradeLabel: string): SecondaryBand | null {
 }
 
 export function classKindLabel(kind: ClassKind): string {
-  return kind === "private" ? "一對一" : "小組"
+  return kind === "private" ? "私人課程" : "專科班"
 }
 
-/** 四類：初中小組／高中小組／初中一對一／高中一對一 */
+/** 四類：初中專科班／高中專科班／初中私人課程／高中私人課程 */
 export type CategoryKey =
   | "juniorGroup"
   | "seniorGroup"
@@ -724,10 +724,10 @@ const CATEGORY_META: {
   band: SecondaryBand
   classKind: ClassKind
 }[] = [
-  { key: "juniorGroup", label: "初中小組", band: "junior", classKind: "group" },
-  { key: "seniorGroup", label: "高中小組", band: "senior", classKind: "group" },
-  { key: "juniorPrivate", label: "初中一對一", band: "junior", classKind: "private" },
-  { key: "seniorPrivate", label: "高中一對一", band: "senior", classKind: "private" },
+  { key: "juniorGroup", label: "初中專科班", band: "junior", classKind: "group" },
+  { key: "seniorGroup", label: "高中專科班", band: "senior", classKind: "group" },
+  { key: "juniorPrivate", label: "初中私人課程", band: "junior", classKind: "private" },
+  { key: "seniorPrivate", label: "高中私人課程", band: "senior", classKind: "private" },
 ]
 
 export function emptyCategoryTotals(meta: (typeof CATEGORY_META)[number]): CategoryTotals {

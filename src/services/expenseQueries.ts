@@ -7,7 +7,6 @@ import {
   isExpensePayMethod,
   type ExpensePayMethod,
 } from "@/lib/expensePayMethods"
-import { formatMgmtRoleLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 import type { PayrollTeacherRow } from "@/lib/payroll/viewTypes"
 
@@ -132,10 +131,6 @@ function requireClient() {
     throw new Error("尚未設定 Supabase")
   }
   return supabase
-}
-
-function actorLabel(): string {
-  return formatMgmtRoleLabel(getMgmtRole())
 }
 
 function asAccount(row: RawRow): ExpenseLedgerAccount {
@@ -371,7 +366,6 @@ export async function createExpenseEntry(
       teacher_id: input.teacherId || null,
       subject_code: input.subjectCode?.trim() || null,
       origin: "manual",
-      created_by_label: actorLabel(),
     })
     .select(ENTRY_SELECT)
     .single()
@@ -457,7 +451,6 @@ export async function voidExpenseEntry(id: string, reason: string): Promise<void
     .update({
       voided_at: new Date().toISOString(),
       void_reason: r,
-      voided_by_label: actorLabel(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)

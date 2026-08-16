@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { payrollModeLabel } from "@/lib/payroll/modeLabel"
 import { cn } from "@/lib/utils"
 
 import {
@@ -280,7 +281,7 @@ export function ManagerPayrollView({
                   ) : null}
                 </td>
                 <td className="px-3 py-2.5 text-muted-foreground">
-                  {row.mode}
+                  {payrollModeLabel(row.mode)}
                   {row.crossMode ? (
                     <span className="block text-[10px] text-info">跨模式</span>
                   ) : null}
@@ -321,7 +322,7 @@ export function ManagerPayrollView({
         <div>
           <h2 className="text-base font-semibold">{selected.name}</h2>
           <p className="text-xs text-muted-foreground">
-            {selected.mode} · 堂 {teacherLessonCount(selected)} · 班{" "}
+            {payrollModeLabel(selected.mode)} · 堂 {teacherLessonCount(selected)} · 班{" "}
             {teacherClassCount(selected)} · {formatHkd(selected.gross)}
           </p>
         </div>

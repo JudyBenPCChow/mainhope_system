@@ -83,15 +83,13 @@ const CATEGORY_META: {
   band: SecondaryBand
   classKind: ClassKind
 }[] = [
-  { key: "juniorGroup", label: "初中小組", band: "junior", classKind: "group" },
-  { key: "seniorGroup", label: "高中小組", band: "senior", classKind: "group" },
-  { key: "juniorPrivate", label: "初中一對一", band: "junior", classKind: "private" },
-  { key: "seniorPrivate", label: "高中一對一", band: "senior", classKind: "private" },
+  { key: "juniorGroup", label: "初中專科班", band: "junior", classKind: "group" },
+  { key: "seniorGroup", label: "高中專科班", band: "senior", classKind: "group" },
+  { key: "juniorPrivate", label: "初中私人課程", band: "junior", classKind: "private" },
+  { key: "seniorPrivate", label: "高中私人課程", band: "senior", classKind: "private" },
 ]
 
-export function classKindLabel(kind: ClassKind): string {
-  return kind === "private" ? "一對一" : "小組"
-}
+export { classKindLabel } from "@/lib/privateClassKind"
 
 export function secondaryBandOfGrade(gradeLabel: string): SecondaryBand | null {
   if (JUNIOR_GRADES.has(gradeLabel)) return "junior"

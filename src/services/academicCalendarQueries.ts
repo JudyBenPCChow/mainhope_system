@@ -48,8 +48,8 @@ export async function saveAcademicCalendarClosure(input: {
 }): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const name = input.name.trim()
- if (!input.closureDate) throw new Error("請選擇停課日期")
- if (!name) throw new Error("請輸入停課名稱")
+ if (!input.closureDate) throw new Error("請選擇校舍假期日期")
+ if (!name) throw new Error("請輸入校舍假期名稱")
  assertAcademicYearEditableForDate(input.closureDate)
  const payload = {
   academic_year_id: input.academicYearId,

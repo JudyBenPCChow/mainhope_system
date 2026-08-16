@@ -1,4 +1,5 @@
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { classKindLabel } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { fetchAcademicYearOptions, type AcademicYearOption } from "@/services/classQueries"
@@ -232,7 +233,10 @@ export async function fetchOverallStudentAnalysis(): Promise<OverallStudentAnaly
   totalStudents,
   enrolledStudents,
   buckets: {
-   registration: mapToBuckets(registration, ["已註冊", "非注冊"]),
+   registration: mapToBuckets(registration, ["已註冊", "非注冊"]).map((bucket) => ({
+    ...bucket,
+    label: bucket.label === "非注冊" ? "非註冊" : bucket.label,
+   })),
    enrollment: mapToBuckets(enrollment, ["在讀", "非在讀"]),
    activity: mapToBuckets(activity, ["活躍生", "非活躍生"]),
    academicStage: mapToBuckets(academicStage, ["中學階段", "已畢業"]),
@@ -378,7 +382,7 @@ export function exportClassHeadcountCsv(rows: ClassHeadcountRow[]): string {
    [
     csvCell(r.courseCodeFull ?? ""),
     csvCell(r.subjectLabel),
-    csvCell(r.classKind === "private" ? "一對一" : "小組"),
+    csvCell(classKindLabel(r.classKind)),
     csvCell(r.teacherName ?? ""),
     r.studentCount,
    ].join(",")
@@ -402,7 +406,7 @@ export function exportOverallStudentCsv(analysis: OverallStudentAnalysis): strin
  }
  lines.push(["摘要", "學生總數", analysis.totalStudents].join(","))
  lines.push(["摘要", "在讀人數", analysis.enrolledStudents].join(","))
- push("注冊狀態", analysis.buckets.registration)
+ push("註冊狀態", analysis.buckets.registration)
  push("在讀狀態", analysis.buckets.enrollment)
  push("活躍狀態", analysis.buckets.activity)
  push("學業階段", analysis.buckets.academicStage)

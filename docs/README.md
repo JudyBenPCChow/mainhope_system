@@ -4,11 +4,12 @@
 
 | 我想… | 去邊 | 改咩 |
 | --- | --- | --- |
-| 查校方規則（可唔可以／必須） | [`policies/_INDEX.md`](policies/_INDEX.md) | 只改 `policies/` |
+| 查營運規則（可唔可以／必須） | [`policies/_INDEX.md`](policies/_INDEX.md) | 只改 `policies/` |
+| 查公司術語同定義 | [`meta/TERMINOLOGY.md`](meta/TERMINOLOGY.md) | 同步 `.cursor/rules/terminology.mdc`（見該檔維護節） |
 | 教同事點操作（畫面點撳） | [`playbooks/_INDEX.md`](playbooks/_INDEX.md) | 只改 `playbooks/` |
 | 搵本年校曆／時間表／學年指引 | [`year/2627/`](year/2627/README.md) | 只改 `year/<學年>/` |
 | 睇仲有咩工程未做 | [`product/BACKLOG.md`](product/BACKLOG.md) | 工程追蹤用 |
-| 用語／agent／UI／RLS 習慣 | [`meta/`](meta/README.md) | 開發約定 |
+| 用語／agent／UI／RLS 習慣 | [`meta/`](meta/README.md) | 開發約定；**員工用語表**在 [`meta/TERMINOLOGY.md`](meta/TERMINOLOGY.md) |
 | 拎 docx／PDF 發佈物 | [`generated/`](generated/README.md) | **唔人手改**；由 md 腳本重出 |
 
 ## 鐵則（一句）

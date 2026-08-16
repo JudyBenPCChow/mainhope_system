@@ -1,6 +1,6 @@
 # 學生狀態分類與判定指引
 
-本文件約束**學生四維業務狀態**的資料來源、計算規則與前端正規化方式，避免「資料庫正確、畫面全錯」或「子字串誤判」等問題再次發生。
+本文件約束**學生四維業務狀態**的資料來源、計算規則與前端標準化方式，避免「資料庫正確、畫面全錯」或「子字串誤判」等問題再次發生。
 
 介面用語：**繁體中文**。程式入口見 `src/services/studentQueries.ts`、`src/lib/statusTag.ts`、`supabase/migrations/*students*`。  
 營運政策索引：[`OPS_POLICIES.md`](../_INDEX.md)。
@@ -11,7 +11,7 @@
 
 | 概念 | 系統欄位／表 | 說明 |
 | --- | --- | --- |
-| **注冊** | `students.registration_status` | 是否為正式註冊客戶（`已註冊` / `非注冊`）；試堂／查詢屬 `非注冊`。**手動維護**。 |
+| **註冊** | `students.registration_status` | 是否為本社正式客戶；資料值為 `已註冊` / `非注冊`（後者是現行舊值，意義為「非註冊」）；試堂／查詢屬 `非注冊`。**手動維護**。 |
 | **報讀** | `student_class_enrollments` | 學生報讀某一班的紀錄；**一筆 = 一個班別報讀**，不是學生主檔建立日。 |
 | **在讀** | `students.enrollment_status` | 現時是否有任一筆 `status = 就讀中` 的班別報讀。**自動計算**。 |
 | **活躍** | `students.activity_status` | 過去三個月內是否有班別報讀紀錄（見第 3 節）。**自動計算**。 |
@@ -20,7 +20,7 @@
 
 **鐵則：**
 
-- **注冊日期 ≠ 報讀日期**。不得用 `students.created_at` 判定活躍或報讀。
+- **註冊日期 ≠ 報讀日期**。不得用 `students.created_at` 判定活躍或報讀。
 - **僅匯入學生主檔、未匯入班別報讀**時，在讀／活躍應為 `非在讀` / `非活躍生`（除非之後新增報讀紀錄）。
 
 ---
@@ -54,7 +54,7 @@ UI（Tag、篩選、統計）                   ← 顯示；信任 DB 列舉值
 ### 3.1 `enrollment_status`（在讀 / 非在讀）
 
 - **在讀**：存在任一筆 `student_class_enrollments.status = '就讀中'`（不限學年）。
-- **非在讀**：否則；若 `registration_status = 非注冊` 強制為非在讀。
+- **非在讀**：否則；若 `registration_status = '非注冊'` 強制為非在讀。
 
 ### 3.2 `activity_status`（活躍生 / 非活躍生）
 
@@ -111,7 +111,7 @@ normalizeActivityStatus("非活躍生") // → 誤判為「活躍生」
 
 3. **`statusTag` 規則表**：`非活躍生`、`非在讀`、`非注冊` 等**必須排在**對應肯定詞之前（見 `STUDENT_CLASSIFICATION_RULES`）。
 
-4. **同一語意家族**（在讀／非在讀、注冊／非注冊）套用相同模式，改一處時檢查其餘 normalize 函式。
+4. **同一語意家族**（在讀／非在讀、註冊／非註冊；後者現行資料值為 `非注冊`）套用相同模式，改一處時檢查其餘 normalize 函式。
 
 ### 4.4 高風險字串對照表（維護時必查）
 
@@ -163,7 +163,7 @@ normalizeActivityStatus("非活躍生") // → 誤判為「活躍生」
 
 - 列表／詳情狀態標籤：共用 `StudentClassificationTags`（`src/components/students/studentsUi.tsx`）。
 - 顏色：一律 `statusToTagTone`（`src/lib/statusTag.ts`），禁止頁面內 if/else 對色。
-- 列表窄欄可用 `compact` 縮短注冊標籤文案；語意不變。
+- 列表窄欄可用 `compact` 縮短註冊標籤文案；語意不變。
 
 ---
 
@@ -171,7 +171,7 @@ normalizeActivityStatus("非活躍生") // → 誤判為「活躍生」
 
 - [ ] 業務規則變更是否已寫入**新 migration**（`create or replace function recompute_student_enrollment_state`）？
 - [ ] `computeDerivedFromEnrollments` 是否與 DB 邏輯一致？
-- [ ] 是否誤用 `students.created_at` 或注冊欄位代表報讀？
+- [ ] 是否誤用 `students.created_at` 或註冊欄位代表報讀？
 - [ ] `normalize*` 對固定列舉是否**精確比對**或**否定詞優先**？
 - [ ] `STATUS_TAG_RULES` 是否將 `非*` 規則放在肯定詞之前？
 - [ ] 匯入／seed 是否避免無報讀卻預設 `在讀`？
@@ -205,4 +205,4 @@ normalizeEnrollmentStatus("非在讀") === "非在讀"     // 不可因含「在
 
 | 日期 | 摘要 |
 | --- | --- |
-| 2026-07-07 | 初版：釐清注冊 vs 報讀、子字串誤判、`非活躍生` 顯示 bug 與防呆清單 |
+| 2026-07-07 | 初版：釐清註冊 vs 報讀、子字串誤判、`非活躍生` 顯示 bug 與防呆清單 |

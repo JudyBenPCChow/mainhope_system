@@ -1,5 +1,12 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import {
+ classNamespaceKey,
+ namespacesEqual,
+ resolveEntitlementNamespace,
+ type EntitlementCourseGroup,
+ type EntitlementNamespace,
+} from "@/lib/entitlementNamespace"
+import {
  enrollmentPeriodToPackageType,
  type EntitlementPackageType,
 } from "@/lib/entitlementPackage"
@@ -16,13 +23,18 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"
 import { supabase } from "@/lib/supabaseClient"
 
+const POOL_COLUMNS =
+ "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, course_group, namespace_key, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
+
 export type EntitlementPoolRow = {
  id: string
  studentId: string
- classId: string
+ classId: string | null
  academicYearId: string
  packageType: EntitlementPackageType
- sourceEnrollmentId: string
+ sourceEnrollmentId: string | null
+ courseGroup: EntitlementCourseGroup
+ namespaceKey: string
  initialLessons: number
  remainingLessons: number
  validFrom: string | null
@@ -53,14 +65,28 @@ export type DeclarationSourceEventType =
  | "backfill"
  | "class_cancelled"
 
+function isTrialPaymentDetailDescription(description: string | null | undefined): boolean {
+ return String(description ?? "").includes("試堂")
+}
+
 function mapPool(row: Record<string, unknown>): EntitlementPoolRow {
+ const courseGroup = String(row.course_group ?? "group_specialist") as EntitlementCourseGroup
+ const namespaceKey =
+  row.namespace_key != null && String(row.namespace_key) !== ""
+   ? String(row.namespace_key)
+   : row.class_id != null
+    ? classNamespaceKey(String(row.class_id))
+    : String(row.id)
  return {
   id: String(row.id),
   studentId: String(row.student_id),
-  classId: String(row.class_id),
+  classId: row.class_id != null ? String(row.class_id) : null,
   academicYearId: String(row.academic_year_id),
   packageType: String(row.package_type) as EntitlementPackageType,
-  sourceEnrollmentId: String(row.source_enrollment_id),
+  sourceEnrollmentId:
+   row.source_enrollment_id != null ? String(row.source_enrollment_id) : null,
+  courseGroup,
+  namespaceKey,
   initialLessons: Number(row.initial_lessons ?? 0),
   remainingLessons: Number(row.remaining_lessons ?? 0),
   validFrom: row.valid_from != null ? String(row.valid_from).slice(0, 10) : null,
@@ -130,20 +156,42 @@ async function fetchClassScheduleLessonRows(classId: string): Promise<ScheduleLe
  })
 }
 
-async function resolveEnrollmentPackageContext(opts: {
- enrollmentId: string
- classId: string
- enrollmentPeriod: EnrollmentFormValue | null
-}): Promise<{
+type ClassEntitlementContext = {
  academicYearId: string
  academicYearLabel: string | null
- packageType: EntitlementPackageType
-} | null> {
+ namespace: EntitlementNamespace
+}
+
+function namespaceFromClassRow(
+ classId: string,
+ row: Record<string, unknown>,
+ isTrial: boolean
+): EntitlementNamespace {
+ const course = row.courses as Record<string, unknown> | null
+ const gradeRaw = row.grade
+ const grade = Array.isArray(gradeRaw) ? gradeRaw.map((g) => String(g)) : null
+ return resolveEntitlementNamespace({
+  classId,
+  classKind: row.class_kind != null ? String(row.class_kind) : null,
+  subject: row.subject != null ? String(row.subject) : null,
+  courseName: course?.course_name != null ? String(course.course_name) : null,
+  grade,
+  gradeCode: course?.grade_code != null ? String(course.grade_code) : null,
+  isTrial,
+ })
+}
+
+async function fetchClassEntitlementContext(
+ classId: string,
+ opts?: { isTrial?: boolean }
+): Promise<ClassEntitlementContext | null> {
  if (!supabase) return null
  const { data, error } = await supabase
   .from("classes")
-  .select("academic_year_id, academic_years ( label ), courses ( course_mode )")
-  .eq("id", opts.classId)
+  .select(
+   "class_kind, subject, grade, academic_year_id, academic_years ( label ), courses ( course_name, grade_code, course_mode )"
+  )
+  .eq("id", classId)
   .maybeSingle()
  if (error) throw error
  if (!data) return null
@@ -151,12 +199,46 @@ async function resolveEnrollmentPackageContext(opts: {
  const year = row.academic_years as Record<string, unknown> | null
  const academicYearId = row.academic_year_id != null ? String(row.academic_year_id) : null
  if (!academicYearId) return null
- const academicYearLabel = year?.label != null ? String(year.label) : null
  return {
   academicYearId,
-  academicYearLabel,
-  packageType: enrollmentPeriodToPackageType(opts.enrollmentPeriod),
+  academicYearLabel: year?.label != null ? String(year.label) : null,
+  namespace: namespaceFromClassRow(classId, row, opts?.isTrial === true),
  }
+}
+
+async function fetchPoolByNamespace(opts: {
+ studentId: string
+ academicYearId: string
+ namespace: EntitlementNamespace
+}): Promise<EntitlementPoolRow | null> {
+ if (!supabase) return null
+ const { data, error } = await supabase
+  .from("student_entitlement_pools")
+  .select(POOL_COLUMNS)
+  .eq("student_id", opts.studentId)
+  .eq("academic_year_id", opts.academicYearId)
+  .eq("course_group", opts.namespace.courseGroup)
+  .eq("namespace_key", opts.namespace.namespaceKey)
+  .maybeSingle()
+ if (error) throw error
+ return data ? mapPool(data as Record<string, unknown>) : null
+}
+
+async function studentHasOpenTrialOnSchedule(
+ studentId: string,
+ scheduleId: string
+): Promise<boolean> {
+ if (!supabase) return false
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select("status")
+  .eq("student_id", studentId)
+  .eq("schedule_id", scheduleId)
+  .maybeSingle()
+ if (error) throw error
+ const status = data != null ? String((data as { status?: string }).status ?? "") : ""
+ if (!status) return false
+ return !status.includes("完成") && !status.includes("取消")
 }
 
 /** 計算某包裝應對應的未來／期內排程（用於鑄池與自動宣告） */
@@ -238,14 +320,12 @@ export async function fetchPoolsByEnrollmentIds(
  await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (chunk) => {
   const { data, error } = await supabase!
    .from("student_entitlement_pools")
-   .select(
-    "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
-   )
+   .select(POOL_COLUMNS)
    .in("source_enrollment_id", chunk)
   if (error) throw error
   for (const raw of data ?? []) {
    const pool = mapPool(raw as Record<string, unknown>)
-   map.set(pool.sourceEnrollmentId, pool)
+   if (pool.sourceEnrollmentId) map.set(pool.sourceEnrollmentId, pool)
   }
  })
  return map
@@ -259,13 +339,16 @@ export async function fetchPoolsByEnrollmentIds(
  * 堂數只經學費確認收款 top_up。
  */
 export async function ensureEntitlementPoolAndDeclarations(opts: {
- enrollmentId: string
+ enrollmentId?: string | null
  studentId: string
  classId: string
  enrollmentPeriod: EnrollmentFormValue | null
  enrollDate?: string | null
  scheduleIds?: string[]
  sourceEventType?: DeclarationSourceEventType
+ isTrial?: boolean
+ /** 只鑄／找池，唔建宣告（試堂收款未報讀） */
+ mintOnly?: boolean
  /**
   * @deprecated 主波後忽略；排程永不抬池。保留參數以免舊呼叫爆。
   */
@@ -273,23 +356,26 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
 }): Promise<EntitlementPoolRow | null> {
  if (!supabase) return null
 
- const ctx = await resolveEnrollmentPackageContext({
-  enrollmentId: opts.enrollmentId,
-  classId: opts.classId,
-  enrollmentPeriod: opts.enrollmentPeriod,
- })
- if (!ctx || !usesEntitlementRosterModel(ctx.academicYearLabel)) return null
+ const classCtx = await fetchClassEntitlementContext(opts.classId, { isTrial: opts.isTrial })
+ if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) return null
+ const packageType = enrollmentPeriodToPackageType(opts.enrollmentPeriod)
+ const ns = classCtx.namespace
 
- const targets = await resolvePackageScheduleTargets({
-  classId: opts.classId,
-  packageType: ctx.packageType,
-  academicYearId: ctx.academicYearId,
-  enrollDate: opts.enrollDate ?? null,
-  scheduleIds: opts.scheduleIds,
- })
+ const targets = opts.mintOnly
+  ? { scheduleIds: [] as string[], lessonUnits: 0 }
+  : await resolvePackageScheduleTargets({
+   classId: opts.classId,
+   packageType,
+   academicYearId: classCtx.academicYearId,
+   enrollDate: opts.enrollDate ?? null,
+   scheduleIds: opts.scheduleIds,
+  })
 
- const existingMap = await fetchPoolsByEnrollmentIds([opts.enrollmentId])
- let pool = existingMap.get(opts.enrollmentId) ?? null
+ let pool = await fetchPoolByNamespace({
+  studentId: opts.studentId,
+  academicYearId: classCtx.academicYearId,
+  namespace: ns,
+ })
  const now = new Date().toISOString()
 
  if (!pool) {
@@ -298,33 +384,31 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
    .insert({
     student_id: opts.studentId,
     class_id: opts.classId,
-    academic_year_id: ctx.academicYearId,
-    package_type: ctx.packageType,
-    source_enrollment_id: opts.enrollmentId,
+    academic_year_id: classCtx.academicYearId,
+    package_type: packageType,
+    source_enrollment_id: opts.enrollmentId ?? null,
+    course_group: ns.courseGroup,
+    namespace_key: ns.namespaceKey,
     initial_lessons: 0,
     remaining_lessons: 0,
     updated_at: now,
    })
-   .select(
-    "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
-   )
+   .select(POOL_COLUMNS)
    .single()
-  if (error) throw error
-  pool = mapPool(data as Record<string, unknown>)
- } else if (pool.packageType !== ctx.packageType) {
-  const { data, error } = await supabase
-   .from("student_entitlement_pools")
-   .update({
-    package_type: ctx.packageType,
-    updated_at: now,
-   })
-   .eq("id", pool.id)
-   .select(
-    "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
-   )
-   .single()
-  if (error) throw error
-  pool = mapPool(data as Record<string, unknown>)
+  if (error) {
+   if (String(error.message).includes("student_entitlement_pools_namespace_uidx")) {
+    pool = await fetchPoolByNamespace({
+     studentId: opts.studentId,
+     academicYearId: classCtx.academicYearId,
+     namespace: ns,
+    })
+    if (!pool) throw error
+   } else {
+    throw error
+   }
+  } else {
+   pool = mapPool(data as Record<string, unknown>)
+  }
  }
 
  if (targets.scheduleIds.length === 0) return pool
@@ -393,8 +477,7 @@ export async function syncSingleLessonDeclarations(opts: {
  const label = await classLabel(opts.classId)
  if (!usesEntitlementRosterModel(label)) return
 
- const pools = await fetchPoolsByEnrollmentIds([opts.enrollmentId])
- const pool = pools.get(opts.enrollmentId) ?? null
+ const pool = await fetchPoolForStudentClass(opts.studentId, opts.classId)
  if (!pool) {
   await ensureEntitlementPoolAndDeclarations({
    enrollmentId: opts.enrollmentId,
@@ -407,6 +490,8 @@ export async function syncSingleLessonDeclarations(opts: {
   return
  }
 
+ const classSchedules = await fetchClassScheduleLessonRows(opts.classId)
+ const thisClassIds = new Set(classSchedules.map((s) => s.id))
  const { data: activeRows, error: activeErr } = await supabase
   .from("attendance_declarations")
   .select("id, schedule_id")
@@ -417,9 +502,10 @@ export async function syncSingleLessonDeclarations(opts: {
 
  const wanted = new Set(opts.scheduleIds)
  const now = new Date().toISOString()
- const toVoid = (activeRows ?? []).filter(
-  (r) => !wanted.has(String((r as { schedule_id: string }).schedule_id))
- )
+ const toVoid = (activeRows ?? []).filter((r) => {
+  const sid = String((r as { schedule_id: string }).schedule_id)
+  return thisClassIds.has(sid) && !wanted.has(sid)
+ })
  if (toVoid.length > 0) {
   const { error } = await supabase
    .from("attendance_declarations")
@@ -610,6 +696,20 @@ export async function inheritDeclarationsAcrossSchedules(
  return toInsert.length
 }
 
+async function fetchPoolForStudentClass(
+ studentId: string,
+ classId: string,
+ opts?: { isTrial?: boolean }
+): Promise<EntitlementPoolRow | null> {
+ const ctx = await fetchClassEntitlementContext(classId, { isTrial: opts?.isTrial })
+ if (!ctx) return null
+ return fetchPoolByNamespace({
+  studentId,
+  academicYearId: ctx.academicYearId,
+  namespace: ctx.namespace,
+ })
+}
+
 async function resolvePoolIdForStudentClass(
  studentId: string,
  classId: string,
@@ -626,7 +726,6 @@ async function resolvePoolIdForStudentClass(
    .maybeSingle()
   if (error) throw error
   if (data?.pool_id) return String(data.pool_id)
-  // 請假日可能已 void：取最近一則同堂宣告的池
   const { data: anyDecl, error: anyErr } = await supabase
    .from("attendance_declarations")
    .select("pool_id")
@@ -637,19 +736,14 @@ async function resolvePoolIdForStudentClass(
    .maybeSingle()
   if (anyErr) throw anyErr
   if (anyDecl?.pool_id) return String(anyDecl.pool_id)
+  if (await studentHasOpenTrialOnSchedule(studentId, preferScheduleId)) {
+   const trialPool = await fetchPoolForStudentClass(studentId, classId, { isTrial: true })
+   if (trialPool) return trialPool.id
+  }
  }
 
- const { data: pools, error: poolErr } = await supabase
-  .from("student_entitlement_pools")
-  .select("id, remaining_lessons, created_at")
-  .eq("student_id", studentId)
-  .eq("class_id", classId)
-  .order("created_at", { ascending: true })
- if (poolErr) throw poolErr
- const rows = (pools ?? []) as Array<{ id: string; remaining_lessons?: number }>
- if (rows.length === 0) return null
- const withBalance = rows.find((r) => Number(r.remaining_lessons ?? 0) > 0)
- return String((withBalance ?? rows[0]!).id)
+ const pool = await fetchPoolForStudentClass(studentId, classId)
+ return pool?.id ?? null
 }
 
 /**
@@ -832,7 +926,7 @@ export async function applyEntitlementConsumptionDelta(opts: {
  if (evErr) throw evErr
 }
 
-/** 報讀形式變更：唔硬刪有事件嘅池；原地改 package＋重同步宣告 */
+/** 報讀形式變更：共用池唔刪；只重同步本班宣告 */
 export async function remintPoolAfterPeriodChange(opts: {
  enrollmentId: string
  studentId: string
@@ -844,39 +938,6 @@ export async function remintPoolAfterPeriodChange(opts: {
  if (!supabase) return
  const label = await classLabel(opts.classId)
  if (!usesEntitlementRosterModel(label)) return
-
- const existing = await fetchPoolsByEnrollmentIds([opts.enrollmentId])
- const oldPool = existing.get(opts.enrollmentId)
- if (oldPool) {
-  const { count, error: cntErr } = await supabase
-   .from("entitlement_consumption_events")
-   .select("id", { count: "exact", head: true })
-   .eq("pool_id", oldPool.id)
-  if (cntErr) throw cntErr
-  if ((count ?? 0) > 0) {
-   // 已有支付／消耗事件：禁止 DELETE 池；只重同步宣告同 package
-   await ensureEntitlementPoolAndDeclarations({
-    enrollmentId: opts.enrollmentId,
-    studentId: opts.studentId,
-    classId: opts.classId,
-    enrollmentPeriod: opts.enrollmentPeriod,
-    enrollDate: opts.enrollDate,
-    scheduleIds: opts.scheduleIds,
-    sourceEventType: "enrollment_auto",
-   })
-   return
-  }
-  const { error: delDeclErr } = await supabase
-   .from("attendance_declarations")
-   .delete()
-   .eq("pool_id", oldPool.id)
-  if (delDeclErr) throw delDeclErr
-  const { error: delErr } = await supabase
-   .from("student_entitlement_pools")
-   .delete()
-   .eq("id", oldPool.id)
-  if (delErr) throw delErr
- }
 
  await ensureEntitlementPoolAndDeclarations({
   enrollmentId: opts.enrollmentId,
@@ -936,6 +997,10 @@ export async function topUpEntitlementsForPayment(opts: {
   if (exErr) throw exErr
   if (existingEv) continue
 
+  const isTrial = isTrialPaymentDetailDescription(
+   (raw as { description?: string | null }).description
+  )
+
   const { data: enr, error: enrErr } = await supabase
    .from("student_class_enrollments")
    .select("id, enrollment_period, enroll_date")
@@ -944,24 +1009,26 @@ export async function topUpEntitlementsForPayment(opts: {
    .eq("status", "就讀中")
    .maybeSingle()
   if (enrErr) throw enrErr
-  if (!enr) {
+  if (!enr && !isTrial) {
    console.warn(
     `[topUpEntitlementsForPayment] 無就讀中報讀，略過抬池 payment_detail=${detailId} class=${classId}`
    )
    continue
   }
 
-  const enrollmentId = String((enr as { id: string }).id)
+  const enrollmentId = enr != null ? String((enr as { id: string }).id) : null
   const period = normalizeEnrollmentPeriod(
-   (enr as { enrollment_period?: string | null }).enrollment_period ?? null
+   (enr as { enrollment_period?: string | null } | null)?.enrollment_period ?? null
   )
   const pool = await ensureEntitlementPoolAndDeclarations({
    enrollmentId,
    studentId: opts.studentId,
    classId,
    enrollmentPeriod: period,
-   enrollDate: (enr as { enroll_date?: string | null }).enroll_date ?? null,
+   enrollDate: (enr as { enroll_date?: string | null } | null)?.enroll_date ?? null,
    sourceEventType: "enrollment_auto",
+   isTrial,
+   mintOnly: isTrial && !enrollmentId,
   })
   if (!pool) continue
 
@@ -1097,6 +1164,37 @@ export async function clawbackEntitlementsForPayment(opts: {
   return { clawedBackDetails, lessonsRemoved }
 }
 
+async function chargeableUnitsForClassInMonth(
+ classId: string,
+ from: string,
+ to: string
+): Promise<number> {
+ if (!supabase) return 0
+ const { data: classRow, error: cErr } = await supabase
+  .from("classes")
+  .select("lesson_slots_per_session")
+  .eq("id", classId)
+  .maybeSingle()
+ if (cErr) throw cErr
+ const perSession = lessonUnits(
+  (classRow as { lesson_slots_per_session?: number | null } | null)?.lesson_slots_per_session
+ )
+ const { data: schedRows, error: sErr } = await supabase
+  .from("schedules")
+  .select("id, status")
+  .eq("class_id", classId)
+  .gte("scheduled_date", from)
+  .lte("scheduled_date", to)
+ if (sErr) throw sErr
+ let units = 0
+ for (const raw of schedRows ?? []) {
+  const status = String((raw as { status?: string }).status ?? "")
+  if (status.includes("取消")) continue
+  units += perSession
+ }
+ return units
+}
+
 /** 收款建議：本月會扣堂排程單位 − 池餘（可為 0；可調）。非 gated 學年回 null。 */
 export async function fetchTuitionPaymentSuggestion(opts: {
  studentId: string
@@ -1109,8 +1207,8 @@ export async function fetchTuitionPaymentSuggestion(opts: {
  remainingLessons: number
 } | null> {
  if (!supabase) return null
- const label = await classLabel(opts.classId)
- if (!usesEntitlementRosterModel(label)) return null
+ const classCtx = await fetchClassEntitlementContext(opts.classId)
+ if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) return null
 
  const ym = (opts.yearMonth ?? new Date().toISOString().slice(0, 7)).slice(0, 7)
  if (!/^\d{4}-\d{2}$/.test(ym)) return null
@@ -1118,58 +1216,39 @@ export async function fetchTuitionPaymentSuggestion(opts: {
  const lastDay = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
  const to = `${ym}-${String(lastDay).padStart(2, "0")}`
 
- const { data: classRow, error: cErr } = await supabase
-  .from("classes")
-  .select("lesson_slots_per_session")
-  .eq("id", opts.classId)
-  .maybeSingle()
- if (cErr) throw cErr
- const perSession = lessonUnits(
-  (classRow as { lesson_slots_per_session?: number | null } | null)?.lesson_slots_per_session
- )
-
- const { data: schedRows, error: sErr } = await supabase
-  .from("schedules")
-  .select("id, status")
-  .eq("class_id", opts.classId)
-  .gte("scheduled_date", from)
-  .lte("scheduled_date", to)
- if (sErr) throw sErr
+ const classIds = new Set<string>([opts.classId])
+ if (classCtx.namespace.sharesAcrossClasses) {
+  const { data: enrs, error: eErr } = await supabase
+   .from("student_class_enrollments")
+   .select(
+    "class_id, classes!inner ( class_kind, subject, grade, academic_year_id, courses ( course_name, grade_code ) )"
+   )
+   .eq("student_id", opts.studentId)
+   .eq("status", "就讀中")
+   .eq("classes.academic_year_id", classCtx.academicYearId)
+  if (eErr) throw eErr
+  for (const raw of enrs ?? []) {
+   const row = raw as Record<string, unknown>
+   const siblingId = row.class_id != null ? String(row.class_id) : ""
+   if (!siblingId || siblingId === opts.classId) continue
+   const cls = row.classes as Record<string, unknown> | null
+   if (!cls) continue
+   const siblingNs = namespaceFromClassRow(siblingId, cls, false)
+   if (namespacesEqual(siblingNs, classCtx.namespace)) classIds.add(siblingId)
+  }
+ }
 
  let chargeableUnits = 0
- for (const raw of schedRows ?? []) {
-  const status = String((raw as { status?: string }).status ?? "")
-  if (status.includes("取消")) continue
-  chargeableUnits += perSession
+ for (const classId of classIds) {
+  chargeableUnits += await chargeableUnitsForClassInMonth(classId, from, to)
  }
 
- const { data: poolRows, error: pErr } = await supabase
-  .from("student_entitlement_pools")
-  .select("remaining_lessons, source_enrollment_id")
-  .eq("student_id", opts.studentId)
-  .eq("class_id", opts.classId)
- if (pErr) throw pErr
-
- let remainingLessons = 0
- if (poolRows && poolRows.length > 0) {
-  const { data: enr, error: eErr } = await supabase
-   .from("student_class_enrollments")
-   .select("id")
-   .eq("student_id", opts.studentId)
-   .eq("class_id", opts.classId)
-   .eq("status", "就讀中")
-   .maybeSingle()
-  if (eErr) throw eErr
-  const enrId = enr ? String((enr as { id: string }).id) : null
-  const match = enrId
-   ? poolRows.find(
-      (r) => String((r as { source_enrollment_id: unknown }).source_enrollment_id) === enrId
-     )
-   : poolRows[0]
-  remainingLessons = Number(
-   (match as { remaining_lessons?: number } | undefined)?.remaining_lessons ?? 0
-  )
- }
+ const pool = await fetchPoolByNamespace({
+  studentId: opts.studentId,
+  academicYearId: classCtx.academicYearId,
+  namespace: classCtx.namespace,
+ })
+ const remainingLessons = pool?.remainingLessons ?? 0
 
  return {
   suggestedLessons: suggestedTuitionLessons({
