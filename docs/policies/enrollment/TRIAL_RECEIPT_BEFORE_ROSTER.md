@@ -5,7 +5,7 @@
 機構自稱：見 [`TERMINOLOGY.md`](../../meta/TERMINOLOGY.md)（**明學教育**；禁院方、「明學補習社」、書院／學院自稱）。
 
 **產品定案：** 2026-08-11  
-**系統現況：** **核心已系統化（2026-08-11）**——點名紙 roster 只含已確認收款試堂；免費建立後跳收款；$0 單／堂數 1／計人頭手選／半價＝正價＋50% 優惠已接。餘手冊發佈、阿Po、點名紙人頭標籤見 [`backlog/frontline-ops-update.md`](backlog/frontline-ops-update.md)。
+**系統現況：** **已系統化（2026-08-16）**——點名紙只含已確認收款試堂；免費建立後跳收款；$0 單／堂數 1／計人頭手選／半價＝正價＋50% 優惠已接；確認後老師收件匣有試堂通知。人數／計糧跟 `counts_toward_headcount`。前線操作見 [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md)。
 
 ---
 
@@ -42,9 +42,10 @@
 
 | 文件 | 關係 |
 | --- | --- |
-| [`backlog/frontline-ops-update.md`](backlog/frontline-ops-update.md) | 工程／前台流程對齊（閘點名紙、免費跳收款、人頭 UX 等） |
-| [`backlog/trial-promo-receipt-frontline-wip.md`](backlog/trial-promo-receipt-frontline-wip.md) | 前線執行草稿（產品已拍板；待遷 manual） |
-| [`backlog/summer-enrollment-roster-consistency.md`](backlog/summer-enrollment-roster-consistency.md) §5.6 | 母題 G3；舊「掛勾即可上紙」**已作廢** |
+| [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md) | 前線操作（出單、三種試堂、老師收件匣） |
+| [`frontline-ops-update.md`](../../product/topics/frontline-ops-update.md) | 工程分題（已完成） |
+| [`trial-promo-receipt-frontline-wip.md`](../../product/topics/trial-promo-receipt-frontline-wip.md) | 產品草稿（已遷入 playbook） |
+| [`summer-enrollment-roster-consistency.md`](../../product/topics/summer-enrollment-roster-consistency.md) §5.6 | 母題 G3；舊「掛勾即可上紙」**已作廢** |
 | [`PAYMENT_RECEIPT_VOID_POLICY.md`](../payments/PAYMENT_RECEIPT_VOID_POLICY.md) | 單據禁硬刪／作廢 |
 | [`ATTENDANCE_BILLING.md`](../attendance/ATTENDANCE_BILLING.md) | 點名狀態與扣堂（本篇唔改扣堂白名單） |
 

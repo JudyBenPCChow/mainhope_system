@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  LESSON_SLOT_DURATION_MIN,
  intervalsOverlapMinutes,
@@ -10,9 +11,14 @@ import {
  trialOutcomeClosed,
  type TrialOutcome,
 } from "@/lib/trialOutcome"
-import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
+import {
+ formatEnrollmentFormLabel,
+ type CourseMode,
+ type EnrollmentFormValue,
+} from "@/lib/enrollmentPeriod"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
+import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
 import {
@@ -163,6 +169,54 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   price_per_lesson: classPrice != null && classPrice > 0 ? classPrice : coursePrice,
   roll_call_done: rollCallDone,
  }
+}
+
+export type UpcomingTrialBrief = {
+ id: string
+ studentName: string
+ classLabel: string
+ scheduleId: string
+ trialDate: string
+ status: string
+}
+
+/**
+ * 老師首頁即將試堂。禁止改用 fetchTrialsWithRelations（含 payments embed，老師 JWT 下會常紅）。
+ */
+export async function fetchUpcomingTrialsForClassIds(
+ classIds: string[],
+ fromYmd: string
+): Promise<UpcomingTrialBrief[]> {
+ if (!supabase || classIds.length === 0) return []
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select(
+    "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+   )
+   .in("class_id", slice)
+   .gte("trial_date", fromYmd)
+   .order("trial_date", { ascending: true })
+  if (error) throw error
+  return data ?? []
+ })
+ return chunks.flat().map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  const cls = r.classes as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "—"
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  return {
+   id: String(r.id),
+   studentName: st?.full_name != null ? String(st.full_name) : "—",
+   classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+   scheduleId: String(r.schedule_id ?? ""),
+   trialDate: String(r.trial_date ?? ""),
+   status: String(r.status ?? ""),
+  } satisfies UpcomingTrialBrief
+ })
 }
 
 export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
@@ -594,7 +648,84 @@ export async function linkOpenTrialsToPayment(params: {
   if (upErr) throw upErr
   linkedTrialIds.push(trialId)
  }
+ if (linkedTrialIds.length > 0) {
+  void notifyTeachersOfConfirmedTrials(linkedTrialIds)
+ }
  return { linkedTrialIds, skippedMessages }
+}
+
+export function trialConfirmedInboxCopy(input: {
+ studentName: string
+ classLabel: string
+ trialDate: string
+ startTime?: string | null
+ countsTowardHeadcount: boolean | null
+}): { title: string; body: string } {
+ const time = input.startTime ? String(input.startTime).slice(0, 5) : ""
+ const head =
+  input.countsTowardHeadcount === true
+   ? "計人頭"
+   : input.countsTowardHeadcount === false
+    ? "唔計人頭"
+    : "人頭未選"
+ return {
+  title: `${input.studentName} 試堂（${input.classLabel}）`,
+  body: `${input.trialDate}${time ? ` ${time}` : ""} · ${head}。確認收款後已上點名紙。`,
+ }
+}
+
+async function notifyTeachersOfConfirmedTrials(trialIds: string[]): Promise<void> {
+ if (!supabase || trialIds.length === 0) return
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select(
+   "id, trial_date, counts_toward_headcount, student_id, class_id, schedule_id, students ( full_name ), classes ( subject, course_code_full, teacher_id, courses ( course_name ) ), schedules ( teacher_id, original_teacher_id, start_time )"
+  )
+  .in("id", trialIds)
+ if (error) {
+  console.warn("[notifyTeachersOfConfirmedTrials]", error.message)
+  return
+ }
+ for (const raw of data ?? []) {
+  const row = raw as Record<string, unknown>
+  const st = row.students as Record<string, unknown> | null
+  const cls = row.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  const sch = row.schedules as Record<string, unknown> | null
+  const classId = row.class_id != null ? String(row.class_id) : null
+  const scheduleId = row.schedule_id != null ? String(row.schedule_id) : null
+  const copy = trialConfirmedInboxCopy({
+   studentName: st?.full_name != null ? String(st.full_name) : "學生",
+   classLabel: formatClassLabel({
+    subject: cls?.subject != null ? String(cls.subject) : "—",
+    courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : "",
+    courseName: course?.course_name != null ? String(course.course_name) : null,
+   }),
+   trialDate: String(row.trial_date ?? ""),
+   startTime: sch?.start_time != null ? String(sch.start_time) : null,
+   countsTowardHeadcount:
+    row.counts_toward_headcount === true
+     ? true
+     : row.counts_toward_headcount === false
+      ? false
+      : null,
+  })
+  void recordInboxEvent({
+   eventType: "trial_confirmed",
+   title: copy.title,
+   body: copy.body,
+   actionPath: scheduleId ? `/Schedule/${scheduleId}` : "/Inbox",
+   classId,
+   scheduleId,
+   studentId: row.student_id != null ? String(row.student_id) : null,
+   audienceTeacherIds: [
+    sch?.teacher_id != null ? String(sch.teacher_id) : null,
+    sch?.original_teacher_id != null ? String(sch.original_teacher_id) : null,
+    cls?.teacher_id != null ? String(cls.teacher_id) : null,
+   ],
+   payload: { trialId: String(row.id) },
+  })
+ }
 }
 
 /** 依開著試堂排程建議連堂節數 */
@@ -850,10 +981,7 @@ export async function convertTrialToEnrollment(params: {
   params.pending ?? null
  )
 
- const periodLabel =
-  params.enrollmentPeriod == null
-   ? "報足全期"
-   : String(params.enrollmentPeriod)
+ const periodLabel = formatEnrollmentFormLabel(params.enrollmentPeriod)
  const now = new Date().toISOString()
  const crossNote =
   targetClassId !== t.class_id ? "跨班轉化：歸因至新報讀" : null

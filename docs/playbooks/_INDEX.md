@@ -15,6 +15,7 @@
 
 | 篇章 | 簡介 |
 | --- | --- |
+| [試堂出單與點名紙](frontdesk/TRIAL_RECEIPT_FRONTLINE.md) | 全價／半價／免費出單；確認後上紙；老師收件匣 |
 | [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp／作廢 |
 | [收件匣](frontdesk/INBOX.md) | 營運／系統通知、已讀 |
 | [請假與補堂（連堂）](frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) | 連堂只欠／只補；取消請假 |

@@ -27,7 +27,7 @@
 
 | 文件 | 主題 |
 | --- | --- |
-| [試堂出單先上紙](enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) | 試堂須出單確認後先入池、先上點名紙；免費亦出 $0 單 |
+| [試堂出單先上紙](enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) | 試堂須出單確認後先入池、先上點名紙；免費亦出 $0 單；老師收件匣通知 |
 | [學生狀態分類](enrollment/STUDENT_STATUS_CLASSIFICATION.md) | 注冊／報讀／在讀／活躍等 |
 | [學生編號](enrollment/STUDENT_CODE.md) | 學號規則 |
 
