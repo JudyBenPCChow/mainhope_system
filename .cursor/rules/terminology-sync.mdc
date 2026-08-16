@@ -1,0 +1,22 @@
+---
+description: 新增或修改公司術語時，必須同步員工用語表與 agent mdc，並審閱營運文件是否要跟詞。
+globs: docs/meta/TERMINOLOGY.md,.cursor/rules/terminology.mdc
+alwaysApply: false
+---
+
+# 術語表同步
+
+改**主詞、定義、禁用詞**時（含只改其中一份）：
+
+1. **同一輪改齊兩份**，勿只改一邊：
+   - 員工讀本（定義）：`docs/meta/TERMINOLOGY.md`
+   - Agent 用／禁表：`.cursor/rules/terminology.mdc`
+2. 決策過程可補一句：`docs/product/topics/agent-terminology.md`。
+3. **術語一改，營運文件有機會要重審**（舊詞可能散落全文，唔等於「改完表就收工」）。至少對照：
+   - `docs/policies/`（含 `_INDEX.md`）
+   - `docs/playbooks/`
+   - `docs/year/2627/ops-guide.md`（改了正文 → 同一輪重出 docx，見 `md-docx-sync.mdc`）
+   - 阿Po／知識庫若有用語句（`supabase/functions/_shared/apoKnowledge.ts` 等）
+4. 回覆時寫明：兩表已同步；營運文件已跟／未跟（列路徑）／另開。畫面舊稱（報足全期、換主責等）屬 UI 一次過，除非用戶要一併改。
+
+例外：用戶明確說「只改表、唔審營運文件」先可跳過第 3 步。
