@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Generate 2627 regular-year ops guide docx from markdown.
+"""Generate 2627 regular-year ops guide docx + pdf from markdown.
 
-Docx 規範（本腳本）：
+Docx／PDF 規範（本腳本）：
 - 字型：新細明體（PMingLiU）；黑白；禁止彩色／非襯線
 - 頁面：A4 直向；左右頁邊距 25mm；頁碼置中「— N —」
 - 層級：標題粗體較大＋幼線；內文常規
 - 符號：純文字（✓／×）；列表句尾不加句號
+- PDF：Word 更新目錄後另存；唔另手改版面
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from docx.shared import Cm, Pt, RGBColor
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "docs" / "year" / "2627" / "ops-guide.md"
 OUT = ROOT / "docs" / "generated" / "2627" / "2627_REGULAR_YEAR_OPS_GUIDE.docx"
+PDF_OUT = ROOT / "docs" / "generated" / "2627" / "2627_REGULAR_YEAR_OPS_GUIDE.pdf"
 
 FONT_NAME_EA = "新細明體"
 BODY_SIZE = 11
@@ -539,14 +541,20 @@ def close_word_docs() -> None:
     )
 
 
-def update_word_toc(path: Path) -> None:
-    """Refresh Word built-in TOC (and fields) via Microsoft Word on macOS."""
+def refresh_word(docx_path: Path, pdf_path: Path | None) -> None:
+    """Refresh Word TOC/fields; optionally export PDF. Requires Microsoft Word on macOS."""
+    pdf_block = ""
+    if pdf_path is not None:
+        pdf_block = f'''
+  set pdfFile to POSIX file "{pdf_path}" as string
+  save as theDoc file name pdfFile file format format PDF
+'''
     script = f'''
 tell application "Microsoft Word"
   activate
-  set docPath to POSIX file "{path}" as alias
+  set docPath to POSIX file "{docx_path}" as alias
   open docPath
-  delay 1
+  delay 2
   set theDoc to active document
   try
     if (count of tables of contents of theDoc) > 0 then
@@ -561,19 +569,30 @@ tell application "Microsoft Word"
   end repeat
   delay 0.5
   save theDoc
+{pdf_block}
+  delay 0.5
+  close theDoc saving no
 end tell
 '''
-    subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
+    result = subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
+        raise RuntimeError(err)
 
 
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="Generate 2627 ops guide docx")
+    parser = argparse.ArgumentParser(description="Generate 2627 ops guide docx and pdf")
     parser.add_argument(
         "--no-word",
         action="store_true",
-        help="Skip Microsoft Word TOC/field refresh",
+        help="Skip Microsoft Word TOC refresh and PDF export",
+    )
+    parser.add_argument(
+        "--no-pdf",
+        action="store_true",
+        help="Skip PDF export (still refresh Word TOC unless --no-word)",
     )
     args = parser.parse_args()
 
@@ -585,14 +604,19 @@ def main() -> None:
     doc.save(OUT)
     print("wrote", OUT)
     if args.no_word:
-        print("skipped Word TOC update (--no-word)")
+        print("skipped Word TOC update and PDF (--no-word)")
         return
+    pdf_path = None if args.no_pdf else PDF_OUT
     try:
-        update_word_toc(OUT)
+        refresh_word(OUT, pdf_path)
         print("updated Word TOC / fields")
+        if pdf_path is not None:
+            if not pdf_path.is_file() or pdf_path.stat().st_size < 1000:
+                raise RuntimeError("PDF 未寫出或檔案過小")
+            print("wrote", pdf_path)
     except Exception as exc:  # noqa: BLE001
-        print("Word TOC update skipped:", exc)
-        print("Open in Word → 右鍵目錄 → 更新功能變數")
+        print("Word TOC / PDF update skipped:", exc)
+        print("Open in Word → 右鍵目錄 → 更新功能變數；另存 PDF")
 
 
 if __name__ == "__main__":

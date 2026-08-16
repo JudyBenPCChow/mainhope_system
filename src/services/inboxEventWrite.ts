@@ -9,6 +9,7 @@ export type InboxWriteEventType =
  | "class_updated"
  | "class_teacher_changed"
  | "leave_created"
+ | "trial_confirmed"
  | "system_update"
 
 export type InboxEventCategory = "ops" | "system"

@@ -237,9 +237,9 @@ Prod 0 筆；停新增 credit 寫入。
 **定案：** 試堂**先出學費單並確認**（含 $0）→ 先入池（跟 `lesson_count`，免費預設 **1**）→ **先上點名紙**。未出單／未確認：**唔入池、唔上紙**。計人頭與收錢分開；**免費計人頭＝手選無預設**。$0 單畫面仍跟現行收據流程（最多唔印畀家長）。半價：**填正價＋優惠 off 50%**，唔直接填半價實收。
 
 > **舊句作廢（勿再引用）：**「試堂掛勾即可上點名紙（宣告∪試堂）；唔靠池餘先上紙」。  
-> 取代為：確認收款後先上紙。工程尚未強制時仍以總則為準—見 [`frontline-ops-update.md`](./frontline-ops-update.md)。
+> 取代為：確認收款後先上紙。工程已強制——見 [`frontline-ops-update.md`](./frontline-ops-update.md)（`done`）。
 
-前線定稿草稿：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)。工程／發佈：[`frontline-ops-update.md`](./frontline-ops-update.md)。
+前線操作：[`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md)。產品草稿：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)。
 
 **三軸：**
 
@@ -315,7 +315,7 @@ Prod 0 筆；停新增 credit 寫入。
 ### G3 — 試堂／贈堂（原 F3）— **已拍板（2026-08-11）**
 
 T1–T4 已關：堂數預設 1；計人頭手選無預設；$0 跟現行收據叫法；半價＝正價＋優惠 50%。  
-正文：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)。餘工程／手冊／發佈：[`frontline-ops-update.md`](./frontline-ops-update.md)。
+正文：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)。工程／手冊：[`frontline-ops-update.md`](./frontline-ops-update.md)（`done`）；前線 [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md)。
 
 ---
 

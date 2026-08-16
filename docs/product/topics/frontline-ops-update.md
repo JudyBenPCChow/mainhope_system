@@ -2,20 +2,21 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress` |
+| 狀態 | `done` |
 | 優先 | 高 |
-| 範圍 | 把 **G3 試堂／優惠定案**寫入前線流程、手冊、阿Po、系統行為（出單閘點名紙、免費亦跳收款、計人頭手選 UX、半價＝正價＋優惠 50% 等）；培訓／發佈前台同事跟新原則 |
-| 不含 | 會計收入認列；營運總覽 KPI **實作**（規格見另題）；G2 更正頁文件同步（另題） |
-| 營運總則 | [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)（已掛 [`OPS_POLICIES.md`](../policies/_INDEX.md)；**核心已系統化**） |
+| 範圍 | 把 **G3 試堂／優惠定案**寫入前線流程、手冊、阿Po、系統行為（出單閘點名紙、免費亦跳收款、計人頭手選 UX、半價＝正價＋優惠 50% 等） |
+| 不含 | 會計收入認列；營運總覽 KPI **實作**（規格見另題）；G2 更正頁文件同步（另題）；**前台培訓／員工 WhatsApp 發佈**（非工程） |
+| 營運總則 | [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)（已掛 [`OPS_POLICIES.md`](../../policies/_INDEX.md)；**已系統化**） |
+| 前線操作 | [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 產品草稿 | [`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)（**產品已拍板**） |
+| 產品草稿 | [`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)（**已遷 playbook**） |
 | 母題 | [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) §5.6／G3 |
 | 立案 | 2026-08-11 |
-| 上次更新 | 2026-08-12 |
+| 上次更新 | 2026-08-16 |
 
 ## 結論（給 agent／產品）
 
-T1–T4 已關。**核心工程 2026-08-11 已落地**（migration `20260811023000`）。餘：manual 發佈、阿Po、點名紙人頭標籤、老師通知核對。**2627 §11 已於 v1.2（2026-08-12）跟出單先上紙。**
+**2026-08-16 結案。** T1–T4 已關。核心工程、playbook、2627 §11、老師試堂收件匣、阿Po 已跟出單先上紙。計／唔計人頭由計糧／排程人數跟 `counts_toward_headcount`（唔做點名紙每人標籤）。培訓／發佈唔屬本工程。
 
 ## 已拍板原則（必須列入更新）
 
@@ -38,21 +39,22 @@ T1–T4 已關。**核心工程 2026-08-11 已落地**（migration `202608110230
 | 計人頭手選（無預設） | ✅ 試堂頁＋前台精靈；欄 `counts_toward_headcount` |
 | 半價＝正價＋目錄 50% 優惠 | ✅ `試堂半價（50%）` |
 | 母題／WIP／總則舊「掛勾即上紙」 | ✅ 已改寫 |
-| 2627 指引 §11 免費可不經付費 | ✅ v1.2 已跟出單先上紙 |
-| 點名紙顯示計／唔計標籤 | ⬜ 資料已有 |
-| 老師試堂收件匣通知 | ⬜ 另核 |
+| 2627 指引 §11 | ✅ v1.2 出單先上紙；v1.9 老師收件匣 |
+| playbook | ✅ [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md) |
+| ATTENDANCE 舊「免費可不經收款」 | ✅ 已跟政策 |
+| 點名紙顯示計／唔計標籤 | ✅ 吸收：人數／計糧跟旗標（`rosterHeadcountForSchedule`）；點名紙只標「試堂」 |
+| 老師試堂收件匣通知 | ✅ 確認收款後 `trial_confirmed`（migration `20260816120000`） |
+| 阿Po | ✅ `apoKnowledge`／`apoHowtoGuides` 已跟出單先上紙 |
+| 前台培訓／員工發佈 | — 非工程；唔填 |
 
 ## 待做（摘要）
 
-1. ~~核心工程~~  
-2. WIP 遷入 `docs/playbooks/frontdesk/`＋員工發佈  
-3. 文件：ATTENDANCE／阿Po（~~2627 §11 舊句~~ 已跟）  
-4. 前台培訓  
-5. （可選）點名紙計人頭標籤；老師通知核對  
+全部工程項已關。員工 WhatsApp／列印發佈見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（另題）。
 
 ## 相關
 
-- 營運總則：[`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)
-- 試堂前線 WIP：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)
+- 營運總則：[`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)
+- 前線操作：[`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md)
+- 試堂前線 WIP（已遷）：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)
 - 營運總覽 KPI 規格：[`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md)
-- 政策索引：[`OPS_POLICIES.md`](../policies/_INDEX.md)
+- 政策索引：[`OPS_POLICIES.md`](../../policies/_INDEX.md)

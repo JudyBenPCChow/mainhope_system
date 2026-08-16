@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | **產品已拍板** — 待遷入 `docs/playbooks/frontdesk/`、工程對齊、員工發佈；未要求前線跟舊畫面以外嘅新操作 |
+| 狀態 | **已遷入** [`TRIAL_RECEIPT_FRONTLINE.md`](../../playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md)；本檔只留產品拍板紀錄 |
 | 適用對象（定稿後） | 前台、行政、須向家長說明試堂／優惠安排的前線同事 |
 | 性質 | 校方營運規則說明（供日常執行） |
 | 母題 | [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) §5.6／G3 |
