@@ -93,7 +93,7 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
-admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／權益更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
@@ -159,6 +159,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /RoomBookingAdmin 約房審批
 - /Payments 收款登記
 - /PaymentHistory 繳費紀錄（含作廢）
+- /PaymentCorrection 單據／權益更正（已繳堂數調動）
 - /PaymentDiscounts 優惠折扣（編輯多半 alien）
 - /MgmtDashboard 營運總覽
 
@@ -222,10 +223,11 @@ ${APO_SYSTEM_DIRECTIVES}
 ## 繳費與優惠
 
 - 收款登記：/Payments（出單、標記已收）
-- 繳費紀錄：/PaymentHistory（查歷史單據）
+- 繳費紀錄：/PaymentHistory（查歷史單據、作廢）
+- 單據／權益更正：/PaymentCorrection（堂數／科班錯用已繳堂數調動；金額錯先作廢再重開；禁硬刪）
 - 優惠折扣：/PaymentDiscounts（admin、alien）
 - admin／alien 可用工具查已繳堂數與追收提示；不回傳具體金額
-- 追學費提示條件（參考）：已付堂數 ≤ 已上堂數（且不全為 0）；學生通常一次繳多堂，非天天催繳工具
+- 追學費提示條件（參考）：已繳堂數相對已扣堂數出現缺口（且不全為 0）；學生通常一次繳多堂，非天天催繳工具
 
 ## 點名狀態與扣堂（已上堂數）
 

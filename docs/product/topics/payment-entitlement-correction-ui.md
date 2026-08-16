@@ -2,19 +2,20 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（核心 UI＋作廢第二人 ✅；阿Po／政策全文同步可跟） |
+| 狀態 | `done`（2026-08-16：UI／政策／手册／明學IT狗已跟分流） |
 | 優先 | 高 |
 | 範圍 | 按 G2a–G2d 產品定案，補齊前台**更正入口**（新頁／強化作廢）；同步改寫舊「禁改已確認單＝只准作廢」文件與阿Po |
-| 不含 | 會計收入認列；硬刪單據；常規退費產品化 |
+| 不含 | 會計收入認列；硬刪單據；常規退費產品化；**申請制**（行政／管理層交申請、外星人批）見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 產品定案 | [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) §4.13／G2 |
 | 立案 | 2026-08-09 |
-| 上次更新 | 2026-08-11 |
+| 上次更新 | 2026-08-16 |
 
 ## 結論（給 agent／產品）
 
 **2026-08-10 已落地：** `/PaymentCorrection`（admin／manager／alien）；池調動表 `entitlement_pool_adjustments`；作廢 ≤30 分單人／>30 分第二人（manager／alien）已上 edge `void-payment`。  
-**2026-08-11：** [`PAYMENT_RECEIPT_VOID_POLICY.md`](../policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md) 已全文改寫為按錯類型分流；2627 §11／§12 已跟。餘：阿Po／`manual/PAYMENT_RECEIPTS.md` 另包。
+**2026-08-11：** [`PAYMENT_RECEIPT_VOID_POLICY.md`](../../policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md) 已全文改寫為按錯類型分流；2627 §11／§12 已跟。  
+**2026-08-16：** [`PAYMENT_RECEIPTS.md`](../../playbooks/frontdesk/PAYMENT_RECEIPTS.md) 已改寫；明學IT狗 `apoHowtoGuides.ts`／`apoKnowledge.ts`／`apoRoutes.ts` 已跟分流。本列完成。申請制另見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md)。
 
 ## 缺口 vs G2 定案
 
@@ -38,19 +39,19 @@
    - 密碼＋原因（已有）→ >30 分第二人確認 → 成功後一鍵帶學生去收款登記重開  
 4. **文件／阿Po 同步**（見下「舊政策出現位置」）
 
-## 舊政策／舊說法出現位置（開工必改；agent 勿當最終真相）
+## 舊政策／舊說法（已同步；備查）
 
-下列仍寫「禁改已確認／出錯只准作廢」或等價現況。**產品已轉向按錯類型分流**；改系統前請標「待同步」或改寫對齊 §4.13。
+下列曾寫「禁改已確認／出錯只准作廢」。**產品已按錯類型分流**；下表均已對齊。
 
 | 位置 | 而家寫咩（摘要） | 同步時 |
 | --- | --- | --- |
 | [`docs/policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md`](../policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md) | ✅ 2026-08-11 已全文改寫按錯類型分流 | 已同步 |
-| [`docs/playbooks/frontdesk/PAYMENT_RECEIPTS.md`](../playbooks/frontdesk/PAYMENT_RECEIPTS.md) §7 | 已加「政策更新中」橫額；正文仍寫現役作廢 | 定稿後改寫為按類型分流＋更正頁入口（另包） |
+| [`docs/playbooks/frontdesk/PAYMENT_RECEIPTS.md`](../../playbooks/frontdesk/PAYMENT_RECEIPTS.md) §7 | ✅ 2026-08-16 已改寫按類型分流＋更正頁入口 | 已同步 |
 | [`docs/policies/_INDEX.md`](../policies/_INDEX.md) 作廢列 | ✅ 已跟新摘要 | 已同步 |
 | [`docs/year/2627/ops-guide.md`](../year/2627/ops-guide.md) §11／§12 | ✅ 2026-08-11 已跟試堂總則＋作廢分流 | 已同步 |
-| [`docs/playbooks/_INDEX.md`](../playbooks/_INDEX.md) 收據列 | 已加更正頁 backlog 連結 | 上線後改簡介 |
-| [`supabase/functions/_shared/apoHowtoGuides.ts`](../../supabase/functions/_shared/apoHowtoGuides.ts) `payment` | 「單據出錯不可刪除，須…作廢」「開錯：作廢後另開新單」 | 阿Po 改跟新分流 |
-| `src/components/payments/VoidPaymentDialog.tsx` | 文案假設作廢＝唯一更正 | 配合導引／第二人 |
+| [`docs/playbooks/_INDEX.md`](../../playbooks/_INDEX.md) 收據列 | ✅ 簡介已跟分流 | 已同步 |
+| [`supabase/functions/_shared/apoHowtoGuides.ts`](../../supabase/functions/_shared/apoHowtoGuides.ts) `payment` | ✅ 2026-08-16 已跟按類型分流＋更正頁 | 已同步 |
+| `src/components/payments/VoidPaymentDialog.tsx` | ✅ 已導去更正頁＋30 分第二人 | 已同步 |
 | `src/services/paymentQueries.ts` | 禁硬刪；`updatePaymentRecord` 無明細／堂數 UI | 池調動另 service；唔好誤解「無 UI＝政策永遠禁改」 |
 
 **仍有效、唔因本主題推翻：** 禁**硬刪**單據（保留稽核）。唔等於禁止池調動或禁止按類型更正。
@@ -62,13 +63,15 @@
 
 ## 待做（摘要）
 
-1. 產品確認新頁路由名／側欄（admin／manager／alien）  
-2. Schema：池調動事件表（原因碼、操作者、前後 remaining）  
-3. UI：調動表＋更正導引＋作廢第二人確認  
-4. 同步上表所有舊文件／阿Po  
-5. 回寫母題 §5；本列改 `done`
+1. ~~產品確認新頁路由名／側欄~~ ✅  
+2. ~~Schema：池調動事件表~~ ✅  
+3. ~~UI：調動表＋更正導引＋作廢第二人確認~~ ✅  
+4. ~~同步舊文件／明學IT狗~~ ✅  
+5. ~~回寫母題 §5；本列改 `done`~~ ✅  
+
+已知非本列範圍：G2c 雙方家長確認未系統化；申請制見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md)。
 
 ## 相關
 
 - 母題：[`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md)
-- 現行作廢（待改）：[`PAYMENT_RECEIPT_VOID_POLICY.md`](../policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md)
+- 作廢／更正政策：[`PAYMENT_RECEIPT_VOID_POLICY.md`](../../policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md)
