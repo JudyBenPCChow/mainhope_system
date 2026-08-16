@@ -1,4 +1,4 @@
-import type { TagTone } from "@/lib/tagTone"
+import type { TagTone } from "@/components/ui/tag"
 
 export type StatusTagRule = {
  tone: TagTone
@@ -15,8 +15,8 @@ const COMMON_CANCELLED_RULES: StatusTagRule[] = [
 ]
 
 const STUDENT_CLASSIFICATION_RULES: StatusTagRule[] = [
- { tone: "default", keywords: ["非活躍生", "非註冊", "非注冊", "非在讀", "中學階段"] },
- { tone: "success", keywords: ["活躍生", "註冊", "注冊", "已註冊"] },
+ { tone: "default", keywords: ["非活躍生", "非注冊", "非在讀", "中學階段"] },
+ { tone: "success", keywords: ["活躍生", "注冊", "已註冊"] },
  { tone: "info", keywords: ["已畢業"] },
 ]
 
@@ -33,7 +33,7 @@ const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
 
 const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
  // 收件匣類型標籤
- { tone: "info", keywords: ["排程新增", "排程變動", "班別變動", "任教老師變更", "主責變更", "報讀形式", "選堂變更", "新增報讀", "系統更新"] },
+ { tone: "info", keywords: ["排程新增", "排程變動", "班別變動", "主責變更", "報讀形式", "選堂變更", "新增報讀", "系統更新"] },
  { tone: "warning", keywords: ["排程取消", "代堂", "學生請假", "學生退讀", "提醒點名"] },
  // 排程：加堂（額外加開課堂，獨立標記）以橙色提示
  { tone: "warning", keywords: ["加堂"] },

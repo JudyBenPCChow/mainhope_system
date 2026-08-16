@@ -54,7 +54,7 @@ export async function resolveSoftCancelScheduleOptions(
  // 有出席：預設保留（與退讀一致）；alternate＝刪
  const result = await confirmDialog({
   title: "取消排程（此堂已有出席）",
-  description: `${summary}\n\n預設保留出席（已扣堂數不變）。若堂從未完成，可改選一併刪除。`,
+  description: `${summary}\n\n預設保留出席（已上堂數不變）。若堂從未上過，可改選一併刪除。`,
   confirmText: "保留出席並取消排程",
   alternateText: billable ? "⚠️ 一併刪除計費出席" : "一併刪除出席",
   cancelText: "返回",
@@ -69,7 +69,7 @@ export async function resolveSoftCancelScheduleOptions(
    impact.attendanceHits.find((h) => h.studentName)?.studentName?.trim().slice(0, 1) ?? ""
   const second = await confirmDialog({
    title: "確認刪除出席？",
-   description: "將刪除此堂出席列並減少已扣堂數（若為計費狀態）。確定？",
+   description: "將刪除此堂出席列並減少已上堂數（若為計費狀態）。確定？",
    confirmText: billable ? "⚠️ 確認刪除計費出席" : "確認刪除出席",
    cancelText: "返回",
    tone: "destructive",

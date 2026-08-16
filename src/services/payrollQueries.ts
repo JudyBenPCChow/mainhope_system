@@ -3,7 +3,7 @@
  */
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { formatClassLabel } from "@/lib/courseLabel"
-import { resolveClassKind, classKindLabel } from "@/lib/privateClassKind"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import {
   isScheduleCancelled,
   resolvePayrollGradeBand,
@@ -44,7 +44,7 @@ import type {
   StudentHcRow,
   TeacherSubmitState,
   WfhMockState,
-} from "@/lib/payroll/viewTypes"
+} from "@/components/payroll/mockData"
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -381,7 +381,7 @@ function mapComputedToUiRow(
     const gradeLabel =
       (src &&
         // reuse band via classKind grouping label
-        classKindLabel(l.classKind)) ||
+        (l.classKind === "private" ? "一對一／一對二" : "小組")) ||
       "課堂"
     if (!gradeMap.has(gradeLabel)) gradeMap.set(gradeLabel, new Map())
     const classMap = gradeMap.get(gradeLabel)!

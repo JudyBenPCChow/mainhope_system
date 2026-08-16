@@ -336,7 +336,7 @@ export function SecondaryAttendanceReportView() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             以當日排程老師歸屬；中一至中六；人次＝每堂實際出席加總。四類分計：初中／高中 ×
-            專科班／私人課程。可下載該老師計算頁 PDF。
+            小組／一對一。可下載該老師計算頁 PDF。
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -383,7 +383,7 @@ export function SecondaryAttendanceReportView() {
         <p className="text-sm text-muted-foreground">載入中…</p>
       ) : teachers.length === 0 ? (
         <p className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-sm text-muted-foreground">
-          此月沒有中一至中六的非取消排程（或以實際授課老師計無資料）。
+          此月沒有中一至中六的非取消排程（或以當日老師計無資料）。
         </p>
       ) : (
         <>

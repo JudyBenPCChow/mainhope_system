@@ -7,7 +7,6 @@ import { Select } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tag } from "@/components/ui/tag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { classKindLabel } from "@/lib/privateClassKind"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -47,6 +46,10 @@ const emptyOverall: OverallStudentAnalysis = {
 
 function todayYmd(): string {
  return new Date().toISOString().slice(0, 10)
+}
+
+function classKindLabel(kind: string): string {
+ return kind === "private" ? "一對一" : "小組"
 }
 
 function BucketPanel({ title, buckets }: { title: string; buckets: StatusBucket[] }) {
@@ -251,8 +254,8 @@ export function EnrollmentReportsView() {
       onChange={(e) => setClassKind(e.target.value as ClassKindFilter)}
      >
       <option value="all">全部</option>
-      <option value="group">專科班</option>
-      <option value="private">私人課程</option>
+      <option value="group">小組</option>
+      <option value="private">一對一</option>
      </Select>
     </label>
     {loading ? <span className="pb-2 text-sm text-muted-foreground">載入中…</span> : null}
@@ -280,7 +283,7 @@ export function EnrollmentReportsView() {
       />
      </div>
      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <BucketPanel title="註冊狀態" buckets={overall.buckets.registration} />
+      <BucketPanel title="注冊狀態" buckets={overall.buckets.registration} />
       <BucketPanel title="在讀狀態" buckets={overall.buckets.enrollment} />
       <BucketPanel title="活躍狀態" buckets={overall.buckets.activity} />
       <BucketPanel title="學業階段" buckets={overall.buckets.academicStage} />

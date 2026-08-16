@@ -125,7 +125,7 @@ export function AcademicCalendarView() {
    setDate("")
    setName("")
    setNotes("")
-   pushBanner({ tone: "success", title: "已儲存校舍假期" })
+   pushBanner({ tone: "success", title: "已儲存停課日" })
   } catch (error) {
    reportUserFacingError(error, { source: "AcademicCalendarView.add", setErr })
   } finally {
@@ -137,7 +137,7 @@ export function AcademicCalendarView() {
   if (!yearId || saving) return
   const parsed = parseImportText(importText)
   if (parsed.length === 0) {
-   setErr("請按每行「YYYY-MM-DD, 假期名稱」格式貼上校曆")
+   setErr("請按每行「YYYY-MM-DD, 停課名稱」格式貼上校曆")
    return
   }
   if (
@@ -163,7 +163,7 @@ export function AcademicCalendarView() {
    const count = await importAcademicCalendarClosures(yearId, parsed)
    await reloadRows(yearId)
    setImportText("")
-   pushBanner({ tone: "success", title: "校曆匯入完成", message: `已處理 ${count} 個校舍假期` })
+   pushBanner({ tone: "success", title: "校曆匯入完成", message: `已處理 ${count} 個停課日` })
   } catch (error) {
    reportUserFacingError(error, { source: "AcademicCalendarView.import", setErr })
   } finally {
@@ -183,7 +183,7 @@ export function AcademicCalendarView() {
   }
   if (
    !(await confirmDialog({
-    title: "刪除校舍假期",
+    title: "刪除停課日",
     description: `確定刪除 ${row.closureDate}「${row.name}」？之後批量排程將再次把該日列為候選。`,
     confirmText: "刪除",
     tone: "destructive",
@@ -195,7 +195,7 @@ export function AcademicCalendarView() {
   try {
    await deleteAcademicCalendarClosure(row.id, row.closureDate)
    await reloadRows(yearId)
-   pushBanner({ tone: "success", title: "已刪除校舍假期" })
+   pushBanner({ tone: "success", title: "已刪除停課日" })
   } catch (error) {
    reportUserFacingError(error, { source: "AcademicCalendarView.delete", setErr })
   }
@@ -209,7 +209,7 @@ export function AcademicCalendarView() {
      校曆
     </h1>
     <p className="mt-1 text-sm text-muted-foreground">
-     登記本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
+     登記全校停課日；批量排程會自動排除，月費亦按最終上課日計算。
     </p>
    </header>
 
@@ -234,7 +234,7 @@ export function AcademicCalendarView() {
 
    <div className="grid gap-4 lg:grid-cols-2">
     <section className="rounded-xl border border-border bg-card p-4">
-     <h2 className="text-base font-semibold">新增單一校舍假期</h2>
+     <h2 className="text-base font-semibold">新增單一停課日</h2>
      <div className="mt-3 grid gap-3 sm:grid-cols-2">
       <label className="text-sm">
        <span className="mb-1 block text-muted-foreground">日期</span>
@@ -251,18 +251,18 @@ export function AcademicCalendarView() {
      </div>
      <Button className="mt-3" type="button" onClick={() => void addClosure()} disabled={!yearId || saving}>
       <Plus className="h-4 w-4" />
-      新增校舍假期
+      新增停課日
      </Button>
     </section>
 
     <section className="rounded-xl border border-border bg-card p-4">
      <h2 className="text-base font-semibold">批量貼上校曆</h2>
-     <p className="mt-1 text-xs text-muted-foreground">每行：YYYY-MM-DD, 假期名稱, 備註（備註可省略）</p>
+     <p className="mt-1 text-xs text-muted-foreground">每行：YYYY-MM-DD, 停課名稱, 備註（備註可省略）</p>
      <Textarea
       className="mt-3 min-h-28"
       value={importText}
       onChange={(event) => setImportText(event.target.value)}
-      placeholder={"2026-10-01, 國慶日\n2026-10-02, 校舍假期"}
+      placeholder={"2026-10-01, 國慶日\n2026-10-02, 校內停課"}
      />
      <Button className="mt-3" type="button" variant="outline" onClick={() => void importClosures()} disabled={!yearId || saving}>
       <Upload className="h-4 w-4" />
@@ -275,13 +275,13 @@ export function AcademicCalendarView() {
 
    <section>
     <h2 className="text-base font-semibold">
-     {selectedYear?.label ?? "所選學年"}校舍假期（{rows.length}）
+     {selectedYear?.label ?? "所選學年"}停課日（{rows.length}）
     </h2>
     {loading ? (
      <p className="mt-3 text-sm text-muted-foreground">載入中…</p>
     ) : rows.length === 0 ? (
      <p className="mt-3 rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-      尚未登記校舍假期。
+      尚未登記停課日。
      </p>
     ) : (
      <div className="mt-3 overflow-x-auto rounded-lg border border-border">

@@ -38,11 +38,11 @@ export const ROSTER_ELIGIBILITY_REASON_CODES = [
 export type RosterEligibilityReasonCode = (typeof ROSTER_ELIGIBILITY_REASON_CODES)[number]
 
 export const ROSTER_ELIGIBILITY_REASON_LABELS: Record<RosterEligibilityReasonCode, string> = {
- eligible_declared: "已宣告且已繳堂數有效",
- not_declared: "有／可能有已繳堂數但未宣告",
- no_entitlement_balance: "該組別無已繳堂數餘額",
- pool_expired: "已繳堂數已過期",
- namespace_mismatch: "已繳堂數與本堂班／學年包裝不符",
+ eligible_declared: "已宣告且池有效",
+ not_declared: "有／可能有權益但未宣告",
+ no_entitlement_balance: "命名空間下無餘額",
+ pool_expired: "權益池已過期",
+ namespace_mismatch: "池與本堂班／學年包裝不符",
  schedule_cancelled: "交付已取消",
  student_deferred: "已順延",
  student_transferred: "已轉出",
@@ -73,6 +73,6 @@ export function packageTypeLabel(packageType: EntitlementPackageType): string {
   case "single_lesson":
    return "單堂"
   case "regular_full":
-   return "報讀"
+   return "正規全期"
  }
 }

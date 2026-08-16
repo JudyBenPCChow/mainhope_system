@@ -604,8 +604,8 @@ export async function updatePrivateClassSettings(
    })
    void recordInboxEvent({
     eventType: "class_teacher_changed",
-    title: `私人課程任教老師變更：${label}`,
-    body: syncedScheduleCount > 0 ? `已同步 ${syncedScheduleCount} 堂未來排程老師` : "任教老師已更新",
+    title: `一對一主責變更：${label}`,
+    body: syncedScheduleCount > 0 ? `已同步 ${syncedScheduleCount} 堂未來排程老師` : "主責老師已更新",
     actionPath: `/Classes/${classId}`,
     classId,
     audienceTeacherIds: [prevTeacherId, nextTeacherId],
@@ -1137,7 +1137,7 @@ export async function insertPrivateBookingSchedules(params: {
   void recordInboxEvent({
    eventType: "schedule_created",
    title: `新增排程（連堂・${scheduledDate}）`,
-   body: "私人課程／連堂已建立",
+   body: "一對一／連堂已建立",
    actionPath: `/Schedule/${id1}`,
    classId: params.classId,
    scheduleId: id1,
@@ -1222,7 +1222,7 @@ export async function createPrivateRecurringBookings(params: {
    sorted.length <= 1 ? sorted[0] ?? "" : `${sorted[0]}～${sorted[sorted.length - 1]}`
   void recordInboxEvent({
    eventType: "schedule_created",
-   title: `批次新增私人課程排程：${created} 堂`,
+   title: `批次新增一對一排程：${created} 堂`,
    body: rangeLabel ? `日期 ${rangeLabel}` : null,
    actionPath: `/Classes/${params.classId}`,
    classId: params.classId,

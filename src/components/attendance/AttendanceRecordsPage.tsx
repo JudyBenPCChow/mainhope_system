@@ -147,7 +147,7 @@ export function AttendanceRecordsPage() {
   const ok = await confirmDialog({
    title: "刪除單筆出席紀錄？",
    description: `${formatAttendanceHitsDescription([hit])}\n\n此操作不可還原（除非重新點名）。過渡權限＝mgmtRole（admin／外星人），非 Auth。`,
-   confirmText: billable ? "⚠️ 刪除計費出席（影響已扣堂數）" : "確認刪除",
+   confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "確認刪除",
    cancelText: "取消",
    tone: "destructive",
    ...(billable && surname

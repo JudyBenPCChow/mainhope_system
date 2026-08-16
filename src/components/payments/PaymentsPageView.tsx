@@ -1763,7 +1763,7 @@ export function PaymentsPageView() {
          {autoLateFeePools.length > 0 ? (
           <div className="space-y-2">
            <p className="text-xs text-muted-foreground">
-            本單常規專科班拖欠，自動加入 {LATE_FEE_LABEL}（每科每月最多一次；優惠不適用於罰款）。
+            本單正規班拖欠，自動加入 {LATE_FEE_LABEL}（每科每月最多一次；優惠不適用於罰款）。
            </p>
            {autoLateFeePools.map((p) => {
             const waived = Boolean(lateFeeWaivers[p.classId]?.waived)

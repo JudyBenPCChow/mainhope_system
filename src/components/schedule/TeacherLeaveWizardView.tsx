@@ -290,7 +290,7 @@ export function TeacherLeaveWizardView() {
     for (const u of units) {
       const d = decisions[u.primaryScheduleId]
       if (d?.action === "substitute" && !d.substituteTeacherId) {
-        setStep2Err(`「${u.classLabel}」請選擇代堂老師`)
+        setStep2Err(`「${u.classLabel}」請選擇代課老師`)
         return
       }
     }
@@ -360,7 +360,7 @@ export function TeacherLeaveWizardView() {
       for (const row of result.substituted) {
         const name =
           teachers.find((t) => t.id === row.substituteTeacherId)?.label ?? row.substituteTeacherId
-        lines.push(`· ${row.classLabel} → 代堂：${name}`)
+        lines.push(`· ${row.classLabel} → 代課：${name}`)
       }
       lines.push("")
     }
@@ -595,7 +595,7 @@ export function TeacherLeaveWizardView() {
                 />
 
                 {d.action === "substitute" ? (
-                  <Field label="代堂老師">
+                  <Field label="代課老師">
                     <Select
                       value={d.substituteTeacherId}
                       onChange={(e) =>
@@ -753,7 +753,7 @@ export function TeacherLeaveWizardView() {
                       tone="success"
                       time=""
                       title={row.classLabel}
-                      right={<Pill>代堂 {name}</Pill>}
+                      right={<Pill>代課 {name}</Pill>}
                     />
                   )
                 })}

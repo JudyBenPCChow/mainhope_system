@@ -80,7 +80,7 @@ type PrivateCreateMode = "1to1" | "1to2"
 const REGISTRATION_FILTERS = [
  { key: "all", label: "全部" },
  { key: "已註冊", label: "已註冊" },
- { key: "非注冊", label: "非註冊" },
+ { key: "非注冊", label: "非注冊" },
 ] as const
 
 const ACTIVITY_FILTERS = [
@@ -374,7 +374,7 @@ export function PrivateTutoringView() {
    s.full_name,
    s.student_code ? `（${s.student_code}）` : "",
    grade !== "—" ? ` · ${grade}` : "",
-   s.registration_status === "非注冊" ? " · 非註冊" : "",
+   s.registration_status === "非注冊" ? " · 非注冊" : "",
   ].join("")
  }, [])
 
@@ -1030,18 +1030,18 @@ export function PrivateTutoringView() {
    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-      {isTeacherPortal ? "我的私人課程學生" : "私人課程學生"}
+      {isTeacherPortal ? "我的一對一／一對二學生" : "一對一／一對二學生"}
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
       {isTeacherPortal
-       ? "查看指派給你的私人課程（一對一／一對二）學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
-       : "此頁顯示私人課程（一對一／一對二）學生。若要查專科班，請到學生詳情的「管理專科班報讀」。列表可新增報讀、預約與退讀。"}
+       ? "查看指派給你的一對一／一對二學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
+       : "此頁顯示一對一／一對二學生。若要查小組班別，請到學生詳情的「管理小組報讀」。列表可新增報讀、預約與退讀。"}
      </p>
     </div>
     {canManageEnrollment ? (
      <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
       <Plus className="mr-1.5 h-4 w-4" />
-      新增私人課程報讀
+      新增一對一／一對二報讀
      </Button>
     ) : null}
    </header>
@@ -1156,7 +1156,7 @@ export function PrivateTutoringView() {
        <MobileFilterSheet
         open={filtersOpen}
         onClose={() => setFiltersOpen(false)}
-        title="篩選私人課程"
+        title="篩選一對一"
         activeCount={activeFilterCount}
         onReset={() => {
          setSearch("")
@@ -1288,18 +1288,18 @@ export function PrivateTutoringView() {
      ) : rows.length === 0 ? (
       <p className="text-sm text-muted-foreground">
        {isTeacherPortal
-        ? "目前沒有指派給你的私人課程報讀。"
-        : "尚無私人課程報讀。按上方「新增私人課程報讀」開始。"}
+        ? "目前沒有指派給你的一對一／一對二報讀。"
+        : "尚無一對一／一對二報讀。按上方「新增一對一／一對二報讀」開始。"}
       </p>
      ) : filteredClassGroups.length === 0 ? (
       <div className="space-y-1 text-sm text-muted-foreground">
-       <p>沒有符合條件的私人課程學生。</p>
+       <p>沒有符合條件的一對一／一對二學生。</p>
        <p>
-        此頁只顯示私人課程。若要查專科班，請到{" "}
+        此頁只顯示一對一／一對二。若要查小組班別，請到{" "}
         <Link className="text-primary underline-offset-2 hover:underline" to="/Students">
          學生管理
         </Link>{" "}
-        開啟學生詳情的「管理專科班報讀」。
+        開啟學生詳情的「管理小組報讀」。
        </p>
       </div>
      ) : isMobile ? (
@@ -1455,7 +1455,7 @@ export function PrivateTutoringView() {
      )}
      <p className="text-sm text-muted-foreground">
       共 {filteredClassGroups.length} 班／{filteredRows.length} 筆報讀（全部 {rows.length}{" "}
-      筆私人課程報讀，含已退讀）
+      筆一對一／一對二報讀，含已退讀）
      </p>
     </div>
    )}
@@ -1523,7 +1523,7 @@ export function PrivateTutoringView() {
       </div>
      )}
      <p className="text-sm text-muted-foreground">
-      空房判斷包含所有專科班排程與待審批的約房申請，與老師預約空房頁面使用同一套邏輯。
+      空房判斷包含所有小組課排程與待審批的約房申請，與老師預約空房頁面使用同一套邏輯。
      </p>
     </div>
    )}
@@ -1531,11 +1531,11 @@ export function PrivateTutoringView() {
    <Dialog open={createOpen} onOpenChange={setCreateOpen}>
     <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
      <DialogHeader>
-      <DialogTitle>新增私人課程報讀</DialogTitle>
+      <DialogTitle>新增一對一／一對二報讀</DialogTitle>
      </DialogHeader>
      <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-       會自動建立私人課程班別（無固定時間／課室）並為學生報讀，無需走專科班開班流程。
+       會自動建立私人班別（無固定時間／課室）並為學生報讀，無需走小組開班流程。
       </p>
 
       <div className="space-y-1">

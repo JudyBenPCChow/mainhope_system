@@ -44,7 +44,7 @@ const FULL_TERM_COUNT_OPTIONS = [1, 2, 3] as const
 type FullTermCountOption = (typeof FULL_TERM_COUNT_OPTIONS)[number]
 
 const REASON_LABEL: Record<PromotionExclusionReason, string> = {
-  非注冊: "非註冊",
+  非注冊: "非注冊",
   年級不合: "年級不合",
   時間衝突: "時間衝突",
   已報讀本班: "已報讀本班",
@@ -286,7 +286,7 @@ function FullTermRoster({ bundle }: { bundle: ClassMatchBundle }) {
   return (
     <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2">
       <div className="mb-1 text-xs font-medium text-muted-foreground">
-        目前常規報讀／暑期兩期全報（{bundle.fullTermCount}）
+        目前全期報讀（{bundle.fullTermCount}）
       </div>
       <div className="flex flex-wrap gap-1.5">
         {bundle.fullTermStudents.map((s) => (
@@ -940,7 +940,7 @@ export function PromotionMatchView() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {mode === "byClass"
-              ? "以進行中專科班為單位，依常規報讀／暑期兩期全報人數篩選，找出年級合適、時段無衝突的已註冊學生。"
+              ? "以進行中小組班為單位，依全期報讀人數篩選，找出年級合適、時段無衝突的已註冊學生。"
               : "以已註冊學生為單位，按年級／已有報讀篩選，列出可宣傳跟進的班別。"}
           </p>
         </div>
@@ -977,7 +977,7 @@ export function PromotionMatchView() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    常規報讀／暑期兩期全報人數
+                    全期報讀人數
                   </label>
                   <MultiSelect
                     value={[...fullTermCounts].map(String)}
@@ -1012,7 +1012,8 @@ export function PromotionMatchView() {
               <p className="text-[11px] text-muted-foreground">
                 未選代表全部；可按需要多選。目前篩選：{countLabel}
                 {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
-                。此人數包括常規報讀及暑期兩期全報。「曾讀本科」只參考 2026 年 1–6 月舊資料。
+                。全期 = 常規報足全期或暑期兩期全報。「曾讀本科」只參考 2026 年 1–6
+                月舊資料。
               </p>
             </FilterBar>
           ) : (

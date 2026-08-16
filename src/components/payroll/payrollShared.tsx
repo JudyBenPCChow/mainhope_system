@@ -2,7 +2,6 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { Fragment, useMemo, useState } from "react"
 
 import { Tag } from "@/components/ui/tag"
-import { payrollModeLabel } from "@/lib/payroll/modeLabel"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
@@ -288,7 +287,7 @@ function LessonCard({
                   absentBillable.map((r) => (
                     <li key={`ab-${r.name}`} className="flex justify-between gap-2">
                       <span>{r.name}</span>
-                      <span className="text-foreground">✓ 計入人頭</span>
+                      <span className="text-foreground">✓ 計入 HC</span>
                     </li>
                   ))
                 )}
@@ -469,7 +468,7 @@ export function ModeStreamsPanel({ teacher }: { teacher: PayrollTeacherRow }) {
               <p className="font-medium">
                 {s.label}{" "}
                 <Tag tone="default" size="sm">
-                  {payrollModeLabel(s.mode)}
+                  {s.mode}
                 </Tag>
               </p>
               <p className="text-xs text-muted-foreground">{s.detail}</p>

@@ -111,7 +111,7 @@ export function entitlementNamespaceLabel(
  }
  if (ns.courseGroup === "group_specialist" && ns.sharesAcrossClasses) {
   const grade = formatStudentGrade(ns.namespaceKey)
-  return grade && grade !== "—" ? `專科班（${grade}）` : "專科班"
+  return grade && grade !== "—" ? `專科小組（${grade}）` : "專科小組"
  }
- return classLabel || "專科班"
+ return classLabel || "專科小組"
 }

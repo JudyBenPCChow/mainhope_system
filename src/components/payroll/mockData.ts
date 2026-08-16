@@ -1,49 +1,243 @@
 /** 計糧 UI 預覽用示範資料 — 不接 Supabase／真實查詢 */
 
-import type {
- CalcVersionMeta,
- ClassKind,
- ExcludedFollowUp,
- PayrollClassBlock,
- PayrollGradeBlock,
- PayrollLesson,
- PayrollMonthMock,
- PayrollRunStatus,
- PayrollTeacherRow,
- RecalcDiffItem,
- StudentHcRow,
- StudentHcStatus,
- WfhMockState,
-} from "@/lib/payroll/viewTypes"
+export type PayrollMode =
+  | "分成制"
+  | "固定月薪"
+  | "兼職 HC"
+  | "特別 HC"
+  | "獨立定價"
+  | "WFH 時薪"
 
-export type {
- CalcVersionMeta,
- ClassKind,
- CommissionPoolItem,
- ExcludedFollowUp,
- ManualAdjustment,
- ModeStream,
- PayrollClassBlock,
- PayrollGradeBlock,
- PayrollLesson,
- PayrollLineItem,
- PayrollMode,
- PayrollMonthMock,
- PayrollRunStatus,
- PayrollTeacherRow,
- RecalcDiffItem,
- ReviewAudit,
- SalaryEvidence,
- StudentHcRow,
- StudentHcStatus,
- TeacherSubmitState,
- WfhMockState,
- ZeroHourPerson,
-} from "@/lib/payroll/viewTypes"
+/** 雙角色流程：財務準備 → 管理層核實 → 結算 */
+export type PayrollRunStatus = "草稿" | "財務審閱中" | "待管理層核實" | "已結算"
 
 /** UI 預覽用身份（尚未正式加 finance 角色） */
 export type PayrollPreviewRole = "finance" | "manager"
 
+export type ClassKind = "group" | "private"
+
+/**
+ * 出席／缺席狀態（審計用）
+ * - 現場／Zoom／錄影／毋須補回請假：計入扣堂 HC
+ * - no show：缺席但照扣堂
+ * - 病假／事假：缺席且不扣堂（不計入人頭費／分成基數）
+ */
+export type StudentHcStatus =
+  | "in_person"
+  | "zoom"
+  | "recording"
+  | "no_show"
+  | "sick"
+  | "personal"
+  | "leave_billable"
+
+export type StudentHcRow = {
+  name: string
+  status: StudentHcStatus
+  countsTowardHc: boolean
+}
+
+/** 單人送核狀態（財務可逐老師提交） */
+export type TeacherSubmitState = {
+  teacherId: string
+  status: "not_submitted" | "submitted" | "accepted" | "returned"
+  submittedAt?: string
+  submittedBy?: string
+  returnNote?: string
+}
+
+export type PayrollLineItem = {
+  label: string
+  amount: number
+  note?: string
+}
+
+/** 跨模式加總拆分（Leo／Judy） */
+export type ModeStream = {
+  id: string
+  label: string
+  mode: PayrollMode
+  amount: number
+  detail: string
+}
+
+export type SalaryEvidence = {
+  amount: number
+  effectiveFrom: string
+  effectiveTo?: string
+  monthStatus: string
+}
+
+export type PayrollLesson = {
+  id: string
+  date: string
+  startTime: string
+  endTime: string
+  /** 計薪扣堂人數（HC）；未點名為 0 */
+  billableHc: number
+  /** 本節計入該同事的金額（未扣 MPF） */
+  amount: number
+  presentStudents: string[]
+  absentStudents: string[]
+  /** 逐學生扣堂判定（審計用） */
+  studentRows?: StudentHcRow[]
+  notRolled: boolean
+  /** 代堂／試堂／佣金說明等 */
+  note?: string
+  /** 計法字串，方便財務核對 */
+  formula?: string
+  /** given＝本人代人；received＝被人代 */
+  substitute?: "given" | "received"
+  substitutePeer?: string
+  /** 原價基數（分成制核對用） */
+  listPrice?: number
+  /** 原價生效時點（歷史價，非今日價） */
+  listPriceAsOf?: string
+  subject?: string
+  /** 分成池：納入／排除原因 */
+  poolDisposition?: "in_pool" | "excluded" | "n/a"
+  poolDispositionReason?: string
+  /** 課堂當日班型快照 */
+  classTypeSnapshot?: string
+  /** 費率版本註腳 */
+  rateSource?: string
+  /** 補堂／試堂／取消等 */
+  eventTimeline?: string
+  /** 正式版連到排程詳情（mock id） */
+  scheduleId?: string
+  /** 名冊人數（含不扣堂缺席）— 對照計薪 HC */
+  rosterCount?: number
+}
+
+export type CommissionPoolItem = {
+  teacherName: string
+  className: string
+  date: string
+  listPrice: number
+  subject?: string
+  included: boolean
+  reason?: string
+  listPriceAsOf?: string
+}
+
+export type CalcVersionMeta = {
+  version: number
+  computedAt: string
+  dataCutoffAt: string
+  previousVersion?: number
+  previousComputedAt?: string
+}
+
+export type ZeroHourPerson = {
+  id: string
+  name: string
+  reason: string
+}
+
+export type ReviewAudit = {
+  teacherId: string
+  teacherName: string
+  reviewer: string
+  reviewedAt: string
+  calcVersion: number
+  scope: string
+  note?: string
+}
+
+export type RecalcDiffItem = {
+  teacherName: string
+  lessonLabel: string
+  field: string
+  before: string
+  after: string
+  amountDelta: number
+}
+
+export type ExcludedFollowUp = {
+  teacherId: string
+  teacherName: string
+  reason: string
+  handoffTo: string
+}
+
+export type WfhMockState = {
+  status: "missing" | "submitted" | "approved"
+  hours: number | null
+  ratePerHour: number
+}
+
+export type ManualAdjustment = {
+  id: string
+  teacherId: string
+  teacherName: string
+  fromAmount: number | null
+  toAmount: number
+  reason: string
+  createdBy: string
+  createdAt: string
+  status: "pending" | "approved" | "rejected"
+  reviewerNote?: string
+}
+
+export type PayrollClassBlock = {
+  id: string
+  name: string
+  classKind: ClassKind
+  lessons: PayrollLesson[]
+}
+
+export type PayrollGradeBlock = {
+  gradeLabel: string
+  classes: PayrollClassBlock[]
+}
+
+export type PayrollTeacherRow = {
+  id: string
+  name: string
+  mode: PayrollMode
+  gross: number | null
+  employeeMpf: number
+  employerMpf: number
+  net: number | null
+  previousGross: number | null
+  anomalies: string[]
+  /** 非堂數項目（固定月薪、佣金池、WFH 等） */
+  lines: PayrollLineItem[]
+  /** 授課堂數統計（結構對齊中學出席統計） */
+  grades: PayrollGradeBlock[]
+  /** 分成制：個人原價 × 60% */
+  personalSplit?: { listPriceTotal: number; rate: number; amount: number }
+  /** 分成制：他人指定科目原價 × 10% */
+  commissionPool?: {
+    label: string
+    listPriceTotal: number
+    rate: number
+    amount: number
+    items: CommissionPoolItem[]
+  }
+  /** WFH（Cody） */
+  wfh?: WfhMockState
+  /** 示範：缺有效費率 */
+  missingRate?: boolean
+  /** 跨模式拆分 */
+  modeStreams?: ModeStream[]
+  /** 固定月薪適用證據 */
+  salaryEvidence?: SalaryEvidence
+}
+
+export type PayrollMonthMock = {
+  monthKey: string
+  monthLabel: string
+  status: PayrollRunStatus
+  teachers: PayrollTeacherRow[]
+  /** 財務提交核實後顯示 */
+  submittedBy?: string
+  submittedAt?: string
+  /** 管理層退回原因 */
+  returnReason?: string
+  /** 計算版本／資料截止 */
+  calc?: CalcVersionMeta
+}
 
 type CategoryKey = "juniorGroup" | "juniorPrivate" | "seniorGroup" | "seniorPrivate"
 
@@ -51,10 +245,10 @@ const JUNIOR = new Set(["中一", "中二", "中三"])
 const SENIOR = new Set(["中四", "中五", "中六"])
 
 const CATEGORY_META: { key: CategoryKey; label: string }[] = [
-  { key: "juniorGroup", label: "初中專科班" },
-  { key: "juniorPrivate", label: "初中私人課程" },
-  { key: "seniorGroup", label: "高中專科班" },
-  { key: "seniorPrivate", label: "高中私人課程" },
+  { key: "juniorGroup", label: "初中小組" },
+  { key: "juniorPrivate", label: "初中一對一" },
+  { key: "seniorGroup", label: "高中小組" },
+  { key: "seniorPrivate", label: "高中一對一" },
 ]
 
 function mpfEmployee(gross: number): number {
@@ -217,16 +411,16 @@ function L(
   }
 }
 
-/** 連續多週同班示範堂：金額／原價依「計薪人頭」重算，病假／事假不計入 */
+/** 連續多週同班示範堂：金額／原價依「計薪 HC」重算，病假／事假不計入 */
 function seriesLessons(opts: {
   idPrefix: string
   dates: string[]
   startTime: string
   endTime: string
   present: string[]
-  /** 全員計薪時的節金額（會按計薪人頭／名冊比例縮放，除非有 hcPricing） */
+  /** 全員計薪時的節金額（會按計薪 HC／名冊比例縮放，除非有 hcPricing） */
   amount: number
-  /** 人頭制：$first + $extra×(人頭−1)；有則不按比例縮放 */
+  /** HC 制：$first + $extra×(HC−1)；有則不按比例縮放 */
   hcPricing?: { first: number; extra: number }
   note?: string
   formula?: string
@@ -241,7 +435,7 @@ function seriesLessons(opts: {
   substitute?: "given" | "received"
   substitutePeer?: string
   absentOn?: Record<string, string[]>
-  /** 缺席中標為 no show（照扣堂，計入人頭） */
+  /** 缺席中標為 no show（照扣堂，計入 HC） */
   noShowOn?: Record<string, string[]>
   /** 事假（不扣堂） */
   personalOn?: Record<string, string[]>
@@ -296,8 +490,8 @@ function seriesLessons(opts: {
         : opts.listPrice
     const formula = opts.hcPricing
       ? billableHc <= 0
-        ? "計薪人頭＝0 → $0（病假／事假不計）"
-        : `$${opts.hcPricing.first} + $${opts.hcPricing.extra} × (${billableHc}−1) = $${amount}（計薪人頭 ${billableHc}／名冊 ${rosterSize}）`
+        ? "計薪 HC＝0 → $0（病假／事假不計）"
+        : `$${opts.hcPricing.first} + $${opts.hcPricing.extra} × (${billableHc}−1) = $${amount}（計薪 HC ${billableHc}／名冊 ${rosterSize}）`
       : opts.listPrice != null
         ? `原價 $${listPrice}（按計薪 ${billableHc}/${rosterSize} 人）× 比例＝$${amount}`
         : opts.formula
@@ -354,7 +548,9 @@ const S_CHEM = ["楊曉彤", "林詩晴", "馬天朗", "周啟明", "吳嘉欣",
 const S_BIO = ["陳浩然", "王美玲", "李俊傑", "黃子晴", "何佩珊", "梁卓希"]
 const S_JR = ["林詩晴", "馬天朗", "周啟明", "吳嘉欣", "鄭志偉"]
 
-export { classKindLabel } from "@/lib/privateClassKind"
+export function classKindLabel(kind: ClassKind): string {
+  return kind === "private" ? "一對一" : "小組"
+}
 
 export function lessonPresentCount(l: PayrollLesson): number {
   return l.notRolled ? 0 : l.presentStudents.length
@@ -532,7 +728,7 @@ export type CategoryHierarchyRow = {
   children: GradeKindSummaryRow[]
 }
 
-/** 類別 → 年級（兩層；高中專科班 = 中四／中五… 之和） */
+/** 類別 → 年級（兩層；高中小組 = 中四／中五… 之和） */
 export function teacherCategoryHierarchy(t: PayrollTeacherRow): CategoryHierarchyRow[] {
   const grades = teacherGradeKindRows(t)
   return teacherCategoryTotals(t).map((category) => {
@@ -627,7 +823,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               subject: "數學",
               poolDisposition: "n/a",
               poolDispositionReason: "本人授課 → 計入個人 60%，非他人 10% 池",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課 · 無代堂 · 非試堂",
               // 8/12 劉俊宇 no show＝照扣堂；8/26 兩人病假＝不計入分成基數
               absentOn: { "2026-08-26": ["周啟明", "吳嘉欣"] },
@@ -658,7 +854,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               listPrice: 3600,
               listPriceAsOf: "2026-08-01 生效價（非今日價）",
               subject: "M2",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課 · 無代堂 · 非試堂",
               absentOn: { "2026-08-14": ["楊曉彤"], "2026-08-28": ["馬天朗"] },
             }),
@@ -674,7 +870,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               endTime: "15:30",
               present: ["張家豪"],
               amount: 360,
-              note: "個人 60%（原價 $600）；等價 3 人頭",
+              note: "個人 60%（原價 $600）；等價 3 HC",
               formula: "原價 $600 × 60% = $360",
               listPrice: 600,
               listPriceAsOf: "2026-08-01 生效價",
@@ -760,7 +956,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               subject: "中國語文",
               poolDisposition: "in_pool",
               poolDispositionReason: "本科目屬中國語文 → 計入 Christine 10% 池（他人授課時）",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課 · 無代堂 · 非試堂",
               absentOn: { "2026-08-11": ["周啟明"], "2026-08-25": ["馬天朗", "林詩晴"] },
             }),
@@ -857,10 +1053,10 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_ENG,
               amount: 500,
               hcPricing: { first: 150, extra: 70 },
-              note: "高中人頭：僅計薪人頭（現場／Zoom／錄影／no show）",
+              note: "高中 HC：僅計薪人頭（現場／Zoom／錄影／no show）",
               rateSource: "高中一般 PT（$150/$70），自 2026-01-01 生效（非 8 月新費率）",
               subject: "英文",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課",
               // 8/13 張家豪 no show＝照扣堂；8/27 林詩晴病假＝不扣堂、不計費
               absentOn: { "2026-08-27": ["林詩晴"] },
@@ -887,11 +1083,11 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_PHY,
               amount: 430,
               hcPricing: { first: 150, extra: 70 },
-              note: "高中人頭：病假不計入人頭費",
+              note: "高中 HC：病假不計入人頭費",
               rateSource: "高中一般 PT（$150/$70），自 2026-01-01 生效",
               subject: "英文",
-              classTypeSnapshot: "專科班（當日快照）",
-              eventTimeline: "原訂課 · 8/10 黃子晴病假不計人頭",
+              classTypeSnapshot: "小組（當日快照）",
+              eventTimeline: "原訂課 · 8/10 黃子晴病假不計 HC",
               absentOn: { "2026-08-10": ["黃子晴"] },
             }),
           },
@@ -924,7 +1120,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_JR,
               amount: 360,
               hcPricing: { first: 120, extra: 60 },
-              note: "初中人頭：病假不計入",
+              note: "初中 HC：病假不計入",
               absentOn: { "2026-08-17": ["吳嘉欣"] },
             }),
           },
@@ -945,7 +1141,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_JR,
               amount: 360,
               hcPricing: { first: 120, extra: 60 },
-              note: "初中人頭",
+              note: "初中 HC",
             }),
           },
         ],
@@ -968,7 +1164,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               note: "代堂：薪酬歸當日授課教師",
               rateSource: "初中一般 PT（$120/$60），自 2026-01-01 生效",
               subject: "數學",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "代堂：Kenneth 請假 → Liam 授課 · 非補堂",
               substitute: "given",
               substitutePeer: "Kenneth Li",
@@ -1003,7 +1199,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               endTime: "20:30",
               present: S_PHY,
               amount: 430,
-              note: "高中人頭：$150 + $70×4",
+              note: "高中 HC：$150 + $70×4",
               absentOn: { "2026-08-19": ["李俊傑"] },
             }),
           },
@@ -1023,7 +1219,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               endTime: "19:00",
               present: S_PHY,
               amount: 430,
-              note: "高中人頭：$150 + $70×4",
+              note: "高中 HC：$150 + $70×4",
             }),
           },
         ],
@@ -1056,21 +1252,21 @@ const augustTeachers: PayrollTeacherRow[] = [
     id: "judy",
     name: "Judy Chu",
     mode: "特別 HC",
-    // 特別費率約 $550／節 × 8；另示範功輔班串流
+    // 特別費率約 $550／節 × 8；另示範功課班串流
     gross: 5800,
     previousGross: 4400,
-    anomalies: ["跨模式：特別人頭 + 功輔班，請分開核對"],
+    anomalies: ["跨模式：特別 HC + 功課班，請分開核對"],
     modeStreams: [
       {
         id: "judy-special",
-        label: "特別人頭（化學專科班）",
+        label: "特別 HC（化學小組）",
         mode: "特別 HC",
         amount: 4400,
         detail: "8 節 × 約 $550",
       },
       {
         id: "judy-hw",
-        label: "功輔班 $70/hr",
+        label: "功課班 $70/hr",
         mode: "獨立定價",
         amount: 1400,
         detail: "示範 20 小時（與 Leo 同結構）",
@@ -1078,9 +1274,9 @@ const augustTeachers: PayrollTeacherRow[] = [
     ],
     lines: [
       {
-        label: "功輔班時薪（跨模式）",
+        label: "功課班時薪（跨模式）",
         amount: 1400,
-        note: "與特別人頭分開核對；合計見總薪酬",
+        note: "與特別 HC 分開核對；合計見總薪酬",
       },
     ],
     grades: [
@@ -1099,10 +1295,10 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_CHEM,
               amount: 550,
               note: "特別費率（高中）",
-              formula: "特別人頭 $550／節",
+              formula: "特別 HC $550／節",
               rateSource: "Judy 特別費率表，自 2026-03-01 生效",
               subject: "化學",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課",
               absentOn: { "2026-08-14": ["吳嘉欣"] },
             }),
@@ -1134,7 +1330,7 @@ const augustTeachers: PayrollTeacherRow[] = [
     id: "jackson",
     name: "Jackson Lau（Sum）",
     mode: "獨立定價",
-    // 專科班 $110×5＝$550 ×8；私人課程 $454 ×4
+    // 小組 $110×5＝$550 ×8；一對一 $454 ×4
     gross: 6216,
     previousGross: 5980,
     anomalies: [],
@@ -1251,7 +1447,7 @@ const augustTeachers: PayrollTeacherRow[] = [
     mode: "兼職 HC",
     gross: 1760,
     previousGross: 1600,
-    anomalies: ["跨模式：PT 專科班 + 功輔班，請分開核對"],
+    anomalies: ["跨模式：PT 專科班 + 功課班，請分開核對"],
     modeStreams: [
       {
         id: "leo-pt",
@@ -1262,7 +1458,7 @@ const augustTeachers: PayrollTeacherRow[] = [
       },
       {
         id: "leo-hw",
-        label: "功輔班 $70/hr",
+        label: "功課班 $70/hr",
         mode: "獨立定價",
         amount: 1400,
         detail: "示範 20 小時",
@@ -1270,7 +1466,7 @@ const augustTeachers: PayrollTeacherRow[] = [
     ],
     lines: [
       {
-        label: "功輔班時薪（跨模式）",
+        label: "功課班時薪（跨模式）",
         amount: 1400,
         note: "與 PT 專科班分開核對",
       },
@@ -1294,7 +1490,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               note: "PT 專科班一般費率",
               rateSource: "初中一般 PT（$120/$60），自 2026-01-01 生效",
               subject: "數學",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課",
             }),
           },
@@ -1344,10 +1540,10 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_JR,
               amount: 360,
               hcPricing: { first: 120, extra: 60 },
-              note: "初中人頭",
+              note: "初中 HC",
               rateSource: "初中一般 PT（$120/$60），自 2026-01-01 生效",
               subject: "數學",
-              classTypeSnapshot: "專科班（當日快照）",
+              classTypeSnapshot: "小組（當日快照）",
               eventTimeline: "原訂課（8/28 未點名）",
               notRolledDates: ["2026-08-28"],
             }),
@@ -1369,7 +1565,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_JR,
               amount: 360,
               hcPricing: { first: 120, extra: 60 },
-              note: "初中人頭",
+              note: "初中 HC",
             }),
           },
         ],
@@ -1389,7 +1585,7 @@ const augustTeachers: PayrollTeacherRow[] = [
               present: S_MATH_B,
               amount: 360,
               hcPricing: { first: 120, extra: 60 },
-              note: "初中人頭：病假不計入",
+              note: "初中 HC：病假不計入",
               absentOn: { "2026-08-20": ["林詩晴"] },
             }),
           },
@@ -1430,7 +1626,7 @@ const augustTeachers: PayrollTeacherRow[] = [
   }),
 ].map((t) => syncLessonBasedGross(t))
 
-/** 人頭／獨立定價：總薪酬與逐堂計薪人頭金額對齊（病假不計入） */
+/** HC／獨立定價：總薪酬與逐堂計薪 HC 金額對齊（病假不計入） */
 function syncLessonBasedGross(t: PayrollTeacherRow): PayrollTeacherRow {
   if (t.personalSplit || t.wfh || t.salaryEvidence) return t
   if (t.mode !== "兼職 HC" && t.mode !== "特別 HC" && t.mode !== "獨立定價") return t
@@ -1453,8 +1649,8 @@ export const DEFAULT_CALC_META: CalcVersionMeta = {
 export const MOCK_RECALC_DIFF: RecalcDiffItem[] = [
   {
     teacherName: "Natalie Kwok",
-    lessonLabel: "中五英文專科班 C · 8/13",
-    field: "人頭",
+    lessonLabel: "中五英文小組 C · 8/13",
+    field: "HC",
     before: "5",
     after: "6（張家豪 no show 計入）",
     amountDelta: 70,

@@ -80,9 +80,9 @@ async function resolveLeaveAttendanceChoice(
  const surname = studentName.slice(0, 1)
  const result = await confirmDialog({
   title,
-  description: `${formatAttendanceHitsDescription(hits)}\n\n預設建議一併刪除。保留則點名紙無名但已扣堂數仍可能計入。`,
-  confirmText: billable ? "⚠️ 刪除計費出席（影響已扣堂數）" : "一併刪除出席",
-  alternateText: "⚠️ 保留出席（將脫離資格，仍計入已扣堂數）",
+  description: `${formatAttendanceHitsDescription(hits)}\n\n預設建議一併刪除。保留則點名紙無名但已上堂數仍可能計入。`,
+  confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "一併刪除出席",
+  alternateText: "⚠️ 保留出席（將脫離資格，仍計入已上堂數）",
   cancelText: "取消",
   tone: "destructive",
   alternateTone: "default",
@@ -101,7 +101,7 @@ async function resolveLeaveAttendanceChoice(
   const second = await confirmDialog({
    title: "確認保留出席？",
    description:
-    "將只改請假／調堂，出席列會變成孤兒（點名紙無名但已扣堂數仍計）。確定保留？",
+    "將只改請假／調堂，出席列會變成孤兒（點名紙無名但已上堂數仍計）。確定保留？",
    confirmText: "確定保留出席",
    cancelText: "取消（整筆中止）",
    tone: "warning",
@@ -1230,7 +1230,7 @@ export function LeaveManagementView() {
         ))}
        </Select>
        <span className="text-xs text-muted-foreground">
-        未收款可選「減收」；已繳費請用調堂／錄影／不補回（按已繳堂數扣堂；已停用轉結餘）。
+        未收款可選「減收」；已預繳請用調堂／錄影／不補回（權益池滾堂；已停用轉結餘）。
        </span>
       </label>
 

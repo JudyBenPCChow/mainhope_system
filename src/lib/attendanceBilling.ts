@@ -28,9 +28,9 @@ export const NON_BILLABLE_ATTENDANCE_OPTIONS = ["事假", "病假"] as const sat
 
 /** 桌面懸停說明（點名狀態按鈕） */
 export const ATTENDANCE_STATUS_HELP: Record<AttendanceStatusLabel, string> = {
- 現場: "學生實體到課，計入已扣堂數。",
+ 現場: "學生實體到課，計入已上堂數（扣堂）。",
  錄影回放: "當日已交付錄影／回放連結即銷堂，不論學生何時觀看。",
- zoom實時網課: "經 Zoom 等同步上網課，計入已扣堂數。",
+ zoom實時網課: "經 Zoom 等同步上網課，計入已上堂數（扣堂）。",
  "no show": "突然缺席且沒有請假通知，仍扣堂。",
  請假而不需補回: "有請假且自願放棄已購堂（扣堂）。一般「唔嚟唔補」請用事假／病假（不扣堂）。",
  事假: "已請假（事假），不扣堂。",

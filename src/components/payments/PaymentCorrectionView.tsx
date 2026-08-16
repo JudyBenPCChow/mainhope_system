@@ -11,11 +11,6 @@ import {
  ENTITLEMENT_ADJUSTMENT_REASON_LABELS,
  type EntitlementAdjustmentReasonCode,
 } from "@/lib/entitlementAdjustment"
-import {
- ENTITLEMENT_PACKAGE_TYPES,
- packageTypeLabel,
- type EntitlementPackageType,
-} from "@/lib/entitlementPackage"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -34,13 +29,13 @@ const GUIDES: Array<{ key: GuideKey; title: string; body: string; action: string
  {
   key: "g2a",
   title: "G2a 堂數填錯",
-  body: "唔一定作廢整張單。用下方「已繳堂數調動」減少／增加未耗堂，並寫明原因。",
+  body: "唔一定作廢整張單。用下方「單池調動」減少／增加未耗堂，並寫明原因。",
   action: "用單池調動",
  },
  {
   key: "g2b",
   title: "G2b 科目／班收錯",
-  body: "唔作廢收據。用「搬堂」由錯的已繳堂數搬去正確紀錄，兩邊會寫入調動表。同一級專科班已共用餘額，搬堂只用於私人課程／試堂／跨級等唔同組別。",
+  body: "唔作廢收據。用「搬堂」由錯池搬去正確池，兩邊會寫入調動表。同一級專科小組已共用餘額，搬堂只用於私人／試堂／跨級等唔同組別。",
   action: "用搬堂",
  },
  {
@@ -52,13 +47,13 @@ const GUIDES: Array<{ key: GuideKey; title: string; body: string; action: string
  {
   key: "g2c",
   title: "堂送親友／轉讓",
-  body: "唔當開錯單。選來源學生已繳堂數 → 目標學生已繳堂數搬堂（原因選送親友）。",
+  body: "唔當開錯單。選來源學生池 → 目標學生池搬堂（原因選送親友）。",
   action: "用搬堂",
  },
  {
   key: "g2e",
   title: "G2e 支付方式／狀態錯",
-  body: "只改支付欄、或誤觸已收要 clawback（跟作廢／收款流程）。唔經已繳堂數調動。",
+  body: "只改支付欄、或誤觸已收要 clawback（跟作廢／收款流程）。唔經池調動。",
   action: "去繳費紀錄",
  },
  {
@@ -69,14 +64,8 @@ const GUIDES: Array<{ key: GuideKey; title: string; body: string; action: string
  },
 ]
 
-function packageTypeDisplay(raw: string): string {
- return (ENTITLEMENT_PACKAGE_TYPES as readonly string[]).includes(raw)
-  ? packageTypeLabel(raw as EntitlementPackageType)
-  : raw
-}
-
 function poolOptionLabel(p: EntitlementPoolSummary): string {
- return `${p.classLabel} · ${packageTypeDisplay(p.packageType)} · 餘 ${p.remainingLessons} 堂`
+ return `${p.classLabel} · ${p.packageType} · 餘 ${p.remainingLessons} 堂`
 }
 
 export function PaymentCorrectionView() {
@@ -179,7 +168,7 @@ export function PaymentCorrectionView() {
 
  const submitAdjust = async () => {
   if (!poolId) {
-   pushBanner({ tone: "warning", title: "請先選學生及科班" })
+   pushBanner({ tone: "warning", title: "請先選學生同權益池" })
    return
   }
   setSaving(true)
@@ -192,7 +181,7 @@ export function PaymentCorrectionView() {
    })
    pushBanner({
     tone: "success",
-    title: "已調整已繳堂數",
+    title: "已調動權益池",
     message: `${updated.classLabel} 餘額 → ${updated.remainingLessons} 堂`,
    })
    setNotes("")
@@ -212,7 +201,7 @@ export function PaymentCorrectionView() {
 
  const submitTransfer = async () => {
   if (!poolId || !toPoolId) {
-   pushBanner({ tone: "warning", title: "請選來源及目標科班" })
+   pushBanner({ tone: "warning", title: "請選來源池同目標池" })
    return
   }
   setSaving(true)
@@ -255,9 +244,9 @@ export function PaymentCorrectionView() {
  return (
   <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
    <header className="space-y-1">
-    <h1 className="text-xl font-semibold tracking-tight">單據／堂數更正</h1>
+    <h1 className="text-xl font-semibold tracking-tight">單據／權益更正</h1>
     <p className="text-sm text-muted-foreground">
-     按錯類型分流：堂數／科班用已繳堂數調動；金額錯先作廢再重開。禁硬刪單據。
+     按錯類型分流：堂數／科班用池調動；金額錯先作廢再重開。禁硬刪單據。
     </p>
    </header>
 
@@ -291,7 +280,7 @@ export function PaymentCorrectionView() {
    </section>
 
    <section className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
-    <h2 className="text-sm font-medium">2. 已繳堂數調動</h2>
+    <h2 className="text-sm font-medium">2. 權益池調動</h2>
     <div className="flex flex-wrap gap-2">
      <Button
       type="button"
@@ -299,7 +288,7 @@ export function PaymentCorrectionView() {
       variant={mode === "adjust" ? "default" : "outline"}
       onClick={() => setMode("adjust")}
      >
-      同一科班增減
+      單池增減
      </Button>
      <Button
       type="button"
@@ -307,7 +296,7 @@ export function PaymentCorrectionView() {
       variant={mode === "transfer" ? "default" : "outline"}
       onClick={() => setMode("transfer")}
      >
-      轉移已繳堂數
+      搬堂（兩池）
      </Button>
     </div>
 
@@ -335,9 +324,9 @@ export function PaymentCorrectionView() {
     </div>
 
     <label className="grid gap-1.5 text-sm">
-     <span className="font-medium">{mode === "transfer" ? "來源科班" : "科班"}</span>
+     <span className="font-medium">{mode === "transfer" ? "來源權益池" : "權益池"}</span>
      <Select value={poolId} onChange={(e) => setPoolId(e.target.value)} disabled={!pools.length}>
-      <option value="">{pools.length ? "請選擇" : "此生暫無已繳堂數"}</option>
+      <option value="">{pools.length ? "請選擇" : "此生暫無權益池"}</option>
       {pools.map((p) => (
        <option key={p.id} value={p.id}>
         {poolOptionLabel(p)}
@@ -369,13 +358,13 @@ export function PaymentCorrectionView() {
        </Select>
       </label>
       <label className="grid gap-1.5 text-sm">
-       <span className="font-medium">目標科班</span>
+       <span className="font-medium">目標權益池</span>
        <Select
         value={toPoolId}
         onChange={(e) => setToPoolId(e.target.value)}
         disabled={!toPools.length}
        >
-        <option value="">{toPools.length ? "請選擇" : "目標學生暫無已繳堂數"}</option>
+        <option value="">{toPools.length ? "請選擇" : "目標生暫無權益池"}</option>
         {toPools.map((p) => (
          <option key={p.id} value={p.id}>
           {poolOptionLabel(p)}

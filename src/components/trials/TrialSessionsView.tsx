@@ -94,7 +94,7 @@ async function resolveTrialAttendanceDelete(
  const ok = await confirmDialog({
   title,
   description: `${formatAttendanceHitsDescription(hits)}\n\n取消／刪除／改期試堂將一併刪除以上出席（無保留選項；要留出席請勿取消試堂）。`,
-  confirmText: billable ? "⚠️ 刪除計費出席（影響已扣堂數）" : "一併刪除出席並繼續",
+  confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "一併刪除出席並繼續",
   cancelText: "取消操作",
   tone: "destructive",
   ...(billable && surname

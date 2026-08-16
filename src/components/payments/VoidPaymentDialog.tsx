@@ -160,7 +160,7 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
       <p className="text-xs text-muted-foreground">
        作廢後單據會保留並標示「作廢」，不可刪除。堂數／科班錯請改用
        <Link className="mx-1 text-primary underline" to="/PaymentCorrection">
-        單據／堂數更正
+        單據／權益更正
        </Link>
        調已繳堂數；金額錯先作廢再重開。
       </p>

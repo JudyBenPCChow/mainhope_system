@@ -15,7 +15,7 @@ export const ENTITLEMENT_ADJUSTMENT_REASON_LABELS: Record<
  string
 > = {
  g2a_lesson_count_fix: "G2a 堂數填錯（調未耗堂）",
- g2b_wrong_class_move: "G2b 科目／班收錯（搬堂）",
+ g2b_wrong_class_move: "G2b 科目／班收錯（搬池）",
  g2c_transfer_friend: "堂數送親友／轉讓",
  transfer_subject: "轉科搬堂",
  manual_other: "其他（請寫明備註）",
