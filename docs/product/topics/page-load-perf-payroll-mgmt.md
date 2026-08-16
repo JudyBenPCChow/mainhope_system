@@ -7,7 +7,7 @@
 | 範圍 | `/Payroll`、`/MgmtDashboard` 體感載入；可選主 bundle 再切 |
 | 不含 | 軟封存／查詢收窄本體（互補另題）；物理 archive 表 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 相關 | [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)、[`payroll-engine.md`](./payroll-engine.md)、[`mgmt-manager-role.md`](./mgmt-manager-role.md) |
+| 相關 | [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)、[`payroll-engine.md`](./payroll-engine.md)、[`mgmt-manager-role.md`](./mgmt-manager-role.md)、[`frontend-architecture-boundaries.md`](./frontend-architecture-boundaries.md)（KPI 失敗語意另題；summary／full 去重仍屬本題） |
 | 記錄 | 2026-08-06 用戶反映計糧／營運總覽慢；代碼路徑診斷 |
 | 技術債歸屬 | 2026-08-14 全盤檢視 P2-2；沿用本題，不另開重複工程 |
 

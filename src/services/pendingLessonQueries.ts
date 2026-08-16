@@ -2,13 +2,12 @@ import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  enrollmentCoversPeriod,
- fetchAcademicYearPeriods,
- fetchClassEnrollmentConfig,
  isSingleSessionEnrollment,
  resolvePeriodCodeFromDate,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  fetchLeavesAwaitingMakeupDateForStudent,

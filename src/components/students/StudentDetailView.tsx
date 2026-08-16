@@ -18,7 +18,10 @@ import {
 
 import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
-import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
+import { StudentAttendanceTab } from "@/components/students/StudentAttendanceTab"
+import { StudentFutureSchedulesTab } from "@/components/students/StudentFutureSchedulesTab"
+import { StudentHistoryTab } from "@/components/students/StudentHistoryTab"
+import { StudentLeaveTab } from "@/components/students/StudentLeaveTab"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -35,8 +38,6 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
-import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isAdminOrAlien, isMgmtStaff } from "@/lib/mgmtRole"
@@ -47,23 +48,15 @@ import { formatClassLabel } from "@/lib/courseLabel"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
- formatAttendanceHitsDescription,
- deleteAttendanceDetailAsMgmt,
- type AttendanceLifecycleHit,
-} from "@/services/attendanceLifecycleQueries"
-import {
  fetchPaymentFull,
  fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
 } from "@/services/paymentQueries"
 import {
  fetchAllStudents,
- fetchAttendanceForStudent,
  fetchClassOptions,
  fetchEnrollmentsForStudent,
- fetchLeaveForStudent,
  fetchPaymentsForStudent,
- fetchStudentActivity,
  getStudentById,
  insertEnrollment,
  normalizeAcademicStage,
@@ -73,11 +66,8 @@ import {
  PRIMARY_CONTACT_PERSONS,
  previewEnrollmentAttendanceImpact,
  purgeMistakenEnrollment,
- type AttendanceRow,
  type ClassOption,
  type EnrollmentWithClass,
- type HistoryRow,
- type LeaveRow,
  type PaymentRow,
  type StudentRecord,
  updateEnrollment,
@@ -96,22 +86,6 @@ import {
  type StudentRelativeRow,
 } from "@/services/studentRelationshipQueries"
 import {
- fetchEnrolledClassesForStudent,
- fetchMakeupCandidateSchedules,
- validateMakeupScheduleForStudent,
- fetchUpcomingSchedulesForStudent,
- fetchUpcomingSchedulesForClass,
- insertLeaveMakeupForSchedule,
- LEAVE_MAKEUP_OPTIONS,
- LEAVE_REASON_OPTIONS,
- formatLeaveScheduleOptionLabel,
- formatMakeupCandidateLabel,
- type ClassScheduleOption,
- type ConsecutiveLeaveScope,
- type EnrolledClassOption,
- type StudentUpcomingScheduleRow,
-} from "@/services/leaveQueries"
- import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
  SUMMER_ENROLLMENT_FORM_OPTIONS,
@@ -121,11 +95,6 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
-import {
- fetchScheduleStudentHintsByClass,
- type ScheduleStudentHints,
-} from "@/services/classQueries"
-import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import {
  countBoundSchedulesForEnrollment,
  fetchLessonBalancesForStudent,
@@ -267,18 +236,13 @@ export function StudentDetailView() {
   )
  }, [searchParams, setSearchParams, setTab])
  const [student, setStudent] = useState<StudentRecord | null>(null)
+ const [studentState, setStudentState] = useState<"loading" | "ready" | "error">("loading")
  const [loading, setLoading] = useState(true)
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
+ const [enrollmentsState, setEnrollmentsState] = useState<"loading" | "ready" | "error">("loading")
  const [payments, setPayments] = useState<PaymentRow[]>([])
- const [attendance, setAttendance] = useState<AttendanceRow[]>([])
- const [leaves, setLeaves] = useState<LeaveRow[]>([])
-const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRow[]>([])
- const [futureScheduleHints, setFutureScheduleHints] = useState<
-  Map<string, ScheduleStudentHints>
- >(new Map())
- const [hintsLoading, setHintsLoading] = useState(false)
- const hintsRequestIdRef = useRef(0)
- const [history, setHistory] = useState<HistoryRow[]>([])
+ const [paymentsState, setPaymentsState] = useState<"loading" | "ready" | "error">("loading")
+ const [islandReloadToken, setIslandReloadToken] = useState(0)
  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
  const [pickClass, setPickClass] = useState("")
  /** 暑期：期數或單堂；正規：full | 單堂 */
@@ -289,6 +253,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [pickBoundPreview, setPickBoundPreview] = useState<number | null>(null)
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
  const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
+ const [lessonBalancesState, setLessonBalancesState] = useState<"loading" | "ready" | "error">("loading")
  const [pendingDialogOpen, setPendingDialogOpen] = useState(false)
  const [pendingTarget, setPendingTarget] = useState<EnrollmentWithClass | null>(null)
  const [pendingOwedInput, setPendingOwedInput] = useState("1")
@@ -310,6 +275,7 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [editFormLoadingSessions, setEditFormLoadingSessions] = useState(false)
 
  const [relatives, setRelatives] = useState<StudentRelativeRow[]>([])
+ const [relativesState, setRelativesState] = useState<"loading" | "ready" | "error">("loading")
  const [relativeDialogOpen, setRelativeDialogOpen] = useState(false)
  const [allStudentsForPick, setAllStudentsForPick] = useState<StudentRecord[]>([])
  const [relativeQuery, setRelativeQuery] = useState("")
@@ -318,185 +284,113 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const [relativeCustom, setRelativeCustom] = useState("")
  const [relativeSaving, setRelativeSaving] = useState(false)
 
- const [leaveDialogOpen, setLeaveDialogOpen] = useState(false)
- const [leaveClasses, setLeaveClasses] = useState<EnrolledClassOption[]>([])
- const [leaveClassId, setLeaveClassId] = useState("")
- const [leaveScheduleOptions, setLeaveScheduleOptions] = useState<ClassScheduleOption[]>([])
- const [leaveScheduleId, setLeaveScheduleId] = useState("")
- const [leaveReasonPick, setLeaveReasonPick] = useState<(typeof LEAVE_REASON_OPTIONS)[number]>("病假")
- const [leaveMakeup, setLeaveMakeup] = useState<(typeof LEAVE_MAKEUP_OPTIONS)[number]>("待安排")
- const [leaveMakeupScheduleId, setLeaveMakeupScheduleId] = useState("")
- const [leaveMakeupSearch, setLeaveMakeupSearch] = useState("")
- const [leaveMakeupCandidates, setLeaveMakeupCandidates] = useState<ScheduleManageRow[]>([])
- const [leaveConsecutiveScope, setLeaveConsecutiveScope] = useState<ConsecutiveLeaveScope>("this_slot")
- const [leaveRemarks, setLeaveRemarks] = useState("")
- const [leaveSaving, setLeaveSaving] = useState(false)
- const [leaveErr, setLeaveErr] = useState<string | null>(null)
-
- const [attClassFilter, setAttClassFilter] = useState<string>("all")
- const [attStatusFilter, setAttStatusFilter] = useState<"all" | "present" | "absent" | "other">("all")
- const [attDateFrom, setAttDateFrom] = useState("")
- const [attDateTo, setAttDateTo] = useState("")
- const [attSort, setAttSort] = useState<
-  "dateDesc" | "dateAsc" | "classAsc" | "classDesc" | "statusAsc"
- >("dateDesc")
-
  const sid = studentId ?? ""
-
- const deleteAttendanceRow = async (row: AttendanceRow) => {
-  const studentName = (student?.full_name ?? "").trim()
-  const surname = studentName.slice(0, 1)
-  const hit: AttendanceLifecycleHit = {
-   id: row.id,
-   studentId: row.studentId,
-   classId: row.classId,
-   scheduleId: row.scheduleId,
-   attendanceDate: row.attendance_date,
-   status: row.status,
-   updatedAt: row.updatedAt,
-   studentName: studentName || null,
-  }
-  const billable = isBillableAttendanceStatus(row.status)
-  const ok = await confirmDialog({
-   title: "刪除單筆出席紀錄？",
-   description: `${formatAttendanceHitsDescription([hit])}\n\n此操作不可還原（除非重新點名）。過渡權限＝mgmtRole（admin／外星人），非 Auth。`,
-   confirmText: billable ? "⚠️ 刪除計費出席（影響已上堂數）" : "確認刪除",
-   cancelText: "取消",
-   tone: "destructive",
-   ...(billable && surname
-    ? {
-       confirmInput: {
-        label: `請輸入學生姓氏「${surname}」以確認刪除計費出席`,
-        expected: surname,
-        placeholder: surname,
-       },
-      }
-    : {}),
-  })
-  if (ok !== true) return
-  if (
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    dateYmd: row.attendance_date,
-    source: "StudentDetailView.deleteAttendance",
-   }))
-  ) {
-   return
-  }
-  try {
-   await deleteAttendanceDetailAsMgmt(row.id, "mgmt_single_delete_student_detail")
-   pushBanner({ tone: "success", title: "已刪除出席", message: `${row.attendance_date} · ${row.status}` })
-   await reloadSubs()
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.deleteAttendance" })
-   pushBanner({
-    tone: "error",
-    title: "刪除失敗",
-    message: e instanceof Error ? e.message : String(e),
-   })
-  }
- }
 
  const tabLoadedRef = useRef<Set<TabId>>(new Set(["basic"]))
  const [tabLoading, setTabLoading] = useState(false)
 
- const loadFutureScheduleHints = useCallback((fs: StudentUpcomingScheduleRow[]) => {
-  const byClass = new Map<string, { id: string; scheduled_date: string }[]>()
-  for (const row of fs) {
-   const arr = byClass.get(row.class_id) ?? []
-   arr.push({ id: row.id, scheduled_date: row.scheduled_date })
-   byClass.set(row.class_id, arr)
-  }
-  const reqId = ++hintsRequestIdRef.current
-  setHintsLoading(true)
-  void fetchScheduleStudentHintsByClass(byClass)
-   .then((hints) => {
-    if (reqId !== hintsRequestIdRef.current) return
-    setFutureScheduleHints(hints)
-   })
-   .catch((e) => {
-    console.error("[StudentDetailView] schedule hints", e)
-   })
-   .finally(() => {
-    if (reqId === hintsRequestIdRef.current) setHintsLoading(false)
-   })
- }, [])
-
  /** 首屏：學生＋報讀摘要＋親屬（基本資料 tab） */
  const reloadCore = useCallback(async () => {
   if (!sid) return
+  setEnrollmentsState("loading")
+  setRelativesState("loading")
   const settled = await Promise.allSettled([
    getStudentById(sid),
    fetchEnrollmentsForStudent(sid),
    fetchRelativesForStudent(sid),
   ])
-  if (settled[0].status === "fulfilled") setStudent(settled[0].value)
-  else console.error("[StudentDetailView] student", settled[0].reason)
-  if (settled[1].status === "fulfilled") setEnrollments(settled[1].value)
-  else {
-   console.error("[StudentDetailView] enrollments", settled[1].reason)
-   setEnrollments([])
+  if (settled[0].status === "fulfilled") {
+   setStudent(settled[0].value)
+   setStudentState("ready")
+  } else {
+   reportUserFacingError(settled[0].reason, { source: "StudentDetailView.student" })
+   setStudentState("error")
   }
-  if (settled[2].status === "fulfilled") setRelatives(settled[2].value)
-  else setRelatives([])
+  if (settled[1].status === "fulfilled") {
+   setEnrollments(settled[1].value)
+   setEnrollmentsState("ready")
+  } else {
+   reportUserFacingError(settled[1].reason, { source: "StudentDetailView.enrollments" })
+   setEnrollmentsState("error")
+  }
+  if (settled[2].status === "fulfilled") {
+   setRelatives(settled[2].value)
+   setRelativesState("ready")
+  } else {
+   reportUserFacingError(settled[2].reason, { source: "StudentDetailView.relatives" })
+   setRelativesState("error")
+  }
  }, [sid])
 
  /** 按分頁懶載；force 時重拉（寫入後） */
  const ensureTabData = useCallback(
   async (tabId: TabId, force = false) => {
    if (!sid) return
+   if (tabId === "attendance" || tabId === "leave" || tabId === "history" || tabId === "futureSchedules") return
    if (!force && tabLoadedRef.current.has(tabId)) return
    const staff = isMgmtStaff()
    setTabLoading(true)
    try {
     if (tabId === "basic") {
-     const rels = await fetchRelativesForStudent(sid)
-     setRelatives(rels)
+     try {
+      const rels = await fetchRelativesForStudent(sid)
+      setRelatives(rels)
+      setRelativesState("ready")
+     } catch (e) {
+      reportUserFacingError(e, { source: "StudentDetailView.relativesTab" })
+      setRelativesState("error")
+     }
     } else if (tabId === "enrollments") {
+     setLessonBalancesState("loading")
      const settled = await Promise.allSettled([
       fetchEnrollmentsForStudent(sid),
       staff ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
       fetchLessonBalancesForStudent(sid, { includePaidLessons: staff }),
       fetchClassOptions(),
      ])
-     if (settled[0].status === "fulfilled") setEnrollments(settled[0].value)
+     if (settled[0].status === "fulfilled") {
+      setEnrollments(settled[0].value)
+      setEnrollmentsState("ready")
+     } else {
+      reportUserFacingError(settled[0].reason, { source: "StudentDetailView.enrollmentsTab" })
+      setEnrollmentsState("error")
+     }
      if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
-     if (settled[2].status === "fulfilled") setLessonBalances(settled[2].value)
-     else console.error("[StudentDetailView] lessonBalances", settled[2].reason)
+     if (settled[2].status === "fulfilled") {
+      setLessonBalances(settled[2].value)
+      setLessonBalancesState("ready")
+     } else {
+      reportUserFacingError(settled[2].reason, { source: "StudentDetailView.lessonBalances" })
+      setLessonBalancesState("error")
+     }
      if (settled[3].status === "fulfilled") setClassOptions(settled[3].value)
     } else if (tabId === "payments") {
      if (!staff) {
       setPayments([])
+      setPaymentsState("ready")
      } else {
       const settled = await Promise.allSettled([
        fetchPaymentsForStudent(sid),
        fetchTotalPaidLessonsForStudent(sid),
       ])
-      if (settled[0].status === "fulfilled") setPayments(settled[0].value)
-      else setPayments([])
+      if (settled[0].status === "fulfilled") {
+       setPayments(settled[0].value)
+       setPaymentsState("ready")
+      } else {
+       reportUserFacingError(settled[0].reason, { source: "StudentDetailView.payments" })
+       setPaymentsState("error")
+      }
       if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
      }
-    } else if (tabId === "attendance") {
-     const rows = await fetchAttendanceForStudent(sid)
-     setAttendance(rows)
-    } else if (tabId === "leave") {
-     const rows = await fetchLeaveForStudent(sid)
-     setLeaves(rows)
-    } else if (tabId === "futureSchedules") {
-     const fs = await fetchUpcomingSchedulesForStudent(sid, localTodayYmd())
-     setFutureSchedules(fs)
-     loadFutureScheduleHints(fs)
-    } else if (tabId === "history") {
-     const rows = await fetchStudentActivity(sid, { includePayments: staff })
-     setHistory(rows)
     }
     tabLoadedRef.current.add(tabId)
    } catch (e) {
-    console.error(`[StudentDetailView] tab ${tabId}`, e)
+    reportUserFacingError(e, { source: `StudentDetailView.tab.${tabId}` })
    } finally {
     setTabLoading(false)
    }
   },
-  [sid, loadFutureScheduleHints]
+  [sid]
  )
 
  /** 寫入後：重載核心＋已開過／而家嘅分頁 */
@@ -506,9 +400,11 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   tabsToReload.add(tab)
   await reloadCore()
   tabLoadedRef.current = new Set(["basic"])
+  setIslandReloadToken((n) => n + 1)
+  const islandTabs: TabId[] = ["attendance", "leave", "history", "futureSchedules"]
   await Promise.all(
    [...tabsToReload]
-    .filter((t) => t !== "basic")
+    .filter((t) => t !== "basic" && !islandTabs.includes(t))
     .map((t) => ensureTabData(t, true))
   )
  }, [sid, tab, reloadCore, ensureTabData])
@@ -516,6 +412,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  const loadAll = useCallback(async () => {
   if (!sid) return
   setLoading(true)
+  setPayments([])
+  setPaymentsState("loading")
   tabLoadedRef.current = new Set(["basic"])
   try {
    await reloadCore()
@@ -728,7 +626,8 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
  /** 非「已退讀」皆佔用該班（就讀中／休學／退選），不可再從下拉重複加入 */
  const activeEnrollments = enrollments.filter((e) => e.status !== "已退讀")
  const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
- const occupiedClassIds = new Set(activeEnrollments.map((e) => e.classId))
+ const occupiedClassIds =
+  enrollmentsState === "ready" ? new Set(activeEnrollments.map((e) => e.classId)) : new Set<string>()
  const groupActiveCount = activeEnrollments.filter((e) => e.classKind !== "private").length
  const privateActiveCount = activeEnrollments.filter((e) => e.classKind === "private").length
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
@@ -741,13 +640,18 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   return map
  }, [lessonBalances])
  const misalignedCount = useMemo(
-  () => lessonBalances.filter((b) => isLessonBalanceNeedsFollowUp(b)).length,
-  [lessonBalances]
+  () =>
+   lessonBalancesState === "ready"
+    ? lessonBalances.filter((b) => isLessonBalanceNeedsFollowUp(b)).length
+    : 0,
+  [lessonBalances, lessonBalancesState]
  )
  const teacherFollowUpCount = useMemo(
   () =>
-   lessonBalances.filter((b) => b.pendingLessons > 0 || b.leaveAwaitingMakeupCount > 0).length,
-  [lessonBalances]
+   lessonBalancesState === "ready"
+    ? lessonBalances.filter((b) => b.pendingLessons > 0 || b.leaveAwaitingMakeupCount > 0).length
+    : 0,
+  [lessonBalances, lessonBalancesState]
  )
  const pickEntitledNum = pickEntitledCount.trim() === "" ? null : Math.floor(Number(pickEntitledCount))
  const pickPendingPreview =
@@ -1009,227 +913,6 @@ const [futureSchedules, setFutureSchedules] = useState<StudentUpcomingScheduleRo
   }
  }
 
- const leaveMakeupFiltered = useMemo(() => {
-  const q = leaveMakeupSearch.trim().toLowerCase()
-  return leaveMakeupCandidates.filter((s) => {
-   if (!q) return true
-   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code_full ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
-   return hay.includes(q)
-  })
- }, [leaveMakeupCandidates, leaveMakeupSearch])
-
- const openLeaveDialog = async () => {
-  if (!sid || !canMutateLeave) return
-  setLeaveErr(null)
-  setLeaveClassId("")
-  setLeaveScheduleId("")
-  setLeaveScheduleOptions([])
-  setLeaveReasonPick("病假")
-  setLeaveMakeup("待安排")
-  setLeaveMakeupScheduleId("")
-  setLeaveMakeupSearch("")
-  setLeaveConsecutiveScope("this_slot")
-  setLeaveRemarks("")
-  setLeaveDialogOpen(true)
-  try {
-   const classes = await fetchEnrolledClassesForStudent(sid)
-   setLeaveClasses(classes)
-   setLeaveMakeupCandidates([])
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.openLeaveDialog", setErr: setLeaveErr })
-   setLeaveClasses([])
-   setLeaveMakeupCandidates([])
-  }
- }
-
- useEffect(() => {
-  if (!leaveDialogOpen || leaveMakeup !== "調堂" || !sid) {
-   if (!leaveDialogOpen || leaveMakeup !== "調堂") {
-    setLeaveMakeupCandidates([])
-    setLeaveMakeupScheduleId("")
-   }
-   return
-  }
-  void fetchMakeupCandidateSchedules({
-   studentId: sid,
-   excludeScheduleIds: leaveScheduleId ? [leaveScheduleId] : undefined,
-  })
-   .then((list) => {
-    setLeaveMakeupCandidates(list)
-    setLeaveMakeupScheduleId((prev) => (prev && list.some((s) => s.id === prev) ? prev : ""))
-   })
-   .catch((e) => {
-    reportUserFacingError(e, { source: "StudentDetailView.loadMakeupCandidates", setErr: setLeaveErr })
-    setLeaveMakeupCandidates([])
-   })
- }, [leaveDialogOpen, leaveMakeup, sid, leaveScheduleId])
-
- useEffect(() => {
-  if (!leaveDialogOpen || !leaveClassId) {
-   setLeaveScheduleOptions([])
-   setLeaveScheduleId("")
-   return
-  }
-  void fetchUpcomingSchedulesForClass(leaveClassId, localTodayYmd(), sid).then((opts) => {
-   setLeaveScheduleOptions(opts)
-   setLeaveScheduleId("")
-  })
- }, [leaveDialogOpen, leaveClassId, sid])
-
- const submitStudentLeave = async () => {
-  if (!sid || !leaveClassId || !leaveScheduleId) {
-   setLeaveErr("請選擇班別與請假排程")
-   return
-  }
-  if (leaveMakeup === "調堂" && !leaveMakeupScheduleId) {
-   setLeaveErr("補課安排為「調堂」時請選擇補堂排程")
-   return
-  }
-  const sched = leaveScheduleOptions.find((s) => s.id === leaveScheduleId)
-  if (!sched) {
-   setLeaveErr("請假排程無效")
-   return
-  }
-  const makeupRow =
-   leaveMakeup === "調堂" ? leaveMakeupCandidates.find((s) => s.id === leaveMakeupScheduleId) : undefined
-  if (makeupRow) {
-   const makeupErr = await validateMakeupScheduleForStudent(sid, makeupRow, leaveScheduleId)
-   if (makeupErr) {
-    setLeaveErr(makeupErr)
-    return
-   }
-  }
-  const consecutiveScope = sched.consecutive_group_id ? leaveConsecutiveScope : "this_slot"
-  if (
-   consecutiveScope === "all" &&
-   !(await confirmDialog({
-    title: "連堂兩節一併請假",
-    description: "將建立兩筆請假，欠補最多 2 堂。若只欠一節，請改選「只請本節」。",
-    confirmText: "確認兩節一併",
-    tone: "warning",
-   }))
-  ) {
-   return
-  }
-  setLeaveSaving(true)
-  setLeaveErr(null)
-  try {
-   await insertLeaveMakeupForSchedule({
-    student_id: sid,
-    class_id: leaveClassId,
-    schedule_id: leaveScheduleId,
-    leave_date: sched.scheduled_date,
-    leave_reason: leaveReasonPick,
-    makeup_type: leaveMakeup,
-    makeup_schedule_id: leaveMakeup === "調堂" ? leaveMakeupScheduleId : null,
-    makeup_date: makeupRow?.scheduled_date ?? null,
-    remarks: leaveRemarks.trim() || null,
-    status: "待補課",
-    consecutiveScope,
-   })
-   setLeaveDialogOpen(false)
-   await reloadSubs()
-   pushBanner({ tone: "success", title: "已新增請假", message: "請假紀錄已建立。" })
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.submitLeave", setErr: setLeaveErr })
-  } finally {
-   setLeaveSaving(false)
-  }
- }
-
- const attStats = {
-  present: attendance.filter(
-   (x) =>
-    x.status === "現場" ||
-    x.status.includes("出席") ||
-    x.status === "zoom實時網課" ||
-    x.status === "即時直播" ||
-    x.status === "錄影回放"
-  ).length,
-  absent: attendance.filter((x) => x.status === "no show" || x.status.includes("缺席")).length,
-  makeup: attendance.filter(
-   (x) =>
-    x.status === "請假而不需補回" ||
-    x.status === "不用補回" ||
-    x.status.includes("補") ||
-    x.status.includes("待")
-  ).length,
- }
-
-const csvEscape = (s: string) => `"${s.replace(/"/g, '""')}"`
-
-const exportFutureSchedulesCsv = () => {
- const header = ["堂次", "日期", "開始", "結束", "科目", "課程編號", "老師", "狀態", "類型"]
- const rows = futureSchedules.map((row) =>
-  [
-   row.session_number != null ? String(row.session_number) : "",
-   row.scheduled_date,
-   row.start_time ?? "",
-   row.end_time ?? "",
-   row.subject,
-   row.course_code_full ?? "",
-   row.teacher_name ?? "",
-   row.status,
-   row.source === "makeup" ? "補堂" : "就讀",
-  ]
-   .map((x) => csvEscape(x))
-   .join(",")
- )
- const csv = `\uFEFF${header.map(csvEscape).join(",")}\n${rows.join("\n")}`
- const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
- const a = document.createElement("a")
- a.href = URL.createObjectURL(blob)
- a.download = `student-upcoming-schedules-${sid}-${localTodayYmd()}.csv`
- a.click()
- URL.revokeObjectURL(a.href)
-}
-
- function attendanceStatusCategory(status: string): "present" | "absent" | "other" {
-  const s = status.trim()
-  if (s.includes("缺席")) return "absent"
-  if (s.includes("出席")) return "present"
-  return "other"
- }
-
- const attendanceClassOptions = useMemo(() => {
-  const m = new Map<string, string>()
-  for (const a of attendance) {
-   if (a.classId) m.set(a.classId, a.classLabel)
-  }
-  return [...m.entries()].sort((x, y) => x[1].localeCompare(y[1], "zh-Hant"))
- }, [attendance])
-
- const filteredSortedAttendance = useMemo(() => {
-  let list = attendance.filter((a) => {
-   if (attClassFilter !== "all" && a.classId !== attClassFilter) return false
-   const cat = attendanceStatusCategory(a.status)
-   if (attStatusFilter !== "all" && cat !== attStatusFilter) return false
-   if (attDateFrom && a.attendance_date < attDateFrom) return false
-   if (attDateTo && a.attendance_date > attDateTo) return false
-   return true
-  })
-  list = [...list]
-  const cmpDate = (da: string, db: string) => da.localeCompare(db)
-  const cmpClass = (a: (typeof attendance)[0], b: (typeof attendance)[0]) =>
-   a.classLabel.localeCompare(b.classLabel, "zh-Hant")
-  list.sort((a, b) => {
-   switch (attSort) {
-    case "dateAsc":
-     return cmpDate(a.attendance_date, b.attendance_date)
-    case "dateDesc":
-     return cmpDate(b.attendance_date, a.attendance_date)
-    case "classAsc":
-     return cmpClass(a, b) || cmpDate(b.attendance_date, a.attendance_date)
-    case "classDesc":
-     return cmpClass(b, a) || cmpDate(b.attendance_date, a.attendance_date)
-    case "statusAsc":
-     return a.status.localeCompare(b.status, "zh-Hant") || cmpDate(b.attendance_date, a.attendance_date)
-    default:
-     return cmpDate(b.attendance_date, a.attendance_date)
-   }
-  })
-  return list
- }, [attendance, attClassFilter, attStatusFilter, attDateFrom, attDateTo, attSort])
 
  if (!sid) {
   return (
@@ -1244,10 +927,24 @@ const exportFutureSchedulesCsv = () => {
  }
 
  if (!loading && !student) {
+  const loadFailed = studentState === "error"
   return (
    <DetailLayerShell variant="student" onDismiss={() => navigate(exitPath)} layerLabel="學生詳情">
     <div className="p-6">
-     <p className="text-muted-foreground">找不到此學生。</p>
+     {loadFailed ? (
+      <div className="space-y-2" role="alert">
+       <p className="text-sm text-destructive">學生資料未能載入。</p>
+       <button
+        type="button"
+        className="text-sm font-medium text-primary hover:underline"
+        onClick={() => void loadAll()}
+       >
+        重試
+       </button>
+      </div>
+     ) : (
+      <p className="text-muted-foreground">找不到此學生。</p>
+     )}
      <Button type="button" variant="outline" className="mt-4" asChild>
       <Link to={exitPath}>返回</Link>
      </Button>
@@ -1294,10 +991,18 @@ const exportFutureSchedulesCsv = () => {
          </p>
          <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/90">
           <span className="rounded-md bg-white/15 px-2 py-0.5">
-           小組課：就讀中 {groupActiveCount} 班
+           {enrollmentsState === "ready"
+            ? `專科班：就讀中 ${groupActiveCount} 班`
+            : enrollmentsState === "error"
+              ? "專科班：報讀未能載入"
+              : "專科班：載入中…"}
           </span>
           <span className="rounded-md bg-white/15 px-2 py-0.5">
-           一對一：{privateActiveCount > 0 ? `就讀中 ${privateActiveCount}` : "無"}
+           {enrollmentsState === "ready"
+            ? `私人課程：${privateActiveCount > 0 ? `就讀中 ${privateActiveCount}` : "無"}`
+            : enrollmentsState === "error"
+              ? "私人課程：報讀未能載入"
+              : "私人課程：載入中…"}
           </span>
          </div>
         </>
@@ -1325,7 +1030,7 @@ const exportFutureSchedulesCsv = () => {
        onClick={() => setTab("enrollments")}
       >
        <BookOpen className="h-4 w-4" />
-       {canMutateStudentOps ? "管理小組報讀" : "查看報讀"}
+       {canMutateStudentOps ? "管理專科班報讀" : "查看報讀"}
       </Button>
       <Button
        type="button"
@@ -1336,7 +1041,7 @@ const exportFutureSchedulesCsv = () => {
       >
        <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}`}>
         <UserRound className="h-4 w-4" />
-        {canMutateStudentOps ? "管理一對一" : "查看一對一"}
+        {canMutateStudentOps ? "管理私人課程" : "查看私人課程"}
        </Link>
       </Button>
      </div>
@@ -1387,7 +1092,19 @@ const exportFutureSchedulesCsv = () => {
    </div>
 
    <div className="p-4 md:p-6">
-    {tabLoading && tab !== "basic" ? (
+    {studentState === "error" && student ? (
+     <div className="mb-4 space-y-2" role="alert">
+      <p className="text-sm text-destructive">學生資料未能載入。</p>
+      <button
+       type="button"
+       className="text-sm font-medium text-primary hover:underline"
+       onClick={() => void loadAll()}
+      >
+       重試
+      </button>
+     </div>
+    ) : null}
+    {tabLoading && tab !== "basic" && tab !== "futureSchedules" && tab !== "attendance" && tab !== "leave" && tab !== "history" ? (
      <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">
       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
       載入此分頁…
@@ -1430,13 +1147,13 @@ const exportFutureSchedulesCsv = () => {
           onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
-        <Field label="客戶身份（注冊）">
+        <Field label="客戶身份（註冊）">
          <StatusToggle
           checked={normalizeRegistrationStatus(form.registration_status) === "已註冊"}
           onCheckedChange={(on) =>
            setForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
           }
-          offLabel="非注冊（試堂／查詢）"
+          offLabel="非註冊（試堂／查詢）"
           onLabel="已註冊"
          />
         </Field>
@@ -1710,7 +1427,16 @@ const exportFutureSchedulesCsv = () => {
         </DialogContent>
        </Dialog>
 
-       {relatives.length === 0 ? (
+       {relativesState === "error" ? (
+        <div className="space-y-2" role="alert">
+         <p className="text-sm text-destructive">親友資料未能載入。</p>
+         <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void reloadCore()}>
+          重試
+         </button>
+        </div>
+       ) : relativesState !== "ready" ? (
+        <p className="text-sm text-muted-foreground">載入中…</p>
+       ) : relatives.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未新增親友。</p>
        ) : (
         <ul className="space-y-3">
@@ -1814,7 +1540,19 @@ const exportFutureSchedulesCsv = () => {
 
     {tab === "enrollments" ? (
      <div className="mx-auto max-w-3xl space-y-4">
-      {canViewMoney && misalignedCount > 0 ? (
+      {lessonBalancesState === "error" ? (
+       <div className="space-y-2" role="alert">
+        <p className="text-sm text-destructive">堂數核對未能載入。</p>
+        <button
+         type="button"
+         className="text-sm font-medium text-primary hover:underline"
+         onClick={() => void ensureTabData("enrollments", true)}
+        >
+         重試
+        </button>
+       </div>
+      ) : null}
+      {canViewMoney && enrollmentsState === "ready" && misalignedCount > 0 ? (
        <div
         role="status"
         className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
@@ -1823,7 +1561,7 @@ const exportFutureSchedulesCsv = () => {
         個班別的繳費堂數與排程／待補不一致、仍有待補堂，或請假尚無補堂日，請跟進。
        </div>
       ) : null}
-      {!canViewMoney && teacherFollowUpCount > 0 ? (
+      {!canViewMoney && enrollmentsState === "ready" && teacherFollowUpCount > 0 ? (
        <div
         role="status"
         className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
@@ -1835,7 +1573,7 @@ const exportFutureSchedulesCsv = () => {
         </span>
        </div>
       ) : null}
-      {canMutateStudentOps ? (
+      {canMutateStudentOps && enrollmentsState === "ready" ? (
       <>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
        <Select
@@ -1869,10 +1607,17 @@ const exportFutureSchedulesCsv = () => {
          {(isSummerPick
           ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
              value: p,
-             label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+             label:
+              p === SINGLE_SESSION_ENROLLMENT
+               ? "單堂／自選堂數"
+               : p === "第一期"
+                 ? "暑期第一期"
+                 : p === "第二期"
+                   ? "暑期第二期"
+                   : "暑期兩期全報",
             }))
           : [
-             { value: "full", label: "報足全期" },
+             { value: "full", label: "報讀" },
              { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
             ]
          ).map((o) => (
@@ -1932,7 +1677,20 @@ const exportFutureSchedulesCsv = () => {
       </>
       ) : null}
       <div className="space-y-3">
-       {activeEnrollments.length === 0 ? (
+       {enrollmentsState === "error" ? (
+        <div className="space-y-2" role="alert">
+         <p className="text-sm text-destructive">報讀資料未能載入。</p>
+         <button
+          type="button"
+          className="text-sm font-medium text-primary hover:underline"
+          onClick={() => void ensureTabData("enrollments", true)}
+         >
+          重試
+         </button>
+        </div>
+       ) : enrollmentsState !== "ready" ? (
+        <p className="text-sm text-muted-foreground">載入中…</p>
+       ) : activeEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
         activeEnrollments.map((e) => {
@@ -2033,7 +1791,7 @@ const exportFutureSchedulesCsv = () => {
            </Tag>
           )}
           </div>
-          {bal ? (
+          {lessonBalancesState === "ready" && bal ? (
            <div
             className={cn(
              "rounded-md border px-3 py-2 text-xs",
@@ -2177,7 +1935,7 @@ const exportFutureSchedulesCsv = () => {
        )}
       </div>
 
-      {withdrawnEnrollments.length > 0 ? (
+      {enrollmentsState === "ready" && withdrawnEnrollments.length > 0 ? (
        <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
         <p className="text-sm font-medium text-muted-foreground">
          {canMutateStudentOps ? "已退讀（可重新報讀；手誤才用清除）" : "已退讀"}
@@ -2249,7 +2007,7 @@ const exportFutureSchedulesCsv = () => {
           </div>
           <p className="text-muted-foreground">
            目前：{editFormTarget.enrollmentFormLabel}
-           。可改為更多單堂、期數或全期報讀，無需先退讀。
+           。可改為單堂；暑期班亦可更改報讀期數，無需先退讀。
           </p>
           <Field label="報讀形式">
            <Select
@@ -2263,10 +2021,17 @@ const exportFutureSchedulesCsv = () => {
             {(editFormTarget.courseMode === "summer_two_period"
              ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
                 value: p,
-                label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+                label:
+                 p === SINGLE_SESSION_ENROLLMENT
+                  ? "單堂／自選堂數"
+                  : p === "第一期"
+                    ? "暑期第一期"
+                    : p === "第二期"
+                      ? "暑期第二期"
+                      : "暑期兩期全報",
                }))
              : [
-                { value: "full", label: "報足全期" },
+                { value: "full", label: "報讀" },
                 { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
                ]
             ).map((o) => (
@@ -2470,8 +2235,10 @@ const exportFutureSchedulesCsv = () => {
       <div className="flex flex-wrap items-center justify-between gap-2">
        <div className="space-y-1 text-sm text-muted-foreground">
         <p>
-         共 {payments.length} 筆繳費紀錄
-         {totalPaidLessons != null ? (
+         {paymentsState === "error"
+          ? "繳費紀錄"
+          : `共 ${payments.length} 筆繳費紀錄`}
+         {paymentsState === "ready" && totalPaidLessons != null ? (
           <span className="text-foreground">
            {" "}
            · 已收款<strong className="mx-1 text-warning tabular-nums">{totalPaidLessons}</strong>總繳堂數
@@ -2490,7 +2257,20 @@ const exportFutureSchedulesCsv = () => {
        )}
       </div>
       <div className="space-y-3">
-       {payments.length === 0 ? (
+       {paymentsState === "error" ? (
+        <div className="space-y-2" role="alert">
+         <p className="text-sm text-destructive">繳費資料未能載入。</p>
+         <button
+          type="button"
+          className="text-sm font-medium text-primary hover:underline"
+          onClick={() => void ensureTabData("payments", true)}
+         >
+          重試
+         </button>
+        </div>
+       ) : paymentsState !== "ready" ? (
+        <p className="text-sm text-muted-foreground">載入中…</p>
+       ) : payments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚無繳費紀錄。</p>
        ) : (
         payments.map((p) => (
@@ -2566,491 +2346,34 @@ const exportFutureSchedulesCsv = () => {
      </div>
     ) : null}
 
-    {tab === "attendance" ? (
-     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="grid grid-cols-3 gap-2 md:gap-3">
-       <div className="rounded-xl border border-success/30 bg-success/10 p-2.5 text-center md:p-4">
-        <div className="text-xl font-bold text-success md:text-2xl">{attStats.present}</div>
-        <div className="text-[11px] text-success/90 md:text-xs">總上堂</div>
-       </div>
-       <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-2.5 text-center md:p-4">
-        <div className="text-xl font-bold text-destructive md:text-2xl">{attStats.absent}</div>
-        <div className="text-[11px] text-destructive/90 md:text-xs">總缺席</div>
-       </div>
-       <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-center md:p-4">
-        <div className="text-xl font-bold text-amber-800 md:text-2xl">{attStats.makeup}</div>
-        <div className="text-[11px] text-amber-900/90 md:text-xs">待補堂</div>
-       </div>
-      </div>
-      <p className="hidden text-xs text-muted-foreground md:block">
-       上方數字為<strong className="text-foreground">全部</strong>紀錄統計；下方列表可依條件篩選與排序。
-       {canDeleteAttendance
-        ? " 管理員／外星人可刪單筆出席（須確認；計費列會影響已上堂數）。"
-        : null}
-      </p>
-      {attendance.length === 0 ? (
-       <p className="py-8 text-center text-sm text-muted-foreground">尚無出勤紀錄</p>
-      ) : (
-       <>
-        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
-         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
-          <span>班別</span>
-          <Select
-           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[10rem]"
-           value={attClassFilter}
-           onChange={(e) => setAttClassFilter(e.target.value)}
-          >
-           <option value="all">全部班別</option>
-           {attendanceClassOptions.map(([cid, label]) => (
-            <option key={cid} value={cid}>
-             {label}
-            </option>
-           ))}
-          </Select>
-         </label>
-         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
-          <span>狀態</span>
-          <Select
-           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[8rem]"
-           value={attStatusFilter}
-           onChange={(e) =>
-            setAttStatusFilter(e.target.value as "all" | "present" | "absent" | "other")
-           }
-          >
-           <option value="all">全部</option>
-           <option value="present">出席類</option>
-           <option value="absent">缺席類</option>
-           <option value="other">其他</option>
-          </Select>
-         </label>
-         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
-          <span>上課日起</span>
-          <Input
-           type="date"
-           value={attDateFrom}
-           onChange={(e) => setAttDateFrom(e.target.value)}
-           className="h-9 w-full sm:w-[11rem]"
-          />
-         </label>
-         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
-          <span>上課日迄</span>
-          <Input
-           type="date"
-           value={attDateTo}
-           onChange={(e) => setAttDateTo(e.target.value)}
-           className="h-9 w-full sm:w-[11rem]"
-          />
-         </label>
-         <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
-          <span>排序</span>
-          <Select
-           className="h-9 w-full min-w-0 rounded-md border border-input bg-background px-2 text-sm sm:min-w-[11rem]"
-           value={attSort}
-           onChange={(e) => setAttSort(e.target.value as typeof attSort)}
-          >
-           <option value="dateDesc">上課日（新→舊）</option>
-           <option value="dateAsc">上課日（舊→新）</option>
-           <option value="classAsc">班別名稱（A→Z）</option>
-           <option value="classDesc">班別名稱（Z→A）</option>
-           <option value="statusAsc">狀態（筆畫序）</option>
-          </Select>
-         </label>
-         <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9"
-          onClick={() => {
-           setAttClassFilter("all")
-           setAttStatusFilter("all")
-           setAttDateFrom("")
-           setAttDateTo("")
-           setAttSort("dateDesc")
-          }}
-         >
-          重設篩選
-         </Button>
-        </div>
-        <p className="text-sm text-muted-foreground">
-         篩選結果：<strong className="text-foreground">{filteredSortedAttendance.length}</strong> 筆
-         （共 {attendance.length} 筆）
-        </p>
-        {filteredSortedAttendance.length === 0 ? (
-         <p className="py-8 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
-        ) : (
-         <div className="overflow-hidden rounded-xl border border-border bg-card">
-          <div
-           className={cn(
-            "hidden gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid",
-            canDeleteAttendance
-             ? "grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-             : "grid-cols-[minmax(0,1fr)_auto_auto]"
-           )}
-          >
-           <span>班別</span>
-           <span className="text-right">日期</span>
-           <span className="text-right">狀態</span>
-           {canDeleteAttendance ? <span className="text-right">操作</span> : null}
-          </div>
-          <ul className="divide-y divide-border">
-          {filteredSortedAttendance.map((a) => (
-           <li
-            key={a.id}
-            className={cn(
-             "grid items-center gap-x-3 gap-y-1 px-4 py-3 text-sm",
-             canDeleteAttendance
-              ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-              : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-            )}
-           >
-            <span className="min-w-0 truncate font-medium">
-             {a.classId ? (
-              <Link to={`/Classes/${a.classId}`} className="block truncate text-primary hover:underline">
-               {a.classLabel}
-              </Link>
-             ) : (
-              a.classLabel
-             )}
-            </span>
-            <span className="text-right tabular-nums text-muted-foreground">{a.attendance_date}</span>
-            <span className="col-span-2 text-right text-xs text-muted-foreground sm:col-span-1">
-             {a.status}
-            </span>
-            {canDeleteAttendance ? (
-             <span className="col-span-2 text-right sm:col-span-1">
-              <button
-               type="button"
-               className="text-xs font-medium text-destructive hover:underline"
-               onClick={() => void deleteAttendanceRow(a)}
-              >
-               刪除
-              </button>
-             </span>
-            ) : null}
-           </li>
-          ))}
-          </ul>
-         </div>
-        )}
-       </>
-      )}
-     </div>
-    ) : null}
+    <StudentAttendanceTab
+     studentId={sid}
+     studentName={student?.full_name ?? ""}
+     active={tab === "attendance"}
+     reloadToken={islandReloadToken}
+     canDeleteAttendance={canDeleteAttendance}
+     onChanged={reloadSubs}
+    />
+    <StudentLeaveTab
+     studentId={sid}
+     active={tab === "leave"}
+     reloadToken={islandReloadToken}
+     canMutateLeave={canMutateLeave}
+     canOpenLeaveManagement={canOpenLeaveManagement}
+     onChanged={reloadSubs}
+    />
 
-    {tab === "leave" ? (
-     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-       <p className="text-sm text-muted-foreground">
-        共 {leaves.length} 筆請假記錄 · 待補{" "}
-        {leaves.filter((x) => x.status.includes("待")).length} 堂。
-        {canOpenLeaveManagement ? (
-         <span className="hidden sm:inline"> 點一筆可開啟請假管理並定位該紀錄。</span>
-        ) : (
-         <span className="mt-1 block text-xs text-muted-foreground sm:mt-0 sm:ml-1 sm:inline">
-          補堂安排請交行政處理。
-         </span>
-        )}
-       </p>
-       {canMutateLeave ? (
-        <Button type="button" variant="secondary" size="sm" onClick={() => void openLeaveDialog()}>
-         <Plus className="h-4 w-4" />
-         新增請假
-        </Button>
-       ) : null}
-      </div>
-
-      {canMutateLeave ? (
-      <Dialog open={leaveDialogOpen} onOpenChange={setLeaveDialogOpen}>
-       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
-        <DialogHeader>
-         <DialogTitle>新增請假</DialogTitle>
-        </DialogHeader>
-        <div className="grid gap-3 text-sm">
-         <Field label="班別（就讀中）">
-          <Select
-           className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-           value={leaveClassId}
-           onChange={(e) => setLeaveClassId(e.target.value)}
-           disabled={leaveClasses.length === 0}
-          >
-           {leaveClasses.length === 0 ? (
-            <option value="">尚無就讀中班別</option>
-           ) : (
-            [
-             <option key="__placeholder_class__" value="">
-              請選擇班別
-             </option>,
-             ...leaveClasses.map((c) => (
-              <option key={c.id} value={c.id}>
-               {c.subject}
-               {c.course_code_full ? `（${c.course_code_full}）` : ""}
-              </option>
-             )),
-            ]
-           )}
-          </Select>
-         </Field>
-         <Field label="請假排程（今日起、未取消／完成）">
-          <Select
-           className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-           value={leaveScheduleId}
-           onChange={(e) => {
-            setLeaveScheduleId(e.target.value)
-            setLeaveConsecutiveScope("this_slot")
-           }}
-           disabled={!leaveClassId || leaveScheduleOptions.length === 0}
-          >
-           {!leaveClassId ? (
-            <option value="">請先選擇班別</option>
-           ) : leaveScheduleOptions.length === 0 ? (
-            <option value="">此班尚無符合條件之排程</option>
-           ) : (
-            [
-             <option key="__placeholder_schedule__" value="">
-              請選擇堂次
-             </option>,
-             ...leaveScheduleOptions.map((s) => (
-              <option key={s.id} value={s.id}>
-               {formatLeaveScheduleOptionLabel(s)}
-              </option>
-             )),
-            ]
-           )}
-          </Select>
-         </Field>
-         {leaveScheduleOptions.find((s) => s.id === leaveScheduleId)?.consecutive_group_id ? (
-          <Field label="連堂請假範圍">
-           <Select
-            className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-            value={leaveConsecutiveScope}
-            onChange={(e) => setLeaveConsecutiveScope(e.target.value as ConsecutiveLeaveScope)}
-           >
-            <option value="this_slot">只請本節（欠 1 堂；預設）</option>
-            <option value="all">連堂兩節一併請假（欠最多 2 堂）</option>
-           </Select>
-           {leaveConsecutiveScope === "all" ? (
-            <p className="text-xs text-warning">將欠補 2 堂；若只欠一節請改回「只請本節」。</p>
-           ) : (
-            <p className="text-xs text-muted-foreground">只欠一節時請維持此選項；兩節都欠才改「兩節一併」。</p>
-           )}
-          </Field>
-         ) : null}
-         <Field label="原因">
-          <Select
-           className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-           value={leaveReasonPick}
-           onChange={(e) =>
-            setLeaveReasonPick(e.target.value as (typeof LEAVE_REASON_OPTIONS)[number])
-           }
-          >
-           {LEAVE_REASON_OPTIONS.map((o) => (
-            <option key={o} value={o}>
-             {o}
-            </option>
-           ))}
-          </Select>
-         </Field>
-         <Field label="補課安排">
-          <Select
-           className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-           value={leaveMakeup}
-           onChange={(e) => {
-            const v = e.target.value as (typeof LEAVE_MAKEUP_OPTIONS)[number]
-            setLeaveMakeup(v)
-            if (v !== "調堂") setLeaveMakeupScheduleId("")
-           }}
-          >
-           {LEAVE_MAKEUP_OPTIONS.map((o) => (
-            <option key={o} value={o}>
-             {o}
-            </option>
-           ))}
-          </Select>
-         </Field>
-         {leaveMakeup === "調堂" ? (
-          <div className="space-y-2 rounded-lg border border-info bg-info/40 p-3">
-           <p className="text-xs font-medium text-info">
-            補堂排程（未來一個月內、可跨班；連堂請選正確那一節，只計 1 堂）
-           </p>
-           <Input
-            placeholder="搜尋科目、代碼、老師、日期…"
-            value={leaveMakeupSearch}
-            onChange={(e) => setLeaveMakeupSearch(e.target.value)}
-            className="h-9"
-           />
-           <Select
-            className="h-9 w-full rounded-md border border-input bg-background px-2 text-xs"
-            value={leaveMakeupScheduleId}
-            onChange={(e) => setLeaveMakeupScheduleId(e.target.value)}
-           >
-            <option value="">請選擇補堂排程</option>
-            {leaveMakeupFiltered.map((s) => (
-             <option key={s.id} value={s.id}>
-              {formatMakeupCandidateLabel(s)}
-             </option>
-            ))}
-           </Select>
-          </div>
-         ) : null}
-         <Field label="備註（選填）">
-          <Input value={leaveRemarks} onChange={(e) => setLeaveRemarks(e.target.value)} className="h-9" />
-         </Field>
-         {leaveErr ? <p className="text-sm text-destructive">{leaveErr}</p> : null}
-         <div className="flex justify-end gap-2 pt-2">
-          <Button
-           type="button"
-           variant="outline"
-           disabled={leaveSaving}
-           onClick={() => setLeaveDialogOpen(false)}
-          >
-           取消
-          </Button>
-          <Button type="button" disabled={leaveSaving} onClick={() => void submitStudentLeave()}>
-           {leaveSaving ? "儲存中…" : "儲存"}
-          </Button>
-         </div>
-        </div>
-       </DialogContent>
-      </Dialog>
-      ) : null}
-
-      {leaves.length === 0 ? (
-       <p className="py-8 text-center text-sm text-muted-foreground">尚無請假記錄</p>
-      ) : (
-       <ul className="space-y-2">
-        {leaves.map((x) => (
-         <li key={x.id}>
-          {canOpenLeaveManagement ? (
-           <Link
-            to={`/LeaveManagement?${new URLSearchParams({ studentId: sid, record: x.id }).toString()}`}
-            className="block rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/40"
-           >
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-             <span className="font-medium text-primary">{x.classLabel}</span>
-             <span className="text-xs text-muted-foreground">請假管理 →</span>
-            </div>
-            <div className="mt-1 text-muted-foreground">
-             {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
-            </div>
-           </Link>
-          ) : (
-           <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-             <span className="font-medium">{x.classLabel}</span>
-            </div>
-            <div className="mt-1 text-muted-foreground">
-             {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
-            </div>
-           </div>
-          )}
-         </li>
-        ))}
-       </ul>
-      )}
-     </div>
-    ) : null}
-
-    {tab === "futureSchedules" ? (
-     <div className="mx-auto max-w-3xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-       <p className="text-sm text-muted-foreground">
-        顯示就讀中班別的未來未完成排程，以及已指定的調堂補堂（可跨班），共{" "}
-        {futureSchedules.length} 筆。
-       </p>
-       <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={exportFutureSchedulesCsv}
-        disabled={futureSchedules.length === 0}
-       >
-        匯出 CSV
-       </Button>
-      </div>
-      {futureSchedules.length === 0 ? (
-       <p className="py-8 text-center text-sm text-muted-foreground">尚無未來排程</p>
-      ) : (
-       <div className="space-y-2">
-        {futureSchedules.map((row) => {
-         const hints = futureScheduleHints.get(row.id)
-         return (
-          <ScheduleListCard
-           key={row.id}
-           sessionNumber={row.session_number}
-           scheduledDate={row.scheduled_date}
-           startTime={row.start_time}
-           endTime={row.end_time}
-           attendingNames={hints?.attendingNames}
-           leaveNames={hints?.leaveNames}
-           namesLoading={hintsLoading}
-           subtitle={
-            <span className="inline-flex flex-wrap items-center gap-2">
-             <Link to={`/Classes/${row.class_id}`} className="text-primary hover:underline">
-              {row.subject}
-              {row.course_code_full ? `（${row.course_code_full}）` : ""}
-             </Link>
-             {row.source === "makeup" ? (
-              <Tag tone={statusToTagTone("補堂")} size="sm">
-               補堂
-              </Tag>
-             ) : null}
-            </span>
-           }
-           controls={
-            <div className="text-right text-sm text-muted-foreground">
-             <div>{row.teacher_name ?? "—"}</div>
-             <div>{row.status || "—"}</div>
-            </div>
-           }
-          />
-         )
-        })}
-       </div>
-      )}
-     </div>
-    ) : null}
-
-    {tab === "history" ? (
-     <div className="mx-auto max-w-3xl space-y-4">
-      <p className="text-sm text-muted-foreground">顯示所有涉及此學生的變動紀錄。</p>
-      <ul className="space-y-3">
-       {history.length === 0 ? (
-        <p className="text-sm text-muted-foreground">尚無紀錄。</p>
-       ) : (
-        history.map((h) => (
-         <li
-          key={h.id}
-          className={cn(
-           "rounded-xl border px-4 py-3 text-sm shadow-sm",
-           h.tone === "green" && "border-success/50 bg-success/10",
-           h.tone === "blue" && "border-info/50 bg-info/10",
-           h.tone === "amber" && "border-warning/50 bg-warning/10",
-           h.tone === "muted" && "border-border bg-muted/30"
-          )}
-         >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-           <div
-            className={cn(
-             "font-medium",
-             h.tone === "green" && "text-success",
-             h.tone === "blue" && "text-info",
-             h.tone === "amber" && "text-warning",
-             h.tone === "muted" && "text-foreground"
-            )}
-           >
-            {h.title}
-           </div>
-           <div className="text-xs text-neutral-700">{h.date}</div>
-          </div>
-          {h.subtitle ? (
-           <div className="mt-1 text-xs text-neutral-700">{h.subtitle}</div>
-          ) : null}
-         </li>
-        ))
-       )}
-      </ul>
-     </div>
-    ) : null}
+    <StudentFutureSchedulesTab
+     studentId={sid}
+     active={tab === "futureSchedules"}
+     reloadToken={islandReloadToken}
+    />
+    <StudentHistoryTab
+     studentId={sid}
+     active={tab === "history"}
+     reloadToken={islandReloadToken}
+     includePayments={canViewMoney}
+    />
    </div>
   </div>
 
@@ -3097,9 +2420,9 @@ const exportFutureSchedulesCsv = () => {
        setTab("enrollments")
       }}
      >
-      <span className="font-medium">小組課</span>
+      <span className="font-medium">專科班</span>
       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-       在本頁「報讀班別」新增小組班別
+       在本頁「報讀班別」新增專科班
       </span>
      </Button>
      <Button
@@ -3112,9 +2435,9 @@ const exportFutureSchedulesCsv = () => {
        to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}&create=1`}
        onClick={() => setEnrollKindOpen(false)}
       >
-       <span className="font-medium">一對一／一對二</span>
+       <span className="font-medium">私人課程（一對一／一對二）</span>
        <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-        前往一對一學生頁新增報讀
+        前往私人課程頁新增報讀
        </span>
       </Link>
      </Button>

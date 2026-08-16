@@ -366,7 +366,7 @@ export async function createMonthlyTuitionPayment(input: {
 }): Promise<string> {
  void input
  throw new Error(
-  "月費獨立收款路徑已退役。請改用「收款登記」：按班填堂數（建議＝本月排程−池餘），確認收款後會抬權益池。"
+  "月費獨立收款路徑已退役。請改用「收款登記」：按班填堂數（建議＝本月排程−剩餘已繳堂數），確認收款後會增加已繳堂數。"
  )
 }
 

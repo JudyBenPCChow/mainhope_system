@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { getAuthSession } from "@/lib/supabaseAuth"
 import {
   changeOwnPassword,
   getMustChangePasswordFlag,
@@ -22,10 +23,10 @@ export function SettingsView() {
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return
+    if (!isSupabaseConfigured) return
     void (async () => {
-      const { data } = await supabase.auth.getSession()
-      setEmail(data.session?.user?.email?.trim().toLowerCase() ?? "")
+      const { session } = await getAuthSession()
+      setEmail(session?.user?.email?.trim().toLowerCase() ?? "")
       setMustChange(await getMustChangePasswordFlag())
     })()
   }, [])

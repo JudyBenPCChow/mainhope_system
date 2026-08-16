@@ -2,8 +2,8 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { assertAcademicYearEditable, assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { supabase } from "@/lib/supabaseClient"
 import { weekdayLabelFromYmd } from "@/lib/weekdayUtils"
-import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
-import { KANBAN_DAY_COLUMNS } from "@/components/classes/classesUi"
+import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
+import { KANBAN_DAY_COLUMNS } from "@/lib/weekdayUtils"
 import {
  LESSON_SLOT_INDICES,
  lessonSlotLabel,

@@ -1032,8 +1032,8 @@ export async function voidPaymentRecord(input: {
     ok: false,
     message:
      e instanceof Error
-      ? `單據已作廢，但權益池收回失敗：${e.message}`
-      : "單據已作廢，但權益池收回失敗。",
+      ? `單據已作廢，但已繳堂數收回失敗：${e.message}`
+      : "單據已作廢，但已繳堂數收回失敗。",
    }
   }
  }

@@ -218,7 +218,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
          <span className="tabular-nums">{month}</span>
          <span className={count.selected === 4 ? "text-success" : "font-medium text-warning"}>
           已選 {count.selected} 堂
-          {count.closures > 0 ? ` · 停課 ${count.closures}` : ""}
+          {count.closures > 0 ? ` · 校舍假期 ${count.closures}` : ""}
          </span>
         </li>
        ))}
@@ -245,7 +245,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
         </label>
         {c.isClosure ? (
          <Tag tone="warning" size="sm">
-          校曆停課{c.closureName ? `：${c.closureName}` : ""}
+          校舍假期{c.closureName ? `：${c.closureName}` : ""}
          </Tag>
         ) : c.hasAvailability ? (
          <Tag tone="success" size="sm">

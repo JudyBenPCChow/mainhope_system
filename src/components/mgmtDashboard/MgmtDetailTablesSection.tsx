@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Search } from "lucide-react"
 
-import type { DrilldownFocus, MgmtDashboardPayload } from "@/components/mgmtDashboard/types"
+import type { DrilldownFocus, MgmtDashboardPayload, NearFullClassRow } from "@/components/mgmtDashboard/types"
+import { isLoadOk } from "@/components/mgmtDashboard/types"
+import { MgmtGroupLoadError } from "@/components/mgmtDashboard/MgmtGroupLoadError"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tag } from "@/components/ui/tag"
@@ -107,7 +109,8 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
  const q = query.trim().toLowerCase()
 
  const unpaidRows = useMemo(() => {
-  const rows = data.unpaidOverdue.filter(
+  if (!isLoadOk(data.unpaidOverdue)) return []
+  const rows = data.unpaidOverdue.ok.filter(
    (r) =>
     !q ||
     r.studentName.toLowerCase().includes(q) ||
@@ -118,7 +121,8 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
  }, [data.unpaidOverdue, q])
 
  const withdrawRows = useMemo(() => {
-  return data.alerts.recentWithdrawals.filter(
+  if (!isLoadOk(data.alerts.recentWithdrawals)) return []
+  return data.alerts.recentWithdrawals.ok.filter(
    (r) =>
     !q ||
     r.studentName.toLowerCase().includes(q) ||
@@ -145,7 +149,8 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
  }, [data.distribution.bySubject, q])
 
  const lessonRows = useMemo(() => {
-  return data.alerts.lessonGaps.filter(
+  if (!isLoadOk(data.alerts.lessonGaps)) return []
+  return data.alerts.lessonGaps.ok.filter(
    (r) =>
     !q ||
     r.studentName.toLowerCase().includes(q) ||
@@ -213,16 +218,28 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
     <Tabs value={tab} onValueChange={setTab}>
      <TabsList className="flex h-auto flex-wrap gap-1">
-      <TabsTrigger value="unpaid">欠費學生（{unpaidRows.length}）</TabsTrigger>
-      <TabsTrigger value="withdraw">近區間退讀（{withdrawRows.length}）</TabsTrigger>
-      <TabsTrigger value="nearFull">滿班班別（{data.alerts.nearFullClasses.length}）</TabsTrigger>
+      <TabsTrigger value="unpaid">
+       欠費學生（{isLoadOk(data.unpaidOverdue) ? unpaidRows.length : "—"}）
+      </TabsTrigger>
+      <TabsTrigger value="withdraw">
+       近區間退讀（{isLoadOk(data.alerts.recentWithdrawals) ? withdrawRows.length : "—"}）
+      </TabsTrigger>
+      <TabsTrigger value="nearFull">
+       滿班班別（{isLoadOk(data.alerts.nearFullClasses) ? data.alerts.nearFullClasses.ok.length : "—"}）
+      </TabsTrigger>
       <TabsTrigger value="classes">班別健康度（{classRows.length}）</TabsTrigger>
       <TabsTrigger value="teachers">導師負荷（{teacherRows.length}）</TabsTrigger>
       <TabsTrigger value="subjects">科目報讀（{subjectRows.length}）</TabsTrigger>
-      <TabsTrigger value="lessons">堂數異常（{lessonRows.length}）</TabsTrigger>
+      <TabsTrigger value="lessons">
+       堂數異常（{isLoadOk(data.alerts.lessonGaps) ? lessonRows.length : "—"}）
+      </TabsTrigger>
      </TabsList>
 
      <TabsContent value="unpaid" className="mt-4">
+      {!isLoadOk(data.unpaidOverdue) ? (
+       <MgmtGroupLoadError />
+      ) : (
+      <>
       <div className="mb-2 text-right text-sm">
        <Link to="/PaymentHistory" className="text-primary underline-offset-2 hover:underline">
         前往繳費紀錄
@@ -304,9 +321,14 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
         </tbody>
        </table>
       </div>
+      </>
+      )}
      </TabsContent>
 
      <TabsContent value="withdraw" className="mt-4">
+      {!isLoadOk(data.alerts.recentWithdrawals) ? (
+       <MgmtGroupLoadError />
+      ) : (
       <div className="overflow-x-auto">
        <table className="w-full table-fixed text-sm">
         <thead>
@@ -361,10 +383,15 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
         </tbody>
        </table>
       </div>
+      )}
      </TabsContent>
 
      <TabsContent value="nearFull" className="mt-4">
-      <NearFullTable rows={data.alerts.nearFullClasses} query={q} />
+      {isLoadOk(data.alerts.nearFullClasses) ? (
+       <NearFullTable rows={data.alerts.nearFullClasses.ok} query={q} />
+      ) : (
+       <MgmtGroupLoadError />
+      )}
      </TabsContent>
 
      <TabsContent value="classes" className="mt-4">
@@ -555,6 +582,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
      </TabsContent>
 
      <TabsContent value="lessons" className="mt-4">
+      {!isLoadOk(data.alerts.lessonGaps) ? (
+       <MgmtGroupLoadError />
+      ) : (
+      <>
       <div className="mb-2 text-right text-sm">
        <Link
         to="/LessonBalanceMismatch"
@@ -612,6 +643,8 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
         </tbody>
        </table>
       </div>
+      </>
+      )}
      </TabsContent>
     </Tabs>
    </div>
@@ -623,7 +656,7 @@ function NearFullTable({
  rows,
  query,
 }: {
- rows: MgmtDashboardPayload["alerts"]["nearFullClasses"]
+ rows: NearFullClassRow[]
  query: string
 }) {
  const filtered = rows.filter((r) => !query || r.label.toLowerCase().includes(query))

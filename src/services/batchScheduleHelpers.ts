@@ -9,13 +9,10 @@ import {
  lessonSlotStartMinute,
  LESSON_SLOT_INDICES,
 } from "@/lib/lessonSlots"
-import { enumerateDatesForWeekday } from "@/lib/weekdayUtils"
-import { timeSlotSelectValueFromStored, weekdaysFromStored } from "@/components/classes/classesUi"
-import {
- insertScheduleRow,
- nextSessionNumberForClass,
- type ClassRecord,
-} from "@/services/classQueries"
+import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
+import { enumerateDatesForWeekday, weekdaysFromStored } from "@/lib/weekdayUtils"
+import { type ClassRecord } from "@/services/classQueries"
+import { insertScheduleRow, nextSessionNumberForClass } from "@/services/scheduleWriteQueries"
 import { syncDeclarationsAfterSchedulesAdded } from "@/services/entitlementQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"

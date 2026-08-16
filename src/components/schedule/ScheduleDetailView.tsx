@@ -17,14 +17,13 @@ import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
- deleteSchedule,
  EMPTY_SCHEDULE_DETAIL_CONTEXT,
  fetchScheduleDetailContext,
  getScheduleById,
  type ScheduleDetailContext,
  type ScheduleDetailRecord,
- updateSchedule,
-} from "@/services/classQueries"
+} from "@/services/scheduleDetailQueries"
+import { deleteSchedule, updateSchedule } from "@/services/scheduleWriteQueries"
 import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 
 function mentionsRecording(text: string): boolean {
@@ -154,7 +153,7 @@ export function ScheduleDetailView() {
         role="status"
         className="mt-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
        >
-        此排程未指定當日老師。老師時間表／點名紙可能看不到此堂；請先補班別主責或指派／指定該堂老師。
+        此排程未指定實際授課老師。老師時間表／點名紙可能看不到此堂；請先補班別任教老師或指定該堂老師。
        </div>
       ) : null}
       <div className="mt-5 flex flex-wrap gap-3 text-sm md:text-base">

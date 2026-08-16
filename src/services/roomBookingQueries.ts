@@ -9,7 +9,7 @@ import {
  LESSON_FIRST_START_MIN,
  LESSON_SLOT_DURATION_MIN,
 } from "@/lib/lessonSlots"
-import { insertScheduleRow } from "@/services/classQueries"
+import { insertScheduleRow } from "@/services/scheduleWriteQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { formatClassLabel } from "@/lib/courseLabel"
 

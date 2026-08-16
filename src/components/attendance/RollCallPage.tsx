@@ -12,12 +12,13 @@ import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
  fetchSchedulesForRollCallDate,
  localYmd,
 } from "@/services/attendanceQueries"
+import { countPendingMakeupRecords } from "@/services/leaveQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 function parseYmd(raw: string | null): string | null {
@@ -33,7 +34,7 @@ export function RollCallPage() {
  const teacherTid = getTeacherScopeTeacherId()
  const [dateYmd, setDateYmd] = useState(() => urlDate ?? localYmd())
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
- const [pendingMakeup, setPendingMakeup] = useState(0)
+ const [pendingMakeup, setPendingMakeup] = useState<number | null>(null)
  const [loadingList, setLoadingList] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set())
@@ -70,16 +71,10 @@ export function RollCallPage() {
   if (!isSupabaseConfigured) return
   setLoadingList(true)
   setErr(null)
+  setPendingMakeup(null)
   try {
    const list = await fetchSchedulesForRollCallDate(dateYmd)
    setSchedules(list)
-   if (supabase) {
-    const { count, error } = await supabase
-     .from("leave_makeup_records")
-     .select("id", { count: "exact", head: true })
-     .ilike("status", "%待補%")
-    if (!error) setPendingMakeup(count ?? 0)
-   }
    const entries = buildRollCallScheduleEntries(
     list.map((s) => ({
      id: s.id,
@@ -115,6 +110,11 @@ export function RollCallPage() {
    setPanelStats(new Map())
   } finally {
    setLoadingList(false)
+  }
+  try {
+   setPendingMakeup(await countPendingMakeupRecords())
+  } catch {
+   setPendingMakeup(null)
   }
  }, [dateYmd, urlScheduleId])
 
@@ -200,7 +200,7 @@ export function RollCallPage() {
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
       <ClipboardCheck className="h-7 w-7 text-success" aria-hidden />
       進行點名
-      {pendingMakeup > 0 ? (
+      {pendingMakeup != null && pendingMakeup > 0 ? (
        <Tag tone="warning" size="sm">
         {pendingMakeup} 待補課
        </Tag>

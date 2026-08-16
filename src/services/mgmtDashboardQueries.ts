@@ -1,27 +1,36 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { resolveClassGradeLabels } from "@/lib/classGrade"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { classKindLabel } from "@/lib/privateClassKind"
 import {
  normalizeEnrollmentPeriod,
  resolvePriceForEnrollment,
  type CoursePriceFields,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import {
+ assembleDashboardPayload,
+ asOk,
+ EMPTY_WITHDRAWAL_ANALYSIS,
+ exportMgmtDashboardCsv,
+ mergeMgmtDashboardPayload,
+} from "@/lib/mgmtDashboardAssemble"
 import { buildMgmtDashboardMock } from "@/lib/mgmtDashboardMock"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 import type {
- FunnelStage,
- KpiCardModel,
- KpiStatus,
+ AttendanceVisitBreakdown,
+ LoadResult,
  MgmtDashboardFilters,
  MgmtDashboardPayload,
  NearFullClassRow,
- OpsAlertItem,
+ RecentWithdrawalRow,
  UnpaidAlertRow,
  UnpaidOverdueRow,
  WithdrawalAnalysis,
-} from "@/components/mgmtDashboard/types"
+} from "@/lib/mgmtDashboardTypes"
+import { isLoadOk } from "@/lib/mgmtDashboardTypes"
 import {
  fetchEnrollmentReport,
  fetchOverallStudentAnalysis,
@@ -32,6 +41,8 @@ import {
  fetchMisalignedLessonBalances,
  isLessonBalanceNeedsFollowUp,
 } from "@/services/pendingLessonQueries"
+
+export type { AttendanceVisitBreakdown } from "@/lib/mgmtDashboardTypes"
 
 function localYmd(d = new Date()): string {
  const y = d.getFullYear()
@@ -68,11 +79,6 @@ export function previousPeriod(filters: Pick<MgmtDashboardFilters, "dateFrom" | 
  return { dateFrom, dateTo }
 }
 
-function deltaPct(current: number, previous: number): number | null {
- if (previous === 0) return current === 0 ? 0 : null
- return Math.round(((current - previous) / previous) * 1000) / 10
-}
-
 function monthLabel(ym: string): string {
  const [, m] = ym.split("-")
  return `${Number(m)}月`
@@ -86,8 +92,16 @@ function asRecord(v: unknown): Record<string, unknown> | null {
  return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
 }
 
+async function settle<T>(p: Promise<T>): Promise<LoadResult<T>> {
+ try {
+  return { ok: await p }
+ } catch (e) {
+  return { error: formatUnknownError(e) }
+ }
+}
+
 async function sumPaidAmount(from: string, to: string): Promise<number> {
- if (!supabase) return 0
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase
   .from("payments")
   .select("total_amount")
@@ -104,7 +118,7 @@ async function sumPaidAmount(from: string, to: string): Promise<number> {
 }
 
 async function sumUnpaidAmount(): Promise<{ amount: number; count: number }> {
- if (!supabase) return { amount: 0, count: 0 }
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase
   .from("payments")
   .select("total_amount")
@@ -124,7 +138,7 @@ async function countEnrollmentEvents(
  to: string,
  opts: { classKind: ClassKindFilter; teacherIds: string[] }
 ): Promise<number> {
- if (!supabase) return 0
+ if (!supabase) throw new Error("尚未設定 Supabase")
  let q = supabase
   .from("enrollment_change_events")
   .select("id, class_id, classes!inner ( class_kind, teacher_id )", { count: "exact", head: true })
@@ -140,40 +154,31 @@ async function countEnrollmentEvents(
  }
 
  const { count, error } = await q
- if (error) {
-  console.warn("[countEnrollmentEvents]", error.message)
-  return 0
- }
+ if (error) throw error
  return count ?? 0
 }
 
 async function countTrials(from: string, to: string): Promise<number> {
- if (!supabase) return 0
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { count, error } = await supabase
   .from("trial_sessions")
   .select("id", { count: "exact", head: true })
   .gte("trial_date", from)
   .lte("trial_date", to)
- if (error) {
-  console.warn("[countTrials]", error.message)
-  return 0
- }
+ if (error) throw error
  return count ?? 0
 }
 
 /** 期間試堂 cohort 中已轉化筆數（outcome=converted 或有 converted_enrollment_id） */
 async function countConvertedTrials(from: string, to: string): Promise<number> {
- if (!supabase) return 0
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { count, error } = await supabase
   .from("trial_sessions")
   .select("id", { count: "exact", head: true })
   .gte("trial_date", from)
   .lte("trial_date", to)
   .or("outcome.eq.converted,converted_enrollment_id.not.is.null")
- if (error) {
-  console.warn("[countConvertedTrials]", error.message)
-  return 0
- }
+ if (error) throw error
  return count ?? 0
 }
 
@@ -494,7 +499,7 @@ async function fetchRevenueSeries(
  from: string,
  to: string
 ): Promise<{ label: string; amount: number; target: number | null }[]> {
- if (!supabase) return []
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase
   .from("payments")
   .select("payment_date, total_amount")
@@ -540,7 +545,7 @@ async function fetchRevenueSeries(
 }
 
 async function fetchUnpaidAlerts(limit = 30): Promise<UnpaidAlertRow[]> {
- if (!supabase) return []
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase
   .from("payments")
   .select("id, payment_date, total_amount, status, students ( full_name )")
@@ -589,8 +594,7 @@ async function fetchWithdrawalAnalysis(
  to: string,
  opts: { classKind: ClassKindFilter; teacherIds: string[]; classIds: string[] }
 ): Promise<WithdrawalAnalysis> {
- const empty: WithdrawalAnalysis = { bySubject: [], byTeacher: [], byClass: [], byDate: [] }
- if (!supabase) return empty
+ if (!supabase) throw new Error("尚未設定 Supabase")
 
  let q = supabase
   .from("enrollment_change_events")
@@ -613,10 +617,7 @@ async function fetchWithdrawalAnalysis(
  }
 
  const { data, error } = await q
- if (error) {
-  console.warn("[fetchWithdrawalAnalysis]", error.message)
-  return empty
- }
+ if (error) throw error
 
  const bySubject = new Map<string, number>()
  const byTeacher = new Map<string, number>()
@@ -636,7 +637,7 @@ async function fetchWithdrawalAnalysis(
       : "未指定導師"
   const classLabel =
    String(cls?.course_code_full ?? "").trim() ||
-   `${subject}${cls?.class_kind === "private" ? " 一對一" : ""}` ||
+   `${subject}${cls?.class_kind === "private" ? " 私人課程" : ""}` ||
    "未命名班別"
   const dateKey = String(r.effective_date ?? "").slice(5, 10) || "—"
 
@@ -664,8 +665,8 @@ async function fetchRecentWithdrawals(
  from: string,
  to: string,
  limit = 20
-): Promise<MgmtDashboardPayload["alerts"]["recentWithdrawals"]> {
- if (!supabase) return []
+): Promise<RecentWithdrawalRow[]> {
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase
   .from("enrollment_change_events")
   .select(
@@ -676,10 +677,7 @@ async function fetchRecentWithdrawals(
   .lte("effective_date", to)
   .order("effective_date", { ascending: false })
   .limit(limit)
- if (error) {
-  console.warn("[fetchRecentWithdrawals]", error.message)
-  return []
- }
+ if (error) throw error
  return (data ?? []).map((row) => {
   const r = row as Record<string, unknown>
   const st = asRecord(r.students)
@@ -696,101 +694,6 @@ async function fetchRecentWithdrawals(
  })
 }
 
-function buildFunnel(trials: number, converted: number, enrolledStudents: number): FunnelStage[] {
- const trialToEnroll =
-  trials > 0 ? Math.round((converted / trials) * 1000) / 10 : converted > 0 ? null : 0
- return [
-  { stage: "試堂", count: trials, conversionPct: null },
-  { stage: "已轉化", count: converted, conversionPct: trialToEnroll },
-  { stage: "在讀", count: enrolledStudents, conversionPct: null },
- ]
-}
-
-function kpiStatusFromTone(tone: KpiCardModel["tone"], opts?: { invert?: boolean }): KpiStatus {
- if (tone === "destructive") return "警示"
- if (tone === "warning") return "注意"
- if (tone === "success") return opts?.invert ? "注意" : "正常"
- return "正常"
-}
-
-/** 低出席／轉化異常等尚無完整資料來源時的 placeholder 警示 */
-function buildPlaceholderOpsAlerts(input: {
- unpaidCount: number
- unpaidAmount: number
- recentWithdrawCount: number
- nearFullCount: number
- highLoadTeachers: { name: string; enrollmentCount: number }[]
- conversionDeltaPct: number | null
-}): OpsAlertItem[] {
- const items: OpsAlertItem[] = []
- if (input.unpaidCount > 0) {
-  items.push({
-   id: "live-unpaid",
-   category: "unpaid",
-   severity: input.unpaidCount >= 10 ? "警示" : "注意",
-   title: "欠費學生需跟進",
-   detail: `待繳費／待收款 ${input.unpaidCount} 筆，合計 HK$ ${input.unpaidAmount.toLocaleString("en-HK")}`,
-   href: "/PaymentHistory",
-   count: input.unpaidCount,
-  })
- }
- if (input.recentWithdrawCount > 0) {
-  items.push({
-   id: "live-withdraw",
-   category: "withdraw",
-   severity: input.recentWithdrawCount >= 5 ? "警示" : "注意",
-   title: "近區間退讀名單",
-   detail: `篩選區間內退讀 ${input.recentWithdrawCount} 人`,
-   count: input.recentWithdrawCount,
-  })
- }
- if (input.nearFullCount > 0) {
-  items.push({
-   id: "live-near-full",
-   category: "nearFull",
-   severity: "注意",
-   title: "滿班／接近滿班",
-   detail: `有 ${input.nearFullCount} 個班別滿班率 ≥ 90%`,
-   href: "/Classes",
-   count: input.nearFullCount,
-  })
- }
- if (input.highLoadTeachers.length > 0) {
-  const names = input.highLoadTeachers
-   .slice(0, 3)
-   .map((t) => `${t.name}（${t.enrollmentCount}）`)
-   .join("、")
-  items.push({
-   id: "live-teacher-load",
-   category: "teacherLoad",
-   severity: "注意",
-   title: "導師負荷過高",
-   detail: names,
-   count: input.highLoadTeachers.length,
-  })
- }
- if (input.conversionDeltaPct != null && input.conversionDeltaPct <= -5) {
-  items.push({
-   id: "live-conversion",
-   category: "conversionDrop",
-   severity: input.conversionDeltaPct <= -10 ? "警示" : "注意",
-   title: "轉化率異常下降",
-   detail: `試堂→報讀轉化率環比 ${input.conversionDeltaPct}%`,
-   count: 1,
-  })
- }
- // 低出席：尚無穩定出勤彙總 API，預留空位（有資料後由 UI 顯示）
- items.push({
-  id: "live-low-attendance-placeholder",
-  category: "lowAttendance",
-  severity: "注意",
-  title: "低出席班別",
-  detail: "出勤彙總尚未串接；此為預留警示位",
-  count: 0,
- })
- return items
-}
-
 type ClassFillMeta = {
  id: string
  label: string
@@ -800,7 +703,7 @@ type ClassFillMeta = {
 }
 
 async function fetchClassesWithCapacity(filters: MgmtDashboardFilters): Promise<ClassFillMeta[]> {
- if (!supabase) return []
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const pageSize = 1000
  const all: ClassFillMeta[] = []
  for (let from = 0; ; from += pageSize) {
@@ -872,7 +775,7 @@ async function countActiveEnrollmentSeats(opts: {
  teacherIds: string[]
  classIds: string[]
 }): Promise<number> {
- if (!supabase) return 0
+ if (!supabase) throw new Error("尚未設定 Supabase")
  let q = supabase
   .from("student_class_enrollments")
   .select("id, classes!inner ( class_kind, teacher_id )", { count: "exact", head: true })
@@ -889,10 +792,7 @@ async function countActiveEnrollmentSeats(opts: {
  }
 
  const { count, error } = await q
- if (error) {
-  console.warn("[countActiveEnrollmentSeats]", error.message)
-  return 0
- }
+ if (error) throw error
  return count ?? 0
 }
 
@@ -920,26 +820,19 @@ function secondaryBandFromGrades(grades: string[]): "junior" | "senior" | null {
  return null
 }
 
-export type AttendanceVisitBreakdown = {
- total: number
- juniorGroup: number
- seniorGroup: number
- oneToOne: number
-}
-
-/** 篩選區間內上堂總人次，並拆初中小組／高中小組／一對一 */
+/** 篩選區間內上堂總人次，並拆初中專科班／高中專科班／私人課程 */
 async function countAttendanceVisits(
  from: string,
  to: string,
  opts: { classKind: ClassKindFilter; teacherIds: string[]; classIds: string[] }
 ): Promise<AttendanceVisitBreakdown> {
- const empty: AttendanceVisitBreakdown = {
+ if (!supabase) throw new Error("尚未設定 Supabase")
+ const acc: AttendanceVisitBreakdown = {
   total: 0,
   juniorGroup: 0,
   seniorGroup: 0,
   oneToOne: 0,
  }
- if (!supabase) return empty
 
  const pageSize = 1000
  for (let offset = 0; ; offset += pageSize) {
@@ -964,18 +857,15 @@ async function countAttendanceVisits(
   }
 
   const { data, error } = await q
-  if (error) {
-   console.warn("[countAttendanceVisits]", error.message)
-   break
-  }
+  if (error) throw error
   const chunk = (data ?? []) as Record<string, unknown>[]
   for (const row of chunk) {
    if (!isAttendedLessonStatus(String(row.status ?? ""))) continue
-   empty.total += 1
+   acc.total += 1
    const cls = asRecord(row.classes)
    const classKind = String(cls?.class_kind ?? "group")
    if (classKind === "private") {
-    empty.oneToOne += 1
+    acc.oneToOne += 1
     continue
    }
    const course = asRecord(cls?.courses ?? null)
@@ -987,172 +877,12 @@ async function countAttendanceVisits(
     course?.grade_code != null ? String(course.grade_code) : null
    )
    const band = secondaryBandFromGrades(grades)
-   if (band === "junior") empty.juniorGroup += 1
-   else if (band === "senior") empty.seniorGroup += 1
+   if (band === "junior") acc.juniorGroup += 1
+   else if (band === "senior") acc.seniorGroup += 1
   }
   if (chunk.length < pageSize) break
  }
- return empty
-}
-
-function buildKpis(input: {
- revenue: number
- prevRevenue: number
- enroll: number
- prevEnroll: number
- withdraw: number
- prevWithdraw: number
- enrolledStudents: number
- enrollmentSeats: number
- attendanceVisits: AttendanceVisitBreakdown
- prevAttendanceTotal: number
- trials: number
- prevTrials: number
- convertedTrials: number
- prevConvertedTrials: number
- teacherLoadAvg: number | null
- revenueSparkline: number[]
-}): KpiCardModel[] {
- const conversion =
-  input.trials > 0 ? Math.round((input.convertedTrials / input.trials) * 1000) / 10 : null
- const prevConversion =
-  input.prevTrials > 0
-   ? Math.round((input.prevConvertedTrials / input.prevTrials) * 1000) / 10
-   : null
- const conversionDelta =
-  conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
-
- const revenueTone: KpiCardModel["tone"] =
-  input.prevRevenue > 0 && input.revenue < input.prevRevenue * 0.9 ? "warning" : "success"
- const withdrawTone: KpiCardModel["tone"] =
-  input.withdraw >= 5 ? "destructive" : input.withdraw > 0 ? "warning" : "default"
- const conversionTone: KpiCardModel["tone"] =
-  conversion == null
-   ? "default"
-   : conversion < 50
-     ? "destructive"
-     : conversion < 65
-       ? "warning"
-       : "success"
- const loadTone: KpiCardModel["tone"] =
-  input.teacherLoadAvg != null && input.teacherLoadAvg > 39 ? "warning" : "default"
-
- const revenueTargetGap =
-  input.prevRevenue > 0
-   ? Math.round(((input.revenue - input.prevRevenue) / input.prevRevenue) * 1000) / 10
-   : null
-
- return [
-  {
-   id: "revenue",
-   label: "已收款",
-   value: input.revenue,
-   format: "hkd",
-   deltaPct: deltaPct(input.revenue, input.prevRevenue),
-   yoyPct: null,
-   targetGap: revenueTargetGap,
-   targetGapUnit: "percent",
-   status: kpiStatusFromTone(revenueTone),
-   tone: revenueTone,
-   sparkline: input.revenueSparkline,
-   hint: revenueTargetGap == null ? "尚無上期對比目標" : "相對上期目標",
-  },
-  {
-   id: "enroll",
-   label: "新報讀",
-   value: input.enroll,
-   format: "count",
-   deltaPct: deltaPct(input.enroll, input.prevEnroll),
-   yoyPct: null,
-   targetGap: null,
-   targetGapUnit: null,
-   status: "正常",
-   tone: "success",
-  },
-  {
-   id: "withdraw",
-   label: "退讀",
-   value: input.withdraw,
-   format: "count",
-   deltaPct: deltaPct(input.withdraw, input.prevWithdraw),
-   yoyPct: null,
-   targetGap: 3 - input.withdraw,
-   targetGapUnit: "count",
-   status: kpiStatusFromTone(withdrawTone),
-   tone: withdrawTone,
-   hint: "目標 ≤ 3（placeholder）",
-  },
-  {
-   id: "enrolled",
-   label: "在讀學生",
-   value: input.enrolledStudents,
-   format: "count",
-   deltaPct: null,
-   yoyPct: null,
-   targetGap: null,
-   targetGapUnit: null,
-   status: "正常",
-   tone: "default",
-   hint: "全站快照（人數）",
-  },
-  {
-   id: "enrollmentSeats",
-   label: "在讀人次",
-   value: input.enrollmentSeats,
-   format: "count",
-   deltaPct: null,
-   yoyPct: null,
-   targetGap: null,
-   targetGapUnit: null,
-   status: "正常",
-   tone: "default",
-   hint: "報讀科目加總（1 人報 2 科＝2）",
-  },
-  {
-   id: "attendanceVisits",
-   label: "本月上堂總人次",
-   value: input.attendanceVisits.total,
-   format: "count",
-   deltaPct: deltaPct(input.attendanceVisits.total, input.prevAttendanceTotal),
-   yoyPct: null,
-   targetGap: null,
-   targetGapUnit: null,
-   status: "正常",
-   tone: "success",
-   hint: "篩選區間內實際到課人次",
-   breakdown: [
-    { label: "初中小組", value: input.attendanceVisits.juniorGroup },
-    { label: "高中小組", value: input.attendanceVisits.seniorGroup },
-    { label: "一對一", value: input.attendanceVisits.oneToOne },
-   ],
-  },
-  {
-   id: "conversion",
-   label: "報讀轉化率",
-   value: conversion ?? 0,
-   format: "percent",
-   deltaPct: conversionDelta,
-   yoyPct: null,
-   targetGap: conversion != null ? Math.round((conversion - 65) * 10) / 10 : null,
-   targetGapUnit: "percent",
-   status: conversion == null ? "注意" : kpiStatusFromTone(conversionTone),
-   tone: conversion == null ? "warning" : conversionTone,
-   hint: conversion == null ? "無法計算（缺試堂數）" : "試堂 cohort 轉化；目標 65%",
-  },
-  {
-   id: "teacherLoad",
-   label: "導師平均負荷",
-   value: input.teacherLoadAvg ?? 0,
-   format: "count",
-   deltaPct: null,
-   yoyPct: null,
-   targetGap: input.teacherLoadAvg != null ? Math.round((39 - input.teacherLoadAvg) * 10) / 10 : null,
-   targetGapUnit: "count",
-   status: kpiStatusFromTone(loadTone),
-   tone: loadTone,
-   hint: input.teacherLoadAvg == null ? "尚無導師負荷資料" : "平均報讀人次；目標 ≤ 39",
-  },
- ]
+ return acc
 }
 
 export function defaultMgmtDashboardFilters(): MgmtDashboardFilters {
@@ -1169,6 +899,31 @@ export function defaultMgmtDashboardFilters(): MgmtDashboardFilters {
  }
 }
 
+const EMPTY_BUCKETS: MgmtDashboardPayload["distribution"]["statusBuckets"] = {
+ registration: [],
+ enrollment: [],
+ activity: [],
+ academicStage: [],
+}
+
+function emptyDistribution(
+ buckets: MgmtDashboardPayload["distribution"]["statusBuckets"] = EMPTY_BUCKETS
+): MgmtDashboardPayload["distribution"] {
+ return {
+  bySubject: [],
+  byClassKind: [],
+  statusBuckets: buckets,
+  classFill: [],
+  byTeacher: [],
+ }
+}
+
+function nowAsOf(): string {
+ const asOfPad = (n: number) => String(n).padStart(2, "0")
+ const now = new Date()
+ return `${localYmd(now)} ${asOfPad(now.getHours())}:${asOfPad(now.getMinutes())}`
+}
+
 export async function fetchMgmtDashboardSummary(
  filters: MgmtDashboardFilters
 ): Promise<MgmtDashboardPayload> {
@@ -1178,9 +933,6 @@ export async function fetchMgmtDashboardSummary(
 
  const prev = previousPeriod(filters)
  const eventFilter = { classKind: filters.classKind, teacherIds: filters.teacherIds }
- const asOfPad = (n: number) => String(n).padStart(2, "0")
- const now = new Date()
- const asOf = `${localYmd(now)} ${asOfPad(now.getHours())}:${asOfPad(now.getMinutes())}`
  const seatFilter = {
   classKind: filters.classKind,
   teacherIds: filters.teacherIds,
@@ -1205,76 +957,59 @@ export async function fetchMgmtDashboardSummary(
   attendanceVisits,
   prevAttendanceVisits,
  ] = await Promise.all([
-  sumPaidAmount(filters.dateFrom, filters.dateTo),
-  sumPaidAmount(prev.dateFrom, prev.dateTo),
-  sumUnpaidAmount(),
-  countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter),
-  countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter),
-  countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter),
-  countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter),
-  countTrials(filters.dateFrom, filters.dateTo),
-  countTrials(prev.dateFrom, prev.dateTo),
-  countConvertedTrials(filters.dateFrom, filters.dateTo),
-  countConvertedTrials(prev.dateFrom, prev.dateTo),
-  fetchOverallStudentAnalysis(),
-  fetchRevenueSeries(filters.dateFrom, filters.dateTo),
-  countActiveEnrollmentSeats(seatFilter),
-  countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter),
-  countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter),
+  settle(sumPaidAmount(filters.dateFrom, filters.dateTo)),
+  settle(sumPaidAmount(prev.dateFrom, prev.dateTo)),
+  settle(sumUnpaidAmount()),
+  settle(countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter)),
+  settle(countTrials(filters.dateFrom, filters.dateTo)),
+  settle(countTrials(prev.dateFrom, prev.dateTo)),
+  settle(countConvertedTrials(filters.dateFrom, filters.dateTo)),
+  settle(countConvertedTrials(prev.dateFrom, prev.dateTo)),
+  settle(fetchOverallStudentAnalysis()),
+  settle(fetchRevenueSeries(filters.dateFrom, filters.dateTo)),
+  settle(countActiveEnrollmentSeats(seatFilter)),
+  settle(countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter)),
+  settle(countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter)),
  ])
 
- const conversion =
-  trials > 0 ? Math.round((convertedTrials / trials) * 1000) / 10 : null
- const prevConversion =
-  prevTrials > 0 ? Math.round((prevConvertedTrials / prevTrials) * 1000) / 10 : null
- const conversionDeltaPct =
-  conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
+ const enrolledStudents: LoadResult<number> = isLoadOk(overall)
+  ? asOk(overall.ok.enrolledStudents)
+  : { error: overall.error }
+ const buckets = isLoadOk(overall) ? overall.ok.buckets : EMPTY_BUCKETS
 
- const kpis = buildKpis({
+ return assembleDashboardPayload({
+  asOf: nowAsOf(),
   revenue,
   prevRevenue,
+  revenueSeries,
+  unpaid,
   enroll,
   prevEnroll,
   withdraw,
   prevWithdraw,
-  enrolledStudents: overall.enrolledStudents,
-  enrollmentSeats,
-  attendanceVisits,
-  prevAttendanceTotal: prevAttendanceVisits.total,
   trials,
   prevTrials,
   convertedTrials,
   prevConvertedTrials,
-  teacherLoadAvg: null,
-  revenueSparkline: revenueSeries.map((r) => Math.round(r.amount / 1000)),
+  enrolledStudents,
+  enrollmentSeats,
+  attendanceVisits,
+  prevAttendanceTotal: isLoadOk(prevAttendanceVisits)
+   ? asOk(prevAttendanceVisits.ok.total)
+   : { error: prevAttendanceVisits.error },
+  teacherLoadAvg: asOk(null),
+  withdrawalAnalysis: asOk(EMPTY_WITHDRAWAL_ANALYSIS),
+  recentWithdrawals: asOk([]),
+  unpaidAlerts: asOk([]),
+  unpaidOverdue: asOk([]),
+  lessonGaps: asOk([]),
+  nearFullClasses: asOk([]),
+  distribution: emptyDistribution(buckets),
+  includeLowAttendancePlaceholder: false,
  })
-
- const opsAlerts = buildPlaceholderOpsAlerts({
-  unpaidCount: unpaid.count,
-  unpaidAmount: unpaid.amount,
-  recentWithdrawCount: 0,
-  nearFullCount: 0,
-  highLoadTeachers: [],
-  conversionDeltaPct,
- }).filter((a) => !(a.category === "lowAttendance" && a.count === 0))
-
- return {
-  asOf,
-  kpis,
-  revenueSeries,
-  funnel: buildFunnel(trials, convertedTrials, overall.enrolledStudents),
-  withdrawalAnalysis: { bySubject: [], byTeacher: [], byClass: [], byDate: [] },
-  unpaidOverdue: [],
-  opsAlerts,
-  distribution: {
-   bySubject: [],
-   byClassKind: [],
-   statusBuckets: overall.buckets,
-   classFill: [],
-   byTeacher: [],
-  },
-  alerts: { unpaid: [], lessonGaps: [], nearFullClasses: [], recentWithdrawals: [] },
- }
 }
 
 export async function fetchMgmtDashboard(
@@ -1286,10 +1021,6 @@ export async function fetchMgmtDashboard(
 
  const prev = previousPeriod(filters)
  const eventFilter = { classKind: filters.classKind, teacherIds: filters.teacherIds }
- const asOfPad = (n: number) => String(n).padStart(2, "0")
- const now = new Date()
- const asOf = `${localYmd(now)} ${asOfPad(now.getHours())}:${asOfPad(now.getMinutes())}`
-
  const seatFilter = {
   classKind: filters.classKind,
   teacherIds: filters.teacherIds,
@@ -1320,226 +1051,174 @@ export async function fetchMgmtDashboard(
   attendanceVisits,
   prevAttendanceVisits,
  ] = await Promise.all([
-  sumPaidAmount(filters.dateFrom, filters.dateTo),
-  sumPaidAmount(prev.dateFrom, prev.dateTo),
-  sumUnpaidAmount(),
-  countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter),
-  countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter),
-  countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter),
-  countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter),
-  countTrials(filters.dateFrom, filters.dateTo),
-  countTrials(prev.dateFrom, prev.dateTo),
-  countConvertedTrials(filters.dateFrom, filters.dateTo),
-  countConvertedTrials(prev.dateFrom, prev.dateTo),
-  fetchOverallStudentAnalysis(),
-  fetchEnrollmentReport({ academicYearId: "", classKind: filters.classKind }),
-  fetchRevenueSeries(filters.dateFrom, filters.dateTo),
-  fetchUnpaidAlerts(),
-  fetchMisalignedLessonBalances(),
-  fetchClassesWithCapacity(filters),
-  fetchWithdrawalAnalysis(filters.dateFrom, filters.dateTo, seatFilter),
-  fetchRecentWithdrawals(filters.dateFrom, filters.dateTo),
-  countActiveEnrollmentSeats(seatFilter),
-  countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter),
-  countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter),
+  settle(sumPaidAmount(filters.dateFrom, filters.dateTo)),
+  settle(sumPaidAmount(prev.dateFrom, prev.dateTo)),
+  settle(sumUnpaidAmount()),
+  settle(countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter)),
+  settle(countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter)),
+  settle(countTrials(filters.dateFrom, filters.dateTo)),
+  settle(countTrials(prev.dateFrom, prev.dateTo)),
+  settle(countConvertedTrials(filters.dateFrom, filters.dateTo)),
+  settle(countConvertedTrials(prev.dateFrom, prev.dateTo)),
+  settle(fetchOverallStudentAnalysis()),
+  settle(fetchEnrollmentReport({ academicYearId: "", classKind: filters.classKind })),
+  settle(fetchRevenueSeries(filters.dateFrom, filters.dateTo)),
+  settle(fetchUnpaidAlerts()),
+  settle(fetchMisalignedLessonBalances()),
+  settle(fetchClassesWithCapacity(filters)),
+  settle(fetchWithdrawalAnalysis(filters.dateFrom, filters.dateTo, seatFilter)),
+  settle(fetchRecentWithdrawals(filters.dateFrom, filters.dateTo)),
+  settle(countActiveEnrollmentSeats(seatFilter)),
+  settle(countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter)),
+  settle(countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter)),
  ])
 
- const lessonGaps = lessonGapsRaw.filter(isLessonBalanceNeedsFollowUp).slice(0, 40)
- const enrollCounts = await fetchActiveEnrollmentCounts(classesMeta.map((c) => c.id))
+ const enrollCounts = isLoadOk(classesMeta)
+  ? await settle(fetchActiveEnrollmentCounts(classesMeta.ok.map((c) => c.id)))
+  : { error: classesMeta.error }
 
- let classFill = classesMeta
-  .map((c) => {
-   const enrolled = enrollCounts.get(c.id) ?? 0
-   const fillPct =
-    c.capacity != null && c.capacity > 0
-     ? Math.round((enrolled / c.capacity) * 1000) / 10
-     : null
-   return {
-    classId: c.id,
-    label: c.label,
-    enrolled,
-    capacity: c.capacity,
-    fillPct,
-   }
-  })
-  .filter((c) => c.enrolled > 0 || (c.capacity != null && c.capacity > 0))
-  .sort((a, b) => (b.fillPct ?? -1) - (a.fillPct ?? -1))
+ let classFill: MgmtDashboardPayload["distribution"]["classFill"] = []
+ let nearFullClasses: LoadResult<NearFullClassRow[]> = asOk([])
+ if (isLoadOk(classesMeta) && isLoadOk(enrollCounts)) {
+  classFill = classesMeta.ok
+   .map((c) => {
+    const enrolled = enrollCounts.ok.get(c.id) ?? 0
+    const fillPct =
+     c.capacity != null && c.capacity > 0
+      ? Math.round((enrolled / c.capacity) * 1000) / 10
+      : null
+    return {
+     classId: c.id,
+     label: c.label,
+     enrolled,
+     capacity: c.capacity,
+     fillPct,
+    }
+   })
+   .filter((c) => c.enrolled > 0 || (c.capacity != null && c.capacity > 0))
+   .sort((a, b) => (b.fillPct ?? -1) - (a.fillPct ?? -1))
 
- if (filters.classIds.length > 0) {
-  const allow = new Set(filters.classIds)
-  classFill = classFill.filter((c) => allow.has(c.classId))
- }
- classFill = classFill.slice(0, 40)
-
- const nearFullClasses: NearFullClassRow[] = classFill
-  .filter(
-   (c): c is typeof c & { capacity: number; fillPct: number } =>
-    c.capacity != null && c.capacity > 0 && c.fillPct != null && c.fillPct >= 90
-  )
-  .map((c) => ({
-   classId: c.classId,
-   label: c.label,
-   enrolled: c.enrolled,
-   capacity: c.capacity,
-   fillPct: c.fillPct,
-  }))
-  .slice(0, 20)
-
- let byTeacher = enrollmentReport.teachers.map((t) => ({
-  teacherId: t.teacherId ?? t.teacherName,
-  name: t.teacherName,
-  enrollmentCount: t.enrollmentCount,
- }))
- if (filters.teacherIds.length > 0) {
-  const allow = new Set(filters.teacherIds)
-  byTeacher = byTeacher.filter((t) => allow.has(t.teacherId))
- }
-
- const byClassKindMap = new Map<string, number>()
- for (const row of enrollmentReport.classes) {
-  if (filters.teacherIds.length > 0) {
-   const meta = classesMeta.find((c) => c.id === row.classId)
-   if (!meta || !meta.teacherId || !filters.teacherIds.includes(meta.teacherId)) continue
+  if (filters.classIds.length > 0) {
+   const allow = new Set(filters.classIds)
+   classFill = classFill.filter((c) => allow.has(c.classId))
   }
-  if (filters.classIds.length > 0 && !filters.classIds.includes(row.classId)) continue
-  const label = row.classKind === "private" ? "一對一" : "小組"
-  byClassKindMap.set(label, (byClassKindMap.get(label) ?? 0) + row.studentCount)
+  classFill = classFill.slice(0, 40)
+  nearFullClasses = asOk(
+   classFill
+    .filter(
+     (c): c is typeof c & { capacity: number; fillPct: number } =>
+      c.capacity != null && c.capacity > 0 && c.fillPct != null && c.fillPct >= 90
+    )
+    .map((c) => ({
+     classId: c.classId,
+     label: c.label,
+     enrolled: c.enrolled,
+     capacity: c.capacity,
+     fillPct: c.fillPct,
+    }))
+    .slice(0, 20)
+  )
+ } else {
+  const err = !isLoadOk(classesMeta)
+   ? classesMeta.error
+   : !isLoadOk(enrollCounts)
+     ? enrollCounts.error
+     : "資料未能載入"
+  nearFullClasses = { error: err }
  }
 
- const teacherLoadAvg =
-  byTeacher.length > 0
-   ? Math.round(
-      (byTeacher.reduce((s, t) => s + t.enrollmentCount, 0) / byTeacher.length) * 10
-     ) / 10
-   : null
+ let byTeacher: MgmtDashboardPayload["distribution"]["byTeacher"] = []
+ let bySubject: MgmtDashboardPayload["distribution"]["bySubject"] = []
+ let byClassKind: MgmtDashboardPayload["distribution"]["byClassKind"] = []
+ let teacherLoadAvg: LoadResult<number | null> = asOk(null)
+ if (isLoadOk(enrollmentReport)) {
+  byTeacher = enrollmentReport.ok.teachers.map((t) => ({
+   teacherId: t.teacherId ?? t.teacherName,
+   name: t.teacherName,
+   enrollmentCount: t.enrollmentCount,
+  }))
+  if (filters.teacherIds.length > 0) {
+   const allow = new Set(filters.teacherIds)
+   byTeacher = byTeacher.filter((t) => allow.has(t.teacherId))
+  }
+  const byClassKindMap = new Map<string, number>()
+  for (const row of enrollmentReport.ok.classes) {
+   if (filters.teacherIds.length > 0) {
+    const meta = isLoadOk(classesMeta) ? classesMeta.ok.find((c) => c.id === row.classId) : undefined
+    if (!meta || !meta.teacherId || !filters.teacherIds.includes(meta.teacherId)) continue
+   }
+   if (filters.classIds.length > 0 && !filters.classIds.includes(row.classId)) continue
+   const label = classKindLabel(row.classKind)
+   byClassKindMap.set(label, (byClassKindMap.get(label) ?? 0) + row.studentCount)
+  }
+  byClassKind = [...byClassKindMap.entries()].map(([label, count]) => ({ label, count }))
+  bySubject = enrollmentReport.ok.subjects
+   .map((s) => ({ label: s.subjectName, count: s.enrollmentCount }))
+   .slice(0, 12)
+  teacherLoadAvg =
+   byTeacher.length > 0
+    ? asOk(
+       Math.round(
+        (byTeacher.reduce((s, t) => s + t.enrollmentCount, 0) / byTeacher.length) * 10
+       ) / 10
+      )
+    : asOk(null)
+ } else {
+  teacherLoadAvg = { error: enrollmentReport.error }
+ }
 
- const highLoadTeachers = byTeacher
-  .filter((t) => t.enrollmentCount > 39)
-  .sort((a, b) => b.enrollmentCount - a.enrollmentCount)
+ const enrolledStudents: LoadResult<number> = isLoadOk(overall)
+  ? asOk(overall.ok.enrolledStudents)
+  : { error: overall.error }
+ const buckets = isLoadOk(overall) ? overall.ok.buckets : EMPTY_BUCKETS
+ const lessonGaps: MgmtDashboardPayload["alerts"]["lessonGaps"] = isLoadOk(lessonGapsRaw)
+  ? asOk(lessonGapsRaw.ok.filter(isLessonBalanceNeedsFollowUp).slice(0, 40))
+  : { error: lessonGapsRaw.error }
+ const unpaidOverdue: LoadResult<UnpaidOverdueRow[]> = isLoadOk(unpaidAlerts)
+  ? asOk(toUnpaidOverdue(unpaidAlerts.ok))
+  : { error: unpaidAlerts.error }
 
- const conversion =
-  trials > 0 ? Math.round((convertedTrials / trials) * 1000) / 10 : null
- const prevConversion =
-  prevTrials > 0 ? Math.round((prevConvertedTrials / prevTrials) * 1000) / 10 : null
- const conversionDeltaPct =
-  conversion != null && prevConversion != null ? deltaPct(conversion, prevConversion) : null
-
- const kpis = buildKpis({
+ return assembleDashboardPayload({
+  asOf: nowAsOf(),
   revenue,
   prevRevenue,
+  revenueSeries,
+  unpaid,
   enroll,
   prevEnroll,
   withdraw,
   prevWithdraw,
-  enrolledStudents: overall.enrolledStudents,
-  enrollmentSeats,
-  attendanceVisits,
-  prevAttendanceTotal: prevAttendanceVisits.total,
   trials,
   prevTrials,
   convertedTrials,
   prevConvertedTrials,
+  enrolledStudents,
+  enrollmentSeats,
+  attendanceVisits,
+  prevAttendanceTotal: isLoadOk(prevAttendanceVisits)
+   ? asOk(prevAttendanceVisits.ok.total)
+   : { error: prevAttendanceVisits.error },
   teacherLoadAvg,
-  revenueSparkline: revenueSeries.map((r) => Math.round(r.amount / 1000)),
- })
-
- const unpaidOverdue = toUnpaidOverdue(unpaidAlerts)
- const opsAlerts = buildPlaceholderOpsAlerts({
-  unpaidCount: unpaid.count,
-  unpaidAmount: unpaid.amount,
-  recentWithdrawCount: recentWithdrawals.length,
-  nearFullCount: nearFullClasses.length,
-  highLoadTeachers,
-  conversionDeltaPct,
- }).filter((a) => !(a.category === "lowAttendance" && a.count === 0))
-
- // 低出席仍以 placeholder 一筆標示（可選顯示）
- opsAlerts.push({
-  id: "live-low-attendance-placeholder",
-  category: "lowAttendance",
-  severity: "注意",
-  title: "低出席班別",
-  detail: "出勤彙總尚未串接；點此區塊可於日後接上低出席名單",
-  count: 0,
- })
-
- return {
-  asOf,
-  kpis,
-  revenueSeries,
-  funnel: buildFunnel(trials, convertedTrials, overall.enrolledStudents),
   withdrawalAnalysis,
+  recentWithdrawals,
+  unpaidAlerts,
   unpaidOverdue,
-  opsAlerts,
+  lessonGaps,
+  nearFullClasses,
   distribution: {
-   bySubject: enrollmentReport.subjects
-    .map((s) => ({ label: s.subjectName, count: s.enrollmentCount }))
-    .slice(0, 12),
-   byClassKind: [...byClassKindMap.entries()].map(([label, count]) => ({ label, count })),
-   statusBuckets: overall.buckets,
+   bySubject,
+   byClassKind,
+   statusBuckets: buckets,
    classFill,
    byTeacher: byTeacher.slice(0, 20),
   },
-  alerts: {
-   unpaid: unpaidAlerts,
-   lessonGaps,
-   nearFullClasses,
-   recentWithdrawals,
-  },
- }
+  includeLowAttendancePlaceholder: true,
+ })
 }
 
-export function exportMgmtDashboardCsv(payload: MgmtDashboardPayload, filters: MgmtDashboardFilters): string {
- const lines: string[] = []
- const cell = (v: string | number) => {
-  const s = String(v)
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
-  return s
- }
- lines.push(["篩選起日", "篩選迄日", "課種", "科目數", "導師數", "班別數"].map(cell).join(","))
- lines.push(
-  [
-   filters.dateFrom,
-   filters.dateTo,
-   filters.classKind === "private" ? "一對一" : filters.classKind === "group" ? "小組" : "全部",
-   filters.subjectIds.length,
-   filters.teacherIds.length,
-   filters.classIds.length,
-  ]
-   .map(cell)
-   .join(",")
- )
- lines.push("")
- lines.push(["KPI", "數值", "環比%", "同比%", "目標差", "狀態"].map(cell).join(","))
- for (const k of payload.kpis) {
-  lines.push(
-   [
-    k.label,
-    k.value,
-    k.deltaPct ?? "",
-    k.yoyPct ?? "",
-    k.targetGap ?? "",
-    k.status,
-   ].map(cell).join(",")
-  )
- }
- lines.push("")
- lines.push(["月份", "已收款"].map(cell).join(","))
- for (const r of payload.revenueSeries) {
-  lines.push([r.label, r.amount].map(cell).join(","))
- }
- lines.push("")
- lines.push(["漏斗階段", "人數"].map(cell).join(","))
- for (const f of payload.funnel) {
-  lines.push([f.stage, f.count].map(cell).join(","))
- }
- lines.push("")
- lines.push(["待繳費學生", "日期", "金額", "狀態"].map(cell).join(","))
- for (const u of payload.alerts.unpaid) {
-  lines.push([u.studentName, u.paymentDate, u.amount, u.status].map(cell).join(","))
- }
- return lines.join("\n")
-}
+export { exportMgmtDashboardCsv, mergeMgmtDashboardPayload }
 
 export function downloadMgmtDashboardCsv(filename: string, csvBody: string): void {
  const blob = new Blob([`\uFEFF${csvBody}`], { type: "text/csv;charset=utf-8" })

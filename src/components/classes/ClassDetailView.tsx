@@ -72,7 +72,6 @@ import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
- deleteSchedule,
  fetchClassStudents,
  fetchClassSchedules,
  fetchClassroomOptions,
@@ -81,8 +80,6 @@ import {
  fetchSubjectOptions,
  fetchTeacherOptions,
  getClassById,
- insertSchedulesForClassSession,
- nextSessionNumberForClass,
  reorderClassScheduleSessionNumbers,
  type ClassRecord,
  type ClassScheduleRow,
@@ -90,8 +87,13 @@ import {
  type ScheduleStudentHints,
  type SubjectOption,
  updateClass,
- updateSchedule,
 } from "@/services/classQueries"
+import {
+ deleteSchedule,
+ insertSchedulesForClassSession,
+ nextSessionNumberForClass,
+ updateSchedule,
+} from "@/services/scheduleWriteQueries"
 import {
  arrangeMakeupForCancelledSchedule,
  previewMakeupForCancelledSchedule,
@@ -1594,7 +1596,7 @@ export function ClassDetailView() {
        className="bg-white/20 text-white hover:bg-white/30"
        asChild
       >
-      <Link to="/PrivateTutoring">返回一對一／一對二學生</Link>
+      <Link to="/PrivateTutoring">返回私人課程學生</Link>
       </Button>
      </div>
      ) : isPrivateClass && canBookPrivate ? (
@@ -1649,12 +1651,12 @@ export function ClassDetailView() {
       role="status"
       className="mx-auto mb-4 max-w-5xl rounded-md border border-info/40 bg-info/10 px-3 py-2 text-sm text-foreground"
      >
-      私人班別詳情：可在此查看報讀／排程、編輯老師／學費，並直接預約上堂（不必退回列表）。
+      私人課程詳情：可在此查看報讀／排程、編輯老師／學費，並直接預約上堂（不必退回列表）。
       <Link
        to="/PrivateTutoring"
        className="ml-2 font-medium text-primary underline-offset-4 hover:underline"
       >
-       返回一對一／一對二學生
+       返回私人課程學生
       </Link>
      </div>
     ) : null}
@@ -1814,10 +1816,17 @@ export function ClassDetailView() {
             {(cls?.course_mode === "summer_two_period"
              ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
                 value: p,
-                label: p === SINGLE_SESSION_ENROLLMENT ? "單堂／自選堂數" : p,
+                label:
+                 p === SINGLE_SESSION_ENROLLMENT
+                  ? "單堂／自選堂數"
+                  : p === "第一期"
+                    ? "暑期第一期"
+                    : p === "第二期"
+                      ? "暑期第二期"
+                      : "暑期兩期全報",
                }))
              : [
-                { value: "full", label: "報足全期" },
+                { value: "full", label: "報讀" },
                 { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
                ]
             ).map((o) => (
@@ -2960,7 +2969,7 @@ export function ClassDetailView() {
         <p className="text-muted-foreground">
          將於同班新建加堂排程（沿用原老師／課室；日期與時段可改）
          {makeupPreview.isConsecutive ? "；連堂已取消的節次會一併補回" : ""}
-         。全期就讀生依報讀自動出現在新日子點名紙；單堂報讀會把原堂選堂改掛到新堂。
+         。報讀生依報讀自動出現在新日子點名紙；單堂報讀會把原堂選堂改掛到新堂。
         </p>
         <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
          <p>

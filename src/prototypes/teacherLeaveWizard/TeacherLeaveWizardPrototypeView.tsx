@@ -281,7 +281,7 @@ export function TeacherLeaveWizardPrototypeView() {
     for (const l of pack.lessons) {
       const d = decisions[l.id]
       if (d?.action === "substitute" && !d.substituteTeacherId) {
-        setStep2Err(`「${l.classLabel}」請選擇代課老師`)
+        setStep2Err(`「${l.classLabel}」請選擇代堂老師`)
         return
       }
     }
@@ -332,7 +332,7 @@ export function TeacherLeaveWizardPrototypeView() {
       lines.push("■ 已指派代堂")
       for (const row of result.substituted) {
         lines.push(
-          `· ${row.lesson.start_time}-${row.lesson.end_time} ${row.lesson.classLabel} → 代課：${row.substituteName}`
+          `· ${row.lesson.start_time}-${row.lesson.end_time} ${row.lesson.classLabel} → 代堂：${row.substituteName}`
         )
       }
       lines.push("")
@@ -537,7 +537,7 @@ export function TeacherLeaveWizardPrototypeView() {
                 />
 
                 {d.action === "substitute" ? (
-                  <Field label="代課老師">
+                  <Field label="代堂老師">
                     <Select
                       value={d.substituteTeacherId}
                       onChange={(e) =>
@@ -688,7 +688,7 @@ export function TeacherLeaveWizardPrototypeView() {
                     tone="success"
                     time={`${row.lesson.start_time}–${row.lesson.end_time}`}
                     title={row.lesson.classLabel}
-                    right={<Pill>代課 {row.substituteName}</Pill>}
+                    right={<Pill>代堂 {row.substituteName}</Pill>}
                   />
                 ))}
                 {result.cancelled.map((row) => (

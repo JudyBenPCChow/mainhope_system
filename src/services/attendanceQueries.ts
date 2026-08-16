@@ -1,12 +1,11 @@
 import {
  enrollmentCoversPeriod,
  enrollmentVisibleOnSchedule,
- fetchAcademicYearPeriods,
- fetchClassEnrollmentConfig,
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
+import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"

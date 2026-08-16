@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/authBootstrap"
 import { clearAuthState, applyProfileToStorage } from "@/lib/authSession"
 import { setPasswordChangeNudge } from "@/lib/passwordChangeNudge"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { signInWithPasswordAuth, signOutAuth } from "@/lib/supabaseAuth"
 import { fetchCurrentMgmtProfile } from "@/services/authRoleQueries"
 
 export default function Login() {
@@ -29,7 +30,7 @@ export default function Login() {
   }
 
   const submit = async () => {
-    if (!supabase || !isSupabaseConfigured) {
+    if (!isSupabaseConfigured) {
       setError("尚未設定 Supabase，暫時無法登入。")
       return
     }
@@ -42,22 +43,22 @@ export default function Login() {
     setError(null)
     clearAuthState()
     try {
-      const { error: signInError, data } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      const { error: signInError, data } = await signInWithPasswordAuth(
+        email.trim().toLowerCase(),
         password,
-      })
+      )
       if (signInError) throw signInError
       const profile = await fetchCurrentMgmtProfile()
       if (!profile) {
-        await supabase.auth.signOut()
+        await signOutAuth()
         throw new Error("此帳號尚未在系統角色名單中設定，請聯絡Christine Fan。")
       }
       if (profile.role === "teacher" && !profile.teacherId) {
-        await supabase.auth.signOut()
+        await signOutAuth()
         throw new Error("老師帳號未綁定 teacher_id，請聯絡Christine Fan修正。")
       }
       if (profile.role === "alien" && onlyAlienEmail && profile.email !== onlyAlienEmail) {
-        await supabase.auth.signOut()
+        await signOutAuth()
         throw new Error("此帳號不是外星人指定帳號。")
       }
       applyProfileToStorage(profile)
