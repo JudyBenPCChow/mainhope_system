@@ -70,7 +70,7 @@ const TYPE_STATUS_LABEL: Record<InboxItemType, string> = {
  schedule_cancelled: "排程取消",
  schedule_substitute: "代堂",
  class_updated: "班別變動",
- class_teacher_changed: "主責變更",
+ class_teacher_changed: "任教老師變更",
  leave_created: "學生請假",
  enrollment_enroll: "新增報讀",
  enrollment_withdraw: "學生退讀",

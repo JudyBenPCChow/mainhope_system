@@ -395,8 +395,8 @@ export function formatAttendanceHitsDescription(hits: AttendanceLifecycleHit[]):
  })
  const hasBillable = hits.some((h) => isBillableAttendanceStatus(h.status))
  const billNote = hasBillable
-  ? "\n以上含計費出席：一併刪除會減少已上堂數。"
-  : "\n以上皆非計費狀態：一併刪除不影響已上堂數。"
+  ? "\n以上含計費出席：一併刪除會減少已扣堂數。"
+  : "\n以上皆非計費狀態：一併刪除不影響已扣堂數。"
  return `以下 ${hits.length} 筆出席將失去補堂資格（可刪列）：\n${lines.join("\n")}${billNote}`
 }
 
