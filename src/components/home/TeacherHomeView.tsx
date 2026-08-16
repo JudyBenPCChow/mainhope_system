@@ -8,6 +8,7 @@ import {
  CircleUser,
  ClipboardCheck,
  GraduationCap,
+ Loader2,
  RefreshCw,
  Sparkles,
  User,
@@ -21,12 +22,12 @@ import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { listLoadCount, listLoadKind, type ListLoad } from "@/lib/listLoad"
 import { statusToTagTone } from "@/lib/statusTag"
+import { classDisplayName } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
-import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
-import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchClassesByTeacherId, type ClassRecord } from "@/services/classQueries"
 import {
  fetchPendingRollCallRemindersForTeacher,
@@ -42,21 +43,17 @@ import {
 } from "@/services/scheduleQueries"
 import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 import { addDaysYmd, getTeacherById, localYmd } from "@/services/teacherQueries"
-import { supabase } from "@/lib/supabaseClient"
+import {
+ fetchUpcomingTrialsForClassIds,
+ type UpcomingTrialBrief,
+} from "@/services/trialQueries"
 
 /** 首屏近 14 天；更遠由週視圖邊界加載 */
 const INITIAL_FUTURE_DAYS = 13
 const EXTEND_DAYS = 14
 const PAST_ROLLCALL_LOOKBACK_DAYS = 14
 
-type TrialBrief = {
- id: string
- studentName: string
- classLabel: string
- scheduleId: string
- trialDate: string
- status: string
-}
+type TrialBrief = UpcomingTrialBrief
 
 function alertTagsForSchedule(
  scheduleId: string,
@@ -90,11 +87,18 @@ export function TeacherHomeView() {
  const [teacherName, setTeacherName] = useState<string>("老師")
  const [classes, setClasses] = useState<ClassRecord[]>([])
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
- const [leaves, setLeaves] = useState<TeacherPortalLeaveRow[]>([])
- const [trials, setTrials] = useState<TrialBrief[]>([])
+ const [leavesLoad, setLeavesLoad] = useState<ListLoad<TeacherPortalLeaveRow>>({ status: "loading" })
+ const [trialsLoad, setTrialsLoad] = useState<ListLoad<TrialBrief>>({ status: "loading" })
  const [scheduleAlerts, setScheduleAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
- const [pendingRollCalls, setPendingRollCalls] = useState<PendingRollCallReminder[]>([])
- const [pastPendingRollCalls, setPastPendingRollCalls] = useState<PendingRollCallReminder[]>([])
+ const [scheduleAlertsState, setScheduleAlertsState] = useState<"loading" | "ready" | "error">(
+  "loading"
+ )
+ const [pendingRollCallsLoad, setPendingRollCallsLoad] = useState<ListLoad<PendingRollCallReminder>>({
+  status: "loading",
+ })
+ const [pastPendingRollCallsLoad, setPastPendingRollCallsLoad] = useState<
+  ListLoad<PendingRollCallReminder>
+ >({ status: "loading" })
  const [loading, setLoading] = useState(true)
  const [metaLoading, setMetaLoading] = useState(false)
  const [rangeExtending, setRangeExtending] = useState(false)
@@ -127,40 +131,15 @@ export function TeacherHomeView() {
     ]
     const rosterContext = await fetchScheduleRosterContext([...new Set(rosterIds)])
 
+    setLeavesLoad({ status: "loading" })
+    setTrialsLoad({ status: "loading" })
+    setPendingRollCallsLoad({ status: "loading" })
+    setPastPendingRollCallsLoad({ status: "loading" })
+    setScheduleAlertsState("loading")
+
     const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
      classIds.length ? fetchLeaveRowsForClassIds(classIds, 50) : Promise.resolve([]),
-     (async () => {
-      if (!supabase || classIds.length === 0) return [] as TrialBrief[]
-      const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-       const { data, error } = await supabase!
-        .from("trial_sessions")
-        .select(
-         "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
-        )
-        .in("class_id", slice)
-        .gte("trial_date", today)
-        .order("trial_date", { ascending: true })
-       if (error) throw error
-       return data ?? []
-      })
-      return chunks.flat().map((row) => {
-       const r = row as Record<string, unknown>
-       const st = r.students as Record<string, unknown> | null
-       const cls = r.classes as Record<string, unknown> | null
-       const sub = cls?.subject != null ? String(cls.subject) : "—"
-       const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
-       const course = cls?.courses as Record<string, unknown> | null
-       const courseName = course?.course_name != null ? String(course.course_name) : null
-       return {
-        id: String(r.id),
-        studentName: st?.full_name != null ? String(st.full_name) : "—",
-        classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
-        scheduleId: String(r.schedule_id ?? ""),
-        trialDate: String(r.trial_date ?? ""),
-        status: String(r.status ?? ""),
-       } satisfies TrialBrief
-      })
-     })(),
+     fetchUpcomingTrialsForClassIds(classIds, today),
      fetchPendingRollCallRemindersForTeacher(teacherId, today),
      findSchedulesMissingAttendance(pastCandidates, rosterContext),
      fetchScheduleAlerts(
@@ -170,39 +149,49 @@ export function TeacherHomeView() {
     ])
 
     let partialFailed = false
-    if (leaveRes.status === "fulfilled") setLeaves(leaveRes.value)
+    if (leaveRes.status === "fulfilled") setLeavesLoad({ status: "ready", rows: leaveRes.value })
     else {
      reportUserFacingError(leaveRes.reason, { source: "TeacherHomeView.loadLeaves" })
      partialFailed = true
-     setLeaves([])
+     setLeavesLoad({ status: "error" })
     }
-    if (trialRes.status === "fulfilled") setTrials(trialRes.value)
+    if (trialRes.status === "fulfilled") setTrialsLoad({ status: "ready", rows: trialRes.value })
     else {
      reportUserFacingError(trialRes.reason, { source: "TeacherHomeView.loadTrials" })
      partialFailed = true
-     setTrials([])
+     setTrialsLoad({ status: "error" })
     }
-    if (rollRes.status === "fulfilled") setPendingRollCalls(rollRes.value)
+    if (rollRes.status === "fulfilled") setPendingRollCallsLoad({ status: "ready", rows: rollRes.value })
     else {
      reportUserFacingError(rollRes.reason, { source: "TeacherHomeView.loadRollCallReminders" })
      partialFailed = true
-     setPendingRollCalls([])
+     setPendingRollCallsLoad({ status: "error" })
     }
-    if (pastRollRes.status === "fulfilled") setPastPendingRollCalls(pastRollRes.value)
+    if (pastRollRes.status === "fulfilled") setPastPendingRollCallsLoad({ status: "ready", rows: pastRollRes.value })
     else {
      reportUserFacingError(pastRollRes.reason, { source: "TeacherHomeView.loadPastRollCallReminders" })
      partialFailed = true
-     setPastPendingRollCalls([])
+     setPastPendingRollCallsLoad({ status: "error" })
     }
-    if (alertsRes.status === "fulfilled") setScheduleAlerts(alertsRes.value)
-    else {
+    if (alertsRes.status === "fulfilled") {
+     setScheduleAlerts(alertsRes.value)
+     setScheduleAlertsState("ready")
+    } else {
      reportUserFacingError(alertsRes.reason, { source: "TeacherHomeView.loadScheduleAlerts" })
      partialFailed = true
-     setScheduleAlerts(new Map())
+     setScheduleAlertsState("error")
     }
     if (partialFailed) {
      setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
     }
+   } catch (e) {
+    reportUserFacingError(e, { source: "TeacherHomeView.loadMeta" })
+    setLeavesLoad({ status: "error" })
+    setTrialsLoad({ status: "error" })
+    setPendingRollCallsLoad({ status: "error" })
+    setPastPendingRollCallsLoad({ status: "error" })
+    setScheduleAlertsState("error")
+    setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
    } finally {
     setMetaLoading(false)
    }
@@ -251,11 +240,11 @@ export function TeacherHomeView() {
    reportUserFacingError(e, { source: "TeacherHomeView.load", setErr })
    setClasses([])
    setSchedules([])
-   setLeaves([])
-   setTrials([])
-   setScheduleAlerts(new Map())
-   setPendingRollCalls([])
-   setPastPendingRollCalls([])
+   setLeavesLoad({ status: "error" })
+   setTrialsLoad({ status: "error" })
+   setScheduleAlertsState("error")
+   setPendingRollCallsLoad({ status: "error" })
+   setPastPendingRollCallsLoad({ status: "error" })
    setLoading(false)
   }
  }, [teacherId, today, mergeSchedules, loadMetaForSchedules])
@@ -292,7 +281,22 @@ export function TeacherHomeView() {
   void load()
  }, [load])
 
- const trialScheduleIds = useMemo(() => new Set(trials.map((t) => t.scheduleId).filter(Boolean)), [trials])
+ const leaves = leavesLoad.status === "ready" ? leavesLoad.rows : []
+ const trials = trialsLoad.status === "ready" ? trialsLoad.rows : []
+ const pendingRollCalls = pendingRollCallsLoad.status === "ready" ? pendingRollCallsLoad.rows : []
+ const pastPendingRollCalls =
+  pastPendingRollCallsLoad.status === "ready" ? pastPendingRollCallsLoad.rows : []
+ const pendingLeaveCount = listLoadCount(leavesLoad, (rows) =>
+  rows.filter((l) => l.status.includes("待")).length
+ )
+ const pastPendingCount = listLoadCount(pastPendingRollCallsLoad)
+ const leavesKind = listLoadKind(leavesLoad)
+ const trialsKind = listLoadKind(trialsLoad)
+
+ const trialScheduleIds = useMemo(() => {
+  if (trialsLoad.status !== "ready") return new Set<string>()
+  return new Set(trialsLoad.rows.map((t) => t.scheduleId).filter(Boolean))
+ }, [trialsLoad])
 
  const todaySchedules = useMemo(
   () => schedules.filter((s) => s.scheduled_date === today && !s.status.includes("取消")),
@@ -399,7 +403,12 @@ export function TeacherHomeView() {
    ) : null}
 
    {err ? (
-    <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
+    <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
+     <p>{err}</p>
+     <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => void load()}>
+      重新整理
+     </Button>
+    </div>
    ) : null}
 
    {pendingRollCalls.length > 0 ? (
@@ -526,7 +535,7 @@ export function TeacherHomeView() {
       待留意請假
      </div>
      <p className="mt-2 text-4xl font-bold tabular-nums text-warning">
-      {leaves.filter((l) => l.status.includes("待")).length}
+      {pendingLeaveCount == null ? "—" : pendingLeaveCount}
      </p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">狀態含「待」之請假／補堂 · 前往排程</p>
     </Link>
@@ -545,7 +554,9 @@ export function TeacherHomeView() {
       <ClipboardCheck className="h-5 w-5 text-warning" />
       過去未點名
      </div>
-     <p className="mt-2 text-4xl font-bold tabular-nums text-warning">{pastPendingRollCalls.length}</p>
+     <p className="mt-2 text-4xl font-bold tabular-nums text-warning">
+      {pastPendingCount == null ? "—" : pastPendingCount}
+     </p>
      <p className="mt-1 text-sm text-muted-foreground md:text-base">
       昨天或更早尚未點名 · 前往補點名
      </p>
@@ -741,9 +752,11 @@ export function TeacherHomeView() {
               </span>
              ) : null}
             </span>
-           ) : (
+           ) : scheduleAlertsState === "error" ? (
+            <span className="text-xs text-destructive">提醒未能載入</span>
+           ) : scheduleAlertsState === "ready" ? (
             <span className="text-xs text-muted-foreground">無特別提醒</span>
-           )}
+           ) : null}
            <Button variant="outline" size="sm" className="text-sm" asChild>
             <Link to={`/Schedule/${s.id}`}>排程詳情</Link>
            </Button>
@@ -777,9 +790,14 @@ export function TeacherHomeView() {
        <Bell className="h-5 w-5 text-warning" />
        近日請假與補堂
       </Link>
-      {loading ? (
-       <p className="mt-3 text-sm text-muted-foreground">載入中…</p>
-      ) : leaves.length === 0 ? (
+      {loading || leavesKind === "loading" ? (
+       <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        載入中…
+       </p>
+      ) : leavesKind === "error" ? (
+       <p className="mt-3 text-sm text-destructive" role="alert">請假資料未能載入。</p>
+      ) : leavesKind === "empty" ? (
        <p className="mt-3 text-sm text-muted-foreground">沒有相關紀錄。</p>
       ) : (
        <ul className="mt-3 space-y-2">
@@ -845,9 +863,14 @@ export function TeacherHomeView() {
      >
       <span className="underline-offset-4 group-hover:underline">近日請假與補堂</span>
      </Link>
-     {loading ? (
-      <p className="mt-3 text-muted-foreground">載入中…</p>
-     ) : leaves.length === 0 ? (
+     {loading || leavesKind === "loading" ? (
+      <p className="mt-3 flex items-center gap-2 text-muted-foreground">
+       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+       載入中…
+      </p>
+     ) : leavesKind === "error" ? (
+      <p className="mt-3 text-destructive" role="alert">請假資料未能載入。</p>
+     ) : leavesKind === "empty" ? (
       <p className="mt-3 text-muted-foreground">沒有相關紀錄。</p>
      ) : (
       <ul className="mt-4 space-y-3">
@@ -871,7 +894,15 @@ export function TeacherHomeView() {
    </div>
    )}
 
-   {trials.length > 0 ? (
+   {trialsKind === "error" ? (
+    <section className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 shadow-sm md:p-6" role="alert">
+     <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
+      <Sparkles className="h-6 w-6 text-info" />
+      即將試堂（我的班）
+     </h2>
+     <p className="mt-3 text-sm text-destructive">試堂資料未能載入。</p>
+    </section>
+   ) : trialsKind === "rows" ? (
     <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">
      <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
       <Sparkles className="h-6 w-6 text-info" />

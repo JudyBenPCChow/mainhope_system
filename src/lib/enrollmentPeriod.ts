@@ -1,6 +1,3 @@
-import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { supabase } from "@/lib/supabaseClient"
-
 export type CourseMode = "regular" | "summer_two_period"
 
 export const ENROLLMENT_PERIOD_OPTIONS = ["第一期", "第二期", "兩期全報"] as const
@@ -65,7 +62,7 @@ export function enrollmentVisibleOnSchedule(opts: {
  return enrollmentCoversPeriod(opts.enrollmentPeriod, opts.periodCode)
 }
 
-/** 班別／學生詳情用：第一期報讀／單堂報讀（第3、7堂）等 */
+/** 班別／學生詳情用：暑期第一期／單堂（第3、7堂）等 */
 export function formatEnrollmentFormLabel(
  enrollmentPeriod: EnrollmentFormValue | null | undefined,
  sessionNumbers?: Array<number | null | undefined>
@@ -74,13 +71,13 @@ export function formatEnrollmentFormLabel(
   const nums = [...(sessionNumbers ?? [])]
    .filter((n): n is number => n != null && Number.isFinite(n))
    .sort((a, b) => a - b)
-  if (nums.length === 0) return "單堂報讀"
-  return `單堂報讀（第${nums.join("、")}堂）`
+  if (nums.length === 0) return "單堂"
+  return `單堂（第${nums.join("、")}堂）`
  }
- if (enrollmentPeriod === "第一期") return "第一期報讀"
- if (enrollmentPeriod === "第二期") return "第二期報讀"
- if (enrollmentPeriod === "兩期全報") return "兩期全報"
- return "全期報讀"
+ if (enrollmentPeriod === "第一期") return "暑期第一期"
+ if (enrollmentPeriod === "第二期") return "暑期第二期"
+ if (enrollmentPeriod === "兩期全報") return "暑期兩期全報"
+ return "報讀"
 }
 
 /** 依日期對照學年期數字典，回傳 1、2 或 null（不在任何期間內） */
@@ -131,108 +128,8 @@ export function resolvePriceForEnrollment(opts: {
  return v != null && Number.isFinite(Number(v)) ? Number(v) : null
 }
 
-function mapPeriodRow(row: Record<string, unknown>): AcademicYearPeriodRow {
- return {
-  id: String(row.id),
-  academicYearId: String(row.academic_year_id),
-  periodCode: Number(row.period_code) as 1 | 2,
-  label: String(row.label ?? ""),
-  startDate: String(row.start_date ?? "").slice(0, 10),
-  endDate: String(row.end_date ?? "").slice(0, 10),
- }
-}
-
-export async function fetchAcademicYearPeriods(
- academicYearId: string
-): Promise<AcademicYearPeriodRow[]> {
- if (!supabase) return []
- const { data, error } = await supabase
-  .from("academic_year_periods")
-  .select("id, academic_year_id, period_code, label, start_date, end_date")
-  .eq("academic_year_id", academicYearId)
-  .order("period_code", { ascending: true })
- if (error) throw error
- return (data ?? []).map((r) => mapPeriodRow(r as Record<string, unknown>))
-}
-
 export type ClassEnrollmentConfig = {
  courseMode: CourseMode
  academicYearId: string | null
  academicYearLabel: string | null
-}
-
-function mapClassEnrollmentConfigRow(row: Record<string, unknown>): ClassEnrollmentConfig {
- const course = row.courses as Record<string, unknown> | null
- const year = row.academic_years as Record<string, unknown> | null
- const mode = course?.course_mode != null ? String(course.course_mode) : "regular"
- return {
-  courseMode: mode === "summer_two_period" ? "summer_two_period" : "regular",
-  academicYearId: row.academic_year_id != null ? String(row.academic_year_id) : null,
-  academicYearLabel: year?.label != null ? String(year.label) : null,
- }
-}
-
-export async function fetchClassEnrollmentConfig(classId: string): Promise<ClassEnrollmentConfig> {
- if (!supabase) {
-  return { courseMode: "regular", academicYearId: null, academicYearLabel: null }
- }
- const { data, error } = await supabase
-  .from("classes")
-  .select("academic_year_id, academic_years ( label ), courses ( course_mode )")
-  .eq("id", classId)
-  .maybeSingle()
- if (error) throw error
- if (!data) {
-  return { courseMode: "regular", academicYearId: null, academicYearLabel: null }
- }
- return mapClassEnrollmentConfigRow(data as Record<string, unknown>)
-}
-
-/** 批次讀取班別報讀設定（日視圖 roster 等用；缺列時回傳 regular） */
-export async function fetchClassEnrollmentConfigsByIds(
- classIds: string[]
-): Promise<Map<string, ClassEnrollmentConfig>> {
- const m = new Map<string, ClassEnrollmentConfig>()
- const empty: ClassEnrollmentConfig = {
-  courseMode: "regular",
-  academicYearId: null,
-  academicYearLabel: null,
- }
- for (const id of classIds) m.set(id, empty)
- if (!supabase || classIds.length === 0) return m
-
- const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("classes")
-   .select("id, academic_year_id, academic_years ( label ), courses ( course_mode )")
-   .in("id", slice)
-  if (error) throw error
-  return data ?? []
- })
- for (const data of chunks) {
-  for (const row of data) {
-   const r = row as Record<string, unknown>
-   const id = String(r.id ?? "")
-   if (!id) continue
-   m.set(id, mapClassEnrollmentConfigRow(r))
-  }
- }
- return m
-}
-
-/** 依排程日期判斷學生是否應出現在 roster（不含單堂選堂；單堂請用 enrollmentVisibleOnSchedule） */
-export async function enrollmentVisibleOnScheduleDate(opts: {
- classId: string
- scheduleDate: string
- enrollmentPeriod: EnrollmentFormValue | null
-}): Promise<boolean> {
- if (isSingleSessionEnrollment(opts.enrollmentPeriod)) return false
- const config = await fetchClassEnrollmentConfig(opts.classId)
- if (!isSummerTwoPeriodMode(config.courseMode) || !config.academicYearId) {
-  return true
- }
- const periods = await fetchAcademicYearPeriods(config.academicYearId)
- const code = resolvePeriodCodeFromDate(opts.scheduleDate, periods)
- if (code == null) return true
- return enrollmentCoversPeriod(opts.enrollmentPeriod, code)
 }

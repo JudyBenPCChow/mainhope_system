@@ -7,7 +7,9 @@ import {
  RevenueTrendChart,
  UnpaidAmountBarChart,
 } from "@/components/mgmtDashboard/charts/MgmtCharts"
+import { MgmtGroupLoadError } from "@/components/mgmtDashboard/MgmtGroupLoadError"
 import type { DrilldownFocus, MgmtDashboardPayload } from "@/components/mgmtDashboard/types"
+import { isLoadOk } from "@/components/mgmtDashboard/types"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -56,20 +58,29 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
  const [withdrawDim, setWithdrawDim] = useState<"subject" | "teacher" | "class" | "date">(
   "subject"
  )
+ const withdrawal = data.withdrawalAnalysis
+ const withdrawAnalysis = isLoadOk(withdrawal) ? withdrawal.ok : null
  const withdrawData =
-  withdrawDim === "subject"
-   ? data.withdrawalAnalysis.bySubject
-   : withdrawDim === "teacher"
-     ? data.withdrawalAnalysis.byTeacher
-     : withdrawDim === "class"
-       ? data.withdrawalAnalysis.byClass
-       : data.withdrawalAnalysis.byDate
+  withdrawAnalysis == null
+   ? []
+   : withdrawDim === "subject"
+     ? withdrawAnalysis.bySubject
+     : withdrawDim === "teacher"
+       ? withdrawAnalysis.byTeacher
+       : withdrawDim === "class"
+         ? withdrawAnalysis.byClass
+         : withdrawAnalysis.byDate
 
- const unpaidChart = data.unpaidOverdue.slice(0, 8).map((r) => ({
-  label: r.studentName,
-  amount: r.amount,
-  overdueDays: r.overdueDays,
- }))
+ const unpaid = data.unpaidOverdue
+ const unpaidRows = isLoadOk(unpaid) ? unpaid.ok : null
+ const unpaidChart =
+  unpaidRows == null
+   ? []
+   : unpaidRows.slice(0, 8).map((r) => ({
+      label: r.studentName,
+      amount: r.amount,
+      overdueDays: r.overdueDays,
+     }))
 
  return (
   <section className="space-y-3">
@@ -87,7 +98,11 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
      active={focus?.type === "analysis" && focus.panel === "revenue"}
      onClick={() => onFocus({ type: "analysis", panel: "revenue" })}
     >
-     <RevenueTrendChart data={data.revenueSeries} loading={loading} />
+     {isLoadOk(data.revenueSeries) ? (
+      <RevenueTrendChart data={data.revenueSeries.ok} loading={loading} />
+     ) : (
+      <MgmtGroupLoadError />
+     )}
     </PanelShell>
 
     <PanelShell
@@ -96,7 +111,11 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
      active={focus?.type === "analysis" && focus.panel === "funnel"}
      onClick={() => onFocus({ type: "analysis", panel: "funnel" })}
     >
-     <EnrollmentFunnelChart data={data.funnel} loading={loading} />
+     {isLoadOk(data.funnel) ? (
+      <EnrollmentFunnelChart data={data.funnel.ok} loading={loading} />
+     ) : (
+      <MgmtGroupLoadError />
+     )}
     </PanelShell>
 
     <PanelShell
@@ -133,12 +152,16 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
        </button>
       ))}
      </div>
-     <HorizontalBarChart
-      data={withdrawData}
-      loading={loading}
-      valueLabel="退讀人數"
-      emptyLabel="篩選區間內尚無退讀紀錄"
-     />
+     {withdrawAnalysis != null ? (
+      <HorizontalBarChart
+       data={withdrawData}
+       loading={loading}
+       valueLabel="退讀人數"
+       emptyLabel="篩選區間內尚無退讀紀錄"
+      />
+     ) : (
+      <MgmtGroupLoadError />
+     )}
     </PanelShell>
 
     <PanelShell
@@ -147,55 +170,61 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
      active={focus?.type === "analysis" && focus.panel === "unpaid"}
      onClick={() => onFocus({ type: "analysis", panel: "unpaid" })}
     >
-     <UnpaidAmountBarChart data={unpaidChart} loading={loading} />
-     <div className="mt-3 overflow-x-auto">
-      <table className="w-full table-fixed text-sm">
-       <thead>
-        <tr className="border-b border-border text-left text-muted-foreground">
-         <th className="w-[28%] px-2 py-2 font-medium">學生</th>
-         <th className="w-[18%] px-2 py-2 text-right font-medium">金額</th>
-         <th className="w-[16%] px-2 py-2 text-right font-medium">逾期</th>
-         <th className="w-[18%] px-2 py-2 font-medium">狀態</th>
-         <th className="w-[20%] px-2 py-2 font-medium">跟進</th>
-        </tr>
-       </thead>
-       <tbody>
-        {data.unpaidOverdue.length === 0 ? (
-         <tr>
-          <td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">
-           目前無待繳費
-          </td>
-         </tr>
-        ) : (
-         data.unpaidOverdue.slice(0, 6).map((row, i) => (
-          <tr
-           key={row.id}
-           className={cn(
-            "border-b border-border/60 hover:bg-muted/40",
-            i % 2 === 1 && "bg-muted/20"
-           )}
-          >
-           <td className="min-w-0 truncate px-2 py-2">{row.studentName}</td>
-           <td className="px-2 py-2 text-right tabular-nums">
-            {row.amount.toLocaleString("en-HK")}
-           </td>
-           <td className="px-2 py-2 text-right tabular-nums">{row.overdueDays} 天</td>
-           <td className="px-2 py-2">
-            <Tag tone={statusToTagTone(row.status)} size="sm">
-             {row.status}
-            </Tag>
-           </td>
-           <td className="px-2 py-2">
-            <Tag tone={statusToTagTone(row.followUpStatus)} size="sm">
-             {row.followUpStatus}
-            </Tag>
-           </td>
+     {unpaidRows != null ? (
+      <>
+       <UnpaidAmountBarChart data={unpaidChart} loading={loading} />
+       <div className="mt-3 overflow-x-auto">
+        <table className="w-full table-fixed text-sm">
+         <thead>
+          <tr className="border-b border-border text-left text-muted-foreground">
+           <th className="w-[28%] px-2 py-2 font-medium">學生</th>
+           <th className="w-[18%] px-2 py-2 text-right font-medium">金額</th>
+           <th className="w-[16%] px-2 py-2 text-right font-medium">逾期</th>
+           <th className="w-[18%] px-2 py-2 font-medium">狀態</th>
+           <th className="w-[20%] px-2 py-2 font-medium">跟進</th>
           </tr>
-         ))
-        )}
-       </tbody>
-      </table>
-     </div>
+         </thead>
+         <tbody>
+          {unpaidRows.length === 0 ? (
+           <tr>
+            <td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">
+             目前無待繳費
+            </td>
+           </tr>
+          ) : (
+           unpaidRows.slice(0, 6).map((row, i) => (
+            <tr
+             key={row.id}
+             className={cn(
+              "border-b border-border/60 hover:bg-muted/40",
+              i % 2 === 1 && "bg-muted/20"
+             )}
+            >
+             <td className="min-w-0 truncate px-2 py-2">{row.studentName}</td>
+             <td className="px-2 py-2 text-right tabular-nums">
+              {row.amount.toLocaleString("en-HK")}
+             </td>
+             <td className="px-2 py-2 text-right tabular-nums">{row.overdueDays} 天</td>
+             <td className="px-2 py-2">
+              <Tag tone={statusToTagTone(row.status)} size="sm">
+               {row.status}
+              </Tag>
+             </td>
+             <td className="px-2 py-2">
+              <Tag tone={statusToTagTone(row.followUpStatus)} size="sm">
+               {row.followUpStatus}
+              </Tag>
+             </td>
+            </tr>
+           ))
+          )}
+         </tbody>
+        </table>
+       </div>
+      </>
+     ) : (
+      <MgmtGroupLoadError />
+     )}
      <p className="mt-2 text-right text-sm">
       <Link to="/PaymentHistory" className="text-primary underline-offset-2 hover:underline">
        前往繳費紀錄

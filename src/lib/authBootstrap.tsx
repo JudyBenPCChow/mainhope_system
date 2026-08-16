@@ -15,7 +15,8 @@ import {
 } from "@/lib/authSession"
 import { flushMgmtErrorQueue } from "@/lib/mgmtErrorReporting"
 import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
-import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { getAuthSession, subscribeAuthStateChange } from "@/lib/supabaseAuth"
 import { switchCurrentMgmtRole } from "@/services/authRoleQueries"
 
 type AuthContextValue = {
@@ -38,8 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  const [profile, setProfile] = useState<MgmtProfile | null>(null)
 
  useEffect(() => {
-  const client = supabase
-  if (!client || !isSupabaseConfigured) {
+  if (!isSupabaseConfigured) {
    setProfile(null)
    setReady(true)
    return
@@ -48,9 +48,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   let active = true
 
   const syncSession = async () => {
-   const { data, error } = await client.auth.getSession()
+   const { session, error } = await getAuthSession()
    if (error) throw error
-   const nextProfile = await bootstrapRoleFromSession(data.session)
+   const nextProfile = await bootstrapRoleFromSession(session)
    if (!active) return
    setProfile(nextProfile)
    if (nextProfile) void flushMgmtErrorQueue()
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (active) setReady(true)
    })
 
-  const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
+  const unsubscribe = subscribeAuthStateChange((_event, session) => {
    void bootstrapRoleFromSession(session)
     .then((nextProfile) => {
      if (!active) return
@@ -81,18 +81,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return () => {
    active = false
-   sub.subscription.unsubscribe()
+   unsubscribe()
   }
  }, [])
 
  const role = profile?.role ?? getMgmtRole()
  const switchRole = useCallback(async (nextRole: MgmtRole) => {
-  const client = supabase
-  if (!client) throw new Error("尚未設定 Supabase，暫時無法切換身份。")
+  if (!isSupabaseConfigured) throw new Error("尚未設定 Supabase，暫時無法切換身份。")
   await switchCurrentMgmtRole(nextRole)
-  const { data, error } = await client.auth.getSession()
+  const { session, error } = await getAuthSession()
   if (error) throw error
-  const nextProfile = await bootstrapRoleFromSession(data.session)
+  const nextProfile = await bootstrapRoleFromSession(session)
   setProfile(nextProfile)
  }, [])
 

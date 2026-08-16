@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
 import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
-import { supabase } from "@/lib/supabaseClient"
+import { signOutAuth } from "@/lib/supabaseAuth"
 
 /**
  * 流動裝置專用版面：頂部標題列、底部快捷導覽、側滑全功能選單。
@@ -31,7 +31,7 @@ export function MobileLayout() {
  const logout = () => {
   void (async () => {
    clearAuthState()
-   if (supabase) await supabase.auth.signOut()
+   await signOutAuth()
    window.location.href = "/Login"
   })()
  }

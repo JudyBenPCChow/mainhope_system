@@ -10,7 +10,7 @@ import { Tag } from "@/components/ui/tag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { supabase } from "@/lib/supabaseClient"
+import { signOutAuth } from "@/lib/supabaseAuth"
 import { cn } from "@/lib/utils"
 import {
  fetchRecentMgmtSystemErrors,
@@ -105,7 +105,7 @@ export function AlienGodViewHome() {
       variant="outline"
       size="sm"
       onClick={async () => {
-       if (supabase) await supabase.auth.signOut()
+       await signOutAuth()
        clearAuthState()
        window.location.href = "/Login"
       }}

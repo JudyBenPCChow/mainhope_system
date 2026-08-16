@@ -83,17 +83,14 @@ import {
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
 import {
- deleteSchedule,
  fetchAllClasses,
  fetchClassStudents,
  getClassById,
- getScheduleById,
- insertScheduleForClass,
- updateSchedule,
  type ClassRecord,
  type ClassStudentRow,
- type ScheduleDetailRecord,
 } from "@/services/classQueries"
+import { getScheduleById, type ScheduleDetailRecord } from "@/services/scheduleDetailQueries"
+import { deleteSchedule, insertScheduleForClass, updateSchedule } from "@/services/scheduleWriteQueries"
 import {
  fetchScheduleRosterContext,
  singleSessionNotOnSchedule,
@@ -120,6 +117,16 @@ import {
  type TeacherScheduleConflict,
 } from "@/services/scheduleQueries"
 
+type ScheduleStatsUi =
+ | { status: "loading" }
+ | { status: "ready"; data: ScheduleStatsSnapshot }
+ | { status: "error" }
+
+function statsDisplay(stats: ScheduleStatsUi, key: keyof ScheduleStatsSnapshot): string {
+ if (stats.status !== "ready") return "—"
+ return String(stats.data[key])
+}
+
 const RANGE_DAYS = 14
 
 type ViewMode = "byDate" | "list" | "day"
@@ -133,7 +140,7 @@ const ISSUE_FILTER_OPTIONS: {
  icon: typeof UserX
 }[] = [
  { id: "noEnroll", label: "未有學生報讀", icon: UserX },
- { id: "private", label: "一對一班別", icon: UserRound },
+ { id: "private", label: "私人課程", icon: UserRound },
  { id: "noRoom", label: "未有課室安排", icon: DoorOpen },
 ]
 
@@ -379,11 +386,7 @@ export function ScheduleManagePage() {
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
- const [stats, setStats] = useState<ScheduleStatsSnapshot>({
-  todayLessonCount: 0,
-  pendingCancelledCount: 0,
-  todayStudentHeadcount: 0,
- })
+ const [stats, setStats] = useState<ScheduleStatsUi>({ status: "loading" })
  const [rooms, setRooms] = useState<RoomRecord[]>([])
  const [roomOptions, setRoomOptions] = useState<{ id: string; label: string }[]>([])
  const [loading, setLoading] = useState(false)
@@ -452,10 +455,13 @@ export function ScheduleManagePage() {
  const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
 
  const reloadStats = useCallback(async (teacherId?: string | null) => {
+  setStats({ status: "loading" })
   try {
-   setStats(await fetchScheduleStatsSnapshot(teacherId))
+   const result = await fetchScheduleStatsSnapshot(teacherId)
+   if ("ok" in result) setStats({ status: "ready", data: result.ok })
+   else setStats({ status: "error" })
   } catch {
-   /* ignore */
+   setStats({ status: "error" })
   }
  }, [])
 
@@ -1538,7 +1544,7 @@ useEffect(() => {
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
       <CalendarDays className="h-6 w-6 shrink-0 text-info" aria-hidden />
       排程管理
-      <Tag tone="info">{stats.todayLessonCount} 堂今日</Tag>
+      <Tag tone="info">{statsDisplay(stats, "todayLessonCount")} 堂今日</Tag>
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
       按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖學生列為點名冊（當堂可見報讀＋試堂＋補堂），並以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
@@ -1559,7 +1565,7 @@ useEffect(() => {
      className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
     >
      目前載入範圍有 <strong className="tabular-nums">{blankTeacherCount}</strong>{" "}
-     堂排程未指定當日老師。老師時間表／點名紙可能看不到這些堂；請先補班別主責或為該堂指定老師。篩選老師選「未指派」可列出。
+     堂排程未指定實際授課老師。老師時間表／點名紙可能看不到這些堂；請先補班別任教老師或為該堂指定老師。篩選老師選「未指派」可列出。
     </div>
    ) : null}
 
@@ -1587,7 +1593,7 @@ useEffect(() => {
       <CalendarDays className="h-3.5 w-3.5 shrink-0 text-info md:h-5 md:w-5" />
       <span className="truncate">今日課堂</span>
      </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-info md:mt-2 md:text-2xl">{stats.todayLessonCount}</p>
+     <p className="mt-1 text-xl font-bold tabular-nums text-info md:mt-2 md:text-2xl">{statsDisplay(stats, "todayLessonCount")}</p>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊將列表起始日設為今天</p>
     </button>
 
@@ -1604,7 +1610,7 @@ useEffect(() => {
       <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive md:h-5 md:w-5" />
       <span className="truncate">待處理</span>
      </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{stats.pendingCancelledCount}</p>
+     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊篩選「已取消」排程（再點一次還原）</p>
     </button>
 
@@ -1621,10 +1627,16 @@ useEffect(() => {
       <Users className="h-3.5 w-3.5 shrink-0 text-success md:h-5 md:w-5" />
       <span className="truncate">上堂學生</span>
      </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-success md:mt-2 md:text-2xl">{stats.todayStudentHeadcount}</p>
+     <p className="mt-1 text-xl font-bold tabular-nums text-success md:mt-2 md:text-2xl">{statsDisplay(stats, "todayStudentHeadcount")}</p>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">依今天各堂點名冊加總人數</p>
     </button>
    </section>
+
+   {stats.status === "error" ? (
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+     排程統計未能載入
+    </div>
+   ) : null}
 
    <p className="hidden rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 md:block">
     <span className="font-medium">提醒：</span>
@@ -2550,7 +2562,7 @@ useEffect(() => {
        </p>
        {canManageSchedules && !detailRow.teacher_id && !detailRow.status.includes("取消") ? (
         <p className="text-xs text-warning">
-         未指定當日老師時，老師時間表／點名紙可能看不到此堂。
+         未指定實際授課老師時，老師時間表／點名紙可能看不到此堂。
         </p>
        ) : null}
        {(() => {

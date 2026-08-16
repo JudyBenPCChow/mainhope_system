@@ -60,7 +60,7 @@ UI 原子（`Select`、`Tag`、日期框）同收款入口（只連 `/Payments`�
 
 ### 1.3 本計劃相對分題
 
-分題仍係日常索引（現況表、檔案名單）。本計劃＝給顧問同開工前嘅**因果＋定案**。兩者衝突以本計劃為準（2026-08-16 審核後）。
+分題仍係日常索引（現況表、檔案名單）。本計劃＝開工前嘅**因果＋定案**。兩者衝突以本計劃為準（2026-08-16 審核＋顧問覆核後）。同日對抗同顧問覆核已併入 §4；唔使再讀一遍除非要證據。
 
 ---
 
@@ -114,7 +114,7 @@ UI 原子（`Select`、`Tag`、日期框）同收款入口（只連 `/Payments`�
 
 | 波次 | 原內容 | 判決 |
 | --- | --- | --- |
-| 1 邊界違規 | 試堂／待補／`enrollmentPeriod` 收回 service | **留。** 對得住「一個出口」。欠 eslint 鎖層——依家 eslint 無 import 邊界，`AGENTS.md` 擋唔住再漏。 |
+| 1 邊界違規 | 試堂／待補／`enrollmentPeriod` 收回 service | **留。** 對得住「一個出口」。欠 eslint 鎖資料 client——依家 eslint 無 import 邊界，`AGENTS.md` 擋唔住再漏。Auth 要明確豁免。 |
 | 2 錯誤語意 | 營運總覽 KPI 失敗唔當 0 | **留，且可單獨驗收。** 唯一直接對用戶講大話嘅項；獨立於 God files。原 `LoadResult` 把 empty 做成第三變體，對 count 係多餘（成功而 0 就係真 0）。 |
 | 3 拆畫面 | 按 tab 抽 `ClassScheduleTab` 等 | **改。** 學生詳情已懶載；抽出 JSX 而 69 個 `useState` 仍喺父檔＝prop drilling，測試仍要 mock 一堆 props，往往更差。隔離單位係 **island**（自己載入／失敗／寫入，父檔唔知內情），唔係檔案行數。 |
 | 4 拆 service | 按域切 2,000 行 query 檔 | **收窄。** `insertPaymentForStudent` 住學生檔＝寫入聚合根錯位，應該搬。唔好因為 2,000 行就切。畫面用嘅讀側組裝可以留 facade。 |
@@ -133,16 +133,17 @@ React hooks 規則令共享 `reloadSubs` 嘅 state 傾向留喺同一函式。�
 | --- | --- | --- |
 | TanStack Query | 錯誤／loading 變一等公民；God file 會瘦（刪大量 `useEffect`）。七十幾處 fetch、invalidation 紀律。同「計糧／總覽慢」（P2-2）重疊 | **唔好當本主題載具。** 可選只喺營運總覽 spike。全站遷移另開題。 |
 | Feature-sliced 目錄 | 長線變更面更清。同已寫死嘅 `components/<領域>` 對撞；agent 驅動下搬家 PR 衝突大 | **否** |
-| eslint import 邊界 | 鎖死 component→service→lib | **要。** 併入波次 1。複雜度低、比希望跟文件有效。 |
+| eslint import 邊界 | 鎖死 UI／page／lib 直打 DB | **要。** 併入波次 1。Auth 用 allowlist／facade。service→component 反向 import 本期唔鎖 |
 | 先抽 hook，後抽 JSX | `useStudentLeaveTab` 可單測；畫面可暫留 | **要。** 取代「按 tab 切 JSX」做波次 3 預設手法 |
 | XState／頁級 reducer | 報讀＋收款係資料耦合，唔係狀態機複雜 | **否** |
-| 只做 1–2，God files 擱置 | 謊言同重複查詢清咗；開發稅仍在 | **可接受為本期完工定義**。God file 等下一個真要改嗰座山嘅產品 PR 再抽 island |
+| 只做 1–2，God files 擱置 | 謊言同重複查詢清咗；開發稅仍在 | **可接受為本期完工定義**。God file 等下一個真要改嗰座山嘅產品 PR 再抽 island。完整單向分層（反向 import）同樣擱置 |
 
 ### 3.4 審核結論
 
 1. P1-2 同 P2-5 可留同一主題（同一「吞錯誤、堆大檔」文化），但**驗收唔好綁死「View 已拆」**。
-2. 本期最佳解＝鎖分層＋修 KPI 謊言＋只搬寫入錯位。拆 JSX 唔係杠杆。
-3. 更重嘅架構（React Query、目錄切片）長線可能更好，依家做會貴過收益，而且同 P0／學年工作搶人手。
+2. 本期最佳解＝收回直打 DB＋修 KPI 謊言。拆 JSX 唔係杠杆。寫入錯位（波次 4）唔擋關閉。
+3. 更重嘅架構（React Query、目錄切片、service→component 反向 import 清乾）長線可能更好，依家做會貴過收益，而且同 P0／學年工作搶人手。
+4. 顧問覆核（同日）確認 C-1／C-3；C-2 改為按依賴群組失敗；eslint「auth 除外」同排程統計 `catch` 係字面實作陷阱——已寫入 §4。
 
 ---
 
@@ -150,30 +151,59 @@ React hooks 規則令共享 `reloadSubs` 嘅 state 傾向留喺同一函式。�
 
 ### 4.1 原則
 
-1. **先守邊界，再考慮搬家。** 直打 DB、`lib` 查詢、KPI 失敗語意，唔使拆 3,000 行 View。
+1. **先守資料存取邊界，再考慮搬家。** 直打 DB、`lib` 查詢、KPI 失敗語意，唔使拆 3,000 行 View。本期鎖嘅係「邊個准打表」，唔係完整單向分層。
 2. **抽檔合格線（三揀一，否則唔抽）：** 切片擁有自己嘅載入／錯誤／寫入；**或**第二個畫面已做同一件事；**或**抽出嚟嘅 hook／純函式有失敗＋空＋成功測試。父檔 3,000 行但邏輯喺可測 hook，已經達標。
 3. **重用跟現有指引：** UI 原子同收款入口必須重用。業務區塊得第二消費者先共用 JSX。禁止為「將來可能共用」抽通用 `LeaveBlock`。
-4. **錯誤走頁內紅字**（現有 §1），唔用 2 秒 banner。Count：`{ ok: number } | { error: string }`；列表：`{ ok: T[] } | { error }`，`ok.length === 0` 即真空。唔做第三個 `empty` 變體。
-5. **單向依賴** component → service → lib，用 eslint 鎖。型別跟資料走。
-6. **寫入一個聚合根一個出口。** 學生檔不准 insert payment；班檔唔兼排程 CRUD。讀側 facade 可以為畫面組。
+4. **錯誤走頁內紅字**（現有 §1），唔用 2 秒 banner。Count：`{ ok: number } | { error: string }`；列表：`{ ok: T[] } | { error }`，`ok.length === 0` 即真空。唔做第三個 `empty` 變體。失敗單位係**依賴群組**（同源 count／sum 一齊失敗），唔係逐張卡各自「—」，亦唔係任一失敗隱藏全頁。
+5. **eslint 鎖資料 client。** `src/components/**`、`src/pages/**`、`src/lib/**` 禁止匯入 raw Supabase 再 `.from`／`.rpc`。Auth 用明確 allowlist 或獨立 facade——`no-restricted-imports` 唔識分 `.from()` 同 `.auth.*`，唔好寫「auth 除外」交實作者猜。service → component 反向 import **本期唔清、唔擋關閉**（另開題）。
+6. **寫入一個聚合根一個出口。** 學生檔不准 insert payment；班檔唔兼排程 CRUD。讀側 facade 可以為畫面組。波次 4 唔擋本期關閉。
 7. 路由、tab、深連結、角色可見性、寫入確認行為不變。
 
 ### 4.2 波次
 
-**波次 1 — 鎖分層（細、可驗）**
+**波次 1 — 資料存取邊界（細、可驗）**
 
-1. `TeacherHomeView` 試堂 → `trialQueries`（具名型別）；component 唔再 import `supabase`／`forEachIdChunk`。
-2. `RollCallPage` 待補 count → `leaveQueries`；失敗走 `setErr`／未知，唔當 0。
-3. `enrollmentPeriod.ts` 三條 fetch → 新 service；`lib` 只留純函式。
-4. **eslint**（`no-restricted-imports` 或等價）：`src/components/**`、`src/pages/**`、`src/lib/**` 禁止資料面 `supabase.from`／`supabase.rpc`（`auth.*` 除外）。呢條先係回歸閘。
+1. `TeacherHomeView` 試堂 → `trialQueries` **新瘦函式**（例如 `fetchUpcomingTrialsForClassIds`）：select／`trial_date >= today`／按老師 `class_id` chunk 同而家字面一致。**禁止** reuse `fetchTrialsWithRelations`（該函含 `payments!payment_id` embed；老師 JWT／P0-1 RLS 下一整欄試堂會常紅）。component 唔再 import `supabase`／`forEachIdChunk`。同一 PR 刪 inline，唔留雙路徑。搬家**唔等於**失敗契約已完：現行 `allSettled` 失敗仍 `setTrials([])`，列表分唔出「目前沒有試堂」同「試堂未能載入」。本波可維持頁頂「部分首頁資料未能載入」；列表未知態列已知 follow-up，唔擋波次 1 關閉。
+2. `RollCallPage` 待補 count → `leaveQueries`。徽章 state 用 `number | null`（或 discriminated）；**每次 reload 開始先 unknown**，失敗保持 unknown，**禁止**留下一輪成功數字。失敗＝標題徽章未知態（唔顯示數字），**唔好**寫入頁級 `err`（該 `err` 而家＝排程列表載入失敗；共用會令老師以為「進行點名」壞咗）。status 字串本波維持 `ilike("%待補%")`，對齊 `"待補課"` 枚舉另開。**禁止**順手加老師／日期篩選（而家係全庫 count；改 scope 係產品決策，唔係搬家）。
+3. `enrollmentPeriod.ts` 三條 fetch → 新 service；`lib` 只留純函式。一併搬走或刪死碼 `enrollmentVisibleOnScheduleDate`（async、打 DB、無 caller）。軟／硬錯誤分開：**`!supabase`／缺列 → regular 空 config（唔 throw）**；**PostgREST／query `.error` 維持 error，禁止 catch 成 regular**（否則 roster／請假／待補熱路徑會把查詢失敗當常規設定）。**唔 import** `classQueries`／`studentQueries`（環狀 → 運行時 undefined）。六個現有 service caller 的 import 全部更新。
+4. **eslint：** UI／page／lib 不可匯入 raw Supabase **資料** client。Auth 必須有明確 allowlist 或獨立 facade（`Layout`／`MobileLayout` 等而家 `supabase.auth.signOut`）。試跑確認 `TeacherHomeView`／`RollCallPage` 被截、純 auth 檔唔誤傷。呢條先係回歸閘。**唔**加 `src/services/**` 禁 `@/components/**`（反向 import 另題）。
 
 **波次 2 — 營運數字可信（可單獨關閉本題嘅用戶傷害）**
 
-1. `mgmtDashboardQueries` 所有 `console.warn`＋`return 0` 改為該 KPI `{ error }`；組合用 `allSettled`。
-2. `KpiCardModel` 支援無法載入；`MgmtStatCard` 顯示「—」／「資料未能載入」，唔格式化 `HK$ 0`。整頁 catch **唔好**用全 0 嘅 `emptyPayload` 當後備。
-3. 測試：mock 試堂 count 失敗 → 轉化率卡不是 `0%`＋「正常」。
-4. `ScheduleManagePage.reloadStats` 失敗要頁內提示，唔 `ignore`。
-5. 抄出席紀錄頁契約：失敗隱藏誤導 KPI＋可重試。
+失敗單位＝**依賴群組**。同一群組內嘅卡、delta、sparkline、漏斗、告警、明細、CSV 要一致：好嘅群組保留；壞嘅群組全部「未能載入」，唔好出現「試堂卡紅、漏斗仍 0」。頁頂一句「部分指標未能載入」＋可重試。**唔抄**出席紀錄頁「有 error 就隱藏整組統計」嘅 UI（該頁係後者；總覽選部分成功）。只抄「失敗不扮 0＋可重試」。
+
+建議群組（組裝前以依賴結果建模，唔好逐張卡臨時塞 error）：
+
+| 群組 | 一齊成敗 |
+| --- | --- |
+| revenue | 本期、上期、趨勢、CSV 收款列 |
+| enrollment | 本期、上期、在讀學生／人次 |
+| trials | 本期、上期、已轉化、轉化率、漏斗 |
+| attendance | 本期、上期、breakdown |
+| unpaid | 金額、筆數、告警、明細 |
+| withdrawals | 數字、分析、最近退讀 |
+
+型別：每組 `{ ok: T } | { error: string }`。Count 成功 0 仍係 `{ ok: 0 }`。`MgmtDashboardPayload` 而家 `funnel`／`revenueSeries`／`opsAlerts`／`withdrawalAnalysis` 係普通陣列——**只為 `KpiCardModel` 加可選失敗欄不夠**；實作者會繼續用 `[]` 扮真空。
+
+1. `mgmtDashboardQueries` 所有 `console.warn`＋`return 0` **以及**而家會 throw 嘅路徑（`sumPaidAmount`、`sumUnpaidAmount`、`fetchRevenueSeries`、`fetchActiveEnrollmentCounts` 等）喺 orchestration 一併 normalize 成 `{ ok } | { error }`。**禁止**把吞 0 改成內層 `throw` 再靠 View catch（`sumPaidAmount` 而家已經 throw；內層再 throw 會令 View catch 一條 timeout 抹掉全部已成功卡——比依家更假）。`allSettled` 唔係契約本身：query 邊界可以 throw；orchestration 用單一 `settle(name, promise)` 轉成 `{ ok } | { error }`；進入純組裝層後只接受結果型，不再 throw。
+2. `KpiCardModel`／區塊支援無法載入；`MgmtStatCard` 顯示「—」／「資料未能載入」，唔格式化 `HK$ 0`。失敗用明確 `loadState?: "ready" | "error"`（預設 ready），**禁止**用 `NaN` 或保留 `value: 0` 做 sentinel——HK 成本統計而家用 `kpis.every(k => k.value === 0)` 判斷 loading，塞 0 會誤觸 skeleton。整頁 catch **唔好**用全 0 嘅 `emptyPayload` 當後備。整次網絡死先用頁級錯誤。`MgmtStatCard` 亦畀職員表現、HK 成本統計用；未列入本題驗收嘅兩頁行為要不變，或同一 PR 改齊。
+3. 衍生數跟同一依賴群組，唔好只修大卡：轉化（真 0 堂試堂＝N/A；count **失敗**＝未能載入；有試堂而 0%＝真 0%）、`deltaPct`／漏斗／sparkline／`opsAlerts`。任一輸入 `{ error }` → 該群組 error，**禁止**把 error 當 0 再除（上期失敗當 0 → 環比暴升；欠費 count 失敗當 0 → 告警假綠）。`countAttendanceVisits` 而家 error 就 `break`、已累積 chunk 當全月——改成整段 error 或標不完整，唔好冒充全月。
+4. `fetchMgmtDashboardSummary` 同 `fetchMgmtDashboard` **merge 規則**（可保留現有函式名；**本題唔拆**成 Core／Details 效能重構，嗰個屬 P2-2）：
+   - 兩段同一 `{ ok } | { error }` 契約。
+   - View 已顯示嘅成功群組，full 抵達時**禁止**用空陣列／全 0／整份 `emptyPayload` 覆蓋。
+   - detail／分析群組失敗：該 section 顯示頁內失敗態；core 群組保留。
+   - **禁止加劇** round trip（count 唔好 summary＋full 各打一次）。去重／「核心 query 只跑一次」仍屬 P2-2，唔擋本題關閉。
+5. `exportMgmtDashboardCsv` 只使用同一份已顯示 state。失敗列寫空或「未能載入」，**禁止輸出 0**（卡面修咗、表未修＝WhatsApp 仍傳假零）。真 0 必須輸出 `0`。
+6. 測試（最低矩陣；唔使巨型 Supabase mock。優先測純組裝／formatter）：
+   - 試堂 count 失敗 → 轉化率卡不是 `0%`＋「正常」；漏斗同組 error。
+   - 本期真 0：顯示 `0`，不能誤判 error。
+   - 上期失敗、本期成功：主值保留；delta 不顯示（唔好當 0 再除）。
+   - CSV：error 欄不得輸出 `0`；真 0 必須輸出 `0`。
+   - `fetchScheduleStatsSnapshot` 任一必要 query `.error` → 三張統計未知，不是 0。
+   - 重新載入：上一輪成功值不得在新一輪失敗後繼續冒充最新數字（總覽或待補徽章至少一處）。
+7. **排程統計先修 service。** `fetchScheduleStatsSnapshot` 對三個 query 而家只讀 `count ?? 0`／`data ?? []`，**唔睇 `.error`**。Supabase 失敗通常 fulfilled，`ScheduleManagePage.reloadStats` 的 `catch { /* ignore */ }` **永遠唔跑**。改法：任一必要 query error → `{ error }`（或 throw 給單一已檢查 caller）；畫面 `loading | ready | error`；error 時三張統計不得保留初始 0。只加 component `catch` 唔算完成。
+8. `reportUserFacingError` 組合層**每次 load 最多一條**（現有 throttle key 係 `source + message`；每卡不同 source 仍會灌爆）。service 不上報。UI 可按群組顯示各自紅字。
+9. 波次 2 只加載入契約，唔為而家每張卡做精美空態。產品 KPI 規格 1–7（收學費堂數／試堂／免費／消堂）尚未落地，精美空態會跟住作廢。
 
 **波次 3 — 只抽合格 island／hook（機會主義，唔開重構專案）**
 
@@ -184,29 +214,56 @@ React hooks 規則令共享 `reloadSubs` 嘅 state 傾向留喺同一函式。�
 - 學生詳情：請假／更動／出席讀（易成 island）
 - 已有第二消費者：繼續用 Dialog／Sheet，唔再抽一份
 - **不做：** 為行數抽 `ClassScheduleTab`、把收款精靈切四塊、抽學生請假做成通用 LeaveBlock
+- 若抽 island：`canViewMoney`／`canMutateLeave`／`unsavedLeave`／`?tab=` 留父層經 props 落去。P0-2 前拆詳情 tab，權限 PR 要改 N 檔——宜等角色真源穩定，或接受爆炸半徑
 
-**波次 4 — 只搬寫入錯位（唔按行數切 service）**
+**波次 4 — 只搬寫入錯位（唔按行數切 service；唔擋本期關閉）**
 
-- `insertPaymentForStudent`／學生檔內付款寫入 → `paymentQueries`
-- 班檔內排程 CRUD／detail context → `scheduleQueries`（或 `classScheduleQueries`）；班檔留班＋名單
-- 時間格 helper 從 `classesUi` 遷 `lib/`，打斷 service → component
+- `insertPaymentForStudent` **無畫面 caller**。確認無動態引用後**直接刪**；唔搬去 `paymentQueries`、**唔好**接到學生詳情「新增繳費」（會繞過 `/Payments` 優惠／罰款／權益）。
+- 班檔內排程 CRUD／detail context → `scheduleQueries`（或 `classScheduleQueries`）屬**獨立高風險 PR**：先抽共用 type／純 helper，避免 `scheduleQueries ↔ classQueries` cycle；搬完可由 `classQueries` 暫時 re-export。`insertScheduleRow` 被排程頁、連堂批次、補堂、私人課程預約、課室占用、批課室申請共用，而且有 audit／inbox／declaration sync／連堂 skip flags。搬家＝檔案位置＋import；**唔改**簽名、連堂雙 insert、學年閘、**唔寫 `classes.teacher_id`**（代堂鐵則：只改該堂 `schedules.teacher_id`）。唔同刪 `insertPaymentForStudent` 綁成同一 PR。
+- 時間格 helper 從 `classesUi` 遷 `lib/`，打斷 service → component（若順手；唔擋關閉）
 - dashboard 組裝可留；count／sum 失敗語意跟波次 2，唔為瘦檔而下放
 
 ### 4.3 本期完工線 vs 後續
 
 **本期可關閉（建議本題 `done` 條件）：**
 
-- eslint 鎖層；component／pages／lib 無資料面 `supabase.from`／`rpc`（auth 除外）
-- `/MgmtDashboard` 上列關鍵 KPI 任一失敗：唔顯示 0 當正常；頁內可讀「資料未能載入」
-- 原路由／操作行為不變；`build`／`lint`／`test`／`ui:check` 過
+- eslint：UI／page／lib 不可匯入 raw Supabase 資料 client；Auth 有明確 allowlist／facade。**唔要求** `services/**` 禁 import `components/**`
+- `/MgmtDashboard` 任一依賴群組失敗：該組 KPI／衍生／圖／告警／CSV **唔**以 0／`[]` 冒充成功；頁內可讀「資料未能載入」；好嘅群組保留
+- `fetchScheduleStatsSnapshot` 檢查每個 query `.error`；失敗唔顯示 0
+- 點名待補失敗＝徽章 unknown，且唔保留上一輪數字
+- 原路由／操作行為不變；`build`／`lint`／`test`／`typecheck:test`／`ui:check` 過
 
 **明確留後續（唔擋關閉）：**
 
-- 按 tab 切大 View 嘅 JSX
+- 按 tab 切大 View 嘅 JSX（學生詳情請假／更動／出席／未來排程已抽；報讀／繳費未抽）
+- 學生詳情加入班別預設同年級（另題 [`student-enroll-class-grade-default.md`](../topics/student-enroll-class-grade-default.md)）
 - TanStack Query、feature-sliced 目錄
+- `lib/appBanner`／`appConfirm`（刻意放 lib 嘅 UI 模組）；`classQueries` 暫 re-export 排程寫入
 - 清 `api/entities.ts`（死碼題）
-- 計糧／總覽變快（P2-2）
+- 計糧／總覽變快、summary／full 去重（P2-2）
 - generated Database types（P1-3）
+- 點名待補對齊 `"待補課"` 枚舉／老師／日期 scope
+
+### 4.4 落地紅線（字面實作會比依家差）
+
+對抗全文見[審計](../audits/2026-08-16-frontend-architecture-boundaries-adversarial.md)；顧問字面陷阱見[覆核](../audits/2026-08-16-frontend-architecture-boundaries-consultant-review.md)。未守呢幾條，波次 1–2 會令總覽／老師首頁／點名比依家更假。已寫入上方各波；開工時當 checklist：
+
+| # | 禁 | 要 |
+| --- | --- | --- |
+| R1 | 內層 KPI `throw`、View catch `emptyPayload` | `{ ok } \| { error }`；壞群組「—」，好群組保留 |
+| R2 | reuse `fetchTrialsWithRelations` 做老師首頁 | 新瘦 query，select／日期／class 範圍不變 |
+| R3 | 點名待補失敗寫入頁級 `err` | 徽章獨立未知態；仍可點名；reload 先清舊值 |
+| R4 | 衍生數把 error 當 0；漏斗／告警失敗回 `[]` | 同一依賴群組一齊失敗；payload 要表達「失敗但非空」 |
+| R5 | CSV 仍輸出失敗＝0 | 失敗列空或「未能載入」；真 0 輸出 `0` |
+| R6 | `enrollmentPeriod` fetch 把 PostgREST error 吞成 regular，或 import `classQueries` | `!supabase`／缺列語意不變；query error 維持 error |
+| R7 | `insertScheduleRow` 順手同步 `classes.teacher_id` | 只搬家；獨立 PR |
+| R8 | 為瘦檔令 summary＋full 對同一 count 多打一輪 | 錯誤語意唔准加劇查詢；本題唔做 P2-2 去重 |
+| R9 | 只改 `reloadStats` 的 `catch` | 先令 `fetchScheduleStatsSnapshot` 檢查 `.error` |
+| R10 | eslint 禁整個 `supabase` client 而無 auth 豁免 | allowlist 或 auth facade；試跑唔誤傷 `Layout` |
+| R11 | 把本題標成「完整單向分層已完成」 | done 條件只鎖資料存取＋數字可信 |
+| R12 | 失敗卡仍塞 `value: 0` | 明確 `loadState`；HK 成本 `value === 0` loading 判斷唔好被誤觸 |
+
+P0-1 staging 收緊 RLS 當日，總覽變紅＝探測器（好事）；要預告管理層，唔好為咗唔紅又改回吞 0。
 
 ---
 
@@ -214,57 +271,37 @@ React hooks 規則令共享 `reloadSubs` 嘅 state 傾向留喺同一函式。�
 
 - 唔為行數切 `part1`／`part2`
 - 唔等 generated types 先做波次 1–2
-- 唔把本主題做效能或權限專案
+- 唔把本主題做效能或權限專案（summary／full 拆 Core／Details、核心 query 只跑一次＝P2-2）
 - 唔引入 React Query／狀態機作為本計劃載具
 - 唔改學費、報讀、點名等營運規則（無政策／2627 同步）
+- 唔把死碼 `insertPaymentForStudent` 接上收款主路徑（刪即可）
+- 唔為本題加劇營運總覽 round trip（去重仍屬 P2-2）
+- 唔喺本題清 service → component 反向 import，亦唔把「完整單向分層」寫進 done
+- 唔喺搬待補 count 時改全庫 scope 或對齊 pending enum
 
 ---
 
-## 6. 請顧問挑戰（Agree／Disagree／改寫）
+## 6. 顧問判決（已吸收）
 
-團隊暫見如下；請逐項表態。優先級：C-1、C-2 影響本期範圍。
+原 C-1–C-4 已裁定；開工唔使再問。依據：[顧問覆核](../audits/2026-08-16-frontend-architecture-boundaries-consultant-review.md)。未採納「未修完 P0 唔開工」嘅字面——波次 1 可先做；波次 2 必須跟本檔 §4.2，唔好照舊計劃字面只改 component `catch`。
 
-### C-1 本期可否喺唔拆三大 View 之下關閉？
+| 項 | 判決 | 寫入本檔 |
+| --- | --- | --- |
+| C-1 唔拆三大 View 可關閉 | **A**，但題目完工語意收窄成「資料存取邊界＋營運數字可信」 | §4.3、R11 |
+| C-2 失敗 UI | **C：按依賴群組**。好組保留；壞組卡／衍生／圖／告警／CSV 一致；頁頂「部分指標未能載入」＋重試。唔用純逐卡，亦唔用整頁隱藏 | §4.1.4、§4.2 開頭 |
+| C-3 TanStack Query | **A** 本期唔做 | §5 |
+| C-4 寫入錯位 | **拆開**：`insertPaymentForStudent` 確認無 caller 後刪；`insertScheduleRow` 獨立高風險搬家、唔擋關閉 | §4.2 波次 4 |
 
-團隊：可以。用戶傷害喺謊言同重複查詢，唔喺行數。
-
-| 選項 | 含義 |
-| --- | --- |
-| A | 同意本期完工線（鎖層＋KPI）；God file 機會主義 |
-| B | 必須至少拆一個高變更 View（請指明邊個）先可關閉 |
-| C | 其他 |
-
-### C-2 營運總覽失敗：逐卡「—」vs 整頁紅字隱藏全部 KPI？
-
-出席紀錄頁係後者。總覽卡多、部分失敗常見。團隊傾向**逐卡「—」＋頁頂一句「部分指標未能載入」**，避免一張表 timeout 抹掉全部可信卡。
-
-| 選項 | 含義 |
-| --- | --- |
-| A | 逐卡「—」（現方案） |
-| B | 任一關鍵 KPI 失敗就隱藏成組 KPI |
-| C | 其他 |
-
-### C-3 應否用營運總覽做 TanStack Query spike？
-
-團隊：唔納入本期。若顧問認為錯誤語意同快取應一次過，先開獨立題，唔綁本計劃關閉。
-
-| 選項 | 含義 |
-| --- | --- |
-| A | 本期唔做 Query |
-| B | 總覽允許小 spike，失敗可棄，唔擋關閉 |
-| C | 應改以 Query 做波次 2 載具 |
-
-### C-4 寫入錯位（學生檔 insert payment）係本期還是等產品 PR？
-
-團隊：波次 4 可跟產品 PR 順手；**唔擋**本期關閉。若顧問認為聚合根錯位同靜默 0 同級，再升為完工條件。
+顧問另有測試十項矩陣、抽 `buildMgmtDashboardCore` 純組裝層——**手法建議、非關閉閘**。最低測試見波次 2.6。
 
 ---
 
 ## 7. 開工時讀邊
 
-1. 本計劃 §4（定案）
+1. 本計劃 §4（定案）＋ §4.4 紅線 checklist
 2. 分題證據表（檔案／函式名單）
 3. [`UI_DESIGN_INSTRUCTIONS.md`](../../meta/UI_DESIGN_INSTRUCTIONS.md) §1（紅字、唔用 banner 頂替）
-4. 出席紀錄失敗契約（抄，唔發明）
+4. 出席紀錄失敗契約：只抄「失敗不扮 0＋可重試」，**唔抄**該頁隱藏整組統計
+5. 代堂：只改該堂 `schedules.teacher_id`（[`SCHEDULE_SUBSTITUTE_TEACHER.md`](../../policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md)）——波次 4 排程搬家必讀
 
-實作前唔使再做盤點，除非 git 上三大 View 行數已明顯下降。
+實作前唔使再做盤點，除非 git 上三大 View 行數已明顯下降。顧問覆核全文唔使再讀，除非對對抗某條紅線。

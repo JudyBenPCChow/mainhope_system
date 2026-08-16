@@ -1,4 +1,4 @@
-import { updateSchedule } from "@/services/classQueries"
+import { updateSchedule } from "@/services/scheduleWriteQueries"
 import {
   fetchLeaveStudentIdsForSchedules,
 } from "@/services/attendanceQueries"

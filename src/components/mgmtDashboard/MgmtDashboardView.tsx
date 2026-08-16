@@ -20,17 +20,19 @@ import {
  exportMgmtDashboardCsv,
  fetchMgmtDashboard,
  fetchMgmtDashboardSummary,
+ mergeMgmtDashboardPayload,
 } from "@/services/mgmtDashboardQueries"
 import { fetchAllTeachers } from "@/services/teacherQueries"
 
 const emptyPayload: MgmtDashboardPayload = {
  asOf: "",
  kpis: [],
- revenueSeries: [],
- funnel: [],
- withdrawalAnalysis: { bySubject: [], byTeacher: [], byClass: [], byDate: [] },
- unpaidOverdue: [],
+ revenueSeries: { ok: [] },
+ funnel: { ok: [] },
+ withdrawalAnalysis: { ok: { bySubject: [], byTeacher: [], byClass: [], byDate: [] } },
+ unpaidOverdue: { ok: [] },
  opsAlerts: [],
+ opsAlertsError: null,
  distribution: {
   bySubject: [],
   byClassKind: [],
@@ -43,7 +45,8 @@ const emptyPayload: MgmtDashboardPayload = {
   classFill: [],
   byTeacher: [],
  },
- alerts: { unpaid: [], lessonGaps: [], nearFullClasses: [], recentWithdrawals: [] },
+ alerts: { unpaid: { ok: [] }, lessonGaps: { ok: [] }, nearFullClasses: { ok: [] }, recentWithdrawals: { ok: [] } },
+ partialLoadFailed: false,
 }
 
 export function MgmtDashboardView() {
@@ -64,17 +67,34 @@ export function MgmtDashboardView() {
   setLoading(true)
   setDetailsLoading(true)
   setErr(null)
+  setData(emptyPayload)
   try {
    const summary = await fetchMgmtDashboardSummary(filters)
    if (gen !== loadGenRef.current) return
    setData(summary)
    setLoading(false)
+   if (summary.partialLoadFailed) {
+    reportUserFacingError(new Error("部分指標未能載入"), {
+     source: "MgmtDashboardView.load",
+     setErr,
+     userMessage: "部分指標未能載入，可按重新整理再試。",
+    })
+   }
 
    const payload = await fetchMgmtDashboard(filters)
    if (gen !== loadGenRef.current) return
-   setData(payload)
+   const merged = mergeMgmtDashboardPayload(summary, payload)
+   setData(merged)
+   if (merged.partialLoadFailed) {
+    reportUserFacingError(new Error("部分指標未能載入"), {
+     source: "MgmtDashboardView.load",
+     setErr,
+     userMessage: "部分指標未能載入，可按重新整理再試。",
+    })
+   }
+   const fill = merged.distribution.classFill
    setClassOptions(
-    payload.distribution.classFill.map((c) => ({
+    fill.map((c) => ({
      value: c.classId,
      label: c.label,
     }))
@@ -82,7 +102,7 @@ export function MgmtDashboardView() {
   } catch (e) {
    if (gen !== loadGenRef.current) return
    reportUserFacingError(e, { source: "MgmtDashboardView.load", setErr })
-   setData(emptyPayload)
+   setData((prev) => (prev.kpis.length > 0 ? prev : emptyPayload))
   } finally {
    if (gen === loadGenRef.current) {
     setLoading(false)
@@ -232,7 +252,12 @@ export function MgmtDashboardView() {
       onFocus={selectFocus}
      />
 
-     <MgmtOpsAlertsSection alerts={data.opsAlerts} focus={focus} onFocus={selectFocus} />
+     <MgmtOpsAlertsSection
+      alerts={data.opsAlerts}
+      error={data.opsAlertsError}
+      focus={focus}
+      onFocus={selectFocus}
+     />
 
      <div ref={detailRef}>
       <MgmtDetailTablesSection data={data} focus={focus} />

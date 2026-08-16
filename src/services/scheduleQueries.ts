@@ -6,6 +6,11 @@ import {
 } from "@/lib/lessonSlots"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import {
+ assembleScheduleStatsSnapshot,
+ type ScheduleStatsLoad,
+ type ScheduleStatsSnapshot,
+} from "@/lib/scheduleStatsSnapshot"
 import { supabase } from "@/lib/supabaseClient"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
@@ -325,20 +330,20 @@ export async function fetchScheduleAlerts(
  return map
 }
 
-export type ScheduleStatsSnapshot = {
- todayLessonCount: number
- pendingCancelledCount: number
- todayStudentHeadcount: number
-}
+export type { ScheduleStatsSnapshot, ScheduleStatsLoad }
 
 /** 儀表板數字：以「今天」為準，與目前列表日期區間無關；專班老師可傳 teacherId 僅計自己的排程 */
-export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Promise<ScheduleStatsSnapshot> {
- const empty: ScheduleStatsSnapshot = {
-  todayLessonCount: 0,
-  pendingCancelledCount: 0,
-  todayStudentHeadcount: 0,
+export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Promise<ScheduleStatsLoad> {
+ if (!supabase) {
+  return assembleScheduleStatsSnapshot({
+   todayLessonsError: new Error("尚未設定 Supabase"),
+   todayLessonsCount: null,
+   pendingCancelError: null,
+   pendingCancelCount: null,
+   todaySchedError: null,
+   todayStudentHeadcount: 0,
+  })
  }
- if (!supabase) return empty
 
  const today = localYmd()
 
@@ -372,22 +377,42 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
   })(),
  ])
 
+ if (todayLessons.error || pendingCancel.error || todaySchedRows.error) {
+  return assembleScheduleStatsSnapshot({
+   todayLessonsError: todayLessons.error,
+   todayLessonsCount: todayLessons.count ?? null,
+   pendingCancelError: pendingCancel.error,
+   pendingCancelCount: pendingCancel.count ?? null,
+   todaySchedError: todaySchedRows.error,
+   todayStudentHeadcount: 0,
+  })
+ }
+
  const scheduleIds = (todaySchedRows.data ?? [])
   .map((r) => String((r as { id: string }).id))
   .filter(Boolean)
  let todayStudentHeadcount = 0
+ let headcountError: unknown = null
  if (scheduleIds.length > 0) {
-  const rosterContext = await fetchScheduleRosterContext(scheduleIds)
-  for (const scheduleId of scheduleIds) {
-   todayStudentHeadcount += rosterHeadcountForSchedule(rosterContext, scheduleId)
+  try {
+   const rosterContext = await fetchScheduleRosterContext(scheduleIds)
+   for (const scheduleId of scheduleIds) {
+    todayStudentHeadcount += rosterHeadcountForSchedule(rosterContext, scheduleId)
+   }
+  } catch (e) {
+   headcountError = e
   }
  }
 
- return {
-  todayLessonCount: todayLessons.count ?? 0,
-  pendingCancelledCount: pendingCancel.count ?? 0,
+ return assembleScheduleStatsSnapshot({
+  todayLessonsError: null,
+  todayLessonsCount: todayLessons.count ?? 0,
+  pendingCancelError: null,
+  pendingCancelCount: pendingCancel.count ?? 0,
+  todaySchedError: null,
+  headcountError,
   todayStudentHeadcount,
- }
+ })
 }
 
 export type ClassScheduleSummary = {
@@ -711,8 +736,8 @@ export async function assignScheduleSubstitute(
    title: `已指派代堂（${String(primary.scheduled_date ?? "").slice(0, 10) || "排程"}）`,
    body:
     targetIds.length > 1
-     ? `連堂共 ${targetIds.length} 節；原任／代課老師請留意當日安排`
-     : "原任／代課老師請留意當日安排",
+     ? `連堂共 ${targetIds.length} 節；原任／代堂老師請留意當日安排`
+     : "原任／代堂老師請留意當日安排",
    actionPath: `/Schedule/${scheduleId}`,
    classId: primary.class_id ?? null,
    scheduleId,
@@ -725,7 +750,7 @@ export async function assignScheduleSubstitute(
 }
 
 const CLEAR_SUBSTITUTE_BLOCKED_MSG =
- "此堂（或連堂組）已有點名紀錄，不可取消代堂。請改用「更改代堂」修正當日老師。"
+ "此堂（或連堂組）已有點名紀錄，不可取消代堂。請改用「更改代堂」修正實際授課老師。"
 
 async function schedulesHaveAttendanceRows(scheduleIds: string[]): Promise<boolean> {
  if (!supabase || scheduleIds.length === 0) return false

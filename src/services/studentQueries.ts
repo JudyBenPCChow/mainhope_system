@@ -4,8 +4,6 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  enrollmentVisibleOnSchedule,
- fetchAcademicYearPeriods,
- fetchClassEnrollmentConfig,
  formatEnrollmentFormLabel,
  isSingleSessionEnrollment,
  isSummerTwoPeriodMode,
@@ -23,6 +21,7 @@ import {
 } from "@/lib/lessonSlots"
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
+import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  ensureEntitlementPoolAndDeclarations,
@@ -114,7 +113,7 @@ export function normalizePrimaryContactPerson(
 }
 
 export function registrationStatusLabel(value: "已註冊" | "非注冊"): string {
- return value === "非注冊" ? "非注冊（試堂／查詢）" : "注冊"
+ return value === "非注冊" ? "非註冊（試堂／查詢）" : "註冊"
 }
 
 export function normalizeRegistrationStatus(value: string | null | undefined): "已註冊" | "非注冊" {
@@ -1771,21 +1770,6 @@ export async function fetchPaymentsForStudent(studentId: string): Promise<Paymen
    created_at: String(row.created_at ?? ""),
   }
  })
-}
-
-export async function insertPaymentForStudent(
- studentId: string,
- row: { total_amount: number; payment_date: string; payment_method?: string; status?: string }
-): Promise<void> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { error } = await supabase.from("payments").insert({
-  student_id: studentId,
-  payment_date: row.payment_date,
-  total_amount: row.total_amount,
-  payment_method: row.payment_method ?? "現金",
-  status: row.status ?? "已收款",
- })
- if (error) throw error
 }
 
 export async function deletePayment(_id: string): Promise<void> {

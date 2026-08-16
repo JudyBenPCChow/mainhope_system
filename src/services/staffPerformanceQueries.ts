@@ -8,7 +8,7 @@ import {
   laborEmployerCost,
   STAFF_LABOR_JULY_2026_MONTH,
 } from "@/data/staffLaborJuly2026"
-import type { KpiCardModel, KpiStatus } from "@/components/mgmtDashboard/types"
+import type { KpiCardModel, KpiStatus } from "@/lib/mgmtDashboardTypes"
 import type {
   StaffAnomalyCard,
   StaffHeatCell,
@@ -17,7 +17,7 @@ import type {
   StaffPerformancePayload,
   StaffPerformanceRow,
   StaffTeacherTrend,
-} from "@/components/staffPerformance/types"
+} from "@/lib/staffPerformanceTypes"
 import {
   coursePricesFromClassEmbed,
   fetchPaidUnitPriceMaps,

@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
-import { updateSchedule } from "@/services/classQueries"
+import { updateSchedule } from "@/services/scheduleWriteQueries"
 import {
  fetchPreviousTeachingNotes,
  type PreviousTeachingNotes,

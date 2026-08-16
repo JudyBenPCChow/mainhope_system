@@ -46,7 +46,7 @@ const QUICK_ACTIONS = [
  {
   path: "/TeacherLeaveWizard",
   label: "老師請假處理",
-  description: "整理請假影響，安排代課或補堂跟進。",
+  description: "整理請假影響，安排代堂或補堂跟進。",
   icon: CalendarCheck,
  },
  {

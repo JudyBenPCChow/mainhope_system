@@ -2,19 +2,20 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（已盤點＋第一性審核；未開工） |
+| 狀態 | `done`（波次 1–4 已落地；唔聲稱完整單向分層） |
 | 優先 | 高 |
-| 範圍 | P1-2、P2-5：鎖分層；KPI 失敗唔當 0；寫入錯位先搬。**唔以拆完 God file JSX 為關閉條件** |
-| 不含 | 權限真源／RLS（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；查詢效能（見 [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)）；generated types（見 [`database-contract-advisor-hygiene.md`](./database-contract-advisor-hygiene.md)）；TanStack Query／目錄切片／全庫重寫 |
+| 範圍 | P1-2、P2-5：**資料存取邊界**＋KPI 失敗唔當 0。**唔以**拆完 God file JSX、亦**唔以**完整單向分層為關閉條件 |
+| 不含 | 權限真源／RLS（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；查詢效能／summary＋full 去重（見 [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)）；generated types（見 [`database-contract-advisor-hygiene.md`](./database-contract-advisor-hygiene.md)）；TanStack Query／目錄切片／清 service→component 反向 import／全庫重寫 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 計劃 | [`2026-08-16-frontend-architecture-boundaries.md`](../plans/2026-08-16-frontend-architecture-boundaries.md)（顧問＋定案；與本檔衝突以計劃為準） |
+| 計劃 | [`2026-08-16-frontend-architecture-boundaries.md`](../plans/2026-08-16-frontend-architecture-boundaries.md)（定案；與本檔衝突以計劃為準） |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | 對抗 | [`2026-08-16-frontend-architecture-boundaries-adversarial.md`](../audits/2026-08-16-frontend-architecture-boundaries-adversarial.md)（落地後遺；與計劃衝突以計劃為準） |
+| 顧問覆核 | [`2026-08-16-frontend-architecture-boundaries-consultant-review.md`](../audits/2026-08-16-frontend-architecture-boundaries-consultant-review.md)（採納項已寫入計劃） |
 | 盤點 | 2026-08-16 對代碼再核對；行數與 08-14 稽核幾乎相同；同日第一性審核 |
 
 ## 一句
 
-分層約定寫咗但未守；最危險係查詢失敗被畫成「今日零」。本期鎖分層＋修 KPI 謊言即可關閉；拆大 View 只喺切片能自己擁有狀態、或第二畫面已共用時先做。因果同審核見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。
+分層約定寫咗但未守；最危險係查詢失敗被畫成「今日零」。波次 1–4 已落地：收回直打 DB、修 KPI 謊言、學生詳情三 island、刪死碼繳費寫入、排程寫入遷出。拆晒三大 View、清晒反向 import、React Query **唔**納入本期。因果同審核見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。
 
 ---
 
@@ -137,7 +138,7 @@ flowchart TD
 
 對照：`TeacherHomeView` 已用 `Promise.allSettled`，部分失敗會出「部分首頁資料暫時未能載入」——但同時 `setTrials([])`，列表仍真空。方向啱，契約未統一。
 
-`ScheduleManagePage.reloadStats` 的 `catch { /* ignore */ }` 同樣把今日堂數／人數失敗藏起。
+`ScheduleManagePage.reloadStats` 的 `catch { /* ignore */ }` **本身無效**：`fetchScheduleStatsSnapshot` 唔檢查三個 query 的 `.error`，失敗仍 resolve 成 0。
 
 ---
 
@@ -159,13 +160,14 @@ flowchart TD
 
 ## 第一性審核（2026-08-16）
 
-完整因果同給顧問嘅挑戰項見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。結論：
+完整因果同定案見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。結論（含顧問覆核）：
 
 - 真正工作＝失敗≠0、查詢只寫一次、變更可隔離。行數係代理。
-- 波次 1–2 留；eslint 鎖層併入 1。KPI 用 `{ ok: number } | { error }`，唔做第三個 `empty` 變體。
-- 波次 3 改：預設抽 hook；搬 JSX 要符合 island／第二消費者／可測。唔為行數抽 `ClassScheduleTab`。
-- 波次 4 收窄：只搬寫入錯位（學生檔不准 insert payment）。
-- 本期可喺唔拆三大 View 之下關閉。React Query／feature-sliced 唔納入。
+- 本期鎖**資料存取邊界**（UI／page／lib 唔打表），唔聲稱完整單向分層。eslint Auth 要明確豁免。
+- 波次 2 失敗單位＝依賴群組；payload 要表達「失敗但非空」。排程統計先修 service `.error`，唔靠 component `catch`。
+- 波次 3：學生詳情請假／更動／出席已成 island；未切收款精靈／ClassScheduleTab。
+- 波次 4：死碼 `insertPaymentForStudent` 已刪；排程 CRUD／detail 已遷出（`classQueries` re-export）；時間格 helper 已遷 `lib/`。
+- 本期可喺唔拆三大 View 之下關閉。React Query／P2-2 去重／未清晒嘅反向 import 唔納入。
 
 ---
 
@@ -173,11 +175,11 @@ flowchart TD
 
 以計劃 §4 為準。摘要：
 
-1. 先守邊界，再考慮搬家。
+1. 先守資料存取邊界，再考慮搬家。本期唔清 service→component 反向 import。
 2. 抽檔合格線：自己擁有載入／錯誤／寫入，**或**第二畫面已共用，**或** hook／純函式有三態測試。否則唔抽。
 3. 重用跟現有 UI／收款入口指引；業務區塊得第二消費者先共用 JSX。
-4. 錯誤走頁內紅字，唔用 2 秒 banner。真 0／真空＝成功而空；失敗永遠唔畫成 0。
-5. component → service → lib，eslint 鎖。寫入一個聚合根一個出口。
+4. 錯誤走頁內紅字，唔用 2 秒 banner。真 0／真空＝成功而空；失敗永遠唔畫成 0。失敗單位＝依賴群組。
+5. eslint 鎖 UI／page／lib 資料 client（Auth allowlist／facade）。寫入一個聚合根一個出口。
 
 ```ts
 type CountResult = { ok: number } | { error: string }
@@ -188,37 +190,38 @@ type ListResult<T> = { ok: T[] } | { error: string }
 
 ## 建議波次
 
-### 波次 1 — 鎖分層
+### 波次 1 — 資料存取邊界 ✅
 
-試堂／待補／`enrollmentPeriod` fetch 收回 service；eslint 禁止 component／pages／lib 資料面 `supabase.from`／`rpc`（auth 除外）。
+試堂／待補／`enrollmentPeriod` fetch 已收回 service；eslint 禁止 UI／page／lib 匯入 raw `supabase`（Auth 走 `supabaseAuth` facade）。待補徽章 reload 先 unknown；`enrollmentPeriod` 缺列 ≠ PostgREST error。死碼 `enrollmentVisibleOnScheduleDate` 已刪。
 
-### 波次 2 — 營運數字可信（可單獨關閉用戶傷害）
+### 波次 2 — 營運數字可信 ✅
 
-`mgmtDashboardQueries` 唔再 `return 0`；卡面「—」／「資料未能載入」；頁頂可加「部分指標未能載入」。`reloadStats` 唔 `ignore`。抄出席紀錄契約。
+依賴群組 `{ ok } | { error }`；卡面「—」／「資料未能載入」；頁頂「部分指標未能載入」。`fetchScheduleStatsSnapshot` 檢查 `.error`。summary／full 寫 merge 規則，本題唔做 P2-2 去重。純組裝喺 `src/lib/mgmtDashboardAssemble.ts`；orchestration `settle` 後先入組裝層。
 
-### 波次 3 — 機會主義 island／hook
+### 波次 3 — 機會主義 island／hook ✅
 
-有產品 PR 先順手。預設 `useXxxTab`。請假／更動／出席讀可成 island。唔切收款精靈、唔抽通用 LeaveBlock。
+學生詳情請假／更動／出席／**未來排程**已抽成 island（自己載入／失敗／寫入；權限／`?tab=` 留父層）。報讀／繳費／親屬仍在父層，但失敗唔再 `set []` 扮真空。純函式有失敗／真空／真 0 測試。未切收款精靈、未抽通用 LeaveBlock、未抽 `ClassScheduleTab`。
 
-### 波次 4 — 寫入錯位（唔擋本期關閉）
+### 波次 4 — 寫入錯位 ✅
 
-付款寫入離開 `studentQueries`；排程 CRUD 離開 `classQueries`；`classesUi` 時間格遷 `lib/`。
+`insertPaymentForStudent` 確認無 caller 後已刪（唔接 `/Payments`）。排程 CRUD／detail context 遷 `scheduleWriteQueries`／`scheduleDetailQueries`；`classQueries` 暫時 re-export。簽名／連堂雙 insert／學年閘不變；**唔寫** `classes.teacher_id`。時間格／星期 helper 已遷 `lib/classTimeSlot`、`lib/weekdayUtils`（`classesUi` re-export）。
 
 ---
 
 ## 驗收（本期關閉）
 
-- eslint 鎖層；`src/components/**`、`src/pages/**`、`src/lib/**` 無資料面 `supabase.from`／`supabase.rpc`（`auth.*` 除外）。
-- `/MgmtDashboard` 關鍵 KPI（實收、新報讀、退讀、試堂／轉化、在讀人次、上堂人次）任一查詢失敗：**唔顯示 0 當正常**；卡面可讀「資料未能載入」。
+- eslint：UI／page／lib 無 raw 資料 client；Auth 有明確豁免。**唔要求**清反向 import。
+- `/MgmtDashboard` 任一依賴群組失敗：該組 KPI／衍生／圖／告警／CSV **唔**以 0／`[]` 冒充成功。
+- `fetchScheduleStatsSnapshot` 失敗唔顯示 0；點名待補失敗＝徽章 unknown 且清舊值。
 - 原路由／tab／深連結／角色可見性／寫入確認不變。
-- `npm run build`、`lint`、`test`、`ui:check` 全過。
+- `npm run build`、`lint`、`test`、`typecheck:test`、`ui:check` 全過。
 
-**唔擋關閉：** 三大 View 仍超大；未上 React Query。
+**唔擋關閉（已跟進）：** TeacherHome 試堂／請假／未點名失敗分未知態。學生詳情未來排程 island；報讀／繳費／親屬失敗顯示「未能載入」。`src/services/**` 已無 `from "@/components/"`；排程 CRUD 畫面改打 `scheduleWriteQueries`／`scheduleDetailQueries`（`classQueries` 仍暫 re-export）。`statusTag` 改打 `lib/tagTone`。仍留 `lib/appBanner`／`appConfirm`。收款精靈／ClassScheduleTab、React Query、P2-2 去重仍另題。加入班別預設同年級見 [`student-enroll-class-grade-default.md`](./student-enroll-class-grade-default.md)。
 
 ## 明確唔做
 
 - 唔為行數切 `part1`／`part2` 或硬抽未符合合格線嘅 tab。
 - 唔等 generated Database types（P1-3）先做波次 1–2。
-- 唔把本主題做效能、權限、或 Query 遷移。
+- 唔把本主題做效能、權限、或 Query 遷移（summary／full 去重＝P2-2）。
 - 唔刪 `api/entities.ts`（死碼題）。
 - 唔改學費／報讀／點名營運規則。

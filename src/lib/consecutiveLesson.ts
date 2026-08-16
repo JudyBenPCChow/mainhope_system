@@ -1,4 +1,4 @@
-import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
+import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
 import {
  formatMin,
  LESSON_SLOT_COUNT,

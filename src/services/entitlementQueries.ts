@@ -11,13 +11,13 @@ import {
  type EntitlementPackageType,
 } from "@/lib/entitlementPackage"
 import {
- fetchAcademicYearPeriods,
  isSingleSessionEnrollment,
  isSummerTwoPeriodMode,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
+import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"

@@ -9,6 +9,7 @@ import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
+import { signOutAuth } from "@/lib/supabaseAuth"
 import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
 import {
  NAV_STRUCTURE,
@@ -28,7 +29,6 @@ import {
  navL2IconClass,
  navL2RailClass,
 } from "@/lib/navItemStyles"
-import { supabase } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 
 function initialSidebarCollapsed(): boolean {
@@ -77,7 +77,7 @@ export function Layout() {
  const logout = () => {
   void (async () => {
    clearAuthState()
-   if (supabase) await supabase.auth.signOut()
+   await signOutAuth()
    window.location.href = "/Login"
   })()
  }

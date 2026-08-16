@@ -18,7 +18,7 @@ import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { supabase } from "@/lib/supabaseClient"
+import { signOutAuth } from "@/lib/supabaseAuth"
 import {
  fetchAdminDashboard,
  fetchScheduleBoardForDate,
@@ -131,7 +131,7 @@ export function AdminDashboard() {
      size="default"
      className="hidden md:inline-flex"
      onClick={async () => {
-      if (supabase) await supabase.auth.signOut()
+      await signOutAuth()
       clearAuthState()
       window.location.href = "/Login"
      }}
@@ -174,7 +174,7 @@ export function AdminDashboard() {
         </Tag>
        </h2>
        <p className="text-sm text-muted-foreground">
-        班別已指定老師，但仍有排程老師為空；老師時間表會漏堂。請至一對一學生頁稽核並同步。
+        班別已指定任教老師，但仍有排程老師為空；老師時間表會漏堂。請至私人課程頁稽核並同步。
        </p>
       </div>
       <Link

@@ -3,6 +3,7 @@ import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import { addDaysYmd, todayYmdLocal as localYmd } from "@/lib/weekdayUtils"
 
 export type TeacherRecord = {
  id: string
@@ -86,20 +87,6 @@ async function fetchTeachersPrivateByIds(
   map.set(p.teacher_id, p)
  }
  return map
-}
-
-function localYmd(d = new Date()): string {
- const y = d.getFullYear()
- const m = String(d.getMonth() + 1).padStart(2, "0")
- const day = String(d.getDate()).padStart(2, "0")
- return `${y}-${m}-${day}`
-}
-
-function addDaysYmd(ymd: string, days: number): string {
- const [y, mo, da] = ymd.split("-").map(Number)
- const dt = new Date(y, mo - 1, da)
- dt.setDate(dt.getDate() + days)
- return localYmd(dt)
 }
 
 export async function fetchAllTeachers(): Promise<TeacherRecord[]> {

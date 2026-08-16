@@ -9,14 +9,13 @@ import {
  remarksIndicateMakeupOf,
 } from "@/lib/scheduleMakeupMarkers"
 import { supabase } from "@/lib/supabaseClient"
-import { timeSlotSelectValueFromStored } from "@/components/classes/classesUi"
+import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  fetchConsecutiveScheduleIds,
  fetchScheduleStudentHintsForClass,
- insertScheduleRow,
- nextSessionNumberForClass,
 } from "@/services/classQueries"
+import { insertScheduleRow, nextSessionNumberForClass } from "@/services/scheduleWriteQueries"
 import {
  inheritDeclarationsAcrossSchedules,
  syncSingleLessonDeclarations,

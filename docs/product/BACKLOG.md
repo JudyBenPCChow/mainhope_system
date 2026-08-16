@@ -2,23 +2,28 @@
 
 本檔＝工程主題目錄，不是產品看板，也不是 UI／營運規範正文。
 
-| 想找… | 去邊 |
-| --- | --- |
-| 手機該點做（規範） | [`UI_DESIGN_INSTRUCTIONS.md`](../meta/UI_DESIGN_INSTRUCTIONS.md) §14；收款單一入口 §15 |
-| 流動介面進度／模擬 | [`backlog/mobile-ui.md`](./topics/mobile-ui.md)；[波次 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md)／[三角色裝置 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) |
-| 進行中實作步驟 | [`docs/product/plans/`](./plans/) |
-| 稽核報告（已完成的調查） | [`docs/product/audits/`](./audits/)（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)、[2026-08-14 技術債](./audits/2026-08-14-tech-debt-review.md)） |
-| 行政邊緣模擬（2026-07-31） | Cursor Canvas `admin-edge-case-simulation.canvas.tsx`；發現已回寫各 topics 分題「行政邊緣模擬」節 |
-| 未規劃功能構想 | [`FUTURE_*.md`](./future/FUTURE_BANNER_PUSH_NOTIFICATIONS.md) 等 |
-| 架構習慣 | [`AGENT_HANDOFF.md`](../meta/AGENT_HANDOFF.md) |
-| 營運操作／政策 | [`SYSTEM_MANUAL.md`](../playbooks/_INDEX.md)、[`OPS_POLICIES.md`](../policies/_INDEX.md) |
+
+| 想找…                | 去邊                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 手機該點做（規範）          | `[UI_DESIGN_INSTRUCTIONS.md](../meta/UI_DESIGN_INSTRUCTIONS.md)` §14；收款單一入口 §15                                                                                                                                                                                                 |
+| 流動介面進度／模擬          | `[backlog/mobile-ui.md](./topics/mobile-ui.md)`；[波次 1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md)／[三角色裝置 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) |
+| 進行中實作步驟            | `[docs/product/plans/](./plans/)`                                                                                                                                                                                                                                               |
+| 稽核報告（已完成的調查）       | `[docs/product/audits/](./audits/)`（含 [未用／隱藏路由／重疊](./audits/2026-07-31-unused-overlap-routes.md)、[老師桌面／手機對照](./audits/2026-07-31-teacher-desktop-mobile-parity.md)、[2026-08-14 技術債](./audits/2026-08-14-tech-debt-review.md)）                                                   |
+| 行政邊緣模擬（2026-07-31） | Cursor Canvas `admin-edge-case-simulation.canvas.tsx`；發現已回寫各 topics 分題「行政邊緣模擬」節                                                                                                                                                                                                 |
+| 未規劃功能構想            | `[FUTURE_*.md](./future/FUTURE_BANNER_PUSH_NOTIFICATIONS.md)` 等                                                                                                                                                                                                                 |
+| 架構習慣               | `[AGENT_HANDOFF.md](../meta/AGENT_HANDOFF.md)`                                                                                                                                                                                                                                  |
+| 營運操作／政策            | `[SYSTEM_MANUAL.md](../playbooks/_INDEX.md)`、`[OPS_POLICIES.md](../policies/_INDEX.md)`                                                                                                                                                                                         |
+
 
 **Agent 讀檔習慣**：
 
 - 問「有咩未做」／list backlog → **只讀「進行中／未完成」表**（`open`／`in_progress`）；**停**；勿開分題、勿把下方已完成表當成待辦。
+- 問卡住／等緊咩 → 讀「等待中」；**未解除唔開工**（唔套 production、唔當可續做）。
 - 做某個主題 → 先開該列 `topics/<topic>.md`；僅當 `in_progress` 且需要步驟時再開**現行** `plans/…`；唔開同主題舊 review／adversarial 系列。
 - 「想找」表同 `audits/` 連結＝備查索引；預設唔開，除非對對抗結果、查「點解咁決定」、或使用者點名續做該波。
 - 已完成／已取消表同其連結：備查用，日常任務唔掃。
+
+
 
 ## 維護約定
 
@@ -56,6 +61,8 @@
 | open | 低 | 營運文件瀏覽頁 | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工 | [ops-docs-viewer.md](./topics/ops-docs-viewer.md) |
 
 ---
+
+
 
 ## 已完成／已取消
 

@@ -8,7 +8,7 @@ import {
   type ExpensePayMethod,
 } from "@/lib/expensePayMethods"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
-import type { PayrollTeacherRow } from "@/components/payroll/mockData"
+import type { PayrollTeacherRow } from "@/lib/payroll/viewTypes"
 
 export type ExpenseAccountGroup = "direct" | "overhead"
 export type ExpenseLedgerStatus = "pending_review" | "confirmed"

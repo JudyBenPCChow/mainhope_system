@@ -1,4 +1,4 @@
-import type { MgmtDashboardPayload } from "@/components/mgmtDashboard/types"
+import type { MgmtDashboardPayload } from "@/lib/mgmtDashboardTypes"
 
 function localNowLabel(): string {
  const d = new Date()
@@ -92,9 +92,9 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
     tone: "success",
     hint: "篩選區間內實際到課人次",
     breakdown: [
-     { label: "初中小組", value: 520 },
-     { label: "高中小組", value: 410 },
-     { label: "一對一", value: 310 },
+     { label: "初中專科班", value: 520 },
+     { label: "高中專科班", value: 410 },
+     { label: "私人課程", value: 310 },
     ],
     sparkline: [1100, 1140, 1160, 1180, 1210, 1240],
    },
@@ -127,43 +127,49 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
     sparkline: [30, 31, 32, 33, 34, 35],
    },
   ],
-  revenueSeries: [
-   { label: "2月", amount: 142000, target: 150000 },
-   { label: "3月", amount: 158000, target: 155000 },
-   { label: "4月", amount: 151200, target: 160000 },
-   { label: "5月", amount: 169800, target: 165000 },
-   { label: "6月", amount: 172400, target: 170000 },
-   { label: "7月", amount: 186500, target: 175000 },
-  ],
-  funnel: [
-   { stage: "試堂", count: 46, conversionPct: null },
-   { stage: "新報讀", count: 28, conversionPct: 60.9 },
-   { stage: "在讀", count: 312, conversionPct: null },
-  ],
-  withdrawalAnalysis: {
-   bySubject: [
-    { label: "英文", count: 2 },
-    { label: "數學", count: 2 },
-    { label: "中文", count: 1 },
-   ],
-   byTeacher: [
-    { label: "陳老師", count: 2 },
-    { label: "李老師", count: 2 },
-    { label: "王老師", count: 1 },
-   ],
-   byClass: [
-    { label: "英文 F3A", count: 2 },
-    { label: "數學 F4B", count: 2 },
-    { label: "中文 F2C", count: 1 },
-   ],
-   byDate: [
-    { label: "07-08", count: 1 },
-    { label: "07-12", count: 2 },
-    { label: "07-18", count: 1 },
-    { label: "07-22", count: 1 },
+  revenueSeries: {
+   ok: [
+    { label: "2月", amount: 142000, target: 150000 },
+    { label: "3月", amount: 158000, target: 155000 },
+    { label: "4月", amount: 151200, target: 160000 },
+    { label: "5月", amount: 169800, target: 165000 },
+    { label: "6月", amount: 172400, target: 170000 },
+    { label: "7月", amount: 186500, target: 175000 },
    ],
   },
-  unpaidOverdue: [
+  funnel: {
+   ok: [
+    { stage: "試堂", count: 46, conversionPct: null },
+    { stage: "新報讀", count: 28, conversionPct: 60.9 },
+    { stage: "在讀", count: 312, conversionPct: null },
+   ],
+  },
+  withdrawalAnalysis: {
+   ok: {
+    bySubject: [
+     { label: "英文", count: 2 },
+     { label: "數學", count: 2 },
+     { label: "中文", count: 1 },
+    ],
+    byTeacher: [
+     { label: "陳老師", count: 2 },
+     { label: "李老師", count: 2 },
+     { label: "王老師", count: 1 },
+    ],
+    byClass: [
+     { label: "英文 F3A", count: 2 },
+     { label: "數學 F4B", count: 2 },
+     { label: "中文 F2C", count: 1 },
+    ],
+    byDate: [
+     { label: "07-08", count: 1 },
+     { label: "07-12", count: 2 },
+     { label: "07-18", count: 1 },
+     { label: "07-22", count: 1 },
+    ],
+   },
+  },
+  unpaidOverdue: { ok: [
    {
     id: "p1",
     studentName: "陳小明",
@@ -200,7 +206,7 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
     status: "待繳費",
     followUpStatus: "待跟進",
    },
-  ],
+  ] },
   opsAlerts: [
    {
     id: "a1",
@@ -253,6 +259,7 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
     count: 1,
    },
   ],
+  opsAlertsError: null,
   distribution: {
    bySubject: [
     { label: "英文", count: 98 },
@@ -262,13 +269,13 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
     { label: "其他", count: 32 },
    ],
    byClassKind: [
-    { label: "小組", count: 240 },
-    { label: "一對一", count: 72 },
+    { label: "專科班", count: 240 },
+    { label: "私人課程", count: 72 },
    ],
    statusBuckets: {
     registration: [
      { label: "已註冊", count: 280 },
-     { label: "非注冊", count: 48 },
+     { label: "非註冊", count: 48 },
     ],
     enrollment: [
      { label: "在讀", count: 312 },
@@ -297,50 +304,59 @@ export function buildMgmtDashboardMock(): MgmtDashboardPayload {
    ],
   },
   alerts: {
-   unpaid: [
-    { id: "p1", studentName: "陳小明", paymentDate: "2026-07-01", amount: 2750, status: "待繳費" },
-    { id: "p2", studentName: "李美華", paymentDate: "2026-07-05", amount: 1650, status: "待收款" },
-    { id: "p3", studentName: "王大文", paymentDate: "2026-07-10", amount: 825, status: "待繳費" },
-   ],
-   lessonGaps: [
-    {
-     enrollmentId: "e1",
-     classId: "c1",
-     classLabel: "英文 F3A",
-     enrollDate: "2026-04-01",
-     enrollmentPeriod: null,
-     paidLessons: 8,
-     boundLessons: 6,
-     pendingLessons: 0,
-     leaveAwaitingMakeupCount: 0,
-     gap: 2,
-     isAligned: false,
-     pendingRows: [],
-     leaveAwaitingMakeupRows: [],
-     studentId: "s1",
-     studentCode: "S001",
-     studentName: "陳小明",
-     englishName: null,
-    },
-   ],
-   nearFullClasses: [
-    { classId: "c2", label: "數學 F4B", enrolled: 8, capacity: 8, fillPct: 100 },
-    { classId: "c1", label: "英文 F3A", enrolled: 9, capacity: 10, fillPct: 90 },
-   ],
-   recentWithdrawals: [
-    {
-     id: "w1",
-     studentName: "林子豪",
-     classLabel: "英文 F3A",
-     effectiveDate: "2026-07-18",
-    },
-    {
-     id: "w2",
-     studentName: "黃詩涵",
-     classLabel: "數學 F4B",
-     effectiveDate: "2026-07-20",
-    },
-   ],
+   unpaid: {
+    ok: [
+     { id: "p1", studentName: "陳小明", paymentDate: "2026-07-01", amount: 2750, status: "待繳費" },
+     { id: "p2", studentName: "李美華", paymentDate: "2026-07-05", amount: 1650, status: "待收款" },
+     { id: "p3", studentName: "王大文", paymentDate: "2026-07-10", amount: 825, status: "待繳費" },
+    ],
+   },
+   lessonGaps: {
+    ok: [
+     {
+      enrollmentId: "e1",
+      classId: "c1",
+      classLabel: "英文 F3A",
+      enrollDate: "2026-04-01",
+      enrollmentPeriod: null,
+      paidLessons: 8,
+      boundLessons: 6,
+      pendingLessons: 0,
+      leaveAwaitingMakeupCount: 0,
+      gap: 2,
+      isAligned: false,
+      pendingRows: [],
+      leaveAwaitingMakeupRows: [],
+      studentId: "s1",
+      studentCode: "S001",
+      studentName: "陳小明",
+      englishName: null,
+     },
+    ],
+   },
+   nearFullClasses: {
+    ok: [
+     { classId: "c2", label: "數學 F4B", enrolled: 8, capacity: 8, fillPct: 100 },
+     { classId: "c1", label: "英文 F3A", enrolled: 9, capacity: 10, fillPct: 90 },
+    ],
+   },
+   recentWithdrawals: {
+    ok: [
+     {
+      id: "w1",
+      studentName: "林子豪",
+      classLabel: "英文 F3A",
+      effectiveDate: "2026-07-18",
+     },
+     {
+      id: "w2",
+      studentName: "黃詩涵",
+      classLabel: "數學 F4B",
+      effectiveDate: "2026-07-20",
+     },
+    ],
+   },
   },
+  partialLoadFailed: false,
  }
 }

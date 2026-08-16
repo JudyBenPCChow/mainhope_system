@@ -1,6 +1,7 @@
 import { AlertTriangle, ChevronRight } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { MgmtGroupLoadError } from "@/components/mgmtDashboard/MgmtGroupLoadError"
 import type {
  DrilldownFocus,
  MgmtDashboardPayload,
@@ -21,11 +22,12 @@ const CATEGORY_LABEL: Record<OpsAlertCategory, string> = {
 
 type Props = {
  alerts: MgmtDashboardPayload["opsAlerts"]
+ error: string | null
  focus: DrilldownFocus
  onFocus: (focus: DrilldownFocus) => void
 }
 
-export function MgmtOpsAlertsSection({ alerts, focus, onFocus }: Props) {
+export function MgmtOpsAlertsSection({ alerts, error, focus, onFocus }: Props) {
  return (
   <section className="space-y-3">
    <div className="flex flex-wrap items-end justify-between gap-2">
@@ -38,11 +40,13 @@ export function MgmtOpsAlertsSection({ alerts, focus, onFocus }: Props) {
     <p className="text-xs text-muted-foreground">{alerts.length} 項</p>
    </div>
 
-   {alerts.length === 0 ? (
+   {error ? <MgmtGroupLoadError message={error} /> : null}
+
+   {alerts.length === 0 && !error ? (
     <div className="rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground shadow-sm">
      目前無營運警示，狀態正常
     </div>
-   ) : (
+   ) : alerts.length === 0 ? null : (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
      {alerts.map((item) => {
       const active =

@@ -7,6 +7,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
 function formatValue(card: KpiCardModel): string {
+ if (card.loadState === "error") return "—"
  if (card.format === "hkd") {
   return `HK$ ${card.value.toLocaleString("en-HK", { maximumFractionDigits: 0 })}`
  }
@@ -43,7 +44,8 @@ type Props = {
 }
 
 export function MgmtStatCard({ card, selected, onSelect }: Props) {
- const delta = card.deltaPct
+ const failed = card.loadState === "error"
+ const delta = failed ? null : card.deltaPct
  const DeltaIcon =
   delta == null ? Minus : delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : Minus
  const deltaTone =
@@ -54,7 +56,8 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
      : delta < 0
        ? "text-destructive"
        : "text-muted-foreground"
- const gapText = formatGap(card)
+ const gapText = failed ? null : formatGap(card)
+ const statusLabel = failed ? "未能載入" : card.status
 
  return (
   <button
@@ -69,14 +72,14 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
   >
    <div className="flex items-start justify-between gap-2">
     <p className="text-sm text-muted-foreground">{card.label}</p>
-    <Tag tone={statusToTagTone(card.status)} size="sm">
-     {card.status}
+    <Tag tone={failed ? "warning" : statusToTagTone(card.status)} size="sm">
+     {statusLabel}
     </Tag>
    </div>
    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{formatValue(card)}</p>
-   {card.hint ? <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p> : null}
+   {failed ? <p className="mt-1 text-xs text-destructive">{card.hint ?? "資料未能載入"}</p> : card.hint ? <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p> : null}
 
-   {card.breakdown && card.breakdown.length > 0 ? (
+   {!failed && card.breakdown && card.breakdown.length > 0 ? (
     <ul className="mt-2 grid grid-cols-3 gap-1.5">
      {card.breakdown.map((item) => (
       <li
@@ -92,24 +95,27 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
     </ul>
    ) : null}
 
-   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-    <span className={cn("inline-flex items-center gap-0.5", deltaTone)}>
-     <DeltaIcon className="h-3.5 w-3.5" aria-hidden />
-     {delta == null ? "無環比" : `環比 ${delta > 0 ? "+" : ""}${delta}%`}
-    </span>
-    <span className="text-muted-foreground">
-     {card.yoyPct == null
-      ? "無同比"
-      : `同比 ${card.yoyPct > 0 ? "+" : ""}${card.yoyPct}%`}
-    </span>
-   </div>
-   {gapText ? <p className="mt-1 text-xs text-muted-foreground">{gapText}</p> : null}
-
-   {card.sparkline && card.sparkline.length >= 2 ? (
-    <div className="mt-auto pt-2">
-     <Sparkline values={card.sparkline} tone={card.tone} />
-    </div>
-   ) : null}
+   {failed ? null : (
+    <>
+     <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      <span className={cn("inline-flex items-center gap-0.5", deltaTone)}>
+       <DeltaIcon className="h-3.5 w-3.5" aria-hidden />
+       {delta == null ? "無環比" : `環比 ${delta > 0 ? "+" : ""}${delta}%`}
+      </span>
+      <span className="text-muted-foreground">
+       {card.yoyPct == null
+        ? "無同比"
+        : `同比 ${card.yoyPct > 0 ? "+" : ""}${card.yoyPct}%`}
+      </span>
+     </div>
+     {gapText ? <p className="mt-1 text-xs text-muted-foreground">{gapText}</p> : null}
+     {card.sparkline && card.sparkline.length >= 2 ? (
+      <div className="mt-auto pt-2">
+       <Sparkline values={card.sparkline} tone={card.tone} />
+      </div>
+     ) : null}
+    </>
+   )}
   </button>
  )
 }

@@ -28,5 +28,24 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
     },
+  },
+  {
+    files: ["src/components/**/*.{ts,tsx}", "src/pages/**/*.{ts,tsx}", "src/lib/**/*.{ts,tsx}"],
+    ignores: ["src/lib/supabaseClient.ts", "src/lib/supabaseAuth.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/supabaseClient",
+              importNames: ["supabase"],
+              message:
+                "UI／page／lib 不可匯入 raw Supabase client。資料查詢走 services／；Auth 用 @/lib/supabaseAuth。isSupabaseConfigured 仍可直接 import。",
+            },
+          ],
+        },
+      ],
+    },
   }
 )

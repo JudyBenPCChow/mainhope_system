@@ -1,4 +1,4 @@
-import { todayYmdLocal } from "@/components/home/format"
+import { todayYmdLocal } from "@/lib/weekdayUtils"
 import { supabase } from "@/lib/supabaseClient"
 
 export type MgmtAuditLogRow = {

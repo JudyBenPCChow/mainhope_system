@@ -1,4 +1,4 @@
-import { weekdaysFromStored } from "@/components/classes/classesUi"
+import { weekdaysFromStored } from "@/lib/weekdayUtils"
 import { consecutivePairFromFirstTimeSlot, isConsecutiveClass } from "@/lib/consecutiveLesson"
 import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import { intervalsOverlapMinutes, parseHm } from "@/lib/lessonSlots"

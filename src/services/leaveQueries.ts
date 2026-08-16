@@ -3,15 +3,13 @@ import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  enrollmentCoversPeriod,
- fetchAcademicYearPeriods,
- fetchClassEnrollmentConfig,
- fetchClassEnrollmentConfigsByIds,
  isSingleSessionEnrollment,
  normalizeEnrollmentPeriod,
  resolvePeriodCodeFromDate,
  type EnrollmentFormValue,
  type AcademicYearPeriodRow,
 } from "@/lib/enrollmentPeriod"
+import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig, fetchClassEnrollmentConfigsByIds } from "@/services/enrollmentPeriodQueries"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  LESSON_SLOT_DURATION_MIN,
@@ -187,6 +185,17 @@ export async function fetchLeaveTodayStats(): Promise<LeaveTodayStats> {
   leaveStudentCount: leaveIds.size,
   makeupStudentCount: makeupIds.size,
  }
+}
+
+/** 點名頁標題徽章。本波維持全庫 `ilike("%待補%")`，唔加老師／日期篩選、唔對齊 pending enum。 */
+export async function countPendingMakeupRecords(): Promise<number> {
+ if (!supabase) throw new Error("尚未設定 Supabase")
+ const { count, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id", { count: "exact", head: true })
+  .ilike("status", "%待補%")
+ if (error) throwPostgrest(error)
+ return count ?? 0
 }
 
 export function isLeaveStatusPending(status: string): boolean {
@@ -533,7 +542,7 @@ export async function setLeaveTuitionDisposition(
  const chargeStatus = charge ? String((charge as Record<string, unknown>).status) : ""
  if ((disposition as string) === "轉結餘") {
   throw new Error(
-   "已停用「轉結餘」：日常學費以權益池滾堂。請假唔嚟請用調堂／錄影／不補回（唔扣堂）；退讀退款另案處理。"
+   "已停用「轉結餘」：日常學費按已繳堂數扣堂。請假唔嚟請用調堂／錄影／不補回（唔扣堂）；退讀退款另案處理。"
   )
  }
  if (disposition === "減收" && ["已繳", "已抵扣"].includes(chargeStatus)) {

@@ -24,7 +24,8 @@ import {
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { fetchAllClasses, getClassById, insertScheduleForClass } from "@/services/classQueries"
+import { fetchAllClasses, getClassById } from "@/services/classQueries"
+import { insertScheduleForClass } from "@/services/scheduleWriteQueries"
 import {
  fetchClassrooms,
  fetchClassesUsingRoom,
