@@ -1503,7 +1503,7 @@ export function PaymentsPageView() {
             />
             {row.kind === "enrollment" ? (
              <p className="mt-1 text-xs text-muted-foreground">
-              建議＝本月排程堂數 − 權益池餘額（可改；0＝本月唔使交）
+              建議＝同組別本月會扣堂 − 剩餘（可改；0＝本月唔使交）
              </p>
             ) : null}
            </FormField>

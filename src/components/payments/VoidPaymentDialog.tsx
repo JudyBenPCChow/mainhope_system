@@ -162,7 +162,7 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
        <Link className="mx-1 text-primary underline" to="/PaymentCorrection">
         單據／權益更正
        </Link>
-       嘅池調動；金額錯先作廢再重開。
+       調已繳堂數；金額錯先作廢再重開。
       </p>
       {needsSecond ? (
        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
