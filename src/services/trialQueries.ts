@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  LESSON_SLOT_DURATION_MIN,
  intervalsOverlapMinutes,
@@ -163,6 +164,54 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   price_per_lesson: classPrice != null && classPrice > 0 ? classPrice : coursePrice,
   roll_call_done: rollCallDone,
  }
+}
+
+export type UpcomingTrialBrief = {
+ id: string
+ studentName: string
+ classLabel: string
+ scheduleId: string
+ trialDate: string
+ status: string
+}
+
+/**
+ * 老師首頁即將試堂。禁止改用 fetchTrialsWithRelations（含 payments embed，老師 JWT 下會常紅）。
+ */
+export async function fetchUpcomingTrialsForClassIds(
+ classIds: string[],
+ fromYmd: string
+): Promise<UpcomingTrialBrief[]> {
+ if (!supabase || classIds.length === 0) return []
+ const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select(
+    "id, trial_date, status, schedule_id, class_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
+   )
+   .in("class_id", slice)
+   .gte("trial_date", fromYmd)
+   .order("trial_date", { ascending: true })
+  if (error) throw error
+  return data ?? []
+ })
+ return chunks.flat().map((row) => {
+  const r = row as Record<string, unknown>
+  const st = r.students as Record<string, unknown> | null
+  const cls = r.classes as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "—"
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  return {
+   id: String(r.id),
+   studentName: st?.full_name != null ? String(st.full_name) : "—",
+   classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+   scheduleId: String(r.schedule_id ?? ""),
+   trialDate: String(r.trial_date ?? ""),
+   status: String(r.status ?? ""),
+  } satisfies UpcomingTrialBrief
+ })
 }
 
 export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
