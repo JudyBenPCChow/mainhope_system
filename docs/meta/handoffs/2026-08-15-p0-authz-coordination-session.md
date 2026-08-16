@@ -32,6 +32,7 @@ P0-1 要確保即使完全繞過 UI，RLS／command 仍正確允許或拒絕。P
 - 目標架構定為：DB capability kernel＋低風險 capability-backed RLS＋高風險 transactional command。
 - 完成 P0-2 localStorage／AuthProvider／頁面及 service guard 調查。
 - 互相審閱兩份報告，架構方向一致。
+- 2026-08-15 晚：P0-2 agent 已接；過夜續見 [`2026-08-15-p0-authz-p0-2-session.md`](./2026-08-15-p0-authz-p0-2-session.md)。
 - 已確認必須補充：
   - active role 是 account-scoped 還是 session-scoped；
   - profile／role-switch v2 contract；
@@ -130,11 +131,12 @@ hasCapability(profile.role, "payments.void")
 
 ## 未完成／卡住
 
-- 角色權限產品矩陣尚未拍板。
+- 角色權限產品矩陣尚未全簽；決策稿填答中（公理 1／B／C／IA1／V2／V4 已收）。
 - Active role scope 尚未定案。
 - `mainhope-staging` inactive；未決定恢復 staging 或建立 Supabase branch。
 - Profile v2／role-switch v2／authz-version 仍未凍結。
 - 尚未建立或套用任何 P0-1 migration。
+- P0-2 callsite inventory／驗收案例尚未補寫。
 
 ## 下一步（P0-1）
 

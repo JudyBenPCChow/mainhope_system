@@ -2,9 +2,9 @@ import {
  ENTITLEMENT_ADJUSTMENT_REASON_LABELS,
  type EntitlementAdjustmentReasonCode,
 } from "@/lib/entitlementAdjustment"
+import { entitlementNamespaceLabel, type EntitlementCourseGroup } from "@/lib/entitlementNamespace"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
-import { formatMgmtActorLabel } from "@/lib/mgmtRole"
 
 export type EntitlementPoolSummary = {
  id: string
@@ -36,6 +36,21 @@ export type EntitlementAdjustmentRow = {
  createdAt: string
 }
 
+function poolDisplayLabel(raw: Record<string, unknown>): string {
+ const cls = raw.classes as Record<string, unknown> | null
+ const course = cls?.courses as Record<string, unknown> | null
+ const classLabel = formatClassLabel({
+  subject: cls?.subject != null ? String(cls.subject) : "",
+  courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : null,
+  courseName: course?.course_name != null ? String(course.course_name) : null,
+ })
+ const courseGroup = String(raw.course_group ?? "group_specialist") as EntitlementCourseGroup
+ const namespaceKey = String(raw.namespace_key ?? "")
+ const sharesAcrossClasses =
+  courseGroup === "group_specialist" && namespaceKey !== "" && !namespaceKey.startsWith("class:")
+ return entitlementNamespaceLabel({ courseGroup, namespaceKey, sharesAcrossClasses }, classLabel)
+}
+
 function mapPoolSummary(
  raw: Record<string, unknown>,
  classLabel: string
@@ -43,12 +58,12 @@ function mapPoolSummary(
  return {
   id: String(raw.id),
   studentId: String(raw.student_id),
-  classId: String(raw.class_id),
+  classId: raw.class_id != null ? String(raw.class_id) : "",
   classLabel,
   packageType: String(raw.package_type ?? ""),
   remainingLessons: Number(raw.remaining_lessons ?? 0),
   initialLessons: Number(raw.initial_lessons ?? 0),
-  sourceEnrollmentId: String(raw.source_enrollment_id),
+  sourceEnrollmentId: raw.source_enrollment_id != null ? String(raw.source_enrollment_id) : "",
  }
 }
 
@@ -56,7 +71,7 @@ async function actorMeta(): Promise<{ email: string | null; name: string | null 
  if (!supabase) return { email: null, name: null }
  const { data } = await supabase.auth.getUser()
  const email = data.user?.email?.trim().toLowerCase() || null
- return { email, name: formatMgmtActorLabel() }
+ return { email, name: null }
 }
 
 export async function fetchPoolsForStudent(
@@ -66,21 +81,14 @@ export async function fetchPoolsForStudent(
  const { data, error } = await supabase
   .from("student_entitlement_pools")
   .select(
-   "id, student_id, class_id, package_type, remaining_lessons, initial_lessons, source_enrollment_id, classes ( subject, course_code_full, courses ( course_name ) )"
+   "id, student_id, class_id, package_type, remaining_lessons, initial_lessons, source_enrollment_id, course_group, namespace_key, classes ( subject, course_code_full, courses ( course_name ) )"
   )
   .eq("student_id", studentId)
   .order("created_at", { ascending: false })
  if (error) throw error
  return (data ?? []).map((row) => {
   const raw = row as Record<string, unknown>
-  const cls = raw.classes as Record<string, unknown> | null
-  const course = cls?.courses as Record<string, unknown> | null
-  const label = formatClassLabel({
-   subject: cls?.subject != null ? String(cls.subject) : "",
-   courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : null,
-   courseName: course?.course_name != null ? String(course.course_name) : null,
-  })
-  return mapPoolSummary(raw, label || String(raw.class_id))
+  return mapPoolSummary(raw, poolDisplayLabel(raw))
  })
 }
 
@@ -152,7 +160,7 @@ export async function adjustEntitlementPool(opts: {
   .eq("id", opts.poolId)
   .maybeSingle()
  if (poolErr) throw poolErr
- if (!pool) throw new Error("找不到權益池")
+ if (!pool) throw new Error("找不到已繳堂數記錄")
 
  const before = Number((pool as { remaining_lessons?: number }).remaining_lessons ?? 0)
  const after = before + delta
@@ -172,11 +180,16 @@ export async function adjustEntitlementPool(opts: {
   .eq("id", opts.poolId)
  if (updErr) throw updErr
 
+ const classId = (pool as { class_id?: string | null }).class_id
+ if (classId == null || String(classId) === "") {
+  throw new Error("此池未掛班，無法寫入調動紀錄")
+ }
+
  const { error: insErr } = await supabase.from("entitlement_pool_adjustments").insert({
   adjustment_batch_id: batchId,
   pool_id: opts.poolId,
   student_id: String((pool as { student_id: string }).student_id),
-  class_id: String((pool as { class_id: string }).class_id),
+  class_id: String(classId),
   delta_lessons: delta,
   reason_code: opts.reasonCode,
   notes,
@@ -190,7 +203,7 @@ export async function adjustEntitlementPool(opts: {
 
  const pools = await fetchPoolsForStudent(String((pool as { student_id: string }).student_id))
  const updated = pools.find((p) => p.id === opts.poolId)
- if (!updated) throw new Error("調動後無法重讀權益池")
+ if (!updated) throw new Error("調動後無法重讀已繳堂數")
  return updated
 }
 
@@ -218,7 +231,12 @@ export async function transferEntitlementLessons(opts: {
  if (error) throw error
  const from = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.fromPoolId)
  const to = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.toPoolId)
- if (!from || !to) throw new Error("找不到來源或目標權益池")
+ if (!from || !to) throw new Error("找不到來源或目標已繳堂數記錄")
+ const fromClassId = (from as { class_id?: string | null }).class_id
+ const toClassId = (to as { class_id?: string | null }).class_id
+ if (fromClassId == null || toClassId == null) {
+  throw new Error("此池未掛班，無法寫入調動紀錄")
+ }
 
  const fromBefore = Number((from as { remaining_lessons?: number }).remaining_lessons ?? 0)
  const toBefore = Number((to as { remaining_lessons?: number }).remaining_lessons ?? 0)
@@ -255,7 +273,7 @@ export async function transferEntitlementLessons(opts: {
    adjustment_batch_id: batchId,
    pool_id: opts.fromPoolId,
    student_id: String((from as { student_id: string }).student_id),
-   class_id: String((from as { class_id: string }).class_id),
+   class_id: String(fromClassId),
    delta_lessons: -lessons,
    reason_code: opts.reasonCode,
    notes,
@@ -269,7 +287,7 @@ export async function transferEntitlementLessons(opts: {
    adjustment_batch_id: batchId,
    pool_id: opts.toPoolId,
    student_id: String((to as { student_id: string }).student_id),
-   class_id: String((to as { class_id: string }).class_id),
+   class_id: String(toClassId),
    delta_lessons: lessons,
    reason_code: opts.reasonCode,
    notes,
@@ -286,6 +304,6 @@ export async function transferEntitlementLessons(opts: {
  const toPools = await fetchPoolsForStudent(String((to as { student_id: string }).student_id))
  const fromSummary = fromPools.find((p) => p.id === opts.fromPoolId)
  const toSummary = toPools.find((p) => p.id === opts.toPoolId)
- if (!fromSummary || !toSummary) throw new Error("搬堂後無法重讀權益池")
+ if (!fromSummary || !toSummary) throw new Error("搬堂後無法重讀已繳堂數")
  return { from: fromSummary, to: toSummary }
 }

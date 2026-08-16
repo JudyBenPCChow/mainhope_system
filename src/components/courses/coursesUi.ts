@@ -3,7 +3,7 @@ import type { CourseRecord } from "@/services/classQueries"
 
 export const COURSE_MODE_FILTER_CHIPS = [
  { key: "全部", label: "全部" },
- { key: "regular", label: "正規學年" },
+ { key: "regular", label: "常規學年" },
  { key: "summer_two_period", label: "暑期兩期" },
 ] as const
 
@@ -68,7 +68,7 @@ export function courseMatchesSearch(
   subjectLabel,
   c.grade_code,
   String(c.course_seq),
-  c.course_mode === "summer_two_period" ? "暑期兩期" : "正規",
+  c.course_mode === "summer_two_period" ? "暑期兩期" : "常規",
  ].join(" ")
  return hay.toLowerCase().includes(q)
 }

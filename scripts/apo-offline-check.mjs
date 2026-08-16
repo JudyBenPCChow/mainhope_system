@@ -137,6 +137,30 @@ const howtoCases = [
     expectName: null,
     expectIntent: "howto",
   },
+  {
+    id: "單據作廢 → payment",
+    q: "單據點樣作廢？",
+    role: "admin",
+    expectGuide: "payment",
+    expectName: null,
+    expectIntent: "howto",
+  },
+  {
+    id: "單據開錯 → payment",
+    q: "單據開錯點處理？",
+    role: "admin",
+    expectGuide: "payment",
+    expectName: null,
+    expectIntent: "howto",
+  },
+  {
+    id: "權益更正 → payment（manager）",
+    q: "單據／權益更正邊度入？",
+    role: "manager",
+    expectGuide: "payment",
+    expectName: null,
+    expectIntent: "howto",
+  },
 ]
 
 for (const c of howtoCases) {
@@ -150,6 +174,22 @@ for (const c of howtoCases) {
     const badStudentMiss = /搵唔到符合嘅學生/.test(direct.reply)
     check("howto路徑", `${c.id} · 回覆唔准假搜學生`, !badStudentMiss, badStudentMiss ? "誤用學生搜尋回覆" : "OK")
   }
+}
+
+{
+  const paymentReply = tryDirectHowtoAnswer("單據開錯點處理？", "admin")?.reply ?? ""
+  check(
+    "howto路徑",
+    "payment 回覆含單據／權益更正",
+    paymentReply.includes("單據／權益更正"),
+    paymentReply ? "OK" : "無直答"
+  )
+  check(
+    "howto路徑",
+    "payment 回覆唔再寫開錯一律作廢",
+    !/單據開錯：作廢後另開新單/.test(paymentReply) && !/單據出錯不可刪除，須/.test(paymentReply),
+    "OK"
+  )
 }
 
 // ─── 2. 資料查詢抽取（唔好被 howto 規則誤殺） ─────────────────────────────
@@ -258,6 +298,7 @@ const adminCritical = [
   "/AttendanceRecords",
   "/Payments",
   "/PaymentHistory",
+  "/PaymentCorrection",
   "/PaymentDiscounts",
   "/MgmtDashboard",
 ]
@@ -291,6 +332,7 @@ for (const need of [
   "tomorrow_reminders",
   "portal_enrollment",
   "teacher_leave_wizard",
+  "payment",
 ]) {
   check("知識庫健全", `存在 guide ${need}`, ids.includes(need), "")
 }

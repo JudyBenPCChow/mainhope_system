@@ -2,15 +2,16 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（調查完成；未開工） |
+| 狀態 | `in_progress`（P0-1 產品矩陣已簽；**P0-2／P1-4 等 P0-1**；未收緊 production RLS） |
 | 優先 | 高 |
 | 範圍 | 權限真源、RLS 讀寫分離（P0-1／P0-2）＋頁級守衛／Role 型收斂（P1-4） |
+| 阻塞 | **P0-2＋P1-4 等 P0-1**：未交付 profile v2／capability catalog／role-switch contract 前，唔改 Auth 守衛、唔另起前端權限表。P0-3（CI）唔等 P0-1。 |
 | 不含 | **主線品質閘（P0-3）** [`mainline-quality-gate.md`](./mainline-quality-gate.md)；**洩露密碼（P0-4）** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)；God files、計糧／總覽 perf、死碼清理、家長 Portal 前端 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | Canvas | `tech-debt-audit.canvas.tsx` |
 | 相關 | [`mgmt-manager-role.md`](./mgmt-manager-role.md)（RLS 第二期已知債）、[`role-ops-hardening.md`](./role-ops-hardening.md)（UI 守衛已做、DB 寫入未拆）、[`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) |
-| 記錄 | 2026-08-14 全盤檢視 |
+| 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接、等 P0-1 contract |
 
 ## 目標（一句）
 
@@ -26,7 +27,7 @@
 
 ## 開工前須拍板
 
-1. finance／manager 各表實際可寫範圍（見 P0-1 建議矩陣；未簽收勿改 RLS）。
+1. 寫入矩陣：[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)（已簽；U2 之後）。kernel 已喺 production；**收緊 RLS 只喺 mainhope-staging**（domain 1–7＋延後表／session／波 5 其餘表／actor 蓋印已過 allow-deny；authz_version 10）。未確認前勿 `db:apply` 去 production。堂數池申請制另見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md)。
 2. 家長 Portal 前端是否另開調查（本 repo 無 Portal UI）。
 3. P1-4 已併入；其餘 P1–P3 按 backlog 分題處理。
 
@@ -60,7 +61,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 
 ### 改善方案
 
-**先簽收寫入矩陣，再 migration。** 建議預設（對齊已有產品文，未當已簽）：
+**先簽收寫入矩陣，再 migration。** 產品階層已改：`alien` ⊇ `manager` ⊇ `admin`（讀＋寫）；下表「manager 破壞性否」作廢，以 [決策稿](./p0-1-authorization-decisions.md) 為準。歷史建議預設（僅備查）：
 
 | 表／操作 | admin | manager | finance | alien | teacher |
 | --- | --- | --- | --- | --- | --- |
@@ -79,6 +80,8 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 ---
 
 ## P0-2　前端守衛讀 localStorage，唔係 Auth
+
+**等 P0-1。** 調查已完；2026-08-15 P0-2 agent 已接。實作（`RequireCapabilities`、nav／route 改 capabilities、刪 localStorage 授權 fallback）等 P0-1 交出同一 DB profile／capability contract。未交付前可審閱接口／補 inventory，唔開工改共用 Auth 檔。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)。
 
 ### 成因
 
@@ -105,7 +108,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 
 ### 改善方案
 
-P0-1 同 P0-2 要一齊做，否則只修一邊唔夠。
+P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 P0-1，P0-2 等 contract**；唔好而家用角色守衛頂住，之後再拆。
 
 1. `RequireMgmtRoles` 改讀 `useAuth().role`（bootstrap `ready` 前顯示載入，唔讀 storage）。
 2. 刪服務層授權用嘅 `getMgmtRole()`／`isAdminOrAlien()`；寫入失敗必須來自 RLS／RPC。前端旗標只藏掣。
@@ -127,8 +130,8 @@ P0-1 同 P0-2 要一齊做，否則只修一邊唔夠。
 
 | 波 | 做 | 依賴 |
 | --- | --- | --- |
-| A | P0-1 RLS 讀寫分離 | 寫入矩陣簽收 |
-| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | A 同期或緊接；否則只修 UI |
+| A | P0-1 capability kernel＋按域收緊 RLS／command | 寫入矩陣簽收（[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)） |
+| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | **等 P0-1** 交付 profile v2／capability catalog／role-switch contract |
 
 P0-3 見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)。  
 原 P0-4 見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。  

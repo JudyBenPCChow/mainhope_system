@@ -55,8 +55,8 @@ import {
 
 const REGISTRATION_FILTERS = [
  { key: "all", label: "全部" },
- { key: "已註冊", label: "注冊" },
- { key: "非注冊", label: "非注冊" },
+ { key: "已註冊", label: "註冊" },
+ { key: "非注冊", label: "非註冊" },
 ] as const
 
 const ENROLLMENT_FILTERS = [
@@ -677,10 +677,10 @@ export function StudentsListPage() {
 
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     注冊狀態
+     註冊狀態
      <span
       className="ml-1 font-normal normal-case text-muted-foreground/80"
-      title="已註冊＝正式學生；非注冊＝試堂／查詢等尚未註冊"
+      title="已註冊＝正式學生；非註冊＝試堂／查詢等尚未註冊"
      >
       （？）
      </span>
@@ -1008,14 +1008,14 @@ export function StudentsListPage() {
             onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
            />
           </Field>
-          <Field label="注冊狀態">
+          <Field label="註冊狀態">
            <StatusToggle
             checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
             onCheckedChange={(on) =>
              setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
             }
-            offLabel="非注冊（試堂／查詢）"
-            onLabel="注冊"
+            offLabel="非註冊（試堂／查詢）"
+            onLabel="註冊"
            />
           </Field>
           <Field label="學業階段">

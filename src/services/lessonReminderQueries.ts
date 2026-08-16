@@ -1,4 +1,3 @@
-import { formatMgmtActorLabel } from "@/lib/mgmtRole"
 import {
  aggregateStudentDayLessons,
  type AggregatedStudentDayLesson,
@@ -324,7 +323,6 @@ export async function markStudentDayReminded(params: {
   student_id: params.studentId,
   reminder_date: params.reminderDate,
   reminded_at: new Date().toISOString(),
-  reminded_by: formatMgmtActorLabel(),
   channel: params.channel ?? "whatsapp",
   detail: params.detail ?? null,
  }
