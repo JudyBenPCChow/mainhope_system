@@ -1,17 +1,30 @@
-# 點名狀態與扣堂（已上堂數）
+# 點名狀態與扣堂（已扣堂數）
 
 介面用語繁體中文。程式來源：`src/lib/attendanceBilling.ts`、`src/services/attendanceQueries.ts`。  
 營運政策索引：[`OPS_POLICIES.md`](../_INDEX.md)。
 
 ## 計費單位
 
-- 學費以**堂數**為單位；一堂對應一堂權益。
+- 學費以**堂數**為單位；一堂對應一堂已繳堂數。
 - **連堂＝2 堂**：原班學生點名對每個 `schedule_id` 各寫一列，扣 2 堂。
 - **連堂單項補堂**：補堂生可只綁連堂其中一節；點名紙仍可見，但只寫入所綁那一節，**只計 1 堂**（並清除同組另一節的多餘列）。點名紙會標「補堂·僅第 N 節」。
 
+### 已繳堂數餘額（`2627` 起）
+
+點名紙、報讀仍**分班**。已繳堂數餘額按課程組別：
+
+| 組別 | 是否共用餘額 |
+| --- | --- |
+| 專科小組、同一級（例如中一中文＋數學） | 是 |
+| 私人課程、試堂、功課輔導班 | 否（跟該班） |
+| 混級專科班 | 否（跟該班） |
+| 暑期 `*SM`（含 `26SM`） | 唔走此池；舊路徑不變 |
+
+入池只睇學費行 `lesson_count`；優惠只影響錢。試堂不入專科小組共用。逾期罰款仍按班／科，見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../payments/TUITION_TERM_AND_LATE_FEE_POLICY.md)。
+
 ## 點名狀態
 
-### 扣堂（計入「已上堂數」）
+### 扣堂（計入「已扣堂數」）
 
 | 狀態 | 含義 |
 | --- | --- |
@@ -28,7 +41,7 @@
 | 事假 | 有請假（事假） |
 | 病假 | 有請假（病假） |
 
-歷史「缺席」**不遷移**、不计已上。舊「出席／網課／補課」仍計（相容）。計費採**嚴格白名單**（見 `isBillableAttendanceStatus`）。
+歷史「缺席」**不遷移**、不計已扣堂數。舊「出席／網課／補課」仍計（相容）。計費採**嚴格白名單**（見 `isBillableAttendanceStatus`）。
 
 ## 請假與點名
 
@@ -51,7 +64,7 @@
 ## 取消補堂／清調堂與出席（反操作）
 
 - 取消請假或清／改調堂**不會**靜默刪出席；有可刪補堂出席時會 Confirm（預設一併刪，可選保留）。  
-- **孤兒**＝已無應到資格但仍有 `attendance_details`，且計費 status 仍計入已上堂數。  
+- **孤兒**＝已無應到資格但仍有 `attendance_details`，且計費 status 仍計入已扣堂數。
 - 操作細節與覆蓋範圍：[`manual/LEAVE_MAKEUP_CONSECUTIVE.md`](../../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) §6；現況清：[`manual/LIFECYCLE_ORPHAN_CLEANUP_RUNBOOK.md`](../../playbooks/frontdesk/LIFECYCLE_ORPHAN_CLEANUP_RUNBOOK.md)。  
 - **勿硬刪已點名排程**（會令 `schedule_id` 變 null 更難對帳）；應軟取消。
 
@@ -67,11 +80,11 @@
 
 ## 追學費（參考）
 
-顯示條件：**已付堂數 ≤ 已上堂數**（且不全為 0）。  
-已付＝已收款收據之 `payment_details.lesson_count` 加總（**作廢單據不計**；見 [`PAYMENT_RECEIPT_VOID_POLICY.md`](../payments/PAYMENT_RECEIPT_VOID_POLICY.md)）。  
+顯示條件：**已繳堂數 ≤ 已扣堂數**（且不全為 0）。
+已繳堂數＝已收款收據之 `payment_details.lesson_count` 加總（**作廢單據不計**；見 [`PAYMENT_RECEIPT_VOID_POLICY.md`](../payments/PAYMENT_RECEIPT_VOID_POLICY.md)）。
 用途為前台參考；學生通常一次繳多堂，非天天催繳工具。
 
-**勿與「逾期罰款」混淆：** 本節是堂數缺口參考。正規小組課拖欠學費之 **HK$50** 罰款（每月每科一次；試堂／一對一不罰）見 [`manual/TUITION_LATE_FEE_FRONTLINE.md`](../../playbooks/frontdesk/TUITION_LATE_FEE_FRONTLINE.md) 與 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../payments/TUITION_TERM_AND_LATE_FEE_POLICY.md)。禁止入室不系統化。營運政策索引：[`OPS_POLICIES.md`](../_INDEX.md)。
+**勿與「逾期罰款」混淆：** 本節是堂數缺口參考。常規專科班拖欠學費之 **HK$50** 罰款（每月每科一次；試堂／私人課程不罰）見 [`manual/TUITION_LATE_FEE_FRONTLINE.md`](../../playbooks/frontdesk/TUITION_LATE_FEE_FRONTLINE.md) 與 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../payments/TUITION_TERM_AND_LATE_FEE_POLICY.md)。禁止入室不系統化。營運政策索引：[`OPS_POLICIES.md`](../_INDEX.md)。
 
 ## 試堂
 

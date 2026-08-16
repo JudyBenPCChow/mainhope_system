@@ -102,16 +102,20 @@ export function TrialConvertDialog({
         .map((id) => sessions.find((s) => s.id === id)?.sessionNumber)
         .filter((n): n is number => n != null)
         .sort((a, b) => a - b)
-      return nums.length ? `單堂報讀（第${nums.join("、")}堂）` : "單堂報讀"
+      return nums.length ? `單堂（第${nums.join("、")}堂）` : "單堂"
     }
-    if (courseMode === "summer_two_period") return String(enrollForm)
-    return "報足全期"
+    if (courseMode === "summer_two_period") {
+      if (enrollForm === "第一期") return "暑期第一期"
+      if (enrollForm === "第二期") return "暑期第二期"
+      if (enrollForm === "兩期全報") return "暑期兩期全報"
+    }
+    return "報讀"
   }, [courseMode, enrollForm, pickedSessions, sessions, target])
 
   const submit = async () => {
     if (!target || !targetClassId) return
     if (enrollForm === "single" && pickedSessions.length === 0) {
-      setDlgErr("單堂報讀請至少勾選一堂")
+      setDlgErr("單堂請至少勾選一堂")
       return
     }
     const enrollmentPeriod: EnrollmentFormValue | null =
@@ -203,7 +207,7 @@ export function TrialConvertDialog({
                   value={enrollForm === "single" ? "single" : "full"}
                   onChange={(e) => setEnrollForm(e.target.value === "single" ? "single" : "full")}
                 >
-                  <option value="full">報足全期（九月正規）</option>
+                  <option value="full">報讀（常規學年）</option>
                   <option value="single">單堂（自選堂數）</option>
                 </Select>
               ) : (
@@ -216,9 +220,9 @@ export function TrialConvertDialog({
                     )
                   }
                 >
-                  <option value="第一期">第一期</option>
-                  <option value="第二期">第二期</option>
-                  <option value="兩期全報">兩期全報</option>
+                  <option value="第一期">暑期第一期</option>
+                  <option value="第二期">暑期第二期</option>
+                  <option value="兩期全報">暑期兩期全報</option>
                   <option value="single">單堂（自選堂數）</option>
                 </Select>
               )}

@@ -1,6 +1,6 @@
 # 操作說明（Playbooks）
 
-給**營運／接待／管理員**：已上線功能點用、從邊入、注意事項。  
+給**營運／接待／管理員**：現行功能點用、從邊入、注意事項。
 規則真相 → [`../policies/_INDEX.md`](../policies/_INDEX.md)。勿把未做功能寫成已上線。
 
 ## 怎麼維護
@@ -16,11 +16,11 @@
 | 篇章 | 簡介 |
 | --- | --- |
 | [試堂出單與點名紙](frontdesk/TRIAL_RECEIPT_FRONTLINE.md) | 全價／半價／免費出單；確認後上紙；老師收件匣 |
-| [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp／作廢 |
+| [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp；開錯按類型走已繳堂數調動或作廢 |
 | [收件匣](frontdesk/INBOX.md) | 營運／系統通知、已讀 |
 | [請假與補堂（連堂）](frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) | 連堂只欠／只補；取消請假 |
 | [逾期學費罰款（前線）](frontdesk/TUITION_LATE_FEE_FRONTLINE.md) | 家長解說與執行 |
-| [代堂與換主責（前線）](frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) | 何時代堂／何時換主責 |
+| [代堂與更換任教老師（前線）](frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) | 何時代堂／何時更換任教老師 |
 
 ### 財務（`finance/`）
 
@@ -39,7 +39,7 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| [`policies/_INDEX.md`](../policies/_INDEX.md) | 校方規條 |
-| [`year/2627/ops-guide.md`](../year/2627/ops-guide.md) | 本學年職員讀本 |
-| [`meta/TERMINOLOGY.md`](../meta/TERMINOLOGY.md) | 文案稱呼 |
+| [`policies/_INDEX.md`](../policies/_INDEX.md) | 營運規則 |
+| [`year/2627/ops-guide.md`](../year/2627/ops-guide.md) | 本學年員工讀本 |
+| [`meta/TERMINOLOGY.md`](../meta/TERMINOLOGY.md) | 公司術語與定義 |
 | `AGENTS.md`／[`meta/AGENT_HANDOFF.md`](../meta/AGENT_HANDOFF.md) | 開發約定 |

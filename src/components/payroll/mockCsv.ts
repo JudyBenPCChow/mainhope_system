@@ -1,3 +1,5 @@
+import { payrollModeLabel } from "@/lib/payroll/modeLabel"
+
 import {
   formatHkd,
   teacherBillableHc,
@@ -88,7 +90,7 @@ export function downloadPayrollMockCsv(
           ver,
           month.status,
           t.name,
-          t.mode,
+          payrollModeLabel(t.mode),
           teacherLessonCount(t),
           teacherBillableHc(t),
           t.gross ?? "",

@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（CI＋測試 typecheck 已加 2026-08-16；branch protection 未開；阿Po 留） |
+| 狀態 | `done`（2026-08-16：CI 綠＋`main` ruleset 要求該 check；阿Po 留） |
 | 優先 | 高 |
 | 來源 | 2026-08-14 全盤檢視 P0-3＋P2-3；由 [`tech-debt-hardening.md`](./tech-debt-hardening.md) 拆出獨立討論 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
@@ -14,11 +14,11 @@
 
 ## 白話（一句）
 
-PR／push 去 main 會跑檢查；未開 branch protection 前，紅燈仍可合併。
+PR 合併進 `main` 必須 CI 綠；直推 `main` 仍會先入再跑檢查。
 
 ## 現況
 
-**2026-08-16：** `.github/workflows/ci.yml` 於 pull request 同 push 去 main 跑 `lint` → `typecheck:test` → `test` → `ui:check` → `build`。`tsconfig.test.json`＋`npm run typecheck:test` 已加。阿Po／每日 `apo-check.yml` 今輪唔刪。GitHub branch protection 未開。
+**2026-08-16：** `.github/workflows/ci.yml` 於 pull request 同 push 去 main 跑 `lint` → `typecheck:test` → `test` → `ui:check` → `build`（Actions 已綠）。`tsconfig.test.json`＋`npm run typecheck:test` 已加。阿Po／每日 `apo-check.yml` 今輪唔刪。GitHub **branch ruleset** 已 target `main`，必過 check＝`lint · typecheck:test · test · ui:check · build`。
 
 **2026-08-15 熄紅燈後（本機）：** `npm run lint` 0 error（仍有 warning）；`npm test` 95 pass／2 skip；`npm run ui:check` 通過；`npm run build` 通過（`tsc -b && vite build`）。
 
@@ -141,7 +141,7 @@ Playwright 只保留少量跨層 smoke 候選；唔喺本題一次過補全面 E
 
 1. ~~每日阿Po workflow~~ **留**（同事會用 IT狗；今輪唔刪產品、唔刪每日檢查）。
 2. ~~沙盒檢查排除~~ **已做**（其餘 `src/prototypes/**` 剔出；計糧已遷正式）。主站 `/prototype/…` 拆唔拆另題。
-3. GitHub branch protection：Settings → Branches 開「CI quality 必須綠先合併」。只加 yml 唔開必過，紅燈仍可進主線。
+3. ~~GitHub branch protection~~ **已做**（branch ruleset target `main`；Require status checks＝CI job）。
 4. ~~Playwright~~ **暫留、唔入 CI**（截圖／海報腳本有用）。
 5. ~~加 `ci.yml`~~ **已做**。
 
@@ -151,6 +151,6 @@ Playwright 只保留少量跨層 smoke 候選；唔喺本題一次過補全面 E
 | --- | --- |
 | 1 | ~~熄紅燈~~ **已完成 2026-08-15**（測試跟出單先上紙；正式 lint／Tag；計糧遷出；其餘沙盒剔出檢查） |
 | 2 | ~~加 `ci.yml`~~ **已完成 2026-08-16** |
-| 3 | GitHub 開 branch protection（未做；要 Settings 權限） |
+| 3 | ~~GitHub 開 branch protection~~ **已完成 2026-08-16**（ruleset target `main`） |
 | 4 | ~~測試檔納入 typecheck~~ **已完成**；其後高風險改動先補針對性 regression（過程約束，唔一次過補網） |
 | 5 | ~~刪 `apo-check.yml`~~ **今輪唔做** |
