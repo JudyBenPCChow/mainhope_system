@@ -64,7 +64,7 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
-| done | 高 | 主線品質閘（P0-3） | CI＋測試 typecheck；\`main\` ruleset 必過 \`lint · typecheck:test · test · ui:check · build\`；阿Po 留 | [mainline-quality-gate.md](./topics/mainline-quality-gate.md) |
+| done | 高 | 主線品質閘（P0-3） | CI＋測試 typecheck；`main` ruleset 必過 `lint · typecheck:test · test · ui:check · build`；阿Po 留 | [mainline-quality-gate.md](./topics/mainline-quality-gate.md) |
 | cancelled | 中 | 原班連堂分節點名 | 實務幾乎唔會半節假／半節到；維持整組同一狀態 | [consecutive-half-session-attendance.md](./topics/consecutive-half-session-attendance.md) |
 | done | 高 | 出席紀錄日期範圍查詢 | 專用 RPC `get_attendance_records_in_range`＋`attendance_date` 索引；列表唔打 roster；預設整月（B）；失敗唔 silent 全 0 | [attendance-records-range-query.md](./topics/attendance-records-range-query.md) |
 | done | 中 | 連堂請假預設 UX | 預設改「只請本節」；兩節一併 Confirm；前台勾選提示 | [consecutive-leave-default-ux.md](./topics/consecutive-leave-default-ux.md) |
