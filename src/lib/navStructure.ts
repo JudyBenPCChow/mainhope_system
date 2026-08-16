@@ -106,8 +106,8 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    },
    { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin", "manager", "alien"], icon: ScrollText },
    { path: "/TrialSessions", label: "試堂紀錄", roles: ["admin", "alien"], icon: Sparkles },
-   { path: "/PrivateTutoring", label: "一對一學生", roles: ["admin", "manager", "alien"], icon: UserRound },
-   { path: "/PrivateTutoring", label: "我的一對一學生", roles: ["teacher"], icon: UserRound },
+   { path: "/PrivateTutoring", label: "私人課程", roles: ["admin", "manager", "alien"], icon: UserRound },
+   { path: "/PrivateTutoring", label: "我的私人課程", roles: ["teacher"], icon: UserRound },
    { path: "/EnrollmentReports", label: "人數報表", roles: ["manager", "alien"], icon: BarChart3 },
    {
     path: "/SecondaryAttendanceReport",
@@ -177,7 +177,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "manager", "finance", "alien"], icon: Wallet },
    {
     path: "/PaymentCorrection",
-    label: "單據／權益更正",
+    label: "單據／堂數更正",
     roles: ["admin", "manager", "alien"],
     icon: Scale,
    },

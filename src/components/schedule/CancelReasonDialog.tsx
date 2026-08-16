@@ -65,7 +65,7 @@ export function CancelReasonDialog({
        setReason(e.target.value)
        if (err) setErr(null)
       }}
-      placeholder="例如：老師臨時請假、颱風停課、學生全數請假…"
+      placeholder="例如：老師臨時請假、颱風影響、學生全數請假…"
       autoFocus
      />
      {err ? <p className="text-destructive">{err}</p> : null}

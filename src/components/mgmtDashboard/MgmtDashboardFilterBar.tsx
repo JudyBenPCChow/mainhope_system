@@ -138,8 +138,8 @@ export function MgmtDashboardFilterBar({
        }
       >
        <option value="all">全部</option>
-       <option value="group">小組</option>
-       <option value="private">一對一</option>
+       <option value="group">專科班</option>
+       <option value="private">私人課程</option>
       </Select>
      </div>
      <div>

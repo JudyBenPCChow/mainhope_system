@@ -173,7 +173,7 @@ export function computeTeacherMonth(
 
   for (const l of lessons) {
     if (l.billableHc === 0 && !l.missingRollCall) {
-      anomalies.push(`實際 HC=0：${l.classLabel}（${l.date}）`)
+      anomalies.push(`實際計薪人頭=0：${l.classLabel}（${l.date}）`)
     }
   }
 

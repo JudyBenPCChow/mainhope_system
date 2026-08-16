@@ -23,7 +23,7 @@ export function requiresDatabaseAnswer(text: string, hasEntityContext = false): 
 
   // 概念／定義（知識庫直答，唔使查 DB）
   if (/有.?什麼分別|有.?咩分別|什麼是|係咩|意思是|定義/.test(t)) {
-    if (/在讀|活躍|注冊|報讀|四維|學號|學業/.test(t)) return false
+    if (/在讀|活躍|注冊|註冊|報讀|四維|學號|學業/.test(t)) return false
   }
 
   // 純操作教學（無具名查詢對象）

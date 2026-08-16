@@ -3,6 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+export type { TagTone } from "@/lib/tagTone"
+
 export const tagVariants = cva(
  "inline-flex items-center rounded-xl px-3 py-1 text-sm font-medium",
  {
@@ -58,8 +60,6 @@ export const tagVariants = cva(
   },
  }
 )
-
-export type TagTone = NonNullable<VariantProps<typeof tagVariants>["tone"]>
 
 type TagProps = React.HTMLAttributes<HTMLSpanElement> & VariantProps<typeof tagVariants>
 
