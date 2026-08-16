@@ -503,7 +503,7 @@ export function TeacherDetailView() {
        </div>
        <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 text-center shadow-sm md:p-4">
         <div className="text-xl font-bold text-teal-800 md:text-3xl">{pastDoneCount}</div>
-        <div className="text-[11px] font-medium text-teal-900/90 md:text-xs">已上堂數</div>
+        <div className="text-[11px] font-medium text-teal-900/90 md:text-xs">已完成堂次</div>
        </div>
       </div>
 

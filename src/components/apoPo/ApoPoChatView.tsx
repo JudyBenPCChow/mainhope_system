@@ -156,8 +156,6 @@ export function ApoPoChatView() {
       try {
         const row: ClassRecord = await insertClass(poSlotsToInsertPayload(pending.slots))
         await appendMgmtAuditLog({
-          actorLabel: "外星人（阿Po）",
-          role: "alien",
           action: "apo_po.chat.create_class",
           path: "/Apo",
           detail: JSON.stringify({

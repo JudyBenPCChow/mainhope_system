@@ -1,6 +1,6 @@
 # AGENTS.md — 明學（MainHope）行政後台
 
-介面用語：**繁體中文**。機構自稱見 `docs/meta/TERMINOLOGY.md`（**明學教育**／**MainHope**；禁 mingxue、院方、「明學補習社」、書院／學院自稱）。
+介面用語：**繁體中文**。文案／自稱／班型：`.cursor/rules/terminology.mdc`（員工定義：`docs/meta/TERMINOLOGY.md`）。改術語須同步兩份並審營運文件（`.cursor/rules/terminology-sync.mdc`）。
 
 ## 技術棧
 
@@ -41,8 +41,9 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 ## 讀檔階梯
 
 文件總門牌：`docs/README.md`（政策／操作／學年／工程／meta 四門）。  
-預設只靠本檔。問未做 → `docs/product/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。  
+預設只靠本檔。問未做／可開工 → `docs/product/BACKLOG.md`「進行中／未完成」。問卡住／等緊咩 → 同檔「等待中」（未解除唔開工）。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。  
 `docs/product/audits/`／已完成 plans：除非對對抗、查決策、或用戶點名，否則唔開。  
 營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘唔好預讀。
 
-**MD↔DOCX：** 改 `docs/year/2627/ops-guide.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。
+**MD↔DOCX：** 改 `docs/year/2627/ops-guide.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。  
+**術語：** 改用詞／定義時同步 `docs/meta/TERMINOLOGY.md` 與 `.cursor/rules/terminology.mdc`，並審閱政策／playbooks／2627 指引（見 `.cursor/rules/terminology-sync.mdc`）。

@@ -126,12 +126,12 @@ export function StudentIntakeFormFields({
      </Field>
      {!parentFacing ? (
       <>
-       <Field label="注冊狀態">
+       <Field label="註冊狀態">
         <StatusToggle
          checked={(value.registration_status ?? "已註冊") === "已註冊"}
          onCheckedChange={(on) => patch({ registration_status: on ? "已註冊" : "非注冊" })}
-         offLabel="非注冊（試堂／查詢）"
-         onLabel="注冊"
+         offLabel="非註冊（試堂／查詢）"
+         onLabel="註冊"
         />
        </Field>
        <Field label="學業階段">

@@ -258,10 +258,10 @@ export function buildTeacherAttendanceCalcHtml(teacher: SecondaryTeacherBlock, m
           <col style="width:25%" /><col style="width:25%" /><col style="width:25%" /><col style="width:25%" />
         </colgroup>
         <tr>
-          <td class="c-jg"><span class="k-label">初中小組出席</span><span class="k-value">${byKey.juniorGroup.presentVisits}</span></td>
-          <td class="c-sg"><span class="k-label">高中小組出席</span><span class="k-value">${byKey.seniorGroup.presentVisits}</span></td>
-          <td class="c-jp"><span class="k-label">初中一對一出席</span><span class="k-value">${byKey.juniorPrivate.presentVisits}</span></td>
-          <td class="c-sp"><span class="k-label">高中一對一出席</span><span class="k-value">${byKey.seniorPrivate.presentVisits}</span></td>
+          <td class="c-jg"><span class="k-label">初中專科班出席</span><span class="k-value">${byKey.juniorGroup.presentVisits}</span></td>
+          <td class="c-sg"><span class="k-label">高中專科班出席</span><span class="k-value">${byKey.seniorGroup.presentVisits}</span></td>
+          <td class="c-jp"><span class="k-label">初中私人課程出席</span><span class="k-value">${byKey.juniorPrivate.presentVisits}</span></td>
+          <td class="c-sp"><span class="k-label">高中私人課程出席</span><span class="k-value">${byKey.seniorPrivate.presentVisits}</span></td>
         </tr>
         <tr>
           <td><span class="k-label">全月班數</span><span class="k-value">${classTotal}</span></td>
@@ -288,7 +288,7 @@ export function buildTeacherAttendanceCalcHtml(teacher: SecondaryTeacherBlock, m
         </thead>
         <tbody>${categoryRowsHtml(cats, presentTotal, absentTotal)}</tbody>
       </table>
-      <p class="footnote">人次＝每堂實際出席加總。初中＝中一至中三；高中＝中四至中六。小組／一對一分開計算。</p>
+      <p class="footnote">人次＝每堂實際出席加總。初中＝中一至中三；高中＝中四至中六。專科班／私人課程分開計算。</p>
     </div>
 
     <div class="keep-block" data-block="grade-summary">

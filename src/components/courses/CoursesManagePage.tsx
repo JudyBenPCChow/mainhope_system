@@ -349,7 +349,7 @@ export function CoursesManagePage() {
           <td className="px-3 py-3">{subjectLabelById.get(r.subject_id) ?? r.subject_name_zh}</td>
           <td className="px-3 py-3">{r.grade_code}</td>
           <td className="px-3 py-3">{r.course_seq}</td>
-          <td className="px-3 py-3">{r.course_mode === "summer_two_period" ? "暑期兩期" : "正規"}</td>
+          <td className="px-3 py-3">{r.course_mode === "summer_two_period" ? "暑期兩期" : "常規"}</td>
           <td className="px-3 py-3 text-xs leading-relaxed">
            {r.course_mode === "summer_two_period" ? (
             <>
@@ -437,7 +437,7 @@ export function CoursesManagePage() {
          }))
         }
        >
-        <option value="regular">正規學年</option>
+        <option value="regular">常規學年</option>
         <option value="summer_two_period">暑期兩期（可選報第一期／第二期／兩期全報）</option>
        </Select>
       </div>

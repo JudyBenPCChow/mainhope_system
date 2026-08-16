@@ -3,7 +3,7 @@
 
 | 欄位  | 值                                                                                                                                                                         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 狀態  | `in_progress`                                                                                                                                                             |
+| 狀態  | `in_progress`（**暫停：等 `2627` 班 live 後續做**）                                                                                                                              |
 | 優先  | 高                                                                                                                                                                         |
 | 範圍  | 暑期／正規之點名紙、補堂、取消改期；權益池與到課宣告；學費收款→池滾堂                                                                                                                                       |
 | 不含  | 原班連堂分節點名；生命週期孤兒；欠費門禁；計糧；會計收入認列                                                                                                                                            |
@@ -11,7 +11,7 @@
 | 路線圖 | `[2026-08-08-enrollment-entitlement-roadmap.md](../plans/2026-08-08-enrollment-entitlement-roadmap.md)`                                                                   |
 | 政策  | `[ACADEMIC_YEARS.md](../policies/academic/ACADEMIC_YEARS.md)`；`[ATTENDANCE_BILLING.md](../policies/attendance/ATTENDANCE_BILLING.md)`；`[LEAVE_MAKEUP_CONSECUTIVE.md](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md)` §5 |
 | 生效閘 | `2627` **開始接受報讀前**，新報讀須鑄池；有排程／點名時讀宣告。`26SM` 維持舊路徑至日落                                                                                                                      |
-| 修訂  | 2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
+| 修訂  | 2026-08-16：結構已上；**暫停，等 `2627` 班 live 後續做**驗收。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
 | 技術債歸屬 | 2026-08-14 全盤檢視 P1-1（權益雙路徑／`2627` live E2E 未驗）沿用本題，不另開重複工程 |
 
 
@@ -54,7 +54,7 @@
 
 - 交四堂中間請假 → 不可自動掛之後連續四堂
 - 提早繳費 → 紙靠宣告，唔靠餘額
-- 轉科 → 搬堂數（§4.8）
+- 轉科 → `2627` 同組別已共用；跨組別用 G2。唔開前台轉科頁。
 - 欠費可上紙；池跨月滾；唔強制每月交
 - **行政請假頁＋老師點名紙**都要能見到「呢日唔嚟、唔使補」
 
@@ -80,7 +80,7 @@
 
 ### 2.2–2.7
 
-命名空間、宣告狀態、多池優先序、扣堂單位（1／連堂 2）、學年硬閘、已回絕項——同前版，不重複。重點：**排程永不抬池**；**常規不退費、只轉科搬堂**。
+命名空間、宣告狀態、多池優先序、扣堂單位（1／連堂 2）、學年硬閘、已回絕項——同前版，不重複。重點：**排程永不抬池**；**常規不退費**；同組別唔搬堂。
 
 ---
 
@@ -94,7 +94,7 @@
 | 基盤＋宣告生命週期＋入口收斂                   | ✅      |
 | live `2627` E2E                  | 阻（0 班） |
 | **主波 2026-08-09**：空池＋支付 top_up／作廢 clawback；停排程抬池；繳費建議；停轉結餘／月費收款；G1 不補回→不扣堂預填 | ✅ migration `20260809231500` 已套遠端 |
-| 單據／權益更正頁（G2a／G2b 池調動 UI、作廢第二人） | ⬜ 見 [`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md) |
+| 單據／權益更正頁（G2a／G2b 池調動 UI、作廢第二人） | ✅ 見 [`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md) |
 | 試堂旗標／$0 單細節（G3） | 產品已拍板（WIP T1–T4）；工程／手冊見 [`frontline-ops-update.md`](./frontline-ops-update.md)；總覽 KPI [`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md) |
 
 
@@ -116,8 +116,8 @@
 
 ### 4.4 繳費建議
 
-`建議 = max(0, 該月該科會扣堂排程單位 − remaining)`  
-可為 0、可多交、跨月滾；`remaining` 負則建議追回。
+`建議 = max(0, 該組別該月會扣堂排程單位 − remaining)`  
+專科小組同一級＝該生該級所有就讀專科班合計；可為 0、可多交、跨月滾；`remaining` 負則建議追回。
 
 ### 4.5 負池
 
@@ -137,7 +137,7 @@
 
 ### 4.8 轉科搬堂
 
-常規不退費；前台頁按**堂數**搬池；特殊退費非正式路徑。
+常規不退費。`2627` 同一級專科小組已共用餘額，同組別唔使搬堂。跨組別（私人／試堂／另一級）用 G2 調動。**唔開**前台轉科專頁。
 
 ### 4.9 請假可見（硬性）
 
@@ -187,7 +187,7 @@ Prod 0 筆；停新增 credit 寫入。
 
 | 情況 | 已定做法 |
 | --- | --- |
-| 轉科（常規） | **唔退費**；按**堂數**由來源池搬去目標池（§4.8；前台轉科搬堂頁待做） |
+| 轉科（常規） | **唔退費**。同一級專科小組已共用，唔使搬；跨組別用 G2 調動（§4.8；**唔做**前台轉科頁） |
 | 學生唔再讀、唔退款、堂送親友 | **屬轉讓／搬池**（G2c 帶出）；**唔等同**「收錯學生開單」。產品句：原池減堂 → 親友池加堂＋調動原因表；錢單是否重開另計 |
 | 收錯學生（真係開錯單） | 仍屬 **A 類錯單**（G2c 錯單半）：未耗可作廢／clawback；已耗則拒整單或先處理點名——**同「自願送堂」分開入口** |
 
@@ -220,7 +220,7 @@ Prod 0 筆；停新增 credit 寫入。
 
 ### 5.3 繳費建議（`/Payments`）
 
-**已薄做：** 選班後建議堂數＝本月非取消排程單位 − 池餘；hint「0＝本月唔使交」。請假日剔除建議基數可再收（跟 G1 深化）。
+**已薄做：** 選班後建議堂數＝該組別本月非取消排程單位 − 組別池餘；hint「0＝本月唔使交」。請假日剔除建議基數可再收（跟 G1 深化）。
 
 ### 5.4 廢月費＋停 credit
 
@@ -253,7 +253,7 @@ Prod 0 筆；停新增 credit 寫入。
 
 ### 5.7 轉科搬堂頁
 
-選來源池→目標池、搬堂數、稽核、宣告重掛。
+**不做。** 同組別已共用；跨組別用現有 `/PaymentCorrection`。
 
 ### 5.8 安全網／日落
 
@@ -266,7 +266,8 @@ Prod 0 筆；停新增 credit 寫入。
 ### 5.10 單據／權益更正頁（政策更新）
 
 **2026-08-10：** `/PaymentCorrection`＋`entitlement_pool_adjustments`＋作廢第二人確認已上。詳見 [`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md)。  
-**2026-08-11：** 作廢政策全文＋2627 §11／§12 已同步；餘阿Po／收據手册另包。
+**2026-08-11：** 作廢政策全文＋2627 §11／§12 已同步。  
+**2026-08-16：** 收據手册＋明學IT狗已跟分流。本項完成；申請制另題。
 
 ---
 
@@ -328,8 +329,31 @@ T1–T4 已關：堂數預設 1；計人頭手選無預設；$0 跟現行收據�
 
 
 
+---
+
+
+
+## 26SM 歷史紀錄（日後）
+
+今次**唔改** `26SM` 任何表或路徑。`usesEntitlementRosterModel("26SM")` 維持 false。暑期紀錄在 `classes`／`schedules`／`attendance_details`／`payments`／報讀，**唔經** `student_entitlement_pools`（production 暑期池列數為 0）。
+
+`2627` 運作期間要睇返 `26SM`：
+
+- 只要唔刪暑期班／排程／點名／收據、唔把 `*SM` 改去新池閘，舊紀錄仍可睇。
+- **若**日後要改 `classes` 必填欄（無預設）、軟封存預設隱藏舊學年、或刪暑期班「清表」，先同產品確認——否則 `26SM` 歷史會睇唔返。
+- 唔好把 `26SM` 報讀補鑄權益池來「對齊 2627」。
+
+---
+
+
+
 ## 7. 相關
 
+- 池按人 vs 按班 v3（已拍板，2026-08-15）：[`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)
+- 池按人 vs 按班 v2（工程意見）：[`entitlement-pool-per-student-v2.md`](./entitlement-pool-per-student-v2.md)
+- 池按人 vs 按班（顧問簡報，2026-08-15 擬定、未落地）：[`entitlement-pool-per-student-briefing.md`](./entitlement-pool-per-student-briefing.md)
+- 顧問回覆：[entitlement-pool-per-student-consultant-feedback.md](./entitlement-pool-per-student-consultant-feedback.md)
+- 顧問二：[entitlement-pool-per-student-second-consultant-feedback.md](./entitlement-pool-per-student-second-consultant-feedback.md)
 - 試堂／優惠前線草稿：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)
 - 前台規模／流程更新：[`frontline-ops-update.md`](./frontline-ops-update.md)
 - 營運總覽 KPI 規格：[`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md)
