@@ -71,7 +71,7 @@ ${APO_NO_HALLUCINATION_RULE}
 - 未來試堂預約
 - 追收學費學生名單（在讀／活躍生；admin／alien）
 - 已繳堂數／計費出席堂數、追收學費提示（admin／alien，單一學生）
-- 解釋系統頁面、按鈕、欄位、流程（含前台精靈、一對一、堂數對帳、點名扣堂規則）
+- 解釋系統頁面、按鈕、欄位、流程（含前台精靈、私人課程、堂數對帳、點名扣堂規則）
 
 ## 你不可以
 
@@ -93,15 +93,15 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
-admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、一對一 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／權益更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
-teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的一對一 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、私人課程 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／堂數更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
+teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的私人課程 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
 
 /** 精簡狀態說明（howto 層） */
 export const APO_STATUS_COMPACT = `
 ## 學生四維（簡）
-注冊（手動）｜報讀=每班一筆｜在讀=有就讀中報讀（自動）｜活躍=近三個月有報讀（自動）｜學業階段（手動）
+註冊（手動）｜報讀=每班一筆｜在讀=有就讀中報讀（自動）｜活躍=近三個月有報讀（自動）｜學業階段（手動）
 `.trim()
 
 export const APO_KNOWLEDGE_BASE = `
@@ -118,7 +118,7 @@ ${APO_SYSTEM_DIRECTIVES}
 | 角色 | 說明 |
 | --- | --- |
 | admin（管理員） | 學生、班別、排程、繳費、出席等日常營運 |
-| teacher（專科班老師） | 點名、我的班別、我的一對一（多半只可預約）、時間表、預約空房、收件匣；**沒有**收款／繳費頁 |
+| teacher（專科班老師） | 點名、我的班別、我的私人課程（多半只可預約）、時間表、預約空房、收件匣；**沒有**收款／繳費頁 |
 | alien（外星人） | 最高權限：課程、優惠、用戶、系統日志、報錯與問題等 |
 
 完整入口可指引至 /AllFeatures。
@@ -142,7 +142,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /PortalEnrollmentRequests 家長報讀申請（核准唔自動開單）
 - /EnrollmentChanges 增退紀錄
 - /TrialSessions 試堂紀錄（轉正／流失復盤）
-- /PrivateTutoring 一對一學生（含一對二）
+- /PrivateTutoring 私人課程（含一對一／一對二）
 - /EnrollmentReports 人數報表
 - /SecondaryAttendanceReport 中學出席統計
 - /LessonBalanceMismatch 堂數對帳
@@ -152,14 +152,14 @@ ${APO_SYSTEM_DIRECTIVES}
 - /Classes/New 新增班別
 - /TeacherAvailability 老師檔期規劃
 - /Classrooms 課室管理
-- /AcademicCalendar 校曆（停課日）
+- /AcademicCalendar 校曆（校舍假期）
 - /TeachingRecords 教學紀錄
 - /TeacherLeaveWizard 老師請假處理（代堂／取消另約）
 - /LeaveManagement 請假管理（學生請假／待補課）
 - /RoomBookingAdmin 約房審批
 - /Payments 收款登記
 - /PaymentHistory 繳費紀錄（含作廢）
-- /PaymentCorrection 單據／權益更正（已繳堂數調動）
+- /PaymentCorrection 單據／堂數更正（已繳堂數調動）
 - /PaymentDiscounts 優惠折扣（編輯多半 alien）
 - /MgmtDashboard 營運總覽
 
@@ -167,7 +167,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - /TeacherTimetable 時間表
 - /TeacherProfile 個人資料
 - /Classes 我的班別
-- /PrivateTutoring 我的一對一學生（只見自己；可預約上堂）
+- /PrivateTutoring 我的私人課程（只見自己；可預約上堂）
 - /RoomBooking 預約空房
 - /TeachingRecords 教學紀錄
 
@@ -184,13 +184,13 @@ ${APO_SYSTEM_DIRECTIVES}
 
 | 概念 | 說明 |
 | --- | --- |
-| 注冊 | 已註冊／非注冊；試堂屬非注冊；手動維護 |
+| 註冊 | 已註冊／非註冊；試堂屬非註冊；手動維護 |
 | 報讀 | 一筆 = 一個班別報讀 |
 | 在讀 | 有任一筆「就讀中」報讀；自動計算 |
 | 活躍 | 過去 3 個月內有報讀紀錄；自動計算 |
 | 學業階段 | 中學階段／已畢業；手動 |
 
-注冊日期 ≠ 報讀日期。
+註冊日期 ≠ 報讀日期。
 
 ## 學號（student_code）
 
@@ -209,29 +209,29 @@ ${APO_SYSTEM_DIRECTIVES}
 - 可用：17D、17E、山案座、矩尺座、英仙座（容量多未設定）。
 - **17K：2026-07-31 退租停用**——唔好再排班／約房指派至 17K（DB 可能仍有列）。
 
-## 小組課 vs 一對一
+## 專科班 vs 私人課程
 
-| | 小組課 | 一對一／一對二 |
+| | 專科班 | 私人課程（一對一／一對二） |
 | --- | --- | --- |
-| 入口 | 班別管理 → 班別詳情 | 「一對一學生」（admin）／「我的一對一學生」（teacher）→ 點班名進詳情 |
+| 入口 | 班別管理 → 班別詳情 | 「私人課程」（admin）／「我的私人課程」（teacher）→ 點班名進詳情 |
 | 排程 | 固定星期／時段／課室，批量排程 | 無固定時段；列表「預約」或詳情內預約（可單次／週期／連堂） |
-| 班別列表 | 預設顯示 | 預設隱藏；可篩「一對一」 |
+| 班別列表 | 預設顯示 | 預設隱藏；可篩「私人課程」 |
 | 退讀 | 報讀改「已退讀」 | 列表退讀，並取消未來預約課堂 |
 
-小組生查「管理小組報讀」喺學生詳情；唔好同一對一列表混用。
+專科班學生查「管理專科班報讀」喺學生詳情；唔好同私人課程列表混用。
 
 ## 繳費與優惠
 
 - 收款登記：/Payments（出單、標記已收）
 - 繳費紀錄：/PaymentHistory（查歷史單據、作廢）
-- 單據／權益更正：/PaymentCorrection（堂數／科班錯用已繳堂數調動；金額錯先作廢再重開；禁硬刪）
+- 單據／堂數更正：/PaymentCorrection（堂數／科班錯用已繳堂數調動；金額錯先作廢再重開；禁硬刪）
 - 優惠折扣：/PaymentDiscounts（admin、alien）
 - admin／alien 可用工具查已繳堂數與追收提示；不回傳具體金額
 - 追學費提示條件（參考）：已繳堂數相對已扣堂數出現缺口（且不全為 0）；學生通常一次繳多堂，非天天催繳工具
 
-## 點名狀態與扣堂（已上堂數）
+## 點名狀態與扣堂（已扣堂數）
 
-**扣堂（計入已上堂數）**：現場、錄影回放、zoom實時網課、no show、請假而不需補回  
+**扣堂（計入已扣堂數）**：現場、錄影回放、zoom實時網課、no show、請假而不需補回  
 **不扣堂**：事假、病假  
 
 要點：
@@ -239,17 +239,17 @@ ${APO_SYSTEM_DIRECTIVES}
 - 先點名（如 no show）再補請假：需人手改狀態。
 - **未點名不自動銷堂**；應提醒老師盡快點名。
 - 「全部現場」唔會覆蓋當日已有請假單嘅學生。
-- 歷史「缺席」不计已上；舊「出席／網課／補課」仍相容計費。
+- 歷史「缺席」不计已扣；舊「出席／網課／補課」仍相容計費。
 
 請假安排 → 預填：待安排／調堂 → 事假或病假；錄影 → 錄影回放；不補回 → 請假而不需補回。
 
-## 報讀形式（小組課）
+## 報讀形式（專科班）
 
 | 形式 | 適用 | 說明 |
 | --- | --- | --- |
-| 報足全期 | 正規學年 | enrollment_period 為空；整段學年 |
+| 報讀 | 常規學年 | enrollment_period 為空；整段學年（畫面唔再寫「報足全期／全期報讀」） |
 | 第一期／第二期／兩期全報 | 暑期兩期制 | 依學術年期數 |
-| 單堂（自選堂數） | 正規或暑期 | 與上列互斥；勾選第 x 堂（綁 schedules） |
+| 單堂（自選堂數） | 常規或暑期 | 與上列互斥；勾選第 x 堂（綁 schedules） |
 
 - 單堂生只出現喺有報讀嘅堂嘅點名名單；未報讀堂會提示「沒有報讀此堂」，**唔係請假**。
 - 班別詳情標示例如：第一期報讀、單堂報讀（第3、7、8堂）。
@@ -272,15 +272,16 @@ ${APO_SYSTEM_DIRECTIVES}
 ## 試堂轉化與復盤
 
 - 入口：/TrialSessions（admin、alien）
-- **轉正式報讀**：須先完成該堂點名；預設同班；可揀報讀形式（全期／暑期期數／單堂）並可一併收費；結果＝已轉化。
-- **流失／其他**：標流失（時間不合、學費等）或其他結果（改期、轉介、暫掛）；與「已預約／已完成／取消」status 分開。
+- **出單先上紙**：全價／半價／免費一律經收款登記出單並確認；免費出 $0 單、堂數 1。未確認＝唔上點名紙。半價＝正價＋優惠 50%。計人頭手選、無預設。
+- **轉正式報讀**：未點名仍可轉（畫面會警告）；預設同班；可揀報讀形式（常規報讀／暑期期數／單堂）；學費去收款登記。結果＝已轉化。
+- **流失／其他**：標流失（時間不合、學費等）或其他結果（改期、轉介、暫掛）；與「已預約／已完成／取消」status 分開。流失須先取消試堂。
 - 轉化率：已轉化 ÷（已轉化＋已流失＋其他）。已結案或已報讀該班不可再轉正。
-- 試堂生會出現喺該堂點名表；試堂 ≠ 單堂報讀。
+- 確認收款後試堂生先出現喺該堂點名紙（標「試堂」）；老師收件匣會收到試堂通知。試堂 ≠ 單堂報讀。
 
 ## 收件匣
 
 - 入口：/Inbox（admin、teacher、alien）
-- 內容：排程新增／變動／取消／代堂、班別變動、主責變更、學生請假、新增報讀／退讀／報讀形式／選堂、補堂已排定、提醒點名。老師僅見自己相關班／學生／堂次。
+- 內容：排程新增／變動／取消／代堂、班別變動、任教老師變更、學生請假、新增報讀／退讀／報讀形式／選堂、補堂已排定、試堂已確認收款、提醒點名。老師僅見自己相關班／學生／堂次。
 - 操作說明：docs/playbooks/frontdesk/INBOX.md（系統說明書）
 - 專班老師側欄已攤平：收件匣喺「進行點名」正下方；亦可由「所有功能」進入。
 - 行政「待辦看板」（/Calendar）已廢除；日常通知請用收件匣。
@@ -290,22 +291,22 @@ ${APO_SYSTEM_DIRECTIVES}
 日視圖可能顯示：無人報讀｜所有學生請假｜請假生｜試堂生｜網課生｜要錄影。  
 - 「無人報讀」＝該堂上堂名單空（唔等於未開班）。  
 - 「所有學生請假」＝名單有人但全員請假；有試堂生則仍需上堂，唔當閒置。  
-- 專班老師篩選：資料已鎖定自己；進階篩選僅「未有學生報讀」（無一對一／未有課室篩選）。
+- 專班老師篩選：資料已鎖定自己；進階篩選僅「未有學生報讀」（無私人課程／未有課室篩選）。
 
 ## 常見操作
 
 - 前台一次過：/FrontDeskWizard
-- 新增班別報讀：/Students → 學生詳情 → 報讀班別（可揀全期／期數／單堂）
+- 新增班別報讀：/Students → 學生詳情 → 報讀班別（可揀報讀／期數／單堂）
 - 班別加學生：/Classes → 班別詳情 → 增加學生（同一套報讀形式）
-- 一對一報讀／預約：/PrivateTutoring
+- 私人課程報讀／預約：/PrivateTutoring
 - 點名：/Attendance 或排程頁「確定點名」（單堂未報讀會有文字提醒）
 - 請假：/LeaveManagement、學生詳情，或前台精靈第 4 步
 - 課堂取消後安排補堂：班別詳情 → 已取消堂次 →「安排補堂」（補回加堂；單堂選堂會改掛；唔好用「新增排程」代替）
 - 堂數對帳跟進：/LessonBalanceMismatch
-- 試堂：/TrialSessions（收費試堂宜先收款再關聯收據；免費可直接建）
-- 試堂轉正式報讀：須先完成該堂點名 →「轉正式報讀」（同班；可揀全期／期數／單堂；可一併收費）→ 結果「已轉化」
-- 試堂復盤：可「標流失」或「其他結果」（改期／轉介等）；與 status（已預約／已完成／取消）分開
-- 收件匣：/Inbox（排程／班別／請假／增退讀／點名提醒；行政待辦看板已廢除）
+- 試堂：/TrialSessions（全價／半價／免費一律出單確認後先上點名紙；免費 $0、堂數 1；半價＝正價＋50% 優惠）
+- 試堂轉正式報讀：未點名仍可轉（會警告）→「轉正式報讀」（同班；可揀常規報讀／期數／單堂；學費去收款登記）→ 結果「已轉化」
+- 試堂復盤：可「標流失」或「其他結果」（改期／轉介等）；與 status（已預約／已完成／取消）分開；流失須先取消
+- 收件匣：/Inbox（排程／班別／請假／增退讀／試堂確認／點名提醒；行政待辦看板已廢除）
 - 新增老師主檔：/Teachers（只建主檔）
 - 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues
@@ -315,18 +316,18 @@ ${APO_SYSTEM_DIRECTIVES}
 | 用戶說法 | 正確理解／引導 |
 | --- | --- |
 | 「點名點咗但堂數冇扣」 | 查該堂狀態係咪事假／病假（不扣堂）；或未按「確定」儲存；連堂應扣 2 堂 |
-| 「學生冇出現喺點名表」 | 可能單堂未報讀該堂、已退讀、或未加入報讀；唔好當請假 |
+| 「學生冇出現喺點名表」 | 可能單堂未報讀該堂、已退讀、未加入報讀、或試堂未出單／未確認；唔好當請假 |
 | 「全部現場之後請假生都變現場」 | 唔應；有請假單嘅學生「全部現場」唔會覆蓋—若已存錯狀態要人手改 |
 | 「請假咗點解仲要追學費／對帳」 | 「待安排」請假尚無補堂日會進堂數對帳；錄影／不補回唔同規則 |
 | 「待補同待補課有咩分別」 | 待補堂＝報讀堂數差額；待補課＝請假後要補嘅堂 |
 | 「取消堂點樣補／安排補堂 vs 新增排程」 | 班別詳情已取消堂→「安排補堂」；記住補返邊日、名單跟原堂；新增排程＝額外加堂、唔掛鈎取消堂 |
-| 「一對一生喺班別列表搵唔到」 | 預設隱藏；去「一對一學生」頁，或班別列表篩「一對一」 |
-| 「老師話冇權限改學費／退讀」 | 專班老師一對一頁只可預約；新建報讀／改學費／退讀要 admin |
+| 「私人課程生喺班別列表搵唔到」 | 預設隱藏；去「私人課程」頁，或班別列表篩「私人課程」 |
+| 「老師話冇權限改學費／退讀」 | 專班老師私人課程頁只可預約；新建報讀／改學費／退讀要 admin |
 | 「新生點一次過登記＋報讀＋收費」 | 用前台指引精靈四步 |
 | 「繳費頁同收款頁邊個用」 | 出單／收錢 → 收款登記；查舊單 → 繳費紀錄 |
-| 「試堂半價點處理」 | 先收款登記（通常 1 堂），關聯試堂紀錄，當日點名先扣堂 |
-| 「試堂點轉正式報讀」 | 先完成該堂點名 → 試堂紀錄「轉正式報讀」；可揀報讀形式同收費 |
-| 「試堂流失點記」 | 試堂紀錄「標流失」或「其他結果」，方便轉化率復盤 |
+| 「試堂半價點處理」 | 收款登記填正價，優惠 off 50%；堂數通常 1；確認後先上點名紙 |
+| 「試堂點轉正式報讀」 | 試堂紀錄「轉正式報讀」；未點名可轉但會警告；可揀報讀形式；學費去收款登記 |
+| 「試堂流失點記」 | 先取消試堂，再「標流失」或「其他結果」，方便轉化率復盤 |
 | 「收件匣邊度／老師冇入口」 | 全角色有；老師側欄已攤平，喺「進行點名」下方；或「所有功能」 |
 | 「日視圖灰色／無人報讀」 | 名單空或全員請假（無試堂）；先確認報讀同請假，唔係系統壞 |
 | 「我唔見側欄有某某功能」 | 按角色過濾；去「所有功能」或問我具體操作 |

@@ -187,13 +187,13 @@ export function StudentClassificationTags({
    key: "registration",
    label: compact
     ? registration === "非注冊"
-      ? "非注冊"
-      : "注冊"
+      ? "非註冊"
+      : "註冊"
     : registrationStatusLabel(registration),
    title:
     registration === "已註冊"
      ? "客戶身份：已註冊為正式學生"
-     : "客戶身份：非注冊（試堂／查詢等尚未註冊）",
+     : "客戶身份：非註冊（試堂／查詢等尚未註冊）",
    tone: statusToTagTone(registration),
   },
   {

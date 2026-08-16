@@ -34,7 +34,7 @@ export async function resolveEnrollmentAttendanceOptions(
  if (mode === "withdraw") {
   const result = await confirmDialog({
    title: "退讀：此生在本班已有出席",
-   description: `${desc}\n\n退讀預設保留歷史出席（已上堂數仍計）。僅在誤點名時才選刪除。`,
+   description: `${desc}\n\n退讀預設保留歷史出席（已扣堂數仍計）。僅在誤點名時才選刪除。`,
    confirmText: "保留出席並退讀",
    alternateText: billable ? "⚠️ 一併刪除計費出席" : "一併刪除出席",
    cancelText: "取消退讀",

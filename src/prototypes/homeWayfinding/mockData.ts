@@ -87,7 +87,7 @@ export const MOCK_ADMIN_SCENARIOS: MockScenario[] = [
   {
     id: "s4",
     title: "老師請假需安排代堂",
-    situation: "整理受影響課堂，安排代課",
+    situation: "整理受影響課堂，安排代堂",
     goesTo: "老師請假處理",
     sidebarHint: "今日／前線",
   },

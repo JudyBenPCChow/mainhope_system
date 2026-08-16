@@ -132,6 +132,6 @@ describe("entitlementNamespaceLabel", () => {
     { courseGroup: "group_specialist", namespaceKey: "S1", sharesAcrossClasses: true },
     "中文 S1A"
    )
-  ).toBe("專科小組（中一）")
+  ).toBe("專科班（中一）")
  })
 })

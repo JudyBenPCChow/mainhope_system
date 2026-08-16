@@ -93,7 +93,7 @@ export function computeHcLessonAmount(
   const oneToTwoHc = cfg.oneToTwoHc ?? 4
   const hc = effectiveHc(billableCount, lesson.privateSlot, oneToOneHc, oneToTwoHc)
   if (hc <= 0 || billableCount <= 0) {
-    return { amount: 0, billableHc: 0, formula: "HC=0 → 不計薪", note: null }
+    return { amount: 0, billableHc: 0, formula: "人頭=0 → 不計薪", note: null }
   }
   const tier = tierForBand(cfg, lesson.gradeBand)
   if (!tier) {
@@ -113,9 +113,9 @@ export function computeHcLessonAmount(
     formula: `${bandLabel} $${tier.base}+$${tier.perExtra}×(${hc}-1)`,
     note:
       lesson.privateSlot === "one_to_one"
-        ? `一對一等效 ${oneToOneHc} HC（實際扣堂 ${billableCount}）`
+        ? `一對一等效 ${oneToOneHc} 人頭（實際扣堂 ${billableCount}）`
         : lesson.privateSlot === "one_to_two"
-          ? `一對二等效 ${oneToTwoHc} HC（實際扣堂 ${billableCount}）`
+          ? `一對二等效 ${oneToTwoHc} 人頭（實際扣堂 ${billableCount}）`
           : null,
   }
 }
@@ -165,7 +165,7 @@ export function computeIndependentLessonAmount(
   return {
     amount,
     billableHc,
-    formula: `$${perHc}/HC × ${billableHc}`,
+    formula: `$${perHc}/人頭 × ${billableHc}`,
     note: null,
     listPriceTotal,
   }

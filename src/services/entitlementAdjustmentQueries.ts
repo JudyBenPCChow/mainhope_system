@@ -160,7 +160,7 @@ export async function adjustEntitlementPool(opts: {
   .eq("id", opts.poolId)
   .maybeSingle()
  if (poolErr) throw poolErr
- if (!pool) throw new Error("找不到權益池")
+ if (!pool) throw new Error("找不到已繳堂數記錄")
 
  const before = Number((pool as { remaining_lessons?: number }).remaining_lessons ?? 0)
  const after = before + delta
@@ -203,7 +203,7 @@ export async function adjustEntitlementPool(opts: {
 
  const pools = await fetchPoolsForStudent(String((pool as { student_id: string }).student_id))
  const updated = pools.find((p) => p.id === opts.poolId)
- if (!updated) throw new Error("調動後無法重讀權益池")
+ if (!updated) throw new Error("調動後無法重讀已繳堂數")
  return updated
 }
 
@@ -231,7 +231,7 @@ export async function transferEntitlementLessons(opts: {
  if (error) throw error
  const from = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.fromPoolId)
  const to = (rows ?? []).find((r) => String((r as { id: string }).id) === opts.toPoolId)
- if (!from || !to) throw new Error("找不到來源或目標權益池")
+ if (!from || !to) throw new Error("找不到來源或目標已繳堂數記錄")
  const fromClassId = (from as { class_id?: string | null }).class_id
  const toClassId = (to as { class_id?: string | null }).class_id
  if (fromClassId == null || toClassId == null) {
@@ -304,6 +304,6 @@ export async function transferEntitlementLessons(opts: {
  const toPools = await fetchPoolsForStudent(String((to as { student_id: string }).student_id))
  const fromSummary = fromPools.find((p) => p.id === opts.fromPoolId)
  const toSummary = toPools.find((p) => p.id === opts.toPoolId)
- if (!fromSummary || !toSummary) throw new Error("搬堂後無法重讀權益池")
+ if (!fromSummary || !toSummary) throw new Error("搬堂後無法重讀已繳堂數")
  return { from: fromSummary, to: toSummary }
 }

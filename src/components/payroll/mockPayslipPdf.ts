@@ -1,5 +1,6 @@
 import { downloadBlob } from "@/lib/paymentReceiptPdf"
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
+import { payrollModeLabel } from "@/lib/payroll/modeLabel"
 
 import {
   isPresentStatus,
@@ -218,7 +219,7 @@ function lessonRowHtml(cName: string, l: PayrollLesson): string {
 
 function teacherDetailBlocks(t: PayrollTeacherRow): string {
   const kpi = `<div class="keep-block">
-    <p class="teacher-title">${esc(t.name)}\u3000${esc(t.mode)}</p>
+    <p class="teacher-title">${esc(t.name)}\u3000${esc(payrollModeLabel(t.mode))}</p>
     <div class="kv-panel">
       <table class="kv">
         <tr><th>總薪酬</th><td>${hkd(t.gross)}</td></tr>
@@ -316,7 +317,7 @@ function summaryPageBlocks(month: PayrollMonthMock, teachers: PayrollTeacherRow[
     .map(
       (t) => `<tr>
       <td>${esc(t.name)}</td>
-      <td>${esc(t.mode)}</td>
+      <td>${esc(payrollModeLabel(t.mode))}</td>
       <td class="num">${teacherLessonCount(t) || "—"}</td>
       <td class="num">${teacherLessonCount(t) > 0 ? teacherBillableHc(t) : "—"}</td>
       <td class="num">${hkd(t.gross)}</td>
@@ -349,7 +350,7 @@ function summaryPageBlocks(month: PayrollMonthMock, teachers: PayrollTeacherRow[
       <thead>
         <tr>
           <th>同事</th><th>模式</th>
-          <th class="num">堂數</th><th class="num">計薪 HC</th>
+          <th class="num">堂數</th><th class="num">計薪人頭</th>
           <th class="num">總薪酬</th><th class="num">僱員強積金</th><th class="num">實收</th><th>備註</th>
         </tr>
       </thead>
