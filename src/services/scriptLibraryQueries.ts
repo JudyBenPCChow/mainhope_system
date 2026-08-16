@@ -1,4 +1,3 @@
-import { formatMgmtRoleLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 
 export type ScriptLibraryEntry = {
@@ -31,10 +30,6 @@ export function normalizeScriptTags(tags: string[]): string[] {
     out.push(t)
   }
   return out
-}
-
-function actorLabel(): string {
-  return formatMgmtRoleLabel(getMgmtRole())
 }
 
 function asEntry(row: RawRow): ScriptLibraryEntry {
@@ -88,7 +83,6 @@ export async function createScriptLibraryEntry(
       answer,
       tags: normalizeScriptTags(input.tags ?? []),
       sort_order: input.sortOrder ?? 0,
-      created_by_label: actorLabel(),
       updated_at: new Date().toISOString(),
     })
     .select("*")

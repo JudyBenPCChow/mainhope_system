@@ -5,6 +5,7 @@
 | 想找… | 檔 |
 | --- | --- |
 | 職員營運指引（md 真相） | [`ops-guide.md`](ops-guide.md) |
+| 公司術語與定義 | [`../../meta/TERMINOLOGY.md`](../../meta/TERMINOLOGY.md) |
 | 指引 Word（發佈用） | [`../../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx`](../../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) |
 | 校曆手冊 PDF | [`../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf`](../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) |
 | 校曆規則正文 | [`../../policies/academic/ACADEMIC_CALENDAR.md`](../../policies/academic/ACADEMIC_CALENDAR.md) |

@@ -35,7 +35,7 @@ const GUIDES: Array<{ key: GuideKey; title: string; body: string; action: string
  {
   key: "g2b",
   title: "G2b 科目／班收錯",
-  body: "唔作廢收據。用「搬堂」由錯池搬去正確池，兩邊會寫入調動表。",
+  body: "唔作廢收據。用「搬堂」由錯池搬去正確池，兩邊會寫入調動表。同一級專科小組已共用餘額，搬堂只用於私人／試堂／跨級等唔同組別。",
   action: "用搬堂",
  },
  {

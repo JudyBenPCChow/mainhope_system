@@ -1,5 +1,5 @@
 import { formatClassLabel } from "@/lib/courseLabel"
-import { getMgmtRole, resolveMgmtDisplayName, type MgmtRole } from "@/lib/mgmtRole"
+import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -97,12 +97,13 @@ export function formatInboxAudienceLabel(roles: MgmtRole[]): string {
  return roles.map((r) => ROLE_LABEL[r] ?? r).join("、")
 }
 
-export function getInboxActorKey(): string {
- const tid = getTeacherScopeTeacherId()
- if (tid) return `teacher:${tid}`
- const role = getMgmtRole() ?? "admin"
- const name = resolveMgmtDisplayName(role)
- return `staff:${role}:${name}`
+async function resolveInboxActorKey(): Promise<string> {
+ if (!supabase) throw new Error("尚未設定 Supabase")
+ const { data, error } = await supabase.rpc("current_inbox_actor_key")
+ if (error) throw error
+ const key = typeof data === "string" ? data.trim() : ""
+ if (!key) throw new Error("無法確認收件匣身分")
+ return key
 }
 
 function parseAudienceRoles(raw: unknown): MgmtRole[] {
@@ -152,7 +153,7 @@ export function notifyInboxUnreadChanged(): void {
 
 export async function markInboxItemRead(sourceKey: string, eventId?: string | null): Promise<void> {
  if (!supabase || !sourceKey) return
- const actorKey = getInboxActorKey()
+ const actorKey = await resolveInboxActorKey()
  const { error } = await supabase.from("inbox_reads").upsert(
   {
    actor_key: actorKey,
@@ -168,7 +169,7 @@ export async function markInboxItemRead(sourceKey: string, eventId?: string | nu
 
 export async function markAllInboxItemsRead(items: InboxItem[]): Promise<void> {
  if (!supabase || items.length === 0) return
- const actorKey = getInboxActorKey()
+ const actorKey = await resolveInboxActorKey()
  const unread = items.filter((i) => !i.read)
  if (unread.length === 0) return
  const rows = unread.map((i) => ({
@@ -399,7 +400,7 @@ export async function fetchInboxFeed(opts?: {
  unreadOnly?: boolean
 }): Promise<InboxItem[]> {
  const category = opts?.category ?? "ops"
- const actorKey = getInboxActorKey()
+ const actorKey = await resolveInboxActorKey()
  const teacherId = getTeacherScopeTeacherId()
  const role = getMgmtRole()
  const isTeacher = role === "teacher" || Boolean(teacherId)
@@ -470,7 +471,7 @@ export async function fetchInboxFeed(opts?: {
 
 /** 側欄未讀火圖示：營運＋系統未讀合計（對目前角色可見者；預設 45s 內用快取） */
 export async function fetchInboxUnreadCount(opts?: { force?: boolean }): Promise<number> {
- const actorKey = getInboxActorKey()
+ const actorKey = await resolveInboxActorKey()
  const now = Date.now()
  if (
   !opts?.force &&
