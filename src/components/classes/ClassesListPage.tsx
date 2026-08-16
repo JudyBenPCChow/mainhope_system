@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { statusToTagTone } from "@/lib/statusTag"
+import { classKindLabel } from "@/lib/privateClassKind"
 import {
  DAY_FILTER_CHIPS,
  GRADE_CHIPS,
@@ -561,24 +562,28 @@ export function ClassesListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">班別類型</div>
     <div className="flex flex-wrap gap-2">
-     {(["小組", "一對一", "全部"] as const).map((k) => (
+     {([
+      { value: "小組", label: "專科班" },
+      { value: "一對一", label: "私人課程" },
+      { value: "全部", label: "全部" },
+     ] as const).map((option) => (
       <button
-       key={k}
+       key={option.value}
        type="button"
-       onClick={() => setKindKey(k)}
+       onClick={() => setKindKey(option.value)}
        className={cn(
         "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
-        kindKey === k
+        kindKey === option.value
          ? "border-primary bg-primary text-primary-foreground shadow-sm"
          : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
        )}
       >
-       {k}
+       {option.label}
       </button>
      ))}
     </div>
     <p className="text-xs text-muted-foreground">
-     此頁顯示的是小組班別。如要管理一對一，請前往「一對一學生」；亦可於此篩選檢視一對一班別。
+     此頁預設顯示專科班。如要管理私人課程，請前往「私人課程」；亦可於此篩選檢視私人課程班別。
     </p>
    </div>
 
@@ -819,7 +824,7 @@ export function ClassesListPage() {
          <div className="flex shrink-0 flex-col items-end gap-1">
           {c.class_kind === "private" ? (
            <Tag tone="info" size="sm">
-            一對一
+            {classKindLabel("private")}
            </Tag>
           ) : null}
           <Tag tone={statusToTagTone(c.status)} size="sm">
@@ -890,7 +895,7 @@ export function ClassesListPage() {
           <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
            {yearScopedRows.length === 0 && baseRows.length > 0
             ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
-            : "沒有符合條件的小組班別。若要管理一對一，請前往「一對一學生」。"}
+            : "沒有符合條件的專科班。若要管理私人課程，請前往「私人課程」。"}
           </td>
          </tr>
         ) : (
@@ -925,7 +930,7 @@ export function ClassesListPage() {
              {classDisplayName({ subject: c.subject, courseName: c.course_name })}
              {c.class_kind === "private" ? (
               <Tag tone="info" size="sm" className="ml-1.5 align-middle">
-               一對一
+               {classKindLabel("private")}
               </Tag>
              ) : null}
             </span>
@@ -1067,7 +1072,7 @@ export function ClassesListPage() {
           <div className="flex flex-wrap items-center gap-1">
            {c.class_kind === "private" ? (
             <Tag tone="info" size="sm">
-             一對一
+             {classKindLabel("private")}
             </Tag>
            ) : null}
            <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
@@ -1116,7 +1121,7 @@ export function ClassesListPage() {
             <div className="flex flex-col items-end gap-0.5">
              {c.class_kind === "private" ? (
               <Tag tone="info" size="sm" className="text-[10px]">
-               一對一
+               {classKindLabel("private")}
               </Tag>
              ) : null}
              <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">

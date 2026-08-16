@@ -436,7 +436,7 @@ export function EnrollClassStep({
         <li key={e.id}>
          {classDisplayName({ subject: e.subject, courseName: e.courseName })}
          {e.enrollmentFormLabel ? ` · ${e.enrollmentFormLabel}` : ""}
-         {e.classKind === "private" ? "（一對一）" : ""}
+         {e.classKind === "private" ? "（私人課程）" : ""}
          {e.sessionNumbers?.length ? `（第 ${e.sessionNumbers.join("、")} 堂）` : ""}
         </li>
        ))}
@@ -459,10 +459,10 @@ export function EnrollClassStep({
 
    <div className="flex flex-wrap gap-2">
     <Button type="button" variant={mode === "group" ? "default" : "outline"} onClick={() => setMode("group")}>
-     小組課報讀
+     專科班報讀
     </Button>
     <Button type="button" variant={mode === "private" ? "default" : "outline"} onClick={() => setMode("private")}>
-     一對一／一對二
+     私人課程（一對一／一對二）
     </Button>
     <Button type="button" variant={mode === "trial" ? "default" : "outline"} onClick={() => setMode("trial")}>
      只登記試堂
@@ -509,7 +509,15 @@ export function EnrollClassStep({
           : (["full", SINGLE_SESSION_ENROLLMENT] as const)
          ).map((opt) => (
           <option key={opt} value={opt}>
-           {opt === "full" ? "報足全期" : opt}
+           {opt === "full"
+            ? "報讀"
+            : opt === "第一期"
+              ? "暑期第一期"
+              : opt === "第二期"
+                ? "暑期第二期"
+                : opt === "兩期全報"
+                  ? "暑期兩期全報"
+                  : opt}
           </option>
          ))}
         </Select>

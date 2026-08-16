@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（**定義與營運文件已對齊**。員工表＋agent mdc＋同步規則已齊；政策、playbooks、2627 指引已重審。UI 一次過改名未做） |
+| 狀態 | `in_progress`（UI／阿Po 已跟用語表更新；待驗收） |
 | 優先 | 中 |
 | 範圍 | 決策過程。員工讀本係 [`TERMINOLOGY.md`](../../meta/TERMINOLOGY.md) |
 | 載體 | 員工 md ＋ `.cursor/rules/terminology.mdc`。改詞見 `terminology-sync.mdc` |
@@ -33,7 +33,9 @@ F1 **抽離**：三條產品線平排——**專科班**、**私人課程**、**
 - 員工用語表、agent 用語表及同步規則已建立
 - `docs/policies/`、`docs/playbooks/`、`docs/year/2627/ops-guide.md` 已按定稿用語重審
 - 2627 指引及計糧指南 Word 已同步
+- 前台新舊用語表及 PDF 已產出：[`UI_TERMINOLOGY_CHANGE_REFERENCE.md`](../../playbooks/frontdesk/UI_TERMINOLOGY_CHANGE_REFERENCE.md)
+- UI 實作波次已備妥：[`2026-08-16-ui-terminology-sweep.md`](../plans/2026-08-16-ui-terminology-sweep.md)
 
 ## 另開工程（未做）
 
-UI 一次過：「報足全期」→「報讀」、「換主責」→「更換任教老師」、單據頁名等。畫面舊稱暫時保留；改動時須按 `terminology-sync.mdc` 再檢查文件對照。
+無。UI 一次過更新已跟用語表改畫面與阿Po；完成驗收後可收檔。

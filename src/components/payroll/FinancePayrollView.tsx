@@ -25,6 +25,7 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { payrollModeLabel } from "@/lib/payroll/modeLabel"
 import { cn } from "@/lib/utils"
 
 import {
@@ -268,7 +269,7 @@ export function FinancePayrollView({
             ["anomaly", "異常"],
             ["sub", "代堂"],
             ["分成制", "分成"],
-            ["兼職 HC", "HC"],
+            ["兼職 HC", "人頭"],
           ] as const
         ).map(([v, label]) => (
           <Button
@@ -445,7 +446,7 @@ export function FinancePayrollView({
             </h2>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
               <Tag tone="default" size="sm">
-                {selected.mode}
+                {payrollModeLabel(selected.mode)}
               </Tag>
               {reviewedIds.has(selected.id) ? (
                 <Tag tone="success" size="sm">

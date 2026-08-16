@@ -39,6 +39,7 @@ export type InboxItemType =
  | "enrollment_period_change"
  | "enrollment_session_change"
  | "attendance_reminder"
+ | "trial_confirmed"
  | "system_update"
 
 export type InboxItem = {
@@ -70,13 +71,14 @@ const TYPE_STATUS_LABEL: Record<InboxItemType, string> = {
  schedule_cancelled: "排程取消",
  schedule_substitute: "代堂",
  class_updated: "班別變動",
- class_teacher_changed: "主責變更",
+ class_teacher_changed: "任教老師變更",
  leave_created: "學生請假",
  enrollment_enroll: "新增報讀",
  enrollment_withdraw: "學生退讀",
  enrollment_period_change: "報讀形式",
  enrollment_session_change: "選堂變更",
  attendance_reminder: "提醒點名",
+ trial_confirmed: "試堂",
  system_update: "系統更新",
 }
 
