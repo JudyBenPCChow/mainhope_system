@@ -24,7 +24,7 @@ import {
  insertScheduleRow,
  nextSessionNumberForClass,
  updateSchedule,
-} from "@/services/scheduleWriteQueries"
+} from "@/services/classQueries"
 import type { SoftCancelScheduleOptions } from "@/services/scheduleLifecycleQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
