@@ -41,7 +41,6 @@
 | open | 高 | 2627 九月常規時間表 | 2026-08-12 修訂候選已備（36 班）；待簽收；prod 仍 0 班（擋 P1-1 live E2E）；餘缺口＋錄入 | [2627-september-timetable.md](./topics/2627-september-timetable.md) · [全校 pdf](../year/2627/timetable/2627_timetable_scheme_2026-08-08.pdf) · [老師 pdf](../year/2627/timetable/2627_timetable_teachers_week_2026-08-08.pdf) · [排課規則](../policies/scheduling/SCHEDULING_RULES.md) · [session](../meta/handoffs/2026-08-12-2627-september-timetable-session.md) |
 | open | 高 | 單據／權益更正頁（G2） | **核心已上**：`/PaymentCorrection`＋池調動表＋作廢 30 分／第二人；餘阿Po／政策全文同步 | [payment-entitlement-correction-ui.md](./topics/payment-entitlement-correction-ui.md) · [母題 §4.13](./topics/summer-enrollment-roster-consistency.md) |
 | in_progress | 高 | 前台規模／流程更新（試堂原則） | **核心工程已上**：出單閘紙／免費跳收款／$0／計人頭／半價50%；餘 manual／阿Po／2627§11 | [frontline-ops-update.md](./topics/frontline-ops-update.md) · [試堂 WIP](./topics/trial-promo-receipt-frontline-wip.md) · [政策](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) |
-| in_progress | 高 | 主線品質閘（P0-3） | CI 已加（PR／push main：lint／typecheck:test／test／ui:check／build）；**未開 branch protection**；阿Po 留。P2-3 typecheck 已上；其後高風險改動先補 regression | [mainline-quality-gate.md](./topics/mainline-quality-gate.md) |
 | open | 高 | 前端架構邊界／God files | **P1-2＋P2-5**：拆超大元件／service；component 禁直打 DB；KPI 失敗唔當 0 | [frontend-architecture-boundaries.md](./topics/frontend-architecture-boundaries.md) · [稽核](./audits/2026-08-14-tech-debt-review.md) |
 | open | 高 | Database schema contract／advisor | **P1-3＋P2-1＋P3-1 DB**：generated types、SECURITY DEFINER／FK index 分類、重複 index／殘留表 | [database-contract-advisor-hygiene.md](./topics/database-contract-advisor-hygiene.md) · [稽核](./audits/2026-08-14-tech-debt-review.md) |
 | in_progress | 高 | 流動裝置介面 | 高頻波次 1–3 回歸 Pass；2026-08-05 三角色模擬：餘 Mgmt／外星人大表／老師 P3／FilterSheet | [mobile-ui.md](./topics/mobile-ui.md) · [sim 08-05](./audits/2026-08-05-mobile-roles-devices-sim.md) · [1](./audits/2026-08-01-mobile-shell-wave1-sim.md)／[2](./audits/2026-08-01-mobile-wave2-sim.md)／[3](./audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
@@ -65,6 +64,7 @@
 
 | 狀態 | 優先 | 主題 | 摘要 | 詳情 |
 | --- | --- | --- | --- | --- |
+| done | 高 | 主線品質閘（P0-3） | CI＋測試 typecheck；\`main\` ruleset 必過 \`lint · typecheck:test · test · ui:check · build\`；阿Po 留 | [mainline-quality-gate.md](./topics/mainline-quality-gate.md) |
 | cancelled | 中 | 原班連堂分節點名 | 實務幾乎唔會半節假／半節到；維持整組同一狀態 | [consecutive-half-session-attendance.md](./topics/consecutive-half-session-attendance.md) |
 | done | 高 | 出席紀錄日期範圍查詢 | 專用 RPC `get_attendance_records_in_range`＋`attendance_date` 索引；列表唔打 roster；預設整月（B）；失敗唔 silent 全 0 | [attendance-records-range-query.md](./topics/attendance-records-range-query.md) |
 | done | 中 | 連堂請假預設 UX | 預設改「只請本節」；兩節一併 Confirm；前台勾選提示 | [consecutive-leave-default-ux.md](./topics/consecutive-leave-default-ux.md) |
