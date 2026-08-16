@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `draft`（待用戶審閱及角色矩陣拍板） |
+| 狀態 | `in_progress`（kernel wave 1：catalog／profile v2 已寫；未收緊 RLS） |
 | 日期 | 2026-08-15 |
 | 範圍 | P0-1：DB 權限粗過 UI 角色 |
 | 直接相關 | P0-2：前端守衛讀 localStorage，唔係 Auth |
@@ -103,8 +103,8 @@ RLS recursion 是靠 `SECURITY DEFINER` helper 解決；它不能解釋為何必
 1. **Active role 即時切換**  
    雙身份用戶切換後，DB 權限應即時變更，不應等 JWT refresh。
 
-2. **Manager ≥ admin 的營運讀取**  
-   報表、embed、join、課程名稱等讀取不可因 UI 分流而消失。
+2. **Manager ≥ admin 的營運讀取與寫入**  
+   2026-08-15 公理 1：`alien` ⊇ `manager` ⊇ `admin`（讀＋寫）。報表、embed、join 讀取不可因 UI 分流而消失；admin 有的寫入 manager 不可缺。詳見 [決策稿](./p0-1-authorization-decisions.md)。
 
 3. **老師 row scope**  
    老師只能處理自己的班、排程、學生及點名；不可併入一般職員全表 capability。
@@ -158,54 +158,30 @@ RLS recursion 是靠 `SECURITY DEFINER` helper 解決；它不能解釋為何必
 - `private.authz_roles`
 - `private.authz_capabilities`
 - `private.authz_role_capabilities`
-- `private.has_capability(capability_key)`
+- `private.has_capability(capability_key)` — **跟 active role**
+- `private.has_account_capability(capability_key)` — **跟已獲授角色聯集**；只畀 catalog 標明嘅雙重確認
 
-`app_user_roles` 保留「用戶獲授角色集合」；`mgmt_active_roles` 保留「目前工作角色」。
+`app_user_roles` 保留「用戶獲授角色集合」。Active role 改 session-scoped：`(app_user_id, session_id)`；`current_app_role()` **唔** fallback `app_users.role`。新 session 建立列時先 seed 預設帽（見決策稿）。
 
 角色 CHECK 應逐步改成 FK／catalog，避免每加角色都要 DROP＋ADD constraint。
 
-`mgmt_active_roles(app_user_id, active_role)` 應加約束，確保 active role 一定屬於該用戶已獲授角色。
+Active role 一定屬於該用戶已獲授角色。
 
 第一期不建議加入 per-user allow／deny overrides，否則權限來源會再次難以解釋。若日後確有需要，應使用有原因、批核人、期限及 audit 的臨時 grant。
 
+產品矩陣已簽：見 [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)。本節示例 key **不是**最終 catalog。
+
 ### 2. Capability 以業務操作命名，不以資料表命名
 
-初步例子：
+最終 catalog 按已簽矩陣拆細後先 seed（決策稿「Catalog」節）。以下僅說明命名風格，**勿當 seed 清單**：
 
-- `students.read`
-- `students.create`
-- `students.update`
-- `classes.read`
-- `classes.manage`
-- `schedule.read`
-- `schedule.create`
-- `schedule.reschedule`
-- `schedule.cancel`
-- `schedule.substitute`
-- `attendance.read`
-- `attendance.take`
-- `attendance.correct`
-- `attendance.delete`
-- `payments.read`
-- `payments.create`
-- `payments.mark_received`
-- `payments.void`
-- `payments.void.approve`
-- `entitlements.read`
-- `entitlements.correct`
-- `payroll.read`
-- `payroll.review`
-- `payroll.submit`
-- `payroll.return`
-- `payroll.settle`
-- `payroll.reopen`
-- `expenses.read`
-- `expenses.manage`
-- `system_notice.publish`
-- `users.manage`
-- `roles.grant`
+- 讀／寫分開（`students.read` vs `students.create`）
+- 同一張表內不同操作分開（`expenses.record` vs `expenses.confirm`）
+- 作廢發起 vs 第二確認分開（`payments.void` active；`payments.void.approve` account）
+- 計糧按狀態機步驟分開；行政無 payroll 寫入 key
+- 權益池直接改只限外星人；申請制之後先加 key
 
-角色若重用現有 capability，只需新增 role＋mapping。只有新增真正的新業務能力時，才需要新 capability 及程式。
+未知 capability fail closed。DB catalog 為唯一真源；P0-2 唔另建 role→key 表。
 
 ### 3. DB-backed capability，不以 JWT claim 作唯一真源
 
@@ -217,32 +193,33 @@ Supabase 官方有 custom claim RBAC 方案，但本系統不適合把它當唯�
 
 建議：
 
-- `private.has_capability()` 根據 `auth.uid()`、app user、active role 及 role mapping 判斷。
+- `private.has_capability()` 根據 `auth.uid()`、app user、**呢個 session 的 active role** 及 role mapping 判斷。
+- `private.has_account_capability()` 根據已獲授角色聯集；只用於 catalog 標明嘅 key。
 - RLS 使用 `(select private.has_capability('...'))`，讓 PostgreSQL 以 InitPlan 每 statement 快取。
 - 角色／capability join 欄位加索引。
 - Helper 放 private schema，不放 Data API exposed schema。
 
 ### 4. UI 從同一 profile 讀 capability
 
-`get_my_mgmt_profile` v2 應至少回傳：
+`get_my_mgmt_profile` v2 應回傳：
 
-- `app_user_id`
-- `email`
-- `display_name`
+- `app_user_id`／`email`／`display_name`
 - `active_role`
 - `teacher_id`
 - `available_roles`
-- `capabilities`
+- `active_capabilities`
+- `account_capabilities`
 - `authz_version`
 
 React：
 
-- `RequireMgmtRoles` → `RequireCapabilities`
-- nav leaf 的 `roles` → `anyCapabilities`／`allCapabilities`
-- `AuthContext` 以 profile capabilities 為準
-- role 仍可決定首頁 persona、顯示名稱及角色切換 UI
-- localStorage 只可作非敏感顯示／UI 快取，不可判斷權限
-- active role 切換後必須重新取 profile/capabilities
+- `RequireMgmtRoles` → `RequireCapabilities`（預設讀 `activeCapabilities`）
+- 雙重確認（而家只有作廢第二確認）讀 `accountCapabilities`
+- nav／button 授權只跟 profile capabilities，唔另建 role→key
+- 側欄展示清單若同 DB 能力唔同，必須獨立命名為 IA，唔當授權
+- **已簽：** 結構做完先改 UI 入口；P0-2 唔好因 capabilities 打開管理層日常側欄
+- localStorage 不可判斷權限；profile 載入失敗 fail closed
+- `switch_my_mgmt_role_v2` 同一 RPC 回完整 profile v2
 
 ### 5. 高風險 workflow 用 transactional command
 
@@ -422,7 +399,7 @@ P0-2 應消費：
 - capabilities
 - role switch 後 profile refresh
 
-P0-2 不應另建一套前端 permission mapping，也不應以 JWT claim／localStorage 作最終真源。
+P0-2 不應另建一套前端 permission mapping，也不應以 JWT claim／localStorage 作最終真源。**P0-2 實作等本檔／決策稿簽收及 profile v2 contract**；未交付前唔改 Auth 共用檔。
 
 ### 建議工作分工
 
@@ -484,37 +461,27 @@ P0-2 不應另建一套前端 permission mapping，也不應以 JWT claim／loca
 - 不阻擋操作。
 - 找出文件與真實流程落差。
 
-### 波 4：按 domain 收緊
+### 波 4：按 domain 垂直完成（RLS 同 command 唔分前後波）
 
-每域獨立 migration／驗收／回滾；禁止 55 表 big-bang。
+每域一次做完：capability mapping → command 或 RLS → service 接線 → 撤舊 direct write → Data API allow-deny → 回滾驗證。禁止 55 表 big-bang，亦禁止「先收緊多表 RLS、後補 command」。
 
-建議先處理：
+第一批唔只收緊：`expense_entries` 要按 F4 **放寬** finance 入帳／分類（確認／作廢／重開仍限管理層＋外星人）。
+
+建議順序：
 
 1. 系統通知／用戶／角色
 2. 學生／班別
 3. 排程／點名
-4. Payments read／write 分離
-5. Payroll role-specific operations
+4. 付款（含作廢 command；`void.approve` 用 account capability）
+5. 權益池（直接改只限外星人）
+6. 計糧（P1–P10 分角色）
+7. 成本帳（finance 入帳放寬＋ confirm／void command）
 
-### 波 5：高風險 command
-
-建議順序：
-
-1. 發佈系統通知
-2. 刪除／更正出席
-3. 收款建立／標記已收／作廢
-4. 權益調整
-5. 報讀＋權益同步
-6. Payroll settle／reopen
-7. 成本 confirm／void
-
-每個 command 上線後才撤該組 direct table write grant，禁止長期雙路徑。
-
-### 波 6：清理
+### 波 5：清理
 
 - 移除舊 role literal helper。
 - 移除 client-supplied actor／role。
-- 移除 `app_users.role` 授權用途；但要先 backfill 仍靠 fallback 的帳戶。
+- 移除 `app_users.role` 授權用途同 `current_app_role()` fallback。
 - 移除舊 `is_mgmt_staff()` 寫 policy。
 - 低風險 CRUD 是否再 command 化，按實際 audit／原子性需要決定。
 
@@ -526,7 +493,8 @@ P0-2 不應另建一套前端 permission mapping，也不應以 JWT claim／loca
 - 同一 JWT 從 admin 切到 teacher 後，立即只剩 teacher scoped capability。
 - 獲授 admin 但 active teacher 時，不可取得 admin capability。
 - Finance 直接 REST update `students`／`schedules`／`attendance_details` 必須被 DB 拒絕。
-- Manager 直接 update `payments` 必須被拒絕，除非明確簽收該 capability。
+- Manager 獲授且 active manager 時，公理 1 允許嘅寫入（含付款）必須成功；finance 寫付款必須拒絕。
+- 作廢第二確認：帳戶已獲授 manager 或 alien 即可，唔使切 active role；未獲授則拒絕。
 - Admin 正常收款／報讀／點名不可退化。
 - Finance 計糧 review／submit 可正常完成。
 - Manager payroll settle 可正常完成，並原子過帳成本帳。
@@ -542,5 +510,9 @@ P0-2 不應另建一套前端 permission mapping，也不應以 JWT claim／loca
 
 ## 實作前必須拍板
 
-逐項填答見 [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)。未簽收前可以做 capability kernel／profile contract 設計，但不可套用收緊 production RLS 的 migration。
+逐項填答見 [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)。
+
+已收：公理 1；IA1；F1–F5／F4b；計糧整組；M19；V1／V2／V4；A1；U1；U3；R1。  
+P0-2 審閱已採納：兩個 predicate、session 表唔 fallback、catalog 按矩陣拆、vertical slice、profile v2 兩組 capabilities。  
+U2 逐欄之後。**已簽：** 結構做完先改 UI 入口／側欄。未有 staging 前不可套用收緊 production RLS 的 migration。
 
