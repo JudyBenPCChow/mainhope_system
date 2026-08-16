@@ -1,5 +1,4 @@
 import { todayYmdLocal } from "@/lib/weekdayUtils"
-import { formatMgmtActorLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 
 export type MgmtAuditLogRow = {
