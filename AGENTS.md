@@ -46,4 +46,5 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘唔好預讀。
 
 **MD↔DOCX：** 改 `docs/year/2627/ops-guide.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。  
-**術語：** 改用詞／定義時同步 `docs/meta/TERMINOLOGY.md` 與 `.cursor/rules/terminology.mdc`，並審閱政策／playbooks／2627 指引（見 `.cursor/rules/terminology-sync.mdc`）。
+**術語：** 改用詞／定義時同步 `docs/meta/TERMINOLOGY.md` 與 `.cursor/rules/terminology.mdc`，並審閱政策／playbooks／2627 指引（見 `.cursor/rules/terminology-sync.mdc`）。  
+**政策鏡像（E4）：** 改 `docs/policies/` 或 `docs/year/*/ops-guide.md` 正文時，同一輪跑 `scripts/sync_policies_to_vault.sh` 把全文鏡像入 `Mainhope_admin/60-政策與流程/系統鏡像/`（vault 人手零雙寫；script 同時更新 vault 政策筆記嘅「系統現況」標記）。
