@@ -15,7 +15,7 @@
 
 | 篇章 | 簡介 |
 | --- | --- |
-| [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp／作廢 |
+| [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp；開錯按類型走已繳堂數調動或作廢 |
 | [收件匣](frontdesk/INBOX.md) | 營運／系統通知、已讀 |
 | [請假與補堂（連堂）](frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) | 連堂只欠／只補；取消請假 |
 | [逾期學費罰款（前線）](frontdesk/TUITION_LATE_FEE_FRONTLINE.md) | 家長解說與執行 |
