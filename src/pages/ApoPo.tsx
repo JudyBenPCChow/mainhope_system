@@ -1,12 +1,11 @@
 import { ApoPoChatView } from "@/components/apoPo/ApoPoChatView"
 import { canSeeApoPo } from "@/lib/apoPoPermissions"
-import type { Role } from "@/lib/navStructure"
+import { useAuth } from "@/lib/authBootstrap"
 import { PagePlaceholder } from "@/pages/PagePlaceholder"
 
 export default function ApoPoPage() {
-  const role = (typeof localStorage !== "undefined"
-    ? (localStorage.getItem("mgmt_role") as Role | null)
-    : null) ?? null
+  const { ready, role } = useAuth()
+  if (!ready) return null
 
   if (!canSeeApoPo(role)) {
     return (

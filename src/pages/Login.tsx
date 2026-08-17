@@ -8,7 +8,7 @@ import { clearAuthState, applyProfileToStorage } from "@/lib/authSession"
 import { setPasswordChangeNudge } from "@/lib/passwordChangeNudge"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { signInWithPasswordAuth, signOutAuth } from "@/lib/supabaseAuth"
-import { fetchCurrentMgmtProfile } from "@/services/authRoleQueries"
+import { fetchCurrentAuthzProfile } from "@/services/authzProfileQueries"
 
 export default function Login() {
   const navigate = useNavigate()
@@ -48,16 +48,16 @@ export default function Login() {
         password,
       )
       if (signInError) throw signInError
-      const profile = await fetchCurrentMgmtProfile()
+      const profile = await fetchCurrentAuthzProfile()
       if (!profile) {
         await signOutAuth()
         throw new Error("此帳號尚未在系統角色名單中設定，請聯絡Christine Fan。")
       }
-      if (profile.role === "teacher" && !profile.teacherId) {
+      if (profile.activeRole === "teacher" && !profile.teacherId) {
         await signOutAuth()
         throw new Error("老師帳號未綁定 teacher_id，請聯絡Christine Fan修正。")
       }
-      if (profile.role === "alien" && onlyAlienEmail && profile.email !== onlyAlienEmail) {
+      if (profile.activeRole === "alien" && onlyAlienEmail && profile.email !== onlyAlienEmail) {
         await signOutAuth()
         throw new Error("此帳號不是外星人指定帳號。")
       }

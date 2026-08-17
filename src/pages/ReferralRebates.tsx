@@ -1,12 +1,10 @@
 import { ReferralRebatesView } from "@/components/payments/ReferralRebatesView"
+import { useAuth } from "@/lib/authBootstrap"
 import { PagePlaceholder } from "@/pages/PagePlaceholder"
 
-type Role = "admin" | "teacher" | "alien"
-
 export default function ReferralRebatesPage() {
- const role = (typeof localStorage !== "undefined"
-  ? (localStorage.getItem("mgmt_role") as Role | null)
-  : null) ?? null
+ const { ready, role } = useAuth()
+ if (!ready) return null
 
  if (role !== "alien") {
   return (

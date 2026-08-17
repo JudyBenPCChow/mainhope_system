@@ -4,10 +4,12 @@ import { AdminDashboard } from "@/components/home/AdminDashboard"
 import { AlienGodViewHome } from "@/components/home/AlienGodViewHome"
 import { MgmtDashboardView } from "@/components/mgmtDashboard/MgmtDashboardView"
 import { TeacherHomeView } from "@/components/home/TeacherHomeView"
-import { getMgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
 
 export default function Home() {
- const role = getMgmtRole()
+ const { ready, role } = useAuth()
+
+ if (!ready) return null
 
  if (role === "teacher") {
   return <TeacherHomeView />

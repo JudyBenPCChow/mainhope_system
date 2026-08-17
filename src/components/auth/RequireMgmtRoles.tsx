@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
-import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { type MgmtRole } from "@/lib/mgmtRole"
 import { PagePlaceholder } from "@/pages/PagePlaceholder"
 
 const ROLE_LABEL: Record<MgmtRole, string> = {
@@ -27,9 +28,10 @@ type Props = {
  children: ReactNode
 }
 
-/** 與 nav `roles` 對齊的頁級守衛；無權限時顯示說明，避免 deep-link 半殘畫面。 */
+/** 與 nav `roles` 對齊的頁級守衛；無權限時顯示說明，避免 deep-link 半殘畫面。授權讀 AuthContext，唔讀 localStorage。 */
 export function RequireMgmtRoles({ roles, children }: Props) {
- const role = getMgmtRole()
+ const { ready, role } = useAuth()
+ if (!ready) return null
  if (role && roles.includes(role)) return <>{children}</>
  return (
   <PagePlaceholder title={titleForRoles(roles)} description={descriptionForRoles(roles)} />

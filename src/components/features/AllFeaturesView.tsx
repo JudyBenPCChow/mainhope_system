@@ -2,12 +2,12 @@ import { Link } from "react-router-dom"
 import { ChevronRight, LayoutGrid } from "lucide-react"
 
 import { buildFeatureSections } from "@/lib/navStructure"
-import { getMgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
 import { cn } from "@/lib/utils"
 
 export function AllFeaturesView() {
- const role = getMgmtRole()
- if (!role) return null
+ const { ready, role } = useAuth()
+ if (!ready || !role) return null
 
  const sections = buildFeatureSections(role)
  const totalCount = sections.reduce((n, s) => n + s.items.length, 0)
