@@ -40,6 +40,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { useAuth } from "@/lib/authBootstrap"
 import { isAdminOrAlien, isMgmtStaff } from "@/lib/mgmtRole"
 import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -181,7 +182,8 @@ export function StudentDetailView() {
  const location = useLocation()
  const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
- const exitPath = useMemo(() => resolveStudentDetailExitPath(location), [location])
+ const { role: authRole } = useAuth()
+ const exitPath = useMemo(() => resolveStudentDetailExitPath(location, authRole), [location, authRole])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [tab, setTabState] = useState<TabId>("basic")

@@ -2,10 +2,10 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（P0-1 產品矩陣已簽；**P0-2／P1-4 等 P0-1**；未收緊 production RLS） |
+| 狀態 | `in_progress`（P0-1 kernel 已喺 production；**P0-2 Auth 改讀 profile v2**；未收緊 production RLS） |
 | 優先 | 高 |
 | 範圍 | 權限真源、RLS 讀寫分離（P0-1／P0-2）＋頁級守衛／Role 型收斂（P1-4） |
-| 阻塞 | **P0-2＋P1-4 等 P0-1**：未交付 profile v2／capability catalog／role-switch contract 前，唔改 Auth 守衛、唔另起前端權限表。P0-3（CI）唔等 P0-1。 |
+| 阻塞 | **P0-2＋P1-4**：profile v2／catalog／switch RPC 已喺 production；Auth 改讀 DB profile（進行中）。**唔改 nav**（IA1）。未收緊 production RLS 前，前端守衛仍只係 UX。P0-3（CI）唔等 P0-1。 |
 | 不含 | **主線品質閘（P0-3）** [`mainline-quality-gate.md`](./mainline-quality-gate.md)；**洩露密碼（P0-4）** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)；God files、計糧／總覽 perf、死碼清理、家長 Portal 前端 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
@@ -81,7 +81,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 
 ## P0-2　前端守衛讀 localStorage，唔係 Auth
 
-**等 P0-1。** 調查已完；2026-08-15 P0-2 agent 已接。實作（`RequireCapabilities`、nav／route 改 capabilities、刪 localStorage 授權 fallback）等 P0-1 交出同一 DB profile／capability contract。未交付前可審閱接口／補 inventory，唔開工改共用 Auth 檔。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)。
+**進行中。** Contract 已交（`get_my_mgmt_profile_v2`／`switch_my_mgmt_role_v2`／`src/lib/authzProfile.ts`）。第一刀：Auth bootstrap／頁守衛改讀 DB profile，失敗唔回退 localStorage；**唔改 nav**。`RequireCapabilities`、清晒 service 層 `getMgmtRole()` 授權檢查、JWT `session_id` 其後。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)（開局仍有效；「未交 contract 唔改 Auth」已過時）。
 
 ### 成因
 
@@ -131,7 +131,7 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 | 波 | 做 | 依賴 |
 | --- | --- | --- |
 | A | P0-1 capability kernel＋按域收緊 RLS／command | 寫入矩陣簽收（[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)） |
-| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | **等 P0-1** 交付 profile v2／capability catalog／role-switch contract |
+| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 改讀 DB profile（nav 另包） |
 
 P0-3 見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)。  
 原 P0-4 見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。  

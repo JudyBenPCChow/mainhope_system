@@ -8,21 +8,22 @@ import {
  type ReactNode,
 } from "react"
 
+import type { AuthzProfile } from "@/lib/authzProfile"
 import {
+ applyProfileToStorage,
  bootstrapRoleFromSession,
  clearAuthState,
- type MgmtProfile,
 } from "@/lib/authSession"
 import { flushMgmtErrorQueue } from "@/lib/mgmtErrorReporting"
-import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
+import type { MgmtRole } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getAuthSession, subscribeAuthStateChange } from "@/lib/supabaseAuth"
-import { switchCurrentMgmtRole } from "@/services/authRoleQueries"
+import { switchCurrentMgmtRoleV2 } from "@/services/authzProfileQueries"
 
 type AuthContextValue = {
  /** Auth bootstrap finished (session checked at least once). */
  ready: boolean
- profile: MgmtProfile | null
+ profile: AuthzProfile | null
  role: MgmtRole | null
  switchRole: (role: MgmtRole) => Promise<void>
 }
@@ -36,7 +37,7 @@ const AuthContext = createContext<AuthContextValue>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
  const [ready, setReady] = useState(false)
- const [profile, setProfile] = useState<MgmtProfile | null>(null)
+ const [profile, setProfile] = useState<AuthzProfile | null>(null)
 
  useEffect(() => {
   if (!isSupabaseConfigured) {
@@ -58,7 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   void syncSession()
    .catch(() => {
-    if (active) clearAuthState()
+    if (active) {
+     clearAuthState()
+     setProfile(null)
+    }
    })
    .finally(() => {
     if (active) setReady(true)
@@ -85,13 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
  }, [])
 
- const role = profile?.role ?? getMgmtRole()
+ const role = profile?.activeRole ?? null
  const switchRole = useCallback(async (nextRole: MgmtRole) => {
   if (!isSupabaseConfigured) throw new Error("尚未設定 Supabase，暫時無法切換身份。")
-  await switchCurrentMgmtRole(nextRole)
-  const { session, error } = await getAuthSession()
-  if (error) throw error
-  const nextProfile = await bootstrapRoleFromSession(session)
+  const nextProfile = await switchCurrentMgmtRoleV2(nextRole)
+  applyProfileToStorage(nextProfile)
   setProfile(nextProfile)
  }, [])
 

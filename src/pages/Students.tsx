@@ -1,9 +1,11 @@
 import { Navigate } from "react-router-dom"
 
 import { StudentsListPage } from "@/components/students/StudentsListPage"
-import { getMgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
 
 export default function Students() {
- if (getMgmtRole() === "teacher") return <Navigate to="/Classes" replace />
+ const { ready, role } = useAuth()
+ if (!ready) return null
+ if (role === "teacher") return <Navigate to="/Classes" replace />
  return <StudentsListPage />
 }

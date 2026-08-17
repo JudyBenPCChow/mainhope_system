@@ -1,12 +1,11 @@
 import { AiReportsView } from "@/components/ai/AiReportsView"
 import { canSeeAiReports } from "@/lib/aiPermissions"
-import type { Role } from "@/lib/navStructure"
+import { useAuth } from "@/lib/authBootstrap"
 import { PagePlaceholder } from "@/pages/PagePlaceholder"
 
 export default function AiReportsPage() {
-  const role = (typeof localStorage !== "undefined"
-    ? (localStorage.getItem("mgmt_role") as Role | null)
-    : null) ?? null
+  const { ready, role } = useAuth()
+  if (!ready) return null
 
   if (!canSeeAiReports(role)) {
     return (
