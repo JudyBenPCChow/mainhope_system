@@ -166,8 +166,8 @@ export function AlienGodViewHome() {
           <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground md:px-5">
            {formatTs(r.created_at)}
           </td>
-          <td className="px-4 py-3 font-medium text-foreground">{r.actor_label}</td>
-          <td className="px-4 py-3">{r.role}</td>
+          <td className="px-4 py-3 font-medium text-foreground">{r.actor_label?.trim() ? r.actor_label : "—"}</td>
+          <td className="px-4 py-3">{r.role?.trim() ? r.role : "—"}</td>
           <td className="px-4 py-3">{r.action}</td>
           <td className="max-w-[280px] px-4 py-3 text-muted-foreground md:max-w-md md:pr-5">
            <span className="break-words">{r.path ?? "—"}</span>

@@ -11,7 +11,7 @@
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | Canvas | `tech-debt-audit.canvas.tsx` |
 | 相關 | [`mgmt-manager-role.md`](./mgmt-manager-role.md)（RLS 第二期已知債）、[`role-ops-hardening.md`](./role-ops-hardening.md)（UI 守衛已做、DB 寫入未拆）、[`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) |
-| 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接、等 P0-1 contract |
+| 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接、等 P0-1 contract；2026-08-18 production 未套 stamp_actor，前端報錯／稽核／收件匣改回自行寫入 actor |
 
 ## 目標（一句）
 
@@ -20,14 +20,14 @@
 ## 與既有主題關係
 
 - manager 第一期已寫明：RLS 多數表仍 `FOR ALL`，**靠 UI＋守衛**；第二期再拆 reader／writer。finance 其後加入 `is_mgmt_staff()`，寫入面一併擴大。本主題承接該第二期，並補 finance。
-- `RequireMgmtRoles`（role-ops P1-5）已做頁守衛，但讀 `getMgmtRole()`＝localStorage，唔係 Auth context。
+- `RequireMgmtRoles`（role-ops P1-5）已改讀 `useAuth().role`；服務層仍有 `getMgmtRole()` 當授權（P0-2 未清）。
 - 原稽核 P1-4（頁級守衛唔齊、舊 `Role` 型缺 manager／finance）同 P0-2 係同一角色真源問題，**併入本主題**，唔另開重複工程。
 - 計糧慢、死碼、軟封存、2627 權益 live、**主線品質閘（P0-3）**：**唔併入本主題**。
 - 原稽核 P0-4（Auth leaked password）：**已拆出** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)，唔再屬本主題波次。
 
 ## 開工前須拍板
 
-1. 寫入矩陣：[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)（已簽；U2 之後）。kernel 已喺 production；**收緊 RLS 只喺 mainhope-staging**（domain 1–7＋延後表／session／波 5 其餘表／actor 蓋印已過 allow-deny；authz_version 10）。未確認前勿 `db:apply` 去 production。堂數池申請制另見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md)。
+1. 寫入矩陣：[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)（已簽；U2 之後）。kernel 已喺 production；**收緊 RLS 只喺 mainhope-staging**（domain 1–7＋延後表／session／波 5 其餘表／actor 蓋印已過 allow-deny；authz_version 10）。未確認前勿 `db:apply` 去 production。前端報錯／稽核／收件匣喺 trigger 未上線前自行寫入 actor（RPC 無 key 時職員 fallback `staff:{role}:{name}`）。堂數池申請制另見 [`entitlement-correction-approval.md`](./entitlement-correction-approval.md)。
 2. 家長 Portal 前端是否另開調查（本 repo 無 Portal UI）。
 3. P1-4 已併入；其餘 P1–P3 按 backlog 分題處理。
 
@@ -90,7 +90,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 - **真源（DB）**：`get_my_mgmt_profile`／`current_app_role()` ← `mgmt_active_roles` + `app_user_roles`。
 - **快取（瀏覽器）**：登入／切角色時 `applyProfileToStorage` 寫 `mgmt_role`、`teacher_id`。
 
-`AuthProvider` 已有 `profile`／`role`，但 `role` 仍 `profile?.role ?? getMgmtRole()`，缺 profile 時回退 storage。`RequireMgmtRoles` **只**讀 `getMgmtRole()`，完全唔經 context。舊頁（`SystemLogs`、`ReferralRebates`、`AiReports`、`ApoPo`）直接 `localStorage.getItem("mgmt_role")`。
+`AuthProvider.role` 已係 `profile?.activeRole`（唔回退 storage）。`RequireMgmtRoles` 已讀 AuthContext。服務層同部分畫面仍用 `getMgmtRole()`／storage 當授權旗標。
 
 服務層把 storage 當授權：`publishSystemNotice`、`deleteAttendanceDetailAsMgmt`（註明「非 Auth」）、`updateAppUser` 的 `isSuperAdmin()`。Inbox `actor_key` 用 `staff:{role}:{name}`，改 storage 會寫錯已讀。
 
@@ -130,8 +130,55 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 
 | 波 | 做 | 依賴 |
 | --- | --- | --- |
-| A | P0-1 capability kernel＋按域收緊 RLS／command | 寫入矩陣簽收（[`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md)） |
-| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 改讀 DB profile（nav 另包） |
+| A | P0-1 capability kernel＋按域收緊 RLS／command | 寫入矩陣已簽。**kernel 已喺 production**；收緊 RLS／蓋印見下方「production 上線檢查」，未確認唔套 |
+| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 已讀 DB profile；其餘（清 service `getMgmtRole`、`RequireCapabilities`、JWT `session_id`）進行中。nav 另包（IA1） |
+
+---
+
+## P0-1 production 上線檢查（未確認＝唔套）
+
+Production 而家：`authz_version = 1`；已套 `20260814230815` kernel。**未套** domain 1–7／延後表／session 角色／波 5／stamp_actor。  
+`26SM` 報讀／點名／學費路徑唔改；改嘅係「邊個角色可以寫邊張表」。財務而家 JWT 仍可經 API 改學生／排程／點名；套咗就會 denied。
+
+### 套之前
+
+- [ ] 產品確認可以收緊 production RLS（本閘未解除＝停）
+- [ ] 前端 actor 回退已上 production（報錯／稽核寫入用戶角色；收件匣 RPC 無 key 時 `staff:{role}:{name}`）。已入 main，**未 deploy 就套 stamp_actor，職員收件匣會再爆**
+- [ ] 禁 `supabase db push`；一次一檔 `npm run db:apply -- <檔>`（見 [`SUPABASE_MIGRATION_APPLY.md`](../../meta/SUPABASE_MIGRATION_APPLY.md)）
+- [ ] 預備角色帳號做 allow-deny：行政、管理層、財務、老師、外星人
+
+### 套用順序（一次一檔）
+
+| 序 | 檔 | 內容 |
+| --- | --- | --- |
+| 1 | `20260815102532_p0_1_system_users_roles.sql` | 系統通知／用戶／角色 |
+| 2 | `20260815104533_p0_1_students_classes.sql` | 學生／班／報讀 |
+| 3 | `20260815225314_p0_1_schedule_attendance_leave.sql` | 排程／出席／請假 |
+| 4 | `20260815230456_p0_1_payments_entitlements.sql` | 付款／作廢 command／堂數池 |
+| 5 | `20260815230459_p0_1_payroll_expenses.sql` | 計糧／成本帳 |
+| 6 | `20260816000753_p0_1_remaining_ops.sql` | 校曆／檔期／課程／老師目錄 |
+| 7 | `20260816000756_p0_1_session_role.sql` | JWT 有 `session_id` 先唔 fallback；**而家 App 無 claim 仍走舊路** |
+| 8 | `20260816084500_p0_1_wave5_cleanup.sql` | 其餘表 |
+| 9 | `20260816090000_p0_1_stamp_actor.sql` | 稽核／報錯／收件匣 actor 蓋印 → `authz_version` 10 |
+
+每檔之後：該域一個成功寫入＋一個應 denied（至少財務改 `students`）。出事就停，唔好繼續下一檔。
+
+### 套完煙霧（前線）
+
+- 行政：開學生、排程、出單／確認收款
+- 管理層：同上＋成本帳確認
+- 財務：計糧寫入、入帳；**唔可以**改學生／排程／點名
+- 老師：自己班點名、收件匣
+- 外星人：系統通知、用戶
+- 收件匣職員開得；新報錯有用戶／角色
+- `26SM` 點名紙／請假／收款仍可用（舊路徑）
+
+### 刻意未做（唔當漏套）
+
+- inbox 營運／已讀／portal view-as 仍 `is_mgmt_staff`（staging 都未收）
+- 老師目錄無獨立 capability（暫跟 `classes.update`）
+- JWT 未帶 `session_id`（P0-2）
+- 側欄／入口（IA1）
 
 P0-3 見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)。  
 原 P0-4 見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。  

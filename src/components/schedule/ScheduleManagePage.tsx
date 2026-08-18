@@ -62,7 +62,7 @@ import {
  buildDayViewExtraTags,
  isDayViewIdleCard,
 } from "@/lib/scheduleDayViewTags"
-import { addDaysYmd } from "@/lib/weekdayUtils"
+import { addDaysYmd, isYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -467,6 +467,7 @@ export function ScheduleManagePage() {
 
  const reload = useCallback(async () => {
   if (!isSupabaseConfigured) return
+  if (!isYmd(displayStart)) return
   const gen = ++reloadGenRef.current
   const hasExistingRows = rowsRef.current.length > 0
   setLoading(!hasExistingRows)
@@ -1093,6 +1094,7 @@ useEffect(() => {
 
  const handleDayViewDateChange = useCallback(
   (ymd: string) => {
+   if (!isYmd(ymd)) return
    setDayViewDate(ymd)
    if (!isDateInInclusiveRange(ymd, displayStart, rangeEnd)) {
     setDisplayStart(ymd)
@@ -1884,7 +1886,10 @@ useEffect(() => {
        <Input
         type="date"
         value={displayStart}
-        onChange={(e) => setDisplayStart(e.target.value)}
+        onChange={(e) => {
+         const next = e.target.value
+         if (isYmd(next)) setDisplayStart(next)
+        }}
         className="h-10 w-[12rem] cursor-pointer text-sm"
        />
        <Button

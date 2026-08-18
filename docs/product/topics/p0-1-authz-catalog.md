@@ -64,7 +64,7 @@ Domain 6–7（計糧／成本帳）只喺 staging：`20260815230459_p0_1_payrol
 Session 角色（JWT 有 `session_id` 先唔 fallback `app_users.role`）：`20260816000756_p0_1_session_role.sql`（staging：session A／B 隔離過）。  
 波 5 其餘表：`20260816084500_p0_1_wave5_cleanup.sql`（staging slice7 35/35）。話術庫暫跟 `calendar.manage`；明日提醒寫入 `students.update`；已廢待辦寫入 `catalog.manage`；舊匯入寫入 `students.enroll`。inbox ops／已讀／portal view-as 仍 `is_mgmt_staff`。  
 稽核 actor 蓋印：`20260816090000_p0_1_stamp_actor.sql`（staging slice8 5/5）。JWT 有 user 就蓋 `actor_label`／`role`／收件匣 `actor_key`；service_role 保留原值。  
-**以上收緊 RLS 都未套 production。** 老師目錄寫入暫跟 `classes.update`（catalog 無獨立 teachers key）。
+**以上收緊 RLS 都未套 production。** 2026-08-18：production 前端改回自行寫入 actor；收件匣 RPC 無 key 時職員 fallback `staff:{role}:{name}`。老師目錄寫入暫跟 `classes.update`（catalog 無獨立 teachers key）。
 
 ## Profile v2
 

@@ -156,6 +156,11 @@ export function enumerateDatesForWeekday(
  return out
 }
 
+/** 本機日曆日 `YYYY-MM-DD`（與排程 `scheduled_date` 對齊） */
+export function isYmd(s: string | null | undefined): s is string {
+ return typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s)
+}
+
 /** 本機日曆今日 `YYYY-MM-DD`（與排程 `scheduled_date` 對齊） */
 export function todayYmdLocal(d = new Date()): string {
  const y = d.getFullYear()

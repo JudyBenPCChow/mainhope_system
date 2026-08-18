@@ -320,8 +320,8 @@ export function SystemIssuesView() {
           {formatTs(r.created_at)}
          </td>
          <td className="px-3 py-2.5">{r.severity}</td>
-         <td className="px-3 py-2.5">{r.actor_label ?? "—"}</td>
-         <td className="px-3 py-2.5">{r.role ?? "—"}</td>
+         <td className="px-3 py-2.5">{r.actor_label?.trim() ? r.actor_label : "—"}</td>
+         <td className="px-3 py-2.5">{r.role?.trim() ? r.role : "—"}</td>
          <td className="max-w-[140px] break-all px-3 py-2.5 text-muted-foreground">{r.path ?? "—"}</td>
          <td className="px-3 py-2.5">{r.source}</td>
          <td className="max-w-xs px-3 py-2.5 break-words md:px-4">{r.message}</td>
