@@ -6,6 +6,7 @@ import {
 } from "@/lib/lessonSlots"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import { isYmd } from "@/lib/weekdayUtils"
 import {
  assembleScheduleStatsSnapshot,
  type ScheduleStatsLoad,
@@ -265,6 +266,9 @@ export async function fetchSchedulesInRange(
  opts?: { teacherId?: string | null }
 ): Promise<ScheduleManageRow[]> {
  if (!supabase) return []
+ if (!isYmd(fromYmd) || !isYmd(toYmd)) {
+  throw new Error("請選擇有效日期")
+ }
  let q = supabase
   .from("schedules")
   .select(SCHEDULE_MANAGE_SELECT)

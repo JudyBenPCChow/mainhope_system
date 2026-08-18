@@ -1,5 +1,15 @@
+import { formatMgmtActorLabel, getMgmtRole } from "@/lib/mgmtRole"
 import { todayYmdLocal } from "@/lib/weekdayUtils"
 import { supabase } from "@/lib/supabaseClient"
+
+function actorFromStorage(): { actorLabel: string; role: string } {
+ if (typeof localStorage === "undefined") {
+  return { actorLabel: "系統", role: "system" }
+ }
+ const r = getMgmtRole()
+ if (r) return { actorLabel: formatMgmtActorLabel(r), role: r }
+ return { actorLabel: "未登入", role: "guest" }
+}
 
 export type MgmtAuditLogRow = {
  id: string
@@ -72,12 +82,13 @@ export type AppendMgmtAuditInput = {
  detail?: string | null
 }
 
-/** 寫入一筆稽核（登入／操作）；失敗時靜默不擋流程。actor／role 由 DB 蓋過。 */
+/** 寫入一筆稽核（登入／操作）；失敗時靜默不擋流程。production 未有 stamp trigger，須先寫目前登入身分。 */
 export async function appendMgmtAuditLog(input: AppendMgmtAuditInput): Promise<void> {
  if (!supabase) return
+ const { actorLabel, role } = actorFromStorage()
  const { error } = await supabase.from("mgmt_audit_log").insert({
-  actor_label: "",
-  role: "",
+  actor_label: actorLabel,
+  role,
   action: input.action,
   path: input.path ?? null,
   detail: input.detail ?? null,
@@ -112,13 +123,14 @@ export async function logMgmtAuditActionOrThrow(input: {
  detail?: string | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定，無法寫入稽核")
+ const { actorLabel, role } = actorFromStorage()
  const path =
   input.path ??
   (typeof window !== "undefined" ? window.location.pathname : null) ??
   "/"
  const { error } = await supabase.from("mgmt_audit_log").insert({
-  actor_label: "",
-  role: "",
+  actor_label: actorLabel,
+  role,
   action: input.action,
   path,
   detail: input.detail ?? null,
@@ -137,6 +149,7 @@ export type AppendMgmtSystemErrorInput = {
 /** 寫入系統報錯／問題（失敗不擋主流程）；附目前登入身分與路徑。回傳是否寫入成功（供離線佇列重試）。 */
 export async function appendMgmtSystemError(input: AppendMgmtSystemErrorInput): Promise<boolean> {
  if (!supabase) return false
+ const { actorLabel, role } = actorFromStorage()
  const path =
   input.path ??
   (typeof window !== "undefined" ? window.location.pathname : null) ??
@@ -146,8 +159,8 @@ export async function appendMgmtSystemError(input: AppendMgmtSystemErrorInput): 
   source: input.source,
   message: input.message,
   detail: input.detail ?? null,
-  actor_label: "",
-  role: "",
+  actor_label: actorLabel,
+  role,
   path,
  })
  if (error) {

@@ -1,5 +1,5 @@
 import { formatClassLabel } from "@/lib/courseLabel"
-import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
+import { getMgmtRole, resolveMgmtDisplayName, type MgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -99,13 +99,26 @@ export function formatInboxAudienceLabel(roles: MgmtRole[]): string {
  return roles.map((r) => ROLE_LABEL[r] ?? r).join("、")
 }
 
+/** production `current_inbox_actor_key` 只為老師回 key；職員沿用舊 staff:{role}:{name}。stamp_actor 上線後 RPC 有值則優先。 */
+function inboxActorKeyFromClient(): string | null {
+ const tid = getTeacherScopeTeacherId()
+ if (tid) return `teacher:${tid}`
+ const role = getMgmtRole()
+ if (!role) return null
+ return `staff:${role}:${resolveMgmtDisplayName(role)}`
+}
+
 async function resolveInboxActorKey(): Promise<string> {
- if (!supabase) throw new Error("尚未設定 Supabase")
+ const fallback = inboxActorKeyFromClient()
+ if (!supabase) {
+  if (fallback) return fallback
+  throw new Error("尚未設定 Supabase")
+ }
  const { data, error } = await supabase.rpc("current_inbox_actor_key")
- if (error) throw error
- const key = typeof data === "string" ? data.trim() : ""
- if (!key) throw new Error("無法確認收件匣身分")
- return key
+ const key = !error && typeof data === "string" ? data.trim() : ""
+ if (key) return key
+ if (fallback) return fallback
+ throw new Error("無法確認收件匣身分")
 }
 
 function parseAudienceRoles(raw: unknown): MgmtRole[] {

@@ -284,8 +284,8 @@ export function SystemLogsView() {
          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted-foreground md:px-4">
           {formatTs(r.created_at)}
          </td>
-         <td className="px-3 py-2.5 font-medium">{r.actor_label}</td>
-         <td className="px-3 py-2.5">{r.role}</td>
+         <td className="px-3 py-2.5 font-medium">{r.actor_label?.trim() ? r.actor_label : "—"}</td>
+         <td className="px-3 py-2.5">{r.role?.trim() ? r.role : "—"}</td>
          <td className="px-3 py-2.5">{r.action}</td>
          <td className="max-w-[200px] break-all px-3 py-2.5 text-muted-foreground md:max-w-xs md:px-4">
           {r.path ?? "—"}
