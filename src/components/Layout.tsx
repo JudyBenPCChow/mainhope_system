@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Flame, Inbox } from "lucide-rea
 
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
+import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useAuth } from "@/lib/authBootstrap"
@@ -329,6 +330,7 @@ export function Layout() {
     </div>
    </main>
    <ApoAssistant role={role} />
+   <ChickenGentlemanNudge role={role} />
   </div>
  )
 }

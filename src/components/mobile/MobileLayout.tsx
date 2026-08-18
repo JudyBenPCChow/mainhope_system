@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom"
 import { useState } from "react"
 
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
+import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { MobileBottomNav } from "@/components/mobile/MobileBottomNav"
 import { MobileHeader } from "@/components/mobile/MobileHeader"
 import { MobileNavDrawer } from "@/components/mobile/MobileNavDrawer"
@@ -66,6 +67,7 @@ export function MobileLayout() {
     onLogout={logout}
    />
    <ApoAssistant role={role} />
+   <ChickenGentlemanNudge role={role} />
   </div>
  )
 }

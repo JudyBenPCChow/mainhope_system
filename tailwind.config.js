@@ -125,10 +125,22 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "chicken-card-rise": {
+          "0%": { transform: "translateY(100%)", opacity: "0" },
+          "18%": { opacity: "1" },
+          "78%": { transform: "translateY(-8%)" },
+          "100%": { transform: "translateY(0)" },
+        },
+        "chicken-card-leave": {
+          "0%": { transform: "translateY(0)", opacity: "1" },
+          "100%": { transform: "translateY(100%)", opacity: "0" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "chicken-card-rise": "chicken-card-rise 1.85s cubic-bezier(0.22, 1.14, 0.32, 1) both",
+        "chicken-card-leave": "chicken-card-leave 0.42s ease-in both",
       },
     },
   },

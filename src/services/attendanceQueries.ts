@@ -17,6 +17,11 @@ import {
 } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
+import { addDaysYmd } from "@/lib/weekdayUtils"
+import {
+ PAST_PENDING_ROLLCALL_NUDGE_LOOKBACK_DAYS,
+ countUniqueScheduledDates,
+} from "@/lib/teacherRollCallNudge"
 import {
  fetchSchedulesInRangeWithRosterContext,
  localYmd,
@@ -1307,6 +1312,26 @@ export async function fetchPendingRollCallRemindersForTeacher(
    if (byDate !== 0) return byDate
    return String(a.startTime ?? "").localeCompare(String(b.startTime ?? ""))
   })
+}
+
+/**
+ * 老師昨天或更早仍未點名的不重複上課日數（不含今日；無可點名對象／已取消不計）。
+ * 失敗由呼叫端處理；此函式不寫畫面錯誤。
+ */
+export async function countPastPendingRollCallDaysForTeacher(
+ teacherId: string,
+ todayYmd: string = localYmd(),
+ lookbackDays: number = PAST_PENDING_ROLLCALL_NUDGE_LOOKBACK_DAYS
+): Promise<number> {
+ if (!supabase || !teacherId || lookbackDays <= 0) return 0
+ const fromYmd = addDaysYmd(todayYmd, -lookbackDays)
+ const toYmd = addDaysYmd(todayYmd, -1)
+ if (toYmd < fromYmd) return 0
+ const { rows, rosterContext } = await fetchSchedulesInRangeWithRosterContext(fromYmd, toYmd, {
+  teacherId,
+ })
+ const pending = await findSchedulesMissingAttendance(rows, rosterContext)
+ return countUniqueScheduledDates(pending)
 }
 
 export { localYmd }
