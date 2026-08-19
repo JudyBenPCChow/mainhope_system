@@ -21,6 +21,7 @@
 | [`方案 md`](../../year/2627/timetable/versions/v3.3/2627_timetable_scheme_v3.3.md)／[`docx`](../../year/2627/timetable/versions/v3.3/2627_timetable_scheme_v3.3.docx)／[`pdf`](../../year/2627/timetable/versions/v3.3/2627_timetable_scheme_v3.3.pdf) | **現行方案** ver. 3.3；不含周時間表 |
 | [`老師 md`](../../year/2627/timetable/versions/v3.3/2627_timetable_teachers_week_v3.3.md)／[`docx`](../../year/2627/timetable/versions/v3.3/2627_timetable_teachers_week_v3.3.docx)／[`pdf`](../../year/2627/timetable/versions/v3.3/2627_timetable_teachers_week_v3.3.pdf) | **獨立附件**：各老師一周總覽及周視圖 |
 | [`周時間表 md`](../../year/2627/timetable/versions/v3.3/2627_timetable_weekly_v3.3.md)／[`docx`](../../year/2627/timetable/versions/v3.3/2627_timetable_weekly_v3.3.docx)／[`pdf`](../../year/2627/timetable/versions/v3.3/2627_timetable_weekly_v3.3.pdf) | **獨立附件**：原方案第 8 節，一日一頁 |
+| [`空房 md`](../../year/2627/timetable/versions/v3.3/2627_timetable_empty_rooms_v3.3.md)／[`docx`](../../year/2627/timetable/versions/v3.3/2627_timetable_empty_rooms_v3.3.docx) | **獨立附件**：空房一覽 |
 | [`versions/v3.2/`](../../year/2627/timetable/versions/v3.2/) | ver. 3.2（63 班；舊結構，保留不動） |
 | [`versions/v3.1/`](../../year/2627/timetable/versions/v3.1/) | ver. 3.1（64 班；只出 md，保留不動） |
 | [`versions/v3.0/`](../../year/2627/timetable/versions/v3.0/) | ver. 3.0（65 班；md＋Word／PDF 保留不動） |
