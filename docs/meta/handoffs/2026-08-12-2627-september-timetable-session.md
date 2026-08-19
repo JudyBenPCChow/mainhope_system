@@ -12,8 +12,8 @@
 
 ## 已完成
 - `docs/policies/scheduling/SCHEDULING_RULES.md`：同日同室、Christine 日最早 11:30、禁 TBD、Jackson 三＋六、六／日不排 09:00、Cyndi Ng 日最早 10:15＋一對一高中英文預留
-- 全校方案：`docs/year/2627/timetable/2627_timetable_scheme_2026-08-08.{docx,pdf}`（36 小組班＋1 預留；無驗證摘要；格內全寫）
-- 老師附件：`docs/year/2627/timetable/2627_timetable_teachers_week_2026-08-08.{docx,pdf}`（一周總覽＋大學課表式周視圖；無分日明細）
+- 全校方案：`docs/year/2627/timetable/archive/2026-08-08/2627_timetable_scheme_2026-08-08.{docx,pdf}`（36 小組班＋1 預留；無驗證摘要；格內全寫）
+- 老師附件：`docs/year/2627/timetable/archive/2026-08-08/2627_timetable_teachers_week_2026-08-08.{docx,pdf}`（一周總覽＋大學課表式周視圖；無分日明細）
 - 生成腳本：`scripts/generate_2627_timetable_doc.py`（嵌入新細明體／PMingLiU）
 - 索引：`docs/year/2627/timetable/2627_timetable_schemes.md`；backlog／`BACKLOG.md` 本輪收尾會再對齊
 

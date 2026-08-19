@@ -1,0 +1,14 @@
+---
+description: 2627 時間表方案：先 md、3.x 自動加版、Word 內建目錄另存 PDF
+globs: scripts/generate_2627_timetable_doc.py,docs/year/2627/timetable/**,docs/product/topics/2627-september-timetable.md
+alwaysApply: false
+---
+
+# 2627 時間表方案產出
+
+- **先改 `CLASSES`／原則，再 bump 版號。** 3.x 自動 +0.1（3.0→3.1→3.2）；`PREV_VERSION`＝上一版；舊檔保留，唔好覆寫 2.0–2.5 或上一版 3.x。
+- **預設只出 md**（方案、老師附件、獨立周時間表三份審閱稿）。用戶未講「出 pdf／docx／Word」就唔好跑 `--word`。
+- `CONFIRMED_TEACHER_CLASS_TIMES` 係已確認老師班別時間鎖；未經用戶明確指示，不得改班別、逢星期或時段，亦不得更新該常數繞過驗證。
+- 方案正文**不放周時間表／第 8 節**；周時間表必須用 `2627_timetable_weekly_v<版本>` 獨立生成。
+- 出檔：`python3 scripts/generate_2627_timetable_doc.py` → `docs/year/2627/timetable/versions/v<版本>/` 內三份 md；加 `--word` → 同一版本 folder 的三份 docx＋由 **Microsoft Word 另存 PDF**（內建 TOC、頁首 STYLEREF／頁尾 PAGE、普通邊界 2.54cm）。禁止 reportlab 直出 PDF。
+- 唔寫 production；ops-guide 唔列課表／老師名。

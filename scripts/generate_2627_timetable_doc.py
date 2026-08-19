@@ -1,30 +1,43 @@
 #!/usr/bin/env python3
-"""Generate 2627 timetable record (docx + pdf): 12pt 新細明體, B/W, chapter page breaks."""
+"""Generate 2627 timetable records.
+
+Default: markdown review drafts for the scheme, teacher appendix, and standalone
+weekly timetable. Pass --word to write matching docx files (Word built-in TOC /
+header / footer / Normal margins) and export PDFs via Microsoft Word (not reportlab).
+"""
 
 from __future__ import annotations
 
+import argparse
+import subprocess
 from collections import defaultdict
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
-VERSION = "2.5"
-PREV_VERSION = "2.4"
-STEM = "2627_timetable_scheme_v2.5"
-STEM_TEACHERS = "2627_timetable_teachers_week_v2.5"
-FONT_DIR = OUT_DIR / ".fonts"
+TIMETABLE_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
+VERSION = "3.3"
+PREV_VERSION = "3.2"
+STEM = "2627_timetable_scheme_v3.3"
+STEM_TEACHERS = "2627_timetable_teachers_week_v3.3"
+STEM_WEEKLY = "2627_timetable_weekly_v3.3"
+OUT_DIR = TIMETABLE_DIR / "versions" / f"v{VERSION}"
+# 改 CLASSES／原則時把 VERSION 改成下一 3.x（3.0→3.1），PREV_VERSION＝舊版；舊檔保留。
 FONT_NAME_EA = "新細明體"
-FONT_FILE = FONT_DIR / "PMingLiU.ttf"
-MINGLIU_TTC_CANDIDATES = [
-    Path("/Applications/Microsoft Word.app/Contents/Resources/DFonts/mingliu.ttc"),
-    Path("/Applications/Microsoft Word.app/Contents/Resources/OtherFonts/mingliu.ttc"),
-]
+MARGIN_CM = 2.54  # Word 預設「普通」
+HEADER_DISTANCE_CM = 1.25
+FOOTER_DISTANCE_CM = 1.25
+A4_W_CM = 21.0
+A4_H_CM = 29.7
+H1_SIZE = 14
+H2_SIZE = 12
+H3_SIZE = 12
 
 SLOTS = [
     "09:00–10:15",
@@ -85,7 +98,7 @@ def class_cell_text(grade: str, subject: str, teacher: str, code: str, slot_idx:
 
 
 # (day_idx, slot_idx, room, subject, grade, teacher, code)
-# ver. 2.5：Christine 星期四兩班改星期五；其餘班別同 2.4。
+# ver. 3.2：以 3.1 為底，Henry 只排星期六連續三堂中四／中五／中六生物。
 CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     # Monday — Mark 矩尺連三；Katie 17E 連三；Christine 山案
     (0, 6, "矩尺座", "數學", "S1", "Mark Yu", "S1數A"),
@@ -114,22 +127,29 @@ CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     (3, 7, "17E", "中文", "S1", "Katie", "S1中E"),
     (3, 8, "矩尺座", "數學", "S6", "Mark Yu", "S6數A"),
     (3, 8, "17E", "中文", "S1", "Katie", "S1中B"),
-    # Friday — Judy 中五生物矩尺；Christine 山案連排（由星期四改排）
+    # Friday — Judy 中五生物矩尺；Christine 山案連排
     (4, 7, "矩尺座", "生物", "S5", "Judy Chu", "S5生A"),
     (4, 7, "山案座", "中文", "S6", "Christine Fan", "S6中C"),
     (4, 8, "山案座", "中文", "S4", "Christine Fan", "S4中C"),
-    # Saturday — Mark 矩尺（初中＋高中）；Jackson 矩尺 12:45；Leo 山案；Liam 17E
+    # Saturday — Mark 矩尺上午兩堂、12:45 午膳（不標）、午後連三；Jackson 12:45 矩尺；Leo 山案；Liam 只中二／三；Cheryl 17E 上午；Henry 英仙下午
     (5, 1, "矩尺座", "數學", "S3", "Mark Yu", "S3數A"),
     (5, 1, "山案座", "數學", "S1", "Leo Chan", "S1數B"),
+    (5, 1, "17E", "英文", "S2", "Cheryl Ng", "S2英B"),
     (5, 2, "矩尺座", "數學", "S5", "Mark Yu", "S5數D"),
     (5, 2, "山案座", "物理", "S4", "Leo Chan", "S4物A"),
+    (5, 2, "17E", "英文", "S1", "Cheryl Ng", "S1英B"),
     (5, 3, "矩尺座", "英文", "S4", "Jackson Lau", "S4英B"),
     (5, 3, "山案座", "數學", "S2", "Leo Chan", "S2數C"),
     (5, 4, "矩尺座", "數學", "S6", "Mark Yu", "S6數D"),
-    (5, 4, "17E", "數學", "S4", "Liam Lai", "S4數C"),
-    (5, 5, "17E", "數學", "S5", "Liam Lai", "S5數C"),
+    (5, 4, "17E", "數學", "S2", "Liam Lai", "S2數D"),
+    (5, 4, "英仙座", "生物", "S4", "Henry Wong", "S4生A"),
+    (5, 5, "矩尺座", "數學", "S1", "Mark Yu", "S1數C"),
+    (5, 5, "17E", "數學", "S3", "Liam Lai", "S3數C"),
     (5, 5, "山案座", "物理", "S6", "Leo Chan", "S6物A"),
+    (5, 5, "英仙座", "生物", "S5", "Henry Wong", "S5生B"),
+    (5, 6, "矩尺座", "數學", "S4", "Mark Yu", "S4數C"),
     (5, 6, "山案座", "物理", "S5", "Leo Chan", "S5物A"),
+    (5, 6, "英仙座", "生物", "S6", "Henry Wong", "S6生C"),
     # Sunday — Katie 17E 五堂；Christine 矩尺三堂（取消中四A／中五B）；Cyndi 英仙；Emma 17D
     (6, 1, "17E", "中文", "S1", "Katie", "S1中A"),
     (6, 1, "英仙座", "英文", "S6", "Cyndi Ng", "S6英A"),
@@ -140,20 +160,16 @@ CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     (6, 2, "17D", "生物", "S6", "Judy Chu", "S6生A"),
     (6, 3, "矩尺座", "中文", "S5", "Christine Fan", "S5中A"),
     (6, 3, "17D", "英文", "S2", "Emma Cai", "S2英A"),
-    (6, 3, "山案座", "數學", "S1", "Leo Chan", "S1數C"),
     (6, 3, "17E", "生物", "S6", "Judy Chu", "S6生B"),
     (6, 4, "17E", "中文", "S3", "Katie", "S3中A"),
     (6, 4, "英仙座", "英文", "S4", "Cyndi Ng", "S4英A"),
-    (6, 4, "山案座", "數學", "S6", "Leo Chan", "S6數C"),
     (6, 4, "17D", "英文", "S1", "Emma Cai", "S1英A"),
     (6, 5, "17E", "中文", "S2", "Katie", "S2中F"),
     (6, 5, "矩尺座", "中文", "S6", "Christine Fan", "S6中A"),
-    (6, 5, "山案座", "數學", "S3", "Leo Chan", "S3數C"),
     (6, 6, "17E", "中文", "S1", "Katie", "S1中F"),
     (6, 6, "矩尺座", "中文", "S4", "Christine Fan", "S4中B"),
     (6, 6, "17D", "英文", "S3", "Emma Cai", "S3英A"),
-    (6, 7, "山案座", "物理", "S5", "Leo Chan", "S5物B"),
-    (6, 7, "17D", "英文", "S6", "Emma Cai", "S6英B"),
+    (6, 7, "17D", "英文", "S3", "Emma Cai", "S3英B"),
 ]
 
 # (day_idx, slot_idx, room, teacher, title)
@@ -162,15 +178,31 @@ RESERVED: list[tuple[int, int, str, str, str]] = [
     (6, 5, "英仙座", "Cyndi Ng", "一對一高中英文科（預留）"),
 ]
 
+# 已確認老師的現行班別時間；除非用戶明確指示，後續方案不可改動。
+# 值為 (day_idx, slot_idx, class_code)，不包括預留時段。
+CONFIRMED_TEACHER_CLASS_TIMES: dict[str, set[tuple[int, int, str]]] = {
+    "Cyndi Ng": {
+        (6, 1, "S6英A"),
+        (6, 2, "S5英A"),
+        (6, 4, "S4英A"),
+    },
+    "Emma Cai": {
+        (6, 3, "S2英A"),
+        (6, 4, "S1英A"),
+        (6, 6, "S3英A"),
+        (6, 7, "S3英B"),
+    },
+}
+
 MINUTES_PER_CLASS = 75
 
 STAFF = [
     (
         "Mark Yu",
         "數學科",
-        11,
+        13,
         "星期一、星期二、星期四、星期六",
-        "兼職。必須星期六出勤；不排星期三、星期五、星期日。平日每日最多三班；週末每日最多五班。本版十一班：星期一、二連排三堂；星期四高中兩班；星期六三班（中三＋中五＋中六，12:45 矩尺予 Jackson 故空一格）。出勤日優先矩尺座。",
+        "兼職。必須星期六出勤；不排星期三、星期五、星期日。平日每日最多三班；週末每日最多五班。本版十三班：星期一、二連排三堂；星期四高中兩班；星期六五班（10:15、11:30；12:45 午膳不標示；14:00 起連排三堂）。出勤日優先矩尺座。",
     ),
     (
         "Katie",
@@ -199,40 +231,56 @@ STAFF = [
         "生物科（中五級至中六級）",
         3,
         "星期五、星期日",
-        "兼職。本版先排中六生物兩班、中五生物一班（另一位生物老師尚未回覆）。連堂最多兩堂，其後必須休息一節。星期日兩班中六因 11:30 僅 17D 有空，12:45 須換 17E。",
+        "兼職。本版先排中六生物兩班、中五生物一班。連堂最多兩堂，其後必須休息一節。星期日兩班中六因 11:30 僅 17D 有空，12:45 須換 17E。",
+    ),
+    (
+        "Henry Wong",
+        "生物科（中四級至中六級）",
+        3,
+        "星期六",
+        "兼職。本版只排星期六連續三班（英仙座）：14:00 中四、15:15 中五、16:30 中六。星期五兩班已移除。可連三堂。星期三尚未確定（預計 8 月 27 日），不排。",
     ),
     (
         "Leo Chan",
         "數學科、物理科",
-        9,
-        "星期六、星期日",
-        "兼職。本輪按「9 或以上」排九班（數學五、物理四）；星期四、五尚未確定，不排平日。可連續三堂。",
+        5,
+        "星期六",
+        "兼職。本版五班（數學二、物理三），全部星期六。星期日仍屬問卷已確認可用日，本版移除原有中五物理（B）。星期四、五尚未確定，不排平日。可連續三堂。",
     ),
     (
         "Liam Lai",
         "數學科",
         4,
         "星期六、星期日",
-        "兼職。本輪按「3–4」排四班數學；星期二、三尚未確定，不排該兩日。連堂上限兩堂。12 月中至 1 月頭或外出，屆時按校曆另議。",
+        "兼職。本輪按「3–4」排四班，只教中二、中三數學：星期六兩班、星期日兩班。星期二、三尚未確定，不排該兩日。連堂上限兩堂。12 月中至 1 月頭或外出，屆時按校曆另議。",
     ),
     (
         "Emma Cai",
         "英文科",
         4,
         "星期日",
-        "兼職。每周 3–4 班，四班集中星期日一天：12:45-14:00、14:00-15:15、休息一節、16:30-17:45、17:45-19:00。可連續三堂。",
+        "兼職。每周 3–4 班，四班集中星期日一天：中二、中一、中三兩班。不教中六英文。12:45-14:00、14:00-15:15、休息一節、16:30-17:45、17:45-19:00。可連續三堂。",
+    ),
+    (
+        "Cheryl Ng",
+        "英文科",
+        2,
+        "星期六",
+        "兼職。只限星期六 10:15 及 11:30（17E）：中二英文、中一英文。可教數學延伸（M2），本版優先補初中英文第二班故不排 M2。連堂最多兩堂。2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
     ),
 ]
 
-# 本輪調查回覆（2026-08-15 至 17；既有專科老師路徑，無 C 區科目欄）
+# 本輪調查回覆（2026-08-15 至 18；既有專科老師路徑，無 C 區科目欄）
 SURVEY_OVERVIEW = [
     ["老師", "科目（本輪）", "九月開班", "每周堂數", "已確定日子", "本輪已排"],
     ["Judy Chu", "生物（高中）", "願意", "3–4", "星期一、五、日", "3 班（日中六×2、五中五×1）"],
-    ["Leo Chan", "數學、物理", "願意", "9 或以上", "星期六、日（全日可）", "9 班（六 5、日 4）"],
-    ["Liam Lai", "數學", "願意", "3–4", "星期六、日", "4 班（六 2、日 2）"],
-    ["Emma Cai", "英文", "願意", "3–4", "星期六、日（全日可）", "4 班（集中星期日）"],
+    ["Leo Chan", "數學、物理", "願意", "9 或以上", "星期六、日（全日可）", "5 班（全數星期六；移除星期日中五物理B）"],
+    ["Liam Lai", "數學", "願意", "3–4", "星期六、日", "4 班（只中二、中三；六 2、日 2）"],
+    ["Emma Cai", "英文", "願意", "3–4", "星期六、日（全日可）", "4 班（集中星期日；不教中六，改中三）"],
     ["Natalie Kwok", "—", "暫不承接", "—", "—", "不排"],
     ["Rafael Ling", "企會財", "願意", "5–6", "無（完全未掌握）", "不排，待補時段"],
+    ["Henry Wong", "生物（高中）", "願意", "3–4", "星期五、星期六", "3 班（只排六 14:00 起連三）"],
+    ["Cheryl Ng", "英文（可 M2）", "願意", "1–2", "星期六", "2 班（六 10:15 中二、11:30 中一）"],
 ]
 
 SURVEY_CONSTRAINTS = [
@@ -247,19 +295,19 @@ SURVEY_CONSTRAINTS = [
         "Leo Chan",
         "星期四、五（預計 9 月 5 日）",
         "最多 3 堂；可連續編排",
-        "一至三不可。本輪只用已確定週末，排滿九班。",
+        "一至三不可。本版按營運排五班，全部星期六；移除星期日中五物理（B），不排滿「9 或以上」。",
     ],
     [
         "Liam Lai",
         "星期二、三（預計 9 月 1 日）",
         "最多 2 堂；可連續編排",
-        "六只用不空白且標「可」之時段。日 14:00 起不可。12 月中至 1 月頭或外出，屆時按校曆另議。",
+        "六只用不空白且標「可」之時段。日 14:00 起不可。本版只教中二、中三。12 月中至 1 月頭或外出，屆時按校曆另議。",
     ],
     [
         "Emma Cai",
         "星期一至五（預計 8 月 20 日）",
         "最多 3 堂；可連續編排",
-        "平日雖有部分「可」，日子標尚未確定，本版不排平日。四班集中星期日，不拆星期六。",
+        "平日雖有部分「可」，日子標尚未確定，本版不排平日。四班集中星期日；不教中六英文，改中三英文第二班。",
     ],
     [
         "Natalie Kwok",
@@ -273,76 +321,174 @@ SURVEY_CONSTRAINTS = [
         "最多 3 堂；可連續編排",
         "時段確定後另開一輪，班數 5–6、年級平均分佈。",
     ],
+    [
+        "Henry Wong",
+        "星期三（預計 8 月 27 日）",
+        "最多 3 堂；可連續編排",
+        "一至四不可。問卷星期五可用，但本版移除星期五兩堂。星期六只用 14:00 至 17:45，連排中四、中五、中六生物。星期日僅 19:00 較不優先，本版不用。",
+    ],
+    [
+        "Cheryl Ng",
+        "—",
+        "最多 2 堂；可連續編排",
+        "只星期六 10:15 及 11:30 可。可教英文與 M2；本版兩班均為初中英文。2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
+    ],
 ]
 
 SURVEY_SLOT_NOTES = [
     "時段選項：可／較不優先／不可／未確定。空白＝該格未填，本輪視作不可用。",
-    "既有專科老師不填科目年級；科目由營運確認：Judy 生物、Leo 數學與物理、Liam 數學、Emma 英文、Rafael 企會財。",
-    "現有 2026-08-12 方案 36 班及 Cyndi Ng 一對一預留全部保留，只在空格加班。",
+    "既有專科老師不填科目年級；科目由營運確認：Judy／Henry 生物、Leo 數學與物理、Liam 數學、Emma／Cheryl 英文（Cheryl 可 M2）、Rafael 企會財。",
+    "本版以 ver. 3.1 已排格為底，Henry Wong 改為只排星期六 14:00 起連續三堂生物；其餘按已確認限制保留。",
 ]
 
-PACKING_NOTES = [
-    "同日順接只適用星期五、星期六、星期日；星期一至星期四不強制順接。",
-    "中一級星期日：中文 10:15 → 數學 12:45 → 英文 14:00；另開 16:30 中文（F）。",
-    "中二級星期日：數學 10:15 → 中文 11:30 → 英文 12:45；另開 15:15 中文（F）。",
-    "中三級星期日：中文 14:00 → 數學 15:15 → 英文 16:30。",
-    "中四級星期六：物理 11:30 → 英文 12:45 → 數學 14:00。",
-    "中五級星期六：上午 11:30 數學（D）；下午 數學 15:15 → 物理 16:30。星期五：生物 17:45。",
-    "星期五：中六中文 17:45、中四中文 19:00（Christine，山案座）；中五生物 17:45（Judy，矩尺座）。",
-    "中六級星期六：數學 14:00（D）→ 物理 15:15。中六級星期日：英文 10:15 → 生物 11:30（A）；生物 12:45（B，平行班）；數學 14:00 → 中文 15:15 → 英文 17:45。",
-    "Judy 先排中六生物兩班、中五生物一班；中四生物留待另一位生物老師。",
-    "Emma 四班集中星期日；Rafael 企會財、Natalie 專科班、各人平日未確定檔期本版不佔格。",
-    "Christine 星期日取消中四A（11:30）及中五B（19:00）。",
+PACKING_SECTIONS = [
+    (
+        "2.1.1 通則",
+        [
+            "同日順接只適用星期五、星期六、星期日；星期一至星期四不強制順接。",
+            "Judy 先排中六生物兩班、中五生物一班；中四生物由 Henry 承接。",
+            "Emma 四班集中星期日，不教中六英文；Cheryl 星期六上午兩班初中英文。",
+            "Christine 星期日取消中四A（11:30）及中五B（19:00）。",
+            "Mark 星期六 12:45 午膳不標示；Jackson 該格用矩尺座。",
+        ],
+    ),
+    (
+        "2.1.2 中一級",
+        [
+            "星期六：數學 10:15 → 英文 11:30；另開 15:15 數學（C）。",
+            "星期日：中文 10:15 → 英文 14:00；另開 16:30 中文（F）。",
+        ],
+    ),
+    (
+        "2.1.3 中二級",
+        [
+            "星期六：英文 10:15；12:45 數學（Leo）→ 14:00 數學（Liam）。",
+            "星期日：數學 10:15 → 中文 11:30 → 英文 12:45；另開 15:15 中文（F）。",
+        ],
+    ),
+    (
+        "2.1.4 中三級",
+        [
+            "星期六：數學 10:15（Mark）；15:15 數學（Liam）。",
+            "星期日：數學 11:30；中文 14:00 → 英文 16:30 → 英文 17:45（平行班）。",
+        ],
+    ),
+    (
+        "2.1.5 中四級",
+        [
+            "星期五：中文 19:00。",
+            "星期六：物理 11:30 → 英文 12:45 → 生物 14:00；另有數學 16:30。",
+        ],
+    ),
+    (
+        "2.1.6 中五級",
+        [
+            "星期五：生物 17:45。",
+            "星期六：上午 11:30 數學（D）；下午 生物 15:15 → 物理 16:30。",
+        ],
+    ),
+    (
+        "2.1.7 中六級",
+        [
+            "星期五：中文 17:45（Christine，山案座）。",
+            "星期六：數學 14:00（D）→ 物理 15:15 → 生物 16:30。",
+            "星期日：英文 10:15 → 生物 11:30（A）；生物 12:45（B，平行班）→ 中文 15:15。",
+        ],
+    ),
 ]
 
-PRINCIPLES = [
-    "適用學年為 2627（2026-09-01 至 2027-06-30），常規專科班，每周固定逢星期與時段。",
-    "每節 75 分鐘。",
-    "最遲一節為 19:00-20:15。",
-    "不排 20:15-21:30。",
-    "目前星期六、星期日不排 09:00-10:15。",
-    "週末最早一節為 10:15-11:30。",
-    "可用課室為 17D、17E、矩尺座、英仙座、山案座；17K 停用。",
-    "平日 15:15-16:30 或之前為返學時間，不排常規班（詳表淺灰標示）。",
-    "平日 16:30 起 17D 列作功課輔導班專用，常規班不使用 17D。",
-    "平日年級時段：中一級至中三級自 16:30 起；中四級至中六級自 17:45 起。",
-    "週末除 09:00 限制外，年級不限最早時段，仍禁止末節。",
-    "同一老師、同一課室、同年級不同科目，同時段均不可重疊。",
-    "連堂完全跟各老師問卷意願，不再統一規定「連兩節後必須空一格」。",
-    "同日最多五節。",
-    "兼職相鄰堂之間空檔最多一格；僅 Katie 可留較大空檔。",
-    "每周堂數不多者，能同一天完成則不拆兩天。",
-    "同一老師同一出勤日，班別盡量安排於同一課室。",
-    "同日順接只適用星期五、星期六、星期日：同一年級該三日宜有不同科目連續時段順接，避免天地堂。星期一至星期四不強制順接。",
-    "本輪按已回覆老師的每周堂數編排；同年級同科班數盡量平均，不以單一年級堆疊。",
-    "Mark Yu 出勤日優先矩尺座；不排星期三、星期五、星期日。平日每日最多三班，週末每日最多五班。",
-    "Katie 放假星期五、星期六；本版十七班。平日 14:00 至最後一節；週末 09:00-18:00（中間一節食飯休息）。星期一至四每日三班；星期日五班。",
-    "Christine Fan 出勤日優先矩尺座或山案座；不排星期六；星期日班別不得早於 11:30。",
-    "Christine Fan 本版出勤星期一、星期五、星期日；星期四兩班已改星期五。取消星期日中四A 及中五B。",
-    "各天詳表最右欄為該時段空房數；返學時間或不排課之列計 0。",
-    "Cyndi Ng 星期日小組班自 10:15 開始；同日另預留一個一對一高中英文時段。",
-    "時間表不出現「待確認老師」。時段尚未掌握者不佔格，另列未排。",
-    "Jackson Lau 出勤為星期三一班、星期六一班；優先矩尺座或山案座，不排 17D／17E。",
-    "不預留三人開會空檔。",
+PRINCIPLE_SECTIONS = [
+    (
+        "1.1 學年與格網",
+        [
+            "適用學年為 2627（2026-09-01 至 2027-06-30），常規專科班，每周固定逢星期與時段。",
+            "每節 75 分鐘。",
+            "最遲一節為 19:00-20:15。",
+            "不排 20:15-21:30。",
+            "目前星期六、星期日不排 09:00-10:15。",
+            "週末最早一節為 10:15-11:30。",
+        ],
+    ),
+    (
+        "1.2 課室",
+        [
+            "可用課室為 17D、17E、矩尺座、英仙座、山案座；17K 停用。",
+            "平日 16:30 起 17D 列作功課輔導班專用，常規班不使用 17D。",
+            "各天詳表最右欄為該時段空房數；返學時間或不排課之列仍計空房（該列課室皆空則為 5）。",
+        ],
+    ),
+    (
+        "1.3 年級與時段",
+        [
+            "平日 15:15-16:30 或之前為返學時間，不排常規班（詳表淺灰標示）。",
+            "平日年級時段：中一級至中三級自 16:30 起；中四級至中六級自 17:45 起。",
+            "週末除 09:00 限制外，年級不限最早時段，仍禁止末節。",
+        ],
+    ),
+    (
+        "1.4 不重疊與順接",
+        [
+            "同一老師、同一課室、同年級不同科目，同時段均不可重疊。",
+            "同日順接只適用星期五、星期六、星期日：同一年級該三日宜有不同科目連續時段順接，避免天地堂。星期一至星期四不強制順接。",
+            "本輪按已回覆老師的每周堂數編排；同年級同科班數盡量平均，不以單一年級堆疊。",
+            "時間表不出現「待確認老師」。時段尚未掌握者不佔格，另列未排。",
+        ],
+    ),
+    (
+        "1.5 老師節奏",
+        [
+            "連堂完全跟各老師問卷意願，不再統一規定「連兩節後必須空一格」。",
+            "同日最多五節。",
+            "兼職相鄰堂之間空檔最多一格；僅 Katie 可留較大空檔。",
+            "每周堂數不多者，能同一天完成則不拆兩天。",
+            "同一老師同一出勤日，班別盡量安排於同一課室。",
+            "不預留三人開會空檔。",
+        ],
+    ),
+    (
+        "1.6 本版老師約束",
+        [
+            "Mark Yu 出勤日優先矩尺座；不排星期三、星期五、星期日。平日每日最多三班，週末每日最多五班。星期六 12:45-14:00 午膳（時間表不標示），其後連排三堂。",
+            "Katie 放假星期五、星期六；本版十七班。平日 14:00 至最後一節；週末 09:00-18:00（中間一節食飯休息）。星期一至四每日三班；星期日五班。",
+            "Christine Fan 出勤日優先矩尺座或山案座；不排星期六；星期日班別不得早於 11:30。本版出勤星期一、星期五、星期日。",
+            "Cyndi Ng 星期日小組班自 10:15 開始；同日另預留一個一對一高中英文時段。",
+            "Jackson Lau 出勤為星期三一班、星期六一班；優先矩尺座或山案座，不排 17D／17E。",
+            "Liam Lai 本版只教中二、中三數學。",
+            "Leo Chan 本版五班（數學二、物理三），全部星期六；移除星期日中五物理（B）。",
+            "Emma Cai 本版不教中六英文。",
+            "Henry Wong 本版生物三班：只排星期六 14:00 中四、15:15 中五、16:30 中六；英仙座連續三堂。",
+            "Cheryl Ng 本版英文兩班：只星期六 10:15 及 11:30；可教 M2 本版不排。",
+        ],
+    ),
 ]
 
 VERSION_DIFFS = [
-    "Christine Fan 星期四兩班改星期五：山案座 17:45 中六C、19:00 中四C；出勤改為星期一、星期五、星期日。",
-    "各天詳表改為一日一頁、整表不拆開。",
-    "平日 15:15-16:30 或之前淺灰標「返學時間」。",
-    "各天詳表最右欄加該時段空房數。",
-    "正文可列點者改列點。",
+    "周時間表不再置於方案第 8 節，改為獨立文件。",
+    "方案、老師附件、周時間表分開生成 md；使用 --word 時各自生成 Word／PDF。",
+    "班別與時段不變，維持 63 班及 1 個預留時段。",
 ]
 
-PENDING_NOTES = [
-    "Judy Chu：意願 3–4 班，本版 3 班（中六×2、中五×1）；星期一無法排高中生物（與現有班撞級）。",
+PENDING_BY_TEACHER = [
     "Rafael Ling：企會財，意願 5–6 班，時段完全未掌握（預計 8 月 25 日），本版不佔格。",
     "Natalie Kwok：暫不承接專科班。",
-    "Emma／Leo／Liam 之平日尚未確定日子：確定後可再補班。",
-    "英文科初中各 1 班、高中各 2 班；若平日檔期確認，宜優先補初中第二班。",
-    "生物科尚無中四（留待另一位生物老師）；企會財尚未開班。",
-    "Christine 中四／中五中文本版各 2 班（仍達每級 ≥2）；若要補回第三班另開下一版。",
-    "Mark Yu 週末每日最多 5 班，本版星期六 3 班，仍可再加。",
+    "Henry Wong：本版只排星期六連續 3 班；星期三尚未確定（預計 8 月 27 日），不佔格。",
+    "Leo Chan：意願 9 或以上，本版按營運排 5 班（全數星期六）；已移除星期日中五物理（B）；星期四、五尚未確定。",
+    "Liam Lai：星期二、三尚未確定；12 月中至 1 月頭或外出。",
+    "Emma Cai：平日尚未確定日子。",
+    "Judy Chu：意願 3–4 班，本版 3 班；星期一無法排高中生物（撞級）。",
+    "Cheryl Ng：可教 M2 本版不排；2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
+    "Christine Fan：中四／中五中文本版各 2 班；若要補回第三班另開下一版。",
+    "Mark Yu：週末每日最多 5 班，本版星期六已滿 5。",
+]
+
+PENDING_BY_SUBJECT = [
+    "英文科中六只 1 班（Emma 改中三），欠第二班。",
+    "英文科中一至中三本版已各 2 班。",
+    "企會財尚未開班。",
+    "數學延伸（M2）、初中科學、化學本版不排。",
+    "中五級物理科移除星期日 B 班後，本版只餘 1 班。",
+    "中四級生物科移除星期五班後，本版只餘 1 班。",
+    "中文、數學各級已達每級 ≥2；中四／中五中文若要第三班另議。",
 ]
 
 
@@ -353,20 +499,6 @@ def teacher_hours_text(n_classes: int) -> str:
         return f"{n_classes} 班 × {MINUTES_PER_CLASS} 分鐘＝每周授課 {hours} 小時 {minutes} 分鐘（合共 {total_min} 分鐘）"
     return f"{n_classes} 班 × {MINUTES_PER_CLASS} 分鐘＝每周授課 {hours} 小時（合共 {total_min} 分鐘）"
 
-
-def ensure_pmingliu() -> Path:
-    FONT_DIR.mkdir(parents=True, exist_ok=True)
-    if FONT_FILE.exists() and FONT_FILE.stat().st_size > 1_000_000:
-        return FONT_FILE
-    from fontTools.ttLib import TTCollection
-
-    src = next((p for p in MINGLIU_TTC_CANDIDATES if p.exists()), None)
-    if src is None:
-        raise FileNotFoundError("找不到 mingliu.ttc（新細明體）。請安裝 Microsoft Word 後重試。")
-    ttc = TTCollection(str(src))
-    # face 1 = PMingLiU / 新細明體
-    ttc.fonts[1].save(str(FONT_FILE))
-    return FONT_FILE
 
 
 def set_run_font(run, size_pt: float = 12, bold: bool = False, color: RGBColor | None = None) -> None:
@@ -400,18 +532,23 @@ FILL_FREE = "EDEDED"
 FILL_OFF = "C0C0C0"
 
 
-def set_style_font(style, size_pt: float = 12) -> None:
+def set_style_font(style, size_pt: float = 12, *, bold: bool = False) -> None:
     style.font.name = FONT_NAME_EA
     style.font.size = Pt(size_pt)
+    style.font.bold = bold
     style.font.italic = False
     style.font.color.rgb = RGBColor(0, 0, 0)
-    if style.element.rPr is None:
-        style.element.get_or_add_rPr()
-    rpr = style.element.rPr
+    rpr = style.element.get_or_add_rPr()
     rfonts = rpr.get_or_add_rFonts()
     rfonts.set(qn("w:ascii"), FONT_NAME_EA)
     rfonts.set(qn("w:hAnsi"), FONT_NAME_EA)
     rfonts.set(qn("w:eastAsia"), FONT_NAME_EA)
+    color = OxmlElement("w:color")
+    color.set(qn("w:val"), "000000")
+    rpr.append(color)
+    if bold:
+        rpr.append(OxmlElement("w:b"))
+        rpr.append(OxmlElement("w:bCs"))
 
 
 def add_page_break(doc: Document) -> None:
@@ -454,32 +591,210 @@ def prevent_row_split(table) -> None:
         trPr.append(cant)
 
 
-def add_chapter(doc: Document, text: str, *, first: bool = False) -> None:
-    if not first:
+def add_heading(
+    doc: Document,
+    text: str,
+    level: int,
+    *,
+    page_break: bool = False,
+    page_break_before: bool = False,
+    keep_with_next: bool = False,
+    space_after: float | None = None,
+) -> None:
+    """Word built-in Heading 1–3 so TOC / STYLEREF work."""
+    if page_break:
         add_page_break(doc)
-    p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(12)
-    p.paragraph_format.space_before = Pt(0)
-    run = p.add_run(text)
-    set_run_font(run, 12, bold=True)
-    # Explicit bold for East Asian fonts in Word.
-    rpr = run._element.get_or_add_rPr()
-    b = OxmlElement("w:b")
-    bCs = OxmlElement("w:bCs")
-    rpr.append(b)
-    rpr.append(bCs)
+    style_name = {1: "Heading 1", 2: "Heading 2", 3: "Heading 3"}[level]
+    size = {1: H1_SIZE, 2: H2_SIZE, 3: H3_SIZE}[level]
+    p = doc.add_paragraph(text, style=style_name)
+    p.paragraph_format.space_before = Pt(0 if level == 1 else 12)
+    default_after = 12 if level == 1 else 8
+    p.paragraph_format.space_after = Pt(default_after if space_after is None else space_after)
+    p.paragraph_format.keep_with_next = keep_with_next
+    p.paragraph_format.page_break_before = page_break_before
+    p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    for run in p.runs:
+        set_run_font(run, size, bold=True)
+        rpr = run._element.get_or_add_rPr()
+        rpr.append(OxmlElement("w:b"))
+        rpr.append(OxmlElement("w:bCs"))
+
+
+def add_chapter(doc: Document, text: str, *, first: bool = False) -> None:
+    add_heading(doc, text, 1, page_break=not first)
 
 
 def add_section_title(doc: Document, text: str, *, keep_with_next: bool = False) -> None:
+    add_heading(doc, text, 2, keep_with_next=keep_with_next)
+
+
+SCHEME_EVEN_HEADER = f"明學教育 2627學年常規時間表方案（ver {VERSION}）"
+TEACHERS_EVEN_HEADER = f"明學教育 2627學年各老師時間表（ver {VERSION}）"
+WEEKLY_EVEN_HEADER = f"明學教育 2627學年周時間表（ver {VERSION}）"
+
+
+def add_field_with_placeholder(paragraph, instr: str, placeholder: str = " ", *, size: float = 10) -> None:
+    run = paragraph.add_run()
+    r = run._r
+    begin = OxmlElement("w:fldChar")
+    begin.set(qn("w:fldCharType"), "begin")
+    instr_el = OxmlElement("w:instrText")
+    instr_el.set(qn("xml:space"), "preserve")
+    instr_el.text = instr
+    sep = OxmlElement("w:fldChar")
+    sep.set(qn("w:fldCharType"), "separate")
+    t = OxmlElement("w:t")
+    t.text = placeholder
+    end = OxmlElement("w:fldChar")
+    end.set(qn("w:fldCharType"), "end")
+    r.append(begin)
+    r.append(instr_el)
+    r.append(sep)
+    r.append(t)
+    r.append(end)
+    set_run_font(run, size)
+
+
+def add_toc_field(doc: Document) -> None:
     p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)
-    p.paragraph_format.space_after = Pt(8)
-    p.paragraph_format.keep_with_next = keep_with_next
-    run = p.add_run(text)
-    set_run_font(run, 12, bold=True)
-    rpr = run._element.get_or_add_rPr()
-    rpr.append(OxmlElement("w:b"))
-    rpr.append(OxmlElement("w:bCs"))
+    p.paragraph_format.space_after = Pt(6)
+    add_field_with_placeholder(p, r' TOC \o "1-3" \h \z \u ', "（請於 Word 更新目錄）", size=12)
+
+
+def clear_paragraph(p) -> None:
+    for child in list(p._p):
+        if child.tag.endswith("}r"):
+            p._p.remove(child)
+
+
+def write_page_footer_para(paragraph) -> None:
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    r = paragraph.add_run("第")
+    set_run_font(r, 10)
+    add_field_with_placeholder(paragraph, " PAGE ", "1")
+    r = paragraph.add_run("頁（共")
+    set_run_font(r, 10)
+    add_field_with_placeholder(paragraph, " NUMPAGES ", "1")
+    r = paragraph.add_run("頁）")
+    set_run_font(r, 10)
+
+
+def write_header_para(paragraph, text: str) -> None:
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    clear_paragraph(paragraph)
+    run = paragraph.add_run(text)
+    set_run_font(run, 10, color=COLOR_MUTED)
+
+
+def write_styleref_header(paragraph) -> None:
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    paragraph.paragraph_format.space_before = Pt(0)
+    paragraph.paragraph_format.space_after = Pt(0)
+    clear_paragraph(paragraph)
+    # Traditional Chinese Word uses 標題 1 for Heading 1.
+    add_field_with_placeholder(paragraph, ' STYLEREF "標題 1" ', " ")
+
+
+def enable_even_odd_headers(doc: Document) -> None:
+    el = doc.settings.element
+    if el.find(qn("w:evenAndOddHeaders")) is None:
+        el.append(OxmlElement("w:evenAndOddHeaders"))
+
+
+def apply_normal_page(section, *, landscape: bool = False) -> None:
+    if landscape:
+        section.orientation = WD_ORIENT.LANDSCAPE
+        section.page_width = Cm(A4_H_CM)
+        section.page_height = Cm(A4_W_CM)
+    else:
+        section.orientation = WD_ORIENT.PORTRAIT
+        section.page_width = Cm(A4_W_CM)
+        section.page_height = Cm(A4_H_CM)
+    section.top_margin = Cm(MARGIN_CM)
+    section.bottom_margin = Cm(MARGIN_CM)
+    section.left_margin = Cm(MARGIN_CM)
+    section.right_margin = Cm(MARGIN_CM)
+    section.header_distance = Cm(HEADER_DISTANCE_CM)
+    section.footer_distance = Cm(FOOTER_DISTANCE_CM)
+
+
+def apply_section_chrome(section, even_text: str, *, first_empty: bool) -> None:
+    section.different_first_page_header_footer = first_empty
+    section.header.is_linked_to_previous = False
+    section.even_page_header.is_linked_to_previous = False
+    section.footer.is_linked_to_previous = False
+    section.even_page_footer.is_linked_to_previous = False
+    section.first_page_header.is_linked_to_previous = False
+    section.first_page_footer.is_linked_to_previous = False
+    write_styleref_header(section.header.paragraphs[0])
+    write_header_para(section.even_page_header.paragraphs[0], even_text)
+    for footer in (section.footer, section.even_page_footer, section.first_page_footer):
+        clear_paragraph(footer.paragraphs[0])
+        write_page_footer_para(footer.paragraphs[0])
+    if first_empty:
+        clear_paragraph(section.first_page_header.paragraphs[0])
+
+
+def set_row_height_exact(row, cm_h: float) -> None:
+    trPr = row._tr.get_or_add_trPr()
+    trHeight = OxmlElement("w:trHeight")
+    trHeight.set(qn("w:val"), str(int(Cm(cm_h).twips)))
+    trHeight.set(qn("w:hRule"), "exact")
+    trPr.append(trHeight)
+
+
+def set_table_widths(table, widths_cm: list[float]) -> None:
+    table.autofit = False
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+    tblW = tblPr.find(qn("w:tblW"))
+    if tblW is None:
+        tblW = OxmlElement("w:tblW")
+        tblPr.append(tblW)
+    total = int(sum(Cm(w).twips for w in widths_cm))
+    tblW.set(qn("w:w"), str(total))
+    tblW.set(qn("w:type"), "dxa")
+    grid = tbl.find(qn("w:tblGrid"))
+    if grid is not None:
+        for i, w in enumerate(widths_cm):
+            if i < len(grid):
+                grid[i].set(qn("w:w"), str(int(Cm(w).twips)))
+    for row in table.rows:
+        for cell, w in zip(row.cells, widths_cm):
+            cell.width = Cm(w)
+
+
+def add_docx_data_table(doc: Document, rows: list[list[str]], *, header=True, footer_row=False, size: float = 10):
+    t = doc.add_table(rows=len(rows), cols=len(rows[0]))
+    t.style = "Table Grid"
+    last_row = len(rows) - 1
+    last_col = len(rows[0]) - 1
+    for i, row_vals in enumerate(rows):
+        for j, val in enumerate(row_vals):
+            is_head = header and i == 0
+            is_total = footer_row and (i == last_row or j == last_col)
+            write_cell(t.rows[i].cells[j], val, bold=(is_head or is_total), size=size)
+            if is_head or (footer_row and i == last_row):
+                shade_cell(t.rows[i].cells[j])
+    prevent_row_split(t)
+    return t
+
+
+def staff_appendix_table() -> list[list[str]]:
+    data = [["老師", "班數", "科目", "出勤日", "備註"]]
+    for name, subject, n, days, note in STAFF:
+        data.append([name, str(n), subject, days, note])
+    return data
+
+
+def set_cell_nowrap(cell) -> None:
+    tcPr = cell._tc.get_or_add_tcPr()
+    if tcPr.find(qn("w:noWrap")) is None:
+        tcPr.append(OxmlElement("w:noWrap"))
 
 
 def shade_cell(cell, fill: str = "F0F0F0", *, stripe: bool = False, stripe_color: str = "666666") -> None:
@@ -495,6 +810,16 @@ def shade_cell(cell, fill: str = "F0F0F0", *, stripe: bool = False, stripe_color
     tcPr.append(shd)
 
 
+def set_cell_valign(cell, val: str = "center") -> None:
+    tcPr = cell._tc.get_or_add_tcPr()
+    existing = tcPr.find(qn("w:vAlign"))
+    if existing is not None:
+        tcPr.remove(existing)
+    v_align = OxmlElement("w:vAlign")
+    v_align.set(qn("w:val"), val)
+    tcPr.append(v_align)
+
+
 def write_cell(
     cell,
     text: str,
@@ -504,11 +829,14 @@ def write_cell(
     color: RGBColor | None = None,
 ) -> None:
     cell.text = ""
-    p = cell.paragraphs[0]
-    p.paragraph_format.space_after = Pt(0)
-    p.paragraph_format.space_before = Pt(0)
-    run = p.add_run(text)
-    set_run_font(run, size, bold, color=color)
+    lines = str(text).split("\n") or [""]
+    for i, line in enumerate(lines):
+        p = cell.paragraphs[0] if i == 0 else cell.add_paragraph()
+        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.line_spacing_rule = WD_LINE_SPACING.SINGLE
+        run = p.add_run(line)
+        set_run_font(run, size, bold, color=color)
 
 
 CORE_SUBJECTS = ["中文", "英文", "數學"]
@@ -616,6 +944,9 @@ def day_notes(day_idx: int) -> list[str]:
     if day_idx == 4:
         notes.append("本版不預留開會空檔")
         notes.append("Christine Fan：中六級中文科（C) 17:45、中四級中文科（C) 19:00，山案座")
+    if day_idx == 5:
+        notes.append("Cheryl Ng：中二級英文科（B) 10:15、中一級英文科（B) 11:30，17E")
+        notes.append("Henry Wong：中四級生物科（A) 14:00、中五級生物科（B) 15:15、中六級生物科（C) 16:30，英仙座連續三堂")
     if day_idx == 6:
         notes.append("Christine Fan 本版自 12:45 起（已取消 11:30 中四A 及 19:00 中五B）")
         notes.append("Cyndi Ng 小組班自 10:15 起，並預留一個一對一高中英文時段")
@@ -634,9 +965,11 @@ def day_grid(day_idx: int) -> list[list[str]]:
         for room in ROOMS:
             if is_weekend and s == 0:
                 row.append("不排課")
+                empty += 1
                 continue
             if school_hours:
                 row.append("返學時間")
+                empty += 1
                 continue
             if is_weekday and room == "17D":
                 cell = "功課輔導班"
@@ -661,29 +994,31 @@ def day_grid(day_idx: int) -> list[list[str]]:
             else:
                 empty += 1
                 row.append("—")
-        if (is_weekend and s == 0) or school_hours:
-            row.append("0")
-        else:
-            row.append(str(empty))
+        row.append(str(empty))
         grid.append(row)
     return grid
 
 
-def configure_docx_styles(doc: Document) -> None:
+def configure_docx_styles(doc: Document, *, landscape: bool = False) -> None:
     for section in doc.sections:
-        section.top_margin = Cm(2.2)
-        section.bottom_margin = Cm(2.2)
-        section.left_margin = Cm(2.2)
-        section.right_margin = Cm(2.2)
+        apply_normal_page(section, landscape=landscape)
     set_style_font(doc.styles["Normal"], 12)
-    for name in ("Heading 1", "Heading 2", "Title"):
+    for name, size, bold in (
+        ("Heading 1", H1_SIZE, True),
+        ("Heading 2", H2_SIZE, True),
+        ("Heading 3", H3_SIZE, True),
+        ("Title", 12, True),
+    ):
         if name in doc.styles:
-            set_style_font(doc.styles[name], 12)
+            set_style_font(doc.styles[name], size, bold=bold)
 
 
 def build_docx(path: Path) -> None:
     doc = Document()
     configure_docx_styles(doc)
+    enable_even_odd_headers(doc)
+    first = doc.sections[0]
+    apply_section_chrome(first, SCHEME_EVEN_HEADER, first_empty=True)
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -704,76 +1039,21 @@ def build_docx(path: Path) -> None:
     add_para(doc, f"與 ver. {PREV_VERSION} 之分別", size=12, bold=True, space_after=6)
     add_bullets(doc, VERSION_DIFFS)
 
-    # 一
-    add_chapter(doc, "一、排程原則", first=False)
-    add_bullets(doc, PRINCIPLES)
+    add_page_break(doc)
+    add_para(doc, "目錄", size=H1_SIZE, bold=True, space_after=8)
+    add_toc_field(doc)
 
-    # 二
-    add_chapter(doc, "二、本輪老師回覆（2026-08-15 至 17）")
-    add_bullets(
-        doc,
-        [
-            "以下整理調查表各人意願",
-            "科目欄為營運確認，非表格 C 區自填（既有專科老師不經 C 區）",
-        ],
-    )
-    add_bullets(doc, SURVEY_SLOT_NOTES)
-    t_s1 = doc.add_table(rows=len(SURVEY_OVERVIEW), cols=len(SURVEY_OVERVIEW[0]))
-    t_s1.style = "Table Grid"
-    for i, row_vals in enumerate(SURVEY_OVERVIEW):
-        for j, val in enumerate(row_vals):
-            write_cell(t_s1.rows[i].cells[j], val, bold=(i == 0), size=10)
-            if i == 0:
-                shade_cell(t_s1.rows[i].cells[j])
-    add_section_title(doc, "檔期與連堂約束")
-    t_s2 = doc.add_table(rows=len(SURVEY_CONSTRAINTS), cols=len(SURVEY_CONSTRAINTS[0]))
-    t_s2.style = "Table Grid"
-    for i, row_vals in enumerate(SURVEY_CONSTRAINTS):
-        for j, val in enumerate(row_vals):
-            write_cell(t_s2.rows[i].cells[j], val, bold=(i == 0), size=10)
-            if i == 0:
-                shade_cell(t_s2.rows[i].cells[j])
-    add_section_title(doc, "本版學生順接（星期五、六、日）")
-    add_bullets(doc, PACKING_NOTES)
+    add_chapter(doc, "1. 排程原則")
+    for heading, lines in PRINCIPLE_SECTIONS:
+        add_section_title(doc, heading, keep_with_next=True)
+        add_bullets(doc, lines)
 
-    # 三
-    add_chapter(doc, "三、各員工出勤日、班數、科目")
-    t = doc.add_table(rows=1, cols=4)
-    t.style = "Table Grid"
-    for i, h in enumerate(["老師", "班數", "科目", "出勤日與備註"]):
-        write_cell(t.rows[0].cells[i], h, bold=True, size=12)
-        shade_cell(t.rows[0].cells[i])
-    for name, subject, n, days, note in STAFF:
-        items = [c for c in CLASSES if c[5] == name]
-        room_by_day: dict[str, set[str]] = {}
-        for d, _, room, _, _, _, _ in items:
-            room_by_day.setdefault(DAYS[d], set()).add(room)
-        room_note = "；".join(f"{d}={'／'.join(sorted(rs))}" for d, rs in room_by_day.items())
-        titles = "、".join(
-            class_title(c[4], c[3], c[6]) for c in sorted(items, key=lambda x: (x[0], x[1]))
-        )
-        reserved_titles = "、".join(
-            title for d, slot, room, teacher, title in RESERVED if teacher == name
-        )
-        detail = f"{days}\n同日課室：{room_note}\n班別：{titles}"
-        if reserved_titles:
-            detail += f"\n預留：{reserved_titles}"
-        detail += f"\n{note}"
-        row = t.add_row().cells
-        for cell, val in zip(row, [name, str(n), subject, detail]):
-            write_cell(cell, val, size=12)
-    add_bullets(
-        doc,
-        [
-            f"已排小組班合計 {len(CLASSES)} 班",
-            f"另預留時段 {len(RESERVED)} 個",
-            "全部為具名老師，無待確認老師",
-        ],
-        space_after=4,
-    )
-
-    # 四
-    add_chapter(doc, "四、各級各科班數")
+    add_chapter(doc, "2. 各級開科情況")
+    add_section_title(doc, "2.1 各年級順接方案")
+    for heading, lines in PACKING_SECTIONS:
+        add_heading(doc, heading, 3, keep_with_next=True)
+        add_bullets(doc, lines)
+    add_section_title(doc, "2.2 各級各科班數")
     add_bullets(
         doc,
         [
@@ -783,395 +1063,152 @@ def build_docx(path: Path) -> None:
             "不含一對一預留",
         ],
     )
-    mdata = count_matrix_table()
-    t2 = doc.add_table(rows=len(mdata), cols=len(mdata[0]))
-    t2.style = "Table Grid"
-    last_row = len(mdata) - 1
-    last_col = len(mdata[0]) - 1
-    for i, row_vals in enumerate(mdata):
-        for j, val in enumerate(row_vals):
-            is_head = i == 0
-            is_total = i == last_row or j == last_col
-            write_cell(t2.rows[i].cells[j], val, bold=(is_head or is_total), size=12)
-            if is_head or i == last_row:
-                shade_cell(t2.rows[i].cells[j])
+    add_docx_data_table(doc, count_matrix_table(), footer_row=True, size=12)
 
-    # 五
-    add_chapter(doc, "五、各科各級班別")
+    add_chapter(doc, "5. 各科各級班別列表")
     add_bullets(doc, ["以下按科目、其後按年級列出全部已排小組班", "一對一預留見章末"])
-    for subj_full, grade_blocks in subject_grade_class_tables():
-        add_section_title(doc, subj_full)
-        for grade_full, rows in grade_blocks:
-            add_para(doc, grade_full, size=12, bold=True, space_after=6)
-            tg = doc.add_table(rows=len(rows), cols=len(rows[0]))
-            tg.style = "Table Grid"
-            for i, row_vals in enumerate(rows):
-                for j, val in enumerate(row_vals):
-                    write_cell(tg.rows[i].cells[j], val, bold=(i == 0), size=10)
-                    if i == 0:
-                        shade_cell(tg.rows[i].cells[j])
+    n_subj = 0
+    for si, (subj_full, grade_blocks) in enumerate(subject_grade_class_tables(), start=1):
+        n_subj = si
+        add_section_title(doc, f"5.{si} {subj_full}")
+        for gi, (grade_full, rows) in enumerate(grade_blocks, start=1):
+            add_heading(doc, f"5.{si}.{gi} {grade_full}", 3, keep_with_next=True)
+            add_docx_data_table(doc, rows, size=10)
     if RESERVED:
-        add_section_title(doc, "預留時段（不計小組班）")
-        for d, slot, room, teacher, title in RESERVED:
+        add_section_title(doc, f"5.{n_subj + 1} 預留時段（不計小組班）")
+        for d, slot, room, teacher, title_t in RESERVED:
             add_para(
                 doc,
-                f"{title}｜{teacher}｜{DAYS[d]} {SLOT_TIMES[slot]}｜{room}",
+                f"{title_t}｜{teacher}｜{DAYS[d]} {SLOT_TIMES[slot]}｜{room}",
                 size=12,
                 space_after=4,
             )
 
-    # 六
-    add_chapter(doc, "六、未排與待補")
+    add_chapter(doc, "6. 未排與待排")
+    add_bullets(doc, ["本輪按老師已確定檔期與每周堂數編排", "不以「待確認老師」佔用課室格"])
+    add_section_title(doc, "6.1 按老師")
+    add_bullets(doc, PENDING_BY_TEACHER)
+    add_section_title(doc, "6.2 按科目")
+    add_bullets(doc, PENDING_BY_SUBJECT)
+
+    add_chapter(doc, "7. 所有班別清單")
+    add_bullets(doc, ["以下按星期與時段列出全部已排班及預留時段", f"已排小組班合計 {len(CLASSES)} 班", f"另預留時段 {len(RESERVED)} 個"])
+    add_docx_data_table(doc, weekly_summary_rows(), size=12)
+
+    add_chapter(doc, "附表 本輪老師回覆與出勤")
     add_bullets(
         doc,
         [
-            "本輪按老師已確定檔期與每周堂數編排",
-            "同年級同科盡量平均",
-            "以下為仍待下一輪者",
+            "以下整理調查表各人意願，並結合各員工出勤、班數、科目",
+            "科目欄為營運確認，非表格 C 區自填（既有專科老師不經 C 區）",
         ],
     )
-    add_bullets(doc, PENDING_NOTES)
-    add_bullets(doc, ["不以「待確認老師」佔用課室格"])
-
-    # 七
-    add_chapter(doc, "七、一周時間表")
-    add_bullets(doc, ["以下按星期與時段列出全部已排班", "各天課室詳表見下一章"])
-    overview = weekly_summary_rows()
-    t3 = doc.add_table(rows=len(overview), cols=len(overview[0]))
-    t3.style = "Table Grid"
-    for i, row_vals in enumerate(overview):
-        for j, val in enumerate(row_vals):
-            write_cell(t3.rows[i].cells[j], val, bold=(i == 0), size=12)
-            if i == 0:
-                shade_cell(t3.rows[i].cells[j])
-
-    # 八
-    add_chapter(doc, "八、各天詳細時間表")
-    add_bullets(
-        doc,
-        [
-            "每日一頁、整表不拆開",
-            "平日 15:15-16:30 或之前淺灰標返學時間",
-            "最右欄為該時段空房數",
-        ],
-    )
-    for day_idx, day_name in enumerate(DAYS):
-        add_page_break(doc)
-        add_section_title(doc, day_name, keep_with_next=True)
-        add_bullets(doc, day_notes(day_idx), keep_with_next=True)
-        grid = day_grid(day_idx)
-        td = doc.add_table(rows=len(grid), cols=len(grid[0]))
-        td.style = "Table Grid"
-        last_col = len(grid[0]) - 1
-        for i, row_vals in enumerate(grid):
-            for j, val in enumerate(row_vals):
-                muted = val in MUTED_LABELS
-                write_cell(
-                    td.rows[i].cells[j],
-                    val,
-                    bold=(i == 0 or j == 0 or j == last_col),
-                    size=9 if i else 12,
-                    color=COLOR_MUTED if muted else None,
-                )
-                if i == 0:
-                    shade_cell(td.rows[i].cells[j])
-                elif muted:
-                    shade_cell(td.rows[i].cells[j], FILL_SCHOOL)
-                if j == last_col:
-                    td.rows[i].cells[j].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        prevent_row_split(td)
+    add_bullets(doc, SURVEY_SLOT_NOTES)
+    add_section_title(doc, "附表.1 調查回覆")
+    add_docx_data_table(doc, SURVEY_OVERVIEW, size=10)
+    add_section_title(doc, "附表.2 檔期與連堂約束")
+    add_docx_data_table(doc, SURVEY_CONSTRAINTS, size=10)
+    add_section_title(doc, "附表.3 各員工出勤日、班數、科目")
+    add_docx_data_table(doc, staff_appendix_table(), size=10)
 
     add_para(doc, "— 完 —", size=12)
     doc.save(path)
 
 
-def build_pdf(path: Path, font_path: Path) -> None:
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import cm
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import Flowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+WEEKLY_HEADER_ROW_CM = 0.72
+WEEKLY_DATA_ROW_CM = 1.50
 
-    pdfmetrics.registerFont(TTFont("PMingLiU", str(font_path)))
-    font_name = "PMingLiU"
 
-    class BoldTitle(Flowable):
-        """12pt chapter title; fake-bold by overstriking for CJK without a bold face."""
-
-        def __init__(self, text: str):
-            super().__init__()
-            self.text = text
-            self.height = 22
-
-        def wrap(self, availWidth, availHeight):
-            self.width = availWidth
-            return availWidth, self.height
-
-        def draw(self):
-            self.canv.setFillColor(colors.black)
-            self.canv.setFont(font_name, 12)
-            y = 6
-            # Slight offsets to simulate bold weight.
-            for dx, dy in ((0, 0), (0.25, 0), (0, 0.25), (0.25, 0.25)):
-                self.canv.drawString(dx, y + dy, self.text)
-
-    styles = getSampleStyleSheet()
-    styles.add(
-        ParagraphStyle(
-            name="BWCenter",
-            fontName=font_name,
-            fontSize=12,
-            leading=18,
-            alignment=TA_CENTER,
-            textColor=colors.black,
-            spaceAfter=8,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWBody",
-            fontName=font_name,
-            fontSize=12,
-            leading=18,
-            textColor=colors.black,
-            alignment=TA_LEFT,
-            spaceAfter=6,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWTable",
-            fontName=font_name,
-            fontSize=9,
-            leading=12,
-            textColor=colors.black,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWTableHeader",
-            fontName=font_name,
-            fontSize=10,
-            leading=13,
-            textColor=colors.black,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWTableMuted",
-            fontName=font_name,
-            fontSize=9,
-            leading=12,
-            alignment=TA_CENTER,
-            textColor=colors.Color(0.5, 0.5, 0.5),
-        )
-    )
-
-    def P(text: str, style: str = "BWBody") -> Paragraph:
-        return Paragraph(str(text).replace("\n", "<br/>"), styles[style])
-
-    def chapter(text: str) -> BoldTitle:
-        return BoldTitle(text)
-
-    def bw_table(
-        data: list[list],
-        col_widths: list[float],
-        header: bool = True,
-        footer: bool = False,
-    ) -> Table:
-        styled = []
-        for i, row in enumerate(data):
-            styled.append([P(c, "BWTableHeader" if header and i == 0 else "BWTable") for c in row])
-        t = Table(styled, colWidths=col_widths, repeatRows=1 if header else 0)
-        cmds = [
-            ("FONTNAME", (0, 0), (-1, -1), font_name),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 4),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-            ("TOPPADDING", (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-        ]
-        if header:
-            cmds.append(("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.94, 0.94, 0.94)))
-        if footer:
-            cmds.append(("BACKGROUND", (0, -1), (-1, -1), colors.Color(0.94, 0.94, 0.94)))
-        t.setStyle(TableStyle(cmds))
-        return t
-
-    def bullets(lines: list[str]) -> None:
-        for line in lines:
-            story.append(P(f"• {line}"))
-
-    def day_grid_table(data: list[list[str]]) -> Table:
-        last = len(data[0]) - 1
-        styled = []
-        gray = colors.Color(0.93, 0.93, 0.93)
-        cmds = [
-            ("FONTNAME", (0, 0), (-1, -1), font_name),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.black),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.94, 0.94, 0.94)),
-            ("ALIGN", (last, 0), (last, -1), "CENTER"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 3),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-        ]
-        for i, row in enumerate(data):
-            srow = []
-            for j, val in enumerate(row):
-                if val in MUTED_LABELS:
-                    srow.append(Paragraph(str(val).replace("\n", "<br/>"), styles["BWTableMuted"]))
-                    cmds.append(("BACKGROUND", (j, i), (j, i), gray))
-                    cmds.append(("VALIGN", (j, i), (j, i), "MIDDLE"))
-                else:
-                    srow.append(P(val, "BWTableHeader" if i == 0 else "BWTable"))
-            styled.append(srow)
-        t = Table(
-            styled,
-            colWidths=[2.0 * cm] + [2.5 * cm] * 5 + [1.3 * cm],
-            repeatRows=0,
-            splitByRow=0,
-        )
-        t.setStyle(TableStyle(cmds))
-        return t
-
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=A4,
-        leftMargin=2 * cm,
-        rightMargin=2 * cm,
-        topMargin=2 * cm,
-        bottomMargin=2 * cm,
-        title="2627 學年常規專科班時間表",
-        author="明學教育",
-    )
-    story: list = []
-    story.append(P("明學教育", "BWCenter"))
-    story.append(P("2627 學年常規專科班時間表", "BWCenter"))
-    story.append(P(f"方案紀錄 ver. {VERSION}｜對照 ver. {PREV_VERSION}｜未定稿入庫", "BWCenter"))
-    bullets(cover_notes())
-    story.append(P(f"與 ver. {PREV_VERSION} 之分別"))
-    bullets(VERSION_DIFFS)
-
-    story.append(PageBreak())
-    story.append(chapter("一、排程原則"))
-    bullets(PRINCIPLES)
-
-    story.append(PageBreak())
-    story.append(chapter("二、本輪老師回覆（2026-08-15 至 17）"))
-    bullets(
-        [
-            "以下整理調查表各人意願",
-            "科目欄為營運確認，非表格 C 區自填（既有專科老師不經 C 區）",
-        ]
-    )
-    bullets(SURVEY_SLOT_NOTES)
-    story.append(bw_table(SURVEY_OVERVIEW, [2.4 * cm, 2.6 * cm, 2.2 * cm, 2.2 * cm, 3.6 * cm, 3.2 * cm]))
-    story.append(Spacer(1, 8))
-    story.append(chapter("檔期與連堂約束"))
-    story.append(bw_table(SURVEY_CONSTRAINTS, [2.6 * cm, 3.8 * cm, 3.4 * cm, 6.4 * cm]))
-    story.append(Spacer(1, 8))
-    story.append(chapter("本版學生順接（星期五、六、日）"))
-    bullets(PACKING_NOTES)
-
-    story.append(PageBreak())
-    story.append(chapter("三、各員工出勤日、班數、科目"))
-    staff_data = [["老師", "班數", "科目", "出勤日", "備註"]]
-    for name, subject, n, days, note in STAFF:
-        staff_data.append([name, str(n), subject, days, note])
-    story.append(bw_table(staff_data, [2.8 * cm, 1.2 * cm, 2.8 * cm, 4.2 * cm, 6.2 * cm]))
-    story.append(Spacer(1, 8))
-    bullets(
-        [
-            f"已排小組班合計 {len(CLASSES)} 班",
-            f"另預留時段 {len(RESERVED)} 個",
-            "全部為具名老師，無待確認老師",
-        ]
-    )
-
-    story.append(PageBreak())
-    story.append(chapter("四、各級各科班數"))
-    bullets(
-        [
-            "下表為各級各科已排小組班數",
-            "最右欄為各科合計",
-            "最下一行為各級合計",
-            "不含一對一預留",
-        ]
-    )
-    mdata = count_matrix_table()
-    story.append(bw_table(mdata, [2.0 * cm] + [1.8 * cm] * 6 + [2.0 * cm], footer=True))
-
-    story.append(PageBreak())
-    story.append(chapter("五、各科各級班別"))
-    bullets(["以下按科目、其後按年級列出全部已排小組班", "一對一預留見章末"])
-    list_widths = [4.0 * cm, 3.2 * cm, 2.2 * cm, 2.8 * cm, 2.0 * cm]
-    for subj_full, grade_blocks in subject_grade_class_tables():
-        story.append(Spacer(1, 8))
-        story.append(chapter(subj_full))
-        for grade_full, rows in grade_blocks:
-            story.append(
-                KeepTogether(
-                    [
-                        P(grade_full),
-                        bw_table(rows, list_widths),
-                    ]
-                )
+def add_weekly_day_table(doc: Document, day_idx: int, widths: list[float]) -> None:
+    grid = day_grid(day_idx)
+    td = doc.add_table(rows=len(grid), cols=len(grid[0]))
+    td.style = "Table Grid"
+    last_col = len(grid[0]) - 1
+    for i, row_vals in enumerate(grid):
+        set_row_height_exact(td.rows[i], WEEKLY_DATA_ROW_CM if i else WEEKLY_HEADER_ROW_CM)
+        for j, val in enumerate(row_vals):
+            muted = val in MUTED_LABELS
+            write_cell(
+                td.rows[i].cells[j],
+                val,
+                bold=(i == 0 or j == 0 or j == last_col),
+                size=8 if i else 10,
+                color=COLOR_MUTED if muted else None,
             )
-            story.append(Spacer(1, 6))
-    if RESERVED:
-        story.append(Spacer(1, 8))
-        story.append(chapter("預留時段（不計小組班）"))
-        for d, slot, room, teacher, title in RESERVED:
-            story.append(P(f"• {title}｜{teacher}｜{DAYS[d]} {SLOT_TIMES[slot]}｜{room}"))
+            set_cell_valign(td.rows[i].cells[j])
+            if i == 0:
+                shade_cell(td.rows[i].cells[j])
+            elif muted:
+                shade_cell(td.rows[i].cells[j], FILL_SCHOOL)
+            if j == 0 or j == last_col:
+                for para in td.rows[i].cells[j].paragraphs:
+                    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                set_cell_nowrap(td.rows[i].cells[j])
+    set_table_widths(td, widths)
+    prevent_row_split(td)
 
-    story.append(PageBreak())
-    story.append(chapter("六、未排與待補"))
-    bullets(
+
+def build_weekly_docx(path: Path) -> None:
+    doc = Document()
+    configure_docx_styles(doc)
+    enable_even_odd_headers(doc)
+    apply_section_chrome(doc.sections[0], WEEKLY_EVEN_HEADER, first_empty=True)
+
+    title = doc.add_paragraph()
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = title.add_run("明學教育")
+    set_run_font(run, 12, bold=True)
+
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = sub.add_run("2627 學年常規專科班周時間表")
+    set_run_font(run, 12, bold=True)
+
+    meta = doc.add_paragraph()
+    meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = meta.add_run(f"獨立附件｜對應方案紀錄 ver. {VERSION}｜未定稿入庫")
+    set_run_font(run, 12)
+
+    add_bullets(
+        doc,
         [
-            "本輪按老師已確定檔期與每周堂數編排",
-            "同年級同科盡量平均",
-            "以下為仍待下一輪者",
-        ]
-    )
-    bullets(PENDING_NOTES)
-    bullets(["不以「待確認老師」佔用課室格"])
-
-    story.append(PageBreak())
-    story.append(chapter("七、一周時間表"))
-    bullets(["以下按星期與時段列出全部已排班及預留時段", "各天課室詳表見下一章"])
-    story.append(bw_table(weekly_summary_rows(), [2.2 * cm, 2.6 * cm, 2.0 * cm, 5.2 * cm, 3.2 * cm]))
-
-    story.append(PageBreak())
-    story.append(chapter("八、各天詳細時間表"))
-    bullets(
-        [
-            "每日一頁、整表不拆開",
-            "平日 15:15-16:30 或之前淺灰標返學時間",
+            "本文件獨立於方案正文",
+            f"已排小組班合計 {len(CLASSES)} 班；另預留時段 {len(RESERVED)} 個",
+            "每日一頁、整表不拆開；時間表頁面為橫向",
+            "格高固定；無課仍維持同一高度",
+            "平日 15:15-16:30 或之前淺灰標返學時間，該列仍計空房",
             "最右欄為該時段空房數",
-        ]
+        ],
     )
-    for day_idx, day_name in enumerate(DAYS):
-        block = [chapter(day_name)]
-        for n in day_notes(day_idx):
-            block.append(P(f"• {n}"))
-        block.append(day_grid_table(day_grid(day_idx)))
-        story.append(PageBreak())
-        story.append(KeepTogether(block))
 
-    story.append(P("— 完 —"))
-    doc.build(story)
+    add_page_break(doc)
+    add_para(doc, "目錄", size=H1_SIZE, bold=True, space_after=8)
+    add_toc_field(doc)
+
+    land = doc.add_section(WD_SECTION.NEW_PAGE)
+    apply_normal_page(land, landscape=True)
+    apply_section_chrome(land, WEEKLY_EVEN_HEADER, first_empty=False)
+
+    usable = A4_H_CM - MARGIN_CM * 2
+    time_w, empty_w = 2.15, 1.2
+    room_w = (usable - time_w - empty_w) / 5
+    widths = [time_w] + [room_w] * 5 + [empty_w]
+    for day_idx, day_name in enumerate(DAYS):
+        add_heading(
+            doc,
+            f"{day_idx + 1}. {day_name}",
+            1,
+            page_break_before=(day_idx > 0),
+            keep_with_next=True,
+            space_after=6,
+        )
+        add_weekly_day_table(doc, day_idx, widths)
+    doc.save(path)
+
 
 
 def validate() -> None:
-    assert len(CLASSES) == 60, len(CLASSES)
+    assert len(CLASSES) == 63, len(CLASSES)
     matrix_rows = count_matrix_table()
     assert int(matrix_rows[-1][-1]) == len(CLASSES)
     listed = sum(len(rows) - 1 for _, blocks in subject_grade_class_tables() for _, rows in blocks)
@@ -1181,6 +1218,13 @@ def validate() -> None:
     assert "Natalie Kwok" not in teachers
     assert "Rafael Ling" not in teachers
     assert "Cyndi" not in teachers  # full name Cyndi Ng
+    for teacher, expected in CONFIRMED_TEACHER_CLASS_TIMES.items():
+        actual = {
+            (day_idx, slot_idx, code)
+            for day_idx, slot_idx, _room, _subj, _grade, name, code in CLASSES
+            if name == teacher
+        }
+        assert actual == expected, (teacher, actual, expected)
     t_busy: dict = defaultdict(list)
     r_busy: dict = defaultdict(list)
     g_busy: dict = defaultdict(list)
@@ -1200,7 +1244,7 @@ def validate() -> None:
         if teacher == "Judy Chu":
             assert subj == "生物" and grade in {"S5", "S6"}
         if teacher == "Emma Cai":
-            assert subj == "英文" and d == 6
+            assert subj == "英文" and d == 6 and grade != "S6"
         if teacher == "Jackson Lau":
             assert room in {"矩尺座", "山案座"}
         if teacher == "Mark Yu":
@@ -1208,9 +1252,13 @@ def validate() -> None:
         if teacher == "Christine Fan":
             assert room in {"矩尺座", "山案座"}
         if teacher == "Liam Lai":
-            assert subj == "數學"
+            assert subj == "數學" and grade in {"S2", "S3"}
         if teacher == "Leo Chan":
             assert subj in {"數學", "物理"}
+        if teacher == "Henry Wong":
+            assert subj == "生物" and grade in {"S4", "S5", "S6"} and room == "英仙座"
+        if teacher == "Cheryl Ng":
+            assert subj == "英文" and d == 5 and room == "17E"
     for d, s, room, teacher, title in RESERVED:
         t_busy[(d, s)].append(teacher)
         r_busy[(d, s, room)].append(title)
@@ -1241,8 +1289,9 @@ def validate() -> None:
     mark_thu_grades = {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 3}
     assert mark_thu_grades <= {"S4", "S5", "S6"}
     mark_sat = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5)
-    assert mark_sat == [1, 2, 4]
-    assert {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5} == {"S3", "S5", "S6"}
+    assert mark_sat == [1, 2, 4, 5, 6]
+    assert {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5} == {"S1", "S3", "S4", "S5", "S6"}
+    assert 3 not in mark_sat  # 12:45 午膳不排
     mark_per_day: dict[int, int] = defaultdict(int)
     for d, _s, _r, _subj, _g, teacher, _c in CLASSES:
         if teacher == "Mark Yu":
@@ -1268,9 +1317,9 @@ def validate() -> None:
             slot = ri - 1
             if d <= 4 and slot <= WEEKDAY_SCHOOL_LAST_SLOT:
                 assert row[1] == "返學時間"
-                assert row[-1] == "0"
+                assert row[-1] == "5"
             if d >= 5 and slot == 0:
-                assert row[-1] == "0"
+                assert row[-1] == "5"
     assert not any(c[6] in {"S4中A", "S5中B"} for c in CLASSES)
     assert len(RESERVED) == 1 and RESERVED[0][4].startswith("一對一高中英文科")
     rooms = defaultdict(set)
@@ -1294,7 +1343,8 @@ def validate() -> None:
         ("Katie", 3),
         ("Katie", 6),
         ("Leo Chan", 5),
-        ("Leo Chan", 6),
+        ("Henry Wong", 5),
+        ("Mark Yu", 5),
     }
     by_td: dict[tuple[str, int], list[int]] = defaultdict(list)
     for d, s, _r, _subj, _g, teacher, _c in CLASSES:
@@ -1318,13 +1368,30 @@ def validate() -> None:
         limit = 3 if (teacher, d) in allow_three else 2
         assert max_run <= limit, (teacher, d, slots, max_run)
     assert sorted(c[1] for c in CLASSES if c[5] == "Leo Chan" and c[0] == 5) == [1, 2, 3, 5, 6]
-    assert sorted(c[1] for c in CLASSES if c[5] == "Leo Chan" and c[0] == 6) == [3, 4, 5, 7]
+    assert not any(c[0] == 6 and c[5] == "Leo Chan" for c in CLASSES)
+    assert sum(1 for c in CLASSES if c[5] == "Leo Chan") == 5
     assert sorted(c[1] for c in CLASSES if c[5] == "Liam Lai" and c[0] == 5) == [4, 5]
+    assert {c[4] for c in CLASSES if c[5] == "Liam Lai" and c[0] == 5} == {"S2", "S3"}
     assert sorted(c[1] for c in CLASSES if c[5] == "Liam Lai" and c[0] == 6) == [1, 2]
+    assert {c[4] for c in CLASSES if c[5] == "Liam Lai"} <= {"S2", "S3"}
     assert sorted(c[1] for c in CLASSES if c[5] == "Emma Cai" and c[0] == 6) == [3, 4, 6, 7]
+    assert {c[4] for c in CLASSES if c[5] == "Emma Cai"} == {"S1", "S2", "S3"}
     assert not any(c[0] == 5 and c[5] == "Emma Cai" for c in CLASSES)
     judy_grades = sorted(c[4] for c in CLASSES if c[5] == "Judy Chu")
     assert judy_grades == ["S5", "S6", "S6"]
+    assert {c[0] for c in CLASSES if c[5] == "Henry Wong"} == {5}
+    assert sorted(c[1] for c in CLASSES if c[5] == "Henry Wong") == [4, 5, 6]
+    assert {c[4] for c in CLASSES if c[5] == "Henry Wong"} == {"S4", "S5", "S6"}
+    assert {c[6] for c in CLASSES if c[5] == "Henry Wong"} == {"S4生A", "S5生B", "S6生C"}
+    assert {c[0] for c in CLASSES if c[5] == "Cheryl Ng"} == {5}
+    assert sorted(c[1] for c in CLASSES if c[5] == "Cheryl Ng") == [1, 2]
+    assert {c[4] for c in CLASSES if c[5] == "Cheryl Ng"} == {"S1", "S2"}
+    eng = count_matrix()["英文"]
+    assert eng["S1"] == 2 and eng["S2"] == 2 and eng["S3"] == 2 and eng["S6"] == 1
+    bio = count_matrix()["生物"]
+    assert bio["S4"] == 1 and bio["S5"] == 2 and bio["S6"] == 3
+    physics = count_matrix()["物理"]
+    assert physics["S5"] == 1
     katie_grid = teacher_week_grid("Katie")
     assert katie_grid[1][5] == ("放假", "off")
     assert katie_grid[1][6] == ("放假", "off")
@@ -1336,6 +1403,17 @@ def validate() -> None:
     assert mark_grid[1][7] == ("不排", "off")  # 星期日
     christine_grid = teacher_week_grid("Christine Fan")
     assert christine_grid[1][6] == ("不排", "off")  # 星期六
+    scheme_md = build_scheme_md()
+    weekly_md = build_weekly_md()
+    assert "## 8. 周時間表" not in scheme_md
+    assert all(f"## {day_idx + 1}. {day_name}" in weekly_md for day_idx, day_name in enumerate(DAYS))
+    for day_idx, day_name in enumerate(DAYS):
+        heading = f"## {day_idx + 1}. {day_name}\n"
+        rest = weekly_md.split(heading, 1)[1].lstrip()
+        assert rest.startswith("| 時段"), rest[:40]
+    mon = day_grid(0)
+    assert "16:30-17:45" in mon[7][3]
+    assert "Mark Yu" in mon[7][3]
     print("validation ok", len(CLASSES), "classes", len(RESERVED), "reserved")
 
 
@@ -1446,6 +1524,8 @@ def apply_week_cell_docx(cell, text: str, kind: str, *, header_like: bool) -> No
 def build_teachers_docx(path: Path) -> None:
     doc = Document()
     configure_docx_styles(doc)
+    enable_even_odd_headers(doc)
+    apply_section_chrome(doc.sections[0], TEACHERS_EVEN_HEADER, first_empty=True)
 
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1472,9 +1552,12 @@ def build_teachers_docx(path: Path) -> None:
             "Katie 另標空堂與食飯休息",
         ],
     )
+    add_page_break(doc)
+    add_para(doc, "目錄", size=H1_SIZE, bold=True, space_after=8)
+    add_toc_field(doc)
 
-    for i, (name, subject, n, days, note) in enumerate(STAFF):
-        add_chapter(doc, f"{name}", first=(i == 0))
+    for name, subject, n, days, note in STAFF:
+        add_chapter(doc, name, first=False)
         reserved_n = sum(1 for _d, _s, _r, teacher, _t in RESERVED if teacher == name)
         load = f"小組班：{n} 班"
         if reserved_n:
@@ -1501,7 +1584,6 @@ def build_teachers_docx(path: Path) -> None:
                     shade_cell(t.rows[ri].cells[j])
         prevent_row_split(t)
 
-        # 周視圖獨立一頁
         add_page_break(doc)
         add_para(doc, f"{name}｜周視圖", size=12, bold=True, space_after=6, keep_with_next=True)
         add_para(doc, f"科目：{subject}；{teacher_hours_text(n)}", size=12, space_after=8, keep_with_next=True)
@@ -1520,228 +1602,313 @@ def build_teachers_docx(path: Path) -> None:
     doc.save(path)
 
 
-def build_teachers_pdf(path: Path, font_path: Path) -> None:
-    from reportlab.lib import colors
-    from reportlab.lib.enums import TA_CENTER, TA_LEFT
-    from reportlab.lib.pagesizes import A4, landscape
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-    from reportlab.lib.units import cm
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.ttfonts import TTFont
-    from reportlab.platypus import Flowable, KeepTogether, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-    pdfmetrics.registerFont(TTFont("PMingLiU", str(font_path)))
-    font_name = "PMingLiU"
-    page = landscape(A4)
+def md_cell(text: object) -> str:
+    return str(text).replace("\n", "／").replace("|", "\\|")
 
-    class BoldTitle(Flowable):
-        def __init__(self, text: str):
-            super().__init__()
-            self.text = text
-            self.height = 22
 
-        def wrap(self, availWidth, availHeight):
-            self.width = availWidth
-            return availWidth, self.height
+def md_table(rows: list[list[str]]) -> str:
+    if not rows:
+        return ""
+    head = rows[0]
+    lines = [
+        "| " + " | ".join(md_cell(c) for c in head) + " |",
+        "| " + " | ".join("---" for _ in head) + " |",
+    ]
+    for row in rows[1:]:
+        padded = list(row) + [""] * (len(head) - len(row))
+        lines.append("| " + " | ".join(md_cell(c) for c in padded[: len(head)]) + " |")
+    return "\n".join(lines)
 
-        def draw(self):
-            self.canv.setFillColor(colors.black)
-            self.canv.setFont(font_name, 12)
-            y = 6
-            for dx, dy in ((0, 0), (0.25, 0), (0, 0.25), (0.25, 0.25)):
-                self.canv.drawString(dx, y + dy, self.text)
 
-    styles = getSampleStyleSheet()
-    styles.add(
-        ParagraphStyle(
-            name="BWCenter",
-            fontName=font_name,
-            fontSize=12,
-            leading=18,
-            alignment=TA_CENTER,
-            textColor=colors.black,
-            spaceAfter=8,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWBody",
-            fontName=font_name,
-            fontSize=12,
-            leading=18,
-            textColor=colors.black,
-            alignment=TA_LEFT,
-            spaceAfter=6,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWTable",
-            fontName=font_name,
-            fontSize=11,
-            leading=15,
-            textColor=colors.black,
-        )
-    )
-    styles.add(
-        ParagraphStyle(
-            name="BWTableHeader",
-            fontName=font_name,
-            fontSize=11,
-            leading=15,
-            textColor=colors.black,
-        )
-    )
+def md_bullets(lines: list[str]) -> str:
+    return "\n".join(f"- {line}" for line in lines)
 
-    def P(text: str, style: str = "BWBody") -> Paragraph:
-        return Paragraph(str(text).replace("\n", "<br/>"), styles[style])
 
-    def bw_table(data: list[list], col_widths: list[float]) -> Table:
-        styled = [[P(c, "BWTableHeader" if i == 0 else "BWTable") for c in row] for i, row in enumerate(data)]
-        t = Table(styled, colWidths=col_widths, repeatRows=1)
-        t.setStyle(
-            TableStyle(
+def build_scheme_md() -> str:
+    parts: list[str] = [
+        "# 明學教育 2627 學年常規專科班時間表",
+        "",
+        f"方案紀錄 **ver. {VERSION}**｜對照 ver. {PREV_VERSION}｜未定稿入庫",
+        "",
+        "> 本檔為審閱稿。docx／pdf 只在營運決定出檔後執行 `python3 scripts/generate_2627_timetable_doc.py --word`（Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。",
+        "",
+        "## 封面說明",
+        md_bullets(cover_notes()),
+        "",
+        f"## 與 ver. {PREV_VERSION} 之分別",
+        md_bullets(VERSION_DIFFS),
+        "",
+        "## 1. 排程原則",
+    ]
+    for heading, lines in PRINCIPLE_SECTIONS:
+        parts.extend(["", f"### {heading}", md_bullets(lines)])
+    parts.extend(["", "## 2. 各級開科情況", "", "### 2.1 各年級順接方案"])
+    for heading, lines in PACKING_SECTIONS:
+        parts.extend(["", f"#### {heading}", md_bullets(lines)])
+    parts.extend(
+        [
+            "",
+            "### 2.2 各級各科班數",
+            md_bullets(
                 [
-                    ("FONTNAME", (0, 0), (-1, -1), font_name),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.94, 0.94, 0.94)),
-                    ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                    "下表為各級各科已排小組班數",
+                    "最右欄為各科合計",
+                    "最下一行為各級合計",
+                    "不含一對一預留",
                 ]
-            )
+            ),
+            "",
+            md_table(count_matrix_table()),
+            "",
+            "## 5. 各科各級班別列表",
+            md_bullets(["以下按科目、其後按年級列出全部已排小組班", "一對一預留見章末"]),
+        ]
+    )
+    n_subj = 0
+    for si, (subj_full, grade_blocks) in enumerate(subject_grade_class_tables(), start=1):
+        n_subj = si
+        parts.extend(["", f"### 5.{si} {subj_full}"])
+        for gi, (grade_full, rows) in enumerate(grade_blocks, start=1):
+            parts.extend(["", f"#### 5.{si}.{gi} {grade_full}", "", md_table(rows)])
+    if RESERVED:
+        parts.extend(["", f"### 5.{n_subj + 1} 預留時段（不計小組班）"])
+        for d, slot, room, teacher, title_t in RESERVED:
+            parts.append(f"- {title_t}｜{teacher}｜{DAYS[d]} {SLOT_TIMES[slot]}｜{room}")
+    parts.extend(
+        [
+            "",
+            "## 6. 未排與待排",
+            md_bullets(["本輪按老師已確定檔期與每周堂數編排", "不以「待確認老師」佔用課室格"]),
+            "",
+            "### 6.1 按老師",
+            md_bullets(PENDING_BY_TEACHER),
+            "",
+            "### 6.2 按科目",
+            md_bullets(PENDING_BY_SUBJECT),
+            "",
+            "## 7. 所有班別清單",
+            md_bullets(
+                [
+                    "以下按星期與時段列出全部已排班及預留時段",
+                    f"已排小組班合計 {len(CLASSES)} 班",
+                    f"另預留時段 {len(RESERVED)} 個",
+                ]
+            ),
+            "",
+            md_table(weekly_summary_rows()),
+            "",
+            "## 附表 本輪老師回覆與出勤",
+            md_bullets(
+                [
+                    "以下整理調查表各人意願，並結合各員工出勤、班數、科目",
+                    "科目欄為營運確認，非表格 C 區自填（既有專科老師不經 C 區）",
+                ]
+            ),
+            "",
+            md_bullets(SURVEY_SLOT_NOTES),
+            "",
+            "### 附表.1 調查回覆",
+            "",
+            md_table(SURVEY_OVERVIEW),
+            "",
+            "### 附表.2 檔期與連堂約束",
+            "",
+            md_table(SURVEY_CONSTRAINTS),
+            "",
+            "### 附表.3 各員工出勤日、班數、科目",
+            "",
+            md_table(staff_appendix_table()),
+        ]
+    )
+    parts.extend(["", "— 完 —", ""])
+    return "\n".join(parts)
+
+
+def build_weekly_md() -> str:
+    parts: list[str] = [
+        "# 明學教育 2627 學年常規專科班周時間表",
+        "",
+        f"獨立附件｜對應方案紀錄 **ver. {VERSION}**｜未定稿入庫",
+        "",
+        "> 本檔為獨立審閱稿，不置於方案正文。出 Word／PDF 時用 `--word`。",
+        "",
+        md_bullets(
+            [
+                f"已排小組班合計 {len(CLASSES)} 班；另預留時段 {len(RESERVED)} 個",
+                "平日 15:15-16:30 或之前為返學時間，該列仍計空房",
+                "最右欄為該時段空房數",
+            ]
+        ),
+    ]
+    for day_idx, day_name in enumerate(DAYS):
+        parts.extend(
+            [
+                "",
+                f"## {day_idx + 1}. {day_name}",
+                "",
+                md_table(day_grid(day_idx)),
+            ]
         )
-        return t
+    parts.extend(["", "— 完 —", ""])
+    return "\n".join(parts)
 
-    doc = SimpleDocTemplate(
-        str(path),
-        pagesize=page,
-        leftMargin=1.5 * cm,
-        rightMargin=1.5 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.5 * cm,
-        title="2627 學年各老師一周排程",
-        author="明學教育",
-    )
-    story: list = []
-    story.append(P("明學教育", "BWCenter"))
-    story.append(P("2627 學年各老師一周排程", "BWCenter"))
-    story.append(P(f"獨立附件｜對應方案紀錄 ver. {VERSION}｜未定稿入庫", "BWCenter"))
-    story.append(
-        P("• 本文件獨立於全校課室時間表，只按老師列出一周職務")
-    )
-    story.append(P("• 每位老師先列一周總覽，周視圖另頁（橫軸星期、縱軸時段）"))
-    story.append(P("• 班別名稱與時段寫法與方案紀錄一致"))
-    story.append(P("• 指定不排日（Katie 放假五／六；Mark 不排三／五／日；Christine 不排六）於周視圖以灰底標示"))
-    story.append(P("• Katie 另標空堂與食飯休息"))
 
-    for i, (name, subject, n, days, note) in enumerate(STAFF):
-        story.append(PageBreak())
-        story.append(BoldTitle(name))
+def build_teachers_md() -> str:
+    parts: list[str] = [
+        "# 明學教育 2627 學年各老師一周排程",
+        "",
+        f"獨立附件｜對應方案紀錄 **ver. {VERSION}**｜未定稿入庫",
+        "",
+        "> 本檔為審閱稿。出 Word／PDF 時用 `--word`。",
+        "",
+        md_bullets(
+            [
+                "本文件獨立於全校課室時間表，只按老師列出一周職務",
+                "每位老師先列一周總覽，其後周視圖",
+                "指定不排日於周視圖以「放假」或「不排」標示",
+            ]
+        ),
+    ]
+    for name, subject, n, days, note in STAFF:
         reserved_n = sum(1 for _d, _s, _r, teacher, _t in RESERVED if teacher == name)
         load = f"小組班：{n} 班"
         if reserved_n:
             load += f"；預留時段：{reserved_n} 個"
-        story.append(P(f"• 科目：{subject}"))
-        story.append(P(f"• {load}"))
-        story.append(P(f"• {teacher_hours_text(n)}"))
-        story.append(P(f"• 出勤日：{days}"))
-        story.append(P(f"• {note}"))
-        story.append(Spacer(1, 6))
-        story.append(BoldTitle("一周總覽"))
-        story.append(bw_table(teacher_week_rows(name), [3.2 * cm, 3.2 * cm, 2.8 * cm, 7.0 * cm]))
-
-        # 周視圖獨立一頁
-        story.append(PageBreak())
+        parts.extend(
+            [
+                "",
+                f"## {name}",
+                md_bullets(
+                    [
+                        f"科目：{subject}",
+                        load,
+                        teacher_hours_text(n),
+                        f"出勤日：{days}",
+                        note,
+                    ]
+                ),
+                "",
+                "### 一周總覽",
+                "",
+                md_table(teacher_week_rows(name)),
+                "",
+                f"### {name}｜周視圖",
+            ]
+        )
         legend = week_view_legend(name)
-        # Landscape A4 usable width ≈ 26.7cm with 1.5cm margins.
-        week_widths = [2.6 * cm] + [3.3 * cm] * 7
-        styles_small = ParagraphStyle(
-            name=f"BWTableSmall_{i}",
-            fontName=font_name,
-            fontSize=8,
-            leading=10,
-            textColor=colors.black,
-        )
-        styles_muted = ParagraphStyle(
-            name=f"BWTableMuted_{i}",
-            fontName=font_name,
-            fontSize=8,
-            leading=10,
-            alignment=TA_CENTER,
-            textColor=colors.Color(0.5, 0.5, 0.5),
-        )
-
-        def Psmall(text: str, style=styles_small) -> Paragraph:
-            return Paragraph(str(text).replace("\n", "<br/>"), style)
-
-        grid = teacher_week_grid(name)
-        styled = []
-        cmds = [
-            ("FONTNAME", (0, 0), (-1, -1), font_name),
-            ("GRID", (0, 0), (-1, -1), 0.4, colors.black),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.94, 0.94, 0.94)),
-            ("BACKGROUND", (0, 0), (0, -1), colors.Color(0.94, 0.94, 0.94)),
-            ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
-            ("LEFTPADDING", (0, 0), (-1, -1), 2),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-            ("TOPPADDING", (0, 0), (-1, -1), 2),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-        ]
-        for ri, row in enumerate(grid):
-            srow = []
-            for ci, (text, kind) in enumerate(row):
-                if kind == "off":
-                    srow.append(Paragraph(text, styles_muted))
-                    cmds.append(("BACKGROUND", (ci, ri), (ci, ri), colors.Color(0.75, 0.75, 0.75)))
-                    cmds.append(("ALIGN", (ci, ri), (ci, ri), "CENTER"))
-                    cmds.append(("VALIGN", (ci, ri), (ci, ri), "MIDDLE"))
-                elif kind in {"free", "lunch"}:
-                    srow.append(Paragraph(text, styles_muted))
-                    cmds.append(("BACKGROUND", (ci, ri), (ci, ri), colors.Color(0.93, 0.93, 0.93)))
-                    cmds.append(("ALIGN", (ci, ri), (ci, ri), "CENTER"))
-                    cmds.append(("VALIGN", (ci, ri), (ci, ri), "MIDDLE"))
-                else:
-                    srow.append(Psmall(text))
-            styled.append(srow)
-        wt = Table(styled, colWidths=week_widths, repeatRows=0, splitByRow=0)
-        wt.setStyle(TableStyle(cmds))
-        week_block = [
-            BoldTitle(f"{name}｜周視圖"),
-            P(f"科目：{subject}；{teacher_hours_text(n)}"),
-        ]
         if legend:
-            week_block.append(P(legend))
-        week_block.append(Spacer(1, 6))
-        week_block.append(wt)
-        story.append(KeepTogether(week_block))
+            parts.extend(["", legend])
+        grid_rows = [[cell for cell, _kind in row] for row in teacher_week_grid(name)]
+        parts.extend(["", md_table(grid_rows)])
+    parts.extend(["", "— 完 —", ""])
+    return "\n".join(parts)
 
-    story.append(P("— 完 —"))
-    doc.build(story)
+
+def write_markdown() -> tuple[Path, Path, Path]:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    scheme_md = OUT_DIR / f"{STEM}.md"
+    teachers_md = OUT_DIR / f"{STEM_TEACHERS}.md"
+    weekly_md = OUT_DIR / f"{STEM_WEEKLY}.md"
+    scheme_md.write_text(build_scheme_md(), encoding="utf-8")
+    teachers_md.write_text(build_teachers_md(), encoding="utf-8")
+    weekly_md.write_text(build_weekly_md(), encoding="utf-8")
+    return scheme_md, teachers_md, weekly_md
+
+
+def close_timetable_word_docs() -> None:
+    script = '''
+with timeout of 30 seconds
+  tell application "Microsoft Word"
+    repeat with d in (get documents)
+      try
+        if name of d contains "2627_timetable" then
+          close d saving no
+        end if
+      end try
+    end repeat
+  end tell
+end timeout
+'''
+    subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
+
+
+def refresh_word(docx_path: Path, pdf_path: Path) -> None:
+    # Update Word TOC, then Save As PDF. Requires Microsoft Word on macOS.
+    # Do not loop every field: TOC entries make that exceed AppleEvent timeout.
+    script = f'''
+with timeout of 600 seconds
+  tell application "Microsoft Word"
+    set docPath to POSIX file "{docx_path}" as alias
+    open docPath
+    delay 3
+    set theDoc to active document
+    try
+      if (count of tables of contents of theDoc) > 0 then
+        update table of contents 1 of theDoc
+      end if
+    end try
+    save theDoc
+    set pdfFile to POSIX file "{pdf_path}" as string
+    save as theDoc file name pdfFile file format format PDF
+    delay 1
+    close theDoc saving no
+  end tell
+end timeout
+'''
+    result = subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip() or f"exit {result.returncode}"
+        raise RuntimeError(err)
+
+
+def next_patch_version(version: str) -> str:
+    major, minor = version.split(".")
+    return f"{major}.{int(minor) + 1}"
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate 2627 timetable md (default) or Word/PDF")
+    parser.add_argument(
+        "--word",
+        action="store_true",
+        help="Also write docx and export PDF via Microsoft Word (built-in TOC / header / footer)",
+    )
+    args = parser.parse_args()
     validate()
-    font_path = ensure_pmingliu()
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    scheme_md, teachers_md, weekly_md = write_markdown()
+    print("wrote", scheme_md)
+    print("wrote", teachers_md)
+    print("wrote", weekly_md)
+    if not args.word:
+        print("skip docx/pdf (pass --word when this version is ready to export)")
+        return
+
+    close_timetable_word_docs()
     docx_path = OUT_DIR / f"{STEM}.docx"
     pdf_path = OUT_DIR / f"{STEM}.pdf"
     build_docx(docx_path)
     print("wrote", docx_path)
-    build_pdf(pdf_path, font_path)
-    print("wrote", pdf_path)
-
     teachers_docx = OUT_DIR / f"{STEM_TEACHERS}.docx"
     teachers_pdf = OUT_DIR / f"{STEM_TEACHERS}.pdf"
     build_teachers_docx(teachers_docx)
     print("wrote", teachers_docx)
-    build_teachers_pdf(teachers_pdf, font_path)
-    print("wrote", teachers_pdf)
-    print("font", font_path)
+    weekly_docx = OUT_DIR / f"{STEM_WEEKLY}.docx"
+    weekly_pdf = OUT_DIR / f"{STEM_WEEKLY}.pdf"
+    build_weekly_docx(weekly_docx)
+    print("wrote", weekly_docx)
+    try:
+        refresh_word(docx_path, pdf_path)
+        print("wrote", pdf_path)
+        refresh_word(teachers_docx, teachers_pdf)
+        print("wrote", teachers_pdf)
+        refresh_word(weekly_docx, weekly_pdf)
+        print("wrote", weekly_pdf)
+    except RuntimeError as exc:
+        print("Word TOC / PDF update skipped:", exc)
+        print("請在 Word 開啟 docx，更新目錄後另存 PDF")
+
+
 
 
 if __name__ == "__main__":
