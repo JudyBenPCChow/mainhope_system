@@ -1,8 +1,9 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, type ReactElement } from "react"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { SpeedInsights } from "@vercel/speed-insights/react"
 
 import { AdaptiveLayout } from "@/components/AdaptiveLayout"
+import { RequireCapabilities } from "@/components/auth/RequireCapabilities"
 import TeacherDetail from "@/components/teachers/TeacherDetail"
 import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
@@ -68,6 +69,10 @@ const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendance
 const enablePayrollUiPreview =
  import.meta.env.DEV || import.meta.env.VITE_PAYROLL_UI_PREVIEW === "1"
 
+function withCapabilities(anyOf: readonly string[], element: ReactElement): ReactElement {
+ return <RequireCapabilities anyOf={anyOf}>{element}</RequireCapabilities>
+}
+
 export default function App() {
  return (
   <BrowserRouter>
@@ -98,31 +103,73 @@ export default function App() {
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
-     <Route path="/Users" element={<UserManagement />} />
-     <Route path="/Students" element={<Students />} />
-     <Route path="/Students/:studentId" element={<StudentDetail />} />
-     <Route path="/LessonBalanceMismatch" element={<LessonBalanceMismatch />} />
-     <Route path="/FrontDeskWizard" element={<FrontDeskWizard />} />
-     <Route path="/TomorrowReminders" element={<TomorrowReminders />} />
-     <Route path="/PrivateTutoring" element={<PrivateTutoring />} />
-     <Route path="/Teachers" element={<Teachers />} />
-     <Route path="/Teachers/:teacherId" element={<TeacherDetail />} />
-     <Route path="/Classes" element={<Classes />} />
-     <Route path="/Classes/New" element={<ClassNew />} />
-     <Route path="/Courses" element={<Courses />} />
-     <Route path="/Classes/:classId" element={<ClassDetail />} />
-     <Route path="/TeacherAvailability" element={<TeacherAvailability />} />
-     <Route path="/Classrooms" element={<Classrooms />} />
-     <Route path="/TeacherTimetable" element={<TeacherTimetable />} />
-     <Route path="/TeacherProfile" element={<TeacherProfile />} />
+     <Route path="/Users" element={withCapabilities(["users.manage"], <UserManagement />)} />
+     <Route path="/Students" element={withCapabilities(["students.read"], <Students />)} />
+     <Route
+      path="/Students/:studentId"
+      element={withCapabilities(["students.read"], <StudentDetail />)}
+     />
+     <Route
+      path="/LessonBalanceMismatch"
+      element={withCapabilities(["entitlements.read"], <LessonBalanceMismatch />)}
+     />
+     <Route
+      path="/FrontDeskWizard"
+      element={withCapabilities(["students.read"], <FrontDeskWizard />)}
+     />
+     <Route
+      path="/TomorrowReminders"
+      element={withCapabilities(["students.read"], <TomorrowReminders />)}
+     />
+     <Route
+      path="/PrivateTutoring"
+      element={withCapabilities(["classes.read"], <PrivateTutoring />)}
+     />
+     <Route path="/Teachers" element={withCapabilities(["classes.read"], <Teachers />)} />
+     <Route
+      path="/Teachers/:teacherId"
+      element={withCapabilities(["classes.read"], <TeacherDetail />)}
+     />
+     <Route path="/Classes" element={withCapabilities(["classes.read"], <Classes />)} />
+     <Route path="/Classes/New" element={withCapabilities(["classes.create"], <ClassNew />)} />
+     <Route path="/Courses" element={withCapabilities(["catalog.manage"], <Courses />)} />
+     <Route
+      path="/Classes/:classId"
+      element={withCapabilities(["classes.read"], <ClassDetail />)}
+     />
+     <Route
+      path="/TeacherAvailability"
+      element={withCapabilities(["teacher_availability.manage"], <TeacherAvailability />)}
+     />
+     <Route path="/Classrooms" element={withCapabilities(["classes.update"], <Classrooms />)} />
+     <Route
+      path="/TeacherTimetable"
+      element={withCapabilities(["schedule.read"], <TeacherTimetable />)}
+     />
+     <Route
+      path="/TeacherProfile"
+      element={withCapabilities(["schedule.read"], <TeacherProfile />)}
+     />
      <Route path="/Settings" element={<Settings />} />
-     <Route path="/Attendance" element={<Attendance />} />
-     <Route path="/AttendanceRecords" element={<AttendanceRecords />} />
-     <Route path="/Inbox" element={<Inbox />} />
-     <Route path="/Payments" element={<Payments />} />
+     <Route path="/Attendance" element={withCapabilities(["attendance.take"], <Attendance />)} />
+     <Route
+      path="/AttendanceRecords"
+      element={withCapabilities(["attendance.read"], <AttendanceRecords />)}
+     />
+     <Route path="/Inbox" element={withCapabilities(["inbox.read"], <Inbox />)} />
+     <Route
+      path="/Payments"
+      element={withCapabilities(["payments.create", "payments.mark_received"], <Payments />)}
+     />
      <Route path="/MonthlyTuition" element={<Navigate to="/Payments" replace />} />
-     <Route path="/PaymentHistory" element={<PaymentHistory />} />
-     <Route path="/PaymentCorrection" element={<PaymentCorrection />} />
+     <Route
+      path="/PaymentHistory"
+      element={withCapabilities(["payments.read"], <PaymentHistory />)}
+     />
+     <Route
+      path="/PaymentCorrection"
+      element={withCapabilities(["payments.void", "entitlements.correct"], <PaymentCorrection />)}
+     />
      <Route path="/Apo" element={<ApoPo />} />
      <Route
       path="/AiReports"
@@ -140,7 +187,8 @@ export default function App() {
      />
      <Route
       path="/EnrollmentReports"
-      element={
+      element={withCapabilities(
+       ["students.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -150,11 +198,12 @@ export default function App() {
        >
         <EnrollmentReports />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/SecondaryAttendanceReport"
-      element={
+      element={withCapabilities(
+       ["attendance.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -164,7 +213,7 @@ export default function App() {
        >
         <SecondaryAttendanceReport />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/MgmtDashboard"
@@ -196,7 +245,8 @@ export default function App() {
      />
      <Route
       path="/HkExpenses"
-      element={
+      element={withCapabilities(
+       ["expenses.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -206,11 +256,12 @@ export default function App() {
        >
         <HkExpenses />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/Payroll"
-      element={
+      element={withCapabilities(
+       ["payroll.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -220,26 +271,77 @@ export default function App() {
        >
         <Payroll />
        </Suspense>
-      }
+      )}
      />
-     <Route path="/PaymentDiscounts" element={<PaymentDiscounts />} />
-     <Route path="/ReferralRebates" element={<ReferralRebates />} />
-     <Route path="/AcademicCalendar" element={<AcademicCalendar />} />
-     <Route path="/EnrollmentChanges" element={<EnrollmentChanges />} />
-     <Route path="/PromotionMatch" element={<PromotionMatch />} />
-     <Route path="/ContactUpdateCampaign" element={<ContactUpdateCampaign />} />
-     <Route path="/PortalEnrollmentRequests" element={<PortalEnrollmentRequests />} />
-     <Route path="/Schedule/:scheduleId" element={<ScheduleDetail />} />
-     <Route path="/Schedule" element={<Schedule />} />
-     <Route path="/TeachingRecords" element={<TeachingRecords />} />
-     <Route path="/RoomBooking" element={<RoomBooking />} />
-     <Route path="/RoomBookingAdmin" element={<RoomBookingAdmin />} />
-     <Route path="/LeaveManagement" element={<LeaveManagement />} />
-     <Route path="/TeacherLeaveWizard" element={<TeacherLeaveWizard />} />
-     <Route path="/TrialSessions" element={<TrialSessions />} />
-     <Route path="/ScriptLibrary" element={<ScriptLibrary />} />
-     <Route path="/SystemLogs" element={<SystemLogs />} />
-     <Route path="/SystemIssues" element={<SystemIssues />} />
+     <Route
+      path="/PaymentDiscounts"
+      element={withCapabilities(["payments.read"], <PaymentDiscounts />)}
+     />
+     <Route
+      path="/ReferralRebates"
+      element={withCapabilities(["catalog.manage"], <ReferralRebates />)}
+     />
+     <Route
+      path="/AcademicCalendar"
+      element={withCapabilities(["calendar.manage"], <AcademicCalendar />)}
+     />
+     <Route
+      path="/EnrollmentChanges"
+      element={withCapabilities(["students.read"], <EnrollmentChanges />)}
+     />
+     <Route
+      path="/PromotionMatch"
+      element={withCapabilities(["students.read"], <PromotionMatch />)}
+     />
+     <Route
+      path="/ContactUpdateCampaign"
+      element={withCapabilities(["students.read"], <ContactUpdateCampaign />)}
+     />
+     <Route
+      path="/PortalEnrollmentRequests"
+      element={withCapabilities(["students.read"], <PortalEnrollmentRequests />)}
+     />
+     <Route
+      path="/Schedule/:scheduleId"
+      element={withCapabilities(["schedule.read"], <ScheduleDetail />)}
+     />
+     <Route path="/Schedule" element={withCapabilities(["schedule.read"], <Schedule />)} />
+     <Route
+      path="/TeachingRecords"
+      element={withCapabilities(["attendance.read"], <TeachingRecords />)}
+     />
+     <Route
+      path="/RoomBooking"
+      element={withCapabilities(["schedule.read"], <RoomBooking />)}
+     />
+     <Route
+      path="/RoomBookingAdmin"
+      element={withCapabilities(["schedule.read"], <RoomBookingAdmin />)}
+     />
+     <Route
+      path="/LeaveManagement"
+      element={withCapabilities(["leaves.read"], <LeaveManagement />)}
+     />
+     <Route
+      path="/TeacherLeaveWizard"
+      element={withCapabilities(["leaves.manage"], <TeacherLeaveWizard />)}
+     />
+     <Route
+      path="/TrialSessions"
+      element={withCapabilities(["students.read"], <TrialSessions />)}
+     />
+     <Route
+      path="/ScriptLibrary"
+      element={withCapabilities(["calendar.manage"], <ScriptLibrary />)}
+     />
+     <Route
+      path="/SystemLogs"
+      element={withCapabilities(["audit.read_all"], <SystemLogs />)}
+     />
+     <Route
+      path="/SystemIssues"
+      element={withCapabilities(["audit.read_all"], <SystemIssues />)}
+     />
      {/* UI 沙盒：假資料，不接 DB；不掛側欄正式入口 */}
      <Route path="/prototype/HomeworkTutoring" element={<PrototypeHomeworkTutoring />} />
      <Route

@@ -1,7 +1,6 @@
 import { formatClassLabel } from "@/lib/courseLabel"
-import { getMgmtRole, resolveMgmtDisplayName, type MgmtRole } from "@/lib/mgmtRole"
+import type { MgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
-import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
  fetchPendingRollCallRemindersForTeacher,
  findSchedulesMissingAttendance,
@@ -99,25 +98,12 @@ export function formatInboxAudienceLabel(roles: MgmtRole[]): string {
  return roles.map((r) => ROLE_LABEL[r] ?? r).join("、")
 }
 
-/** production `current_inbox_actor_key` 只為老師回 key；職員沿用舊 staff:{role}:{name}。stamp_actor 上線後 RPC 有值則優先。 */
-function inboxActorKeyFromClient(): string | null {
- const tid = getTeacherScopeTeacherId()
- if (tid) return `teacher:${tid}`
- const role = getMgmtRole()
- if (!role) return null
- return `staff:${role}:${resolveMgmtDisplayName(role)}`
-}
-
+/** production `current_inbox_actor_key` 依 JWT 推導；不再 fallback localStorage 角色。 */
 async function resolveInboxActorKey(): Promise<string> {
- const fallback = inboxActorKeyFromClient()
- if (!supabase) {
-  if (fallback) return fallback
-  throw new Error("尚未設定 Supabase")
- }
+ if (!supabase) throw new Error("尚未設定 Supabase")
  const { data, error } = await supabase.rpc("current_inbox_actor_key")
  const key = !error && typeof data === "string" ? data.trim() : ""
  if (key) return key
- if (fallback) return fallback
  throw new Error("無法確認收件匣身分")
 }
 
@@ -413,11 +399,13 @@ export async function fetchInboxFeed(opts?: {
  category?: InboxEventCategory
  typeFilter?: InboxTypeFilter
  unreadOnly?: boolean
+ activeRole?: MgmtRole | null
+ teacherId?: string | null
 }): Promise<InboxItem[]> {
  const category = opts?.category ?? "ops"
  const actorKey = await resolveInboxActorKey()
- const teacherId = getTeacherScopeTeacherId()
- const role = getMgmtRole()
+ const teacherId = opts?.teacherId?.trim() || null
+ const role = opts?.activeRole ?? null
  const isTeacher = role === "teacher" || Boolean(teacherId)
  const fromYmd = addDaysYmd(localYmd(), -(LOOKBACK_DAYS - 1))
  const fromIso = `${fromYmd}T00:00:00`
@@ -485,7 +473,11 @@ export async function fetchInboxFeed(opts?: {
 }
 
 /** 側欄未讀火圖示：營運＋系統未讀合計（對目前角色可見者；預設 45s 內用快取） */
-export async function fetchInboxUnreadCount(opts?: { force?: boolean }): Promise<number> {
+export async function fetchInboxUnreadCount(opts?: {
+ force?: boolean
+ activeRole?: MgmtRole | null
+ teacherId?: string | null
+}): Promise<number> {
  const actorKey = await resolveInboxActorKey()
  const now = Date.now()
  if (
@@ -496,9 +488,10 @@ export async function fetchInboxUnreadCount(opts?: { force?: boolean }): Promise
  ) {
   return unreadCountCache.count
  }
+ const scope = { activeRole: opts?.activeRole ?? null, teacherId: opts?.teacherId ?? null }
  const [ops, system] = await Promise.all([
-  fetchInboxFeed({ category: "ops", unreadOnly: true }),
-  fetchInboxFeed({ category: "system", unreadOnly: true }),
+  fetchInboxFeed({ category: "ops", unreadOnly: true, ...scope }),
+  fetchInboxFeed({ category: "system", unreadOnly: true, ...scope }),
  ])
  const count = ops.length + system.length
  unreadCountCache = { actorKey, count, at: Date.now() }

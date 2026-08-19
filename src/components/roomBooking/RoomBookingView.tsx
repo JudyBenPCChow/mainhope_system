@@ -11,6 +11,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -22,7 +23,6 @@ import {
  LESSON_SLOT_INDICES,
 } from "@/lib/lessonSlots"
 import { cn } from "@/lib/utils"
-import { getMgmtRole } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
@@ -45,8 +45,8 @@ function weekdayLabel(ymd: string): string {
 }
 
 export function RoomBookingView() {
- const role = getMgmtRole()
- const teacherId = getTeacherScopeTeacherId()
+ const { profile, role } = useAuth()
+ const teacherId = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
  const today = localYmd()
  const [weekStart, setWeekStart] = useState(today)

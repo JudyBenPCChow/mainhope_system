@@ -23,6 +23,13 @@ export function can(capabilities: readonly string[] | null | undefined, key: str
   return Boolean(capabilities?.includes(key))
 }
 
+export function canAny(
+  capabilities: readonly string[] | null | undefined,
+  keys: readonly string[]
+): boolean {
+  return keys.some((key) => can(capabilities, key))
+}
+
 export function usesAccountCapabilities(key: string): boolean {
   return (ACCOUNT_CAPABILITY_KEYS as readonly string[]).includes(key)
 }

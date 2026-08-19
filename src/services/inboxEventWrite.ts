@@ -1,4 +1,4 @@
-import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
+import type { MgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 
 export type InboxWriteEventType =
@@ -81,11 +81,8 @@ export type PublishSystemNoticeInput = {
  audience: "all" | MgmtRole[]
 }
 
-/** 僅外星人可發佈系統通知（前端角色把關） */
+/** 發佈系統通知。寫入成敗由 RLS（`system_notice.publish`）決定。 */
 export async function publishSystemNotice(input: PublishSystemNoticeInput): Promise<void> {
- if (getMgmtRole() !== "alien") {
-  throw new Error("僅外星人可發佈系統通知")
- }
  if (!supabase) throw new Error("Supabase 未設定")
  const title = input.title.trim()
  if (!title) throw new Error("請填寫標題")

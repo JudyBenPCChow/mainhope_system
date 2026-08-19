@@ -32,6 +32,8 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
@@ -70,7 +72,6 @@ import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { canManageSchedules as canManageSchedulesRole, canTakeAttendance } from "@/lib/mgmtRole"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { getTeacherById } from "@/services/teacherQueries"
 import {
@@ -348,6 +349,7 @@ function ExpandedScheduleRoster({
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
+ const { profile } = useAuth()
  const isMobile = useIsMobile()
  /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
  /** 手機日／週曆視圖：行政與老師皆可用（資料仍依角色 scope） */
@@ -449,7 +451,11 @@ export function ScheduleManagePage() {
  /** null = 尚未載入；載入後為有可點名對象的排程 id */
  const [rollCallEligibleIds, setRollCallEligibleIds] = useState<Set<string> | null>(null)
 
- const teacherScopeId = getTeacherScopeTeacherId()
+ const teacherScopeId = getTeacherScopeTeacherId(profile)
+ const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
+ const canRollCall = can(profile?.activeCapabilities, "attendance.take")
+ const canAssignSubstitute = canManageSchedules
+ const scheduleMgmtLocked = !canManageSchedules
  const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
 
  const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
@@ -475,9 +481,12 @@ export function ScheduleManagePage() {
   setRosterLoading(true)
   setPageErr(null)
   try {
-   const tid = getTeacherScopeTeacherId()
    const [list, rms] = await Promise.all([
-    fetchSchedulesInRange(displayStart, rangeEnd, tid ? { teacherId: tid } : undefined),
+    fetchSchedulesInRange(
+     displayStart,
+     rangeEnd,
+     teacherScopeId ? { teacherId: teacherScopeId } : undefined
+    ),
     fetchClassrooms(),
    ])
    if (reloadGenRef.current !== gen) return
@@ -490,7 +499,7 @@ export function ScheduleManagePage() {
      .map((r) => ({ id: r.id, label: r.name }))
      .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
    )
-   void reloadStats(tid)
+   void reloadStats(teacherScopeId)
 
    const nextRosterContext = await fetchScheduleRosterContext(list.map((row) => row.id))
    if (reloadGenRef.current !== gen) return
@@ -511,7 +520,7 @@ export function ScheduleManagePage() {
     setRosterLoading(false)
    }
   }
- }, [displayStart, rangeEnd, reloadStats])
+ }, [displayStart, rangeEnd, reloadStats, teacherScopeId])
 
  useEffect(() => {
   if (!startInitialized) return
@@ -527,8 +536,7 @@ export function ScheduleManagePage() {
    return
   }
   let cancelled = false
-  const tid = getTeacherScopeTeacherId()
-  void fetchNearestScheduleDate(tid ? { teacherId: tid } : undefined)
+  void fetchNearestScheduleDate(teacherScopeId ? { teacherId: teacherScopeId } : undefined)
    .then((nearest) => {
     if (cancelled || !nearest) return
     setDisplayStart(nearest)
@@ -543,7 +551,7 @@ export function ScheduleManagePage() {
   return () => {
    cancelled = true
   }
- }, [])
+ }, [teacherScopeId])
 
  useEffect(() => {
   if (!startInitialized) return
@@ -580,7 +588,7 @@ export function ScheduleManagePage() {
 
  const openRollCallForSchedule = useCallback(
   (scheduleId: string) => {
-   if (!canTakeAttendance()) return
+   if (!canRollCall) return
    const notifyEmpty = () => {
     pushBanner({
      tone: "info",
@@ -609,7 +617,7 @@ export function ScheduleManagePage() {
     setRollCallScheduleId(scheduleId)
    })
   },
-  [rollCallEligibleIds, pushBanner, rows, rosterContext]
+  [canRollCall, rollCallEligibleIds, pushBanner, rows, rosterContext]
  )
 
  const canOpenRollCall = useCallback(
@@ -620,7 +628,7 @@ export function ScheduleManagePage() {
  /** 深連結：/Schedule?schedule_id=…&rollcall=1（可附 date）→ 開點名紙後清參數 */
  useEffect(() => {
   if (!startInitialized || loading) return
-  if (!canTakeAttendance()) return
+  if (!canRollCall) return
   const wantRollCall = searchParams.get("rollcall") === "1"
   const sid = searchParams.get("schedule_id")?.trim()
   if (!wantRollCall || !sid) return
@@ -666,6 +674,7 @@ export function ScheduleManagePage() {
   setSearchParams,
   pushBanner,
   rosterContext,
+  canRollCall,
  ])
 
  useEffect(() => {
@@ -870,10 +879,6 @@ useEffect(() => {
   return list
  }, [rows])
 
- const canManageSchedules = canManageSchedulesRole()
- const canRollCall = canTakeAttendance()
- const canAssignSubstitute = canManageSchedules
- const scheduleMgmtLocked = !canManageSchedules
  const scheduleRowLocked = useCallback(
   (_s?: { scheduled_date: string }) => scheduleMgmtLocked,
   [scheduleMgmtLocked]

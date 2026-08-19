@@ -7,7 +7,8 @@ import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { openPrimaryMessagingTarget, resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
 import { useAppBanner } from "@/lib/appBanner"
@@ -233,6 +234,8 @@ function getInitialStudentsViewMode(): "table" | "gallery" {
 export function StudentsListPage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
+ const { profile } = useAuth()
+ const canDeleteStudent = can(profile?.activeCapabilities, "students.update")
  const navigate = useNavigate()
  const isMobile = useIsMobile()
  const [filtersOpen, setFiltersOpen] = useState(false)
@@ -1321,7 +1324,7 @@ export function StudentsListPage() {
             >
              編輯
             </Link>
-            {isSuperAdmin() ? (
+            {canDeleteStudent ? (
              <>
               <span className="mx-2 text-muted-foreground">|</span>
               <button

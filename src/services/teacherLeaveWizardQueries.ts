@@ -14,6 +14,7 @@ import {
   type ScheduleManageRow,
 } from "@/services/scheduleQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
+import { leaveAppliesToSchedule } from "@/services/scheduleRosterQueries"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 
@@ -186,15 +187,6 @@ async function fetchMakeupTargetRows(scheduleIds: string[]): Promise<MakeupTarge
   return out
 }
 
-function leaveAppliesToSchedule(
-  leave: LeaveRowDetail,
-  s: { id: string; class_id: string | null; scheduled_date: string }
-): boolean {
-  const linked = leave.scheduleId != null && leave.scheduleId === s.id
-  const sameClassDate = s.class_id === leave.classId && s.scheduled_date === leave.leaveDate
-  return linked || sameClassDate
-}
-
 /**
  * 載入某老師某日可處理堂次（已取消除外），連堂合併為一單位，並分類學生。
  */
@@ -260,7 +252,13 @@ export async function loadTeacherLeaveDay(
 
     for (const leave of leaveDetails) {
       const applies = scheduleKeys.some(
-        (sk) => scheduleIds.includes(sk.id) && leaveAppliesToSchedule(leave, sk)
+        (sk) =>
+          scheduleIds.includes(sk.id) &&
+          leaveAppliesToSchedule(leave, {
+            id: sk.id,
+            classId: sk.class_id,
+            scheduledDate: sk.scheduled_date,
+          })
       )
       if (!applies) continue
       if (seen.has(leave.studentId)) continue

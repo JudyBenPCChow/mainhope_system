@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { Mail, Phone, Plus, User, Users } from "lucide-react"
 
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -46,6 +47,9 @@ const SUBJECT_SPECIALITY_OPTIONS = [
 export function TeachersListPage() {
  const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
+ const { profile } = useAuth()
+ const canWriteTeachers = can(profile?.activeCapabilities, "classes.update")
+ const canEditAbbr = can(profile?.activeCapabilities, "catalog.manage")
  const [rows, setRows] = useState<TeacherRecord[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -84,7 +88,7 @@ export function TeachersListPage() {
    await insertTeacher({
     full_name: form.full_name.trim(),
     english_name: form.english_name.trim() || null,
-    abbr: form.abbr.trim() || null,
+    abbr: canEditAbbr ? form.abbr.trim() || null : null,
     phone: form.phone.trim() || null,
     email: form.email.trim() || null,
     status: form.status,
@@ -147,7 +151,7 @@ export function TeachersListPage() {
      <Users className="h-7 w-7 shrink-0 text-primary" aria-hidden />
      老師管理
     </h1>
-    {isSuperAdmin() ? (
+    {canWriteTeachers ? (
      <Dialog open={addOpen} onOpenChange={setAddOpen}>
       <DialogTrigger asChild>
        <Button type="button" className="bg-success text-white hover:bg-success">
@@ -176,6 +180,7 @@ export function TeachersListPage() {
           onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
          />
         </div>
+        {canEditAbbr ? (
         <div>
          <label className="text-xs font-medium text-muted-foreground">
           內部簡稱（ABBR）
@@ -190,6 +195,7 @@ export function TeachersListPage() {
          />
          <p className="mt-1 text-xs text-muted-foreground">最多 64 字元；可留空。</p>
         </div>
+        ) : null}
         <div>
          <label className="text-xs font-medium text-muted-foreground">電話</label>
          <Input
@@ -269,9 +275,9 @@ export function TeachersListPage() {
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : rows.length === 0 ? (
     <p className="text-sm text-muted-foreground">
-     {isSuperAdmin()
+     {canWriteTeachers
       ? "尚無老師資料，請新增。"
-      : "尚無老師資料。新增老師僅限「外星人」帳號操作。"}
+      : "尚無老師資料。"}
     </p>
    ) : (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -333,7 +339,7 @@ export function TeachersListPage() {
         >
          編輯
         </Link>
-        {isSuperAdmin() ? (
+        {canWriteTeachers ? (
          <button
           type="button"
           className="font-medium text-destructive hover:underline"

@@ -1,5 +1,3 @@
-import { getMgmtRole, isSuperAdmin } from "@/lib/mgmtRole"
-import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
@@ -118,9 +116,6 @@ export async function insertTeacher(
  row: Partial<TeacherRecord> & { full_name: string }
 ): Promise<TeacherRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
- if (!isSuperAdmin()) {
-  throw new Error("新增老師僅限外星人權限。")
- }
  const abbrRaw = row.abbr != null ? String(row.abbr).trim() : ""
  const abbrVal = abbrRaw === "" ? null : abbrRaw.slice(0, 64)
  const { data, error } = await supabase
@@ -159,12 +154,11 @@ export async function insertTeacher(
 
 export async function updateTeacher(
  id: string,
- patch: Partial<Omit<TeacherRecord, "id" | "created_at">>
+ patch: Partial<Omit<TeacherRecord, "id" | "created_at">>,
+ actor?: { teacherId?: string | null }
 ): Promise<TeacherRecord> {
  if (!supabase) throw new Error("Supabase 未設定")
- const role = getMgmtRole()
- const selfTeacherId = getTeacherScopeTeacherId()
- const isSelfTeacher = role === "teacher" && selfTeacherId === id
+ const isSelfTeacher = Boolean(actor?.teacherId) && actor?.teacherId === id
 
  const publicPatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
  const privatePatch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -189,11 +183,9 @@ export async function updateTeacher(
    publicPatch.subject_speciality = patch.subject_speciality
   }
   if (Object.prototype.hasOwnProperty.call(patch, "abbr")) {
-   if (isSuperAdmin()) {
-    const a = patch.abbr
-    publicPatch.abbr =
-     a == null || String(a).trim() === "" ? null : String(a).trim().slice(0, 64)
-   }
+   const a = patch.abbr
+   publicPatch.abbr =
+    a == null || String(a).trim() === "" ? null : String(a).trim().slice(0, 64)
   }
   if (Object.prototype.hasOwnProperty.call(patch, "phone")) privatePatch.phone = patch.phone
   if (Object.prototype.hasOwnProperty.call(patch, "email")) privatePatch.email = patch.email

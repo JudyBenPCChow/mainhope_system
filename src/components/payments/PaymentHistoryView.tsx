@@ -23,12 +23,13 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH } from "@/lib/receiptDownloadFolder"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,7 @@ import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
 
 export function PaymentHistoryView() {
  const isMobile = useIsMobile()
+ const { profile } = useAuth()
  const { confirmDialog } = useAppConfirm()
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
@@ -72,8 +74,8 @@ export function PaymentHistoryView() {
 
  const [voidOpen, setVoidOpen] = useState(false)
  const [voidTarget, setVoidTarget] = useState<VoidPaymentTarget | null>(null)
- const canVoidPayment = isAdminOrAlien()
- const canMarkReceived = isAdminOrAlien()
+ const canVoidPayment = can(profile?.activeCapabilities, "payments.void")
+ const canMarkReceived = can(profile?.activeCapabilities, "payments.mark_received")
 
  const [formErr, setFormErr] = useState<string | null>(null)
  const [receivedDone, setReceivedDone] = useState<{

@@ -4,10 +4,10 @@ import { ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { getMgmtRole } from "@/lib/mgmtRole"
 import {
  approveRoomBookingRequest,
  fetchAllPendingRoomBookingRequests,
@@ -16,7 +16,7 @@ import {
 } from "@/services/roomBookingQueries"
 
 export function RoomBookingAdminView() {
- const role = getMgmtRole()
+ const { role } = useAuth()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<RoomBookingRequestAdminRow[]>([])

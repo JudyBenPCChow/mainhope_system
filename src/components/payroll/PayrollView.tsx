@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import { Select } from "@/components/ui/select"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { getMgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import type { MgmtRole } from "@/lib/mgmtRole"
 import {
   acceptTeacherSubmit,
   createPayrollAdjustment,
@@ -34,8 +35,7 @@ import {
   type WfhMockState,
 } from "./mockData"
 
-function actorLabel(): string {
-  const role = getMgmtRole()
+function actorLabel(role: MgmtRole | null): string {
   if (role === "finance") return "Cody Cheong（財務）"
   if (role === "manager") return "管理層"
   if (role === "alien") return "外星人"
@@ -45,7 +45,7 @@ function actorLabel(): string {
 export function PayrollView() {
   const { confirmDialog } = useAppConfirm()
   const { pushBanner } = useAppBanner()
-  const realRole = getMgmtRole()
+  const { role: realRole } = useAuth()
   const isFinanceUser = realRole === "finance"
   const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>(
     realRole === "manager" ? "manager" : "finance"
@@ -103,14 +103,14 @@ export function PayrollView() {
         return {
           teacherId: s.teacherId,
           teacherName: t?.name ?? s.teacherId,
-          reviewer: actorLabel(),
+          reviewer: actorLabel(realRole),
           reviewedAt: "—",
           calcVersion: workbench?.run.calcVersion ?? 1,
           scope: (t?.anomalies.length ?? 0) > 0 ? "已審核有異常／已知悉" : "已審核無異常",
           note: t?.anomalies[0],
         }
       })
-  }, [workbench, teachers])
+  }, [realRole, workbench, teachers])
 
   const excludedIds = useMemo(() => {
     const ids = new Set<string>()
@@ -153,11 +153,11 @@ export function PayrollView() {
     void (async () => {
       try {
         if (next === "待管理層核實") {
-          await submitPayrollMonth(runId, actorLabel())
+          await submitPayrollMonth(runId, actorLabel(realRole))
         } else if (next === "財務審閱中" && status === "待管理層核實") {
           await returnPayrollMonth(runId, meta?.returnReason ?? "退回財務")
         } else if (next === "已結算") {
-          await settlePayrollMonth(runId, actorLabel(), teachers)
+          await settlePayrollMonth(runId, actorLabel(realRole), teachers)
         } else {
           pushBanner({ tone: "warning", title: `未支援的狀態變更：${next}` })
           return
@@ -273,7 +273,7 @@ export function PayrollView() {
           fromAmount: adj.fromAmount ?? 0,
           toAmount: adj.toAmount,
           reason: adj.reason,
-          createdBy: actorLabel(),
+          createdBy: actorLabel(realRole),
         })
         await reload(monthKey)
         pushBanner({ tone: "success", title: "已建立人手調整申請" })
@@ -293,7 +293,7 @@ export function PayrollView() {
   ) => {
     void (async () => {
       try {
-        await reviewPayrollAdjustment(id, st, actorLabel())
+        await reviewPayrollAdjustment(id, st, actorLabel(realRole))
         await reload(monthKey)
       } catch (e) {
         pushBanner({
@@ -314,7 +314,7 @@ export function PayrollView() {
           teacherId: codyTeacher.id,
           hours,
           status: dbStatus,
-          actor: actorLabel(),
+          actor: actorLabel(realRole),
         })
         await reload(monthKey)
       } catch (e) {

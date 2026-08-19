@@ -22,7 +22,8 @@ import {
 } from "@/lib/paymentDiscountKinds"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -132,7 +133,8 @@ const emptyForm = {
 }
 
 export function PaymentDiscountsView() {
- const canEditDiscounts = isSuperAdmin()
+ const { profile } = useAuth()
+ const canEditDiscounts = can(profile?.activeCapabilities, "catalog.manage")
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<PaymentDiscountRow[]>([])

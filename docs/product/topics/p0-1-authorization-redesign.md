@@ -2,11 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（kernel wave 1：catalog／profile v2 已寫；未收緊 RLS） |
+| 狀態 | `in_progress`（production RLS 已套 `authz_version=10`；P0-2 前端實作已清，SQL 模擬雙 session 已過） |
 | 日期 | 2026-08-15 |
 | 範圍 | P0-1：DB 權限粗過 UI 角色 |
 | 直接相關 | P0-2：前端守衛讀 localStorage，唔係 Auth |
 | 上層主題 | [`tech-debt-hardening.md`](./tech-debt-hardening.md) |
+| 功能 × 角色 | [`p0-1-authz-feature-roles.md`](./p0-1-authz-feature-roles.md) |
 | 資料來源 | production `pg_policies`／角色資料、現有 React／service 寫入路徑、Supabase RLS／RBAC 官方文件 |
 
 ## 結論

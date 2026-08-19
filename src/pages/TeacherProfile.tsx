@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -33,7 +34,8 @@ const SUBJECT_SPECIALITY_OPTIONS = [
 ] as const
 
 export default function TeacherProfilePage() {
- const teacherId = getTeacherScopeTeacherId()
+ const { profile } = useAuth()
+ const teacherId = getTeacherScopeTeacherId(profile)
  const [teacher, setTeacher] = useState<TeacherRecord | null>(null)
  const [form, setForm] = useState<Partial<TeacherRecord>>({})
  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])

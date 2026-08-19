@@ -20,6 +20,7 @@ import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
@@ -109,9 +110,10 @@ function isCancelledStatus(status: string): boolean {
 export function PrivateTutoringView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const { profile } = useAuth()
  const isMobile = useIsMobile()
  const [searchParams, setSearchParams] = useSearchParams()
- const teacherTid = getTeacherScopeTeacherId()
+ const teacherTid = getTeacherScopeTeacherId(profile)
  const isTeacherPortal = Boolean(teacherTid)
  /** 老師：可預約；不可新建報讀／改學費／退讀 */
  const canManageEnrollment = !isTeacherPortal
@@ -204,15 +206,14 @@ export function PrivateTutoringView() {
   setErr(null)
   try {
    const list = await fetchPrivateTutoringStudents()
-   const tid = getTeacherScopeTeacherId()
-   setRows(tid ? list.filter((r) => r.teacherId === tid) : list)
-   if (!tid) void reloadTeacherNullAudit()
+   setRows(teacherTid ? list.filter((r) => r.teacherId === teacherTid) : list)
+   if (!teacherTid) void reloadTeacherNullAudit()
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.reloadStudents", setErr })
   } finally {
    setLoading(false)
   }
- }, [reloadTeacherNullAudit])
+ }, [reloadTeacherNullAudit, teacherTid])
 
  const reloadRooms = useCallback(async () => {
   if (!isSupabaseConfigured || !roomDate) return
@@ -700,13 +701,12 @@ export function PrivateTutoringView() {
   setBookSlotIdx(0)
   setBookConsecutive(false)
   setBookRoomId("")
-  const tid = getTeacherScopeTeacherId()
-  setBookTeacherId(tid || row.teacherId || "")
+  setBookTeacherId(teacherTid || row.teacherId || "")
   setBookMode("single")
   setBookWeekCount("4")
   setRescheduleScheduleId(null)
   setBookErr(null)
- }, [])
+ }, [teacherTid])
 
  const openBookDialog = useCallback(
   async (row: PrivateTutoringStudentRow) => {

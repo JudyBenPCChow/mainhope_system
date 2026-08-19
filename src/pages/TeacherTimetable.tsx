@@ -8,6 +8,7 @@ import {
  weekItemsFromManageRows,
 } from "@/components/teachers/TeacherWeekTimetable"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { useAuth } from "@/lib/authBootstrap"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -19,7 +20,8 @@ const INITIAL_PAST_DAYS = 14
 const EXTEND_DAYS = 14
 
 export default function TeacherTimetablePage() {
- const teacherId = getTeacherScopeTeacherId()
+ const { profile } = useAuth()
+ const teacherId = getTeacherScopeTeacherId(profile)
  const today = localYmd()
 
  const [rows, setRows] = useState<ScheduleManageRow[]>([])

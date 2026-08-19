@@ -21,6 +21,7 @@ import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teac
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { listLoadCount, listLoadKind, type ListLoad } from "@/lib/listLoad"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -81,7 +82,8 @@ function alertTagsForSchedule(
 }
 
 export function TeacherHomeView() {
- const teacherId = getTeacherScopeTeacherId()
+ const { profile } = useAuth()
+ const teacherId = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
  const today = localYmd()
  const [teacherName, setTeacherName] = useState<string>("老師")

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/lib/authBootstrap"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -28,10 +29,11 @@ function parseYmd(raw: string | null): string | null {
 
 export function RollCallPage() {
  const isMobile = useIsMobile()
+ const { profile } = useAuth()
  const [searchParams] = useSearchParams()
  const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
  const urlDate = parseYmd(searchParams.get("date"))
- const teacherTid = getTeacherScopeTeacherId()
+ const teacherTid = getTeacherScopeTeacherId(profile)
  const [dateYmd, setDateYmd] = useState(() => urlDate ?? localYmd())
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [pendingMakeup, setPendingMakeup] = useState<number | null>(null)
@@ -73,7 +75,7 @@ export function RollCallPage() {
   setErr(null)
   setPendingMakeup(null)
   try {
-   const list = await fetchSchedulesForRollCallDate(dateYmd)
+   const list = await fetchSchedulesForRollCallDate(dateYmd, teacherTid)
    setSchedules(list)
    const entries = buildRollCallScheduleEntries(
     list.map((s) => ({
@@ -116,7 +118,7 @@ export function RollCallPage() {
   } catch {
    setPendingMakeup(null)
   }
- }, [dateYmd, urlScheduleId])
+ }, [dateYmd, teacherTid, urlScheduleId])
 
  useEffect(() => {
   if (urlDate && urlDate !== dateYmd) setDateYmd(urlDate)

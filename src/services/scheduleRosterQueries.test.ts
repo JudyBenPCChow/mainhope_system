@@ -5,13 +5,16 @@ import {
  enrollmentIsVisibleOnRosterSchedule,
  enrollmentPassesDateGates,
  enrollmentsForSchedules,
+ leaveAppliesToSchedule,
  leavesForSchedule,
  makeupsForSchedules,
  rosterHeadcountForSchedule,
  rosterStudentsForSchedule,
+ scheduleStudentHintsFromContext,
  singleSessionNotOnSchedule,
  type ScheduleRosterContext,
  type ScheduleRosterEnrollment,
+ type ScheduleRosterLeave,
 } from "@/services/scheduleRosterQueries"
 
 function enrollment(
@@ -222,7 +225,7 @@ describe("schedule roster selectors", () => {
   expect(activeTrialsForSchedules(unpaid, ["schedule-2"]).map((row) => row.id)).toEqual([])
  })
 
- it("請假同時支援 schedule 連結及同班同日，補堂按目標排程", () => {
+ it("請假同時支援 schedule 連結及尚未連結的同班同日，補堂按目標排程", () => {
   const ctx = context()
   expect(leavesForSchedule(ctx, "schedule-2").map((row) => row.id)).toEqual([
    "leave-linked",
@@ -231,6 +234,51 @@ describe("schedule roster selectors", () => {
   expect(makeupsForSchedules(ctx, ["schedule-1"]).map((row) => row.id)).toEqual([
    "leave-same-day",
   ])
+ })
+
+ it("連堂兩節各有請假時，不會把另一節的請假算進本堂", () => {
+  const ctx = context()
+  const slot2 = ctx.schedules[1]!
+  ctx.schedules.push({
+   ...slot2,
+   id: "schedule-2b",
+   timeSlot: "11:15-12:30",
+  })
+  const siblingLeave: ScheduleRosterLeave = {
+   id: "leave-linked-slot-2",
+   studentId: "linked-student",
+   classId: "class-a",
+   scheduleId: "schedule-2b",
+   leaveDate: "2026-07-24",
+   leaveReason: "病假",
+   makeupType: null,
+   makeupScheduleId: null,
+   status: "已確認",
+   createdAt: "2026-07-20T00:00:00Z",
+   fullName: "已連結請假",
+   englishName: null,
+   grade: "S3",
+   contactPhone: null,
+  }
+  ctx.leaves.push(siblingLeave)
+
+  expect(leavesForSchedule(ctx, "schedule-2").map((row) => row.id)).toEqual([
+   "leave-linked",
+   "leave-same-day",
+  ])
+  expect(leavesForSchedule(ctx, "schedule-2b").map((row) => row.id)).toEqual([
+   "leave-same-day",
+   "leave-linked-slot-2",
+  ])
+  expect(leaveAppliesToSchedule(siblingLeave, {
+   id: "schedule-2",
+   classId: "class-a",
+   scheduledDate: "2026-07-24",
+  })).toBe(false)
+
+  const hints = scheduleStudentHintsFromContext(ctx, ["schedule-2", "schedule-2b"])
+  expect(hints.get("schedule-2")?.leaveNames.filter((n) => n === "已連結請假")).toHaveLength(1)
+  expect(hints.get("schedule-2b")?.leaveNames.filter((n) => n === "已連結請假")).toHaveLength(1)
  })
 
  it("不會把其他班報讀視為本排程名單", () => {

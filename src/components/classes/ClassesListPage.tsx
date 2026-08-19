@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -97,7 +98,9 @@ export function ClassesListPage() {
  const location = useLocation()
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
- const teacherTid = getTeacherScopeTeacherId()
+ const { profile } = useAuth()
+ const canDeleteClass = can(profile?.activeCapabilities, "classes.update")
+ const teacherTid = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
  const initialCache = useMemo(() => getClassesListDataCache(), [])
  const [rows, setRows] = useState<ClassRecord[]>(() => initialCache?.rows ?? [])
@@ -1019,7 +1022,7 @@ export function ClassesListPage() {
               複製
              </button>
              ) : null}
-             {isSuperAdmin() ? (
+             {canDeleteClass ? (
               <button
                type="button"
                className="text-left text-destructive hover:underline"

@@ -16,7 +16,6 @@ import {
  type PrimaryMessagingTarget,
 } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
-import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { addDaysYmd } from "@/lib/weekdayUtils"
 import {
  PAST_PENDING_ROLLCALL_NUDGE_LOOKBACK_DAYS,
@@ -239,7 +238,18 @@ export type ScheduleRosterStudent = {
  messagingTarget?: PrimaryMessagingTarget | null
 }
 
-/** 本堂請假學生（已連結排程，或同班同日待連結） */
+function uniqueLeaveStudentsById(rows: ScheduleRosterStudent[]): ScheduleRosterStudent[] {
+ const seen = new Set<string>()
+ const out: ScheduleRosterStudent[] = []
+ for (const row of rows) {
+  if (seen.has(row.studentId)) continue
+  seen.add(row.studentId)
+  out.push(row)
+ }
+ return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+}
+
+/** 本堂請假學生（已連結本排程，或尚未連結且同班同日） */
 export async function fetchLeaveStudentsForSchedule(
  scheduleId: string,
  classId: string,
@@ -248,8 +258,8 @@ export async function fetchLeaveStudentsForSchedule(
 ): Promise<ScheduleRosterStudent[]> {
  if (!supabase) return []
  if (rosterContext) {
-  return leavesForSchedule(rosterContext, scheduleId)
-   .map((row) => ({
+  return uniqueLeaveStudentsById(
+   leavesForSchedule(rosterContext, scheduleId).map((row) => ({
     studentId: row.studentId,
     fullName: row.fullName,
     contactPhone: row.contactPhone,
@@ -263,9 +273,9 @@ export async function fetchLeaveStudentsForSchedule(
        }
      : null,
    }))
-   .sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+  )
  }
- const orFilter = `schedule_id.eq.${scheduleId},and(class_id.eq.${classId},leave_date.eq.${lessonDate})`
+ const orFilter = `schedule_id.eq.${scheduleId},and(schedule_id.is.null,class_id.eq.${classId},leave_date.eq.${lessonDate})`
  const { data, error } = await supabase
   .from("leave_makeup_records")
   .select("student_id, students ( full_name, whatsapp, student_phone, parent_phone, student_phone_country_code, parent_phone_country_code, primary_contact_person, student_preferred_contact_method, parent_preferred_contact_method, preferred_contact_method, student_wechat_id, parent_wechat_id )")
@@ -273,13 +283,10 @@ export async function fetchLeaveStudentsForSchedule(
   .order("created_at", { ascending: true })
  if (error) throw error
 
- const seen = new Set<string>()
  const out: ScheduleRosterStudent[] = []
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
   const sid = String(r.student_id)
-  if (seen.has(sid)) continue
-  seen.add(sid)
   const st = r.students as Record<string, unknown> | null
   out.push({
    studentId: sid,
@@ -288,7 +295,7 @@ export async function fetchLeaveStudentsForSchedule(
    messagingTarget: resolvePrimaryMessagingTargetFromDbRow(st),
   })
  }
- return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+ return uniqueLeaveStudentsById(out)
 }
 
 export async function fetchTrialStudentsForSchedule(
@@ -431,7 +438,7 @@ function emptyLeaveSnapshot(): ScheduleLeaveSnapshot {
 /**
  * 批次：多個排程各自的「本堂請假」學生與補堂類型旗標。
  * 一筆請假紀錄套用到某排程的條件（與 fetchLeaveStudentsForSchedule 一致）：
- * 已連結該排程（schedule_id 相符），或同班同日（class_id + leave_date 相符）。
+ * 已連結該排程（schedule_id 相符），或尚未連結且同班同日（schedule_id 空 + class_id + leave_date）。
  * 主要用途：日視圖標籤（無人報讀／全員請假／網課生／要錄影）與灰卡。
  */
 export async function fetchLeaveInfoForSchedules(
@@ -1015,12 +1022,14 @@ function expandRollCallTargetsWithConsecutivePeers(
  return out
 }
 
-export async function fetchSchedulesForRollCallDate(ymd: string): Promise<ScheduleManageRow[]> {
- const tid = getTeacherScopeTeacherId()
+export async function fetchSchedulesForRollCallDate(
+ ymd: string,
+ teacherId?: string | null
+): Promise<ScheduleManageRow[]> {
  const { rows: list, rosterContext } = await fetchSchedulesInRangeWithRosterContext(
   ymd,
   ymd,
-  tid ? { teacherId: tid } : undefined
+  teacherId ? { teacherId } : undefined
  )
  const candidates = list.filter(
   (s) => !s.status.includes("取消") && s.class_id != null && String(s.class_id).length > 0
@@ -1289,7 +1298,7 @@ export async function fetchPendingRollCallRemindersForTeacher(
 ): Promise<PendingRollCallReminder[]> {
  if (!supabase || !teacherId) return []
  // fetchSchedulesForRollCallDate 已篩過可點名對象
- const schedules = await fetchSchedulesForRollCallDate(ymd)
+ const schedules = await fetchSchedulesForRollCallDate(ymd, teacherId)
  const mine = schedules.filter((s) => {
   if (!s.class_id) return false
   const tid = s.teacher_id ?? s.original_teacher_id

@@ -6,7 +6,8 @@ import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
-import { isMgmtStaff } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isPortalBaseUrlConfigured } from "@/lib/portalConfig"
 import { cn } from "@/lib/utils"
@@ -67,7 +68,8 @@ export function ParentPortalInvitePanel({
 }: Props) {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const canManage = isMgmtStaff()
+ const { profile } = useAuth()
+ const canManage = can(profile?.activeCapabilities, "portal.invite")
 
  const [loading, setLoading] = useState(true)
  const [creating, setCreating] = useState(false)
