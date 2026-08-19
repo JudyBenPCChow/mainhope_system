@@ -63,9 +63,10 @@ Domain 4–5（付款／作廢 command／堂數池）：`20260815230456_p0_1_pay
 Domain 6–7（計糧／成本帳）：`20260815230459_p0_1_payroll_expenses.sql`。財務可入帳，不可 confirm／void／reopen。  
 延後表／校曆／檔期／課程主檔／老師目錄：`20260816000753_p0_1_remaining_ops.sql`。`review_portal_enrollment_request` 改查 `students.enroll`；核准仍只建報讀、唔自動開待繳費單。  
 Session 角色（JWT 有 `session_id` 先唔 fallback `app_users.role`）：`20260816000756_p0_1_session_role.sql`。  
-波 5 其餘表：`20260816084500_p0_1_wave5_cleanup.sql`。話術庫暫跟 `calendar.manage`；明日提醒寫入 `students.update`；已廢待辦寫入 `catalog.manage`；舊匯入寫入 `students.enroll`。inbox ops／已讀／portal view-as 仍 `is_mgmt_staff`。  
+波 5 其餘表：`20260816084500_p0_1_wave5_cleanup.sql`。話術庫暫跟 `calendar.manage`；明日提醒寫入 `students.update`；已廢待辦寫入 `catalog.manage`；舊匯入寫入 `students.enroll`。  
+**2026-08-20 closeout**（`authz_version` 11）：inbox 職員 SELECT／已讀改 `inbox.read`（已讀只自己 `actor_key`）；ops INSERT 跟營運寫入 capability；portal view-as 改 `portal.invite`；`student_code_counters` 補 `students.create` 政策；登出／`auth.sessions` DELETE 清 `mgmt_session_roles`。  
 稽核 actor 蓋印：`20260816090000_p0_1_stamp_actor.sql`。JWT 有 user 就蓋 `actor_label`／`role`／收件匣 `actor_key`；service_role 保留原值。  
-**以上收緊 RLS 已於 2026-08-19 套 production**（`authz_version = 10`）。前端 actor 自行寫入仍作 stamp_actor 未蓋到時嘅後備；收件匣 RPC 無 key 時職員 fallback `staff:{role}:{name}`。老師目錄寫入暫跟 `classes.update`（catalog 無獨立 teachers key）。
+**以上收緊 RLS 已於 2026-08-19 套 production**（當時 `authz_version = 10`）；closeout 見上（11）。前端 actor 自行寫入仍作 stamp_actor 未蓋到時嘅後備；收件匣 RPC 無 key 時職員 fallback `staff:{role}:{name}`。老師目錄寫入暫跟 `classes.update`（catalog 無獨立 teachers key）。
 
 ## Profile v2
 

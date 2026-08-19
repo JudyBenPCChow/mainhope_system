@@ -22,13 +22,13 @@ from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMETABLE_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
-VERSION = "3.3"
-PREV_VERSION = "3.2"
-STEM = "2627_timetable_scheme_v3.3"
-STEM_TEACHERS = "2627_timetable_teachers_week_v3.3"
-STEM_WEEKLY = "2627_timetable_weekly_v3.3"
+VERSION = "3.4"
+PREV_VERSION = "3.3"
+STEM = f"2627_timetable_scheme_v{VERSION}"
+STEM_TEACHERS = f"2627_timetable_teachers_week_v{VERSION}"
+STEM_WEEKLY = f"2627_timetable_weekly_v{VERSION}"
 OUT_DIR = TIMETABLE_DIR / "versions" / f"v{VERSION}"
-# 改 CLASSES／原則時把 VERSION 改成下一 3.x（3.0→3.1），PREV_VERSION＝舊版；舊檔保留。
+# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 3.x（3.3→3.4），PREV_VERSION＝舊版；舊檔保留。
 FONT_NAME_EA = "新細明體"
 MARGIN_CM = 2.54  # Word 預設「普通」
 HEADER_DISTANCE_CM = 1.25
@@ -192,6 +192,19 @@ CONFIRMED_TEACHER_CLASS_TIMES: dict[str, set[tuple[int, int, str]]] = {
         (6, 6, "S3英A"),
         (6, 7, "S3英B"),
     },
+    "Liam Lai": {
+        (5, 4, "S2數D"),
+        (5, 5, "S3數C"),
+        (6, 1, "S2數B"),
+        (6, 2, "S3數B"),
+    },
+    "Leo Chan": {
+        (5, 1, "S1數B"),
+        (5, 2, "S4物A"),
+        (5, 3, "S2數C"),
+        (5, 5, "S6物A"),
+        (5, 6, "S5物A"),
+    },
 }
 
 MINUTES_PER_CLASS = 75
@@ -245,14 +258,14 @@ STAFF = [
         "數學科、物理科",
         5,
         "星期六",
-        "兼職。本版五班（數學二、物理三），全部星期六。星期日仍屬問卷已確認可用日，本版移除原有中五物理（B）。星期四、五尚未確定，不排平日。可連續三堂。",
+        "兼職。班別時間已確認鎖定。本版五班（數學二、物理三），全部星期六。星期日仍屬問卷已確認可用日，本版移除原有中五物理（B）。星期四、五尚未確定，不排平日。可連續三堂。",
     ),
     (
         "Liam Lai",
         "數學科",
         4,
         "星期六、星期日",
-        "兼職。本輪按「3–4」排四班，只教中二、中三數學：星期六兩班、星期日兩班。星期二、三尚未確定，不排該兩日。連堂上限兩堂。12 月中至 1 月頭或外出，屆時按校曆另議。",
+        "兼職。班別時間已確認鎖定。本輪按「3–4」排四班，只教中二、中三數學：星期六兩班、星期日兩班。星期二、三尚未確定，不排該兩日。連堂上限兩堂。12 月中至 1 月頭或外出，屆時按校曆另議。",
     ),
     (
         "Emma Cai",
@@ -453,8 +466,8 @@ PRINCIPLE_SECTIONS = [
             "Christine Fan 出勤日優先矩尺座或山案座；不排星期六；星期日班別不得早於 11:30。本版出勤星期一、星期五、星期日。",
             "Cyndi Ng 星期日小組班自 10:15 開始；同日另預留一個一對一高中英文時段。",
             "Jackson Lau 出勤為星期三一班、星期六一班；優先矩尺座或山案座，不排 17D／17E。",
-            "Liam Lai 本版只教中二、中三數學。",
-            "Leo Chan 本版五班（數學二、物理三），全部星期六；移除星期日中五物理（B）。",
+            "Liam Lai 班別時間已確認鎖定；本版只教中二、中三數學。",
+            "Leo Chan 班別時間已確認鎖定；本版五班（數學二、物理三），全部星期六；移除星期日中五物理（B）。",
             "Emma Cai 本版不教中六英文。",
             "Henry Wong 本版生物三班：只排星期六 14:00 中四、15:15 中五、16:30 中六；英仙座連續三堂。",
             "Cheryl Ng 本版英文兩班：只星期六 10:15 及 11:30；可教 M2 本版不排。",
@@ -463,8 +476,7 @@ PRINCIPLE_SECTIONS = [
 ]
 
 VERSION_DIFFS = [
-    "周時間表不再置於方案第 8 節，改為獨立文件。",
-    "方案、老師附件、周時間表分開生成 md；使用 --word 時各自生成 Word／PDF。",
+    "Liam Lai／Leo Chan 現行班別時間已確認鎖定；Cyndi Ng／Emma Cai 維持鎖定。",
     "班別與時段不變，維持 63 班及 1 個預留時段。",
 ]
 
@@ -472,8 +484,8 @@ PENDING_BY_TEACHER = [
     "Rafael Ling：企會財，意願 5–6 班，時段完全未掌握（預計 8 月 25 日），本版不佔格。",
     "Natalie Kwok：暫不承接專科班。",
     "Henry Wong：本版只排星期六連續 3 班；星期三尚未確定（預計 8 月 27 日），不佔格。",
-    "Leo Chan：意願 9 或以上，本版按營運排 5 班（全數星期六）；已移除星期日中五物理（B）；星期四、五尚未確定。",
-    "Liam Lai：星期二、三尚未確定；12 月中至 1 月頭或外出。",
+    "Leo Chan：現行五班（全數星期六）班別時間已確認鎖定；意願 9 或以上，星期四、五尚未確定，不另加班。",
+    "Liam Lai：現行四班班別時間已確認鎖定；星期二、三尚未確定；12 月中至 1 月頭或外出。",
     "Emma Cai：平日尚未確定日子。",
     "Judy Chu：意願 3–4 班，本版 3 班；星期一無法排高中生物（撞級）。",
     "Cheryl Ng：可教 M2 本版不排；2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",

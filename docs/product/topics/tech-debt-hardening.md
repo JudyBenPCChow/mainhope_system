@@ -2,16 +2,16 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**P0-1 production RLS 已套** `authz_version=10`；**P0-2 前端實作已清**：Auth profile／`can()`／路由 capability／老師範圍；**頁面已只靠 `RequireCapabilities`**） |
+| 狀態 | `done`（2026-08-20；`authz_version=11`） |
 | 優先 | 高 |
 | 範圍 | 權限真源、RLS 讀寫分離（P0-1／P0-2）＋頁級守衛／Role 型收斂（P1-4） |
-| 阻塞 | 無。Supabase Auth JWT 原生必帶 `session_id`；production session role 列對應 `auth.sessions`。**2026-08-19 SQL 模擬**：同一帳戶兩個假 `session_id` 可分別戴 teacher／manager，能力鍵分開，測試列已刪。餘可選真人雙裝置畫面。**唔改 nav**（IA1）。P0-1 寫入已由 RLS 執行。P0-3（CI）唔等。 |
-| 不含 | **主線品質閘（P0-3）** [`mainline-quality-gate.md`](./mainline-quality-gate.md)；**洩露密碼（P0-4）** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)；God files、計糧／總覽 perf、死碼清理、家長 Portal 前端 |
+| 阻塞 | 無 |
+| 不含 | **阿Po Edge session 帽**（本期不做，維持帳戶層 `mgmt_active_roles`）；**側欄／入口 IA1** [`nav-capability-entry.md`](./nav-capability-entry.md)；**主線品質閘（P0-3）** [`mainline-quality-gate.md`](./mainline-quality-gate.md)；**洩露密碼（P0-4）** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)；God files、計糧／總覽 perf、死碼清理、家長 Portal 前端 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | Canvas | `tech-debt-audit.canvas.tsx` · `p0-1-authz-feature-roles.canvas.tsx` |
-| 相關 | [`p0-1-authz-feature-roles.md`](./p0-1-authz-feature-roles.md)、[`mgmt-manager-role.md`](./mgmt-manager-role.md)（RLS 第二期已知債）、[`role-ops-hardening.md`](./role-ops-hardening.md)（UI 守衛已做、DB 寫入未拆）、[`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) |
-| 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接；2026-08-18 前端 actor 回退入 `main`；**2026-08-19 production 套 domain 1–7／session／波 5／stamp_actor（authz_version 10）**；同日 JWT 模擬煙霧；**同日 P0-2 前端實作清線**（service／`can()`／`RequireCapabilities`／老師 scope）及 production session row 核實 |
+| 相關 | [`p0-1-authz-feature-roles.md`](./p0-1-authz-feature-roles.md)、[`nav-capability-entry.md`](./nav-capability-entry.md)（IA1）、[`mgmt-manager-role.md`](./mgmt-manager-role.md)、[`role-ops-hardening.md`](./role-ops-hardening.md)、[`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) |
+| 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接；2026-08-18 前端 actor 回退入 `main`；**2026-08-19 production 套 domain 1–7／session／波 5／stamp_actor（authz_version 10）**；同日 JWT 模擬煙霧；**同日 P0-2 前端實作清線**（service／`can()`／`RequireCapabilities`／老師 scope）及 production session row 核實；**2026-08-20 P0-2 入 main（PR #21）**；**同日合入 capability-only 頁守衛、session 清列、inbox／學號 counter／portal view-as（authz_version 11）**；**同日關帳**（阿Po Edge 本期不做；IA1 另題） |
 
 ## 目標（一句）
 
@@ -20,7 +20,7 @@
 ## 與既有主題關係
 
 - manager 第一期已寫明：RLS 多數表仍 `FOR ALL`，**靠 UI＋守衛**；第二期再拆 reader／writer。finance 其後加入 `is_mgmt_staff()`，寫入面一併擴大。本主題承接該第二期，並補 finance。
-- 頁面守衛已收成 `RequireCapabilities`（2026-08-19 夜）；舊 `RequireMgmtRoles` 已刪。服務層寫入不再用 `getMgmtRole()`／`isSuperAdmin()` 當授權。側欄仍跟 `navStructure` 角色（IA1）。
+- 頁守衛只 `RequireCapabilities`（2026-08-20 合入 `feat/p0-2-capability-only-pages`）。服務層寫入不再用 `getMgmtRole()`／`isSuperAdmin()` 當授權。側欄仍跟 `navStructure` 角色 → [`nav-capability-entry.md`](./nav-capability-entry.md)。
 - 原稽核 P1-4（頁級守衛唔齊、舊 `Role` 型缺 manager／finance）同 P0-2 係同一角色真源問題，**併入本主題**，唔另開重複工程。
 - 計糧慢、死碼、軟封存、2627 權益 live、**主線品質閘（P0-3）**：**唔併入本主題**。
 - 原稽核 P0-4（Auth leaked password）：**已拆出** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)，唔再屬本主題波次。
@@ -81,7 +81,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 
 ## P0-2　前端守衛讀 localStorage，唔係 Auth
 
-**前端實作已清（2026-08-19）。** Contract 已交（`get_my_mgmt_profile_v2`／`switch_my_mgmt_role_v2`／`src/lib/authzProfile.ts`）。Auth bootstrap／頁守衛已讀 DB profile，失敗唔回退 localStorage。Service 寫入不再以 storage 角色作授權；寫入掣改 `can(profile.activeCapabilities, key)`；敏感路由只靠 `RequireCapabilities`（舊頁內 `RequireMgmtRoles` 已刪；deep-link 跟 capability，側欄仍跟 nav）。計糧／讓房／排程／`teacherScope` 顯示及查詢範圍亦已改讀 `useAuth().profile`。Supabase Auth JWT 原生必帶 `session_id`；production 11 個 session role 列全部可對應 `auth.sessions`，毋須自訂 JWT hook。**唔改 nav。** 餘真人雙裝置不同帽驗收。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)（開局仍有效；「未交 contract 唔改 Auth」已過時）。
+**前端實作已清並入 main（2026-08-20 PR #21）；頁內角色門已拆（同日合入 capability-only）。** Contract 已交（`get_my_mgmt_profile_v2`／`switch_my_mgmt_role_v2`／`src/lib/authzProfile.ts`）。Auth bootstrap／頁守衛讀 DB profile，失敗唔回退 localStorage。Service 寫入不再以 storage 角色作授權；寫入掣改 `can(profile.activeCapabilities, key)`；敏感路由只 `RequireCapabilities`。登出打 `clear_my_mgmt_session_role`；`auth.sessions` DELETE 同 profile ensure 會清過期列。計糧／讓房／排程／`teacherScope` 顯示及查詢範圍亦已改讀 `useAuth().profile`。**唔改 nav**（IA1 另題）。阿Po Edge 跟帳戶層 `mgmt_active_roles`：**本期不做**。
 
 ### 成因
 
@@ -114,10 +114,10 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 2. 刪服務層授權用嘅 `getMgmtRole()`／`isAdminOrAlien()`；寫入失敗必須來自 RLS／RPC。前端旗標只藏掣。**已做**（2026-08-19）。
 3. `AuthProvider.role` 唔回退 `getMgmtRole()`；session 無 profile 當未登入。**已做。**
 4. 舊頁手寫 `localStorage.getItem("mgmt_role")` 收斂到同一守衛。`Role` 型補 manager／finance。**已做**：寫入掣用 `can()`；顯示／老師範圍用 Auth profile。
-5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-19；`RequireCapabilities` 讀 active capabilities；**同日夜**刪 `RequireMgmtRoles`，過寬讀權已收成對應寫入／管理 key；**無改 nav**，IA1）。學生列表仍可把老師導去班別（產品分流，唔係雙重守衛）。
+5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-20：只 `RequireCapabilities`；過寬讀權改寫入／管理 key；**無改 nav**，IA1）。學生列表仍可把老師導去班別（產品分流，唔係雙重守衛）。
 6. Inbox actor 改用 `app_users.id`（或現有 `current_inbox_actor_key()` DB 函式），唔用角色字串。**已做**（只打 RPC，唔 fallback storage）。
 7. 保留 storage 只作顯示名／側欄摺疊；文件寫明「localStorage ≠ 權限」。**已做**（`mgmtRole.ts` 僅留顯示快取／兼容；production caller 已清）。
-8. JWT 帶 `session_id`，令 `current_app_role()` 跟 `mgmt_session_roles`（雙角色如 Mark 預設帽）。**已確認**（2026-08-19）：Supabase Auth access token 必帶；production session role 列對應 `auth.sessions`。SQL 模擬同一帳戶兩個 session 可分別戴 teacher／manager，測試列已刪。毋須 app 自加 claim；真人雙裝置畫面可選。
+8. JWT 帶 `session_id`，令 `current_app_role()` 跟 `mgmt_session_roles`（雙角色如 Mark 預設帽）。**已確認**（2026-08-19）。登出／過期刪列：**已做**（2026-08-20；`clear_my_mgmt_session_role`＋`auth.sessions` DELETE trigger＋ensure 時 purge）。
 
 ---
 
@@ -132,13 +132,13 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 | 波 | 做 | 依賴 |
 | --- | --- | --- |
 | A | P0-1 capability kernel＋按域收緊 RLS／command | **production 已套**（2026-08-19；`authz_version` 10） |
-| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 已讀 DB profile；**service／畫面 `can()`／敏感路由／老師 scope 已清**；**頁面已只靠 `RequireCapabilities`**（2026-08-19 夜）。JWT `session_id` 已由 production session rows 證實；餘真人雙裝置驗收。nav 另包（IA1） |
+| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | **已入 main**（2026-08-20 PR #21）＋頁守衛收斂。JWT `session_id` 已核實。nav 另包（IA1）。阿Po Edge 本期不做 |
 
 ---
 
 ## P0-1 production 上線檢查（2026-08-19 已套）
 
-Production 而家：`authz_version = 10`。已套 kernel＋domain 1–7／延後表／session 角色／波 5／stamp_actor。財務 JWT 改學生／排程／點名應 denied。側欄仍未改（IA1）。
+Production 而家：`authz_version = 11`（2026-08-20 closeout）。財務 JWT 改學生／排程／點名應 denied。側欄仍未改（IA1 另題）。
 
 ### 套之前
 
@@ -180,14 +180,16 @@ Production 而家：`authz_version = 10`。已套 kernel＋domain 1–7／延後
 
 未做：真人登入畫面；財務未開新計糧月份；老師未實寫出席。
 
-發現（唔擋今次 RLS 收緊；畫面開學生預填 8 位學號故日常可過）：`student_code_counters` 已開 RLS、**零政策**。空白學號走 `next_student_code_current_year()` 會 RLS 失敗。
+發現（已收，2026-08-20）：`student_code_counters` 補 `students.create` 的 SELECT／INSERT／UPDATE 政策；空白學號 autocode 可過。
 
-### 刻意未做（唔當漏套）
+### 刻意未做／已拆出
 
-- inbox 營運／已讀／portal view-as 仍 `is_mgmt_staff`（staging 都未收）
 - 老師目錄無獨立 capability（暫跟 `classes.update`）
-- 真人雙裝置不同帽尚未驗收（session role 列及 JWT `session_id` 已核實）
-- 側欄／入口（IA1）
+- 真人畫面走一輪；真人雙裝置不同帽尚未驗收（可選；session 列及 JWT `session_id` 已核實）
+- **阿Po Edge 跟帳戶層 `mgmt_active_roles`：本期不做**（唔另開題）
+- 側欄／入口（IA1）→ [`nav-capability-entry.md`](./nav-capability-entry.md)
+
+已收（2026-08-20）：inbox ops／已讀／portal view-as；頁內角色雙重門；登出／過期清 `mgmt_session_roles`；`student_code_counters` 政策。
 
 P0-3 見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)。  
 原 P0-4 見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。  
