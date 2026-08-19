@@ -115,20 +115,20 @@ export default function App() {
      />
      <Route
       path="/FrontDeskWizard"
-      element={withCapabilities(["students.read"], <FrontDeskWizard />)}
+      element={withCapabilities(["students.enroll"], <FrontDeskWizard />)}
      />
      <Route
       path="/TomorrowReminders"
-      element={withCapabilities(["students.read"], <TomorrowReminders />)}
+      element={withCapabilities(["students.update"], <TomorrowReminders />)}
      />
      <Route
       path="/PrivateTutoring"
       element={withCapabilities(["classes.read"], <PrivateTutoring />)}
      />
-     <Route path="/Teachers" element={withCapabilities(["classes.read"], <Teachers />)} />
+     <Route path="/Teachers" element={withCapabilities(["classes.update"], <Teachers />)} />
      <Route
       path="/Teachers/:teacherId"
-      element={withCapabilities(["classes.read"], <TeacherDetail />)}
+      element={withCapabilities(["classes.update"], <TeacherDetail />)}
      />
      <Route path="/Classes" element={withCapabilities(["classes.read"], <Classes />)} />
      <Route path="/Classes/New" element={withCapabilities(["classes.create"], <ClassNew />)} />
@@ -170,10 +170,11 @@ export default function App() {
       path="/PaymentCorrection"
       element={withCapabilities(["payments.void", "entitlements.correct"], <PaymentCorrection />)}
      />
-     <Route path="/Apo" element={<ApoPo />} />
+     <Route path="/Apo" element={withCapabilities(["catalog.manage"], <ApoPo />)} />
      <Route
       path="/AiReports"
-      element={
+      element={withCapabilities(
+       ["catalog.manage"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -183,12 +184,12 @@ export default function App() {
        >
         <AiReports />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/EnrollmentReports"
       element={withCapabilities(
-       ["students.read"],
+       ["audit.read_all"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -203,7 +204,7 @@ export default function App() {
      <Route
       path="/SecondaryAttendanceReport"
       element={withCapabilities(
-       ["attendance.read"],
+       ["audit.read_all"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -217,7 +218,8 @@ export default function App() {
      />
      <Route
       path="/MgmtDashboard"
-      element={
+      element={withCapabilities(
+       ["audit.read_all"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -227,11 +229,12 @@ export default function App() {
        >
         <MgmtDashboard />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/StaffPerformance"
-      element={
+      element={withCapabilities(
+       ["audit.read_all"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -241,7 +244,7 @@ export default function App() {
        >
         <StaffPerformance />
        </Suspense>
-      }
+      )}
      />
      <Route
       path="/HkExpenses"
@@ -275,7 +278,7 @@ export default function App() {
      />
      <Route
       path="/PaymentDiscounts"
-      element={withCapabilities(["payments.read"], <PaymentDiscounts />)}
+      element={withCapabilities(["payments.create"], <PaymentDiscounts />)}
      />
      <Route
       path="/ReferralRebates"
@@ -291,15 +294,15 @@ export default function App() {
      />
      <Route
       path="/PromotionMatch"
-      element={withCapabilities(["students.read"], <PromotionMatch />)}
+      element={withCapabilities(["students.update"], <PromotionMatch />)}
      />
      <Route
       path="/ContactUpdateCampaign"
-      element={withCapabilities(["students.read"], <ContactUpdateCampaign />)}
+      element={withCapabilities(["students.update"], <ContactUpdateCampaign />)}
      />
      <Route
       path="/PortalEnrollmentRequests"
-      element={withCapabilities(["students.read"], <PortalEnrollmentRequests />)}
+      element={withCapabilities(["students.enroll"], <PortalEnrollmentRequests />)}
      />
      <Route
       path="/Schedule/:scheduleId"
@@ -316,11 +319,11 @@ export default function App() {
      />
      <Route
       path="/RoomBookingAdmin"
-      element={withCapabilities(["schedule.read"], <RoomBookingAdmin />)}
+      element={withCapabilities(["schedule.create"], <RoomBookingAdmin />)}
      />
      <Route
       path="/LeaveManagement"
-      element={withCapabilities(["leaves.read"], <LeaveManagement />)}
+      element={withCapabilities(["leaves.manage"], <LeaveManagement />)}
      />
      <Route
       path="/TeacherLeaveWizard"
@@ -328,7 +331,7 @@ export default function App() {
      />
      <Route
       path="/TrialSessions"
-      element={withCapabilities(["students.read"], <TrialSessions />)}
+      element={withCapabilities(["students.enroll"], <TrialSessions />)}
      />
      <Route
       path="/ScriptLibrary"
