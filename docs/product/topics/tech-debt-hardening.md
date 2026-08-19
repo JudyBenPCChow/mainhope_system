@@ -90,7 +90,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 - **真源（DB）**：`get_my_mgmt_profile_v2`／`current_app_role()` ← `mgmt_session_roles` + `app_user_roles`（無 `session_id` 的合成／舊測試 JWT 先走 legacy fallback）。
 - **快取（瀏覽器）**：登入／切角色時 `applyProfileToStorage` 寫 `mgmt_role`、`teacher_id`。
 
-`AuthProvider.role` 已係 `profile?.activeRole`（唔回退 storage）。`RequireMgmtRoles` 已讀 AuthContext。服務層寫入已唔再 assert storage 角色（2026-08-19）：`publishSystemNotice`、刪點名、`updateAppUser`、新增老師、系統通知發佈改由 RLS／RPC 決定成敗。Inbox `actor_key` 改只打 `current_inbox_actor_key()`；feed／未讀數用 Auth `activeRole`＋`teacherId`。畫面寫入掣改 `can(activeCapabilities, key)`（學生詳情、點名紀錄、班／老師列表、用戶、優惠目錄、家長 Portal 邀請等）。
+`AuthProvider.role` 已係 `profile?.activeRole`（唔回退 storage）。頁面深連結改由 `RequireCapabilities` 守。服務層寫入已唔再 assert storage 角色（2026-08-19）：`publishSystemNotice`、刪點名、`updateAppUser`、新增老師、系統通知發佈改由 RLS／RPC 決定成敗。Inbox `actor_key` 改只打 `current_inbox_actor_key()`；feed／未讀數用 Auth `activeRole`＋`teacherId`。畫面寫入掣改 `can(activeCapabilities, key)`（學生詳情、點名紀錄、班／老師列表、用戶、優惠目錄、家長 Portal 邀請等）。
 
 `PayrollView`、讓房兩頁、排程及所有 `teacherScope` caller 已改讀 Auth profile。`getMgmtRole()` 及舊角色 helper 僅留喺 `mgmtRole.ts` 作顯示快取／兼容，無 production caller 以此決定頁面、範圍或寫入。
 
@@ -114,7 +114,7 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 2. 刪服務層授權用嘅 `getMgmtRole()`／`isAdminOrAlien()`；寫入失敗必須來自 RLS／RPC。前端旗標只藏掣。**已做**（2026-08-19）。
 3. `AuthProvider.role` 唔回退 `getMgmtRole()`；session 無 profile 當未登入。**已做。**
 4. 舊頁手寫 `localStorage.getItem("mgmt_role")` 收斂到同一守衛。`Role` 型補 manager／finance。**已做**：寫入掣用 `can()`；顯示／老師範圍用 Auth profile。
-5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-20：只 `RequireCapabilities`；過寬讀權改寫入／管理 key；**無改 nav**，IA1）。
+5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-20：只 `RequireCapabilities`；過寬讀權改寫入／管理 key；**無改 nav**，IA1）。學生列表仍可把老師導去班別（產品分流，唔係雙重守衛）。
 6. Inbox actor 改用 `app_users.id`（或現有 `current_inbox_actor_key()` DB 函式），唔用角色字串。**已做**（只打 RPC，唔 fallback storage）。
 7. 保留 storage 只作顯示名／側欄摺疊；文件寫明「localStorage ≠ 權限」。**已做**（`mgmtRole.ts` 僅留顯示快取／兼容；production caller 已清）。
 8. JWT 帶 `session_id`，令 `current_app_role()` 跟 `mgmt_session_roles`（雙角色如 Mark 預設帽）。**已確認**（2026-08-19）。登出／過期刪列：**已做**（2026-08-20；`clear_my_mgmt_session_role`＋`auth.sessions` DELETE trigger＋ensure 時 purge）。
