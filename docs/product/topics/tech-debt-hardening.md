@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**P0-1 production RLS 已套** `authz_version=10`；**P0-2 前端實作已清**：Auth profile／`can()`／路由 capability／老師範圍） |
+| 狀態 | `in_progress`（**P0-1 production RLS 已套** `authz_version=10`；**P0-2 前端實作已清**：Auth profile／`can()`／路由 capability／老師範圍；**頁面已只靠 `RequireCapabilities`**） |
 | 優先 | 高 |
 | 範圍 | 權限真源、RLS 讀寫分離（P0-1／P0-2）＋頁級守衛／Role 型收斂（P1-4） |
 | 阻塞 | 無。Supabase Auth JWT 原生必帶 `session_id`；production session role 列對應 `auth.sessions`。**2026-08-19 SQL 模擬**：同一帳戶兩個假 `session_id` 可分別戴 teacher／manager，能力鍵分開，測試列已刪。餘可選真人雙裝置畫面。**唔改 nav**（IA1）。P0-1 寫入已由 RLS 執行。P0-3（CI）唔等。 |
@@ -20,7 +20,7 @@
 ## 與既有主題關係
 
 - manager 第一期已寫明：RLS 多數表仍 `FOR ALL`，**靠 UI＋守衛**；第二期再拆 reader／writer。finance 其後加入 `is_mgmt_staff()`，寫入面一併擴大。本主題承接該第二期，並補 finance。
-- `RequireMgmtRoles`（role-ops P1-5）已改讀 `useAuth().role`；服務層寫入不再用 `getMgmtRole()`／`isSuperAdmin()` 當授權（P0-2 第一步，2026-08-19）。
+- 頁面守衛已收成 `RequireCapabilities`（2026-08-19 夜）；舊 `RequireMgmtRoles` 已刪。服務層寫入不再用 `getMgmtRole()`／`isSuperAdmin()` 當授權。側欄仍跟 `navStructure` 角色（IA1）。
 - 原稽核 P1-4（頁級守衛唔齊、舊 `Role` 型缺 manager／finance）同 P0-2 係同一角色真源問題，**併入本主題**，唔另開重複工程。
 - 計糧慢、死碼、軟封存、2627 權益 live、**主線品質閘（P0-3）**：**唔併入本主題**。
 - 原稽核 P0-4（Auth leaked password）：**已拆出** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)，唔再屬本主題波次。
@@ -81,7 +81,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 
 ## P0-2　前端守衛讀 localStorage，唔係 Auth
 
-**前端實作已清（2026-08-19）。** Contract 已交（`get_my_mgmt_profile_v2`／`switch_my_mgmt_role_v2`／`src/lib/authzProfile.ts`）。Auth bootstrap／頁守衛已讀 DB profile，失敗唔回退 localStorage。Service 寫入不再以 storage 角色作授權；寫入掣改 `can(profile.activeCapabilities, key)`；敏感路由已加 `RequireCapabilities`，原有 `RequireMgmtRoles` 暫留。計糧／讓房／排程／`teacherScope` 顯示及查詢範圍亦已改讀 `useAuth().profile`。Supabase Auth JWT 原生必帶 `session_id`；production 11 個 session role 列全部可對應 `auth.sessions`，毋須自訂 JWT hook。**唔改 nav。** 餘真人雙裝置不同帽驗收。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)（開局仍有效；「未交 contract 唔改 Auth」已過時）。
+**前端實作已清（2026-08-19）。** Contract 已交（`get_my_mgmt_profile_v2`／`switch_my_mgmt_role_v2`／`src/lib/authzProfile.ts`）。Auth bootstrap／頁守衛已讀 DB profile，失敗唔回退 localStorage。Service 寫入不再以 storage 角色作授權；寫入掣改 `can(profile.activeCapabilities, key)`；敏感路由只靠 `RequireCapabilities`（舊頁內 `RequireMgmtRoles` 已刪；deep-link 跟 capability，側欄仍跟 nav）。計糧／讓房／排程／`teacherScope` 顯示及查詢範圍亦已改讀 `useAuth().profile`。Supabase Auth JWT 原生必帶 `session_id`；production 11 個 session role 列全部可對應 `auth.sessions`，毋須自訂 JWT hook。**唔改 nav。** 餘真人雙裝置不同帽驗收。過夜續：[`2026-08-15-p0-authz-p0-2-session.md`](../../meta/handoffs/2026-08-15-p0-authz-p0-2-session.md)（開局仍有效；「未交 contract 唔改 Auth」已過時）。
 
 ### 成因
 
@@ -90,7 +90,7 @@ Phase B／C 用 `is_mgmt_staff()` 當「後台職員」一把刀：多數營運�
 - **真源（DB）**：`get_my_mgmt_profile_v2`／`current_app_role()` ← `mgmt_session_roles` + `app_user_roles`（無 `session_id` 的合成／舊測試 JWT 先走 legacy fallback）。
 - **快取（瀏覽器）**：登入／切角色時 `applyProfileToStorage` 寫 `mgmt_role`、`teacher_id`。
 
-`AuthProvider.role` 已係 `profile?.activeRole`（唔回退 storage）。`RequireMgmtRoles` 已讀 AuthContext。服務層寫入已唔再 assert storage 角色（2026-08-19）：`publishSystemNotice`、刪點名、`updateAppUser`、新增老師、系統通知發佈改由 RLS／RPC 決定成敗。Inbox `actor_key` 改只打 `current_inbox_actor_key()`；feed／未讀數用 Auth `activeRole`＋`teacherId`。畫面寫入掣改 `can(activeCapabilities, key)`（學生詳情、點名紀錄、班／老師列表、用戶、優惠目錄、家長 Portal 邀請等）。
+`AuthProvider.role` 已係 `profile?.activeRole`（唔回退 storage）。頁面深連結改由 `RequireCapabilities` 守。服務層寫入已唔再 assert storage 角色（2026-08-19）：`publishSystemNotice`、刪點名、`updateAppUser`、新增老師、系統通知發佈改由 RLS／RPC 決定成敗。Inbox `actor_key` 改只打 `current_inbox_actor_key()`；feed／未讀數用 Auth `activeRole`＋`teacherId`。畫面寫入掣改 `can(activeCapabilities, key)`（學生詳情、點名紀錄、班／老師列表、用戶、優惠目錄、家長 Portal 邀請等）。
 
 `PayrollView`、讓房兩頁、排程及所有 `teacherScope` caller 已改讀 Auth profile。`getMgmtRole()` 及舊角色 helper 僅留喺 `mgmtRole.ts` 作顯示快取／兼容，無 production caller 以此決定頁面、範圍或寫入。
 
@@ -114,7 +114,7 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 2. 刪服務層授權用嘅 `getMgmtRole()`／`isAdminOrAlien()`；寫入失敗必須來自 RLS／RPC。前端旗標只藏掣。**已做**（2026-08-19）。
 3. `AuthProvider.role` 唔回退 `getMgmtRole()`；session 無 profile 當未登入。**已做。**
 4. 舊頁手寫 `localStorage.getItem("mgmt_role")` 收斂到同一守衛。`Role` 型補 manager／finance。**已做**：寫入掣用 `can()`；顯示／老師範圍用 Auth profile。
-5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-19；`RequireCapabilities` 讀 active capabilities；原有 `RequireMgmtRoles` 暫留；**無改 nav**，IA1）。
+5. 對照 `App.tsx`、`NAV_STRUCTURE` 做 route-role 矩陣；所有敏感 deep-link 用同一 Auth-context 守衛，補 `/Courses`、`/Classes`、`/Students/:id`、`/EnrollmentChanges`、`/LessonBalanceMismatch` 等缺口。**已做**（2026-08-19；`RequireCapabilities` 讀 active capabilities；**同日夜**刪 `RequireMgmtRoles`，過寬讀權已收成對應寫入／管理 key；**無改 nav**，IA1）。學生列表仍可把老師導去班別（產品分流，唔係雙重守衛）。
 6. Inbox actor 改用 `app_users.id`（或現有 `current_inbox_actor_key()` DB 函式），唔用角色字串。**已做**（只打 RPC，唔 fallback storage）。
 7. 保留 storage 只作顯示名／側欄摺疊；文件寫明「localStorage ≠ 權限」。**已做**（`mgmtRole.ts` 僅留顯示快取／兼容；production caller 已清）。
 8. JWT 帶 `session_id`，令 `current_app_role()` 跟 `mgmt_session_roles`（雙角色如 Mark 預設帽）。**已確認**（2026-08-19）：Supabase Auth access token 必帶；production session role 列對應 `auth.sessions`。SQL 模擬同一帳戶兩個 session 可分別戴 teacher／manager，測試列已刪。毋須 app 自加 claim；真人雙裝置畫面可選。
@@ -132,7 +132,7 @@ P0-1 同 P0-2 要同一真源，否則只修一邊唔夠。實作順序：**先 
 | 波 | 做 | 依賴 |
 | --- | --- | --- |
 | A | P0-1 capability kernel＋按域收緊 RLS／command | **production 已套**（2026-08-19；`authz_version` 10） |
-| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 已讀 DB profile；**service／畫面 `can()`／敏感路由／老師 scope 已清**（2026-08-19）。JWT `session_id` 已由 production session rows 證實；餘真人雙裝置驗收。nav 另包（IA1） |
+| B | P0-2＋P1-4 Auth 真源、頁級守衛、Role 型收斂 | profile v2 已交；Auth 已讀 DB profile；**service／畫面 `can()`／敏感路由／老師 scope 已清**；**頁面已只靠 `RequireCapabilities`**（2026-08-19 夜）。JWT `session_id` 已由 production session rows 證實；餘真人雙裝置驗收。nav 另包（IA1） |
 
 ---
 

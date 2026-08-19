@@ -9,10 +9,7 @@ type Props = {
  children: ReactNode
 }
 
-/**
- * 以 Auth profile 的 active capabilities 守住敏感頁面。
- * `RequireMgmtRoles` 暫時仍可包在頁內，待入口／角色矩陣另包收斂。
- */
+/** 以 Auth profile 的 active capabilities 守住敏感頁面。側欄入口仍跟 nav（IA1），唔當授權。 */
 export function RequireCapabilities({ anyOf, children }: Props) {
  const { ready, profile } = useAuth()
  if (!ready) return null
