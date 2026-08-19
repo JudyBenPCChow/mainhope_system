@@ -55,7 +55,8 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isAlien, isMgmtStaff } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { gradeChineseToCode } from "@/lib/courseCode"
 import {
  academicYearLabelForClass,
@@ -229,7 +230,9 @@ export function ClassDetailView() {
  const navigate = useNavigate()
  const location = useLocation()
  const cid = classId ?? ""
- const canManageClass = isMgmtStaff()
+ const { profile } = useAuth()
+ const canManageClass = can(profile?.activeCapabilities, "classes.update")
+ const canOpenCourseCatalog = can(profile?.activeCapabilities, "catalog.manage")
  const fromPrivateTutoring =
   Boolean((location.state as { fromPrivateTutoring?: boolean } | null)?.fromPrivateTutoring)
  const [tab, setTab] = useState<TabId>("basic")
@@ -310,7 +313,7 @@ export function ClassDetailView() {
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
 
- const teacherScopeId = getTeacherScopeTeacherId()
+ const teacherScopeId = getTeacherScopeTeacherId(profile)
  const isTeacherPortal = Boolean(teacherScopeId)
 
  const classYearLocked = false
@@ -376,7 +379,6 @@ export function ClassDetailView() {
   setLoading(true)
   setPageErr(null)
   try {
-   const teacherScope = getTeacherScopeTeacherId()
    const [c, st, ev, sc, tch, rm, allSt, subjectOpts] = await Promise.all([
     getClassById(cid),
     fetchClassStudents(cid),
@@ -384,7 +386,7 @@ export function ClassDetailView() {
     fetchClassSchedules(cid),
     fetchTeacherOptions(),
     fetchClassroomOptions(),
-    teacherScope ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
+    teacherScopeId ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
     fetchSubjectOptions(),
    ])
    setCls(c)
@@ -446,7 +448,7 @@ export function ClassDetailView() {
    })
    setLoading(false)
   }
- }, [cid])
+ }, [cid, teacherScopeId])
 
  useEffect(() => {
   void reload()
@@ -699,12 +701,11 @@ export function ClassDetailView() {
 
  const openPrivateBook = useCallback(async () => {
   if (!cls) return
-  const tid = getTeacherScopeTeacherId()
   setPrivateBookDate(localYmd())
   setPrivateBookSlotIdx(0)
   setPrivateBookConsecutive(false)
   setPrivateBookRoomId("")
-  setPrivateBookTeacherId(tid || cls.teacher_id || "")
+  setPrivateBookTeacherId(teacherScopeId || cls.teacher_id || "")
   setPrivateBookMode("single")
   setPrivateBookWeekCount("4")
   setPrivateBookErr(null)
@@ -720,7 +721,7 @@ export function ClassDetailView() {
    setPrivateBookSchedules([])
    setPrivateBookPending([])
   }
- }, [cls])
+ }, [cls, teacherScopeId])
 
  const onPrivateBookDateChange = useCallback(async (ymd: string) => {
   setPrivateBookDate(ymd)
@@ -1779,7 +1780,7 @@ export function ClassDetailView() {
        </div>
       ) : null}
       <div className="flex justify-end">
-       {!getTeacherScopeTeacherId() && (canEditClass || canAddPrivateStudent) ? (
+       {!teacherScopeId && (canEditClass || canAddPrivateStudent) ? (
        <Dialog
         open={addStudentOpen}
         onOpenChange={(open) => {
@@ -1952,7 +1953,7 @@ export function ClassDetailView() {
          </Link>
          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
           <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
-          {!getTeacherScopeTeacherId() && (canEditClass || canAddPrivateStudent) ? (
+          {!teacherScopeId && (canEditClass || canAddPrivateStudent) ? (
            <>
             <Button
              type="button"
@@ -2408,7 +2409,7 @@ export function ClassDetailView() {
          <p className="text-xs text-muted-foreground">
           更換模板會更新班別編碼、科目與年級；已有學生與排程不會自動清除。
          </p>
-         {isAlien() ? (
+         {canOpenCourseCatalog ? (
           <Link to="/Courses" className="text-xs font-medium text-primary hover:underline">
            前往課程管理編輯模板內容
           </Link>

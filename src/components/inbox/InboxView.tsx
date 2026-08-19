@@ -9,8 +9,10 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
-import { getMgmtRole, type MgmtRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import type { MgmtRole } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -79,8 +81,8 @@ export function InboxView() {
  const navigate = useNavigate()
  const { pushBanner } = useAppBanner()
  const isMobile = useIsMobile()
- const role = getMgmtRole()
- const canPublish = role === "alien"
+ const { profile, role } = useAuth()
+ const canPublish = can(profile?.activeCapabilities, "system_notice.publish")
  /** 行政／管理層預設看系統更新；老師／外星人仍預設營運通知 */
  const preferSystemFirst = role === "admin" || role === "manager"
 
@@ -111,7 +113,12 @@ export function InboxView() {
   setLoading(true)
   setErr(null)
   try {
-   const data = await fetchInboxFeed({ category, unreadOnly })
+   const data = await fetchInboxFeed({
+    category,
+    unreadOnly,
+    activeRole: role,
+    teacherId: profile?.teacherId ?? null,
+   })
    setItems(data)
   } catch (e) {
    reportUserFacingError(e, { source: "InboxView.load", setErr })
@@ -119,7 +126,7 @@ export function InboxView() {
   } finally {
    setLoading(false)
   }
- }, [category, unreadOnly])
+ }, [category, unreadOnly, role, profile?.teacherId])
 
  useEffect(() => {
   void load()
@@ -203,7 +210,12 @@ export function InboxView() {
    setCategory("system")
    setDetailKey(null)
    pushBanner({ tone: "success", title: "已發佈系統通知" })
-   const data = await fetchInboxFeed({ category: "system", unreadOnly })
+   const data = await fetchInboxFeed({
+    category: "system",
+    unreadOnly,
+    activeRole: role,
+    teacherId: profile?.teacherId ?? null,
+   })
    setItems(data)
    notifyInboxUnreadChanged()
   } catch (e) {

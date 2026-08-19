@@ -8,6 +8,7 @@ import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -35,7 +36,8 @@ function snippet(text: string, max = 90): string {
 }
 
 export function TeachingRecordsPage() {
- const teacherTid = getTeacherScopeTeacherId()
+ const { profile } = useAuth()
+ const teacherTid = getTeacherScopeTeacherId(profile)
  const [dateRange, setDateRange] = useState<DateRangeValue>(() => defaultRange())
  const [keyword, setKeyword] = useState("")
  const [scope, setScope] = useState<NotesScope>("withNotes")

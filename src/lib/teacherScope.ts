@@ -1,15 +1,16 @@
-import { getMgmtRole } from "@/lib/mgmtRole"
+import type { AuthzProfile } from "@/lib/authzProfile"
 
-/** 演示用：與 `supabase/seed.sql` 中 Judy Chu 列 id 一致 */
-export const JUDY_CHU_TEACHER_ID = "f1ee1000-0000-4000-8000-000000001001"
+type TeacherScopeProfile = Pick<AuthzProfile, "activeRole" | "teacherId">
 
-/** 目前為專班老師登入時，`localStorage.teacher_id` 所代表的教師 uuid */
-export function getTeacherScopeTeacherId(): string | null {
- if (getMgmtRole() !== "teacher") return null
- const id = localStorage.getItem("teacher_id")
+/** 目前 Auth profile 為專科班老師時，回傳該帳戶對應的教師 uuid。 */
+export function getTeacherScopeTeacherId(
+ profile: TeacherScopeProfile | null | undefined
+): string | null {
+ if (profile?.activeRole !== "teacher") return null
+ const id = profile.teacherId
  return id && id.trim().length > 0 ? id.trim() : null
 }
 
-export function isTeacherPortal(): boolean {
- return getTeacherScopeTeacherId() != null
+export function isTeacherPortal(profile: TeacherScopeProfile | null | undefined): boolean {
+ return getTeacherScopeTeacherId(profile) != null
 }

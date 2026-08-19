@@ -17,7 +17,8 @@ import { Tag, type TagTone } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -113,7 +114,8 @@ function canResetPassword(u: AppUserRow): boolean {
 }
 
 export function UserManagementView() {
- const canEdit = isSuperAdmin()
+ const { profile } = useAuth()
+ const canEdit = can(profile?.activeCapabilities, "users.manage")
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<AppUserRow[]>([])

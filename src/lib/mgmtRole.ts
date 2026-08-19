@@ -2,7 +2,7 @@ import { getNextAcademicYearLabel } from "@/lib/academicYearAccess"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { DEMO_ADMIN_GREETING_NAME, DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 
-/** 與首頁演示／Layout 一致：localStorage `mgmt_role` */
+/** 與首頁演示／Layout 一致：localStorage `mgmt_role`（顯示快取；授權以 Auth profile／RLS 為準） */
 export type MgmtRole = "admin" | "manager" | "finance" | "teacher" | "alien"
 
 export function getMgmtRole(): MgmtRole | null {

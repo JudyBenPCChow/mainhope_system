@@ -41,7 +41,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
-import { isAdminOrAlien, isMgmtStaff } from "@/lib/mgmtRole"
+import { can } from "@/lib/authzProfile"
 import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -182,25 +182,21 @@ export function StudentDetailView() {
  const location = useLocation()
  const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
- const { role: authRole } = useAuth()
+ const { role: authRole, profile } = useAuth()
  const exitPath = useMemo(() => resolveStudentDetailExitPath(location, authRole), [location, authRole])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [tab, setTabState] = useState<TabId>("basic")
  const [enrollKindOpen, setEnrollKindOpen] = useState(false)
 
- const isStaff = isMgmtStaff()
- /** 繳費紀錄唯讀（含 manager） */
- const canViewMoney = isStaff
- /** 學生詳情代請假／新增請假（日常行政；manager 用請假管理頁） */
- const canMutateLeave = isAdminOrAlien()
- /** 報讀／待補／基本資料寫入（日常行政） */
- const canMutateStudentOps = isAdminOrAlien()
- /** 開啟請假管理深連結（admin／manager／alien） */
- const canOpenLeaveManagement = isStaff
- const canDeleteAttendance = isAdminOrAlien()
- const canVoidPayment = isAdminOrAlien()
- const canRegisterPayment = isAdminOrAlien()
+ const caps = profile?.activeCapabilities
+ const canViewMoney = can(caps, "payments.read")
+ const canMutateLeave = can(caps, "leaves.manage")
+ const canMutateStudentOps = can(caps, "students.update") || can(caps, "students.enroll")
+ const canOpenLeaveManagement = can(caps, "leaves.read") || can(caps, "leaves.manage")
+ const canDeleteAttendance = can(caps, "attendance.delete")
+ const canVoidPayment = can(caps, "payments.void")
+ const canRegisterPayment = can(caps, "payments.create") || can(caps, "payments.mark_received")
 
  const visibleTabs = useMemo(
   () => TABS.filter((t) => canViewMoney || t.id !== "payments"),
@@ -330,7 +326,7 @@ export function StudentDetailView() {
    if (!sid) return
    if (tabId === "attendance" || tabId === "leave" || tabId === "history" || tabId === "futureSchedules") return
    if (!force && tabLoadedRef.current.has(tabId)) return
-   const staff = isMgmtStaff()
+   const includeMoney = canViewMoney
    setTabLoading(true)
    try {
     if (tabId === "basic") {
@@ -346,8 +342,8 @@ export function StudentDetailView() {
      setLessonBalancesState("loading")
      const settled = await Promise.allSettled([
       fetchEnrollmentsForStudent(sid),
-      staff ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
-      fetchLessonBalancesForStudent(sid, { includePaidLessons: staff }),
+      includeMoney ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
+      fetchLessonBalancesForStudent(sid, { includePaidLessons: includeMoney }),
       fetchClassOptions(),
      ])
      if (settled[0].status === "fulfilled") {
@@ -367,7 +363,7 @@ export function StudentDetailView() {
      }
      if (settled[3].status === "fulfilled") setClassOptions(settled[3].value)
     } else if (tabId === "payments") {
-     if (!staff) {
+     if (!includeMoney) {
       setPayments([])
       setPaymentsState("ready")
      } else {
@@ -392,7 +388,7 @@ export function StudentDetailView() {
     setTabLoading(false)
    }
   },
-  [sid]
+  [sid, canViewMoney]
  )
 
  /** 寫入後：重載核心＋已開過／而家嘅分頁 */

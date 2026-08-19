@@ -54,8 +54,9 @@ import {
  buildPaymentReceiptDocumentHtmlAsync,
  printPayment,
 } from "@/lib/paymentPrint"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isSuperAdmin } from "@/lib/mgmtRole"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
  LATE_FEE_AMOUNT,
@@ -113,6 +114,8 @@ type CollectMode = "receive" | "invoice"
 export function PaymentsPageView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const { profile } = useAuth()
+ const canEditDiscountCatalog = can(profile?.activeCapabilities, "catalog.manage")
  const [searchParams, setSearchParams] = useSearchParams()
  const [collectMode, setCollectMode] = useState<CollectMode>("receive")
 
@@ -1663,7 +1666,7 @@ export function PaymentsPageView() {
         )}
        </div>
        <p className="text-xs text-muted-foreground">
-        {isSuperAdmin()
+        {canEditDiscountCatalog
          ? "優惠規則可於「優惠折扣」維護；依目錄排序套用（先百分比再固定金額）。"
          : "優惠規則可於「優惠折扣」查閱；修改僅限管理員。依目錄排序套用（先百分比再固定金額）。"}
         {maxStackCount != null ? ` 每單最多 ${maxStackCount} 項。` : null}
@@ -1990,7 +1993,7 @@ export function PaymentsPageView() {
      </DialogHeader>
      <p className="text-sm text-muted-foreground">
       以下為目前可用優惠的唯讀說明。
-      {isSuperAdmin() ? null : " 修改規則僅限管理員。"}
+      {canEditDiscountCatalog ? null : " 修改規則僅限外星人。"}
      </p>
      {discounts.length === 0 ? (
       <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>

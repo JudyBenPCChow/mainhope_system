@@ -10,7 +10,6 @@ import {
  normalizeEnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
-import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
@@ -489,21 +488,14 @@ export async function fetchAttendanceLifecycleHitById(
  return mapHit(data as Record<string, unknown>)
 }
 
-function assertCanDeleteAttendanceAsMgmt(): void {
- if (!isAdminOrAlien()) {
-  throw new Error("僅管理員或外星人可刪除單筆出席紀錄（過渡權限＝mgmtRole，非 Auth）")
- }
-}
-
 /**
- * A2b O2：admin／alien 刪單一出席列。
+ * 刪單一出席列。寫入成敗由 RLS（`attendance.delete`）決定。
  * 會先 re-read 最新列再走 audit＋樂觀鎖刪除。
  */
 export async function deleteAttendanceDetailAsMgmt(
  attendanceDetailId: string,
  reason = "mgmt_single_delete"
 ): Promise<void> {
- assertCanDeleteAttendanceAsMgmt()
  const hit = await fetchAttendanceLifecycleHitById(attendanceDetailId)
  if (!hit) return // 已不存在＝idempotent
  await deleteAttendanceHitsWithAuditOrThrow([hit], reason)

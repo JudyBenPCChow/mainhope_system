@@ -11,7 +11,8 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { canManageSchedules as canManageSchedulesRole } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -39,6 +40,7 @@ export function ScheduleDetailView() {
  const navigate = useNavigate()
  const sid = scheduleId ?? ""
  const { confirmDialog } = useAppConfirm()
+ const { profile } = useAuth()
  const [row, setRow] = useState<ScheduleDetailRecord | null>(null)
  const [ctx, setCtx] = useState<ScheduleDetailContext | null>(null)
  const [loading, setLoading] = useState(true)
@@ -48,7 +50,7 @@ export function ScheduleDetailView() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
  const [substituteOpen, setSubstituteOpen] = useState(false)
- const canManageSchedules = canManageSchedulesRole()
+ const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
  const canAssignSubstitute = canManageSchedules
 
  const load = useCallback(async () => {
@@ -270,7 +272,7 @@ export function ScheduleDetailView() {
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
        <h2 className="text-lg font-semibold md:text-xl">請假紀錄</h2>
        <p className="mt-1 text-sm text-muted-foreground">
-        與本排程連結，或同班同日之請假（含待連結排程）。
+        與本排程連結，或尚未連結排程且同班同日之請假。
        </p>
        {safeCtx.leaves.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">尚無請假紀錄。</p>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { can, usesAccountCapabilities, type AuthzProfile } from "@/lib/authzProfile"
+import { can, canAny, usesAccountCapabilities, type AuthzProfile } from "@/lib/authzProfile"
 import type { MgmtRole } from "@/lib/mgmtRole"
 
 describe("can", () => {
@@ -13,6 +13,19 @@ describe("can", () => {
   it("fails closed on empty", () => {
     expect(can([], "students.read")).toBe(false)
     expect(can(null, "students.read")).toBe(false)
+  })
+})
+
+describe("canAny", () => {
+  it("allows a route when any required active capability is present", () => {
+    expect(canAny(["payments.mark_received"], ["payments.create", "payments.mark_received"])).toBe(
+      true
+    )
+  })
+
+  it("fails closed without a matching capability", () => {
+    expect(canAny(["payments.read"], ["payments.create", "payments.mark_received"])).toBe(false)
+    expect(canAny(null, ["students.read"])).toBe(false)
   })
 })
 

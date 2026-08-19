@@ -468,16 +468,27 @@ export function makeupsForSchedules(
  )
 }
 
+/**
+ * 一筆請假是否套用到某排程：
+ * 已連結該排程；或尚未連結排程（schedule_id 空）且同班同日。
+ * 已連結其他排程的請假不可再用「同班同日」套到連堂另一節，否則同一學生會被計兩次。
+ */
+export function leaveAppliesToSchedule(
+ leave: { scheduleId: string | null; classId: string; leaveDate: string },
+ schedule: { id: string; classId: string | null; scheduledDate: string }
+): boolean {
+ if (leave.scheduleId === schedule.id) return true
+ if (leave.scheduleId != null) return false
+ return leave.classId === schedule.classId && leave.leaveDate === schedule.scheduledDate
+}
+
 export function leavesForSchedule(
  context: ScheduleRosterContext,
  scheduleId: string
 ): ScheduleRosterLeave[] {
  const schedule = context.schedules.find((row) => row.id === scheduleId)
  if (!schedule?.classId) return []
- return context.leaves.filter((leave) =>
-  leave.scheduleId === schedule.id
-  || (leave.classId === schedule.classId && leave.leaveDate === schedule.scheduledDate)
- )
+ return context.leaves.filter((leave) => leaveAppliesToSchedule(leave, schedule))
 }
 
 export function singleSessionNotOnSchedule(

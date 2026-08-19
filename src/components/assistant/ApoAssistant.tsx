@@ -10,6 +10,7 @@ import {
  APO_STARTER_SUGGESTIONS,
  APO_WELCOME_TEXT,
 } from "@/lib/apoConfig"
+import { useAuth } from "@/lib/authBootstrap"
 import { cleanReplyPathNoise, mergePathHints } from "@/lib/apoPaths"
 import { EMPTY_APO_CHAT_CONTEXT, loadApoSession, saveApoSession, type ApoChatContext } from "@/lib/apoSession"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -75,6 +76,8 @@ const floatingAnchorClass = "bottom-[calc(5.75rem+env(safe-area-inset-bottom))] 
 
 export function ApoAssistant({ role }: ApoAssistantProps) {
  const navigate = useNavigate()
+ const { profile } = useAuth()
+ const teacherId = getTeacherScopeTeacherId(profile)
  const [open, setOpen] = useState(false)
  const [draft, setDraft] = useState("")
  const [sending, setSending] = useState(false)
@@ -121,7 +124,7 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
     const result = await sendApoChatMessage({
      messages: history,
      userRole: role,
-     teacherId: getTeacherScopeTeacherId(),
+     teacherId,
      chatContext,
     })
 
@@ -152,7 +155,7 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
     setSending(false)
    }
   },
-  [messages, role, sending, chatContext]
+  [messages, role, sending, chatContext, teacherId]
  )
 
  const goToPage = useCallback(

@@ -23,7 +23,8 @@ import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
-import { isSuperAdmin } from "@/lib/mgmtRole"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -94,6 +95,8 @@ export function TeacherDetailView() {
  const { teacherId } = useParams<{ teacherId: string }>()
  const navigate = useNavigate()
  const tid = teacherId ?? ""
+ const { profile } = useAuth()
+ const canEditAbbr = can(profile?.activeCapabilities, "catalog.manage")
  const [tab, setTab] = useState<TabId>("basic")
  const [teacher, setTeacher] = useState<TeacherRecord | null>(null)
  const [classes, setClasses] = useState<TeacherClassRow[]>([])
@@ -256,11 +259,11 @@ export function TeacherDetailView() {
     subject_speciality: subjects.length ? subjects : null,
     remarks: form.remarks,
    }
-   if (isSuperAdmin()) {
+   if (canEditAbbr) {
     const raw = form.abbr != null ? String(form.abbr).trim() : ""
     patch.abbr = raw === "" ? null : raw.slice(0, 64)
    }
-   const updated = await updateTeacher(tid, patch)
+   const updated = await updateTeacher(tid, patch, { teacherId: profile?.teacherId ?? null })
    setTeacher(updated)
    setForm(updated)
    setSelectedSubjects(updated.subject_speciality ?? [])
@@ -408,11 +411,11 @@ export function TeacherDetailView() {
       <div className="max-w-xl">
        <label className="text-xs font-medium text-muted-foreground">
         內部簡稱（ABBR）
-        {!isSuperAdmin() ? (
+        {!canEditAbbr ? (
          <span className="ml-2 font-normal text-muted-foreground">（僅外星人可編輯）</span>
         ) : null}
        </label>
-       {isSuperAdmin() ? (
+       {canEditAbbr ? (
         <Input
          className="mt-1 font-mono text-sm uppercase"
          spellCheck={false}

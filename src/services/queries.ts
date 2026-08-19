@@ -1,4 +1,3 @@
-import { isSuperAdmin } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
 
 /** 依表名讀取全表（依 `created_at` 新到舊）。未設定 Supabase 時回傳空陣列。 */
@@ -37,7 +36,7 @@ export const listLeaveMakeupRecord = () => listTable("leave_makeup_records")
 export const listTrialSession = () => listTable("trial_sessions")
 export const listAppUsers = () => listTable("app_users")
 
-/** 對應 UserManagement 的 `User.update`（表：`app_users`） */
+/** 對應 UserManagement 的 `User.update`（表：`app_users`）。寫入成敗由 RLS（`users.manage`）決定。 */
 export async function updateAppUser(
  id: string,
  patch: Record<string, unknown>
@@ -46,10 +45,6 @@ export async function updateAppUser(
   console.warn("[api] Supabase 未設定，略過 User.update")
   return null
  }
- if (!isSuperAdmin()) {
-  throw new Error("僅外星人可修改後台使用者資料。")
- }
-
  const { data, error } = await supabase
   .from("app_users")
   .update({ ...patch, updated_at: new Date().toISOString() })

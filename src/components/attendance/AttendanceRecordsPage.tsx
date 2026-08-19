@@ -21,8 +21,9 @@ import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { isAdminOrAlien } from "@/lib/mgmtRole"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -93,11 +94,12 @@ function getInitialAttendanceViewMode(): ViewMode {
 }
 
 export function AttendanceRecordsPage() {
- const teacherTid = getTeacherScopeTeacherId()
  const isMobile = useIsMobile()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const canDeleteAttendance = isAdminOrAlien()
+ const { profile } = useAuth()
+ const teacherTid = getTeacherScopeTeacherId(profile)
+ const canDeleteAttendance = can(profile?.activeCapabilities, "attendance.delete")
  const [viewMode, setViewMode] = usePersistentState<ViewMode>(
   "mgmt_attendance_records_viewMode",
   getInitialAttendanceViewMode()
