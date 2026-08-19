@@ -96,7 +96,7 @@ P0-1 今期 audit 最低只記：邊個、以咩角色、做咗咩操作、改�
 - `mgmt_active_roles` 改 `(app_user_id, session_id)`（或等價）。
 - `current_app_role()` **唔** fallback `app_users.role`（否則新 session 食帳戶舊帽，R1 廢）。
 - 新 session **建立列**時先寫預設帽：若 `app_users.role` 仍喺已獲授清單就用它，否則用授予清單第一個。呢個只係 seed，唔係持續 fallback。
-- logout／session 過期刪列。
+- logout／session 過期刪列。**已做**（2026-08-20）。
 - JWT 穩定 `session_id` 已核實（2026-08-19）：Supabase Auth access token 必帶；production 11／11 `mgmt_session_roles` 列對應 `auth.sessions`，毋須另造 session 鍵。
 
 ### Catalog（已採納）

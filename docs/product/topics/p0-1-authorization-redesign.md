@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（production RLS 已套 `authz_version=10`；P0-2 已入 main PR #21；頁內角色門仍暫留） |
+| 狀態 | `done`（2026-08-20；隨上層 tech-debt-hardening 關帳；`authz_version=11`） |
 | 日期 | 2026-08-15 |
 | 範圍 | P0-1：DB 權限粗過 UI 角色 |
 | 直接相關 | P0-2：前端守衛讀 localStorage，唔係 Auth |

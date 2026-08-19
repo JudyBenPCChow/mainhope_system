@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | 已簽方案視圖（2026-08-19 catalog 轉寫；**production RLS 已套** `authz_version=10`；側欄未改） |
+| 狀態 | 已簽方案視圖（2026-08-19 catalog 轉寫；**production RLS 已套**；2026-08-20 inbox／portal view-as 已收 capability；側欄未改） |
 | 真源 | [`p0-1-authz-catalog.md`](./p0-1-authz-catalog.md)（key 列）＋ [`p0-1-authorization-decisions.md`](./p0-1-authorization-decisions.md) |
 | 角色文案 | 行政／管理層／財務／老師／外星人 |
 | Canvas | `p0-1-authz-feature-roles.canvas.tsx` |
@@ -27,6 +27,7 @@
 | 改學生資料 | 行政、管理層、外星人 | 戴帽 | 財務不可改 |
 | 報讀／退讀（專科班、私人課程、功輔班） | 行政、管理層、外星人 | 戴帽 | `students.enroll`；舊匯入暫跟此 key |
 | 發家長 Portal 邀請 | 行政、管理層、外星人 | 戴帽 | 財務不可發（F2） |
+| 家長 Portal 職員視角 | 行政、管理層、外星人 | 戴帽 | 2026-08-20 改 `portal.invite`；財務不可 |
 
 ## 班別
 
@@ -91,7 +92,7 @@
 
 | 功能 | 有此功能的角色 | 帽 | 說明 |
 | --- | --- | --- | --- |
-| 收件匣已讀 | 行政、管理層、財務、老師、外星人 | 戴帽 | inbox 營運／已讀鍵／portal view-as 仍 `is_mgmt_staff`（staging 都未收） |
+| 收件匣已讀 | 行政、管理層、財務、老師、外星人 | 戴帽 | 已讀只准自己 `actor_key`；職員 SELECT 跟 `inbox.read`；ops 寫入跟營運寫入 capability |
 
 ## 計糧
 

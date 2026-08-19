@@ -6,7 +6,14 @@ import { supabase } from "@/lib/supabaseClient"
  * UI／page／lib 的 Auth 出口。資料查詢仍走 services／；禁止在畫面 import raw `supabase`。
  */
 export async function signOutAuth(): Promise<void> {
- if (supabase) await supabase.auth.signOut()
+ if (!supabase) return
+ try {
+  const { error } = await supabase.rpc("clear_my_mgmt_session_role")
+  if (error) console.warn("[signOutAuth] 未能清 session 角色列", error.message)
+ } catch (e) {
+  console.warn("[signOutAuth] 未能清 session 角色列", e)
+ }
+ await supabase.auth.signOut()
 }
 
 export async function signInWithPasswordAuth(
