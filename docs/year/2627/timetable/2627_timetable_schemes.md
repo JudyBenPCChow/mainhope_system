@@ -6,7 +6,23 @@
 
 **Folder 結構：** `versions/v<版本>/` 保存各版方案與老師附件；`archive/` 保存早期版本及試排；`assets/fonts/` 保存字型。根目錄只留本索引與排課需求。
 
-## 現行候選 — ver. 3.3（2026-08-19）
+## 現行候選 — ver. 3.4（2026-08-20）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.4/2627_timetable_scheme_v3.4.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.4/2627_timetable_teachers_week_v3.4.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.4/2627_timetable_weekly_v3.4.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.4/2627_timetable_empty_rooms_v3.4.md) |
+| Word／PDF | 未出檔 |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **63** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.3 | 加 Liam Lai／Leo Chan 班別時間鎖定；班格不變 |
+
+**文件結構：** 方案＝封面列與 3.3 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.3（2026-08-19；檔案保留不動）
 
 | 項目 | 值 |
 | --- | --- |
@@ -14,12 +30,9 @@
 | 老師一周排程（獨立附件） | [`md`](versions/v3.3/2627_timetable_teachers_week_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_teachers_week_v3.3.docx)／[`pdf`](versions/v3.3/2627_timetable_teachers_week_v3.3.pdf) |
 | 周時間表（獨立附件） | [`md`](versions/v3.3/2627_timetable_weekly_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_weekly_v3.3.docx)／[`pdf`](versions/v3.3/2627_timetable_weekly_v3.3.pdf) |
 | 空房時間（列表及日視圖1） | [`md`](versions/v3.3/2627_timetable_empty_rooms_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_empty_rooms_v3.3.docx) |
-| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
-| 已排 | **63** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
-| 已確認班別時間 | **Cyndi Ng、Emma Cai**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 已排 | **63** 班 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai** |
 | 相對 3.2 | 方案移除第 8 節周時間表；周時間表改為獨立 md／Word／PDF；班格不變 |
-
-**文件結構：** 方案＝封面列與 3.2 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
 
 ## ver. 3.2（2026-08-19；檔案保留不動）
 
