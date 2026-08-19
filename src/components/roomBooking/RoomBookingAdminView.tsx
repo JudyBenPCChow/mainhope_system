@@ -4,7 +4,6 @@ import { ClipboardCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -16,7 +15,6 @@ import {
 } from "@/services/roomBookingQueries"
 
 export function RoomBookingAdminView() {
- const { role } = useAuth()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<RoomBookingRequestAdminRow[]>([])
@@ -87,10 +85,6 @@ export function RoomBookingAdminView() {
     尚未設定 Supabase（請建立 <code className="rounded bg-white/60 px-1">.env</code>）。
    </div>
   )
- }
-
- if (role !== "admin" && role !== "alien") {
-  return <div className="p-4 text-muted-foreground">此頁僅限管理員或外星人使用。</div>
  }
 
  return (
