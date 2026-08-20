@@ -7,24 +7,29 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
 import {
-  classAbsentTotal,
   classAmount,
   classBillableHc,
   classKindLabel,
+  classNoShowTotal,
+  classNonBillableLeaveTotal,
+  classNotRolledCount,
   classPresentTotal,
   formatHkd,
   gradeAmount,
   gradeBillableHc,
   gradeLessonCount,
   isPresentStatus,
-  lessonAbsentCount,
+  lessonNoShowCount,
+  lessonNonBillableLeaveCount,
   lessonPresentCount,
   mpfBandSteps,
   statusLabel,
   studentHcStatusLabel,
-  teacherAbsentTotal,
   teacherBillableHc,
   teacherCategoryHierarchy,
+  teacherNonBillableLeaveTotal,
+  teacherNoShowTotal,
+  teacherNotRolledCount,
   teacherPresentTotal,
   type CalcVersionMeta,
   type PayrollClassBlock,
@@ -36,6 +41,8 @@ import {
 export type LessonVerifyTarget = {
   lesson: PayrollLesson
   className: string
+  classId?: string
+  teacherId: string
   teacherName: string
 }
 
@@ -131,6 +138,8 @@ export function SummaryTile({
 function LessonCard({
   lesson,
   className,
+  classId,
+  teacherId,
   teacherName,
   highlight,
   onVerify,
@@ -138,13 +147,16 @@ function LessonCard({
 }: {
   lesson: PayrollLesson
   className: string
+  classId?: string
+  teacherId: string
   teacherName: string
   highlight?: boolean
   onVerify?: (target: LessonVerifyTarget) => void
   onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
   const present = lessonPresentCount(lesson)
-  const absent = lessonAbsentCount(lesson)
+  const noShow = lessonNoShowCount(lesson)
+  const leave = lessonNonBillableLeaveCount(lesson)
   const rows = lesson.studentRows ?? []
   const presentRows = rows.filter((r) => isPresentStatus(r.status))
   const absentBillable = rows.filter((r) => r.status === "no_show")
@@ -152,7 +164,7 @@ function LessonCard({
     (r) => r.status === "sick" || r.status === "personal"
   )
   const roster = lesson.rosterCount ?? rows.length
-  const target: LessonVerifyTarget = { lesson, className, teacherName }
+  const target: LessonVerifyTarget = { lesson, className, classId, teacherId, teacherName }
 
   return (
     <div
@@ -180,8 +192,9 @@ function LessonCard({
                 計薪 {lesson.billableHc}
                 {roster > 0 ? `／名冊 ${roster}` : ""} 人
               </span>
-              <span className="tabular-nums text-muted-foreground">出席 {present}</span>
-              <span className="tabular-nums text-muted-foreground">缺席 {absent}</span>
+              <span className="tabular-nums text-muted-foreground">
+                到課 {present} · no show {noShow} · 不扣堂請假 {leave}
+              </span>
               <span className="font-semibold tabular-nums text-foreground">
                 {formatHkd(lesson.amount)}
               </span>
@@ -322,14 +335,16 @@ function LessonCard({
 
 function ClassDetail({
   block,
+  teacherId,
   teacherName,
-  highlightLessonId,
+  highlightLessonIds,
   onVerify,
   onRemindRollcall,
 }: {
   block: PayrollClassBlock
+  teacherId: string
   teacherName: string
-  highlightLessonId?: string | null
+  highlightLessonIds?: ReadonlySet<string>
   onVerify?: (target: LessonVerifyTarget) => void
   onRemindRollcall?: (target: LessonVerifyTarget) => void
 }) {
@@ -340,8 +355,10 @@ function ClassDetail({
           <h3 className="text-sm font-semibold text-foreground">{block.name}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {classKindLabel(block.classKind)} · {block.lessons.length} 堂 · 扣堂{" "}
-            {classBillableHc(block)} 人次 · 出席 {classPresentTotal(block)} · 缺席{" "}
-            {classAbsentTotal(block)} · 小計 {formatHkd(classAmount(block))}
+            {classBillableHc(block)} 人次 · 到課 {classPresentTotal(block)} · no show{" "}
+            {classNoShowTotal(block)} · 不扣堂請假 {classNonBillableLeaveTotal(block)}
+            {classNotRolledCount(block) > 0 ? ` · 未點名 ${classNotRolledCount(block)} 堂` : ""}{" "}
+            · 小計 {formatHkd(classAmount(block))}
           </p>
         </div>
         <Tag tone={block.classKind === "private" ? "info" : "default"} size="sm">
@@ -354,8 +371,10 @@ function ClassDetail({
             key={l.id}
             lesson={l}
             className={block.name}
+            classId={block.id}
+            teacherId={teacherId}
             teacherName={teacherName}
-            highlight={l.id === highlightLessonId}
+            highlight={highlightLessonIds?.has(l.id)}
             onVerify={onVerify}
             onRemindRollcall={onRemindRollcall}
           />
@@ -504,15 +523,17 @@ export function SalaryEvidencePanel({ teacher }: { teacher: PayrollTeacherRow })
 export function TeacherLessonStats({
   teacher,
   compact,
-  highlightLessonId,
+  highlightLessonIds,
   onVerify,
   onRemindRollcall,
+  onJumpNotRolled,
 }: {
   teacher: PayrollTeacherRow
   compact?: boolean
-  highlightLessonId?: string | null
+  highlightLessonIds?: ReadonlySet<string>
   onVerify?: (target: LessonVerifyTarget) => void
   onRemindRollcall?: (target: LessonVerifyTarget) => void
+  onJumpNotRolled?: () => void
 }) {
   if (teacher.grades.length === 0) {
     return (
@@ -527,9 +548,10 @@ export function TeacherLessonStats({
       key={teacher.id}
       teacher={teacher}
       compact={compact}
-      highlightLessonId={highlightLessonId}
+      highlightLessonIds={highlightLessonIds}
       onVerify={onVerify}
       onRemindRollcall={onRemindRollcall}
+      onJumpNotRolled={onJumpNotRolled}
     />
   )
 }
@@ -537,15 +559,17 @@ export function TeacherLessonStats({
 function TeacherLessonStatsBody({
   teacher,
   compact,
-  highlightLessonId,
+  highlightLessonIds,
   onVerify,
   onRemindRollcall,
+  onJumpNotRolled,
 }: {
   teacher: PayrollTeacherRow
   compact?: boolean
-  highlightLessonId?: string | null
+  highlightLessonIds?: ReadonlySet<string>
   onVerify?: (target: LessonVerifyTarget) => void
   onRemindRollcall?: (target: LessonVerifyTarget) => void
+  onJumpNotRolled?: () => void
 }) {
   const hierarchy = useMemo(() => teacherCategoryHierarchy(teacher), [teacher])
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
@@ -566,14 +590,17 @@ function TeacherLessonStatsBody({
   return (
     <div className="space-y-5">
       <div className="overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[36rem] table-fixed text-sm">
+        <table className="w-full min-w-[52rem] text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-left text-xs text-muted-foreground">
               <th className="px-3 py-2.5 font-medium">類別／年級</th>
               <th className="px-3 py-2.5 font-medium">班數</th>
               <th className="px-3 py-2.5 font-medium">堂數</th>
               <th className="px-3 py-2.5 font-medium">扣堂人次</th>
-              <th className="px-3 py-2.5 font-medium">出席／缺席</th>
+              <th className="px-3 py-2.5 font-medium">實際到課</th>
+              <th className="px-3 py-2.5 font-medium">no show</th>
+              <th className="px-3 py-2.5 font-medium">不扣堂請假</th>
+              <th className="px-3 py-2.5 font-medium">未點名</th>
               <th className="px-3 py-2.5 font-medium">薪酬小計</th>
             </tr>
           </thead>
@@ -615,7 +642,16 @@ function TeacherLessonStatsBody({
                     <td className="px-3 py-2.5 tabular-nums font-medium">{b.lessonCount}</td>
                     <td className="px-3 py-2.5 tabular-nums font-semibold">{b.billableHc}</td>
                     <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
-                      {b.presentVisits} / {b.absentVisits}
+                      {b.presentVisits}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {b.noShowVisits}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {b.nonBillableLeaveVisits}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {b.notRolledCount}
                     </td>
                     <td className="px-3 py-2.5 tabular-nums font-semibold">
                       {formatHkd(b.amount)}
@@ -635,7 +671,16 @@ function TeacherLessonStatsBody({
                           <td className="px-3 py-2 tabular-nums">{r.lessonCount}</td>
                           <td className="px-3 py-2 tabular-nums font-semibold">{r.billableHc}</td>
                           <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                            {r.presentVisits} / {r.absentVisits}
+                            {r.presentVisits}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {r.noShowVisits}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {r.nonBillableLeaveVisits}
+                          </td>
+                          <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                            {r.notRolledCount}
                           </td>
                           <td className="px-3 py-2 tabular-nums font-semibold">
                             {formatHkd(r.amount)}
@@ -658,7 +703,26 @@ function TeacherLessonStatsBody({
                 {teacherBillableHc(teacher)}
               </td>
               <td className="px-3 py-2.5 tabular-nums font-semibold">
-                {teacherPresentTotal(teacher)} / {teacherAbsentTotal(teacher)}
+                {teacherPresentTotal(teacher)}
+              </td>
+              <td className="px-3 py-2.5 tabular-nums font-semibold">
+                {teacherNoShowTotal(teacher)}
+              </td>
+              <td className="px-3 py-2.5 tabular-nums font-semibold">
+                {teacherNonBillableLeaveTotal(teacher)}
+              </td>
+              <td className="px-3 py-2.5 tabular-nums font-semibold">
+                {teacherNotRolledCount(teacher) > 0 && onJumpNotRolled ? (
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:underline"
+                    onClick={onJumpNotRolled}
+                  >
+                    {teacherNotRolledCount(teacher)} 堂
+                  </button>
+                ) : (
+                  `${teacherNotRolledCount(teacher)} 堂`
+                )}
               </td>
               <td className="px-3 py-2.5 tabular-nums font-semibold">
                 {formatHkd(cats.reduce((s, c) => s + c.amount, 0))}
@@ -667,6 +731,9 @@ function TeacherLessonStatsBody({
           </tbody>
         </table>
       </div>
+      <p className="text-xs text-muted-foreground">
+        扣堂人次＝實際到課＋no show＋請假而不需補回。舊狀態「出席」計入實際到課，「請假」計入不扣堂請假。此欄與出席紀錄頁的「出席／缺席」不是同一套數字。
+      </p>
 
       {!compact
         ? teacher.grades.map((g) => (
@@ -682,8 +749,9 @@ function TeacherLessonStatsBody({
                 <ClassDetail
                   key={`${g.gradeLabel}-${c.id}-${c.classKind}`}
                   block={c}
+                  teacherId={teacher.id}
                   teacherName={teacher.name}
-                  highlightLessonId={highlightLessonId}
+                  highlightLessonIds={highlightLessonIds}
                   onVerify={onVerify}
                   onRemindRollcall={onRemindRollcall}
                 />

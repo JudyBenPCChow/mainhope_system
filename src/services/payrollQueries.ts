@@ -11,6 +11,7 @@ import {
   roundMoney,
 } from "@/lib/payroll/gradeBand"
 import { computePayrollMonth } from "@/lib/payroll/computeMonth"
+import { attendanceStatusToHc, isActualPresentHc } from "@/lib/payroll/hcStatus"
 import { teacherNeedsMpf, withMpf } from "@/lib/payroll/mpf"
 import { parsePayrollMode, parseRateConfig, pickRateForMonth } from "@/lib/payroll/rates"
 import type {
@@ -31,6 +32,7 @@ import {
   rosterHeadcountForSchedule,
 } from "@/services/scheduleRosterQueries"
 import { fetchAllTeachers, normalizeTeacherEmploymentStatus } from "@/services/teacherQueries"
+import { recordInboxEventOrThrow } from "@/services/inboxEventWrite"
 import type {
   ManualAdjustment,
   PayrollClassBlock,
@@ -259,13 +261,7 @@ function isHomeworkClass(subject: string | null, courseName: string | null): boo
 }
 
 function statusToHc(status: string): StudentHcRow["status"] {
-  if (status.includes("錄影")) return "recording"
-  if (/zoom|網課|線上|直播/i.test(status)) return "zoom"
-  if (/no\s*show/i.test(status)) return "no_show"
-  if (status === "病假" || status.includes("病假")) return "sick"
-  if (status === "事假" || (status.includes("事假") && !status.includes("不需補回"))) return "personal"
-  if (status.includes("請假而不需補回") || status.includes("不用補回")) return "leave_billable"
-  return "in_person"
+  return attendanceStatusToHc(status)
 }
 
 export async function buildLessonInputsForMonth(monthKey: string): Promise<PayrollLessonInput[]> {
@@ -386,13 +382,17 @@ function mapComputedToUiRow(
     if (!gradeMap.has(gradeLabel)) gradeMap.set(gradeLabel, new Map())
     const classMap = gradeMap.get(gradeLabel)!
     if (!classMap.has(l.classId)) classMap.set(l.classId, [])
-    const presentStudents = l.students.filter((s) => s.billable).map((s) => s.studentName)
-    const absentStudents = l.students.filter((s) => !s.billable).map((s) => s.studentName)
     const studentRows: StudentHcRow[] = l.students.map((s) => ({
       name: s.studentName,
       status: statusToHc(s.status),
       countsTowardHc: s.billable,
     }))
+    const presentStudents = studentRows
+      .filter((r) => isActualPresentHc(r.status))
+      .map((r) => r.name)
+    const absentStudents = studentRows
+      .filter((r) => !isActualPresentHc(r.status))
+      .map((r) => r.name)
     classMap.get(l.classId)!.push({
       id: l.scheduleId,
       date: l.date,
@@ -410,6 +410,7 @@ function mapComputedToUiRow(
       substitutePeer: l.substitute ? (l.originalTeacherName ?? undefined) : undefined,
       listPrice: l.listPriceTotal || undefined,
       scheduleId: l.scheduleId,
+      classId: l.classId,
       rosterCount: Math.max(l.expectedRosterCount, l.students.length),
     })
   }
@@ -522,6 +523,7 @@ export type PayrollTeacherStateRecord = {
   submitStatus: TeacherSubmitState["status"]
   submitNote: string | null
   managerSpotChecked: boolean
+  rollCallWaiting: boolean
 }
 
 export type PayrollWorkbench = {
@@ -582,6 +584,7 @@ async function fetchTeacherStates(runId: string): Promise<PayrollTeacherStateRec
       : String(row.submit_status)) as TeacherSubmitState["status"],
     submitNote: row.submit_note != null ? String(row.submit_note) : null,
     managerSpotChecked: Boolean(row.manager_spot_checked),
+    rollCallWaiting: Boolean(row.roll_call_waiting),
   }))
 }
 
@@ -821,6 +824,7 @@ async function upsertTeacherState(
     submit_status: string
     submit_note: string | null
     manager_spot_checked: boolean
+    roll_call_waiting: boolean
   }>
 ): Promise<void> {
   if (!supabase) throw new Error("Supabase 未設定")
@@ -864,6 +868,42 @@ export async function setTeacherExcluded(
     excluded,
     exclude_reason: excluded ? reason ?? "財務排除" : null,
   })
+}
+
+export async function setTeacherRollCallWaiting(
+  runId: string,
+  teacherId: string,
+  waiting: boolean
+): Promise<void> {
+  await upsertTeacherState(runId, teacherId, { roll_call_waiting: waiting })
+}
+
+export async function sendPayrollRollCallReminder(input: {
+  runId: string
+  teacherId: string
+  teacherName: string
+  className: string
+  classId?: string | null
+  scheduleId: string
+  date: string
+  startTime?: string
+  endTime?: string
+}): Promise<void> {
+  const time =
+    input.startTime && input.endTime ? ` ${input.startTime}–${input.endTime}` : ""
+  await recordInboxEventOrThrow({
+    eventType: "attendance_reminder",
+    title: `請補點名：${input.className}`,
+    body: `財務請你補點 ${input.date}${time} ${input.className}。未點名不能計入該月薪酬。`,
+    actionPath: `/Schedule/${input.scheduleId}?rollcall=1`,
+    classId: input.classId ?? null,
+    scheduleId: input.scheduleId,
+    audienceTeacherIds: [input.teacherId],
+    audienceRoles: ["teacher"],
+    category: "ops",
+    payload: { source: "payroll", teacherName: input.teacherName, date: input.date },
+  })
+  await setTeacherRollCallWaiting(input.runId, input.teacherId, true)
 }
 
 export async function submitTeacherForReview(
