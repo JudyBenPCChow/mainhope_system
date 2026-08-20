@@ -5,7 +5,7 @@
 校曆見 [`ACADEMIC_CALENDAR.md`](../academic/ACADEMIC_CALENDAR.md) §3；排課佔室見 [`SCHEDULING_RULES.md`](../scheduling/SCHEDULING_RULES.md) §4；產品範圍見 [`homework-tutoring.md`](../../product/topics/homework-tutoring.md)。  
 專科按月堂數／逾期罰款**不適用**功輔，見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md)。
 
-**系統現況（2026-08-16）：** 2627 初中月費表及 12 月／2 月四分三已簽收。後台**尚未**可登記功輔月費與開放日（現只在文件；專科校曆表勿當功輔月曆）。
+**系統現況（2026-08-21）：** 2627 初中月費表及 12 月／2 月四分三已簽收。功輔放假日已入 `homework_tutoring_calendar_closures`。後台**尚未**可登記功輔月費（專科校曆表勿當功輔月曆）。
 
 **適用：** 常規學年 `2627`（2026-09-01 起）。金額為每月港幣。
 
