@@ -6,7 +6,40 @@
 
 **Folder 結構：** `versions/v<版本>/` 保存各版方案與老師附件；`archive/` 保存早期版本及試排；`assets/fonts/` 保存字型。根目錄只留本索引與排課需求。
 
-## 現行候選 — ver. 3.4（2026-08-20）
+## 現行候選 — ver. 3.6（2026-08-21）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.6/2627_timetable_scheme_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_scheme_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_scheme_v3.6.pdf) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.6/2627_timetable_teachers_week_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_teachers_week_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_teachers_week_v3.6.pdf) |
+| 周時間表（獨立附件） | [`md`](versions/v3.6/2627_timetable_weekly_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_weekly_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_weekly_v3.6.pdf) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.6/2627_timetable_empty_rooms_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_empty_rooms_v3.6.docx) |
+| 班號對照 | [`csv`](versions/v3.6/2627_timetable_class_codes_v3.6.csv) |
+| Word／PDF | 已出檔（空房僅 docx） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **71** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.5 | Billy Shek 改只教中二／中三中文；時段改六 16:30 中三、17:45 中二（17E） |
+
+**文件結構：** 方案＝封面列與 3.5 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.5（2026-08-20；檔案保留不動）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.5/2627_timetable_scheme_v3.5.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.5/2627_timetable_teachers_week_v3.5.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.5/2627_timetable_weekly_v3.5.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.5/2627_timetable_empty_rooms_v3.5.md) |
+| Word／PDF | 未出檔 |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **71** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.4 | 加 Billy Shek 兩班初中中文、Phoebe Tam 科學／化學各級各一 |
+
+**文件結構：** 方案＝封面列與 3.4 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.4（2026-08-20；檔案保留不動）
 
 | 項目 | 值 |
 | --- | --- |
