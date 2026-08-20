@@ -16,29 +16,35 @@ import { useAppBanner } from "@/lib/appBanner"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
+import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
   MOCK_AVAIL_DATES,
-  MOCK_DEFAULT_ROOM,
+  MOCK_DEFAULT_PRIMARY_ROOM,
+  MOCK_DEFAULT_SECONDARY_ROOM,
   MOCK_HOLIDAYS,
   MOCK_PRICE_GRADES,
+  MOCK_ROOMS,
   MOCK_ROSTER_MONTH_LABEL,
   MOCK_SPLIT_NOTE,
   MOCK_TEACHERS,
   WEEKDAY_OPTIONS,
   countSubmitProgress,
-  cycleDutySlot,
   dutyLabel,
+  formatSession,
   formatWeekdays,
   formatWeekdaysShort,
+  getAvailEntry,
   planDayCount,
   summarizeOverview,
+  teacherName,
+  type AllTeacherAvailability,
+  type AllTeacherSubmitStatus,
+  type AvailEntry,
   type DayPlan,
-  type DutySlot,
   type MockDutyDay,
   type MockFeeRow,
   type MockStudent,
   type RosterPublishStatus,
-  type SubmitStatus,
   type Weekday,
 } from "./mockData"
 import {
@@ -77,10 +83,10 @@ export function AdminHomeworkWorkbench({
   students: MockStudent[]
   setStudents: Dispatch<SetStateAction<MockStudent[]>>
   fees: MockFeeRow[]
-  avail: Record<string, Record<string, DutySlot>>
-  setAvail: Dispatch<SetStateAction<Record<string, Record<string, DutySlot>>>>
-  submitStatus: Record<string, SubmitStatus>
-  setSubmitStatus: Dispatch<SetStateAction<Record<string, SubmitStatus>>>
+  avail: AllTeacherAvailability
+  setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
+  submitStatus: AllTeacherSubmitStatus
+  setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   dutyDays: MockDutyDay[]
   setDutyDays: Dispatch<SetStateAction<MockDutyDay[]>>
   rosterPublishStatus: RosterPublishStatus
@@ -100,7 +106,9 @@ export function AdminHomeworkWorkbench({
   const [draftPlan, setDraftPlan] = useState<DayPlan>("四日")
   const [draftWeekdays, setDraftWeekdays] = useState<Weekday[]>(["一", "二", "四", "五"])
   const [rosterSub, setRosterSub] = useState<RosterSub>("progress")
-  const [defaultRoom, setDefaultRoom] = useState(MOCK_DEFAULT_ROOM)
+  const [editAvail, setEditAvail] = useState<{ teacherId: string; date: string } | null>(null)
+  const [defaultSecondaryRoom, setDefaultSecondaryRoom] = useState(MOCK_DEFAULT_SECONDARY_ROOM)
+  const [defaultPrimaryRoom, setDefaultPrimaryRoom] = useState(MOCK_DEFAULT_PRIMARY_ROOM)
   const [editDay, setEditDay] = useState<MockDutyDay | null>(null)
 
   const overview = useMemo(() => summarizeOverview(students, fees), [students, fees])
@@ -197,13 +205,12 @@ export function AdminHomeworkWorkbench({
     pushBanner({ title: "已更新", tone: "success", message: "已加入報讀（沙盒）。" })
   }
 
-  const adminCycleAvail = (teacherId: string, date: string) => {
+  const adminSaveAvail = (teacherId: string, date: string, entry: AvailEntry | null) => {
     setAvail((prev) => {
-      const cur = prev[teacherId]?.[date] ?? "—"
-      return {
-        ...prev,
-        [teacherId]: { ...(prev[teacherId] ?? {}), [date]: cycleDutySlot(cur) },
-      }
+      const nextRow = { ...(prev[teacherId] ?? {}) }
+      if (entry == null) delete nextRow[date]
+      else nextRow[date] = entry
+      return { ...prev, [teacherId]: nextRow }
     })
     setSubmitStatus((s) => {
       const cur = s[teacherId] ?? "未交"
@@ -211,6 +218,10 @@ export function AdminHomeworkWorkbench({
       return s
     })
   }
+
+  const editingAvailEntry = editAvail
+    ? getAvailEntry(avail, editAvail.teacherId, editAvail.date)
+    : null
 
   return (
     <div className="space-y-4">
@@ -241,15 +252,19 @@ export function AdminHomeworkWorkbench({
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
                 <p className="text-xs text-muted-foreground">課室</p>
-                <p className="mt-1 text-2xl font-semibold">{overview.todayDuty.room}</p>
+                <p className="mt-1 text-lg font-semibold sm:text-xl">
+                  中 {overview.todayDuty.secondaryRoom}／小 {overview.todayDuty.primaryRoom}
+                </p>
               </div>
               <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs text-muted-foreground">時段</p>
-                <p className="mt-1 text-lg font-semibold sm:text-xl">15:15–19:30</p>
+                <p className="text-xs text-muted-foreground">班時間</p>
+                <p className="mt-1 text-lg font-semibold sm:text-xl">
+                  {formatSession(overview.todayDuty)}
+                </p>
               </div>
               <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
                 <p className="text-xs text-muted-foreground">當值導師</p>
-                <p className="mt-1 text-lg font-semibold sm:text-xl">
+                <p className="mt-1 text-sm font-semibold sm:text-base">
                   {dutyLabel(overview.todayDuty)}
                 </p>
               </div>
@@ -489,7 +504,7 @@ export function AdminHomeworkWorkbench({
           {rosterSub === "progress" ? (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 可代填（覆寫老師提交）
+                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 老師只報一次更；可代填（覆寫）
               </p>
               <ul className="space-y-2">
                 {MOCK_TEACHERS.map((t) => {
@@ -545,7 +560,7 @@ export function AdminHomeworkWorkbench({
           {rosterSub === "availability" ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {MOCK_SPLIT_NOTE} · 點格循環切換（行政覆寫）
+                {MOCK_SPLIT_NOTE} · 點格編輯（行政覆寫）；空白＝該日不報 · 顯示該月全部平日
               </p>
               <div className="overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[520px] text-center text-sm">
@@ -568,21 +583,15 @@ export function AdminHomeworkWorkbench({
                           <SubmitStatusTag status={submitStatus[t.id] ?? "未交"} />
                         </td>
                         {MOCK_AVAIL_DATES.map((d) => {
-                          const slot = avail[t.id]?.[d] ?? "—"
+                          const entry = getAvailEntry(avail, t.id, d)
                           return (
                             <td key={d} className="px-1 py-1">
-                              <button
-                                type="button"
-                                onClick={() => adminCycleAvail(t.id, d)}
-                                className={cn(
-                                  "w-full rounded-md border px-1 py-1.5 text-xs font-medium",
-                                  slot === "—"
-                                    ? "border-border bg-muted/30 text-muted-foreground"
-                                    : "border-primary/30 bg-primary/10"
-                                )}
-                              >
-                                {slot}
-                              </button>
+                              <AvailCellButton
+                                entry={entry}
+                                date={d}
+                                compact
+                                onClick={() => setEditAvail({ teacherId: t.id, date: d })}
+                              />
                             </td>
                           )
                         })}
@@ -598,15 +607,31 @@ export function AdminHomeworkWorkbench({
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
                 <label className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">預設課室</span>
+                  <span className="text-muted-foreground">中學預設</span>
                   <Select
-                    value={defaultRoom}
-                    onChange={(e) => setDefaultRoom(e.target.value)}
-                    className="w-28"
+                    value={defaultSecondaryRoom}
+                    onChange={(e) => setDefaultSecondaryRoom(e.target.value)}
+                    className="w-24"
                   >
-                    <option value="17E">17E</option>
-                    <option value="17D">17D</option>
-                    <option value="山案座">山案座</option>
+                    {MOCK_ROOMS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">小學預設</span>
+                  <Select
+                    value={defaultPrimaryRoom}
+                    onChange={(e) => setDefaultPrimaryRoom(e.target.value)}
+                    className="w-24"
+                  >
+                    {MOCK_ROOMS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
                   </Select>
                 </label>
                 {rosterPublishStatus === "草稿" ? (
@@ -638,13 +663,17 @@ export function AdminHomeworkWorkbench({
                   </Button>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground">
+                按日分配中學部／小學部導師與課室（17D／17E）；可改編班時間。
+              </p>
               <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[640px] text-left text-sm">
+                <table className="w-full min-w-[720px] text-left text-sm">
                   <thead className="bg-muted/40 text-xs text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2 font-medium">日期</th>
-                      <th className="px-3 py-2 font-medium">課室</th>
-                      <th className="px-3 py-2 font-medium">當值</th>
+                      <th className="px-3 py-2 font-medium">班時間</th>
+                      <th className="px-3 py-2 font-medium">中學部</th>
+                      <th className="px-3 py-2 font-medium">小學部</th>
                       <th className="px-3 py-2 font-medium">操作</th>
                     </tr>
                   </thead>
@@ -659,8 +688,19 @@ export function AdminHomeworkWorkbench({
                             </Tag>
                           ) : null}
                         </td>
-                        <td className="px-3 py-2.5">{d.room ?? "—"}</td>
-                        <td className="px-3 py-2.5">{dutyLabel(d)}</td>
+                        <td className="px-3 py-2.5 tabular-nums">
+                          {d.holiday ? "—" : formatSession(d)}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {d.holiday
+                            ? "—"
+                            : `${teacherName(d.secondaryTeacherId)} · ${d.secondaryRoom ?? "—"}`}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {d.holiday
+                            ? "—"
+                            : `${teacherName(d.primaryTeacherId)} · ${d.primaryRoom ?? "—"}`}
+                        </td>
                         <td className="px-3 py-2.5">
                           <Button
                             type="button"
@@ -708,7 +748,10 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-4">
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
-            <p className="mt-2 text-sm">15:30–19:30（佔用自 15:15）· 上下節分界 17:00</p>
+            <p className="mt-2 text-sm">
+              中學部／小學部同為 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室
+              17D／17E。
+            </p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">價目表</h2>
@@ -735,7 +778,7 @@ export function AdminHomeworkWorkbench({
             </table>
           </section>
           <section className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            每日功課進度（影相＋打字）不進本系統，繼續使用 Notion。末節讓房規則待定。
+            每日功課進度（影相＋打字）不進本系統，繼續使用 Notion。末節讓房不做。
           </section>
         </div>
       ) : null}
@@ -825,45 +868,41 @@ export function AdminHomeworkWorkbench({
           </DialogHeader>
           {editDay ? (
             <div className="space-y-3">
-              <Select
-                value={editDay.room ?? defaultRoom}
-                onChange={(e) => setEditDay({ ...editDay, room: e.target.value })}
-              >
-                <option value="17E">17E</option>
-                <option value="17D">17D</option>
-                <option value="山案座">山案座</option>
-              </Select>
-              <div className="flex gap-2">
-                {(["全日", "分上下節"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() =>
-                      setEditDay({
-                        ...editDay,
-                        mode: m,
-                        fullTeacherId: m === "全日" ? editDay.fullTeacherId ?? "t1" : undefined,
-                        upperTeacherId:
-                          m === "分上下節" ? editDay.upperTeacherId ?? "t1" : undefined,
-                        lowerTeacherId:
-                          m === "分上下節" ? editDay.lowerTeacherId ?? "t2" : undefined,
-                      })
-                    }
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm",
-                      editDay.mode === m
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border"
-                    )}
-                  >
-                    {m}
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="grid gap-1 text-xs text-muted-foreground">
+                  <span>班開始</span>
+                  <Input
+                    type="time"
+                    value={editDay.start}
+                    onChange={(e) => setEditDay({ ...editDay, start: e.target.value })}
+                    className="h-11 tabular-nums"
+                  />
+                </label>
+                <label className="grid gap-1 text-xs text-muted-foreground">
+                  <span>班結束</span>
+                  <Input
+                    type="time"
+                    value={editDay.end}
+                    onChange={(e) => setEditDay({ ...editDay, end: e.target.value })}
+                    className="h-11 tabular-nums"
+                  />
+                </label>
               </div>
-              {editDay.mode === "全日" ? (
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <p className="text-sm font-medium">中學部</p>
                 <Select
-                  value={editDay.fullTeacherId ?? "t1"}
-                  onChange={(e) => setEditDay({ ...editDay, fullTeacherId: e.target.value })}
+                  value={editDay.secondaryRoom ?? defaultSecondaryRoom}
+                  onChange={(e) => setEditDay({ ...editDay, secondaryRoom: e.target.value })}
+                >
+                  {MOCK_ROOMS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={editDay.secondaryTeacherId ?? "t1"}
+                  onChange={(e) => setEditDay({ ...editDay, secondaryTeacherId: e.target.value })}
                 >
                   {MOCK_TEACHERS.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -871,30 +910,30 @@ export function AdminHomeworkWorkbench({
                     </option>
                   ))}
                 </Select>
-              ) : (
-                <>
-                  <Select
-                    value={editDay.upperTeacherId ?? "t1"}
-                    onChange={(e) => setEditDay({ ...editDay, upperTeacherId: e.target.value })}
-                  >
-                    {MOCK_TEACHERS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </Select>
-                  <Select
-                    value={editDay.lowerTeacherId ?? "t2"}
-                    onChange={(e) => setEditDay({ ...editDay, lowerTeacherId: e.target.value })}
-                  >
-                    {MOCK_TEACHERS.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </Select>
-                </>
-              )}
+              </div>
+              <div className="space-y-2 rounded-lg border border-border p-3">
+                <p className="text-sm font-medium">小學部</p>
+                <Select
+                  value={editDay.primaryRoom ?? defaultPrimaryRoom}
+                  onChange={(e) => setEditDay({ ...editDay, primaryRoom: e.target.value })}
+                >
+                  {MOCK_ROOMS.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  value={editDay.primaryTeacherId ?? "t2"}
+                  onChange={(e) => setEditDay({ ...editDay, primaryTeacherId: e.target.value })}
+                >
+                  {MOCK_TEACHERS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
             </div>
           ) : null}
           <DialogFooter>
@@ -905,6 +944,14 @@ export function AdminHomeworkWorkbench({
               type="button"
               onClick={() => {
                 if (!editDay) return
+                if (editDay.start >= editDay.end) {
+                  pushBanner({
+                    title: "無法儲存",
+                    tone: "error",
+                    message: "班結束時間須晚於開始時間。",
+                  })
+                  return
+                }
                 setDutyDays((prev) => prev.map((d) => (d.date === editDay.date ? editDay : d)))
                 setEditDay(null)
                 pushBanner({ title: "已更新", tone: "success", message: "當值已更新（沙盒）。" })
@@ -915,6 +962,18 @@ export function AdminHomeworkWorkbench({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {editAvail ? (
+        <AvailEditDialog
+          open
+          date={editAvail.date}
+          entry={editingAvailEntry}
+          onOpenChange={(open) => {
+            if (!open) setEditAvail(null)
+          }}
+          onSave={(entry) => adminSaveAvail(editAvail.teacherId, editAvail.date, entry)}
+        />
+      ) : null}
     </div>
   )
 }

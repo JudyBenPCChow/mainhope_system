@@ -6,20 +6,23 @@ import { useAppBanner } from "@/lib/appBanner"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
+import { BulkCustomTimeDialog } from "./availEditor"
 import {
-  MOCK_AVAIL_DATES,
   MOCK_DUTY_DAYS,
   MOCK_HOLIDAYS,
+  MOCK_ROSTER_DAYS,
   MOCK_ROSTER_MONTH_LABEL,
   MOCK_SPLIT_NOTE,
   MOCK_SUBMIT_DEADLINE_NOTE,
   MOCK_TEACHERS,
-  cycleDutySlot,
-  dutyLabel,
+  formatAvailLabel,
+  formatSession,
   myDutyDays,
-  type DutySlot,
+  myDutyDivisionLabel,
+  type AllTeacherAvailability,
+  type AllTeacherSubmitStatus,
+  type AvailEntry,
   type RosterPublishStatus,
-  type SubmitStatus,
 } from "./mockData"
 import { RoleTabNav, SubmitStatusTag } from "./sharedUi"
 
@@ -31,6 +34,8 @@ const TABS: { value: TeacherTab; label: string }[] = [
   { value: "holidays", label: "放假日" },
 ]
 
+const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
+
 export function TeacherHomeworkWorkbench({
   teacherId,
   avail,
@@ -40,24 +45,41 @@ export function TeacherHomeworkWorkbench({
   rosterPublishStatus,
 }: {
   teacherId: string
-  avail: Record<string, Record<string, DutySlot>>
-  setAvail: Dispatch<SetStateAction<Record<string, Record<string, DutySlot>>>>
-  submitStatus: Record<string, SubmitStatus>
-  setSubmitStatus: Dispatch<SetStateAction<Record<string, SubmitStatus>>>
+  avail: AllTeacherAvailability
+  setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
+  submitStatus: AllTeacherSubmitStatus
+  setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   rosterPublishStatus: RosterPublishStatus
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<TeacherTab>("submit")
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [customOpen, setCustomOpen] = useState(false)
   const teacher = MOCK_TEACHERS.find((t) => t.id === teacherId)
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
+  const readOnly = locked || myStatus === "已提交"
   const row = avail[teacherId] ?? {}
 
   const duties = useMemo(() => myDutyDays(teacherId, MOCK_DUTY_DAYS), [teacherId])
 
-  const cycle = (date: string) => {
-    if (locked || myStatus === "已提交") {
+  const calendarCells = useMemo(() => {
+    const first = MOCK_ROSTER_DAYS[0]
+    if (!first) return []
+    const pad = first.weekdayIndex
+    return [...Array.from({ length: pad }, () => null), ...MOCK_ROSTER_DAYS]
+  }, [])
+
+  const selectableKeys = useMemo(
+    () => MOCK_ROSTER_DAYS.filter((d) => d.selectable).map((d) => d.key),
+    []
+  )
+
+  const selectedCount = selected.size
+
+  const ensureEditable = () => {
+    if (readOnly) {
       pushBanner({
         title: "無法修改",
         tone: "warning",
@@ -65,19 +87,61 @@ export function TeacherHomeworkWorkbench({
           ? "月工作表已發布，本月報更已鎖定。"
           : "已提交後請先「撤回修改」再改。",
       })
-      return
+      return false
     }
-    setAvail((prev) => {
-      const cur = prev[teacherId]?.[date] ?? "—"
-      return {
-        ...prev,
-        [teacherId]: { ...(prev[teacherId] ?? {}), [date]: cycleDutySlot(cur) },
-      }
-    })
+    return true
+  }
+
+  const markDraft = () => {
     if (myStatus === "未交") {
       setSubmitStatus((s) => ({ ...s, [teacherId]: "草稿" }))
     }
   }
+
+  const applyToSelected = (entry: AvailEntry | null) => {
+    if (!ensureEditable()) return
+    if (selectedCount === 0) {
+      pushBanner({ title: "請先剔選日子", tone: "warning", message: "先剔選要設定的日子。" })
+      return
+    }
+    setAvail((prev) => {
+      const nextRow = { ...(prev[teacherId] ?? {}) }
+      for (const key of selected) {
+        if (entry == null) delete nextRow[key]
+        else nextRow[key] = entry
+      }
+      return { ...prev, [teacherId]: nextRow }
+    })
+    markDraft()
+    setSelected(new Set())
+    pushBanner({
+      title: "已套用",
+      tone: "success",
+      message:
+        entry == null
+          ? `已清除 ${selectedCount} 日報更。`
+          : entry.kind === "full"
+            ? `已將 ${selectedCount} 日設為全節。`
+            : `已將 ${selectedCount} 日設為 ${entry.start}–${entry.end}。`,
+    })
+  }
+
+  const toggleDay = (key: string) => {
+    if (!ensureEditable()) return
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const selectAllWeekdays = () => {
+    if (!ensureEditable()) return
+    setSelected(new Set(selectableKeys))
+  }
+
+  const clearSelection = () => setSelected(new Set())
 
   const saveDraft = () => {
     if (locked) return
@@ -88,10 +152,11 @@ export function TeacherHomeworkWorkbench({
   const submit = () => {
     if (locked) return
     setSubmitStatus((s) => ({ ...s, [teacherId]: "已提交" }))
+    setSelected(new Set())
     pushBanner({
       title: "已提交",
       tone: "success",
-      message: `${MOCK_ROSTER_MONTH_LABEL} 報更已提交，行政可於編更進度查看。`,
+      message: `${MOCK_ROSTER_MONTH_LABEL} 報更已提交；行政會分配當日中／小學部。`,
     })
   }
 
@@ -105,7 +170,7 @@ export function TeacherHomeworkWorkbench({
     <div className="space-y-4">
       <div className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground sm:px-4">
         此為功輔當值報更，<span className="font-medium text-foreground">不是</span>
-        「老師檔期規劃」專科班頁。{MOCK_SPLIT_NOTE}
+        「老師檔期規劃」專科班頁。只須報一次更；中／小學由行政分配。{MOCK_SPLIT_NOTE}
       </div>
 
       <RoleTabNav
@@ -128,47 +193,140 @@ export function TeacherHomeworkWorkbench({
             ) : null}
             <span className="text-sm text-muted-foreground">{teacher?.name}</span>
           </div>
+
           <p className="text-xs text-muted-foreground">{MOCK_SUBMIT_DEADLINE_NOTE}</p>
 
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[320px] text-center text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  {MOCK_AVAIL_DATES.map((d) => (
-                    <th key={d} className="px-2 py-2 font-medium">
-                      {d}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {MOCK_AVAIL_DATES.map((d) => {
-                    const slot = row[d] ?? "—"
-                    return (
-                      <td key={d} className="px-1 py-2">
-                        <button
-                          type="button"
-                          disabled={locked || myStatus === "已提交"}
-                          onClick={() => cycle(d)}
-                          className={cn(
-                            "w-full min-h-12 rounded-lg border px-1 py-2 text-xs font-medium sm:text-sm",
-                            slot === "—"
-                              ? "border-border bg-muted/30 text-muted-foreground"
-                              : "border-primary/30 bg-primary/10 text-foreground",
-                            (locked || myStatus === "已提交") && "opacity-70"
-                          )}
-                        >
-                          {slot === "—" ? "不可" : slot}
-                        </button>
-                      </td>
-                    )
-                  })}
-                </tr>
-              </tbody>
-            </table>
+          <div
+            className={cn(
+              "flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-sm",
+              isMobile && "sticky top-0 z-10 bg-background/95 backdrop-blur"
+            )}
+          >
+            <span className="text-sm text-muted-foreground">
+              已剔 <span className="font-medium tabular-nums text-foreground">{selectedCount}</span>{" "}
+              日
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly}
+              onClick={selectAllWeekdays}
+            >
+              剔全部平日
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly || selectedCount === 0}
+              onClick={clearSelection}
+            >
+              取消剔選
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={readOnly || selectedCount === 0}
+              onClick={() => applyToSelected({ kind: "full" })}
+            >
+              設為全節
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={readOnly || selectedCount === 0}
+              onClick={() => {
+                if (!ensureEditable()) return
+                setCustomOpen(true)
+              }}
+            >
+              輸入時間
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={readOnly || selectedCount === 0}
+              onClick={() => applyToSelected(null)}
+            >
+              清除報更
+            </Button>
           </div>
-          <p className="text-xs text-muted-foreground">點格循環：全日 → 上節 → 下節 → 不可</p>
+
+          <div className="overflow-hidden rounded-xl border border-border">
+            <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
+              {WEEK_HEADERS.map((h) => (
+                <div key={h} className="px-1 py-2">
+                  {h}
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7">
+              {calendarCells.map((day, idx) => {
+                if (!day) {
+                  return <div key={`pad-${idx}`} className="min-h-[4.5rem] border-b border-r border-border/60 bg-muted/10" />
+                }
+                const entry = row[day.key] ?? null
+                const isSelected = selected.has(day.key)
+                const label = formatAvailLabel(entry)
+                const canPick = day.selectable && !readOnly
+
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    disabled={!canPick && !day.selectable}
+                    onClick={() => {
+                      if (!day.selectable) return
+                      toggleDay(day.key)
+                    }}
+                    aria-pressed={isSelected}
+                    aria-label={`${day.key} 星期${day.weekdayChar}${entry ? `，${label}` : "，未報"}${isSelected ? "，已剔" : ""}`}
+                    className={cn(
+                      "relative flex min-h-[4.5rem] flex-col items-start gap-1 border-b border-r border-border/60 p-1.5 text-left transition-colors sm:p-2",
+                      !day.selectable && "bg-muted/20 text-muted-foreground",
+                      day.selectable && !readOnly && "hover:bg-muted/30",
+                      isSelected && "bg-primary/10 ring-2 ring-inset ring-primary",
+                      readOnly && day.selectable && "opacity-80"
+                    )}
+                  >
+                    <span className="flex w-full items-center justify-between gap-1">
+                      <span className="text-sm font-medium tabular-nums">{day.day}</span>
+                      {day.selectable ? (
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px]",
+                            isSelected
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background text-transparent"
+                          )}
+                          aria-hidden
+                        >
+                          ✓
+                        </span>
+                      ) : null}
+                    </span>
+                    {day.holidayLabel ? (
+                      <span className="text-[10px] leading-tight text-muted-foreground">放假</span>
+                    ) : !day.selectable ? (
+                      <span className="text-[10px] text-muted-foreground">週末</span>
+                    ) : entry ? (
+                      <span className="text-[10px] font-medium leading-tight text-foreground sm:text-xs">
+                        {label}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">未報</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            顯示整月日子；平日可剔選後批量「設為全節」或「輸入時間」。週末／放假不可剔。
+          </p>
 
           <div
             className={cn(
@@ -176,12 +334,7 @@ export function TeacherHomeworkWorkbench({
               isMobile && "sticky bottom-0 z-10 border-t border-border bg-background/95 py-3 backdrop-blur"
             )}
           >
-            <Button
-              type="button"
-              variant="outline"
-              disabled={locked || myStatus === "已提交"}
-              onClick={saveDraft}
-            >
+            <Button type="button" variant="outline" disabled={readOnly} onClick={saveDraft}>
               儲存草稿
             </Button>
             {myStatus === "已提交" && !locked ? (
@@ -189,7 +342,7 @@ export function TeacherHomeworkWorkbench({
                 撤回修改
               </Button>
             ) : (
-              <Button type="button" disabled={locked || myStatus === "已提交"} onClick={submit}>
+              <Button type="button" disabled={readOnly} onClick={submit}>
                 提交
               </Button>
             )}
@@ -199,7 +352,7 @@ export function TeacherHomeworkWorkbench({
 
       {tab === "myDuty" ? (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold">我的當值（{MOCK_DUTY_DAYS[0] ? "2026年9月已發布示範" : ""}）</h2>
+          <h2 className="text-base font-semibold">我的當值（2026年9月已發布示範）</h2>
           {duties.length === 0 ? (
             <p className="text-sm text-muted-foreground">本月尚未有已發布的當值。</p>
           ) : (
@@ -213,7 +366,7 @@ export function TeacherHomeworkWorkbench({
                     {d.date}（{d.weekday}）
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    課室 {d.room} · 15:15–19:30 · {dutyLabel(d)}
+                    班時間 {formatSession(d)} · {myDutyDivisionLabel(d, teacherId)}
                   </p>
                 </li>
               ))}
@@ -243,6 +396,13 @@ export function TeacherHomeworkWorkbench({
           </ul>
         </div>
       ) : null}
+
+      <BulkCustomTimeDialog
+        open={customOpen}
+        count={selectedCount}
+        onOpenChange={setCustomOpen}
+        onSave={(start, end) => applyToSelected({ kind: "custom", start, end })}
+      />
     </div>
   )
 }
