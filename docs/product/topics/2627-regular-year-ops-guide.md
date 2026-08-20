@@ -51,8 +51,8 @@
 | 10 代堂與換主責老師 | 已寫 |
 | 11 試堂 | ✅ 出單先上紙；v1.9 老師收件匣 |
 | 12 收款與單據 | 已寫（按錯類型分流） |
-| 附件甲 專科班校曆 | ✅ 十期表＋校舍假期（未入 DB；見政策篇） |
-| 附件乙 功輔校曆 | ✅ 放假 31 日＋與專科相異（已簽收；未入 DB） |
+| 附件甲 專科班校曆 | ✅ 十期表＋校舍假期（21 日已入 `academic_calendar_closures`，2026-08-21） |
+| 附件乙 功輔校曆 | ✅ 放假 31 日＋與專科相異（已簽收；已入 `homework_tutoring_calendar_closures`，2026-08-21） |
 
 ## 已定產品決策（摘要）
 
@@ -64,7 +64,7 @@
 | repo 索引 | `OPS_POLICIES` 已掛校曆政策；**SYSTEM_MANUAL 仍待掛**本指引 |
 | 課表／老師 | 不載每周課表；不列個別老師 |
 | 專科校曆 | **附件甲**（非正文）；權威＋入庫檢查見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) |
-| 功輔校曆 | **附件乙**；權威見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3（已簽收；未入 DB） |
+| 功輔校曆 | **附件乙**；權威見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3（已簽收；放假日已入庫） |
 | 重陽 | 正日放假、翌日不放假（跟 CSV；與政府假翌日可不一致） |
 | 功輔章 | 校曆＋月費已寫；讓房不做；編更待 [`homework-tutoring.md`](./homework-tutoring.md) |
 | 功輔月費 | §7.2；12／2 月四分三；權威見 [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
@@ -75,12 +75,21 @@
 | 文風 | **書面語**；少寫系統欄位名；少提「2627」以利下學年沿用 |
 | docx／pdf | 由 `scripts/generate_2627_ops_guide_doc.py` 重出；改 md 同步 docx＋pdf |
 
+## 開工閘（agent 必讀）
+
+開工前 check 對上一個工程是否完成。**未完成：停；提醒用戶必須完成後先可以開工。**
+
+| 本波 | 對上一個工程 | 完成條件 | 未完成就 |
+| --- | --- | --- | --- |
+| 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費已寫） | — |
+| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **H11 沙盒審閱通過**，且編更規則已可寫入員工守則（唔使等正式產品頁上線） | 提醒用戶：H11 未過，編更仍缺，唔好猜寫 |
+
 ## 依賴（餘下）
 
 | 項目 | 依賴 | 狀態 |
 | --- | --- | --- |
 | 補寫 §7 其餘 | [`homework-tutoring.md`](./homework-tutoring.md)（H4–H7 已定；編更未寫入指引） | 校曆＋月費已寫；編更仍缺 |
-| 專科校曆入 DB | [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §2 簽收後寫 `academic_calendar_closures` | 未入庫 |
+| 專科校曆入 DB | [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §2.4 校舍假期 21 日已寫 `academic_calendar_closures` | 已入庫（2026-08-21） |
 
 ## 待做
 

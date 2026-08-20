@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import {
  BarChart3,
  CalendarDays,
@@ -24,9 +24,14 @@ import { formatClassLabel } from "@/lib/courseLabel"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { monthKeyToRange } from "@/lib/payroll/returnNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
+import {
+ compareTeachersByEnglishName,
+ teacherMissingEnglishName,
+} from "@/lib/teacherDisplaySort"
 import { cn } from "@/lib/utils"
 import { fetchAllClasses } from "@/services/classQueries"
 import { fetchAllTeachers } from "@/services/teacherQueries"
@@ -98,20 +103,28 @@ export function AttendanceRecordsPage() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const { profile } = useAuth()
+ const [searchParams] = useSearchParams()
  const teacherTid = getTeacherScopeTeacherId(profile)
  const canDeleteAttendance = can(profile?.activeCapabilities, "attendance.delete")
  const [viewMode, setViewMode] = usePersistentState<ViewMode>(
   "mgmt_attendance_records_viewMode",
   getInitialAttendanceViewMode()
  )
- const [dateRange, setDateRange] = useState<DateRangeValue>(() => currentMonthRange())
+ const payrollMonth = searchParams.get("from") === "payroll" ? searchParams.get("month") : null
+ const payrollTeacher = searchParams.get("from") === "payroll" ? searchParams.get("teacher") : null
+ const [dateRange, setDateRange] = usePersistentState<DateRangeValue>(
+  "mgmt_attendance_records_dateRange",
+  currentMonthRange()
+ )
  const [studentKeyword, setStudentKeyword] = useState("")
  const [classFilter, setClassFilter] = useState("all")
- const [teacherFilter, setTeacherFilter] = useState("all")
+ const [teacherFilter, setTeacherFilter] = useState(payrollTeacher?.trim() || "all")
+ const [teacherOptions, setTeacherOptions] = useState<
+  Array<{ id: string; name: string; englishName: string | null }>
+ >([])
 
  const [rows, setRows] = useState<AttendanceRecordRow[]>([])
  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
- const [teacherOptions, setTeacherOptions] = useState<Array<{ id: string; name: string }>>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -189,6 +202,17 @@ export function AttendanceRecordsPage() {
  }, [reload])
 
  useEffect(() => {
+  if (!payrollMonth) return
+  const range = monthKeyToRange(payrollMonth)
+  if (!range) return
+  setDateRange((prev) => (prev.from === range.from && prev.to === range.to ? prev : range))
+ }, [payrollMonth, setDateRange])
+
+ useEffect(() => {
+  if (payrollTeacher) setTeacherFilter(payrollTeacher)
+ }, [payrollTeacher])
+
+ useEffect(() => {
   void (async () => {
    const all = await fetchAllClasses()
    setClassOptions(
@@ -207,7 +231,13 @@ export function AttendanceRecordsPage() {
 
  useEffect(() => {
   void fetchAllTeachers().then((all) => {
-   setTeacherOptions(all.map((t) => ({ id: t.id, name: t.full_name })))
+   const mapped = all.map((t) => ({
+    id: t.id,
+    name: t.full_name,
+    englishName: t.english_name,
+   }))
+   mapped.sort(compareTeachersByEnglishName)
+   setTeacherOptions(mapped)
   })
  }, [])
 
@@ -225,12 +255,7 @@ export function AttendanceRecordsPage() {
   }
   if (classFilter !== "all") next = next.filter((r) => r.classId === classFilter)
   if (!teacherTid && teacherFilter !== "all") {
-   next = next.filter(
-    (r) =>
-     r.teacherId === teacherFilter ||
-     r.originalTeacherId === teacherFilter ||
-     r.classTeacherId === teacherFilter
-   )
+   next = next.filter((r) => r.teacherId === teacherFilter)
   }
   return next
  }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid])
@@ -270,6 +295,10 @@ export function AttendanceRecordsPage() {
     </h1>
     <p className="mt-1.5 hidden text-base leading-relaxed text-neutral-700 md:block">
      今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。
+    </p>
+    <p className="mt-1 text-sm text-muted-foreground">
+     此頁合計（出席／缺席／請假）跟營運點名桶，<strong className="font-medium text-foreground">不等於</strong>
+     計糧頁的扣堂人次。出糧核對請留在計糧。
     </p>
    </header>
 
@@ -437,7 +466,7 @@ export function AttendanceRecordsPage() {
      </Select>
     </label>
     <label className="grid gap-1 text-xs text-muted-foreground">
-     <span>老師</span>
+     <span>老師（當日授課）</span>
      <Select
       value={teacherTid ?? teacherFilter}
       onChange={(e) => setTeacherFilter(e.target.value)}
@@ -447,7 +476,8 @@ export function AttendanceRecordsPage() {
       <option value="all">全部老師</option>
       {teacherOptions.map((t) => (
        <option key={t.id} value={t.id}>
-        {t.name}
+        {t.englishName?.trim() || t.name}
+        {teacherMissingEnglishName(t) ? "（無英文名）" : ""}
        </option>
       ))}
      </Select>

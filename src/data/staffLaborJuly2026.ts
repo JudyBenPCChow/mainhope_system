@@ -110,9 +110,9 @@ export const STAFF_LABOR_JULY_2026: StaffLaborSnapshotRow[] = [
   {
     name: "Natalie Kwok",
     matchNames: ["Natalie Kwok"],
-    gross: 0,
+    gross: 1050,
     employerMpf: 0,
-    lessonCount: 0,
+    lessonCount: 3,
   },
   {
     name: "Phoebe Tam",

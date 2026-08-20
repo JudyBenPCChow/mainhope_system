@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   CheckCircle2,
   ChevronLeft,
@@ -26,6 +27,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { payrollModeLabel } from "@/lib/payroll/modeLabel"
+import {
+  payrollAttendanceRecordsPath,
+  payrollScheduleVerifyPath,
+} from "@/lib/payroll/returnNav"
 import { cn } from "@/lib/utils"
 
 import {
@@ -42,6 +47,7 @@ import {
   teacherBillableHc,
   teacherClassCount,
   teacherLessonCount,
+  teacherNotRolledCount,
   type ManualAdjustment,
   type PayrollMonthMock,
   type PayrollMode,
@@ -77,14 +83,20 @@ type Props = {
   reviewedIds: Set<string>
   reviewAudits: ReviewAudit[]
   excludedIds: Set<string>
+  waitingRollCallIds: Set<string>
   teacherSubmits: TeacherSubmitState[]
   onToggleReviewed: (id: string) => void
   onToggleExcluded: (id: string) => void
+  onMarkRollCallWaiting: (teacherId: string) => void
+  onRemindRollcall: (target: LessonVerifyTarget) => void
   onStatusChange: (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => void
   onAddAdjustment: (adj: ManualAdjustment) => void
   onCodyChange: (hours: number | null, status: WfhMockState["status"]) => void
   onRecalc: () => void
   onSubmitTeacher: (teacherId: string) => void
+  onSelectionChange?: (teacherId: string, lessonId: string | null) => void
+  initialTeacherId?: string | null
+  initialLessonId?: string | null
   monthSelect: ReactNode
 }
 
@@ -105,20 +117,29 @@ export function FinancePayrollView({
   reviewedIds,
   reviewAudits: _reviewAudits,
   excludedIds,
+  waitingRollCallIds,
   onToggleReviewed,
   onToggleExcluded,
+  onMarkRollCallWaiting,
+  onRemindRollcall,
   onStatusChange,
   onAddAdjustment,
   onCodyChange,
   onRecalc,
   teacherSubmits,
   onSubmitTeacher,
+  onSelectionChange,
+  initialTeacherId,
+  initialLessonId,
   monthSelect,
 }: Props) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
-  const [selectedId, setSelectedId] = useState("billy")
-  const [highlightLessonId, setHighlightLessonId] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const [selectedId, setSelectedId] = useState(initialTeacherId ?? "")
+  const [highlightLessonIds, setHighlightLessonIds] = useState<Set<string>>(
+    () => new Set(initialLessonId ? [initialLessonId] : [])
+  )
   const [filter, setFilter] = useState<FilterKey>("all")
   const [page, setPage] = useState(0)
   const [mobileShowDetail, setMobileShowDetail] = useState(false)
@@ -135,7 +156,6 @@ export function FinancePayrollView({
   const [submitChecks, setSubmitChecks] = useState<Record<string, boolean>>({})
   const [submitDeclare, setSubmitDeclare] = useState(false)
   const [codyHoursInput, setCodyHoursInput] = useState("")
-  const [verifyTarget, setVerifyTarget] = useState<LessonVerifyTarget | null>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [singleSubmitOpen, setSingleSubmitOpen] = useState(false)
 
@@ -196,26 +216,55 @@ export function FinancePayrollView({
   const allSubmitChecksOk = SUBMIT_CHECKS.every((c) => submitChecks[c.id])
 
   useEffect(() => {
-    if (!highlightLessonId) return
+    const first = [...highlightLessonIds][0]
+    if (!first) return
     const t = window.setTimeout(() => {
-      document.getElementById(`lesson-${highlightLessonId}`)?.scrollIntoView({
+      document.getElementById(`lesson-${first}`)?.scrollIntoView({
         behavior: "smooth",
         block: "center",
       })
     }, 80)
     return () => window.clearTimeout(t)
-  }, [highlightLessonId, selectedId])
+  }, [highlightLessonIds, selectedId])
 
   const selectTeacher = (id: string, lessonId?: string | null) => {
     setSelectedId(id)
-    setHighlightLessonId(lessonId ?? null)
+    setHighlightLessonIds(new Set(lessonId ? [lessonId] : []))
     setMobileShowDetail(true)
     setWorkTab("review")
     if (lessonId) setDetailTab("lessons")
+    onSelectionChange?.(id, lessonId ?? null)
   }
 
   const jumpToLesson = (teacherId: string, lessonId: string) => {
     selectTeacher(teacherId, lessonId)
+  }
+
+  const jumpToTeacherNotRolled = (teacher: PayrollTeacherRow) => {
+    const ids = new Set<string>()
+    for (const g of teacher.grades) {
+      for (const c of g.classes) {
+        for (const l of c.lessons) if (l.notRolled) ids.add(l.id)
+      }
+    }
+    setSelectedId(teacher.id)
+    setHighlightLessonIds(ids)
+    setMobileShowDetail(true)
+    setWorkTab("review")
+    setDetailTab("lessons")
+    onSelectionChange?.(teacher.id, [...ids][0] ?? null)
+  }
+
+  const openVerify = (target: LessonVerifyTarget) => {
+    const sid = target.lesson.scheduleId ?? target.lesson.id
+    navigate(
+      payrollScheduleVerifyPath({
+        scheduleId: sid,
+        month: month.monthKey,
+        teacherId: target.teacherId,
+        lessonId: target.lesson.id,
+      })
+    )
   }
 
   const hardNotReady = readiness.some((r) => r.hard && !r.ok)
@@ -321,6 +370,18 @@ export function FinancePayrollView({
                     <span className="ml-1 text-xs font-normal text-muted-foreground">（排除）</span>
                   ) : null}
                 </button>
+                {teacherNotRolledCount(row) > 0 ? (
+                  <button
+                    type="button"
+                    className="shrink-0 text-[10px] font-medium text-warning underline-offset-2 hover:underline"
+                    onClick={() => jumpToTeacherNotRolled(row)}
+                  >
+                    未點名 {teacherNotRolledCount(row)}
+                  </button>
+                ) : null}
+                {waitingRollCallIds.has(row.id) && teacherNotRolled(row) ? (
+                  <span className="shrink-0 text-[10px] text-muted-foreground">已請補點</span>
+                ) : null}
                 <button
                   type="button"
                   className="shrink-0"
@@ -572,16 +633,39 @@ export function FinancePayrollView({
         <TabsContent value="lessons">
           <TeacherLessonStats
             teacher={selected}
-            highlightLessonId={highlightLessonId}
-            onVerify={setVerifyTarget}
-            onRemindRollcall={(target) =>
-              pushBanner({
-                tone: "success",
-                title: "已發送點名提醒（示範）",
-                message: `${target.teacherName} · ${target.className}（${target.lesson.date}）`,
-              })
-            }
+            highlightLessonIds={highlightLessonIds}
+            onVerify={openVerify}
+            onRemindRollcall={onRemindRollcall}
+            onJumpNotRolled={() => jumpToTeacherNotRolled(selected)}
           />
+          {editable && teacherNotRolled(selected) ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={waitingRollCallIds.has(selected.id)}
+                onClick={() => onMarkRollCallWaiting(selected.id)}
+              >
+                標已請補點、等重算
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  navigate(
+                    payrollAttendanceRecordsPath({
+                      month: month.monthKey,
+                      teacherId: selected.id,
+                    })
+                  )
+                }
+              >
+                開出席紀錄（該月）
+              </Button>
+            </div>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="evidence" className="space-y-3">
@@ -910,10 +994,22 @@ export function FinancePayrollView({
                         className="h-7 text-xs"
                         disabled={!editable}
                         onClick={() =>
-                          pushBanner({
-                            tone: "success",
-                            title: "已發送點名提醒（示範）",
-                            message: `${n.teacherName} · ${n.className}（${n.date}）`,
+                          onRemindRollcall({
+                            lesson: {
+                              id: n.lessonId,
+                              date: n.date,
+                              startTime: "",
+                              endTime: "",
+                              billableHc: 0,
+                              amount: 0,
+                              presentStudents: [],
+                              absentStudents: [],
+                              notRolled: true,
+                              scheduleId: n.lessonId,
+                            },
+                            className: n.className,
+                            teacherId: n.teacherId,
+                            teacherName: n.teacherName,
                           })
                         }
                       >
@@ -1248,33 +1344,6 @@ export function FinancePayrollView({
               }}
             >
               送出申請
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={verifyTarget != null} onOpenChange={(o) => !o && setVerifyTarget(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>查證排程／點名表</DialogTitle>
-          </DialogHeader>
-          {verifyTarget ? (
-            <div className="space-y-2 text-sm">
-              <p>
-                {verifyTarget.teacherName} · {verifyTarget.className}
-              </p>
-              <p className="text-muted-foreground">
-                {verifyTarget.lesson.date} {verifyTarget.lesson.startTime}–
-                {verifyTarget.lesson.endTime}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                正式版：/Schedule/{verifyTarget.lesson.scheduleId} 、 /Attendance
-              </p>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" onClick={() => setVerifyTarget(null)}>
-              關閉
             </Button>
           </DialogFooter>
         </DialogContent>

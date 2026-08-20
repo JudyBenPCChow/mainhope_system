@@ -8,20 +8,23 @@
 | 不含 | 自動排課引擎；公眾假／首堂日校曆全表（可另跟）；功輔產品化（見 [homework-tutoring.md](./homework-tutoring.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
-| 最近更新 | 2026-08-20 ver. 3.4（63 班；加 Liam Lai／Leo Chan 班別時間鎖定；Cyndi Ng／Emma Cai 維持鎖定；班格與 3.3 相同；待簽收） |
+| 最近更新 | 2026-08-21 16 班已入；校舍假期 21 日已入庫並取消 48 堂 |
 
 ## 結論
 
-**2026-08-20 ver. 3.4** 為現行候選：**63** 小組班＋ Cyndi Ng 一對一高中英文預留 1 格；班格與 3.3 相同。Liam Lai／Leo Chan 現行班別的班別、逢星期與時段已確認鎖定；Cyndi Ng／Emma Cai 維持鎖定。方案、老師附件、周時間表、空房先出 md；Word／PDF 未出。ver. 3.3 及更早檔案保留不動。**尚未營運簽收、尚未寫入 production**。待補見方案「6. 未排與待排」。
+**2026-08-21 ver. 3.6** 為現行候選：**71** 小組班＋ Cyndi Ng 一對一高中英文預留 1 格。相對 3.5：Billy Shek 改只教中二／中三中文；時段改星期六 16:30 中三、17:45 中二（17E）。Phoebe Tam 科學／化學各級各一維持。Liam Lai／Leo Chan／Cyndi Ng／Emma Cai 班別時間鎖定維持。方案、老師附件、周時間表已出 md＋Word／PDF；空房已出 md＋docx。ver. 3.5 及更早檔案保留不動。**production 已入 16 班**（英文 7、生物 6、物理 3；每班逢星期原 43 堂，已按附件甲校舍假期取消 48 堂，餘 640 堂正常）。**中文／數學未入**（班號缺 A）。待補見方案「6. 未排與待排」。
 
 ## 既有產物
 
 | 文件 | 用途 |
 | --- | --- |
-| [`方案 md`](../../year/2627/timetable/versions/v3.4/2627_timetable_scheme_v3.4.md) | **現行方案** ver. 3.4；不含周時間表；Word／PDF 未出 |
-| [`老師 md`](../../year/2627/timetable/versions/v3.4/2627_timetable_teachers_week_v3.4.md) | **獨立附件**：各老師一周總覽及周視圖 |
-| [`周時間表 md`](../../year/2627/timetable/versions/v3.4/2627_timetable_weekly_v3.4.md) | **獨立附件**：原方案第 8 節，一日一頁 |
-| [`空房 md`](../../year/2627/timetable/versions/v3.4/2627_timetable_empty_rooms_v3.4.md) | **獨立附件**：空房一覽 |
+| [`方案 md`](../../year/2627/timetable/versions/v3.6/2627_timetable_scheme_v3.6.md) | **現行方案** ver. 3.6；不含周時間表；[docx](../../year/2627/timetable/versions/v3.6/2627_timetable_scheme_v3.6.docx)／[pdf](../../year/2627/timetable/versions/v3.6/2627_timetable_scheme_v3.6.pdf) |
+| [`老師 md`](../../year/2627/timetable/versions/v3.6/2627_timetable_teachers_week_v3.6.md) | **獨立附件**：各老師一周總覽及周視圖；[docx](../../year/2627/timetable/versions/v3.6/2627_timetable_teachers_week_v3.6.docx)／[pdf](../../year/2627/timetable/versions/v3.6/2627_timetable_teachers_week_v3.6.pdf) |
+| [`周時間表 md`](../../year/2627/timetable/versions/v3.6/2627_timetable_weekly_v3.6.md) | **獨立附件**：原方案第 8 節，一日一頁；[docx](../../year/2627/timetable/versions/v3.6/2627_timetable_weekly_v3.6.docx)／[pdf](../../year/2627/timetable/versions/v3.6/2627_timetable_weekly_v3.6.pdf) |
+| [`空房 md`](../../year/2627/timetable/versions/v3.6/2627_timetable_empty_rooms_v3.6.md) | **獨立附件**：空房一覽；[docx](../../year/2627/timetable/versions/v3.6/2627_timetable_empty_rooms_v3.6.docx) |
+| [`班號對照 csv`](../../year/2627/timetable/versions/v3.6/2627_timetable_class_codes_v3.6.csv) | 班別顯示碼／課程名稱／班號 |
+| [`versions/v3.5/`](../../year/2627/timetable/versions/v3.5/) | ver. 3.5（71 班；只出 md，保留不動） |
+| [`versions/v3.4/`](../../year/2627/timetable/versions/v3.4/) | ver. 3.4（63 班；只出 md，保留不動） |
 | [`versions/v3.3/`](../../year/2627/timetable/versions/v3.3/) | ver. 3.3（63 班；md＋Word／PDF，保留不動） |
 | [`versions/v3.2/`](../../year/2627/timetable/versions/v3.2/) | ver. 3.2（63 班；舊結構，保留不動） |
 | [`versions/v3.1/`](../../year/2627/timetable/versions/v3.1/) | ver. 3.1（64 班；只出 md，保留不動） |
@@ -58,22 +61,30 @@
 - Emma Cai：班別時間已確認鎖定；英文 4 班集中星期日；不教中六，改中三第二班
 - Henry Wong：生物 3＝星期六 14:00 中四、15:15 中五、16:30 中六；英仙座連續三堂；本版不排其他日子
 - Cheryl Ng：英文 2＝六 10:15 中二、11:30 中一（17E）；可 M2 本版不排；2027-06-14 至 07-03 實習
+- Billy Shek：中二／中三中文 2＝六 16:30 中三、17:45 中二（17E）；只 Katie 放假時段；星期五尚未確定不排；星期日不排
+- Phoebe Tam：科學 S1–S3 各 1、化學 S4–S6 各 1；六 17D 四班、日 矩尺兩班；連三後必須休 1
 - Natalie 暫不承接專科班；Rafael 企會財待時段
 
 ## 待決（定稿前）
 
-1. 營運審閱／簽收 ver. 3.4 方案／老師附件／周時間表；要再改格另開 3.5
-2. Rafael 時段／Henry 星期三／其他未確認老師的新資料：收到後另開下一版；不得移動 Cyndi Ng／Emma Cai／Liam Lai／Leo Chan 已確認班別時間
+1. 營運審閱／簽收 ver. 3.6 方案／老師附件／周時間表；要再改格另開 3.7
+2. Rafael 時段／Henry 星期三／Billy 星期五／Phoebe 星期二：收到後另開下一版；不得移動 Cyndi Ng／Emma Cai／Liam Lai／Leo Chan 已確認班別時間
 3. 首堂日策略與校曆缺口  
 4. 錄入方式：人手後台 vs 批次／import  
 5. 中六英文第二班；Christine 中四／中五中文第三班；Cheryl M2
 
 **下游：** 員工營運指引**不載**每周課表、**不列**老師（已決）；時間表簽收／錄入仍按本分題獨立推進。
 
+## 開工閘（agent 必讀）
+
+本題**無前置工程**，可獨立推進定稿／入班。
+
+下游 [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md)：英／生／物 16 班已 live → **抽樣 E2E 可做**。**全科關帳**仍等中文／數學入班（或產品書面確認抽樣即可關帳）。Agent 唔好喺中文／數學未入又未獲確認時把權益題標 `done`。
+
 ## 待做（摘要）
 
 1. 營運定稿  
-2. production 建 `2627` 小組班＋固定逢星期排程  
+2. production 建 `2627` 小組班＋固定逢星期排程：**英文／生物／物理 16 班已入**；中文／數學未入；校舍假期 21 日已入庫並已取消落假堂  
 3. 抽樣驗證（規則驗證清單）  
 4. 解阻報讀權益 live `2627` E2E（見 [summer-enrollment-roster-consistency.md](./summer-enrollment-roster-consistency.md)）  
 

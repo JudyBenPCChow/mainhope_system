@@ -3,7 +3,7 @@
 
 | 欄位  | 值                                                                                                                                                                         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 狀態  | `in_progress`（**暫停：等 `2627` 班 live 後續做**）                                                                                                                              |
+| 狀態  | `in_progress`（**暫停續做 E2E**：`2627` 已有英／生／物 16 班 live，可抽樣；中文／數學未入） |
 | 優先  | 高                                                                                                                                                                         |
 | 範圍  | 暑期／正規之點名紙、補堂、取消改期；權益池與到課宣告；學費收款→池滾堂                                                                                                                                       |
 | 不含  | 原班連堂分節點名；生命週期孤兒；欠費門禁；計糧；會計收入認列                                                                                                                                            |
@@ -11,9 +11,22 @@
 | 路線圖 | `[2026-08-08-enrollment-entitlement-roadmap.md](../plans/2026-08-08-enrollment-entitlement-roadmap.md)`                                                                   |
 | 政策  | `[ACADEMIC_YEARS.md](../policies/academic/ACADEMIC_YEARS.md)`；`[ATTENDANCE_BILLING.md](../policies/attendance/ATTENDANCE_BILLING.md)`；`[LEAVE_MAKEUP_CONSECUTIVE.md](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md)` §5 |
 | 生效閘 | `2627` **開始接受報讀前**，新報讀須鑄池；有排程／點名時讀宣告。`26SM` 維持舊路徑至日落                                                                                                                      |
-| 修訂  | 2026-08-16：結構已上；**暫停，等 `2627` 班 live 後續做**驗收。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
+| 修訂  | 2026-08-21：`2627` 已入英／生／物 16 班＋排程（校舍假已扣）；E2E 可抽樣，中文／數學未入。2026-08-16：結構已上；原暫停等 `2627` 班 live。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
 | 技術債歸屬 | 2026-08-14 全盤檢視 P1-1（權益雙路徑／`2627` live E2E 未驗）沿用本題，不另開重複工程 |
 
+
+---
+
+## 開工閘（agent 必讀）
+
+續做 **live `2627` E2E／驗收（P1-1）** 前，check 對上一個工程是否完成。**全科關帳未完成：停；提醒用戶必須完成後先可以當關帳開工。唔好套 production 當全科已驗。**
+
+| 本波 | 對上一個工程 | 完成條件 |
+| --- | --- | --- |
+| 抽樣 E2E（英／生／物） | [`2627-september-timetable.md`](./2627-september-timetable.md) | **已滿足**：prod 16 班 live。可抽樣。**仍要提醒用戶**：中文／數學未入，唔好當全科驗收完成 |
+| 全科 E2E／本題關帳 | 同上 | 中文／數學已入，或產品書面確認「抽樣即可關帳」。**未完成：停** |
+
+主波支付→池已落地；本題其餘結構工作唔受此閘擋。
 
 ---
 

@@ -16,6 +16,16 @@
 | UI 設計 v2 | [`2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md)（**現行：全角色**） |
 | 沙盒 | `/prototype/HomeworkTutoring`（頂部切行政／管理層／老師；不掛側欄；假資料） |
 
+## 開工閘（agent 必讀）
+
+開工前 check 對上一個工程是否完成。**未完成：停；提醒用戶必須完成後先可以開工。**
+
+| 本波 | 對上一個工程 | 完成條件 |
+| --- | --- | --- |
+| H11 沙盒審閱 | 無 | 可開工（營運睇沙盒） |
+| 正式產品實作（schema／月費登記／編更／側欄） | 本檔 H11 | **H11 通過**；通過後先開實作 plan |
+| 補 2627 指引 §7 編更 | 同上 H11 | 見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md) 開工閘 |
+
 ---
 
 ## 用語對齊（2026-08-11）
@@ -44,7 +54,7 @@
 | --- | --- | --- |
 | H11 | 沙盒／v2 審閱 | 營運**依家睇**中 |
 
-價曆已簽收；讓房不做。後台尚未可登記功輔月費與開放日。見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)。
+價曆已簽收；放假日已入庫。後台尚未可登記功輔月費。見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)。
 
 ---
 
@@ -59,12 +69,12 @@
 
 ### 下一步
 
-1. 完成 **H11** 沙盒審閱。
-2. H11 通過後開正式實作 plan；補 §7 編更。
+1. 完成 **H11** 沙盒審閱（無前置閘）。
+2. **H11 通過後**先開正式實作 plan；未通過唔好開工正式 schema／側欄。通過後可補 2627 指引 §7 編更。
 
 ### 尚未開始：正式產品實作
 
-- Schema／RLS、正式報讀月費、課室編更、獨立月曆
+- Schema／RLS、正式報讀月費、課室編更（放假日已入 `homework_tutoring_calendar_closures`；產品頁未接）
 - 計糧功輔時薪；正式側欄入口
 
 ---
@@ -112,7 +122,7 @@
 
 ### 日曆
 
-- 功輔校曆與專科分開；2627 已簽收，見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3。
+- 功輔校曆與專科分開；2627 已簽收並已入 `homework_tutoring_calendar_closures`，見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3。
 
 ### 月費（H5）
 
@@ -179,7 +189,7 @@
 - [x] 吸納 08-11 回覆（H1–H3／H8–H10；H4 當時後補）
 - [x] 同步 `SCHEDULING_RULES` §4／驗證清單（預設 17D、分界 17:00）
 - [x] 沙盒 mock 跟分界 17:00
-- [x] H7 功輔校曆簽收（2026-08-16）；政策 §3＋2627 附件乙
+- [x] H7 功輔校曆簽收（2026-08-16）；政策 §3＋2627 附件乙；放假日已入庫（2026-08-21）
 - [x] H5 初中月費簽收（2026-08-16）；政策篇＋2627 §7.2
 - [x] H6 12／2 月四分三簽收（2026-08-16）；對照校曆為開放日最少兩月
 - [x] H4 末節讓房不做（2026-08-16）；佔用至時段結束

@@ -42,7 +42,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 ## 讀檔階梯
 
 文件總門牌：`docs/README.md`（政策／操作／學年／工程／meta 四門）。  
-預設只靠本檔。問未做／可開工 → `docs/product/BACKLOG.md`「進行中／未完成」。問卡住／等緊咩 → 同檔「等待中」（未解除唔開工）。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。  
+預設只靠本檔。問未做／可開工 → `docs/product/BACKLOG.md`「進行中／未完成」。問卡住／等緊咩 → 同檔「等待中」（未解除唔開工）。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。**先讀分題「開工閘」**：對上一個工程未完成則停、提醒用戶，唔開工。  
 `docs/product/audits/`／已完成 plans：除非對對抗、查決策、或用戶點名，否則唔開。  
 營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘唔好預讀。
 

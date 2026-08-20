@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router-dom"
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ArrowLeft, Calendar, MapPin, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import { payrollWorkbenchPath } from "@/lib/payroll/returnNav"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -38,6 +39,7 @@ function isOnlineAttendanceStatus(status: string): boolean {
 export function ScheduleDetailView() {
  const { scheduleId } = useParams<{ scheduleId: string }>()
  const navigate = useNavigate()
+ const [searchParams] = useSearchParams()
  const sid = scheduleId ?? ""
  const { confirmDialog } = useAppConfirm()
  const { profile } = useAuth()
@@ -117,10 +119,22 @@ export function ScheduleDetailView() {
     variant="outline"
     size="sm"
     className="mb-8 transition-all hover:bg-muted active:scale-[0.98]"
-    onClick={() => navigate(-1)}
+    onClick={() => {
+     if (searchParams.get("from") === "payroll") {
+      navigate(
+       payrollWorkbenchPath({
+        month: searchParams.get("month") ?? "",
+        teacherId: searchParams.get("teacher"),
+        lessonId: searchParams.get("lesson"),
+       })
+      )
+      return
+     }
+     navigate(-1)
+    }}
    >
     <ArrowLeft className="h-4 w-4" />
-    返回
+    {searchParams.get("from") === "payroll" ? "返回計糧" : "返回"}
    </Button>
 
    {loading || !row ? (

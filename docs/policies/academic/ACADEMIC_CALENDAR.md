@@ -1,19 +1,19 @@
 # 校曆（常規學年：專科班／功輔）
 
 介面用語：**繁體中文**。  
-性質：**營運政策**（校曆真相；錄入 DB 前以本檔＋已簽收附件為準）。索引見 [`OPS_POLICIES.md`](../_INDEX.md)。  
+性質：**營運政策**（校曆真相）。索引見 [`OPS_POLICIES.md`](../_INDEX.md)。  
 學年邊界／報讀見 [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md)；專科按月約四堂收費見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../payments/TUITION_TERM_AND_LATE_FEE_POLICY.md)。
 
-**系統現況（2026-08-16）：**
+**系統現況（2026-08-21）：**
 
 | 產品 | DB／系統 | 本檔狀態 |
 | --- | --- | --- |
-| **專科班** | `academic_calendar_closures` **尚未**錄入 2627 | §2 待簽收（重陽跟附件：正日放、翌日不放） |
-| **功輔班**（功課輔導班） | 獨立功輔月曆 **尚未**接正式 DB | §3 **已簽收**（2026-08-16）；勿寫入專科 `academic_calendar_closures` |
+| **專科班** | `academic_calendar_closures` **已錄入** 2627 校舍假期 21 日 | §2.4 已入庫（重陽只寫 10-18；翌日 10-19 課堂如常） |
+| **功輔班**（功課輔導班） | `homework_tutoring_calendar_closures` **已錄入** 2627 放假 31 日 | §3 **已簽收**（2026-08-16）；已入庫（2026-08-21） |
 
-專科 §2 簽收前，禁止把專科校舍假寫入 `academic_calendar_closures`。功輔放假日**不要**寫入該表。
+功輔放假日**不要**寫入 `academic_calendar_closures`。
 
-程式錨點（專科錄入後）：`academic_calendar_closures`；校曆頁 `/AcademicCalendar`。  
+程式錨點：專科 `academic_calendar_closures`（校曆頁 `/AcademicCalendar`）；功輔 `homework_tutoring_calendar_closures`（產品頁尚未接線）。  
 功輔校曆與專科**分開**；勿把一方休息日自動套用到另一方（相異見 §4）。
 
 ---
@@ -32,12 +32,12 @@
 
 ---
 
-## 2. 2627 專科班上課校曆（待簽收）
+## 2. 2627 專科班上課校曆
 
 | 項目 | 內容 |
 | --- | --- |
 | 來源附件 | `2026-2027 專科班上課校曆表.xlsx`（工作表 MH Calendar） |
-| 狀態 | **待簽收**；未入 DB |
+| 狀態 | 校舍假期 **已入庫**（2026-08-21）；十期上課表仍以本檔／附件為準 |
 | 學年 label | `2627` |
 | 期數 | 第一期至第十期（共 10 期） |
 | 上課日總數 | **280**（每期 × 每星期幾各 4 堂；與附件一致，無須加減周日／周一） |
@@ -94,12 +94,12 @@
 標示為公眾假期但**課堂如常**者，同學須準時到本社上課；無故缺席不作補堂。
 例子（附件仍為上課日）：2026-10-19（重陽翌日／政府假）、2027-03-26（耶穌受難節）、2027-05-01（勞動節）等——**不計入**上節 21 日校舍假期。
 
-### 2.6 錄入資料庫前檢查清單
+### 2.6 錄入資料庫檢查清單
 
-- [ ] 營運簽收本檔 §2（或更新附件後重審）
-- [ ] 與排程／開班時間表對齊（首堂日策略）
-- [ ] 寫入 `academic_calendar_closures`（僅校舍假期；「課堂如常」公眾假**不要**當 closure；重陽只寫 10-18，勿寫 10-19）
-- [ ] 更新本檔文首「系統現況」為已入庫日期 |
+- [x] 寫入 `academic_calendar_closures`（僅校舍假期 21 日；「課堂如常」公眾假未寫入；重陽只寫 10-18，未寫 10-19）（2026-08-21）
+- [x] 更新本檔文首「系統現況」為已入庫日期（2026-08-21）
+- [ ] 營運簽收本檔 §2 十期上課表（或更新附件後重審）
+- [ ] 與排程／開班時間表對齊（首堂日策略） |
 
 ---
 
@@ -110,7 +110,7 @@
 | 項目 | 內容 |
 | --- | --- |
 | 來源附件 | `26-27功課班校曆表.docx`（標題：2026 to 2027 功課班校曆表） |
-| 狀態 | **已簽收**（2026-08-16）；**未入 DB** |
+| 狀態 | **已簽收**（2026-08-16）；放假 31 日 **已入庫**（2026-08-21，`homework_tutoring_calendar_closures`） |
 | 學年 label | `2627` |
 | 產品名稱 | 功課輔導班，簡稱功輔班／功輔；來源附件檔名及標題仍沿用舊稱「功課班」 |
 | 統計口徑 | 附件月曆含日–六；下表另列**平日（一至五）**開放日數，方便與專科平日對帳 |
@@ -169,7 +169,7 @@
 - [x] 清明、勞動節、佛誕：功輔放假（專科多為課堂如常／非校舍假）
 - [x] 附件 1/1 文案「國慶節」以本檔為準，記為**元旦**
 - [x] `*` 月費 3/4（12 月、2 月）：已簽收；此兩月為功輔全日／平日開放最少（見收費政策 §2.1）
-- [ ] 獨立功輔月曆 DB：勿寫入 `academic_calendar_closures`；待產品實作（見 [`homework-tutoring.md`](../../product/topics/homework-tutoring.md)）
+- [x] 獨立功輔月曆 DB：`homework_tutoring_calendar_closures`（2627 放假 31 日，2026-08-21）；**勿**寫入 `academic_calendar_closures`；產品頁／編更尚未接線（見 [`homework-tutoring.md`](../../product/topics/homework-tutoring.md)）
 
 ---
 
@@ -236,4 +236,4 @@
 | [`ACADEMIC_YEARS.md`](ACADEMIC_YEARS.md) | 學年 label／日期邊界 |
 | [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](../payments/TUITION_TERM_AND_LATE_FEE_POLICY.md) | 專科按月約 4 堂收費慣例 |
 | [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 功輔 2627 初中月費（H5 已簽收） |
-| [`homework-tutoring.md`](../../product/topics/homework-tutoring.md) | 功輔產品；H5／H6／H7 已簽收；獨立月曆 DB 待實作 |
+| [`homework-tutoring.md`](../../product/topics/homework-tutoring.md) | 功輔產品；H5／H6／H7 已簽收；放假日已入庫、產品頁未接 |

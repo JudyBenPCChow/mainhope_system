@@ -5,7 +5,7 @@
 | 狀態 | `done`（波次 1–4 已落地；唔聲稱完整單向分層） |
 | 優先 | 高 |
 | 範圍 | P1-2、P2-5：**資料存取邊界**＋KPI 失敗唔當 0。**唔以**拆完 God file JSX、亦**唔以**完整單向分層為關閉條件 |
-| 不含 | 權限真源／RLS（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；查詢效能／summary＋full 去重（見 [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)）；generated types（見 [`database-contract-advisor-hygiene.md`](./database-contract-advisor-hygiene.md)）；TanStack Query／目錄切片／清 service→component 反向 import／全庫重寫 |
+| 不含 | 權限真源／RLS（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；查詢效能／summary＋full 去重（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)）；generated types（見 [`database-contract-advisor-hygiene.md`](./database-contract-advisor-hygiene.md)）；TanStack Query／目錄切片／清 service→component 反向 import／全庫重寫 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 計劃 | [`2026-08-16-frontend-architecture-boundaries.md`](../plans/2026-08-16-frontend-architecture-boundaries.md)（定案；與本檔衝突以計劃為準） |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
@@ -152,7 +152,7 @@ flowchart TD
 
 **唔係本主題會解決、但易混淆：**
 
-- 營運總覽／計糧**慢**：查詢次數同 live 重算，見 [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)。本主題只要求失敗唔好扮 0；唔改快取策略。
+- 營運總覽／計糧**慢**：查詢次數同 live 重算，見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)。本主題只要求失敗唔好扮 0；唔改快取策略。
 - 權限真源：`localStorage.mgmt_role` vs Auth，見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)。Layout `signOut` 唔搬。
 - `select *` 全表學生：請假／試堂頁，見 [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)。
 

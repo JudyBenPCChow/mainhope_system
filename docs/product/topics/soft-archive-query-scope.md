@@ -11,7 +11,17 @@
 | 對抗 | [`audits/2026-08-01-soft-archive-adversarial.md`](../audits/2026-08-01-soft-archive-adversarial.md) |
 | Canvas | `soft-archive-adversarial.canvas.tsx` · `growth-after-narrowing.canvas.tsx` |
 | 相關已做 | 側欄未讀快取、學生詳情分頁懶載、營運總覽 KPI 先出（唔代替本主題） |
-| 相關另題 | 計糧／營運總覽載入偏慢（重複查詢／live 重算／按需載）→ [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)；本主題收窄冷資料，唔代替該題 |
+| 相關另題 | 營運總覽重整（KPI／fetch／手機；計糧快取後刀）→ [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本主題收窄冷資料，唔代替該題 |
+
+## 開工閘（agent 必讀）
+
+開工前 check 對上一個工程是否完成。**未完成：停；提醒用戶必須完成後先可以開工。唔好當可續做。**
+
+| 本波 | 對上一個工程 | 完成條件 |
+| --- | --- | --- |
+| 列表／picker／學年窗（含 P1-6、波次 5 對帳 KPI 範圍） | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) | **波次 2 完成**（總覽單次 fetch＋已確認 KPI 已落地）。重整**唔等**本題。 |
+
+兩邊都唔改共用 `fetchAllStudents()`／`listStudents()` 默認。總覽 fetch 未定稿就做軟封存，會雙重改 students／KPI 查詢。
 
 ## 業務定界（已確認）
 

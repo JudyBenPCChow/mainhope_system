@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useSearchParams } from "react-router-dom"
 
 import { Select } from "@/components/ui/select"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import type { MgmtRole } from "@/lib/mgmtRole"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   acceptTeacherSubmit,
   createPayrollAdjustment,
@@ -14,8 +16,10 @@ import {
   returnPayrollMonth,
   returnTeacherSubmit,
   reviewPayrollAdjustment,
+  sendPayrollRollCallReminder,
   setFinanceReviewed,
   setTeacherExcluded,
+  setTeacherRollCallWaiting,
   settlePayrollMonth,
   submitPayrollMonth,
   submitTeacherForReview,
@@ -25,6 +29,9 @@ import {
 
 import { FinancePayrollView } from "./FinancePayrollView"
 import { ManagerPayrollView } from "./ManagerPayrollView"
+import {
+  type LessonVerifyTarget,
+} from "./payrollShared"
 import {
   type ManualAdjustment,
   type PayrollMonthMock,
@@ -46,6 +53,7 @@ export function PayrollView() {
   const { confirmDialog } = useAppConfirm()
   const { pushBanner } = useAppBanner()
   const { role: realRole } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isFinanceUser = realRole === "finance"
   const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>(
     realRole === "manager" ? "manager" : "finance"
@@ -53,7 +61,13 @@ export function PayrollView() {
   const effectiveRole: PayrollPreviewRole = isFinanceUser ? "finance" : previewRole
 
   const monthOptions = useMemo(() => listPayrollMonthOptions(), [])
-  const [monthKey, setMonthKey] = useState(() => monthOptions[1]?.value ?? monthOptions[0]?.value ?? "2026-07")
+  const [monthKey, setMonthKey] = useState(() => {
+    const fromUrl = searchParams.get("month")?.trim()
+    if (fromUrl && monthOptions.some((o) => o.value === fromUrl)) return fromUrl
+    return monthOptions[1]?.value ?? monthOptions[0]?.value ?? "2026-07"
+  })
+  const initialTeacherId = searchParams.get("teacher")?.trim() || null
+  const initialLessonId = searchParams.get("lesson")?.trim() || null
   const [workbench, setWorkbench] = useState<PayrollWorkbench | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -120,6 +134,14 @@ export function PayrollView() {
     return ids
   }, [workbench?.teacherStates])
 
+  const waitingRollCallIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const s of workbench?.teacherStates ?? []) {
+      if (s.rollCallWaiting) ids.add(s.teacherId)
+    }
+    return ids
+  }, [workbench?.teacherStates])
+
   const teacherSubmits: TeacherSubmitState[] = useMemo(() => {
     return (workbench?.teacherStates ?? [])
       .filter((s) => s.submitStatus !== "not_submitted")
@@ -144,8 +166,19 @@ export function PayrollView() {
         cancelText: "取消",
         tone: "warning",
       })
-      if (ok) setMonthKey(value)
+      if (ok) {
+        setMonthKey(value)
+        setSearchParams({ month: value }, { replace: true })
+      }
     })()
+  }
+
+  const onSelectionChange = (teacherId: string, lessonId: string | null) => {
+    const next = new URLSearchParams()
+    next.set("month", monthKey)
+    next.set("teacher", teacherId)
+    if (lessonId) next.set("lesson", lessonId)
+    setSearchParams(next, { replace: true })
   }
 
   const onStatusChange = (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => {
@@ -223,6 +256,59 @@ export function PayrollView() {
         pushBanner({
           tone: "error",
           title: e instanceof Error ? e.message : "更新排除狀態失敗",
+        })
+      }
+    })()
+  }
+
+  const onMarkRollCallWaiting = (teacherId: string) => {
+    if (!runId) return
+    void (async () => {
+      try {
+        await setTeacherRollCallWaiting(runId, teacherId, true)
+        await reload(monthKey)
+        pushBanner({
+          tone: "success",
+          title: "已標「已請補點、等重算」",
+          message: "未點名仍擋此人結算；可排除此人後提交其餘。",
+        })
+      } catch (e) {
+        reportUserFacingError(e, { source: "PayrollView.onMarkRollCallWaiting" })
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "標記失敗",
+        })
+      }
+    })()
+  }
+
+  const onRemindRollcall = (target: LessonVerifyTarget) => {
+    if (!runId) return
+    const scheduleId = target.lesson.scheduleId ?? target.lesson.id
+    void (async () => {
+      try {
+        await sendPayrollRollCallReminder({
+          runId,
+          teacherId: target.teacherId,
+          teacherName: target.teacherName,
+          className: target.className,
+          classId: target.classId ?? target.lesson.classId,
+          scheduleId,
+          date: target.lesson.date,
+          startTime: target.lesson.startTime,
+          endTime: target.lesson.endTime,
+        })
+        await reload(monthKey)
+        pushBanner({
+          tone: "success",
+          title: "已發送點名提醒",
+          message: `${target.teacherName} 收件匣會見到「請補點名：${target.className}」。此人已標等重算。`,
+        })
+      } catch (e) {
+        reportUserFacingError(e, { source: "PayrollView.onRemindRollcall" })
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "發送提醒失敗",
         })
       }
     })()
@@ -394,14 +480,20 @@ export function PayrollView() {
           reviewedIds={reviewedIds}
           reviewAudits={reviewAudits}
           excludedIds={excludedIds}
+          waitingRollCallIds={waitingRollCallIds}
           onToggleReviewed={onToggleReviewed}
           onToggleExcluded={onToggleExcluded}
+          onMarkRollCallWaiting={onMarkRollCallWaiting}
+          onRemindRollcall={onRemindRollcall}
           onStatusChange={onStatusChange}
           onAddAdjustment={onAddAdjustment}
           onCodyChange={onCodyChange}
           onRecalc={onRecalc}
           teacherSubmits={teacherSubmits}
           onSubmitTeacher={onSubmitTeacher}
+          onSelectionChange={onSelectionChange}
+          initialTeacherId={initialTeacherId}
+          initialLessonId={initialLessonId}
           monthSelect={monthSelect}
         />
       ) : (

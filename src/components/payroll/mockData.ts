@@ -357,11 +357,27 @@ const S_JR = ["林詩晴", "馬天朗", "周啟明", "吳嘉欣", "鄭志偉"]
 export { classKindLabel } from "@/lib/privateClassKind"
 
 export function lessonPresentCount(l: PayrollLesson): number {
-  return l.notRolled ? 0 : l.presentStudents.length
+  if (l.notRolled) return 0
+  if (l.studentRows?.length) return l.studentRows.filter((r) => isPresentStatus(r.status)).length
+  return l.presentStudents.length
 }
 
 export function lessonAbsentCount(l: PayrollLesson): number {
-  return l.notRolled ? 0 : l.absentStudents.length
+  if (l.notRolled) return 0
+  if (l.studentRows?.length) {
+    return l.studentRows.filter((r) => !isPresentStatus(r.status)).length
+  }
+  return l.absentStudents.length
+}
+
+export function lessonNoShowCount(l: PayrollLesson): number {
+  if (l.notRolled) return 0
+  return (l.studentRows ?? []).filter((r) => r.status === "no_show").length
+}
+
+export function lessonNonBillableLeaveCount(l: PayrollLesson): number {
+  if (l.notRolled) return 0
+  return (l.studentRows ?? []).filter((r) => r.status === "sick" || r.status === "personal").length
 }
 
 export function classLessonCount(c: PayrollClassBlock): number {
@@ -382,6 +398,18 @@ export function classPresentTotal(c: PayrollClassBlock): number {
 
 export function classAbsentTotal(c: PayrollClassBlock): number {
   return c.lessons.reduce((s, l) => s + lessonAbsentCount(l), 0)
+}
+
+export function classNoShowTotal(c: PayrollClassBlock): number {
+  return c.lessons.reduce((s, l) => s + lessonNoShowCount(l), 0)
+}
+
+export function classNonBillableLeaveTotal(c: PayrollClassBlock): number {
+  return c.lessons.reduce((s, l) => s + lessonNonBillableLeaveCount(l), 0)
+}
+
+export function classNotRolledCount(c: PayrollClassBlock): number {
+  return c.lessons.filter((l) => l.notRolled).length
 }
 
 export function gradeLessonCount(g: PayrollGradeBlock): number {
@@ -426,6 +454,20 @@ export function teacherAbsentTotal(t: PayrollTeacherRow): number {
   )
 }
 
+export function teacherNoShowTotal(t: PayrollTeacherRow): number {
+  return t.grades.reduce(
+    (s, g) => s + g.classes.reduce((ss, c) => ss + classNoShowTotal(c), 0),
+    0
+  )
+}
+
+export function teacherNonBillableLeaveTotal(t: PayrollTeacherRow): number {
+  return t.grades.reduce(
+    (s, g) => s + g.classes.reduce((ss, c) => ss + classNonBillableLeaveTotal(c), 0),
+    0
+  )
+}
+
 export function teacherNotRolledCount(t: PayrollTeacherRow): number {
   let n = 0
   for (const g of t.grades) {
@@ -445,6 +487,9 @@ export type CategoryTotals = {
   billableHc: number
   presentVisits: number
   absentVisits: number
+  noShowVisits: number
+  nonBillableLeaveVisits: number
+  notRolledCount: number
   amount: number
 }
 
@@ -458,6 +503,9 @@ function emptyCategory(meta: { key: CategoryKey; label: string }): CategoryTotal
     billableHc: 0,
     presentVisits: 0,
     absentVisits: 0,
+    noShowVisits: 0,
+    nonBillableLeaveVisits: 0,
+    notRolledCount: 0,
     amount: 0,
   }
 }
@@ -489,6 +537,9 @@ export function teacherCategoryTotals(t: PayrollTeacherRow): CategoryTotals[] {
       target.billableHc += classBillableHc(c)
       target.presentVisits += classPresentTotal(c)
       target.absentVisits += classAbsentTotal(c)
+      target.noShowVisits += classNoShowTotal(c)
+      target.nonBillableLeaveVisits += classNonBillableLeaveTotal(c)
+      target.notRolledCount += classNotRolledCount(c)
       target.amount += classAmount(c)
     }
   }
@@ -503,6 +554,9 @@ export type GradeKindSummaryRow = {
   billableHc: number
   presentVisits: number
   absentVisits: number
+  noShowVisits: number
+  nonBillableLeaveVisits: number
+  notRolledCount: number
   amount: number
 }
 
@@ -520,6 +574,9 @@ export function teacherGradeKindRows(t: PayrollTeacherRow): GradeKindSummaryRow[
         billableHc: classes.reduce((s, c) => s + classBillableHc(c), 0),
         presentVisits: classes.reduce((s, c) => s + classPresentTotal(c), 0),
         absentVisits: classes.reduce((s, c) => s + classAbsentTotal(c), 0),
+        noShowVisits: classes.reduce((s, c) => s + classNoShowTotal(c), 0),
+        nonBillableLeaveVisits: classes.reduce((s, c) => s + classNonBillableLeaveTotal(c), 0),
+        notRolledCount: classes.reduce((s, c) => s + classNotRolledCount(c), 0),
         amount: classes.reduce((s, c) => s + classAmount(c), 0),
       })
     }

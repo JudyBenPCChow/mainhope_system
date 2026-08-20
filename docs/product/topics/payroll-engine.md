@@ -35,6 +35,7 @@
 - 費率管理 UI（`/Payroll/Rates`）未做
 - CSV 銀行帳號仍為佔位
 - 沙盒站可保留 mock；主系統已接真
+- **財務核對 UX**（Cody 08-05 回饋）→ 另題 [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md)；唔好當引擎未完成而重開本題
 
 ### 2026-08-05：未點名改跟點名紙
 
@@ -52,6 +53,7 @@
 2. 費率管理頁
 3. 真實銀行帳號欄
 4. 功課班（待 backlog）
+5. 財務核對 UX → [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md)
 
 ## 相關文件
 

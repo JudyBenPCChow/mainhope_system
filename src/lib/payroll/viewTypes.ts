@@ -93,8 +93,10 @@ export type PayrollLesson = {
   rateSource?: string
   /** 補堂／試堂／取消等 */
   eventTimeline?: string
-  /** 正式版連到排程詳情（mock id） */
+  /** 正式版連到排程詳情 */
   scheduleId?: string
+  /** 班別 id（inbox／跳轉用） */
+  classId?: string
   /** 名冊人數（含不扣堂缺席）— 對照計薪人頭 */
   rosterCount?: number
 }

@@ -9,6 +9,7 @@ header / footer / Normal margins) and export PDFs via Microsoft Word (not report
 from __future__ import annotations
 
 import argparse
+import csv
 import subprocess
 from collections import defaultdict
 from pathlib import Path
@@ -22,13 +23,14 @@ from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMETABLE_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
-VERSION = "3.4"
-PREV_VERSION = "3.3"
+VERSION = "3.6"
+PREV_VERSION = "3.5"
 STEM = f"2627_timetable_scheme_v{VERSION}"
 STEM_TEACHERS = f"2627_timetable_teachers_week_v{VERSION}"
 STEM_WEEKLY = f"2627_timetable_weekly_v{VERSION}"
+STEM_CODES = f"2627_timetable_class_codes_v{VERSION}"
 OUT_DIR = TIMETABLE_DIR / "versions" / f"v{VERSION}"
-# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 3.x（3.3→3.4），PREV_VERSION＝舊版；舊檔保留。
+# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 3.x（3.5→3.6），PREV_VERSION＝舊版；舊檔保留。
 FONT_NAME_EA = "新細明體"
 MARGIN_CM = 2.54  # Word 預設「普通」
 HEADER_DISTANCE_CM = 1.25
@@ -66,7 +68,9 @@ SUBJECT_FULL = {
     "中文": "中文科",
     "英文": "英文科",
     "數學": "數學科",
+    "科學": "科學科",
     "物理": "物理科",
+    "化學": "化學科",
     "生物": "生物科",
     "企會財": "企會財科",
 }
@@ -95,6 +99,58 @@ def class_title(grade: str, subject: str, code: str) -> str:
 
 def class_cell_text(grade: str, subject: str, teacher: str, code: str, slot_idx: int) -> str:
     return f"{class_title(grade, subject, code)}\n{teacher}\n{SLOT_TIMES[slot_idx]}"
+
+
+SUBJECT_TO_COURSE_ABBR = {
+    "中文": "CHI",
+    "英文": "ENG",
+    "數學": "MATH",
+    "科學": "SCI",
+    "物理": "PHY",
+    "化學": "CHEM",
+    "生物": "BIO",
+}
+# 課程名稱跟 v3.3 對照檔慣例：有系統模板中文名則用該名，否則用課程模板碼。
+COURSE_TEMPLATE_NAMES = {
+    "BIOS4001": "中四級常規生物班",
+    "BIOS5001": "中五級常規生物班",
+    "BIOS6001": "中六級常規生物班",
+    "CHIS1001": "中一常規中文班",
+    "CHIS2001": "中一常規中文班",
+    "CHIS3001": "中三常規中文班",
+    "CHIS4001": "中四常規中文班",
+    "CHIS5001": "中五常規中文班",
+    "CHIS6001": "中六常規中文班",
+    "ENGS1001": "ENGS1001",
+    "ENGS2001": "ENGS2001",
+    "ENGS3001": "ENGS3001",
+    "ENGS4001": "ENGS4001",
+    "ENGS5001": "ENGS5001",
+    "ENGS6001": "ENGS6001",
+    "MATHS1001": "中一級常規數學班",
+    "MATHS2001": "中二級常規數學班",
+    "MATHS3001": "中三級常規數學班",
+    "MATHS4001": "MATHS4001",
+    "MATHS5001": "MATHS5001",
+    "MATHS6001": "MATHS6001",
+    "PHYS4001": "PHYS4001",
+    "PHYS5001": "PHYS5001",
+    "PHYS6001": "PHYS6001",
+    "SCIS1001": "中一級常規科學班",
+    "SCIS2001": "中二級常規科學班",
+    "SCIS3001": "中三級常規科學班",
+    "CHEMS4001": "中四級常規化學班",
+    "CHEMS5001": "中五級常規化學班",
+    "CHEMS6001": "中六級常規化學班",
+}
+
+
+def course_code_base(subject: str, grade: str) -> str:
+    return f"{SUBJECT_TO_COURSE_ABBR[subject]}{grade}001"
+
+
+def course_code_full(subject: str, grade: str, section: str) -> str:
+    return f"2627-{course_code_base(subject, grade)}-{section}"
 
 
 # (day_idx, slot_idx, room, subject, grade, teacher, code)
@@ -131,15 +187,18 @@ CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     (4, 7, "矩尺座", "生物", "S5", "Judy Chu", "S5生A"),
     (4, 7, "山案座", "中文", "S6", "Christine Fan", "S6中C"),
     (4, 8, "山案座", "中文", "S4", "Christine Fan", "S4中C"),
-    # Saturday — Mark 矩尺上午兩堂、12:45 午膳（不標）、午後連三；Jackson 12:45 矩尺；Leo 山案；Liam 只中二／三；Cheryl 17E 上午；Henry 英仙下午
+    # Saturday — Mark 矩尺上午兩堂、12:45 午膳（不標）、午後連三；Jackson 12:45 矩尺；Leo 山案；Liam 只中二／三；Cheryl 17E 上午；Henry 英仙下午；Phoebe 17D；Billy 17E 16:30 起連兩
     (5, 1, "矩尺座", "數學", "S3", "Mark Yu", "S3數A"),
     (5, 1, "山案座", "數學", "S1", "Leo Chan", "S1數B"),
     (5, 1, "17E", "英文", "S2", "Cheryl Ng", "S2英B"),
+    (5, 1, "17D", "化學", "S5", "Phoebe Tam", "S5化A"),
     (5, 2, "矩尺座", "數學", "S5", "Mark Yu", "S5數D"),
     (5, 2, "山案座", "物理", "S4", "Leo Chan", "S4物A"),
     (5, 2, "17E", "英文", "S1", "Cheryl Ng", "S1英B"),
+    (5, 2, "17D", "科學", "S2", "Phoebe Tam", "S2科A"),
     (5, 3, "矩尺座", "英文", "S4", "Jackson Lau", "S4英B"),
     (5, 3, "山案座", "數學", "S2", "Leo Chan", "S2數C"),
+    (5, 3, "17D", "化學", "S6", "Phoebe Tam", "S6化A"),
     (5, 4, "矩尺座", "數學", "S6", "Mark Yu", "S6數D"),
     (5, 4, "17E", "數學", "S2", "Liam Lai", "S2數D"),
     (5, 4, "英仙座", "生物", "S4", "Henry Wong", "S4生A"),
@@ -147,17 +206,22 @@ CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     (5, 5, "17E", "數學", "S3", "Liam Lai", "S3數C"),
     (5, 5, "山案座", "物理", "S6", "Leo Chan", "S6物A"),
     (5, 5, "英仙座", "生物", "S5", "Henry Wong", "S5生B"),
+    (5, 5, "17D", "化學", "S4", "Phoebe Tam", "S4化A"),
     (5, 6, "矩尺座", "數學", "S4", "Mark Yu", "S4數C"),
     (5, 6, "山案座", "物理", "S5", "Leo Chan", "S5物A"),
     (5, 6, "英仙座", "生物", "S6", "Henry Wong", "S6生C"),
+    (5, 6, "17E", "中文", "S3", "Billy Shek", "S3中F"),
+    (5, 7, "17E", "中文", "S2", "Billy Shek", "S2中G"),
     # Sunday — Katie 17E 五堂；Christine 矩尺三堂（取消中四A／中五B）；Cyndi 英仙；Emma 17D
     (6, 1, "17E", "中文", "S1", "Katie", "S1中A"),
     (6, 1, "英仙座", "英文", "S6", "Cyndi Ng", "S6英A"),
     (6, 1, "山案座", "數學", "S2", "Liam Lai", "S2數B"),
+    (6, 1, "矩尺座", "科學", "S3", "Phoebe Tam", "S3科A"),
     (6, 2, "17E", "中文", "S2", "Katie", "S2中A"),
     (6, 2, "英仙座", "英文", "S5", "Cyndi Ng", "S5英A"),
     (6, 2, "山案座", "數學", "S3", "Liam Lai", "S3數B"),
     (6, 2, "17D", "生物", "S6", "Judy Chu", "S6生A"),
+    (6, 2, "矩尺座", "科學", "S1", "Phoebe Tam", "S1科A"),
     (6, 3, "矩尺座", "中文", "S5", "Christine Fan", "S5中A"),
     (6, 3, "17D", "英文", "S2", "Emma Cai", "S2英A"),
     (6, 3, "17E", "生物", "S6", "Judy Chu", "S6生B"),
@@ -206,6 +270,56 @@ CONFIRMED_TEACHER_CLASS_TIMES: dict[str, set[tuple[int, int, str]]] = {
         (5, 6, "S5物A"),
     },
 }
+
+CLASS_CODES_FIELDS = [
+    "班別顯示碼（course_code_full）",
+    "課程名稱（course_name）",
+    "班號（section_code）",
+    "班別",
+    "任教老師",
+    "星期",
+    "時段",
+    "課室",
+]
+
+
+def class_codes_rows() -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    ordered = sorted(CLASSES, key=lambda c: (c[0], c[1], c[2]))
+    for day_idx, slot_idx, room, subject, grade, teacher, code in ordered:
+        section = class_section_letter(code)
+        base = course_code_base(subject, grade)
+        rows.append(
+            {
+                "班別顯示碼（course_code_full）": course_code_full(subject, grade, section),
+                "課程名稱（course_name）": COURSE_TEMPLATE_NAMES[base],
+                "班號（section_code）": section,
+                "班別": f"{GRADE_FULL[grade]}{SUBJECT_FULL[subject]}（{section}）",
+                "任教老師": teacher,
+                "星期": DAYS[day_idx],
+                "時段": SLOT_TIMES[slot_idx],
+                "課室": room,
+            }
+        )
+    return rows
+
+
+def write_class_codes_csv() -> Path:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    path = OUT_DIR / f"{STEM_CODES}.csv"
+    rows = class_codes_rows()
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=CLASS_CODES_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    data = path.read_bytes()
+    assert data.startswith(b"\xef\xbb\xbf"), path
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        check = list(csv.DictReader(f))
+    assert len(check) == len(CLASSES)
+    assert len({row["班別顯示碼（course_code_full）"] for row in check}) == len(CLASSES)
+    return path
+
 
 MINUTES_PER_CLASS = 75
 
@@ -281,9 +395,23 @@ STAFF = [
         "星期六",
         "兼職。只限星期六 10:15 及 11:30（17E）：中二英文、中一英文。可教數學延伸（M2），本版優先補初中英文第二班故不排 M2。連堂最多兩堂。2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
     ),
+    (
+        "Billy Shek",
+        "中文科（中二級、中三級）",
+        2,
+        "星期六",
+        "兼職。只教中二、中三中文；營運指定只排 Katie 放假時段，最多兩班。問卷已確定星期六、日，平日（含星期五）尚未確定，本版不排星期五、不排星期日。本版兩班均星期六 17E：16:30 中三、17:45 中二。可連續三堂，本版連兩堂。",
+    ),
+    (
+        "Phoebe Tam",
+        "科學科、化學科",
+        6,
+        "星期六、星期日",
+        "兼職。科學、化學各級各一班。問卷已確定星期六、日；星期二尚未確定，本版不排平日。星期日只填 10:15 至 12:45。連堂最多三堂，其後必須休息一節。本版六班：六 17D 連三（10:15 中五化學、11:30 中二科學、12:45 中六化學）→ 休 14:00 → 15:15 中四化學；日 矩尺座連兩（10:15 中三科學、11:30 中一科學）。",
+    ),
 ]
 
-# 本輪調查回覆（2026-08-15 至 18；既有專科老師路徑，無 C 區科目欄）
+# 本輪調查回覆（2026-08-15 至 20；既有專科老師路徑，無 C 區科目欄）
 SURVEY_OVERVIEW = [
     ["老師", "科目（本輪）", "九月開班", "每周堂數", "已確定日子", "本輪已排"],
     ["Judy Chu", "生物（高中）", "願意", "3–4", "星期一、五、日", "3 班（日中六×2、五中五×1）"],
@@ -294,6 +422,8 @@ SURVEY_OVERVIEW = [
     ["Rafael Ling", "企會財", "願意", "5–6", "無（完全未掌握）", "不排，待補時段"],
     ["Henry Wong", "生物（高中）", "願意", "3–4", "星期五、星期六", "3 班（只排六 14:00 起連三）"],
     ["Cheryl Ng", "英文（可 M2）", "願意", "1–2", "星期六", "2 班（六 10:15 中二、11:30 中一）"],
+    ["Billy Shek", "中文（中二、中三）", "願意", "未定", "星期六、日", "2 班（只六；16:30 中三、17:45 中二）"],
+    ["Phoebe Tam", "科學、化學", "願意", "未填", "星期六、日", "6 班（科學／化學各級各 1）"],
 ]
 
 SURVEY_CONSTRAINTS = [
@@ -346,12 +476,24 @@ SURVEY_CONSTRAINTS = [
         "最多 2 堂；可連續編排",
         "只星期六 10:15 及 11:30 可。可教英文與 M2；本版兩班均為初中英文。2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
     ],
+    [
+        "Billy Shek",
+        "星期一至五",
+        "最多 3 堂；可連續編排",
+        "只教中二、中三中文。營運指定只排 Katie 放假時段、最多兩班。星期五尚未確定故不排；星期日雖可，本版不排（Katie 當值）。六 10:15／19:00 較不優先。原 12:45 中一改中二後撞 Leo 中二數學，改排 16:30 中三、17:45 中二（17E）。",
+    ],
+    [
+        "Phoebe Tam",
+        "星期二；其餘平日未填",
+        "最多 3 堂；其後必須休息 1 節",
+        "科學、化學各級各一。六 10:15 至 16:30 可，17:45 起空白。日只填 10:15 至 12:45。本版六四班（17D）、日兩班（矩尺座）。",
+    ],
 ]
 
 SURVEY_SLOT_NOTES = [
     "時段選項：可／較不優先／不可／未確定。空白＝該格未填，本輪視作不可用。",
-    "既有專科老師不填科目年級；科目由營運確認：Judy／Henry 生物、Leo 數學與物理、Liam 數學、Emma／Cheryl 英文（Cheryl 可 M2）、Rafael 企會財。",
-    "本版以 ver. 3.1 已排格為底，Henry Wong 改為只排星期六 14:00 起連續三堂生物；其餘按已確認限制保留。",
+    "既有專科老師不填科目年級；科目由營運確認：Judy／Henry 生物、Leo 數學與物理、Liam 數學、Emma／Cheryl 英文（Cheryl 可 M2）、Rafael 企會財、Billy 初中中文、Phoebe 科學與化學。",
+    "本版以 ver. 3.5 已排格為底，Billy Shek 改為只教中二／中三中文；已確認老師班別時間鎖不變。",
 ]
 
 PACKING_SECTIONS = [
@@ -361,6 +503,7 @@ PACKING_SECTIONS = [
             "同日順接只適用星期五、星期六、星期日；星期一至星期四不強制順接。",
             "Judy 先排中六生物兩班、中五生物一班；中四生物由 Henry 承接。",
             "Emma 四班集中星期日，不教中六英文；Cheryl 星期六上午兩班初中英文。",
+            "Billy 只排星期六兩班中二／中三中文（Katie 放假時段）；Phoebe 科學、化學各級各一。",
             "Christine 星期日取消中四A（11:30）及中五B（19:00）。",
             "Mark 星期六 12:45 午膳不標示；Jackson 該格用矩尺座。",
         ],
@@ -369,42 +512,42 @@ PACKING_SECTIONS = [
         "2.1.2 中一級",
         [
             "星期六：數學 10:15 → 英文 11:30；另開 15:15 數學（C）。",
-            "星期日：中文 10:15 → 英文 14:00；另開 16:30 中文（F）。",
+            "星期日：中文 10:15 → 科學 11:30 → 英文 14:00；另開 16:30 中文（F）。",
         ],
     ),
     (
         "2.1.3 中二級",
         [
-            "星期六：英文 10:15；12:45 數學（Leo）→ 14:00 數學（Liam）。",
+            "星期六：英文 10:15 → 科學 11:30 → 數學 12:45（Leo）→ 14:00 數學（Liam）；17:45 中文（Billy）。",
             "星期日：數學 10:15 → 中文 11:30 → 英文 12:45；另開 15:15 中文（F）。",
         ],
     ),
     (
         "2.1.4 中三級",
         [
-            "星期六：數學 10:15（Mark）；15:15 數學（Liam）。",
-            "星期日：數學 11:30；中文 14:00 → 英文 16:30 → 英文 17:45（平行班）。",
+            "星期六：數學 10:15（Mark）；15:15 數學（Liam）→ 中文 16:30（Billy）。",
+            "星期日：科學 10:15 → 數學 11:30；中文 14:00 → 英文 16:30 → 英文 17:45（平行班）。",
         ],
     ),
     (
         "2.1.5 中四級",
         [
             "星期五：中文 19:00。",
-            "星期六：物理 11:30 → 英文 12:45 → 生物 14:00；另有數學 16:30。",
+            "星期六：物理 11:30 → 英文 12:45 → 生物 14:00 → 化學 15:15；另有數學 16:30。",
         ],
     ),
     (
         "2.1.6 中五級",
         [
             "星期五：生物 17:45。",
-            "星期六：上午 11:30 數學（D）；下午 生物 15:15 → 物理 16:30。",
+            "星期六：化學 10:15 → 數學 11:30（D）；下午 生物 15:15 → 物理 16:30。",
         ],
     ),
     (
         "2.1.7 中六級",
         [
             "星期五：中文 17:45（Christine，山案座）。",
-            "星期六：數學 14:00（D）→ 物理 15:15 → 生物 16:30。",
+            "星期六：化學 12:45 → 數學 14:00（D）→ 物理 15:15 → 生物 16:30。",
             "星期日：英文 10:15 → 生物 11:30（A）；生物 12:45（B，平行班）→ 中文 15:15。",
         ],
     ),
@@ -471,18 +614,23 @@ PRINCIPLE_SECTIONS = [
             "Emma Cai 本版不教中六英文。",
             "Henry Wong 本版生物三班：只排星期六 14:00 中四、15:15 中五、16:30 中六；英仙座連續三堂。",
             "Cheryl Ng 本版英文兩班：只星期六 10:15 及 11:30；可教 M2 本版不排。",
+            "Billy Shek 本版只教中二、中三中文兩班，只星期六（Katie 放假時段）：16:30 中三、17:45 中二（17E）；不排星期五、星期日。",
+            "Phoebe Tam 本版科學、化學各級各一，共六班：星期六四班、星期日兩班；連三後必須休息一節。",
         ],
     ),
 ]
 
 VERSION_DIFFS = [
-    "Liam Lai／Leo Chan 現行班別時間已確認鎖定；Cyndi Ng／Emma Cai 維持鎖定。",
-    "班別與時段不變，維持 63 班及 1 個預留時段。",
+    "Billy Shek 中一中文改中二中文；只教中二、中三。",
+    "原星期六 12:45 中一撞中二數學，改排 16:30 中三、17:45 中二（17E）。",
+    "已確認老師班別時間鎖不變；維持 71 班。",
 ]
 
 PENDING_BY_TEACHER = [
     "Rafael Ling：企會財，意願 5–6 班，時段完全未掌握（預計 8 月 25 日），本版不佔格。",
     "Natalie Kwok：暫不承接專科班。",
+    "Billy Shek：星期五尚未確定，不排；星期日雖問卷可，營運指定只排 Katie 放假時段，本版不排日。",
+    "Phoebe Tam：星期二尚未確定；星期六 17:45 起及星期日 14:00 起空白，本版不用。",
     "Henry Wong：本版只排星期六連續 3 班；星期三尚未確定（預計 8 月 27 日），不佔格。",
     "Leo Chan：現行五班（全數星期六）班別時間已確認鎖定；意願 9 或以上，星期四、五尚未確定，不另加班。",
     "Liam Lai：現行四班班別時間已確認鎖定；星期二、三尚未確定；12 月中至 1 月頭或外出。",
@@ -497,7 +645,8 @@ PENDING_BY_SUBJECT = [
     "英文科中六只 1 班（Emma 改中三），欠第二班。",
     "英文科中一至中三本版已各 2 班。",
     "企會財尚未開班。",
-    "數學延伸（M2）、初中科學、化學本版不排。",
+    "數學延伸（M2）本版不排。",
+    "初中科學、高中化學本版已各級 1 班（Phoebe）。",
     "中五級物理科移除星期日 B 班後，本版只餘 1 班。",
     "中四級生物科移除星期五班後，本版只餘 1 班。",
     "中文、數學各級已達每級 ≥2；中四／中五中文若要第三班另議。",
@@ -852,7 +1001,7 @@ def write_cell(
 
 
 CORE_SUBJECTS = ["中文", "英文", "數學"]
-ELECTIVE_SUBJECTS = ["物理", "生物"]
+ELECTIVE_SUBJECTS = ["科學", "物理", "化學", "生物"]
 
 
 def count_matrix() -> dict[str, dict[str, int]]:
@@ -1220,7 +1369,12 @@ def build_weekly_docx(path: Path) -> None:
 
 
 def validate() -> None:
-    assert len(CLASSES) == 63, len(CLASSES)
+    assert len(CLASSES) == 71, len(CLASSES)
+    codes = class_codes_rows()
+    assert len(codes) == len(CLASSES)
+    assert len({row["班別顯示碼（course_code_full）"] for row in codes}) == len(CLASSES)
+    for row in codes:
+        assert row["課程名稱（course_name）"]
     matrix_rows = count_matrix_table()
     assert int(matrix_rows[-1][-1]) == len(CLASSES)
     listed = sum(len(rows) - 1 for _, blocks in subject_grade_class_tables() for _, rows in blocks)
@@ -1271,6 +1425,14 @@ def validate() -> None:
             assert subj == "生物" and grade in {"S4", "S5", "S6"} and room == "英仙座"
         if teacher == "Cheryl Ng":
             assert subj == "英文" and d == 5 and room == "17E"
+        if teacher == "Billy Shek":
+            assert subj == "中文" and grade in {"S2", "S3"} and d == 5
+        if teacher == "Phoebe Tam":
+            assert subj in {"科學", "化學"}
+            if subj == "科學":
+                assert grade in {"S1", "S2", "S3"}
+            else:
+                assert grade in {"S4", "S5", "S6"}
     for d, s, room, teacher, title in RESERVED:
         t_busy[(d, s)].append(teacher)
         r_busy[(d, s, room)].append(title)
@@ -1357,6 +1519,7 @@ def validate() -> None:
         ("Leo Chan", 5),
         ("Henry Wong", 5),
         ("Mark Yu", 5),
+        ("Phoebe Tam", 5),
     }
     by_td: dict[tuple[str, int], list[int]] = defaultdict(list)
     for d, s, _r, _subj, _g, teacher, _c in CLASSES:
@@ -1398,6 +1561,19 @@ def validate() -> None:
     assert {c[0] for c in CLASSES if c[5] == "Cheryl Ng"} == {5}
     assert sorted(c[1] for c in CLASSES if c[5] == "Cheryl Ng") == [1, 2]
     assert {c[4] for c in CLASSES if c[5] == "Cheryl Ng"} == {"S1", "S2"}
+    assert {c[0] for c in CLASSES if c[5] == "Billy Shek"} == {5}
+    assert sorted(c[1] for c in CLASSES if c[5] == "Billy Shek") == [6, 7]
+    assert {c[4] for c in CLASSES if c[5] == "Billy Shek"} == {"S2", "S3"}
+    assert all(c[2] == "17E" for c in CLASSES if c[5] == "Billy Shek")
+    assert sum(1 for c in CLASSES if c[5] == "Phoebe Tam") == 6
+    assert sorted(c[1] for c in CLASSES if c[5] == "Phoebe Tam" and c[0] == 5) == [1, 2, 3, 5]
+    assert all(c[2] == "17D" for c in CLASSES if c[5] == "Phoebe Tam" and c[0] == 5)
+    assert sorted(c[1] for c in CLASSES if c[5] == "Phoebe Tam" and c[0] == 6) == [1, 2]
+    assert all(c[2] == "矩尺座" for c in CLASSES if c[5] == "Phoebe Tam" and c[0] == 6)
+    sci = count_matrix()["科學"]
+    assert sci["S1"] == 1 and sci["S2"] == 1 and sci["S3"] == 1
+    chem = count_matrix()["化學"]
+    assert chem["S4"] == 1 and chem["S5"] == 1 and chem["S6"] == 1
     eng = count_matrix()["英文"]
     assert eng["S1"] == 2 and eng["S2"] == 2 and eng["S3"] == 2 and eng["S6"] == 1
     bio = count_matrix()["生物"]
@@ -1889,9 +2065,11 @@ def main() -> None:
     args = parser.parse_args()
     validate()
     scheme_md, teachers_md, weekly_md = write_markdown()
+    codes_csv = write_class_codes_csv()
     print("wrote", scheme_md)
     print("wrote", teachers_md)
     print("wrote", weekly_md)
+    print("wrote", codes_csv)
     if not args.word:
         print("skip docx/pdf (pass --word when this version is ready to export)")
         return
