@@ -10,12 +10,13 @@ import {
   MOCK_ROSTER_MONTH_LABEL,
   MOCK_TEACHERS,
   countSubmitProgress,
-  dutyLabel,
+  formatSession,
+  teacherName,
   unpaidFeeRows,
+  type AllTeacherSubmitStatus,
   type MockFeeRow,
   type MockStudent,
   type RosterPublishStatus,
-  type SubmitStatus,
 } from "./mockData"
 import { RoleTabNav, SubmitStatusTag, SummaryTile } from "./sharedUi"
 
@@ -37,7 +38,7 @@ export function ManagerHomeworkWorkbench({
 }: {
   students: MockStudent[]
   fees: MockFeeRow[]
-  submitStatus: Record<string, SubmitStatus>
+  submitStatus: AllTeacherSubmitStatus
   rosterPublishStatus: RosterPublishStatus
   onSwitchToAdmin: () => void
 }) {
@@ -45,7 +46,7 @@ export function ManagerHomeworkWorkbench({
   const [tab, setTab] = useState<MgrTab>("home")
   const progress = useMemo(() => countSubmitProgress(submitStatus), [submitStatus])
   const unpaid = useMemo(() => unpaidFeeRows(students, fees), [students, fees])
-  const dutyCovered = MOCK_DUTY_DAYS.filter((d) => d.mode !== "放假").length
+  const dutyCovered = MOCK_DUTY_DAYS.filter((d) => !d.holiday).length
 
   return (
     <div className="space-y-4">
@@ -127,12 +128,13 @@ export function ManagerHomeworkWorkbench({
             </Tag>
           </div>
           <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[560px] text-left text-sm">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">日期</th>
-                  <th className="px-3 py-2 font-medium">課室</th>
-                  <th className="px-3 py-2 font-medium">當值</th>
+                  <th className="px-3 py-2 font-medium">班時間</th>
+                  <th className="px-3 py-2 font-medium">中學部</th>
+                  <th className="px-3 py-2 font-medium">小學部</th>
                 </tr>
               </thead>
               <tbody>
@@ -147,8 +149,19 @@ export function ManagerHomeworkWorkbench({
                         </Tag>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2.5">{d.room ?? "—"}</td>
-                    <td className="px-3 py-2.5">{dutyLabel(d)}</td>
+                    <td className="px-3 py-2.5 tabular-nums">
+                      {d.holiday ? "—" : formatSession(d)}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {d.holiday
+                        ? "—"
+                        : `${teacherName(d.secondaryTeacherId)} · ${d.secondaryRoom ?? "—"}`}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {d.holiday
+                        ? "—"
+                        : `${teacherName(d.primaryTeacherId)} · ${d.primaryRoom ?? "—"}`}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -161,7 +174,7 @@ export function ManagerHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-base font-semibold">{MOCK_ROSTER_MONTH_LABEL} 報更進度</h2>
           <p className="text-xs text-muted-foreground">
-            監督用列表。代填請切換行政工作台。
+            老師只報一次更；中／小學由行政分配。代填請切換行政工作台。
           </p>
           <ul className="space-y-2">
             {MOCK_TEACHERS.map((t) => {

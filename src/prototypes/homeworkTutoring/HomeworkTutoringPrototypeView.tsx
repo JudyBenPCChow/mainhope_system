@@ -17,12 +17,12 @@ import {
   cloneAvailability,
   cloneSubmitStatus,
   summarizeOverview,
+  type AllTeacherAvailability,
+  type AllTeacherSubmitStatus,
   type MockDutyDay,
   type MockStudent,
   type RosterPublishStatus,
   type SandboxRole,
-  type SubmitStatus,
-  type DutySlot,
 } from "./mockData"
 import { SummaryTile } from "./sharedUi"
 
@@ -41,10 +41,8 @@ export function HomeworkTutoringPrototypeView() {
   const [teacherId, setTeacherId] = useState(MOCK_TEACHERS[0]!.id)
   const [students, setStudents] = useState<MockStudent[]>(() => [...MOCK_STUDENTS])
   const [fees] = useState(() => [...MOCK_FEES])
-  const [avail, setAvail] = useState<Record<string, Record<string, DutySlot>>>(() =>
-    cloneAvailability()
-  )
-  const [submitStatus, setSubmitStatus] = useState<Record<string, SubmitStatus>>(() =>
+  const [avail, setAvail] = useState<AllTeacherAvailability>(() => cloneAvailability())
+  const [submitStatus, setSubmitStatus] = useState<AllTeacherSubmitStatus>(() =>
     cloneSubmitStatus()
   )
   const [dutyDays, setDutyDays] = useState<MockDutyDay[]>(() => [...MOCK_DUTY_DAYS])
