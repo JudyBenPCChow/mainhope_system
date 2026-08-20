@@ -2,18 +2,22 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open` |
+| 狀態 | `cancelled`（2026-08-21 **工程已併入** [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本檔只保留指標表，產品可繼續補列） |
 | 優先 | 中 |
-| 範圍 | 寫清 `/MgmtDashboard`（營運總覽）**要顯示邊啲 KPI**；先規格、後實作。產品可繼續喺本檔補列，避免忘記 |
-| 不含 | 計糧／總覽載入效能優化（見 [`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)）；會計收入認列 |
+| 範圍 | 寫清 `/MgmtDashboard` **要顯示邊啲 KPI**。實作唔喺本題開工。 |
+| 不含 | 查詢／UI 實作（見重整）；會計收入認列 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 頁面 | `/MgmtDashboard`（`MgmtDashboardView`）；角色 `manager`／`alien` |
 | 立案 | 2026-08-11 |
-| 來源 | 試堂／優惠產品回覆（[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md) §3b／§3d／§4.3） |
+| 來源 | 試堂／優惠產品回覆（[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md) §3b／§3d／§4.3）；2026-08-21 再收出席／請假／補堂／欠費最長 |
+
+## 開工閘（agent 必讀）
+
+**唔好喺本檔當工程開工。** 實作／效能／手機總覽 → [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)。本檔只補指標列。若用戶叫「做 KPI 規格工程」，轉去重整分題並先讀該檔開工閘。
 
 ## 結論
 
-而家**冇**「營運總覽要顯示咩」產品規格檔；本檔補上。下列為產品已點名、須列入總覽（或總覽可下鑽報表）嘅指標。實作前可再拆「首屏 KPI」vs「明細 tab」。
+下列為產品已點名、須列入總覽（或總覽可下鑽報表）嘅指標。實作前可再拆「首屏 KPI」vs「明細 tab」。工程見重整分題。
 
 ## 產品已點名指標（2026-08-11）
 
@@ -34,10 +38,25 @@
 - **優惠成本**：正價 − 實收（試堂／學費單可計）
 - **月消課 ≈ 收學費堂數**對帳視圖（收堂 vs 消堂）
 
+## 產品已點名指標（2026-08-21）
+
+期間預設：**本月**。提醒之後要做；實作前再確認口徑同「首屏 vs 下鑽」。
+
+| # | KPI | 單位 | 口徑備註（暫定；實作前確認） |
+| --- | --- | --- | --- |
+| 8 | 本月正常出席率 | % | 不含補堂；應出席 vs 實際出席 |
+| 9 | 本月出席率（連同補堂） | % | 正常堂＋補堂一併計 |
+| 10 | 本月補堂與正常課堂比例 | 比 | 補堂次數／正常課堂次數（或堂數；實作前定） |
+| 11 | 本月老師請假（按人） | 次／人 | 每位老師計請假次數；標出本月最多的老師 |
+| 12 | 本月學生請假（按人） | 次／人 | 每位學生計請假次數；標出本月最多的學生 |
+| 13 | 本月每位老師完成補堂比例 | %／人 | 其負責班別有請假或取消、須補堂者，該老師有冇喺本月內完成補堂；分子＝已完成補堂，分母＝應補堂 |
+| 14 | 本月拖欠學費最長學生 | 人＋日 | 欠費日數最長的學生（可連欠額）；「最長」跟逾期起算日，實作前確認 |
+
 ## 現況（工程備註）
 
-- 總覽已有招生漏斗（試堂→報讀→在讀）、堂數異常告警等；**未**以上表 1–7 為產品規格。
-- 效能另題；本檔唔規定查詢實作，只鎖「要有邊啲數」。
+- 總覽已有招生漏斗（試堂→報讀→在讀）、堂數異常告警等；**未**以上表 1–14 為產品規格。
+- 查詢／效能／手機：[`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本檔只鎖「要有邊啲數」。
+- 指標 8–14 只係產品提醒；未確認分母（已點名／應出席／含取消）、老師＝任教老師定實際授課、補堂「完成」＝已上定已排。
 
 ## 待產品可繼續寫入（防忘記）
 
@@ -47,14 +66,12 @@
 
 ## 待做（摘要）
 
-1. 產品確認口徑（已收／待收、$0 算唔算「收取」、贈堂歸 5 定另列）  
-2. 標首屏 vs 下鑽  
-3. 實作查詢＋UI（可另開 plan）  
-4. 與 [`frontline-ops-update.md`](./frontline-ops-update.md) 試堂出單原則對齊（無單唔入紙 → 影響試堂人數／消堂統計）
+口徑確認同實作已交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 1–2。本檔繼續收產品新 KPI 列。
 
 ## 相關
 
+- 工程：[`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)
 - 前台流程更新：[`frontline-ops-update.md`](./frontline-ops-update.md)
 - 試堂 WIP：[`trial-promo-receipt-frontline-wip.md`](./trial-promo-receipt-frontline-wip.md)
-- 總覽效能：[`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)
+- 診斷備查：[`page-load-perf-payroll-mgmt.md`](./page-load-perf-payroll-mgmt.md)
 - 角色：[`mgmt-manager-role.md`](./mgmt-manager-role.md)

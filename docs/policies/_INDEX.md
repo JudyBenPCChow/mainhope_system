@@ -21,7 +21,7 @@
 | 文件 | 主題 |
 | --- | --- |
 | [學年與報讀形式](academic/ACADEMIC_YEARS.md) | 常規 vs 暑期；label、日期、報讀選項；後台寫入不硬鎖歷史學年 |
-| [校曆（專科／功輔）](academic/ACADEMIC_CALENDAR.md) | 專科／功輔假日與堂數規則；2627 專科待簽收、功輔已簽收；均未入 DB |
+| [校曆（專科／功輔）](academic/ACADEMIC_CALENDAR.md) | 專科／功輔假日與堂數規則；2627 專科校舍假期 21 日、功輔放假 31 日均已入庫（分表） |
 
 ### 報讀／學生
 
@@ -57,7 +57,7 @@
 
 | 文件 | 主題 |
 | --- | --- |
-| [計糧指南](staffing/PAYROLL_GUIDE.md) | 財務／管理層：計法、強積金、出糧（docx → `generated/payroll/`） |
+| [計糧指南](staffing/PAYROLL_GUIDE.md) | 財務／管理層：計法、強積金、出糧；Natalie 一對一 $350／節（docx → `generated/payroll/`） |
 
 ### 文案
 

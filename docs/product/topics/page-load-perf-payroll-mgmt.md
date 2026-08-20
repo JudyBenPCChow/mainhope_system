@@ -2,18 +2,22 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（已診斷；稍後開工） |
+| 狀態 | `cancelled`（2026-08-21 **工程已併入** [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本檔只保留 2026-08-06 診斷） |
 | 優先 | 中 |
-| 範圍 | `/Payroll`、`/MgmtDashboard` 體感載入；可選主 bundle 再切 |
-| 不含 | 軟封存／查詢收窄本體（互補另題）；物理 archive 表 |
+| 範圍 | 診斷備查：`/Payroll`、`/MgmtDashboard` 體感載入 |
+| 不含 | 軟封存本體；物理 archive 表 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 相關 | [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)、[`payroll-engine.md`](./payroll-engine.md)、[`mgmt-manager-role.md`](./mgmt-manager-role.md)、[`frontend-architecture-boundaries.md`](./frontend-architecture-boundaries.md)（KPI 失敗語意另題；summary／full 去重仍屬本題） |
+| 相關 | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)、[`soft-archive-query-scope.md`](./soft-archive-query-scope.md)、[`payroll-engine.md`](./payroll-engine.md) |
 | 記錄 | 2026-08-06 用戶反映計糧／營運總覽慢；代碼路徑診斷 |
-| 技術債歸屬 | 2026-08-14 全盤檢視 P2-2；沿用本題，不另開重複工程 |
+| 技術債歸屬 | P2-2 跟重整分題，唔再沿用本題開工 |
+
+## 開工閘（agent 必讀）
+
+**唔好喺本檔當工程開工。** 總覽去重／KPI／手機／計糧快取 → [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)，並先讀該檔開工閘。若用戶叫「做載入偏慢」，轉去重整分題。
 
 ## 目標（一句）
 
-確認慢因主要喺網頁查詢／重算設計（非純用戶端），之後用少打 API、按需載、計糧快取改善體感。
+確認慢因主要喺網頁查詢／重算設計（非純用戶端）。改善體感已交重整分題。
 
 ## 診斷摘要（2026-08-06）
 
@@ -52,6 +56,4 @@
 
 ## 下一步
 
-1. 開工前確認產品：計糧可接受「快取＋手動刷新」定必須每次最新。
-2. 先做營運總覽去重＋重活按需，再做計糧快取。
-3. 寫實作 plan（`docs/product/plans/`）後改狀態 `in_progress`。
+已交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)。本檔唔再開工。

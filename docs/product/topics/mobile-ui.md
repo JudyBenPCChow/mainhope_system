@@ -2,10 +2,10 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（行政／老師**高頻波次 1–3 已落**；餘營運總覽／外星人／次要頁） |
+| 狀態 | `in_progress`（行政／老師**高頻波次 1–3 已落**；營運總覽手機已併出；餘外星人／次要頁） |
 | 優先 | 高 → 實務上次優先（高頻夠用後；跟 Mgmt／外星人頁） |
 | 範圍 | 行政 `admin`／老師 `teacher`（外星人專屬頁可後做） |
-| 不含 | 家長 Portal、學生端登入殼 |
+| 不含 | 家長 Portal、學生端登入殼；**`/MgmtDashboard` 手機簡化版已併入** [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) |
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點 | 2026-07-30；落地＋模擬：2026-08-01；三角色覆核：2026-08-05 |
@@ -16,13 +16,20 @@
 ## 結論（2026-08-05 覆核）
 
 殼層＋行政／老師**日常高頻頁**仍 Pass（波次 1–3 **無回歸惡化**）。  
-**仍欠（高）**：營運總覽、外星人首頁／報錯／日志（`min-w` 大表）。  
+**仍欠（高）**：外星人首頁／報錯／日志（`min-w` 大表）。營運總覽手機已交重整。  
 **仍欠（中）**：老師 P3 排程捷徑／scope 文案、Inbox 底欄到達、Schedule／Payments FilterSheet、觸控 `h-10`、約房多步。  
 **更正**：行政底欄**已有排程**（舊述「無排程」過時）；仍無學生／Inbox／收款捷徑。
 
 學生詳情老師繳費／請假旁路已清 → [role-ops-hardening.md](./role-ops-hardening.md) `done`。
 
 ---
+
+## 開工閘（agent 必讀）
+
+| 本波 | 對上一個工程 | 完成條件 |
+| --- | --- | --- |
+| `/MgmtDashboard` 手機簡化版 | — | **唔好喺本題開工**；見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3 |
+| 外星人頁／老師 P3／FilterSheet／觸控 | 無 | 可繼續；唔使等總覽重整 |
 
 ## 已落波次（勿當待辦）
 
@@ -40,7 +47,7 @@
 
 | 優先 | 項 | 說明 |
 | --- | --- | --- |
-| 下一波 | 營運總覽 MgmtDashboard | 多表橫滑＋圖表擠壓；無手機簡化版（[08-05 M-1](../audits/2026-08-05-mobile-roles-devices-sim.md)） |
+| 已併出 | 營運總覽 MgmtDashboard | 2026-08-21 交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3（原 08-05 M-1） |
 | 可後做 | 外星人 AlienGodViewHome、SystemIssues、SystemLogs | 底欄有報錯入口，內容仍 `min-w` 大表（M-2～M-4） |
 | P3 | 老師底欄／首頁排程捷徑；scope 提示勿只桌面顯示 | §E；M-5／M-6 |
 | 共用 | Schedule／Payments FilterSheet；觸控對齊 §14 `h-10`；雙重 padding；Inbox 底欄到達 | §A／§B；M-7～M-11 |
