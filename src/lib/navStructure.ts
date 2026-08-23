@@ -1,10 +1,12 @@
 import type { LucideIcon } from "lucide-react"
 import {
+ AlertCircle,
  AlertTriangle,
  BarChart3,
  BookOpen,
  Bot,
  Building2,
+ CalendarCheck,
  CalendarDays,
  CalendarRange,
  CalendarClock,
@@ -18,6 +20,7 @@ import {
  HandCoins,
  Home,
  Inbox,
+ LayoutDashboard,
  LayoutGrid,
  ListOrdered,
  MessageSquareQuote,
@@ -31,6 +34,7 @@ import {
  Settings,
  Sparkles,
  TrendingUp,
+ UserCheck,
  UserCog,
  UserPlus,
  UserRound,
@@ -39,6 +43,8 @@ import {
  CircleUser,
  Wallet,
 } from "lucide-react"
+
+import { HW_PATH, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
 
 export type Role = "admin" | "manager" | "finance" | "teacher" | "alien"
 
@@ -147,6 +153,27 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
  },
  {
   kind: "group",
+  id: "homework-tutoring",
+  label: "功課輔導",
+  icon: ClipboardList,
+  children: [
+   { path: HW_PATH.overview, label: "概覽", roles: ["admin", "alien"], icon: LayoutDashboard },
+   { path: HW_PATH.students, label: "報讀學生", roles: ["admin", "alien"], icon: Users },
+   { path: HW_PATH.fees, label: "月費", roles: ["admin", "alien"], icon: Wallet },
+   { path: HW_PATH.roster, label: "當值編更", roles: ["admin", "alien"], icon: ClipboardList },
+   { path: HW_PATH.calendar, label: "功輔校曆", roles: ["admin", "alien"], icon: CalendarDays },
+   { path: HW_PATH.settings, label: "設定", roles: ["admin", "alien"], icon: Settings },
+   { path: HW_PATH.supervise, label: "監督首屏", roles: ["manager", "alien"], icon: LayoutDashboard },
+   { path: HW_PATH.duty, label: "本月當值", roles: ["manager", "alien"], icon: CalendarCheck },
+   { path: HW_PATH.progress, label: "報更進度", roles: ["manager", "alien"], icon: ClipboardList },
+   { path: HW_PATH.feeAlerts, label: "月費異常", roles: ["manager", "alien"], icon: AlertCircle },
+   { path: HW_PATH.teacherAccess, label: "老師入口", roles: ["manager", "alien"], icon: UserCheck },
+   { path: HW_PATH.submit, label: "功輔報更", roles: ["teacher"], icon: ClipboardList },
+   { path: HW_PATH.myDuty, label: "我的當值", roles: ["teacher"], icon: CalendarCheck },
+  ],
+ },
+ {
+  kind: "group",
   id: "schedule-attendance",
   label: "排程與出勤",
   icon: CalendarRange,
@@ -242,12 +269,28 @@ export function filterNavForRole(role: Role, entries: NavEntryDef[]): NavEntryDe
   }
   const children = e.children.filter((c) => c.roles.includes(role))
   if (children.length === 0) continue
-  if (role === "teacher") {
+  if (role === "teacher" && e.id !== "homework-tutoring") {
    for (const c of children) {
     out.push({ kind: "leaf", path: c.path, label: c.label, roles: c.roles, icon: c.icon })
    }
    continue
   }
+  out.push({ ...e, children })
+ }
+ return out
+}
+
+/** 老師未獲功輔入口時，從已篩角色清單去掉功課輔導項 */
+export function stripHomeworkTutoringNav(entries: NavEntryDef[]): NavEntryDef[] {
+ const out: NavEntryDef[] = []
+ for (const e of entries) {
+  if (e.kind === "leaf") {
+   if (!isHomeworkTutoringPath(e.path)) out.push(e)
+   continue
+  }
+  if (e.id === "homework-tutoring") continue
+  const children = e.children.filter((c) => !isHomeworkTutoringPath(c.path))
+  if (children.length === 0) continue
   out.push({ ...e, children })
  }
  return out

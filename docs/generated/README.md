@@ -6,7 +6,7 @@
 | 產出 | 源 |
 | --- | --- |
 | `2627/2526_26SM_SUBJECT_ENROLLMENTS_REVIEW.xlsx` | `scripts/export_2526_26sm_subject_review.py`（2526 Notion 六月科目＋26SM 系統報讀，前線覆核用） |
-| `2627/2627_REGULAR_YEAR_OPS_GUIDE.docx`／`.pdf` | `year/2627/ops-guide.md` |
+| `2627/HOMEWORK_TUTORING_BREAKEVEN.xlsx` | `scripts/generate_homework_tutoring_breakeven_xlsx.py`（功輔小學／中學室回本；黃格可改，灰格公式） |
 | `2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf` | `policies/academic/ACADEMIC_CALENDAR.md`（腳本內嵌日期表） |
 | `frontdesk/MAINHOPE_TERMINOLOGY.docx`／`.pdf` | `meta/TERMINOLOGY.md` |
 | `frontdesk/UI_TERMINOLOGY_CHANGE_REFERENCE.pdf` | `playbooks/frontdesk/UI_TERMINOLOGY_CHANGE_REFERENCE.md` |

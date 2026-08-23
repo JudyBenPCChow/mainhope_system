@@ -48,8 +48,8 @@ export type KpiCardModel = {
  sparkline?: number[]
  /** 卡內細分（例如上堂人次：初中專科班／高中專科班／私人課程） */
  breakdown?: KpiBreakdownItem[]
- /** 預設 ready。error 時畫面顯示「—」，唔好用 value: 0 當失敗訊號 */
- loadState?: "ready" | "error"
+ /** 預設 ready。error／pending 時畫面顯示「—」，唔好用 value: 0 當失敗或未結算訊號 */
+ loadState?: "ready" | "error" | "pending"
 }
 
 export type RecentWithdrawalRow = {
@@ -139,6 +139,7 @@ export type MgmtDashboardPayload = {
  kpis: KpiCardModel[]
  revenueSeries: LoadResult<RevenueSeriesPoint[]>
  funnel: LoadResult<FunnelStage[]>
+ profitSeries: LoadResult<import("@/lib/profitMetrics").MonthProfitPoint[]>
  withdrawalAnalysis: LoadResult<WithdrawalAnalysis>
  unpaidOverdue: LoadResult<UnpaidOverdueRow[]>
  opsAlerts: OpsAlertItem[]
@@ -171,6 +172,6 @@ export type MgmtDashboardPayload = {
 /** 點 KPI／圖表後的 drill-down 焦點 */
 export type DrilldownFocus =
  | { type: "kpi"; kpiId: string }
- | { type: "analysis"; panel: "revenue" | "funnel" | "withdrawal" | "unpaid" }
+ | { type: "analysis"; panel: "revenue" | "funnel" | "withdrawal" | "unpaid" | "profit" }
  | { type: "alert"; category: OpsAlertCategory }
  | null

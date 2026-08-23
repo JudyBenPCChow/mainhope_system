@@ -7,6 +7,7 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav"
 import { MobileHeader } from "@/components/mobile/MobileHeader"
 import { MobileNavDrawer } from "@/components/mobile/MobileNavDrawer"
 import { useAuth } from "@/lib/authBootstrap"
+import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
 import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
@@ -22,6 +23,7 @@ export function MobileLayout() {
  const { ready, role: authRole, profile } = useAuth()
  usePasswordChangeNudgeBanner()
  const role = authRole
+ const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -65,6 +67,7 @@ export function MobileLayout() {
     role={role}
     userDisplayName={userDisplayName}
     onLogout={logout}
+    homeworkTutoringNavVisible={homeworkTutoringNavVisible}
    />
    <ApoAssistant role={role} />
    <ChickenGentlemanNudge role={role} />

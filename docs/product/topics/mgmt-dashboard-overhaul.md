@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（2026-08-21 由 KPI 規格＋載入偏慢＋手機總覽合併；未開工） |
+| 狀態 | `in_progress`（2026-08-23 **波次 1–3 已落地**；計劃 [`2026-08-23-mgmt-dashboard-profit-kpis.md`](../plans/2026-08-23-mgmt-dashboard-profit-kpis.md)；**只餘波次 4** 計糧快取） |
 | 優先 | 中 |
 | 範圍 | `/MgmtDashboard`：產品 KPI、查詢去重／按需載、手機簡化版；其後刀：計糧未結算 live 重算快取 |
 | 不含 | 軟封存／查詢收窄本體（互補另題）；會計收入認列；流動殼層其餘頁（外星人表、FilterSheet、老師 P3） |
@@ -35,7 +35,7 @@
 
 | 波 | 內容 | 來源 |
 | --- | --- | --- |
-| 1 | 產品確認口徑（1–7、8–14）；標首屏 vs 下鑽 | KPI 規格 |
+| 1 | 產品確認口徑（1–7、8–14、15–20）；標首屏 vs 下鑽 | KPI 規格 |
 | 2 | 單次 fetch（KPI 先 paint 可留，唔好重打同一輪）；堂數不符／大表按需；實作已確認 KPI | 載入偏慢＋規格 |
 | 3 | `/MgmtDashboard` 手機簡化版（唔再用多表橫滑＋圖表擠壓當主畫面） | 流動介面 M-1 |
 | 4 | 計糧未結算：上次計算＋「重新計算」；短 TTL；避免每次無謂 `UPDATE calc_at` | 載入偏慢／Payroll |
@@ -45,17 +45,15 @@
 
 ## 現況摘要
 
-- 總覽已有招生漏斗、堂數異常告警等；**未**以指標 1–14 為產品規格。
-- `MgmtDashboardView`：`fetchMgmtDashboardSummary` → `fetchMgmtDashboard` 兩階段串行、大量查詢重複；full 另含堂數不符全量、全表 `students`、出席分頁掃。
-- 未結算計糧：每次 `loadPayrollWorkbench` live 重算並 `UPDATE calc_at`。
-- 手機：無簡化版（[08-05 M-1](../audits/2026-08-05-mobile-roles-devices-sim.md)）。
+- **波次 1–3（2026-08-23）**：首屏 8 卡（消堂價值、毛利／毛利率、純利／純利率、已收款、在讀、上堂人次）；分析區毛／純利率走勢（**窗 2026-07 起**）；summary fetch 一次利潤塊、詳情 fetch 唔重打收入／開支；手機其餘 KPI 預設摺埋。指標 8–14 出席率等本波仍無。
+- 導師人工未過帳 → 毛利卡「—」；純利＝消堂價值 − 已確認未作廢開支。7 月綠悠軒按金仍要成本頁人手作廢。
+- 未結算計糧：每次 `loadPayrollWorkbench` live 重算並 `UPDATE calc_at`（**波次 4**）。
 
 ## 待做（摘要）
 
-1. 波次 1 口徑（見指標表「待做」）  
-2. 波次 2–3 實作＋UI（含手機）  
-3. 波次 4 計糧快取（過閘後）  
-4. 與 [`frontline-ops-update.md`](./frontline-ops-update.md) 試堂出單原則對齊（無單唔入紙 → 影響試堂人數／消堂統計）
+1. ~~波次 1–3 口徑／fetch／手機~~ **已落**  
+2. 波次 4 計糧快取（過閘後：[`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) 關帳）  
+3. 與 [`frontline-ops-update.md`](./frontline-ops-update.md) 試堂出單原則對齊（無單唔入紙 → 影響試堂人數／消堂統計）
 
 ## 相關
 

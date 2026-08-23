@@ -12,6 +12,7 @@ import {
  flattenNav,
  NAV_STRUCTURE,
  pathIsActive,
+ stripHomeworkTutoringNav,
  type NavEntryDef,
  type Role,
 } from "@/lib/navStructure"
@@ -32,15 +33,24 @@ type MobileNavDrawerProps = {
  role: Role
  userDisplayName: string
  onLogout: () => void
+ homeworkTutoringNavVisible?: boolean
 }
 
-export function MobileNavDrawer({ open, onClose, role, userDisplayName, onLogout }: MobileNavDrawerProps) {
+export function MobileNavDrawer({
+ open,
+ onClose,
+ role,
+ userDisplayName,
+ onLogout,
+ homeworkTutoringNavVisible = true,
+}: MobileNavDrawerProps) {
  const location = useLocation()
  const { unreadCount } = useInboxUnreadCount()
- const navEntries = useMemo(
-  () => filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)),
-  [role]
- )
+ const navEntries = useMemo(() => {
+  const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
+  return byRole
+ }, [role, homeworkTutoringNavVisible])
  const footerNavLeaves = useMemo(
   () => filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)),
   [role]
