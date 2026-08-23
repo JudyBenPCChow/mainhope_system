@@ -124,19 +124,6 @@ function ModeToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
     <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
       <button
         type="button"
-        onClick={() => onChange("byClass")}
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition",
-          mode === "byClass"
-            ? "bg-card font-medium text-foreground shadow-sm"
-            : "text-muted-foreground hover:text-foreground"
-        )}
-      >
-        <BookOpen className="h-3.5 w-3.5" />
-        按班別
-      </button>
-      <button
-        type="button"
         onClick={() => onChange("byStudent")}
         className={cn(
           "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition",
@@ -147,6 +134,19 @@ function ModeToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
       >
         <Users className="h-3.5 w-3.5" />
         按學生
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("byClass")}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition",
+          mode === "byClass"
+            ? "bg-card font-medium text-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <BookOpen className="h-3.5 w-3.5" />
+        按班別
       </button>
     </div>
   )
@@ -802,7 +802,7 @@ export function PromotionMatchView() {
   const [allClassBundles, setAllClassBundles] = useState<ClassMatchBundle[]>([])
   const [allStudentBundles, setAllStudentBundles] = useState<StudentMatchBundle[]>([])
 
-  const [mode, setMode] = useState<ViewMode>("byClass")
+  const [mode, setMode] = useState<ViewMode>("byStudent")
   const [fullTermCounts, setFullTermCounts] = useState<Set<FullTermCountOption>>(
     () => new Set()
   )

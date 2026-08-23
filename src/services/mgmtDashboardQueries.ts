@@ -11,11 +11,19 @@ import {
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import {
  assembleDashboardPayload,
+ asError,
  asOk,
  EMPTY_WITHDRAWAL_ANALYSIS,
  exportMgmtDashboardCsv,
  mergeMgmtDashboardPayload,
 } from "@/lib/mgmtDashboardAssemble"
+import {
+ clampFromProfitWindow,
+ computeMonthProfit,
+ monthKeysInclusive,
+ PROFIT_ANALYSIS_START,
+ type MonthProfitPoint,
+} from "@/lib/profitMetrics"
 import { buildMgmtDashboardMock } from "@/lib/mgmtDashboardMock"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
@@ -37,6 +45,7 @@ import {
  type ClassKindFilter,
 } from "@/services/enrollmentReportQueries"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
+import { sumConfirmedExpenseBuckets } from "@/services/expenseQueries"
 import {
  fetchMisalignedLessonBalances,
  isLessonBalanceNeedsFollowUp,
@@ -422,12 +431,20 @@ export async function sumConsumedLessonValue(
  from: string,
  to: string,
  opts: { classKind: ClassKindFilter; teacherIds: string[] }
-): Promise<{ value: number; lessonCount: number; zeroPriceLessons: number }> {
- if (!supabase) return { value: 0, lessonCount: 0, zeroPriceLessons: 0 }
+): Promise<{
+ value: number
+ lessonCount: number
+ zeroPriceLessons: number
+ byMonth: Map<string, number>
+}> {
+ if (!supabase) {
+  return { value: 0, lessonCount: 0, zeroPriceLessons: 0, byMonth: new Map() }
+ }
 
  let value = 0
  let lessonCount = 0
  let zeroPriceLessons = 0
+ const byMonth = new Map<string, number>()
  const pageSize = 1000
  for (let offset = 0; ; offset += pageSize) {
   let q = supabase
@@ -448,10 +465,7 @@ export async function sumConsumedLessonValue(
   }
 
   const { data, error } = await q
-  if (error) {
-   console.warn("[sumConsumedLessonValue]", error.message)
-   break
-  }
+  if (error) throw new Error(error.message)
   const chunk = (data ?? []) as Record<string, unknown>[]
   const billable = chunk.filter((row) => isBillableAttendanceStatus(String(row.status ?? "")))
   if (billable.length > 0) {
@@ -483,6 +497,8 @@ export async function sumConsumedLessonValue(
     value += unit
     lessonCount += 1
     if (unit <= 0) zeroPriceLessons += 1
+    const mk = attendanceYmd.slice(0, 7)
+    if (mk) byMonth.set(mk, (byMonth.get(mk) ?? 0) + unit)
    }
   }
   if (chunk.length < pageSize) break
@@ -492,6 +508,7 @@ export async function sumConsumedLessonValue(
   value: Math.round(value * 100) / 100,
   lessonCount,
   zeroPriceLessons,
+  byMonth,
  }
 }
 
@@ -924,6 +941,80 @@ function nowAsOf(): string {
  return `${localYmd(now)} ${asOfPad(now.getHours())}:${asOfPad(now.getMinutes())}`
 }
 
+const PROFIT_WINDOW_HINT = "分析窗由 2026-07 起"
+
+async function fetchProfitBlock(filters: MgmtDashboardFilters): Promise<{
+ consumedValue: LoadResult<number>
+ tutorLabor: LoadResult<{ amount: number; posted: boolean }>
+ totalExpenses: LoadResult<number>
+ profitSeries: LoadResult<MonthProfitPoint[]>
+}> {
+ if (filters.dateTo < PROFIT_ANALYSIS_START) {
+  return {
+   consumedValue: asError(PROFIT_WINDOW_HINT),
+   tutorLabor: asError(PROFIT_WINDOW_HINT),
+   totalExpenses: asError(PROFIT_WINDOW_HINT),
+   profitSeries: asOk([]),
+  }
+ }
+
+ const periodFrom = clampFromProfitWindow(filters.dateFrom)
+ const periodTo = filters.dateTo
+ const seriesFrom = PROFIT_ANALYSIS_START
+ const classOpts = { classKind: filters.classKind, teacherIds: filters.teacherIds }
+ const needPeriodScan = periodFrom !== seriesFrom
+
+ const [consumedSeries, expenseSeries, consumedPeriod, expensePeriod] = await Promise.all([
+  settle(sumConsumedLessonValue(seriesFrom, periodTo, classOpts)),
+  settle(sumConfirmedExpenseBuckets(seriesFrom, periodTo)),
+  needPeriodScan
+   ? settle(sumConsumedLessonValue(periodFrom, periodTo, classOpts))
+   : Promise.resolve(null),
+  needPeriodScan
+   ? settle(sumConfirmedExpenseBuckets(periodFrom, periodTo))
+   : Promise.resolve(null),
+ ])
+
+ const periodConsumed = consumedPeriod ?? consumedSeries
+ const periodExpense = expensePeriod ?? expenseSeries
+
+ const consumedValue: LoadResult<number> = isLoadOk(periodConsumed)
+  ? asOk(periodConsumed.ok.value)
+  : { error: periodConsumed.error }
+ const tutorLabor: LoadResult<{ amount: number; posted: boolean }> = isLoadOk(periodExpense)
+  ? asOk({
+     amount: periodExpense.ok.tutorLabor,
+     posted: periodExpense.ok.tutorLaborPosted,
+    })
+  : { error: periodExpense.error }
+ const totalExpenses: LoadResult<number> = isLoadOk(periodExpense)
+  ? asOk(periodExpense.ok.totalConfirmed)
+  : { error: periodExpense.error }
+
+ let profitSeries: LoadResult<MonthProfitPoint[]>
+ if (!isLoadOk(consumedSeries)) {
+  profitSeries = asError(consumedSeries.error)
+ } else if (!isLoadOk(expenseSeries)) {
+  profitSeries = asError(expenseSeries.error)
+ } else {
+  const keys = monthKeysInclusive(seriesFrom, periodTo)
+  profitSeries = asOk(
+   keys.map((monthKey) => {
+    const exp = expenseSeries.ok.byMonth.get(monthKey)
+    return computeMonthProfit({
+     monthKey,
+     consumedValue: consumedSeries.ok.byMonth.get(monthKey) ?? 0,
+     tutorLabor: exp?.tutorLabor ?? 0,
+     tutorLaborPosted: exp?.tutorLaborPosted ?? false,
+     totalExpenses: exp?.totalConfirmed ?? 0,
+    })
+   })
+  )
+ }
+
+ return { consumedValue, tutorLabor, totalExpenses, profitSeries }
+}
+
 export async function fetchMgmtDashboardSummary(
  filters: MgmtDashboardFilters
 ): Promise<MgmtDashboardPayload> {
@@ -956,6 +1047,7 @@ export async function fetchMgmtDashboardSummary(
   enrollmentSeats,
   attendanceVisits,
   prevAttendanceVisits,
+  profit,
  ] = await Promise.all([
   settle(sumPaidAmount(filters.dateFrom, filters.dateTo)),
   settle(sumPaidAmount(prev.dateFrom, prev.dateTo)),
@@ -973,6 +1065,7 @@ export async function fetchMgmtDashboardSummary(
   settle(countActiveEnrollmentSeats(seatFilter)),
   settle(countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter)),
   settle(countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter)),
+  fetchProfitBlock(filters),
  ])
 
  const enrolledStudents: LoadResult<number> = isLoadOk(overall)
@@ -1009,6 +1102,10 @@ export async function fetchMgmtDashboardSummary(
   nearFullClasses: asOk([]),
   distribution: emptyDistribution(buckets),
   includeLowAttendancePlaceholder: false,
+  consumedValue: profit.consumedValue,
+  tutorLabor: profit.tutorLabor,
+  totalExpenses: profit.totalExpenses,
+  profitSeries: profit.profitSeries,
  })
 }
 
@@ -1019,8 +1116,7 @@ export async function fetchMgmtDashboard(
   return buildMgmtDashboardMock()
  }
 
- const prev = previousPeriod(filters)
- const eventFilter = { classKind: filters.classKind, teacherIds: filters.teacherIds }
+ const detailsSkipped = <T,>(): LoadResult<T> => asError("詳情階段不重算")
  const seatFilter = {
   classKind: filters.classKind,
   teacherIds: filters.teacherIds,
@@ -1028,51 +1124,21 @@ export async function fetchMgmtDashboard(
  }
 
  const [
-  revenue,
-  prevRevenue,
-  unpaid,
-  enroll,
-  prevEnroll,
-  withdraw,
-  prevWithdraw,
-  trials,
-  prevTrials,
-  convertedTrials,
-  prevConvertedTrials,
   overall,
   enrollmentReport,
-  revenueSeries,
   unpaidAlerts,
   lessonGapsRaw,
   classesMeta,
   withdrawalAnalysis,
   recentWithdrawals,
-  enrollmentSeats,
-  attendanceVisits,
-  prevAttendanceVisits,
  ] = await Promise.all([
-  settle(sumPaidAmount(filters.dateFrom, filters.dateTo)),
-  settle(sumPaidAmount(prev.dateFrom, prev.dateTo)),
-  settle(sumUnpaidAmount()),
-  settle(countEnrollmentEvents("enroll", filters.dateFrom, filters.dateTo, eventFilter)),
-  settle(countEnrollmentEvents("enroll", prev.dateFrom, prev.dateTo, eventFilter)),
-  settle(countEnrollmentEvents("withdraw", filters.dateFrom, filters.dateTo, eventFilter)),
-  settle(countEnrollmentEvents("withdraw", prev.dateFrom, prev.dateTo, eventFilter)),
-  settle(countTrials(filters.dateFrom, filters.dateTo)),
-  settle(countTrials(prev.dateFrom, prev.dateTo)),
-  settle(countConvertedTrials(filters.dateFrom, filters.dateTo)),
-  settle(countConvertedTrials(prev.dateFrom, prev.dateTo)),
   settle(fetchOverallStudentAnalysis()),
   settle(fetchEnrollmentReport({ academicYearId: "", classKind: filters.classKind })),
-  settle(fetchRevenueSeries(filters.dateFrom, filters.dateTo)),
   settle(fetchUnpaidAlerts()),
   settle(fetchMisalignedLessonBalances()),
   settle(fetchClassesWithCapacity(filters)),
   settle(fetchWithdrawalAnalysis(filters.dateFrom, filters.dateTo, seatFilter)),
   settle(fetchRecentWithdrawals(filters.dateFrom, filters.dateTo)),
-  settle(countActiveEnrollmentSeats(seatFilter)),
-  settle(countAttendanceVisits(filters.dateFrom, filters.dateTo, seatFilter)),
-  settle(countAttendanceVisits(prev.dateFrom, prev.dateTo, seatFilter)),
  ])
 
  const enrollCounts = isLoadOk(classesMeta)
@@ -1182,24 +1248,22 @@ export async function fetchMgmtDashboard(
 
  return assembleDashboardPayload({
   asOf: nowAsOf(),
-  revenue,
-  prevRevenue,
-  revenueSeries,
-  unpaid,
-  enroll,
-  prevEnroll,
-  withdraw,
-  prevWithdraw,
-  trials,
-  prevTrials,
-  convertedTrials,
-  prevConvertedTrials,
+  revenue: detailsSkipped(),
+  prevRevenue: detailsSkipped(),
+  revenueSeries: detailsSkipped(),
+  unpaid: detailsSkipped(),
+  enroll: detailsSkipped(),
+  prevEnroll: detailsSkipped(),
+  withdraw: detailsSkipped(),
+  prevWithdraw: detailsSkipped(),
+  trials: detailsSkipped(),
+  prevTrials: detailsSkipped(),
+  convertedTrials: detailsSkipped(),
+  prevConvertedTrials: detailsSkipped(),
   enrolledStudents,
-  enrollmentSeats,
-  attendanceVisits,
-  prevAttendanceTotal: isLoadOk(prevAttendanceVisits)
-   ? asOk(prevAttendanceVisits.ok.total)
-   : { error: prevAttendanceVisits.error },
+  enrollmentSeats: detailsSkipped(),
+  attendanceVisits: detailsSkipped(),
+  prevAttendanceTotal: detailsSkipped(),
   teacherLoadAvg,
   withdrawalAnalysis,
   recentWithdrawals,
@@ -1215,6 +1279,7 @@ export async function fetchMgmtDashboard(
    byTeacher: byTeacher.slice(0, 20),
   },
   includeLowAttendancePlaceholder: true,
+  profitSeries: detailsSkipped(),
  })
 }
 

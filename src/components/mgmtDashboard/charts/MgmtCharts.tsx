@@ -14,6 +14,7 @@ import {
 } from "recharts"
 
 import type { FunnelStage, NamedCount, RevenueSeriesPoint } from "@/components/mgmtDashboard/types"
+import type { MonthProfitPoint } from "@/lib/profitMetrics"
 import { cn } from "@/lib/utils"
 
 function ChartEmpty({ label = "暫無資料" }: { label?: string }) {
@@ -107,6 +108,58 @@ export function RevenueTrendChart({
        strokeDasharray="4 4"
       />
      ) : null}
+    </ComposedChart>
+   </ResponsiveContainer>
+  </div>
+ )
+}
+
+export function ProfitMarginChart({
+ data,
+ loading,
+}: {
+ data: MonthProfitPoint[]
+ loading?: boolean
+}) {
+ if (loading) return <ChartLoading />
+ if (data.length === 0) return <ChartEmpty label="分析窗由 2026-07 起，目前尚無毛利／純利率" />
+ const chartData = data.map((p) => ({
+  label: p.label,
+  grossMarginPct: p.grossMarginPct,
+  netMarginPct: p.netMarginPct,
+ }))
+ return (
+  <div className="h-64 w-full">
+   <ResponsiveContainer width="100%" height="100%">
+    <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+     <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+     <YAxis tick={{ fontSize: 12 }} width={40} unit="%" />
+     <Tooltip
+      formatter={(value, name) => [
+       value == null || value === "" ? "—" : `${Number(value).toLocaleString("en-HK")}%`,
+       String(name),
+      ]}
+     />
+     <Legend />
+     <Line
+      type="monotone"
+      dataKey="grossMarginPct"
+      name="毛利率"
+      stroke="hsl(var(--chart-1))"
+      strokeWidth={2}
+      dot={{ r: 3 }}
+      connectNulls={false}
+     />
+     <Line
+      type="monotone"
+      dataKey="netMarginPct"
+      name="純利率"
+      stroke="hsl(var(--chart-2))"
+      strokeWidth={2}
+      dot={{ r: 3 }}
+      connectNulls={false}
+     />
     </ComposedChart>
    </ResponsiveContainer>
   </div>

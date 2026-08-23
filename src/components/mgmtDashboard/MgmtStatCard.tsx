@@ -7,7 +7,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
 function formatValue(card: KpiCardModel): string {
- if (card.loadState === "error") return "—"
+ if (card.loadState === "error" || card.loadState === "pending") return "—"
  if (card.format === "hkd") {
   return `HK$ ${card.value.toLocaleString("en-HK", { maximumFractionDigits: 0 })}`
  }
@@ -45,7 +45,9 @@ type Props = {
 
 export function MgmtStatCard({ card, selected, onSelect }: Props) {
  const failed = card.loadState === "error"
- const delta = failed ? null : card.deltaPct
+ const pending = card.loadState === "pending"
+ const showDash = failed || pending
+ const delta = showDash ? null : card.deltaPct
  const DeltaIcon =
   delta == null ? Minus : delta > 0 ? ArrowUpRight : delta < 0 ? ArrowDownRight : Minus
  const deltaTone =
@@ -56,8 +58,8 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
      : delta < 0
        ? "text-destructive"
        : "text-muted-foreground"
- const gapText = failed ? null : formatGap(card)
- const statusLabel = failed ? "未能載入" : card.status
+ const gapText = showDash ? null : formatGap(card)
+ const statusLabel = failed ? "未能載入" : pending ? "未結算" : card.status
 
  return (
   <button
@@ -72,14 +74,18 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
   >
    <div className="flex items-start justify-between gap-2">
     <p className="text-sm text-muted-foreground">{card.label}</p>
-    <Tag tone={failed ? "warning" : statusToTagTone(card.status)} size="sm">
+    <Tag tone={failed || pending ? "warning" : statusToTagTone(card.status)} size="sm">
      {statusLabel}
     </Tag>
    </div>
    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{formatValue(card)}</p>
-   {failed ? <p className="mt-1 text-xs text-destructive">{card.hint ?? "資料未能載入"}</p> : card.hint ? <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p> : null}
+   {failed ? (
+    <p className="mt-1 text-xs text-destructive">{card.hint ?? "資料未能載入"}</p>
+   ) : card.hint ? (
+    <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
+   ) : null}
 
-   {!failed && card.breakdown && card.breakdown.length > 0 ? (
+   {!showDash && card.breakdown && card.breakdown.length > 0 ? (
     <ul className="mt-2 grid grid-cols-3 gap-1.5">
      {card.breakdown.map((item) => (
       <li
@@ -95,7 +101,7 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
     </ul>
    ) : null}
 
-   {failed ? null : (
+   {showDash ? null : (
     <>
      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
       <span className={cn("inline-flex items-center gap-0.5", deltaTone)}>

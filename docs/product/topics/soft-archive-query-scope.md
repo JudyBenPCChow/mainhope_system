@@ -19,7 +19,7 @@
 
 | 本波 | 對上一個工程 | 完成條件 |
 | --- | --- | --- |
-| 列表／picker／學年窗（含 P1-6、波次 5 對帳 KPI 範圍） | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) | **波次 2 完成**（總覽單次 fetch＋已確認 KPI 已落地）。重整**唔等**本題。 |
+| 列表／picker／學年窗（含 P1-6、波次 5 對帳 KPI 範圍） | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) | **波次 2 已完成**（2026-08-23：總覽 summary fetch＋已確認 KPI 已落地）。重整**唔等**本題。閘已開。 |
 
 兩邊都唔改共用 `fetchAllStudents()`／`listStudents()` 默認。總覽 fetch 未定稿就做軟封存，會雙重改 students／KPI 查詢。
 

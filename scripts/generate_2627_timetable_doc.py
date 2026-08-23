@@ -23,14 +23,14 @@ from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 TIMETABLE_DIR = ROOT / "docs" / "year" / "2627" / "timetable"
-VERSION = "3.6"
-PREV_VERSION = "3.5"
+VERSION = "4.0"
+PREV_VERSION = "3.10"
 STEM = f"2627_timetable_scheme_v{VERSION}"
 STEM_TEACHERS = f"2627_timetable_teachers_week_v{VERSION}"
 STEM_WEEKLY = f"2627_timetable_weekly_v{VERSION}"
 STEM_CODES = f"2627_timetable_class_codes_v{VERSION}"
 OUT_DIR = TIMETABLE_DIR / "versions" / f"v{VERSION}"
-# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 3.x（3.5→3.6），PREV_VERSION＝舊版；舊檔保留。
+# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 4.x（4.0→4.1），PREV_VERSION＝舊版；舊檔保留。
 FONT_NAME_EA = "新細明體"
 MARGIN_CM = 2.54  # Word 預設「普通」
 HEADER_DISTANCE_CM = 1.25
@@ -110,32 +110,32 @@ SUBJECT_TO_COURSE_ABBR = {
     "化學": "CHEM",
     "生物": "BIO",
 }
-# 課程名稱跟 v3.3 對照檔慣例：有系統模板中文名則用該名，否則用課程模板碼。
+# 課程名稱跟系統 courses.course_name 慣例：中X級常規Y班（中文課省略「級」）。
 COURSE_TEMPLATE_NAMES = {
     "BIOS4001": "中四級常規生物班",
     "BIOS5001": "中五級常規生物班",
     "BIOS6001": "中六級常規生物班",
     "CHIS1001": "中一常規中文班",
-    "CHIS2001": "中一常規中文班",
+    "CHIS2001": "中二常規中文班",
     "CHIS3001": "中三常規中文班",
     "CHIS4001": "中四常規中文班",
     "CHIS5001": "中五常規中文班",
     "CHIS6001": "中六常規中文班",
-    "ENGS1001": "ENGS1001",
-    "ENGS2001": "ENGS2001",
-    "ENGS3001": "ENGS3001",
-    "ENGS4001": "ENGS4001",
-    "ENGS5001": "ENGS5001",
-    "ENGS6001": "ENGS6001",
+    "ENGS1001": "中一級常規英文班",
+    "ENGS2001": "中二級常規英文班",
+    "ENGS3001": "中三級常規英文班",
+    "ENGS4001": "中四級常規英文班",
+    "ENGS5001": "中五級常規英文班",
+    "ENGS6001": "中六級常規英文班",
     "MATHS1001": "中一級常規數學班",
     "MATHS2001": "中二級常規數學班",
     "MATHS3001": "中三級常規數學班",
-    "MATHS4001": "MATHS4001",
-    "MATHS5001": "MATHS5001",
-    "MATHS6001": "MATHS6001",
-    "PHYS4001": "PHYS4001",
-    "PHYS5001": "PHYS5001",
-    "PHYS6001": "PHYS6001",
+    "MATHS4001": "中四級常規數學班",
+    "MATHS5001": "中五級常規數學班",
+    "MATHS6001": "中六級常規數學班",
+    "PHYS4001": "中四級常規物理班",
+    "PHYS5001": "中五級常規物理班",
+    "PHYS6001": "中六級常規物理班",
     "SCIS1001": "中一級常規科學班",
     "SCIS2001": "中二級常規科學班",
     "SCIS3001": "中三級常規科學班",
@@ -153,41 +153,52 @@ def course_code_full(subject: str, grade: str, section: str) -> str:
     return f"2627-{course_code_base(subject, grade)}-{section}"
 
 
+def assign_chinese_class_letters(
+    classes: list[tuple[int, int, str, str, str, str, str]],
+) -> list[tuple[int, int, str, str, str, str, str]]:
+    """各級中文班號按星期→時段重編為連續 A、B、C…。"""
+    by_grade: dict[str, list[int]] = defaultdict(list)
+    for i, row in enumerate(classes):
+        if row[3] == "中文":
+            by_grade[row[4]].append(i)
+    out = list(classes)
+    for grade, idxs in by_grade.items():
+        idxs.sort(key=lambda i: (out[i][0], out[i][1], out[i][2]))
+        for n, i in enumerate(idxs):
+            day_idx, slot_idx, room, subject, g, teacher, _code = out[i]
+            letter = chr(ord("A") + n)
+            out[i] = (day_idx, slot_idx, room, subject, g, teacher, f"{g}中{letter}")
+    return out
+
+
 # (day_idx, slot_idx, room, subject, grade, teacher, code)
 # ver. 3.2：以 3.1 為底，Henry 只排星期六連續三堂中四／中五／中六生物。
+# 中文班號於表末由 assign_chinese_class_letters 覆寫；此處碼僅佔位。
 CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
-    # Monday — Mark 矩尺連三；Katie 17E 連三；Christine 山案
+    # Monday — Mark 矩尺連三；Katie 17E 兩堂（本版不排 19:00）
     (0, 6, "矩尺座", "數學", "S1", "Mark Yu", "S1數A"),
-    (0, 6, "17E", "中文", "S2", "Katie", "S2中B"),
+    (0, 6, "17E", "中文", "S2", "Katie", "S2中"),
     (0, 7, "矩尺座", "數學", "S5", "Mark Yu", "S5數B"),
-    (0, 7, "17E", "中文", "S3", "Katie", "S3中E"),
-    (0, 7, "山案座", "中文", "S6", "Christine Fan", "S6中B"),
+    (0, 7, "17E", "中文", "S3", "Katie", "S3中"),
     (0, 8, "矩尺座", "數學", "S4", "Mark Yu", "S4數B"),
-    (0, 8, "17E", "中文", "S2", "Katie", "S2中E"),
-    (0, 8, "山案座", "中文", "S5", "Christine Fan", "S5中C"),
-    # Tuesday — Mark 矩尺連三；Katie 17E 連三
+    # Tuesday — Mark 矩尺連三；Katie 17E 兩堂
     (1, 6, "矩尺座", "數學", "S2", "Mark Yu", "S2數A"),
-    (1, 6, "17E", "中文", "S3", "Katie", "S3中B"),
+    (1, 6, "17E", "中文", "S3", "Katie", "S3中"),
     (1, 7, "矩尺座", "數學", "S6", "Mark Yu", "S6數B"),
-    (1, 7, "17E", "中文", "S1", "Katie", "S1中C"),
+    (1, 7, "17E", "中文", "S1", "Katie", "S1中"),
     (1, 8, "矩尺座", "數學", "S4", "Mark Yu", "S4數A"),
-    (1, 8, "17E", "中文", "S2", "Katie", "S2中C"),
-    # Wednesday — 無 Mark；Katie 留矩尺；Jackson 山案（不排 17D／17E）
-    (2, 6, "矩尺座", "中文", "S1", "Katie", "S1中D"),
-    (2, 7, "矩尺座", "中文", "S2", "Katie", "S2中D"),
+    # Wednesday — 無 Mark；Katie 留矩尺兩堂；Jackson 山案（不排 17D／17E）
+    (2, 6, "矩尺座", "中文", "S1", "Katie", "S1中"),
+    (2, 7, "矩尺座", "中文", "S2", "Katie", "S2中"),
     (2, 7, "山案座", "英文", "S5", "Jackson Lau", "S5英B"),
-    (2, 8, "矩尺座", "中文", "S3", "Katie", "S3中C"),
-    # Thursday — Mark 矩尺高中兩班；Katie 全日 17E（Christine 改星期五）
-    (3, 6, "17E", "中文", "S3", "Katie", "S3中D"),
+    # Thursday — Mark 矩尺高中兩班；Katie 17E 兩堂
+    (3, 6, "17E", "中文", "S3", "Katie", "S3中"),
     (3, 7, "矩尺座", "數學", "S5", "Mark Yu", "S5數A"),
-    (3, 7, "17E", "中文", "S1", "Katie", "S1中E"),
+    (3, 7, "17E", "中文", "S1", "Katie", "S1中"),
     (3, 8, "矩尺座", "數學", "S6", "Mark Yu", "S6數A"),
-    (3, 8, "17E", "中文", "S1", "Katie", "S1中B"),
-    # Friday — Judy 中五生物矩尺；Christine 山案連排
+    # Friday — Judy 中五生物矩尺；Christine 本版不排星期五
     (4, 7, "矩尺座", "生物", "S5", "Judy Chu", "S5生A"),
-    (4, 7, "山案座", "中文", "S6", "Christine Fan", "S6中C"),
-    (4, 8, "山案座", "中文", "S4", "Christine Fan", "S4中C"),
-    # Saturday — Mark 矩尺上午兩堂、12:45 午膳（不標）、午後連三；Jackson 12:45 矩尺；Leo 山案；Liam 只中二／三；Cheryl 17E 上午；Henry 英仙下午；Phoebe 17D；Billy 17E 16:30 起連兩
+    # Saturday — Mark 矩尺上午兩堂、12:45 午膳（不標）、14:00／15:15／17:45；Jackson 12:45 英仙（矩尺讓 Christine）；Leo 山案；Christine 12:45 矩尺中四、14:00 山案中五、16:30 矩尺中六（本版不避撞科）
     (5, 1, "矩尺座", "數學", "S3", "Mark Yu", "S3數A"),
     (5, 1, "山案座", "數學", "S1", "Leo Chan", "S1數B"),
     (5, 1, "17E", "英文", "S2", "Cheryl Ng", "S2英B"),
@@ -196,45 +207,49 @@ CLASSES: list[tuple[int, int, str, str, str, str, str]] = [
     (5, 2, "山案座", "物理", "S4", "Leo Chan", "S4物A"),
     (5, 2, "17E", "英文", "S1", "Cheryl Ng", "S1英B"),
     (5, 2, "17D", "科學", "S2", "Phoebe Tam", "S2科A"),
-    (5, 3, "矩尺座", "英文", "S4", "Jackson Lau", "S4英B"),
+    (5, 3, "英仙座", "英文", "S4", "Jackson Lau", "S4英B"),
     (5, 3, "山案座", "數學", "S2", "Leo Chan", "S2數C"),
     (5, 3, "17D", "化學", "S6", "Phoebe Tam", "S6化A"),
+    (5, 3, "矩尺座", "中文", "S4", "Christine Fan", "S4中"),
     (5, 4, "矩尺座", "數學", "S6", "Mark Yu", "S6數D"),
     (5, 4, "17E", "數學", "S2", "Liam Lai", "S2數D"),
     (5, 4, "英仙座", "生物", "S4", "Henry Wong", "S4生A"),
+    (5, 4, "山案座", "中文", "S5", "Christine Fan", "S5中"),
     (5, 5, "矩尺座", "數學", "S1", "Mark Yu", "S1數C"),
     (5, 5, "17E", "數學", "S3", "Liam Lai", "S3數C"),
     (5, 5, "山案座", "物理", "S6", "Leo Chan", "S6物A"),
     (5, 5, "英仙座", "生物", "S5", "Henry Wong", "S5生B"),
     (5, 5, "17D", "化學", "S4", "Phoebe Tam", "S4化A"),
-    (5, 6, "矩尺座", "數學", "S4", "Mark Yu", "S4數C"),
     (5, 6, "山案座", "物理", "S5", "Leo Chan", "S5物A"),
     (5, 6, "英仙座", "生物", "S6", "Henry Wong", "S6生C"),
-    (5, 6, "17E", "中文", "S3", "Billy Shek", "S3中F"),
-    (5, 7, "17E", "中文", "S2", "Billy Shek", "S2中G"),
-    # Sunday — Katie 17E 五堂；Christine 矩尺三堂（取消中四A／中五B）；Cyndi 英仙；Emma 17D
-    (6, 1, "17E", "中文", "S1", "Katie", "S1中A"),
+    (5, 6, "17E", "中文", "S3", "Billy Shek", "S3中"),
+    (5, 6, "矩尺座", "中文", "S6", "Christine Fan", "S6中"),
+    (5, 7, "17E", "中文", "S2", "Billy Shek", "S2中"),
+    (5, 7, "矩尺座", "數學", "S4", "Mark Yu", "S4數C"),
+    # Sunday — Katie 17E 五堂；Christine 矩尺三堂；Cyndi 英仙；Emma 17D
+    (6, 1, "17E", "中文", "S1", "Katie", "S1中"),
     (6, 1, "英仙座", "英文", "S6", "Cyndi Ng", "S6英A"),
     (6, 1, "山案座", "數學", "S2", "Liam Lai", "S2數B"),
     (6, 1, "矩尺座", "科學", "S3", "Phoebe Tam", "S3科A"),
-    (6, 2, "17E", "中文", "S2", "Katie", "S2中A"),
+    (6, 2, "17E", "中文", "S2", "Katie", "S2中"),
     (6, 2, "英仙座", "英文", "S5", "Cyndi Ng", "S5英A"),
     (6, 2, "山案座", "數學", "S3", "Liam Lai", "S3數B"),
     (6, 2, "17D", "生物", "S6", "Judy Chu", "S6生A"),
     (6, 2, "矩尺座", "科學", "S1", "Phoebe Tam", "S1科A"),
-    (6, 3, "矩尺座", "中文", "S5", "Christine Fan", "S5中A"),
+    (6, 3, "矩尺座", "中文", "S5", "Christine Fan", "S5中"),
     (6, 3, "17D", "英文", "S2", "Emma Cai", "S2英A"),
     (6, 3, "17E", "生物", "S6", "Judy Chu", "S6生B"),
-    (6, 4, "17E", "中文", "S3", "Katie", "S3中A"),
+    (6, 4, "17E", "中文", "S3", "Katie", "S3中"),
     (6, 4, "英仙座", "英文", "S4", "Cyndi Ng", "S4英A"),
     (6, 4, "17D", "英文", "S1", "Emma Cai", "S1英A"),
-    (6, 5, "17E", "中文", "S2", "Katie", "S2中F"),
-    (6, 5, "矩尺座", "中文", "S6", "Christine Fan", "S6中A"),
-    (6, 6, "17E", "中文", "S1", "Katie", "S1中F"),
-    (6, 6, "矩尺座", "中文", "S4", "Christine Fan", "S4中B"),
+    (6, 5, "17E", "中文", "S2", "Katie", "S2中"),
+    (6, 5, "矩尺座", "中文", "S4", "Christine Fan", "S4中"),
+    (6, 6, "17E", "中文", "S1", "Katie", "S1中"),
+    (6, 6, "矩尺座", "中文", "S6", "Christine Fan", "S6中"),
     (6, 6, "17D", "英文", "S3", "Emma Cai", "S3英A"),
     (6, 7, "17D", "英文", "S3", "Emma Cai", "S3英B"),
 ]
+CLASSES = assign_chinese_class_letters(CLASSES)
 
 # (day_idx, slot_idx, room, teacher, title)
 # Reserved non-group slots shown on the timetable.
@@ -329,21 +344,21 @@ STAFF = [
         "數學科",
         13,
         "星期一、星期二、星期四、星期六",
-        "兼職。必須星期六出勤；不排星期三、星期五、星期日。平日每日最多三班；週末每日最多五班。本版十三班：星期一、二連排三堂；星期四高中兩班；星期六五班（10:15、11:30；12:45 午膳不標示；14:00 起連排三堂）。出勤日優先矩尺座。",
+        "兼職。必須星期六出勤；不排星期三、星期五、星期日。平日每日最多三班；週末每日最多五班。本版十三班：星期一、二連排三堂；星期四高中兩班；星期六五班（10:15、11:30；12:45 午膳不標示；14:00、15:15、17:45；16:30 矩尺讓 Christine）。出勤日優先矩尺座。",
     ),
     (
         "Katie",
         "中文科",
-        17,
+        13,
         "星期一至星期四、星期日",
-        "全職。放假星期五、星期六。平日 14:00 至最後一節；週末 09:00-18:00，中間一節食飯休息。本版十七班：星期一至四每日連排三堂；星期日五班（10:15 至 16:30，12:45 食飯休息）。老師附件：非上堂時間標空堂；放假日灰底。",
+        "全職。放假星期五、星期六。平日 14:00 至最後一節；週末 09:00-18:00，中間一節食飯休息。本版十三班：星期一至四每日兩堂（16:30、17:45）；星期日五班（10:15 至 16:30，12:45 食飯休息）。老師附件：非上堂時間標空堂；放假日灰底。",
     ),
     (
         "Christine Fan",
         "中文科（中四級至中六級）",
-        7,
-        "星期一、星期五、星期日",
-        "兼職。必須星期日出勤；不排星期六。本版星期四兩班改星期五（山案座連排 17:45 中六C、19:00 中四C）。取消星期日中四A（11:30）及中五B（19:00）；餘下星期日三班自 12:45 起。出勤日優先矩尺座或山案座。",
+        6,
+        "星期六、星期日",
+        "兼職。必須星期日出勤。本版只排星期六、星期日共六班。星期六：12:45 中四（矩尺座）、14:00 中五（山案座）、16:30 中六（矩尺座）。星期日矩尺座：12:45 中五、15:15 中四、16:30 中六。不排星期五。出勤日優先矩尺座或山案座。本版星期六中文不避撞科。",
     ),
     (
         "Cyndi Ng",
@@ -352,7 +367,7 @@ STAFF = [
         "星期日",
         "兼職。只限星期日；小組班三班自 10:15 起；另預留一個一對一高中英文時段。",
     ),
-    ("Jackson Lau", "英文科", 2, "星期三、星期六", "兼職。星期三一班、星期六一班。出勤日優先矩尺座或山案座，不排 17D／17E。"),
+    ("Jackson Lau", "英文科", 2, "星期三、星期六", "兼職。星期三一班、星期六一班。出勤日優先矩尺座或山案座，不排 17D／17E。本版星期六 12:45 改英仙座（矩尺讓 Christine）。"),
     (
         "Judy Chu",
         "生物科（中五級至中六級）",
@@ -493,7 +508,7 @@ SURVEY_CONSTRAINTS = [
 SURVEY_SLOT_NOTES = [
     "時段選項：可／較不優先／不可／未確定。空白＝該格未填，本輪視作不可用。",
     "既有專科老師不填科目年級；科目由營運確認：Judy／Henry 生物、Leo 數學與物理、Liam 數學、Emma／Cheryl 英文（Cheryl 可 M2）、Rafael 企會財、Billy 初中中文、Phoebe 科學與化學。",
-    "本版以 ver. 3.5 已排格為底，Billy Shek 改為只教中二／中三中文；已確認老師班別時間鎖不變。",
+    "本版以 ver. 3.9 已排格為底，Christine 星期六三堂改中四、中五、中六（不避撞科）；時段與課室不變。已確認老師班別時間鎖不變。",
 ]
 
 PACKING_SECTIONS = [
@@ -504,22 +519,22 @@ PACKING_SECTIONS = [
             "Judy 先排中六生物兩班、中五生物一班；中四生物由 Henry 承接。",
             "Emma 四班集中星期日，不教中六英文；Cheryl 星期六上午兩班初中英文。",
             "Billy 只排星期六兩班中二／中三中文（Katie 放假時段）；Phoebe 科學、化學各級各一。",
-            "Christine 星期日取消中四A（11:30）及中五B（19:00）。",
-            "Mark 星期六 12:45 午膳不標示；Jackson 該格用矩尺座。",
+            "Christine 本版只排星期六、星期日；取消星期五。星期六 12:45／16:30 用矩尺（Jackson 12:45 改英仙、Mark 中四數學改 17:45）。",
+            "Mark 星期六 12:45 午膳不標示；Jackson 該格用英仙座。",
         ],
     ),
     (
         "2.1.2 中一級",
         [
             "星期六：數學 10:15 → 英文 11:30；另開 15:15 數學（C）。",
-            "星期日：中文 10:15 → 科學 11:30 → 英文 14:00；另開 16:30 中文（F）。",
+            "星期日：中文 10:15 → 科學 11:30 → 英文 14:00；另開 16:30 中文。",
         ],
     ),
     (
         "2.1.3 中二級",
         [
             "星期六：英文 10:15 → 科學 11:30 → 數學 12:45（Leo）→ 14:00 數學（Liam）；17:45 中文（Billy）。",
-            "星期日：數學 10:15 → 中文 11:30 → 英文 12:45；另開 15:15 中文（F）。",
+            "星期日：數學 10:15 → 中文 11:30 → 英文 12:45；另開 15:15 中文。",
         ],
     ),
     (
@@ -532,23 +547,23 @@ PACKING_SECTIONS = [
     (
         "2.1.5 中四級",
         [
-            "星期五：中文 19:00。",
-            "星期六：物理 11:30 → 英文 12:45 → 生物 14:00 → 化學 15:15；另有數學 16:30。",
+            "星期六：物理 11:30 → 中文／英文 12:45（同時）→ 生物 14:00 → 化學 15:15；另有數學。",
+            "星期日：中文 15:15。",
         ],
     ),
     (
         "2.1.6 中五級",
         [
             "星期五：生物 17:45。",
-            "星期六：化學 10:15 → 數學 11:30（D）；下午 生物 15:15 → 物理 16:30。",
+            "星期六：化學 10:15 → 數學 11:30（D）；中文 14:00；下午 生物 15:15 → 物理 16:30。",
+            "星期日：中文 12:45。",
         ],
     ),
     (
         "2.1.7 中六級",
         [
-            "星期五：中文 17:45（Christine，山案座）。",
-            "星期六：化學 12:45 → 數學 14:00（D）→ 物理 15:15 → 生物 16:30。",
-            "星期日：英文 10:15 → 生物 11:30（A）；生物 12:45（B，平行班）→ 中文 15:15。",
+            "星期六：化學 12:45 → 數學 14:00（D）→ 物理 15:15 → 生物／中文 16:30（同時）。",
+            "星期日：英文 10:15 → 生物 11:30（A）；生物 12:45（B，平行班）→ 中文 16:30。",
         ],
     ),
 ]
@@ -584,7 +599,7 @@ PRINCIPLE_SECTIONS = [
     (
         "1.4 不重疊與順接",
         [
-            "同一老師、同一課室、同年級不同科目，同時段均不可重疊。",
+            "同一老師、同一課室、同年級不同科目，同時段均不可重疊。本版例外：Christine 星期六中文不避撞科（12:45 中四與 Jackson 英文同時；16:30 中六與 Henry 生物同時）。",
             "同日順接只適用星期五、星期六、星期日：同一年級該三日宜有不同科目連續時段順接，避免天地堂。星期一至星期四不強制順接。",
             "本輪按已回覆老師的每周堂數編排；同年級同科班數盡量平均，不以單一年級堆疊。",
             "時間表不出現「待確認老師」。時段尚未掌握者不佔格，另列未排。",
@@ -604,11 +619,11 @@ PRINCIPLE_SECTIONS = [
     (
         "1.6 本版老師約束",
         [
-            "Mark Yu 出勤日優先矩尺座；不排星期三、星期五、星期日。平日每日最多三班，週末每日最多五班。星期六 12:45-14:00 午膳（時間表不標示），其後連排三堂。",
-            "Katie 放假星期五、星期六；本版十七班。平日 14:00 至最後一節；週末 09:00-18:00（中間一節食飯休息）。星期一至四每日三班；星期日五班。",
-            "Christine Fan 出勤日優先矩尺座或山案座；不排星期六；星期日班別不得早於 11:30。本版出勤星期一、星期五、星期日。",
+            "Mark Yu 出勤日優先矩尺座；不排星期三、星期五、星期日。平日每日最多三班，週末每日最多五班。星期六 12:45-14:00 午膳（時間表不標示）；午後 14:00、15:15、17:45（16:30 矩尺讓 Christine）。",
+            "Katie 放假星期五、星期六；本版十三班。平日 14:00 至最後一節；週末 09:00-18:00（中間一節食飯休息）。星期一至四每日兩堂（16:30、17:45）；星期日五班。",
+            "Christine Fan 出勤日優先矩尺座或山案座；星期日班別不得早於 11:30。本版只出勤星期六、星期日；不排星期五。星期六 12:45 中四、14:00 中五、16:30 中六；本版不避撞科。",
             "Cyndi Ng 星期日小組班自 10:15 開始；同日另預留一個一對一高中英文時段。",
-            "Jackson Lau 出勤為星期三一班、星期六一班；優先矩尺座或山案座，不排 17D／17E。",
+            "Jackson Lau 出勤為星期三一班、星期六一班；優先矩尺座或山案座，不排 17D／17E。本版星期六 12:45 用英仙座。",
             "Liam Lai 班別時間已確認鎖定；本版只教中二、中三數學。",
             "Leo Chan 班別時間已確認鎖定；本版五班（數學二、物理三），全部星期六；移除星期日中五物理（B）。",
             "Emma Cai 本版不教中六英文。",
@@ -621,9 +636,9 @@ PRINCIPLE_SECTIONS = [
 ]
 
 VERSION_DIFFS = [
-    "Billy Shek 中一中文改中二中文；只教中二、中三。",
-    "原星期六 12:45 中一撞中二數學，改排 16:30 中三、17:45 中二（17E）。",
-    "已確認老師班別時間鎖不變；維持 71 班。",
+    "Katie 取消星期一至四 19:00-20:15 四堂。本版十三班：一至四每日兩堂（16:30、17:45）加星期日五堂。",
+    "中一／中二／中三中文班號按星期→時段重編為由 A 起連續。高中中文班號不變。",
+    "小組班由 70 減至 66。已確認老師班別時間鎖不變。",
 ]
 
 PENDING_BY_TEACHER = [
@@ -637,7 +652,7 @@ PENDING_BY_TEACHER = [
     "Emma Cai：平日尚未確定日子。",
     "Judy Chu：意願 3–4 班，本版 3 班；星期一無法排高中生物（撞級）。",
     "Cheryl Ng：可教 M2 本版不排；2027 年 6 月 14 日至 7 月 3 日實習，學年末校曆另議。",
-    "Christine Fan：中四／中五中文本版各 2 班；若要補回第三班另開下一版。",
+    "Christine Fan：本版中四／中五／中六中文各 2 班。",
     "Mark Yu：週末每日最多 5 班，本版星期六已滿 5。",
 ]
 
@@ -649,7 +664,7 @@ PENDING_BY_SUBJECT = [
     "初中科學、高中化學本版已各級 1 班（Phoebe）。",
     "中五級物理科移除星期日 B 班後，本版只餘 1 班。",
     "中四級生物科移除星期五班後，本版只餘 1 班。",
-    "中文、數學各級已達每級 ≥2；中四／中五中文若要第三班另議。",
+    "中文各級本版已達每級 ≥2；數學各級已達每級 ≥2。",
 ]
 
 
@@ -677,7 +692,7 @@ def set_run_font(run, size_pt: float = 12, bold: bool = False, color: RGBColor |
 STAFF_OFF_DAYS = {
     "Katie": {4, 5},  # 星期五、星期六放假
     "Mark Yu": {2, 4, 6},  # 不排星期三、星期五、星期日
-    "Christine Fan": {5},  # 不排星期六
+    "Christine Fan": {0, 1, 2, 3, 4},  # 不排星期一至五
 }
 STAFF_OFF_LABEL = {
     "Katie": "放假",
@@ -1104,12 +1119,13 @@ def day_notes(day_idx: int) -> list[str]:
         ]
     if day_idx == 4:
         notes.append("本版不預留開會空檔")
-        notes.append("Christine Fan：中六級中文科（C) 17:45、中四級中文科（C) 19:00，山案座")
     if day_idx == 5:
         notes.append("Cheryl Ng：中二級英文科（B) 10:15、中一級英文科（B) 11:30，17E")
         notes.append("Henry Wong：中四級生物科（A) 14:00、中五級生物科（B) 15:15、中六級生物科（C) 16:30，英仙座連續三堂")
+        notes.append("Christine Fan：中四級中文科 12:45 矩尺座、中五級中文科 14:00 山案座、中六級中文科 16:30 矩尺座（本版不避撞科）")
+        notes.append("Jackson Lau：中四級英文科（B) 12:45 改英仙座")
     if day_idx == 6:
-        notes.append("Christine Fan 本版自 12:45 起（已取消 11:30 中四A 及 19:00 中五B）")
+        notes.append("Christine Fan 本版自 12:45 起：中五、中四、中六（矩尺座）")
         notes.append("Cyndi Ng 小組班自 10:15 起，並預留一個一對一高中英文時段")
     return notes
 
@@ -1369,7 +1385,7 @@ def build_weekly_docx(path: Path) -> None:
 
 
 def validate() -> None:
-    assert len(CLASSES) == 71, len(CLASSES)
+    assert len(CLASSES) == 66, len(CLASSES)
     codes = class_codes_rows()
     assert len(codes) == len(CLASSES)
     assert len({row["班別顯示碼（course_code_full）"] for row in codes}) == len(CLASSES)
@@ -1412,7 +1428,7 @@ def validate() -> None:
         if teacher == "Emma Cai":
             assert subj == "英文" and d == 6 and grade != "S6"
         if teacher == "Jackson Lau":
-            assert room in {"矩尺座", "山案座"}
+            assert room in {"矩尺座", "山案座", "英仙座"}
         if teacher == "Mark Yu":
             assert room == "矩尺座"
         if teacher == "Christine Fan":
@@ -1453,17 +1469,19 @@ def validate() -> None:
     assert {c[0] for c in CLASSES if c[5] == "Jackson Lau"} == {2, 5}
     assert {c[0] for c in CLASSES if c[5] == "Katie"} == {0, 1, 2, 3, 6}
     assert {c[0] for c in CLASSES if c[5] == "Mark Yu"} == {0, 1, 3, 5}
-    # Mark／Katie weekday blocks of 3 (slots 6–8)
-    for teacher, days in (("Mark Yu", (0, 1)), ("Katie", (0, 1, 2, 3))):
-        for d in days:
-            slots = sorted(c[1] for c in CLASSES if c[5] == teacher and c[0] == d)
-            assert slots == [6, 7, 8], (teacher, d, slots)
+    # Mark 一／二連三（slots 6–8）；Katie 一至四每日兩堂（slots 6–7）
+    for d in (0, 1):
+        slots = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == d)
+        assert slots == [6, 7, 8], ("Mark Yu", d, slots)
+    for d in (0, 1, 2, 3):
+        slots = sorted(c[1] for c in CLASSES if c[5] == "Katie" and c[0] == d)
+        assert slots == [6, 7], ("Katie", d, slots)
     mark_thu = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 3)
     assert mark_thu == [7, 8]
     mark_thu_grades = {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 3}
     assert mark_thu_grades <= {"S4", "S5", "S6"}
     mark_sat = sorted(c[1] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5)
-    assert mark_sat == [1, 2, 4, 5, 6]
+    assert mark_sat == [1, 2, 4, 5, 7]
     assert {c[4] for c in CLASSES if c[5] == "Mark Yu" and c[0] == 5} == {"S1", "S3", "S4", "S5", "S6"}
     assert 3 not in mark_sat  # 12:45 午膳不排
     mark_per_day: dict[int, int] = defaultdict(int)
@@ -1475,14 +1493,20 @@ def validate() -> None:
             assert n <= 3, (d, n)
         else:
             assert n <= 5, (d, n)
-    assert sum(1 for c in CLASSES if c[5] == "Katie") == 17
+    assert sum(1 for c in CLASSES if c[5] == "Katie") == 13
     assert sorted(c[1] for c in CLASSES if c[5] == "Katie" and c[0] == 6) == [1, 2, 4, 5, 6]
     assert sorted(c[1] for c in CLASSES if c[5] == "Christine Fan" and c[0] == 6) == [3, 5, 6]
-    assert {c[0] for c in CLASSES if c[5] == "Christine Fan"} == {0, 4, 6}
-    assert sorted(c[1] for c in CLASSES if c[5] == "Christine Fan" and c[0] == 4) == [7, 8]
-    assert {c[4] for c in CLASSES if c[5] == "Christine Fan" and c[0] == 4} == {"S4", "S6"}
-    assert all(c[2] == "山案座" for c in CLASSES if c[5] == "Christine Fan" and c[0] == 4)
-    assert not any(c[0] == 3 and c[5] == "Christine Fan" for c in CLASSES)
+    assert {c[0] for c in CLASSES if c[5] == "Christine Fan"} == {5, 6}
+    assert sorted(c[1] for c in CLASSES if c[5] == "Christine Fan" and c[0] == 5) == [3, 4, 6]
+    assert {(c[1], c[4], c[2]) for c in CLASSES if c[5] == "Christine Fan" and c[0] == 5} == {
+        (3, "S4", "矩尺座"),
+        (4, "S5", "山案座"),
+        (6, "S6", "矩尺座"),
+    }
+    assert all(c[2] == "矩尺座" for c in CLASSES if c[5] == "Christine Fan" and c[0] == 6)
+    assert not any(c[0] <= 4 and c[5] == "Christine Fan" for c in CLASSES)
+    christine_sun = {(c[1], c[4]) for c in CLASSES if c[5] == "Christine Fan" and c[0] == 6}
+    assert christine_sun == {(3, "S5"), (5, "S4"), (6, "S6")}
     for d in range(7):
         grid = day_grid(d)
         assert grid[0][-1] == "空房"
@@ -1494,7 +1518,16 @@ def validate() -> None:
                 assert row[-1] == "5"
             if d >= 5 and slot == 0:
                 assert row[-1] == "5"
-    assert not any(c[6] in {"S4中A", "S5中B"} for c in CLASSES)
+    chi_letters: dict[str, list[str]] = defaultdict(list)
+    for _d, _s, _r, subj, grade, _t, code in CLASSES:
+        if subj == "中文":
+            chi_letters[grade].append(class_section_letter(code))
+    for grade, letters in chi_letters.items():
+        expected = [chr(ord("A") + i) for i in range(len(letters))]
+        assert sorted(letters) == expected, (grade, letters)
+    chi = count_matrix()["中文"]
+    assert chi["S1"] == 5 and chi["S2"] == 5 and chi["S3"] == 5
+    assert chi["S4"] == 2 and chi["S5"] == 2 and chi["S6"] == 2
     assert len(RESERVED) == 1 and RESERVED[0][4].startswith("一對一高中英文科")
     rooms = defaultdict(set)
     for d, _, room, _, _, teacher, _ in CLASSES:
@@ -1502,8 +1535,8 @@ def validate() -> None:
     for d, _, room, teacher, _ in RESERVED:
         rooms[(teacher, d)].add(room)
     for k, rs in rooms.items():
-        if k == ("Judy Chu", 6):
-            continue  # 星期日 11:30 僅 17D 有空，12:45 須換房
+        if k in {("Judy Chu", 6), ("Christine Fan", 5)}:
+            continue  # 日 Judy 換房；六 Christine 14:00 矩尺為 Mark 數學故用山案
         assert len(rs) == 1, (k, rs)
     for name, _subject, n, _days, _note in STAFF:
         actual = sum(1 for c in CLASSES if c[5] == name)
@@ -1585,12 +1618,15 @@ def validate() -> None:
     assert katie_grid[1][6] == ("放假", "off")
     assert katie_grid[4][7] == ("食飯休息", "lunch")
     assert katie_grid[5][1] == ("空堂", "free")  # 星期一 14:00
+    assert katie_grid[9][1] == ("空堂", "free")  # 星期一 19:00 本版不排
     mark_grid = teacher_week_grid("Mark Yu")
     assert mark_grid[1][3] == ("不排", "off")  # 星期三
     assert mark_grid[1][5] == ("不排", "off")  # 星期五
     assert mark_grid[1][7] == ("不排", "off")  # 星期日
     christine_grid = teacher_week_grid("Christine Fan")
-    assert christine_grid[1][6] == ("不排", "off")  # 星期六
+    assert christine_grid[1][5] == ("不排", "off")  # 星期五
+    assert "中四級中文科" in christine_grid[4][6][0]  # 星期六 12:45
+    assert "中六級中文科" in christine_grid[7][6][0]  # 星期六 16:30
     scheme_md = build_scheme_md()
     weekly_md = build_weekly_md()
     assert "## 8. 周時間表" not in scheme_md
@@ -1736,7 +1772,7 @@ def build_teachers_docx(path: Path) -> None:
             "本文件獨立於全校課室時間表，只按老師列出一周職務",
             "每位老師先列一周總覽，周視圖另頁（橫軸星期、縱軸時段）",
             "班別名稱與時段寫法與方案紀錄一致",
-            "指定不排日（Katie 放假五／六；Mark 不排三／五／日；Christine 不排六）於周視圖以灰底標示",
+            "指定不排日（Katie 放假五／六；Mark 不排三／五／日；Christine 不排一至五）於周視圖以灰底標示",
             "Katie 另標空堂與食飯休息",
         ],
     )
@@ -2025,7 +2061,7 @@ def refresh_word(docx_path: Path, pdf_path: Path) -> None:
     # Update Word TOC, then Save As PDF. Requires Microsoft Word on macOS.
     # Do not loop every field: TOC entries make that exceed AppleEvent timeout.
     script = f'''
-with timeout of 600 seconds
+with timeout of 1200 seconds
   tell application "Microsoft Word"
     set docPath to POSIX file "{docx_path}" as alias
     open docPath
@@ -2039,8 +2075,10 @@ with timeout of 600 seconds
     save theDoc
     set pdfFile to POSIX file "{pdf_path}" as string
     save as theDoc file name pdfFile file format format PDF
-    delay 1
-    close theDoc saving no
+    delay 2
+    try
+      close active document saving no
+    end try
   end tell
 end timeout
 '''

@@ -7,6 +7,7 @@ import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
+import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
@@ -19,6 +20,7 @@ import {
  filterNavForRole,
  flattenNav,
  pathIsActive,
+ stripHomeworkTutoringNav,
 } from "@/lib/navStructure"
 import {
  navCollapsedIconClass,
@@ -43,6 +45,7 @@ export function Layout() {
  const { ready, role: authRole, profile } = useAuth()
  usePasswordChangeNudgeBanner()
  const role = authRole
+ const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -50,10 +53,12 @@ export function Layout() {
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_email") : null) ||
   "用戶"
 
- const navEntries = useMemo(
-  () => (role ? filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE)) : []),
-  [role]
- )
+ const navEntries = useMemo(() => {
+  if (!role) return []
+  const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
+  return byRole
+ }, [role, homeworkTutoringNavVisible])
  const footerNavLeaves = useMemo(
   () => (role ? filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)) : []),
   [role]

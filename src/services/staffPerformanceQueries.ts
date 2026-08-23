@@ -48,20 +48,18 @@ function lastDayOfMonth(year: number, month1to12: number): string {
   return localYmd(d)
 }
 
-function previousCalendarMonthKey(now = new Date()): string {
-  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  return monthKeyFromParts(d.getFullYear(), d.getMonth() + 1)
+function currentCalendarMonthKey(now = new Date()): string {
+  return monthKeyFromParts(now.getFullYear(), now.getMonth() + 1)
 }
 
 export function defaultStaffPerformanceFilters(): StaffPerformanceFilters {
-  const monthKey = previousCalendarMonthKey()
-  const [y] = monthKey.split("-").map(Number)
-  const q = Math.floor((Number(monthKey.slice(5, 7)) - 1) / 3) + 1
+  const now = new Date()
+  const monthKey = currentCalendarMonthKey(now)
   return {
     periodMode: "month",
     monthKey,
-    year: y,
-    quarter: q,
+    year: now.getFullYear(),
+    quarter: Math.floor(now.getMonth() / 3) + 1,
     subjectIds: [],
     teacherIds: [],
     classKind: "all",
