@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
-import { ChevronDown, ChevronUp, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
+import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -9,13 +9,31 @@ import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { openPrimaryMessagingTarget, resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
 import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { nextStudentCode } from "@/lib/studentCode"
 import { cn } from "@/lib/utils"
+import { StudentsListTable } from "@/components/students/StudentsListTable"
+import {
+ compareStudents,
+ countActiveHeaderFilters,
+ EMPTY_HEADER_FILTERS,
+ mergeVisibleColumns,
+ sortLabel,
+ studentCodeRank,
+ studentMatchesHeaderFilters,
+ isStudentListColumnId,
+ STUDENT_LIST_COLUMN_LABEL,
+ STUDENT_LIST_DATA_COLUMNS,
+ type StudentListColumnId,
+ type StudentListHeaderFilters,
+} from "@/components/students/studentsListColumns"
+import { GRADE_FILTER_PRIMARY_KEY, GRADE_FILTERS } from "@/components/students/studentsListFilters"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
  Dialog,
  DialogContent,
@@ -29,13 +47,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
-import {
- isPrimaryStudentGrade,
- normalizeStudentGrade,
- PRIMARY_STUDENT_GRADE_CODES,
- STUDENT_GRADE_CODES,
- STUDENT_GRADE_LABELS,
-} from "@/lib/studentGrade"
+import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
  deleteStudent,
  fetchAllStudents,
@@ -78,19 +90,6 @@ const STAGE_FILTERS = [
  { key: "已畢業", label: "已畢業" },
 ] as const
 
-const GRADE_FILTER_PRIMARY_KEY = "PRIMARY" as const
-
-const GRADE_FILTERS = [
- { key: "all", label: "全部" },
- { key: GRADE_FILTER_PRIMARY_KEY, label: "小學" },
- ...STUDENT_GRADE_CODES.filter(
-  (code) => !(PRIMARY_STUDENT_GRADE_CODES as readonly string[]).includes(code)
- ).map((code) => ({
-  key: code,
-  label: STUDENT_GRADE_LABELS[code],
- })),
-] as const
-
 const COMMON_HK_SCHOOLS = [
  "英華書院",
  "聖保羅男女中學",
@@ -112,14 +111,6 @@ const RECENT_ENROLL_ROTATE_MS = 5000
 function monthStartIso(): string {
  const d = new Date()
  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
-}
-
-function studentCodeRank(code: string | null | undefined): number {
- const s = (code ?? "").trim()
- if (!s) return -1
- const m = s.match(/(\d+)(?!.*\d)/)
- if (!m) return -1
- return Number(m[1])
 }
 
 function emptyAddForm(): Partial<StudentRecord> {
@@ -262,13 +253,28 @@ export function StudentsListPage() {
   "mgmt_students_gradeKey",
   "all"
  )
+ const [sortKey, setSortKey] = usePersistentState<StudentListColumnId>(
+  "mgmt_students_sortKey",
+  "student_code"
+ )
+ const [sortDir, setSortDir] = usePersistentState<"asc" | "desc">("mgmt_students_sortDir", "desc")
+ const [visibleStored, setVisibleStored] = usePersistentState<
+  Partial<Record<StudentListColumnId, boolean>>
+ >("mgmt_students_visibleColumns", {})
+ const [headerFiltersStored, setHeaderFilters] = usePersistentState<StudentListHeaderFilters>(
+  "mgmt_students_headerFilters",
+  EMPTY_HEADER_FILTERS
+ )
+ const headerFilters = useMemo(
+  () => ({ ...EMPTY_HEADER_FILTERS, ...headerFiltersStored }),
+  [headerFiltersStored]
+ )
+ const [selectedIds, setSelectedIds] = useState<string[]>([])
+ const [columnsOpen, setColumnsOpen] = useState(false)
+ const [bulkSaving, setBulkSaving] = useState(false)
  const [viewMode, setViewMode] = usePersistentState<"table" | "gallery">(
   "mgmt_students_viewMode",
   getInitialStudentsViewMode()
- )
- const [sortMode, setSortMode] = usePersistentState<"codeAsc" | "codeDesc">(
-  "mgmt_students_sortMode",
-  "codeDesc"
  )
  const [showGraduated, setShowGraduated] = usePersistentState<boolean>("mgmt_students_showGraduated", false)
  const [dashboardCollapsed, setDashboardCollapsed] = useState(isMobile)
@@ -347,7 +353,9 @@ export function StudentsListPage() {
   return best
  }, [rows])
 
- const filtered = useMemo(() => {
+ const visibleColumns = useMemo(() => mergeVisibleColumns(visibleStored), [visibleStored])
+
+ const scoped = useMemo(() => {
   let list = rows
   if (registrationKey !== "all") {
    list = list.filter((r) => normalizeRegistrationStatus(r.registration_status) === registrationKey)
@@ -389,20 +397,22 @@ export function StudentsListPage() {
     return hay.includes(q)
    })
   }
-  const sorted = [...list].sort((a, b) => {
-   const ra = studentCodeRank(a.student_code)
-   const rb = studentCodeRank(b.student_code)
-   const aEmpty = ra < 0
-   const bEmpty = rb < 0
-   // 無學號一律排最後（不受升/降序影響），與「最新學號」忽略無學號的口徑一致
-   if (aEmpty && bEmpty) return a.full_name.localeCompare(b.full_name, "zh-Hant")
-   if (aEmpty) return 1
-   if (bEmpty) return -1
-   if (ra !== rb) return sortMode === "codeAsc" ? ra - rb : rb - ra
-   return a.full_name.localeCompare(b.full_name, "zh-Hant")
-  })
-  return sorted
- }, [rows, registrationKey, enrollmentKey, activityKey, stageKey, showGraduated, gradeKey, search, sortMode])
+  return list
+ }, [
+  rows,
+  registrationKey,
+  enrollmentKey,
+  activityKey,
+  stageKey,
+  showGraduated,
+  gradeKey,
+  search,
+ ])
+
+ const filtered = useMemo(() => {
+  const list = scoped.filter((r) => studentMatchesHeaderFilters(r, headerFilters, tags))
+  return [...list].sort((a, b) => compareStudents(a, b, sortKey, sortDir, tags))
+ }, [scoped, headerFilters, sortKey, sortDir, tags])
 
  const classificationCounts = useMemo(() => {
   const registration = new Map<string, number>()
@@ -430,8 +440,9 @@ export function StudentsListPage() {
   if (stageKey !== "all") count++
   if (gradeKey !== "all") count++
   if (showGraduated) count++
+  count += countActiveHeaderFilters(headerFilters)
   return count
- }, [registrationKey, enrollmentKey, activityKey, stageKey, gradeKey, showGraduated])
+ }, [registrationKey, enrollmentKey, activityKey, stageKey, gradeKey, showGraduated, headerFilters])
 
  const resetFilters = () => {
   setRegistrationKey("all")
@@ -440,10 +451,50 @@ export function StudentsListPage() {
   setStageKey("all")
   setGradeKey("all")
   setShowGraduated(false)
+  setHeaderFilters(EMPTY_HEADER_FILTERS)
  }
 
- const exportCsv = () => {
-  const blob = new Blob([formatCsv(filtered)], { type: "text/csv;charset=utf-8" })
+ const selectedRows = useMemo(
+  () => filtered.filter((r) => selectedIds.includes(r.id)),
+  [filtered, selectedIds]
+ )
+
+ useEffect(() => {
+  const allowed = new Set(filtered.map((r) => r.id))
+  setSelectedIds((prev) => {
+   const next = prev.filter((id) => allowed.has(id))
+   return next.length === prev.length ? prev : next
+  })
+ }, [filtered])
+
+ const toggleSelect = (id: string) => {
+  setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+ }
+
+ const toggleSelectAllFiltered = () => {
+  if (filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id))) {
+   setSelectedIds([])
+   return
+  }
+  setSelectedIds(filtered.map((r) => r.id))
+ }
+
+ const toggleSort = (key: StudentListColumnId) => {
+  if (sortKey === key) {
+   setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+   return
+  }
+  setSortKey(key)
+  setSortDir(key === "student_code" || key === "created_at" ? "desc" : "asc")
+ }
+
+ const toggleColumnVisible = (id: StudentListColumnId) => {
+  if (id === "name") return
+  setVisibleStored((prev) => ({ ...mergeVisibleColumns(prev), [id]: !visibleColumns[id] }))
+ }
+
+ const exportCsv = (target = filtered) => {
+  const blob = new Blob([formatCsv(target)], { type: "text/csv;charset=utf-8" })
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")
   a.href = url
@@ -451,6 +502,72 @@ export function StudentsListPage() {
   a.click()
   URL.revokeObjectURL(url)
  }
+
+ const copySelectedParentPhones = async () => {
+  const lines = selectedRows
+   .map((r) => {
+    const phone = (r.parent_phone ?? "").trim()
+    return phone ? `${r.full_name}\t${phone}` : null
+   })
+   .filter((x): x is string => Boolean(x))
+  if (lines.length === 0) {
+   pushBanner({ tone: "warning", title: "已選學生沒有家長電話" })
+   return
+  }
+  try {
+   await navigator.clipboard.writeText(lines.join("\n"))
+   pushBanner({ tone: "success", title: `已複製 ${lines.length} 個家長電話` })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "StudentsListPage.copySelectedParentPhones",
+    setErr,
+    userMessage: formatUnknownError(e),
+   })
+  }
+ }
+
+ const onBulkDelete = async () => {
+  if (bulkSaving || selectedRows.length === 0) return
+  const n = selectedRows.length
+  const ok = await confirmDialog({
+   title: `刪除 ${n} 名學生`,
+   description: "將一併刪除關聯選課等資料（若資料庫設為 cascade）。此操作不可還原。",
+   confirmText: "確認刪除",
+   tone: "destructive",
+   confirmInput: { label: "請輸入「刪除」以確認", expected: "刪除" },
+  })
+  if (!ok) return
+  setBulkSaving(true)
+  try {
+   const failures: string[] = []
+   for (const r of selectedRows) {
+    try {
+     await deleteStudent(r.id)
+    } catch (e) {
+     failures.push(`${r.full_name}：${formatUnknownError(e)}`)
+    }
+   }
+   setSelectedIds([])
+   await load()
+   if (failures.length > 0) {
+    const msg = `已刪除 ${n - failures.length} 人，${failures.length} 人失敗。${failures[0]}`
+    reportUserFacingError(new Error(msg), {
+     source: "StudentsListPage.onBulkDelete",
+     setErr,
+     userMessage: msg,
+    })
+   } else {
+    pushBanner({ tone: "success", title: `已刪除 ${n} 名學生` })
+   }
+  } finally {
+   setBulkSaving(false)
+  }
+ }
+
+ const emptyListHint =
+  activityKey !== "all"
+   ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
+   : "沒有符合條件的學生"
 
  const onAddStudent = async () => {
   if (addSaving) return
@@ -588,7 +705,7 @@ export function StudentsListPage() {
      <h2 className="text-sm font-semibold tracking-wide">{isMobile ? "統計摘要" : "學生儀表板"}</h2>
      {!isMobile ? (
       <>
-       <Tag tone="default" size="sm">目前排序：{sortMode === "codeAsc" ? "按學號（小→大）" : "按學號（最新）"}</Tag>
+       <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
        <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
       </>
      ) : null}
@@ -622,7 +739,10 @@ export function StudentsListPage() {
       </div>
       <button
        type="button"
-       onClick={() => setSortMode("codeDesc")}
+       onClick={() => {
+        setSortKey("student_code")
+        setSortDir("desc")
+       }}
        className="rounded-xl border border-info bg-info p-2.5 text-left shadow-sm transition hover:border-info/70 hover:shadow-md md:p-4"
        title="按學號（最新）排序"
       >
@@ -934,7 +1054,57 @@ export function StudentsListPage() {
        圖庫
       </button>
      </div>
-     <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={exportCsv}>
+     <div className="flex w-full gap-2 sm:w-auto">
+      <Select
+       aria-label="排序欄位"
+       className="h-10 min-w-[8rem]"
+       value={sortKey}
+       onChange={(e) => {
+        if (!isStudentListColumnId(e.target.value)) return
+        const next = e.target.value
+        setSortKey(next)
+        if (next !== sortKey) setSortDir(next === "student_code" || next === "created_at" ? "desc" : "asc")
+       }}
+      >
+       {STUDENT_LIST_DATA_COLUMNS.map((id) => (
+        <option key={id} value={id}>
+         {STUDENT_LIST_COLUMN_LABEL[id]}
+        </option>
+       ))}
+      </Select>
+      <Select
+       aria-label="排序方向"
+       className="h-10 w-[5.5rem]"
+       value={sortDir}
+       onChange={(e) => setSortDir(e.target.value === "asc" ? "asc" : "desc")}
+      >
+       <option value="asc">升序</option>
+       <option value="desc">降序</option>
+      </Select>
+     </div>
+     <div className="relative hidden sm:block">
+      <Button type="button" variant="outline" onClick={() => setColumnsOpen((v) => !v)}>
+       <Columns3 className="h-4 w-4" />
+       欄位
+      </Button>
+      {columnsOpen ? (
+       <div className="absolute right-0 z-30 mt-1 w-52 rounded-md border border-border bg-background p-2 shadow-md">
+        <p className="px-1 pb-1 text-xs text-muted-foreground">顯示欄（姓名固定）</p>
+        {STUDENT_LIST_DATA_COLUMNS.map((id) => (
+         <label key={id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 text-sm hover:bg-muted/60">
+          <Checkbox
+           checked={visibleColumns[id]}
+           disabled={id === "name"}
+           onCheckedChange={() => toggleColumnVisible(id)}
+           aria-label={STUDENT_LIST_COLUMN_LABEL[id]}
+          />
+          {STUDENT_LIST_COLUMN_LABEL[id]}
+         </label>
+        ))}
+       </div>
+      ) : null}
+     </div>
+     <Button type="button" variant="outline" className="hidden sm:inline-flex" onClick={() => exportCsv()} >
       <Sheet className="h-4 w-4" />
       匯出 CSV
      </Button>
@@ -1198,153 +1368,58 @@ export function StudentsListPage() {
     </div>
    </div>
 
-   {viewMode === "table" && !isMobile ? (
-   <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-    <div className="overflow-x-auto">
-     <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
-      <thead>
-       <tr className="border-b border-border bg-muted/50 text-left">
-        <th className="w-[10%] px-3 py-3 font-medium text-muted-foreground">學號</th>
-        <th className="w-[16%] px-3 py-3 font-medium text-muted-foreground">姓名</th>
-        <th className="w-[7%] px-3 py-3 font-medium text-muted-foreground">年級</th>
-        <th className="w-[13%] px-3 py-3 font-medium text-muted-foreground">學生電話</th>
-        <th className="w-[13%] px-3 py-3 font-medium text-muted-foreground">家長電話</th>
-        <th className="w-[22%] px-3 py-3 font-medium text-muted-foreground">報讀班別</th>
-        <th className="w-[19%] px-3 py-3 font-medium text-muted-foreground">狀態</th>
-        <th className="w-[12%] px-3 py-3 font-medium text-muted-foreground">操作</th>
-       </tr>
-      </thead>
-      <tbody>
-       {loading ? (
-        <tr>
-         <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-          載入中…
-         </td>
-        </tr>
-       ) : filtered.length === 0 ? (
-        <tr>
-         <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
-          {activityKey !== "all"
-           ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
-           : "沒有符合條件的學生"}
-         </td>
-        </tr>
-       ) : (
-        filtered.map((r, idx) => {
-         const messaging = resolvePrimaryMessagingTarget(r)
-         const canMessage =
-          messaging?.channel === "WeChat"
-           ? Boolean(messaging.wechatId?.trim())
-           : Boolean(messaging?.phone?.trim())
-         return (
-          <tr
-           key={r.id}
-           onClick={() => navigate(`/Students/${r.id}`)}
-           className={cn(
-            "cursor-pointer border-b border-border transition-colors hover:bg-muted/60",
-            idx % 2 === 1 ? "bg-muted/20" : ""
-           )}
-          >
-           <td className="align-top px-3 py-3 text-muted-foreground">
-            <span className="block truncate tabular-nums" title={r.student_code ?? undefined}>
-             {r.student_code || "—"}
-            </span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3">
-            <div className="break-words font-medium text-foreground">{r.full_name}</div>
-            {r.english_name ? (
-             <div className="break-words text-xs text-muted-foreground">{r.english_name}</div>
-            ) : null}
-           </td>
-           <td className="align-top px-3 py-3">{formatStudentGrade(r.grade)}</td>
-           <td className="min-w-0 align-top px-3 py-3">
-            <span className="min-w-0 truncate tabular-nums" title={r.student_phone ?? undefined}>
-             {r.student_phone ?? "—"}
-            </span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 truncate tabular-nums" title={r.parent_phone ?? undefined}>
-               {r.parent_phone ?? "—"}
-              </span>
-             {canMessage && messaging ? (
-              <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-               className={cn(
-                "h-8 w-8 shrink-0",
-                messaging.channel === "WeChat"
-                 ? "text-sky-700 hover:bg-sky-600 hover:text-white"
-                 : "text-success hover:bg-success hover:text-success-foreground"
-               )}
-               title={
-                messaging.channel === "WeChat"
-                 ? `複製第一聯絡人（${messaging.person}）WeChat ID`
-                 : `以 WhatsApp 聯絡第一聯絡人（${messaging.person}）`
-               }
-               aria-label={messaging.channel === "WeChat" ? "複製 WeChat ID" : "開啟 WhatsApp"}
-               onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                void openPrimaryMessagingTarget(messaging).then((result) => {
-                 if (result === "wechat") {
-                  pushBanner({
-                   tone: "success",
-                   title: "已複製 WeChat ID",
-                   message: messaging.wechatId ?? "",
-                  })
-                 }
-                })
-               }}
-              >
-               <MessageCircle className="h-4 w-4" aria-hidden />
-              </Button>
-             ) : null}
-            </div>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3">
-            <div className="flex flex-wrap gap-1 break-words">
-             {(tags.get(r.id) ?? []).map((sub) => (
-              <Tag key={sub} tone="info" size="sm">{sub}</Tag>
-             ))}
-             {(tags.get(r.id) ?? []).length === 0 ? (
-              <span className="text-xs text-muted-foreground">—</span>
-             ) : null}
-            </div>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3">
-            <StudentClassificationTags student={r} size="sm" compact />
-           </td>
-           <td className="align-top px-3 py-3">
-            <Link
-             to={`/Students/${r.id}`}
-             className="text-primary hover:underline"
-             onClick={(e) => e.stopPropagation()}
-            >
-             編輯
-            </Link>
-            {canDeleteStudent ? (
-             <>
-              <span className="mx-2 text-muted-foreground">|</span>
-              <button
-               type="button"
-               className="text-amber-700 hover:underline"
-               onClick={(e) => void onDelete(e, r.id)}
-              >
-               刪除
-              </button>
-             </>
-            ) : null}
-           </td>
-          </tr>
-         )
-        })
-       )}
-      </tbody>
-     </table>
+   {selectedIds.length > 0 ? (
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
+     <span className="text-sm">已選 {selectedIds.length} 人</span>
+     <Button type="button" variant="outline" size="sm" onClick={toggleSelectAllFiltered}>
+      {filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id)) ? "取消全選" : "全選目前列表"}
+     </Button>
+     <Button type="button" variant="outline" size="sm" onClick={() => exportCsv(selectedRows)}>
+      匯出已選
+     </Button>
+     <Button type="button" variant="outline" size="sm" onClick={() => void copySelectedParentPhones()}>
+      複製家長電話
+     </Button>
+     {canDeleteStudent ? (
+      <Button
+       type="button"
+       variant="destructive"
+       size="sm"
+       disabled={bulkSaving}
+       onClick={() => void onBulkDelete()}
+      >
+       {bulkSaving ? "刪除中…" : "批量刪除"}
+      </Button>
+     ) : null}
+     <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
+      清除選取
+     </Button>
     </div>
-   </div>
+   ) : null}
+
+   {viewMode === "table" && !isMobile ? (
+    <StudentsListTable
+     rows={filtered}
+     filterSourceRows={scoped}
+     tags={tags}
+     loading={loading}
+     emptyHint={emptyListHint}
+     visible={visibleColumns}
+     sortKey={sortKey}
+     sortDir={sortDir}
+     onToggleSort={toggleSort}
+     headerFilters={headerFilters}
+     onHeaderFilterChange={(key, value) => setHeaderFilters((prev) => ({ ...prev, [key]: value }))}
+     selectedIds={selectedIds}
+     onToggleSelect={toggleSelect}
+     onToggleSelectAll={toggleSelectAllFiltered}
+     canDeleteStudent={canDeleteStudent}
+     onDelete={onDelete}
+     onNavigate={(id) => navigate(`/Students/${id}`)}
+     onWeChatCopied={(wechatId) =>
+      pushBanner({ tone: "success", title: "已複製 WeChat ID", message: wechatId })
+     }
+    />
    ) : viewMode === "table" && isMobile ? (
     <div className="space-y-2">
      {loading ? (
@@ -1379,15 +1454,28 @@ export function StudentsListPage() {
          className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
         >
          <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-           <p className="text-xs tabular-nums text-muted-foreground">{r.student_code ?? "—"}</p>
-           <h3 className="truncate font-semibold">{r.full_name}</h3>
+          <div className="flex min-w-0 items-start gap-2">
+           <span
+            className="pt-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+           >
+            <Checkbox
+             checked={selectedIds.includes(r.id)}
+             onCheckedChange={() => toggleSelect(r.id)}
+             aria-label={`選取 ${r.full_name}`}
+            />
+           </span>
+           <div className="min-w-0">
+            <p className="text-xs tabular-nums text-muted-foreground">{r.student_code ?? "—"}</p>
+            <h3 className="truncate font-semibold">{r.full_name}</h3>
            <p className="text-sm text-muted-foreground">
             {formatStudentGrade(r.grade)}
             {(tags.get(r.id) ?? []).length > 0
              ? ` · ${(tags.get(r.id) ?? []).slice(0, 2).join("、")}`
              : ""}
            </p>
+           </div>
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
            <StudentClassificationTags student={r} size="sm" compact className="max-w-[9rem] justify-end" />
@@ -1464,10 +1552,19 @@ export function StudentsListPage() {
          className="flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md"
         >
          <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-           <p className="text-xs text-muted-foreground">學號：{r.student_code ?? "—"}</p>
-           <h3 className="truncate text-lg font-semibold">{r.full_name}</h3>
-           {r.english_name ? <p className="truncate text-sm text-muted-foreground">{r.english_name}</p> : null}
+          <div className="flex min-w-0 items-start gap-2">
+           <span className="pt-1" onClick={(e) => e.stopPropagation()}>
+            <Checkbox
+             checked={selectedIds.includes(r.id)}
+             onCheckedChange={() => toggleSelect(r.id)}
+             aria-label={`選取 ${r.full_name}`}
+            />
+           </span>
+           <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">學號：{r.student_code ?? "—"}</p>
+            <h3 className="truncate text-lg font-semibold">{r.full_name}</h3>
+            {r.english_name ? <p className="truncate text-sm text-muted-foreground">{r.english_name}</p> : null}
+           </div>
           </div>
           <StudentClassificationTags student={r} size="sm" compact className="max-w-[11rem] justify-end" />
          </div>
