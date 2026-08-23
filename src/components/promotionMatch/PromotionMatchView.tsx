@@ -25,11 +25,11 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isPrimaryStudentGrade } from "@/lib/studentGrade"
 import type {
   ClassMatchBundle,
+  PromotionClassSummary,
   PromotionExclusionReason,
   PromotionStudentRow,
   StudentMatchBundle,
 } from "@/lib/promotionMatch"
-import { renderPromotionMatchPoster } from "@/lib/promotionMatchPoster"
 import { buildPromotionMatchWhatsAppMessage } from "@/lib/promotionMatchWhatsApp"
 import { cn } from "@/lib/utils"
 import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
@@ -57,6 +57,43 @@ function scheduleText(dayOfWeek: string | null, timeSlot: string | null): string
   const slot = (timeSlot ?? "").trim()
   if (day && slot) return `${day} ${slot}`
   return day || slot || "—"
+}
+
+function studentListSummary(bundle: StudentMatchBundle): string {
+  const parts: string[] = []
+  if (bundle.summerClasses.length > 0) {
+    parts.push(`暑期 ${bundle.summerClasses.length} 班`)
+  }
+  if (bundle.regularClasses.length > 0) {
+    parts.push(`2627 已報 ${bundle.regularClasses.length} 班`)
+  }
+  if (parts.length === 0) return "尚未報讀 2627"
+  const preview = [...bundle.summerClasses, ...bundle.regularClasses]
+    .slice(0, 2)
+    .map((c) => c.label)
+  const extra =
+    bundle.summerClasses.length + bundle.regularClasses.length > 2 ? " …" : ""
+  return `${parts.join(" · ")}${preview.length ? ` · ${preview.join(" · ")}` : ""}${extra}`
+}
+
+function ClassSummaryBlock({
+  title,
+  classes,
+}: {
+  title: string
+  classes: PromotionClassSummary[]
+}) {
+  if (classes.length === 0) return null
+  return (
+    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+      <div>{title}</div>
+      {classes.map((c) => (
+        <div key={c.classId}>
+          {c.label} · {scheduleText(c.dayOfWeek, c.timeSlot)}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function StudentMeta({ student }: { student: PromotionStudentRow }) {
@@ -149,7 +186,7 @@ function ClassHeader({ bundle, expanded }: { bundle: ClassMatchBundle; expanded:
           </span>
           {cls.teacherName ? <span>{cls.teacherName}</span> : null}
           <span>
-            全期 {fullTermCount}
+            已報 {fullTermCount}
             {cls.capacity != null ? `/${cls.capacity}` : ""} 人
           </span>
         </div>
@@ -170,17 +207,9 @@ function StudentHeader({ bundle, expanded }: { bundle: StudentMatchBundle; expan
       </div>
       <div className="min-w-0 flex-1">
         <StudentMeta student={bundle.student} />
-        {bundle.currentClasses.length > 0 ? (
-          <div className="mt-1 text-xs text-muted-foreground">
-            現讀 {bundle.currentClasses.length} 班
-            {bundle.currentClasses.slice(0, 2).map((c) => (
-              <span key={c.classId}> · {c.label}</span>
-            ))}
-            {bundle.currentClasses.length > 2 ? " …" : ""}
-          </div>
-        ) : (
-          <div className="mt-1 text-xs text-muted-foreground">尚未報讀任何班別</div>
-        )}
+        <div className="mt-1 text-xs text-muted-foreground">
+          {studentListSummary(bundle)}
+        </div>
       </div>
       <div className="shrink-0 text-right">
         <div className="text-lg font-semibold tabular-nums text-primary">{bundle.eligible.length}</div>
@@ -217,18 +246,11 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
                   </Tag>
                 </div>
               ) : null}
-              {item.currentClasses.length > 0 ? (
-                <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                  <div>現有班別（無衝突）</div>
-                  {item.currentClasses.map((c) => (
-                    <div key={c.classId}>
-                      {c.label} · {scheduleText(c.dayOfWeek, c.timeSlot)}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-1.5 text-xs text-muted-foreground">尚未報讀其他班別</div>
-              )}
+              <ClassSummaryBlock title="暑期班別" classes={item.summerClasses} />
+              <ClassSummaryBlock title="2627 已報" classes={item.regularClasses} />
+              {item.summerClasses.length === 0 && item.regularClasses.length === 0 ? (
+                <div className="mt-1.5 text-xs text-muted-foreground">尚未報讀 2627</div>
+              ) : null}
             </div>
           </div>
           <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
@@ -286,7 +308,7 @@ function FullTermRoster({ bundle }: { bundle: ClassMatchBundle }) {
   return (
     <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2">
       <div className="mb-1 text-xs font-medium text-muted-foreground">
-        目前常規報讀／暑期兩期全報（{bundle.fullTermCount}）
+        目前 2627 已報讀（{bundle.fullTermCount}）
       </div>
       <div className="flex flex-wrap gap-1.5">
         {bundle.fullTermStudents.map((s) => (
@@ -345,8 +367,13 @@ function EligibleClassesList({
                   {item.cls.subject}
                 </Tag>
                 <Tag tone={item.isHotFullTerm ? "success" : "default"} size="sm">
-                  全期 {item.fullTermCount} 人
+                  已報 {item.fullTermCount} 人
                 </Tag>
+                {item.previouslyStudiedTargetSubject ? (
+                  <Tag tone="info" size="sm">
+                    曾讀本科
+                  </Tag>
+                ) : null}
               </div>
               <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1">
@@ -407,15 +434,13 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
   const { pushBanner } = useAppBanner()
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(() => new Set())
   const [generatedSignature, setGeneratedSignature] = useState("")
-  const [posterUrls, setPosterUrls] = useState<string[]>([])
-  const [posterLoading, setPosterLoading] = useState(false)
-  const [posterError, setPosterError] = useState<string | null>(null)
 
   const buildMessage = useCallback(
     (classIds: ReadonlySet<string>) =>
       buildPromotionMatchWhatsAppMessage({
         studentName: bundle.student.fullName,
         gradeLabel: bundle.student.gradeLabel,
+        studiedSummer: bundle.student.activeIn26SM,
         classes: selectedPromotionClasses(bundle, classIds),
       }),
     [bundle]
@@ -426,38 +451,6 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
   const messageOutOfDate = selectedSignature !== generatedSignature
   const selectedCount = selectedClassIds.size
   const phone = bundle.student.contactPhone?.trim() ?? ""
-
-  useEffect(() => {
-    if (selectedCount === 0) {
-      setPosterUrls([])
-      setPosterError(null)
-      setPosterLoading(false)
-      return
-    }
-
-    let cancelled = false
-    setPosterLoading(true)
-    setPosterError(null)
-
-    void renderPromotionMatchPoster({
-      classes: selectedPromotionClasses(bundle, selectedClassIds),
-    })
-      .then((urls) => {
-        if (cancelled) return
-        setPosterUrls(urls)
-        setPosterLoading(false)
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return
-        setPosterUrls([])
-        setPosterLoading(false)
-        setPosterError(formatUnknownError(error) || "無法產生宣傳海報")
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [bundle, selectedClassIds, selectedCount])
 
   const toggleClass = (classId: string) => {
     setSelectedClassIds((current) => {
@@ -514,7 +507,9 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
           <div>
             <h3 className="text-sm font-semibold text-foreground">建議宣傳文案</h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              可直接修改內容；切換學生時會重新開始。
+              {bundle.student.activeIn26SM
+                ? "暑期有讀稿；可直接修改。切換學生時會重新開始。"
+                : "暑期無讀稿；可直接修改。切換學生時會重新開始。"}
             </p>
           </div>
           <Button
@@ -543,9 +538,14 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
         />
 
         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-muted-foreground">
-            {phone ? `將傳送至 ${phone}` : "此學生未有聯絡電話，請先到學生資料補充。"}
-          </p>
+          <div className="space-y-1">
+            <p className="text-xs text-muted-foreground">
+              {phone ? `將傳送至 ${phone}` : "此學生未有聯絡電話，請先到學生資料補充。"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              發送時請同時附上小冊子檔案（系統只預填文字）。
+            </p>
+          </div>
           <Button
             type="button"
             variant="success"
@@ -556,47 +556,6 @@ function StudentPromotionWorkspace({ bundle }: { bundle: StudentMatchBundle }) {
             <MessageCircle />
             WhatsApp
           </Button>
-        </div>
-
-        <div className="mt-4 border-t border-border pt-4">
-          <h3 className="text-sm font-semibold text-foreground">宣傳海報</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            依已選班別自動產生圖片（每張最多 4 班；超過會分成多張）；可於電腦上自行複製後貼到
-            WhatsApp。
-          </p>
-
-          {selectedCount === 0 ? (
-            <p className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-6 text-center text-sm text-muted-foreground">
-              請先勾選上方推薦班別，即可預覽海報。
-            </p>
-          ) : posterLoading ? (
-            <p className="mt-3 text-sm text-muted-foreground">正在產生海報…</p>
-          ) : posterError ? (
-            <p className="mt-3 text-sm text-destructive" role="alert">
-              {posterError}
-            </p>
-          ) : posterUrls.length > 0 ? (
-            <div className="mt-3 flex flex-col items-center gap-4">
-              {posterUrls.map((url, index) => (
-                <div key={`${index}-${url.slice(0, 48)}`} className="w-full max-w-[420px]">
-                  {posterUrls.length > 1 ? (
-                    <p className="mb-1.5 text-center text-xs text-muted-foreground">
-                      第 {index + 1} / {posterUrls.length} 張
-                    </p>
-                  ) : null}
-                  <img
-                    src={url}
-                    alt={
-                      posterUrls.length > 1
-                        ? `${bundle.student.fullName}宣傳海報（第 ${index + 1} 張）`
-                        : `${bundle.student.fullName}宣傳海報`
-                    }
-                    className="w-full rounded-md border border-border bg-background shadow-sm"
-                  />
-                </div>
-              ))}
-            </div>
-          ) : null}
         </div>
       </section>
     </>
@@ -785,22 +744,44 @@ function ByStudentPanel({
               </p>
             </div>
 
-            {selected.currentClasses.length > 0 ? (
-              <div className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2">
-                <div className="mb-1 text-xs font-medium text-muted-foreground">
-                  現有班別（{selected.currentClasses.length}）
-                </div>
-                <div className="space-y-0.5 text-xs text-foreground">
-                  {selected.currentClasses.map((c) => (
-                    <div key={c.classId}>
-                      <Link to={`/Classes/${c.classId}`} className="hover:underline">
-                        {c.label}
-                      </Link>
-                      {" · "}
-                      {scheduleText(c.dayOfWeek, c.timeSlot)}
+            {selected.summerClasses.length > 0 || selected.regularClasses.length > 0 ? (
+              <div className="mb-3 space-y-2">
+                {selected.summerClasses.length > 0 ? (
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+                    <div className="mb-1 text-xs font-medium text-muted-foreground">
+                      暑期班別（{selected.summerClasses.length}）
                     </div>
-                  ))}
-                </div>
+                    <div className="space-y-0.5 text-xs text-foreground">
+                      {selected.summerClasses.map((c) => (
+                        <div key={c.classId}>
+                          <Link to={`/Classes/${c.classId}`} className="hover:underline">
+                            {c.label}
+                          </Link>
+                          {" · "}
+                          {scheduleText(c.dayOfWeek, c.timeSlot)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {selected.regularClasses.length > 0 ? (
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+                    <div className="mb-1 text-xs font-medium text-muted-foreground">
+                      2627 已報（{selected.regularClasses.length}）
+                    </div>
+                    <div className="space-y-0.5 text-xs text-foreground">
+                      {selected.regularClasses.map((c) => (
+                        <div key={c.classId}>
+                          <Link to={`/Classes/${c.classId}`} className="hover:underline">
+                            {c.label}
+                          </Link>
+                          {" · "}
+                          {scheduleText(c.dayOfWeek, c.timeSlot)}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -828,7 +809,7 @@ export function PromotionMatchView() {
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
-  const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("all")
+  const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("formerSubject")
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
 
@@ -888,11 +869,11 @@ export function PromotionMatchView() {
   const studentBundles = useMemo(() => {
     return allStudentBundles.filter((b) => {
       if (studentGrades.size > 0 && !studentGrades.has(b.student.gradeLabel)) return false
-      const hasEnroll = b.currentClasses.length > 0
+      const hasEnroll = b.regularClasses.length > 0
       if (enrollmentFilter === "none" && hasEnroll) return false
       if (enrollmentFilter === "has" && !hasEnroll) return false
-      if (activityFilter === "active" && !b.student.activeIn2026) return false
-      if (activityFilter === "inactive" && b.student.activeIn2026) return false
+      if (activityFilter === "active" && !b.student.activeIn26SM) return false
+      if (activityFilter === "inactive" && b.student.activeIn26SM) return false
       return true
     })
   }, [allStudentBundles, studentGrades, enrollmentFilter, activityFilter])
@@ -940,8 +921,8 @@ export function PromotionMatchView() {
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {mode === "byClass"
-              ? "以進行中專科班為單位，依常規報讀／暑期兩期全報人數篩選，找出年級合適、時段無衝突的已註冊學生。"
-              : "以已註冊學生為單位，按年級／已有報讀篩選，列出可宣傳跟進的班別。"}
+              ? "以 2627 常規專科班為單位，找出年級合適、時段無衝突的已註冊學生。預設顯示暑期曾讀本科、尚未報讀該科的學生。"
+              : "以已註冊學生為單位，按年級／2627 報讀／暑期有無報讀篩選，列出可宣傳跟進的 2627 班別。"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -977,7 +958,7 @@ export function PromotionMatchView() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    常規報讀／暑期兩期全報人數
+                    2627 已報讀人數
                   </label>
                   <MultiSelect
                     value={[...fullTermCounts].map(String)}
@@ -1012,7 +993,7 @@ export function PromotionMatchView() {
               <p className="text-[11px] text-muted-foreground">
                 未選代表全部；可按需要多選。目前篩選：{countLabel}
                 {fullTermCounts.has(3) ? "（含 3 人以上）" : ""}
-                。此人數包括常規報讀及暑期兩期全報。「曾讀本科」只參考 2026 年 1–6 月舊資料。
+                。人數為該 2627 班就讀中報讀。「曾讀本科」= 26SM 就讀中同科；「現未讀本科」= 尚未報讀 2627 該科。
               </p>
             </FilterBar>
           ) : (
@@ -1031,33 +1012,33 @@ export function PromotionMatchView() {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    已有報讀
+                    2627 報讀
                   </label>
                   <Select
                     value={enrollmentFilter}
                     onChange={(e) => setEnrollmentFilter(e.target.value as EnrollmentFilter)}
                   >
                     <option value="all">全部</option>
-                    <option value="none">尚未報讀</option>
-                    <option value="has">已有報讀</option>
+                    <option value="none">尚未報讀 2627</option>
+                    <option value="has">已報讀 2627</option>
                   </Select>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-                    活躍生
+                    暑期報讀
                   </label>
                   <Select
                     value={activityFilter}
                     onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
                   >
                     <option value="all">全部</option>
-                    <option value="active">活躍生</option>
-                    <option value="inactive">非活躍生</option>
+                    <option value="active">暑期有讀</option>
+                    <option value="inactive">暑期無讀</option>
                   </Select>
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                年級未選代表全部。「活躍生」= 2026 日曆年內有班別報讀或 Notion 舊資料紀錄（非學年制）。
+                年級未選代表全部。「暑期有讀」= 26SM 有就讀中專科報讀。
               </p>
             </FilterBar>
           )}
@@ -1086,7 +1067,7 @@ export function PromotionMatchView() {
                 <div className="rounded-lg border border-border bg-card px-4 py-3">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <GraduationCap className="h-3.5 w-3.5" />
-                    全期人數
+                    已報讀人數
                   </div>
                   <div className="mt-1 text-sm font-medium text-foreground">{countLabel}</div>
                 </div>

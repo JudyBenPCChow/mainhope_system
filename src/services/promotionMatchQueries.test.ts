@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  buildStudentIdsWithCalendarYearEnrollment,
-  buildStudentIdsWithLegacyCalendarYearEnrollment,
-  isEnrollmentInCalendarYear,
-  isLegacyPeriodInCalendarYear,
+  buildHistoricalSubjectsFromSourceEnrollments,
+  buildStudentIdsEnrolledInSourceYear,
+  isPromotableTargetGroupClass,
   isPromotionMatchStudentCandidate,
-  mergeStudentIdsActiveInCalendarYear,
 } from "./promotionMatchQueries"
 
 describe("isPromotionMatchStudentCandidate", () => {
@@ -51,70 +49,86 @@ describe("isPromotionMatchStudentCandidate", () => {
   })
 })
 
-describe("calendar year enrollment activity", () => {
-  it("uses enroll_date when present", () => {
+describe("isPromotableTargetGroupClass", () => {
+  it("keeps 2627 group classes that are in progress or recruiting", () => {
     expect(
-      isEnrollmentInCalendarYear(
-        { enroll_date: "2026-03-15", created_at: "2025-01-01T00:00:00Z" },
-        2026
-      )
+      isPromotableTargetGroupClass({
+        status: "進行中",
+        class_kind: "group",
+        academic_year_label: "2627",
+      })
     ).toBe(true)
     expect(
-      isEnrollmentInCalendarYear(
-        { enroll_date: "2025-12-31", created_at: "2026-01-01T00:00:00Z" },
-        2026
-      )
-    ).toBe(false)
-  })
-
-  it("falls back to created_at when enroll_date is empty", () => {
-    expect(
-      isEnrollmentInCalendarYear(
-        { enroll_date: null, created_at: "2026-08-01T12:00:00+08:00" },
-        2026
-      )
+      isPromotableTargetGroupClass({
+        status: "招生中",
+        class_kind: "group",
+        academic_year_label: "2627",
+      })
     ).toBe(true)
+  })
+
+  it("excludes summer, ended, and private classes", () => {
     expect(
-      isEnrollmentInCalendarYear(
-        { enroll_date: "", created_at: "2027-01-02T00:00:00Z" },
-        2026
-      )
+      isPromotableTargetGroupClass({
+        status: "進行中",
+        class_kind: "group",
+        academic_year_label: "26SM",
+      })
+    ).toBe(false)
+    expect(
+      isPromotableTargetGroupClass({
+        status: "已結束",
+        class_kind: "group",
+        academic_year_label: "2627",
+      })
+    ).toBe(false)
+    expect(
+      isPromotableTargetGroupClass({
+        status: "進行中",
+        class_kind: "private",
+        academic_year_label: "2627",
+      })
     ).toBe(false)
   })
+})
 
-  it("collects unique student ids with any enrollment in the calendar year", () => {
-    const ids = buildStudentIdsWithCalendarYearEnrollment(
-      [
-        { student_id: "a", enroll_date: "2026-01-01", created_at: "2026-01-01T00:00:00Z" },
-        { student_id: "a", enroll_date: "2026-06-01", created_at: "2026-06-01T00:00:00Z" },
-        { student_id: "b", enroll_date: "2025-09-01", created_at: "2025-09-01T00:00:00Z" },
-        { student_id: "c", enroll_date: null, created_at: "2026-12-31T16:00:00Z" },
-      ],
-      2026
-    )
-    expect([...ids].sort()).toEqual(["a", "c"])
+describe("26SM source-year activity", () => {
+  it("marks students with 26SM 就讀中 enrollments as active", () => {
+    const ids = buildStudentIdsEnrolledInSourceYear([
+      { studentId: "a", academicYearLabel: "26SM", status: "就讀中" },
+      { studentId: "b", academicYearLabel: "2627", status: "就讀中" },
+      { studentId: "c", academicYearLabel: "26SM", status: "已退讀" },
+    ])
+    expect([...ids]).toEqual(["a"])
   })
 
-  it("includes Notion legacy subject periods overlapping the calendar year", () => {
-    expect(isLegacyPeriodInCalendarYear("2026-01-01", "2026-06-30", 2026)).toBe(true)
-    expect(isLegacyPeriodInCalendarYear("2025-09-01", "2025-12-31", 2026)).toBe(false)
-
-    const legacyIds = buildStudentIdsWithLegacyCalendarYearEnrollment(
-      [
-        { student_id: "legacy-a", period_start: "2026-01-01", period_end: "2026-06-30" },
-        { student_id: "legacy-b", period_start: "2025-07-01", period_end: "2025-12-31" },
-      ],
-      2026
-    )
-    expect([...legacyIds]).toEqual(["legacy-a"])
-  })
-
-  it("merges current enrollments with Notion legacy records", () => {
-    const ids = mergeStudentIdsActiveInCalendarYear(
-      [{ student_id: "sys", enroll_date: "2026-08-01", created_at: "2026-08-01T00:00:00Z" }],
-      [{ student_id: "notion", period_start: "2026-01-01", period_end: "2026-06-30" }],
-      2026
-    )
-    expect([...ids].sort()).toEqual(["notion", "sys"])
+  it("builds historical subjects only from 26SM 就讀中", () => {
+    const rows = buildHistoricalSubjectsFromSourceEnrollments([
+      {
+        studentId: "a",
+        subjectId: "eng",
+        academicYearLabel: "26SM",
+        status: "就讀中",
+      },
+      {
+        studentId: "a",
+        subjectId: "eng",
+        academicYearLabel: "26SM",
+        status: "就讀中",
+      },
+      {
+        studentId: "a",
+        subjectId: "chi",
+        academicYearLabel: "2627",
+        status: "就讀中",
+      },
+      {
+        studentId: "b",
+        subjectId: "math",
+        academicYearLabel: "26SM",
+        status: "已退讀",
+      },
+    ])
+    expect(rows).toEqual([{ studentId: "a", subjectId: "eng" }])
   })
 })
