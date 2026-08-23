@@ -30,6 +30,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
@@ -46,6 +47,13 @@ import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ formatClassScheduleLabel,
+ isCancelledScheduleStatus,
+ resolveEnrollmentStartDate,
+ resolveNextClassSchedule,
+ type EnrollmentStartMode,
+} from "@/lib/enrollmentStart"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
@@ -96,12 +104,10 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
+import { fetchClassSchedules, type ClassScheduleRow } from "@/services/classQueries"
 import {
- countBoundSchedulesForEnrollment,
  fetchLessonBalancesForStudent,
- insertPendingLesson,
  isLessonBalanceNeedsFollowUp,
- PENDING_LESSON_REASONS,
  updatePendingLessonStatus,
  type LessonBalanceRow,
 } from "@/services/pendingLessonQueries"
@@ -244,20 +250,16 @@ export function StudentDetailView() {
  const [classOptions, setClassOptions] = useState<ClassOption[]>([])
  const [pickClass, setPickClass] = useState("")
  /** 暑期：期數或單堂；正規：full | 單堂 */
- const [pickForm, setPickForm] = useState<string>("兩期全報")
+ const [pickForm, setPickForm] = useState<string>("full")
  const [pickScheduleIds, setPickScheduleIds] = useState<string[]>([])
- /** 報讀時填寫的應享／繳費堂數；多於綁定排程則自動記待補 */
- const [pickEntitledCount, setPickEntitledCount] = useState("")
- const [pickBoundPreview, setPickBoundPreview] = useState<number | null>(null)
+ const [addEnrollmentDialogOpen, setAddEnrollmentDialogOpen] = useState(false)
+ const [pickStartMode, setPickStartMode] = useState<EnrollmentStartMode>("next")
+ const [pickStartScheduleId, setPickStartScheduleId] = useState("")
+ const [pickClassSchedules, setPickClassSchedules] = useState<ClassScheduleRow[]>([])
+ const [pickClassSchedulesLoading, setPickClassSchedulesLoading] = useState(false)
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
  const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
  const [lessonBalancesState, setLessonBalancesState] = useState<"loading" | "ready" | "error">("loading")
- const [pendingDialogOpen, setPendingDialogOpen] = useState(false)
- const [pendingTarget, setPendingTarget] = useState<EnrollmentWithClass | null>(null)
- const [pendingOwedInput, setPendingOwedInput] = useState("1")
- const [pendingReason, setPendingReason] = useState<string>(PENDING_LESSON_REASONS[0])
- const [pendingRemarks, setPendingRemarks] = useState("")
- const [pendingSaving, setPendingSaving] = useState(false)
  const [withdrawOpen, setWithdrawOpen] = useState(false)
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
@@ -511,6 +513,29 @@ export function StudentDetailView() {
   navigate(exitPath)
  }, [student, form, promptUnsavedLeave, navigate, saveBasic, exitPath])
 
+ const resetAddEnrollmentDialog = useCallback(() => {
+  setPickClass("")
+  setPickForm("full")
+  setPickScheduleIds([])
+  setPickStartMode("next")
+  setPickStartScheduleId("")
+  setPickClassSchedules([])
+  setPickClassSchedulesLoading(false)
+ }, [])
+
+ const openAddEnrollmentDialog = useCallback(
+  (classId: string) => {
+   const opt = classOptions.find((o) => o.id === classId)
+   setPickClass(classId)
+   setPickScheduleIds([])
+   setPickForm(opt?.courseMode === "summer_two_period" ? "第一期" : "full")
+   setPickStartMode("next")
+   setPickStartScheduleId("")
+   setAddEnrollmentDialogOpen(true)
+  },
+  [classOptions]
+ )
+
  const addEnrollment = async () => {
   if (!pickClass) return
   const picked = classOptions.find((o) => o.id === pickClass)
@@ -525,33 +550,22 @@ export function StudentDetailView() {
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
-  const entitledRaw = pickEntitledCount.trim()
-  const entitled = entitledRaw === "" ? null : Math.floor(Number(entitledRaw))
-  if (entitledRaw !== "" && (!Number.isFinite(entitled) || (entitled ?? 0) < 1)) {
-   pushBanner({ tone: "error", title: "應享堂數無效", message: "請輸入正整數，或留空" })
-   return
-  }
-  let bound = pickBoundPreview
-  if (bound == null) {
-   try {
-    bound = await countBoundSchedulesForEnrollment({
-     classId: pickClass,
-     enrollmentPeriod: period,
-     scheduleIds: isSingle ? pickScheduleIds : undefined,
-    })
-   } catch {
-    bound = isSingle ? pickScheduleIds.length : 0
-   }
-  }
-  const owed =
-   entitled != null && bound != null && entitled > bound ? entitled - bound : 0
-  if (owed > 0) {
-   const ok = await confirmDialog({
-    title: "將記錄待補堂",
-    description: `應享 ${entitled} 堂，目前只會綁定 ${bound} 堂，將同時記錄待補 ${owed} 堂，方便同事跟進。`,
-    confirmText: "確認加入並記待補",
+  let enrollDate: string
+  try {
+   enrollDate = resolveEnrollmentStartDate({
+    mode: pickStartMode,
+    todayYmd,
+    nextScheduleDate: nextPickSchedule?.scheduled_date,
+    specifiedScheduleDate: pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
+     ?.scheduled_date,
    })
-   if (!ok) return
+  } catch (e) {
+   pushBanner({
+    tone: "error",
+    title: "請選擇開始排程",
+    message: e instanceof Error ? e.message : String(e),
+   })
+   return
   }
   try {
    await insertEnrollment(
@@ -559,19 +573,15 @@ export function StudentDetailView() {
     pickClass,
     period,
     isSingle ? pickScheduleIds : undefined,
-    owed > 0
-     ? { owedCount: owed, reason: "遲報缺堂", remarks: `應享 ${entitled}／綁定 ${bound}` }
-     : null
+    null,
+    { enrollDate }
    )
-   setPickClass("")
-   setPickForm(isSummer ? "兩期全報" : "full")
-   setPickScheduleIds([])
-   setPickEntitledCount("")
-   setPickBoundPreview(null)
+   setAddEnrollmentDialogOpen(false)
+   resetAddEnrollmentDialog()
    pushBanner({
     tone: "success",
     title: "已加入班別",
-    message: owed > 0 ? `已記錄待補 ${owed} 堂。可前往收款／出單。` : "可前往收款／出單。",
+    message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
     action: {
      pageLabel: "收款／出單",
      to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
@@ -632,6 +642,29 @@ export function StudentDetailView() {
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
+ const classSearchableOptions = useMemo(
+  () =>
+   classSelectOptions.map((o) => ({
+    value: o.id,
+    label: o.label,
+    searchText: o.label,
+   })),
+  [classSelectOptions]
+ )
+ const todayYmd = localTodayYmd()
+ const pickStartScheduleOptions = useMemo(
+  () =>
+   pickClassSchedules.filter(
+    (row) =>
+     !isCancelledScheduleStatus(row.status) && row.scheduled_date.slice(0, 10) >= todayYmd
+   ),
+  [pickClassSchedules, todayYmd]
+ )
+ const nextPickSchedule = useMemo(
+  () => resolveNextClassSchedule(pickClassSchedules, todayYmd),
+  [pickClassSchedules, todayYmd]
+ )
+
  const balanceByEnrollment = useMemo(() => {
   const map = new Map<string, LessonBalanceRow>()
   for (const row of lessonBalances) map.set(row.enrollmentId, row)
@@ -651,86 +684,32 @@ export function StudentDetailView() {
     : 0,
   [lessonBalances, lessonBalancesState]
  )
- const pickEntitledNum = pickEntitledCount.trim() === "" ? null : Math.floor(Number(pickEntitledCount))
- const pickPendingPreview =
-  pickEntitledNum != null &&
-  Number.isFinite(pickEntitledNum) &&
-  pickBoundPreview != null &&
-  pickEntitledNum > pickBoundPreview
-   ? pickEntitledNum - pickBoundPreview
-   : 0
 
  useEffect(() => {
-  if (!pickClass) {
-   setPickBoundPreview(null)
+  if (!addEnrollmentDialogOpen || !pickClass) {
+   setPickClassSchedules([])
+   setPickClassSchedulesLoading(false)
    return
   }
   let cancelled = false
-  const isSingle = pickForm === SINGLE_SESSION_ENROLLMENT
-  let period: EnrollmentFormValue | null = null
-  if (isSingle) period = SINGLE_SESSION_ENROLLMENT
-  else if (isSummerPick && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
-   period = pickForm as EnrollmentPeriod
-  }
-  void countBoundSchedulesForEnrollment({
-   classId: pickClass,
-   enrollmentPeriod: period,
-   scheduleIds: isSingle ? pickScheduleIds : undefined,
-  })
-   .then((n) => {
-    if (!cancelled) setPickBoundPreview(n)
+  setPickClassSchedulesLoading(true)
+  void fetchClassSchedules(pickClass)
+   .then((rows) => {
+    if (!cancelled) setPickClassSchedules(rows)
    })
-   .catch(() => {
-    if (!cancelled) setPickBoundPreview(isSingle ? pickScheduleIds.length : null)
+   .catch((e) => {
+    if (!cancelled) {
+     reportUserFacingError(e, { source: "StudentDetailView.pickClassSchedules" })
+     setPickClassSchedules([])
+    }
+   })
+   .finally(() => {
+    if (!cancelled) setPickClassSchedulesLoading(false)
    })
   return () => {
    cancelled = true
   }
- }, [pickClass, pickForm, pickScheduleIds, isSummerPick])
-
- const openPendingDialog = (e: EnrollmentWithClass) => {
-  const bal = balanceByEnrollment.get(e.id)
-  const suggest =
-   bal && bal.paidLessons > 0 && bal.gap > 0 ? String(bal.gap) : "1"
-  setPendingTarget(e)
-  setPendingOwedInput(suggest)
-  setPendingReason(PENDING_LESSON_REASONS[0])
-  setPendingRemarks("")
-  setPendingDialogOpen(true)
- }
-
- const submitPendingLesson = async () => {
-  if (!pendingTarget || !sid) return
-  const owed = Math.floor(Number(pendingOwedInput))
-  if (!Number.isFinite(owed) || owed < 1) {
-   pushBanner({ tone: "error", title: "待補堂數無效", message: "請輸入至少 1 堂" })
-   return
-  }
-  setPendingSaving(true)
-  try {
-   await insertPendingLesson({
-    studentId: sid,
-    classId: pendingTarget.classId,
-    enrollmentId: pendingTarget.id,
-    owedCount: owed,
-    reason: pendingReason,
-    remarks: pendingRemarks.trim() || null,
-   })
-   setPendingDialogOpen(false)
-   setPendingTarget(null)
-   pushBanner({ tone: "success", title: "已記錄待補堂", message: `待補 ${owed} 堂` })
-   await reloadSubs()
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.submitPendingLesson" })
-   pushBanner({
-    tone: "error",
-    title: "記錄失敗",
-    message: e instanceof Error ? e.message : String(e),
-   })
-  } finally {
-   setPendingSaving(false)
-  }
- }
+ }, [addEnrollmentDialogOpen, pickClass])
 
  const openEditEnrollmentForm = async (e: EnrollmentWithClass) => {
   setEditFormTarget(e)
@@ -1556,7 +1535,7 @@ export function StudentDetailView() {
         className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
        >
         有 <strong className="tabular-nums">{misalignedCount}</strong>{" "}
-        個班別的繳費堂數與排程／待補不一致、仍有待補堂，或請假尚無補堂日，請跟進。
+        個班別的已繳堂數與權益池／排程不一致，或仍有歷史待補紀錄、請假尚無補堂日，請經收款或權益更正跟進。
        </div>
       ) : null}
       {!canViewMoney && enrollmentsState === "ready" && teacherFollowUpCount > 0 ? (
@@ -1573,105 +1552,154 @@ export function StudentDetailView() {
       ) : null}
       {canMutateStudentOps && enrollmentsState === "ready" ? (
       <>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-       <Select
-        className="flex h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm shadow-sm"
-        value={pickClass}
-        onChange={(e) => {
-         const next = e.target.value
-         setPickClass(next)
-         setPickScheduleIds([])
-         setPickEntitledCount("")
-         const opt = classOptions.find((o) => o.id === next)
-         setPickForm(opt?.courseMode === "summer_two_period" ? "兩期全報" : "full")
-        }}
-       >
-        <option value="">選擇班別加入…</option>
-        {classSelectOptions.map((o) => (
-         <option key={o.id} value={o.id}>
-          {o.label}
-         </option>
-        ))}
-       </Select>
-       {pickClass ? (
-        <Select
-         className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm shadow-sm sm:w-40"
-         value={pickForm}
-         onChange={(e) => {
-          setPickForm(e.target.value)
-          if (e.target.value !== SINGLE_SESSION_ENROLLMENT) setPickScheduleIds([])
-         }}
-        >
-         {(isSummerPick
-          ? SUMMER_ENROLLMENT_FORM_OPTIONS.map((p) => ({
-             value: p,
-             label:
-              p === SINGLE_SESSION_ENROLLMENT
-               ? "單堂／自選堂數"
-               : p === "第一期"
-                 ? "暑期第一期"
-                 : p === "第二期"
-                   ? "暑期第二期"
-                   : "暑期兩期全報",
-            }))
-          : [
-             { value: "full", label: "報讀" },
-             { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
-            ]
-         ).map((o) => (
-          <option key={o.value} value={o.value}>
-           {o.label}
-          </option>
-         ))}
-        </Select>
-       ) : null}
-       <Button
-        type="button"
-        onClick={() => void addEnrollment()}
-        disabled={!pickClass || (showSessionPicker && pickScheduleIds.length === 0)}
-       >
-        <Plus className="h-4 w-4" />
-        加入
-       </Button>
-      </div>
-      {pickClass ? (
-       <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-3 sm:flex-row sm:items-end">
-        <Field label="應享／繳費堂數（選填）" className="sm:w-44">
-         <Input
-          type="number"
-          min={1}
-          inputMode="numeric"
-          placeholder="例如 12"
-          value={pickEntitledCount}
-          onChange={(e) => setPickEntitledCount(e.target.value)}
-          className="h-9"
-         />
-        </Field>
-        <div className="flex-1 text-xs text-muted-foreground sm:pb-2">
-         將綁定{" "}
-         <strong className="tabular-nums text-foreground">
-          {pickBoundPreview == null ? "…" : pickBoundPreview}
-         </strong>{" "}
-         堂
-         {pickPendingPreview > 0 ? (
-          <span className="ml-2 text-amber-800">
-           · 差額將記待補{" "}
-           <strong className="tabular-nums">{pickPendingPreview}</strong> 堂
-          </span>
-         ) : null}
-         <span className="mt-0.5 block">
-          遲報時請填應享堂數；若多於可綁定排程，加入時會一併記錄待補。
-         </span>
-        </div>
-       </div>
-      ) : null}
-      {showSessionPicker ? (
-       <EnrollmentSessionPicker
-        classId={pickClass}
-        selectedIds={pickScheduleIds}
-        onChange={setPickScheduleIds}
-       />
-      ) : null}
+      <SearchableSelect
+       value=""
+       onChange={(next) => {
+        if (!next) return
+        openAddEnrollmentDialog(next)
+       }}
+       options={classSearchableOptions}
+       placeholder="選擇班別加入…"
+       searchPlaceholder="搜尋班別名稱或代碼…"
+       className="min-h-11 w-full"
+       preferredMinWidth={640}
+       aria-label="選擇班別加入"
+      />
+      <Dialog
+       open={addEnrollmentDialogOpen}
+       onOpenChange={(open) => {
+        setAddEnrollmentDialogOpen(open)
+        if (!open) resetAddEnrollmentDialog()
+       }}
+      >
+       <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+        <DialogHeader>
+         <DialogTitle>加入報讀班別</DialogTitle>
+        </DialogHeader>
+        {pickClass && pickedClassOption ? (
+         <div className="space-y-4 text-sm">
+          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
+           {pickedClassOption.label}
+          </div>
+          <p className="text-muted-foreground">
+           報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+          </p>
+          <Field label="報讀形式">
+           <Select
+            className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+            value={pickForm}
+            onChange={(e) => {
+             setPickForm(e.target.value)
+             if (e.target.value !== SINGLE_SESSION_ENROLLMENT) setPickScheduleIds([])
+            }}
+           >
+            {(isSummerPick
+             ? (["第一期", "第二期", SINGLE_SESSION_ENROLLMENT] as const).map((p) => ({
+                value: p,
+                label:
+                 p === SINGLE_SESSION_ENROLLMENT
+                  ? "單堂／自選堂數"
+                  : p === "第一期"
+                    ? "暑期第一期"
+                    : "暑期第二期",
+               }))
+             : [
+                { value: "full", label: "報讀" },
+                { value: SINGLE_SESSION_ENROLLMENT, label: "單堂／自選堂數" },
+               ]
+            ).map((o) => (
+             <option key={o.value} value={o.value}>
+              {o.label}
+             </option>
+            ))}
+           </Select>
+          </Field>
+          <Field label="開始報讀">
+           <ChoiceChips
+            options={["next", "schedule"] as const}
+            value={pickStartMode}
+            onChange={(mode) => {
+             setPickStartMode(mode)
+             if (mode === "schedule" && !pickStartScheduleId && nextPickSchedule) {
+              setPickStartScheduleId(nextPickSchedule.id)
+             }
+            }}
+            label={(mode) => (mode === "next" ? "下一堂" : "指定排程開始")}
+           />
+          </Field>
+          {pickStartMode === "next" ? (
+           <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-muted-foreground">
+            {pickClassSchedulesLoading ? (
+             "載入排程中…"
+            ) : nextPickSchedule ? (
+             <>
+              將由{" "}
+              <strong className="text-foreground">
+               {formatClassScheduleLabel(nextPickSchedule)}
+              </strong>{" "}
+              開始計入報讀
+             </>
+            ) : (
+             "此班暫無未來排程，將以今天為報讀開始日。"
+            )}
+           </div>
+          ) : (
+           <Field label="選擇開始排程">
+            {pickClassSchedulesLoading ? (
+             <p className="text-muted-foreground">載入排程中…</p>
+            ) : pickStartScheduleOptions.length === 0 ? (
+             <p className="text-destructive">此班暫無可選的未來排程。</p>
+            ) : (
+             <Select
+              className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+              value={pickStartScheduleId}
+              onChange={(e) => setPickStartScheduleId(e.target.value)}
+             >
+              <option value="">請選擇排程…</option>
+              {pickStartScheduleOptions.map((row) => (
+               <option key={row.id} value={row.id}>
+                {formatClassScheduleLabel(row)}
+               </option>
+              ))}
+             </Select>
+            )}
+           </Field>
+          )}
+          {showSessionPicker ? (
+           <EnrollmentSessionPicker
+            classId={pickClass}
+            selectedIds={pickScheduleIds}
+            onChange={setPickScheduleIds}
+           />
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+           <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+             setAddEnrollmentDialogOpen(false)
+             resetAddEnrollmentDialog()
+            }}
+           >
+            取消
+           </Button>
+           <Button
+            type="button"
+            onClick={() => void addEnrollment()}
+            disabled={
+             !pickClass ||
+             (showSessionPicker && pickScheduleIds.length === 0) ||
+             (pickStartMode === "schedule" && !pickStartScheduleId)
+            }
+           >
+            <Plus className="h-4 w-4" />
+            加入
+           </Button>
+          </div>
+         </div>
+        ) : null}
+       </DialogContent>
+      </Dialog>
       </>
       ) : null}
       <div className="space-y-3">
@@ -1725,14 +1753,6 @@ export function StudentDetailView() {
           </div>
           {canMutateStudentOps ? (
           <div className="flex flex-wrap items-center gap-2">
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => openPendingDialog(e)}
-           >
-            記錄待補堂
-           </Button>
            <Button
             type="button"
             variant="outline"
@@ -1833,7 +1853,7 @@ export function StudentDetailView() {
                 size="sm"
                >
                 {!bal.isAligned
-                 ? `尚差 ${bal.gap} 堂未記／未排`
+                 ? `尚差 ${bal.gap} 堂（請經收款／出單增額權益池）`
                  : bal.leaveAwaitingMakeupCount > 0
                    ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
                    : "堂數一致"}
@@ -2070,83 +2090,6 @@ export function StudentDetailView() {
             onClick={() => void submitEditEnrollmentForm()}
            >
             {editFormSaving ? "儲存中…" : "確認更改"}
-           </Button>
-          </div>
-         </div>
-        ) : null}
-       </DialogContent>
-      </Dialog>
-
-      <Dialog
-       open={pendingDialogOpen}
-       onOpenChange={(o) => {
-        setPendingDialogOpen(o)
-        if (!o) setPendingTarget(null)
-       }}
-      >
-       <DialogContent className="max-w-md">
-        <DialogHeader>
-         <DialogTitle>記錄待補堂</DialogTitle>
-        </DialogHeader>
-        {pendingTarget ? (
-         <div className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-           用於遲報或缺排程、但<strong>不是請假</strong>的情況。記錄後會顯示在該班堂數對帳區，方便同事跟進。
-          </p>
-          <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
-           {formatClassLabel({
-            subject: pendingTarget.subject,
-            courseCode: pendingTarget.courseCode,
-            courseName: pendingTarget.courseName,
-           })}
-          </div>
-          <Field label="待補堂數">
-           <Input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={pendingOwedInput}
-            onChange={(e) => setPendingOwedInput(e.target.value)}
-            className="h-9"
-           />
-          </Field>
-          <Field label="原因">
-           <Select
-            className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-            value={pendingReason}
-            onChange={(e) => setPendingReason(e.target.value)}
-           >
-            {PENDING_LESSON_REASONS.map((r) => (
-             <option key={r} value={r}>
-              {r}
-             </option>
-            ))}
-           </Select>
-          </Field>
-          <Field label="備註（選填）">
-           <Textarea
-            value={pendingRemarks}
-            onChange={(e) => setPendingRemarks(e.target.value)}
-            rows={2}
-            placeholder="例如：開班後才報讀，少了第 1 堂"
-            className="resize-none"
-           />
-          </Field>
-          <div className="flex flex-wrap justify-end gap-2 pt-1">
-           <Button
-            type="button"
-            variant="outline"
-            disabled={pendingSaving}
-            onClick={() => setPendingDialogOpen(false)}
-           >
-            取消
-           </Button>
-           <Button
-            type="button"
-            disabled={pendingSaving}
-            onClick={() => void submitPendingLesson()}
-           >
-            {pendingSaving ? "儲存中…" : "確認記錄"}
            </Button>
           </div>
          </div>

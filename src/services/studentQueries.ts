@@ -1067,15 +1067,19 @@ export async function findStudentEnrollmentScheduleConflicts(opts: {
  scheduleIds?: string[]
  /** 更新既有報讀時排除本班 enrollment（避免與自己比） */
  excludeClassId?: string | null
+ /** 只檢查此日（含）起的堂次；遲報／指定開始排程用 */
+ fromDate?: string | null
 }): Promise<EnrollmentScheduleConflict[]> {
  if (!supabase) return []
- const targetSlots = await filterSlotsForEnrollmentPeriod(
+ const fromDate = (opts.fromDate ?? "").slice(0, 10)
+ let targetSlots = await filterSlotsForEnrollmentPeriod(
   opts.classId,
   opts.enrollmentPeriod,
   opts.scheduleIds,
   await fetchUpcomingScheduleSlotsForClass(opts.classId),
   { studentId: opts.studentId }
  )
+ if (fromDate) targetSlots = targetSlots.filter((s) => s.scheduled_date >= fromDate)
  if (targetSlots.length === 0) return []
 
  const excludeClassId = opts.excludeClassId ?? opts.classId
@@ -1145,6 +1149,7 @@ async function assertNoEnrollmentTimeConflicts(opts: {
  enrollmentPeriod: EnrollmentFormValue | null
  scheduleIds?: string[]
  excludeClassId?: string | null
+ fromDate?: string | null
 }): Promise<void> {
  const conflicts = await findStudentEnrollmentScheduleConflicts(opts)
  if (conflicts.length > 0) throw new Error(formatEnrollmentConflictError(conflicts))
@@ -1192,15 +1197,23 @@ async function closeOpenTrialsAfterEnrollment(
  }
 }
 
+export type InsertEnrollmentOpts = {
+ /** 開始報讀日（含當日堂）；預設今天。下一堂／指定排程開始時傳入該堂日期。 */
+ enrollDate?: string | null
+}
+
 export async function insertEnrollment(
  studentId: string,
  classId: string,
  enrollmentPeriod?: EnrollmentFormValue | null,
  scheduleIds?: string[],
- pending?: InsertEnrollmentPendingOpts | null
+ pending?: InsertEnrollmentPendingOpts | null,
+ opts?: InsertEnrollmentOpts | null
 ): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
+ const enrollDateRaw = (opts?.enrollDate ?? "").slice(0, 10)
+ const enrollDate = /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) ? enrollDateRaw : today
  const { data: classRow, error: classErr } = await supabase
   .from("classes")
   .select("academic_year_label, start_date")
@@ -1248,6 +1261,7 @@ export async function insertEnrollment(
   classId,
   enrollmentPeriod: periodValue,
   scheduleIds: isSingle ? scheduleIds : undefined,
+  fromDate: enrollDate,
  })
 
  let enrollmentId: string
@@ -1258,7 +1272,7 @@ export async function insertEnrollment(
    .from("student_class_enrollments")
    .update({
     status: "就讀中",
-    enroll_date: today,
+    enroll_date: enrollDate,
     enrollment_period: periodValue,
     withdraw_effective_date: null,
     withdraw_reason: null,
@@ -1278,7 +1292,7 @@ export async function insertEnrollment(
     student_id: studentId,
     class_id: classId,
     status: "就讀中",
-    enroll_date: today,
+    enroll_date: enrollDate,
     enrollment_period: periodValue,
    })
    .select("id")
@@ -1298,19 +1312,19 @@ export async function insertEnrollment(
     : ""
   const pendingNote =
    pending && pending.owedCount > 0 ? `；待補 ${pending.owedCount} 堂` : ""
+  const startNote = enrollDate !== today ? `由 ${enrollDate} 起報讀` : ""
+  const reasonParts = [
+   isSingle ? `單堂報讀${sessionLabel}` : withdrawn ? "退讀後重新報讀" : "",
+   startNote,
+   pendingNote.replace(/^；/, ""),
+  ].filter((s) => s.trim() !== "")
   const { error: evErr } = await supabase.from("enrollment_change_events").insert({
    student_id: studentId,
    class_id: classId,
    enrollment_id: enrollmentId,
    action: "enroll",
    effective_date: today,
-   reason: isSingle
-    ? `單堂報讀${sessionLabel}${pendingNote}`
-    : withdrawn
-      ? `退讀後重新報讀${pendingNote}`
-      : pendingNote
-        ? pendingNote.replace(/^；/, "")
-        : null,
+   reason: reasonParts.length > 0 ? reasonParts.join("；") : null,
    enrollment_period: periodValue,
   })
   if (evErr) throw evErr
@@ -1351,7 +1365,7 @@ export async function insertEnrollment(
    studentId,
    classId,
    enrollmentPeriod: periodValue,
-   enrollDate: today,
+   enrollDate,
    scheduleIds: isSingle ? scheduleIds : undefined,
    sourceEventType: "enrollment_auto",
   })

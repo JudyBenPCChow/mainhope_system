@@ -19,7 +19,6 @@ import {
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { fetchAllClasses, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
-import { countBoundSchedulesForEnrollment } from "@/services/pendingLessonQueries"
 import { createPrivateTutoringEnrollment } from "@/services/privateTutoringQueries"
 import {
  fetchOpenTrialsForStudent,
@@ -65,8 +64,6 @@ export function EnrollClassStep({
  const [pickClass, setPickClass] = useState("")
  const [pickForm, setPickForm] = useState<string>("兩期全報")
  const [pickScheduleIds, setPickScheduleIds] = useState<string[]>([])
- const [pickEntitledCount, setPickEntitledCount] = useState("")
- const [pickBoundPreview, setPickBoundPreview] = useState<number | null>(null)
  const [groupSaving, setGroupSaving] = useState(false)
 
  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name_zh: string }[]>([])
@@ -188,34 +185,6 @@ export function EnrollClassStep({
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
 
- useEffect(() => {
-  if (!pickClass) {
-   setPickBoundPreview(null)
-   return
-  }
-  const isSingle = pickForm === SINGLE_SESSION_ENROLLMENT
-  let period: EnrollmentFormValue | null = null
-  if (isSingle) period = SINGLE_SESSION_ENROLLMENT
-  else if (isSummerPick && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
-   period = pickForm as EnrollmentPeriod
-  }
-  let cancelled = false
-  void countBoundSchedulesForEnrollment({
-   classId: pickClass,
-   enrollmentPeriod: period,
-   scheduleIds: isSingle ? pickScheduleIds : undefined,
-  })
-   .then((n) => {
-    if (!cancelled) setPickBoundPreview(n)
-   })
-   .catch(() => {
-    if (!cancelled) setPickBoundPreview(isSingle ? pickScheduleIds.length : null)
-   })
-  return () => {
-   cancelled = true
-  }
- }, [pickClass, pickForm, pickScheduleIds, isSummerPick])
-
  const activeCount = enrollments.filter((e) => e.status !== "已退讀").length
  const trialCount = trials.length
  const canContinue = activeCount > 0 || trialCount > 0
@@ -249,33 +218,6 @@ export function EnrollClassStep({
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
-  const entitledRaw = pickEntitledCount.trim()
-  const entitled = entitledRaw === "" ? null : Math.floor(Number(entitledRaw))
-  if (entitledRaw !== "" && (!Number.isFinite(entitled) || (entitled ?? 0) < 1)) {
-   setErr("應享堂數請輸入正整數，或留空")
-   return
-  }
-  let bound = pickBoundPreview
-  if (bound == null) {
-   try {
-    bound = await countBoundSchedulesForEnrollment({
-     classId: pickClass,
-     enrollmentPeriod: period,
-     scheduleIds: isSingle ? pickScheduleIds : undefined,
-    })
-   } catch {
-    bound = isSingle ? pickScheduleIds.length : 0
-   }
-  }
-  const owed = entitled != null && bound != null && entitled > bound ? entitled - bound : 0
-  if (owed > 0) {
-   const ok = await confirmDialog({
-    title: "將記錄待補堂",
-    description: `應享 ${entitled} 堂，目前只會綁定 ${bound} 堂，將同時記錄待補 ${owed} 堂。`,
-    confirmText: "確認加入並記待補",
-   })
-   if (!ok) return
-  }
 
   setGroupSaving(true)
   setErr(null)
@@ -285,19 +227,17 @@ export function EnrollClassStep({
     pickClass,
     period,
     isSingle ? pickScheduleIds : undefined,
-    owed > 0 ? { owedCount: owed, reason: "遲報缺堂", remarks: `應享 ${entitled}／綁定 ${bound}` } : null
+    null
    )
    setPickClass("")
-   setPickForm(isSummer ? "兩期全報" : "full")
+   setPickForm(isSummer ? "第一期" : "full")
    setPickScheduleIds([])
-   setPickEntitledCount("")
-   setPickBoundPreview(null)
    const list = await reloadEnrollments()
    const count = list.filter((e) => e.status !== "已退讀").length
    pushBanner({
     tone: "success",
     title: "已加入班別",
-    message: owed > 0 ? `已記錄待補 ${owed} 堂。可再新增其他班別。` : "可再新增其他班別，或繼續收款。",
+    message: "報讀已建立。請繼續收款，確認學費後權益池才會增加可上課堂數。",
    })
    onEnrollmentCountChange(count)
   } catch (e) {
@@ -479,9 +419,8 @@ export function EnrollClassStep({
         const id = e.target.value
         setPickClass(id)
         const opt = availableClasses.find((c) => c.id === id)
-        setPickForm(opt?.courseMode === "summer_two_period" ? "兩期全報" : "full")
+        setPickForm(opt?.courseMode === "summer_two_period" ? "第一期" : "full")
         setPickScheduleIds([])
-        setPickEntitledCount("")
        }}
       >
        <option value="">請選擇班別</option>
@@ -540,14 +479,9 @@ export function EnrollClassStep({
          />
         </div>
        ) : null}
-       <Field label="應享／繳費堂數（選填）">
-        <Input
-         inputMode="numeric"
-         value={pickEntitledCount}
-         onChange={(e) => setPickEntitledCount(e.target.value)}
-         placeholder={pickBoundPreview != null ? `預估綁定 ${pickBoundPreview} 堂` : "留空則不記待補"}
-        />
-       </Field>
+       <p className="text-xs text-muted-foreground">
+        報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+       </p>
       </>
      ) : null}
 
