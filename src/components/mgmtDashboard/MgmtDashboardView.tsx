@@ -22,6 +22,7 @@ import {
  fetchMgmtDashboardSummary,
  mergeMgmtDashboardPayload,
 } from "@/services/mgmtDashboardQueries"
+import { FIRST_SCREEN_KPI_IDS } from "@/lib/mgmtDashboardAssemble"
 import { fetchAllTeachers } from "@/services/teacherQueries"
 
 const emptyPayload: MgmtDashboardPayload = {
@@ -29,6 +30,7 @@ const emptyPayload: MgmtDashboardPayload = {
  kpis: [],
  revenueSeries: { ok: [] },
  funnel: { ok: [] },
+ profitSeries: { ok: [] },
  withdrawalAnalysis: { ok: { bySubject: [], byTeacher: [], byClass: [], byDate: [] } },
  unpaidOverdue: { ok: [] },
  opsAlerts: [],
@@ -172,6 +174,10 @@ export function MgmtDashboardView() {
   })
  }
 
+ const firstScreenIds = new Set<string>(FIRST_SCREEN_KPI_IDS)
+ const firstScreenKpis = data.kpis.filter((k) => firstScreenIds.has(k.id))
+ const restKpis = data.kpis.filter((k) => !firstScreenIds.has(k.id))
+
  return (
   <div className="flex min-h-0 flex-1 flex-col gap-8 p-6">
    <header className="space-y-2">
@@ -225,16 +231,48 @@ export function MgmtDashboardView() {
         目前無法計算 KPI（請調整篩選或稍後再試）
        </div>
       ) : (
-       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {data.kpis.slice(0, 8).map((card) => (
-         <MgmtStatCard
-          key={card.id}
-          card={card}
-          selected={focus?.type === "kpi" && focus.kpiId === card.id}
-          onSelect={() => selectFocus({ type: "kpi", kpiId: card.id })}
-         />
-        ))}
-       </div>
+       <>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+         {firstScreenKpis.map((card) => (
+          <MgmtStatCard
+           key={card.id}
+           card={card}
+           selected={focus?.type === "kpi" && focus.kpiId === card.id}
+           onSelect={() => selectFocus({ type: "kpi", kpiId: card.id })}
+          />
+         ))}
+        </div>
+        {restKpis.length > 0 ? (
+         <>
+          <div className="hidden grid-cols-2 gap-3 md:grid lg:grid-cols-3 xl:grid-cols-4">
+           {restKpis.map((card) => (
+            <MgmtStatCard
+             key={card.id}
+             card={card}
+             selected={focus?.type === "kpi" && focus.kpiId === card.id}
+             onSelect={() => selectFocus({ type: "kpi", kpiId: card.id })}
+            />
+           ))}
+          </div>
+          <details className="rounded-xl border border-border bg-card shadow-sm md:hidden">
+           <summary className="cursor-pointer px-4 py-3 text-sm font-medium">
+            其餘指標（{restKpis.length}）
+            <span className="ml-2 font-normal text-muted-foreground">點開查看</span>
+           </summary>
+           <div className="grid gap-3 border-t border-border p-4 sm:grid-cols-2">
+            {restKpis.map((card) => (
+             <MgmtStatCard
+              key={`m-${card.id}`}
+              card={card}
+              selected={focus?.type === "kpi" && focus.kpiId === card.id}
+              onSelect={() => selectFocus({ type: "kpi", kpiId: card.id })}
+             />
+            ))}
+           </div>
+          </details>
+         </>
+        ) : null}
+       </>
       )}
      </section>
 

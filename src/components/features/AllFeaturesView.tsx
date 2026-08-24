@@ -1,15 +1,21 @@
 import { Link } from "react-router-dom"
 import { ChevronRight, LayoutGrid } from "lucide-react"
 
-import { buildFeatureSections } from "@/lib/navStructure"
+import { buildFeatureSections, NAV_STRUCTURE, stripHomeworkTutoringNav } from "@/lib/navStructure"
 import { useAuth } from "@/lib/authBootstrap"
+import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
 import { cn } from "@/lib/utils"
 
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
+ const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
  if (!ready || !role) return null
 
- const sections = buildFeatureSections(role)
+ const navSource =
+  role === "teacher" && !homeworkTutoringNavVisible
+   ? stripHomeworkTutoringNav(NAV_STRUCTURE)
+   : NAV_STRUCTURE
+ const sections = buildFeatureSections(role, navSource)
  const totalCount = sections.reduce((n, s) => n + s.items.length, 0)
 
  return (

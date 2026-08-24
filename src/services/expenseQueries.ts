@@ -691,3 +691,69 @@ export async function postPayrollSettleToExpenseLedger(input: {
   if (error) throw new Error(error.message)
   return { posted: rows.length, skipped }
 }
+
+export type ExpenseRangeBucket = {
+  totalConfirmed: number
+  tutorLabor: number
+  tutorLaborPosted: boolean
+}
+
+function isTutorLaborCode(code: string): boolean {
+  return code === "labor_tutor" || code === "labor_employer_mpf"
+}
+
+/** 已確認且未作廢開支。導師人工＝計糧過帳 labor_tutor＋僱主強積金。 */
+export async function sumConfirmedExpenseBuckets(
+  from: string,
+  to: string
+): Promise<ExpenseRangeBucket & { byMonth: Map<string, ExpenseRangeBucket> }> {
+  const client = requireClient()
+  const empty = (): ExpenseRangeBucket => ({
+    totalConfirmed: 0,
+    tutorLabor: 0,
+    tutorLaborPosted: false,
+  })
+  const byMonth = new Map<string, ExpenseRangeBucket>()
+  const pageSize = 1000
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client
+      .from("expense_entries")
+      .select(
+        `
+      spent_on, amount_hkd, ledger_status, voided_at,
+      expense_ledger_accounts!expense_entries_ledger_account_id_fkey ( code )
+    `
+      )
+      .gte("spent_on", from)
+      .lte("spent_on", to)
+      .is("voided_at", null)
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1)
+    if (error) throw new Error(error.message)
+    const chunk = (data ?? []) as RawRow[]
+    for (const row of chunk) {
+      if (String(row.ledger_status ?? "") !== "confirmed") continue
+      const amount = Number(row.amount_hkd ?? 0)
+      const spentOn = String(row.spent_on ?? "")
+      const mk = spentOn.slice(0, 7)
+      const account = embedOne(row.expense_ledger_accounts)
+      const code = account ? String(account.code ?? "") : ""
+      const cur = byMonth.get(mk) ?? empty()
+      cur.totalConfirmed += amount
+      if (isTutorLaborCode(code)) {
+        cur.tutorLabor += amount
+        cur.tutorLaborPosted = true
+      }
+      byMonth.set(mk, cur)
+    }
+    if (chunk.length < pageSize) break
+  }
+
+  const total = empty()
+  for (const cur of byMonth.values()) {
+    total.totalConfirmed += cur.totalConfirmed
+    total.tutorLabor += cur.tutorLabor
+    if (cur.tutorLaborPosted) total.tutorLaborPosted = true
+  }
+  return { ...total, byMonth }
+}
