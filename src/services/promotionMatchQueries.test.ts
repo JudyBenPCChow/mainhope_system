@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildHistoricalSubjectsFromSourceEnrollments,
+  buildStudentIdsEnrolledInPriorYear,
   buildStudentIdsEnrolledInSourceYear,
   isPromotableTargetGroupClass,
   isPromotionMatchStudentCandidate,
+  mergeStudentIdSets,
 } from "./promotionMatchQueries"
 
 describe("isPromotionMatchStudentCandidate", () => {
@@ -130,5 +132,22 @@ describe("26SM source-year activity", () => {
       },
     ])
     expect(rows).toEqual([{ studentId: "a", subjectId: "eng" }])
+  })
+})
+
+describe("2526 prior-year enrollment", () => {
+  it("marks students with 2526 就讀中 or 已退讀 enrollments", () => {
+    const ids = buildStudentIdsEnrolledInPriorYear([
+      { studentId: "a", academicYearLabel: "2526", status: "就讀中" },
+      { studentId: "b", academicYearLabel: "2526", status: "已退讀" },
+      { studentId: "c", academicYearLabel: "26SM", status: "就讀中" },
+      { studentId: "d", academicYearLabel: "2526", status: "試讀中" },
+    ])
+    expect([...ids].sort()).toEqual(["a", "b"])
+  })
+
+  it("merges legacy and live prior-year student ids", () => {
+    const merged = mergeStudentIdSets(new Set(["a", "b"]), new Set(["b", "c"]))
+    expect([...merged].sort()).toEqual(["a", "b", "c"])
   })
 })

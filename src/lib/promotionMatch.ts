@@ -8,6 +8,8 @@ import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 export const PROMOTION_TARGET_YEAR_LABEL = "2627"
 /** 活躍生／曾讀本科來源：26SM 暑期。 */
 export const PROMOTION_SOURCE_YEAR_LABEL = "26SM"
+/** 上一年常規學年（Notion 舊科目／系統殘留報讀篩選）。 */
+export const PROMOTION_PRIOR_YEAR_LABEL = "2526"
 
 export function promotionYearLabelMatches(
   label: string | null | undefined,
@@ -22,6 +24,10 @@ export function isPromotionTargetYear(label: string | null | undefined): boolean
 
 export function isPromotionSourceYear(label: string | null | undefined): boolean {
   return promotionYearLabelMatches(label, PROMOTION_SOURCE_YEAR_LABEL)
+}
+
+export function isPromotionPriorYear(label: string | null | undefined): boolean {
+  return promotionYearLabelMatches(label, PROMOTION_PRIOR_YEAR_LABEL)
 }
 
 /** 全期報讀：常規「報足全期」寫入 null；暑期為「兩期全報」。單堂／單期不算。 */
@@ -107,6 +113,8 @@ export type PromotionStudentRow = {
   registrationStatus: "已註冊" | "非注冊"
   /** 26SM 就讀中專科報讀（宣傳配對活躍生／暑期有讀） */
   activeIn26SM: boolean
+  /** 2526 有報讀：Notion 舊科目或系統 2526 班（就讀中／已退讀） */
+  enrolledIn2526: boolean
 }
 
 export type PromotionEnrollmentRow = {
