@@ -35,7 +35,8 @@ const englishClass: PromotionClassRow = {
 function student(
   id: string,
   gradeLabel = "中四",
-  activeIn26SM = false
+  activeIn26SM = false,
+  enrolledIn2526 = false
 ): PromotionStudentRow {
   return {
     id,
@@ -46,6 +47,7 @@ function student(
     contactPhone: null,
     registrationStatus: "已註冊",
     activeIn26SM,
+    enrolledIn2526,
   }
 }
 

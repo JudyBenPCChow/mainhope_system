@@ -37,6 +37,7 @@ import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
+type PriorYearFilter = "all" | "has" | "none"
 type ActivityFilter = "all" | "active" | "inactive"
 type CandidateFilter = "all" | "formerSubject"
 
@@ -808,6 +809,7 @@ export function PromotionMatchView() {
   )
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+  const [priorYearFilter, setPriorYearFilter] = useState<PriorYearFilter>("all")
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("formerSubject")
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
@@ -872,11 +874,13 @@ export function PromotionMatchView() {
       const hasEnroll = b.regularClasses.length > 0
       if (enrollmentFilter === "none" && hasEnroll) return false
       if (enrollmentFilter === "has" && !hasEnroll) return false
+      if (priorYearFilter === "has" && !b.student.enrolledIn2526) return false
+      if (priorYearFilter === "none" && b.student.enrolledIn2526) return false
       if (activityFilter === "active" && !b.student.activeIn26SM) return false
       if (activityFilter === "inactive" && b.student.activeIn26SM) return false
       return true
     })
-  }, [allStudentBundles, studentGrades, enrollmentFilter, activityFilter])
+  }, [allStudentBundles, studentGrades, enrollmentFilter, priorYearFilter, activityFilter])
 
   useEffect(() => {
     if (classBundles.length === 0) {
@@ -922,7 +926,7 @@ export function PromotionMatchView() {
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {mode === "byClass"
               ? "以 2627 常規專科班為單位，找出年級合適、時段無衝突的已註冊學生。預設顯示暑期曾讀本科、尚未報讀該科的學生。"
-              : "以已註冊學生為單位，按年級／2627 報讀／暑期有無報讀篩選，列出可宣傳跟進的 2627 班別。"}
+              : "以已註冊學生為單位，按年級／2526／2627／暑期報讀篩選，列出可宣傳跟進的 2627 班別。"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -998,7 +1002,7 @@ export function PromotionMatchView() {
             </FilterBar>
           ) : (
             <FilterBar>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                     年級
@@ -1009,6 +1013,19 @@ export function PromotionMatchView() {
                     placeholder="全部年級"
                     onChange={(next) => setStudentGrades(new Set(next))}
                   />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    2526 報讀
+                  </label>
+                  <Select
+                    value={priorYearFilter}
+                    onChange={(e) => setPriorYearFilter(e.target.value as PriorYearFilter)}
+                  >
+                    <option value="all">全部</option>
+                    <option value="has">有報讀 2526</option>
+                    <option value="none">無報讀 2526</option>
+                  </Select>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -1038,7 +1055,8 @@ export function PromotionMatchView() {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                年級未選代表全部。「暑期有讀」= 26SM 有就讀中專科報讀。
+                年級未選代表全部。「有報讀 2526」＝ Notion 舊科目或系統 2526 班報讀；「暑期有讀」＝ 26SM
+                有就讀中專科報讀。
               </p>
             </FilterBar>
           )}
