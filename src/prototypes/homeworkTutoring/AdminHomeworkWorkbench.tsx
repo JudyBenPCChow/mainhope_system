@@ -9,21 +9,29 @@ import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+  HOMEWORK_FEE_GRADES,
+  HOMEWORK_FEE_PLANS,
+  homeworkFeeBaseHkd,
+} from "@/lib/homeworkTutoringFees"
 import { statusToTagTone } from "@/lib/statusTag"
 
 import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
-  MOCK_AVAIL_DATES,
   MOCK_PRICE_GRADES,
-  MOCK_ROSTER_MONTH_LABEL,
   MOCK_SPLIT_NOTE,
+  availDatesForMonth,
   countSubmitProgress,
   currentYearMonth,
+  formatDutyDateHeading,
   formatSession,
   formatWeekdays,
   formatWeekdaysShort,
   formatYearMonthLabel,
   getAvailEntry,
+  holidaysInYearMonth,
+  roomALabel,
+  roomBLabel,
   summarizeOverview,
   studentDivision,
   teacherName,
@@ -41,14 +49,19 @@ import {
 import { RosterMonthSheet } from "./RosterMonthSheet"
 import type { AdminPageId } from "./sandboxNav"
 import {
-  DivisionDutyCard,
   FilterChipRow,
+  RoomDutyCard,
   SubmitStatusTag,
   SummaryTile,
   enrollTone,
 } from "./sharedUi"
 
 type RosterSub = "progress" | "availability" | "sheet"
+
+function formatHkd(n: number | null): string {
+  if (n == null) return "—"
+  return `$${n.toLocaleString("en-HK")}`
+}
 
 export function AdminHomeworkWorkbench({
   tab,
@@ -65,6 +78,8 @@ export function AdminHomeworkWorkbench({
   setMonthRosterStatus,
   hwTeachers,
   holidays = [],
+  sheetMonth: sheetMonthProp,
+  onSheetMonthChange,
   onPublishRoster,
 }: {
   tab: AdminPageId
@@ -81,6 +96,8 @@ export function AdminHomeworkWorkbench({
   setMonthRosterStatus: Dispatch<SetStateAction<Record<string, MonthRosterState>>>
   hwTeachers: MockTeacher[]
   holidays?: MockHoliday[]
+  sheetMonth?: string
+  onSheetMonthChange?: (yearMonth: string) => void
   onPublishRoster?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
@@ -94,13 +111,36 @@ export function AdminHomeworkWorkbench({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [rosterSub, setRosterSub] = useState<RosterSub>("sheet")
   const [editAvail, setEditAvail] = useState<{ teacherId: string; date: string } | null>(null)
-  const [sheetMonth, setSheetMonth] = useState(() => currentYearMonth())
+  const [localSheetMonth, setLocalSheetMonth] = useState(() => currentYearMonth())
 
-  const overview = useMemo(() => summarizeOverview(students, fees), [students, fees])
+  const sheetMonth = sheetMonthProp ?? localSheetMonth
+  const setSheetMonth = (ym: string) => {
+    if (onSheetMonthChange) onSheetMonthChange(ym)
+    else setLocalSheetMonth(ym)
+  }
+
+  const overview = useMemo(
+    () => summarizeOverview(students, fees, dutyDays),
+    [students, fees, dutyDays]
+  )
   const progress = useMemo(
     () => countSubmitProgress(submitStatus, hwTeachers),
     [submitStatus, hwTeachers]
   )
+  const monthLabel = formatYearMonthLabel(sheetMonth)
+  const monthHolidays = useMemo(
+    () => holidaysInYearMonth(sheetMonth, holidays),
+    [sheetMonth, holidays]
+  )
+  const availDates = useMemo(
+    () => availDatesForMonth(sheetMonth, monthHolidays),
+    [sheetMonth, monthHolidays]
+  )
+  const gradeOptions = useMemo(() => {
+    const fromStudents = Array.from(new Set(students.map((s) => s.grade))).sort()
+    return fromStudents.length > 0 ? fromStudents : [...MOCK_PRICE_GRADES]
+  }, [students])
+
   const effectiveMonthOptions = useMemo(() => {
     const set = new Set(students.map((s) => s.effectiveMonth))
     return Array.from(set).sort()
@@ -143,7 +183,7 @@ export function AdminHomeworkWorkbench({
         onChange={setGradeFilter}
         options={[
           { value: "", label: "全部" },
-          ...MOCK_PRICE_GRADES.map((g) => ({ value: g, label: g })),
+          ...gradeOptions.map((g) => ({ value: g, label: g })),
         ]}
       />
       <FilterChipRow
@@ -227,23 +267,15 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <SummaryTile
-              label="中學本日"
-              value={String(overview.todaySecondary)}
+              label="今日到校"
+              value={String(overview.todayCount)}
               hint={
                 overview.todayWeekday
                   ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
                   : undefined
               }
             />
-            <SummaryTile
-              label="小學本日"
-              value={String(overview.todayPrimary)}
-              hint={
-                overview.todayWeekday
-                  ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
-                  : undefined
-              }
-            />
+            <SummaryTile label="在籍" value={String(overview.activeCount)} />
             <SummaryTile label="本月已繳" value={String(overview.paid)} />
             <SummaryTile label="本月未繳" value={String(overview.unpaid)} hint="不含暫停／結束" />
           </div>
@@ -253,43 +285,45 @@ export function AdminHomeworkWorkbench({
                 今日當值
               </p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-                示範：9 月 3 日（三）
+                {overview.todayDuty
+                  ? formatDutyDateHeading(overview.todayDuty)
+                  : "今日無功輔當值"}
               </h2>
             </div>
             <Button type="button" variant="outline" onClick={() => onTabChange("roster")}>
               查看本月編更
             </Button>
           </div>
-          <div className="space-y-3">
-            <DivisionDutyCard
-              title="中學"
-              division="secondary"
-              tone="info"
-              studentCount={overview.todaySecondary}
-              weekdayHint={
-                overview.todayWeekday
-                  ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
-                  : "—"
-              }
-              room={overview.todayDuty.secondaryRoom ?? "—"}
-              session={formatSession(overview.todayDuty)}
-              teacher={teacherName(overview.todayDuty.secondaryTeacherId)}
-            />
-            <DivisionDutyCard
-              title="小學"
-              division="primary"
-              tone="success"
-              studentCount={overview.todayPrimary}
-              weekdayHint={
-                overview.todayWeekday
-                  ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
-                  : "—"
-              }
-              room={overview.todayDuty.primaryRoom ?? "—"}
-              session={formatSession(overview.todayDuty)}
-              teacher={teacherName(overview.todayDuty.primaryTeacherId)}
-            />
-          </div>
+          {overview.todayDuty && !overview.todayDuty.holiday ? (
+            <div className="space-y-3">
+              <RoomDutyCard
+                room={roomALabel(overview.todayDuty)}
+                tone="info"
+                session={formatSession(overview.todayDuty)}
+                teacher={teacherName(overview.todayDuty.secondaryTeacherId, hwTeachers)}
+                weekdayHint={
+                  overview.todayWeekday
+                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                    : "—"
+                }
+              />
+              <RoomDutyCard
+                room={roomBLabel(overview.todayDuty)}
+                tone="success"
+                session={formatSession(overview.todayDuty)}
+                teacher={teacherName(overview.todayDuty.primaryTeacherId, hwTeachers)}
+                weekdayHint={
+                  overview.todayWeekday
+                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                    : "—"
+                }
+              />
+            </div>
+          ) : overview.todayDuty?.holiday ? (
+            <p className="text-sm text-muted-foreground">今日功輔放假：{overview.todayDuty.holiday}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">今日無開放日或尚未編更。</p>
+          )}
 
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">提醒</h2>
@@ -302,7 +336,7 @@ export function AdminHomeworkWorkbench({
               </li>
               <li className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {MOCK_ROSTER_MONTH_LABEL} 報更：{progress.rateLabel}（{progress.missing} 未交）
+                  {monthLabel} 報更：{progress.rateLabel}（{progress.missing} 未交）
                 </span>
                 <Button
                   type="button"
@@ -318,8 +352,8 @@ export function AdminHomeworkWorkbench({
               </li>
               <li className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {formatYearMonthLabel(currentYearMonth())} 編更：
-                  {monthRosterStatus[currentYearMonth()] ?? "未編更"}
+                  {monthLabel} 編更：
+                  {monthRosterStatus[sheetMonth] ?? "未編更"}
                 </span>
                 <Button
                   type="button"
@@ -328,7 +362,6 @@ export function AdminHomeworkWorkbench({
                   onClick={() => {
                     onTabChange("roster")
                     setRosterSub("sheet")
-                    setSheetMonth(currentYearMonth())
                   }}
                 >
                   月工作表
@@ -441,7 +474,7 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">本月月費</h2>
           <p className="text-xs text-muted-foreground">
-            已繳 {overview.paid} · 未繳 {overview.unpaid} · 金額合計 —（價錢後補）
+            已繳 {overview.paid} · 未繳 {overview.unpaid}
           </p>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[560px] text-left text-sm">
@@ -502,7 +535,7 @@ export function AdminHomeworkWorkbench({
 
           <TabsContent value="progress" className="mt-0 space-y-2">
               <p className="text-sm text-muted-foreground">
-                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 可代填（覆寫）
+                {monthLabel} · {progress.rateLabel} · 可代填（覆寫）
               </p>
               <ul className="space-y-2">
                 {hwTeachers.length === 0 ? (
@@ -545,7 +578,7 @@ export function AdminHomeworkWorkbench({
                               pushBanner({
                                 title: "已代交",
                                 tone: "success",
-                                message: `已將 ${t.name} 標為已提交（沙盒）。`,
+                                message: `已將 ${t.name} 標為已提交。`,
                               })
                             }}
                           >
@@ -569,7 +602,7 @@ export function AdminHomeworkWorkbench({
                     <tr>
                       <th className="px-2 py-2 text-left font-medium">老師</th>
                       <th className="px-2 py-2 font-medium">狀態</th>
-                      {MOCK_AVAIL_DATES.map((d) => (
+                      {availDates.map((d) => (
                         <th key={d} className="px-2 py-2 font-medium">
                           {d}
                         </th>
@@ -583,7 +616,7 @@ export function AdminHomeworkWorkbench({
                         <td className="px-2 py-2">
                           <SubmitStatusTag status={submitStatus[t.id] ?? "未交"} />
                         </td>
-                        {MOCK_AVAIL_DATES.map((d) => {
+                        {availDates.map((d) => {
                           const entry = getAvailEntry(avail, t.id, d)
                           return (
                             <td key={d} className="px-1 py-1">
@@ -614,6 +647,8 @@ export function AdminHomeworkWorkbench({
                 setMonthRosterStatus((prev) => ({ ...prev, [ym]: state }))
               }
               avail={avail}
+              teachers={hwTeachers}
+              holidays={holidays}
               onPublish={onPublishRoster}
             />
           </TabsContent>
@@ -647,29 +682,35 @@ export function AdminHomeworkWorkbench({
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
             <p className="mt-2 text-sm">
-              中學部／小學部同為 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室
-              17D／17E。
+              單一場次 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室預設
+              17D／17E；人少可只派一室一位老師。
             </p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">價目表</h2>
-            <p className="mt-1 text-xs text-muted-foreground">金額未定顯示「—」</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              港元／月；小一至小六跟中一。12 月、2 月收四分三。中四至中六未列價。
+            </p>
             <table className="mt-3 w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr>
                   <th className="py-1 text-left">年級</th>
-                  <th className="py-1 text-left">三日</th>
-                  <th className="py-1 text-left">四日</th>
-                  <th className="py-1 text-left">五日</th>
+                  {HOMEWORK_FEE_PLANS.map((p) => (
+                    <th key={p} className="py-1 text-left">
+                      {p}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {MOCK_PRICE_GRADES.map((g) => (
+                {HOMEWORK_FEE_GRADES.map((g) => (
                   <tr key={g} className="border-t border-border/70">
-                    <td className="py-2">{g}</td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">—</td>
+                    <td className="py-2">{g}{g === "中一" ? "（含小學）" : ""}</td>
+                    {HOMEWORK_FEE_PLANS.map((p) => (
+                      <td key={p} className="py-2 tabular-nums">
+                        {formatHkd(homeworkFeeBaseHkd(p, g))}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>

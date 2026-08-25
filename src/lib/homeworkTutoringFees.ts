@@ -12,6 +12,17 @@ const FEE_TABLE: Record<HomeworkDayPlan, Record<string, number>> = {
   七日: { 中一: 3400, 中二: 3500, 中三: 3600 },
 }
 
+export const HOMEWORK_FEE_GRADES = ["中一", "中二", "中三"] as const
+export const HOMEWORK_FEE_PLANS: HomeworkDayPlan[] = ["三日", "四日", "五日", "七日"]
+
+/** 全額月費（不含 12／2 月四分三）；設定頁價目表用 */
+export function homeworkFeeBaseHkd(
+  dayPlan: HomeworkDayPlan,
+  gradeLabel: string
+): number | null {
+  return FEE_TABLE[dayPlan]?.[feeGradeKey(gradeLabel)] ?? null
+}
+
 export function isHomeworkQuarterRateMonth(billingMonth: string): boolean {
   const m = billingMonth.slice(0, 7)
   return m.endsWith("-12") || m.endsWith("-02")
