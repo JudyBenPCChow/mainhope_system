@@ -171,7 +171,7 @@ export function ManagerHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-base font-semibold">{MOCK_ROSTER_MONTH_LABEL} 報更進度</h2>
           <p className="text-xs text-muted-foreground">
-            老師只報一次更；中／小學由行政分配。代填請切換行政工作台。
+            查看老師提交狀態；代填請切換行政工作台。
           </p>
           <ul className="space-y-2">
             {hwTeachers.map((t) => {

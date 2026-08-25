@@ -58,7 +58,7 @@ export type PayrollLessonInput = {
   scheduleId: string
   classId: string
   classLabel: string
-  classKind: "group" | "private"
+  classKind: "group" | "private" | "homework"
   privateSlot: PrivateSlotKind
   gradeLabels: string[]
   gradeBand: GradeBand
@@ -93,7 +93,7 @@ export type ComputedLessonLine = {
   scheduleId: string
   classId: string
   classLabel: string
-  classKind: "group" | "private"
+  classKind: "group" | "private" | "homework"
   date: string
   startTime: string | null
   endTime: string | null
