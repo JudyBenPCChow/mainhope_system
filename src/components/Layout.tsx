@@ -7,7 +7,7 @@ import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
-import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
+import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
@@ -19,9 +19,12 @@ import {
  filterMainNavEntries,
  filterNavForRole,
  flattenNav,
+ isHomeworkTutorOnlyAllowedPath,
+ keepHomeworkTutorOnlyNav,
  pathIsActive,
  stripHomeworkTutoringNav,
 } from "@/lib/navStructure"
+import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import {
  navCollapsedIconClass,
  navFooterIconClass,
@@ -45,7 +48,7 @@ export function Layout() {
  const { ready, role: authRole, profile } = useAuth()
  usePasswordChangeNudgeBanner()
  const role = authRole
- const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
+ const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -56,13 +59,18 @@ export function Layout() {
  const navEntries = useMemo(() => {
   if (!role) return []
   const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
   if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
   return byRole
- }, [role, homeworkTutoringNavVisible])
- const footerNavLeaves = useMemo(
-  () => (role ? filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)) : []),
-  [role]
- )
+ }, [role, homeworkTutoringNavVisible, homeworkTutorOnly])
+ const footerNavLeaves = useMemo(() => {
+  if (!role) return []
+  const byRole = filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && homeworkTutorOnly) {
+   return byRole.filter((e) => isHomeworkTutorOnlyAllowedPath(e.path))
+  }
+  return byRole
+ }, [role, homeworkTutorOnly])
  const { unreadCount } = useInboxUnreadCount()
 
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
@@ -86,6 +94,15 @@ export function Layout() {
    await signOutAuth()
    window.location.href = "/Login"
   })()
+ }
+
+ if (
+  ready &&
+  role === "teacher" &&
+  homeworkTutorOnly &&
+  !isHomeworkTutorOnlyAllowedPath(location.pathname)
+ ) {
+  return <Navigate to={HW_PATH.submit} replace />
  }
 
  if (!ready) {
