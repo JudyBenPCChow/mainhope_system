@@ -187,6 +187,7 @@ export function HomeworkTutoringPrototypeView() {
               monthRosterStatus={monthRosterStatus}
               setMonthRosterStatus={setMonthRosterStatus}
               hwTeachers={hwTeachers}
+              sheetMonth={MOCK_ROSTER_MONTH_KEY}
             />
           ) : null}
 
@@ -200,6 +201,8 @@ export function HomeworkTutoringPrototypeView() {
               rosterPublishStatus={rosterPublishStatus}
               hwTeachers={hwTeachers}
               hwAccessIds={hwAccessIds}
+              dutyDays={dutyDays}
+              rosterMonth={MOCK_ROSTER_MONTH_KEY}
               onToggleHwAccess={(id, next) => {
                 setHwAccessIds((prev) => {
                   const copy = new Set(prev)
@@ -218,11 +221,14 @@ export function HomeworkTutoringPrototypeView() {
                 tab={teacherPage}
                 onTabChange={setTeacherPage}
                 teacherId={teacherId}
+                teacherDisplayName={MOCK_SUBJECT_TEACHERS.find((t) => t.id === teacherId)?.name}
                 avail={avail}
                 setAvail={setAvail}
                 submitStatus={submitStatus}
                 setSubmitStatus={setSubmitStatus}
                 rosterPublishStatus={rosterPublishStatus}
+                dutyDays={dutyDays}
+                rosterMonthKey={MOCK_ROSTER_MONTH_KEY}
               />
             ) : (
               <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
