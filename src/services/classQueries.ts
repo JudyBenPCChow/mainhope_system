@@ -1208,7 +1208,8 @@ export async function fetchTeacherOptions(opts?: {
  const rows = (data ?? [])
   .filter((r) => {
    if (!opts?.excludeHomeworkTutorOnly) return true
-   return !Boolean((r as { homework_tutor_only?: boolean }).homework_tutor_only)
+   const tutorOnly = (r as { homework_tutor_only?: boolean | null }).homework_tutor_only
+   return tutorOnly !== true
   })
   .map((r) => {
    const row = r as { id: string; full_name: string | null; abbr: string | null }
