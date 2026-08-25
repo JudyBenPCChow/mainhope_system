@@ -12,6 +12,7 @@ import {
  flattenNav,
  NAV_STRUCTURE,
  pathIsActive,
+ keepHomeworkTutorOnlyNav,
  stripHomeworkTutoringNav,
  type NavEntryDef,
  type Role,
@@ -34,6 +35,8 @@ type MobileNavDrawerProps = {
  userDisplayName: string
  onLogout: () => void
  homeworkTutoringNavVisible?: boolean
+ /** 純功輔導師：側欄收窄至功輔＋共用入口 */
+ homeworkTutorOnly?: boolean
 }
 
 export function MobileNavDrawer({
@@ -43,18 +46,25 @@ export function MobileNavDrawer({
  userDisplayName,
  onLogout,
  homeworkTutoringNavVisible = true,
+ homeworkTutorOnly = false,
 }: MobileNavDrawerProps) {
  const location = useLocation()
  const { unreadCount } = useInboxUnreadCount()
  const navEntries = useMemo(() => {
   const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
   if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
   return byRole
- }, [role, homeworkTutoringNavVisible])
- const footerNavLeaves = useMemo(
-  () => filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE)),
-  [role]
- )
+ }, [role, homeworkTutoringNavVisible, homeworkTutorOnly])
+ const footerNavLeaves = useMemo(() => {
+  const byRole = filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE))
+  if (role === "teacher" && homeworkTutorOnly) {
+   return byRole.filter((e) =>
+    e.path === "/TeacherProfile" || e.path === "/Settings" || e.path.startsWith("/HomeworkTutoring")
+   )
+  }
+  return byRole
+ }, [role, homeworkTutorOnly])
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
 
  useEffect(() => {

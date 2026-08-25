@@ -16,6 +16,7 @@ H11 沙盒 **2026-08-24 通過**。本檔＝分期實作；**唔另建報讀表*
 | 3 | `homework_tutoring_monthly_charges`；價目對齊政策；月費頁 ensure 應收 | ✅（收款連 payments 可再收細） |
 | 4a | 放假日／報更／月工作表／當值持久化 | ✅ |
 | 4b | 確定編更寫入 `schedules` 佔室（15:15 起；17D／17E） | ✅ 2026-08-25 |
+| 4d | 純功輔導師側欄 `teachers.homework_tutor_only` | 🟡 branch `feat/homework-tutor-only-nav` |
 | 5 | 2627 指引 §7 編更 | 閘已開；待寫 |
 
 ## 明確唔做（本期）
