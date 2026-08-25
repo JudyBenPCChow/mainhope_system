@@ -9,10 +9,8 @@ import { useIsMobile } from "@/hooks/use-mobile"
 
 import { BulkCustomTimeDialog } from "./availEditor"
 import {
-  MOCK_DUTY_DAYS,
   MOCK_ROSTER_DAYS,
   MOCK_ROSTER_MONTH_LABEL,
-  MOCK_SPLIT_NOTE,
   MOCK_SUBMIT_DEADLINE_NOTE,
   MOCK_SUBJECT_TEACHERS,
   formatAvailLabel,
@@ -22,6 +20,7 @@ import {
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
+  type MockDutyDay,
   type RosterPublishStatus,
 } from "./mockData"
 import type { TeacherPageId } from "./sandboxNav"
@@ -37,6 +36,7 @@ export function TeacherHomeworkWorkbench({
   submitStatus,
   setSubmitStatus,
   rosterPublishStatus,
+  dutyDays = [],
 }: {
   tab: TeacherPageId
   onTabChange: (tab: TeacherPageId) => void
@@ -46,6 +46,7 @@ export function TeacherHomeworkWorkbench({
   submitStatus: AllTeacherSubmitStatus
   setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   rosterPublishStatus: RosterPublishStatus
+  dutyDays?: MockDutyDay[]
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -57,7 +58,7 @@ export function TeacherHomeworkWorkbench({
   const readOnly = locked || myStatus === "已提交"
   const row = avail[teacherId] ?? {}
 
-  const duties = useMemo(() => myDutyDays(teacherId, MOCK_DUTY_DAYS), [teacherId])
+  const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
 
   const calendarCells = useMemo(() => {
     const first = MOCK_ROSTER_DAYS[0]
@@ -151,7 +152,7 @@ export function TeacherHomeworkWorkbench({
     pushBanner({
       title: "已提交",
       tone: "success",
-      message: `${MOCK_ROSTER_MONTH_LABEL} 報更已提交；行政會分配當日中／小學部。`,
+      message: `${MOCK_ROSTER_MONTH_LABEL} 報更已提交。`,
     })
   }
 
@@ -163,11 +164,6 @@ export function TeacherHomeworkWorkbench({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground sm:px-4">
-        此為功輔當值報更，<span className="font-medium text-foreground">不是</span>
-        「老師檔期規劃」專科班頁。只須報一次更；中／小學由行政分配。{MOCK_SPLIT_NOTE}
-      </div>
-
       {tab === "submit" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
@@ -342,7 +338,7 @@ export function TeacherHomeworkWorkbench({
 
       {tab === "myDuty" ? (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold">我的當值（2026年9月已發布示範）</h2>
+          <h2 className="text-base font-semibold">我的當值</h2>
           {duties.length === 0 ? (
             <p className="text-sm text-muted-foreground">本月尚未有已發布的當值。</p>
           ) : (

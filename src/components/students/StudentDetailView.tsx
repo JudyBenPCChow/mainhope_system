@@ -257,6 +257,13 @@ export function StudentDetailView() {
  const [pickStartScheduleId, setPickStartScheduleId] = useState("")
  const [pickClassSchedules, setPickClassSchedules] = useState<ClassScheduleRow[]>([])
  const [pickClassSchedulesLoading, setPickClassSchedulesLoading] = useState(false)
+ const [pickHwPlan, setPickHwPlan] = useState<"三日" | "四日" | "五日" | "七日">("四日")
+ const [pickHwWeekdays, setPickHwWeekdays] = useState<Array<"一" | "二" | "三" | "四" | "五">>([
+  "一",
+  "二",
+  "四",
+  "五",
+ ])
  const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
  const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
  const [lessonBalancesState, setLessonBalancesState] = useState<"loading" | "ready" | "error">("loading")
@@ -521,6 +528,8 @@ export function StudentDetailView() {
   setPickStartScheduleId("")
   setPickClassSchedules([])
   setPickClassSchedulesLoading(false)
+  setPickHwPlan("四日")
+  setPickHwWeekdays(["一", "二", "四", "五"])
  }, [])
 
  const openAddEnrollmentDialog = useCallback(
@@ -531,6 +540,8 @@ export function StudentDetailView() {
    setPickForm(opt?.courseMode === "summer_two_period" ? "第一期" : "full")
    setPickStartMode("next")
    setPickStartScheduleId("")
+   setPickHwPlan("四日")
+   setPickHwWeekdays(["一", "二", "四", "五"])
    setAddEnrollmentDialogOpen(true)
   },
   [classOptions]
@@ -539,11 +550,24 @@ export function StudentDetailView() {
  const addEnrollment = async () => {
   if (!pickClass) return
   const picked = classOptions.find((o) => o.id === pickClass)
+  const isHomework = picked?.classKind === "homework"
   const isSummer = picked?.courseMode === "summer_two_period"
-  const isSingle = pickForm === SINGLE_SESSION_ENROLLMENT
+  const isSingle = !isHomework && pickForm === SINGLE_SESSION_ENROLLMENT
   if (isSingle && pickScheduleIds.length === 0) {
    pushBanner({ tone: "error", title: "請選擇堂數", message: "單堂報讀請至少勾選一堂" })
    return
+  }
+  if (isHomework) {
+   const need =
+    pickHwPlan === "三日" ? 3 : pickHwPlan === "四日" ? 4 : pickHwPlan === "五日" ? 5 : 7
+   if (pickHwPlan !== "七日" && pickHwWeekdays.length !== need) {
+    pushBanner({
+     tone: "error",
+     title: "請選擇逢星期幾",
+     message: `每週${pickHwPlan}請選 ${need} 日（已選 ${pickHwWeekdays.length}）`,
+    })
+    return
+   }
   }
   let period: EnrollmentFormValue | null = null
   if (isSingle) period = SINGLE_SESSION_ENROLLMENT
@@ -552,13 +576,17 @@ export function StudentDetailView() {
   }
   let enrollDate: string
   try {
-   enrollDate = resolveEnrollmentStartDate({
-    mode: pickStartMode,
-    todayYmd,
-    nextScheduleDate: nextPickSchedule?.scheduled_date,
-    specifiedScheduleDate: pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
-     ?.scheduled_date,
-   })
+   if (isHomework) {
+    enrollDate = todayYmd
+   } else {
+    enrollDate = resolveEnrollmentStartDate({
+     mode: pickStartMode,
+     todayYmd,
+     nextScheduleDate: nextPickSchedule?.scheduled_date,
+     specifiedScheduleDate: pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
+      ?.scheduled_date,
+    })
+   }
   } catch (e) {
    pushBanner({
     tone: "error",
@@ -574,18 +602,29 @@ export function StudentDetailView() {
     period,
     isSingle ? pickScheduleIds : undefined,
     null,
-    { enrollDate }
+    {
+     enrollDate,
+     homeworkDayPlan: isHomework ? pickHwPlan : null,
+     homeworkWeekdays: isHomework ? pickHwWeekdays : null,
+    }
    )
    setAddEnrollmentDialogOpen(false)
    resetAddEnrollmentDialog()
    pushBanner({
     tone: "success",
     title: "已加入班別",
-    message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
-    action: {
-     pageLabel: "收款／出單",
-     to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
-    },
+    message: isHomework
+     ? "功課輔導班報讀已建立。請於功輔「月費」頁產生應收後前往收款登記。"
+     : "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
+    action: isHomework
+     ? {
+        pageLabel: "功輔月費",
+        to: "/HomeworkTutoring/Fees",
+       }
+     : {
+        pageLabel: "收款／出單",
+        to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
+       },
    })
    await reloadSubs()
   } catch (e) {
@@ -641,6 +680,7 @@ export function StudentDetailView() {
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
+ const isHomeworkPick = pickedClassOption?.classKind === "homework"
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
  const classSearchableOptions = useMemo(
   () =>
@@ -1581,6 +1621,69 @@ export function StudentDetailView() {
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
            {pickedClassOption.label}
           </div>
+          {isHomeworkPick ? (
+           <>
+            <p className="text-muted-foreground">
+             功課輔導班按月繳費，不設專科式扣堂／補堂。請選每週日數檔及慣常到校星期。
+            </p>
+            <Field label="每週日數檔">
+             <div className="flex flex-wrap gap-2">
+              {(["三日", "四日", "五日", "七日"] as const).map((p) => (
+               <button
+                key={p}
+                type="button"
+                onClick={() => {
+                 setPickHwPlan(p)
+                 const need = p === "三日" ? 3 : p === "四日" ? 4 : p === "五日" ? 5 : 7
+                 setPickHwWeekdays((prev) => {
+                  if (p === "七日") return ["一", "二", "三", "四", "五"]
+                  if (prev.length === need) return prev
+                  if (prev.length > need) return prev.slice(0, need)
+                  const extras = (["一", "二", "三", "四", "五"] as const).filter(
+                   (d) => !prev.includes(d)
+                  )
+                  return [...prev, ...extras].slice(0, need)
+                 })
+                }}
+                className={
+                 pickHwPlan === p
+                  ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                  : "rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium"
+                }
+               >
+                {p}
+               </button>
+              ))}
+             </div>
+            </Field>
+            <Field label="逢星期幾">
+             <div className="flex flex-wrap gap-2">
+              {(["一", "二", "三", "四", "五"] as const).map((d) => {
+               const active = pickHwWeekdays.includes(d)
+               return (
+                <button
+                 key={d}
+                 type="button"
+                 onClick={() => {
+                  setPickHwWeekdays((prev) =>
+                   prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+                  )
+                 }}
+                 className={
+                  active
+                   ? "rounded-full border border-primary bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+                   : "rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium"
+                 }
+                >
+                 星期{d}
+                </button>
+               )
+              })}
+             </div>
+            </Field>
+           </>
+          ) : (
+           <>
           <p className="text-muted-foreground">
            報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
           </p>
@@ -1672,6 +1775,8 @@ export function StudentDetailView() {
             onChange={setPickScheduleIds}
            />
           ) : null}
+           </>
+          )}
           <div className="flex flex-wrap justify-end gap-2 pt-1">
            <Button
             type="button"

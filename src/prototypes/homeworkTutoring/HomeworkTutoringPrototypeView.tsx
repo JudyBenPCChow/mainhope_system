@@ -100,8 +100,8 @@ export function HomeworkTutoringPrototypeView() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
         <header>
           <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-muted-foreground" aria-hidden />
-            <h1 className="text-xl font-semibold tracking-tight">{currentPageLabel}</h1>
+            <BookOpen className="h-6 w-6 text-primary" aria-hidden />
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{currentPageLabel}</h1>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             功課輔導班｜{MOCK_ACADEMIC_YEAR}學年｜{MOCK_MONTH_LABEL}

@@ -83,6 +83,7 @@ export function RosterMonthSheet({
   monthStatus,
   onMonthStatusChange,
   avail,
+  onPublish,
 }: {
   yearMonth: string
   onYearMonthChange: (yearMonth: string) => void
@@ -91,6 +92,8 @@ export function RosterMonthSheet({
   monthStatus: Record<string, MonthRosterState>
   onMonthStatusChange: (yearMonth: string, state: MonthRosterState) => void
   avail: AllTeacherAvailability
+  /** 確定編更：持久化＋寫 schedules 佔室 */
+  onPublish?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
@@ -131,23 +134,34 @@ export function RosterMonthSheet({
   const saveMonth = async () => {
     const ok = await confirmDialog({
       title: "確定本月編更？",
-      description: `${formatYearMonthLabel(yearMonth)} 儲存後即確定編更。未派人的日子會顯示暫時空缺。`,
+      description: `${formatYearMonthLabel(yearMonth)} 儲存後即確定編更，並寫入課室佔用（15:15 起）。未派人的日子會顯示暫時空缺。`,
       confirmText: "確定編更",
       cancelText: "取消",
       tone: "warning",
     })
     if (ok !== true) return
-    const monthNum = Number(yearMonth.split("-")[1])
-    onDutyDaysChange((prev) => {
-      const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
-      return [...others, ...monthDays]
-    })
-    onMonthStatusChange(yearMonth, "已編更")
-    pushBanner({
-      title: "已儲存",
-      tone: "success",
-      message: `${formatYearMonthLabel(yearMonth)} 編更已確定。未派人的日子會顯示暫時空缺。`,
-    })
+    try {
+      if (onPublish) {
+        await onPublish(yearMonth, monthDays)
+      }
+      const monthNum = Number(yearMonth.split("-")[1])
+      onDutyDaysChange((prev) => {
+        const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
+        return [...others, ...monthDays]
+      })
+      onMonthStatusChange(yearMonth, "已編更")
+      pushBanner({
+        title: "已儲存",
+        tone: "success",
+        message: `${formatYearMonthLabel(yearMonth)} 編更已確定，課室佔用已寫入排程。`,
+      })
+    } catch (err) {
+      pushBanner({
+        title: "儲存失敗",
+        tone: "error",
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
   }
 
   const pickOptions = (day: MockDutyDay) => {

@@ -1,6 +1,6 @@
 /** 功輔 UI 沙盒假資料 — 不連接服務／資料庫 */
 
-export type DayPlan = "三日" | "四日" | "五日"
+export type DayPlan = "三日" | "四日" | "五日" | "七日"
 export type Weekday = "一" | "二" | "三" | "四" | "五"
 export type EnrollStatus = "在籍" | "暫停" | "結束"
 export type FeeStatus = "已收款" | "未收款"
@@ -51,7 +51,8 @@ export type MockStudent = {
 export function planDayCount(plan: DayPlan): number {
   if (plan === "三日") return 3
   if (plan === "四日") return 4
-  return 5
+  if (plan === "五日") return 5
+  return 7
 }
 
 export function formatWeekdays(days: Weekday[]): string {
@@ -115,8 +116,7 @@ export const MOCK_ROSTER_MONTH_KEY = "2026-10"
 export const MOCK_ACADEMIC_YEAR = "2627"
 export const MOCK_DEFAULT_SECONDARY_ROOM = "17D"
 export const MOCK_DEFAULT_PRIMARY_ROOM = "17E"
-export const MOCK_SPLIT_NOTE =
-  "中學部／小學部同為 15:30–19:30｜佔用自 15:15｜課室 17D／17E｜老師只報一次更，由行政分配當日學部"
+export const MOCK_SPLIT_NOTE = "老師提交可當值日子與時段；行政匯總後發布月工作表。"
 /** 沙盒示範：報更截止＝該月末日倒數第 3 日（含末日）＝末日 − 2；過截止仍可補交至發布前 */
 export const MOCK_SUBMIT_DEADLINE_NOTE =
   "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）；過期仍可補交至月工作表發布前。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"

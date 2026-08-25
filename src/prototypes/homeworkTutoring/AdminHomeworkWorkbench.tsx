@@ -14,7 +14,6 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
   MOCK_AVAIL_DATES,
-  MOCK_HOLIDAYS,
   MOCK_PRICE_GRADES,
   MOCK_ROSTER_MONTH_LABEL,
   MOCK_SPLIT_NOTE,
@@ -34,6 +33,7 @@ import {
   type HwDivision,
   type MockDutyDay,
   type MockFeeRow,
+  type MockHoliday,
   type MockStudent,
   type MockTeacher,
   type MonthRosterState,
@@ -64,6 +64,8 @@ export function AdminHomeworkWorkbench({
   monthRosterStatus,
   setMonthRosterStatus,
   hwTeachers,
+  holidays = [],
+  onPublishRoster,
 }: {
   tab: AdminPageId
   onTabChange: (tab: AdminPageId) => void
@@ -78,6 +80,8 @@ export function AdminHomeworkWorkbench({
   monthRosterStatus: Record<string, MonthRosterState>
   setMonthRosterStatus: Dispatch<SetStateAction<Record<string, MonthRosterState>>>
   hwTeachers: MockTeacher[]
+  holidays?: MockHoliday[]
+  onPublishRoster?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -498,7 +502,7 @@ export function AdminHomeworkWorkbench({
 
           <TabsContent value="progress" className="mt-0 space-y-2">
               <p className="text-sm text-muted-foreground">
-                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 老師只報一次更；可代填（覆寫）
+                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 可代填（覆寫）
               </p>
               <ul className="space-y-2">
                 {hwTeachers.length === 0 ? (
@@ -610,6 +614,7 @@ export function AdminHomeworkWorkbench({
                 setMonthRosterStatus((prev) => ({ ...prev, [ym]: state }))
               }
               avail={avail}
+              onPublish={onPublishRoster}
             />
           </TabsContent>
         </Tabs>
@@ -619,7 +624,7 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">功輔校曆</h2>
           <ul className="space-y-2">
-            {MOCK_HOLIDAYS.map((h) => (
+            {holidays.map((h) => (
               <li
                 key={h.date}
                 className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-3 text-sm shadow-sm"
