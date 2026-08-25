@@ -357,7 +357,14 @@ export async function fetchHomeworkRosterMonth(opts: {
       })
       .select("id, roster_month, status")
       .single()
-    if (inserted.error) throw inserted.error
+    // 老師無寫入權；行政尚未開該月工作表時回空，唔阻報更
+    if (inserted.error) {
+      const code = (inserted.error as { code?: string }).code
+      if (code === "42501" || /permission|policy|RLS/i.test(inserted.error.message)) {
+        return { id: "", yearMonth: opts.yearMonth, status: "未編更", days: [] }
+      }
+      throw inserted.error
+    }
     roster = inserted.data
   }
   const rosterId = String((roster as { id: string }).id)
