@@ -379,10 +379,10 @@ export function ClassDetailView() {
     fetchClassStudents(cid),
     fetchEnrollmentChangeEventsForClass(cid),
     fetchClassSchedules(cid),
-    fetchTeacherOptions(),
+    fetchTeacherOptions({ excludeHomeworkTutorOnly: true }),
     fetchClassroomOptions(),
     teacherScopeId ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
-    fetchSubjectOptions(),
+    fetchSubjectOptions({ specialtyOnly: true }),
    ])
    setCls(c)
    if (c) {

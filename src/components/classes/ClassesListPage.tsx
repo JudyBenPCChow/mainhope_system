@@ -13,7 +13,6 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { statusToTagTone } from "@/lib/statusTag"
-import { classKindLabel } from "@/lib/privateClassKind"
 import {
  DAY_FILTER_CHIPS,
  GRADE_CHIPS,
@@ -49,7 +48,6 @@ import {
  duplicateClass,
  fetchAcademicYearOptions,
  fetchAllClasses,
- fetchTeacherOptions,
  previewClassDeletionSchedules,
  type ClassRecord,
  updateClass,
@@ -110,9 +108,6 @@ export function ClassesListPage() {
  const [scheduleSummaries, setScheduleSummaries] = useState<Map<string, ClassScheduleSummary>>(
   () => initialCache?.scheduleSummaries ?? new Map()
  )
- const [teachers, setTeachers] = useState<{ id: string; label: string }[]>(
-  () => initialCache?.teachers ?? []
- )
  const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>(
   () => initialCache?.yearOptions ?? []
  )
@@ -129,7 +124,6 @@ export function ClassesListPage() {
  const [teacherKey, setTeacherKey] = usePersistentState<string>("mgmt_classes_teacherKey", "全部")
  const [dayKey, setDayKey] = usePersistentState<string>("mgmt_classes_dayKey", "全部")
  const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
- const [kindKey, setKindKey] = usePersistentState<string>("mgmt_classes_kindKey", "小組")
  /** 僅班別頁有效（session），不再跨頁同步 */
  const [academicYearFilter, setAcademicYearFilter] = usePersistentState<string>(
   "mgmt_classes_academicYearFilter",
@@ -151,19 +145,17 @@ export function ClassesListPage() {
   if (gradeKey !== "全部") n += 1
   if (!teacherTid && teacherKey !== "全部") n += 1
   if (dayKey !== "全部") n += 1
-  if (kindKey !== "小組") n += 1
   if (statusKey !== "全部") n += 1
   return n
- }, [subjectKey, gradeKey, teacherKey, dayKey, kindKey, statusKey, teacherTid])
+ }, [subjectKey, gradeKey, teacherKey, dayKey, statusKey, teacherTid])
 
  const resetFilters = useCallback(() => {
   setSubjectKey("全部")
   setGradeKey("全部")
   setTeacherKey("全部")
   setDayKey("全部")
-  setKindKey("小組")
   setStatusKey("全部")
- }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setKindKey, setStatusKey])
+ }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setStatusKey])
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
   if (!opts?.silent) setLoading(true)
@@ -171,20 +163,17 @@ export function ClassesListPage() {
   try {
    const list = await fetchAllClasses()
    const classIds = list.map((c) => c.id)
-   const [teacherOpts, yearOpts, roster, summaries] = await Promise.all([
-    fetchTeacherOptions(),
+   const [yearOpts, roster, summaries] = await Promise.all([
     fetchAcademicYearOptions(),
     fetchEnrollmentRosterByClassIds(classIds),
     fetchScheduleSummariesByClassIds(classIds),
    ])
    setRows(list)
-   setTeachers(teacherOpts)
    setYearOptions(yearOpts)
    setEnrollRoster(roster)
    setScheduleSummaries(summaries)
    setClassesListDataCache({
     rows: list,
-    teachers: teacherOpts,
     yearOptions: yearOpts,
     enrollRoster: roster,
     scheduleSummaries: summaries,
@@ -223,8 +212,10 @@ export function ClassesListPage() {
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(null), [])
 
  const baseRows = useMemo(() => {
-  if (!teacherTid) return rows
-  return rows.filter((c) => c.teacher_id === teacherTid)
+  // 班別管理只處理專科班；私人課程／功輔另有入口
+  const specialty = rows.filter((c) => c.class_kind === "group")
+  if (!teacherTid) return specialty
+  return specialty.filter((c) => c.teacher_id === teacherTid)
  }, [rows, teacherTid])
 
  const academicYearSelectOptions = useMemo(() => {
@@ -237,6 +228,7 @@ export function ClassesListPage() {
   const fromRows = [
    ...new Set(
     rows
+     .filter((c) => c.class_kind === "group")
      .map((c) => c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date))
      .filter((x) => /^\d{4}$/.test(x) || /^\d{2}SM$/i.test(x))
    ),
@@ -259,8 +251,6 @@ export function ClassesListPage() {
 
  const filtered = useMemo(() => {
   return yearScopedRows.filter((c) => {
-   if (kindKey === "小組" && c.class_kind !== "group") return false
-   if (kindKey === "一對一" && c.class_kind !== "private") return false
    return (
     classMatchesGrade(c, gradeKey) &&
     classMatchesSubject(c, subjectKey) &&
@@ -269,7 +259,7 @@ export function ClassesListPage() {
     classMatchesStatus(c, statusKey)
    )
   })
- }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey, kindKey])
+ }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
 
  const subjectChips = useMemo(
   () => buildSubjectFilterChips(yearScopedRows, { includeCommonWhenEmpty: !teacherTid }),
@@ -290,17 +280,13 @@ export function ClassesListPage() {
 
  const teacherChips = useMemo((): string[] => {
   if (teacherTid) return ["全部"]
-  const names = new Map<string, string>()
+  const names = new Set<string>()
   for (const c of yearScopedRows) {
    const name = (c.teacher_name ?? "").trim()
-   if (name) names.set(name, name)
+   if (name) names.add(name)
   }
-  for (const t of teachers) {
-   const name = t.label.trim()
-   if (name) names.set(name, name)
-  }
-  return ["全部", ...[...names.keys()].sort((a, b) => a.localeCompare(b, "zh-Hant"))]
- }, [teacherTid, yearScopedRows, teachers])
+  return ["全部", ...[...names].sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
 
  const dayChips = useMemo(() => {
   if (!teacherTid) return [...DAY_FILTER_CHIPS]
@@ -563,34 +549,6 @@ export function ClassesListPage() {
    </div>
 
    <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">班別類型</div>
-    <div className="flex flex-wrap gap-2">
-     {([
-      { value: "小組", label: "專科班" },
-      { value: "一對一", label: "私人課程" },
-      { value: "全部", label: "全部" },
-     ] as const).map((option) => (
-      <button
-       key={option.value}
-       type="button"
-       onClick={() => setKindKey(option.value)}
-       className={cn(
-        "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
-        kindKey === option.value
-         ? "border-primary bg-primary text-primary-foreground shadow-sm"
-         : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
-       )}
-      >
-       {option.label}
-      </button>
-     ))}
-    </div>
-    <p className="text-xs text-muted-foreground">
-     此頁預設顯示專科班。如要管理私人課程，請前往「私人課程」；亦可於此篩選檢視私人課程班別。
-    </p>
-   </div>
-
-   <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">狀態</div>
     <div className="flex flex-wrap gap-2">
      {statusChips.map((s) => (
@@ -825,11 +783,6 @@ export function ClassesListPage() {
           </h3>
          </div>
          <div className="flex shrink-0 flex-col items-end gap-1">
-          {c.class_kind === "private" ? (
-           <Tag tone="info" size="sm">
-            {classKindLabel("private")}
-           </Tag>
-          ) : null}
           <Tag tone={statusToTagTone(c.status)} size="sm">
            {c.status}
           </Tag>
@@ -931,11 +884,6 @@ export function ClassesListPage() {
            <td className="min-w-0 align-top px-3 py-3 pr-2">
             <span className="block break-words leading-relaxed font-medium">
              {classDisplayName({ subject: c.subject, courseName: c.course_name })}
-             {c.class_kind === "private" ? (
-              <Tag tone="info" size="sm" className="ml-1.5 align-middle">
-               {classKindLabel("private")}
-              </Tag>
-             ) : null}
             </span>
            </td>
            <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
@@ -1073,11 +1021,6 @@ export function ClassesListPage() {
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
           <div className="flex flex-wrap items-center gap-1">
-           {c.class_kind === "private" ? (
-            <Tag tone="info" size="sm">
-             {classKindLabel("private")}
-            </Tag>
-           ) : null}
            <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
           </div>
          </div>
@@ -1122,11 +1065,6 @@ export function ClassesListPage() {
              {c.course_code_full ?? "—"}
             </span>
             <div className="flex flex-col items-end gap-0.5">
-             {c.class_kind === "private" ? (
-              <Tag tone="info" size="sm" className="text-[10px]">
-               {classKindLabel("private")}
-              </Tag>
-             ) : null}
              <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">
               {c.status}
              </Tag>

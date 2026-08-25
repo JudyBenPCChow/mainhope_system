@@ -991,15 +991,25 @@ export type CourseRecord = {
  course_name: string | null
 }
 
-export async function fetchSubjectOptions(): Promise<SubjectOption[]> {
+export async function fetchSubjectOptions(opts?: {
+ /** 專科班新增／編輯：排除功課輔導等非專科科目 */
+ specialtyOnly?: boolean
+}): Promise<SubjectOption[]> {
  if (!supabase) return []
  const { data, error } = await supabase.from("subjects").select("id, code, name_zh").order("code")
  if (error) throw error
- return (data ?? []).map((r) => ({
+ const rows = (data ?? []).map((r) => ({
   id: String((r as { id: string }).id),
   code: String((r as { code: string }).code),
   name_zh: String((r as { name_zh: string }).name_zh),
  }))
+ if (!opts?.specialtyOnly) return rows
+ return rows.filter((s) => {
+  const code = s.code.trim().toUpperCase()
+  if (code === "HWK") return false
+  if (/功課輔導|homework/i.test(s.name_zh)) return false
+  return true
+ })
 }
 
 export async function fetchAcademicYearOptions(): Promise<AcademicYearOption[]> {
@@ -1185,19 +1195,31 @@ export async function updateCourse(
  }
 }
 
-export async function fetchTeacherOptions(): Promise<TeacherOption[]> {
+export async function fetchTeacherOptions(opts?: {
+ /** 專科班用：排除純功輔導師（homework_tutor_only） */
+ excludeHomeworkTutorOnly?: boolean
+}): Promise<TeacherOption[]> {
  if (!supabase) return []
- const { data, error } = await supabase.from("teachers").select("id, full_name, abbr").order("full_name")
+ const { data, error } = await supabase
+  .from("teachers")
+  .select("id, full_name, abbr, homework_tutor_only")
+  .order("full_name")
  if (error) throw error
- return (data ?? []).map((r) => {
-  const row = r as { id: string; full_name: string | null; abbr: string | null }
-  const abbrRaw = row.abbr != null ? String(row.abbr).trim() : ""
-  return {
-   id: String(row.id),
-   label: String(row.full_name ?? ""),
-   abbr: abbrRaw !== "" ? abbrRaw : null,
-  }
- })
+ const rows = (data ?? [])
+  .filter((r) => {
+   if (!opts?.excludeHomeworkTutorOnly) return true
+   return !Boolean((r as { homework_tutor_only?: boolean }).homework_tutor_only)
+  })
+  .map((r) => {
+   const row = r as { id: string; full_name: string | null; abbr: string | null }
+   const abbrRaw = row.abbr != null ? String(row.abbr).trim() : ""
+   return {
+    id: String(row.id),
+    label: String(row.full_name ?? ""),
+    abbr: abbrRaw !== "" ? abbrRaw : null,
+   }
+  })
+ return rows
 }
 
 export async function fetchClassroomOptions(): Promise<{ id: string; label: string }[]> {

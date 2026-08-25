@@ -92,8 +92,8 @@ export function ClassCreateForm({
  useEffect(() => {
   void (async () => {
    const [teacherOpts, subjectOpts, yearOpts, yrs, rm] = await Promise.all([
-    fetchTeacherOptions(),
-    fetchSubjectOptions(),
+    fetchTeacherOptions({ excludeHomeworkTutorOnly: true }),
+    fetchSubjectOptions({ specialtyOnly: true }),
     fetchAcademicYearOptions(),
     fetchAcademicYearsWithDates(),
     fetchClassrooms(),
