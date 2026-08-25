@@ -338,13 +338,14 @@ export async function fetchHomeworkRosterMonth(opts: {
     return { id: "", yearMonth: opts.yearMonth, status: "未編更", days: [] }
   }
   const month = monthFirstDay(opts.yearMonth)
-  let { data: roster, error } = await supabase
+  const existing = await supabase
     .from("homework_tutoring_roster_months")
     .select("id, roster_month, status")
     .eq("class_id", opts.classId)
     .eq("roster_month", month)
     .maybeSingle()
-  if (error) throw error
+  if (existing.error) throw existing.error
+  let roster = existing.data
   if (!roster) {
     const inserted = await supabase
       .from("homework_tutoring_roster_months")
