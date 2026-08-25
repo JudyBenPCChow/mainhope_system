@@ -152,8 +152,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         return
       }
 
+      const isTeacher = role === "teacher"
       const [enrolls, closures, access, availRows, roster] = await Promise.all([
-        fetchHomeworkEnrollments(cls.id),
+        isTeacher ? Promise.resolve([]) : fetchHomeworkEnrollments(cls.id),
         fetchHomeworkClosures(cls.academicYearId),
         fetchHomeworkTutoringTeacherAccess(),
         fetchHomeworkAvailabilityForMonth(rosterMonthKey),
@@ -177,19 +178,24 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         }))
       )
 
-      const feeRows = await ensureHomeworkMonthlyCharges({
-        academicYearId: cls.academicYearId,
-        classId: cls.id,
-        billingMonth: viewMonth,
-        enrollments: enrolls,
-      })
-      setFees(
-        feeRows.map((f) => ({
-          studentId: f.studentId,
-          amountLabel: f.amountLabel,
-          status: f.status === "已收款" ? "已收款" : "未收款",
-        }))
-      )
+      // 月費 ensure 僅行政／經理；老師報更唔需要寫應收
+      if (!isTeacher) {
+        const feeRows = await ensureHomeworkMonthlyCharges({
+          academicYearId: cls.academicYearId,
+          classId: cls.id,
+          billingMonth: viewMonth,
+          enrollments: enrolls,
+        })
+        setFees(
+          feeRows.map((f) => ({
+            studentId: f.studentId,
+            amountLabel: f.amountLabel,
+            status: f.status === "已收款" ? "已收款" : "未收款",
+          }))
+        )
+      } else {
+        setFees([])
+      }
 
       setHolidays(
         closures.map((h) => ({
@@ -235,7 +241,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     } finally {
       setLoading(false)
     }
-  }, [rosterMonthKey, viewMonth])
+  }, [role, rosterMonthKey, viewMonth])
 
   useEffect(() => {
     void reload()
