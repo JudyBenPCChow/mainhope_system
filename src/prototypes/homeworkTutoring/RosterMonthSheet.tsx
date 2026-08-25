@@ -19,27 +19,34 @@ import { cn } from "@/lib/utils"
 
 import {
   CALENDAR_WEEK_HEADERS,
+  MOCK_DEFAULT_PRIMARY_ROOM,
+  MOCK_DEFAULT_SECONDARY_ROOM,
+  MOCK_SUBJECT_TEACHERS,
   buildMonthDutyDays,
   dutyTeacherLabel,
   formatAvailLabel,
   formatSession,
   formatYearMonthLabel,
   getAvailEntry,
+  holidaysInYearMonth,
   listRosterMonthDays,
-  holidaysForMonth,
+  roomALabel,
+  roomBLabel,
   shiftYearMonth,
   substituteTeachers,
   teacherName,
   teachersAvailableOnDay,
   type AllTeacherAvailability,
   type MockDutyDay,
+  type MockHoliday,
+  type MockTeacher,
   type MonthRosterState,
 } from "./mockData"
 
 type SheetView = "list" | "calendar"
 
 const MONTH_MIN = "2026-07"
-const MONTH_MAX = "2026-12"
+const MONTH_MAX = "2027-06"
 
 function clampMonth(yearMonth: string): string {
   if (yearMonth < MONTH_MIN) return MONTH_MIN
@@ -83,6 +90,8 @@ export function RosterMonthSheet({
   monthStatus,
   onMonthStatusChange,
   avail,
+  teachers = MOCK_SUBJECT_TEACHERS,
+  holidays = [],
   onPublish,
 }: {
   yearMonth: string
@@ -92,6 +101,8 @@ export function RosterMonthSheet({
   monthStatus: Record<string, MonthRosterState>
   onMonthStatusChange: (yearMonth: string, state: MonthRosterState) => void
   avail: AllTeacherAvailability
+  teachers?: readonly MockTeacher[]
+  holidays?: MockHoliday[]
   /** 確定編更：持久化＋寫 schedules 佔室 */
   onPublish?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
 }) {
@@ -102,13 +113,21 @@ export function RosterMonthSheet({
   const published = (monthStatus[yearMonth] ?? "未編更") === "已編更"
   const emptyLabel = published ? "暫時空缺" : "未編"
 
-  const monthDays = useMemo(
-    () => buildMonthDutyDays(yearMonth, dutyDays),
-    [yearMonth, dutyDays]
+  const monthHolidays = useMemo(
+    () => holidaysInYearMonth(yearMonth, holidays),
+    [yearMonth, holidays]
   )
 
+  const monthDays = useMemo(
+    () => buildMonthDutyDays(yearMonth, dutyDays, monthHolidays),
+    [yearMonth, dutyDays, monthHolidays]
+  )
+
+  const headerRoomA = roomALabel(monthDays.find((d) => !d.holiday) ?? null)
+  const headerRoomB = roomBLabel(monthDays.find((d) => !d.holiday) ?? null)
+
   const calendarCells = useMemo(() => {
-    const cal = listRosterMonthDays(yearMonth, holidaysForMonth(yearMonth))
+    const cal = listRosterMonthDays(yearMonth, monthHolidays)
     const first = cal[0]
     if (!first) return []
     const byKey = new Map(monthDays.map((d) => [d.date, d]))
@@ -117,7 +136,7 @@ export function RosterMonthSheet({
       ...Array.from({ length: pad }, () => null),
       ...cal.map((d) => ({ roster: d, duty: byKey.get(d.key) ?? null })),
     ]
-  }, [yearMonth, monthDays])
+  }, [yearMonth, monthDays, monthHolidays])
 
   const upsertDay = (next: MockDutyDay) => {
     onDutyDaysChange((prev) =>
@@ -165,11 +184,11 @@ export function RosterMonthSheet({
   }
 
   const pickOptions = (day: MockDutyDay) => {
-    const submitted = teachersAvailableOnDay(avail, day.date)
+    const submitted = teachersAvailableOnDay(avail, day.date, teachers)
     const extra = [day.secondaryTeacherId, day.primaryTeacherId].filter(
       (id): id is string => Boolean(id) && !submitted.some((t) => t.id === id)
     )
-    const extraTeachers = extra.map((id) => ({ id, name: teacherName(id) }))
+    const extraTeachers = extra.map((id) => ({ id, name: teacherName(id, teachers) }))
     return [...submitted.map((t) => ({ id: t.id, name: t.name })), ...extraTeachers]
   }
 
@@ -216,8 +235,8 @@ export function RosterMonthSheet({
 
       <p className="text-xs text-muted-foreground">
         {published
-          ? "已確定的當值清單。可頂替＝當日有報更但未編入的同事。"
-          : "未編更：只顯示當日已報更的同事。儲存後即確定本月編更。"}
+          ? "已確定的當值清單。可頂替＝當日有報更但未編入的同事。單一場次兩室；人少可只派一室。"
+          : "未編更：只顯示當日已報更的同事。儲存後即確定本月編更。每室可派一位老師。"}
       </p>
 
       {!published ? (
@@ -235,19 +254,21 @@ export function RosterMonthSheet({
               <tr>
                 <th className="px-3 py-2 font-medium">日期</th>
                 <th className="px-3 py-2 font-medium">班時間</th>
-                <th className="px-3 py-2 font-medium">中學</th>
-                <th className="px-3 py-2 font-medium">小學</th>
+                <th className="px-3 py-2 font-medium">{headerRoomA}</th>
+                <th className="px-3 py-2 font-medium">{headerRoomB}</th>
                 <th className="px-3 py-2 font-medium">{published ? "可頂替" : "已報更"}</th>
                 <th className="px-3 py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {monthDays.map((d) => {
-                const submitted = teachersAvailableOnDay(avail, d.date)
-                const subs = substituteTeachers(avail, d.date, [
-                  d.secondaryTeacherId,
-                  d.primaryTeacherId,
-                ])
+                const submitted = teachersAvailableOnDay(avail, d.date, teachers)
+                const subs = substituteTeachers(
+                  avail,
+                  d.date,
+                  [d.secondaryTeacherId, d.primaryTeacherId],
+                  teachers
+                )
                 const secVacant = published && !d.holiday && !d.secondaryTeacherId
                 const priVacant = published && !d.holiday && !d.primaryTeacherId
                 return (
@@ -268,7 +289,7 @@ export function RosterMonthSheet({
                         "—"
                       ) : published ? (
                         <span className={secVacant ? "text-warning" : undefined}>
-                          {dutyTeacherLabel(d.secondaryTeacherId, true)}
+                          {dutyTeacherLabel(d.secondaryTeacherId, true, teachers)}
                         </span>
                       ) : (
                         <Select
@@ -276,6 +297,7 @@ export function RosterMonthSheet({
                           onChange={(e) =>
                             upsertDay({
                               ...d,
+                              secondaryRoom: d.secondaryRoom ?? MOCK_DEFAULT_SECONDARY_ROOM,
                               secondaryTeacherId: e.target.value || undefined,
                             })
                           }
@@ -295,7 +317,7 @@ export function RosterMonthSheet({
                         "—"
                       ) : published ? (
                         <span className={priVacant ? "text-warning" : undefined}>
-                          {dutyTeacherLabel(d.primaryTeacherId, true)}
+                          {dutyTeacherLabel(d.primaryTeacherId, true, teachers)}
                         </span>
                       ) : (
                         <Select
@@ -303,6 +325,7 @@ export function RosterMonthSheet({
                           onChange={(e) =>
                             upsertDay({
                               ...d,
+                              primaryRoom: d.primaryRoom ?? MOCK_DEFAULT_PRIMARY_ROOM,
                               primaryTeacherId: e.target.value || undefined,
                             })
                           }
@@ -367,14 +390,18 @@ export function RosterMonthSheet({
               }
               const { roster, duty } = cell
               const isWeekend = !roster.selectable && !roster.holidayLabel
-              const submitted = teachersAvailableOnDay(avail, roster.key)
+              const submitted = teachersAvailableOnDay(avail, roster.key, teachers)
               const subs = duty
-                ? substituteTeachers(avail, roster.key, [
-                    duty.secondaryTeacherId,
-                    duty.primaryTeacherId,
-                  ])
+                ? substituteTeachers(
+                    avail,
+                    roster.key,
+                    [duty.secondaryTeacherId, duty.primaryTeacherId],
+                    teachers
+                  )
                 : submitted
               const canEdit = roster.selectable && !roster.holidayLabel
+              const a = roomALabel(duty)
+              const b = roomBLabel(duty)
               return (
                 <button
                   key={roster.key}
@@ -404,12 +431,12 @@ export function RosterMonthSheet({
                           duty?.secondaryTeacherId ? "text-foreground" : "text-warning"
                         }
                       >
-                        中 {dutyTeacherLabel(duty?.secondaryTeacherId, true)}
+                        {a} {dutyTeacherLabel(duty?.secondaryTeacherId, true, teachers)}
                       </span>
                       <span
                         className={duty?.primaryTeacherId ? "text-foreground" : "text-warning"}
                       >
-                        小 {dutyTeacherLabel(duty?.primaryTeacherId, true)}
+                        {b} {dutyTeacherLabel(duty?.primaryTeacherId, true, teachers)}
                       </span>
                       {subs.length > 0 ? (
                         <span className="text-muted-foreground">
@@ -420,10 +447,10 @@ export function RosterMonthSheet({
                   ) : (
                     <>
                       <span className="text-foreground">
-                        中 {dutyTeacherLabel(duty?.secondaryTeacherId, false)}
+                        {a} {dutyTeacherLabel(duty?.secondaryTeacherId, false, teachers)}
                       </span>
                       <span className="text-foreground">
-                        小 {dutyTeacherLabel(duty?.primaryTeacherId, false)}
+                        {b} {dutyTeacherLabel(duty?.primaryTeacherId, false, teachers)}
                       </span>
                       <span className="text-muted-foreground">
                         {submitted.length > 0
@@ -453,28 +480,36 @@ export function RosterMonthSheet({
           {editDay ? (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">
-                {teachersAvailableOnDay(avail, editDay.date).length > 0
-                  ? `當日已報更：${teachersAvailableOnDay(avail, editDay.date)
+                {teachersAvailableOnDay(avail, editDay.date, teachers).length > 0
+                  ? `當日已報更：${teachersAvailableOnDay(avail, editDay.date, teachers)
                       .map((t) => `${t.name}（${formatAvailLabel(getAvailEntry(avail, t.id, editDay.date))}）`)
                       .join("、")}`
                   : "當日未有報更"}
               </p>
               <TeacherPick
-                label="中學"
+                label={roomALabel(editDay)}
                 value={editDay.secondaryTeacherId ?? ""}
                 options={pickOptions(editDay)}
                 emptyLabel={emptyLabel}
                 onChange={(id) =>
-                  setEditDay({ ...editDay, secondaryTeacherId: id || undefined })
+                  setEditDay({
+                    ...editDay,
+                    secondaryRoom: editDay.secondaryRoom ?? MOCK_DEFAULT_SECONDARY_ROOM,
+                    secondaryTeacherId: id || undefined,
+                  })
                 }
               />
               <TeacherPick
-                label="小學"
+                label={roomBLabel(editDay)}
                 value={editDay.primaryTeacherId ?? ""}
                 options={pickOptions(editDay)}
                 emptyLabel={emptyLabel}
                 onChange={(id) =>
-                  setEditDay({ ...editDay, primaryTeacherId: id || undefined })
+                  setEditDay({
+                    ...editDay,
+                    primaryRoom: editDay.primaryRoom ?? MOCK_DEFAULT_PRIMARY_ROOM,
+                    primaryTeacherId: id || undefined,
+                  })
                 }
               />
             </div>
@@ -489,7 +524,7 @@ export function RosterMonthSheet({
                 if (!editDay) return
                 upsertDay(editDay)
                 setEditDay(null)
-                pushBanner({ title: "已更新", tone: "success", message: "當值已更新（沙盒）。" })
+                pushBanner({ title: "已更新", tone: "success", message: "當值已更新。" })
               }}
             >
               儲存

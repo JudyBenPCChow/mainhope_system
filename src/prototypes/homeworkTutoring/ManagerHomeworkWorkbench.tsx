@@ -8,14 +8,17 @@ import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 
 import {
-  MOCK_DUTY_DAYS,
-  MOCK_ROSTER_MONTH_LABEL,
+  MOCK_ROSTER_MONTH_KEY,
   MOCK_SUBJECT_TEACHERS,
   countSubmitProgress,
   formatSession,
+  formatYearMonthLabel,
+  roomALabel,
+  roomBLabel,
   teacherName,
   unpaidFeeRows,
   type AllTeacherSubmitStatus,
+  type MockDutyDay,
   type MockFeeRow,
   type MockStudent,
   type MockTeacher,
@@ -33,6 +36,8 @@ export function ManagerHomeworkWorkbench({
   rosterPublishStatus,
   hwTeachers,
   hwAccessIds,
+  dutyDays = [],
+  rosterMonth = MOCK_ROSTER_MONTH_KEY,
   onToggleHwAccess,
   onSwitchToAdmin,
 }: {
@@ -44,6 +49,8 @@ export function ManagerHomeworkWorkbench({
   rosterPublishStatus: RosterPublishStatus
   hwTeachers: MockTeacher[]
   hwAccessIds: ReadonlySet<string>
+  dutyDays?: MockDutyDay[]
+  rosterMonth?: string
   onToggleHwAccess: (teacherId: string, next: boolean) => void
   onSwitchToAdmin?: () => void
 }) {
@@ -52,7 +59,10 @@ export function ManagerHomeworkWorkbench({
     [submitStatus, hwTeachers]
   )
   const unpaid = useMemo(() => unpaidFeeRows(students, fees), [students, fees])
-  const dutyCovered = MOCK_DUTY_DAYS.filter((d) => !d.holiday).length
+  const dutyCovered = dutyDays.filter((d) => !d.holiday).length
+  const monthLabel = formatYearMonthLabel(rosterMonth)
+  const roomA = roomALabel(dutyDays[0] ?? null)
+  const roomB = roomBLabel(dutyDays[0] ?? null)
 
   return (
     <div className="space-y-4">
@@ -72,7 +82,11 @@ export function ManagerHomeworkWorkbench({
             <SummaryTile
               label="當值覆蓋"
               value={`${dutyCovered} 日`}
-              hint={rosterPublishStatus === "已發布" ? "十月編更已發布" : "十月編更仍為草稿"}
+              hint={
+                rosterPublishStatus === "已發布"
+                  ? `${monthLabel}編更已發布`
+                  : `${monthLabel}編更仍為草稿`
+              }
             />
             <SummaryTile
               label="需關注"
@@ -87,7 +101,7 @@ export function ManagerHomeworkWorkbench({
               {progress.missing > 0 ? (
                 <li className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    {MOCK_ROSTER_MONTH_LABEL} 尚有 {progress.missing} 位老師未交報更
+                    {monthLabel} 尚有 {progress.missing} 位老師未交報更
                   </span>
                   <Button type="button" size="sm" variant="outline" onClick={() => onTabChange("progress")}>
                     查看進度
@@ -103,7 +117,7 @@ export function ManagerHomeworkWorkbench({
                 </li>
               ) : null}
               {progress.missing === 0 && unpaid.length === 0 ? (
-                <li>目前無緊急關注項（沙盒示範）。</li>
+                <li>目前無緊急關注項。</li>
               ) : null}
             </ul>
           </section>
@@ -119,57 +133,61 @@ export function ManagerHomeworkWorkbench({
       {tab === "duty" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">本月當值一覽（唯讀）</h2>
+            <h2 className="text-base font-semibold">{monthLabel}當值一覽（唯讀）</h2>
             <Tag tone={statusToTagTone(rosterPublishStatus)} size="sm">
-              {rosterPublishStatus === "已發布" ? "九月示範已發布" : rosterPublishStatus}
+              {rosterPublishStatus}
             </Tag>
           </div>
-          <div className="overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-muted/40 text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 font-medium">日期</th>
-                  <th className="px-3 py-2 font-medium">班時間</th>
-                  <th className="px-3 py-2 font-medium">中學部</th>
-                  <th className="px-3 py-2 font-medium">小學部</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MOCK_DUTY_DAYS.map((d) => (
-                  <tr key={d.date} className="border-t border-border">
-                    <td className="px-3 py-2.5 tabular-nums">
-                      {d.date}
-                      <span className="text-muted-foreground">（{d.weekday}）</span>
-                      {d.holiday ? (
-                        <Tag tone={statusToTagTone("功輔放假")} size="sm" className="ml-2">
-                          功輔放假
-                        </Tag>
-                      ) : null}
-                    </td>
-                    <td className="px-3 py-2.5 tabular-nums">
-                      {d.holiday ? "—" : formatSession(d)}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {d.holiday
-                        ? "—"
-                        : `${teacherName(d.secondaryTeacherId)} · ${d.secondaryRoom ?? "—"}`}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {d.holiday
-                        ? "—"
-                        : `${teacherName(d.primaryTeacherId)} · ${d.primaryRoom ?? "—"}`}
-                    </td>
+          {dutyDays.length === 0 ? (
+            <p className="text-sm text-muted-foreground">本月尚未有當值資料。</p>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead className="bg-muted/40 text-xs text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">日期</th>
+                    <th className="px-3 py-2 font-medium">班時間</th>
+                    <th className="px-3 py-2 font-medium">{roomA}</th>
+                    <th className="px-3 py-2 font-medium">{roomB}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {dutyDays.map((d) => (
+                    <tr key={d.date} className="border-t border-border">
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {d.date}
+                        <span className="text-muted-foreground">（{d.weekday}）</span>
+                        {d.holiday ? (
+                          <Tag tone={statusToTagTone("功輔放假")} size="sm" className="ml-2">
+                            功輔放假
+                          </Tag>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2.5 tabular-nums">
+                        {d.holiday ? "—" : formatSession(d)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {d.holiday
+                          ? "—"
+                          : teacherName(d.secondaryTeacherId, hwTeachers)}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {d.holiday
+                          ? "—"
+                          : teacherName(d.primaryTeacherId, hwTeachers)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       ) : null}
 
       {tab === "progress" ? (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold">{MOCK_ROSTER_MONTH_LABEL} 報更進度</h2>
+          <h2 className="text-base font-semibold">{monthLabel} 報更進度</h2>
           <p className="text-xs text-muted-foreground">
             查看老師提交狀態；代填請切換行政工作台。
           </p>
@@ -202,7 +220,7 @@ export function ManagerHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-base font-semibold">月費異常（未收款）</h2>
           {unpaid.length === 0 ? (
-            <p className="text-sm text-muted-foreground">目前無未繳（沙盒）。</p>
+            <p className="text-sm text-muted-foreground">目前無未繳。</p>
           ) : (
             <ul className="space-y-2">
               {unpaid.map((row) => (
@@ -240,7 +258,7 @@ export function ManagerHomeworkWorkbench({
           <div>
             <h2 className="text-base font-semibold">功課輔導側欄入口</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              剔選專科老師。獲選者登入後，系統側欄會出現一級「功課輔導」，打開後有功輔報更、我的當值。未剔選者側欄不顯示。沙盒即時生效；尚未寫入正式側欄。
+              剔選專科老師。獲選者登入後，系統側欄會出現一級「功課輔導」，打開後有功輔報更、我的當值。未剔選者側欄不顯示。
             </p>
           </div>
           <p className="text-xs text-muted-foreground">

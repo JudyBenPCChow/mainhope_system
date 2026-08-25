@@ -18,9 +18,7 @@ import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select } from "@/components/ui/select"
-import { Tag } from "@/components/ui/tag"
 import { STATUS_CHIPS } from "@/components/classes/classesUi"
-import { classKindLabel } from "@/lib/privateClassKind"
 import { classDisplayName } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
 import type { ClassRecord } from "@/services/classQueries"
@@ -188,11 +186,6 @@ export function ClassesListTable({
           <td className="min-w-0 align-top px-3 py-3 pr-2">
            <span className="block break-words font-medium leading-relaxed">
             {classDisplayName({ subject: c.subject, courseName: c.course_name })}
-            {c.class_kind === "private" ? (
-             <Tag tone="info" size="sm" className="ml-1.5 align-middle">
-              {classKindLabel("private")}
-             </Tag>
-            ) : null}
            </span>
           </td>
           <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
