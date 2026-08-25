@@ -17,6 +17,7 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { nextStudentCode } from "@/lib/studentCode"
 import { cn } from "@/lib/utils"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
+import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import {
  compareStudents,
  countActiveHeaderFilters,
@@ -1369,11 +1370,13 @@ export function StudentsListPage() {
    </div>
 
    {selectedIds.length > 0 ? (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
-     <span className="text-sm">已選 {selectedIds.length} 人</span>
-     <Button type="button" variant="outline" size="sm" onClick={toggleSelectAllFiltered}>
-      {filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id)) ? "取消全選" : "全選目前列表"}
-     </Button>
+    <BulkSelectionBar
+     selectedCount={selectedIds.length}
+     unitLabel="人"
+     allFilteredSelected={filtered.length > 0 && filtered.every((r) => selectedIds.includes(r.id))}
+     onToggleSelectAll={toggleSelectAllFiltered}
+     onClear={() => setSelectedIds([])}
+    >
      <Button type="button" variant="outline" size="sm" onClick={() => exportCsv(selectedRows)}>
       匯出已選
      </Button>
@@ -1391,10 +1394,7 @@ export function StudentsListPage() {
        {bulkSaving ? "刪除中…" : "批量刪除"}
       </Button>
      ) : null}
-     <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedIds([])}>
-      清除選取
-     </Button>
-    </div>
+    </BulkSelectionBar>
    ) : null}
 
    {viewMode === "table" && !isMobile ? (

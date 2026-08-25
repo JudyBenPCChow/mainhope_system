@@ -1,11 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react"
-import { createPortal } from "react-dom"
-import { ArrowDown, ArrowUp, ArrowUpDown, Check, ListFilter, MessageCircle } from "lucide-react"
+import { useMemo } from "react"
+import { MessageCircle } from "lucide-react"
 import { Link } from "react-router-dom"
 
+import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
+import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { formatStudentGrade, StudentClassificationTags } from "@/components/students/studentsUi"
 import { GRADE_FILTERS } from "@/components/students/studentsListFilters"
@@ -91,24 +91,13 @@ export function StudentsListTable({
        </th>
        {visibleIds.map((id) => (
         <th key={id} className="px-3 py-2 font-medium text-muted-foreground">
-         <div className="flex min-w-0 items-center gap-0.5">
-          <button
-           type="button"
-           className="inline-flex min-w-0 items-center gap-1 hover:text-foreground"
-           onClick={() => onToggleSort(id)}
-          >
-           <span className="truncate">{STUDENT_LIST_COLUMN_LABEL[id]}</span>
-           {sortKey === id ? (
-            sortDir === "asc" ? (
-             <ArrowUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            ) : (
-             <ArrowDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            )
-           ) : (
-            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-40" aria-hidden />
-           )}
-          </button>
-          <HeaderFilterButton
+         <SortableColumnHeader
+          label={STUDENT_LIST_COLUMN_LABEL[id]}
+          active={sortKey === id}
+          dir={sortDir}
+          onToggle={() => onToggleSort(id)}
+         >
+          <StudentHeaderFilter
            column={id}
            value={headerFilters[id]}
            onChange={(v) => onHeaderFilterChange(id, v)}
@@ -116,7 +105,7 @@ export function StudentsListTable({
            headerFilters={headerFilters}
            tags={tags}
           />
-         </div>
+         </SortableColumnHeader>
         </th>
        ))}
        <th className="w-28 px-3 py-2 font-medium text-muted-foreground">操作</th>
@@ -212,7 +201,7 @@ function headerFilterOptions(column: StudentListColumnId): { value: string; labe
  return []
 }
 
-function HeaderFilterButton({
+function StudentHeaderFilter({
  column,
  value,
  onChange,
@@ -227,206 +216,21 @@ function HeaderFilterButton({
  headerFilters: StudentListHeaderFilters
  tags: Map<string, string[]>
 }) {
- const [open, setOpen] = useState(false)
- const [optionQuery, setOptionQuery] = useState("")
- const [placement, setPlacement] = useState({ left: 0, top: 0, width: 240, maxHeight: 320 })
- const triggerRef = useRef<HTMLButtonElement>(null)
- const panelRef = useRef<HTMLDivElement>(null)
- const searchRef = useRef<HTMLInputElement>(null)
- const listId = useId()
  const preset = isPresetHeaderFilterColumn(column)
- const active = Boolean(value.trim())
- const label = STUDENT_LIST_COLUMN_LABEL[column]
-
- const uniqueValues = useMemo(() => {
-  if (!open || preset) return []
+ const options = useMemo(() => {
+  if (preset) return headerFilterOptions(column)
   const subset = rowsMatchingHeaderFiltersExcept(sourceRows, headerFilters, column, tags)
-  return uniqueHeaderFilterValues(column, subset, tags)
- }, [open, preset, sourceRows, headerFilters, column, tags])
-
- const presetOptions = useMemo(() => headerFilterOptions(column), [column])
-
- const visibleOptions = useMemo(() => {
-  if (preset) {
-   const q = optionQuery.trim().toLowerCase()
-   if (!q) return presetOptions
-   return presetOptions.filter((o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q))
-  }
-  const q = value.trim().toLowerCase()
-  if (!q) return uniqueValues.map((v) => ({ value: v, label: v }))
-  return uniqueValues
-   .filter((v) => v.toLowerCase().includes(q))
-   .map((v) => ({ value: v, label: v }))
- }, [preset, presetOptions, optionQuery, uniqueValues, value])
-
- const computePlacement = () => {
-  const trigger = triggerRef.current
-  if (!trigger) return
-  const r = trigger.getBoundingClientRect()
-  const gap = 6
-  const width = Math.min(Math.max(240, r.width), Math.max(220, window.innerWidth - 16))
-  let left = r.left
-  if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8)
-  if (left < 8) left = 8
-  const maxHeight = Math.min(320, Math.max(200, window.innerHeight * 0.5))
-  let top = r.bottom + gap
-  if (top + Math.min(maxHeight, 220) > window.innerHeight - 8) {
-   top = Math.max(8, r.top - maxHeight - gap)
-  }
-  setPlacement({ left, top, width, maxHeight })
- }
-
- useEffect(() => {
-  if (!open) return
-  computePlacement()
-  setOptionQuery("")
-  const focusTimer = window.setTimeout(() => searchRef.current?.focus(), 0)
-  const onResize = () => computePlacement()
-  const onScroll = () => computePlacement()
-  const onDocMouseDown = (event: MouseEvent) => {
-   const target = event.target as Node
-   if (triggerRef.current?.contains(target)) return
-   if (panelRef.current?.contains(target)) return
-   setOpen(false)
-  }
-  const onKeyDown = (event: KeyboardEvent) => {
-   if (event.key === "Escape") setOpen(false)
-  }
-  window.addEventListener("resize", onResize)
-  window.addEventListener("scroll", onScroll, true)
-  document.addEventListener("mousedown", onDocMouseDown)
-  document.addEventListener("keydown", onKeyDown)
-  return () => {
-   window.clearTimeout(focusTimer)
-   window.removeEventListener("resize", onResize)
-   window.removeEventListener("scroll", onScroll, true)
-   document.removeEventListener("mousedown", onDocMouseDown)
-   document.removeEventListener("keydown", onKeyDown)
-  }
- }, [open])
-
- const selectValue = (next: string) => {
-  onChange(next)
-  setOpen(false)
- }
-
- const panel =
-  open && typeof document !== "undefined"
-   ? createPortal(
-      <div
-       ref={panelRef}
-       data-mgmt-header-filter-panel=""
-       className="fixed z-[320] overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-xl"
-       style={{
-        left: placement.left,
-        top: placement.top,
-        width: placement.width,
-        maxHeight: placement.maxHeight,
-       }}
-      >
-       <div className="border-b border-border/80 p-2">
-        <Input
-         ref={searchRef}
-         className="h-8 text-xs"
-         value={preset ? optionQuery : value}
-         placeholder={preset ? "搜尋選項…" : "包含…"}
-         aria-label={preset ? `搜尋${label}選項` : `篩選${label}`}
-         onChange={(e) => {
-          if (preset) setOptionQuery(e.target.value)
-          else onChange(e.target.value)
-         }}
-         onKeyDown={(e) => {
-          if (e.key === "Enter") {
-           e.preventDefault()
-           if (!preset) setOpen(false)
-          }
-         }}
-        />
-       </div>
-       <div className="overflow-y-auto p-1" style={{ maxHeight: placement.maxHeight - 52 }} role="listbox" id={listId}>
-        <button
-         type="button"
-         role="option"
-         aria-selected={!active}
-         onClick={() => selectValue("")}
-         className={cn(
-          "relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-3 text-left text-xs outline-none",
-          !active ? "bg-muted text-foreground" : "hover:bg-muted/70"
-         )}
-        >
-         <span
-          className={cn(
-           "absolute left-2 inline-flex h-4 w-4 items-center justify-center",
-           !active ? "text-foreground" : "text-transparent"
-          )}
-          aria-hidden
-         >
-          <Check className="h-3.5 w-3.5" />
-         </span>
-         全部
-        </button>
-        {visibleOptions.length === 0 ? (
-         <p className="px-3 py-2 text-xs text-muted-foreground">沒有符合的選項</p>
-        ) : (
-         visibleOptions.map((opt) => {
-          const selected = opt.value === value
-          if (preset && opt.value === "") return null
-          return (
-           <button
-            key={opt.value || "__empty__"}
-            type="button"
-            role="option"
-            aria-selected={selected}
-            onClick={() => selectValue(opt.value)}
-            className={cn(
-             "relative flex w-full cursor-default select-none items-start rounded-md py-1.5 pl-8 pr-3 text-left text-xs outline-none",
-             selected ? "bg-muted text-foreground" : "hover:bg-muted/70"
-            )}
-           >
-            <span
-             className={cn(
-              "absolute left-2 top-1.5 inline-flex h-4 w-4 items-center justify-center",
-              selected ? "text-foreground" : "text-transparent"
-             )}
-             aria-hidden
-            >
-             <Check className="h-3.5 w-3.5" />
-            </span>
-            <span className="whitespace-normal break-words">{opt.label}</span>
-           </button>
-          )
-         })
-        )}
-       </div>
-      </div>,
-      document.body
-     )
-   : null
+  return uniqueHeaderFilterValues(column, subset, tags).map((v) => ({ value: v, label: v }))
+ }, [preset, column, sourceRows, headerFilters, tags])
 
  return (
-  <>
-   <button
-    ref={triggerRef}
-    type="button"
-    aria-label={`篩選${label}`}
-    aria-haspopup="listbox"
-    aria-expanded={open}
-    aria-controls={open ? listId : undefined}
-    title={active ? `${label}：${preset ? presetOptions.find((o) => o.value === value)?.label ?? value : value}` : `篩選${label}`}
-    onClick={(e) => {
-     e.preventDefault()
-     e.stopPropagation()
-     setOpen((v) => !v)
-    }}
-    className={cn(
-     "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-muted hover:text-foreground",
-     active ? "text-primary" : "text-muted-foreground/50"
-    )}
-   >
-    <ListFilter className="h-3.5 w-3.5" aria-hidden />
-   </button>
-   {panel}
-  </>
+  <HeaderFilterButton
+   columnLabel={STUDENT_LIST_COLUMN_LABEL[column]}
+   value={value}
+   onChange={onChange}
+   mode={preset ? "preset" : "text"}
+   options={options}
+  />
  )
 }
 

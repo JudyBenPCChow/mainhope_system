@@ -1,3 +1,10 @@
+import {
+ containsIgnoreCase,
+ countActiveFilters,
+ dirMul,
+ emptyLast,
+ uniqueSortedTexts,
+} from "@/components/list/listFilterUtils"
 import { GRADE_FILTER_PRIMARY_KEY } from "@/components/students/studentsListFilters"
 import { isPrimaryStudentGrade, STUDENT_GRADE_CODES } from "@/lib/studentGrade"
 import {
@@ -91,7 +98,7 @@ export function studentCodeRank(code: string | null | undefined): number {
 }
 
 export function countActiveHeaderFilters(filters: StudentListHeaderFilters): number {
- return STUDENT_LIST_DATA_COLUMNS.reduce((n, id) => n + (filters[id].trim() ? 1 : 0), 0)
+ return countActiveFilters(filters)
 }
 
 export function isPresetHeaderFilterColumn(column: StudentListColumnId): boolean {
@@ -124,11 +131,11 @@ export function uniqueHeaderFilterValues(
  rows: StudentRecord[],
  tags: Map<string, string[]>
 ): string[] {
- const set = new Set<string>()
+ const texts: string[] = []
  for (const r of rows) {
-  for (const v of headerFilterCellTexts(r, column, tags)) set.add(v)
+  texts.push(...headerFilterCellTexts(r, column, tags))
  }
- return [...set].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+ return uniqueSortedTexts(texts)
 }
 
 export function rowsMatchingHeaderFiltersExcept(
@@ -139,11 +146,6 @@ export function rowsMatchingHeaderFiltersExcept(
 ): StudentRecord[] {
  const rest: StudentListHeaderFilters = { ...filters, [except]: "" }
  return rows.filter((r) => studentMatchesHeaderFilters(r, rest, tags))
-}
-
-function contains(hay: string | null | undefined, q: string): boolean {
- if (!q) return true
- return (hay ?? "").toLowerCase().includes(q)
 }
 
 function gradeRank(grade: string | null | undefined): number {
@@ -199,15 +201,15 @@ export function studentMatchesHeaderFilters(
  const createdQ = filters.created_at.trim().toLowerCase()
  const gradeKey = filters.grade.trim()
 
- if (codeQ && !contains(r.student_code, codeQ)) return false
+ if (codeQ && !containsIgnoreCase(r.student_code, codeQ)) return false
  if (nameQ) {
   const hay = `${r.full_name} ${r.english_name ?? ""}`.toLowerCase()
   if (!hay.includes(nameQ)) return false
  }
- if (phoneQ && !contains(r.student_phone, phoneQ)) return false
- if (parentQ && !contains(r.parent_phone, parentQ)) return false
- if (schoolQ && !contains(r.school, schoolQ)) return false
- if (createdQ && !contains(createdAtLocalYmd(r.created_at), createdQ)) return false
+ if (phoneQ && !containsIgnoreCase(r.student_phone, phoneQ)) return false
+ if (parentQ && !containsIgnoreCase(r.parent_phone, parentQ)) return false
+ if (schoolQ && !containsIgnoreCase(r.school, schoolQ)) return false
+ if (createdQ && !containsIgnoreCase(createdAtLocalYmd(r.created_at), createdQ)) return false
  if (subQ) {
   const joined = (tags.get(r.id) ?? []).join(" ").toLowerCase()
   if (!joined.includes(subQ)) return false
@@ -221,17 +223,6 @@ export function studentMatchesHeaderFilters(
  }
  if (!matchesStatusHeader(r, filters.status.trim())) return false
  return true
-}
-
-function emptyLast(aEmpty: boolean, bEmpty: boolean): number | null {
- if (aEmpty && bEmpty) return 0
- if (aEmpty) return 1
- if (bEmpty) return -1
- return null
-}
-
-function dirMul(dir: "asc" | "desc"): number {
- return dir === "asc" ? 1 : -1
 }
 
 export function compareStudents(
