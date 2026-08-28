@@ -1,16 +1,24 @@
 import { Link } from "react-router-dom"
 import { ChevronRight, LayoutGrid } from "lucide-react"
 
-import { buildFeatureSections } from "@/lib/navStructure"
+import { buildFeatureSections, keepHomeworkTutorOnlyNav, NAV_STRUCTURE, stripHomeworkTutoringNav } from "@/lib/navStructure"
 import { useAuth } from "@/lib/authBootstrap"
+import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
 import { cn } from "@/lib/utils"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
+ const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
  if (!ready || !role) return null
 
- const sections = buildFeatureSections(role)
+ let navSource = NAV_STRUCTURE
+ if (role === "teacher" && homeworkTutorOnly) {
+  navSource = keepHomeworkTutorOnlyNav(NAV_STRUCTURE)
+ } else if (role === "teacher" && !homeworkTutoringNavVisible) {
+  navSource = stripHomeworkTutoringNav(NAV_STRUCTURE)
+ }
+ const sections = buildFeatureSections(role, navSource)
  const totalCount = sections.reduce((n, s) => n + s.items.length, 0)
 
  return (

@@ -1,10 +1,15 @@
 /** 功輔 UI 沙盒假資料 — 不連接服務／資料庫 */
 
-export type DayPlan = "三日" | "四日" | "五日"
+export type DayPlan = "三日" | "四日" | "五日" | "七日"
 export type Weekday = "一" | "二" | "三" | "四" | "五"
 export type EnrollStatus = "在籍" | "暫停" | "結束"
 export type FeeStatus = "已收款" | "未收款"
 export type RosterPublishStatus = "草稿" | "已發布"
+export type MonthRosterState = "未編更" | "已編更"
+
+export function monthRosterToLock(state: MonthRosterState): RosterPublishStatus {
+  return state === "已編更" ? "已發布" : "草稿"
+}
 /** 老師報更（針對報更目標月，沙盒為 10 月）— 一次提交，不分學部 */
 export type SubmitStatus = "未交" | "草稿" | "已提交"
 
@@ -46,7 +51,8 @@ export type MockStudent = {
 export function planDayCount(plan: DayPlan): number {
   if (plan === "三日") return 3
   if (plan === "四日") return 4
-  return 5
+  if (plan === "五日") return 5
+  return 7
 }
 
 export function formatWeekdays(days: Weekday[]): string {
@@ -65,7 +71,28 @@ export type MockFeeRow = {
   status: FeeStatus
 }
 
-export type MockTeacher = { id: string; name: string }
+export type MockTeacher = { id: string; name: string; subject: string }
+
+/** 專科老師名單；功輔側欄入口由管理層剔選，唔係全體自動有 */
+export const MOCK_SUBJECT_TEACHERS: MockTeacher[] = [
+  { id: "t1", name: "陳老師", subject: "數學" },
+  { id: "t2", name: "王老師", subject: "英文" },
+  { id: "t3", name: "林老師", subject: "中文" },
+  { id: "t4", name: "李老師", subject: "物理" },
+  { id: "t5", name: "黃老師", subject: "化學" },
+  { id: "t6", name: "周老師", subject: "生物" },
+]
+
+/** 預設有功課輔導班側欄入口（可報更） */
+export const MOCK_DEFAULT_HW_ACCESS_IDS: readonly string[] = ["t1", "t2", "t3"]
+
+export function cloneHwAccessIds(): Set<string> {
+  return new Set(MOCK_DEFAULT_HW_ACCESS_IDS)
+}
+
+export function teachersWithHwAccess(accessIds: ReadonlySet<string>): MockTeacher[] {
+  return MOCK_SUBJECT_TEACHERS.filter((t) => accessIds.has(t.id))
+}
 
 /** 月工作表一日：中／小學部分配導師＋課室；班時間可改 */
 export type MockDutyDay = {
@@ -89,11 +116,12 @@ export const MOCK_ROSTER_MONTH_KEY = "2026-10"
 export const MOCK_ACADEMIC_YEAR = "2627"
 export const MOCK_DEFAULT_SECONDARY_ROOM = "17D"
 export const MOCK_DEFAULT_PRIMARY_ROOM = "17E"
-export const MOCK_SPLIT_NOTE =
-  "中學部／小學部同為 15:30–19:30｜佔用自 15:15｜課室 17D／17E｜老師只報一次更，由行政分配當日學部"
-/** 沙盒示範：報更截止＝該月末日倒數第 3 日（含末日）＝末日 − 2；過截止仍可補交至發布前 */
-export const MOCK_SUBMIT_DEADLINE_NOTE =
+export const MOCK_SPLIT_NOTE = "老師提交可當值日子與時段；行政匯總後發布月工作表。"
+/** 報更截止＝該月末日倒數第 3 日（含末日）＝末日 − 2；過截止仍可補交至發布前 */
+export const SUBMIT_DEADLINE_NOTE =
   "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）；過期仍可補交至月工作表發布前。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"
+/** @deprecated 用 SUBMIT_DEADLINE_NOTE */
+export const MOCK_SUBMIT_DEADLINE_NOTE = SUBMIT_DEADLINE_NOTE
 
 const WEEKDAY_CHARS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
@@ -137,11 +165,10 @@ export function listRosterMonthDays(
   return days
 }
 
-export const MOCK_TEACHERS: MockTeacher[] = [
-  { id: "t1", name: "陳老師" },
-  { id: "t2", name: "王老師" },
-  { id: "t3", name: "林老師" },
-]
+/** 報更／當值示範＝預設有功輔入口嘅專科老師 */
+export const MOCK_TEACHERS: MockTeacher[] = teachersWithHwAccess(
+  new Set(MOCK_DEFAULT_HW_ACCESS_IDS)
+)
 
 export const MOCK_STUDENTS: MockStudent[] = [
   { id: "s1", name: "王小明", code: "S0123", grade: "中二", plan: "四日", weekdays: ["一", "二", "四", "五"], effectiveMonth: "2026-09", status: "在籍" },
@@ -183,21 +210,51 @@ function custom(start: string, end: string): AvailEntry {
   return { kind: "custom", start, end }
 }
 
-/** 示範：10 月可上班（只填報日子；空白＝不報） */
+/** 示範：各月可上班（key＝M/D；空白＝不報） */
 export const MOCK_AVAILABILITY: AllTeacherAvailability = {
   t1: {
+    "8/24": FULL,
+    "8/25": FULL,
+    "8/26": custom("15:30", "17:00"),
+    "9/1": FULL,
+    "9/2": FULL,
+    "9/3": FULL,
+    "9/4": FULL,
+    "9/5": FULL,
+    "9/8": FULL,
+    "9/9": FULL,
+    "9/12": custom("17:00", "19:30"),
     "10/2": FULL,
     "10/3": FULL,
     "10/6": custom("15:30", "17:00"),
     "10/7": FULL,
   },
   t2: {
+    "8/24": custom("17:00", "19:30"),
+    "8/27": FULL,
+    "9/1": FULL,
+    "9/3": FULL,
+    "9/4": FULL,
+    "9/5": FULL,
+    "9/8": custom("15:30", "17:00"),
+    "9/9": FULL,
+    "9/10": FULL,
+    "9/11": FULL,
     "10/2": custom("17:00", "19:30"),
     "10/6": FULL,
     "10/7": custom("17:00", "19:30"),
     "10/8": FULL,
   },
   t3: {
+    "8/26": FULL,
+    "8/28": FULL,
+    "9/1": custom("17:00", "19:30"),
+    "9/2": FULL,
+    "9/3": custom("15:30", "17:00"),
+    "9/4": FULL,
+    "9/10": FULL,
+    "9/11": FULL,
+    "9/12": FULL,
     "10/3": custom("15:30", "17:00"),
     "10/7": FULL,
     "10/8": custom("17:00", "19:30"),
@@ -248,8 +305,10 @@ export function cloneSubmitStatus(): AllTeacherSubmitStatus {
   return { ...MOCK_SUBMIT_STATUS }
 }
 
-export function countSubmitProgress(status: AllTeacherSubmitStatus) {
-  const teachers = MOCK_TEACHERS
+export function countSubmitProgress(
+  status: AllTeacherSubmitStatus,
+  teachers: MockTeacher[] = MOCK_TEACHERS
+) {
   let submitted = 0
   let draft = 0
   let missing = 0
@@ -329,21 +388,179 @@ export const MOCK_PRICE_GRADES = [
   "中六",
 ] as const
 
-export function teacherName(id: string | undefined): string {
-  if (!id) return "—"
-  return MOCK_TEACHERS.find((t) => t.id === id)?.name ?? "—"
+export function studentDivision(grade: string): HwDivision {
+  return grade.startsWith("小") ? "primary" : "secondary"
 }
+
+export function teacherName(
+  id: string | undefined,
+  teachers: readonly MockTeacher[] = MOCK_SUBJECT_TEACHERS
+): string {
+  if (!id) return "—"
+  return teachers.find((t) => t.id === id)?.name ?? "—"
+}
+
+export function dutyTeacherLabel(
+  id: string | undefined,
+  published: boolean,
+  teachers: readonly MockTeacher[] = MOCK_SUBJECT_TEACHERS
+): string {
+  if (id) return teacherName(id, teachers)
+  return published ? "暫時空缺" : "—"
+}
+
+/** secondary_* → 預設 17D；primary_* → 預設 17E */
+export function roomALabel(day?: Pick<MockDutyDay, "secondaryRoom"> | null): string {
+  return day?.secondaryRoom?.trim() || MOCK_DEFAULT_SECONDARY_ROOM
+}
+
+export function roomBLabel(day?: Pick<MockDutyDay, "primaryRoom"> | null): string {
+  return day?.primaryRoom?.trim() || MOCK_DEFAULT_PRIMARY_ROOM
+}
+
+export function todayDateKey(now: Date = new Date()): string {
+  return `${now.getMonth() + 1}/${now.getDate()}`
+}
+
+/** 該月可報更平日（M/D），供可上班時段表頭 */
+export function availDatesForMonth(
+  yearMonth: string,
+  holidays: { date: string; label: string }[] = []
+): string[] {
+  return listRosterMonthDays(yearMonth, holidays)
+    .filter((d) => d.selectable)
+    .map((d) => d.key)
+}
+
+/** 從完整假日列表濾出該月（假日 date 為 M/D） */
+export function holidaysInYearMonth(
+  yearMonth: string,
+  holidays: { date: string; label: string }[]
+): { date: string; label: string }[] {
+  const monthNum = Number(yearMonth.split("-")[1])
+  if (!monthNum) return []
+  return holidays.filter((h) => dateKeyMonth(h.date) === monthNum)
+}
+
+export function currentYearMonth(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+}
+
+export function formatYearMonthLabel(yearMonth: string): string {
+  const [ys, ms] = yearMonth.split("-")
+  const year = Number(ys)
+  const month = Number(ms)
+  if (!year || !month) return yearMonth
+  return `${year}年${month}月`
+}
+
+export function shiftYearMonth(yearMonth: string, delta: number): string {
+  const [ys, ms] = yearMonth.split("-")
+  const date = new Date(Number(ys), Number(ms) - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
+export function holidaysForMonth(yearMonth: string): MockHoliday[] {
+  if (yearMonth === "2026-09") return MOCK_HOLIDAYS
+  return []
+}
+
+export function teachersAvailableOnDay(
+  avail: AllTeacherAvailability,
+  dateKey: string,
+  teachers: readonly MockTeacher[] = MOCK_SUBJECT_TEACHERS
+): MockTeacher[] {
+  return teachers.filter((t) => isAvailActive(getAvailEntry(avail, t.id, dateKey)))
+}
+
+export function substituteTeachers(
+  avail: AllTeacherAvailability,
+  dateKey: string,
+  assignedIds: Array<string | undefined>,
+  teachers: readonly MockTeacher[] = MOCK_SUBJECT_TEACHERS
+): MockTeacher[] {
+  const assigned = new Set(assignedIds.filter(Boolean))
+  return teachersAvailableOnDay(avail, dateKey, teachers).filter((t) => !assigned.has(t.id))
+}
+
+export function emptyDutyFromRosterDay(day: RosterDay): MockDutyDay {
+  return {
+    date: day.key,
+    weekday: day.weekdayChar,
+    holiday: day.holidayLabel,
+    start: MOCK_SESSION_START,
+    end: MOCK_SESSION_END,
+    secondaryRoom: MOCK_DEFAULT_SECONDARY_ROOM,
+    primaryRoom: MOCK_DEFAULT_PRIMARY_ROOM,
+    secondaryTeacherId: undefined,
+    primaryTeacherId: undefined,
+  }
+}
+
+function dateKeyMonth(dateKey: string): number {
+  return Number(dateKey.split("/")[0])
+}
+
+/** 該月全部平日／放假日；已有編更紀錄則合併 */
+export function buildMonthDutyDays(
+  yearMonth: string,
+  existing: MockDutyDay[] = [],
+  holidays: { date: string; label: string }[] = holidaysForMonth(yearMonth)
+): MockDutyDay[] {
+  const cal = listRosterMonthDays(yearMonth, holidays)
+  const monthNum = Number(yearMonth.split("-")[1])
+  const byKey = new Map(
+    existing.filter((d) => dateKeyMonth(d.date) === monthNum).map((d) => [d.date, d])
+  )
+  return cal
+    .filter((d) => d.selectable || Boolean(d.holidayLabel))
+    .map((d) => {
+      const found = byKey.get(d.key)
+      if (!found) return emptyDutyFromRosterDay(d)
+      return { ...found, holiday: d.holidayLabel ?? found.holiday }
+    })
+}
+
+export const MOCK_MONTH_ROSTER_STATUS: Record<string, MonthRosterState> = {
+  "2026-09": "已編更",
+}
+
+export const CALENDAR_WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
 export function formatSession(day: Pick<MockDutyDay, "start" | "end">): string {
   return `${day.start}–${day.end}`
 }
 
-export function dutyLabel(day: MockDutyDay): string {
+export function dutyLabel(
+  day: MockDutyDay,
+  teachers: readonly MockTeacher[] = MOCK_SUBJECT_TEACHERS
+): string {
   if (day.holiday) return "—"
-  return `中 ${teacherName(day.secondaryTeacherId)}（${day.secondaryRoom ?? "—"}）／小 ${teacherName(day.primaryTeacherId)}（${day.primaryRoom ?? "—"}）`
+  const a = roomALabel(day)
+  const b = roomBLabel(day)
+  return `${a} ${teacherName(day.secondaryTeacherId, teachers)}／${b} ${teacherName(day.primaryTeacherId, teachers)}`
 }
 
-export function summarizeOverview(students: MockStudent[], fees: MockFeeRow[]) {
+function asWeekday(value: string): Weekday | null {
+  return WEEKDAY_OPTIONS.includes(value as Weekday) ? (value as Weekday) : null
+}
+
+/** 在籍且慣常到校星期包含該日 */
+export function studentsComingOnWeekday(students: MockStudent[], weekday: Weekday | null) {
+  if (!weekday) return []
+  return students.filter((s) => s.status === "在籍" && s.weekdays.includes(weekday))
+}
+
+export function formatDutyDateHeading(day: MockDutyDay): string {
+  return `${day.date}（${day.weekday}）`
+}
+
+export function summarizeOverview(
+  students: MockStudent[],
+  fees: MockFeeRow[],
+  dutyDaysList: MockDutyDay[] = MOCK_DUTY_DAYS,
+  now: Date = new Date()
+) {
   const active = students.filter((s) => s.status === "在籍")
   const feeByStudent = new Map(fees.map((f) => [f.studentId, f]))
   let paid = 0
@@ -353,17 +570,23 @@ export function summarizeOverview(students: MockStudent[], fees: MockFeeRow[]) {
     if (fee?.status === "已收款") paid += 1
     else unpaid += 1
   }
-  const dutyDays = MOCK_DUTY_DAYS.filter((d) => !d.holiday).length
-  const primaryActive = active.filter((s) => s.grade.startsWith("小")).length
-  const secondaryActive = active.length - primaryActive
+  const openDutyCount = dutyDaysList.filter((d) => !d.holiday).length
+  const todayKey = todayDateKey(now)
+  const todayDuty = dutyDaysList.find((d) => d.date === todayKey) ?? null
+  const todayWeekday = todayDuty
+    ? asWeekday(todayDuty.weekday)
+    : asWeekday(WEEKDAY_CHARS[now.getDay()] ?? "")
+  const coming = studentsComingOnWeekday(students, todayWeekday)
   return {
     activeCount: active.length,
-    primaryActive,
-    secondaryActive,
     paid,
     unpaid,
-    dutyDays,
-    todayDuty: MOCK_DUTY_DAYS[2]!,
+    dutyDays: openDutyCount,
+    todayDuty,
+    todayWeekday,
+    todayCount: coming.length,
+    todayPrimary: coming.filter((s) => studentDivision(s.grade) === "primary").length,
+    todaySecondary: coming.filter((s) => studentDivision(s.grade) === "secondary").length,
   }
 }
 
@@ -387,10 +610,10 @@ export function myDutyDays(teacherId: string, days: MockDutyDay[] = MOCK_DUTY_DA
 export function myDutyDivisionLabel(day: MockDutyDay, teacherId: string): string {
   const parts: string[] = []
   if (day.secondaryTeacherId === teacherId) {
-    parts.push(`中學部 · 課室 ${day.secondaryRoom ?? "—"}`)
+    parts.push(`課室 ${roomALabel(day)}`)
   }
   if (day.primaryTeacherId === teacherId) {
-    parts.push(`小學部 · 課室 ${day.primaryRoom ?? "—"}`)
+    parts.push(`課室 ${roomBLabel(day)}`)
   }
   return parts.join("；") || "—"
 }

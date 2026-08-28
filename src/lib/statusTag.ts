@@ -15,9 +15,10 @@ const COMMON_CANCELLED_RULES: StatusTagRule[] = [
 ]
 
 const STUDENT_CLASSIFICATION_RULES: StatusTagRule[] = [
- { tone: "default", keywords: ["非活躍生", "非註冊", "非注冊", "非在讀", "中學階段"] },
- { tone: "success", keywords: ["活躍生", "註冊", "注冊", "已註冊"] },
+ { tone: "default", keywords: ["非活躍生", "非註冊", "非注冊", "非在讀", "中學階段", "結束"] },
+ { tone: "success", keywords: ["活躍生", "註冊", "注冊", "已註冊", "在籍"] },
  { tone: "info", keywords: ["已畢業"] },
+ { tone: "warning", keywords: ["暫停"] },
 ]
 
 const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
@@ -50,7 +51,7 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
 const PAYMENT_RULES: StatusTagRule[] = [
  // 繳費：成功入帳態
  { tone: "success", keywords: ["已收款", "已批核", "已收", "已繳費"] },
- { tone: "warning", keywords: ["未繳費", "待繳費", "待收款"] },
+ { tone: "warning", keywords: ["未繳費", "待繳費", "待收款", "未收款"] },
 ]
 
 const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
@@ -95,6 +96,13 @@ const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
  { tone: "success", keywords: ["teacher", "老師", "專班"] },
 ]
 
+const HOMEWORK_TUTORING_RULES: StatusTagRule[] = [
+ { tone: "success", keywords: ["已提交", "已編更", "已發布", "側欄有功課輔導", "純功輔側欄"] },
+ { tone: "warning", keywords: ["草稿", "未編更"] },
+ { tone: "info", keywords: ["已鎖定"] },
+ { tone: "default", keywords: ["未交", "無入口", "功輔放假"] },
+]
+
 const OPS_DASHBOARD_STATUS_RULES: StatusTagRule[] = [
  // 營運總覽 KPI／警示：綠=正常、橙=注意、紅=警示（置頂優先）
  { tone: "error", keywords: ["警示"] },
@@ -117,6 +125,7 @@ export const STATUS_TAG_RULES: StatusTagRule[] = [
  ...HR_AND_ATTENDANCE_RULES,
  ...SCHEDULE_AND_TASK_RULES,
  ...PAYMENT_RULES,
+ ...HOMEWORK_TUTORING_RULES,
  ...TRIAL_AND_ENROLLMENT_RULES,
  ...ISSUE_AND_ROLE_RULES,
 ]

@@ -93,7 +93,7 @@
 | Leave | — | **已適配**（FilterSheet＋卡片） |
 | PrivateTutoring | — | **已適配**（FilterSheet＋卡片；預約首屏） |
 | Schedule | 低 | 手機週曆日視圖已開放 |
-| MgmtDashboard | 高 | **仍欠**手機簡化 |
+| MgmtDashboard | — | **已適配**（重整波次 3：首屏 8 卡；其餘 KPI 手機摺埋） |
 | Payments | 中 | 可堆疊；長流程偏重 |
 | Attendance／FrontDesk | 中 | 大致可用 |
 | 學生／班別／繳費紀錄／首頁 | 低 | 已適配 |
@@ -148,11 +148,11 @@ MgmtDashboard、AlienGodViewHome、SystemIssues／SystemLogs、MonthlyTuition、
 1. ~~殼層擋操作~~ **已落**
 2. ~~Inbox／時間表／一對一等高頻~~ **已落**（外星人專屬可後做）
 3. ~~老師 P1–P2~~ **已落** → 餘 P3 捷徑／文案
-4. ~~Leave／PrivateTutoring~~ **已落** → 餘 Schedule FilterSheet、**MgmtDashboard**
+4. ~~Leave／PrivateTutoring~~ **已落** → 餘 Schedule FilterSheet
 5. 共用：觸控 `h-10`、FilterSheet 擴覆蓋
 6. 次要 CRUD／報表
 
-**接手：** 下一優先 **MgmtDashboard** 或外星人頁。逾期罰款已 `done`（見 [tuition-late-fee-enforcement.md](./tuition-late-fee-enforcement.md)）。邊緣個案複雜操作仍寫「回桌面」。
+**接手：** 下一優先外星人頁。`/MgmtDashboard` 手機已交重整波次 3。逾期罰款已 `done`（見 [tuition-late-fee-enforcement.md](./tuition-late-fee-enforcement.md)）。邊緣個案複雜操作仍寫「回桌面」。
 
 ---
 

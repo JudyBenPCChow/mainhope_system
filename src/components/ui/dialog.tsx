@@ -3,6 +3,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 
 import { isMgmtDatePanelTarget } from "@/components/ui/date-input"
+import { isMgmtSearchableSelectPanelTarget } from "@/components/ui/searchable-select"
 import { cn } from "@/lib/utils"
 
 const Dialog = DialogPrimitive.Root
@@ -56,19 +57,23 @@ const DialogContent = React.forwardRef<
     )}
     {...props}
     onPointerDownOutside={(event) => {
-     if (isMgmtDatePanelTarget(event.detail.originalEvent.target)) {
+     const target = event.detail.originalEvent.target
+     if (isMgmtDatePanelTarget(target) || isMgmtSearchableSelectPanelTarget(target)) {
       event.preventDefault()
      }
      onPointerDownOutside?.(event)
     }}
     onInteractOutside={(event) => {
-     if (isMgmtDatePanelTarget(event.detail.originalEvent.target)) {
+     if (
+      isMgmtDatePanelTarget(event.detail.originalEvent.target) ||
+      isMgmtSearchableSelectPanelTarget(event.detail.originalEvent.target)
+     ) {
       event.preventDefault()
      }
      onInteractOutside?.(event)
     }}
     onFocusOutside={(event) => {
-     if (isMgmtDatePanelTarget(event.detail.originalEvent.target)) {
+     if (isMgmtDatePanelTarget(event.target) || isMgmtSearchableSelectPanelTarget(event.target)) {
       event.preventDefault()
      }
      onFocusOutside?.(event)

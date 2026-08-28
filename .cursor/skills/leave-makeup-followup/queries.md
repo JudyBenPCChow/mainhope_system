@@ -187,3 +187,11 @@ order by arranged, c.class_code, c.scheduled_date, student_name;
 剔除 `makeup_attended` 或 `had_personal_leave`。其餘：`arranged = false` → `t_none`；`true` → `t_pending`。按班＋請假日＋原因＋補堂日合併學生名單；連堂 `lessons`＝該組合列數。
 
 無 `academic_year_periods` 時：非單堂報讀當全日可見（`period_code` 當 1）。
+
+## 3. 已繳未完成（無請假）
+
+按學生＋班：已收款 `payment_details.lesson_count` 加總為已繳；扣堂白名單為已扣；未完成學生請假列數、未完成老師取消堂列數、`as_of` 當日及之後未取消應到堂為未來應到。
+
+`unexplained = 已繳 − 已扣 − 未完成學生請假 − 未完成老師取消堂 − 未來應到`，只保留 `> 0`。
+
+未點名過去堂（無扣堂／事假／病假／請假單、非取消）寫入 `leaveDate`／備註。`bucket = paid_gap`；`lessons = unexplained`。12 堂只係常見套餐，其他已繳數字同樣列入。

@@ -55,6 +55,7 @@ import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
+import HomeworkTutoring from "@/pages/HomeworkTutoring"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
@@ -124,6 +125,14 @@ export default function App() {
      <Route
       path="/PrivateTutoring"
       element={withCapabilities(["classes.read"], <PrivateTutoring />)}
+     />
+     <Route
+      path="/HomeworkTutoring"
+      element={withCapabilities(["classes.read", "schedule.read"], <HomeworkTutoring />)}
+     />
+     <Route
+      path="/HomeworkTutoring/:page"
+      element={withCapabilities(["classes.read", "schedule.read"], <HomeworkTutoring />)}
      />
      <Route path="/Teachers" element={withCapabilities(["classes.update"], <Teachers />)} />
      <Route

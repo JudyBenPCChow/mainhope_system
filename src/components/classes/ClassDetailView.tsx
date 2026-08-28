@@ -134,13 +134,10 @@ import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
  SUMMER_ENROLLMENT_FORM_OPTIONS,
- type EnrollmentFormValue,
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import { localYmd } from "@/services/scheduleQueries"
-import { countBoundSchedulesForEnrollment } from "@/services/pendingLessonQueries"
-
 
 /** 日期／文字欄清空時勿送 "" 給 Postgres（date 欄位會報錯） */
 function nullIfBlankYmd(v: string | null | undefined): string | null {
@@ -295,8 +292,6 @@ export function ClassDetailView() {
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
  const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
- const [addStudentEntitledCount, setAddStudentEntitledCount] = useState("")
- const [addStudentBoundPreview, setAddStudentBoundPreview] = useState<number | null>(null)
  const [studentQuery, setStudentQuery] = useState("")
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
@@ -384,10 +379,10 @@ export function ClassDetailView() {
     fetchClassStudents(cid),
     fetchEnrollmentChangeEventsForClass(cid),
     fetchClassSchedules(cid),
-    fetchTeacherOptions(),
+    fetchTeacherOptions({ excludeHomeworkTutorOnly: true }),
     fetchClassroomOptions(),
     teacherScopeId ? Promise.resolve([] as StudentRecord[]) : fetchAllStudents(),
-    fetchSubjectOptions(),
+    fetchSubjectOptions({ specialtyOnly: true }),
    ])
    setCls(c)
    if (c) {
@@ -1002,44 +997,6 @@ export function ClassDetailView() {
    lessonSlotsPerSession: c.lesson_slots_per_session,
   })
 
- useEffect(() => {
-  if (!addStudentOpen || !cid || isPrivateClass) {
-   setAddStudentBoundPreview(null)
-   return
-  }
-  let cancelled = false
-  const isSingle = addStudentForm === SINGLE_SESSION_ENROLLMENT
-  let period: EnrollmentFormValue | null = null
-  if (isSingle) period = SINGLE_SESSION_ENROLLMENT
-  else if (
-   cls?.course_mode === "summer_two_period" &&
-   ENROLLMENT_PERIOD_OPTIONS.includes(addStudentForm as EnrollmentPeriod)
-  ) {
-   period = addStudentForm as EnrollmentPeriod
-  }
-  void countBoundSchedulesForEnrollment({
-   classId: cid,
-   enrollmentPeriod: period,
-   scheduleIds: isSingle ? addStudentScheduleIds : undefined,
-  })
-   .then((n) => {
-    if (!cancelled) setAddStudentBoundPreview(n)
-   })
-   .catch(() => {
-    if (!cancelled) setAddStudentBoundPreview(isSingle ? addStudentScheduleIds.length : null)
-   })
-  return () => {
-   cancelled = true
-  }
- }, [
-  addStudentOpen,
-  cid,
-  isPrivateClass,
-  addStudentForm,
-  addStudentScheduleIds,
-  cls?.course_mode,
- ])
-
  if (!cid) {
   return (
    <DetailLayerShell variant="student" onDismiss={() => navigate("/Classes")} layerLabel={null}>
@@ -1117,56 +1074,27 @@ export function ClassDetailView() {
    else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(addStudentForm as EnrollmentPeriod)) {
     period = addStudentForm as EnrollmentPeriod
    }
-   const entitledRaw = addStudentEntitledCount.trim()
-   const entitled = entitledRaw === "" ? null : Math.floor(Number(entitledRaw))
-   if (entitledRaw !== "" && (!Number.isFinite(entitled) || (entitled ?? 0) < 1)) {
-    setAddStudentErr("應享堂數請輸入正整數，或留空")
-    return
-   }
-   let bound = addStudentBoundPreview
-   if (bound == null && !isPrivateClass) {
-    bound = await countBoundSchedulesForEnrollment({
-     classId: cid,
-     enrollmentPeriod: period,
-     scheduleIds: isSingle ? addStudentScheduleIds : undefined,
-    })
-   }
-   const owed =
-    !isPrivateClass && entitled != null && bound != null && entitled > bound
-     ? entitled - bound
-     : 0
-   if (owed > 0) {
-    const ok = await confirmDialog({
-     title: "將記錄待補堂",
-     description: `應享 ${entitled} 堂，目前只會綁定 ${bound} 堂，將同時記錄待補 ${owed} 堂。`,
-     confirmText: "確認加入並記待補",
-    })
-    if (!ok) return
-   }
    await insertEnrollment(
     studentId,
     cid,
     period,
     isSingle ? addStudentScheduleIds : undefined,
-    owed > 0
-     ? { owedCount: owed, reason: "遲報缺堂", remarks: `應享 ${entitled}／綁定 ${bound}` }
-     : null
+    null
    )
    const addedName =
     allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
    pushBanner({
     tone: "success",
     title: `已加入報讀：${addedName}`,
-    message: owed > 0 ? `已記錄待補 ${owed} 堂。可前往收款／出單。` : "可前往收款／出單。",
+    message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
     action: {
      pageLabel: "收款／出單",
      to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
     },
    })
    setStudentQuery("")
-   setAddStudentForm(isSummer ? "兩期全報" : "full")
+   setAddStudentForm(isSummer ? "第一期" : "full")
    setAddStudentScheduleIds([])
-   setAddStudentEntitledCount("")
    setAddStudentOpen(false)
    await reload()
   } catch (e) {
@@ -1787,10 +1715,9 @@ export function ClassDetailView() {
          setAddStudentOpen(open)
          if (open) {
           setAddStudentForm(
-           cls?.course_mode === "summer_two_period" ? "兩期全報" : "full"
+           cls?.course_mode === "summer_two_period" ? "第一期" : "full"
           )
           setAddStudentScheduleIds([])
-          setAddStudentEntitledCount("")
           setAddStudentErr(null)
          }
         }}
@@ -1843,41 +1770,9 @@ export function ClassDetailView() {
            </p>
           )}
           {!isPrivateClass ? (
-           <div className="space-y-1 rounded-md border border-border bg-muted/30 px-3 py-2">
-            <label className="text-sm text-muted-foreground">應享／繳費堂數（選填）</label>
-            <Input
-             type="number"
-             min={1}
-             inputMode="numeric"
-             placeholder="例如 12"
-             value={addStudentEntitledCount}
-             onChange={(e) => setAddStudentEntitledCount(e.target.value)}
-             className="h-9"
-            />
-            <p className="text-xs text-muted-foreground">
-             將綁定{" "}
-             <strong className="tabular-nums text-foreground">
-              {addStudentBoundPreview == null ? "…" : addStudentBoundPreview}
-             </strong>{" "}
-             堂
-             {(() => {
-              const entitled = Math.floor(Number(addStudentEntitledCount))
-              if (
-               !addStudentEntitledCount.trim() ||
-               !Number.isFinite(entitled) ||
-               addStudentBoundPreview == null ||
-               entitled <= addStudentBoundPreview
-              ) {
-               return null
-              }
-              return (
-               <span className="ml-1 text-amber-800">
-                · 將記待補 {entitled - addStudentBoundPreview} 堂
-               </span>
-              )
-             })()}
-            </p>
-           </div>
+           <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+           </p>
           ) : null}
           {addStudentForm === SINGLE_SESSION_ENROLLMENT && cid && !isPrivateClass ? (
            <EnrollmentSessionPicker

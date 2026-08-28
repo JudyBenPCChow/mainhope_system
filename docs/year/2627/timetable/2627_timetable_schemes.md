@@ -2,11 +2,96 @@
 
 > **排課規則（權威）：** [`../../../policies/scheduling/SCHEDULING_RULES.md`](../../../policies/scheduling/SCHEDULING_RULES.md)
 
-**產出習慣（2026-08-19 起）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`（docx 用 Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。3.x 自動加版（3.1、3.2…），舊檔保留。
+**產出習慣（2026-08-19 起）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`（docx 用 Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。4.x 自動加版（4.1、4.2…），舊檔保留。
 
 **Folder 結構：** `versions/v<版本>/` 保存各版方案與老師附件；`archive/` 保存早期版本及試排；`assets/fonts/` 保存字型。根目錄只留本索引與排課需求。
 
-## 現行候選 — ver. 3.6（2026-08-21）
+## 已定稿 — ver. 4.0（2026-08-24 營運簽收）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v4.0/2627_timetable_scheme_v4.0.md)／[`docx`](versions/v4.0/2627_timetable_scheme_v4.0.docx)／[`pdf`](versions/v4.0/2627_timetable_scheme_v4.0.pdf) |
+| 老師一周排程（獨立附件） | [`md`](versions/v4.0/2627_timetable_teachers_week_v4.0.md)／[`docx`](versions/v4.0/2627_timetable_teachers_week_v4.0.docx)／[`pdf`](versions/v4.0/2627_timetable_teachers_week_v4.0.pdf) |
+| 周時間表（獨立附件） | [`md`](versions/v4.0/2627_timetable_weekly_v4.0.md)／[`docx`](versions/v4.0/2627_timetable_weekly_v4.0.docx)／[`pdf`](versions/v4.0/2627_timetable_weekly_v4.0.pdf) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v4.0/2627_timetable_empty_rooms_v4.0.md)／[`docx`](versions/v4.0/2627_timetable_empty_rooms_v4.0.docx) |
+| 班號對照 | [`csv`](versions/v4.0/2627_timetable_class_codes_v4.0.csv) |
+| Word／PDF | 已出檔（空房僅 docx） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **66** 班（全具名老師）。方案檔或仍標 Cyndi 一對一預留 1 格；**本輪不入庫**，之後人手 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.10 | Katie 取消一至四 19:00 四堂（本版 13 班）；中一／中二／中三中文班號由 A 起重編 |
+
+**文件結構：** 方案＝封面列與 3.10 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.10（2026-08-23；檔案保留不動）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.10/2627_timetable_scheme_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_scheme_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_scheme_v3.10.pdf) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.10/2627_timetable_teachers_week_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_teachers_week_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_teachers_week_v3.10.pdf) |
+| 周時間表（獨立附件） | [`md`](versions/v3.10/2627_timetable_weekly_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_weekly_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_weekly_v3.10.pdf) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.10/2627_timetable_empty_rooms_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_empty_rooms_v3.10.docx) |
+| 班號對照 | [`csv`](versions/v3.10/2627_timetable_class_codes_v3.10.csv) |
+| Word／PDF | 已出檔（空房僅 docx） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **70** 班（全具名老師）。方案檔或仍標 Cyndi 一對一預留 1 格；**本輪不入庫**，之後人手 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.9 | Christine 星期六改 12:45 中四、14:00 中五、16:30 中六；不避撞科；中四／中五／中六中文各 2 班 |
+
+**文件結構：** 方案＝封面列與 3.9 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.9（2026-08-23；檔案保留不動）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.9/2627_timetable_scheme_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_scheme_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_scheme_v3.9.pdf) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.9/2627_timetable_teachers_week_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_teachers_week_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_teachers_week_v3.9.pdf) |
+| 周時間表（獨立附件） | [`md`](versions/v3.9/2627_timetable_weekly_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_weekly_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_weekly_v3.9.pdf) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.9/2627_timetable_empty_rooms_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_empty_rooms_v3.9.docx) |
+| 班號對照 | [`csv`](versions/v3.9/2627_timetable_class_codes_v3.9.csv) |
+| Word／PDF | 已出檔（空房僅 docx） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **70** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.8 | Christine 取消星期五，只六／日；星期六 12:45／14:00／16:30 三堂；Jackson 12:45 改英仙；Mark 中四數學改 17:45 |
+
+**文件結構：** 方案＝封面列與 3.8 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.8（2026-08-23；檔案保留不動）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.8/2627_timetable_scheme_v3.8.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.8/2627_timetable_teachers_week_v3.8.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.8/2627_timetable_weekly_v3.8.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.8/2627_timetable_empty_rooms_v3.8.md) |
+| 班號對照 | [`csv`](versions/v3.8/2627_timetable_class_codes_v3.8.csv) |
+| Word／PDF | 未出檔（先 md 審閱） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **70** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.7 | 星期五 16:30 中四中文改中五中文；中四中文只餘星期日一班 |
+
+**文件結構：** 方案＝封面列與 3.7 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.7（2026-08-22；檔案保留不動）
+
+| 項目 | 值 |
+| --- | --- |
+| 方案 | [`md`](versions/v3.7/2627_timetable_scheme_v3.7.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.7/2627_timetable_teachers_week_v3.7.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.7/2627_timetable_weekly_v3.7.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.7/2627_timetable_empty_rooms_v3.7.md) |
+| 班號對照 | [`csv`](versions/v3.7/2627_timetable_class_codes_v3.7.csv) |
+| Word／PDF | 未出檔（先 md 審閱） |
+| 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
+| 已排 | **70** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
+| 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
+| 相對 3.6 | Christine Fan 改六班（五／六／日）；取消星期一；中文科班號重編；星期五 16:30 中四為平日高中時段例外 |
+
+**文件結構：** 方案＝封面列與 3.6 之分別 → 1 排程原則 → 2 各級開科情況（順接＋班數）→ 5 各科各級班別列表 → 6 未排與待排（按老師／按科目）→ 7 所有班別清單 → 附表（本輪回覆與出勤）。周時間表另冊（橫向、一日一頁；標題下直接接表；格內含時段）。
+
+## ver. 3.6（2026-08-21；檔案保留不動）
 
 | 項目 | 值 |
 | --- | --- |

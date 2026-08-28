@@ -3,7 +3,7 @@
 
 | 欄位  | 值                                                                                                                                                                         |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 狀態  | `in_progress`（**可跑 E2E**：71 專科班已齊；待前台依 runbook 抽樣關帳） |
+| 狀態  | `in_progress`（`2627` **66** 小組班 live；**2026-08-23 live E2E 抽樣已過**；P6 手動加名／`26SM` 日落未做） |
 | 優先  | 高                                                                                                                                                                         |
 | 範圍  | 暑期／正規之點名紙、補堂、取消改期；權益池與到課宣告；學費收款→池滾堂                                                                                                                                       |
 | 不含  | 原班連堂分節點名；生命週期孤兒；欠費門禁；計糧；會計收入認列                                                                                                                                            |
@@ -11,7 +11,7 @@
 | 路線圖 | `[2026-08-08-enrollment-entitlement-roadmap.md](../plans/2026-08-08-enrollment-entitlement-roadmap.md)`                                                                   |
 | 政策  | `[ACADEMIC_YEARS.md](../policies/academic/ACADEMIC_YEARS.md)`；`[ATTENDANCE_BILLING.md](../policies/attendance/ATTENDANCE_BILLING.md)`；`[LEAVE_MAKEUP_CONSECUTIVE.md](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md)` §5 |
 | 生效閘 | `2627` **開始接受報讀前**，新報讀須鑄池；有排程／點名時讀宣告。`26SM` 維持舊路徑至日落                                                                                                                      |
-| 修訂  | 2026-08-21：`2627` 已入英／生／物 16 班＋排程（校舍假已扣）；E2E 可抽樣，中文／數學未入。2026-08-16：結構已上；原暫停等 `2627` 班 live。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
+| 修訂  | 2026-08-24：已清 live E2E 測試生甲 `20261976`、乙 `20261977`（報讀／收據／池／宣告／請假；甲加堂一併刪）。2026-08-23：時間表 ver. 4.0，live `2627` **66** 小組班。2026-08-23：live E2E 抽樣過（測試生 `20261976`／`20261977`）；順手修 `current_app_user_id` 空電郵誤認 Jackson。2026-08-23：`2627` 70 小組班已入（中文／數學／其餘英文一併）。2026-08-21：`2627` 已入英／生／物／科／化 22 班＋排程（校舍假已扣）；E2E 可抽樣，中文／數學未入。2026-08-16：結構已上；原暫停等 `2627` 班 live。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
 | 技術債歸屬 | 2026-08-14 全盤檢視 P1-1（權益雙路徑／`2627` live E2E 未驗）沿用本題，不另開重複工程 |
 
 
@@ -19,12 +19,12 @@
 
 ## 開工閘（agent 必讀）
 
-續做 **live `2627` E2E／驗收（P1-1）** 前，check 對上一個工程是否完成。**全科關帳未完成：停；提醒用戶必須完成後先可以當關帳開工。唔好套 production 當全科已驗。**
+續做 **本題關帳** 前，check 對上一個工程是否完成。入班已齊；**live E2E 抽樣已過（2026-08-23）**；未做 P6／日落 → **唔好把本題標 `done`。**
 
 | 本波 | 對上一個工程 | 完成條件 |
 | --- | --- | --- |
-| 抽樣 E2E（英／生／物） | [`2627-september-timetable.md`](./2627-september-timetable.md) | **已滿足**：prod 16 班 live。可抽樣。**仍要提醒用戶**：中文／數學未入，唔好當全科驗收完成 |
-| 全科 E2E／本題關帳 | 同上 | 中文／數學已入，或產品書面確認「抽樣即可關帳」。**未完成：停** |
+| 抽樣 E2E（英／生／物／科／化） | [`2627-september-timetable.md`](./2627-september-timetable.md) | **已滿足**：prod **66** 班 live；2026-08-23 已抽樣。 |
+| 全科 E2E／本題關帳 | 同上 | 中文／數學**已入**。E2E 抽樣已過；關帳仍待 P6 手動加名／`26SM` 日落或產品確認 |
 
 主波支付→池已落地；本題其餘結構工作唔受此閘擋。
 
@@ -51,8 +51,8 @@
 
 | #   | 問題                           | 狀態                  |
 | --- | ---------------------------- | ------------------- |
-| P1  | 跨期／改期後點名缺人                   | 模型已定；`2627` live 未驗 |
-| P2  | 統一權益池＋命名空間                   | Schema 已上；支付抬池未接    |
+| P1  | 跨期／改期後點名缺人                   | 模型已定；`2627` live E2E 抽樣已過 |
+| P2  | 統一權益池＋命名空間                   | Schema 已上；支付抬池已接    |
 | P3  | 到課宣告＝行政名單（欠費可上紙）             | `2627` 已接           |
 | P4  | 點名消耗／返還（可負池）                 | 薄做已上；§4.5           |
 | P5  | 入口勿日期推期數                     | 主要入口已收斂             |
@@ -105,7 +105,7 @@
 | 階段                               | 狀態     |
 | -------------------------------- | ------ |
 | 基盤＋宣告生命週期＋入口收斂                   | ✅      |
-| live `2627` E2E                  | 阻（0 班） |
+| live `2627` E2E                  | ✅ 2026-08-23 抽樣（甲 `20261976` 中四全科共用池；乙 `20261977` 中三科學＋中文；收據 `MX-RC-20260823-0002`／`0004`）。**2026-08-24 測試生已刪，production 無殘留** |
 | **主波 2026-08-09**：空池＋支付 top_up／作廢 clawback；停排程抬池；繳費建議；停轉結餘／月費收款；G1 不補回→不扣堂預填 | ✅ migration `20260809231500` 已套遠端 |
 | 單據／權益更正頁（G2a／G2b 池調動 UI、作廢第二人） | ✅ 見 [`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md) |
 | 試堂旗標／$0 單細節（G3） | 產品已拍板（WIP T1–T4）；工程／手冊見 [`frontline-ops-update.md`](./frontline-ops-update.md)；總覽 KPI [`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md) |
@@ -362,6 +362,7 @@ T1–T4 已關：堂數預設 1；計人頭手選無預設；$0 跟現行收據�
 
 ## 7. 相關
 
+- 非常規排程（偶發加堂、無原班混合補堂；**另題討論，唔喺本題夾做**）：[`nonstandard-scheduling.md`](./nonstandard-scheduling.md)
 - 池按人 vs 按班 v3（已拍板，2026-08-15）：[`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)
 - 池按人 vs 按班 v2（工程意見）：[`entitlement-pool-per-student-v2.md`](./entitlement-pool-per-student-v2.md)
 - 池按人 vs 按班（顧問簡報，2026-08-15 擬定、未落地）：[`entitlement-pool-per-student-briefing.md`](./entitlement-pool-per-student-briefing.md)

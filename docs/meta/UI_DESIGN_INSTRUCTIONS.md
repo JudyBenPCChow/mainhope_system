@@ -223,3 +223,43 @@
 前台精靈步驟「收款／出單」只作導引（前往／略過），**唔再**內嵌出單表單（2026-08-01 收斂）。
 
 操作說明見 [`manual/PAYMENT_RECEIPTS.md`](./manual/PAYMENT_RECEIPTS.md)；架構備註見 [`AGENT_HANDOFF.md`](./AGENT_HANDOFF.md) §9。
+
+---
+
+## 16. 桌面資料列表：表頭篩選／排序／多選（2026-08-25 起）
+
+適用：管理後台**桌面**資料列表（例如學生管理、班別管理）。新做或大改此類列表時，必須對齊同一套互動，禁止另造表頭漏斗／勾選列 UI。
+
+### 16.1 要用共用殼
+
+路徑：`src/components/list/`
+
+| 元件／工具 | 用途 |
+| --- | --- |
+| `SortableColumnHeader` | 表頭欄名＋排序箭嘴 |
+| `HeaderFilterButton` | 表頭漏斗（preset 選項或文字包含＋唯一值） |
+| `BulkSelectionBar` | 「已選 N」工具列外框（全選／清除；批量動作用 children） |
+| `listFilterUtils` | `countActiveFilters`、`emptyFiltersForKeys`、`emptyLast`、`dirMul` 等 |
+
+參考實作：
+
+- 學生：`StudentsListTable` + `studentsListColumns` + `StudentsListPage` 批量列
+- 班別：`ClassesListTable` + `classesListColumns` + `ClassesListPage` 桌面 list
+
+### 16.2 各頁自備（唔放進共用殼）
+
+- 欄位 id／標籤、取值、篩選比對、排序、儲存格渲染
+- 批量實際動作（匯出 CSV、刪除、複製電話等）
+- 領域專屬欄（例如學生 WhatsApp、班別行內改狀態）
+
+### 16.3 與大範圍篩選分工（§14）
+
+- **大範圍**：chips／搜尋／學年 Select；手機進 `MobileFilterSheet`（同一 state）
+- **表頭篩選**：欄位微調；疊加在大範圍結果之上
+- 手機卡片／看板／圖庫：**唔強制**跟表頭篩選／多選；桌面 list 為準
+
+### 16.4 唔好
+
+- 為新列表重寫一套表頭漏斗／勾選／批量列外觀
+- 一開始就上 TanStack Table／萬能 DataTable 全家（除非既有殼明顯唔夠）
+- 為「統一」把領域欄位邏輯硬塞進共用殼，或拆掉 chips／FilterSheet

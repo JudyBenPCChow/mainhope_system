@@ -4,6 +4,32 @@ import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrol
 import { intervalsOverlapMinutes, parseHm } from "@/lib/lessonSlots"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 
+/** 宣傳目標：2627 常規學年。勿用今日日期推算（8 月會變成 26SM）。 */
+export const PROMOTION_TARGET_YEAR_LABEL = "2627"
+/** 活躍生／曾讀本科來源：26SM 暑期。 */
+export const PROMOTION_SOURCE_YEAR_LABEL = "26SM"
+/** 上一年常規學年（Notion 舊科目／系統殘留報讀篩選）。 */
+export const PROMOTION_PRIOR_YEAR_LABEL = "2526"
+
+export function promotionYearLabelMatches(
+  label: string | null | undefined,
+  expected: string
+): boolean {
+  return (label ?? "").trim().toUpperCase() === expected.toUpperCase()
+}
+
+export function isPromotionTargetYear(label: string | null | undefined): boolean {
+  return promotionYearLabelMatches(label, PROMOTION_TARGET_YEAR_LABEL)
+}
+
+export function isPromotionSourceYear(label: string | null | undefined): boolean {
+  return promotionYearLabelMatches(label, PROMOTION_SOURCE_YEAR_LABEL)
+}
+
+export function isPromotionPriorYear(label: string | null | undefined): boolean {
+  return promotionYearLabelMatches(label, PROMOTION_PRIOR_YEAR_LABEL)
+}
+
 /** 全期報讀：常規「報足全期」寫入 null；暑期為「兩期全報」。單堂／單期不算。 */
 export function isFullTermEnrollment(period: string | null | undefined): boolean {
   const p = normalizeEnrollmentPeriod(period)
@@ -85,8 +111,10 @@ export type PromotionStudentRow = {
   gradeLabel: string
   contactPhone: string | null
   registrationStatus: "已註冊" | "非注冊"
-  /** 2026 日曆年內至少一筆班別報讀（宣傳配對活躍生篩選；非學年制） */
-  activeIn2026: boolean
+  /** 26SM 就讀中專科報讀（宣傳配對活躍生／暑期有讀） */
+  activeIn26SM: boolean
+  /** 2526 有報讀：Notion 舊科目或系統 2526 班（就讀中／已退讀） */
+  enrolledIn2526: boolean
 }
 
 export type PromotionEnrollmentRow = {
@@ -101,6 +129,15 @@ export type PromotionEnrollmentRow = {
   dayOfWeek: string | null
   timeSlot: string | null
   lessonSlotsPerSession: number
+  academicYearLabel: string | null
+}
+
+export type PromotionClassSummary = {
+  classId: string
+  label: string
+  dayOfWeek: string | null
+  timeSlot: string | null
+  period: EnrollmentFormValue | null
 }
 
 export type PromotionHistoricalSubjectRow = {
@@ -112,13 +149,8 @@ export type EligibleCandidate = {
   student: PromotionStudentRow
   previouslyStudiedTargetSubject: boolean
   currentlyStudiesTargetSubject: boolean
-  currentClasses: Array<{
-    classId: string
-    label: string
-    dayOfWeek: string | null
-    timeSlot: string | null
-    period: EnrollmentFormValue | null
-  }>
+  summerClasses: PromotionClassSummary[]
+  regularClasses: PromotionClassSummary[]
 }
 
 export type ExcludedCandidate = {
@@ -139,6 +171,7 @@ export type EligibleClassForStudent = {
   cls: PromotionClassRow
   fullTermCount: number
   isHotFullTerm: boolean
+  previouslyStudiedTargetSubject: boolean
 }
 
 export type BlockedClassForStudent = {
@@ -151,7 +184,8 @@ export type BlockedClassForStudent = {
 
 export type StudentMatchBundle = {
   student: PromotionStudentRow
-  currentClasses: EligibleCandidate["currentClasses"]
+  summerClasses: PromotionClassSummary[]
+  regularClasses: PromotionClassSummary[]
   eligible: EligibleClassForStudent[]
   blocked: BlockedClassForStudent[]
 }
@@ -161,12 +195,18 @@ function formatConflictLabel(en: PromotionEnrollmentRow): string {
   return when ? `${en.classLabel}（${when}）` : en.classLabel
 }
 
-function currentClassesOf(
+function classesOfYear(
   studentId: string,
-  enrollments: PromotionEnrollmentRow[]
-): EligibleCandidate["currentClasses"] {
+  enrollments: PromotionEnrollmentRow[],
+  year: string
+): PromotionClassSummary[] {
   return enrollments
-    .filter((e) => e.studentId === studentId && e.status === "就讀中")
+    .filter(
+      (e) =>
+        e.studentId === studentId &&
+        e.status === "就讀中" &&
+        promotionYearLabelMatches(e.academicYearLabel, year)
+    )
     .map((e) => ({
       classId: e.classId,
       label: e.classLabel,
@@ -174,6 +214,25 @@ function currentClassesOf(
       timeSlot: e.timeSlot,
       period: e.period,
     }))
+}
+
+function targetYearEnrollmentsOf(
+  studentId: string,
+  enrollments: PromotionEnrollmentRow[]
+): PromotionEnrollmentRow[] {
+  return enrollments.filter(
+    (e) =>
+      e.studentId === studentId &&
+      e.status === "就讀中" &&
+      isPromotionTargetYear(e.academicYearLabel)
+  )
+}
+
+function rosterEnrollmentsForClass(
+  classId: string,
+  enrollments: PromotionEnrollmentRow[]
+): PromotionEnrollmentRow[] {
+  return enrollments.filter((e) => e.classId === classId && e.status === "就讀中")
 }
 
 function hasHistoricalSubject(
@@ -200,6 +259,7 @@ function hasCurrentSubject(
         (row) =>
           row.studentId === studentId &&
           row.status === "就讀中" &&
+          isPromotionTargetYear(row.academicYearLabel) &&
           row.subjectId === subjectId
       )
   )
@@ -222,7 +282,7 @@ export function evaluateStudentForClass(opts: {
     reasons.push("年級不合")
   }
 
-  const ens = enrollments.filter((e) => e.studentId === student.id && e.status === "就讀中")
+  const ens = targetYearEnrollmentsOf(student.id, enrollments)
   const already = ens.find((e) => e.classId === cls.id)
   if (already) {
     reasons.push("已報讀本班")
@@ -262,14 +322,12 @@ export function buildClassMatchBundles(opts: {
   historicalSubjects?: PromotionHistoricalSubjectRow[]
   minFullTerm?: number
 }): ClassMatchBundle[] {
-  const { classes, students, enrollments, historicalSubjects = [], minFullTerm = 1 } = opts
+  const { classes, students, enrollments, historicalSubjects = [], minFullTerm = 0 } = opts
   const studentById = new Map(students.map((s) => [s.id, s]))
   const bundles: ClassMatchBundle[] = []
 
   for (const cls of classes) {
-    const fullTermEns = enrollments.filter(
-      (e) => e.classId === cls.id && e.status === "就讀中" && isFullTermEnrollment(e.period)
-    )
+    const fullTermEns = rosterEnrollmentsForClass(cls.id, enrollments)
     if (fullTermEns.length < minFullTerm) continue
 
     const fullTermStudents = fullTermEns
@@ -294,7 +352,8 @@ export function buildClassMatchBundles(opts: {
             cls.subjectId,
             enrollments
           ),
-          currentClasses: currentClassesOf(student.id, enrollments),
+          summerClasses: classesOfYear(student.id, enrollments, PROMOTION_SOURCE_YEAR_LABEL),
+          regularClasses: classesOfYear(student.id, enrollments, PROMOTION_TARGET_YEAR_LABEL),
         })
       } else {
         const gradeOk = cls.grades.includes(student.gradeLabel)
@@ -327,15 +386,19 @@ export function buildStudentMatchBundles(opts: {
   classes: PromotionClassRow[]
   students: PromotionStudentRow[]
   enrollments: PromotionEnrollmentRow[]
+  historicalSubjects?: PromotionHistoricalSubjectRow[]
   minFullTermHot?: number
 }): StudentMatchBundle[] {
-  const { classes, students, enrollments, minFullTermHot = 2 } = opts
+  const {
+    classes,
+    students,
+    enrollments,
+    historicalSubjects = [],
+    minFullTermHot = 2,
+  } = opts
   const fullTermCountByClass = new Map<string, number>()
   for (const cls of classes) {
-    const n = enrollments.filter(
-      (e) => e.classId === cls.id && e.status === "就讀中" && isFullTermEnrollment(e.period)
-    ).length
-    fullTermCountByClass.set(cls.id, n)
+    fullTermCountByClass.set(cls.id, rosterEnrollmentsForClass(cls.id, enrollments).length)
   }
 
   const bundles: StudentMatchBundle[] = []
@@ -350,9 +413,14 @@ export function buildStudentMatchBundles(opts: {
       if (!cls.grades.includes(student.gradeLabel)) continue
       const fullTermCount = fullTermCountByClass.get(cls.id) ?? 0
       const isHotFullTerm = fullTermCount >= minFullTermHot
+      const previouslyStudiedTargetSubject = hasHistoricalSubject(
+        student.id,
+        cls.subjectId,
+        historicalSubjects
+      )
       const { reasons, conflictWith } = evaluateStudentForClass({ student, cls, enrollments })
       if (reasons.length === 0) {
-        eligible.push({ cls, fullTermCount, isHotFullTerm })
+        eligible.push({ cls, fullTermCount, isHotFullTerm, previouslyStudiedTargetSubject })
       } else {
         blocked.push({ cls, fullTermCount, isHotFullTerm, reasons, conflictWith })
       }
@@ -360,6 +428,7 @@ export function buildStudentMatchBundles(opts: {
 
     eligible.sort(
       (a, b) =>
+        Number(b.previouslyStudiedTargetSubject) - Number(a.previouslyStudiedTargetSubject) ||
         Number(b.isHotFullTerm) - Number(a.isHotFullTerm) ||
         b.fullTermCount - a.fullTermCount ||
         a.cls.label.localeCompare(b.cls.label, "zh-Hant")
@@ -368,7 +437,8 @@ export function buildStudentMatchBundles(opts: {
 
     bundles.push({
       student,
-      currentClasses: currentClassesOf(student.id, enrollments),
+      summerClasses: classesOfYear(student.id, enrollments, PROMOTION_SOURCE_YEAR_LABEL),
+      regularClasses: classesOfYear(student.id, enrollments, PROMOTION_TARGET_YEAR_LABEL),
       eligible,
       blocked,
     })

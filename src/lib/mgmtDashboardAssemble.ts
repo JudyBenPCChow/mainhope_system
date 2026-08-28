@@ -16,6 +16,7 @@ import type {
 } from "@/lib/mgmtDashboardTypes"
 import { isLoadOk } from "@/lib/mgmtDashboardTypes"
 import { classKindLabel } from "@/lib/privateClassKind"
+import type { MonthProfitPoint } from "@/lib/profitMetrics"
 
 export { isLoadOk }
 export type { AttendanceVisitBreakdown, LoadResult }
@@ -38,6 +39,11 @@ export const EMPTY_ATTENDANCE: AttendanceVisitBreakdown = {
 }
 
 const CORE_KPI_IDS = new Set([
+ "consumedValue",
+ "grossProfit",
+ "grossMargin",
+ "netProfit",
+ "netMargin",
  "revenue",
  "enroll",
  "withdraw",
@@ -46,6 +52,17 @@ const CORE_KPI_IDS = new Set([
  "attendanceVisits",
  "conversion",
 ])
+
+export const FIRST_SCREEN_KPI_IDS = [
+ "consumedValue",
+ "grossProfit",
+ "grossMargin",
+ "netProfit",
+ "netMargin",
+ "revenue",
+ "enrolled",
+ "attendanceVisits",
+] as const
 
 export function asOk<T>(value: T): LoadResult<T> {
  return { ok: value }
@@ -120,6 +137,10 @@ export type SettledDashboardInput = {
   nearFullClasses: LoadResult<NearFullClassRow[]>
  distribution: MgmtDashboardPayload["distribution"]
  includeLowAttendancePlaceholder: boolean
+ consumedValue?: LoadResult<number>
+ tutorLabor?: LoadResult<{ amount: number; posted: boolean }>
+ totalExpenses?: LoadResult<number>
+ profitSeries?: LoadResult<MonthProfitPoint[]>
 }
 
 function conversionRate(trials: number, converted: number): number | null {
@@ -258,8 +279,122 @@ export function assembleOpsAlerts(input: {
  }
 }
 
+function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
+ const cards: KpiCardModel[] = []
+ const consumed = input.consumedValue
+ const labor = input.tutorLabor
+ const expenses = input.totalExpenses
+ if (consumed == null && labor == null && expenses == null) return cards
+
+ if (consumed == null || !isLoadOk(consumed)) {
+  cards.push(errorKpi("consumedValue", "消堂價值", "hkd"))
+  cards.push(errorKpi("grossProfit", "本月毛利", "hkd"))
+  cards.push(errorKpi("grossMargin", "本月毛利率", "percent"))
+ } else {
+  cards.push({
+   id: "consumedValue",
+   label: "消堂價值",
+   value: consumed.ok,
+   format: "hkd",
+   deltaPct: null,
+   yoyPct: null,
+   targetGap: null,
+   targetGapUnit: null,
+   status: "正常",
+   tone: "success",
+   hint: "扣堂點名 × 單堂價；唔等於已收款",
+   loadState: "ready",
+  })
+  if (labor == null || !isLoadOk(labor)) {
+   cards.push(errorKpi("grossProfit", "本月毛利", "hkd"))
+   cards.push(errorKpi("grossMargin", "本月毛利率", "percent"))
+  } else if (!labor.ok.posted) {
+   const pending = (id: string, label: string, format: KpiCardModel["format"]): KpiCardModel => ({
+    ...errorKpi(id, label, format),
+    hint: "本月導師人工尚未結算過帳",
+    loadState: "pending",
+   })
+   cards.push(pending("grossProfit", "本月毛利", "hkd"))
+   cards.push(pending("grossMargin", "本月毛利率", "percent"))
+  } else {
+   const gross = Math.round((consumed.ok - labor.ok.amount) * 100) / 100
+   const margin = consumed.ok > 0 ? Math.round((gross / consumed.ok) * 1000) / 10 : null
+   const tone: KpiCardModel["tone"] =
+    margin == null ? "default" : margin < 30 ? "destructive" : margin < 45 ? "warning" : "success"
+   cards.push({
+    id: "grossProfit",
+    label: "本月毛利",
+    value: gross,
+    format: "hkd",
+    deltaPct: null,
+    yoyPct: null,
+    targetGap: null,
+    targetGapUnit: null,
+    status: kpiStatusFromTone(tone),
+    tone,
+    hint: "消堂價值 − 已過帳導師人工",
+    loadState: "ready",
+   })
+   cards.push({
+    id: "grossMargin",
+    label: "本月毛利率",
+    value: margin ?? 0,
+    format: "percent",
+    deltaPct: null,
+    yoyPct: null,
+    targetGap: margin != null ? Math.round((margin - 45) * 10) / 10 : null,
+    targetGapUnit: "percent",
+    status: margin == null ? "注意" : kpiStatusFromTone(tone),
+    tone: margin == null ? "warning" : tone,
+    hint: margin == null ? "消堂價值為 0，無法計算利率" : "毛利 ÷ 消堂價值",
+    loadState: margin == null ? "pending" : "ready",
+   })
+  }
+ }
+
+ if (consumed == null || !isLoadOk(consumed) || expenses == null || !isLoadOk(expenses)) {
+  cards.push(errorKpi("netProfit", "本月純利", "hkd"))
+  cards.push(errorKpi("netMargin", "本月純利率", "percent"))
+ } else {
+  const net = Math.round((consumed.ok - expenses.ok) * 100) / 100
+  const margin = consumed.ok > 0 ? Math.round((net / consumed.ok) * 1000) / 10 : null
+  const tone: KpiCardModel["tone"] =
+   margin == null ? "default" : margin < 10 ? "destructive" : margin < 20 ? "warning" : "success"
+  cards.push({
+   id: "netProfit",
+   label: "本月純利",
+   value: net,
+   format: "hkd",
+   deltaPct: null,
+   yoyPct: null,
+   targetGap: null,
+   targetGapUnit: null,
+   status: kpiStatusFromTone(tone),
+   tone,
+   hint: "消堂價值 − 已確認開支（按金／作廢唔入）；非老師人工可能未齊",
+   loadState: "ready",
+  })
+  cards.push({
+   id: "netMargin",
+   label: "本月純利率",
+   value: margin ?? 0,
+   format: "percent",
+   deltaPct: null,
+   yoyPct: null,
+   targetGap: null,
+   targetGapUnit: null,
+   status: margin == null ? "注意" : kpiStatusFromTone(tone),
+   tone: margin == null ? "warning" : tone,
+   hint: margin == null ? "消堂價值為 0，無法計算利率" : "純利 ÷ 消堂價值",
+   loadState: margin == null ? "pending" : "ready",
+  })
+ }
+ return cards
+}
+
 export function assembleKpis(input: SettledDashboardInput): KpiCardModel[] {
  const cards: KpiCardModel[] = []
+ cards.push(...assembleProfitKpis(input))
 
  const revenue = input.revenue
  if (!isLoadOk(revenue)) {
@@ -478,6 +613,7 @@ export function payloadHasPartialFailure(payload: Omit<MgmtDashboardPayload, "pa
  if (payload.kpis.some((k) => k.loadState === "error")) return true
  if (!isLoadOk(payload.revenueSeries)) return true
  if (!isLoadOk(payload.funnel)) return true
+ if (!isLoadOk(payload.profitSeries)) return true
  if (!isLoadOk(payload.withdrawalAnalysis)) return true
  if (!isLoadOk(payload.unpaidOverdue)) return true
  if (payload.opsAlertsError) return true
@@ -524,12 +660,14 @@ export function assembleDashboardPayload(input: SettledDashboardInput): MgmtDash
  const unpaidAlerts = unpaidGroupFailed ? asError(LOAD_FAILED_LABEL) : input.unpaidAlerts
 
  const revenueSeries = bindGroup(input.revenue, input.revenueSeries)
+ const profitSeries = input.profitSeries ?? asOk([])
 
  const draft: Omit<MgmtDashboardPayload, "partialLoadFailed"> = {
   asOf: input.asOf,
   kpis,
   revenueSeries,
   funnel,
+  profitSeries,
   withdrawalAnalysis: input.withdrawalAnalysis,
   unpaidOverdue,
   opsAlerts: ops.items,
@@ -550,17 +688,27 @@ export function mergeMgmtDashboardPayload(
  summary: MgmtDashboardPayload,
  full: MgmtDashboardPayload
 ): MgmtDashboardPayload {
- const kpis = full.kpis.map((fullCard) => {
-  const sumCard = summary.kpis.find((k) => k.id === fullCard.id)
-  if (
-   sumCard &&
-   fullCard.loadState === "error" &&
-   sumCard.loadState !== "error" &&
-   CORE_KPI_IDS.has(fullCard.id)
-  ) {
-   return sumCard
+ const kpiIds: string[] = []
+ const seen = new Set<string>()
+ for (const card of [...summary.kpis, ...full.kpis]) {
+  if (seen.has(card.id)) continue
+  seen.add(card.id)
+  kpiIds.push(card.id)
+ }
+ const kpis = kpiIds.map((id) => {
+  const sumCard = summary.kpis.find((k) => k.id === id)
+  const fullCard = full.kpis.find((k) => k.id === id)
+  if (sumCard && fullCard) {
+   if (
+    fullCard.loadState === "error" &&
+    sumCard.loadState !== "error" &&
+    CORE_KPI_IDS.has(id)
+   ) {
+    return sumCard
+   }
+   return fullCard
   }
-  return fullCard
+  return (fullCard ?? sumCard)!
  })
 
  const draft: Omit<MgmtDashboardPayload, "partialLoadFailed"> = {
@@ -568,6 +716,7 @@ export function mergeMgmtDashboardPayload(
   kpis,
   revenueSeries: preferLoadResult(full.revenueSeries, summary.revenueSeries),
   funnel: preferLoadResult(full.funnel, summary.funnel),
+  profitSeries: preferLoadResult(full.profitSeries, summary.profitSeries),
   withdrawalAnalysis: full.withdrawalAnalysis,
   unpaidOverdue: preferLoadResult(full.unpaidOverdue, summary.unpaidOverdue),
   opsAlerts: full.opsAlerts.length > 0 ? full.opsAlerts : summary.opsAlerts,
@@ -636,6 +785,22 @@ export function exportMgmtDashboardCsv(
  } else {
   for (const r of payload.revenueSeries.ok) {
    lines.push([r.label, r.amount].map(cell).join(","))
+  }
+ }
+ lines.push("")
+ lines.push(["月份", "消堂價值", "毛利率%", "純利率%"].map(cell).join(","))
+ if (!isLoadOk(payload.profitSeries)) {
+  lines.push([CSV_LOAD_FAILED, "", "", ""].map(cell).join(","))
+ } else {
+  for (const p of payload.profitSeries.ok) {
+   lines.push(
+    [
+     p.label,
+     p.consumedValue,
+     p.grossMarginPct ?? "",
+     p.netMarginPct ?? "",
+    ].map(cell).join(",")
+   )
   }
  }
  lines.push("")

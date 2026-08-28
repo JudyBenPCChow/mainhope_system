@@ -1,75 +1,72 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { Link } from "react-router-dom"
+import { SlidersHorizontal } from "lucide-react"
 
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
+import {
+  HOMEWORK_FEE_GRADES,
+  HOMEWORK_FEE_PLANS,
+  homeworkFeeBaseHkd,
+} from "@/lib/homeworkTutoringFees"
 import { statusToTagTone } from "@/lib/statusTag"
-import { cn } from "@/lib/utils"
 
 import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
-  MOCK_AVAIL_DATES,
-  MOCK_DEFAULT_PRIMARY_ROOM,
-  MOCK_DEFAULT_SECONDARY_ROOM,
-  MOCK_HOLIDAYS,
   MOCK_PRICE_GRADES,
-  MOCK_ROOMS,
-  MOCK_ROSTER_MONTH_LABEL,
   MOCK_SPLIT_NOTE,
-  MOCK_TEACHERS,
-  WEEKDAY_OPTIONS,
+  availDatesForMonth,
   countSubmitProgress,
-  dutyLabel,
+  currentYearMonth,
+  formatDutyDateHeading,
   formatSession,
   formatWeekdays,
   formatWeekdaysShort,
+  formatYearMonthLabel,
   getAvailEntry,
-  planDayCount,
+  holidaysInYearMonth,
+  roomALabel,
+  roomBLabel,
   summarizeOverview,
+  studentDivision,
   teacherName,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
-  type DayPlan,
+  type HwDivision,
   type MockDutyDay,
   type MockFeeRow,
+  type MockHoliday,
   type MockStudent,
-  type RosterPublishStatus,
-  type Weekday,
+  type MockTeacher,
+  type MonthRosterState,
 } from "./mockData"
+import { RosterMonthSheet } from "./RosterMonthSheet"
+import type { AdminPageId } from "./sandboxNav"
 import {
   FilterChipRow,
-  RoleTabNav,
+  RoomDutyCard,
   SubmitStatusTag,
+  SummaryTile,
   enrollTone,
 } from "./sharedUi"
 
-type TabId = "overview" | "students" | "fees" | "roster" | "calendar" | "settings"
-
-const TABS: { value: TabId; label: string }[] = [
-  { value: "overview", label: "概覽" },
-  { value: "students", label: "學生報讀" },
-  { value: "fees", label: "月費" },
-  { value: "roster", label: "當值編更" },
-  { value: "calendar", label: "功輔校曆" },
-  { value: "settings", label: "設定" },
-]
-
 type RosterSub = "progress" | "availability" | "sheet"
 
+function formatHkd(n: number | null): string {
+  if (n == null) return "—"
+  return `$${n.toLocaleString("en-HK")}`
+}
+
 export function AdminHomeworkWorkbench({
+  tab,
+  onTabChange,
   students,
-  setStudents,
   fees,
   avail,
   setAvail,
@@ -77,11 +74,17 @@ export function AdminHomeworkWorkbench({
   setSubmitStatus,
   dutyDays,
   setDutyDays,
-  rosterPublishStatus,
-  setRosterPublishStatus,
+  monthRosterStatus,
+  setMonthRosterStatus,
+  hwTeachers,
+  holidays = [],
+  sheetMonth: sheetMonthProp,
+  onSheetMonthChange,
+  onPublishRoster,
 }: {
+  tab: AdminPageId
+  onTabChange: (tab: AdminPageId) => void
   students: MockStudent[]
-  setStudents: Dispatch<SetStateAction<MockStudent[]>>
   fees: MockFeeRow[]
   avail: AllTeacherAvailability
   setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
@@ -89,61 +92,146 @@ export function AdminHomeworkWorkbench({
   setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   dutyDays: MockDutyDay[]
   setDutyDays: Dispatch<SetStateAction<MockDutyDay[]>>
-  rosterPublishStatus: RosterPublishStatus
-  setRosterPublishStatus: Dispatch<SetStateAction<RosterPublishStatus>>
+  monthRosterStatus: Record<string, MonthRosterState>
+  setMonthRosterStatus: Dispatch<SetStateAction<Record<string, MonthRosterState>>>
+  hwTeachers: MockTeacher[]
+  holidays?: MockHoliday[]
+  sheetMonth?: string
+  onSheetMonthChange?: (yearMonth: string) => void
+  onPublishRoster?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
-  const [tab, setTab] = useState<TabId>("overview")
   const [query, setQuery] = useState("")
   const [planFilter, setPlanFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
+  const [divisionFilter, setDivisionFilter] = useState<"" | HwDivision>("")
   const [gradeFilter, setGradeFilter] = useState("")
   const [monthFilter, setMonthFilter] = useState("")
-  const [enrollOpen, setEnrollOpen] = useState(false)
-  const [draftName, setDraftName] = useState("")
-  const [draftGrade, setDraftGrade] = useState("中二")
-  const [draftPlan, setDraftPlan] = useState<DayPlan>("四日")
-  const [draftWeekdays, setDraftWeekdays] = useState<Weekday[]>(["一", "二", "四", "五"])
-  const [rosterSub, setRosterSub] = useState<RosterSub>("progress")
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [rosterSub, setRosterSub] = useState<RosterSub>("sheet")
   const [editAvail, setEditAvail] = useState<{ teacherId: string; date: string } | null>(null)
-  const [defaultSecondaryRoom, setDefaultSecondaryRoom] = useState(MOCK_DEFAULT_SECONDARY_ROOM)
-  const [defaultPrimaryRoom, setDefaultPrimaryRoom] = useState(MOCK_DEFAULT_PRIMARY_ROOM)
-  const [editDay, setEditDay] = useState<MockDutyDay | null>(null)
+  const [localSheetMonth, setLocalSheetMonth] = useState(() => currentYearMonth())
 
-  const overview = useMemo(() => summarizeOverview(students, fees), [students, fees])
-  const progress = useMemo(() => countSubmitProgress(submitStatus), [submitStatus])
+  const sheetMonth = sheetMonthProp ?? localSheetMonth
+  const setSheetMonth = (ym: string) => {
+    if (onSheetMonthChange) onSheetMonthChange(ym)
+    else setLocalSheetMonth(ym)
+  }
+
+  const overview = useMemo(
+    () => summarizeOverview(students, fees, dutyDays),
+    [students, fees, dutyDays]
+  )
+  const progress = useMemo(
+    () => countSubmitProgress(submitStatus, hwTeachers),
+    [submitStatus, hwTeachers]
+  )
+  const monthLabel = formatYearMonthLabel(sheetMonth)
+  const monthHolidays = useMemo(
+    () => holidaysInYearMonth(sheetMonth, holidays),
+    [sheetMonth, holidays]
+  )
+  const availDates = useMemo(
+    () => availDatesForMonth(sheetMonth, monthHolidays),
+    [sheetMonth, monthHolidays]
+  )
+  const gradeOptions = useMemo(() => {
+    const fromStudents = Array.from(new Set(students.map((s) => s.grade))).sort()
+    return fromStudents.length > 0 ? fromStudents : [...MOCK_PRICE_GRADES]
+  }, [students])
+
   const effectiveMonthOptions = useMemo(() => {
     const set = new Set(students.map((s) => s.effectiveMonth))
     return Array.from(set).sort()
   }, [students])
 
-  const hasStudentFilters =
-    Boolean(query.trim()) ||
-    Boolean(planFilter) ||
-    Boolean(statusFilter) ||
-    Boolean(gradeFilter) ||
-    Boolean(monthFilter)
+  const studentChipFilterCount = [
+    divisionFilter,
+    gradeFilter,
+    planFilter,
+    statusFilter,
+    monthFilter,
+  ].filter(Boolean).length
+
+  const hasStudentFilters = Boolean(query.trim()) || studentChipFilterCount > 0
 
   const clearStudentFilters = () => {
     setQuery("")
     setPlanFilter("")
     setStatusFilter("")
+    setDivisionFilter("")
     setGradeFilter("")
     setMonthFilter("")
   }
+
+  const studentFilterChips = (
+    <>
+      <FilterChipRow
+        label="學部"
+        value={divisionFilter}
+        onChange={(v) => setDivisionFilter(v as "" | HwDivision)}
+        options={[
+          { value: "", label: "全部" },
+          { value: "secondary", label: "中學" },
+          { value: "primary", label: "小學" },
+        ]}
+      />
+      <FilterChipRow
+        label="年級"
+        value={gradeFilter}
+        onChange={setGradeFilter}
+        options={[
+          { value: "", label: "全部" },
+          ...gradeOptions.map((g) => ({ value: g, label: g })),
+        ]}
+      />
+      <FilterChipRow
+        label="日數檔"
+        value={planFilter}
+        onChange={setPlanFilter}
+        options={[
+          { value: "", label: "全部" },
+          { value: "三日", label: "每週三日" },
+          { value: "四日", label: "每週四日" },
+          { value: "五日", label: "每週五日" },
+        ]}
+      />
+      <FilterChipRow
+        label="狀態"
+        value={statusFilter}
+        onChange={setStatusFilter}
+        options={[
+          { value: "", label: "全部" },
+          { value: "在籍", label: "在籍" },
+          { value: "暫停", label: "暫停" },
+          { value: "結束", label: "結束" },
+        ]}
+      />
+      <FilterChipRow
+        label="生效月"
+        value={monthFilter}
+        onChange={setMonthFilter}
+        options={[
+          { value: "", label: "全部" },
+          ...effectiveMonthOptions.map((m) => ({ value: m, label: m })),
+        ]}
+      />
+    </>
+  )
 
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase()
     return students.filter((s) => {
       if (planFilter && s.plan !== planFilter) return false
       if (statusFilter && s.status !== statusFilter) return false
+      if (divisionFilter && studentDivision(s.grade) !== divisionFilter) return false
       if (gradeFilter && s.grade !== gradeFilter) return false
       if (monthFilter && s.effectiveMonth !== monthFilter) return false
       if (!q) return true
       return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
     })
-  }, [students, query, planFilter, statusFilter, gradeFilter, monthFilter])
+  }, [students, query, planFilter, statusFilter, divisionFilter, gradeFilter, monthFilter])
 
   const feeRows = useMemo(() => {
     return fees
@@ -154,56 +242,6 @@ export function AdminHomeworkWorkbench({
       })
       .filter(Boolean) as Array<MockFeeRow & { student: MockStudent }>
   }, [fees, students])
-
-  const onDraftPlanChange = (plan: DayPlan) => {
-    setDraftPlan(plan)
-    const need = planDayCount(plan)
-    setDraftWeekdays((prev) => {
-      if (prev.length === need) return prev
-      if (prev.length > need) return prev.slice(0, need)
-      const extras = WEEKDAY_OPTIONS.filter((d) => !prev.includes(d))
-      return [...prev, ...extras].slice(0, need)
-    })
-  }
-
-  const toggleDraftWeekday = (day: Weekday) => {
-    setDraftWeekdays((prev) => {
-      if (prev.includes(day)) return prev.filter((d) => d !== day)
-      return WEEKDAY_OPTIONS.filter((d) => [...prev, day].includes(d))
-    })
-  }
-
-  const onSaveEnroll = () => {
-    if (!draftName.trim()) {
-      pushBanner({ title: "無法儲存", tone: "error", message: "請填寫學生姓名（沙盒）" })
-      return
-    }
-    const need = planDayCount(draftPlan)
-    if (draftWeekdays.length !== need) {
-      pushBanner({
-        title: "無法儲存",
-        tone: "error",
-        message: `每週${draftPlan}請選 ${need} 日（已選 ${draftWeekdays.length}）`,
-      })
-      return
-    }
-    setStudents((prev) => [
-      {
-        id: `s${Date.now()}`,
-        name: draftName.trim(),
-        code: `S${String(prev.length + 200).padStart(4, "0")}`,
-        grade: draftGrade,
-        plan: draftPlan,
-        weekdays: draftWeekdays,
-        effectiveMonth: "2026-09",
-        status: "在籍",
-      },
-      ...prev,
-    ])
-    setEnrollOpen(false)
-    setDraftName("")
-    pushBanner({ title: "已更新", tone: "success", message: "已加入報讀（沙盒）。" })
-  }
 
   const adminSaveAvail = (teacherId: string, date: string, entry: AvailEntry | null) => {
     setAvail((prev) => {
@@ -225,71 +263,87 @@ export function AdminHomeworkWorkbench({
 
   return (
     <div className="space-y-4">
-      <RoleTabNav
-        tabs={TABS}
-        value={tab}
-        onChange={setTab}
-        isMobile={isMobile}
-        ariaLabel="行政功輔分頁"
-      />
-
       {tab === "overview" ? (
         <div className="space-y-4">
-          <section className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-6">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  今日當值
-                </p>
-                <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
-                  示範：9 月 3 日（三）
-                </h2>
-              </div>
-              <Button type="button" variant="outline" onClick={() => setTab("roster")}>
-                查看本月編更
-              </Button>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <SummaryTile
+              label="今日到校"
+              value={String(overview.todayCount)}
+              hint={
+                overview.todayWeekday
+                  ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                  : undefined
+              }
+            />
+            <SummaryTile label="在籍" value={String(overview.activeCount)} />
+            <SummaryTile label="本月已繳" value={String(overview.paid)} />
+            <SummaryTile label="本月未繳" value={String(overview.unpaid)} hint="不含暫停／結束" />
+          </div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                今日當值
+              </p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+                {overview.todayDuty
+                  ? formatDutyDateHeading(overview.todayDuty)
+                  : "今日無功輔當值"}
+              </h2>
             </div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs text-muted-foreground">課室</p>
-                <p className="mt-1 text-lg font-semibold sm:text-xl">
-                  中 {overview.todayDuty.secondaryRoom}／小 {overview.todayDuty.primaryRoom}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs text-muted-foreground">班時間</p>
-                <p className="mt-1 text-lg font-semibold sm:text-xl">
-                  {formatSession(overview.todayDuty)}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs text-muted-foreground">當值導師</p>
-                <p className="mt-1 text-sm font-semibold sm:text-base">
-                  {dutyLabel(overview.todayDuty)}
-                </p>
-              </div>
+            <Button type="button" variant="outline" onClick={() => onTabChange("roster")}>
+              查看本月編更
+            </Button>
+          </div>
+          {overview.todayDuty && !overview.todayDuty.holiday ? (
+            <div className="space-y-3">
+              <RoomDutyCard
+                room={roomALabel(overview.todayDuty)}
+                tone="info"
+                session={formatSession(overview.todayDuty)}
+                teacher={teacherName(overview.todayDuty.secondaryTeacherId, hwTeachers)}
+                weekdayHint={
+                  overview.todayWeekday
+                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                    : "—"
+                }
+              />
+              <RoomDutyCard
+                room={roomBLabel(overview.todayDuty)}
+                tone="success"
+                session={formatSession(overview.todayDuty)}
+                teacher={teacherName(overview.todayDuty.primaryTeacherId, hwTeachers)}
+                weekdayHint={
+                  overview.todayWeekday
+                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                    : "—"
+                }
+              />
             </div>
-          </section>
+          ) : overview.todayDuty?.holiday ? (
+            <p className="text-sm text-muted-foreground">今日功輔放假：{overview.todayDuty.holiday}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">今日無開放日或尚未編更。</p>
+          )}
 
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">提醒</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
               <li className="flex flex-wrap items-center justify-between gap-2">
                 <span>尚有 {overview.unpaid} 人未繳本月月費</span>
-                <Button type="button" variant="outline" size="sm" onClick={() => setTab("fees")}>
+                <Button type="button" variant="outline" size="sm" onClick={() => onTabChange("fees")}>
                   前往月費
                 </Button>
               </li>
               <li className="flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  {MOCK_ROSTER_MONTH_LABEL} 報更：{progress.rateLabel}（{progress.missing} 未交）
+                  {monthLabel} 報更：{progress.rateLabel}（{progress.missing} 未交）
                 </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setTab("roster")
+                    onTabChange("roster")
                     setRosterSub("progress")
                   }}
                 >
@@ -297,13 +351,16 @@ export function AdminHomeworkWorkbench({
                 </Button>
               </li>
               <li className="flex flex-wrap items-center justify-between gap-2">
-                <span>十月編更狀態：{rosterPublishStatus}</span>
+                <span>
+                  {monthLabel} 編更：
+                  {monthRosterStatus[sheetMonth] ?? "未編更"}
+                </span>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => {
-                    setTab("roster")
+                    onTabChange("roster")
                     setRosterSub("sheet")
                   }}
                 >
@@ -318,11 +375,27 @@ export function AdminHomeworkWorkbench({
       {tab === "students" ? (
         <div className="space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {isMobile ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 gap-2"
+                onClick={() => setFiltersOpen(true)}
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden />
+                篩選
+                {studentChipFilterCount > 0 ? (
+                  <Tag tone="info" size="sm">
+                    {studentChipFilterCount}
+                  </Tag>
+                ) : null}
+              </Button>
+            ) : null}
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="搜尋姓名／學號"
-              className="sm:max-w-xs"
+              className="h-10 sm:max-w-xs"
             />
             <div className="flex flex-wrap gap-2 sm:ml-auto">
               {hasStudentFilters ? (
@@ -330,53 +403,29 @@ export function AdminHomeworkWorkbench({
                   清除篩選
                 </Button>
               ) : null}
-              <Button type="button" onClick={() => setEnrollOpen(true)}>
-                新增報讀
+              <Button type="button" asChild>
+                <Link to="/Students">前往學生管理</Link>
               </Button>
             </div>
           </div>
-          <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4">
-            <FilterChipRow
-              label="年級"
-              value={gradeFilter}
-              onChange={setGradeFilter}
-              options={[
-                { value: "", label: "全部" },
-                ...MOCK_PRICE_GRADES.map((g) => ({ value: g, label: g })),
-              ]}
-            />
-            <FilterChipRow
-              label="日數檔"
-              value={planFilter}
-              onChange={setPlanFilter}
-              options={[
-                { value: "", label: "全部" },
-                { value: "三日", label: "每週三日" },
-                { value: "四日", label: "每週四日" },
-                { value: "五日", label: "每週五日" },
-              ]}
-            />
-            <FilterChipRow
-              label="狀態"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { value: "", label: "全部" },
-                { value: "在籍", label: "在籍" },
-                { value: "暫停", label: "暫停" },
-                { value: "結束", label: "結束" },
-              ]}
-            />
-            <FilterChipRow
-              label="生效月"
-              value={monthFilter}
-              onChange={setMonthFilter}
-              options={[
-                { value: "", label: "全部" },
-                ...effectiveMonthOptions.map((m) => ({ value: m, label: m })),
-              ]}
-            />
-          </div>
+          <p className="text-sm text-muted-foreground">
+            本頁只列出已報讀功課輔導班的學生。新學生請先到學生管理「新增學生」註冊，再到學生詳細頁「報讀班別」加入功課輔導班，並選每週日數及逢星期幾。
+          </p>
+          {isMobile ? (
+            <MobileFilterSheet
+              open={filtersOpen}
+              onClose={() => setFiltersOpen(false)}
+              title="篩選功輔報讀"
+              activeCount={studentChipFilterCount}
+              onReset={clearStudentFilters}
+            >
+              {studentFilterChips}
+            </MobileFilterSheet>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:p-4">
+              {studentFilterChips}
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             顯示 {filteredStudents.length}／{students.length} 人
           </p>
@@ -425,7 +474,7 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">本月月費</h2>
           <p className="text-xs text-muted-foreground">
-            已繳 {overview.paid} · 未繳 {overview.unpaid} · 金額合計 —（價錢後補）
+            已繳 {overview.paid} · 未繳 {overview.unpaid}
           </p>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[560px] text-left text-sm">
@@ -450,19 +499,16 @@ export function AdminHomeworkWorkbench({
                       </Tag>
                     </td>
                     <td className="px-3 py-2.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          pushBanner({
-                            title: "沙盒提示",
-                            tone: "info",
-                            message: "正式版將跳轉現有繳費入口。",
-                          })
-                        }
-                      >
-                        {row.status === "未收款" ? "收款" : "查看單據"}
+                      <Button type="button" size="sm" variant="outline" asChild>
+                        <Link
+                          to={
+                            row.status === "未收款"
+                              ? `/Payments?studentId=${encodeURIComponent(row.studentId)}&mode=receive`
+                              : `/PaymentHistory?studentId=${encodeURIComponent(row.studentId)}`
+                          }
+                        >
+                          {row.status === "未收款" ? "收款" : "查看單據"}
+                        </Link>
                       </Button>
                     </td>
                   </tr>
@@ -474,40 +520,30 @@ export function AdminHomeworkWorkbench({
       ) : null}
 
       {tab === "roster" ? (
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                ["progress", "報更進度"],
-                ["availability", "可上班時段"],
-                ["sheet", "月工作表"],
-              ] as const
-            ).map(([id, label]) => (
-              <Button
-                key={id}
-                type="button"
-                size="sm"
-                variant={rosterSub === id ? "default" : "outline"}
-                onClick={() => setRosterSub(id)}
-              >
-                {label}
-              </Button>
-            ))}
-            <Tag
-              tone={rosterPublishStatus === "已發布" ? "success" : "warning"}
-              size="sm"
-            >
-              {rosterPublishStatus}
-            </Tag>
-          </div>
+        <Tabs
+          value={rosterSub}
+          onValueChange={(v) => {
+            if (v === "progress" || v === "availability" || v === "sheet") setRosterSub(v)
+          }}
+          className="space-y-3"
+        >
+          <TabsList className="w-full justify-start sm:w-auto">
+            <TabsTrigger value="progress">報更進度</TabsTrigger>
+            <TabsTrigger value="availability">可上班時段</TabsTrigger>
+            <TabsTrigger value="sheet">月工作表</TabsTrigger>
+          </TabsList>
 
-          {rosterSub === "progress" ? (
-            <div className="space-y-2">
+          <TabsContent value="progress" className="mt-0 space-y-2">
               <p className="text-sm text-muted-foreground">
-                {MOCK_ROSTER_MONTH_LABEL} · {progress.rateLabel} · 老師只報一次更；可代填（覆寫）
+                {monthLabel} · {progress.rateLabel} · 可代填（覆寫）
               </p>
               <ul className="space-y-2">
-                {MOCK_TEACHERS.map((t) => {
+                {hwTeachers.length === 0 ? (
+                  <li className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                    尚未剔選有功課輔導班入口的老師。請由管理層「老師入口」剔選。
+                  </li>
+                ) : null}
+                {hwTeachers.map((t) => {
                   const st = submitStatus[t.id] ?? "未交"
                   return (
                     <li
@@ -542,7 +578,7 @@ export function AdminHomeworkWorkbench({
                               pushBanner({
                                 title: "已代交",
                                 tone: "success",
-                                message: `已將 ${t.name} 標為已提交（沙盒）。`,
+                                message: `已將 ${t.name} 標為已提交。`,
                               })
                             }}
                           >
@@ -554,11 +590,9 @@ export function AdminHomeworkWorkbench({
                   )
                 })}
               </ul>
-            </div>
-          ) : null}
+            </TabsContent>
 
-          {rosterSub === "availability" ? (
-            <div className="space-y-2">
+          <TabsContent value="availability" className="mt-0 space-y-2">
               <p className="text-xs text-muted-foreground">
                 {MOCK_SPLIT_NOTE} · 點格編輯（行政覆寫）；空白＝該日不報 · 顯示該月全部平日
               </p>
@@ -568,7 +602,7 @@ export function AdminHomeworkWorkbench({
                     <tr>
                       <th className="px-2 py-2 text-left font-medium">老師</th>
                       <th className="px-2 py-2 font-medium">狀態</th>
-                      {MOCK_AVAIL_DATES.map((d) => (
+                      {availDates.map((d) => (
                         <th key={d} className="px-2 py-2 font-medium">
                           {d}
                         </th>
@@ -576,13 +610,13 @@ export function AdminHomeworkWorkbench({
                     </tr>
                   </thead>
                   <tbody>
-                    {MOCK_TEACHERS.map((t) => (
+                    {hwTeachers.map((t) => (
                       <tr key={t.id} className="border-t border-border">
                         <td className="px-2 py-2 text-left font-medium">{t.name}</td>
                         <td className="px-2 py-2">
                           <SubmitStatusTag status={submitStatus[t.id] ?? "未交"} />
                         </td>
-                        {MOCK_AVAIL_DATES.map((d) => {
+                        {availDates.map((d) => {
                           const entry = getAvailEntry(avail, t.id, d)
                           return (
                             <td key={d} className="px-1 py-1">
@@ -600,133 +634,32 @@ export function AdminHomeworkWorkbench({
                   </tbody>
                 </table>
               </div>
-            </div>
-          ) : null}
+            </TabsContent>
 
-          {rosterSub === "sheet" ? (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">中學預設</span>
-                  <Select
-                    value={defaultSecondaryRoom}
-                    onChange={(e) => setDefaultSecondaryRoom(e.target.value)}
-                    className="w-24"
-                  >
-                    {MOCK_ROOMS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <span className="text-muted-foreground">小學預設</span>
-                  <Select
-                    value={defaultPrimaryRoom}
-                    onChange={(e) => setDefaultPrimaryRoom(e.target.value)}
-                    className="w-24"
-                  >
-                    {MOCK_ROOMS.map((r) => (
-                      <option key={r} value={r}>
-                        {r}
-                      </option>
-                    ))}
-                  </Select>
-                </label>
-                {rosterPublishStatus === "草稿" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setRosterPublishStatus("已發布")
-                      pushBanner({
-                        title: "已發布",
-                        tone: "success",
-                        message: "十月編更已發布；老師報更鎖定（沙盒）。",
-                      })
-                    }}
-                  >
-                    發布
-                  </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setRosterPublishStatus("草稿")
-                      pushBanner({ title: "已撤回", tone: "info", message: "已改回草稿。" })
-                    }}
-                  >
-                    撤回草稿
-                  </Button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                按日分配中學部／小學部導師與課室（17D／17E）；可改編班時間。
-              </p>
-              <div className="overflow-x-auto rounded-xl border border-border">
-                <table className="w-full min-w-[720px] text-left text-sm">
-                  <thead className="bg-muted/40 text-xs text-muted-foreground">
-                    <tr>
-                      <th className="px-3 py-2 font-medium">日期</th>
-                      <th className="px-3 py-2 font-medium">班時間</th>
-                      <th className="px-3 py-2 font-medium">中學部</th>
-                      <th className="px-3 py-2 font-medium">小學部</th>
-                      <th className="px-3 py-2 font-medium">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dutyDays.map((d) => (
-                      <tr key={d.date} className="border-t border-border">
-                        <td className="px-3 py-2.5 tabular-nums">
-                          {d.date}（{d.weekday}）
-                          {d.holiday ? (
-                            <Tag tone="default" size="sm" className="ml-2">
-                              功輔放假
-                            </Tag>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2.5 tabular-nums">
-                          {d.holiday ? "—" : formatSession(d)}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {d.holiday
-                            ? "—"
-                            : `${teacherName(d.secondaryTeacherId)} · ${d.secondaryRoom ?? "—"}`}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          {d.holiday
-                            ? "—"
-                            : `${teacherName(d.primaryTeacherId)} · ${d.primaryRoom ?? "—"}`}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            disabled={Boolean(d.holiday)}
-                            onClick={() => setEditDay({ ...d })}
-                          >
-                            改
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : null}
-        </div>
+          <TabsContent value="sheet" className="mt-0">
+            <RosterMonthSheet
+              yearMonth={sheetMonth}
+              onYearMonthChange={setSheetMonth}
+              dutyDays={dutyDays}
+              onDutyDaysChange={setDutyDays}
+              monthStatus={monthRosterStatus}
+              onMonthStatusChange={(ym, state) =>
+                setMonthRosterStatus((prev) => ({ ...prev, [ym]: state }))
+              }
+              avail={avail}
+              teachers={hwTeachers}
+              holidays={holidays}
+              onPublish={onPublishRoster}
+            />
+          </TabsContent>
+        </Tabs>
       ) : null}
 
       {tab === "calendar" ? (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">功輔校曆</h2>
           <ul className="space-y-2">
-            {MOCK_HOLIDAYS.map((h) => (
+            {holidays.map((h) => (
               <li
                 key={h.date}
                 className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-3 text-sm shadow-sm"
@@ -735,7 +668,7 @@ export function AdminHomeworkWorkbench({
                   <p className="font-medium tabular-nums">{h.date}</p>
                   <p className="text-muted-foreground">{h.label}</p>
                 </div>
-                <Tag tone="default" size="sm">
+                <Tag tone={statusToTagTone("功輔放假")} size="sm">
                   功輔放假
                 </Tag>
               </li>
@@ -749,29 +682,35 @@ export function AdminHomeworkWorkbench({
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
             <p className="mt-2 text-sm">
-              中學部／小學部同為 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室
-              17D／17E。
+              單一場次 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室預設
+              17D／17E；人少可只派一室一位老師。
             </p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">價目表</h2>
-            <p className="mt-1 text-xs text-muted-foreground">金額未定顯示「—」</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              港元／月；小一至小六跟中一。12 月、2 月收四分三。中四至中六未列價。
+            </p>
             <table className="mt-3 w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr>
                   <th className="py-1 text-left">年級</th>
-                  <th className="py-1 text-left">三日</th>
-                  <th className="py-1 text-left">四日</th>
-                  <th className="py-1 text-left">五日</th>
+                  {HOMEWORK_FEE_PLANS.map((p) => (
+                    <th key={p} className="py-1 text-left">
+                      {p}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {MOCK_PRICE_GRADES.map((g) => (
+                {HOMEWORK_FEE_GRADES.map((g) => (
                   <tr key={g} className="border-t border-border/70">
-                    <td className="py-2">{g}</td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">—</td>
-                    <td className="py-2">—</td>
+                    <td className="py-2">{g}{g === "中一" ? "（含小學）" : ""}</td>
+                    {HOMEWORK_FEE_PLANS.map((p) => (
+                      <td key={p} className="py-2 tabular-nums">
+                        {formatHkd(homeworkFeeBaseHkd(p, g))}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -782,186 +721,6 @@ export function AdminHomeworkWorkbench({
           </section>
         </div>
       ) : null}
-
-      <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>新增功輔報讀</DialogTitle>
-            <p className="text-sm text-muted-foreground">
-              可紀錄慣常到校星期；不設請假補堂。
-            </p>
-          </DialogHeader>
-          <div className="space-y-3">
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">學生姓名 *</span>
-              <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-sm font-medium">年級 *</span>
-              <Select value={draftGrade} onChange={(e) => setDraftGrade(e.target.value)}>
-                {MOCK_PRICE_GRADES.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <fieldset className="space-y-1.5">
-              <legend className="text-sm font-medium">每週日數檔 *</legend>
-              <div className="flex flex-wrap gap-2">
-                {(["三日", "四日", "五日"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => onDraftPlanChange(p)}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm font-medium",
-                      draftPlan === p
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card"
-                    )}
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset className="space-y-1.5">
-              <legend className="text-sm font-medium">
-                逢星期幾 *（{planDayCount(draftPlan)} 日）
-              </legend>
-              <div className="flex flex-wrap gap-2">
-                {WEEKDAY_OPTIONS.map((d) => (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => toggleDraftWeekday(d)}
-                    className={cn(
-                      "rounded-full border px-3 py-1.5 text-sm font-medium",
-                      draftWeekdays.includes(d)
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-card"
-                    )}
-                  >
-                    星期{d}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">{formatWeekdays(draftWeekdays)}</p>
-            </fieldset>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEnrollOpen(false)}>
-              取消
-            </Button>
-            <Button type="button" onClick={onSaveEnroll}>
-              儲存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(editDay)} onOpenChange={(o) => !o && setEditDay(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>編輯當值 — {editDay?.date}</DialogTitle>
-          </DialogHeader>
-          {editDay ? (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1 text-xs text-muted-foreground">
-                  <span>班開始</span>
-                  <Input
-                    type="time"
-                    value={editDay.start}
-                    onChange={(e) => setEditDay({ ...editDay, start: e.target.value })}
-                    className="h-11 tabular-nums"
-                  />
-                </label>
-                <label className="grid gap-1 text-xs text-muted-foreground">
-                  <span>班結束</span>
-                  <Input
-                    type="time"
-                    value={editDay.end}
-                    onChange={(e) => setEditDay({ ...editDay, end: e.target.value })}
-                    className="h-11 tabular-nums"
-                  />
-                </label>
-              </div>
-              <div className="space-y-2 rounded-lg border border-border p-3">
-                <p className="text-sm font-medium">中學部</p>
-                <Select
-                  value={editDay.secondaryRoom ?? defaultSecondaryRoom}
-                  onChange={(e) => setEditDay({ ...editDay, secondaryRoom: e.target.value })}
-                >
-                  {MOCK_ROOMS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={editDay.secondaryTeacherId ?? "t1"}
-                  onChange={(e) => setEditDay({ ...editDay, secondaryTeacherId: e.target.value })}
-                >
-                  {MOCK_TEACHERS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div className="space-y-2 rounded-lg border border-border p-3">
-                <p className="text-sm font-medium">小學部</p>
-                <Select
-                  value={editDay.primaryRoom ?? defaultPrimaryRoom}
-                  onChange={(e) => setEditDay({ ...editDay, primaryRoom: e.target.value })}
-                >
-                  {MOCK_ROOMS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
-                    </option>
-                  ))}
-                </Select>
-                <Select
-                  value={editDay.primaryTeacherId ?? "t2"}
-                  onChange={(e) => setEditDay({ ...editDay, primaryTeacherId: e.target.value })}
-                >
-                  {MOCK_TEACHERS.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditDay(null)}>
-              取消
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                if (!editDay) return
-                if (editDay.start >= editDay.end) {
-                  pushBanner({
-                    title: "無法儲存",
-                    tone: "error",
-                    message: "班結束時間須晚於開始時間。",
-                  })
-                  return
-                }
-                setDutyDays((prev) => prev.map((d) => (d.date === editDay.date ? editDay : d)))
-                setEditDay(null)
-                pushBanner({ title: "已更新", tone: "success", message: "當值已更新（沙盒）。" })
-              }}
-            >
-              儲存
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {editAvail ? (
         <AvailEditDialog

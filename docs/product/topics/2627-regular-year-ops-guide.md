@@ -2,16 +2,18 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（**v1.11** md＋docx＋pdf；§7.3 編更已寫；SYSTEM_MANUAL 已掛；待 WhatsApp 發佈） |
+| 狀態 | `open`（**v1.11** md＋docx＋pdf；§7 學部／兩室／小學跟中一＋§7.4 編更已寫；待 WhatsApp 發佈／SYSTEM_MANUAL 索引） |
 | 優先 | 中 |
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
-| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.10**／2026-08-18）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.11**／2026-08-25）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
 | 上次更新 | 2026-08-28 |
 
 ## 結論
+
+**v1.11（2026-08-25）：** 功輔 §4／§7：不開小學部；個別小學生入中學部；預設兩室 17D／17E；期望 ≥12 人、PT≥1；小學收費跟中一。docx／pdf 已同步重出。
 
 **v1.10（2026-08-18）：** §3.5 同日順接只適用星期五、六、日；星期一至四不強制。docx／pdf 已同步重出。
 
@@ -35,17 +37,17 @@
 
 權威細節：校曆見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md)；本指引為員工彙編。
 
-## 章節一覽（v1.10）
+## 章節一覽（v1.11）
 
 | 章 | 狀態 |
 | --- | --- |
 | 1 文件說明 | 已寫；專科附件甲、功輔附件乙 |
 | 2 學年與報讀 | 已寫；學年定位併入封面 |
 | 3 排課規則 | 已寫；v1.10 同日順接只限五／六／日 |
-| 4 課室與場地 | 已寫（已刪獨立「容量」節；五室表無容量欄） |
+| 4 課室與場地 | 已寫；v1.11 功輔預設佔兩室 |
 | 5 專科班 | 已寫 |
 | 6 一對一課程 | 已寫 |
-| 7 功課輔導 | 校曆＋月費＋§7.3 編更已寫；讓房不做；後台產品化仍待 H11 後 plan |
+| 7 功課輔導 | 校曆＋學部／人手＋月費＋§7.4 編更已寫；讓房不做 |
 | 8 學費與逾期罰款 | 已寫（試堂價改全價／半價／免費） |
 | 9 點名、請假與補堂 | 已寫 |
 | 10 代堂與換主責老師 | 已寫 |
@@ -66,8 +68,8 @@
 | 專科校曆 | **附件甲**（非正文）；權威＋入庫檢查見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) |
 | 功輔校曆 | **附件乙**；權威見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3（已簽收；放假日已入庫） |
 | 重陽 | 正日放假、翌日不放假（跟 CSV；與政府假翌日可不一致） |
-| 功輔章 | 校曆＋月費已寫；讓房不做；編更待 [`homework-tutoring.md`](./homework-tutoring.md) |
-| 功輔月費 | §7.2；12／2 月四分三；權威見 [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
+| 功輔章 | 校曆＋學部／人手＋月費已寫；讓房不做；編更待 [`homework-tutoring.md`](./homework-tutoring.md) |
+| 功輔月費 | §7.3；小學跟中一；12／2 月四分三；權威見 [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
 | 機構稱呼專章 | 不設 |
 | 計糧 | 不寫入本指引 |
 | 課室容量 | 不單列；未公佈前勿當正式上限 |
@@ -82,7 +84,7 @@
 | 本波 | 對上一個工程 | 完成條件 | 未完成就 |
 | --- | --- | --- | --- |
 | 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費已寫） | — |
-| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **H11 沙盒審閱通過**，且編更規則已可寫入員工守則（唔使等正式產品頁上線） | 提醒用戶：H11 未過，編更仍缺，唔好猜寫 |
+| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **H11 已通過（2026-08-24）**；編更規則可寫入員工守則（唔使等正式產品頁上線） | — |
 
 ## 依賴（餘下）
 

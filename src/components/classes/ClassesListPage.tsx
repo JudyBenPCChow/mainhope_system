@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
+import { AlertTriangle, BookOpen, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
+import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import { Button } from "@/components/ui/button"
-import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
+import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { statusToTagTone } from "@/lib/statusTag"
-import { classKindLabel } from "@/lib/privateClassKind"
 import {
  DAY_FILTER_CHIPS,
  GRADE_CHIPS,
@@ -34,6 +35,18 @@ import {
  weekdaysFromStored,
 } from "@/components/classes/classesUi"
 import {
+ classMatchesHeaderFilters,
+ classSortLabel,
+ compareClasses,
+ countActiveClassHeaderFilters,
+ EMPTY_CLASS_HEADER_FILTERS,
+ isClassListColumnId,
+ type ClassListColumnId,
+ type ClassListExtras,
+ type ClassListHeaderFilters,
+} from "@/components/classes/classesListColumns"
+import { ClassesListTable } from "@/components/classes/ClassesListTable"
+import {
  getClassesListDataCache,
  setClassesListDataCache,
 } from "@/components/classes/classesListState"
@@ -42,7 +55,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { classDisplayName } from "@/lib/courseLabel"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
-import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { confirmNonCurrentAcademicYearWrite, isOutsideCurrentOrNextAcademicYear } from "@/lib/academicYearSoftGuard"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -51,7 +64,6 @@ import {
  duplicateClass,
  fetchAcademicYearOptions,
  fetchAllClasses,
- fetchTeacherOptions,
  previewClassDeletionSchedules,
  type ClassRecord,
  updateClass,
@@ -60,9 +72,6 @@ import { fetchEnrollmentRosterByClassIds, fetchScheduleSummariesByClassIds, type
 
 const cardInteractive =
  "cursor-pointer rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-
-const rowInteractive =
- "cursor-pointer transition-colors duration-150 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
 
 const GALLERY_COVERS = [
  "bg-gradient-to-br from-sky-500 via-cyan-600 to-slate-800",
@@ -112,9 +121,6 @@ export function ClassesListPage() {
  const [scheduleSummaries, setScheduleSummaries] = useState<Map<string, ClassScheduleSummary>>(
   () => initialCache?.scheduleSummaries ?? new Map()
  )
- const [teachers, setTeachers] = useState<{ id: string; label: string }[]>(
-  () => initialCache?.teachers ?? []
- )
  const [yearOptions, setYearOptions] = useState<{ id: string; label: string; is_current: boolean }[]>(
   () => initialCache?.yearOptions ?? []
  )
@@ -131,13 +137,27 @@ export function ClassesListPage() {
  const [teacherKey, setTeacherKey] = usePersistentState<string>("mgmt_classes_teacherKey", "全部")
  const [dayKey, setDayKey] = usePersistentState<string>("mgmt_classes_dayKey", "全部")
  const [statusKey, setStatusKey] = usePersistentState<string>("mgmt_classes_statusKey", "全部")
- const [kindKey, setKindKey] = usePersistentState<string>("mgmt_classes_kindKey", "小組")
  /** 僅班別頁有效（session），不再跨頁同步 */
  const [academicYearFilter, setAcademicYearFilter] = usePersistentState<string>(
   "mgmt_classes_academicYearFilter",
   "current"
  )
  const [filtersOpen, setFiltersOpen] = useState(false)
+ const [sortKey, setSortKey] = usePersistentState<ClassListColumnId>(
+  "mgmt_classes_sortKey",
+  "course_code"
+ )
+ const [sortDir, setSortDir] = usePersistentState<"asc" | "desc">("mgmt_classes_sortDir", "asc")
+ const [headerFiltersStored, setHeaderFilters] = usePersistentState<ClassListHeaderFilters>(
+  "mgmt_classes_headerFilters",
+  EMPTY_CLASS_HEADER_FILTERS
+ )
+ const headerFilters = useMemo(
+  () => ({ ...EMPTY_CLASS_HEADER_FILTERS, ...headerFiltersStored }),
+  [headerFiltersStored]
+ )
+ const [selectedIds, setSelectedIds] = useState<string[]>([])
+ const [bulkSaving, setBulkSaving] = useState(false)
 
  useEffect(() => {
   try {
@@ -153,19 +173,19 @@ export function ClassesListPage() {
   if (gradeKey !== "全部") n += 1
   if (!teacherTid && teacherKey !== "全部") n += 1
   if (dayKey !== "全部") n += 1
-  if (kindKey !== "小組") n += 1
   if (statusKey !== "全部") n += 1
+  n += countActiveClassHeaderFilters(headerFilters)
   return n
- }, [subjectKey, gradeKey, teacherKey, dayKey, kindKey, statusKey, teacherTid])
+ }, [subjectKey, gradeKey, teacherKey, dayKey, statusKey, teacherTid, headerFilters])
 
  const resetFilters = useCallback(() => {
   setSubjectKey("全部")
   setGradeKey("全部")
   setTeacherKey("全部")
   setDayKey("全部")
-  setKindKey("小組")
   setStatusKey("全部")
- }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setKindKey, setStatusKey])
+  setHeaderFilters(EMPTY_CLASS_HEADER_FILTERS)
+ }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setStatusKey, setHeaderFilters])
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
   if (!opts?.silent) setLoading(true)
@@ -173,20 +193,17 @@ export function ClassesListPage() {
   try {
    const list = await fetchAllClasses()
    const classIds = list.map((c) => c.id)
-   const [teacherOpts, yearOpts, roster, summaries] = await Promise.all([
-    fetchTeacherOptions(),
+   const [yearOpts, roster, summaries] = await Promise.all([
     fetchAcademicYearOptions(),
     fetchEnrollmentRosterByClassIds(classIds),
     fetchScheduleSummariesByClassIds(classIds),
    ])
    setRows(list)
-   setTeachers(teacherOpts)
    setYearOptions(yearOpts)
    setEnrollRoster(roster)
    setScheduleSummaries(summaries)
    setClassesListDataCache({
     rows: list,
-    teachers: teacherOpts,
     yearOptions: yearOpts,
     enrollRoster: roster,
     scheduleSummaries: summaries,
@@ -225,8 +242,10 @@ export function ClassesListPage() {
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(null), [])
 
  const baseRows = useMemo(() => {
-  if (!teacherTid) return rows
-  return rows.filter((c) => c.teacher_id === teacherTid)
+  // 班別管理只處理專科班；私人課程／功輔另有入口
+  const specialty = rows.filter((c) => c.class_kind === "group")
+  if (!teacherTid) return specialty
+  return specialty.filter((c) => c.teacher_id === teacherTid)
  }, [rows, teacherTid])
 
  const academicYearSelectOptions = useMemo(() => {
@@ -239,6 +258,7 @@ export function ClassesListPage() {
   const fromRows = [
    ...new Set(
     rows
+     .filter((c) => c.class_kind === "group")
      .map((c) => c.academic_year_label ?? academicYearLabelFromStartDate(c.start_date))
      .filter((x) => /^\d{4}$/.test(x) || /^\d{2}SM$/i.test(x))
    ),
@@ -261,8 +281,6 @@ export function ClassesListPage() {
 
  const filtered = useMemo(() => {
   return yearScopedRows.filter((c) => {
-   if (kindKey === "小組" && c.class_kind !== "group") return false
-   if (kindKey === "一對一" && c.class_kind !== "private") return false
    return (
     classMatchesGrade(c, gradeKey) &&
     classMatchesSubject(c, subjectKey) &&
@@ -271,7 +289,42 @@ export function ClassesListPage() {
     classMatchesStatus(c, statusKey)
    )
   })
- }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey, kindKey])
+ }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
+
+ const timeLabel = useCallback(
+  (c: ClassRecord) => {
+   const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
+   const sum = scheduleSummaries.get(c.id)
+   const dates = sum?.dates.map(formatScheduleDateShort).join("、") ?? ""
+   if (approx && dates) return `${approx} · ${dates}`
+   if (dates) return dates
+   return approx || "—"
+  },
+  [scheduleSummaries]
+ )
+
+ const listExtras: ClassListExtras = useMemo(
+  () => ({
+   enrollRoster,
+   scheduleSummaries,
+   timeLabel,
+  }),
+  [enrollRoster, scheduleSummaries, timeLabel]
+ )
+
+ const safeSortKey: ClassListColumnId = isClassListColumnId(sortKey) ? sortKey : "course_code"
+
+ const tableRows = useMemo(() => {
+  const list = filtered.filter((c) => classMatchesHeaderFilters(c, headerFilters, listExtras))
+  return [...list].sort((a, b) => compareClasses(a, b, safeSortKey, sortDir, listExtras))
+ }, [filtered, headerFilters, safeSortKey, sortDir, listExtras])
+
+ const displayRows = displayView === "list" ? tableRows : filtered
+
+ const selectedRows = useMemo(
+  () => tableRows.filter((c) => selectedIds.includes(c.id)),
+  [tableRows, selectedIds]
+ )
 
  const subjectChips = useMemo(
   () => buildSubjectFilterChips(yearScopedRows, { includeCommonWhenEmpty: !teacherTid }),
@@ -292,17 +345,13 @@ export function ClassesListPage() {
 
  const teacherChips = useMemo((): string[] => {
   if (teacherTid) return ["全部"]
-  const names = new Map<string, string>()
+  const names = new Set<string>()
   for (const c of yearScopedRows) {
    const name = (c.teacher_name ?? "").trim()
-   if (name) names.set(name, name)
+   if (name) names.add(name)
   }
-  for (const t of teachers) {
-   const name = t.label.trim()
-   if (name) names.set(name, name)
-  }
-  return ["全部", ...[...names.keys()].sort((a, b) => a.localeCompare(b, "zh-Hant"))]
- }, [teacherTid, yearScopedRows, teachers])
+  return ["全部", ...[...names].sort((a, b) => a.localeCompare(b, "zh-Hant"))]
+ }, [teacherTid, yearScopedRows])
 
  const dayChips = useMemo(() => {
   if (!teacherTid) return [...DAY_FILTER_CHIPS]
@@ -340,8 +389,8 @@ export function ClassesListPage() {
  const stats = useMemo(() => {
   const total = yearScopedRows.length
   const inProg = yearScopedRows.filter((c) => c.status.includes("進行")).length
-  return { total, inProg, filtered: filtered.length }
- }, [yearScopedRows, filtered])
+  return { total, inProg, filtered: displayRows.length }
+ }, [yearScopedRows, displayRows])
 
  const kanbanColumns = useMemo(() => {
   if (kanbanGroup === "day") {
@@ -465,16 +514,115 @@ export function ClassesListPage() {
   }
  }
 
- const timeLabel = (c: ClassRecord) => {
-  const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
-  const sum = scheduleSummaries.get(c.id)
-  const dates = sum?.dates.map(formatScheduleDateShort).join("、") ?? ""
-  if (approx && dates) return `${approx} · ${dates}`
-  if (dates) return dates
-  return approx || "—"
+ const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
+
+ const toggleSort = (key: ClassListColumnId) => {
+  if (safeSortKey === key) {
+   setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+  } else {
+   setSortKey(key)
+   setSortDir("asc")
+  }
  }
 
- const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
+ const toggleSelect = (id: string) => {
+  setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+ }
+
+ const toggleSelectAllFiltered = () => {
+  if (tableRows.length > 0 && tableRows.every((c) => selectedIds.includes(c.id))) {
+   setSelectedIds([])
+   return
+  }
+  setSelectedIds(tableRows.map((c) => c.id))
+ }
+
+ const exportSelectedCsv = () => {
+  const header = [
+   "課程編號",
+   "年級",
+   "課程名稱",
+   "上課時間",
+   "老師",
+   "學生人數",
+   "學生名單",
+   "報讀須知",
+   "狀態",
+  ]
+  const lines = selectedRows.map((c) => {
+   const roster = enrollRoster.get(c.id)
+   const cells = [
+    c.course_code_full ?? "",
+    (c.grade ?? []).join("、"),
+    classDisplayName({ subject: c.subject, courseName: c.course_name }),
+    timeLabel(c),
+    c.teacher_name ?? "",
+    String(roster?.count ?? 0),
+    (roster?.names ?? []).join("、"),
+    (c.enrollment_notice ?? "").replace(/\r?\n/g, " "),
+    c.status,
+   ]
+   return cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
+  })
+  const blob = new Blob([[header.join(","), ...lines].join("\n")], {
+   type: "text/csv;charset=utf-8",
+  })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = `classes-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+ }
+
+ const onBulkDelete = async () => {
+  if (bulkSaving || selectedRows.length === 0 || !canDeleteClass) return
+  const n = selectedRows.length
+  const ok = await confirmDialog({
+   title: `刪除 ${n} 個班別`,
+   description: "將一併取消相關進行中排程（cascade）。此操作不可還原。",
+   confirmText: "確認刪除",
+   tone: "destructive",
+   confirmInput: { label: "請輸入「刪除」以確認", expected: "刪除" },
+  })
+  if (!ok) return
+  const outside = selectedRows.find((c) =>
+   isOutsideCurrentOrNextAcademicYear(classAcademicYearLabel(c))
+  )
+  if (
+   outside &&
+   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    label: classAcademicYearLabel(outside),
+    source: "ClassesListPage.onBulkDelete",
+   }))
+  ) {
+   return
+  }
+  setBulkSaving(true)
+  try {
+   const failures: string[] = []
+   for (const c of selectedRows) {
+    try {
+     await deleteClassCascade(c.id)
+     removeClassFromLocalState(c.id)
+    } catch (e) {
+     failures.push(
+      `${classDisplayName({ subject: c.subject, courseName: c.course_name })}：${formatUnknownError(e)}`
+     )
+    }
+   }
+   setSelectedIds([])
+   if (failures.length > 0) {
+    setErr(`部分班別刪除失敗：${failures.slice(0, 3).join("；")}`)
+    pushBanner({ tone: "warning", title: "批量刪除未全部完成" })
+   } else {
+    pushBanner({ tone: "info", title: `已刪除 ${n} 個班別` })
+   }
+   void load({ silent: true })
+  } finally {
+   setBulkSaving(false)
+  }
+ }
 
  const renderClassFilterPanel = () => (
   <div className="space-y-5">
@@ -562,34 +710,6 @@ export function ClassesListPage() {
       </button>
      ))}
     </div>
-   </div>
-
-   <div className="space-y-2">
-    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">班別類型</div>
-    <div className="flex flex-wrap gap-2">
-     {([
-      { value: "小組", label: "專科班" },
-      { value: "一對一", label: "私人課程" },
-      { value: "全部", label: "全部" },
-     ] as const).map((option) => (
-      <button
-       key={option.value}
-       type="button"
-       onClick={() => setKindKey(option.value)}
-       className={cn(
-        "rounded-full border px-3 py-1.5 text-sm font-medium transition-all active:scale-95",
-        kindKey === option.value
-         ? "border-primary bg-primary text-primary-foreground shadow-sm"
-         : "border-border bg-card hover:border-primary/30 hover:bg-muted/60"
-       )}
-      >
-       {option.label}
-      </button>
-     ))}
-    </div>
-    <p className="text-xs text-muted-foreground">
-     此頁預設顯示專科班。如要管理私人課程，請前往「私人課程」；亦可於此篩選檢視私人課程班別。
-    </p>
    </div>
 
    <div className="space-y-2">
@@ -826,11 +946,6 @@ export function ClassesListPage() {
           </h3>
          </div>
          <div className="flex shrink-0 flex-col items-end gap-1">
-          {c.class_kind === "private" ? (
-           <Tag tone="info" size="sm">
-            {classKindLabel("private")}
-           </Tag>
-          ) : null}
           <Tag tone={statusToTagTone(c.status)} size="sm">
            {c.status}
           </Tag>
@@ -865,188 +980,75 @@ export function ClassesListPage() {
      </StaggerList>
     )
    ) : displayView === "list" ? (
-    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-     <div className="overflow-x-auto">
-      <table className="w-full min-w-[104rem] table-fixed border-collapse text-sm">
-       <thead>
-        <tr className="border-b border-border bg-muted/50 text-left">
-         <th className="min-w-[7.5rem] whitespace-nowrap px-4 py-3 pr-2 font-medium">
-          課程編號
-         </th>
-         <th className="min-w-[5.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">年級</th>
-         <th className="min-w-[9rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">課程名稱</th>
-         <th className="min-w-[9.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">上課時間</th>
-         <th className="min-w-[7rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">老師</th>
-         <th className="min-w-[4.5rem] whitespace-nowrap px-3 py-3 pr-2 text-center font-medium">
-          學生人數
-         </th>
-         <th className="min-w-[20rem] px-3 py-3 pr-4 font-medium">學生名單</th>
-         <th className="min-w-[12rem] px-3 py-3 pr-2 font-medium">報讀須知</th>
-         <th className="min-w-[7.5rem] whitespace-nowrap px-3 py-3 pr-2 font-medium">狀態</th>
-         <th className="min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium">操作</th>
-        </tr>
-       </thead>
-       {loading ? (
-        <tbody>
-         <tr>
-          <td colSpan={10} className="px-3 py-6">
-           <SkeletonTableRows rows={8} columns={10} />
-          </td>
-         </tr>
-        </tbody>
-       ) : filtered.length === 0 ? (
-        <tbody>
-         <tr>
-          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
-           {yearScopedRows.length === 0 && baseRows.length > 0
-            ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
-            : "沒有符合條件的專科班。若要管理私人課程，請前往「私人課程」。"}
-          </td>
-         </tr>
-        </tbody>
-       ) : (
-        <StaggerList as="tbody">
-         {filtered.map((c, idx) => (
-          <StaggerItem
-           key={c.id}
-           as="tr"
-           onClick={() => navigate(`/Classes/${c.id}`)}
-           className={cn(
-            "border-b border-border",
-            rowInteractive,
-            idx % 2 === 1 ? "bg-muted/15" : ""
-           )}
-          >
-           <td className="min-w-0 align-top px-4 py-3 pr-2 text-muted-foreground">
-            <span className="flex items-start gap-1" title={hasNoActiveSchedule(c) ? "此班別尚無進行中的排程" : undefined}>
-             {hasNoActiveSchedule(c) ? (
-              <AlertTriangle
-               className="mt-0.5 h-4 w-4 shrink-0 text-warning"
-               aria-label="尚無排程"
-              />
-             ) : null}
-             <span className="block truncate font-mono text-xs" title={c.course_code_full ?? undefined}>
-              {c.course_code_full ?? "—"}
-             </span>
-            </span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3 pr-2">
-            <span className="block break-words leading-relaxed">{(c.grade ?? []).join("、") || "—"}</span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3 pr-2">
-            <span className="block break-words leading-relaxed font-medium">
-             {classDisplayName({ subject: c.subject, courseName: c.course_name })}
-             {c.class_kind === "private" ? (
-              <Tag tone="info" size="sm" className="ml-1.5 align-middle">
-               {classKindLabel("private")}
-              </Tag>
-             ) : null}
-            </span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
-            <span className="block break-words leading-relaxed">{timeLabel(c)}</span>
-           </td>
-           <td className="min-w-0 align-top px-3 py-3 pr-2" onClick={(e) => e.stopPropagation()}>
-            {c.teacher_id ? (
-             <Link
-              to={`/Teachers/${c.teacher_id}`}
-              className="font-medium text-primary underline-offset-4 hover:underline"
-             >
-              {c.teacher_name ?? "—"}
-             </Link>
-            ) : (
-             "—"
-            )}
-           </td>
-           <td
-            className="align-top px-3 py-3 pr-2 text-center tabular-nums text-muted-foreground"
-            onClick={(e) => e.stopPropagation()}
-            title="僅統計狀態為「就讀中」的選課"
-           >
-            {enrollRoster.get(c.id)?.count ?? 0}
-           </td>
-           <td
-            className="min-w-[20rem] max-w-[28rem] align-top px-3 py-3 pr-4 text-xs text-muted-foreground"
-            onClick={(e) => e.stopPropagation()}
-            title={
-             (enrollRoster.get(c.id)?.names ?? []).length > 0
-              ? (enrollRoster.get(c.id)?.names ?? []).join("、")
-              : undefined
-            }
-           >
-            {(enrollRoster.get(c.id)?.names ?? []).length > 0 ? (
-             <span className="line-clamp-2 break-words leading-relaxed [overflow-wrap:anywhere]">
-              {(enrollRoster.get(c.id)?.names ?? []).join("、")}
-             </span>
-            ) : (
-             "—"
-            )}
-           </td>
-           <td
-            className="min-w-[12rem] max-w-[16rem] align-top px-3 py-3 pr-2 text-xs text-muted-foreground"
-            title={c.enrollment_notice?.trim() || undefined}
-           >
-            {c.enrollment_notice?.trim() ? (
-             <span className="line-clamp-2 break-words leading-relaxed [overflow-wrap:anywhere]">
-              {c.enrollment_notice}
-             </span>
-            ) : (
-             "—"
-            )}
-           </td>
-           <td className="align-top px-3 py-3 pr-2" onClick={(e) => e.stopPropagation()}>
-            <Select
-             className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
-             value={c.status}
-             disabled={Boolean(teacherTid)}
-             onChange={(e) => void onStatusChange(c.id, e.target.value)}
-            >
-             {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
-              <option key={s} value={s}>
-               {s}
-              </option>
-             ))}
-            </Select>
-           </td>
-           <td className="align-top px-3 py-3 pl-2" onClick={(e) => e.stopPropagation()}>
-            <div className="flex min-w-0 flex-col items-start gap-y-1.5 leading-none">
-             <button
-              type="button"
-              className="text-left text-primary hover:underline"
-              onClick={() => navigate(`/Classes/${c.id}`)}
-             >
-              {teacherTid ? "查看" : "編輯"}
-             </button>
-             {!teacherTid ? (
-             <button
-              type="button"
-              className="text-left text-muted-foreground hover:text-foreground hover:underline"
-              onClick={(e) => void onCopy(e, c.id)}
-             >
-              <Copy className="mr-0.5 inline h-3.5 w-3.5" />
-              複製
-             </button>
-             ) : null}
-             {canDeleteClass ? (
-              <button
-               type="button"
-               className="text-left text-destructive hover:underline"
-               onClick={(e) => void onDelete(e, c.id)}
-              >
-               刪除
-              </button>
-             ) : null}
-            </div>
-           </td>
-          </StaggerItem>
-         ))}
-        </StaggerList>
-       )}
-      </table>
-     </div>
-     <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
-      共 {filtered.length} 班
-     </div>
+    <div className="space-y-3">
+     {countActiveClassHeaderFilters(headerFilters) > 0 || safeSortKey !== "course_code" || sortDir !== "asc" ? (
+      <div className="flex flex-wrap items-center gap-2">
+       <Tag tone="default" size="sm">
+        目前排序：{classSortLabel(safeSortKey, sortDir)}
+       </Tag>
+       {countActiveClassHeaderFilters(headerFilters) > 0 ? (
+        <Button
+         type="button"
+         variant="ghost"
+         size="sm"
+         onClick={() => setHeaderFilters(EMPTY_CLASS_HEADER_FILTERS)}
+        >
+         清除表頭篩選
+        </Button>
+       ) : null}
+      </div>
+     ) : null}
+     <BulkSelectionBar
+      selectedCount={selectedIds.length}
+      unitLabel="班"
+      allFilteredSelected={
+       tableRows.length > 0 && tableRows.every((c) => selectedIds.includes(c.id))
+      }
+      onToggleSelectAll={toggleSelectAllFiltered}
+      onClear={() => setSelectedIds([])}
+     >
+      <Button type="button" variant="outline" size="sm" onClick={exportSelectedCsv}>
+       匯出已選
+      </Button>
+      {canDeleteClass ? (
+       <Button
+        type="button"
+        variant="destructive"
+        size="sm"
+        disabled={bulkSaving}
+        onClick={() => void onBulkDelete()}
+       >
+        {bulkSaving ? "刪除中…" : "批量刪除"}
+       </Button>
+      ) : null}
+     </BulkSelectionBar>
+     <ClassesListTable
+      rows={tableRows}
+      filterSourceRows={filtered}
+      extras={listExtras}
+      loading={loading}
+      emptyHint={
+       yearScopedRows.length === 0 && baseRows.length > 0
+        ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+        : "沒有符合條件的專科班。若要管理私人課程，請前往「私人課程」。"
+      }
+      sortKey={safeSortKey}
+      sortDir={sortDir}
+      onToggleSort={toggleSort}
+      headerFilters={headerFilters}
+      onHeaderFilterChange={(key, value) => setHeaderFilters((prev) => ({ ...prev, [key]: value }))}
+      selectedIds={selectedIds}
+      onToggleSelect={toggleSelect}
+      onToggleSelectAll={toggleSelectAllFiltered}
+      teacherScoped={Boolean(teacherTid)}
+      canDeleteClass={canDeleteClass}
+      onNavigate={(id) => navigate(`/Classes/${id}`)}
+      onStatusChange={(id, status) => void onStatusChange(id, status)}
+      onCopy={onCopy}
+      onDelete={onDelete}
+      hasNoActiveSchedule={hasNoActiveSchedule}
+     />
+     <p className="text-xs text-muted-foreground">共 {tableRows.length} 班</p>
     </div>
    ) : displayView === "gallery" && teacherTid ? (
     <div className="rounded-xl border border-border bg-muted/20 p-4 shadow-sm md:p-6">
@@ -1078,11 +1080,6 @@ export function ClassesListPage() {
           <p className="text-sm text-muted-foreground">{timeLabel(c)}</p>
           <p className="text-sm text-muted-foreground">{(c.grade ?? []).join("、") || "—"}</p>
           <div className="flex flex-wrap items-center gap-1">
-           {c.class_kind === "private" ? (
-            <Tag tone="info" size="sm">
-             {classKindLabel("private")}
-            </Tag>
-           ) : null}
            <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
           </div>
          </div>
@@ -1128,11 +1125,6 @@ export function ClassesListPage() {
              {c.course_code_full ?? "—"}
             </span>
             <div className="flex flex-col items-end gap-0.5">
-             {c.class_kind === "private" ? (
-              <Tag tone="info" size="sm" className="text-[10px]">
-               {classKindLabel("private")}
-              </Tag>
-             ) : null}
              <Tag tone={statusToTagTone(c.status)} size="sm" className="text-[10px]">
               {c.status}
              </Tag>

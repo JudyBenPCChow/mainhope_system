@@ -22,7 +22,7 @@ type Props = {
 function monthOptions(count = 18): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = []
   const now = new Date()
-  for (let i = 1; i <= count; i++) {
+  for (let i = 0; i < count; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
     out.push({ value: key, label: `${d.getFullYear()}年${d.getMonth() + 1}月` })

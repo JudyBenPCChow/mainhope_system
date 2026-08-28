@@ -19,7 +19,7 @@ import {
  intervalsOverlapMinutes,
  parseHm,
 } from "@/lib/lessonSlots"
-import { resolveClassKind } from "@/lib/privateClassKind"
+import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
 import { fetchSessionNumbersByEnrollmentIds } from "@/services/enrollmentSessionQueries"
@@ -584,7 +584,7 @@ export type EnrollmentWithClass = {
  classId: string
  subject: string
  /** group / private */
- classKind: "group" | "private"
+ classKind: "group" | "private" | "homework"
  subjectCode: string | null
  subjectCategory: string | null
  teacherId: string | null
@@ -1091,15 +1091,19 @@ export async function findStudentEnrollmentScheduleConflicts(opts: {
  scheduleIds?: string[]
  /** 更新既有報讀時排除本班 enrollment（避免與自己比） */
  excludeClassId?: string | null
+ /** 只檢查此日（含）起的堂次；遲報／指定開始排程用 */
+ fromDate?: string | null
 }): Promise<EnrollmentScheduleConflict[]> {
  if (!supabase) return []
- const targetSlots = await filterSlotsForEnrollmentPeriod(
+ const fromDate = (opts.fromDate ?? "").slice(0, 10)
+ let targetSlots = await filterSlotsForEnrollmentPeriod(
   opts.classId,
   opts.enrollmentPeriod,
   opts.scheduleIds,
   await fetchUpcomingScheduleSlotsForClass(opts.classId),
   { studentId: opts.studentId }
  )
+ if (fromDate) targetSlots = targetSlots.filter((s) => s.scheduled_date >= fromDate)
  if (targetSlots.length === 0) return []
 
  const excludeClassId = opts.excludeClassId ?? opts.classId
@@ -1169,6 +1173,7 @@ async function assertNoEnrollmentTimeConflicts(opts: {
  enrollmentPeriod: EnrollmentFormValue | null
  scheduleIds?: string[]
  excludeClassId?: string | null
+ fromDate?: string | null
 }): Promise<void> {
  const conflicts = await findStudentEnrollmentScheduleConflicts(opts)
  if (conflicts.length > 0) throw new Error(formatEnrollmentConflictError(conflicts))
@@ -1216,26 +1221,55 @@ async function closeOpenTrialsAfterEnrollment(
  }
 }
 
+export type InsertEnrollmentOpts = {
+ /** 開始報讀日（含當日堂）；預設今天。下一堂／指定排程開始時傳入該堂日期。 */
+ enrollDate?: string | null
+ /** 功輔：每週日數檔 */
+ homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
+ /** 功輔：慣常到校星期 */
+ homeworkWeekdays?: Array<"一" | "二" | "三" | "四" | "五"> | null
+}
+
 export async function insertEnrollment(
  studentId: string,
  classId: string,
  enrollmentPeriod?: EnrollmentFormValue | null,
  scheduleIds?: string[],
- pending?: InsertEnrollmentPendingOpts | null
+ pending?: InsertEnrollmentPendingOpts | null,
+ opts?: InsertEnrollmentOpts | null
 ): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  const today = localYmd()
+ const enrollDateRaw = (opts?.enrollDate ?? "").slice(0, 10)
+ const enrollDate = /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) ? enrollDateRaw : today
  const { data: classRow, error: classErr } = await supabase
   .from("classes")
-  .select("academic_year_label, start_date")
+  .select("academic_year_label, start_date, class_kind, subject")
   .eq("id", classId)
   .maybeSingle()
  if (classErr) throw classErr
  if (classRow) assertClassRecordEditable(classRow as { academic_year_label?: string | null; start_date?: string | null })
+ const classKind = resolveClassKind(
+  (classRow as { class_kind?: string | null } | null)?.class_kind ?? null,
+  (classRow as { subject?: string | null } | null)?.subject ?? null
+ )
+ const isHomework = classKind === "homework"
+ if (isHomework) {
+  const plan = opts?.homeworkDayPlan
+  const days = opts?.homeworkWeekdays ?? []
+  if (!plan) throw new Error("功課輔導班請選擇每週日數檔")
+  const need =
+   plan === "三日" ? 3 : plan === "四日" ? 4 : plan === "五日" ? 5 : 7
+  if (plan !== "七日" && days.length !== need) {
+   throw new Error(`每週${plan}請選 ${need} 個慣常到校星期（已選 ${days.length}）`)
+  }
+ }
  const config = await fetchClassEnrollmentConfig(classId)
- const isSingle = isSingleSessionEnrollment(enrollmentPeriod)
+ const isSingle = !isHomework && isSingleSessionEnrollment(enrollmentPeriod)
  let periodValue: EnrollmentFormValue | null = null
- if (isSingle) {
+ if (isHomework) {
+  periodValue = null
+ } else if (isSingle) {
   periodValue = "單堂"
   if (!scheduleIds || scheduleIds.length === 0) {
    throw new Error("單堂報讀請至少選擇一堂")
@@ -1267,12 +1301,25 @@ export async function insertEnrollment(
  }
  const withdrawn = existing.find((r) => r.status === "已退讀")
 
- await assertNoEnrollmentTimeConflicts({
-  studentId,
-  classId,
-  enrollmentPeriod: periodValue,
-  scheduleIds: isSingle ? scheduleIds : undefined,
- })
+ if (!isHomework) {
+  await assertNoEnrollmentTimeConflicts({
+   studentId,
+   classId,
+   enrollmentPeriod: periodValue,
+   scheduleIds: isSingle ? scheduleIds : undefined,
+   fromDate: enrollDate,
+  })
+ }
+
+ const homeworkFields = isHomework
+  ? {
+     homework_day_plan: opts?.homeworkDayPlan ?? null,
+     homework_weekdays: opts?.homeworkWeekdays ?? [],
+    }
+  : {
+     homework_day_plan: null,
+     homework_weekdays: null,
+    }
 
  let enrollmentId: string
  let createdNew = false
@@ -1282,10 +1329,11 @@ export async function insertEnrollment(
    .from("student_class_enrollments")
    .update({
     status: "就讀中",
-    enroll_date: today,
+    enroll_date: enrollDate,
     enrollment_period: periodValue,
     withdraw_effective_date: null,
     withdraw_reason: null,
+    ...homeworkFields,
     updated_at: new Date().toISOString(),
    })
    .eq("id", enrollmentId)
@@ -1302,8 +1350,9 @@ export async function insertEnrollment(
     student_id: studentId,
     class_id: classId,
     status: "就讀中",
-    enroll_date: today,
+    enroll_date: enrollDate,
     enrollment_period: periodValue,
+    ...homeworkFields,
    })
    .select("id")
    .single()
@@ -1322,19 +1371,19 @@ export async function insertEnrollment(
     : ""
   const pendingNote =
    pending && pending.owedCount > 0 ? `；待補 ${pending.owedCount} 堂` : ""
+  const startNote = enrollDate !== today ? `由 ${enrollDate} 起報讀` : ""
+  const reasonParts = [
+   isSingle ? `單堂報讀${sessionLabel}` : withdrawn ? "退讀後重新報讀" : "",
+   startNote,
+   pendingNote.replace(/^；/, ""),
+  ].filter((s) => s.trim() !== "")
   const { error: evErr } = await supabase.from("enrollment_change_events").insert({
    student_id: studentId,
    class_id: classId,
    enrollment_id: enrollmentId,
    action: "enroll",
    effective_date: today,
-   reason: isSingle
-    ? `單堂報讀${sessionLabel}${pendingNote}`
-    : withdrawn
-      ? `退讀後重新報讀${pendingNote}`
-      : pendingNote
-        ? pendingNote.replace(/^；/, "")
-        : null,
+   reason: reasonParts.length > 0 ? reasonParts.join("；") : null,
    enrollment_period: periodValue,
   })
   if (evErr) throw evErr
@@ -1369,18 +1418,20 @@ export async function insertEnrollment(
  } catch (trialErr) {
   console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", trialErr)
  }
- try {
-  await ensureEntitlementPoolAndDeclarations({
-   enrollmentId,
-   studentId,
-   classId,
-   enrollmentPeriod: periodValue,
-   enrollDate: today,
-   scheduleIds: isSingle ? scheduleIds : undefined,
-   sourceEventType: "enrollment_auto",
-  })
- } catch (poolErr) {
-  console.warn("[insertEnrollment] ensureEntitlementPoolAndDeclarations", poolErr)
+ if (!isHomework) {
+  try {
+   await ensureEntitlementPoolAndDeclarations({
+    enrollmentId,
+    studentId,
+    classId,
+    enrollmentPeriod: periodValue,
+    enrollDate,
+    scheduleIds: isSingle ? scheduleIds : undefined,
+    sourceEventType: "enrollment_auto",
+   })
+  } catch (poolErr) {
+   console.warn("[insertEnrollment] ensureEntitlementPoolAndDeclarations", poolErr)
+  }
  }
  return enrollmentId
 }
@@ -1716,6 +1767,7 @@ export type ClassOption = {
  courseCode: string | null
  label: string
  courseMode: CourseMode
+ classKind: ClassKind
 }
 
 export async function fetchClassOptions(): Promise<ClassOption[]> {
@@ -1741,12 +1793,11 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
  for (const r of (res.data ?? []) as Record<string, unknown>[]) {
   const row = r
   const subject = String(row.subject ?? "")
-  if (
-   resolveClassKind(
-    row.class_kind != null ? String(row.class_kind) : null,
-    subject
-   ) === "private"
-  ) {
+  const kind = resolveClassKind(
+   row.class_kind != null ? String(row.class_kind) : null,
+   subject
+  )
+  if (kind === "private") {
    continue
   }
   const course = row.courses as Record<string, unknown> | null
@@ -1759,6 +1810,7 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
     row.course_code_full != null ? String(row.course_code_full) : null,
    label: buildClassOptionLabel(row),
    courseMode,
+   classKind: kind,
   })
  }
  return out

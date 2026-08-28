@@ -22,8 +22,8 @@ type StaggerListProps = {
  maxDelayMs?: number
  animate?: boolean
  className?: string
- children: React.ReactNode
-} & Record<string, unknown>
+ children?: React.ReactNode
+}
 
 function StaggerIndexProvider({
  index,
@@ -79,18 +79,30 @@ export function StaggerList({
 }
 
 /** `<tbody>` 列表 shorthand */
-export function StaggerTableBody(props: Omit<StaggerListProps, "as">) {
- return <StaggerList as="tbody" {...props} />
+export function StaggerTableBody({ children, ...props }: Omit<StaggerListProps, "as">) {
+ return (
+  <StaggerList as="tbody" {...props}>
+   {children}
+  </StaggerList>
+ )
 }
 
 /** 垂直卡片／堆疊列表 shorthand */
-export function StaggerStack(props: Omit<StaggerListProps, "as">) {
- return <StaggerList as="div" {...props} />
+export function StaggerStack({ children, ...props }: Omit<StaggerListProps, "as">) {
+ return (
+  <StaggerList as="div" {...props}>
+   {children}
+  </StaggerList>
+ )
 }
 
 /** 無序列表 shorthand */
-export function StaggerUl(props: Omit<StaggerListProps, "as">) {
- return <StaggerList as="ul" {...props} />
+export function StaggerUl({ children, ...props }: Omit<StaggerListProps, "as">) {
+ return (
+  <StaggerList as="ul" {...props}>
+   {children}
+  </StaggerList>
+ )
 }
 
 type StaggerItemProps = {

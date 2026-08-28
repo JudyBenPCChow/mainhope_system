@@ -74,9 +74,10 @@ BUCKET_LABEL = {
     "s_pending": "2 學生請假已排未上",
     "t_none": "3 老師請假未安排",
     "t_pending": "4 老師請假已排未上",
+    "paid_gap": "5 已繳未完成（無請假）",
 }
 
-BUCKET_ORDER = ("s_none", "t_none", "s_pending", "t_pending")
+BUCKET_ORDER = ("s_none", "t_none", "s_pending", "t_pending", "paid_gap")
 
 
 def ensure_pmingliu() -> Path:
@@ -110,7 +111,9 @@ def lessons_of(rows: list[tuple]) -> int:
 
 def is_overdue(row: tuple, as_of: str) -> bool:
     arranged, makeup = row[6], row[7]
-    return arranged and makeup != "—" and makeup < as_of
+    if not arranged or makeup == "—":
+        return False
+    return makeup[:10] < as_of
 
 
 def rows_from_json(payload: dict) -> list[tuple]:
@@ -161,15 +164,16 @@ def build_pdf(
     pdfmetrics.registerFont(TTFont("PMingLiU", str(font_path)))
     font = "PMingLiU"
     page_width, _ = landscape(A4)
-    ink = colors.HexColor("#202020")
-    muted = colors.HexColor("#5f5f5f")
-    line = colors.HexColor("#bdbdbd")
-    header_bg = colors.HexColor("#e9ecef")
-    accent = colors.HexColor("#315f66")
-    alternate = colors.HexColor("#f7f7f7")
-    warn_bg = colors.HexColor("#f8f1e3")
-    danger_bg = colors.HexColor("#f6e4e4")
-    info_bg = colors.HexColor("#e8eef3")
+    ink = colors.black
+    muted = colors.HexColor("#555555")
+    line = colors.HexColor("#888888")
+    header_bg = colors.HexColor("#d9d9d9")
+    accent = colors.black
+    white = colors.white
+    alternate = colors.HexColor("#f2f2f2")
+    warn_bg = colors.HexColor("#e6e6e6")
+    danger_bg = colors.HexColor("#c8c8c8")
+    info_bg = white
 
     styles = getSampleStyleSheet()
     styles.add(
@@ -255,7 +259,7 @@ def build_pdf(
         )
     )
 
-    need_arrange = [row for row in rows if not row[6]]
+    need_arrange = [row for row in rows if not row[6] and row[0] != "paid_gap"]
     need_attend = [row for row in rows if row[6]]
     overdue = [row for row in rows if is_overdue(row, as_of)]
     arrange_people = names_of(need_arrange)
@@ -279,9 +283,10 @@ def build_pdf(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), header_bg),
-                ("BACKGROUND", (0, 1), (0, 1), warn_bg),
-                ("BACKGROUND", (1, 1), (1, 1), info_bg),
-                ("BACKGROUND", (3, 1), (3, 1), danger_bg),
+                ("BACKGROUND", (0, 1), (0, 1), white),
+                ("BACKGROUND", (1, 1), (1, 1), alternate),
+                ("BACKGROUND", (2, 1), (2, 1), white),
+                ("BACKGROUND", (3, 1), (3, 1), warn_bg),
                 ("GRID", (0, 0), (-1, -1), 0.45, line),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
@@ -385,11 +390,12 @@ def build_pdf(
     detail.setStyle(TableStyle(table_style))
 
     notes = [
-        "要安排＝未有補堂日／未掛補回堂（含系統寫「調堂」但未選日）。",
+        "要安排＝未有補堂日／未掛補回堂（含系統寫「調堂」但未選日）。不含第 5 類。",
         "還要補＝已有補堂日，但該生尚未以現場／錄影回放／zoom／出席等扣堂狀態點名（含未來補堂日）。",
-        "同一學生可同時出現在兩類。連堂按 2 堂計。",
+        "第 5 類＝該班已繳堂數減已扣堂、未完成請假／老師取消堂、未來應到堂後仍有差額，且差額不是請假。",
+        "同一學生可同時出現在多類。連堂按 2 堂計。總表按任教老師排序。",
         "錄影／不補回／已補課／已上不列入。天氣取消堂已有補回並已點名，不列入。",
-        "底色：黃＝未安排；紅＝補堂日已過仍未上；藍＝已排、補堂日未到或當日。",
+        "底色（灰階）：深灰＝補堂日已過仍未上；中灰＝未安排／已繳未完成；白＝已排、補堂日未到或當日。",
     ]
     note_rows = [[cell("口徑", "ZhHead")]]
     note_rows.extend([[Paragraph(f"• {escape(note)}", styles["ZhNote"])] for note in notes])

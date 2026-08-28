@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import type { MgmtDashboardFilters, MgmtDashboardPayload } from "@/lib/mgmtDashboardTypes"
+import { isLoadOk } from "@/lib/mgmtDashboardTypes"
 import {
  asError,
  asOk,
@@ -141,10 +142,44 @@ describe("exportMgmtDashboardCsv", () => {
   const csv = exportMgmtDashboardCsv(failed, filters)
   expect(csv).toContain(`已收款,0,`)
   expect(csv).toContain(`報讀轉化率,${CSV_LOAD_FAILED},`)
+  expect(csv).toContain("消堂價值")
   expect(csv).toContain(CSV_LOAD_FAILED)
   const funnelLine = csv.split("\n").find((l) => l.startsWith(CSV_LOAD_FAILED))
   expect(funnelLine).toBeTruthy()
   expect(funnelLine).not.toMatch(/,0(,|$)/)
+ })
+})
+
+describe("assembleKpis — 毛利／純利", () => {
+ it("導師人工已過帳：毛利＝消堂價值 − 人工", () => {
+  const kpis = assembleKpis(
+   baseInput({
+    consumedValue: asOk(10000),
+    tutorLabor: asOk({ amount: 4000, posted: true }),
+    totalExpenses: asOk(7000),
+   })
+  )
+  expect(kpis.find((k) => k.id === "consumedValue")?.value).toBe(10000)
+  expect(kpis.find((k) => k.id === "grossProfit")?.value).toBe(6000)
+  expect(kpis.find((k) => k.id === "grossMargin")?.value).toBe(60)
+  expect(kpis.find((k) => k.id === "grossProfit")?.loadState).toBe("ready")
+  expect(kpis.find((k) => k.id === "netProfit")?.value).toBe(3000)
+  expect(kpis.find((k) => k.id === "netMargin")?.value).toBe(30)
+ })
+
+ it("導師人工未過帳：毛利卡顯示 pending，唔扮 0", () => {
+  const kpis = assembleKpis(
+   baseInput({
+    consumedValue: asOk(10000),
+    tutorLabor: asOk({ amount: 0, posted: false }),
+    totalExpenses: asOk(3000),
+   })
+  )
+  const gross = kpis.find((k) => k.id === "grossProfit")
+  expect(gross?.loadState).toBe("pending")
+  expect(gross?.hint).toContain("尚未結算過帳")
+  expect(kpis.find((k) => k.id === "netProfit")?.value).toBe(7000)
+  expect(kpis.find((k) => k.id === "netProfit")?.loadState).toBe("ready")
  })
 })
 
@@ -156,6 +191,36 @@ describe("mergeMgmtDashboardPayload", () => {
   const revenue = merged.kpis.find((k) => k.id === "revenue")
   expect(revenue?.loadState).toBe("ready")
   expect(revenue?.value).toBe(9000)
+ })
+
+ it("summary 有利潤卡、full 冇 → merge 保留 summary", () => {
+  const summary = assembleDashboardPayload(
+   baseInput({
+    consumedValue: asOk(20000),
+    tutorLabor: asOk({ amount: 8000, posted: true }),
+    totalExpenses: asOk(12000),
+    profitSeries: asOk([
+     {
+      monthKey: "2026-07",
+      label: "7月",
+      consumedValue: 20000,
+      tutorLabor: 8000,
+      tutorLaborPosted: true,
+      totalExpenses: 12000,
+      grossProfit: 12000,
+      grossMarginPct: 60,
+      netProfit: 8000,
+      netMarginPct: 40,
+     },
+    ]),
+   })
+  )
+  const full = assembleDashboardPayload(
+  baseInput({ revenue: asError("deferred"), profitSeries: asError("deferred") })
+ )
+  const merged = mergeMgmtDashboardPayload(summary, full)
+  expect(merged.kpis.find((k) => k.id === "grossProfit")?.value).toBe(12000)
+  expect(isLoadOk(merged.profitSeries) ? merged.profitSeries.ok[0]?.grossMarginPct : null).toBe(60)
  })
 })
 

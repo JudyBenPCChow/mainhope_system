@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import {
  EnrollmentFunnelChart,
  HorizontalBarChart,
+ ProfitMarginChart,
  RevenueTrendChart,
  UnpaidAmountBarChart,
 } from "@/components/mgmtDashboard/charts/MgmtCharts"
@@ -26,19 +27,22 @@ function PanelShell({
  subtitle,
  active,
  onClick,
+ className,
  children,
 }: {
  title: string
  subtitle: string
  active?: boolean
  onClick?: () => void
+ className?: string
  children: ReactNode
 }) {
  return (
   <section
    className={cn(
     "rounded-xl border border-border bg-card p-4 shadow-sm",
-    active && "ring-2 ring-primary/30"
+    active && "ring-2 ring-primary/30",
+    className
    )}
   >
    <button
@@ -93,6 +97,19 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
 
    <div className="grid gap-4 lg:grid-cols-2">
     <PanelShell
+     title="毛利率／純利率走勢"
+     subtitle="由 2026-07 起按月；導師人工未過帳嘅月份毛利率顯示缺口。純利扣已確認開支（按金／作廢唔入）"
+     active={focus?.type === "analysis" && focus.panel === "profit"}
+     onClick={() => onFocus({ type: "analysis", panel: "profit" })}
+    >
+     {isLoadOk(data.profitSeries) ? (
+      <ProfitMarginChart data={data.profitSeries.ok} loading={loading} />
+     ) : (
+      <MgmtGroupLoadError />
+     )}
+    </PanelShell>
+
+    <PanelShell
      title="本月收款趨勢與目標"
      subtitle="按月已收款；虛線為區間月均參考目標（正式目標表尚未接入）"
      active={focus?.type === "analysis" && focus.panel === "revenue"}
@@ -106,6 +123,7 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
     </PanelShell>
 
     <PanelShell
+     className="max-md:hidden"
      title="招生漏斗：試堂 → 報讀 → 在讀"
      subtitle="標示轉化率與流失點；在讀為快照、試堂／報讀為篩選區間"
      active={focus?.type === "analysis" && focus.panel === "funnel"}
@@ -119,6 +137,7 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
     </PanelShell>
 
     <PanelShell
+     className="max-md:hidden"
      title="退讀風險來源"
      subtitle="按科目／導師／班別／日期找出高風險來源"
      active={focus?.type === "analysis" && focus.panel === "withdrawal"}
@@ -165,6 +184,7 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
     </PanelShell>
 
     <PanelShell
+     className="max-md:hidden"
      title="待繳費與逾期跟進"
      subtitle="欠費金額、逾期天數與跟進狀態；優先處理逾期較長者"
      active={focus?.type === "analysis" && focus.panel === "unpaid"}
