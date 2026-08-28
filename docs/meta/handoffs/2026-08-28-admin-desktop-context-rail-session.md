@@ -40,7 +40,7 @@
 
 ## 勿再踩
 
-- 用戶要「HTML 沙盒／唔接真實網頁」時，**第一件產出獨立 HTML**（仿 `sandbox/tuition-quote/`），唔好只掛 `/prototype/…` Vite 路由。
+- 用戶要「HTML 沙盒／唔接真實網頁」時，**第一件產出獨立 HTML**（已升格：`.cursor/rules/ui-sandbox-html.mdc`）。
 - 本機 `main` 開 `/prototype/AdminContextRail`＝React Router 無匹配＝**全白**；Vercel preview URL 可能要登入。
 - 唔好把呢題做到 `feat/admin-expense-journal`；唔好 commit `node_modules`。
 - 唔用 hover 展開右欄（同「主欄操作時仍見到釘資料」對立）。

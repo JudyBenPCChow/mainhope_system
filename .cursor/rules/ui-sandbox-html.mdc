@@ -1,0 +1,19 @@
+---
+description: >-
+  用戶講沙盒、sandbox、試樣式、唔接真實網頁／系統時：第一件必須係可雙擊打開的獨立 HTML。
+  禁只交 Vite／prototype 路由當本機試用入口。
+globs: sandbox/**/*.html,public/**/*sandbox*.html,public/admin-context-rail.html
+alwaysApply: false
+---
+
+# 樣式沙盒＝可雙擊 HTML
+
+用戶提及**沙盒**（含 sandbox、試 UI／試樣式、唔接真實專案網頁）時：
+
+1. **第一件產出**（同一輪就要有）：`sandbox/<短名>/index.html`  
+   用瀏覽器直接打開（雙擊／Open with Browser）即可操作。唔使登入、唔使 `npm run dev`、唔使正確 git branch、唔使 Vercel preview。
+2. 範本：[`sandbox/tuition-quote/index.html`](sandbox/tuition-quote/index.html)（單檔、內嵌 CSS／JS、假資料、繁中）。
+3. 可選：`npm run sandbox:<名>` 用本機靜態 server；或複製一份到 `public/` 方便已在跑 Vite 時開靜態路徑。
+4. **唔好當本機唯一入口**：`/prototype/…`、要 checkout 先有嘅 React 路由、有 Deployment Protection 嘅 Vercel preview。呢啲可以**之後**加，用來對齊 design token，唔能代替第 1 步。
+
+例外（唔套呢條）：用戶明講改正式 `src/`、或沿用已有 `npm run sandbox:payroll` 計糧 Vite 沙盒。步驟見 skill `ui-sandbox-html`。
