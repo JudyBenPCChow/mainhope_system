@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>明學教育 — 管理員三欄右欄（沙盒）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #fff;
+      --border: #e4e4e7;
+      --muted: #71717a;
+      --fg: #18181b;
+      --primary: #2563eb;
+      --success: #16a34a;
+      --info: #0284c7;
+      --nav: #2a4e8a;
+      --rail: 22.5rem;
+      --handle: 2.75rem;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      font-size: 15px;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    button { font-family: inherit; }
+    .app { display: flex; flex-direction: column; height: 100vh; }
+    .banner {
+      flex-shrink: 0;
+      padding: 10px 16px;
+      background: #fef3c7;
+      border-bottom: 1px solid #fcd34d;
+      font-size: 13px;
+      color: #92400e;
+    }
+    .banner strong { color: #78350f; }
+    .shell { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+    .nav {
+      width: 16rem;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      color: #fff;
+      background: linear-gradient(to bottom, #1e3a6e, #2a4e8a, #3b6ab3);
+    }
+    .nav.thin { width: 4.25rem; }
+    .nav-head, .nav-foot {
+      padding: 14px 12px;
+      border-color: rgba(255,255,255,.1);
+    }
+    .nav-head { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,.1); }
+    .nav-foot { border-top: 1px solid rgba(255,255,255,.1); font-size: 13px; }
+    .brand { line-height: 1.25; }
+    .brand b { display: block; font-size: 16px; }
+    .brand span { font-size: 13px; opacity: .8; }
+    .icon-btn {
+      width: 36px; height: 36px; border: 0; border-radius: 8px;
+      background: transparent; color: inherit; cursor: pointer;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.12); }
+    .nav-body { flex: 1; overflow: auto; padding: 12px; }
+    .nav-item, .nav-group {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; border: 0; border-radius: 8px;
+      padding: 10px 12px; color: #fff; background: transparent;
+      cursor: pointer; text-align: left; font-size: 15px;
+    }
+    .nav-item:hover, .nav-group:hover { background: rgba(255,255,255,.16); }
+    .nav-item.active { background: rgba(255,255,255,.22); }
+    .nav-l2 { margin: 4px 0 8px 12px; padding-left: 10px; border-left: 2px solid rgba(255,255,255,.25); }
+    .main { flex: 1; min-width: 0; overflow: auto; background: #fff; padding: 32px 40px; }
+    .h1 { display: flex; align-items: center; gap: 8px; font-size: 24px; font-weight: 600; margin: 0 0 16px; }
+    .chip {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 500;
+    }
+    .chip-info { background: #e0f2fe; color: #0369a1; }
+    .chip-ok { background: #dcfce7; color: #15803d; }
+    .chip-mute { background: #e4e4e7; color: #52525b; }
+    .chip-warn { background: #ffedd5; color: #c2410c; }
+    input[type="search"] {
+      width: min(100%, 28rem); height: 36px; padding: 0 12px 0 36px;
+      border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+    }
+    .search { position: relative; margin-bottom: 16px; }
+    .search svg { position: absolute; left: 10px; top: 9px; opacity: .5; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .table-wrap { border: 1px solid var(--border); border-radius: 12px; overflow: auto; background: var(--card); }
+    th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 500; background: #f4f4f5; border-bottom: 1px solid var(--border); }
+    td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    tr:last-child td { border-bottom: 0; }
+    tr.hl { background: #eff6ff; }
+    .muted { color: var(--muted); }
+    .mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, monospace; font-size: 13px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 32px; padding: 0 10px; border-radius: 8px;
+      border: 1px solid var(--border); background: #fff; cursor: pointer; font-size: 13px;
+    }
+    .btn:hover { background: #f4f4f5; }
+    .btn.on { background: #f4f4f5; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fff; }
+    .stat b { display: block; font-size: 24px; }
+    .stat.green b { color: var(--success); }
+    .stat.blue b { color: var(--info); }
+    .rail {
+      display: flex; flex-shrink: 0; min-height: 0;
+      border-left: 1px solid var(--border); background: #fff;
+      width: var(--handle);
+    }
+    .rail.open { width: var(--rail); }
+    .handle {
+      width: var(--handle); flex-shrink: 0;
+      border: 0; border-right: 1px solid var(--border);
+      background: #f4f4f5; color: var(--muted); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 12px;
+    }
+    .handle:hover { background: #e4e4e7; color: var(--fg); }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 999px;
+      background: var(--primary); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+    }
+    .rail-body { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+    .rail-head { padding: 12px; border-bottom: 1px solid var(--border); }
+    .rail-head strong { display: block; font-size: 14px; }
+    .rail-scroll { flex: 1; overflow: auto; padding: 16px; }
+    .rail-foot { border-top: 1px solid var(--border); padding: 16px; }
+    .card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: #fff; margin-top: 10px; }
+    .empty { border: 1px dashed var(--border); background: #fafafa; color: var(--muted); text-align: center; padding: 28px 12px; font-size: 13px; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .cell { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; background: #fafafa; }
+    .cell span { display: block; font-size: 11px; color: var(--muted); }
+    .shortcut {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      margin-top: 6px; padding: 8px 12px; border: 1px solid var(--border);
+      border-radius: 8px; background: #fff; cursor: pointer; font-size: 14px;
+    }
+    .shortcut:disabled { opacity: .45; cursor: not-allowed; }
+    .shortcut:not(:disabled):hover { border-color: #93c5fd; background: #f8fafc; }
+    .toast {
+      position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+      background: #fff; border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.12); font-size: 14px; z-index: 20;
+    }
+    .label { font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--muted); text-transform: uppercase; }
+    .ghost { background: transparent; color: var(--muted); border: 0; cursor: pointer; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="banner">
+      <strong>管理員三欄右欄沙盒</strong>
+      獨立 HTML，不接系統、唔使登入。試：按「固定」→ 左欄切「班別管理」→ 右欄仍在。撳右欄接縫手柄摺疊（跟 Cursor）。
+    </div>
+    <div class="shell">
+      <aside class="nav" id="nav">
+        <div class="nav-head">
+          <div class="brand" id="brand"><b>明學教育</b><span>管理系統</span></div>
+          <button class="icon-btn" type="button" id="navToggle" aria-label="收起側欄">‹</button>
+        </div>
+        <nav class="nav-body" id="navBody"></nav>
+        <div class="nav-foot" id="navFoot">你登入為 Sophie</div>
+      </aside>
+      <main class="main" id="main"></main>
+      <aside class="rail" id="rail">
+        <button class="handle" type="button" id="railToggle" aria-label="展開右欄">‹</button>
+        <div class="rail-body" id="railBody" hidden></div>
+      </aside>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <script>
+    const CLASSES = [
+      { id:"c1", courseCode:"2627-ENG-S3A", grade:"中三", courseName:"中三英文", time:"逢星期三 16:30–18:00", room:"17D", teacher:"Judy Chu", status:"進行中", studentIds:["s1","s7"] },
+      { id:"c2", courseCode:"2627-MATH-S3B", grade:"中三", courseName:"中三數學", time:"逢星期五 16:30–18:00", room:"17E", teacher:"Mark Yu", status:"進行中", studentIds:["s1","s7"] },
+      { id:"c3", courseCode:"2627-ENG-S4A", grade:"中四", courseName:"中四英文", time:"逢星期二 17:00–18:30", room:"17D", teacher:"Judy Chu", status:"進行中", studentIds:["s2"] },
+      { id:"c4", courseCode:"2627-MATH-S4A", grade:"中四", courseName:"中四數學", time:"逢星期四 17:00–18:30", room:"山案座", teacher:"Mark Yu", status:"已滿班", studentIds:["s2"] },
+      { id:"c5", courseCode:"2627-CHI-S2A", grade:"中二", courseName:"中二中文", time:"逢星期一 16:30–18:00", room:"矩尺座", teacher:"Cody", status:"進行中", studentIds:["s3","s9"] },
+      { id:"c6", courseCode:"2627-PHY-S5A", grade:"中五", courseName:"中五物理", time:"逢星期六 10:00–12:00", room:"17E", teacher:"Mark Yu", status:"招生中", studentIds:["s4","s10"] },
+      { id:"c7", courseCode:"2627-CHEM-S6A", grade:"中六", courseName:"中六化學", time:"逢星期六 14:00–16:00", room:"17D", teacher:"Cody", status:"進行中", studentIds:["s6"] },
+      { id:"c8", courseCode:"2627-ENG-S1A", grade:"中一", courseName:"中一英文", time:"逢星期三 15:00–16:30", room:"英仙座", teacher:"Judy Chu", status:"進行中", studentIds:["s5"] },
+      { id:"c9", courseCode:"2627-BAFS-S4A", grade:"中四", courseName:"中四企會財", time:"逢星期五 19:00–20:30", room:"17D", teacher:"Cody", status:"進行中", studentIds:["s2"] },
+      { id:"c10", courseCode:"2627-IS-S3A", grade:"中三", courseName:"中三綜合科學", time:"逢星期二 16:30–18:00", room:"山案座", teacher:"Mark Yu", status:"已結束", studentIds:["s1"] },
+    ]
+    const STUDENTS = [
+      { id:"s1", studentCode:"S2627-001", fullName:"陳樂瑤", englishName:"Chan Lok Yiu", grade:"中三", school:"英華書院", studentPhone:"5123 8801", parentPhone:"9123 8801", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c1","c2","c10"], paidLessons:24, attendedLessons:21 },
+      { id:"s2", studentCode:"S2627-002", fullName:"李浩然", englishName:"Lee Ho Yin", grade:"中四", school:"喇沙書院", studentPhone:"5123 8802", parentPhone:"9123 8802", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c3","c4","c9"], paidLessons:36, attendedLessons:33 },
+      { id:"s3", studentCode:"S2627-003", fullName:"黃詩婷", englishName:"Wong Sze Ting", grade:"中二", school:"協恩中學", studentPhone:"5123 8803", parentPhone:"9123 8803", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c5"], paidLessons:12, attendedLessons:11 },
+      { id:"s4", studentCode:"S2627-004", fullName:"張子軒", englishName:"Cheung Tsz Hin", grade:"中五", school:"聖保羅男女中學", studentPhone:"5123 8804", parentPhone:"9123 8804", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c6"], paidLessons:18, attendedLessons:16 },
+      { id:"s5", studentCode:"S2627-005", fullName:"林凱琳", englishName:"Lam Hoi Lam", grade:"中一", school:"拔萃女書院", studentPhone:"5123 8805", parentPhone:"9123 8805", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c8"], paidLessons:10, attendedLessons:9 },
+      { id:"s6", studentCode:"S2627-006", fullName:"周俊傑", englishName:"Chow Chun Kit", grade:"中六", school:"華仁書院", studentPhone:"5123 8806", parentPhone:"9123 8806", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c7"], paidLessons:20, attendedLessons:19 },
+      { id:"s7", studentCode:"S2627-007", fullName:"吳嘉欣", englishName:"Ng Ka Yan", grade:"中三", school:"伊利沙伯中學", studentPhone:"5123 8807", parentPhone:"9123 8807", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c1","c2"], paidLessons:16, attendedLessons:14 },
+      { id:"s8", studentCode:"S2627-008", fullName:"馬天朗", englishName:"Ma Tin Long", grade:"中四", school:"皇仁書院", studentPhone:"5123 8808", parentPhone:"9123 8808", registrationStatus:"非註冊", enrollmentStatus:"非在讀", activityStatus:"活躍生", classIds:[], paidLessons:1, attendedLessons:1 },
+      { id:"s9", studentCode:"S2627-009", fullName:"鄭詠心", englishName:"Cheng Wing Sum", grade:"中二", school:"聖若瑟書院", studentPhone:"5123 8809", parentPhone:"9123 8809", registrationStatus:"已註冊", enrollmentStatus:"非在讀", activityStatus:"非活躍生", classIds:["c5"], paidLessons:8, attendedLessons:8 },
+      { id:"s10", studentCode:"S2627-010", fullName:"何梓謙", englishName:"Ho Tsz Him", grade:"中五", school:"拔萃男書院", studentPhone:"5123 8810", parentPhone:"9123 8810", registrationStatus:"已註冊", enrollmentStatus:"在讀", activityStatus:"活躍生", classIds:["c6"], paidLessons:14, attendedLessons:12 },
+    ]
+    const CLASS_BY_ID = Object.fromEntries(CLASSES.map((c) => [c.id, c]))
+    const STUDENT_BY_ID = Object.fromEntries(STUDENTS.map((s) => [s.id, s]))
+
+    const state = { page: "students", railCollapsed: true, pinnedId: null, leftCollapsed: false, q: "" }
+    let toastTimer = 0
+
+    function chip(text) {
+      const cls = text.includes("非") || text === "已結束" ? "chip-mute"
+        : text === "招生中" || text === "已滿班" ? "chip-warn"
+        : text === "進行中" || text === "在讀" || text === "已註冊" || text === "活躍生" ? "chip-ok"
+        : "chip-info"
+      const label = text === "已註冊" ? "註冊" : text === "非註冊" ? "非註冊" : text
+      return `<span class="chip ${cls}">${label}</span>`
+    }
+    function toast(msg) {
+      const el = document.getElementById("toast")
+      el.hidden = false
+      el.textContent = "沙盒：不會進入正式頁（" + msg + "）"
+      clearTimeout(toastTimer)
+      toastTimer = setTimeout(() => { el.hidden = true }, 2800)
+    }
+    function pin(id) {
+      state.pinnedId = id
+      state.railCollapsed = false
+      render()
+    }
+    function renderNav() {
+      const thin = state.leftCollapsed
+      document.getElementById("nav").classList.toggle("thin", thin)
+      document.getElementById("brand").hidden = thin
+      document.getElementById("navToggle").textContent = thin ? "›" : "‹"
+      document.getElementById("navFoot").textContent = thin ? "行" : "你登入為 Sophie"
+      const items = [
+        { id: "home", label: "首頁", toast: true },
+        { id: "students", label: "學生管理", page: "students" },
+        { id: "classes", label: "班別管理", page: "classes" },
+        { id: "pay", label: "收款登記", toast: true },
+        { id: "leave", label: "請假管理", toast: true },
+      ]
+      document.getElementById("navBody").innerHTML = items.map((it) => {
+        const active = it.page && it.page === state.page
+        return `<button type="button" class="nav-item${active ? " active" : ""}" data-nav="${it.id}">${thin ? it.label.slice(0,1) : it.label}</button>`
+      }).join("")
+      document.getElementById("navBody").onclick = (e) => {
+        const btn = e.target.closest("[data-nav]")
+        if (!btn) return
+        const it = items.find((x) => x.id === btn.dataset.nav)
+        if (it.toast) toast(it.label)
+        else { state.page = it.page; render() }
+      }
+    }
+    function renderMain() {
+      if (state.page === "students") {
+        const q = state.q.trim().toLowerCase()
+        const rows = STUDENTS.filter((s) => !q || [s.fullName, s.englishName, s.studentCode, s.studentPhone, s.parentPhone, s.school].join(" ").toLowerCase().includes(q))
+        document.getElementById("main").innerHTML = `
+          <h1 class="h1">學生管理 <span class="chip chip-info">${rows.length} 人</span></h1>
+          <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/></svg>
+            <input type="search" id="q" placeholder="搜尋姓名 / 學號 / 學生電話 / 家長電話…" value="${state.q.replace(/"/g,"&quot;")}" />
+          </div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>學號</th><th>姓名</th><th>年級</th><th>學生電話</th><th>家長電話</th><th>報讀班別</th><th>狀態</th><th>動作</th></tr></thead>
+            <tbody>${rows.map((s) => {
+              const names = s.classIds.map((id) => CLASS_BY_ID[id].courseName).join("、") || "—"
+              const pinned = state.pinnedId === s.id
+              return `<tr class="${pinned ? "hl" : ""}">
+                <td class="mono muted">${s.studentCode}</td>
+                <td><b>${s.fullName}</b><div class="muted" style="font-size:12px">${s.englishName}</div></td>
+                <td>${s.grade}</td><td class="mono">${s.studentPhone}</td><td class="mono">${s.parentPhone}</td>
+                <td class="muted">${names}</td>
+                <td>${chip(s.registrationStatus)} ${chip(s.enrollmentStatus)}</td>
+                <td><button class="btn${pinned ? " on" : ""}" data-pin="${s.id}">${pinned ? "已固定" : "固定"}</button></td>
+              </tr>`
+            }).join("")}</tbody>
+          </table></div>`
+        document.getElementById("q").oninput = (e) => { state.q = e.target.value; render() }
+      } else {
+        const pinned = STUDENT_BY_ID[state.pinnedId]
+        const set = new Set(pinned ? pinned.classIds : [])
+        const inProg = CLASSES.filter((c) => c.status === "進行中").length
+        document.getElementById("main").innerHTML = `
+          <h1 class="h1">班別管理 <span class="chip chip-info">${CLASSES.length} 班</span></h1>
+          <div class="stats">
+            <div class="stat"><b>${CLASSES.length}</b><span class="muted">班級總數</span></div>
+            <div class="stat green"><b>${inProg}</b><span class="muted">進行中</span></div>
+            <div class="stat blue"><b>${CLASSES.length}</b><span class="muted">篩選結果</span></div>
+          </div>
+          ${pinned ? `<p class="muted" style="margin:0 0 12px">已固定 ${pinned.fullName}：其報讀班別會在列表高亮。</p>` : ""}
+          <div class="table-wrap"><table>
+            <thead><tr><th>課程編號</th><th>年級</th><th>課程名稱</th><th>上課時間</th><th>老師</th><th>學生人數</th><th>學生名單</th><th>狀態</th></tr></thead>
+            <tbody>${CLASSES.map((c) => {
+              const names = c.studentIds.map((id) => STUDENT_BY_ID[id].fullName).join("、")
+              return `<tr class="${set.has(c.id) ? "hl" : ""}">
+                <td class="mono muted">${c.courseCode}</td><td>${c.grade}</td>
+                <td><b>${c.courseName}</b><div class="muted" style="font-size:12px">${c.room}</div></td>
+                <td>${c.time}</td><td>${c.teacher}</td><td>${c.studentIds.length}</td>
+                <td class="muted">${names}</td><td>${chip(c.status)}</td>
+              </tr>`
+            }).join("")}</tbody>
+          </table></div>`
+      }
+      document.getElementById("main").onclick = (e) => {
+        const btn = e.target.closest("[data-pin]")
+        if (btn) pin(btn.dataset.pin)
+      }
+    }
+    function renderRail() {
+      const open = !state.railCollapsed
+      document.getElementById("rail").classList.toggle("open", open)
+      const toggle = document.getElementById("railToggle")
+      const body = document.getElementById("railBody")
+      const s = STUDENT_BY_ID[state.pinnedId]
+      toggle.setAttribute("aria-label", open ? "收起右欄" : "展開右欄")
+      toggle.innerHTML = (open ? "›" : "‹") + ( !open && s ? `<span class="avatar" title="${s.fullName}">${s.fullName.slice(0,1)}</span>` : "")
+      body.hidden = !open
+      if (!open) return
+      const shortcuts = ["學生詳情","收款登記","繳費紀錄","請假管理","出席紀錄"]
+      body.innerHTML = `
+        <div class="rail-head"><strong>右欄</strong><span class="muted" style="font-size:12px">${s ? "已固定 " + s.fullName : "未固定"}</span></div>
+        <div class="rail-scroll">
+          <div class="label">固定資料</div>
+          ${!s ? `<div class="card empty">尚未固定學生。在學生管理列表按「固定」，切換頁面後此欄仍會保留。</div>` : `
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;gap:8px">
+                <div><h2 style="margin:0;font-size:18px">${s.fullName}</h2><div class="muted" style="font-size:12px">${s.englishName}</div></div>
+                <button class="ghost" type="button" id="unpin">取消固定</button>
+              </div>
+              <div class="mono muted" style="margin-top:8px">${s.studentCode}</div>
+              <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">${chip(s.registrationStatus)}${chip(s.enrollmentStatus)}${chip(s.activityStatus)}</div>
+            </div>
+            <div class="grid2">
+              <div class="cell"><span>年級</span>${s.grade}</div>
+              <div class="cell"><span>學校</span>${s.school}</div>
+              <div class="cell"><span>學生電話</span>${s.studentPhone}</div>
+              <div class="cell"><span>家長電話</span>${s.parentPhone}</div>
+            </div>
+            <div class="grid2">
+              <div class="card" style="margin:0"><div class="label">已繳堂數</div><div style="font-size:28px;font-weight:700">${s.paidLessons}</div></div>
+              <div class="card" style="margin:0"><div class="label">總上堂數</div><div style="font-size:28px;font-weight:700">${s.attendedLessons}</div></div>
+            </div>
+            <div class="card"><b>進行中報讀</b>${s.classIds.length ? `<ul>${s.classIds.map((id)=>`<li>${CLASS_BY_ID[id].courseName}</li>`).join("")}</ul>` : `<p class="muted">目前沒有報讀班別（可作試堂對象）</p>`}</div>
+          `}
+        </div>
+        <div class="rail-foot">
+          <div class="label">快捷功能</div>
+          <p class="muted" style="font-size:12px;margin:6px 0 0">${s ? "作用於 " + s.fullName + "；沙盒只提示、不進入正式頁。" : "先固定學生，快捷會帶上該學生。"}</p>
+          ${shortcuts.map((name) => `<button class="shortcut" ${s ? "" : "disabled"} data-short="${name}">${name}</button>`).join("")}
+        </div>`
+      const unpin = document.getElementById("unpin")
+      if (unpin) unpin.onclick = () => { state.pinnedId = null; render() }
+      body.querySelectorAll("[data-short]").forEach((b) => { b.onclick = () => toast(b.dataset.short) })
+    }
+    function render() { renderNav(); renderMain(); renderRail() }
+    document.getElementById("navToggle").onclick = () => { state.leftCollapsed = !state.leftCollapsed; render() }
+    document.getElementById("railToggle").onclick = () => { state.railCollapsed = !state.railCollapsed; render() }
+    render()
+  </script>
+</body>
+</html>

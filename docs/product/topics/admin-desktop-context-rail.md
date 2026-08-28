@@ -8,7 +8,7 @@
 | 角色 | 只 **管理員** `admin`；不含管理層／財務／老師。外星人以後可作 QA |
 | 不含 | 流動裝置、右欄內嵌完整工作流（例如直接出單）、班／老師釘住、改收款頁內右欄 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 沙盒 | 免登入 [`/prototype/AdminContextRail`](../../../src/pages/PrototypeAdminContextRail.tsx)（假資料，不接 DB／正式路由） |
+| 沙盒 | 獨立 HTML [`sandbox/admin-context-rail/index.html`](../../../sandbox/admin-context-rail/index.html)（雙擊或 `npm run sandbox:context-rail` → http://localhost:4179/）；Vite 靜態 [`/admin-context-rail.html`](../../../public/admin-context-rail.html)。React 試版 `/prototype/AdminContextRail` 需喺呢條 branch 跑 `npm run dev`，否則 React Router 無匹配路由會空白。 |
 
 ## 開工閘
 
