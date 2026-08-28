@@ -4,6 +4,12 @@
 
 ## 教訓
 
+### 2026-08-28 — 樣式沙盒先獨立 HTML，唔好只掛 Vite 路由
+- **情境**：用戶要試新 UI，且明講「沙盒（html）」「唔接真實專案網頁」。
+- **錯在邊**：只跟 `src/prototypes/`＋`/prototype/…` 免登入路由。本機若唔喺該 branch 跑 `npm run dev`，React Router 無匹配→全白；Vercel preview 可能有 Deployment Protection。
+- **正確做法**：同 `sandbox/tuition-quote/index.html` 一樣，第一件交可雙擊／`python -m http.server` 打開嘅 HTML。Vite `/prototype` 可作後續對齊 design token，但唔好當用戶本機唯一入口。
+- **若已升格**：未升格
+
 ### 2026-08-08 — 繁中專業紀錄 PDF 字型與版式
 - **情境**：2627 時間表要出黑白 docx／pdf 方案紀錄。
 - **錯在邊**：PDF 用錯 Songti TTC face（簡體）→ 缺字／亂碼；格內用 S6／功等簡稱；夾「驗證摘要」、emoji／彩色。
