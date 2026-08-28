@@ -135,12 +135,22 @@ export default {
           "0%": { transform: "translateY(0)", opacity: "1" },
           "100%": { transform: "translateY(100%)", opacity: "0" },
         },
+        "skeleton-shimmer": {
+          "0%": { backgroundPosition: "200% 0" },
+          "100%": { backgroundPosition: "-200% 0" },
+        },
+        "stagger-in": {
+          "0%": { opacity: "0", transform: "translateY(16px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "chicken-card-rise": "chicken-card-rise 1.85s cubic-bezier(0.22, 1.14, 0.32, 1) both",
         "chicken-card-leave": "chicken-card-leave 0.42s ease-in both",
+        "skeleton-shimmer": "skeleton-shimmer 1.8s ease-in-out infinite",
+        "stagger-in": "stagger-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

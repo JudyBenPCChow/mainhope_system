@@ -19,6 +19,8 @@ import {
 import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
+import { SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
@@ -330,7 +332,7 @@ export function TeacherHomeView() {
     <p className="text-sm font-medium uppercase tracking-wide text-info">專班老師工作台</p>
     <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
      {loading && teacherName === "老師" ? (
-      <span className="inline-block h-9 w-48 animate-pulse rounded-md bg-muted" aria-label="載入中" />
+      <SkeletonInlineBadge className="h-9 w-48" aria-label="載入中" />
      ) : (
       `您好，${teacherName}`
      )}
@@ -427,18 +429,18 @@ export function TeacherHomeView() {
        <p className="mt-1 text-xs text-muted-foreground">
         未點名不會自動扣堂；請假單只影響預填，請打開點名表確認後儲存。
        </p>
-       <ul className="mt-2 space-y-1 text-sm text-foreground">
+       <StaggerList as="ul" className="mt-2 space-y-1 text-sm text-foreground">
         {pendingRollCalls.slice(0, 5).map((r) => (
-         <li key={r.scheduleId}>
+         <StaggerItem key={r.scheduleId} as="li">
           <Link
            to={`/Schedule?date=${encodeURIComponent(r.scheduledDate)}&schedule_id=${encodeURIComponent(r.scheduleId)}&rollcall=1`}
            className="font-medium text-info underline-offset-2 hover:underline"
           >
            {r.startTime ?? "—"} · {r.classLabel}
           </Link>
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
        {pendingRollCalls.length > 5 ? (
         <p className="mt-1 text-xs text-muted-foreground">另有 {pendingRollCalls.length - 5} 堂…</p>
        ) : null}
@@ -464,18 +466,18 @@ export function TeacherHomeView() {
        <p className="mt-1 text-xs text-muted-foreground">
         昨天或更早的排程仍未寫入點名；請盡快補點，否則不會扣堂。
        </p>
-       <ul className="mt-2 space-y-1 text-sm text-foreground">
+       <StaggerList as="ul" className="mt-2 space-y-1 text-sm text-foreground">
         {pastPendingRollCalls.slice(0, 5).map((r) => (
-         <li key={r.scheduleId}>
+         <StaggerItem key={r.scheduleId} as="li">
           <Link
            to={`/Attendance?date=${encodeURIComponent(r.scheduledDate)}&schedule_id=${encodeURIComponent(r.scheduleId)}`}
            className="font-medium text-info underline-offset-2 hover:underline"
           >
            {r.scheduledDate} {r.startTime ?? "—"} · {r.classLabel}
           </Link>
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
        {pastPendingRollCalls.length > 5 ? (
         <p className="mt-1 text-xs text-muted-foreground">另有 {pastPendingRollCalls.length - 5} 堂…</p>
        ) : null}
@@ -587,10 +589,7 @@ export function TeacherHomeView() {
      </Button>
     </div>
     {loading ? (
-     <div className="space-y-3" aria-label="載入中">
-      <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
-      <div className="h-48 animate-pulse rounded-xl bg-muted/70" />
-     </div>
+     <SkeletonTimetableBlock aria-label="載入中" />
     ) : isMobile ? (
      <div className="space-y-5">
       {upcomingDayGroups.map((group) => (
@@ -604,7 +603,7 @@ export function TeacherHomeView() {
           沒有排程
          </p>
         ) : (
-         <ul className="space-y-2">
+         <StaggerList as="ul" className="space-y-2">
           {group.items.map((s) => {
            const a = alertTagsForSchedule(
             s.id,
@@ -614,7 +613,7 @@ export function TeacherHomeView() {
             scheduleAlerts.get(s.id)
            )
            return (
-            <li key={s.id}>
+            <StaggerItem key={s.id} as="li">
              <Link
               to={`/Schedule/${s.id}`}
               className="block rounded-xl border border-border/80 bg-muted/20 px-4 py-3 transition-colors hover:border-primary/30"
@@ -638,10 +637,10 @@ export function TeacherHomeView() {
               </p>
              ) : null}
              </Link>
-            </li>
+            </StaggerItem>
            )
           })}
-         </ul>
+         </StaggerList>
         )}
        </div>
       ))}
@@ -680,7 +679,7 @@ export function TeacherHomeView() {
     ) : todaySchedules.length === 0 ? (
      <p className="mt-4 text-muted-foreground">今日沒有您的排程。</p>
     ) : (
-     <ul className="mt-4 space-y-3">
+     <StaggerList as="ul" className="mt-4 space-y-3">
       {todaySchedules.map((s) => {
        const a = alertTagsForSchedule(
         s.id,
@@ -691,8 +690,9 @@ export function TeacherHomeView() {
        )
        const hasA = a.trial || a.makeup || a.leave || a.record
        return (
-        <li
+        <StaggerItem
          key={s.id}
+         as="li"
          className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3 transition-colors hover:border-primary/30"
         >
          <div className="flex flex-wrap items-start justify-between gap-2">
@@ -711,7 +711,7 @@ export function TeacherHomeView() {
             <span>位置：{s.classroom_name ?? "課室未定"}</span>
             <span>
              {s.enrollCount == null ? (
-              <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle" />
+              <SkeletonInlineBadge className="h-4 w-14 align-middle" />
              ) : (
               `${s.enrollCount} 人`
              )}
@@ -764,10 +764,10 @@ export function TeacherHomeView() {
            </Button>
           </div>
          </div>
-        </li>
+        </StaggerItem>
        )
       })}
-     </ul>
+     </StaggerList>
     )}
    </section>
 
@@ -802,16 +802,16 @@ export function TeacherHomeView() {
       ) : leavesKind === "empty" ? (
        <p className="mt-3 text-sm text-muted-foreground">沒有相關紀錄。</p>
       ) : (
-       <ul className="mt-3 space-y-2">
+       <StaggerList as="ul" className="mt-3 space-y-2">
         {leaves.slice(0, 5).map((r) => (
-         <li key={r.id} className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm">
+         <StaggerItem key={r.id} as="li" className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm">
           <div className="font-medium text-foreground">{r.studentName}</div>
           <div className="text-muted-foreground">
            {r.classLabel} · {r.leaveDate} · {r.status}
           </div>
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
       )}
      </section>
     </div>
@@ -832,9 +832,9 @@ export function TeacherHomeView() {
      ) : classes.length === 0 ? (
       <p className="mt-3 text-muted-foreground">尚無指派班別。</p>
      ) : (
-      <ul className="mt-4 divide-y divide-border">
+      <StaggerList as="ul" className="mt-4 divide-y divide-border">
        {classes.map((c) => (
-        <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+        <StaggerItem key={c.id} as="li" className="flex flex-wrap items-center justify-between gap-2 py-3">
          <div>
           <Link to={`/Classes/${c.id}`} className="font-semibold text-primary hover:underline">
            {classDisplayName({ subject: c.subject, courseName: c.course_name })}
@@ -849,9 +849,9 @@ export function TeacherHomeView() {
          <Button variant="ghost" size="sm" asChild>
           <Link to={`/Classes/${c.id}`}>開啟</Link>
          </Button>
-        </li>
+        </StaggerItem>
        ))}
-      </ul>
+      </StaggerList>
      )}
     </section>
 
@@ -875,9 +875,9 @@ export function TeacherHomeView() {
      ) : leavesKind === "empty" ? (
       <p className="mt-3 text-muted-foreground">沒有相關紀錄。</p>
      ) : (
-      <ul className="mt-4 space-y-3">
+      <StaggerList as="ul" className="mt-4 space-y-3">
        {leaves.slice(0, 8).map((r) => (
-        <li key={r.id} className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm md:text-base">
+        <StaggerItem key={r.id} as="li" className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm md:text-base">
          <div className="font-medium text-foreground">{r.studentName}</div>
          <div className="text-muted-foreground">
           {r.classLabel} · {r.leaveDate} · {r.leaveReason ?? "—"} · 補課：{r.makeupType ?? "—"} ·{" "}
@@ -888,9 +888,9 @@ export function TeacherHomeView() {
            對應排程
           </Link>
          ) : null}
-        </li>
+        </StaggerItem>
        ))}
-      </ul>
+      </StaggerList>
      )}
     </section>
    </div>
@@ -910,9 +910,9 @@ export function TeacherHomeView() {
       <Sparkles className="h-6 w-6 text-info" />
       即將試堂（我的班）
      </h2>
-     <ul className="mt-4 space-y-2">
+     <StaggerList as="ul" className="mt-4 space-y-2">
       {trials.map((t) => (
-       <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+       <StaggerItem key={t.id} as="li" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
         <span>
          <span className="font-medium">{t.studentName}</span>
          <span className="text-muted-foreground"> · {t.classLabel} · {t.trialDate}</span>
@@ -920,9 +920,9 @@ export function TeacherHomeView() {
         <Tag tone={statusToTagTone(t.status)} size="sm">
          {t.status}
         </Tag>
-       </li>
+       </StaggerItem>
       ))}
-     </ul>
+     </StaggerList>
     </section>
    ) : null}
 

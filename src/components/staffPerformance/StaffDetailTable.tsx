@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import type { StaffPerformanceRow } from "@/components/staffPerformance/types"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -150,16 +151,18 @@ export function StaffDetailTable({ rows, loading }: Props) {
               <th className="px-3 py-2.5">異常</th>
             </tr>
           </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+          {filtered.length === 0 ? (
+            <tbody>
               <tr>
                 <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
                   無符合資料
                 </td>
               </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.teacherId} className="border-b border-border/70 hover:bg-muted/20">
+            </tbody>
+          ) : (
+            <StaggerList as="tbody">
+              {filtered.map((r) => (
+                <StaggerItem key={r.teacherId} as="tr" className="border-b border-border/70 hover:bg-muted/20">
                   <td className="px-3 py-2.5 whitespace-nowrap">
                     <Link
                       to={`/Teachers/${r.teacherId}`}
@@ -198,10 +201,10 @@ export function StaffDetailTable({ rows, loading }: Props) {
                       )}
                     </div>
                   </td>
-                </tr>
-              ))
-            )}
-          </tbody>
+                </StaggerItem>
+              ))}
+            </StaggerList>
+          )}
         </table>
       </div>
     </div>

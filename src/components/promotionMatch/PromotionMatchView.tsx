@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -230,10 +231,11 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
   }
 
   return (
-    <ul className="divide-y divide-border rounded-md border border-border bg-card">
+    <StaggerList as="ul" className="divide-y divide-border rounded-md border border-border bg-card">
       {bundle.eligible.map((item) => (
-        <li
+        <StaggerItem
           key={item.student.id}
+          as="li"
           className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="flex items-start gap-2">
@@ -257,9 +259,9 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
           <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
             <Link to={`/Students/${item.student.id}`}>前往學生</Link>
           </Button>
-        </li>
+        </StaggerItem>
       ))}
-    </ul>
+    </StaggerList>
   )
 }
 
@@ -278,10 +280,11 @@ function ExcludedList({ bundle }: { bundle: ClassMatchBundle }) {
         同齡但未能報讀（{bundle.excluded.length}）
       </button>
       {open ? (
-        <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
+        <StaggerList as="ul" className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
           {bundle.excluded.map((item) => (
-            <li
+            <StaggerItem
               key={item.student.id}
+              as="li"
               className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
             >
               <StudentMeta student={item.student} />
@@ -297,9 +300,9 @@ function ExcludedList({ bundle }: { bundle: ClassMatchBundle }) {
                   衝突：{item.conflictWith}
                 </div>
               ) : null}
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       ) : null}
     </div>
   )
@@ -345,12 +348,13 @@ function EligibleClassesList({
   }
 
   return (
-    <ul className="divide-y divide-border rounded-md border border-border bg-card">
+    <StaggerList as="ul" className="divide-y divide-border rounded-md border border-border bg-card">
       {bundle.eligible.map((item) => {
         const selected = selectedClassIds.has(item.cls.id)
         return (
-          <li
+          <StaggerItem
             key={item.cls.id}
+            as="li"
             className={cn(
               "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between",
               selected && "bg-primary/5"
@@ -401,10 +405,10 @@ function EligibleClassesList({
                 <Link to={`/Classes/${item.cls.id}`}>前往班別</Link>
               </Button>
             </div>
-          </li>
+          </StaggerItem>
         )
       })}
-    </ul>
+    </StaggerList>
   )
 }
 
@@ -578,9 +582,9 @@ function BlockedClassesList({ bundle }: { bundle: StudentMatchBundle }) {
         同年級但未能報讀（{bundle.blocked.length}）
       </button>
       {open ? (
-        <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
+        <StaggerList as="ul" className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
           {bundle.blocked.map((item) => (
-            <li key={item.cls.id} className="flex flex-col gap-1 px-3 py-2.5">
+            <StaggerItem key={item.cls.id} as="li" className="flex flex-col gap-1 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{item.cls.label}</div>
@@ -599,9 +603,9 @@ function BlockedClassesList({ bundle }: { bundle: StudentMatchBundle }) {
               {item.conflictWith ? (
                 <div className="text-xs text-warning">衝突：{item.conflictWith}</div>
               ) : null}
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       ) : null}
     </div>
   )
@@ -625,12 +629,12 @@ function ByClassPanel({
           <Users className="h-4 w-4" />
           符合條件的班別
         </h2>
-        <div className="space-y-2">
+        <StaggerList as="div" className="space-y-2">
           {bundles.map((bundle) => {
             const active = bundle.cls.id === selectedId
             return (
+              <StaggerItem key={bundle.cls.id} as="div">
               <button
-                key={bundle.cls.id}
                 type="button"
                 onClick={() => onSelect(bundle.cls.id)}
                 className={cn(
@@ -642,6 +646,7 @@ function ByClassPanel({
               >
                 <ClassHeader bundle={bundle} expanded={active} />
               </button>
+              </StaggerItem>
             )
           })}
           {bundles.length === 0 ? (
@@ -649,7 +654,7 @@ function ByClassPanel({
               沒有符合篩選條件的班別。
             </p>
           ) : null}
-        </div>
+        </StaggerList>
       </section>
 
       <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">
@@ -699,12 +704,12 @@ function ByStudentPanel({
           <GraduationCap className="h-4 w-4" />
           已註冊學生
         </h2>
-        <div className="space-y-2">
+        <StaggerList as="div" className="space-y-2">
           {bundles.map((bundle) => {
             const active = bundle.student.id === selectedId
             return (
+              <StaggerItem key={bundle.student.id} as="div">
               <button
-                key={bundle.student.id}
                 type="button"
                 onClick={() => onSelect(bundle.student.id)}
                 className={cn(
@@ -716,6 +721,7 @@ function ByStudentPanel({
               >
                 <StudentHeader bundle={bundle} expanded={active} />
               </button>
+              </StaggerItem>
             )
           })}
           {bundles.length === 0 ? (
@@ -723,7 +729,7 @@ function ByStudentPanel({
               沒有符合篩選條件的學生。
             </p>
           ) : null}
-        </div>
+        </StaggerList>
       </section>
 
       <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">

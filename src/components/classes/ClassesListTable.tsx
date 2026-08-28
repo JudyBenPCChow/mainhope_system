@@ -18,6 +18,8 @@ import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select } from "@/components/ui/select"
+import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { STATUS_CHIPS } from "@/components/classes/classesUi"
 import { classDisplayName } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
@@ -124,26 +126,31 @@ export function ClassesListTable({
        </th>
       </tr>
      </thead>
-     <tbody>
-      {loading ? (
+     {loading ? (
+      <tbody>
        <tr>
-        <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
-         載入中…
+        <td colSpan={colSpan} className="px-3 py-4">
+         <SkeletonTableRows rows={8} columns={Math.min(colSpan, 10)} />
         </td>
        </tr>
-      ) : rows.length === 0 ? (
+      </tbody>
+     ) : rows.length === 0 ? (
+      <tbody>
        <tr>
         <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
          {emptyHint}
         </td>
        </tr>
-      ) : (
-       rows.map((c, idx) => {
+      </tbody>
+     ) : (
+      <StaggerList as="tbody">
+       {rows.map((c, idx) => {
         const checked = selectedSet.has(c.id)
         const roster = extras.enrollRoster.get(c.id)
         return (
-         <tr
+         <StaggerItem
           key={c.id}
+          as="tr"
           onClick={() => onNavigate(c.id)}
           className={cn(
            "border-b border-border",
@@ -279,11 +286,11 @@ export function ClassesListTable({
             ) : null}
            </div>
           </td>
-         </tr>
+         </StaggerItem>
         )
-       })
-      )}
-     </tbody>
+       })}
+      </StaggerList>
+     )}
     </table>
    </div>
   </div>

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -267,10 +268,11 @@ export function ScriptLibraryView() {
           {rows.length === 0 ? "尚未有話術，請按「新增話術」開始建立。" : "沒有符合篩選條件的話術。"}
         </div>
       ) : (
-        <ul className="space-y-3">
+        <StaggerList as="ul" className="space-y-3">
           {filtered.map((row) => (
-            <li
+            <StaggerItem
               key={row.id}
+              as="li"
               className="rounded-xl border border-border bg-card p-4 shadow-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -314,9 +316,9 @@ export function ScriptLibraryView() {
                   </Button>
                 </div>
               </div>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

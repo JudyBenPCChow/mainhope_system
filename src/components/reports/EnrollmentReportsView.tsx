@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { classKindLabel } from "@/lib/privateClassKind"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -338,17 +339,17 @@ function SubjectTable({ rows, loading }: { rows: SubjectHeadcountRow[]; loading:
       <th className="px-3 py-2 font-medium text-right">學生人數</th>
      </tr>
     </thead>
-    <tbody>
+    <StaggerList as="tbody">
      {rows.map((r) => (
-      <tr key={r.subjectKey} className="border-b border-border/70 last:border-0">
+      <StaggerItem key={r.subjectKey} as="tr" className="border-b border-border/70 last:border-0">
        <td className="px-3 py-2 font-medium">{r.subjectName}</td>
        <td className="px-3 py-2 text-muted-foreground">{r.subjectCode ?? "—"}</td>
        <td className="px-3 py-2 text-right tabular-nums">{r.classCount}</td>
        <td className="px-3 py-2 text-right tabular-nums">{r.enrollmentCount}</td>
        <td className="px-3 py-2 text-right tabular-nums font-semibold">{r.studentCount}</td>
-      </tr>
+      </StaggerItem>
      ))}
-    </tbody>
+    </StaggerList>
    </table>
   </div>
  )
@@ -373,9 +374,9 @@ function ClassTable({ rows, loading }: { rows: ClassHeadcountRow[]; loading: boo
       <th className="px-3 py-2 font-medium text-right">就讀中人數</th>
      </tr>
     </thead>
-    <tbody>
+    <StaggerList as="tbody">
      {rows.map((r) => (
-      <tr key={r.classId} className="border-b border-border/70 last:border-0">
+      <StaggerItem key={r.classId} as="tr" className="border-b border-border/70 last:border-0">
        <td className="px-3 py-2">
         <Link
          to={`/Classes/${r.classId}`}
@@ -392,9 +393,9 @@ function ClassTable({ rows, loading }: { rows: ClassHeadcountRow[]; loading: boo
        </td>
        <td className="px-3 py-2">{r.teacherName ?? "—"}</td>
        <td className="px-3 py-2 text-right tabular-nums font-semibold">{r.studentCount}</td>
-      </tr>
+      </StaggerItem>
      ))}
-    </tbody>
+    </StaggerList>
    </table>
   </div>
  )
@@ -418,10 +419,11 @@ function TeacherTable({ rows, loading }: { rows: TeacherHeadcountRow[]; loading:
       <th className="px-3 py-2 font-medium text-right">學生人數</th>
      </tr>
     </thead>
-    <tbody>
+    <StaggerList as="tbody">
      {rows.map((r) => (
-      <tr
+      <StaggerItem
        key={r.teacherId ?? `name:${r.teacherName}`}
+       as="tr"
        className="border-b border-border/70 last:border-0"
       >
        <td className="px-3 py-2 font-medium">
@@ -439,9 +441,9 @@ function TeacherTable({ rows, loading }: { rows: TeacherHeadcountRow[]; loading:
        <td className="px-3 py-2 text-right tabular-nums">{r.classCount}</td>
        <td className="px-3 py-2 text-right tabular-nums">{r.enrollmentCount}</td>
        <td className="px-3 py-2 text-right tabular-nums font-semibold">{r.studentCount}</td>
-      </tr>
+      </StaggerItem>
      ))}
-    </tbody>
+    </StaggerList>
    </table>
   </div>
  )

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
   EXPENSE_PAY_METHODS,
@@ -343,13 +344,13 @@ export function HkExpenseLedgerPanel({
                   <th className="px-3 py-2 font-medium">操作</th>
                 </tr>
               </thead>
-              <tbody>
+              <StaggerList as="tbody">
                 {entries.map((e) => {
                   const voided = Boolean(e.voidedAt)
                   const canSelect =
                     !voided && e.ledgerStatus === "pending_review" && Boolean(e.ledgerAccountId)
                   return (
-                    <tr key={e.id} className="border-t border-border/70 align-top">
+                    <StaggerItem key={e.id} as="tr" className="border-t border-border/70 align-top">
                       <td className="px-3 py-2">
                         {canSelect ? (
                           <input
@@ -395,10 +396,10 @@ export function HkExpenseLedgerPanel({
                           入詳細
                         </Button>
                       </td>
-                    </tr>
+                    </StaggerItem>
                   )
                 })}
-              </tbody>
+              </StaggerList>
             </table>
           </div>
         )}

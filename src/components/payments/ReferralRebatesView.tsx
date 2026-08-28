@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -110,9 +111,9 @@ export function ReferralRebatesView() {
         <th className="px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {rows.map((r) => (
-        <tr key={r.id} className="border-b border-border/80 last:border-0">
+        <StaggerItem key={r.id} as="tr" className="border-b border-border/80 last:border-0">
          <td className="px-3 py-2 tabular-nums text-muted-foreground">{formatDate(r.createdAt)}</td>
          <td className="px-3 py-2 font-medium">{r.referrerName}</td>
          <td className="px-3 py-2">{r.refereeName}</td>
@@ -130,9 +131,9 @@ export function ReferralRebatesView() {
            標記已付
           </Button>
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

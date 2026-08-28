@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -621,11 +622,11 @@ export function ClassroomsManagePage() {
       此日期暫無排程
      </p>
     ) : (
-     <ul className="space-y-2">
+     <StaggerList as="ul" className="space-y-2">
       {daySchedules.map((s) => {
        const noStudents = s.enrollCount === 0
        return (
-        <li key={s.id}>
+        <StaggerItem key={s.id} as="li">
          <Link
           to={`/Schedule/${s.id}`}
           className={cn(
@@ -651,10 +652,10 @@ export function ClassroomsManagePage() {
            ) : null}
           </span>
          </Link>
-        </li>
+        </StaggerItem>
        )
       })}
-     </ul>
+     </StaggerList>
     )}
    </section>
 

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
  ALL_GRADE_CODES,
  clampCourseSeq,
@@ -334,16 +335,22 @@ export function CoursesManagePage() {
         <th className="w-[10%] px-3 py-3 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
-       {loading ? (
+      {loading ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
-       ) : rows.length === 0 ? (
+       </tbody>
+      ) : rows.length === 0 ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
-       ) : filteredRows.length === 0 ? (
+       </tbody>
+      ) : filteredRows.length === 0 ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">沒有符合篩選條件的課程</td></tr>
-       ) : (
-        filteredRows.map((r) => (
-         <tr key={r.id} className="border-b border-border">
+       </tbody>
+      ) : (
+       <StaggerList as="tbody">
+        {filteredRows.map((r) => (
+         <StaggerItem key={r.id} as="tr" className="border-b border-border">
           <td className="px-4 py-3 font-mono text-xs">{r.course_code_base}</td>
           <td className="px-3 py-3">{r.course_name?.trim() || "—"}</td>
           <td className="px-3 py-3">{subjectLabelById.get(r.subject_id) ?? r.subject_name_zh}</td>
@@ -366,10 +373,10 @@ export function CoursesManagePage() {
             編輯
            </button>
           </td>
-         </tr>
-        ))
-       )}
-      </tbody>
+         </StaggerItem>
+        ))}
+       </StaggerList>
+      )}
      </table>
     </div>
    </div>

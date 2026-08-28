@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { Banknote } from "lucide-react"
 
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { formatMoney, formatDateZh } from "@/components/home/format"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -31,10 +32,11 @@ export function RecentPaymentsCard({ payments, loading }: Props) {
    ) : payments.length === 0 ? (
     <p className="text-base text-muted-foreground">尚無繳費紀錄。</p>
    ) : (
-    <ul className="flex flex-1 flex-col gap-3">
+    <StaggerList as="ul" className="flex flex-1 flex-col gap-3">
      {payments.map((p) => (
-      <li
+      <StaggerItem
        key={p.id}
+       as="li"
        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-background/80 px-4 py-3 text-base"
       >
        <div className="min-w-0">
@@ -49,9 +51,9 @@ export function RecentPaymentsCard({ payments, loading }: Props) {
          {p.status}
         </Tag>
        </div>
-      </li>
+      </StaggerItem>
      ))}
-    </ul>
+    </StaggerList>
    )}
   </section>
  )

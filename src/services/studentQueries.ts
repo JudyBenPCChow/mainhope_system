@@ -388,6 +388,30 @@ export async function fetchAllStudents(): Promise<StudentRecord[]> {
  return (data ?? []).map((r) => asStudent(r as Record<string, unknown>))
 }
 
+export const STUDENTS_PAGE_SIZE = 50
+
+export type StudentsPageResult = {
+ rows: StudentRecord[]
+ hasMore: boolean
+}
+
+export async function fetchStudentsPage(opts?: {
+ limit?: number
+ offset?: number
+}): Promise<StudentsPageResult> {
+ if (!supabase) return { rows: [], hasMore: false }
+ const limit = Math.min(Math.max(opts?.limit ?? STUDENTS_PAGE_SIZE, 1), 200)
+ const offset = Math.max(opts?.offset ?? 0, 0)
+ const { data, error } = await supabase
+  .from("students")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .range(offset, offset + limit - 1)
+ if (error) throw error
+ const rows = (data ?? []).map((r) => asStudent(r as Record<string, unknown>))
+ return { rows, hasMore: rows.length >= limit }
+}
+
 export async function getStudentById(id: string): Promise<StudentRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase.from("students").select("*").eq("id", id).maybeSingle()

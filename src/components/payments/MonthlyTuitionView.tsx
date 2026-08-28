@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { CalendarRange, ReceiptText } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -225,11 +226,11 @@ export function MonthlyTuitionView() {
           <th className="w-[8%] px-3 py-2 font-medium">狀態</th>
          </tr>
         </thead>
-        <tbody>
+        <StaggerList as="tbody">
          {preview.lines.map((line) => {
           const disabled = ["已繳", "已抵扣"].includes(line.status)
           return (
-           <tr key={line.key} className="border-t border-border align-top">
+           <StaggerItem key={line.key} as="tr" className="border-t border-border align-top">
             <td className="px-3 py-2">
              <input
               type="checkbox"
@@ -258,10 +259,10 @@ export function MonthlyTuitionView() {
             <td className="px-3 py-2">
              <Tag tone={statusToTagTone(line.status)} size="sm">{line.status}</Tag>
             </td>
-           </tr>
+           </StaggerItem>
           )
          })}
-        </tbody>
+        </StaggerList>
        </table>
       </div>
      )}

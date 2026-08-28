@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
@@ -1456,10 +1457,11 @@ export function StudentDetailView() {
        ) : relatives.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未新增親友。</p>
        ) : (
-        <ul className="space-y-3">
+        <StaggerList as="ul" className="space-y-3">
          {relatives.map((r) => (
-          <li
+          <StaggerItem
            key={r.relationshipId}
+           as="li"
            className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
           >
            <div className="min-w-0">
@@ -1540,9 +1542,9 @@ export function StudentDetailView() {
             移除
            </Button>
            ) : null}
-          </li>
+          </StaggerItem>
          ))}
-        </ul>
+        </StaggerList>
        )}
       </section>
 
@@ -1824,11 +1826,13 @@ export function StudentDetailView() {
        ) : activeEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
-        activeEnrollments.map((e) => {
+        <StaggerList as="div" className="space-y-3">
+        {activeEnrollments.map((e) => {
          const bal = balanceByEnrollment.get(e.id)
          return (
-         <div
+         <StaggerItem
           key={e.id}
+          as="div"
           className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
          >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2052,9 +2056,10 @@ export function StudentDetailView() {
             ) : null}
            </div>
           ) : null}
-         </div>
+         </StaggerItem>
          )
-        })
+        })}
+        </StaggerList>
        )}
       </div>
 
@@ -2063,10 +2068,11 @@ export function StudentDetailView() {
         <p className="text-sm font-medium text-muted-foreground">
          {canMutateStudentOps ? "已退讀（可重新報讀；手誤才用清除）" : "已退讀"}
         </p>
-        <div className="space-y-2">
+        <StaggerList as="div" className="space-y-2">
          {withdrawnEnrollments.map((e) => (
-          <div
+          <StaggerItem
            key={e.id}
+           as="div"
            className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
           >
            <div className="min-w-0">
@@ -2099,9 +2105,9 @@ export function StudentDetailView() {
             </div>
            </details>
            ) : null}
-          </div>
+          </StaggerItem>
          ))}
-        </div>
+        </StaggerList>
        </div>
       ) : null}
 
@@ -2319,9 +2325,11 @@ export function StudentDetailView() {
        ) : payments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚無繳費紀錄。</p>
        ) : (
-        payments.map((p) => (
-         <div
+        <StaggerList as="div" className="space-y-3">
+        {payments.map((p) => (
+         <StaggerItem
           key={p.id}
+          as="div"
           className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
          >
           <div>
@@ -2385,8 +2393,9 @@ export function StudentDetailView() {
             </Button>
            ) : null}
           </div>
-         </div>
-        ))
+         </StaggerItem>
+        ))}
+        </StaggerList>
        )}
       </div>
      </div>

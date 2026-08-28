@@ -18,6 +18,7 @@ import {
  todayYmdLocal,
 } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { useIdleScrollCarousel } from "@/hooks/useIdleScrollCarousel"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -136,9 +137,9 @@ export function DashboardBoard({
       ref={scheduleScrollRef}
       className="max-h-[40rem] snap-y snap-mandatory overflow-y-auto overscroll-contain scroll-smooth pr-0.5 md:max-h-[48rem]"
      >
-      <ul className="flex flex-col gap-3">
+      <StaggerList as="ul" className="flex flex-col gap-3">
        {todayClassCards.map((c) => (
-        <li key={c.scheduleId} className="snap-start snap-always">
+        <StaggerItem key={c.scheduleId} as="li" className="snap-start snap-always">
          <Link
           to={`/Schedule/${c.scheduleId}`}
           className="block rounded-lg border border-border/90 bg-background/95 p-4 shadow-sm transition-colors hover:border-primary/35 hover:bg-primary/[0.03] md:p-5"
@@ -174,9 +175,9 @@ export function DashboardBoard({
            {c.status}
           </Tag>
          </Link>
-        </li>
+        </StaggerItem>
        ))}
-      </ul>
+      </StaggerList>
      </div>
     )}
    </section>
@@ -209,10 +210,11 @@ export function DashboardBoard({
       ref={leavesScrollRef}
       className="max-h-80 snap-y snap-mandatory overflow-y-auto overscroll-contain scroll-smooth pr-1"
      >
-      <ul className="divide-y divide-border/70 rounded-lg border border-border/60">
+      <StaggerList as="ul" className="divide-y divide-border/70 rounded-lg border border-border/60">
        {todayLeaves.map((r) => (
-        <li
+        <StaggerItem
          key={r.id}
+         as="li"
          className="flex snap-start snap-always flex-col gap-1 px-4 py-3 text-base sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"
         >
          <div className="min-w-0">
@@ -246,9 +248,9 @@ export function DashboardBoard({
            </Link>
           ) : null}
          </div>
-        </li>
+        </StaggerItem>
        ))}
-      </ul>
+      </StaggerList>
      </div>
     )}
    </section>

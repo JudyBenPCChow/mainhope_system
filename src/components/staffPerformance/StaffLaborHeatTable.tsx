@@ -1,4 +1,5 @@
 import type { StaffHeatCell } from "@/components/staffPerformance/types"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -45,9 +46,9 @@ export function StaffLaborHeatTable({ cells, loading }: Props) {
             ))}
           </tr>
         </thead>
-        <tbody>
+        <StaggerList as="tbody">
           {teachers.map(([id, name]) => (
-            <tr key={id} className="border-b border-border/70">
+            <StaggerItem key={id} as="tr" className="border-b border-border/70">
               <td className="px-3 py-2 whitespace-nowrap">{name}</td>
               {months.map((m) => {
                 const cell = cells.find((c) => c.teacherId === id && c.month === m)
@@ -70,9 +71,9 @@ export function StaffLaborHeatTable({ cells, loading }: Props) {
                   </td>
                 )
               })}
-            </tr>
+            </StaggerItem>
           ))}
-        </tbody>
+        </StaggerList>
       </table>
       <p className="mt-2 text-xs text-muted-foreground">
         顏色：綠 &lt;40% · 黃 40–60% · 紅 &gt;60%；灰色＝未有月結人工

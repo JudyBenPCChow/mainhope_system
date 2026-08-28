@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
@@ -35,6 +35,10 @@ import {
 import { GRADE_FILTER_PRIMARY_KEY, GRADE_FILTERS } from "@/components/students/studentsListFilters"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { LoadMoreFooter } from "@/components/ui/load-more-footer"
+import { SkeletonCardGrid } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import {
  Dialog,
  DialogContent,
@@ -51,9 +55,10 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
  deleteStudent,
- fetchAllStudents,
  fetchEnrollmentSubjectsByStudentIds,
  fetchRecentClassEnrollments,
+ fetchAllStudents,
+ fetchStudentsPage,
  insertStudent,
  isUniqueViolation,
  normalizeRegistrationStatus,
@@ -63,6 +68,7 @@ import {
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
  PRIMARY_CONTACT_PERSONS,
+ STUDENTS_PAGE_SIZE,
  type RecentClassEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
@@ -235,6 +241,9 @@ export function StudentsListPage() {
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
  const [loading, setLoading] = useState(true)
+ const [loadingMore, setLoadingMore] = useState(false)
+ const [hasMore, setHasMore] = useState(false)
+ const [listOffset, setListOffset] = useState(0)
  const [err, setErr] = useState<string | null>(null)
  const [registrationKey, setRegistrationKey] = usePersistentState<
   (typeof REGISTRATION_FILTERS)[number]["key"]
@@ -291,8 +300,10 @@ export function StudentsListPage() {
   setLoading(true)
   setErr(null)
   try {
-   const list = await fetchAllStudents()
+   const { rows: list, hasMore: more } = await fetchStudentsPage({ offset: 0, limit: STUDENTS_PAGE_SIZE })
    setRows(list)
+   setListOffset(list.length)
+   setHasMore(more)
    const ids = list.map((s) => s.id)
    const [tagMap, recentEnr] = await Promise.all([
     fetchEnrollmentSubjectsByStudentIds(ids),
@@ -306,6 +317,31 @@ export function StudentsListPage() {
    setLoading(false)
   }
  }, [])
+
+ const loadMoreStudents = useCallback(async () => {
+  if (loadingMore || !hasMore) return
+  setLoadingMore(true)
+  try {
+   const { rows: batch, hasMore: more } = await fetchStudentsPage({ offset: listOffset, limit: STUDENTS_PAGE_SIZE })
+   setRows((prev) => [...prev, ...batch])
+   setListOffset((prev) => prev + batch.length)
+   setHasMore(more)
+   if (batch.length > 0) {
+    const tagMap = await fetchEnrollmentSubjectsByStudentIds(batch.map((s) => s.id))
+    setTags((prev) => new Map([...prev, ...tagMap]))
+   }
+  } catch (e) {
+   reportUserFacingError(e, { source: "StudentsListPage.loadMore", setErr })
+  } finally {
+   setLoadingMore(false)
+  }
+ }, [hasMore, listOffset, loadingMore])
+
+ const { sentinelRef } = useInfiniteScroll({
+  onLoadMore: loadMoreStudents,
+  hasMore,
+  disabled: loading || loadingMore,
+ })
 
  useEffect(() => {
   void load()
@@ -1423,9 +1459,7 @@ export function StudentsListPage() {
    ) : viewMode === "table" && isMobile ? (
     <div className="space-y-2">
      {loading ? (
-      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       載入中…
-      </div>
+      <SkeletonCardGrid count={4} />
      ) : filtered.length === 0 ? (
       <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
        {activityKey !== "all"
@@ -1433,26 +1467,28 @@ export function StudentsListPage() {
         : "沒有符合條件的學生"}
       </div>
      ) : (
-      filtered.map((r) => {
-       const messaging = resolvePrimaryMessagingTarget(r)
-       const canMessage =
-        messaging?.channel === "WeChat"
-         ? Boolean(messaging.wechatId?.trim())
-         : Boolean(messaging?.phone?.trim())
-       return (
-        <article
-         key={r.id}
-         role="button"
-         tabIndex={0}
-         onClick={() => navigate(`/Students/${r.id}`)}
-         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-           e.preventDefault()
-           navigate(`/Students/${r.id}`)
-          }
-         }}
-         className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
-        >
+      <StaggerList as="div" className="space-y-2">
+       {filtered.map((r) => {
+        const messaging = resolvePrimaryMessagingTarget(r)
+        const canMessage =
+         messaging?.channel === "WeChat"
+          ? Boolean(messaging.wechatId?.trim())
+          : Boolean(messaging?.phone?.trim())
+        return (
+         <StaggerItem
+          key={r.id}
+          as="article"
+          role="button"
+          tabIndex={0}
+          onClick={() => navigate(`/Students/${r.id}`)}
+          onKeyDown={(e: KeyboardEvent) => {
+           if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            navigate(`/Students/${r.id}`)
+           }
+          }}
+          className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
+         >
          <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2">
            <span
@@ -1513,37 +1549,35 @@ export function StudentsListPage() {
            </Button>
           ) : null}
          </div>
-        </article>
+        </StaggerItem>
        )
-      })
+      })}
+      </StaggerList>
      )}
     </div>
    ) : (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-     {loading ? (
-      <div className="col-span-full rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       載入中…
-      </div>
-     ) : filtered.length === 0 ? (
-      <div className="col-span-full rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       {activityKey !== "all"
-        ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
-        : "沒有符合條件的學生"}
-      </div>
-     ) : (
-      filtered.map((r) => {
+    loading ? (
+     <SkeletonCardGrid count={6} />
+    ) : filtered.length === 0 ? (
+     <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+      {activityKey !== "all"
+       ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
+       : "沒有符合條件的學生"}
+     </div>
+    ) : (
+     <StaggerList as="div" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {filtered.map((r) => {
        const messaging = resolvePrimaryMessagingTarget(r)
        const canMessage =
         messaging?.channel === "WeChat"
          ? Boolean(messaging.wechatId?.trim())
          : Boolean(messaging?.phone?.trim())
        return (
-        <article
-         key={r.id}
+        <StaggerItem key={r.id} as="article"
          role="button"
          tabIndex={0}
          onClick={() => navigate(`/Students/${r.id}`)}
-         onKeyDown={(e) => {
+         onKeyDown={(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {
            e.preventDefault()
            navigate(`/Students/${r.id}`)
@@ -1620,12 +1654,22 @@ export function StudentsListPage() {
            ) : null}
           </div>
          </div>
-        </article>
+        </StaggerItem>
        )
-      })
-     )}
-    </div>
+      })}
+     </StaggerList>
+    )
    )}
+
+   {!loading && hasMore ? (
+    <LoadMoreFooter
+     sentinelRef={sentinelRef}
+     hasMore={hasMore}
+     loadingMore={loadingMore}
+     totalShown={rows.length}
+     onManualLoad={() => void loadMoreStudents()}
+    />
+   ) : null}
 
    <p className="text-xs text-muted-foreground">
     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
