@@ -220,13 +220,28 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
  },
  {
   kind: "group",
+  id: "journal",
+  label: "日記帳",
+  icon: ClipboardList,
+  children: [
+   { path: "/ExpenseJournal", label: "日記帳入帳", roles: ["admin", "manager", "alien"], icon: NotebookPen },
+   {
+    path: "/ExpenseJournalRecords",
+    label: "查詢紀錄",
+    roles: ["admin", "manager", "alien"],
+    icon: ScrollText,
+   },
+  ],
+ },
+ {
+  kind: "group",
   id: "intelligence",
   label: "智能分析",
   icon: Bot,
   children: [
    { path: "/MgmtDashboard", label: "營運總覽", roles: ["manager", "alien"], icon: BarChart3 },
    { path: "/StaffPerformance", label: "員工績效", roles: ["manager", "alien"], icon: TrendingUp },
-   { path: "/HkExpenses", label: "成本統計", roles: ["manager", "alien"], icon: PieChart },
+   { path: "/HkExpenses", label: "成本分析", roles: ["manager", "alien"], icon: PieChart },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],
