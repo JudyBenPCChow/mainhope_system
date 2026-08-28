@@ -1106,13 +1106,15 @@ export function ClassesListPage() {
           暫無班別
          </div>
         ) : (
-         col.items.map((c) => (
-          <div
+         <StaggerList as="div" className="flex flex-col gap-2">
+         {col.items.map((c) => (
+          <StaggerItem
            key={c.id}
+           as="div"
            role="button"
            tabIndex={0}
            onClick={() => navigate(`/Classes/${c.id}`)}
-           onKeyDown={(e) => {
+           onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
             if (e.key === "Enter" || e.key === " ") {
              e.preventDefault()
              navigate(`/Classes/${c.id}`)
@@ -1162,8 +1164,9 @@ export function ClassesListPage() {
              查看
             </button>
            </div>
-          </div>
-         ))
+          </StaggerItem>
+         ))}
+         </StaggerList>
         )}
        </div>
       </div>

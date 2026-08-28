@@ -7,6 +7,7 @@ import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDi
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
@@ -467,9 +468,9 @@ export function ScheduleDetailView() {
            <th className="w-[40%] px-4 py-2">備註</th>
           </tr>
          </thead>
-         <tbody>
+         <StaggerList as="tbody">
           {safeCtx.attendance.map((a) => (
-           <tr key={a.studentId} className="border-t border-border">
+           <StaggerItem key={a.studentId} as="tr" className="border-t border-border">
             <td className="px-4 py-2">
              <Link to={`/Students/${a.studentId}`} className="font-medium text-primary hover:underline">
               {a.studentName}
@@ -477,9 +478,9 @@ export function ScheduleDetailView() {
             </td>
             <td className="px-4 py-2">{a.status}</td>
             <td className="px-4 py-2 text-muted-foreground">{a.remarks ?? "—"}</td>
-           </tr>
+           </StaggerItem>
           ))}
-         </tbody>
+         </StaggerList>
         </table>
        </div>
       )}

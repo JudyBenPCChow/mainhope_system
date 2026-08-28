@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { CheckCircle2, Loader2, Send, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import {
   APO_PO_NAME,
@@ -213,11 +214,12 @@ export function ApoPoChatView() {
         ref={listRef}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 py-4"
       >
+        <StaggerList as="div" className="flex min-h-0 flex-1 flex-col gap-3" staggerMs={60}>
         {messages.map((m) => {
           const isUser = m.role === "user"
           const display = isUser ? userDisplayText(m) : m.content
           return (
-            <div key={m.id} className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
+            <StaggerItem key={m.id} as="div" className={cn("flex flex-col gap-2", isUser ? "items-end" : "items-start")}>
               <div
                 className={cn(
                   "max-w-[92%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed",
@@ -279,9 +281,10 @@ export function ApoPoChatView() {
                   ))}
                 </div>
               ) : null}
-            </div>
+            </StaggerItem>
           )
         })}
+        </StaggerList>
 
         {sending ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

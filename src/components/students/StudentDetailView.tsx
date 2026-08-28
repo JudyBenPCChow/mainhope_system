@@ -2056,7 +2056,6 @@ export function StudentDetailView() {
             ) : null}
            </div>
           ) : null}
-         </div>
          </StaggerItem>
          )
         })}

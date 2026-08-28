@@ -5,6 +5,7 @@ import { Bot, Copy, Download, Loader2, RefreshCw, Wallet } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -206,9 +207,9 @@ export function AiReportsView() {
                       <th className="w-[21%] px-3 py-2.5 font-medium">活躍狀態</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <StaggerList as="tbody">
                     {result.records.map((row) => (
-                      <tr key={row.student_id} className="border-b border-border/70 last:border-0">
+                      <StaggerItem key={row.student_id} as="tr" className="border-b border-border/70 last:border-0">
                         <td className="min-w-0 truncate px-3 py-2.5" title={row.student_code ?? ""}>
                           <Link
                             to={`/Students/${row.student_id}`}
@@ -238,9 +239,9 @@ export function AiReportsView() {
                             "—"
                           )}
                         </td>
-                      </tr>
+                      </StaggerItem>
                     ))}
-                  </tbody>
+                  </StaggerList>
                 </table>
               </div>
             )}

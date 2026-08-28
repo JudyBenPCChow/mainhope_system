@@ -1,4 +1,5 @@
 import { MgmtStatCard } from "@/components/mgmtDashboard/MgmtStatCard"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import type { KpiCardModel } from "@/components/mgmtDashboard/types"
 import { SkeletonStatGrid } from "@/components/ui/skeleton"
 import { Tag } from "@/components/ui/tag"
@@ -95,9 +96,9 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
           {dashboard.byAccount.length === 0 ? (
             <p className="mt-4 text-sm text-muted-foreground">本月尚無已確認成本</p>
           ) : (
-            <ul className="mt-4 space-y-3">
+            <StaggerList as="ul" className="mt-4 space-y-3">
               {dashboard.byAccount.map((a) => (
-                <li key={a.accountId} className="space-y-1">
+                <StaggerItem key={a.accountId} as="li" className="space-y-1">
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="flex min-w-0 items-center gap-2">
                       <Tag size="sm" tone={a.accountGroup === "direct" ? "info" : "default"}>
@@ -113,9 +114,9 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
                       style={{ width: `${Math.round((a.amount / maxAccount) * 100)}%` }}
                     />
                   </div>
-                </li>
+                </StaggerItem>
               ))}
-            </ul>
+            </StaggerList>
           )}
         </section>
 
@@ -135,18 +136,18 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
                     <th className="py-2 text-right font-medium">合計</th>
                   </tr>
                 </thead>
-                <tbody>
+                <StaggerList as="tbody">
                   {dashboard.byTeacher.map((t) => (
-                    <tr key={t.teacherId} className="border-b border-border/60">
+                    <StaggerItem key={t.teacherId} as="tr" className="border-b border-border/60">
                       <td className="py-2">{t.teacherName}</td>
                       <td className="py-2 text-right tabular-nums">{hkd(t.laborTutor)}</td>
                       <td className="py-2 text-right tabular-nums">{hkd(t.employerMpf)}</td>
                       <td className="py-2 text-right tabular-nums font-medium">
                         {hkd(t.total)}
                       </td>
-                    </tr>
+                    </StaggerItem>
                   ))}
-                </tbody>
+                </StaggerList>
               </table>
             </div>
           )}
@@ -155,9 +156,9 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
 
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <h2 className="text-base font-semibold tracking-tight">近 6 月已確認成本</h2>
-        <ul className="mt-4 space-y-3">
+        <StaggerList as="ul" className="mt-4 space-y-3">
           {dashboard.monthlyTrend.map((t) => (
-            <li key={t.monthKey} className="space-y-1">
+            <StaggerItem key={t.monthKey} as="li" className="space-y-1">
               <div className="flex items-center justify-between gap-2 text-sm">
                 <span className="tabular-nums text-muted-foreground">{t.monthKey}</span>
                 <span className="flex gap-3 tabular-nums">
@@ -173,9 +174,9 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
                   }}
                 />
               </div>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       </section>
     </div>
   )

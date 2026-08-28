@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -460,9 +461,9 @@ export function PaymentCorrectionView() {
          <th className="px-3 py-2 font-medium">操作者</th>
         </tr>
        </thead>
-       <tbody>
+       <StaggerList as="tbody">
         {ledger.map((row) => (
-         <tr key={row.id} className="border-t border-border">
+         <StaggerItem key={row.id} as="tr" className="border-t border-border">
           <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
            {row.createdAt.slice(0, 19).replace("T", " ")}
           </td>
@@ -480,9 +481,9 @@ export function PaymentCorrectionView() {
           <td className="px-3 py-2 text-xs text-muted-foreground">
            {row.createdByName ?? row.createdByEmail ?? "—"}
           </td>
-         </tr>
+         </StaggerItem>
         ))}
-       </tbody>
+       </StaggerList>
       </table>
      </div>
     )}

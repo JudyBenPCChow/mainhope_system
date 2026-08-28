@@ -62,21 +62,44 @@ import { ListLoadBoundary } from "@/components/ui/list-load-boundary"
 
 ### 2.2 分佈入場 — `StaggerList`
 
-```tsx
-import { StaggerList, StaggerItem } from "@/components/ui/stagger-list"
+**全站預設（2026-08）：** 單項 `600ms`、位移 `16px`、項間 `90ms`、最多延遲 `1080ms`（約 12 項）。常數見 `STAGGER_DEFAULT_MS`／`STAGGER_MAX_DELAY_MS`。
 
-<StaggerList as="ul" staggerMs={72} maxDelayMs={840}>
-  {items.map((item) => (
-    <StaggerItem key={item.id} as="li">
-      <StudentCard student={item} />
-    </StaggerItem>
-  ))}
+```tsx
+import {
+ StaggerList,
+ StaggerItem,
+ StaggerTableBody,
+ StaggerStack,
+ StaggerUl,
+ StaggerRows,
+} from "@/components/ui/stagger-list"
+
+// 卡片／畫廊／手機列表
+<StaggerList as="ul">
+ {items.map((item) => (
+  <StaggerItem key={item.id} as="li">
+   <StudentCard student={item} />
+  </StaggerItem>
+ ))}
 </StaggerList>
+
+// 桌面表格（共用 StudentsListTable / ClassesListTable 已內建）
+<StaggerList as="tbody">
+ {rows.map((r) => (
+  <StaggerItem key={r.id} as="tr" className="...">
+   ...
+  </StaggerItem>
+ ))}
+</StaggerList>
+
+// shorthand：`StaggerTableBody`｜`StaggerStack`｜`StaggerUl`
+// 陣列 helper：`StaggerRows`（listAs=tbody + itemAs=tr 預設）
 ```
 
-- 僅在 `load.status === "ready"` 且**首次** mount 時播放；篩選／刷新不重播。
-- ✅ 卡片、畫廊、手機列表、accordion 列。
-- ❌ 高密度 table（>20 列）、stale-while-revalidate 半透明舊列、dialog 短列表。
+- 僅在資料 **ready**（非 skeleton）時播放；`prefers-reduced-motion` 自動關閉。
+- ✅ **全站資料列表**：表格 tbody、卡片 grid、ul 堆疊、accordion 列、聊天訊息。
+- ❌ 日曆／時間表 **格子**（RoomBooking 週視圖、DayView 時段格）、靜態 nav／選項 chip。
+- 高密度列表仍套用，但 `maxDelayMs` 會 cap 後段項目不會無限延遲。
 
 ### 2.3 按鈕加載態 — `Button loading`
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
@@ -133,9 +134,9 @@ export function HomeworkTutoringTeacherAccess() {
       ) : employed.length === 0 ? (
         <p className="text-sm text-muted-foreground">沒有在職老師。</p>
       ) : (
-        <ul className="space-y-2">
+        <StaggerList as="ul" className="space-y-2">
           {employed.map((t) => (
-            <li key={t.id}>
+            <StaggerItem key={t.id} as="li">
               <div className="flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm sm:flex-row sm:items-center">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <Checkbox
@@ -172,9 +173,9 @@ export function HomeworkTutoringTeacherAccess() {
                   ) : null}
                 </div>
               </div>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       )}
       <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
         重新載入

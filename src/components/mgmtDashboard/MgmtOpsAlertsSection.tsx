@@ -7,6 +7,7 @@ import type {
  MgmtDashboardPayload,
  OpsAlertCategory,
 } from "@/components/mgmtDashboard/types"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -47,13 +48,14 @@ export function MgmtOpsAlertsSection({ alerts, error, focus, onFocus }: Props) {
      目前無營運警示，狀態正常
     </div>
    ) : alerts.length === 0 ? null : (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <StaggerList as="div" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
      {alerts.map((item) => {
       const active =
        focus?.type === "alert" && focus.category === item.category
       return (
-       <button
+       <StaggerItem
         key={item.id}
+        as="button"
         type="button"
         onClick={() => onFocus({ type: "alert", category: item.category })}
         className={cn(
@@ -104,10 +106,10 @@ export function MgmtOpsAlertsSection({ alerts, error, focus, onFocus }: Props) {
           </span>
          )}
         </div>
-       </button>
+       </StaggerItem>
       )
      })}
-    </div>
+    </StaggerList>
    )}
   </section>
  )
