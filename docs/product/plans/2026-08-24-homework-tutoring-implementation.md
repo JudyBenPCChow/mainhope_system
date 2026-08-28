@@ -16,7 +16,7 @@ H11 沙盒 **2026-08-24 通過**。本檔＝分期實作；**唔另建報讀表*
 | 3 | `homework_tutoring_monthly_charges`；價目對齊政策；月費頁 ensure 應收 | ✅（收款連 payments 可再收細） |
 | 4a | 放假日／報更／月工作表／當值持久化 | ✅ |
 | 4b | 確定編更寫入 `schedules` 佔室（15:15 起；17D／17E） | ✅ 2026-08-25 |
-| 4c | `/Users`「新增功輔班導師用戶」（綁既有老師＋Auth／app_users＋開功輔側欄） | ✅ 碼＋**edge deploy 2026-08-29**（v4）；待 merge／實機點一次 |
+| 4c | `/Users`「新增功輔班導師用戶」（綁既有老師＋Auth／app_users＋開功輔側欄） | ✅ 碼已 push（`ed22b38d`）＋**edge deploy 2026-08-29**（v4）；待 merge／實機點一次 |
 | 5 | 2627 指引 §7 編更 | 閘已開；待寫 |
 
 ### 波次 4c 檔案
@@ -26,7 +26,7 @@ H11 沙盒 **2026-08-24 通過**。本檔＝分期實作；**唔另建報讀表*
 - `supabase/functions/create-mgmt-user/index.ts` — 建立後設 `homework_tutoring_nav=true`（**production v4 已 deploy**）
 - `supabase/functions/_shared/apoKnowledge.ts` — 阿Po 操作提示
 
-收尾：commit／merge `homeworkuser` → alien 實機建帳。
+收尾：merge `homeworkuser` → main → alien 實機建帳。
 
 ## 明確唔做（本期）
 
