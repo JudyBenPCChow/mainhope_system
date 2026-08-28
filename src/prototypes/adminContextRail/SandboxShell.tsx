@@ -236,35 +236,18 @@ export function SandboxShell({
 
       <aside
         className={cn(
-          "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-[-4px_0_24px_-8px_rgba(15,23,42,0.08)] transition-[width] duration-200 ease-out",
+          "flex h-full min-h-0 shrink-0 overflow-hidden border-l border-border bg-background shadow-[-4px_0_24px_-8px_rgba(15,23,42,0.08)] transition-[width] duration-200 ease-out",
           railCollapsed ? "w-11" : "w-[22.5rem]"
         )}
       >
-        <div
-          className={cn(
-            "flex shrink-0 items-center border-b border-border",
-            railCollapsed ? "flex-col gap-2 py-3" : "justify-between gap-2 px-3 py-3"
-          )}
+        <button
+          type="button"
+          className="flex h-full w-11 shrink-0 flex-col items-center gap-2 border-r border-border/70 bg-muted/30 pt-3 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onClick={onToggleRail}
+          aria-label={railCollapsed ? "展開右欄" : "收起右欄"}
+          title={railCollapsed ? "展開右欄" : "收起右欄"}
         >
-          {!railCollapsed ? (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">右欄</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {pinnedStudent ? `已固定 ${pinnedStudent.fullName}` : "未固定"}
-              </p>
-            </div>
-          ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 shrink-0"
-            onClick={onToggleRail}
-            aria-label={railCollapsed ? "展開右欄" : "收起右欄"}
-            title={railCollapsed ? "展開右欄" : "收起右欄"}
-          >
-            {railCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          </Button>
+          {railCollapsed ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           {railCollapsed && pinnedStudent ? (
             <span
               className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
@@ -273,10 +256,20 @@ export function SandboxShell({
               {pinnedStudent.fullName.slice(0, 1)}
             </span>
           ) : null}
-        </div>
+        </button>
         {!railCollapsed ? (
-          <div className="min-h-0 flex-1">
-            <ContextRail student={pinnedStudent} onUnpin={onUnpin} onShortcut={onPreview} />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">右欄</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {pinnedStudent ? `已固定 ${pinnedStudent.fullName}` : "未固定"}
+                </p>
+              </div>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ContextRail student={pinnedStudent} onUnpin={onUnpin} onShortcut={onPreview} />
+            </div>
           </div>
         ) : null}
       </aside>
