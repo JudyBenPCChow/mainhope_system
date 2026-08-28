@@ -14,6 +14,10 @@ import { PaymentReceiptDownloadButton } from "@/components/payments/PaymentRecei
 import { PaymentReceiptWhatsAppButton } from "@/components/payments/PaymentReceiptWhatsAppButton"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { Button } from "@/components/ui/button"
+import { LoadMoreFooter } from "@/components/ui/load-more-footer"
+import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import {
  Dialog,
  DialogContent,
@@ -37,8 +41,9 @@ import {
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
  fetchPaymentFull,
- fetchPaymentsList,
+ fetchPaymentsPage,
  markPaymentReceived,
+ PAYMENTS_PAGE_SIZE,
  type PaymentFull,
  type PaymentListRow,
 } from "@/services/paymentQueries"
@@ -53,6 +58,9 @@ export function PaymentHistoryView() {
 
  const [historyRows, setHistoryRows] = useState<PaymentListRow[]>([])
  const [histLoading, setHistLoading] = useState(true)
+ const [histLoadingMore, setHistLoadingMore] = useState(false)
+ const [histHasMore, setHistHasMore] = useState(false)
+ const [histOffset, setHistOffset] = useState(0)
  const [histErr, setHistErr] = useState<string | null>(null)
  const [histStatus, setHistStatus] = useState<
   "all" | "received" | "pending" | "pendingPay" | "pendingReceive" | "voided"
@@ -134,27 +142,61 @@ export function PaymentHistoryView() {
   if (!isSupabaseConfigured) {
    setHistoryRows([])
    setHistLoading(false)
+   setHistHasMore(false)
    return
   }
   setHistLoading(true)
   setHistErr(null)
   try {
-   const rows = await fetchPaymentsList({
+   const { rows, hasMore } = await fetchPaymentsPage({
     status: histStatus,
     fromYmd: histFrom || undefined,
     toYmd: histTo || undefined,
     search: histSearch || undefined,
     studentId: filterStudentId || undefined,
-    limit: 500,
+    limit: PAYMENTS_PAGE_SIZE,
+    offset: 0,
    })
    setHistoryRows(rows)
+   setHistOffset(rows.length)
+   setHistHasMore(hasMore)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentHistoryView.loadHistory", setErr: setHistErr })
    setHistoryRows([])
+   setHistHasMore(false)
   } finally {
    setHistLoading(false)
   }
  }, [histStatus, histFrom, histTo, histSearch, filterStudentId])
+
+ const loadMoreHistory = useCallback(async () => {
+  if (!isSupabaseConfigured || histLoadingMore || !histHasMore) return
+  setHistLoadingMore(true)
+  try {
+   const { rows, hasMore } = await fetchPaymentsPage({
+    status: histStatus,
+    fromYmd: histFrom || undefined,
+    toYmd: histTo || undefined,
+    search: histSearch || undefined,
+    studentId: filterStudentId || undefined,
+    limit: PAYMENTS_PAGE_SIZE,
+    offset: histOffset,
+   })
+   setHistoryRows((prev) => [...prev, ...rows])
+   setHistOffset((prev) => prev + rows.length)
+   setHistHasMore(hasMore)
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentHistoryView.loadMoreHistory", setErr: setHistErr })
+  } finally {
+   setHistLoadingMore(false)
+  }
+ }, [histStatus, histFrom, histTo, histSearch, filterStudentId, histHasMore, histLoadingMore, histOffset])
+
+ const { sentinelRef } = useInfiniteScroll({
+  onLoadMore: loadMoreHistory,
+  hasMore: histHasMore,
+  disabled: histLoading || histLoadingMore,
+ })
 
  useEffect(() => {
   void loadHistory()
@@ -447,19 +489,19 @@ export function PaymentHistoryView() {
     ) : null}
 
     {histLoading ? (
-     <p className="text-sm text-muted-foreground">載入中…</p>
+     <SkeletonTableRows rows={8} columns={6} />
     ) : historyRows.length === 0 ? (
      <div className="rounded-xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
       沒有符合條件的紀錄。
      </div>
     ) : isMobile ? (
-     <div className="space-y-3">
+     <StaggerList as="div" className="space-y-3">
       {historyRows.map((r) => {
        const pending = PENDING_PAYMENT_STATUSES.includes(
         r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
        )
        return (
-        <article key={r.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <StaggerItem key={r.id} as="article" className="rounded-xl border border-border bg-card p-4 shadow-sm">
          <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
            <p className="text-xs tabular-nums text-muted-foreground">{r.paymentDate}</p>
@@ -502,10 +544,10 @@ export function PaymentHistoryView() {
            </Button>
           ) : null}
          </div>
-        </article>
+        </StaggerItem>
        )
       })}
-     </div>
+     </StaggerList>
     ) : (
      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       <table className="w-full min-w-[960px] table-fixed border-collapse text-left text-sm">
@@ -521,13 +563,13 @@ export function PaymentHistoryView() {
          <th className="w-[20%] px-3 py-2 font-medium">操作</th>
         </tr>
        </thead>
-       <tbody>
+       <StaggerList as="tbody">
         {historyRows.map((r) => {
          const pending = PENDING_PAYMENT_STATUSES.includes(
           r.status as (typeof PENDING_PAYMENT_STATUSES)[number]
          )
          return (
-          <tr key={r.id} className="border-b border-border/80 last:border-0">
+          <StaggerItem key={r.id} as="tr" className="border-b border-border/80 last:border-0">
            <td className="px-3 py-2 whitespace-nowrap">{r.paymentDate}</td>
            <td className="px-3 py-2 font-mono text-xs">{r.receiptNumber ?? "—"}</td>
            <td className="px-3 py-2">
@@ -569,13 +611,23 @@ export function PaymentHistoryView() {
              ) : null}
             </div>
            </td>
-          </tr>
+          </StaggerItem>
          )
         })}
-       </tbody>
+       </StaggerList>
       </table>
      </div>
     )}
+
+    {!histLoading && (histHasMore || historyRows.length > 0) ? (
+     <LoadMoreFooter
+      sentinelRef={sentinelRef}
+      hasMore={histHasMore}
+      loadingMore={histLoadingMore}
+      totalShown={historyRows.length}
+      onManualLoad={() => void loadMoreHistory()}
+     />
+    ) : null}
    </div>
 
    <VoidPaymentDialog

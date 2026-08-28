@@ -333,12 +333,27 @@ export type PaymentListFilters = {
  search?: string
  studentId?: string
  limit?: number
+ offset?: number
+}
+
+export const PAYMENTS_PAGE_SIZE = 50
+
+export type PaymentsPageResult = {
+ rows: PaymentListRow[]
+ hasMore: boolean
 }
 
 /** 紀錄列表（含學生、優惠名稱） */
 export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promise<PaymentListRow[]> {
- if (!supabase) return []
- const limit = Math.min(Math.max(filters.limit ?? 400, 1), 800)
+ const page = await fetchPaymentsPage(filters)
+ return page.rows
+}
+
+/** 分頁紀錄列表 */
+export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promise<PaymentsPageResult> {
+ if (!supabase) return { rows: [], hasMore: false }
+ const limit = Math.min(Math.max(filters.limit ?? PAYMENTS_PAGE_SIZE, 1), 800)
+ const offset = Math.max(filters.offset ?? 0, 0)
 
  let q = supabase
   .from("payments")
@@ -347,7 +362,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
   )
   .order("payment_date", { ascending: false })
   .order("created_at", { ascending: false })
-  .limit(limit)
+  .range(offset, offset + limit - 1)
 
  if (filters.studentId) q = q.eq("student_id", filters.studentId)
  if (filters.fromYmd) q = q.gte("payment_date", filters.fromYmd)
@@ -379,7 +394,7 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
    return hay.includes(s)
   })
  }
- return rows
+ return { rows, hasMore: rows.length >= limit }
 }
 
 export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> {

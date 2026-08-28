@@ -34,12 +34,24 @@
 | 篇章 | 簡介 |
 | --- | --- |
 | [生命週期孤兒清理](ops/LIFECYCLE_ORPHAN_CLEANUP_RUNBOOK.md) |  orphan 清理 runbook |
+| [2627 權益池 E2E 驗收](ops/2627_ENTITLEMENT_E2E_RUNBOOK.md) | 2627 收款→池→宣告→點名抽樣關帳 |
+
+### 本學年員工讀本（2627）
+
+| 篇章 | 簡介 |
+| --- | --- |
+| [2627 常規學年營運指引（md）](../year/2627/ops-guide.md) | 全公司守則 v1.11；列印／WhatsApp 發佈用 |
+| [2627 常規學年營運指引（PDF）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) | 列印版 |
+| [2627 常規學年營運指引（Word）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) | 可編輯版 |
+| [2627 校曆手冊（PDF）](../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) | 專科／功輔假期對照 |
+| [2627 九月時間表索引](../year/2627/timetable/2627_timetable_schemes.md) | ver. 3.6 方案；[簽收紀錄](../year/2627/timetable/2627_timetable_signoff_v3.6.md) |
+| [2627 學年包入口](../year/2627/README.md) | 本學年物料總門牌 |
 
 ## 與其他文件
 
 | 文件 | 用途 |
 | --- | --- |
 | [`policies/_INDEX.md`](../policies/_INDEX.md) | 營運規則 |
-| [`year/2627/ops-guide.md`](../year/2627/ops-guide.md) | 本學年員工讀本 |
+| [`year/2627/ops-guide.md`](../year/2627/ops-guide.md) | 本學年員工讀本（同上） |
 | [`meta/TERMINOLOGY.md`](../meta/TERMINOLOGY.md) | 公司術語與定義 |
 | `AGENTS.md`／[`meta/AGENT_HANDOFF.md`](../meta/AGENT_HANDOFF.md) | 開發約定 |

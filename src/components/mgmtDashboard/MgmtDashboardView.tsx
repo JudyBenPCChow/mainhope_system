@@ -6,6 +6,7 @@ import { MgmtDashboardFilterBar } from "@/components/mgmtDashboard/MgmtDashboard
 import { MgmtDetailTablesSection } from "@/components/mgmtDashboard/MgmtDetailTablesSection"
 import { MgmtOpsAlertsSection } from "@/components/mgmtDashboard/MgmtOpsAlertsSection"
 import { MgmtStatCard } from "@/components/mgmtDashboard/MgmtStatCard"
+import { SkeletonStatGrid } from "@/components/ui/skeleton"
 import type {
  DrilldownFocus,
  MgmtDashboardFilters,
@@ -207,10 +208,7 @@ export function MgmtDashboardView() {
    ) : null}
 
    {loading && data.kpis.length === 0 ? (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-     <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-     載入營運數據…
-    </div>
+    <SkeletonStatGrid count={8} className="min-h-[40vh] content-center" />
    ) : (
     <>
      <section className="space-y-3">

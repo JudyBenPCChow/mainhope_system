@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Copy, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
@@ -9,6 +9,8 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
@@ -786,25 +788,24 @@ export function ClassesListPage() {
    </div>
 
    {displayView === "cards" ? (
-    <div className="space-y-3">
-     {loading ? (
-      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       載入中…
-      </div>
-     ) : filtered.length === 0 ? (
-      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       {yearScopedRows.length === 0 && baseRows.length > 0
-        ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
-        : "沒有符合條件的班別"}
-      </div>
-     ) : (
-      filtered.map((c) => (
-       <article
+    loading ? (
+     <SkeletonCardGrid count={4} />
+    ) : filtered.length === 0 ? (
+     <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+      {yearScopedRows.length === 0 && baseRows.length > 0
+       ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+       : "沒有符合條件的班別"}
+     </div>
+    ) : (
+     <StaggerList as="div" className="space-y-3">
+      {filtered.map((c) => (
+       <StaggerItem
         key={c.id}
+        as="article"
         role="button"
         tabIndex={0}
         onClick={() => navigate(`/Classes/${c.id}`)}
-        onKeyDown={(e) => {
+        onKeyDown={(e: KeyboardEvent) => {
          if (e.key === "Enter" || e.key === " ") {
           e.preventDefault()
           navigate(`/Classes/${c.id}`)
@@ -859,11 +860,10 @@ export function ClassesListPage() {
           {(enrollRoster.get(c.id)?.names ?? []).join("、")}
          </p>
         ) : null}
-       </article>
-      ))
-     )}
-     <p className="text-xs text-muted-foreground">共 {filtered.length} 班</p>
-    </div>
+       </StaggerItem>
+      ))}
+     </StaggerList>
+    )
    ) : displayView === "list" ? (
     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
      <div className="overflow-x-auto">
@@ -886,14 +886,16 @@ export function ClassesListPage() {
          <th className="min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium">操作</th>
         </tr>
        </thead>
-       <tbody>
-        {loading ? (
+       {loading ? (
+        <tbody>
          <tr>
-          <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
-           載入中…
+          <td colSpan={10} className="px-3 py-6">
+           <SkeletonTableRows rows={8} columns={10} />
           </td>
          </tr>
-        ) : filtered.length === 0 ? (
+        </tbody>
+       ) : filtered.length === 0 ? (
+        <tbody>
          <tr>
           <td colSpan={10} className="px-3 py-8 text-center text-muted-foreground">
            {yearScopedRows.length === 0 && baseRows.length > 0
@@ -901,10 +903,13 @@ export function ClassesListPage() {
             : "沒有符合條件的專科班。若要管理私人課程，請前往「私人課程」。"}
           </td>
          </tr>
-        ) : (
-         filtered.map((c, idx) => (
-          <tr
+        </tbody>
+       ) : (
+        <StaggerList as="tbody">
+         {filtered.map((c, idx) => (
+          <StaggerItem
            key={c.id}
+           as="tr"
            onClick={() => navigate(`/Classes/${c.id}`)}
            className={cn(
             "border-b border-border",
@@ -1033,10 +1038,10 @@ export function ClassesListPage() {
              ) : null}
             </div>
            </td>
-          </tr>
-         ))
-        )}
-       </tbody>
+          </StaggerItem>
+         ))}
+        </StaggerList>
+       )}
       </table>
      </div>
      <div className="border-t border-border px-3 py-2 text-xs text-muted-foreground">
@@ -1046,14 +1051,14 @@ export function ClassesListPage() {
    ) : displayView === "gallery" && teacherTid ? (
     <div className="rounded-xl border border-border bg-muted/20 p-4 shadow-sm md:p-6">
      {loading ? (
-      <p className="py-12 text-center text-muted-foreground">載入中…</p>
+      <SkeletonCardGrid count={8} className="py-4" />
      ) : filtered.length === 0 ? (
       <p className="py-12 text-center text-muted-foreground">沒有符合條件的班別</p>
      ) : (
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-       {filtered.map((c) => (
+      <StaggerList as="div" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {filtered.map((c) => (
+       <StaggerItem key={c.id} as="div">
         <Link
-         key={c.id}
          to={`/Classes/${c.id}`}
          className="group overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
         >
@@ -1082,8 +1087,9 @@ export function ClassesListPage() {
           </div>
          </div>
         </Link>
-       ))}
-      </div>
+       </StaggerItem>
+      ))}
+     </StaggerList>
      )}
     </div>
    ) : (

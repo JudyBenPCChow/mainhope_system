@@ -7,6 +7,7 @@
 | 職員營運指引（md 真相） | [`ops-guide.md`](ops-guide.md) |
 | 公司術語與定義 | [`../../meta/TERMINOLOGY.md`](../../meta/TERMINOLOGY.md) |
 | 指引 Word／PDF（發佈用） | [`../../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx`](../../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 發佈清單 | [`PUBLISH_CHECKLIST.md`](PUBLISH_CHECKLIST.md) |
 | 校曆手冊 PDF | [`../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf`](../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) |
 | 校曆規則正文 | [`../../policies/academic/ACADEMIC_CALENDAR.md`](../../policies/academic/ACADEMIC_CALENDAR.md) |
 | 九月時間表方案／定稿 | [`timetable/`](timetable/2627_timetable_schemes.md) |

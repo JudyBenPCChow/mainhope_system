@@ -4,6 +4,7 @@ import { ChevronRight, LayoutGrid } from "lucide-react"
 import { buildFeatureSections } from "@/lib/navStructure"
 import { useAuth } from "@/lib/authBootstrap"
 import { cn } from "@/lib/utils"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
@@ -37,11 +38,11 @@ export function AllFeaturesView() {
         <h2 className="text-base font-semibold text-foreground md:text-lg">{section.label}</h2>
         <span className="ml-auto text-xs tabular-nums text-muted-foreground">{section.items.length} 項</span>
        </div>
-       <ul className="divide-y divide-border">
+       <StaggerList as="ul" className="divide-y divide-border">
         {section.items.map((item) => {
          const Icon = item.icon
          return (
-          <li key={`${item.path}::${item.label}`}>
+          <StaggerItem key={`${item.path}::${item.label}`} as="li">
            <Link
             to={item.path}
             className={cn(
@@ -61,10 +62,10 @@ export function AllFeaturesView() {
              aria-hidden
             />
            </Link>
-          </li>
+          </StaggerItem>
          )
         })}
-       </ul>
+       </StaggerList>
       </section>
      )
     })}

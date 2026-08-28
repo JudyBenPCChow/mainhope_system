@@ -1,5 +1,6 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
+import { Loader2 } from "lucide-react"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -40,20 +41,80 @@ const buttonVariants = cva(
  }
 )
 
+function defaultLoadingText(children: React.ReactNode): string {
+ if (typeof children === "string") {
+  if (children.endsWith("…")) return children
+  if (children.endsWith("登入")) return "登入中…"
+  if (children.endsWith("儲存")) return "儲存中…"
+  if (children.endsWith("提交")) return "提交中…"
+  if (children.endsWith("建立")) return "建立中…"
+  if (children.endsWith("下載")) return "下載中…"
+  if (children.endsWith("重試")) return "重試中…"
+  return "處理中…"
+ }
+ return "處理中…"
+}
+
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
  VariantProps<typeof buttonVariants> & {
   asChild?: boolean
+  loading?: boolean
+  loadingText?: string
+  loadingIcon?: React.ReactNode
  }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
- ({ className, variant, size, asChild = false, ...props }, ref) => {
+ (
+  {
+   className,
+   variant,
+   size,
+   asChild = false,
+   loading = false,
+   loadingText,
+   loadingIcon,
+   disabled,
+   children,
+   ...props
+  },
+  ref
+ ) => {
   const Comp = asChild ? Slot : "button"
+  const isDisabled = disabled || loading
+  const resolvedLoadingText = loadingText ?? defaultLoadingText(children)
+  const showSpinner = loading
+  const isIconOnly = size === "icon"
+
+  const content = (
+   <>
+    {showSpinner ? (
+     <span className="inline-flex shrink-0 items-center justify-center transition-opacity duration-150">
+      {loadingIcon ?? <Loader2 className="animate-spin" aria-hidden />}
+     </span>
+    ) : null}
+    {!isIconOnly ? (
+     <span
+      className={cn(
+       "inline-flex min-w-[2.5rem] items-center justify-center transition-opacity duration-150",
+       showSpinner && "opacity-90"
+      )}
+     >
+      {loading ? resolvedLoadingText : children}
+     </span>
+    ) : null}
+   </>
+  )
+
   return (
    <Comp
     className={cn(buttonVariants({ variant, size }), className)}
     ref={ref}
+    disabled={isDisabled}
+    aria-busy={loading || undefined}
     {...props}
-   />
+   >
+    {asChild ? children : content}
+   </Comp>
   )
  }
 )

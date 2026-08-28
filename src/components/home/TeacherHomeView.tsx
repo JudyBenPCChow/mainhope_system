@@ -19,6 +19,7 @@ import {
 import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
+import { SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
@@ -330,7 +331,7 @@ export function TeacherHomeView() {
     <p className="text-sm font-medium uppercase tracking-wide text-info">專班老師工作台</p>
     <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
      {loading && teacherName === "老師" ? (
-      <span className="inline-block h-9 w-48 animate-pulse rounded-md bg-muted" aria-label="載入中" />
+      <SkeletonInlineBadge className="h-9 w-48" aria-label="載入中" />
      ) : (
       `您好，${teacherName}`
      )}
@@ -587,10 +588,7 @@ export function TeacherHomeView() {
      </Button>
     </div>
     {loading ? (
-     <div className="space-y-3" aria-label="載入中">
-      <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
-      <div className="h-48 animate-pulse rounded-xl bg-muted/70" />
-     </div>
+     <SkeletonTimetableBlock aria-label="載入中" />
     ) : isMobile ? (
      <div className="space-y-5">
       {upcomingDayGroups.map((group) => (
@@ -711,7 +709,7 @@ export function TeacherHomeView() {
             <span>位置：{s.classroom_name ?? "課室未定"}</span>
             <span>
              {s.enrollCount == null ? (
-              <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted align-middle" />
+              <SkeletonInlineBadge className="h-4 w-14 align-middle" />
              ) : (
               `${s.enrollCount} 人`
              )}

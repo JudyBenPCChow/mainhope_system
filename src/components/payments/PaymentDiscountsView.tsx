@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { summarizeEligibilityRules } from "@/lib/paymentDiscountEligibility"
 import {
@@ -652,12 +653,13 @@ export function PaymentDiscountsView() {
         <th className="w-[17%] px-2 py-2 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {rows.map((r) => {
         const usage = usageById.get(r.id)
         return (
-         <tr
+         <StaggerItem
           key={r.id}
+          as="tr"
           draggable
           onDragStart={() => onDragStart(r.id)}
           onDragOver={(e) => onDragOver(e, r.id)}
@@ -738,10 +740,10 @@ export function PaymentDiscountsView() {
             <span className="text-xs text-muted-foreground">僅限管理員修改</span>
            )}
           </td>
-         </tr>
+         </StaggerItem>
         )
        })}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

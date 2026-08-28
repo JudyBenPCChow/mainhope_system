@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
 import {
@@ -280,10 +281,11 @@ export function TeachersListPage() {
       : "尚無老師資料。"}
     </p>
    ) : (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <StaggerList as="div" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
      {rows.map((t) => (
-      <article
+      <StaggerItem
        key={t.id}
+       as="article"
        role="button"
        tabIndex={0}
        onClick={() => navigate(`/Teachers/${t.id}`)}
@@ -349,9 +351,9 @@ export function TeachersListPage() {
          </button>
         ) : null}
        </div>
-      </article>
+      </StaggerItem>
      ))}
-    </div>
+    </StaggerList>
    )}
 
    <p className="text-xs text-muted-foreground">點選卡片進入老師詳細資料。</p>

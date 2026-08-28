@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Download } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { SkeletonTimetableBlock } from "@/components/ui/skeleton"
 import { downloadTeacherCalendarIcs } from "@/lib/teacherCalendarExport"
 import {
  TeacherWeekTimetable,
@@ -140,10 +141,7 @@ export default function TeacherTimetablePage() {
     <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
    {loading && rows.length === 0 ? (
-    <div className="space-y-3" aria-label="載入中">
-     <div className="h-8 w-64 animate-pulse rounded-md bg-muted" />
-     <div className="h-64 animate-pulse rounded-xl bg-muted/70" />
-    </div>
+    <SkeletonTimetableBlock aria-label="載入中" />
    ) : (
     <TeacherWeekTimetable
      items={weekItemsFromManageRows(rows)}

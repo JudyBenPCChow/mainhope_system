@@ -40,6 +40,8 @@
 
 - 在 `<form>` 內或可能被誤觸發時，按鈕預設使用 `**type="button"`**，避免意外觸發整表單 submit。
 - 會觸發 async 的按鈕應有 `**disabled={saving}`**（或等價狀態），並在進行中顯示 **「儲存中…」** 等文案，避免重複送出。
+- **優先**使用共用 `Button` 的 `loading` prop（`src/components/ui/button.tsx`），例如 `<Button loading={saving} loadingText="儲存中…">儲存</Button>`；`loading=true` 時自動 `disabled` 與 `aria-busy`。微交互細節見 [`MICRO_INTERACTIONS.md`](./MICRO_INTERACTIONS.md)。
+- **優先**使用共用 `Button` 的 `loading` prop（`src/components/ui/button.tsx`），例如 `<Button loading={saving} loadingText="儲存中…">儲存</Button>`；`loading=true` 時自動 `disabled` 與 `aria-busy`。微交互細節見 [`MICRO_INTERACTIONS.md`](./MICRO_INTERACTIONS.md)。
 
 ### 2.2 Async 流程
 

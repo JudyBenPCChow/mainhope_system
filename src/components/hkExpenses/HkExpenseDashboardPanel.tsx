@@ -1,5 +1,6 @@
 import { MgmtStatCard } from "@/components/mgmtDashboard/MgmtStatCard"
 import type { KpiCardModel } from "@/components/mgmtDashboard/types"
+import { SkeletonStatGrid } from "@/components/ui/skeleton"
 import { Tag } from "@/components/ui/tag"
 import type { ExpenseMonthDashboard } from "@/services/expenseQueries"
 
@@ -77,16 +78,15 @@ export function HkExpenseDashboardPanel({ dashboard, loading }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-        {loading && kpis.every((k) => k.value === 0)
-          ? Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-28 animate-pulse rounded-xl border border-border bg-muted/40"
-              />
-            ))
-          : kpis.map((card) => <MgmtStatCard key={card.id} card={card} />)}
-      </div>
+      {loading && kpis.every((k) => k.value === 0) ? (
+        <SkeletonStatGrid count={5} className="sm:grid-cols-3 lg:grid-cols-5" />
+      ) : (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          {kpis.map((card) => (
+            <MgmtStatCard key={card.id} card={card} />
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-border bg-card p-4 shadow-sm">

@@ -4,11 +4,14 @@ import { ChevronLeft, FileSearch, RefreshCw } from "lucide-react"
 
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
+import { LoadMoreFooter } from "@/components/ui/load-more-footer"
+import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { cn } from "@/lib/utils"
 import {
  fetchMgmtAuditLogsFiltered,
  MGMT_LOG_PAGE_SIZE,
@@ -140,6 +143,13 @@ export function SystemLogsView() {
   void load(offset + MGMT_LOG_PAGE_SIZE, true)
  }
 
+ const hasMore = rows.length >= MGMT_LOG_PAGE_SIZE && rows.length > 0
+ const { sentinelRef, loadingMore } = useInfiniteScroll({
+  onLoadMore,
+  hasMore,
+  disabled: loading,
+ })
+
  return (
   <div className="space-y-6">
    <header className="flex flex-wrap items-start justify-between gap-4">
@@ -158,8 +168,8 @@ export function SystemLogsView() {
       所有使用者操作紀錄（依篩選；每批最多 {MGMT_LOG_PAGE_SIZE} 筆，可載入更多）。
      </p>
     </div>
-    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void onSearch()} disabled={loading}>
-     <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+    <Button type="button" variant="outline" size="sm" className="gap-2" loading={loading} onClick={() => void onSearch()}>
+     <RefreshCw className="h-4 w-4" aria-hidden />
      重新整理
     </Button>
    </header>
@@ -271,16 +281,26 @@ export function SystemLogsView() {
        <th className="w-[22%] px-3 py-3 font-medium md:px-4">備註</th>
       </tr>
      </thead>
-     <tbody className="divide-y divide-border">
-      {rows.length === 0 && !loading ? (
+     {loading && rows.length === 0 ? (
+      <tbody className="divide-y divide-border">
+       <tr>
+        <td colSpan={6} className="px-4 py-6">
+         <SkeletonTableRows rows={6} columns={6} />
+        </td>
+       </tr>
+      </tbody>
+     ) : rows.length === 0 ? (
+      <tbody className="divide-y divide-border">
        <tr>
         <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
          無資料。請按「查詢」或調整篩選。
         </td>
        </tr>
-      ) : (
-       rows.map((r) => (
-        <tr key={r.id} className="bg-background/40 hover:bg-muted/30">
+      </tbody>
+     ) : (
+      <StaggerList as="tbody" className="divide-y divide-border">
+       {rows.map((r) => (
+        <StaggerItem key={r.id} as="tr" className="bg-background/40 hover:bg-muted/30">
          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-muted-foreground md:px-4">
           {formatTs(r.created_at)}
          </td>
@@ -293,21 +313,21 @@ export function SystemLogsView() {
          <td className="max-w-md px-3 py-2.5 text-muted-foreground md:px-4">
           <span className="line-clamp-3 break-words">{r.detail ?? "—"}</span>
          </td>
-        </tr>
-       ))
-      )}
-     </tbody>
+        </StaggerItem>
+       ))}
+      </StaggerList>
+     )}
     </table>
    </div>
 
-   <div className="flex flex-wrap items-center justify-between gap-3">
-    <p className="text-sm text-muted-foreground">已載入 {rows.length} 筆</p>
-    {rows.length >= MGMT_LOG_PAGE_SIZE ? (
-     <Button type="button" variant="secondary" size="sm" onClick={() => void onLoadMore()} disabled={loading}>
-      {loading ? "載入中…" : "載入更多"}
-     </Button>
-    ) : null}
-   </div>
+   <LoadMoreFooter
+    sentinelRef={sentinelRef}
+    hasMore={hasMore}
+    loadingMore={loadingMore || (loading && rows.length > 0)}
+    totalShown={rows.length}
+    onManualLoad={onLoadMore}
+    className="px-1 pt-3"
+   />
   </div>
  )
 }
