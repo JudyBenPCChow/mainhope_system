@@ -46,7 +46,8 @@ P0-2 只消費 profile 回傳的 lists。未知 key fail closed。
 | `payroll.prepare`／`review`／`exclude`／`adjust.request`／`hours`／`submit` | — | — | ✓ | — | — |
 | `payroll.return`／`verify`／`settle` | — | ✓ | — | — | ✓ |
 | `payroll.reopen` | — | — | — | — | ✓ |
-| `expenses.read`／`record` | — | ✓ | ✓ | — | ✓ |
+| `expenses.read` | — | ✓ | ✓ | — | ✓ |
+| `expenses.record` | ✓ | ✓ | ✓ | — | ✓ |
 | `expenses.confirm`／`void`／`reopen` | — | ✓ | — | — | ✓ |
 | `system_notice.publish`／`users.manage`／`roles.grant`／`catalog.manage` | — | — | — | — | ✓ |
 | `audit.read_all` | — | ✓ | — | — | ✓ |
@@ -61,6 +62,7 @@ Domain 2（學生／班別／報讀／Portal 邀請）同樣：`20260815104533_p
 Domain 3（排程／出席／請假）：`20260815225314_p0_1_schedule_attendance_leave.sql`。  
 Domain 4–5（付款／作廢 command／堂數池）：`20260815230456_p0_1_payments_entitlements.sql`。  
 Domain 6–7（計糧／成本帳）：`20260815230459_p0_1_payroll_expenses.sql`。財務可入帳，不可 confirm／void／reopen。  
+**2026-08-29**：行政加 `expenses.record`（`authz_version` 12）；科目 `visibility=front_desk` 日記帳可讀寫；`expenses.read` 仍無 → 睇唔到人工／租金／成本分析。  
 延後表／校曆／檔期／課程主檔／老師目錄：`20260816000753_p0_1_remaining_ops.sql`。`review_portal_enrollment_request` 改查 `students.enroll`；核准仍只建報讀、唔自動開待繳費單。  
 Session 角色（JWT 有 `session_id` 先唔 fallback `app_users.role`）：`20260816000756_p0_1_session_role.sql`。  
 波 5 其餘表：`20260816084500_p0_1_wave5_cleanup.sql`。話術庫暫跟 `calendar.manage`；明日提醒寫入 `students.update`；已廢待辦寫入 `catalog.manage`；舊匯入寫入 `students.enroll`。  
