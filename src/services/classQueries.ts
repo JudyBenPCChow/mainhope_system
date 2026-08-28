@@ -13,7 +13,17 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { supabase } from "@/lib/supabaseClient"
-import { gradeLabelsAlignedFromCourse, resolveClassGradeLabels, normalizeStoredClassGradeLabels } from "@/lib/classGrade"
+import {
+ gradeLabelsAlignedFromCourse,
+ resolveClassGradeLabels,
+ normalizeStoredClassGradeLabels,
+ parseEligibleGradeCodesFromDb,
+} from "@/lib/classGrade"
+
+const COURSE_EMBED =
+ "courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, eligible_grade_codes, subjects ( id, code ) )"
+
+const CLASS_ROW_SELECT = `*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), ${COURSE_EMBED}`
 import { formatClassLabel } from "@/lib/courseLabel"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
@@ -59,6 +69,7 @@ export type ClassRecord = {
  course_mode?: CourseMode | null
  grade: string[] | null
  grade_code?: string | null
+ eligible_grade_codes?: string[] | null
  course_seq?: number | null
  academic_year_id?: string | null
  academic_year_label?: string | null
@@ -88,9 +99,11 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
  const year = row.academic_years as Record<string, unknown> | null
  const g = row.grade
  const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
+ const eligible = parseEligibleGradeCodesFromDb(course?.eligible_grade_codes, gradeCode)
  const resolvedGrade = resolveClassGradeLabels(
   Array.isArray(g) ? (g as string[]) : null,
-  gradeCode
+  gradeCode,
+  eligible.length > 0 ? eligible : null
  )
  return {
   id: String(row.id),
@@ -108,6 +121,7 @@ function mapClassRow(row: Record<string, unknown>): ClassRecord {
   course_mode: course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
   grade: resolvedGrade.length > 0 ? resolvedGrade : null,
   grade_code: gradeCode,
+  eligible_grade_codes: eligible.length > 0 ? eligible : null,
   course_seq: course?.course_seq != null ? Number(course.course_seq) : null,
   academic_year_id: year?.id != null ? String(year.id) : null,
   academic_year_label: year?.label != null ? String(year.label) : null,
@@ -140,7 +154,7 @@ export async function fetchAllClasses(): Promise<ClassRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
+  .select(CLASS_ROW_SELECT)
   .order("course_code_full", { ascending: true, nullsFirst: false })
  if (error) throw error
  return (data ?? []).map((x) => mapClassRow(x as Record<string, unknown>))
@@ -151,7 +165,7 @@ export async function fetchClassesByTeacherId(teacherId: string): Promise<ClassR
  if (!supabase || !teacherId) return []
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
+  .select(CLASS_ROW_SELECT)
   .eq("teacher_id", teacherId)
   .order("course_code_full", { ascending: true, nullsFirst: false })
  if (error) throw error
@@ -162,7 +176,7 @@ export async function getClassById(id: string): Promise<ClassRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase
   .from("classes")
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( id, code ) )")
+  .select(CLASS_ROW_SELECT)
   .eq("id", id)
   .maybeSingle()
  if (error) throw error
@@ -287,23 +301,26 @@ async function ensureCourseId(params: {
  subject_name_zh: string | null
  grade_code: string
  course_seq: number
+ eligible_grade_codes: string[]
 }> {
  if (!supabase) throw new Error("Supabase 未設定")
  if (params.course_id) {
   const { data, error } = await supabase
    .from("courses")
-   .select("id, grade_code, course_seq, subjects ( code, name_zh )")
+   .select("id, grade_code, course_seq, eligible_grade_codes, subjects ( code, name_zh )")
    .eq("id", params.course_id)
    .single()
   if (error) throw error
   const row = data as Record<string, unknown>
   const subject = row.subjects as Record<string, unknown> | null
+  const gradeCode = String(row.grade_code ?? "")
   return {
    course_id: String(row.id),
    subject_code: String(subject?.code ?? ""),
    subject_name_zh: subject?.name_zh != null ? String(subject.name_zh) : null,
-   grade_code: String(row.grade_code ?? ""),
+   grade_code: gradeCode,
    course_seq: clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ)),
+   eligible_grade_codes: parseEligibleGradeCodesFromDb(row.eligible_grade_codes, gradeCode),
   }
  }
 
@@ -354,7 +371,7 @@ async function ensureCourseId(params: {
 
  const { data: found, error: findErr } = await supabase
   .from("courses")
-  .select("id")
+  .select("id, eligible_grade_codes")
   .eq("subject_id", subjectId)
   .eq("grade_code", gradeCode)
   .eq("course_seq", seq)
@@ -373,6 +390,10 @@ async function ensureCourseId(params: {
    subject_name_zh: subjectNameZh,
    grade_code: gradeCode,
    course_seq: seq,
+   eligible_grade_codes: parseEligibleGradeCodesFromDb(
+    (found as { eligible_grade_codes?: unknown }).eligible_grade_codes,
+    gradeCode
+   ),
   }
  }
 
@@ -406,6 +427,7 @@ async function ensureCourseId(params: {
      subject_name_zh: subjectNameZh,
      grade_code: gradeCode,
      course_seq: seq,
+     eligible_grade_codes: parseEligibleGradeCodesFromDb(null, gradeCode),
     }
    }
   }
@@ -417,6 +439,7 @@ async function ensureCourseId(params: {
   subject_name_zh: subjectNameZh,
   grade_code: gradeCode,
   course_seq: seq,
+  eligible_grade_codes: parseEligibleGradeCodesFromDb(null, gradeCode),
  }
 }
 
@@ -449,7 +472,7 @@ export async function insertClass(
   course.course_seq,
   section
  )
- const alignedGrade = gradeLabelsAlignedFromCourse(course.grade_code)
+ const alignedGrade = gradeLabelsAlignedFromCourse(course.grade_code, course.eligible_grade_codes)
  const subjectName = (course.subject_name_zh ?? row.subject).trim()
  const { data, error } = await supabase
   .from("classes")
@@ -473,7 +496,7 @@ export async function insertClass(
    status: row.status ?? "進行中",
    enrollment_notice: row.enrollment_notice?.trim() || null,
   })
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
+  .select(CLASS_ROW_SELECT)
   .single()
  if (error) throw error
  return mapClassRow(data as Record<string, unknown>)
@@ -499,6 +522,13 @@ export async function updateClass(
  delete payload.classroom_name
  delete payload.id
  delete payload.created_at
+ delete payload.eligible_grade_codes
+ delete payload.grade_code
+ delete payload.course_seq
+ delete payload.course_name
+ delete payload.subject_code
+ delete payload.subject_id
+ delete payload.academic_year_label
  if ("course_id" in patch || "section_code" in patch) {
   const targetCourseId =
    (patch.course_id as string | null | undefined) ?? existingForSection?.course_id ?? null
@@ -533,7 +563,7 @@ export async function updateClass(
  if (activeCourseId) {
   const info = await ensureCourseId({ course_id: activeCourseId })
   if (info.subject_name_zh) payload.subject = info.subject_name_zh
-  const grades = gradeLabelsAlignedFromCourse(info.grade_code)
+  const grades = gradeLabelsAlignedFromCourse(info.grade_code, info.eligible_grade_codes)
   if (grades.length > 0) payload.grade = grades
  } else if ("grade" in patch) {
   const normalized = normalizeStoredClassGradeLabels(patch.grade ?? null)
@@ -543,7 +573,7 @@ export async function updateClass(
   .from("classes")
   .update(payload)
   .eq("id", id)
-  .select("*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), courses ( id, grade_code, course_seq, price_per_lesson, subjects ( id, code ) )")
+  .select(CLASS_ROW_SELECT)
   .single()
  if (error) throw error
  const mapped = mapClassRow(data as Record<string, unknown>)
@@ -970,6 +1000,7 @@ export type CourseOption = {
  id: string
  subject_id: string
  grade_code: string
+ eligible_grade_codes: string[]
  course_seq: number
  price_per_lesson: number | null
  course_name: string | null
@@ -982,6 +1013,7 @@ export type CourseRecord = {
  subject_code: string
  subject_name_zh: string
  grade_code: string
+ eligible_grade_codes: string[]
  course_seq: number
  course_code_base: string
  course_mode: CourseMode
@@ -1034,29 +1066,33 @@ export async function fetchCourseOptions(params: {
  const gradeCode = normalizeGradeCode(params.grade_code)
  const { data, error } = await supabase
   .from("courses")
-  .select("id, subject_id, grade_code, course_seq, price_per_lesson, course_name, subjects ( code )")
+  .select("id, subject_id, grade_code, course_seq, price_per_lesson, course_name, eligible_grade_codes, subjects ( code )")
   .eq("subject_id", params.subject_id)
-  .eq("grade_code", gradeCode)
   .order("course_seq", { ascending: true })
  if (error) throw error
- return (data ?? []).map((r) => {
+ return (data ?? []).flatMap((r) => {
   const row = r as Record<string, unknown>
   const sb = row.subjects as Record<string, unknown> | null
   const code = String(sb?.code ?? "")
   const seq = clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ))
-  return {
+  const rowGrade = String(row.grade_code ?? "")
+  const eligible = parseEligibleGradeCodesFromDb(row.eligible_grade_codes, rowGrade)
+  if (!eligible.includes(gradeCode)) return []
+  const option: CourseOption = {
    id: String(row.id),
    subject_id: String(row.subject_id),
-   grade_code: String(row.grade_code ?? ""),
+   grade_code: rowGrade,
+   eligible_grade_codes: eligible,
    course_seq: seq,
    price_per_lesson: row.price_per_lesson != null ? Number(row.price_per_lesson) : null,
    course_name: row.course_name != null ? String(row.course_name) : null,
    label: formatClassLabel({
     subject: code || "課程",
-    courseCode: buildCourseCodeBase(code, String(row.grade_code ?? ""), seq),
+    courseCode: buildCourseCodeBase(code, rowGrade, seq),
     courseName: row.course_name != null ? String(row.course_name) : null,
    }),
   }
+  return [option]
  })
 }
 
@@ -1064,18 +1100,20 @@ export async function fetchAllCourses(): Promise<CourseRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("courses")
-  .select("id, subject_id, grade_code, course_seq, course_code_base, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh )")
+  .select("id, subject_id, grade_code, course_seq, course_code_base, course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, eligible_grade_codes, subjects ( code, name_zh )")
   .order("course_code_base", { ascending: true })
  if (error) throw error
  return (data ?? []).map((r) => {
   const row = r as Record<string, unknown>
   const sb = row.subjects as Record<string, unknown> | null
+  const gradeCode = String(row.grade_code ?? "")
   return {
    id: String(row.id),
    subject_id: String(row.subject_id),
    subject_code: String(sb?.code ?? ""),
    subject_name_zh: String(sb?.name_zh ?? ""),
-   grade_code: String(row.grade_code ?? ""),
+   grade_code: gradeCode,
+   eligible_grade_codes: parseEligibleGradeCodesFromDb(row.eligible_grade_codes, gradeCode),
    course_seq: clampCourseSeq(Number(row.course_seq ?? DEFAULT_COURSE_SEQ)),
    course_code_base: String(row.course_code_base ?? ""),
    course_mode: row.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
@@ -1098,10 +1136,12 @@ export async function insertCourse(input: {
  price_per_lesson_period_2?: number | null
  price_per_lesson_both_periods?: number | null
  course_name?: string | null
+ eligible_grade_codes?: string[] | null
 }): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const g = normalizeGradeCode(input.grade_code)
  const seq = clampCourseSeq(input.course_seq)
+ const eligible = parseEligibleGradeCodesFromDb(input.eligible_grade_codes, g)
  const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", input.subject_id).single()
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
@@ -1114,6 +1154,7 @@ export async function insertCourse(input: {
   course_code_base: buildCourseCodeBase(code, g, seq),
   course_name: courseNameRaw !== "" ? courseNameRaw : null,
   course_mode: mode,
+  eligible_grade_codes: eligible,
   price_per_lesson:
    input.price_per_lesson != null && !Number.isNaN(input.price_per_lesson)
     ? Math.max(0, Number(input.price_per_lesson))
@@ -1151,11 +1192,13 @@ export async function updateCourse(
   price_per_lesson_period_2?: number | null
   price_per_lesson_both_periods?: number | null
   course_name?: string | null
+  eligible_grade_codes?: string[] | null
  }
 ): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const g = normalizeGradeCode(patch.grade_code)
  const seq = clampCourseSeq(patch.course_seq)
+ const eligible = parseEligibleGradeCodesFromDb(patch.eligible_grade_codes, g)
  const { data: sb, error: sErr } = await supabase.from("subjects").select("code").eq("id", patch.subject_id).single()
  if (sErr) throw sErr
  const code = String((sb as { code: string }).code)
@@ -1168,6 +1211,7 @@ export async function updateCourse(
   course_code_base: buildCourseCodeBase(code, g, seq),
   course_name: courseNameRaw !== "" ? courseNameRaw : null,
   course_mode: mode,
+  eligible_grade_codes: eligible,
   price_per_lesson:
    patch.price_per_lesson != null && !Number.isNaN(patch.price_per_lesson)
     ? Math.max(0, Number(patch.price_per_lesson))
@@ -1193,6 +1237,14 @@ export async function updateCourse(
   }
   throw error
  }
+ const labels = gradeLabelsAlignedFromCourse(g, eligible)
+ await supabase
+  .from("classes")
+  .update({
+   grade: labels.length > 0 ? labels : null,
+   updated_at: new Date().toISOString(),
+  })
+  .eq("course_id", id)
 }
 
 export async function fetchTeacherOptions(opts?: {

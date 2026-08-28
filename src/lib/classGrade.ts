@@ -1,4 +1,4 @@
-import { normalizeGradeCode } from "@/lib/courseCode"
+import { ALL_GRADE_CODES, normalizeGradeCode } from "@/lib/courseCode"
 import { formatStudentGrade } from "@/lib/studentGrade"
 
 /** 班別適用年級標準標籤（與表單選項一致，不含「其他」） */
@@ -56,26 +56,75 @@ export function normalizeStoredClassGradeLabels(
  return out.sort((a, b) => a.localeCompare(b, "zh-Hant"))
 }
 
-/** 有 course_id 時：年級一律由課程模板決定 */
-export function gradeLabelsAlignedFromCourse(gradeCode: string | null | undefined): string[] {
- const label = gradeLabelFromCourseCode(gradeCode)
- return label ? [label] : []
+/** 課程接受年級：去重、固定 P1–S6 順序；必含編號年級 */
+export function normalizeEligibleGradeCodes(
+ codes: string[] | null | undefined,
+ primaryGradeCode?: string | null
+): string[] {
+ const present = new Set<string>()
+ for (const raw of codes ?? []) {
+  const n = normalizeGradeCode(raw)
+  if (/^[PS][1-6]$/.test(n)) present.add(n)
+ }
+ const primary = normalizeGradeCode(primaryGradeCode)
+ if (/^[PS][1-6]$/.test(primary)) present.add(primary)
+ return ALL_GRADE_CODES.filter((g) => present.has(g))
 }
 
-/** 班別年級：優先標準化已儲存 grade，否則由課程模板 grade_code 推導 */
+function parseGradeCodeList(raw: unknown): string[] {
+ if (!Array.isArray(raw)) return []
+ return raw.map((x) => String(x ?? "").trim()).filter((x) => x.length > 0)
+}
+
+/** 有 course_id 時：年級由課程模板 eligible_grade_codes（否則單一 grade_code）決定 */
+export function gradeLabelsAlignedFromCourse(
+ gradeCode: string | null | undefined,
+ eligibleGradeCodes?: string[] | null
+): string[] {
+ const codes = normalizeEligibleGradeCodes(eligibleGradeCodes, gradeCode)
+ if (codes.length === 0) {
+  const label = gradeLabelFromCourseCode(gradeCode)
+  return label ? [label] : []
+ }
+ return codes
+  .map((c) => gradeLabelFromCourseCode(c))
+  .filter((x): x is string => x != null)
+}
+
+/** 班別年級：有課程接受年級則跟模板；否則用已儲存 grade／單一 grade_code */
 export function resolveClassGradeLabels(
  grade: string[] | null | undefined,
- gradeCode: string | null | undefined
+ gradeCode: string | null | undefined,
+ eligibleGradeCodes?: string[] | null
 ): string[] {
+ const fromCourse = gradeLabelsAlignedFromCourse(gradeCode, eligibleGradeCodes)
+ if (fromCourse.length > 0 && (eligibleGradeCodes?.length ?? 0) > 0) return fromCourse
  const normalized = normalizeStoredClassGradeLabels(grade)
  if (normalized.length > 0) return normalized
- return gradeLabelsAlignedFromCourse(gradeCode)
+ return fromCourse
+}
+
+export function parseEligibleGradeCodesFromDb(
+ raw: unknown,
+ primaryGradeCode?: string | null
+): string[] {
+ return normalizeEligibleGradeCodes(parseGradeCodeList(raw), primaryGradeCode)
 }
 
 export function classGradeDisplayText(
  grade: string[] | null | undefined,
- gradeCode: string | null | undefined
+ gradeCode: string | null | undefined,
+ eligibleGradeCodes?: string[] | null
 ): string {
- const labels = resolveClassGradeLabels(grade, gradeCode)
+ const labels = resolveClassGradeLabels(grade, gradeCode, eligibleGradeCodes)
+ return labels.length > 0 ? labels.join("、") : "—"
+}
+
+/** 課程管理／篩選：中四、中五、中六 */
+export function eligibleGradeDisplayText(
+ eligibleGradeCodes: string[] | null | undefined,
+ primaryGradeCode?: string | null
+): string {
+ const labels = gradeLabelsAlignedFromCourse(primaryGradeCode, eligibleGradeCodes)
  return labels.length > 0 ? labels.join("、") : "—"
 }
