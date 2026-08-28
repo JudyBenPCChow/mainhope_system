@@ -26,6 +26,7 @@ import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
 import { SkeletonDetailHeader, SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import type { TagTone } from "@/components/ui/tag"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -1974,7 +1975,7 @@ useEffect(() => {
          ) : null}
          <span className="text-base text-muted-foreground">{list.length} 堂</span>
         </div>
-        <ul className="space-y-2">
+        <StaggerList as="ul" className="space-y-2" animate={!loading}>
          {list.map((s) => {
           const a = alerts.get(s.id) ?? {
            trial: false,
@@ -1993,8 +1994,9 @@ useEffect(() => {
           const emptyEnrollOnly =
            enrollKnown && s.enrollCount === 0 && !a.makeup && !a.trial && !rosterLoading
           return (
-           <li
+           <StaggerItem
             key={s.id}
+            as="li"
             className={cn(
              "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
              rowsStale && "opacity-60",
@@ -2263,10 +2265,10 @@ useEffect(() => {
               />
              </div>
             ) : null}
-           </li>
+           </StaggerItem>
           )
          })}
-        </ul>
+        </StaggerList>
        </section>
       )
      })}
@@ -2290,7 +2292,7 @@ useEffect(() => {
         <th className="w-[12%] px-4 py-3 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody" animate={!loading}>
        {filtered.map((s) => {
         const a = alerts.get(s.id) ?? {
          trial: false,
@@ -2301,7 +2303,8 @@ useEffect(() => {
         const open = expandedScheduleId === s.id
         return (
          <Fragment key={s.id}>
-          <tr
+          <StaggerItem
+           as="tr"
            className={cn(
             "cursor-pointer border-b border-border transition-colors hover:bg-info/40",
             open && "bg-info/30"
@@ -2444,7 +2447,7 @@ useEffect(() => {
              )}
             </div>
            </td>
-          </tr>
+          </StaggerItem>
           {open ? (
            <tr className="border-b border-border bg-success/30">
             <td colSpan={7} className="px-4 py-4">
@@ -2464,7 +2467,7 @@ useEffect(() => {
          </Fragment>
         )
        })}
-      </tbody>
+      </StaggerList>
      </table>
      {filtered.length === 0 ? (
       <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有排程</p>

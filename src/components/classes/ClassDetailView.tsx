@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
@@ -1824,11 +1825,13 @@ export function ClassDetailView() {
       {rosterStudents.length === 0 ? (
        <p className="text-sm text-muted-foreground">尚無學生名單。</p>
       ) : (
-       rosterStudents.map((s) => (
-        <div
-         key={s.enrollmentId}
-         className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
-        >
+       <StaggerList as="div" className="space-y-3">
+        {rosterStudents.map((s) => (
+         <StaggerItem
+          key={s.enrollmentId}
+          as="div"
+          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+         >
          <Link
           to={`/Students/${s.studentId}`}
           state={{ from: `/Classes/${cid}` }}
@@ -1878,8 +1881,9 @@ export function ClassDetailView() {
            </>
           ) : null}
          </div>
-        </div>
-       ))
+        </StaggerItem>
+       ))}
+       </StaggerList>
       )}
      </div>
     ) : null}
@@ -1892,10 +1896,11 @@ export function ClassDetailView() {
       {enrollmentEvents.length === 0 ? (
        <p className="text-sm text-muted-foreground">尚無增退紀錄。</p>
       ) : (
-       <ul className="space-y-2">
+       <StaggerList as="ul" className="space-y-2">
         {enrollmentEvents.map((ev) => (
-         <li
+         <StaggerItem
           key={ev.id}
+          as="li"
           className={cn(
            "flex flex-col gap-2 rounded-xl border bg-card px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center sm:justify-between",
            ev.action === "withdraw" ? "border-warning/50" : "border-info/50"
@@ -1936,9 +1941,9 @@ export function ClassDetailView() {
             原因：{ev.reason}
            </span>
           ) : null}
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
       )}
      </div>
     ) : null}
@@ -2097,15 +2102,15 @@ export function ClassDetailView() {
        </Button>
        ) : null}
       </div>
-      <div className="space-y-2">
-       {schedFiltered.length === 0 ? (
+      {schedFiltered.length === 0 ? (
         <p className="text-sm text-muted-foreground">此分類尚無排程。</p>
        ) : (
-        schedFiltered.map((s) => {
+        <StaggerList as="div" className="space-y-2">
+        {schedFiltered.map((s) => {
          const hints = scheduleHints.get(s.id)
          return (
+          <StaggerItem key={s.id} as="div">
           <ScheduleListCard
-           key={s.id}
            sessionNumber={s.session_number}
            scheduledDate={s.scheduled_date}
            startTime={s.start_time}
@@ -2197,10 +2202,11 @@ export function ClassDetailView() {
             )
            }
           />
+          </StaggerItem>
          )
-        })
+        })}
+        </StaggerList>
        )}
-      </div>
      </div>
     ) : null}
    </div>

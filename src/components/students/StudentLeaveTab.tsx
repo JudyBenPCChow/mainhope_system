@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 import { Plus } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
  Dialog,
  DialogContent,
@@ -445,9 +446,9 @@ export function StudentLeaveTab({
    ) : kind === "empty" ? (
     <p className="py-8 text-center text-sm text-muted-foreground">尚無請假記錄</p>
    ) : (
-    <ul className="space-y-2">
+    <StaggerList as="ul" className="space-y-2">
      {rows.map((x) => (
-      <li key={x.id}>
+      <StaggerItem key={x.id} as="li">
        {canOpenLeaveManagement ? (
         <Link
          to={`/LeaveManagement?${new URLSearchParams({ studentId, record: x.id }).toString()}`}
@@ -471,9 +472,9 @@ export function StudentLeaveTab({
          </div>
         </div>
        )}
-      </li>
+      </StaggerItem>
      ))}
-    </ul>
+    </StaggerList>
    )}
   </div>
  )

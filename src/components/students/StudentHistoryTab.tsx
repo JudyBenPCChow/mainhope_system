@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
 import { fetchStudentActivity, type HistoryRow } from "@/services/studentQueries"
@@ -66,10 +67,11 @@ export function StudentHistoryTab({
    ) : rows.length === 0 ? (
     <p className="text-sm text-muted-foreground">尚無紀錄。</p>
    ) : (
-    <ul className="space-y-3">
+    <StaggerList as="ul" className="space-y-3">
      {rows.map((h) => (
-      <li
+      <StaggerItem
        key={h.id}
+       as="li"
        className={cn(
         "rounded-xl border px-4 py-3 text-sm shadow-sm",
         h.tone === "green" && "border-success/50 bg-success/10",
@@ -93,9 +95,9 @@ export function StudentHistoryTab({
         <div className="text-xs text-neutral-700">{h.date}</div>
        </div>
        {h.subtitle ? <div className="mt-1 text-xs text-neutral-700">{h.subtitle}</div> : null}
-      </li>
+      </StaggerItem>
      ))}
-    </ul>
+    </StaggerList>
    )}
   </div>
  )

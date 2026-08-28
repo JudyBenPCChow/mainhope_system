@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
@@ -336,14 +337,14 @@ export function FinancePayrollView({
       <p className="text-xs text-muted-foreground">
         顯示 {filtered.length}/{teachers.length} 人 · 第 {safePage + 1}/{pageCount} 頁 · 異常優先
       </p>
-      <ul className="space-y-1">
+      <StaggerList as="ul" className="space-y-1">
         {pageRows.map((row) => {
           const reviewed = reviewedIds.has(row.id)
           const hasAnomaly = row.anomalies.length > 0
           const blocked = blockedTeacherIds.has(row.id)
           const excluded = excludedIds.has(row.id)
           return (
-            <li key={row.id}>
+            <StaggerItem key={row.id} as="li">
               <div
                 className={cn(
                   "flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition-colors",
@@ -426,10 +427,10 @@ export function FinancePayrollView({
                   </label>
                 ) : null}
               </div>
-            </li>
+            </StaggerItem>
           )
         })}
-      </ul>
+      </StaggerList>
       <div className="flex items-center justify-between gap-2">
         <Button
           type="button"

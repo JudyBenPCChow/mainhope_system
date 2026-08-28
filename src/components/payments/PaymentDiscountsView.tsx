@@ -662,7 +662,7 @@ export function PaymentDiscountsView() {
           as="tr"
           draggable
           onDragStart={() => onDragStart(r.id)}
-          onDragOver={(e) => onDragOver(e, r.id)}
+          onDragOver={(e: React.DragEvent) => onDragOver(e, r.id)}
           onDragEnd={() => void onDragEnd()}
           className={cn(
            "border-b border-border/80 last:border-0",

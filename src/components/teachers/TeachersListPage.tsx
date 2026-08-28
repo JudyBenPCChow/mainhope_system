@@ -289,7 +289,7 @@ export function TeachersListPage() {
        role="button"
        tabIndex={0}
        onClick={() => navigate(`/Teachers/${t.id}`)}
-       onKeyDown={(e) => {
+       onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") {
          e.preventDefault()
          navigate(`/Teachers/${t.id}`)

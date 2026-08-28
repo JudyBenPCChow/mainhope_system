@@ -6,6 +6,8 @@ import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { formatStudentGrade, StudentClassificationTags } from "@/components/students/studentsUi"
 import { GRADE_FILTERS } from "@/components/students/studentsListFilters"
@@ -111,26 +113,31 @@ export function StudentsListTable({
        <th className="w-28 px-3 py-2 font-medium text-muted-foreground">操作</th>
       </tr>
      </thead>
-     <tbody>
-      {loading ? (
+     {loading ? (
+      <tbody>
        <tr>
-        <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
-         載入中…
+        <td colSpan={colSpan} className="px-3 py-4">
+         <SkeletonTableRows rows={8} columns={Math.min(colSpan, 8)} />
         </td>
        </tr>
-      ) : rows.length === 0 ? (
+      </tbody>
+     ) : rows.length === 0 ? (
+      <tbody>
        <tr>
         <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
          {emptyHint}
         </td>
        </tr>
-      ) : (
-       rows.map((r, idx) => {
+      </tbody>
+     ) : (
+      <StaggerList as="tbody">
+       {rows.map((r, idx) => {
         const messaging = resolvePrimaryMessagingTarget(r)
         const checked = selectedSet.has(r.id)
         return (
-         <tr
+         <StaggerItem
           key={r.id}
+          as="tr"
           onClick={() => onNavigate(r.id)}
           className={cn(
            "cursor-pointer border-b border-border transition-colors hover:bg-muted/60",
@@ -177,11 +184,11 @@ export function StudentsListTable({
             </>
            ) : null}
           </td>
-         </tr>
+         </StaggerItem>
         )
-       })
-      )}
-     </tbody>
+       })}
+      </StaggerList>
+     )}
     </table>
    </div>
   </div>
