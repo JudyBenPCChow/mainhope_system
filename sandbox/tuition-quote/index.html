@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>明學教育 — 學費試算（沙盒 UI）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f4f5;
+      --card: #ffffff;
+      --border: #e4e4e7;
+      --muted: #71717a;
+      --fg: #18181b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --destructive: #dc2626;
+      --success: #16a34a;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .page {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+    .banner {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .banner h1 {
+      margin: 0;
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .banner p {
+      margin: 4px 0 0;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+      white-space: nowrap;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .card h2 {
+      margin: 0 0 4px;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+    .card .desc {
+      margin: 0 0 16px;
+      font-size: 0.8125rem;
+      color: var(--muted);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 640px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    label.field {
+      display: grid;
+      gap: 6px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="tel"],
+    select {
+      width: 100%;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font: inherit;
+      background: #fff;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37,99,235,.15);
+    }
+    .seg {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .seg button {
+      border: none;
+      background: #fff;
+      padding: 8px 16px;
+      font: inherit;
+      font-size: 0.875rem;
+      cursor: pointer;
+      color: var(--muted);
+    }
+    .seg button.active {
+      background: var(--primary);
+      color: #fff;
+      font-weight: 600;
+    }
+    .lines-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+    .lines-table th,
+    .lines-table td {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: middle;
+    }
+    .lines-table th { font-weight: 600; color: var(--muted); font-size: 0.75rem; }
+    .lines-table select, .lines-table input { min-height: 36px; font-size: 0.875rem; }
+    .lines-table .amt { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    button.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      min-height: 40px;
+      padding: 0 16px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    button.btn:hover { background: #f4f4f5; }
+    button.btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    button.btn-primary:hover { background: var(--primary-hover); }
+    button.btn-ghost { border-color: transparent; background: transparent; color: var(--destructive); }
+    button.btn-ghost:hover { background: #fef2f2; }
+    button.btn-success {
+      background: var(--success);
+      border-color: var(--success);
+      color: #fff;
+    }
+    .discount-list { display: grid; gap: 8px; }
+    .discount-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.875rem;
+    }
+    .discount-item.disabled { opacity: 0.5; pointer-events: none; }
+    .discount-item input { margin-top: 3px; }
+    .discount-item .name { font-weight: 500; }
+    .discount-item .hint { font-size: 0.75rem; color: var(--muted); margin-top: 2px; }
+    .discount-item .tag-auto {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      background: #dbeafe;
+      color: #1d4ed8;
+    }
+    .breakdown { font-size: 0.9375rem; }
+    .breakdown .row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .breakdown .row.deduction { color: var(--success); }
+    .breakdown .row.total {
+      border-bottom: none;
+      font-weight: 700;
+      font-size: 1.1rem;
+      padding-top: 10px;
+    }
+    .message-box {
+      white-space: pre-wrap;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      padding: 14px;
+      border-radius: 8px;
+      background: #fafafa;
+      border: 1px solid var(--border);
+      min-height: 160px;
+    }
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+    }
+    .checkbox-row input { width: 16px; height: 16px; }
+    .hint-bar {
+      font-size: 0.8125rem;
+      color: var(--muted);
+      padding: 8px 12px;
+      background: #f4f4f5;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #18181b;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: transform .25s, opacity .25s;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+    .override-note {
+      font-size: 0.8125rem;
+      color: #b45309;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="banner">
+      <div>
+        <h1>學費試算</h1>
+        <p>協助前線初算學費、自動套用優惠，並產生 WhatsApp 報價文字。</p>
+      </div>
+      <span class="badge">沙盒 · 離線示範 · 不連接系統</span>
+    </div>
+
+    <section class="card">
+      <h2>試算對象</h2>
+      <p class="desc">選現有學生載入報讀，或純試算（人手揀班別）。</p>
+      <div class="seg" role="tablist">
+        <button type="button" id="mode-student" class="active" role="tab">現有學生</button>
+        <button type="button" id="mode-manual" role="tab">純試算</button>
+      </div>
+      <div id="panel-student">
+        <label class="field">
+          學生
+          <select id="student-select"></select>
+        </label>
+      </div>
+      <div id="panel-manual" hidden>
+        <label class="field">
+          學生名稱（用於訊息）
+          <input type="text" id="manual-name" placeholder="例：陳小明" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>收費項目</h2>
+      <p class="desc">每行 = 一班 × 堂數。試堂可選半價試堂。</p>
+      <div style="overflow-x:auto">
+        <table class="lines-table" id="lines-table">
+          <thead>
+            <tr>
+              <th style="width:36%">班別</th>
+              <th style="width:14%">堂數</th>
+              <th style="width:14%">單價</th>
+              <th style="width:18%">類型</th>
+              <th class="amt" style="width:14%">小計</th>
+              <th style="width:4%"></th>
+            </tr>
+          </thead>
+          <tbody id="lines-body"></tbody>
+        </table>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="add-line">＋ 新增項目</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>優惠資格</h2>
+      <p class="desc">影響自動揀優惠；改動後會重新計算（除非你已手動改勾選）。</p>
+      <div class="grid-2">
+        <label class="checkbox-row">
+          <input type="checkbox" id="is-new-student" />
+          新生（首次報讀明學）
+        </label>
+        <label class="field">
+          兄弟姊妹額外堂數（合計階梯用）
+          <input type="number" id="sibling-lessons" min="0" step="1" value="0" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>優惠</h2>
+      <p class="desc">系統自動揀最抵合法組合；你可改勾選，改後按「重新自動揀優惠」可還原。</p>
+      <div class="hint-bar" id="discount-hint">正在計算…</div>
+      <div class="discount-list" id="discount-list"></div>
+      <div class="btn-row">
+        <button type="button" class="btn" id="reset-auto">重新自動揀優惠</button>
+      </div>
+      <p class="override-note" id="override-note" hidden>已手動調整優惠，自動揀選已暫停。</p>
+    </section>
+
+    <section class="card">
+      <h2>金額明細</h2>
+      <div class="breakdown" id="breakdown"></div>
+    </section>
+
+    <section class="card">
+      <h2>WhatsApp 報價文字</h2>
+      <p class="desc">複製貼上，或開啟 WhatsApp 預填（現有學生且有電話時）。</p>
+      <div class="message-box" id="message-preview"></div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="copy-msg">複製文字</button>
+        <button type="button" class="btn btn-success" id="open-wa">WhatsApp 預填</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    // ─── 模擬資料（沙盒用，唔連 Supabase）────────────────────────────
+    const CLASSES = [
+      { id: "c1", label: "中三中文 · CH-J3-A", subjectCode: "CH", price: 275 },
+      { id: "c2", label: "中三數學 · MA-J3-A", subjectCode: "MA", price: 275 },
+      { id: "c3", label: "中五物理 · PH-S5-A", subjectCode: "PH", price: 300 },
+      { id: "c4", label: "中五化學 · CM-S5-A", subjectCode: "CM", price: 300 },
+      { id: "c5", label: "中五生物 · BI-S5-A", subjectCode: "BI", price: 300 },
+      { id: "c6", label: "中四英文 · EN-S4-B", subjectCode: "EN", price: 300 },
+    ]
+
+    const STUDENTS = [
+      {
+        id: "s1",
+        name: "陳小明",
+        phone: "91234567",
+        enrollments: [
+          { classId: "c1", lessons: 4 },
+          { classId: "c2", lessons: 4 },
+        ],
+      },
+      {
+        id: "s2",
+        name: "李美儀",
+        phone: "98765432",
+        enrollments: [{ classId: "c3", lessons: 4 }, { classId: "c4", lessons: 4 }],
+      },
+      { id: "s3", name: "張家樂", phone: null, enrollments: [{ classId: "c6", lessons: 4 }] },
+    ]
+
+    const DISCOUNTS = [
+      {
+        id: "d-trial",
+        name: "試堂半價",
+        sortOrder: 1,
+        percentOff: 50,
+        amountOff: null,
+        stackGroups: [],
+        kind: "fixed_amount",
+        isLabelOnly: false,
+        rules: { trialOnly: true },
+      },
+      {
+        id: "d-multi",
+        name: "多科優惠",
+        sortOrder: 2,
+        percentOff: null,
+        amountOff: 100,
+        stackGroups: ["promo"],
+        kind: "fixed_amount",
+        isLabelOnly: false,
+        rules: { minSubjects: 2 },
+      },
+      {
+        id: "d-tier",
+        name: "堂數階梯（≥8堂）",
+        sortOrder: 3,
+        percentOff: null,
+        amountOff: 150,
+        stackGroups: ["promo"],
+        kind: "lesson_tier",
+        isLabelOnly: false,
+        rules: { minLessons: 8 },
+      },
+      {
+        id: "d-new",
+        name: "新生優惠",
+        sortOrder: 4,
+        percentOff: 10,
+        amountOff: null,
+        stackGroups: ["welcome"],
+        kind: "fixed_amount",
+        isLabelOnly: false,
+        rules: { requireNewStudent: true },
+      },
+      {
+        id: "d-early",
+        name: "早鳥九折",
+        sortOrder: 5,
+        percentOff: 10,
+        amountOff: null,
+        stackGroups: ["welcome"],
+        kind: "lesson_tier_early_bird",
+        isLabelOnly: false,
+        rules: {},
+      },
+      {
+        id: "d-referral",
+        name: "被推薦人減免",
+        sortOrder: 6,
+        percentOff: null,
+        amountOff: 200,
+        stackGroups: [],
+        kind: "referral_referee",
+        isLabelOnly: false,
+        rules: { requireReferrer: true },
+      },
+      {
+        id: "d-cashback",
+        name: "推薦人現金回贈",
+        sortOrder: 99,
+        percentOff: null,
+        amountOff: 100,
+        stackGroups: [],
+        kind: "referral_referrer_cash",
+        isLabelOnly: false,
+        rules: {},
+      },
+    ]
+
+    const MAX_STACK = 2
+
+    // ─── 狀態 ───────────────────────────────────────────────────────
+    let mode = "student"
+    let lines = []
+    let selectedDiscountIds = new Set()
+    let manualOverride = false
+    let lineKeySeq = 0
+
+    // ─── 工具 ───────────────────────────────────────────────────────
+    function money(n) {
+      return new Intl.NumberFormat("zh-Hant", { style: "currency", currency: "HKD" }).format(n)
+    }
+
+    function classById(id) {
+      return CLASSES.find((c) => c.id === id)
+    }
+
+    function toast(msg) {
+      const el = document.getElementById("toast")
+      el.textContent = msg
+      el.classList.add("show")
+      setTimeout(() => el.classList.remove("show"), 2200)
+    }
+
+    function getStudentName() {
+      if (mode === "manual") {
+        return document.getElementById("manual-name").value.trim() || "貴子弟"
+      }
+      const sid = document.getElementById("student-select").value
+      return STUDENTS.find((s) => s.id === sid)?.name ?? "貴子弟"
+    }
+
+    function getStudentPhone() {
+      if (mode === "manual") return null
+      const sid = document.getElementById("student-select").value
+      return STUDENTS.find((s) => s.id === sid)?.phone ?? null
+    }
+
+    function lineSubtotal(line) {
+      const cls = classById(line.classId)
+      if (!cls) return 0
+      const lessons = Math.max(0, parseInt(line.lessons, 10) || 0)
+      return Math.round(cls.price * lessons * 100) / 100
+    }
+
+    function computeSubtotal() {
+      return Math.round(lines.reduce((s, l) => s + lineSubtotal(l), 0) * 100) / 100
+    }
+
+    function buildContext() {
+      const subjectCodes = new Set()
+      let totalLessons = 0
+      let hasTrial = false
+      let nonTrialLines = 0
+      for (const l of lines) {
+        const cls = classById(l.classId)
+        if (!cls) continue
+        const n = Math.max(0, parseInt(l.lessons, 10) || 0)
+        totalLessons += n
+        if (l.lineKind === "trial") {
+          hasTrial = true
+        } else {
+          nonTrialLines++
+          subjectCodes.add(cls.subjectCode)
+        }
+      }
+      const sibling = Math.max(0, parseInt(document.getElementById("sibling-lessons").value, 10) || 0)
+      totalLessons += sibling
+      return {
+        subjectCount: subjectCodes.size,
+        totalLessons,
+        isNewStudent: document.getElementById("is-new-student").checked,
+        hasTrial,
+        nonTrialLines,
+        hasReferrer: false,
+      }
+    }
+
+    function evaluateDiscount(d, ctx) {
+      if (d.isLabelOnly) return { eligible: false, reason: "僅標籤" }
+      if (d.kind === "referral_referrer_cash") return { eligible: false, reason: "不計入學費" }
+      const r = d.rules || {}
+      if (r.trialOnly) {
+        if (!ctx.hasTrial) return { eligible: false, reason: "需有試堂行" }
+        return { eligible: true }
+      }
+      if (ctx.hasTrial && ctx.nonTrialLines === 0) {
+        return { eligible: false, reason: "純試堂只用試堂半價" }
+      }
+      if (r.minSubjects != null && ctx.subjectCount < r.minSubjects) {
+        return { eligible: false, reason: `需≥${r.minSubjects}科` }
+      }
+      if (r.minLessons != null && ctx.totalLessons < r.minLessons) {
+        return { eligible: false, reason: `需≥${r.minLessons}堂` }
+      }
+      if (r.requireNewStudent && !ctx.isNewStudent) {
+        return { eligible: false, reason: "需勾選新生" }
+      }
+      if (r.requireReferrer && !ctx.hasReferrer) {
+        return { eligible: false, reason: "需選推薦人" }
+      }
+      return { eligible: true }
+    }
+
+    function applyOneDiscount(subtotal, d) {
+      if (d.percentOff != null && d.percentOff > 0) {
+        return Math.round(subtotal * (1 - d.percentOff / 100) * 100) / 100
+      }
+      if (d.amountOff != null && d.amountOff > 0) {
+        return Math.max(0, Math.round((subtotal - d.amountOff) * 100) / 100)
+      }
+      return subtotal
+    }
+
+    function applyDiscounts(subtotal, ids) {
+      const selected = DISCOUNTS.filter((d) => ids.has(d.id))
+        .filter((d) => d.kind !== "referral_referrer_cash")
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "zh-Hant"))
+      let t = subtotal
+      const steps = []
+      for (const d of selected) {
+        const before = t
+        t = applyOneDiscount(t, d)
+        const deducted = Math.round((before - t) * 100) / 100
+        if (deducted > 0) steps.push({ discount: d, deducted })
+      }
+      return { total: t, steps }
+    }
+
+    function isValidCombo(ids) {
+      const arr = [...ids]
+      if (arr.length > MAX_STACK) return false
+      const seen = new Set()
+      for (const id of arr) {
+        const d = DISCOUNTS.find((x) => x.id === id)
+        if (!d) return false
+        for (const g of d.stackGroups) {
+          if (seen.has(g)) return false
+          seen.add(g)
+        }
+      }
+      return true
+    }
+
+    function suggestBestDiscounts(ctx, subtotal) {
+      const eligible = DISCOUNTS.filter((d) => evaluateDiscount(d, ctx).eligible)
+      const n = eligible.length
+      let bestIds = new Set()
+      let bestTotal = subtotal
+
+      for (let mask = 0; mask < 1 << n; mask++) {
+        const ids = new Set()
+        for (let i = 0; i < n; i++) {
+          if (mask & (1 << i)) ids.add(eligible[i].id)
+        }
+        if (!isValidCombo(ids)) continue
+        const { total } = applyDiscounts(subtotal, ids)
+        if (total < bestTotal - 0.001 || (Math.abs(total - bestTotal) < 0.001 && ids.size < bestIds.size)) {
+          bestTotal = total
+          bestIds = ids
+        }
+      }
+      return bestIds
+    }
+
+    function buildWhatsAppMessage(subtotal, total, steps) {
+      const name = getStudentName()
+      const out = [
+        "您好，這裡是明學教育。",
+        "",
+        `以下為「${name}」學費試算（僅供參考）：`,
+        "",
+      ]
+      for (const l of lines) {
+        const cls = classById(l.classId)
+        if (!cls) continue
+        const n = parseInt(l.lessons, 10) || 0
+        const amt = lineSubtotal(l)
+        const kind = l.lineKind === "trial" ? "（試堂）" : ""
+        out.push(`• ${cls.label}${kind}：${n}堂 × ${money(cls.price)} = ${money(amt)}`)
+      }
+      if (steps.length) {
+        out.push("")
+        for (const s of steps) {
+          const bits = [s.discount.name]
+          if (s.discount.percentOff) bits.push(`-${s.discount.percentOff}%`)
+          if (s.discount.amountOff) bits.push(`-${money(s.discount.amountOff)}`)
+          out.push(`• 優惠：${bits.join(" ")}（-${money(s.deducted)}）`)
+        }
+      }
+      out.push("")
+      out.push(`應繳總額：${money(total)}`)
+      out.push("")
+      out.push("正式報名請回覆確認，謝謝！")
+      return out.join("\n")
+    }
+
+    // ─── 渲染 ───────────────────────────────────────────────────────
+    function newLine(classId, lessons, lineKind) {
+      return {
+        key: "L" + ++lineKeySeq,
+        classId: classId || CLASSES[0].id,
+        lessons: String(lessons ?? 4),
+        lineKind: lineKind || "enrollment",
+      }
+    }
+
+    function renderLines() {
+      const tbody = document.getElementById("lines-body")
+      tbody.innerHTML = ""
+      for (const line of lines) {
+        const tr = document.createElement("tr")
+        const sub = lineSubtotal(line)
+        tr.innerHTML = `
+          <td><select data-k="${line.key}" data-f="classId">${CLASSES.map((c) =>
+            `<option value="${c.id}" ${c.id === line.classId ? "selected" : ""}>${c.label}</option>`
+          ).join("")}</select></td>
+          <td><input type="number" min="0" step="1" data-k="${line.key}" data-f="lessons" value="${line.lessons}" /></td>
+          <td class="amt">${money(classById(line.classId)?.price ?? 0)}</td>
+          <td><select data-k="${line.key}" data-f="lineKind">
+            <option value="enrollment" ${line.lineKind === "enrollment" ? "selected" : ""}>報讀</option>
+            <option value="trial" ${line.lineKind === "trial" ? "selected" : ""}>試堂</option>
+          </select></td>
+          <td class="amt">${money(sub)}</td>
+          <td><button type="button" class="btn btn-ghost" data-del="${line.key}" title="刪除">✕</button></td>
+        `
+        tbody.appendChild(tr)
+      }
+      tbody.querySelectorAll("select,input").forEach((el) => {
+        el.addEventListener("change", onLineChange)
+        el.addEventListener("input", onLineChange)
+      })
+      tbody.querySelectorAll("[data-del]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          lines = lines.filter((l) => l.key !== btn.dataset.del)
+          if (lines.length === 0) lines.push(newLine())
+          manualOverride = false
+          recalc()
+        })
+      })
+    }
+
+    function onLineChange(e) {
+      const key = e.target.dataset.k
+      const field = e.target.dataset.f
+      const line = lines.find((l) => l.key === key)
+      if (!line) return
+      line[field] = e.target.value
+      if (field === "lineKind" && line.lineKind === "trial") line.lessons = "1"
+      manualOverride = false
+      recalc()
+    }
+
+    function renderDiscounts(ctx, subtotal, autoIds) {
+      const list = document.getElementById("discount-list")
+      list.innerHTML = ""
+      for (const d of DISCOUNTS) {
+        if (d.kind === "referral_referrer_cash") continue
+        const ev = evaluateDiscount(d, ctx)
+        const checked = selectedDiscountIds.has(d.id)
+        const isAuto = autoIds.has(d.id)
+        const div = document.createElement("label")
+        div.className = "discount-item" + (ev.eligible ? "" : " disabled")
+        div.innerHTML = `
+          <input type="checkbox" data-disc="${d.id}" ${checked ? "checked" : ""} ${ev.eligible ? "" : "disabled"} />
+          <div>
+            <div class="name">${d.name}${isAuto && checked ? '<span class="tag-auto">自動</span>' : ""}</div>
+            <div class="hint">${ev.eligible ? discountLabel(d) : ev.reason}</div>
+          </div>
+        `
+        list.appendChild(div)
+      }
+      list.querySelectorAll("input[data-disc]").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          manualOverride = true
+          document.getElementById("override-note").hidden = false
+          if (cb.checked) selectedDiscountIds.add(cb.dataset.disc)
+          else selectedDiscountIds.delete(cb.dataset.disc)
+          if (!isValidCombo(selectedDiscountIds)) {
+            toast("此組合違反互斥或疊加上限")
+            cb.checked = false
+            selectedDiscountIds.delete(cb.dataset.disc)
+          }
+          recalc(true)
+        })
+      })
+    }
+
+    function discountLabel(d) {
+      const bits = []
+      if (d.percentOff) bits.push(`-${d.percentOff}%`)
+      if (d.amountOff) bits.push(`-${money(d.amountOff)}`)
+      return bits.join(" ") || "—"
+    }
+
+    function renderBreakdown(subtotal, total, steps) {
+      const el = document.getElementById("breakdown")
+      let html = `<div class="row"><span>項目小計</span><span>${money(subtotal)}</span></div>`
+      for (const s of steps) {
+        html += `<div class="row deduction"><span>優惠 · ${s.discount.name}</span><span>-${money(s.deducted)}</span></div>`
+      }
+      html += `<div class="row total"><span>應繳總額</span><span>${money(total)}</span></div>`
+      el.innerHTML = html
+    }
+
+    function recalc(skipAuto) {
+      renderLines()
+      const subtotal = computeSubtotal()
+      const ctx = buildContext()
+      const autoIds = suggestBestDiscounts(ctx, subtotal)
+
+      if (!manualOverride && !skipAuto) {
+        selectedDiscountIds = new Set(autoIds)
+        document.getElementById("override-note").hidden = true
+      }
+
+      const { total, steps } = applyDiscounts(subtotal, selectedDiscountIds)
+      const eligibleCount = DISCOUNTS.filter((d) => evaluateDiscount(d, ctx).eligible && d.kind !== "referral_referrer_cash").length
+
+      document.getElementById("discount-hint").textContent =
+        manualOverride
+          ? `已手動選 ${selectedDiscountIds.size} 項優惠（自動建議 ${autoIds.size} 項）`
+          : `已自動揀選 ${selectedDiscountIds.size} 項（${eligibleCount} 項符合資格，每單最多 ${MAX_STACK} 項）`
+
+      renderDiscounts(ctx, subtotal, autoIds)
+      renderBreakdown(subtotal, total, steps)
+      document.getElementById("message-preview").textContent = buildWhatsAppMessage(subtotal, total, steps)
+
+      const phone = getStudentPhone()
+      document.getElementById("open-wa").disabled = !phone
+      document.getElementById("open-wa").title = phone ? "" : "純試算或學生無電話時請用複製"
+    }
+
+    // ─── 初始化 ─────────────────────────────────────────────────────
+    function loadStudentEnrollments() {
+      const sid = document.getElementById("student-select").value
+      const st = STUDENTS.find((s) => s.id === sid)
+      lines = (st?.enrollments ?? []).map((e) => newLine(e.classId, e.lessons, "enrollment"))
+      if (lines.length === 0) lines.push(newLine())
+      manualOverride = false
+      recalc()
+    }
+
+    function init() {
+      const sel = document.getElementById("student-select")
+      STUDENTS.forEach((s) => {
+        const o = document.createElement("option")
+        o.value = s.id
+        o.textContent = s.name + (s.phone ? `（${s.phone}）` : "（無電話）")
+        sel.appendChild(o)
+      })
+
+      document.getElementById("mode-student").addEventListener("click", () => {
+        mode = "student"
+        document.getElementById("mode-student").classList.add("active")
+        document.getElementById("mode-manual").classList.remove("active")
+        document.getElementById("panel-student").hidden = false
+        document.getElementById("panel-manual").hidden = true
+        loadStudentEnrollments()
+      })
+      document.getElementById("mode-manual").addEventListener("click", () => {
+        mode = "manual"
+        document.getElementById("mode-manual").classList.add("active")
+        document.getElementById("mode-student").classList.remove("active")
+        document.getElementById("panel-manual").hidden = false
+        document.getElementById("panel-student").hidden = true
+        if (lines.length === 0) lines.push(newLine())
+        manualOverride = false
+        recalc()
+      })
+
+      sel.addEventListener("change", loadStudentEnrollments)
+      document.getElementById("manual-name").addEventListener("input", () => recalc(true))
+      document.getElementById("is-new-student").addEventListener("change", () => {
+        manualOverride = false
+        recalc()
+      })
+      document.getElementById("sibling-lessons").addEventListener("input", () => {
+        manualOverride = false
+        recalc()
+      })
+
+      document.getElementById("add-line").addEventListener("click", () => {
+        lines.push(newLine())
+        manualOverride = false
+        recalc()
+      })
+
+      document.getElementById("reset-auto").addEventListener("click", () => {
+        manualOverride = false
+        recalc()
+      })
+
+      document.getElementById("copy-msg").addEventListener("click", async () => {
+        const text = document.getElementById("message-preview").textContent
+        try {
+          await navigator.clipboard.writeText(text)
+          toast("已複製到剪貼簿")
+        } catch {
+          toast("複製失敗，請手動選取")
+        }
+      })
+
+      document.getElementById("open-wa").addEventListener("click", () => {
+        const phone = getStudentPhone()
+        if (!phone) {
+          toast("此模式無電話，請用複製")
+          return
+        }
+        const text = encodeURIComponent(document.getElementById("message-preview").textContent)
+        const digits = phone.replace(/\D/g, "")
+        const hk = digits.startsWith("852") ? digits : "852" + digits
+        window.open(`https://wa.me/${hk}?text=${text}`, "_blank", "noopener")
+      })
+
+      loadStudentEnrollments()
+    }
+
+    init()
+  </script>
+</body>
+</html>
