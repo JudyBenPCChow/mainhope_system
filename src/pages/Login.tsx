@@ -108,8 +108,8 @@ export default function Login() {
 
         {error ? <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
 
-        <Button type="button" className="mt-5 w-full" disabled={loading} onClick={() => void submit()}>
-          {loading ? "登入中…" : "登入"}
+        <Button type="button" className="mt-5 w-full" loading={loading} loadingText="登入中…" onClick={() => void submit()}>
+          登入
         </Button>
       </div>
     </div>

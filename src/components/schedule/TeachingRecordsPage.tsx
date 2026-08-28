@@ -8,6 +8,7 @@ import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -189,12 +190,12 @@ export function TeachingRecordsPage() {
        : "這個篩選條件下沒有堂次，可放寬日期或班別。"}
      </p>
     ) : (
-     <ul className="space-y-2">
+     <StaggerList as="ul" className="space-y-2">
       {displayRows.map((r) => {
        const filled = Boolean(r.teaching_notes?.trim())
        const open = expandedId === r.id
        return (
-        <li key={r.id} className="rounded-xl border border-border bg-card shadow-sm">
+        <StaggerItem key={r.id} as="li" className="rounded-xl border border-border bg-card shadow-sm">
          <button
           type="button"
           className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
@@ -249,10 +250,10 @@ export function TeachingRecordsPage() {
            </Button>
           </div>
          ) : null}
-        </li>
+        </StaggerItem>
       )
       })}
-     </ul>
+     </StaggerList>
     )}
    </section>
   </div>

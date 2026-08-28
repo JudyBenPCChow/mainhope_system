@@ -10,6 +10,8 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { SkeletonCardGrid } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
@@ -312,10 +314,10 @@ export function TomorrowRemindersPage() {
        type="button"
        size="sm"
        variant="ghost"
-       disabled={loading}
+       loading={loading}
        onClick={() => void load()}
       >
-       <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} aria-hidden />
+       <RefreshCw className="h-3.5 w-3.5" aria-hidden />
        重新整理
       </Button>
      </div>
@@ -355,9 +357,9 @@ export function TomorrowRemindersPage() {
     </p>
 
     {loading && rows.length === 0 ? (
-     <p className="py-12 text-center text-sm text-muted-foreground">載入中…</p>
+     <SkeletonCardGrid count={4} />
     ) : (
-     <ul className="space-y-4" aria-label="需提醒學生">
+     <StaggerList as="ul" className="space-y-4" aria-label="需提醒學生">
       {visible.length === 0 ? (
        <li className="rounded-2xl border border-dashed border-border bg-background px-4 py-12 text-center text-sm text-muted-foreground">
         {filter === "pending"
@@ -377,8 +379,9 @@ export function TomorrowRemindersPage() {
         const busy = busyId === row.studentId
 
         return (
-         <li
+         <StaggerItem
           key={row.studentId}
+          as="li"
           className={cn(
            "relative overflow-hidden rounded-2xl border border-border bg-background shadow-sm transition-shadow hover:shadow-md",
            done && "border-success/35"
@@ -568,11 +571,11 @@ export function TomorrowRemindersPage() {
             </Button>
            </div>
           </div>
-         </li>
+         </StaggerItem>
         )
        })
       )}
-     </ul>
+     </StaggerList>
     )}
    </div>
   </div>

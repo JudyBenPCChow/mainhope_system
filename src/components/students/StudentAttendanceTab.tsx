@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -295,10 +296,11 @@ export function StudentAttendanceTab({
         <span className="text-right">狀態</span>
         {canDeleteAttendance ? <span className="text-right">操作</span> : null}
        </div>
-       <ul className="divide-y divide-border">
+       <StaggerList as="ul" className="divide-y divide-border">
         {filteredSortedAttendance.map((a) => (
-         <li
+         <StaggerItem
           key={a.id}
+          as="li"
           className={cn(
            "grid items-center gap-x-3 gap-y-1 px-4 py-3 text-sm",
            canDeleteAttendance
@@ -328,9 +330,9 @@ export function StudentAttendanceTab({
             </button>
            </span>
           ) : null}
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
       </div>
      )}
     </>

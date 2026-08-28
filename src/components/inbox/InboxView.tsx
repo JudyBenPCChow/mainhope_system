@@ -3,6 +3,10 @@ import { useNavigate } from "react-router-dom"
 import { ArrowLeft, CheckCheck, Inbox, RefreshCw, Send } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { LoadMoreFooter } from "@/components/ui/load-more-footer"
+import { SkeletonCardGrid } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -17,12 +21,13 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
- fetchInboxFeed,
+ fetchInboxFeedPage,
  formatInboxAudienceLabel,
  markAllInboxItemsRead,
  markInboxItemRead,
  notifyInboxUnreadChanged,
  publishSystemNotice,
+ INBOX_FEED_PAGE_SIZE,
  type InboxEventCategory,
  type InboxItem,
  type InboxTypeFilter,
@@ -91,6 +96,9 @@ export function InboxView() {
  )
  const [items, setItems] = useState<InboxItem[]>([])
  const [loading, setLoading] = useState(true)
+ const [loadingMore, setLoadingMore] = useState(false)
+ const [hasMore, setHasMore] = useState(false)
+ const [feedOffset, setFeedOffset] = useState(0)
  const [err, setErr] = useState<string | null>(null)
  const [typeFilter, setTypeFilter] = useState<InboxTypeFilter>("")
  const [unreadOnly, setUnreadOnly] = useState(false)
@@ -108,25 +116,61 @@ export function InboxView() {
   if (!isSupabaseConfigured) {
    setItems([])
    setLoading(false)
+   setHasMore(false)
    return
   }
   setLoading(true)
   setErr(null)
   try {
-   const data = await fetchInboxFeed({
+   const page = await fetchInboxFeedPage({
     category,
+    typeFilter: category === "ops" ? typeFilter : undefined,
     unreadOnly,
     activeRole: role,
     teacherId: profile?.teacherId ?? null,
+    limit: INBOX_FEED_PAGE_SIZE,
+    offset: 0,
    })
-   setItems(data)
+   setItems(page.rows)
+   setFeedOffset(page.rows.length)
+   setHasMore(page.hasMore)
   } catch (e) {
    reportUserFacingError(e, { source: "InboxView.load", setErr })
    setItems([])
+   setHasMore(false)
   } finally {
    setLoading(false)
   }
- }, [category, unreadOnly, role, profile?.teacherId])
+ }, [category, unreadOnly, role, profile?.teacherId, typeFilter])
+
+ const loadMoreFeed = useCallback(async () => {
+  if (!isSupabaseConfigured || loadingMore || !hasMore) return
+  setLoadingMore(true)
+  try {
+   const page = await fetchInboxFeedPage({
+    category,
+    typeFilter: category === "ops" ? typeFilter : undefined,
+    unreadOnly,
+    activeRole: role,
+    teacherId: profile?.teacherId ?? null,
+    limit: INBOX_FEED_PAGE_SIZE,
+    offset: feedOffset,
+   })
+   setItems((prev) => [...prev, ...page.rows])
+   setFeedOffset((prev) => prev + page.rows.length)
+   setHasMore(page.hasMore)
+  } catch (e) {
+   reportUserFacingError(e, { source: "InboxView.loadMore", setErr })
+  } finally {
+   setLoadingMore(false)
+  }
+ }, [category, typeFilter, unreadOnly, role, profile?.teacherId, feedOffset, hasMore, loadingMore])
+
+ const { sentinelRef } = useInfiniteScroll({
+  onLoadMore: loadMoreFeed,
+  hasMore,
+  disabled: loading || loadingMore,
+ })
 
  useEffect(() => {
   void load()
@@ -210,13 +254,17 @@ export function InboxView() {
    setCategory("system")
    setDetailKey(null)
    pushBanner({ tone: "success", title: "已發佈系統通知" })
-   const data = await fetchInboxFeed({
+   const page = await fetchInboxFeedPage({
     category: "system",
     unreadOnly,
     activeRole: role,
     teacherId: profile?.teacherId ?? null,
+    limit: INBOX_FEED_PAGE_SIZE,
+    offset: 0,
    })
-   setItems(data)
+   setItems(page.rows)
+   setFeedOffset(page.rows.length)
+   setHasMore(page.hasMore)
    notifyInboxUnreadChanged()
   } catch (e) {
    reportUserFacingError(e, {
@@ -310,10 +358,10 @@ export function InboxView() {
       type="button"
       variant="outline"
       size="sm"
+      loading={loading}
       onClick={() => void load()}
-      disabled={loading}
      >
-      <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} aria-hidden />
+      <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden />
       重新整理
      </Button>
     </div>
@@ -462,14 +510,13 @@ export function InboxView() {
    {!isSupabaseConfigured ? (
     <p className="text-sm text-muted-foreground">尚未設定 Supabase，無法載入收件匣。</p>
    ) : loading ? (
-    <p className="text-sm text-muted-foreground">載入中…</p>
+    <SkeletonCardGrid count={4} />
    ) : visible.length === 0 ? (
     <p className="text-sm text-muted-foreground">目前沒有符合條件的項目。</p>
    ) : isMobile ? (
-    <div className="space-y-3">
+    <StaggerList as="div" className="space-y-3">
      {visible.map((item) => (
-      <article
-       key={item.sourceKey}
+      <StaggerItem key={item.sourceKey} as="article"
        className={cn(
         "rounded-xl border border-border bg-card p-4 shadow-sm",
         !item.read && "border-info/40 bg-info/5"
@@ -498,9 +545,9 @@ export function InboxView() {
          查看
         </Button>
        </div>
-      </article>
+      </StaggerItem>
      ))}
-    </div>
+    </StaggerList>
    ) : (
     <div className="overflow-x-auto rounded-lg border border-border">
      <table className="w-full min-w-[640px] table-fixed text-sm">
@@ -520,10 +567,11 @@ export function InboxView() {
         <th className="w-[10%] px-3 py-2.5 font-medium">動作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {visible.map((item) => (
-        <tr
+        <StaggerItem
          key={item.sourceKey}
+         as="tr"
          className={cn(
           "cursor-pointer border-b border-border/80 last:border-0 hover:bg-muted/30",
           !item.read && "bg-info/5"
@@ -566,12 +614,22 @@ export function InboxView() {
            查看
           </Button>
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}
+
+   {!loading && (hasMore || visible.length > 0) ? (
+    <LoadMoreFooter
+     sentinelRef={sentinelRef}
+     hasMore={hasMore}
+     loadingMore={loadingMore}
+     totalShown={visible.length}
+     onManualLoad={() => void loadMoreFeed()}
+    />
+   ) : null}
   </div>
  )
 }

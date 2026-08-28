@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { AlertTriangle } from "lucide-react"
 
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import type { StaffAnomalyCard } from "@/components/staffPerformance/types"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -33,9 +34,9 @@ export function StaffAnomalyCards({ anomalies, loading }: Props) {
         <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />
         <p className="text-sm font-medium">異常提醒（{anomalies.length}）</p>
       </div>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <StaggerList as="ul" className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {anomalies.map((a) => (
-          <li key={a.id} className="rounded-lg border border-border/80 bg-muted/20 p-3">
+          <StaggerItem key={a.id} as="li" className="rounded-lg border border-border/80 bg-muted/20 p-3">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-medium leading-snug">{a.title}</p>
               <Tag tone={statusToTagTone(a.severity)} size="sm">
@@ -48,9 +49,9 @@ export function StaffAnomalyCards({ anomalies, loading }: Props) {
                 查看老師
               </Link>
             ) : null}
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </StaggerList>
     </div>
   )
 }

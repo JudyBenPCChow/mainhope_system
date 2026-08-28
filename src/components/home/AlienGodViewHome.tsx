@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -160,9 +161,9 @@ export function AlienGodViewHome() {
          <th className="w-[36%] px-4 py-3 font-medium md:pr-5">路徑／備註</th>
         </tr>
        </thead>
-       <tbody className="divide-y divide-border">
+       <StaggerList as="tbody" className="divide-y divide-border">
         {auditRows.map((r) => (
-         <tr key={r.id} className="bg-background/50 hover:bg-muted/20">
+         <StaggerItem key={r.id} as="tr" className="bg-background/50 hover:bg-muted/20">
           <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground md:px-5">
            {formatTs(r.created_at)}
           </td>
@@ -175,9 +176,9 @@ export function AlienGodViewHome() {
             <span className="mt-1 block text-xs text-muted-foreground/90">{r.detail}</span>
            ) : null}
           </td>
-         </tr>
+         </StaggerItem>
         ))}
-       </tbody>
+       </StaggerList>
       </table>
      )}
     </div>
@@ -208,9 +209,9 @@ export function AlienGodViewHome() {
          <th className="w-[28%] px-4 py-3 font-medium md:pr-5">狀態／詳情</th>
         </tr>
        </thead>
-       <tbody className="divide-y divide-border">
+       <StaggerList as="tbody" className="divide-y divide-border">
         {errorRows.map((r) => (
-         <tr key={r.id} className="bg-background/50 hover:bg-muted/20">
+         <StaggerItem key={r.id} as="tr" className="bg-background/50 hover:bg-muted/20">
           <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground md:px-5">
            {formatTs(r.created_at)}
           </td>
@@ -225,9 +226,9 @@ export function AlienGodViewHome() {
            )}
            {r.detail ? <span className="mt-1 block text-xs break-words">{r.detail}</span> : null}
           </td>
-         </tr>
+         </StaggerItem>
         ))}
-       </tbody>
+       </StaggerList>
       </table>
      )}
     </div>

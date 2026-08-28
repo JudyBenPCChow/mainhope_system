@@ -14,6 +14,7 @@ import type { ClassRecord } from "@/services/classQueries"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
@@ -418,22 +419,26 @@ export function TeacherAvailabilityPage() {
          <th className="w-[20%] px-3 py-2">操作</th>
         </tr>
        </thead>
-       <tbody>
-        {loading ? (
+       {loading ? (
+        <tbody>
          <tr>
           <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
            載入中…
           </td>
          </tr>
-        ) : slots.length === 0 ? (
+        </tbody>
+       ) : slots.length === 0 ? (
+        <tbody>
          <tr>
           <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
            沒有檔期
           </td>
          </tr>
-        ) : (
-         slots.map((s) => (
-          <tr key={s.id} className="border-b">
+        </tbody>
+       ) : (
+        <StaggerList as="tbody">
+         {slots.map((s) => (
+          <StaggerItem key={s.id} as="tr" className="border-b">
            <td className="px-3 py-2 tabular-nums">{s.available_date}</td>
            <td className="px-3 py-2">{s.time_slot}</td>
            <td className="px-3 py-2">{s.teacher_name ?? "—"}</td>
@@ -456,10 +461,10 @@ export function TeacherAvailabilityPage() {
              "—"
             )}
            </td>
-          </tr>
-         ))
-        )}
-       </tbody>
+          </StaggerItem>
+         ))}
+        </StaggerList>
+       )}
       </table>
      </div>
     </div>

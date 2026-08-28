@@ -1,8 +1,10 @@
 import type { LucideIcon } from "lucide-react"
 import {
  AlertTriangle,
+ CalendarCheck,
  CalendarDays,
  ClipboardCheck,
+ ClipboardList,
  Home,
  Inbox,
  LayoutGrid,
@@ -10,6 +12,7 @@ import {
  Wallet,
 } from "lucide-react"
 
+import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import {
  filterNavForRole,
  flattenNav,
@@ -25,7 +28,23 @@ export type MobileTabItem = {
  icon: LucideIcon
 }
 
-export function getMobileBottomTabs(role: Role): MobileTabItem[] {
+export type MobileBottomTabsOptions = {
+ /** 純功輔導師：底欄改功輔報更／我的當值 */
+ homeworkTutorOnly?: boolean
+}
+
+export function getMobileBottomTabs(
+ role: Role,
+ opts: MobileBottomTabsOptions = {}
+): MobileTabItem[] {
+ if (role === "teacher" && opts.homeworkTutorOnly) {
+  return [
+   { path: "/Home", label: "首頁", icon: Home },
+   { path: HW_PATH.submit, label: "報更", icon: ClipboardList },
+   { path: HW_PATH.myDuty, label: "當值", icon: CalendarCheck },
+   { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
+  ]
+ }
  switch (role) {
   case "teacher":
    return [

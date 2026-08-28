@@ -1,4 +1,5 @@
 import { ALL_GRADE_CODES } from "@/lib/courseCode"
+import { eligibleGradeDisplayText, normalizeEligibleGradeCodes } from "@/lib/classGrade"
 import type { CourseRecord } from "@/services/classQueries"
 
 export const COURSE_MODE_FILTER_CHIPS = [
@@ -27,7 +28,12 @@ export function buildCourseSubjectFilterChips(
 }
 
 export function buildCourseGradeFilterChips(rows: CourseRecord[]): string[] {
- const present = new Set(rows.map((r) => r.grade_code.trim()).filter(Boolean))
+ const present = new Set<string>()
+ for (const r of rows) {
+  for (const g of normalizeEligibleGradeCodes(r.eligible_grade_codes, r.grade_code)) {
+   present.add(g)
+  }
+ }
  const ordered = ["全部"]
  for (const g of ALL_GRADE_CODES) {
   if (present.has(g)) ordered.push(g)
@@ -45,7 +51,7 @@ export function courseMatchesSubject(c: CourseRecord, key: string): boolean {
 
 export function courseMatchesGrade(c: CourseRecord, key: string): boolean {
  if (key === "全部") return true
- return c.grade_code.trim() === key
+ return normalizeEligibleGradeCodes(c.eligible_grade_codes, c.grade_code).includes(key)
 }
 
 export function courseMatchesMode(c: CourseRecord, key: CourseModeFilterKey): boolean {
@@ -67,6 +73,7 @@ export function courseMatchesSearch(
   c.subject_code,
   subjectLabel,
   c.grade_code,
+  eligibleGradeDisplayText(c.eligible_grade_codes, c.grade_code),
   String(c.course_seq),
   c.course_mode === "summer_two_period" ? "暑期兩期" : "常規",
  ].join(" ")

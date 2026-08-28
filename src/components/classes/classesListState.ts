@@ -7,7 +7,6 @@ import type { ClassScheduleSummary } from "@/services/scheduleQueries"
 /** 已載入資料的記憶體快取：返回列表時可即時還原、背景靜默更新，不再閃「載入中」。 */
 export type ClassesListDataCache = {
  rows: ClassRecord[]
- teachers: { id: string; label: string }[]
  yearOptions: { id: string; label: string; is_current: boolean }[]
  enrollRoster: Map<string, { count: number; names: string[] }>
  scheduleSummaries: Map<string, ClassScheduleSummary>

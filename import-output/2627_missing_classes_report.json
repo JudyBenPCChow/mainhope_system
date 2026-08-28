@@ -1,0 +1,33 @@
+{
+  "classes": [
+    {
+      "code": "2627-CHIS5001-C",
+      "schedules": 37
+    },
+    {
+      "code": "2627-CHIS6001-C",
+      "schedules": 38
+    },
+    {
+      "code": "2627-CHIS4001-C",
+      "schedules": 38
+    },
+    {
+      "code": "2627-CHIS3001-F",
+      "schedules": 39
+    },
+    {
+      "code": "2627-CHIS2001-G",
+      "schedules": 39
+    },
+    {
+      "code": "2627-CHIS2001-F",
+      "schedules": 42
+    },
+    {
+      "code": "2627-CHIS1001-F",
+      "schedules": 42
+    }
+  ],
+  "schedule_count": 275
+}

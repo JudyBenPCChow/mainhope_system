@@ -7,18 +7,34 @@ import {
   isExpensePayMethod,
   type ExpensePayMethod,
 } from "@/lib/expensePayMethods"
+import {
+  EXPENSE_ATTACHMENT_BUCKET,
+  expenseAttachmentContentType,
+  expenseAttachmentValidationError,
+  sanitizeExpenseAttachmentFilename,
+} from "@/lib/expenseJournalAttachment"
+import {
+  frontDeskBlockedMessage,
+  isExpenseAccountVisibility,
+  isManualSelectableAccount,
+  isPayrollPostedAccountCode,
+  resolveManualLedgerStatus,
+  type ExpenseAccountVisibility,
+} from "@/lib/expenseJournalPolicy"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
 import type { PayrollTeacherRow } from "@/lib/payroll/viewTypes"
 
 export type ExpenseAccountGroup = "direct" | "overhead"
 export type ExpenseLedgerStatus = "pending_review" | "confirmed"
 export type ExpenseOrigin = "manual" | "payroll_settle" | "history_import"
+export type { ExpenseAccountVisibility }
 
 export type ExpenseLedgerAccount = {
   id: string
   code: string
   label: string
   accountGroup: ExpenseAccountGroup
+  visibility: ExpenseAccountVisibility
   subject: string | null
   sortOrder: number
   active: boolean
@@ -62,6 +78,8 @@ export type ExpenseEntry = {
   createdByLabel: string | null
   createdAt: string
   updatedAt: string
+  attachmentPath: string | null
+  attachmentName: string | null
 }
 
 export type ExpenseSuggestResult = {
@@ -81,6 +99,8 @@ export type CreateExpenseEntryInput = {
   notes?: string | null
   teacherId?: string | null
   subjectCode?: string | null
+  /** 有 expenses.read：可入租金等管理層科目。行政必須 false。 */
+  canReadFullLedger: boolean
   /** 若 true（預設），依規則預填建議並強制 pending */
   applySuggest?: boolean
 }
@@ -135,11 +155,13 @@ function requireClient() {
 
 function asAccount(row: RawRow): ExpenseLedgerAccount {
   const group = String(row.account_group ?? "")
+  const visibilityRaw = String(row.visibility ?? "manager")
   return {
     id: String(row.id ?? ""),
     code: String(row.code ?? ""),
     label: String(row.label ?? ""),
     accountGroup: group === "overhead" ? "overhead" : "direct",
+    visibility: isExpenseAccountVisibility(visibilityRaw) ? visibilityRaw : "manager",
     subject: row.subject != null ? String(row.subject) : null,
     sortOrder: Number(row.sort_order ?? 0),
     active: Boolean(row.active),
@@ -205,6 +227,8 @@ function asEntry(row: RawRow): ExpenseEntry {
     createdByLabel: row.created_by_label != null ? String(row.created_by_label) : null,
     createdAt: String(row.created_at ?? ""),
     updatedAt: String(row.updated_at ?? ""),
+    attachmentPath: row.attachment_path != null ? String(row.attachment_path) : null,
+    attachmentName: row.attachment_name != null ? String(row.attachment_name) : null,
   }
 }
 
@@ -222,6 +246,11 @@ export function defaultExpenseMonthKey(now = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
+/** 日記帳查詢預設：本曆月 */
+export function currentExpenseMonthKey(now = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+}
+
 export function expenseOriginLabel(origin: ExpenseOrigin): string {
   if (origin === "payroll_settle") return "計糧過帳"
   if (origin === "history_import") return "歷史匯入"
@@ -234,7 +263,7 @@ export async function fetchExpenseAccounts(opts?: {
   const client = requireClient()
   let q = client
     .from("expense_ledger_accounts")
-    .select("id, code, label, account_group, subject, sort_order, active")
+    .select("id, code, label, account_group, visibility, subject, sort_order, active")
     .order("sort_order", { ascending: true })
   if (opts?.activeOnly !== false) q = q.eq("active", true)
   const { data, error } = await q
@@ -284,6 +313,7 @@ const ENTRY_SELECT = `
   notes, voided_at, void_reason, voided_by_label,
   teacher_id, class_id, subject_code, origin, origin_key,
   created_by_label, created_at, updated_at,
+  attachment_path, attachment_name,
   expense_ledger_accounts!expense_entries_ledger_account_id_fkey ( id, code, label, account_group ),
   teachers!expense_entries_teacher_id_fkey ( id, full_name, abbr )
 `
@@ -330,10 +360,22 @@ export async function createExpenseEntry(
 ): Promise<ExpenseEntry> {
   const client = requireClient()
   const title = input.title.trim()
-  if (!title) throw new Error("請填寫標題")
-  if (!input.spentOn) throw new Error("請選擇日期")
-  if (!Number.isFinite(input.amountHkd) || input.amountHkd === 0) {
-    throw new Error("金額不可為 0")
+  if (!title) throw new Error("請填寫費用名稱")
+  if (!input.spentOn) throw new Error("請選擇付款日")
+  if (!Number.isFinite(input.amountHkd) || input.amountHkd <= 0) {
+    throw new Error("金額須為正數")
+  }
+
+  const accounts = await fetchExpenseAccounts()
+  const canUseAccount = (id: string | null) => {
+    if (!id) return false
+    const acc = accounts.find((a) => a.id === id)
+    if (!acc) return false
+    return isManualSelectableAccount({
+      code: acc.code,
+      visibility: acc.visibility,
+      canReadFullLedger: input.canReadFullLedger,
+    })
   }
 
   let ledgerAccountId = input.ledgerAccountId ?? null
@@ -347,8 +389,32 @@ export async function createExpenseEntry(
     suggestedAccountId = sug.ledgerAccountId
     suggestionHint = sug.hint
     forcePending = sug.forcePending
-    if (!ledgerAccountId && sug.ledgerAccountId) ledgerAccountId = sug.ledgerAccountId
+    if (!ledgerAccountId && canUseAccount(sug.ledgerAccountId)) {
+      ledgerAccountId = sug.ledgerAccountId
+    }
   }
+
+  if (forcePending && !input.canReadFullLedger) {
+    throw new Error(frontDeskBlockedMessage(suggestionHint))
+  }
+
+  if (!ledgerAccountId) {
+    if (suggestedAccountId && !canUseAccount(suggestedAccountId)) {
+      throw new Error(frontDeskBlockedMessage(suggestionHint))
+    }
+    throw new Error("請選擇費用類別")
+  }
+
+  const account = accounts.find((a) => a.id === ledgerAccountId)
+  if (!account) throw new Error("費用類別無效")
+  if (isPayrollPostedAccountCode(account.code)) {
+    throw new Error("導師薪酬／僱主強積金須由計糧結算過帳，不可人手入帳。")
+  }
+  if (!canUseAccount(ledgerAccountId)) {
+    throw new Error("此費用類別須由管理層入帳")
+  }
+
+  const ledgerStatus = resolveManualLedgerStatus(forcePending)
 
   const { data, error } = await client
     .from("expense_entries")
@@ -359,7 +425,7 @@ export async function createExpenseEntry(
       pay_method: input.payMethod,
       owner_label: input.ownerLabel?.trim() || null,
       ledger_account_id: ledgerAccountId,
-      ledger_status: "pending_review",
+      ledger_status: ledgerStatus,
       suggested_account_id: suggestedAccountId,
       suggestion_hint: suggestionHint,
       notes: input.notes?.trim() || null,
@@ -376,6 +442,61 @@ export async function createExpenseEntry(
     return { ...entry, suggestionHint }
   }
   return entry
+}
+
+export async function attachExpenseJournalFile(entryId: string, file: File): Promise<void> {
+  const client = requireClient()
+  const validation = expenseAttachmentValidationError(file)
+  if (validation) throw new Error(validation)
+  const contentType = expenseAttachmentContentType(file)
+  if (!contentType) throw new Error("只接受 JPG、PNG 或 PDF")
+
+  const { data: row, error: fetchErr } = await client
+    .from("expense_entries")
+    .select("id, attachment_path, voided_at")
+    .eq("id", entryId)
+    .maybeSingle()
+  if (fetchErr) throw new Error(fetchErr.message)
+  if (!row) throw new Error("找不到此入帳")
+  if (row.voided_at) throw new Error("已作廢列不可上載附件")
+  if (row.attachment_path) throw new Error("此筆已有附件")
+
+  const objectPath = `${entryId}/${crypto.randomUUID()}-${sanitizeExpenseAttachmentFilename(file.name)}`
+  const { error: uploadErr } = await client.storage
+    .from(EXPENSE_ATTACHMENT_BUCKET)
+    .upload(objectPath, file, {
+      contentType,
+      upsert: false,
+    })
+  if (uploadErr) throw new Error(uploadErr.message)
+
+  const displayName = file.name.replace(/^.*[/\\]/, "").slice(0, 180) || "attachment"
+  const { error: updateErr } = await client
+    .from("expense_entries")
+    .update({
+      attachment_path: objectPath,
+      attachment_name: displayName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", entryId)
+    .is("attachment_path", null)
+
+  if (updateErr) {
+    await client.storage.from(EXPENSE_ATTACHMENT_BUCKET).remove([objectPath])
+    throw new Error(updateErr.message)
+  }
+}
+
+export async function getExpenseAttachmentSignedUrl(path: string): Promise<string> {
+  const client = requireClient()
+  const p = path.trim()
+  if (!p) throw new Error("沒有附件")
+  const { data, error } = await client.storage
+    .from(EXPENSE_ATTACHMENT_BUCKET)
+    .createSignedUrl(p, 3600)
+  if (error) throw new Error(error.message)
+  if (!data?.signedUrl) throw new Error("無法開啟附件")
+  return data.signedUrl
 }
 
 export async function confirmExpenseEntries(ids: string[]): Promise<void> {

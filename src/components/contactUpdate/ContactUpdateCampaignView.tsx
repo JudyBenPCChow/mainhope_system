@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -664,16 +665,18 @@ export function ContactUpdateCampaignView() {
               <th className="px-3 py-2.5 font-medium">操作</th>
             </tr>
           </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+          {filtered.length === 0 ? (
+            <tbody>
               <tr>
                 <td colSpan={6} className="px-3 py-10 text-center text-muted-foreground">
                   無符合條件嘅學生
                 </td>
               </tr>
-            ) : (
-              filtered.map((r) => (
-                <tr key={r.student.id} className="border-b border-border last:border-0">
+            </tbody>
+          ) : (
+            <StaggerList as="tbody">
+              {filtered.map((r) => (
+                <StaggerItem key={r.student.id} as="tr" className="border-b border-border last:border-0">
                   <td className="px-3 py-3 align-middle">
                     <input
                       type="checkbox"
@@ -766,10 +769,10 @@ export function ContactUpdateCampaignView() {
                       ) : null}
                     </div>
                   </td>
-                </tr>
-              ))
-            )}
-          </tbody>
+                </StaggerItem>
+              ))}
+            </StaggerList>
+          )}
         </table>
       </div>
 

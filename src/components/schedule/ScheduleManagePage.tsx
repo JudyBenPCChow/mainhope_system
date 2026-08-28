@@ -25,6 +25,8 @@ import {
 import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { Button } from "@/components/ui/button"
+import { SkeletonDetailHeader, SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import type { TagTone } from "@/components/ui/tag"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -1973,7 +1975,7 @@ useEffect(() => {
          ) : null}
          <span className="text-base text-muted-foreground">{list.length} 堂</span>
         </div>
-        <ul className="space-y-2">
+        <StaggerList as="ul" className="space-y-2" animate={!loading}>
          {list.map((s) => {
           const a = alerts.get(s.id) ?? {
            trial: false,
@@ -1992,8 +1994,9 @@ useEffect(() => {
           const emptyEnrollOnly =
            enrollKnown && s.enrollCount === 0 && !a.makeup && !a.trial && !rosterLoading
           return (
-           <li
+           <StaggerItem
             key={s.id}
+            as="li"
             className={cn(
              "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
              rowsStale && "opacity-60",
@@ -2044,10 +2047,7 @@ useEffect(() => {
                 ) : null
                })()}
                {rosterLoading ? (
-                <span
-                 className="inline-block h-5 w-16 animate-pulse rounded-md bg-muted"
-                 aria-label="標記載入中"
-                />
+                <SkeletonInlineBadge className="h-5 w-16" aria-label="標記載入中" />
                ) : (
                 <ScheduleAlertIcons alerts={a} />
                )}
@@ -2082,10 +2082,7 @@ useEffect(() => {
                >
                 <Users className="h-4 w-4 opacity-70" aria-hidden />
                 {rosterLoading || s.enrollCount == null ? (
-                 <span
-                  className="inline-block h-4 w-14 animate-pulse rounded bg-muted"
-                  aria-label="點名冊人數載入中"
-                 />
+                 <SkeletonInlineBadge className="h-4 w-14" aria-label="點名冊人數載入中" />
                 ) : (
                  `${s.enrollCount} 人`
                 )}
@@ -2268,10 +2265,10 @@ useEffect(() => {
               />
              </div>
             ) : null}
-           </li>
+           </StaggerItem>
           )
          })}
-        </ul>
+        </StaggerList>
        </section>
       )
      })}
@@ -2295,7 +2292,7 @@ useEffect(() => {
         <th className="w-[12%] px-4 py-3 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody" animate={!loading}>
        {filtered.map((s) => {
         const a = alerts.get(s.id) ?? {
          trial: false,
@@ -2306,7 +2303,8 @@ useEffect(() => {
         const open = expandedScheduleId === s.id
         return (
          <Fragment key={s.id}>
-          <tr
+          <StaggerItem
+           as="tr"
            className={cn(
             "cursor-pointer border-b border-border transition-colors hover:bg-info/40",
             open && "bg-info/30"
@@ -2321,12 +2319,9 @@ useEffect(() => {
                今天
               </span>
              ) : null}
-             {rosterLoading ? (
-              <span
-               className="inline-block h-4 w-12 animate-pulse rounded bg-muted"
-               aria-label="標記載入中"
-              />
-             ) : (
+              {rosterLoading ? (
+               <SkeletonInlineBadge className="h-4 w-12" aria-label="標記載入中" />
+              ) : (
               <ScheduleAlertIcons alerts={a} />
              )}
             </div>
@@ -2452,7 +2447,7 @@ useEffect(() => {
              )}
             </div>
            </td>
-          </tr>
+          </StaggerItem>
           {open ? (
            <tr className="border-b border-border bg-success/30">
             <td colSpan={7} className="px-4 py-4">
@@ -2472,7 +2467,7 @@ useEffect(() => {
          </Fragment>
         )
        })}
-      </tbody>
+      </StaggerList>
      </table>
      {filtered.length === 0 ? (
       <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有排程</p>
@@ -2484,9 +2479,7 @@ useEffect(() => {
     <div className="space-y-4">
      {isMobile && allowMobileDayView ? (
       loading && !dayViewDateLoaded ? (
-       <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
-        <p className="text-muted-foreground">載入中…</p>
-       </div>
+       <SkeletonTimetableBlock />
       ) : (
        <MobileDayViewGrid
         dayViewDate={dayViewDate}
@@ -2509,7 +2502,7 @@ useEffect(() => {
      ) : dayFiltered.length === 0 ? (
       <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
        {loading ? (
-        <p className="text-muted-foreground">載入中…</p>
+        <SkeletonTimetableBlock />
        ) : !dayViewDateLoaded ? (
         <p className="text-muted-foreground">正在載入 {dayViewDate} 的排程…</p>
        ) : dayViewFilterActive && dayUnfilteredCount > 0 ? (
@@ -2547,7 +2540,7 @@ useEffect(() => {
       <DialogTitle className="text-lg font-semibold">排程詳細資料</DialogTitle>
      </DialogHeader>
      {detailLoading || !detailRow ? (
-      <p className="text-base text-muted-foreground">載入中…</p>
+      <SkeletonDetailHeader />
      ) : (
       <div className="space-y-3 text-sm">
        <p className="text-xl font-semibold tabular-nums md:text-2xl">

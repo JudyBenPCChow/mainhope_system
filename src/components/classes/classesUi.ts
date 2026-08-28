@@ -1,5 +1,6 @@
 import { normalizeStoredClassGradeLabel, resolveClassGradeLabels } from "@/lib/classGrade"
 import { SUBJECT_TO_COURSE_ABBR, academicYearLabelFromStartDate, subjectChineseToAbbr } from "@/lib/courseCode"
+import { isPrivateClassSubject } from "@/lib/privateClassKind"
 import { KANBAN_DAY_COLUMNS, weekdaysFromStored } from "@/lib/weekdayUtils"
 
 export {
@@ -96,6 +97,16 @@ export function subjectChipLabelForClass(c: {
  return subj || "—"
 }
 
+/** 班別管理科目篩選：排除功輔／私人課程等非專科科目標籤 */
+export function isSpecialtySubjectFilterLabel(label: string): boolean {
+ const t = label.trim()
+ if (!t || t === "—" || t === "全部") return false
+ if (t.toUpperCase() === "HWK") return false
+ if (/功課輔導|homework/i.test(t)) return false
+ if (isPrivateClassSubject(t)) return false
+ return true
+}
+
 export function buildSubjectFilterChips(
  rows: { subject: string; subject_code?: string | null }[],
  options?: { includeCommonWhenEmpty?: boolean }
@@ -103,7 +114,7 @@ export function buildSubjectFilterChips(
  const labels = new Set<string>()
  for (const c of rows) {
   const label = subjectChipLabelForClass(c)
-  if (label && label !== "—") labels.add(label)
+  if (label && isSpecialtySubjectFilterLabel(label)) labels.add(label)
  }
  if (labels.size === 0 && options?.includeCommonWhenEmpty) {
   return [...SUBJECT_CHIPS]

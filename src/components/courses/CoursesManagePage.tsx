@@ -4,13 +4,17 @@ import { BookOpen, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
  ALL_GRADE_CODES,
  clampCourseSeq,
  DEFAULT_COURSE_SEQ,
 } from "@/lib/courseCode"
+import { eligibleGradeDisplayText, normalizeEligibleGradeCodes } from "@/lib/classGrade"
+import { formatStudentGrade } from "@/lib/studentGrade"
 import type { CourseMode } from "@/lib/enrollmentPeriod"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
@@ -37,6 +41,7 @@ import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 type CourseForm = {
  subject_id: string
  grade_code: string
+ eligible_grade_codes: string[]
  course_seq: string
  course_name: string
  course_mode: CourseMode
@@ -48,6 +53,7 @@ type CourseForm = {
 const EMPTY_FORM: CourseForm = {
  subject_id: "",
  grade_code: "S1",
+ eligible_grade_codes: ["S1"],
  course_seq: "1",
  course_name: "",
  course_mode: "regular",
@@ -55,6 +61,11 @@ const EMPTY_FORM: CourseForm = {
  price_per_lesson_period_2: "",
  price_per_lesson_both_periods: "",
 }
+
+const GRADE_MULTI_OPTIONS = ALL_GRADE_CODES.map((g) => ({
+ value: g,
+ label: `${formatStudentGrade(g)}（${g}）`,
+}))
 
 function parsePriceField(raw: string): number | null {
  if (raw.trim() === "") return null
@@ -152,6 +163,7 @@ export function CoursesManagePage() {
   setForm({
    subject_id: row.subject_id,
    grade_code: row.grade_code,
+   eligible_grade_codes: normalizeEligibleGradeCodes(row.eligible_grade_codes, row.grade_code),
    course_seq: String(row.course_seq),
    course_name: row.course_name ?? "",
    course_mode: row.course_mode,
@@ -192,6 +204,7 @@ export function CoursesManagePage() {
    const payload = {
     subject_id: form.subject_id,
     grade_code: form.grade_code,
+    eligible_grade_codes: normalizeEligibleGradeCodes(form.eligible_grade_codes, form.grade_code),
     course_seq: seq,
     course_name: form.course_name,
     course_mode: form.course_mode,
@@ -327,27 +340,33 @@ export function CoursesManagePage() {
         <th className="w-[12%] px-4 py-3 font-medium">課程模板</th>
         <th className="w-[14%] px-3 py-3 font-medium">課程名稱</th>
         <th className="w-[10%] px-3 py-3 font-medium">科目</th>
-        <th className="w-[8%] px-3 py-3 font-medium">年級碼</th>
+        <th className="w-[14%] px-3 py-3 font-medium">接受年級</th>
         <th className="w-[8%] px-3 py-3 font-medium">課程序號</th>
         <th className="w-[10%] px-3 py-3 font-medium">模式</th>
         <th className="w-[18%] px-3 py-3 font-medium">學費（HKD/節）</th>
         <th className="w-[10%] px-3 py-3 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
-       {loading ? (
+      {loading ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">載入中…</td></tr>
-       ) : rows.length === 0 ? (
+       </tbody>
+      ) : rows.length === 0 ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">尚無課程</td></tr>
-       ) : filteredRows.length === 0 ? (
+       </tbody>
+      ) : filteredRows.length === 0 ? (
+       <tbody>
         <tr><td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">沒有符合篩選條件的課程</td></tr>
-       ) : (
-        filteredRows.map((r) => (
-         <tr key={r.id} className="border-b border-border">
+       </tbody>
+      ) : (
+       <StaggerList as="tbody">
+        {filteredRows.map((r) => (
+         <StaggerItem key={r.id} as="tr" className="border-b border-border">
           <td className="px-4 py-3 font-mono text-xs">{r.course_code_base}</td>
           <td className="px-3 py-3">{r.course_name?.trim() || "—"}</td>
           <td className="px-3 py-3">{subjectLabelById.get(r.subject_id) ?? r.subject_name_zh}</td>
-          <td className="px-3 py-3">{r.grade_code}</td>
+          <td className="px-3 py-3">{eligibleGradeDisplayText(r.eligible_grade_codes, r.grade_code)}</td>
           <td className="px-3 py-3">{r.course_seq}</td>
           <td className="px-3 py-3">{r.course_mode === "summer_two_period" ? "暑期兩期" : "常規"}</td>
           <td className="px-3 py-3 text-xs leading-relaxed">
@@ -366,10 +385,10 @@ export function CoursesManagePage() {
             編輯
            </button>
           </td>
-         </tr>
-        ))
-       )}
-      </tbody>
+         </StaggerItem>
+        ))}
+       </StaggerList>
+      )}
      </table>
     </div>
    </div>
@@ -394,16 +413,45 @@ export function CoursesManagePage() {
        </Select>
       </div>
       <div>
-       <label className="text-xs text-muted-foreground">年級碼 *</label>
+       <label className="text-xs text-muted-foreground">編號年級 *（寫入課程模板碼）</label>
        <Select
         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
         value={form.grade_code}
-        onChange={(e) => setForm((f) => ({ ...f, grade_code: e.target.value }))}
+        onChange={(e) => {
+         const next = e.target.value
+         setForm((f) => ({
+          ...f,
+          grade_code: next,
+          eligible_grade_codes: normalizeEligibleGradeCodes(
+           f.eligible_grade_codes.filter((g) => g !== f.grade_code),
+           next
+          ),
+         }))
+        }}
        >
         {ALL_GRADE_CODES.map((g) => (
-         <option key={g} value={g}>{g}</option>
+         <option key={g} value={g}>{formatStudentGrade(g)}（{g}）</option>
         ))}
        </Select>
+      </div>
+      <div>
+       <label className="text-xs text-muted-foreground">接受年級 *</label>
+       <div className="mt-1">
+        <MultiSelect
+         value={form.eligible_grade_codes}
+         onChange={(next) =>
+          setForm((f) => ({
+           ...f,
+           eligible_grade_codes: normalizeEligibleGradeCodes(next, f.grade_code),
+          }))
+         }
+         options={GRADE_MULTI_OPTIONS}
+         placeholder="請選擇接受年級"
+        />
+       </div>
+       <p className="mt-1 text-xs text-muted-foreground">
+        專科班通常只選一級。高中混級班可同時接受中四、中五、中六。
+       </p>
       </div>
       <div>
        <label className="text-xs text-muted-foreground">課程序號 *（001 起）</label>

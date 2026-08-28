@@ -3,6 +3,7 @@ import { Link } from "react-router-dom"
 
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { type ListLoad } from "@/lib/listLoad"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -130,7 +131,7 @@ export function StudentFutureSchedulesTab({
    ) : kind === "empty" ? (
     <p className="py-8 text-center text-sm text-muted-foreground">尚無未來排程</p>
    ) : (
-    <div className="space-y-2">
+    <StaggerList as="div" className="space-y-2">
      {hintsError ? (
       <p className="text-sm text-destructive" role="alert">
        點名冊名單未能載入；排程列仍可查看。
@@ -139,8 +140,8 @@ export function StudentFutureSchedulesTab({
      {rows.map((row) => {
       const rowHints = hints.get(row.id)
       return (
+       <StaggerItem key={row.id} as="div">
        <ScheduleListCard
-        key={row.id}
         sessionNumber={row.session_number}
         scheduledDate={row.scheduled_date}
         startTime={row.start_time}
@@ -168,9 +169,10 @@ export function StudentFutureSchedulesTab({
          </div>
         }
        />
+       </StaggerItem>
       )
      })}
-    </div>
+    </StaggerList>
    )}
   </div>
  )

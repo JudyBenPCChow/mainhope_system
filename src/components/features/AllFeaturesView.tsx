@@ -1,20 +1,23 @@
 import { Link } from "react-router-dom"
 import { ChevronRight, LayoutGrid } from "lucide-react"
 
-import { buildFeatureSections, NAV_STRUCTURE, stripHomeworkTutoringNav } from "@/lib/navStructure"
+import { buildFeatureSections, keepHomeworkTutorOnlyNav, NAV_STRUCTURE, stripHomeworkTutoringNav } from "@/lib/navStructure"
 import { useAuth } from "@/lib/authBootstrap"
-import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
+import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
 import { cn } from "@/lib/utils"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
- const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
+ const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
  if (!ready || !role) return null
 
- const navSource =
-  role === "teacher" && !homeworkTutoringNavVisible
-   ? stripHomeworkTutoringNav(NAV_STRUCTURE)
-   : NAV_STRUCTURE
+ let navSource = NAV_STRUCTURE
+ if (role === "teacher" && homeworkTutorOnly) {
+  navSource = keepHomeworkTutorOnlyNav(NAV_STRUCTURE)
+ } else if (role === "teacher" && !homeworkTutoringNavVisible) {
+  navSource = stripHomeworkTutoringNav(NAV_STRUCTURE)
+ }
  const sections = buildFeatureSections(role, navSource)
  const totalCount = sections.reduce((n, s) => n + s.items.length, 0)
 
@@ -43,11 +46,11 @@ export function AllFeaturesView() {
         <h2 className="text-base font-semibold text-foreground md:text-lg">{section.label}</h2>
         <span className="ml-auto text-xs tabular-nums text-muted-foreground">{section.items.length} 項</span>
        </div>
-       <ul className="divide-y divide-border">
+       <StaggerList as="ul" className="divide-y divide-border">
         {section.items.map((item) => {
          const Icon = item.icon
          return (
-          <li key={`${item.path}::${item.label}`}>
+          <StaggerItem key={`${item.path}::${item.label}`} as="li">
            <Link
             to={item.path}
             className={cn(
@@ -67,10 +70,10 @@ export function AllFeaturesView() {
              aria-hidden
             />
            </Link>
-          </li>
+          </StaggerItem>
          )
         })}
-       </ul>
+       </StaggerList>
       </section>
      )
     })}

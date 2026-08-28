@@ -472,6 +472,34 @@ export async function fetchInboxFeed(opts?: {
  return out
 }
 
+export const INBOX_FEED_PAGE_SIZE = 40
+
+export type InboxFeedPageResult = {
+ rows: InboxItem[]
+ hasMore: boolean
+ total: number
+}
+
+/** 分頁收件匣（先聚合再 slice；適合前端無窮滾動） */
+export async function fetchInboxFeedPage(opts?: {
+ category?: InboxEventCategory
+ typeFilter?: InboxTypeFilter
+ unreadOnly?: boolean
+ activeRole?: MgmtRole | null
+ teacherId?: string | null
+ limit?: number
+ offset?: number
+}): Promise<InboxFeedPageResult> {
+ const limit = Math.min(Math.max(opts?.limit ?? INBOX_FEED_PAGE_SIZE, 1), 200)
+ const offset = Math.max(opts?.offset ?? 0, 0)
+ const all = await fetchInboxFeed(opts)
+ return {
+  rows: all.slice(offset, offset + limit),
+  hasMore: offset + limit < all.length,
+  total: all.length,
+ }
+}
+
 /** 側欄未讀火圖示：營運＋系統未讀合計（對目前角色可見者；預設 45s 內用快取） */
 export async function fetchInboxUnreadCount(opts?: {
  force?: boolean

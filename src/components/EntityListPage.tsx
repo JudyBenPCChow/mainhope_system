@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -140,20 +141,20 @@ export function EntityListPage({ title, subtitle, load, columns }: Props) {
         ))}
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {rows.map((row) => {
         const id = String(row.id ?? Math.random())
         return (
-         <tr key={id} className="border-b border-border last:border-0">
+         <StaggerItem key={id} as="tr" className="border-b border-border last:border-0">
           {columns.map((c) => (
            <td key={c.key} className="px-3 py-2 align-top text-muted-foreground">
             {cellText(row, c.key)}
            </td>
           ))}
-         </tr>
+         </StaggerItem>
         )
        })}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

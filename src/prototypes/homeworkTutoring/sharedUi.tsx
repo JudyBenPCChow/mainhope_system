@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Clock, GraduationCap, School } from "lucide-react"
+import { Clock, School } from "lucide-react"
 
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -45,11 +45,65 @@ const DIVISION_TONE: Record<
   },
 }
 
+/** 單一場次兩室當值卡（課室為準，唔分學部） */
+export function RoomDutyCard({
+  room,
+  tone,
+  session,
+  teacher,
+  weekdayHint,
+}: {
+  room: string
+  tone: DivisionTone
+  session: string
+  teacher: string
+  weekdayHint: string
+}) {
+  const t = DIVISION_TONE[tone]
+  return (
+    <section
+      className={cn("overflow-hidden rounded-xl border shadow-sm", t.border, t.bg)}
+      aria-label={`課室 ${room}，${teacher}，${session}`}
+    >
+      <div className="flex">
+        <div className={cn("w-1.5 shrink-0", t.bar)} aria-hidden />
+        <div className="min-w-0 flex-1 p-4 sm:p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span
+                className={cn(
+                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background/80",
+                  t.border,
+                  t.label
+                )}
+              >
+                <School className="h-4 w-4" aria-hidden />
+              </span>
+              <h3 className={cn("text-base font-semibold", t.label)}>{room}</h3>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <p className="text-xs text-muted-foreground">當值老師</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{teacher}</p>
+          </div>
+
+          <p className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="tabular-nums">{session}</span>
+            <span aria-hidden>·</span>
+            <span>{weekdayHint}</span>
+          </p>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** @deprecated 用 RoomDutyCard */
 export function DivisionDutyCard({
   title,
-  division,
   tone,
-  studentCount,
   weekdayHint,
   room,
   session,
@@ -64,59 +118,14 @@ export function DivisionDutyCard({
   session: string
   teacher: string
 }) {
-  const t = DIVISION_TONE[tone]
-  const Icon = division === "primary" ? School : GraduationCap
-
   return (
-    <section
-      className={cn("overflow-hidden rounded-xl border shadow-sm", t.border, t.bg)}
-      aria-label={`${title}，本日學生 ${studentCount} 人，${teacher}，課室 ${room}`}
-    >
-      <div className="flex">
-        <div className={cn("w-1.5 shrink-0", t.bar)} aria-hidden />
-        <div className="min-w-0 flex-1 p-4 sm:p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border bg-background/80",
-                  t.border,
-                  t.label
-                )}
-              >
-                <Icon className="h-4 w-4" aria-hidden />
-              </span>
-              <h3 className={cn("text-base font-semibold", t.label)}>{title}</h3>
-            </div>
-            <div className="shrink-0 text-right">
-              <p className="text-xs text-muted-foreground">本日學生</p>
-              <p className="text-2xl font-semibold tabular-nums leading-none tracking-tight sm:text-3xl">
-                {studentCount}
-                <span className="ml-1 text-sm font-medium text-muted-foreground">人</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs text-muted-foreground">當值老師</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{teacher}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">課室</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{room}</p>
-            </div>
-          </div>
-
-          <p className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="tabular-nums">{session}</span>
-            <span aria-hidden>·</span>
-            <span>{weekdayHint}</span>
-          </p>
-        </div>
-      </div>
-    </section>
+    <RoomDutyCard
+      room={room !== "—" ? room : title}
+      tone={tone}
+      session={session}
+      teacher={teacher}
+      weekdayHint={weekdayHint}
+    />
   )
 }
 

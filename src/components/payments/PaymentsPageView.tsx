@@ -24,6 +24,7 @@ import {
  type TrialPayType,
 } from "@/components/payments/paymentsUi"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
  Dialog,
  DialogContent,
@@ -1140,10 +1141,11 @@ export function PaymentsPageView() {
        </Button>
       </div>
       {recentPayments.length > 0 ? (
-       <ul className="mt-3 space-y-3">
+       <StaggerList as="ul" className="mt-3 space-y-3">
         {recentPayments.map((pay, idx) => (
-         <li
+         <StaggerItem
           key={pay.id}
+          as="li"
           className={cn(
            "space-y-2 text-sm",
            idx > 0 && "border-t border-border pt-3"
@@ -1175,9 +1177,9 @@ export function PaymentsPageView() {
            <Printer className="h-3.5 w-3.5" />
            預覽／重印
           </Button>
-         </li>
+         </StaggerItem>
         ))}
-       </ul>
+       </StaggerList>
       ) : (
        <p className="mt-3 text-sm text-muted-foreground">尚無繳費紀錄。</p>
       )}
@@ -1303,9 +1305,10 @@ export function PaymentsPageView() {
            {filteredStudents.length === 0 ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
            ) : (
-            filteredStudents.map((s) => (
+            <StaggerList as="div">
+            {filteredStudents.map((s) => (
+             <StaggerItem key={s.id} as="div">
              <button
-              key={s.id}
               type="button"
               className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-muted"
               onClick={() => {
@@ -1320,7 +1323,9 @@ export function PaymentsPageView() {
                <span className="text-xs text-muted-foreground">學號 {s.student_code}</span>
               ) : null}
              </button>
-            ))
+             </StaggerItem>
+            ))}
+            </StaggerList>
            )}
           </div>
          ) : null}
@@ -1432,10 +1437,11 @@ export function PaymentsPageView() {
           新增班別
          </Button>
         </div>
-        <ul className="space-y-3">
+        <StaggerList as="ul" className="space-y-3">
          {lines.map((row) => (
-          <li
+          <StaggerItem
            key={row.key}
+           as="li"
            className="relative grid min-w-0 gap-3 overflow-visible rounded-lg border border-border bg-muted/20 p-3"
           >
            <div
@@ -1534,9 +1540,9 @@ export function PaymentsPageView() {
              <Trash2 className="h-4 w-4" />
             </Button>
            </div>
-          </li>
+          </StaggerItem>
          ))}
-        </ul>
+        </StaggerList>
        </div>
       )}
 
@@ -1998,11 +2004,11 @@ export function PaymentsPageView() {
      {discounts.length === 0 ? (
       <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
      ) : (
-      <ul className="space-y-3">
+      <StaggerList as="ul" className="space-y-3">
        {discounts.map((d) => {
         const s = summarizePaymentDiscountForAdmin(d)
         return (
-         <li key={d.id} className="rounded-lg border border-border p-3 text-sm">
+         <StaggerItem key={d.id} as="li" className="rounded-lg border border-border p-3 text-sm">
           <div className="font-medium text-foreground">{d.name}</div>
           <p className="mt-1 text-muted-foreground">{s.kindLabel}</p>
           <p className="mt-1 text-muted-foreground">
@@ -2013,10 +2019,10 @@ export function PaymentsPageView() {
           ) : null}
           <p className="mt-1 text-xs text-muted-foreground">{s.stackText}</p>
           <p className="mt-1 text-xs text-muted-foreground">{s.validityText}</p>
-         </li>
+         </StaggerItem>
         )
        })}
-      </ul>
+      </StaggerList>
      )}
      <Button type="button" variant="outline" asChild>
       <Link to="/PaymentDiscounts" onClick={() => setDiscountHelpOpen(false)}>

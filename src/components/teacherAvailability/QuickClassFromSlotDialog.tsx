@@ -54,7 +54,7 @@ export function QuickClassFromSlotDialog({
  const [err, setErr] = useState<string | null>(null)
 
  useEffect(() => {
-  void fetchSubjectOptions().then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
+  void fetchSubjectOptions({ specialtyOnly: true }).then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
  }, [])
 
  useEffect(() => {

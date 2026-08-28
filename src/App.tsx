@@ -55,6 +55,7 @@ import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
+import PrototypeAdminContextRail from "@/pages/PrototypeAdminContextRail"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
@@ -62,6 +63,8 @@ const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
 const StaffPerformance = lazy(() => import("@/pages/StaffPerformance"))
 const HkExpenses = lazy(() => import("@/pages/HkExpenses"))
+const ExpenseJournal = lazy(() => import("@/pages/ExpenseJournal"))
+const ExpenseJournalRecords = lazy(() => import("@/pages/ExpenseJournalRecords"))
 const Payroll = lazy(() => import("@/pages/Payroll"))
 const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
 const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
@@ -101,6 +104,8 @@ export default function App() {
     ) : null}
     {/* 首頁 wayfinding UX 沙盒：免登入、不掛側欄、不接 DB */}
     <Route path="/prototype/HomeWayfinding" element={<PrototypeHomeWayfinding />} />
+    {/* 管理員三欄右欄 UX 沙盒：免登入、不接 DB、不跳轉正式頁 */}
+    <Route path="/prototype/AdminContextRail" element={<PrototypeAdminContextRail />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />
@@ -256,13 +261,43 @@ export default function App() {
       )}
      />
      <Route
+      path="/ExpenseJournal"
+      element={withCapabilities(
+       ["expenses.record"],
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入日記帳入帳…
+         </div>
+        }
+       >
+        <ExpenseJournal />
+       </Suspense>
+      )}
+     />
+     <Route
+      path="/ExpenseJournalRecords"
+      element={withCapabilities(
+       ["expenses.record", "expenses.read"],
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入日記帳紀錄…
+         </div>
+        }
+       >
+        <ExpenseJournalRecords />
+       </Suspense>
+      )}
+     />
+     <Route
       path="/HkExpenses"
       element={withCapabilities(
        ["expenses.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-          載入成本統計…
+          載入成本分析…
          </div>
         }
        >

@@ -11,6 +11,7 @@ import {
  DialogTitle,
 } from "@/components/ui/dialog"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -220,12 +221,13 @@ export function PortalEnrollmentRequestsView() {
          <th className="w-[14%] px-3 py-2 whitespace-nowrap">狀態</th>
         </tr>
        </thead>
-       <tbody>
+       <StaggerList as="tbody">
         {rows.map((r) => {
          const active = r.id === selectedId
          return (
-          <tr
+          <StaggerItem
            key={r.id}
+           as="tr"
            className={cn(
             "cursor-pointer border-b border-border/80 transition-colors",
             active ? "bg-teal-50/80" : "hover:bg-muted/40"
@@ -260,10 +262,10 @@ export function PortalEnrollmentRequestsView() {
              {statusLabel(r.status)}
             </Tag>
            </td>
-          </tr>
+          </StaggerItem>
          )
         })}
-       </tbody>
+       </StaggerList>
       </table>
      </div>
 

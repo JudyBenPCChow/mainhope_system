@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Select } from "@/components/ui/select"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -870,7 +871,7 @@ export function TrialSessionsView() {
         <th className="w-[21%] px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {filtered.map((r, idx) => {
         const canConvert = trialCanConvert(r)
         const blocked = trialConvertBlockedReason(r)
@@ -880,8 +881,9 @@ export function TrialSessionsView() {
         const canReschedule =
          r.outcome === "open" && !String(r.status).includes("取消") && !r.roll_call_done
         return (
-        <tr
+        <StaggerItem
          key={r.id}
+         as="tr"
          className={cn(
           "border-b border-border last:border-0 transition-colors hover:bg-muted/60",
           idx % 2 === 1 ? "bg-muted/20" : ""
@@ -1067,10 +1069,10 @@ export function TrialSessionsView() {
            )}
           </div>
          </td>
-        </tr>
+        </StaggerItem>
         )
        })}
-      </tbody>
+      </StaggerList>
      </table>
      <div className="border-t border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
       共 {filtered.length} 筆試堂紀錄

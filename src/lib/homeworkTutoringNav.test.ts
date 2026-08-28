@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest"
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import {
   NAV_STRUCTURE,
+  filterMainNavEntries,
   filterNavForRole,
+  isHomeworkTutorOnlyAllowedPath,
+  keepHomeworkTutorOnlyNav,
   stripHomeworkTutoringNav,
 } from "@/lib/navStructure"
 
@@ -47,5 +50,33 @@ describe("功課輔導側欄", () => {
     expect(
       stripped.some((e) => e.kind === "leaf" && e.path.startsWith("/HomeworkTutoring"))
     ).toBe(false)
+  })
+
+  it("純功輔導師側欄只留功輔與共用入口", () => {
+    const narrowed = keepHomeworkTutorOnlyNav(
+      filterMainNavEntries(filterNavForRole("teacher", NAV_STRUCTURE))
+    )
+    const paths = narrowed.flatMap((e) =>
+      e.kind === "leaf" ? [e.path] : e.children.map((c) => c.path)
+    )
+    expect(paths).toContain("/Home")
+    expect(paths).toContain("/AllFeatures")
+    expect(paths).toContain("/Inbox")
+    expect(paths).toContain(HW_PATH.submit)
+    expect(paths).toContain(HW_PATH.myDuty)
+    expect(paths).not.toContain("/Attendance")
+    expect(paths).not.toContain("/Classes")
+    expect(paths).not.toContain("/TeacherTimetable")
+    expect(paths).not.toContain("/PrivateTutoring")
+    expect(paths).not.toContain("/Schedule")
+    expect(paths).not.toContain("/RoomBooking")
+    expect(paths).not.toContain("/AttendanceRecords")
+    expect(paths).not.toContain("/TeachingRecords")
+  })
+
+  it("純功輔允許路徑判斷", () => {
+    expect(isHomeworkTutorOnlyAllowedPath("/HomeworkTutoring/Submit")).toBe(true)
+    expect(isHomeworkTutorOnlyAllowedPath("/Attendance")).toBe(false)
+    expect(isHomeworkTutorOnlyAllowedPath("/Settings")).toBe(true)
   })
 })

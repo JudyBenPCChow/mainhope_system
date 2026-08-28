@@ -7,9 +7,11 @@ import { MobileBottomNav } from "@/components/mobile/MobileBottomNav"
 import { MobileHeader } from "@/components/mobile/MobileHeader"
 import { MobileNavDrawer } from "@/components/mobile/MobileNavDrawer"
 import { useAuth } from "@/lib/authBootstrap"
-import { useHomeworkTutoringNavVisible } from "@/hooks/useHomeworkTutoringNavVisible"
+import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
+import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import { isHomeworkTutorOnlyAllowedPath } from "@/lib/navStructure"
 import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner"
 import { signOutAuth } from "@/lib/supabaseAuth"
 
@@ -23,7 +25,7 @@ export function MobileLayout() {
  const { ready, role: authRole, profile } = useAuth()
  usePasswordChangeNudgeBanner()
  const role = authRole
- const homeworkTutoringNavVisible = useHomeworkTutoringNavVisible()
+ const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -51,6 +53,14 @@ export function MobileLayout() {
   return <Navigate to="/Login" replace state={{ from: location.pathname }} />
  }
 
+ if (
+  role === "teacher" &&
+  homeworkTutorOnly &&
+  !isHomeworkTutorOnlyAllowedPath(location.pathname)
+ ) {
+  return <Navigate to={HW_PATH.submit} replace />
+ }
+
  return (
   <div className="flex h-svh min-h-0 w-full flex-col overflow-hidden bg-brand-bg">
    <AppBannerViewport />
@@ -60,7 +70,7 @@ export function MobileLayout() {
      <Outlet />
     </div>
    </main>
-   <MobileBottomNav role={role} />
+   <MobileBottomNav role={role} homeworkTutorOnly={homeworkTutorOnly} />
    <MobileNavDrawer
     open={navOpen}
     onClose={() => setNavOpen(false)}
@@ -68,6 +78,7 @@ export function MobileLayout() {
     userDisplayName={userDisplayName}
     onLogout={logout}
     homeworkTutoringNavVisible={homeworkTutoringNavVisible}
+    homeworkTutorOnly={homeworkTutorOnly}
    />
    <ApoAssistant role={role} />
    <ChickenGentlemanNudge role={role} />

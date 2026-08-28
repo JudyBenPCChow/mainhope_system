@@ -220,13 +220,28 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
  },
  {
   kind: "group",
+  id: "journal",
+  label: "日記帳",
+  icon: ClipboardList,
+  children: [
+   { path: "/ExpenseJournal", label: "日記帳入帳", roles: ["admin", "manager", "alien"], icon: NotebookPen },
+   {
+    path: "/ExpenseJournalRecords",
+    label: "查詢紀錄",
+    roles: ["admin", "manager", "alien"],
+    icon: ScrollText,
+   },
+  ],
+ },
+ {
+  kind: "group",
   id: "intelligence",
   label: "智能分析",
   icon: Bot,
   children: [
    { path: "/MgmtDashboard", label: "營運總覽", roles: ["manager", "alien"], icon: BarChart3 },
    { path: "/StaffPerformance", label: "員工績效", roles: ["manager", "alien"], icon: TrendingUp },
-   { path: "/HkExpenses", label: "成本統計", roles: ["manager", "alien"], icon: PieChart },
+   { path: "/HkExpenses", label: "成本分析", roles: ["manager", "alien"], icon: PieChart },
    { path: "/Apo", label: "阿Po", roles: ["alien"], icon: Sparkles },
    { path: "/AiReports", label: "AI 報表", roles: ["alien"], icon: Bot },
   ],
@@ -290,6 +305,45 @@ export function stripHomeworkTutoringNav(entries: NavEntryDef[]): NavEntryDef[] 
   }
   if (e.id === "homework-tutoring") continue
   const children = e.children.filter((c) => !isHomeworkTutoringPath(c.path))
+  if (children.length === 0) continue
+  out.push({ ...e, children })
+ }
+ return out
+}
+
+/**
+ * 純功輔導師允許路徑：首頁／所有功能／收件匣／功課輔導／個人資料／設定。
+ * （唔含專科點名、班別、排程、時間表、私人課程、約房、出席紀錄等）
+ */
+const HOMEWORK_TUTOR_ONLY_PATH_PREFIXES = [
+ "/Home",
+ "/AllFeatures",
+ "/Inbox",
+ "/HomeworkTutoring",
+ "/TeacherProfile",
+ "/Settings",
+] as const
+
+export function isHomeworkTutorOnlyAllowedPath(pathname: string): boolean {
+ const path = pathname.trim() || "/"
+ return HOMEWORK_TUTOR_ONLY_PATH_PREFIXES.some(
+  (prefix) => path === prefix || path.startsWith(`${prefix}/`)
+ )
+}
+
+/** 純功輔導師：只保留功輔相關＋共用入口，收窄專科側欄 */
+export function keepHomeworkTutorOnlyNav(entries: NavEntryDef[]): NavEntryDef[] {
+ const out: NavEntryDef[] = []
+ for (const e of entries) {
+  if (e.kind === "leaf") {
+   if (isHomeworkTutorOnlyAllowedPath(e.path)) out.push(e)
+   continue
+  }
+  if (e.id === "homework-tutoring") {
+   out.push(e)
+   continue
+  }
+  const children = e.children.filter((c) => isHomeworkTutorOnlyAllowedPath(c.path))
   if (children.length === 0) continue
   out.push({ ...e, children })
  }

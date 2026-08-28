@@ -12,6 +12,7 @@ import { MgmtGroupLoadError } from "@/components/mgmtDashboard/MgmtGroupLoadErro
 import type { DrilldownFocus, MgmtDashboardPayload } from "@/components/mgmtDashboard/types"
 import { isLoadOk } from "@/components/mgmtDashboard/types"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
@@ -204,17 +205,20 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
            <th className="w-[20%] px-2 py-2 font-medium">跟進</th>
           </tr>
          </thead>
-         <tbody>
-          {unpaidRows.length === 0 ? (
+         {unpaidRows.length === 0 ? (
+          <tbody>
            <tr>
             <td colSpan={5} className="px-2 py-6 text-center text-muted-foreground">
              目前無待繳費
             </td>
            </tr>
-          ) : (
-           unpaidRows.slice(0, 6).map((row, i) => (
-            <tr
+          </tbody>
+         ) : (
+          <StaggerList as="tbody">
+           {unpaidRows.slice(0, 6).map((row, i) => (
+            <StaggerItem
              key={row.id}
+             as="tr"
              className={cn(
               "border-b border-border/60 hover:bg-muted/40",
               i % 2 === 1 && "bg-muted/20"
@@ -235,10 +239,10 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
                {row.followUpStatus}
               </Tag>
              </td>
-            </tr>
-           ))
-          )}
-         </tbody>
+            </StaggerItem>
+           ))}
+          </StaggerList>
+         )}
         </table>
        </div>
       </>
