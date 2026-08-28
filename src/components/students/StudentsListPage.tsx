@@ -33,6 +33,7 @@ import {
  type StudentListHeaderFilters,
 } from "@/components/students/studentsListColumns"
 import { GRADE_FILTER_PRIMARY_KEY, GRADE_FILTERS } from "@/components/students/studentsListFilters"
+import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { LoadMoreFooter } from "@/components/ui/load-more-footer"
@@ -735,106 +736,8 @@ export function StudentsListPage() {
   }
  }
 
- const renderFilterPanel = () => (
+ const renderStudentFilterChips = () => (
   <>
-   <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-    <div className="flex flex-wrap items-center gap-2">
-     <h2 className="text-sm font-semibold tracking-wide">{isMobile ? "統計摘要" : "學生儀表板"}</h2>
-     {!isMobile ? (
-      <>
-       <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
-       <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
-      </>
-     ) : null}
-    </div>
-    <Button
-     type="button"
-     variant="ghost"
-     size="sm"
-     className="gap-1.5"
-     onClick={() => setDashboardCollapsed((v) => !v)}
-    >
-     {dashboardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
-     {dashboardCollapsed ? "展開" : "收合"}
-    </Button>
-   </div>
-
-   {!dashboardCollapsed ? (
-    <>
-     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
-      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
-       <div className="text-xl font-bold text-primary md:text-3xl">{loading ? "…" : stats.enrolled}</div>
-       <div className="text-[11px] text-muted-foreground md:text-sm">目前在讀</div>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
-       <div className="text-xl font-bold text-success md:text-3xl">{loading ? "…" : stats.active}</div>
-       <div className="text-[11px] text-muted-foreground md:text-sm">活躍生</div>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
-       <div className="text-xl font-bold text-foreground md:text-3xl">{loading ? "…" : stats.total}</div>
-       <div className="text-[11px] text-muted-foreground md:text-sm">學生總數</div>
-      </div>
-      <button
-       type="button"
-       onClick={() => {
-        setSortKey("student_code")
-        setSortDir("desc")
-       }}
-       className="rounded-xl border border-info bg-info p-2.5 text-left shadow-sm transition hover:border-info/70 hover:shadow-md md:p-4"
-       title="按學號（最新）排序"
-      >
-       <div className="text-[10px] font-medium uppercase tracking-wide text-info-foreground/90 md:text-xs">最新學號</div>
-       <div className="mt-0.5 text-lg font-bold text-info-foreground md:mt-1 md:text-2xl">{latestCodeStudent?.student_code ?? "—"}</div>
-       <div className="mt-2 hidden text-xs text-info-foreground/80 md:block">點擊後改為「按學號（最新）」排序</div>
-      </button>
-     </div>
-
-     {recentCurrent ? (
-      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
-       <button
-        type="button"
-        onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
-        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
-        aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
-       >
-        {recentCurrent.studentName.slice(0, 1)}
-       </button>
-       <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium uppercase tracking-wide text-white/80">
-         {recentIndex === 0 ? "最新報讀班別" : `近期報讀班別（第 ${recentIndex + 1} 新）`}
-        </div>
-        <button
-         type="button"
-         onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
-         className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
-        >
-         {recentCurrent.studentName} · {recentCurrent.classLabel}
-        </button>
-        <div className="text-sm text-white/90">報讀日期：{recentCurrent.enrollDate ?? "—"}</div>
-       </div>
-       {recentEnrollments.length > 1 ? (
-        <div className="flex gap-1.5" role="tablist" aria-label="近期報讀班別切換">
-         {recentEnrollments.map((e, i) => (
-          <button
-           key={e.id}
-           type="button"
-           role="tab"
-           aria-selected={i === recentIndex}
-           aria-label={`第 ${i + 1} 筆近期報讀班別`}
-           onClick={() => setRecentIndex(i)}
-           className={cn(
-            "h-2.5 w-2.5 rounded-full transition-colors",
-            i === recentIndex ? "bg-white" : "bg-white/40 hover:bg-white/70"
-           )}
-          />
-         ))}
-        </div>
-       ) : null}
-      </div>
-     ) : null}
-    </>
-   ) : null}
-
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
      註冊狀態
@@ -999,6 +902,114 @@ export function StudentsListPage() {
      })}
     </div>
    </div>
+  </>
+ )
+
+ const renderFilterPanel = () => (
+  <>
+   <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-2">
+     <h2 className="text-sm font-semibold tracking-wide">{isMobile ? "統計摘要" : "學生儀表板"}</h2>
+     {!isMobile ? (
+      <>
+       <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
+       <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
+      </>
+     ) : null}
+    </div>
+    <Button
+     type="button"
+     variant="ghost"
+     size="sm"
+     className="gap-1.5"
+     onClick={() => setDashboardCollapsed((v) => !v)}
+    >
+     {dashboardCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+     {dashboardCollapsed ? "展開" : "收合"}
+    </Button>
+   </div>
+
+   {!dashboardCollapsed ? (
+    <>
+     <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-primary md:text-3xl">{loading ? "…" : stats.enrolled}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">目前在讀</div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-success md:text-3xl">{loading ? "…" : stats.active}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">活躍生</div>
+      </div>
+      <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+       <div className="text-xl font-bold text-foreground md:text-3xl">{loading ? "…" : stats.total}</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">學生總數</div>
+      </div>
+      <button
+       type="button"
+       onClick={() => {
+        setSortKey("student_code")
+        setSortDir("desc")
+       }}
+       className="rounded-xl border border-info bg-info p-2.5 text-left shadow-sm transition hover:border-info/70 hover:shadow-md md:p-4"
+       title="按學號（最新）排序"
+      >
+       <div className="text-[10px] font-medium uppercase tracking-wide text-info-foreground/90 md:text-xs">最新學號</div>
+       <div className="mt-0.5 text-lg font-bold text-info-foreground md:mt-1 md:text-2xl">{latestCodeStudent?.student_code ?? "—"}</div>
+       <div className="mt-2 hidden text-xs text-info-foreground/80 md:block">點擊後改為「按學號（最新）」排序</div>
+      </button>
+     </div>
+
+     {recentCurrent ? (
+      <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
+       <button
+        type="button"
+        onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
+        aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
+       >
+        {recentCurrent.studentName.slice(0, 1)}
+       </button>
+       <div className="min-w-0 flex-1">
+        <div className="text-xs font-medium uppercase tracking-wide text-white/80">
+         {recentIndex === 0 ? "最新報讀班別" : `近期報讀班別（第 ${recentIndex + 1} 新）`}
+        </div>
+        <button
+         type="button"
+         onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+         className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
+        >
+         {recentCurrent.studentName} · {recentCurrent.classLabel}
+        </button>
+        <div className="text-sm text-white/90">報讀日期：{recentCurrent.enrollDate ?? "—"}</div>
+       </div>
+       {recentEnrollments.length > 1 ? (
+        <div className="flex gap-1.5" role="tablist" aria-label="近期報讀班別切換">
+         {recentEnrollments.map((e, i) => (
+          <button
+           key={e.id}
+           type="button"
+           role="tab"
+           aria-selected={i === recentIndex}
+           aria-label={`第 ${i + 1} 筆近期報讀班別`}
+           onClick={() => setRecentIndex(i)}
+           className={cn(
+            "h-2.5 w-2.5 rounded-full transition-colors",
+            i === recentIndex ? "bg-white" : "bg-white/40 hover:bg-white/70"
+           )}
+          />
+         ))}
+        </div>
+       ) : null}
+      </div>
+     ) : null}
+    </>
+   ) : null}
+
+   {isMobile ? (
+    renderStudentFilterChips()
+   ) : (
+    <CollapsibleFilterCard activeCount={activeFilterCount}>{renderStudentFilterChips()}</CollapsibleFilterCard>
+   )}
   </>
  )
 
