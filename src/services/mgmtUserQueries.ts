@@ -5,6 +5,8 @@ export type CreateTeacherMgmtUserInput = {
   email: string
   displayName?: string | null
   teacherId: string
+  /** true＝建立後開啟該老師功課輔導側欄入口 */
+  enableHomeworkTutoringNav?: boolean
 }
 
 export type CreateTeacherMgmtUserResult =
@@ -15,6 +17,8 @@ export type CreateTeacherMgmtUserResult =
       teacherId: string
       teacherName: string
       temporaryPassword: string
+      homeworkTutoringNav: boolean
+      warning?: string
     }
   | { ok: false; message: string }
 
@@ -42,6 +46,7 @@ export async function createTeacherMgmtUser(
       email: input.email.trim().toLowerCase(),
       displayName: input.displayName?.trim() || null,
       teacherId: input.teacherId,
+      enableHomeworkTutoringNav: input.enableHomeworkTutoringNav === true,
     },
   })
 
@@ -70,6 +75,11 @@ export async function createTeacherMgmtUser(
     teacherId: String(payload.teacherId ?? "").trim(),
     teacherName: String(payload.teacherName ?? "").trim(),
     temporaryPassword: String(payload.temporaryPassword ?? ""),
+    homeworkTutoringNav: payload.homeworkTutoringNav === true,
+    warning:
+      typeof payload.warning === "string" && payload.warning.trim()
+        ? payload.warning.trim()
+        : undefined,
   }
 }
 

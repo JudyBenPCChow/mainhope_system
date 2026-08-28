@@ -309,6 +309,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - 收件匣：/Inbox（排程／班別／請假／增退讀／試堂確認／點名提醒；行政待辦看板已廢除）
 - 新增老師主檔：/Teachers（只建主檔）
 - 新增專班老師登入帳號：僅 alien；/Users →「新增專班老師用戶」→ 綁老師＋電郵；臨時密碼只顯示一次；需 Auth＋app_users（role=teacher 且有 teacher_id）
+- 新增功輔班導師登入帳號：僅 alien；/Users →「新增功輔班導師用戶」→ 同上，並自動開 teachers.homework_tutoring_nav（側欄功課輔導）；臨時密碼只顯示一次
 - 系統錯誤：頁面紅字提示；alien 可查 /SystemIssues
 
 ## 前台／營運常見問題（模擬）

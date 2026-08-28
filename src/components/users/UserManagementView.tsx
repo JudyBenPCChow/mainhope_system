@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
-import { GraduationCap, KeyRound, Mail, Pencil, Plus, RefreshCw, Shield, Sparkles, UserCog, Wallet } from "lucide-react"
+import {
+ BookOpen,
+ GraduationCap,
+ KeyRound,
+ Mail,
+ Pencil,
+ Plus,
+ RefreshCw,
+ Shield,
+ Sparkles,
+ UserCog,
+ Wallet,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -113,6 +125,8 @@ function canResetPassword(u: AppUserRow): boolean {
  return Boolean(u.email?.trim())
 }
 
+type CreateUserKind = "specialty" | "homework"
+
 export function UserManagementView() {
  const { profile } = useAuth()
  const canEdit = can(profile?.activeCapabilities, "users.manage")
@@ -133,6 +147,7 @@ export function UserManagementView() {
  })
  const [saving, setSaving] = useState(false)
  const [createOpen, setCreateOpen] = useState(false)
+ const [createKind, setCreateKind] = useState<CreateUserKind>("specialty")
  const [createErr, setCreateErr] = useState<string | null>(null)
  const [creating, setCreating] = useState(false)
  const [createdCredential, setCreatedCredential] = useState<{
@@ -140,6 +155,8 @@ export function UserManagementView() {
   displayName: string
   temporaryPassword: string
   teacherName: string
+  homeworkTutoringNav: boolean
+  warning?: string
  } | null>(null)
  const [createForm, setCreateForm] = useState({
   email: "",
@@ -273,12 +290,15 @@ export function UserManagementView() {
   setCreatedCredential(null)
  }
 
- const openCreate = () => {
+ const openCreate = (kind: CreateUserKind) => {
   if (!canEdit) return
   setErr(null)
+  setCreateKind(kind)
   resetCreateForm()
   setCreateOpen(true)
  }
+
+ const isHomeworkCreate = createKind === "homework"
 
   const resetPassword = async (u: AppUserRow) => {
    if (!canEdit || !canResetPassword(u)) return
@@ -364,6 +384,7 @@ export function UserManagementView() {
     email,
     displayName: createForm.display_name.trim() || selectedCreateTeacher?.label || null,
     teacherId,
+    enableHomeworkTutoringNav: isHomeworkCreate,
    })
    if (!result.ok) {
     setCreateErr(result.message)
@@ -374,11 +395,17 @@ export function UserManagementView() {
     displayName: result.displayName,
     temporaryPassword: result.temporaryPassword,
     teacherName: result.teacherName,
+    homeworkTutoringNav: result.homeworkTutoringNav,
+    warning: result.warning,
    })
    pushBanner({
-    tone: "success",
-    title: "已建立老師登入帳號",
-    message: `${result.displayName || result.email} 已可用新帳號登入，臨時密碼只會顯示一次。`,
+    tone: result.warning ? "warning" : "success",
+    title: isHomeworkCreate ? "已建立功輔班導師登入帳號" : "已建立專班老師登入帳號",
+    message: result.warning
+     ? result.warning
+     : isHomeworkCreate
+       ? `${result.displayName || result.email} 已可用新帳號登入，並已開啟功課輔導側欄；臨時密碼只會顯示一次。`
+       : `${result.displayName || result.email} 已可用新帳號登入，臨時密碼只會顯示一次。`,
    })
    await load()
   } catch (e) {
@@ -424,10 +451,27 @@ export function UserManagementView() {
     </div>
     <div className="flex shrink-0 flex-wrap gap-2">
      {canEdit ? (
-      <Button type="button" size="sm" className="gap-2 bg-success text-white hover:bg-success" onClick={openCreate}>
-       <Plus className="h-4 w-4" aria-hidden />
-       新增專班老師用戶
-      </Button>
+      <>
+       <Button
+        type="button"
+        size="sm"
+        className="gap-2 bg-success text-white hover:bg-success"
+        onClick={() => openCreate("specialty")}
+       >
+        <Plus className="h-4 w-4" aria-hidden />
+        新增專班老師用戶
+       </Button>
+       <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="gap-2 border-info/50 text-info hover:bg-info/10"
+        onClick={() => openCreate("homework")}
+       >
+        <BookOpen className="h-4 w-4" aria-hidden />
+        新增功輔班導師用戶
+       </Button>
+      </>
      ) : null}
      <Button
       type="button"
@@ -465,7 +509,7 @@ export function UserManagementView() {
    ) : sortedRows.length === 0 ? (
     <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center text-sm text-muted-foreground">
      目前沒有後台使用者。
-     {canEdit ? "可直接用右上角按鈕建立專班老師登入帳號。" : null}
+     {canEdit ? "可直接用右上角按鈕建立專班老師或功輔班導師登入帳號。" : null}
     </p>
    ) : (
     <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -768,12 +812,27 @@ export function UserManagementView() {
      }
     }}
    >
-    <DialogContent className="max-w-lg gap-0 overflow-hidden border-success p-0 sm:rounded-xl">
-     <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-4 text-white">
+    <DialogContent
+     className={cn(
+      "max-w-lg gap-0 overflow-hidden p-0 sm:rounded-xl",
+      isHomeworkCreate ? "border-info" : "border-success"
+     )}
+    >
+     <div
+      className={cn(
+       "px-6 py-4 text-white",
+       isHomeworkCreate
+        ? "bg-gradient-to-r from-sky-600 to-cyan-600"
+        : "bg-gradient-to-r from-emerald-600 to-teal-600"
+      )}
+     >
       <DialogHeader className="space-y-1 text-left">
-       <DialogTitle className="text-lg font-semibold text-white">新增專班老師登入帳號</DialogTitle>
+       <DialogTitle className="text-lg font-semibold text-white">
+        {isHomeworkCreate ? "新增功輔班導師登入帳號" : "新增專班老師登入帳號"}
+       </DialogTitle>
        <p className="text-xs font-normal text-white/85">
         系統會同步建立 Supabase Auth 與 app_users，臨時密碼只顯示一次。
+        {isHomeworkCreate ? "並會開啟功課輔導側欄入口。" : ""}
        </p>
       </DialogHeader>
      </div>
@@ -840,25 +899,45 @@ export function UserManagementView() {
        />
       </label>
       <div className="rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-       建立後會自動設定角色為「專班老師」，並綁定所選老師。請把臨時密碼安全地交給該老師，首次登入後再自行更改。
+       {isHomeworkCreate
+        ? "建立後會設定角色為「專班老師」、綁定所選老師，並開啟功課輔導側欄（報更／我的當值）。請把臨時密碼安全地交給對方，首次登入後再自行更改。若老師主檔尚未建立，請先到「老師」頁新增。"
+        : "建立後會自動設定角色為「專班老師」，並綁定所選老師。請把臨時密碼安全地交給該老師，首次登入後再自行更改。"}
       </div>
       {createdCredential ? (
-        <div className="rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-foreground">
-         <p className="font-medium text-success">帳號已建立</p>
-         <p className="mt-2 break-all">
-          <span className="text-muted-foreground">老師：</span>
-          {createdCredential.teacherName || "—"}
+       <div
+        className={cn(
+         "rounded-lg px-4 py-3 text-sm text-foreground",
+         createdCredential.warning
+          ? "border border-warning/40 bg-warning/10"
+          : "border border-success/40 bg-success/10"
+        )}
+       >
+        <p className={cn("font-medium", createdCredential.warning ? "text-warning" : "text-success")}>
+         {createdCredential.warning ? "帳號已建立（功輔入口需手動補）" : "帳號已建立"}
+        </p>
+        <p className="mt-2 break-all">
+         <span className="text-muted-foreground">老師：</span>
+         {createdCredential.teacherName || "—"}
+        </p>
+        <p className="mt-1 break-all">
+         <span className="text-muted-foreground">電郵：</span>
+         {createdCredential.email}
+        </p>
+        <p className="mt-1 break-all">
+         <span className="text-muted-foreground">臨時密碼：</span>
+         <span className="font-mono text-foreground">{createdCredential.temporaryPassword}</span>
+        </p>
+        {isHomeworkCreate ? (
+         <p className="mt-1 text-xs text-muted-foreground">
+          功輔側欄：
+          {createdCredential.homeworkTutoringNav ? "已開啟" : "未開啟（請到功課輔導設定剔選）"}
          </p>
-         <p className="mt-1 break-all">
-          <span className="text-muted-foreground">電郵：</span>
-          {createdCredential.email}
-         </p>
-         <p className="mt-1 break-all">
-          <span className="text-muted-foreground">臨時密碼：</span>
-          <span className="font-mono text-foreground">{createdCredential.temporaryPassword}</span>
-         </p>
-         <p className="mt-2 text-xs text-muted-foreground">請立即記下臨時密碼；關閉此視窗後系統不會再次顯示。</p>
-        </div>
+        ) : null}
+        {createdCredential.warning ? (
+         <p className="mt-2 text-xs text-warning">{createdCredential.warning}</p>
+        ) : null}
+        <p className="mt-2 text-xs text-muted-foreground">請立即記下臨時密碼；關閉此視窗後系統不會再次顯示。</p>
+       </div>
       ) : null}
       {createErr ? (
        <div
@@ -884,7 +963,11 @@ export function UserManagementView() {
       {createdCredential ? null : (
        <Button
         type="button"
-        className="bg-success text-white hover:bg-success"
+        className={
+         isHomeworkCreate
+          ? "bg-info text-white hover:bg-info"
+          : "bg-success text-white hover:bg-success"
+        }
         disabled={creating}
         onClick={() => void saveCreate()}
        >
