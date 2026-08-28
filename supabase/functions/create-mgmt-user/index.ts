@@ -12,6 +12,8 @@ type RequestBody = {
   email?: unknown
   displayName?: unknown
   teacherId?: unknown
+  /** true＝建立後為該老師開啟功課輔導側欄入口 */
+  enableHomeworkTutoringNav?: unknown
 }
 
 function normalizeEmail(raw: unknown): string | null {
@@ -66,6 +68,7 @@ Deno.serve(async (req) => {
   const email = normalizeEmail(body.email)
   const teacherId = normalizeTeacherId(body.teacherId)
   const displayName = normalizeDisplayName(body.displayName)
+  const enableHomeworkTutoringNav = body.enableHomeworkTutoringNav === true
   if (!email) {
     return jsonResponse({ error: "請輸入有效電郵。" }, 400)
   }
@@ -177,10 +180,47 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "系統角色建立失敗，已取消登入帳號建立。請稍後再試。" }, 502)
   }
 
+  let homeworkTutoringNavEnabled = false
+  if (enableHomeworkTutoringNav) {
+    const { error: navError } = await admin
+      .from("teachers")
+      .update({ homework_tutoring_nav: true, updated_at: new Date().toISOString() })
+      .eq("id", teacherId)
+    if (navError) {
+      console.error("create-mgmt-user enable homework_tutoring_nav failed", navError.message)
+      await admin.from("mgmt_audit_log").insert({
+        actor_label: authResult.caller.email,
+        role: authResult.caller.userRole,
+        action: "create_homework_tutor_login",
+        path: "/Users",
+        detail: JSON.stringify({
+          teacher_id: teacherId,
+          teacher_name: teacher.full_name ?? null,
+          created_auth_user_id: authUserId,
+          created_email: email,
+          display_name: effectiveDisplayName,
+          enable_homework_tutoring_nav: true,
+          homework_tutoring_nav_ok: false,
+        }),
+      })
+      return jsonResponse({
+        ok: true,
+        email,
+        displayName: effectiveDisplayName,
+        teacherId,
+        teacherName: String(teacher.full_name ?? ""),
+        temporaryPassword,
+        homeworkTutoringNav: false,
+        warning: "登入帳號已建立，但開啟功輔側欄入口失敗，請到功課輔導設定手動剔選。",
+      })
+    }
+    homeworkTutoringNavEnabled = true
+  }
+
   await admin.from("mgmt_audit_log").insert({
     actor_label: authResult.caller.email,
     role: authResult.caller.userRole,
-    action: "create_teacher_login",
+    action: enableHomeworkTutoringNav ? "create_homework_tutor_login" : "create_teacher_login",
     path: "/Users",
     detail: JSON.stringify({
       teacher_id: teacherId,
@@ -188,6 +228,8 @@ Deno.serve(async (req) => {
       created_auth_user_id: authUserId,
       created_email: email,
       display_name: effectiveDisplayName,
+      enable_homework_tutoring_nav: enableHomeworkTutoringNav,
+      homework_tutoring_nav_ok: homeworkTutoringNavEnabled,
     }),
   })
 
@@ -198,5 +240,6 @@ Deno.serve(async (req) => {
     teacherId,
     teacherName: String(teacher.full_name ?? ""),
     temporaryPassword,
+    homeworkTutoringNav: homeworkTutoringNavEnabled,
   })
 })
