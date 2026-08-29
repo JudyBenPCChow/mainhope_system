@@ -25,7 +25,7 @@ import {
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { fetchAllClasses, getClassById } from "@/services/classQueries"
+import { fetchClassesForOpsList, getClassById } from "@/services/classQueries"
 import { insertScheduleForClass } from "@/services/scheduleWriteQueries"
 import {
  fetchClassrooms,
@@ -209,8 +209,8 @@ export function ClassroomsManagePage() {
   try {
    let list = await fetchClassesUsingRoom(selectedRoomId)
    if (list.length === 0) {
-    const all = await fetchAllClasses()
-    list = all.map((c) => ({
+    const all = await fetchClassesForOpsList()
+    list = all.classes.map((c) => ({
      id: c.id,
      label: `${formatClassLabel({
       subject: c.subject,

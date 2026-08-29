@@ -33,6 +33,7 @@ import {
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { nextStudentCode } from "@/lib/studentCode"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { academicYearIdOpsOrFilter } from "@/lib/softArchiveListScope"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -40,6 +41,7 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
  return normalizeStudentGrade(raw)
@@ -549,6 +551,7 @@ export async function fetchStudentsPage(opts?: {
  return { rows, hasMore: rows.length >= limit }
 }
 
+/** 單筆深連結：唔套日常名單窗、唔排除已畢業。 */
 export async function getStudentById(id: string): Promise<StudentRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase.from("students").select("*").eq("id", id).maybeSingle()
@@ -1915,23 +1918,35 @@ export type ClassOption = {
  classKind: ClassKind
 }
 
-export async function fetchClassOptions(): Promise<ClassOption[]> {
+export async function fetchClassOptions(opts?: {
+ includeOlderYears?: boolean
+}): Promise<ClassOption[]> {
  if (!supabase) return []
  /** 學生詳細頁「選擇班別加入」用：排除一對一（應走一對一學生頁建立） */
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const window = includeOlder ? null : await fetchOpsAcademicYearWindow()
+ const yearOr = window?.ids.length ? academicYearIdOpsOrFilter(window.ids) : null
  const classSelectWithMode =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const classSelectLegacy =
   "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
- const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
+ const firstQ = supabase.from("classes").select(classSelectWithMode).order("subject")
+ const first = await (yearOr ? firstQ.or(yearOr) : firstQ)
  const second =
   first.error && /does not exist/i.test(first.error.message)
-   ? await supabase.from("classes").select(classSelectBase).order("subject")
+   ? await (() => {
+      const q = supabase.from("classes").select(classSelectBase).order("subject")
+      return yearOr ? q.or(yearOr) : q
+     })()
    : null
  const res =
   second && second.error && /does not exist/i.test(second.error.message)
-   ? await supabase.from("classes").select(classSelectLegacy).order("subject")
+   ? await (() => {
+      const q = supabase.from("classes").select(classSelectLegacy).order("subject")
+      return yearOr ? q.or(yearOr) : q
+     })()
    : (second ?? first)
  if (res.error) throw res.error
  const out: ClassOption[] = []

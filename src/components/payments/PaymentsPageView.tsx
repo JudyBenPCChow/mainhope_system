@@ -96,7 +96,7 @@ import {
  validateDiscountSelection,
  type PaymentDiscountRow,
 } from "@/services/paymentDiscountQueries"
-import { fetchAllClasses } from "@/services/classQueries"
+import { fetchClassesForOpsList } from "@/services/classQueries"
 import {
  fetchOpenTrialLessonCountHint,
  linkOpenTrialsToPayment,
@@ -204,10 +204,10 @@ export function PaymentsPageView() {
   }
   let cancelled = false
   setTrialClassesLoading(true)
-  void fetchAllClasses()
-   .then((list) => {
+  void fetchClassesForOpsList()
+   .then((result) => {
     if (cancelled) return
-    setTrialClasses(list.map(classRecordToPriceInfo))
+    setTrialClasses(result.classes.map(classRecordToPriceInfo))
    })
    .catch((e) => {
     if (!cancelled) {

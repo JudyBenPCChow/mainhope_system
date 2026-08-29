@@ -86,7 +86,7 @@ import {
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
 import {
- fetchAllClasses,
+ fetchClassesForOpsList,
  fetchClassStudents,
  getClassById,
  type ClassRecord,
@@ -788,7 +788,8 @@ export function ScheduleManagePage() {
 
  useEffect(() => {
   if (!addOpen) return
-  void fetchAllClasses().then((all) => {
+  void fetchClassesForOpsList().then((result) => {
+   const all = result.classes
    const scoped = teacherScopeId ? all.filter((c) => c.teacher_id === teacherScopeId) : all
    setAddClassRecords(scoped)
    setClassPickList(

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { formatOpsYearScopeCaption } from "@/lib/softArchiveListScope"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -39,6 +41,9 @@ function issueLabel(row: MisalignedLessonBalanceRow): string {
 
 export function LessonBalanceMismatchView() {
  const [rows, setRows] = useState<MisalignedLessonBalanceRow[]>([])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
+ const [opsYearLabels, setOpsYearLabels] = useState<string[]>([])
+ const [includeOlderYears, setIncludeOlderYears] = useState(false)
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
  const [issue, setIssue] = useState<IssueFilter>("")
@@ -53,20 +58,26 @@ export function LessonBalanceMismatchView() {
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
    setRows([])
+   setHiddenOlderCount(0)
+   setOpsYearLabels([])
    setLoading(false)
    return
   }
   setLoading(true)
   setErr(null)
   try {
-   setRows(await fetchMisalignedLessonBalances())
+   const result = await fetchMisalignedLessonBalances({ includeOlderYears })
+   setRows(result.rows)
+   setHiddenOlderCount(result.hiddenOlderCount)
+   setOpsYearLabels(result.opsYearLabels)
   } catch (e) {
    reportUserFacingError(e, { source: "LessonBalanceMismatchView.load", setErr })
    setRows([])
+   setHiddenOlderCount(0)
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [includeOlderYears])
 
  useEffect(() => {
   void load()
@@ -107,6 +118,10 @@ export function LessonBalanceMismatchView() {
      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
       彙整就讀中報讀：已繳堂數與已綁排程／待補不一致，或請假尚無補堂日的學生，方便一次跟進。點學生可前往詳情「報讀班別」或請假管理處理。
      </p>
+     <p className="mt-1 text-xs text-muted-foreground">
+      資料範圍：{includeOlderYears ? "已載入全部就讀中報讀" : formatOpsYearScopeCaption(opsYearLabels)}
+      ；待補／請假待安排即使較舊學年仍顯示。年結／核數請用繳費紀錄匯出，勿以本頁當全庫。
+     </p>
     </div>
     <Button
      type="button"
@@ -135,6 +150,12 @@ export function LessonBalanceMismatchView() {
      {err}
     </div>
    ) : null}
+
+   <SoftArchiveScopeBanner
+    hiddenCount={includeOlderYears ? 0 : hiddenOlderCount}
+    description={`已隱藏 ${hiddenOlderCount} 筆更舊學年堂數不符（待補／請假待安排仍顯示；資料仍在，並非刪除）`}
+    onShow={() => setIncludeOlderYears(true)}
+   />
 
    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
     <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

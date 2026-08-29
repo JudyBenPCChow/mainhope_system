@@ -16,7 +16,7 @@ import type {
 } from "@/lib/mgmtDashboardTypes"
 import { isLoadOk } from "@/lib/mgmtDashboardTypes"
 import { classKindLabel } from "@/lib/privateClassKind"
-import type { MonthProfitPoint } from "@/lib/profitMetrics"
+import { PROFIT_ANALYSIS_START, type MonthProfitPoint } from "@/lib/profitMetrics"
 
 export { isLoadOk }
 export type { AttendanceVisitBreakdown, LoadResult }
@@ -757,6 +757,14 @@ export function exportMgmtDashboardCsv(
    filters.subjectIds.length,
    filters.teacherIds.length,
    filters.classIds.length,
+  ]
+   .map(cell)
+   .join(",")
+ )
+ lines.push(
+  [
+   "資料範圍",
+   `KPI 跟篩選日期；毛利／純利走勢自 ${PROFIT_ANALYSIS_START.slice(0, 7)} 起；堂數不符為日常營運窗（待補／請假待安排仍顯示）。年結請用繳費紀錄匯出全部。`,
   ]
    .map(cell)
    .join(",")

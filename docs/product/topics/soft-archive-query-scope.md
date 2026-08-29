@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（2026-08-29 **波次 1–2、4 ✅**；**下一波＝3** 班別／排程 picker。餘 5–7） |
+| 狀態 | `done`（2026-08-29 波次 1–7 關帳。可選：結業預覽、舊生／行銷匯出入口 **不做**） |
 | 優先 | 中（增長下先爆全撈頁；非即時擋營運） |
 | 範圍 | 列表／報表預設少 load；窄欄位 select；永不 DELETE；已畢業≠停補（含技術債 P1-6） |
 | 不含 | 物理搬 `archive_*` 表、停讀自動封存、完整校友／LTV 產品、ORM 全域 scope |
@@ -12,7 +12,7 @@
 | 對抗 | [`audits/2026-08-01-soft-archive-adversarial.md`](../audits/2026-08-01-soft-archive-adversarial.md) |
 | Canvas | `soft-archive-adversarial.canvas.tsx` · `growth-after-narrowing.canvas.tsx` |
 | 相關已做 | 側欄未讀快取、學生詳情分頁懶載、營運總覽 KPI 先出（唔代替本主題） |
-| 相關另題 | 營運總覽重整（KPI／fetch／手機；計糧快取後刀）→ [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本主題收窄冷資料，唔代替該題 |
+| 相關另題 | 營運總覽重整（KPI／fetch／手機；計糧快取後刀）→ [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本主題收窄冷資料，唔代替該題；`listStudents` shim 刪除交 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md) |
 
 ## 開工閘（agent 必讀）
 
@@ -57,7 +57,7 @@
 | 5 | 營運對帳用 ops 窗；繳費匯出／核數用長窗／全庫 |
 | 6 | 畢業 Confirm＋欠費／待補警示；feature flag rollback |
 | 7 | 索引／EXPLAIN；回歸測（列表預設帶排除；id 路徑仍通） |
-| 可選 | 結業預覽；舊生／行銷匯出入口 |
+| 可選 | 結業預覽；舊生／行銷匯出入口（本期不做） |
 
 ### P1-6 合併範圍（2026-08-15）
 
@@ -85,23 +85,21 @@
 - 第一波完整校友模組／GDPR 專案  
 - 改共用 fetch 默認語意「圖方便」
 
-## 現況摘要（2026-08-29）
+## 現況摘要（2026-08-29 關帳）
 
 - 波次 1：政策 [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md)；`listRetainedAcademicYearLabels`（ops／compliance）。暑期目前學年含下一常規。
 - 波次 2：`fetchStudentsForOpsList` 預設排除已畢業；學生管理橫幅；學號 `allocateNextStudentCode` 全庫；請假／試堂 picker 已停用 `listStudents()`。
-- 波次 4：Inbox 維持 30 日短窗；增退管理頁／試堂列表／請假管理跟 ops 窗；待處理請假／未完成試堂豁免年份窗；深連結 id／學生仍 bypass。
+- 波次 3：`fetchClassesForOpsList`；班別管理 ops 窗＋「顯示」更舊學年；新增排程／試堂／前台報讀／課室落度 picker 跟窗；`fetchAllClasses()` 默認未改（出席紀錄篩選／優惠配對仍全量）。
+- 波次 4：Inbox 維持 30 日短窗；增退管理頁／試堂列表／請假管理跟 ops 窗；待處理請假／未完成試堂豁免年份窗；空白生效日／班別學年空白仍顯示；隱藏 count 失敗唔空表；深連結 id／學生仍 bypass。
+- 波次 5：堂數對帳跟 ops 窗（待補／請假待安排豁免）；營運總覽 KPI／CSV 標日期＋對帳範圍；繳費紀錄預設 ops 窗＋藏作廢；「匯出全部（核數）」全庫。`fetchLessonBalancesForStudent` 未改。
+- 波次 6：標已畢業前 Confirm（未清繳費／待補／請假／就讀中報讀；可強制＋audit）；改回中學階段＝undo；設定頁「日常名單收窄」開關（`localStorage.mgmt_soft_archive_queries`）。
+- 波次 7：`students_academic_stage_idx`、`classes_academic_year_id_idx`；EXPLAIN 見計劃；回歸測列表收窄 vs id 全量。
 - `fetchAllStudents()`／`getStudentById`／`fetchAllClasses()` 默認未改。
-- 回滾：`localStorage.mgmt_soft_archive_queries = "0"`。
+- 回滾：設定頁關閉收窄，或 `localStorage.mgmt_soft_archive_queries = "0"`。
 
 ## 待做（摘要）
 
-1. ~~波次 1 政策＋helper~~ **已落**
-2. ~~波次 2 學生列表／P1-6 picker~~ **已落**
-3. **下一波** 3：班別／排程日常營運窗＋「更舊學年」（`fetchClassesForOpsList` 尚未落地）
-4. ~~波次 4 Inbox／增退／試堂列表／請假管理分層窗~~ **已落**
-5. 波次 5 對帳標範圍；繳費匯出長窗
-6. 波次 6 畢業 Confirm＋feature flag UI
-7. 波次 7 索引／EXPLAIN／回歸測
+本期範圍已關。可選（結業預覽、舊生／行銷匯出）不做。`queries.listStudents` shim 交 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)。
 
 ## 開工前讀
 
