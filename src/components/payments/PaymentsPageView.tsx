@@ -36,6 +36,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { homeworkPaymentLineAmount, formatYearMonthLabel } from "@/lib/homeworkTutoringFees"
+import { isHomeworkClassKind } from "@/lib/privateClassKind"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
@@ -447,6 +449,7 @@ export function PaymentsPageView() {
   trialPay: "free" | "half" | "full"
   classId: string
  } | null>(null)
+ const pendingEnrollmentClassRef = useRef("")
 
  useEffect(() => {
   const mode = searchParams.get("mode") ?? searchParams.get("tab")
@@ -466,6 +469,8 @@ export function PaymentsPageView() {
   const classId = searchParams.get("classId")?.trim() ?? ""
   if (trialPay === "free" || trialPay === "half" || trialPay === "full") {
    pendingTrialPrefRef.current = { trialPay, classId }
+  } else if (classId) {
+   pendingEnrollmentClassRef.current = classId
   }
   setSearchParams(
    (prev) => {
@@ -520,7 +525,28 @@ export function PaymentsPageView() {
     setLines([line])
     setDiscountIds(trialType === "半價試堂" ? [TRIAL_HALF_PRICE_DISCOUNT_ID] : [])
    } else {
-    setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
+    const prefClassId = pendingEnrollmentClassRef.current
+    pendingEnrollmentClassRef.current = ""
+    const prefEnroll = prefClassId ? list.find((e) => e.classId === prefClassId) : null
+    if (prefEnroll) {
+     const homework = isHomeworkClassKind(prefEnroll.classKind)
+     const line = {
+      ...newLine("enrollment"),
+      classId: prefEnroll.classId,
+      lessons: homework ? "1" : DEFAULT_LESSON_COUNT,
+      amount: homework
+       ? homeworkPaymentLineAmount({
+          dayPlan: prefEnroll.homeworkDayPlan,
+          grade: students.find((s) => s.id === studentId)?.grade,
+          billingMonth: payDate,
+          monthCount: 1,
+         })
+       : lineAmountFor(prefEnroll.classId, DEFAULT_LESSON_COUNT, new Map(list.map((e) => [e.classId, e]))),
+     }
+     setLines([line])
+    } else {
+     setLines([newLine(list.length > 0 ? "enrollment" : "trial")])
+    }
     setDiscountIds([])
    }
    setSpecialDiscountEnabled(false)
@@ -532,7 +558,7 @@ export function PaymentsPageView() {
   } finally {
    setEnrollLoading(false)
   }
- }, [trialClasses])
+ }, [trialClasses, students, payDate])
 
  const loadStudentContext = useCallback(async (studentId: string) => {
   if (!isSupabaseConfigured) {
@@ -663,17 +689,30 @@ export function PaymentsPageView() {
       patch.kind !== undefined ||
       patch.trialType !== undefined
      ) {
-      next.amount = lineAmountFor(next.classId, next.lessons, enrollmentByClass, {
-       kind: next.kind,
-       trialType: next.trialType,
-       trialClasses: trialClassById,
-      })
+      const enroll = enrollmentByClass.get(next.classId)
+      if (next.kind === "enrollment" && enroll && isHomeworkClassKind(enroll.classKind)) {
+       if (patch.classId !== undefined && patch.lessons === undefined) {
+        next.lessons = "1"
+       }
+       next.amount = homeworkPaymentLineAmount({
+        dayPlan: enroll.homeworkDayPlan,
+        grade: selectedStudent?.grade,
+        billingMonth: payDate,
+        monthCount: Number(next.lessons),
+       })
+      } else {
+       next.amount = lineAmountFor(next.classId, next.lessons, enrollmentByClass, {
+        kind: next.kind,
+        trialType: next.trialType,
+        trialClasses: trialClassById,
+       })
+      }
      }
      return next
     })
    )
   },
-  [enrollmentByClass, trialClassById]
+  [enrollmentByClass, trialClassById, selectedStudent, payDate]
  )
 
  const enrollmentsForLine = useCallback(
@@ -696,12 +735,21 @@ export function PaymentsPageView() {
   )
   const nextEnrollment = enrollments.find((e) => !taken.has(e.classId))
   if (nextEnrollment) {
+   const homework = isHomeworkClassKind(nextEnrollment.classKind)
    setLines((prev) => [
     ...prev,
     {
      ...newLine("enrollment"),
      classId: nextEnrollment.classId,
-     amount: lineAmountFor(nextEnrollment.classId, DEFAULT_LESSON_COUNT, enrollmentByClass),
+     lessons: homework ? "1" : DEFAULT_LESSON_COUNT,
+     amount: homework
+      ? homeworkPaymentLineAmount({
+         dayPlan: nextEnrollment.homeworkDayPlan,
+         grade: selectedStudent?.grade,
+         billingMonth: payDate,
+         monthCount: 1,
+        })
+      : lineAmountFor(nextEnrollment.classId, DEFAULT_LESSON_COUNT, enrollmentByClass),
     },
    ])
    return
@@ -711,6 +759,19 @@ export function PaymentsPageView() {
 
  const applyEnrollmentLessonSuggestion = async (rowKey: string, classId: string) => {
   if (!selectedStudent?.id || !classId) return
+  const enroll = enrollmentByClass.get(classId)
+  if (enroll && isHomeworkClassKind(enroll.classKind)) {
+   updateLine(rowKey, {
+    lessons: "1",
+    amount: homeworkPaymentLineAmount({
+     dayPlan: enroll.homeworkDayPlan,
+     grade: selectedStudent.grade,
+     billingMonth: payDate,
+     monthCount: 1,
+    }),
+   })
+   return
+  }
   try {
    const suggestion = await fetchTuitionPaymentSuggestion({
     studentId: selectedStudent.id,
@@ -866,11 +927,14 @@ export function PaymentsPageView() {
     const desc = e
      ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })
      : null
+    const homework = e ? isHomeworkClassKind(e.classKind) : false
     return {
      classId: l.classId,
      lessonCount: Number(l.lessons),
      amount: Number.isFinite(amt) && amt > 0 ? amt : null,
-     description: desc,
+     description: homework
+      ? `${desc ?? "功課輔導班"} · ${formatYearMonthLabel(payDate)}月費`
+      : desc,
     }
    })
  }
@@ -893,7 +957,7 @@ export function PaymentsPageView() {
      (d.amount == null || d.amount === 0)
    )
   if (subtotal <= 0 && !onlyZeroTrialReceipts) {
-   return "請確認各項金額（可依班別每堂單價 × 堂數自動帶入）。"
+   return "請確認各項金額（專科可依每堂單價 × 堂數；功輔按月費檔自動帶入）。"
   }
   if (needsReferrer && !referrerStudentId.trim()) return "請選擇推薦人（舊生）。"
   if (needsGroupBatch && batchMemberCountN < 3) return "自組同班優惠需填寫聯合收費人數（至少 3 人）。"
@@ -1438,7 +1502,11 @@ export function PaymentsPageView() {
          </Button>
         </div>
         <StaggerList as="ul" className="space-y-3">
-         {lines.map((row) => (
+         {lines.map((row) => {
+          const homeworkRow =
+           row.kind === "enrollment" &&
+           isHomeworkClassKind(enrollmentByClass.get(row.classId)?.classKind)
+          return (
           <StaggerItem
            key={row.key}
            as="li"
@@ -1501,16 +1569,20 @@ export function PaymentsPageView() {
              </FormField>
             </>
            ) : null}
-           <FormField label="堂數 *">
+           <FormField label={homeworkRow ? "月數 *" : "堂數 *"}>
             <Input
              type="number"
              min={0}
              step={1}
              value={row.lessons}
              onChange={(e) => updateLine(row.key, { lessons: e.target.value })}
-             placeholder={row.kind === "trial" ? "例如 1" : "例如 4"}
+             placeholder={row.kind === "trial" ? "例如 1" : homeworkRow ? "1" : "例如 4"}
             />
-            {row.kind === "enrollment" ? (
+            {homeworkRow ? (
+             <p className="mt-1 text-xs text-muted-foreground">
+              按日數檔 × 年級帶入月費（可改金額）。對賬以收款日所屬月份同繳費紀錄為準。
+             </p>
+            ) : row.kind === "enrollment" ? (
              <p className="mt-1 text-xs text-muted-foreground">
               建議＝同組別本月會扣堂 − 剩餘（可改；0＝本月唔使交）
              </p>
@@ -1541,7 +1613,8 @@ export function PaymentsPageView() {
             </Button>
            </div>
           </StaggerItem>
-         ))}
+          )
+         })}
         </StaggerList>
        </div>
       )}

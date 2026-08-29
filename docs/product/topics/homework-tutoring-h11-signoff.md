@@ -4,7 +4,7 @@
 | --- | --- |
 | 審閱日期 | 2026-08-28 |
 | 狀態 | **通過**（可補 2627 指引 §7 編更；正式後台實作另開 plan） |
-| 沙盒 | `/prototype/HomeworkTutoring` |
+| 沙盒 | `/prototype/HomeworkTutoring`（審閱當時；**2026-08-29 已刪**） |
 | 設計依據 | [`2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../../product/plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
 
 ## 審閱範圍

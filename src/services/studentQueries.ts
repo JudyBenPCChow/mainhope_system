@@ -583,8 +583,9 @@ export type EnrollmentWithClass = {
  courseMode: CourseMode
  classId: string
  subject: string
- /** group / private */
+ /** group / private / homework */
  classKind: "group" | "private" | "homework"
+ homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
  subjectCode: string | null
  subjectCategory: string | null
  teacherId: string | null
@@ -600,10 +601,10 @@ const ENROLLMENT_CLASS_EMBED =
  "classes ( subject, class_kind, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh ) ) )"
 
 const ENROLLMENT_ROW_SELECT_BASE =
- `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
+ `id, status, enroll_date, class_id, homework_day_plan, ${ENROLLMENT_CLASS_EMBED}`
 
 const ENROLLMENT_ROW_SELECT_WITH_PERIOD =
- `id, status, enroll_date, enrollment_period, withdraw_effective_date, withdraw_reason, class_id, ${ENROLLMENT_CLASS_EMBED}`
+ `id, status, enroll_date, enrollment_period, withdraw_effective_date, withdraw_reason, class_id, homework_day_plan, ${ENROLLMENT_CLASS_EMBED}`
 
 async function fetchEnrollmentRowsForStudent(studentId: string): Promise<Record<string, unknown>[]> {
  if (!supabase) return []
@@ -706,6 +707,13 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
   pricePerLesson,
+  homeworkDayPlan:
+   row.homework_day_plan === "三日" ||
+   row.homework_day_plan === "四日" ||
+   row.homework_day_plan === "五日" ||
+   row.homework_day_plan === "七日"
+    ? row.homework_day_plan
+    : null,
  }
 }
 

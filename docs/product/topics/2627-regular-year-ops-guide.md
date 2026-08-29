@@ -68,7 +68,7 @@
 | 專科校曆 | **附件甲**（非正文）；權威＋入庫檢查見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) |
 | 功輔校曆 | **附件乙**；權威見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3（已簽收；放假日已入庫） |
 | 重陽 | 正日放假、翌日不放假（跟 CSV；與政府假翌日可不一致） |
-| 功輔章 | 校曆＋學部／人手＋月費已寫；讓房不做；編更待 [`homework-tutoring.md`](./homework-tutoring.md) |
+| 功輔章 | 校曆＋學部／人手＋月費＋§7.4 編更已寫；讓房不做 |
 | 功輔月費 | §7.3；小學跟中一；12／2 月四分三；權威見 [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
 | 機構稱呼專章 | 不設 |
 | 計糧 | 不寫入本指引 |
@@ -83,14 +83,14 @@
 
 | 本波 | 對上一個工程 | 完成條件 | 未完成就 |
 | --- | --- | --- | --- |
-| 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費已寫） | — |
-| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **H11 已通過（2026-08-24）**；編更規則可寫入員工守則（唔使等正式產品頁上線） | — |
+| 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費＋§7.4 編更已寫） | — |
+| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **完成**（v1.11 §7.4） | — |
 
 ## 依賴（餘下）
 
 | 項目 | 依賴 | 狀態 |
 | --- | --- | --- |
-| 補寫 §7 其餘 | [`homework-tutoring.md`](./homework-tutoring.md)（H4–H7 已定；編更未寫入指引） | 校曆＋月費已寫；編更仍缺 |
+| 補寫 §7 其餘 | [`homework-tutoring.md`](./homework-tutoring.md) | **完成**（校曆＋月費＋§7.4 編更） |
 | 專科校曆入 DB | [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §2.4 校舍假期 21 日已寫 `academic_calendar_closures` | 已入庫（2026-08-21） |
 
 ## 待做
@@ -98,9 +98,8 @@
 1. 產品再審 v1.3（如有）→ 升版重出 docx
 2. 審閱通過後掛 [`SYSTEM_MANUAL.md`](../playbooks/_INDEX.md)（維護用）  
 3. 員工 WhatsApp／列印發佈
-4. §7 其餘：編更拍板後補寫  
-5. 專科附件甲簽收後入 DB（政策篇檢查清單）  
-6. 刪 WIP：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)（可刪）
+4. 專科附件甲簽收後入 DB（政策篇檢查清單）  
+5. 刪 WIP：[`2627-regular-year-ops-guide-decisions-wip.md`](./2627-regular-year-ops-guide-decisions-wip.md)（可刪）
 
 ## 相關
 
