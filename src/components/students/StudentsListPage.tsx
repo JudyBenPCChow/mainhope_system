@@ -14,7 +14,6 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { openPrimaryMessagingTarget, resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
 import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { nextStudentCode } from "@/lib/studentCode"
 import { cn } from "@/lib/utils"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
 import {
@@ -50,9 +49,10 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
  deleteStudent,
- fetchAllStudents,
  fetchEnrollmentSubjectsByStudentIds,
  fetchRecentClassEnrollments,
+ fetchStudentsForOpsList,
+ allocateNextStudentCode,
  insertStudent,
  isUniqueViolation,
  normalizeRegistrationStatus,
@@ -277,6 +277,7 @@ export function StudentsListPage() {
   getInitialStudentsViewMode()
  )
  const [showGraduated, setShowGraduated] = usePersistentState<boolean>("mgmt_students_showGraduated", false)
+ const [hiddenGraduatedCount, setHiddenGraduatedCount] = useState(0)
  const [dashboardCollapsed, setDashboardCollapsed] = useState(isMobile)
  const [recentIndex, setRecentIndex] = useState(0)
  const [search, setSearch] = usePersistentState<string>("mgmt_students_search", "")
@@ -290,8 +291,11 @@ export function StudentsListPage() {
   setLoading(true)
   setErr(null)
   try {
-   const list = await fetchAllStudents()
+   const { students: list, hiddenGraduatedCount: hidden } = await fetchStudentsForOpsList({
+    includeGraduated: showGraduated,
+   })
    setRows(list)
+   setHiddenGraduatedCount(hidden)
    const ids = list.map((s) => s.id)
    const [tagMap, recentEnr] = await Promise.all([
     fetchEnrollmentSubjectsByStudentIds(ids),
@@ -304,7 +308,7 @@ export function StudentsListPage() {
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [showGraduated])
 
  useEffect(() => {
   void load()
@@ -647,8 +651,7 @@ export function StudentsListPage() {
    } catch (e) {
     // 學號可能因競態而重複：以最新清單重算後重試一次
     if (isUniqueViolation(e)) {
-     const fresh = await fetchAllStudents()
-     await insertStudent({ ...payload, student_code: nextStudentCode(fresh) })
+     await insertStudent({ ...payload, student_code: await allocateNextStudentCode() })
     } else {
      throw e
     }
@@ -706,7 +709,7 @@ export function StudentsListPage() {
      {!isMobile ? (
       <>
        <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
-       <span className="text-xs text-muted-foreground">統計為全體，不受下方篩選影響</span>
+       <span className="text-xs text-muted-foreground">統計為目前載入範圍，預設不含已畢業生</span>
       </>
      ) : null}
     </div>
@@ -910,7 +913,10 @@ export function StudentsListPage() {
        <button
         key={f.key}
         type="button"
-        onClick={() => setStageKey(f.key)}
+        onClick={() => {
+         if (f.key === "已畢業") setShowGraduated(true)
+         setStageKey(f.key)
+        }}
         className={cn(
          "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
          active
@@ -925,7 +931,13 @@ export function StudentsListPage() {
      })}
      <button
       type="button"
-      onClick={() => setShowGraduated((v) => !v)}
+      onClick={() => {
+       setShowGraduated((v) => {
+        const next = !v
+        if (!next && stageKey === "已畢業") setStageKey("all")
+        return next
+       })
+      }}
       className={cn(
        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
        showGraduated
@@ -989,6 +1001,20 @@ export function StudentsListPage() {
     </h1>
    <Tag tone="info">{loading ? "…" : `${stats.total} 人`}</Tag>
    </div>
+
+   {!showGraduated && hiddenGraduatedCount > 0 ? (
+    <div
+     role="status"
+     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-foreground"
+    >
+     <span>
+      已隱藏 {hiddenGraduatedCount} 位已畢業生（資料仍在，並非刪除）
+     </span>
+     <Button type="button" variant="outline" size="sm" onClick={() => setShowGraduated(true)}>
+      顯示
+     </Button>
+    </div>
+   ) : null}
 
    {isMobile ? (
     <MobileFilterSheet
@@ -1115,7 +1141,14 @@ export function StudentsListPage() {
        setAddOpen(open)
        setAddErr(null)
        if (open) {
-        setAddForm({ ...emptyAddForm(), student_code: nextStudentCode(rows) })
+        void allocateNextStudentCode()
+         .then((code) => {
+          setAddForm({ ...emptyAddForm(), student_code: code })
+         })
+         .catch((e) => {
+          reportUserFacingError(e, { source: "StudentsListPage.openAdd", setErr: setAddErr })
+          setAddForm(emptyAddForm())
+         })
         setSchoolSearch("")
        } else {
         setAddForm(emptyAddForm())

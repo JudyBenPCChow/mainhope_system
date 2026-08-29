@@ -15,7 +15,7 @@
 | **報讀** | `student_class_enrollments` | 學生報讀某一班的紀錄；**一筆 = 一個班別報讀**，不是學生主檔建立日。 |
 | **在讀** | `students.enrollment_status` | 現時是否有任一筆 `status = 就讀中` 的班別報讀。**自動計算**。 |
 | **活躍** | `students.activity_status` | 過去三個月內是否有班別報讀紀錄（見第 3 節）。**自動計算**。 |
-| **學業階段** | `students.academic_stage` | `中學階段` / `已畢業`。**手動維護**。 |
+| **學業階段** | `students.academic_stage` | `中學階段` / `已畢業`。**手動維護**。日常列表預設不載入已畢業，見 [`SOFT_ARCHIVE.md`](../academic/SOFT_ARCHIVE.md)。 |
 | **legacy 摘要** | `students.status` | 舊欄位；由 DB 函式依上列維度衍生，供舊報表／匯出相容。**勿在 UI 當唯一真相**。 |
 
 **鐵則：**
