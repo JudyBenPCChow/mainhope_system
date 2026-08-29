@@ -48,7 +48,7 @@ export function ClassCreatePage() {
  const [subjectOptions, setSubjectOptions] = useState<{ id: string; name_zh: string }[]>([])
 
  useEffect(() => {
-  void fetchSubjectOptions().then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
+  void fetchSubjectOptions({ specialtyOnly: true }).then((s) => setSubjectOptions(s.map((x) => ({ id: x.id, name_zh: x.name_zh }))))
  }, [])
 
  useEffect(() => {

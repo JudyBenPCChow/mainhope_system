@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -257,10 +258,11 @@ export function ManagerPayrollView({
               <th className="px-3 py-2.5 font-medium">注意</th>
             </tr>
           </thead>
-          <tbody>
+          <StaggerList as="tbody">
             {overview.map((row) => (
-              <tr
+              <StaggerItem
                 key={row.id}
+                as="tr"
                 className={cn(
                   "cursor-pointer border-b border-border last:border-0 hover:bg-muted/30",
                   selectedId === row.id ? "bg-info/5" : null,
@@ -305,9 +307,9 @@ export function ManagerPayrollView({
                     <span className="text-muted-foreground">—</span>
                   )}
                 </td>
-              </tr>
+              </StaggerItem>
             ))}
-          </tbody>
+          </StaggerList>
         </table>
       </div>
     </section>

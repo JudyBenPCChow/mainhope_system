@@ -1,4 +1,5 @@
 import { MgmtStatCard } from "@/components/mgmtDashboard/MgmtStatCard"
+import { SkeletonStatGrid } from "@/components/ui/skeleton"
 import type { KpiCardModel } from "@/components/mgmtDashboard/types"
 
 type Props = {
@@ -8,13 +9,7 @@ type Props = {
 
 export function StaffKpiCards({ kpis, loading }: Props) {
   if (loading && kpis.length === 0) {
-    return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="h-28 animate-pulse rounded-xl border border-border bg-muted/40" />
-        ))}
-      </div>
-    )
+    return <SkeletonStatGrid count={8} />
   }
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4">

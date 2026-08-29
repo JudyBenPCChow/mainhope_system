@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
 import { formatMoney, formatDateZh } from "@/components/home/format"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import type { UnpaidRow } from "@/services/dashboard"
 
@@ -36,18 +37,19 @@ export function UnpaidAlert({ items, total, loading }: Props) {
     <p className="text-base text-muted-foreground">目前沒有待收款紀錄。</p>
    ) : (
     <>
-     <ul className="divide-y divide-border/80">
+     <StaggerList as="ul" className="divide-y divide-border/80">
       {preview.map((row) => (
-       <li
+       <StaggerItem
         key={row.id}
+        as="li"
         className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-base"
        >
         <span className="font-semibold text-foreground">{row.studentName}</span>
         <span className="text-muted-foreground">{formatDateZh(row.paymentDate)}</span>
         <span className="text-lg font-semibold text-foreground">{formatMoney(row.amount)}</span>
-       </li>
+       </StaggerItem>
       ))}
-     </ul>
+     </StaggerList>
      {rest > 0 ? (
       <p className="mt-3 text-sm text-muted-foreground">還有 {rest} 筆未處理…</p>
      ) : null}

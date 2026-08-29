@@ -12,11 +12,18 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { statusToTagTone } from "@/lib/statusTag"
-import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
+  EXPENSE_ATTACHMENT_ACCEPT,
+  expenseAttachmentValidationError,
+} from "@/lib/expenseJournalAttachment"
+import { isPayrollPostedAccountCode } from "@/lib/expenseJournalPolicy"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
+import {
+  attachExpenseJournalFile,
   confirmExpenseEntries,
   expenseOriginLabel,
+  getExpenseAttachmentSignedUrl,
   reclassifyExpenseEntry,
   reopenExpenseEntry,
   updateExpenseEntryTitle,
@@ -30,6 +37,9 @@ type Props = {
   entry: ExpenseEntry | null
   open: boolean
   accounts: ExpenseLedgerAccount[]
+  canConfirm?: boolean
+  canVoid?: boolean
+  canReopen?: boolean
   onOpenChange: (open: boolean) => void
   onChanged: () => void
 }
@@ -47,6 +57,9 @@ export function HkExpenseEntryDetailDialog({
   entry,
   open,
   accounts,
+  canConfirm: allowConfirm = false,
+  canVoid: allowVoid = false,
+  canReopen: allowReopen = false,
   onOpenChange,
   onChanged,
 }: Props) {
@@ -67,10 +80,12 @@ export function HkExpenseEntryDetailDialog({
 
   const accountOptions = useMemo(
     () =>
-      accounts.map((a) => ({
-        id: a.id,
-        label: `${a.accountGroup === "direct" ? "直接" : "間接"}｜${a.label}`,
-      })),
+      accounts
+        .filter((a) => !isPayrollPostedAccountCode(a.code))
+        .map((a) => ({
+          id: a.id,
+          label: `${a.accountGroup === "direct" ? "直接" : "間接"}｜${a.label}`,
+        })),
     [accounts]
   )
 
@@ -82,7 +97,40 @@ export function HkExpenseEntryDetailDialog({
   const dirtyTitle = title.trim() !== entry.title
   const dirtyAccount = pending && accountId !== (entry.ledgerAccountId ?? "")
   const canSave = !voided && (dirtyTitle || dirtyAccount)
-  const canConfirm = pending && Boolean(accountId || entry.ledgerAccountId)
+  const canConfirm = allowConfirm && pending && Boolean(accountId || entry.ledgerAccountId)
+
+  const onOpenAttachment = async () => {
+    if (!entry.attachmentPath) return
+    setSaving(true)
+    setErr(null)
+    try {
+      const url = await getExpenseAttachmentSignedUrl(entry.attachmentPath)
+      window.open(url, "_blank", "noopener,noreferrer")
+    } catch (e) {
+      reportUserFacingError(e, { source: "HkExpenseEntryDetailDialog.onOpenAttachment", setErr })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const onAttachFile = async (next: File | null) => {
+    if (!next) return
+    const fileErr = expenseAttachmentValidationError(next)
+    if (fileErr) {
+      setErr(fileErr)
+      return
+    }
+    setSaving(true)
+    setErr(null)
+    try {
+      await attachExpenseJournalFile(entry.id, next)
+      onChanged()
+    } catch (e) {
+      reportUserFacingError(e, { source: "HkExpenseEntryDetailDialog.onAttachFile", setErr })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const persistEdits = async () => {
     const nextTitle = title.trim()
@@ -270,12 +318,44 @@ export function HkExpenseEntryDetailDialog({
             </div>
           ) : null}
 
+          <div className="space-y-1">
+            <span className="text-muted-foreground">附件</span>
+            {entry.attachmentPath ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm">{entry.attachmentName ?? "已上載"}</p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void onOpenAttachment()}
+                >
+                  開啟
+                </Button>
+              </div>
+            ) : voided ? (
+              <p>—</p>
+            ) : (
+              <Input
+                type="file"
+                accept={EXPENSE_ATTACHMENT_ACCEPT}
+                className="h-auto cursor-pointer py-1.5"
+                disabled={saving}
+                onChange={(e) => {
+                  const next = e.target.files?.[0] ?? null
+                  e.target.value = ""
+                  void onAttachFile(next)
+                }}
+              />
+            )}
+          </div>
+
           {voided ? (
             <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
               作廢原因：{entry.voidReason ?? "—"}
               {entry.voidedByLabel ? `（${entry.voidedByLabel}）` : ""}
             </div>
-          ) : (
+          ) : allowVoid ? (
             <label className="space-y-1">
               <span className="text-muted-foreground">作廢原因（如需作廢）</span>
               <Input
@@ -285,7 +365,7 @@ export function HkExpenseEntryDetailDialog({
                 placeholder="例如：與計糧過帳重複"
               />
             </label>
-          )}
+          ) : null}
 
           {err ? (
             <div
@@ -299,7 +379,7 @@ export function HkExpenseEntryDetailDialog({
 
         <DialogFooter className="flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            {!voided ? (
+            {!voided && allowVoid ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -309,7 +389,7 @@ export function HkExpenseEntryDetailDialog({
                 作廢
               </Button>
             ) : null}
-            {confirmed ? (
+            {confirmed && allowReopen ? (
               <Button
                 type="button"
                 variant="outline"

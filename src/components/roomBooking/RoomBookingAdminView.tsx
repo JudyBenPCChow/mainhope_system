@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { ClipboardCheck } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -129,9 +130,9 @@ export function RoomBookingAdminView() {
         <th className="w-[8%] px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {rows.map((r) => (
-        <tr key={r.id} className="border-b border-border last:border-0">
+        <StaggerItem key={r.id} as="tr" className="border-b border-border last:border-0">
          <td className="px-3 py-2 tabular-nums text-xs text-muted-foreground">
           {r.created_at.slice(0, 16).replace("T", " ")}
          </td>
@@ -174,9 +175,9 @@ export function RoomBookingAdminView() {
            </Button>
           </div>
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

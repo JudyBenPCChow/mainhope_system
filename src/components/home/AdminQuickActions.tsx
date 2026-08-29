@@ -7,6 +7,7 @@ import {
  GraduationCap,
  HandCoins,
  Inbox,
+ NotebookPen,
  ListOrdered,
  MessageSquareQuote,
  School,
@@ -54,6 +55,12 @@ const QUICK_ACTIONS = [
   label: "收款登記",
   description: "登記學費、核對堂數並建立收據紀錄。",
   icon: HandCoins,
+ },
+ {
+  path: "/ExpenseJournal",
+  label: "日記帳入帳",
+  description: "登記日常小支出，例如文具、教材、團建。",
+  icon: NotebookPen,
  },
  {
   path: "/TomorrowReminders",

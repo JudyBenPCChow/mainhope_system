@@ -5,6 +5,7 @@ import { BookOpen, RefreshCw, Scale, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -215,9 +216,9 @@ export function LessonBalanceMismatchView() {
         <th className="w-[10%] px-3 py-2 whitespace-nowrap">報讀日</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {filtered.map((r) => (
-        <tr key={r.enrollmentId} className="border-b border-border/80 bg-amber-50/40">
+        <StaggerItem key={r.enrollmentId} as="tr" className="border-b border-border/80 bg-amber-50/40">
          <td className="min-w-0 align-top px-3 py-2.5">
           <Link
            to={`/Students/${r.studentId}`}
@@ -267,9 +268,9 @@ export function LessonBalanceMismatchView() {
          <td className="align-top px-3 py-2.5 tabular-nums text-muted-foreground">
           {r.enrollDate ?? "—"}
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

@@ -3,6 +3,7 @@ import { ArrowRight, Loader2, Send, ThumbsDown, ThumbsUp, X } from "lucide-react
 import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import {
  APO_ASSISTANT_NAME,
@@ -279,13 +280,14 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
       ref={listRef}
       className="flex max-h-[min(52vh,28rem)] min-h-[12rem] flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 py-4"
      >
+      <StaggerList className="flex flex-col gap-3">
       {messages.map((m) => {
        const isUser = m.role === "user"
        const isAssistant = m.role === "assistant"
        const displayContent = isAssistant ? cleanReplyPathNoise(m.content) : m.content
        const displayPaths = isAssistant ? mergePathHints(m.paths, m.content) : []
        return (
-        <div key={m.id} className={cn("flex flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
+        <StaggerItem key={m.id} className={cn("flex flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
          <div className={cn("flex gap-2", isUser ? "justify-end" : "justify-start")}>
           {!isUser ? <ItDogAvatar className="mt-0.5 h-7 w-7 shrink-0 rounded-full" /> : null}
           <div className="flex max-w-[88%] flex-col gap-1.5">
@@ -397,9 +399,10 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
            ) : null}
           </div>
          </div>
-        </div>
+        </StaggerItem>
        )
       })}
+      </StaggerList>
 
       {sending ? (
        <div className="flex justify-start gap-2">

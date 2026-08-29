@@ -12,6 +12,7 @@ describe("功課輔導班狀態字典", () => {
     expect(statusToTagTone("已發布")).toBe("success")
     expect(statusToTagTone("已鎖定")).toBe("info")
     expect(statusToTagTone("側欄有功課輔導")).toBe("success")
+    expect(statusToTagTone("純功輔側欄")).toBe("success")
     expect(statusToTagTone("無入口")).toBe("default")
     expect(statusToTagTone("功輔放假")).toBe("default")
   })

@@ -4,6 +4,8 @@ import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella,
 
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
+import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -826,14 +828,15 @@ export function LeaveManagementView() {
    </div>
 
    {loading ? (
-    <p className="text-sm text-muted-foreground">載入中…</p>
+    isMobile ? <SkeletonCardGrid count={4} /> : <SkeletonTableRows rows={8} columns={7} />
    ) : filteredSorted.length === 0 ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
    ) : isMobile ? (
-    <div className="space-y-3">
+    <StaggerList as="div" className="space-y-3">
      {filteredSorted.map((r) => (
-      <article
+      <StaggerItem
        key={r.id}
+       as="article"
        id={`leave-record-${r.id}`}
        className={cn(
         "rounded-xl border border-border bg-card p-4 shadow-sm",
@@ -884,9 +887,9 @@ export function LeaveManagementView() {
          </Button>
         ) : null}
        </div>
-      </article>
+      </StaggerItem>
      ))}
-    </div>
+    </StaggerList>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
      <table className="w-full min-w-[1180px] table-fixed border-collapse text-sm">
@@ -905,10 +908,11 @@ export function LeaveManagementView() {
         <th className="w-[5%] px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {filteredSorted.map((r) => (
-        <tr
+        <StaggerItem
          key={r.id}
+         as="tr"
          id={`leave-record-${r.id}`}
          className={cn(
           "border-b border-border last:border-0 transition-colors",
@@ -1052,9 +1056,9 @@ export function LeaveManagementView() {
            刪除
           </button>
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

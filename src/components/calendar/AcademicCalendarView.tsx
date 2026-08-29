@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { CalendarX, Plus, Trash2, Upload } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -294,9 +295,9 @@ export function AcademicCalendarView() {
          <th className="w-[10%] px-3 py-2 text-right font-medium">操作</th>
         </tr>
        </thead>
-       <tbody>
+       <StaggerList as="tbody">
         {rows.map((row) => (
-         <tr key={row.id} className="border-t border-border">
+         <StaggerItem key={row.id} as="tr" className="border-t border-border">
           <td className="px-3 py-2 tabular-nums">{row.closureDate}</td>
           <td className="break-words px-3 py-2 font-medium">{row.name}</td>
           <td className="break-words px-3 py-2 text-muted-foreground">{row.notes || "—"}</td>
@@ -305,9 +306,9 @@ export function AcademicCalendarView() {
             <Trash2 className="h-4 w-4" />
            </Button>
           </td>
-         </tr>
+         </StaggerItem>
         ))}
-       </tbody>
+       </StaggerList>
       </table>
      </div>
     )}

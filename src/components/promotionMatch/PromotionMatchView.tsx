@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -37,6 +38,7 @@ import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
+type PriorYearFilter = "all" | "has" | "none"
 type ActivityFilter = "all" | "active" | "inactive"
 type CandidateFilter = "all" | "formerSubject"
 
@@ -229,10 +231,11 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
   }
 
   return (
-    <ul className="divide-y divide-border rounded-md border border-border bg-card">
+    <StaggerList as="ul" className="divide-y divide-border rounded-md border border-border bg-card">
       {bundle.eligible.map((item) => (
-        <li
+        <StaggerItem
           key={item.student.id}
+          as="li"
           className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-start sm:justify-between"
         >
           <div className="flex items-start gap-2">
@@ -256,9 +259,9 @@ function EligibleList({ bundle }: { bundle: ClassMatchBundle }) {
           <Button type="button" size="sm" variant="outline" className="shrink-0" asChild>
             <Link to={`/Students/${item.student.id}`}>前往學生</Link>
           </Button>
-        </li>
+        </StaggerItem>
       ))}
-    </ul>
+    </StaggerList>
   )
 }
 
@@ -277,10 +280,11 @@ function ExcludedList({ bundle }: { bundle: ClassMatchBundle }) {
         同齡但未能報讀（{bundle.excluded.length}）
       </button>
       {open ? (
-        <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
+        <StaggerList as="ul" className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
           {bundle.excluded.map((item) => (
-            <li
+            <StaggerItem
               key={item.student.id}
+              as="li"
               className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
             >
               <StudentMeta student={item.student} />
@@ -296,9 +300,9 @@ function ExcludedList({ bundle }: { bundle: ClassMatchBundle }) {
                   衝突：{item.conflictWith}
                 </div>
               ) : null}
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       ) : null}
     </div>
   )
@@ -344,12 +348,13 @@ function EligibleClassesList({
   }
 
   return (
-    <ul className="divide-y divide-border rounded-md border border-border bg-card">
+    <StaggerList as="ul" className="divide-y divide-border rounded-md border border-border bg-card">
       {bundle.eligible.map((item) => {
         const selected = selectedClassIds.has(item.cls.id)
         return (
-          <li
+          <StaggerItem
             key={item.cls.id}
+            as="li"
             className={cn(
               "flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-start sm:justify-between",
               selected && "bg-primary/5"
@@ -400,10 +405,10 @@ function EligibleClassesList({
                 <Link to={`/Classes/${item.cls.id}`}>前往班別</Link>
               </Button>
             </div>
-          </li>
+          </StaggerItem>
         )
       })}
-    </ul>
+    </StaggerList>
   )
 }
 
@@ -577,9 +582,9 @@ function BlockedClassesList({ bundle }: { bundle: StudentMatchBundle }) {
         同年級但未能報讀（{bundle.blocked.length}）
       </button>
       {open ? (
-        <ul className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
+        <StaggerList as="ul" className="mt-2 divide-y divide-border rounded-md border border-border bg-muted/40">
           {bundle.blocked.map((item) => (
-            <li key={item.cls.id} className="flex flex-col gap-1 px-3 py-2.5">
+            <StaggerItem key={item.cls.id} as="li" className="flex flex-col gap-1 px-3 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-foreground">{item.cls.label}</div>
@@ -598,9 +603,9 @@ function BlockedClassesList({ bundle }: { bundle: StudentMatchBundle }) {
               {item.conflictWith ? (
                 <div className="text-xs text-warning">衝突：{item.conflictWith}</div>
               ) : null}
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       ) : null}
     </div>
   )
@@ -624,12 +629,12 @@ function ByClassPanel({
           <Users className="h-4 w-4" />
           符合條件的班別
         </h2>
-        <div className="space-y-2">
+        <StaggerList as="div" className="space-y-2">
           {bundles.map((bundle) => {
             const active = bundle.cls.id === selectedId
             return (
+              <StaggerItem key={bundle.cls.id} as="div">
               <button
-                key={bundle.cls.id}
                 type="button"
                 onClick={() => onSelect(bundle.cls.id)}
                 className={cn(
@@ -641,6 +646,7 @@ function ByClassPanel({
               >
                 <ClassHeader bundle={bundle} expanded={active} />
               </button>
+              </StaggerItem>
             )
           })}
           {bundles.length === 0 ? (
@@ -648,7 +654,7 @@ function ByClassPanel({
               沒有符合篩選條件的班別。
             </p>
           ) : null}
-        </div>
+        </StaggerList>
       </section>
 
       <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">
@@ -698,12 +704,12 @@ function ByStudentPanel({
           <GraduationCap className="h-4 w-4" />
           已註冊學生
         </h2>
-        <div className="space-y-2">
+        <StaggerList as="div" className="space-y-2">
           {bundles.map((bundle) => {
             const active = bundle.student.id === selectedId
             return (
+              <StaggerItem key={bundle.student.id} as="div">
               <button
-                key={bundle.student.id}
                 type="button"
                 onClick={() => onSelect(bundle.student.id)}
                 className={cn(
@@ -715,6 +721,7 @@ function ByStudentPanel({
               >
                 <StudentHeader bundle={bundle} expanded={active} />
               </button>
+              </StaggerItem>
             )
           })}
           {bundles.length === 0 ? (
@@ -722,7 +729,7 @@ function ByStudentPanel({
               沒有符合篩選條件的學生。
             </p>
           ) : null}
-        </div>
+        </StaggerList>
       </section>
 
       <section className="min-h-[320px] rounded-lg border border-border bg-card p-4">
@@ -808,6 +815,7 @@ export function PromotionMatchView() {
   )
   const [studentGrades, setStudentGrades] = useState<Set<string>>(() => new Set())
   const [enrollmentFilter, setEnrollmentFilter] = useState<EnrollmentFilter>("all")
+  const [priorYearFilter, setPriorYearFilter] = useState<PriorYearFilter>("all")
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all")
   const [candidateFilter, setCandidateFilter] = useState<CandidateFilter>("formerSubject")
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null)
@@ -872,11 +880,13 @@ export function PromotionMatchView() {
       const hasEnroll = b.regularClasses.length > 0
       if (enrollmentFilter === "none" && hasEnroll) return false
       if (enrollmentFilter === "has" && !hasEnroll) return false
+      if (priorYearFilter === "has" && !b.student.enrolledIn2526) return false
+      if (priorYearFilter === "none" && b.student.enrolledIn2526) return false
       if (activityFilter === "active" && !b.student.activeIn26SM) return false
       if (activityFilter === "inactive" && b.student.activeIn26SM) return false
       return true
     })
-  }, [allStudentBundles, studentGrades, enrollmentFilter, activityFilter])
+  }, [allStudentBundles, studentGrades, enrollmentFilter, priorYearFilter, activityFilter])
 
   useEffect(() => {
     if (classBundles.length === 0) {
@@ -922,7 +932,7 @@ export function PromotionMatchView() {
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {mode === "byClass"
               ? "以 2627 常規專科班為單位，找出年級合適、時段無衝突的已註冊學生。預設顯示暑期曾讀本科、尚未報讀該科的學生。"
-              : "以已註冊學生為單位，按年級／2627 報讀／暑期有無報讀篩選，列出可宣傳跟進的 2627 班別。"}
+              : "以已註冊學生為單位，按年級／2526／2627／暑期報讀篩選，列出可宣傳跟進的 2627 班別。"}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -998,7 +1008,7 @@ export function PromotionMatchView() {
             </FilterBar>
           ) : (
             <FilterBar>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
                     年級
@@ -1009,6 +1019,19 @@ export function PromotionMatchView() {
                     placeholder="全部年級"
                     onChange={(next) => setStudentGrades(new Set(next))}
                   />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                    2526 報讀
+                  </label>
+                  <Select
+                    value={priorYearFilter}
+                    onChange={(e) => setPriorYearFilter(e.target.value as PriorYearFilter)}
+                  >
+                    <option value="all">全部</option>
+                    <option value="has">有報讀 2526</option>
+                    <option value="none">無報讀 2526</option>
+                  </Select>
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
@@ -1038,7 +1061,8 @@ export function PromotionMatchView() {
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                年級未選代表全部。「暑期有讀」= 26SM 有就讀中專科報讀。
+                年級未選代表全部。「有報讀 2526」＝ Notion 舊科目或系統 2526 班報讀；「暑期有讀」＝ 26SM
+                有就讀中專科報讀。
               </p>
             </FilterBar>
           )}

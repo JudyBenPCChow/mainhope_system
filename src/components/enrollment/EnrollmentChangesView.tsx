@@ -5,6 +5,7 @@ import { BookOpen, CalendarRange, RefreshCw, ScrollText, Search } from "lucide-r
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -192,10 +193,11 @@ export function EnrollmentChangesView() {
         <th className="w-[8%] px-3 py-2 whitespace-nowrap">建立時間</th>
        </tr>
       </thead>
-      <tbody>
+      <StaggerList as="tbody">
        {rows.map((r) => (
-        <tr
+        <StaggerItem
          key={r.id}
+         as="tr"
          className={cn(
           "border-b border-border/80",
           r.action === "withdraw" ? "bg-warning/10" : "bg-info/10"
@@ -235,9 +237,9 @@ export function EnrollmentChangesView() {
          <td className="min-w-0 align-top px-3 py-2.5 text-xs tabular-nums text-muted-foreground">
           {r.createdAt ? r.createdAt.slice(0, 19).replace("T", " ") : "—"}
          </td>
-        </tr>
+        </StaggerItem>
        ))}
-      </tbody>
+      </StaggerList>
      </table>
     </div>
    )}

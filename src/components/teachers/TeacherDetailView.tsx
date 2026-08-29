@@ -20,6 +20,7 @@ import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -540,9 +541,10 @@ export function TeacherDetailView() {
       {classes.length === 0 ? (
        <p className="text-sm text-muted-foreground">尚未指派任教班別。</p>
       ) : (
-       classes.map((c) => (
+       <StaggerList as="div" className="space-y-3">
+       {classes.map((c) => (
+        <StaggerItem key={c.id} as="div">
         <Link
-         key={c.id}
          to={`/Classes/${c.id}`}
          className="block rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/20"
         >
@@ -565,7 +567,9 @@ export function TeacherDetailView() {
           </div>
          </div>
         </Link>
-       ))
+        </StaggerItem>
+       ))}
+       </StaggerList>
       )}
      </div>
     ) : null}
@@ -613,10 +617,12 @@ export function TeacherDetailView() {
        {filteredSchedules.length === 0 ? (
         <p className="text-sm text-muted-foreground">此分類尚無排程。</p>
        ) : (
-        filteredSchedules.map((s) => {
+        <StaggerList as="div" className="space-y-3">
+        {filteredSchedules.map((s) => {
          const hints = scheduleHints.get(s.id)
          return (
-          <Link key={s.id} to={`/Schedule/${s.id}`} className="block">
+          <StaggerItem key={s.id} as="div">
+          <Link to={`/Schedule/${s.id}`} className="block">
            <ScheduleListCard
             sessionNumber={s.sessionNumber}
             scheduledDate={s.scheduledDate}
@@ -640,8 +646,10 @@ export function TeacherDetailView() {
             controls={<Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>}
            />
           </Link>
+          </StaggerItem>
          )
-        })
+        })}
+        </StaggerList>
        )}
       </div>
      </div>
@@ -690,10 +698,11 @@ export function TeacherDetailView() {
             </span>
             <span className="text-muted-foreground">{present} 人出席</span>
            </div>
-           <ul className="divide-y divide-border bg-card">
+           <StaggerList as="ul" className="divide-y divide-border bg-card">
             {list.map((a) => (
-             <li
+             <StaggerItem
               key={a.id}
+              as="li"
               className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
              >
               <div>
@@ -710,9 +719,9 @@ export function TeacherDetailView() {
               <Tag tone={statusToTagTone(a.status)} size="sm">
                {a.status}
               </Tag>
-             </li>
+             </StaggerItem>
             ))}
-           </ul>
+           </StaggerList>
           </div>
          )
         })}

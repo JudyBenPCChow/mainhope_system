@@ -434,6 +434,7 @@ const STUDENT_OPS_LIST_COLUMNS = [
 export type StudentsOpsListResult = {
  students: StudentRecord[]
  hiddenGraduatedCount: number
+ hasMore: boolean
 }
 
 /**
@@ -441,9 +442,13 @@ export type StudentsOpsListResult = {
  */
 export async function fetchStudentsForOpsList(opts?: {
  includeGraduated?: boolean
+ limit?: number
+ offset?: number
 }): Promise<StudentsOpsListResult> {
- if (!supabase) return { students: [], hiddenGraduatedCount: 0 }
+ if (!supabase) return { students: [], hiddenGraduatedCount: 0, hasMore: false }
  const includeGraduated = Boolean(opts?.includeGraduated) || !isSoftArchiveQueriesEnabled()
+ const limit = opts?.limit != null ? Math.min(Math.max(opts.limit, 1), 200) : null
+ const offset = Math.max(opts?.offset ?? 0, 0)
  let listQuery = supabase
   .from("students")
   .select(STUDENT_OPS_LIST_COLUMNS)
@@ -451,12 +456,16 @@ export async function fetchStudentsForOpsList(opts?: {
  if (!includeGraduated) {
   listQuery = listQuery.neq("academic_stage", "已畢業").or("grade.is.null,grade.neq.GD")
  }
- const countQuery = includeGraduated
-  ? null
-  : supabase
+ if (limit != null) {
+  listQuery = listQuery.range(offset, offset + limit - 1)
+ }
+ const shouldCount = !includeGraduated && offset === 0
+ const countQuery = shouldCount
+  ? supabase
      .from("students")
      .select("id", { count: "exact", head: true })
      .or("academic_stage.eq.已畢業,grade.eq.GD")
+  : null
  const [listRes, countRes] = await Promise.all([
   listQuery,
   countQuery ?? Promise.resolve({ count: 0, error: null }),
@@ -466,7 +475,8 @@ export async function fetchStudentsForOpsList(opts?: {
  const rows = (listRes.data ?? []) as unknown as Record<string, unknown>[]
  return {
   students: rows.map((r) => asStudent(r)),
-  hiddenGraduatedCount: includeGraduated ? 0 : (countRes.count ?? 0),
+  hiddenGraduatedCount: shouldCount ? (countRes.count ?? 0) : 0,
+  hasMore: limit != null ? rows.length >= limit : false,
  }
 }
 
@@ -513,6 +523,30 @@ export async function fetchStudentPickerOptions(opts?: {
    grade: row.grade != null ? String(row.grade) : null,
   }
  })
+}
+
+export const STUDENTS_PAGE_SIZE = 50
+
+export type StudentsPageResult = {
+ rows: StudentRecord[]
+ hasMore: boolean
+}
+
+export async function fetchStudentsPage(opts?: {
+ limit?: number
+ offset?: number
+}): Promise<StudentsPageResult> {
+ if (!supabase) return { rows: [], hasMore: false }
+ const limit = Math.min(Math.max(opts?.limit ?? STUDENTS_PAGE_SIZE, 1), 200)
+ const offset = Math.max(opts?.offset ?? 0, 0)
+ const { data, error } = await supabase
+  .from("students")
+  .select("*")
+  .order("created_at", { ascending: false })
+  .range(offset, offset + limit - 1)
+ if (error) throw error
+ const rows = (data ?? []).map((r) => asStudent(r as Record<string, unknown>))
+ return { rows, hasMore: rows.length >= limit }
 }
 
 export async function getStudentById(id: string): Promise<StudentRecord | null> {

@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag, type TagTone } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -512,14 +513,15 @@ export function UserManagementView() {
      {canEdit ? "可直接用右上角按鈕建立專班老師或功輔班導師登入帳號。" : null}
     </p>
    ) : (
-    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    <StaggerList as="div" className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
      {sortedRows.map((u) => {
       const meta = roleMeta(u.role)
       const Icon = meta.Icon
       const tOpt = teacherOption(u.teacher_id)
       return (
-       <article
+       <StaggerItem
         key={u.id}
+        as="article"
         className="group relative flex flex-col overflow-hidden rounded-2xl border border-border/90 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-info/60 hover:shadow-lg"
        >
         <div
@@ -619,10 +621,10 @@ export function UserManagementView() {
           ) : null}
          </div>
         </div>
-       </article>
+       </StaggerItem>
       )
      })}
-    </div>
+    </StaggerList>
    )}
 
    <Dialog

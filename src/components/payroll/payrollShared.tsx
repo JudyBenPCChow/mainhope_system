@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight } from "lucide-react"
 import { Fragment, useMemo, useState } from "react"
 
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { payrollModeLabel } from "@/lib/payroll/modeLabel"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -425,10 +426,11 @@ export function SplitAuditPanel({ teacher }: { teacher: PayrollTeacherRow }) {
                   <th className="px-2 py-2">池</th>
                 </tr>
               </thead>
-              <tbody>
+              <StaggerList as="tbody">
                 {teacher.commissionPool.items.map((it, i) => (
-                  <tr
+                  <StaggerItem
                     key={`${it.teacherName}-${it.date}-${i}`}
+                    as="tr"
                     className={cn(
                       "border-b border-border last:border-0",
                       !it.included ? "bg-muted/30 text-muted-foreground" : null
@@ -462,9 +464,9 @@ export function SplitAuditPanel({ teacher }: { teacher: PayrollTeacherRow }) {
                         </Tag>
                       )}
                     </td>
-                  </tr>
+                  </StaggerItem>
                 ))}
-              </tbody>
+              </StaggerList>
             </table>
           </div>
         </div>
@@ -478,10 +480,11 @@ export function ModeStreamsPanel({ teacher }: { teacher: PayrollTeacherRow }) {
   return (
     <div className="space-y-2 rounded-xl border border-info/35 bg-info/5 px-3 py-3 sm:px-4">
       <h3 className="text-sm font-semibold">跨模式拆分</h3>
-      <ul className="space-y-2 text-sm">
+      <StaggerList as="ul" className="space-y-2 text-sm">
         {teacher.modeStreams.map((s) => (
-          <li
+          <StaggerItem
             key={s.id}
+            as="li"
             className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
           >
             <div>
@@ -494,9 +497,9 @@ export function ModeStreamsPanel({ teacher }: { teacher: PayrollTeacherRow }) {
               <p className="text-xs text-muted-foreground">{s.detail}</p>
             </div>
             <p className="font-semibold tabular-nums">{formatHkd(s.amount)}</p>
-          </li>
+          </StaggerItem>
         ))}
-      </ul>
+      </StaggerList>
       <p className="text-xs text-muted-foreground">
         合計 {formatHkd(teacher.modeStreams.reduce((n, s) => n + s.amount, 0))}（應對齊總薪酬）
       </p>
@@ -604,13 +607,14 @@ function TeacherLessonStatsBody({
               <th className="px-3 py-2.5 font-medium">薪酬小計</th>
             </tr>
           </thead>
-          <tbody>
+          <StaggerList as="tbody">
             {hierarchy.map(({ category: b, children }) => {
               const canExpand = children.length > 0
               const open = canExpand && expandedKeys.has(b.key)
               return (
                 <Fragment key={b.key}>
-                  <tr
+                  <StaggerItem
+                    as="tr"
                     className={cn(
                       "border-b border-border",
                       canExpand ? "bg-muted/15" : undefined
@@ -656,7 +660,7 @@ function TeacherLessonStatsBody({
                     <td className="px-3 py-2.5 tabular-nums font-semibold">
                       {formatHkd(b.amount)}
                     </td>
-                  </tr>
+                  </StaggerItem>
                   {open
                     ? children.map((r) => (
                         <tr
@@ -728,7 +732,7 @@ function TeacherLessonStatsBody({
                 {formatHkd(cats.reduce((s, c) => s + c.amount, 0))}
               </td>
             </tr>
-          </tbody>
+          </StaggerList>
         </table>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -776,10 +780,11 @@ export function TeacherPayFooter({ teacher }: { teacher: PayrollTeacherRow }) {
     <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
       <h3 className="text-sm font-semibold text-foreground">薪酬結算</h3>
       {teacher.lines.length > 0 ? (
-        <ul className="space-y-2">
+        <StaggerList as="ul" className="space-y-2">
           {teacher.lines.map((line) => (
-            <li
+            <StaggerItem
               key={`${teacher.id}-${line.label}`}
+              as="li"
               className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
             >
               <div className="min-w-0">
@@ -794,9 +799,9 @@ export function TeacherPayFooter({ teacher }: { teacher: PayrollTeacherRow }) {
               >
                 {formatHkd(line.amount)}
               </p>
-            </li>
+            </StaggerItem>
           ))}
-        </ul>
+        </StaggerList>
       ) : (
         <p className="text-xs text-muted-foreground">
           授課金額見上方各堂小計；以下為扣強積金後實收。

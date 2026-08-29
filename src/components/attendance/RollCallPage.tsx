@@ -7,6 +7,7 @@ import {
  type RollCallPanelStats,
 } from "@/components/attendance/RollCallClassPanel"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -298,25 +299,26 @@ export function RollCallPage() {
    ) : rollCallEntries.length === 0 ? (
     <p className="py-12 text-center text-sm text-muted-foreground">此日期沒有可點名的排程</p>
    ) : (
-    <div className="space-y-3">
+    <StaggerList as="div" className="space-y-3">
      {rollCallEntries.map((entry) => {
       const firstId = entry.scheduleIds[0]
       const meta = firstId ? scheduleMetaById.get(firstId) ?? null : null
       return (
-       <RollCallClassPanel
-        key={entry.key}
-        entry={entry}
-        scheduleMeta={meta}
-        open={expandedKeys.has(entry.key)}
-        onOpenChange={(open) => setPanelOpen(entry.key, open)}
-        dateEditable={dateEditable}
-        teacherTid={teacherTid}
-        isMobile={isMobile}
-        onStats={handlePanelStats}
-       />
+       <StaggerItem key={entry.key} as="div">
+        <RollCallClassPanel
+         entry={entry}
+         scheduleMeta={meta}
+         open={expandedKeys.has(entry.key)}
+         onOpenChange={(open) => setPanelOpen(entry.key, open)}
+         dateEditable={dateEditable}
+         teacherTid={teacherTid}
+         isMobile={isMobile}
+         onStats={handlePanelStats}
+        />
+       </StaggerItem>
       )
      })}
-    </div>
+    </StaggerList>
    )}
   </div>
  )

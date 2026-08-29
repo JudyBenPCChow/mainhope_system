@@ -3,8 +3,10 @@ import { normalizeEnrollmentPeriod } from "@/lib/enrollmentPeriod"
 import {
   buildClassMatchBundles,
   buildStudentMatchBundles,
+  isPromotionPriorYear,
   isPromotionSourceYear,
   isPromotionTargetYear,
+  PROMOTION_PRIOR_YEAR_LABEL,
   type ClassMatchBundle,
   type PromotionClassRow,
   type PromotionEnrollmentRow,
@@ -55,6 +57,32 @@ export function buildStudentIdsEnrolledInSourceYear(
     if (row.status === "就讀中" && isPromotionSourceYear(row.academicYearLabel)) {
       out.add(row.studentId)
     }
+  }
+  return out
+}
+
+/** 2526 系統報讀：就讀中或已退讀皆算「有報讀」。 */
+const PRIOR_YEAR_ENROLLMENT_STATUSES = new Set(["就讀中", "已退讀"])
+
+export function buildStudentIdsEnrolledInPriorYear(
+  enrollments: Array<{ studentId: string; academicYearLabel: string | null; status: string }>
+): Set<string> {
+  const out = new Set<string>()
+  for (const row of enrollments) {
+    if (
+      PRIOR_YEAR_ENROLLMENT_STATUSES.has(row.status) &&
+      isPromotionPriorYear(row.academicYearLabel)
+    ) {
+      out.add(row.studentId)
+    }
+  }
+  return out
+}
+
+export function mergeStudentIdSets(...sets: Array<Set<string>>): Set<string> {
+  const out = new Set<string>()
+  for (const set of sets) {
+    for (const id of set) out.add(id)
   }
   return out
 }
@@ -141,6 +169,61 @@ async function fetchActiveEnrollmentsForStudents(
   return out
 }
 
+/** Notion 匯入嘅 2526 舊科目事實（唔代表現行班別報讀）。 */
+async function fetchLegacyPriorYearStudentIds(studentIds: string[]): Promise<Set<string>> {
+  if (!supabase || studentIds.length === 0) return new Set()
+
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!
+      .from("legacy_student_subject_enrollments")
+      .select("student_id")
+      .in("student_id", slice)
+    if (error) throw error
+    return data ?? []
+  })
+
+  const out = new Set<string>()
+  for (const data of chunks) {
+    for (const row of data) {
+      const r = row as Record<string, unknown>
+      out.add(String(r.student_id))
+    }
+  }
+  return out
+}
+
+/** 系統仍掛 2526 班嘅報讀（就讀中／已退讀；多為私人課程殘留）。 */
+async function fetchLivePriorYearEnrollmentRows(
+  studentIds: string[],
+  priorYearClassIds: string[]
+): Promise<Array<{ studentId: string; academicYearLabel: string | null; status: string }>> {
+  if (!supabase || studentIds.length === 0 || priorYearClassIds.length === 0) return []
+
+  const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!
+      .from("student_class_enrollments")
+      .select("student_id, status")
+      .in("student_id", slice)
+      .in("class_id", priorYearClassIds)
+      .in("status", [...PRIOR_YEAR_ENROLLMENT_STATUSES])
+    if (error) throw error
+    return data ?? []
+  })
+
+  const out: Array<{ studentId: string; academicYearLabel: string | null; status: string }> = []
+  for (const data of chunks) {
+    for (const row of data) {
+      const r = row as Record<string, unknown>
+      out.push({
+        studentId: String(r.student_id),
+        academicYearLabel: PROMOTION_PRIOR_YEAR_LABEL,
+        status: String(r.status ?? ""),
+      })
+    }
+  }
+  return out
+}
+
 /** 載入宣傳配對所需快照（2627 專科班 × 已註冊未畢業學生 × 就讀中報讀） */
 export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnapshot> {
   const [allClasses, allStudents] = await Promise.all([fetchAllClasses(), fetchAllStudents()])
@@ -166,12 +249,24 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
       status: c.status,
     }))
 
+  const priorYearClassIds = allClasses
+    .filter((c) => isPromotionPriorYear(c.academic_year_label))
+    .map((c) => c.id)
+
   const studentIds = allStudents
     .filter((s) => isPromotionMatchStudentCandidate(s))
     .map((s) => s.id)
 
-  const enrollments = await fetchActiveEnrollmentsForStudents(studentIds)
+  const [enrollments, legacyPriorYearIds, livePriorYearRows] = await Promise.all([
+    fetchActiveEnrollmentsForStudents(studentIds),
+    fetchLegacyPriorYearStudentIds(studentIds),
+    fetchLivePriorYearEnrollmentRows(studentIds, priorYearClassIds),
+  ])
   const activeIn26SMIds = buildStudentIdsEnrolledInSourceYear(enrollments)
+  const enrolledIn2526Ids = mergeStudentIdSets(
+    legacyPriorYearIds,
+    buildStudentIdsEnrolledInPriorYear(livePriorYearRows)
+  )
   const historicalSubjects = buildHistoricalSubjectsFromSourceEnrollments(enrollments)
 
   const students: PromotionStudentRow[] = allStudents
@@ -193,6 +288,7 @@ export async function fetchPromotionMatchSnapshot(): Promise<PromotionMatchSnaps
       }),
       registrationStatus: "已註冊" as const,
       activeIn26SM: activeIn26SMIds.has(s.id),
+      enrolledIn2526: enrolledIn2526Ids.has(s.id),
     }))
 
   return {

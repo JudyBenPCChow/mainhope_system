@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
 import { ClipboardList } from "lucide-react"
@@ -105,6 +105,38 @@ function holidayDisplayDate(isoDate: string): string {
   return `${m}/${d}`
 }
 
+function nextYearMonth(yearMonth: string): string {
+  const [y, m] = yearMonth.split("-").map(Number)
+  if (!y || !m) return yearMonth
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`
+}
+
+function mapDutyDays(
+  days: Array<{
+    date: string
+    weekday: string
+    holiday?: string
+    start: string
+    end: string
+    secondaryRoom: string | null
+    primaryRoom: string | null
+    secondaryTeacherId?: string
+    primaryTeacherId?: string
+  }>
+): MockDutyDay[] {
+  return days.map((d) => ({
+    date: holidayDisplayDate(d.date),
+    weekday: d.weekday,
+    holiday: d.holiday,
+    start: d.start,
+    end: d.end,
+    secondaryRoom: d.secondaryRoom,
+    primaryRoom: d.primaryRoom,
+    secondaryTeacherId: d.secondaryTeacherId,
+    primaryTeacherId: d.primaryTeacherId,
+  }))
+}
+
 /**
  * 正式功課輔導頁。側欄已掛；報讀／校曆／月費／報更／當值接 DB。
  * 編更確定後寫入 schedules 佔室（15:15 起；17D／17E）。
@@ -116,6 +148,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const pathname = location.pathname
 
   const [loading, setLoading] = useState(true)
+  const [monthLoading, setMonthLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [hwClass, setHwClass] = useState<HomeworkClassRef | null>(null)
   const [students, setStudents] = useState<MockStudent[]>([])
@@ -130,12 +163,47 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const [hwAccessIds, setHwAccessIds] = useState<Set<string>>(() => new Set())
 
   const viewMonth = currentYearMonth()
-  const rosterMonthKey = useMemo(() => {
-    const [y, m] = viewMonth.split("-").map(Number)
-    if (!y || !m) return viewMonth
-    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`
-    return next
-  }, [viewMonth])
+  const defaultRosterMonth = useMemo(() => nextYearMonth(viewMonth), [viewMonth])
+  const [sheetMonth, setSheetMonth] = useState(defaultRosterMonth)
+  const sheetMonthRef = useRef(sheetMonth)
+  sheetMonthRef.current = sheetMonth
+
+  useEffect(() => {
+    setSheetMonth(defaultRosterMonth)
+  }, [defaultRosterMonth])
+
+  const loadMonthData = useCallback(
+    async (
+      cls: HomeworkClassRef,
+      yearMonth: string,
+      enabledTeachers: MockTeacher[]
+    ) => {
+      const [availRows, roster] = await Promise.all([
+        fetchHomeworkAvailabilityForMonth(yearMonth),
+        fetchHomeworkRosterMonth({
+          classId: cls.id,
+          academicYearId: cls.academicYearId,
+          yearMonth,
+        }),
+      ])
+
+      const nextAvail: AllTeacherAvailability = {}
+      const nextStatus: AllTeacherSubmitStatus = {}
+      for (const row of availRows) {
+        nextAvail[row.teacherId] = row.entries
+        nextStatus[row.teacherId] = row.status
+      }
+      for (const t of enabledTeachers) {
+        if (!nextStatus[t.id]) nextStatus[t.id] = "未交"
+      }
+      setAvail(nextAvail)
+      setSubmitStatus(nextStatus)
+      setRosterMonthId(roster.id)
+      setMonthRosterStatus((prev) => ({ ...prev, [yearMonth]: roster.status }))
+      setDutyDays(mapDutyDays(roster.days))
+    },
+    []
+  )
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -153,16 +221,11 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       }
 
       const isTeacher = role === "teacher"
-      const [enrolls, closures, access, availRows, roster] = await Promise.all([
+      const targetMonth = sheetMonthRef.current || defaultRosterMonth
+      const [enrolls, closures, access] = await Promise.all([
         isTeacher ? Promise.resolve([]) : fetchHomeworkEnrollments(cls.id),
         fetchHomeworkClosures(cls.academicYearId),
         fetchHomeworkTutoringTeacherAccess(),
-        fetchHomeworkAvailabilityForMonth(rosterMonthKey),
-        fetchHomeworkRosterMonth({
-          classId: cls.id,
-          academicYearId: cls.academicYearId,
-          yearMonth: rosterMonthKey,
-        }),
       ])
 
       setStudents(
@@ -178,7 +241,6 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         }))
       )
 
-      // 月費 ensure 僅行政／經理；老師報更唔需要寫應收
       if (!isTeacher) {
         const feeRows = await ensureHomeworkMonthlyCharges({
           academicYearId: cls.academicYearId,
@@ -205,54 +267,52 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       )
 
       const enabled = access.filter((t) => t.enabled)
-      setHwTeachers(enabled.map((t) => ({ id: t.id, name: t.name, subject: t.subjectLabel })))
+      const teacherList = enabled.map((t) => ({
+        id: t.id,
+        name: t.name,
+        subject: t.subjectLabel,
+      }))
+      setHwTeachers(teacherList)
       setHwAccessIds(new Set(enabled.map((t) => t.id)))
 
-      const nextAvail: AllTeacherAvailability = {}
-      const nextStatus: AllTeacherSubmitStatus = {}
-      for (const row of availRows) {
-        nextAvail[row.teacherId] = row.entries
-        nextStatus[row.teacherId] = row.status
-      }
-      for (const t of enabled) {
-        if (!nextStatus[t.id]) nextStatus[t.id] = "未交"
-      }
-      setAvail(nextAvail)
-      setSubmitStatus(nextStatus)
-
-      setRosterMonthId(roster.id)
-      setMonthRosterStatus({ [rosterMonthKey]: roster.status })
-      setDutyDays(
-        roster.days.map((d) => ({
-          date: holidayDisplayDate(d.date),
-          weekday: d.weekday,
-          holiday: d.holiday,
-          start: d.start,
-          end: d.end,
-          secondaryRoom: d.secondaryRoom,
-          primaryRoom: d.primaryRoom,
-          secondaryTeacherId: d.secondaryTeacherId,
-          primaryTeacherId: d.primaryTeacherId,
-        }))
-      )
+      await loadMonthData(cls, targetMonth, teacherList)
     } catch (e) {
       reportUserFacingError(e, { source: "HomeworkTutoringApp.reload" })
       setLoadError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [role, rosterMonthKey, viewMonth])
+  }, [role, defaultRosterMonth, viewMonth, loadMonthData])
 
   useEffect(() => {
     void reload()
   }, [reload])
+
+  const handleSheetMonthChange = useCallback(
+    async (yearMonth: string) => {
+      if (yearMonth === sheetMonthRef.current) return
+      setSheetMonth(yearMonth)
+      if (!hwClass) return
+      setMonthLoading(true)
+      setLoadError(null)
+      try {
+        await loadMonthData(hwClass, yearMonth, hwTeachers)
+      } catch (e) {
+        reportUserFacingError(e, { source: "HomeworkTutoringApp.changeMonth" })
+        setLoadError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setMonthLoading(false)
+      }
+    },
+    [hwClass, hwTeachers, loadMonthData]
+  )
 
   const persistTeacherAvail = useCallback(
     async (teacherId: string, status: "草稿" | "已提交", entries: AllTeacherAvailability) => {
       try {
         await upsertHomeworkAvailability({
           teacherId,
-          targetMonth: rosterMonthKey,
+          targetMonth: sheetMonth,
           status,
           entries: entries[teacherId] ?? {},
         })
@@ -260,18 +320,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         reportUserFacingError(e, { source: "HomeworkTutoringApp.persistTeacherAvail" })
       }
     },
-    [rosterMonthKey]
+    [sheetMonth]
   )
 
-  const setAvailAndMaybePersist: typeof setAvail = useCallback(
-    (action) => {
-      setAvail((prev) => {
-        const next = typeof action === "function" ? action(prev) : action
-        return next
-      })
-    },
-    []
-  )
+  const setAvailAndMaybePersist: typeof setAvail = useCallback((action) => {
+    setAvail((prev) => {
+      const next = typeof action === "function" ? action(prev) : action
+      return next
+    })
+  }, [])
 
   const setSubmitStatusPersisted: typeof setSubmitStatus = useCallback(
     (action) => {
@@ -299,7 +356,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
               reportUserFacingError(e, { source: "HomeworkTutoringApp.revertSchedules" })
             })
           }
-          if (rosterMonthId && ym === rosterMonthKey && (state === "未編更" || state === "已編更")) {
+          if (rosterMonthId && ym === sheetMonth && (state === "未編更" || state === "已編更")) {
             void setHomeworkRosterMonthStatus(rosterMonthId, state).catch((e) => {
               reportUserFacingError(e, { source: "HomeworkTutoringApp.setRosterStatus" })
             })
@@ -308,7 +365,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         return next
       })
     },
-    [hwClass, rosterMonthId, rosterMonthKey]
+    [hwClass, rosterMonthId, sheetMonth]
   )
 
   const handlePublishRoster = useCallback(
@@ -330,11 +387,12 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           primaryTeacherId: d.primaryTeacherId,
         })),
       })
+      await loadMonthData(hwClass, yearMonth, hwTeachers)
     },
-    [hwClass]
+    [hwClass, hwTeachers, loadMonthData]
   )
 
-  const rosterPublishStatus = monthRosterToLock(monthRosterStatus[rosterMonthKey] ?? "未編更")
+  const rosterPublishStatus = monthRosterToLock(monthRosterStatus[sheetMonth] ?? "未編更")
 
   if (!role) return null
 
@@ -367,6 +425,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const managerPage = MANAGER_BY_PATH[pathname]
   const teacherPage = TEACHER_BY_PATH[pathname]
   const teacherId = profile?.teacherId ?? hwTeachers[0]?.id ?? ""
+  const teacherDisplayName = hwTeachers.find((t) => t.id === teacherId)?.name ?? ""
 
   let pageTitle = "功課輔導班"
   let PageIcon: LucideIcon = ClipboardList
@@ -396,7 +455,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         </p>
       </header>
 
-      {loading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
+      {loading || monthLoading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
       {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
 
       {!loading && !loadError && adminPage ? (
@@ -415,6 +474,10 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           setMonthRosterStatus={setMonthRosterStatusPersisted}
           hwTeachers={hwTeachers}
           holidays={holidays}
+          sheetMonth={sheetMonth}
+          onSheetMonthChange={(ym) => {
+            void handleSheetMonthChange(ym)
+          }}
           onPublishRoster={handlePublishRoster}
         />
       ) : null}
@@ -431,6 +494,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           rosterPublishStatus={rosterPublishStatus}
           hwTeachers={hwTeachers}
           hwAccessIds={hwAccessIds}
+          dutyDays={dutyDays}
+          rosterMonth={sheetMonth}
           onToggleHwAccess={() => {
             void reload()
           }}
@@ -442,12 +507,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           tab={teacherPage}
           onTabChange={(tab) => navigate(TEACHER_PATH[tab])}
           teacherId={teacherId}
+          teacherDisplayName={teacherDisplayName}
           avail={avail}
           setAvail={setAvailAndMaybePersist}
           submitStatus={submitStatus}
           setSubmitStatus={setSubmitStatusPersisted}
           rosterPublishStatus={rosterPublishStatus}
           dutyDays={dutyDays}
+          rosterMonthKey={sheetMonth}
+          holidays={holidays}
         />
       ) : null}
     </div>

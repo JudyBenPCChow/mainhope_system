@@ -8,6 +8,7 @@ import {
 } from "@/components/privateTutoring/PrivateTutoringStudentDisclosure"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
+import { SkeletonTableRows } from "@/components/ui/skeleton"
 import {
  Dialog,
  DialogContent,
@@ -17,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -1080,10 +1082,11 @@ export function PrivateTutoringView() {
      {teacherNullAuditLoading ? (
       <p className="text-sm text-muted-foreground">稽核載入中…</p>
      ) : (
-      <ul className="max-h-56 space-y-2 overflow-y-auto overscroll-contain">
+      <StaggerList as="ul" className="max-h-56 space-y-2 overflow-y-auto overscroll-contain">
        {teacherNullAudit.map((row) => (
-        <li
+        <StaggerItem
          key={row.classId}
+         as="li"
          className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border/60 bg-background/80 px-3 py-2 text-sm"
         >
          <div className="min-w-0">
@@ -1101,9 +1104,9 @@ export function PrivateTutoringView() {
          <Tag tone="warning" size="sm" className="shrink-0">
           空老師 {row.nullScheduleTeacherCount}／{row.activeScheduleCount} 堂
          </Tag>
-        </li>
+        </StaggerItem>
        ))}
-      </ul>
+      </StaggerList>
      )}
     </section>
    ) : null}
@@ -1284,7 +1287,7 @@ export function PrivateTutoringView() {
      )}
 
      {loading ? (
-      <p className="text-sm text-muted-foreground">載入中…</p>
+      <SkeletonTableRows rows={6} columns={5} />
      ) : rows.length === 0 ? (
       <p className="text-sm text-muted-foreground">
        {isTeacherPortal
@@ -1303,7 +1306,7 @@ export function PrivateTutoringView() {
        </p>
       </div>
      ) : isMobile ? (
-      <div className="space-y-3">
+      <StaggerList as="div" className="space-y-3">
        {filteredClassGroups.map((group) => {
         const primary =
          group.find((r) => r.enrollmentRowStatus !== "已退讀") ?? group[0]
@@ -1312,8 +1315,9 @@ export function PrivateTutoringView() {
         const allWithdrawn = activeRows.length === 0
         const highlighted = group.some((r) => r.studentId === highlightStudentId)
         return (
-         <article
+         <StaggerItem
           key={primary.classId}
+          as="article"
           className={cn(
            "rounded-xl border border-border bg-card p-4 shadow-sm",
            highlighted && "ring-2 ring-info/40"
@@ -1401,10 +1405,10 @@ export function PrivateTutoringView() {
               ))
             : null}
           </div>
-         </article>
+         </StaggerItem>
         )
        })}
-      </div>
+      </StaggerList>
      ) : (
       <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
        <div className="min-w-[56rem]">
@@ -1424,14 +1428,14 @@ export function PrivateTutoringView() {
          <div className="px-4 py-3 font-medium">下一堂</div>
          <div className="px-4 py-3 font-medium">操作</div>
         </div>
-        <div>
+        <StaggerList as="div">
          {filteredClassGroups.map((group) => {
           const primary =
            group.find((r) => r.enrollmentRowStatus !== "已退讀") ?? group[0]
           if (!primary) return null
           const highlighted = group.some((r) => r.studentId === highlightStudentId)
           return (
-           <div
+           <StaggerItem
             key={primary.classId}
             className={cn(highlighted && "bg-info/10 ring-2 ring-inset ring-info/40")}
            >
@@ -1446,10 +1450,10 @@ export function PrivateTutoringView() {
              onBook={() => void openBookDialog(primary)}
              onWithdraw={(row) => void onWithdraw(row)}
             />
-           </div>
+           </StaggerItem>
           )
          })}
-        </div>
+        </StaggerList>
        </div>
       </div>
      )}
@@ -1494,9 +1498,9 @@ export function PrivateTutoringView() {
      {roomLoading ? (
       <p className="text-sm text-muted-foreground">載入課室狀態…</p>
      ) : (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <StaggerList as="div" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
        {roomStatuses.map(({ room, free, occupiers }) => (
-        <div
+        <StaggerItem
          key={room.id}
          className={cn(
           "rounded-xl border px-4 py-3 shadow-sm",
@@ -1518,9 +1522,9 @@ export function PrivateTutoringView() {
            ))}
           </ul>
          )}
-        </div>
+        </StaggerItem>
        ))}
-      </div>
+      </StaggerList>
      )}
      <p className="text-sm text-muted-foreground">
       空房判斷包含所有專科班排程與待審批的約房申請，與老師預約空房頁面使用同一套邏輯。

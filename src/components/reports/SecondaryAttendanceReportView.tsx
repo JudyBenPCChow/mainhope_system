@@ -4,6 +4,7 @@ import { BarChart3, Download, Loader2, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { downloadTeacherAttendancePdf } from "@/lib/secondaryAttendancePdf"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -106,11 +107,13 @@ function ClassDetail({ block }: { block: SecondaryClassBlock }) {
           {classKindLabel(block.classKind)}
         </Tag>
       </div>
-      <div className="mt-3 space-y-2">
+      <StaggerList as="div" className="mt-3 space-y-2">
         {block.lessons.map((l) => (
-          <LessonCard key={l.id} lesson={l} />
+          <StaggerItem key={l.id}>
+            <LessonCard lesson={l} />
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerList>
     </section>
   )
 }
@@ -140,9 +143,9 @@ function TeacherDetail({ teacher }: { teacher: SecondaryTeacherBlock }) {
               <th className="px-3 py-2.5 font-medium">缺席人次</th>
             </tr>
           </thead>
-          <tbody>
+          <StaggerList as="tbody">
             {cats.map((b) => (
-              <tr key={b.key} className="border-b border-border">
+              <StaggerItem key={b.key} as="tr" className="border-b border-border">
                 <td className="px-3 py-2.5 font-medium">{b.label}</td>
                 <td className="px-3 py-2.5 tabular-nums">{b.gradeIds.size}</td>
                 <td className="px-3 py-2.5 tabular-nums">{b.classCount}</td>
@@ -151,7 +154,7 @@ function TeacherDetail({ teacher }: { teacher: SecondaryTeacherBlock }) {
                 <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
                   {b.absentVisits}
                 </td>
-              </tr>
+              </StaggerItem>
             ))}
             <tr className="border-b border-border bg-muted/20 last:border-0">
               <td className="px-3 py-2.5 font-semibold">合計</td>
@@ -169,7 +172,7 @@ function TeacherDetail({ teacher }: { teacher: SecondaryTeacherBlock }) {
                 {teacherAbsentTotal(teacher)}
               </td>
             </tr>
-          </tbody>
+          </StaggerList>
         </table>
       </div>
 
@@ -193,10 +196,11 @@ function TeacherDetail({ teacher }: { teacher: SecondaryTeacherBlock }) {
               <th className="px-3 py-2.5 font-medium">缺席人次</th>
             </tr>
           </thead>
-          <tbody>
+          <StaggerList as="tbody">
             {gradeKindRows.map((r) => (
-              <tr
+              <StaggerItem
                 key={`${r.gradeLabel}-${r.classKind}`}
+                as="tr"
                 className="border-b border-border last:border-0"
               >
                 <td className="px-3 py-2.5 font-medium">{r.gradeLabel}</td>
@@ -209,9 +213,9 @@ function TeacherDetail({ teacher }: { teacher: SecondaryTeacherBlock }) {
                 <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
                   {r.absentVisits}
                 </td>
-              </tr>
+              </StaggerItem>
             ))}
-          </tbody>
+          </StaggerList>
         </table>
       </div>
 
@@ -407,10 +411,11 @@ export function SecondaryAttendanceReportView() {
                   <th className="px-3 py-2.5 font-medium">缺席人次</th>
                 </tr>
               </thead>
-              <tbody>
+              <StaggerList as="tbody">
                 {overview.map((row) => (
-                  <tr
+                  <StaggerItem
                     key={row.id}
+                    as="tr"
                     className={
                       row.id === selected?.id
                         ? "border-b border-border bg-info/5 last:border-0"
@@ -425,9 +430,9 @@ export function SecondaryAttendanceReportView() {
                     <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
                       {row.absent}
                     </td>
-                  </tr>
+                  </StaggerItem>
                 ))}
-              </tbody>
+              </StaggerList>
             </table>
           </div>
 

@@ -9,18 +9,20 @@ import { useIsMobile } from "@/hooks/use-mobile"
 
 import { BulkCustomTimeDialog } from "./availEditor"
 import {
-  MOCK_ROSTER_DAYS,
-  MOCK_ROSTER_MONTH_LABEL,
-  MOCK_SUBMIT_DEADLINE_NOTE,
-  MOCK_SUBJECT_TEACHERS,
+  MOCK_ROSTER_MONTH_KEY,
+  SUBMIT_DEADLINE_NOTE,
   formatAvailLabel,
   formatSession,
+  formatYearMonthLabel,
+  holidaysInYearMonth,
+  listRosterMonthDays,
   myDutyDays,
   myDutyDivisionLabel,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
   type MockDutyDay,
+  type MockHoliday,
   type RosterPublishStatus,
 } from "./mockData"
 import type { TeacherPageId } from "./sandboxNav"
@@ -31,45 +33,61 @@ const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
 export function TeacherHomeworkWorkbench({
   tab,
   teacherId,
+  teacherDisplayName,
   avail,
   setAvail,
   submitStatus,
   setSubmitStatus,
   rosterPublishStatus,
   dutyDays = [],
+  rosterMonthKey = MOCK_ROSTER_MONTH_KEY,
+  holidays = [],
 }: {
   tab: TeacherPageId
   onTabChange: (tab: TeacherPageId) => void
   teacherId: string
+  teacherDisplayName?: string
   avail: AllTeacherAvailability
   setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
   submitStatus: AllTeacherSubmitStatus
   setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   rosterPublishStatus: RosterPublishStatus
   dutyDays?: MockDutyDay[]
+  rosterMonthKey?: string
+  holidays?: MockHoliday[]
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [customOpen, setCustomOpen] = useState(false)
-  const teacher = MOCK_SUBJECT_TEACHERS.find((t) => t.id === teacherId)
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
   const readOnly = locked || myStatus === "已提交"
   const row = avail[teacherId] ?? {}
+  const monthLabel = formatYearMonthLabel(rosterMonthKey)
+
+  const monthHolidays = useMemo(
+    () => holidaysInYearMonth(rosterMonthKey, holidays),
+    [rosterMonthKey, holidays]
+  )
+
+  const rosterDays = useMemo(
+    () => listRosterMonthDays(rosterMonthKey, monthHolidays),
+    [rosterMonthKey, monthHolidays]
+  )
 
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
 
   const calendarCells = useMemo(() => {
-    const first = MOCK_ROSTER_DAYS[0]
+    const first = rosterDays[0]
     if (!first) return []
     const pad = first.weekdayIndex
-    return [...Array.from({ length: pad }, () => null), ...MOCK_ROSTER_DAYS]
-  }, [])
+    return [...Array.from({ length: pad }, () => null), ...rosterDays]
+  }, [rosterDays])
 
   const selectableKeys = useMemo(
-    () => MOCK_ROSTER_DAYS.filter((d) => d.selectable).map((d) => d.key),
-    []
+    () => rosterDays.filter((d) => d.selectable).map((d) => d.key),
+    [rosterDays]
   )
 
   const selectedCount = selected.size
@@ -142,7 +160,7 @@ export function TeacherHomeworkWorkbench({
   const saveDraft = () => {
     if (locked) return
     setSubmitStatus((s) => ({ ...s, [teacherId]: "草稿" }))
-    pushBanner({ title: "已儲存", tone: "success", message: "草稿已儲存（沙盒記憶體）。" })
+    pushBanner({ title: "已儲存", tone: "success", message: "草稿已儲存。" })
   }
 
   const submit = () => {
@@ -152,7 +170,7 @@ export function TeacherHomeworkWorkbench({
     pushBanner({
       title: "已提交",
       tone: "success",
-      message: `${MOCK_ROSTER_MONTH_LABEL} 報更已提交。`,
+      message: `${monthLabel} 報更已提交。`,
     })
   }
 
@@ -167,17 +185,19 @@ export function TeacherHomeworkWorkbench({
       {tab === "submit" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">{MOCK_ROSTER_MONTH_LABEL} 報更</h2>
+            <h2 className="text-base font-semibold">{monthLabel} 報更</h2>
             <SubmitStatusTag status={locked ? "已提交" : myStatus} />
             {locked ? (
               <Tag tone={statusToTagTone("已鎖定")} size="sm">
                 已鎖定
               </Tag>
             ) : null}
-            <span className="text-sm text-muted-foreground">{teacher?.name}</span>
+            {teacherDisplayName ? (
+              <span className="text-sm text-muted-foreground">{teacherDisplayName}</span>
+            ) : null}
           </div>
 
-          <p className="text-xs text-muted-foreground">{MOCK_SUBMIT_DEADLINE_NOTE}</p>
+          <p className="text-xs text-muted-foreground">{SUBMIT_DEADLINE_NOTE}</p>
 
           <div
             className={cn(
@@ -297,6 +317,8 @@ export function TeacherHomeworkWorkbench({
                     {!day.selectable ? (
                       day.weekdayIndex === 0 || day.weekdayIndex === 6 ? (
                         <span className="text-[10px] text-muted-foreground">週末</span>
+                      ) : day.holidayLabel ? (
+                        <span className="text-[10px] text-muted-foreground">放假</span>
                       ) : null
                     ) : entry ? (
                       <span className="text-[10px] font-medium leading-tight text-foreground sm:text-xs">

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom"
 import { CalendarDays, User } from "lucide-react"
 
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 import type { TodayScheduleRow } from "@/services/dashboard"
@@ -31,10 +32,11 @@ export function TodayScheduleCard({ schedules, loading }: Props) {
    ) : schedules.length === 0 ? (
     <p className="text-sm text-muted-foreground">今日尚無排程。</p>
    ) : (
-    <ul className="flex flex-1 flex-col gap-3">
+    <StaggerList as="ul" className="flex flex-1 flex-col gap-3">
      {schedules.map((s) => (
-      <li
+      <StaggerItem
        key={s.id}
+       as="li"
        className="rounded-lg border border-border/80 bg-background/80 px-3 py-3"
       >
        <div className="font-medium text-foreground">{s.title}</div>
@@ -46,9 +48,9 @@ export function TodayScheduleCard({ schedules, loading }: Props) {
         </span>
         <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
        </div>
-      </li>
+      </StaggerItem>
      ))}
-    </ul>
+    </StaggerList>
    )}
   </section>
  )

@@ -8,6 +8,7 @@ import { MgmtGroupLoadError } from "@/components/mgmtDashboard/MgmtGroupLoadErro
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tag } from "@/components/ui/tag"
+import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
@@ -283,17 +284,20 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           <th className="w-[14%] px-2 py-2 font-medium text-muted-foreground">跟進</th>
          </tr>
         </thead>
-        <tbody>
-         {sortedUnpaid.length === 0 ? (
+        {sortedUnpaid.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={6} className="px-2 py-8 text-center text-muted-foreground">
             無符合條件的欠費資料
            </td>
           </tr>
-         ) : (
-          sortedUnpaid.map((row, i) => (
-           <tr
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {sortedUnpaid.map((row, i) => (
+           <StaggerItem
             key={row.id}
+            as="tr"
             className={cn(
              "border-b border-border/60 hover:bg-muted/40",
              i % 2 === 1 && "bg-muted/20"
@@ -315,10 +319,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
               {row.followUpStatus}
              </Tag>
             </td>
-           </tr>
-          ))
-         )}
-        </tbody>
+           </StaggerItem>
+          ))}
+         </StaggerList>
+        )}
        </table>
       </div>
       </>
@@ -356,17 +360,20 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           />
          </tr>
         </thead>
-        <tbody>
-         {sortedWithdraw.length === 0 ? (
+        {sortedWithdraw.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={3} className="px-2 py-8 text-center text-muted-foreground">
             篩選區間內無退讀名單
            </td>
           </tr>
-         ) : (
-          sortedWithdraw.map((row, i) => (
-           <tr
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {sortedWithdraw.map((row, i) => (
+           <StaggerItem
             key={row.id}
+            as="tr"
             className={cn(
              "border-b border-border/60 hover:bg-muted/40",
              i % 2 === 1 && "bg-muted/20"
@@ -377,10 +384,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
              {row.classLabel}
             </td>
             <td className="px-2 py-2 tabular-nums">{row.effectiveDate}</td>
-           </tr>
-          ))
-         )}
-        </tbody>
+           </StaggerItem>
+          ))}
+         </StaggerList>
+        )}
        </table>
       </div>
       )}
@@ -428,17 +435,20 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           <th className="w-[15%] px-2 py-2 font-medium text-muted-foreground">操作</th>
          </tr>
         </thead>
-        <tbody>
-         {sortedClasses.length === 0 ? (
+        {sortedClasses.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={5} className="px-2 py-8 text-center text-muted-foreground">
             暫無班別資料
            </td>
           </tr>
-         ) : (
-          sortedClasses.slice(0, 30).map((row, i) => (
-           <tr
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {sortedClasses.slice(0, 30).map((row, i) => (
+           <StaggerItem
             key={row.classId}
+            as="tr"
             className={cn(
              "border-b border-border/60 hover:bg-muted/40",
              i % 2 === 1 && "bg-muted/20"
@@ -460,10 +470,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
               班別詳情
              </Link>
             </td>
-           </tr>
-          ))
-         )}
-        </tbody>
+           </StaggerItem>
+          ))}
+         </StaggerList>
+        )}
        </table>
       </div>
      </TabsContent>
@@ -491,19 +501,22 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           <th className="w-[20%] px-2 py-2 font-medium text-muted-foreground">狀態</th>
          </tr>
         </thead>
-        <tbody>
-         {sortedTeachers.length === 0 ? (
+        {sortedTeachers.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={3} className="px-2 py-8 text-center text-muted-foreground">
             暫無導師負荷資料
            </td>
           </tr>
-         ) : (
-          sortedTeachers.map((row, i) => {
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {sortedTeachers.map((row, i) => {
            const overloaded = row.enrollmentCount > 39
            return (
-            <tr
+            <StaggerItem
              key={row.teacherId}
+             as="tr"
              className={cn(
               "border-b border-border/60 hover:bg-muted/40",
               i % 2 === 1 && "bg-muted/20"
@@ -516,11 +529,11 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
                {overloaded ? "注意" : "正常"}
               </Tag>
              </td>
-            </tr>
+            </StaggerItem>
            )
-          })
-         )}
-        </tbody>
+          })}
+         </StaggerList>
+        )}
        </table>
       </div>
      </TabsContent>
@@ -555,17 +568,20 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           />
          </tr>
         </thead>
-        <tbody>
-         {sortedSubjects.length === 0 ? (
+        {sortedSubjects.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={2} className="px-2 py-8 text-center text-muted-foreground">
             暫無科目報讀資料
            </td>
           </tr>
-         ) : (
-          sortedSubjects.map((row, i) => (
-           <tr
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {sortedSubjects.map((row, i) => (
+           <StaggerItem
             key={row.label}
+            as="tr"
             className={cn(
              "border-b border-border/60 hover:bg-muted/40",
              i % 2 === 1 && "bg-muted/20"
@@ -573,10 +589,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
            >
             <td className="px-2 py-2">{row.label}</td>
             <td className="px-2 py-2 text-right tabular-nums">{row.count}</td>
-           </tr>
-          ))
-         )}
-        </tbody>
+           </StaggerItem>
+          ))}
+         </StaggerList>
+        )}
        </table>
       </div>
      </TabsContent>
@@ -606,17 +622,20 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
           <th className="w-[12%] px-2 py-2 font-medium">操作</th>
          </tr>
         </thead>
-        <tbody>
-         {lessonRows.length === 0 ? (
+        {lessonRows.length === 0 ? (
+         <tbody>
           <tr>
            <td colSpan={6} className="px-2 py-8 text-center text-muted-foreground">
             目前無堂數待跟進
            </td>
           </tr>
-         ) : (
-          lessonRows.map((row, i) => (
-           <tr
+         </tbody>
+        ) : (
+         <StaggerList as="tbody">
+          {lessonRows.map((row, i) => (
+           <StaggerItem
             key={row.enrollmentId}
+            as="tr"
             className={cn(
              "border-b border-border/60 hover:bg-muted/40",
              i % 2 === 1 && "bg-muted/20"
@@ -637,10 +656,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
               學生
              </Link>
             </td>
-           </tr>
-          ))
-         )}
-        </tbody>
+           </StaggerItem>
+          ))}
+         </StaggerList>
+        )}
        </table>
       </div>
       </>
@@ -672,40 +691,43 @@ function NearFullTable({
       <th className="w-[15%] px-2 py-2 font-medium">操作</th>
      </tr>
     </thead>
-    <tbody>
      {filtered.length === 0 ? (
-      <tr>
-       <td colSpan={5} className="px-2 py-8 text-center text-muted-foreground">
-        目前無將近滿班班別（≥90%）
-       </td>
-      </tr>
-     ) : (
-      filtered.map((row, i) => (
-       <tr
-        key={row.classId}
-        className={cn(
-         "border-b border-border/60 hover:bg-muted/40",
-         i % 2 === 1 && "bg-muted/20"
-        )}
-       >
-        <td className="min-w-0 truncate px-2 py-2" title={row.label}>
-         {row.label}
-        </td>
-        <td className="px-2 py-2 text-right tabular-nums">{row.enrolled}</td>
-        <td className="px-2 py-2 text-right tabular-nums">{row.capacity}</td>
-        <td className="px-2 py-2 text-right tabular-nums">{row.fillPct}%</td>
-        <td className="px-2 py-2">
-         <Link
-          to={`/Classes/${row.classId}`}
-          className="text-primary underline-offset-2 hover:underline"
-         >
-          班別詳情
-         </Link>
+      <tbody>
+       <tr>
+        <td colSpan={5} className="px-2 py-8 text-center text-muted-foreground">
+         目前無將近滿班班別（≥90%）
         </td>
        </tr>
-      ))
+      </tbody>
+     ) : (
+      <StaggerList as="tbody">
+       {filtered.map((row, i) => (
+        <StaggerItem
+         key={row.classId}
+         as="tr"
+         className={cn(
+          "border-b border-border/60 hover:bg-muted/40",
+          i % 2 === 1 && "bg-muted/20"
+         )}
+        >
+         <td className="min-w-0 truncate px-2 py-2" title={row.label}>
+          {row.label}
+         </td>
+         <td className="px-2 py-2 text-right tabular-nums">{row.enrolled}</td>
+         <td className="px-2 py-2 text-right tabular-nums">{row.capacity}</td>
+         <td className="px-2 py-2 text-right tabular-nums">{row.fillPct}%</td>
+         <td className="px-2 py-2">
+          <Link
+           to={`/Classes/${row.classId}`}
+           className="text-primary underline-offset-2 hover:underline"
+          >
+           班別詳情
+          </Link>
+         </td>
+        </StaggerItem>
+       ))}
+      </StaggerList>
      )}
-    </tbody>
    </table>
   </div>
  )
