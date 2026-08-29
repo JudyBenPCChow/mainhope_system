@@ -54,7 +54,7 @@ import {
  hitsHaveBillable,
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
-import { listStudents } from "@/services/queries"
+import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
@@ -254,13 +254,17 @@ export function LeaveManagementView() {
   setAddRemarks("")
   setEnrolledClasses([])
   setScheduleOptions([])
-  void listStudents().then((raw) => {
-   const sl = (raw as Record<string, unknown>[]).map((r) => ({
-    id: String(r.id),
-    label: `${String(r.full_name ?? "—")}（${String(r.grade ?? "—")}）`,
-   }))
-   setStudentPickList(sl)
-  })
+  void fetchStudentPickerOptions()
+   .then((rows) => {
+    const sl = rows.map((r) => ({
+     id: r.id,
+     label: `${r.full_name || "—"}（${r.grade ?? "—"}）`,
+    }))
+    setStudentPickList(sl)
+   })
+   .catch((e) => {
+    reportUserFacingError(e, { source: "LeaveManagementView.studentPicker", setErr: setAddErr })
+   })
  }, [addOpen])
 
  useEffect(() => {

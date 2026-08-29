@@ -29,7 +29,7 @@ import {
 import { cn } from "@/lib/utils"
 import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
-import { listStudents } from "@/services/queries"
+import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
@@ -384,13 +384,17 @@ export function TrialSessionsView() {
     }))
    )
   })
-  void listStudents().then((raw) => {
-   const sl = (raw as Record<string, unknown>[]).map((r) => ({
-    id: String(r.id),
-    label: `${String(r.full_name ?? "—")}（${String(r.grade ?? "—")}）`,
-   }))
-   setStudentPickList(sl)
-  })
+  void fetchStudentPickerOptions()
+   .then((rows) => {
+    const sl = rows.map((r) => ({
+     id: r.id,
+     label: `${r.full_name || "—"}（${r.grade ?? "—"}）`,
+    }))
+    setStudentPickList(sl)
+   })
+   .catch((e) => {
+    reportUserFacingError(e, { source: "TrialSessionsView.studentPicker", setErr: setAddErr })
+   })
   setAddScheduleId("")
   setAddRemarks("")
   setAddTrialType("免費試堂")

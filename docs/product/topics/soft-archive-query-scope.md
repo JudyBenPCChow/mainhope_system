@@ -2,12 +2,13 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（稍後開工；設計＋對抗已齊） |
+| 狀態 | `in_progress`（2026-08-29 **波次 1–2 已落地**：政策＋helper＋學生列表／picker；餘波次 3–7） |
 | 優先 | 中（增長下先爆全撈頁；非即時擋營運） |
 | 範圍 | 列表／報表預設少 load；窄欄位 select；永不 DELETE；已畢業≠停補（含技術債 P1-6） |
 | 不含 | 物理搬 `archive_*` 表、停讀自動封存、完整校友／LTV 產品、ORM 全域 scope |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 計劃 | Cursor：[`archive_cold_data_3e9934eb.plan.md`](/Users/hoiyingfan/.cursor/plans/archive_cold_data_3e9934eb.plan.md) |
+| 計劃 | [`2026-08-29-soft-archive-query-scope.md`](../plans/2026-08-29-soft-archive-query-scope.md) · 設計：[`archive_cold_data_3e9934eb.plan.md`](/Users/hoiyingfan/.cursor/plans/archive_cold_data_3e9934eb.plan.md) |
+| 政策 | [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md) |
 | 對抗 | [`audits/2026-08-01-soft-archive-adversarial.md`](../audits/2026-08-01-soft-archive-adversarial.md) |
 | Canvas | `soft-archive-adversarial.canvas.tsx` · `growth-after-narrowing.canvas.tsx` |
 | 相關已做 | 側欄未讀快取、學生詳情分頁懶載、營運總覽 KPI 先出（唔代替本主題） |
@@ -26,7 +27,7 @@
 ## 業務定界（已確認）
 
 - **封存學生**＝`academic_stage = 已畢業`（中學畢業）。**唔係**非活躍／停補一段（中一→中五再返仍係 `中學階段`）。
-- **營運資料**：超過約兩個正規學年（連帶其間 `*SM`）預設唔 load。
+- **營運資料**：超過約兩個常規學年（連帶其間 `*SM`）預設唔 load。
 - **永不 DELETE**；深連結／單據 id／「包含封存」仍可讀。
 - **雙層窗**：日常營運窗（列表／教務）≠ 合規／財務匯出窗（庫內全量可查）。
 
@@ -84,9 +85,26 @@
 - 第一波完整校友模組／GDPR 專案  
 - 改共用 fetch 默認語意「圖方便」
 
+## 現況摘要（2026-08-29）
+
+- 波次 1：政策 [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md)；`listRetainedAcademicYearLabels`（ops／compliance）。
+- 波次 2：`fetchStudentsForOpsList` 預設排除已畢業；學生管理橫幅；學號 `allocateNextStudentCode` 全庫；請假／試堂 picker 已停用 `listStudents()`。
+- `fetchAllStudents()`／`getStudentById` 默認未改。
+- 回滾：`localStorage.mgmt_soft_archive_queries = "0"`。
+
+## 待做（摘要）
+
+1. ~~波次 1 政策＋helper~~ **已落**
+2. ~~波次 2 學生列表／P1-6 picker~~ **已落**
+3. 波次 3 班別／排程日常營運窗＋「更舊學年」
+4. 波次 4 Inbox／增退／試堂列表／請假管理分層窗
+5. 波次 5 對帳標範圍；繳費匯出長窗
+6. 波次 6 畢業 Confirm＋feature flag UI
+7. 波次 7 索引／EXPLAIN／回歸測
+
 ## 開工前讀
 
 1. 本檔紅線  
 2. 對抗報告  
 3. 計劃（含審閱回覆 Q1–Q11）  
-4. [`STUDENT_STATUS_CLASSIFICATION.md`](../STUDENT_STATUS_CLASSIFICATION.md)、[`ACADEMIC_YEARS.md`](../policies/academic/ACADEMIC_YEARS.md)、[`STUDENT_CODE.md`](../STUDENT_CODE.md)
+4. [`STUDENT_STATUS_CLASSIFICATION.md`](../../policies/enrollment/STUDENT_STATUS_CLASSIFICATION.md)、[`ACADEMIC_YEARS.md`](../../policies/academic/ACADEMIC_YEARS.md)、[`STUDENT_CODE.md`](../../policies/enrollment/STUDENT_CODE.md)

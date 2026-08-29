@@ -4,7 +4,7 @@
 性質：**營運政策 + 系統資料模型**。索引見 [`OPS_POLICIES.md`](../_INDEX.md)。
 
 程式錨點：`academic_years`、`academic_year_periods`、`courses.course_mode`、`student_class_enrollments.enrollment_period`；  
-`src/lib/courseCode.ts`（`academicYearLabelFromStartDate`）、`src/lib/enrollmentPeriod.ts`、`src/lib/academicYearAccess.ts`；  
+`src/lib/courseCode.ts`（`academicYearLabelFromStartDate`）、`src/lib/enrollmentPeriod.ts`、`src/lib/academicYearAccess.ts`、`src/lib/softArchiveWindow.ts`（日常營運窗／合規窗）；  
 migration `20260612120000_summer_two_period_enrollment.sql`；cutover 學年種子見 `supabase/cutover/2026-07-fresh-start-reset.sql`。
 
 ---
@@ -25,6 +25,8 @@ migration `20260612120000_summer_two_period_enrollment.sql`；cutover 學年種�
 - 9 月–翌年 6 月 → `YYZZ`（例：2025-09-01 → `2526`）
 
 **時間順序**（同「年段」內）：常規結束 → 暑期 → 下一常規。例：`2526` &lt; `26SM` &lt; `2627`（見 `academicYearOrderKey`）。
+
+日常名單預設只載入近兩個常規學年（連帶其間暑期）；不是刪除。見 [`SOFT_ARCHIVE.md`](SOFT_ARCHIVE.md)。
 
 ---
 
