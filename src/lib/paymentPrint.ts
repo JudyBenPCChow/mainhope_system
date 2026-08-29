@@ -2,6 +2,7 @@ import QRCode from "qrcode"
 
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
 import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
+import { isHomeworkMonthlyFeeDescription } from "@/lib/homeworkTutoringFees"
 import { buildPortalActivateUrl, getPortalBaseUrl } from "@/lib/portalConfig"
 import { PAYMENT_STATUS, type PaymentFull } from "@/services/paymentQueries"
 import {
@@ -428,15 +429,31 @@ function openPrintableDocument(bodyHtml: string, title = PRINT_TITLE): boolean {
  return true
 }
 
+function homeworkQtyHeader(details: PaymentFull["details"]): string {
+ const hasHomework = details.some((d) => isHomeworkMonthlyFeeDescription(d.description))
+ const hasSpecialist = details.some(
+  (d) => !isHomeworkMonthlyFeeDescription(d.description) && d.lessonCount != null
+ )
+ if (hasHomework && hasSpecialist) return "堂數／月數"
+ if (hasHomework) return "月數"
+ return "堂數"
+}
+
 function buildChargesTableHtml(p: PaymentFull): string {
  const breakdown = buildPaymentAmountBreakdown(p)
  const itemRows = p.details
   .map((d) => {
    const name = d.courseName || d.classLabel
    const withCode = d.courseCode ? `${name} (${d.courseCode})` : name
+   const qty =
+    d.lessonCount == null
+     ? "—"
+     : isHomeworkMonthlyFeeDescription(d.description)
+       ? `${d.lessonCount} 個月`
+       : String(d.lessonCount)
    return `<tr>
     <td>${escHtml(withCode)}</td>
-    <td class="center">${d.lessonCount != null ? escHtml(String(d.lessonCount)) : "—"}</td>
+    <td class="center">${escHtml(qty)}</td>
     <td class="num">${d.amount != null ? escHtml(hkd(d.amount)) : "—"}</td>
     <td>${escHtml(d.description?.trim() || "—")}</td>
    </tr>`
@@ -469,7 +486,7 @@ function buildChargesTableHtml(p: PaymentFull): string {
   <thead>
    <tr>
     <th>項目</th>
-    <th class="center">堂數</th>
+    <th class="center">${escHtml(homeworkQtyHeader(p.details))}</th>
     <th class="num">金額</th>
     <th>備註</th>
    </tr>

@@ -114,6 +114,14 @@ import { isStudentNewToMingXue } from "@/services/referralQueries"
 
 type CollectMode = "receive" | "invoice"
 
+const HOMEWORK_DEFAULT_MONTH_COUNT = "1"
+
+function isHomeworkEnrollment(
+ enrollment: EnrollmentWithClass | null | undefined
+): enrollment is EnrollmentWithClass & { classKind: "homework" } {
+ return Boolean(enrollment && isHomeworkClassKind(enrollment.classKind))
+}
+
 export function PaymentsPageView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -249,7 +257,9 @@ export function PaymentsPageView() {
  const paymentEligibilityCtx = useMemo(
   () =>
    buildPaymentEligibilityContext(
-    lines.map((l) => ({ classId: l.classId, lessons: l.lessons })),
+    lines
+     .filter((l) => !isHomeworkEnrollment(enrollmentByClass.get(l.classId)))
+     .map((l) => ({ classId: l.classId, lessons: l.lessons })),
     (classId) => {
      const e = enrollmentByClass.get(classId)
      if (e) {
@@ -529,11 +539,11 @@ export function PaymentsPageView() {
     pendingEnrollmentClassRef.current = ""
     const prefEnroll = prefClassId ? list.find((e) => e.classId === prefClassId) : null
     if (prefEnroll) {
-     const homework = isHomeworkClassKind(prefEnroll.classKind)
+     const homework = isHomeworkEnrollment(prefEnroll)
      const line = {
       ...newLine("enrollment"),
       classId: prefEnroll.classId,
-      lessons: homework ? "1" : DEFAULT_LESSON_COUNT,
+      lessons: homework ? HOMEWORK_DEFAULT_MONTH_COUNT : DEFAULT_LESSON_COUNT,
       amount: homework
        ? homeworkPaymentLineAmount({
           dayPlan: prefEnroll.homeworkDayPlan,
@@ -666,10 +676,22 @@ export function PaymentsPageView() {
        next.lessons = DEFAULT_TRIAL_LESSON_COUNT
       }
      }
+     const enrollForKind = enrollmentByClass.get(next.classId)
+     const homeworkLine =
+      next.kind === "enrollment" && isHomeworkEnrollment(enrollForKind)
      if (patch.kind === "enrollment") {
       next.classId = patch.classId ?? ""
       next.trialType = "原價試堂"
-      if (!next.lessons || next.lessons === DEFAULT_TRIAL_LESSON_COUNT) {
+      const enrollAfterKind = enrollmentByClass.get(next.classId)
+      if (isHomeworkEnrollment(enrollAfterKind)) {
+       if (
+        !next.lessons ||
+        next.lessons === DEFAULT_LESSON_COUNT ||
+        next.lessons === DEFAULT_TRIAL_LESSON_COUNT
+       ) {
+        next.lessons = HOMEWORK_DEFAULT_MONTH_COUNT
+       }
+      } else if (!next.lessons || next.lessons === DEFAULT_TRIAL_LESSON_COUNT) {
        next.lessons = DEFAULT_LESSON_COUNT
       }
      }
@@ -680,7 +702,11 @@ export function PaymentsPageView() {
      }
      if (patch.classId !== undefined && patch.classId) {
       if (!next.lessons || next.lessons.trim() === "") {
-       next.lessons = next.kind === "trial" ? DEFAULT_TRIAL_LESSON_COUNT : DEFAULT_LESSON_COUNT
+       next.lessons = next.kind === "trial"
+        ? DEFAULT_TRIAL_LESSON_COUNT
+        : homeworkLine
+          ? HOMEWORK_DEFAULT_MONTH_COUNT
+          : DEFAULT_LESSON_COUNT
       }
      }
      if (
@@ -690,9 +716,9 @@ export function PaymentsPageView() {
       patch.trialType !== undefined
      ) {
       const enroll = enrollmentByClass.get(next.classId)
-      if (next.kind === "enrollment" && enroll && isHomeworkClassKind(enroll.classKind)) {
+      if (next.kind === "enrollment" && isHomeworkEnrollment(enroll)) {
        if (patch.classId !== undefined && patch.lessons === undefined) {
-        next.lessons = "1"
+        next.lessons = HOMEWORK_DEFAULT_MONTH_COUNT
        }
        next.amount = homeworkPaymentLineAmount({
         dayPlan: enroll.homeworkDayPlan,
@@ -715,6 +741,27 @@ export function PaymentsPageView() {
   [enrollmentByClass, trialClassById, selectedStudent, payDate]
  )
 
+ useEffect(() => {
+  setLines((prev) => {
+   let changed = false
+   const next = prev.map((l) => {
+    if (l.kind !== "enrollment" || !l.classId) return l
+    const enroll = enrollmentByClass.get(l.classId)
+    if (!isHomeworkEnrollment(enroll)) return l
+    const amount = homeworkPaymentLineAmount({
+     dayPlan: enroll.homeworkDayPlan,
+     grade: selectedStudent?.grade,
+     billingMonth: payDate,
+     monthCount: Number(l.lessons),
+    })
+    if (amount === l.amount) return l
+    changed = true
+    return { ...l, amount }
+   })
+   return changed ? next : prev
+  })
+ }, [payDate, enrollmentByClass, selectedStudent])
+
  const enrollmentsForLine = useCallback(
   (rowKey: string, currentClassId: string) => {
    const taken = new Set(
@@ -735,13 +782,13 @@ export function PaymentsPageView() {
   )
   const nextEnrollment = enrollments.find((e) => !taken.has(e.classId))
   if (nextEnrollment) {
-   const homework = isHomeworkClassKind(nextEnrollment.classKind)
+   const homework = isHomeworkEnrollment(nextEnrollment)
    setLines((prev) => [
     ...prev,
     {
      ...newLine("enrollment"),
      classId: nextEnrollment.classId,
-     lessons: homework ? "1" : DEFAULT_LESSON_COUNT,
+     lessons: homework ? HOMEWORK_DEFAULT_MONTH_COUNT : DEFAULT_LESSON_COUNT,
      amount: homework
       ? homeworkPaymentLineAmount({
          dayPlan: nextEnrollment.homeworkDayPlan,
@@ -760,9 +807,9 @@ export function PaymentsPageView() {
  const applyEnrollmentLessonSuggestion = async (rowKey: string, classId: string) => {
   if (!selectedStudent?.id || !classId) return
   const enroll = enrollmentByClass.get(classId)
-  if (enroll && isHomeworkClassKind(enroll.classKind)) {
+  if (isHomeworkEnrollment(enroll)) {
    updateLine(rowKey, {
-    lessons: "1",
+    lessons: HOMEWORK_DEFAULT_MONTH_COUNT,
     amount: homeworkPaymentLineAmount({
      dayPlan: enroll.homeworkDayPlan,
      grade: selectedStudent.grade,
@@ -793,10 +840,11 @@ export function PaymentsPageView() {
    updateLine(rowKey, { kind: "trial", classId: "", lessons: DEFAULT_TRIAL_LESSON_COUNT })
    return
   }
+  const homework = isHomeworkEnrollment(enrollmentByClass.get(value))
   updateLine(rowKey, {
    kind: "enrollment",
    classId: value,
-   lessons: DEFAULT_LESSON_COUNT,
+   lessons: homework ? HOMEWORK_DEFAULT_MONTH_COUNT : DEFAULT_LESSON_COUNT,
   })
   void applyEnrollmentLessonSuggestion(rowKey, value)
  }
@@ -927,7 +975,7 @@ export function PaymentsPageView() {
     const desc = e
      ? formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })
      : null
-    const homework = e ? isHomeworkClassKind(e.classKind) : false
+    const homework = e ? isHomeworkEnrollment(e) : false
     return {
      classId: l.classId,
      lessonCount: Number(l.lessons),
@@ -946,7 +994,7 @@ export function PaymentsPageView() {
   if (details.length === 0) {
    const hasTrialWithoutClass = lines.some((l) => l.kind === "trial" && !l.classId)
    if (hasTrialWithoutClass) return "請為試堂項目選擇班別。"
-   return "請至少新增一筆班別與堂數。"
+   return "請至少新增一筆班別與堂數／月數。"
   }
   const onlyZeroTrialReceipts =
    details.length > 0 &&
@@ -1505,7 +1553,7 @@ export function PaymentsPageView() {
          {lines.map((row) => {
           const homeworkRow =
            row.kind === "enrollment" &&
-           isHomeworkClassKind(enrollmentByClass.get(row.classId)?.classKind)
+           isHomeworkEnrollment(enrollmentByClass.get(row.classId))
           return (
           <StaggerItem
            key={row.key}
