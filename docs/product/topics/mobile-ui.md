@@ -2,9 +2,9 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（行政／老師**高頻波次 1–3 已落**；營運總覽手機已併出；**2026-08-29** 外星人卡片／老師 P3／FilterSheet／底欄 Inbox／觸控 `h-10` 已落；餘次要 CRUD／約房） |
-| 優先 | 高 → 實務上次優先（高頻夠用後；跟 Mgmt／外星人頁） |
-| 範圍 | 行政 `admin`／老師 `teacher`（外星人專屬頁可後做） |
+| 狀態 | `done`（2026-08-29 關帳：波次 1–4。高頻＋外星人專屬＋老師 P3＋FilterSheet／觸控已落；次要 CRUD／約房／行政底欄學生／收款**本期不做**） |
+| 優先 | 高 |
+| 範圍 | 行政 `admin`／老師 `teacher`／外星人專屬頁（首頁／報錯／日志） |
 | 不含 | 家長 Portal、學生端登入殼；**`/MgmtDashboard` 手機簡化版已併入** [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) |
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
@@ -13,11 +13,10 @@
 | 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
 | 行政模擬 | 見 §F |
 
-## 結論（2026-08-05 覆核）
+## 結論（2026-08-29 關帳）
 
-殼層＋行政／老師**日常高頻頁**仍 Pass（波次 1–3 **無回歸惡化**）。  
-**2026-08-29 已落**：外星人首頁／報錯／日志手機卡片；老師 P3 首頁排程捷徑＋scope 文案；行政／老師／外星人底欄 Inbox；Schedule FilterSheet；收款模式 pill `h-10`；Button／Input／DateInput／底欄觸控 `h-10`。  
-**仍欠**：約房多步、次要 CRUD／報表、行政底欄學生／收款捷徑（Inbox 已加）。營運總覽手機已交重整。
+殼層＋行政／老師高頻頁（波次 1–3）＋外星人專屬頁／老師 P3／FilterSheet／底欄 Inbox／觸控 `h-10`（波次 4）已落地。營運總覽手機已交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)。  
+**唔以**次要 CRUD／報表、約房減步、雙重 padding、行政底欄再塞學生／收款為關閉條件（複雜操作維持「回桌面」）。要再做另開主題。
 
 學生詳情老師繳費／請假旁路已清 → [role-ops-hardening.md](./role-ops-hardening.md) `done`。
 
@@ -27,8 +26,8 @@
 
 | 本波 | 對上一個工程 | 完成條件 |
 | --- | --- | --- |
-| `/MgmtDashboard` 手機簡化版 | — | **唔好喺本題開工**；見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3 |
-| 外星人頁／老師 P3／FilterSheet／觸控 | 無 | 可繼續；唔使等總覽重整 |
+| `/MgmtDashboard` 手機簡化版 | — | **已併出**；見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3 |
+| 外星人頁／老師 P3／FilterSheet／觸控 | 無 | **已滿足**（2026-08-29 波次 4） |
 
 ## 已落波次（勿當待辦）
 
@@ -43,16 +42,15 @@
 
 ---
 
-## 仍欠（進行中範圍）
+## 本期不做（關帳後唔當待辦）
 
-| 優先 | 項 | 說明 |
-| --- | --- | --- |
-| 已併出 | 營運總覽 MgmtDashboard | 2026-08-21 交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3（原 08-05 M-1） |
-| 已落 | 外星人 AlienGodViewHome、SystemIssues、SystemLogs | 2026-08-29 手機卡片＋Issues／Logs FilterSheet（M-2～M-4） |
-| 已落 | 老師 P3 排程捷徑／scope；Inbox 底欄；Schedule FilterSheet；觸控 `h-10` | 2026-08-29（M-5～M-9、M-11）；收款頁係長流程，改 pill 高度＋回桌面提示，唔硬套 FilterSheet |
-| 低 | 約房多步、次要 CRUD／報表、雙重 padding、行政底欄學生／收款 | §D；M-10／M-12／M-13 |
-
-低嚴重度模擬取捨（非擋操作，可選收斂）：W2-1～W2-4、W3-1～W3-3；08-05 M-13～M-18。
+| 項 | 說明 |
+| --- | --- |
+| 約房多步（M-10） | 可用；減步另開 |
+| 行政底欄學生／收款（M-12） | Inbox 已加；五格再加會擠 |
+| 雙重 padding／Header「首頁」重複（M-13） | 低；非擋操作 |
+| 次要 CRUD／報表（§D） | 非高頻；複雜操作回桌面 |
+| 低嚴重度模擬殘 | W2-1～W2-4、W3-1～W3-3；08-05 M-14～M-18 |
 
 ---
 
@@ -144,16 +142,16 @@ MonthlyTuition、PaymentDiscounts、ReferralRebates、Courses、Classrooms、Tea
 
 ---
 
-## 建議實作波次（更新後）
+## 建議實作波次（已關）
 
 1. ~~殼層擋操作~~ **已落**
-2. ~~Inbox／時間表／一對一等高頻~~ **已落**（外星人專屬可後做）
-3. ~~老師 P1–P2~~ **已落** → 餘 P3 捷徑／文案
-4. ~~Leave／PrivateTutoring~~ **已落** → Schedule FilterSheet **已落**
-5. ~~共用：觸控 `h-10`、FilterSheet 擴覆蓋~~ **已落**
-6. 次要 CRUD／報表／約房
+2. ~~Inbox／時間表／一對一等高頻~~ **已落**
+3. ~~老師 P1–P3~~ **已落**
+4. ~~Leave／PrivateTutoring／Schedule FilterSheet~~ **已落**
+5. ~~觸控 `h-10`、FilterSheet 擴覆蓋、外星人頁~~ **已落**
+6. 次要 CRUD／報表／約房 → **本期不做**
 
-**接手：** 次要頁與約房。逾期罰款已 `done`。邊緣個案複雜操作仍寫「回桌面」。
+逾期罰款已 `done`。邊緣個案複雜操作仍寫「回桌面」。
 
 ---
 
