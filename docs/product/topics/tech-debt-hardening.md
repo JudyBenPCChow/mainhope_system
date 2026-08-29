@@ -8,7 +8,6 @@
 | 阻塞 | 無 |
 | 不含 | **阿Po Edge session 帽**（本期不做，維持帳戶層 `mgmt_active_roles`）；**側欄／入口 IA1** [`nav-capability-entry.md`](./nav-capability-entry.md)；**主線品質閘（P0-3）** [`mainline-quality-gate.md`](./mainline-quality-gate.md)；**洩露密碼（P0-4）** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)；God files、計糧／總覽 perf、死碼清理、家長 Portal 前端 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | Canvas | `tech-debt-audit.canvas.tsx` · `p0-1-authz-feature-roles.canvas.tsx` |
 | 相關 | [`p0-1-authz-feature-roles.md`](./p0-1-authz-feature-roles.md)、[`nav-capability-entry.md`](./nav-capability-entry.md)（IA1）、[`mgmt-manager-role.md`](./mgmt-manager-role.md)、[`role-ops-hardening.md`](./role-ops-hardening.md)、[`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) |
 | 記錄 | 2026-08-14 全盤檢視；2026-08-15 P0-2 agent 已接；2026-08-18 前端 actor 回退入 `main`；**2026-08-19 production 套 domain 1–7／session／波 5／stamp_actor（authz_version 10）**；同日 JWT 模擬煙霧；**同日 P0-2 前端實作清線**（service／`can()`／`RequireCapabilities`／老師 scope）及 production session row 核實；**2026-08-20 P0-2 入 main（PR #21）**；**同日合入 capability-only 頁守衛、session 清列、inbox／學號 counter／portal view-as（authz_version 11）**；**同日關帳**（阿Po Edge 本期不做；IA1 另題） |
@@ -193,4 +192,4 @@ Production 而家：`authz_version = 11`（2026-08-20 closeout）。財務 JWT �
 
 P0-3 見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)。  
 原 P0-4 見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。  
-P1-4 已併入本主題；其餘 P1–P3 見 [稽核清單](../audits/2026-08-14-tech-debt-review.md) 的 backlog 歸屬。
+P1-4 已併入本主題；其餘 P1–P3 見  的 backlog 歸屬。

@@ -262,5 +262,4 @@ TeacherHome、TeacherTimetable、MgmtDashboard、StaffPerformance、HkExpenses
 | 用途 | 路徑 |
 |------|------|
 | 按鈕／錯誤互動 | `docs/meta/UI_DESIGN_INSTRUCTIONS.md` |
-| 老師端 skeleton P0 | `docs/product/plans/2026-07-22-teacher-schedule-load-skeleton.md` |
 | List 狀態契約 | `src/lib/listLoad.ts` |

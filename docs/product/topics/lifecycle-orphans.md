@@ -7,8 +7,6 @@
 | 範圍 | 資格撤銷後下游事實列仍留；以 `attendance_details` 為核心，並涵蓋請假調堂、試堂、軟取消排程 |
 | 觸發個案 | 林藝涵：取消 7/24 請假＋7/25 補堂後，點名紙無名但出席紀錄仍有 7/25 兩堂（個案結案：剩現場＝報讀堂，毋須刪） |
 | 原則（定案） | **不**靜默刪計費出席；資格變更時攔截＋Confirm；行政可單列刪（admin＋alien＋稽核） |
-| 操作方案 | [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md) |
-| A2 開工（定案） | [`plans/2026-07-31-lifecycle-orphans-a2-kickoff.md`](../plans/2026-07-31-lifecycle-orphans-a2-kickoff.md) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 相關政策 | [`ATTENDANCE_BILLING.md`](../policies/attendance/ATTENDANCE_BILLING.md)、[`LEAVE_MAKEUP_CONSECUTIVE.md`](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) §6 |
 | 更新日期 | 2026-08-01 |
@@ -56,7 +54,7 @@
 
 ## 分階段狀態
 
-操作細節 → [`plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md) · A2 定案 → [a2-kickoff](../plans/2026-07-31-lifecycle-orphans-a2-kickoff.md)。
+過程稿已刪；階段表以下為準。舊 parked 實作曾在 `docs/product/plans/patches/`，完整快照仍可自 git 歷史或 branch `wip/lifecycle-orphans-impl` 取回。
 
 ### 階段 A（止血）— 完成
 

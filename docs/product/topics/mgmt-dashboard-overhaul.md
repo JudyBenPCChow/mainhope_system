@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（2026-08-23 **波次 1–3 已落地**；計劃 [`2026-08-23-mgmt-dashboard-profit-kpis.md`](../plans/2026-08-23-mgmt-dashboard-profit-kpis.md)；**只餘波次 4** 計糧快取） |
+| 狀態 | `in_progress`（2026-08-23 **波次 1–3 已落地**；計劃 ；**只餘波次 4** 計糧快取） |
 | 優先 | 中 |
 | 範圍 | `/MgmtDashboard`：產品 KPI、查詢去重／按需載、手機簡化版；其後刀：計糧未結算 live 重算快取 |
 | 不含 | 軟封存／查詢收窄本體（互補另題）；會計收入認列；流動殼層其餘頁（外星人表、FilterSheet、老師 P3） |
@@ -41,7 +41,7 @@
 | 4 | 計糧未結算：上次計算＋「重新計算」；短 TTL；避免每次無謂 `UPDATE calc_at` | 載入偏慢／Payroll |
 | 可選 | payments／attendance／students 改 DB 聚合 RPC；主 bundle 再切 recharts／mgmt | 載入偏慢 |
 
-開工前寫實作 plan（`docs/product/plans/`）後改狀態 `in_progress`。波次 4 另確認產品：計糧可接受「快取＋手動刷新」定必須每次最新。
+開工前把步驟寫入本分題後改狀態 `in_progress`。波次 4 另確認產品：計糧可接受「快取＋手動刷新」定必須每次最新。
 
 ## 現況摘要
 

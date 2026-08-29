@@ -7,15 +7,14 @@
 | 範圍 | P1-2、P2-5：**資料存取邊界**＋KPI 失敗唔當 0。**唔以**拆完 God file JSX、亦**唔以**完整單向分層為關閉條件 |
 | 不含 | 權限真源／RLS（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；查詢效能／summary＋full 去重（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)）；generated types（見 [`database-contract-advisor-hygiene.md`](./database-contract-advisor-hygiene.md)）；TanStack Query／目錄切片／清 service→component 反向 import／全庫重寫 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 計劃 | [`2026-08-16-frontend-architecture-boundaries.md`](../plans/2026-08-16-frontend-architecture-boundaries.md)（定案；與本檔衝突以計劃為準） |
-| 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
-| 對抗 | [`2026-08-16-frontend-architecture-boundaries-adversarial.md`](../audits/2026-08-16-frontend-architecture-boundaries-adversarial.md)（落地後遺；與計劃衝突以計劃為準） |
-| 顧問覆核 | [`2026-08-16-frontend-architecture-boundaries-consultant-review.md`](../audits/2026-08-16-frontend-architecture-boundaries-consultant-review.md)（採納項已寫入計劃） |
+| 計劃 | （定案；與本檔衝突以計劃為準） |
+| 對抗 | （落地後遺；與計劃衝突以計劃為準） |
+| 顧問覆核 | （採納項已寫入計劃） |
 | 盤點 | 2026-08-16 對代碼再核對；行數與 08-14 稽核幾乎相同；同日第一性審核 |
 
 ## 一句
 
-分層約定寫咗但未守；最危險係查詢失敗被畫成「今日零」。波次 1–4 已落地：收回直打 DB、修 KPI 謊言、學生詳情三 island、刪死碼繳費寫入、排程寫入遷出。拆晒三大 View、清晒反向 import、React Query **唔**納入本期。因果同審核見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。
+分層約定寫咗但未守；最危險係查詢失敗被畫成「今日零」。波次 1–4 已落地：收回直打 DB、修 KPI 謊言、學生詳情三 island、刪死碼繳費寫入、排程寫入遷出。拆晒三大 View、清晒反向 import、React Query **唔**納入本期。因果同審核見。
 
 ---
 
@@ -160,7 +159,7 @@ flowchart TD
 
 ## 第一性審核（2026-08-16）
 
-完整因果同定案見[計劃](../plans/2026-08-16-frontend-architecture-boundaries.md)。結論（含顧問覆核）：
+完整因果同定案見。結論（含顧問覆核）：
 
 - 真正工作＝失敗≠0、查詢只寫一次、變更可隔離。行數係代理。
 - 本期鎖**資料存取邊界**（UI／page／lib 唔打表），唔聲稱完整單向分層。eslint Auth 要明確豁免。

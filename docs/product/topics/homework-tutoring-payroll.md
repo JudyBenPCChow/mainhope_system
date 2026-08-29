@@ -9,7 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-29（自計糧引擎「暫緩」抽出） |
 | 上次更新 | 2026-08-29 |
-| 規格舊稿 | [`2026-08-01-payroll-method-revised.md`](../plans/2026-08-01-payroll-method-revised.md) §9（稿寫「功課班」＝功輔） |
+| 規格舊稿 |  §9（稿寫「功課班」＝功輔） |
 | 營運指南 | [`PAYROLL_GUIDE.md`](../../policies/staffing/PAYROLL_GUIDE.md) §16（現階段不納入每月自動計算） |
 
 ## 開工閘（agent 必讀）

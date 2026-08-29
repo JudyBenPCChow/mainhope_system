@@ -9,7 +9,6 @@
 | 決策 | 試堂頁零收款；錢經 `/Payments`；對帳信繳費紀錄；取消／刪／改期强制一併刪點名 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 更新日期 | 2026-08-01 |
-| 對抗檢查 | [audits/2026-08-01-trial-sessions-wrapup-adversarial.md](../audits/2026-08-01-trial-sessions-wrapup-adversarial.md) · [補充](../audits/2026-08-01-trial-sessions-wrapup-adversarial-supplement.md) |
 | 收款鐵則 | [`UI_DESIGN_INSTRUCTIONS.md` §15](../UI_DESIGN_INSTRUCTIONS.md) |
 | 系統通知 | `20260801010000`「試堂與前台：收費統一改去「收款登記」」（admin／alien） |
 

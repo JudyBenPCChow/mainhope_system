@@ -9,7 +9,7 @@
 **未提交（勿漏）**
 
 - 新：`supabase/migrations/20260804010000_entitlement_pools_and_declarations.sql`（**遠端已 apply**）
-- 新：`docs/product/plans/2026-08-04-enrollment-entitlement-roster.md`
+- 新：`docs/product/topics/summer-enrollment-roster-consistency.md`（當時計劃過程稿已刪）
 - 新：`src/lib/rosterEligibilityGate.ts`、`src/lib/entitlementPackage.ts`
 - 新：`src/services/entitlementQueries.ts`、`src/services/rosterEligibilityService.ts`
 - 改：`src/services/scheduleRosterQueries.ts`、`src/services/studentQueries.ts`
@@ -49,7 +49,6 @@
 
 - `AGENTS.md`
 - `docs/product/topics/summer-enrollment-roster-consistency.md`（§三定案＋§四待辦）
-- `docs/product/plans/2026-08-04-enrollment-entitlement-roster.md`（§8 Wave 2）
 - 關鍵碼：`src/services/entitlementQueries.ts`、`src/services/scheduleRosterQueries.ts`、`src/lib/rosterEligibilityGate.ts`
 
 ## 勿再踩

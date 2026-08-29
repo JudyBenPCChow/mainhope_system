@@ -1,6 +1,6 @@
 # Re-import Quick Path (No CSV Staging)
 
-This path avoids manual CSV import. It reuses existing SQL files in `import-output`.
+This path avoids manual CSV import. It previously reused SQL dumps in `import-output/`（2526 已入 production 後已刪；需要時從 git 歷史取回或由 `scripts/import_2526_*.py` 再產生）。
 
 ## Run Order (FK-safe)
 

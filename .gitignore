@@ -32,3 +32,9 @@ docs/BACKLOG.md
 
 # Extracted CJK fonts for local PDF generation (from Word mingliu.ttc)
 docs/reports/.fonts/
+
+# One-time 2526 / HK expense import dumps (already in production)
+import-output/
+
+# Word lock files
+~$*.docx

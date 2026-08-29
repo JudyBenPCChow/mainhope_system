@@ -2,7 +2,7 @@
 """
 HK 成本帳歷史過渡匯入（Excel ∪ Notion → expense_entries）。
 
-原則（docs/product/plans/2026-08-05-hk-expense-cost-stats.md §9）：
+原則（docs/product/topics/hk-expense-cost-stats.md）：
   - origin = history_import；origin_key 冪等
   - 一律 pending_review；薪金類 force pending＋hint
   - 該月若已有 payroll_settle 過帳 → void 歷史薪金列

@@ -70,7 +70,7 @@ description: >-
 
 ## 開局必讀（精簡）
 - `AGENTS.md`
-- <最多 2–3 個直接相關檔：backlog 分題、現行 plan、關鍵 service>
+- <最多 2–3 個直接相關檔：backlog 分題、關鍵 service>
 
 ## 勿再踩
 - <本會話已踩過、下個 agent 易再踩嘅坑；無則寫「無」>

@@ -15,7 +15,7 @@
 ## 鐵則（一句）
 
 **立法喺 `policies/` → 操作喺 `playbooks/` → 學年包喺 `year/` → 二进制喺 `generated/`。**  
-工程過程（backlog／plans／audits／handoffs）唔當員工讀本真相。
+工程過程（backlog／topics／handoffs）唔當員工讀本真相。
 
 ## 目錄一覽
 
@@ -25,7 +25,7 @@ docs/
   policies/              已簽收規則（must / must-not）
   playbooks/             前線／財務點做
   year/2627/             本學年實例（指引、校曆物料、時間表）
-  product/               工程 backlog／plans／audits
+  product/               工程 backlog／topics
   meta/                  用語、agent、UI、RLS、handoffs
   generated/             docx／pdf 產出（非真相）
 ```

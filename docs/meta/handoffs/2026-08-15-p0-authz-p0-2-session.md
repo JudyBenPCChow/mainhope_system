@@ -12,7 +12,7 @@
 - **P0-1 先行**；未交凍結 contract 前唔改共用 Auth 檔。
 
 ## 已完成
-- P0-2 調查已存：[`2026-08-15-p0-2-browser-role-authority-investigation.md`](../../product/audits/2026-08-15-p0-2-browser-role-authority-investigation.md)。
+- P0-2 調查已存：。
 - 與 P0-1 互相審閱；架構方向一致。
 - 2026-08-15 晚：新 P0-2 agent 已讀協調交接，確認交接區同分工；用戶指示唔實作。
 - Backlog／分題已標：P0-2 調查完、agent 已接、等 P0-1。

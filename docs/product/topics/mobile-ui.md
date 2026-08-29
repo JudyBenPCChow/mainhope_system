@@ -9,8 +9,6 @@
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點 | 2026-07-30；落地＋模擬：2026-08-01；三角色覆核：2026-08-05 |
-| 模擬 | [波次 1 殼層](../audits/2026-08-01-mobile-shell-wave1-sim.md) · [波次 2](../audits/2026-08-01-mobile-wave2-sim.md) · [波次 3 一對一](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) · [三角色裝置](../audits/2026-08-05-mobile-roles-devices-sim.md) |
-| 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
 | 行政模擬 | 見 §F |
 
 ## 結論（2026-08-05 覆核）
@@ -32,12 +30,12 @@
 
 ## 已落波次（勿當待辦）
 
-| 波次 | 日期 | 內容 | 模擬 |
-| --- | --- | --- | --- |
-| 1 殼層 | 2026-08-01 | 阿Po z-index；更新橫幅 vs 底欄（M1→`5rem`）；Dialog `max-h`／safe-area；FilterSheet／NavDrawer ＜ Dialog | [wave1-sim](../audits/2026-08-01-mobile-shell-wave1-sim.md) |
-| 2 高頻列表 | 2026-08-01 | Inbox 卡片；Leave FilterSheet＋卡片；老師開放 `MobileDayViewGrid`；TeacherWeekTimetable 按日卡片 | [wave2-sim](../audits/2026-08-01-mobile-wave2-sim.md) |
-| 3 一對一 | 2026-08-01 | PrivateTutoring 學生列表 FilterSheet＋卡片；預約首屏；改約經 Dialog | [wave3-sim](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
-| 4 餘項 | 2026-08-29 | 外星人卡片（M-2～M-4）；老師 P3（M-5／M-6）；Inbox 底欄（M-7）；Schedule FilterSheet（M-9）；Payments pill／提示（M-8）；觸控 `h-10`（M-11） | 真機／瀏覽器覆核 |
+| 波次 | 日期 | 內容 |
+| --- | --- | --- |
+| 1 殼層 | 2026-08-01 | 阿Po z-index；更新橫幅 vs 底欄（M1→`5rem`）；Dialog `max-h`／safe-area；FilterSheet／NavDrawer ＜ Dialog |
+| 2 高頻列表 | 2026-08-01 | Inbox 卡片；Leave FilterSheet＋卡片；老師開放 `MobileDayViewGrid`；TeacherWeekTimetable 按日卡片 |
+| 3 一對一 | 2026-08-01 | PrivateTutoring 學生列表 FilterSheet＋卡片；預約首屏；改約經 Dialog |
+| 4 餘項 | 2026-08-29 | 外星人卡片（M-2～M-4）；老師 P3（M-5／M-6）；Inbox 底欄（M-7）；Schedule FilterSheet（M-9）；Payments pill／提示（M-8）；觸控 `h-10`（M-11） |
 
 **先前已有（非本系列波次）**：Students／Classes 卡片、TrialSessions、PaymentHistory、TeacherHome 近三日、RollCall 名冊、AdaptiveLayout／MobileLayout。
 
@@ -130,8 +128,6 @@ MonthlyTuition、PaymentDiscounts、ReferralRebates、Courses、Classrooms、Tea
 ---
 
 ## E. 老師桌面／手機對照
-
-來源：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md)。
 
 | 優先 | 項 | 狀態 |
 | --- | --- | --- |
