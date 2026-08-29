@@ -60,6 +60,7 @@ export type InboxItem = {
 export type InboxTypeFilter = "" | InboxItemType
 
 const LOOKBACK_DAYS = 30
+export const INBOX_LOOKBACK_DAYS = LOOKBACK_DAYS
 const LEAVE_LIMIT = 80
 const ENROLLMENT_LIMIT = 120
 const EVENT_LIMIT = 200
@@ -354,7 +355,7 @@ async function fetchRecentLeaveRows(opts: {
  fromYmd: string
 }): Promise<TeacherPortalLeaveRow[]> {
  if (opts.teacherScoped) {
-  return fetchLeaveRowsForClassIds(opts.teacherClassIds, LEAVE_LIMIT)
+  return fetchLeaveRowsForClassIds(opts.teacherClassIds, LEAVE_LIMIT, opts.fromYmd)
  }
  if (!supabase) return []
  const { data, error } = await supabase
@@ -430,7 +431,8 @@ export async function fetchInboxFeed(opts?: {
   fetchEnrollmentChangeEventsList({
    fromYmd,
    limit: ENROLLMENT_LIMIT,
-  }),
+   includeOlderYears: true,
+  }).then((res) => res.rows),
   fetchRecentLeaveRows({
    teacherClassIds,
    teacherScoped: Boolean(isTeacher && teacherId),

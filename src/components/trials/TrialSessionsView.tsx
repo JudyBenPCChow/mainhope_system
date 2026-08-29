@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import {
  TrialOutcomeDialog,
  formatOutcomeSummary,
@@ -129,6 +130,8 @@ export function TrialSessionsView() {
  const isMobile = useIsMobile()
 
  const [rows, setRows] = useState<TrialManageRow[]>([])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
+ const [includeOlderYears, setIncludeOlderYears] = useState(false)
  const [stats, setStats] = useState<TrialDashboardStats>({ todayCount: 0, weekCount: 0 })
  const [loading, setLoading] = useState(true)
  const [filtersOpen, setFiltersOpen] = useState(false)
@@ -184,20 +187,22 @@ export function TrialSessionsView() {
   setErr(null)
   try {
    const [list, st, tch] = await Promise.all([
-    fetchTrialsWithRelations(),
+    fetchTrialsWithRelations({ includeOlderYears }),
     fetchTrialDashboardStats(),
     fetchAllTeachers(),
    ])
-   setRows(list)
+   setRows(list.rows)
+   setHiddenOlderCount(list.hiddenOlderCount)
    setStats(st)
    setTeachers(tch)
   } catch (e) {
    reportUserFacingError(e, { source: "TrialSessionsView.reload", setErr })
    setRows([])
+   setHiddenOlderCount(0)
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [includeOlderYears])
 
  useEffect(() => {
   void reload()
@@ -780,6 +785,12 @@ export function TrialSessionsView() {
      {err}
     </div>
    ) : null}
+
+   <SoftArchiveScopeBanner
+    hiddenCount={hiddenOlderCount}
+    description={`已隱藏 ${hiddenOlderCount} 筆更舊學年已完成／取消試堂（未完成仍顯示；資料仍在，並非刪除）`}
+    onShow={() => setIncludeOlderYears(true)}
+   />
 
    <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 md:gap-3" aria-label="結果復盤概覽">
     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">

@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabaseClient"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 import {
  enrollmentCoversPeriod,
  isSingleSessionEnrollment,
@@ -148,18 +150,120 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
  }
 }
 
-export async function fetchLeaveMakeupWithRelations(): Promise<LeaveManageRow[]> {
- if (!supabase) return []
- // schedules 有兩條 FK（schedule_id、makeup_schedule_id），嵌套時須指明 constraint，否則 PostgREST 回傳 300/PGRST201
- const { data, error } = await supabase
+const LEAVE_LIST_COLUMNS =
+ "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+
+const LEAVE_LIST_COLUMNS_INNER_CLASS =
+ "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes!inner ( subject, course_code_full, academic_year_id, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+
+const LEAVE_COMPLETED_STATUS_OR =
+ "status.ilike.%已補課%,status.ilike.%已完成%,status.ilike.%放棄%"
+
+export type LeaveOpsListResult = {
+ rows: LeaveManageRow[]
+ hiddenOlderCount: number
+}
+
+function mergeLeaveRows(parts: LeaveManageRow[][]): LeaveManageRow[] {
+ const byId = new Map<string, LeaveManageRow>()
+ for (const part of parts) {
+  for (const row of part) byId.set(row.id, row)
+ }
+ return [...byId.values()].sort((a, b) => {
+  if (a.leave_date !== b.leave_date) return a.leave_date.localeCompare(b.leave_date)
+  return a.id.localeCompare(b.id)
+ })
+}
+
+async function mapLeaveListResult(result: {
+ data: unknown
+ error: unknown
+}): Promise<LeaveManageRow[]> {
+ if (result.error) throwPostgrest(result.error)
+ return ((result.data as Record<string, unknown>[] | null) ?? []).map((x) => mapRow(x))
+}
+
+/**
+ * 請假管理列表。預設：待處理／待補不限年；已完成／放棄跟日常營運窗。
+ * 深連結以 extraIds／extraStudentIds bypass。唔改堂數對帳／學生詳情 fetch。
+ */
+export async function fetchLeaveMakeupWithRelations(opts?: {
+ includeOlderYears?: boolean
+ extraIds?: string[]
+ extraStudentIds?: string[]
+}): Promise<LeaveOpsListResult> {
+ if (!supabase) return { rows: [], hiddenOlderCount: 0 }
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const extraIds = (opts?.extraIds ?? []).map((id) => id.trim()).filter(Boolean)
+ const extraStudentIds = (opts?.extraStudentIds ?? []).map((id) => id.trim()).filter(Boolean)
+
+ const runFull = async () => {
+  const { data, error } = await supabase!
+   .from("leave_makeup_records")
+   .select(LEAVE_LIST_COLUMNS)
+   .order("leave_date", { ascending: true })
+   .order("created_at", { ascending: true })
+  return { rows: await mapLeaveListResult({ data, error }), hiddenOlderCount: 0 }
+ }
+
+ if (includeOlder) return runFull()
+
+ const window = await fetchOpsAcademicYearWindow()
+ if (!window || window.ids.length === 0) return runFull()
+
+ const pendingQ = supabase
   .from("leave_makeup_records")
-  .select(
-   "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
-  )
-  .order("leave_date", { ascending: true })
-  .order("created_at", { ascending: true })
- if (error) throwPostgrest(error)
- return (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
+  .select(LEAVE_LIST_COLUMNS)
+  .not("status", "ilike", "%已補課%")
+  .not("status", "ilike", "%已完成%")
+  .not("status", "ilike", "%放棄%")
+ const completedInWindowQ = supabase
+  .from("leave_makeup_records")
+  .select(LEAVE_LIST_COLUMNS_INNER_CLASS)
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .in("classes.academic_year_id", window.ids)
+ const completedNoClassQ = supabase
+  .from("leave_makeup_records")
+  .select(LEAVE_LIST_COLUMNS)
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .is("class_id", null)
+ const extraByIdQ =
+  extraIds.length > 0
+   ? supabase.from("leave_makeup_records").select(LEAVE_LIST_COLUMNS).in("id", extraIds)
+   : null
+ const extraByStudentQ =
+  extraStudentIds.length > 0
+   ? supabase.from("leave_makeup_records").select(LEAVE_LIST_COLUMNS).in("student_id", extraStudentIds)
+   : null
+ const hiddenCountQ = supabase
+  .from("leave_makeup_records")
+  .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .not("classes.academic_year_id", "in", `(${window.ids.join(",")})`)
+
+ const [pendingRes, completedInWindowRes, completedNoClassRes, extraByIdRes, extraByStudentRes, hiddenRes] =
+  await Promise.all([
+   pendingQ,
+   completedInWindowQ,
+   completedNoClassQ,
+   extraByIdQ ?? Promise.resolve({ data: [], error: null }),
+   extraByStudentQ ?? Promise.resolve({ data: [], error: null }),
+   hiddenCountQ,
+  ])
+ if (hiddenRes.error) throwPostgrest(hiddenRes.error)
+
+ const parts = await Promise.all([
+  mapLeaveListResult(pendingRes),
+  mapLeaveListResult(completedInWindowRes),
+  mapLeaveListResult(completedNoClassRes),
+  mapLeaveListResult(extraByIdRes),
+  mapLeaveListResult(extraByStudentRes),
+ ])
+
+ return {
+  rows: mergeLeaveRows(parts),
+  hiddenOlderCount: hiddenRes.count ?? 0,
+ }
 }
 
 export type LeaveTodayStats = {
@@ -831,11 +935,13 @@ export type TeacherPortalLeaveRow = {
 
 export async function fetchLeaveRowsForClassIds(
  classIds: string[],
- limit = 40
+ limit = 40,
+ fromYmd?: string | null
 ): Promise<TeacherPortalLeaveRow[]> {
  if (!supabase || classIds.length === 0) return []
+ const from = (fromYmd ?? "").trim().slice(0, 10)
  const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
+  let q = supabase!
    .from("leave_makeup_records")
    .select(
     "id, leave_date, leave_reason, makeup_type, status, schedule_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name ) )"
@@ -843,6 +949,8 @@ export async function fetchLeaveRowsForClassIds(
    .in("class_id", slice)
    .order("leave_date", { ascending: false })
    .limit(limit)
+  if (from) q = q.gte("leave_date", from)
+  const { data, error } = await q
   if (error) throwPostgrest(error)
   return data ?? []
  })

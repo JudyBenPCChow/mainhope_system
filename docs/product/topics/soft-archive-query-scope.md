@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（2026-08-29 **波次 1–2 已落地**：政策＋helper＋學生列表／picker；餘波次 3–7） |
+| 狀態 | `in_progress`（2026-08-29 **波次 1–2、4 ✅**；**下一波＝3** 班別／排程 picker。餘 5–7） |
 | 優先 | 中（增長下先爆全撈頁；非即時擋營運） |
 | 範圍 | 列表／報表預設少 load；窄欄位 select；永不 DELETE；已畢業≠停補（含技術債 P1-6） |
 | 不含 | 物理搬 `archive_*` 表、停讀自動封存、完整校友／LTV 產品、ORM 全域 scope |
@@ -87,17 +87,18 @@
 
 ## 現況摘要（2026-08-29）
 
-- 波次 1：政策 [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md)；`listRetainedAcademicYearLabels`（ops／compliance）。
+- 波次 1：政策 [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md)；`listRetainedAcademicYearLabels`（ops／compliance）。暑期目前學年含下一常規。
 - 波次 2：`fetchStudentsForOpsList` 預設排除已畢業；學生管理橫幅；學號 `allocateNextStudentCode` 全庫；請假／試堂 picker 已停用 `listStudents()`。
-- `fetchAllStudents()`／`getStudentById` 默認未改。
+- 波次 4：Inbox 維持 30 日短窗；增退管理頁／試堂列表／請假管理跟 ops 窗；待處理請假／未完成試堂豁免年份窗；深連結 id／學生仍 bypass。
+- `fetchAllStudents()`／`getStudentById`／`fetchAllClasses()` 默認未改。
 - 回滾：`localStorage.mgmt_soft_archive_queries = "0"`。
 
 ## 待做（摘要）
 
 1. ~~波次 1 政策＋helper~~ **已落**
 2. ~~波次 2 學生列表／P1-6 picker~~ **已落**
-3. 波次 3 班別／排程日常營運窗＋「更舊學年」
-4. 波次 4 Inbox／增退／試堂列表／請假管理分層窗
+3. **下一波** 3：班別／排程日常營運窗＋「更舊學年」（`fetchClassesForOpsList` 尚未落地）
+4. ~~波次 4 Inbox／增退／試堂列表／請假管理分層窗~~ **已落**
 5. 波次 5 對帳標範圍；繳費匯出長窗
 6. 波次 6 畢業 Confirm＋feature flag UI
 7. 波次 7 索引／EXPLAIN／回歸測

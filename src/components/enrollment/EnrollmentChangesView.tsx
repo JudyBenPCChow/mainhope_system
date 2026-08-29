@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -19,6 +20,8 @@ type ActionFilter = "" | "enroll" | "withdraw"
 
 export function EnrollmentChangesView() {
  const [rows, setRows] = useState<EnrollmentChangeListRow[]>([])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
+ const [includeOlderYears, setIncludeOlderYears] = useState(false)
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
 
@@ -36,6 +39,7 @@ export function EnrollmentChangesView() {
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) {
    setRows([])
+   setHiddenOlderCount(0)
    setLoading(false)
    return
   }
@@ -48,15 +52,18 @@ export function EnrollmentChangesView() {
     toYmd: toYmd.trim() || undefined,
     search: searchDebounced || undefined,
     limit: 500,
+    includeOlderYears,
    })
-   setRows(data)
+   setRows(data.rows)
+   setHiddenOlderCount(fromYmd.trim() || includeOlderYears ? 0 : data.hiddenOlderCount)
   } catch (e) {
    reportUserFacingError(e, { source: "EnrollmentChangesView.load", setErr })
    setRows([])
+   setHiddenOlderCount(0)
   } finally {
    setLoading(false)
   }
- }, [action, fromYmd, toYmd, searchDebounced])
+ }, [action, fromYmd, toYmd, searchDebounced, includeOlderYears])
 
  useEffect(() => {
   void load()
@@ -108,6 +115,12 @@ export function EnrollmentChangesView() {
      {err}
     </div>
    ) : null}
+
+   <SoftArchiveScopeBanner
+    hiddenCount={hiddenOlderCount}
+    description={`已隱藏 ${hiddenOlderCount} 筆更舊學年增退紀錄（資料仍在，並非刪除）`}
+    onShow={() => setIncludeOlderYears(true)}
+   />
 
    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
     <div className="mb-4 flex flex-wrap gap-3 text-xs text-muted-foreground">
