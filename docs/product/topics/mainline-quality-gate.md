@@ -71,7 +71,7 @@ PR 合併進 `main` 必須 CI 綠；直推 `main` 仍會先入再跑檢查。
 
 | 沙盒 | 主站而家 | 接真實 SQL？ | 備註 |
 | --- | --- | --- | --- |
-| 功課輔導 | 要登入：`/prototype/HomeworkTutoring` | 否 | 8 月 1 日加回路由 |
+| 功課輔導 | **已刪**（2026-08-29）；正式走 `/HomeworkTutoring` | 有 | 三角色沙盒退役 |
 | 聯絡更新活動 | 要登入：`/prototype/ContactUpdateCampaign` | 否 | 8 月 4 日；死碼主題標暫緩勿刪檔 |
 | 首頁 wayfinding | **免登入**：`/prototype/HomeWayfinding` | 否 | 8 月 6 日 |
 | 計糧 UI 預覽 | 只 DEV 或特登開關：`/PayrollUiPreview` | 否 | |

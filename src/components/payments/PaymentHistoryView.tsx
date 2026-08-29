@@ -18,6 +18,7 @@ import { LoadMoreFooter } from "@/components/ui/load-more-footer"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
+import { isHomeworkMonthlyFeeDescription } from "@/lib/homeworkTutoringFees"
 import {
  Dialog,
  DialogContent,
@@ -705,7 +706,9 @@ export function PaymentHistoryView() {
           {detailPay.details.map((d) => (
            <li key={d.id} className="text-xs">
             <span className="font-medium">{d.classLabel}</span>
-            {d.lessonCount != null ? ` · ${d.lessonCount} 堂` : ""}
+            {d.lessonCount != null
+             ? ` · ${d.lessonCount}${isHomeworkMonthlyFeeDescription(d.description) ? " 個月" : " 堂"}`
+             : ""}
             {d.amount != null ? ` · ${money(d.amount)}` : ""}
             {d.description ? ` — ${d.description}` : ""}
            </li>

@@ -2,7 +2,7 @@
 
 > 日期：2026-08-01  
 > 性質：**第二輪介面設計**，以角色為軸。取代首輪「單一行政六分頁」為主的敘事。  
-> 沙盒：`/prototype/HomeworkTutoring`（頂部切換角色；假資料、不接 DB）  
+> 沙盒：`/prototype/HomeworkTutoring`（**2026-08-29 已刪**；正式走 `/HomeworkTutoring`）  
 > 產品依據：[`docs/product/topics/homework-tutoring.md`](../backlog/homework-tutoring.md)  
 > 首輪線框備查：[`2026-08-01-homework-tutoring-ui-design.md`](./2026-08-01-homework-tutoring-ui-design.md)
 

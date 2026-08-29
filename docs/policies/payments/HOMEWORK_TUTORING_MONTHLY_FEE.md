@@ -5,7 +5,7 @@
 校曆見 [`ACADEMIC_CALENDAR.md`](../academic/ACADEMIC_CALENDAR.md) §3；排課佔室見 [`SCHEDULING_RULES.md`](../scheduling/SCHEDULING_RULES.md) §4；產品範圍見 [`homework-tutoring.md`](../../product/topics/homework-tutoring.md)。  
 專科按月堂數／逾期罰款**不適用**功輔，見 [`TUITION_TERM_AND_LATE_FEE_POLICY.md`](TUITION_TERM_AND_LATE_FEE_POLICY.md)。
 
-**系統現況（2026-08-25）：** 2627 初中月費表及 12 月／2 月四分三已簽收；**小學跟中一價**已定。功輔放假日已入 `homework_tutoring_calendar_closures`。後台可產生 `homework_tutoring_monthly_charges` 應收（功輔月費頁）；收款確認連既有繳費入口可再收細。專科校曆表勿當功輔月曆。
+**系統現況（2026-08-29）：** 2627 初中月費表及 12 月／2 月四分三已簽收；**小學跟中一價**已定。功輔放假日已入 `homework_tutoring_calendar_closures`。收款**一律走現有「收款登記」**：選功輔班後按**月數 × 月費檔**帶入金額（唔再用堂數 × 單價）。功輔月費頁是否已繳**只睇繳費紀錄**（該月收款日、該班明細、已收款且未作廢）。2026-08 兩筆暑期實收單據保留。專科校曆表勿當功輔月曆。
 
 **適用：** 常規學年 `2627`（2026-09-01 起）。金額為每月港幣。
 
@@ -66,6 +66,6 @@
 
 ---
 
-## 5. 尚未收細
+## 5. 收款入口
 
-月費應收已可產生；收款確認與現有繳費入口對賬可再收細。排課佔室見 [`SCHEDULING_RULES.md`](../scheduling/SCHEDULING_RULES.md) §4（末節讓房**不做**；預設 **17D、17E**）。
+功輔月費與專科／私人課程同一條路：**收款登記**出單、**繳費紀錄**核對。唔在功課輔導頁另開收款。選功輔班時填**月數**（預設一個月），金額按本檔日數檔 × 年級帶入；不適用專科建議堂數及逾期罰款。是否已交當月學費，以該月收款日、該功輔班明細、單據狀態「已收款」且未作廢為準。

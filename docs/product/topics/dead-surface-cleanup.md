@@ -8,7 +8,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 來源稽核 | [`../audits/2026-07-31-unused-overlap-routes.md`](../audits/2026-07-31-unused-overlap-routes.md) |
 | 盤點日期 | 2026-07-31 |
-| 上次更新 | 2026-08-15 |
+| 上次更新 | 2026-08-29 |
 
 ## 進度摘要（2026-08-01）
 
@@ -38,8 +38,9 @@
 2026-08-14 全盤檢視確認下列路由其後重新出現，故「全部已下線」不再代表現況：
 
 - `/prototype/HomeWayfinding`：免登入、假資料
-- `/prototype/HomeworkTutoring`：登入後可 deep-link、假資料
 - `/prototype/ContactUpdateCampaign`：登入後可 deep-link、假資料
+
+**2026-08-29：** `/prototype/HomeworkTutoring` 已刪（正式走 `/HomeworkTutoring`）。
 
 檔案可按下方「暫緩」保留，但 production `App.tsx` 是否掛路由要獨立處理；側欄無入口不等於無公開網址。
 
