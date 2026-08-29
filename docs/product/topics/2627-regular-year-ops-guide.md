@@ -2,16 +2,18 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（**v1.11** md＋docx＋pdf；§7 學部／兩室／小學跟中一＋§7.4 編更已寫；待 WhatsApp 發佈／SYSTEM_MANUAL 索引） |
+| 狀態 | `open`（**v1.12** md＋docx／pdf；§2.6 日常名單範圍；§7 學部／兩室／小學跟中一＋§7.4 編更已寫；待 WhatsApp 發佈／SYSTEM_MANUAL 索引） |
 | 優先 | 中 |
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
-| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.11**／2026-08-25）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.12**／2026-08-29）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
-| 上次更新 | 2026-08-28 |
+| 上次更新 | 2026-08-29 |
 
 ## 結論
+
+**v1.12（2026-08-29）：** §2.6 日常名單範圍（已畢業預設不顯示；不是刪除）。docx／pdf 已同步重出。
 
 **v1.11（2026-08-25）：** 功輔 §4／§7：不開小學部；個別小學生入中學部；預設兩室 17D／17E；期望 ≥12 人、PT≥1；小學收費跟中一。docx／pdf 已同步重出。
 
@@ -37,12 +39,12 @@
 
 權威細節：校曆見 [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md)；本指引為員工彙編。
 
-## 章節一覽（v1.11）
+## 章節一覽（v1.12）
 
 | 章 | 狀態 |
 | --- | --- |
 | 1 文件說明 | 已寫；專科附件甲、功輔附件乙 |
-| 2 學年與報讀 | 已寫；學年定位併入封面 |
+| 2 學年與報讀 | 已寫；學年定位併入封面；v1.12 §2.6 日常名單 |
 | 3 排課規則 | 已寫；v1.10 同日順接只限五／六／日 |
 | 4 課室與場地 | 已寫；v1.11 功輔預設佔兩室 |
 | 5 專科班 | 已寫 |
