@@ -5,7 +5,7 @@
 | 狀態 | `in_progress` |
 | 優先 | 高 |
 | 範圍 | 財務在 `/Payroll` 內完成月結核對：合計語意、未點名跟進、真跳轉／真提醒；出席紀錄小修（日期記憶、老師篩選、排序）；改財務複核指引 |
-| 不含 | 重開計糧引擎規則；排程管理改成整月報表；財務可點名／改排程／睇請假；功輔班計糧；費率頁／銀行帳號／Cody 入冊（仍見 [`payroll-engine.md`](./payroll-engine.md)） |
+| 不含 | 重開計糧引擎規則；排程管理改成整月報表；財務可點名／改排程／睇請假；功輔計糧（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；費率頁／銀行帳號／Cody 入冊（仍見 [`payroll-engine.md`](./payroll-engine.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 觸發 | 2026-08-05 Cody 回饋 PDF（7 月糧；Henry／Jackson／Katie／Liam／Mark／Phoebe／Rafael／Christine／Kenneth／Natalie；例 Cheryl）；嚴重程度＝阻礙出糧 |
 | 相關 | [`payroll-engine.md`](./payroll-engine.md)（引擎已 done）· [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md) · [`attendance-records-range-query.md`](./attendance-records-range-query.md) · [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)（計糧快取後刀）· 指引 [`cody-payroll-review-guide.html`](../../playbooks/finance/cody-payroll-review-guide.html) · 營運 [`PAYROLL_GUIDE.md`](../../policies/staffing/PAYROLL_GUIDE.md) |

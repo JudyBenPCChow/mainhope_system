@@ -2,10 +2,10 @@
 
 > 日期：2026-08-01  
 > 性質：**介面設計稿（首輪）**。全角色重設計見 **[v2](./2026-08-01-homework-tutoring-ui-design-v2-roles.md)**。  
-> 可開啟沙盒：本地開發伺服器路徑 **`/prototype/HomeworkTutoring`**（假資料；頂部切換角色）  
+> 可開啟沙盒：~~`/prototype/HomeworkTutoring`~~（**2026-08-29 已刪**）  
 > 產品依據：[`docs/product/topics/homework-tutoring.md`](../backlog/homework-tutoring.md)  
 > UI 規範：[`docs/meta/UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md)  
-> 沙盒程式：`src/prototypes/homeworkTutoring/`
+> 沙盒程式：~~`src/prototypes/homeworkTutoring/`~~（已刪；正式畫面 `src/components/homeworkTutoring/`）
 
 ---
 

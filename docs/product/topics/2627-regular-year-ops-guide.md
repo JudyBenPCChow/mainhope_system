@@ -85,14 +85,14 @@
 
 | 本波 | 對上一個工程 | 完成條件 | 未完成就 |
 | --- | --- | --- | --- |
-| 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費已寫） | — |
-| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **H11 已通過（2026-08-24）**；編更規則可寫入員工守則（唔使等正式產品頁上線） | — |
+| 發佈／掛 `SYSTEM_MANUAL` | 無 | 可獨立做（校曆＋月費＋§7.4 編更已寫） | — |
+| 補寫 §7 編更 | [`homework-tutoring.md`](./homework-tutoring.md) | **完成**（v1.11 §7.4） | — |
 
 ## 依賴（餘下）
 
 | 項目 | 依賴 | 狀態 |
 | --- | --- | --- |
-| 補寫 §7 其餘 | [`homework-tutoring.md`](./homework-tutoring.md)（H4–H7 已定；§7.4 編更已寫） | 校曆＋月費＋編更已寫 |
+| 補寫 §7 其餘 | [`homework-tutoring.md`](./homework-tutoring.md) | **完成**（校曆＋月費＋§7.4 編更） |
 | 專科校曆入 DB | [`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §2.4 校舍假期 21 日已寫 `academic_calendar_closures` | 已入庫（2026-08-21） |
 
 ## 待做

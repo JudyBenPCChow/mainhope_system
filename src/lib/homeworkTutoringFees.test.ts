@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   homeworkMonthlyFeeHkd,
   homeworkPaymentLineAmount,
+  isHomeworkMonthlyFeeDescription,
 } from "@/lib/homeworkTutoringFees"
 import { composeHomeworkFeeDisplays } from "@/lib/homeworkTutoringUi"
 
@@ -31,6 +32,11 @@ describe("功輔月費價目年級", () => {
         monthCount: 1,
       })
     ).toBe("3100")
+  })
+
+  it("明細備註帶月費先當功輔月費行", () => {
+    expect(isHomeworkMonthlyFeeDescription("功課輔導班 · 2026年9月月費")).toBe(true)
+    expect(isHomeworkMonthlyFeeDescription("中三英文")).toBe(false)
   })
 })
 
