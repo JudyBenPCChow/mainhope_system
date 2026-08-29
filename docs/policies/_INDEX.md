@@ -50,7 +50,7 @@
 
 | 文件 | 主題 |
 | --- | --- |
-| [專科班排課規則](scheduling/SCHEDULING_RULES.md) | 格網、功輔（預設 17D＋17E）、兼職密排、現行老師配額、已確認班別時間鎖定、驗證清單 |
+| [專科班排課規則](scheduling/SCHEDULING_RULES.md) | 格網、功輔、兼職密排、老師配額、已確認班別時間鎖、**4.0 方案工程已完（其後加班只入系統）** |
 | [課室與場地](scheduling/CLASSROOMS_OPS.md) | 可用課室；17K 停用 |
 | [同班偶發代堂](scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 更換任教老師；只改該堂 `schedules.teacher_id` |
 
