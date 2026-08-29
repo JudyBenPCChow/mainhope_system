@@ -52,3 +52,20 @@ export async function fetchOpsAcademicYearWindow(): Promise<OpsAcademicYearWindo
   endYmd: bounds.endYmd,
  }
 }
+
+/** head count；失敗回 null（呼叫端當 0，唔空表）。 */
+export async function headCountOrNull(
+ query: PromiseLike<{ count: number | null; error: { message?: string } | null }>
+): Promise<number | null> {
+ try {
+  const { count, error } = await query
+  if (error) {
+   console.warn("[softArchive hidden count]", error.message)
+   return null
+  }
+  return count ?? 0
+ } catch (e) {
+  console.warn("[softArchive hidden count]", e)
+  return null
+ }
+}

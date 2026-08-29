@@ -2,6 +2,7 @@ import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrol
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { enrollmentOpsEffectiveDateOrFilter } from "@/lib/softArchiveListScope"
 import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 
 /** 全站增退紀錄列表列 */
@@ -81,11 +82,13 @@ export async function fetchEnrollmentChangeEventsList(
 
  let appliedFromYmd = (opts.fromYmd ?? "").trim().slice(0, 10) || null
  let hiddenOlderCount = 0
+ let opsNullInclusiveDate = false
 
  if (!includeOlder && !appliedFromYmd) {
   const window = await fetchOpsAcademicYearWindow()
   if (window?.startYmd) {
    appliedFromYmd = window.startYmd
+   opsNullInclusiveDate = true
    let countQ = supabase
     .from("enrollment_change_events")
     .select("id", { count: "exact", head: true })
@@ -114,7 +117,11 @@ export async function fetchEnrollmentChangeEventsList(
  if (opts.action === "enroll" || opts.action === "withdraw") {
   q = q.eq("action", opts.action)
  }
- if (appliedFromYmd) q = q.gte("effective_date", appliedFromYmd)
+ if (opsNullInclusiveDate && appliedFromYmd) {
+  q = q.or(enrollmentOpsEffectiveDateOrFilter(appliedFromYmd))
+ } else if (appliedFromYmd) {
+  q = q.gte("effective_date", appliedFromYmd)
+ }
  if (opts.toYmd) q = q.lte("effective_date", opts.toYmd)
 
  const { data, error } = await q

@@ -7,6 +7,8 @@ import {
  normalizeGradeCode,
 } from "@/lib/courseCode"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { academicYearIdOpsOrFilter, hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
 import {
  assertAcademicYearEditable,
  assertClassRecordEditable,
@@ -43,6 +45,7 @@ import {
  resolvePeriodCodeFromDate,
 } from "@/lib/enrollmentPeriod"
 import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
+import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import {
  fetchEnrolledScheduleIdsByEnrollmentIds,
  fetchSessionNumbersByEnrollmentIds,
@@ -158,6 +161,96 @@ export async function fetchAllClasses(): Promise<ClassRecord[]> {
   .order("course_code_full", { ascending: true, nullsFirst: false })
  if (error) throw error
  return (data ?? []).map((x) => mapClassRow(x as Record<string, unknown>))
+}
+
+export type ClassesOpsListResult = {
+ classes: ClassRecord[]
+ hiddenOlderCount: number
+ opsYearLabels: string[]
+}
+
+function sortClassRecords(rows: ClassRecord[]): ClassRecord[] {
+ return [...rows].sort((a, b) =>
+  (a.course_code_full ?? "").localeCompare(b.course_code_full ?? "", "zh-Hant")
+ )
+}
+
+/**
+ * 班別管理／日常 picker 專用。預設日常營運窗＋學年空白；唔改 {@link fetchAllClasses} 默認。
+ */
+export async function fetchClassesForOpsList(opts?: {
+ includeOlderYears?: boolean
+ extraIds?: string[]
+}): Promise<ClassesOpsListResult> {
+ if (!supabase) return { classes: [], hiddenOlderCount: 0, opsYearLabels: [] }
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const extraIds = [...new Set((opts?.extraIds ?? []).map((id) => id.trim()).filter(Boolean))]
+
+ const runFull = async (): Promise<ClassesOpsListResult> => {
+  const classes = await fetchAllClasses()
+  if (extraIds.length === 0) return { classes, hiddenOlderCount: 0, opsYearLabels: [] }
+  const have = new Set(classes.map((c) => c.id))
+  const missing = extraIds.filter((id) => !have.has(id))
+  if (missing.length === 0) return { classes, hiddenOlderCount: 0, opsYearLabels: [] }
+  const extras = await Promise.all(missing.map((id) => getClassById(id)))
+  return {
+   classes: sortClassRecords([...classes, ...extras.filter((c): c is ClassRecord => c != null)]),
+   hiddenOlderCount: 0,
+   opsYearLabels: [],
+  }
+ }
+
+ if (includeOlder) return runFull()
+
+ const window = await fetchOpsAcademicYearWindow()
+ if (!window || window.ids.length === 0) return runFull()
+
+ const inWindowQ = supabase
+  .from("classes")
+  .select(CLASS_ROW_SELECT)
+  .or(academicYearIdOpsOrFilter(window.ids))
+  .order("course_code_full", { ascending: true, nullsFirst: false })
+ const extraQ =
+  extraIds.length > 0
+   ? supabase.from("classes").select(CLASS_ROW_SELECT).in("id", extraIds)
+   : null
+ const allCountQ = supabase.from("classes").select("id", { count: "exact", head: true })
+ const inWindowCountQ = supabase
+  .from("classes")
+  .select("id", { count: "exact", head: true })
+  .in("academic_year_id", window.ids)
+ const nullYearCountQ = supabase
+  .from("classes")
+  .select("id", { count: "exact", head: true })
+  .is("academic_year_id", null)
+
+ const [inWindowRes, extraRes, allCount, inWindowCount, nullYearCount] = await Promise.all([
+  inWindowQ,
+  extraQ ?? Promise.resolve({ data: [], error: null }),
+  headCountOrNull(allCountQ),
+  headCountOrNull(inWindowCountQ),
+  headCountOrNull(nullYearCountQ),
+ ])
+ if (inWindowRes.error) throw inWindowRes.error
+ if (extraRes.error) {
+  console.warn("[fetchClassesForOpsList] extraIds", extraRes.error)
+ }
+
+ const byId = new Map<string, ClassRecord>()
+ for (const row of inWindowRes.data ?? []) {
+  const mapped = mapClassRow(row as Record<string, unknown>)
+  byId.set(mapped.id, mapped)
+ }
+ for (const row of extraRes.data ?? []) {
+  const mapped = mapClassRow(row as Record<string, unknown>)
+  byId.set(mapped.id, mapped)
+ }
+
+ return {
+  classes: sortClassRecords([...byId.values()]),
+  hiddenOlderCount: hiddenOlderCountFromParts(allCount, inWindowCount, nullYearCount),
+  opsYearLabels: window.labels,
+ }
 }
 
 /** 僅主責老師的班別（老師首頁用，避免全表 fetchAllClasses） */

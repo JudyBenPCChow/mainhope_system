@@ -47,6 +47,8 @@ import {
  type ClassListHeaderFilters,
 } from "@/components/classes/classesListColumns"
 import { ClassesListTable } from "@/components/classes/ClassesListTable"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
+import { classYearFilterRequiresOlderYears } from "@/lib/softArchiveListScope"
 import {
  getClassesListDataCache,
  setClassesListDataCache,
@@ -64,7 +66,7 @@ import {
  deleteClassCascade,
  duplicateClass,
  fetchAcademicYearOptions,
- fetchAllClasses,
+ fetchClassesForOpsList,
  previewClassDeletionSchedules,
  type ClassRecord,
  updateClass,
@@ -159,6 +161,11 @@ export function ClassesListPage() {
  )
  const [selectedIds, setSelectedIds] = useState<string[]>([])
  const [bulkSaving, setBulkSaving] = useState(false)
+ const [includeOlderYears, setIncludeOlderYears] = useState(
+  () => initialCache?.includeOlderYears ?? false
+ )
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(() => initialCache?.hiddenOlderCount ?? 0)
+ const [opsYearLabels, setOpsYearLabels] = useState<string[]>(() => initialCache?.opsYearLabels ?? [])
 
  useEffect(() => {
   try {
@@ -192,7 +199,8 @@ export function ClassesListPage() {
   if (!opts?.silent) setLoading(true)
   setErr(null)
   try {
-   const list = await fetchAllClasses()
+   const { classes: list, hiddenOlderCount: hidden, opsYearLabels: labels } =
+    await fetchClassesForOpsList({ includeOlderYears })
    const classIds = list.map((c) => c.id)
    const [yearOpts, roster, summaries] = await Promise.all([
     fetchAcademicYearOptions(),
@@ -203,18 +211,23 @@ export function ClassesListPage() {
    setYearOptions(yearOpts)
    setEnrollRoster(roster)
    setScheduleSummaries(summaries)
+   setHiddenOlderCount(hidden)
+   setOpsYearLabels(labels)
    setClassesListDataCache({
     rows: list,
     yearOptions: yearOpts,
     enrollRoster: roster,
     scheduleSummaries: summaries,
+    hiddenOlderCount: hidden,
+    includeOlderYears,
+    opsYearLabels: labels,
    })
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
   } finally {
    if (!opts?.silent) setLoading(false)
   }
- }, [])
+ }, [includeOlderYears])
 
  const removeClassFromLocalState = useCallback((id: string) => {
   setRows((prev) => prev.filter((c) => c.id !== id))
@@ -239,6 +252,12 @@ export function ClassesListPage() {
  useEffect(() => {
   if (!teacherTid && view === "gallery") setView("list")
  }, [teacherTid, view])
+
+ useEffect(() => {
+  if (classYearFilterRequiresOlderYears(academicYearFilter, opsYearLabels)) {
+   setIncludeOlderYears(true)
+  }
+ }, [academicYearFilter, opsYearLabels])
 
  const currentAcademicYear = useMemo(() => academicYearLabelFromStartDate(null), [])
 
@@ -271,6 +290,11 @@ export function ClassesListPage() {
   () => (academicYearFilter === "current" ? currentAcademicYear : academicYearFilter),
   [academicYearFilter, currentAcademicYear]
  )
+
+ const yearEmptyHint =
+  academicYearFilter === "all"
+   ? "目前已載入範圍沒有班別，請切換學年後再篩選。"
+   : `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
 
  const yearScopedRows = useMemo(() => {
   const pick = selectedYearLabel
@@ -765,9 +789,16 @@ export function ClassesListPage() {
      <Select
       className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
       value={academicYearFilter}
-      onChange={(e) => setAcademicYearFilter(e.target.value)}
+      onChange={(e) => {
+       const v = e.target.value
+       setAcademicYearFilter(v)
+       if (classYearFilterRequiresOlderYears(v, opsYearLabels)) {
+        setIncludeOlderYears(true)
+       }
+      }}
      >
       <option value="current">目前學年（{currentAcademicYear}）</option>
+      <option value="all">已載入學年</option>
       {academicYearSelectOptions.map((y) => (
        <option key={y.value} value={y.value}>
         {y.label}
@@ -819,6 +850,15 @@ export function ClassesListPage() {
      </div>
     </div>
    </div>
+
+   <SoftArchiveScopeBanner
+    hiddenCount={includeOlderYears ? 0 : hiddenOlderCount}
+    description={`已隱藏 ${hiddenOlderCount} 個更舊學年班別（資料仍在，並非刪除）`}
+    onShow={() => {
+     setIncludeOlderYears(true)
+     setAcademicYearFilter("all")
+    }}
+   />
 
    <div className="grid grid-cols-3 gap-2 md:gap-3">
     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm transition-shadow hover:shadow-md md:p-4">
@@ -916,7 +956,7 @@ export function ClassesListPage() {
     ) : filtered.length === 0 ? (
      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
       {yearScopedRows.length === 0 && baseRows.length > 0
-       ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+       ? yearEmptyHint
        : "沒有符合條件的班別"}
      </div>
     ) : (
@@ -1032,7 +1072,7 @@ export function ClassesListPage() {
       loading={loading}
       emptyHint={
        yearScopedRows.length === 0 && baseRows.length > 0
-        ? `所選學年（${selectedYearLabel}）沒有班別，請切換學年後再篩選。`
+        ? yearEmptyHint
         : "沒有符合條件的專科班。若要管理私人課程，請前往「私人課程」。"
       }
       sortKey={safeSortKey}

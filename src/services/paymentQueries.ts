@@ -12,6 +12,9 @@ import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
 import { supabase } from "@/lib/supabaseClient"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { paymentOpsListOrFilter } from "@/lib/softArchiveListScope"
+import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import {
  applyDiscountsToSubtotal,
@@ -334,6 +337,8 @@ export type PaymentListFilters = {
  studentId?: string
  limit?: number
  offset?: number
+ includeOlderYears?: boolean
+ includeVoided?: boolean
 }
 
 export const PAYMENTS_PAGE_SIZE = 50
@@ -341,6 +346,8 @@ export const PAYMENTS_PAGE_SIZE = 50
 export type PaymentsPageResult = {
  rows: PaymentListRow[]
  hasMore: boolean
+ hiddenOlderCount: number
+ appliedFromYmd: string | null
 }
 
 /** 紀錄列表（含學生、優惠名稱） */
@@ -351,9 +358,61 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
 
 /** 分頁紀錄列表 */
 export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promise<PaymentsPageResult> {
- if (!supabase) return { rows: [], hasMore: false }
+ if (!supabase) return { rows: [], hasMore: false, hiddenOlderCount: 0, appliedFromYmd: null }
  const limit = Math.min(Math.max(filters.limit ?? PAYMENTS_PAGE_SIZE, 1), 800)
  const offset = Math.max(filters.offset ?? 0, 0)
+ const includeOlder = Boolean(filters.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const includeVoided = Boolean(filters.includeVoided) || filters.status === "voided"
+ const userFrom = (filters.fromYmd ?? "").trim().slice(0, 10) || null
+ const userTo = (filters.toYmd ?? "").trim().slice(0, 10) || null
+ const studentId = (filters.studentId ?? "").trim() || null
+ const status = filters.status ?? "all"
+
+ let appliedFromYmd: string | null = userFrom
+ let opsDateOr: string | null = null
+ let hiddenOlderCount = 0
+
+ const applyOpsDefault =
+  !includeOlder && !userFrom && !studentId && (status === "all" || status === "received")
+
+ if (applyOpsDefault) {
+  const window = await fetchOpsAcademicYearWindow()
+  if (window?.startYmd) {
+   appliedFromYmd = window.startYmd
+   if (status === "all") {
+    opsDateOr = paymentOpsListOrFilter({
+     startYmd: window.startYmd,
+     pendingPayStatus: PAYMENT_STATUS.pendingPay,
+     pendingReceiveStatus: PAYMENT_STATUS.pendingReceive,
+    })
+   }
+   if (offset === 0) {
+    const olderQ = supabase
+     .from("payments")
+     .select("id", { count: "exact", head: true })
+     .lt("payment_date", window.startYmd)
+     .not(
+      "status",
+      "in",
+      `(${PAYMENT_STATUS.pendingPay},${PAYMENT_STATUS.pendingReceive},${PAYMENT_STATUS.voided})`
+     )
+    const voidedQ = includeVoided
+     ? null
+     : supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", PAYMENT_STATUS.voided)
+    const [olderCount, voidedCount] = await Promise.all([
+     headCountOrNull(olderQ),
+     voidedQ ? headCountOrNull(voidedQ) : Promise.resolve(0),
+    ])
+    if (olderCount == null || voidedCount == null) hiddenOlderCount = 0
+    else hiddenOlderCount = olderCount + voidedCount
+   }
+  }
+ } else if (!includeVoided && status === "all" && offset === 0) {
+  const voidedCount = await headCountOrNull(
+   supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", PAYMENT_STATUS.voided)
+  )
+  hiddenOlderCount = voidedCount ?? 0
+ }
 
  let q = supabase
   .from("payments")
@@ -364,20 +423,26 @@ export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promi
   .order("created_at", { ascending: false })
   .range(offset, offset + limit - 1)
 
- if (filters.studentId) q = q.eq("student_id", filters.studentId)
- if (filters.fromYmd) q = q.gte("payment_date", filters.fromYmd)
- if (filters.toYmd) q = q.lte("payment_date", filters.toYmd)
+ if (studentId) q = q.eq("student_id", studentId)
+ if (opsDateOr && appliedFromYmd) {
+  q = q.or(opsDateOr)
+ } else if (appliedFromYmd) {
+  q = q.gte("payment_date", appliedFromYmd)
+ }
+ if (userTo) q = q.lte("payment_date", userTo)
 
- if (filters.status === "received") {
+ if (status === "received") {
   q = q.eq("status", PAYMENT_STATUS.received)
- } else if (filters.status === "pending") {
+ } else if (status === "pending") {
   q = q.in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
- } else if (filters.status === "pendingPay") {
+ } else if (status === "pendingPay") {
   q = q.eq("status", PAYMENT_STATUS.pendingPay)
- } else if (filters.status === "pendingReceive") {
+ } else if (status === "pendingReceive") {
   q = q.eq("status", PAYMENT_STATUS.pendingReceive)
- } else if (filters.status === "voided") {
+ } else if (status === "voided") {
   q = q.eq("status", PAYMENT_STATUS.voided)
+ } else if (!includeVoided) {
+  q = q.neq("status", PAYMENT_STATUS.voided)
  }
 
  const { data, error } = await q
@@ -394,7 +459,23 @@ export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promi
    return hay.includes(s)
   })
  }
- return { rows, hasMore: rows.length >= limit }
+ return { rows, hasMore: rows.length >= limit, hiddenOlderCount, appliedFromYmd }
+}
+
+/** 匯出用：逐頁拉至盡（核數可傳 includeOlderYears／includeVoided）。 */
+export async function fetchPaymentsForExport(
+ filters: PaymentListFilters
+): Promise<PaymentListRow[]> {
+ const all: PaymentListRow[] = []
+ const limit = 800
+ let offset = 0
+ for (let i = 0; i < 40; i += 1) {
+  const page = await fetchPaymentsPage({ ...filters, limit, offset })
+  all.push(...page.rows)
+  if (!page.hasMore) break
+  offset += page.rows.length
+ }
+ return all
 }
 
 export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> {

@@ -40,6 +40,13 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import {
+ confirmGraduateStudent,
+ confirmUngraduateStudent,
+ graduationHasWarnings,
+ logGraduateStudentChange,
+ logUngraduateStudentChange,
+} from "@/lib/graduationGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
@@ -62,6 +69,7 @@ import {
  fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
 } from "@/services/paymentQueries"
+import { fetchGraduationBlockers } from "@/services/graduationGuardQueries"
 import {
  fetchAllStudents,
  fetchClassOptions,
@@ -445,14 +453,43 @@ export function StudentDetailView() {
  }, [enrollKindOpen, ensureTabData])
 
  const [form, setForm] = useState<Partial<StudentRecord>>({})
+ const [savingBasic, setSavingBasic] = useState(false)
+ const savingBasicRef = useRef(false)
 
  useEffect(() => {
   if (student) setForm(student)
  }, [student])
 
  const saveBasic = useCallback(async (): Promise<boolean> => {
-  if (!sid || !student) return false
+  if (!sid || !student || savingBasicRef.current) return false
+  savingBasicRef.current = true
+  setSavingBasic(true)
   try {
+   const prevStage = normalizeAcademicStage(student.academic_stage)
+   const nextStage = normalizeAcademicStage(form.academic_stage)
+   const studentName = (form.full_name ?? student.full_name ?? "").trim() || "此生"
+   const graduating = prevStage !== "已畢業" && nextStage === "已畢業"
+   const ungraduating = prevStage === "已畢業" && nextStage !== "已畢業"
+   let graduateBlockers = null as Awaited<ReturnType<typeof fetchGraduationBlockers>> | null
+   if (graduating) {
+    graduateBlockers = await fetchGraduationBlockers(sid)
+    if (
+     !(await confirmGraduateStudent(confirmDialog, {
+      studentName,
+      blockers: graduateBlockers,
+     }))
+    ) {
+     return false
+    }
+   } else if (ungraduating) {
+    if (
+     !(await confirmUngraduateStudent(confirmDialog, {
+      studentName,
+     }))
+    ) {
+     return false
+    }
+   }
    const updated = await updateStudent(sid, {
     full_name: form.full_name ?? student.full_name,
     english_name: form.english_name,
@@ -482,14 +519,32 @@ export function StudentDetailView() {
    })
    setStudent(updated)
    setForm(updated)
+   if (graduating && graduateBlockers) {
+    logGraduateStudentChange({
+     forced: graduationHasWarnings(graduateBlockers),
+     studentId: sid,
+     studentName,
+     blockers: graduateBlockers,
+     source: "StudentDetailView.saveBasic",
+    })
+   } else if (ungraduating) {
+    logUngraduateStudentChange({
+     studentId: sid,
+     studentName,
+     source: "StudentDetailView.saveBasic",
+    })
+   }
    pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
    return true
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.saveBasic" })
    pushBanner({ tone: "error", title: "儲存失敗", message: e instanceof Error ? e.message : String(e) })
    return false
+  } finally {
+   savingBasicRef.current = false
+   setSavingBasic(false)
   }
- }, [sid, student, form, pushBanner])
+ }, [sid, student, form, pushBanner, confirmDialog])
 
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
@@ -1549,7 +1604,7 @@ export function StudentDetailView() {
       </section>
 
       {canMutateStudentOps ? (
-       <Button type="button" onClick={() => void saveBasic()}>
+       <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
         儲存變更
        </Button>
       ) : null}

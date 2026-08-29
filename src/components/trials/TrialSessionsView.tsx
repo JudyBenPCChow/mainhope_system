@@ -28,7 +28,7 @@ import {
  type TrialOutcome,
 } from "@/lib/trialOutcome"
 import { cn } from "@/lib/utils"
-import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
+import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import { localYmd } from "@/services/scheduleQueries"
@@ -268,9 +268,9 @@ export function TrialSessionsView() {
 
  useEffect(() => {
   if (!convertId) return
-  void fetchAllClasses().then((cls) => {
+  void fetchClassesForOpsList().then((result) => {
    setConvertClassOptions(
-    cls.map((c) => ({
+    result.classes.map((c) => ({
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,
@@ -377,9 +377,9 @@ export function TrialSessionsView() {
   setClassSearch("")
   setClassPickerOpen(false)
   setAddClassId("")
-  void fetchAllClasses().then((cls: ClassRecord[]) => {
+  void fetchClassesForOpsList().then((result) => {
    setClassPickList(
-    cls.map((c) => ({
+    result.classes.map((c) => ({
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,

@@ -602,7 +602,10 @@ export function MgmtDetailTablesSection({ data, focus }: Props) {
        <MgmtGroupLoadError />
       ) : (
       <>
-      <div className="mb-2 text-right text-sm">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+       <p className="text-xs text-muted-foreground">
+        日常營運窗；待補／請假待安排仍顯示。完整對帳請開堂數對帳頁。
+       </p>
        <Link
         to="/LessonBalanceMismatch"
         className="text-primary underline-offset-2 hover:underline"

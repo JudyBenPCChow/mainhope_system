@@ -1,19 +1,28 @@
 import { useEffect, useState } from "react"
-import { KeyRound, Mail, Settings } from "lucide-react"
+import { KeyRound, ListFilter, Mail, Settings } from "lucide-react"
 
+import { StatusToggle } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { isSoftArchiveQueriesEnabled, setSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getAuthSession } from "@/lib/supabaseAuth"
 import {
   changeOwnPassword,
   getMustChangePasswordFlag,
 } from "@/services/authAccountQueries"
+import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 
 export function SettingsView() {
   const { pushBanner } = useAppBanner()
+  const { confirmDialog } = useAppConfirm()
+  const { role } = useAuth()
+  const canToggleSoftArchive =
+    role === "admin" || role === "manager" || role === "finance" || role === "alien"
   const [email, setEmail] = useState<string>("")
   const [mustChange, setMustChange] = useState(false)
   const [currentPassword, setCurrentPassword] = useState("")
@@ -21,6 +30,8 @@ export function SettingsView() {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [togglingArchive, setTogglingArchive] = useState(false)
+  const [narrowLists] = useState(() => isSoftArchiveQueriesEnabled())
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
@@ -30,6 +41,29 @@ export function SettingsView() {
       setMustChange(await getMustChangePasswordFlag())
     })()
   }, [])
+
+  const onToggleSoftArchive = async (on: boolean) => {
+    if (togglingArchive) return
+    if (on === isSoftArchiveQueriesEnabled()) return
+    if (!on) {
+      const ok = await confirmDialog({
+        title: "關閉日常名單收窄",
+        description:
+          "列表與下拉會載入已畢業生及更舊學年，僅供緊急回滾。確定關閉？關閉後會重新整理本頁。",
+        confirmText: "關閉收窄",
+        cancelText: "取消",
+        tone: "warning",
+      })
+      if (ok !== true) return
+    }
+    setTogglingArchive(true)
+    setSoftArchiveQueriesEnabled(on)
+    await logMgmtAuditAction({
+      action: "soft_archive_queries_toggled",
+      detail: JSON.stringify({ enabled: on, source: "SettingsView" }),
+    })
+    window.location.reload()
+  }
 
   const submit = async () => {
     setErr(null)
@@ -85,7 +119,8 @@ export function SettingsView() {
           設定
         </h1>
         <p className="max-w-prose text-sm text-muted-foreground md:text-base">
-          管理登入帳號密碼。臨時密碼登入後建議改成自己記得的密碼。
+          管理登入帳號密碼
+          {canToggleSoftArchive ? "，以及本機日常名單收窄開關。" : "。臨時密碼登入後建議改成自己記得的密碼。"}
         </p>
       </header>
 
@@ -96,6 +131,26 @@ export function SettingsView() {
         >
           你目前使用臨時密碼登入。建議在下方改成自己記得的密碼（可稍後再改）。
         </div>
+      ) : null}
+
+      {canToggleSoftArchive ? (
+        <section className="max-w-lg space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm md:p-6">
+          <div className="flex items-start gap-3">
+            <ListFilter className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+            <div className="min-w-0 flex-1 space-y-1">
+              <h2 className="text-base font-semibold">日常名單收窄</h2>
+              <p className="text-xs text-muted-foreground">
+                開啟時，學生／班別等日常列表預設不載入已畢業生與更舊學年（資料仍在）。關閉＝緊急回滾，僅影響本瀏覽器。
+              </p>
+            </div>
+          </div>
+          <StatusToggle
+            checked={narrowLists}
+            onCheckedChange={(on) => void onToggleSoftArchive(on)}
+            offLabel="全量載入"
+            onLabel="日常收窄"
+          />
+        </section>
       ) : null}
 
       <section className="max-w-lg space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm md:p-6">

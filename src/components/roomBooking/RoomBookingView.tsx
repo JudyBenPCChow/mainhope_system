@@ -24,7 +24,7 @@ import {
 } from "@/lib/lessonSlots"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import { fetchClassesByTeacherId, type ClassRecord } from "@/services/classQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import {
  createRoomBookingRequest,
@@ -109,8 +109,8 @@ export function RoomBookingView() {
   setLoading(true)
   setErr(null)
   try {
-   const [rm, cls] = await Promise.all([fetchClassrooms(), fetchAllClasses()])
-   const mine = cls.filter((c) => c.teacher_id === teacherId)
+   const [rm, cls] = await Promise.all([fetchClassrooms(), fetchClassesByTeacherId(teacherId)])
+   const mine = cls
    setMyClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
    setRooms(rm)
    const ids = rm.filter((r) => !r.is_online).map((r) => r.id)

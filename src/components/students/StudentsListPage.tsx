@@ -51,6 +51,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmCreateGraduatedStudent, logCreateGraduatedStudent } from "@/lib/graduationGuard"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
@@ -644,6 +645,13 @@ export function StudentsListPage() {
    return
   }
 
+  if (addForm.academic_stage === "已畢業") {
+   const ok = await confirmCreateGraduatedStudent(confirmDialog, {
+    studentName: fullName,
+   })
+   if (!ok) return
+  }
+
   setAddSaving(true)
   setAddErr(null)
   const reg = addForm.registration_status === "非注冊" ? "非注冊" : "已註冊"
@@ -698,6 +706,12 @@ export function StudentsListPage() {
     } else {
      throw e
     }
+   }
+   if (payload.academic_stage === "已畢業") {
+    logCreateGraduatedStudent({
+     studentName: fullName,
+     source: "StudentsListPage.onAddStudent",
+    })
    }
    setAddOpen(false)
    setAddForm(emptyAddForm())

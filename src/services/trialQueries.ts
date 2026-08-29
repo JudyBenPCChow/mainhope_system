@@ -22,7 +22,8 @@ import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
-import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
+import { hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
+import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
  scanDeletableAttendanceForTrialSchedule,
@@ -222,7 +223,7 @@ export async function fetchUpcomingTrialsForClassIds(
 }
 
 const TRIAL_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes ( subject, course_code_full, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
  "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes!inner ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
@@ -250,6 +251,22 @@ async function mapTrialListResult(
  attended: Set<string>
 ): Promise<TrialManageRow[]> {
  if (result.error) throw result.error
+ const raw = (result.data as Record<string, unknown>[] | null) ?? []
+ return raw.map((row) => {
+  const sid = String(row.schedule_id ?? "")
+  return mapRow(row, attended.has(sid))
+ })
+}
+
+async function mapTrialListResultOptional(
+ result: { data: unknown; error: unknown },
+ attended: Set<string>,
+ label: string
+): Promise<TrialManageRow[]> {
+ if (result.error) {
+  console.warn(`[fetchTrialsWithRelations] ${label}`, result.error)
+  return []
+ }
  const raw = (result.data as Record<string, unknown>[] | null) ?? []
  return raw.map((row) => {
   const sid = String(row.schedule_id ?? "")
@@ -313,34 +330,70 @@ export async function fetchTrialsWithRelations(opts?: {
   .select(TRIAL_LIST_COLUMNS)
   .or(TRIAL_CLOSED_STATUS_OR)
   .is("class_id", null)
- const hiddenCountQ = supabase
+ const closedNullYearQ = supabase
+  .from("trial_sessions")
+  .select(TRIAL_LIST_COLUMNS)
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .not("class_id", "is", null)
+  .is("classes.academic_year_id", null)
+ const allClosedCountQ = supabase
+  .from("trial_sessions")
+  .select("id", { count: "exact", head: true })
+  .or(TRIAL_CLOSED_STATUS_OR)
+ const inWindowCountQ = supabase
   .from("trial_sessions")
   .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
   .or(TRIAL_CLOSED_STATUS_OR)
-  .not("classes.academic_year_id", "in", `(${window.ids.join(",")})`)
+  .in("classes.academic_year_id", window.ids)
+ const noClassCountQ = supabase
+  .from("trial_sessions")
+  .select("id", { count: "exact", head: true })
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .is("class_id", null)
+ const nullYearCountQ = supabase
+  .from("trial_sessions")
+  .select("id, classes(academic_year_id)", { count: "exact", head: true })
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .not("class_id", "is", null)
+  .is("classes.academic_year_id", null)
 
- const [openRes, closedInWindowRes, closedNoClassRes, hiddenRes] = await Promise.all([
+ const [
+  openRes,
+  closedInWindowRes,
+  closedNoClassRes,
+  closedNullYearRes,
+  allClosed,
+  inWindowCount,
+  noClassCount,
+  nullYearCount,
+ ] = await Promise.all([
   openQ,
   closedInWindowQ,
   closedNoClassQ,
-  hiddenCountQ,
+  closedNullYearQ,
+  headCountOrNull(allClosedCountQ),
+  headCountOrNull(inWindowCountQ),
+  headCountOrNull(noClassCountQ),
+  headCountOrNull(nullYearCountQ),
  ])
  if (openRes.error) throw openRes.error
  if (closedInWindowRes.error) throw closedInWindowRes.error
- if (closedNoClassRes.error) throw closedNoClassRes.error
- if (hiddenRes.error) throw hiddenRes.error
+
+ const keptWithoutYear =
+  noClassCount != null && nullYearCount != null ? noClassCount + nullYearCount : null
 
  const merged = mergeTrialRows([
   ...(await Promise.all([
    mapTrialListResult({ data: openRes.data, error: null }, new Set()),
    mapTrialListResult({ data: closedInWindowRes.data, error: null }, new Set()),
-   mapTrialListResult({ data: closedNoClassRes.data, error: null }, new Set()),
+   mapTrialListResultOptional({ data: closedNoClassRes.data, error: closedNoClassRes.error }, new Set(), "closedNoClass"),
+   mapTrialListResultOptional({ data: closedNullYearRes.data, error: closedNullYearRes.error }, new Set(), "closedNullYear"),
   ])),
  ])
 
  return {
   rows: await attachAttendance(merged),
-  hiddenOlderCount: hiddenRes.count ?? 0,
+  hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
  }
 }
 
