@@ -21,6 +21,7 @@ import {
  lessonSlotStartMinute,
  LESSON_SLOT_DURATION_MIN,
  LESSON_SLOT_INDICES,
+ parseHm,
 } from "@/lib/lessonSlots"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -65,16 +66,6 @@ const TIME_SLOTS = LESSON_SLOT_INDICES.map((idx) => ({
 }))
 
 const DAYTIME_TIME_SLOTS = TIME_SLOTS.filter((s) => DAYTIME_SLOT_INDICES.includes(s.index))
-
-function parseHm(t: string | null): number | null {
- if (!t) return null
- const m = t.match(/^(\d{1,2}):(\d{2})$/)
- if (!m) return null
- const h = Number(m[1])
- const mm = Number(m[2])
- if (Number.isNaN(h) || Number.isNaN(mm)) return null
- return h * 60 + mm
-}
 
 function schedTimeRange(s: RoomScheduleRow): { a: number; b: number } | null {
  const a = parseHm(s.start_time)
