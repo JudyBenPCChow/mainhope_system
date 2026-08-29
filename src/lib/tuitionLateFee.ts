@@ -30,7 +30,7 @@ export function isLateFeeEligibleCourse(params: {
 }): boolean {
  const mode = String(params.courseMode ?? "regular").trim()
  const kind = String(params.classKind ?? "group").trim()
- if (kind === "private") return false
+ if (kind === "private" || kind === "homework") return false
  if (mode !== "regular") return false
  if (mode.toLowerCase().includes("summer")) return false
  return true

@@ -9,21 +9,22 @@ import { formatYearMonthLabel } from "@/lib/homeworkTutoringFees"
 import { HW_PATH, homeworkTutoringHomePath, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
 import type { MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { AdminHomeworkWorkbench } from "@/prototypes/homeworkTutoring/AdminHomeworkWorkbench"
-import { ManagerHomeworkWorkbench } from "@/prototypes/homeworkTutoring/ManagerHomeworkWorkbench"
-import { TeacherHomeworkWorkbench } from "@/prototypes/homeworkTutoring/TeacherHomeworkWorkbench"
+import { AdminHomeworkWorkbench } from "@/components/homeworkTutoring/AdminHomeworkWorkbench"
+import { ManagerHomeworkWorkbench } from "@/components/homeworkTutoring/ManagerHomeworkWorkbench"
+import { TeacherHomeworkWorkbench } from "@/components/homeworkTutoring/TeacherHomeworkWorkbench"
 import {
   currentYearMonth,
+  composeHomeworkFeeDisplays,
   monthRosterToLock,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
-  type MockDutyDay,
-  type MockFeeRow,
-  type MockHoliday,
-  type MockStudent,
-  type MockTeacher,
+  type HomeworkDutyDay,
+  type HomeworkFeeDisplay,
+  type HomeworkHoliday,
+  type HomeworkStudentRow,
+  type HomeworkTeacherRow,
   type MonthRosterState,
-} from "@/prototypes/homeworkTutoring/mockData"
+} from "@/lib/homeworkTutoringUi"
 import {
   ADMIN_NAV,
   MANAGER_NAV,
@@ -31,10 +32,10 @@ import {
   type AdminPageId,
   type ManagerPageId,
   type TeacherPageId,
-} from "@/prototypes/homeworkTutoring/sandboxNav"
+} from "@/components/homeworkTutoring/homeworkTutoringSectionNav"
 import { fetchHomeworkTutoringTeacherAccess } from "@/services/homeworkTutoringAccessQueries"
 import {
-  ensureHomeworkMonthlyCharges,
+  fetchHomeworkPaidByStudentFromPayments,
   fetchHomeworkAvailabilityForMonth,
   fetchHomeworkClass,
   fetchHomeworkClosures,
@@ -123,7 +124,7 @@ function mapDutyDays(
     secondaryTeacherId?: string
     primaryTeacherId?: string
   }>
-): MockDutyDay[] {
+): HomeworkDutyDay[] {
   return days.map((d) => ({
     date: holidayDisplayDate(d.date),
     weekday: d.weekday,
@@ -151,15 +152,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const [monthLoading, setMonthLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [hwClass, setHwClass] = useState<HomeworkClassRef | null>(null)
-  const [students, setStudents] = useState<MockStudent[]>([])
-  const [fees, setFees] = useState<MockFeeRow[]>([])
-  const [holidays, setHolidays] = useState<MockHoliday[]>([])
+  const [students, setStudents] = useState<HomeworkStudentRow[]>([])
+  const [fees, setFees] = useState<HomeworkFeeDisplay[]>([])
+  const [holidays, setHolidays] = useState<HomeworkHoliday[]>([])
   const [avail, setAvail] = useState<AllTeacherAvailability>({})
   const [submitStatus, setSubmitStatus] = useState<AllTeacherSubmitStatus>({})
-  const [dutyDays, setDutyDays] = useState<MockDutyDay[]>([])
+  const [dutyDays, setDutyDays] = useState<HomeworkDutyDay[]>([])
   const [rosterMonthId, setRosterMonthId] = useState<string>("")
   const [monthRosterStatus, setMonthRosterStatus] = useState<Record<string, MonthRosterState>>({})
-  const [hwTeachers, setHwTeachers] = useState<MockTeacher[]>([])
+  const [hwTeachers, setHwTeachers] = useState<HomeworkTeacherRow[]>([])
   const [hwAccessIds, setHwAccessIds] = useState<Set<string>>(() => new Set())
 
   const viewMonth = currentYearMonth()
@@ -176,7 +177,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     async (
       cls: HomeworkClassRef,
       yearMonth: string,
-      enabledTeachers: MockTeacher[]
+      enabledTeachers: HomeworkTeacherRow[]
     ) => {
       const [availRows, roster] = await Promise.all([
         fetchHomeworkAvailabilityForMonth(yearMonth),
@@ -242,18 +243,14 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       )
 
       if (!isTeacher) {
-        const feeRows = await ensureHomeworkMonthlyCharges({
-          academicYearId: cls.academicYearId,
-          classId: cls.id,
-          billingMonth: viewMonth,
-          enrollments: enrolls,
-        })
+        const paidByStudentId = await fetchHomeworkPaidByStudentFromPayments(cls.id, viewMonth)
         setFees(
-          feeRows.map((f) => ({
-            studentId: f.studentId,
-            amountLabel: f.amountLabel,
-            status: f.status === "已收款" ? "已收款" : "未收款",
-          }))
+          composeHomeworkFeeDisplays({
+            classId: cls.id,
+            billingMonth: viewMonth,
+            enrollments: enrolls,
+            paidByStudentId,
+          })
         )
       } else {
         setFees([])
@@ -369,7 +366,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   )
 
   const handlePublishRoster = useCallback(
-    async (yearMonth: string, monthDays: MockDutyDay[]) => {
+    async (yearMonth: string, monthDays: HomeworkDutyDay[]) => {
       if (!hwClass) throw new Error("尚未建立功課輔導班")
       await publishHomeworkRosterMonth({
         classId: hwClass.id,

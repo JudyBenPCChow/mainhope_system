@@ -53,7 +53,6 @@ import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
-import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
 import PrototypeAdminContextRail from "@/pages/PrototypeAdminContextRail"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
@@ -390,7 +389,6 @@ export default function App() {
       element={withCapabilities(["audit.read_all"], <SystemIssues />)}
      />
      {/* UI 沙盒：假資料，不接 DB；不掛側欄正式入口 */}
-     <Route path="/prototype/HomeworkTutoring" element={<PrototypeHomeworkTutoring />} />
      <Route
       path="/prototype/ContactUpdateCampaign"
       element={<PrototypeContactUpdateCampaign />}

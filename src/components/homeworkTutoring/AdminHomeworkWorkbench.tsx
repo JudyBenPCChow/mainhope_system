@@ -18,8 +18,8 @@ import { statusToTagTone } from "@/lib/statusTag"
 
 import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
-  MOCK_PRICE_GRADES,
-  MOCK_SPLIT_NOTE,
+  HOMEWORK_GRADE_FILTER_FALLBACK,
+  HW_ROSTER_FLOW_NOTE,
   availDatesForMonth,
   countSubmitProgress,
   currentYearMonth,
@@ -33,27 +33,24 @@ import {
   roomALabel,
   roomBLabel,
   summarizeOverview,
-  studentDivision,
   teacherName,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
-  type HwDivision,
-  type MockDutyDay,
-  type MockFeeRow,
-  type MockHoliday,
-  type MockStudent,
-  type MockTeacher,
+  type HomeworkDutyDay,
+  type HomeworkFeeDisplay,
+  type HomeworkHoliday,
+  type HomeworkStudentRow,
+  type HomeworkTeacherRow,
   type MonthRosterState,
-} from "./mockData"
+} from "@/lib/homeworkTutoringUi"
 import { RosterMonthSheet } from "./RosterMonthSheet"
-import type { AdminPageId } from "./sandboxNav"
+import type { AdminPageId } from "./homeworkTutoringSectionNav"
 import {
   FilterChipRow,
   RoomDutyCard,
   SubmitStatusTag,
   SummaryTile,
-  enrollTone,
 } from "./sharedUi"
 
 type RosterSub = "progress" | "availability" | "sheet"
@@ -84,28 +81,27 @@ export function AdminHomeworkWorkbench({
 }: {
   tab: AdminPageId
   onTabChange: (tab: AdminPageId) => void
-  students: MockStudent[]
-  fees: MockFeeRow[]
+  students: HomeworkStudentRow[]
+  fees: HomeworkFeeDisplay[]
   avail: AllTeacherAvailability
   setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
   submitStatus: AllTeacherSubmitStatus
   setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
-  dutyDays: MockDutyDay[]
-  setDutyDays: Dispatch<SetStateAction<MockDutyDay[]>>
+  dutyDays: HomeworkDutyDay[]
+  setDutyDays: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthRosterStatus: Record<string, MonthRosterState>
   setMonthRosterStatus: Dispatch<SetStateAction<Record<string, MonthRosterState>>>
-  hwTeachers: MockTeacher[]
-  holidays?: MockHoliday[]
+  hwTeachers: HomeworkTeacherRow[]
+  holidays?: HomeworkHoliday[]
   sheetMonth?: string
   onSheetMonthChange?: (yearMonth: string) => void
-  onPublishRoster?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
+  onPublishRoster?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
   const [query, setQuery] = useState("")
   const [planFilter, setPlanFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState("")
-  const [divisionFilter, setDivisionFilter] = useState<"" | HwDivision>("")
   const [gradeFilter, setGradeFilter] = useState("")
   const [monthFilter, setMonthFilter] = useState("")
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -138,7 +134,7 @@ export function AdminHomeworkWorkbench({
   )
   const gradeOptions = useMemo(() => {
     const fromStudents = Array.from(new Set(students.map((s) => s.grade))).sort()
-    return fromStudents.length > 0 ? fromStudents : [...MOCK_PRICE_GRADES]
+    return fromStudents.length > 0 ? fromStudents : [...HOMEWORK_GRADE_FILTER_FALLBACK]
   }, [students])
 
   const effectiveMonthOptions = useMemo(() => {
@@ -147,7 +143,6 @@ export function AdminHomeworkWorkbench({
   }, [students])
 
   const studentChipFilterCount = [
-    divisionFilter,
     gradeFilter,
     planFilter,
     statusFilter,
@@ -160,23 +155,12 @@ export function AdminHomeworkWorkbench({
     setQuery("")
     setPlanFilter("")
     setStatusFilter("")
-    setDivisionFilter("")
     setGradeFilter("")
     setMonthFilter("")
   }
 
   const studentFilterChips = (
     <>
-      <FilterChipRow
-        label="學部"
-        value={divisionFilter}
-        onChange={(v) => setDivisionFilter(v as "" | HwDivision)}
-        options={[
-          { value: "", label: "全部" },
-          { value: "secondary", label: "中學" },
-          { value: "primary", label: "小學" },
-        ]}
-      />
       <FilterChipRow
         label="年級"
         value={gradeFilter}
@@ -225,13 +209,12 @@ export function AdminHomeworkWorkbench({
     return students.filter((s) => {
       if (planFilter && s.plan !== planFilter) return false
       if (statusFilter && s.status !== statusFilter) return false
-      if (divisionFilter && studentDivision(s.grade) !== divisionFilter) return false
       if (gradeFilter && s.grade !== gradeFilter) return false
       if (monthFilter && s.effectiveMonth !== monthFilter) return false
       if (!q) return true
       return s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)
     })
-  }, [students, query, planFilter, statusFilter, divisionFilter, gradeFilter, monthFilter])
+  }, [students, query, planFilter, statusFilter, gradeFilter, monthFilter])
 
   const feeRows = useMemo(() => {
     return fees
@@ -240,7 +223,7 @@ export function AdminHomeworkWorkbench({
         if (!s || s.status === "結束") return null
         return { ...f, student: s }
       })
-      .filter(Boolean) as Array<MockFeeRow & { student: MockStudent }>
+      .filter(Boolean) as Array<HomeworkFeeDisplay & { student: HomeworkStudentRow }>
   }, [fees, students])
 
   const adminSaveAvail = (teacherId: string, date: string, entry: AvailEntry | null) => {
@@ -457,7 +440,7 @@ export function AdminHomeworkWorkbench({
                       <td className="px-3 py-2.5">{formatWeekdaysShort(s.weekdays)}</td>
                       <td className="px-3 py-2.5 tabular-nums">{s.effectiveMonth}</td>
                       <td className="px-3 py-2.5">
-                        <Tag tone={enrollTone(s.status)} size="sm">
+                        <Tag tone={statusToTagTone(s.status)} size="sm">
                           {s.status}
                         </Tag>
                       </td>
@@ -472,9 +455,9 @@ export function AdminHomeworkWorkbench({
 
       {tab === "fees" ? (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold">本月月費</h2>
+          <h2 className="text-sm font-semibold">{formatYearMonthLabel(currentYearMonth())}月費</h2>
           <p className="text-xs text-muted-foreground">
-            已繳 {overview.paid} · 未繳 {overview.unpaid}
+            已繳／未繳以繳費紀錄為準（收款日所屬月份）。請到「收款登記」出單，本頁不另開收款。已繳 {overview.paid} · 未繳 {overview.unpaid}
           </p>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[560px] text-left text-sm">
@@ -503,7 +486,9 @@ export function AdminHomeworkWorkbench({
                         <Link
                           to={
                             row.status === "未收款"
-                              ? `/Payments?studentId=${encodeURIComponent(row.studentId)}&mode=receive`
+                              ? `/Payments?studentId=${encodeURIComponent(row.studentId)}&mode=receive${
+                                  row.classId ? `&classId=${encodeURIComponent(row.classId)}` : ""
+                                }`
                               : `/PaymentHistory?studentId=${encodeURIComponent(row.studentId)}`
                           }
                         >
@@ -594,7 +579,7 @@ export function AdminHomeworkWorkbench({
 
           <TabsContent value="availability" className="mt-0 space-y-2">
               <p className="text-xs text-muted-foreground">
-                {MOCK_SPLIT_NOTE} · 點格編輯（行政覆寫）；空白＝該日不報 · 顯示該月全部平日
+                {HW_ROSTER_FLOW_NOTE} · 點格編輯（行政覆寫）；空白＝該日不報 · 顯示該月全部平日
               </p>
               <div className="overflow-x-auto rounded-xl border border-border">
                 <table className="w-full min-w-[520px] text-center text-sm">

@@ -19,9 +19,8 @@ import { cn } from "@/lib/utils"
 
 import {
   CALENDAR_WEEK_HEADERS,
-  MOCK_DEFAULT_PRIMARY_ROOM,
-  MOCK_DEFAULT_SECONDARY_ROOM,
-  MOCK_SUBJECT_TEACHERS,
+  HOMEWORK_DEFAULT_ROOM_A,
+  HOMEWORK_DEFAULT_ROOM_B,
   buildMonthDutyDays,
   dutyTeacherLabel,
   formatAvailLabel,
@@ -37,11 +36,11 @@ import {
   teacherName,
   teachersAvailableOnDay,
   type AllTeacherAvailability,
-  type MockDutyDay,
-  type MockHoliday,
-  type MockTeacher,
+  type HomeworkDutyDay,
+  type HomeworkHoliday,
+  type HomeworkTeacherRow,
   type MonthRosterState,
-} from "./mockData"
+} from "@/lib/homeworkTutoringUi"
 
 type SheetView = "list" | "calendar"
 
@@ -90,26 +89,26 @@ export function RosterMonthSheet({
   monthStatus,
   onMonthStatusChange,
   avail,
-  teachers = MOCK_SUBJECT_TEACHERS,
+  teachers = [],
   holidays = [],
   onPublish,
 }: {
   yearMonth: string
   onYearMonthChange: (yearMonth: string) => void
-  dutyDays: MockDutyDay[]
-  onDutyDaysChange: Dispatch<SetStateAction<MockDutyDay[]>>
+  dutyDays: HomeworkDutyDay[]
+  onDutyDaysChange: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthStatus: Record<string, MonthRosterState>
   onMonthStatusChange: (yearMonth: string, state: MonthRosterState) => void
   avail: AllTeacherAvailability
-  teachers?: readonly MockTeacher[]
-  holidays?: MockHoliday[]
+  teachers?: readonly HomeworkTeacherRow[]
+  holidays?: HomeworkHoliday[]
   /** 確定編更：持久化＋寫 schedules 佔室 */
-  onPublish?: (yearMonth: string, monthDays: MockDutyDay[]) => Promise<void>
+  onPublish?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
   const [view, setView] = useState<SheetView>("list")
-  const [editDay, setEditDay] = useState<MockDutyDay | null>(null)
+  const [editDay, setEditDay] = useState<HomeworkDutyDay | null>(null)
   const published = (monthStatus[yearMonth] ?? "未編更") === "已編更"
   const emptyLabel = published ? "暫時空缺" : "未編"
 
@@ -138,7 +137,7 @@ export function RosterMonthSheet({
     ]
   }, [yearMonth, monthDays, monthHolidays])
 
-  const upsertDay = (next: MockDutyDay) => {
+  const upsertDay = (next: HomeworkDutyDay) => {
     onDutyDaysChange((prev) =>
       prev.some((d) => d.date === next.date)
         ? prev.map((d) => (d.date === next.date ? next : d))
@@ -183,7 +182,7 @@ export function RosterMonthSheet({
     }
   }
 
-  const pickOptions = (day: MockDutyDay) => {
+  const pickOptions = (day: HomeworkDutyDay) => {
     const submitted = teachersAvailableOnDay(avail, day.date, teachers)
     const extra = [day.secondaryTeacherId, day.primaryTeacherId].filter(
       (id): id is string => Boolean(id) && !submitted.some((t) => t.id === id)
@@ -297,7 +296,7 @@ export function RosterMonthSheet({
                           onChange={(e) =>
                             upsertDay({
                               ...d,
-                              secondaryRoom: d.secondaryRoom ?? MOCK_DEFAULT_SECONDARY_ROOM,
+                              secondaryRoom: d.secondaryRoom ?? HOMEWORK_DEFAULT_ROOM_A,
                               secondaryTeacherId: e.target.value || undefined,
                             })
                           }
@@ -325,7 +324,7 @@ export function RosterMonthSheet({
                           onChange={(e) =>
                             upsertDay({
                               ...d,
-                              primaryRoom: d.primaryRoom ?? MOCK_DEFAULT_PRIMARY_ROOM,
+                              primaryRoom: d.primaryRoom ?? HOMEWORK_DEFAULT_ROOM_B,
                               primaryTeacherId: e.target.value || undefined,
                             })
                           }
@@ -494,7 +493,7 @@ export function RosterMonthSheet({
                 onChange={(id) =>
                   setEditDay({
                     ...editDay,
-                    secondaryRoom: editDay.secondaryRoom ?? MOCK_DEFAULT_SECONDARY_ROOM,
+                    secondaryRoom: editDay.secondaryRoom ?? HOMEWORK_DEFAULT_ROOM_A,
                     secondaryTeacherId: id || undefined,
                   })
                 }
@@ -507,7 +506,7 @@ export function RosterMonthSheet({
                 onChange={(id) =>
                   setEditDay({
                     ...editDay,
-                    primaryRoom: editDay.primaryRoom ?? MOCK_DEFAULT_PRIMARY_ROOM,
+                    primaryRoom: editDay.primaryRoom ?? HOMEWORK_DEFAULT_ROOM_B,
                     primaryTeacherId: id || undefined,
                   })
                 }
