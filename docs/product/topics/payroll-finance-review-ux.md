@@ -9,7 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 觸發 | 2026-08-05 Cody 回饋 PDF（7 月糧；Henry／Jackson／Katie／Liam／Mark／Phoebe／Rafael／Christine／Kenneth／Natalie；例 Cheryl）；嚴重程度＝阻礙出糧 |
 | 相關 | [`payroll-engine.md`](./payroll-engine.md)（引擎已 done）· [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md) · [`attendance-records-range-query.md`](./attendance-records-range-query.md) · [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)（計糧快取後刀）· 指引 [`cody-payroll-review-guide.html`](../../playbooks/finance/cody-payroll-review-guide.html) · 營運 [`PAYROLL_GUIDE.md`](../../policies/staffing/PAYROLL_GUIDE.md) |
-| 舊稽核（對照，唔當待辦全文） | [`2026-08-02-payroll-operational-simulation.md`](../audits/2026-08-02-payroll-operational-simulation.md)（查證無連結）· [`2026-08-01-payroll-finance-ui-review.md`](../audits/2026-08-01-payroll-finance-ui-review.md) §1.1／1.8 |
+| 舊稽核（對照，唔當待辦全文） | （查證無連結）·  §1.1／1.8 |
 
 ## 目標（一句）
 
@@ -79,5 +79,5 @@
 
 ## 下一步
 
-1. 第一刀＋第二刀已落地（合計拆欄、未點名高亮、真跳轉／inbox 提醒、出席紀錄小修、指引／指南）。計劃見 [`2026-08-21-payroll-finance-review-ux.md`](../plans/2026-08-21-payroll-finance-review-ux.md)。
+1. 第一刀＋第二刀已落地（合計拆欄、未點名高亮、真跳轉／inbox 提醒、出席紀錄小修、指引／指南）。
 2. **關帳 ≠ 8 月糧結算。** 8 月未完、糧未出，正常。本題關帳＝財務確認計糧頁核對 UX 用得順（合計語意、未點名、跳轉／提醒），之後月份沿用同一套。待財務用**下一個未結算月**（而家即 8 月工作底稿，唔使等月底出糧）驗收後改 `done`。

@@ -7,7 +7,6 @@
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次（DDL 先行；禁 `CREATE OR REPLACE` 做今次權限／search_path；token RPC 永不 revoke anon） |
 
 ## 點解合併

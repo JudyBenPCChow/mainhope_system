@@ -4,8 +4,6 @@
 | --- | --- |
 | 未做／進行中 | [`BACKLOG.md`](BACKLOG.md) |
 | 主題分題 | [`topics/`](topics/) |
-| 現行實作計劃 | [`plans/`](plans/) |
-| 稽核／模擬報告 | [`audits/`](audits/) |
 | 未規劃構想 | [`future/`](future/) |
 
 **唔係**員工讀本；已拍板規則要寫入 `policies/`，唔好長期留喺 topics WIP。

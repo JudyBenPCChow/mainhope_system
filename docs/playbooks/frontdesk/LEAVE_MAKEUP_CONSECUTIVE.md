@@ -84,7 +84,7 @@
 
 ## 6. 取消請假／清調堂（與出席）
 
-> A1 現行行為。詳見方案 [`../plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md)。
+> A1 現行行為。詳見 [`lifecycle-orphans.md`](../../product/topics/lifecycle-orphans.md)。
 
 ### 6.1 本版覆蓋／未覆蓋
 

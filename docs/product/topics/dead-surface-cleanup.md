@@ -6,7 +6,6 @@
 | 優先 | 中 |
 | 範圍 | 前端未掛載模組、沙盒路由、Base44／命名殘渣（技術債 P2-4＋P3-1 前端部分） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 來源稽核 | [`../audits/2026-07-31-unused-overlap-routes.md`](../audits/2026-07-31-unused-overlap-routes.md) |
 | 盤點日期 | 2026-07-31 |
 | 上次更新 | 2026-08-29 |
 

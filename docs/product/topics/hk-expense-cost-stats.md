@@ -7,8 +7,6 @@
 | 範圍 | HK 管理分析用成本帳（**2026-07 起**）；計糧結算過帳；預留將來純利組合 |
 | 不含 | 本期純利頁、CN、OCR、報銷、複式、間接攤分、繼續用 Excel／Notion 日常入帳、**2026-06 及之前月份分析** |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 實作計劃 | [`2026-08-05-hk-expense-cost-stats.md`](../plans/2026-08-05-hk-expense-cost-stats.md) |
-| 舊計劃（已取代） | [`2026-08-04-hk-expense-cost-stats.md`](../plans/2026-08-04-hk-expense-cost-stats.md) |
 | 路由 | `/ExpenseJournal`、`/ExpenseJournalRecords`（日記帳；admin／manager／alien）；`/HkExpenses` 成本分析（manager／alien） |
 
 ## 目標（一句）
@@ -32,7 +30,7 @@
 4. **4–6 月歷史覆核**：**不做**（分析窗 2026-07 起）。  
 5. **純利頁**：另題（本期不做）。營運總覽指標 15–20 **已落地**（[`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 1–3）；7 月按金已決不作成本。
 
-腳本：`scripts/import_hk_expense_history.py`（原料：`import-output/hk-expense-raw/`）。
+腳本：`scripts/import_hk_expense_history.py`（原料原在 `import-output/hk-expense-raw/`；7 月歷史已入帳後該目錄已刪）。
 
 ## 相關
 

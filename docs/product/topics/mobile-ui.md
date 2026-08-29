@@ -9,8 +9,6 @@
 | 規範 | 手機該點做 → [`UI_DESIGN_INSTRUCTIONS.md`](../UI_DESIGN_INSTRUCTIONS.md) §14 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點 | 2026-07-30；落地＋模擬：2026-08-01；三角色覆核：2026-08-05 |
-| 模擬 | [波次 1 殼層](../audits/2026-08-01-mobile-shell-wave1-sim.md) · [波次 2](../audits/2026-08-01-mobile-wave2-sim.md) · [波次 3 一對一](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) · [三角色裝置](../audits/2026-08-05-mobile-roles-devices-sim.md) |
-| 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
 | 行政模擬 | 見 §F |
 
 ## 結論（2026-08-05 覆核）
@@ -33,11 +31,11 @@
 
 ## 已落波次（勿當待辦）
 
-| 波次 | 日期 | 內容 | 模擬 |
-| --- | --- | --- | --- |
-| 1 殼層 | 2026-08-01 | 阿Po z-index；更新橫幅 vs 底欄（M1→`5rem`）；Dialog `max-h`／safe-area；FilterSheet／NavDrawer ＜ Dialog | [wave1-sim](../audits/2026-08-01-mobile-shell-wave1-sim.md) |
-| 2 高頻列表 | 2026-08-01 | Inbox 卡片；Leave FilterSheet＋卡片；老師開放 `MobileDayViewGrid`；TeacherWeekTimetable 按日卡片 | [wave2-sim](../audits/2026-08-01-mobile-wave2-sim.md) |
-| 3 一對一 | 2026-08-01 | PrivateTutoring 學生列表 FilterSheet＋卡片；預約首屏；改約經 Dialog | [wave3-sim](../audits/2026-08-01-mobile-wave3-private-tutoring-sim.md) |
+| 波次 | 日期 | 內容 |
+| --- | --- | --- |
+| 1 殼層 | 2026-08-01 | 阿Po z-index；更新橫幅 vs 底欄（M1→`5rem`）；Dialog `max-h`／safe-area；FilterSheet／NavDrawer ＜ Dialog |
+| 2 高頻列表 | 2026-08-01 | Inbox 卡片；Leave FilterSheet＋卡片；老師開放 `MobileDayViewGrid`；TeacherWeekTimetable 按日卡片 |
+| 3 一對一 | 2026-08-01 | PrivateTutoring 學生列表 FilterSheet＋卡片；預約首屏；改約經 Dialog |
 
 **先前已有（非本系列波次）**：Students／Classes 卡片、TrialSessions、PaymentHistory、TeacherHome 近三日、RollCall 名冊、AdaptiveLayout／MobileLayout。
 
@@ -62,7 +60,7 @@
 | 嚴重度 | 問題 | 依據 |
 | --- | --- | --- |
 | 中 | 主區鎖 `max-w-lg`；多欄作業仍可能擠（高頻列表已改卡片後影響下降） | [`MobileLayout.tsx`](../../src/components/mobile/MobileLayout.tsx) |
-| 中 | 底欄 IA 偏角色：行政有排程、仍無學生／Inbox／收款；老師無排程／Inbox；外星人無 Inbox | [`mobileNav.ts`](../../src/lib/mobileNav.ts)；[2026-08-05 sim](../audits/2026-08-05-mobile-roles-devices-sim.md) §2 |
+| 中 | 底欄 IA 偏角色：行政有排程、仍無學生／Inbox／收款；老師無排程／Inbox；外星人無 Inbox | [`mobileNav.ts`](../../src/lib/mobileNav.ts) |
 | ~~中~~ | ~~更新橫幅蓋底欄~~ | **已修** |
 | ~~中~~ | ~~阿Po 蓋詳情／點名 sheet~~ | **已修** |
 | ~~中~~ | ~~FilterSheet／NavDrawer 蓋 Dialog~~ | **已修** |
@@ -129,8 +127,6 @@ MgmtDashboard、AlienGodViewHome、SystemIssues／SystemLogs、MonthlyTuition、
 ---
 
 ## E. 老師桌面／手機對照
-
-來源：[audits/2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md)。
 
 | 優先 | 項 | 狀態 |
 | --- | --- | --- |

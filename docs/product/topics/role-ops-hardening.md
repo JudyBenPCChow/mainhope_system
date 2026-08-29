@@ -6,9 +6,6 @@
 | 優先 | 高 |
 | 範圍 | admin／teacher／alien／manager 後台；RLS + 路由／UI 對齊 |
 | 不含 | 家長 Portal；學年硬鎖已**撤銷**（見 [academic-year-unlock-soft-guard.md](./academic-year-unlock-soft-guard.md)；舊整固專題 [academic-year-lock.md](./academic-year-lock.md) 已 `cancelled`）；家長電話對老師全面隱藏（仍暫不做） |
-| 稽核報告 | [2026-07-30-role-ops-adversarial.md](../audits/2026-07-30-role-ops-adversarial.md) |
-| 老師對照 | [2026-07-31-teacher-desktop-mobile-parity.md](../audits/2026-07-31-teacher-desktop-mobile-parity.md) |
-| R1／R2 | [暴露報告](../audits/2026-08-01-student-detail-teacher-exposure.md) · [計劃](../plans/2026-08-01-student-detail-teacher-hardening.md) · [審閱](../audits/2026-08-01-student-detail-teacher-review.md) · [審閱回應](../audits/2026-08-01-student-detail-teacher-review-response.md) · [對抗模擬](../audits/2026-08-01-student-detail-teacher-adversarial.md) |
 | 索引 | [BACKLOG.md](../BACKLOG.md) |
 | 盤點日期 | 2026-07-30；殘項 2026-07-31；定案／實作／對抗修補 2026-08-01 |
 | 行政模擬 | 見下方「行政邊緣模擬」 |
@@ -33,7 +30,7 @@ Production live 對抗性批次（P0／P1）已清；**R1／R2／§6（2026-08-0
 | done | R1 | 高 | 老師不可見金錢 | 藏 tab＋單價／已繳；reloadSubs 唔打付款；activity `includePayments`；balances `includePaidLessons: false` | `StudentDetailView` · `studentQueries` · `pendingLessonQueries` |
 | done | R2 | 高 | 老師不可代學生請假 | 藏新增請假；一覽唯讀；交行政 CTA | `StudentDetailView` |
 | done | §6 | 中 | 假開放寫入掣 | `canMutateStudentOps = isAdminOrAlien()` | `StudentDetailView` |
-| done | Adv-P1 | 中 | 對抗模擬殘留 | CTA／文案／manager 旗標拆／slim balances | [對抗模擬](../audits/2026-08-01-student-detail-teacher-adversarial.md) |
+| done | Adv-P1 | 中 | 對抗模擬殘留 | CTA／文案／manager 旗標拆／slim balances | 已修 |
 
 ## 行政邊緣模擬（2026-07-31）
 
@@ -52,7 +49,7 @@ Production live 對抗性批次（P0／P1）已清；**R1／R2／§6（2026-08-0
 - 老師：詳情頁不能取消課堂；API／RLS 同樣擋取消（或等價）
 - ~~Admin：歷史學年（如 2526）檔期唯讀~~ → **已廢止**；非當期寫入改 Confirm＋audit（見 [`ACADEMIC_YEARS.md`](../policies/academic/ACADEMIC_YEARS.md) §1.1）
 
-R1／R2 人手煙霧見 [計劃](../plans/2026-08-01-student-detail-teacher-hardening.md) §2。
+R1／R2 人手煙霧見  §2。
 
 ## 相關主題
 

@@ -1,5 +1,3 @@
-# 已遷移
+# 已刪
 
-稽核報告已遷至 `docs/product/audits/`。
-
-→ **[`product/audits/`](../product/audits)**
+稽核／對抗過程稿已清。決策見 **[`product/topics/`](../product/topics)** 與 [`product/BACKLOG.md`](../product/BACKLOG.md)。

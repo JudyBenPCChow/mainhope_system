@@ -2,8 +2,8 @@
 
 狀態：**done**（第一期已落地；RLS 讀寫分離屬第二期）  
 優先：中  
-來源計畫：[2026-08-01-mgmt-manager-role.md](../plans/2026-08-01-mgmt-manager-role.md)（實作計劃＋市場研究第二期 roadmap）  
-顧問審查：[2026-08-01-mgmt-manager-role-review.md](../audits/2026-08-01-mgmt-manager-role-review.md)（有條件通過；紅黃項已全數吸收進計劃）
+來源計畫：（實作計劃＋市場研究第二期 roadmap）  
+顧問審查：（有條件通過；紅黃項已全數吸收進計劃）
 
 ## 目標
 

@@ -5,7 +5,7 @@
 | 狀態 | `cancelled` |
 | 優先 | — |
 | 取代為 | [academic-year-unlock-soft-guard.md](./academic-year-unlock-soft-guard.md)（撤硬鎖＋confirm＋audit） |
-| 決策 | 2026-07-31：兩邊顧問對齊不整固；見 [audits/2026-07-31-academic-year-lock-rethink.md](../audits/2026-07-31-academic-year-lock-rethink.md) |
+| 決策 | 2026-07-31：兩邊顧問對齊不整固；見  |
 | 索引 | [BACKLOG.md](../BACKLOG.md) |
 | 盤點日期 | 2026-07-31 |
 
@@ -100,4 +100,4 @@
 
 - 學年定義：[`ACADEMIC_YEARS.md`](../policies/academic/ACADEMIC_YEARS.md)
 - 舊追蹤（已遷出）：[role-ops-hardening.md](./role-ops-hardening.md) P0-2
-- 稽核片段：[audits/2026-07-30-role-ops-adversarial.md](../audits/2026-07-30-role-ops-adversarial.md) §P0-2
+- 稽核片段： §P0-2

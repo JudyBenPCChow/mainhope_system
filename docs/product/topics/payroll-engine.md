@@ -8,9 +8,6 @@
 | 不含 | 完整會計／HR 系統、銀行付款執行、未獲營運確認的規則自動化；功輔計糧見另題 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 營運指南（財務／管理層） | [`PAYROLL_GUIDE.md`](../policies/staffing/PAYROLL_GUIDE.md)（另有 `.docx`） |
-| 最新方法（工程規格） | [`2026-08-01-payroll-method-revised.md`](../plans/2026-08-01-payroll-method-revised.md) |
-| 沙盒 UI 下一步（分頁 IA＋首次 UX） | [`2026-08-02-payroll-tabbed-ia.md`](../plans/2026-08-02-payroll-tabbed-ia.md) |
-| 待回覆文件 | [`2026-08-01-payroll-questions-for-response.docx`](../plans/2026-08-01-payroll-questions-for-response.docx)（規則項已回覆完） |
 
 ## 目前進度（2026-08-04 晚）
 
@@ -58,6 +55,5 @@
 ## 相關文件
 
 - [計糧指南（營運）](../policies/staffing/PAYROLL_GUIDE.md)
-- [修訂版計糧方法](../plans/2026-08-01-payroll-method-revised.md)
 - [代堂算薪／出勤報表歸屬](./substitute-teacher-reporting.md)
 - [功輔計糧（時薪＋Christine 佣金）](./homework-tutoring-payroll.md)

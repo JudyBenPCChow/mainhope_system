@@ -47,7 +47,7 @@ migration `20260612120000_summer_two_period_enrollment.sql`；cutover 學年種�
 
 **程式錨點**：`src/lib/academicYearSoftGuard.ts`；舊閘 `assertAcademicYearEditable*`／`canEditAcademicYear*` 已改為 audit-only／恒可編（見 [`backlog/academic-year-unlock-soft-guard.md`](./backlog/academic-year-unlock-soft-guard.md)）。
 
-**歷史參考**：cutover 常數 `ACADEMIC_YEAR_EDITABLE_FROM_YMD`（`26SM`／2026-07-01）及舊「admin／teacher 硬鎖」敘述**不再是現行規則**；決策過程見 [`audits/2026-07-31-academic-year-lock-rethink.md`](./audits/2026-07-31-academic-year-lock-rethink.md)。
+**歷史參考**：cutover 常數 `ACADEMIC_YEAR_EDITABLE_FROM_YMD`（`26SM`／2026-07-01）及舊「admin／teacher 硬鎖」敘述**不再是現行規則**；決策見 [`academic-year-unlock-soft-guard.md`](../../product/topics/academic-year-unlock-soft-guard.md)。
 
 **營運注意**：改舊年資料前請確認學年／日期無誤；Confirm 只係防呆，唔等於禁止。角色權限（admin／teacher／alien）同 RLS 仍照常。
 

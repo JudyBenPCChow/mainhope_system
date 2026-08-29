@@ -2,7 +2,7 @@
 
 > **排課規則（權威）：** [`../../../policies/scheduling/SCHEDULING_RULES.md`](../../../policies/scheduling/SCHEDULING_RULES.md)
 
-**產出習慣（2026-08-19 起）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`（docx 用 Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。4.x 自動加版（4.1、4.2…），舊檔保留。
+**產出習慣（2026-08-19 起）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`（docx 用 Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。4.x 自動加版（4.1、4.2…）。舊版 **md** 保留；舊版 **docx／pdf** 已刪（現行產出只留 v4.0）。
 
 **Folder 結構：** `versions/v<版本>/` 保存各版方案與老師附件；`archive/` 保存早期版本及試排；`assets/fonts/` 保存字型。根目錄只留本索引與排課需求。
 
@@ -27,12 +27,12 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 方案 | [`md`](versions/v3.10/2627_timetable_scheme_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_scheme_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_scheme_v3.10.pdf) |
-| 老師一周排程（獨立附件） | [`md`](versions/v3.10/2627_timetable_teachers_week_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_teachers_week_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_teachers_week_v3.10.pdf) |
-| 周時間表（獨立附件） | [`md`](versions/v3.10/2627_timetable_weekly_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_weekly_v3.10.docx)／[`pdf`](versions/v3.10/2627_timetable_weekly_v3.10.pdf) |
-| 空房時間（列表及日視圖1） | [`md`](versions/v3.10/2627_timetable_empty_rooms_v3.10.md)／[`docx`](versions/v3.10/2627_timetable_empty_rooms_v3.10.docx) |
+| 方案 | [`md`](versions/v3.10/2627_timetable_scheme_v3.10.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.10/2627_timetable_teachers_week_v3.10.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.10/2627_timetable_weekly_v3.10.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.10/2627_timetable_empty_rooms_v3.10.md) |
 | 班號對照 | [`csv`](versions/v3.10/2627_timetable_class_codes_v3.10.csv) |
-| Word／PDF | 已出檔（空房僅 docx） |
+| Word／PDF | 已刪（只留 md） |
 | 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
 | 已排 | **70** 班（全具名老師）。方案檔或仍標 Cyndi 一對一預留 1 格；**本輪不入庫**，之後人手 |
 | 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
@@ -44,12 +44,12 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 方案 | [`md`](versions/v3.9/2627_timetable_scheme_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_scheme_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_scheme_v3.9.pdf) |
-| 老師一周排程（獨立附件） | [`md`](versions/v3.9/2627_timetable_teachers_week_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_teachers_week_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_teachers_week_v3.9.pdf) |
-| 周時間表（獨立附件） | [`md`](versions/v3.9/2627_timetable_weekly_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_weekly_v3.9.docx)／[`pdf`](versions/v3.9/2627_timetable_weekly_v3.9.pdf) |
-| 空房時間（列表及日視圖1） | [`md`](versions/v3.9/2627_timetable_empty_rooms_v3.9.md)／[`docx`](versions/v3.9/2627_timetable_empty_rooms_v3.9.docx) |
+| 方案 | [`md`](versions/v3.9/2627_timetable_scheme_v3.9.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.9/2627_timetable_teachers_week_v3.9.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.9/2627_timetable_weekly_v3.9.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.9/2627_timetable_empty_rooms_v3.9.md) |
 | 班號對照 | [`csv`](versions/v3.9/2627_timetable_class_codes_v3.9.csv) |
-| Word／PDF | 已出檔（空房僅 docx） |
+| Word／PDF | 已刪（只留 md） |
 | 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
 | 已排 | **70** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
 | 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
@@ -95,12 +95,12 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 方案 | [`md`](versions/v3.6/2627_timetable_scheme_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_scheme_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_scheme_v3.6.pdf) |
-| 老師一周排程（獨立附件） | [`md`](versions/v3.6/2627_timetable_teachers_week_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_teachers_week_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_teachers_week_v3.6.pdf) |
-| 周時間表（獨立附件） | [`md`](versions/v3.6/2627_timetable_weekly_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_weekly_v3.6.docx)／[`pdf`](versions/v3.6/2627_timetable_weekly_v3.6.pdf) |
-| 空房時間（列表及日視圖1） | [`md`](versions/v3.6/2627_timetable_empty_rooms_v3.6.md)／[`docx`](versions/v3.6/2627_timetable_empty_rooms_v3.6.docx) |
+| 方案 | [`md`](versions/v3.6/2627_timetable_scheme_v3.6.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.6/2627_timetable_teachers_week_v3.6.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.6/2627_timetable_weekly_v3.6.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.6/2627_timetable_empty_rooms_v3.6.md) |
 | 班號對照 | [`csv`](versions/v3.6/2627_timetable_class_codes_v3.6.csv) |
-| Word／PDF | 已出檔（空房僅 docx） |
+| Word／PDF | 已刪（只留 md） |
 | 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
 | 已排 | **71** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
 | 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
@@ -144,10 +144,10 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 方案 | [`md`](versions/v3.3/2627_timetable_scheme_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_scheme_v3.3.docx)／[`pdf`](versions/v3.3/2627_timetable_scheme_v3.3.pdf) |
-| 老師一周排程（獨立附件） | [`md`](versions/v3.3/2627_timetable_teachers_week_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_teachers_week_v3.3.docx)／[`pdf`](versions/v3.3/2627_timetable_teachers_week_v3.3.pdf) |
-| 周時間表（獨立附件） | [`md`](versions/v3.3/2627_timetable_weekly_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_weekly_v3.3.docx)／[`pdf`](versions/v3.3/2627_timetable_weekly_v3.3.pdf) |
-| 空房時間（列表及日視圖1） | [`md`](versions/v3.3/2627_timetable_empty_rooms_v3.3.md)／[`docx`](versions/v3.3/2627_timetable_empty_rooms_v3.3.docx) |
+| 方案 | [`md`](versions/v3.3/2627_timetable_scheme_v3.3.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.3/2627_timetable_teachers_week_v3.3.md) |
+| 周時間表（獨立附件） | [`md`](versions/v3.3/2627_timetable_weekly_v3.3.md) |
+| 空房時間（列表及日視圖1） | [`md`](versions/v3.3/2627_timetable_empty_rooms_v3.3.md) |
 | 已排 | **63** 班 |
 | 已確認班別時間 | **Cyndi Ng、Emma Cai** |
 | 相對 3.2 | 方案移除第 8 節周時間表；周時間表改為獨立 md／Word／PDF；班格不變 |
@@ -156,8 +156,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 方案 | [`md`](versions/v3.2/2627_timetable_scheme_v3.2.md)／[`docx`](versions/v3.2/2627_timetable_scheme_v3.2.docx)／[`pdf`](versions/v3.2/2627_timetable_scheme_v3.2.pdf) |
-| 老師一周排程（獨立附件） | [`md`](versions/v3.2/2627_timetable_teachers_week_v3.2.md)／[`docx`](versions/v3.2/2627_timetable_teachers_week_v3.2.docx)／[`pdf`](versions/v3.2/2627_timetable_teachers_week_v3.2.pdf) |
+| 方案 | [`md`](versions/v3.2/2627_timetable_scheme_v3.2.md) |
+| 老師一周排程（獨立附件） | [`md`](versions/v3.2/2627_timetable_teachers_week_v3.2.md) |
 | 已排 | **63** 班 |
 | 相對 3.1 | Henry Wong 只排星期六 14:00 起連續三堂中四／中五／中六生物；移除星期五兩堂 |
 
@@ -175,8 +175,8 @@
 | 項目 | 值 |
 | --- | --- |
 | 審閱稿 | [`2627_timetable_scheme_v3.0.md`](versions/v3.0/2627_timetable_scheme_v3.0.md)／老師附件 [`2627_timetable_teachers_week_v3.0.md`](versions/v3.0/2627_timetable_teachers_week_v3.0.md) |
-| 紀錄文件 | [`2627_timetable_scheme_v3.0.docx`](versions/v3.0/2627_timetable_scheme_v3.0.docx)／[`2627_timetable_scheme_v3.0.pdf`](versions/v3.0/2627_timetable_scheme_v3.0.pdf)（Word 內建目錄另存） |
-| 老師一周排程（獨立附件） | [`2627_timetable_teachers_week_v3.0.docx`](versions/v3.0/2627_timetable_teachers_week_v3.0.docx)／[`2627_timetable_teachers_week_v3.0.pdf`](versions/v3.0/2627_timetable_teachers_week_v3.0.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程（獨立附件） | docx／pdf 已刪 |
 | 已排 | **65** 班 |
 | 相對 2.5 | 加 Henry／Cheryl；Mark 六午膳後連三；Liam 只中二／三；Leo 減至 6；Emma 改中三英文 |
 
@@ -184,8 +184,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_v2.5.docx`](versions/v2.5/2627_timetable_scheme_v2.5.docx)／[`2627_timetable_scheme_v2.5.pdf`](versions/v2.5/2627_timetable_scheme_v2.5.pdf) |
-| 老師一周排程（獨立附件） | [`2627_timetable_teachers_week_v2.5.docx`](versions/v2.5/2627_timetable_teachers_week_v2.5.docx)／[`2627_timetable_teachers_week_v2.5.pdf`](versions/v2.5/2627_timetable_teachers_week_v2.5.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程（獨立附件） | docx／pdf 已刪 |
 | 已排 | **60** 班 |
 | 相對 2.4 | Christine 星期四兩班改星期五；日視圖一日一頁；返學時間灰底；時段空房數；正文改列點 |
 
@@ -193,8 +193,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_v2.4.docx`](versions/v2.4/2627_timetable_scheme_v2.4.docx)／[`2627_timetable_scheme_v2.4.pdf`](versions/v2.4/2627_timetable_scheme_v2.4.pdf) |
-| 老師一周排程（獨立附件） | [`2627_timetable_teachers_week_v2.4.docx`](versions/v2.4/2627_timetable_teachers_week_v2.4.docx)／[`2627_timetable_teachers_week_v2.4.pdf`](versions/v2.4/2627_timetable_teachers_week_v2.4.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程（獨立附件） | docx／pdf 已刪 |
 | 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
 | 已排 | **60** 班（全具名老師）＋ Cyndi Ng 一對一高中英文預留 1 格 |
 | 相對 2.3 | 班別不變。同日順接只限五／六／日；第四章加各科／各級合計；新增第五章按科目再按年級列班 |
@@ -205,8 +205,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_v2.3.docx`](versions/v2.3/2627_timetable_scheme_v2.3.docx)／[`2627_timetable_scheme_v2.3.pdf`](versions/v2.3/2627_timetable_scheme_v2.3.pdf) |
-| 老師一周排程（獨立附件） | [`2627_timetable_teachers_week_v2.3.docx`](versions/v2.3/2627_timetable_teachers_week_v2.3.docx)／[`2627_timetable_teachers_week_v2.3.pdf`](versions/v2.3/2627_timetable_teachers_week_v2.3.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程（獨立附件） | docx／pdf 已刪 |
 | 已排 | **60** 班 |
 | 備註 | Katie 排滿 17；Mark 星期六加中五／中六數學；取消 Christine 日中四A、中五B；周視圖不排日灰底、無斜線 |
 
@@ -214,8 +214,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_v2.2.docx`](versions/v2.2/2627_timetable_scheme_v2.2.docx)／[`2627_timetable_scheme_v2.2.pdf`](versions/v2.2/2627_timetable_scheme_v2.2.pdf) |
-| 老師一周排程 | [`2627_timetable_teachers_week_v2.2.docx`](versions/v2.2/2627_timetable_teachers_week_v2.2.docx)／[`2627_timetable_teachers_week_v2.2.pdf`](versions/v2.2/2627_timetable_teachers_week_v2.2.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程 | docx／pdf 已刪 |
 | 已排 | **56** 班 |
 | 備註 | Mark 取消每周 9 班上限；Katie 每周最多 17（當時仍 13）；老師附件標 Katie 空堂／放假斜線 |
 
@@ -223,8 +223,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_v2.1.docx`](versions/v2.1/2627_timetable_scheme_v2.1.docx)／[`2627_timetable_scheme_v2.1.pdf`](versions/v2.1/2627_timetable_scheme_v2.1.pdf) |
-| 老師一周排程 | [`2627_timetable_teachers_week_v2.1.docx`](versions/v2.1/2627_timetable_teachers_week_v2.1.docx)／[`2627_timetable_teachers_week_v2.1.pdf`](versions/v2.1/2627_timetable_teachers_week_v2.1.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程 | docx／pdf 已刪 |
 | 已排 | **56** 班 |
 | 備註 | 連堂跟問卷；Emma 集中星期日；Judy 中六×2＋中五×1；課室優先；取消開會空檔 |
 
@@ -232,8 +232,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_2026-08-18.docx`](versions/v2.0/2627_timetable_scheme_2026-08-18.docx)／[`2627_timetable_scheme_2026-08-18.pdf`](versions/v2.0/2627_timetable_scheme_2026-08-18.pdf) |
-| 老師一周排程 | [`2627_timetable_teachers_week_2026-08-18.docx`](versions/v2.0/2627_timetable_teachers_week_2026-08-18.docx)／[`.pdf`](versions/v2.0/2627_timetable_teachers_week_2026-08-18.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程 | docx／pdf 已刪 |
 | 已排 | **55** 班 |
 | 備註 | 保留 08-12 原 36 班，按 PT 回覆空格加班 |
 
@@ -241,8 +241,8 @@
 
 | 項目 | 值 |
 | --- | --- |
-| 紀錄文件 | [`2627_timetable_scheme_2026-08-08.docx`](archive/2026-08-08/2627_timetable_scheme_2026-08-08.docx)／[`2627_timetable_scheme_2026-08-08.pdf`](archive/2026-08-08/2627_timetable_scheme_2026-08-08.pdf) |
-| 老師一周排程 | [`2627_timetable_teachers_week_2026-08-08.docx`](archive/2026-08-08/2627_timetable_teachers_week_2026-08-08.docx)／[`.pdf`](archive/2026-08-08/2627_timetable_teachers_week_2026-08-08.pdf) |
+| 紀錄文件 | docx／pdf 已刪 |
+| 老師一周排程 | docx／pdf 已刪 |
 | 已排 | **36** 班 |
 
 ## 歷史試排（2026-07-31；已過時，僅備查）

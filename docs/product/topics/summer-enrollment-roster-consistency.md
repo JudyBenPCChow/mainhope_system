@@ -8,7 +8,7 @@
 | 範圍  | 暑期／正規之點名紙、補堂、取消改期；權益池與到課宣告；學費收款→池滾堂                                                                                                                                       |
 | 不含  | 原班連堂分節點名；生命週期孤兒；欠費門禁；計糧；會計收入認列                                                                                                                                            |
 | 索引  | `[BACKLOG.md](../BACKLOG.md)`                                                                                                                                             |
-| 路線圖 | `[2026-08-08-enrollment-entitlement-roadmap.md](../plans/2026-08-08-enrollment-entitlement-roadmap.md)`                                                                   |
+| 路線圖 | ``                                                                   |
 | 政策  | `[ACADEMIC_YEARS.md](../policies/academic/ACADEMIC_YEARS.md)`；`[ATTENDANCE_BILLING.md](../policies/attendance/ATTENDANCE_BILLING.md)`；`[LEAVE_MAKEUP_CONSECUTIVE.md](../playbooks/frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md)` §5 |
 | 生效閘 | `2627` **開始接受報讀前**，新報讀須鑄池；有排程／點名時讀宣告。`26SM` 維持舊路徑至日落                                                                                                                      |
 | 修訂  | 2026-08-24：已清 live E2E 測試生甲 `20261976`、乙 `20261977`（報讀／收據／池／宣告／請假；甲加堂一併刪）。2026-08-23：時間表 ver. 4.0，live `2627` **66** 小組班。2026-08-23：live E2E 抽樣過（測試生 `20261976`／`20261977`）；順手修 `current_app_user_id` 空電郵誤認 Jackson。2026-08-23：`2627` 70 小組班已入（中文／數學／其餘英文一併）。2026-08-21：`2627` 已入英／生／物／科／化 22 班＋排程（校舍假已扣）；E2E 可抽樣，中文／數學未入。2026-08-16：結構已上；原暫停等 `2627` 班 live。2026-08-15：組別池 migration `20260815183000`；`26SM` 閘門唔改。v3 拍板見 [`entitlement-pool-per-student-v3.md`](./entitlement-pool-per-student-v3.md)。舊「一班一池／轉科搬堂頁」作廢。2026-08-11：出單先上紙總則已掛 [`TRIAL_RECEIPT_BEFORE_ROSTER.md`](../policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md)／`OPS_POLICIES`；§5.6 舊句作廢；前台更新開工。同日 G3 T1–T4 拍板。2026-08-09：G2 時間窗＋第二人；§4.13 |
@@ -372,8 +372,8 @@ T1–T4 已關：堂數預設 1；計人頭手選無預設；$0 跟現行收據�
 - 前台規模／流程更新：[`frontline-ops-update.md`](./frontline-ops-update.md)
 - 營運總覽 KPI 規格：[`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md)
 - 單據／權益更正頁（G2 缺口）：[`payment-entitlement-correction-ui.md`](./payment-entitlement-correction-ui.md)
-- 路線圖：`[2026-08-08-enrollment-entitlement-roadmap.md](../plans/2026-08-08-enrollment-entitlement-roadmap.md)`
+- 路線圖：``
 - 死碼／月費：`[dead-surface-cleanup.md](./dead-surface-cleanup.md)`
-- 影響備查：`[2026-08-03-summer-enrollment-tuition-rights-impact.md](../audits/2026-08-03-summer-enrollment-tuition-rights-impact.md)`
-- 操作模擬備查：`[2026-08-03-summer-enrollment-roster-ops-simulation.md](../audits/2026-08-03-summer-enrollment-roster-ops-simulation.md)`
+- 影響備查：``
+- 操作模擬備查：``
 

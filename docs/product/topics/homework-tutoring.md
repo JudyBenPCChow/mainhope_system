@@ -12,9 +12,8 @@
 | 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；待發佈） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
-| UI 設計 v1 | [`2026-08-01-homework-tutoring-ui-design.md`](../plans/2026-08-01-homework-tutoring-ui-design.md)（首輪備查） |
-| UI 設計 v2 | [`2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md)（**現行：全角色**） |
-| 實作 plan | [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md) |
+| UI 設計 v1 | （首輪備查） |
+| UI 設計 v2 | （**現行：全角色**） |
 
 ## 開工閘（agent 必讀）
 
@@ -23,7 +22,7 @@
 | 本波 | 對上一個工程 | 完成條件 |
 | --- | --- | --- |
 | H11 沙盒審閱 | 無 | 可開工（營運睇沙盒） |
-| 正式產品實作（schema／月費登記／編更／側欄） | 本檔 H11 | **H11 已通過（2026-08-24）**；跟 [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md) |
+| 正式產品實作（schema／月費登記／編更／側欄） | 本檔 H11 | **H11 已通過（2026-08-24）**；跟  |
 | 補 2627 指引 §7 編更 | 同上 H11 | **完成**（§7.4 已寫入守則）。發佈／掛索引見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md) |
 
 ---
@@ -225,7 +224,6 @@
 | --- | --- |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md) |
 | 正式畫面 | `src/components/homeworkTutoring/` |
-| UI v2 | [`docs/product/plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
 | 排課 §4 | [`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) |
 | 月費 | [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
 | 計糧 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) |

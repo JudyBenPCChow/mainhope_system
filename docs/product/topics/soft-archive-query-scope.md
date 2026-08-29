@@ -7,9 +7,8 @@
 | 範圍 | 列表／報表預設少 load；窄欄位 select；永不 DELETE；已畢業≠停補（含技術債 P1-6） |
 | 不含 | 物理搬 `archive_*` 表、停讀自動封存、完整校友／LTV 產品、ORM 全域 scope |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 計劃 | [`2026-08-29-soft-archive-query-scope.md`](../plans/2026-08-29-soft-archive-query-scope.md) · 設計：[`archive_cold_data_3e9934eb.plan.md`](/Users/hoiyingfan/.cursor/plans/archive_cold_data_3e9934eb.plan.md) |
+| 計劃 | 設計：[`archive_cold_data_3e9934eb.plan.md`](/Users/hoiyingfan/.cursor/plans/archive_cold_data_3e9934eb.plan.md) |
 | 政策 | [`SOFT_ARCHIVE.md`](../../policies/academic/SOFT_ARCHIVE.md) |
-| 對抗 | [`audits/2026-08-01-soft-archive-adversarial.md`](../audits/2026-08-01-soft-archive-adversarial.md) |
 | Canvas | `soft-archive-adversarial.canvas.tsx` · `growth-after-narrowing.canvas.tsx` |
 | 相關已做 | 側欄未讀快取、學生詳情分頁懶載、營運總覽 KPI 先出（唔代替本主題） |
 | 相關另題 | 營運總覽重整（KPI／fetch／手機；計糧快取後刀）→ [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)；本主題收窄冷資料，唔代替該題；`listStudents` shim 刪除交 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md) |

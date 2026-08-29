@@ -1,5 +1,3 @@
-# 已遷移
+# 已刪
 
-實作計劃已遷至 `docs/product/plans/`。
-
-→ **[`product/plans/`](../product/plans)**
+實作計劃過程稿已清。步驟同決策見 **[`product/topics/`](../product/topics)** 與 [`product/BACKLOG.md`](../product/BACKLOG.md)。
