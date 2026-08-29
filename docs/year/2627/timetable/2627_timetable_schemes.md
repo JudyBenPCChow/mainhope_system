@@ -2,7 +2,9 @@
 
 > **排課規則（權威）：** [`../../../policies/scheduling/SCHEDULING_RULES.md`](../../../policies/scheduling/SCHEDULING_RULES.md)
 
-**產出習慣（2026-08-19 起）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`（docx 用 Word 內建目錄／頁首頁尾，PDF 由 Word 另存）。4.x 自動加版（4.1、4.2…），舊檔保留。
+**4.0 方案工程已完（2026-08-24 簽收）。** 呢個方案係 2627 未有班時一次性規劃用。其後班別更新只入系統，**唔**自動加版、**唔**出新 md／docx／pdf。除非用戶明確要求重開方案工程。
+
+**當日產出習慣（規劃工程期間）：** 新一版先出 **md** 審閱；營運決定出檔後先 `python3 scripts/generate_2627_timetable_doc.py --word`。4.x 加版只適用重開方案工程。舊檔保留。
 
 **Folder 結構：** `versions/v<版本>/` 保存各版方案與老師附件；`archive/` 保存早期版本及試排；`assets/fonts/` 保存字型。根目錄只留本索引與排課需求。
 
@@ -17,7 +19,7 @@
 | 班號對照 | [`csv`](versions/v4.0/2627_timetable_class_codes_v4.0.csv) |
 | Word／PDF | 已出檔（空房僅 docx） |
 | 生成腳本 | [`generate_2627_timetable_doc.py`](../../../../scripts/generate_2627_timetable_doc.py) |
-| 已排 | **66** 班（全具名老師）。方案檔或仍標 Cyndi 一對一預留 1 格；**本輪不入庫**，之後人手 |
+| 已排 | **66** 班（全具名老師；簽收當日入庫數）。方案檔或仍標 Cyndi 一對一預留 1 格（當時未入庫）。其後班數以系統為準 |
 | 已確認班別時間 | **Cyndi Ng、Emma Cai、Liam Lai、Leo Chan**；後續方案不得改動班別、逢星期或時段，除非收到明確指示 |
 | 相對 3.10 | Katie 取消一至四 19:00 四堂（本版 13 班）；中一／中二／中三中文班號由 A 起重編 |
 
