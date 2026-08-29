@@ -8,6 +8,7 @@ import { DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
 import { clearAuthState } from "@/lib/authSession"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -35,7 +36,16 @@ function formatTs(iso: string): string {
  }
 }
 
+function severityTag(severity: string) {
+ return (
+  <Tag tone={statusToTagTone(severity)} size="sm">
+   {severity}
+  </Tag>
+ )
+}
+
 export function AlienGodViewHome() {
+ const isMobile = useIsMobile()
  const greetingName =
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
   DEMO_ALIEN_GREETING_NAME
@@ -72,11 +82,11 @@ export function AlienGodViewHome() {
  }, [load])
 
  return (
-  <div className="space-y-8 p-4 md:p-6 lg:space-y-10">
-   <header className="flex flex-wrap items-end justify-between gap-4 border-b border-info/60 pb-6">
+  <div className="space-y-6 md:space-y-10 md:p-6">
+   <header className="flex flex-wrap items-end justify-between gap-4 border-b border-info/60 pb-4 md:pb-6">
     <div>
      <p className="text-sm font-medium uppercase tracking-wide text-info/90">外星人 · 上帝視角</p>
-     <h1 className="mt-2 flex flex-wrap items-center gap-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+     <h1 className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight text-foreground md:text-4xl">
       <Orbit className="h-9 w-9 text-info" aria-hidden />
       你好，{greetingName}！
      </h1>
@@ -145,11 +155,28 @@ export function AlienGodViewHome() {
      </h2>
      <p className="mt-1 text-sm text-muted-foreground">依本機日曆篩選「今日」，最多顯示 20 筆（新→舊）。</p>
     </div>
-    <div className="overflow-x-auto">
+    <div className={isMobile ? "px-0" : "overflow-x-auto"}>
      {loading ? (
       <p className="px-5 py-8 text-muted-foreground md:px-6">載入中…</p>
      ) : auditRows.length === 0 ? (
       <p className="px-5 py-8 text-muted-foreground md:px-6">尚無今日紀錄。選角登入後會寫入稽核；種子亦含演示列。</p>
+     ) : isMobile ? (
+      <StaggerList className="divide-y divide-border">
+       {auditRows.map((r) => (
+        <StaggerItem key={r.id} className="px-4 py-3">
+         <div className="flex items-start justify-between gap-3">
+          <p className="min-w-0 font-medium text-foreground">{r.actor_label?.trim() ? r.actor_label : "—"}</p>
+          <p className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatTs(r.created_at)}</p>
+         </div>
+         <p className="mt-1 text-sm">{r.action}</p>
+         <p className="mt-0.5 break-words text-xs text-muted-foreground">
+          {r.role?.trim() ? r.role : "—"}
+          {r.path ? ` · ${r.path}` : ""}
+         </p>
+         {r.detail ? <p className="mt-1 break-words text-xs text-muted-foreground/90">{r.detail}</p> : null}
+        </StaggerItem>
+       ))}
+      </StaggerList>
      ) : (
       <table className="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
        <thead className="border-b border-border bg-muted/40 text-muted-foreground">
@@ -192,12 +219,35 @@ export function AlienGodViewHome() {
      </h2>
      <p className="mt-1 text-sm text-muted-foreground">最近 20 筆（新→舊）；含未解決與已標記處理。</p>
     </div>
-    <div className="overflow-x-auto">
+    <div className={isMobile ? "px-0" : "overflow-x-auto"}>
      {loading ? (
       <p className="px-5 py-8 text-muted-foreground md:px-6">載入中…</p>
      ) : errorRows.length === 0 ? (
       <p className="px-5 py-8 text-muted-foreground md:px-6">尚無錯誤紀錄。應用程式可寫入{" "}
        <code className="rounded bg-muted px-1">mgmt_system_errors</code> 以集中追蹤。</p>
+     ) : isMobile ? (
+      <StaggerList className="divide-y divide-border">
+       {errorRows.map((r) => (
+        <StaggerItem key={r.id} className="px-4 py-3">
+         <div className="flex items-start justify-between gap-3">
+          {severityTag(r.severity)}
+          <p className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatTs(r.created_at)}</p>
+         </div>
+         <p className="mt-1 break-words text-sm">{r.message}</p>
+         <p className="mt-0.5 break-words text-xs text-muted-foreground">{r.source}</p>
+         {r.resolved_at ? (
+          <p className="mt-1 text-xs text-success">已處理 {formatTs(r.resolved_at)}</p>
+         ) : (
+          <div className="mt-1">
+           <Tag tone={statusToTagTone("待處理")} size="sm">
+            待處理
+           </Tag>
+          </div>
+         )}
+         {r.detail ? <p className="mt-1 break-words text-xs text-muted-foreground">{r.detail}</p> : null}
+        </StaggerItem>
+       ))}
+      </StaggerList>
      ) : (
       <table className="w-full min-w-[640px] table-fixed border-collapse text-left text-sm">
        <thead className="border-b border-border bg-muted/40 text-muted-foreground">

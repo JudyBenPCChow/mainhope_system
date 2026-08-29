@@ -340,7 +340,8 @@ export function TeacherHomeView() {
     <p className="mt-2 text-sm text-muted-foreground md:mt-3 md:max-w-3xl md:text-base">
      {isMobile ? (
       <>
-       今日有 {loading ? "…" : todaySchedules.length} 堂課
+       僅顯示<strong>指派給您</strong>的班別與排程。今日有{" "}
+       {loading ? "…" : todaySchedules.length} 堂課
        {metaLoading ? " · 標記載入中…" : null}
       </>
      ) : (
@@ -352,7 +353,15 @@ export function TeacherHomeView() {
       </>
      )}
     </p>
-    {/* 手機底部導覽已涵蓋點名／時間表／更多，免重複 CTA */}
+    <div className="mt-4 md:hidden">
+     <Button type="button" className="w-full min-h-10 gap-2" asChild>
+      <Link to="/Schedule">
+       <CalendarDays className="h-5 w-5" />
+       我的排程
+      </Link>
+     </Button>
+    </div>
+    {/* 桌面捷徑；手機底欄已有點名／時間表／收件匣，排程改由上方按鈕進入 */}
     <div className="mt-4 hidden flex-wrap gap-3 md:mt-6 md:flex">
      <Button type="button" size="lg" className="gap-2" asChild>
       <Link to="/Schedule">

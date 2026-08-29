@@ -14,6 +14,8 @@ import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 
@@ -102,13 +104,15 @@ export function RosterMonthSheet({
   avail: AllTeacherAvailability
   teachers?: readonly HomeworkTeacherRow[]
   holidays?: HomeworkHoliday[]
-  /** 確定編更：持久化＋寫 schedules 佔室 */
+  /** 確定編更／已編更後改派：持久化＋寫 schedules 佔室 */
   onPublish?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
 }) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
   const [view, setView] = useState<SheetView>("list")
   const [editDay, setEditDay] = useState<HomeworkDutyDay | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const published = (monthStatus[yearMonth] ?? "未編更") === "已編更"
   const emptyLabel = published ? "暫時空缺" : "未編"
 
@@ -150,14 +154,27 @@ export function RosterMonthSheet({
   }
 
   const saveMonth = async () => {
-    const ok = await confirmDialog({
-      title: "確定本月編更？",
-      description: `${formatYearMonthLabel(yearMonth)} 儲存後即確定編更，並寫入課室佔用（15:15 起）。未派人的日子會顯示暫時空缺。`,
-      confirmText: "確定編更",
-      cancelText: "取消",
-      tone: "warning",
-    })
+    const monthLabel = formatYearMonthLabel(yearMonth)
+    const ok = await confirmDialog(
+      published
+        ? {
+            title: "儲存當值變更？",
+            description: `${monthLabel} 將更新當值老師，並重寫課室佔用（15:15 起）。`,
+            confirmText: "儲存變更",
+            cancelText: "取消",
+            tone: "warning",
+          }
+        : {
+            title: "確定本月編更？",
+            description: `${monthLabel} 儲存後即確定編更，並寫入課室佔用（15:15 起）。未派人的日子會顯示暫時空缺。`,
+            confirmText: "確定編更",
+            cancelText: "取消",
+            tone: "warning",
+          }
+    )
     if (ok !== true) return
+    setSaving(true)
+    setSaveError(null)
     try {
       if (onPublish) {
         await onPublish(yearMonth, monthDays)
@@ -171,14 +188,24 @@ export function RosterMonthSheet({
       pushBanner({
         title: "已儲存",
         tone: "success",
-        message: `${formatYearMonthLabel(yearMonth)} 編更已確定，課室佔用已寫入排程。`,
+        message: published
+          ? `${monthLabel} 當值已更新，課室佔用已寫入排程。`
+          : `${monthLabel} 編更已確定，課室佔用已寫入排程。`,
       })
     } catch (err) {
+      const message = formatUnknownError(err)
+      reportUserFacingError(err, {
+        source: "RosterMonthSheet.saveMonth",
+        setErr: setSaveError,
+        userMessage: message,
+      })
       pushBanner({
         title: "儲存失敗",
         tone: "error",
-        message: err instanceof Error ? err.message : String(err),
+        message,
       })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -234,15 +261,27 @@ export function RosterMonthSheet({
 
       <p className="text-xs text-muted-foreground">
         {published
-          ? "已確定的當值清單。可頂替＝當日有報更但未編入的同事。單一場次兩室；人少可只派一室。"
+          ? "已確定的當值清單。可頂替＝當日有報更但未編入的同事。改派後請按「儲存變更」寫入課室佔用。單一場次兩室；人少可只派一室。"
           : "未編更：只顯示當日已報更的同事。儲存後即確定本月編更。每室可派一位老師。"}
       </p>
 
-      {!published ? (
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={() => void saveMonth()}>
-            儲存
-          </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          loading={saving}
+          loadingText="儲存中…"
+          onClick={() => void saveMonth()}
+        >
+          {published ? "儲存變更" : "儲存"}
+        </Button>
+      </div>
+      {saveError ? (
+        <div
+          role="alert"
+          className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          {saveError}
         </div>
       ) : null}
 
@@ -523,10 +562,16 @@ export function RosterMonthSheet({
                 if (!editDay) return
                 upsertDay(editDay)
                 setEditDay(null)
-                pushBanner({ title: "已更新", tone: "success", message: "當值已更新。" })
+                pushBanner({
+                  title: "已更新本頁",
+                  tone: "success",
+                  message: published
+                    ? "當值已改在本頁。請按「儲存變更」寫入課室佔用。"
+                    : "當值已改在本頁。請按「儲存」確定本月編更。",
+                })
               }}
             >
-              儲存
+              更新本頁
             </Button>
           </DialogFooter>
         </DialogContent>

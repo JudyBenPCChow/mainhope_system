@@ -23,7 +23,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 ## 指令
 
 `npm run dev`｜`npm run build`（改動後門檻）｜`npm run lint`｜`npm run ui:check`  
-2627 時間表方案：先出 md；用戶要求先出 docx／pdf（Word 內建目錄另存）。4.x 自動加版。見 `.cursor/rules/2627-timetable-doc.mdc`。
+2627 **時間表方案工程已完**（ver. 4.0 簽收）。其後加班／改班只入系統（班別＋排程），**唔** bump 4.x、**唔**出 md／docx／pdf。見 `.cursor/rules/2627-timetable-doc.mdc`。
 
 ## 新增功能
 

@@ -30,7 +30,7 @@ STEM_TEACHERS = f"2627_timetable_teachers_week_v{VERSION}"
 STEM_WEEKLY = f"2627_timetable_weekly_v{VERSION}"
 STEM_CODES = f"2627_timetable_class_codes_v{VERSION}"
 OUT_DIR = TIMETABLE_DIR / "versions" / f"v{VERSION}"
-# 改 CLASSES／原則／已確認老師鎖時把 VERSION 改成下一 4.x（4.0→4.1），PREV_VERSION＝舊版；舊檔保留。
+# 改 CLASSES／原則＝重開方案工程（須用戶明確要求）。4.0 已簽收；其後加班只入系統，唔自動 +0.1。
 FONT_NAME_EA = "新細明體"
 MARGIN_CM = 2.54  # Word 預設「普通」
 HEADER_DISTANCE_CM = 1.25
