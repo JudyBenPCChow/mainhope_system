@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, ChevronLeft, RefreshCw } from "lucide-react"
+import { AlertTriangle, ChevronLeft, RefreshCw, SlidersHorizontal } from "lucide-react"
 
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import { LoadMoreFooter } from "@/components/ui/load-more-footer"
-import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -58,6 +60,7 @@ type IssueFilterOverride = Partial<{
 }>
 
 export function SystemIssuesView() {
+ const isMobile = useIsMobile()
  const defaultFrom = useMemo(() => addDaysToYmd(todayYmdLocal(), -90), [])
  const [dateFrom, setDateFrom] = useState(defaultFrom)
  const [dateTo, setDateTo] = useState(todayYmdLocal())
@@ -67,6 +70,7 @@ export function SystemIssuesView() {
  const [sourceContains, setSourceContains] = useState("")
  const [messageContains, setMessageContains] = useState("")
  const [unresolvedOnly, setUnresolvedOnly] = useState(false)
+ const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [rows, setRows] = useState<MgmtSystemErrorRow[]>([])
  const [offset, setOffset] = useState(0)
@@ -162,6 +166,113 @@ export function SystemIssuesView() {
   disabled: loading,
  })
 
+ const activeFilterCount =
+  (dateFrom !== defaultFrom ? 1 : 0) +
+  (dateTo !== todayYmdLocal() ? 1 : 0) +
+  (role !== "all" ? 1 : 0) +
+  (actorContains.trim() ? 1 : 0) +
+  (pathContains.trim() ? 1 : 0) +
+  (sourceContains.trim() ? 1 : 0) +
+  (messageContains.trim() ? 1 : 0) +
+  (unresolvedOnly ? 1 : 0)
+
+ const resetFilters = () => {
+  const from = addDaysToYmd(todayYmdLocal(), -90)
+  const to = todayYmdLocal()
+  setDateFrom(from)
+  setDateTo(to)
+  setRole("all")
+  setActorContains("")
+  setPathContains("")
+  setSourceContains("")
+  setMessageContains("")
+  setUnresolvedOnly(false)
+  void load(0, false, {
+   dateFrom: from,
+   dateTo: to,
+   role: "all",
+   actorContains: "",
+   pathContains: "",
+   sourceContains: "",
+   messageContains: "",
+   unresolvedOnly: false,
+  })
+ }
+
+ const filterFields = (
+  <div className={isMobile ? "space-y-4" : "mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-from" className="text-xs font-medium text-muted-foreground">
+     開始日期
+    </label>
+    <Input id="iss-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-to" className="text-xs font-medium text-muted-foreground">
+     結束日期
+    </label>
+    <Input id="iss-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-role" className="text-xs font-medium text-muted-foreground">
+     按角色（用戶類型）
+    </label>
+    <Select
+     id="iss-role"
+     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+     value={role}
+     onChange={(e) => setRole(e.target.value)}
+    >
+     {roleOptions.map((o) => (
+      <option key={o.value} value={o.value}>
+       {o.label}
+      </option>
+     ))}
+    </Select>
+   </div>
+   <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+    <label htmlFor="iss-actor" className="text-xs font-medium text-muted-foreground">
+     按用戶（顯示名稱包含）
+    </label>
+    <Input
+     id="iss-actor"
+     placeholder="若該筆有記錄操作者"
+     value={actorContains}
+     onChange={(e) => setActorContains(e.target.value)}
+    />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-path" className="text-xs font-medium text-muted-foreground">
+     按功能 · 路徑包含
+    </label>
+    <Input id="iss-path" placeholder="例如：/Schedule" value={pathContains} onChange={(e) => setPathContains(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-src" className="text-xs font-medium text-muted-foreground">
+     按功能 · 來源包含
+    </label>
+    <Input id="iss-src" placeholder="例如：schedule、payment" value={sourceContains} onChange={(e) => setSourceContains(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="iss-msg" className="text-xs font-medium text-muted-foreground">
+     訊息包含
+    </label>
+    <Input id="iss-msg" placeholder="關鍵字" value={messageContains} onChange={(e) => setMessageContains(e.target.value)} />
+   </div>
+   <div className="flex items-end pb-1 sm:col-span-2 lg:col-span-3">
+    <label className="flex cursor-pointer items-center gap-2 text-sm">
+     <input
+      type="checkbox"
+      className="h-4 w-4 rounded border-input"
+      checked={unresolvedOnly}
+      onChange={(e) => setUnresolvedOnly(e.target.checked)}
+     />
+     僅顯示待處理（未標記 resolved）
+    </label>
+   </div>
+  </div>
+ )
+
  return (
   <div className="space-y-6">
    <header className="flex flex-wrap items-start justify-between gap-4">
@@ -181,10 +292,23 @@ export function SystemIssuesView() {
       <code className="rounded bg-muted px-1">appendMgmtSystemError</code>；種子含演示列。
      </p>
     </div>
-    <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void onSearch()} disabled={loading}>
-     <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
-     重新整理
-    </Button>
+    <div className="flex flex-wrap gap-2">
+     {isMobile ? (
+      <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+       <SlidersHorizontal className="h-4 w-4" aria-hidden />
+       篩選
+       {activeFilterCount > 0 ? (
+        <Tag tone="info" size="sm">
+         {activeFilterCount}
+        </Tag>
+       ) : null}
+      </Button>
+     ) : null}
+     <Button type="button" variant="outline" className="gap-2" onClick={() => void onSearch()} disabled={loading}>
+      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+      重新整理
+     </Button>
+    </div>
    </header>
 
    {!isSupabaseConfigured ? (
@@ -195,114 +319,75 @@ export function SystemIssuesView() {
     <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
 
-   <section className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
-    <h2 className="text-sm font-semibold text-foreground">篩選</h2>
-    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-     <div className="space-y-1.5">
-      <label htmlFor="iss-from" className="text-xs font-medium text-muted-foreground">
-       開始日期
-      </label>
-      <Input id="iss-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => {
+      setFiltersOpen(false)
+      void onSearch()
+     }}
+     title="篩選報錯"
+     activeCount={activeFilterCount}
+     onReset={resetFilters}
+    >
+     {filterFields}
+    </MobileFilterSheet>
+   ) : (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
+     <h2 className="text-sm font-semibold text-foreground">篩選</h2>
+     {filterFields}
+     <div className="mt-4 flex flex-wrap gap-2">
+      <Button type="button" onClick={() => void onSearch()}>
+       查詢
+      </Button>
+      <Button type="button" variant="outline" onClick={resetFilters}>
+       重設條件
+      </Button>
      </div>
-     <div className="space-y-1.5">
-      <label htmlFor="iss-to" className="text-xs font-medium text-muted-foreground">
-       結束日期
-      </label>
-      <Input id="iss-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="iss-role" className="text-xs font-medium text-muted-foreground">
-       按角色（用戶類型）
-      </label>
-      <Select
-       id="iss-role"
-       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-       value={role}
-       onChange={(e) => setRole(e.target.value)}
-      >
-       {roleOptions.map((o) => (
-        <option key={o.value} value={o.value}>
-         {o.label}
-        </option>
-       ))}
-      </Select>
-     </div>
-     <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-      <label htmlFor="iss-actor" className="text-xs font-medium text-muted-foreground">
-       按用戶（顯示名稱包含）
-      </label>
-      <Input
-       id="iss-actor"
-       placeholder="若該筆有記錄操作者"
-       value={actorContains}
-       onChange={(e) => setActorContains(e.target.value)}
-      />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="iss-path" className="text-xs font-medium text-muted-foreground">
-       按功能 · 路徑包含
-      </label>
-      <Input id="iss-path" placeholder="例如：/Schedule" value={pathContains} onChange={(e) => setPathContains(e.target.value)} />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="iss-src" className="text-xs font-medium text-muted-foreground">
-       按功能 · 來源包含
-      </label>
-      <Input id="iss-src" placeholder="例如：schedule、payment" value={sourceContains} onChange={(e) => setSourceContains(e.target.value)} />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="iss-msg" className="text-xs font-medium text-muted-foreground">
-       訊息包含
-      </label>
-      <Input id="iss-msg" placeholder="關鍵字" value={messageContains} onChange={(e) => setMessageContains(e.target.value)} />
-     </div>
-     <div className="flex items-end pb-1 sm:col-span-2 lg:col-span-3">
-      <label className="flex cursor-pointer items-center gap-2 text-sm">
-       <input
-        type="checkbox"
-        className="h-4 w-4 rounded border-input"
-        checked={unresolvedOnly}
-        onChange={(e) => setUnresolvedOnly(e.target.checked)}
-       />
-       僅顯示待處理（未標記 resolved）
-      </label>
-     </div>
-    </div>
-    <div className="mt-4 flex flex-wrap gap-2">
-     <Button type="button" onClick={() => void onSearch()}>
-      查詢
-     </Button>
-     <Button
-      type="button"
-      variant="outline"
-      onClick={() => {
-       const from = addDaysToYmd(todayYmdLocal(), -90)
-       const to = todayYmdLocal()
-       setDateFrom(from)
-       setDateTo(to)
-       setRole("all")
-       setActorContains("")
-       setPathContains("")
-       setSourceContains("")
-       setMessageContains("")
-       setUnresolvedOnly(false)
-       void load(0, false, {
-        dateFrom: from,
-        dateTo: to,
-        role: "all",
-        actorContains: "",
-        pathContains: "",
-        sourceContains: "",
-        messageContains: "",
-        unresolvedOnly: false,
-       })
-      }}
-     >
-      重設條件
-     </Button>
-    </div>
-   </section>
+    </section>
+   )}
 
+   {isMobile ? (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+     {loading && rows.length === 0 ? (
+      <div className="p-4">
+       <SkeletonCardGrid count={4} />
+      </div>
+     ) : rows.length === 0 ? (
+      <p className="px-4 py-10 text-center text-muted-foreground">無資料。請調整篩選。</p>
+     ) : (
+      <StaggerList className="divide-y divide-border">
+       {rows.map((r) => (
+        <StaggerItem key={r.id} className="px-4 py-3">
+         <div className="flex items-start justify-between gap-3">
+          <Tag tone={statusToTagTone(r.severity)} size="sm">
+           {r.severity}
+          </Tag>
+          <p className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatTs(r.created_at)}</p>
+         </div>
+         <p className="mt-1 break-words text-sm">{r.message}</p>
+         <p className="mt-0.5 break-words text-xs text-muted-foreground">
+          {r.actor_label?.trim() ? r.actor_label : "—"}
+          {r.role?.trim() ? ` · ${r.role}` : ""}
+          {r.source ? ` · ${r.source}` : ""}
+         </p>
+         {r.path ? <p className="mt-0.5 break-all text-xs text-muted-foreground">{r.path}</p> : null}
+         {r.resolved_at ? (
+          <p className="mt-1 text-xs text-success">已處理 {formatTs(r.resolved_at)}</p>
+         ) : (
+          <div className="mt-1">
+           <Tag tone={statusToTagTone("待處理")} size="sm">
+            待處理
+           </Tag>
+          </div>
+         )}
+         {r.detail ? <p className="mt-1 break-words text-xs text-muted-foreground">{r.detail}</p> : null}
+        </StaggerItem>
+       ))}
+      </StaggerList>
+     )}
+    </div>
+   ) : (
    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
     <table className="w-full min-w-[880px] table-fixed border-collapse text-left text-sm">
      <thead className="border-b border-border bg-muted/50 text-muted-foreground">
@@ -360,6 +445,7 @@ export function SystemIssuesView() {
      )}
     </table>
    </div>
+   )}
 
    <LoadMoreFooter
     sentinelRef={sentinelRef}

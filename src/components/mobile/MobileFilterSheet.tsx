@@ -66,7 +66,7 @@ export function MobileFilterSheet({
         重設
        </Button>
       ) : null}
-      <Button type="button" variant="ghost" size="icon" className="h-9 w-9" onClick={onClose} aria-label="關閉篩選">
+      <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="關閉篩選">
        <X className="h-4 w-4" />
       </Button>
      </div>

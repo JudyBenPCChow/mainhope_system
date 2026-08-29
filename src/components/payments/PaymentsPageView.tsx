@@ -1312,6 +1312,9 @@ export function PaymentsPageView() {
      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
       內部行政收款：先確認學生與應收內容，再登記已收款或待收款。下期學費請用文字提醒家長，勿再開收據式待繳費單。
      </p>
+     <p className="mt-1 text-sm text-muted-foreground md:hidden">
+      先揀學生再出單。複雜折扣或大量明細建議用桌面。
+     </p>
     </div>
     <div className="flex flex-wrap gap-2">
      <Button type="button" variant="outline" asChild>
@@ -1380,7 +1383,7 @@ export function PaymentsPageView() {
       type="button"
       onClick={() => setCollectMode(key)}
       className={cn(
-       "inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
+       "inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full border px-4 text-sm font-medium transition-colors sm:flex-none",
        collectMode === key
         ? "border-warning bg-warning text-white"
         : "border-border bg-card hover:bg-muted/60"

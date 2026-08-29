@@ -209,16 +209,18 @@ export function RollCallPage() {
        </Tag>
       ) : null}
      </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+     <p className="mt-1 text-sm text-muted-foreground">
       {teacherTid
-       ? "專班老師僅見您指派的班別在該日的排程；展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"
-       : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
+       ? "僅見您指派的班別在該日的排程；展開摺疊面板即可點名。"
+       : isMobile
+         ? "列出當日班別，展開即可點名。"
+         : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
      </p>
     </div>
    </header>
 
    {teacherTid ? (
-    <div className="hidden rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground md:block">
+    <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">
      專班老師檢視：日期與排程清單僅含<strong>您指派的班別</strong>。
     </div>
    ) : null}

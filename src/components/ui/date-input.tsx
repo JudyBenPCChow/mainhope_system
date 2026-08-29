@@ -183,7 +183,7 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(
      disabled={disabled}
      aria-label={ariaLabel}
      className={cn(
-      "flex h-9 w-full items-center rounded-md border border-input bg-background px-3 text-left text-sm shadow-sm transition-colors",
+      "flex h-10 w-full items-center rounded-md border border-input bg-background px-3 text-left text-sm shadow-sm transition-colors",
       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
      )}
      onClick={() => setOpen((v) => !v)}
