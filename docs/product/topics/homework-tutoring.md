@@ -8,7 +8,7 @@
 | 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；**每日功課進度／指示檔正文（留 Notion）**；宣傳物料；專科式請假／補堂／扣堂；**獨立小學部功輔**（2627 不開） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
-| 上次更新 | 2026-08-29（alien 實機建功輔導師帳 OK；4c／4d 關帳；產品題標 done） |
+| 上次更新 | 2026-08-29（已編更月工作表可「儲存變更」；alien 建帳／4c／4d 關帳） |
 | 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；待發佈） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
@@ -144,7 +144,7 @@
 - **報更截止**：該月最後一日起倒數第 3 日（含末日）＝末日 − 2（例：31→29、30→28）（H8）。
 - 過截止**仍可補交、不鎖死**；**該月編更確定後**該月報更先鎖定（D2）。
 - 盡量全日同一人；可分上下節（分界 17:00）。
-- 行政「當值編更」默認**月工作表**（不顯示課室）。箭咀切月份，默認本月；列表＋月曆。未編更只顯示當日已報更人名，儲存＝確定編更。已編更顯示確認當值＋有報更未編入（可頂替）；已編更但當日無人＝暫時空缺。
+- 行政「當值編更」默認**月工作表**（不顯示課室）。箭咀切月份，默認本月；列表＋月曆。未編更只顯示當日已報更人名，儲存＝確定編更。已編更顯示確認當值＋有報更未編入（可頂替）；改派後按「儲存變更」再寫入佔室。已編更但當日無人＝暫時空缺。
 
 ### 導航（H11）
 
