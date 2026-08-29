@@ -18,7 +18,7 @@ import {
   formatAvailLabel,
   isAvailActive,
   type AvailEntry,
-} from "./mockData"
+} from "@/lib/homeworkTutoringUi"
 
 type AvailKind = "clear" | "full" | "custom"
 

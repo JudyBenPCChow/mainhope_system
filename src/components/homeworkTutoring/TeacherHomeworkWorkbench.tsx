@@ -9,23 +9,23 @@ import { useIsMobile } from "@/hooks/use-mobile"
 
 import { BulkCustomTimeDialog } from "./availEditor"
 import {
-  MOCK_ROSTER_MONTH_KEY,
   SUBMIT_DEADLINE_NOTE,
+  currentYearMonth,
   formatAvailLabel,
   formatSession,
   formatYearMonthLabel,
   holidaysInYearMonth,
   listRosterMonthDays,
   myDutyDays,
-  myDutyDivisionLabel,
+  myDutyRoomLabel,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
-  type MockDutyDay,
-  type MockHoliday,
+  type HomeworkDutyDay,
+  type HomeworkHoliday,
   type RosterPublishStatus,
-} from "./mockData"
-import type { TeacherPageId } from "./sandboxNav"
+} from "@/lib/homeworkTutoringUi"
+import type { TeacherPageId } from "./homeworkTutoringSectionNav"
 import { SubmitStatusTag } from "./sharedUi"
 
 const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
@@ -40,7 +40,7 @@ export function TeacherHomeworkWorkbench({
   setSubmitStatus,
   rosterPublishStatus,
   dutyDays = [],
-  rosterMonthKey = MOCK_ROSTER_MONTH_KEY,
+  rosterMonthKey = currentYearMonth(),
   holidays = [],
 }: {
   tab: TeacherPageId
@@ -52,9 +52,9 @@ export function TeacherHomeworkWorkbench({
   submitStatus: AllTeacherSubmitStatus
   setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
   rosterPublishStatus: RosterPublishStatus
-  dutyDays?: MockDutyDay[]
+  dutyDays?: HomeworkDutyDay[]
   rosterMonthKey?: string
-  holidays?: MockHoliday[]
+  holidays?: HomeworkHoliday[]
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -374,7 +374,7 @@ export function TeacherHomeworkWorkbench({
                     {d.date}（{d.weekday}）
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    班時間 {formatSession(d)} · {myDutyDivisionLabel(d, teacherId)}
+                    班時間 {formatSession(d)} · {myDutyRoomLabel(d, teacherId)}
                   </p>
                 </li>
               ))}
