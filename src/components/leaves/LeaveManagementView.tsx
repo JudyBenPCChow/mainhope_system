@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom"
 import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella, Users, Video } from "lucide-react"
 
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -151,6 +152,8 @@ export function LeaveManagementView() {
  const studentIdFromUrl = searchParams.get("studentId")
 
  const [rows, setRows] = useState<LeaveManageRow[]>([])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
+ const [includeOlderYears, setIncludeOlderYears] = useState(false)
  const [stats, setStats] = useState<LeaveTodayStats>({ leaveStudentCount: 0, makeupStudentCount: 0 })
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -204,16 +207,25 @@ export function LeaveManagementView() {
   setLoading(true)
   setErr(null)
   try {
-   const [list, st] = await Promise.all([fetchLeaveMakeupWithRelations(), fetchLeaveTodayStats()])
-   setRows(list)
+   const [list, st] = await Promise.all([
+    fetchLeaveMakeupWithRelations({
+     includeOlderYears,
+     extraIds: recordFromUrl ? [recordFromUrl] : [],
+     extraStudentIds: studentIdFromUrl ? [studentIdFromUrl] : [],
+    }),
+    fetchLeaveTodayStats(),
+   ])
+   setRows(list.rows)
+   setHiddenOlderCount(list.hiddenOlderCount)
    setStats(st)
   } catch (e) {
    reportUserFacingError(e, { source: "LeaveManagementView.reload", setErr })
    setRows([])
+   setHiddenOlderCount(0)
   } finally {
    setLoading(false)
   }
- }, [])
+ }, [includeOlderYears, recordFromUrl, studentIdFromUrl])
 
  useEffect(() => {
   void reload()
@@ -650,6 +662,12 @@ export function LeaveManagementView() {
      {err}
     </div>
    ) : null}
+
+   <SoftArchiveScopeBanner
+    hiddenCount={hiddenOlderCount}
+    description={`已隱藏 ${hiddenOlderCount} 筆更舊學年已完成／放棄請假（待補仍顯示；資料仍在，並非刪除）`}
+    onShow={() => setIncludeOlderYears(true)}
+   />
 
    {studentIdFromUrl || recordFromUrl ? (
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info bg-info/80 px-3 py-2 text-sm text-info-foreground dark:border-info dark:bg-info/40 dark:text-info-foreground">

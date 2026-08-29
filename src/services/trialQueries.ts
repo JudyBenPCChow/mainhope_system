@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  LESSON_SLOT_DURATION_MIN,
@@ -21,6 +22,7 @@ import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
  scanDeletableAttendanceForTrialSchedule,
@@ -219,26 +221,127 @@ export async function fetchUpcomingTrialsForClassIds(
  })
 }
 
-export async function fetchTrialsWithRelations(): Promise<TrialManageRow[]> {
- if (!supabase) return []
- const { data, error } = await supabase
-  .from("trial_sessions")
-  .select(
-   "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes ( subject, course_code_full, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
-  )
-  .order("trial_date", { ascending: false })
-  .order("created_at", { ascending: false })
- if (error) throw error
- const raw = data ?? []
- const scheduleIds = [
-  ...new Set(raw.map((x) => String((x as { schedule_id?: string }).schedule_id ?? "")).filter(Boolean)),
- ]
- const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
- return raw.map((x) => {
-  const row = x as Record<string, unknown>
+const TRIAL_LIST_COLUMNS =
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes ( subject, course_code_full, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
+
+const TRIAL_LIST_COLUMNS_INNER_CLASS =
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade ), classes!inner ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
+
+const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
+
+export type TrialOpsListResult = {
+ rows: TrialManageRow[]
+ hiddenOlderCount: number
+}
+
+function mergeTrialRows(parts: TrialManageRow[][]): TrialManageRow[] {
+ const byId = new Map<string, TrialManageRow>()
+ for (const part of parts) {
+  for (const row of part) byId.set(row.id, row)
+ }
+ return [...byId.values()].sort((a, b) => {
+  if (a.trial_date !== b.trial_date) return b.trial_date.localeCompare(a.trial_date)
+  return b.id.localeCompare(a.id)
+ })
+}
+
+async function mapTrialListResult(
+ result: { data: unknown; error: unknown },
+ attended: Set<string>
+): Promise<TrialManageRow[]> {
+ if (result.error) throw result.error
+ const raw = (result.data as Record<string, unknown>[] | null) ?? []
+ return raw.map((row) => {
   const sid = String(row.schedule_id ?? "")
   return mapRow(row, attended.has(sid))
  })
+}
+
+async function attachAttendance(rows: TrialManageRow[]): Promise<TrialManageRow[]> {
+ const scheduleIds = [...new Set(rows.map((r) => r.schedule_id).filter(Boolean))]
+ const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
+ return rows.map((r) => ({ ...r, roll_call_done: attended.has(r.schedule_id) }))
+}
+
+/**
+ * 試堂管理列表。預設：未完成（已預約等）不限年；已完成／取消跟日常營運窗。
+ */
+export async function fetchTrialsWithRelations(opts?: {
+ includeOlderYears?: boolean
+}): Promise<TrialOpsListResult> {
+ if (!supabase) return { rows: [], hiddenOlderCount: 0 }
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+
+ const runFull = async () => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select(TRIAL_LIST_COLUMNS)
+   .order("trial_date", { ascending: false })
+   .order("created_at", { ascending: false })
+  if (error) throw error
+  const raw = data ?? []
+  const scheduleIds = [
+   ...new Set(raw.map((x) => String((x as { schedule_id?: string }).schedule_id ?? "")).filter(Boolean)),
+  ]
+  const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
+  return {
+   rows: raw.map((x) => {
+    const row = x as Record<string, unknown>
+    return mapRow(row, attended.has(String(row.schedule_id ?? "")))
+   }),
+   hiddenOlderCount: 0,
+  }
+ }
+
+ if (includeOlder) return runFull()
+
+ const window = await fetchOpsAcademicYearWindow()
+ if (!window || window.ids.length === 0) return runFull()
+
+ const openQ = supabase
+  .from("trial_sessions")
+  .select(TRIAL_LIST_COLUMNS)
+  .not("status", "ilike", "%取消%")
+  .not("status", "ilike", "%完成%")
+ const closedInWindowQ = supabase
+  .from("trial_sessions")
+  .select(TRIAL_LIST_COLUMNS_INNER_CLASS)
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .in("classes.academic_year_id", window.ids)
+ const closedNoClassQ = supabase
+  .from("trial_sessions")
+  .select(TRIAL_LIST_COLUMNS)
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .is("class_id", null)
+ const hiddenCountQ = supabase
+  .from("trial_sessions")
+  .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
+  .or(TRIAL_CLOSED_STATUS_OR)
+  .not("classes.academic_year_id", "in", `(${window.ids.join(",")})`)
+
+ const [openRes, closedInWindowRes, closedNoClassRes, hiddenRes] = await Promise.all([
+  openQ,
+  closedInWindowQ,
+  closedNoClassQ,
+  hiddenCountQ,
+ ])
+ if (openRes.error) throw openRes.error
+ if (closedInWindowRes.error) throw closedInWindowRes.error
+ if (closedNoClassRes.error) throw closedNoClassRes.error
+ if (hiddenRes.error) throw hiddenRes.error
+
+ const merged = mergeTrialRows([
+  ...(await Promise.all([
+   mapTrialListResult({ data: openRes.data, error: null }, new Set()),
+   mapTrialListResult({ data: closedInWindowRes.data, error: null }, new Set()),
+   mapTrialListResult({ data: closedNoClassRes.data, error: null }, new Set()),
+  ])),
+ ])
+
+ return {
+  rows: await attachAttendance(merged),
+  hiddenOlderCount: hiddenRes.count ?? 0,
+ }
 }
 
 export type TrialDashboardStats = {
