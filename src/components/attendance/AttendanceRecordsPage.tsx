@@ -294,8 +294,10 @@ export function AttendanceRecordsPage() {
      <ClipboardList className="h-6 w-6 text-primary md:h-7 md:w-7" aria-hidden />
      出席紀錄
     </h1>
-    <p className="mt-1.5 hidden text-base leading-relaxed text-neutral-700 md:block">
-     今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。
+    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground md:text-base md:text-neutral-700">
+     {isMobile
+      ? "預設本月各班紀錄；可改範圍或撳「今天」。"
+      : "今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。"}
     </p>
     <p className="mt-1 text-sm text-muted-foreground">
      此頁合計（出席／缺席／請假）跟營運點名桶，<strong className="font-medium text-foreground">不等於</strong>
@@ -303,8 +305,8 @@ export function AttendanceRecordsPage() {
     </p>
    </header>
 
-   {teacherTid && !isMobile ? (
-   <div className="rounded-lg border border-info bg-info px-4 py-3 text-base leading-relaxed text-info-foreground">
+   {teacherTid ? (
+   <div className="rounded-lg border border-info bg-info px-3 py-2 text-sm leading-relaxed text-info-foreground md:px-4 md:py-3 md:text-base">
     專班老師檢視：下方資料含<strong>您任教、代堂或原任被代堂</strong>的課堂；老師篩選已自動鎖定為您本人。
     </div>
    ) : null}
