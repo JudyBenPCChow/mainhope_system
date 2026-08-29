@@ -2,20 +2,19 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（**H11 通過**；波次 1–4b 已接 DB；月費對賬／UI 收斂待做） |
+| 狀態 | `done`（2026-08-29 關帳；計糧見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)） |
 | 優先 | 中 |
 | 範圍 | 一班制（中學部場次）、按月繳費報讀、課室佔用、導師月度編更、獨立功輔校曆；三角色畫面 |
-| 不含 | 計糧功輔時薪（交計糧）；暑期功輔產品化；學生點名紙；**每日功課進度／指示檔正文（留 Notion）**；宣傳物料；專科式請假／補堂／扣堂；**獨立小學部功輔**（2627 不開） |
+| 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；**每日功課進度／指示檔正文（留 Notion）**；宣傳物料；專科式請假／補堂／扣堂；**獨立小學部功輔**（2627 不開） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
-| 上次更新 | 2026-08-25（純功輔導師側欄 `homework_tutor_only`；branch `feat/homework-tutor-only-nav`） |
-| 相關 | [`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費已寫；編更待補） |
+| 上次更新 | 2026-08-29（alien 實機建功輔導師帳 OK；4c／4d 關帳；產品題標 done） |
+| 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；待發佈） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
 | UI 設計 v1 | [`2026-08-01-homework-tutoring-ui-design.md`](../plans/2026-08-01-homework-tutoring-ui-design.md)（首輪備查） |
 | UI 設計 v2 | [`2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md)（**現行：全角色**） |
 | 實作 plan | [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md) |
-| 沙盒 | `/prototype/HomeworkTutoring`（備查；正式走系統側欄一級「功課輔導」） |
 
 ## 開工閘（agent 必讀）
 
@@ -25,7 +24,7 @@
 | --- | --- | --- |
 | H11 沙盒審閱 | 無 | 可開工（營運睇沙盒） |
 | 正式產品實作（schema／月費登記／編更／側欄） | 本檔 H11 | **H11 已通過（2026-08-24）**；跟 [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md) |
-| 補 2627 指引 §7 編更 | 同上 H11 | 閘已開；見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md) |
+| 補 2627 指引 §7 編更 | 同上 H11 | **完成**（§7.4 已寫入守則）。發佈／掛索引見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md) |
 
 ---
 
@@ -44,7 +43,7 @@
 | 課室 | **預設 17D、17E（兩室）**；行政可調動 | 只一室／獨立小學房 | `SCHEDULING_RULES` §4 已跟 |
 | 人手 | **PT 導師**按人數調配；**至少一人** | 固定小學部編制 | 期望總人數 **≥12** |
 | 進度 | **Notion**；指示檔正文不進系統 | 系統每日功課進度 | |
-| 計糧 | 交計糧引擎 | 本期產品做時薪 UI | vault 有歷史時薪／補貼參數 |
+| 計糧 | 見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) | 本期產品做時薪 UI | vault 有歷史時薪／補貼參數 |
 
 ---
 
@@ -67,20 +66,18 @@
 5. **2026-08-23–24 H11 沙盒修訂**＋**H11 通過**；開正式實作 plan。
 6. **2026-08-24 波次 1–4a**：正式側欄；`class_kind=homework`＋2627 混級一班；報讀日數檔／星期；月費應收；校曆／報更／月工作表／當值接 DB。
 7. **2026-08-25 營運定案**：2627 不開小學部；個別小學生入中學部；收費跟中一；兩室；期望 ≥12 人；PT 至少一人。
-8. **2026-08-25 純功輔導師側欄**（branch `feat/homework-tutor-only-nav`）：`teachers.homework_tutor_only`；側欄／手機底欄／所有功能收窄；deep-link 踢回功輔報更；老師入口可剔選。
+8. **2026-08-25 純功輔導師側欄**（4d，已入 main）：`teachers.homework_tutor_only`；側欄／手機底欄／所有功能收窄；deep-link 踢回功輔報更；老師入口可剔選。**2026-08-29 Rain 等五人驗收通過。**
+9. **2026-08-29 用戶管理波次 4c**：`/Users`「新增功輔班導師用戶」；建 Auth＋`app_users`（role=teacher、`auth_user_id`、`app_user_roles`）並開 `teachers.homework_tutoring_nav`。`create-mgmt-user` **production 已 deploy（v4）**。**已 merge 入 main**（[PR #42](https://github.com/JudyBenPCChow/mainhope_system/pull/42)）。**alien 實機建帳已測 OK。**
+10. **2026-08-29 UI 收斂**：workbench 移入 `src/components/homeworkTutoring/`；報讀學生刪「學部」篩選；編更兩欄以 17D／17E 為準。三角色沙盒 `/prototype/HomeworkTutoring` **已刪**。
+11. **2026-08-29 月費對賬**：已繳改睇繳費紀錄；收款只走收款登記；S1–S3 價目對得上。**收款登記選功輔班＝月數×月費檔**（唔再用堂數×單價、唔抬專科已繳堂、唔加逾期罰款）。8 月暑期實收唔改。
 
 ### 下一步
 
-1. 驗收純功輔側欄（Rain 等五人）；與「新增功輔班導師用戶」建帳一併寫 `homework_tutor_only`。
-2. 月費「已收款」與現有收款入口對賬收細。
-3. 補 2627 指引 §7 編更（閘已開；見營運指引題）。
-4. 計糧功輔時薪：交計糧引擎（本期唔做）。
-5. UI／沙盒收斂舊「小學部／中學部分班」文案。
+無。計糧功輔時薪／Christine 佣金見另題 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)（未拍板）。
 
-### 尚未開始
+### 本期不做
 
-- 計糧功輔時薪
-- UI 收斂舊小學部分班假設
+- 一併「新建老師主檔＋登入」（仍綁既有 `teachers`；主檔去 `/Teachers`）
 
 ---
 
@@ -102,7 +99,7 @@
 | 班型 | `class_kind`＝`group`／`private`／**`homework`**；2627 混級一班 `2627-HWKS1099-A` |
 | 排課規則 | §4 已：**預設 17D＋17E**、可調、分界 **17:00**；末節讓房**不做**；**已編更寫入 `schedules` 佔室**（15:15 起） |
 | 計糧 | 功輔暫不開工 |
-| 產品功能 | 正式側欄；報讀／月費應收／校曆／報更／月工作表已接 DB。老師入口 `homework_tutoring_nav`；**純功輔側欄** `homework_tutor_only`（branch 進行中） |
+| 產品功能 | 正式側欄；報讀／校曆／報更／月工作表已接 DB。月費應繳睇價目表、已繳睇繳費紀錄；收款走 `/Payments`。老師入口 `homework_tutoring_nav`；**純功輔側欄** `homework_tutor_only` |
 | 2627 學部 | **不開小學部**；個別小學生併中學部場次；無小學專屬老師／房 |
 
 ---
@@ -139,6 +136,7 @@
 - **小一至小六**：跟**中一**同檔銀碼（不另開小學部價目）。中四至中六未列價。優惠未另列。
 - **12 月、2 月**收該檔月費四分三（H6）；此兩月為功輔開放日最少（全日 21、平日 15）。
 - **不適用**專科逾期罰款。
+- **收款一律走現有收款登記**；功輔頁唔另開收款。是否已交當月學費，以繳費紀錄（該月收款日、該班明細、已收款未作廢）為準。
 
 ### 導師編更
 
@@ -154,7 +152,6 @@
 - 行政／外星人：概覽、報讀學生、月費、當值編更、功輔校曆、設定。
 - 管理層／外星人：監督首屏、本月當值、報更進度、月費異常、**老師入口**（剔選哪些專科老師側欄有功課輔導班；未剔選者不顯示）。
 - 老師：功輔報更、我的當值（**僅**已剔選入口的專科老師）。
-- 沙盒 `/prototype/HomeworkTutoring` 留作備查。
 
 ### 每日功課進度
 
@@ -189,7 +186,7 @@
 | --- | --- | --- |
 | H11 | 沙盒審閱 | **2026-08-24 通過** |
 | 4b | 編更寫 `schedules` 佔室 | **2026-08-25 已做** |
-| E | 時薪／佣金 | 待計糧 |
+| E | 時薪／佣金 | 另題 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) |
 
 ---
 
@@ -197,7 +194,7 @@
 
 1. 價曆已簽收；月費應收已可產生；放假日已入庫並接產品頁。
 2. 排課 §4 已跟兩室；讓房**不做**；編更寫 `schedules` 佔室未做。
-3. UI 以 v2 為準；正式實作見 [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md)。沙盒仍殘小學部分班假設，待收斂。
+3. UI 以 v2 為準；正式畫面喺 `src/components/homeworkTutoring/`。三角色沙盒已刪（2026-08-29）。
 4. vault 紀律／溝通／宣傳／推車打印 → §7／SOP，唔擴產品。
 
 ## 待做
@@ -218,19 +215,18 @@
 - [x] 正式實作波次 1–4a（側欄／報讀／月費應收／校曆／報更／當值）
 - [x] 2026-08-25：2627 學部／兩室／小學跟中一價寫入政策＋2627 指引
 - [x] 波次 4b：編更寫入 `schedules` 佔室（2026-08-25）
-- [ ] 月費收款對賬收細
-- [ ] 補寫 `2627_REGULAR_YEAR_OPS_GUIDE` §7 其餘（編更；閘已開）
-- [ ] UI／沙盒收斂舊小學部分班假設
+- [x] 2026-08-29：共用畫面移出 `prototypes`；報讀唔再有「學部」篩選；三角色沙盒已刪
+- [x] 月費已繳改睇繳費紀錄；收款只走收款登記；收款登記功輔行按月數×月費檔（2026-08-29；8 月暑期實收唔改）
+- [x] 波次 4c 已入 main（PR #42）；alien 實機建功輔導師帳 OK；4d 純功輔側欄 Rain 等五人驗收通過（2026-08-29）
 
 ## 相關路徑
 
 | 用途 | 路徑 |
 | --- | --- |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md) |
-| 沙盒入口 | `/prototype/HomeworkTutoring` |
-| 沙盒程式 | `src/prototypes/homeworkTutoring/` |
+| 正式畫面 | `src/components/homeworkTutoring/` |
 | UI v2 | [`docs/product/plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md`](../plans/2026-08-01-homework-tutoring-ui-design-v2-roles.md) |
 | 排課 §4 | [`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) |
 | 月費 | [`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) |
-| 計糧 | [`payroll-engine.md`](./payroll-engine.md) |
+| 計糧 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) |
 | vault | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md` |

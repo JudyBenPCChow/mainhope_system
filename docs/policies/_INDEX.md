@@ -21,6 +21,7 @@
 | 文件 | 主題 |
 | --- | --- |
 | [學年與報讀形式](academic/ACADEMIC_YEARS.md) | 常規 vs 暑期；label、日期、報讀選項；後台寫入不硬鎖歷史學年 |
+| [軟封存與查詢範圍](academic/SOFT_ARCHIVE.md) | 已畢業／近兩學年日常名單預設不載入；不刪庫；合規／財務可查全量 |
 | [校曆（專科／功輔）](academic/ACADEMIC_CALENDAR.md) | 專科／功輔假日與堂數規則；2627 專科校舍假期 21 日、功輔放假 31 日均已入庫（分表） |
 
 ### 報讀／學生
@@ -42,7 +43,7 @@
 | 文件 | 主題 |
 | --- | --- |
 | [學費學期節奏與逾期罰款](payments/TUITION_TERM_AND_LATE_FEE_POLICY.md) | 按月堂數；逾期 $50（已繳／已扣堂數模型；2026-10-01 起） |
-| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；不扣堂、不收專科逾期罰款 |
+| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；收款登記按月數×月費檔；已繳睇繳費紀錄；不扣堂、不收專科逾期罰款 |
 | [收款單據作廢與更正](payments/PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪；作廢／已繳堂數調動分流 |
 
 ### 排課／場地／代堂

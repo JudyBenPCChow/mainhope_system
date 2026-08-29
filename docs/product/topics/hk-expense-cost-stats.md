@@ -9,7 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 實作計劃 | [`2026-08-05-hk-expense-cost-stats.md`](../plans/2026-08-05-hk-expense-cost-stats.md) |
 | 舊計劃（已取代） | [`2026-08-04-hk-expense-cost-stats.md`](../plans/2026-08-04-hk-expense-cost-stats.md) |
-| 路由 | `/HkExpenses`；側欄「智能分析 → 成本統計」（manager／alien） |
+| 路由 | `/ExpenseJournal`、`/ExpenseJournalRecords`（日記帳；admin／manager／alien）；`/HkExpenses` 成本分析（manager／alien） |
 
 ## 目標（一句）
 
@@ -18,6 +18,7 @@
 ## 已完成（7 月／基盤）
 
 - Schema／UI／計糧結算 → `payroll_settle` 過帳（冪等）  
+- 行政日記帳：前台科目（文具／教材／團建／印刷）可見可入、入帳即確認；租金／人工／水電等管理層科目行政睇唔到；入帳可選上載收據附件（Storage）  
 - 7 月非薪金歷史覆核確認  
 - 7 月計糧 **已結算**；`payroll_settle` 人工已入成本帳（約 19 筆 live）  
 - 7 月歷史薪金類（標題含「6月」等）已 void，避雙計  

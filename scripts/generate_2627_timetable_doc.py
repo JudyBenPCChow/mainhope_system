@@ -92,13 +92,15 @@ def class_section_letter(code: str) -> str:
     return code[-1]
 
 
-def class_title(grade: str, subject: str, code: str) -> str:
+def class_title(grade: str, subject: str, code: str, teacher: str | None = None) -> str:
     """e.g. 中六級中文科（A)"""
+    if teacher and (teacher, grade) in JACKSON_MIXED_ENG_BASE and subject == "英文":
+        return f"{MIXED_SENIOR_ENG_TITLE}（{class_section_letter(code)})"
     return f"{GRADE_FULL[grade]}{SUBJECT_FULL[subject]}（{class_section_letter(code)})"
 
 
 def class_cell_text(grade: str, subject: str, teacher: str, code: str, slot_idx: int) -> str:
-    return f"{class_title(grade, subject, code)}\n{teacher}\n{SLOT_TIMES[slot_idx]}"
+    return f"{class_title(grade, subject, code, teacher)}\n{teacher}\n{SLOT_TIMES[slot_idx]}"
 
 
 SUBJECT_TO_COURSE_ABBR = {
@@ -125,7 +127,9 @@ COURSE_TEMPLATE_NAMES = {
     "ENGS2001": "中二級常規英文班",
     "ENGS3001": "中三級常規英文班",
     "ENGS4001": "中四級常規英文班",
+    "ENGS4004": "高中常規英文班（中四至中六）",
     "ENGS5001": "中五級常規英文班",
+    "ENGS5004": "高中常規英文班（中四至中六）",
     "ENGS6001": "中六級常規英文班",
     "MATHS1001": "中一級常規數學班",
     "MATHS2001": "中二級常規數學班",
@@ -149,8 +153,17 @@ def course_code_base(subject: str, grade: str) -> str:
     return f"{SUBJECT_TO_COURSE_ABBR[subject]}{grade}001"
 
 
-def course_code_full(subject: str, grade: str, section: str) -> str:
-    return f"2627-{course_code_base(subject, grade)}-{section}"
+# Jackson Lau 2627 兩班英文：高中混級模板（seq 004），非該級 001。
+JACKSON_MIXED_ENG_BASE = {
+    ("Jackson Lau", "S4"): "ENGS4004",
+    ("Jackson Lau", "S5"): "ENGS5004",
+}
+MIXED_SENIOR_ENG_TITLE = "高中英文科（中四至中六）"
+
+
+def course_code_full(subject: str, grade: str, section: str, teacher: str | None = None) -> str:
+    base = JACKSON_MIXED_ENG_BASE.get((teacher or "", grade)) or course_code_base(subject, grade)
+    return f"2627-{base}-{section}"
 
 
 def assign_chinese_class_letters(
@@ -303,13 +316,19 @@ def class_codes_rows() -> list[dict[str, str]]:
     ordered = sorted(CLASSES, key=lambda c: (c[0], c[1], c[2]))
     for day_idx, slot_idx, room, subject, grade, teacher, code in ordered:
         section = class_section_letter(code)
-        base = course_code_base(subject, grade)
+        mixed_base = JACKSON_MIXED_ENG_BASE.get((teacher, grade))
+        base = mixed_base or course_code_base(subject, grade)
+        title = (
+            MIXED_SENIOR_ENG_TITLE
+            if mixed_base
+            else f"{GRADE_FULL[grade]}{SUBJECT_FULL[subject]}"
+        )
         rows.append(
             {
-                "班別顯示碼（course_code_full）": course_code_full(subject, grade, section),
+                "班別顯示碼（course_code_full）": course_code_full(subject, grade, section, teacher),
                 "課程名稱（course_name）": COURSE_TEMPLATE_NAMES[base],
                 "班號（section_code）": section,
-                "班別": f"{GRADE_FULL[grade]}{SUBJECT_FULL[subject]}（{section}）",
+                "班別": f"{title}（{section}）",
                 "任教老師": teacher,
                 "星期": DAYS[day_idx],
                 "時段": SLOT_TIMES[slot_idx],
@@ -367,7 +386,7 @@ STAFF = [
         "星期日",
         "兼職。只限星期日；小組班三班自 10:15 起；另預留一個一對一高中英文時段。",
     ),
-    ("Jackson Lau", "英文科", 2, "星期三、星期六", "兼職。星期三一班、星期六一班。出勤日優先矩尺座或山案座，不排 17D／17E。本版星期六 12:45 改英仙座（矩尺讓 Christine）。"),
+    ("Jackson Lau", "英文科（中四至中六）", 2, "星期三、星期六", "兼職。星期三一班、星期六一班。兩班皆高中混級英文（接受中四、中五、中六）。出勤日優先矩尺座或山案座，不排 17D／17E。本版星期六 12:45 改英仙座（矩尺讓 Christine）。"),
     (
         "Judy Chu",
         "生物科（中五級至中六級）",
@@ -1064,7 +1083,7 @@ def subject_grade_class_tables() -> list[tuple[str, list[tuple[str, list[list[st
             for d, slot, room, teacher, code in items:
                 rows.append(
                     [
-                        class_title(grade, subj, code),
+                        class_title(grade, subj, code, teacher),
                         teacher,
                         DAYS[d],
                         SLOT_TIMES[slot],
@@ -1081,7 +1100,7 @@ def weekly_summary_rows() -> list[list[str]]:
     rows = [["星期", "時段", "課室", "班別", "任教老師"]]
     items: list[tuple[int, int, str, str, str]] = []
     for d, slot, room, subj, grade, teacher, code in CLASSES:
-        items.append((d, slot, room, class_title(grade, subj, code), teacher))
+        items.append((d, slot, room, class_title(grade, subj, code, teacher), teacher))
     for d, slot, room, teacher, title in RESERVED:
         items.append((d, slot, room, title, teacher))
     for d, slot, room, title, teacher in sorted(items, key=lambda x: (x[0], x[1], x[2])):
@@ -1123,7 +1142,7 @@ def day_notes(day_idx: int) -> list[str]:
         notes.append("Cheryl Ng：中二級英文科（B) 10:15、中一級英文科（B) 11:30，17E")
         notes.append("Henry Wong：中四級生物科（A) 14:00、中五級生物科（B) 15:15、中六級生物科（C) 16:30，英仙座連續三堂")
         notes.append("Christine Fan：中四級中文科 12:45 矩尺座、中五級中文科 14:00 山案座、中六級中文科 16:30 矩尺座（本版不避撞科）")
-        notes.append("Jackson Lau：中四級英文科（B) 12:45 改英仙座")
+        notes.append("Jackson Lau：高中英文科（中四至中六）（B) 12:45 改英仙座")
     if day_idx == 6:
         notes.append("Christine Fan 本版自 12:45 起：中五、中四、中六（矩尺座）")
         notes.append("Cyndi Ng 小組班自 10:15 起，並預留一個一對一高中英文時段")
@@ -1647,7 +1666,7 @@ def teacher_week_rows(teacher: str) -> list[list[str]]:
     items: list[tuple[int, int, str, str]] = []
     for d, slot, room, subj, grade, name, code in CLASSES:
         if name == teacher:
-            items.append((d, slot, room, class_title(grade, subj, code)))
+            items.append((d, slot, room, class_title(grade, subj, code, name)))
     for d, slot, room, name, title in RESERVED:
         if name == teacher:
             items.append((d, slot, room, title))
@@ -1680,7 +1699,7 @@ def teacher_week_grid(teacher: str) -> list[list[tuple[str, str]]]:
     cells: dict[tuple[int, int], str] = {}
     for d, slot, room, subj, grade, name, code in CLASSES:
         if name == teacher:
-            cells[(d, slot)] = f"{class_title(grade, subj, code)}\n{room}"
+            cells[(d, slot)] = f"{class_title(grade, subj, code, name)}\n{room}"
     for d, slot, room, name, title in RESERVED:
         if name == teacher:
             cells[(d, slot)] = f"{title}\n{room}"

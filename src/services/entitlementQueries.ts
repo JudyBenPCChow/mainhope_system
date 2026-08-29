@@ -985,8 +985,9 @@ export async function topUpEntitlementsForPayment(opts: {
   const lessons = Number((raw as { lesson_count?: unknown }).lesson_count ?? 0)
   if (!classId || !Number.isFinite(lessons) || lessons <= 0) continue
 
-  const label = await classLabel(classId)
-  if (!usesEntitlementRosterModel(label)) continue
+  const classCtx = await fetchClassEntitlementContext(classId)
+  if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) continue
+  if (classCtx.namespace.courseGroup === "homework") continue
 
   const { data: existingEv, error: exErr } = await supabase
    .from("entitlement_consumption_events")
@@ -1209,6 +1210,7 @@ export async function fetchTuitionPaymentSuggestion(opts: {
  if (!supabase) return null
  const classCtx = await fetchClassEntitlementContext(opts.classId)
  if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) return null
+ if (classCtx.namespace.courseGroup === "homework") return null
 
  const ym = (opts.yearMonth ?? new Date().toISOString().slice(0, 7)).slice(0, 7)
  if (!/^\d{4}-\d{2}$/.test(ym)) return null

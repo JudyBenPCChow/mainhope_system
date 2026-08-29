@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { billingMonthBounds } from "@/lib/monthlyTuition"
 import {
   formatYearMonthLabel,
   homeworkMonthlyFeeHkd,
@@ -12,7 +13,7 @@ import {
   mdKeyToIso,
   monthDateRange,
 } from "@/lib/homeworkTutoringSchedules"
-import type { AvailEntry } from "@/prototypes/homeworkTutoring/mockData"
+import type { AvailEntry } from "@/lib/homeworkTutoringUi"
 import { fetchClassrooms } from "@/services/classroomQueries"
 import { insertScheduleRow } from "@/services/scheduleWriteQueries"
 
@@ -209,6 +210,7 @@ export async function fetchHomeworkClosures(
   })
 }
 
+/** 開頁寫入應收列。月費頁已改讀繳費紀錄，唔再呼叫；8 月暑期實收列保留勿改。 */
 export async function ensureHomeworkMonthlyCharges(opts: {
   academicYearId: string
   classId: string
@@ -240,6 +242,36 @@ export async function ensureHomeworkMonthlyCharges(opts: {
     if (error) throw error
   }
   return fetchHomeworkMonthlyCharges(opts.classId, billingMonth)
+}
+
+/** 該月功輔班已繳：繳費紀錄（已收款、未作廢、收款日落在該月、明細掛本班）。唔改既有單據。 */
+export async function fetchHomeworkPaidByStudentFromPayments(
+  classId: string,
+  billingMonth: string
+): Promise<Map<string, { receiptNumber: string; paymentId: string }>> {
+  const out = new Map<string, { receiptNumber: string; paymentId: string }>()
+  if (!supabase) return out
+  const { start, end } = billingMonthBounds(billingMonth)
+  const { data, error } = await supabase
+    .from("payment_details")
+    .select("payment_id, payments ( id, student_id, receipt_number, status, voided_at, payment_date )")
+    .eq("class_id", classId)
+  if (error) throw error
+  for (const raw of data ?? []) {
+    const pay = (raw as Record<string, unknown>).payments as Record<string, unknown> | null
+    if (!pay) continue
+    if (String(pay.status ?? "") !== "已收款") continue
+    if (pay.voided_at != null) continue
+    const paymentDate = String(pay.payment_date ?? "").slice(0, 10)
+    if (paymentDate < start || paymentDate > end) continue
+    const studentId = pay.student_id != null ? String(pay.student_id) : ""
+    if (!studentId || out.has(studentId)) continue
+    out.set(studentId, {
+      receiptNumber: pay.receipt_number != null ? String(pay.receipt_number) : "",
+      paymentId: String(pay.id ?? raw.payment_id ?? ""),
+    })
+  }
+  return out
 }
 
 export async function fetchHomeworkMonthlyCharges(

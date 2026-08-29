@@ -349,9 +349,11 @@ Judy 高中：
 
 ## 9. 功課班（本期暫緩）
 
+後續主題：[`homework-tutoring-payroll.md`](../topics/homework-tutoring-payroll.md)（用語：功課輔導班／功輔）。
+
 ### 9.1 工程安排
 
-8 月尚未有功課班，9 月才開始；相關產品文件仍在 backlog（見 [`homework-tutoring.md`](../backlog/homework-tutoring.md)）。
+8 月尚未有功課班，9 月才開始；相關產品文件見 [`homework-tutoring.md`](../topics/homework-tutoring.md)。
 
 **本期計糧引擎暫不做功課班**：
 

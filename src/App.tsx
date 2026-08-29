@@ -53,7 +53,6 @@ import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
-import PrototypeHomeworkTutoring from "@/pages/PrototypeHomeworkTutoring"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
 import PrototypeAdminContextRail from "@/pages/PrototypeAdminContextRail"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
@@ -63,6 +62,8 @@ const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
 const StaffPerformance = lazy(() => import("@/pages/StaffPerformance"))
 const HkExpenses = lazy(() => import("@/pages/HkExpenses"))
+const ExpenseJournal = lazy(() => import("@/pages/ExpenseJournal"))
+const ExpenseJournalRecords = lazy(() => import("@/pages/ExpenseJournalRecords"))
 const Payroll = lazy(() => import("@/pages/Payroll"))
 const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
 const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
@@ -259,13 +260,43 @@ export default function App() {
       )}
      />
      <Route
+      path="/ExpenseJournal"
+      element={withCapabilities(
+       ["expenses.record"],
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入日記帳入帳…
+         </div>
+        }
+       >
+        <ExpenseJournal />
+       </Suspense>
+      )}
+     />
+     <Route
+      path="/ExpenseJournalRecords"
+      element={withCapabilities(
+       ["expenses.record", "expenses.read"],
+       <Suspense
+        fallback={
+         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+          載入日記帳紀錄…
+         </div>
+        }
+       >
+        <ExpenseJournalRecords />
+       </Suspense>
+      )}
+     />
+     <Route
       path="/HkExpenses"
       element={withCapabilities(
        ["expenses.read"],
        <Suspense
         fallback={
          <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-          載入成本統計…
+          載入成本分析…
          </div>
         }
        >
@@ -358,7 +389,6 @@ export default function App() {
       element={withCapabilities(["audit.read_all"], <SystemIssues />)}
      />
      {/* UI 沙盒：假資料，不接 DB；不掛側欄正式入口 */}
-     <Route path="/prototype/HomeworkTutoring" element={<PrototypeHomeworkTutoring />} />
      <Route
       path="/prototype/ContactUpdateCampaign"
       element={<PrototypeContactUpdateCampaign />}

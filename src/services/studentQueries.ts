@@ -31,6 +31,8 @@ import {
  voidStudentDeclarationsOnClassFromDate,
 } from "@/services/entitlementQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
+import { nextStudentCode } from "@/lib/studentCode"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -141,6 +143,14 @@ export function normalizeAcademicStage(value: string | null | undefined): "中�
  if (/畢業/.test(s) && !/階段/.test(s)) return "已畢業"
  if (s === "中學中") return "中學階段"
  return "中學階段"
+}
+
+/** 日常名單視為已封存：學業階段已畢業，或舊年級碼 GD。 */
+export function isArchivedStudent(row: {
+ academic_stage?: string | null
+ grade?: string | null
+}): boolean {
+ return normalizeAcademicStage(row.academic_stage) === "已畢業" || (row.grade ?? "").trim().toUpperCase() === "GD"
 }
 
 /** @deprecated 請改用四維分類欄位；保留供舊儀表板／匯入相容 */
@@ -388,6 +398,133 @@ export async function fetchAllStudents(): Promise<StudentRecord[]> {
  return (data ?? []).map((r) => asStudent(r as Record<string, unknown>))
 }
 
+/** 學生管理列表用：身份／狀態／聯絡；不含備註、地址等大欄。 */
+const STUDENT_OPS_LIST_COLUMNS = [
+ "id",
+ "old_student_id",
+ "student_code",
+ "full_name",
+ "english_name",
+ "gender",
+ "date_of_birth",
+ "grade",
+ "school",
+ "registration_status",
+ "enrollment_status",
+ "activity_status",
+ "academic_stage",
+ "status",
+ "parent_name",
+ "parent_relationship",
+ "parent_phone",
+ "parent_phone_country_code",
+ "student_phone",
+ "student_phone_country_code",
+ "whatsapp",
+ "preferred_contact_method",
+ "student_preferred_contact_method",
+ "parent_preferred_contact_method",
+ "student_wechat_id",
+ "parent_wechat_id",
+ "primary_contact_person",
+ "created_at",
+ "updated_at",
+].join(",")
+
+export type StudentsOpsListResult = {
+ students: StudentRecord[]
+ hiddenGraduatedCount: number
+ hasMore: boolean
+}
+
+/**
+ * 學生管理列表專用。預設排除已畢業（及舊 GD）；唔改 {@link fetchAllStudents} 默認。
+ */
+export async function fetchStudentsForOpsList(opts?: {
+ includeGraduated?: boolean
+ limit?: number
+ offset?: number
+}): Promise<StudentsOpsListResult> {
+ if (!supabase) return { students: [], hiddenGraduatedCount: 0, hasMore: false }
+ const includeGraduated = Boolean(opts?.includeGraduated) || !isSoftArchiveQueriesEnabled()
+ const limit = opts?.limit != null ? Math.min(Math.max(opts.limit, 1), 200) : null
+ const offset = Math.max(opts?.offset ?? 0, 0)
+ let listQuery = supabase
+  .from("students")
+  .select(STUDENT_OPS_LIST_COLUMNS)
+  .order("created_at", { ascending: false })
+ if (!includeGraduated) {
+  listQuery = listQuery.neq("academic_stage", "已畢業").or("grade.is.null,grade.neq.GD")
+ }
+ if (limit != null) {
+  listQuery = listQuery.range(offset, offset + limit - 1)
+ }
+ const shouldCount = !includeGraduated && offset === 0
+ const countQuery = shouldCount
+  ? supabase
+     .from("students")
+     .select("id", { count: "exact", head: true })
+     .or("academic_stage.eq.已畢業,grade.eq.GD")
+  : null
+ const [listRes, countRes] = await Promise.all([
+  listQuery,
+  countQuery ?? Promise.resolve({ count: 0, error: null }),
+ ])
+ if (listRes.error) throw listRes.error
+ if (countRes.error) throw countRes.error
+ const rows = (listRes.data ?? []) as unknown as Record<string, unknown>[]
+ return {
+  students: rows.map((r) => asStudent(r)),
+  hiddenGraduatedCount: shouldCount ? (countRes.count ?? 0) : 0,
+  hasMore: limit != null ? rows.length >= limit : false,
+ }
+}
+
+/** 學號計號用：只撈 student_code，必須含已畢業。 */
+export async function fetchNumericStudentCodes(): Promise<string[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase.from("students").select("student_code")
+ if (error) throw error
+ return (data ?? [])
+  .map((r) => (r as { student_code?: string | null }).student_code)
+  .filter((code): code is string => Boolean(code && /^\d+$/.test(code.trim())))
+}
+
+export async function allocateNextStudentCode(): Promise<string> {
+ return nextStudentCode(await fetchNumericStudentCodes())
+}
+
+export type StudentPickerOption = {
+ id: string
+ full_name: string
+ grade: string | null
+}
+
+/** 請假／試堂等新增 picker；預設排除已畢業。 */
+export async function fetchStudentPickerOptions(opts?: {
+ includeGraduated?: boolean
+}): Promise<StudentPickerOption[]> {
+ if (!supabase) return []
+ const includeGraduated = Boolean(opts?.includeGraduated) || !isSoftArchiveQueriesEnabled()
+ let query = supabase
+  .from("students")
+  .select("id, full_name, grade, academic_stage")
+  .order("full_name", { ascending: true })
+ if (!includeGraduated) {
+  query = query.neq("academic_stage", "已畢業").or("grade.is.null,grade.neq.GD")
+ }
+ const { data, error } = await query
+ if (error) throw error
+ return (data ?? []).map((r) => {
+  const row = r as Record<string, unknown>
+  return {
+   id: String(row.id),
+   full_name: String(row.full_name ?? ""),
+   grade: row.grade != null ? String(row.grade) : null,
+  }
+ })
+}
+
 export const STUDENTS_PAGE_SIZE = 50
 
 export type StudentsPageResult = {
@@ -583,8 +720,9 @@ export type EnrollmentWithClass = {
  courseMode: CourseMode
  classId: string
  subject: string
- /** group / private */
+ /** group / private / homework */
  classKind: "group" | "private" | "homework"
+ homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
  subjectCode: string | null
  subjectCategory: string | null
  teacherId: string | null
@@ -600,10 +738,10 @@ const ENROLLMENT_CLASS_EMBED =
  "classes ( subject, class_kind, course_code_full, day_of_week, time_slot, price_per_lesson, teacher_id, academic_years ( label ), courses ( course_mode, price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods, course_name, subjects ( code, name_zh ) ) )"
 
 const ENROLLMENT_ROW_SELECT_BASE =
- `id, status, enroll_date, class_id, ${ENROLLMENT_CLASS_EMBED}`
+ `id, status, enroll_date, class_id, homework_day_plan, ${ENROLLMENT_CLASS_EMBED}`
 
 const ENROLLMENT_ROW_SELECT_WITH_PERIOD =
- `id, status, enroll_date, enrollment_period, withdraw_effective_date, withdraw_reason, class_id, ${ENROLLMENT_CLASS_EMBED}`
+ `id, status, enroll_date, enrollment_period, withdraw_effective_date, withdraw_reason, class_id, homework_day_plan, ${ENROLLMENT_CLASS_EMBED}`
 
 async function fetchEnrollmentRowsForStudent(studentId: string): Promise<Record<string, unknown>[]> {
  if (!supabase) return []
@@ -706,6 +844,13 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   dayOfWeek: cls?.day_of_week != null ? String(cls.day_of_week) : null,
   timeSlot: cls?.time_slot != null ? String(cls.time_slot) : null,
   pricePerLesson,
+  homeworkDayPlan:
+   row.homework_day_plan === "三日" ||
+   row.homework_day_plan === "四日" ||
+   row.homework_day_plan === "五日" ||
+   row.homework_day_plan === "七日"
+    ? row.homework_day_plan
+    : null,
  }
 }
 

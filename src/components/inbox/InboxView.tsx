@@ -28,6 +28,7 @@ import {
  notifyInboxUnreadChanged,
  publishSystemNotice,
  INBOX_FEED_PAGE_SIZE,
+ INBOX_LOOKBACK_DAYS,
  type InboxEventCategory,
  type InboxItem,
  type InboxTypeFilter,
@@ -339,7 +340,7 @@ export function InboxView() {
       收件匣
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      營運通知彙整排程／班別、增退讀、請假與點名；系統通知為功能更新。
+      營運通知彙整排程／班別、增退讀、請假與點名（預設近 {INBOX_LOOKBACK_DAYS} 日）；系統通知為功能更新。增退管理頁用更長營運窗，與此短窗分開。
       {unreadCount > 0 ? ` 本分頁未讀 ${unreadCount} 則。` : ""}
      </p>
     </div>

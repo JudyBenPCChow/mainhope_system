@@ -1,6 +1,6 @@
 /** 功輔月費價目（對齊 HOMEWORK_TUTORING_MONTHLY_FEE.md） */
 
-import { isPrimaryStudentGrade } from "@/lib/studentGrade"
+import { formatStudentGrade, isPrimaryStudentGrade } from "@/lib/studentGrade"
 
 export type HomeworkDayPlan = "三日" | "四日" | "五日" | "七日"
 export type HomeworkWeekday = "一" | "二" | "三" | "四" | "五"
@@ -28,10 +28,34 @@ export function isHomeworkQuarterRateMonth(billingMonth: string): boolean {
   return m.endsWith("-12") || m.endsWith("-02")
 }
 
-/** 價目年級：小學跟中一 */
+/** 價目年級：小學跟中一；S1／中一等寫法都對到表 */
 function feeGradeKey(gradeLabel: string): string {
   if (isPrimaryStudentGrade(gradeLabel)) return "中一"
-  return gradeLabel.trim()
+  return formatStudentGrade(gradeLabel)
+}
+
+export function isHomeworkDayPlan(raw: unknown): raw is HomeworkDayPlan {
+  return raw === "三日" || raw === "四日" || raw === "五日" || raw === "七日"
+}
+
+/** 收款明細：月數 × 檔次月費；日數檔／年級未列價則空字串（人手填） */
+export function homeworkPaymentLineAmount(opts: {
+  dayPlan: HomeworkDayPlan | null | undefined
+  grade: string | null | undefined
+  billingMonth: string
+  monthCount?: number
+}): string {
+  if (!opts.dayPlan || !opts.grade) return ""
+  const n = opts.monthCount ?? 1
+  if (!Number.isFinite(n) || n <= 0) return ""
+  const unit = homeworkMonthlyFeeHkd(opts.dayPlan, opts.grade, opts.billingMonth)
+  if (unit == null) return ""
+  return String(Math.round(unit * n * 100) / 100)
+}
+
+/** 收款明細備註帶「月費」＝功輔月費行（舊暑期單據無此字，仍當堂數） */
+export function isHomeworkMonthlyFeeDescription(description: string | null | undefined): boolean {
+  return /月費/.test(String(description ?? ""))
 }
 
 /** 回傳應繳港元；年級未列價則 null */

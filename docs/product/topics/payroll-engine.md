@@ -2,10 +2,10 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-05：本期正式引擎已接線；schema／計算／`/Payroll` 真點名；審閱／核實／結算已持久化。2026-08-07：Sophie Yu 已入冊＋固定月薪。功課班仍暫緩；費率頁／銀行帳號／Cody 入冊屬下一波） |
+| 狀態 | `done`（2026-08-05：本期正式引擎已接線；schema／計算／`/Payroll` 真點名；審閱／核實／結算已持久化。2026-08-07：Sophie Yu 已入冊＋固定月薪。功輔計糧已拆出另題；費率頁／銀行帳號／Cody 入冊屬下一波） |
 | 優先 | 中 |
-| 範圍 | **本期**：專科班分成／HC、固定月薪、獨立定價、WFH、MPF、月結明細。**暫緩**：功課班時薪及 Christine Fan 功課班佣金 |
-| 不含 | 完整會計／HR 系統、銀行付款執行、未獲營運確認的規則自動化；本期亦不做功課班計糧 |
+| 範圍 | **本期**：專科班分成／HC、固定月薪、獨立定價、WFH、MPF、月結明細。**已拆出**：功輔時薪及 Christine Fan 功輔佣金 → [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) |
+| 不含 | 完整會計／HR 系統、銀行付款執行、未獲營運確認的規則自動化；功輔計糧見另題 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 營運指南（財務／管理層） | [`PAYROLL_GUIDE.md`](../policies/staffing/PAYROLL_GUIDE.md)（另有 `.docx`） |
 | 最新方法（工程規格） | [`2026-08-01-payroll-method-revised.md`](../plans/2026-08-01-payroll-method-revised.md) |
@@ -31,7 +31,7 @@
 
 - **Sophie Yu**（2026-08-07）：已入 `teachers`＋`payroll_rates` 固定月薪 $16,000（MPF 前；`mpf: true`）；migration `20260807094500_sophie_yu_payroll_enrollment.sql`
 - **Cody Cheong** 不在 `teachers` 表 → WFH 列暫不會出現
-- 功課班整組仍暫緩
+- 功輔時薪／Christine 功輔佣金 → [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)
 - 費率管理 UI（`/Payroll/Rates`）未做
 - CSV 銀行帳號仍為佔位
 - 沙盒站可保留 mock；主系統已接真
@@ -52,7 +52,7 @@
 1. Cody 入冊＋WFH 費率
 2. 費率管理頁
 3. 真實銀行帳號欄
-4. 功課班（待 backlog）
+4. 功輔計糧 → [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)
 5. 財務核對 UX → [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md)
 
 ## 相關文件
@@ -60,3 +60,4 @@
 - [計糧指南（營運）](../policies/staffing/PAYROLL_GUIDE.md)
 - [修訂版計糧方法](../plans/2026-08-01-payroll-method-revised.md)
 - [代堂算薪／出勤報表歸屬](./substitute-teacher-reporting.md)
+- [功輔計糧（時薪＋Christine 佣金）](./homework-tutoring-payroll.md)

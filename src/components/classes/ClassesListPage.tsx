@@ -9,6 +9,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
+import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
@@ -859,7 +860,9 @@ export function ClassesListPage() {
      {renderClassFilterPanel()}
     </MobileFilterSheet>
    ) : (
-    renderClassFilterPanel()
+    <CollapsibleFilterCard activeCount={activeFilterCount}>
+     {renderClassFilterPanel()}
+    </CollapsibleFilterCard>
    )}
   </div>
 

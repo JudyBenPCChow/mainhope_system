@@ -1,6 +1,8 @@
 import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 
 /** 全站增退紀錄列表列 */
 export type EnrollmentChangeListRow = {
@@ -60,14 +62,45 @@ export type EnrollmentChangeQuery = {
  toYmd?: string
  search?: string
  limit?: number
+ includeOlderYears?: boolean
+}
+
+export type EnrollmentChangeListResult = {
+ rows: EnrollmentChangeListRow[]
+ hiddenOlderCount: number
+ appliedFromYmd: string | null
 }
 
 export async function fetchEnrollmentChangeEventsList(
  opts: EnrollmentChangeQuery = {}
-): Promise<EnrollmentChangeListRow[]> {
- if (!supabase) return []
+): Promise<EnrollmentChangeListResult> {
+ if (!supabase) return { rows: [], hiddenOlderCount: 0, appliedFromYmd: null }
  const limit = Math.min(Math.max(opts.limit ?? 400, 1), 1000)
  const search = opts.search?.trim().toLowerCase() ?? ""
+ const includeOlder = Boolean(opts.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+
+ let appliedFromYmd = (opts.fromYmd ?? "").trim().slice(0, 10) || null
+ let hiddenOlderCount = 0
+
+ if (!includeOlder && !appliedFromYmd) {
+  const window = await fetchOpsAcademicYearWindow()
+  if (window?.startYmd) {
+   appliedFromYmd = window.startYmd
+   let countQ = supabase
+    .from("enrollment_change_events")
+    .select("id", { count: "exact", head: true })
+    .lt("effective_date", window.startYmd)
+   if (opts.action === "enroll" || opts.action === "withdraw") {
+    countQ = countQ.eq("action", opts.action)
+   }
+   const { count, error: countErr } = await countQ
+   if (countErr) {
+    console.warn("[fetchEnrollmentChangeEventsList] hidden count", countErr.message)
+   } else {
+    hiddenOlderCount = count ?? 0
+   }
+  }
+ }
 
  let q = supabase
   .from("enrollment_change_events")
@@ -81,13 +114,13 @@ export async function fetchEnrollmentChangeEventsList(
  if (opts.action === "enroll" || opts.action === "withdraw") {
   q = q.eq("action", opts.action)
  }
- if (opts.fromYmd) q = q.gte("effective_date", opts.fromYmd)
+ if (appliedFromYmd) q = q.gte("effective_date", appliedFromYmd)
  if (opts.toYmd) q = q.lte("effective_date", opts.toYmd)
 
  const { data, error } = await q
  if (error) {
   console.warn("[fetchEnrollmentChangeEventsList]", error.message)
-  return []
+  return { rows: [], hiddenOlderCount: 0, appliedFromYmd }
  }
  let rows = (data ?? []).map((x) => mapRow(x as Record<string, unknown>))
  if (search) {
@@ -96,5 +129,5 @@ export async function fetchEnrollmentChangeEventsList(
    return hay.includes(search)
   })
  }
- return rows
+ return { rows, hiddenOlderCount, appliedFromYmd }
 }

@@ -10,6 +10,12 @@
 - **正確做法**：同 `sandbox/tuition-quote/index.html` 一樣，第一件交可雙擊／`python -m http.server` 打開嘅 HTML。Vite `/prototype` 可作後續對齊 design token，但唔好當用戶本機唯一入口。
 - **若已升格**：`.cursor/rules/ui-sandbox-html.mdc`、skill `ui-sandbox-html`、`AGENTS.md` 指令節
 
+### 2026-08-28 — 改兩班 course code 唔好 FULL 出時間表
+- **情境**：Jackson Lau 2627 兩班英文改模板碼，並顯示接受中四至中六。
+- **錯在邊**：把「所有出現 course code 的地方」做成重產全部 `versions/v2–v4`＋Word／PDF；Cloud Agent 無預建環境時開機已可空轉半個鐘。
+- **正確做法**：`courses`／`classes.course_code_full`＋`classes.grade` 用單檔 migration；時間表只 PATCH 現行 v4.0 CSV／字串。套用跟 `apply-supabase-migration`；無 token 就寫 HANDOFF 交有 token 嘅 agent，唔假裝已套。
+- **若已升格**：PATCH vs FULL 見 `.cursor/rules/2627-timetable-doc.mdc`；套用見 `.cursor/skills/apply-supabase-migration/SKILL.md`
+
 ### 2026-08-08 — 繁中專業紀錄 PDF 字型與版式
 - **情境**：2627 時間表要出黑白 docx／pdf 方案紀錄。
 - **錯在邊**：PDF 用錯 Songti TTC face（簡體）→ 缺字／亂碼；格內用 S6／功等簡稱；夾「驗證摘要」、emoji／彩色。

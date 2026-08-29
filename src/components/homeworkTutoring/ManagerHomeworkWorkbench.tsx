@@ -8,9 +8,8 @@ import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 
 import {
-  MOCK_ROSTER_MONTH_KEY,
-  MOCK_SUBJECT_TEACHERS,
   countSubmitProgress,
+  currentYearMonth,
   formatSession,
   formatYearMonthLabel,
   roomALabel,
@@ -18,13 +17,13 @@ import {
   teacherName,
   unpaidFeeRows,
   type AllTeacherSubmitStatus,
-  type MockDutyDay,
-  type MockFeeRow,
-  type MockStudent,
-  type MockTeacher,
+  type HomeworkDutyDay,
+  type HomeworkFeeDisplay,
+  type HomeworkStudentRow,
+  type HomeworkTeacherRow,
   type RosterPublishStatus,
-} from "./mockData"
-import type { ManagerPageId } from "./sandboxNav"
+} from "@/lib/homeworkTutoringUi"
+import type { ManagerPageId } from "./homeworkTutoringSectionNav"
 import { SubmitStatusTag, SummaryTile } from "./sharedUi"
 
 export function ManagerHomeworkWorkbench({
@@ -37,20 +36,22 @@ export function ManagerHomeworkWorkbench({
   hwTeachers,
   hwAccessIds,
   dutyDays = [],
-  rosterMonth = MOCK_ROSTER_MONTH_KEY,
+  rosterMonth = currentYearMonth(),
+  teacherCatalog,
   onToggleHwAccess,
   onSwitchToAdmin,
 }: {
   tab: ManagerPageId
   onTabChange: (tab: ManagerPageId) => void
-  students: MockStudent[]
-  fees: MockFeeRow[]
+  students: HomeworkStudentRow[]
+  fees: HomeworkFeeDisplay[]
   submitStatus: AllTeacherSubmitStatus
   rosterPublishStatus: RosterPublishStatus
-  hwTeachers: MockTeacher[]
+  hwTeachers: HomeworkTeacherRow[]
   hwAccessIds: ReadonlySet<string>
-  dutyDays?: MockDutyDay[]
+  dutyDays?: HomeworkDutyDay[]
   rosterMonth?: string
+  teacherCatalog?: readonly HomeworkTeacherRow[]
   onToggleHwAccess: (teacherId: string, next: boolean) => void
   onSwitchToAdmin?: () => void
 }) {
@@ -63,6 +64,7 @@ export function ManagerHomeworkWorkbench({
   const monthLabel = formatYearMonthLabel(rosterMonth)
   const roomA = roomALabel(dutyDays[0] ?? null)
   const roomB = roomBLabel(dutyDays[0] ?? null)
+  const catalog = teacherCatalog ?? hwTeachers
 
   return (
     <div className="space-y-4">
@@ -218,7 +220,8 @@ export function ManagerHomeworkWorkbench({
 
       {tab === "fees" ? (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold">月費異常（未收款）</h2>
+          <h2 className="text-base font-semibold">月費異常（未繳）</h2>
+          <p className="text-xs text-muted-foreground">以繳費紀錄為準；請到收款登記出單。</p>
           {unpaid.length === 0 ? (
             <p className="text-sm text-muted-foreground">目前無未繳。</p>
           ) : (
@@ -240,7 +243,9 @@ export function ManagerHomeworkWorkbench({
                     </Tag>
                     <Button type="button" size="sm" variant="outline" asChild>
                       <Link
-                        to={`/Payments?studentId=${encodeURIComponent(row.studentId)}&mode=receive`}
+                        to={`/Payments?studentId=${encodeURIComponent(row.studentId)}&mode=receive${
+                          row.classId ? `&classId=${encodeURIComponent(row.classId)}` : ""
+                        }`}
                       >
                         收款
                       </Link>
@@ -262,10 +267,10 @@ export function ManagerHomeworkWorkbench({
             </p>
           </div>
           <p className="text-xs text-muted-foreground">
-            已剔選 {hwAccessIds.size}／{MOCK_SUBJECT_TEACHERS.length} 位
+            已剔選 {hwAccessIds.size}／{catalog.length} 位
           </p>
           <ul className="space-y-2">
-            {MOCK_SUBJECT_TEACHERS.map((t) => {
+            {catalog.map((t) => {
               const checked = hwAccessIds.has(t.id)
               return (
                 <li key={t.id}>

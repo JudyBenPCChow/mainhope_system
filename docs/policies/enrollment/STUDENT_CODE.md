@@ -29,13 +29,12 @@
 
 ## 四、使用方式
 
-1. 取得目前完整學生清單（含 `student_code`）。
+1. 取得目前完整學生清單的學號（**必須含已畢業／軟封存學生**；勿用已過濾的日常列表）。
 2. 呼叫 `nextStudentCode(rows)` 取得新號。
 3. 寫入 `students.student_code`。
-4. **務必處理唯一鍵衝突重試**：`student_code` 在 DB 有唯一索引（見下），多端同時新增可能撞號；撞號時重新抓最新清單再算一次。
+4. **務必處理唯一鍵衝突重試**：`student_code` 在 DB 有唯一索引（見下），多端同時新增可能撞號；撞號時重新抓最新全庫學號再算一次。
 
-實作參考：`src/components/students/StudentsListPage.tsx` 的 `onAddStudent`——
-先用目前 `rows` 算號送出，若遇唯一鍵衝突，改用 `fetchAllStudents()` 重算後重試一次。
+實作參考：`src/services/studentQueries.ts` 的 `allocateNextStudentCode`／`fetchNumericStudentCodes`——只選 `student_code`，唔經學生管理列表的已畢業過濾。
 
 ```ts
 import { nextStudentCode } from "@/lib/studentCode"

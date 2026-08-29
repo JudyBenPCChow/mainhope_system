@@ -2359,7 +2359,7 @@ export function ClassDetailView() {
          </>
         ) : (
          <p className="mt-1 text-sm text-muted-foreground">
-          由所選課程模板決定（目前：{classGradeDisplayText(cls.grade, cls.grade_code)}）
+          由所選課程模板決定（目前：{classGradeDisplayText(cls.grade, cls.grade_code, cls.eligible_grade_codes)}）
          </p>
         )}
        </div>
