@@ -1,5 +1,6 @@
 import type { MgmtRole } from "@/lib/mgmtRole"
 import { supabase } from "@/lib/supabaseClient"
+import type { Json } from "@/types/db"
 
 export type InboxWriteEventType =
  | "schedule_created"
@@ -65,7 +66,7 @@ export async function recordInboxEventOrThrow(input: RecordInboxEventInput): Pro
   audience_teacher_ids: uniqueIds(input.audienceTeacherIds ?? []),
   audience_roles: normalizeAudienceRoles(input.audienceRoles),
   category,
-  payload: input.payload ?? {},
+  payload: (input.payload ?? {}) as Json,
  })
  if (error) throw error
 }

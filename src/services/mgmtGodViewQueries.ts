@@ -1,5 +1,6 @@
 import { todayYmdLocal } from "@/lib/weekdayUtils"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableInsert } from "@/types/db"
 
 export type MgmtAuditLogRow = {
  id: string
@@ -79,7 +80,7 @@ export async function appendMgmtAuditLog(input: AppendMgmtAuditInput): Promise<v
   action: input.action,
   path: input.path ?? null,
   detail: input.detail ?? null,
- })
+ } as TableInsert<"mgmt_audit_log">)
  if (error) console.warn("[mgmt_audit_log]", error.message)
 }
 
@@ -118,7 +119,7 @@ export async function logMgmtAuditActionOrThrow(input: {
   action: input.action,
   path,
   detail: input.detail ?? null,
- })
+ } as TableInsert<"mgmt_audit_log">)
  if (error) throw new Error(`稽核寫入失敗，已中止操作：${error.message}`)
 }
 

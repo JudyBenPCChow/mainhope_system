@@ -35,6 +35,7 @@ import { nextStudentCode } from "@/lib/studentCode"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { academicYearIdOpsOrFilter } from "@/lib/softArchiveListScope"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
  fetchAttendanceHitsForStudentClass,
@@ -689,7 +690,7 @@ export async function updateStudent(
  }
  const { data, error } = await supabase
   .from("students")
-  .update(payload)
+  .update(payload as TableUpdate<"students">)
   .eq("id", id)
   .select("*")
   .single()

@@ -2,13 +2,13 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（2026-08-21 已覆核；未開工） |
+| 狀態 | `done`（2026-08-29：DDL＋generated types＋分類帳） |
 | 優先 | 高 |
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
-| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次（DDL 先行；禁 `CREATE OR REPLACE` 做今次權限／search_path；token RPC 永不 revoke anon） |
+| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次（DDL 先行；禁 `CREATE OR REPLACE` 做今次權限／search_path；token RPC 永不 revoke anon）；**2026-08-29** 落地 |
 
 ## 點解合併
 
@@ -76,3 +76,49 @@ Production `MainHope_production`。Staging `mainhope-staging` 已 ACTIVE（08-14
 - Client 用 generated `Database`（或逃生艙已記錄）；`npm run build` 過。
 - 每個剩餘 security WARN 有分類；新增／刪除 index 有理由（本輪只刪重複 email index）。
 - 所有 schema 改動逐檔 migration 套用；無為清零而盲刪 policy／DEFINER。
+
+## 2026-08-29 落地
+
+Production `MainHope_production`。兩條 migration（只 `ALTER`／`REVOKE`／`DROP INDEX`，無 `CREATE OR REPLACE`）：
+
+| 檔 | 內容 |
+| --- | --- |
+| `20260829142804_advisor_hygiene_revoke_search_path_dup_index.sql` | REVOKE 3 支 trigger EXECUTE；REVOKE `list_portal_class_schedules` PUBLIC＋anon；ALTER 8 支 INVOKER `search_path`；DROP `app_users_email_lower_uidx` |
+| `20260829143312_advisor_hygiene_leftover_search_path_year_refresh.sql` | 08-21 之後漏列：REVOKE `refresh_academic_year_is_current`（DEFINER 會改 `academic_years.is_current`）；ALTER `grade_codes_to_class_labels`／`courses_normalize_eligible_grade_codes` |
+
+只讀驗收：三支 trigger 定義仍在；owner／service_role 仍有 EXECUTE；token RPC anon 仍可 EXECUTE。
+
+前端：`npm run db:types` → `src/types/database.ts`；`createClient<Database>`。動態 `listTable(table)` 因 Relationships 過深（TS2589）用未泛型 client，其餘 insert／update 接 `TableInsert`／`TableUpdate`。`supabase/functions/` 未改。無 CI types drift。
+
+防再漂已寫入 `.cursor/rules/supabase-migrations.mdc` 同 skill `apply-supabase-migration`。
+
+### 分類帳（2026-08-29 advisor）
+
+Security **75**（62 WARN／13 INFO）。唔以 WARN=0 為關帳。
+
+| lint | 數 | 處置 |
+| --- | --- | --- |
+| `authenticated_security_definer_function_executable` | 56 WARN | **接受**：P0-1 授權 DEFINER；唔改 INVOKER |
+| `anon_security_definer_function_executable` | 5 WARN | **接受**：`contact_update_get`／`submit`、`front_desk_intake_get`／`submit`、`peek_portal_invite`（公開 token；禁止 revoke anon） |
+| `auth_leaked_password_protection` | 1 WARN | **另題** [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md) |
+| `function_search_path_mutable` | 0 | **已修**（含 08-28 兩支） |
+| `rls_enabled_no_policy` | 13 INFO | **接受**：`private.authz_*`／`mgmt_session_roles` 刻意 deny-all；`staging.*_import`；`mgmt_active_roles`；`tmp_students_import`／`weekday_aliases`／`class_restructure_audit_logs` |
+| trigger EXECUTE（3 支）＋`list_portal_class_schedules` anon＋`refresh_academic_year_is_current` | — | **已修** |
+
+Performance **164**（76 WARN／88 INFO）。duplicate index **已消失**。其餘本輪接受：
+
+| lint | 數 | 理由 |
+| --- | --- | --- |
+| `multiple_permissive_policies` | 76 WARN | P0-1 疊政策；唔合併 |
+| `unindexed_foreign_keys` | 54 WARN | 表仍細；等表大或 EXPLAIN 證實 |
+| `unused_index` | 30 WARN | 本輪唔刪（只刪咗重複 email unique） |
+| `no_primary_key` | 4 INFO | 接受保留 |
+
+### 驗收勾
+
+- [x] 三支 trigger：anon／authenticated 不可 EXECUTE；trigger 定義仍在
+- [x] Token RPC 禁止名單：anon 仍可 EXECUTE
+- [x] duplicate index 消失；INVOKER 不再報 mutable search_path
+- [x] Client 用 generated `Database`；`npm run build` 過
+- [x] 剩餘 security WARN 已分類
+- [x] 逐檔 migration 套用；無盲刪 policy／DEFINER

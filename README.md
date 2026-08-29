@@ -1,6 +1,6 @@
 # 明學教育 — 管理系統（遷移骨架）
 
-由 Base44 遷移計畫產生的 **Vite + React + TypeScript + Tailwind + React Router** 專案。目前為 **可執行骨架**：路由與側欄對齊舊版 `App.jsx`／`Layout.jsx`，資料層為 **`src/api/entities.ts` stub**，之後改接 Supabase。
+由 Base44 遷移計畫產生的 **Vite + React + TypeScript + Tailwind + React Router** 專案。資料查詢走 **`src/services/`**（component 不直接打 DB）。
 
 **文件總門牌**（政策／操作／學年／工程）：**[docs/README.md](docs/README.md)**。  
 **協作／交給 AI Agent 的約定**（目錄職責、`services` 型別映射、RLS 上線注意、路由與側欄同步）：見 **[docs/meta/AGENT_HANDOFF.md](docs/meta/AGENT_HANDOFF.md)**。
@@ -8,7 +8,6 @@
 ## 本機執行
 
 ```bash
-cd mingxue-admin
 npm install
 npm run dev
 ```
@@ -21,7 +20,7 @@ npm run dev
 
 ## 如何改 API（Base44 entities → Supabase）
 
-整體概念：**頁面盡量仍從 `@/api/entities` 匯入**，但把 `entities.ts` 裡每個 `XXX.list`／`XXX.update` 的實作，改成呼叫 **`src/services/`** 裡用 **`supabase.from(...)`** 寫好的函式。
+整體概念：畫面同領域邏輯在 **`src/components/`**／**`src/pages/`**，所有 `supabase.from(...)` 在 **`src/services/`**，map 成具名型別。
 
 ### 1. 確認 Supabase 有連線
 
@@ -46,23 +45,22 @@ npm run dev
 
 ### 4. 程式已接線處
 
-- **`src/services/queries.ts`**：`listTable("表名")` 與各 **`listTeachers`、`listStudents`…**、`updateAppUser`。  
-- **`src/api/entities.ts`**：已全部指向上述函式（不再使用 stub `notImpl`）。  
+- **`src/services/queries.ts`**：職員帳號 `listAppUsers`／`updateAppUser`。其餘表請用用途專用 service。  
 - **`src/services/dashboard.ts`** + **`src/components/home/*`**：管理員首頁儀表板（統計、未繳費、今日課堂、最近收費、圖表、功能模組）。  
-- 若要**自訂查詢**（篩選、join、RPC），在 `queries.ts` 新增函式後，再改 `entities.ts` 對應匯出即可。
+- 若要**自訂查詢**（篩選、join、RPC），在對應 `src/services/*` 新增函式。
 
 ### 5. 與舊 Base44 的對照
 
 | 舊寫法（概念） | 新寫法（概念） |
 |----------------|----------------|
-| `base44.entities.Students.list()` | `await Students.list()`（內部改為 `supabase.from('students')`） |
+| `base44.entities.Students.list()` | 對應 `src/services/studentQueries`（`supabase.from('students')`） |
 | `base44.auth` | `supabase.auth`（登入／登出／`getSession`） |
 | `base44.users.inviteUser` 等 | Supabase Auth **Admin API** 或 Edge Function（需在後端／有 service role，**不要**把 service role key 放進前端 `.env`） |
 
 ## 下一步（對照遷移計畫）
 
 1. 將計畫內已貼的 **`pages/*`、`components/*`、`components/ui/*`** 原始碼逐步貼入 `src/`（`.jsx` 可改 `.tsx` 或保留 `.jsx` 並調 `tsconfig`）。
-2. 實作 **`src/api/entities`** 或改為 **`src/services/*`** 呼叫 Supabase，並加上 RLS／`profiles.role`。
+2. 資料查詢維持 **`src/services/*`** 呼叫 Supabase，並加上 RLS／`profiles.role`。
 3. 補齊 **`hooks/use-mobile`** 以外**尚未搬入的 hooks／lib**。
 4. 依需求補齊 **`components/ui`** 其餘檔（`checkbox`、`tooltip`、`toast` 等）。
 
@@ -72,14 +70,8 @@ npm run dev
 |------|------|
 | `src/App.tsx` | 路由表（大寫 path 與舊版一致） |
 | `src/components/Layout.tsx` | 側欄＋角色可見選單（`localStorage.mgmt_role`） |
-| `src/pages/*` | 占位頁，待替換為真實頁面 |
-| `src/api/entities.ts` | 對外 API 匯出（逐步改接 `src/services/*`） |
-| `src/services/queries.ts` | 各表 `list*` 與 `User.update`（Supabase） |
+| `src/pages/*` | 薄頁面／路由 |
+| `src/services/*` | 所有 `supabase.from(...)`；map 成具名型別 |
 | `supabase/migrations/*.sql` | Schema baseline（CLI migration）；演示資料在 `supabase/seed.sql` |
 | `src/lib/utils.ts` | `cn`（clsx + tailwind-merge） |
 | `src/lib/supabaseClient.ts` | Supabase client（有 env 時建立） |
-# mainhope_system
-# mainhope_system
-# mainhope_system
-# mainhope_system
-# mainhope_system

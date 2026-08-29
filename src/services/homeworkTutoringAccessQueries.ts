@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import { normalizeTeacherEmploymentStatus } from "@/services/teacherQueries"
 
 export type HomeworkTutoringTeacherAccess = {
@@ -87,7 +88,7 @@ export async function setTeacherHomeworkTutoringNav(
   }
   // 關入口時一併關掉純功輔，避免殘留不一致
   if (!enabled) patch.homework_tutor_only = false
-  const { error } = await supabase.from("teachers").update(patch).eq("id", teacherId)
+  const { error } = await supabase.from("teachers").update(patch as TableUpdate<"teachers">).eq("id", teacherId)
   if (error) throw error
 }
 
@@ -102,6 +103,6 @@ export async function setTeacherHomeworkTutorOnly(
   }
   // 開純功輔時確保有功輔入口
   if (tutorOnly) patch.homework_tutoring_nav = true
-  const { error } = await supabase.from("teachers").update(patch).eq("id", teacherId)
+  const { error } = await supabase.from("teachers").update(patch as TableUpdate<"teachers">).eq("id", teacherId)
   if (error) throw error
 }

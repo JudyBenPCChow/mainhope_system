@@ -20,6 +20,7 @@ import {
 } from "@/lib/paymentDiscountEligibility"
 import { joinMultiValueField, parseMultiValueField } from "@/lib/multiValueField"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableInsert, TableUpdate } from "@/types/db"
 
 export { parseMultiValueField, joinMultiValueField }
 
@@ -356,7 +357,7 @@ export async function insertPaymentDiscount(row: PaymentDiscountWriteInput): Pro
  assertDescriptionSchema(row.description, hasDescription)
  const { error } = await supabase
   .from("payment_discounts")
-  .insert(writePayload(row, extended, hasDescription))
+  .insert(writePayload(row, extended, hasDescription) as TableInsert<"payment_discounts">)
  if (error) throw error
 }
 
@@ -401,7 +402,7 @@ export async function updatePaymentDiscount(
     (percentOff == null || percentOff === 0) && (amountOff == null || amountOff === 0)
   }
  }
- const { error } = await supabase.from("payment_discounts").update(payload).eq("id", id)
+ const { error } = await supabase.from("payment_discounts").update(payload as TableUpdate<"payment_discounts">).eq("id", id)
  if (error) throw error
 }
 

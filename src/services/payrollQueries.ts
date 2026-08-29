@@ -22,6 +22,7 @@ import type {
 } from "@/lib/payroll/types"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import type { TableInsert } from "@/types/db"
 import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import {
   coursePricesFromClassEmbed,
@@ -1094,7 +1095,7 @@ export async function upsertManualHours(input: {
     payload.reviewed_by = input.actor
     payload.reviewed_at = nowIso
   }
-  const { error } = await supabase.from("payroll_manual_hours").upsert(payload, {
+  const { error } = await supabase.from("payroll_manual_hours").upsert(payload as TableInsert<"payroll_manual_hours">, {
     onConflict: "month_key,teacher_id",
   })
   if (error) throw new Error(error.message)

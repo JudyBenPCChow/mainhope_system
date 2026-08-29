@@ -22,7 +22,6 @@
 | `src/components/ui/`        | 無業務語意的基礎元件（Button、Input、Dialog）。                           |
 | `src/services/`             | **所有** `supabase.from(...)` 與查詢／寫入封裝；匯出明確 TS 型別給 UI。       |
 | `src/lib/`                  | 共用工具、`supabaseClient`。                                     |
-| `src/api/entities.ts`       | 舊 Base44 風格聚合層；**新功能優先**直接擴充 `services/*`，必要時再接到 entities。 |
 | `supabase/migrations/*.sql` | Schema 與 **RLS 政策**（baseline；見第 5 節）。                      |
 | `supabase/seed.sql`         | 演示用假資料（`db reset` 最後執行）；與 `teacherScope` UUID 對齊。        |
 

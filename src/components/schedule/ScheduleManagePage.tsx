@@ -2278,7 +2278,7 @@ useEffect(() => {
                size="default"
                className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
                disabled={!canOpenRollCall(s.id)}
-               title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
+               title={canOpenRollCall(s.id) ? "從此堂打開點名紙" : "暫無可點名學生"}
                onClick={(e) => {
                 e.stopPropagation()
                 openRollCallForSchedule(s.id)
@@ -2514,7 +2514,7 @@ useEffect(() => {
               type="button"
               className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
               disabled={!canOpenRollCall(s.id)}
-              title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
+               title={canOpenRollCall(s.id) ? "從此堂打開點名紙" : "暫無可點名學生"}
               onClick={(e) => {
                e.stopPropagation()
                openRollCallForSchedule(s.id)

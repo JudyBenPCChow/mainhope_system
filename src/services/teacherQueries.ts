@@ -1,6 +1,7 @@
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import { addDaysYmd, todayYmdLocal as localYmd } from "@/lib/weekdayUtils"
 
 export type TeacherRecord = {
@@ -197,7 +198,7 @@ export async function updateTeacher(
 
  const { data, error } = await supabase
   .from("teachers")
-  .update(publicPatch)
+  .update(publicPatch as TableUpdate<"teachers">)
   .eq("id", id)
   .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
   .single()
@@ -208,7 +209,7 @@ export async function updateTeacher(
   if (isSelfTeacher) {
    const { error: privErr } = await supabase
     .from("teachers_private")
-    .update(privatePatch)
+    .update(privatePatch as TableUpdate<"teachers_private">)
     .eq("teacher_id", id)
    if (privErr) throw privErr
   } else {

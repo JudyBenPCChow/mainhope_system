@@ -18,6 +18,7 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  insertScheduleForClass,
@@ -549,7 +550,7 @@ export async function updatePrivateClassSettings(
   }
   payload.subject = sub
  }
- const { error } = await supabase.from("classes").update(payload).eq("id", classId)
+ const { error } = await supabase.from("classes").update(payload as TableUpdate<"classes">).eq("id", classId)
  if (error) throw new Error(formatUnknownError(error))
 
  let syncedScheduleCount = 0

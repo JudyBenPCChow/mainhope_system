@@ -15,6 +15,7 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import {
  gradeLabelsAlignedFromCourse,
  resolveClassGradeLabels,
@@ -664,7 +665,7 @@ export async function updateClass(
  }
  const { data, error } = await supabase
   .from("classes")
-  .update(payload)
+  .update(payload as TableUpdate<"classes">)
   .eq("id", id)
   .select(CLASS_ROW_SELECT)
   .single()

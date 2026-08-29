@@ -1,5 +1,5 @@
 {
-  "name": "mingxue-admin",
+  "name": "mainhope-admin",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -14,6 +14,7 @@
     "apo:check": "node --experimental-strip-types scripts/apo-offline-check.mjs",
     "makeup:regression": "node scripts/makeup-visibility-regression.mjs",
     "db:apply": "node scripts/apply-one-migration.mjs",
+    "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
     "preview": "vite preview",
     "sandbox:context-rail": "python3 -m http.server 4179 --directory sandbox/admin-context-rail",
     "sandbox:payroll": "vite --config sandbox/payroll-ui/vite.config.ts",

@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import type { TableUpdate } from "@/types/db"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { lessonBalancePassesOpsWindow } from "@/lib/softArchiveListScope"
@@ -228,7 +229,7 @@ export async function updatePendingLessonStatus(
  if (opts && "remarks" in opts) {
   patch.remarks = opts.remarks ?? null
  }
- const { error } = await supabase.from("student_pending_lessons").update(patch).eq("id", id)
+ const { error } = await supabase.from("student_pending_lessons").update(patch as TableUpdate<"student_pending_lessons">).eq("id", id)
  if (error) throw error
 }
 

@@ -13,3 +13,5 @@ alwaysApply: false
 - 遠端／本地歷史不一致時**禁止** `supabase db push`；見 `docs/meta/SUPABASE_MIGRATION_APPLY.md` 與 skill `apply-supabase-migration`。
 - 一次只套本任務相關檔，勿順便推其他 pending 本地 migration。
 - 勿用 `migration list --output-format json`（常 timeout）；plain `migration list --linked` 即可。
+- **防 GRANT／search_path 再漂**：釘 `search_path` 用 `ALTER FUNCTION … SET search_path = public`，**唔用** `CREATE OR REPLACE`（REPLACE 會還原 `PUBLIC`／anon EXECUTE）。若必須 REPLACE 一支 trigger／DEFINER：同一檔立刻 `REVOKE EXECUTE FROM PUBLIC, anon, authenticated`。例外：公開 token RPC（`contact_update_*`、`front_desk_intake_*`、`peek_portal_invite`）**禁止 revoke anon**。
+- Schema（表／欄／RPC 參數）改完：`npm run db:types` 重生 `src/types/database.ts`。

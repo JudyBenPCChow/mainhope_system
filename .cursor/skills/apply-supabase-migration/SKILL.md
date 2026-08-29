@@ -52,6 +52,13 @@ Then verify with a short `supabase db query --linked "…"`.
 
 Only after `db query`／`projects list` 明確要 token／login：請使用者在同一終端 `supabase login` 或 export `SUPABASE_ACCESS_TOKEN`，再重試。Do not claim the migration was applied.
 
+## GRANT／search_path／types（防再漂）
+
+- 釘 `search_path` 用 `ALTER FUNCTION … SET search_path = public`，**唔用** `CREATE OR REPLACE`（REPLACE 會還原 `PUBLIC`／anon EXECUTE，連剛 revoke 嘅 trigger 都會返嚟）。
+- 若必須 `CREATE OR REPLACE` 一支 trigger 或非公開 DEFINER：同一檔立刻再 `REVOKE EXECUTE FROM PUBLIC, anon, authenticated`。
+- **禁止 revoke anon** 的公開 token RPC：`contact_update_get`／`contact_update_submit`、`front_desk_intake_get`／`front_desk_intake_submit`、`peek_portal_invite`。
+- Schema（表／欄／RPC 參數）改完後跑 `npm run db:types`（`src/types/database.ts`）。未做 CI types drift check。
+
 ## After apply
 
 - Confirm with a short `supabase db query --linked "…"` or feature check.

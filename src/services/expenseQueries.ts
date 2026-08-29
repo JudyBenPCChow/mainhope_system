@@ -22,6 +22,7 @@ import {
   type ExpenseAccountVisibility,
 } from "@/lib/expenseJournalPolicy"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import type { TableInsert } from "@/types/db"
 import type { PayrollTeacherRow } from "@/lib/payroll/viewTypes"
 
 export type ExpenseAccountGroup = "direct" | "overhead"
@@ -805,7 +806,7 @@ export async function postPayrollSettleToExpenseLedger(input: {
 
   if (rows.length === 0) return { posted: 0, skipped }
 
-  const { error } = await client.from("expense_entries").upsert(rows, {
+  const { error } = await client.from("expense_entries").upsert(rows as TableInsert<"expense_entries">[], {
     onConflict: "origin_key",
     ignoreDuplicates: true,
   })

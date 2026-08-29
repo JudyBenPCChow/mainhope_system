@@ -216,6 +216,9 @@ export function RollCallPage() {
          ? "列出當日班別，展開即可點名。"
          : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
      </p>
+     <p className="mt-1 hidden text-xs text-muted-foreground md:block">
+      此頁係當日批次。只點某一堂：請到排程撳「確定點名」。
+     </p>
     </div>
    </header>
 
