@@ -1,8 +1,9 @@
 import { supabase } from "@/lib/supabaseClient"
-import { billingMonthBounds } from "@/lib/monthlyTuition"
 import {
   formatYearMonthLabel,
   homeworkMonthlyFeeHkd,
+  homeworkPaymentCoversMonth,
+  isHomeworkMonthlyFeeDescription,
   monthFirstDay,
   type HomeworkDayPlan,
   type HomeworkWeekday,
@@ -244,31 +245,51 @@ export async function ensureHomeworkMonthlyCharges(opts: {
   return fetchHomeworkMonthlyCharges(opts.classId, billingMonth)
 }
 
-/** 該月功輔班已繳：繳費紀錄（已收款、未作廢、收款日落在該月、明細掛本班）。唔改既有單據。 */
+/** 該月功輔班已繳：繳費紀錄覆蓋該曆月（已收款、未作廢、明細掛本班）。唔改既有單據。 */
 export async function fetchHomeworkPaidByStudentFromPayments(
   classId: string,
   billingMonth: string
 ): Promise<Map<string, { receiptNumber: string; paymentId: string }>> {
   const out = new Map<string, { receiptNumber: string; paymentId: string }>()
   if (!supabase) return out
-  const { start, end } = billingMonthBounds(billingMonth)
+  const ym = billingMonth.slice(0, 7)
   const { data, error } = await supabase
     .from("payment_details")
-    .select("payment_id, payments ( id, student_id, receipt_number, status, voided_at, payment_date )")
+    .select(
+      "payment_id, lesson_count, coverage_start_month, description, payments ( id, student_id, receipt_number, status, voided_at, payment_date )"
+    )
     .eq("class_id", classId)
   if (error) throw error
   for (const raw of data ?? []) {
-    const pay = (raw as Record<string, unknown>).payments as Record<string, unknown> | null
+    const row = raw as Record<string, unknown>
+    const pay = row.payments as Record<string, unknown> | null
     if (!pay) continue
     if (String(pay.status ?? "") !== "已收款") continue
     if (pay.voided_at != null) continue
-    const paymentDate = String(pay.payment_date ?? "").slice(0, 10)
-    if (paymentDate < start || paymentDate > end) continue
     const studentId = pay.student_id != null ? String(pay.student_id) : ""
     if (!studentId || out.has(studentId)) continue
+    const paymentDate = String(pay.payment_date ?? "").slice(0, 10)
+    const coverageStart =
+      row.coverage_start_month != null
+        ? String(row.coverage_start_month).slice(0, 7)
+        : isHomeworkMonthlyFeeDescription(
+            row.description != null ? String(row.description) : null
+          )
+          ? paymentDate.slice(0, 7)
+          : ""
+    const monthCount = Number(row.lesson_count ?? 1)
+    if (
+      !homeworkPaymentCoversMonth({
+        coverageStartMonth: coverageStart,
+        monthCount: Number.isFinite(monthCount) && monthCount > 0 ? monthCount : 1,
+        billingMonth: ym,
+      })
+    ) {
+      continue
+    }
     out.set(studentId, {
       receiptNumber: pay.receipt_number != null ? String(pay.receipt_number) : "",
-      paymentId: String(pay.id ?? raw.payment_id ?? ""),
+      paymentId: String(pay.id ?? row.payment_id ?? ""),
     })
   }
   return out

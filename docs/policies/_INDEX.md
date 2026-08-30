@@ -43,7 +43,7 @@
 | 文件 | 主題 |
 | --- | --- |
 | [學費學期節奏與逾期罰款](payments/TUITION_TERM_AND_LATE_FEE_POLICY.md) | 按月堂數；逾期 $50（已繳／已扣堂數模型；2026-10-01 起） |
-| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；收款登記按月數×月費檔；已繳睇繳費紀錄；不扣堂、不收專科逾期罰款 |
+| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；功輔與專科分單；覆蓋月份＋月數；已繳睇覆蓋月；不扣堂、不收專科逾期罰款 |
 | [收款單據作廢與更正](payments/PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪；作廢／已繳堂數調動分流 |
 
 ### 排課／場地／代堂

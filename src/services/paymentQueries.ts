@@ -9,6 +9,8 @@ import {
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
+import { isHomeworkMonthlyFeeDescription, monthFirstDay } from "@/lib/homeworkTutoringFees"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
 import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
 import { supabase } from "@/lib/supabaseClient"
@@ -128,6 +130,7 @@ export type PaymentDetailRow = {
  courseName: string
  courseCode: string | null
  lessonCount: number | null
+ coverageStartMonth: string | null
  amount: number | null
  description: string | null
 }
@@ -505,7 +508,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
 
  const { data: det, error: e2 } = await supabase
   .from("payment_details")
-  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code_full, courses ( course_name ) )")
+  .select("id, class_id, lesson_count, coverage_start_month, amount, description, classes ( subject, course_code_full, courses ( course_name ) )")
   .eq("payment_id", id)
  if (e2) throw e2
 
@@ -516,6 +519,8 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
+  const coverageRaw =
+   r.coverage_start_month != null ? String(r.coverage_start_month).slice(0, 10) : ""
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : null,
@@ -523,6 +528,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
    courseName: classDisplayName({ subject: sub, courseName }),
    courseCode: code.trim() !== "" ? code : null,
    lessonCount: r.lesson_count != null ? Number(r.lesson_count) : null,
+   coverageStartMonth: /^\d{4}-\d{2}/.test(coverageRaw) ? coverageRaw.slice(0, 7) : null,
    amount: r.amount != null ? Number(r.amount) : null,
    description: r.description != null ? String(r.description) : null,
   }
@@ -611,6 +617,71 @@ export type PaymentDetailInput = {
  amount: number | null
  description: string | null
  monthlyTuitionChargeId?: string | null
+ /** 功輔月費覆蓋起始月 YYYY-MM-01 或 YYYY-MM */
+ coverageStartMonth?: string | null
+}
+
+function coverageStartMonthToDate(raw: string | null | undefined): string | null {
+ const ym = String(raw ?? "").slice(0, 7)
+ return /^\d{4}-\d{2}$/.test(ym) ? monthFirstDay(ym) : null
+}
+
+function isHomeworkPaymentDetailSkipLessons(opts: {
+ coverageStartMonth?: string | null
+ description?: string | null
+ classKind?: string | null
+}): boolean {
+ if (opts.coverageStartMonth) return true
+ if (resolveClassKind(opts.classKind, null) === "homework") return true
+ return isHomeworkMonthlyFeeDescription(opts.description)
+}
+
+async function assertHomeworkReceiptNotMixed(details: PaymentDetailInput[]): Promise<boolean> {
+ if (!supabase || details.length === 0) return false
+ const classIds = [
+  ...new Set(details.map((d) => d.classId).filter((id): id is string => Boolean(id))),
+ ]
+ const kindByClass = new Map<string, string>()
+ if (classIds.length > 0) {
+  const { data, error } = await supabase
+   .from("classes")
+   .select("id, class_kind, subject")
+   .in("id", classIds)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as { id?: unknown; class_kind?: unknown; subject?: unknown }
+   kindByClass.set(
+    String(r.id),
+    resolveClassKind(
+     r.class_kind != null ? String(r.class_kind) : null,
+     r.subject != null ? String(r.subject) : null
+    )
+   )
+  }
+ }
+ let hasHomework = false
+ let hasSpecialist = false
+ for (const d of details) {
+  const isTrial = String(d.description ?? "").includes("試堂")
+  const classKind = d.classId ? kindByClass.get(d.classId) : null
+  const homework =
+   !isTrial &&
+   (classKind === "homework" ||
+    Boolean(d.coverageStartMonth) ||
+    isHomeworkMonthlyFeeDescription(d.description))
+  if (homework) {
+   hasHomework = true
+   if (!coverageStartMonthToDate(d.coverageStartMonth)) {
+    throw new Error("功課輔導班月費請填覆蓋起始月份")
+   }
+  } else {
+   hasSpecialist = true
+  }
+ }
+ if (hasHomework && hasSpecialist) {
+  throw new Error("功課輔導班月費須另開單據，不可與專科／私人課程／試堂同一張單。")
+ }
+ return hasHomework
 }
 
 export async function insertPaymentRecord(params: {
@@ -657,6 +728,7 @@ export async function insertPaymentRecord(params: {
   )
  }
  assertAcademicYearEditableForDate(params.paymentDate)
+ const homeworkReceipt = await assertHomeworkReceiptNotMixed(params.details ?? [])
 
  const discountIds = (
   params.discountIds?.length
@@ -668,6 +740,14 @@ export async function insertPaymentRecord(params: {
  const subtotalAmount = Math.round((params.subtotalAmount ?? params.totalAmount) * 100) / 100
  const totalAmount = Math.round(params.totalAmount * 100) / 100
  const specialAmount = normalizeSpecialDiscountAmount(params.specialDiscountAmount ?? 0)
+ if (homeworkReceipt) {
+  if (discountIds.length > 0 || specialAmount > 0) {
+   throw new Error("功課輔導班月費單不套用專科優惠，請另開專科單據。")
+  }
+  if ((params.lateFeeItems ?? []).length > 0) {
+   throw new Error("功課輔導班月費不收專科逾期罰款。")
+  }
+ }
 
  let orderedDiscounts: PaymentDiscountRow[] = []
  let discountApplications: Array<{
@@ -815,6 +895,7 @@ export async function insertPaymentRecord(params: {
     amount: d.amount,
     description: d.description?.trim() || null,
     monthly_tuition_charge_id: d.monthlyTuitionChargeId ?? null,
+    coverage_start_month: coverageStartMonthToDate(d.coverageStartMonth),
    }))
   )
   if (e2) throw e2
@@ -932,12 +1013,30 @@ export async function fetchPaymentDashboardStats(): Promise<PaymentDashboardStat
  const pids = (paidPayments ?? []).map((r) => String((r as { id: unknown }).id))
  let totalPaidLessons = 0
  if (pids.length > 0) {
-  const { data: det, error: e2 } = await supabase.from("payment_details").select("lesson_count").in("payment_id", pids)
-  if (e2) throw e2
-  for (const row of det ?? []) {
-   const n = Number((row as { lesson_count: unknown }).lesson_count)
-   if (Number.isFinite(n) && n > 0) totalPaidLessons += n
+ const { data: det, error: e2 } = await supabase
+  .from("payment_details")
+  .select("lesson_count, coverage_start_month, description, classes ( class_kind )")
+  .in("payment_id", pids)
+ if (e2) throw e2
+ for (const row of det ?? []) {
+  const r = row as {
+   lesson_count?: unknown
+   coverage_start_month?: unknown
+   description?: unknown
+   classes?: { class_kind?: unknown } | null
   }
+  if (
+   isHomeworkPaymentDetailSkipLessons({
+    coverageStartMonth: r.coverage_start_month != null ? String(r.coverage_start_month) : null,
+    description: r.description != null ? String(r.description) : null,
+    classKind: r.classes?.class_kind != null ? String(r.classes.class_kind) : null,
+   })
+  ) {
+   continue
+  }
+  const n = Number(r.lesson_count)
+  if (Number.isFinite(n) && n > 0) totalPaidLessons += n
+ }
  }
 
  const { data: attRows, error: e3 } = await supabase.from("attendance_details").select("status")
@@ -962,11 +1061,29 @@ export async function fetchTotalPaidLessonsForStudent(studentId: string): Promis
  if (e1) throw e1
  const pids = (pays ?? []).map((r) => String((r as { id: unknown }).id))
  if (pids.length === 0) return 0
- const { data: det, error: e2 } = await supabase.from("payment_details").select("lesson_count").in("payment_id", pids)
+ const { data: det, error: e2 } = await supabase
+  .from("payment_details")
+  .select("lesson_count, coverage_start_month, description, classes ( class_kind )")
+  .in("payment_id", pids)
  if (e2) throw e2
  let sum = 0
  for (const row of det ?? []) {
-  const n = Number((row as { lesson_count: unknown }).lesson_count)
+  const r = row as {
+   lesson_count?: unknown
+   coverage_start_month?: unknown
+   description?: unknown
+   classes?: { class_kind?: unknown } | null
+  }
+  if (
+   isHomeworkPaymentDetailSkipLessons({
+    coverageStartMonth: r.coverage_start_month != null ? String(r.coverage_start_month) : null,
+    description: r.description != null ? String(r.description) : null,
+    classKind: r.classes?.class_kind != null ? String(r.classes.class_kind) : null,
+   })
+  ) {
+   continue
+  }
+  const n = Number(r.lesson_count)
   if (Number.isFinite(n) && n > 0) sum += n
  }
  return sum

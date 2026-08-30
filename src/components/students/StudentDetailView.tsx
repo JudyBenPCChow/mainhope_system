@@ -120,6 +120,7 @@ import {
  updatePendingLessonStatus,
  type LessonBalanceRow,
 } from "@/services/pendingLessonQueries"
+import { isHomeworkClassKind } from "@/lib/privateClassKind"
 
 function formatLeaveError(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -1883,7 +1884,8 @@ export function StudentDetailView() {
        ) : (
         <StaggerList as="div" className="space-y-3">
         {activeEnrollments.map((e) => {
-         const bal = balanceByEnrollment.get(e.id)
+         const isHomework = isHomeworkClassKind(e.classKind)
+         const bal = isHomework ? undefined : balanceByEnrollment.get(e.id)
          return (
          <StaggerItem
           key={e.id}
@@ -1907,8 +1909,11 @@ export function StudentDetailView() {
               {e.enrollmentFormLabel}
              </Tag>
             ) : null}
-            {canViewMoney && e.pricePerLesson != null ? (
+            {canViewMoney && !isHomework && e.pricePerLesson != null ? (
              <span>· 每節 {money(e.pricePerLesson)}</span>
+            ) : null}
+            {isHomework && e.homeworkDayPlan ? (
+             <span>每週{e.homeworkDayPlan}</span>
             ) : null}
            </div>
            <div className="mt-1 text-xs text-muted-foreground">
@@ -1973,7 +1978,11 @@ export function StudentDetailView() {
            </Tag>
           )}
           </div>
-          {lessonBalancesState === "ready" && bal ? (
+          {isHomework ? (
+           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            功課輔導班按月繳費，不按堂對帳、不補堂。已繳月份見功課輔導 → 月費，或繳費紀錄。
+           </div>
+          ) : lessonBalancesState === "ready" && bal ? (
            <div
             className={cn(
              "rounded-md border px-3 py-2 text-xs",

@@ -358,6 +358,7 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
 
  const classCtx = await fetchClassEntitlementContext(opts.classId, { isTrial: opts.isTrial })
  if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) return null
+ if (classCtx.namespace.courseGroup === "homework") return null
  const packageType = enrollmentPeriodToPackageType(opts.enrollmentPeriod)
  const ns = classCtx.namespace
 
