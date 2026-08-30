@@ -97,6 +97,7 @@ export function PaymentHistoryView() {
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
+ const [histSearchDebounced, setHistSearchDebounced] = useState("")
  const [filterStudentId, setFilterStudentId] = useState<string | null>(null)
  const [filterStudent, setFilterStudent] = useState<StudentRecord | null>(null)
  const [includeOlderYears, setIncludeOlderYears] = useState(false)
@@ -153,6 +154,11 @@ export function PaymentHistoryView() {
  }, [searchParams, setSearchParams])
 
  useEffect(() => {
+  const t = window.setTimeout(() => setHistSearchDebounced(histSearch.trim()), 350)
+  return () => window.clearTimeout(t)
+ }, [histSearch])
+
+ useEffect(() => {
   if (!filterStudentId || !isSupabaseConfigured) {
    setFilterStudent(null)
    return
@@ -185,7 +191,7 @@ export function PaymentHistoryView() {
     status: histStatus,
     fromYmd: histFrom || undefined,
     toYmd: histTo || undefined,
-    search: histSearch || undefined,
+    search: histSearchDebounced || undefined,
     studentId: filterStudentId || undefined,
     limit: PAYMENTS_PAGE_SIZE,
     offset: 0,
@@ -205,7 +211,7 @@ export function PaymentHistoryView() {
   } finally {
    setHistLoading(false)
   }
- }, [histStatus, histFrom, histTo, histSearch, filterStudentId, includeOlderYears])
+ }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, includeOlderYears])
 
  const loadMoreHistory = useCallback(async () => {
   if (!isSupabaseConfigured || histLoadingMore || !histHasMore) return
@@ -215,7 +221,7 @@ export function PaymentHistoryView() {
     status: histStatus,
     fromYmd: histFrom || undefined,
     toYmd: histTo || undefined,
-    search: histSearch || undefined,
+    search: histSearchDebounced || undefined,
     studentId: filterStudentId || undefined,
     limit: PAYMENTS_PAGE_SIZE,
     offset: histOffset,
@@ -230,7 +236,7 @@ export function PaymentHistoryView() {
   } finally {
    setHistLoadingMore(false)
   }
- }, [histStatus, histFrom, histTo, histSearch, filterStudentId, histHasMore, histLoadingMore, histOffset, includeOlderYears])
+ }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, histHasMore, histLoadingMore, histOffset, includeOlderYears])
 
  const { sentinelRef } = useInfiniteScroll({
   onLoadMore: loadMoreHistory,

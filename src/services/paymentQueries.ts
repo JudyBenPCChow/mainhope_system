@@ -10,6 +10,7 @@ import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
+import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
 import { supabase } from "@/lib/supabaseClient"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
@@ -445,20 +446,32 @@ export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promi
   q = q.neq("status", PAYMENT_STATUS.voided)
  }
 
+ const searchFrag = sanitizeIlikeFragment(filters.search ?? "")
+ if (searchFrag) {
+  const { data: matchedStudents, error: studentSearchErr } = await supabase
+   .from("students")
+   .select("id")
+   .or(
+    `full_name.ilike.%${searchFrag}%,english_name.ilike.%${searchFrag}%,student_code.ilike.%${searchFrag}%`
+   )
+  if (studentSearchErr) throw studentSearchErr
+  const studentIds = (matchedStudents ?? []).map((r) => String((r as { id: string }).id))
+  const orParts = [
+   `receipt_number.ilike.%${searchFrag}%`,
+   `remarks.ilike.%${searchFrag}%`,
+  ]
+  if (studentIds.length > 0) {
+   orParts.push(`student_id.in.(${studentIds.join(",")})`)
+  }
+  q = q.or(orParts.join(","))
+ }
+
  const { data, error } = await q
  if (error) throw error
  const rawRows = (data ?? []) as Record<string, unknown>[]
  const catalogIds = rawRows.flatMap((row) => collectCatalogDiscountIdsFromPaymentRow(row))
  const catalogById = await fetchDiscountCatalogMetaByIds(catalogIds)
- let rows = rawRows.map((x) => mapListRow(x, catalogById))
- const s = filters.search?.trim().toLowerCase() ?? ""
- if (s) {
-  rows = rows.filter((r) => {
-   const hay =
-    `${r.studentName} ${r.studentCode ?? ""} ${r.receiptNumber ?? ""} ${r.remarks ?? ""} ${r.discountName ?? ""}`.toLowerCase()
-   return hay.includes(s)
-  })
- }
+ const rows = rawRows.map((x) => mapListRow(x, catalogById))
  return { rows, hasMore: rows.length >= limit, hiddenOlderCount, appliedFromYmd }
 }
 
