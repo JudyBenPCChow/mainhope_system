@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import { useMemo, type ReactNode } from "react"
 import { MessageCircle } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -35,7 +35,7 @@ type Props = {
  filterSourceRows: StudentRecord[]
  tags: Map<string, string[]>
  loading: boolean
- emptyHint: string
+ emptyHint: ReactNode
  visible: Record<StudentListColumnId, boolean>
  sortKey: StudentListColumnId
  sortDir: "asc" | "desc"
@@ -124,7 +124,7 @@ export function StudentsListTable({
      ) : rows.length === 0 ? (
       <tbody>
        <tr>
-        <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
+        <td colSpan={colSpan} className="px-3 py-8 text-center">
          {emptyHint}
         </td>
        </tr>
