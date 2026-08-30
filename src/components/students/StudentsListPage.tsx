@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
@@ -35,10 +35,8 @@ import { GRADE_FILTER_PRIMARY_KEY, GRADE_FILTERS } from "@/components/students/s
 import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { LoadMoreFooter } from "@/components/ui/load-more-footer"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import {
  Dialog,
  DialogContent,
@@ -48,10 +46,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmCreateGraduatedStudent, logCreateGraduatedStudent } from "@/lib/graduationGuard"
+import { HK_SECONDARY_SCHOOLS, normalizeSchoolSearchKey } from "@/lib/hkSecondarySchools"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
@@ -69,7 +69,6 @@ import {
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
  PRIMARY_CONTACT_PERSONS,
- STUDENTS_PAGE_SIZE,
  type RecentClassEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
@@ -98,18 +97,6 @@ const STAGE_FILTERS = [
  { key: "已畢業", label: "已畢業" },
 ] as const
 
-const COMMON_HK_SCHOOLS = [
- "英華書院",
- "聖保羅男女中學",
- "拔萃女書院",
- "喇沙書院",
- "華仁書院",
- "協恩中學",
- "伊利沙伯中學",
- "皇仁書院",
- "拔萃男書院",
- "聖若瑟書院",
-] as const
 
 /** 「近期報讀」輪播最多顯示的學生數 */
 const RECENT_ENROLL_LIMIT = 5
@@ -236,15 +223,15 @@ export function StudentsListPage() {
  const { profile } = useAuth()
  const canDeleteStudent = can(profile?.activeCapabilities, "students.update")
  const navigate = useNavigate()
+ const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
+ const listScope: "active" | "roster" = searchParams.get("scope") === "roster" ? "roster" : "active"
+ const isActiveScope = listScope === "active"
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [rows, setRows] = useState<StudentRecord[]>([])
  const [tags, setTags] = useState<Map<string, string[]>>(new Map())
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
  const [loading, setLoading] = useState(true)
- const [loadingMore, setLoadingMore] = useState(false)
- const [hasMore, setHasMore] = useState(false)
- const [listOffset, setListOffset] = useState(0)
  const [err, setErr] = useState<string | null>(null)
  const [registrationKey, setRegistrationKey] = usePersistentState<
   (typeof REGISTRATION_FILTERS)[number]["key"]
@@ -296,63 +283,44 @@ export function StudentsListPage() {
  const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
  const [addErr, setAddErr] = useState<string | null>(null)
  const [addSaving, setAddSaving] = useState(false)
- const [schoolSearch, setSchoolSearch] = useState("")
+
+ const setListScope = (next: "active" | "roster") => {
+  setSearchParams(
+   (prev) => {
+    const nextParams = new URLSearchParams(prev)
+    if (next === "roster") nextParams.set("scope", "roster")
+    else nextParams.delete("scope")
+    return nextParams
+   },
+   { replace: true }
+  )
+  if (next === "active") {
+   setActivityKey("all")
+   if (stageKey === "已畢業") setStageKey("all")
+  } else {
+   setViewMode("table")
+  }
+ }
 
  const load = useCallback(async () => {
   setLoading(true)
   setErr(null)
   try {
-   const { students: list, hiddenGraduatedCount: hidden, hasMore: more } = await fetchStudentsForOpsList({
-    includeGraduated: showGraduated,
-    offset: 0,
-    limit: STUDENTS_PAGE_SIZE,
+   const { students: list, hiddenGraduatedCount: hidden } = await fetchStudentsForOpsList({
+    includeGraduated: !isActiveScope && showGraduated,
+    activityStatus: isActiveScope ? "活躍生" : undefined,
    })
    setRows(list)
-   setHiddenGraduatedCount(hidden)
-   setListOffset(list.length)
-   setHasMore(more)
-   const ids = list.map((s) => s.id)
-   const [tagMap, recentEnr] = await Promise.all([
-    fetchEnrollmentSubjectsByStudentIds(ids),
-    fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT),
-   ])
-   setTags(tagMap)
+   setHiddenGraduatedCount(isActiveScope ? 0 : hidden)
+   setTags(new Map())
+   const recentEnr = await fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT)
    setRecentEnrollments(recentEnr)
   } catch (e) {
    reportUserFacingError(e, { source: "StudentsListPage.load", setErr })
   } finally {
    setLoading(false)
   }
- }, [showGraduated])
-
- const loadMoreStudents = useCallback(async () => {
-  if (loadingMore || !hasMore) return
-  setLoadingMore(true)
-  try {
-   const { students: batch, hasMore: more } = await fetchStudentsForOpsList({
-    includeGraduated: showGraduated,
-    offset: listOffset,
-    limit: STUDENTS_PAGE_SIZE,
-   })
-   setRows((prev) => [...prev, ...batch])
-   setListOffset((prev) => prev + batch.length)
-   setHasMore(more)
-   if (batch.length > 0) {
-    const tagMap = await fetchEnrollmentSubjectsByStudentIds(batch.map((s) => s.id))
-    setTags((prev) => new Map([...prev, ...tagMap]))
-   }
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentsListPage.loadMore", setErr })
-  } finally {
-   setLoadingMore(false)
-  }
- }, [hasMore, listOffset, loadingMore, showGraduated])
-
- const { sentinelRef } = useInfiniteScroll({
-  onLoadMore: loadMoreStudents,
-  hasMore,
-  disabled: loading || loadingMore,
- })
+ }, [isActiveScope, showGraduated])
 
  useEffect(() => {
   void load()
@@ -411,13 +379,13 @@ export function StudentsListPage() {
   if (enrollmentKey !== "all") {
    list = list.filter((r) => normalizeEnrollmentStatus(r.enrollment_status) === enrollmentKey)
   }
-  if (activityKey !== "all") {
+  if (!isActiveScope && activityKey !== "all") {
    list = list.filter((r) => normalizeActivityStatus(r.activity_status) === activityKey)
   }
-  if (stageKey !== "all") {
+  if (!isActiveScope && stageKey !== "all") {
    list = list.filter((r) => normalizeAcademicStage(r.academic_stage) === stageKey)
   }
-  if (!showGraduated) {
+  if (!isActiveScope && !showGraduated) {
    list = list.filter(
     (r) => normalizeAcademicStage(r.academic_stage) !== "已畢業" && (r.grade ?? "") !== "GD"
    )
@@ -455,12 +423,39 @@ export function StudentsListPage() {
   showGraduated,
   gradeKey,
   search,
+  isActiveScope,
  ])
 
  const filtered = useMemo(() => {
   const list = scoped.filter((r) => studentMatchesHeaderFilters(r, headerFilters, tags))
   return [...list].sort((a, b) => compareStudents(a, b, sortKey, sortDir, tags))
  }, [scoped, headerFilters, sortKey, sortDir, tags])
+
+ const taggedIdKey = useMemo(() => [...tags.keys()].sort().join(","), [tags])
+
+ useEffect(() => {
+  if (!isActiveScope) setViewMode("table")
+ }, [isActiveScope, setViewMode])
+
+ useEffect(() => {
+  const have = new Set(taggedIdKey ? taggedIdKey.split(",") : [])
+  const missing = filtered.map((r) => r.id).filter((id) => !have.has(id))
+  if (missing.length === 0) return
+  let cancelled = false
+  void fetchEnrollmentSubjectsByStudentIds(missing).then((tagMap) => {
+   if (cancelled) return
+   setTags((prev) => {
+    const next = new Map(prev)
+    for (const id of missing) {
+     if (!next.has(id)) next.set(id, tagMap.get(id) ?? [])
+    }
+    return next
+   })
+  })
+  return () => {
+   cancelled = true
+  }
+ }, [filtered, taggedIdKey])
 
  const classificationCounts = useMemo(() => {
   const registration = new Map<string, number>()
@@ -484,13 +479,22 @@ export function StudentsListPage() {
   let count = 0
   if (registrationKey !== "all") count++
   if (enrollmentKey !== "all") count++
-  if (activityKey !== "all") count++
-  if (stageKey !== "all") count++
+  if (!isActiveScope && activityKey !== "all") count++
+  if (!isActiveScope && stageKey !== "all") count++
   if (gradeKey !== "all") count++
-  if (showGraduated) count++
+  if (!isActiveScope && showGraduated) count++
   count += countActiveHeaderFilters(headerFilters)
   return count
- }, [registrationKey, enrollmentKey, activityKey, stageKey, gradeKey, showGraduated, headerFilters])
+ }, [
+  registrationKey,
+  enrollmentKey,
+  activityKey,
+  stageKey,
+  gradeKey,
+  showGraduated,
+  headerFilters,
+  isActiveScope,
+ ])
 
  const resetFilters = () => {
   setRegistrationKey("all")
@@ -612,10 +616,47 @@ export function StudentsListPage() {
   }
  }
 
- const emptyListHint =
-  activityKey !== "all"
-   ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
-   : "沒有符合條件的學生"
+ const emptyListHint = isActiveScope
+  ? "活躍名單沒有符合條件的學生"
+  : activityKey !== "all"
+    ? "沒有符合條件的學生。活躍狀態包含在讀，以及近三個月曾報讀或退讀的學生。"
+    : "沒有符合條件的學生"
+
+ const goRosterWithSearch = () => {
+  setListScope("roster")
+ }
+
+ const includeGraduatedOnRoster = () => {
+  if (isActiveScope) setListScope("roster")
+  setShowGraduated(true)
+ }
+
+ const renderEmptyState = () => {
+  const q = search.trim()
+  const hasFilters = activeFilterCount > 0
+  return (
+   <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+    <p>{emptyListHint}</p>
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+     {q && isActiveScope ? (
+      <Button type="button" onClick={goRosterWithSearch}>
+       在學生名冊搜尋「{q}」
+      </Button>
+     ) : null}
+     {q && !isActiveScope && !showGraduated ? (
+      <Button type="button" variant="outline" onClick={includeGraduatedOnRoster}>
+       包含已畢業生
+      </Button>
+     ) : null}
+     {hasFilters ? (
+      <Button type="button" variant="outline" onClick={resetFilters}>
+       重設篩選
+      </Button>
+     ) : null}
+    </div>
+   </div>
+  )
+ }
 
  const onAddStudent = async () => {
   if (addSaving) return
@@ -729,15 +770,15 @@ export function StudentsListPage() {
 
  const schoolOptions = useMemo(() => {
   const fromRows = rows.map((r) => (r.school ?? "").trim()).filter(Boolean)
-  const all = [...COMMON_HK_SCHOOLS, ...fromRows]
+  const all = [...HK_SECONDARY_SCHOOLS, ...fromRows]
   return [...new Set(all)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
  }, [rows])
 
- const schoolFiltered = useMemo(() => {
-  const q = schoolSearch.trim().toLowerCase()
-  if (!q) return schoolOptions
-  return schoolOptions.filter((s) => s.toLowerCase().includes(q))
- }, [schoolOptions, schoolSearch])
+ const schoolSelectOptions = useMemo(() => {
+  const current = (addForm.school ?? "").trim()
+  const names = current && !schoolOptions.includes(current) ? [...schoolOptions, current] : schoolOptions
+  return names.map((s) => ({ value: s, label: s }))
+ }, [schoolOptions, addForm.school])
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
@@ -828,12 +869,13 @@ export function StudentsListPage() {
     </div>
    </div>
 
+   {!isActiveScope ? (
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-     活躍狀態（近三個月有報讀活動）
+     活躍狀態
      <span
       className="ml-1 font-normal normal-case text-muted-foreground/80"
-      title="近三個月內有報讀相關活動，可能包含近期退讀；不等於目前在讀"
+      title="在讀，或近三個月曾報讀／退讀；用於找出未續報或暫停一個月的學生"
      >
       （？）
      </span>
@@ -861,7 +903,9 @@ export function StudentsListPage() {
      })}
     </div>
    </div>
+   ) : null}
 
+   {!isActiveScope ? (
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">學業階段</div>
     <div className="flex flex-wrap gap-2">
@@ -909,6 +953,7 @@ export function StudentsListPage() {
      </button>
     </div>
    </div>
+   ) : null}
 
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">年級</div>
@@ -944,7 +989,9 @@ export function StudentsListPage() {
      {!isMobile ? (
       <>
        <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
-       <span className="text-xs text-muted-foreground">統計為目前載入範圍，預設不含已畢業生</span>
+       <span className="text-xs text-muted-foreground">
+        {isActiveScope ? "統計為活躍名單（在讀或近三個月報讀／退讀）" : "統計為學生名冊；預設不含已畢業生"}
+       </span>
       </>
      ) : null}
     </div>
@@ -967,13 +1014,17 @@ export function StudentsListPage() {
        <div className="text-xl font-bold text-primary md:text-3xl">{loading ? "…" : stats.enrolled}</div>
        <div className="text-[11px] text-muted-foreground md:text-sm">目前在讀</div>
       </div>
+      {!isActiveScope ? (
       <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
        <div className="text-xl font-bold text-success md:text-3xl">{loading ? "…" : stats.active}</div>
        <div className="text-[11px] text-muted-foreground md:text-sm">活躍生</div>
       </div>
+      ) : null}
       <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
        <div className="text-xl font-bold text-foreground md:text-3xl">{loading ? "…" : stats.total}</div>
-       <div className="text-[11px] text-muted-foreground md:text-sm">學生總數</div>
+       <div className="text-[11px] text-muted-foreground md:text-sm">
+        {isActiveScope ? "本頁人數" : "學生總數"}
+       </div>
       </div>
       <button
        type="button"
@@ -1066,10 +1117,42 @@ export function StudentsListPage() {
      <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
      學生管理
     </h1>
-   <Tag tone="info">{loading ? "…" : `${stats.total} 人`}</Tag>
+   <Tag tone="info">{loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}</Tag>
+   {!loading && filtered.length !== stats.total ? (
+    <span className="text-sm text-muted-foreground">顯示 {filtered.length} 人</span>
+   ) : null}
    </div>
 
-   {!showGraduated && hiddenGraduatedCount > 0 ? (
+   <div className="inline-flex w-full rounded-lg border border-border bg-muted/30 p-0.5 sm:w-auto" role="group" aria-label="名單範圍">
+    <button
+     type="button"
+     aria-pressed={isActiveScope}
+     onClick={() => setListScope("active")}
+     className={cn(
+      "inline-flex flex-1 items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
+      isActiveScope
+       ? "bg-primary text-primary-foreground shadow-sm"
+       : "text-muted-foreground hover:text-foreground"
+     )}
+    >
+     活躍
+    </button>
+    <button
+     type="button"
+     aria-pressed={!isActiveScope}
+     onClick={() => setListScope("roster")}
+     className={cn(
+      "inline-flex flex-1 items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
+      !isActiveScope
+       ? "bg-primary text-primary-foreground shadow-sm"
+       : "text-muted-foreground hover:text-foreground"
+     )}
+    >
+     學生名冊
+    </button>
+   </div>
+
+   {!isActiveScope && !showGraduated && hiddenGraduatedCount > 0 ? (
     <div
      role="status"
      className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-foreground"
@@ -1216,10 +1299,8 @@ export function StudentsListPage() {
           reportUserFacingError(e, { source: "StudentsListPage.openAdd", setErr: setAddErr })
           setAddForm(emptyAddForm())
          })
-        setSchoolSearch("")
        } else {
         setAddForm(emptyAddForm())
-        setSchoolSearch("")
        }
       }}
      >
@@ -1305,25 +1386,18 @@ export function StudentsListPage() {
            「在讀／非在讀」與「活躍生／非活躍生」會依報讀班別自動計算，無需手動設定。
           </p>
           <Field label="學校" className="sm:col-span-2">
-           <div className="space-y-2">
-            <Input
-             value={schoolSearch}
-             onChange={(e) => setSchoolSearch(e.target.value)}
-             placeholder="搜尋學校…"
-            />
-            <Select
-             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-             value={addForm.school ?? ""}
-             onChange={(e) => setAddForm((f) => ({ ...f, school: e.target.value }))}
-            >
-             <option value="">請選擇學校</option>
-             {schoolFiltered.map((s) => (
-              <option key={s} value={s}>
-               {s}
-              </option>
-             ))}
-            </Select>
-           </div>
+           <SearchableSelect
+            combobox
+            allowCustomValue
+            value={addForm.school ?? ""}
+            onChange={(school) => setAddForm((f) => ({ ...f, school }))}
+            options={schoolSelectOptions}
+            placeholder="請選擇學校"
+            searchPlaceholder="搜尋學校…"
+            emptyMessage="沒有符合的學校"
+            normalizeSearch={normalizeSchoolSearchKey}
+            aria-label="學校"
+           />
           </Field>
           <Field label="出生日期">
            <Input
@@ -1502,7 +1576,7 @@ export function StudentsListPage() {
      filterSourceRows={scoped}
      tags={tags}
      loading={loading}
-     emptyHint={emptyListHint}
+     emptyHint={renderEmptyState()}
      visible={visibleColumns}
      sortKey={sortKey}
      sortDir={sortDir}
@@ -1524,11 +1598,7 @@ export function StudentsListPage() {
      {loading ? (
       <SkeletonCardGrid count={4} />
      ) : filtered.length === 0 ? (
-      <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-       {activityKey !== "all"
-        ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
-        : "沒有符合條件的學生"}
-      </div>
+      renderEmptyState()
      ) : (
       <StaggerList as="div" className="space-y-2">
        {filtered.map((r) => {
@@ -1622,11 +1692,7 @@ export function StudentsListPage() {
     loading ? (
      <SkeletonCardGrid count={6} />
     ) : filtered.length === 0 ? (
-     <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-      {activityKey !== "all"
-       ? "沒有符合條件的學生。活躍狀態依近三個月報讀活動判定；若要看目前在讀名單，請改用「在讀」篩選。"
-       : "沒有符合條件的學生"}
-     </div>
+     renderEmptyState()
     ) : (
      <StaggerList as="div" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {filtered.map((r) => {
@@ -1723,16 +1789,6 @@ export function StudentsListPage() {
      </StaggerList>
     )
    )}
-
-   {!loading && hasMore ? (
-    <LoadMoreFooter
-     sentinelRef={sentinelRef}
-     hasMore={hasMore}
-     loadingMore={loadingMore}
-     totalShown={rows.length}
-     onManualLoad={() => void loadMoreStudents()}
-    />
-   ) : null}
 
    <p className="text-xs text-muted-foreground">
     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
