@@ -29,7 +29,7 @@
 | 文件 | 主題 |
 | --- | --- |
 | [試堂出單先上紙](enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) | 試堂須出單確認後先增加已繳堂數、先上點名紙；免費亦出 $0 單；老師收件匣通知 |
-| [學生狀態分類](enrollment/STUDENT_STATUS_CLASSIFICATION.md) | 註冊／報讀／在讀／活躍等 |
+| [學生狀態分類](enrollment/STUDENT_STATUS_CLASSIFICATION.md) | 註冊／報讀／在讀／活躍（在讀或近三個月報讀／退讀） |
 | [學生編號](enrollment/STUDENT_CODE.md) | 學號規則 |
 
 ### 出席／扣堂

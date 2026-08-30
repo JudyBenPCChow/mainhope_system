@@ -68,6 +68,18 @@ function prevMonthKey(monthKey: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
+export const PAYROLL_DEFAULT_MONTH_LOOKBACK_DAYS = 10
+
+/** 開頁預設月份：今天往前 10 日所屬曆月（月初仍睇上月糧）。 */
+export function defaultPayrollMonthKey(now = new Date()): string {
+  const d = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - PAYROLL_DEFAULT_MONTH_LOOKBACK_DAYS
+  )
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
 export function listPayrollMonthOptions(now = new Date()): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = []
   for (let i = 0; i < 14; i++) {

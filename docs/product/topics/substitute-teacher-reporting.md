@@ -9,7 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 政策／指引 | [`SCHEDULE_SUBSTITUTE_TEACHER.md`](../policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md)；前線 [`manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md`](../playbooks/frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) |
 | 盤點日期 | 2026-07-31 |
-| 本波更新 | 2026-08-02 |
+| 本波更新 | 2026-08-30（財務核對 UX 關帳，匯出盤點閘已開） |
 
 ## 開工閘（agent 必讀）
 
@@ -17,7 +17,7 @@
 
 | 本波 | 對上一個工程 | 完成條件 |
 | --- | --- | --- |
-| 待做 1–2：薪資／堂數匯出盤點、「按老師篩出勤」、UI／匯出區分主責／當日／代堂 | [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) | 財務核對 UX **關帳**（`done`；出席紀錄老師篩選已跟當日授課老師） |
+| 待做 1–2：薪資／堂數匯出盤點、「按老師篩出勤」、UI／匯出區分主責／當日／代堂 | [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) | **已滿足**（2026-08-30 關帳） |
 | 待做 4：小組換主責只同步未來堂 | 無 | 可另開；唔使等核對 UX |
 | 暫緩 E9／可選雙重預約硬擋 | 產品另議 | 唔當可續做 |
 

@@ -9,7 +9,7 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
 | 上次更新 | 2026-08-29（已編更月工作表可「儲存變更」；alien 建帳／4c／4d 關帳） |
-| 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；待發佈） |
+| 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；工程已關帳） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
 | UI 設計 v1 | （首輪備查） |
@@ -23,7 +23,7 @@
 | --- | --- | --- |
 | H11 沙盒審閱 | 無 | 可開工（營運睇沙盒） |
 | 正式產品實作（schema／月費登記／編更／側欄） | 本檔 H11 | **H11 已通過（2026-08-24）**；跟  |
-| 補 2627 指引 §7 編更 | 同上 H11 | **完成**（§7.4 已寫入守則）。發佈／掛索引見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md) |
+| 補 2627 指引 §7 編更 | 同上 H11 | **完成**（§7.4 已寫入守則）。工程見 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（已 `done`） |
 
 ---
 
