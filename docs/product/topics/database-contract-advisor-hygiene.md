@@ -2,12 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（2026-08-21 已覆核；未開工） |
+| 狀態 | `open`（Wave 1 DDL 已喺 production 生效；generated types／分類帳未做；repo 無對應 migration） |
 | 優先 | 高 |
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次（DDL 先行；禁 `CREATE OR REPLACE` 做今次權限／search_path；token RPC 永不 revoke anon） |
+| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次；**2026-08-29** 再掃：Wave 1 目標態已在 production，但本 repo 無單檔 migration |
 
 ## 點解合併
 
@@ -56,11 +56,29 @@ Production `MainHope_production`。Staging `mainhope-staging` 已 ACTIVE（08-14
 - `public.mgmt_active_roles`（4 行）：P0-2 雙寫後備，留
 - `public.tmp_students_import`、`weekday_aliases`、`class_restructure_audit_logs`：0 行 helper；本輪唔刪
 
-## 建議波次（2026-08-21 模擬後修訂）
+## 2026-08-29 覆核（對住 08-21 基線）
+
+Production `MainHope_production`。Staging `mainhope-staging` 仍 INACTIVE。
+
+| 項目 | 2026-08-21 | 2026-08-29 | 判斷 |
+| --- | --- | --- | --- |
+| 前端 `Database` 型別 | 無 | 仍無 | **Wave 2 未做** |
+| Security advisor | 89（76 WARN） | **75（62 WARN）** | 跌幅對應 Wave 1 項 |
+| Performance advisor | 156（72 WARN） | **164（76 WARN）** | WARN 微升；仍以 multiple permissive 為主 |
+| 3 支 trigger EXECUTE | 要 REVOKE | **anon／authenticated 均不可 EXECUTE** | Wave 1 已生效 |
+| `list_portal_class_schedules` anon | 要 REVOKE | **anon 不可；authenticated 可** | Wave 1 已生效 |
+| Token RPC anon | 禁止 revoke | 5 支仍可 EXECUTE | 正確，勿動 |
+| 8 支 INVOKER `search_path` | 未釘 | **全部 `search_path=public`** | Wave 1 已生效 |
+| duplicate email index | `app_users_email_lower_uidx` 仍在 | **只剩 `app_users_email_unique`** | Wave 1 已生效 |
+| Leaked password | 關 | **仍關** | 另題 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md) |
+
+**缺口：** 本 repo `supabase/migrations/` **無**對應「REVOKE trigger／ALTER search_path／DROP 重複 index」單檔。production 已係目標態，新環境／重建會漂返。下一刀先補一條 **idempotent** migration 對齊歷史，再做 generated types。
+
+## 建議波次（2026-08-21 模擬後修訂；08-29 註）
 
 原 08-14 波次係「型別 → 安全分類 → 效能 → hygiene」。模擬落實後改為：
 
-1. **一條 DDL migration（先做）**：REVOKE 3 支 trigger EXECUTE；REVOKE `list_portal_class_schedules` anon；`ALTER` 8 支 INVOKER `search_path`；`DROP INDEX app_users_email_lower_uidx`。單檔 `db:apply`。套用後只讀 SQL 驗 trigger 仍在、owner 仍有 EXECUTE；**禁止**喺 production 插測試列。Staging 唔當試金石。
+1. **一條 DDL migration（先做；08-29：production 已係目標態）**：補 **idempotent** 單檔（`REVOKE`／`ALTER … SET search_path`／`DROP INDEX IF EXISTS app_users_email_lower_uidx`）對齊 git 歷史。唔用 `CREATE OR REPLACE`。套用後只讀 SQL 驗 trigger 仍在、owner 仍有 EXECUTE；**禁止**喺 production 插測試列。Staging 唔當試金石。
 2. **Schema contract**：`supabase gen types typescript --linked --schema public` → `src/types/database.ts`；`createClient<Database>`；`db:types` 指令。第一刀**唔**加 CI types drift check（欠 token）。預期 tsc 熱點：insert／upsert／rpc 參數、jsonb `Json`、`Record<string, unknown>` payload。`supabase/functions/` 唔改。
 3. **防再漂**：`CREATE OR REPLACE FUNCTION` 會還原 `PUBLIC` EXECUTE；改完 trigger 函數必須再 REVOKE；schema 改完要 regen types。寫入 migration skill／規則。
 4. **分類帳**：每個剩餘 security WARN 一行「已修／接受＋理由／不適用」。效能黃燈本輪多數接受；FK index 等表大或 EXPLAIN 證實先加。

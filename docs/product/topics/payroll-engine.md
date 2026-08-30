@@ -50,7 +50,7 @@
 2. 費率管理頁
 3. 真實銀行帳號欄
 4. 功輔計糧 → [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)
-5. 財務核對 UX → [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md)
+5. 財務核對 UX → [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md)（**done**）
 
 ## 相關文件
 
