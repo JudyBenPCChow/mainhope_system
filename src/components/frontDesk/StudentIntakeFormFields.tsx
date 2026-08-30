@@ -13,20 +13,8 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeStudentGrade } from "@/lib/studentGrade"
 import type { FrontDeskIntakePayload } from "@/services/frontDeskIntakeQueries"
+import { HK_SECONDARY_SCHOOLS, schoolNameMatchesQuery } from "@/lib/hkSecondarySchools"
 import { PHONE_COUNTRY_CODES, PREFERRED_CONTACT_METHODS, PRIMARY_CONTACT_PERSONS } from "@/services/studentQueries"
-
-const COMMON_HK_SCHOOLS = [
- "英華書院",
- "聖保羅男女中學",
- "拔萃女書院",
- "喇沙書院",
- "華仁書院",
- "協恩中學",
- "伊利沙伯中學",
- "皇仁書院",
- "拔萃男書院",
- "聖若瑟書院",
-] as const
 
 export function emptyIntakeForm(): FrontDeskIntakePayload {
  return {
@@ -80,12 +68,12 @@ export function StudentIntakeFormFields({
 }: Props) {
  const [schoolSearch, setSchoolSearch] = useState("")
  const schoolOptions = useMemo(() => {
-  return [...new Set([...COMMON_HK_SCHOOLS, ...extraSchools])].sort((a, b) => a.localeCompare(b, "zh-Hant"))
+  return [...new Set([...HK_SECONDARY_SCHOOLS, ...extraSchools])].sort((a, b) => a.localeCompare(b, "zh-Hant"))
  }, [extraSchools])
  const schoolFiltered = useMemo(() => {
-  const q = schoolSearch.trim().toLowerCase()
+  const q = schoolSearch.trim()
   if (!q) return schoolOptions
-  return schoolOptions.filter((s) => s.toLowerCase().includes(q))
+  return schoolOptions.filter((s) => schoolNameMatchesQuery(s, q))
  }, [schoolOptions, schoolSearch])
 
  const patch = (partial: Partial<FrontDeskIntakePayload>) => onChange({ ...value, ...partial })

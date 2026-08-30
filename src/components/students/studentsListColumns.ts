@@ -7,6 +7,7 @@ import {
 } from "@/components/list/listFilterUtils"
 import { GRADE_FILTER_PRIMARY_KEY } from "@/components/students/studentsListFilters"
 import { isPrimaryStudentGrade, STUDENT_GRADE_CODES } from "@/lib/studentGrade"
+import { schoolNameMatchesQuery } from "@/lib/hkSecondarySchools"
 import {
  normalizeAcademicStage,
  normalizeActivityStatus,
@@ -208,7 +209,7 @@ export function studentMatchesHeaderFilters(
  }
  if (phoneQ && !containsIgnoreCase(r.student_phone, phoneQ)) return false
  if (parentQ && !containsIgnoreCase(r.parent_phone, parentQ)) return false
- if (schoolQ && !containsIgnoreCase(r.school, schoolQ)) return false
+ if (schoolQ && !schoolNameMatchesQuery(r.school ?? "", filters.school.trim())) return false
  if (createdQ && !containsIgnoreCase(createdAtLocalYmd(r.created_at), createdQ)) return false
  if (subQ) {
   const joined = (tags.get(r.id) ?? []).join(" ").toLowerCase()
