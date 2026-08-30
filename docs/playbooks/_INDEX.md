@@ -29,6 +29,12 @@
 | [Cody 每月薪酬複核](finance/cody-payroll-review-guide.html) | 複核工作指引（另有 PDF） |
 | [Cody 用戶感受回報](finance/cody-ux-feedback-guide.html) | 回報指引（另有 PDF） |
 
+### 系統更新（同事讀本）
+
+| 篇章 | 簡介 |
+| --- | --- |
+| [系統更新日志](SYSTEM_UPDATES.md) | 給同事睇的畫面／流程更新；由新到舊。說「產出更新總結」會加一則 |
+
 ### 營運清理（`ops/`）
 
 | 篇章 | 簡介 |
