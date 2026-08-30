@@ -37,6 +37,8 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/meta/RLS_ROLLOUT.md`。
 - **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。
+- **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。唔好用 `academic_years.end_date`（6/30）當專科最後堂——6/29、6/30 專科已完課（功輔先仍開）。假期列「取消」＝校舍停課，唔係要補嘅取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
+- **查庫／模擬運作**：唔好把空班、暑期未續常規、學期完仍「就讀中」、未繳仍上點名紙當成缺陷。見 `.cursor/rules/ops-data-check.mdc`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 
 ## 讀檔階梯
