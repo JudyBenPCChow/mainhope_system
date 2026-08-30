@@ -1242,7 +1242,7 @@ export function StudentDetailView() {
          <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
           {student.activity_status}
           <span className="mt-1 block text-xs text-muted-foreground">
-           近三個月有報讀活動（自動計算；可能含近期退讀，不等於目前在讀）
+           在讀，或近三個月曾報讀／退讀（自動計算；在讀一定活躍）
           </span>
          </p>
         </Field>
