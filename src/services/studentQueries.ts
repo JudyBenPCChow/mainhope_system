@@ -34,7 +34,6 @@ import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { nextStudentCode } from "@/lib/studentCode"
 import { deriveActivityStatus, enrollmentEventYmdFromRow } from "@/lib/studentActivityStatus"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
-import { academicYearIdOpsOrFilter } from "@/lib/softArchiveListScope"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -42,7 +41,7 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
-import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
+import { fetchEnrollableAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
  return normalizeStudentGrade(raw)
@@ -1920,40 +1919,47 @@ export type ClassOption = {
  classKind: ClassKind
 }
 
-export async function fetchClassOptions(opts?: {
- includeOlderYears?: boolean
-}): Promise<ClassOption[]> {
+export async function fetchClassOptions(): Promise<ClassOption[]> {
  if (!supabase) return []
- /** 學生詳細頁「選擇班別加入」用：排除一對一（應走一對一學生頁建立） */
- const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
- const window = includeOlder ? null : await fetchOpsAcademicYearWindow()
- const yearOr = window?.ids.length ? academicYearIdOpsOrFilter(window.ids) : null
+ /** 學生詳細頁／前台「選擇班別加入」：目前學年（暑期目前時另含下一常規）；排除一對一 */
+ const window = await fetchEnrollableAcademicYearWindow()
+ if (!window?.ids.length) return []
+ const yearIds = window.ids
+ const enrollableLabels = new Set(window.labels)
  const classSelectWithMode =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const classSelectLegacy =
   "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
- const firstQ = supabase.from("classes").select(classSelectWithMode).order("subject")
- const first = await (yearOr ? firstQ.or(yearOr) : firstQ)
+ const first = await supabase
+  .from("classes")
+  .select(classSelectWithMode)
+  .in("academic_year_id", yearIds)
+  .order("subject")
  const second =
   first.error && /does not exist/i.test(first.error.message)
-   ? await (() => {
-      const q = supabase.from("classes").select(classSelectBase).order("subject")
-      return yearOr ? q.or(yearOr) : q
-     })()
+   ? await supabase
+      .from("classes")
+      .select(classSelectBase)
+      .in("academic_year_id", yearIds)
+      .order("subject")
    : null
  const res =
   second && second.error && /does not exist/i.test(second.error.message)
-   ? await (() => {
-      const q = supabase.from("classes").select(classSelectLegacy).order("subject")
-      return yearOr ? q.or(yearOr) : q
-     })()
+   ? await supabase
+      .from("classes")
+      .select(classSelectLegacy)
+      .in("academic_year_id", yearIds)
+      .order("subject")
    : (second ?? first)
  if (res.error) throw res.error
  const out: ClassOption[] = []
  for (const r of (res.data ?? []) as Record<string, unknown>[]) {
   const row = r
+  const ay = row.academic_years as Record<string, unknown> | null
+  const ayLabel = ay?.label != null ? String(ay.label).trim() : ""
+  if (ayLabel && !enrollableLabels.has(ayLabel)) continue
   const subject = String(row.subject ?? "")
   const kind = resolveClassKind(
    row.class_kind != null ? String(row.class_kind) : null,

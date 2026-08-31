@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+ listEnrollableAcademicYearLabels,
  listRetainedAcademicYearLabels,
  opsWindowDateBounds,
  resolveCurrentAcademicYearLabel,
@@ -85,5 +86,23 @@ describe("listRetainedAcademicYearLabels", () => {
    { label: "26SM", start_date: "2026-07-01", end_date: "2026-08-31", is_current: true },
   ]
   expect(listRetainedAcademicYearLabels(thin, "ops", "2026-07-20")).toEqual(["26SM"])
+ })
+})
+
+describe("listEnrollableAcademicYearLabels", () => {
+ it("常規目前（2627）只含目前學年，不含 26SM", () => {
+  expect(listEnrollableAcademicYearLabels([...SEED], "2026-09-01")).toEqual(["2627"])
+  expect(listEnrollableAcademicYearLabels([...SEED], "2026-10-01")).toEqual(["2627"])
+ })
+
+ it("暑期目前另含下一常規", () => {
+  expect(listEnrollableAcademicYearLabels([...SEED], "2026-07-20")).toEqual(["26SM", "2627"])
+ })
+
+ it("暑期目前但清單無下一常規時不捏造", () => {
+  const thin = [
+   { label: "26SM", start_date: "2026-07-01", end_date: "2026-08-31", is_current: true },
+  ]
+  expect(listEnrollableAcademicYearLabels(thin, "2026-07-20")).toEqual(["26SM"])
  })
 })
