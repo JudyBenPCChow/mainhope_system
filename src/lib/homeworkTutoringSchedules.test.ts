@@ -13,6 +13,12 @@ describe("homeworkTutoringSchedules", () => {
     expect(mdKeyToIso("2026-10", "9/2")).toBeNull()
   })
 
+  it("mdKeyToIso maps ISO dates in the same month", () => {
+    expect(mdKeyToIso("2026-09", "2026-09-21")).toBe("2026-09-21")
+    expect(mdKeyToIso("2026-09", "9/21")).toBe("2026-09-21")
+    expect(mdKeyToIso("2026-10", "2026-09-21")).toBeNull()
+  })
+
   it("monthDateRange returns first and last day", () => {
     expect(monthDateRange("2026-10")).toEqual({ from: "2026-10-01", to: "2026-10-31" })
   })

@@ -175,6 +175,10 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const [sheetMonth, setSheetMonth] = useState(defaultRosterMonth)
   const sheetMonthRef = useRef(sheetMonth)
   sheetMonthRef.current = sheetMonth
+  const availRef = useRef(avail)
+  availRef.current = avail
+  const submitStatusRef = useRef(submitStatus)
+  submitStatusRef.current = submitStatus
   const loadedMonthRef = useRef("")
   const [teacherDutyMonth, setTeacherDutyMonth] = useState(() => {
     const bounds = academicYearMonthBounds("2627")
@@ -212,7 +216,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         if (!nextStatus[t.id]) nextStatus[t.id] = "未交"
       }
       setAvail(nextAvail)
+      availRef.current = nextAvail
       setSubmitStatus(nextStatus)
+      submitStatusRef.current = nextStatus
       setRosterMonthId(roster.id)
       setMonthRosterStatus((prev) => ({ ...prev, [yearMonth]: roster.status }))
       setDutyDays(mapDutyDays(roster.days))
@@ -354,42 +360,61 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   }, [pathname, role, hwClass, teacherDutyMonth, changeLoadedMonth])
 
   const persistTeacherAvail = useCallback(
-    async (teacherId: string, status: "草稿" | "已提交", entries: AllTeacherAvailability) => {
+    async (
+      teacherId: string,
+      status: "草稿" | "已提交",
+      entries: AllTeacherAvailability,
+      targetMonth = sheetMonthRef.current
+    ) => {
+      await upsertHomeworkAvailability({
+        teacherId,
+        targetMonth,
+        status,
+        entries: entries[teacherId] ?? {},
+      })
+    },
+    []
+  )
+
+  const persistDraftAvailSnapshot = useCallback(
+    async (entries: AllTeacherAvailability, statuses: AllTeacherSubmitStatus, targetMonth: string) => {
+      for (const [teacherId, status] of Object.entries(statuses)) {
+        if (status !== "草稿" && status !== "已提交") continue
+        try {
+          await persistTeacherAvail(teacherId, status, entries, targetMonth)
+        } catch (e) {
+          reportUserFacingError(e, { source: "HomeworkTutoringApp.persistTeacherAvail" })
+          throw e
+        }
+      }
+    },
+    [persistTeacherAvail]
+  )
+
+  const persistTeacherAvailNow = useCallback(
+    async (teacherId: string, status: "草稿" | "已提交") => {
       try {
-        await upsertHomeworkAvailability({
-          teacherId,
-          targetMonth: sheetMonth,
-          status,
-          entries: entries[teacherId] ?? {},
+        await persistTeacherAvail(teacherId, status, availRef.current)
+        setSubmitStatus((prev) => {
+          const next = { ...prev, [teacherId]: status }
+          submitStatusRef.current = next
+          return next
         })
       } catch (e) {
         reportUserFacingError(e, { source: "HomeworkTutoringApp.persistTeacherAvail" })
+        throw e
       }
     },
-    [sheetMonth]
+    [persistTeacherAvail]
   )
 
-  const setAvailAndMaybePersist: typeof setAvail = useCallback((action) => {
+  const setAvailKeepingRef: typeof setAvail = useCallback((action) => {
     setAvail((prev) => {
       const next = typeof action === "function" ? action(prev) : action
+      availRef.current = next
       return next
     })
   }, [])
-
-  const setSubmitStatusPersisted: typeof setSubmitStatus = useCallback(
-    (action) => {
-      setSubmitStatus((prev) => {
-        const next = typeof action === "function" ? action(prev) : action
-        for (const [teacherId, status] of Object.entries(next)) {
-          if (status === "草稿" || status === "已提交") {
-            void persistTeacherAvail(teacherId, status, avail)
-          }
-        }
-        return next
-      })
-    },
-    [avail, persistTeacherAvail]
-  )
 
   const setMonthRosterStatusPersisted: typeof setMonthRosterStatus = useCallback(
     (action) => {
@@ -417,6 +442,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const handlePublishRoster = useCallback(
     async (yearMonth: string, monthDays: HomeworkDutyDay[]) => {
       if (!hwClass) throw new Error("尚未建立功課輔導班")
+      await persistDraftAvailSnapshot(availRef.current, submitStatusRef.current, yearMonth)
       await publishHomeworkRosterMonth({
         classId: hwClass.id,
         academicYearId: hwClass.academicYearId,
@@ -439,7 +465,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       })
       await loadMonthData(hwClass, yearMonth, hwTeachers)
     },
-    [hwClass, hwTeachers, loadMonthData]
+    [hwClass, hwTeachers, loadMonthData, persistDraftAvailSnapshot]
   )
 
   const teacherPage = TEACHER_BY_PATH[pathname]
@@ -517,9 +543,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           students={students}
           fees={fees}
           avail={avail}
-          setAvail={setAvailAndMaybePersist}
+          setAvail={setAvailKeepingRef}
           submitStatus={submitStatus}
-          setSubmitStatus={setSubmitStatusPersisted}
+          onPersistTeacherAvail={persistTeacherAvailNow}
           dutyDays={dutyDays}
           setDutyDays={setDutyDays}
           monthRosterStatus={monthRosterStatus}
@@ -561,9 +587,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           teacherId={teacherId}
           teacherDisplayName={teacherDisplayName}
           avail={avail}
-          setAvail={setAvailAndMaybePersist}
+          setAvail={setAvailKeepingRef}
           submitStatus={submitStatus}
-          setSubmitStatus={setSubmitStatusPersisted}
+          onPersistTeacherAvail={persistTeacherAvailNow}
           rosterPublishStatus={rosterPublishStatus}
           dutyDays={dutyDays}
           rosterMonthKey={displayedMonth}
