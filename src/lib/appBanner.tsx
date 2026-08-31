@@ -9,6 +9,7 @@ import {
  useState,
  type PropsWithChildren,
 } from "react"
+import { createPortal } from "react-dom"
 import { useNavigate } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -16,8 +17,22 @@ import { cn } from "@/lib/utils"
 
 export type BannerTone = "default" | "info" | "success" | "warning" | "error"
 
-/** 自動關閉秒數（毫秒） */
+/** 一般／成功通知自動關閉（毫秒） */
 export const BANNER_AUTO_DISMISS_MS = 2000
+/** 錯誤／警告需閱讀，停留較長（毫秒） */
+export const BANNER_ERROR_DISMISS_MS = 8000
+
+/**
+ * Overlay z-index ladder（見 docs/meta/UI_DESIGN_INSTRUCTIONS.md §14）：
+ * Apo 90 → 更新橫幅 100 → DetailLayer 200 → FilterSheet／NavDrawer 250
+ * → Dialog 260/261 → Confirm 270/271 → AppBanner 280 → Select／Date* 320
+ */
+export const APP_BANNER_Z_CLASS = "z-[280]"
+
+function dismissMsForTone(tone: BannerTone): number {
+ if (tone === "error" || tone === "warning") return BANNER_ERROR_DISMISS_MS
+ return BANNER_AUTO_DISMISS_MS
+}
 
 type BannerAction = {
  pageLabel: string
@@ -86,11 +101,12 @@ export function AppBannerProvider({ children }: PropsWithChildren) {
  const pushBanner = useCallback(
   (input: AppBannerInput) => {
    const id = nextBannerId()
-   setBanners((prev) => [{ id, expanded: false, tone: input.tone ?? "default", ...input }, ...prev])
+   const tone = input.tone ?? "default"
+   setBanners((prev) => [{ id, expanded: false, tone, ...input }, ...prev])
    const timer = setTimeout(() => {
     timersRef.current.delete(id)
     setBanners((prev) => prev.filter((b) => b.id !== id))
-   }, BANNER_AUTO_DISMISS_MS)
+   }, dismissMsForTone(tone))
    timersRef.current.set(id, timer)
   },
   []
@@ -129,10 +145,16 @@ export function AppBannerViewport() {
  const navigate = useNavigate()
  const { banners, dismissBanner, toggleExpand } = useAppBanner()
 
- if (banners.length === 0) return null
+ if (banners.length === 0 || typeof document === "undefined") return null
 
- return (
-  <div className="pointer-events-none fixed left-1/2 top-3 z-[70] w-[min(900px,calc(100vw-1.5rem))] -translate-x-1/2">
+ // 與 DetailLayer／Dialog 同樣 portal 到 body，避免被 Layout overflow／堆疊上下文蓋住
+ return createPortal(
+  <div
+   className={cn(
+    "pointer-events-none fixed left-1/2 top-3 w-[min(900px,calc(100vw-1.5rem))] -translate-x-1/2",
+    APP_BANNER_Z_CLASS
+   )}
+  >
    <div className="flex flex-col gap-2">
     {banners.map((b) => {
      const Icon = toneIcon(b.tone ?? "default")
@@ -184,6 +206,7 @@ export function AppBannerViewport() {
      )
     })}
    </div>
-  </div>
+  </div>,
+  document.body
  )
 }
