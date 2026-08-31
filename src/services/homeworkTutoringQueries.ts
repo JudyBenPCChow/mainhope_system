@@ -14,7 +14,12 @@ import {
   mdKeyToIso,
   monthDateRange,
 } from "@/lib/homeworkTutoringSchedules"
-import type { AvailEntry, HomeworkDutyAssignment } from "@/lib/homeworkTutoringUi"
+import {
+  applyHomeworkOccupancyClassroomMoveToDuty,
+  type AvailEntry,
+  type HomeworkDutyAssignment,
+  type HomeworkDutyDay,
+} from "@/lib/homeworkTutoringUi"
 import { fetchClassrooms } from "@/services/classroomQueries"
 import { insertScheduleRow } from "@/services/scheduleWriteQueries"
 
@@ -616,7 +621,7 @@ export async function clearHomeworkOccupancySchedules(
   if (error) throw error
 }
 
-/** 依當值日寫入 schedules 佔室（15:15 起；兩室） */
+/** 依當值日寫入 schedules 佔室（15:15 起；只寫已開嘅房） */
 export async function syncHomeworkOccupancySchedules(opts: {
   classId: string
   yearMonth: string
@@ -647,6 +652,88 @@ export async function syncHomeworkOccupancySchedules(opts: {
     count += 1
   }
   return count
+}
+
+/**
+ * 排程管理改功輔佔室課室後，寫返該日編更房號。找不到當值日則只當排程已改。
+ */
+export async function applyHomeworkOccupancyClassroomMove(opts: {
+  classId: string
+  scheduledDate: string
+  fromClassroomId: string | null
+  toClassroomId: string | null
+}): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  if (!opts.toClassroomId) throw new Error("功輔佔室必須指定課室")
+  if (opts.fromClassroomId === opts.toClassroomId) return
+
+  const rooms = await fetchClassrooms()
+  const nameById = new Map(rooms.map((r) => [r.id, r.name.trim()]))
+  const fromName = opts.fromClassroomId ? nameById.get(opts.fromClassroomId) ?? "" : ""
+  const toName = nameById.get(opts.toClassroomId)
+  if (!toName) throw new Error("找不到目標課室")
+
+  const month = monthFirstDay(opts.scheduledDate.slice(0, 7))
+  const { data: roster, error: rosterErr } = await supabase
+    .from("homework_tutoring_roster_months")
+    .select("id")
+    .eq("class_id", opts.classId)
+    .eq("roster_month", month)
+    .maybeSingle()
+  if (rosterErr) throw rosterErr
+  if (!roster) return
+
+  const rosterId = String((roster as { id: string }).id)
+  const { data: rawDay, error: dayErr } = await supabase
+    .from("homework_tutoring_duty_days")
+    .select(
+      "id, duty_date, session_start, session_end, holiday_label, secondary_room, primary_room, secondary_teacher_id, primary_teacher_id, homework_tutoring_duty_assignments ( teacher_id, session_start, session_end, room, sort_order )"
+    )
+    .eq("roster_month_id", rosterId)
+    .eq("duty_date", opts.scheduledDate.slice(0, 10))
+    .maybeSingle()
+  if (dayErr) throw dayErr
+  if (!rawDay) return
+
+  const r = rawDay as Record<string, unknown>
+  const date = String(r.duty_date ?? "").slice(0, 10)
+  const parsed = new Date(`${date}T12:00:00`)
+  const weekday = WEEKDAY_CHARS[parsed.getDay()] ?? ""
+  const start = timeToHm(r.session_start != null ? String(r.session_start) : null)
+  const end = timeToHm(r.session_end != null ? String(r.session_end) : null, "19:30")
+  const mm = Number(date.slice(5, 7))
+  const dd = Number(date.slice(8, 10))
+  const uiDay: HomeworkDutyDay = {
+    date: `${mm}/${dd}`,
+    weekday,
+    holiday: r.holiday_label != null ? String(r.holiday_label) : undefined,
+    start,
+    end,
+    secondaryRoom: r.secondary_room != null ? String(r.secondary_room) : null,
+    primaryRoom: r.primary_room != null ? String(r.primary_room) : null,
+    secondaryTeacherId:
+      r.secondary_teacher_id != null ? String(r.secondary_teacher_id) : undefined,
+    primaryTeacherId: r.primary_teacher_id != null ? String(r.primary_teacher_id) : undefined,
+    assignments: mapAssignmentRows(r.homework_tutoring_duty_assignments),
+  }
+  const patched = applyHomeworkOccupancyClassroomMoveToDuty(
+    uiDay,
+    fromName || uiDay.secondaryRoom?.trim() || "17D",
+    toName
+  )
+  const dutyDayId = String(r.id)
+  const { error: updErr } = await supabase
+    .from("homework_tutoring_duty_days")
+    .update({
+      secondary_room: patched.secondaryRoom,
+      primary_room: patched.primaryRoom,
+      secondary_teacher_id: patched.secondaryTeacherId || null,
+      primary_teacher_id: patched.primaryTeacherId || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", dutyDayId)
+  if (updErr) throw updErr
+  await replaceHomeworkDutyAssignments(dutyDayId, patched.holiday ? [] : patched.assignments)
 }
 
 /**

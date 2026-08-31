@@ -17,6 +17,8 @@ import { can } from "@/lib/authzProfile"
 import { payrollWorkbenchPath } from "@/lib/payroll/returnNav"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
+import { isUnassignedTeachingTeacherIssue, scheduleTeacherDisplayName } from "@/lib/privateClassKind"
+import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -165,7 +167,7 @@ export function ScheduleDetailView() {
         <span>無綁定班別（約房／其他）</span>
        )}
       </div>
-      {canManageSchedules && !row.teacher_id && !row.status.includes("取消") ? (
+      {canManageSchedules && isUnassignedTeachingTeacherIssue(row) ? (
        <div
         role="status"
         className="mt-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
@@ -179,6 +181,7 @@ export function ScheduleDetailView() {
         {row.status.includes("取消") && row.cancel_reason ? ` · ${row.cancel_reason}` : ""}
        </Tag>
        {row.is_extra_lesson ? <Tag tone={statusToTagTone("加堂")}>加堂</Tag> : null}
+       {isHomeworkOccupancySchedule(row) ? <Tag tone={statusToTagTone("佔室")}>佔室</Tag> : null}
        {(() => {
         const subTag = formatScheduleSubstituteTag({
          teacher_id: row.teacher_id,
@@ -203,9 +206,11 @@ export function ScheduleDetailView() {
         >
          老師：{row.teacher_name ?? "—"}
         </Link>
-       ) : canManageSchedules ? (
+       ) : canManageSchedules && isUnassignedTeachingTeacherIssue(row) ? (
         <Tag tone="warning">未指定老師</Tag>
-       ) : null}
+       ) : (
+        <Tag tone="default">老師：{scheduleTeacherDisplayName(row, { warnIfUnassigned: false })}</Tag>
+       )}
        <Tag tone="default">
         <span className="inline-flex items-center gap-1">
          <MapPin className="h-3.5 w-3.5" aria-hidden />
@@ -539,7 +544,13 @@ export function ScheduleDetailView() {
       </div>
      </section>
 
-     {canManageSchedules ? (
+     {canManageSchedules && isHomeworkOccupancySchedule(row) ? (
+      <div className="rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
+       <p className="text-sm text-muted-foreground">
+        功輔佔室唔使點名、唔好取消或刪除。放假請用功輔校曆；改課室請到排程管理拖曳或「移動到…」。加開第二房請到當值編更。
+       </p>
+      </div>
+     ) : canManageSchedules ? (
       <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-dashed border-border bg-muted/20 p-6 md:p-8">
        <label className="flex items-center gap-2 text-sm font-medium md:text-base">
         <span className="text-muted-foreground">變更狀態</span>

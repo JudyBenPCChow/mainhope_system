@@ -20,6 +20,8 @@ import {
  standardSlotIndexForSchedule,
 } from "@/lib/scheduleDayView"
 import { cn } from "@/lib/utils"
+import { scheduleTeacherDisplayName } from "@/lib/privateClassKind"
+import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
 import type { RoomRecord } from "@/services/classroomQueries"
 import { localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
@@ -183,10 +185,17 @@ export function MobileDayViewGrid({
       {s.start_time && s.end_time
        ? `${s.start_time}–${s.end_time}`
        : s.start_time ?? ""}
-      {s.teacher_name ? ` · ${s.teacher_name}` : ""}
+      {(() => {
+       const teacherLabel = scheduleTeacherDisplayName(s, { warnIfUnassigned: false })
+       return teacherLabel !== "—" ? ` · ${teacherLabel}` : ""
+      })()}
       {timeHint ? ` · ${timeHint}` : ""}
      </div>
+     {isHomeworkOccupancySchedule(s) ? (
+      <div className="mt-0.5 text-xs text-muted-foreground">佔室（唔使點名）</div>
+     ) : (
      <div className="mt-0.5 text-xs text-muted-foreground">{studentSummary}</div>
+     )}
      {inactiveRoomName(s) ? (
       <div className="mt-0.5 text-xs text-warning">原課室：{inactiveRoomName(s)}</div>
      ) : null}

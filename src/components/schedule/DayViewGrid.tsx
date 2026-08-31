@@ -12,6 +12,8 @@ import {
  standardSlotIndexForSchedule,
 } from "@/lib/scheduleDayView"
 import { statusToTagTone } from "@/lib/statusTag"
+import { scheduleTeacherDisplayName } from "@/lib/privateClassKind"
+import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
 import { cn } from "@/lib/utils"
 import type { RoomRecord } from "@/services/classroomQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
@@ -170,11 +172,15 @@ export function DayViewScheduleCard({
     </p>
    ) : null}
    <p className="mt-1.5 break-words text-sm leading-relaxed opacity-90">
-    老師：{schedule.teacher_name?.trim() || "—"}
+    老師：{scheduleTeacherDisplayName(schedule, { warnIfUnassigned: false })}
    </p>
+   {isHomeworkOccupancySchedule(schedule) ? (
+    <p className="mt-0.5 text-sm leading-relaxed opacity-90">佔室（唔使點名）</p>
+   ) : (
    <p className="mt-0.5 break-words text-sm leading-relaxed opacity-90" title={studentsLoading ? undefined : studentNames.join("、")}>
     學生：{studentSummary}
    </p>
+   )}
    {inactiveRoomName ? (
     <p className="mt-1 text-sm text-warning">原課室：{inactiveRoomName}（此日未開放）</p>
    ) : null}
