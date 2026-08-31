@@ -70,13 +70,13 @@
 ## 不可混用
 
 - 同一 `2627` 堂次 **不可** 用舊「日期→期數」推上紙。
-- `26SM` 暑期班仍走舊路徑至日落；**勿** 用 2627 池邏輯改暑期資料。
+- `26SM` 暑期班**永遠**走舊路徑；**勿** 用 2627 池邏輯改暑期資料。
 
 ## 失敗時
 
 1. 記錄學生 id、班別、池 id、排程 id、操作步驟。
 2. 查 `mgmt_audit_log` 非當期寫入紀錄。
-3. 回報 [`summer-enrollment-roster-consistency.md`](../../product/topics/summer-enrollment-roster-consistency.md) 分題；**勿** 標 `done` 直至關帳標準達成。
+3. 回報 [`summer-enrollment-roster-consistency.md`](../../product/topics/summer-enrollment-roster-consistency.md)（**已關帳**）；新發現另開分題，勿重開日落／廢 `makeup_of`。
 
 ## 驗收紀錄（2026-08-28）
 
