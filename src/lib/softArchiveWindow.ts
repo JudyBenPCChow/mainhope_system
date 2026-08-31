@@ -98,6 +98,37 @@ export function listRetainedAcademicYearLabels(
  return labels
 }
 
+/**
+ * 新增報讀可選學年：目前學年。
+ * 目前為暑期（`*SM`）時另含緊接的下一常規學年（暑假已開的下學年班）。
+ * 不沿用日常營運窗，因此常規學年期間不會列出剛結束的暑期班。
+ */
+export function listEnrollableAcademicYearLabels(
+ years: AcademicYearWindowInput[],
+ asOfYmd?: string | null
+): string[] {
+ const sorted = [...years]
+  .map((y) => ({ ...y, label: normalizeLabel(y.label) }))
+  .filter((y) => y.label.length > 0)
+  .sort((a, b) => academicYearOrderKey(a.label) - academicYearOrderKey(b.label))
+ if (sorted.length === 0) return []
+
+ const currentLabel = resolveCurrentAcademicYearLabel(sorted, asOfYmd)
+ if (!currentLabel) return []
+ const labels = [currentLabel]
+ if (isRegularAcademicYearLabel(currentLabel)) return labels
+
+ const currentIdx = sorted.findIndex((y) => y.label === currentLabel)
+ if (currentIdx < 0) return labels
+ for (let i = currentIdx + 1; i < sorted.length; i++) {
+  if (isRegularAcademicYearLabel(sorted[i].label)) {
+   labels.push(sorted[i].label)
+   break
+  }
+ }
+ return labels
+}
+
 /** 保留窗內學年的最早 start／最晚 end（缺日期則略過該邊）。 */
 export function opsWindowDateBounds(
  years: AcademicYearWindowInput[],

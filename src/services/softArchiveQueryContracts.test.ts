@@ -51,4 +51,12 @@ describe("軟封存查詢契約（列表收窄 vs id 全量）", () => {
   expect(fn).toContain("isSoftArchiveQueriesEnabled")
   expect(fn).toContain("academicYearIdOpsOrFilter")
  })
+
+ it("fetchClassOptions 新增報讀只跟目前學年窗，唔跟 ops 窗／flag", () => {
+  const fn = fnSlice(readSrc("src/services/studentQueries.ts"), "fetchClassOptions")
+  expect(fn).toContain("fetchEnrollableAcademicYearWindow")
+  expect(fn).not.toContain("fetchOpsAcademicYearWindow")
+  expect(fn).not.toContain("isSoftArchiveQueriesEnabled")
+  expect(fn).not.toContain("academicYearIdOpsOrFilter")
+ })
 })
