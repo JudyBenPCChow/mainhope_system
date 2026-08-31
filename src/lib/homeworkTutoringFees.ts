@@ -38,19 +38,82 @@ export function isHomeworkDayPlan(raw: unknown): raw is HomeworkDayPlan {
   return raw === "三日" || raw === "四日" || raw === "五日" || raw === "七日"
 }
 
-/** 收款明細：月數 × 檔次月費；日數檔／年級未列價則空字串（人手填） */
+/** YYYY-MM；無效則空字串 */
+export function normalizeYearMonth(raw: string | null | undefined): string {
+  const ym = String(raw ?? "").slice(0, 7)
+  return /^\d{4}-\d{2}$/.test(ym) ? ym : ""
+}
+
+export function addYearMonth(yearMonth: string, delta: number): string {
+  const ym = normalizeYearMonth(yearMonth)
+  if (!ym) return ""
+  const y = Number(ym.slice(0, 4))
+  const m = Number(ym.slice(5, 7))
+  const d = new Date(y, m - 1 + delta, 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+/** 由起始月起連續 N 個曆月（含起始） */
+export function homeworkCoverageMonths(
+  startYm: string | null | undefined,
+  monthCount: number | null | undefined
+): string[] {
+  const start = normalizeYearMonth(startYm)
+  const n = Math.floor(Number(monthCount))
+  if (!start || !Number.isFinite(n) || n < 1) return []
+  return Array.from({ length: n }, (_, i) => addYearMonth(start, i)).filter(Boolean)
+}
+
+export function homeworkCoverageLabel(
+  startYm: string | null | undefined,
+  monthCount: number | null | undefined
+): string {
+  const months = homeworkCoverageMonths(startYm, monthCount)
+  if (months.length === 0) return ""
+  if (months.length === 1) return formatYearMonthLabel(months[0]!)
+  return `${formatYearMonthLabel(months[0]!)}至${formatYearMonthLabel(months[months.length - 1]!)}`
+}
+
+export function homeworkPaymentCoversMonth(opts: {
+  coverageStartMonth: string | null | undefined
+  monthCount: number | null | undefined
+  billingMonth: string
+}): boolean {
+  const ym = normalizeYearMonth(opts.billingMonth)
+  if (!ym) return false
+  return homeworkCoverageMonths(opts.coverageStartMonth, opts.monthCount).includes(ym)
+}
+
+export function homeworkFeeLineDescription(
+  classLabel: string | null | undefined,
+  startYm: string,
+  monthCount: number
+): string {
+  const name = String(classLabel ?? "").trim() || "功課輔導班"
+  const span = homeworkCoverageLabel(startYm, monthCount)
+  return span ? `${name} · ${span}月費` : `${name} · 月費`
+}
+
+/** 收款明細：覆蓋月份各自按檔計價後加總（12／2 月四分三逐月計） */
 export function homeworkPaymentLineAmount(opts: {
   dayPlan: HomeworkDayPlan | null | undefined
   grade: string | null | undefined
-  billingMonth: string
+  /** 覆蓋起始月 YYYY-MM；可與 coverageStartMonth 擇一 */
+  billingMonth?: string
+  coverageStartMonth?: string | null
   monthCount?: number
 }): string {
   if (!opts.dayPlan || !opts.grade) return ""
-  const n = opts.monthCount ?? 1
-  if (!Number.isFinite(n) || n <= 0) return ""
-  const unit = homeworkMonthlyFeeHkd(opts.dayPlan, opts.grade, opts.billingMonth)
-  if (unit == null) return ""
-  return String(Math.round(unit * n * 100) / 100)
+  const start = opts.coverageStartMonth || opts.billingMonth || ""
+  const months = homeworkCoverageMonths(start, opts.monthCount ?? 1)
+  if (months.length === 0) return ""
+  let sum = 0
+  for (const m of months) {
+    const unit = homeworkMonthlyFeeHkd(opts.dayPlan, opts.grade, m)
+    if (unit == null) return ""
+    sum += unit
+  }
+  return String(Math.round(sum * 100) / 100)
 }
 
 /** 收款明細備註帶「月費」＝功輔月費行（舊暑期單據無此字，仍當堂數） */

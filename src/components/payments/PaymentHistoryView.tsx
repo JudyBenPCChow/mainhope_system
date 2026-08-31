@@ -820,7 +820,11 @@ export function PaymentHistoryView() {
            <li key={d.id} className="text-xs">
             <span className="font-medium">{d.classLabel}</span>
             {d.lessonCount != null
-             ? ` · ${d.lessonCount}${isHomeworkMonthlyFeeDescription(d.description) ? " 個月" : " 堂"}`
+             ? ` · ${d.lessonCount}${
+                d.coverageStartMonth != null || isHomeworkMonthlyFeeDescription(d.description)
+                 ? " 個月"
+                 : " 堂"
+               }`
              : ""}
             {d.amount != null ? ` · ${money(d.amount)}` : ""}
             {d.description ? ` — ${d.description}` : ""}

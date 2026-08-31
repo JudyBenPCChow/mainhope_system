@@ -78,7 +78,7 @@ function tabClass(on: boolean) {
  return cn(
   "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
   on
-   ? "border-teal-600/40 bg-teal-600/15 text-teal-800 dark:text-teal-200"
+   ? "border-primary/40 bg-primary/15 text-primary dark:text-primary"
    : "border-border bg-background text-muted-foreground hover:bg-muted/60"
  )
 }
@@ -336,7 +336,7 @@ export function InboxView() {
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Inbox className="h-8 w-8 text-teal-600" aria-hidden />
+      <Inbox className="h-8 w-8 text-info" aria-hidden />
       收件匣
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">

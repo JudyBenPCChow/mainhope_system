@@ -2639,7 +2639,7 @@ export function ClassDetailView() {
          ))}
         </div>
        </div>
-       {privateLightErr ? <p className="text-sm text-destructive">{privateLightErr}</p> : null}
+       {privateLightErr ? <p role="alert" className="text-sm text-destructive">{privateLightErr}</p> : null}
        <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={() => setPrivateLightOpen(false)}>
          取消
@@ -2786,7 +2786,7 @@ export function ClassDetailView() {
        </div>
 
        {privateBookErr ? (
-        <p className="whitespace-pre-wrap text-sm text-destructive">{privateBookErr}</p>
+        <p role="alert" className="whitespace-pre-wrap text-sm text-destructive">{privateBookErr}</p>
        ) : null}
 
        <div className="flex justify-end gap-2">
@@ -2894,7 +2894,7 @@ export function ClassDetailView() {
           </p>
          ) : null}
          {makeupPreview.alreadyHasMakeupIds.length > 0 ? (
-          <p className="mt-1 text-destructive">此取消堂已安排過補回，請勿重複建立。</p>
+          <p role="alert" className="mt-1 text-destructive">此取消堂已安排過補回，請勿重複建立。</p>
          ) : null}
         </div>
         <div>

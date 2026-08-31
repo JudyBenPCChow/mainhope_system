@@ -3,35 +3,20 @@ import { CircleUser, Mail, Phone, User } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
+import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
+import { SUBJECT_SPECIALITY_OPTIONS } from "@/lib/teacherSubjectSpeciality"
 import { cn } from "@/lib/utils"
 import {
  getTeacherById,
  type TeacherRecord,
  updateTeacher,
 } from "@/services/teacherQueries"
-
-const SUBJECT_SPECIALITY_OPTIONS = [
- "中文",
- "英文",
- "數學",
- "綜合科學",
- "物理",
- "化學",
- "生物",
- "M2",
- "BAFS",
- "中史",
- "歷史",
- "地理",
- "經濟",
- "ICT",
-] as const
 
 export default function TeacherProfilePage() {
  const { profile } = useAuth()
@@ -99,7 +84,7 @@ export default function TeacherProfilePage() {
 
  if (!teacherId) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning-foreground">
     <p className="font-medium">此頁僅供專班老師使用。請以老師身分登入。</p>
    </div>
   )
@@ -107,7 +92,7 @@ export default function TeacherProfilePage() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-950">
+   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning-foreground">
     <p>尚未設定 Supabase，無法載入個人資料。</p>
    </div>
   )
@@ -261,9 +246,7 @@ export default function TeacherProfilePage() {
         <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
        ) : (
         selectedSubjects.map((sub) => (
-         <span key={sub} className="rounded-full bg-info px-2 py-0.5 text-xs font-medium text-info">
-          {sub}
-         </span>
+         <Tag key={sub} tone="info" size="sm">{sub}</Tag>
         ))
        )}
       </div>
@@ -280,8 +263,8 @@ export default function TeacherProfilePage() {
      </div>
 
      <div className="flex flex-wrap gap-3">
-      <Button type="button" onClick={() => void save()} disabled={saving}>
-       {saving ? "儲存中…" : "儲存變更"}
+      <Button type="button" onClick={() => void save()} loading={saving} loadingText="儲存中…">
+       儲存變更
       </Button>
       <Button type="button" variant="outline" onClick={() => void reload()} disabled={saving || loading}>
        還原為上次載入

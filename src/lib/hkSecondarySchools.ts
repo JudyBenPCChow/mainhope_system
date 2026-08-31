@@ -505,3 +505,19 @@ export function schoolNameMatchesQuery(name: string, query: string): boolean {
   .every((token) => hay.includes(token))
 }
 
+export type SchoolSelectOption = { value: string; label: string }
+
+const EMPTY_SCHOOL_OPTION: SchoolSelectOption = { value: "", label: "請選擇學校" }
+
+/** 全港中學 + 既有／目前校名，並在最頂提供空白項以便明確清走。 */
+export function buildSchoolSelectOptions(
+ extraSchools: readonly string[] = [],
+ currentSchool = ""
+): SchoolSelectOption[] {
+ const extras = [...extraSchools, currentSchool].map((s) => s.trim()).filter(Boolean)
+ const names = [...new Set([...HK_SECONDARY_SCHOOLS, ...extras])].sort((a, b) =>
+  a.localeCompare(b, "zh-Hant")
+ )
+ return [EMPTY_SCHOOL_OPTION, ...names.map((s) => ({ value: s, label: s }))]
+}
+

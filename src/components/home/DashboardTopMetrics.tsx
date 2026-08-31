@@ -22,7 +22,7 @@ export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading 
  return (
   <div className="grid grid-cols-2 gap-3 md:gap-4">
    <Link to={scheduleLink} className={cn(cardClass, "text-left")} aria-label="開啟今日排程日視圖">
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-200/80 text-slate-700 md:h-14 md:w-14">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground md:h-14 md:w-14">
      <CalendarDays className="h-5 w-5 md:h-7 md:w-7" strokeWidth={1.75} aria-hidden />
     </div>
     <div className="min-w-0">
@@ -35,7 +35,7 @@ export function DashboardTopMetrics({ todayClassCount, pendingPayCount, loading 
    </Link>
 
    <Link to={paymentsLink} className={cn(cardClass, "text-left")} aria-label="前往繳費紀錄（待收款）">
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800 md:h-14 md:w-14">
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-warning/15 text-warning md:h-14 md:w-14">
      <FileText className="h-5 w-5 md:h-7 md:w-7" strokeWidth={1.75} aria-hidden />
     </div>
     <div className="min-w-0">

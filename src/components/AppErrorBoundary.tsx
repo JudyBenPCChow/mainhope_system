@@ -42,7 +42,7 @@ export class AppErrorBoundary extends Component<Props, State> {
       className="max-w-lg rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/30"
      >
       <p className="font-medium">發生未預期的顯示錯誤</p>
-      <p className="mt-2 text-destructive/90">{this.state.message ?? "請重新整理頁面。"}</p>
+      <p role="alert" className="mt-2 text-destructive/90">{this.state.message ?? "請重新整理頁面。"}</p>
      </div>
      <button
       type="button"

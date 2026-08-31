@@ -1,4 +1,8 @@
-/** remarks 標記：用於查重「此取消堂是否已安排過補回」 */
+/**
+ * remarks 標記：用於查重「此取消堂是否已安排過補回」。
+ * **唔好刪**：`2627` 點名紙唔靠佢入場，但安排補回查重同 `26SM` 歷史靠佢。
+ * 見 `.cursor/rules/makeup-of-marker.mdc`。
+ */
 export function makeupOfRemarkMarker(cancelledScheduleId: string): string {
  return `makeup_of=${cancelledScheduleId}`
 }

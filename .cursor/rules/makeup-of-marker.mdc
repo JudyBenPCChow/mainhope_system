@@ -1,0 +1,19 @@
+---
+description: >-
+  禁止刪 schedules.remarks 的 makeup_of= 標記。2627 點名唔靠佢，安排補回查重同 26SM 歷史靠佢。
+globs: src/lib/scheduleMakeupMarkers.ts,src/services/scheduleMakeupQueries.ts,src/services/scheduleRosterQueries.ts,src/lib/scheduleMakeupMarkers.test.ts,.cursor/skills/leave-makeup-followup/**,docs/product/topics/summer-enrollment-roster-consistency.md
+alwaysApply: true
+---
+
+# `makeup_of=` 標記：唔好刪
+
+**唔好**從程式抽走 `makeup_of=<取消堂id>`，亦**唔好**清 `26SM` 歷史 `schedules.remarks`。
+
+同一標記兩種用途，唔好當「2627 唔用」就刪：
+
+| 用途 | 誰用 | 刪咗會點 |
+| --- | --- | --- |
+| 暑期跨期點名：補回堂沿用原取消堂日期推期數 | 只 `26SM`（`summer_two_period`） | `2627` 點名紙本來就唔行呢條 |
+| 「此取消堂已安排過補回」查重；老師取消堂跟進表 | `arrangeMakeupForCancelledSchedule` **學年不問**都寫 | `2627` 將來補回可重複建加堂；跟進表搵唔到 |
+
+寫入／解析：`src/lib/scheduleMakeupMarkers.ts`。`2627` 點名紙入場靠宣告繼承，唔靠呢個標記。詳見 [`summer-enrollment-roster-consistency.md`](../../docs/product/topics/summer-enrollment-roster-consistency.md) §5.8。

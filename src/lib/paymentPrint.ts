@@ -430,9 +430,14 @@ function openPrintableDocument(bodyHtml: string, title = PRINT_TITLE): boolean {
 }
 
 function homeworkQtyHeader(details: PaymentFull["details"]): string {
- const hasHomework = details.some((d) => isHomeworkMonthlyFeeDescription(d.description))
+ const hasHomework = details.some(
+  (d) => d.coverageStartMonth != null || isHomeworkMonthlyFeeDescription(d.description)
+ )
  const hasSpecialist = details.some(
-  (d) => !isHomeworkMonthlyFeeDescription(d.description) && d.lessonCount != null
+  (d) =>
+   d.coverageStartMonth == null &&
+   !isHomeworkMonthlyFeeDescription(d.description) &&
+   d.lessonCount != null
  )
  if (hasHomework && hasSpecialist) return "堂數／月數"
  if (hasHomework) return "月數"
@@ -445,10 +450,12 @@ function buildChargesTableHtml(p: PaymentFull): string {
   .map((d) => {
    const name = d.courseName || d.classLabel
    const withCode = d.courseCode ? `${name} (${d.courseCode})` : name
+   const isHomework =
+    d.coverageStartMonth != null || isHomeworkMonthlyFeeDescription(d.description)
    const qty =
     d.lessonCount == null
      ? "—"
-     : isHomeworkMonthlyFeeDescription(d.description)
+     : isHomework
        ? `${d.lessonCount} 個月`
        : String(d.lessonCount)
    return `<tr>
@@ -699,6 +706,7 @@ export function getDemoPaymentFull(): PaymentFull {
     courseName: "中文專班",
     courseCode: "CHI-S3-A",
     lessonCount: 8,
+    coverageStartMonth: null,
     amount: 3200,
     description: "7-8 月堂費",
    },
@@ -709,6 +717,7 @@ export function getDemoPaymentFull(): PaymentFull {
     courseName: "英文小組",
     courseCode: "ENG-S3-B",
     lessonCount: 4,
+    coverageStartMonth: null,
     amount: 1600,
     description: null,
    },

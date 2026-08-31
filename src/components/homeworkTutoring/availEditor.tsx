@@ -119,7 +119,7 @@ export function BulkCustomTimeDialog({
           </label>
         </div>
         {invalid ? (
-          <p className="text-xs text-destructive">結束時間須晚於開始時間。</p>
+          <p role="alert" className="text-xs text-destructive">結束時間須晚於開始時間。</p>
         ) : null}
         <DialogFooter className="gap-2 sm:gap-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -240,7 +240,7 @@ export function AvailEditDialog({
             </div>
           ) : null}
           {kind === "custom" && start >= end ? (
-            <p className="text-xs text-destructive">結束時間須晚於開始時間。</p>
+            <p role="alert" className="text-xs text-destructive">結束時間須晚於開始時間。</p>
           ) : null}
         </div>
         <DialogFooter className="gap-2 sm:gap-0">

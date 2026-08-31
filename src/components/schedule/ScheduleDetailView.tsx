@@ -218,7 +218,7 @@ export function ScheduleDetailView() {
 
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
       <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
-       <Users className="h-5 w-5 text-teal-700" />
+       <Users className="h-5 w-5 text-info" />
        學生名單
        <span className="text-sm font-normal text-muted-foreground">
         （共 {safeCtx.students.length} 人）
@@ -315,7 +315,7 @@ export function ScheduleDetailView() {
            <div className="mt-1 text-muted-foreground">
             {l.leaveReason ?? "—"} · 補課：{l.makeupType ?? "—"} · {l.status}
             {l.linkedToThisSchedule ? (
-             <span className="ml-2 text-xs text-teal-700">（已連本排程）</span>
+             <span className="ml-2 text-xs text-info">（已連本排程）</span>
             ) : null}
            </div>
            {l.makeupScheduleId && l.makeupScheduleId !== sid ? (
@@ -376,14 +376,14 @@ export function ScheduleDetailView() {
      <div className="grid gap-6 lg:grid-cols-2">
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
        <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
-        <Video className="h-5 w-5 text-rose-700" />
+        <Video className="h-5 w-5 text-info" />
         錄影
        </div>
        <p className="mt-1 text-sm text-muted-foreground">
         補課方式為「錄影」之請假，或排程備註標示需錄影。
        </p>
        {mentionsRecording(row.remarks ?? "") ? (
-        <p className="mt-3 rounded-lg border border-rose-200 bg-rose-50/80 px-3 py-2 text-sm text-rose-900">
+        <p className="mt-3 rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-sm text-foreground">
          排程備註含錄影相關說明。
         </p>
        ) : null}

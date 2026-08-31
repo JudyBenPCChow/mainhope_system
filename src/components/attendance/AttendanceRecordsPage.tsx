@@ -318,7 +318,7 @@ export function AttendanceRecordsPage() {
     >
      <p className="font-medium">載入出席紀錄失敗</p>
      <p className="mt-1 leading-relaxed">{err}</p>
-     <p className="mt-1 text-destructive/80">統計已隱藏；請重試成功後再核對列表與數字。</p>
+     <p role="alert" className="mt-1 text-destructive/80">統計已隱藏；請重試成功後再核對列表與數字。</p>
      <Button
       type="button"
       variant="outline"
@@ -346,7 +346,7 @@ export function AttendanceRecordsPage() {
       <p className="text-[11px] text-muted-foreground">出席</p>
      </div>
      <div>
-      <p className="text-lg font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
+      <p role="alert" className="text-lg font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
       <p className="text-[11px] text-muted-foreground">缺席</p>
      </div>
      <div>
@@ -370,8 +370,8 @@ export function AttendanceRecordsPage() {
      <div className="text-sm font-medium text-success-foreground">出席</div>
      <p className="mt-2 text-2xl font-bold tabular-nums">{s?.present ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-destructive bg-destructive p-4 text-destructive-foreground shadow-sm">
-     <div className="text-sm font-medium text-destructive-foreground">缺席</div>
+    <div role="alert" className="rounded-xl border border-destructive bg-destructive p-4 text-destructive-foreground shadow-sm">
+     <div role="alert" className="text-sm font-medium text-destructive-foreground">缺席</div>
      <p className="mt-2 text-2xl font-bold tabular-nums">{s?.absent ?? 0}</p>
     </div>
     <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
@@ -518,7 +518,7 @@ export function AttendanceRecordsPage() {
           <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
            <p>筆數 {d.total}</p>
            <p className="text-success">出席 {d.present}</p>
-           <p className="text-destructive">缺席 {d.absent}</p>
+           <p role="alert" className="text-destructive">缺席 {d.absent}</p>
            <p>請假 {d.leave}</p>
            <p>補課 {d.makeup}</p>
            <p>網課 {d.online}</p>

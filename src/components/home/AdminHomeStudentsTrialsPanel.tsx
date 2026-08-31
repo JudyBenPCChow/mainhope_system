@@ -62,7 +62,7 @@ export function AdminHomeStudentsTrialsPanel({ studentStatusSlices, loading, com
 
     <div className={cn(cardClass)}>
      <div className="flex items-start gap-3">
-      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-slate-200/80 text-slate-700">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
        <UserPlus className="h-5 w-5" strokeWidth={1.75} aria-hidden />
       </div>
       <div className="min-w-0">

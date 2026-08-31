@@ -635,9 +635,9 @@ export function TeacherHomeView() {
               {s.teaching_notes?.trim() ? (
                <Tag tone="info" size="sm">已有教學紀錄</Tag>
               ) : null}
-              {a.trial ? <Tag tone="info" size="sm">試堂</Tag> : null}
-              {a.leave ? <Tag tone="warning" size="sm">請假</Tag> : null}
-              {a.makeup ? <Tag tone="warning" size="sm">補堂</Tag> : null}
+              {a.trial ? <Tag tone={statusToTagTone("試堂")} size="sm">試堂</Tag> : null}
+              {a.leave ? <Tag tone={statusToTagTone("請假")} size="sm">請假</Tag> : null}
+              {a.makeup ? <Tag tone={statusToTagTone("補堂")} size="sm">補堂</Tag> : null}
               {a.record ? <Tag tone="default" size="sm">錄影</Tag> : null}
              </div>
              {s.teaching_notes?.trim() ? (
@@ -911,7 +911,7 @@ export function TeacherHomeView() {
       <Sparkles className="h-6 w-6 text-info" />
       即將試堂（我的班）
      </h2>
-     <p className="mt-3 text-sm text-destructive">試堂資料未能載入。</p>
+     <p role="alert" className="mt-3 text-sm text-destructive">試堂資料未能載入。</p>
     </section>
    ) : trialsKind === "rows" ? (
     <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">

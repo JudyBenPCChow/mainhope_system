@@ -123,7 +123,7 @@ export function StudentFutureSchedulesTab({
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : kind === "error" ? (
     <div className="space-y-2" role="alert">
-     <p className="text-sm text-destructive">未來排程未能載入。</p>
+     <p role="alert" className="text-sm text-destructive">未來排程未能載入。</p>
      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void loadRows()}>
       重試
      </button>

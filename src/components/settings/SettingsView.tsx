@@ -8,6 +8,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSoftArchiveQueriesEnabled, setSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getAuthSession } from "@/lib/supabaseAuth"
@@ -97,7 +98,7 @@ export function SettingsView() {
         message: "請以新密碼登入；之後可隨時在設定中再次修改。",
       })
     } catch (e) {
-      setErr(formatUnknownError(e))
+      reportUserFacingError(e, { source: "SettingsView.changePassword", setErr, userMessage: formatUnknownError(e) })
     } finally {
       setSaving(false)
     }
@@ -105,7 +106,7 @@ export function SettingsView() {
 
   if (!isSupabaseConfigured) {
     return (
-      <div className="rounded-xl border border-amber-400/50 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+      <div className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
         尚未設定 Supabase，無法修改密碼。
       </div>
     )
@@ -216,8 +217,8 @@ export function SettingsView() {
           </div>
         ) : null}
 
-        <Button type="button" disabled={saving} onClick={() => void submit()}>
-          {saving ? "更新中…" : "更新密碼"}
+        <Button type="button" loading={saving} loadingText="更新中…" onClick={() => void submit()}>
+          更新密碼
         </Button>
       </section>
     </div>

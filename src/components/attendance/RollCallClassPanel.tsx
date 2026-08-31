@@ -530,11 +530,11 @@ export function RollCallClassPanel({
       載入中…
      </Tag>
     ) : rollCallSaved ? (
-     <Tag tone="success" size="sm">
+     <Tag tone={statusToTagTone("已點名")} size="sm">
       已點名
      </Tag>
     ) : (
-     <Tag tone="warning" size="sm">
+     <Tag tone={statusToTagTone("未點名")} size="sm">
       未點名
      </Tag>
     )}
@@ -630,7 +630,7 @@ export function RollCallClassPanel({
     </div>
 
     {sheetErr ? (
-     <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+     <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
       {sheetErr}
      </div>
     ) : null}
