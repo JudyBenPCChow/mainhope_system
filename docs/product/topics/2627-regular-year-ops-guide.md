@@ -6,12 +6,14 @@
 | 優先 | 中 |
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
-| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.15**／2026-08-31）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.16**／2026-08-31）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
 | 上次更新 | 2026-08-30 |
 
 ## 結論
+
+**v1.16（2026-08-31）：** §9 點名紙不准手動加名。docx 已重出。
 
 **v1.15（2026-08-31）：** §7.3 功輔月費須與專科分單；填覆蓋月份與月數。
 
