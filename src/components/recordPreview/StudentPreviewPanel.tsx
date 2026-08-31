@@ -1,24 +1,39 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { Loader2 } from "lucide-react"
+import {
+ ArrowUpRight,
+ Banknote,
+ BookOpen,
+ CalendarOff,
+ GraduationCap,
+ Loader2,
+ Phone,
+ School,
+ UserRound,
+} from "lucide-react"
 
 import { useOpenClassRecord } from "@/components/recordPreview/recordPreviewContext"
 import {
- PhoneRow,
- PreviewCell,
  PreviewError,
- PreviewLoading,
  PreviewMessageButton,
+ PreviewPropertyRow,
+ PreviewSection,
+ PreviewStat,
+ PreviewStudentSkeleton,
 } from "@/components/recordPreview/previewUi"
 import { StudentClassificationTags } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
+import { StaggerItem, StaggerStack } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import { formatClassTimeDisplay } from "@/lib/consecutiveLesson"
 import { classKindLabel, resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { classDisplayName } from "@/lib/courseLabel"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { cn } from "@/lib/utils"
+import { formatWeekdaysDisplay } from "@/lib/weekdayUtils"
 import { resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
 import {
  fetchEnrollmentsForStudent,
@@ -35,6 +50,19 @@ import { fetchLeavesAwaitingMakeupDateForStudent } from "@/services/leaveQueries
 
 const PREVIEW_ENROLL_CAP = 5
 const KIND_ORDER: ClassKind[] = ["group", "private", "homework"]
+const KIND_ACCENT: Record<ClassKind, string> = {
+ group: "border-l-info",
+ private: "border-l-neutral-400",
+ homework: "border-l-success",
+}
+
+function enrollmentTimeLine(e: EnrollmentWithClass): string | null {
+ const line = formatClassTimeDisplay({
+  dayOfWeek: formatWeekdaysDisplay(e.dayOfWeek),
+  timeSlot: e.timeSlot,
+ })
+ return line && line !== "—" ? line : null
+}
 
 type Props = {
  studentId: string
@@ -124,13 +152,6 @@ export function StudentPreviewPanel({ studentId }: Props) {
   [enrollments]
  )
 
- const exception = useMemo(() => {
-  const bits: string[] = []
-  if (pendingCount > 0) bits.push(`待補 ${pendingCount} 堂`)
-  if (leaveCount > 0) bits.push(`請假未安排 ${leaveCount} 堂`)
-  return bits
- }, [pendingCount, leaveCount])
-
  const groupedChips = useMemo(() => {
   const byKind = new Map<ClassKind, EnrollmentWithClass[]>()
   for (const e of active) {
@@ -153,94 +174,164 @@ export function StudentPreviewPanel({ studentId }: Props) {
   return { blocks, rest: Math.max(0, active.length - shown) }
  }, [active])
 
- if (loading) return <PreviewLoading />
- if (error || !student) return <PreviewError message="學生資料未能載入。" />
+ if (loading) return <PreviewStudentSkeleton />
+ if (error || !student) {
+  return (
+   <div className="px-3 py-3 pr-10">
+    <PreviewError message="學生資料未能載入。" />
+   </div>
+  )
+ }
 
  const contactPerson = normalizePrimaryContactPerson(student.primary_contact_person) ?? "家長"
  const contactName = contactPerson === "家長" ? (student.parent_name ?? "家長") : student.full_name
+ const contactDetail =
+  contactPerson === "家長" && student.parent_relationship
+   ? `${student.parent_relationship} · ${contactName}`
+   : contactName
  const messaging = resolvePrimaryMessagingTarget(student)
+ const secondaryActions = [
+  canPay ? (
+   <Button key="pay" asChild variant="outline" className="w-full">
+    <Link to={`/Payments?studentId=${encodeURIComponent(student.id)}`}>
+     <Banknote />
+     收款登記
+    </Link>
+   </Button>
+  ) : null,
+  canLeave ? (
+   <Button key="leave" asChild variant="outline" className="w-full">
+    <Link to={`/LeaveManagement?studentId=${encodeURIComponent(student.id)}`}>
+     <CalendarOff />
+     請假
+    </Link>
+   </Button>
+  ) : null,
+ ].filter(Boolean)
 
  return (
-  <div className="space-y-3 text-sm">
-   <h2 className="pr-6 text-2xl font-bold leading-tight">{student.full_name}</h2>
-   <div className="font-mono text-xs tabular-nums text-muted-foreground">{student.student_code ?? student.id.slice(0, 8)}</div>
-   {student.english_name ? <p className="text-xs text-muted-foreground">{student.english_name}</p> : null}
-   <StudentClassificationTags student={student} size="sm" />
-   <div className="grid grid-cols-2 gap-2">
-    <PreviewCell label="年級">{formatStudentGrade(student.grade)}</PreviewCell>
-    <PreviewCell label="學校">{student.school ?? "—"}</PreviewCell>
-    <PreviewCell label="第一聯絡人">
-     {contactPerson}（{contactName}）
-    </PreviewCell>
-    <PreviewCell label="進行中">{enrollmentsLoading ? "…" : `${active.length} 班`}</PreviewCell>
-   </div>
-   <PhoneRow
-    label="學生電話"
-    value={student.student_phone}
-    action={messaging?.person === "學生" ? <PreviewMessageButton messaging={messaging} /> : null}
-   />
-   <PhoneRow
-    label="家長電話"
-    value={student.parent_phone}
-    action={messaging?.person === "家長" ? <PreviewMessageButton messaging={messaging} /> : null}
-   />
-   {exception.length > 0 ? (
-    <div className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs font-medium text-warning">
-     {exception.join(" · ")}
-    </div>
-   ) : null}
-   <div className="rounded-xl border border-border p-3">
-    <p className="text-xs font-semibold">進行中報讀</p>
-    {enrollmentsLoading ? (
-     <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground" role="status">
-      <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-      載入報讀…
+  <div className="flex min-h-full flex-col text-sm">
+   <header>
+    <div className="h-20 bg-gradient-to-b from-primary/20 to-primary/5" />
+    <div className="-mt-12 flex flex-col items-center px-4 pb-4 text-center">
+     <img
+      src="/student-avatar-placeholder.svg"
+      alt=""
+      aria-hidden="true"
+      className="h-24 w-24 rounded-full object-cover shadow-sm ring-4 ring-card"
+     />
+     <p className="mt-3">
+      <Tag tone="default" size="sm" className="font-mono tabular-nums">
+       {student.student_code ?? student.id.slice(0, 8)}
+      </Tag>
      </p>
-    ) : active.length === 0 ? (
-     <p className="mt-2 text-xs text-muted-foreground">目前沒有進行中報讀</p>
-    ) : (
-     groupedChips.blocks.map((block) => (
-      <div key={block.kind} className="mt-2">
-       <p className="text-[11px] font-medium text-muted-foreground">{classKindLabel(block.kind)}</p>
-       <div className="mt-1 flex flex-wrap gap-1.5">
-        {block.items.map((e) => (
-         <button
-          key={e.id}
-          type="button"
-          className="inline-flex"
-          onClick={() => openClass(e.classId)}
-         >
-          <Tag tone="info" size="sm">
-           {classDisplayName({ subject: e.subject, courseName: e.courseName })}
-          </Tag>
-         </button>
-        ))}
-       </div>
-      </div>
-     ))
-    )}
-    {groupedChips.rest > 0 ? (
-     <Link
-      to={`/Students/${student.id}?tab=enrollments`}
-      className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+     <h2 className="mt-1.5 text-2xl font-bold leading-tight">{student.full_name}</h2>
+     {student.english_name ? (
+      <p className="mt-0.5 text-xs text-neutral-700">{student.english_name}</p>
+     ) : null}
+     <StudentClassificationTags student={student} size="sm" className="mt-2 justify-center" />
+    </div>
+   </header>
+
+   <div className="flex-1 space-y-3 px-3 pb-3">
+    <div className="grid grid-cols-3 gap-2">
+     <PreviewStat
+      label="進行中"
+      value={enrollmentsLoading ? "…" : active.length}
+      tone={enrollmentsLoading || active.length === 0 ? "default" : "info"}
+     />
+     <PreviewStat label="待補堂" value={pendingCount} tone={pendingCount > 0 ? "warning" : "default"} />
+     <PreviewStat label="請假未安排" value={leaveCount} tone={leaveCount > 0 ? "warning" : "default"} />
+    </div>
+
+    <PreviewSection title="基本資料" icon={GraduationCap}>
+     <PreviewPropertyRow icon={GraduationCap} label="年級">
+      {formatStudentGrade(student.grade)}
+     </PreviewPropertyRow>
+     <PreviewPropertyRow icon={School} label="學校">
+      {student.school ?? "—"}
+     </PreviewPropertyRow>
+     <PreviewPropertyRow icon={UserRound} label="第一聯絡人">
+      {contactPerson}（{contactDetail}）
+     </PreviewPropertyRow>
+    </PreviewSection>
+
+    <PreviewSection title="聯絡" icon={Phone}>
+     <PreviewPropertyRow
+      icon={Phone}
+      label="學生電話"
+      action={messaging?.person === "學生" ? <PreviewMessageButton messaging={messaging} /> : null}
      >
-      仲有 {groupedChips.rest} 班
-     </Link>
-    ) : null}
+      <span className="font-mono text-xs tabular-nums">{student.student_phone ?? "—"}</span>
+     </PreviewPropertyRow>
+     <PreviewPropertyRow
+      icon={Phone}
+      label="家長電話"
+      action={messaging?.person === "家長" ? <PreviewMessageButton messaging={messaging} /> : null}
+     >
+      <span className="font-mono text-xs tabular-nums">{student.parent_phone ?? "—"}</span>
+     </PreviewPropertyRow>
+    </PreviewSection>
+
+    <PreviewSection title="進行中報讀" icon={BookOpen}>
+     {enrollmentsLoading ? (
+      <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+       <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+       載入報讀…
+      </p>
+     ) : active.length === 0 ? (
+      <p className="text-xs text-muted-foreground">目前沒有進行中報讀</p>
+     ) : (
+      groupedChips.blocks.map((block) => (
+       <div key={block.kind} className="mt-2 first:mt-0">
+        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">{classKindLabel(block.kind)}</p>
+        <StaggerStack className="space-y-1.5">
+         {block.items.map((e) => {
+          const timeLine = enrollmentTimeLine(e)
+          return (
+           <StaggerItem key={e.id}>
+            <button
+             type="button"
+             className={cn(
+              "flex w-full flex-col rounded-lg border border-border border-l-[3px] bg-muted/20 px-2.5 py-2 text-left transition-colors hover:bg-muted/40",
+              KIND_ACCENT[block.kind]
+             )}
+             onClick={() => openClass(e.classId)}
+            >
+             <span className="truncate font-medium">
+              {classDisplayName({ subject: e.subject, courseName: e.courseName })}
+             </span>
+             {timeLine ? <span className="mt-0.5 text-[11px] text-muted-foreground">{timeLine}</span> : null}
+            </button>
+           </StaggerItem>
+          )
+         })}
+        </StaggerStack>
+       </div>
+      ))
+     )}
+     {groupedChips.rest > 0 ? (
+      <Link
+       to={`/Students/${student.id}?tab=enrollments`}
+       className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+      >
+       還有 {groupedChips.rest} 班
+      </Link>
+     ) : null}
+    </PreviewSection>
    </div>
-   <div className="space-y-2 border-t border-border pt-3">
-    <Button asChild className="w-full justify-start">
-     <Link to={`/Students/${student.id}`}>開完整詳情</Link>
+
+   <div className="sticky bottom-0 z-[1] space-y-2 border-t border-border bg-card/95 px-3 py-3 backdrop-blur-sm">
+    <Button asChild className="w-full">
+     <Link to={`/Students/${student.id}`}>
+      開完整詳情
+      <ArrowUpRight />
+     </Link>
     </Button>
-    {canPay ? (
-     <Button asChild variant="outline" className="w-full justify-start">
-      <Link to={`/Payments?studentId=${encodeURIComponent(student.id)}`}>收款登記</Link>
-     </Button>
-    ) : null}
-    {canLeave ? (
-     <Button asChild variant="outline" className="w-full justify-start">
-      <Link to={`/LeaveManagement?studentId=${encodeURIComponent(student.id)}`}>請假</Link>
-     </Button>
+    {secondaryActions.length > 0 ? (
+     <div className={secondaryActions.length === 1 ? "grid grid-cols-1 gap-2" : "grid grid-cols-2 gap-2"}>
+      {secondaryActions}
+     </div>
     ) : null}
    </div>
   </div>

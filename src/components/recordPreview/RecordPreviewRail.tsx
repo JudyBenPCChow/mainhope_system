@@ -28,19 +28,21 @@ export function RecordPreviewRail() {
     <>
      <button
       type="button"
-      className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted"
+      className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-card/80 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-muted"
       onClick={closePreview}
       aria-label="關閉"
      >
       <X className="h-5 w-5" aria-hidden />
      </button>
-     <div className="relative min-h-0 flex-1 overflow-y-auto px-3 py-3 pr-10">
+     <div className="relative min-h-0 flex-1 overflow-y-auto">
       {preview.kind === "student" ? (
        <StudentPreviewPanel studentId={preview.id} />
       ) : preview.kind === "class" ? (
        <ClassPreviewPanel classId={preview.id} />
       ) : (
-       <TeacherPreviewPanel teacherId={preview.id} />
+       <div className="px-3 py-3 pr-10">
+        <TeacherPreviewPanel teacherId={preview.id} />
+       </div>
       )}
      </div>
     </>
