@@ -43,6 +43,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **查庫／模擬運作**：不要把空班、暑期未續常規、學期結束仍「就讀中」、未繳仍出現在點名紙當成缺陷。見 `.cursor/rules/ops-data-check.mdc`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 - **Feature 熱檔**：不要 commit `BACKLOG.md` 索引表（只在 `main` 搬列；分題表頭狀態＝該題真源）。不要帶 `dist/`、`docs/generated/**`。`ops-guide` 只在本題 PR 才改。見 `.cursor/rules/feature-branch-hot-files.mdc`。
+- **Git 收尾**：合入 `main` 後由 agent 對齊 `main`、刪該題 branch／worktree，不要叫使用者下次記得。見 `.cursor/rules/git-hygiene.mdc` 與 skill `git-branch-closeout`。
 
 ## 讀檔階梯
 
