@@ -1,19 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"
-import {
- ArrowLeft,
- Banknote,
- BookOpen,
- CalendarClock,
- ClipboardList,
- GraduationCap,
- History,
- Loader2,
- Plus,
- Printer,
- Umbrella,
- User,
-} from "lucide-react"
+import { Loader2, Plus, Printer, X } from "lucide-react"
 
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
@@ -52,6 +39,12 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
+import {
+ parseStudentDetailTab,
+ STUDENT_DETAIL_TABS,
+ type StudentDetailTabId,
+} from "@/lib/studentDetailTabs"
+import { useNavGuard } from "@/hooks/useNavGuard"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -79,6 +72,7 @@ import {
  insertEnrollment,
  normalizeAcademicStage,
  normalizeRegistrationStatus,
+ registrationStatusLabel,
  PHONE_COUNTRY_CODES,
  PREFERRED_CONTACT_METHODS,
  PRIMARY_CONTACT_PERSONS,
@@ -128,24 +122,7 @@ function formatLeaveError(e: unknown): string {
  return "操作失敗"
 }
 
-type TabId =
- | "basic"
- | "enrollments"
- | "payments"
- | "attendance"
- | "leave"
- | "futureSchedules"
- | "history"
-
-const TABS: { id: TabId; label: string; icon: typeof User }[] = [
- { id: "basic", label: "基本資料", icon: User },
- { id: "enrollments", label: "報讀班別", icon: BookOpen },
- { id: "payments", label: "繳費紀錄", icon: Banknote },
- { id: "attendance", label: "上課紀錄", icon: ClipboardList },
- { id: "leave", label: "請假紀錄", icon: Umbrella },
- { id: "futureSchedules", label: "未來排程", icon: CalendarClock },
- { id: "history", label: "更動紀錄", icon: History },
-]
+type TabId = StudentDetailTabId
 
 function money(n: number) {
  return `HKD $${n.toLocaleString("zh-Hant-TW")}`
@@ -198,12 +175,17 @@ export function StudentDetailView() {
  const location = useLocation()
  const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
- const { role: authRole, profile } = useAuth()
+ const { ready: authReady, role: authRole, profile } = useAuth()
  const exitPath = useMemo(() => resolveStudentDetailExitPath(location, authRole), [location, authRole])
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const [tab, setTabState] = useState<TabId>("basic")
- const [enrollKindOpen, setEnrollKindOpen] = useState(false)
+ const [tab, setTabState] = useState<TabId>(() =>
+  parseStudentDetailTab(new URLSearchParams(window.location.search).get("tab"), {
+   canViewMoney: true,
+   capsReady: false,
+  })
+ )
+ const [basicEditing, setBasicEditing] = useState(false)
 
  const caps = profile?.activeCapabilities
  const canViewMoney = can(caps, "payments.read")
@@ -215,40 +197,41 @@ export function StudentDetailView() {
  const canRegisterPayment = can(caps, "payments.create") || can(caps, "payments.mark_received")
 
  const visibleTabs = useMemo(
-  () => TABS.filter((t) => canViewMoney || t.id !== "payments"),
+  () => STUDENT_DETAIL_TABS.filter((t) => canViewMoney || t.id !== "payments"),
   [canViewMoney]
  )
 
- const setTab = useCallback(
+ const writeTabParam = useCallback(
   (next: TabId) => {
-   if (next === "payments" && !canViewMoney) {
-    setTabState("basic")
-    return
-   }
-   setTabState(next)
+   setSearchParams(
+    (prev) => {
+     const nextParams = new URLSearchParams(prev)
+     nextParams.set("tab", next)
+     return nextParams
+    },
+    { replace: true }
+   )
   },
-  [canViewMoney]
+  [setSearchParams]
+ )
+
+ const applyTab = useCallback(
+  (next: TabId) => {
+   const parsed = parseStudentDetailTab(next, { canViewMoney, capsReady: authReady })
+   setTabState(parsed)
+   writeTabParam(parsed)
+  },
+  [canViewMoney, authReady, writeTabParam]
  )
 
  useEffect(() => {
-  if (tab === "payments" && !canViewMoney) setTabState("basic")
- }, [tab, canViewMoney])
-
- useEffect(() => {
-  const t = searchParams.get("tab")?.trim()
-  if (!t) return
-  if (!TABS.some((x) => x.id === t)) return
-  const next = t as TabId
-  setTab(next)
-  setSearchParams(
-   (prev) => {
-    const nextParams = new URLSearchParams(prev)
-    nextParams.delete("tab")
-    return nextParams
-   },
-   { replace: true }
-  )
- }, [searchParams, setSearchParams, setTab])
+  const parsed = parseStudentDetailTab(searchParams.get("tab"), {
+   canViewMoney,
+   capsReady: authReady,
+  })
+  setTabState(parsed)
+  if (searchParams.get("tab") !== parsed) writeTabParam(parsed)
+ }, [searchParams, canViewMoney, authReady, writeTabParam])
  const [student, setStudent] = useState<StudentRecord | null>(null)
  const [studentState, setStudentState] = useState<"loading" | "ready" | "error">("loading")
  const [loading, setLoading] = useState(true)
@@ -459,11 +442,6 @@ export function StudentDetailView() {
   void ensureTabData(tab)
  }, [tab, loading, sid, student, ensureTabData])
 
- useEffect(() => {
-  if (!enrollKindOpen) return
-  void ensureTabData("enrollments")
- }, [enrollKindOpen, ensureTabData])
-
  const [form, setForm] = useState<Partial<StudentRecord>>({})
  const [savingBasic, setSavingBasic] = useState(false)
  const savingBasicRef = useRef(false)
@@ -547,6 +525,7 @@ export function StudentDetailView() {
     })
    }
    pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
+   setBasicEditing(false)
    return true
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.saveBasic" })
@@ -576,17 +555,63 @@ export function StudentDetailView() {
   unsavedLeaveResolverRef.current = null
  }, [])
 
- const requestLeave = useCallback(async () => {
-  if (student && isStudentBasicFormDirty(student, form)) {
-   const choice = await promptUnsavedLeave()
-   if (choice === "cancel") return
-   if (choice === "save") {
-    const ok = await saveBasic()
-    if (!ok) return
-   }
+ const discardBasicEdits = useCallback(() => {
+  if (student) setForm(student)
+  setBasicEditing(false)
+ }, [student])
+
+ const confirmUnsavedIfNeeded = useCallback(async (): Promise<boolean> => {
+  if (unsavedLeaveResolverRef.current) return false
+  if (!student || !basicEditing || !isStudentBasicFormDirty(student, form)) return true
+  const choice = await promptUnsavedLeave()
+  if (choice === "cancel") return false
+  if (choice === "save") {
+   const ok = await saveBasic()
+   if (!ok) return false
+   setBasicEditing(false)
+   return true
   }
+  discardBasicEdits()
+  return true
+ }, [student, basicEditing, form, promptUnsavedLeave, saveBasic, discardBasicEdits])
+
+ const requestLeave = useCallback(async () => {
+  const ok = await confirmUnsavedIfNeeded()
+  if (!ok) return
   navigate(exitPath)
- }, [student, form, promptUnsavedLeave, navigate, saveBasic, exitPath])
+ }, [confirmUnsavedIfNeeded, navigate, exitPath])
+
+ const setTab = useCallback(
+  (next: TabId) => {
+   void (async () => {
+    const ok = await confirmUnsavedIfNeeded()
+    if (!ok) return
+    applyTab(next)
+    const scrollRoot = document.querySelector("[data-detail-layer-scroll]")
+    if (scrollRoot instanceof HTMLElement) scrollRoot.scrollTo({ top: 0 })
+    else document.querySelector("main")?.scrollTo({ top: 0 })
+   })()
+  },
+  [confirmUnsavedIfNeeded, applyTab]
+ )
+
+ const goExternal = useCallback(
+  (to: string) => {
+   void (async () => {
+    const ok = await confirmUnsavedIfNeeded()
+    if (!ok) return
+    navigate(to)
+   })()
+  },
+  [confirmUnsavedIfNeeded, navigate]
+ )
+
+ const allowNav = useCallback(async () => {
+  return confirmUnsavedIfNeeded()
+ }, [confirmUnsavedIfNeeded])
+
+ const basicDirty = Boolean(student && basicEditing && isStudentBasicFormDirty(student, form))
+ useNavGuard(basicDirty, allowNav)
 
  const resetAddEnrollmentDialog = useCallback(() => {
   setPickClass("")
@@ -681,7 +706,7 @@ export function StudentDetailView() {
     title: "已加入班別",
     message: isHomework
      ? "功課輔導班報讀已建立。請於功輔「月費」頁產生應收後前往收款登記。"
-     : "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
+     : "報讀已建立。請前往收款／出單確認學費，已繳堂數才會增加。",
     action: isHomework
      ? {
         pageLabel: "功輔月費",
@@ -745,9 +770,6 @@ export function StudentDetailView() {
  const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
  const occupiedClassIds =
   enrollmentsState === "ready" ? new Set(activeEnrollments.map((e) => e.classId)) : new Set<string>()
- const groupActiveCount = activeEnrollments.filter((e) => e.classKind === "group").length
- const privateActiveCount = activeEnrollments.filter((e) => e.classKind === "private").length
- const homeworkActiveCount = activeEnrollments.filter((e) => e.classKind === "homework").length
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
@@ -811,9 +833,6 @@ export function StudentDetailView() {
   if (canViewMoney && misaligned > 0) bits.push(`${misaligned} 班堂數不一致`)
   return bits
  }, [lessonBalances, lessonBalancesState, canViewMoney])
- const countChipClass = isMobile
-  ? "rounded-md bg-white/15 px-2 py-0.5"
-  : "rounded-md border border-border bg-muted/40 px-2 py-0.5 text-foreground"
 
  useEffect(() => {
   if (!addEnrollmentDialogOpen || !pickClass) {
@@ -1021,12 +1040,22 @@ export function StudentDetailView() {
  }
 
 
+ const showBasicForm = basicEditing && canMutateStudentOps
+
  if (!sid) {
   return (
    <AdaptiveDetailLayer
     variant="student"
     onDismiss={() => navigate(exitPath)}
     layerLabel={null}
+    chrome={
+     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+      <p className="text-sm font-semibold">學生詳情</p>
+      <Button type="button" variant="ghost" size="icon" aria-label="關閉" onClick={() => navigate(exitPath)}>
+       <X className="h-4 w-4" />
+      </Button>
+     </div>
+    }
    >
     <p className="p-6 text-muted-foreground">無效的學生編號</p>
    </AdaptiveDetailLayer>
@@ -1036,7 +1065,19 @@ export function StudentDetailView() {
  if (!loading && !student) {
   const loadFailed = studentState === "error"
   return (
-   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate(exitPath)} layerLabel="學生詳情">
+   <AdaptiveDetailLayer
+    variant="student"
+    onDismiss={() => navigate(exitPath)}
+    layerLabel={null}
+    chrome={
+     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
+      <p className="text-sm font-semibold">學生詳情</p>
+      <Button type="button" variant="ghost" size="icon" aria-label="關閉" onClick={() => navigate(exitPath)}>
+       <X className="h-4 w-4" />
+      </Button>
+     </div>
+    }
+   >
     <div className="p-6">
      {loadFailed ? (
       <div className="space-y-2" role="alert">
@@ -1064,155 +1105,111 @@ export function StudentDetailView() {
   <AdaptiveDetailLayer
    variant="student"
    onDismiss={() => void requestLeave()}
-   layerLabel="學生詳情"
-  >
-  <div className="flex min-h-full flex-col bg-background">
-   <div
-    className={
-     isMobile
-      ? "bg-primary px-4 py-4 text-primary-foreground shadow-md"
-      : "rounded-xl border border-border bg-card px-4 py-4 shadow-sm md:px-6"
-    }
-   >
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
+   layerLabel={null}
+   chrome={
+    <div className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-2.5">
+     <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-semibold text-foreground">
+       {student?.full_name ?? (loading ? "載入中…" : "學生詳情")}
+      </p>
+      {student ? (
+       <p className="truncate text-xs tabular-nums text-muted-foreground">
+        {student.student_code || student.id.slice(0, 8)}
+       </p>
+      ) : null}
+     </div>
      <Button
       type="button"
-      variant={isMobile ? "secondary" : "outline"}
-      size="sm"
-      className={cn(
-       "w-fit shrink-0",
-       isMobile && "bg-white/90 text-foreground hover:bg-white"
-      )}
+      variant="ghost"
+      size="icon"
+      className="shrink-0"
+      aria-label="關閉"
       onClick={() => void requestLeave()}
      >
-      <ArrowLeft className="h-4 w-4" />
-      返回
+      <X className="h-4 w-4" />
      </Button>
-     <div className="flex min-w-0 flex-1 items-start gap-3">
-      {isMobile ? (
-       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20">
-        <GraduationCap className="h-6 w-6" />
-       </div>
+    </div>
+   }
+  >
+  <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
+   {isMobile ? null : (
+   <div className="space-y-3">
+    <button
+     type="button"
+     className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+     onClick={() => void requestLeave()}
+    >
+     {exitPath.startsWith("/Classes") ? "返回班別管理" : "返回學生管理"}
+    </button>
+    <div className="flex flex-wrap items-start justify-between gap-3">
+     <div className="min-w-0">
+      {loading ? (
+       <p className="text-lg">載入中…</p>
+      ) : student ? (
+       <>
+        <h1 className="truncate text-xl font-bold md:text-2xl">{student.full_name}</h1>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+         <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
+         <StudentClassificationTags student={student} size="sm" />
+        </div>
+        {headerExceptionBits.length > 0 ? (
+         <button
+          type="button"
+          className="mt-2 w-full rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-left text-xs font-medium text-warning"
+          onClick={() => setTab("enrollments")}
+         >
+          {headerExceptionBits.join(" · ")}
+         </button>
+        ) : null}
+       </>
       ) : null}
-      <div className="min-w-0">
-       {loading ? (
-        <p className="text-lg">載入中…</p>
-       ) : student ? (
-        <>
-         <h1 className="truncate text-xl font-bold md:text-2xl">{student.full_name}</h1>
-         <div
-          className={cn(
-           "mt-1 flex flex-wrap items-center gap-2 text-sm",
-           isMobile ? "text-white/90" : "text-muted-foreground"
-          )}
-         >
-          <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
-          <StudentClassificationTags
-           student={student}
-           size="sm"
-           surface={isMobile ? "onPrimary" : undefined}
-          />
-         </div>
-         <p
-          className={cn(
-           "mt-1 truncate text-sm",
-           isMobile ? "text-white/85" : "text-muted-foreground"
-          )}
-         >
-          {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
-         </p>
-         <div
-          className={cn(
-           "mt-2 flex flex-wrap gap-2 text-xs",
-           isMobile ? "text-white/90" : "text-muted-foreground"
-          )}
-         >
-          {enrollmentsState === "error" ? (
-           <span className={countChipClass}>報讀未能載入</span>
-          ) : enrollmentsState !== "ready" ? (
-           <span className={countChipClass}>報讀載入中…</span>
-          ) : groupActiveCount === 0 && privateActiveCount === 0 && homeworkActiveCount === 0 ? (
-           <span className={countChipClass}>目前沒有進行中報讀</span>
-          ) : (
-           <>
-            {groupActiveCount > 0 ? (
-             <span className={countChipClass}>專科班 {groupActiveCount}</span>
-            ) : null}
-            {privateActiveCount > 0 ? (
-             <span className={countChipClass}>私人課程 {privateActiveCount}</span>
-            ) : null}
-            {homeworkActiveCount > 0 ? (
-             <span className={countChipClass}>功輔班 {homeworkActiveCount}</span>
-            ) : null}
-           </>
-          )}
-         </div>
-         {headerExceptionBits.length > 0 ? (
-          <button
-           type="button"
-           className={cn(
-            "mt-2 w-full rounded-lg border px-3 py-2 text-left text-xs",
-            isMobile
-             ? "border-white/25 bg-white/10 text-white"
-             : "border-warning/40 bg-warning/10 font-medium text-warning"
-           )}
-           onClick={() => setTab("enrollments")}
-          >
-           {headerExceptionBits.join(" · ")}
-          </button>
-         ) : null}
-        </>
-       ) : null}
-      </div>
      </div>
-     <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
+     <div className="flex w-fit shrink-0 flex-wrap gap-2">
       {canRegisterPayment ? (
        <Button
         type="button"
-        variant={isMobile ? "secondary" : "default"}
         size="sm"
-        className={isMobile ? "bg-white/90 text-foreground hover:bg-white" : undefined}
-        asChild
+        onClick={() =>
+         goExternal(`/Payments?studentId=${encodeURIComponent(sid ?? "")}`)
+        }
        >
-        <Link to={`/Payments?studentId=${encodeURIComponent(sid ?? "")}`}>收款登記</Link>
+        收款登記
        </Button>
       ) : null}
       {canOpenLeaveManagement ? (
        <Button
         type="button"
-        variant={isMobile ? "secondary" : "outline"}
+        variant="outline"
         size="sm"
-        className={isMobile ? "bg-white/90 text-foreground hover:bg-white" : undefined}
-        asChild
+        onClick={() =>
+         goExternal(`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`)
+        }
        >
-        <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>請假</Link>
+        請假
        </Button>
       ) : null}
      </div>
     </div>
    </div>
+   )}
 
-   <div className="sticky top-0 z-10 border-b border-border bg-card px-2 md:px-4">
+   <div className={cn("border-b border-border", isMobile ? "px-0" : "mt-4")}>
     {isMobile ? (
-     <label className="grid gap-1 px-2 py-3 text-xs text-muted-foreground">
-      <span>分頁</span>
-      <Select
-       className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground"
-       value={tab}
-       onChange={(e) => setTab(e.target.value as TabId)}
-       aria-label="學生詳情分頁"
-      >
-       {visibleTabs.map((t) => (
-        <option key={t.id} value={t.id}>
-         {t.label}
-        </option>
-       ))}
-      </Select>
-     </label>
+     <Select
+      className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground"
+      value={tab}
+      onChange={(e) => setTab(e.target.value as TabId)}
+      aria-label={visibleTabs.find((t) => t.id === tab)?.label ?? "基本資料"}
+     >
+      {visibleTabs.map((t) => (
+       <option key={t.id} value={t.id}>
+        {t.label}
+       </option>
+      ))}
+     </Select>
     ) : (
-    <nav className="flex gap-1 overflow-x-auto py-1">
+    <nav className="flex gap-1 overflow-x-auto">
      {visibleTabs.map((t) => {
-      const Icon = t.icon
       const active = tab === t.id
       return (
        <button
@@ -1220,13 +1217,12 @@ export function StudentDetailView() {
         type="button"
         onClick={() => setTab(t.id)}
         className={cn(
-         "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+         "shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
          active
-          ? "border-b-2 border-primary text-primary"
-          : "text-muted-foreground hover:text-foreground"
+          ? "border-primary text-primary"
+          : "border-transparent text-muted-foreground hover:text-foreground"
         )}
        >
-        <Icon className="h-4 w-4" />
         {t.label}
        </button>
       )
@@ -1235,7 +1231,43 @@ export function StudentDetailView() {
     )}
    </div>
 
-   <div className="p-4 md:p-6">
+   {isMobile && (canRegisterPayment || canOpenLeaveManagement) ? (
+    <div className="flex flex-wrap gap-2 pt-3">
+     {canRegisterPayment ? (
+      <Button
+       type="button"
+       size="sm"
+       onClick={() => goExternal(`/Payments?studentId=${encodeURIComponent(sid ?? "")}`)}
+      >
+       收款登記
+      </Button>
+     ) : null}
+     {canOpenLeaveManagement ? (
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       onClick={() =>
+        goExternal(`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`)
+       }
+      >
+       請假
+      </Button>
+     ) : null}
+    </div>
+   ) : null}
+
+   {isMobile && headerExceptionBits.length > 0 ? (
+    <button
+     type="button"
+     className="mt-3 w-full rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-left text-xs font-medium text-warning"
+     onClick={() => setTab("enrollments")}
+    >
+     {headerExceptionBits.join(" · ")}
+    </button>
+   ) : null}
+
+   <div className="pt-4 md:pt-6">
     {studentState === "error" && student ? (
      <div className="mb-4 space-y-2" role="alert">
       <p role="alert" className="text-sm text-destructive">學生資料未能載入。</p>
@@ -1257,41 +1289,58 @@ export function StudentDetailView() {
     {tab === "basic" && student ? (
      <div className="mx-auto max-w-4xl space-y-8">
       <fieldset
-       disabled={!canMutateStudentOps}
+       disabled={!showBasicForm}
        className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
       >
       <section className="space-y-4">
-       <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
+       <div className="flex items-start justify-between gap-3">
+        <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
+        {canMutateStudentOps && !showBasicForm ? (
+         <Button type="button" size="sm" onClick={() => setBasicEditing(true)}>
+          編輯
+         </Button>
+        ) : null}
+       </div>
        <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="中文姓名 *">
+        <Field label="中文姓名 *" read={showBasicForm ? undefined : (form.full_name || "—")}>
          <Input
           value={form.full_name ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
          />
         </Field>
-        <Field label="英文姓名">
+        <Field label="英文姓名" read={showBasicForm ? undefined : (form.english_name || "—")}>
          <Input
           value={form.english_name ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
          />
         </Field>
-        <Field label="學生編號">
+        <Field label="學生編號" read={form.student_code || "—"}>
          <Input value={form.student_code ?? ""} disabled className="bg-muted" />
         </Field>
-        <Field label="性別">
+        <Field label="性別" read={showBasicForm ? undefined : (form.gender || "—")}>
          <ChoiceChips
           options={GENDER_CHIPS}
           value={form.gender}
           onChange={(gender) => setForm((f) => ({ ...f, gender }))}
          />
         </Field>
-        <Field label="年級">
+        <Field
+         label="年級"
+         read={showBasicForm ? undefined : formatStudentGrade(form.grade)}
+        >
          <StudentGradeChips
           value={form.grade}
           onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
-        <Field label="客戶身份（註冊）">
+        <Field
+         label="客戶身份（註冊）"
+         read={
+          showBasicForm
+           ? undefined
+           : registrationStatusLabel(normalizeRegistrationStatus(form.registration_status))
+         }
+        >
          <StatusToggle
           checked={normalizeRegistrationStatus(form.registration_status) === "已註冊"}
           onCheckedChange={(on) =>
@@ -1317,7 +1366,10 @@ export function StudentDetailView() {
           </span>
          </p>
         </Field>
-        <Field label="學業階段">
+        <Field
+         label="學業階段"
+         read={showBasicForm ? undefined : (normalizeAcademicStage(form.academic_stage) === "已畢業" ? "已畢業" : "中學階段")}
+        >
          <StatusToggle
           checked={normalizeAcademicStage(form.academic_stage) === "中學階段"}
           onCheckedChange={(on) =>
@@ -1327,14 +1379,17 @@ export function StudentDetailView() {
           onLabel="中學階段"
          />
         </Field>
-        <Field label="學校" className="sm:col-span-2">
+        <Field label="學校" className="sm:col-span-2" read={showBasicForm ? undefined : (form.school || "—")}>
          <SchoolSearchableSelect
-          disabled={!canMutateStudentOps}
+          disabled={!showBasicForm}
           value={form.school ?? ""}
           onChange={(school) => setForm((f) => ({ ...f, school }))}
          />
         </Field>
-        <Field label="出生日期">
+        <Field
+         label="出生日期"
+         read={showBasicForm ? undefined : ((form.date_of_birth ?? "").slice(0, 10) || "—")}
+        >
          <Input
           type="date"
           value={(form.date_of_birth ?? "").slice(0, 10)}
@@ -1347,26 +1402,37 @@ export function StudentDetailView() {
       <section className="space-y-4">
        <h2 className="text-sm font-semibold text-foreground">家長聯絡</h2>
        <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="家長姓名">
+        <Field label="家長姓名" read={showBasicForm ? undefined : (form.parent_name || "—")}>
          <Input
           value={form.parent_name ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, parent_name: e.target.value }))}
          />
         </Field>
-        <Field label="關係">
+        <Field label="關係" read={showBasicForm ? undefined : (form.parent_relationship || "—")}>
          <ParentRelationshipChips
           value={form.parent_relationship}
           onChange={(rel) => setForm((f) => ({ ...f, parent_relationship: rel }))}
          />
         </Field>
-        <Field label="第一聯絡人" className="sm:col-span-2">
+        <Field
+         label="第一聯絡人"
+         className="sm:col-span-2"
+         read={showBasicForm ? undefined : (form.primary_contact_person || "—")}
+        >
          <ChoiceChips
           options={PRIMARY_CONTACT_PERSONS}
           value={form.primary_contact_person ?? ""}
           onChange={(v) => setForm((f) => ({ ...f, primary_contact_person: v }))}
          />
         </Field>
-        <Field label="學生電話">
+        <Field
+         label="學生電話"
+         read={
+          showBasicForm
+           ? undefined
+           : `${form.student_phone_country_code ?? "+852"} ${form.student_phone || "—"}`
+         }
+        >
          <div className="space-y-2">
           <ChoiceChips
            options={PHONE_COUNTRY_CODES}
@@ -1380,7 +1446,16 @@ export function StudentDetailView() {
           />
          </div>
         </Field>
-        <Field label="學生偏好通訊方式">
+        <Field
+         label="學生偏好通訊方式"
+         read={
+          showBasicForm
+           ? undefined
+           : form.student_preferred_contact_method === "WeChat"
+             ? `WeChat${form.student_wechat_id ? `（${form.student_wechat_id}）` : ""}`
+             : (form.student_preferred_contact_method || "—")
+         }
+        >
          <div className="space-y-2">
           <ChoiceChips
            options={PREFERRED_CONTACT_METHODS}
@@ -1402,7 +1477,14 @@ export function StudentDetailView() {
           ) : null}
          </div>
         </Field>
-        <Field label="家長電話">
+        <Field
+         label="家長電話"
+         read={
+          showBasicForm
+           ? undefined
+           : `${form.parent_phone_country_code ?? "+852"} ${form.parent_phone || "—"}`
+         }
+        >
          <div className="space-y-2">
           <ChoiceChips
            options={PHONE_COUNTRY_CODES}
@@ -1416,7 +1498,16 @@ export function StudentDetailView() {
           />
          </div>
         </Field>
-        <Field label="家長偏好通訊方式">
+        <Field
+         label="家長偏好通訊方式"
+         read={
+          showBasicForm
+           ? undefined
+           : form.parent_preferred_contact_method === "WeChat"
+             ? `WeChat${form.parent_wechat_id ? `（${form.parent_wechat_id}）` : ""}`
+             : (form.parent_preferred_contact_method || "—")
+         }
+        >
          <div className="space-y-2">
           <ChoiceChips
            options={PREFERRED_CONTACT_METHODS}
@@ -1438,43 +1529,56 @@ export function StudentDetailView() {
           ) : null}
          </div>
         </Field>
-        <Field label="地址" className="sm:col-span-2">
+        <Field label="地址" className="sm:col-span-2" read={showBasicForm ? undefined : (form.address || "—")}>
          <Input
           value={form.address ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
          />
         </Field>
-        <Field label="備註" className="sm:col-span-2">
+        <Field label="備註" className="sm:col-span-2" read={showBasicForm ? undefined : (form.remarks || "—")}>
          <Textarea
           value={form.remarks ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
          />
         </Field>
-        {sid ? (
-         <ParentPortalInvitePanel
-          studentId={sid}
-          studentName={form.full_name ?? student?.full_name ?? ""}
-          parentPhone={form.parent_phone ?? student?.parent_phone}
-          studentPhone={form.student_phone ?? student?.student_phone}
-          primaryContactPerson={form.primary_contact_person ?? student?.primary_contact_person}
-          studentPreferredContactMethod={
-           form.student_preferred_contact_method ?? student?.student_preferred_contact_method
-          }
-          parentPreferredContactMethod={
-           form.parent_preferred_contact_method ?? student?.parent_preferred_contact_method
-          }
-          studentWechatId={form.student_wechat_id ?? student?.student_wechat_id}
-          parentWechatId={form.parent_wechat_id ?? student?.parent_wechat_id}
-          studentPhoneCountryCode={
-           form.student_phone_country_code ?? student?.student_phone_country_code
-          }
-          parentPhoneCountryCode={
-           form.parent_phone_country_code ?? student?.parent_phone_country_code
-          }
-         />
-        ) : null}
        </div>
       </section>
+
+      {showBasicForm ? (
+       <div className="sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border bg-background py-3">
+        <Button type="button" variant="outline" onClick={discardBasicEdits}>
+         取消
+        </Button>
+        <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
+         儲存
+        </Button>
+       </div>
+      ) : null}
+      </fieldset>
+
+      {sid ? (
+       <ParentPortalInvitePanel
+        studentId={sid}
+        studentName={form.full_name ?? student?.full_name ?? ""}
+        parentPhone={form.parent_phone ?? student?.parent_phone}
+        studentPhone={form.student_phone ?? student?.student_phone}
+        primaryContactPerson={form.primary_contact_person ?? student?.primary_contact_person}
+        studentPreferredContactMethod={
+         form.student_preferred_contact_method ?? student?.student_preferred_contact_method
+        }
+        parentPreferredContactMethod={
+         form.parent_preferred_contact_method ?? student?.parent_preferred_contact_method
+        }
+        studentWechatId={form.student_wechat_id ?? student?.student_wechat_id}
+        parentWechatId={form.parent_wechat_id ?? student?.parent_wechat_id}
+        studentPhoneCountryCode={
+         form.student_phone_country_code ?? student?.student_phone_country_code
+        }
+        parentPhoneCountryCode={
+         form.parent_phone_country_code ?? student?.parent_phone_country_code
+        }
+       />
+      ) : null}
 
       <section className="space-y-4">
        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1674,18 +1778,11 @@ export function StudentDetailView() {
         </StaggerList>
        )}
       </section>
-
-      {canMutateStudentOps ? (
-       <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
-        儲存變更
-       </Button>
-      ) : null}
-      </fieldset>
      </div>
     ) : null}
 
     {tab === "enrollments" ? (
-     <div className="mx-auto max-w-3xl space-y-4">
+     <div className="mx-auto max-w-5xl space-y-4">
       {lessonBalancesState === "error" ? (
        <div className="space-y-2" role="alert">
         <p role="alert" className="text-sm text-destructive">堂數核對未能載入。</p>
@@ -1701,20 +1798,20 @@ export function StudentDetailView() {
       {canViewMoney && enrollmentsState === "ready" && misalignedCount > 0 ? (
        <div
         role="status"
-        className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
        >
         有 <strong className="tabular-nums">{misalignedCount}</strong>{" "}
-        個班別的已繳堂數與權益池／排程不一致，或仍有歷史待補紀錄、請假尚無補堂日，請經收款或權益更正跟進。
+        個班別的已繳堂數與排程不一致，或仍有歷史待補紀錄、請假尚無補堂日，請經收款或堂數更正跟進。
        </div>
       ) : null}
       {!canViewMoney && enrollmentsState === "ready" && teacherFollowUpCount > 0 ? (
        <div
         role="status"
-        className="rounded-lg border border-amber-700/30 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
        >
         有 <strong className="tabular-nums">{teacherFollowUpCount}</strong>{" "}
         個班別仍有待補堂，或請假尚無補堂日。
-        <span className="mt-1 block text-amber-900/90">
+        <span className="mt-1 block">
          補堂安排請交行政處理；你可在「請假紀錄」查看詳情。
         </span>
        </div>
@@ -1722,9 +1819,15 @@ export function StudentDetailView() {
       {canMutateStudentOps && enrollmentsState === "ready" ? (
       <>
       <div className="flex flex-wrap items-center gap-2">
-       <Button type="button" size="sm" onClick={() => setEnrollKindOpen(true)}>
-        <Plus className="h-4 w-4" />
-        新增報讀
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+         goExternal(`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}&create=1`)
+        }
+       >
+        新增私人課程
        </Button>
       </div>
       <SearchableSelect
@@ -1821,7 +1924,7 @@ export function StudentDetailView() {
           ) : (
            <>
           <p className="text-muted-foreground">
-           報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
+           報讀只建立就讀關係。可上課堂數須經收款確認後才計入已繳堂數，請勿在此手動填寫堂數。
           </p>
           <Field label="報讀形式">
            <Select
@@ -2123,7 +2226,7 @@ export function StudentDetailView() {
                 size="sm"
                >
                 {!bal.isAligned
-                 ? `尚差 ${bal.gap} 堂（請經收款／出單增額權益池）`
+                 ? `尚差 ${bal.gap} 堂（請經收款／出單增加已繳堂數）`
                  : bal.leaveAwaitingMakeupCount > 0
                    ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
                    : "堂數一致"}
@@ -2444,7 +2547,7 @@ export function StudentDetailView() {
     ) : null}
 
     {tab === "payments" && canViewMoney ? (
-     <div className="mx-auto max-w-3xl space-y-4">
+     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <div className="space-y-1 text-sm text-muted-foreground">
         <p>
@@ -2461,7 +2564,7 @@ export function StudentDetailView() {
         <p className="text-xs">總繳堂數依「已收款」單據之明細堂數加總。</p>
        </div>
        {canRegisterPayment ? (
-        <Button type="button" size="sm" onClick={() => navigate(`/Payments?studentId=${encodeURIComponent(sid)}`)}>
+        <Button type="button" size="sm" onClick={() => goExternal(`/Payments?studentId=${encodeURIComponent(sid)}`)}>
          <Plus className="h-4 w-4" />
          新增繳費
         </Button>
@@ -2604,7 +2707,7 @@ export function StudentDetailView() {
      <DialogTitle>有未儲存的變更</DialogTitle>
     </DialogHeader>
     <p className="text-sm text-muted-foreground">
-     基本資料已修改但尚未儲存。要儲存後離開，還是放棄變更？
+     基本資料已修改但尚未儲存。要儲存、放棄變更，還是繼續編輯？
     </p>
     <div className="mt-6 flex flex-wrap justify-end gap-2">
      <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("cancel")}>
@@ -2614,48 +2717,7 @@ export function StudentDetailView() {
       放棄變更
      </Button>
      <Button type="button" onClick={() => finishUnsavedLeave("save")}>
-      儲存並離開
-     </Button>
-    </div>
-   </DialogContent>
-  </Dialog>
-
-  <Dialog open={enrollKindOpen} onOpenChange={setEnrollKindOpen}>
-   <DialogContent className="max-w-md">
-    <DialogHeader>
-     <DialogTitle>新增報讀</DialogTitle>
-    </DialogHeader>
-    <p className="text-sm text-muted-foreground">請先選擇報讀類型，再進入對應流程。</p>
-    <div className="grid gap-2 pt-2">
-     <Button
-      type="button"
-      variant="outline"
-      className="h-auto justify-start px-4 py-3 text-left"
-      onClick={() => {
-       setEnrollKindOpen(false)
-       setTab("enrollments")
-      }}
-     >
-      <span className="font-medium">專科班</span>
-      <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-       在本頁「報讀班別」新增專科班
-      </span>
-     </Button>
-     <Button
-      type="button"
-      variant="outline"
-      className="h-auto justify-start px-4 py-3 text-left"
-      asChild
-     >
-      <Link
-       to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}&create=1`}
-       onClick={() => setEnrollKindOpen(false)}
-      >
-       <span className="font-medium">私人課程（一對一／一對二）</span>
-       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
-        前往私人課程頁新增報讀
-       </span>
-      </Link>
+      儲存
      </Button>
     </div>
    </DialogContent>
@@ -2668,15 +2730,25 @@ function Field({
  label,
  children,
  className,
+ read,
 }: {
  label: string
  children: React.ReactNode
  className?: string
+ read?: React.ReactNode
 }) {
  return (
   <div className={cn("space-y-1", className)}>
    <label className="text-xs font-medium text-muted-foreground">{label}</label>
-   {children}
+   {read !== undefined ? <ReadValue>{read}</ReadValue> : children}
   </div>
+ )
+}
+
+function ReadValue({ children }: { children: React.ReactNode }) {
+ return (
+  <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
+   {children == null || children === "" ? "—" : children}
+  </p>
  )
 }

@@ -212,7 +212,7 @@
 
 - **殼分離**：`AdaptiveLayout` 在 `MOBILE_BREAKPOINT`（768）以下使用 `MobileLayout`，與桌面側欄 `Layout` 分離；**不得**用共用 PageShell 硬合併 chrome（頂欄／底欄／drawer）。
 - **Overlay 分工**：流動裝置詳情 `DetailLayerShell`、篩選 `MobileFilterSheet` = bottom sheet；導航 `MobileNavDrawer` = side drawer；Confirm／表單 = 置中 `Dialog`。**禁止**為「統一」把 sheet／drawer 改成置中 Dialog。
-- **桌面紀錄頁**：學生／班別／老師詳情用 `AdaptiveDetailLayer`＝普通頁（無遮罩、無 portal）。管理員／外星人列表撳學生／班別／老師 → 右側 `RecordPreviewRail` 並排預覽（主欄縮窄、無遮罩）；「開完整詳情」進該實體完整頁。manager／老師撳行仍去完整頁。
+- **桌面紀錄頁**：學生／班別／老師詳情用 `AdaptiveDetailLayer`＝普通頁（無遮罩、無 portal）。學生完整頁用紀錄頁 chrome（文字返回、分頁 `?tab=` 以 `replace` 同步、切分頁／關閉／返回同一套未儲存保護）；流動裝置詳情為 bottom sheet，頂列須有明確關閉。管理員／外星人列表撳學生／班別／老師 → 右側 `RecordPreviewRail` 並排預覽（主欄縮窄、無遮罩）；「開完整詳情」進該實體完整頁。manager／老師撳行仍去完整頁。
 - **篩選呈現**：同一篩選 state；桌面 inline、手機進 `MobileFilterSheet`（Students／Payments／Classes／Trials 為準）。
 - **觸控高度**：表單觸發優先 `h-10`／`min-h-10`（對齊共用 `Select`）；**勿**為桌面對齊把 Select 壓成 `h-9`。
 - **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。
