@@ -1,4 +1,5 @@
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import {
  noteNonCurrentAcademicYearWrite,
 } from "@/lib/academicYearSoftGuard"
@@ -6,9 +7,12 @@ import {
 export function academicYearLabelForClass(c: {
  academic_year_label?: string | null
  start_date?: string | null
+ class_kind?: string | null
+ subject?: string | null
 }): string {
  const fromDb = (c.academic_year_label ?? "").trim()
  if (fromDb) return fromDb
+ if (resolveClassKind(c.class_kind, c.subject) === "private") return ""
  return academicYearLabelFromStartDate(c.start_date)
 }
 
@@ -72,9 +76,13 @@ export function assertAcademicYearEditableForDate(ymd: string | null | undefined
 export function assertClassRecordEditable(c: {
  academic_year_label?: string | null
  start_date?: string | null
+ class_kind?: string | null
+ subject?: string | null
 }): void {
+ const label = academicYearLabelForClass(c)
+ if (!label) return
  noteNonCurrentAcademicYearWrite({
-  label: academicYearLabelForClass(c),
+  label,
   source: "assertClassRecordEditable",
  })
 }

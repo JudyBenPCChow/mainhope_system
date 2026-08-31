@@ -1393,7 +1393,12 @@ export async function insertEnrollment(
   .eq("id", classId)
   .maybeSingle()
  if (classErr) throw classErr
- if (classRow) assertClassRecordEditable(classRow as { academic_year_label?: string | null; start_date?: string | null })
+ if (classRow) assertClassRecordEditable(classRow as {
+  academic_year_label?: string | null
+  start_date?: string | null
+  class_kind?: string | null
+  subject?: string | null
+ })
  const classKind = resolveClassKind(
   (classRow as { class_kind?: string | null } | null)?.class_kind ?? null,
   (classRow as { subject?: string | null } | null)?.subject ?? null

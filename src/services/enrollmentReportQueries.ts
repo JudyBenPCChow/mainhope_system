@@ -105,9 +105,19 @@ async function fetchClassesForReport(filters: EnrollmentReportFilters): Promise<
    )
    .order("id", { ascending: true })
    .range(from, from + pageSize - 1)
-  if (filters.academicYearId) q = q.eq("academic_year_id", filters.academicYearId)
   if (filters.classKind === "group" || filters.classKind === "private") {
    q = q.eq("class_kind", filters.classKind)
+  }
+  if (filters.academicYearId) {
+   if (filters.classKind === "private") {
+    // 私人去學年：人數報表揀任何學年都列出無年私人班
+   } else if (filters.classKind === "group") {
+    q = q.eq("academic_year_id", filters.academicYearId)
+   } else {
+    q = q.or(
+     `academic_year_id.eq.${filters.academicYearId},and(class_kind.eq.private,academic_year_id.is.null)`
+    )
+   }
   }
   const { data, error } = await q
   if (error) throw new Error(formatUnknownError(error))
