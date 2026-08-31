@@ -6,7 +6,12 @@ import {
  slotIndexFromTimeSlot,
  timeBoundsForSlotIndex,
 } from "@/lib/consecutiveLesson"
+import {
+ defaultRosterPolicyForNewSchedule,
+ type RosterPolicy,
+} from "@/lib/scheduleRosterPolicy"
 import { supabase } from "@/lib/supabaseClient"
+import { fetchCurrentAuthzProfile } from "@/services/authzProfileQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { syncDeclarationsAfterSchedulesAdded } from "@/services/entitlementQueries"
@@ -38,6 +43,14 @@ export async function nextSessionNumberForClass(classId: string): Promise<number
  return (max?.session_number != null ? Number(max.session_number) : 0) + 1
 }
 
+async function actorAppUserId(): Promise<string | null> {
+ try {
+  return (await fetchCurrentAuthzProfile())?.appUserId ?? null
+ } catch {
+  return null
+ }
+}
+
 export async function insertScheduleRow(
  opts: {
   class_id: string | null
@@ -49,6 +62,8 @@ export async function insertScheduleRow(
   classroom_id?: string | null
   remarks?: string | null
   is_extra_lesson?: boolean
+  roster_policy?: RosterPolicy
+  rosterStudentIds?: string[]
   session_number?: number | null
   consecutive_group_id?: string | null
   consecutive_slot_index?: number | null
@@ -56,6 +71,13 @@ export async function insertScheduleRow(
  flags?: { skipInboxEvent?: boolean; skipDeclarationSync?: boolean }
 ): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
+ const isExtra = opts.is_extra_lesson ?? false
+ const rosterPolicy =
+  opts.roster_policy ??
+  defaultRosterPolicyForNewSchedule({ isExtraLesson: isExtra, remarks: opts.remarks })
+ const selected = rosterPolicy === "selected"
+ const actorId = selected ? await actorAppUserId() : null
+ const confirmedAt = selected ? new Date().toISOString() : null
  const { data, error } = await supabase
   .from("schedules")
   .insert({
@@ -67,7 +89,10 @@ export async function insertScheduleRow(
    end_time: opts.end_time ?? null,
    status: opts.status ?? "正常",
    remarks: opts.remarks ?? null,
-   is_extra_lesson: opts.is_extra_lesson ?? false,
+   is_extra_lesson: isExtra,
+   roster_policy: rosterPolicy,
+   roster_confirmed_at: confirmedAt,
+   roster_confirmed_by: actorId,
    session_number: opts.session_number ?? null,
    consecutive_group_id: opts.consecutive_group_id ?? null,
    consecutive_slot_index: opts.consecutive_slot_index ?? null,
@@ -78,7 +103,7 @@ export async function insertScheduleRow(
  const id = String((data as { id: string }).id)
  void logMgmtAuditAction({
   action: "新增排程",
-  detail: `schedule_id=${id}; class_id=${opts.class_id ?? "null"}; date=${opts.scheduled_date}`,
+  detail: `schedule_id=${id}; class_id=${opts.class_id ?? "null"}; date=${opts.scheduled_date}; roster_policy=${rosterPolicy}`,
  })
  if (!flags?.skipInboxEvent) {
   void recordInboxEvent({
@@ -92,10 +117,28 @@ export async function insertScheduleRow(
    payload: { scheduledDate: opts.scheduled_date },
   })
  }
- // Wave 2：gated 學年補缺宣告（補回／批次可 skip，改由呼叫端一次同步）
  if (opts.class_id && !flags?.skipDeclarationSync) {
   try {
-   await syncDeclarationsAfterSchedulesAdded(opts.class_id)
+   if (selected) {
+    const {
+     listExtraLessonRosterCandidates,
+     mintSelectedRosterDeclarations,
+    } = await import("@/services/scheduleRosterPolicyQueries")
+    const candidates = await listExtraLessonRosterCandidates({
+     classId: opts.class_id,
+     scheduleDate: opts.scheduled_date,
+    })
+    const studentIds =
+     opts.rosterStudentIds ?? candidates.map((row) => row.studentId)
+    await mintSelectedRosterDeclarations({
+     classId: opts.class_id,
+     scheduleId: id,
+     studentIds,
+     candidates,
+    })
+   } else {
+    await syncDeclarationsAfterSchedulesAdded(opts.class_id)
+   }
   } catch (err) {
    console.error("syncDeclarationsAfterSchedulesAdded failed", opts.class_id, err)
   }
@@ -113,6 +156,7 @@ export async function insertScheduleForClass(
   status?: string
   classroom_id?: string | null
   is_extra_lesson?: boolean
+  rosterStudentIds?: string[]
   session_number?: number | null
  },
  flags?: { skipInboxEvent?: boolean }
@@ -128,6 +172,7 @@ export async function insertScheduleForClass(
    status: row.status,
    classroom_id: row.classroom_id,
    is_extra_lesson: row.is_extra_lesson,
+   rosterStudentIds: row.rosterStudentIds,
    session_number: row.session_number,
   },
   flags
@@ -178,6 +223,8 @@ export async function insertSchedulesForClassSession(
   end_time?: string | null
   status?: string
   classroom_id?: string | null
+  is_extra_lesson?: boolean
+  rosterStudentIds?: string[]
   session_number?: number | null
  }
 ): Promise<string[]> {
@@ -202,6 +249,8 @@ export async function insertSchedulesForClassSession(
    end_time: end,
    status: row.status,
    classroom_id: classroomId,
+   is_extra_lesson: row.is_extra_lesson,
+   rosterStudentIds: row.rosterStudentIds,
    session_number: row.session_number ?? null,
   })
   return [id]
@@ -230,6 +279,8 @@ export async function insertSchedulesForClassSession(
    session_number: sessionStart,
    consecutive_group_id: groupId,
    consecutive_slot_index: 1,
+   is_extra_lesson: row.is_extra_lesson,
+   rosterStudentIds: row.rosterStudentIds,
   },
   { skipInboxEvent: true, skipDeclarationSync: true }
  )
@@ -245,11 +296,37 @@ export async function insertSchedulesForClassSession(
    session_number: sessionStart + 1,
    consecutive_group_id: groupId,
    consecutive_slot_index: 2,
+   is_extra_lesson: row.is_extra_lesson,
+   rosterStudentIds: row.rosterStudentIds,
   },
   { skipInboxEvent: true, skipDeclarationSync: true }
  )
  try {
-  await syncDeclarationsAfterSchedulesAdded(classId)
+  if ((row.is_extra_lesson ?? false) && defaultRosterPolicyForNewSchedule({ isExtraLesson: true }) === "selected") {
+   const {
+    listExtraLessonRosterCandidates,
+    mintSelectedRosterDeclarations,
+   } = await import("@/services/scheduleRosterPolicyQueries")
+   const candidates = await listExtraLessonRosterCandidates({
+    classId,
+    scheduleDate: row.scheduled_date,
+   })
+   const ids = row.rosterStudentIds ?? candidates.map((c) => c.studentId)
+   await mintSelectedRosterDeclarations({
+    classId,
+    scheduleId: id1,
+    studentIds: ids,
+    candidates,
+   })
+   await mintSelectedRosterDeclarations({
+    classId,
+    scheduleId: id2,
+    studentIds: ids,
+    candidates,
+   })
+  } else {
+   await syncDeclarationsAfterSchedulesAdded(classId)
+  }
  } catch (err) {
   console.error("syncDeclarationsAfterSchedulesAdded failed", classId, err)
  }

@@ -29,6 +29,7 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
+import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
 import { ScheduleDateTime, formatStudentNameList } from "@/lib/scheduleDisplay"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
@@ -99,6 +100,10 @@ import {
  nextSessionNumberForClass,
  updateSchedule,
 } from "@/services/scheduleWriteQueries"
+import {
+ listExtraLessonRosterCandidates,
+ type ExtraLessonRosterCandidate,
+} from "@/services/scheduleRosterPolicyQueries"
 import {
  arrangeMakeupForCancelledSchedule,
  previewMakeupForCancelledSchedule,
@@ -297,6 +302,12 @@ export function ClassDetailView() {
  const [savingAddSched, setSavingAddSched] = useState(false)
  const [reorderingSessions, setReorderingSessions] = useState(false)
  const [addSchedErr, setAddSchedErr] = useState<string | null>(null)
+ const [addSchedExtra, setAddSchedExtra] = useState(false)
+ const [addSchedRosterCandidates, setAddSchedRosterCandidates] = useState<
+  ExtraLessonRosterCandidate[]
+ >([])
+ const [addSchedRosterIds, setAddSchedRosterIds] = useState<string[]>([])
+ const [addSchedRosterLoading, setAddSchedRosterLoading] = useState(false)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
  const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
@@ -953,8 +964,38 @@ export function ClassDetailView() {
    cls?.time_slot ? timeSlotSelectValueFromStored(cls.time_slot) || cls.time_slot : ""
   )
   setAddSchedErr(null)
+  setAddSchedExtra(false)
+  setAddSchedRosterCandidates([])
+  setAddSchedRosterIds([])
   void nextSessionNumberForClass(cid).then(setNewSchedSession)
  }, [addSchedOpen, cls?.time_slot, cid])
+
+ useEffect(() => {
+  if (!addSchedOpen || !addSchedExtra || !cid) {
+   setAddSchedRosterCandidates([])
+   setAddSchedRosterIds([])
+   setAddSchedRosterLoading(false)
+   return
+  }
+  let cancelled = false
+  setAddSchedRosterLoading(true)
+  void listExtraLessonRosterCandidates({ classId: cid, scheduleDate: newSchedDate })
+   .then((rows) => {
+    if (cancelled) return
+    setAddSchedRosterCandidates(rows)
+    setAddSchedRosterIds(rows.map((row) => row.studentId))
+    setAddSchedRosterLoading(false)
+   })
+   .catch(() => {
+    if (cancelled) return
+    setAddSchedRosterCandidates([])
+    setAddSchedRosterIds([])
+    setAddSchedRosterLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [addSchedOpen, addSchedExtra, cid, newSchedDate])
 
  const addSched = async () => {
   if (!cls) return
@@ -980,6 +1021,8 @@ export function ClassDetailView() {
      end_time: end,
      session_number: newSchedSession,
      classroom_id: cls.classroom_id,
+     is_extra_lesson: addSchedExtra,
+     rosterStudentIds: addSchedExtra ? addSchedRosterIds : undefined,
     }
    )
    setAddSchedOpen(false)
@@ -2046,7 +2089,7 @@ export function ClassDetailView() {
           + 新增排程
          </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
          <DialogHeader>
           <DialogTitle>新增排程</DialogTitle>
          </DialogHeader>
@@ -2110,6 +2153,27 @@ export function ClassDetailView() {
              : ""}
            </p>
           </div>
+          <label className="flex items-center gap-2 text-sm">
+           <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input accent-warning"
+            checked={addSchedExtra}
+            onChange={(e) => setAddSchedExtra(e.target.checked)}
+           />
+           <span className="text-muted-foreground">標記為加堂（額外加開課堂）</span>
+          </label>
+          {addSchedExtra ? (
+           addSchedRosterLoading ? (
+            <p className="text-sm text-muted-foreground">載入就讀生名單…</p>
+           ) : (
+            <ExtraLessonRosterPicker
+             candidates={addSchedRosterCandidates}
+             selectedIds={addSchedRosterIds}
+             onChange={setAddSchedRosterIds}
+             disabled={savingAddSched}
+            />
+           )
+          ) : null}
           <Button
            type="button"
            disabled={savingAddSched || !newSchedTimeSlot.trim()}

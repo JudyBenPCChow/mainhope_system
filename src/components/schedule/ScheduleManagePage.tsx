@@ -43,6 +43,7 @@ import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDi
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
 import { MobileDayViewGrid } from "@/components/schedule/MobileDayViewGrid"
 import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
+import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -98,6 +99,10 @@ import {
 } from "@/services/classQueries"
 import { getScheduleById, type ScheduleDetailRecord } from "@/services/scheduleDetailQueries"
 import { deleteSchedule, insertScheduleForClass, updateSchedule } from "@/services/scheduleWriteQueries"
+import {
+ listExtraLessonRosterCandidates,
+ type ExtraLessonRosterCandidate,
+} from "@/services/scheduleRosterPolicyQueries"
 import { applyHomeworkOccupancyClassroomMove } from "@/services/homeworkTutoringQueries"
 import {
  fetchScheduleRosterContext,
@@ -448,6 +453,9 @@ export function ScheduleManagePage() {
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
  const [addExtra, setAddExtra] = useState(false)
+ const [addRosterCandidates, setAddRosterCandidates] = useState<ExtraLessonRosterCandidate[]>([])
+ const [addRosterIds, setAddRosterIds] = useState<string[]>([])
+ const [addRosterLoading, setAddRosterLoading] = useState(false)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [addClassRecords, setAddClassRecords] = useState<ClassRecord[]>([])
  const [addConflicts, setAddConflicts] = useState<TeacherScheduleConflict[]>([])
@@ -860,6 +868,33 @@ export function ScheduleManagePage() {
   }
  }, [addOpen, addClassId, addDate, addStart, addEnd, addClassRecords])
 
+ useEffect(() => {
+  if (!addOpen || !addExtra || !addClassId) {
+   setAddRosterCandidates([])
+   setAddRosterIds([])
+   setAddRosterLoading(false)
+   return
+  }
+  let cancelled = false
+  setAddRosterLoading(true)
+  void listExtraLessonRosterCandidates({ classId: addClassId, scheduleDate: addDate })
+   .then((rows) => {
+    if (cancelled) return
+    setAddRosterCandidates(rows)
+    setAddRosterIds(rows.map((row) => row.studentId))
+    setAddRosterLoading(false)
+   })
+   .catch(() => {
+    if (cancelled) return
+    setAddRosterCandidates([])
+    setAddRosterIds([])
+    setAddRosterLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [addOpen, addExtra, addClassId, addDate])
+
 useEffect(() => {
  if (!teacherScopeId) {
   setTeacherScopeName("專班老師")
@@ -1250,6 +1285,8 @@ useEffect(() => {
   setAddStart("")
   setAddEnd("")
   setAddExtra(false)
+  setAddRosterCandidates([])
+  setAddRosterIds([])
   setAddOpen(true)
  }
 
@@ -1288,6 +1325,7 @@ useEffect(() => {
     end_time: end,
     classroom_id: cls?.classroom_id ?? null,
     is_extra_lesson: addExtra,
+    rosterStudentIds: addExtra ? addRosterIds : undefined,
    })
    setAddOpen(false)
    await reload()
@@ -2806,6 +2844,9 @@ useEffect(() => {
         {detailRow.is_extra_lesson ? (
          <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
         ) : null}
+        {detailRow.roster_policy === "selected" ? (
+         <Tag tone={statusToTagTone("加堂")} size="sm">挑選名單</Tag>
+        ) : null}
        </div>
        {detailRow.status.includes("取消") && detailRow.cancel_reason ? (
         <p className="text-muted-foreground">取消原因：{detailRow.cancel_reason}</p>
@@ -2833,6 +2874,8 @@ useEffect(() => {
            status: detailRow.status,
            cancel_reason: detailRow.cancel_reason,
            is_extra_lesson: detailRow.is_extra_lesson,
+           roster_policy: detailRow.roster_policy,
+           roster_confirmed_at: detailRow.roster_confirmed_at,
            remarks: detailRow.remarks,
            teaching_notes: detailRow.teaching_notes,
            session_number: null,
@@ -2875,6 +2918,11 @@ useEffect(() => {
          />
          <span className="text-muted-foreground">標記為加堂</span>
         </label>
+       ) : null}
+       {canManageSchedules && detailRow.roster_policy === "selected" ? (
+        <p className="text-sm text-muted-foreground">
+         此堂以挑選名單上紙。未點名前可到完整頁面改選就讀生。
+        </p>
        ) : null}
        {detailRow.remarks ? (
         <p className="text-muted-foreground">備註：{detailRow.remarks}</p>
@@ -3087,7 +3135,7 @@ useEffect(() => {
    />
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>
-    <DialogContent className="text-sm">
+    <DialogContent className="max-h-[90vh] overflow-y-auto text-sm">
      <DialogHeader>
       <DialogTitle className="text-lg font-semibold">新增排程</DialogTitle>
      </DialogHeader>
@@ -3129,6 +3177,18 @@ useEffect(() => {
        />
        <span className="text-muted-foreground">標記為加堂（額外加開課堂）</span>
       </label>
+      {addExtra ? (
+       addRosterLoading ? (
+        <p className="text-sm text-muted-foreground">載入就讀生名單…</p>
+       ) : (
+        <ExtraLessonRosterPicker
+         candidates={addRosterCandidates}
+         selectedIds={addRosterIds}
+         onChange={setAddRosterIds}
+         disabled={addSaving}
+        />
+       )
+      ) : null}
       {addConflicts.length > 0 ? (
        <div
         role="alert"

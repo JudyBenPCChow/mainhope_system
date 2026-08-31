@@ -19,6 +19,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
+import { normalizeRosterPolicy } from "@/lib/scheduleRosterPolicy"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"
 import { supabase } from "@/lib/supabaseClient"
@@ -124,6 +125,7 @@ type ScheduleLessonRow = {
  scheduledDate: string
  cancelled: boolean
  lessonSlots: number
+ rosterPolicy: string
 }
 
 async function fetchClassScheduleLessonRows(classId: string): Promise<ScheduleLessonRow[]> {
@@ -140,7 +142,7 @@ async function fetchClassScheduleLessonRows(classId: string): Promise<ScheduleLe
 
  const { data, error } = await supabase
   .from("schedules")
-  .select("id, scheduled_date, status")
+  .select("id, scheduled_date, status, roster_policy")
   .eq("class_id", classId)
   .order("scheduled_date", { ascending: true })
  if (error) throw error
@@ -152,6 +154,9 @@ async function fetchClassScheduleLessonRows(classId: string): Promise<ScheduleLe
    scheduledDate: String(row.scheduled_date ?? "").slice(0, 10),
    cancelled: status.includes("取消"),
    lessonSlots: classSlots,
+   rosterPolicy: normalizeRosterPolicy(
+    row.roster_policy != null ? String(row.roster_policy) : null
+   ),
   }
  })
 }
@@ -267,7 +272,9 @@ export async function resolvePackageScheduleTargets(opts: {
 
  const schedules = await fetchClassScheduleLessonRows(opts.classId)
  const enrollDate = (opts.enrollDate ?? "").slice(0, 10)
- let filtered = schedules.filter((s) => !s.cancelled)
+ let filtered = schedules.filter(
+  (s) => !s.cancelled && normalizeRosterPolicy(s.rosterPolicy) !== "selected"
+ )
  if (enrollDate) {
   filtered = filtered.filter((s) => s.scheduledDate >= enrollDate)
  }
@@ -526,6 +533,57 @@ export async function syncSingleLessonDeclarations(opts: {
   scheduleIds: opts.scheduleIds,
   sourceEventType: "session_bind",
  })
+}
+
+/** 為指定排程補建 active 宣告（加堂挑選；不掃描該班其餘堂）。 */
+export async function mintDeclarationsForScheduleStudents(opts: {
+ classId: string
+ scheduleId: string
+ students: Array<{
+  studentId: string
+  enrollmentId?: string | null
+  enrollmentPeriod: EnrollmentFormValue | null
+  enrollDate?: string | null
+ }>
+ sourceEventType?: DeclarationSourceEventType
+}): Promise<number> {
+ if (!supabase || !opts.classId || !opts.scheduleId || opts.students.length === 0) return 0
+ const label = await classLabel(opts.classId)
+ if (!usesEntitlementRosterModel(label)) return 0
+
+ const now = new Date().toISOString()
+ const existing = await fetchActiveDeclarationsForSchedules([opts.scheduleId])
+ const already = new Set(existing.map((d) => d.studentId))
+ let inserted = 0
+
+ for (const student of opts.students) {
+  if (already.has(student.studentId)) continue
+  let pool = await fetchPoolForStudentClass(student.studentId, opts.classId)
+  if (!pool) {
+   pool = await ensureEntitlementPoolAndDeclarations({
+    enrollmentId: student.enrollmentId,
+    studentId: student.studentId,
+    classId: opts.classId,
+    enrollmentPeriod: student.enrollmentPeriod,
+    enrollDate: student.enrollDate,
+    sourceEventType: opts.sourceEventType ?? "manual_roster_add",
+   })
+  }
+  if (!pool) continue
+  await insertActiveDeclarationsIgnoringConflicts([
+   {
+    schedule_id: opts.scheduleId,
+    student_id: student.studentId,
+    pool_id: pool.id,
+    status: "active",
+    source_event_type: opts.sourceEventType ?? "manual_roster_add",
+    updated_at: now,
+   },
+  ])
+  already.add(student.studentId)
+  inserted += 1
+ }
+ return inserted
 }
 
 async function insertActiveDeclarationsIgnoringConflicts(

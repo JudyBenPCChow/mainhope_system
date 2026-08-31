@@ -30,7 +30,7 @@ import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
 /** 排程列表／點名共用 select（含代堂原老師） */
 const SCHEDULE_MANAGE_SELECT =
- "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, teaching_notes, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, class_kind, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( name )"
+ "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, roster_policy, roster_confirmed_at, remarks, teaching_notes, session_number, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, class_kind, course_code_full, day_of_week, time_slot, lesson_slots_per_session, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( name )"
 
 export type ScheduleManageRow = {
  id: string
@@ -42,6 +42,9 @@ export type ScheduleManageRow = {
  cancel_reason: string | null
  /** 加堂（額外加開課堂）標記，可與狀態並存 */
  is_extra_lesson: boolean
+ /** 就讀生點名紙政策；缺值視為 class_all */
+ roster_policy: "class_all" | "selected"
+ roster_confirmed_at: string | null
  remarks: string | null
  /** 老師填寫的教學紀錄（與營運備註分開） */
  teaching_notes: string | null
@@ -103,6 +106,9 @@ function mapScheduleRow(
   status: String(row.status ?? "正常"),
   cancel_reason: row.cancel_reason != null ? String(row.cancel_reason) : null,
   is_extra_lesson: row.is_extra_lesson === true,
+  roster_policy: row.roster_policy === "selected" ? "selected" : "class_all",
+  roster_confirmed_at:
+   row.roster_confirmed_at != null ? String(row.roster_confirmed_at) : null,
   remarks: row.remarks != null ? String(row.remarks) : null,
   teaching_notes: row.teaching_notes != null ? String(row.teaching_notes) : null,
   session_number:

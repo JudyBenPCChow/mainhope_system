@@ -116,6 +116,8 @@ function baseRow(
   status: "正常",
   cancel_reason: null,
   is_extra_lesson: false,
+  roster_policy: "class_all",
+  roster_confirmed_at: null,
   remarks: null,
   teaching_notes: null,
   course_name: null,

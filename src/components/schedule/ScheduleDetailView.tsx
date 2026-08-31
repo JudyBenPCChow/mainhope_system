@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ArrowLeft, Calendar, MapPin, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
@@ -14,6 +15,10 @@ import { Select } from "@/components/ui/select"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import {
+ canConvertExtraLessonToSelectedRoster,
+ canPickEnrolledRoster,
+} from "@/lib/scheduleRosterPolicy"
 import { payrollWorkbenchPath } from "@/lib/payroll/returnNav"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
@@ -29,6 +34,15 @@ import {
  type ScheduleDetailRecord,
 } from "@/services/scheduleDetailQueries"
 import { deleteSchedule, updateSchedule } from "@/services/scheduleWriteQueries"
+import { fetchActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
+import {
+ fetchAttendanceStudentIdsForSchedule,
+ listExtraLessonRosterCandidates,
+ saveSelectedRoster,
+ selectedIdsFromDeclarations,
+ type ExtraLessonRosterCandidate,
+} from "@/services/scheduleRosterPolicyQueries"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 
 function mentionsRecording(text: string): boolean {
@@ -55,6 +69,11 @@ export function ScheduleDetailView() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [extraSaving, setExtraSaving] = useState(false)
  const [substituteOpen, setSubstituteOpen] = useState(false)
+ const [rosterCandidates, setRosterCandidates] = useState<ExtraLessonRosterCandidate[]>([])
+ const [rosterSelectedIds, setRosterSelectedIds] = useState<string[]>([])
+ const [rosterLockedIds, setRosterLockedIds] = useState<string[]>([])
+ const [rosterSaving, setRosterSaving] = useState(false)
+ const [rosterErr, setRosterErr] = useState<string | null>(null)
  const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
  const canAssignSubstitute = canManageSchedules
 
@@ -75,8 +94,39 @@ export function ScheduleDetailView() {
       rosterContext
      )
      setCtx(c)
+     const pickable =
+      canPickEnrolledRoster({ rosterPolicy: s.roster_policy, remarks: s.remarks }) ||
+      canConvertExtraLessonToSelectedRoster({
+       isExtraLesson: s.is_extra_lesson,
+       rosterPolicy: s.roster_policy,
+       remarks: s.remarks,
+      })
+     if (pickable) {
+      const [candidates, declarations, locked] = await Promise.all([
+       listExtraLessonRosterCandidates({
+        classId: s.class_id,
+        scheduleDate: s.scheduled_date,
+       }),
+       fetchActiveDeclarationsForSchedules([sid]),
+       fetchAttendanceStudentIdsForSchedule(sid),
+      ])
+      setRosterCandidates(candidates)
+      const fromDecl = selectedIdsFromDeclarations(sid, declarations, candidates)
+      setRosterSelectedIds(
+       s.roster_policy === "selected" ? fromDecl : candidates.map((row) => row.studentId)
+      )
+      setRosterLockedIds([...locked])
+      setRosterErr(null)
+     } else {
+      setRosterCandidates([])
+      setRosterSelectedIds([])
+      setRosterLockedIds([])
+     }
     } else {
      setCtx(EMPTY_SCHEDULE_DETAIL_CONTEXT)
+     setRosterCandidates([])
+     setRosterSelectedIds([])
+     setRosterLockedIds([])
     }
    } else {
     setCtx(null)
@@ -181,6 +231,9 @@ export function ScheduleDetailView() {
         {row.status.includes("取消") && row.cancel_reason ? ` · ${row.cancel_reason}` : ""}
        </Tag>
        {row.is_extra_lesson ? <Tag tone={statusToTagTone("加堂")}>加堂</Tag> : null}
+       {row.roster_policy === "selected" ? (
+        <Tag tone={statusToTagTone("加堂")}>挑選名單</Tag>
+       ) : null}
        {isHomeworkOccupancySchedule(row) ? <Tag tone={statusToTagTone("佔室")}>佔室</Tag> : null}
        {(() => {
         const subTag = formatScheduleSubstituteTag({
@@ -287,6 +340,72 @@ export function ScheduleDetailView() {
        </p>
       ) : null}
      </section>
+
+     {canManageSchedules &&
+     row.class_id &&
+     (canPickEnrolledRoster({ rosterPolicy: row.roster_policy, remarks: row.remarks }) ||
+      canConvertExtraLessonToSelectedRoster({
+       isExtraLesson: row.is_extra_lesson,
+       rosterPolicy: row.roster_policy,
+       remarks: row.remarks,
+      })) ? (
+      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
+       <h2 className="text-lg font-semibold md:text-xl">加堂就讀生名單</h2>
+       <p className="mt-1 text-sm text-muted-foreground">
+        {row.roster_policy === "selected"
+         ? "此堂只讓已選就讀生上紙。未點名前可改；已有點名紀錄者不可剔除。"
+         : "此加堂目前全體就讀生上紙。改為挑選後，未選者不會出現在點名紙。"}
+       </p>
+       <div className="mt-4">
+        <ExtraLessonRosterPicker
+         candidates={rosterCandidates}
+         selectedIds={rosterSelectedIds}
+         lockedIds={rosterLockedIds}
+         onChange={setRosterSelectedIds}
+         disabled={rosterSaving}
+        />
+       </div>
+       {rosterErr ? (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+         {rosterErr}
+        </p>
+       ) : null}
+       <div className="mt-4">
+        <Button
+         type="button"
+         loading={rosterSaving}
+         loadingText="儲存中…"
+         onClick={() => {
+          void (async () => {
+           if (!row.class_id) return
+           setRosterSaving(true)
+           setRosterErr(null)
+           try {
+            await saveSelectedRoster({
+             scheduleId: row.id,
+             classId: row.class_id,
+             studentIds: rosterSelectedIds,
+             isExtraLesson: row.is_extra_lesson,
+             remarks: row.remarks,
+             rosterPolicy: row.roster_policy,
+            })
+            await load()
+           } catch (e) {
+            reportUserFacingError(e, {
+             source: "ScheduleDetailView.saveRoster",
+             setErr: setRosterErr,
+            })
+           } finally {
+            setRosterSaving(false)
+           }
+          })()
+         }}
+        >
+         儲存名單
+        </Button>
+       </div>
+      </section>
+     ) : null}
 
      <div className="grid gap-6 lg:grid-cols-2">
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
@@ -591,6 +710,9 @@ export function ScheduleDetailView() {
         />
         <span className="text-muted-foreground">標記為加堂</span>
        </label>
+       <p className="text-xs text-muted-foreground">
+        此標記只作分類，不會改誰上點名紙。正式堂與安排補堂的補回堂一律全體就讀生；其餘加堂請用上方名單挑選。
+       </p>
        {canAssignSubstitute ? (
         <Button type="button" variant="outline" onClick={() => setSubstituteOpen(true)}>
          {row.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
