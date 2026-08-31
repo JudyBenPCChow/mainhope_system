@@ -9,9 +9,15 @@ import {
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
+import { isHomeworkMonthlyFeeDescription, monthFirstDay } from "@/lib/homeworkTutoringFees"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
+import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
 import { supabase } from "@/lib/supabaseClient"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { paymentOpsListOrFilter } from "@/lib/softArchiveListScope"
+import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import {
  applyDiscountsToSubtotal,
@@ -124,6 +130,7 @@ export type PaymentDetailRow = {
  courseName: string
  courseCode: string | null
  lessonCount: number | null
+ coverageStartMonth: string | null
  amount: number | null
  description: string | null
 }
@@ -334,6 +341,8 @@ export type PaymentListFilters = {
  studentId?: string
  limit?: number
  offset?: number
+ includeOlderYears?: boolean
+ includeVoided?: boolean
 }
 
 export const PAYMENTS_PAGE_SIZE = 50
@@ -341,6 +350,8 @@ export const PAYMENTS_PAGE_SIZE = 50
 export type PaymentsPageResult = {
  rows: PaymentListRow[]
  hasMore: boolean
+ hiddenOlderCount: number
+ appliedFromYmd: string | null
 }
 
 /** 紀錄列表（含學生、優惠名稱） */
@@ -351,9 +362,61 @@ export async function fetchPaymentsList(filters: PaymentListFilters = {}): Promi
 
 /** 分頁紀錄列表 */
 export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promise<PaymentsPageResult> {
- if (!supabase) return { rows: [], hasMore: false }
+ if (!supabase) return { rows: [], hasMore: false, hiddenOlderCount: 0, appliedFromYmd: null }
  const limit = Math.min(Math.max(filters.limit ?? PAYMENTS_PAGE_SIZE, 1), 800)
  const offset = Math.max(filters.offset ?? 0, 0)
+ const includeOlder = Boolean(filters.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const includeVoided = Boolean(filters.includeVoided) || filters.status === "voided"
+ const userFrom = (filters.fromYmd ?? "").trim().slice(0, 10) || null
+ const userTo = (filters.toYmd ?? "").trim().slice(0, 10) || null
+ const studentId = (filters.studentId ?? "").trim() || null
+ const status = filters.status ?? "all"
+
+ let appliedFromYmd: string | null = userFrom
+ let opsDateOr: string | null = null
+ let hiddenOlderCount = 0
+
+ const applyOpsDefault =
+  !includeOlder && !userFrom && !studentId && (status === "all" || status === "received")
+
+ if (applyOpsDefault) {
+  const window = await fetchOpsAcademicYearWindow()
+  if (window?.startYmd) {
+   appliedFromYmd = window.startYmd
+   if (status === "all") {
+    opsDateOr = paymentOpsListOrFilter({
+     startYmd: window.startYmd,
+     pendingPayStatus: PAYMENT_STATUS.pendingPay,
+     pendingReceiveStatus: PAYMENT_STATUS.pendingReceive,
+    })
+   }
+   if (offset === 0) {
+    const olderQ = supabase
+     .from("payments")
+     .select("id", { count: "exact", head: true })
+     .lt("payment_date", window.startYmd)
+     .not(
+      "status",
+      "in",
+      `(${PAYMENT_STATUS.pendingPay},${PAYMENT_STATUS.pendingReceive},${PAYMENT_STATUS.voided})`
+     )
+    const voidedQ = includeVoided
+     ? null
+     : supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", PAYMENT_STATUS.voided)
+    const [olderCount, voidedCount] = await Promise.all([
+     headCountOrNull(olderQ),
+     voidedQ ? headCountOrNull(voidedQ) : Promise.resolve(0),
+    ])
+    if (olderCount == null || voidedCount == null) hiddenOlderCount = 0
+    else hiddenOlderCount = olderCount + voidedCount
+   }
+  }
+ } else if (!includeVoided && status === "all" && offset === 0) {
+  const voidedCount = await headCountOrNull(
+   supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", PAYMENT_STATUS.voided)
+  )
+  hiddenOlderCount = voidedCount ?? 0
+ }
 
  let q = supabase
   .from("payments")
@@ -364,20 +427,46 @@ export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promi
   .order("created_at", { ascending: false })
   .range(offset, offset + limit - 1)
 
- if (filters.studentId) q = q.eq("student_id", filters.studentId)
- if (filters.fromYmd) q = q.gte("payment_date", filters.fromYmd)
- if (filters.toYmd) q = q.lte("payment_date", filters.toYmd)
+ if (studentId) q = q.eq("student_id", studentId)
+ if (opsDateOr && appliedFromYmd) {
+  q = q.or(opsDateOr)
+ } else if (appliedFromYmd) {
+  q = q.gte("payment_date", appliedFromYmd)
+ }
+ if (userTo) q = q.lte("payment_date", userTo)
 
- if (filters.status === "received") {
+ if (status === "received") {
   q = q.eq("status", PAYMENT_STATUS.received)
- } else if (filters.status === "pending") {
+ } else if (status === "pending") {
   q = q.in("status", [PAYMENT_STATUS.pendingPay, PAYMENT_STATUS.pendingReceive])
- } else if (filters.status === "pendingPay") {
+ } else if (status === "pendingPay") {
   q = q.eq("status", PAYMENT_STATUS.pendingPay)
- } else if (filters.status === "pendingReceive") {
+ } else if (status === "pendingReceive") {
   q = q.eq("status", PAYMENT_STATUS.pendingReceive)
- } else if (filters.status === "voided") {
+ } else if (status === "voided") {
   q = q.eq("status", PAYMENT_STATUS.voided)
+ } else if (!includeVoided) {
+  q = q.neq("status", PAYMENT_STATUS.voided)
+ }
+
+ const searchFrag = sanitizeIlikeFragment(filters.search ?? "")
+ if (searchFrag) {
+  const { data: matchedStudents, error: studentSearchErr } = await supabase
+   .from("students")
+   .select("id")
+   .or(
+    `full_name.ilike.%${searchFrag}%,english_name.ilike.%${searchFrag}%,student_code.ilike.%${searchFrag}%`
+   )
+  if (studentSearchErr) throw studentSearchErr
+  const studentIds = (matchedStudents ?? []).map((r) => String((r as { id: string }).id))
+  const orParts = [
+   `receipt_number.ilike.%${searchFrag}%`,
+   `remarks.ilike.%${searchFrag}%`,
+  ]
+  if (studentIds.length > 0) {
+   orParts.push(`student_id.in.(${studentIds.join(",")})`)
+  }
+  q = q.or(orParts.join(","))
  }
 
  const { data, error } = await q
@@ -385,16 +474,24 @@ export async function fetchPaymentsPage(filters: PaymentListFilters = {}): Promi
  const rawRows = (data ?? []) as Record<string, unknown>[]
  const catalogIds = rawRows.flatMap((row) => collectCatalogDiscountIdsFromPaymentRow(row))
  const catalogById = await fetchDiscountCatalogMetaByIds(catalogIds)
- let rows = rawRows.map((x) => mapListRow(x, catalogById))
- const s = filters.search?.trim().toLowerCase() ?? ""
- if (s) {
-  rows = rows.filter((r) => {
-   const hay =
-    `${r.studentName} ${r.studentCode ?? ""} ${r.receiptNumber ?? ""} ${r.remarks ?? ""} ${r.discountName ?? ""}`.toLowerCase()
-   return hay.includes(s)
-  })
+ const rows = rawRows.map((x) => mapListRow(x, catalogById))
+ return { rows, hasMore: rows.length >= limit, hiddenOlderCount, appliedFromYmd }
+}
+
+/** 匯出用：逐頁拉至盡（核數可傳 includeOlderYears／includeVoided）。 */
+export async function fetchPaymentsForExport(
+ filters: PaymentListFilters
+): Promise<PaymentListRow[]> {
+ const all: PaymentListRow[] = []
+ const limit = 800
+ let offset = 0
+ for (let i = 0; i < 40; i += 1) {
+  const page = await fetchPaymentsPage({ ...filters, limit, offset })
+  all.push(...page.rows)
+  if (!page.hasMore) break
+  offset += page.rows.length
  }
- return { rows, hasMore: rows.length >= limit }
+ return all
 }
 
 export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> {
@@ -411,7 +508,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
 
  const { data: det, error: e2 } = await supabase
   .from("payment_details")
-  .select("id, class_id, lesson_count, amount, description, classes ( subject, course_code_full, courses ( course_name ) )")
+  .select("id, class_id, lesson_count, coverage_start_month, amount, description, classes ( subject, course_code_full, courses ( course_name ) )")
   .eq("payment_id", id)
  if (e2) throw e2
 
@@ -422,6 +519,8 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   const course = cls?.courses as Record<string, unknown> | null
   const courseName = course?.course_name != null ? String(course.course_name) : null
+  const coverageRaw =
+   r.coverage_start_month != null ? String(r.coverage_start_month).slice(0, 10) : ""
   return {
    id: String(r.id),
    classId: r.class_id != null ? String(r.class_id) : null,
@@ -429,6 +528,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
    courseName: classDisplayName({ subject: sub, courseName }),
    courseCode: code.trim() !== "" ? code : null,
    lessonCount: r.lesson_count != null ? Number(r.lesson_count) : null,
+   coverageStartMonth: /^\d{4}-\d{2}/.test(coverageRaw) ? coverageRaw.slice(0, 7) : null,
    amount: r.amount != null ? Number(r.amount) : null,
    description: r.description != null ? String(r.description) : null,
   }
@@ -517,6 +617,71 @@ export type PaymentDetailInput = {
  amount: number | null
  description: string | null
  monthlyTuitionChargeId?: string | null
+ /** 功輔月費覆蓋起始月 YYYY-MM-01 或 YYYY-MM */
+ coverageStartMonth?: string | null
+}
+
+function coverageStartMonthToDate(raw: string | null | undefined): string | null {
+ const ym = String(raw ?? "").slice(0, 7)
+ return /^\d{4}-\d{2}$/.test(ym) ? monthFirstDay(ym) : null
+}
+
+function isHomeworkPaymentDetailSkipLessons(opts: {
+ coverageStartMonth?: string | null
+ description?: string | null
+ classKind?: string | null
+}): boolean {
+ if (opts.coverageStartMonth) return true
+ if (resolveClassKind(opts.classKind, null) === "homework") return true
+ return isHomeworkMonthlyFeeDescription(opts.description)
+}
+
+async function assertHomeworkReceiptNotMixed(details: PaymentDetailInput[]): Promise<boolean> {
+ if (!supabase || details.length === 0) return false
+ const classIds = [
+  ...new Set(details.map((d) => d.classId).filter((id): id is string => Boolean(id))),
+ ]
+ const kindByClass = new Map<string, string>()
+ if (classIds.length > 0) {
+  const { data, error } = await supabase
+   .from("classes")
+   .select("id, class_kind, subject")
+   .in("id", classIds)
+  if (error) throw error
+  for (const row of data ?? []) {
+   const r = row as { id?: unknown; class_kind?: unknown; subject?: unknown }
+   kindByClass.set(
+    String(r.id),
+    resolveClassKind(
+     r.class_kind != null ? String(r.class_kind) : null,
+     r.subject != null ? String(r.subject) : null
+    )
+   )
+  }
+ }
+ let hasHomework = false
+ let hasSpecialist = false
+ for (const d of details) {
+  const isTrial = String(d.description ?? "").includes("試堂")
+  const classKind = d.classId ? kindByClass.get(d.classId) : null
+  const homework =
+   !isTrial &&
+   (classKind === "homework" ||
+    Boolean(d.coverageStartMonth) ||
+    isHomeworkMonthlyFeeDescription(d.description))
+  if (homework) {
+   hasHomework = true
+   if (!coverageStartMonthToDate(d.coverageStartMonth)) {
+    throw new Error("功課輔導班月費請填覆蓋起始月份")
+   }
+  } else {
+   hasSpecialist = true
+  }
+ }
+ if (hasHomework && hasSpecialist) {
+  throw new Error("功課輔導班月費須另開單據，不可與專科／私人課程／試堂同一張單。")
+ }
+ return hasHomework
 }
 
 export async function insertPaymentRecord(params: {
@@ -563,6 +728,7 @@ export async function insertPaymentRecord(params: {
   )
  }
  assertAcademicYearEditableForDate(params.paymentDate)
+ const homeworkReceipt = await assertHomeworkReceiptNotMixed(params.details ?? [])
 
  const discountIds = (
   params.discountIds?.length
@@ -574,6 +740,14 @@ export async function insertPaymentRecord(params: {
  const subtotalAmount = Math.round((params.subtotalAmount ?? params.totalAmount) * 100) / 100
  const totalAmount = Math.round(params.totalAmount * 100) / 100
  const specialAmount = normalizeSpecialDiscountAmount(params.specialDiscountAmount ?? 0)
+ if (homeworkReceipt) {
+  if (discountIds.length > 0 || specialAmount > 0) {
+   throw new Error("功課輔導班月費單不套用專科優惠，請另開專科單據。")
+  }
+  if ((params.lateFeeItems ?? []).length > 0) {
+   throw new Error("功課輔導班月費不收專科逾期罰款。")
+  }
+ }
 
  let orderedDiscounts: PaymentDiscountRow[] = []
  let discountApplications: Array<{
@@ -721,6 +895,7 @@ export async function insertPaymentRecord(params: {
     amount: d.amount,
     description: d.description?.trim() || null,
     monthly_tuition_charge_id: d.monthlyTuitionChargeId ?? null,
+    coverage_start_month: coverageStartMonthToDate(d.coverageStartMonth),
    }))
   )
   if (e2) throw e2
@@ -838,12 +1013,30 @@ export async function fetchPaymentDashboardStats(): Promise<PaymentDashboardStat
  const pids = (paidPayments ?? []).map((r) => String((r as { id: unknown }).id))
  let totalPaidLessons = 0
  if (pids.length > 0) {
-  const { data: det, error: e2 } = await supabase.from("payment_details").select("lesson_count").in("payment_id", pids)
-  if (e2) throw e2
-  for (const row of det ?? []) {
-   const n = Number((row as { lesson_count: unknown }).lesson_count)
-   if (Number.isFinite(n) && n > 0) totalPaidLessons += n
+ const { data: det, error: e2 } = await supabase
+  .from("payment_details")
+  .select("lesson_count, coverage_start_month, description, classes ( class_kind )")
+  .in("payment_id", pids)
+ if (e2) throw e2
+ for (const row of det ?? []) {
+  const r = row as {
+   lesson_count?: unknown
+   coverage_start_month?: unknown
+   description?: unknown
+   classes?: { class_kind?: unknown } | null
   }
+  if (
+   isHomeworkPaymentDetailSkipLessons({
+    coverageStartMonth: r.coverage_start_month != null ? String(r.coverage_start_month) : null,
+    description: r.description != null ? String(r.description) : null,
+    classKind: r.classes?.class_kind != null ? String(r.classes.class_kind) : null,
+   })
+  ) {
+   continue
+  }
+  const n = Number(r.lesson_count)
+  if (Number.isFinite(n) && n > 0) totalPaidLessons += n
+ }
  }
 
  const { data: attRows, error: e3 } = await supabase.from("attendance_details").select("status")
@@ -868,11 +1061,29 @@ export async function fetchTotalPaidLessonsForStudent(studentId: string): Promis
  if (e1) throw e1
  const pids = (pays ?? []).map((r) => String((r as { id: unknown }).id))
  if (pids.length === 0) return 0
- const { data: det, error: e2 } = await supabase.from("payment_details").select("lesson_count").in("payment_id", pids)
+ const { data: det, error: e2 } = await supabase
+  .from("payment_details")
+  .select("lesson_count, coverage_start_month, description, classes ( class_kind )")
+  .in("payment_id", pids)
  if (e2) throw e2
  let sum = 0
  for (const row of det ?? []) {
-  const n = Number((row as { lesson_count: unknown }).lesson_count)
+  const r = row as {
+   lesson_count?: unknown
+   coverage_start_month?: unknown
+   description?: unknown
+   classes?: { class_kind?: unknown } | null
+  }
+  if (
+   isHomeworkPaymentDetailSkipLessons({
+    coverageStartMonth: r.coverage_start_month != null ? String(r.coverage_start_month) : null,
+    description: r.description != null ? String(r.description) : null,
+    classKind: r.classes?.class_kind != null ? String(r.classes.class_kind) : null,
+   })
+  ) {
+   continue
+  }
+  const n = Number(r.lesson_count)
   if (Number.isFinite(n) && n > 0) sum += n
  }
  return sum

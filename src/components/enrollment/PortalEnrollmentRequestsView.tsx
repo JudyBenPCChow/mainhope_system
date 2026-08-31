@@ -142,7 +142,7 @@ export function PortalEnrollmentRequestsView() {
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ClipboardList className="h-8 w-8 text-teal-600" aria-hidden />
+      <ClipboardList className="h-8 w-8 text-info" aria-hidden />
       家長報讀申請
      </h1>
      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
@@ -168,7 +168,7 @@ export function PortalEnrollmentRequestsView() {
    ) : null}
 
    {err ? (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
     </div>
    ) : null}
@@ -188,7 +188,7 @@ export function PortalEnrollmentRequestsView() {
        className={cn(
         "rounded-full border px-3 py-1.5 text-sm font-medium",
         filter === key
-         ? "border-teal-600 bg-teal-600 text-white"
+         ? "border-primary bg-primary text-primary-foreground"
          : "border-border bg-background hover:bg-muted/60"
        )}
       >
@@ -230,7 +230,7 @@ export function PortalEnrollmentRequestsView() {
            as="tr"
            className={cn(
             "cursor-pointer border-b border-border/80 transition-colors",
-            active ? "bg-teal-50/80" : "hover:bg-muted/40"
+            active ? "bg-info/10" : "hover:bg-muted/40"
            )}
            onClick={() => setSelectedId(r.id)}
           >

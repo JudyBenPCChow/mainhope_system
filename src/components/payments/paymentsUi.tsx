@@ -31,6 +31,8 @@ export type LineRow = {
  lessons: string
  amount: string
  trialType: TrialPayType
+ /** 功輔覆蓋起始月 YYYY-MM；專科／試堂留空 */
+ coverageStartMonth: string
 }
 
 export type ClassPriceInfo = {
@@ -54,6 +56,7 @@ export function newLine(kind: PaymentLineKind = "enrollment"): LineRow {
   lessons: kind === "trial" ? DEFAULT_TRIAL_LESSON_COUNT : DEFAULT_LESSON_COUNT,
   amount: "",
   trialType: "原價試堂",
+  coverageStartMonth: "",
  }
 }
 

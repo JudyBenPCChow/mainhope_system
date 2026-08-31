@@ -13,8 +13,6 @@ import { fetchCurrentAuthzProfile } from "@/services/authzProfileQueries"
 export default function Login() {
   const navigate = useNavigate()
   const { ready, role } = useAuth()
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const onlyAlienEmail = (import.meta.env.VITE_ALIEN_EMAIL as string | undefined)?.trim().toLowerCase() ?? ""
@@ -29,12 +27,16 @@ export default function Login() {
     )
   }
 
-  const submit = async () => {
+  const submit = async (form: HTMLFormElement) => {
+    if (loading) return
     if (!isSupabaseConfigured) {
       setError("尚未設定 Supabase，暫時無法登入。")
       return
     }
-    if (!email.trim() || !password) {
+    const fd = new FormData(form)
+    const email = String(fd.get("email") ?? "").trim()
+    const password = String(fd.get("password") ?? "")
+    if (!email || !password) {
       setError("請輸入電郵與密碼。")
       return
     }
@@ -44,7 +46,7 @@ export default function Login() {
     clearAuthState()
     try {
       const { error: signInError, data } = await signInWithPasswordAuth(
-        email.trim().toLowerCase(),
+        email.toLowerCase(),
         password,
       )
       if (signInError) throw signInError
@@ -76,7 +78,15 @@ export default function Login() {
 
   return (
     <div className="flex min-h-svh items-center justify-center bg-brand-bg p-6">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm">
+      <form
+        className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm"
+        method="post"
+        autoComplete="on"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void submit(e.currentTarget)
+        }}
+      >
         <h1 className="text-2xl font-semibold tracking-tight">明學教育 Nova Beta 1.0</h1>
         <p className="mt-1 text-sm text-muted-foreground">請輸入你的電郵及密碼。如不確定或遺失，請聯絡Christine Fan。</p>
 
@@ -84,34 +94,34 @@ export default function Login() {
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">電郵</span>
             <Input
+              id="login-email"
+              name="email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
-              autoComplete="email"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
             />
           </label>
           <label className="grid gap-1 text-sm">
             <span className="text-muted-foreground">密碼</span>
             <Input
+              id="login-password"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               autoComplete="current-password"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void submit()
-              }}
             />
           </label>
         </div>
 
-        {error ? <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+        {error ? <div role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
 
-        <Button type="button" className="mt-5 w-full" loading={loading} loadingText="登入中…" onClick={() => void submit()}>
+        <Button type="submit" className="mt-5 w-full" loading={loading} loadingText="登入中…">
           登入
         </Button>
-      </div>
+      </form>
     </div>
   )
 }

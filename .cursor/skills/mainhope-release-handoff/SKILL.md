@@ -21,8 +21,8 @@ disable-model-invocation: true
    - 已完成：更新摘要與狀態；在 `docs/product/BACKLOG.md` 把整列移至「已完成／已取消」。
    - 部分完成：保留 `open`／`in_progress`，更新真實進度、餘項與任何新限制。
    - 不清楚歸屬：不要新開或搬移 backlog 項目，先在交接摘要列作待確認。
-3. 以行政語言撰寫摘要：說明「現在可做什麼、誰會受影響、如何操作、已知限制／跟進」。避免程式檔名、內部實作細節和未證實好處。
-4. 產生收件匣草稿，格式適合指定渠道；預設保存於 `docs/meta/handoffs/YYYY-MM-DD-<scope>-admin-update.md`。目錄不存在時可建立。
+3. 以行政語言撰寫摘要：說明「現在可做什麼、誰會受影響、如何操作、已知限制／跟進」。避免程式檔名、內部實作細節和未證實好處。給系統使用者的**短公告**（標題＋原問題／改善／用法一段）跟 [`mainhope-user-update-notice`](../mainhope-user-update-notice/SKILL.md)，唔用下方工程交接格式。
+4. 產生收件匣草稿，格式適合指定渠道；預設保存於 `docs/meta/handoffs/YYYY-MM-DD-<scope>-admin-update.md`。目錄不存在時可建立。短公告正文用 `mainhope-user-update-notice`。
 5. 若使用者提供渠道、收件人、訊息內容確認與發送指令，先展示最終內容再使用已授權的整合發送；不能使用未配置或未授權的渠道。
 
 ## 交接摘要格式

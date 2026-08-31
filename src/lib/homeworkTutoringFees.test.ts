@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  homeworkCoverageLabel,
+  homeworkCoverageMonths,
+  homeworkFeeLineDescription,
   homeworkMonthlyFeeHkd,
+  homeworkPaymentCoversMonth,
   homeworkPaymentLineAmount,
   isHomeworkMonthlyFeeDescription,
 } from "@/lib/homeworkTutoringFees"
@@ -37,6 +41,40 @@ describe("功輔月費價目年級", () => {
   it("明細備註帶月費先當功輔月費行", () => {
     expect(isHomeworkMonthlyFeeDescription("功課輔導班 · 2026年9月月費")).toBe(true)
     expect(isHomeworkMonthlyFeeDescription("中三英文")).toBe(false)
+  })
+
+  it("跨 12 月預繳逐月計四分三", () => {
+    expect(
+      homeworkPaymentLineAmount({
+        dayPlan: "三日",
+        grade: "S1",
+        coverageStartMonth: "2026-11",
+        monthCount: 2,
+      })
+    ).toBe("4900")
+  })
+
+  it("覆蓋月份連續展開", () => {
+    expect(homeworkCoverageMonths("2026-09", 3)).toEqual(["2026-09", "2026-10", "2026-11"])
+    expect(homeworkCoverageLabel("2026-09", 1)).toBe("2026年9月")
+    expect(homeworkCoverageLabel("2026-09", 3)).toBe("2026年9月至2026年11月")
+    expect(
+      homeworkPaymentCoversMonth({
+        coverageStartMonth: "2026-09",
+        monthCount: 3,
+        billingMonth: "2026-11",
+      })
+    ).toBe(true)
+    expect(
+      homeworkPaymentCoversMonth({
+        coverageStartMonth: "2026-09",
+        monthCount: 3,
+        billingMonth: "2026-12",
+      })
+    ).toBe(false)
+    expect(homeworkFeeLineDescription("功課輔導班", "2026-09", 2)).toBe(
+      "功課輔導班 · 2026年9月至2026年10月月費"
+    )
   })
 })
 

@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-06；方案 B：預設整月） |
+| 狀態 | `done`（2026-08-06；方案 B：預設整月；**2026-08-30 老師路徑 timeout 熱修**） |
 | 優先 | 高 |
 | 觸發 | 流動端／後台 `/AttendanceRecords` 查整月出現 `canceling statement due to statement timeout`（統計全 0） |
 | 範圍 | 出席紀錄列表載入：`fetchAttendanceRecordsInRange` → `/AttendanceRecords`；同函亦服務當日儀表 `fetchAttendanceDashboardForDate` |
@@ -12,6 +12,7 @@
 | 盤點 | 2026-08-06 |
 | 審閱 | 2026-08-06 第一性原則檢查後補契約；同日角色模擬（行政／老師／代堂）補運作問題 → 見「開工須一併解決」 |
 | 落地 | migration `20260806135000_attendance_records_range_rpc.sql`（索引＋`get_attendance_records_in_range`）；前端改 RPC、刪列表 roster；文案改本月；錯誤隱藏 KPI＋重試；老師路徑信 RPC |
+| 熱修 | 2026-08-30：老師開頁再 timeout（Christine／`authenticated` 8s）。WHERE 逐列 `teacher_can_read_attendance` 會重跑 plpgsql `current_app_role()`。改 `20260830214500_attendance_records_range_teacher_filter.sql`：角色／`teacher_id` 只算一次，再用班主責／當堂／原任欄位過濾（語意等同） |
 
 ## 現象與根因（已查）
 

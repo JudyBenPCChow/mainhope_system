@@ -10,7 +10,7 @@
 | 發佈清單 | [`PUBLISH_CHECKLIST.md`](PUBLISH_CHECKLIST.md) |
 | 校曆手冊 PDF | [`../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf`](../../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) |
 | 校曆規則正文 | [`../../policies/academic/ACADEMIC_CALENDAR.md`](../../policies/academic/ACADEMIC_CALENDAR.md) |
-| 九月時間表方案／定稿 | [`timetable/`](timetable/2627_timetable_schemes.md) |
+| 九月時間表方案／定稿 | [`timetable/`](timetable/2627_timetable_schemes.md)（**4.0 已簽收關帳**；其後加班只入系統，唔出新版方案） |
 | 學年營運 brief | [`ops-brief.md`](ops-brief.md) |
 
 改規則：先改 `policies/`，再改 `ops-guide.md`，再跑 `python3 scripts/generate_2627_ops_guide_doc.py`（docx＋pdf）。

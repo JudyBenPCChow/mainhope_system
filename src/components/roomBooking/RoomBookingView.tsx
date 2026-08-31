@@ -24,7 +24,7 @@ import {
 } from "@/lib/lessonSlots"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { fetchAllClasses, type ClassRecord } from "@/services/classQueries"
+import { fetchClassesByTeacherId, type ClassRecord } from "@/services/classQueries"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import {
  createRoomBookingRequest,
@@ -109,8 +109,8 @@ export function RoomBookingView() {
   setLoading(true)
   setErr(null)
   try {
-   const [rm, cls] = await Promise.all([fetchClassrooms(), fetchAllClasses()])
-   const mine = cls.filter((c) => c.teacher_id === teacherId)
+   const [rm, cls] = await Promise.all([fetchClassrooms(), fetchClassesByTeacherId(teacherId)])
+   const mine = cls
    setMyClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
    setRooms(rm)
    const ids = rm.filter((r) => !r.is_online).map((r) => r.id)
@@ -215,7 +215,7 @@ export function RoomBookingView() {
   <div className="space-y-5">
    <header>
     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-     <DoorOpen className="h-7 w-7 text-teal-600" aria-hidden />
+     <DoorOpen className="h-7 w-7 text-info" aria-hidden />
      預約空房
     </h1>
     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
@@ -225,7 +225,7 @@ export function RoomBookingView() {
    </header>
 
    {err ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
     </div>
    ) : null}
@@ -495,7 +495,7 @@ export function RoomBookingView() {
         />
        </label>
       )}
-      {formErr ? <p className="text-destructive">{formErr}</p> : null}
+      {formErr ? <p role="alert" className="text-destructive">{formErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={submitting} onClick={() => setDialogOpen(false)}>
         取消

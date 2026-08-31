@@ -28,7 +28,7 @@ import {
  type TrialOutcome,
 } from "@/lib/trialOutcome"
 import { cn } from "@/lib/utils"
-import { fetchAllClasses, fetchClassSchedules, type ClassRecord } from "@/services/classQueries"
+import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import { localYmd } from "@/services/scheduleQueries"
@@ -268,9 +268,9 @@ export function TrialSessionsView() {
 
  useEffect(() => {
   if (!convertId) return
-  void fetchAllClasses().then((cls) => {
+  void fetchClassesForOpsList().then((result) => {
    setConvertClassOptions(
-    cls.map((c) => ({
+    result.classes.map((c) => ({
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,
@@ -377,9 +377,9 @@ export function TrialSessionsView() {
   setClassSearch("")
   setClassPickerOpen(false)
   setAddClassId("")
-  void fetchAllClasses().then((cls: ClassRecord[]) => {
+  void fetchClassesForOpsList().then((result) => {
    setClassPickList(
-    cls.map((c) => ({
+    result.classes.map((c) => ({
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,
@@ -806,7 +806,7 @@ export function TrialSessionsView() {
     </div>
     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
      <div className="text-[11px] text-muted-foreground md:text-xs">流失</div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">{outcomeStats.lost}</p>
+     <p role="alert" className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">{outcomeStats.lost}</p>
     </div>
     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
      <div className="text-[11px] text-muted-foreground md:text-xs">待跟進</div>
@@ -1260,7 +1260,7 @@ export function TrialSessionsView() {
       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
        試堂頁只登記試堂。建立後會前往收款登記出單（免費亦出 $0 單）；確認收款後先上點名紙。對帳請睇繳費紀錄。
       </p>
-      {addErr ? <p className="text-destructive">{addErr}</p> : null}
+      {addErr ? <p role="alert" className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消

@@ -2,14 +2,14 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress` |
+| 狀態 | `done`（2026-08-30 用戶驗收關帳；工程 08-21 已落） |
 | 優先 | 高 |
 | 範圍 | 財務在 `/Payroll` 內完成月結核對：合計語意、未點名跟進、真跳轉／真提醒；出席紀錄小修（日期記憶、老師篩選、排序）；改財務複核指引 |
 | 不含 | 重開計糧引擎規則；排程管理改成整月報表；財務可點名／改排程／睇請假；功輔計糧（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；費率頁／銀行帳號／Cody 入冊（仍見 [`payroll-engine.md`](./payroll-engine.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 觸發 | 2026-08-05 Cody 回饋 PDF（7 月糧；Henry／Jackson／Katie／Liam／Mark／Phoebe／Rafael／Christine／Kenneth／Natalie；例 Cheryl）；嚴重程度＝阻礙出糧 |
 | 相關 | [`payroll-engine.md`](./payroll-engine.md)（引擎已 done）· [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md) · [`attendance-records-range-query.md`](./attendance-records-range-query.md) · [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)（計糧快取後刀）· 指引 [`cody-payroll-review-guide.html`](../../playbooks/finance/cody-payroll-review-guide.html) · 營運 [`PAYROLL_GUIDE.md`](../../policies/staffing/PAYROLL_GUIDE.md) |
-| 舊稽核（對照，唔當待辦全文） | [`2026-08-02-payroll-operational-simulation.md`](../audits/2026-08-02-payroll-operational-simulation.md)（查證無連結）· [`2026-08-01-payroll-finance-ui-review.md`](../audits/2026-08-01-payroll-finance-ui-review.md) §1.1／1.8 |
+| 舊稽核（對照，唔當待辦全文） | （查證無連結）·  §1.1／1.8 |
 
 ## 目標（一句）
 
@@ -17,9 +17,7 @@
 
 ## 開工閘（agent 必讀）
 
-本題**無前置工程**（進行中／待驗收）。**唔使等** [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md) 完成；出席篩選跟當日 `schedules.teacher_id` 即可。
-
-下游：代堂「匯出／按老師篩出勤」盤點必須等本題關帳（見該檔開工閘）。未結算 live 重算交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 4，**該波等本題關帳**。
+本題已關帳。下游閘已開：代堂匯出／出勤盤點見 [`substitute-teacher-reporting.md`](./substitute-teacher-reporting.md)；未結算 live 重算見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 4。
 
 ## 診斷（2026-08-21）
 
@@ -77,7 +75,8 @@
 - 功輔班在出席有、計糧無；補堂計入補上嗰個月。
 - 財務無請假權限，唔能獨立證實請假筆數。
 
-## 下一步
+## 關帳
 
-1. 第一刀＋第二刀已落地（合計拆欄、未點名高亮、真跳轉／inbox 提醒、出席紀錄小修、指引／指南）。計劃見 [`2026-08-21-payroll-finance-review-ux.md`](../plans/2026-08-21-payroll-finance-review-ux.md)。
-2. **關帳 ≠ 8 月糧結算。** 8 月未完、糧未出，正常。本題關帳＝財務確認計糧頁核對 UX 用得順（合計語意、未點名、跳轉／提醒），之後月份沿用同一套。待財務用**下一個未結算月**（而家即 8 月工作底稿，唔使等月底出糧）驗收後改 `done`。
+2026-08-30 用戶驗收：第一刀＋第二刀已落地（合計拆欄、未點名高亮、真跳轉／inbox 提醒、出席紀錄小修、指引／指南），標 `done`。
+
+**關帳 ≠ 8 月糧結算。** 8 月未完、糧未出，正常。之後月份沿用同一套核對 UX。

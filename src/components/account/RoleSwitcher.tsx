@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Select } from "@/components/ui/select"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAuth } from "@/lib/authBootstrap"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatMgmtRoleLabel, type MgmtRole } from "@/lib/mgmtRole"
 
 export function RoleSwitcher() {
@@ -19,6 +20,7 @@ export function RoleSwitcher() {
    await switchRole(nextRole)
    window.location.assign("/Home")
   } catch (error) {
+   reportUserFacingError(error, { source: "RoleSwitcher.switchRole" })
    pushBanner({
     tone: "error",
     title: "未能切換身份",

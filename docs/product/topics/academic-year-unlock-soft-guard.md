@@ -7,7 +7,7 @@
 | 範圍 | 後台寫入路徑：清 `assertAcademicYearEditable*`／`canEditAcademicYear*` 硬擋；非當期 confirm；audit 標記 |
 | 不含 | 整固舊學年鎖（A1b／A2／L1–L15／ADV 路線已廢棄）；家長 Portal；改 RLS 角色模型 |
 | 取代 | [academic-year-lock.md](./academic-year-lock.md)（整固專題 → `cancelled`） |
-| 決策依據 | [audits/2026-07-31-academic-year-lock-rethink.md](../audits/2026-07-31-academic-year-lock-rethink.md)；兩邊顧問對齊「撤鎖＋confirm＋audit」 |
+| 決策依據 | ；兩邊顧問對齊「撤鎖＋confirm＋audit」 |
 | 索引 | [BACKLOG.md](../BACKLOG.md) |
 | 盤點日期 | 2026-07-31 |
 | 完成日期 | 2026-07-31 |
@@ -53,14 +53,7 @@
 - 單獨 A1a UX 專案（撤鎖時一併清橫幅）  
 - DB 層學年 RLS（L15）
 
-## 相關稽核鏈（只讀備查）
+## 相關
 
-```
-docs/product/audits/2026-07-31-academic-year-lock-review.md
-docs/product/audits/2026-07-31-academic-year-lock-review-consultant.md
-docs/product/audits/2026-07-31-academic-year-lock-team-response.md
-docs/product/audits/2026-07-31-academic-year-lock-review-consultant-response.md
-docs/product/audits/2026-07-31-academic-year-lock-adversarial.md
-docs/product/audits/2026-07-31-academic-year-lock-adversarial-ruling.md
-docs/product/audits/2026-07-31-academic-year-lock-rethink.md
-```
+- 取消／歷史：[`academic-year-lock.md`](./academic-year-lock.md)
+- 過程稿（consultant／adversarial 來回）已刪；決策以本分題為準。

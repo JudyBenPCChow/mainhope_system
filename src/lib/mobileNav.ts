@@ -42,6 +42,7 @@ export function getMobileBottomTabs(
    { path: "/Home", label: "首頁", icon: Home },
    { path: HW_PATH.submit, label: "報更", icon: ClipboardList },
    { path: HW_PATH.myDuty, label: "當值", icon: CalendarCheck },
+   { path: "/Inbox", label: "收件匣", icon: Inbox },
    { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
   ]
  }
@@ -51,6 +52,7 @@ export function getMobileBottomTabs(
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
     { path: "/TeacherTimetable", label: "時間表", icon: CalendarRange },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "finance":
@@ -72,6 +74,7 @@ export function getMobileBottomTabs(
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Schedule", label: "排程", icon: CalendarDays },
     { path: "/SystemIssues", label: "報錯", icon: AlertTriangle },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
   case "admin":
@@ -80,6 +83,7 @@ export function getMobileBottomTabs(
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
     { path: "/Schedule", label: "排程", icon: CalendarDays },
+    { path: "/Inbox", label: "收件匣", icon: Inbox },
     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
    ]
  }

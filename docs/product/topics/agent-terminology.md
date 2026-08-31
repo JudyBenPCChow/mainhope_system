@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（UI／阿Po 已跟用語表更新；待驗收） |
+| 狀態 | `done`（2026-08-30 用戶驗收關帳；UI／阿Po 已跟用語表） |
 | 優先 | 中 |
 | 範圍 | 決策過程。員工讀本係 [`TERMINOLOGY.md`](../../meta/TERMINOLOGY.md) |
 | 載體 | 員工 md ＋ `.cursor/rules/terminology.mdc`。改詞見 `terminology-sync.mdc` |
@@ -34,8 +34,8 @@ F1 **抽離**：三條產品線平排——**專科班**、**私人課程**、**
 - `docs/policies/`、`docs/playbooks/`、`docs/year/2627/ops-guide.md` 已按定稿用語重審
 - 2627 指引及計糧指南 Word 已同步
 - 前台新舊用語表及 PDF 已產出：[`UI_TERMINOLOGY_CHANGE_REFERENCE.md`](../../playbooks/frontdesk/UI_TERMINOLOGY_CHANGE_REFERENCE.md)
-- UI 實作波次已備妥：[`2026-08-16-ui-terminology-sweep.md`](../plans/2026-08-16-ui-terminology-sweep.md)
+- UI 實作波次已備妥：
 
 ## 另開工程（未做）
 
-無。UI 一次過更新已跟用語表改畫面與阿Po；完成驗收後可收檔。
+無。2026-08-30 驗收關帳。

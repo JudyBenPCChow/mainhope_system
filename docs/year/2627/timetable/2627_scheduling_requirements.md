@@ -1,7 +1,7 @@
 # 2627 常規學年時間表 — 規劃備註
 
-> **權威規則已遷至：** [`docs/policies/scheduling/SCHEDULING_RULES.md`](../SCHEDULING_RULES.md)  
-> 本檔只保留 2627 規劃脈絡；日後排課請讀主檔，唔好再以本檔為準。
+> **權威規則已遷至：** [`docs/policies/scheduling/SCHEDULING_RULES.md`](../../../policies/scheduling/SCHEDULING_RULES.md)  
+> 本檔只保留 2627 **規劃期間**脈絡。**4.0 方案工程已完**；其後排課／加班讀主檔常設條款，只入系統，唔好再以本檔或「再開 4.x」為準。
 
 ---
 

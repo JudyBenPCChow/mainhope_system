@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（2026-08-23 **波次 1–3 已落地**；計劃 [`2026-08-23-mgmt-dashboard-profit-kpis.md`](../plans/2026-08-23-mgmt-dashboard-profit-kpis.md)；**只餘波次 4** 計糧快取） |
+| 狀態 | `in_progress`（2026-08-23 **波次 1–3 已落地**；**只餘波次 4** 計糧快取，閘已開） |
 | 優先 | 中 |
 | 範圍 | `/MgmtDashboard`：產品 KPI、查詢去重／按需載、手機簡化版；其後刀：計糧未結算 live 重算快取 |
 | 不含 | 軟封存／查詢收窄本體（互補另題）；會計收入認列；流動殼層其餘頁（外星人表、FilterSheet、老師 P3） |
@@ -19,7 +19,7 @@
 | 本波 | 對上一個工程 | 完成條件 | 未完成就 |
 | --- | --- | --- | --- |
 | 波次 1–3（總覽規格／fetch／手機） | 無 | 可開工（**唔好等** [`soft-archive-query-scope.md`](./soft-archive-query-scope.md)） | — |
-| 波次 4（計糧未結算快取） | [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) | 財務核對 UX 關帳（合計拆欄＋未點名＋真跳轉／提醒；出席紀錄老師篩選已跟當日授課） | 提醒用戶：核對流程未定，快取會令緊數數字再變 |
+| 波次 4（計糧未結算快取） | [`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) | **已滿足**（2026-08-30 關帳） | — |
 
 軟封存可略減總覽全表掃體積，**解決唔到** summary／full 重複、堂數不符熱路徑、計糧當月 live 重算。兩邊都唔改共用 `fetchAllStudents()` 默認。
 
@@ -41,7 +41,7 @@
 | 4 | 計糧未結算：上次計算＋「重新計算」；短 TTL；避免每次無謂 `UPDATE calc_at` | 載入偏慢／Payroll |
 | 可選 | payments／attendance／students 改 DB 聚合 RPC；主 bundle 再切 recharts／mgmt | 載入偏慢 |
 
-開工前寫實作 plan（`docs/product/plans/`）後改狀態 `in_progress`。波次 4 另確認產品：計糧可接受「快取＋手動刷新」定必須每次最新。
+開工前把步驟寫入本分題後改狀態 `in_progress`。波次 4 另確認產品：計糧可接受「快取＋手動刷新」定必須每次最新。
 
 ## 現況摘要
 
@@ -52,7 +52,7 @@
 ## 待做（摘要）
 
 1. ~~波次 1–3 口徑／fetch／手機~~ **已落**  
-2. 波次 4 計糧快取（過閘後：[`payroll-finance-review-ux.md`](./payroll-finance-review-ux.md) 關帳）  
+2. 波次 4 計糧快取（閘已開）  
 3. 與 [`frontline-ops-update.md`](./frontline-ops-update.md) 試堂出單原則對齊（無單唔入紙 → 影響試堂人數／消堂統計）
 
 ## 相關

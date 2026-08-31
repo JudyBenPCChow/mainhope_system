@@ -1135,7 +1135,7 @@ export async function fetchMgmtDashboard(
   settle(fetchOverallStudentAnalysis()),
   settle(fetchEnrollmentReport({ academicYearId: "", classKind: filters.classKind })),
   settle(fetchUnpaidAlerts()),
-  settle(fetchMisalignedLessonBalances()),
+  settle(fetchMisalignedLessonBalances().then((r) => r.rows)),
   settle(fetchClassesWithCapacity(filters)),
   settle(fetchWithdrawalAnalysis(filters.dateFrom, filters.dateTo, seatFilter)),
   settle(fetchRecentWithdrawals(filters.dateFrom, filters.dateTo)),

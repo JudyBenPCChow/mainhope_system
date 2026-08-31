@@ -2,7 +2,8 @@ import { supabase } from "@/lib/supabaseClient"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
-import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
+import { hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
+import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import {
  enrollmentCoversPeriod,
  isSingleSessionEnrollment,
@@ -151,7 +152,7 @@ function mapRow(r: Record<string, unknown>): LeaveManageRow {
 }
 
 const LEAVE_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
+ "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes ( subject, course_code_full, academic_year_id, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
 
 const LEAVE_LIST_COLUMNS_INNER_CLASS =
  "id, student_id, class_id, schedule_id, leave_date, leave_reason, makeup_type, makeup_date, makeup_schedule_id, tuition_disposition, status, remarks, students ( full_name, grade ), classes!inner ( subject, course_code_full, academic_year_id, courses ( course_name ), teacher_id, teachers ( full_name ) ), schedules!leave_makeup_records_schedule_id_fkey ( scheduled_date, start_time, end_time )"
@@ -180,6 +181,17 @@ async function mapLeaveListResult(result: {
  error: unknown
 }): Promise<LeaveManageRow[]> {
  if (result.error) throwPostgrest(result.error)
+ return ((result.data as Record<string, unknown>[] | null) ?? []).map((x) => mapRow(x))
+}
+
+async function mapLeaveListResultOptional(
+ result: { data: unknown; error: unknown },
+ label: string
+): Promise<LeaveManageRow[]> {
+ if (result.error) {
+  console.warn(`[fetchLeaveMakeupWithRelations] ${label}`, result.error)
+  return []
+ }
  return ((result.data as Record<string, unknown>[] | null) ?? []).map((x) => mapRow(x))
 }
 
@@ -227,6 +239,12 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
   .select(LEAVE_LIST_COLUMNS)
   .or(LEAVE_COMPLETED_STATUS_OR)
   .is("class_id", null)
+ const completedNullYearQ = supabase
+  .from("leave_makeup_records")
+  .select(LEAVE_LIST_COLUMNS)
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .not("class_id", "is", null)
+  .is("classes.academic_year_id", null)
  const extraByIdQ =
   extraIds.length > 0
    ? supabase.from("leave_makeup_records").select(LEAVE_LIST_COLUMNS).in("id", extraIds)
@@ -235,34 +253,66 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
   extraStudentIds.length > 0
    ? supabase.from("leave_makeup_records").select(LEAVE_LIST_COLUMNS).in("student_id", extraStudentIds)
    : null
- const hiddenCountQ = supabase
+ const allClosedCountQ = supabase
+  .from("leave_makeup_records")
+  .select("id", { count: "exact", head: true })
+  .or(LEAVE_COMPLETED_STATUS_OR)
+ const inWindowCountQ = supabase
   .from("leave_makeup_records")
   .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
   .or(LEAVE_COMPLETED_STATUS_OR)
-  .not("classes.academic_year_id", "in", `(${window.ids.join(",")})`)
+  .in("classes.academic_year_id", window.ids)
+ const noClassCountQ = supabase
+  .from("leave_makeup_records")
+  .select("id", { count: "exact", head: true })
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .is("class_id", null)
+ const nullYearCountQ = supabase
+  .from("leave_makeup_records")
+  .select("id, classes(academic_year_id)", { count: "exact", head: true })
+  .or(LEAVE_COMPLETED_STATUS_OR)
+  .not("class_id", "is", null)
+  .is("classes.academic_year_id", null)
 
- const [pendingRes, completedInWindowRes, completedNoClassRes, extraByIdRes, extraByStudentRes, hiddenRes] =
-  await Promise.all([
-   pendingQ,
-   completedInWindowQ,
-   completedNoClassQ,
-   extraByIdQ ?? Promise.resolve({ data: [], error: null }),
-   extraByStudentQ ?? Promise.resolve({ data: [], error: null }),
-   hiddenCountQ,
-  ])
- if (hiddenRes.error) throwPostgrest(hiddenRes.error)
+ const [
+  pendingRes,
+  completedInWindowRes,
+  completedNoClassRes,
+  completedNullYearRes,
+  extraByIdRes,
+  extraByStudentRes,
+  allClosed,
+  inWindowCount,
+  noClassCount,
+  nullYearCount,
+ ] = await Promise.all([
+  pendingQ,
+  completedInWindowQ,
+  completedNoClassQ,
+  completedNullYearQ,
+  extraByIdQ ?? Promise.resolve({ data: [], error: null }),
+  extraByStudentQ ?? Promise.resolve({ data: [], error: null }),
+  headCountOrNull(allClosedCountQ),
+  headCountOrNull(inWindowCountQ),
+  headCountOrNull(noClassCountQ),
+  headCountOrNull(nullYearCountQ),
+ ])
+
+ const keptWithoutYear =
+  noClassCount != null && nullYearCount != null ? noClassCount + nullYearCount : null
 
  const parts = await Promise.all([
   mapLeaveListResult(pendingRes),
   mapLeaveListResult(completedInWindowRes),
-  mapLeaveListResult(completedNoClassRes),
+  mapLeaveListResultOptional(completedNoClassRes, "completedNoClass"),
+  mapLeaveListResultOptional(completedNullYearRes, "completedNullYear"),
   mapLeaveListResult(extraByIdRes),
   mapLeaveListResult(extraByStudentRes),
  ])
 
  return {
   rows: mergeLeaveRows(parts),
-  hiddenOlderCount: hiddenRes.count ?? 0,
+  hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
  }
 }
 

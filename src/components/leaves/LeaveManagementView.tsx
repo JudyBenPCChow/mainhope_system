@@ -658,7 +658,7 @@ export function LeaveManagementView() {
    </header>
 
    {err ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
     </div>
    ) : null}
@@ -1040,7 +1040,7 @@ export function LeaveManagementView() {
             isLeaveStatusDone(r.status)
              ? "border-success bg-success text-success-foreground"
              : isLeaveStatusAbandoned(r.status)
-              ? "border-slate-300 bg-slate-50"
+              ? "border-muted bg-muted text-muted-foreground"
               : "border-warning bg-warning text-warning-foreground"
            )}
            value={r.status}
@@ -1292,7 +1292,7 @@ export function LeaveManagementView() {
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
 
-      {addErr ? <p className="text-destructive">{addErr}</p> : null}
+      {addErr ? <p role="alert" className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
@@ -1378,7 +1378,7 @@ export function LeaveManagementView() {
         <span className="text-muted-foreground">備註</span>
         <Input value={detailRemarks} disabled={!leaveRowEditable(detailRow)} onChange={(e) => setDetailRemarks(e.target.value)} className="h-9" />
        </label>
-       {detailErr ? <p className="text-destructive">{detailErr}</p> : null}
+       {detailErr ? <p role="alert" className="text-destructive">{detailErr}</p> : null}
        <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" disabled={detailSaving} onClick={() => setDetailOpen(false)}>
          {leaveRowEditable(detailRow) ? "取消" : "關閉"}
@@ -1421,7 +1421,7 @@ export function LeaveManagementView() {
         </option>
        ))}
       </Select>
-      {linkErr ? <p className="text-destructive">{linkErr}</p> : null}
+      {linkErr ? <p role="alert" className="text-destructive">{linkErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
        <Button type="button" variant="outline" disabled={linkSaving} onClick={() => setLinkOpen(false)}>取消</Button>
        <Button type="button" disabled={linkSaving} onClick={() => void saveLinkSchedule()}>

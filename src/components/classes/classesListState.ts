@@ -10,6 +10,9 @@ export type ClassesListDataCache = {
  yearOptions: { id: string; label: string; is_current: boolean }[]
  enrollRoster: Map<string, { count: number; names: string[] }>
  scheduleSummaries: Map<string, ClassScheduleSummary>
+ hiddenOlderCount: number
+ includeOlderYears: boolean
+ opsYearLabels: string[]
 }
 
 let dataCache: ClassesListDataCache | null = null

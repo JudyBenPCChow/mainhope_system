@@ -818,7 +818,7 @@ export function FinancePayrollView({
       <VersionBar calc={month.calc} onViewDiff={() => setDiffOpen(true)} />
 
       {month.returnReason ? (
-        <div className="rounded-xl border border-destructive/35 bg-destructive/5 px-3 py-2 text-sm">
+        <div role="alert" className="rounded-xl border border-destructive/35 bg-destructive/5 px-3 py-2 text-sm">
           <p className="font-medium text-destructive">管理層已退回</p>
           <p className="text-muted-foreground">{month.returnReason}</p>
         </div>

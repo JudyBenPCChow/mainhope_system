@@ -143,6 +143,8 @@ describe("exportMgmtDashboardCsv", () => {
   expect(csv).toContain(`已收款,0,`)
   expect(csv).toContain(`報讀轉化率,${CSV_LOAD_FAILED},`)
   expect(csv).toContain("消堂價值")
+  expect(csv).toContain("資料範圍")
+  expect(csv).toContain("日常營運窗")
   expect(csv).toContain(CSV_LOAD_FAILED)
   const funnelLine = csv.split("\n").find((l) => l.startsWith(CSV_LOAD_FAILED))
   expect(funnelLine).toBeTruthy()

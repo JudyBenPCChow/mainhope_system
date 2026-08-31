@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -234,6 +235,7 @@ export function ContactUpdateCampaignView() {
       for (const t of tokens) map.set(t.student_id, t)
       setTokensByStudent(map)
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.load" })
       pushBanner({
         tone: "error",
         title: "載入失敗",
@@ -330,6 +332,7 @@ export function ContactUpdateCampaignView() {
         message: `共 ${created.length} 位學生`,
       })
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.generate" })
       pushBanner({
         tone: "error",
         title: "產生失敗",
@@ -369,6 +372,7 @@ export function ContactUpdateCampaignView() {
         .filter((x): x is ContactUpdatePrintSlip => Boolean(x))
       setPrintRows(slips)
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.print" })
       pushBanner({
         tone: "error",
         title: "無法準備打印頁",
@@ -415,6 +419,7 @@ export function ContactUpdateCampaignView() {
         pushBanner({ tone: "error", title: "無法開啟 WhatsApp", message: "請檢查電話格式" })
       }
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.notify" })
       pushBanner({
         tone: "error",
         title: "通知失敗",
@@ -476,6 +481,7 @@ export function ContactUpdateCampaignView() {
       // 重新載入學生電話，方便後續 WhatsApp
       void reload()
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.approve" })
       pushBanner({
         tone: "error",
         title: "核准失敗",
@@ -499,6 +505,7 @@ export function ContactUpdateCampaignView() {
         message: `${reviewRow.student.full_name} 提交已作廢，可重新產生連結`,
       })
     } catch (e) {
+      reportUserFacingError(e, { source: "ContactUpdateCampaignView.void" })
       pushBanner({
         tone: "error",
         title: "作廢失敗",

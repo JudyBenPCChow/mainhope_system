@@ -147,8 +147,6 @@ hasCapability(profile.role, "payments.void")
 ## 開局必讀
 
 - [`p0-1-authorization-redesign.md`](../../product/topics/p0-1-authorization-redesign.md)
-- [`P0-1 架構審閱`](../../product/audits/2026-08-15-p0-1-authorization-redesign-review.md)
-- [`P0-2 調查`](../../product/audits/2026-08-15-p0-2-browser-role-authority-investigation.md)
 
 ## 勿再踩
 

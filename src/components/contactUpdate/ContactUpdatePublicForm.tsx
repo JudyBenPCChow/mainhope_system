@@ -3,6 +3,7 @@ import { CheckCircle2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
@@ -111,7 +112,9 @@ export function ContactUpdatePublicForm({ token }: { token: string }) {
         }
       })
       .catch((e) => {
-        if (!cancelled) setErr(e instanceof Error ? e.message : String(e))
+        if (!cancelled) {
+          reportUserFacingError(e, { source: "ContactUpdatePublicForm.load", setErr })
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -147,7 +150,7 @@ export function ContactUpdatePublicForm({ token }: { token: string }) {
       setDone(true)
       setReadOnly(true)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e))
+      reportUserFacingError(e, { source: "ContactUpdatePublicForm.submit", setErr })
     } finally {
       setSaving(false)
     }
@@ -178,7 +181,7 @@ export function ContactUpdatePublicForm({ token }: { token: string }) {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-4 py-10">
         <div className="rounded-2xl border border-border bg-card p-6 text-center shadow-sm">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" aria-hidden />
+          <CheckCircle2 className="mx-auto h-12 w-12 text-success" aria-hidden />
           <h1 className="mt-4 text-xl font-bold">已收到更新</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             資料已交職員核對，核准後先寫入學生檔案。如需再改，請向職員索取新連結。

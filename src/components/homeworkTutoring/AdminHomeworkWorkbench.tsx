@@ -457,7 +457,7 @@ export function AdminHomeworkWorkbench({
         <div className="space-y-3">
           <h2 className="text-sm font-semibold">{formatYearMonthLabel(currentYearMonth())}月費</h2>
           <p className="text-xs text-muted-foreground">
-            已繳／未繳以繳費紀錄為準（收款日所屬月份）。請到「收款登記」出單，本頁不另開收款。已繳 {overview.paid} · 未繳 {overview.unpaid}
+            已繳／未繳以繳費紀錄為準（單據覆蓋月份）。請到「收款登記」出單，本頁不另開收款。已繳 {overview.paid} · 未繳 {overview.unpaid}
           </p>
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full min-w-[560px] text-left text-sm">

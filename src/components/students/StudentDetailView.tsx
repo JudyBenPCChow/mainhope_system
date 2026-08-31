@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -39,6 +40,13 @@ import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, Stude
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import {
+ confirmGraduateStudent,
+ confirmUngraduateStudent,
+ graduationHasWarnings,
+ logGraduateStudentChange,
+ logUngraduateStudentChange,
+} from "@/lib/graduationGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
@@ -61,6 +69,7 @@ import {
  fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
 } from "@/services/paymentQueries"
+import { fetchGraduationBlockers } from "@/services/graduationGuardQueries"
 import {
  fetchAllStudents,
  fetchClassOptions,
@@ -111,6 +120,7 @@ import {
  updatePendingLessonStatus,
  type LessonBalanceRow,
 } from "@/services/pendingLessonQueries"
+import { isHomeworkClassKind } from "@/lib/privateClassKind"
 
 function formatLeaveError(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -453,14 +463,43 @@ export function StudentDetailView() {
  }, [enrollKindOpen, ensureTabData])
 
  const [form, setForm] = useState<Partial<StudentRecord>>({})
+ const [savingBasic, setSavingBasic] = useState(false)
+ const savingBasicRef = useRef(false)
 
  useEffect(() => {
   if (student) setForm(student)
  }, [student])
 
  const saveBasic = useCallback(async (): Promise<boolean> => {
-  if (!sid || !student) return false
+  if (!sid || !student || savingBasicRef.current) return false
+  savingBasicRef.current = true
+  setSavingBasic(true)
   try {
+   const prevStage = normalizeAcademicStage(student.academic_stage)
+   const nextStage = normalizeAcademicStage(form.academic_stage)
+   const studentName = (form.full_name ?? student.full_name ?? "").trim() || "此生"
+   const graduating = prevStage !== "已畢業" && nextStage === "已畢業"
+   const ungraduating = prevStage === "已畢業" && nextStage !== "已畢業"
+   let graduateBlockers = null as Awaited<ReturnType<typeof fetchGraduationBlockers>> | null
+   if (graduating) {
+    graduateBlockers = await fetchGraduationBlockers(sid)
+    if (
+     !(await confirmGraduateStudent(confirmDialog, {
+      studentName,
+      blockers: graduateBlockers,
+     }))
+    ) {
+     return false
+    }
+   } else if (ungraduating) {
+    if (
+     !(await confirmUngraduateStudent(confirmDialog, {
+      studentName,
+     }))
+    ) {
+     return false
+    }
+   }
    const updated = await updateStudent(sid, {
     full_name: form.full_name ?? student.full_name,
     english_name: form.english_name,
@@ -490,14 +529,32 @@ export function StudentDetailView() {
    })
    setStudent(updated)
    setForm(updated)
+   if (graduating && graduateBlockers) {
+    logGraduateStudentChange({
+     forced: graduationHasWarnings(graduateBlockers),
+     studentId: sid,
+     studentName,
+     blockers: graduateBlockers,
+     source: "StudentDetailView.saveBasic",
+    })
+   } else if (ungraduating) {
+    logUngraduateStudentChange({
+     studentId: sid,
+     studentName,
+     source: "StudentDetailView.saveBasic",
+    })
+   }
    pushBanner({ tone: "success", title: "已儲存學生資料", message: "學生基本資料已更新。" })
    return true
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.saveBasic" })
    pushBanner({ tone: "error", title: "儲存失敗", message: e instanceof Error ? e.message : String(e) })
    return false
+  } finally {
+   savingBasicRef.current = false
+   setSavingBasic(false)
   }
- }, [sid, student, form, pushBanner])
+ }, [sid, student, form, pushBanner, confirmDialog])
 
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
  const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
@@ -979,7 +1036,7 @@ export function StudentDetailView() {
     <div className="p-6">
      {loadFailed ? (
       <div className="space-y-2" role="alert">
-       <p className="text-sm text-destructive">學生資料未能載入。</p>
+       <p role="alert" className="text-sm text-destructive">學生資料未能載入。</p>
        <button
         type="button"
         className="text-sm font-medium text-primary hover:underline"
@@ -1177,7 +1234,7 @@ export function StudentDetailView() {
    <div className="p-4 md:p-6">
     {studentState === "error" && student ? (
      <div className="mb-4 space-y-2" role="alert">
-      <p className="text-sm text-destructive">學生資料未能載入。</p>
+      <p role="alert" className="text-sm text-destructive">學生資料未能載入。</p>
       <button
        type="button"
        className="text-sm font-medium text-primary hover:underline"
@@ -1252,7 +1309,7 @@ export function StudentDetailView() {
          <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
           {student.activity_status}
           <span className="mt-1 block text-xs text-muted-foreground">
-           近三個月有報讀活動（自動計算；可能含近期退讀，不等於目前在讀）
+           在讀，或近三個月曾報讀／退讀（自動計算；在讀一定活躍）
           </span>
          </p>
         </Field>
@@ -1267,9 +1324,10 @@ export function StudentDetailView() {
          />
         </Field>
         <Field label="學校" className="sm:col-span-2">
-         <Input
+         <SchoolSearchableSelect
+          disabled={!canMutateStudentOps}
           value={form.school ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))}
+          onChange={(school) => setForm((f) => ({ ...f, school }))}
          />
         </Field>
         <Field label="出生日期">
@@ -1512,7 +1570,7 @@ export function StudentDetailView() {
 
        {relativesState === "error" ? (
         <div className="space-y-2" role="alert">
-         <p className="text-sm text-destructive">親友資料未能載入。</p>
+         <p role="alert" className="text-sm text-destructive">親友資料未能載入。</p>
          <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void reloadCore()}>
           重試
          </button>
@@ -1614,7 +1672,7 @@ export function StudentDetailView() {
       </section>
 
       {canMutateStudentOps ? (
-       <Button type="button" onClick={() => void saveBasic()}>
+       <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
         儲存變更
        </Button>
       ) : null}
@@ -1626,7 +1684,7 @@ export function StudentDetailView() {
      <div className="mx-auto max-w-3xl space-y-4">
       {lessonBalancesState === "error" ? (
        <div className="space-y-2" role="alert">
-        <p className="text-sm text-destructive">堂數核對未能載入。</p>
+        <p role="alert" className="text-sm text-destructive">堂數核對未能載入。</p>
         <button
          type="button"
          className="text-sm font-medium text-primary hover:underline"
@@ -1824,7 +1882,7 @@ export function StudentDetailView() {
             {pickClassSchedulesLoading ? (
              <p className="text-muted-foreground">載入排程中…</p>
             ) : pickStartScheduleOptions.length === 0 ? (
-             <p className="text-destructive">此班暫無可選的未來排程。</p>
+             <p role="alert" className="text-destructive">此班暫無可選的未來排程。</p>
             ) : (
              <Select
               className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -1883,7 +1941,7 @@ export function StudentDetailView() {
       <div className="space-y-3">
        {enrollmentsState === "error" ? (
         <div className="space-y-2" role="alert">
-         <p className="text-sm text-destructive">報讀資料未能載入。</p>
+         <p role="alert" className="text-sm text-destructive">報讀資料未能載入。</p>
          <button
           type="button"
           className="text-sm font-medium text-primary hover:underline"
@@ -1899,7 +1957,8 @@ export function StudentDetailView() {
        ) : (
         <StaggerList as="div" className="space-y-3">
         {activeEnrollments.map((e) => {
-         const bal = balanceByEnrollment.get(e.id)
+         const isHomework = isHomeworkClassKind(e.classKind)
+         const bal = isHomework ? undefined : balanceByEnrollment.get(e.id)
          return (
          <StaggerItem
           key={e.id}
@@ -1923,8 +1982,11 @@ export function StudentDetailView() {
               {e.enrollmentFormLabel}
              </Tag>
             ) : null}
-            {canViewMoney && e.pricePerLesson != null ? (
+            {canViewMoney && !isHomework && e.pricePerLesson != null ? (
              <span>· 每節 {money(e.pricePerLesson)}</span>
+            ) : null}
+            {isHomework && e.homeworkDayPlan ? (
+             <span>每週{e.homeworkDayPlan}</span>
             ) : null}
            </div>
            <div className="mt-1 text-xs text-muted-foreground">
@@ -1945,8 +2007,18 @@ export function StudentDetailView() {
             className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             value={e.status}
             onChange={async (ev) => {
-             await updateEnrollment(e.id, ev.target.value, sid)
-             await reloadSubs()
+             const next = ev.target.value
+             try {
+              await updateEnrollment(e.id, next, sid)
+              await reloadSubs()
+             } catch (err) {
+              reportUserFacingError(err, { source: "StudentDetailView.updateEnrollmentStatus" })
+              pushBanner({
+               tone: "error",
+               title: "更新報讀狀態失敗",
+               message: err instanceof Error ? err.message : String(err),
+              })
+             }
             }}
            >
             <option value="就讀中">就讀中</option>
@@ -1989,7 +2061,11 @@ export function StudentDetailView() {
            </Tag>
           )}
           </div>
-          {lessonBalancesState === "ready" && bal ? (
+          {isHomework ? (
+           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            功課輔導班按月繳費，不按堂對帳、不補堂。已繳月份見功課輔導 → 月費，或繳費紀錄。
+           </div>
+          ) : lessonBalancesState === "ready" && bal ? (
            <div
             className={cn(
              "rounded-md border px-3 py-2 text-xs",
@@ -2382,7 +2458,7 @@ export function StudentDetailView() {
       <div className="space-y-3">
        {paymentsState === "error" ? (
         <div className="space-y-2" role="alert">
-         <p className="text-sm text-destructive">繳費資料未能載入。</p>
+         <p role="alert" className="text-sm text-destructive">繳費資料未能載入。</p>
          <button
           type="button"
           className="text-sm font-medium text-primary hover:underline"

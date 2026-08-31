@@ -16,8 +16,8 @@
 | 一索引、多分題 | 索引只放一句現況；長文、方案、邊界寫分題 |
 | 未做／已做分表 | `open`／`in_progress` 與 `done`／`cancelled` **禁止混同一張表** |
 | 一列一真相 | 同一主題長期只應有一條 backlog 列；唔好「母題＋獨立列」雙真相 |
-| 步驟與稽核外置 | 實作步驟 → `plans/`；調查／對抗／模擬 → `audits/`；唔塞進索引 |
-| Agent 讀檔階梯 | 問未做只掃 open 表；做主題先開分題；audits／已完成預設唔掃 |
+| 步驟寫入分題 | 實作步驟同調查結論寫入 `topics/`；本專案唔另開 `plans/`／`audits/` |
+| Agent 讀檔階梯 | 問未做只掃 open 表；做主題先開分題 |
 
 **本檔不是待辦清單。** 待辦真相永遠在目標專案的 `BACKLOG.md`「進行中／未完成」表。
 
@@ -31,18 +31,12 @@ docs/
   BACKLOG_SYSTEM.md          # 本說明（制度本身；可選保留）
   backlog/
     <topic>.md               # 分題詳情（kebab-case slug）
-  plans/                     # 可選：現行實作／設計步驟
-    YYYY-MM-DD-<slug>.md
-  audits/                    # 可選：已完成調查（對抗、模擬、盤點）
-    YYYY-MM-DD-<slug>.md
 ```
 
 | 路徑 | 職責 | 何時讀 |
 | --- | --- | --- |
 | `docs/product/BACKLOG.md` | 工程主題目錄；狀態＋一句摘要 | 「有咩未做」／list backlog |
 | `docs/product/topics/<topic>.md` | 範圍、結論、待決、進度、相關連結 | 做該主題時 |
-| `docs/product/plans/…` | 現行實作步驟、設計稿、驗收 checklist | 僅 `in_progress` 且要跟步驟；**只開現行計劃** |
-| `docs/product/audits/…` | 已完成調查結果 | 對對抗、查「點解咁決定」、或用戶點名 |
 | 規範／營運／構想（各自檔） | 政策、UI 規範、`FUTURE_*.md` 等 | 索引用「想找…」表指過去；**唔當待辦列** |
 
 ---
@@ -72,7 +66,7 @@ docs/
 ### 3.3 維護約定（寫進索引）
 
 - **新主題**：加一列到「進行中／未完成」＋（可選）`docs/product/topics/<topic>.md`
-- **開始做**：狀態改 `in_progress`；若有實作計畫，連到 `docs/product/plans/…`
+- **開始做**：狀態改 `in_progress`；步驟寫入該分題
 - **完成或取消**：狀態改 `done`／`cancelled`，**整列移到「已完成／已取消」表**（可留分題檔備查，勿默默刪）
 - 本索引只放一句摘要；長表／方案放分題檔
 - **唔好**把 `done`／`cancelled` 同未做完項混喺同一張表
@@ -82,7 +76,7 @@ docs/
 | 狀態 | 意思 |
 | --- | --- |
 | `open` | 已立案、未開工（含 idea） |
-| `in_progress` | 正在做；通常有現行 plan 或分題內「下一步」 |
+| `in_progress` | 正在做；分題內寫「下一步」 |
 | `done` | 本期範圍已收；餘項若另開主題則另列 |
 | `cancelled` | 不做；保留分題說明原因（例：改走另一方案） |
 
@@ -123,21 +117,18 @@ docs/
 | 相關 | 跨主題、政策、程式路徑 |
 
 **短 idea**：結論＋待決＋待做即可。  
-**大型主題**：分題掛現行 plan；舊 plan 標「已取代」；調查結果連 audits，唔複製全文進分題。
+**大型主題**：步驟同餘項寫入分題；唔另開 plan／audit 檔。
 
 ---
 
-## 5. 與 plans／audits 的分層
+## 5. 步驟同調查放邊
+
+本專案：**步驟、驗收、調查結論都寫入分題**。唔另開 `plans/`／`audits/`。
 
 | 層 | 寫咩 | 禁止 |
 | --- | --- | --- |
 | BACKLOG 列 | 一句現況＋連結 | 長表、完整方案、逐步 checklist |
-| 分題 | 主題真相、邊界、餘項、決策摘要 | 把每次對抗全文貼入 |
-| `plans/YYYY-MM-DD-…` | 步驟、設計、驗收 | 當永久「有咩未做」清單；舊 review 系列當現行步驟 |
-| `audits/YYYY-MM-DD-…` | 調查／對抗／模擬結果 | 預設當待辦勾選 |
-
-計劃檔命名建議：`YYYY-MM-DD-<slug>.md`。  
-同一主題可有多份 plan；分題只指向**現行**那份，並註明舊份已取代。
+| 分題 | 主題真相、邊界、餘項、決策摘要、現行步驟 | 把每次對抗全文貼入 |
 
 ---
 
@@ -146,13 +137,12 @@ docs/
 原文級約定（可直接貼）：
 
 1. 問「有咩未做」／list backlog → **只讀「進行中／未完成」表**（`open`／`in_progress`）；**停**；勿開分題、勿把已完成表當成待辦。  
-2. 做某個主題 → 先開該列 `backlog/<topic>.md`；僅當 `in_progress` 且需要步驟時再開**現行** `plans/…`；唔開同主題舊 review／adversarial 系列。  
-3. 「想找」表同 `audits/` 連結＝備查索引；預設唔開，除非對對抗結果、查「點解咁決定」、或使用者點名續做該波。  
-4. 已完成／已取消表同其連結：備查用，日常任務唔掃。
+2. 做某個主題 → 先開該列 `docs/product/topics/<topic>.md`；步驟喺分題內。  
+3. 已完成／已取消表同其連結：備查用，日常任務唔掃。
 
 目標專案的 `AGENTS.md`（或同等）可加一行：
 
-> 問未做 → `docs/product/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/product/topics/<topic>.md`（＋現行 `docs/product/plans/`）。
+> 問未做 → `docs/product/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/product/topics/<topic>.md`。
 
 ---
 
@@ -160,8 +150,7 @@ docs/
 
 1. 建立 `docs/product/BACKLOG.md`（用下方骨架）。  
 2. 建立 `docs/product/topics/`（可先空）。  
-3. （可選）預留 `docs/product/plans/`、`docs/product/audits/`。  
-4. 在 agent 指引寫入 §6 讀檔階梯。  
+3. 在 agent 指引寫入 §6 讀檔階梯。  
 5. 第一個真實主題：索引加一列＋寫一分題檔。
 
 ### 7.1 `BACKLOG.md` 最小骨架
@@ -173,13 +162,13 @@ docs/
 
 **Agent 讀檔**：
 - 問未做 → 只讀「進行中／未完成」；停。
-- 做主題 → 開該列 `backlog/<topic>.md`；需要步驟再開現行 `plans/…`。
-- `audits/` 與已完成表：備查；日常唔掃。
+- 做主題 → 開該列 `docs/product/topics/<topic>.md`。
+- 已完成表：備查；日常唔掃。
 
 ## 維護約定
 
 - 新主題：加列到「進行中／未完成」＋可選 `docs/product/topics/<topic>.md`
-- 開始做：狀態改 `in_progress`；有計劃連 `docs/product/plans/…`
+- 開始做：狀態改 `in_progress`；步驟寫入分題
 - 完成或取消：改 `done`／`cancelled`，整列移到「已完成／已取消」
 - 索引只放一句摘要；長文放分題
 - 唔好把已完成項同未做項混同一張表
@@ -234,12 +223,11 @@ docs/
 | 情境 | 動作 |
 | --- | --- |
 | 想到新功能／債 | 索引加 `open` 列；需要邊界就寫分題 |
-| 開工 | 列改 `in_progress`；複雜則開 `plans/YYYY-MM-DD-…` 並連上 |
+| 開工 | 列改 `in_progress`；步驟寫入分題 |
 | 進度變了 | 更新索引**一句摘要**＋分題「結論／下一步」 |
 | 本期做完 | 分題標 `done`（可寫完成日）；整列搬到已完成表 |
 | 決定不做 | 分題寫原因；狀態 `cancelled`；整列搬到已完成表 |
-| 調查／對抗 | 寫 `audits/…`；分題／索引只加連結，唔當新待辦除非另開 open 項 |
-| 計劃被取代 | 新 plan 檔；分題改連現行；舊 plan 標題或分題註「已取代」 |
+| 調查／對抗 | 結論寫入分題；唔另開 audit 檔 |
 
 ---
 
@@ -260,8 +248,8 @@ docs/
 | --- | --- |
 | [`BACKLOG.md`](./BACKLOG.md) | 現行索引 |
 | [`backlog/`](./backlog/) | 分題實例（短 idea → 大型進行中／已完成皆有） |
-| [`plans/`](./plans/) | 實作計劃命名與掛接方式 |
-| [`audits/`](./audits/) | 調查備查；預設唔當待辦 |
+|  | 實作計劃命名與掛接方式 |
+|  | 調查備查；預設唔當待辦 |
 | [`AGENTS.md`](../AGENTS.md) | 「讀檔階梯」一句入口 |
 
 搬去新專案時：可只抄本檔＋§7 骨架；不必複製本專案既有分題內容。

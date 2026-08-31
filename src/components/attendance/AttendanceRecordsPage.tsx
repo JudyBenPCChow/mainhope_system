@@ -294,8 +294,10 @@ export function AttendanceRecordsPage() {
      <ClipboardList className="h-6 w-6 text-primary md:h-7 md:w-7" aria-hidden />
      出席紀錄
     </h1>
-    <p className="mt-1.5 hidden text-base leading-relaxed text-neutral-700 md:block">
-     今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。
+    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground md:text-base md:text-neutral-700">
+     {isMobile
+      ? "預設本月各班紀錄；可改範圍或撳「今天」。"
+      : "今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。"}
     </p>
     <p className="mt-1 text-sm text-muted-foreground">
      此頁合計（出席／缺席／請假）跟營運點名桶，<strong className="font-medium text-foreground">不等於</strong>
@@ -303,8 +305,8 @@ export function AttendanceRecordsPage() {
     </p>
    </header>
 
-   {teacherTid && !isMobile ? (
-   <div className="rounded-lg border border-info bg-info px-4 py-3 text-base leading-relaxed text-info-foreground">
+   {teacherTid ? (
+   <div className="rounded-lg border border-info bg-info px-3 py-2 text-sm leading-relaxed text-info-foreground md:px-4 md:py-3 md:text-base">
     專班老師檢視：下方資料含<strong>您任教、代堂或原任被代堂</strong>的課堂；老師篩選已自動鎖定為您本人。
     </div>
    ) : null}
@@ -316,7 +318,7 @@ export function AttendanceRecordsPage() {
     >
      <p className="font-medium">載入出席紀錄失敗</p>
      <p className="mt-1 leading-relaxed">{err}</p>
-     <p className="mt-1 text-destructive/80">統計已隱藏；請重試成功後再核對列表與數字。</p>
+     <p role="alert" className="mt-1 text-destructive/80">統計已隱藏；請重試成功後再核對列表與數字。</p>
      <Button
       type="button"
       variant="outline"
@@ -344,7 +346,7 @@ export function AttendanceRecordsPage() {
       <p className="text-[11px] text-muted-foreground">出席</p>
      </div>
      <div>
-      <p className="text-lg font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
+      <p role="alert" className="text-lg font-bold tabular-nums text-destructive">{s?.absent ?? 0}</p>
       <p className="text-[11px] text-muted-foreground">缺席</p>
      </div>
      <div>
@@ -368,8 +370,8 @@ export function AttendanceRecordsPage() {
      <div className="text-sm font-medium text-success-foreground">出席</div>
      <p className="mt-2 text-2xl font-bold tabular-nums">{s?.present ?? 0}</p>
     </div>
-    <div className="rounded-xl border border-destructive bg-destructive p-4 text-destructive-foreground shadow-sm">
-     <div className="text-sm font-medium text-destructive-foreground">缺席</div>
+    <div role="alert" className="rounded-xl border border-destructive bg-destructive p-4 text-destructive-foreground shadow-sm">
+     <div role="alert" className="text-sm font-medium text-destructive-foreground">缺席</div>
      <p className="mt-2 text-2xl font-bold tabular-nums">{s?.absent ?? 0}</p>
     </div>
     <div className="rounded-xl border border-warning bg-warning p-4 text-warning-foreground shadow-sm">
@@ -516,7 +518,7 @@ export function AttendanceRecordsPage() {
           <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
            <p>筆數 {d.total}</p>
            <p className="text-success">出席 {d.present}</p>
-           <p className="text-destructive">缺席 {d.absent}</p>
+           <p role="alert" className="text-destructive">缺席 {d.absent}</p>
            <p>請假 {d.leave}</p>
            <p>補課 {d.makeup}</p>
            <p>網課 {d.online}</p>

@@ -10,6 +10,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   acceptTeacherSubmit,
   createPayrollAdjustment,
+  defaultPayrollMonthKey,
   listPayrollMonthOptions,
   loadPayrollWorkbench,
   recalcPayrollRun,
@@ -64,7 +65,9 @@ export function PayrollView() {
   const [monthKey, setMonthKey] = useState(() => {
     const fromUrl = searchParams.get("month")?.trim()
     if (fromUrl && monthOptions.some((o) => o.value === fromUrl)) return fromUrl
-    return monthOptions[1]?.value ?? monthOptions[0]?.value ?? "2026-07"
+    const fallback = defaultPayrollMonthKey()
+    if (monthOptions.some((o) => o.value === fallback)) return fallback
+    return monthOptions[0]?.value ?? fallback
   })
   const initialTeacherId = searchParams.get("teacher")?.trim() || null
   const initialLessonId = searchParams.get("lesson")?.trim() || null
@@ -468,7 +471,7 @@ export function PayrollView() {
       {loading ? (
         <p className="text-sm text-muted-foreground">載入計糧中…</p>
       ) : error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : effectiveRole === "finance" ? (

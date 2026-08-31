@@ -29,28 +29,28 @@
 | 文件 | 主題 |
 | --- | --- |
 | [試堂出單先上紙](enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md) | 試堂須出單確認後先增加已繳堂數、先上點名紙；免費亦出 $0 單；老師收件匣通知 |
-| [學生狀態分類](enrollment/STUDENT_STATUS_CLASSIFICATION.md) | 註冊／報讀／在讀／活躍等 |
+| [學生狀態分類](enrollment/STUDENT_STATUS_CLASSIFICATION.md) | 註冊／報讀／在讀／活躍（在讀或近三個月報讀／退讀） |
 | [學生編號](enrollment/STUDENT_CODE.md) | 學號規則 |
 
 ### 出席／扣堂
 
 | 文件 | 主題 |
 | --- | --- |
-| [點名狀態與扣堂](attendance/ATTENDANCE_BILLING.md) | 已扣堂數、連堂補堂、追學費；`2627` 同一級專科小組共用已繳堂數餘額 |
+| [點名狀態與扣堂](attendance/ATTENDANCE_BILLING.md) | 已扣堂數、連堂補堂、追學費；`2627` 同一級專科小組共用已繳堂數餘額；點名紙不准手動加名 |
 
 ### 繳費
 
 | 文件 | 主題 |
 | --- | --- |
 | [學費學期節奏與逾期罰款](payments/TUITION_TERM_AND_LATE_FEE_POLICY.md) | 按月堂數；逾期 $50（已繳／已扣堂數模型；2026-10-01 起） |
-| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；收款登記按月數×月費檔；已繳睇繳費紀錄；不扣堂、不收專科逾期罰款 |
+| [功課輔導班月費](payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) | 2627 初中按週日數月費；小學跟中一；12／2 月四分三；功輔與專科分單；覆蓋月份＋月數；已繳睇覆蓋月；不扣堂、不收專科逾期罰款 |
 | [收款單據作廢與更正](payments/PAYMENT_RECEIPT_VOID_POLICY.md) | 禁硬刪；作廢／已繳堂數調動分流 |
 
 ### 排課／場地／代堂
 
 | 文件 | 主題 |
 | --- | --- |
-| [專科班排課規則](scheduling/SCHEDULING_RULES.md) | 格網、功輔（預設 17D＋17E）、兼職密排、現行老師配額、已確認班別時間鎖定、驗證清單 |
+| [專科班排課規則](scheduling/SCHEDULING_RULES.md) | 格網、功輔、兼職密排、老師配額、已確認班別時間鎖、**4.0 方案工程已完（其後加班只入系統）** |
 | [課室與場地](scheduling/CLASSROOMS_OPS.md) | 可用課室；17K 停用 |
 | [同班偶發代堂](scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md) | 代堂 ≠ 更換任教老師；只改該堂 `schedules.teacher_id` |
 

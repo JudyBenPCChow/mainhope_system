@@ -1281,7 +1281,7 @@ export function PrivateTutoringView() {
      )}
 
      {err && (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+      <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
        {err}
       </div>
      )}
@@ -1759,7 +1759,7 @@ export function PrivateTutoringView() {
        ) : null}
       </div>
 
-      {createErr && <p className="text-sm text-destructive whitespace-pre-wrap">{createErr}</p>}
+      {createErr && <p role="alert" className="text-sm text-destructive whitespace-pre-wrap">{createErr}</p>}
 
       <div className="flex justify-end gap-2">
        <Button type="button" variant="ghost" onClick={() => setCreateOpen(false)}>
@@ -1963,7 +1963,7 @@ export function PrivateTutoringView() {
        )}
 
        {bookErr && (
-        <p className="whitespace-pre-wrap text-sm text-destructive">{bookErr}</p>
+        <p role="alert" className="whitespace-pre-wrap text-sm text-destructive">{bookErr}</p>
        )}
 
        <div className="flex justify-end gap-2">

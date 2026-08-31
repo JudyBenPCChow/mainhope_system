@@ -420,7 +420,7 @@ export function StudentLeaveTab({
        <Field label="備註（選填）">
         <Input value={leaveRemarks} onChange={(e) => setLeaveRemarks(e.target.value)} className="h-9" />
        </Field>
-       {leaveErr ? <p className="text-sm text-destructive">{leaveErr}</p> : null}
+       {leaveErr ? <p role="alert" className="text-sm text-destructive">{leaveErr}</p> : null}
        <div className="flex justify-end gap-2 pt-2">
         <Button type="button" variant="outline" disabled={leaveSaving} onClick={() => setLeaveDialogOpen(false)}>
          取消
@@ -438,7 +438,7 @@ export function StudentLeaveTab({
     <p className="py-8 text-center text-sm text-muted-foreground">載入中…</p>
    ) : kind === "error" ? (
     <div className="space-y-2 py-8 text-center" role="alert">
-     <p className="text-sm text-destructive">請假紀錄未能載入{listErr ? `：${listErr}` : "。"}</p>
+     <p role="alert" className="text-sm text-destructive">請假紀錄未能載入{listErr ? `：${listErr}` : "。"}</p>
      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
       重試
      </button>

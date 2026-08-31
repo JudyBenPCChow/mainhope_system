@@ -8,7 +8,6 @@
 | 不含 | RLS 讀寫分離、localStorage 守衛（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；CI 品質閘（見 [`mainline-quality-gate.md`](./mainline-quality-gate.md)）；盜帳善後營運 SOP 另寫 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 來源 | 2026-08-14 技術債檢視原 P0-4；已自硬化主題拆出 |
-| 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | 文件 | [`RLS_ROLLOUT.md`](../../meta/RLS_ROLLOUT.md) 收尾第一項 |
 | 記錄 | 2026-08-15 自 tech-debt-hardening 分離 |
 

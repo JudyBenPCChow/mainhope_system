@@ -14,6 +14,7 @@ import {
  LayoutGrid,
  List,
  Plus,
+ SlidersHorizontal,
  User,
  UserRound,
  UserX,
@@ -24,6 +25,7 @@ import {
 
 import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import { SkeletonDetailHeader, SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -86,7 +88,7 @@ import {
  type ScheduleRosterStudent,
 } from "@/services/attendanceQueries"
 import {
- fetchAllClasses,
+ fetchClassesForOpsList,
  fetchClassStudents,
  getClassById,
  type ClassRecord,
@@ -387,6 +389,7 @@ export function ScheduleManagePage() {
   "mgmt_schedule_issueFilters",
   []
  )
+ const [filtersOpen, setFiltersOpen] = useState(false)
  const [rows, setRows] = useState<ScheduleManageRow[]>([])
  const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
  const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
@@ -788,7 +791,8 @@ export function ScheduleManagePage() {
 
  useEffect(() => {
   if (!addOpen) return
-  void fetchAllClasses().then((all) => {
+  void fetchClassesForOpsList().then((result) => {
+   const all = result.classes
    const scoped = teacherScopeId ? all.filter((c) => c.teacher_id === teacherScopeId) : all
    setAddClassRecords(scoped)
    setClassPickList(
@@ -1546,6 +1550,17 @@ useEffect(() => {
   (s) => !s.teacher_id && !s.status.includes("取消")
  ).length
 
+ const activeFilterCount =
+  (statusFilter !== "all" ? 1 : 0) +
+  effectiveIssueFilters.length +
+  effectiveTeacherFilterIds.length
+
+ const resetScheduleFilters = () => {
+  setStatusFilter("all")
+  setIssueFilters([])
+  setTeacherFilterIds([])
+ }
+
  return (
   <div className="space-y-5 text-sm leading-relaxed">
    <header className="flex flex-wrap items-start justify-between gap-3">
@@ -1619,7 +1634,7 @@ useEffect(() => {
       <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive md:h-5 md:w-5" />
       <span className="truncate">待處理</span>
      </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
+     <p role="alert" className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊篩選「已取消」排程（再點一次還原）</p>
     </button>
 
@@ -1652,8 +1667,105 @@ useEffect(() => {
     按日期／列表的圖示：鈴鐺為總覽；學士帽＝試堂、循環箭頭＝請假／補堂、攝影機＝備註需錄影、叉圈＝請假（滑鼠停上可看說明）。日視圖改以文字標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影。
    </p>
 
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => setFiltersOpen(false)}
+     title="篩選排程"
+     activeCount={activeFilterCount}
+     onReset={resetScheduleFilters}
+    >
+     <div className="space-y-4">
+      <div className="space-y-1.5">
+       <p className="text-xs font-medium text-muted-foreground">狀態</p>
+       <Select
+        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+        value={statusFilter}
+        onChange={(e) => setStatusFilter(e.target.value)}
+       >
+        <option value="all">全部狀態</option>
+        <option value="正常">正常</option>
+        <option value="完成">完成</option>
+        <option value="取消">取消</option>
+       </Select>
+      </div>
+      {issueFilterOptions.length > 0 ? (
+       <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground">進階篩選</p>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="進階篩選">
+         {issueFilterOptions.map(({ id, label, icon: Icon }) => {
+          const active = effectiveIssueFilters.includes(id)
+          const disabled = id === "noEnroll" && rosterLoading
+          return (
+           <button
+            key={id}
+            type="button"
+            aria-pressed={active}
+            disabled={disabled}
+            title={disabled ? "點名冊人數載入中，請稍候再篩選" : undefined}
+            onClick={() => toggleIssueFilter(id)}
+            className={cn(
+             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
+             disabled && "cursor-not-allowed opacity-50",
+             active
+              ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+              : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+            )}
+           >
+            <Icon className="h-4 w-4 shrink-0" aria-hidden />
+            {label}
+           </button>
+          )
+         })}
+        </div>
+       </div>
+      ) : null}
+      {!teacherScopeId && teacherOptions.length > 0 ? (
+       <div className="space-y-1.5">
+        <p className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+         <User className="h-4 w-4 shrink-0" aria-hidden />
+         老師
+        </p>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="老師篩選">
+         {teacherOptions.map(({ id, label }) => {
+          const active = effectiveTeacherFilterIds.includes(id)
+          return (
+           <button
+            key={id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => toggleTeacherFilter(id)}
+            className={cn(
+             "inline-flex h-10 items-center rounded-md border px-3 text-sm font-medium transition-all",
+             active
+              ? "border-info bg-info/10 text-info ring-1 ring-info/40"
+              : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
+            )}
+           >
+            {label}
+           </button>
+          )
+         })}
+        </div>
+       </div>
+      ) : null}
+     </div>
+    </MobileFilterSheet>
+   ) : null}
+
    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+     {isMobile ? (
+      <Button type="button" variant="outline" className="w-full min-h-10 gap-2 sm:w-auto" onClick={() => setFiltersOpen(true)}>
+       <SlidersHorizontal className="h-4 w-4" aria-hidden />
+       篩選
+       {activeFilterCount > 0 ? (
+        <Tag tone="info" size="sm">
+         {activeFilterCount}
+        </Tag>
+       ) : null}
+      </Button>
+     ) : (
      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <Select
        className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
@@ -1698,10 +1810,11 @@ useEffect(() => {
        </div>
       ) : null}
      </div>
+     )}
 
      <div className="flex flex-wrap items-center gap-2">
       <div
-       className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5"
+       className="inline-flex min-h-10 rounded-lg border border-border bg-muted/30 p-0.5"
        role="tablist"
        aria-label="檢視模式"
       >
@@ -1725,7 +1838,7 @@ useEffect(() => {
          aria-selected={effectiveViewMode === id}
          onClick={() => setViewMode(id)}
          className={cn(
-          "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
+          "inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
           effectiveViewMode === id
            ? "bg-primary text-primary-foreground shadow-sm"
            : "text-muted-foreground hover:bg-background hover:text-foreground"
@@ -1759,7 +1872,7 @@ useEffect(() => {
      </div>
     </div>
 
-    {!teacherScopeId && teacherOptions.length > 0 ? (
+    {!isMobile && !teacherScopeId && teacherOptions.length > 0 ? (
      <div
       className="flex max-h-28 min-w-0 flex-wrap items-center gap-1.5 overflow-y-auto border-t border-border/70 pt-3"
       role="group"
@@ -1778,7 +1891,7 @@ useEffect(() => {
          aria-pressed={active}
          onClick={() => toggleTeacherFilter(id)}
          className={cn(
-          "inline-flex h-9 items-center rounded-md border px-3 text-sm font-medium transition-all",
+          "inline-flex h-10 items-center rounded-md border px-3 text-sm font-medium transition-all",
           active
            ? "border-info bg-info/10 text-info ring-1 ring-info/40"
            : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
@@ -2922,7 +3035,7 @@ useEffect(() => {
         <p className="mt-1 text-xs text-muted-foreground">仍可繼續儲存；請確認是否真的需要重複安排。</p>
        </div>
       ) : null}
-      {addErr ? <p className="text-destructive">{addErr}</p> : null}
+      {addErr ? <p role="alert" className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消

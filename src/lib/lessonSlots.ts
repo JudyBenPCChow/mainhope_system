@@ -5,9 +5,10 @@ export const LESSON_SLOT_DURATION_MIN = 75
 /** 共 10 格：最後一格 20:15–21:30 */
 export const LESSON_SLOT_COUNT = 10
 
+/** 解析時:分；DB 常回 HH:MM:SS，只取時與分 */
 export function parseHm(t: string | null): number | null {
  if (!t) return null
- const m = t.match(/^(\d{1,2}):(\d{2})$/)
+ const m = t.trim().match(/^(\d{1,2}):(\d{2})/)
  if (!m) return null
  const h = Number(m[1])
  const mm = Number(m[2])

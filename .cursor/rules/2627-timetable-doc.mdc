@@ -1,21 +1,39 @@
 ---
 description: >-
-  2627 時間表：PATCH（只改段落、唔 regenerate）或 FULL（script 出新版 md／Word PDF）。
-  用戶講 patch only、只改、差異段落、唔 regenerate、微調某班時段 → PATCH；
-  講 bump 版、generate、docx、pdf、重排方案 → FULL。
+  2627 時間表：4.0 方案工程已完。其後加班／改班只入系統，唔 bump、唔出 md／docx／pdf。
+  僅當用戶明確要求改方案檔時先走 PATCH／FULL。
 globs: scripts/generate_2627_timetable_doc.py,docs/year/2627/timetable/**,docs/product/topics/2627-september-timetable.md
 alwaysApply: false
 ---
 
 # 2627 時間表
 
+## 4.0 方案工程已完（先讀）
+
+ver. **4.0**（2026-08-24 簽收）係 2627 **未有班別**時、一次性排大量科／班嘅規劃工程，**已關帳**。
+
+其後 2627 班別更新（新增、改時段、改課室、改老師）＝系統入面小修／加班別＋逢星期排程。**唔好**當成「繼續做時間表方案」：唔 bump 4.x、唔改 `CLASSES`、唔跑 `generate_2627_timetable_doc.py`、唔出 md／docx／pdf、唔開新 `versions/` folder。
+
+4.0 方案裏「本輪不排／不建」（Rafael 企會財、Cheryl M2、Cyndi 一對一預留等）係當時工程**臨時範圍**，**不再**約束其後加班。加班只跟 `docs/policies/scheduling/SCHEDULING_RULES.md` **常設條款**（標準 75 分鐘格網、課室、年級時段、不重疊、已確認老師班別時間鎖）。
+
+## 專科上課日（批量排程必跟校曆）
+
+真源：`docs/year/2627/ops-guide.md` **附件甲**（唔係 `academic_years.end_date`）。
+
+- 每一期內，日～六**各四堂**；十期 ⇒ 每個星期幾扣假後 **40** 堂。唔好講「名義月費 40 vs 自然日 41」。
+- **最後上課日 2027-06-28（星期一）**。6/29、6/30 專科已完課（功輔仍開）。批量排程若用學年結束日 6/30 做上限，會多排星期二 6/29、星期三 6/30——**禁止**；發現就刪，唔好改成取消當假期。
+- 校舍假期（附件甲 21 日）排程可標「取消」＝停課，**唔**當取消堂、**唔**補堂、**唔**另收費。
+
+**除非用戶明確要求重開方案工程**，先可走下方 PATCH／FULL。
+
 ## 模式（先判斷，唔好自動升 FULL）
 
 | 模式 | 觸發 | 做咩 |
 | --- | --- | --- |
-| **PATCH** | 改 1–N 行／刪加個別班；或講 patch only／只改／唔 regenerate | 只改列明檔案＋段落 |
+| **系統加班（預設）** | 新增／改 2627 班、排程；未講改方案檔 | 只寫 production 班別＋排程 |
+| **PATCH** | 用戶明講改方案 md 段落、patch only、只改、唔 regenerate | 只改列明檔案＋段落 |
 | **SYNC** | 用戶 confirm：改動要對齊多份附件 | 逐檔 patch；仍唔跑 script 全量生成 |
-| **FULL** | 明講 bump 版、generate、docx、pdf、改 `CLASSES`、重排成個方案 | 跟下方 FULL 流程 |
+| **FULL** | 用戶**明確**要求 bump 版、generate、docx、pdf、重排成個方案 | 跟下方 FULL 流程 |
 
 缺檔案／before→after 就問。patch 後附件可能唔一致 → 列「建議 SYNC 邊幾份」，等 confirm。
 
@@ -35,7 +53,9 @@ alwaysApply: false
 
 ## FULL 模式（出新方案版本）
 
-- **先改 `CLASSES`／原則，再 bump 版號。** 4.x 自動 +0.1（4.0→4.1）；`PREV_VERSION`＝上一版；舊檔保留，唔好覆寫 2.0–3.x 或上一版 4.x。
+只在用戶明確要求重開方案工程時用。4.0 簽收後加班**唔走呢度**。
+
+- **先改 `CLASSES`／原則，再 bump 版號。** 4.x 自動 +0.1（4.0→4.1）；`PREV_VERSION`＝舊版；舊檔保留，唔好覆寫 2.0–3.x 或上一版 4.x。
 - **預設只出 md**（方案、老師附件、獨立周時間表三份審閱稿）。用戶未講「出 pdf／docx／Word」就唔好跑 `--word`。
 - `CONFIRMED_TEACHER_CLASS_TIMES` 係已確認老師班別時間鎖；未經用戶明確指示，不得改班別、逢星期或時段，亦不得更新該常數繞過驗證。
 - 方案正文**不放周時間表／第 8 節**；周時間表必須用 `2627_timetable_weekly_v<版本>` 獨立生成。

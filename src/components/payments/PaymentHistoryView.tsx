@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { History, Search, SlidersHorizontal, Wallet } from "lucide-react"
+import { History, Search, SlidersHorizontal, Wallet, Download } from "lucide-react"
 
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import {
@@ -11,6 +11,7 @@ import {
  statusBadge,
 } from "@/components/payments/paymentsUi"
 import { PaymentReceiptDownloadButton } from "@/components/payments/PaymentReceiptDownloadButton"
+import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { PaymentReceiptWhatsAppButton } from "@/components/payments/PaymentReceiptWhatsAppButton"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { Button } from "@/components/ui/button"
@@ -42,13 +43,40 @@ import {
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
  fetchPaymentFull,
+ fetchPaymentsForExport,
  fetchPaymentsPage,
  markPaymentReceived,
  PAYMENTS_PAGE_SIZE,
  type PaymentFull,
  type PaymentListRow,
 } from "@/services/paymentQueries"
-import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
+import { getStudentById, type StudentRecord } from "@/services/studentQueries"
+
+function downloadPaymentsCsv(filename: string, rows: PaymentListRow[]) {
+ const header = ["單號", "日期", "學生", "學號", "金額", "方法", "狀態"]
+ const lines = rows.map((r) =>
+  [
+   r.receiptNumber ?? "",
+   r.paymentDate,
+   r.studentName,
+   r.studentCode ?? "",
+   String(r.totalAmount),
+   r.paymentMethod ?? "",
+   r.status,
+  ]
+   .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+   .join(",")
+ )
+ const blob = new Blob(["\uFEFF" + [header.join(","), ...lines].join("\n")], {
+  type: "text/csv;charset=utf-8",
+ })
+ const url = URL.createObjectURL(blob)
+ const a = document.createElement("a")
+ a.href = url
+ a.download = filename
+ a.click()
+ URL.revokeObjectURL(url)
+}
 
 export function PaymentHistoryView() {
  const isMobile = useIsMobile()
@@ -69,8 +97,13 @@ export function PaymentHistoryView() {
  const [histFrom, setHistFrom] = useState("")
  const [histTo, setHistTo] = useState("")
  const [histSearch, setHistSearch] = useState("")
+ const [histSearchDebounced, setHistSearchDebounced] = useState("")
  const [filterStudentId, setFilterStudentId] = useState<string | null>(null)
  const [filterStudent, setFilterStudent] = useState<StudentRecord | null>(null)
+ const [includeOlderYears, setIncludeOlderYears] = useState(false)
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
+ const [appliedFromYmd, setAppliedFromYmd] = useState<string | null>(null)
+ const [exporting, setExporting] = useState(false)
 
  const [detailOpen, setDetailOpen] = useState(false)
  const [detailPay, setDetailPay] = useState<PaymentFull | null>(null)
@@ -121,15 +154,20 @@ export function PaymentHistoryView() {
  }, [searchParams, setSearchParams])
 
  useEffect(() => {
+  const t = window.setTimeout(() => setHistSearchDebounced(histSearch.trim()), 350)
+  return () => window.clearTimeout(t)
+ }, [histSearch])
+
+ useEffect(() => {
   if (!filterStudentId || !isSupabaseConfigured) {
    setFilterStudent(null)
    return
   }
   let cancelled = false
-  void fetchAllStudents()
-   .then((list) => {
+  void getStudentById(filterStudentId)
+   .then((row) => {
     if (cancelled) return
-    setFilterStudent(list.find((s) => s.id === filterStudentId) ?? null)
+    setFilterStudent(row)
    })
    .catch(() => {
     if (!cancelled) setFilterStudent(null)
@@ -149,26 +187,31 @@ export function PaymentHistoryView() {
   setHistLoading(true)
   setHistErr(null)
   try {
-   const { rows, hasMore } = await fetchPaymentsPage({
+   const { rows, hasMore, hiddenOlderCount: hidden, appliedFromYmd: fromYmd } = await fetchPaymentsPage({
     status: histStatus,
     fromYmd: histFrom || undefined,
     toYmd: histTo || undefined,
-    search: histSearch || undefined,
+    search: histSearchDebounced || undefined,
     studentId: filterStudentId || undefined,
     limit: PAYMENTS_PAGE_SIZE,
     offset: 0,
+    includeOlderYears,
+    includeVoided: includeOlderYears,
    })
    setHistoryRows(rows)
    setHistOffset(rows.length)
    setHistHasMore(hasMore)
+   setHiddenOlderCount(hidden)
+   setAppliedFromYmd(fromYmd)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentHistoryView.loadHistory", setErr: setHistErr })
    setHistoryRows([])
    setHistHasMore(false)
+   setHiddenOlderCount(0)
   } finally {
    setHistLoading(false)
   }
- }, [histStatus, histFrom, histTo, histSearch, filterStudentId])
+ }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, includeOlderYears])
 
  const loadMoreHistory = useCallback(async () => {
   if (!isSupabaseConfigured || histLoadingMore || !histHasMore) return
@@ -178,10 +221,12 @@ export function PaymentHistoryView() {
     status: histStatus,
     fromYmd: histFrom || undefined,
     toYmd: histTo || undefined,
-    search: histSearch || undefined,
+    search: histSearchDebounced || undefined,
     studentId: filterStudentId || undefined,
     limit: PAYMENTS_PAGE_SIZE,
     offset: histOffset,
+    includeOlderYears,
+    includeVoided: includeOlderYears,
    })
    setHistoryRows((prev) => [...prev, ...rows])
    setHistOffset((prev) => prev + rows.length)
@@ -191,7 +236,7 @@ export function PaymentHistoryView() {
   } finally {
    setHistLoadingMore(false)
   }
- }, [histStatus, histFrom, histTo, histSearch, filterStudentId, histHasMore, histLoadingMore, histOffset])
+ }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, histHasMore, histLoadingMore, histOffset, includeOlderYears])
 
  const { sentinelRef } = useInfiniteScroll({
   onLoadMore: loadMoreHistory,
@@ -253,6 +298,39 @@ export function PaymentHistoryView() {
   }
  }
 
+ const exportList = async (mode: "filtered" | "audit") => {
+  if (exporting || !isSupabaseConfigured) return
+  setExporting(true)
+  setFormErr(null)
+  try {
+   const rows = await fetchPaymentsForExport(
+    mode === "audit"
+     ? {
+        status: histStatus,
+        search: histSearch || undefined,
+        studentId: filterStudentId || undefined,
+        includeOlderYears: true,
+        includeVoided: histStatus === "all" || histStatus === "voided",
+       }
+     : {
+        status: histStatus,
+        fromYmd: histFrom || undefined,
+        toYmd: histTo || undefined,
+        search: histSearch || undefined,
+        studentId: filterStudentId || undefined,
+        includeOlderYears,
+        includeVoided: includeOlderYears,
+       }
+   )
+   const stamp = new Date().toISOString().slice(0, 10)
+   downloadPaymentsCsv(mode === "audit" ? `繳費紀錄-核數-${stamp}.csv` : `繳費紀錄-${stamp}.csv`, rows)
+  } catch (e) {
+   reportUserFacingError(e, { source: "PaymentHistoryView.exportList", setErr: setFormErr })
+  } finally {
+   setExporting(false)
+  }
+ }
+
  const onVoidRow = (row: PaymentListRow) => {
   if (row.status === PAYMENT_STATUS.voided) return
   setVoidTarget({
@@ -290,13 +368,41 @@ export function PaymentHistoryView() {
      <p className="mt-1 hidden max-w-3xl text-xs text-muted-foreground md:block">
       下載收據（Chrome）：首次請選取資料夾「{RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH}」，之後會自動存入。
      </p>
+     <p className="mt-1 text-xs text-muted-foreground">
+      資料範圍：{includeOlderYears || histFrom || filterStudentId
+       ? "跟目前篩選"
+       : appliedFromYmd
+         ? `日常營運窗（收款日起 ${appliedFromYmd}；待收款仍顯示；作廢單預設隱藏）`
+         : "目前清單"}
+      。年結／核數請用「匯出全部」。
+     </p>
     </div>
-    <Button type="button" variant="outline" asChild>
-     <Link to="/Payments">
-      <Wallet className="h-4 w-4" />
-      前往收款登記
-     </Link>
-    </Button>
+    <div className="flex flex-wrap items-center gap-2">
+     <Button
+      type="button"
+      variant="outline"
+      disabled={!isSupabaseConfigured || exporting}
+      onClick={() => void exportList("filtered")}
+     >
+      <Download className="h-4 w-4" />
+      {exporting ? "匯出中…" : "匯出 CSV"}
+     </Button>
+     <Button
+      type="button"
+      variant="outline"
+      disabled={!isSupabaseConfigured || exporting}
+      onClick={() => void exportList("audit")}
+     >
+      <Download className="h-4 w-4" />
+      匯出全部（核數）
+     </Button>
+     <Button type="button" variant="outline" asChild>
+      <Link to="/Payments">
+       <Wallet className="h-4 w-4" />
+       前往收款登記
+      </Link>
+     </Button>
+    </div>
    </header>
 
    {formErr ? (
@@ -399,6 +505,7 @@ export function PaymentHistoryView() {
         setHistSearch("")
         setFilterStudentId(null)
         setFilterStudent(null)
+        setIncludeOlderYears(false)
        }}
       >
        <FormField label="狀態">
@@ -488,6 +595,12 @@ export function PaymentHistoryView() {
       {histErr}
      </div>
     ) : null}
+
+    <SoftArchiveScopeBanner
+     hiddenCount={includeOlderYears || histFrom || filterStudentId ? 0 : hiddenOlderCount}
+     description={`已隱藏 ${hiddenOlderCount} 筆更舊或已作廢繳費紀錄（待收款仍顯示；資料仍在，並非刪除）`}
+     onShow={() => setIncludeOlderYears(true)}
+    />
 
     {histLoading ? (
      <SkeletonTableRows rows={8} columns={6} />
@@ -707,7 +820,11 @@ export function PaymentHistoryView() {
            <li key={d.id} className="text-xs">
             <span className="font-medium">{d.classLabel}</span>
             {d.lessonCount != null
-             ? ` · ${d.lessonCount}${isHomeworkMonthlyFeeDescription(d.description) ? " 個月" : " 堂"}`
+             ? ` · ${d.lessonCount}${
+                d.coverageStartMonth != null || isHomeworkMonthlyFeeDescription(d.description)
+                 ? " 個月"
+                 : " 堂"
+               }`
              : ""}
             {d.amount != null ? ` · ${money(d.amount)}` : ""}
             {d.description ? ` — ${d.description}` : ""}

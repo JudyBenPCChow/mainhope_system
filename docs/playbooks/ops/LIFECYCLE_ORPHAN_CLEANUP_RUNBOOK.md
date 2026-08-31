@@ -1,7 +1,7 @@
 # 現況清：出席孤兒 runbook（生命週期 A1 驗收）
 
 > 與功能 code 分開。A1 上線／驗收前，對 production（或 staging）已知孤兒做人工核對後刪除。  
-> 方案：[`../plans/2026-07-31-lifecycle-orphans.md`](../plans/2026-07-31-lifecycle-orphans.md)  
+> 方案：[`lifecycle-orphans.md`](../../product/topics/lifecycle-orphans.md)  
 > **禁止**只憑「點名紙現已無名」就刪——須對照 eligibility。
 
 ## 原則

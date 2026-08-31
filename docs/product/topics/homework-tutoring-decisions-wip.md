@@ -23,4 +23,4 @@
 
 ## 仍要你補（提我）
 
-無。H11 已通過。正式實作見 [`2026-08-24-homework-tutoring-implementation.md`](../plans/2026-08-24-homework-tutoring-implementation.md)。
+無。H11 已通過。正式實作見 [`homework-tutoring.md`](./homework-tutoring.md)。

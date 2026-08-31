@@ -17,7 +17,7 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { fetchAllClasses, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
+import { fetchClassesForOpsList, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { createPrivateTutoringEnrollment } from "@/services/privateTutoringQueries"
 import {
@@ -108,13 +108,13 @@ export function EnrollClassStep({
    reloadTrials(),
    fetchSubjectOptions(),
    fetchTeacherOptions(),
-   fetchAllClasses(),
+   fetchClassesForOpsList(),
   ])
-   .then(([classes, , , subjects, teachers, allClasses]) => {
+   .then(([classes, , , subjects, teachers, opsClasses]) => {
     if (cancelled) return
     setClassOptions(classes)
     setTrialClassOptions(
-     allClasses.map((c) => ({
+     opsClasses.classes.map((c) => ({
       id: c.id,
       label: formatClassLabel({
        subject: c.subject,

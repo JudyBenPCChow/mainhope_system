@@ -8,6 +8,7 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { downloadTeacherAttendancePdf } from "@/lib/secondaryAttendancePdf"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { statusToTagTone } from "@/lib/statusTag"
 import { addBillingMonths, formatBillingMonth } from "@/lib/monthlyTuition"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -68,7 +69,7 @@ function LessonCard({ lesson }: { lesson: SecondaryLessonRow }) {
         </p>
         <div className="flex flex-wrap items-center gap-2 text-xs">
           {lesson.notRolled ? (
-            <Tag tone="warning">未點名</Tag>
+            <Tag tone={statusToTagTone("未點名")}>未點名</Tag>
           ) : (
             <>
               <span className="tabular-nums text-foreground">出席 {present} 人次</span>
@@ -378,7 +379,7 @@ export function SecondaryAttendanceReportView() {
       ) : null}
 
       {err ? (
-        <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+        <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           {err}
         </p>
       ) : null}

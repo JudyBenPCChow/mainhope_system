@@ -1,5 +1,9 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { lessonBalancePassesOpsWindow } from "@/lib/softArchiveListScope"
+import { isArchivedStudent } from "@/services/studentQueries"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 import {
  enrollmentCoversPeriod,
  isSingleSessionEnrollment,
@@ -14,6 +18,8 @@ import {
  fetchLeavesAwaitingMakeupDateForStudents,
  type LeaveAwaitingMakeupRow,
 } from "@/services/leaveQueries"
+import { isHomeworkClassSubject } from "@/lib/entitlementNamespace"
+import { resolveClassKind } from "@/lib/privateClassKind"
 import { PAYMENT_STATUS } from "@/services/paymentQueries"
 
 export const PENDING_LESSON_REASONS = ["遲報缺堂", "堂數差額", "其他"] as const
@@ -90,6 +96,17 @@ function mapPendingRow(r: Record<string, unknown>): PendingLessonRow {
 
 export function isPendingLessonOpen(status: string): boolean {
  return status.trim() === "待補"
+}
+
+function isHomeworkClassEmbed(cls: Record<string, unknown> | null | undefined): boolean {
+ if (!cls) return false
+ const subject = cls.subject != null ? String(cls.subject) : null
+ const course = cls.courses as Record<string, unknown> | null
+ const courseName = course?.course_name != null ? String(course.course_name) : null
+ return (
+  resolveClassKind(cls.class_kind != null ? String(cls.class_kind) : null, subject) ===
+   "homework" || isHomeworkClassSubject(subject, courseName)
+ )
 }
 
 /** 報讀前預估將綁定堂數 */
@@ -239,12 +256,15 @@ export async function fetchLessonBalancesForStudent(
  const { data: enrollments, error: enrErr } = await supabase
   .from("student_class_enrollments")
   .select(
-   "id, class_id, enroll_date, enrollment_period, classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) )"
+   "id, class_id, enroll_date, enrollment_period, classes ( subject, class_kind, course_code_full, academic_year_id, courses ( course_mode, course_name ) )"
   )
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (enrErr) throw enrErr
- if (!enrollments?.length) return []
+ const specialistEnrollments = ((enrollments ?? []) as Record<string, unknown>[]).filter(
+  (r) => !isHomeworkClassEmbed(r.classes as Record<string, unknown> | null)
+ )
+ if (!specialistEnrollments.length) return []
 
  const paidByClass = includePaidLessons
   ? await fetchPaidLessonsByClassForStudent(studentId)
@@ -267,15 +287,13 @@ export async function fetchLessonBalancesForStudent(
   leaveAwaitingByClass.set(L.classId, list)
  }
 
- const singleIds = (enrollments as Array<{ id?: string; enrollment_period?: string | null }>)
-  .filter((e) => isSingleSessionEnrollment(e.enrollment_period))
+ const singleIds = specialistEnrollments
+  .filter((e) => isSingleSessionEnrollment(e.enrollment_period as string | null))
   .map((e) => String(e.id))
  const singleMap = await fetchEnrolledScheduleIdsByEnrollmentIds(singleIds)
 
  const classIds = [
-  ...new Set(
-   (enrollments as Array<{ class_id?: string }>).map((e) => String(e.class_id ?? "")).filter(Boolean)
-  ),
+  ...new Set(specialistEnrollments.map((e) => String(e.class_id ?? "")).filter(Boolean)),
  ]
  const { data: schedData, error: schedErr } = await supabase
   .from("schedules")
@@ -301,9 +319,8 @@ export async function fetchLessonBalancesForStudent(
  }
 
  const yearIds = new Set<string>()
- for (const row of enrollments) {
-  const r = row as Record<string, unknown>
-  const cls = r.classes as Record<string, unknown> | null
+ for (const row of specialistEnrollments) {
+  const cls = row.classes as Record<string, unknown> | null
   const course = cls?.courses as Record<string, unknown> | null
   if (course?.course_mode === "summer_two_period" && cls?.academic_year_id != null) {
    yearIds.add(String(cls.academic_year_id))
@@ -316,7 +333,7 @@ export async function fetchLessonBalancesForStudent(
   })
  )
 
- return (enrollments as Record<string, unknown>[]).map((r) => {
+ return specialistEnrollments.map((r) => {
   const enrollmentId = String(r.id)
   const classId = String(r.class_id ?? "")
   const enrollDate =
@@ -397,7 +414,7 @@ async function fetchAllActiveEnrollmentsForBalance(): Promise<Record<string, unk
   const { data, error } = await supabase
    .from("student_class_enrollments")
    .select(
-    "id, student_id, class_id, enroll_date, enrollment_period, students ( student_code, full_name, english_name ), classes ( subject, course_code_full, academic_year_id, courses ( course_mode, course_name ) )"
+    "id, student_id, class_id, enroll_date, enrollment_period, students ( student_code, full_name, english_name, academic_stage, grade ), classes ( subject, class_kind, course_code_full, academic_year_id, courses ( course_mode, course_name ) )"
    )
    .eq("status", "就讀中")
    .order("id", { ascending: true })
@@ -481,15 +498,26 @@ async function fetchPendingLessonsForStudents(
  return byStudent
 }
 
+export type MisalignedLessonBalanceResult = {
+ rows: MisalignedLessonBalanceRow[]
+ hiddenOlderCount: number
+ opsYearLabels: string[]
+}
+
 /**
  * 全站就讀中報讀對帳：僅回傳已繳／排程／待補不一致、仍有待補堂，或請假尚無補堂日的列。
- * 邏輯與 {@link fetchLessonBalancesForStudent} 一致。
+ * 預設日常營運窗；待補／請假待安排豁免。邏輯與 {@link fetchLessonBalancesForStudent} 一致。
+ * 學生詳情請用 {@link fetchLessonBalancesForStudent}（唔套列表窗）。
  */
-export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonBalanceRow[]> {
- if (!supabase) return []
+export async function fetchMisalignedLessonBalances(opts?: {
+ includeOlderYears?: boolean
+}): Promise<MisalignedLessonBalanceResult> {
+ if (!supabase) return { rows: [], hiddenOlderCount: 0, opsYearLabels: [] }
 
- const enrollments = await fetchAllActiveEnrollmentsForBalance()
- if (enrollments.length === 0) return []
+ const enrollments = (await fetchAllActiveEnrollmentsForBalance()).filter(
+  (r) => !isHomeworkClassEmbed(r.classes as Record<string, unknown> | null)
+ )
+ if (enrollments.length === 0) return { rows: [], hiddenOlderCount: 0, opsYearLabels: [] }
 
  const studentIds = [
   ...new Set(enrollments.map((r) => String(r.student_id ?? "")).filter(Boolean)),
@@ -545,7 +573,11 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
   })
  )
 
- const out: MisalignedLessonBalanceRow[] = []
+ const followUp: Array<{
+  row: MisalignedLessonBalanceRow
+  classAcademicYearId: string | null
+  studentArchived: boolean
+ }> = []
  for (const r of enrollments) {
   const enrollmentId = String(r.id)
   const studentId = String(r.student_id ?? "")
@@ -633,17 +665,52 @@ export async function fetchMisalignedLessonBalances(): Promise<MisalignedLessonB
    studentName,
    englishName,
   }
-  if (isLessonBalanceNeedsFollowUp(row)) out.push(row)
+  if (isLessonBalanceNeedsFollowUp(row)) {
+   followUp.push({
+    row,
+    classAcademicYearId: academicYearId,
+    studentArchived: isArchivedStudent({
+     academic_stage: st?.academic_stage != null ? String(st.academic_stage) : null,
+     grade: st?.grade != null ? String(st.grade) : null,
+    }),
+   })
+  }
  }
 
- out.sort((a, b) => {
-  const gapDiff = Math.abs(b.gap) - Math.abs(a.gap)
+ followUp.sort((a, b) => {
+  const gapDiff = Math.abs(b.row.gap) - Math.abs(a.row.gap)
   if (gapDiff !== 0) return gapDiff
-  const leaveDiff = b.leaveAwaitingMakeupCount - a.leaveAwaitingMakeupCount
+  const leaveDiff = b.row.leaveAwaitingMakeupCount - a.row.leaveAwaitingMakeupCount
   if (leaveDiff !== 0) return leaveDiff
-  const pendingDiff = b.pendingLessons - a.pendingLessons
+  const pendingDiff = b.row.pendingLessons - a.row.pendingLessons
   if (pendingDiff !== 0) return pendingDiff
-  return a.studentName.localeCompare(b.studentName, "zh-Hant")
+  return a.row.studentName.localeCompare(b.row.studentName, "zh-Hant")
  })
- return out
+
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ if (includeOlder) {
+  return { rows: followUp.map((x) => x.row), hiddenOlderCount: 0, opsYearLabels: [] }
+ }
+
+ const window = await fetchOpsAcademicYearWindow()
+ if (!window || window.ids.length === 0) {
+  return { rows: followUp.map((x) => x.row), hiddenOlderCount: 0, opsYearLabels: [] }
+ }
+ const opsYearIds = new Set(window.ids)
+ const rows = followUp
+  .filter((x) =>
+   lessonBalancePassesOpsWindow({
+    pendingLessons: x.row.pendingLessons,
+    leaveAwaitingMakeupCount: x.row.leaveAwaitingMakeupCount,
+    classAcademicYearId: x.classAcademicYearId,
+    opsYearIds,
+    studentArchived: x.studentArchived,
+   })
+  )
+  .map((x) => x.row)
+ return {
+  rows,
+  hiddenOlderCount: Math.max(0, followUp.length - rows.length),
+  opsYearLabels: window.labels,
+ }
 }

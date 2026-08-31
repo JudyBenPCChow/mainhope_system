@@ -8,8 +8,8 @@
 | `docs/SYSTEM_MANUAL.md` | `docs/playbooks/_INDEX.md` |
 | `docs/BACKLOG.md` | `docs/product/BACKLOG.md` |
 | `docs/backlog/<topic>.md` | `docs/product/topics/<topic>.md` |
-| `docs/plans/` | `docs/product/plans/` |
-| `docs/audits/` | `docs/product/audits/` |
+| `docs/plans/` | 已刪；步驟寫 `docs/product/topics/` |
+| `docs/audits/` | 已刪；決策見分題／`BACKLOG.md` |
 | `docs/handoffs/` | `docs/meta/handoffs/` |
 | `docs/manual/2627_REGULAR_YEAR_OPS_GUIDE.md` | `docs/year/2627/ops-guide.md` |
 | `docs/manual/*.md`（操作篇） | `docs/playbooks/frontdesk/`（或 `ops/`） |

@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { ChevronLeft, FileSearch, RefreshCw } from "lucide-react"
+import { ChevronLeft, FileSearch, RefreshCw, SlidersHorizontal } from "lucide-react"
 
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
+import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import { LoadMoreFooter } from "@/components/ui/load-more-footer"
-import { SkeletonTableRows } from "@/components/ui/skeleton"
+import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { Tag } from "@/components/ui/tag"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -53,6 +56,7 @@ type LogFilterOverride = Partial<{
 }>
 
 export function SystemLogsView() {
+ const isMobile = useIsMobile()
  const defaultFrom = useMemo(() => addDaysToYmd(todayYmdLocal(), -30), [])
  const [dateFrom, setDateFrom] = useState(defaultFrom)
  const [dateTo, setDateTo] = useState(todayYmdLocal())
@@ -60,6 +64,7 @@ export function SystemLogsView() {
  const [actorContains, setActorContains] = useState("")
  const [pathContains, setPathContains] = useState("")
  const [actionContains, setActionContains] = useState("")
+ const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [rows, setRows] = useState<MgmtAuditLogRow[]>([])
  const [offset, setOffset] = useState(0)
@@ -150,6 +155,90 @@ export function SystemLogsView() {
   disabled: loading,
  })
 
+ const activeFilterCount =
+  (dateFrom !== defaultFrom ? 1 : 0) +
+  (dateTo !== todayYmdLocal() ? 1 : 0) +
+  (role !== "all" ? 1 : 0) +
+  (actorContains.trim() ? 1 : 0) +
+  (pathContains.trim() ? 1 : 0) +
+  (actionContains.trim() ? 1 : 0)
+
+ const resetFilters = () => {
+  const from = addDaysToYmd(todayYmdLocal(), -30)
+  const to = todayYmdLocal()
+  setDateFrom(from)
+  setDateTo(to)
+  setRole("all")
+  setActorContains("")
+  setPathContains("")
+  setActionContains("")
+  void load(0, false, {
+   dateFrom: from,
+   dateTo: to,
+   role: "all",
+   actorContains: "",
+   pathContains: "",
+   actionContains: "",
+  })
+ }
+
+ const filterFields = (
+  <div className={isMobile ? "space-y-4" : "mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
+   <div className="space-y-1.5">
+    <label htmlFor="log-from" className="text-xs font-medium text-muted-foreground">
+     開始日期
+    </label>
+    <Input id="log-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="log-to" className="text-xs font-medium text-muted-foreground">
+     結束日期
+    </label>
+    <Input id="log-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="log-role" className="text-xs font-medium text-muted-foreground">
+     按角色（用戶類型）
+    </label>
+    <Select
+     id="log-role"
+     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+     value={role}
+     onChange={(e) => setRole(e.target.value)}
+    >
+     {roleOptions.map((o) => (
+      <option key={o.value} value={o.value}>
+       {o.label}
+      </option>
+     ))}
+    </Select>
+   </div>
+   <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
+    <label htmlFor="log-actor" className="text-xs font-medium text-muted-foreground">
+     按用戶（顯示名稱包含）
+    </label>
+    <Input
+     id="log-actor"
+     placeholder="例如：Sophie、Judy、外星人"
+     value={actorContains}
+     onChange={(e) => setActorContains(e.target.value)}
+    />
+   </div>
+   <div className="space-y-1.5">
+    <label htmlFor="log-path" className="text-xs font-medium text-muted-foreground">
+     按功能 · 路徑包含
+    </label>
+    <Input id="log-path" placeholder="例如：/Schedule" value={pathContains} onChange={(e) => setPathContains(e.target.value)} />
+   </div>
+   <div className="space-y-1.5 sm:col-span-2">
+    <label htmlFor="log-action" className="text-xs font-medium text-muted-foreground">
+     按功能 · 操作包含
+    </label>
+    <Input id="log-action" placeholder="例如：排程、點名、登入" value={actionContains} onChange={(e) => setActionContains(e.target.value)} />
+   </div>
+  </div>
+ )
+
  return (
   <div className="space-y-6">
    <header className="flex flex-wrap items-start justify-between gap-4">
@@ -168,10 +257,23 @@ export function SystemLogsView() {
       所有使用者操作紀錄（依篩選；每批最多 {MGMT_LOG_PAGE_SIZE} 筆，可載入更多）。
      </p>
     </div>
-    <Button type="button" variant="outline" size="sm" className="gap-2" loading={loading} onClick={() => void onSearch()}>
-     <RefreshCw className="h-4 w-4" aria-hidden />
-     重新整理
-    </Button>
+    <div className="flex flex-wrap gap-2">
+     {isMobile ? (
+      <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+       <SlidersHorizontal className="h-4 w-4" aria-hidden />
+       篩選
+       {activeFilterCount > 0 ? (
+        <Tag tone="info" size="sm">
+         {activeFilterCount}
+        </Tag>
+       ) : null}
+      </Button>
+     ) : null}
+     <Button type="button" variant="outline" className="gap-2" loading={loading} onClick={() => void onSearch()}>
+      <RefreshCw className="h-4 w-4" aria-hidden />
+      重新整理
+     </Button>
+    </div>
    </header>
 
    {!isSupabaseConfigured ? (
@@ -179,96 +281,67 @@ export function SystemLogsView() {
    ) : null}
 
    {err ? (
-    <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
+    <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
 
-   <section className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
-    <h2 className="text-sm font-semibold text-foreground">篩選</h2>
-    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-     <div className="space-y-1.5">
-      <label htmlFor="log-from" className="text-xs font-medium text-muted-foreground">
-       開始日期
-      </label>
-      <Input id="log-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => {
+      setFiltersOpen(false)
+      void onSearch()
+     }}
+     title="篩選日志"
+     activeCount={activeFilterCount}
+     onReset={resetFilters}
+    >
+     {filterFields}
+    </MobileFilterSheet>
+   ) : (
+    <section className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
+     <h2 className="text-sm font-semibold text-foreground">篩選</h2>
+     {filterFields}
+     <div className="mt-4 flex flex-wrap gap-2">
+      <Button type="button" onClick={() => void onSearch()}>
+       查詢
+      </Button>
+      <Button type="button" variant="outline" onClick={resetFilters}>
+       重設條件
+      </Button>
      </div>
-     <div className="space-y-1.5">
-      <label htmlFor="log-to" className="text-xs font-medium text-muted-foreground">
-       結束日期
-      </label>
-      <Input id="log-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="log-role" className="text-xs font-medium text-muted-foreground">
-       按角色（用戶類型）
-      </label>
-      <Select
-       id="log-role"
-       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-       value={role}
-       onChange={(e) => setRole(e.target.value)}
-      >
-       {roleOptions.map((o) => (
-        <option key={o.value} value={o.value}>
-         {o.label}
-        </option>
-       ))}
-      </Select>
-     </div>
-     <div className="space-y-1.5 sm:col-span-2 lg:col-span-3">
-      <label htmlFor="log-actor" className="text-xs font-medium text-muted-foreground">
-       按用戶（顯示名稱包含）
-      </label>
-      <Input
-       id="log-actor"
-       placeholder="例如：Sophie、Judy、外星人"
-       value={actorContains}
-       onChange={(e) => setActorContains(e.target.value)}
-      />
-     </div>
-     <div className="space-y-1.5">
-      <label htmlFor="log-path" className="text-xs font-medium text-muted-foreground">
-       按功能 · 路徑包含
-      </label>
-      <Input id="log-path" placeholder="例如：/Schedule" value={pathContains} onChange={(e) => setPathContains(e.target.value)} />
-     </div>
-     <div className="space-y-1.5 sm:col-span-2">
-      <label htmlFor="log-action" className="text-xs font-medium text-muted-foreground">
-       按功能 · 操作包含
-      </label>
-      <Input id="log-action" placeholder="例如：排程、點名、登入" value={actionContains} onChange={(e) => setActionContains(e.target.value)} />
-     </div>
-    </div>
-    <div className="mt-4 flex flex-wrap gap-2">
-     <Button type="button" onClick={() => void onSearch()}>
-      查詢
-     </Button>
-     <Button
-      type="button"
-      variant="outline"
-      onClick={() => {
-       const from = addDaysToYmd(todayYmdLocal(), -30)
-       const to = todayYmdLocal()
-       setDateFrom(from)
-       setDateTo(to)
-       setRole("all")
-       setActorContains("")
-       setPathContains("")
-       setActionContains("")
-       void load(0, false, {
-        dateFrom: from,
-        dateTo: to,
-        role: "all",
-        actorContains: "",
-        pathContains: "",
-        actionContains: "",
-       })
-      }}
-     >
-      重設條件
-     </Button>
-    </div>
-   </section>
+    </section>
+   )}
 
+   {isMobile ? (
+    <div className="rounded-xl border border-border bg-card shadow-sm">
+     {loading && rows.length === 0 ? (
+      <div className="p-4">
+       <SkeletonCardGrid count={4} />
+      </div>
+     ) : rows.length === 0 ? (
+      <p className="px-4 py-10 text-center text-muted-foreground">無資料。請調整篩選。</p>
+     ) : (
+      <StaggerList className="divide-y divide-border">
+       {rows.map((r) => (
+        <StaggerItem key={r.id} className="px-4 py-3">
+         <div className="flex items-start justify-between gap-3">
+          <p className="min-w-0 font-medium">{r.actor_label?.trim() ? r.actor_label : "—"}</p>
+          <p className="shrink-0 tabular-nums text-xs text-muted-foreground">{formatTs(r.created_at)}</p>
+         </div>
+         <p className="mt-1 text-sm">{r.action}</p>
+         <p className="mt-0.5 break-words text-xs text-muted-foreground">
+          {r.role?.trim() ? r.role : "—"}
+          {r.path ? ` · ${r.path}` : ""}
+         </p>
+         {r.detail ? (
+          <p className="mt-1 line-clamp-3 break-words text-xs text-muted-foreground">{r.detail}</p>
+         ) : null}
+        </StaggerItem>
+       ))}
+      </StaggerList>
+     )}
+    </div>
+   ) : (
    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
     <table className="w-full min-w-[800px] table-fixed border-collapse text-left text-sm">
      <thead className="border-b border-border bg-muted/50 text-muted-foreground">
@@ -319,6 +392,7 @@ export function SystemLogsView() {
      )}
     </table>
    </div>
+   )}
 
    <LoadMoreFooter
     sentinelRef={sentinelRef}

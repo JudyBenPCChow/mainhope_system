@@ -346,7 +346,7 @@ export function TeacherWeekTimetable({
                   "block rounded-md border px-1 py-0.5 text-[0.65rem] leading-snug shadow-sm transition-colors hover:border-primary hover:bg-primary/5 md:text-xs",
                   cancelled
                    ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground line-through"
-                   : "border-teal-200 bg-teal-50/90 text-teal-950"
+                   : "border-info/30 bg-info/10 text-foreground"
                  )}
                 >
                  <div className="font-semibold">{s.subject}</div>

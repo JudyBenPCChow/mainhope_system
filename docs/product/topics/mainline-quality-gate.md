@@ -6,7 +6,6 @@
 | 優先 | 高 |
 | 來源 | 2026-08-14 全盤檢視 P0-3＋P2-3；由 [`tech-debt-hardening.md`](./tech-debt-hardening.md) 拆出獨立討論 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 稽核 | [`2026-08-14-tech-debt-review.md`](../audits/2026-08-14-tech-debt-review.md) |
 | 相關 | [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)（沙盒路由／刪檔另題；本檔只決定檢查包唔包沙盒） |
 | 不含 | RLS／localStorage 權限（P0-1／P0-2）；leaked password（P0-4）；拆 god files；家長 Portal E2E；全面 Playwright |
 

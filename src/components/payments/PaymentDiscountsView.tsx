@@ -589,7 +589,7 @@ export function PaymentDiscountsView() {
    ) : null}
 
    {err ? (
-    <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {err}
     </div>
    ) : null}
@@ -702,7 +702,7 @@ export function PaymentDiscountsView() {
             className={cn(
              "rounded px-1.5 py-0.5 text-xs font-medium",
              r.isActive
-              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+              ? "bg-success/15 text-success"
               : "bg-muted text-muted-foreground"
             )}
             onClick={() => {

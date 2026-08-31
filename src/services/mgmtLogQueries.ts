@@ -1,12 +1,8 @@
+import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
 import { supabase } from "@/lib/supabaseClient"
 import type { MgmtAuditLogRow, MgmtSystemErrorRow } from "@/services/mgmtGodViewQueries"
 
 const PAGE_SIZE = 100
-
-/** 避免 ilike 模式注入：移除 % 與 _ */
-function sanitizeIlikeFragment(s: string): string {
- return s.replace(/%/g, "").replace(/_/g, "").trim()
-}
 
 function ymdStartIso(ymd: string): string {
  const [y, m, d] = ymd.split("-").map(Number)

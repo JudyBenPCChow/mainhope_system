@@ -4,6 +4,18 @@
 
 ## 教訓
 
+### 2026-08-31 — 唔好刪 `makeup_of=` 標記
+- **情境**：權益母題餘 `26SM` 日落；產品取消 P6 手動加名後，問廢 `makeup_of` 對 `2627` 有無影響。
+- **錯在邊**：把「`2627` 點名紙唔用期數繼承」當成可以刪 remarks 標記或清歷史。
+- **正確做法**：標記留低。`2627` 點名靠宣告繼承；安排補回仍寫 `makeup_of=` 做查重／跟進表。`26SM` 歷史 35 筆唔好刪。
+- **若已升格**：`AGENTS.md` 鐵則；`.cursor/rules/makeup-of-marker.mdc`
+
+### 2026-08-31 — 模擬學年運作唔好發明問題；專科堂次跟附件甲
+- **情境**：用 2627 production 做「這學年會出事」檢查；其後用戶逐條否決誤報。
+- **錯在邊**：把暑期未續、空班、學期完仍就讀中、假期「取消」排程、未繳仍上紙、功輔唔開第二房當成缺陷；「未點名 17%」冇扣期數／測試班；把批量排程多出嘅 6/29–6/30 講成「41 堂 vs 月費 40」。
+- **正確做法**：先對齊營運定義（退讀＝中途退出；假期取消＝停課；一期四堂、十期 40 堂、最後上課日 6/28）。點名完成度要對 `enrollment_period` × `academic_year_periods`。多排出校曆外嘅堂直接刪。
+- **若已升格**：`AGENTS.md` 鐵則；`.cursor/rules/ops-data-check.mdc`；`.cursor/rules/2627-timetable-doc.mdc`「專科上課日」
+
 ### 2026-08-28 — 樣式沙盒先獨立 HTML，唔好只掛 Vite 路由
 - **情境**：用戶要試新 UI，且明講「沙盒（html）」「唔接真實專案網頁」。
 - **錯在邊**：只跟 `src/prototypes/`＋`/prototype/…` 免登入路由。本機若唔喺該 branch 跑 `npm run dev`，React Router 無匹配→全白；Vercel preview 可能有 Deployment Protection。
@@ -32,7 +44,7 @@
 - **情境**：報讀包裝／點名權益（池＋宣告）；現役暑期須維持舊路徑，正規學年即將開口報讀。
 - **錯在邊**：若 Wave 1 一次捆綁取消／補堂／扣堂／全入口，難驗、易濺現役學年；亦難分「地基錯」定「流程錯」。
 - **正確做法**：先 schema＋學年硬閘＋報讀鑄池／自動宣告＋shadow；再開事件寫宣告與消耗。開口前最低營運包另列（改期跟名＋後加排程入紙），唔同手動加名／暑期切換捆綁。
-- **若已升格**：未升格（見計劃 `docs/product/plans/2026-08-04-enrollment-entitlement-roster.md` §3／§8）
+- **若已升格**：未升格（見 [`summer-enrollment-roster-consistency.md`](../product/topics/summer-enrollment-roster-consistency.md)）
 
 ### 2026-08-04 — remint 權益池前先刪宣告
 - **情境**：`attendance_declarations.pool_id` references pools `ON DELETE restrict`。

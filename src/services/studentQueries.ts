@@ -32,7 +32,9 @@ import {
 } from "@/services/entitlementQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { nextStudentCode } from "@/lib/studentCode"
+import { deriveActivityStatus, enrollmentEventYmdFromRow } from "@/lib/studentActivityStatus"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
+import { academicYearIdOpsOrFilter } from "@/lib/softArchiveListScope"
 import { supabase } from "@/lib/supabaseClient"
 import {
  deleteAttendanceHitsWithAuditOrThrow,
@@ -40,6 +42,7 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
+import { fetchOpsAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
  return normalizeStudentGrade(raw)
@@ -163,24 +166,17 @@ export function normalizeStudentStatus(status: string | null): "在讀" | "非�
  return "在讀"
 }
 
-function threeMonthsAgoYmd(): string {
- const d = new Date()
- d.setMonth(d.getMonth() - 3)
- return localYmd(d)
-}
-
 type EnrollmentStateRow = {
  status: string
  enroll_date: string | null
  created_at: string
+ withdraw_effective_date: string | null
 }
 
 type EnrollmentEventDateRow = Pick<EnrollmentStateRow, "enroll_date" | "created_at">
 
 export function enrollmentEventYmd(row: EnrollmentEventDateRow): string {
- const enroll = (row.enroll_date ?? "").trim()
- if (enroll) return enroll.slice(0, 10)
- return (row.created_at ?? "").slice(0, 10)
+ return enrollmentEventYmdFromRow(row)
 }
 
 function computeDerivedFromEnrollments(
@@ -192,11 +188,9 @@ function computeDerivedFromEnrollments(
  activity_status: "活躍生" | "非活躍生"
  status: string
 } {
- const recentCutoff = threeMonthsAgoYmd()
  const hasActiveEnrollment = enrollments.some((row) => row.status === "就讀中")
- const hasRecentEnrollment = enrollments.some((row) => enrollmentEventYmd(row) >= recentCutoff)
  let enrollment_status: "在讀" | "非在讀" = hasActiveEnrollment ? "在讀" : "非在讀"
- const activity_status: "活躍生" | "非活躍生" = hasRecentEnrollment ? "活躍生" : "非活躍生"
+ const activity_status = deriveActivityStatus({ hasActiveEnrollment, enrollments })
  if (registration_status === "非注冊") enrollment_status = "非在讀"
  return {
   enrollment_status,
@@ -256,7 +250,7 @@ function deriveDisplayStatus(input: {
  return "非在讀"
 }
 
-const ENROLLMENT_STATE_SELECT = "status, enroll_date, created_at"
+const ENROLLMENT_STATE_SELECT = "status, enroll_date, created_at, withdraw_effective_date"
 
 async function syncStudentEnrollmentState(studentId: string): Promise<void> {
  if (!supabase) return
@@ -442,12 +436,14 @@ export type StudentsOpsListResult = {
  */
 export async function fetchStudentsForOpsList(opts?: {
  includeGraduated?: boolean
+ /** 日常頁：只取活躍生（在讀或近三個月報讀／退讀） */
+ activityStatus?: "活躍生"
  limit?: number
  offset?: number
 }): Promise<StudentsOpsListResult> {
  if (!supabase) return { students: [], hiddenGraduatedCount: 0, hasMore: false }
  const includeGraduated = Boolean(opts?.includeGraduated) || !isSoftArchiveQueriesEnabled()
- const limit = opts?.limit != null ? Math.min(Math.max(opts.limit, 1), 200) : null
+ const limit = opts?.limit != null ? Math.min(Math.max(opts.limit, 1), 1000) : null
  const offset = Math.max(opts?.offset ?? 0, 0)
  let listQuery = supabase
   .from("students")
@@ -455,6 +451,9 @@ export async function fetchStudentsForOpsList(opts?: {
   .order("created_at", { ascending: false })
  if (!includeGraduated) {
   listQuery = listQuery.neq("academic_stage", "已畢業").or("grade.is.null,grade.neq.GD")
+ }
+ if (opts?.activityStatus === "活躍生") {
+  listQuery = listQuery.eq("activity_status", "活躍生")
  }
  if (limit != null) {
   listQuery = listQuery.range(offset, offset + limit - 1)
@@ -549,6 +548,7 @@ export async function fetchStudentsPage(opts?: {
  return { rows, hasMore: rows.length >= limit }
 }
 
+/** 單筆深連結：唔套日常名單窗、唔排除已畢業。 */
 export async function getStudentById(id: string): Promise<StudentRecord | null> {
  if (!supabase) return null
  const { data, error } = await supabase.from("students").select("*").eq("id", id).maybeSingle()
@@ -1915,23 +1915,35 @@ export type ClassOption = {
  classKind: ClassKind
 }
 
-export async function fetchClassOptions(): Promise<ClassOption[]> {
+export async function fetchClassOptions(opts?: {
+ includeOlderYears?: boolean
+}): Promise<ClassOption[]> {
  if (!supabase) return []
  /** 學生詳細頁「選擇班別加入」用：排除一對一（應走一對一學生頁建立） */
+ const includeOlder = Boolean(opts?.includeOlderYears) || !isSoftArchiveQueriesEnabled()
+ const window = includeOlder ? null : await fetchOpsAcademicYearWindow()
+ const yearOr = window?.ids.length ? academicYearIdOpsOrFilter(window.ids) : null
  const classSelectWithMode =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
   "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
  const classSelectLegacy =
   "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
- const first = await supabase.from("classes").select(classSelectWithMode).order("subject")
+ const firstQ = supabase.from("classes").select(classSelectWithMode).order("subject")
+ const first = await (yearOr ? firstQ.or(yearOr) : firstQ)
  const second =
   first.error && /does not exist/i.test(first.error.message)
-   ? await supabase.from("classes").select(classSelectBase).order("subject")
+   ? await (() => {
+      const q = supabase.from("classes").select(classSelectBase).order("subject")
+      return yearOr ? q.or(yearOr) : q
+     })()
    : null
  const res =
   second && second.error && /does not exist/i.test(second.error.message)
-   ? await supabase.from("classes").select(classSelectLegacy).order("subject")
+   ? await (() => {
+      const q = supabase.from("classes").select(classSelectLegacy).order("subject")
+      return yearOr ? q.or(yearOr) : q
+     })()
    : (second ?? first)
  if (res.error) throw res.error
  const out: ClassOption[] = []

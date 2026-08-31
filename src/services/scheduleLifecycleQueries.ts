@@ -1,6 +1,6 @@
 /**
  * O3：軟取消排程 — 清掛住調堂、閘開著試堂／已有出席。
- * 見 docs/product/plans/2026-07-31-lifecycle-orphans.md 階段 B。
+ * 見 docs/product/topics/lifecycle-orphans.md（O3）。
  */
 import { supabase } from "@/lib/supabaseClient"
 import {
