@@ -1,0 +1,29 @@
+---
+description: >-
+  寫 UI／JSX／文案／format 字串／錯誤提示／老師名／時間／當值／列表／月曆時必用。
+  畫面只印 string／number；禁把 object 塞進模板或 JSX（會變成 [object Object]）。
+globs: src/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# 畫面只印字串，唔好印物件
+
+`[object Object]`＝把 **object** 塞進 `` `${x}` ``、`String(x)`、或 JSX children。TS 標 `string` 唔等於 runtime 係字（join／jsonb／報更 `{kind,start,end}`／當值 assignment）。
+
+## 要
+
+- 名：`teacherName(id, teachers)` 或 `.full_name`／`.name`，且 `typeof === "string"`
+- 當值：現有 `formatAssignmentLine`／`formatCalendarAssignmentLine`／`formatAvailLabel`；時段只抽 `start`／`end`（`HH:mm`）
+- 錯誤：`formatUnknownError`（見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md` §1.1）
+- 列表／月曆每一格先 format 成 **一條 string** 再渲染
+
+## 禁
+
+- `` `${obj}` ``、`String(obj)`、JSX 直接放 object／array
+- 把 `AvailEntry` 或整粒 `assignment` 當時間／名印
+- 為「方便」自己串 domain object；有 `format*` 就用
+
+```tsx
+// ❌ `${assignment}` ／ `{teacher}` ／ `${entry.start}` 而 start 其實係 object
+// ✅ {formatCalendarAssignmentLine(a, teachers)}
+```

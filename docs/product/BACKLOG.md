@@ -15,18 +15,19 @@
 
 **Agent 讀檔習慣**：
 
-- 問「有咩未做」／list backlog → **只讀「進行中／未完成」表**（`open`／`in_progress`）；**停**；勿開分題、勿把下方已完成表當成待辦。
+- 問「有咩未做」／list backlog → 讀 **`origin/main` 本檔**「進行中／未完成」（`git show origin/main:docs/product/BACKLOG.md`）；讀唔到就掃 `topics/*.md` 表頭狀態 `open`／`in_progress`。**停**；勿把已完成表當成待辦。
 - 問卡住／等緊咩 → 讀「等待中」；**未解除唔開工**（唔套 production、唔當可續做）。
-- 做某個主題 → 先開該列 `topics/<topic>.md`；**先讀「開工閘」**：對上一個工程未完成則停、提醒用戶，唔開工。步驟寫喺分題，唔另開 `plans/`／`audits/`。
+- 做某個主題 → 先開 `topics/<topic>.md`；**先讀「開工閘」**：對上一個工程未完成則停、提醒用戶，唔開工。步驟寫喺分題，唔另開 `plans/`／`audits/`。Feature **只改分題**。
 - 已完成／已取消表同其連結：備查用，日常任務唔掃。
 
 
 
 ## 維護約定
 
-- 新主題：加一列到「進行中／未完成」+ 可選 `docs/product/topics/<topic>.md`
-- 開始做：狀態改 `in_progress`；步驟寫入該分題，唔另開 `plans/`
-- 完成或取消：狀態改 `done`／`cancelled`，**整列移到「已完成／已取消」表**（可留分題檔備查，勿默默刪）
+- **Feature 分支唔改、唔 commit 本檔嘅索引表**（多 worktree 易撞）。合入 `main` 之後先搬列。對齊：`git checkout origin/main -- docs/product/BACKLOG.md`。
+- 例外：改本檔「讀檔習慣／維護約定」可以入 feature PR。
+- 新主題：喺 `main` 加一列到「進行中／未完成」+ `docs/product/topics/<topic>.md`（feature 可先開分題、狀態 `open`）
+- 開始做／關帳：分題表頭改 `in_progress`／`done`／`cancelled`；索引搬列只喺 `main`
 - 本索引只放一句摘要；長表／方案放分題檔
 - **唔好**把 `done`／`cancelled` 同未做完項混喺同一張表
 
@@ -39,10 +40,10 @@
 
 | 狀態          | 優先  | 主題                               | 摘要                                                                                                    | 詳情                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ----------- | --- | -------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| in_progress | 高   | 報讀包裝與點名權益                        | Wave 1–2 ✅；主波支付→池 ✅；`2627` **68** 小組班 live；**live E2E 抽樣 ✅**；**P6 手動加名已取消**；餘 `26SM` 日落（`makeup_of` 標記勿刪） | [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) · [E2E runbook](../playbooks/ops/2627_ENTITLEMENT_E2E_RUNBOOK.md)|
+| in_progress | 高   | 三線收費模型（專科／私人／功輔）           | 第一波已落地。點名留舊路。張善愉 9 月單已標覆蓋月；莊凱茵混單未作廢 | [product-line-billing-models.md](./topics/product-line-billing-models.md) · [權益 D6](./topics/entitlement-pool-per-student-v3.md) · [功輔](./topics/homework-tutoring.md) |
 | open        | 高   | Database schema contract／advisor | **2026-08-29 覆核**：Wave 1 DDL **已喺 production 生效**（3 支 trigger 已 REVOKE、8 支 INVOKER 已釘 search_path、重複 email index 已冇）；repo **無對應 migration**。generated types 仍無；security 75（62 WARN）／perf 164（76 WARN）。餘 Wave 2 型別＋分類帳 | [database-contract-advisor-hygiene.md](./topics/database-contract-advisor-hygiene.md)|
 | in_progress | 高   | 流動裝置介面                           | 高頻波次 1–3 回歸 Pass；營運總覽手機已併入重整；**2026-08-29** 外星人卡片／老師 P3／FilterSheet／底欄 Inbox／觸控 `h-10` 已落；餘次要 CRUD／約房 | [mobile-ui.md](./topics/mobile-ui.md) |
-| open        | 中   | 非常規排程（加堂／混合補堂）                 | **2026-09-01** 分題改書面語。現況仍只可單堂報讀／調堂掛入既有課堂；加堂＝該班就讀生全部出現在點名紙（無法挑選）。未拍板不實作 | [nonstandard-scheduling.md](./topics/nonstandard-scheduling.md) · 權益母題 [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) |
+| open        | 中   | 非常規排程（加堂／混合補堂）                 | 討論未報讀偶發加堂、無原班混合補堂格等；現況只可單堂報讀／調堂掛 host。未拍板唔實作 | [nonstandard-scheduling.md](./topics/nonstandard-scheduling.md) · 權益母題 [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) |
 | open        | 中   | 側欄／入口（IA1）                       | 結構穩咗先改 UI 入口：側欄／首頁仍跟 `navStructure` 角色清單；deep-link 已跟 capability，兩邊會唔齊。唔當授權。                          | [nav-capability-entry.md](./topics/nav-capability-entry.md) · [P0 硬化](./topics/tech-debt-hardening.md)                                                                                                                                                                                                                                                                                                                                                       |
 | in_progress | 中   | 營運總覽重整                           | 2026-08-23 **波次 1–3 已落地**；**波次 4 閘已開**（財務核對 UX 2026-08-30 關帳）；計糧快取未做；**唔等**軟封存 | [mgmt-dashboard-overhaul.md](./topics/mgmt-dashboard-overhaul.md) · [指標](./topics/mgmt-dashboard-kpi-spec.md) · [診斷](./topics/page-load-perf-payroll-mgmt.md) |
 | open        | 中   | 死碼／路由表面清理                        | **P2-4＋P3-1 前端**：`/prototype/`* 其後加返（含免登入 HomeWayfinding／ContactUpdate）；**HomeworkTutoring 沙盒 2026-08-29 已刪**；月費／contactUpdate 暫緩勿刪；餘 D2b／D3／D6 Base44／包名 | [dead-surface-cleanup.md](./topics/dead-surface-cleanup.md)|
@@ -51,12 +52,13 @@
 | open        | 中   | 智能分析三頁 IA／控利潤審視                 | 2026-08-24 分析已寫；**未拍板唔實作**。三分法合理。優先＝人工真源→命名→現金對帳→按金 void／非老師人工。**2026-08-29 由舊對話還原分題** | [intelligence-analytics-ia-review.md](./topics/intelligence-analytics-ia-review.md) |
 | in_progress | 中   | 代堂算薪／出勤報表                        | 已點名禁取消代堂＋空白老師警告＋老師詳情出勤改跟排程老師；**閘已開**（財務 UX 關帳）；餘匯出／KPI 盤點、換主責只同步未來                      | [substitute-teacher-reporting.md](./topics/substitute-teacher-reporting.md) · [前線](../playbooks/frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md)                                                                                                                                                                                                                                                                                                         |
 | open        | 中   | 堂數池更正申請制                       | P0-1 已收緊：直接改只限外星人。行政／管理層申請→外星人批 **UI 未開工**。分題有、索引漏咗 | [entitlement-correction-approval.md](./topics/entitlement-correction-approval.md) · 現有更正頁 [payment-entitlement-correction-ui.md](./topics/payment-entitlement-correction-ui.md) |
-| open        | 中   | 功輔計糧（時薪＋Christine 佣金）        | 自計糧引擎拆出。時薪／工時／放假不計／無 $50 已簽。Christine 佣金：報讀 **≥15** 先計、基數該月**原價**×10%（舊 ≥12 作廢）。計糧頁展示未定。**未拍板唔實作** | [homework-tutoring-payroll.md](./topics/homework-tutoring-payroll.md) · 母題 [payroll-engine.md](./topics/payroll-engine.md) · 產品 [homework-tutoring.md](./topics/homework-tutoring.md) · [指南 §16](../policies/staffing/PAYROLL_GUIDE.md) |
+| open        | 中   | 功輔計糧（時薪＋Christine 佣金）        | 自計糧引擎拆出。時薪＋Christine 報讀≥12 先計 10% 佣金已記下；工時來源／時薪名單／佣金基數未拍板。**未拍板唔實作** | [homework-tutoring-payroll.md](./topics/homework-tutoring-payroll.md) · 母題 [payroll-engine.md](./topics/payroll-engine.md) · 產品 [homework-tutoring.md](./topics/homework-tutoring.md) · [指南 §16](../policies/staffing/PAYROLL_GUIDE.md) |
 | open        | 中   | Alien 模擬職員身份                     | idea：對方報畫面問題時以該職員視角檢視；前端-only → 可選 DB view-as；先不實作                                                    | [alien-mgmt-view-as.md](./topics/alien-mgmt-view-as.md)                                                                                                                                                                                                                                                                                                                                                                                                      |
 | open        | 低   | 營運文件瀏覽頁                          | idea：行政以上（admin／manager／alien）應用內睇營運文件；未開工                                                            | [ops-docs-viewer.md](./topics/ops-docs-viewer.md)                                                                                                                                                                                                                                                                                                                                                                                                            |
 | in_progress | 低   | 管理員桌面預覽側板                     | **2026-08-31 正式接線**：列表撳行→右側簡單預覽（真資料）；「開完整詳情」→ 桌面 B 頂欄＋分頁。admin／alien；Layout 並排 `RecordPreviewRail`。沙盒／假資料／`/prototype/AdminContextRail` 已刪。 | [admin-desktop-context-rail.md](./topics/admin-desktop-context-rail.md) · `RecordPreviewRail` |
 | open        | 低   | UI 指引收斂（餘項）                 | 安全項已落（alert／token／Tag 字典／上報）。餘 Select `h-9` 殘 class、§16 列表殼、月費 vs §15（未拍板唔改流程）、印刷 hex | [ui-guideline-hygiene.md](./topics/ui-guideline-hygiene.md) · [UI 指引](../meta/UI_DESIGN_INSTRUCTIONS.md) |
 | open        | 低   | 課堂／排程教材庫                        | idea：教材入 Supabase Storage，掛班／科／堂；老師互推指定堂次要用嘅檔；未開工。唔取代營運文件閱讀頁                              | [class-schedule-materials.md](./topics/class-schedule-materials.md)                                                                                                                                                                                                                                                                                                                                                                                          |
+| open        | 低   | 家長 WhatsApp 對話（系統內）            | **2026-08-31 討論：80 戶自建不划算，先不實作。** 現有 `wa.me`／網頁已同步。Cloud API inbox 可後再睇 | [whatsapp-in-app-inbox.md](./topics/whatsapp-in-app-inbox.md) |
 
 
 
@@ -72,9 +74,10 @@
 
 | 狀態        | 優先  | 主題               | 摘要                                                                                                                                                                 | 詳情                                                                                                                                                                                                                                                       |
 | --------- | --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| done      | 高   | 三線收費模型（專科／私人／功輔） | 2026-08-31 關帳：私人去學年；點名留舊路（C9 唔切閘）。張善愉 9 月單已標。莊凱茵混單屬營運作廢；C7 一對二餘額另題 | [product-line-billing-models.md](./topics/product-line-billing-models.md) · [權益 D6](./topics/entitlement-pool-per-student-v3.md) · [功輔](./topics/homework-tutoring.md) |
+| done      | 高   | 報讀包裝與點名權益      | 2026-08-31 關帳：Wave 1–2＋主波支付→池＋`2627` live E2E；P6 取消；**`26SM` 永遠舊路徑、`makeup_of` 留低** | [summer-enrollment-roster-consistency.md](./topics/summer-enrollment-roster-consistency.md) · [E2E runbook](../playbooks/ops/2627_ENTITLEMENT_E2E_RUNBOOK.md) |
+| done      | 中   | 排程管理功輔佔室       | 2026-08-31 關帳：預設 17D 一室、加開先佔；佔室可改課室寫返編更、唔准取消 | [homework-occupancy-in-schedule.md](./topics/homework-occupancy-in-schedule.md) · [功輔](./topics/homework-tutoring.md) |
 | done      | 高   | 計糧財務核對 UX        | 2026-08-30 用戶驗收關帳。合計拆欄＋未點名高亮＋inbox 提醒＋出席紀錄小修＋指引已落。8 月糧結算另事 | [payroll-finance-review-ux.md](./topics/payroll-finance-review-ux.md) · [指引](../playbooks/finance/cody-payroll-review-guide.html) |
-| done      | 中   | 2627 常規學年營運指引    | 2026-08-30 工程關帳：v1.14。其後修訂至 **v1.16**（§9 不准手動加名）。WhatsApp／列印發佈屬營運 | [2627-regular-year-ops-guide.md](./topics/2627-regular-year-ops-guide.md) · [指引](../year/2627/ops-guide.md) · [docx](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) |
+| done      | 中   | 2627 常規學年營運指引    | 2026-08-30 工程關帳：v1.14。其後修訂至 **v1.19**（§2.1 26SM 舊路徑不混用）。WhatsApp／列印發佈屬營運 | [2627-regular-year-ops-guide.md](./topics/2627-regular-year-ops-guide.md) · [指引](../year/2627/ops-guide.md) · [docx](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) |
 | done      | 中   | 軟封存與查詢收窄         | 2026-08-29 關帳：波次 1–7。日常名單收窄已畢業／舊學年；畢業 Confirm＋設定開關；索引已套。可選結業預覽／舊生匯出不做 | [soft-archive-query-scope.md](./topics/soft-archive-query-scope.md) · [政策](../policies/academic/SOFT_ARCHIVE.md) |
 | done      | 中   | 功課輔導班產品          | 2026-08-29 關帳：波次 1–4e＋§7 編更＋月費對賬／收款登記按月費檔；4c 建帳已入 main（PR #42）＋alien 實機 OK；4d 純功輔側欄 Rain 等五人驗收。計糧另題 | [homework-tutoring.md](./topics/homework-tutoring.md) · [月費](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md) · [計糧](./topics/homework-tutoring-payroll.md) |
 | done      | 高   | 2627 九月常規時間表     | 2026-08-24 簽收 **ver. 4.0** 關帳。方案工程完；其後加班只入系統，**唔再開 4.x**。當時 66 班入庫。Cyndi 一對一 4.0 未建                                                                 | [2627-september-timetable.md](./topics/2627-september-timetable.md) · [方案 md](../year/2627/timetable/versions/v4.0/2627_timetable_scheme_v4.0.md) · [排課規則](../policies/scheduling/SCHEDULING_RULES.md) |

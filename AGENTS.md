@@ -42,11 +42,12 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。不要用 `academic_years.end_date`（6/30）當專科最後一堂——6/29、6/30 專科已完課（功輔仍開）。假期列「取消」＝校舍該日沒有課堂，不是需要補回的取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
 - **查庫／模擬運作**：不要把空班、暑期未續常規、學期結束仍「就讀中」、未繳仍出現在點名紙當成缺陷。見 `.cursor/rules/ops-data-check.mdc`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
+- **Feature 熱檔**：不要 commit `BACKLOG.md` 索引表（只在 `main` 搬列；分題表頭狀態＝該題真源）。不要帶 `dist/`、`docs/generated/**`。`ops-guide` 只在本題 PR 才改。見 `.cursor/rules/feature-branch-hot-files.mdc`。
 
 ## 讀檔階梯
 
 文件總門牌：`docs/README.md`（政策／操作／學年／工程／meta 四門）。  
-預設只靠本檔。問未做／可否開工 → `docs/product/BACKLOG.md`「進行中／未完成」。問卡住／在等什麼 → 同檔「等待中」（未解除不開工）。做主題 → 該列 `docs/product/topics/<topic>.md`。**先讀分題「開工閘」**：對上一個工程未完成則停、提醒使用者，不開工。  
+預設只靠本檔。問未做／可否開工 → 讀 **`origin/main` 的** `docs/product/BACKLOG.md`「進行中／未完成」（`git show origin/main:docs/product/BACKLOG.md`）；讀不到就掃 `docs/product/topics/*.md` 表頭狀態 `open`／`in_progress`。問卡住／在等什麼 → 同檔「等待中」（未解除不開工）。做主題 → `docs/product/topics/<topic>.md`（改狀態寫分題，**不要**改 BACKLOG）。**先讀分題「開工閘」**：對上一個工程未完成則停、提醒使用者，不開工。  
 步驟寫在分題；不另開 `plans/`／`audits/`。  
 營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘不要預讀。
 

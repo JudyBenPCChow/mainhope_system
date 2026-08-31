@@ -99,7 +99,7 @@ const ISSUE_AND_ROLE_RULES: StatusTagRule[] = [
 const HOMEWORK_TUTORING_RULES: StatusTagRule[] = [
  { tone: "success", keywords: ["已提交", "已編更", "已發布", "側欄有功課輔導", "純功輔側欄"] },
  { tone: "warning", keywords: ["草稿", "未編更"] },
- { tone: "info", keywords: ["已鎖定"] },
+ { tone: "info", keywords: ["佔室", "已鎖定"] },
  { tone: "default", keywords: ["未交", "無入口", "功輔放假"] },
 ]
 

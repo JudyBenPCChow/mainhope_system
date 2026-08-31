@@ -74,6 +74,8 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { isUnassignedTeachingTeacherIssue, scheduleTeacherDisplayName } from "@/lib/privateClassKind"
+import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -96,6 +98,7 @@ import {
 } from "@/services/classQueries"
 import { getScheduleById, type ScheduleDetailRecord } from "@/services/scheduleDetailQueries"
 import { deleteSchedule, insertScheduleForClass, updateSchedule } from "@/services/scheduleWriteQueries"
+import { applyHomeworkOccupancyClassroomMove } from "@/services/homeworkTutoringQueries"
 import {
  fetchScheduleRosterContext,
  singleSessionNotOnSchedule,
@@ -871,10 +874,11 @@ useEffect(() => {
   const m = new Map<string, string>()
   let hasUnassigned = false
   for (const r of rows) {
-   if (!r.teacher_id) {
+   if (isUnassignedTeachingTeacherIssue(r)) {
     hasUnassigned = true
     continue
    }
+   if (!r.teacher_id) continue
    const label = r.teacher_name?.trim() || "未命名老師"
    if (!m.has(r.teacher_id)) m.set(r.teacher_id, label)
   }
@@ -924,7 +928,9 @@ useEffect(() => {
    if (issues.has("private") && r.class_kind !== "private") return false
    if (issues.has("noRoom") && r.classroom_id != null) return false
    if (teacherSet.size > 0) {
-    const key = r.teacher_id ?? UNASSIGNED_TEACHER_ID
+    const key = isUnassignedTeachingTeacherIssue(r)
+     ? UNASSIGNED_TEACHER_ID
+     : (r.teacher_id ?? "")
     if (!teacherSet.has(key)) return false
    }
    return true
@@ -1049,9 +1055,15 @@ useEffect(() => {
  const { emptyScheduleIds, extraTagsByScheduleId } = useMemo(() => {
   const emptyIds = new Set<string>()
   const tagsById = new Map<string, string[]>()
+  for (const s of dayFiltered) {
+   if (isHomeworkOccupancySchedule(s)) {
+    tagsById.set(s.id, ["佔室"])
+   }
+  }
   if (dayViewRosterLoading) return { emptyScheduleIds: emptyIds, extraTagsByScheduleId: tagsById }
 
   for (const s of dayFiltered) {
+   if (isHomeworkOccupancySchedule(s)) continue
    const hasTrial = alerts.get(s.id)?.trial ?? false
    const hasMakeupTarget = alerts.get(s.id)?.makeup ?? false
    const roster = dayViewRosterBySchedule.get(s.id) ?? []
@@ -1124,6 +1136,20 @@ useEffect(() => {
  const proposeScheduleMove = useCallback(
   (row: ScheduleManageRow, roomId: string | null, slotIndex: number) => {
    if (scheduleMgmtLocked || scheduleRowLocked(row)) return
+   if (isHomeworkOccupancySchedule(row)) {
+    if (!roomId) return
+    if ((row.classroom_id ?? null) === roomId) return
+    setMoveErr(null)
+    setPendingMove({
+     row,
+     newRoomId: roomId,
+     newStart: row.start_time ?? "15:15",
+     newEnd: row.end_time ?? "19:30",
+     roomLabel: roomLabel(roomId),
+     alignedToStandard: false,
+    })
+    return
+   }
    const d = durationMinForSchedule(row)
    const { start: newStart, end: newEnd } = snapTimesToStandardSlot(slotIndex, d)
    const sameRoom = (row.classroom_id ?? null) === roomId
@@ -1338,11 +1364,28 @@ useEffect(() => {
   setMoveErr(null)
   setMoveSaving(true)
   try {
-   await updateSchedule(pendingMove.row.id, {
-    classroom_id: pendingMove.newRoomId,
-    start_time: pendingMove.newStart,
-    end_time: pendingMove.newEnd,
-   })
+   const occupancy = isHomeworkOccupancySchedule(pendingMove.row)
+   if (occupancy) {
+    if (!pendingMove.newRoomId) {
+     setMoveErr("功輔佔室必須指定課室。")
+     return
+    }
+    await updateSchedule(pendingMove.row.id, { classroom_id: pendingMove.newRoomId })
+    if (pendingMove.row.class_id) {
+     await applyHomeworkOccupancyClassroomMove({
+      classId: pendingMove.row.class_id,
+      scheduledDate: pendingMove.row.scheduled_date,
+      fromClassroomId: pendingMove.row.classroom_id,
+      toClassroomId: pendingMove.newRoomId,
+     })
+    }
+   } else {
+    await updateSchedule(pendingMove.row.id, {
+     classroom_id: pendingMove.newRoomId,
+     start_time: pendingMove.newStart,
+     end_time: pendingMove.newEnd,
+    })
+   }
    setPendingMove(null)
    await reload()
   } catch (e) {
@@ -1361,6 +1404,7 @@ useEffect(() => {
  const handleStatusChange = useCallback(
   async (row: ScheduleManageRow, newStatus: string) => {
    if (scheduleRowLocked(row)) return
+   if (isHomeworkOccupancySchedule(row)) return
    if (newStatus === row.status) return
    if (newStatus.includes("取消")) {
     setCancelTarget(row)
@@ -1383,6 +1427,7 @@ useEffect(() => {
  const confirmCancelSchedule = useCallback(
   async (reason: string) => {
    if (!cancelTarget) return
+   if (isHomeworkOccupancySchedule(cancelTarget)) return
    if (
     !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
      dateYmd: cancelTarget.scheduled_date,
@@ -1424,6 +1469,7 @@ useEffect(() => {
   const dayRows = rows.filter((s) => s.scheduled_date === dayViewDate)
   const unassigned = dayRows
    .filter((s) => !s.status.includes("取消"))
+   .filter((s) => !isHomeworkOccupancySchedule(s))
    .filter((s) => effectiveRoomId(s, activeRoomIdSet) === null)
    .filter((s) => scheduleIntervalMinutes(s) !== null)
    .filter((s) => !scheduleRowLocked(s))
@@ -1546,9 +1592,7 @@ useEffect(() => {
    effectiveRoomId(s, activeRoomIdSet) === null
  ).length
 
- const blankTeacherCount = rows.filter(
-  (s) => !s.teacher_id && !s.status.includes("取消")
- ).length
+ const blankTeacherCount = rows.filter((s) => isUnassignedTeachingTeacherIssue(s)).length
 
  const activeFilterCount =
   (statusFilter !== "all" ? 1 : 0) +
@@ -2097,6 +2141,7 @@ useEffect(() => {
            record: false,
           }
           const open = expandedScheduleId === s.id
+          const occupancy = isHomeworkOccupancySchedule(s)
           const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
           const enrollKnown = s.enrollCount != null
           const hasAttendees =
@@ -2105,6 +2150,7 @@ useEffect(() => {
            a.trial ||
            (rollCallEligibleIds?.has(s.id) ?? false)
           const emptyEnrollOnly =
+           !occupancy &&
            enrollKnown && s.enrollCount === 0 && !a.makeup && !a.trial && !rosterLoading
           return (
            <StaggerItem
@@ -2113,7 +2159,7 @@ useEffect(() => {
             className={cn(
              "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
              rowsStale && "opacity-60",
-             enrollKnown && !hasAttendees ? "border-border/80 bg-muted/70" : "bg-card"
+             enrollKnown && !hasAttendees && !occupancy ? "border-border/80 bg-muted/70" : "bg-card"
             )}
            >
             <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
@@ -2138,6 +2184,11 @@ useEffect(() => {
                <Tag tone={statusToTagTone(s.status)} size="sm">
                 {s.status}
                </Tag>
+               {occupancy ? (
+                <Tag tone={statusToTagTone("佔室")} size="sm">
+                 佔室
+                </Tag>
+               ) : null}
                {emptyEnrollOnly ? (
                 <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">
                  暫未有學生報讀
@@ -2177,16 +2228,17 @@ useEffect(() => {
                <span
                 className={cn(
                  "inline-flex items-center gap-1",
-                 canManageSchedules && !s.teacher_id && "font-medium text-warning"
+                 canManageSchedules && isUnassignedTeachingTeacherIssue(s) && "font-medium text-warning"
                 )}
                >
                 <User className="h-4 w-4 shrink-0" aria-hidden />
-                {s.teacher_name ?? (canManageSchedules && !s.teacher_id ? "未指定老師" : "—")}
+                {scheduleTeacherDisplayName(s, { warnIfUnassigned: canManageSchedules })}
                </span>
                <span className="inline-flex items-center gap-1">
                 <DoorOpen className="h-4 w-4 shrink-0" aria-hidden />
                 位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
                </span>
+               {occupancy ? null : (
                <span
                 className={cn(
                  "inline-flex items-center gap-1",
@@ -2200,6 +2252,7 @@ useEffect(() => {
                  `${s.enrollCount} 人`
                 )}
                </span>
+               )}
                {s.teaching_notes?.trim() ? (
                 <Tag tone="info" size="sm">
                  已有教學紀錄
@@ -2219,17 +2272,33 @@ useEffect(() => {
                onChange={async (e) => {
                 if (scheduleRowLocked(s)) return
                 const v = e.target.value || null
-                await updateSchedule(s.id, { classroom_id: v })
+                if (occupancy) {
+                 if (!v) return
+                 await updateSchedule(s.id, { classroom_id: v })
+                 if (s.class_id) {
+                  await applyHomeworkOccupancyClassroomMove({
+                   classId: s.class_id,
+                   scheduledDate: s.scheduled_date,
+                   fromClassroomId: s.classroom_id,
+                   toClassroomId: v,
+                  })
+                 }
+                } else {
+                 await updateSchedule(s.id, { classroom_id: v })
+                }
                 await reload()
                }}
               >
-               <option value="">課室未定</option>
+               {occupancy ? null : <option value="">課室未定</option>}
                {roomOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                  {o.label}
                 </option>
                ))}
               </Select>
+              {occupancy ? (
+               <p className="text-xs text-muted-foreground">放假請用功輔校曆，唔好取消佔室。</p>
+              ) : (
               <Select
                className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
                value={s.status}
@@ -2240,7 +2309,8 @@ useEffect(() => {
                <option value="完成">完成</option>
                <option value="取消">取消</option>
               </Select>
-              {canManageSchedules ? (
+              )}
+              {occupancy ? null : canManageSchedules ? (
                <>
               <Link
                to="/LeaveManagement"
@@ -2258,7 +2328,7 @@ useEffect(() => {
               </Link>
                </>
               ) : null}
-              {canAssignSubstitute ? (
+              {occupancy ? null : canAssignSubstitute ? (
                <Button
                 type="button"
                 variant="outline"
@@ -2272,7 +2342,7 @@ useEffect(() => {
                 {s.original_teacher_id ? "更改代堂" : "指派代堂"}
                </Button>
               ) : null}
-              {canRollCall ? (
+              {occupancy ? null : canRollCall ? (
               <Button
                type="button"
                size="default"
@@ -2288,7 +2358,7 @@ useEffect(() => {
                確定點名
               </Button>
               ) : null}
-              {canManageSchedules ? (
+              {occupancy ? null : canManageSchedules ? (
               <Button
                type="button"
                variant="ghost"
@@ -2327,6 +2397,11 @@ useEffect(() => {
             </div>
             {open ? (
              <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
+              {occupancy ? (
+               <p className="text-sm text-muted-foreground">
+                功輔佔室：可改課室（會寫返當日編更）。放假請用功輔校曆；加開／收起第二房請到當值編更。
+               </p>
+              ) : (
               <ExpandedScheduleRoster
                schedule={s}
                schedulePeers={rows}
@@ -2376,6 +2451,7 @@ useEffect(() => {
                 </div>
                }
               />
+              )}
              </div>
             ) : null}
            </StaggerItem>
@@ -2414,6 +2490,7 @@ useEffect(() => {
          record: false,
         }
         const open = expandedScheduleId === s.id
+        const occupancy = isHomeworkOccupancySchedule(s)
         return (
          <Fragment key={s.id}>
           <StaggerItem
@@ -2446,6 +2523,11 @@ useEffect(() => {
               ({s.course_code_full})
              </span>
             ) : null}
+            {occupancy ? (
+             <Tag tone={statusToTagTone("佔室")} size="sm" className="mt-1">
+              佔室
+             </Tag>
+            ) : null}
            </td>
            <td className="min-w-0 align-top px-4 py-3 tabular-nums text-muted-foreground">
             {s.start_time ?? "—"}–{s.end_time ?? "—"}
@@ -2454,10 +2536,10 @@ useEffect(() => {
             <span
              className={cn(
               "block break-words",
-              canManageSchedules && !s.teacher_id && "font-medium text-warning"
+              canManageSchedules && isUnassignedTeachingTeacherIssue(s) && "font-medium text-warning"
              )}
             >
-             {s.teacher_name ?? (canManageSchedules && !s.teacher_id ? "未指定老師" : "—")}
+             {scheduleTeacherDisplayName(s, { warnIfUnassigned: canManageSchedules })}
             </span>
             {(() => {
              const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
@@ -2477,6 +2559,9 @@ useEffect(() => {
             ) : null}
            </td>
            <td className="align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
+            {occupancy ? (
+             <p className="text-xs text-muted-foreground">放假請用功輔校曆</p>
+            ) : (
             <Select
              className="h-10 rounded-md border border-input bg-background px-2 text-sm"
              value={s.status}
@@ -2487,7 +2572,8 @@ useEffect(() => {
              <option value="完成">完成</option>
              <option value="取消">取消</option>
             </Select>
-            {s.is_extra_lesson ? (
+            )}
+            {occupancy ? null : s.is_extra_lesson ? (
              <Tag tone={statusToTagTone("加堂")} size="sm" className="mt-1.5">
               加堂
              </Tag>
@@ -2500,7 +2586,7 @@ useEffect(() => {
            </td>
            <td className="min-w-0 align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
             <div className="flex flex-wrap items-center gap-2">
-             {canManageSchedules ? (
+             {occupancy ? null : canManageSchedules ? (
              <Link
               to="/LeaveManagement"
               className="text-sm font-medium text-warning hover:underline"
@@ -2509,7 +2595,7 @@ useEffect(() => {
               +請假
              </Link>
              ) : null}
-             {canRollCall ? (
+             {occupancy ? null : canRollCall ? (
              <button
               type="button"
               className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
@@ -2523,7 +2609,7 @@ useEffect(() => {
               確定點名
              </button>
              ) : null}
-             {canAssignSubstitute ? (
+             {occupancy ? null : canAssignSubstitute ? (
               <Button
                type="button"
                variant="link"
@@ -2536,7 +2622,7 @@ useEffect(() => {
                {s.original_teacher_id ? "更改代堂" : "指派代堂"}
               </Button>
              ) : null}
-             {canManageSchedules ? (
+             {occupancy ? null : canManageSchedules ? (
              <Button
               type="button"
               variant="link"
@@ -2564,6 +2650,11 @@ useEffect(() => {
           {open ? (
            <tr className="border-b border-border bg-success/30">
             <td colSpan={7} className="px-4 py-4">
+             {occupancy ? (
+              <p className="text-sm text-muted-foreground">
+               功輔佔室：可改課室（會寫返當日編更）。放假請用功輔校曆；加開／收起第二房請到當值編更。
+              </p>
+             ) : (
              <ExpandedScheduleRoster
               schedule={s}
               schedulePeers={rows}
@@ -2574,6 +2665,7 @@ useEffect(() => {
               makeup={listMakeupStudents}
               notEnrolled={listNotEnrolledStudents}
              />
+             )}
             </td>
            </tr>
           ) : null}
@@ -2669,17 +2761,19 @@ useEffect(() => {
        <p
         className={cn(
          "text-muted-foreground",
-         canManageSchedules && !detailRow.teacher_id && "font-medium text-warning"
+         canManageSchedules && isUnassignedTeachingTeacherIssue(detailRow) && "font-medium text-warning"
         )}
        >
         老師：
-        {detailRow.teacher_name ??
-         (canManageSchedules && !detailRow.teacher_id ? "未指定老師" : "—")}
+        {scheduleTeacherDisplayName(detailRow, { warnIfUnassigned: canManageSchedules })}
        </p>
-       {canManageSchedules && !detailRow.teacher_id && !detailRow.status.includes("取消") ? (
+       {canManageSchedules && isUnassignedTeachingTeacherIssue(detailRow) ? (
         <p className="text-xs text-warning">
          未指定實際授課老師時，老師時間表／點名紙可能看不到此堂。
         </p>
+       ) : null}
+       {isHomeworkOccupancySchedule(detailRow) ? (
+        <Tag tone={statusToTagTone("佔室")} size="sm">佔室</Tag>
        ) : null}
        {(() => {
         const subTag = formatScheduleSubstituteTag(
@@ -2716,7 +2810,11 @@ useEffect(() => {
        {detailRow.status.includes("取消") && detailRow.cancel_reason ? (
         <p className="text-muted-foreground">取消原因：{detailRow.cancel_reason}</p>
        ) : null}
-       {canAssignSubstitute ? (
+       {isHomeworkOccupancySchedule(detailRow) ? (
+        <p className="text-sm text-muted-foreground">
+         功輔佔室：放假請用功輔校曆。改課室請用日視圖拖曳或「移動到…」。
+        </p>
+       ) : canAssignSubstitute ? (
         <Button
          type="button"
          variant="outline"
@@ -2762,7 +2860,7 @@ useEffect(() => {
          {detailRow.original_teacher_id ? "更改／取消代堂" : "指派代堂"}
         </Button>
        ) : null}
-       {canManageSchedules ? (
+       {canManageSchedules && !isHomeworkOccupancySchedule(detailRow) ? (
         <label className="flex items-center gap-2 text-sm">
          <input
           type="checkbox"
@@ -2816,6 +2914,13 @@ useEffect(() => {
         {pendingMove.row.course_code_full ? `（${pendingMove.row.course_code_full}）` : ""}」：
         <br />
         課室 → <strong>{pendingMove.roomLabel}</strong>
+        {isHomeworkOccupancySchedule(pendingMove.row) ? (
+         <>
+          <br />
+          <span>佔室時間維持 {pendingMove.newStart}–{pendingMove.newEnd}（只改課室）。</span>
+         </>
+        ) : (
+         <>
         <br />
         時間 → <strong className="tabular-nums">
          {pendingMove.newStart}–{pendingMove.newEnd}
@@ -2826,6 +2931,8 @@ useEffect(() => {
           <span className="text-sm">時間將對齊標準格（09:00 起每 75 分鐘）。</span>
          </>
         ) : null}
+         </>
+        )}
        </p>
        {moveChecking ? (
         <p className="text-sm text-muted-foreground">正在檢查課室衝突…</p>
@@ -2917,9 +3024,15 @@ useEffect(() => {
            {r.name}
           </option>
          ))}
+         {isHomeworkOccupancySchedule(moveDialogSchedule) ? null : (
          <option value="__none__">未編課室</option>
+         )}
         </Select>
        </label>
+       {isHomeworkOccupancySchedule(moveDialogSchedule) ? (
+        <p className="text-xs text-muted-foreground">功輔佔室只改課室，時間維持 15:15 起至當日結束。</p>
+       ) : (
+       <>
        <label className="grid gap-1.5">
         <span className="text-muted-foreground">時段（標準格）</span>
         <Select
@@ -2937,6 +3050,8 @@ useEffect(() => {
        <p className="text-xs text-muted-foreground">
         時間將對齊所選標準格的起點；若原為非標準時間，結束時間會依上課時長重新計算。
        </p>
+       </>
+       )}
        <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={() => setMoveDialogSchedule(null)}>
          取消
