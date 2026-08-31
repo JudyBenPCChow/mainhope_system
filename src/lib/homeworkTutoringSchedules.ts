@@ -26,14 +26,26 @@ export type HomeworkScheduleSlot = {
   roomName: string
 }
 
-/** M/D（如 10/2）→ ISO；需與 yearMonth 月份一致 */
-export function mdKeyToIso(yearMonth: string, mdKey: string): string | null {
-  const [y, m] = yearMonth.split("-").map(Number)
-  const parts = mdKey.trim().split("/")
+/** 畫面／DB 日期都收成 M/D（如 9/21）；ISO `2026-09-21` 亦可 */
+export function toDutyMdKey(date: string): string | null {
+  const trimmed = date.trim()
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return `${Number(iso[2])}/${Number(iso[3])}`
+  const parts = trimmed.split("/")
   if (parts.length !== 2) return null
   const mm = Number(parts[0])
   const dd = Number(parts[1])
-  if (!y || !m || !mm || !dd || mm !== m) return null
+  if (!mm || !dd) return null
+  return `${mm}/${dd}`
+}
+
+/** M/D 或 ISO → ISO；需與 yearMonth 月份一致 */
+export function mdKeyToIso(yearMonth: string, mdKey: string): string | null {
+  const [y, m] = yearMonth.split("-").map(Number)
+  const key = toDutyMdKey(mdKey)
+  if (!y || !m || !key) return null
+  const [mm, dd] = key.split("/").map(Number)
+  if (!mm || !dd || mm !== m) return null
   return `${y}-${String(m).padStart(2, "0")}-${String(dd).padStart(2, "0")}`
 }
 

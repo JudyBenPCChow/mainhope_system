@@ -214,9 +214,10 @@ export function RosterMonthSheet({
     setSaving(true)
     setSaveError(null)
     try {
-      if (onPublish) {
-        await onPublish(yearMonth, monthDays)
+      if (!onPublish) {
+        throw new Error("無法儲存編更：未接上寫入。請重新整理頁面後再試。")
       }
+      await onPublish(yearMonth, monthDays)
       const monthNum = Number(yearMonth.split("-")[1])
       onDutyDaysChange((prev) => {
         const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
