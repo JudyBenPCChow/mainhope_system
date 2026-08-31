@@ -670,7 +670,7 @@ export function LeaveManagementView() {
    />
 
    {studentIdFromUrl || recordFromUrl ? (
-   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info bg-info/80 px-3 py-2 text-sm text-info-foreground dark:border-info dark:bg-info/40 dark:text-info-foreground">
+   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info bg-info/80 px-3 py-2 text-sm text-info-foreground dark:border-info dark:bg-info/40 dark:text-info">
      <span>
       已由學生詳情帶入篩選
       {recordFromUrl ? "（並嘗試捲動至該筆）" : ""}

@@ -165,7 +165,7 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
        調已繳堂數；金額錯先作廢再重開。
       </p>
       {needsSecond ? (
-       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
         此單開立已超過 30 分鐘，須另一位<strong>管理層或外星人</strong>輸入電郵與密碼作第二確認（不可同你本人）。
        </p>
       ) : (

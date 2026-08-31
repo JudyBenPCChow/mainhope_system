@@ -54,7 +54,6 @@ import ApoPo from "@/pages/ApoPo"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
-import PrototypeAdminContextRail from "@/pages/PrototypeAdminContextRail"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
 
 const AiReports = lazy(() => import("@/pages/AiReports"))
@@ -103,8 +102,6 @@ export default function App() {
     ) : null}
     {/* 首頁 wayfinding UX 沙盒：免登入、不掛側欄、不接 DB */}
     <Route path="/prototype/HomeWayfinding" element={<PrototypeHomeWayfinding />} />
-    {/* 管理員三欄右欄 UX 沙盒：免登入、不接 DB、不跳轉正式頁 */}
-    <Route path="/prototype/AdminContextRail" element={<PrototypeAdminContextRail />} />
     <Route element={<AdaptiveLayout />}>
      <Route path="/Home" element={<Home />} />
      <Route path="/AllFeatures" element={<AllFeatures />} />

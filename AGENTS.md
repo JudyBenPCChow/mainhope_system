@@ -34,7 +34,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 
 ## 鐵則
 
-- **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。詳見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md`。
+- **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。淺底警示用 `text-warning`，禁 `bg-warning/10` + `text-warning-foreground`（白字）。詳見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md` §9。
 - **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/meta/RLS_ROLLOUT.md`。
 - **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。

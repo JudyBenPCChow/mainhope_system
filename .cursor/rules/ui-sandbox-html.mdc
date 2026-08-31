@@ -2,7 +2,7 @@
 description: >-
   用戶講沙盒、sandbox、試樣式、唔接真實網頁／系統時：第一件必須係可雙擊打開的獨立 HTML。
   禁只交 Vite／prototype 路由當本機試用入口。
-globs: sandbox/**/*.html,public/**/*sandbox*.html,public/admin-context-rail.html
+globs: sandbox/**/*.html,public/**/*sandbox*.html
 alwaysApply: false
 ---
 

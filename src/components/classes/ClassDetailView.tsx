@@ -10,7 +10,9 @@ import {
  Users,
 } from "lucide-react"
 
-import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
+import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { useOpenStudentRecord, useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -66,6 +68,7 @@ import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { classDisplayName } from "@/lib/courseLabel"
+import { classKindLabel, resolveClassKind } from "@/lib/privateClassKind"
 import {
  classGradeDisplayText,
  normalizeStoredClassGradeLabels,
@@ -226,6 +229,10 @@ const TABS: {
 export function ClassDetailView() {
  const { classId } = useParams<{ classId: string }>()
  const navigate = useNavigate()
+ const openStudent = useOpenStudentRecord()
+ const openTeacher = useOpenTeacherRecord()
+ const { preview } = useRecordPreview()
+ const isMobile = useIsMobile()
  const location = useLocation()
  const cid = classId ?? ""
  const { profile } = useAuth()
@@ -1000,14 +1007,14 @@ export function ClassDetailView() {
 
  if (!cid) {
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate("/Classes")} layerLabel={null}>
+   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate("/Classes")} layerLabel={null}>
     <p className="p-6 text-muted-foreground">無效路由</p>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
  if (!loading && !cls) {
   return (
-   <DetailLayerShell
+   <AdaptiveDetailLayer
     variant="student"
     onDismiss={() => navigate(fromPrivateTutoring ? "/PrivateTutoring" : "/Classes")}
     layerLabel="班別詳情"
@@ -1018,21 +1025,21 @@ export function ClassDetailView() {
       <Link to={fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"}>返回</Link>
      </Button>
     </div>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
  const scopeTeacherId = teacherScopeId
  if (!loading && cls && scopeTeacherId && cls.teacher_id !== scopeTeacherId) {
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate(classesListPath)} layerLabel="班別詳情">
+   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate(classesListPath)} layerLabel="班別詳情">
     <div className="p-6">
      <p>此班別不屬於您的指派，無法檢視。</p>
      <Button className="mt-4" variant="outline" asChild>
       <Link to={classesListPath}>返回</Link>
      </Button>
     </div>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
@@ -1440,28 +1447,36 @@ export function ClassDetailView() {
  }
 
  return (
-  <DetailLayerShell
+  <AdaptiveDetailLayer
    variant="student"
    onDismiss={() => void requestLeavePage()}
-   layerLabel="班別詳情 · 次層檢視"
+   layerLabel="班別詳情"
   >
    <div className="flex min-h-full flex-col bg-background">
-   <div className="bg-primary px-4 py-4 text-primary-foreground shadow-md md:px-6">
-    <div className="flex flex-wrap items-start gap-4">
+   <div
+    className={
+     isMobile
+      ? "bg-primary px-4 py-4 text-primary-foreground shadow-md md:px-6"
+      : "rounded-xl border border-border bg-card px-4 py-4 shadow-sm md:px-6"
+    }
+   >
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
      <Button
       type="button"
-      variant="secondary"
+      variant={isMobile ? "secondary" : "outline"}
       size="sm"
-      className="bg-white/90 text-foreground hover:bg-white"
+      className={cn("w-fit shrink-0", isMobile && "bg-white/90 text-foreground hover:bg-white")}
       onClick={() => void requestLeavePage()}
      >
       <ArrowLeft className="h-4 w-4" />
       返回
      </Button>
      <div className="flex min-w-0 flex-1 items-start gap-3">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-xl">
-       
-      </div>
+      {isMobile ? (
+       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-xl">
+        
+       </div>
+      ) : null}
       <div className="min-w-0">
        {loading ? (
         <p className="text-lg">載入中…</p>
@@ -1470,16 +1485,26 @@ export function ClassDetailView() {
          <h1 className="text-xl font-bold md:text-2xl">
           {classDisplayName({ subject: cls.subject, courseName: cls.course_name })}
          </h1>
-         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
+         <div
+          className={cn(
+           "mt-1 flex flex-wrap items-center gap-2 text-sm",
+           isMobile ? "text-white/90" : "text-muted-foreground"
+          )}
+         >
           <span className="font-mono">{cls.course_code_full ?? "—"}</span>
+          <Tag tone="info" size="sm">
+           {classKindLabel(resolveClassKind(cls.class_kind, cls.subject))}
+          </Tag>
           {cls.class_kind === "private" ? (
            <Tag tone="info" size="sm">
             {privateCapacity === 2 ? "一對二" : "一對一"}
            </Tag>
           ) : null}
           <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
-          <span>{timeLine(cls)}</span>
          </div>
+         <p className={cn("mt-1 text-sm", isMobile ? "text-white/85" : "text-muted-foreground")}>
+          {timeLine(cls)}
+         </p>
         </>
        ) : null}
       </div>
@@ -1487,8 +1512,8 @@ export function ClassDetailView() {
      {canEditClass ? (
      <Button
       type="button"
-      variant="secondary"
-      className="bg-white/20 text-white hover:bg-white/30"
+      variant={isMobile ? "secondary" : "default"}
+      className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
       onClick={() => {
        setEditErr(null)
        setEditOpen(true)
@@ -1498,12 +1523,12 @@ export function ClassDetailView() {
       編輯班別
      </Button>
      ) : isPrivateClass && canManageClass ? (
-     <div className="flex flex-wrap gap-2">
+     <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
       {canBookPrivate ? (
        <Button
         type="button"
-        variant="secondary"
-        className="bg-white/20 text-white hover:bg-white/30"
+        variant={isMobile ? "secondary" : "default"}
+        className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
         onClick={() => void openPrivateBook()}
        >
         預約上堂
@@ -1512,8 +1537,8 @@ export function ClassDetailView() {
       {canEditPrivateLight ? (
        <Button
         type="button"
-        variant="secondary"
-        className="bg-white/20 text-white hover:bg-white/30"
+        variant={isMobile ? "secondary" : "outline"}
+        className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
         onClick={openPrivateLightEdit}
        >
         <Pencil className="h-4 w-4" />
@@ -1522,8 +1547,8 @@ export function ClassDetailView() {
       ) : null}
       <Button
        type="button"
-       variant="secondary"
-       className="bg-white/20 text-white hover:bg-white/30"
+       variant={isMobile ? "secondary" : "outline"}
+       className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
        asChild
       >
       <Link to="/PrivateTutoring">返回私人課程學生</Link>
@@ -1532,8 +1557,8 @@ export function ClassDetailView() {
      ) : isPrivateClass && canBookPrivate ? (
      <Button
       type="button"
-      variant="secondary"
-      className="bg-white/20 text-white hover:bg-white/30"
+      variant={isMobile ? "secondary" : "default"}
+      className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
       onClick={() => void openPrivateBook()}
      >
       預約上堂
@@ -1597,7 +1622,7 @@ export function ClassDetailView() {
      >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
        <div className="min-w-0 space-y-1">
-        <p className="flex items-start gap-2 font-medium text-warning-foreground">
+        <p className="flex items-start gap-2 font-medium text-warning">
          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
          班別老師與排程老師不一致（{privateTeacherMismatch.mismatchCount}／
          {privateTeacherMismatch.activeCount} 堂）
@@ -1643,12 +1668,13 @@ export function ClassDetailView() {
         {
          k: "負責老師",
          v: cls.teacher_id ? (
-          <Link
-           to={`/Teachers/${cls.teacher_id}`}
+          <button
+           type="button"
            className="font-medium text-primary underline-offset-4 hover:underline"
+           onClick={() => openTeacher(cls.teacher_id as string)}
           >
            {cls.teacher_name ?? "—"}
-          </Link>
+          </button>
          ) : (
           "未指定"
          ),
@@ -1830,12 +1856,15 @@ export function ClassDetailView() {
          <StaggerItem
           key={s.enrollmentId}
           as="div"
-          className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+          className={cn(
+           "flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 shadow-sm",
+           preview?.kind === "student" && preview.id === s.studentId && "bg-info/15"
+          )}
          >
-         <Link
-          to={`/Students/${s.studentId}`}
-          state={{ from: `/Classes/${cid}` }}
-          className="min-w-0 flex-1 transition-all hover:opacity-90 active:scale-[0.99]"
+         <button
+          type="button"
+          onClick={() => openStudent(s.studentId)}
+          className="min-w-0 flex-1 text-left transition-all hover:opacity-90 active:scale-[0.99]"
          >
           <div className="text-lg font-semibold text-primary">{s.fullName}</div>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -1848,7 +1877,7 @@ export function ClassDetailView() {
             </Tag>
            ) : null}
           </div>
-         </Link>
+         </button>
          <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
           <Tag tone={statusToTagTone(s.status)} size="sm">{s.status}</Tag>
           {!teacherScopeId && (canEditClass || canAddPrivateStudent) ? (
@@ -1923,13 +1952,13 @@ export function ClassDetailView() {
                  ? "選堂變更"
                  : "報讀"}
            </Tag>
-           <Link
-            to={`/Students/${ev.studentId}`}
-            state={{ from: `/Classes/${cid}` }}
+           <button
+            type="button"
+            onClick={() => openStudent(ev.studentId)}
             className="font-medium text-primary hover:underline"
            >
             {ev.studentName}
-           </Link>
+           </button>
            <span className="text-muted-foreground">
             · 生效{" "}
             <span className="font-medium tabular-nums text-foreground">{ev.effectiveDate}</span>
@@ -2966,6 +2995,6 @@ export function ClassDetailView() {
     </DialogContent>
    </Dialog>
   </div>
-  </DetailLayerShell>
+  </AdaptiveDetailLayer>
  )
 }

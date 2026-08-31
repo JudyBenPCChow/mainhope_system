@@ -45,6 +45,7 @@ type Props = {
  teacherScoped: boolean
  canDeleteClass: boolean
  onNavigate: (id: string) => void
+ previewId?: string | null
  onStatusChange: (id: string, status: string) => void
  onCopy: (e: React.MouseEvent, id: string) => void
  onDelete: (e: React.MouseEvent, id: string) => void
@@ -68,6 +69,7 @@ export function ClassesListTable({
  teacherScoped,
  canDeleteClass,
  onNavigate,
+ previewId = null,
  onStatusChange,
  onCopy,
  onDelete,
@@ -156,7 +158,8 @@ export function ClassesListTable({
            "border-b border-border",
            rowInteractive,
            idx % 2 === 1 ? "bg-muted/15" : "",
-           checked ? "bg-info/10" : ""
+           checked ? "bg-info/10" : "",
+           previewId === c.id ? "bg-info/15" : ""
           )}
          >
           <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>

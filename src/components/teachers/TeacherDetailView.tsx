@@ -11,7 +11,9 @@ import {
  User,
 } from "lucide-react"
 
-import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
+import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { useOpenClassRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
  TeacherWeekTimetable,
  weekItemsFromTeacherScheduleRows,
@@ -97,6 +99,10 @@ export function TeacherDetailView() {
  const navigate = useNavigate()
  const tid = teacherId ?? ""
  const { profile } = useAuth()
+ const isMobile = useIsMobile()
+ const openClass = useOpenClassRecord()
+ const { preview } = useRecordPreview()
+ const previewClassId = preview?.kind === "class" ? preview.id : null
  const canEditAbbr = can(profile?.activeCapabilities, "catalog.manage")
  const [tab, setTab] = useState<TabId>("basic")
  const [teacher, setTeacher] = useState<TeacherRecord | null>(null)
@@ -284,36 +290,36 @@ export function TeacherDetailView() {
 
  if (!tid) {
   return (
-   <DetailLayerShell
+   <AdaptiveDetailLayer
     variant="teacher"
     onDismiss={() => navigate("/Teachers")}
     layerLabel={null}
    >
     <p className="p-6 text-muted-foreground">無效的路由</p>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
  if (!loading && !teacher) {
   return (
-   <DetailLayerShell variant="teacher" onDismiss={() => navigate("/Teachers")} layerLabel="老師詳情">
+   <AdaptiveDetailLayer variant="teacher" onDismiss={() => navigate("/Teachers")} layerLabel="老師詳情">
     <div className="p-6">
      <p className="text-muted-foreground">找不到此老師。</p>
      <Button type="button" variant="outline" className="mt-4" asChild>
       <Link to="/Teachers">返回列表</Link>
      </Button>
     </div>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
  const tabCounts = { cl: classes.length, sc: schedules.length }
 
  return (
-  <DetailLayerShell
+  <AdaptiveDetailLayer
    variant="teacher"
    onDismiss={() => navigate("/Teachers")}
-   layerLabel="老師詳情 · 次層檢視"
+   layerLabel="老師詳情"
   >
   <div className="flex min-h-full flex-col bg-background">
    {pageErr || pageOk || partialLoadIssues.length > 0 ? (
@@ -342,22 +348,30 @@ export function TeacherDetailView() {
      ) : null}
     </div>
    ) : null}
-   <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-white shadow-md md:px-6">
+   <div
+    className={
+     isMobile
+      ? "bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-white shadow-md md:px-6"
+      : "rounded-xl border border-border bg-card px-4 py-4 shadow-sm md:px-6"
+    }
+   >
     <div className="flex flex-wrap items-start gap-4">
      <Button
       type="button"
-      variant="secondary"
+      variant={isMobile ? "secondary" : "outline"}
       size="sm"
-      className="shrink-0 bg-white/90 text-foreground hover:bg-white"
+      className={cn("shrink-0", isMobile && "bg-white/90 text-foreground hover:bg-white")}
       onClick={() => navigate("/Teachers")}
      >
       <ArrowLeft className="h-4 w-4" />
       返回
      </Button>
      <div className="flex min-w-0 flex-1 items-start gap-3">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20">
-       <User className="h-6 w-6" />
-      </div>
+      {isMobile ? (
+       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+        <User className="h-6 w-6" />
+       </div>
+      ) : null}
       <div className="min-w-0">
        {loading ? (
         <p className="text-lg">載入中…</p>
@@ -366,14 +380,63 @@ export function TeacherDetailView() {
          <h1 className="text-xl font-bold md:text-2xl">
           {teacher.full_name}
           {teacher.english_name ? (
-           <span className="ml-2 text-base font-normal text-white/90">
+           <span
+            className={cn(
+             "ml-2 text-base font-normal",
+             isMobile ? "text-white/90" : "text-muted-foreground"
+            )}
+           >
             {teacher.english_name}
            </span>
           ) : null}
          </h1>
-         <Tag tone={statusToTagTone(teacher.status)} size="sm" className="mt-2 bg-white/20 text-white">
-          {teacher.status ?? "—"}
-         </Tag>
+         <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Tag
+           tone={statusToTagTone(teacher.status)}
+           size="sm"
+           className={isMobile ? "bg-white/20 text-white" : undefined}
+          >
+           {teacher.status ?? "—"}
+          </Tag>
+          {teacher.abbr ? (
+           <span
+            className={cn(
+             "font-mono text-xs",
+             isMobile ? "text-white/85" : "text-muted-foreground"
+            )}
+           >
+            {teacher.abbr}
+           </span>
+          ) : null}
+         </div>
+         <div
+          className={cn(
+           "mt-2 flex flex-wrap gap-2 text-xs",
+           isMobile ? "text-white/90" : "text-muted-foreground"
+          )}
+         >
+          <span
+           className={
+            isMobile
+             ? "rounded-md bg-white/15 px-2 py-0.5"
+             : "rounded-md border border-border bg-muted/40 px-2 py-0.5 text-foreground"
+           }
+          >
+           任教 {classes.length} 班
+          </span>
+          {(teacher.subject_speciality ?? []).slice(0, 4).map((sub) => (
+           <span
+            key={sub}
+            className={
+             isMobile
+              ? "rounded-md bg-white/15 px-2 py-0.5"
+              : "rounded-md border border-border bg-muted/40 px-2 py-0.5 text-foreground"
+            }
+           >
+            {sub}
+           </span>
+          ))}
+         </div>
         </>
        ) : null}
       </div>
@@ -394,7 +457,9 @@ export function TeacherDetailView() {
         className={cn(
          "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
          active
-          ? "border-b-2 border-success text-success"
+          ? isMobile
+            ? "border-b-2 border-success text-success"
+            : "border-b-2 border-primary text-primary"
           : "text-muted-foreground hover:text-foreground"
         )}
        >
@@ -544,9 +609,13 @@ export function TeacherDetailView() {
        <StaggerList as="div" className="space-y-3">
        {classes.map((c) => (
         <StaggerItem key={c.id} as="div">
-        <Link
-         to={`/Classes/${c.id}`}
-         className="block rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/20"
+        <button
+         type="button"
+         onClick={() => openClass(c.id)}
+         className={cn(
+          "block w-full rounded-xl border border-border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/40 hover:bg-muted/20",
+          previewClassId === c.id && "bg-info/15 ring-1 ring-primary/30"
+         )}
         >
          <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
@@ -566,7 +635,7 @@ export function TeacherDetailView() {
            {money(c.pricePerLesson)}
           </div>
          </div>
-        </Link>
+        </button>
         </StaggerItem>
        ))}
        </StaggerList>
@@ -731,6 +800,6 @@ export function TeacherDetailView() {
     ) : null}
    </div>
   </div>
-  </DetailLayerShell>
+  </AdaptiveDetailLayer>
  )
 }

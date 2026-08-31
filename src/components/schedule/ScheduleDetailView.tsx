@@ -168,7 +168,7 @@ export function ScheduleDetailView() {
       {canManageSchedules && !row.teacher_id && !row.status.includes("取消") ? (
        <div
         role="status"
-        className="mt-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+        className="mt-4 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning"
        >
         此排程未指定實際授課老師。老師時間表／點名紙可能看不到此堂；請先補班別任教老師或指定該堂老師。
        </div>

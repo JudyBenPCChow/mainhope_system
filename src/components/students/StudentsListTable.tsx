@@ -49,6 +49,8 @@ type Props = {
  onDelete: (e: React.MouseEvent, id: string) => void
  onNavigate: (id: string) => void
  onWeChatCopied: (wechatId: string) => void
+ /** 右側預覽中的學生，列高亮 */
+ previewId?: string | null
 }
 
 export function StudentsListTable({
@@ -70,6 +72,7 @@ export function StudentsListTable({
  onDelete,
  onNavigate,
  onWeChatCopied,
+ previewId = null,
 }: Props) {
  const selectedSet = new Set(selectedIds)
  const allSelected = rows.length > 0 && rows.every((r) => selectedSet.has(r.id))
@@ -142,7 +145,8 @@ export function StudentsListTable({
           className={cn(
            "cursor-pointer border-b border-border transition-colors hover:bg-muted/60",
            idx % 2 === 1 ? "bg-muted/20" : "",
-           checked ? "bg-info/10" : ""
+           checked ? "bg-info/10" : "",
+           previewId === r.id ? "bg-info/15" : ""
           )}
          >
           <td className="px-3 py-3 align-top" onClick={(e) => e.stopPropagation()}>

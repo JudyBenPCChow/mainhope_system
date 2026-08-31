@@ -2,6 +2,8 @@ import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Flame, Inbox } from "lucide-react"
 
+import { RecordPreviewProvider } from "@/components/recordPreview/recordPreviewContext"
+import { RecordPreviewRail } from "@/components/recordPreview/RecordPreviewRail"
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
@@ -120,6 +122,7 @@ export function Layout() {
  const collapsedLinks = flattenNav(navEntries)
 
  return (
+  <RecordPreviewProvider>
   <div className="flex h-svh min-h-0 w-full overflow-hidden bg-brand-bg">
    <AppBannerViewport />
    <aside
@@ -346,13 +349,17 @@ export function Layout() {
     </div>
    </aside>
 
-   <main className="min-h-0 flex-1 overflow-y-auto bg-background">
+   <div className="flex min-h-0 min-w-0 flex-1">
+   <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
     <div className="mx-auto min-h-full max-w-[1600px] px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12">
      <Outlet />
     </div>
    </main>
+   <RecordPreviewRail />
+   </div>
    <ApoAssistant role={role} />
    <ChickenGentlemanNudge role={role} />
   </div>
+  </RecordPreviewProvider>
  )
 }
