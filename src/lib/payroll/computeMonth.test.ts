@@ -228,4 +228,89 @@ describe("payroll month compute", () => {
     expect(billy.grossBeforeAdj).toBe(180) // HC=2
     expect(billy.lessons[0].substitute).toBe(true)
   })
+
+  it("adds homework hourly on top of specialist pay and Christine commission at 15", () => {
+    const leoRate = rate("leo", "兼職 HC", {
+      junior: { base: 120, per_extra: 60 },
+      one_to_one_hc: 3,
+      one_to_two_hc: 4,
+    })
+    const cfanRate = rate("cfan", "分成制", {
+      personal_pct: 0.6,
+      commission_pct: 0.1,
+      commission_subject_codes: ["CHI"],
+    })
+    const teachers: PayrollTeacherInput[] = [
+      {
+        teacherId: "leo",
+        teacherName: "Leo Chan",
+        rate: leoRate,
+        approvedHours: 0,
+        homeworkHourlyRate: 70,
+        homeworkRosterHours: 4,
+      },
+      {
+        teacherId: "cfan",
+        teacherName: "Christine Fan",
+        rate: cfanRate,
+        approvedHours: 0,
+        homeworkHourlyRate: 100,
+        homeworkRosterHours: 2,
+      },
+    ]
+    const result = computePayrollMonth({
+      monthKey: "2026-09",
+      teachers,
+      lessons: [],
+      homeworkCommission: { teacherId: "cfan", enrolledCount: 15, originalPriceTotal: 45000 },
+    })
+    const leo = result.teachers.find((t) => t.teacherId === "leo")!
+    expect(leo.homework?.amount).toBe(280)
+    expect(leo.grossBeforeAdj).toBe(280)
+    const cfan = result.teachers.find((t) => t.teacherId === "cfan")!
+    expect(cfan.homework?.amount).toBe(200)
+    expect(cfan.homeworkCommission?.amount).toBe(4500)
+    expect(cfan.grossBeforeAdj).toBe(4700)
+  })
+
+  it("pays homework-only teachers without specialist rate and gates commission below 15", () => {
+    const teachers: PayrollTeacherInput[] = [
+      {
+        teacherId: "annie",
+        teacherName: "Annie Leung",
+        rate: null,
+        approvedHours: 0,
+        homeworkHourlyRate: 100,
+        homeworkRosterHours: 24,
+      },
+      {
+        teacherId: "cfan",
+        teacherName: "Christine Fan",
+        rate: rate("cfan", "分成制", {
+          personal_pct: 0.6,
+          commission_pct: 0.1,
+          commission_subject_codes: ["CHI"],
+        }),
+        approvedHours: 0,
+      },
+    ]
+    const result = computePayrollMonth({
+      monthKey: "2026-09",
+      teachers,
+      lessons: [],
+      homeworkCommission: { teacherId: "cfan", enrolledCount: 6, originalPriceTotal: 18000 },
+    })
+    const annie = result.teachers.find((t) => t.teacherId === "annie")!
+    expect(annie.mode).toBe("功輔時薪")
+    expect(annie.missingRate).toBe(false)
+    expect(annie.homework?.amount).toBe(2400)
+    expect(annie.grossBeforeAdj).toBe(2400)
+    const cfan = result.teachers.find((t) => t.teacherId === "cfan")!
+    expect(cfan.homeworkCommission).toEqual({
+      enrolledCount: 6,
+      originalPriceTotal: 18000,
+      amount: 0,
+    })
+    expect(cfan.grossBeforeAdj).toBe(0)
+  })
 })

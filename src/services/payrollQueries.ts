@@ -33,6 +33,14 @@ import {
 } from "@/services/scheduleRosterQueries"
 import { fetchAllTeachers, normalizeTeacherEmploymentStatus } from "@/services/teacherQueries"
 import { recordInboxEventOrThrow } from "@/services/inboxEventWrite"
+import {
+  clearHomeworkHourOverride,
+  fetchHomeworkCommissionBase,
+  fetchHomeworkHourOverrides,
+  fetchHomeworkHourlyRates,
+  fetchHomeworkRosterHoursByTeacher,
+  upsertHomeworkHourOverride,
+} from "@/services/payrollHomeworkQueries"
 import type {
   ManualAdjustment,
   PayrollClassBlock,
@@ -449,7 +457,7 @@ function mapComputedToUiRow(
   }))
 
   const mode: PayrollMode =
-    computed.mode === "未設定" ? "兼職 HC" : (computed.mode as PayrollMode)
+    computed.mode === "未設定" ? "兼職 HC" : computed.mode
 
   const row: PayrollTeacherRow = {
     id: computed.teacherId,
@@ -508,6 +516,13 @@ function mapComputedToUiRow(
       effectiveFrom: "—",
       monthStatus: "當月有效固定月薪",
     }
+  }
+
+  if (computed.homework) {
+    row.homework = computed.homework
+  }
+  if (computed.homeworkCommission) {
+    row.homeworkCommission = computed.homeworkCommission
   }
 
   return row
@@ -642,7 +657,13 @@ async function computeUiTeachers(
 ): Promise<{ teachers: PayrollTeacherRow[]; hardBlockAnomalies: string[] }> {
   const allTeachers = await fetchAllTeachers()
   const active = allTeachers.filter((t) => normalizeTeacherEmploymentStatus(t.status) === "在職")
-  const lessons = await buildLessonInputsForMonth(monthKey)
+  const [lessons, hwRates, hwOverrides, hwRosterHours, hwCommission] = await Promise.all([
+    buildLessonInputsForMonth(monthKey),
+    fetchHomeworkHourlyRates(monthKey),
+    fetchHomeworkHourOverrides(monthKey),
+    fetchHomeworkRosterHoursByTeacher(monthKey),
+    fetchHomeworkCommissionBase(monthKey),
+  ])
 
   // 上月 snapshot gross（若有）
   const prevKey = prevMonthKey(monthKey)
@@ -658,11 +679,15 @@ async function computeUiTeachers(
 
   const teacherInputs: PayrollTeacherInput[] = active.map((t) => {
     const h = hoursByTeacher.get(t.id)
+    const override = hwOverrides.get(t.id)
     return {
       teacherId: t.id,
       teacherName: t.full_name,
       rate: pickRateForMonth(rates, t.id, monthKey),
       approvedHours: h?.status === "approved" ? h.hours : 0,
+      homeworkHourlyRate: hwRates.get(t.id) ?? null,
+      homeworkRosterHours: hwRosterHours.get(t.id) ?? 0,
+      homeworkOverrideHours: override ?? null,
     }
   })
 
@@ -676,6 +701,9 @@ async function computeUiTeachers(
       teacherName: l.teacherName ?? "—",
       rate: pickRateForMonth(rates, l.teacherId, monthKey),
       approvedHours: 0,
+      homeworkHourlyRate: hwRates.get(l.teacherId) ?? null,
+      homeworkRosterHours: hwRosterHours.get(l.teacherId) ?? 0,
+      homeworkOverrideHours: hwOverrides.get(l.teacherId) ?? null,
     })
   }
 
@@ -684,6 +712,7 @@ async function computeUiTeachers(
     teachers: teacherInputs,
     lessons,
     previousGrossByTeacherId: prevGross,
+    homeworkCommission: hwCommission,
   })
 
   const teachers = computed.teachers
@@ -702,7 +731,9 @@ async function computeUiTeachers(
         t.anomalies.length > 0 ||
         t.mode === "固定月薪" ||
         t.mode === "WFH 時薪" ||
-        t.missingRate
+        t.missingRate ||
+        (t.homework != null && (t.homework.amount > 0 || t.homework.rosterHours > 0)) ||
+        (t.homeworkCommission != null && t.homeworkCommission.amount > 0)
     )
     .sort((a, b) => {
       const ah = a.anomalies.length > 0 ? 0 : 1
@@ -1111,3 +1142,5 @@ export async function upsertManualHours(input: {
   })
   if (error) throw new Error(error.message)
 }
+
+export { upsertHomeworkHourOverride, clearHomeworkHourOverride }

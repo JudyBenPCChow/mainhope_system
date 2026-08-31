@@ -209,6 +209,20 @@ export type PayrollTeacherRow = {
   }
   /** WFH（Cody） */
   wfh?: WfhMockState
+  /** 功輔時薪 */
+  homework?: {
+    rosterHours: number
+    billedHours: number
+    rate: number
+    overridden: boolean
+    amount: number
+  }
+  /** Christine 功輔佣金 */
+  homeworkCommission?: {
+    enrolledCount: number
+    originalPriceTotal: number
+    amount: number
+  }
   /** 示範：缺有效費率 */
   missingRate?: boolean
   /** 跨模式拆分 */
@@ -216,6 +230,10 @@ export type PayrollTeacherRow = {
   /** 固定月薪適用證據 */
   salaryEvidence?: SalaryEvidence
 }
+
+export type HomeworkHourSave =
+  | { kind: "override"; hours: number }
+  | { kind: "clear" }
 
 export type PayrollMonthMock = {
   monthKey: string

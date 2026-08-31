@@ -1,3 +1,9 @@
+import {
+  billedHomeworkHours,
+  christineHomeworkCommission,
+  homeworkHourlyPay,
+  isHomeworkHourlyExempt,
+} from "@/lib/payroll/homeworkHours"
 import type {
   ComputedLessonLine,
   ComputedTeacherResult,
@@ -25,6 +31,36 @@ function lessonForTeacher(lesson: PayrollLessonInput, teacherId: string): boolea
   return lesson.teacherId === teacherId && !lesson.cancelled
 }
 
+function applyHomeworkPay(teacher: PayrollTeacherInput, lines: ComputedTeacherResult["lines"], anomalies: string[]) {
+  const rosterHours = teacher.homeworkRosterHours ?? 0
+  const billedHours = billedHomeworkHours(rosterHours, teacher.homeworkOverrideHours)
+  const rate = teacher.homeworkHourlyRate
+  if (rate != null && rate > 0) {
+    const amount = homeworkHourlyPay(billedHours, rate)
+    if (amount > 0) {
+      const overridden = teacher.homeworkOverrideHours != null
+      lines.push({
+        label: overridden
+          ? `功輔時薪 ${billedHours} 小時 × $${rate}（已修正；編更 ${rosterHours} 小時）`
+          : `功輔時薪 ${billedHours} 小時 × $${rate}`,
+        amount,
+        kind: "homework_hourly",
+      })
+    }
+    return {
+      rosterHours,
+      billedHours,
+      rate,
+      overridden: teacher.homeworkOverrideHours != null,
+      amount,
+    }
+  }
+  if (rosterHours > 0 && !isHomeworkHourlyExempt(teacher.teacherName)) {
+    anomalies.push("功輔當值但未設定時薪")
+  }
+  return undefined
+}
+
 /**
  * 計算一位教師當月薪酬（不含人手調整；MPF 在組裝 UI 時套用）
  */
@@ -38,21 +74,40 @@ export function computeTeacherMonth(
   let hardBlock = false
 
   if (!rate) {
-    anomalies.push("缺有效費率")
-    hardBlock = true
+    const lines: ComputedTeacherResult["lines"] = []
+    const homework = applyHomeworkPay(teacher, lines, anomalies)
+    if (!homework || homework.amount <= 0) {
+      anomalies.push("缺有效費率")
+      return {
+        teacherId: teacher.teacherId,
+        teacherName: teacher.teacherName,
+        mode: "未設定",
+        missingRate: true,
+        grossBeforeAdj: 0,
+        lines: [],
+        lessons: [],
+        personalSplit: 0,
+        commissionPool: 0,
+        commissionPoolItems: [],
+        anomalies: [...new Set(anomalies)],
+        hardBlock: true,
+        homework,
+      }
+    }
     return {
       teacherId: teacher.teacherId,
       teacherName: teacher.teacherName,
-      mode: "未設定",
-      missingRate: true,
-      grossBeforeAdj: 0,
-      lines: [],
+      mode: "功輔時薪",
+      missingRate: false,
+      grossBeforeAdj: roundMoney(lines.reduce((s, l) => s + l.amount, 0)),
+      lines,
       lessons: [],
       personalSplit: 0,
       commissionPool: 0,
       commissionPoolItems: [],
-      anomalies,
-      hardBlock,
+      anomalies: [...new Set(anomalies)],
+      hardBlock: false,
+      homework,
     }
   }
 
@@ -156,6 +211,8 @@ export function computeTeacherMonth(
     }
   }
 
+  const homework = applyHomeworkPay(teacher, lines, anomalies)
+
   const lessonSum = roundMoney(lessons.reduce((s, l) => s + l.amount, 0))
   const lineSum = roundMoney(lines.reduce((s, l) => s + l.amount, 0))
   // 分成制金額已在 lines；HC／獨立定價在 lessons
@@ -190,6 +247,7 @@ export function computeTeacherMonth(
     commissionPoolItems,
     anomalies: [...new Set(anomalies)],
     hardBlock,
+    homework,
   }
 }
 
@@ -197,6 +255,31 @@ export function computePayrollMonth(input: MonthComputeInput): MonthComputeResul
   const teachers = input.teachers.map((t) =>
     computeTeacherMonth(t, input.lessons, input.previousGrossByTeacherId?.[t.teacherId])
   )
+
+  const comm = input.homeworkCommission
+  if (comm && comm.teacherId) {
+    const target = teachers.find((t) => t.teacherId === comm.teacherId)
+    if (target) {
+      const calc = christineHomeworkCommission({
+        enrolledCount: comm.enrolledCount,
+        originalPriceTotal: comm.originalPriceTotal,
+      })
+      target.homeworkCommission = {
+        enrolledCount: calc.enrolledCount,
+        originalPriceTotal: calc.originalPriceTotal,
+        amount: calc.amount,
+      }
+      if (calc.amount > 0) {
+        target.lines.push({
+          label: `功輔佣金（報讀 ${calc.enrolledCount} 人，原價 × 10%）`,
+          amount: calc.amount,
+          kind: "homework_commission",
+        })
+        target.grossBeforeAdj = roundMoney(target.grossBeforeAdj + calc.amount)
+      }
+    }
+  }
+
   const hardBlockAnomalies = teachers
     .filter((t) => t.hardBlock)
     .flatMap((t) => t.anomalies.map((a) => `${t.teacherName}：${a}`))

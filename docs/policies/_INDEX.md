@@ -58,7 +58,7 @@
 
 | 文件 | 主題 |
 | --- | --- |
-| [計糧指南](staffing/PAYROLL_GUIDE.md) | 財務／管理層：計法、強積金、出糧；Natalie 一對一 $350／節（docx → `generated/payroll/`） |
+| [計糧指南](staffing/PAYROLL_GUIDE.md) | 財務／管理層：計法、強積金、出糧、功輔時薪／Christine 功輔佣金；Natalie 一對一 $350／節（docx → `generated/payroll/`） |
 
 ### 文案
 

@@ -21,6 +21,7 @@ export type {
  ClassKind,
  CommissionPoolItem,
  ExcludedFollowUp,
+ HomeworkHourSave,
  ManualAdjustment,
  ModeStream,
  PayrollClassBlock,

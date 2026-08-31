@@ -25,6 +25,8 @@ import {
   submitPayrollMonth,
   submitTeacherForReview,
   upsertManualHours,
+  upsertHomeworkHourOverride,
+  clearHomeworkHourOverride,
   type PayrollWorkbench,
 } from "@/services/payrollQueries"
 
@@ -419,6 +421,36 @@ export function PayrollView() {
     onCodyChange(hours, "approved")
   }
 
+  const onHomeworkHoursChange = (
+    teacherId: string,
+    save: { kind: "override"; hours: number } | { kind: "clear" }
+  ) => {
+    void (async () => {
+      try {
+        if (save.kind === "clear") await clearHomeworkHourOverride(monthKey, teacherId)
+        else {
+          await upsertHomeworkHourOverride({
+            monthKey,
+            teacherId,
+            hours: save.hours,
+            actor: actorLabel(realRole),
+          })
+        }
+        await reload(monthKey)
+        pushBanner({ tone: "success", title: "已更新功輔工時" })
+      } catch (e) {
+        reportUserFacingError(e, {
+          source: "PayrollView.onHomeworkHoursChange",
+          userMessage: e instanceof Error ? e.message : "更新功輔工時失敗",
+        })
+        pushBanner({
+          tone: "error",
+          title: e instanceof Error ? e.message : "更新功輔工時失敗",
+        })
+      }
+    })()
+  }
+
   const monthSelect: ReactNode = (
     <Select
       aria-label="計糧月份"
@@ -491,6 +523,7 @@ export function PayrollView() {
           onStatusChange={onStatusChange}
           onAddAdjustment={onAddAdjustment}
           onCodyChange={onCodyChange}
+          onHomeworkHoursChange={onHomeworkHoursChange}
           onRecalc={onRecalc}
           teacherSubmits={teacherSubmits}
           onSubmitTeacher={onSubmitTeacher}
