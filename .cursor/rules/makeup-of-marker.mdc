@@ -7,7 +7,9 @@ alwaysApply: true
 
 # `makeup_of=` 標記：唔好刪
 
-**唔好**從程式抽走 `makeup_of=<取消堂id>`，亦**唔好**清 `26SM` 歷史 `schedules.remarks`。
+**產品（2026-08-31）：`26SM` 永遠舊路徑；本標記留低。**
+
+**唔好**從程式抽走 `makeup_of=<取消堂id>`，亦**唔好**清 `26SM` 歷史 `schedules.remarks`。唔好再開「廢標記／`26SM` 日落」工程。
 
 同一標記兩種用途，唔好當「2627 唔用」就刪：
 
