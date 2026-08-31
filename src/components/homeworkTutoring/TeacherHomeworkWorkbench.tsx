@@ -1,7 +1,8 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { Fragment, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppBanner } from "@/lib/appBanner"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -11,24 +12,31 @@ import { BulkCustomTimeDialog } from "./availEditor"
 import {
   SUBMIT_DEADLINE_NOTE,
   currentYearMonth,
+  dutyAssignments,
+  formatCalendarAssignmentLine,
   formatAvailLabel,
-  formatSession,
   formatYearMonthLabel,
   holidaysInYearMonth,
+  isTeacherOnDutyDay,
   listRosterMonthDays,
+  myDutyCalendarTone,
   myDutyDays,
   myDutyRoomLabel,
+  teacherName,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
   type HomeworkDutyDay,
   type HomeworkHoliday,
+  type HomeworkTeacherRow,
   type RosterPublishStatus,
 } from "@/lib/homeworkTutoringUi"
 import type { TeacherPageId } from "./homeworkTutoringSectionNav"
 import { SubmitStatusTag } from "./sharedUi"
 
 const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
+
+type DutyView = "list" | "calendar"
 
 export function TeacherHomeworkWorkbench({
   tab,
@@ -42,6 +50,7 @@ export function TeacherHomeworkWorkbench({
   dutyDays = [],
   rosterMonthKey = currentYearMonth(),
   holidays = [],
+  teachers = [],
 }: {
   tab: TeacherPageId
   onTabChange: (tab: TeacherPageId) => void
@@ -55,11 +64,13 @@ export function TeacherHomeworkWorkbench({
   dutyDays?: HomeworkDutyDay[]
   rosterMonthKey?: string
   holidays?: HomeworkHoliday[]
+  teachers?: readonly HomeworkTeacherRow[]
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [customOpen, setCustomOpen] = useState(false)
+  const [dutyView, setDutyView] = useState<DutyView>("list")
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
   const readOnly = locked || myStatus === "已提交"
@@ -77,6 +88,19 @@ export function TeacherHomeworkWorkbench({
   )
 
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
+
+  const dutyByKey = useMemo(() => {
+    const map = new Map<string, HomeworkDutyDay>()
+    for (const d of dutyDays) map.set(d.date, d)
+    return map
+  }, [dutyDays])
+
+  const dutyEmptyHint =
+    rosterPublishStatus !== "已發布"
+      ? "本月尚未有已發布的當值。"
+      : duties.length === 0
+        ? "本月未編入你的當值。"
+        : null
 
   const calendarCells = useMemo(() => {
     const first = rosterDays[0]
@@ -359,28 +383,130 @@ export function TeacherHomeworkWorkbench({
       ) : null}
 
       {tab === "myDuty" ? (
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold">我的當值</h2>
-          {duties.length === 0 ? (
-            <p className="text-sm text-muted-foreground">本月尚未有已發布的當值。</p>
-          ) : (
-            <ul className="space-y-2">
-              {duties.map((d) => (
-                <li
-                  key={d.date}
-                  className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
-                >
-                  <p className="font-medium tabular-nums">
-                    {d.date}（{d.weekday}）
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    班時間 {formatSession(d)} · {myDutyRoomLabel(d, teacherId)}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <Tabs
+          value={dutyView}
+          onValueChange={(v) => {
+            if (v === "list" || v === "calendar") setDutyView(v)
+          }}
+          className="space-y-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold">我的當值</h2>
+            <span className="text-sm tabular-nums text-muted-foreground">{monthLabel}</span>
+            <TabsList className="ml-auto w-full justify-start sm:w-auto">
+              <TabsTrigger value="list">列表</TabsTrigger>
+              <TabsTrigger value="calendar">月曆</TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="list" className="mt-0">
+            {dutyEmptyHint ? (
+              <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
+            ) : (
+              <ul className="space-y-2">
+                {duties.map((d) => (
+                  <li
+                    key={d.date}
+                    className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+                  >
+                    <p className="font-medium tabular-nums">
+                      {d.date}（{d.weekday}）
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {myDutyRoomLabel(d, teacherId)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </TabsContent>
+
+          <TabsContent value="calendar" className="mt-0 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              淡橙＝你當值；淡藍＝其他日子；灰＝週末／放假。
+            </p>
+            {dutyEmptyHint ? (
+              <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
+            ) : null}
+            <div className="overflow-hidden rounded-xl border border-border">
+              <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
+                {WEEK_HEADERS.map((h) => (
+                  <div key={h} className="px-1 py-2">
+                    {h}
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7">
+                {calendarCells.map((day, idx) => {
+                  if (!day) {
+                    return (
+                      <div
+                        key={`pad-${idx}`}
+                        className="min-h-[8rem] border-b border-r border-border/60 bg-muted/10"
+                      />
+                    )
+                  }
+                  const duty = dutyByKey.get(day.key)
+                  const isMine = isTeacherOnDutyDay(duty, teacherId)
+                  const tone = myDutyCalendarTone({
+                    selectable: day.selectable,
+                    holidayLabel: day.holidayLabel,
+                    isMine,
+                  })
+                  const isWeekend = !day.selectable && !day.holidayLabel
+                  const people = duty ? dutyAssignments(duty) : []
+                  return (
+                    <div
+                      key={day.key}
+                      aria-label={
+                        tone === "closed"
+                          ? `${day.key} 星期${day.weekdayChar}，${day.holidayLabel ? "放假" : "週末"}`
+                          : people.length > 0
+                            ? `${day.key} 星期${day.weekdayChar}，${people.map((a) => formatCalendarAssignmentLine(a, teachers)).join("、")}`
+                            : `${day.key} 星期${day.weekdayChar}，未排`
+                      }
+                      className={cn(
+                        "flex min-h-[8rem] flex-col items-start gap-0.5 border-b border-r border-border/60 p-1.5 text-left text-[10px] leading-tight sm:p-2 sm:text-xs",
+                        tone === "closed" && "bg-muted/40 text-muted-foreground",
+                        tone === "mine" && "bg-warning/15",
+                        tone === "other" && "bg-info/15"
+                      )}
+                    >
+                      <span className="text-sm font-medium tabular-nums text-foreground">
+                        {day.day}
+                      </span>
+                      {day.holidayLabel ? (
+                        <span>放假</span>
+                      ) : isWeekend ? (
+                        <span>週末</span>
+                      ) : people.length > 0 ? (
+                        people.map((a, i) => (
+                          <Fragment key={`${a.teacherId}-${a.room}-${i}`}>
+                            {i > 0 ? (
+                              <div
+                                className="my-1 h-px w-full bg-border"
+                                role="separator"
+                              />
+                            ) : null}
+                            <span className="text-[1.3em] font-bold leading-tight text-foreground">
+                              {teacherName(a.teacherId, teachers)}
+                            </span>
+                            <span className="tabular-nums text-foreground/55">
+                              {a.start}–{a.end}
+                            </span>
+                            <span>{a.room}</span>
+                          </Fragment>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground">未排</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       ) : null}
 
       <BulkCustomTimeDialog

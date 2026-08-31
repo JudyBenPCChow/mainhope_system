@@ -16,6 +16,7 @@ import {
   currentYearMonth,
   composeHomeworkFeeDisplays,
   monthRosterToLock,
+  withSyncedLegacyTeachers,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type HomeworkDutyDay,
@@ -123,6 +124,7 @@ function mapDutyDays(
     primaryRoom: string | null
     secondaryTeacherId?: string
     primaryTeacherId?: string
+    assignments?: HomeworkDutyDay["assignments"]
   }>
 ): HomeworkDutyDay[] {
   return days.map((d) => ({
@@ -135,6 +137,7 @@ function mapDutyDays(
     primaryRoom: d.primaryRoom,
     secondaryTeacherId: d.secondaryTeacherId,
     primaryTeacherId: d.primaryTeacherId,
+    assignments: d.assignments ?? [],
   }))
 }
 
@@ -372,17 +375,21 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         classId: hwClass.id,
         academicYearId: hwClass.academicYearId,
         yearMonth,
-        dutyDays: monthDays.map((d) => ({
-          date: d.date,
-          weekday: d.weekday,
-          holiday: d.holiday,
-          start: d.start,
-          end: d.end,
-          secondaryRoom: d.secondaryRoom,
-          primaryRoom: d.primaryRoom,
-          secondaryTeacherId: d.secondaryTeacherId,
-          primaryTeacherId: d.primaryTeacherId,
-        })),
+        dutyDays: monthDays.map((d) => {
+          const synced = withSyncedLegacyTeachers(d)
+          return {
+            date: synced.date,
+            weekday: synced.weekday,
+            holiday: synced.holiday,
+            start: synced.start,
+            end: synced.end,
+            secondaryRoom: synced.secondaryRoom,
+            primaryRoom: synced.primaryRoom,
+            secondaryTeacherId: synced.secondaryTeacherId,
+            primaryTeacherId: synced.primaryTeacherId,
+            assignments: synced.assignments,
+          }
+        }),
       })
       await loadMonthData(hwClass, yearMonth, hwTeachers)
     },
@@ -513,6 +520,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           dutyDays={dutyDays}
           rosterMonthKey={sheetMonth}
           holidays={holidays}
+          teachers={hwTeachers}
         />
       ) : null}
     </div>

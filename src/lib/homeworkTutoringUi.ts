@@ -63,7 +63,15 @@ export type HomeworkFeeDisplay = {
 
 export type HomeworkTeacherRow = { id: string; name: string; subject: string }
 
-/** 月工作表一日：同一場次兩室（17D／17E）；DB 欄仍叫 secondary_*／primary_* */
+/** 一日當值一人一時段；可多人。時段默認跟報更。 */
+export type HomeworkDutyAssignment = {
+  teacherId: string
+  start: string
+  end: string
+  room: string
+}
+
+/** 月工作表一日：場次兩室（17D／17E）；當值以 assignments 為準 */
 export type HomeworkDutyDay = {
   date: string
   weekday: string
@@ -72,6 +80,8 @@ export type HomeworkDutyDay = {
   end: string
   secondaryRoom: string | null
   primaryRoom: string | null
+  assignments: HomeworkDutyAssignment[]
+  /** 每室第一人；寫佔室／舊欄用，畫面以 assignments 為準 */
   secondaryTeacherId?: string
   primaryTeacherId?: string
 }
@@ -189,8 +199,49 @@ export function teacherName(
   id: string | undefined,
   teachers: readonly HomeworkTeacherRow[]
 ): string {
-  if (!id) return "—"
-  return teachers.find((t) => t.id === id)?.name ?? "—"
+  const teacherId = teacherIdOf(id)
+  if (teacherId) {
+    const fromRow = personLabel(teachers.find((t) => t.id === teacherId)?.name)
+    if (fromRow !== "—") return fromRow
+  }
+  if (id && typeof id === "object") return personLabel(id)
+  return "—"
+}
+
+function teacherIdOf(value: unknown): string | undefined {
+  if (typeof value === "string" && value.trim()) return value.trim()
+  if (value && typeof value === "object" && "id" in value) {
+    const inner = (value as { id: unknown }).id
+    if (typeof inner === "string" && inner.trim()) return inner.trim()
+  }
+  return undefined
+}
+
+function personLabel(value: unknown): string {
+  if (typeof value === "string" && value.trim() && value !== "[object Object]") return value.trim()
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>
+    for (const key of ["full_name", "name", "displayName"]) {
+      if (typeof rec[key] === "string" && rec[key].trim()) return rec[key].trim()
+    }
+  }
+  return "—"
+}
+
+function asHm(value: unknown, fallback: string): string {
+  if (typeof value === "string") {
+    const sliced = value.slice(0, 5)
+    if (/^\d{2}:\d{2}$/.test(sliced)) return sliced
+  }
+  if (value && typeof value === "object") {
+    const rec = value as Record<string, unknown>
+    if (typeof rec.start === "string") return asHm(rec.start, fallback)
+  }
+  return fallback
+}
+
+function asRoom(value: unknown): string {
+  return typeof value === "string" && value.trim() ? value.trim() : HOMEWORK_DEFAULT_ROOM_A
 }
 
 export function dutyTeacherLabel(
@@ -202,13 +253,46 @@ export function dutyTeacherLabel(
   return published ? "暫時空缺" : "—"
 }
 
-/** secondary_* → 預設 17D；primary_* → 預設 17E（兩室同一場，不是學部分班） */
+export function isSecondRoomOpen(day?: Pick<HomeworkDutyDay, "primaryRoom"> | null): boolean {
+  return Boolean(day?.primaryRoom?.trim())
+}
+
+/** secondary_* → 預設 17D；primary_* → 已加開先有第二房（預設 17E） */
 export function roomALabel(day?: Pick<HomeworkDutyDay, "secondaryRoom"> | null): string {
   return day?.secondaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_A
 }
 
 export function roomBLabel(day?: Pick<HomeworkDutyDay, "primaryRoom"> | null): string {
   return day?.primaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_B
+}
+
+export function openedHomeworkRoomNames(day: HomeworkDutyDay): string[] {
+  const a = roomALabel(day)
+  if (!isSecondRoomOpen(day)) return [a]
+  const b = roomBLabel(day)
+  return b === a ? [a] : [a, b]
+}
+
+export function openSecondHomeworkRoom(
+  day: HomeworkDutyDay,
+  roomName: string = HOMEWORK_DEFAULT_ROOM_B
+): HomeworkDutyDay {
+  const name = roomName.trim() || HOMEWORK_DEFAULT_ROOM_B
+  if (name === roomALabel(day)) return day
+  return withSyncedLegacyTeachers({ ...day, primaryRoom: name })
+}
+
+export function closeSecondHomeworkRoom(day: HomeworkDutyDay): HomeworkDutyDay {
+  const a = roomALabel(day)
+  const b = day.primaryRoom?.trim()
+  const nextAssignments = dutyAssignments(day).map((x) =>
+    b && x.room === b ? { ...x, room: a } : x
+  )
+  return withSyncedLegacyTeachers({
+    ...day,
+    primaryRoom: null,
+    assignments: nextAssignments,
+  })
 }
 
 export function todayDateKey(now: Date = new Date()): string {
@@ -261,6 +345,126 @@ export function substituteTeachers(
   return teachersAvailableOnDay(avail, dateKey, teachers).filter((t) => !assigned.has(t.id))
 }
 
+export function availWindow(entry: AvailEntry | null): { start: string; end: string } {
+  if (!entry || entry.kind === "full") {
+    return { start: HW_SESSION_START, end: HW_SESSION_END }
+  }
+  return { start: entry.start, end: entry.end }
+}
+
+export function sortDutyAssignments(
+  assignments: readonly HomeworkDutyAssignment[]
+): HomeworkDutyAssignment[] {
+  return [...assignments].sort((a, b) => {
+    const start = a.start.localeCompare(b.start)
+    if (start !== 0) return start
+    const room = a.room.localeCompare(b.room)
+    if (room !== 0) return room
+    return a.teacherId.localeCompare(b.teacherId)
+  })
+}
+
+function legacyAssignmentsFromColumns(
+  day: Pick<
+    HomeworkDutyDay,
+    "start" | "end" | "secondaryRoom" | "primaryRoom" | "secondaryTeacherId" | "primaryTeacherId"
+  >
+): HomeworkDutyAssignment[] {
+  const out: HomeworkDutyAssignment[] = []
+  if (day.secondaryTeacherId) {
+    out.push({
+      teacherId: day.secondaryTeacherId,
+      start: day.start || HW_SESSION_START,
+      end: day.end || HW_SESSION_END,
+      room: roomALabel(day),
+    })
+  }
+  if (day.primaryTeacherId) {
+    out.push({
+      teacherId: day.primaryTeacherId,
+      start: day.start || HW_SESSION_START,
+      end: day.end || HW_SESSION_END,
+      room: roomBLabel(day),
+    })
+  }
+  return out
+}
+
+export function dutyAssignments(day: HomeworkDutyDay | null | undefined): HomeworkDutyAssignment[] {
+  if (!day) return []
+  if (Array.isArray(day.assignments)) return sortDutyAssignments(day.assignments)
+  return sortDutyAssignments(legacyAssignmentsFromColumns(day))
+}
+
+export function assignedTeacherIds(day: HomeworkDutyDay | null | undefined): string[] {
+  return [...new Set(dutyAssignments(day).map((a) => a.teacherId))]
+}
+
+export function defaultRoomForNextAssignment(day: HomeworkDutyDay): string {
+  const a = roomALabel(day)
+  if (!isSecondRoomOpen(day)) return a
+  const b = roomBLabel(day)
+  const rooms = new Set(dutyAssignments(day).map((x) => x.room))
+  if (!rooms.has(a)) return a
+  if (!rooms.has(b)) return b
+  return a
+}
+
+export function makeAssignmentFromAvail(
+  teacherId: string,
+  entry: AvailEntry | null,
+  room: string
+): HomeworkDutyAssignment {
+  const window = availWindow(entry)
+  return { teacherId, start: window.start, end: window.end, room }
+}
+
+export function firstAssignmentTeacherForRoom(day: HomeworkDutyDay, roomName: string): string | undefined {
+  return dutyAssignments(day).find((a) => a.room === roomName)?.teacherId
+}
+
+export function withSyncedLegacyTeachers(day: HomeworkDutyDay): HomeworkDutyDay {
+  const assignments = dutyAssignments(day)
+  return {
+    ...day,
+    assignments,
+    secondaryTeacherId: firstAssignmentTeacherForRoom({ ...day, assignments }, roomALabel(day)),
+    primaryTeacherId: firstAssignmentTeacherForRoom({ ...day, assignments }, roomBLabel(day)),
+  }
+}
+
+export function formatAssignmentLine(
+  assignment: HomeworkDutyAssignment,
+  teachers: readonly HomeworkTeacherRow[]
+): string {
+  const name = teacherName(assignment.teacherId, teachers)
+  const start = asHm(assignment.start, HW_SESSION_START)
+  const end = asHm(assignment.end, HW_SESSION_END)
+  return `${name} ${start}–${end}`
+}
+
+/** 老師月曆格：課室＋名字＋該人時段 */
+export function formatCalendarAssignmentLine(
+  assignment: HomeworkDutyAssignment,
+  teachers: readonly HomeworkTeacherRow[]
+): string {
+  return `${asRoom(assignment.room)} ${formatAssignmentLine(assignment, teachers)}`
+}
+
+export function formatDutyPeople(
+  day: HomeworkDutyDay | null | undefined,
+  teachers: readonly HomeworkTeacherRow[]
+): string {
+  if (!day || day.holiday) return "—"
+  const list = dutyAssignments(day)
+  if (list.length === 0) return "—"
+  return list.map((a) => formatAssignmentLine(a, teachers)).join("、")
+}
+
+export function myAssignments(day: HomeworkDutyDay, teacherId: string): HomeworkDutyAssignment[] {
+  return dutyAssignments(day).filter((a) => a.teacherId === teacherId)
+}
+
 export function emptyDutyFromRosterDay(day: RosterDay): HomeworkDutyDay {
   return {
     date: day.key,
@@ -269,7 +473,8 @@ export function emptyDutyFromRosterDay(day: RosterDay): HomeworkDutyDay {
     start: HW_SESSION_START,
     end: HW_SESSION_END,
     secondaryRoom: HOMEWORK_DEFAULT_ROOM_A,
-    primaryRoom: HOMEWORK_DEFAULT_ROOM_B,
+    primaryRoom: null,
+    assignments: [],
     secondaryTeacherId: undefined,
     primaryTeacherId: undefined,
   }
@@ -310,9 +515,7 @@ export function dutyLabel(
   teachers: readonly HomeworkTeacherRow[]
 ): string {
   if (day.holiday) return "—"
-  const a = roomALabel(day)
-  const b = roomBLabel(day)
-  return `${a} ${teacherName(day.secondaryTeacherId, teachers)}／${b} ${teacherName(day.primaryTeacherId, teachers)}`
+  return formatDutyPeople(day, teachers)
 }
 
 function asWeekday(value: string): Weekday | null {
@@ -404,17 +607,46 @@ export function unpaidFeeRows(students: HomeworkStudentRow[], fees: HomeworkFeeD
 export function myDutyDays(teacherId: string, days: HomeworkDutyDay[]) {
   return days.filter((d) => {
     if (d.holiday) return false
-    return d.secondaryTeacherId === teacherId || d.primaryTeacherId === teacherId
+    return myAssignments(d, teacherId).length > 0
   })
 }
 
 export function myDutyRoomLabel(day: HomeworkDutyDay, teacherId: string): string {
-  const parts: string[] = []
-  if (day.secondaryTeacherId === teacherId) {
-    parts.push(`課室 ${roomALabel(day)}`)
-  }
-  if (day.primaryTeacherId === teacherId) {
-    parts.push(`課室 ${roomBLabel(day)}`)
-  }
-  return parts.join("；") || "—"
+  const mine = myAssignments(day, teacherId)
+  if (mine.length === 0) return "—"
+  return mine.map((a) => `課室 ${a.room} ${a.start}–${a.end}`).join("；")
+}
+
+/** 月曆格用：課室＋自己的時段 */
+export function myDutyRoomShort(day: HomeworkDutyDay, teacherId: string): string {
+  const mine = myAssignments(day, teacherId)
+  if (mine.length === 0) return ""
+  const rooms = [...new Set(mine.map((a) => a.room))]
+  return rooms.join("／")
+}
+
+export function myDutyTimeLabel(day: HomeworkDutyDay, teacherId: string): string {
+  const mine = myAssignments(day, teacherId)
+  if (mine.length === 0) return "—"
+  return mine.map((a) => `${a.start}–${a.end}`).join("、")
+}
+
+export function isTeacherOnDutyDay(
+  day: HomeworkDutyDay | undefined,
+  teacherId: string
+): boolean {
+  if (!day || day.holiday) return false
+  return myAssignments(day, teacherId).length > 0
+}
+
+export type MyDutyCalendarTone = "mine" | "other" | "closed"
+
+/** 老師月曆色：自己當值淡橙、其他平日淡藍、週末／放假灰 */
+export function myDutyCalendarTone(opts: {
+  selectable: boolean
+  holidayLabel?: string
+  isMine: boolean
+}): MyDutyCalendarTone {
+  if (!opts.selectable || opts.holidayLabel) return "closed"
+  return opts.isMine ? "mine" : "other"
 }
