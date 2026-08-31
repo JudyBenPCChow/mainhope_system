@@ -46,12 +46,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmCreateGraduatedStudent, logCreateGraduatedStudent } from "@/lib/graduationGuard"
-import { HK_SECONDARY_SCHOOLS, normalizeSchoolSearchKey } from "@/lib/hkSecondarySchools"
+import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import {
@@ -768,17 +767,10 @@ export function StudentsListPage() {
   }
  }
 
- const schoolOptions = useMemo(() => {
-  const fromRows = rows.map((r) => (r.school ?? "").trim()).filter(Boolean)
-  const all = [...HK_SECONDARY_SCHOOLS, ...fromRows]
-  return [...new Set(all)].sort((a, b) => a.localeCompare(b, "zh-Hant"))
- }, [rows])
-
- const schoolSelectOptions = useMemo(() => {
-  const current = (addForm.school ?? "").trim()
-  const names = current && !schoolOptions.includes(current) ? [...schoolOptions, current] : schoolOptions
-  return names.map((s) => ({ value: s, label: s }))
- }, [schoolOptions, addForm.school])
+ const extraSchools = useMemo(
+  () => rows.map((r) => (r.school ?? "").trim()).filter(Boolean),
+  [rows]
+ )
 
  const onDelete = async (e: React.MouseEvent, id: string) => {
   e.stopPropagation()
@@ -1386,17 +1378,10 @@ export function StudentsListPage() {
            「在讀／非在讀」與「活躍生／非活躍生」會依報讀班別自動計算，無需手動設定。
           </p>
           <Field label="學校" className="sm:col-span-2">
-           <SearchableSelect
-            combobox
-            allowCustomValue
+           <SchoolSearchableSelect
             value={addForm.school ?? ""}
+            extraSchools={extraSchools}
             onChange={(school) => setAddForm((f) => ({ ...f, school }))}
-            options={schoolSelectOptions}
-            placeholder="請選擇學校"
-            searchPlaceholder="搜尋學校…"
-            emptyMessage="沒有符合的學校"
-            normalizeSearch={normalizeSchoolSearchKey}
-            aria-label="學校"
            />
           </Field>
           <Field label="出生日期">

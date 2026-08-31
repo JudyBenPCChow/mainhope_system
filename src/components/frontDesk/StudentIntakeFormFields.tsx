@@ -1,5 +1,3 @@
-import { useMemo, useState } from "react"
-
 import {
  ChoiceChips,
  GENDER_CHIPS,
@@ -7,13 +5,12 @@ import {
  StatusToggle,
  StudentGradeChips,
 } from "@/components/students/studentsUi"
+import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { Field } from "@/components/frontDesk/frontDeskUi"
 import { Input } from "@/components/ui/input"
-import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { normalizeStudentGrade } from "@/lib/studentGrade"
 import type { FrontDeskIntakePayload } from "@/services/frontDeskIntakeQueries"
-import { HK_SECONDARY_SCHOOLS, schoolNameMatchesQuery } from "@/lib/hkSecondarySchools"
 import { PHONE_COUNTRY_CODES, PREFERRED_CONTACT_METHODS, PRIMARY_CONTACT_PERSONS } from "@/services/studentQueries"
 
 export function emptyIntakeForm(): FrontDeskIntakePayload {
@@ -66,16 +63,6 @@ export function StudentIntakeFormFields({
  extraSchools = [],
  showStudentCode,
 }: Props) {
- const [schoolSearch, setSchoolSearch] = useState("")
- const schoolOptions = useMemo(() => {
-  return [...new Set([...HK_SECONDARY_SCHOOLS, ...extraSchools])].sort((a, b) => a.localeCompare(b, "zh-Hant"))
- }, [extraSchools])
- const schoolFiltered = useMemo(() => {
-  const q = schoolSearch.trim()
-  if (!q) return schoolOptions
-  return schoolOptions.filter((s) => schoolNameMatchesQuery(s, q))
- }, [schoolOptions, schoolSearch])
-
  const patch = (partial: Partial<FrontDeskIntakePayload>) => onChange({ ...value, ...partial })
 
  return (
@@ -133,27 +120,12 @@ export function StudentIntakeFormFields({
       </>
      ) : null}
      <Field label="學校" className="sm:col-span-2">
-      <div className="space-y-2">
-       <Input
-        disabled={disabled}
-        value={schoolSearch}
-        onChange={(e) => setSchoolSearch(e.target.value)}
-        placeholder="搜尋學校…"
-       />
-       <Select
-        disabled={disabled}
-        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-        value={value.school ?? ""}
-        onChange={(e) => patch({ school: e.target.value })}
-       >
-        <option value="">請選擇學校</option>
-        {schoolFiltered.map((s) => (
-         <option key={s} value={s}>
-          {s}
-         </option>
-        ))}
-       </Select>
-      </div>
+      <SchoolSearchableSelect
+       disabled={disabled}
+       value={value.school ?? ""}
+       extraSchools={extraSchools}
+       onChange={(school) => patch({ school })}
+      />
      </Field>
      <Field label="出生日期">
       <Input

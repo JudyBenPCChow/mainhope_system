@@ -4,7 +4,6 @@ import { CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { HK_SECONDARY_SCHOOLS, schoolNameMatchesQuery } from "@/lib/hkSecondarySchools"
+import { HK_SECONDARY_SCHOOLS, buildSchoolSelectOptions, schoolNameMatchesQuery } from "@/lib/hkSecondarySchools"
 
 describe("HK_SECONDARY_SCHOOLS", () => {
  it("為教育局全日本地中學名單，無重複", () => {
@@ -58,5 +58,14 @@ describe("schoolNameMatchesQuery", () => {
   expect(schoolNameMatchesQuery("鳳溪第一中學", "鳳傒")).toBe(true)
   expect(schoolNameMatchesQuery("香港道教聯合會圓玄學院第二中學", "玄圓")).toBe(true)
   expect(schoolNameMatchesQuery("東華三院黃鳳翎中學", "黃鋒令")).toBe(true)
+ })
+})
+
+describe("buildSchoolSelectOptions", () => {
+ it("最頂係空白項，並納入名單外現有校名", () => {
+  const opts = buildSchoolSelectOptions(["自訂中學"], "自訂中學")
+  expect(opts[0]).toEqual({ value: "", label: "請選擇學校" })
+  expect(opts.some((o) => o.value === "英華書院")).toBe(true)
+  expect(opts.some((o) => o.value === "自訂中學")).toBe(true)
  })
 })

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -1258,9 +1259,10 @@ export function StudentDetailView() {
          />
         </Field>
         <Field label="學校" className="sm:col-span-2">
-         <Input
+         <SchoolSearchableSelect
+          disabled={!canMutateStudentOps}
           value={form.school ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, school: e.target.value }))}
+          onChange={(school) => setForm((f) => ({ ...f, school }))}
          />
         </Field>
         <Field label="出生日期">

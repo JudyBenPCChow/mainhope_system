@@ -237,6 +237,8 @@ export function ContactUpdateCampaignView() {
     } catch (e) {
       reportUserFacingError(e, { source: "ContactUpdateCampaignView.load" })
       pushBanner({
+        tone: "error",
+        title: "載入失敗",
         message: e instanceof Error ? e.message : String(e),
       })
     } finally {

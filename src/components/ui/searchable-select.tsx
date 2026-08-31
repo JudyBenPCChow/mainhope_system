@@ -49,6 +49,11 @@ function optionSearchText(opt: SearchableSelectOption): string {
  return opt.value
 }
 
+export function highlightedOptionIndex(options: SearchableSelectOption[], value: string): number {
+ const idx = options.findIndex((opt) => opt.value === value)
+ return idx >= 0 ? idx : 0
+}
+
 export function filterSearchableOptions(
  options: SearchableSelectOption[],
  query: string,
@@ -107,12 +112,6 @@ export function SearchableSelect({
  const wrapRef = useRef<HTMLDivElement>(null)
  const panelRef = useRef<HTMLDivElement>(null)
  const searchRef = useRef<HTMLInputElement>(null)
- const queryRef = useRef(query)
- const valueRef = useRef(value)
- const onChangeRef = useRef(onChange)
- queryRef.current = query
- valueRef.current = value
- onChangeRef.current = onChange
  const listId = useId()
 
  const optionByValue = useMemo(() => new Map(options.map((o) => [o.value, o])), [options])
@@ -149,9 +148,6 @@ export function SearchableSelect({
  }
 
  const closePanel = () => {
-  if (combobox && queryRef.current.trim() === "" && valueRef.current) {
-   onChangeRef.current("")
-  }
   setOpen(false)
  }
 
@@ -187,13 +183,13 @@ export function SearchableSelect({
    document.removeEventListener("mousedown", onDocMouseDown)
    document.removeEventListener("keydown", onKeyDown)
   }
-  // closePanel 讀 ref，避免把 query 放進依賴而令打字重置
+  // closePanel 只關面板，唔把 query 放進依賴以免打字重置
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [open, minWidth, combobox])
 
  useEffect(() => {
-  setHighlight(0)
- }, [query])
+  setHighlight(highlightedOptionIndex(filtered, value))
+ }, [filtered, value])
 
  const selectValue = (next: string) => {
   if (disabled) return
@@ -242,7 +238,7 @@ export function SearchableSelect({
     const highlighted = index === highlight
     return (
      <button
-      key={opt.value}
+      key={opt.value || "__empty__"}
       type="button"
       role="option"
       aria-selected={active}

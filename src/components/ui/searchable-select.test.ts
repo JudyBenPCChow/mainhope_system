@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { filterSearchableOptions } from "@/components/ui/searchable-select"
+import { filterSearchableOptions, highlightedOptionIndex } from "@/components/ui/searchable-select"
 import { normalizeSchoolSearchKey } from "@/lib/hkSecondarySchools"
 
 const schools = [
@@ -45,5 +45,15 @@ describe("filterSearchableOptions", () => {
   expect(
    filterSearchableOptions(opts, "救恩", { normalizeSearch: normalizeSchoolSearchKey }).map((o) => o.value)
   ).toEqual(["粉嶺救恩書院"])
+ })
+})
+
+describe("highlightedOptionIndex", () => {
+ it("已選項在清單內時停喺該項，避免 Enter 誤改成第一個", () => {
+  expect(highlightedOptionIndex(schools, "喇沙書院")).toBe(3)
+ })
+
+ it("已選項唔在篩選結果時回到第一項", () => {
+  expect(highlightedOptionIndex(schools, "聖保羅書院")).toBe(0)
  })
 })
