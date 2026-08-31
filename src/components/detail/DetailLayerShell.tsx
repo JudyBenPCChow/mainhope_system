@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 import { createPortal } from "react-dom"
 
+import { useIsMobile } from "@/hooks/use-mobile"
 import { cn } from "@/lib/utils"
 
 type DetailLayerVariant = "student" | "teacher"
@@ -82,4 +83,11 @@ export function DetailLayerShell({
  )
 
  return createPortal(node, document.body)
+}
+
+/** 流動裝置維持 bottom sheet；桌面當普通頁（無遮罩／無 portal）。 */
+export function AdaptiveDetailLayer(props: DetailLayerShellProps) {
+ const isMobile = useIsMobile()
+ if (isMobile) return <DetailLayerShell {...props} />
+ return <>{props.children}</>
 }

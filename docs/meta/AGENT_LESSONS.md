@@ -16,6 +16,12 @@
 - **正確做法**：先對齊營運定義（退讀＝中途退出；假期取消＝停課；一期四堂、十期 40 堂、最後上課日 6/28）。點名完成度要對 `enrollment_period` × `academic_year_periods`。多排出校曆外嘅堂直接刪。
 - **若已升格**：`AGENTS.md` 鐵則；`.cursor/rules/ops-data-check.mdc`；`.cursor/rules/2627-timetable-doc.mdc`「專科上課日」
 
+### 2026-08-28 — 樣式沙盒先獨立 HTML，唔好只掛 Vite 路由
+- **情境**：用戶要試新 UI，且明講「沙盒（html）」「唔接真實專案網頁」。
+- **錯在邊**：只跟 `src/prototypes/`＋`/prototype/…` 免登入路由。本機若唔喺該 branch 跑 `npm run dev`，React Router 無匹配→全白；Vercel preview 可能有 Deployment Protection。
+- **正確做法**：同 `sandbox/tuition-quote/index.html` 一樣，第一件交可雙擊／`python -m http.server` 打開嘅 HTML。Vite `/prototype` 可作後續對齊 design token，但唔好當用戶本機唯一入口。
+- **若已升格**：`.cursor/rules/ui-sandbox-html.mdc`、skill `ui-sandbox-html`、`AGENTS.md` 指令節
+
 ### 2026-08-28 — 改兩班 course code 唔好 FULL 出時間表
 - **情境**：Jackson Lau 2627 兩班英文改模板碼，並顯示接受中四至中六。
 - **錯在邊**：把「所有出現 course code 的地方」做成重產全部 `versions/v2–v4`＋Word／PDF；Cloud Agent 無預建環境時開機已可空轉半個鐘。

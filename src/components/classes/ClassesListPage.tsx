@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
 import { useAuth } from "@/lib/authBootstrap"
@@ -53,6 +53,7 @@ import {
  getClassesListDataCache,
  setClassesListDataCache,
 } from "@/components/classes/classesListState"
+import { useOpenClassRecord, useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
@@ -116,6 +117,10 @@ export function ClassesListPage() {
  const canDeleteClass = can(profile?.activeCapabilities, "classes.update")
  const teacherTid = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
+ const openClass = useOpenClassRecord()
+ const openTeacher = useOpenTeacherRecord()
+ const { preview } = useRecordPreview()
+ const previewClassId = preview?.kind === "class" ? preview.id : null
  const initialCache = useMemo(() => getClassesListDataCache(), [])
  const [rows, setRows] = useState<ClassRecord[]>(() => initialCache?.rows ?? [])
  const [enrollRoster, setEnrollRoster] = useState<Map<string, { count: number; names: string[] }>>(
@@ -967,14 +972,18 @@ export function ClassesListPage() {
         as="article"
         role="button"
         tabIndex={0}
-        onClick={() => navigate(`/Classes/${c.id}`)}
+        onClick={() => openClass(c.id)}
         onKeyDown={(e: KeyboardEvent) => {
          if (e.key === "Enter" || e.key === " ") {
           e.preventDefault()
-          navigate(`/Classes/${c.id}`)
+          openClass(c.id)
          }
         }}
-        className={cn("flex flex-col gap-3 p-4", cardInteractive)}
+        className={cn(
+         "flex flex-col gap-3 p-4",
+         cardInteractive,
+         previewClassId === c.id && "bg-info/15 ring-1 ring-primary/30"
+        )}
        >
         <div className="flex items-start justify-between gap-3">
          <div className="min-w-0">
@@ -1000,13 +1009,16 @@ export function ClassesListPage() {
          <p>
           老師：
           {c.teacher_id ? (
-           <Link
-            to={`/Teachers/${c.teacher_id}`}
-            onClick={(e) => e.stopPropagation()}
+           <button
+            type="button"
+            onClick={(e) => {
+             e.stopPropagation()
+             openTeacher(c.teacher_id as string)
+            }}
             className="ml-1 font-medium text-primary hover:underline"
            >
             {c.teacher_name ?? "—"}
-           </Link>
+           </button>
           ) : (
            "—"
           )}
@@ -1085,7 +1097,8 @@ export function ClassesListPage() {
       onToggleSelectAll={toggleSelectAllFiltered}
       teacherScoped={Boolean(teacherTid)}
       canDeleteClass={canDeleteClass}
-      onNavigate={(id) => navigate(`/Classes/${id}`)}
+      onNavigate={openClass}
+      previewId={previewClassId}
       onStatusChange={(id, status) => void onStatusChange(id, status)}
       onCopy={onCopy}
       onDelete={onDelete}
@@ -1102,10 +1115,21 @@ export function ClassesListPage() {
      ) : (
       <StaggerList as="div" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {filtered.map((c) => (
-       <StaggerItem key={c.id} as="div">
-        <Link
-         to={`/Classes/${c.id}`}
-         className="group overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
+        <StaggerItem key={c.id} as="div">
+        <article
+         role="button"
+         tabIndex={0}
+         onClick={() => openClass(c.id)}
+         onKeyDown={(e: KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+           e.preventDefault()
+           openClass(c.id)
+          }
+         }}
+         className={cn(
+          "group overflow-hidden rounded-2xl border border-border/80 bg-card shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg",
+          previewClassId === c.id && "bg-info/15 ring-1 ring-primary/30"
+         )}
         >
          <div className={cn("relative aspect-[5/3] w-full overflow-hidden", galleryCoverClass(c.subject))}>
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.22),transparent_55%)] opacity-90 transition group-hover:opacity-100" />
@@ -1126,7 +1150,7 @@ export function ClassesListPage() {
            <Tag tone={statusToTagTone(c.status)} size="sm">{c.status}</Tag>
           </div>
          </div>
-        </Link>
+        </article>
        </StaggerItem>
       ))}
      </StaggerList>
@@ -1156,14 +1180,18 @@ export function ClassesListPage() {
            as="div"
            role="button"
            tabIndex={0}
-           onClick={() => navigate(`/Classes/${c.id}`)}
+           onClick={() => openClass(c.id)}
            onKeyDown={(e: React.KeyboardEvent<HTMLDivElement>) => {
             if (e.key === "Enter" || e.key === " ") {
              e.preventDefault()
-             navigate(`/Classes/${c.id}`)
+             openClass(c.id)
             }
            }}
-           className={cn("flex flex-col gap-2 p-3", cardInteractive)}
+           className={cn(
+            "flex flex-col gap-2 p-3",
+            cardInteractive,
+            previewClassId === c.id && "bg-info/15 ring-1 ring-primary/30"
+           )}
           >
            <div className="flex items-start justify-between gap-2">
             <span className="font-mono text-xs text-muted-foreground">
@@ -1180,13 +1208,16 @@ export function ClassesListPage() {
            </div>
            <div className="text-xs text-muted-foreground">{timeLabel(c)}</div>
            {c.teacher_id ? (
-            <Link
-             to={`/Teachers/${c.teacher_id}`}
-             onClick={(e) => e.stopPropagation()}
+            <button
+             type="button"
+             onClick={(e) => {
+              e.stopPropagation()
+              openTeacher(c.teacher_id as string)
+             }}
              className="text-sm font-medium text-primary hover:underline"
             >
              {c.teacher_name}
-            </Link>
+            </button>
            ) : (
             <span className="text-sm text-muted-foreground">未指派</span>
            )}
@@ -1202,7 +1233,7 @@ export function ClassesListPage() {
             <button
              type="button"
              className="text-primary hover:underline"
-             onClick={() => navigate(`/Classes/${c.id}`)}
+             onClick={() => openClass(c.id)}
             >
              查看
             </button>
@@ -1218,7 +1249,7 @@ export function ClassesListPage() {
    )}
 
    <p className="text-xs text-muted-foreground">
-    點列表列、看板卡片或圖庫卡片進入班別詳情；老師姓名可連至老師頁。
+    點列表列、看板卡片或圖庫卡片：管理員／外星人開右側預覽，其餘角色進入完整詳情。老師姓名可開老師預覽／詳情。
    </p>
   </div>
  )

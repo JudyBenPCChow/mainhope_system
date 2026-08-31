@@ -41,7 +41,7 @@ const SCHEDULE_CHIP =
  "rounded-md bg-warning/15 px-1.5 py-0.5 text-left text-[10px] leading-snug text-amber-950 ring-1 ring-warning/30"
 
 const SCHEDULE_PENDING_CHIP =
- "rounded-md bg-warning/25 px-1.5 py-0.5 text-left text-[10px] leading-snug text-warning-foreground ring-1 ring-warning/40"
+ "rounded-md bg-warning/25 px-1.5 py-0.5 text-left text-[10px] leading-snug text-warning ring-1 ring-warning/40"
 
 function roomChipClass(name: string): string {
  return ROOM_CHIP_CLASS[name] ?? "bg-muted text-muted-foreground ring-1 ring-border"

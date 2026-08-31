@@ -111,7 +111,7 @@ function OccupantList({ items }: { items: ReturnType<typeof occupiersForSlot> })
      className={cn(
       "rounded px-1 py-0.5 text-[10px] leading-tight ring-1",
       o.kind === "pending"
-       ? "bg-warning/30 text-warning-foreground ring-warning/40"
+       ? "bg-warning/30 text-warning ring-warning/40"
        : "bg-background/70 text-amber-950 ring-amber-300/50"
      )}
      title={[o.label, o.teacherName].filter(Boolean).join(" · ")}

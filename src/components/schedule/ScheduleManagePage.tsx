@@ -1586,7 +1586,7 @@ useEffect(() => {
    {canManageSchedules && blankTeacherCount > 0 ? (
     <div
      role="status"
-     className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+     className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning"
     >
      目前載入範圍有 <strong className="tabular-nums">{blankTeacherCount}</strong>{" "}
      堂排程未指定實際授課老師。老師時間表／點名紙可能看不到這些堂；請先補班別任教老師或為該堂指定老師。篩選老師選「未指派」可列出。
@@ -2040,7 +2040,7 @@ useEffect(() => {
    ) : null}
 
    {effectiveViewMode === "day" && dayViewFilterActive ? (
-    <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+    <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
      日視圖已套用上方搜尋或篩選條件。
      <button
       type="button"
@@ -3017,7 +3017,7 @@ useEffect(() => {
       {addConflicts.length > 0 ? (
        <div
         role="alert"
-        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+        className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
        >
         <p className="font-medium text-warning">
          此老師於 {addDate} 已有 {addConflicts.length} 筆同時段排程：

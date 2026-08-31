@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { Mail, Phone, Plus, User, Users } from "lucide-react"
+
+import { useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
@@ -30,9 +32,11 @@ import {
 } from "@/services/teacherQueries"
 
 export function TeachersListPage() {
- const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
  const { profile } = useAuth()
+ const openTeacher = useOpenTeacherRecord()
+ const { preview } = useRecordPreview()
+ const previewTeacherId = preview?.kind === "teacher" ? preview.id : null
  const canWriteTeachers = can(profile?.activeCapabilities, "classes.update")
  const canEditAbbr = can(profile?.activeCapabilities, "catalog.manage")
  const [rows, setRows] = useState<TeacherRecord[]>([])
@@ -276,14 +280,17 @@ export function TeachersListPage() {
        as="article"
        role="button"
        tabIndex={0}
-       onClick={() => navigate(`/Teachers/${t.id}`)}
+       onClick={() => openTeacher(t.id)}
        onKeyDown={(e: React.KeyboardEvent) => {
         if (e.key === "Enter" || e.key === " ") {
          e.preventDefault()
-         navigate(`/Teachers/${t.id}`)
+         openTeacher(t.id)
         }
        }}
-       className="flex cursor-pointer flex-col rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md"
+       className={cn(
+        "flex cursor-pointer flex-col rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md",
+        previewTeacherId === t.id && "bg-info/15 ring-1 ring-primary/30"
+       )}
       >
        <div className="relative flex gap-3 border-b border-border p-4">
         <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary">

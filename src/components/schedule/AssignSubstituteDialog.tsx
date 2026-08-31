@@ -204,7 +204,7 @@ export function AssignSubstituteDialog({
       {clearBlocked ? (
        <div
         role="status"
-        className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+        className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
        >
         此堂（或連堂組）已有點名紀錄，不可取消代堂。若實際授課老師有誤，請改用下方「更改代堂老師」。
        </div>

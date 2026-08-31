@@ -13,10 +13,9 @@ import {
  Printer,
  Umbrella,
  User,
- UserRound,
 } from "lucide-react"
 
-import { DetailLayerShell } from "@/components/detail/DetailLayerShell"
+import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
 import { StudentAttendanceTab } from "@/components/students/StudentAttendanceTab"
 import { StudentFutureSchedulesTab } from "@/components/students/StudentFutureSchedulesTab"
@@ -312,10 +311,12 @@ export function StudentDetailView() {
   if (!sid) return
   setEnrollmentsState("loading")
   setRelativesState("loading")
+  setLessonBalancesState("loading")
   const settled = await Promise.allSettled([
    getStudentById(sid),
    fetchEnrollmentsForStudent(sid),
    fetchRelativesForStudent(sid),
+   fetchLessonBalancesForStudent(sid, { includePaidLessons: canViewMoney }),
   ])
   if (settled[0].status === "fulfilled") {
    setStudent(settled[0].value)
@@ -338,7 +339,14 @@ export function StudentDetailView() {
    reportUserFacingError(settled[2].reason, { source: "StudentDetailView.relatives" })
    setRelativesState("error")
   }
- }, [sid])
+  if (settled[3].status === "fulfilled") {
+   setLessonBalances(settled[3].value)
+   setLessonBalancesState("ready")
+  } else {
+   reportUserFacingError(settled[3].reason, { source: "StudentDetailView.lessonBalances" })
+   setLessonBalancesState("error")
+  }
+ }, [sid, canViewMoney])
 
  /** 按分頁懶載；force 時重拉（寫入後） */
  const ensureTabData = useCallback(
@@ -733,8 +741,9 @@ export function StudentDetailView() {
  const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
  const occupiedClassIds =
   enrollmentsState === "ready" ? new Set(activeEnrollments.map((e) => e.classId)) : new Set<string>()
- const groupActiveCount = activeEnrollments.filter((e) => e.classKind !== "private").length
+ const groupActiveCount = activeEnrollments.filter((e) => e.classKind === "group").length
  const privateActiveCount = activeEnrollments.filter((e) => e.classKind === "private").length
+ const homeworkActiveCount = activeEnrollments.filter((e) => e.classKind === "homework").length
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
@@ -782,6 +791,25 @@ export function StudentDetailView() {
     : 0,
   [lessonBalances, lessonBalancesState]
  )
+ const headerExceptionBits = useMemo(() => {
+  if (lessonBalancesState !== "ready") return [] as string[]
+  let pending = 0
+  let leave = 0
+  let misaligned = 0
+  for (const b of lessonBalances) {
+   pending += b.pendingLessons
+   leave += b.leaveAwaitingMakeupCount
+   if (isLessonBalanceNeedsFollowUp(b) && !b.isAligned) misaligned += 1
+  }
+  const bits: string[] = []
+  if (pending > 0) bits.push(`待補 ${pending} 堂`)
+  if (leave > 0) bits.push(`請假未安排 ${leave} 堂`)
+  if (canViewMoney && misaligned > 0) bits.push(`${misaligned} 班堂數不一致`)
+  return bits
+ }, [lessonBalances, lessonBalancesState, canViewMoney])
+ const countChipClass = isMobile
+  ? "rounded-md bg-white/15 px-2 py-0.5"
+  : "rounded-md border border-border bg-muted/40 px-2 py-0.5 text-foreground"
 
  useEffect(() => {
   if (!addEnrollmentDialogOpen || !pickClass) {
@@ -991,20 +1019,20 @@ export function StudentDetailView() {
 
  if (!sid) {
   return (
-   <DetailLayerShell
+   <AdaptiveDetailLayer
     variant="student"
     onDismiss={() => navigate(exitPath)}
     layerLabel={null}
    >
     <p className="p-6 text-muted-foreground">無效的學生編號</p>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
  if (!loading && !student) {
   const loadFailed = studentState === "error"
   return (
-   <DetailLayerShell variant="student" onDismiss={() => navigate(exitPath)} layerLabel="學生詳情">
+   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate(exitPath)} layerLabel="學生詳情">
     <div className="p-6">
      {loadFailed ? (
       <div className="space-y-2" role="alert">
@@ -1024,101 +1052,138 @@ export function StudentDetailView() {
       <Link to={exitPath}>返回</Link>
      </Button>
     </div>
-   </DetailLayerShell>
+   </AdaptiveDetailLayer>
   )
  }
 
  return (
-  <DetailLayerShell
+  <AdaptiveDetailLayer
    variant="student"
    onDismiss={() => void requestLeave()}
-   layerLabel="學生詳情 · 次層檢視"
+   layerLabel="學生詳情"
   >
   <div className="flex min-h-full flex-col bg-background">
-   <div className="bg-primary px-4 py-4 text-primary-foreground shadow-md md:px-6">
+   <div
+    className={
+     isMobile
+      ? "bg-primary px-4 py-4 text-primary-foreground shadow-md"
+      : "rounded-xl border border-border bg-card px-4 py-4 shadow-sm md:px-6"
+    }
+   >
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
      <Button
       type="button"
-      variant="secondary"
+      variant={isMobile ? "secondary" : "outline"}
       size="sm"
-      className="w-fit shrink-0 bg-white/90 text-foreground hover:bg-white"
+      className={cn(
+       "w-fit shrink-0",
+       isMobile && "bg-white/90 text-foreground hover:bg-white"
+      )}
       onClick={() => void requestLeave()}
      >
       <ArrowLeft className="h-4 w-4" />
       返回
      </Button>
      <div className="flex min-w-0 flex-1 items-start gap-3">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20">
-       <GraduationCap className="h-6 w-6" />
-      </div>
+      {isMobile ? (
+       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20">
+        <GraduationCap className="h-6 w-6" />
+       </div>
+      ) : null}
       <div className="min-w-0">
        {loading ? (
         <p className="text-lg">載入中…</p>
        ) : student ? (
         <>
          <h1 className="truncate text-xl font-bold md:text-2xl">{student.full_name}</h1>
-         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/90">
+         <div
+          className={cn(
+           "mt-1 flex flex-wrap items-center gap-2 text-sm",
+           isMobile ? "text-white/90" : "text-muted-foreground"
+          )}
+         >
           <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
-          <StudentClassificationTags student={student} size="sm" surface="onPrimary" />
+          <StudentClassificationTags
+           student={student}
+           size="sm"
+           surface={isMobile ? "onPrimary" : undefined}
+          />
          </div>
-         <p className="mt-1 truncate text-sm text-white/85">
+         <p
+          className={cn(
+           "mt-1 truncate text-sm",
+           isMobile ? "text-white/85" : "text-muted-foreground"
+          )}
+         >
           {formatStudentGrade(student.grade) + " · " + (student.school ?? "—")}
          </p>
-         <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/90">
-          <span className="rounded-md bg-white/15 px-2 py-0.5">
-           {enrollmentsState === "ready"
-            ? `專科班：就讀中 ${groupActiveCount} 班`
-            : enrollmentsState === "error"
-              ? "專科班：報讀未能載入"
-              : "專科班：載入中…"}
-          </span>
-          <span className="rounded-md bg-white/15 px-2 py-0.5">
-           {enrollmentsState === "ready"
-            ? `私人課程：${privateActiveCount > 0 ? `就讀中 ${privateActiveCount}` : "無"}`
-            : enrollmentsState === "error"
-              ? "私人課程：報讀未能載入"
-              : "私人課程：載入中…"}
-          </span>
+         <div
+          className={cn(
+           "mt-2 flex flex-wrap gap-2 text-xs",
+           isMobile ? "text-white/90" : "text-muted-foreground"
+          )}
+         >
+          {enrollmentsState === "error" ? (
+           <span className={countChipClass}>報讀未能載入</span>
+          ) : enrollmentsState !== "ready" ? (
+           <span className={countChipClass}>報讀載入中…</span>
+          ) : groupActiveCount === 0 && privateActiveCount === 0 && homeworkActiveCount === 0 ? (
+           <span className={countChipClass}>目前沒有進行中報讀</span>
+          ) : (
+           <>
+            {groupActiveCount > 0 ? (
+             <span className={countChipClass}>專科班 {groupActiveCount}</span>
+            ) : null}
+            {privateActiveCount > 0 ? (
+             <span className={countChipClass}>私人課程 {privateActiveCount}</span>
+            ) : null}
+            {homeworkActiveCount > 0 ? (
+             <span className={countChipClass}>功輔班 {homeworkActiveCount}</span>
+            ) : null}
+           </>
+          )}
          </div>
+         {headerExceptionBits.length > 0 ? (
+          <button
+           type="button"
+           className={cn(
+            "mt-2 w-full rounded-lg border px-3 py-2 text-left text-xs",
+            isMobile
+             ? "border-white/25 bg-white/10 text-white"
+             : "border-warning/40 bg-warning/10 font-medium text-warning"
+           )}
+           onClick={() => setTab("enrollments")}
+          >
+           {headerExceptionBits.join(" · ")}
+          </button>
+         ) : null}
         </>
        ) : null}
       </div>
      </div>
      <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
-      {canMutateStudentOps ? (
+      {canRegisterPayment ? (
        <Button
         type="button"
-        variant="secondary"
+        variant={isMobile ? "secondary" : "default"}
         size="sm"
-        className="bg-white/90 text-foreground hover:bg-white"
-        onClick={() => setEnrollKindOpen(true)}
+        className={isMobile ? "bg-white/90 text-foreground hover:bg-white" : undefined}
+        asChild
        >
-        <Plus className="h-4 w-4" />
-        新增報讀
+        <Link to={`/Payments?studentId=${encodeURIComponent(sid ?? "")}`}>收款登記</Link>
        </Button>
       ) : null}
-      <Button
-       type="button"
-       variant="secondary"
-       size="sm"
-       className="bg-white/90 text-foreground hover:bg-white"
-       onClick={() => setTab("enrollments")}
-      >
-       <BookOpen className="h-4 w-4" />
-       {canMutateStudentOps ? "管理專科班報讀" : "查看報讀"}
-      </Button>
-      <Button
-       type="button"
-       variant="secondary"
-       size="sm"
-       className="bg-white/90 text-foreground hover:bg-white"
-       asChild
-      >
-       <Link to={`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}`}>
-        <UserRound className="h-4 w-4" />
-        {canMutateStudentOps ? "管理私人課程" : "查看私人課程"}
-       </Link>
-      </Button>
+      {canOpenLeaveManagement ? (
+       <Button
+        type="button"
+        variant={isMobile ? "secondary" : "outline"}
+        size="sm"
+        className={isMobile ? "bg-white/90 text-foreground hover:bg-white" : undefined}
+        asChild
+       >
+        <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>請假</Link>
+       </Button>
+      ) : null}
      </div>
     </div>
    </div>
@@ -1652,6 +1717,12 @@ export function StudentDetailView() {
       ) : null}
       {canMutateStudentOps && enrollmentsState === "ready" ? (
       <>
+      <div className="flex flex-wrap items-center gap-2">
+       <Button type="button" size="sm" onClick={() => setEnrollKindOpen(true)}>
+        <Plus className="h-4 w-4" />
+        新增報讀
+       </Button>
+      </div>
       <SearchableSelect
        value=""
        onChange={(next) => {
@@ -2575,7 +2646,7 @@ export function StudentDetailView() {
     </div>
    </DialogContent>
   </Dialog>
-  </DetailLayerShell>
+  </AdaptiveDetailLayer>
  )
 }
 
