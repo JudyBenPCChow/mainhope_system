@@ -19,6 +19,7 @@ description: >-
 | `docs/meta/AGENT_HANDOFF.md` | 長期架構／分層／RLS 慣例 | 唔覆寫、唔塞 session 進度 |
 | `docs/product/BACKLOG.md` + `docs/product/topics/<topic>.md` | 主題真相來源 | HANDOFF 只**指過去**，唔複製長規格 |
 | `AGENTS.md`／`.cursor/rules`／skills | 長期規則 | 錯題本重複出現先升格 |
+| `git-branch-closeout` | 合 PR 後刪 branch／worktree、對齊 `main` | 唔靠用戶記；工程已合入 main 就跑 |
 
 ## 推薦順序
 

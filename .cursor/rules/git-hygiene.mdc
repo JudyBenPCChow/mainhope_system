@@ -1,0 +1,25 @@
+---
+description: 合 PR 後由 agent 收尾：對齊 main、刪 branch／worktree；盤點未合工作時不要只看本地 SHA。
+alwaysApply: true
+---
+
+# Git 收尾（不要靠使用者記）
+
+使用者不會記得刪 branch。合入 `main` 之後 **agent 必須自己做**，見 skill `git-branch-closeout`。
+
+## 合 PR／關帳後（必做）
+
+1. `git fetch origin`；本工作樹 `checkout main` 並 `--ff-only`。
+2. 刪該題 **遠端＋本地** head branch（`git push origin --delete`／`git branch -d`）。
+3. `git worktree remove` 該題資料夾（含 Desktop 上 `mainhope_*` 工作樹）。
+4. Feature 不要改 `BACKLOG.md` 索引；合入後才在 `main` 搬列。見 `feature-branch-hot-files.mdc`。
+
+## 開工／盤點「未 commit／未 push」
+
+- 本機 `origin` 可能 **只 fetch `main`**。遠端其他 branch 用 `git ls-remote --heads origin`，不要只看 `git branch -r`。
+- 「SHA 不是 `origin/main` 祖先」≠ 內容未入 main（squash／另一 PR 已合）。對照 GitHub 已合 PR，或看關鍵檔是否已在 `origin/main`。
+- 每個 worktree 看 `git status`。`dist/`、`docs/generated/**`、`node_modules` 弄髒就還原，不當未完成工作。
+- **過期 dirty**：工作樹落後 `origin/main`，未提交稿比 main 更舊 → **不要 commit**；還原或拆走該樹。
+- 一個 worktree 只做一個進行中分題。合完不要留舊 SHA 的 checkout。
+
+未合且已衝突的舊 branch：由最新 `main` 開新 branch 重做，不要硬推過期 SHA。
