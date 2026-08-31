@@ -4,6 +4,7 @@ import { formatYearMonthLabel, homeworkMonthlyFeeHkd } from "@/lib/homeworkTutor
 import {
   HOMEWORK_DEFAULT_ROOM_A,
   HOMEWORK_DEFAULT_ROOM_B,
+  toDutyMdKey,
 } from "@/lib/homeworkTutoringSchedules"
 import { MONTH_CALENDAR_WEEK_HEADERS } from "@/lib/monthCalendar"
 
@@ -593,7 +594,8 @@ export function emptyDutyFromRosterDay(day: RosterDay): HomeworkDutyDay {
 }
 
 function dateKeyMonth(dateKey: string): number {
-  return Number(dateKey.split("/")[0])
+  const key = toDutyMdKey(dateKey)
+  return key ? Number(key.split("/")[0]) : Number(dateKey.split("/")[0])
 }
 
 /** 該月全部平日／放假日；已有編更紀錄則合併 */
@@ -604,9 +606,12 @@ export function buildMonthDutyDays(
 ): HomeworkDutyDay[] {
   const cal = listRosterMonthDays(yearMonth, holidays)
   const monthNum = Number(yearMonth.split("-")[1])
-  const byKey = new Map(
-    existing.filter((d) => dateKeyMonth(d.date) === monthNum).map((d) => [d.date, d])
-  )
+  const byKey = new Map<string, HomeworkDutyDay>()
+  for (const d of existing) {
+    const key = toDutyMdKey(d.date)
+    if (!key || dateKeyMonth(key) !== monthNum) continue
+    byKey.set(key, d.date === key ? d : { ...d, date: key })
+  }
   return cal
     .filter((d) => d.selectable || Boolean(d.holidayLabel))
     .map((d) => {

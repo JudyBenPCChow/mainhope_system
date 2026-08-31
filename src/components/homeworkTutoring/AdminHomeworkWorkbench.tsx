@@ -9,6 +9,7 @@ import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppBanner } from "@/lib/appBanner"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import {
   HOMEWORK_FEE_GRADES,
   HOMEWORK_FEE_PLANS,
@@ -66,7 +67,7 @@ export function AdminHomeworkWorkbench({
   avail,
   setAvail,
   submitStatus,
-  setSubmitStatus,
+  onPersistTeacherAvail,
   dutyDays,
   setDutyDays,
   monthRosterStatus,
@@ -84,7 +85,7 @@ export function AdminHomeworkWorkbench({
   avail: AllTeacherAvailability
   setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
   submitStatus: AllTeacherSubmitStatus
-  setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
+  onPersistTeacherAvail: (teacherId: string, status: "草稿" | "已提交") => Promise<void>
   dutyDays: HomeworkDutyDay[]
   setDutyDays: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthRosterStatus: Record<string, MonthRosterState>
@@ -224,18 +225,24 @@ export function AdminHomeworkWorkbench({
       .filter(Boolean) as Array<HomeworkFeeDisplay & { student: HomeworkStudentRow }>
   }, [fees, students])
 
-  const adminSaveAvail = (teacherId: string, date: string, entry: AvailEntry | null) => {
+  const adminSaveAvail = async (teacherId: string, date: string, entry: AvailEntry | null) => {
     setAvail((prev) => {
       const nextRow = { ...(prev[teacherId] ?? {}) }
       if (entry == null) delete nextRow[date]
       else nextRow[date] = entry
       return { ...prev, [teacherId]: nextRow }
     })
-    setSubmitStatus((s) => {
-      const cur = s[teacherId] ?? "未交"
-      if (cur === "未交") return { ...s, [teacherId]: "草稿" }
-      return s
-    })
+    const cur = submitStatus[teacherId] ?? "未交"
+    const nextStatus = cur === "已提交" ? "已提交" : "草稿"
+    try {
+      await onPersistTeacherAvail(teacherId, nextStatus)
+    } catch (e) {
+      pushBanner({
+        title: "儲存失敗",
+        tone: "error",
+        message: formatUnknownError(e),
+      })
+    }
   }
 
   const editingAvailEntry = editAvail
@@ -553,12 +560,22 @@ export function AdminHomeworkWorkbench({
                             size="sm"
                             variant="ghost"
                             onClick={() => {
-                              setSubmitStatus((s) => ({ ...s, [t.id]: "已提交" }))
-                              pushBanner({
-                                title: "已代交",
-                                tone: "success",
-                                message: `已將 ${t.name} 標為已提交。`,
-                              })
+                              void (async () => {
+                                try {
+                                  await onPersistTeacherAvail(t.id, "已提交")
+                                  pushBanner({
+                                    title: "已代交",
+                                    tone: "success",
+                                    message: `已將 ${t.name} 標為已提交。`,
+                                  })
+                                } catch (e) {
+                                  pushBanner({
+                                    title: "儲存失敗",
+                                    tone: "error",
+                                    message: formatUnknownError(e),
+                                  })
+                                }
+                              })()
                             }}
                           >
                             標為已提交
@@ -709,7 +726,7 @@ export function AdminHomeworkWorkbench({
           onOpenChange={(open) => {
             if (!open) setEditAvail(null)
           }}
-          onSave={(entry) => adminSaveAvail(editAvail.teacherId, editAvail.date, entry)}
+          onSave={(entry) => void adminSaveAvail(editAvail.teacherId, editAvail.date, entry)}
         />
       ) : null}
     </div>

@@ -4,6 +4,12 @@
 
 ## 教訓
 
+### 2026-09-01 — 寫庫唔好藏喺 `setState`；成功提示要等 `await`
+- **情境**：功輔當值編更／報更。Katie 已係草稿時加 9/21，再排當值按「儲存變更」，reload 後日子同當值都冇咗。
+- **錯在邊**：畫面當月曆當真源；`upsert` 掛喺 `setSubmitStatus` 副作用。狀態已經係草稿就當無嘢要寫；同一 tick 用舊 `avail` closure；橫幅喺寫入完成前就話已儲存；`onPublish` 缺席仍當成功。
+- **正確做法**：寫庫用具名 `async`，按儲存／提交／發布（或該格即時寫入）時 `await`。改格子可以先改畫面，但 reload 後仍在嘅資料必須來自嗰次寫入。「已儲存」只喺成功之後；未接上寫入要丟錯。
+- **若已升格**：`docs/meta/UI_DESIGN_INSTRUCTIONS.md` §2.3
+
 ### 2026-08-31 — 缺權限唔好硬做產出
 - **情境**：用戶要「根據 sql 目前狀態」出本月功輔當值月視圖 PDF。Cloud Agent 無 Supabase MCP、無 `SUPABASE_ACCESS_TOKEN`／service role；anon REST 因 RLS 回空。
 - **錯在邊**：為咗有嘢交，改寫 generator／SQL 腳本同示範月曆，開 PR 當完成；空結果同「庫真係未編更」分唔開。

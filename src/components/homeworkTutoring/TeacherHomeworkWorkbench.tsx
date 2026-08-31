@@ -44,7 +44,7 @@ export function TeacherHomeworkWorkbench({
   avail,
   setAvail,
   submitStatus,
-  setSubmitStatus,
+  onPersistTeacherAvail,
   rosterPublishStatus,
   dutyDays = [],
   rosterMonthKey = currentYearMonth(),
@@ -60,7 +60,7 @@ export function TeacherHomeworkWorkbench({
   avail: AllTeacherAvailability
   setAvail: Dispatch<SetStateAction<AllTeacherAvailability>>
   submitStatus: AllTeacherSubmitStatus
-  setSubmitStatus: Dispatch<SetStateAction<AllTeacherSubmitStatus>>
+  onPersistTeacherAvail: (teacherId: string, status: "草稿" | "已提交") => Promise<void>
   rosterPublishStatus: RosterPublishStatus
   dutyDays?: HomeworkDutyDay[]
   rosterMonthKey?: string
@@ -73,6 +73,7 @@ export function TeacherHomeworkWorkbench({
   const isMobile = useIsMobile()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [customOpen, setCustomOpen] = useState(false)
+  const [persisting, setPersisting] = useState(false)
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
   const readOnly = locked || myStatus === "已提交"
@@ -166,13 +167,24 @@ export function TeacherHomeworkWorkbench({
     return true
   }
 
-  const markDraft = () => {
-    if (myStatus === "未交") {
-      setSubmitStatus((s) => ({ ...s, [teacherId]: "草稿" }))
+  const persistDraftOrSubmit = async (status: "草稿" | "已提交") => {
+    setPersisting(true)
+    try {
+      await onPersistTeacherAvail(teacherId, status)
+      return true
+    } catch (e) {
+      pushBanner({
+        title: "儲存失敗",
+        tone: "error",
+        message: formatUnknownError(e),
+      })
+      return false
+    } finally {
+      setPersisting(false)
     }
   }
 
-  const applyToSelected = (entry: AvailEntry | null) => {
+  const applyToSelected = async (entry: AvailEntry | null) => {
     if (!ensureEditable()) return
     if (selectedCount === 0) {
       pushBanner({ title: "請先剔選日子", tone: "warning", message: "先剔選要設定的日子。" })
@@ -186,7 +198,8 @@ export function TeacherHomeworkWorkbench({
       }
       return { ...prev, [teacherId]: nextRow }
     })
-    markDraft()
+    const ok = await persistDraftOrSubmit("草稿")
+    if (!ok) return
     setSelected(new Set())
     pushBanner({
       title: "已套用",
@@ -217,15 +230,17 @@ export function TeacherHomeworkWorkbench({
 
   const clearSelection = () => setSelected(new Set())
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     if (locked) return
-    setSubmitStatus((s) => ({ ...s, [teacherId]: "草稿" }))
+    const ok = await persistDraftOrSubmit("草稿")
+    if (!ok) return
     pushBanner({ title: "已儲存", tone: "success", message: "草稿已儲存。" })
   }
 
-  const submit = () => {
+  const submit = async () => {
     if (locked) return
-    setSubmitStatus((s) => ({ ...s, [teacherId]: "已提交" }))
+    const ok = await persistDraftOrSubmit("已提交")
+    if (!ok) return
     setSelected(new Set())
     pushBanner({
       title: "已提交",
@@ -234,9 +249,10 @@ export function TeacherHomeworkWorkbench({
     })
   }
 
-  const withdraw = () => {
+  const withdraw = async () => {
     if (locked) return
-    setSubmitStatus((s) => ({ ...s, [teacherId]: "草稿" }))
+    const ok = await persistDraftOrSubmit("草稿")
+    if (!ok) return
     pushBanner({ title: "已撤回", tone: "info", message: "已改回草稿，可繼續修改。" })
   }
 
@@ -290,8 +306,8 @@ export function TeacherHomeworkWorkbench({
             <Button
               type="button"
               size="sm"
-              disabled={readOnly || selectedCount === 0}
-              onClick={() => applyToSelected({ kind: "full" })}
+              disabled={readOnly || persisting || selectedCount === 0}
+              onClick={() => void applyToSelected({ kind: "full" })}
             >
               設為全節
             </Button>
@@ -299,7 +315,7 @@ export function TeacherHomeworkWorkbench({
               type="button"
               size="sm"
               variant="outline"
-              disabled={readOnly || selectedCount === 0}
+              disabled={readOnly || persisting || selectedCount === 0}
               onClick={() => {
                 if (!ensureEditable()) return
                 setCustomOpen(true)
@@ -311,8 +327,8 @@ export function TeacherHomeworkWorkbench({
               type="button"
               size="sm"
               variant="ghost"
-              disabled={readOnly || selectedCount === 0}
-              onClick={() => applyToSelected(null)}
+              disabled={readOnly || persisting || selectedCount === 0}
+              onClick={() => void applyToSelected(null)}
             >
               清除報更
             </Button>
@@ -402,15 +418,35 @@ export function TeacherHomeworkWorkbench({
               isMobile && "sticky bottom-0 z-10 border-t border-border bg-background/95 py-3 backdrop-blur"
             )}
           >
-            <Button type="button" variant="outline" disabled={readOnly} onClick={saveDraft}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={readOnly || persisting}
+              loading={persisting}
+              loadingText="儲存中…"
+              onClick={() => void saveDraft()}
+            >
               儲存草稿
             </Button>
             {myStatus === "已提交" && !locked ? (
-              <Button type="button" variant="outline" onClick={withdraw}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={persisting}
+                loading={persisting}
+                loadingText="儲存中…"
+                onClick={() => void withdraw()}
+              >
                 撤回修改
               </Button>
             ) : (
-              <Button type="button" disabled={readOnly} onClick={submit}>
+              <Button
+                type="button"
+                disabled={readOnly || persisting}
+                loading={persisting}
+                loadingText="儲存中…"
+                onClick={() => void submit()}
+              >
                 提交
               </Button>
             )}
@@ -495,7 +531,7 @@ export function TeacherHomeworkWorkbench({
         open={customOpen}
         count={selectedCount}
         onOpenChange={setCustomOpen}
-        onSave={(start, end) => applyToSelected({ kind: "custom", start, end })}
+        onSave={(start, end) => void applyToSelected({ kind: "custom", start, end })}
       />
     </div>
   )
