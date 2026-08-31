@@ -74,7 +74,7 @@ import {
 
 const PAGE_SIZE = 8
 
-type FilterKey = "all" | "anomaly" | "unreviewed" | "reviewed" | "sub" | PayrollMode
+type FilterKey = "all" | "anomaly" | "unreviewed" | "reviewed" | "sub" | "homework" | PayrollMode
 
 type Props = {
   month: PayrollMonthMock
@@ -93,6 +93,7 @@ type Props = {
   onStatusChange: (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => void
   onAddAdjustment: (adj: ManualAdjustment) => void
   onCodyChange: (hours: number | null, status: WfhMockState["status"]) => void
+  onHomeworkHoursChange: (teacherId: string, save: { kind: "override"; hours: number } | { kind: "clear" }) => void
   onRecalc: () => void
   onSubmitTeacher: (teacherId: string) => void
   onSelectionChange?: (teacherId: string, lessonId: string | null) => void
@@ -105,7 +106,7 @@ const SUBMIT_CHECKS = [
   { id: "all", label: "已核對全部教師的逐節計薪明細（或已排除者）" },
   { id: "split", label: "已確認分成制原價池（Mark Yu、Christine Fan）" },
   { id: "sub", label: "已確認代堂歸屬（Liam ↔ Kenneth）" },
-  { id: "cody", label: "已確認 Cody 工時申報／排除狀態" },
+  { id: "homework", label: "已核對功輔時薪／Christine 功輔佣金（或確認本月無功輔）" },
   { id: "mpf", label: "已確認 MPF（Mark、Christine、Sophie、Katie）" },
   { id: "excl", label: "已知悉已排除項目將由 Mark Yu 跟進" },
 ] as const
@@ -126,6 +127,7 @@ export function FinancePayrollView({
   onStatusChange,
   onAddAdjustment,
   onCodyChange,
+  onHomeworkHoursChange,
   onRecalc,
   teacherSubmits,
   onSubmitTeacher,
@@ -157,6 +159,7 @@ export function FinancePayrollView({
   const [submitChecks, setSubmitChecks] = useState<Record<string, boolean>>({})
   const [submitDeclare, setSubmitDeclare] = useState(false)
   const [codyHoursInput, setCodyHoursInput] = useState("")
+  const [homeworkHoursInput, setHomeworkHoursInput] = useState("")
   const [pdfBusy, setPdfBusy] = useState(false)
   const [singleSubmitOpen, setSingleSubmitOpen] = useState(false)
 
@@ -196,6 +199,13 @@ export function FinancePayrollView({
       if (filter === "unreviewed") return !reviewedIds.has(t.id)
       if (filter === "reviewed") return reviewedIds.has(t.id)
       if (filter === "sub") return substitutes.some((s) => s.teacherId === t.id)
+      if (filter === "homework") {
+        return (
+          (t.homework != null &&
+            (t.homework.amount > 0 || t.homework.rosterHours > 0 || t.homework.overridden)) ||
+          t.homeworkCommission != null
+        )
+      }
       if (filter !== "all") return t.mode === filter
       return true
     })
@@ -208,6 +218,11 @@ export function FinancePayrollView({
   useEffect(() => {
     setPage(0)
   }, [filter])
+
+  useEffect(() => {
+    if (selected?.homework) setHomeworkHoursInput(String(selected.homework.billedHours))
+    else setHomeworkHoursInput("")
+  }, [selected?.id, selected?.homework?.billedHours])
 
   const reviewedCount = teachers.filter((t) => reviewedIds.has(t.id)).length
   const unreviewedCount = teachers.length - reviewedCount
@@ -320,6 +335,7 @@ export function FinancePayrollView({
             ["sub", "代堂"],
             ["分成制", "分成"],
             ["兼職 HC", "人頭"],
+            ["homework", "功輔"],
           ] as const
         ).map(([v, label]) => (
           <Button
@@ -369,6 +385,11 @@ export function FinancePayrollView({
                   {row.name}
                   {excluded ? (
                     <span className="ml-1 text-xs font-normal text-muted-foreground">（排除）</span>
+                  ) : null}
+                  {row.homework && (row.homework.billedHours > 0 || row.homework.overridden) ? (
+                    <span className="ml-1 text-xs font-normal text-muted-foreground">
+                      功輔 {row.homework.billedHours} 小時
+                    </span>
                   ) : null}
                 </button>
                 {teacherNotRolledCount(row) > 0 ? (
@@ -576,6 +597,25 @@ export function FinancePayrollView({
                   </span>
                 </li>
               ) : null}
+              {selected.homework ? (
+                <li className="flex justify-between gap-2">
+                  <span>
+                    功輔時薪 {selected.homework.billedHours} 小時 × ${selected.homework.rate}
+                    {selected.homework.overridden ? "（已修正）" : ""}
+                  </span>
+                  <span className="tabular-nums font-medium">{formatHkd(selected.homework.amount)}</span>
+                </li>
+              ) : null}
+              {selected.homeworkCommission ? (
+                <li className="flex justify-between gap-2">
+                  <span>
+                    功輔佣金（報讀 {selected.homeworkCommission.enrolledCount} 人）
+                  </span>
+                  <span className="tabular-nums font-medium">
+                    {formatHkd(selected.homeworkCommission.amount)}
+                  </span>
+                </li>
+              ) : null}
               {selected.modeStreams?.map((s) => (
                 <li key={s.id} className="flex justify-between gap-2">
                   <button
@@ -604,6 +644,8 @@ export function FinancePayrollView({
               ) : null}
               {!selected.personalSplit &&
               !selected.commissionPool &&
+              !selected.homework &&
+              !selected.homeworkCommission &&
               !selected.modeStreams?.length &&
               !selected.salaryEvidence ? (
                 <li className="flex justify-between gap-2">
@@ -618,6 +660,54 @@ export function FinancePayrollView({
                 </li>
               ) : null}
             </ul>
+            {editable && selected.homework ? (
+              <div className="mt-3 space-y-2 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">
+                  編更 {selected.homework.rosterHours} 小時。財務可改本月合計工時（放假／惡劣天氣已當 0）。
+                </p>
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-xs text-muted-foreground">修正工時</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.25"
+                      className="w-28"
+                      value={homeworkHoursInput}
+                      onChange={(e) => setHomeworkHoursInput(e.target.value)}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const h = Number(homeworkHoursInput)
+                      if (!Number.isFinite(h) || h < 0) {
+                        pushBanner({
+                          tone: "warning",
+                          title: "請輸入有效時數",
+                          message: "須為 0 或以上的數字。",
+                        })
+                        return
+                      }
+                      onHomeworkHoursChange(selected.id, { kind: "override", hours: h })
+                    }}
+                  >
+                    儲存工時
+                  </Button>
+                  {selected.homework.overridden ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onHomeworkHoursChange(selected.id, { kind: "clear" })}
+                    >
+                      還原編更
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             <p className="mt-3 border-t border-border pt-2 text-sm font-semibold tabular-nums">
               合計 {formatHkd(selected.gross)}
             </p>

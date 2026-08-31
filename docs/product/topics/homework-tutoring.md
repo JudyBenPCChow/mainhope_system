@@ -42,7 +42,7 @@
 | 課室 | **預設 17D、17E（兩室）**；行政可調動 | 只一室／獨立小學房 | `SCHEDULING_RULES` §4 已跟 |
 | 人手 | **PT 導師**按人數調配；**至少一人** | 固定小學部編制 | 期望總人數 **≥12** |
 | 進度 | **Notion**；指示檔正文不進系統 | 系統每日功課進度 | |
-| 計糧 | 見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) | 本期產品做時薪 UI | vault 有歷史時薪／補貼參數 |
+| 計糧 | 見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md) | 本期產品做時薪 UI | `/Payroll` 已接時薪＋佣金（2026-08-31） |
 
 ---
 
@@ -73,7 +73,7 @@
 
 ### 下一步
 
-無。計糧功輔時薪／Christine 佣金見另題 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)（未拍板）。
+無。計糧功輔時薪／Christine 佣金見另題 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)（已接 `/Payroll`）。
 
 ### 本期不做
 
@@ -165,7 +165,7 @@
 
 ### 薪酬
 
-- 本期不處理；見計糧引擎。vault 參考：$100/hr、試用首月 $80、每上班日補 $50。
+- 見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)。**2627 時薪名單已簽並已接 `/Payroll`**（$70／$100／$110／$115；Katie 唔用時薪）。工時默認編更、財務可改；放假／惡劣天氣不計；無每日補 $50、無試用 $80。Christine 佣金：報讀 ≥15 先計，基數該月原價 × 10%。
 - 當值：**PT 導師**；人數按報讀／到校人數調配，**至少一人**。
 
 ---

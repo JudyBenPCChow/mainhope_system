@@ -9,6 +9,7 @@ export type PayrollMode =
   | "特別 HC"
   | "獨立定價"
   | "WFH 時薪"
+  | "功輔時薪"
 
 export type GradeBand = "junior" | "senior" | "primary" | "unknown"
 
@@ -87,6 +88,18 @@ export type PayrollTeacherInput = {
   rate: PayrollRateRow | null
   /** 已核准 WFH／人手工時（小時） */
   approvedHours: number
+  /** 功輔時薪（無則唔計功輔工時） */
+  homeworkHourlyRate?: number | null
+  /** 已發布編更合計小時 */
+  homeworkRosterHours?: number
+  /** 財務修正工時；null＝跟編更 */
+  homeworkOverrideHours?: number | null
+}
+
+export type HomeworkCommissionInput = {
+  teacherId: string
+  enrolledCount: number
+  originalPriceTotal: number
 }
 
 export type ComputedLessonLine = {
@@ -128,6 +141,18 @@ export type ComputedTeacherResult = {
   commissionPoolItems: { scheduleId: string; classLabel: string; date: string; amount: number; teacherName: string }[]
   anomalies: string[]
   hardBlock: boolean
+  homework?: {
+    rosterHours: number
+    billedHours: number
+    rate: number
+    overridden: boolean
+    amount: number
+  }
+  homeworkCommission?: {
+    enrolledCount: number
+    originalPriceTotal: number
+    amount: number
+  }
 }
 
 export type MonthComputeInput = {
@@ -136,6 +161,8 @@ export type MonthComputeInput = {
   lessons: PayrollLessonInput[]
   /** 上個月各教師 gross（對照 ±30%） */
   previousGrossByTeacherId?: Record<string, number>
+  /** Christine 功輔佣金（報讀人數門檻） */
+  homeworkCommission?: HomeworkCommissionInput | null
 }
 
 export type MonthComputeResult = {
