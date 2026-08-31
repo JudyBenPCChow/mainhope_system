@@ -263,6 +263,8 @@ export function StudentDetailView() {
  const [pickForm, setPickForm] = useState<string>("full")
  const [pickScheduleIds, setPickScheduleIds] = useState<string[]>([])
  const [addEnrollmentDialogOpen, setAddEnrollmentDialogOpen] = useState(false)
+ const [addEnrollmentSaving, setAddEnrollmentSaving] = useState(false)
+ const [addEnrollmentError, setAddEnrollmentError] = useState<string | null>(null)
  const [pickStartMode, setPickStartMode] = useState<EnrollmentStartMode>("next")
  const [pickStartScheduleId, setPickStartScheduleId] = useState("")
  const [pickClassSchedules, setPickClassSchedules] = useState<ClassScheduleRow[]>([])
@@ -596,6 +598,8 @@ export function StudentDetailView() {
   setPickClassSchedulesLoading(false)
   setPickHwPlan("四日")
   setPickHwWeekdays(["一", "二", "四", "五"])
+  setAddEnrollmentSaving(false)
+  setAddEnrollmentError(null)
  }, [])
 
  const openAddEnrollmentDialog = useCallback(
@@ -608,30 +612,28 @@ export function StudentDetailView() {
    setPickStartScheduleId("")
    setPickHwPlan("四日")
    setPickHwWeekdays(["一", "二", "四", "五"])
+   setAddEnrollmentSaving(false)
+   setAddEnrollmentError(null)
    setAddEnrollmentDialogOpen(true)
   },
   [classOptions]
  )
 
  const addEnrollment = async () => {
-  if (!pickClass) return
+  if (!pickClass || addEnrollmentSaving) return
   const picked = classOptions.find((o) => o.id === pickClass)
   const isHomework = picked?.classKind === "homework"
   const isSummer = picked?.courseMode === "summer_two_period"
   const isSingle = !isHomework && pickForm === SINGLE_SESSION_ENROLLMENT
   if (isSingle && pickScheduleIds.length === 0) {
-   pushBanner({ tone: "error", title: "請選擇堂數", message: "單堂報讀請至少勾選一堂" })
+   setAddEnrollmentError("單堂報讀請至少勾選一堂")
    return
   }
   if (isHomework) {
    const need =
     pickHwPlan === "三日" ? 3 : pickHwPlan === "四日" ? 4 : pickHwPlan === "五日" ? 5 : 7
    if (pickHwPlan !== "七日" && pickHwWeekdays.length !== need) {
-    pushBanner({
-     tone: "error",
-     title: "請選擇逢星期幾",
-     message: `每週${pickHwPlan}請選 ${need} 日（已選 ${pickHwWeekdays.length}）`,
-    })
+    setAddEnrollmentError(`每週${pickHwPlan}請選 ${need} 日（已選 ${pickHwWeekdays.length}）`)
     return
    }
   }
@@ -654,13 +656,11 @@ export function StudentDetailView() {
     })
    }
   } catch (e) {
-   pushBanner({
-    tone: "error",
-    title: "請選擇開始排程",
-    message: e instanceof Error ? e.message : String(e),
-   })
+   setAddEnrollmentError(e instanceof Error ? e.message : String(e))
    return
   }
+  setAddEnrollmentSaving(true)
+  setAddEnrollmentError(null)
   try {
    await insertEnrollment(
     sid,
@@ -695,11 +695,15 @@ export function StudentDetailView() {
    await reloadSubs()
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.addEnrollment" })
+   const message = e instanceof Error ? e.message : String(e)
+   setAddEnrollmentError(message)
    pushBanner({
     tone: "error",
     title: "加入失敗",
-    message: e instanceof Error ? e.message : String(e),
+    message,
    })
+  } finally {
+   setAddEnrollmentSaving(false)
   }
  }
 
@@ -1739,6 +1743,7 @@ export function StudentDetailView() {
       <Dialog
        open={addEnrollmentDialogOpen}
        onOpenChange={(open) => {
+        if (addEnrollmentSaving) return
         setAddEnrollmentDialogOpen(open)
         if (!open) resetAddEnrollmentDialog()
        }}
@@ -1912,6 +1917,7 @@ export function StudentDetailView() {
            <Button
             type="button"
             variant="outline"
+            disabled={addEnrollmentSaving}
             onClick={() => {
              setAddEnrollmentDialogOpen(false)
              resetAddEnrollmentDialog()
@@ -1921,8 +1927,11 @@ export function StudentDetailView() {
            </Button>
            <Button
             type="button"
+            loading={addEnrollmentSaving}
+            loadingText="加入中…"
             onClick={() => void addEnrollment()}
             disabled={
+             addEnrollmentSaving ||
              !pickClass ||
              (showSessionPicker && pickScheduleIds.length === 0) ||
              (pickStartMode === "schedule" && !pickStartScheduleId)
@@ -1932,6 +1941,11 @@ export function StudentDetailView() {
             加入
            </Button>
           </div>
+          {addEnrollmentError ? (
+           <p className="text-sm text-destructive" role="alert">
+            {addEnrollmentError}
+           </p>
+          ) : null}
          </div>
         ) : null}
        </DialogContent>
