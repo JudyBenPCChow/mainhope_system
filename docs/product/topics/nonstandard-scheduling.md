@@ -23,7 +23,7 @@
 | 收個案＋拍板做／唔做／用現有路徑 | 無擋 | 每條個案有產品句 |
 | 實作 | 上表拍板 | 另寫 `plans/`；唔喺權益母題夾做 |
 
-權益母題 [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) 仍 `in_progress`（P6 已取消；餘 `26SM`）。本題**唔等**佢關帳先討論。
+權益母題 [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) **已關帳**（2026-08-31：`26SM` 永遠舊路徑、`makeup_of` 留低）。本題**唔等**佢；未拍板前**唔好**改 schema、點名紙入場。
 
 
 ## 結論（現況，未拍板新路徑）

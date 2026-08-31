@@ -10,11 +10,8 @@ import { statusToTagTone } from "@/lib/statusTag"
 import {
   countSubmitProgress,
   currentYearMonth,
-  formatSession,
+  formatDutyPeople,
   formatYearMonthLabel,
-  roomALabel,
-  roomBLabel,
-  teacherName,
   unpaidFeeRows,
   type AllTeacherSubmitStatus,
   type HomeworkDutyDay,
@@ -62,8 +59,6 @@ export function ManagerHomeworkWorkbench({
   const unpaid = useMemo(() => unpaidFeeRows(students, fees), [students, fees])
   const dutyCovered = dutyDays.filter((d) => !d.holiday).length
   const monthLabel = formatYearMonthLabel(rosterMonth)
-  const roomA = roomALabel(dutyDays[0] ?? null)
-  const roomB = roomBLabel(dutyDays[0] ?? null)
   const catalog = teacherCatalog ?? hwTeachers
 
   return (
@@ -148,9 +143,7 @@ export function ManagerHomeworkWorkbench({
                 <thead className="bg-muted/40 text-xs text-muted-foreground">
                   <tr>
                     <th className="px-3 py-2 font-medium">日期</th>
-                    <th className="px-3 py-2 font-medium">班時間</th>
-                    <th className="px-3 py-2 font-medium">{roomA}</th>
-                    <th className="px-3 py-2 font-medium">{roomB}</th>
+                    <th className="px-3 py-2 font-medium">當值</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -165,18 +158,8 @@ export function ManagerHomeworkWorkbench({
                           </Tag>
                         ) : null}
                       </td>
-                      <td className="px-3 py-2.5 tabular-nums">
-                        {d.holiday ? "—" : formatSession(d)}
-                      </td>
                       <td className="px-3 py-2.5">
-                        {d.holiday
-                          ? "—"
-                          : teacherName(d.secondaryTeacherId, hwTeachers)}
-                      </td>
-                      <td className="px-3 py-2.5">
-                        {d.holiday
-                          ? "—"
-                          : teacherName(d.primaryTeacherId, hwTeachers)}
+                        {d.holiday ? "—" : formatDutyPeople(d, hwTeachers)}
                       </td>
                     </tr>
                   ))}

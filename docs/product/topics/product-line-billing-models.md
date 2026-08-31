@@ -22,7 +22,7 @@
 | 對帳＋backfill 池／宣告 | 上波 | **唔做**（C9 唔切閘，唔 backfill） |
 | 切私人點名閘 | 上波＋抽樣點名紙 | **C9：唔切**；有報讀就上紙 |
 
-權益母題仍 `in_progress`（P6 已取消；餘 `26SM`）。本題**唔等**佢關帳先討論；切閘唔好當手動加名夾做。
+權益母題 [`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md) **已關帳**（2026-08-31：`26SM` 永遠舊路徑、`makeup_of` 留低）。本題**唔等**佢；切閘唔好當手動加名夾做。
 
 ---
 

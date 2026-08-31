@@ -14,6 +14,7 @@ export type HomeworkDutyForSchedule = {
   primaryRoom: string | null
   secondaryTeacherId?: string
   primaryTeacherId?: string
+  assignments?: Array<{ teacherId: string; start: string; end: string; room: string }>
 }
 
 export type HomeworkScheduleSlot = {
@@ -53,7 +54,49 @@ function resolveRoomId(name: string | null | undefined, roomIdByName: Map<string
   return roomIdByName.get(key) ?? null
 }
 
-/** 一日兩室佔用；放假或無日期則空陣列 */
+export function isHomeworkOccupancySchedule(row: {
+  class_kind?: string | null
+  remarks?: string | null
+}): boolean {
+  if (row.class_kind === "homework") return true
+  return (row.remarks ?? "").includes(HOMEWORK_SCHEDULE_REMARKS)
+}
+
+/** 已加開第二室（primaryRoom 有值）。未加開唔佔 17E。 */
+export function isSecondHomeworkRoomOpen(
+  day: Pick<HomeworkDutyForSchedule, "primaryRoom">
+): boolean {
+  return Boolean(day.primaryRoom?.trim())
+}
+
+function occupancyTeacherId(
+  dutyDay: HomeworkDutyForSchedule,
+  roomName: string
+): string | null {
+  const fromAssign = (dutyDay.assignments ?? [])
+    .filter((a) => (a.room || "").trim() === roomName)
+    .sort((a, b) => a.start.localeCompare(b.start))[0]
+  if (fromAssign?.teacherId) return fromAssign.teacherId
+  const aName = dutyDay.secondaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_A
+  if (roomName === aName) return dutyDay.secondaryTeacherId ?? null
+  return dutyDay.primaryTeacherId ?? null
+}
+
+export function homeworkOccupancyRooms(
+  dutyDay: HomeworkDutyForSchedule
+): Array<{ name: string; teacherId: string | null }> {
+  const roomA = dutyDay.secondaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_A
+  const rooms: Array<{ name: string; teacherId: string | null }> = [
+    { name: roomA, teacherId: occupancyTeacherId(dutyDay, roomA) },
+  ]
+  const roomB = dutyDay.primaryRoom?.trim()
+  if (roomB && roomB !== roomA) {
+    rooms.push({ name: roomB, teacherId: occupancyTeacherId(dutyDay, roomB) })
+  }
+  return rooms
+}
+
+/** 一日已開嘅房先佔；放假或無日期則空陣列。佔室時間仍全日（15:15 起）；老師名取該室第一人。 */
 export function homeworkScheduleSlotsFromDutyDay(
   dutyDay: HomeworkDutyForSchedule,
   yearMonth: string,
@@ -64,17 +107,12 @@ export function homeworkScheduleSlotsFromDutyDay(
   if (!iso) return []
 
   const end = dutyDay.end?.trim() || "19:30"
-  const rooms: Array<{ name: string; teacherId?: string }> = [
-    { name: dutyDay.secondaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_A, teacherId: dutyDay.secondaryTeacherId },
-    { name: dutyDay.primaryRoom?.trim() || HOMEWORK_DEFAULT_ROOM_B, teacherId: dutyDay.primaryTeacherId },
-  ]
-
-  return rooms.map(({ name, teacherId }) => ({
+  return homeworkOccupancyRooms(dutyDay).map(({ name, teacherId }) => ({
     scheduled_date: iso,
     start_time: HOMEWORK_OCCUPANCY_START,
     end_time: end,
     classroom_id: resolveRoomId(name, roomIdByName),
-    teacher_id: teacherId ?? null,
+    teacher_id: teacherId,
     roomName: name,
   }))
 }

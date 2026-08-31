@@ -1,4 +1,5 @@
 import { formatClassLabel } from "@/lib/courseLabel"
+import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { resolveLessonReminderTimes } from "@/lib/consecutiveLesson"
 import { supabase } from "@/lib/supabaseClient"
 import { fetchRosterForRollCall } from "@/services/attendanceQueries"
@@ -25,6 +26,7 @@ export type ScheduleDetailRecord = {
  teaching_notes: string | null
  class_id: string | null
  class_subject: string
+ class_kind: ClassKind
  course_code_full: string | null
  teacher_id: string | null
  teacher_name: string | null
@@ -257,7 +259,7 @@ export async function getScheduleById(
  const { data, error } = await supabase
   .from("schedules")
   .select(
-   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, teaching_notes, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( id, name, is_online )"
+   "id, scheduled_date, start_time, end_time, status, cancel_reason, is_extra_lesson, remarks, teaching_notes, consecutive_group_id, consecutive_slot_index, class_id, teacher_id, original_teacher_id, classroom_id, classes ( subject, class_kind, course_code_full, courses ( course_name ) ), teachers!schedules_teacher_id_fkey ( full_name ), original_teacher:teachers!schedules_original_teacher_id_fkey ( full_name ), classrooms ( id, name, is_online )"
   )
   .eq("id", id)
   .maybeSingle()
@@ -325,6 +327,10 @@ export async function getScheduleById(
   teaching_notes: r.teaching_notes != null ? String(r.teaching_notes) : null,
   class_id: cid,
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+  class_kind: resolveClassKind(
+   cls?.class_kind != null ? String(cls.class_kind) : null,
+   sub
+  ),
   course_code_full: code,
   teacher_id: r.teacher_id != null ? String(r.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,

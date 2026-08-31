@@ -23,15 +23,13 @@ import {
   availDatesForMonth,
   countSubmitProgress,
   currentYearMonth,
+  dutyAssignments,
   formatDutyDateHeading,
-  formatSession,
   formatWeekdays,
   formatWeekdaysShort,
   formatYearMonthLabel,
   getAvailEntry,
   holidaysInYearMonth,
-  roomALabel,
-  roomBLabel,
   summarizeOverview,
   teacherName,
   type AllTeacherAvailability,
@@ -279,28 +277,24 @@ export function AdminHomeworkWorkbench({
           </div>
           {overview.todayDuty && !overview.todayDuty.holiday ? (
             <div className="space-y-3">
-              <RoomDutyCard
-                room={roomALabel(overview.todayDuty)}
-                tone="info"
-                session={formatSession(overview.todayDuty)}
-                teacher={teacherName(overview.todayDuty.secondaryTeacherId, hwTeachers)}
-                weekdayHint={
-                  overview.todayWeekday
-                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
-                    : "—"
-                }
-              />
-              <RoomDutyCard
-                room={roomBLabel(overview.todayDuty)}
-                tone="success"
-                session={formatSession(overview.todayDuty)}
-                teacher={teacherName(overview.todayDuty.primaryTeacherId, hwTeachers)}
-                weekdayHint={
-                  overview.todayWeekday
-                    ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
-                    : "—"
-                }
-              />
+              {dutyAssignments(overview.todayDuty).length === 0 ? (
+                <p className="text-sm text-muted-foreground">今日尚未排當值。</p>
+              ) : (
+                dutyAssignments(overview.todayDuty).map((a, i) => (
+                  <RoomDutyCard
+                    key={`${a.teacherId}-${a.room}-${i}`}
+                    room={a.room}
+                    tone={i % 2 === 0 ? "info" : "success"}
+                    session={`${a.start}–${a.end}`}
+                    teacher={teacherName(a.teacherId, hwTeachers)}
+                    weekdayHint={
+                      overview.todayWeekday
+                        ? `慣常逢${formatWeekdays([overview.todayWeekday])}`
+                        : "—"
+                    }
+                  />
+                ))
+              )}
             </div>
           ) : overview.todayDuty?.holiday ? (
             <p className="text-sm text-muted-foreground">今日功輔放假：{overview.todayDuty.holiday}</p>
@@ -634,6 +628,7 @@ export function AdminHomeworkWorkbench({
               avail={avail}
               teachers={hwTeachers}
               holidays={holidays}
+              students={students}
               onPublish={onPublishRoster}
             />
           </TabsContent>
@@ -667,8 +662,7 @@ export function AdminHomeworkWorkbench({
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
             <p className="mt-2 text-sm">
-              單一場次 15:30–19:30（佔用自 15:15）；月工作表可按日改編班時間。課室預設
-              17D／17E；人少可只派一室一位老師。
+              場次 15:30–19:30（課室佔用自 15:15）。排更時段默認跟報更，可改；一日可排多於一位，唔使全日都有人。課室預設 17D／17E。
             </p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
