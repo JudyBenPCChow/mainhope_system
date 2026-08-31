@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 
+import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
   countSubmitProgress,
   currentYearMonth,
@@ -16,6 +17,7 @@ import {
   type AllTeacherSubmitStatus,
   type HomeworkDutyDay,
   type HomeworkFeeDisplay,
+  type HomeworkHoliday,
   type HomeworkStudentRow,
   type HomeworkTeacherRow,
   type RosterPublishStatus,
@@ -34,6 +36,7 @@ export function ManagerHomeworkWorkbench({
   hwAccessIds,
   dutyDays = [],
   rosterMonth = currentYearMonth(),
+  holidays = [],
   teacherCatalog,
   onToggleHwAccess,
   onSwitchToAdmin,
@@ -48,6 +51,7 @@ export function ManagerHomeworkWorkbench({
   hwAccessIds: ReadonlySet<string>
   dutyDays?: HomeworkDutyDay[]
   rosterMonth?: string
+  holidays?: readonly HomeworkHoliday[]
   teacherCatalog?: readonly HomeworkTeacherRow[]
   onToggleHwAccess: (teacherId: string, next: boolean) => void
   onSwitchToAdmin?: () => void
@@ -135,6 +139,13 @@ export function ManagerHomeworkWorkbench({
               {rosterPublishStatus}
             </Tag>
           </div>
+          <HomeworkDutyMonthCalendar
+            yearMonth={rosterMonth}
+            holidays={holidays}
+            dutyDays={dutyDays}
+            teachers={hwTeachers}
+            showIdleLabels={rosterPublishStatus === "已發布"}
+          />
           {dutyDays.length === 0 ? (
             <p className="text-sm text-muted-foreground">本月尚未有當值資料。</p>
           ) : (

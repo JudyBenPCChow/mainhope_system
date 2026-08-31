@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { ArrowDown, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
+import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
@@ -7,30 +7,25 @@ import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { downloadHomeworkDutyCalendarIcs } from "@/lib/homeworkDutyCalendarExport"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { MONTH_CALENDAR_WEEK_HEADERS, padMonthCalendarDays } from "@/lib/monthCalendar"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 import { BulkCustomTimeDialog } from "./availEditor"
+import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
   SUBMIT_DEADLINE_NOTE,
   academicYearMonthBounds,
   clampYearMonth,
   currentYearMonth,
-  formatAssignmentHours,
   formatAvailLabel,
-  formatCalendarAssignmentLine,
   formatYearMonthLabel,
   holidaysInYearMonth,
-  homeworkDutyRoomCards,
-  homeworkDutyRoomIdleLabel,
-  isTeacherOnDutyDay,
   listRosterMonthDays,
-  myDutyCalendarTone,
   myDutyDays,
   myDutyRoomLabel,
   shiftYearMonth,
-  teacherName,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
@@ -41,8 +36,6 @@ import {
 } from "@/lib/homeworkTutoringUi"
 import type { TeacherPageId } from "./homeworkTutoringSectionNav"
 import { SubmitStatusTag } from "./sharedUi"
-
-const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
 export function TeacherHomeworkWorkbench({
   tab,
@@ -108,12 +101,6 @@ export function TeacherHomeworkWorkbench({
 
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
 
-  const dutyByKey = useMemo(() => {
-    const map = new Map<string, HomeworkDutyDay>()
-    for (const d of dutyDays) map.set(d.date, d)
-    return map
-  }, [dutyDays])
-
   const dutyEmptyHint =
     rosterPublishStatus !== "已發布"
       ? "本月尚未有已發布的當值。"
@@ -156,12 +143,7 @@ export function TeacherHomeworkWorkbench({
     }
   }
 
-  const calendarCells = useMemo(() => {
-    const first = rosterDays[0]
-    if (!first) return []
-    const pad = first.weekdayIndex
-    return [...Array.from({ length: pad }, () => null), ...rosterDays]
-  }, [rosterDays])
+  const calendarCells = useMemo(() => padMonthCalendarDays(rosterDays), [rosterDays])
 
   const selectableKeys = useMemo(
     () => rosterDays.filter((d) => d.selectable).map((d) => d.key),
@@ -338,7 +320,7 @@ export function TeacherHomeworkWorkbench({
 
           <div className="overflow-hidden rounded-xl border border-border">
             <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-              {WEEK_HEADERS.map((h) => (
+              {MONTH_CALENDAR_WEEK_HEADERS.map((h) => (
                 <div key={h} className="px-1 py-2">
                   {h}
                 </div>
@@ -498,110 +480,14 @@ export function TeacherHomeworkWorkbench({
             </ul>
           )}
 
-          <div className="overflow-hidden rounded-xl border border-border">
-              <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-                {WEEK_HEADERS.map((h) => (
-                  <div key={h} className="px-1 py-2">
-                    {h}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7">
-                {calendarCells.map((day, idx) => {
-                  if (!day) {
-                    return (
-                      <div
-                        key={`pad-${idx}`}
-                        className="min-h-[8rem] border-b border-r border-border/60 bg-muted/10"
-                      />
-                    )
-                  }
-                  const duty = dutyByKey.get(day.key)
-                  const isMine = isTeacherOnDutyDay(duty, teacherId)
-                  const tone = myDutyCalendarTone({
-                    selectable: day.selectable,
-                    holidayLabel: day.holidayLabel,
-                    isMine,
-                  })
-                  const isWeekend = !day.selectable && !day.holidayLabel
-                  const roomCards = homeworkDutyRoomCards(duty)
-                  return (
-                    <div
-                      key={day.key}
-                      aria-label={
-                        tone === "closed"
-                          ? `${day.key} 星期${day.weekdayChar}，${day.holidayLabel ? "放假" : "週末"}`
-                          : roomCards.some((c) => c.assignments.length > 0)
-                            ? `${day.key} 星期${day.weekdayChar}，${roomCards
-                                .flatMap((c) =>
-                                  c.assignments.map((a) => formatCalendarAssignmentLine(a, teachers))
-                                )
-                                .join("、")}`
-                            : `${day.key} 星期${day.weekdayChar}，未排`
-                      }
-                      className={cn(
-                        "flex min-h-[8rem] flex-col items-stretch gap-1 border-b border-r border-border/60 p-1.5 text-left text-[10px] leading-tight sm:p-2 sm:text-xs",
-                        tone === "closed" && "bg-muted/40 text-muted-foreground",
-                        tone === "mine" && "bg-warning/15",
-                        tone === "other" && "bg-info/15"
-                      )}
-                    >
-                      <span className="text-sm font-medium tabular-nums text-foreground">
-                        {day.day}
-                      </span>
-                      {day.holidayLabel ? (
-                        <span>放假</span>
-                      ) : isWeekend ? (
-                        <span>週末</span>
-                      ) : roomCards.length > 0 ? (
-                        roomCards.map((card) => (
-                          <div
-                            key={card.room}
-                            className="relative rounded-md border border-border bg-background/90 px-1.5 pb-1.5 pt-5 shadow-sm"
-                          >
-                            <Tag
-                              size="sm"
-                              tone={card.room === "17D" ? "success" : "info"}
-                              className="absolute right-1 top-1 px-1.5 py-0 text-[9px] font-semibold leading-4"
-                            >
-                              {card.room}
-                            </Tag>
-                            {card.assignments.length > 0 ? (
-                              card.assignments.map((a, i) => (
-                                <div key={`${a.teacherId}-${a.start}-${i}`}>
-                                  {i > 0 ? (
-                                    <div
-                                      className="flex justify-start py-1 text-foreground"
-                                      aria-label="交接"
-                                    >
-                                      <ArrowDown className="h-4 w-4 stroke-[2.5]" aria-hidden />
-                                    </div>
-                                  ) : null}
-                                  <p className="pr-8 text-[1.3em] font-bold leading-tight text-foreground">
-                                    {teacherName(a.teacherId, teachers)}
-                                  </p>
-                                  <p className="tabular-nums text-foreground/55">
-                                    {formatAssignmentHours(a)}
-                                  </p>
-                                </div>
-                              ))
-                            ) : (
-                              <p className="pr-8 text-muted-foreground">
-                                {locked && duty
-                                  ? homeworkDutyRoomIdleLabel(duty, card.room)
-                                  : "—"}
-                              </p>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <span className="text-muted-foreground">未排</span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+          <HomeworkDutyMonthCalendar
+            yearMonth={rosterMonthKey}
+            holidays={monthHolidays}
+            dutyDays={dutyDays}
+            teachers={teachers}
+            highlightTeacherId={teacherId}
+            showIdleLabels={locked}
+          />
         </div>
       ) : null}
 
