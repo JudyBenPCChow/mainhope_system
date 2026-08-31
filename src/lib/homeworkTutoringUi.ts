@@ -6,8 +6,10 @@ import {
   HOMEWORK_DEFAULT_ROOM_B,
   toDutyMdKey,
 } from "@/lib/homeworkTutoringSchedules"
+import { MONTH_CALENDAR_WEEK_HEADERS } from "@/lib/monthCalendar"
 
 export { formatYearMonthLabel, HOMEWORK_DEFAULT_ROOM_A, HOMEWORK_DEFAULT_ROOM_B }
+export { MONTH_CALENDAR_WEEK_HEADERS as CALENDAR_WEEK_HEADERS }
 
 export type DayPlan = "三日" | "四日" | "五日" | "七日"
 export type Weekday = "一" | "二" | "三" | "四" | "五"
@@ -618,8 +620,6 @@ export function buildMonthDutyDays(
       return { ...found, holiday: d.holidayLabel ?? found.holiday }
     })
 }
-
-export const CALENDAR_WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
 export function formatSession(day: Pick<HomeworkDutyDay, "start" | "end">): string {
   return `${day.start}–${day.end}`

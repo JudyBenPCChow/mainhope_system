@@ -18,10 +18,9 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
-import { cn } from "@/lib/utils"
 
+import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
-  CALENDAR_WEEK_HEADERS,
   HOMEWORK_DEFAULT_ROOM_B,
   WEEKDAY_OPTIONS,
   assignedTeacherIds,
@@ -35,7 +34,6 @@ import {
   getAvailEntry,
   holidaysInYearMonth,
   isSecondRoomOpen,
-  listRosterMonthDays,
   makeAssignmentFromAvail,
   openSecondHomeworkRoom,
   openedHomeworkRoomNames,
@@ -143,18 +141,6 @@ export function RosterMonthSheet({
     () => buildMonthDutyDays(yearMonth, dutyDays, monthHolidays).map(withSyncedLegacyTeachers),
     [yearMonth, dutyDays, monthHolidays]
   )
-
-  const calendarCells = useMemo(() => {
-    const cal = listRosterMonthDays(yearMonth, monthHolidays)
-    const first = cal[0]
-    if (!first) return []
-    const byKey = new Map(monthDays.map((d) => [d.date, d]))
-    const pad = first.weekdayIndex
-    return [
-      ...Array.from({ length: pad }, () => null),
-      ...cal.map((d) => ({ roster: d, duty: byKey.get(d.key) ?? null })),
-    ]
-  }, [yearMonth, monthDays, monthHolidays])
 
   const upsertDay = (next: HomeworkDutyDay) => {
     const synced = withSyncedLegacyTeachers(next)
@@ -433,74 +419,19 @@ export function RosterMonthSheet({
         </div>
       </TabsContent>
       <TabsContent value="calendar" className="mt-0">
-        <div className="overflow-hidden rounded-xl border border-border">
-          <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-            {CALENDAR_WEEK_HEADERS.map((h) => (
-              <div key={h} className="px-1 py-2">
-                {h}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {calendarCells.map((cell, idx) => {
-              if (!cell) {
-                return (
-                  <div
-                    key={`pad-${idx}`}
-                    className="min-h-[6.5rem] border-b border-r border-border/60 bg-muted/10"
-                  />
-                )
-              }
-              const { roster, duty } = cell
-              const isWeekend = !roster.selectable && !roster.holidayLabel
-              const people = duty ? dutyAssignments(duty) : []
-              const canEdit = roster.selectable && !roster.holidayLabel
-              return (
-                <button
-                  key={roster.key}
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={() => {
-                    if (!duty) return
-                    openEdit(duty)
-                  }}
-                  className={cn(
-                    "flex min-h-[6.5rem] flex-col items-start gap-0.5 border-b border-r border-border/60 p-1.5 text-left text-[11px] leading-tight sm:p-2 sm:text-xs",
-                    (isWeekend || roster.holidayLabel) && "bg-muted/20 text-muted-foreground",
-                    canEdit && "hover:bg-muted/30"
-                  )}
-                >
-                  <span className="text-sm font-medium tabular-nums text-foreground">
-                    {roster.day}
-                  </span>
-                  {canEdit && duty ? (
-                    <span className="text-muted-foreground">
-                      約 {expectedCount(duty)} 人 · {openedHomeworkRoomNames(duty).join("／")}
-                    </span>
-                  ) : null}
-                  {roster.holidayLabel ? (
-                    <span>放假</span>
-                  ) : isWeekend ? (
-                    <span>週末</span>
-                  ) : people.length > 0 ? (
-                    people.map((a, i) => (
-                      <span
-                        key={`${a.teacherId}-${a.room}-${i}`}
-                        className="text-foreground tabular-nums"
-                      >
-                        {formatAssignmentLine(a, teachers)}
-                      </span>
-                    ))
-                  ) : (
-                    <span className={published ? "text-warning" : "text-muted-foreground"}>
-                      {published ? "暫時空缺" : "未排"}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </div>
+        <HomeworkDutyMonthCalendar
+          yearMonth={yearMonth}
+          holidays={holidays}
+          dutyDays={monthDays}
+          teachers={teachers}
+          showIdleLabels={published}
+          onSelectDutyDay={openEdit}
+          dayCaption={(d) =>
+            d.holiday ? null : (
+              <span className="text-muted-foreground">約 {expectedCount(d)} 人</span>
+            )
+          }
+        />
       </TabsContent>
 
       <Dialog

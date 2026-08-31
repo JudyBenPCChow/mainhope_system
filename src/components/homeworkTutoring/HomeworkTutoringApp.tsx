@@ -574,6 +574,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           hwAccessIds={hwAccessIds}
           dutyDays={dutyDays}
           rosterMonth={sheetMonth}
+          holidays={holidays}
           onToggleHwAccess={() => {
             void reload()
           }}
