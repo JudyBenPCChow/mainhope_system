@@ -46,6 +46,7 @@ export type CreatePrivateTutoringInput = {
  subjectName: string
  teacherId?: string | null
  pricePerLesson?: number | null
+ /** 忽略：私人班不掛學年 */
  academicYearId?: string | null
  /** 班別年級標籤（如「中一」）；省略則用學生年級 */
  gradeLabel?: string | null
@@ -367,8 +368,8 @@ export async function fetchPrivateTutoringStudents(): Promise<PrivateTutoringStu
 }
 
 /**
- * 為已註冊學生建立一對一班別並報讀。
- * 不綁課程模板、不設固定星期／時段／課室；之後按次約堂寫入 schedules。
+ * 為已註冊學生建立私人課程班別並報讀。
+ * 不綁課程模板、學年、固定星期／時段／課室；之後按次約堂寫入 schedules。
  */
 export async function createPrivateTutoringEnrollment(
  input: CreatePrivateTutoringInput
@@ -409,33 +410,6 @@ export async function createPrivateTutoringEnrollment(
   }
  }
 
- let academicYearId = input.academicYearId?.trim() || null
- let startDate: string | null = null
- let endDate: string | null = null
- if (academicYearId) {
-  const { data: yearRow, error: yearErr } = await supabase
-   .from("academic_years")
-   .select("id, start_date, end_date")
-   .eq("id", academicYearId)
-   .maybeSingle()
-  if (yearErr) throw new Error(formatUnknownError(yearErr))
-  if (!yearRow) throw new Error("找不到學年")
-  startDate = yearRow.start_date != null ? String(yearRow.start_date).slice(0, 10) : null
-  endDate = yearRow.end_date != null ? String(yearRow.end_date).slice(0, 10) : null
- } else {
-  const { data: currentYear, error: curErr } = await supabase
-   .from("academic_years")
-   .select("id, start_date, end_date")
-   .eq("is_current", true)
-   .maybeSingle()
-  if (curErr) throw new Error(formatUnknownError(curErr))
-  if (currentYear) {
-   academicYearId = String(currentYear.id)
-   startDate = currentYear.start_date != null ? String(currentYear.start_date).slice(0, 10) : null
-   endDate = currentYear.end_date != null ? String(currentYear.end_date).slice(0, 10) : null
-  }
- }
-
  const gradeFromInput = normalizeStoredClassGradeLabel(input.gradeLabel)
  const gradeArr = gradeFromInput
   ? [gradeFromInput]
@@ -459,7 +433,8 @@ export async function createPrivateTutoringEnrollment(
    subject: classSubject,
    class_kind: "private",
    course_id: null,
-   academic_year_id: academicYearId,
+   academic_year_id: null,
+   academic_year_label: null,
    section_code: null,
    course_code_full: null,
    grade: gradePayload,
@@ -470,8 +445,8 @@ export async function createPrivateTutoringEnrollment(
    classroom_id: null,
    capacity: students.length,
    price_per_lesson: price,
-   start_date: startDate,
-   end_date: endDate,
+   start_date: null,
+   end_date: null,
    status: "進行中",
    enrollment_notice: null,
   })
