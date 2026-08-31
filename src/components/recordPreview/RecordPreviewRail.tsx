@@ -37,13 +37,11 @@ export function RecordPreviewRail() {
      <div className="relative min-h-0 flex-1 overflow-y-auto">
       {preview.kind === "student" ? (
        <StudentPreviewPanel studentId={preview.id} />
+      ) : preview.kind === "class" ? (
+       <ClassPreviewPanel classId={preview.id} />
       ) : (
        <div className="px-3 py-3 pr-10">
-        {preview.kind === "class" ? (
-         <ClassPreviewPanel classId={preview.id} />
-        ) : (
-         <TeacherPreviewPanel teacherId={preview.id} />
-        )}
+        <TeacherPreviewPanel teacherId={preview.id} />
        </div>
       )}
      </div>

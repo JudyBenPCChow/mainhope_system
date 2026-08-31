@@ -55,6 +55,31 @@ export function PreviewStudentSkeleton() {
  )
 }
 
+export function PreviewClassSkeleton() {
+ return (
+  <div aria-busy="true" aria-label="載入預覽">
+   <div className="h-20 bg-gradient-to-b from-primary/20 to-primary/5" />
+   <div className="-mt-10 flex flex-col items-center px-4 pb-4">
+    <Skeleton className="h-20 w-20 rounded-2xl" />
+    <Skeleton className="mt-3 h-5 w-28 rounded-xl" />
+    <Skeleton className="mt-2 h-7 w-40" />
+    <div className="mt-2 flex gap-1.5">
+     <Skeleton className="h-5 w-14 rounded-xl" />
+     <Skeleton className="h-5 w-12 rounded-xl" />
+    </div>
+   </div>
+   <div className="space-y-3 px-3 pb-3">
+    <div className="grid grid-cols-2 gap-2">
+     <Skeleton className="h-14 rounded-xl" />
+     <Skeleton className="h-14 rounded-xl" />
+    </div>
+    <Skeleton className="h-36 rounded-xl" />
+    <Skeleton className="h-28 rounded-xl" />
+   </div>
+  </div>
+ )
+}
+
 export function PreviewCell({ label, children }: { label: string; children: React.ReactNode }) {
  return (
   <div className="rounded-lg border border-border bg-muted/30 px-2.5 py-2">
