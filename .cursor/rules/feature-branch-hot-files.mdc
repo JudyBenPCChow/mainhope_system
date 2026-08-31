@@ -1,0 +1,30 @@
+---
+description: Feature 分支唔改 BACKLOG 索引、唔夾 dist／generated／無關 ops-guide，避免 worktree 合併衝突。
+alwaysApply: true
+---
+
+# Feature 分支：熱檔唔入 PR
+
+多人／多 worktree 改同一索引會合併衝突。分題表頭「狀態」＝該題真源。
+
+## `docs/product/BACKLOG.md`
+
+- Feature 分支：**唔改、唔 stage、唔 commit** 本檔嘅「進行中／已完成」表。
+- 例外：改本檔「讀檔習慣／維護約定」可以入 PR。
+- 開工／關帳：只改 `docs/product/topics/<topic>.md` 表頭狀態（`open`／`in_progress`／`done`／`cancelled`）。
+- 索引只喺 **`main`** 更新（合 PR 後另 commit，或用戶明講「喺 main 改 BACKLOG」）。
+- Worktree 對齊：`git checkout origin/main -- docs/product/BACKLOG.md`。
+- 問「有咩未做」：優先 `git show origin/main:docs/product/BACKLOG.md` 進行中表；讀唔到就掃 `docs/product/topics/*.md` 表頭狀態 `open`／`in_progress`。
+
+## 產出檔（同樣易撞、唔手解）
+
+Feature PR **唔帶**（除非用戶明講要發佈產出）：
+
+- `dist/`
+- `docs/generated/**`（含 2627 docx／pdf）
+
+已弄髒就 `git checkout HEAD -- dist docs/generated`。
+
+## 營運指引
+
+`docs/year/2627/ops-guide.md` 及成對 docx／pdf：**只喺本題 PR** 先改。無關功能唔好夾。改咗 md 就要跟 `md-docx-sync` 重出 docx。

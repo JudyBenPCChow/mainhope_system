@@ -2,7 +2,7 @@
 
 | 想找… | 去邊 |
 | --- | --- |
-| 未做／進行中 | [`BACKLOG.md`](BACKLOG.md) |
+| 未做／進行中 | [`BACKLOG.md`](BACKLOG.md)（以 `main` 為準；feature 唔改索引表） |
 | 主題分題 | [`topics/`](topics/) |
 | 未規劃構想 | [`future/`](future/) |
 
