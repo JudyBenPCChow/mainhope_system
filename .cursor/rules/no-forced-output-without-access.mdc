@@ -1,0 +1,36 @@
+---
+description: 缺 production／必要權限就停，通知使用者；唔好為交差硬做替代產出。
+alwaysApply: true
+---
+
+# 缺權限就停，唔好硬做結果
+
+用戶要 **production 現況**（根據 SQL／查庫／即時名單／當值／匯出 PDF）而你讀唔到庫：**停、通知、等。** 唔好為咗「有嘢交」而改做腳本、假資料、空表、示範月曆。
+
+## 何時停
+
+任務依賴真源，但你冇必要通道，例如：
+
+- 無 Supabase MCP `execute_sql`（Cloud Agent 常見：`.mcp.json` 有 supabase，dynamic tools 無呢個 namespace）
+- 無 `SUPABASE_ACCESS_TOKEN`／未 `supabase login`，`db query --linked` 失敗
+- 無 `SUPABASE_SERVICE_ROLE_KEY`，anon REST 因 RLS 回空陣列（**空 ≠ 庫真係空**）
+- 無套用 migration 所需之 login／token
+
+## 要做
+
+1. **即停**，唔再開 generator、唔寫 fixture JSON、唔出「示範版」PDF／xlsx。
+2. **通知使用者**（回覆用書面語）：缺邊樣（MCP 登入／token／service role）、所以做唔到邊件交付。
+3. 等使用者補權限或改指示。唔好當「腳本以後可重跑」就交差。
+
+## 唔好做
+
+- 用假名、舊 snapshot、ops-guide 假期表充當「目前 SQL 狀態」
+- 開 PR 只交可重跑腳本，當已完成「根據 sql 生成」
+- `request-environment-setup-actions` 之後繼續做替代產出
+- 聲稱已套用 migration／已反映 production，但其實 auth 失敗
+
+## 例外
+
+用戶**明講**只要腳本／skill、今次唔使 live 資料，先可以只寫腳本。回覆仍要講明：**今次未查庫，產出唔係 production 現況。**
+
+詳見 [`docs/meta/AGENT_LESSONS.md`](../../docs/meta/AGENT_LESSONS.md)「缺權限唔好硬做產出」。

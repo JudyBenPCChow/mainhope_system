@@ -52,6 +52,8 @@ Then verify with a short `supabase db query --linked "…"`.
 
 Only after `db query`／`projects list` 明確要 token／login：請使用者在同一終端 `supabase login` 或 export `SUPABASE_ACCESS_TOKEN`，再重試。Do not claim the migration was applied.
 
+缺 token／MCP 而任務要 **production 現況**：停、通知使用者，唔好改做替代腳本或假產出。見 `.cursor/rules/no-forced-output-without-access.mdc`。
+
 ## After apply
 
 - Confirm with a short `supabase db query --linked "…"` or feature check.
