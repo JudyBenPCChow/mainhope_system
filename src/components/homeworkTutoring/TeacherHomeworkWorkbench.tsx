@@ -1,9 +1,12 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
-import { ArrowDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { ArrowDown, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import { downloadHomeworkDutyCalendarIcs } from "@/lib/homeworkDutyCalendarExport"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -117,6 +120,41 @@ export function TeacherHomeworkWorkbench({
       : duties.length === 0
         ? "本月未編入你的當值。"
         : null
+
+  const canAddToIosCalendar = rosterPublishStatus === "已發布" && duties.length > 0
+
+  const addToIosCalendar = () => {
+    if (!canAddToIosCalendar) {
+      pushBanner({
+        title: "無法加入月曆",
+        tone: "warning",
+        message: dutyEmptyHint ?? "本月沒有你的當值。",
+      })
+      return
+    }
+    try {
+      downloadHomeworkDutyCalendarIcs({
+        teacherId,
+        yearMonth: rosterMonthKey,
+        days: dutyDays,
+      })
+      pushBanner({
+        title: "已下載日曆檔",
+        tone: "success",
+        message: "請以 Safari 或「檔案」開啟 .ics，再加入日曆。再按一次可能重複。",
+      })
+    } catch (e) {
+      reportUserFacingError(e, {
+        source: "TeacherHomeworkWorkbench.addToIosCalendar",
+        userMessage: formatUnknownError(e),
+      })
+      pushBanner({
+        title: "無法加入月曆",
+        tone: "error",
+        message: formatUnknownError(e),
+      })
+    }
+  }
 
   const calendarCells = useMemo(() => {
     const first = rosterDays[0]
@@ -424,7 +462,21 @@ export function TeacherHomeworkWorkbench({
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              disabled={!canAddToIosCalendar}
+              onClick={addToIosCalendar}
+            >
+              <CalendarPlus className="h-4 w-4" aria-hidden />
+              添加至 iOS 月曆
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            只加入畫面顯示月份、屬於你的當值。下載後以 Safari 或「檔案」開啟並加入日曆。
+          </p>
 
           {dutyEmptyHint ? (
             <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
