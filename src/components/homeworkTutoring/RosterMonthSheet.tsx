@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -21,27 +22,38 @@ import { cn } from "@/lib/utils"
 
 import {
   CALENDAR_WEEK_HEADERS,
-  HOMEWORK_DEFAULT_ROOM_A,
   HOMEWORK_DEFAULT_ROOM_B,
+  WEEKDAY_OPTIONS,
+  assignedTeacherIds,
   buildMonthDutyDays,
-  dutyTeacherLabel,
+  closeSecondHomeworkRoom,
+  defaultRoomForNextAssignment,
+  dutyAssignments,
   formatAvailLabel,
-  formatSession,
+  formatAssignmentLine,
   formatYearMonthLabel,
   getAvailEntry,
   holidaysInYearMonth,
+  isSecondRoomOpen,
   listRosterMonthDays,
-  roomALabel,
+  makeAssignmentFromAvail,
+  openSecondHomeworkRoom,
+  openedHomeworkRoomNames,
   roomBLabel,
+  studentsComingOnWeekday,
   shiftYearMonth,
   substituteTeachers,
   teacherName,
   teachersAvailableOnDay,
+  withSyncedLegacyTeachers,
   type AllTeacherAvailability,
+  type HomeworkDutyAssignment,
   type HomeworkDutyDay,
   type HomeworkHoliday,
+  type HomeworkStudentRow,
   type HomeworkTeacherRow,
   type MonthRosterState,
+  type Weekday,
 } from "@/lib/homeworkTutoringUi"
 
 type SheetView = "list" | "calendar"
@@ -55,31 +67,35 @@ function clampMonth(yearMonth: string): string {
   return yearMonth
 }
 
-function TeacherPick({
-  label,
-  value,
-  options,
-  emptyLabel,
-  onChange,
+function assignmentInvalid(a: HomeworkDutyAssignment): boolean {
+  return !a.start || !a.end || a.start >= a.end
+}
+
+function DutyPeopleLines({
+  day,
+  teachers,
+  published,
 }: {
-  label: string
-  value: string
-  options: { id: string; name: string }[]
-  emptyLabel: string
-  onChange: (id: string) => void
+  day: HomeworkDutyDay
+  teachers: readonly HomeworkTeacherRow[]
+  published: boolean
 }) {
+  const list = dutyAssignments(day)
+  if (list.length === 0) {
+    return (
+      <span className={published ? "text-warning" : "text-muted-foreground"}>
+        {published ? "暫時空缺" : "—"}
+      </span>
+    )
+  }
   return (
-    <label className="grid gap-1 text-xs text-muted-foreground">
-      <span>{label}</span>
-      <Select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{emptyLabel}</option>
-        {options.map((t) => (
-          <option key={t.id} value={t.id}>
-            {t.name}
-          </option>
-        ))}
-      </Select>
-    </label>
+    <ul className="space-y-0.5">
+      {list.map((a, i) => (
+        <li key={`${a.teacherId}-${a.room}-${i}`} className="tabular-nums">
+          {formatAssignmentLine(a, teachers)}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -93,6 +109,7 @@ export function RosterMonthSheet({
   avail,
   teachers = [],
   holidays = [],
+  students = [],
   onPublish,
 }: {
   yearMonth: string
@@ -104,6 +121,7 @@ export function RosterMonthSheet({
   avail: AllTeacherAvailability
   teachers?: readonly HomeworkTeacherRow[]
   holidays?: HomeworkHoliday[]
+  students?: readonly HomeworkStudentRow[]
   /** 確定編更／已編更後改派：持久化＋寫 schedules 佔室 */
   onPublish?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
 }) {
@@ -111,10 +129,10 @@ export function RosterMonthSheet({
   const { confirmDialog } = useAppConfirm()
   const [view, setView] = useState<SheetView>("list")
   const [editDay, setEditDay] = useState<HomeworkDutyDay | null>(null)
+  const [addTeacherId, setAddTeacherId] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const published = (monthStatus[yearMonth] ?? "未編更") === "已編更"
-  const emptyLabel = published ? "暫時空缺" : "未編"
 
   const monthHolidays = useMemo(
     () => holidaysInYearMonth(yearMonth, holidays),
@@ -122,12 +140,9 @@ export function RosterMonthSheet({
   )
 
   const monthDays = useMemo(
-    () => buildMonthDutyDays(yearMonth, dutyDays, monthHolidays),
+    () => buildMonthDutyDays(yearMonth, dutyDays, monthHolidays).map(withSyncedLegacyTeachers),
     [yearMonth, dutyDays, monthHolidays]
   )
-
-  const headerRoomA = roomALabel(monthDays.find((d) => !d.holiday) ?? null)
-  const headerRoomB = roomBLabel(monthDays.find((d) => !d.holiday) ?? null)
 
   const calendarCells = useMemo(() => {
     const cal = listRosterMonthDays(yearMonth, monthHolidays)
@@ -142,15 +157,38 @@ export function RosterMonthSheet({
   }, [yearMonth, monthDays, monthHolidays])
 
   const upsertDay = (next: HomeworkDutyDay) => {
+    const synced = withSyncedLegacyTeachers(next)
     onDutyDaysChange((prev) =>
-      prev.some((d) => d.date === next.date)
-        ? prev.map((d) => (d.date === next.date ? next : d))
-        : [...prev, next]
+      prev.some((d) => d.date === synced.date)
+        ? prev.map((d) => (d.date === synced.date ? synced : d))
+        : [...prev, synced]
     )
   }
 
   const goMonth = (delta: number) => {
     onYearMonthChange(clampMonth(shiftYearMonth(yearMonth, delta)))
+  }
+
+  const weekdayOf = (day: HomeworkDutyDay): Weekday | null =>
+    WEEKDAY_OPTIONS.includes(day.weekday as Weekday) ? (day.weekday as Weekday) : null
+
+  const expectedCount = (day: HomeworkDutyDay): number =>
+    studentsComingOnWeekday([...students], weekdayOf(day)).length
+
+  const openSecondAllWeekdays = () => {
+    const monthNum = Number(yearMonth.split("-")[1])
+    const updated = monthDays.map((d) =>
+      d.holiday || isSecondRoomOpen(d) ? d : openSecondHomeworkRoom(d)
+    )
+    onDutyDaysChange((prev) => {
+      const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
+      return [...others, ...updated]
+    })
+    pushBanner({
+      title: "已加開第二課室",
+      tone: "success",
+      message: `本月平日已加開 ${HOMEWORK_DEFAULT_ROOM_B}。請再派導師，然後儲存以寫入佔室。`,
+    })
   }
 
   const saveMonth = async () => {
@@ -209,13 +247,51 @@ export function RosterMonthSheet({
     }
   }
 
-  const pickOptions = (day: HomeworkDutyDay) => {
+  const addOptions = (day: HomeworkDutyDay) => {
+    const assigned = new Set(assignedTeacherIds(day))
+    return teachersAvailableOnDay(avail, day.date, teachers).filter((t) => !assigned.has(t.id))
+  }
+
+  const reportedLine = (day: HomeworkDutyDay) => {
     const submitted = teachersAvailableOnDay(avail, day.date, teachers)
-    const extra = [day.secondaryTeacherId, day.primaryTeacherId].filter(
-      (id): id is string => Boolean(id) && !submitted.some((t) => t.id === id)
-    )
-    const extraTeachers = extra.map((id) => ({ id, name: teacherName(id, teachers) }))
-    return [...submitted.map((t) => ({ id: t.id, name: t.name })), ...extraTeachers]
+    if (submitted.length === 0) return published ? "—" : "當日未有報更"
+    return submitted
+      .map((t) => `${t.name}（${formatAvailLabel(getAvailEntry(avail, t.id, day.date))}）`)
+      .join("、")
+  }
+
+  const openEdit = (day: HomeworkDutyDay) => {
+    setEditDay(withSyncedLegacyTeachers(day))
+    setAddTeacherId("")
+  }
+
+  const editAssignments = editDay ? dutyAssignments(editDay) : []
+  const editInvalid = editAssignments.some(assignmentInvalid)
+  const roomChoices = editDay ? openedHomeworkRoomNames(editDay) : []
+
+  const patchEditAssignment = (index: number, patch: Partial<HomeworkDutyAssignment>) => {
+    if (!editDay) return
+    const next = dutyAssignments(editDay).map((a, i) => (i === index ? { ...a, ...patch } : a))
+    setEditDay({ ...editDay, assignments: next })
+  }
+
+  const removeEditAssignment = (index: number) => {
+    if (!editDay) return
+    setEditDay({
+      ...editDay,
+      assignments: dutyAssignments(editDay).filter((_, i) => i !== index),
+    })
+  }
+
+  const addEditAssignment = (teacherId: string) => {
+    if (!editDay || !teacherId) return
+    const entry = getAvailEntry(avail, teacherId, editDay.date)
+    const room = defaultRoomForNextAssignment(editDay)
+    setEditDay({
+      ...editDay,
+      assignments: [...dutyAssignments(editDay), makeAssignmentFromAvail(teacherId, entry, room)],
+    })
+    setAddTeacherId("")
   }
 
   return (
@@ -261,8 +337,8 @@ export function RosterMonthSheet({
 
       <p className="text-xs text-muted-foreground">
         {published
-          ? "已確定的當值清單。可頂替＝當日有報更但未編入的同事。改派後請按「儲存變更」寫入課室佔用。單一場次兩室；人少可只派一室。"
-          : "未編更：只顯示當日已報更的同事。儲存後即確定本月編更。每室可派一位老師。"}
+          ? "已確定的當值清單。預設一間課室（17D）；人數多或當日需要先加開第二間。改派後請按「儲存變更」寫入課室佔用。"
+          : "未編更：預設一間課室（17D）。儲存後即確定本月編更，並只佔已開的房。"}
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -274,6 +350,9 @@ export function RosterMonthSheet({
           onClick={() => void saveMonth()}
         >
           {published ? "儲存變更" : "儲存"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={openSecondAllWeekdays}>
+          本月平日加開 {HOMEWORK_DEFAULT_ROOM_B}
         </Button>
       </div>
       {saveError ? (
@@ -291,24 +370,16 @@ export function RosterMonthSheet({
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>
                 <th className="px-3 py-2 font-medium">日期</th>
-                <th className="px-3 py-2 font-medium">班時間</th>
-                <th className="px-3 py-2 font-medium">{headerRoomA}</th>
-                <th className="px-3 py-2 font-medium">{headerRoomB}</th>
+                <th className="px-3 py-2 font-medium">約到校</th>
+                <th className="px-3 py-2 font-medium">課室</th>
+                <th className="px-3 py-2 font-medium">當值</th>
                 <th className="px-3 py-2 font-medium">{published ? "可頂替" : "已報更"}</th>
                 <th className="px-3 py-2 font-medium">操作</th>
               </tr>
             </thead>
             <tbody>
               {monthDays.map((d) => {
-                const submitted = teachersAvailableOnDay(avail, d.date, teachers)
-                const subs = substituteTeachers(
-                  avail,
-                  d.date,
-                  [d.secondaryTeacherId, d.primaryTeacherId],
-                  teachers
-                )
-                const secVacant = published && !d.holiday && !d.secondaryTeacherId
-                const priVacant = published && !d.holiday && !d.primaryTeacherId
+                const subs = substituteTeachers(avail, d.date, assignedTeacherIds(d), teachers)
                 return (
                   <tr key={d.date} className="border-t border-border">
                     <td className="px-3 py-2.5 tabular-nums">
@@ -319,75 +390,28 @@ export function RosterMonthSheet({
                         </Tag>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums">
-                      {d.holiday ? "—" : formatSession(d)}
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {d.holiday ? "—" : `${expectedCount(d)} 人`}
                     </td>
                     <td className="px-3 py-2.5">
-                      {d.holiday ? (
-                        "—"
-                      ) : published ? (
-                        <span className={secVacant ? "text-warning" : undefined}>
-                          {dutyTeacherLabel(d.secondaryTeacherId, true, teachers)}
-                        </span>
-                      ) : (
-                        <Select
-                          value={d.secondaryTeacherId ?? ""}
-                          onChange={(e) =>
-                            upsertDay({
-                              ...d,
-                              secondaryRoom: d.secondaryRoom ?? HOMEWORK_DEFAULT_ROOM_A,
-                              secondaryTeacherId: e.target.value || undefined,
-                            })
-                          }
-                          className="w-28"
-                        >
-                          <option value="">{emptyLabel}</option>
-                          {pickOptions(d).map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
+                      {d.holiday ? "—" : openedHomeworkRoomNames(d).join("／")}
                     </td>
                     <td className="px-3 py-2.5">
-                      {d.holiday ? (
-                        "—"
-                      ) : published ? (
-                        <span className={priVacant ? "text-warning" : undefined}>
-                          {dutyTeacherLabel(d.primaryTeacherId, true, teachers)}
-                        </span>
-                      ) : (
-                        <Select
-                          value={d.primaryTeacherId ?? ""}
-                          onChange={(e) =>
-                            upsertDay({
-                              ...d,
-                              primaryRoom: d.primaryRoom ?? HOMEWORK_DEFAULT_ROOM_B,
-                              primaryTeacherId: e.target.value || undefined,
-                            })
-                          }
-                          className="w-28"
-                        >
-                          <option value="">{emptyLabel}</option>
-                          {pickOptions(d).map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </Select>
-                      )}
+                      {d.holiday ? "—" : <DutyPeopleLines day={d} teachers={teachers} published={published} />}
                     </td>
                     <td className="px-3 py-2.5 text-muted-foreground">
                       {d.holiday
                         ? "—"
                         : published
                           ? subs.length > 0
-                            ? subs.map((t) => t.name).join("、")
+                            ? subs
+                                .map(
+                                  (t) =>
+                                    `${t.name}（${formatAvailLabel(getAvailEntry(avail, t.id, d.date))}）`
+                                )
+                                .join("、")
                             : "—"
-                          : submitted.length > 0
-                            ? submitted.map((t) => t.name).join("、")
-                            : "當日未有報更"}
+                          : reportedLine(d)}
                     </td>
                     <td className="px-3 py-2.5">
                       <Button
@@ -395,7 +419,7 @@ export function RosterMonthSheet({
                         size="sm"
                         variant="ghost"
                         disabled={Boolean(d.holiday)}
-                        onClick={() => setEditDay({ ...d })}
+                        onClick={() => openEdit(d)}
                       >
                         改
                       </Button>
@@ -428,18 +452,8 @@ export function RosterMonthSheet({
               }
               const { roster, duty } = cell
               const isWeekend = !roster.selectable && !roster.holidayLabel
-              const submitted = teachersAvailableOnDay(avail, roster.key, teachers)
-              const subs = duty
-                ? substituteTeachers(
-                    avail,
-                    roster.key,
-                    [duty.secondaryTeacherId, duty.primaryTeacherId],
-                    teachers
-                  )
-                : submitted
+              const people = duty ? dutyAssignments(duty) : []
               const canEdit = roster.selectable && !roster.holidayLabel
-              const a = roomALabel(duty)
-              const b = roomBLabel(duty)
               return (
                 <button
                   key={roster.key}
@@ -447,7 +461,7 @@ export function RosterMonthSheet({
                   disabled={!canEdit}
                   onClick={() => {
                     if (!duty) return
-                    setEditDay({ ...duty })
+                    openEdit(duty)
                   }}
                   className={cn(
                     "flex min-h-[6.5rem] flex-col items-start gap-0.5 border-b border-r border-border/60 p-1.5 text-left text-[11px] leading-tight sm:p-2 sm:text-xs",
@@ -458,44 +472,28 @@ export function RosterMonthSheet({
                   <span className="text-sm font-medium tabular-nums text-foreground">
                     {roster.day}
                   </span>
+                  {canEdit && duty ? (
+                    <span className="text-muted-foreground">
+                      約 {expectedCount(duty)} 人 · {openedHomeworkRoomNames(duty).join("／")}
+                    </span>
+                  ) : null}
                   {roster.holidayLabel ? (
                     <span>放假</span>
                   ) : isWeekend ? (
                     <span>週末</span>
-                  ) : published ? (
-                    <>
+                  ) : people.length > 0 ? (
+                    people.map((a, i) => (
                       <span
-                        className={
-                          duty?.secondaryTeacherId ? "text-foreground" : "text-warning"
-                        }
+                        key={`${a.teacherId}-${a.room}-${i}`}
+                        className="text-foreground tabular-nums"
                       >
-                        {a} {dutyTeacherLabel(duty?.secondaryTeacherId, true, teachers)}
+                        {formatAssignmentLine(a, teachers)}
                       </span>
-                      <span
-                        className={duty?.primaryTeacherId ? "text-foreground" : "text-warning"}
-                      >
-                        {b} {dutyTeacherLabel(duty?.primaryTeacherId, true, teachers)}
-                      </span>
-                      {subs.length > 0 ? (
-                        <span className="text-muted-foreground">
-                          頂 {subs.map((t) => t.name).join("、")}
-                        </span>
-                      ) : null}
-                    </>
+                    ))
                   ) : (
-                    <>
-                      <span className="text-foreground">
-                        {a} {dutyTeacherLabel(duty?.secondaryTeacherId, false, teachers)}
-                      </span>
-                      <span className="text-foreground">
-                        {b} {dutyTeacherLabel(duty?.primaryTeacherId, false, teachers)}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {submitted.length > 0
-                          ? `報 ${submitted.map((t) => t.name).join("、")}`
-                          : "未有報更"}
-                      </span>
-                    </>
+                    <span className={published ? "text-warning" : "text-muted-foreground"}>
+                      {published ? "暫時空缺" : "未排"}
+                    </span>
                   )}
                 </button>
               )
@@ -504,64 +502,152 @@ export function RosterMonthSheet({
         </div>
       </TabsContent>
 
-      <Dialog open={Boolean(editDay)} onOpenChange={(o) => !o && setEditDay(null)}>
-        <DialogContent className="max-w-md">
+      <Dialog
+        open={Boolean(editDay)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setEditDay(null)
+            setAddTeacherId("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>編輯當值 — {editDay?.date}</DialogTitle>
             {editDay ? (
               <p className="text-sm text-muted-foreground">
-                {formatSession(editDay)}
-                {published ? " · 可改派已報更同事頂替" : " · 只可選當日已報更同事"}
+                時段默認跟報更，可改。可排多於一位；唔使全日都有人。預設一間課室；人數多先加開第二間。
               </p>
             ) : null}
           </DialogHeader>
           {editDay ? (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                {teachersAvailableOnDay(avail, editDay.date, teachers).length > 0
-                  ? `當日已報更：${teachersAvailableOnDay(avail, editDay.date, teachers)
-                      .map((t) => `${t.name}（${formatAvailLabel(getAvailEntry(avail, t.id, editDay.date))}）`)
-                      .join("、")}`
-                  : "當日未有報更"}
+              <p className="text-xs text-muted-foreground">{reportedLine(editDay)}</p>
+              <p className="text-sm">
+                當日約 {expectedCount(editDay)} 人到校
+                <span className="text-muted-foreground">（跟慣常到校星期；唔會自動加開）</span>
               </p>
-              <TeacherPick
-                label={roomALabel(editDay)}
-                value={editDay.secondaryTeacherId ?? ""}
-                options={pickOptions(editDay)}
-                emptyLabel={emptyLabel}
-                onChange={(id) =>
-                  setEditDay({
-                    ...editDay,
-                    secondaryRoom: editDay.secondaryRoom ?? HOMEWORK_DEFAULT_ROOM_A,
-                    secondaryTeacherId: id || undefined,
-                  })
-                }
-              />
-              <TeacherPick
-                label={roomBLabel(editDay)}
-                value={editDay.primaryTeacherId ?? ""}
-                options={pickOptions(editDay)}
-                emptyLabel={emptyLabel}
-                onChange={(id) =>
-                  setEditDay({
-                    ...editDay,
-                    primaryRoom: editDay.primaryRoom ?? HOMEWORK_DEFAULT_ROOM_B,
-                    primaryTeacherId: id || undefined,
-                  })
-                }
-              />
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  已開：{openedHomeworkRoomNames(editDay).join("／")}
+                </span>
+                {isSecondRoomOpen(editDay) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditDay(closeSecondHomeworkRoom(editDay))}
+                  >
+                    收起 {roomBLabel(editDay)}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditDay(openSecondHomeworkRoom(editDay))}
+                  >
+                    加開 {HOMEWORK_DEFAULT_ROOM_B}
+                  </Button>
+                )}
+              </div>
+              {editAssignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">尚未排任何人。</p>
+              ) : (
+                <ul className="space-y-3">
+                  {editAssignments.map((a, i) => (
+                    <li
+                      key={`${a.teacherId}-${a.room}-${i}`}
+                      className="rounded-lg border border-border p-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-medium">{teacherName(a.teacherId, teachers)}</p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeEditAssignment(i)}
+                        >
+                          移除
+                        </Button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        <label className="grid gap-1 text-xs text-muted-foreground">
+                          <span>開始</span>
+                          <Input
+                            type="time"
+                            value={a.start}
+                            onChange={(e) => patchEditAssignment(i, { start: e.target.value })}
+                            className="h-11 tabular-nums"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-muted-foreground">
+                          <span>結束</span>
+                          <Input
+                            type="time"
+                            value={a.end}
+                            onChange={(e) => patchEditAssignment(i, { end: e.target.value })}
+                            className="h-11 tabular-nums"
+                          />
+                        </label>
+                        <label className="grid gap-1 text-xs text-muted-foreground">
+                          <span>課室</span>
+                          <Select
+                            value={a.room}
+                            onChange={(e) => patchEditAssignment(i, { room: e.target.value })}
+                          >
+                            {roomChoices.map((room) => (
+                              <option key={room} value={room}>
+                                {room}
+                              </option>
+                            ))}
+                          </Select>
+                        </label>
+                      </div>
+                      {assignmentInvalid(a) ? (
+                        <p role="alert" className="mt-2 text-xs text-destructive">
+                          結束時間須晚於開始時間。
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <label className="grid gap-1 text-xs text-muted-foreground">
+                <span>加入老師</span>
+                <Select
+                  value={addTeacherId}
+                  onChange={(e) => addEditAssignment(e.target.value)}
+                >
+                  <option value="">選擇已報更同事</option>
+                  {addOptions(editDay).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}（{formatAvailLabel(getAvailEntry(avail, t.id, editDay.date))}）
+                    </option>
+                  ))}
+                </Select>
+              </label>
             </div>
           ) : null}
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditDay(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setEditDay(null)
+                setAddTeacherId("")
+              }}
+            >
               取消
             </Button>
             <Button
               type="button"
+              disabled={editInvalid}
               onClick={() => {
-                if (!editDay) return
+                if (!editDay || editInvalid) return
                 upsertDay(editDay)
                 setEditDay(null)
+                setAddTeacherId("")
                 pushBanner({
                   title: "已更新本頁",
                   tone: "success",

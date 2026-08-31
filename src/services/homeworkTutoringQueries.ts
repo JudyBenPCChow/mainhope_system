@@ -14,7 +14,12 @@ import {
   mdKeyToIso,
   monthDateRange,
 } from "@/lib/homeworkTutoringSchedules"
-import type { AvailEntry } from "@/lib/homeworkTutoringUi"
+import {
+  applyHomeworkOccupancyClassroomMoveToDuty,
+  type AvailEntry,
+  type HomeworkDutyAssignment,
+  type HomeworkDutyDay,
+} from "@/lib/homeworkTutoringUi"
 import { fetchClassrooms } from "@/services/classroomQueries"
 import { insertScheduleRow } from "@/services/scheduleWriteQueries"
 
@@ -80,6 +85,7 @@ export type HomeworkDutyDayRow = {
   primaryRoom: string | null
   secondaryTeacherId?: string
   primaryTeacherId?: string
+  assignments: HomeworkDutyAssignment[]
 }
 
 export type HomeworkRosterMonth = {
@@ -110,9 +116,27 @@ function asWeekdays(raw: unknown): HomeworkWeekday[] {
   )
 }
 
-function timeToHm(raw: string | null | undefined): string {
+function timeToHm(raw: string | null | undefined, fallback = "15:30"): string {
   const s = String(raw ?? "").slice(0, 5)
-  return /^\d{2}:\d{2}$/.test(s) ? s : "15:30"
+  return /^\d{2}:\d{2}$/.test(s) ? s : fallback
+}
+
+function mapAssignmentRows(raw: unknown): HomeworkDutyAssignment[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((item) => {
+      if (!item || typeof item !== "object") return null
+      const r = item as Record<string, unknown>
+      const teacherId = r.teacher_id != null ? String(r.teacher_id) : ""
+      if (!teacherId) return null
+      return {
+        teacherId,
+        start: timeToHm(r.session_start != null ? String(r.session_start) : null, "15:30"),
+        end: timeToHm(r.session_end != null ? String(r.session_end) : null, "19:30"),
+        room: String(r.room ?? "").trim() || "17D",
+      } satisfies HomeworkDutyAssignment
+    })
+    .filter((a): a is HomeworkDutyAssignment => a != null)
 }
 
 function parseAvailEntries(raw: unknown): Record<string, AvailEntry> {
@@ -425,7 +449,7 @@ export async function fetchHomeworkRosterMonth(opts: {
   const { data: days, error: daysErr } = await supabase
     .from("homework_tutoring_duty_days")
     .select(
-      "id, duty_date, session_start, session_end, holiday_label, secondary_room, primary_room, secondary_teacher_id, primary_teacher_id"
+      "id, duty_date, session_start, session_end, holiday_label, secondary_room, primary_room, secondary_teacher_id, primary_teacher_id, homework_tutoring_duty_assignments ( teacher_id, session_start, session_end, room, sort_order )"
     )
     .eq("roster_month_id", rosterId)
     .order("duty_date", { ascending: true })
@@ -439,19 +463,52 @@ export async function fetchHomeworkRosterMonth(opts: {
       const date = String(r.duty_date ?? "").slice(0, 10)
       const d = new Date(`${date}T12:00:00`)
       const weekday = WEEKDAY_CHARS[d.getDay()] ?? ""
+      const start = timeToHm(r.session_start != null ? String(r.session_start) : null)
+      const end = timeToHm(r.session_end != null ? String(r.session_end) : null, "19:30")
+      const secondaryTeacherId =
+        r.secondary_teacher_id != null ? String(r.secondary_teacher_id) : undefined
+      const primaryTeacherId =
+        r.primary_teacher_id != null ? String(r.primary_teacher_id) : undefined
+      const nested = mapAssignmentRows(r.homework_tutoring_duty_assignments)
+      const secondaryRoom = r.secondary_room != null ? String(r.secondary_room) : null
+      const primaryRoom = r.primary_room != null ? String(r.primary_room) : null
+      const assignments =
+        nested.length > 0
+          ? nested
+          : [
+              ...(secondaryTeacherId
+                ? [
+                    {
+                      teacherId: secondaryTeacherId,
+                      start,
+                      end,
+                      room: secondaryRoom?.trim() || "17D",
+                    } satisfies HomeworkDutyAssignment,
+                  ]
+                : []),
+              ...(primaryTeacherId
+                ? [
+                    {
+                      teacherId: primaryTeacherId,
+                      start,
+                      end,
+                      room: primaryRoom?.trim() || "17E",
+                    } satisfies HomeworkDutyAssignment,
+                  ]
+                : []),
+            ]
       return {
         id: String(r.id),
         date,
         weekday,
         holiday: r.holiday_label != null ? String(r.holiday_label) : undefined,
-        start: timeToHm(r.session_start != null ? String(r.session_start) : null),
-        end: timeToHm(r.session_end != null ? String(r.session_end) : "19:30"),
-        secondaryRoom: r.secondary_room != null ? String(r.secondary_room) : null,
-        primaryRoom: r.primary_room != null ? String(r.primary_room) : null,
-        secondaryTeacherId:
-          r.secondary_teacher_id != null ? String(r.secondary_teacher_id) : undefined,
-        primaryTeacherId:
-          r.primary_teacher_id != null ? String(r.primary_teacher_id) : undefined,
+        start,
+        end,
+        secondaryRoom,
+        primaryRoom,
+        secondaryTeacherId,
+        primaryTeacherId,
+        assignments,
       }
     }),
   }
@@ -483,22 +540,52 @@ export async function upsertHomeworkDutyDay(input: {
   primaryRoom?: string | null
   secondaryTeacherId?: string | null
   primaryTeacherId?: string | null
-}): Promise<void> {
+}): Promise<string> {
   if (!supabase) throw new Error("Supabase 未設定")
-  const { error } = await supabase.from("homework_tutoring_duty_days").upsert(
-    {
-      roster_month_id: input.rosterMonthId,
-      duty_date: input.date.slice(0, 10),
-      session_start: input.start,
-      session_end: input.end,
-      holiday_label: input.holidayLabel?.trim() || null,
-      secondary_room: input.secondaryRoom ?? null,
-      primary_room: input.primaryRoom ?? null,
-      secondary_teacher_id: input.secondaryTeacherId || null,
-      primary_teacher_id: input.primaryTeacherId || null,
+  const { data, error } = await supabase
+    .from("homework_tutoring_duty_days")
+    .upsert(
+      {
+        roster_month_id: input.rosterMonthId,
+        duty_date: input.date.slice(0, 10),
+        session_start: input.start,
+        session_end: input.end,
+        holiday_label: input.holidayLabel?.trim() || null,
+        secondary_room: input.secondaryRoom ?? null,
+        primary_room: input.primaryRoom ?? null,
+        secondary_teacher_id: input.secondaryTeacherId || null,
+        primary_teacher_id: input.primaryTeacherId || null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "roster_month_id,duty_date" }
+    )
+    .select("id")
+    .single()
+  if (error) throw error
+  return String((data as { id: string }).id)
+}
+
+export async function replaceHomeworkDutyAssignments(
+  dutyDayId: string,
+  assignments: HomeworkDutyAssignment[]
+): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const { error: delErr } = await supabase
+    .from("homework_tutoring_duty_assignments")
+    .delete()
+    .eq("duty_day_id", dutyDayId)
+  if (delErr) throw delErr
+  if (assignments.length === 0) return
+  const { error } = await supabase.from("homework_tutoring_duty_assignments").insert(
+    assignments.map((a, index) => ({
+      duty_day_id: dutyDayId,
+      teacher_id: a.teacherId,
+      session_start: a.start,
+      session_end: a.end,
+      room: a.room,
+      sort_order: index,
       updated_at: new Date().toISOString(),
-    },
-    { onConflict: "roster_month_id,duty_date" }
+    }))
   )
   if (error) throw error
 }
@@ -513,6 +600,7 @@ export type PublishHomeworkDutyDayInput = {
   primaryRoom: string | null
   secondaryTeacherId?: string
   primaryTeacherId?: string
+  assignments: HomeworkDutyAssignment[]
 }
 
 /** 清除該月功輔佔室 schedules（remarks 標記） */
@@ -533,7 +621,7 @@ export async function clearHomeworkOccupancySchedules(
   if (error) throw error
 }
 
-/** 依當值日寫入 schedules 佔室（15:15 起；兩室） */
+/** 依當值日寫入 schedules 佔室（15:15 起；只寫已開嘅房） */
 export async function syncHomeworkOccupancySchedules(opts: {
   classId: string
   yearMonth: string
@@ -567,6 +655,88 @@ export async function syncHomeworkOccupancySchedules(opts: {
 }
 
 /**
+ * 排程管理改功輔佔室課室後，寫返該日編更房號。找不到當值日則只當排程已改。
+ */
+export async function applyHomeworkOccupancyClassroomMove(opts: {
+  classId: string
+  scheduledDate: string
+  fromClassroomId: string | null
+  toClassroomId: string | null
+}): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  if (!opts.toClassroomId) throw new Error("功輔佔室必須指定課室")
+  if (opts.fromClassroomId === opts.toClassroomId) return
+
+  const rooms = await fetchClassrooms()
+  const nameById = new Map(rooms.map((r) => [r.id, r.name.trim()]))
+  const fromName = opts.fromClassroomId ? nameById.get(opts.fromClassroomId) ?? "" : ""
+  const toName = nameById.get(opts.toClassroomId)
+  if (!toName) throw new Error("找不到目標課室")
+
+  const month = monthFirstDay(opts.scheduledDate.slice(0, 7))
+  const { data: roster, error: rosterErr } = await supabase
+    .from("homework_tutoring_roster_months")
+    .select("id")
+    .eq("class_id", opts.classId)
+    .eq("roster_month", month)
+    .maybeSingle()
+  if (rosterErr) throw rosterErr
+  if (!roster) return
+
+  const rosterId = String((roster as { id: string }).id)
+  const { data: rawDay, error: dayErr } = await supabase
+    .from("homework_tutoring_duty_days")
+    .select(
+      "id, duty_date, session_start, session_end, holiday_label, secondary_room, primary_room, secondary_teacher_id, primary_teacher_id, homework_tutoring_duty_assignments ( teacher_id, session_start, session_end, room, sort_order )"
+    )
+    .eq("roster_month_id", rosterId)
+    .eq("duty_date", opts.scheduledDate.slice(0, 10))
+    .maybeSingle()
+  if (dayErr) throw dayErr
+  if (!rawDay) return
+
+  const r = rawDay as Record<string, unknown>
+  const date = String(r.duty_date ?? "").slice(0, 10)
+  const parsed = new Date(`${date}T12:00:00`)
+  const weekday = WEEKDAY_CHARS[parsed.getDay()] ?? ""
+  const start = timeToHm(r.session_start != null ? String(r.session_start) : null)
+  const end = timeToHm(r.session_end != null ? String(r.session_end) : null, "19:30")
+  const mm = Number(date.slice(5, 7))
+  const dd = Number(date.slice(8, 10))
+  const uiDay: HomeworkDutyDay = {
+    date: `${mm}/${dd}`,
+    weekday,
+    holiday: r.holiday_label != null ? String(r.holiday_label) : undefined,
+    start,
+    end,
+    secondaryRoom: r.secondary_room != null ? String(r.secondary_room) : null,
+    primaryRoom: r.primary_room != null ? String(r.primary_room) : null,
+    secondaryTeacherId:
+      r.secondary_teacher_id != null ? String(r.secondary_teacher_id) : undefined,
+    primaryTeacherId: r.primary_teacher_id != null ? String(r.primary_teacher_id) : undefined,
+    assignments: mapAssignmentRows(r.homework_tutoring_duty_assignments),
+  }
+  const patched = applyHomeworkOccupancyClassroomMoveToDuty(
+    uiDay,
+    fromName || uiDay.secondaryRoom?.trim() || "17D",
+    toName
+  )
+  const dutyDayId = String(r.id)
+  const { error: updErr } = await supabase
+    .from("homework_tutoring_duty_days")
+    .update({
+      secondary_room: patched.secondaryRoom,
+      primary_room: patched.primaryRoom,
+      secondary_teacher_id: patched.secondaryTeacherId || null,
+      primary_teacher_id: patched.primaryTeacherId || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", dutyDayId)
+  if (updErr) throw updErr
+  await replaceHomeworkDutyAssignments(dutyDayId, patched.holiday ? [] : patched.assignments)
+}
+
+/**
  * 確定本月編更：持久化當值日 → 標記已編更 → 寫入 schedules 佔室。
  */
 export async function publishHomeworkRosterMonth(opts: {
@@ -584,7 +754,7 @@ export async function publishHomeworkRosterMonth(opts: {
   for (const day of opts.dutyDays) {
     const iso = mdKeyToIso(opts.yearMonth, day.date)
     if (!iso) continue
-    await upsertHomeworkDutyDay({
+    const dutyDayId = await upsertHomeworkDutyDay({
       rosterMonthId: roster.id,
       date: iso,
       start: day.start,
@@ -595,6 +765,7 @@ export async function publishHomeworkRosterMonth(opts: {
       secondaryTeacherId: day.secondaryTeacherId ?? null,
       primaryTeacherId: day.primaryTeacherId ?? null,
     })
+    await replaceHomeworkDutyAssignments(dutyDayId, day.holiday ? [] : day.assignments)
   }
 
   await setHomeworkRosterMonthStatus(roster.id, "已編更")
