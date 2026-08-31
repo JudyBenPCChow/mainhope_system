@@ -327,6 +327,29 @@ export function shiftYearMonth(yearMonth: string, delta: number): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 }
 
+/** 學年 label → 可揀月份範圍。常規 9–6；暑期 7–8。 */
+export function academicYearMonthBounds(label: string): { min: string; max: string } {
+  const t = label.trim()
+  const sm = t.match(/^(\d{2})SM$/i)
+  if (sm) {
+    const year = 2000 + Number(sm[1])
+    return { min: `${year}-07`, max: `${year}-08` }
+  }
+  const regular = t.match(/^(\d{2})(\d{2})$/)
+  if (regular) {
+    const startY = 2000 + Number(regular[1])
+    const endY = 2000 + Number(regular[2])
+    return { min: `${startY}-09`, max: `${endY}-06` }
+  }
+  return { min: "2026-09", max: "2027-06" }
+}
+
+export function clampYearMonth(yearMonth: string, min: string, max: string): string {
+  if (yearMonth < min) return min
+  if (yearMonth > max) return max
+  return yearMonth
+}
+
 export function teachersAvailableOnDay(
   avail: AllTeacherAvailability,
   dateKey: string,
@@ -429,8 +452,63 @@ export function withSyncedLegacyTeachers(day: HomeworkDutyDay): HomeworkDutyDay 
     ...day,
     assignments,
     secondaryTeacherId: firstAssignmentTeacherForRoom({ ...day, assignments }, roomALabel(day)),
-    primaryTeacherId: firstAssignmentTeacherForRoom({ ...day, assignments }, roomBLabel(day)),
+    primaryTeacherId: isSecondRoomOpen(day)
+      ? firstAssignmentTeacherForRoom({ ...day, assignments }, roomBLabel(day))
+      : undefined,
   }
+}
+
+/** 排程管理改功輔佔室課室之後，寫返當日編更房號同當值 assignment.room */
+export function applyHomeworkOccupancyClassroomMoveToDuty(
+  day: HomeworkDutyDay,
+  fromRoomName: string,
+  toRoomName: string
+): HomeworkDutyDay {
+  const from = fromRoomName.trim()
+  const to = toRoomName.trim()
+  if (!from || !to || from === to) return day
+
+  const a = roomALabel(day)
+  const secondOpen = isSecondRoomOpen(day)
+  const b = secondOpen ? roomBLabel(day) : ""
+  const isFromA = from === a
+  const isFromB = Boolean(b) && from === b
+
+  let secondaryRoom = day.secondaryRoom
+  let primaryRoom = day.primaryRoom
+  let assignments = dutyAssignments(day)
+
+  const swapAB = () => {
+    secondaryRoom = b
+    primaryRoom = a
+    assignments = assignments.map((x) => {
+      if (x.room === a) return { ...x, room: b }
+      if (x.room === b) return { ...x, room: a }
+      return x
+    })
+  }
+
+  if (isFromA && secondOpen && to === b) {
+    swapAB()
+  } else if (isFromB && to === a) {
+    swapAB()
+  } else if (isFromA || (!secondOpen && !isFromB)) {
+    secondaryRoom = to
+    assignments = assignments.map((x) => (x.room === from ? { ...x, room: to } : x))
+  } else if (isFromB) {
+    primaryRoom = to
+    assignments = assignments.map((x) => (x.room === from ? { ...x, room: to } : x))
+  } else {
+    if (!secondOpen) secondaryRoom = to
+    assignments = assignments.map((x) => (x.room === from ? { ...x, room: to } : x))
+  }
+
+  return withSyncedLegacyTeachers({
+    ...day,
+    secondaryRoom,
+    primaryRoom,
+    assignments,
+  })
 }
 
 export function formatAssignmentLine(
@@ -438,9 +516,11 @@ export function formatAssignmentLine(
   teachers: readonly HomeworkTeacherRow[]
 ): string {
   const name = teacherName(assignment.teacherId, teachers)
-  const start = asHm(assignment.start, HW_SESSION_START)
-  const end = asHm(assignment.end, HW_SESSION_END)
-  return `${name} ${start}–${end}`
+  return `${name} ${formatAssignmentHours(assignment)}`
+}
+
+export function formatAssignmentHours(assignment: HomeworkDutyAssignment): string {
+  return `${asHm(assignment.start, HW_SESSION_START)}–${asHm(assignment.end, HW_SESSION_END)}`
 }
 
 /** 老師月曆格：課室＋名字＋該人時段 */
@@ -449,6 +529,36 @@ export function formatCalendarAssignmentLine(
   teachers: readonly HomeworkTeacherRow[]
 ): string {
   return `${asRoom(assignment.room)} ${formatAssignmentLine(assignment, teachers)}`
+}
+
+export type HomeworkDutyRoomCard = {
+  room: string
+  assignments: HomeworkDutyAssignment[]
+}
+
+/** 主課室無人＝暫時空缺（已開無人）；其餘空房＝不啟用 */
+export function homeworkDutyRoomIdleLabel(day: HomeworkDutyDay, room: string): string {
+  return asRoom(room) === roomALabel(day) ? "暫時空缺" : "不啟用此課室"
+}
+
+/** 一日一卡一課室（主房＋預設第二房）；同房多人按開始時間排（交接） */
+export function homeworkDutyRoomCards(
+  day: HomeworkDutyDay | undefined
+): HomeworkDutyRoomCard[] {
+  if (!day || day.holiday) return []
+  const people = dutyAssignments(day)
+  const rooms = [...openedHomeworkRoomNames(day)]
+  if (!isSecondRoomOpen(day) && !rooms.includes(HOMEWORK_DEFAULT_ROOM_B)) {
+    rooms.push(HOMEWORK_DEFAULT_ROOM_B)
+  }
+  for (const a of people) {
+    const room = asRoom(a.room)
+    if (!rooms.includes(room)) rooms.push(room)
+  }
+  return rooms.map((room) => ({
+    room,
+    assignments: people.filter((a) => asRoom(a.room) === room),
+  }))
 }
 
 export function formatDutyPeople(

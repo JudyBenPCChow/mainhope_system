@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  academicYearMonthBounds,
   availWindow,
+  clampYearMonth,
   dutyAssignments,
   formatCalendarAssignmentLine,
   formatDutyPeople,
+  homeworkDutyRoomCards,
+  homeworkDutyRoomIdleLabel,
   makeAssignmentFromAvail,
   myDutyDays,
   myDutyRoomLabel,
@@ -13,6 +17,7 @@ import {
   teacherName,
   openSecondHomeworkRoom,
   closeSecondHomeworkRoom,
+  applyHomeworkOccupancyClassroomMoveToDuty,
   defaultRoomForNextAssignment,
   isSecondRoomOpen,
   withSyncedLegacyTeachers,
@@ -112,6 +117,56 @@ describe("open / close second room", () => {
     const closed = closeSecondHomeworkRoom(withPeople)
     expect(isSecondRoomOpen(closed)).toBe(false)
     expect(closed.assignments.every((a) => a.room === "17D")).toBe(true)
+    expect(closed.primaryTeacherId).toBeUndefined()
+  })
+})
+
+describe("applyHomeworkOccupancyClassroomMoveToDuty", () => {
+  it("relocates the default room when the second room is closed", () => {
+    const moved = applyHomeworkOccupancyClassroomMoveToDuty(
+      day({
+        date: "9/1",
+        assignments: [{ teacherId: "a", start: "15:30", end: "19:30", room: "17D" }],
+      }),
+      "17D",
+      "山案座"
+    )
+    expect(moved.secondaryRoom).toBe("山案座")
+    expect(isSecondRoomOpen(moved)).toBe(false)
+    expect(moved.assignments[0]?.room).toBe("山案座")
+  })
+
+  it("renames an opened second room without closing it", () => {
+    const opened = openSecondHomeworkRoom(
+      day({
+        date: "9/1",
+        assignments: [
+          { teacherId: "a", start: "15:30", end: "19:30", room: "17D" },
+          { teacherId: "b", start: "15:30", end: "19:30", room: "17E" },
+        ],
+      })
+    )
+    const moved = applyHomeworkOccupancyClassroomMoveToDuty(opened, "17E", "矩尺座")
+    expect(moved.secondaryRoom).toBe("17D")
+    expect(moved.primaryRoom).toBe("矩尺座")
+    expect(moved.assignments.map((x) => x.room).sort()).toEqual(["17D", "矩尺座"])
+  })
+
+  it("swaps the two opened rooms", () => {
+    const opened = openSecondHomeworkRoom(
+      day({
+        date: "9/1",
+        assignments: [
+          { teacherId: "a", start: "15:30", end: "19:30", room: "17D" },
+          { teacherId: "b", start: "15:30", end: "19:30", room: "17E" },
+        ],
+      })
+    )
+    const swapped = applyHomeworkOccupancyClassroomMoveToDuty(opened, "17D", "17E")
+    expect(swapped.secondaryRoom).toBe("17E")
+    expect(swapped.primaryRoom).toBe("17D")
+    expect(swapped.secondaryTeacherId).toBe("a")
+    expect(swapped.primaryTeacherId).toBe("b")
   })
 })
 
@@ -197,5 +252,75 @@ describe("formatCalendarAssignmentLine", () => {
     expect(
       teacherName("x", [{ id: "x", name: { full_name: "Katie Lee" } as unknown as string, subject: "—" }])
     ).toBe("Katie Lee")
+  })
+})
+
+describe("homeworkDutyRoomCards", () => {
+  it("shows 17D in use and 17E as not enabled", () => {
+    const d = day({
+      date: "9/3",
+      assignments: [{ teacherId: "a", start: "15:30", end: "19:30", room: "17D" }],
+    })
+    const cards = homeworkDutyRoomCards(d)
+    expect(cards.map((c) => c.room)).toEqual(["17D", "17E"])
+    expect(cards[0]?.assignments).toHaveLength(1)
+    expect(cards[1]?.assignments).toHaveLength(0)
+    expect(homeworkDutyRoomIdleLabel(d, "17D")).toBe("暫時空缺")
+    expect(homeworkDutyRoomIdleLabel(d, "17E")).toBe("不啟用此課室")
+  })
+
+  it("still says 17E is not enabled when occupancy left primary_room set", () => {
+    const d = day({
+      date: "9/4",
+      primaryRoom: "17E",
+      assignments: [{ teacherId: "a", start: "15:30", end: "19:30", room: "17D" }],
+    })
+    expect(isSecondRoomOpen(d)).toBe(true)
+    expect(homeworkDutyRoomIdleLabel(d, "17E")).toBe("不啟用此課室")
+  })
+
+  it("opens two cards when the second room is open", () => {
+    const cards = homeworkDutyRoomCards(
+      openSecondHomeworkRoom(
+        day({
+          date: "9/8",
+          assignments: [
+            { teacherId: "a", start: "15:30", end: "19:30", room: "17D" },
+            { teacherId: "b", start: "16:15", end: "19:30", room: "17E" },
+          ],
+        })
+      )
+    )
+    expect(cards.map((c) => c.room)).toEqual(["17D", "17E"])
+  })
+
+  it("keeps same-room handover on the 17D card, earliest first", () => {
+    const cards = homeworkDutyRoomCards(
+      day({
+        date: "9/10",
+        assignments: [
+          { teacherId: "b", start: "17:00", end: "19:30", room: "17D" },
+          { teacherId: "a", start: "15:30", end: "17:00", room: "17D" },
+        ],
+      })
+    )
+    expect(cards.map((c) => c.room)).toEqual(["17D", "17E"])
+    expect(cards[0]?.assignments.map((a) => a.teacherId)).toEqual(["a", "b"])
+  })
+})
+
+describe("academicYearMonthBounds / clampYearMonth", () => {
+  it("uses Sep–Jun for a regular year", () => {
+    expect(academicYearMonthBounds("2627")).toEqual({ min: "2026-09", max: "2027-06" })
+  })
+
+  it("uses Jul–Aug for a summer year", () => {
+    expect(academicYearMonthBounds("26SM")).toEqual({ min: "2026-07", max: "2026-08" })
+  })
+
+  it("clamps the current month into the year range", () => {
+    expect(clampYearMonth("2026-08", "2026-09", "2027-06")).toBe("2026-09")
+    expect(clampYearMonth("2026-09", "2026-09", "2027-06")).toBe("2026-09")
+    expect(clampYearMonth("2027-07", "2026-09", "2027-06")).toBe("2027-06")
   })
 })
