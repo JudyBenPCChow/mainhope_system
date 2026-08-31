@@ -15,18 +15,19 @@
 
 **Agent 讀檔習慣**：
 
-- 問「有咩未做」／list backlog → **只讀「進行中／未完成」表**（`open`／`in_progress`）；**停**；勿開分題、勿把下方已完成表當成待辦。
+- 問「有咩未做」／list backlog → 讀 **`origin/main` 本檔**「進行中／未完成」（`git show origin/main:docs/product/BACKLOG.md`）；讀唔到就掃 `topics/*.md` 表頭狀態 `open`／`in_progress`。**停**；勿把已完成表當成待辦。
 - 問卡住／等緊咩 → 讀「等待中」；**未解除唔開工**（唔套 production、唔當可續做）。
-- 做某個主題 → 先開該列 `topics/<topic>.md`；**先讀「開工閘」**：對上一個工程未完成則停、提醒用戶，唔開工。步驟寫喺分題，唔另開 `plans/`／`audits/`。
+- 做某個主題 → 先開 `topics/<topic>.md`；**先讀「開工閘」**：對上一個工程未完成則停、提醒用戶，唔開工。步驟寫喺分題，唔另開 `plans/`／`audits/`。Feature **只改分題**。
 - 已完成／已取消表同其連結：備查用，日常任務唔掃。
 
 
 
 ## 維護約定
 
-- 新主題：加一列到「進行中／未完成」+ 可選 `docs/product/topics/<topic>.md`
-- 開始做：狀態改 `in_progress`；步驟寫入該分題，唔另開 `plans/`
-- 完成或取消：狀態改 `done`／`cancelled`，**整列移到「已完成／已取消」表**（可留分題檔備查，勿默默刪）
+- **Feature 分支唔改、唔 commit 本檔嘅索引表**（多 worktree 易撞）。合入 `main` 之後先搬列。對齊：`git checkout origin/main -- docs/product/BACKLOG.md`。
+- 例外：改本檔「讀檔習慣／維護約定」可以入 feature PR。
+- 新主題：喺 `main` 加一列到「進行中／未完成」+ `docs/product/topics/<topic>.md`（feature 可先開分題、狀態 `open`）
+- 開始做／關帳：分題表頭改 `in_progress`／`done`／`cancelled`；索引搬列只喺 `main`
 - 本索引只放一句摘要；長表／方案放分題檔
 - **唔好**把 `done`／`cancelled` 同未做完項混喺同一張表
 

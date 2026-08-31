@@ -9,7 +9,7 @@
 | 教同事點操作（畫面點撳） | [`playbooks/_INDEX.md`](playbooks/_INDEX.md) | 只改 `playbooks/` |
 | 睇給同事的系統更新 | [`playbooks/SYSTEM_UPDATES.md`](playbooks/SYSTEM_UPDATES.md) | 說「產出更新總結」加一則 |
 | 搵本年校曆／時間表／學年指引 | [`year/2627/`](year/2627/README.md) | 只改 `year/<學年>/` |
-| 睇仲有咩工程未做 | [`product/BACKLOG.md`](product/BACKLOG.md) | 工程追蹤用 |
+| 睇仲有咩工程未做 | [`product/BACKLOG.md`](product/BACKLOG.md) | 以 `main` 為準；feature 唔改索引表 |
 | 用語／agent／UI／RLS 習慣 | [`meta/`](meta/README.md) | 開發約定；**員工用語表**在 [`meta/TERMINOLOGY.md`](meta/TERMINOLOGY.md) |
 | 拎 docx／PDF 發佈物 | [`generated/`](generated/README.md) | **唔人手改**；由 md 腳本重出 |
 

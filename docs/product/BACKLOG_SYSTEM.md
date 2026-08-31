@@ -19,7 +19,7 @@
 | 步驟寫入分題 | 實作步驟同調查結論寫入 `topics/`；本專案唔另開 `plans/`／`audits/` |
 | Agent 讀檔階梯 | 問未做只掃 open 表；做主題先開分題 |
 
-**本檔不是待辦清單。** 待辦真相永遠在目標專案的 `BACKLOG.md`「進行中／未完成」表。
+**本檔不是待辦清單。** 待辦真相：分題表頭「狀態」＋ **`main` 上** `BACKLOG.md`「進行中／未完成」表。Feature 分支唔改索引表。
 
 ---
 
@@ -35,8 +35,8 @@ docs/
 
 | 路徑 | 職責 | 何時讀 |
 | --- | --- | --- |
-| `docs/product/BACKLOG.md` | 工程主題目錄；狀態＋一句摘要 | 「有咩未做」／list backlog |
-| `docs/product/topics/<topic>.md` | 範圍、結論、待決、進度、相關連結 | 做該主題時 |
+| `docs/product/BACKLOG.md` | 工程主題目錄；狀態＋一句摘要（**只喺 `main` 改索引表**） | 「有咩未做」／list backlog（讀 `origin/main`） |
+| `docs/product/topics/<topic>.md` | 範圍、結論、待決、進度、相關連結；**表頭狀態＝該題真源** | 做該主題時 |
 | 規範／營運／構想（各自檔） | 政策、UI 規範、`FUTURE_*.md` 等 | 索引用「想找…」表指過去；**唔當待辦列** |
 
 ---
@@ -65,9 +65,9 @@ docs/
 
 ### 3.3 維護約定（寫進索引）
 
-- **新主題**：加一列到「進行中／未完成」＋（可選）`docs/product/topics/<topic>.md`
-- **開始做**：狀態改 `in_progress`；步驟寫入該分題
-- **完成或取消**：狀態改 `done`／`cancelled`，**整列移到「已完成／已取消」表**（可留分題檔備查，勿默默刪）
+- **Feature 分支唔改索引表**（唔 stage／commit 進行中／已完成列）。合入 `main` 之後先搬列。
+- **新主題**：喺 `main` 加一列到「進行中／未完成」＋ `docs/product/topics/<topic>.md`（feature 可先開分題）
+- **開始做／關帳**：分題表頭改狀態；索引搬列只喺 `main`
 - 本索引只放一句摘要；長表／方案放分題檔
 - **唔好**把 `done`／`cancelled` 同未做完項混喺同一張表
 
@@ -136,13 +136,13 @@ docs/
 
 原文級約定（可直接貼）：
 
-1. 問「有咩未做」／list backlog → **只讀「進行中／未完成」表**（`open`／`in_progress`）；**停**；勿開分題、勿把已完成表當成待辦。  
-2. 做某個主題 → 先開該列 `docs/product/topics/<topic>.md`；步驟喺分題內。  
+1. 問「有咩未做」／list backlog → 讀 **`origin/main` 的**「進行中／未完成」表；讀唔到就掃分題表頭 `open`／`in_progress`。**停**；勿把已完成表當成待辦。  
+2. 做某個主題 → 先開 `docs/product/topics/<topic>.md`；步驟同狀態喺分題內。Feature **唔改** `BACKLOG.md` 索引表。  
 3. 已完成／已取消表同其連結：備查用，日常任務唔掃。
 
 目標專案的 `AGENTS.md`（或同等）可加一行：
 
-> 問未做 → `docs/product/BACKLOG.md`「進行中／未完成」。做主題 → 該列 `docs/product/topics/<topic>.md`。
+> 問未做 → `origin/main` 的 `BACKLOG.md`「進行中／未完成」。做主題 → `topics/<topic>.md`（改狀態寫分題，唔改 BACKLOG 索引）。
 
 ---
 

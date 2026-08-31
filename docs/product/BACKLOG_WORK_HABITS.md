@@ -19,8 +19,8 @@ Backlog 係**外置決策記憶**：先寫清問題與選項 → 產品拍板寫
 | 階段 | 放邊 | 意思 | Agent 該做 |
 | --- | --- | --- | --- |
 | 單純構想、未決定做 | `docs/FUTURE_*.md`（或同等構想檔） | 靈感庫；**唔係**承諾 | 寫／更新 FUTURE；**唔**加 BACKLOG 列、**唔**實作 |
-| 已討論、認定要跟進 | `BACKLOG.md` + `backlog/<topic>.md` | 正式追蹤；可仍係 `open`／idea | 加索引列＋分題；寫範圍／不含／待決；**預設仍唔實作** |
-| 開工中 | 同上，狀態 `in_progress` + 可選 `plans/` | 可寫 code | 只跟已拍板範圍；進度回寫摘要一句 |
+| 已討論、認定要跟進 | `topics/<topic>.md`（表頭 `open`）；**索引列喺 `main` 加** | 正式追蹤；可仍係 `open`／idea | feature 寫分題；**唔**喺 feature commit `BACKLOG.md` 索引表；**預設仍唔實作** |
+| 開工中 | 分題狀態 `in_progress` | 可寫 code | 只跟已拍板範圍；進度回寫分題 |
 
 用戶原話級約定（曾明確確認）：
 
@@ -93,7 +93,7 @@ Agent／分析先把問題寫進分題，唔好只喺 chat 問完就散：
 
 - 日記／會議／阻塞 → 抽出跟進寫入／更新 backlog  
 - 「等 Mark 回覆」類外部依賴 → 更新索引一句摘要＋分題主阻塞  
-- 問「有咩未做」→ 只信 `BACKLOG.md` 進行中表，唔靠 agent 即興回憶
+- 問「有咩未做」→ 只信 `origin/main` 的 `BACKLOG.md` 進行中表（或分題表頭 `open`／`in_progress`），唔靠 agent 即興回憶
 
 ### 5.2 一次拍一批，寫成可執行句
 
