@@ -10,6 +10,8 @@ description: >-
 
 從 **MainHope_production** 即時查該學年欠補堂，產出 PDF。唔好用舊 snapshot 當今日真相。
 
+無 MCP `execute_sql`／無 production 查庫權限：**停、通知使用者**，唔好用舊 JSON 或空表充當今日名單。見 `.cursor/rules/no-forced-output-without-access.mdc`。
+
 ## 何時用
 
 用戶叫：未完成補堂、請假未安排、已排未上、補堂總表／PDF、某學年（如 26SM）補堂跟進。

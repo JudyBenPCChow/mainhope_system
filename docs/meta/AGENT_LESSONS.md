@@ -4,6 +4,12 @@
 
 ## 教訓
 
+### 2026-08-31 — 缺權限唔好硬做產出
+- **情境**：用戶要「根據 sql 目前狀態」出本月功輔當值月視圖 PDF。Cloud Agent 無 Supabase MCP、無 `SUPABASE_ACCESS_TOKEN`／service role；anon REST 因 RLS 回空。
+- **錯在邊**：為咗有嘢交，改寫 generator／SQL 腳本同示範月曆，開 PR 當完成；空結果同「庫真係未編更」分唔開。
+- **正確做法**：即停，書面語講明缺邊樣權限、因此做唔到該份 live 產出。等使用者補 MCP／token 或改指示。用戶無叫寫腳本就唔好用腳本交差。
+- **若已升格**：`AGENTS.md` 鐵則；`.cursor/rules/no-forced-output-without-access.mdc`
+
 ### 2026-08-31 — 唔好刪 `makeup_of=` 標記
 - **情境**：權益母題餘 `26SM` 日落；產品取消 P6 手動加名後，問廢 `makeup_of` 對 `2627` 有無影響。
 - **錯在邊**：把「`2627` 點名紙唔用期數繼承」當成可以刪 remarks 標記或清歷史。
