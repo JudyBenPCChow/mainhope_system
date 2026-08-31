@@ -23,10 +23,8 @@ import { cn } from "@/lib/utils"
 import {
   CALENDAR_WEEK_HEADERS,
   HOMEWORK_DEFAULT_ROOM_B,
-  WEEKDAY_OPTIONS,
   assignedTeacherIds,
   buildMonthDutyDays,
-  closeSecondHomeworkRoom,
   defaultRoomForNextAssignment,
   dutyAssignments,
   formatAvailLabel,
@@ -39,7 +37,6 @@ import {
   makeAssignmentFromAvail,
   openSecondHomeworkRoom,
   openedHomeworkRoomNames,
-  studentsComingOnWeekday,
   shiftYearMonth,
   substituteTeachers,
   teacherName,
@@ -52,7 +49,6 @@ import {
   type HomeworkStudentRow,
   type HomeworkTeacherRow,
   type MonthRosterState,
-  type Weekday,
 } from "@/lib/homeworkTutoringUi"
 
 type SheetView = "list" | "calendar"
@@ -108,7 +104,6 @@ export function RosterMonthSheet({
   avail,
   teachers = [],
   holidays = [],
-  students = [],
   onPublish,
 }: {
   yearMonth: string
@@ -167,12 +162,6 @@ export function RosterMonthSheet({
   const goMonth = (delta: number) => {
     onYearMonthChange(clampMonth(shiftYearMonth(yearMonth, delta)))
   }
-
-  const weekdayOf = (day: HomeworkDutyDay): Weekday | null =>
-    WEEKDAY_OPTIONS.includes(day.weekday as Weekday) ? (day.weekday as Weekday) : null
-
-  const expectedCount = (day: HomeworkDutyDay): number =>
-    studentsComingOnWeekday([...students], weekdayOf(day)).length
 
   const openSecondAllWeekdays = () => {
     const monthNum = Number(yearMonth.split("-")[1])
