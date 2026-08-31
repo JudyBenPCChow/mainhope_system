@@ -107,6 +107,64 @@ function findSelectOptionChildViolations(content) {
   return violations
 }
 
+const SEMANTIC_TONES = ["warning", "success", "info", "destructive", "primary"]
+const TINT_OPACITY_MAX = 40
+
+/** `hover:bg-warning/10` → { variantKey: "hover", core: "bg-warning/10" } */
+function splitUtilityToken(token) {
+  const variants = []
+  let rest = token
+  while (rest.length > 0) {
+    if (rest.startsWith("[")) {
+      const close = rest.indexOf("]:")
+      if (close === -1) break
+      variants.push(rest.slice(0, close + 1))
+      rest = rest.slice(close + 2)
+      continue
+    }
+    const colon = rest.indexOf(":")
+    if (colon === -1) break
+    variants.push(rest.slice(0, colon))
+    rest = rest.slice(colon + 1)
+  }
+  return { variantKey: variants.join(":"), core: rest }
+}
+
+function findTintForegroundViolations(content) {
+  const violations = []
+  const strRe = /["']([^"']{0,800})["']/g
+  let m
+  while ((m = strRe.exec(content)) !== null) {
+    const str = m[1] ?? ""
+    if (!/\bbg-/.test(str) || !/\btext-/.test(str)) continue
+    const byVariant = new Map()
+    for (const tok of str.split(/\s+/)) {
+      if (!tok) continue
+      const { variantKey, core } = splitUtilityToken(tok)
+      let group = byVariant.get(variantKey)
+      if (!group) {
+        group = { tints: new Map(), foregrounds: new Set() }
+        byVariant.set(variantKey, group)
+      }
+      const bg = core.match(new RegExp(`^bg-(${SEMANTIC_TONES.join("|")})\\/(\\d+)$`))
+      if (bg && Number(bg[2]) <= TINT_OPACITY_MAX) {
+        group.tints.set(bg[1], bg[2])
+      }
+      const fg = core.match(new RegExp(`^text-(${SEMANTIC_TONES.join("|")})-foreground$`))
+      if (fg) group.foregrounds.add(fg[1])
+    }
+    for (const group of byVariant.values()) {
+      for (const [tone, opacity] of group.tints) {
+        if (!group.foregrounds.has(tone)) continue
+        violations.push({
+          message: `淺底 bg-${tone}/${opacity} 唔好配 text-${tone}-foreground（白字會睇唔到）；請改 text-${tone} 或實心 bg-${tone}（見 UI_DESIGN_INSTRUCTIONS §9）`,
+        })
+      }
+    }
+  }
+  return violations
+}
+
 function findHardcodedStatusTagViolations(content) {
   const violations = []
   const tagRegex = /<Tag\b([^>]*)>([\s\S]*?)<\/Tag>/g
@@ -170,6 +228,14 @@ for (const file of files) {
     violations.push({
       file,
       rule: "select-option-children",
+      detail: v.message,
+    })
+  }
+
+  for (const v of findTintForegroundViolations(content)) {
+    violations.push({
+      file,
+      rule: "tint-foreground-contrast",
       detail: v.message,
     })
   }

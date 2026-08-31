@@ -175,7 +175,7 @@ export function TrialConvertDialog({
             {!target.rollCallDone ? (
               <div
                 role="status"
-                className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground"
+                className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
               >
                 學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認轉正前請再核對。
               </div>

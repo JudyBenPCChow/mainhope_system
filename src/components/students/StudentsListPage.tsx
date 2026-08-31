@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
@@ -16,6 +16,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
+import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import {
  compareStudents,
@@ -221,7 +222,9 @@ export function StudentsListPage() {
  const { pushBanner } = useAppBanner()
  const { profile } = useAuth()
  const canDeleteStudent = can(profile?.activeCapabilities, "students.update")
- const navigate = useNavigate()
+ const openStudent = useOpenStudentRecord()
+ const { preview } = useRecordPreview()
+ const previewStudentId = preview?.kind === "student" ? preview.id : null
  const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
  const listScope: "active" | "roster" = searchParams.get("scope") === "roster" ? "roster" : "active"
@@ -1037,7 +1040,7 @@ export function StudentsListPage() {
       <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
        <button
         type="button"
-        onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+        onClick={() => openStudent(recentCurrent.studentId)}
         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-lg font-semibold outline-none transition-colors hover:bg-white/30 focus-visible:ring-2 focus-visible:ring-white/70"
         aria-label={`開啟 ${recentCurrent.studentName} 的學生詳情`}
        >
@@ -1049,7 +1052,7 @@ export function StudentsListPage() {
         </div>
         <button
          type="button"
-         onClick={() => navigate(`/Students/${recentCurrent.studentId}`)}
+         onClick={() => openStudent(recentCurrent.studentId)}
          className="block max-w-full truncate text-left text-lg font-semibold underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-white/70"
         >
          {recentCurrent.studentName} · {recentCurrent.classLabel}
@@ -1573,7 +1576,8 @@ export function StudentsListPage() {
      onToggleSelectAll={toggleSelectAllFiltered}
      canDeleteStudent={canDeleteStudent}
      onDelete={onDelete}
-     onNavigate={(id) => navigate(`/Students/${id}`)}
+     onNavigate={openStudent}
+     previewId={previewStudentId}
      onWeChatCopied={(wechatId) =>
       pushBanner({ tone: "success", title: "已複製 WeChat ID", message: wechatId })
      }
@@ -1598,11 +1602,11 @@ export function StudentsListPage() {
           as="article"
           role="button"
           tabIndex={0}
-          onClick={() => navigate(`/Students/${r.id}`)}
+          onClick={() => openStudent(r.id)}
           onKeyDown={(e: KeyboardEvent) => {
            if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
-            navigate(`/Students/${r.id}`)
+            openStudent(r.id)
            }
           }}
           className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
@@ -1690,11 +1694,11 @@ export function StudentsListPage() {
         <StaggerItem key={r.id} as="article"
          role="button"
          tabIndex={0}
-         onClick={() => navigate(`/Students/${r.id}`)}
+         onClick={() => openStudent(r.id)}
          onKeyDown={(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {
            e.preventDefault()
-           navigate(`/Students/${r.id}`)
+           openStudent(r.id)
           }
          }}
          className="flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md"

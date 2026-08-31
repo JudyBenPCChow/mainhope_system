@@ -1,5 +1,6 @@
 import { normalizeStoredClassGradeLabel, resolveClassGradeLabels } from "@/lib/classGrade"
-import { SUBJECT_TO_COURSE_ABBR, academicYearLabelFromStartDate, subjectChineseToAbbr } from "@/lib/courseCode"
+import { SUBJECT_TO_COURSE_ABBR, subjectChineseToAbbr } from "@/lib/courseCode"
+import { academicYearLabelForClass } from "@/lib/academicYearEditGuard"
 import { isPrivateClassSubject } from "@/lib/privateClassKind"
 import { KANBAN_DAY_COLUMNS, weekdaysFromStored } from "@/lib/weekdayUtils"
 
@@ -134,10 +135,10 @@ export const STATUS_CHIPS = ["全部", "招生中", "進行中", "已結束", "�
 export function classAcademicYearLabel(c: {
  academic_year_label?: string | null
  start_date?: string | null
+ class_kind?: string | null
+ subject?: string | null
 }): string {
- const fromDb = (c.academic_year_label ?? "").trim()
- if (fromDb) return fromDb
- return academicYearLabelFromStartDate(c.start_date)
+ return academicYearLabelForClass(c)
 }
 
 export function academicYearLabelsMatch(a: string, b: string): boolean {

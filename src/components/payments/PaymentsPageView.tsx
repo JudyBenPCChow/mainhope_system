@@ -1696,7 +1696,7 @@ export function PaymentsPageView() {
           功課輔導班月費請另開一張單，不可與專科同一張收據。
          </p>
         ) : enrollments.length === 0 ? (
-         <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info-foreground">
+         <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
           此學生尚無報讀班別，可直接以「試堂」收費；正式報讀後亦可在此補繳學費。
          </p>
         ) : null}

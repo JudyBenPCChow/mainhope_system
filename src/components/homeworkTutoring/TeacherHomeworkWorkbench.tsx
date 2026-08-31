@@ -1,9 +1,12 @@
-import { Fragment, useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { ArrowDown, CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAppBanner } from "@/lib/appBanner"
+import { formatUnknownError } from "@/lib/formatUnknownError"
+import { downloadHomeworkDutyCalendarIcs } from "@/lib/homeworkDutyCalendarExport"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -11,17 +14,22 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { BulkCustomTimeDialog } from "./availEditor"
 import {
   SUBMIT_DEADLINE_NOTE,
+  academicYearMonthBounds,
+  clampYearMonth,
   currentYearMonth,
-  dutyAssignments,
-  formatCalendarAssignmentLine,
+  formatAssignmentHours,
   formatAvailLabel,
+  formatCalendarAssignmentLine,
   formatYearMonthLabel,
   holidaysInYearMonth,
+  homeworkDutyRoomCards,
+  homeworkDutyRoomIdleLabel,
   isTeacherOnDutyDay,
   listRosterMonthDays,
   myDutyCalendarTone,
   myDutyDays,
   myDutyRoomLabel,
+  shiftYearMonth,
   teacherName,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
@@ -36,8 +44,6 @@ import { SubmitStatusTag } from "./sharedUi"
 
 const WEEK_HEADERS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
-type DutyView = "list" | "calendar"
-
 export function TeacherHomeworkWorkbench({
   tab,
   teacherId,
@@ -49,6 +55,8 @@ export function TeacherHomeworkWorkbench({
   rosterPublishStatus,
   dutyDays = [],
   rosterMonthKey = currentYearMonth(),
+  onRosterMonthChange,
+  academicYearLabel = "2627",
   holidays = [],
   teachers = [],
 }: {
@@ -63,6 +71,8 @@ export function TeacherHomeworkWorkbench({
   rosterPublishStatus: RosterPublishStatus
   dutyDays?: HomeworkDutyDay[]
   rosterMonthKey?: string
+  onRosterMonthChange?: (yearMonth: string) => void
+  academicYearLabel?: string
   holidays?: HomeworkHoliday[]
   teachers?: readonly HomeworkTeacherRow[]
 }) {
@@ -70,12 +80,21 @@ export function TeacherHomeworkWorkbench({
   const isMobile = useIsMobile()
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [customOpen, setCustomOpen] = useState(false)
-  const [dutyView, setDutyView] = useState<DutyView>("list")
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
   const readOnly = locked || myStatus === "已提交"
   const row = avail[teacherId] ?? {}
   const monthLabel = formatYearMonthLabel(rosterMonthKey)
+  const monthBounds = academicYearMonthBounds(academicYearLabel)
+  const atMonthMin = rosterMonthKey <= monthBounds.min
+  const atMonthMax = rosterMonthKey >= monthBounds.max
+
+  const goDutyMonth = (delta: number) => {
+    if (!onRosterMonthChange) return
+    onRosterMonthChange(
+      clampYearMonth(shiftYearMonth(rosterMonthKey, delta), monthBounds.min, monthBounds.max)
+    )
+  }
 
   const monthHolidays = useMemo(
     () => holidaysInYearMonth(rosterMonthKey, holidays),
@@ -101,6 +120,41 @@ export function TeacherHomeworkWorkbench({
       : duties.length === 0
         ? "本月未編入你的當值。"
         : null
+
+  const canAddToIosCalendar = rosterPublishStatus === "已發布" && duties.length > 0
+
+  const addToIosCalendar = () => {
+    if (!canAddToIosCalendar) {
+      pushBanner({
+        title: "無法加入月曆",
+        tone: "warning",
+        message: dutyEmptyHint ?? "本月沒有你的當值。",
+      })
+      return
+    }
+    try {
+      downloadHomeworkDutyCalendarIcs({
+        teacherId,
+        yearMonth: rosterMonthKey,
+        days: dutyDays,
+      })
+      pushBanner({
+        title: "已下載日曆檔",
+        tone: "success",
+        message: "請以 Safari 或「檔案」開啟 .ics，再加入日曆。再按一次可能重複。",
+      })
+    } catch (e) {
+      reportUserFacingError(e, {
+        source: "TeacherHomeworkWorkbench.addToIosCalendar",
+        userMessage: formatUnknownError(e),
+      })
+      pushBanner({
+        title: "無法加入月曆",
+        tone: "error",
+        message: formatUnknownError(e),
+      })
+    }
+  }
 
   const calendarCells = useMemo(() => {
     const first = rosterDays[0]
@@ -383,52 +437,68 @@ export function TeacherHomeworkWorkbench({
       ) : null}
 
       {tab === "myDuty" ? (
-        <Tabs
-          value={dutyView}
-          onValueChange={(v) => {
-            if (v === "list" || v === "calendar") setDutyView(v)
-          }}
-          className="space-y-3"
-        >
+        <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">我的當值</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{monthLabel}</span>
-            <TabsList className="ml-auto w-full justify-start sm:w-auto">
-              <TabsTrigger value="list">列表</TabsTrigger>
-              <TabsTrigger value="calendar">月曆</TabsTrigger>
-            </TabsList>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={atMonthMin}
+              onClick={() => goDutyMonth(-1)}
+              aria-label="上一個月"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <h2 className="min-w-[7.5rem] text-center text-base font-semibold tabular-nums">
+              {monthLabel}
+            </h2>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={atMonthMax}
+              onClick={() => goDutyMonth(1)}
+              aria-label="下一個月"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2"
+              disabled={!canAddToIosCalendar}
+              onClick={addToIosCalendar}
+            >
+              <CalendarPlus className="h-4 w-4" aria-hidden />
+              添加至 iOS 月曆
+            </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            只加入畫面顯示月份、屬於你的當值。下載後以 Safari 或「檔案」開啟並加入日曆。
+          </p>
 
-          <TabsContent value="list" className="mt-0">
-            {dutyEmptyHint ? (
-              <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
-            ) : (
-              <ul className="space-y-2">
-                {duties.map((d) => (
-                  <li
-                    key={d.date}
-                    className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
-                  >
-                    <p className="font-medium tabular-nums">
-                      {d.date}（{d.weekday}）
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {myDutyRoomLabel(d, teacherId)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </TabsContent>
+          {dutyEmptyHint ? (
+            <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
+          ) : (
+            <ul className="space-y-2">
+              {duties.map((d) => (
+                <li
+                  key={d.date}
+                  className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+                >
+                  <p className="font-medium tabular-nums">
+                    {d.date}（{d.weekday}）
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {myDutyRoomLabel(d, teacherId)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
 
-          <TabsContent value="calendar" className="mt-0 space-y-2">
-            <p className="text-xs text-muted-foreground">
-              淡橙＝你當值；淡藍＝其他日子；灰＝週末／放假。
-            </p>
-            {dutyEmptyHint ? (
-              <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
-            ) : null}
-            <div className="overflow-hidden rounded-xl border border-border">
+          <div className="overflow-hidden rounded-xl border border-border">
               <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
                 {WEEK_HEADERS.map((h) => (
                   <div key={h} className="px-1 py-2">
@@ -454,19 +524,23 @@ export function TeacherHomeworkWorkbench({
                     isMine,
                   })
                   const isWeekend = !day.selectable && !day.holidayLabel
-                  const people = duty ? dutyAssignments(duty) : []
+                  const roomCards = homeworkDutyRoomCards(duty)
                   return (
                     <div
                       key={day.key}
                       aria-label={
                         tone === "closed"
                           ? `${day.key} 星期${day.weekdayChar}，${day.holidayLabel ? "放假" : "週末"}`
-                          : people.length > 0
-                            ? `${day.key} 星期${day.weekdayChar}，${people.map((a) => formatCalendarAssignmentLine(a, teachers)).join("、")}`
+                          : roomCards.some((c) => c.assignments.length > 0)
+                            ? `${day.key} 星期${day.weekdayChar}，${roomCards
+                                .flatMap((c) =>
+                                  c.assignments.map((a) => formatCalendarAssignmentLine(a, teachers))
+                                )
+                                .join("、")}`
                             : `${day.key} 星期${day.weekdayChar}，未排`
                       }
                       className={cn(
-                        "flex min-h-[8rem] flex-col items-start gap-0.5 border-b border-r border-border/60 p-1.5 text-left text-[10px] leading-tight sm:p-2 sm:text-xs",
+                        "flex min-h-[8rem] flex-col items-stretch gap-1 border-b border-r border-border/60 p-1.5 text-left text-[10px] leading-tight sm:p-2 sm:text-xs",
                         tone === "closed" && "bg-muted/40 text-muted-foreground",
                         tone === "mine" && "bg-warning/15",
                         tone === "other" && "bg-info/15"
@@ -479,23 +553,46 @@ export function TeacherHomeworkWorkbench({
                         <span>放假</span>
                       ) : isWeekend ? (
                         <span>週末</span>
-                      ) : people.length > 0 ? (
-                        people.map((a, i) => (
-                          <Fragment key={`${a.teacherId}-${a.room}-${i}`}>
-                            {i > 0 ? (
-                              <div
-                                className="my-1 h-px w-full bg-border"
-                                role="separator"
-                              />
-                            ) : null}
-                            <span className="text-[1.3em] font-bold leading-tight text-foreground">
-                              {teacherName(a.teacherId, teachers)}
-                            </span>
-                            <span className="tabular-nums text-foreground/55">
-                              {a.start}–{a.end}
-                            </span>
-                            <span>{a.room}</span>
-                          </Fragment>
+                      ) : roomCards.length > 0 ? (
+                        roomCards.map((card) => (
+                          <div
+                            key={card.room}
+                            className="relative rounded-md border border-border bg-background/90 px-1.5 pb-1.5 pt-5 shadow-sm"
+                          >
+                            <Tag
+                              size="sm"
+                              tone={card.room === "17D" ? "success" : "info"}
+                              className="absolute right-1 top-1 px-1.5 py-0 text-[9px] font-semibold leading-4"
+                            >
+                              {card.room}
+                            </Tag>
+                            {card.assignments.length > 0 ? (
+                              card.assignments.map((a, i) => (
+                                <div key={`${a.teacherId}-${a.start}-${i}`}>
+                                  {i > 0 ? (
+                                    <div
+                                      className="flex justify-start py-1 text-foreground"
+                                      aria-label="交接"
+                                    >
+                                      <ArrowDown className="h-4 w-4 stroke-[2.5]" aria-hidden />
+                                    </div>
+                                  ) : null}
+                                  <p className="pr-8 text-[1.3em] font-bold leading-tight text-foreground">
+                                    {teacherName(a.teacherId, teachers)}
+                                  </p>
+                                  <p className="tabular-nums text-foreground/55">
+                                    {formatAssignmentHours(a)}
+                                  </p>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="pr-8 text-muted-foreground">
+                                {locked && duty
+                                  ? homeworkDutyRoomIdleLabel(duty, card.room)
+                                  : "—"}
+                              </p>
+                            )}
+                          </div>
                         ))
                       ) : (
                         <span className="text-muted-foreground">未排</span>
@@ -505,8 +602,7 @@ export function TeacherHomeworkWorkbench({
                 })}
               </div>
             </div>
-          </TabsContent>
-        </Tabs>
+        </div>
       ) : null}
 
       <BulkCustomTimeDialog

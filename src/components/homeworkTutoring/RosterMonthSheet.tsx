@@ -23,8 +23,10 @@ import { cn } from "@/lib/utils"
 import {
   CALENDAR_WEEK_HEADERS,
   HOMEWORK_DEFAULT_ROOM_B,
+  WEEKDAY_OPTIONS,
   assignedTeacherIds,
   buildMonthDutyDays,
+  closeSecondHomeworkRoom,
   defaultRoomForNextAssignment,
   dutyAssignments,
   formatAvailLabel,
@@ -37,6 +39,8 @@ import {
   makeAssignmentFromAvail,
   openSecondHomeworkRoom,
   openedHomeworkRoomNames,
+  roomBLabel,
+  studentsComingOnWeekday,
   shiftYearMonth,
   substituteTeachers,
   teacherName,
@@ -49,6 +53,7 @@ import {
   type HomeworkStudentRow,
   type HomeworkTeacherRow,
   type MonthRosterState,
+  type Weekday,
 } from "@/lib/homeworkTutoringUi"
 
 type SheetView = "list" | "calendar"
@@ -104,6 +109,7 @@ export function RosterMonthSheet({
   avail,
   teachers = [],
   holidays = [],
+  students = [],
   onPublish,
 }: {
   yearMonth: string
@@ -162,6 +168,12 @@ export function RosterMonthSheet({
   const goMonth = (delta: number) => {
     onYearMonthChange(clampMonth(shiftYearMonth(yearMonth, delta)))
   }
+
+  const weekdayOf = (day: HomeworkDutyDay): Weekday | null =>
+    WEEKDAY_OPTIONS.includes(day.weekday as Weekday) ? (day.weekday as Weekday) : null
+
+  const expectedCount = (day: HomeworkDutyDay): number =>
+    studentsComingOnWeekday([...students], weekdayOf(day)).length
 
   const openSecondAllWeekdays = () => {
     const monthNum = Number(yearMonth.split("-")[1])
@@ -378,6 +390,12 @@ export function RosterMonthSheet({
                         </Tag>
                       ) : null}
                     </td>
+                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
+                      {d.holiday ? "—" : `${expectedCount(d)} 人`}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {d.holiday ? "—" : openedHomeworkRoomNames(d).join("／")}
+                    </td>
                     <td className="px-3 py-2.5">
                       {d.holiday ? "—" : <DutyPeopleLines day={d} teachers={teachers} published={published} />}
                     </td>
@@ -454,6 +472,11 @@ export function RosterMonthSheet({
                   <span className="text-sm font-medium tabular-nums text-foreground">
                     {roster.day}
                   </span>
+                  {canEdit && duty ? (
+                    <span className="text-muted-foreground">
+                      約 {expectedCount(duty)} 人 · {openedHomeworkRoomNames(duty).join("／")}
+                    </span>
+                  ) : null}
                   {roster.holidayLabel ? (
                     <span>放假</span>
                   ) : isWeekend ? (
@@ -493,13 +516,41 @@ export function RosterMonthSheet({
             <DialogTitle>編輯當值 — {editDay?.date}</DialogTitle>
             {editDay ? (
               <p className="text-sm text-muted-foreground">
-                時段默認跟報更，可改。可排多於一位；唔使全日都有人。
+                時段默認跟報更，可改。可排多於一位；唔使全日都有人。預設一間課室；人數多先加開第二間。
               </p>
             ) : null}
           </DialogHeader>
           {editDay ? (
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">{reportedLine(editDay)}</p>
+              <p className="text-sm">
+                當日約 {expectedCount(editDay)} 人到校
+                <span className="text-muted-foreground">（跟慣常到校星期；唔會自動加開）</span>
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  已開：{openedHomeworkRoomNames(editDay).join("／")}
+                </span>
+                {isSecondRoomOpen(editDay) ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditDay(closeSecondHomeworkRoom(editDay))}
+                  >
+                    收起 {roomBLabel(editDay)}
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditDay(openSecondHomeworkRoom(editDay))}
+                  >
+                    加開 {HOMEWORK_DEFAULT_ROOM_B}
+                  </Button>
+                )}
+              </div>
               {editAssignments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">尚未排任何人。</p>
               ) : (

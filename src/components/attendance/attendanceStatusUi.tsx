@@ -21,7 +21,7 @@ export function attendanceStatusActiveClass(status: AttendanceStatusLabel): stri
   case "事假":
    return "border-warning/80 bg-warning/25 text-warning shadow-sm ring-2 ring-warning/25"
   case "病假":
-   return "border-warning bg-warning/40 text-warning-foreground shadow-sm ring-2 ring-warning/30"
+   return "border-warning bg-warning/40 text-warning shadow-sm ring-2 ring-warning/30"
  }
 }
 

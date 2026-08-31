@@ -84,7 +84,7 @@ export default function TeacherProfilePage() {
 
  if (!teacherId) {
   return (
-   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning-foreground">
+   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning">
     <p className="font-medium">此頁僅供專班老師使用。請以老師身分登入。</p>
    </div>
   )
@@ -92,7 +92,7 @@ export default function TeacherProfilePage() {
 
  if (!isSupabaseConfigured) {
   return (
-   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning-foreground">
+   <div className="rounded-xl border border-warning/50 bg-warning/10 p-6 text-warning">
     <p>尚未設定 Supabase，無法載入個人資料。</p>
    </div>
   )

@@ -139,6 +139,7 @@
 
 - 全域顏色只使用設計 token（`neutral` + `utility`）：`success/green`、`info/blue`、`warning/orange`、`destructive(red)`，禁止在新元件直接寫臨時色號。
 - 狀態語意對應固定：成功=`success`、資訊=`info`、警示=`warning`、錯誤=`destructive`；中性容器/文字使用 `neutral` 階。
+- **實心底 vs 淺底（對比）**：`text-*-foreground`（`:root` 為白字）只配**實心**底（`bg-warning`、`bg-success`、`Button` 語意色）。淺底／淡 tint（`bg-warning/10`、`/20`、`/30`、白卡上的警示條）必須用 **`text-warning`／`text-success`／`text-info`／`text-destructive`**（色相本身）或 `text-foreground`。禁止 `bg-warning/10 text-warning-foreground`——白字疊淺橙，白底上看唔到。同一淺底區塊內的子文字同樣禁 `*-foreground`。`npm run ui:check` 會擋同一 `className` 字串內嘅錯誤配對。
 - 共用元件（`Button`、`Input`、`Dialog`、Date Picker）應優先使用 token 顏色，避免頁面各自定義主色導致視覺漂移。
 - Icon 與箭咀（arrow/chevron）採統一筆觸規格：圓角端點、較一致線寬；若頁面需特殊尺寸，僅調整尺寸，不改筆觸風格。
 - 新增 icon 時優先沿用同一套圖示家族（目前 `lucide-react`），避免混用多套線性 icon 導致風格不一致。
@@ -201,7 +202,8 @@
 ## 14. 流動裝置（`<768px`）刻意例外（2026-07-18 起）
 
 - **殼分離**：`AdaptiveLayout` 在 `MOBILE_BREAKPOINT`（768）以下使用 `MobileLayout`，與桌面側欄 `Layout` 分離；**不得**用共用 PageShell 硬合併 chrome（頂欄／底欄／drawer）。
-- **Overlay 分工**：詳情 `DetailLayerShell`、篩選 `MobileFilterSheet` = bottom sheet；導航 `MobileNavDrawer` = side drawer；Confirm／表單 = 置中 `Dialog`。**禁止**為「統一」把 sheet／drawer 改成置中 Dialog。
+- **Overlay 分工**：流動裝置詳情 `DetailLayerShell`、篩選 `MobileFilterSheet` = bottom sheet；導航 `MobileNavDrawer` = side drawer；Confirm／表單 = 置中 `Dialog`。**禁止**為「統一」把 sheet／drawer 改成置中 Dialog。
+- **桌面紀錄頁**：學生／班別／老師詳情用 `AdaptiveDetailLayer`＝普通頁（無遮罩、無 portal）。管理員／外星人列表撳學生／班別／老師 → 右側 `RecordPreviewRail` 並排預覽（主欄縮窄、無遮罩）；「開完整詳情」進該實體完整頁。manager／老師撳行仍去完整頁。
 - **篩選呈現**：同一篩選 state；桌面 inline、手機進 `MobileFilterSheet`（Students／Payments／Classes／Trials 為準）。
 - **觸控高度**：表單觸發優先 `h-10`／`min-h-10`（對齊共用 `Select`）；**勿**為桌面對齊把 Select 壓成 `h-9`。
 - **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。

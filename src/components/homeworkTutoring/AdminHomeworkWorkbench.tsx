@@ -628,6 +628,7 @@ export function AdminHomeworkWorkbench({
               avail={avail}
               teachers={hwTeachers}
               holidays={holidays}
+              students={students}
               onPublish={onPublishRoster}
             />
           </TabsContent>

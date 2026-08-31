@@ -106,7 +106,7 @@ export function SettingsView() {
 
   if (!isSupabaseConfigured) {
     return (
-      <div className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning-foreground">
+      <div className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning">
         尚未設定 Supabase，無法修改密碼。
       </div>
     )

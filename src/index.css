@@ -50,6 +50,7 @@
   --info: var(--utility-blue-500);
   --info-foreground: 0 0% 100%;
   --warning: var(--utility-orange-500);
+  /* 白字：只配實心 bg-warning。淺底用 text-warning，見 UI_DESIGN_INSTRUCTIONS §9 */
   --warning-foreground: 0 0% 100%;
   --input: var(--neutral-300);
   --border: var(--neutral-300);

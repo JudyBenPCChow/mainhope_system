@@ -7,7 +7,7 @@
 | 範圍 | 前端未掛載模組、沙盒路由、Base44／命名殘渣（技術債 P2-4＋P3-1 前端部分） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點日期 | 2026-07-31 |
-| 上次更新 | 2026-08-29 |
+| 上次更新 | 2026-08-31 |
 
 ## 進度摘要（2026-08-01）
 
@@ -40,6 +40,8 @@
 - `/prototype/ContactUpdateCampaign`：登入後可 deep-link、假資料
 
 **2026-08-29：** `/prototype/HomeworkTutoring` 已刪（正式走 `/HomeworkTutoring`）。
+
+**2026-08-31：** `/prototype/AdminContextRail` 同 `src/prototypes/adminContextRail/`、對應 HTML 沙盒已刪（正式走 `RecordPreviewRail`）。
 
 檔案可按下方「暫緩」保留，但 production `App.tsx` 是否掛路由要獨立處理；側欄無入口不等於無公開網址。
 
