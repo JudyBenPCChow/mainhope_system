@@ -471,7 +471,7 @@ export function PayrollView() {
       {loading ? (
         <p className="text-sm text-muted-foreground">載入計糧中…</p>
       ) : error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-3 text-sm text-destructive">
           {error}
         </div>
       ) : effectiveRole === "finance" ? (

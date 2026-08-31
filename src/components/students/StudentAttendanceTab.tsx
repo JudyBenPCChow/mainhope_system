@@ -189,7 +189,7 @@ export function StudentAttendanceTab({
     <p className="py-8 text-center text-sm text-muted-foreground">載入中…</p>
    ) : kind === "error" ? (
     <div className="space-y-2 py-8 text-center" role="alert">
-     <p className="text-sm text-destructive">上課紀錄未能載入{err ? `：${err}` : "。"}</p>
+     <p role="alert" className="text-sm text-destructive">上課紀錄未能載入{err ? `：${err}` : "。"}</p>
      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
       重試
      </button>

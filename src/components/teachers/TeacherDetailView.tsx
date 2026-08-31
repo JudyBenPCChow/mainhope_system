@@ -28,6 +28,7 @@ import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
+import { SUBJECT_SPECIALITY_OPTIONS } from "@/lib/teacherSubjectSpeciality"
 import { cn } from "@/lib/utils"
 import {
  fetchScheduleStudentHintsByClass,
@@ -48,23 +49,6 @@ import {
 } from "@/services/teacherQueries"
 
 type TabId = "basic" | "classes" | "timetable" | "schedule" | "attendance"
-
-const SUBJECT_SPECIALITY_OPTIONS = [
- "中文",
- "英文",
- "數學",
- "綜合科學",
- "物理",
- "化學",
- "生物",
- "M2",
- "BAFS",
- "中史",
- "歷史",
- "地理",
- "經濟",
- "ICT",
-] as const
 
 const TABS: { id: TabId; label: (c: { cl: number; sc: number }) => string; icon: typeof User }[] =
  [
@@ -342,7 +326,7 @@ export function TeacherDetailView() {
      ) : null}
     </div>
    ) : null}
-   <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-4 text-white shadow-md md:px-6">
+   <div className="bg-gradient-to-r from-info to-primary px-4 py-4 text-white shadow-md md:px-6">
     <div className="flex flex-wrap items-start gap-4">
      <Button
       type="button"
@@ -505,9 +489,9 @@ export function TeacherDetailView() {
         <div className="text-xl font-bold text-info-foreground md:text-3xl">{futureSchedCount}</div>
         <div className="text-[11px] font-medium text-info-foreground/90 md:text-xs">未來排程</div>
        </div>
-       <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 text-center shadow-sm md:p-4">
-        <div className="text-xl font-bold text-teal-800 md:text-3xl">{pastDoneCount}</div>
-        <div className="text-[11px] font-medium text-teal-900/90 md:text-xs">已完成堂次</div>
+       <div className="rounded-xl border border-muted bg-muted/40 p-2.5 text-center shadow-sm md:p-4">
+        <div className="text-xl font-bold text-foreground md:text-3xl">{pastDoneCount}</div>
+        <div className="text-[11px] font-medium text-muted-foreground md:text-xs">已完成堂次</div>
        </div>
       </div>
 
@@ -530,8 +514,8 @@ export function TeacherDetailView() {
         onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
        />
       </div>
-      <Button type="button" disabled={saving} onClick={() => void saveBasic()}>
-       {saving ? "儲存中…" : "儲存變更"}
+      <Button type="button" loading={saving} loadingText="儲存中…" onClick={() => void saveBasic()}>
+       儲存變更
       </Button>
      </div>
     ) : null}
@@ -658,9 +642,9 @@ export function TeacherDetailView() {
     {tab === "attendance" ? (
      <div className="mx-auto max-w-3xl space-y-4">
       <div className="grid grid-cols-2 gap-2 md:gap-3">
-       <div className="rounded-xl border border-teal-200 bg-teal-50 p-2.5 text-center md:p-4">
-        <div className="text-xl font-bold text-teal-800 md:text-3xl">{attMonthStats.sessionDays}</div>
-        <div className="text-[11px] text-teal-900/90 md:text-sm">本月課堂</div>
+       <div className="rounded-xl border border-muted bg-muted/40 p-2.5 text-center md:p-4">
+        <div className="text-xl font-bold text-foreground md:text-3xl">{attMonthStats.sessionDays}</div>
+        <div className="text-[11px] text-muted-foreground md:text-sm">本月課堂</div>
        </div>
        <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground md:p-4">
         <div className="text-xl font-bold text-success-foreground md:text-3xl">

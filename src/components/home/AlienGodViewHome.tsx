@@ -139,9 +139,9 @@ export function AlienGodViewHome() {
    ) : null}
 
    {err ? (
-    <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
+    <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">
      {err}
-     <p className="mt-2 text-sm text-destructive/90">
+     <p role="alert" className="mt-2 text-sm text-destructive/90">
       若訊息為資料表不存在，請執行 migration <code className="rounded bg-background px-1">20260420100000_mgmt_godview_tables.sql</code>{" "}
       後再 <code className="rounded bg-background px-1">db reset</code>。
      </p>

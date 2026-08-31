@@ -1634,7 +1634,7 @@ useEffect(() => {
       <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive md:h-5 md:w-5" />
       <span className="truncate">待處理</span>
      </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
+     <p role="alert" className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊篩選「已取消」排程（再點一次還原）</p>
     </button>
 
@@ -3035,7 +3035,7 @@ useEffect(() => {
         <p className="mt-1 text-xs text-muted-foreground">仍可繼續儲存；請確認是否真的需要重複安排。</p>
        </div>
       ) : null}
-      {addErr ? <p className="text-destructive">{addErr}</p> : null}
+      {addErr ? <p role="alert" className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2">
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消

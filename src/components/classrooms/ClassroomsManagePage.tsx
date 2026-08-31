@@ -335,7 +335,7 @@ export function ClassroomsManagePage() {
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
       <span className="inline-flex items-center gap-1.5">
-       <School className="h-7 w-7 text-teal-600" aria-hidden />
+       <School className="h-7 w-7 text-info" aria-hidden />
        課室管理
       </span>
       <Tag tone="info" size="sm">{rooms.length} 間</Tag>
@@ -345,7 +345,7 @@ export function ClassroomsManagePage() {
    </header>
 
    {pageErr ? (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
      {pageErr}
     </div>
    ) : null}
@@ -362,16 +362,16 @@ export function ClassroomsManagePage() {
         onClick={() => setSelectedRoomId(r.id)}
         className={cn(
          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-all duration-200",
-         "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/50 focus-visible:ring-offset-2",
+         "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/50 focus-visible:ring-offset-2",
          active
-          ? "border-teal-500 bg-teal-600 text-white shadow-md ring-2 ring-teal-400/40"
-          : "border-border bg-card text-foreground hover:border-teal-300 hover:bg-teal-50/60 active:scale-[0.98]"
+          ? "border-info bg-info text-white shadow-md ring-2 ring-info/40"
+          : "border-border bg-card text-foreground hover:border-info/40 hover:bg-info/10 active:scale-[0.98]"
         )}
        >
         {r.is_online ? <Monitor className="h-4 w-4 shrink-0 opacity-90" aria-hidden /> : null}
         <span>{r.name}</span>
         {r.capacity != null ? (
-         <span className={cn("tabular-nums", active ? "text-teal-100" : "text-muted-foreground")}>
+         <span className={cn("tabular-nums", active ? "text-info-foreground/80" : "text-muted-foreground")}>
           （{r.capacity}人）
          </span>
         ) : null}
@@ -391,7 +391,7 @@ export function ClassroomsManagePage() {
       <span
        className={cn(
         "rounded-full px-2 py-0.5 text-xs font-medium",
-        selectedRoom.is_online ? "bg-info text-info-foreground" : "bg-teal-100 text-teal-800"
+        selectedRoom.is_online ? "bg-info text-info-foreground" : "bg-info/20 text-info"
        )}
       >
        {selectedRoom.is_online ? "網課" : "實體課室"}
@@ -414,7 +414,7 @@ export function ClassroomsManagePage() {
        type="button"
        variant="outline"
        size="icon"
-       className="shrink-0 transition-transform hover:bg-teal-50 active:scale-95"
+       className="shrink-0 transition-transform hover:bg-info/10 active:scale-95"
        aria-label="上一週"
        onClick={() => jumpWeek(-1)}
       >
@@ -427,7 +427,7 @@ export function ClassroomsManagePage() {
        type="button"
        variant="outline"
        size="icon"
-       className="shrink-0 transition-transform hover:bg-teal-50 active:scale-95"
+       className="shrink-0 transition-transform hover:bg-info/10 active:scale-95"
        aria-label="下一週"
        onClick={() => jumpWeek(1)}
       >
@@ -451,7 +451,7 @@ export function ClassroomsManagePage() {
        type="date"
        value={selectedDateYmd}
        onChange={(e) => onDateInputChange(e.target.value)}
-       className="h-9 w-[11rem] cursor-pointer transition-colors hover:border-teal-400/60"
+       className="h-9 w-[11rem] cursor-pointer transition-colors hover:border-info/60"
       />
       <Button
        type="button"
@@ -503,13 +503,13 @@ export function ClassroomsManagePage() {
             onClick={() => setSelectedDateYmd(d.ymd)}
             className={cn(
              "flex w-full flex-col items-center gap-0.5 px-2 py-2 transition-all duration-200",
-             "hover:bg-teal-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500/40",
-             sel ? "bg-info/90 text-teal-900" : "bg-transparent"
+             "hover:bg-info/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/40",
+             sel ? "bg-info/90 text-foreground" : "bg-transparent"
             )}
            >
             <span className="font-medium">{d.label}</span>
             {sel ? (
-             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-teal-700">
+             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-info">
               <Check className="h-3 w-3" aria-hidden />
               選取
              </span>
@@ -537,14 +537,14 @@ export function ClassroomsManagePage() {
             className={cn(
              "align-top border border-border p-0 transition-colors duration-150",
              sel ? "bg-info/50" : "bg-card",
-             items.length === 0 && "cursor-pointer hover:bg-teal-50/40 active:bg-teal-100/50"
+             items.length === 0 && "cursor-pointer hover:bg-info/10 active:bg-info/20"
             )}
            >
             {items.length === 0 ? (
              <button
               type="button"
               aria-label={`${d.label} ${slot.label}，新增排程`}
-              className="flex min-h-[3rem] w-full flex-col gap-1 p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-500/50"
+              className="flex min-h-[3rem] w-full flex-col gap-1 p-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-info/50"
               onClick={() => {
                setSelectedDateYmd(d.ymd)
                openAddDialog({
@@ -566,10 +566,10 @@ export function ClassroomsManagePage() {
                  className={cn(
                   "block truncate rounded-md border px-1.5 py-0.5 text-xs font-medium",
                   "transition-all hover:shadow-sm active:scale-[0.99]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/40",
                   noStudents
                    ? "border-border bg-muted/70 text-muted-foreground hover:border-border hover:bg-muted"
-                   : "border-teal-200/80 bg-teal-50/90 text-teal-900 hover:border-teal-400 hover:bg-teal-100"
+                   : "border-info/30 bg-info/10 text-foreground hover:border-info hover:bg-info/20"
                  )}
                 >
                  {s.classLabel}
@@ -600,7 +600,7 @@ export function ClassroomsManagePage() {
      </h2>
      <Button
       type="button"
-      className="bg-teal-600 text-white shadow-sm transition-all hover:bg-teal-700 hover:shadow-md focus-visible:ring-teal-500 active:scale-[0.98]"
+      className="bg-info text-white shadow-sm transition-all hover:bg-info/90 hover:shadow-md focus-visible:ring-info active:scale-[0.98]"
       onClick={() => openAddDialog()}
      >
       <Plus className="mr-1.5 h-4 w-4" aria-hidden />
@@ -622,10 +622,10 @@ export function ClassroomsManagePage() {
           to={`/Schedule/${s.id}`}
           className={cn(
            "flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 transition-all",
-           "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/40",
+           "hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/40",
            noStudents
             ? "border-border/80 bg-muted/70 text-muted-foreground hover:bg-muted"
-            : "border-border bg-card hover:border-teal-300 hover:bg-teal-50/50"
+            : "border-border bg-card hover:border-info/40 hover:bg-info/10"
           )}
          >
           <span className={cn("font-medium", noStudents ? "text-muted-foreground" : "text-foreground")}>
@@ -651,7 +651,7 @@ export function ClassroomsManagePage() {
    </section>
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>
-    <DialogContent className="max-w-md border-teal-100">
+    <DialogContent className="max-w-md border-info/20">
      <DialogHeader>
       <DialogTitle>新增排程</DialogTitle>
      </DialogHeader>
@@ -659,7 +659,7 @@ export function ClassroomsManagePage() {
       <label className="grid gap-1">
        <span className="text-muted-foreground">班別</span>
        <Select
-        className="h-9 w-full rounded-md border border-input bg-background px-2 transition-colors hover:border-teal-400/50"
+        className="h-9 w-full rounded-md border border-input bg-background px-2 transition-colors hover:border-info/50"
         value={addClassId}
         onChange={(e) => setAddClassId(e.target.value)}
        >
@@ -690,14 +690,14 @@ export function ClassroomsManagePage() {
         <Input type="time" value={addEnd} onChange={(e) => setAddEnd(e.target.value)} className="h-9 tabular-nums" />
        </label>
       </div>
-      {addErr ? <p className="text-sm text-destructive">{addErr}</p> : null}
+      {addErr ? <p role="alert" className="text-sm text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-1">
        <Button type="button" variant="outline" onClick={() => setAddOpen(false)} disabled={addSaving}>
         取消
        </Button>
        <Button
         type="button"
-        className="bg-teal-600 hover:bg-teal-700"
+        className="bg-info hover:bg-info/90"
         disabled={addSaving || !addClassId}
         onClick={() => void submitAdd()}
        >

@@ -25,7 +25,7 @@ const HR_AND_ATTENDANCE_RULES: StatusTagRule[] = [
  // 人員狀態 / 出勤：錯誤／扣堂缺席態（no show 高於泛用）
  { tone: "error", keywords: ["no show", "failed", "error", "錯誤", "失敗", "拒絕", "離職", "非在職", "缺席"] },
  // 請假類（含扣堂之「請假而不需補回」與舊「不用補回」）
- { tone: "warning", keywords: ["請假而不需補回", "不用補回", "事假", "病假"] },
+ { tone: "warning", keywords: ["請假而不需補回", "不用補回", "事假", "病假", "請假"] },
  // 扣堂上課形式
  { tone: "info", keywords: ["錄影回放", "zoom實時網課", "即時直播", "網課", "線上"] },
  // 人員狀態 / 出勤：成功態
@@ -37,7 +37,7 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
  { tone: "info", keywords: ["排程新增", "排程變動", "班別變動", "任教老師變更", "主責變更", "報讀形式", "選堂變更", "新增報讀", "系統更新"] },
  { tone: "warning", keywords: ["排程取消", "代堂", "學生請假", "學生退讀", "提醒點名"] },
  // 排程：加堂（額外加開課堂，獨立標記）以橙色提示
- { tone: "warning", keywords: ["加堂"] },
+ { tone: "warning", keywords: ["加堂", "補堂"] },
  // 排程：代堂指派（高於泛用「安排」）
  { tone: "warning", keywords: ["已指派代堂", "代堂"] },
  // 排程：待處理與提醒態

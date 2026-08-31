@@ -21,29 +21,13 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { statusToTagTone } from "@/lib/statusTag"
+import { SUBJECT_SPECIALITY_OPTIONS } from "@/lib/teacherSubjectSpeciality"
 import {
  deleteTeacher,
  fetchAllTeachers,
  insertTeacher,
  type TeacherRecord,
 } from "@/services/teacherQueries"
-
-const SUBJECT_SPECIALITY_OPTIONS = [
- "中文",
- "英文",
- "數學",
- "綜合科學",
- "物理",
- "化學",
- "生物",
- "M2",
- "BAFS",
- "中史",
- "歷史",
- "地理",
- "經濟",
- "ICT",
-] as const
 
 export function TeachersListPage() {
  const navigate = useNavigate()
@@ -64,6 +48,7 @@ export function TeachersListPage() {
   status: "在職",
  })
  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
+ const [saving, setSaving] = useState(false)
 
  const load = useCallback(async () => {
   setLoading(true)
@@ -82,9 +67,10 @@ export function TeachersListPage() {
  }, [load])
 
  const onAdd = async () => {
-  if (!form.full_name.trim()) return
+  if (!form.full_name.trim() || saving) return
   const subjects = selectedSubjects
   setErr(null)
+  setSaving(true)
   try {
    await insertTeacher({
     full_name: form.full_name.trim(),
@@ -108,6 +94,8 @@ export function TeachersListPage() {
    await load()
   } catch (e) {
    reportUserFacingError(e, { source: "TeachersListPage.onAdd", setErr })
+  } finally {
+   setSaving(false)
   }
  }
 
@@ -263,7 +251,7 @@ export function TeachersListPage() {
           )}
          </div>
         </div>
-        <Button type="button" onClick={() => void onAdd()}>
+        <Button type="button" loading={saving} onClick={() => void onAdd()}>
          建立
         </Button>
        </div>

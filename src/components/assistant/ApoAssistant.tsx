@@ -15,6 +15,7 @@ import { useAuth } from "@/lib/authBootstrap"
 import { cleanReplyPathNoise, mergePathHints } from "@/lib/apoPaths"
 import { EMPTY_APO_CHAT_CONTEXT, loadApoSession, saveApoSession, type ApoChatContext } from "@/lib/apoSession"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import type { Role } from "@/lib/navStructure"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -151,7 +152,9 @@ export function ApoAssistant({ role }: ApoAssistantProps) {
      },
     ])
    } catch (e) {
-    setError(formatUnknownError(e))
+    const msg = formatUnknownError(e)
+    setError(msg)
+    reportUserFacingError(e, { source: "ApoAssistant.send", userMessage: msg })
    } finally {
     setSending(false)
    }

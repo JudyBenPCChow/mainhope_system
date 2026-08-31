@@ -81,7 +81,7 @@ export function EnrollmentSessionPicker({
     </div>
    </div>
    {loading ? <p className="text-sm text-muted-foreground">載入堂次…</p> : null}
-   {err ? <p className="text-sm text-destructive">{err}</p> : null}
+   {err ? <p role="alert" className="text-sm text-destructive">{err}</p> : null}
    {!loading && !err && rows.length === 0 ? (
     <p className="text-sm text-muted-foreground">此班尚無排程，請先建立課堂。</p>
    ) : null}

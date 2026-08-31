@@ -116,7 +116,7 @@ export default function Login() {
           </label>
         </div>
 
-        {error ? <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
+        {error ? <div role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div> : null}
 
         <Button type="submit" className="mt-5 w-full" loading={loading} loadingText="登入中…">
           登入

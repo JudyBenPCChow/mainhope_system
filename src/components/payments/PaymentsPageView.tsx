@@ -1908,7 +1908,7 @@ export function PaymentsPageView() {
           ))}
         </select>
         {isNewStudent === false ? (
-         <p className="mt-1 text-xs text-destructive">此學生非新生，不符合被推薦優惠。</p>
+         <p role="alert" className="mt-1 text-xs text-destructive">此學生非新生，不符合被推薦優惠。</p>
         ) : null}
        </FormField>
       ) : null}

@@ -303,8 +303,8 @@ export function MonthlyTuitionView() {
        <Textarea className="min-h-9" rows={1} value={remarks} onChange={(event) => setRemarks(event.target.value)} />
       </label>
      </div>
-     <Button className="mt-4" type="button" onClick={() => void submit()} disabled={saving}>
-      {saving ? "處理中…" : paymentStatus === PAYMENT_STATUS.received ? `確認收款 ${money(total)}` : `建立帳單 ${money(total)}`}
+     <Button className="mt-4" type="button" onClick={() => void submit()} loading={saving} loadingText="處理中…">
+      {paymentStatus === PAYMENT_STATUS.received ? `確認收款 ${money(total)}` : `建立帳單 ${money(total)}`}
      </Button>
     </section>
    ) : null}

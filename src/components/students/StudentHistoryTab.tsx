@@ -59,7 +59,7 @@ export function StudentHistoryTab({
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : loadState === "error" ? (
     <div className="space-y-2" role="alert">
-     <p className="text-sm text-destructive">更動紀錄未能載入{err ? `：${err}` : "。"}</p>
+     <p role="alert" className="text-sm text-destructive">更動紀錄未能載入{err ? `：${err}` : "。"}</p>
      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
       重試
      </button>

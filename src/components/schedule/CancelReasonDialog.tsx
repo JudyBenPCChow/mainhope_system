@@ -68,7 +68,7 @@ export function CancelReasonDialog({
       placeholder="例如：老師臨時請假、颱風影響、學生全數請假…"
       autoFocus
      />
-     {err ? <p className="text-destructive">{err}</p> : null}
+     {err ? <p role="alert" className="text-destructive">{err}</p> : null}
      <div className="flex justify-end gap-2">
       <Button type="button" variant="outline" disabled={saving} onClick={onCancel}>
        返回

@@ -9,6 +9,7 @@ import {
  weekItemsFromManageRows,
 } from "@/components/teachers/TeacherWeekTimetable"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
@@ -62,7 +63,7 @@ export default function TeacherTimetablePage() {
    setLoadedFromYmd(fromYmd)
    setLoadedToYmd(toYmd)
   } catch (e) {
-   setErr(formatUnknownError(e))
+   reportUserFacingError(e, { source: "TeacherTimetable.load", setErr, userMessage: formatUnknownError(e) })
    setRows([])
   } finally {
    setLoading(false)
@@ -88,7 +89,7 @@ export default function TeacherTimetablePage() {
      setLoadedToYmd(newTo)
     }
    } catch (e) {
-    setErr(formatUnknownError(e))
+    reportUserFacingError(e, { source: "TeacherTimetable.extendRange", setErr, userMessage: formatUnknownError(e) })
    } finally {
     setRangeExtending(false)
    }
@@ -138,7 +139,7 @@ export default function TeacherTimetablePage() {
     </div>
    </header>
    {err ? (
-    <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
+    <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-destructive">{err}</div>
    ) : null}
    {loading && rows.length === 0 ? (
     <SkeletonTimetableBlock aria-label="載入中" />

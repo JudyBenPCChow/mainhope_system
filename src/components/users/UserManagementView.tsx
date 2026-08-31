@@ -26,6 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag, type TagTone } from "@/components/ui/tag"
+import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -498,15 +499,7 @@ export function UserManagementView() {
    ) : null}
 
    {loading ? (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-     {[1, 2, 3].map((i) => (
-      <div
-       key={i}
-       className="h-48 animate-pulse rounded-2xl border border-border bg-muted/40"
-       aria-hidden
-      />
-     ))}
-    </div>
+    <SkeletonCardGrid count={3} className="sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3" />
    ) : sortedRows.length === 0 ? (
     <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-12 text-center text-sm text-muted-foreground">
      目前沒有後台使用者。
@@ -824,8 +817,8 @@ export function UserManagementView() {
       className={cn(
        "px-6 py-4 text-white",
        isHomeworkCreate
-        ? "bg-gradient-to-r from-sky-600 to-cyan-600"
-        : "bg-gradient-to-r from-emerald-600 to-teal-600"
+        ? "bg-info"
+        : "bg-success"
       )}
      >
       <DialogHeader className="space-y-1 text-left">
@@ -874,7 +867,7 @@ export function UserManagementView() {
         </p>
        ) : null}
        {existingTeacherUser ? (
-        <p className="text-xs text-destructive">
+        <p role="alert" className="text-xs text-destructive">
          此老師已綁定用戶：{existingTeacherUser.display_name?.trim() || existingTeacherUser.email || "（未命名）"}
         </p>
        ) : null}

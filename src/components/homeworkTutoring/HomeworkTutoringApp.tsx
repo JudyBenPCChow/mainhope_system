@@ -453,7 +453,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       </header>
 
       {loading || monthLoading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
-      {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
+      {loadError ? <p role="alert" className="text-sm text-destructive">{loadError}</p> : null}
 
       {!loading && !loadError && adminPage ? (
         <AdminHomeworkWorkbench

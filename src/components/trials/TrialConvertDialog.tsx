@@ -4,6 +4,7 @@ import { Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select } from "@/components/ui/select"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
 import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import { SINGLE_SESSION_ENROLLMENT } from "@/lib/enrollmentPeriod"
@@ -133,7 +134,11 @@ export function TrialConvertDialog({
         formLabel,
       })
     } catch (e) {
-      setDlgErr(e instanceof Error ? e.message : "轉正失敗")
+      reportUserFacingError(e, {
+        source: "TrialConvertDialog.submit",
+        setErr: setDlgErr,
+        userMessage: e instanceof Error ? e.message : "轉正失敗",
+      })
     }
   }
 

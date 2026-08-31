@@ -80,7 +80,7 @@ export function MgmtStatCard({ card, selected, onSelect }: Props) {
    </div>
    <p className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">{formatValue(card)}</p>
    {failed ? (
-    <p className="mt-1 text-xs text-destructive">{card.hint ?? "資料未能載入"}</p>
+    <p role="alert" className="mt-1 text-xs text-destructive">{card.hint ?? "資料未能載入"}</p>
    ) : card.hint ? (
     <p className="mt-1 text-xs text-muted-foreground">{card.hint}</p>
    ) : null}
