@@ -20,6 +20,7 @@ type LeadProps = {
 /**
  * 桌面清單版面殼：頂列不隨內容捲動；其餘為唯一捲動區（直向＋橫向）。
  * 表頭凍結請用 `stickyTableHeadClass`＋`stickyTableHeadCellClass`＋`stickyTableBodyClass`（相對此捲動區 `top-0`）。
+ * 表格外層用 `stickyTableWrapClass`（不可再包 `overflow-x-auto`／`overflow-hidden`）。
  * 捲動區本身不要加 `pt-*`，否則凍結表頭上方會露出滑動中的列。
  * 流動裝置 `sticky={false}`，不要改 MobileLayout。
  */
@@ -62,9 +63,9 @@ export function StickyListShell({ header, children, sticky = true, className }: 
     {/* 內距放在內層，勿放在 overflow 容器：否則 sticky 表頭下方會露出滑動中的列 */}
     <div
      ref={bodyRef}
-     className="min-h-0 flex-1 overflow-auto overscroll-contain"
+     className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain"
     >
-     <div className="flex min-h-0 flex-col gap-5 pt-4">
+     <div className="flex min-h-0 min-w-0 flex-col gap-5 pt-4">
       {children}
      </div>
     </div>
@@ -90,6 +91,13 @@ export function StickyListLead({ children, className }: LeadProps) {
   </div>
  )
 }
+
+/**
+ * 表格外層卡片：鎖在捲動區寬度內，避免橫向把列拉出圓角框。
+ * 不可再加 `overflow-x-auto`／`overflow-hidden`（會打斷凍結表頭）。
+ */
+export const stickyTableWrapClass =
+ "min-w-0 w-full rounded-xl border border-border bg-card shadow-sm"
 
 /** 表頭 `<thead>`：高於 tbody 的堆疊層，避免列（含入場 transform）蓋過凍結表頭。 */
 export const stickyTableHeadClass = "relative z-20"

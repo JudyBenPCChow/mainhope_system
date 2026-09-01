@@ -9,6 +9,7 @@ import {
  stickyTableHeadCellClass,
  stickyTableHeadClass,
  stickyTableHeadRowClass,
+ stickyTableWrapClass,
 } from "@/components/list/StickyListShell"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -87,7 +88,7 @@ export function StudentsListTable({
  const colSpan = 1 + visibleIds.length + 1
 
  return (
-  <div className="rounded-xl border border-border bg-card shadow-sm">
+  <div className={stickyTableWrapClass}>
     <table className="w-full min-w-[48rem] table-fixed border-separate border-spacing-0 text-sm isolate">
      <thead className={stickyTableHeadClass}>
       <tr className={stickyTableHeadRowClass}>

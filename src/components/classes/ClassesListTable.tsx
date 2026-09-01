@@ -21,6 +21,7 @@ import {
  stickyTableHeadCellClass,
  stickyTableHeadClass,
  stickyTableHeadRowClass,
+ stickyTableWrapClass,
 } from "@/components/list/StickyListShell"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select } from "@/components/ui/select"
@@ -87,8 +88,8 @@ export function ClassesListTable({
  const colSpan = 1 + CLASS_LIST_DATA_COLUMNS.length + 1
 
  return (
-  <div className="rounded-xl border border-border bg-card shadow-sm">
-    <table className="w-full min-w-[104rem] table-fixed border-separate border-spacing-0 text-sm isolate">
+  <div className={stickyTableWrapClass}>
+    <table className="w-full min-w-0 table-fixed border-separate border-spacing-0 text-sm isolate">
      <thead className={stickyTableHeadClass}>
       <tr className={stickyTableHeadRowClass}>
        <th className={cn(stickyTableHeadCellClass, "w-10 px-3 py-3")}>
@@ -104,11 +105,11 @@ export function ClassesListTable({
          key={id}
          className={cn(
           stickyTableHeadCellClass,
-          "whitespace-nowrap py-3 font-medium text-muted-foreground",
-          id === "course_code" ? "min-w-[7.5rem] px-4 pr-2" : "min-w-[5.5rem] px-3 pr-2",
-          id === "student_count" ? "text-center" : "",
-          id === "student_names" ? "min-w-[20rem]" : "",
-          id === "enrollment_notice" ? "min-w-[12rem]" : ""
+          "min-w-0 whitespace-nowrap py-3 font-medium text-muted-foreground",
+          id === "course_code" ? "w-[8rem] px-4 pr-2" : "px-3 pr-2",
+          id === "student_count" ? "w-[5.5rem] text-center" : "",
+          id === "student_names" ? "w-[22%]" : "",
+          id === "enrollment_notice" ? "w-[14%]" : ""
          )}
         >
          <SortableColumnHeader
@@ -132,7 +133,7 @@ export function ClassesListTable({
        <th
         className={cn(
          stickyTableHeadCellClass,
-         "min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground"
+         "w-[6.5rem] min-w-0 whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground"
         )}
        >
         操作
@@ -235,7 +236,7 @@ export function ClassesListTable({
            {roster?.count ?? 0}
           </td>
           <td
-           className="min-w-[20rem] max-w-[28rem] align-top px-3 py-3 pr-4 text-xs text-muted-foreground"
+           className="min-w-0 align-top px-3 py-3 pr-4 text-xs text-muted-foreground"
            onClick={(e) => e.stopPropagation()}
            title={(roster?.names ?? []).length > 0 ? (roster?.names ?? []).join("、") : undefined}
           >
@@ -248,7 +249,7 @@ export function ClassesListTable({
            )}
           </td>
           <td
-           className="min-w-[12rem] max-w-[16rem] align-top px-3 py-3 pr-2 text-xs text-muted-foreground"
+           className="min-w-0 align-top px-3 py-3 pr-2 text-xs text-muted-foreground"
            title={c.enrollment_notice?.trim() || undefined}
           >
            {c.enrollment_notice?.trim() ? (
