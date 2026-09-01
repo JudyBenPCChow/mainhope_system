@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import {
  Dialog,
  DialogContent,
+ DialogFooter,
  DialogHeader,
  DialogTitle,
  DialogTrigger,
@@ -145,6 +146,8 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
+import { CLASS_ADD_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { useNavGuard } from "@/hooks/useNavGuard"
 import {
  CLASS_DETAIL_TABS,
@@ -311,7 +314,7 @@ export function ClassDetailView() {
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
  const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
- const [studentQuery, setStudentQuery] = useState("")
+ const [addStudentId, setAddStudentId] = useState("")
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
  const [schedActionErr, setSchedActionErr] = useState<string | null>(null)
@@ -1153,18 +1156,7 @@ export function ClassDetailView() {
  const rosterStudents = students.filter((s) => s.status !== "已退讀")
  const addableStudents = (() => {
   const occupiedIds = new Set(rosterStudents.map((s) => s.studentId))
-  const q = studentQuery.trim().toLowerCase()
-  const list = allStudents.filter((s) => !occupiedIds.has(s.id))
-  if (!q) return list.slice(0, 50)
-  return list
-   .filter((s) => {
-    const hay = [s.full_name, s.english_name, s.student_code, s.student_phone, s.parent_phone]
-     .filter(Boolean)
-     .join(" ")
-     .toLowerCase()
-    return hay.includes(q)
-   })
-   .slice(0, 50)
+  return allStudents.filter((s) => !occupiedIds.has(s.id))
  })()
 
  const onAddStudentToClass = async (studentId: string) => {
@@ -1207,7 +1199,7 @@ export function ClassDetailView() {
      to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
     },
    })
-   setStudentQuery("")
+   setAddStudentId("")
    setAddStudentForm(isSummer ? "第一期" : "full")
    setAddStudentScheduleIds([])
    setAddStudentOpen(false)
@@ -2160,6 +2152,7 @@ export function ClassDetailView() {
            cls?.course_mode === "summer_two_period" ? "第一期" : "full"
           )
           setAddStudentScheduleIds([])
+          setAddStudentId("")
           setAddStudentErr(null)
          }
         }}
@@ -2224,41 +2217,39 @@ export function ClassDetailView() {
             disabled={Boolean(addingStudentId)}
            />
           ) : null}
-          <Input
-           placeholder="搜尋姓名 / 學號 / 電話"
-           value={studentQuery}
-           onChange={(e) => setStudentQuery(e.target.value)}
-          />
-          <div className="max-h-80 space-y-2 overflow-y-auto">
-           {addableStudents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">找不到可加入的學生。</p>
-           ) : (
-            addableStudents.map((s) => (
-             <button
-              key={s.id}
-              type="button"
-              disabled={
-               addingStudentId === s.id ||
-               (addStudentForm === SINGLE_SESSION_ENROLLMENT &&
-                addStudentScheduleIds.length === 0)
-              }
-              onClick={() => void onAddStudentToClass(s.id)}
-              className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2 text-left transition hover:border-primary/40 hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-60"
-             >
-              <span className="min-w-0">
-               <span className="block truncate text-sm font-medium">{s.full_name}</span>
-               <span className="block truncate text-xs text-muted-foreground">
-                {s.student_code ?? "—"} · {s.grade ?? "—"} · {s.student_phone ?? s.parent_phone ?? "—"}
-               </span>
-              </span>
-              <span className="text-xs text-primary">
-               {addingStudentId === s.id ? "加入中…" : "加入"}
-              </span>
-             </button>
-            ))
-           )}
-          </div>
+          {addableStudents.length === 0 ? (
+           <p className="text-sm text-muted-foreground">找不到可加入的學生。</p>
+          ) : (
+           <div className="space-y-1">
+            <span className="text-sm text-muted-foreground">學生</span>
+            <StudentSearchableSelect
+             students={addableStudents}
+             value={addStudentId}
+             rememberKey={CLASS_ADD_STUDENT_RECENT_STORAGE_KEY}
+             disabled={Boolean(addingStudentId)}
+             searchPlaceholder="最近選過，或輸入姓名／學號／電話"
+             onChange={setAddStudentId}
+            />
+           </div>
+          )}
          </div>
+         {addableStudents.length > 0 ? (
+          <DialogFooter>
+           <Button
+            type="button"
+            loading={Boolean(addingStudentId)}
+            loadingText="加入中…"
+            disabled={
+             !addStudentId ||
+             (addStudentForm === SINGLE_SESSION_ENROLLMENT &&
+              addStudentScheduleIds.length === 0)
+            }
+            onClick={() => void onAddStudentToClass(addStudentId)}
+           >
+            加入
+           </Button>
+          </DialogFooter>
+         ) : null}
         </DialogContent>
        </Dialog>
        ) : null}

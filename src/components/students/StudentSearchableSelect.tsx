@@ -15,6 +15,8 @@ export type StudentSearchableOption = {
  full_name: string
  student_code?: string | null
  english_name?: string | null
+ student_phone?: string | null
+ parent_phone?: string | null
 }
 
 type Props = {
