@@ -22,6 +22,7 @@ import {
  isStudentsListCacheFresh,
  patchStudentsListDataCache,
  setStudentsListDataCache,
+ studentsListCacheKey,
 } from "@/components/students/studentsListState"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import {
@@ -236,7 +237,18 @@ export function StudentsListPage() {
  const listScope: "active" | "roster" = searchParams.get("scope") === "roster" ? "roster" : "active"
  const isActiveScope = listScope === "active"
  const [filtersOpen, setFiltersOpen] = useState(false)
- const initialCache = useMemo(() => getStudentsListDataCache(), [])
+ const initialCache = useMemo(() => {
+  const cached = getStudentsListDataCache()
+  if (!cached) return null
+  const year = studentsListCacheKey({
+   isActiveScope: cached.key.isActiveScope,
+   showGraduated: cached.key.showGraduated,
+  }).enrollmentYear
+  if (cached.key.enrollmentYear !== year) {
+   return { ...cached, tags: new Map<string, string[]>(), key: { ...cached.key, enrollmentYear: year } }
+  }
+  return cached
+ }, [])
  const [rows, setRows] = useState<StudentRecord[]>(() => initialCache?.rows ?? [])
  const [tags, setTags] = useState<Map<string, string[]>>(() => initialCache?.tags ?? new Map())
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>(
@@ -317,6 +329,8 @@ export function StudentsListPage() {
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
   const cached = getStudentsListDataCache()
+  const key = studentsListCacheKey({ isActiveScope, showGraduated })
+  const reuseTags = cached?.key.enrollmentYear === key.enrollmentYear
   const skipSpinner = Boolean(opts?.silent || cached)
   if (!skipSpinner) setLoading(true)
   setErr(null)
@@ -328,12 +342,13 @@ export function StudentsListPage() {
    const hiddenCount = isActiveScope ? 0 : hidden
    setRows(list)
    setHiddenGraduatedCount(hiddenCount)
+   if (!reuseTags) setTags(new Map())
    const recentEnr = await fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT)
    setRecentEnrollments(recentEnr)
    setStudentsListDataCache({
-    key: { isActiveScope, showGraduated },
+    key,
     rows: list,
-    tags: cached?.tags ?? new Map(),
+    tags: reuseTags ? (cached?.tags ?? new Map()) : new Map(),
     recentEnrollments: recentEnr,
     hiddenGraduatedCount: hiddenCount,
    })
@@ -345,12 +360,14 @@ export function StudentsListPage() {
  }, [isActiveScope, showGraduated])
 
  useEffect(() => {
-  const key = { isActiveScope, showGraduated }
+  const key = studentsListCacheKey({ isActiveScope, showGraduated })
   if (isStudentsListCacheFresh(key)) return
   const cached = getStudentsListDataCache()
   const keyChanged =
    cached != null &&
-   (cached.key.isActiveScope !== isActiveScope || cached.key.showGraduated !== showGraduated)
+   (cached.key.isActiveScope !== isActiveScope ||
+    cached.key.showGraduated !== showGraduated ||
+    cached.key.enrollmentYear !== key.enrollmentYear)
   void load({ silent: cached != null && !keyChanged })
  }, [isActiveScope, showGraduated, load])
 
