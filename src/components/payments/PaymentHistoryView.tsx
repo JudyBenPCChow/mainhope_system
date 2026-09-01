@@ -46,6 +46,7 @@ import {
  fetchPaymentsForExport,
  fetchPaymentsPage,
  markPaymentReceived,
+ paymentSoftGuardLabels,
  PAYMENTS_PAGE_SIZE,
  type PaymentFull,
  type PaymentListRow,
@@ -321,9 +322,12 @@ export function PaymentHistoryView() {
 
  const confirmMarkReceived = async () => {
   if (!markTarget || saving) return
+  const yearLabels = await paymentSoftGuardLabels(markTarget.id, markTarget.paymentDate)
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    dateYmd: markTarget.paymentDate,
+    ...(yearLabels !== undefined
+     ? { labels: yearLabels, dateYmd: markTarget.paymentDate }
+     : { dateYmd: markTarget.paymentDate }),
     source: "PaymentHistoryView.confirmMarkReceived",
    }))
   ) {

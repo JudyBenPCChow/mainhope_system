@@ -44,7 +44,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { PAYMENT_RECENT_STUDENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
-import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
+import { confirmNonCurrentAcademicYearWrite, academicYearLabelsForPaymentGuard } from "@/lib/academicYearSoftGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  normalizeSpecialDiscountAmount,
@@ -254,6 +254,23 @@ export function PaymentsPageView() {
  }, [lines])
 
  const paymentAcademicYear = useMemo(() => academicYearLabelFromStartDate(payDate), [payDate])
+
+ const paymentGuardLabels = useMemo(
+  () =>
+   academicYearLabelsForPaymentGuard({
+    classYearLabels: lines
+     .filter((l) => l.classId)
+     .map(
+      (l) =>
+       enrollmentByClass.get(l.classId)?.academicYearLabel ??
+       trialClassById.get(l.classId)?.academicYearLabel ??
+       null
+     ),
+    coverageStartMonths: lines.map((l) => l.coverageStartMonth || null),
+    hasClassLines: lines.some((l) => Boolean(l.classId)),
+   }),
+  [lines, enrollmentByClass, trialClassById]
+ )
 
  const selectedDiscounts = useMemo(
   () => resolveSelectedDiscounts(discountIds, discounts),
@@ -1198,6 +1215,7 @@ export function PaymentsPageView() {
   }
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    labels: paymentGuardLabels,
     dateYmd: payDate,
     source: "PaymentsPageView.submitReceive",
    }))
@@ -1272,6 +1290,7 @@ export function PaymentsPageView() {
   }
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
+    labels: paymentGuardLabels,
     dateYmd: payDate,
     source: "PaymentsPageView.submitInvoice",
    }))
