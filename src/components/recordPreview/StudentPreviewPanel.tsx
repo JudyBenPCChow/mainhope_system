@@ -32,6 +32,7 @@ import { classKindLabel, resolveClassKind, type ClassKind } from "@/lib/privateC
 import { classDisplayName } from "@/lib/courseLabel"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { partitionEnrollmentsByAcademicYear } from "@/lib/enrollmentYearDisplay"
 import { cn } from "@/lib/utils"
 import { formatWeekdaysDisplay } from "@/lib/weekdayUtils"
 import { resolvePrimaryMessagingTarget } from "@/lib/whatsappReminder"
@@ -147,8 +148,8 @@ export function StudentPreviewPanel({ studentId }: Props) {
   }
  }, [studentId])
 
- const active = useMemo(
-  () => enrollments.filter((e) => e.status !== "已退讀"),
+ const { current: active, past: pastYearEnrollments } = useMemo(
+  () => partitionEnrollmentsByAcademicYear(enrollments),
   [enrollments]
  )
 
@@ -313,9 +314,17 @@ export function StudentPreviewPanel({ studentId }: Props) {
      {groupedChips.rest > 0 ? (
       <Link
        to={`/Students/${student.id}?tab=enrollments`}
-       className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+       className="mt-2 block text-xs font-medium text-primary hover:underline"
       >
        還有 {groupedChips.rest} 班
+      </Link>
+     ) : null}
+     {pastYearEnrollments.length > 0 ? (
+      <Link
+       to={`/Students/${student.id}?tab=enrollments`}
+       className="mt-2 block text-xs font-medium text-primary hover:underline"
+      >
+       過往學年報讀 {pastYearEnrollments.length} 班
       </Link>
      ) : null}
     </PreviewSection>
