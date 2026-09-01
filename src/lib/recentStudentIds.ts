@@ -4,6 +4,9 @@ export const RECENT_STUDENT_ID_LIMIT = 12
 /** 收款登記頁：本機記住最近選過的學生 */
 export const PAYMENT_RECENT_STUDENT_STORAGE_KEY = "mgmt_recent_payment_students"
 
+/** 班別詳情「增加學生」：本機記住最近選過的學生 */
+export const CLASS_ADD_STUDENT_RECENT_STORAGE_KEY = "mgmt_recent_class_add_students"
+
 export function parseRecentStudentIds(raw: string | null | undefined): string[] {
  if (raw == null || raw === "") return []
  try {

@@ -18,4 +18,14 @@ describe("studentDisplayText / studentSearchText", () => {
  it("搜尋字串含姓名、學號與英文名", () => {
   expect(studentSearchText(student)).toBe("陳大文 STU001 Chan Tai Man")
  })
+
+ it("搜尋字串含學生與家長電話", () => {
+  expect(
+   studentSearchText({
+    ...student,
+    student_phone: "91234567",
+    parent_phone: "98765432",
+   })
+  ).toBe("陳大文 STU001 Chan Tai Man 91234567 98765432")
+ })
 })
