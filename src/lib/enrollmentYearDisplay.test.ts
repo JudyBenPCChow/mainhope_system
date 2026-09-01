@@ -139,6 +139,22 @@ describe("collectCurrentEnrollmentSubjectTags", () => {
   expect(tags.get("s1")).toEqual(["中國語文（2627-CHIS1001-A）", "一對一數學"])
   expect(tags.has("s2")).toBe(false)
  })
+
+ it("已退讀不列入，即使學年仍是目前學年", () => {
+  const tags = collectCurrentEnrollmentSubjectTags(
+   [
+    {
+     studentId: "s1",
+     subjectLabel: "中國語文（2627-CHIS1001-A）",
+     academicYearLabel: "2627",
+     classKind: "group",
+     status: "已退讀",
+    },
+   ],
+   "2026-09-02"
+  )
+  expect(tags.has("s1")).toBe(false)
+ })
 })
 
 describe("groupEnrollmentsByAcademicYear", () => {

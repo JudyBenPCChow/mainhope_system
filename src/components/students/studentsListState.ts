@@ -27,6 +27,19 @@ export type StudentsListDataCache = {
  hiddenGraduatedCount: number
 }
 
+/** 學年一換不得沿用舊「報讀班別」標籤；列資料可保留。 */
+export function dropStaleEnrollmentYearTags(
+ cached: StudentsListDataCache,
+ enrollmentYear: string
+): StudentsListDataCache {
+ if (cached.key.enrollmentYear === enrollmentYear) return cached
+ return {
+  ...cached,
+  tags: new Map<string, string[]>(),
+  key: { ...cached.key, enrollmentYear },
+ }
+}
+
 const cache = createListDataCache<StudentsListDataCache>({
  isUsable: (d) => d.rows.length > 0,
 })
