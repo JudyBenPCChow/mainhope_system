@@ -143,6 +143,10 @@ export default {
           "0%": { opacity: "0", transform: "translateY(16px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        "stagger-fade": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -151,6 +155,7 @@ export default {
         "chicken-card-leave": "chicken-card-leave 0.42s ease-in both",
         "skeleton-shimmer": "skeleton-shimmer 1.8s ease-in-out infinite",
         "stagger-in": "stagger-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "stagger-fade": "stagger-fade 0.6s cubic-bezier(0.22, 1, 0.36, 1) both",
       },
     },
   },

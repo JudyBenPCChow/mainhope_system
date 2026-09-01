@@ -14,6 +14,8 @@ export { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
 export {
  StickyListLead,
  StickyListShell,
+ stickyTableBodyClass,
  stickyTableHeadCellClass,
+ stickyTableHeadClass,
  stickyTableHeadRowClass,
 } from "@/components/list/StickyListShell"
