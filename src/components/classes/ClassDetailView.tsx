@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import {
- ArrowLeft,
- BookOpen,
- CalendarDays,
- Pencil,
- ScrollText,
- TriangleAlert,
- Users,
-} from "lucide-react"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { TriangleAlert } from "lucide-react"
 
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { DetailLayerChrome } from "@/components/detail/DetailLayerChrome"
+import { RecordField } from "@/components/detail/RecordField"
+import { RecordPageHeader } from "@/components/detail/RecordPageHeader"
+import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
+import { UnsavedChangesDialog } from "@/components/detail/UnsavedChangesDialog"
 import { useOpenStudentRecord, useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Button } from "@/components/ui/button"
@@ -148,6 +145,13 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
+import { useNavGuard } from "@/hooks/useNavGuard"
+import {
+ CLASS_DETAIL_TABS,
+ parseClassDetailTab,
+ type ClassDetailTabId,
+} from "@/lib/classDetailTabs"
+import { replaceTabSearchParam } from "@/lib/detailTabSearch"
 import { localYmd } from "@/services/scheduleQueries"
 
 /** 日期／文字欄清空時勿送 "" 給 Postgres（date 欄位會報錯） */
@@ -191,6 +195,13 @@ function gradesEqual(a: string[] | undefined, b: string[]): boolean {
  return sa.length === sb.length && sa.every((v, i) => v === sb[i])
 }
 
+function isPrivateLightFormDirty(cls: ClassRecord, form: Partial<ClassRecord>): boolean {
+ return (
+  (form.teacher_id ?? null) !== (cls.teacher_id ?? null) ||
+  normNum(form.price_per_lesson ?? null) !== normNum(cls.price_per_lesson ?? null)
+ )
+}
+
 function isClassEditFormDirty(
  cls: ClassRecord,
  form: Partial<ClassRecord>,
@@ -218,24 +229,14 @@ function isClassEditFormDirty(
  ].some(Boolean)
 }
 
-type TabId = "basic" | "students" | "enrollment" | "schedule"
+type TabId = ClassDetailTabId
 
 type UnsavedLeaveChoice = "save" | "discard" | "cancel"
-
-const TABS: {
- id: TabId
- label: (n: { st: number; ev: number; sc: number }) => string
- icon: typeof BookOpen
-}[] = [
- { id: "basic", label: () => "基本資料", icon: BookOpen },
- { id: "students", label: ({ st }) => `學生名單 (${st})`, icon: Users },
- { id: "enrollment", label: ({ ev }) => `增退紀錄 (${ev})`, icon: ScrollText },
- { id: "schedule", label: ({ sc }) => `排程 (${sc})`, icon: CalendarDays },
-]
 
 export function ClassDetailView() {
  const { classId } = useParams<{ classId: string }>()
  const navigate = useNavigate()
+ const [searchParams, setSearchParams] = useSearchParams()
  const openStudent = useOpenStudentRecord()
  const openTeacher = useOpenTeacherRecord()
  const { preview } = useRecordPreview()
@@ -247,7 +248,10 @@ export function ClassDetailView() {
  const canOpenCourseCatalog = can(profile?.activeCapabilities, "catalog.manage")
  const fromPrivateTutoring =
   Boolean((location.state as { fromPrivateTutoring?: boolean } | null)?.fromPrivateTutoring)
- const [tab, setTab] = useState<TabId>("basic")
+ const [tab, setTabState] = useState<TabId>(() =>
+  parseClassDetailTab(new URLSearchParams(window.location.search).get("tab"))
+ )
+ const [basicEditing, setBasicEditing] = useState(false)
  const [cls, setCls] = useState<ClassRecord | null>(null)
  const [students, setStudents] = useState<ClassStudentRow[]>([])
  const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
@@ -260,14 +264,8 @@ export function ClassDetailView() {
  const hintsRequestIdRef = useRef(0)
  const [savingSessionId, setSavingSessionId] = useState<string | null>(null)
  const [loading, setLoading] = useState(true)
- const [editOpen, setEditOpen] = useState(false)
  const [editErr, setEditErr] = useState<string | null>(null)
  const [savingEdit, setSavingEdit] = useState(false)
- const [privateLightOpen, setPrivateLightOpen] = useState(false)
- const [privateLightTeacherId, setPrivateLightTeacherId] = useState("")
- const [privateLightPrice, setPrivateLightPrice] = useState("")
- const [privateLightErr, setPrivateLightErr] = useState<string | null>(null)
- const [privateLightSaving, setPrivateLightSaving] = useState(false)
  const [privateTeacherSyncing, setPrivateTeacherSyncing] = useState(false)
  const [privateBookOpen, setPrivateBookOpen] = useState(false)
  const [privateBookDate, setPrivateBookDate] = useState(() => localYmd())
@@ -328,6 +326,25 @@ export function ClassDetailView() {
  const [makeupErr, setMakeupErr] = useState<string | null>(null)
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
+
+ const writeTabParam = useCallback((next: TabId) => {
+  replaceTabSearchParam(setSearchParams, next)
+ }, [setSearchParams])
+
+ const applyTab = useCallback(
+  (next: TabId) => {
+   const parsed = parseClassDetailTab(next)
+   setTabState(parsed)
+   writeTabParam(parsed)
+  },
+  [writeTabParam]
+ )
+
+ useEffect(() => {
+  const parsed = parseClassDetailTab(searchParams.get("tab"))
+  setTabState(parsed)
+  if (searchParams.get("tab") !== parsed) writeTabParam(parsed)
+ }, [searchParams, writeTabParam])
 
  const teacherScopeId = getTeacherScopeTeacherId(profile)
  const isTeacherPortal = Boolean(teacherScopeId)
@@ -599,67 +616,25 @@ export function ClassDetailView() {
   } finally {
    setSavingEdit(false)
   }
-  setEditOpen(false)
+  setBasicEditing(false)
   invalidateClassesListDataCache()
   await reload()
   pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
   return true
  }
 
- const requestCloseEdit = useCallback(async (): Promise<boolean> => {
-  if (
-   !cls ||
-   !isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections, templateCourseId)
-  )
-   return true
-  const choice = await promptUnsavedLeave()
-  if (choice === "cancel") return false
-  if (choice === "save") {
-   const ok = await saveClass()
-   return ok
-  }
-  resetEditFormFromClass()
-  return true
- }, [
-  cls,
-  form,
-  gradeSelections,
-  weekdaySelections,
-  templateCourseId,
-  promptUnsavedLeave,
-  resetEditFormFromClass,
- ])
-
- const requestLeavePage = useCallback(async () => {
-  if (editOpen) {
-   const canClose = await requestCloseEdit()
-   if (!canClose) return
-   setEditOpen(false)
-   setEditErr(null)
-  }
-  navigate(classesListPath)
- }, [editOpen, requestCloseEdit, navigate, classesListPath])
-
- const openPrivateLightEdit = useCallback(() => {
-  if (!cls) return
-  setPrivateLightTeacherId(cls.teacher_id ?? "")
-  setPrivateLightPrice(cls.price_per_lesson != null ? String(cls.price_per_lesson) : "")
-  setPrivateLightErr(null)
-  setPrivateLightOpen(true)
- }, [cls])
-
- const savePrivateLightEdit = useCallback(async () => {
-  if (!cls) return
-  const priceNum = privateLightPrice.trim() === "" ? null : Number(privateLightPrice)
+ const savePrivateLightEdit = async (): Promise<boolean> => {
+  if (!cls) return false
+  const priceNum = form.price_per_lesson ?? null
   if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
-   setPrivateLightErr("學費不可為負數")
-   return
+   setEditErr("學費不可為負數")
+   return false
   }
-  setPrivateLightSaving(true)
-  setPrivateLightErr(null)
+  setSavingEdit(true)
+  setEditErr(null)
   try {
    const result = await updatePrivateClassSettings(cls.id, {
-    teacherId: privateLightTeacherId || null,
+    teacherId: form.teacher_id || null,
     pricePerLesson: priceNum,
    })
    pushBanner({
@@ -670,17 +645,90 @@ export function ClassDetailView() {
       ? `老師／學費已儲存；已同步 ${result.syncedScheduleCount} 堂未取消排程的負責老師。`
       : "老師／學費已儲存。",
    })
-   setPrivateLightOpen(false)
+   setBasicEditing(false)
    await reload()
+   return true
   } catch (e) {
    reportUserFacingError(e, {
     source: "ClassDetailView.savePrivateLightEdit",
-    setErr: setPrivateLightErr,
+    setErr: setEditErr,
    })
+   return false
   } finally {
-   setPrivateLightSaving(false)
+   setSavingEdit(false)
   }
- }, [cls, privateLightPrice, privateLightTeacherId, pushBanner, reload])
+ }
+
+ const saveBasic = async (): Promise<boolean> => {
+  if (isPrivateClass) return savePrivateLightEdit()
+  return saveClass()
+ }
+
+ const isBasicDirty = Boolean(
+  cls &&
+   basicEditing &&
+   (isPrivateClass
+    ? isPrivateLightFormDirty(cls, form)
+    : isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections, templateCourseId))
+ )
+
+ const confirmUnsavedIfNeeded = async (): Promise<boolean> => {
+  if (unsavedLeaveResolverRef.current) return false
+  if (
+   !cls ||
+   !basicEditing ||
+   (isPrivateClass
+    ? !isPrivateLightFormDirty(cls, form)
+    : !isClassEditFormDirty(cls, form, gradeSelections, weekdaySelections, templateCourseId))
+  ) {
+   return true
+  }
+  const choice = await promptUnsavedLeave()
+  if (choice === "cancel") return false
+  if (choice === "save") {
+   const ok = await saveBasic()
+   if (!ok) return false
+   setBasicEditing(false)
+   return true
+  }
+  resetEditFormFromClass()
+  setBasicEditing(false)
+  setEditErr(null)
+  return true
+ }
+
+ const requestLeavePage = async () => {
+  const ok = await confirmUnsavedIfNeeded()
+  if (!ok) return
+  navigate(classesListPath)
+ }
+
+ const setTab = (next: TabId) => {
+  void (async () => {
+   const ok = await confirmUnsavedIfNeeded()
+   if (!ok) return
+   applyTab(next)
+   const scrollRoot = document.querySelector("[data-detail-layer-scroll]")
+   if (scrollRoot instanceof HTMLElement) scrollRoot.scrollTo({ top: 0 })
+   else document.querySelector("main")?.scrollTo({ top: 0 })
+  })()
+ }
+
+ const goExternal = (to: string) => {
+  void (async () => {
+   const ok = await confirmUnsavedIfNeeded()
+   if (!ok) return
+   navigate(to)
+  })()
+ }
+
+ useNavGuard(isBasicDirty, confirmUnsavedIfNeeded)
+
+ const discardBasicEdits = useCallback(() => {
+  resetEditFormFromClass()
+  setBasicEditing(false)
+  setEditErr(null)
+ }, [resetEditFormFromClass])
 
  const syncPrivateTeacherToSchedules = useCallback(async () => {
   if (!cls?.teacher_id) {
@@ -1053,22 +1101,29 @@ export function ClassDetailView() {
 
  if (!cid) {
   return (
-   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate("/Classes")} layerLabel={null}>
+   <AdaptiveDetailLayer
+    variant="class"
+    onDismiss={() => navigate("/Classes")}
+    layerLabel={null}
+    chrome={<DetailLayerChrome title="班別詳情" onClose={() => navigate("/Classes")} />}
+   >
     <p className="p-6 text-muted-foreground">無效路由</p>
    </AdaptiveDetailLayer>
   )
  }
  if (!loading && !cls) {
+  const notFoundExit = fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"
   return (
    <AdaptiveDetailLayer
-    variant="student"
-    onDismiss={() => navigate(fromPrivateTutoring ? "/PrivateTutoring" : "/Classes")}
-    layerLabel="班別詳情"
+    variant="class"
+    onDismiss={() => navigate(notFoundExit)}
+    layerLabel={null}
+    chrome={<DetailLayerChrome title="班別詳情" onClose={() => navigate(notFoundExit)} />}
    >
     <div className="p-6">
      <p className="text-muted-foreground">找不到班別。</p>
      <Button className="mt-4" variant="outline" asChild>
-      <Link to={fromPrivateTutoring ? "/PrivateTutoring" : "/Classes"}>返回</Link>
+      <Link to={notFoundExit}>返回</Link>
      </Button>
     </div>
    </AdaptiveDetailLayer>
@@ -1078,7 +1133,12 @@ export function ClassDetailView() {
  const scopeTeacherId = teacherScopeId
  if (!loading && cls && scopeTeacherId && cls.teacher_id !== scopeTeacherId) {
   return (
-   <AdaptiveDetailLayer variant="student" onDismiss={() => navigate(classesListPath)} layerLabel="班別詳情">
+   <AdaptiveDetailLayer
+    variant="class"
+    onDismiss={() => navigate(classesListPath)}
+    layerLabel={null}
+    chrome={<DetailLayerChrome title="班別詳情" onClose={() => navigate(classesListPath)} />}
+   >
     <div className="p-6">
      <p>此班別不屬於您的指派，無法檢視。</p>
      <Button className="mt-4" variant="outline" asChild>
@@ -1091,7 +1151,6 @@ export function ClassDetailView() {
 
  /** 名單不顯示已退讀；已退讀可再次加入。休學／退選仍佔名額。 */
  const rosterStudents = students.filter((s) => s.status !== "已退讀")
- const tabCounts = { st: rosterStudents.length, ev: enrollmentEvents.length, sc: schedules.length }
  const addableStudents = (() => {
   const occupiedIds = new Set(rosterStudents.map((s) => s.studentId))
   const q = studentQuery.trim().toLowerCase()
@@ -1496,153 +1555,76 @@ export function ClassDetailView() {
   }
  }
 
+ const showBasicForm = basicEditing && (canEditClass || canEditPrivateLight)
+ const classTitle = cls
+  ? classDisplayName({ subject: cls.subject, courseName: cls.course_name })
+  : loading
+    ? "載入中…"
+    : "班別詳情"
+
  return (
   <AdaptiveDetailLayer
-   variant="student"
+   variant="class"
    onDismiss={() => void requestLeavePage()}
-   layerLabel="班別詳情"
+   layerLabel={null}
+   chrome={
+    <DetailLayerChrome
+     title={classTitle}
+     subtitle={cls?.course_code_full ?? null}
+     onClose={() => void requestLeavePage()}
+    />
+   }
   >
-   <div className="flex min-h-full flex-col bg-background">
-   <div
-    className={
-     isMobile
-      ? "bg-primary px-4 py-4 text-primary-foreground shadow-md md:px-6"
-      : "rounded-xl border border-border bg-card px-4 py-4 shadow-sm md:px-6"
+   <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
+   <RecordPageHeader
+    backLabel={
+     isPrivateClass || fromPrivateTutoring ? "返回私人課程學生" : "返回班別管理"
     }
-   >
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:gap-4">
-     <Button
-      type="button"
-      variant={isMobile ? "secondary" : "outline"}
-      size="sm"
-      className={cn("w-fit shrink-0", isMobile && "bg-white/90 text-foreground hover:bg-white")}
-      onClick={() => void requestLeavePage()}
-     >
-      <ArrowLeft className="h-4 w-4" />
-      返回
-     </Button>
-     <div className="flex min-w-0 flex-1 items-start gap-3">
-      {isMobile ? (
-       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/20 text-xl">
-        
-       </div>
-      ) : null}
-      <div className="min-w-0">
-       {loading ? (
-        <p className="text-lg">載入中…</p>
-       ) : cls ? (
-        <>
-         <h1 className="text-xl font-bold md:text-2xl">
-          {classDisplayName({ subject: cls.subject, courseName: cls.course_name })}
-         </h1>
-         <div
-          className={cn(
-           "mt-1 flex flex-wrap items-center gap-2 text-sm",
-           isMobile ? "text-white/90" : "text-muted-foreground"
-          )}
-         >
-          <span className="font-mono">{cls.course_code_full ?? "—"}</span>
-          <Tag tone="info" size="sm">
-           {classKindLabel(resolveClassKind(cls.class_kind, cls.subject))}
-          </Tag>
-          {cls.class_kind === "private" ? (
-           <Tag tone="info" size="sm">
-            {privateCapacity === 2 ? "一對二" : "一對一"}
-           </Tag>
-          ) : null}
-          <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
-         </div>
-         <p className={cn("mt-1 text-sm", isMobile ? "text-white/85" : "text-muted-foreground")}>
-          {timeLine(cls)}
-         </p>
-        </>
+    onBack={() => void requestLeavePage()}
+    loading={loading}
+    title={classTitle}
+    meta={
+     cls ? (
+      <>
+       <span className="font-mono tabular-nums">{cls.course_code_full ?? "—"}</span>
+       <Tag tone="info" size="sm">
+        {classKindLabel(resolveClassKind(cls.class_kind, cls.subject))}
+       </Tag>
+       {cls.class_kind === "private" ? (
+        <Tag tone="info" size="sm">
+         {privateCapacity === 2 ? "一對二" : "一對一"}
+        </Tag>
        ) : null}
-      </div>
-     </div>
-     {canEditClass ? (
-     <Button
-      type="button"
-      variant={isMobile ? "secondary" : "default"}
-      className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
-      onClick={() => {
-       setEditErr(null)
-       setEditOpen(true)
-      }}
-     >
-      <Pencil className="h-4 w-4" />
-      編輯班別
-     </Button>
-     ) : isPrivateClass && canManageClass ? (
-     <div className="flex w-fit shrink-0 flex-col gap-2 sm:items-end">
-      {canBookPrivate ? (
-       <Button
-        type="button"
-        variant={isMobile ? "secondary" : "default"}
-        className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
-        onClick={() => void openPrivateBook()}
-       >
-        預約上堂
-       </Button>
-      ) : null}
-      {canEditPrivateLight ? (
-       <Button
-        type="button"
-        variant={isMobile ? "secondary" : "outline"}
-        className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
-        onClick={openPrivateLightEdit}
-       >
-        <Pencil className="h-4 w-4" />
-        編輯老師／學費
-       </Button>
-      ) : null}
-      <Button
-       type="button"
-       variant={isMobile ? "secondary" : "outline"}
-       className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
-       asChild
-      >
-      <Link to="/PrivateTutoring">返回私人課程學生</Link>
+       <Tag tone={statusToTagTone(cls.status)} size="sm">{cls.status}</Tag>
+       <span>{timeLine(cls)}</span>
+      </>
+     ) : null
+    }
+    actions={
+     canBookPrivate ? (
+      <Button type="button" size="sm" onClick={() => void openPrivateBook()}>
+       預約上堂
       </Button>
-     </div>
-     ) : isPrivateClass && canBookPrivate ? (
-     <Button
-      type="button"
-      variant={isMobile ? "secondary" : "default"}
-      className={isMobile ? "bg-white/20 text-white hover:bg-white/30" : undefined}
-      onClick={() => void openPrivateBook()}
-     >
+     ) : undefined
+    }
+   />
+
+   <RecordPageTabs
+    tabs={CLASS_DETAIL_TABS}
+    value={tab}
+    onChange={setTab}
+    isMobile={isMobile}
+   />
+
+   {isMobile && canBookPrivate ? (
+    <div className="flex flex-wrap gap-2 pt-3">
+     <Button type="button" size="sm" onClick={() => void openPrivateBook()}>
       預約上堂
      </Button>
-     ) : null}
     </div>
-   </div>
+   ) : null}
 
-   <div className="border-b border-border bg-card px-2 md:px-4">
-    <nav className="flex gap-1 overflow-x-auto py-1">
-     {TABS.map((t) => {
-      const Icon = t.icon
-      const active = tab === t.id
-      return (
-       <button
-        key={t.id}
-        type="button"
-        onClick={() => setTab(t.id)}
-        className={cn(
-         "flex shrink-0 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-         active
-          ? "border-b-2 border-primary text-primary"
-          : "text-muted-foreground hover:text-foreground"
-        )}
-       >
-        <Icon className="h-4 w-4" />
-        {t.label(tabCounts)}
-       </button>
-      )
-     })}
-    </nav>
-   </div>
-
-   <div className="p-4 md:p-6">
+   <div className="pt-4 md:pt-6">
     {pageErr ? (
      <div
       role="alert"
@@ -1708,65 +1690,448 @@ export function ClassDetailView() {
      </div>
     ) : null}
     {tab === "basic" && cls ? (
-     <div className="mx-auto max-w-5xl space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2">
-       {[
-        { k: "科目", v: cls.subject },
-        { k: "班別編碼", v: cls.course_code_full ?? "—" },
-        { k: "適用年級", v: (cls.grade ?? []).join("、") || "—" },
-        { k: "星期 / 時間", v: timeLine(cls) },
-        {
-         k: "負責老師",
-         v: cls.teacher_id ? (
-          <button
+     <div className="mx-auto max-w-4xl space-y-8">
+      <div className="min-w-0 space-y-8">
+       <section className="space-y-4">
+        <div className="flex items-start justify-between gap-3">
+         <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
+         {(canEditClass || canEditPrivateLight) && !showBasicForm ? (
+          <Button
            type="button"
-           className="font-medium text-primary underline-offset-4 hover:underline"
-           onClick={() => openTeacher(cls.teacher_id as string)}
+           size="sm"
+           onClick={() => {
+            setEditErr(null)
+            setBasicEditing(true)
+           }}
           >
-           {cls.teacher_name ?? "—"}
-          </button>
-         ) : (
-          "未指定"
-         ),
-        },
-        { k: "上課課室", v: cls.classroom_name ?? "未指定" },
-        { k: "收生上限", v: cls.capacity != null ? `${cls.capacity} 人` : "—" },
-        {
-         k: "每節學費",
-         v:
-          cls.price_per_lesson != null
-           ? `HKD $${cls.price_per_lesson.toLocaleString("zh-Hant-TW")}`
-           : "—",
-        },
-        { k: "開始日期", v: cls.start_date ?? "—" },
-        { k: "結束日期", v: cls.end_date ?? "—" },
-       ].map((cell) => (
-        <div
-         key={cell.k}
-         className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
-        >
-         <div className="text-xs font-medium text-muted-foreground">{cell.k}</div>
-         <div className="mt-1 text-sm font-semibold text-foreground">{cell.v}</div>
+           編輯
+          </Button>
+         ) : null}
         </div>
-       ))}
-       <div className="rounded-xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md sm:col-span-2">
-        <div className="text-xs font-medium text-muted-foreground">報讀須知</div>
-        <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-         {cls.enrollment_notice?.trim() ? cls.enrollment_notice : "—"}
-        </p>
-       </div>
+        {editErr ? (
+         <div
+          role="alert"
+          className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+         >
+          {editErr}
+         </div>
+        ) : null}
+        <div className="grid gap-4 sm:grid-cols-2">
+         {canEditClass && showBasicForm && cls.course_id ? (
+          <div className="sm:col-span-2 space-y-3 rounded-md border border-border bg-muted/30 p-3">
+           <div className="text-sm font-medium text-foreground">課程模板</div>
+           <div className="grid gap-3 sm:grid-cols-2">
+            <RecordField label="科目">
+             <Select
+              value={templateSubjectId}
+              onChange={(e) => {
+               setTemplateSubjectId(e.target.value)
+               setTemplateGradeCode("")
+               setTemplateCourseId("")
+              }}
+             >
+              <option value="">請選擇</option>
+              {subjectOptions.map((s) => (
+               <option key={s.id} value={s.id}>
+                {s.name_zh}（{s.code}）
+               </option>
+              ))}
+             </Select>
+            </RecordField>
+            <RecordField label="年級">
+             <Select
+              value={templateGradeCode}
+              onChange={(e) => {
+               setTemplateGradeCode(e.target.value)
+               setTemplateCourseId("")
+              }}
+              disabled={!templateSubjectId}
+             >
+              <option value="">請選擇</option>
+              {CLASS_GRADE_FORM_OPTIONS.map((g) => {
+               const code = gradeChineseToCode(g)
+               if (!code) return null
+               return (
+                <option key={g} value={code}>
+                 {g}（{code}）
+                </option>
+               )
+              })}
+             </Select>
+            </RecordField>
+            <RecordField label="課程" className="sm:col-span-2">
+             <Select
+              value={templateCourseId}
+              onChange={(e) => setTemplateCourseId(e.target.value)}
+              disabled={!templateSubjectId || !templateGradeCode}
+             >
+              <option value="">請選擇</option>
+              {templateCourseOptions.map((c) => (
+               <option key={c.id} value={c.id}>
+                {c.label}
+               </option>
+              ))}
+              {templateCourseId &&
+              !templateCourseOptions.some((c) => c.id === templateCourseId) ? (
+               <option value={templateCourseId}>目前課程（{templateCourseId.slice(0, 8)}…）</option>
+              ) : null}
+             </Select>
+            </RecordField>
+           </div>
+           <p className="text-xs text-muted-foreground">
+            更換模板會更新班別編碼、科目與年級；已有學生與排程不會自動清除。
+           </p>
+           {canOpenCourseCatalog ? (
+            <button
+             type="button"
+             className="text-xs font-medium text-primary hover:underline"
+             onClick={() => goExternal("/Courses")}
+            >
+             前往課程管理編輯模板內容
+            </button>
+           ) : null}
+          </div>
+         ) : (
+          <RecordField
+           label="科目"
+           read={canEditClass && showBasicForm && !cls.course_id ? undefined : (cls.subject || "—")}
+          >
+           <Input
+            value={form.subject ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
+           />
+          </RecordField>
+         )}
+         <RecordField label="班別編碼" read={cls.course_code_full ?? "—"}>
+          <Input value={cls.course_code_full ?? ""} disabled className="bg-muted" />
+         </RecordField>
+         <RecordField
+          label="班號"
+          read={canEditClass && showBasicForm ? undefined : (form.section_code || "—")}
+         >
+          <Input
+           className="font-mono uppercase"
+           value={form.section_code ?? ""}
+           onChange={(e) => setForm((f) => ({ ...f, section_code: e.target.value.toUpperCase() }))}
+          />
+         </RecordField>
+         <RecordField
+          label={cls.course_id ? "適用年級" : "年級（可多選）"}
+          className="sm:col-span-2"
+          read={
+           canEditClass && showBasicForm && !cls.course_id
+            ? undefined
+            : classGradeDisplayText(cls.grade, cls.grade_code, cls.eligible_grade_codes)
+          }
+         >
+          <>
+           <div className="grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
+            {CLASS_GRADE_FORM_OPTIONS.map((g) => (
+             <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+               type="checkbox"
+               className="h-4 w-4 rounded border-input"
+               checked={gradeSelections.includes(g)}
+               onChange={() =>
+                setGradeSelections((prev) =>
+                 prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+                )
+               }
+              />
+              {g}
+             </label>
+            ))}
+           </div>
+           <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
+          </>
+         </RecordField>
+         <RecordField
+          label="逢星期（可多選）"
+          className="sm:col-span-2"
+          read={canEditClass && showBasicForm ? undefined : (formatWeekdaysDisplay(cls.day_of_week) || "未指定")}
+         >
+          <>
+           <div className="grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-4">
+            {KANBAN_DAY_COLUMNS.map((d) => (
+             <label key={d} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+               type="checkbox"
+               className="h-4 w-4 rounded border-input"
+               checked={weekdaySelections.includes(d)}
+               onChange={() =>
+                setWeekdaySelections((prev) =>
+                 prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
+                )
+               }
+              />
+              {d}
+             </label>
+            ))}
+           </div>
+           <p className="mt-1 text-xs text-muted-foreground">可勾選多個上課日；全部不勾表示未指定。</p>
+          </>
+         </RecordField>
+         <RecordField
+          label="時段"
+          read={canEditClass && showBasicForm ? undefined : (cls.time_slot || "—")}
+         >
+          <>
+           <Select
+            value={timeSlotSelectValueFromStored(form.time_slot)}
+            onChange={(e) => {
+             const next = e.target.value || null
+             setForm((f) => ({
+              ...f,
+              time_slot: next,
+              lesson_slots_per_session:
+               isConsecutiveClass(f.lesson_slots_per_session) && next && !canUseConsecutiveFromTimeSlot(next)
+                ? 1
+                : f.lesson_slots_per_session,
+             }))
+            }}
+           >
+            <option value="">未指定</option>
+            {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
+             <option key={slot} value={slot}>
+              {slot}
+             </option>
+            ))}
+            {form.time_slot &&
+            !CLASS_TIME_SLOT_OPTIONS.some(
+             (slot) =>
+              slot === form.time_slot ||
+              slot.replace(/\u2013/g, "-") === String(form.time_slot).replace(/\u2013/g, "-")
+            ) ? (
+             <option value={form.time_slot}>{form.time_slot}（原資料）</option>
+            ) : null}
+           </Select>
+           <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+            <input
+             type="checkbox"
+             className="h-4 w-4 rounded border-input"
+             checked={isConsecutiveClass(form.lesson_slots_per_session)}
+             disabled={!form.time_slot || !canUseConsecutiveFromTimeSlot(String(form.time_slot))}
+             onChange={(e) =>
+              setForm((f) => ({ ...f, lesson_slots_per_session: e.target.checked ? 2 : 1 }))
+             }
+            />
+            連堂（每次 2 節 · 150 分鐘 · 計 2 堂學費）
+           </label>
+          </>
+         </RecordField>
+         <RecordField
+          label="負責老師"
+          read={
+           showBasicForm && (canEditClass || canEditPrivateLight) ? undefined : cls.teacher_id ? (
+            <button
+             type="button"
+             className="font-medium text-primary underline-offset-4 hover:underline"
+             onClick={() => openTeacher(cls.teacher_id as string)}
+            >
+             {cls.teacher_name ?? "—"}
+            </button>
+           ) : (
+            "未指定"
+           )
+          }
+         >
+          <>
+           <Select
+            value={form.teacher_id ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value || null }))}
+           >
+            <option value="">未指定</option>
+            {teachers.map((t) => (
+             <option key={t.id} value={t.id}>
+              {t.label}
+             </option>
+            ))}
+           </Select>
+           {isPrivateClass ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+             變更老師後，會同步此班所有未取消排程的負責老師（老師時間表依排程老師顯示）。
+            </p>
+           ) : null}
+          </>
+         </RecordField>
+         <RecordField
+          label="上課課室"
+          read={canEditClass && showBasicForm ? undefined : (cls.classroom_name ?? "未指定")}
+         >
+          <Select
+           value={form.classroom_id ?? ""}
+           onChange={(e) => setForm((f) => ({ ...f, classroom_id: e.target.value || null }))}
+          >
+           <option value="">未指定</option>
+           {rooms.map((r) => (
+            <option key={r.id} value={r.id}>
+             {r.label}
+            </option>
+           ))}
+          </Select>
+         </RecordField>
+         <RecordField
+          label="收生上限"
+          read={
+           canEditClass && showBasicForm
+            ? undefined
+            : cls.capacity != null
+              ? `${cls.capacity} 人`
+              : "—"
+          }
+         >
+          <>
+           <Input
+            type="number"
+            min={0}
+            step={1}
+            value={form.capacity ?? ""}
+            onChange={(e) => {
+             const v = e.target.value
+             setForm((f) => {
+              if (v === "") return { ...f, capacity: null }
+              const n = Number(v)
+              if (Number.isNaN(n)) return { ...f, capacity: null }
+              return { ...f, capacity: Math.max(0, Math.floor(n)) }
+             })
+            }}
+           />
+           <p className="mt-1 text-xs text-muted-foreground">不可為負數；留空表示不設上限。</p>
+          </>
+         </RecordField>
+         <RecordField
+          label="每節學費（HKD）"
+          read={
+           showBasicForm && (canEditClass || canEditPrivateLight)
+            ? undefined
+            : cls.price_per_lesson != null
+              ? `HKD $${cls.price_per_lesson.toLocaleString("zh-Hant-TW")}`
+              : "—"
+          }
+         >
+          <>
+           <div className="flex flex-wrap gap-2">
+            {TUITION_PRICE_PRESETS_HKD.map((p) => (
+             <Button
+              key={p}
+              type="button"
+              size="sm"
+              variant={form.price_per_lesson === p ? "default" : "outline"}
+              onClick={() => setForm((f) => ({ ...f, price_per_lesson: p }))}
+             >
+              {p}
+             </Button>
+            ))}
+           </div>
+           <Input
+            type="number"
+            min={0}
+            step={1}
+            className="mt-2"
+            placeholder="或手動輸入金額（HKD）"
+            value={
+             form.price_per_lesson != null && !Number.isNaN(form.price_per_lesson)
+              ? form.price_per_lesson
+              : ""
+            }
+            onChange={(e) => {
+             const v = e.target.value
+             setForm((f) => {
+              if (v === "") return { ...f, price_per_lesson: null }
+              const n = Number(v)
+              if (Number.isNaN(n)) return { ...f, price_per_lesson: null }
+              return { ...f, price_per_lesson: Math.max(0, n) }
+             })
+            }}
+           />
+          </>
+         </RecordField>
+         <RecordField
+          label="開始日期"
+          read={canEditClass && showBasicForm ? undefined : (cls.start_date ?? "—")}
+         >
+          <Input
+           type="date"
+           value={(form.start_date ?? "").slice(0, 10)}
+           onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
+          />
+         </RecordField>
+         <RecordField
+          label="結束日期"
+          read={canEditClass && showBasicForm ? undefined : (cls.end_date ?? "—")}
+         >
+          <Input
+           type="date"
+           value={(form.end_date ?? "").slice(0, 10)}
+           onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
+          />
+         </RecordField>
+         <RecordField
+          label="狀態"
+          className="sm:col-span-2"
+          read={canEditClass && showBasicForm ? undefined : (cls.status || "—")}
+         >
+          <Select
+           value={form.status ?? "進行中"}
+           onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+          >
+           {(STATUS_CHIPS.filter((s) => s !== "全部") as string[]).map((s) => (
+            <option key={s} value={s}>
+             {s}
+            </option>
+           ))}
+           {form.status &&
+           !(STATUS_CHIPS.filter((s) => s !== "全部") as string[]).includes(form.status) ? (
+            <option value={form.status}>{form.status}（原資料）</option>
+           ) : null}
+          </Select>
+         </RecordField>
+         <RecordField
+          label="報讀須知"
+          className="sm:col-span-2"
+          read={
+           canEditClass && showBasicForm
+            ? undefined
+            : (cls.enrollment_notice?.trim() ? cls.enrollment_notice : "—")
+          }
+         >
+          <Textarea
+           className="min-h-[100px]"
+           value={form.enrollment_notice ?? ""}
+           onChange={(e) => setForm((f) => ({ ...f, enrollment_notice: e.target.value }))}
+           placeholder="可填寫此班報讀注意事項、課程要求或備註"
+           rows={4}
+          />
+         </RecordField>
+        </div>
+       </section>
+       {showBasicForm ? (
+        <div className="sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border bg-background py-3">
+         <Button type="button" variant="outline" onClick={discardBasicEdits}>
+          取消
+         </Button>
+         <Button
+          type="button"
+          loading={savingEdit}
+          loadingText="儲存中…"
+          onClick={() => void saveBasic()}
+         >
+          儲存
+         </Button>
+        </div>
+       ) : null}
       </div>
 
       <div className="grid grid-cols-3 gap-2 md:gap-3">
-       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm md:p-4">
         <div className="text-xl font-bold tabular-nums md:text-3xl">{students.length}</div>
         <div className="text-[11px] font-medium opacity-90 md:text-xs">就讀學生</div>
        </div>
-       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+       <div className="rounded-xl border border-info bg-info p-2.5 text-center text-info-foreground shadow-sm md:p-4">
         <div className="text-xl font-bold tabular-nums md:text-3xl">{parts.fut}</div>
         <div className="text-[11px] font-medium opacity-90 md:text-xs">未來排程</div>
        </div>
-       <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground shadow-sm transition-transform hover:scale-[1.02] md:p-4">
+       <div className="rounded-xl border border-success bg-success p-2.5 text-center text-success-foreground shadow-sm md:p-4">
         <div className="text-xl font-bold tabular-nums md:text-3xl">{parts.past}</div>
         <div className="text-[11px] font-medium opacity-90 md:text-xs">已完成課堂</div>
        </div>
@@ -2311,452 +2676,6 @@ export function ClassDetailView() {
     ) : null}
    </div>
 
-   <Dialog
-    open={editOpen}
-    onOpenChange={(open) => {
-     if (open) {
-      setEditOpen(true)
-      return
-     }
-     void (async () => {
-      if (await requestCloseEdit()) {
-       setEditOpen(false)
-       setEditErr(null)
-      }
-     })()
-    }}
-   >
-    <DialogContent className="max-h-[90vh] overflow-y-auto">
-     <DialogHeader>
-      <DialogTitle>編輯班別</DialogTitle>
-     </DialogHeader>
-     {cls ? (
-      <div className="grid gap-3 sm:grid-cols-2">
-       {editErr ? (
-        <div
-         role="alert"
-         className="sm:col-span-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-         {editErr}
-        </div>
-       ) : null}
-       {cls.course_id ? (
-        <div className="sm:col-span-2 space-y-3 rounded-md border border-border bg-muted/30 p-3">
-         <div className="text-sm font-medium text-foreground">課程模板</div>
-         <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-           <label className="text-xs text-muted-foreground">科目</label>
-           <Select
-            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-            value={templateSubjectId}
-            onChange={(e) => {
-             setTemplateSubjectId(e.target.value)
-             setTemplateGradeCode("")
-             setTemplateCourseId("")
-            }}
-           >
-            <option value="">請選擇</option>
-            {subjectOptions.map((s) => (
-             <option key={s.id} value={s.id}>
-              {s.name_zh}（{s.code}）
-             </option>
-            ))}
-           </Select>
-          </div>
-          <div>
-           <label className="text-xs text-muted-foreground">年級</label>
-           <Select
-            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-            value={templateGradeCode}
-            onChange={(e) => {
-             setTemplateGradeCode(e.target.value)
-             setTemplateCourseId("")
-            }}
-            disabled={!templateSubjectId}
-           >
-            <option value="">請選擇</option>
-            {CLASS_GRADE_FORM_OPTIONS.map((g) => {
-             const code = gradeChineseToCode(g)
-             if (!code) return null
-             return (
-              <option key={g} value={code}>
-               {g}（{code}）
-              </option>
-             )
-            })}
-           </Select>
-          </div>
-          <div className="sm:col-span-2">
-           <label className="text-xs text-muted-foreground">課程</label>
-           <Select
-            className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-            value={templateCourseId}
-            onChange={(e) => setTemplateCourseId(e.target.value)}
-            disabled={!templateSubjectId || !templateGradeCode}
-           >
-            <option value="">請選擇</option>
-            {templateCourseOptions.map((c) => (
-             <option key={c.id} value={c.id}>
-              {c.label}
-             </option>
-            ))}
-            {templateCourseId &&
-            !templateCourseOptions.some((c) => c.id === templateCourseId) ? (
-             <option value={templateCourseId}>目前課程（{templateCourseId.slice(0, 8)}…）</option>
-            ) : null}
-           </Select>
-          </div>
-         </div>
-         <p className="text-xs text-muted-foreground">
-          更換模板會更新班別編碼、科目與年級；已有學生與排程不會自動清除。
-         </p>
-         {canOpenCourseCatalog ? (
-          <Link to="/Courses" className="text-xs font-medium text-primary hover:underline">
-           前往課程管理編輯模板內容
-          </Link>
-         ) : null}
-        </div>
-       ) : (
-        <div className="sm:col-span-2">
-         <label className="text-xs text-muted-foreground">科目</label>
-         <Input
-          className="mt-1"
-          value={form.subject ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
-         />
-        </div>
-       )}
-       <div>
-        <label className="text-xs text-muted-foreground">班號（section_code）</label>
-        <Input
-         className="mt-1 font-mono uppercase"
-         value={form.section_code ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, section_code: e.target.value.toUpperCase() }))}
-        />
-       </div>
-       <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">年級{cls.course_id ? "" : "（可多選）"}</label>
-        {!cls.course_id ? (
-         <>
-          <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-3">
-           {CLASS_GRADE_FORM_OPTIONS.map((g) => (
-            <label key={g} className="flex cursor-pointer items-center gap-2 text-sm">
-             <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-input"
-              checked={gradeSelections.includes(g)}
-              onChange={() =>
-               setGradeSelections((prev) =>
-                prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
-               )
-              }
-             />
-             {g}
-            </label>
-           ))}
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">可勾選多個年級；全部不勾表示清空年級。</p>
-         </>
-        ) : (
-         <p className="mt-1 text-sm text-muted-foreground">
-          由所選課程模板決定（目前：{classGradeDisplayText(cls.grade, cls.grade_code, cls.eligible_grade_codes)}）
-         </p>
-        )}
-       </div>
-       <div className="sm:col-span-2">
-        <label className="text-xs text-muted-foreground">逢星期（可多選）</label>
-        <div className="mt-1 grid grid-cols-2 gap-2 rounded-md border border-input bg-background p-3 sm:grid-cols-4">
-         {KANBAN_DAY_COLUMNS.map((d) => (
-          <label key={d} className="flex cursor-pointer items-center gap-2 text-sm">
-           <input
-            type="checkbox"
-            className="h-4 w-4 rounded border-input"
-            checked={weekdaySelections.includes(d)}
-            onChange={() =>
-             setWeekdaySelections((prev) =>
-              prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-             )
-            }
-           />
-           {d}
-          </label>
-         ))}
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">可勾選多個上課日；全部不勾表示未指定。</p>
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">時段</label>
-        <Select
-         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-         value={timeSlotSelectValueFromStored(form.time_slot)}
-         onChange={(e) => {
-          const next = e.target.value || null
-          setForm((f) => ({
-           ...f,
-           time_slot: next,
-           lesson_slots_per_session:
-            isConsecutiveClass(f.lesson_slots_per_session) && next && !canUseConsecutiveFromTimeSlot(next)
-             ? 1
-             : f.lesson_slots_per_session,
-          }))
-         }}
-        >
-         <option value="">未指定</option>
-         {CLASS_TIME_SLOT_OPTIONS.map((slot) => (
-          <option key={slot} value={slot}>
-           {slot}
-          </option>
-         ))}
-         {form.time_slot &&
-         !CLASS_TIME_SLOT_OPTIONS.some(
-          (slot) =>
-           slot === form.time_slot ||
-           slot.replace(/\u2013/g, "-") === String(form.time_slot).replace(/\u2013/g, "-")
-         ) ? (
-          <option value={form.time_slot}>{form.time_slot}（原資料）</option>
-         ) : null}
-        </Select>
-        <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
-         <input
-          type="checkbox"
-          className="h-4 w-4 rounded border-input"
-          checked={isConsecutiveClass(form.lesson_slots_per_session)}
-          disabled={!form.time_slot || !canUseConsecutiveFromTimeSlot(String(form.time_slot))}
-          onChange={(e) =>
-           setForm((f) => ({ ...f, lesson_slots_per_session: e.target.checked ? 2 : 1 }))
-          }
-         />
-         連堂（每次 2 節 · 150 分鐘 · 計 2 堂學費）
-        </label>
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">老師</label>
-        <Select
-         className="mt-1 flex h-9 w-full rounded-md border border-input px-2 text-sm"
-         value={form.teacher_id ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, teacher_id: e.target.value || null }))}
-        >
-         <option value="">未指定</option>
-         {teachers.map((t) => (
-          <option key={t.id} value={t.id}>
-           {t.label}
-          </option>
-         ))}
-        </Select>
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">課室</label>
-        <Select
-         className="mt-1 flex h-9 w-full rounded-md border border-input px-2 text-sm"
-         value={form.classroom_id ?? ""}
-         onChange={(e) => setForm((f) => ({ ...f, classroom_id: e.target.value || null }))}
-        >
-         <option value="">未指定</option>
-         {rooms.map((r) => (
-          <option key={r.id} value={r.id}>
-           {r.label}
-          </option>
-         ))}
-        </Select>
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">收生上限</label>
-        <Input
-         type="number"
-         min={0}
-         step={1}
-         className="mt-1"
-         value={form.capacity ?? ""}
-         onChange={(e) => {
-          const v = e.target.value
-          setForm((f) => {
-           if (v === "") return { ...f, capacity: null }
-           const n = Number(v)
-           if (Number.isNaN(n)) return { ...f, capacity: null }
-           return { ...f, capacity: Math.max(0, Math.floor(n)) }
-          })
-         }}
-        />
-        <p className="mt-1 text-xs text-muted-foreground">不可為負數；留空表示不設上限。</p>
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">每節學費（HKD）</label>
-        <div className="mt-1 flex flex-wrap gap-2">
-         {TUITION_PRICE_PRESETS_HKD.map((p) => (
-          <Button
-           key={p}
-           type="button"
-           size="sm"
-           variant={form.price_per_lesson === p ? "default" : "outline"}
-           className={form.price_per_lesson === p ? "" : "bg-background"}
-           onClick={() => setForm((f) => ({ ...f, price_per_lesson: p }))}
-          >
-           {p}
-          </Button>
-         ))}
-        </div>
-        <Input
-         type="number"
-         min={0}
-         step={1}
-         className="mt-2"
-         placeholder="或手動輸入金額（HKD）"
-         value={
-          form.price_per_lesson != null && !Number.isNaN(form.price_per_lesson)
-           ? form.price_per_lesson
-           : ""
-         }
-         onChange={(e) => {
-          const v = e.target.value
-          setForm((f) => {
-           if (v === "") return { ...f, price_per_lesson: null }
-           const n = Number(v)
-           if (Number.isNaN(n)) return { ...f, price_per_lesson: null }
-           return { ...f, price_per_lesson: Math.max(0, n) }
-          })
-         }}
-        />
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">開始日期</label>
-        <Input
-         type="date"
-         className="mt-1"
-         value={(form.start_date ?? "").slice(0, 10)}
-         onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-        />
-       </div>
-       <div>
-        <label className="text-xs text-muted-foreground">結束日期</label>
-        <Input
-         type="date"
-         className="mt-1"
-         value={(form.end_date ?? "").slice(0, 10)}
-         onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.value }))}
-        />
-       </div>
-      <div className="sm:col-span-2">
-       <label className="text-xs text-muted-foreground">狀態</label>
-       <Select
-        className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-        value={form.status ?? "進行中"}
-        onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-       >
-        {(STATUS_CHIPS.filter((s) => s !== "全部") as string[]).map((s) => (
-         <option key={s} value={s}>
-          {s}
-         </option>
-        ))}
-        {form.status &&
-        !(STATUS_CHIPS.filter((s) => s !== "全部") as string[]).includes(form.status) ? (
-         <option value={form.status}>{form.status}（原資料）</option>
-        ) : null}
-       </Select>
-      </div>
-      <div className="sm:col-span-2">
-       <label className="text-xs text-muted-foreground">報讀須知</label>
-       <Textarea
-        className="mt-1 min-h-[100px]"
-        value={form.enrollment_notice ?? ""}
-        onChange={(e) => setForm((f) => ({ ...f, enrollment_notice: e.target.value }))}
-        placeholder="可填寫此班報讀注意事項、課程要求或備註"
-        rows={4}
-       />
-      </div>
-       <div className="sm:col-span-2 flex gap-2">
-        <Button type="button" disabled={savingEdit} onClick={() => void saveClass()}>
-         {savingEdit ? "儲存中…" : "儲存"}
-        </Button>
-        <Button
-         type="button"
-         variant="outline"
-         disabled={savingEdit}
-         onClick={() =>
-          void (async () => {
-           if (await requestCloseEdit()) {
-            setEditOpen(false)
-            setEditErr(null)
-           }
-          })()
-         }
-        >
-         取消
-        </Button>
-       </div>
-      </div>
-     ) : null}
-    </DialogContent>
-   </Dialog>
-
-   <Dialog open={privateLightOpen} onOpenChange={setPrivateLightOpen}>
-    <DialogContent className="max-w-md">
-     <DialogHeader>
-      <DialogTitle>編輯老師／學費</DialogTitle>
-     </DialogHeader>
-     {cls ? (
-      <div className="space-y-4">
-       <p className="text-sm text-muted-foreground truncate" title={cls.subject}>
-        {cls.subject}
-       </p>
-       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">授課老師</label>
-        <Select
-         value={privateLightTeacherId}
-         onChange={(e) => setPrivateLightTeacherId(e.target.value)}
-        >
-         <option value="">未指定</option>
-         {teachers.map((t) => (
-          <option key={t.id} value={t.id}>
-           {t.label}
-          </option>
-         ))}
-        </Select>
-        <p className="text-xs text-muted-foreground">
-         變更老師後，會同步此班所有未取消排程的負責老師（老師時間表依排程老師顯示）。
-        </p>
-       </div>
-       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">每節學費</label>
-        <Input
-         type="number"
-         min={0}
-         step={1}
-         value={privateLightPrice}
-         onChange={(e) => setPrivateLightPrice(e.target.value)}
-         placeholder="金額"
-        />
-        <div className="mt-1 flex flex-wrap gap-1.5">
-         {TUITION_PRICE_PRESETS_HKD.map((p) => (
-          <Button
-           key={p}
-           type="button"
-           size="sm"
-           variant="outline"
-           onClick={() => setPrivateLightPrice(String(p))}
-          >
-           HKD {p}
-          </Button>
-         ))}
-        </div>
-       </div>
-       {privateLightErr ? <p role="alert" className="text-sm text-destructive">{privateLightErr}</p> : null}
-       <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={() => setPrivateLightOpen(false)}>
-         取消
-        </Button>
-        <Button
-         type="button"
-         disabled={privateLightSaving}
-         onClick={() => void savePrivateLightEdit()}
-        >
-         {privateLightSaving ? "儲存中…" : "儲存"}
-        </Button>
-       </div>
-      </div>
-     ) : null}
-    </DialogContent>
-   </Dialog>
-
    <Dialog open={privateBookOpen} onOpenChange={setPrivateBookOpen}>
     <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
      <DialogHeader>
@@ -2910,32 +2829,13 @@ export function ClassDetailView() {
     </DialogContent>
    </Dialog>
 
-   <Dialog
+   <UnsavedChangesDialog
     open={unsavedLeaveOpen}
-    onOpenChange={(open) => {
-     if (!open) finishUnsavedLeave("cancel")
-    }}
-   >
-    <DialogContent className="max-w-md">
-     <DialogHeader>
-      <DialogTitle>有未儲存的變更</DialogTitle>
-     </DialogHeader>
-     <p className="text-sm text-muted-foreground">
-      班別資料已修改但尚未儲存。要儲存後離開，還是放棄變更？
-     </p>
-     <div className="mt-6 flex flex-wrap justify-end gap-2">
-      <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("cancel")}>
-       繼續編輯
-      </Button>
-      <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("discard")}>
-       放棄變更
-      </Button>
-      <Button type="button" onClick={() => finishUnsavedLeave("save")}>
-       儲存並離開
-      </Button>
-     </div>
-    </DialogContent>
-   </Dialog>
+    onContinueEditing={() => finishUnsavedLeave("cancel")}
+    onDiscard={() => finishUnsavedLeave("discard")}
+    onSave={() => finishUnsavedLeave("save")}
+    description="班別資料已修改但尚未儲存。要儲存、放棄變更，還是繼續編輯？"
+   />
 
    <CancelReasonDialog
     open={cancelScheduleId != null}

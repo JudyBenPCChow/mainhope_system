@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"
-import { Loader2, Plus, Printer, X } from "lucide-react"
+import { Loader2, Plus, Printer } from "lucide-react"
 
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { DetailLayerChrome } from "@/components/detail/DetailLayerChrome"
+import { RecordField as Field } from "@/components/detail/RecordField"
+import { RecordPageHeader } from "@/components/detail/RecordPageHeader"
+import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
+import { UnsavedChangesDialog } from "@/components/detail/UnsavedChangesDialog"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
 import { StudentAttendanceTab } from "@/components/students/StudentAttendanceTab"
 import { StudentEnrollmentCard } from "@/components/students/StudentEnrollmentCard"
@@ -45,9 +50,9 @@ import {
  STUDENT_DETAIL_TABS,
  type StudentDetailTabId,
 } from "@/lib/studentDetailTabs"
+import { replaceTabSearchParam } from "@/lib/detailTabSearch"
 import { useNavGuard } from "@/hooks/useNavGuard"
 import { statusToTagTone } from "@/lib/statusTag"
-import { cn } from "@/lib/utils"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  formatClassScheduleLabel,
@@ -209,14 +214,7 @@ export function StudentDetailView() {
 
  const writeTabParam = useCallback(
   (next: TabId) => {
-   setSearchParams(
-    (prev) => {
-     const nextParams = new URLSearchParams(prev)
-     nextParams.set("tab", next)
-     return nextParams
-    },
-    { replace: true }
-   )
+   replaceTabSearchParam(setSearchParams, next)
   },
   [setSearchParams]
  )
@@ -1114,12 +1112,7 @@ export function StudentDetailView() {
     onDismiss={() => navigate(exitPath)}
     layerLabel={null}
     chrome={
-     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-      <p className="text-sm font-semibold">學生詳情</p>
-      <Button type="button" variant="ghost" size="icon" aria-label="關閉" onClick={() => navigate(exitPath)}>
-       <X className="h-4 w-4" />
-      </Button>
-     </div>
+     <DetailLayerChrome title="學生詳情" onClose={() => navigate(exitPath)} />
     }
    >
     <p className="p-6 text-muted-foreground">無效的學生編號</p>
@@ -1135,12 +1128,7 @@ export function StudentDetailView() {
     onDismiss={() => navigate(exitPath)}
     layerLabel={null}
     chrome={
-     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5">
-      <p className="text-sm font-semibold">學生詳情</p>
-      <Button type="button" variant="ghost" size="icon" aria-label="關閉" onClick={() => navigate(exitPath)}>
-       <X className="h-4 w-4" />
-      </Button>
-     </div>
+     <DetailLayerChrome title="學生詳情" onClose={() => navigate(exitPath)} />
     }
    >
     <div className="p-6">
@@ -1172,129 +1160,73 @@ export function StudentDetailView() {
    onDismiss={() => void requestLeave()}
    layerLabel={null}
    chrome={
-    <div className="flex shrink-0 items-center gap-3 border-b border-border bg-background px-4 py-2.5">
-     <div className="min-w-0 flex-1">
-      <p className="truncate text-sm font-semibold text-foreground">
-       {student?.full_name ?? (loading ? "載入中…" : "學生詳情")}
-      </p>
-      {student ? (
-       <p className="truncate text-xs tabular-nums text-muted-foreground">
-        {student.student_code || student.id.slice(0, 8)}
-       </p>
-      ) : null}
-     </div>
-     <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="shrink-0"
-      aria-label="關閉"
-      onClick={() => void requestLeave()}
-     >
-      <X className="h-4 w-4" />
-     </Button>
-    </div>
+    <DetailLayerChrome
+     title={student?.full_name ?? (loading ? "載入中…" : "學生詳情")}
+     subtitle={student ? student.student_code || student.id.slice(0, 8) : null}
+     onClose={() => void requestLeave()}
+    />
    }
   >
   <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
-   {isMobile ? null : (
-   <div className="space-y-3">
-    <button
-     type="button"
-     className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-     onClick={() => void requestLeave()}
-    >
-     {exitPath.startsWith("/Classes") ? "返回班別管理" : "返回學生管理"}
-    </button>
-    <div className="flex flex-wrap items-start justify-between gap-3">
-     <div className="min-w-0">
-      {loading ? (
-       <p className="text-lg">載入中…</p>
-      ) : student ? (
-       <>
-        <h1 className="truncate text-xl font-bold md:text-2xl">{student.full_name}</h1>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-         <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
-         <StudentClassificationTags student={student} size="sm" />
-        </div>
-        {headerExceptionBits.length > 0 ? (
-         <button
-          type="button"
-          className="mt-2 w-full rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-left text-xs font-medium text-warning"
-          onClick={() => setTab("enrollments")}
-         >
-          {headerExceptionBits.join(" · ")}
-         </button>
-        ) : null}
-       </>
-      ) : null}
-     </div>
-     <div className="flex w-fit shrink-0 flex-wrap gap-2">
-      {canRegisterPayment ? (
-       <Button
-        type="button"
-        size="sm"
-        onClick={() =>
-         goExternal(`/Payments?studentId=${encodeURIComponent(sid ?? "")}`)
-        }
-       >
-        收款登記
-       </Button>
-      ) : null}
-      {canOpenLeaveManagement ? (
-       <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() =>
-         goExternal(`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`)
-        }
-       >
-        請假
-       </Button>
-      ) : null}
-     </div>
-    </div>
-   </div>
-   )}
+   <RecordPageHeader
+    backLabel={exitPath.startsWith("/Classes") ? "返回班別管理" : "返回學生管理"}
+    onBack={() => void requestLeave()}
+    loading={loading}
+    title={student?.full_name ?? "學生詳情"}
+    meta={
+     student ? (
+      <>
+       <span className="tabular-nums">{student.student_code || student.id.slice(0, 8)}</span>
+       <StudentClassificationTags student={student} size="sm" />
+      </>
+     ) : null
+    }
+    exception={
+     headerExceptionBits.length > 0 ? (
+      <button
+       type="button"
+       className="mt-2 w-full rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-left text-xs font-medium text-warning"
+       onClick={() => setTab("enrollments")}
+      >
+       {headerExceptionBits.join(" · ")}
+      </button>
+     ) : null
+    }
+    actions={
+     canRegisterPayment || canOpenLeaveManagement ? (
+      <>
+       {canRegisterPayment ? (
+        <Button
+         type="button"
+         size="sm"
+         onClick={() => goExternal(`/Payments?studentId=${encodeURIComponent(sid ?? "")}`)}
+        >
+         收款登記
+        </Button>
+       ) : null}
+       {canOpenLeaveManagement ? (
+        <Button
+         type="button"
+         variant="outline"
+         size="sm"
+         onClick={() =>
+          goExternal(`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`)
+         }
+        >
+         請假
+        </Button>
+       ) : null}
+      </>
+     ) : undefined
+    }
+   />
 
-   <div className={cn("border-b border-border", isMobile ? "px-0" : "mt-4")}>
-    {isMobile ? (
-     <Select
-      className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm font-medium text-foreground"
-      value={tab}
-      onChange={(e) => setTab(e.target.value as TabId)}
-      aria-label={visibleTabs.find((t) => t.id === tab)?.label ?? "基本資料"}
-     >
-      {visibleTabs.map((t) => (
-       <option key={t.id} value={t.id}>
-        {t.label}
-       </option>
-      ))}
-     </Select>
-    ) : (
-    <nav className="flex gap-1 overflow-x-auto">
-     {visibleTabs.map((t) => {
-      const active = tab === t.id
-      return (
-       <button
-        key={t.id}
-        type="button"
-        onClick={() => setTab(t.id)}
-        className={cn(
-         "shrink-0 border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-         active
-          ? "border-primary text-primary"
-          : "border-transparent text-muted-foreground hover:text-foreground"
-        )}
-       >
-        {t.label}
-       </button>
-      )
-     })}
-    </nav>
-    )}
-   </div>
+   <RecordPageTabs
+    tabs={visibleTabs}
+    value={tab}
+    onChange={setTab}
+    isMobile={isMobile}
+   />
 
    {isMobile && (canRegisterPayment || canOpenLeaveManagement) ? (
     <div className="flex flex-wrap gap-2 pt-3">
@@ -2540,59 +2472,12 @@ export function StudentDetailView() {
    </div>
   </div>
 
-  <Dialog
+  <UnsavedChangesDialog
    open={unsavedLeaveOpen}
-   onOpenChange={(open) => {
-    if (!open) finishUnsavedLeave("cancel")
-   }}
-  >
-   <DialogContent className="max-w-md">
-    <DialogHeader>
-     <DialogTitle>有未儲存的變更</DialogTitle>
-    </DialogHeader>
-    <p className="text-sm text-muted-foreground">
-     基本資料已修改但尚未儲存。要儲存、放棄變更，還是繼續編輯？
-    </p>
-    <div className="mt-6 flex flex-wrap justify-end gap-2">
-     <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("cancel")}>
-      繼續編輯
-     </Button>
-     <Button type="button" variant="outline" onClick={() => finishUnsavedLeave("discard")}>
-      放棄變更
-     </Button>
-     <Button type="button" onClick={() => finishUnsavedLeave("save")}>
-      儲存
-     </Button>
-    </div>
-   </DialogContent>
-  </Dialog>
+   onContinueEditing={() => finishUnsavedLeave("cancel")}
+   onDiscard={() => finishUnsavedLeave("discard")}
+   onSave={() => finishUnsavedLeave("save")}
+  />
   </AdaptiveDetailLayer>
- )
-}
-
-function Field({
- label,
- children,
- className,
- read,
-}: {
- label: string
- children: React.ReactNode
- className?: string
- read?: React.ReactNode
-}) {
- return (
-  <div className={cn("space-y-1", className)}>
-   <label className="text-xs font-medium text-muted-foreground">{label}</label>
-   {read !== undefined ? <ReadValue>{read}</ReadValue> : children}
-  </div>
- )
-}
-
-function ReadValue({ children }: { children: React.ReactNode }) {
- return (
-  <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-foreground">
-   {children == null || children === "" ? "—" : children}
-  </p>
  )
 }
