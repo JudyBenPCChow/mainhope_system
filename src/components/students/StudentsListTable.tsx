@@ -4,6 +4,12 @@ import { Link } from "react-router-dom"
 
 import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
+import {
+ stickyTableBodyClass,
+ stickyTableHeadCellClass,
+ stickyTableHeadClass,
+ stickyTableHeadRowClass,
+} from "@/components/list/StickyListShell"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
@@ -81,12 +87,11 @@ export function StudentsListTable({
  const colSpan = 1 + visibleIds.length + 1
 
  return (
-  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-   <div className="overflow-x-auto">
-    <table className="w-full min-w-[48rem] border-collapse text-sm">
-     <thead>
-      <tr className="border-b border-border bg-muted/50 text-left">
-       <th className="w-10 px-3 py-2">
+  <div className="rounded-xl border border-border bg-card shadow-sm">
+    <table className="w-full min-w-[48rem] table-fixed border-separate border-spacing-0 text-sm isolate">
+     <thead className={stickyTableHeadClass}>
+      <tr className={stickyTableHeadRowClass}>
+       <th className={cn(stickyTableHeadCellClass, "w-10 px-3 py-3")}>
         <Checkbox
          checked={allSelected}
          indeterminate={someSelected}
@@ -95,7 +100,14 @@ export function StudentsListTable({
         />
        </th>
        {visibleIds.map((id) => (
-        <th key={id} className="px-3 py-2 font-medium text-muted-foreground">
+        <th
+         key={id}
+         className={cn(
+          stickyTableHeadCellClass,
+          "whitespace-nowrap py-3 font-medium text-muted-foreground",
+          studentColumnHeadClass(id)
+         )}
+        >
          <SortableColumnHeader
           label={STUDENT_LIST_COLUMN_LABEL[id]}
           active={sortKey === id}
@@ -113,11 +125,18 @@ export function StudentsListTable({
          </SortableColumnHeader>
         </th>
        ))}
-       <th className="w-28 px-3 py-2 font-medium text-muted-foreground">操作</th>
+       <th
+        className={cn(
+         stickyTableHeadCellClass,
+         "w-28 whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground"
+        )}
+       >
+        操作
+       </th>
       </tr>
      </thead>
      {loading ? (
-      <tbody>
+      <tbody className={stickyTableBodyClass}>
        <tr>
         <td colSpan={colSpan} className="px-3 py-4">
          <SkeletonTableRows rows={8} columns={Math.min(colSpan, 8)} />
@@ -125,15 +144,18 @@ export function StudentsListTable({
        </tr>
       </tbody>
      ) : rows.length === 0 ? (
-      <tbody>
+      <tbody className={stickyTableBodyClass}>
        <tr>
-        <td colSpan={colSpan} className="px-3 py-8 text-center">
+        <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
          {emptyHint}
         </td>
        </tr>
       </tbody>
      ) : (
-      <StaggerList as="tbody">
+      <StaggerList
+       as="tbody"
+       className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}
+      >
        {rows.map((r, idx) => {
         const messaging = resolvePrimaryMessagingTarget(r)
         const checked = selectedSet.has(r.id)
@@ -143,7 +165,7 @@ export function StudentsListTable({
           as="tr"
           onClick={() => onNavigate(r.id)}
           className={cn(
-           "cursor-pointer border-b border-border transition-colors hover:bg-muted/60",
+           "cursor-pointer transition-colors hover:bg-muted/60",
            idx % 2 === 1 ? "bg-muted/20" : "",
            checked ? "bg-info/10" : "",
            previewId === r.id ? "bg-info/15" : ""
@@ -194,9 +216,16 @@ export function StudentsListTable({
       </StaggerList>
      )}
     </table>
-   </div>
   </div>
  )
+}
+
+function studentColumnHeadClass(id: StudentListColumnId): string {
+ if (id === "name") return "min-w-[8rem] px-3 pr-2"
+ if (id === "subjects") return "min-w-[12rem] px-3 pr-2"
+ if (id === "student_phone" || id === "parent_phone") return "min-w-[7.5rem] px-3 pr-2"
+ if (id === "status") return "min-w-[8rem] px-3 pr-2"
+ return "min-w-[5.5rem] px-3 pr-2"
 }
 
 function headerFilterOptions(column: StudentListColumnId): { value: string; label: string }[] {
