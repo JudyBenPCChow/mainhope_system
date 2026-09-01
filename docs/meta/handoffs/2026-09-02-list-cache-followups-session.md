@@ -23,9 +23,9 @@
 
 ## 未完成／卡住
 
-- 五項均未實作、未測試、未提交。
+- 產品分題已立。其餘待做均未實作、未測試、未提交。
 - 本會話沒有查詢 production；不可假設 RPC migration、migration history 或目前 schema cache 狀態。開始資料庫工作時須按 Supabase migration skill 核對。
-- `cursor/22710242` 與最新 `origin/main` 已分歧；開始前先檢查 branch／PR 狀態及完整 diff，不要在目前 `main` 未提交文件上直接混入功能程式。
+- 遠端 `cursor/22710242`（`d0644f95`）尚未併入最新 `origin/main`。開始前須先核對 branch／PR 狀態及完整 diff，不要把功能程式混入目前文件分支。
 
 ## 下一步（給新會話）
 
@@ -40,7 +40,7 @@
 ## 開局必讀（精簡）
 
 - `AGENTS.md`
-- `docs/product/topics/list-data-cache.md`（若仍不存在，先按上一步建立）
+- `docs/product/topics/list-data-cache.md`
 - `src/components/payments/PaymentHistoryView.tsx`
 - `src/components/homeworkTutoring/HomeworkTutoringApp.tsx`
 
