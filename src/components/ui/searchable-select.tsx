@@ -17,6 +17,8 @@ export type SearchableSelectOption = {
  value: string
  label: ReactNode
  searchText?: string
+ /** combobox 已選時輸入框顯示的文字；不傳則用 searchText／字串 label */
+ displayText?: string
  disabled?: boolean
 }
 
@@ -29,6 +31,8 @@ type SearchableSelectProps = {
  placeholder?: string
  searchPlaceholder?: string
  emptyMessage?: string
+ /** 空白查詢（或 combobox 剛開啟、框內仍是已選文字）時的提示；不傳則用 emptyMessage */
+ emptyQueryMessage?: string
  disabled?: boolean
  className?: string
  /** 下拉偏好最小寬度；實際會跟觸發器取較寬、並受視窗限制 */
@@ -41,12 +45,25 @@ type SearchableSelectProps = {
  allowCustomValue?: boolean
  /** 搜尋前正規化查詢與選項文字（例如學校近形錯字） */
  normalizeSearch?: (text: string) => string
+ /**
+  * 空白查詢時改用此清單（例如最近使用）。
+  * 傳入陣列（含空陣列）即覆寫「顯示全部 options」；不傳則維持原行為。
+  */
+ emptyQueryOptions?: SearchableSelectOption[]
+ /** 打字篩選結果上限；空白／剛開啟清單不受此限 */
+ maxResults?: number
 }
 
 function optionSearchText(opt: SearchableSelectOption): string {
  if (opt.searchText) return opt.searchText
  if (typeof opt.label === "string") return opt.label
  return opt.value
+}
+
+function optionDisplayText(opt: SearchableSelectOption): string {
+ if (opt.displayText) return opt.displayText
+ if (typeof opt.label === "string") return opt.label
+ return optionSearchText(opt)
 }
 
 export function highlightedOptionIndex(options: SearchableSelectOption[], value: string): number {
@@ -62,6 +79,8 @@ export function filterSearchableOptions(
   selectedText?: string
   allowCustomValue?: boolean
   normalizeSearch?: (text: string) => string
+  emptyQueryOptions?: SearchableSelectOption[]
+  maxResults?: number
  }
 ): SearchableSelectOption[] {
  const q = query.trim()
@@ -71,16 +90,21 @@ export function filterSearchableOptions(
  const showAll =
   !q ||
   (Boolean(opts?.combobox) && selectedText !== "" && normalize(selectedText) === qKey)
+ const emptyQueryOptions = opts?.emptyQueryOptions
  const list = showAll
-  ? options
+  ? (emptyQueryOptions !== undefined ? emptyQueryOptions : options)
   : options.filter((opt) => {
      const hay = normalize(optionSearchText(opt))
      return q.split(/\s+/).map(normalize).filter(Boolean).every((token) => hay.includes(token))
     })
- if (!opts?.allowCustomValue || !q) return list
+ if (!opts?.allowCustomValue || !q) {
+  if (!showAll && opts?.maxResults && opts.maxResults > 0) return list.slice(0, opts.maxResults)
+  return list
+ }
  const exact = options.some((opt) => opt.value === q || optionSearchText(opt) === q)
- if (exact) return list
- return [...list, { value: q, label: `使用「${q}」` }]
+ const capped = !showAll && opts?.maxResults && opts.maxResults > 0 ? list.slice(0, opts.maxResults) : list
+ if (exact) return capped
+ return [...capped, { value: q, label: `使用「${q}」` }]
 }
 
 export function SearchableSelect({
@@ -90,6 +114,7 @@ export function SearchableSelect({
  placeholder = "請選擇",
  searchPlaceholder = "搜尋…",
  emptyMessage = "沒有符合的選項",
+ emptyQueryMessage,
  disabled,
  className,
  preferredMinWidth,
@@ -98,6 +123,8 @@ export function SearchableSelect({
  combobox = false,
  allowCustomValue = false,
  normalizeSearch,
+ emptyQueryOptions,
+ maxResults,
 }: SearchableSelectProps) {
  const minWidth = preferredMinWidth ?? (combobox ? 0 : 560)
  const [open, setOpen] = useState(false)
@@ -116,7 +143,7 @@ export function SearchableSelect({
 
  const optionByValue = useMemo(() => new Map(options.map((o) => [o.value, o])), [options])
  const selected = optionByValue.get(value) ?? (value ? { value, label: value } : undefined)
- const selectedText = selected ? optionSearchText(selected) : ""
+ const selectedText = selected ? optionDisplayText(selected) : ""
 
  const filtered = useMemo(
   () =>
@@ -125,8 +152,10 @@ export function SearchableSelect({
     selectedText,
     allowCustomValue,
     normalizeSearch,
+    emptyQueryOptions,
+    maxResults,
    }),
-  [allowCustomValue, combobox, normalizeSearch, options, query, selectedText]
+  [allowCustomValue, combobox, emptyQueryOptions, maxResults, normalizeSearch, options, query, selectedText]
  )
 
  const computePlacement = () => {
@@ -229,9 +258,13 @@ export function SearchableSelect({
 
  const listMaxHeight = combobox ? placement.maxHeight : placement.maxHeight - 58
 
+ const showingEmptyQuery =
+  !query.trim() || (combobox && selectedText !== "" && query.trim() === selectedText)
  const optionList =
   filtered.length === 0 ? (
-   <p className="px-3 py-2 text-sm text-muted-foreground">{emptyMessage}</p>
+   <p className="px-3 py-2 text-sm text-muted-foreground">
+    {showingEmptyQuery && emptyQueryMessage ? emptyQueryMessage : emptyMessage}
+   </p>
   ) : (
    filtered.map((opt, index) => {
     const active = opt.value === value

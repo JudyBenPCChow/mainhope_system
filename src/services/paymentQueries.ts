@@ -1102,6 +1102,32 @@ export async function fetchTotalAttendedLessonsForStudent(studentId: string): Pr
  return total
 }
 
+/** 最近已收款學生（依收款日期／建立時間；去重後最多 `limit` 人） */
+export async function fetchRecentlyPaidStudentIds(limit = 12): Promise<string[]> {
+ if (!supabase) return []
+ const take = Math.min(Math.max(limit, 1), 24)
+ const scan = Math.max(take * 4, 40)
+ const { data, error } = await supabase
+  .from("payments")
+  .select("student_id")
+  .eq("status", PAYMENT_STATUS.received)
+  .not("student_id", "is", null)
+  .order("payment_date", { ascending: false })
+  .order("created_at", { ascending: false })
+  .limit(scan)
+ if (error) throw error
+ const ids: string[] = []
+ const seen = new Set<string>()
+ for (const row of data ?? []) {
+  const id = String((row as { student_id?: string | null }).student_id ?? "").trim()
+  if (!id || seen.has(id)) continue
+  seen.add(id)
+  ids.push(id)
+  if (ids.length >= take) break
+ }
+ return ids
+}
+
 /** 單一學生最近繳費（依日期／建立時間；預設最多 3 筆） */
 export async function fetchRecentPaymentsForStudent(
  studentId: string,
