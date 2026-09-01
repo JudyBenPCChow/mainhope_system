@@ -1896,6 +1896,7 @@ export function StudentDetailView() {
        </Button>
       </div>
       <SearchableSelect
+       combobox
        value=""
        onChange={(next) => {
         if (!next) return
@@ -1904,8 +1905,8 @@ export function StudentDetailView() {
        options={classSearchableOptions}
        placeholder="選擇班別加入…"
        searchPlaceholder="搜尋班別名稱或代碼…"
+       emptyMessage="找不到班別"
        className="min-h-11 w-full"
-       preferredMinWidth={640}
        aria-label="選擇班別加入"
       />
       <Dialog
