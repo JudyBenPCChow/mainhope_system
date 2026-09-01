@@ -1,4 +1,5 @@
 import type { ReactNode } from "react"
+import { ChevronLeft } from "lucide-react"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -13,7 +14,7 @@ type RecordPageHeaderProps = {
  loadingLabel?: string
 }
 
-/** 桌面紀錄頁頁首：文字返回＋標題區＋右側動作。流動裝置改由 `DetailLayerChrome` 承擔識別。 */
+/** 桌面紀錄頁頁首：圖示＋文字返回＋標題區＋右側動作。流動裝置改由 `DetailLayerChrome` 承擔識別。 */
 export function RecordPageHeader({
  backLabel,
  onBack,
@@ -31,9 +32,10 @@ export function RecordPageHeader({
   <div className="space-y-3">
    <button
     type="button"
-    className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+    className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
     onClick={onBack}
    >
+    <ChevronLeft className="h-4 w-4" aria-hidden />
     {backLabel}
    </button>
    <div className="flex flex-wrap items-start justify-between gap-3">
