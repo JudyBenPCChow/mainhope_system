@@ -4,6 +4,7 @@ description: >-
   合入 main 之後刪 feature branch 與 worktree，並對齊本地 main。
   使用於合 PR、merge、關帳、清理 branch、刪舊 worktree、盤點未 commit／未 push、
   或使用者說收尾、清 branch、清 worktree 時。不要等使用者記得。
+  Commit→PR→等 CI→合入 的整段流程用個人 skill git-ship；本 skill 只做合入後收尾。
 ---
 
 # 合 PR 後收尾
@@ -30,7 +31,7 @@ description: >-
 6. 分題表頭狀態已關則可在 **`main`** 搬 `BACKLOG.md` 索引列（feature 分支不要搬）
 7. `git worktree list` 與 `git branch` 只應留下 `main` 與**仍有未合獨特內容**的 branch
 
-開 PR 時可 `gh pr merge <n> --merge --delete-branch`（需使用者明確要求合 PR）。
+合入（commit → PR → 等 CI → merge）由個人 skill `git-ship` 執行。本 skill 在 **已合入** 後跑。`gh`：`export PATH="$HOME/.local/bin:$PATH"`。勿 `gh pr merge --admin`（除非使用者明講）。本倉未必開得 `enablePullRequestAutoMerge`，不要依賴 `--auto`。
 
 ## 盤點未合工作（不要誤報）
 
