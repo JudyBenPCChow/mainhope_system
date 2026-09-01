@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+ collectCurrentEnrollmentSubjectTags,
  groupEnrollmentsByAcademicYear,
  isCollectableEnrollment,
  isCurrentEnrollmentYear,
@@ -95,6 +96,48 @@ describe("partitionEnrollmentsByAcademicYear", () => {
   )
   expect(part.current.map((r) => r.id)).toEqual(["p"])
   expect(part.past.map((r) => r.id)).toEqual(["g"])
+ })
+})
+
+describe("collectCurrentEnrollmentSubjectTags", () => {
+ it("9 月起不含 26SM 專科／功輔，私人課程與目前學年仍列出", () => {
+  const tags = collectCurrentEnrollmentSubjectTags(
+   [
+    {
+     studentId: "s1",
+     subjectLabel: "中國語文（2627-CHIS1001-A）",
+     academicYearLabel: "2627",
+     classKind: "group",
+    },
+    {
+     studentId: "s1",
+     subjectLabel: "英國語文（26SM-ENGS1001-A）",
+     academicYearLabel: "26SM",
+     classKind: "group",
+    },
+    {
+     studentId: "s1",
+     subjectLabel: "功課輔導（26SM-HWKS1001-A）",
+     academicYearLabel: "26SM",
+     classKind: "homework",
+    },
+    {
+     studentId: "s1",
+     subjectLabel: "一對一數學",
+     academicYearLabel: null,
+     classKind: "private",
+    },
+    {
+     studentId: "s2",
+     subjectLabel: "綜合科學（26SM-SCIS2001-A）",
+     academicYearLabel: "26SM",
+     classKind: "group",
+    },
+   ],
+   "2026-09-02"
+  )
+  expect(tags.get("s1")).toEqual(["中國語文（2627-CHIS1001-A）", "一對一數學"])
+  expect(tags.has("s2")).toBe(false)
  })
 })
 

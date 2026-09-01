@@ -1,9 +1,22 @@
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { createListDataCache } from "@/lib/listDataCache"
 import type { RecentClassEnrollment, StudentRecord } from "@/services/studentQueries"
 
 export type StudentsListCacheKey = {
  isActiveScope: boolean
  showGraduated: boolean
+ /** 報讀班別標籤跟目前學年；學年一換不得沿用舊 tags。 */
+ enrollmentYear: string
+}
+
+export function studentsListCacheKey(scope: {
+ isActiveScope: boolean
+ showGraduated: boolean
+}): StudentsListCacheKey {
+ return {
+  ...scope,
+  enrollmentYear: academicYearLabelFromStartDate(null),
+ }
 }
 
 export type StudentsListDataCache = {
@@ -41,5 +54,6 @@ export function isStudentsListCacheFresh(key: StudentsListCacheKey, now = Date.n
  if (!data) return false
  if (data.key.isActiveScope !== key.isActiveScope) return false
  if (data.key.showGraduated !== key.showGraduated) return false
+ if (data.key.enrollmentYear !== key.enrollmentYear) return false
  return cache.isFresh(now)
 }

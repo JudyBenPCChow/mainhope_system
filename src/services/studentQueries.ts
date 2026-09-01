@@ -41,6 +41,7 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
+import { collectCurrentEnrollmentSubjectTags } from "@/lib/enrollmentYearDisplay"
 import { fetchEnrollableAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -858,7 +859,7 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
  }
 }
 
-/** student_id -> 科目標籤（報讀班別） */
+/** student_id -> 科目標籤（報讀班別；只含目前學年，私人課程除外） */
 export async function fetchEnrollmentSubjectsByStudentIds(
  studentIds: string[]
 ): Promise<Map<string, string[]>> {
@@ -866,7 +867,7 @@ export async function fetchEnrollmentSubjectsByStudentIds(
  if (!supabase || studentIds.length === 0) return map
 
  const enrollmentSelect =
-  "student_id, classes ( subject, course_code_full, courses ( course_name, subjects ( name_zh ) ) )"
+  "student_id, classes ( subject, class_kind, course_code_full, academic_year_label, academic_years ( label ), courses ( course_name, subjects ( name_zh ) ) )"
 
  try {
   const chunks = await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
@@ -879,18 +880,29 @@ export async function fetchEnrollmentSubjectsByStudentIds(
    return data ?? []
   })
 
-  for (const data of chunks) {
-   for (const row of data) {
+  const inputs = chunks.flatMap((data) =>
+   data.map((row) => {
     const r = row as Record<string, unknown>
-    const sid = String(r.student_id)
     const cls = r.classes as Record<string, unknown> | null
-    const sub = enrollmentClassLabel(cls)
-    if (!sub) continue
-    const arr = map.get(sid) ?? []
-    if (!arr.includes(sub)) arr.push(sub)
-    map.set(sid, arr)
-   }
-  }
+    const academicYearEmbed = Array.isArray(cls?.academic_years)
+     ? (cls?.academic_years[0] as Record<string, unknown> | undefined)
+     : (cls?.academic_years as Record<string, unknown> | null)
+    const fromYear =
+     academicYearEmbed?.label != null ? String(academicYearEmbed.label).trim() : ""
+    const fromClass =
+     cls?.academic_year_label != null ? String(cls.academic_year_label).trim() : ""
+    return {
+     studentId: String(r.student_id),
+     subjectLabel: enrollmentClassLabel(cls),
+     academicYearLabel: fromYear || fromClass || null,
+     classKind: resolveClassKind(
+      cls?.class_kind != null ? String(cls.class_kind) : null,
+      cls?.subject != null ? String(cls.subject) : null
+     ),
+    }
+   })
+  )
+  return collectCurrentEnrollmentSubjectTags(inputs)
  } catch (error) {
   console.error("[fetchEnrollmentSubjectsByStudentIds]", error)
  }

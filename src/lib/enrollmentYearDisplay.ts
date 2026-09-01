@@ -62,6 +62,42 @@ export function partitionEnrollmentsByAcademicYear<T extends EnrollmentYearField
  return { current, past, withdrawn }
 }
 
+export type EnrollmentSubjectTagInput = {
+ studentId: string
+ subjectLabel: string | null | undefined
+ academicYearLabel?: string | null
+ classKind?: string | null
+ status?: string
+}
+
+/** 學生管理清單「報讀班別」：只收目前學年（私人課程除外）。 */
+export function collectCurrentEnrollmentSubjectTags(
+ rows: EnrollmentSubjectTagInput[],
+ asOfYmd?: string | null
+): Map<string, string[]> {
+ const map = new Map<string, string[]>()
+ for (const row of rows) {
+  const label = (row.subjectLabel ?? "").trim()
+  if (!label) continue
+  if (
+   !isCollectableEnrollment(
+    {
+     status: row.status ?? "就讀中",
+     academicYearLabel: row.academicYearLabel,
+     classKind: row.classKind,
+    },
+    asOfYmd
+   )
+  ) {
+   continue
+  }
+  const arr = map.get(row.studentId) ?? []
+  if (!arr.includes(label)) arr.push(label)
+  map.set(row.studentId, arr)
+ }
+ return map
+}
+
 export function groupEnrollmentsByAcademicYear<T extends { academicYearLabel?: string | null }>(
  enrollments: T[]
 ): { label: string; items: T[] }[] {
