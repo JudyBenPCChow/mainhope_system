@@ -1,6 +1,9 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
-import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
+import {
+ academicYearLabelsForPaymentGuard,
+ noteNonCurrentAcademicYearWrite,
+} from "@/lib/academicYearSoftGuard"
 import { computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
 import {
  normalizeSpecialDiscountAmount,
@@ -611,6 +614,151 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
  }
 }
 
+export type PaymentGuardYearInput = {
+ classYearLabels: Array<string | null>
+ coverageStartMonths: Array<string | null>
+ hasClassLines: boolean
+ paymentDateYmd: string | null
+}
+
+function classYearLabelFromEmbed(cls: Record<string, unknown> | null): string | null {
+ if (!cls) return null
+ const year = embedOne(cls.academic_years)
+ const label = year?.label != null ? String(year.label).trim() : ""
+ return label !== "" ? label : null
+}
+
+/** 作廢／標記已收款防呆：學年跟明細班別，不跟收款日。 */
+export async function fetchPaymentGuardYearInput(
+ paymentId: string
+): Promise<PaymentGuardYearInput | null> {
+ if (!supabase) return null
+ const { data, error } = await supabase
+  .from("payments")
+  .select(
+   "payment_date, payment_details ( class_id, coverage_start_month, classes ( academic_years ( label ) ) )"
+  )
+  .eq("id", paymentId)
+  .maybeSingle()
+ if (error) throw error
+ if (!data) return null
+ const pay = data as Record<string, unknown>
+ const details = Array.isArray(pay.payment_details) ? pay.payment_details : []
+ const classYearLabels: Array<string | null> = []
+ const coverageStartMonths: Array<string | null> = []
+ let hasClassLines = false
+ for (const row of details) {
+  if (!row || typeof row !== "object") continue
+  const d = row as Record<string, unknown>
+  const classId = d.class_id != null ? String(d.class_id) : ""
+  if (classId) hasClassLines = true
+  classYearLabels.push(classYearLabelFromEmbed(embedOne(d.classes)))
+  const coverageRaw =
+   d.coverage_start_month != null ? String(d.coverage_start_month).slice(0, 10) : ""
+  coverageStartMonths.push(/^\d{4}-\d{2}/.test(coverageRaw) ? coverageRaw.slice(0, 7) : null)
+ }
+ return {
+  classYearLabels,
+  coverageStartMonths,
+  hasClassLines,
+  paymentDateYmd: pay.payment_date != null ? String(pay.payment_date).slice(0, 10) : null,
+ }
+}
+
+/** 讀唔到明細時回 undefined，呼叫端改用收款日。 */
+export async function paymentSoftGuardLabels(
+ paymentId: string,
+ fallbackDateYmd?: string | null
+): Promise<string[] | undefined> {
+ try {
+  const guard = await fetchPaymentGuardYearInput(paymentId)
+  return academicYearLabelsForPaymentGuard(
+   guard ?? {
+    paymentDateYmd: fallbackDateYmd ?? null,
+    hasClassLines: false,
+   }
+  )
+ } catch {
+  return undefined
+ }
+}
+
+async function notePaymentAcademicYearWrite(opts: {
+ source: string
+ paymentDateYmd?: string | null
+ classIds?: Array<string | null | undefined>
+ coverageStartMonths?: Array<string | null | undefined>
+}): Promise<void> {
+ const ids = [
+  ...new Set(
+   (opts.classIds ?? []).filter((id): id is string => Boolean(id && String(id).trim()))
+  ),
+ ]
+ try {
+  const classYearLabels: Array<string | null> = []
+  if (supabase && ids.length > 0) {
+   const chunks = await forEachIdChunk(ids, 80, async (slice) => {
+    const { data, error } = await supabase!
+     .from("classes")
+     .select("id, academic_years ( label )")
+     .in("id", slice)
+    if (error) throw error
+    return data ?? []
+   })
+   const byId = new Map<string, string | null>()
+   for (const rows of chunks) {
+    for (const row of rows) {
+     const r = row as Record<string, unknown>
+     byId.set(String(r.id), classYearLabelFromEmbed(r))
+    }
+   }
+   for (const id of ids) classYearLabels.push(byId.get(id) ?? null)
+  }
+  noteNonCurrentAcademicYearWrite({
+   labels: academicYearLabelsForPaymentGuard({
+    classYearLabels,
+    coverageStartMonths: opts.coverageStartMonths,
+    hasClassLines: ids.length > 0,
+    paymentDateYmd: opts.paymentDateYmd,
+   }),
+   dateYmd: opts.paymentDateYmd,
+   source: opts.source,
+  })
+ } catch {
+  if (ids.length === 0) {
+   noteNonCurrentAcademicYearWrite({
+    dateYmd: opts.paymentDateYmd,
+    source: `${opts.source}.fallback`,
+   })
+  }
+ }
+}
+
+async function noteExistingPaymentAcademicYearWrite(
+ paymentId: string,
+ source: string,
+ paymentDateYmd?: string | null
+): Promise<void> {
+ try {
+  const guard = await fetchPaymentGuardYearInput(paymentId)
+  noteNonCurrentAcademicYearWrite({
+   labels: academicYearLabelsForPaymentGuard(
+    guard ?? {
+     paymentDateYmd: paymentDateYmd ?? null,
+     hasClassLines: false,
+    }
+   ),
+   dateYmd: paymentDateYmd ?? guard?.paymentDateYmd,
+   source,
+  })
+ } catch {
+  noteNonCurrentAcademicYearWrite({
+   dateYmd: paymentDateYmd,
+   source: `${source}.fallback`,
+  })
+ }
+}
+
 export type PaymentDetailInput = {
  classId: string | null
  lessonCount: number | null
@@ -727,7 +875,12 @@ export async function insertPaymentRecord(params: {
    "已停用「待繳費」出單；請改用已收款或待收款，或以文字提醒家長繳付下期學費。"
   )
  }
- assertAcademicYearEditableForDate(params.paymentDate)
+ await notePaymentAcademicYearWrite({
+  source: "insertPaymentRecord",
+  paymentDateYmd: params.paymentDate,
+  classIds: (params.details ?? []).map((d) => d.classId),
+  coverageStartMonths: (params.details ?? []).map((d) => d.coverageStartMonth),
+ })
  const homeworkReceipt = await assertHomeworkReceiptNotMixed(params.details ?? [])
 
  const discountIds = (
@@ -979,8 +1132,11 @@ export async function updatePaymentRecord(
  if (patch.status === PAYMENT_STATUS.voided) {
   throw new Error("請使用「作廢」流程，不可直接將狀態改為作廢。")
  }
- assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
- if (patch.paymentDate !== undefined) assertAcademicYearEditableForDate(patch.paymentDate)
+ await noteExistingPaymentAcademicYearWrite(
+  id,
+  "updatePaymentRecord",
+  patch.paymentDate ?? String((row as { payment_date?: string }).payment_date ?? "")
+ )
  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() }
  if (patch.status !== undefined) payload.status = patch.status
  if (patch.paymentMethod !== undefined) payload.payment_method = patch.paymentMethod
@@ -1154,7 +1310,11 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
  if (status !== PAYMENT_STATUS.pendingPay && status !== PAYMENT_STATUS.pendingReceive) {
   throw new Error("僅待繳費／待收款單據可標記為已收款。")
  }
- assertAcademicYearEditableForDate(String((row as { payment_date?: string }).payment_date ?? ""))
+ await noteExistingPaymentAcademicYearWrite(
+  id,
+  "markPaymentReceived",
+  String((row as { payment_date?: string }).payment_date ?? "")
+ )
  let updated = false
  for (let attempt = 0; attempt < RECEIPT_REF_ATTEMPTS; attempt++) {
   const receipt = await allocateReceiptRef("RC")
@@ -1225,11 +1385,7 @@ export async function voidPaymentRecord(input: {
  if (fetchErr) return { ok: false, message: fetchErr.message }
  if (!row) return { ok: false, message: "找不到繳費紀錄。" }
  const paymentDate = String((row as { payment_date?: string }).payment_date ?? "")
- try {
-  assertAcademicYearEditableForDate(paymentDate)
- } catch (e) {
-  return { ok: false, message: e instanceof Error ? e.message : String(e) }
- }
+ await noteExistingPaymentAcademicYearWrite(input.paymentId, "voidPaymentRecord", paymentDate)
  if (String((row as { status?: string }).status ?? "") === PAYMENT_STATUS.voided) {
   return {
    ok: true,

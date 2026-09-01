@@ -16,7 +16,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { voidRequiresSecondConfirmer } from "@/lib/entitlementAdjustment"
 import { money } from "@/components/payments/paymentsUi"
-import { voidPaymentRecord } from "@/services/paymentQueries"
+import { paymentSoftGuardLabels, voidPaymentRecord } from "@/services/paymentQueries"
 
 export type VoidPaymentTarget = {
  id: string
@@ -80,9 +80,12 @@ export function VoidPaymentDialog({ open, target, onOpenChange, onVoided }: Prop
     return
    }
   }
+  const yearLabels = await paymentSoftGuardLabels(target.id, target.paymentDate)
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    dateYmd: target.paymentDate,
+    ...(yearLabels !== undefined
+     ? { labels: yearLabels, dateYmd: target.paymentDate }
+     : { dateYmd: target.paymentDate }),
     source: "VoidPaymentDialog.submit",
    }))
   ) {

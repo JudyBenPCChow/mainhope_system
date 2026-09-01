@@ -46,6 +46,7 @@ export type ClassPriceInfo = {
  teacherId: string | null
  dayOfWeek: string | null
  timeSlot: string | null
+ academicYearLabel: string | null
 }
 
 export function newLine(kind: PaymentLineKind = "enrollment"): LineRow {
@@ -142,6 +143,7 @@ export function classRecordToPriceInfo(c: ClassRecord): ClassPriceInfo {
   teacherId: c.teacher_id,
   dayOfWeek: c.day_of_week,
   timeSlot: c.time_slot,
+  academicYearLabel: c.academic_year_label?.trim() ? c.academic_year_label.trim() : null,
  }
 }
 
