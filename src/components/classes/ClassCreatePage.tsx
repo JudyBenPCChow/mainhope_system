@@ -11,6 +11,7 @@ import {
  type ClassCreateFormValues,
 } from "@/components/classes/ClassCreateForm"
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
+import { invalidateClassesListDataCache } from "@/components/classes/classesListState"
 import { Button } from "@/components/ui/button"
 import { classDisplayName } from "@/lib/courseLabel"
 import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
@@ -98,6 +99,7 @@ export function ClassCreatePage() {
   setErr(null)
   try {
    const row = await insertClass(classCreateFormToInsertPayload(form, sub.name_zh))
+   invalidateClassesListDataCache()
    setCreatedClass(row)
    setStep(2)
    pushBanner({ tone: "success", title: "班別已建立", message: "請繼續批量產生排程，或選擇稍後再排。" })

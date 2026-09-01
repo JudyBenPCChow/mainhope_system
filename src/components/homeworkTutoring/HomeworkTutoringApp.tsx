@@ -50,6 +50,12 @@ import {
   upsertHomeworkAvailability,
   type HomeworkClassRef,
 } from "@/services/homeworkTutoringQueries"
+import {
+ getHomeworkTutoringDataCache,
+ isHomeworkTutoringCacheFresh,
+ patchHomeworkTutoringDataCache,
+ setHomeworkTutoringDataCache,
+} from "@/components/homeworkTutoring/homeworkTutoringState"
 
 const ADMIN_BY_PATH: Record<string, AdminPageId> = {
   [HW_PATH.overview]: "overview",
@@ -155,32 +161,61 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const pathnameRef = useRef(pathname)
   pathnameRef.current = pathname
 
-  const [loading, setLoading] = useState(true)
+  const initialHwCache = getHomeworkTutoringDataCache()
+  const hydrateHw =
+   initialHwCache != null && role != null && initialHwCache.role === role && initialHwCache.hwClass != null
+
+  const [loading, setLoading] = useState(() => !hydrateHw)
   const [monthLoading, setMonthLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [hwClass, setHwClass] = useState<HomeworkClassRef | null>(null)
-  const [students, setStudents] = useState<HomeworkStudentRow[]>([])
-  const [fees, setFees] = useState<HomeworkFeeDisplay[]>([])
-  const [holidays, setHolidays] = useState<HomeworkHoliday[]>([])
-  const [avail, setAvail] = useState<AllTeacherAvailability>({})
-  const [submitStatus, setSubmitStatus] = useState<AllTeacherSubmitStatus>({})
-  const [dutyDays, setDutyDays] = useState<HomeworkDutyDay[]>([])
-  const [rosterMonthId, setRosterMonthId] = useState<string>("")
-  const [monthRosterStatus, setMonthRosterStatus] = useState<Record<string, MonthRosterState>>({})
-  const [hwTeachers, setHwTeachers] = useState<HomeworkTeacherRow[]>([])
-  const [hwAccessIds, setHwAccessIds] = useState<Set<string>>(() => new Set())
+  const [hwClass, setHwClass] = useState<HomeworkClassRef | null>(
+   () => (hydrateHw ? initialHwCache!.hwClass : null)
+  )
+  const [students, setStudents] = useState<HomeworkStudentRow[]>(
+   () => (hydrateHw ? initialHwCache!.students : [])
+  )
+  const [fees, setFees] = useState<HomeworkFeeDisplay[]>(
+   () => (hydrateHw ? initialHwCache!.fees : [])
+  )
+  const [holidays, setHolidays] = useState<HomeworkHoliday[]>(
+   () => (hydrateHw ? initialHwCache!.holidays : [])
+  )
+  const [avail, setAvail] = useState<AllTeacherAvailability>(
+   () => (hydrateHw ? initialHwCache!.avail : {})
+  )
+  const [submitStatus, setSubmitStatus] = useState<AllTeacherSubmitStatus>(
+   () => (hydrateHw ? initialHwCache!.submitStatus : {})
+  )
+  const [dutyDays, setDutyDays] = useState<HomeworkDutyDay[]>(
+   () => (hydrateHw ? initialHwCache!.dutyDays : [])
+  )
+  const [rosterMonthId, setRosterMonthId] = useState<string>(
+   () => (hydrateHw ? initialHwCache!.rosterMonthId : "")
+  )
+  const [monthRosterStatus, setMonthRosterStatus] = useState<Record<string, MonthRosterState>>(
+   () => (hydrateHw ? initialHwCache!.monthRosterStatus : {})
+  )
+  const [hwTeachers, setHwTeachers] = useState<HomeworkTeacherRow[]>(
+   () => (hydrateHw ? initialHwCache!.hwTeachers : [])
+  )
+  const [hwAccessIds, setHwAccessIds] = useState<Set<string>>(
+   () => (hydrateHw ? initialHwCache!.hwAccessIds : new Set())
+  )
 
   const viewMonth = currentYearMonth()
   const defaultRosterMonth = useMemo(() => nextYearMonth(viewMonth), [viewMonth])
-  const [sheetMonth, setSheetMonth] = useState(defaultRosterMonth)
+  const [sheetMonth, setSheetMonth] = useState(
+   () => (hydrateHw ? initialHwCache!.sheetMonth : defaultRosterMonth)
+  )
   const sheetMonthRef = useRef(sheetMonth)
   sheetMonthRef.current = sheetMonth
   const availRef = useRef(avail)
   availRef.current = avail
   const submitStatusRef = useRef(submitStatus)
   submitStatusRef.current = submitStatus
-  const loadedMonthRef = useRef("")
+  const loadedMonthRef = useRef(hydrateHw ? initialHwCache!.loadedMonth : "")
   const [teacherDutyMonth, setTeacherDutyMonth] = useState(() => {
+    if (hydrateHw) return initialHwCache!.teacherDutyMonth
     const bounds = academicYearMonthBounds("2627")
     return clampYearMonth(currentYearMonth(), bounds.min, bounds.max)
   })
@@ -188,8 +223,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   teacherDutyMonthRef.current = teacherDutyMonth
 
   useEffect(() => {
+    if (hydrateHw) return
     setSheetMonth(defaultRosterMonth)
-  }, [defaultRosterMonth])
+  }, [defaultRosterMonth, hydrateHw])
 
   const loadMonthData = useCallback(
     async (
@@ -222,12 +258,21 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       setRosterMonthId(roster.id)
       setMonthRosterStatus((prev) => ({ ...prev, [yearMonth]: roster.status }))
       setDutyDays(mapDutyDays(roster.days))
+      patchHomeworkTutoringDataCache((c) => ({
+        ...c,
+        avail: nextAvail,
+        submitStatus: nextStatus,
+        rosterMonthId: roster.id,
+        monthRosterStatus: { ...c.monthRosterStatus, [yearMonth]: roster.status },
+        dutyDays: mapDutyDays(roster.days),
+        loadedMonth: yearMonth,
+      }))
     },
     []
   )
 
-  const reload = useCallback(async () => {
-    setLoading(true)
+  const reload = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true)
     setLoadError(null)
     try {
       const cls = await fetchHomeworkClass("2627")
@@ -254,8 +299,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         fetchHomeworkTutoringTeacherAccess(),
       ])
 
-      setStudents(
-        enrolls.map((e) => ({
+      const studentRows = enrolls.map((e) => ({
           id: e.studentId,
           name: e.studentName,
           code: e.studentCode,
@@ -265,28 +309,23 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           effectiveMonth: e.effectiveMonth,
           status: e.status,
         }))
-      )
+      setStudents(studentRows)
 
-      if (!isTeacher) {
-        const paidByStudentId = await fetchHomeworkPaidByStudentFromPayments(cls.id, viewMonth)
-        setFees(
-          composeHomeworkFeeDisplays({
+      const feeRows = !isTeacher
+        ? composeHomeworkFeeDisplays({
             classId: cls.id,
             billingMonth: viewMonth,
             enrollments: enrolls,
-            paidByStudentId,
+            paidByStudentId: await fetchHomeworkPaidByStudentFromPayments(cls.id, viewMonth),
           })
-        )
-      } else {
-        setFees([])
-      }
+        : []
+      setFees(feeRows)
 
-      setHolidays(
-        closures.map((h) => ({
+      const holidayRows = closures.map((h) => ({
           date: holidayDisplayDate(h.date),
           label: h.label,
         }))
-      )
+      setHolidays(holidayRows)
 
       const enabled = access.filter((t) => t.enabled)
       const teacherList = enabled.map((t) => ({
@@ -294,8 +333,29 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         name: t.name,
         subject: t.subjectLabel,
       }))
+      const accessIds = new Set(enabled.map((t) => t.id))
       setHwTeachers(teacherList)
-      setHwAccessIds(new Set(enabled.map((t) => t.id)))
+      setHwAccessIds(accessIds)
+
+      if (role) {
+        setHomeworkTutoringDataCache({
+          role,
+          hwClass: cls,
+          students: studentRows,
+          fees: feeRows,
+          holidays: holidayRows,
+          avail: {},
+          submitStatus: {},
+          dutyDays: [],
+          rosterMonthId: "",
+          monthRosterStatus: {},
+          hwTeachers: teacherList,
+          hwAccessIds: accessIds,
+          loadedMonth: targetMonth,
+          sheetMonth: sheetMonthRef.current,
+          teacherDutyMonth: teacherDutyMonthRef.current,
+        })
+      }
 
       await loadMonthData(cls, targetMonth, teacherList)
     } catch (e) {
@@ -307,8 +367,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   }, [role, defaultRosterMonth, viewMonth, loadMonthData])
 
   useEffect(() => {
-    void reload()
-  }, [reload])
+    if (isHomeworkTutoringCacheFresh(role)) return
+    void reload({ silent: hydrateHw })
+  }, [reload, role, hydrateHw])
 
   const changeLoadedMonth = useCallback(
     async (yearMonth: string) => {
@@ -398,6 +459,11 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         setSubmitStatus((prev) => {
           const next = { ...prev, [teacherId]: status }
           submitStatusRef.current = next
+          patchHomeworkTutoringDataCache((c) => ({
+            ...c,
+            avail: availRef.current,
+            submitStatus: next,
+          }))
           return next
         })
       } catch (e) {

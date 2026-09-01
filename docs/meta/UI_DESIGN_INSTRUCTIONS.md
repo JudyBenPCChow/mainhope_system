@@ -71,6 +71,7 @@
 - 相關按鈕為 `**type="button"**`（除非確實要整表單 submit）。
 - 只要欄位值來自「既定清單」（例如狀態、關係、分類），**不得**用自由文字 `Input`；應使用 `select`、單選按鈕或等價選項元件，避免髒資料。
 - **學年**欄位一律使用**剔選多選**（checkbox 清單，選項來自 `academic_years` 主檔）；**禁止**以文字輸入學年代碼。可多選時以逗號串接寫入後端（見 `src/lib/multiValueField.ts`）。
+- 若此頁是資料清單，且詳情／分頁是**另一條路由**（離開會卸載）：須接記憶體 TTL 快取（§16.5），不可只靠 `sessionStorage` 記篩選。
 
 ---
 
@@ -250,6 +251,7 @@
 | `SortableColumnHeader` | 表頭欄名＋排序箭嘴 |
 | `HeaderFilterButton` | 表頭漏斗（preset 選項或文字包含＋唯一值） |
 | `BulkSelectionBar` | 「已選 N」工具列外框（全選／清除；批量動作用 children） |
+| `StickyListShell`／`StickyListLead` | 桌面清單凍結頁面頂列；其餘為唯一捲動區。表頭用 `stickyTableHeadRowClass`＋`stickyTableHeadCellClass`。表格外層**不可**再包 `overflow-x-auto`／`overflow-hidden`。流動裝置 `sticky={false}`，勿改 MobileLayout |
 | `listFilterUtils` | `countActiveFilters`、`emptyFiltersForKeys`、`emptyLast`、`dirMul` 等 |
 
 參考實作：
@@ -274,3 +276,28 @@
 - 為新列表重寫一套表頭漏斗／勾選／批量列外觀
 - 一開始就上 TanStack Table／萬能 DataTable 全家（除非既有殼明顯唔夠）
 - 為「統一」把領域欄位邏輯硬塞進共用殼，或拆掉 chips／FilterSheet
+
+### 16.5 清單資料快取（卸載後返回，2026-09-02 起）
+
+篩選可繼續用 `usePersistentState`（sessionStorage）。**已載入的列**不行：清單與詳情若是兄弟路由，返回會卸載 React 樹，`useEffect` 會整表重打網路。
+
+**會卸載、必須接快取**
+
+- 獨立詳情：`/Students` → `/Students/:id`、`/Classes/:classId`、`/Schedule/:scheduleId` 等
+- 分頁做成另一條路由：例如 `/HomeworkTutoring` 與 `/HomeworkTutoring/:page`
+- 新增頁再返回：`/Classes/New`
+- 側欄離開再回來（同一卸載問題）
+
+**做法**
+
+- 用 `createListDataCache`（`src/lib/listDataCache.ts`），TTL 預設 5 分鐘
+- 領域自備 `*ListState.ts`／`*State.ts`（鍵含會改查詢的範圍）
+- 進頁：有快取先畫列、新鮮則不打網路；過期則保留列並靜默重抓
+- 清單或詳情寫入成功後 `invalidate`（保留列、下次進頁重抓）
+- **禁止**用 `location.key` 當重載條件
+
+**不要套用**
+
+收件匣、進行點名、收款登記、各類報表、家長報讀申請等須看到最新列的工作佇列。
+
+參考：`classesListState.ts`、`studentsListState.ts`、`.cursor/rules/list-data-cache.mdc`

@@ -11,3 +11,9 @@ export {
  type SortDir,
 } from "@/components/list/listFilterUtils"
 export { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
+export {
+ StickyListLead,
+ StickyListShell,
+ stickyTableHeadCellClass,
+ stickyTableHeadRowClass,
+} from "@/components/list/StickyListShell"

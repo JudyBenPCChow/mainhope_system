@@ -107,6 +107,7 @@ import {
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
+import { invalidateStudentsListDataCache } from "@/components/students/studentsListState"
 import { fetchClassSchedules, type ClassScheduleRow } from "@/services/classQueries"
 import {
  fetchLessonBalancesForStudent,
@@ -509,6 +510,7 @@ export function StudentDetailView() {
    })
    setStudent(updated)
    setForm(updated)
+   invalidateStudentsListDataCache()
    if (graduating && graduateBlockers) {
     logGraduateStudentChange({
      forced: graduationHasWarnings(graduateBlockers),
@@ -701,6 +703,7 @@ export function StudentDetailView() {
    )
    setAddEnrollmentDialogOpen(false)
    resetAddEnrollmentDialog()
+   invalidateStudentsListDataCache()
    pushBanner({
     tone: "success",
     title: "已加入班別",
@@ -756,6 +759,7 @@ export function StudentDetailView() {
    setWithdrawOpen(false)
    setWithdrawTarget(null)
    setWithdrawReason("")
+   invalidateStudentsListDataCache()
    await reloadSubs()
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.withdrawEnrollment" })

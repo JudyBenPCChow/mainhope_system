@@ -439,26 +439,28 @@ export async function fetchScheduleSummariesByClassIds(
  for (const id of classIds) {
   out.set(id, { classId: id, dates: [], hasActive: false })
  }
- const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("schedules")
-   .select("class_id, scheduled_date, status")
-   .in("class_id", slice)
-   .order("scheduled_date", { ascending: true })
-  if (error) throw error
-  return data ?? []
+ const { data, error } = await supabase.rpc("get_class_schedule_summaries", {
+  p_class_ids: classIds,
  })
- for (const data of chunks) {
-  for (const row of data) {
-   const r = row as { class_id: string; scheduled_date: string; status: string }
-   const cid = String(r.class_id)
-   const entry = out.get(cid)
-   if (!entry) continue
-   if (!r.status.includes("取消")) {
-    entry.hasActive = true
-    entry.dates.push(String(r.scheduled_date))
-   }
-  }
+ if (error) throw error
+ for (const row of (data ?? []) as {
+  class_id: string
+  has_active: boolean | null
+  first_date: string | null
+  last_date: string | null
+ }[]) {
+  const cid = String(row.class_id ?? "")
+  if (!cid) continue
+  const first = row.first_date != null ? String(row.first_date).slice(0, 10) : ""
+  const last = row.last_date != null ? String(row.last_date).slice(0, 10) : ""
+  const dates: string[] = []
+  if (first) dates.push(first)
+  if (last && last !== first) dates.push(last)
+  out.set(cid, {
+   classId: cid,
+   dates,
+   hasActive: Boolean(row.has_active),
+  })
  }
  return out
 }

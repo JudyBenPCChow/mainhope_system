@@ -350,9 +350,11 @@ export function Layout() {
    </aside>
 
    <div className="flex min-h-0 min-w-0 flex-1">
-   <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-background">
-    <div className="mx-auto min-h-full max-w-[1600px] px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12">
-     <Outlet />
+   <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <div className="h-full min-h-0 flex-1 overflow-y-auto">
+     <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden">
+      <Outlet />
+     </div>
     </div>
    </main>
    <RecordPreviewRail />

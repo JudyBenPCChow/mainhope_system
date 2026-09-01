@@ -12,6 +12,7 @@ import {
 } from "lucide-react"
 
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { invalidateTeachersListDataCache } from "@/components/teachers/teachersListState"
 import { useOpenClassRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
@@ -258,6 +259,7 @@ export function TeacherDetailView() {
    setTeacher(updated)
    setForm(updated)
    setSelectedSubjects(updated.subject_speciality ?? [])
+   invalidateTeachersListDataCache()
    setPageOk("已儲存")
    window.setTimeout(() => setPageOk(null), 4000)
   } catch (e) {

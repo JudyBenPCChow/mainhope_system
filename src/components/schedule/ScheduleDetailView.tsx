@@ -34,6 +34,7 @@ import {
  type ScheduleDetailRecord,
 } from "@/services/scheduleDetailQueries"
 import { deleteSchedule, updateSchedule } from "@/services/scheduleWriteQueries"
+import { invalidateScheduleListDataCache } from "@/components/schedule/scheduleListState"
 import { fetchActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
 import {
  fetchAttendanceStudentIdsForSchedule,
@@ -649,6 +650,7 @@ export function ScheduleDetailView() {
          setRemarksSaving(true)
          try {
           await updateSchedule(row.id, { remarks: remarksDraft.trim() || null })
+          invalidateScheduleListDataCache()
           await load()
          } finally {
           setRemarksSaving(false)
@@ -684,6 +686,7 @@ export function ScheduleDetailView() {
            return
           }
           await updateSchedule(row.id, { status: next, cancel_reason: null })
+          invalidateScheduleListDataCache()
           await load()
          }}
         >
@@ -702,6 +705,7 @@ export function ScheduleDetailView() {
           setExtraSaving(true)
           try {
            await updateSchedule(row.id, { is_extra_lesson: e.target.checked })
+           invalidateScheduleListDataCache()
            await load()
           } finally {
            setExtraSaving(false)
@@ -733,6 +737,7 @@ export function ScheduleDetailView() {
          )
           return
          await deleteSchedule(row.id)
+         invalidateScheduleListDataCache()
          navigate(row.class_id ? `/Classes/${row.class_id}` : "/Schedule")
         }}
        >
@@ -764,6 +769,7 @@ export function ScheduleDetailView() {
          if (softOpts === "abort") return
          await updateSchedule(row.id, { status: "取消", cancel_reason: reason }, softOpts)
          setCancelDialogOpen(false)
+         invalidateScheduleListDataCache()
          await load()
         } finally {
          setCancelSaving(false)
@@ -789,7 +795,10 @@ export function ScheduleDetailView() {
         is_consecutive_lesson: row.is_consecutive_lesson,
        }}
        onClose={() => setSubstituteOpen(false)}
-       onDone={() => load()}
+       onDone={() => {
+        invalidateScheduleListDataCache()
+        void load()
+       }}
       />
      ) : null}
     </div>

@@ -3,6 +3,11 @@ import { Link } from "react-router-dom"
 import { Mail, Phone, Plus, User, Users } from "lucide-react"
 
 import { useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
+import {
+ getTeachersListDataCache,
+ isTeachersListCacheFresh,
+ setTeachersListDataCache,
+} from "@/components/teachers/teachersListState"
 
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
@@ -39,8 +44,9 @@ export function TeachersListPage() {
  const previewTeacherId = preview?.kind === "teacher" ? preview.id : null
  const canWriteTeachers = can(profile?.activeCapabilities, "classes.update")
  const canEditAbbr = can(profile?.activeCapabilities, "catalog.manage")
- const [rows, setRows] = useState<TeacherRecord[]>([])
- const [loading, setLoading] = useState(true)
+ const initialCache = getTeachersListDataCache()
+ const [rows, setRows] = useState<TeacherRecord[]>(() => initialCache?.rows ?? [])
+ const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
  const [addOpen, setAddOpen] = useState(false)
  const [form, setForm] = useState({
@@ -54,11 +60,14 @@ export function TeachersListPage() {
  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
  const [saving, setSaving] = useState(false)
 
- const load = useCallback(async () => {
-  setLoading(true)
+ const load = useCallback(async (opts?: { silent?: boolean }) => {
+  const cached = getTeachersListDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
-   setRows(await fetchAllTeachers())
+   const list = await fetchAllTeachers()
+   setRows(list)
+   setTeachersListDataCache({ rows: list })
   } catch (e) {
    reportUserFacingError(e, { source: "TeachersListPage.load", setErr })
   } finally {
@@ -67,7 +76,8 @@ export function TeachersListPage() {
  }, [])
 
  useEffect(() => {
-  void load()
+  if (isTeachersListCacheFresh()) return
+  void load({ silent: getTeachersListDataCache() != null })
  }, [load])
 
  const onAdd = async () => {

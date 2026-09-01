@@ -28,6 +28,8 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { statusToTagTone } from "@/lib/statusTag"
 import { BatchSchedulePanel } from "@/components/classes/BatchSchedulePanel"
+import { invalidateClassesListDataCache } from "@/components/classes/classesListState"
+import { invalidateStudentsListDataCache } from "@/components/students/studentsListState"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
 import { ScheduleListCard } from "@/components/schedules/ScheduleListCard"
@@ -598,6 +600,7 @@ export function ClassDetailView() {
    setSavingEdit(false)
   }
   setEditOpen(false)
+  invalidateClassesListDataCache()
   await reload()
   pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
   return true
@@ -1132,6 +1135,8 @@ export function ClassDetailView() {
     isSingle ? addStudentScheduleIds : undefined,
     null
    )
+   invalidateStudentsListDataCache()
+   invalidateClassesListDataCache()
    const addedName =
     allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
    pushBanner({
@@ -1200,6 +1205,8 @@ export function ClassDetailView() {
     })
    }
    pushBanner({ tone: "success", title: "已退讀", message: `${s.fullName} 已標為已退讀。` })
+   invalidateStudentsListDataCache()
+   invalidateClassesListDataCache()
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)

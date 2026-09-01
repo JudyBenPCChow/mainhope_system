@@ -37,6 +37,11 @@ import {
 } from "@/services/classQueries"
 
 import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
+import {
+ getCoursesListDataCache,
+ isCoursesListCacheFresh,
+ setCoursesListDataCache,
+} from "@/components/courses/coursesListState"
 
 type CourseForm = {
  subject_id: string
@@ -75,9 +80,12 @@ function parsePriceField(raw: string): number | null {
 }
 
 export function CoursesManagePage() {
- const [rows, setRows] = useState<CourseRecord[]>([])
- const [subjects, setSubjects] = useState<{ id: string; code: string; name_zh: string }[]>([])
- const [loading, setLoading] = useState(true)
+ const initialCache = getCoursesListDataCache()
+ const [rows, setRows] = useState<CourseRecord[]>(() => initialCache?.rows ?? [])
+ const [subjects, setSubjects] = useState<{ id: string; code: string; name_zh: string }[]>(
+  () => initialCache?.subjects ?? []
+ )
+ const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
  const [open, setOpen] = useState(false)
  const [editingId, setEditingId] = useState<string | null>(null)
@@ -88,13 +96,15 @@ export function CoursesManagePage() {
  const [modeKey, setModeKey] = useState<CourseModeFilterKey>("全部")
  const [search, setSearch] = useState("")
 
- const load = useCallback(async () => {
-  setLoading(true)
+ const load = useCallback(async (opts?: { silent?: boolean }) => {
+  const cached = getCoursesListDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
    const [courseRows, subjectRows] = await Promise.all([fetchAllCourses(), fetchSubjectOptions()])
    setRows(courseRows)
    setSubjects(subjectRows)
+   setCoursesListDataCache({ rows: courseRows, subjects: subjectRows })
   } catch (e) {
    reportUserFacingError(e, { source: "CoursesManagePage.load", setErr })
   } finally {
@@ -103,7 +113,8 @@ export function CoursesManagePage() {
  }, [])
 
  useEffect(() => {
-  void load()
+  if (isCoursesListCacheFresh()) return
+  void load({ silent: getCoursesListDataCache() != null })
  }, [load])
 
  const subjectLabelById = useMemo(

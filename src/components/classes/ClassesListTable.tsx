@@ -16,6 +16,7 @@ import {
 } from "@/components/classes/classesListColumns"
 import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
+import { stickyTableHeadCellClass, stickyTableHeadRowClass } from "@/components/list/StickyListShell"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select } from "@/components/ui/select"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
@@ -81,12 +82,11 @@ export function ClassesListTable({
  const colSpan = 1 + CLASS_LIST_DATA_COLUMNS.length + 1
 
  return (
-  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-   <div className="overflow-x-auto">
-    <table className="w-full min-w-[104rem] table-fixed border-collapse text-sm">
+  <div className="rounded-xl border border-border bg-card shadow-sm">
+    <table className="w-full min-w-[104rem] table-fixed border-separate border-spacing-0 text-sm">
      <thead>
-      <tr className="border-b border-border bg-muted/50 text-left">
-       <th className="w-10 px-3 py-3">
+      <tr className={stickyTableHeadRowClass}>
+       <th className={cn(stickyTableHeadCellClass, "w-10 px-3 py-3")}>
         <Checkbox
          checked={allSelected}
          indeterminate={someSelected}
@@ -98,6 +98,7 @@ export function ClassesListTable({
         <th
          key={id}
          className={cn(
+          stickyTableHeadCellClass,
           "whitespace-nowrap py-3 font-medium text-muted-foreground",
           id === "course_code" ? "min-w-[7.5rem] px-4 pr-2" : "min-w-[5.5rem] px-3 pr-2",
           id === "student_count" ? "text-center" : "",
@@ -123,7 +124,12 @@ export function ClassesListTable({
          </SortableColumnHeader>
         </th>
        ))}
-       <th className="min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground">
+       <th
+        className={cn(
+         stickyTableHeadCellClass,
+         "min-w-[6.5rem] whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground"
+        )}
+       >
         操作
        </th>
       </tr>
@@ -145,7 +151,7 @@ export function ClassesListTable({
        </tr>
       </tbody>
      ) : (
-      <StaggerList as="tbody">
+      <StaggerList as="tbody" className="[&_td]:border-b [&_td]:border-border">
        {rows.map((c, idx) => {
         const checked = selectedSet.has(c.id)
         const roster = extras.enrollRoster.get(c.id)
@@ -295,7 +301,6 @@ export function ClassesListTable({
       </StaggerList>
      )}
     </table>
-   </div>
   </div>
  )
 }

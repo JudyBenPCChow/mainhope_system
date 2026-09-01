@@ -57,6 +57,11 @@ import {
 } from "@/services/attendanceLifecycleQueries"
 import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ getLeaveManagementDataCache,
+ isLeaveManagementCacheFresh,
+ setLeaveManagementDataCache,
+} from "@/components/leaves/leaveManagementState"
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
 
@@ -151,11 +156,17 @@ export function LeaveManagementView() {
  const recordFromUrl = searchParams.get("record")
  const studentIdFromUrl = searchParams.get("studentId")
 
- const [rows, setRows] = useState<LeaveManageRow[]>([])
- const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
- const [includeOlderYears, setIncludeOlderYears] = useState(false)
- const [stats, setStats] = useState<LeaveTodayStats>({ leaveStudentCount: 0, makeupStudentCount: 0 })
- const [loading, setLoading] = useState(true)
+ const [rows, setRows] = useState<LeaveManageRow[]>(() => getLeaveManagementDataCache()?.rows ?? [])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(
+  () => getLeaveManagementDataCache()?.hiddenOlderCount ?? 0
+ )
+ const [includeOlderYears, setIncludeOlderYears] = useState(
+  () => getLeaveManagementDataCache()?.includeOlderYears ?? false
+ )
+ const [stats, setStats] = useState<LeaveTodayStats>(
+  () => getLeaveManagementDataCache()?.stats ?? { leaveStudentCount: 0, makeupStudentCount: 0 }
+ )
+ const [loading, setLoading] = useState(() => getLeaveManagementDataCache() == null)
  const [err, setErr] = useState<string | null>(null)
 
  const [statusTab, setStatusTab] = useState<StatusTab>("all")
@@ -202,9 +213,10 @@ export function LeaveManagementView() {
  const [linkSaving, setLinkSaving] = useState(false)
  const [linkErr, setLinkErr] = useState<string | null>(null)
 
- const reload = useCallback(async () => {
+ const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const cached = getLeaveManagementDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
    const [list, st] = await Promise.all([
@@ -218,6 +230,14 @@ export function LeaveManagementView() {
    setRows(list.rows)
    setHiddenOlderCount(list.hiddenOlderCount)
    setStats(st)
+   if (!recordFromUrl && !studentIdFromUrl) {
+    setLeaveManagementDataCache({
+     includeOlderYears,
+     rows: list.rows,
+     hiddenOlderCount: list.hiddenOlderCount,
+     stats: st,
+    })
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "LeaveManagementView.reload", setErr })
    setRows([])
@@ -228,8 +248,16 @@ export function LeaveManagementView() {
  }, [includeOlderYears, recordFromUrl, studentIdFromUrl])
 
  useEffect(() => {
-  void reload()
- }, [reload])
+  if (!recordFromUrl && !studentIdFromUrl && isLeaveManagementCacheFresh(includeOlderYears)) return
+  const cached = getLeaveManagementDataCache()
+  void reload({
+   silent:
+    cached != null &&
+    cached.includeOlderYears === includeOlderYears &&
+    !recordFromUrl &&
+    !studentIdFromUrl,
+  })
+ }, [reload, includeOlderYears, recordFromUrl, studentIdFromUrl])
 
  useEffect(() => {
   if (!recordFromUrl || loading) return

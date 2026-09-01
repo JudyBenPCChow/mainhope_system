@@ -17,6 +17,12 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
 import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
+import {
+ getStudentsListDataCache,
+ isStudentsListCacheFresh,
+ patchStudentsListDataCache,
+ setStudentsListDataCache,
+} from "@/components/students/studentsListState"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
 import {
  compareStudents,
@@ -230,10 +236,13 @@ export function StudentsListPage() {
  const listScope: "active" | "roster" = searchParams.get("scope") === "roster" ? "roster" : "active"
  const isActiveScope = listScope === "active"
  const [filtersOpen, setFiltersOpen] = useState(false)
- const [rows, setRows] = useState<StudentRecord[]>([])
- const [tags, setTags] = useState<Map<string, string[]>>(new Map())
- const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>([])
- const [loading, setLoading] = useState(true)
+ const initialCache = useMemo(() => getStudentsListDataCache(), [])
+ const [rows, setRows] = useState<StudentRecord[]>(() => initialCache?.rows ?? [])
+ const [tags, setTags] = useState<Map<string, string[]>>(() => initialCache?.tags ?? new Map())
+ const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>(
+  () => initialCache?.recentEnrollments ?? []
+ )
+ const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
  const [registrationKey, setRegistrationKey] = usePersistentState<
   (typeof REGISTRATION_FILTERS)[number]["key"]
@@ -277,7 +286,9 @@ export function StudentsListPage() {
   getInitialStudentsViewMode()
  )
  const [showGraduated, setShowGraduated] = usePersistentState<boolean>("mgmt_students_showGraduated", false)
- const [hiddenGraduatedCount, setHiddenGraduatedCount] = useState(0)
+ const [hiddenGraduatedCount, setHiddenGraduatedCount] = useState(
+  () => initialCache?.hiddenGraduatedCount ?? 0
+ )
  const [dashboardCollapsed, setDashboardCollapsed] = useState(isMobile)
  const [recentIndex, setRecentIndex] = useState(0)
  const [search, setSearch] = usePersistentState<string>("mgmt_students_search", "")
@@ -304,19 +315,28 @@ export function StudentsListPage() {
   }
  }
 
- const load = useCallback(async () => {
-  setLoading(true)
+ const load = useCallback(async (opts?: { silent?: boolean }) => {
+  const cached = getStudentsListDataCache()
+  const skipSpinner = Boolean(opts?.silent || cached)
+  if (!skipSpinner) setLoading(true)
   setErr(null)
   try {
    const { students: list, hiddenGraduatedCount: hidden } = await fetchStudentsForOpsList({
     includeGraduated: !isActiveScope && showGraduated,
     activityStatus: isActiveScope ? "活躍生" : undefined,
    })
+   const hiddenCount = isActiveScope ? 0 : hidden
    setRows(list)
-   setHiddenGraduatedCount(isActiveScope ? 0 : hidden)
-   setTags(new Map())
+   setHiddenGraduatedCount(hiddenCount)
    const recentEnr = await fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT)
    setRecentEnrollments(recentEnr)
+   setStudentsListDataCache({
+    key: { isActiveScope, showGraduated },
+    rows: list,
+    tags: cached?.tags ?? new Map(),
+    recentEnrollments: recentEnr,
+    hiddenGraduatedCount: hiddenCount,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "StudentsListPage.load", setErr })
   } finally {
@@ -325,8 +345,14 @@ export function StudentsListPage() {
  }, [isActiveScope, showGraduated])
 
  useEffect(() => {
-  void load()
- }, [load])
+  const key = { isActiveScope, showGraduated }
+  if (isStudentsListCacheFresh(key)) return
+  const cached = getStudentsListDataCache()
+  const keyChanged =
+   cached != null &&
+   (cached.key.isActiveScope !== isActiveScope || cached.key.showGraduated !== showGraduated)
+  void load({ silent: cached != null && !keyChanged })
+ }, [isActiveScope, showGraduated, load])
 
  const stats = useMemo(() => {
   const total = rows.length
@@ -451,6 +477,7 @@ export function StudentsListPage() {
     for (const id of missing) {
      if (!next.has(id)) next.set(id, tagMap.get(id) ?? [])
     }
+    patchStudentsListDataCache((c) => ({ ...c, tags: next }))
     return next
    })
   })

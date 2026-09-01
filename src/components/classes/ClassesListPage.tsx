@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
+import { useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
 import { useAuth } from "@/lib/authBootstrap"
@@ -11,6 +11,7 @@ import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
+import { StickyListLead, StickyListShell } from "@/components/list/StickyListShell"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -51,6 +52,8 @@ import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScop
 import { classYearFilterRequiresOlderYears } from "@/lib/softArchiveListScope"
 import {
  getClassesListDataCache,
+ isClassesListCacheFresh,
+ patchClassesListDataCache,
  setClassesListDataCache,
 } from "@/components/classes/classesListState"
 import { useOpenClassRecord, useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
@@ -110,7 +113,6 @@ function getInitialClassesView(): ClassesViewMode {
 
 export function ClassesListPage() {
  const navigate = useNavigate()
- const location = useLocation()
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const { profile } = useAuth()
@@ -201,23 +203,37 @@ export function ClassesListPage() {
  }, [setSubjectKey, setGradeKey, setTeacherKey, setDayKey, setStatusKey, setHeaderFilters])
 
  const load = useCallback(async (opts?: { silent?: boolean }) => {
-  if (!opts?.silent) setLoading(true)
+  const cached = getClassesListDataCache()
+  const skipSpinner = Boolean(opts?.silent || cached)
+  if (!skipSpinner) setLoading(true)
   setErr(null)
   try {
    const { classes: list, hiddenOlderCount: hidden, opsYearLabels: labels } =
     await fetchClassesForOpsList({ includeOlderYears })
+   setRows(list)
+   setHiddenOlderCount(hidden)
+   setOpsYearLabels(labels)
+   setClassesListDataCache({
+    rows: list,
+    yearOptions: cached?.yearOptions ?? [],
+    enrollRoster: cached?.enrollRoster ?? new Map(),
+    scheduleSummaries: cached?.scheduleSummaries ?? new Map(),
+    hiddenOlderCount: hidden,
+    includeOlderYears,
+    opsYearLabels: labels,
+    fetchedAt: 0,
+   })
+   if (!skipSpinner) setLoading(false)
+
    const classIds = list.map((c) => c.id)
    const [yearOpts, roster, summaries] = await Promise.all([
     fetchAcademicYearOptions(),
     fetchEnrollmentRosterByClassIds(classIds),
     fetchScheduleSummariesByClassIds(classIds),
    ])
-   setRows(list)
    setYearOptions(yearOpts)
    setEnrollRoster(roster)
    setScheduleSummaries(summaries)
-   setHiddenOlderCount(hidden)
-   setOpsYearLabels(labels)
    setClassesListDataCache({
     rows: list,
     yearOptions: yearOpts,
@@ -226,11 +242,12 @@ export function ClassesListPage() {
     hiddenOlderCount: hidden,
     includeOlderYears,
     opsYearLabels: labels,
+    fetchedAt: Date.now(),
    })
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })
   } finally {
-   if (!opts?.silent) setLoading(false)
+   setLoading(false)
   }
  }, [includeOlderYears])
 
@@ -246,13 +263,26 @@ export function ClassesListPage() {
    next.delete(id)
    return next
   })
+  patchClassesListDataCache((cache) => {
+   const enrollRoster = new Map(cache.enrollRoster)
+   enrollRoster.delete(id)
+   const scheduleSummaries = new Map(cache.scheduleSummaries)
+   scheduleSummaries.delete(id)
+   return {
+    ...cache,
+    rows: cache.rows.filter((c) => c.id !== id),
+    enrollRoster,
+    scheduleSummaries,
+   }
+  })
  }, [])
 
  useEffect(() => {
-  // 已有快取（例如自班別詳情返回）時靜默更新，避免閃「載入中」並保留篩選；
-  // 首次進入才顯示載入狀態。
-  void load({ silent: getClassesListDataCache() != null })
- }, [location.key, load])
+  const cached = getClassesListDataCache()
+  if (isClassesListCacheFresh(includeOlderYears)) return
+  const yearScopeChanged = cached != null && cached.includeOlderYears !== includeOlderYears
+  void load({ silent: cached != null && !yearScopeChanged })
+ }, [includeOlderYears, load])
 
  useEffect(() => {
   if (!teacherTid && view === "gallery") setView("list")
@@ -324,10 +354,15 @@ export function ClassesListPage() {
  const timeLabel = useCallback(
   (c: ClassRecord) => {
    const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
-   const sum = scheduleSummaries.get(c.id)
-   const dates = sum?.dates.map(formatScheduleDateShort).join("、") ?? ""
-   if (approx && dates) return `${approx} · ${dates}`
-   if (dates) return dates
+   const dates = scheduleSummaries.get(c.id)?.dates ?? []
+   const dateLabel =
+    dates.length >= 2
+     ? `${formatScheduleDateShort(dates[0]!)}–${formatScheduleDateShort(dates[dates.length - 1]!)}`
+     : dates.length === 1
+      ? formatScheduleDateShort(dates[0]!)
+      : ""
+   if (approx && dateLabel) return `${approx} · ${dateLabel}`
+   if (dateLabel) return dateLabel
    return approx || "—"
   },
   [scheduleSummaries]
@@ -768,7 +803,10 @@ export function ClassesListPage() {
  )
 
  return (
-  <div className="space-y-5 py-4 md:p-6">
+  <StickyListShell
+   sticky={!isMobile}
+   header={
+    <>
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。
@@ -855,6 +893,10 @@ export function ClassesListPage() {
      </div>
     </div>
    </div>
+    </>
+   }
+  >
+   <StickyListLead>
 
    <SoftArchiveScopeBanner
     hiddenCount={includeOlderYears ? 0 : hiddenOlderCount}
@@ -955,6 +997,53 @@ export function ClassesListPage() {
     )}
    </div>
 
+   {displayView === "list" ? (
+    <div className="space-y-3">
+     {countActiveClassHeaderFilters(headerFilters) > 0 || safeSortKey !== "course_code" || sortDir !== "asc" ? (
+      <div className="flex flex-wrap items-center gap-2">
+       <Tag tone="default" size="sm">
+        目前排序：{classSortLabel(safeSortKey, sortDir)}
+       </Tag>
+       {countActiveClassHeaderFilters(headerFilters) > 0 ? (
+        <Button
+         type="button"
+         variant="ghost"
+         size="sm"
+         onClick={() => setHeaderFilters(EMPTY_CLASS_HEADER_FILTERS)}
+        >
+         清除表頭篩選
+        </Button>
+       ) : null}
+      </div>
+     ) : null}
+     <BulkSelectionBar
+      selectedCount={selectedIds.length}
+      unitLabel="班"
+      allFilteredSelected={
+       tableRows.length > 0 && tableRows.every((c) => selectedIds.includes(c.id))
+      }
+      onToggleSelectAll={toggleSelectAllFiltered}
+      onClear={() => setSelectedIds([])}
+     >
+      <Button type="button" variant="outline" size="sm" onClick={exportSelectedCsv}>
+       匯出已選
+      </Button>
+      {canDeleteClass ? (
+       <Button
+        type="button"
+        variant="destructive"
+        size="sm"
+        disabled={bulkSaving}
+        onClick={() => void onBulkDelete()}
+       >
+        {bulkSaving ? "刪除中…" : "批量刪除"}
+       </Button>
+      ) : null}
+     </BulkSelectionBar>
+    </div>
+   ) : null}
+   </StickyListLead>
+
    {displayView === "cards" ? (
     loading ? (
      <SkeletonCardGrid count={4} />
@@ -1036,47 +1125,6 @@ export function ClassesListPage() {
     )
    ) : displayView === "list" ? (
     <div className="space-y-3">
-     {countActiveClassHeaderFilters(headerFilters) > 0 || safeSortKey !== "course_code" || sortDir !== "asc" ? (
-      <div className="flex flex-wrap items-center gap-2">
-       <Tag tone="default" size="sm">
-        目前排序：{classSortLabel(safeSortKey, sortDir)}
-       </Tag>
-       {countActiveClassHeaderFilters(headerFilters) > 0 ? (
-        <Button
-         type="button"
-         variant="ghost"
-         size="sm"
-         onClick={() => setHeaderFilters(EMPTY_CLASS_HEADER_FILTERS)}
-        >
-         清除表頭篩選
-        </Button>
-       ) : null}
-      </div>
-     ) : null}
-     <BulkSelectionBar
-      selectedCount={selectedIds.length}
-      unitLabel="班"
-      allFilteredSelected={
-       tableRows.length > 0 && tableRows.every((c) => selectedIds.includes(c.id))
-      }
-      onToggleSelectAll={toggleSelectAllFiltered}
-      onClear={() => setSelectedIds([])}
-     >
-      <Button type="button" variant="outline" size="sm" onClick={exportSelectedCsv}>
-       匯出已選
-      </Button>
-      {canDeleteClass ? (
-       <Button
-        type="button"
-        variant="destructive"
-        size="sm"
-        disabled={bulkSaving}
-        onClick={() => void onBulkDelete()}
-       >
-        {bulkSaving ? "刪除中…" : "批量刪除"}
-       </Button>
-      ) : null}
-     </BulkSelectionBar>
      <ClassesListTable
       rows={tableRows}
       filterSourceRows={filtered}
@@ -1104,7 +1152,6 @@ export function ClassesListPage() {
       onDelete={onDelete}
       hasNoActiveSchedule={hasNoActiveSchedule}
      />
-     <p className="text-xs text-muted-foreground">共 {tableRows.length} 班</p>
     </div>
    ) : displayView === "gallery" && teacherTid ? (
     <div className="rounded-xl border border-border bg-muted/20 p-4 shadow-sm md:p-6">
@@ -1248,9 +1295,14 @@ export function ClassesListPage() {
     </div>
    )}
 
-   <p className="text-xs text-muted-foreground">
-    點列表列、看板卡片或圖庫卡片：管理員／外星人開右側預覽，其餘角色進入完整詳情。老師姓名可開老師預覽／詳情。
-   </p>
-  </div>
+   <StickyListLead className="pb-1">
+    {displayView === "list" ? (
+     <p className="text-xs text-muted-foreground">共 {tableRows.length} 班</p>
+    ) : null}
+    <p className="text-xs text-muted-foreground">
+     點列表列、看板卡片或圖庫卡片：管理員／外星人開右側預覽，其餘角色進入完整詳情。老師姓名可開老師預覽／詳情。
+    </p>
+   </StickyListLead>
+  </StickyListShell>
  )
 }
