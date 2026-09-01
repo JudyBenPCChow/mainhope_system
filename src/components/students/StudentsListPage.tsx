@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
 import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import {
+ dropStaleEnrollmentYearTags,
  getStudentsListDataCache,
  isStudentsListCacheFresh,
  patchStudentsListDataCache,
@@ -244,10 +245,9 @@ export function StudentsListPage() {
    isActiveScope: cached.key.isActiveScope,
    showGraduated: cached.key.showGraduated,
   }).enrollmentYear
-  if (cached.key.enrollmentYear !== year) {
-   return { ...cached, tags: new Map<string, string[]>(), key: { ...cached.key, enrollmentYear: year } }
-  }
-  return cached
+  const next = dropStaleEnrollmentYearTags(cached, year)
+  if (next !== cached) patchStudentsListDataCache(() => next)
+  return next
  }, [])
  const [rows, setRows] = useState<StudentRecord[]>(() => initialCache?.rows ?? [])
  const [tags, setTags] = useState<Map<string, string[]>>(() => initialCache?.tags ?? new Map())
