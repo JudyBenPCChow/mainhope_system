@@ -26,6 +26,7 @@ import {
  studentsListCacheKey,
 } from "@/components/students/studentsListState"
 import { BulkSelectionBar } from "@/components/list/BulkSelectionBar"
+import { StickyListLead, StickyListShell } from "@/components/list/StickyListShell"
 import {
  compareStudents,
  countActiveHeaderFilters,
@@ -1135,7 +1136,10 @@ export function StudentsListPage() {
  )
 
  return (
-  <div className="space-y-5 py-4 md:p-6">
+  <StickyListShell
+   sticky={!isMobile}
+   header={
+    <>
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">
      請設定純文字 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev，才能載入學生。
@@ -1151,45 +1155,78 @@ export function StudentsListPage() {
     </div>
    ) : null}
 
-   <div className="flex flex-wrap items-center gap-3">
+   <div className="flex flex-wrap items-center justify-between gap-4">
     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
      <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
      學生管理
+     <Tag tone="info" size="sm">{loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}</Tag>
+     {!loading && filtered.length !== stats.total ? (
+      <span className="text-sm font-normal text-muted-foreground">顯示 {filtered.length} 人</span>
+     ) : null}
     </h1>
-   <Tag tone="info">{loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}</Tag>
-   {!loading && filtered.length !== stats.total ? (
-    <span className="text-sm text-muted-foreground">顯示 {filtered.length} 人</span>
-   ) : null}
+    <div className="flex flex-wrap items-center gap-2">
+     <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5" role="group" aria-label="名單範圍">
+      <button
+       type="button"
+       aria-pressed={isActiveScope}
+       onClick={() => setListScope("active")}
+       className={cn(
+        "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        isActiveScope
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       活躍
+      </button>
+      <button
+       type="button"
+       aria-pressed={!isActiveScope}
+       onClick={() => setListScope("roster")}
+       className={cn(
+        "inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        !isActiveScope
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       學生名冊
+      </button>
+     </div>
+     <div className="flex rounded-lg border border-border bg-muted/40 p-0.5">
+      <button
+       type="button"
+       onClick={() => setViewMode("table")}
+       className={cn(
+        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        viewMode === "table"
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       <List className="h-4 w-4" />
+       {isMobile ? "精簡" : "列表"}
+      </button>
+      <button
+       type="button"
+       onClick={() => setViewMode("gallery")}
+       className={cn(
+        "flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+        viewMode === "gallery"
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:text-foreground"
+       )}
+      >
+       <LayoutGrid className="h-4 w-4" />
+       圖庫
+      </button>
+     </div>
+    </div>
    </div>
-
-   <div className="inline-flex w-full rounded-lg border border-border bg-muted/30 p-0.5 sm:w-auto" role="group" aria-label="名單範圍">
-    <button
-     type="button"
-     aria-pressed={isActiveScope}
-     onClick={() => setListScope("active")}
-     className={cn(
-      "inline-flex flex-1 items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
-      isActiveScope
-       ? "bg-primary text-primary-foreground shadow-sm"
-       : "text-muted-foreground hover:text-foreground"
-     )}
-    >
-     活躍
-    </button>
-    <button
-     type="button"
-     aria-pressed={!isActiveScope}
-     onClick={() => setListScope("roster")}
-     className={cn(
-      "inline-flex flex-1 items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
-      !isActiveScope
-       ? "bg-primary text-primary-foreground shadow-sm"
-       : "text-muted-foreground hover:text-foreground"
-     )}
-    >
-     學生名冊
-    </button>
-   </div>
+    </>
+   }
+  >
+   <StickyListLead>
 
    {!isActiveScope && !showGraduated && hiddenGraduatedCount > 0 ? (
     <div
@@ -1241,34 +1278,6 @@ export function StudentsListPage() {
      />
     </div>
     <div className="flex flex-wrap gap-2">
-     <div className="inline-flex w-full rounded-lg border border-border bg-muted/30 p-0.5 sm:w-auto">
-      <button
-       type="button"
-       onClick={() => setViewMode("table")}
-       className={cn(
-        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
-        viewMode === "table"
-         ? "bg-primary text-primary-foreground shadow-sm"
-         : "text-muted-foreground hover:text-foreground"
-       )}
-      >
-       <List className="h-4 w-4" />
-       {isMobile ? "精簡" : "列表"}
-      </button>
-      <button
-       type="button"
-       onClick={() => setViewMode("gallery")}
-       className={cn(
-        "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all sm:flex-none",
-        viewMode === "gallery"
-         ? "bg-primary text-primary-foreground shadow-sm"
-         : "text-muted-foreground hover:text-foreground"
-       )}
-      >
-       <LayoutGrid className="h-4 w-4" />
-       圖庫
-      </button>
-     </div>
      <div className="flex w-full gap-2 sm:w-auto">
       <Select
        aria-label="排序欄位"
@@ -1601,6 +1610,7 @@ export function StudentsListPage() {
      ) : null}
     </BulkSelectionBar>
    ) : null}
+   </StickyListLead>
 
    {viewMode === "table" && !isMobile ? (
     <StudentsListTable
@@ -1823,10 +1833,12 @@ export function StudentsListPage() {
     )
    )}
 
-   <p className="text-xs text-muted-foreground">
-    {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
-   </p>
-  </div>
+   <StickyListLead className="pb-1">
+    <p className="text-xs text-muted-foreground">
+     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
+    </p>
+   </StickyListLead>
+  </StickyListShell>
  )
 }
 
