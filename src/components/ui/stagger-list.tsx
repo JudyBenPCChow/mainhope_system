@@ -122,12 +122,17 @@ export function StaggerItem({
  const ctx = React.useContext(StaggerContext)
  const shouldAnimate = ctx?.animate ?? false
  const delay = ctx ? Math.min(ctx.index * ctx.staggerMs, ctx.maxDelayMs) : 0
+ // 表格列不可用 translate：transform 會另開堆疊層，滑動時蓋過 sticky 表頭
+ const isTableRow = Comp === "tr"
 
  return (
   <Comp
    className={cn(
     className,
-    shouldAnimate && "motion-safe:animate-stagger-in motion-reduce:animate-none"
+    shouldAnimate &&
+     (isTableRow
+      ? "motion-safe:animate-stagger-fade motion-reduce:animate-none"
+      : "motion-safe:animate-stagger-in motion-reduce:animate-none")
    )}
    style={{
     ...style,

@@ -16,7 +16,12 @@ import {
 } from "@/components/classes/classesListColumns"
 import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
 import { SortableColumnHeader } from "@/components/list/SortableColumnHeader"
-import { stickyTableHeadCellClass, stickyTableHeadRowClass } from "@/components/list/StickyListShell"
+import {
+ stickyTableBodyClass,
+ stickyTableHeadCellClass,
+ stickyTableHeadClass,
+ stickyTableHeadRowClass,
+} from "@/components/list/StickyListShell"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select } from "@/components/ui/select"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
@@ -83,8 +88,8 @@ export function ClassesListTable({
 
  return (
   <div className="rounded-xl border border-border bg-card shadow-sm">
-    <table className="w-full min-w-[104rem] table-fixed border-separate border-spacing-0 text-sm">
-     <thead>
+    <table className="w-full min-w-[104rem] table-fixed border-separate border-spacing-0 text-sm isolate">
+     <thead className={stickyTableHeadClass}>
       <tr className={stickyTableHeadRowClass}>
        <th className={cn(stickyTableHeadCellClass, "w-10 px-3 py-3")}>
         <Checkbox
@@ -135,7 +140,7 @@ export function ClassesListTable({
       </tr>
      </thead>
      {loading ? (
-      <tbody>
+      <tbody className={stickyTableBodyClass}>
        <tr>
         <td colSpan={colSpan} className="px-3 py-4">
          <SkeletonTableRows rows={8} columns={Math.min(colSpan, 10)} />
@@ -143,7 +148,7 @@ export function ClassesListTable({
        </tr>
       </tbody>
      ) : rows.length === 0 ? (
-      <tbody>
+      <tbody className={stickyTableBodyClass}>
        <tr>
         <td colSpan={colSpan} className="px-3 py-8 text-center text-muted-foreground">
          {emptyHint}
@@ -151,7 +156,10 @@ export function ClassesListTable({
        </tr>
       </tbody>
      ) : (
-      <StaggerList as="tbody" className="[&_td]:border-b [&_td]:border-border">
+      <StaggerList
+       as="tbody"
+       className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}
+      >
        {rows.map((c, idx) => {
         const checked = selectedSet.has(c.id)
         const roster = extras.enrollRoster.get(c.id)
