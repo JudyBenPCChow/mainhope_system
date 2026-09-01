@@ -93,7 +93,7 @@
 | 課室容量 | 不單列；未公佈前勿當正式上限 |
 | 學費參考價 | §8.2；試堂見 §11 |
 | 文風 | **書面語**；少寫系統欄位名；少提「2627」以利下學年沿用 |
-| docx／pdf | 由 `scripts/generate_2627_ops_guide_doc.py` 重出；改 md 同步 docx＋pdf |
+| docx／pdf | 發佈時先跑 `scripts/generate_2627_ops_guide_doc.py`；日常改 md 唔自動出檔 |
 
 ## 開工閘（agent 必讀）
 

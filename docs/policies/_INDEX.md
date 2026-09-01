@@ -22,7 +22,7 @@
 | --- | --- |
 | [學年與報讀形式](academic/ACADEMIC_YEARS.md) | 常規 vs 暑期；label、日期、報讀選項；後台寫入不硬鎖歷史學年 |
 | [軟封存與查詢範圍](academic/SOFT_ARCHIVE.md) | 已畢業／近兩學年日常名單預設不載入；不刪庫；合規／財務可查全量 |
-| [校曆（專科／功輔）](academic/ACADEMIC_CALENDAR.md) | 專科／功輔假日與堂數規則；2627 專科校舍假期 21 日、功輔放假 31 日均已入庫（分表） |
+| [校曆（專科／功輔）](academic/ACADEMIC_CALENDAR.md) | 專科／功輔假日與堂數規則；假期日不建專科排程列；2627 專科 21 日、功輔 31 日分表入庫 |
 
 ### 報讀／學生
 
@@ -73,5 +73,5 @@
 1. **一篇一主題**：勿把代堂、扣堂、學費罰款揉成單一巨檔。
 2. **交叉引用**：相關概念用連結（例如追學費 ≠ 逾期罰款）。
 3. **尚未系統化**：文首或相關節標明 `系統現況：…`。
-4. **改規則時**：先改本櫃對應政策篇 → 再改 [`../year/2627/ops-guide.md`](../year/2627/ops-guide.md) → 同一輪重出 docx（見 `generated/`）。只改寫法／例子可只改 2627。
+4. **改規則時**：先改本櫃對應政策篇 → 再改 [`../year/2627/ops-guide.md`](../year/2627/ops-guide.md)（markdown）。Word／PDF 另於發佈時重出（見 [`../generated/`](../generated/README.md)）。只改寫法／例子可只改 2627。
 5. **稱呼**：見 [`../meta/TERMINOLOGY.md`](../meta/TERMINOLOGY.md)。改術語須同步 agent 表並重審本櫃用詞（`.cursor/rules/terminology-sync.mdc`）。

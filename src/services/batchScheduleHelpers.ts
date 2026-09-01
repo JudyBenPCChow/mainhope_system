@@ -186,7 +186,14 @@ export async function executeBatchSchedules(params: {
   throw new Error("連堂班別需選擇可連續兩格的起始時段。")
  }
 
+ const closureMap = await fetchAcademicCalendarClosureMap(params.year.id)
+
  for (const date of dates.sort()) {
+  const closure = closureMap.get(date)
+  if (closure) {
+   skippedDates.push({ date, reason: `校舍假期：${closure.name}` })
+   continue
+  }
   if (teacherId && cls.time_slot) {
    const ok = await isTeacherAvailableForClassOnDate(cls, teacherId, date)
    if (!ok) {

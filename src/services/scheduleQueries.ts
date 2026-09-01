@@ -357,25 +357,11 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
 
  const today = localYmd()
 
- const [todayLessons, pendingCancel, todaySchedRows] = await Promise.all([
-  (() => {
-   let q = supabase
-    .from("schedules")
-    .select("id", { count: "exact", head: true })
-    .eq("scheduled_date", today)
-    .not("status", "ilike", "%取消%")
-   if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
-   return q
-  })(),
-  (() => {
-   let q = supabase
-    .from("schedules")
-    .select("id", { count: "exact", head: true })
-    .gte("scheduled_date", today)
-    .ilike("status", "%取消%")
-   if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
-   return q
-  })(),
+ const [statsRes, todaySchedRows] = await Promise.all([
+  supabase.rpc("get_schedule_manage_stats", {
+   p_as_of: today,
+   p_teacher_id: teacherId ?? null,
+  }),
   (() => {
    let q = supabase
     .from("schedules")
@@ -387,12 +373,22 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
   })(),
  ])
 
- if (todayLessons.error || pendingCancel.error || todaySchedRows.error) {
+ const statsRow = Array.isArray(statsRes.data) ? statsRes.data[0] : statsRes.data
+ const todayLessonCount =
+  statsRow != null ? Number((statsRow as { today_lesson_count?: number }).today_lesson_count ?? 0) : null
+ const pendingCancelledCount =
+  statsRow != null
+   ? Number((statsRow as { pending_cancelled_count?: number }).pending_cancelled_count ?? 0)
+   : null
+ const statsError =
+  statsRes.error ?? (statsRow == null && !statsRes.error ? new Error("排程統計沒有回傳列") : null)
+
+ if (statsError || todaySchedRows.error) {
   return assembleScheduleStatsSnapshot({
-   todayLessonsError: todayLessons.error,
-   todayLessonsCount: todayLessons.count ?? null,
-   pendingCancelError: pendingCancel.error,
-   pendingCancelCount: pendingCancel.count ?? null,
+   todayLessonsError: statsError,
+   todayLessonsCount: todayLessonCount,
+   pendingCancelError: statsError,
+   pendingCancelCount: pendingCancelledCount,
    todaySchedError: todaySchedRows.error,
    todayStudentHeadcount: 0,
   })
@@ -416,9 +412,9 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
 
  return assembleScheduleStatsSnapshot({
   todayLessonsError: null,
-  todayLessonsCount: todayLessons.count ?? 0,
+  todayLessonsCount: todayLessonCount ?? 0,
   pendingCancelError: null,
-  pendingCancelCount: pendingCancel.count ?? 0,
+  pendingCancelCount: pendingCancelledCount ?? 0,
   todaySchedError: null,
   headcountError,
   todayStudentHeadcount,
