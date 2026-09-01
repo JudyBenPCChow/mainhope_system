@@ -3,17 +3,18 @@
 | 欄位 | 值 |
 | --- | --- |
 | 日期 | 2026-09-02 |
-| 主題／backlog | 尚未建立；第一步須新增 `docs/product/topics/list-data-cache.md`，狀態設為 `in_progress` |
-| 分支／工作樹 | 實作來源為 `cursor/22710242`（`8dea8841`）；本 HANDOFF 及排程拆分分題目前在 `main` 工作樹未提交 |
+| 主題／backlog | [`docs/product/topics/list-data-cache.md`](../../product/topics/list-data-cache.md)（`in_progress`）；排程拆分另見 [`schedule-manage-page-refactor.md`](../../product/topics/schedule-manage-page-refactor.md) |
+| 分支／工作樹 | 實作來源為 `cursor/22710242`（遠端 `d0644f95`；本地 ref 可能仍停在 `8dea8841`）。本 HANDOFF、清單快取分題與排程拆分分題目前在 `main` 工作樹未提交 |
 
 ## 目標
 
-- 收尾清單資料快取工程，同一輪處理五項：班別快取統一、功輔寫庫移出 `setState`、收款紀錄深連結競態、補產品分題、PostgREST RPC schema reload。
+- 收尾清單資料快取工程：產品分題已立。其餘為班別快取統一、功輔寫庫移出 `setState`、收款紀錄深連結競態、PostgREST RPC schema reload、寫入後失效。
 - 不處理功輔路由 `Outlet`、角色／裝置詳情分流，也不在本輪拆分 `ScheduleManagePage`。
 
 ## 已完成
 
-- 已核對 `cursor/22710242` 的 `8dea8841`：新增 `createListDataCache`、多個清單快取及 `get_class_schedule_summaries` RPC；尚未合入 `main`。
+- 已核對 `cursor/22710242` 相對 `origin/main`：遠端 `d0644f95`（3 commits ahead、0 behind）。`8dea8841` 之後另有 merge main（更新日志改為 SU-20260902-03～05）及功輔型別修正 `d0644f95`。尚未合入 `main`。
+- 已新增 `docs/product/topics/list-data-cache.md`（`in_progress`）；`BACKLOG.md` 索引列僅在本 `main` 工作樹未提交。
 - 已確認班別 `classesListState.ts` 仍自行維護 TTL／`fetchedAt`／invalidate／patch，未使用共用 helper。
 - 已確認 `setMonthRosterStatusPersisted` 仍在 React state updater 內以 `void` 執行清除佔室及更新編更狀態。
 - 已確認 `PaymentHistoryView` 先用舊快取／空篩選載入，再由 effect 讀取 `studentId`；並行請求沒有 generation guard，較慢的舊結果可覆蓋指定學生結果。
@@ -28,8 +29,8 @@
 
 ## 下一步（給新會話）
 
-1. 讀 `cursor/22710242` 相對最新 `origin/main` 的完整 diff，確認工作樹乾淨；以該效能工程為基線繼續，避免遺失 `8dea8841` 的快取實作。
-2. 新增 `docs/product/topics/list-data-cache.md`，記錄適用／排除頁面、TTL、快取鍵、失效規則、深連結優先次序及驗收；feature 分支不要改 `BACKLOG.md`。
+1. 以 `cursor/22710242` 遠端 `d0644f95` 為基線開／對齊功能分支，不要把功能程式混入目前 `main` 未提交文件。
+2. ~~新增產品分題~~ 已完成：見 `docs/product/topics/list-data-cache.md`。
 3. 將 `classesListState.ts` 改用 `createListDataCache`，保留 `includeOlderYears` 鍵、分階段資料載入、invalidate 與 patch 語意；補 helper 及班別快取測試。
 4. 把 `setMonthRosterStatusPersisted` 改為具名 async command：先 `await` 清除佔室／更新編更狀態，成功後才更新 state 與快取；失敗須保留舊狀態並顯示錯誤。子元件 callback 須回傳 `Promise<void>`，不可再冒充 React setter。
 5. 修正 `PaymentHistoryView`：初始 render 直接由 URL 建立 canonical filter key；快取鍵不符便不 hydrate 舊列；學生 ID 改變時清舊姓名；加入 request generation 或 AbortController，拒絕過期的首次載入及載入更多結果。測試「快取學生 A → 深連結學生 B」及兩請求逆序完成。
