@@ -730,6 +730,8 @@ export type EnrollmentWithClass = {
  dayOfWeek: string | null
  timeSlot: string | null
  pricePerLesson: number | null
+ /** 班別所屬學年 label（如 2627、26SM） */
+ academicYearLabel: string | null
 }
 
 /** PostgREST embed：只用 baseline + course_name，避免未套用 migration 的欄位令整筆查詢失敗 */
@@ -815,6 +817,7 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   },
  })
  const subjectLabel = enrollmentClassLabel(cls) ?? "—"
+ const academicYear = cls?.academic_years as Record<string, unknown> | null
  return {
   id: String(row.id),
   status: String(row.status ?? "就讀中"),
@@ -850,6 +853,8 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
    row.homework_day_plan === "七日"
     ? row.homework_day_plan
     : null,
+  academicYearLabel:
+   academicYear?.label != null ? String(academicYear.label).trim() || null : null,
  }
 }
 

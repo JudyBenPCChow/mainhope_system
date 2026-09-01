@@ -73,10 +73,26 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
   setClassroomId(cls.classroom_id ?? "")
  }, [cls.classroom_id])
 
- const checkedDates = useMemo(
-  () => candidates.filter((c) => c.checked).map((c) => c.date),
+ const selectableCandidates = useMemo(
+  () => candidates.filter((c) => !c.isClosure),
   [candidates]
  )
+
+ const checkedDates = useMemo(
+  () => selectableCandidates.filter((c) => c.checked).map((c) => c.date),
+  [selectableCandidates]
+ )
+
+ const allSelectableSelected =
+  selectableCandidates.length > 0 && selectableCandidates.every((c) => c.checked)
+
+ const toggleSelectAllInList = () => {
+  setSuccessMsg(null)
+  const nextChecked = !allSelectableSelected
+  setCandidates((prev) =>
+   prev.map((c) => (c.isClosure ? c : { ...c, checked: nextChecked }))
+  )
+ }
 
  const monthCounts = useMemo(() => {
   const counts = new Map<string, { available: number; selected: number; closures: number }>()
@@ -186,7 +202,7 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    <div>
     <h3 className="text-sm font-semibold">快速批量排程</h3>
     <p className="mt-1 text-xs text-muted-foreground">
-     預設勾選老師有檔期的日期；其餘日期仍可手動勾選以建立排程。提交後才標記檔期為已分配。
+     預設勾選老師有檔期的日期；其餘日期可手動勾選，或按「全選清單」一次勾選全部可排程日期。提交後才標記檔期為已分配。
     </p>
    </div>
    <div>
@@ -229,35 +245,50 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
        </p>
       ) : null}
      </div>
-     <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
-      {candidates.map((c) => (
-       <li key={c.date} className="flex flex-wrap items-center gap-2 text-sm">
-        <label className={cn("flex items-center gap-2", c.isClosure ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
-         <input
-          type="checkbox"
-          checked={c.checked}
-          disabled={c.isClosure}
-          onChange={() => toggleDate(c.date)}
-          className="rounded border-border"
-         />
-         <span className="tabular-nums">{c.date}</span>
-         <span className="text-muted-foreground">（{formatScheduleDateShort(c.date)}）</span>
-        </label>
-        {c.isClosure ? (
-         <Tag tone="warning" size="sm">
-          校舍假期{c.closureName ? `：${c.closureName}` : ""}
-         </Tag>
-        ) : c.hasAvailability ? (
-         <Tag tone="success" size="sm">
-          有檔期
-         </Tag>
-        ) : null}
-        {c.roomConflict ? (
-         <span className="text-xs text-destructive">課室衝突</span>
-        ) : null}
-       </li>
-      ))}
-     </ul>
+     <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+       <p className="text-xs text-muted-foreground">候選日期</p>
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={submitting || selectableCandidates.length === 0}
+        aria-pressed={allSelectableSelected}
+        onClick={toggleSelectAllInList}
+       >
+        {allSelectableSelected ? "取消全選" : "全選清單"}
+       </Button>
+      </div>
+      <ul className="max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+       {candidates.map((c) => (
+        <li key={c.date} className="flex flex-wrap items-center gap-2 text-sm">
+         <label className={cn("flex items-center gap-2", c.isClosure ? "cursor-not-allowed opacity-70" : "cursor-pointer")}>
+          <input
+           type="checkbox"
+           checked={c.checked}
+           disabled={c.isClosure}
+           onChange={() => toggleDate(c.date)}
+           className="rounded border-border"
+          />
+          <span className="tabular-nums">{c.date}</span>
+          <span className="text-muted-foreground">（{formatScheduleDateShort(c.date)}）</span>
+         </label>
+         {c.isClosure ? (
+          <Tag tone="warning" size="sm">
+           校舍假期{c.closureName ? `：${c.closureName}` : ""}
+          </Tag>
+         ) : c.hasAvailability ? (
+          <Tag tone="success" size="sm">
+           有檔期
+          </Tag>
+         ) : null}
+         {c.roomConflict ? (
+          <span className="text-xs text-destructive">課室衝突</span>
+         ) : null}
+        </li>
+       ))}
+      </ul>
+     </div>
     </div>
    )}
    {successMsg ? (

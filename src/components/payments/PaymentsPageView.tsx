@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { isCollectableEnrollment } from "@/lib/enrollmentYearDisplay"
 import { homeworkFeeLineDescription, homeworkPaymentLineAmount } from "@/lib/homeworkTutoringFees"
 import { isHomeworkClassKind } from "@/lib/privateClassKind"
 import { useAppBanner } from "@/lib/appBanner"
@@ -529,7 +530,9 @@ export function PaymentsPageView() {
   }
   setEnrollLoading(true)
   try {
-   const list = await fetchEnrollmentsForStudent(studentId)
+   const list = (await fetchEnrollmentsForStudent(studentId)).filter((e) =>
+    isCollectableEnrollment(e)
+   )
    setEnrollments(list)
    const pref = pendingTrialPrefRef.current
    pendingTrialPrefRef.current = null

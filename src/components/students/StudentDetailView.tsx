@@ -5,6 +5,7 @@ import { Loader2, Plus, Printer, X } from "lucide-react"
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
 import { StudentAttendanceTab } from "@/components/students/StudentAttendanceTab"
+import { StudentEnrollmentCard } from "@/components/students/StudentEnrollmentCard"
 import { StudentFutureSchedulesTab } from "@/components/students/StudentFutureSchedulesTab"
 import { StudentHistoryTab } from "@/components/students/StudentHistoryTab"
 import { StudentLeaveTab } from "@/components/students/StudentLeaveTab"
@@ -116,6 +117,10 @@ import {
  type LessonBalanceRow,
 } from "@/services/pendingLessonQueries"
 import { isHomeworkClassKind } from "@/lib/privateClassKind"
+import {
+ groupEnrollmentsByAcademicYear,
+ partitionEnrollmentsByAcademicYear,
+} from "@/lib/enrollmentYearDisplay"
 
 function formatLeaveError(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -770,10 +775,19 @@ export function StudentDetailView() {
  }
 
  /** 非「已退讀」皆佔用該班（就讀中／休學／退選），不可再從下拉重複加入 */
- const activeEnrollments = enrollments.filter((e) => e.status !== "已退讀")
- const withdrawnEnrollments = enrollments.filter((e) => e.status === "已退讀")
+ const {
+  current: currentYearEnrollments,
+  past: pastYearEnrollments,
+  withdrawn: withdrawnEnrollments,
+ } = useMemo(() => partitionEnrollmentsByAcademicYear(enrollments), [enrollments])
+ const pastYearGroups = useMemo(
+  () => groupEnrollmentsByAcademicYear(pastYearEnrollments),
+  [pastYearEnrollments]
+ )
  const occupiedClassIds =
-  enrollmentsState === "ready" ? new Set(activeEnrollments.map((e) => e.classId)) : new Set<string>()
+  enrollmentsState === "ready"
+   ? new Set(enrollments.filter((row) => row.status !== "已退讀").map((row) => row.classId))
+   : new Set<string>()
  const classSelectOptions = classOptions.filter((o) => !occupiedClassIds.has(o.id))
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
@@ -1043,6 +1057,53 @@ export function StudentDetailView() {
   }
  }
 
+
+ const renderEnrollmentCard = (e: EnrollmentWithClass) => (
+  <StudentEnrollmentCard
+   key={e.id}
+   enrollment={e}
+   canViewMoney={canViewMoney}
+   canMutateStudentOps={canMutateStudentOps}
+   canOpenLeaveManagement={canOpenLeaveManagement}
+   lessonBalancesState={lessonBalancesState}
+   balance={isHomeworkClassKind(e.classKind) ? undefined : balanceByEnrollment.get(e.id)}
+   studentId={sid}
+   onEditForm={(row) => void openEditEnrollmentForm(row)}
+   onUpdateStatus={async (row, next) => {
+    try {
+     await updateEnrollment(row.id, next, sid)
+     await reloadSubs()
+    } catch (err) {
+     reportUserFacingError(err, { source: "StudentDetailView.updateEnrollmentStatus" })
+     pushBanner({
+      tone: "error",
+      title: "更新報讀狀態失敗",
+      message: err instanceof Error ? err.message : String(err),
+     })
+    }
+   }}
+   onWithdraw={(row) => {
+    setWithdrawTarget(row)
+    setWithdrawReason("")
+    setWithdrawOpen(true)
+   }}
+   onPurge={(row) => void onPurgeMistakenEnrollment(row)}
+   onMarkPendingArranged={async (pendingId) => {
+    try {
+     await updatePendingLessonStatus(pendingId, "已安排")
+     pushBanner({ tone: "success", title: "已標為已安排" })
+     await reloadSubs()
+    } catch (err) {
+     pushBanner({
+      tone: "error",
+      title: "更新失敗",
+      message: err instanceof Error ? err.message : String(err),
+     })
+    }
+   }}
+   onGoLeaveTab={() => setTab("leave")}
+  />
+ )
 
  const showBasicForm = basicEditing && canMutateStudentOps
 
@@ -2073,261 +2134,39 @@ export function StudentDetailView() {
         </div>
        ) : enrollmentsState !== "ready" ? (
         <p className="text-sm text-muted-foreground">載入中…</p>
-       ) : activeEnrollments.length === 0 ? (
+       ) : currentYearEnrollments.length === 0 && pastYearEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
-        <StaggerList as="div" className="space-y-3">
-        {activeEnrollments.map((e) => {
-         const isHomework = isHomeworkClassKind(e.classKind)
-         const bal = isHomework ? undefined : balanceByEnrollment.get(e.id)
-         return (
-         <StaggerItem
-          key={e.id}
-          as="div"
-          className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
-         >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-           <div className="font-semibold">
-            <Link
-             to={`/Classes/${e.classId}`}
-             className="text-primary hover:underline"
-            >
-             {formatClassLabel({ subject: e.subject, courseCode: e.courseCode, courseName: e.courseName })}
-            </Link>
-           </div>
-           <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-            <span>{[e.dayOfWeek, e.timeSlot].filter(Boolean).join(" ")}</span>
-            {e.enrollmentFormLabel ? (
-             <Tag tone={statusToTagTone(e.enrollmentFormLabel)} size="sm">
-              {e.enrollmentFormLabel}
-             </Tag>
-            ) : null}
-            {canViewMoney && !isHomework && e.pricePerLesson != null ? (
-             <span>· 每節 {money(e.pricePerLesson)}</span>
-            ) : null}
-            {isHomework && e.homeworkDayPlan ? (
-             <span>每週{e.homeworkDayPlan}</span>
-            ) : null}
-           </div>
-           <div className="mt-1 text-xs text-muted-foreground">
-            報讀日期：{e.enroll_date ?? "—"}
-           </div>
-          </div>
-          {canMutateStudentOps ? (
-          <div className="flex flex-wrap items-center gap-2">
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void openEditEnrollmentForm(e)}
-           >
-            更改報讀形式
-           </Button>
-           <Select
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-            value={e.status}
-            onChange={async (ev) => {
-             const next = ev.target.value
-             try {
-              await updateEnrollment(e.id, next, sid)
-              await reloadSubs()
-             } catch (err) {
-              reportUserFacingError(err, { source: "StudentDetailView.updateEnrollmentStatus" })
-              pushBanner({
-               tone: "error",
-               title: "更新報讀狀態失敗",
-               message: err instanceof Error ? err.message : String(err),
-              })
-             }
-            }}
-           >
-            <option value="就讀中">就讀中</option>
-            <option value="休學">休學</option>
-            <option value="退選">退選</option>
-           </Select>
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="border-amber-700/45 text-amber-950 hover:bg-amber-50"
-            onClick={() => {
-             setWithdrawTarget(e)
-             setWithdrawReason("")
-             setWithdrawOpen(true)
-            }}
-           >
-            退讀
-           </Button>
-           <details className="relative">
-            <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
-             其他操作
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
-             <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-full justify-start text-xs text-muted-foreground"
-              onClick={() => void onPurgeMistakenEnrollment(e)}
-             >
-              手誤清除
-             </Button>
-            </div>
-           </details>
-          </div>
+        <div className="space-y-6">
+         <div className="space-y-3">
+          <p className="text-sm font-medium">本學年報讀</p>
+          {currentYearEnrollments.length === 0 ? (
+           <p className="text-sm text-muted-foreground">目前沒有本學年報讀。</p>
           ) : (
-           <Tag tone={statusToTagTone(e.status)} size="sm">
-            {e.status}
-           </Tag>
+           <StaggerList as="div" className="space-y-3">
+            {currentYearEnrollments.map(renderEnrollmentCard)}
+           </StaggerList>
           )}
-          </div>
-          {isHomework ? (
-           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            功課輔導班按月繳費，不按堂對帳、不補堂。已繳月份見功課輔導 → 月費，或繳費紀錄。
+         </div>
+         {pastYearGroups.length > 0 ? (
+          <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+           <div>
+            <p className="text-sm font-medium text-muted-foreground">過往學年報讀</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+             學年結束後報讀列可維持就讀中，無須因學期完結而退讀。
+            </p>
            </div>
-          ) : lessonBalancesState === "ready" && bal ? (
-           <div
-            className={cn(
-             "rounded-md border px-3 py-2 text-xs",
-             canViewMoney
-              ? bal.isAligned && bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
-                ? "border-border bg-muted/40 text-muted-foreground"
-                : "border-amber-700/35 bg-amber-50 text-amber-950"
-              : bal.pendingLessons === 0 && bal.leaveAwaitingMakeupCount === 0
-                ? "border-border bg-muted/40 text-muted-foreground"
-                : "border-amber-700/35 bg-amber-50 text-amber-950"
-            )}
-           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-             {canViewMoney ? (
-              <>
-               <span>
-                已繳{" "}
-                <strong className="tabular-nums text-foreground">{bal.paidLessons}</strong> 堂
-               </span>
-               <span>
-                已綁排程{" "}
-                <strong className="tabular-nums text-foreground">{bal.boundLessons}</strong> 堂
-               </span>
-              </>
-             ) : null}
-             <span>
-              待補{" "}
-              <strong className="tabular-nums text-foreground">{bal.pendingLessons}</strong> 堂
-             </span>
-             <span>
-              請假待安排{" "}
-              <strong className="tabular-nums text-foreground">{bal.leaveAwaitingMakeupCount}</strong>{" "}
-              堂
-             </span>
-             {canViewMoney ? (
-              bal.paidLessons > 0 ? (
-               <Tag
-                tone={
-                 bal.isAligned && bal.leaveAwaitingMakeupCount === 0 ? "success" : "warning"
-                }
-                size="sm"
-               >
-                {!bal.isAligned
-                 ? `尚差 ${bal.gap} 堂（請經收款／出單增加已繳堂數）`
-                 : bal.leaveAwaitingMakeupCount > 0
-                   ? `請假待安排 ${bal.leaveAwaitingMakeupCount} 堂`
-                   : "堂數一致"}
-               </Tag>
-              ) : bal.leaveAwaitingMakeupCount > 0 ? (
-               <Tag tone="warning" size="sm">
-                請假待安排 {bal.leaveAwaitingMakeupCount} 堂
-               </Tag>
-              ) : (
-               <span className="text-muted-foreground">尚未有該班已收款堂數</span>
-              )
-             ) : bal.leaveAwaitingMakeupCount > 0 ? (
-              <Tag tone="warning" size="sm">
-               請假待安排 {bal.leaveAwaitingMakeupCount} 堂
-              </Tag>
-             ) : null}
+           {pastYearGroups.map((group) => (
+            <div key={group.label} className="space-y-3">
+             <p className="text-xs font-medium text-muted-foreground">{group.label} 學年</p>
+             <StaggerList as="div" className="space-y-3">
+              {group.items.map(renderEnrollmentCard)}
+             </StaggerList>
             </div>
-            {bal.leaveAwaitingMakeupRows.length > 0 ? (
-             <ul className="mt-2 space-y-1">
-              {bal.leaveAwaitingMakeupRows.map((L) => (
-               <li
-                key={L.id}
-                className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-700/20 pt-1"
-               >
-                <span>
-                 請假 {L.leaveDate}
-                 {L.leaveReason ? ` · ${L.leaveReason}` : ""}
-                 {" · "}
-                 {L.makeupType?.trim() || "待安排"}
-                </span>
-                {canOpenLeaveManagement ? (
-                 <Button type="button" variant="outline" size="sm" className="h-7 text-xs" asChild>
-                  <Link to={`/LeaveManagement?studentId=${encodeURIComponent(sid ?? "")}`}>
-                   前往請假管理
-                  </Link>
-                 </Button>
-                ) : (
-                 <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-xs"
-                  onClick={() => setTab("leave")}
-                 >
-                  查看請假紀錄
-                 </Button>
-                )}
-               </li>
-              ))}
-             </ul>
-            ) : null}
-            {bal.pendingRows.some((p) => p.status === "待補") ? (
-             <ul className="mt-2 space-y-1">
-              {bal.pendingRows
-               .filter((p) => p.status === "待補")
-               .map((p) => (
-                <li
-                 key={p.id}
-                 className="flex flex-wrap items-center justify-between gap-2 border-t border-amber-700/20 pt-1"
-                >
-                 <span>
-                  {p.reason} · 待補 <strong className="tabular-nums">{p.owedCount}</strong> 堂
-                  {p.remarks ? `（${p.remarks}）` : ""}
-                 </span>
-                 {canMutateStudentOps ? (
-                  <Button
-                   type="button"
-                   variant="outline"
-                   size="sm"
-                   className="h-7 text-xs"
-                   onClick={async () => {
-                    try {
-                     await updatePendingLessonStatus(p.id, "已安排")
-                     pushBanner({ tone: "success", title: "已標為已安排" })
-                     await reloadSubs()
-                    } catch (err) {
-                     pushBanner({
-                      tone: "error",
-                      title: "更新失敗",
-                      message: err instanceof Error ? err.message : String(err),
-                     })
-                    }
-                   }}
-                  >
-                   標為已安排
-                  </Button>
-                 ) : null}
-                </li>
-               ))}
-             </ul>
-            ) : null}
-           </div>
-          ) : null}
-         </StaggerItem>
-         )
-        })}
-        </StaggerList>
+           ))}
+          </div>
+         ) : null}
+        </div>
        )}
       </div>
 
