@@ -28,6 +28,38 @@ describe("filterSearchableOptions", () => {
   ).toEqual(schools.map((s) => s.value))
  })
 
+ it("空白查詢可改列出 emptyQueryOptions 而非全部", () => {
+  expect(
+   filterSearchableOptions(schools, "", {
+    emptyQueryOptions: [schools[0], schools[2]],
+   }).map((o) => o.value)
+  ).toEqual(["英華書院", "拔萃女書院"])
+ })
+
+ it("combobox 剛開啟且已選文字時也用 emptyQueryOptions", () => {
+  expect(
+   filterSearchableOptions(schools, "英華書院", {
+    combobox: true,
+    selectedText: "英華書院",
+    emptyQueryOptions: [schools[3]],
+   }).map((o) => o.value)
+  ).toEqual(["喇沙書院"])
+ })
+
+ it("打字後仍從完整 options 篩選，不受 emptyQueryOptions 限制", () => {
+  expect(
+   filterSearchableOptions(schools, "拔萃", {
+    emptyQueryOptions: [schools[0]],
+   }).map((o) => o.value)
+  ).toEqual(["拔萃男書院", "拔萃女書院"])
+ })
+
+ it("打字篩選可截斷 maxResults", () => {
+  expect(
+   filterSearchableOptions(schools, "書院", { maxResults: 2 }).map((o) => o.value)
+  ).toHaveLength(2)
+ })
+
  it("清單外校名可採用輸入文字", () => {
   const next = filterSearchableOptions(schools, "聖保羅書院", { allowCustomValue: true })
   expect(next.map((o) => o.value)).toContain("聖保羅書院")

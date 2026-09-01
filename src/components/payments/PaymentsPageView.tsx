@@ -35,12 +35,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { isCollectableEnrollment } from "@/lib/enrollmentYearDisplay"
 import { homeworkFeeLineDescription, homeworkPaymentLineAmount } from "@/lib/homeworkTutoringFees"
 import { isHomeworkClassKind } from "@/lib/privateClassKind"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { PAYMENT_RECENT_STUDENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -78,6 +80,7 @@ import {
  PAYMENT_METHOD_PRESETS,
  PAYMENT_STATUS,
  fetchPaymentFull,
+ fetchRecentlyPaidStudentIds,
  fetchRecentPaymentsForStudent,
  fetchTotalAttendedLessonsForStudent,
  fetchTotalPaidLessonsForStudent,
@@ -138,9 +141,8 @@ export function PaymentsPageView() {
  const [collectKind, setCollectKind] = useState<CollectKind>("specialist")
 
  const [students, setStudents] = useState<StudentRecord[]>([])
- const [studentQuery, setStudentQuery] = useState("")
+ const [recentPaidStudentIds, setRecentPaidStudentIds] = useState<string[]>([])
  const [selectedStudent, setSelectedStudent] = useState<StudentRecord | null>(null)
- const [pickerOpen, setPickerOpen] = useState(false)
 
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
  const [enrollLoading, setEnrollLoading] = useState(false)
@@ -457,9 +459,14 @@ export function PaymentsPageView() {
  const loadBasics = useCallback(async () => {
   if (!isSupabaseConfigured) return
   try {
-   const [st, disc] = await Promise.all([fetchAllStudents(), fetchPaymentFormDiscounts()])
+   const [st, disc, paidIds] = await Promise.all([
+    fetchAllStudents(),
+    fetchPaymentFormDiscounts(),
+    fetchRecentlyPaidStudentIds().catch(() => [] as string[]),
+   ])
    setStudents(st)
    setDiscounts(disc)
+   setRecentPaidStudentIds(paidIds)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadBasics", setErr: setFormErr })
   }
@@ -492,8 +499,6 @@ export function PaymentsPageView() {
   const found = students.find((s) => s.id === prefStudentId)
   if (!found) return
   setSelectedStudent(found)
-  setStudentQuery("")
-  setPickerOpen(false)
   const trialPay = searchParams.get("trialPay")?.trim()
   const classId = searchParams.get("classId")?.trim() ?? ""
   if (trialPay === "free" || trialPay === "half" || trialPay === "full") {
@@ -696,17 +701,6 @@ export function PaymentsPageView() {
    setWaiveDialogReason("")
   }
  }, [selectedStudent, loadEnrollments, loadStudentContext, loadLateFeePools])
-
- const filteredStudents = useMemo(() => {
-  const q = studentQuery.trim().toLowerCase()
-  if (!q) return students.slice(0, 12)
-  return students
-   .filter((s) => {
-    const hay = `${s.full_name} ${s.student_code ?? ""} ${s.english_name ?? ""}`.toLowerCase()
-    return hay.includes(q)
-   })
-   .slice(0, 20)
- }, [students, studentQuery])
 
  const updateLine = useCallback(
   (
@@ -1531,49 +1525,17 @@ export function PaymentsPageView() {
       <FormField label="學生 *">
        <div className="flex min-w-0 items-start gap-2">
         <div className="relative min-w-0 flex-1">
-         <Input
-          placeholder="輸入姓名或學號搜尋…"
-          value={
-           selectedStudent
-            ? `${selectedStudent.full_name}${selectedStudent.student_code ? `（${selectedStudent.student_code}）` : ""}`
-            : studentQuery
-          }
-          onChange={(e) => {
-           setSelectedStudent(null)
-           setStudentQuery(e.target.value)
-           setPickerOpen(true)
+         <StudentSearchableSelect
+          students={students}
+          value={selectedStudent?.id ?? ""}
+          recentPaidStudentIds={recentPaidStudentIds}
+          rememberKey={PAYMENT_RECENT_STUDENT_STORAGE_KEY}
+          onChange={(studentId) => {
+           const found = students.find((s) => s.id === studentId) ?? null
+           setSelectedStudent(found)
+           setReceivedDone(null)
           }}
-          onFocus={() => setPickerOpen(true)}
          />
-         {pickerOpen && !selectedStudent && studentQuery.trim() ? (
-          <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
-           {filteredStudents.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
-           ) : (
-            <StaggerList as="div">
-            {filteredStudents.map((s) => (
-             <StaggerItem key={s.id} as="div">
-             <button
-              type="button"
-              className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left text-sm hover:bg-muted"
-              onClick={() => {
-               setSelectedStudent(s)
-               setStudentQuery("")
-               setPickerOpen(false)
-               setReceivedDone(null)
-              }}
-             >
-              <span className="font-medium">{s.full_name}</span>
-              {s.student_code ? (
-               <span className="text-xs text-muted-foreground">學號 {s.student_code}</span>
-              ) : null}
-             </button>
-             </StaggerItem>
-            ))}
-            </StaggerList>
-           )}
-          </div>
-         ) : null}
         </div>
         {selectedStudent ? (
          <>
@@ -1608,7 +1570,6 @@ export function PaymentsPageView() {
            className="mt-0.5 shrink-0"
            onClick={() => {
             setSelectedStudent(null)
-            setStudentQuery("")
             setReceivedDone(null)
            }}
           >
