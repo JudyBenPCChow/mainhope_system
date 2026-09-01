@@ -15,7 +15,7 @@ alwaysApply: false
 3. **術語一改，營運文件有機會要重審**（舊詞可能散落全文，唔等於「改完表就收工」）。至少對照：
    - `docs/policies/`（含 `_INDEX.md`）
    - `docs/playbooks/`
-   - `docs/year/2627/ops-guide.md`（改了正文 → 同一輪重出 docx，見 `md-docx-sync.mdc`）
+   - `docs/year/2627/ops-guide.md`（只改 md；出 docx／pdf 要用戶明講，見 `md-docx-sync.mdc`）
    - 阿Po／知識庫若有用語句（`supabase/functions/_shared/apoKnowledge.ts` 等）
 4. 回覆時寫明：兩表已同步；營運文件已跟／未跟（列路徑）／另開。畫面舊稱（報足全期、換主責等）屬 UI 一次過，除非用戶要一併改。
 

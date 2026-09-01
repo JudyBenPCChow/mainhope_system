@@ -1,7 +1,7 @@
 # 產出物（generated）
 
 由 markdown／腳本產生嘅 **docx／pdf**。  
-**唔好**當真相人手改；改源 md 後重跑對應 `scripts/generate_*.py`。
+**唔好**當真相人手改。日常改源 md 就收工；**用戶要發佈**先重跑對應 `scripts/generate_*.py`。
 
 | 產出 | 源 |
 | --- | --- |

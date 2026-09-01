@@ -1,17 +1,23 @@
 ---
-description: 改有對應 docx 的營運 md 時必須同步重出 Word
-globs: docs/year/2627/ops-guide.md,docs/policies/staffing/PAYROLL_GUIDE.md
+description: 營運 md 有成對 docx／pdf；預設只改 md，用戶明講發佈先重出
+globs: docs/year/2627/ops-guide.md,docs/policies/staffing/PAYROLL_GUIDE.md,docs/meta/TERMINOLOGY.md
 alwaysApply: false
 ---
 
-# MD ↔ DOCX 同步
+# MD ↔ DOCX／PDF
 
-用戶要求改上述（或其他已有成對 `.docx` 的）**markdown 正文**時：
+上述（或其他有成對 `.docx`／`.pdf` 的營運 md）**真相係 markdown**。
 
-1. 先改 `.md`（真相來源）。
-2. **同一輪必須**用對應腳本重出 `.docx`，勿只改 md 就收工。
-3. 2627 常規學年營運指引：`python3 scripts/generate_2627_ops_guide_doc.py`（產出 `docs/generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx` 及 `.pdf`）。Word 若卡住可用 `--no-word`，再請用戶在 Word 內更新目錄並另存 PDF。
-4. 計糧指南：`python3 scripts/generate_payroll_guide_doc.py`（產出 `docs/generated/payroll/PAYROLL_GUIDE.docx`）。
-5. Docx 排版跟腳本內嵌規範（新細明體、黑白、A4、左右 25mm、頁碼 `— N —`、內建 TOC 等）；唔好另手改 docx 當主稿。
+## 預設
 
-例外：用戶明確說「只改 md／唔使 docx」先可跳過。
+改 md 就收工。**唔好**跑產生腳本、**唔好**把 `docs/generated/**` 帶入 PR。
+
+## 只在用戶明講時先出檔
+
+觸發用語例如：出 docx、出 pdf、出 Word、重出 Word、發佈指引、列印本。
+
+1. 確認 md 已係要發佈嘅正文。
+2. 用對應腳本（勿手改 docx 當主稿）：
+   - 2627 營運指引：`python3 scripts/generate_2627_ops_guide_doc.py`（`docs/generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx` 及 `.pdf`）。Word 若卡住可用 `--no-word`，再請用戶在 Word 內更新目錄並另存 PDF。
+   - 計糧指南：`python3 scripts/generate_payroll_guide_doc.py`（`docs/generated/payroll/PAYROLL_GUIDE.docx`）。
+3. Docx 排版跟腳本內嵌規範（新細明體、黑白、A4、左右 25mm、頁碼 `— N —`、內建 TOC 等）。

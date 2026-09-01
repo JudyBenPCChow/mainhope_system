@@ -27,4 +27,4 @@ Feature PR **唔帶**（除非用戶明講要發佈產出）：
 
 ## 營運指引
 
-`docs/year/2627/ops-guide.md` 及成對 docx／pdf：**只喺本題 PR** 先改。無關功能唔好夾。改咗 md 就要跟 `md-docx-sync` 重出 docx。
+`docs/year/2627/ops-guide.md`：**只喺本題 PR** 先改。無關功能唔好夾。預設只改 md；docx／pdf 要用戶明講發佈先出（見 `md-docx-sync.mdc`）。

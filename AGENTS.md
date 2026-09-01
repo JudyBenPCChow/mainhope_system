@@ -41,7 +41,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。
 - **`makeup_of=`：不要刪。** `schedules.remarks` 標記（`makeup_of=<取消堂id>`）不要從程式抽走，也不要清除 `26SM` 歷史。`2627` 點名紙不靠它入場，但安排補回靠它查重。見 `.cursor/rules/makeup-of-marker.mdc`。
-- **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。不要用 `academic_years.end_date`（6/30）當專科最後一堂——6/29、6/30 專科已完課（功輔仍開）。假期列「取消」＝校舍該日沒有課堂，不是需要補回的取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
+- **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。不要用 `academic_years.end_date`（6/30）當專科最後一堂——6/29、6/30 專科已完課（功輔仍開）。校舍假期不建立排程列，不是取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
 - **查庫／模擬運作**：不要把空班、暑期未續常規、學期結束仍「就讀中」、未繳仍出現在點名紙當成缺陷。見 `.cursor/rules/ops-data-check.mdc`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 - **Feature 熱檔**：不要 commit `BACKLOG.md` 索引表（只在 `main` 搬列；分題表頭狀態＝該題真源）。不要帶 `dist/`、`docs/generated/**`。`ops-guide` 只在本題 PR 才改。見 `.cursor/rules/feature-branch-hot-files.mdc`。
@@ -55,6 +55,6 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 步驟寫在分題；不另開 `plans/`／`audits/`。  
 營運規則 → `docs/policies/`；前線操作 → `docs/playbooks/`；本年物料 → `docs/year/2627/`。其餘不要預讀。
 
-**MD↔DOCX：** 改 `docs/year/2627/ops-guide.md`（或其他有成對 `.docx` 的營運 md）正文時，同一輪用對應腳本重出 docx（見 `.cursor/rules/md-docx-sync.mdc`）。  
+**MD↔DOCX：** 政策／2627 指引／術語表預設**只改 markdown**。用戶明講出 docx／pdf／發佈 Word 先跑腳本（見 `.cursor/rules/md-docx-sync.mdc`）。  
 **術語：** 改用詞／定義時同步 `docs/meta/TERMINOLOGY.md` 與 `.cursor/rules/terminology.mdc`，並審閱政策／playbooks／2627 指引（見 `.cursor/rules/terminology-sync.mdc`）。  
 **政策鏡像（E4）：** 改 `docs/policies/` 或 `docs/year/*/ops-guide.md` 正文時，同一輪跑 `scripts/sync_policies_to_vault.sh` 把全文鏡像入 `Mainhope_admin/60-政策與流程/系統鏡像/`（vault 人手零雙寫；script 同時更新 vault 政策筆記的「系統現況」標記）。

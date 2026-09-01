@@ -134,6 +134,8 @@ import {
  isScheduleListCacheFresh,
  setScheduleListDataCache,
 } from "@/components/schedule/scheduleListState"
+import { fetchAcademicCalendarClosures } from "@/services/academicCalendarQueries"
+import { fetchAcademicYearsWithDates } from "@/services/teacherAvailabilityQueries"
 
 type ScheduleStatsUi =
  | { status: "loading" }
@@ -432,6 +434,7 @@ export function ScheduleManagePage() {
   () => (hydrateScheduleCache ? initialScheduleCache!.rosterContext : null)
  )
  const [stats, setStats] = useState<ScheduleStatsUi>({ status: "loading" })
+ const [closureNameByDate, setClosureNameByDate] = useState<Map<string, string>>(() => new Map())
  const [rooms, setRooms] = useState<RoomRecord[]>(
   () => (hydrateScheduleCache ? initialScheduleCache!.rooms : [])
  )
@@ -960,6 +963,27 @@ useEffect(() => {
   .then((t) => setTeacherScopeName(t?.full_name?.trim() || "專班老師"))
   .catch(() => setTeacherScopeName("專班老師"))
 }, [teacherScopeId])
+
+ useEffect(() => {
+  let cancelled = false
+  void (async () => {
+   try {
+    const years = await fetchAcademicYearsWithDates()
+    const maps = await Promise.all(years.map((year) => fetchAcademicCalendarClosures(year.id)))
+    if (cancelled) return
+    const next = new Map<string, string>()
+    for (const rows of maps) {
+     for (const row of rows) next.set(row.closureDate, row.name)
+    }
+    setClosureNameByDate(next)
+   } catch {
+    if (!cancelled) setClosureNameByDate(new Map())
+   }
+  })()
+  return () => {
+   cancelled = true
+  }
+ }, [])
 
  const teacherOptions = useMemo(() => {
   const m = new Map<string, string>()
@@ -2187,6 +2211,12 @@ useEffect(() => {
      >
       清除篩選
      </button>
+    </p>
+   ) : null}
+
+   {effectiveViewMode === "day" && closureNameByDate.get(dayViewDate) ? (
+    <p role="status" className="rounded-lg border border-warning/50 px-3 py-2 text-sm text-warning">
+     {dayViewDate} 為校舍假期（{closureNameByDate.get(dayViewDate)}）。該日沒有課堂，並非取消堂。
     </p>
    ) : null}
 

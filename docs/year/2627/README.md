@@ -13,4 +13,4 @@
 | 九月時間表方案／定稿 | [`timetable/`](timetable/2627_timetable_schemes.md)（**4.0 已簽收關帳**；其後加班只入系統，唔出新版方案） |
 | 學年營運 brief | [`ops-brief.md`](ops-brief.md) |
 
-改規則：先改 `policies/`，再改 `ops-guide.md`，再跑 `python3 scripts/generate_2627_ops_guide_doc.py`（docx＋pdf）。
+改規則：先改 `policies/`，再改 `ops-guide.md`。Word／PDF 只在要發佈時才跑 `python3 scripts/generate_2627_ops_guide_doc.py`。

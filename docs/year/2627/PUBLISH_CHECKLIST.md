@@ -28,6 +28,8 @@
 
 ## 重出 docx／pdf
 
+日常改 `ops-guide.md` **唔**自動出檔。要發佈／列印時先跑：
+
 ```bash
 python3 scripts/generate_2627_ops_guide_doc.py
 ```
