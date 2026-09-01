@@ -36,6 +36,13 @@ import {
  type RoomScheduleRow,
 } from "@/services/classroomQueries"
 import { localYmd } from "@/services/teacherQueries"
+import {
+ getClassroomsListDataCache,
+ isClassroomsRoomsCacheFresh,
+ isClassroomsSchedulesCacheFresh,
+ patchClassroomsListDataCache,
+ setClassroomsListDataCache,
+} from "@/components/classrooms/classroomsListState"
 
 const DOW_ZH = ["日", "一", "二", "三", "四", "五", "六"] as const
 
@@ -86,11 +93,20 @@ function formatMdSlash(ymd: string): string {
 
 export function ClassroomsManagePage() {
  const isMobile = useIsMobile()
- const [rooms, setRooms] = useState<RoomRecord[]>([])
- const [selectedRoomId, setSelectedRoomId] = useState("")
+ const initialRoomsCache = getClassroomsListDataCache()
+ const [rooms, setRooms] = useState<RoomRecord[]>(() => initialRoomsCache?.rooms ?? [])
+ const [selectedRoomId, setSelectedRoomId] = useState(() => initialRoomsCache?.selectedRoomId ?? "")
  const [weekMonday, setWeekMonday] = useState(() => startOfWeekMonday(new Date()))
  const [selectedDateYmd, setSelectedDateYmd] = useState(() => localYmd())
- const [schedules, setSchedules] = useState<RoomScheduleRow[]>([])
+ const [schedules, setSchedules] = useState<RoomScheduleRow[]>(() => {
+  if (!initialRoomsCache) return []
+  const weekStart = localYmd(startOfWeekMonday(new Date()))
+  const weekEnd = localYmd(addDays(startOfWeekMonday(new Date()), 6))
+  if (initialRoomsCache.weekStartYmd !== weekStart || initialRoomsCache.weekEndYmd !== weekEnd) {
+   return []
+  }
+  return initialRoomsCache.schedules
+ })
  const [schedLoading, setSchedLoading] = useState(false)
  const [pageErr, setPageErr] = useState<string | null>(null)
  const [showEvening, setShowEvening] = useState(false)
@@ -160,12 +176,24 @@ export function ClassroomsManagePage() {
     if (prev && r.some((x) => x.id === prev)) return prev
     return r[0]?.id ?? ""
    })
+   const cached = getClassroomsListDataCache()
+   setClassroomsListDataCache({
+    rooms: r,
+    selectedRoomId:
+     (cached?.selectedRoomId && r.some((x) => x.id === cached.selectedRoomId)
+      ? cached.selectedRoomId
+      : r[0]?.id) ?? "",
+    weekStartYmd: cached?.weekStartYmd ?? "",
+    weekEndYmd: cached?.weekEndYmd ?? "",
+    schedules: cached?.schedules ?? [],
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "ClassroomsManagePage.reloadRooms", setErr: setPageErr })
   }
  }, [])
 
  useEffect(() => {
+  if (isClassroomsRoomsCacheFresh()) return
   void reloadRooms()
  }, [reloadRooms])
 
@@ -183,6 +211,13 @@ export function ClassroomsManagePage() {
   try {
    const data = await fetchSchedulesForRoomRange(selectedRoomId, weekStartYmd, weekEndYmd)
    setSchedules(data)
+   patchClassroomsListDataCache((c) => ({
+    ...c,
+    selectedRoomId,
+    weekStartYmd,
+    weekEndYmd,
+    schedules: data,
+   }))
   } catch (e) {
    setSchedules([])
    reportUserFacingError(e, { source: "ClassroomsManagePage.reloadSchedules", setErr: setPageErr })
@@ -192,8 +227,9 @@ export function ClassroomsManagePage() {
  }, [selectedRoomId, weekStartYmd, weekEndYmd])
 
  useEffect(() => {
+  if (isClassroomsSchedulesCacheFresh(selectedRoomId, weekStartYmd, weekEndYmd)) return
   void reloadSchedules()
- }, [reloadSchedules])
+ }, [reloadSchedules, selectedRoomId, weekStartYmd, weekEndYmd])
 
  const reloadClassOptions = useCallback(async () => {
   if (!isSupabaseConfigured || !selectedRoomId) return

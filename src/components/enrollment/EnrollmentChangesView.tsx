@@ -15,35 +15,55 @@ import {
  fetchEnrollmentChangeEventsList,
  type EnrollmentChangeListRow,
 } from "@/services/enrollmentEventQueries"
+import {
+ getEnrollmentChangesDataCache,
+ isEnrollmentChangesCacheFresh,
+ setEnrollmentChangesDataCache,
+} from "@/components/enrollment/enrollmentChangesState"
 
 type ActionFilter = "" | "enroll" | "withdraw"
 
 export function EnrollmentChangesView() {
- const [rows, setRows] = useState<EnrollmentChangeListRow[]>([])
- const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
- const [includeOlderYears, setIncludeOlderYears] = useState(false)
- const [loading, setLoading] = useState(true)
+ const initialCache = getEnrollmentChangesDataCache()
+ const [rows, setRows] = useState<EnrollmentChangeListRow[]>(() => initialCache?.rows ?? [])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(() => initialCache?.hiddenOlderCount ?? 0)
+ const [includeOlderYears, setIncludeOlderYears] = useState(
+  () => initialCache?.key.includeOlderYears ?? false
+ )
+ const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
 
- const [action, setAction] = useState<ActionFilter>("")
- const [fromYmd, setFromYmd] = useState("")
- const [toYmd, setToYmd] = useState("")
- const [searchInput, setSearchInput] = useState("")
- const [searchDebounced, setSearchDebounced] = useState("")
+ const [action, setAction] = useState<ActionFilter>(
+  () => (initialCache?.key.action === "enroll" || initialCache?.key.action === "withdraw"
+   ? initialCache.key.action
+   : "")
+ )
+ const [fromYmd, setFromYmd] = useState(() => initialCache?.key.fromYmd ?? "")
+ const [toYmd, setToYmd] = useState(() => initialCache?.key.toYmd ?? "")
+ const [searchInput, setSearchInput] = useState(() => initialCache?.key.search ?? "")
+ const [searchDebounced, setSearchDebounced] = useState(() => initialCache?.key.search ?? "")
 
  useEffect(() => {
   const t = window.setTimeout(() => setSearchDebounced(searchInput.trim()), 400)
   return () => window.clearTimeout(t)
  }, [searchInput])
 
- const load = useCallback(async () => {
+ const load = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) {
    setRows([])
    setHiddenOlderCount(0)
    setLoading(false)
    return
   }
-  setLoading(true)
+  const key = {
+   action,
+   fromYmd: fromYmd.trim(),
+   toYmd: toYmd.trim(),
+   search: searchDebounced,
+   includeOlderYears,
+  }
+  const cached = getEnrollmentChangesDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
    const data = await fetchEnrollmentChangeEventsList({
@@ -56,6 +76,11 @@ export function EnrollmentChangesView() {
    })
    setRows(data.rows)
    setHiddenOlderCount(fromYmd.trim() || includeOlderYears ? 0 : data.hiddenOlderCount)
+   setEnrollmentChangesDataCache({
+    key,
+    rows: data.rows,
+    hiddenOlderCount: fromYmd.trim() || includeOlderYears ? 0 : data.hiddenOlderCount,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "EnrollmentChangesView.load", setErr })
    setRows([])
@@ -66,8 +91,17 @@ export function EnrollmentChangesView() {
  }, [action, fromYmd, toYmd, searchDebounced, includeOlderYears])
 
  useEffect(() => {
-  void load()
- }, [load])
+  const key = {
+   action,
+   fromYmd: fromYmd.trim(),
+   toYmd: toYmd.trim(),
+   search: searchDebounced,
+   includeOlderYears,
+  }
+  if (isEnrollmentChangesCacheFresh(key)) return
+  const cached = getEnrollmentChangesDataCache()
+  void load({ silent: cached != null && cached.key.action === action && cached.key.includeOlderYears === includeOlderYears })
+ }, [load, action, fromYmd, toYmd, searchDebounced, includeOlderYears])
 
  const counts = useMemo(() => {
   let enroll = 0

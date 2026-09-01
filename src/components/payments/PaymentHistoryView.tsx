@@ -51,6 +51,11 @@ import {
  type PaymentListRow,
 } from "@/services/paymentQueries"
 import { getStudentById, type StudentRecord } from "@/services/studentQueries"
+import {
+ getPaymentHistoryDataCache,
+ isPaymentHistoryCacheFresh,
+ setPaymentHistoryDataCache,
+} from "@/components/payments/paymentHistoryState"
 
 function downloadPaymentsCsv(filename: string, rows: PaymentListRow[]) {
  const header = ["單號", "日期", "學生", "學號", "金額", "方法", "狀態"]
@@ -85,24 +90,44 @@ export function PaymentHistoryView() {
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
 
- const [historyRows, setHistoryRows] = useState<PaymentListRow[]>([])
- const [histLoading, setHistLoading] = useState(true)
+ const payCache = getPaymentHistoryDataCache()
+ const [historyRows, setHistoryRows] = useState<PaymentListRow[]>(() => payCache?.historyRows ?? [])
+ const [histLoading, setHistLoading] = useState(() => payCache == null)
  const [histLoadingMore, setHistLoadingMore] = useState(false)
- const [histHasMore, setHistHasMore] = useState(false)
- const [histOffset, setHistOffset] = useState(0)
+ const [histHasMore, setHistHasMore] = useState(() => payCache?.histHasMore ?? false)
+ const [histOffset, setHistOffset] = useState(() => payCache?.historyRows.length ?? 0)
  const [histErr, setHistErr] = useState<string | null>(null)
  const [histStatus, setHistStatus] = useState<
   "all" | "received" | "pending" | "pendingPay" | "pendingReceive" | "voided"
- >("all")
- const [histFrom, setHistFrom] = useState("")
- const [histTo, setHistTo] = useState("")
- const [histSearch, setHistSearch] = useState("")
- const [histSearchDebounced, setHistSearchDebounced] = useState("")
- const [filterStudentId, setFilterStudentId] = useState<string | null>(null)
+ >(() => {
+  const s = payCache?.key.histStatus
+  if (
+   s === "all" ||
+   s === "received" ||
+   s === "pending" ||
+   s === "pendingPay" ||
+   s === "pendingReceive" ||
+   s === "voided"
+  ) {
+   return s
+  }
+  return "all"
+ })
+ const [histFrom, setHistFrom] = useState(() => payCache?.key.histFrom ?? "")
+ const [histTo, setHistTo] = useState(() => payCache?.key.histTo ?? "")
+ const [histSearch, setHistSearch] = useState(() => payCache?.key.histSearch ?? "")
+ const [histSearchDebounced, setHistSearchDebounced] = useState(() => payCache?.key.histSearch ?? "")
+ const [filterStudentId, setFilterStudentId] = useState<string | null>(
+  () => payCache?.key.filterStudentId ?? null
+ )
  const [filterStudent, setFilterStudent] = useState<StudentRecord | null>(null)
- const [includeOlderYears, setIncludeOlderYears] = useState(false)
- const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
- const [appliedFromYmd, setAppliedFromYmd] = useState<string | null>(null)
+ const [includeOlderYears, setIncludeOlderYears] = useState(
+  () => payCache?.key.includeOlderYears ?? false
+ )
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(() => payCache?.hiddenOlderCount ?? 0)
+ const [appliedFromYmd, setAppliedFromYmd] = useState<string | null>(
+  () => payCache?.appliedFromYmd ?? null
+ )
  const [exporting, setExporting] = useState(false)
 
  const [detailOpen, setDetailOpen] = useState(false)
@@ -177,14 +202,23 @@ export function PaymentHistoryView() {
   }
  }, [filterStudentId])
 
- const loadHistory = useCallback(async () => {
+ const loadHistory = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) {
    setHistoryRows([])
    setHistLoading(false)
    setHistHasMore(false)
    return
   }
-  setHistLoading(true)
+  const key = {
+   histStatus,
+   histFrom,
+   histTo,
+   histSearch: histSearchDebounced,
+   filterStudentId,
+   includeOlderYears,
+  }
+  const cached = getPaymentHistoryDataCache()
+  if (!opts?.silent && !cached) setHistLoading(true)
   setHistErr(null)
   try {
    const { rows, hasMore, hiddenOlderCount: hidden, appliedFromYmd: fromYmd } = await fetchPaymentsPage({
@@ -203,6 +237,13 @@ export function PaymentHistoryView() {
    setHistHasMore(hasMore)
    setHiddenOlderCount(hidden)
    setAppliedFromYmd(fromYmd)
+   setPaymentHistoryDataCache({
+    key,
+    historyRows: rows,
+    histHasMore: hasMore,
+    hiddenOlderCount: hidden,
+    appliedFromYmd: fromYmd,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentHistoryView.loadHistory", setErr: setHistErr })
    setHistoryRows([])
@@ -245,8 +286,18 @@ export function PaymentHistoryView() {
  })
 
  useEffect(() => {
-  void loadHistory()
- }, [loadHistory])
+  const key = {
+   histStatus,
+   histFrom,
+   histTo,
+   histSearch: histSearchDebounced,
+   filterStudentId,
+   includeOlderYears,
+  }
+  if (isPaymentHistoryCacheFresh(key)) return
+  const cached = getPaymentHistoryDataCache()
+  void loadHistory({ silent: cached != null })
+ }, [loadHistory, histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, includeOlderYears])
 
  const openDetail = async (row: PaymentListRow) => {
   setDetailOpen(true)

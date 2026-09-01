@@ -48,6 +48,11 @@ import {
  localYmd,
  type AttendanceRecordRow,
 } from "@/services/attendanceQueries"
+import {
+ getAttendanceRecordsDataCache,
+ isAttendanceRecordsCacheFresh,
+ setAttendanceRecordsDataCache,
+} from "@/components/attendance/attendanceRecordsState"
 type ViewMode = "today" | "month" | "kanban"
 
 function currentMonthRange(): DateRangeValue {
@@ -124,20 +129,30 @@ export function AttendanceRecordsPage() {
   Array<{ id: string; name: string; englishName: string | null }>
  >([])
 
- const [rows, setRows] = useState<AttendanceRecordRow[]>([])
+ const attFrom = dateRange.from || localYmd()
+ const attTo = dateRange.to || attFrom
+ const [rows, setRows] = useState<AttendanceRecordRow[]>(() => {
+  const cached = getAttendanceRecordsDataCache()
+  if (!cached || cached.from !== attFrom || cached.to !== attTo) return []
+  return cached.rows
+ })
  const [classOptions, setClassOptions] = useState<Array<{ id: string; label: string; teacherId: string | null }>>([])
- const [loading, setLoading] = useState(true)
+ const [loading, setLoading] = useState(
+  () => !isAttendanceRecordsCacheFresh(attFrom, attTo)
+ )
  const [err, setErr] = useState<string | null>(null)
 
- const reload = useCallback(async () => {
+ const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const from = dateRange.from || localYmd()
+  const to = dateRange.to || from
+  const cached = getAttendanceRecordsDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
-   const from = dateRange.from || localYmd()
-   const to = dateRange.to || from
    const rec = await fetchAttendanceRecordsInRange(from, to)
    setRows(rec)
+   setAttendanceRecordsDataCache({ from, to, rows: rec })
   } catch (e) {
    reportUserFacingError(e, { source: "AttendanceRecordsPage.reload", setErr })
    setRows([])
@@ -199,8 +214,12 @@ export function AttendanceRecordsPage() {
  }
 
  useEffect(() => {
-  void reload()
- }, [reload])
+  const from = dateRange.from || localYmd()
+  const to = dateRange.to || from
+  if (isAttendanceRecordsCacheFresh(from, to)) return
+  const cached = getAttendanceRecordsDataCache()
+  void reload({ silent: cached != null && cached.from === from && cached.to === to })
+ }, [reload, dateRange.from, dateRange.to])
 
  useEffect(() => {
   if (!payrollMonth) return

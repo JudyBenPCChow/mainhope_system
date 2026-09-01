@@ -76,6 +76,11 @@ import {
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllStudents, previewEnrollmentAttendanceImpact, type StudentRecord } from "@/services/studentQueries"
 import { PRIVATE_TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
+import {
+ getPrivateTutoringDataCache,
+ isPrivateTutoringCacheFresh,
+ setPrivateTutoringDataCache,
+} from "@/components/privateTutoring/privateTutoringState"
 
 type Tab = "students" | "rooms"
 type PrivateCreateMode = "1to1" | "1to2"
@@ -121,8 +126,13 @@ export function PrivateTutoringView() {
  const canManageEnrollment = !isTeacherPortal
 
  const [tab, setTab] = useState<Tab>("students")
- const [rows, setRows] = useState<PrivateTutoringStudentRow[]>([])
- const [loading, setLoading] = useState(true)
+ const initialPrivateCache = getPrivateTutoringDataCache()
+ const hydratePrivate =
+  initialPrivateCache != null && initialPrivateCache.teacherTid === teacherTid
+ const [rows, setRows] = useState<PrivateTutoringStudentRow[]>(
+  () => (hydratePrivate ? initialPrivateCache!.rows : [])
+ )
+ const [loading, setLoading] = useState(() => !isPrivateTutoringCacheFresh(teacherTid))
  const [err, setErr] = useState<string | null>(null)
  const [highlightStudentId, setHighlightStudentId] = useState<string | null>(null)
  const [teacherNullAudit, setTeacherNullAudit] = useState<PrivateScheduleTeacherNullAuditRow[]>(
@@ -202,13 +212,16 @@ export function PrivateTutoringView() {
   }
  }, [isTeacherPortal])
 
- const reloadStudents = useCallback(async () => {
+ const reloadStudents = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const cached = getPrivateTutoringDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
    const list = await fetchPrivateTutoringStudents()
-   setRows(teacherTid ? list.filter((r) => r.teacherId === teacherTid) : list)
+   const next = teacherTid ? list.filter((r) => r.teacherId === teacherTid) : list
+   setRows(next)
+   setPrivateTutoringDataCache({ teacherTid, rows: next })
    if (!teacherTid) void reloadTeacherNullAudit()
   } catch (e) {
    reportUserFacingError(e, { source: "PrivateTutoringView.reloadStudents", setErr })
@@ -259,8 +272,9 @@ export function PrivateTutoringView() {
  }, [])
 
  useEffect(() => {
-  void reloadStudents()
- }, [reloadStudents])
+  if (isPrivateTutoringCacheFresh(teacherTid)) return
+  void reloadStudents({ silent: getPrivateTutoringDataCache() != null })
+ }, [reloadStudents, teacherTid])
 
  useEffect(() => {
   if (tab === "rooms") void reloadRooms()

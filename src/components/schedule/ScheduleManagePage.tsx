@@ -129,6 +129,11 @@ import {
  type ScheduleStatsSnapshot,
  type TeacherScheduleConflict,
 } from "@/services/scheduleQueries"
+import {
+ getScheduleListDataCache,
+ isScheduleListCacheFresh,
+ setScheduleListDataCache,
+} from "@/components/schedule/scheduleListState"
 
 type ScheduleStatsUi =
  | { status: "loading" }
@@ -362,6 +367,7 @@ export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const { profile } = useAuth()
+ const teacherScopeId = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
  /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
  /** 手機日／週曆視圖：行政與老師皆可用（資料仍依角色 scope） */
@@ -376,14 +382,32 @@ export function ScheduleManagePage() {
   return null
  })())
 
+ const initialScheduleCache = getScheduleListDataCache()
+ const initialUrlDayDate = initialUrlDayDateRef.current
+ const hydrateScheduleCache =
+  initialScheduleCache != null &&
+  initialScheduleCache.rows.length > 0 &&
+  (initialUrlDayDate == null || initialUrlDayDate === initialScheduleCache.displayStart) &&
+  (teacherScopeId === initialScheduleCache.teacherScopeId)
+
  const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
  const effectiveViewMode: ViewMode =
   isMobile && (viewMode === "list" || (viewMode === "day" && !allowMobileDayView))
    ? "byDate"
    : viewMode
- const [displayStart, setDisplayStart] = useState(todayYmd)
- const [dayViewDate, setDayViewDate] = useState(todayYmd)
- const [startInitialized, setStartInitialized] = useState(false)
+ const [displayStart, setDisplayStart] = useState(
+  () =>
+   initialUrlDayDate ??
+   (hydrateScheduleCache ? initialScheduleCache!.displayStart : todayYmd)
+ )
+ const [dayViewDate, setDayViewDate] = useState(
+  () =>
+   initialUrlDayDate ??
+   (hydrateScheduleCache ? initialScheduleCache!.displayStart : todayYmd)
+ )
+ const [startInitialized, setStartInitialized] = useState(
+  () => hydrateScheduleCache || Boolean(initialUrlDayDate)
+ )
  const [quickFilter, setQuickFilter] = usePersistentState<null | "cancelled">(
   "mgmt_schedule_quickFilter",
   null
@@ -398,12 +422,22 @@ export function ScheduleManagePage() {
   []
  )
  const [filtersOpen, setFiltersOpen] = useState(false)
- const [rows, setRows] = useState<ScheduleManageRow[]>([])
- const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(new Map())
- const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
+ const [rows, setRows] = useState<ScheduleManageRow[]>(
+  () => (hydrateScheduleCache ? initialScheduleCache!.rows : [])
+ )
+ const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(
+  () => (hydrateScheduleCache ? initialScheduleCache!.alerts : new Map())
+ )
+ const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(
+  () => (hydrateScheduleCache ? initialScheduleCache!.rosterContext : null)
+ )
  const [stats, setStats] = useState<ScheduleStatsUi>({ status: "loading" })
- const [rooms, setRooms] = useState<RoomRecord[]>([])
- const [roomOptions, setRoomOptions] = useState<{ id: string; label: string }[]>([])
+ const [rooms, setRooms] = useState<RoomRecord[]>(
+  () => (hydrateScheduleCache ? initialScheduleCache!.rooms : [])
+ )
+ const [roomOptions, setRoomOptions] = useState<{ id: string; label: string }[]>(
+  () => (hydrateScheduleCache ? initialScheduleCache!.roomOptions : [])
+ )
  const [loading, setLoading] = useState(false)
  /** 排程列已出、人數／badge 仍在載 */
  const [rosterLoading, setRosterLoading] = useState(false)
@@ -467,7 +501,6 @@ export function ScheduleManagePage() {
  /** null = 尚未載入；載入後為有可點名對象的排程 id */
  const [rollCallEligibleIds, setRollCallEligibleIds] = useState<Set<string> | null>(null)
 
- const teacherScopeId = getTeacherScopeTeacherId(profile)
  const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
  const canRollCall = can(profile?.activeCapabilities, "attendance.take")
  const canAssignSubstitute = canManageSchedules
@@ -510,18 +543,29 @@ export function ScheduleManagePage() {
    setRowsStale(false)
    setLoading(false)
    setRooms(rms)
-   setRoomOptions(
-    [...rms]
-     .map((r) => ({ id: r.id, label: r.name }))
-     .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
-   )
+   const nextRoomOptions = [...rms]
+    .map((r) => ({ id: r.id, label: r.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
+   setRoomOptions(nextRoomOptions)
    void reloadStats(teacherScopeId)
 
    const nextRosterContext = await fetchScheduleRosterContext(list.map((row) => row.id))
    if (reloadGenRef.current !== gen) return
-   setRows(enrichScheduleRowsWithRosterContext(list, nextRosterContext))
+   const enriched = enrichScheduleRowsWithRosterContext(list, nextRosterContext)
+   const nextAlerts = await fetchScheduleAlerts(list, nextRosterContext)
+   setRows(enriched)
    setRosterContext(nextRosterContext)
-   setAlerts(await fetchScheduleAlerts(list, nextRosterContext))
+   setAlerts(nextAlerts)
+   setScheduleListDataCache({
+    displayStart,
+    rangeEnd,
+    teacherScopeId,
+    rows: enriched,
+    rooms: rms,
+    roomOptions: nextRoomOptions,
+    rosterContext: nextRosterContext,
+    alerts: nextAlerts,
+   })
   } catch (e) {
    if (reloadGenRef.current !== gen) return
    reportUserFacingError(e, { source: "ScheduleManagePage.reload", setErr: setPageErr })
@@ -540,14 +584,26 @@ export function ScheduleManagePage() {
 
  useEffect(() => {
   if (!startInitialized) return
+  if (isScheduleListCacheFresh(teacherScopeId, displayStart, rangeEnd)) {
+   void reloadStats(teacherScopeId)
+   return
+  }
   void reload()
- }, [reload, startInitialized])
+ }, [reload, startInitialized, teacherScopeId, displayStart, rangeEnd, reloadStats])
 
  useEffect(() => {
   const urlDate = initialUrlDayDateRef.current
   if (urlDate) {
    setDisplayStart(urlDate)
    setDayViewDate(urlDate)
+   setStartInitialized(true)
+   return
+  }
+  const cached = getScheduleListDataCache()
+  if (
+   cached &&
+   isScheduleListCacheFresh(teacherScopeId, cached.displayStart, cached.rangeEnd)
+  ) {
    setStartInitialized(true)
    return
   }

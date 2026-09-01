@@ -1,0 +1,28 @@
+---
+description: >-
+  清單卸載後返回須用記憶體 TTL 快取。新開獨立詳情、分頁路由或同類會卸載清單的畫面時要接上。
+globs: src/App.tsx,src/lib/navStructure.ts,src/lib/listDataCache.ts,src/components/**/*List*.tsx,src/components/**/*List*.ts,src/components/**/*Manage*.tsx,src/components/**/*State.ts,src/pages/**/*.tsx
+alwaysApply: false
+---
+
+# 清單資料快取（卸載後返回）
+
+清單與詳情（或分頁）若是**不同路由**，離開再回來會卸載整棵樹，`useEffect` 會整表重抓。篩選用 `sessionStorage` 不夠；資料要模組級記憶體快取。
+
+## 何時必須接
+
+- 新開或改 `App.tsx` 路由：清單旁加 `/:id` 詳情、`/New`、或 `/Foo/:page` 分頁
+- 既有清單改成會導去另一頁再返回（含側欄來回）
+- **不要**用 `location.key` 當重載條件
+
+做法：`createListDataCache`（`src/lib/listDataCache.ts`）。參考 `classesListState.ts`、`studentsListState.ts`。詳見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md` §16.5。
+
+## 要
+
+- TTL 內新鮮則不打網路；有舊列則先畫再靜默重抓
+- 清單與**詳情／寫入頁**成功後 `invalidate`
+- 快取鍵含會改變查詢的範圍（學年、日期、老師 scope）
+
+## 不要快取
+
+收件匣、進行點名、收款登記、報表、家長報讀申請等須即時的工作佇列。

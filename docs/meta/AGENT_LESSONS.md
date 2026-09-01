@@ -4,6 +4,12 @@
 
 ## 教訓
 
+### 2026-09-02 — 清單離開詳情再返回，唔好整表重抓
+- **情境**：班別管理約 80 班，進詳情再返回會卸載清單，`useEffect` 全表重打（含排程摘要）。其他清單同樣只有篩選 sessionStorage，沒有資料快取。
+- **錯在邊**：把「每次 mount 都 `load()`」當成正確；甚至用 `location.key` 當重載條件，詳情返回必重抓。篩選還在、表卻轉圈。
+- **正確做法**：模組級記憶體 TTL 快取（`createListDataCache`）。新鮮不打網路；有舊列先畫。寫入後 invalidate。新開獨立詳情／分頁路由時一併接上。收件匣／點名／收款／報表等即時頁不要套。
+- **若已升格**：`AGENTS.md` 鐵則「清單快取」；`.cursor/rules/list-data-cache.mdc`；`docs/meta/UI_DESIGN_INSTRUCTIONS.md` §16.5
+
 ### 2026-09-01 — 寫庫唔好藏喺 `setState`；成功提示要等 `await`
 - **情境**：功輔當值編更／報更。Katie 已係草稿時加 9/21，再排當值按「儲存變更」，reload 後日子同當值都冇咗。
 - **錯在邊**：畫面當月曆當真源；`upsert` 掛喺 `setSubmitStatus` 副作用。狀態已經係草稿就當無嘢要寫；同一 tick 用舊 `avail` closure；橫幅喺寫入完成前就話已儲存；`onPublish` 缺席仍當成功。

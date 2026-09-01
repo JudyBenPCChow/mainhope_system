@@ -28,13 +28,15 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 
 ## 新增功能
 
-路由 `App.tsx` + 側欄 `src/lib/navStructure.ts`（含 roles）同步改。  
-頁面：`pages/` → `components/<領域>/` → `services/`。  
-大量 UUID 用 `forEachIdChunk`。一對一列表在 `/PrivateTutoring`。
+路由 `App.tsx` + 側欄 `src/lib/navStructure.ts`（含 roles）同步改。 
+頁面：`pages/` → `components/<領域>/` → `services/`。 
+大量 UUID 用 `forEachIdChunk`。一對一列表在 `/PrivateTutoring`。 
+清單若與詳情／分頁分成不同路由（離開會卸載），須接記憶體 TTL 快取，見鐵則「清單快取」。
 
 ## 鐵則
 
 - **UI**：共用 `Select`/`MultiSelect`、`Tag`+`statusToTagTone`、日期 `Input type="date"`；禁 `alert`/`confirm`/原生 `<select>`。淺底警示用 `text-warning`，禁 `bg-warning/10` + `text-warning-foreground`（白字）。詳見 `docs/meta/UI_DESIGN_INSTRUCTIONS.md` §9。
+- **清單快取**：清單與獨立詳情、分頁或同類會卸載清單的畫面，返回時不可整表重抓。用 `createListDataCache`（TTL 內跳過網路；寫入後 invalidate）。不要用 `location.key` 當重載條件。收件匣／進行點名／收款登記／報表等即時頁不要套。見 `.cursor/rules/list-data-cache.mdc` 與 `docs/meta/UI_DESIGN_INSTRUCTIONS.md` §16.5。
 - **RLS**：改 schema 必檢 RLS；anon key 在瀏覽器。見 `docs/meta/RLS_ROLLOUT.md`。
 - **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。

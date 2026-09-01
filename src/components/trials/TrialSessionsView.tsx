@@ -35,6 +35,11 @@ import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
 import {
+ getTrialSessionsDataCache,
+ isTrialSessionsCacheFresh,
+ setTrialSessionsDataCache,
+} from "@/components/trials/trialSessionsState"
+import {
  convertTrialToEnrollment,
  deleteTrialSession,
  fetchTrialDashboardStats,
@@ -129,11 +134,17 @@ export function TrialSessionsView() {
  const navigate = useNavigate()
  const isMobile = useIsMobile()
 
- const [rows, setRows] = useState<TrialManageRow[]>([])
- const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
- const [includeOlderYears, setIncludeOlderYears] = useState(false)
- const [stats, setStats] = useState<TrialDashboardStats>({ todayCount: 0, weekCount: 0 })
- const [loading, setLoading] = useState(true)
+ const [rows, setRows] = useState<TrialManageRow[]>(() => getTrialSessionsDataCache()?.rows ?? [])
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(
+  () => getTrialSessionsDataCache()?.hiddenOlderCount ?? 0
+ )
+ const [includeOlderYears, setIncludeOlderYears] = useState(
+  () => getTrialSessionsDataCache()?.includeOlderYears ?? false
+ )
+ const [stats, setStats] = useState<TrialDashboardStats>(
+  () => getTrialSessionsDataCache()?.stats ?? { todayCount: 0, weekCount: 0 }
+ )
+ const [loading, setLoading] = useState(() => getTrialSessionsDataCache() == null)
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [err, setErr] = useState<string | null>(null)
  const [convertId, setConvertId] = useState<string | null>(null)
@@ -160,7 +171,9 @@ export function TrialSessionsView() {
  const [filterTeacherId, setFilterTeacherId] = useState("all")
  const [filterGrade, setFilterGrade] = useState("all")
 
- const [teachers, setTeachers] = useState<TeacherRecord[]>([])
+ const [teachers, setTeachers] = useState<TeacherRecord[]>(
+  () => getTrialSessionsDataCache()?.teachers ?? []
+ )
 
  const [addOpen, setAddOpen] = useState(false)
  const [studentSearch, setStudentSearch] = useState("")
@@ -181,9 +194,10 @@ export function TrialSessionsView() {
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
 
 
- const reload = useCallback(async () => {
+ const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const cached = getTrialSessionsDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
    const [list, st, tch] = await Promise.all([
@@ -195,6 +209,13 @@ export function TrialSessionsView() {
    setHiddenOlderCount(list.hiddenOlderCount)
    setStats(st)
    setTeachers(tch)
+   setTrialSessionsDataCache({
+    includeOlderYears,
+    rows: list.rows,
+    hiddenOlderCount: list.hiddenOlderCount,
+    stats: st,
+    teachers: tch,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "TrialSessionsView.reload", setErr })
    setRows([])
@@ -205,8 +226,10 @@ export function TrialSessionsView() {
  }, [includeOlderYears])
 
  useEffect(() => {
-  void reload()
- }, [reload])
+  if (isTrialSessionsCacheFresh(includeOlderYears)) return
+  const cached = getTrialSessionsDataCache()
+  void reload({ silent: cached != null && cached.includeOlderYears === includeOlderYears })
+ }, [reload, includeOlderYears])
 
  const convertTarget: TrialConvertDialogTarget | null = useMemo(() => {
   if (!convertId) return null

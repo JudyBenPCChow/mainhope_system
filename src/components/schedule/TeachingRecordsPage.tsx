@@ -20,6 +20,11 @@ import {
  fetchTeachingNotesInRange,
  type TeachingNotesRow,
 } from "@/services/teachingNotesQueries"
+import {
+ getTeachingRecordsDataCache,
+ isTeachingRecordsCacheFresh,
+ setTeachingRecordsDataCache,
+} from "@/components/schedule/teachingRecordsState"
 
 type NotesScope = "withNotes" | "all"
 
@@ -40,23 +45,33 @@ export function TeachingRecordsPage() {
  const { profile } = useAuth()
  const teacherTid = getTeacherScopeTeacherId(profile)
  const [dateRange, setDateRange] = useState<DateRangeValue>(() => defaultRange())
+ const initialNotesCache = getTeachingRecordsDataCache()
+ const notesFrom = dateRange.from || localYmd()
+ const notesTo = dateRange.to || notesFrom
+ const hydrateNotes =
+  initialNotesCache != null &&
+  initialNotesCache.from === notesFrom &&
+  initialNotesCache.to === notesTo &&
+  initialNotesCache.teacherTid === teacherTid
  const [keyword, setKeyword] = useState("")
  const [scope, setScope] = useState<NotesScope>("withNotes")
  const [classFilter, setClassFilter] = useState("all")
- const [rows, setRows] = useState<TeachingNotesRow[]>([])
- const [loading, setLoading] = useState(true)
+ const [rows, setRows] = useState<TeachingNotesRow[]>(() => (hydrateNotes ? initialNotesCache!.rows : []))
+ const [loading, setLoading] = useState(() => !isTeachingRecordsCacheFresh(notesFrom, notesTo, teacherTid))
  const [err, setErr] = useState<string | null>(null)
  const [expandedId, setExpandedId] = useState<string | null>(null)
 
- const reload = useCallback(async () => {
+ const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
-  setLoading(true)
+  const from = dateRange.from || localYmd()
+  const to = dateRange.to || from
+  const cached = getTeachingRecordsDataCache()
+  if (!opts?.silent && !cached) setLoading(true)
   setErr(null)
   try {
-   const from = dateRange.from || localYmd()
-   const to = dateRange.to || from
    const list = await fetchTeachingNotesInRange(from, to, { teacherId: teacherTid })
    setRows(list)
+   setTeachingRecordsDataCache({ from, to, teacherTid, rows: list })
   } catch (e) {
    reportUserFacingError(e, { source: "TeachingRecordsPage.reload", setErr })
    setRows([])
@@ -66,8 +81,14 @@ export function TeachingRecordsPage() {
  }, [dateRange.from, dateRange.to, teacherTid])
 
  useEffect(() => {
-  void reload()
- }, [reload])
+  const from = dateRange.from || localYmd()
+  const to = dateRange.to || from
+  if (isTeachingRecordsCacheFresh(from, to, teacherTid)) return
+  const cached = getTeachingRecordsDataCache()
+  void reload({
+   silent: cached != null && cached.from === from && cached.to === to && cached.teacherTid === teacherTid,
+  })
+ }, [reload, dateRange.from, dateRange.to, teacherTid])
 
  const classOptions = useMemo(() => {
   const m = new Map<string, string>()
