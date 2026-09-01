@@ -49,6 +49,7 @@ import {
   setHomeworkRosterMonthStatus,
   upsertHomeworkAvailability,
   type HomeworkClassRef,
+  type HomeworkEnrollmentRow,
 } from "@/services/homeworkTutoringQueries"
 import {
  getHomeworkTutoringDataCache,
@@ -294,17 +295,17 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           : sheetMonthRef.current || defaultRosterMonth
       loadedMonthRef.current = targetMonth
       const [enrolls, closures, access] = await Promise.all([
-        isTeacher ? Promise.resolve([]) : fetchHomeworkEnrollments(cls.id),
+        isTeacher ? Promise.resolve([] as HomeworkEnrollmentRow[]) : fetchHomeworkEnrollments(cls.id),
         fetchHomeworkClosures(cls.academicYearId),
         fetchHomeworkTutoringTeacherAccess(),
       ])
 
-      const studentRows = enrolls.map((e) => ({
+      const studentRows: HomeworkStudentRow[] = enrolls.map((e) => ({
           id: e.studentId,
           name: e.studentName,
           code: e.studentCode,
           grade: e.grade,
-          plan: e.plan === "七日" ? "七日" : e.plan,
+          plan: e.plan,
           weekdays: e.weekdays,
           effectiveMonth: e.effectiveMonth,
           status: e.status,
