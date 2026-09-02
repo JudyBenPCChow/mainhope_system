@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 
 import { Link } from "react-router-dom"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,10 +10,13 @@ import { statusToTagTone } from "@/lib/statusTag"
 
 import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
+  academicYearMonthBounds,
+  clampYearMonth,
   countSubmitProgress,
   currentYearMonth,
   formatDutyPeople,
   formatYearMonthLabel,
+  shiftYearMonth,
   unpaidFeeRows,
   type AllTeacherSubmitStatus,
   type HomeworkDutyDay,
@@ -35,7 +39,10 @@ export function ManagerHomeworkWorkbench({
   hwTeachers,
   hwAccessIds,
   dutyDays = [],
+  dutyMonth,
+  onDutyMonthChange,
   rosterMonth = currentYearMonth(),
+  academicYearLabel = "2627",
   holidays = [],
   teacherCatalog,
   onToggleHwAccess,
@@ -50,7 +57,10 @@ export function ManagerHomeworkWorkbench({
   hwTeachers: HomeworkTeacherRow[]
   hwAccessIds: ReadonlySet<string>
   dutyDays?: HomeworkDutyDay[]
+  dutyMonth?: string
+  onDutyMonthChange?: (yearMonth: string) => void
   rosterMonth?: string
+  academicYearLabel?: string
   holidays?: readonly HomeworkHoliday[]
   teacherCatalog?: readonly HomeworkTeacherRow[]
   onToggleHwAccess: (teacherId: string, next: boolean) => void
@@ -62,8 +72,21 @@ export function ManagerHomeworkWorkbench({
   )
   const unpaid = useMemo(() => unpaidFeeRows(students, fees), [students, fees])
   const dutyCovered = dutyDays.filter((d) => !d.holiday).length
-  const monthLabel = formatYearMonthLabel(rosterMonth)
+  const prepMonth = rosterMonth
+  const viewDutyMonth = dutyMonth ?? rosterMonth
+  const prepLabel = formatYearMonthLabel(prepMonth)
+  const dutyLabel = formatYearMonthLabel(viewDutyMonth)
+  const monthBounds = academicYearMonthBounds(academicYearLabel)
+  const atDutyMin = viewDutyMonth <= monthBounds.min
+  const atDutyMax = viewDutyMonth >= monthBounds.max
   const catalog = teacherCatalog ?? hwTeachers
+
+  const goDutyMonth = (delta: number) => {
+    if (!onDutyMonthChange) return
+    onDutyMonthChange(
+      clampYearMonth(shiftYearMonth(viewDutyMonth, delta), monthBounds.min, monthBounds.max)
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -85,8 +108,8 @@ export function ManagerHomeworkWorkbench({
               value={`${dutyCovered} 日`}
               hint={
                 rosterPublishStatus === "已發布"
-                  ? `${monthLabel}編更已發布`
-                  : `${monthLabel}編更仍為草稿`
+                  ? `${dutyLabel}編更已發布`
+                  : `${dutyLabel}編更仍為草稿`
               }
             />
             <SummaryTile
@@ -102,7 +125,7 @@ export function ManagerHomeworkWorkbench({
               {progress.missing > 0 ? (
                 <li className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    {monthLabel} 尚有 {progress.missing} 位老師未交報更
+                    {prepLabel} 尚有 {progress.missing} 位老師未交報更
                   </span>
                   <Button type="button" size="sm" variant="outline" onClick={() => onTabChange("progress")}>
                     查看進度
@@ -134,13 +157,41 @@ export function ManagerHomeworkWorkbench({
       {tab === "duty" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">{monthLabel}當值一覽（唯讀）</h2>
+            {onDutyMonthChange ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={atDutyMin}
+                  onClick={() => goDutyMonth(-1)}
+                  aria-label="上一個月"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h2 className="min-w-[7.5rem] text-center text-base font-semibold tabular-nums">
+                  {dutyLabel}當值一覽（唯讀）
+                </h2>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={atDutyMax}
+                  onClick={() => goDutyMonth(1)}
+                  aria-label="下一個月"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <h2 className="text-base font-semibold">{dutyLabel}當值一覽（唯讀）</h2>
+            )}
             <Tag tone={statusToTagTone(rosterPublishStatus)} size="sm">
               {rosterPublishStatus}
             </Tag>
           </div>
           <HomeworkDutyMonthCalendar
-            yearMonth={rosterMonth}
+            yearMonth={viewDutyMonth}
             holidays={holidays}
             dutyDays={dutyDays}
             teachers={hwTeachers}
@@ -183,7 +234,7 @@ export function ManagerHomeworkWorkbench({
 
       {tab === "progress" ? (
         <div className="space-y-3">
-          <h2 className="text-base font-semibold">{monthLabel} 報更進度</h2>
+          <h2 className="text-base font-semibold">{prepLabel} 報更進度</h2>
           <p className="text-xs text-muted-foreground">
             查看老師提交狀態；代填請切換行政工作台。
           </p>

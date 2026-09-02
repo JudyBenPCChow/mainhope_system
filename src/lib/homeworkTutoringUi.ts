@@ -130,7 +130,11 @@ export function listRosterMonthDays(
   const year = Number(ys)
   const month = Number(ms)
   if (!year || !month) return []
-  const holidayByKey = new Map(holidays.map((h) => [h.date, h.label]))
+  const holidayByKey = new Map<string, string>()
+  for (const h of holidays) {
+    const key = toDutyMdKey(h.date)
+    if (key) holidayByKey.set(key, h.label)
+  }
   const lastDay = new Date(year, month, 0).getDate()
   const days: RosterDay[] = []
   for (let day = 1; day <= lastDay; day += 1) {
@@ -163,7 +167,16 @@ export function getAvailEntry(
   teacherId: string,
   date: string
 ): AvailEntry | null {
-  return avail[teacherId]?.[date] ?? null
+  const row = avail[teacherId]
+  if (!row) return null
+  if (row[date]) return row[date]
+  const want = toDutyMdKey(date)
+  if (!want) return null
+  if (row[want]) return row[want]
+  for (const [key, entry] of Object.entries(row)) {
+    if (toDutyMdKey(key) === want) return entry
+  }
+  return null
 }
 
 export function formatAvailLabel(entry: AvailEntry | null): string {
@@ -317,7 +330,7 @@ export function holidaysInYearMonth(
 ): { date: string; label: string }[] {
   const monthNum = Number(yearMonth.split("-")[1])
   if (!monthNum) return []
-  return holidays.filter((h) => dateKeyMonth(h.date) === monthNum)
+  return holidays.filter((h) => dutyKeyMonth(h.date) === monthNum)
 }
 
 export function currentYearMonth(now: Date = new Date()): string {
@@ -593,9 +606,30 @@ export function emptyDutyFromRosterDay(day: RosterDay): HomeworkDutyDay {
   }
 }
 
-function dateKeyMonth(dateKey: string): number {
+/** 日期鍵的月份數字；ISO、`09/02`、`9/2` 皆可 */
+export function dutyKeyMonth(dateKey: string): number {
   const key = toDutyMdKey(dateKey)
-  return key ? Number(key.split("/")[0]) : Number(dateKey.split("/")[0])
+  return key ? Number(key.split("/")[0]) : Number.NaN
+}
+
+export function findDutyDay(
+  days: readonly HomeworkDutyDay[],
+  dateKey: string
+): HomeworkDutyDay | undefined {
+  const want = toDutyMdKey(dateKey)
+  if (!want) return undefined
+  return days.find((d) => toDutyMdKey(d.date) === want)
+}
+
+export function dutyDaysByMdKey(
+  days: readonly HomeworkDutyDay[]
+): Map<string, HomeworkDutyDay> {
+  const map = new Map<string, HomeworkDutyDay>()
+  for (const d of days) {
+    const key = toDutyMdKey(d.date)
+    if (key) map.set(key, d)
+  }
+  return map
 }
 
 /** 該月全部平日／放假日；已有編更紀錄則合併 */
@@ -609,7 +643,7 @@ export function buildMonthDutyDays(
   const byKey = new Map<string, HomeworkDutyDay>()
   for (const d of existing) {
     const key = toDutyMdKey(d.date)
-    if (!key || dateKeyMonth(key) !== monthNum) continue
+    if (!key || dutyKeyMonth(key) !== monthNum) continue
     byKey.set(key, d.date === key ? d : { ...d, date: key })
   }
   return cal
@@ -693,7 +727,7 @@ export function summarizeOverview(
   }
   const openDutyCount = dutyDaysList.filter((d) => !d.holiday).length
   const todayKey = todayDateKey(now)
-  const todayDuty = dutyDaysList.find((d) => d.date === todayKey) ?? null
+  const todayDuty = findDutyDay(dutyDaysList, todayKey) ?? null
   const todayWeekday = todayDuty
     ? asWeekday(todayDuty.weekday)
     : asWeekday(WEEKDAY_CHARS[now.getDay()] ?? "")

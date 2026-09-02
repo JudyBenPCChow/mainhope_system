@@ -26,7 +26,7 @@ export type HomeworkScheduleSlot = {
   roomName: string
 }
 
-/** 畫面／DB 日期都收成 M/D（如 9/21）；ISO `2026-09-21` 亦可 */
+/** 畫面／DB 日期都收成 M/D（如 9/21）；ISO `2026-09-21` 與 `09/02` 亦可 */
 export function toDutyMdKey(date: string): string | null {
   const trimmed = date.trim()
   const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
