@@ -1,17 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Calendar, MapPin, Monitor, Users, Video } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
+import { Calendar, MapPin, Monitor, Users, Video } from "lucide-react"
 
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
+import { readScheduleListReturnState } from "@/components/schedule/useOpenScheduleRecord"
+import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
+import { DetailLayerChrome } from "@/components/detail/DetailLayerChrome"
+import { RecordPageHeader } from "@/components/detail/RecordPageHeader"
+import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
+import { UnsavedChangesDialog } from "@/components/detail/UnsavedChangesDialog"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
+import { useNavGuard } from "@/hooks/useNavGuard"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { replaceTabSearchParam } from "@/lib/detailTabSearch"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
@@ -34,7 +43,7 @@ import {
  type ScheduleDetailRecord,
 } from "@/services/scheduleDetailQueries"
 import { deleteSchedule, updateSchedule } from "@/services/scheduleWriteQueries"
-import { invalidateScheduleListDataCache } from "@/components/schedule/scheduleListState"
+import { invalidateScheduleManageCaches } from "@/components/schedule/scheduleListState"
 import { fetchActiveDeclarationsForSchedules } from "@/services/entitlementQueries"
 import {
  fetchAttendanceStudentIdsForSchedule,
@@ -54,13 +63,32 @@ function isOnlineAttendanceStatus(status: string): boolean {
  return status.includes("網課") || status.includes("線上")
 }
 
+const SCHEDULE_DETAIL_TABS = [
+ { id: "overview", label: "概覽與操作" },
+ { id: "roster", label: "名單與出席" },
+] as const
+
+type ScheduleDetailTab = (typeof SCHEDULE_DETAIL_TABS)[number]["id"]
+type UnsavedLeaveChoice = "save" | "discard" | "cancel"
+
+function parseScheduleDetailTab(value: string | null | undefined): ScheduleDetailTab {
+ return value === "roster" ? "roster" : "overview"
+}
+
 export function ScheduleDetailView() {
  const { scheduleId } = useParams<{ scheduleId: string }>()
  const navigate = useNavigate()
- const [searchParams] = useSearchParams()
+ const location = useLocation()
+ const [searchParams, setSearchParams] = useSearchParams()
  const sid = scheduleId ?? ""
  const { confirmDialog } = useAppConfirm()
  const { profile } = useAuth()
+ const isMobile = useIsMobile()
+ const [tab, setTabState] = useState<ScheduleDetailTab>(() =>
+  parseScheduleDetailTab(searchParams.get("tab"))
+ )
+ const [unsavedLeaveOpen, setUnsavedLeaveOpen] = useState(false)
+ const unsavedLeaveResolverRef = useRef<((choice: UnsavedLeaveChoice) => void) | null>(null)
  const [row, setRow] = useState<ScheduleDetailRecord | null>(null)
  const [ctx, setCtx] = useState<ScheduleDetailContext | null>(null)
  const [loading, setLoading] = useState(true)
@@ -77,6 +105,99 @@ export function ScheduleDetailView() {
  const [rosterErr, setRosterErr] = useState<string | null>(null)
  const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
  const canAssignSubstitute = canManageSchedules
+
+ const writeTabParam = useCallback(
+  (next: ScheduleDetailTab) => replaceTabSearchParam(setSearchParams, next),
+  [setSearchParams]
+ )
+ const applyTab = useCallback(
+  (next: ScheduleDetailTab) => {
+   setTabState(next)
+   writeTabParam(next)
+  },
+  [writeTabParam]
+ )
+ useEffect(() => {
+  const parsed = parseScheduleDetailTab(searchParams.get("tab"))
+  setTabState(parsed)
+  if (searchParams.get("tab") !== parsed) writeTabParam(parsed)
+ }, [searchParams, writeTabParam])
+
+ const promptUnsavedLeave = useCallback(
+  () =>
+   new Promise<UnsavedLeaveChoice>((resolve) => {
+    unsavedLeaveResolverRef.current = resolve
+    setUnsavedLeaveOpen(true)
+   }),
+  []
+ )
+ const finishUnsavedLeave = useCallback((choice: UnsavedLeaveChoice) => {
+  setUnsavedLeaveOpen(false)
+  unsavedLeaveResolverRef.current?.(choice)
+  unsavedLeaveResolverRef.current = null
+ }, [])
+
+ const remarksDirty = Boolean(row && remarksDraft !== (row.remarks ?? ""))
+
+ const saveRemarks = useCallback(async (): Promise<boolean> => {
+  if (!row) return false
+  setRemarksSaving(true)
+  try {
+   await updateSchedule(row.id, { remarks: remarksDraft.trim() || null })
+   invalidateScheduleManageCaches({ futureCancelled: true })
+   setRow((prev) => (prev ? { ...prev, remarks: remarksDraft.trim() || null } : prev))
+   return true
+  } catch (e) {
+   reportUserFacingError(e, { source: "ScheduleDetailView.saveRemarks" })
+   return false
+  } finally {
+   setRemarksSaving(false)
+  }
+ }, [remarksDraft, row])
+
+ const confirmUnsavedIfNeeded = useCallback(async (): Promise<boolean> => {
+  if (unsavedLeaveResolverRef.current) return false
+  if (!row || remarksDraft === (row.remarks ?? "")) return true
+  const choice = await promptUnsavedLeave()
+  if (choice === "cancel") return false
+  if (choice === "save") return saveRemarks()
+  setRemarksDraft(row.remarks ?? "")
+  return true
+ }, [promptUnsavedLeave, remarksDraft, row, saveRemarks])
+
+ const exitPath = useCallback(() => {
+  if (searchParams.get("from") === "payroll") {
+   return payrollWorkbenchPath({
+    month: searchParams.get("month") ?? "",
+    teacherId: searchParams.get("teacher"),
+    lessonId: searchParams.get("lesson"),
+   })
+  }
+  const from = (location.state as { from?: string } | null)?.from
+  if (from && from.startsWith("/Schedule") && !from.startsWith(`/Schedule/${sid}`)) return from
+  const saved = readScheduleListReturnState()
+  if (saved?.search) return saved.search ? `/Schedule?${saved.search}` : "/Schedule"
+  return "/Schedule"
+ }, [location.state, searchParams, sid])
+
+ const requestLeavePage = useCallback(async () => {
+  const ok = await confirmUnsavedIfNeeded()
+  if (!ok) return
+  const saved = readScheduleListReturnState()
+  navigate(exitPath(), {
+   state: { highlightScheduleId: sid, scrollY: saved?.scrollY ?? null },
+  })
+ }, [confirmUnsavedIfNeeded, exitPath, navigate, sid])
+
+ const setTab = (next: ScheduleDetailTab) => {
+  void (async () => {
+   const ok = await confirmUnsavedIfNeeded()
+   if (!ok) return
+   applyTab(next)
+  })()
+ }
+
+ useNavGuard(remarksDirty, confirmUnsavedIfNeeded)
 
  const load = useCallback(async () => {
   if (!sid) return
@@ -155,46 +276,72 @@ export function ScheduleDetailView() {
 
  if (!sid) return <p className="p-6 text-muted-foreground">無效排程</p>
 
+ const title = row
+  ? `${row.scheduled_date} ${row.start_time && row.end_time ? `${row.start_time}–${row.end_time}` : ""}`
+  : "排程詳情"
+ const backLabel = searchParams.get("from") === "payroll" ? "返回計糧" : "返回排程管理"
+
  if (!loading && !row) {
   return (
-   <div className="p-6 md:p-8">
-    <p className="text-base">找不到此排程。</p>
-    <Button variant="outline" className="mt-4" asChild>
-     <Link to="/Schedule">返回排程列表</Link>
-    </Button>
-   </div>
+   <AdaptiveDetailLayer
+    variant="schedule"
+    onDismiss={() => void requestLeavePage()}
+    layerLabel={null}
+    chrome={<DetailLayerChrome title="排程詳情" onClose={() => void requestLeavePage()} />}
+   >
+    <div className="p-6 md:p-8">
+     <RecordPageHeader backLabel={backLabel} onBack={() => void requestLeavePage()} title="排程詳情" />
+     <p className="text-base">找不到此排程。</p>
+     <Button variant="outline" className="mt-4" onClick={() => void requestLeavePage()}>
+      返回排程列表
+     </Button>
+    </div>
+   </AdaptiveDetailLayer>
   )
  }
 
  return (
-  <div className="min-h-full bg-background p-5 md:p-10">
-   <Button
-    type="button"
-    variant="outline"
-    size="sm"
-    className="mb-8 transition-all hover:bg-muted active:scale-[0.98]"
-    onClick={() => {
-     if (searchParams.get("from") === "payroll") {
-      navigate(
-       payrollWorkbenchPath({
-        month: searchParams.get("month") ?? "",
-        teacherId: searchParams.get("teacher"),
-        lessonId: searchParams.get("lesson"),
-       })
-      )
-      return
-     }
-     navigate(-1)
-    }}
-   >
-    <ArrowLeft className="h-4 w-4" />
-    {searchParams.get("from") === "payroll" ? "返回計糧" : "返回"}
-   </Button>
+  <AdaptiveDetailLayer
+   variant="schedule"
+   onDismiss={() => void requestLeavePage()}
+   layerLabel={null}
+   chrome={
+    <DetailLayerChrome
+     title={title}
+     subtitle={row?.class_subject ?? null}
+     onClose={() => void requestLeavePage()}
+    />
+   }
+  >
+  <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
+   <RecordPageHeader
+    backLabel={backLabel}
+    onBack={() => void requestLeavePage()}
+    loading={loading}
+    title={row?.class_subject ?? "排程詳情"}
+    meta={
+     row ? (
+      <>
+       <span className="tabular-nums">
+        {row.scheduled_date}{" "}
+        {row.start_time && row.end_time ? `${row.start_time}–${row.end_time}` : ""}
+       </span>
+       {row.course_code_full ? (
+        <span className="font-mono tabular-nums">{row.course_code_full}</span>
+       ) : null}
+       <Tag tone={statusToTagTone(row.status)} size="sm">
+        {row.status}
+       </Tag>
+      </>
+     ) : null
+    }
+   />
+   <RecordPageTabs tabs={SCHEDULE_DETAIL_TABS} value={tab} onChange={setTab} isMobile={isMobile} />
 
    {loading || !row ? (
-    <p className="text-base text-muted-foreground">載入中…</p>
+    <p className="pt-6 text-base text-muted-foreground">載入中…</p>
    ) : (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto w-full max-w-5xl space-y-8 pt-6">
      <div
       className={cn(
        "rounded-2xl border border-border bg-card p-8 shadow-md transition-shadow md:p-10 md:shadow-lg"
@@ -275,6 +422,8 @@ export function ScheduleDetailView() {
       </div>
      </div>
 
+     {tab === "roster" ? (
+     <>
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
       <div className="flex items-center gap-2 text-lg font-semibold md:text-xl">
        <Users className="h-5 w-5 text-info" />
@@ -610,7 +759,9 @@ export function ScheduleDetailView() {
        </div>
       )}
      </section>
-
+     </>
+     ) : (
+     <>
      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
       <TeachingNotesEditor
        scheduleId={row.id}
@@ -646,15 +797,8 @@ export function ScheduleDetailView() {
        <Button
         type="button"
         disabled={remarksSaving || remarksDraft === (row.remarks ?? "")}
-        onClick={async () => {
-         setRemarksSaving(true)
-         try {
-          await updateSchedule(row.id, { remarks: remarksDraft.trim() || null })
-          invalidateScheduleListDataCache()
-          await load()
-         } finally {
-          setRemarksSaving(false)
-         }
+        onClick={() => {
+         void saveRemarks()
         }}
        >
         {remarksSaving ? "儲存中…" : "儲存備註"}
@@ -686,7 +830,7 @@ export function ScheduleDetailView() {
            return
           }
           await updateSchedule(row.id, { status: next, cancel_reason: null })
-          invalidateScheduleListDataCache()
+          invalidateScheduleManageCaches({ futureCancelled: true })
           await load()
          }}
         >
@@ -705,7 +849,7 @@ export function ScheduleDetailView() {
           setExtraSaving(true)
           try {
            await updateSchedule(row.id, { is_extra_lesson: e.target.checked })
-           invalidateScheduleListDataCache()
+           invalidateScheduleManageCaches({ futureCancelled: true })
            await load()
           } finally {
            setExtraSaving(false)
@@ -737,7 +881,7 @@ export function ScheduleDetailView() {
          )
           return
          await deleteSchedule(row.id)
-         invalidateScheduleListDataCache()
+         invalidateScheduleManageCaches({ futureCancelled: true })
          navigate(row.class_id ? `/Classes/${row.class_id}` : "/Schedule")
         }}
        >
@@ -769,7 +913,7 @@ export function ScheduleDetailView() {
          if (softOpts === "abort") return
          await updateSchedule(row.id, { status: "取消", cancel_reason: reason }, softOpts)
          setCancelDialogOpen(false)
-         invalidateScheduleListDataCache()
+         invalidateScheduleManageCaches({ futureCancelled: true })
          await load()
         } finally {
          setCancelSaving(false)
@@ -796,13 +940,23 @@ export function ScheduleDetailView() {
        }}
        onClose={() => setSubstituteOpen(false)}
        onDone={() => {
-        invalidateScheduleListDataCache()
+        invalidateScheduleManageCaches({ futureCancelled: true })
         void load()
        }}
       />
      ) : null}
+     </>
+     )}
     </div>
    )}
+   <UnsavedChangesDialog
+    open={unsavedLeaveOpen}
+    onContinueEditing={() => finishUnsavedLeave("cancel")}
+    onDiscard={() => finishUnsavedLeave("discard")}
+    onSave={() => finishUnsavedLeave("save")}
+    description="排程備註已修改但尚未儲存。要儲存、放棄變更，還是繼續編輯？"
+   />
   </div>
+  </AdaptiveDetailLayer>
  )
 }

@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
 
-export type RecordPreviewKind = "student" | "class" | "teacher"
+export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule"
 
 export type RecordPreviewTarget = {
  kind: RecordPreviewKind

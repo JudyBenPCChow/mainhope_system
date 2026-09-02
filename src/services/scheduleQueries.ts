@@ -6,6 +6,12 @@ import {
 } from "@/lib/lessonSlots"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import {
+ isCampusHolidayCancelReason,
+ scheduleAlertsFromSummary,
+ summarizeScheduleManageRows,
+ type ScheduleManageRowSummary,
+} from "@/lib/scheduleManageRowSummary"
 import { isYmd } from "@/lib/weekdayUtils"
 import {
  assembleScheduleStatsSnapshot,
@@ -284,6 +290,53 @@ export async function fetchSchedulesInRange(
  const { data, error } = await q.order("scheduled_date", { ascending: true }).order("start_time", { ascending: true })
  if (error) throw error
  return ((data ?? []) as Record<string, unknown>[]).map((r) => mapScheduleRow(r, null))
+}
+
+export async function fetchFutureCancelledSchedules(opts: {
+ asOf: string
+ teacherId?: string | null
+}): Promise<ScheduleManageRow[]> {
+ if (!supabase) return []
+ if (!isYmd(opts.asOf)) throw new Error("請選擇有效日期")
+ let q = supabase
+  .from("schedules")
+  .select(SCHEDULE_MANAGE_SELECT)
+  .gte("scheduled_date", opts.asOf)
+  .ilike("status", "%取消%")
+ if (opts.teacherId) q = applyTeacherScheduleScope(q, opts.teacherId)
+ const { data, error } = await q
+  .order("scheduled_date", { ascending: true })
+  .order("start_time", { ascending: true })
+ if (error) throw error
+ return ((data ?? []) as Record<string, unknown>[])
+  .map((r) => mapScheduleRow(r, null))
+  .filter((row) => !isCampusHolidayCancelReason(row.cancel_reason))
+}
+
+export async function fetchScheduleManageRowSummaries(
+ schedules: { id: string; consecutive_group_id?: string | null }[]
+): Promise<Map<string, ScheduleManageRowSummary>> {
+ const ids = schedules.map((row) => row.id).filter(Boolean)
+ if (ids.length === 0) return new Map()
+ const context = await fetchScheduleRosterContext(ids)
+ return summarizeScheduleManageRows(
+  context,
+  ids,
+  schedules.map((row) => ({ id: row.id, consecutiveGroupId: row.consecutive_group_id ?? null }))
+ )
+}
+
+export function applyScheduleRowSummaries(
+ rows: ScheduleManageRow[],
+ summaries: Map<string, ScheduleManageRowSummary>
+): { rows: ScheduleManageRow[]; alerts: Map<string, ScheduleAlerts> } {
+ const alerts = new Map<string, ScheduleAlerts>()
+ const next = rows.map((row) => {
+  const summary = summaries.get(row.id)
+  alerts.set(row.id, scheduleAlertsFromSummary(summary, row.remarks))
+  return summary ? { ...row, enrollCount: summary.rosterCount } : row
+ })
+ return { rows: next, alerts }
 }
 
 /** 排程列 + 全區間 roster（點名資格／badge／人數）。列表首屏請先用 fetchSchedulesInRange。 */
