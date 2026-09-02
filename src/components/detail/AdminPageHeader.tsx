@@ -1,7 +1,7 @@
 import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
-import type { MgmtRole } from "@/lib/mgmtRole"
+import { usesSharedAppShell, type MgmtRole } from "@/lib/mgmtRole"
 
 export type AdminPageEyebrow = "管理中心" | "工作域" | "行政工作" | "網站地圖"
 
@@ -28,15 +28,15 @@ export const adminContentShellClass =
  "mx-auto flex min-h-full w-full max-w-[1180px] flex-col px-5 pb-12 pt-7 sm:px-[1.875rem] has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden [&>*]:!px-0 [&>*]:!pt-0"
 
 /**
- * 行政頁留白交由 Layout；非行政保留既有頁級 padding，避免左右內距跨頁跳動。
- * `adminExtra` 可保留僅行政需要的底部安全距（例如手機底欄）。
+ * 共用殼頁留白交由 Layout；未跟殼的角色保留既有頁級 padding。
+ * `shellExtra` 可保留殼頁額外底部安全距（例如手機底欄）。
  */
 export function pagePadClass(
  role: MgmtRole | null | undefined,
- nonAdminPadClass: string,
- adminExtra = ""
+ nonShellPadClass: string,
+ shellExtra = ""
 ): string {
- return role === "admin" ? adminExtra : nonAdminPadClass
+ return usesSharedAppShell(role) ? shellExtra : nonShellPadClass
 }
 
 type AdminPageHeadingProps = Pick<

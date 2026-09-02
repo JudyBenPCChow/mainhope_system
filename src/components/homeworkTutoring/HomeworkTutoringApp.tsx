@@ -13,7 +13,7 @@ import { HomeworkTutoringTeacherAccess } from "@/components/homeworkTutoring/Hom
 import { useAuth } from "@/lib/authBootstrap"
 import { formatYearMonthLabel } from "@/lib/homeworkTutoringFees"
 import { HW_PATH, homeworkTutoringHomePath, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
-import type { MgmtRole } from "@/lib/mgmtRole"
+import { usesSharedAppShell, type MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { AdminHomeworkWorkbench } from "@/components/homeworkTutoring/AdminHomeworkWorkbench"
 import { ManagerHomeworkWorkbench } from "@/components/homeworkTutoring/ManagerHomeworkWorkbench"
@@ -674,8 +674,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   }
 
   return (
-    <div className={role === "admin" ? adminWorkspacePageClass : "space-y-4"}>
-      {role === "admin" ? (
+    <div className={usesSharedAppShell(role) ? adminWorkspacePageClass : "space-y-4"}>
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="工作域"
           title={pageTitle}

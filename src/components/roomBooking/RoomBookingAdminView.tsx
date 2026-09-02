@@ -16,6 +16,7 @@ import {
  rejectRoomBookingRequest,
  type RoomBookingRequestAdminRow,
 } from "@/services/roomBookingQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function RoomBookingAdminView() {
  const { role } = useAuth()
@@ -93,7 +94,7 @@ export function RoomBookingAdminView() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="約房審批"

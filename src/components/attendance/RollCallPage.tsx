@@ -23,6 +23,7 @@ import {
 } from "@/services/attendanceQueries"
 import { countPendingMakeupRecords } from "@/services/leaveQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 function parseYmd(raw: string | null): string | null {
  const v = raw?.slice(0, 10) ?? ""
@@ -199,7 +200,7 @@ export function RollCallPage() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="點名"

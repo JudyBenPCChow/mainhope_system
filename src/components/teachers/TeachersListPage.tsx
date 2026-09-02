@@ -36,6 +36,7 @@ import {
  insertTeacher,
  type TeacherRecord,
 } from "@/services/teacherQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function TeachersListPage() {
  const { confirmDialog } = useAppConfirm()
@@ -269,7 +270,7 @@ export function TeachersListPage() {
     </div>
    ) : null}
 
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="老師管理"

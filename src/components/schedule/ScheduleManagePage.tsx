@@ -158,6 +158,7 @@ import { useScheduleListData } from "@/components/schedule/useScheduleListData"
 import { bumpRequestGeneration, isLiveKeyedRequest } from "@/lib/requestGeneration"
 import { fetchAcademicCalendarClosures } from "@/services/academicCalendarQueries"
 import { fetchAcademicYearsWithDates } from "@/services/teacherAvailabilityQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type ScheduleStatsUi =
  | { status: "loading" }
@@ -1886,7 +1887,7 @@ useEffect(() => {
 
  const pageBody = (
   <div className="space-y-5 text-sm leading-relaxed">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="排程"

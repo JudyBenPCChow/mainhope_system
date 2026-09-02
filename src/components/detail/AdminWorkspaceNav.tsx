@@ -3,33 +3,35 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
- ADMIN_WORKSPACE_TABS,
  resolveAdminWorkspacePath,
+ workspaceTabsForRole,
  type AdminWorkspaceId,
 } from "@/lib/adminNavigation"
 import { useAuth } from "@/lib/authBootstrap"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type AdminWorkspaceNavProps = {
  workspace: AdminWorkspaceId
  className?: string
 }
 
-/** 行政限定的跨路由工作域導航；其他角色維持原有畫面。 */
+/** 共用殼的跨路由工作域導航；僅顯示該角色可見且至少兩頁的分頁。 */
 export function AdminWorkspaceNav({ workspace, className }: AdminWorkspaceNavProps) {
  const { role } = useAuth()
  const location = useLocation()
  const navigate = useNavigate()
  const isMobile = useIsMobile()
 
- if (role !== "admin") return null
+ if (!usesSharedAppShell(role)) return null
 
- const activePath = resolveAdminWorkspacePath(workspace, location.pathname)
- if (!activePath) return null
-
- const tabs = ADMIN_WORKSPACE_TABS[workspace].map((tab) => ({
+ const tabs = workspaceTabsForRole(workspace, role).map((tab) => ({
   id: tab.path,
   label: tab.label,
  }))
+ if (tabs.length < 2) return null
+
+ const activePath = resolveAdminWorkspacePath(workspace, location.pathname, role)
+ if (!activePath) return null
 
  return (
   <RecordPageTabs

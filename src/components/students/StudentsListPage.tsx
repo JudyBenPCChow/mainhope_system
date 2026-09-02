@@ -85,6 +85,7 @@ import {
  type RecentClassEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const REGISTRATION_FILTERS = [
  { key: "all", label: "全部" },
@@ -1161,12 +1162,12 @@ export function StudentsListPage() {
 
    <div
     className={
-     role === "admin"
+     usesSharedAppShell(role)
       ? adminPageHeaderLayoutClass
       : "flex flex-wrap items-center justify-between gap-4"
     }
    >
-    {role === "admin" ? (
+    {usesSharedAppShell(role) ? (
      <AdminPageHeading
       eyebrow="行政工作"
       title="學生"

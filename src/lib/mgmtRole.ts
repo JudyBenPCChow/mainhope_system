@@ -57,6 +57,15 @@ export function isAdmin(): boolean {
  return getMgmtRole() === "admin"
 }
 
+/**
+ * 共用主欄殼（頂部白條、1180 留白、表面色、三層標題等）。
+ * 行政為第一實作角色；老師／管理層／財務跟同一套殼。側欄條目可另定。
+ * 外星人不跟此殼（可另定）。
+ */
+export function usesSharedAppShell(role: MgmtRole | null | undefined): boolean {
+ return role === "admin" || role === "manager" || role === "finance" || role === "teacher"
+}
+
 export function isManager(): boolean {
  return getMgmtRole() === "manager"
 }

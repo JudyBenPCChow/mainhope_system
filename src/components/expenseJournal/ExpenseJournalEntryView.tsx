@@ -17,6 +17,7 @@ import {
   type ExpenseCategoryRule,
   type ExpenseLedgerAccount,
 } from "@/services/expenseQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function ExpenseJournalEntryView() {
   const { profile, role } = useAuth()
@@ -48,7 +49,7 @@ export function ExpenseJournalEntryView() {
 
   return (
     <div className={adminWorkspacePageClass}>
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="工作域"
           title="入帳"

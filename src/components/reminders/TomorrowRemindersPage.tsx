@@ -36,6 +36,7 @@ import {
  type StudentDayReminderRow,
 } from "@/services/lessonReminderQueries"
 import { localYmd } from "@/services/teacherQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type FilterId = "all" | "pending" | "done" | "noPhone"
 
@@ -78,7 +79,7 @@ export function TomorrowRemindersPage() {
  const { pushBanner } = useAppBanner()
  const { role } = useAuth()
  const today = localYmd()
- const PageHeaderShell = role === "admin" ? "div" : "header"
+ const PageHeaderShell = usesSharedAppShell(role) ? "div" : "header"
  const [reminderDate, setReminderDate] = useState(() => defaultReminderDateYmd(today))
  const [filter, setFilter] = useState<FilterId>("pending")
  const [rows, setRows] = useState<StudentDayReminderRow[]>([])
@@ -258,12 +259,12 @@ export function TomorrowRemindersPage() {
 
     <PageHeaderShell
      className={
-      role === "admin"
+      usesSharedAppShell(role)
        ? "space-y-4"
        : "overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
      }
     >
-     {role === "admin" ? (
+     {usesSharedAppShell(role) ? (
       <AdminPageHeader
        eyebrow="行政工作"
        title="課堂提醒"
@@ -322,7 +323,7 @@ export function TomorrowRemindersPage() {
      <div
       className={cn(
        "flex flex-wrap items-end gap-3 px-4 py-3 md:px-5",
-       role === "admin"
+       usesSharedAppShell(role)
         ? "rounded-xl border border-border bg-background shadow-sm"
         : "border-b border-border"
       )}

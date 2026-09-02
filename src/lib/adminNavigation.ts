@@ -34,10 +34,14 @@ import {
 
 import { HW_PATH, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
 import {
+ filterNavForRole,
+ flattenNav,
+ NAV_STRUCTURE,
  pathIsActive,
  type FeatureSection,
  type NavEntryDef,
  type NavLeafDef,
+ type Role,
 } from "@/lib/navStructure"
 
 /** 行政專用主選單：固定 8 個頂層列，與其他角色的 NAV_STRUCTURE 分開。 */
@@ -227,13 +231,28 @@ export const ADMIN_WORKSPACE_DESCRIPTION: Record<AdminWorkspaceId, string> = {
 /** 工作域頁外殼：全寬、僅垂直間距；留白交由 Layout。 */
 export const adminWorkspacePageClass = "space-y-6"
 
-/** 行政工作域目前路徑；最長前綴優先。 */
+/** 依角色可見路徑篩選工作域分頁（至少兩頁才顯示導航）。 */
+export function workspaceTabsForRole(
+ workspace: AdminWorkspaceId,
+ role: Role | null | undefined
+): AdminWorkspaceTab[] {
+ const tabs = ADMIN_WORKSPACE_TABS[workspace]
+ if (!role) return []
+ if (role === "admin") return [...tabs]
+ const allowed = new Set(
+  flattenNav(filterNavForRole(role, NAV_STRUCTURE)).map((leaf) => leaf.path)
+ )
+ return tabs.filter((tab) => allowed.has(tab.path))
+}
+
+/** 工作域目前路徑；最長前綴優先。僅在該角色可見分頁內比對。 */
 export function resolveAdminWorkspacePath(
  workspace: AdminWorkspaceId,
- pathname: string
+ pathname: string,
+ role: Role | null | undefined = "admin"
 ): string | null {
  let best: AdminWorkspaceTab | null = null
- for (const tab of ADMIN_WORKSPACE_TABS[workspace]) {
+ for (const tab of workspaceTabsForRole(workspace, role)) {
   if (!pathIsActive(pathname, tab.path)) continue
   if (!best || tab.path.length > best.path.length) best = tab
  }

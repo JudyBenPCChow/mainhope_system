@@ -17,6 +17,7 @@ import {
  fetchMisalignedLessonBalances,
  type MisalignedLessonBalanceRow,
 } from "@/services/pendingLessonQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type IssueFilter = "" | "gap" | "pending" | "leave"
 
@@ -112,7 +113,7 @@ export function LessonBalanceMismatchView() {
 
  return (
   <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <>
      <AdminPageHeader
       eyebrow="行政工作"

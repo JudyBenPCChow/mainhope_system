@@ -49,6 +49,7 @@ import {
  stackGroupsFromDiscount,
 } from "@/services/paymentDiscountQueries"
 import { fetchAcademicYearOptions, fetchSubjectOptions, type SubjectOption } from "@/services/classQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 function formatErr(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -568,7 +569,7 @@ export function PaymentDiscountsView() {
 
  return (
   <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="優惠折扣"

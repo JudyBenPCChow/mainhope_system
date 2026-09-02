@@ -83,6 +83,7 @@ import {
  isPrivateTutoringCacheFresh,
  setPrivateTutoringDataCache,
 } from "@/components/privateTutoring/privateTutoringState"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type Tab = "students" | "rooms"
 type PrivateCreateMode = "1to1" | "1to2"
@@ -1046,11 +1047,15 @@ export function PrivateTutoringView() {
 
  return (
   <div className={cn("space-y-5 text-sm leading-relaxed", pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
-     title="私人課程"
-     description="管理一對一及一對二私人課程。"
+     title={isTeacherPortal ? "我的私人課程" : "私人課程"}
+     description={
+      isTeacherPortal
+       ? "查看指派給你的私人課程（一對一／一對二）學生與排程。"
+       : "管理一對一及一對二私人課程。"
+     }
      actions={
       canManageEnrollment ? (
        <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>

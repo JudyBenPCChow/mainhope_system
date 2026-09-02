@@ -22,6 +22,7 @@ import {
  isEnrollmentChangesCacheFresh,
  setEnrollmentChangesDataCache,
 } from "@/components/enrollment/enrollmentChangesState"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type ActionFilter = "" | "enroll" | "withdraw"
 
@@ -118,7 +119,7 @@ export function EnrollmentChangesView() {
 
  return (
   <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="增退紀錄"

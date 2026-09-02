@@ -10,6 +10,7 @@ import {
  filterAdminFeatureSections,
  resolveAdminPageTitle,
  resolveAdminWorkspacePath,
+ workspaceTabsForRole,
 } from "@/lib/adminNavigation"
 import { buildFeatureSections } from "@/lib/navStructure"
 import { resolveMobilePageTitle } from "@/lib/mobileNav"
@@ -109,6 +110,18 @@ describe("行政頁內導航", () => {
   expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toBe("管理專科班、專科校曆及教學紀錄。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toBe("管理功課輔導的今日情況、報讀、月費、當值與校曆。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toBe("查閱日記帳紀錄及新增入帳。")
+ })
+
+ it("管理層專科工作域只見其可見分頁", () => {
+  expect(workspaceTabsForRole("specialty", "manager").map((t) => t.path)).toEqual([
+   "/Classes",
+   "/AcademicCalendar",
+   "/TeachingRecords",
+  ])
+  expect(workspaceTabsForRole("payments", "manager").map((t) => t.path)).toEqual([
+   "/PaymentHistory",
+  ])
+  expect(workspaceTabsForRole("homework", "manager")).toEqual([])
  })
 })
 

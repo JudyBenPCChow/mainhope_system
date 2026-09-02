@@ -36,6 +36,7 @@ import {
   type TeacherLeaveLessonUnit,
   type TeacherLeaveStudent,
 } from "@/services/teacherLeaveWizardQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type LessonDecision =
   | { action: "unset" }
@@ -431,7 +432,7 @@ export function TeacherLeaveWizardView() {
 
   return (
     <div className={cn("mx-auto max-w-4xl space-y-5", pagePadClass(role, "p-4 md:p-6"))}>
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"
           title="老師請假處理"

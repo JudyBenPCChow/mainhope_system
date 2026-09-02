@@ -68,6 +68,7 @@ import {
  hitsHaveBillable,
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
@@ -787,7 +788,7 @@ export function TrialSessionsView() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="試堂紀錄"

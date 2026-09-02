@@ -55,6 +55,7 @@ import {
  isAttendanceRecordsCacheFresh,
  setAttendanceRecordsDataCache,
 } from "@/components/attendance/attendanceRecordsState"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 type ViewMode = "today" | "month" | "kanban"
 
 function currentMonthRange(): DateRangeValue {
@@ -311,7 +312,7 @@ export function AttendanceRecordsPage() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="出席紀錄"

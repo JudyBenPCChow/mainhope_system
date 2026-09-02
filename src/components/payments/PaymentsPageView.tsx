@@ -122,6 +122,7 @@ import {
 } from "@/services/studentQueries"
 import { fetchRelativesForStudent, type StudentRelativeRow } from "@/services/studentRelationshipQueries"
 import { isStudentNewToMingXue } from "@/services/referralQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type CollectMode = "receive" | "invoice"
 type CollectKind = "homework" | "specialist"
@@ -1455,7 +1456,7 @@ export function PaymentsPageView() {
 
  return (
   <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="收款登記"

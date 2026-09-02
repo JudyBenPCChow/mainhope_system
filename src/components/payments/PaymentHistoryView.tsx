@@ -68,6 +68,7 @@ import {
  type PaymentHistoryStatusFilter,
 } from "@/components/payments/paymentHistoryState"
 import { bumpRequestGeneration, isLiveRequestGeneration } from "@/lib/requestGeneration"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 function downloadPaymentsCsv(filename: string, rows: PaymentListRow[]) {
  const header = ["單號", "日期", "學生", "學號", "金額", "方法", "狀態"]
@@ -410,7 +411,7 @@ export function PaymentHistoryView() {
 
  return (
   <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="繳費紀錄"

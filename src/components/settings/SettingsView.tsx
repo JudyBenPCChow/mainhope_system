@@ -19,6 +19,7 @@ import {
 } from "@/services/authAccountQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { cn } from "@/lib/utils"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function SettingsView() {
   const { pushBanner } = useAppBanner()
@@ -116,7 +117,7 @@ export function SettingsView() {
 
   return (
     <div className={cn("space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"
           title="設定"

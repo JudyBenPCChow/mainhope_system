@@ -18,6 +18,7 @@ import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisibl
 import { cn } from "@/lib/utils"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
@@ -42,7 +43,7 @@ export function AllFeaturesView() {
 
  return (
   <div className="space-y-6">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="網站地圖"
      title="所有功能"

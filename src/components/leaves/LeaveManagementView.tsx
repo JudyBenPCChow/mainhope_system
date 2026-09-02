@@ -65,6 +65,7 @@ import {
  isLeaveManagementCacheFresh,
  setLeaveManagementDataCache,
 } from "@/components/leaves/leaveManagementState"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type StatusTab = "all" | "pending" | "done" | "abandoned"
 
@@ -671,7 +672,7 @@ export function LeaveManagementView() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="請假管理"

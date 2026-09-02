@@ -79,6 +79,7 @@ import {
  type ClassRecord,
 } from "@/services/classQueries"
 import { fetchEnrollmentRosterByClassIds, fetchScheduleSummariesByClassIds, type ClassScheduleSummary } from "@/services/scheduleQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const cardInteractive =
  "cursor-pointer rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:border-primary/40 hover:shadow-md active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
@@ -736,18 +737,18 @@ export function ClassesListPage() {
     </div>
    ) : null}
 
-   <div className={role === "admin" ? "space-y-6" : undefined}>
+   <div className={usesSharedAppShell(role) ? "space-y-6" : undefined}>
    <div
     className={
-     role === "admin"
+     usesSharedAppShell(role)
       ? adminPageHeaderLayoutClass
       : "flex flex-wrap items-center justify-between gap-4"
     }
    >
-    {role === "admin" ? (
+    {usesSharedAppShell(role) ? (
      <AdminPageHeading
       eyebrow="工作域"
-      title="班別管理"
+      title={teacherTid ? "我的班別" : "班別管理"}
       description={ADMIN_WORKSPACE_DESCRIPTION.specialty}
       titleExtra={
        <Tag tone="info" size="sm">
