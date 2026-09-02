@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { Banknote, BookOpen, ClipboardCheck, FileText, History, MessageCircle, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import {
  DEFAULT_LESSON_COUNT,
  DEFAULT_TRIAL_LESSON_COUNT,
@@ -135,7 +137,7 @@ function coverageMonthFromPayDate(payDate: string): string {
 export function PaymentsPageView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const canEditDiscountCatalog = can(profile?.activeCapabilities, "catalog.manage")
  const [searchParams, setSearchParams] = useSearchParams()
  const [collectMode, setCollectMode] = useState<CollectMode>("receive")
@@ -1449,28 +1451,38 @@ export function PaymentsPageView() {
 
  return (
   <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4">
-    <div>
-     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Wallet className="h-8 w-8 text-warning" aria-hidden />
-      收款登記
-     </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      內部行政收款：先確認學生與應收內容，再登記已收款或待收款。下期學費請用文字提醒家長，勿再開收據式待繳費單。
-     </p>
-     <p className="mt-1 text-sm text-muted-foreground md:hidden">
-      先揀學生再出單。複雜折扣或大量明細建議用桌面。
-     </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="outline" asChild>
-      <Link to="/PaymentHistory">
-       <History className="h-4 w-4" />
-       繳費紀錄
-      </Link>
-     </Button>
-    </div>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="工作域"
+     title="收款登記"
+     description="登記學費、檢視繳費紀錄及管理優惠折扣。"
+    />
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+     <div>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+       <Wallet className="h-8 w-8 text-warning" aria-hidden />
+       收款登記
+      </h1>
+      <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+       內部行政收款：先確認學生與應收內容，再登記已收款或待收款。下期學費請用文字提醒家長，勿再開收據式待繳費單。
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground md:hidden">
+       先揀學生再出單。複雜折扣或大量明細建議用桌面。
+      </p>
+     </div>
+     <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" asChild>
+       <Link to="/PaymentHistory">
+        <History className="h-4 w-4" />
+        繳費紀錄
+       </Link>
+      </Button>
+     </div>
+    </header>
+   )}
+
+   <AdminWorkspaceNav workspace="payments" />
 
    {formErr ? (
     <div

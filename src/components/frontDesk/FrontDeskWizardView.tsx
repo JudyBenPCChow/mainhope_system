@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { EnrollClassStep } from "@/components/frontDesk/steps/EnrollClassStep"
 import { LeaveStep } from "@/components/frontDesk/steps/LeaveStep"
 import { PaymentStep } from "@/components/frontDesk/steps/PaymentStep"
@@ -8,6 +9,7 @@ import { RegisterStudentStep } from "@/components/frontDesk/steps/RegisterStuden
 import { STEP_LABELS, type WizardStep, type WizardSummary } from "@/components/frontDesk/frontDeskUi"
 import { Button } from "@/components/ui/button"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
@@ -19,6 +21,7 @@ function stepTitle(step: WizardStep | "done"): string {
 }
 
 export function FrontDeskWizardView() {
+ const { role } = useAuth()
  const { confirmDialog } = useAppConfirm()
  const [searchParams, setSearchParams] = useSearchParams()
  const [step, setStep] = useState<WizardStep | "done">(1)
@@ -140,24 +143,46 @@ export function FrontDeskWizardView() {
 
  return (
   <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
-   <div className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <h1 className="text-xl font-semibold">前台指引精靈</h1>
-     <p className="text-sm text-muted-foreground">
-      {step === "done"
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="前台指引精靈"
+     description={
+      step === "done"
        ? "流程已完成"
-       : `步驟 ${step}/4：${stepTitle(step)}`}
-     </p>
+       : `步驟 ${step}/4：${stepTitle(step)}`
+     }
+     actions={
+      <>
+       <Button type="button" variant="outline" size="sm" onClick={() => void restart()}>
+        重新開始
+       </Button>
+       <Button type="button" variant="outline" size="sm" asChild>
+        <Link to="/Students">返回學生管理</Link>
+       </Button>
+      </>
+     }
+    />
+   ) : (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+     <div>
+      <h1 className="text-xl font-semibold">前台指引精靈</h1>
+      <p className="text-sm text-muted-foreground">
+       {step === "done"
+        ? "流程已完成"
+        : `步驟 ${step}/4：${stepTitle(step)}`}
+      </p>
+     </div>
+     <div className="flex flex-wrap gap-2">
+      <Button type="button" variant="outline" size="sm" onClick={() => void restart()}>
+       重新開始
+      </Button>
+      <Button type="button" variant="outline" size="sm" asChild>
+       <Link to="/Students">返回學生管理</Link>
+      </Button>
+     </div>
     </div>
-    <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="outline" size="sm" onClick={() => void restart()}>
-      重新開始
-     </Button>
-     <Button type="button" variant="outline" size="sm" asChild>
-      <Link to="/Students">返回學生管理</Link>
-     </Button>
-    </div>
-   </div>
+   )}
 
    <ol className="grid gap-2 sm:grid-cols-4" aria-label="精靈步驟">
     {STEP_LABELS.map((label, i) => {

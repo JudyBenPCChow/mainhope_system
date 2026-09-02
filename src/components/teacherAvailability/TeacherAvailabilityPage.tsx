@@ -5,6 +5,7 @@ import {
  AvailabilityWeekGrid,
  navigateToClassNewFromSlot,
 } from "@/components/teacherAvailability/AvailabilityWeekGrid"
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AvailabilityRoomDayView } from "@/components/teacherAvailability/AvailabilityRoomDayView"
 import {
  QuickClassFromSlotDialog,
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
@@ -45,6 +47,7 @@ type Tab = "pattern" | "grid" | "roomDay" | "list"
 export function TeacherAvailabilityPage() {
  const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
+ const { role } = useAuth()
  const [tab, setTab] = useState<Tab>("pattern")
  const [years, setYears] = useState<AcademicYearRange[]>([])
  const [yearId, setYearId] = useState("")
@@ -200,12 +203,20 @@ export function TeacherAvailabilityPage() {
 
  return (
   <div className="space-y-5 p-4 md:p-6">
-   <div>
-    <h1 className="text-xl font-semibold">老師可任教檔期</h1>
-    <p className="text-sm text-muted-foreground">
-     登記老師有空時間，供開班前參考；班別開始後的改期請在排程管理處理。
-    </p>
-   </div>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="老師檔期規劃"
+     description="登記老師可任教時段，供開班前參考。"
+    />
+   ) : (
+    <div>
+     <h1 className="text-xl font-semibold">老師可任教檔期</h1>
+     <p className="text-sm text-muted-foreground">
+      登記老師有空時間，供開班前參考；班別開始後的改期請在排程管理處理。
+     </p>
+    </div>
+   )}
 
    <div className="flex flex-wrap gap-3">
     <div>

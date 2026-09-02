@@ -21,7 +21,7 @@ export type SandboxNavItem<T extends string> = {
   icon: LucideIcon
 }
 
-/** 側欄一級「功課輔導」底下的各頁（唔用頁內標籤） */
+/** 功課輔導各角色可用頁；行政另以頁內導航呈現，其他角色維持原側欄結構。 */
 export const ADMIN_NAV: SandboxNavItem<AdminPageId>[] = [
   { value: "overview", label: "概覽", icon: LayoutDashboard },
   { value: "students", label: "報讀學生", icon: Users },

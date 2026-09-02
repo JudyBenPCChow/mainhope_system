@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ChevronDown, NotebookPen, Search } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
 import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-input"
@@ -42,7 +44,7 @@ function snippet(text: string, max = 90): string {
 }
 
 export function TeachingRecordsPage() {
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const teacherTid = getTeacherScopeTeacherId(profile)
  const [dateRange, setDateRange] = useState<DateRangeValue>(() => defaultRange())
  const initialNotesCache = getTeachingRecordsDataCache()
@@ -126,15 +128,25 @@ export function TeachingRecordsPage() {
 
  return (
   <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
-   <header className="space-y-1">
-    <div className="flex items-center gap-2">
-     <NotebookPen className="h-6 w-6 text-info" aria-hidden />
-     <h1 className="text-2xl font-semibold tracking-tight">教學紀錄</h1>
-    </div>
-    <p className="text-sm text-muted-foreground md:text-base">
-     選填備忘，方便日後回查進度；亦可於點名或排程詳情隨手記下。
-    </p>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="工作域"
+     title="教學紀錄"
+     description="管理專科班、專科校曆及教學紀錄。"
+    />
+   ) : (
+    <header className="space-y-1">
+     <div className="flex items-center gap-2">
+      <NotebookPen className="h-6 w-6 text-info" aria-hidden />
+      <h1 className="text-2xl font-semibold tracking-tight">教學紀錄</h1>
+     </div>
+     <p className="text-sm text-muted-foreground md:text-base">
+      選填備忘，方便日後回查進度；亦可於點名或排程詳情隨手記下。
+     </p>
+    </header>
+   )}
+
+   <AdminWorkspaceNav workspace="specialty" />
 
    {!isSupabaseConfigured ? (
     <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">

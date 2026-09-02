@@ -14,6 +14,7 @@ import {
 } from "lucide-react"
 
 import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { Select } from "@/components/ui/select"
@@ -21,6 +22,7 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isPrimaryStudentGrade } from "@/lib/studentGrade"
@@ -804,6 +806,7 @@ function ByStudentPanel({
 }
 
 export function PromotionMatchView() {
+  const { role } = useAuth()
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [allClassBundles, setAllClassBundles] = useState<ClassMatchBundle[]>([])
@@ -924,31 +927,54 @@ export function PromotionMatchView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-            宣傳配對
-          </h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {mode === "byClass"
-              ? "以 2627 常規專科班為單位，找出年級合適、時段無衝突的已註冊學生。預設顯示暑期曾讀本科、尚未報讀該科的學生。"
-              : "以已註冊學生為單位，按年級／2526／2627／暑期報讀篩選，列出可宣傳跟進的 2627 班別。"}
-          </p>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="宣傳配對"
+          description="依班別或學生篩選常規專科班，找出可宣傳跟進對象。"
+          actions={
+            <>
+              <ModeToggle mode={mode} onChange={setMode} />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={loading}
+                onClick={() => void load()}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+                重新整理
+              </Button>
+            </>
+          }
+        />
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              宣傳配對
+            </h1>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              {mode === "byClass"
+                ? "以 2627 常規專科班為單位，找出年級合適、時段無衝突的已註冊學生。預設顯示暑期曾讀本科、尚未報讀該科的學生。"
+                : "以已註冊學生為單位，按年級／2526／2627／暑期報讀篩選，列出可宣傳跟進的 2627 班別。"}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <ModeToggle mode={mode} onChange={setMode} />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={loading}
+              onClick={() => void load()}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+              重新整理
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <ModeToggle mode={mode} onChange={setMode} />
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={loading}
-            onClick={() => void load()}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
-            重新整理
-          </Button>
-        </div>
-      </div>
+      )}
 
       {err ? (
         <div

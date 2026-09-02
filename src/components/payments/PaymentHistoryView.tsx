@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { History, Search, SlidersHorizontal, Wallet, Download } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import {
  FormField,
@@ -91,7 +93,7 @@ function downloadPaymentsCsv(filename: string, rows: PaymentListRow[]) {
 
 export function PaymentHistoryView() {
  const isMobile = useIsMobile()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const { confirmDialog } = useAppConfirm()
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
@@ -404,6 +406,47 @@ export function PaymentHistoryView() {
 
  return (
   <div className="space-y-6 md:p-6">
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="工作域"
+     title="繳費紀錄"
+     description={
+      <>
+       查詢收款、下載收據及處理待收款紀錄。
+       <span className="hidden lg:inline">
+        {" "}資料範圍：{includeOlderYears || histFrom || filterStudentId
+         ? "跟目前篩選"
+         : appliedFromYmd
+           ? `日常營運窗（收款日起 ${appliedFromYmd}）`
+           : "目前清單"}
+        。
+       </span>
+      </>
+     }
+     actions={
+      <>
+       <Button
+        type="button"
+        variant="outline"
+        disabled={!isSupabaseConfigured || exporting}
+        onClick={() => void exportList("filtered")}
+       >
+        <Download className="h-4 w-4" />
+        {exporting ? "匯出中…" : "匯出 CSV"}
+       </Button>
+       <Button
+        type="button"
+        variant="outline"
+        disabled={!isSupabaseConfigured || exporting}
+        onClick={() => void exportList("audit")}
+       >
+        <Download className="h-4 w-4" />
+        匯出全部（核數）
+       </Button>
+      </>
+     }
+    />
+   ) : (
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -452,6 +495,9 @@ export function PaymentHistoryView() {
      </Button>
     </div>
    </header>
+   )}
+
+   <AdminWorkspaceNav workspace="payments" />
 
    {formErr ? (
     <div

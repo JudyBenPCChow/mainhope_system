@@ -6,12 +6,19 @@ import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatMgmtRoleLabel, type MgmtRole } from "@/lib/mgmtRole"
 
-export function RoleSwitcher() {
+type RoleSwitcherProps = {
+ variant?: "default" | "card"
+}
+
+export function RoleSwitcher({ variant = "default" }: RoleSwitcherProps) {
  const { profile, role, switchRole } = useAuth()
  const { pushBanner } = useAppBanner()
  const [switching, setSwitching] = useState(false)
 
- if (!profile || !role || profile.availableRoles.length < 2) return null
+ if (!profile || !role) return null
+
+ const canSwitch = profile.availableRoles.length >= 2
+ if (!canSwitch && variant === "default") return null
 
  const handleChange = async (nextRole: MgmtRole) => {
   if (nextRole === role || switching) return
@@ -28,6 +35,35 @@ export function RoleSwitcher() {
    })
    setSwitching(false)
   }
+ }
+
+ if (variant === "card") {
+  return (
+   <div className="rounded-[0.5625rem] border border-white/12 bg-white/8 px-2.5 py-2">
+    <div className="text-[0.7rem] font-semibold tracking-[0.03em] text-white/65">
+     目前操作身份
+    </div>
+    {canSwitch ? (
+     <Select
+      value={role}
+      disabled={switching}
+      aria-label="目前操作身份"
+      className="mt-1 min-h-8 border-white/15 bg-white/8 px-2 text-[0.84rem] font-semibold text-white shadow-none hover:border-white/30"
+      onChange={(event) => void handleChange(event.target.value as MgmtRole)}
+     >
+      {profile.availableRoles.map((availableRole) => (
+       <option key={availableRole} value={availableRole}>
+        {formatMgmtRoleLabel(availableRole)}
+       </option>
+      ))}
+     </Select>
+    ) : (
+     <div className="mt-0.5 text-[0.84rem] font-semibold text-white">
+      {formatMgmtRoleLabel(role)}
+     </div>
+    )}
+   </div>
+  )
  }
 
  return (

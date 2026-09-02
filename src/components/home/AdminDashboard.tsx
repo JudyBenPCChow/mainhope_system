@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminHomeStudentsTrialsPanel } from "@/components/home/AdminHomeStudentsTrialsPanel"
 import { AdminQuickActions } from "@/components/home/AdminQuickActions"
 import { DashboardBoard } from "@/components/home/DashboardBoard"
@@ -114,31 +115,28 @@ export function AdminDashboard() {
 
  return (
   <div className="space-y-4 md:space-y-6 md:p-6 lg:space-y-8">
-   <header className="flex flex-wrap items-end justify-between gap-3 md:gap-4">
-    <div>
-     <p className="text-sm font-medium uppercase tracking-wide text-info/90">管理中心</p>
-     <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground md:mt-2 md:text-4xl">
-      你好，{greetingName}！
-     </h1>
-     <p className="mt-1 text-sm text-muted-foreground md:mt-2 md:text-lg">
-      {isMobile ? dashboardTitleDate() : <>今日 {dashboardTitleDate()} · 儀表板與班務總覽</>}
-     </p>
-    </div>
-    {/* 手機登出在側滑選單 */}
-    <Button
-     type="button"
-     variant="outline"
-     size="default"
-     className="hidden md:inline-flex"
-     onClick={async () => {
-      await signOutAuth()
-      clearAuthState()
-      window.location.href = "/Login"
-     }}
-    >
-     登出
-    </Button>
-   </header>
+   <AdminPageHeader
+    eyebrow="管理中心"
+    title={`你好，${greetingName}！`}
+    description={
+     isMobile ? dashboardTitleDate() : <>今日 {dashboardTitleDate()} · 儀表板與班務總覽</>
+    }
+    actions={
+     <Button
+      type="button"
+      variant="outline"
+      size="default"
+      className="hidden md:inline-flex"
+      onClick={async () => {
+       await signOutAuth()
+       clearAuthState()
+       window.location.href = "/Login"
+      }}
+     >
+      登出
+     </Button>
+    }
+   />
 
    {!isSupabaseConfigured ? (
     <div

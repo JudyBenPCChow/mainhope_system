@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { KeyRound, ListFilter, Mail, Settings } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { StatusToggle } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -114,16 +115,24 @@ export function SettingsView() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <header className="space-y-2 border-b border-border/80 pb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
-          <Settings className="h-8 w-8 shrink-0 text-info" aria-hidden />
-          設定
-        </h1>
-        <p className="max-w-prose text-sm text-muted-foreground md:text-base">
-          管理登入帳號密碼
-          {canToggleSoftArchive ? "，以及本機日常名單收窄開關。" : "。臨時密碼登入後建議改成自己記得的密碼。"}
-        </p>
-      </header>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="設定"
+          description="管理登入密碼及日常顯示設定。"
+        />
+      ) : (
+        <header className="space-y-2 border-b border-border/80 pb-6">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
+            <Settings className="h-8 w-8 shrink-0 text-info" aria-hidden />
+            設定
+          </h1>
+          <p className="max-w-prose text-sm text-muted-foreground md:text-base">
+            管理登入帳號密碼
+            {canToggleSoftArchive ? "，以及本機日常名單收窄開關。" : "。臨時密碼登入後建議改成自己記得的密碼。"}
+          </p>
+        </header>
+      )}
 
       {mustChange ? (
         <div

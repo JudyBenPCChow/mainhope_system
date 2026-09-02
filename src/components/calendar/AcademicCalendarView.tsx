@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { CalendarX, Plus, Trash2, Upload } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
@@ -8,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
@@ -41,6 +44,7 @@ function parseImportText(text: string): Array<{ closureDate: string; name: strin
 export function AcademicCalendarView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const { role } = useAuth()
  const [years, setYears] = useState<AcademicYearRange[]>([])
  const [yearId, setYearId] = useState("")
  const [rows, setRows] = useState<AcademicCalendarClosure[]>([])
@@ -204,15 +208,25 @@ export function AcademicCalendarView() {
 
  return (
   <div className="mx-auto max-w-6xl space-y-6">
-   <header>
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <CalendarX className="h-7 w-7 text-warning" aria-hidden />
-     校曆
-    </h1>
-    <p className="mt-1 text-sm text-muted-foreground">
-     登記本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
-    </p>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="工作域"
+     title="專科校曆"
+     description="管理專科班、專科校曆及教學紀錄。"
+    />
+   ) : (
+    <header>
+     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      <CalendarX className="h-7 w-7 text-warning" aria-hidden />
+      校曆
+     </h1>
+     <p className="mt-1 text-sm text-muted-foreground">
+      登記本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
+     </p>
+    </header>
+   )}
+
+   <AdminWorkspaceNav workspace="specialty" />
 
    <section className="rounded-xl border border-border bg-card p-4">
     <label className="text-sm font-medium" htmlFor="calendar-year">

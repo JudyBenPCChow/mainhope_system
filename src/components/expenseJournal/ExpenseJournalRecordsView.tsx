@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ScrollText } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { ExpenseJournalList } from "@/components/expenseJournal/ExpenseJournalList"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/authBootstrap"
@@ -13,7 +15,7 @@ import {
 } from "@/services/expenseQueries"
 
 export function ExpenseJournalRecordsView() {
-  const { profile } = useAuth()
+  const { profile, role } = useAuth()
   const caps = profile?.activeCapabilities
   const canReadFullLedger = can(caps, "expenses.read")
   const [monthKey, setMonthKey] = useState(currentExpenseMonthKey)
@@ -37,6 +39,27 @@ export function ExpenseJournalRecordsView() {
 
   return (
     <div className="space-y-6">
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="工作域"
+          title="日記帳紀錄"
+          description="查閱日記帳紀錄及新增入帳。"
+          actions={
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>月份</span>
+              <Input
+                type="month"
+                className="w-[10.5rem]"
+                value={monthInputValue}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (/^\d{4}-\d{2}$/.test(v)) setMonthKey(v)
+                }}
+              />
+            </label>
+          }
+        />
+      ) : (
       <header className="space-y-1">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -62,6 +85,8 @@ export function ExpenseJournalRecordsView() {
             : "只顯示日常小支出日記帳。租金、人工等結構成本由管理層查閱。"}
         </p>
       </header>
+      )}
+      <AdminWorkspaceNav workspace="journal" />
       {err ? (
         <div
           role="alert"

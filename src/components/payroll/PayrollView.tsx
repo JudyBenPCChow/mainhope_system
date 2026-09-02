@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useSearchParams } from "react-router-dom"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Select } from "@/components/ui/select"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
@@ -468,6 +469,29 @@ export function PayrollView() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
+      {realRole === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="計糧"
+          description="審核及提交每月老師薪酬，並按需要切換財務或管理層工作台。"
+          actions={
+            <label className="block min-w-[12rem]">
+              <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                預覽身份
+              </span>
+              <Select
+                aria-label="預覽身份"
+                value={previewRole}
+                onChange={(e) => setPreviewRole(e.target.value as PayrollPreviewRole)}
+              >
+                <option value="finance">財務 — 計糧工作台</option>
+                <option value="manager">管理層 — 計糧核實</option>
+              </Select>
+            </label>
+          }
+        />
+      ) : null}
+      {realRole !== "admin" ? (
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           {isFinanceUser ? (
@@ -499,6 +523,7 @@ export function PayrollView() {
           正式資料 · 點名／排程即時計算
         </p>
       </div>
+      ) : null}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">載入計糧中…</p>
@@ -531,6 +556,7 @@ export function PayrollView() {
           initialTeacherId={initialTeacherId}
           initialLessonId={initialLessonId}
           monthSelect={monthSelect}
+          compactHeader={realRole === "admin"}
         />
       ) : (
         <ManagerPayrollView
@@ -547,6 +573,7 @@ export function PayrollView() {
           onResolveTeacherSubmit={onResolveTeacherSubmit}
           onCodyApprove={onCodyApprove}
           monthSelect={monthSelect}
+          compactHeader={realRole === "admin"}
         />
       )}
     </div>

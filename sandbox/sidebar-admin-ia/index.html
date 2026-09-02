@@ -1,0 +1,1441 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>明學教育 — 行政側欄 IA 沙盒</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --brand-950: #172d57;
+      --brand-900: #1e3a6e;
+      --brand-700: #2a4e8a;
+      --brand-500: #3b6ab3;
+      --primary: #2563eb;
+      --primary-soft: #eff6ff;
+      --background: #f4f7fb;
+      --card: #ffffff;
+      --foreground: #172033;
+      --muted: #64748b;
+      --border: #dde4ee;
+      --success: #15803d;
+      --warning: #c26908;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 24px rgba(15, 23, 42, .05);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      color: var(--foreground);
+      background: var(--background);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    button, input, select { font: inherit; }
+
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .app-shell {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+      min-height: 620px;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      width: 256px;
+      min-width: 256px;
+      height: 100%;
+      flex-direction: column;
+      overflow: hidden;
+      color: #fff;
+      background: linear-gradient(180deg, var(--brand-900) 0%, var(--brand-700) 58%, var(--brand-500) 100%);
+      border-right: 1px solid rgba(255, 255, 255, .12);
+      box-shadow: 6px 0 28px -12px rgba(23, 45, 87, .58);
+      transition: width 180ms ease, min-width 180ms ease;
+    }
+
+    .sidebar.collapsed {
+      width: 68px;
+      min-width: 68px;
+    }
+
+    .brand-row {
+      display: flex;
+      min-height: 74px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px 12px 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, .12);
+    }
+
+    .brand-copy {
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .brand-name {
+      font-size: 1.02rem;
+      font-weight: 700;
+      letter-spacing: -.015em;
+    }
+
+    .brand-subtitle {
+      margin-top: 1px;
+      color: rgba(255, 255, 255, .72);
+      font-size: .8rem;
+    }
+
+    .sidebar.collapsed .brand-copy,
+    .sidebar.collapsed .footer-copy,
+    .sidebar.collapsed .role-card {
+      display: none;
+    }
+
+    .icon-button {
+      display: inline-flex;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 10px;
+      color: #fff;
+      background: rgba(255, 255, 255, .08);
+      cursor: pointer;
+      transition: background 160ms ease;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible {
+      background: rgba(255, 255, 255, .18);
+      outline: none;
+    }
+
+    .sidebar.collapsed .brand-row {
+      justify-content: center;
+      padding-inline: 10px;
+    }
+
+    .nav-list {
+      display: flex;
+      min-height: 0;
+      flex: 1;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 14px 12px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, .25) transparent;
+    }
+
+    .sidebar.collapsed .nav-list {
+      align-items: center;
+      padding-inline: 10px;
+    }
+
+    .nav-item,
+    .group-button {
+      display: flex;
+      width: 100%;
+      min-height: 40px;
+      align-items: center;
+      gap: 11px;
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 11px;
+      color: rgba(255, 255, 255, .92);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 160ms ease, box-shadow 160ms ease;
+    }
+
+    .nav-item:hover,
+    .group-button:hover,
+    .nav-item:focus-visible,
+    .group-button:focus-visible {
+      color: #fff;
+      background: rgba(255, 255, 255, .15);
+      outline: none;
+    }
+
+    .nav-item.active {
+      color: #fff;
+      background: rgba(255, 255, 255, .22);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14), 0 2px 8px rgba(23, 45, 87, .16);
+    }
+
+    .group-button.child-active {
+      background: rgba(255, 255, 255, .10);
+    }
+
+    .nav-label {
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: .95rem;
+      font-weight: 500;
+    }
+
+    .sidebar.collapsed .nav-item,
+    .sidebar.collapsed .group-button {
+      width: 42px;
+      justify-content: center;
+      padding-inline: 0;
+    }
+
+    .sidebar.collapsed .nav-label,
+    .sidebar.collapsed .chevron,
+    .sidebar.collapsed .subnav {
+      display: none;
+    }
+
+    .chevron {
+      width: 16px;
+      height: 16px;
+      transition: transform 160ms ease;
+    }
+
+    .group-button[aria-expanded="true"] .chevron {
+      transform: rotate(180deg);
+    }
+
+    .subnav {
+      display: grid;
+      gap: 2px;
+      margin: 2px 0 3px 17px;
+      padding: 3px 0 3px 11px;
+      border-left: 2px solid rgba(255, 255, 255, .22);
+    }
+
+    .subnav .nav-item {
+      min-height: 34px;
+      gap: 9px;
+      padding: 6px 9px;
+      border-radius: 8px;
+    }
+
+    .subnav .icon {
+      width: 17px;
+      height: 17px;
+    }
+
+    .subnav .nav-label {
+      font-size: .855rem;
+      font-weight: 500;
+    }
+
+    .sidebar-footer {
+      flex: 0 0 auto;
+      padding: 12px;
+      border-top: 1px solid rgba(255, 255, 255, .12);
+      background: linear-gradient(0deg, rgba(23, 45, 87, .48), transparent);
+    }
+
+    .role-card {
+      margin-bottom: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255, 255, 255, .12);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, .08);
+    }
+
+    .role-label {
+      color: rgba(255, 255, 255, .66);
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .03em;
+    }
+
+    .role-value {
+      margin-top: 1px;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+
+    .footer-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .footer-link {
+      display: flex;
+      min-width: 0;
+      height: 38px;
+      flex: 1;
+      align-items: center;
+      gap: 9px;
+      border: 0;
+      border-radius: 9px;
+      padding: 0 10px;
+      color: rgba(255, 255, 255, .9);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .footer-link:hover,
+    .footer-link:focus-visible {
+      background: rgba(255, 255, 255, .12);
+      outline: none;
+    }
+
+    .sidebar.collapsed .sidebar-footer {
+      padding-inline: 10px;
+    }
+
+    .sidebar.collapsed .footer-actions {
+      flex-direction: column;
+    }
+
+    .sidebar.collapsed .footer-link {
+      width: 42px;
+      flex: 0 0 42px;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .main {
+      min-width: 0;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .sandbox-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      min-height: 58px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 22px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, .94);
+      backdrop-filter: blur(10px);
+    }
+
+    .sandbox-title {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sandbox-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 9px;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+      font-size: .72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .sandbox-heading {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .88rem;
+      font-weight: 600;
+    }
+
+    .view-controls {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .control-button {
+      min-height: 34px;
+      padding: 5px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: #475569;
+      background: #fff;
+      cursor: pointer;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .control-button:hover,
+    .control-button:focus-visible,
+    .control-button.active {
+      color: var(--primary);
+      border-color: #93c5fd;
+      background: var(--primary-soft);
+      outline: none;
+    }
+
+    .content {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 28px 30px 48px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      margin: 0 0 4px;
+      color: var(--primary);
+      font-size: .76rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.7rem, 3vw, 2.35rem);
+      line-height: 1.2;
+      letter-spacing: -.035em;
+    }
+
+    .page-description {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      border: 1px solid #bbf7d0;
+      border-radius: 999px;
+      color: var(--success);
+      background: #f0fdf4;
+      font-size: .78rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .metric-card,
+    .panel,
+    .feature-section {
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .metric-card {
+      padding: 17px 18px;
+    }
+
+    .metric-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .metric-icon {
+      display: inline-flex;
+      width: 34px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9px;
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .metric-value {
+      margin-top: 9px;
+      font-size: 1.7rem;
+      font-weight: 700;
+      letter-spacing: -.025em;
+    }
+
+    .metric-foot {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: .74rem;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr);
+      gap: 16px;
+    }
+
+    .panel {
+      padding: 18px;
+    }
+
+    .panel-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 13px;
+    }
+
+    .panel h2 {
+      margin: 0;
+      font-size: 1rem;
+      letter-spacing: -.015em;
+    }
+
+    .text-button {
+      border: 0;
+      color: var(--primary);
+      background: transparent;
+      cursor: pointer;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+
+    .schedule-list,
+    .notice-list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .schedule-row,
+    .notice-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 11px;
+      border: 1px solid #edf0f5;
+      border-radius: 9px;
+      background: #fbfcfe;
+    }
+
+    .time-block {
+      min-width: 63px;
+      color: var(--primary);
+      font-size: .78rem;
+      font-weight: 700;
+    }
+
+    .row-main {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .row-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+
+    .row-meta {
+      margin-top: 1px;
+      color: var(--muted);
+      font-size: .72rem;
+    }
+
+    .tiny-tag {
+      flex: 0 0 auto;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: var(--success);
+      background: #dcfce7;
+      font-size: .67rem;
+      font-weight: 700;
+    }
+
+    .tiny-tag.warning {
+      color: var(--warning);
+      background: #ffedd5;
+    }
+
+    .workspace-panel {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    .workspace-body {
+      min-height: 330px;
+      padding: 22px;
+    }
+
+    .local-nav {
+      display: flex;
+      gap: 2px;
+      overflow-x: auto;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border);
+      scrollbar-width: thin;
+    }
+
+    .local-tab {
+      flex: 0 0 auto;
+      min-height: 47px;
+      margin-bottom: -1px;
+      padding: 0 12px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+      font-size: .84rem;
+      font-weight: 600;
+    }
+
+    .local-tab:hover,
+    .local-tab:focus-visible {
+      color: var(--foreground);
+      outline: none;
+    }
+
+    .local-tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .local-select-wrap {
+      display: none;
+      padding: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .local-select {
+      width: 100%;
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 7px 10px;
+      color: var(--foreground);
+      background: #fff;
+    }
+
+    .empty-illustration {
+      display: grid;
+      min-height: 260px;
+      place-items: center;
+      text-align: center;
+    }
+
+    .empty-icon {
+      display: inline-flex;
+      width: 52px;
+      height: 52px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+      border-radius: 14px;
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .empty-illustration h2 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .empty-illustration p {
+      max-width: 480px;
+      margin: 6px auto 0;
+      color: var(--muted);
+      font-size: .84rem;
+    }
+
+    .search-box {
+      position: relative;
+      width: min(480px, 100%);
+      margin-bottom: 18px;
+    }
+
+    .search-box .icon {
+      position: absolute;
+      top: 50%;
+      left: 12px;
+      width: 18px;
+      height: 18px;
+      color: #94a3b8;
+      transform: translateY(-50%);
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      min-height: 43px;
+      padding: 8px 13px 8px 39px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--foreground);
+      background: #fff;
+      outline: none;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, .03);
+    }
+
+    .search-input:focus {
+      border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, .11);
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature-section {
+      overflow: hidden;
+    }
+
+    .feature-section h2 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f8fafc;
+      font-size: .88rem;
+    }
+
+    .feature-list {
+      display: grid;
+    }
+
+    .feature-link {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 41px;
+      padding: 8px 13px;
+      border: 0;
+      border-bottom: 1px solid #eef2f7;
+      color: #334155;
+      background: #fff;
+      text-align: left;
+      cursor: pointer;
+      font-size: .8rem;
+    }
+
+    .feature-link:last-child { border-bottom: 0; }
+
+    .feature-link:hover,
+    .feature-link:focus-visible {
+      color: var(--primary);
+      background: var(--primary-soft);
+      outline: none;
+    }
+
+    .feature-link .icon {
+      width: 17px;
+      height: 17px;
+      color: #64748b;
+    }
+
+    .feature-empty {
+      display: none;
+      padding: 38px 16px;
+      color: var(--muted);
+      text-align: center;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .55);
+    }
+
+    .height-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .76rem;
+      white-space: nowrap;
+    }
+
+    .height-note strong { color: var(--foreground); }
+
+    @media (max-width: 980px) {
+      .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .dashboard-grid { grid-template-columns: 1fr; }
+      .height-note { display: none; }
+    }
+
+    @media (max-width: 760px) {
+      .app-shell { min-width: 680px; }
+      .sandbox-toolbar { padding-inline: 16px; }
+      .content { padding-inline: 20px; }
+      .metrics { grid-template-columns: 1fr; }
+      .page-header { align-items: flex-start; flex-direction: column; }
+      .local-nav { display: none; }
+      .local-select-wrap { display: block; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9"/><path d="M9 21v-7h6v7"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/><path d="m8 16 2 2 4-4"/></symbol>
+    <symbol id="i-clipboard" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 12l2 2 4-4M9 18h6"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v12H5a3 3 0 0 1-3-3V6"/><path d="M16 13h4"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/><path d="M4 5.5v14"/></symbol>
+    <symbol id="i-follow" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 9l-3 3 3 3"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 4h16l2 11v5H2v-5z"/><path d="M2 15h5l2 3h6l2-3h5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.15.37.36.7.6 1 .28.28.64.42 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></symbol>
+    <symbol id="i-graduation" viewBox="0 0 24 24"><path d="m2 10 10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5M22 10v6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><path d="M9 8h6M9 12h6M9 16h4"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  </svg>
+
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <div class="brand-copy">
+          <div class="brand-name">明學教育</div>
+          <div class="brand-subtitle">管理系統</div>
+        </div>
+        <button class="icon-button" id="collapseButton" type="button" aria-label="收起側欄" title="收起側欄">
+          <svg class="icon"><use href="#i-panel"></use></svg>
+        </button>
+      </div>
+
+      <nav class="nav-list" id="navList" aria-label="行政主選單"></nav>
+
+      <footer class="sidebar-footer">
+        <div class="role-card">
+          <div class="role-label">目前操作身份</div>
+          <div class="role-value">行政</div>
+        </div>
+        <div class="footer-actions">
+          <button class="footer-link" type="button" data-footer="inbox" title="收件匣">
+            <svg class="icon"><use href="#i-inbox"></use></svg>
+            <span class="footer-copy">收件匣</span>
+          </button>
+          <button class="icon-button" type="button" data-footer="settings" aria-label="設定" title="設定">
+            <svg class="icon"><use href="#i-settings"></use></svg>
+          </button>
+        </div>
+      </footer>
+    </aside>
+
+    <main class="main">
+      <div class="sandbox-toolbar">
+        <div class="sandbox-title">
+          <span class="sandbox-badge">UI 沙盒</span>
+          <span class="sandbox-heading">行政側欄 IA · 不連接正式系統</span>
+        </div>
+        <div class="view-controls" aria-label="側欄狀態預設">
+          <span class="height-note">常駐 <strong>8</strong> 列 · 現時顯示 <strong id="visibleCount">8</strong> 列</span>
+          <button class="control-button active" type="button" data-preset="default">預設</button>
+          <button class="control-button" type="button" data-preset="courses">展開課程</button>
+          <button class="control-button" type="button" data-preset="followup">展開跟進</button>
+          <button class="control-button" type="button" data-preset="collapsed">收合圖示</button>
+        </div>
+      </div>
+
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <script>
+    const icon = (name) => `<svg class="icon" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+
+    const navEntries = [
+      { kind: "item", id: "home", label: "首頁", icon: "home" },
+      { kind: "item", id: "students", label: "學生", icon: "users" },
+      { kind: "item", id: "schedule", label: "排程", icon: "calendar" },
+      { kind: "item", id: "rollcall", label: "點名", icon: "clipboard" },
+      { kind: "item", id: "collection", label: "收款登記", icon: "wallet" },
+      {
+        kind: "group",
+        id: "courses",
+        label: "課程",
+        icon: "book",
+        children: [
+          { id: "specialty", label: "專科班", icon: "book" },
+          { id: "private", label: "私人課程", icon: "users" },
+          { id: "homework", label: "功課輔導", icon: "clipboard" },
+        ],
+      },
+      {
+        kind: "group",
+        id: "followup",
+        label: "跟進與紀錄",
+        icon: "follow",
+        children: [
+          { id: "reminders", label: "課堂提醒", icon: "follow" },
+          { id: "leave", label: "請假管理", icon: "calendar" },
+          { id: "trials", label: "試堂紀錄", icon: "graduation" },
+          { id: "attendance-records", label: "出席紀錄", icon: "file" },
+        ],
+      },
+      { kind: "item", id: "all-features", label: "所有功能", icon: "grid" },
+    ];
+
+    const localNavigation = {
+      collection: ["收款登記", "繳費紀錄", "優惠折扣"],
+      specialty: ["班別管理", "專科校曆", "教學紀錄"],
+      homework: ["今日情況", "報讀學生", "月費", "當值編更", "功輔校曆", "設定"],
+      journal: ["日記帳紀錄", "入帳"],
+    };
+
+    const pageMeta = {
+      students: ["學生", "搜尋學生、檢視報讀及開啟學生紀錄。", "users"],
+      schedule: ["排程", "管理課堂排程、日期及實際授課老師。", "calendar"],
+      rollcall: ["點名", "進入今日課堂並完成點名。", "clipboard"],
+      collection: ["收款登記", "登記學費、檢視繳費紀錄及管理優惠折扣。", "wallet"],
+      specialty: ["班別管理", "管理專科班、專科校曆及教學紀錄。", "book"],
+      private: ["私人課程", "管理一對一及一對二私人課程。", "users"],
+      homework: ["今日情況", "檢視功課輔導班的今日情況及行政工作。", "clipboard"],
+      reminders: ["課堂提醒", "處理即將上課及需要行政跟進的項目。", "follow"],
+      leave: ["請假管理", "處理學生及老師請假紀錄。", "calendar"],
+      trials: ["試堂紀錄", "檢視及跟進試堂安排。", "graduation"],
+      "attendance-records": ["出席紀錄", "查閱已完成課堂的出席資料。", "file"],
+      journal: ["日記帳紀錄", "查閱日記帳紀錄及新增入帳。", "receipt"],
+      payroll: ["計糧", "處理老師計糧及核對紀錄。", "wallet"],
+      teachers: ["老師管理", "查閱及管理老師資料。", "users"],
+      inbox: ["收件匣", "查看系統訊息及需要處理的通知。", "inbox"],
+      settings: ["設定", "管理個人及系統顯示設定。", "settings"],
+    };
+
+    const featureSections = [
+      {
+        title: "首頁與收件匣",
+        icon: "home",
+        items: [
+          ["home", "首頁", "儀表板 今日"],
+          ["inbox", "收件匣", "訊息 通知"],
+        ],
+      },
+      {
+        title: "學生與報讀",
+        icon: "users",
+        items: [
+          ["students", "學生", "學生管理"],
+          ["enrollment-requests", "家長報讀申請", "申請 portal"],
+          ["enrollment-changes", "增退紀錄", "報讀 退讀"],
+          ["contact-update", "聯絡資料更新", "家長電話"],
+        ],
+      },
+      {
+        title: "課程與教學",
+        icon: "book",
+        items: [
+          ["specialty", "專科班", "班別 校曆 教學紀錄"],
+          ["private", "私人課程", "一對一 一對二"],
+          ["homework", "功課輔導", "功輔 月費 當值"],
+        ],
+      },
+      {
+        title: "排程、出席與跟進",
+        icon: "calendar",
+        items: [
+          ["schedule", "排程", "課堂"],
+          ["rollcall", "點名", "點名紙"],
+          ["reminders", "課堂提醒", "明日 跟進"],
+          ["leave", "請假管理", "學生 老師"],
+          ["trials", "試堂紀錄", "試堂"],
+          ["attendance-records", "出席紀錄", "出席 查詢"],
+        ],
+      },
+      {
+        title: "收款與帳務",
+        icon: "wallet",
+        items: [
+          ["collection", "收款登記", "學費 收款"],
+          ["payment-history", "繳費紀錄", "收據"],
+          ["discounts", "優惠折扣", "優惠"],
+          ["payment-correction", "單據／堂數更正", "已繳堂數"],
+          ["journal", "日記帳", "入帳 紀錄"],
+          ["payroll", "計糧", "老師 工資"],
+        ],
+      },
+      {
+        title: "教務與資源",
+        icon: "graduation",
+        items: [
+          ["teachers", "老師管理", "老師"],
+          ["teacher-availability", "老師檔期規劃", "檔期"],
+          ["new-class", "新增班別", "開班"],
+          ["classrooms", "課室管理", "房間"],
+          ["room-booking", "約房審批", "預約空房"],
+        ],
+      },
+      {
+        title: "報表與分析",
+        icon: "file",
+        items: [
+          ["balance-check", "堂數對帳", "核對"],
+          ["student-report", "學生報表", "匯出"],
+        ],
+      },
+      {
+        title: "工具與系統",
+        icon: "settings",
+        items: [
+          ["frontdesk-wizard", "前台指引精靈", "指引"],
+          ["teacher-leave-wizard", "老師請假處理", "精靈"],
+          ["script-library", "話術庫", "訊息"],
+          ["settings", "設定", "系統"],
+        ],
+      },
+    ];
+
+    const state = {
+      collapsed: false,
+      openGroup: null,
+      active: "home",
+      localTabs: {
+        collection: "收款登記",
+        specialty: "班別管理",
+        homework: "今日情況",
+        journal: "日記帳紀錄",
+      },
+    };
+
+    const sidebar = document.getElementById("sidebar");
+    const navList = document.getElementById("navList");
+    const content = document.getElementById("content");
+    const collapseButton = document.getElementById("collapseButton");
+    const visibleCount = document.getElementById("visibleCount");
+
+    function childGroupFor(id) {
+      return navEntries.find((entry) =>
+        entry.kind === "group" && entry.children.some((child) => child.id === id)
+      );
+    }
+
+    function renderNav() {
+      sidebar.classList.toggle("collapsed", state.collapsed);
+      collapseButton.setAttribute("aria-label", state.collapsed ? "展開側欄" : "收起側欄");
+      collapseButton.setAttribute("title", state.collapsed ? "展開側欄" : "收起側欄");
+
+      navList.innerHTML = navEntries.map((entry) => {
+        if (entry.kind === "item") {
+          const active = state.active === entry.id;
+          return `
+            <button
+              class="nav-item${active ? " active" : ""}"
+              type="button"
+              data-nav="${entry.id}"
+              aria-current="${active ? "page" : "false"}"
+              title="${entry.label}"
+            >
+              ${icon(entry.icon)}
+              <span class="nav-label">${entry.label}</span>
+            </button>
+          `;
+        }
+
+        const open = state.openGroup === entry.id;
+        const childActive = entry.children.some((child) => child.id === state.active);
+        const children = open ? `
+          <div class="subnav" aria-label="${entry.label}子頁">
+            ${entry.children.map((child) => `
+              <button
+                class="nav-item${state.active === child.id ? " active" : ""}"
+                type="button"
+                data-nav="${child.id}"
+                aria-current="${state.active === child.id ? "page" : "false"}"
+              >
+                ${icon(child.icon)}
+                <span class="nav-label">${child.label}</span>
+              </button>
+            `).join("")}
+          </div>
+        ` : "";
+
+        return `
+          <div>
+            <button
+              class="group-button${childActive ? " child-active" : ""}"
+              type="button"
+              data-group="${entry.id}"
+              aria-expanded="${open}"
+              title="${entry.label}"
+            >
+              ${icon(entry.icon)}
+              <span class="nav-label">${entry.label}</span>
+              <svg class="icon chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
+            </button>
+            ${children}
+          </div>
+        `;
+      }).join("");
+
+      const expandedChildren = state.openGroup
+        ? navEntries.find((entry) => entry.kind === "group" && entry.id === state.openGroup)?.children.length || 0
+        : 0;
+      visibleCount.textContent = state.collapsed ? "8" : String(8 + expandedChildren);
+      updatePresetButtons();
+    }
+
+    function renderHome() {
+      content.innerHTML = `
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">管理中心</p>
+            <h1>你好，行政同事！</h1>
+            <p class="page-description">今日 2026 年 9 月 3 日 · 儀表板與班務總覽</p>
+          </div>
+          <span class="status-chip"><span class="status-dot"></span>沙盒資料</span>
+        </header>
+
+        <section class="metrics" aria-label="今日摘要">
+          <article class="metric-card">
+            <div class="metric-top"><span>今日課堂</span><span class="metric-icon">${icon("calendar")}</span></div>
+            <div class="metric-value">18</div>
+            <div class="metric-foot">17:00 後尚有 11 堂</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-top"><span>待處理繳費</span><span class="metric-icon">${icon("wallet")}</span></div>
+            <div class="metric-value">6</div>
+            <div class="metric-foot">本週新增 2 項</div>
+          </article>
+          <article class="metric-card">
+            <div class="metric-top"><span>今日請假</span><span class="metric-icon">${icon("follow")}</span></div>
+            <div class="metric-value">3</div>
+            <div class="metric-foot">其中 1 項尚待跟進</div>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel">
+            <div class="panel-title-row">
+              <h2>即將開始的課堂</h2>
+              <button class="text-button" type="button" data-nav="schedule">查看排程</button>
+            </div>
+            <div class="schedule-list">
+              <div class="schedule-row">
+                <div class="time-block">15:30</div>
+                <div class="row-main"><div class="row-title">中二英文 A 班</div><div class="row-meta">山案座 · 陳老師</div></div>
+                <span class="tiny-tag">已準備</span>
+              </div>
+              <div class="schedule-row">
+                <div class="time-block">16:15</div>
+                <div class="row-main"><div class="row-title">中三數學 B 班</div><div class="row-meta">矩尺座 · 李老師</div></div>
+                <span class="tiny-tag warning">待點名</span>
+              </div>
+              <div class="schedule-row">
+                <div class="time-block">17:00</div>
+                <div class="row-main"><div class="row-title">功課輔導班</div><div class="row-meta">17D · 2 位當值老師</div></div>
+                <span class="tiny-tag">已編更</span>
+              </div>
+              <div class="schedule-row">
+                <div class="time-block">17:45</div>
+                <div class="row-main"><div class="row-title">中四化學</div><div class="row-meta">英仙座 · 王老師</div></div>
+                <span class="tiny-tag">已準備</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-title-row">
+              <h2>需要跟進</h2>
+              <button class="text-button" type="button" data-group-open="followup">展開跟進群組</button>
+            </div>
+            <div class="notice-list">
+              <div class="notice-row">
+                <span class="metric-icon">${icon("follow")}</span>
+                <div class="row-main"><div class="row-title">明日課堂提醒</div><div class="row-meta">4 項需要確認</div></div>
+              </div>
+              <div class="notice-row">
+                <span class="metric-icon">${icon("graduation")}</span>
+                <div class="row-main"><div class="row-title">試堂跟進</div><div class="row-meta">2 位學生尚未確認</div></div>
+              </div>
+              <div class="notice-row">
+                <span class="metric-icon">${icon("wallet")}</span>
+                <div class="row-main"><div class="row-title">繳費核對</div><div class="row-meta">1 筆轉帳待核對</div></div>
+              </div>
+            </div>
+          </article>
+        </section>
+      `;
+    }
+
+    function renderWorkspace(id) {
+      const meta = pageMeta[id] || ["功能示意", "此功能只在沙盒中顯示示意內容。", "grid"];
+      const tabs = localNavigation[id];
+      const activeTab = tabs ? state.localTabs[id] : null;
+      const displayTitle = activeTab || meta[0];
+
+      content.innerHTML = `
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">${tabs ? "工作域" : "行政工作"}</p>
+            <h1>${displayTitle}</h1>
+            <p class="page-description">${meta[1]}</p>
+          </div>
+          <span class="status-chip"><span class="status-dot"></span>沙盒畫面</span>
+        </header>
+
+        <section class="workspace-panel">
+          ${tabs ? `
+            <nav class="local-nav" aria-label="${meta[0]}頁內導航">
+              ${tabs.map((tab) => `
+                <button class="local-tab${tab === activeTab ? " active" : ""}" type="button" data-local-tab="${tab}">
+                  ${tab}
+                </button>
+              `).join("")}
+            </nav>
+            <div class="local-select-wrap">
+              <select class="local-select" id="localSelect" aria-label="${meta[0]}頁內導航">
+                ${tabs.map((tab) => `<option value="${tab}"${tab === activeTab ? " selected" : ""}>${tab}</option>`).join("")}
+              </select>
+            </div>
+          ` : ""}
+          <div class="workspace-body">
+            <div class="empty-illustration">
+              <div>
+                <span class="empty-icon">${icon(meta[2])}</span>
+                <h2>${displayTitle}內容區</h2>
+                <p>本沙盒只驗證側欄高度、群組展開及頁內導航層級，不會讀取或寫入正式資料。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function renderAllFeatures() {
+      content.innerHTML = `
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">網站地圖</p>
+            <h1>所有功能</h1>
+            <p class="page-description">完整列出行政可使用的功能；搜尋放在內容區，不佔側欄高度。</p>
+          </div>
+          <span class="status-chip"><span class="status-dot"></span><span id="featureCount">32 項功能</span></span>
+        </header>
+
+        <div class="search-box">
+          ${icon("search")}
+          <input class="search-input" id="featureSearch" type="search" placeholder="搜尋功能，例如：請假、繳費、老師…" autocomplete="off" aria-label="搜尋所有功能" />
+        </div>
+
+        <div class="feature-grid" id="featureGrid">
+          ${featureSections.map((section) => `
+            <section class="feature-section" data-feature-section>
+              <h2>${icon(section.icon)} ${section.title}</h2>
+              <div class="feature-list">
+                ${section.items.map(([id, label, keywords]) => `
+                  <button class="feature-link" type="button" data-feature="${id}" data-search="${label} ${keywords}">
+                    ${icon(pageMeta[id]?.[2] || section.icon)}
+                    <span>${label}</span>
+                  </button>
+                `).join("")}
+              </div>
+            </section>
+          `).join("")}
+        </div>
+        <div class="feature-empty" id="featureEmpty">找不到符合的功能。</div>
+      `;
+
+      const input = document.getElementById("featureSearch");
+      input.addEventListener("input", filterFeatures);
+    }
+
+    function renderContent() {
+      if (state.active === "home") renderHome();
+      else if (state.active === "all-features") renderAllFeatures();
+      else renderWorkspace(state.active);
+    }
+
+    function setActive(id) {
+      state.active = id;
+      const owner = childGroupFor(id);
+      if (owner && !state.collapsed) state.openGroup = owner.id;
+      renderNav();
+      renderContent();
+    }
+
+    function toggleGroup(id) {
+      if (state.collapsed) {
+        state.collapsed = false;
+        state.openGroup = id;
+      } else {
+        state.openGroup = state.openGroup === id ? null : id;
+      }
+      renderNav();
+    }
+
+    function setPreset(preset) {
+      if (preset === "default") {
+        state.collapsed = false;
+        state.openGroup = null;
+      } else if (preset === "courses") {
+        state.collapsed = false;
+        state.openGroup = "courses";
+      } else if (preset === "followup") {
+        state.collapsed = false;
+        state.openGroup = "followup";
+      } else if (preset === "collapsed") {
+        state.collapsed = true;
+        state.openGroup = null;
+      }
+      renderNav();
+    }
+
+    function updatePresetButtons() {
+      document.querySelectorAll("[data-preset]").forEach((button) => {
+        const preset = button.dataset.preset;
+        const active =
+          (preset === "default" && !state.collapsed && !state.openGroup) ||
+          (preset === "courses" && !state.collapsed && state.openGroup === "courses") ||
+          (preset === "followup" && !state.collapsed && state.openGroup === "followup") ||
+          (preset === "collapsed" && state.collapsed);
+        button.classList.toggle("active", active);
+      });
+    }
+
+    function filterFeatures(event) {
+      const query = event.target.value.trim().toLowerCase().replace(/\s+/g, "");
+      let visible = 0;
+
+      document.querySelectorAll("[data-feature-section]").forEach((section) => {
+        let sectionVisible = 0;
+        section.querySelectorAll(".feature-link").forEach((item) => {
+          const haystack = item.dataset.search.toLowerCase().replace(/\s+/g, "");
+          const match = !query || haystack.includes(query);
+          item.hidden = !match;
+          if (match) {
+            visible += 1;
+            sectionVisible += 1;
+          }
+        });
+        section.hidden = sectionVisible === 0;
+      });
+
+      document.getElementById("featureGrid").style.display = visible ? "grid" : "none";
+      document.getElementById("featureEmpty").style.display = visible ? "none" : "block";
+      document.getElementById("featureCount").textContent = `${visible} 項功能`;
+    }
+
+    navList.addEventListener("click", (event) => {
+      const navButton = event.target.closest("[data-nav]");
+      if (navButton) {
+        setActive(navButton.dataset.nav);
+        return;
+      }
+      const groupButton = event.target.closest("[data-group]");
+      if (groupButton) toggleGroup(groupButton.dataset.group);
+    });
+
+    collapseButton.addEventListener("click", () => {
+      state.collapsed = !state.collapsed;
+      if (state.collapsed) state.openGroup = null;
+      renderNav();
+    });
+
+    document.querySelector(".view-controls").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-preset]");
+      if (button) setPreset(button.dataset.preset);
+    });
+
+    document.querySelector(".sidebar-footer").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-footer]");
+      if (button) setActive(button.dataset.footer);
+    });
+
+    content.addEventListener("click", (event) => {
+      const navButton = event.target.closest("[data-nav]");
+      if (navButton) {
+        setActive(navButton.dataset.nav);
+        return;
+      }
+      const openGroup = event.target.closest("[data-group-open]");
+      if (openGroup) {
+        state.collapsed = false;
+        state.openGroup = openGroup.dataset.groupOpen;
+        renderNav();
+        return;
+      }
+      const localTab = event.target.closest("[data-local-tab]");
+      if (localTab) {
+        state.localTabs[state.active] = localTab.dataset.localTab;
+        renderContent();
+        return;
+      }
+      const feature = event.target.closest("[data-feature]");
+      if (feature) setActive(feature.dataset.feature);
+    });
+
+    content.addEventListener("change", (event) => {
+      if (event.target.id === "localSelect") {
+        state.localTabs[state.active] = event.target.value;
+        renderContent();
+      }
+    });
+
+    renderNav();
+    renderContent();
+  </script>
+</body>
+</html>

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
 import { ClipboardCheck } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -16,6 +18,7 @@ import {
 } from "@/services/roomBookingQueries"
 
 export function RoomBookingAdminView() {
+ const { role } = useAuth()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<RoomBookingRequestAdminRow[]>([])
@@ -90,15 +93,23 @@ export function RoomBookingAdminView() {
 
  return (
   <div className="space-y-4">
-   <header>
-    <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-     <ClipboardCheck className="h-7 w-7 text-info" aria-hidden />
-     約房審批
-    </h1>
-    <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-     老師「預約空房」申請會列於此；核准後會依選擇寫入排程（無班別則備註為「○○老師預約」）。
-    </p>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="約房審批"
+     description="審批老師預約空房申請；核准後寫入排程。"
+    />
+   ) : (
+    <header>
+     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
+      <ClipboardCheck className="h-7 w-7 text-info" aria-hidden />
+      約房審批
+     </h1>
+     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+      老師「預約空房」申請會列於此；核准後會依選擇寫入排程（無班別則備註為「○○老師預約」）。
+     </p>
+    </header>
+   )}
 
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

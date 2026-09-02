@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Check, Copy, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,6 +16,7 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -37,6 +39,7 @@ type FormState = {
 const emptyForm = (): FormState => ({ question: "", answer: "", tags: [] })
 
 export function ScriptLibraryView() {
+  const { role } = useAuth()
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
 
@@ -183,24 +186,44 @@ export function ScriptLibraryView() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">話術庫</h1>
-          <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-            儲存常見客戶問題與建議回答，一鍵複製後可貼到其他通訊工具回覆客人。
-          </p>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="話術庫"
+          description="儲存常見問答話術，一鍵複製後貼至通訊工具回覆家長。"
+          actions={
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+                <RefreshCw className="h-4 w-4" aria-hidden />
+                重新載入
+              </Button>
+              <Button type="button" size="sm" onClick={openCreate}>
+                <Plus className="h-4 w-4" aria-hidden />
+                新增話術
+              </Button>
+            </>
+          }
+        />
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">話術庫</h1>
+            <p className="mt-1 hidden text-sm text-muted-foreground md:block">
+              儲存常見客戶問題與建議回答，一鍵複製後可貼到其他通訊工具回覆客人。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className="h-4 w-4" aria-hidden />
+              重新載入
+            </Button>
+            <Button type="button" size="sm" onClick={openCreate}>
+              <Plus className="h-4 w-4" aria-hidden />
+              新增話術
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className="h-4 w-4" aria-hidden />
-            重新載入
-          </Button>
-          <Button type="button" size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" aria-hidden />
-            新增話術
-          </Button>
-        </div>
-      </div>
+      )}
 
       {err ? (
         <p

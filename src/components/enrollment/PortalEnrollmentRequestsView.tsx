@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ClipboardList, RefreshCw } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -15,6 +16,7 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -50,6 +52,7 @@ function statusLabel(status: PortalEnrollmentRequestStatus): string {
 export function PortalEnrollmentRequestsView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
+ const { role } = useAuth()
  const [rows, setRows] = useState<PortalEnrollmentRequestRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -154,27 +157,47 @@ export function PortalEnrollmentRequestsView() {
 
  return (
   <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4">
-    <div>
-     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ClipboardList className="h-8 w-8 text-info" aria-hidden />
-      家長報讀申請
-     </h1>
-     <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-      審核家長 Portal 提交的報讀申請。核准後會建立報讀紀錄；學費請職員於收款登記處理，並可用文字提醒家長。
-     </p>
-    </div>
-    <Button
-     type="button"
-     variant="outline"
-     size="sm"
-     onClick={() => void load()}
-     disabled={!isSupabaseConfigured || loading}
-    >
-     <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
-     重新整理
-    </Button>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="家長報讀申請"
+     description="審核家長 Portal 報讀申請；核准後建立報讀紀錄，學費於收款登記處理。"
+     actions={
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       onClick={() => void load()}
+       disabled={!isSupabaseConfigured || loading}
+      >
+       <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+       重新整理
+      </Button>
+     }
+    />
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+     <div>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+       <ClipboardList className="h-8 w-8 text-info" aria-hidden />
+       家長報讀申請
+      </h1>
+      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
+       審核家長 Portal 提交的報讀申請。核准後會建立報讀紀錄；學費請職員於收款登記處理，並可用文字提醒家長。
+      </p>
+     </div>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void load()}
+      disabled={!isSupabaseConfigured || loading}
+     >
+      <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+      重新整理
+     </Button>
+    </header>
+   )}
 
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">

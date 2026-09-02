@@ -12,6 +12,7 @@ import {
  Plus,
 } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { Button } from "@/components/ui/button"
 import { SkeletonDetailHeader } from "@/components/ui/skeleton"
@@ -193,7 +194,7 @@ function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const teacherScopeId = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
  /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
@@ -1885,18 +1886,27 @@ useEffect(() => {
 
  const pageBody = (
   <div className="space-y-5 text-sm leading-relaxed">
-   <header className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <CalendarDays className="h-6 w-6 shrink-0 text-info" aria-hidden />
-      排程管理
-      <Tag tone="info">{todayLessonTag}</Tag>
-     </h1>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      按日期可展開名單；列表開啟預覽或完整詳情；日視圖以拖曳及移動課室為主。
-     </p>
-    </div>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="排程"
+     description="管理課堂排程、日期及實際授課老師。"
+     titleExtra={<Tag tone="info">{todayLessonTag}</Tag>}
+    />
+   ) : (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+     <div>
+      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
+       <CalendarDays className="h-6 w-6 shrink-0 text-info" aria-hidden />
+       排程管理
+       <Tag tone="info">{todayLessonTag}</Tag>
+      </h1>
+      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
+       按日期可展開名單；列表開啟預覽或完整詳情；日視圖以拖曳及移動課室為主。
+      </p>
+     </div>
+    </header>
+   )}
 
    {futureCancelledMode ? (
     <div

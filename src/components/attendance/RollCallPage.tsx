@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { ClipboardCheck } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import {
  RollCallClassPanel,
  type RollCallPanelStats,
@@ -30,7 +31,7 @@ function parseYmd(raw: string | null): string | null {
 
 export function RollCallPage() {
  const isMobile = useIsMobile()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const [searchParams] = useSearchParams()
  const urlScheduleId = searchParams.get("schedule_id")?.trim() || null
  const urlDate = parseYmd(searchParams.get("date"))
@@ -198,26 +199,41 @@ export function RollCallPage() {
 
  return (
   <div className="space-y-4">
-   <header className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ClipboardCheck className="h-7 w-7 text-success" aria-hidden />
-      進行點名
-      {pendingMakeup != null && pendingMakeup > 0 ? (
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="點名"
+     description="進入今日課堂並完成點名。"
+     titleExtra={
+      pendingMakeup != null && pendingMakeup > 0 ? (
        <Tag tone="warning" size="sm">
         {pendingMakeup} 待補課
        </Tag>
-      ) : null}
-     </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
-      {teacherTid
-       ? "僅見您指派的班別在該日的排程；展開摺疊面板即可點名。"
-       : isMobile
-         ? "列出當日班別，展開即可點名。"
-         : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
-     </p>
-    </div>
-   </header>
+      ) : null
+     }
+    />
+   ) : (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+     <div>
+      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
+       <ClipboardCheck className="h-7 w-7 text-success" aria-hidden />
+       進行點名
+       {pendingMakeup != null && pendingMakeup > 0 ? (
+        <Tag tone="warning" size="sm">
+         {pendingMakeup} 待補課
+        </Tag>
+       ) : null}
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+       {teacherTid
+        ? "僅見您指派的班別在該日的排程；展開摺疊面板即可點名。"
+        : isMobile
+          ? "列出當日班別，展開即可點名。"
+          : "同時列出當日所有班別，展開摺疊面板即可點名。預填會合併班內名單、請假與補堂排程。"}
+      </p>
+     </div>
+    </header>
+   )}
 
    {teacherTid ? (
     <div className="rounded-lg border border-info bg-info/90 px-3 py-2 text-sm text-info-foreground">

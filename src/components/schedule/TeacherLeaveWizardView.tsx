@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { CheckCircle2, Copy, RotateCcw, UserRoundX } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Field } from "@/components/frontDesk/frontDeskUi"
 import { StudentAvatarWall } from "@/components/schedule/teacherLeave/StudentAvatarWall"
 import {
@@ -21,6 +22,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -150,6 +152,7 @@ function decisionToApi(d: LessonDecision): TeacherLeaveDayDecision | null {
 }
 
 export function TeacherLeaveWizardView() {
+  const { role } = useAuth()
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
 
@@ -428,25 +431,39 @@ export function TeacherLeaveWizardView() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 p-4 md:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted">
-            <UserRoundX className="h-5 w-5 text-muted-foreground" aria-hidden />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold">老師請假處理</h1>
-            <p className="text-sm text-muted-foreground">
-              {step === "done" ? "完成" : TEACHER_LEAVE_STEP_LABELS[step - 1]}
-            </p>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="老師請假處理"
+          description={step === "done" ? "完成" : TEACHER_LEAVE_STEP_LABELS[step - 1]}
+          actions={
+            <Button type="button" variant="outline" size="sm" onClick={() => void resetFlow()}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              重設
+            </Button>
+          }
+        />
+      ) : (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted">
+              <UserRoundX className="h-5 w-5 text-muted-foreground" aria-hidden />
+            </span>
+            <div>
+              <h1 className="text-xl font-semibold">老師請假處理</h1>
+              <p className="text-sm text-muted-foreground">
+                {step === "done" ? "完成" : TEACHER_LEAVE_STEP_LABELS[step - 1]}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => void resetFlow()}>
+              <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              重設
+            </Button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => void resetFlow()}>
-            <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            重設
-          </Button>
-        </div>
-      </div>
+      )}
 
       <WizardStepRail step={step} maxReached={maxReached} onGo={handleStepRail} />
 

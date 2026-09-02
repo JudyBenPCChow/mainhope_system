@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Mail, Phone, Plus, User, Users } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import {
  getTeachersListDataCache,
@@ -38,7 +39,7 @@ import {
 
 export function TeachersListPage() {
  const { confirmDialog } = useAppConfirm()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const openTeacher = useOpenTeacherRecord()
  const { preview } = useRecordPreview()
  const previewTeacherId = preview?.kind === "teacher" ? preview.id : null
@@ -132,6 +133,125 @@ export function TeachersListPage() {
   }
  }
 
+ const addTeacherAction = canWriteTeachers ? (
+  <Dialog open={addOpen} onOpenChange={setAddOpen}>
+   <DialogTrigger asChild>
+    <Button type="button" className="bg-success text-white hover:bg-success">
+     <Plus className="h-4 w-4" />
+     新增老師
+    </Button>
+   </DialogTrigger>
+   <DialogContent>
+    <DialogHeader>
+     <DialogTitle>新增老師</DialogTitle>
+    </DialogHeader>
+    <div className="grid gap-3">
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">中文姓名 *</label>
+      <Input
+       className="mt-1"
+       value={form.full_name}
+       onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+      />
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">英文姓名</label>
+      <Input
+       className="mt-1"
+       value={form.english_name}
+       onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
+      />
+     </div>
+     {canEditAbbr ? (
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">
+       內部簡稱（ABBR）
+      </label>
+      <Input
+       className="mt-1 font-mono text-sm uppercase"
+       spellCheck={false}
+       maxLength={64}
+       placeholder="選填，例：JUDY"
+       value={form.abbr}
+       onChange={(e) => setForm((f) => ({ ...f, abbr: e.target.value }))}
+      />
+      <p className="mt-1 text-xs text-muted-foreground">最多 64 字元；可留空。</p>
+     </div>
+     ) : null}
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">電話</label>
+      <Input
+       className="mt-1"
+       value={form.phone}
+       onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+      />
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">電郵</label>
+      <Input
+       className="mt-1"
+       type="email"
+       value={form.email}
+       onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+      />
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">狀態</label>
+      <Select
+       className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+       value={form.status === "非在職" ? "非在職" : "在職"}
+       onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+      >
+       <option value="在職">在職</option>
+       <option value="非在職">非在職</option>
+      </Select>
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">專長科目</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+       {SUBJECT_SPECIALITY_OPTIONS.map((subject) => {
+        const active = selectedSubjects.includes(subject)
+        return (
+         <button
+          key={subject}
+          type="button"
+          onClick={() => {
+           setSelectedSubjects((prev) => {
+            if (prev.includes(subject)) return prev.filter((x) => x !== subject)
+            return SUBJECT_SPECIALITY_OPTIONS.filter((x) => [...prev, subject].includes(x))
+           })
+          }}
+          className={cn(
+           "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+           active
+            ? "border-info bg-info text-info-foreground"
+            : "border-border bg-card text-foreground hover:bg-muted/80"
+          )}
+          aria-pressed={active}
+         >
+          {subject}
+         </button>
+        )
+       })}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-1">
+       {selectedSubjects.length === 0 ? (
+        <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
+       ) : (
+        selectedSubjects.map((sub) => (
+         <Tag key={sub} tone="info" size="sm">{sub}</Tag>
+        ))
+       )}
+      </div>
+     </div>
+     <Button type="button" loading={saving} onClick={() => void onAdd()}>
+      建立
+     </Button>
+    </div>
+   </DialogContent>
+  </Dialog>
+ ) : null
+
  return (
   <div className="space-y-6 p-4 md:p-6">
    {!isSupabaseConfigured ? (
@@ -149,130 +269,22 @@ export function TeachersListPage() {
     </div>
    ) : null}
 
-   <div className="flex flex-wrap items-center justify-between gap-4">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <Users className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     老師管理
-    </h1>
-    {canWriteTeachers ? (
-     <Dialog open={addOpen} onOpenChange={setAddOpen}>
-      <DialogTrigger asChild>
-       <Button type="button" className="bg-success text-white hover:bg-success">
-        <Plus className="h-4 w-4" />
-        新增老師
-       </Button>
-      </DialogTrigger>
-      <DialogContent>
-       <DialogHeader>
-        <DialogTitle>新增老師</DialogTitle>
-       </DialogHeader>
-       <div className="grid gap-3">
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">中文姓名 *</label>
-         <Input
-          className="mt-1"
-          value={form.full_name}
-          onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-         />
-        </div>
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">英文姓名</label>
-         <Input
-          className="mt-1"
-          value={form.english_name}
-          onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
-         />
-        </div>
-        {canEditAbbr ? (
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">
-          內部簡稱（ABBR）
-         </label>
-         <Input
-          className="mt-1 font-mono text-sm uppercase"
-          spellCheck={false}
-          maxLength={64}
-          placeholder="選填，例：JUDY"
-          value={form.abbr}
-          onChange={(e) => setForm((f) => ({ ...f, abbr: e.target.value }))}
-         />
-         <p className="mt-1 text-xs text-muted-foreground">最多 64 字元；可留空。</p>
-        </div>
-        ) : null}
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">電話</label>
-         <Input
-          className="mt-1"
-          value={form.phone}
-          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-         />
-        </div>
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">電郵</label>
-         <Input
-          className="mt-1"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-         />
-        </div>
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">狀態</label>
-         <Select
-          className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-          value={form.status === "非在職" ? "非在職" : "在職"}
-          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-         >
-          <option value="在職">在職</option>
-          <option value="非在職">非在職</option>
-         </Select>
-        </div>
-        <div>
-         <label className="text-xs font-medium text-muted-foreground">專長科目</label>
-         <div className="mt-2 flex flex-wrap gap-2">
-          {SUBJECT_SPECIALITY_OPTIONS.map((subject) => {
-           const active = selectedSubjects.includes(subject)
-           return (
-            <button
-             key={subject}
-             type="button"
-             onClick={() => {
-              setSelectedSubjects((prev) => {
-               if (prev.includes(subject)) return prev.filter((x) => x !== subject)
-               return SUBJECT_SPECIALITY_OPTIONS.filter((x) => [...prev, subject].includes(x))
-              })
-             }}
-             className={cn(
-              "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-              active
-               ? "border-info bg-info text-info-foreground"
-               : "border-border bg-card text-foreground hover:bg-muted/80"
-             )}
-             aria-pressed={active}
-            >
-             {subject}
-            </button>
-           )
-          })}
-         </div>
-         <div className="mt-2 flex flex-wrap gap-1">
-          {selectedSubjects.length === 0 ? (
-           <span className="text-xs text-muted-foreground">尚未選擇專長科目</span>
-          ) : (
-           selectedSubjects.map((sub) => (
-            <Tag key={sub} tone="info" size="sm">{sub}</Tag>
-           ))
-          )}
-         </div>
-        </div>
-        <Button type="button" loading={saving} onClick={() => void onAdd()}>
-         建立
-        </Button>
-       </div>
-      </DialogContent>
-     </Dialog>
-    ) : null}
-   </div>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="老師管理"
+     description="管理老師名冊，新增或維護任教資料。"
+     actions={addTeacherAction}
+    />
+   ) : (
+    <div className="flex flex-wrap items-center justify-between gap-4">
+     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      <Users className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+      老師管理
+     </h1>
+     {addTeacherAction}
+    </div>
+   )}
 
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>

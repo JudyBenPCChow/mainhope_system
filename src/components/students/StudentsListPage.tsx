@@ -3,6 +3,10 @@ import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
+import {
+ AdminPageHeading,
+ adminPageHeaderLayoutClass,
+} from "@/components/detail/AdminPageHeader"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
@@ -229,7 +233,7 @@ function getInitialStudentsViewMode(): "table" | "gallery" {
 export function StudentsListPage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const canDeleteStudent = can(profile?.activeCapabilities, "students.update")
  const openStudent = useOpenStudentRecord()
  const { preview } = useRecordPreview()
@@ -1155,15 +1159,43 @@ export function StudentsListPage() {
     </div>
    ) : null}
 
-   <div className="flex flex-wrap items-center justify-between gap-4">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     學生管理
-     <Tag tone="info" size="sm">{loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}</Tag>
-     {!loading && filtered.length !== stats.total ? (
-      <span className="text-sm font-normal text-muted-foreground">顯示 {filtered.length} 人</span>
-     ) : null}
-    </h1>
+   <div
+    className={
+     role === "admin"
+      ? adminPageHeaderLayoutClass
+      : "flex flex-wrap items-center justify-between gap-4"
+    }
+   >
+    {role === "admin" ? (
+     <AdminPageHeading
+      eyebrow="行政工作"
+      title="學生"
+      description="搜尋學生、檢視報讀及開啟學生紀錄。"
+      titleExtra={
+       <>
+        <Tag tone="info" size="sm">
+         {loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}
+        </Tag>
+        {!loading && filtered.length !== stats.total ? (
+         <span className="text-sm font-normal text-muted-foreground">
+          顯示 {filtered.length} 人
+         </span>
+        ) : null}
+       </>
+      }
+     />
+    ) : (
+     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      <GraduationCap className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+      學生管理
+      <Tag tone="info" size="sm">
+       {loading ? "…" : `${isActiveScope ? "活躍" : "名冊"} ${stats.total} 人`}
+      </Tag>
+      {!loading && filtered.length !== stats.total ? (
+       <span className="text-sm font-normal text-muted-foreground">顯示 {filtered.length} 人</span>
+      ) : null}
+     </h1>
+    )}
     <div className="flex flex-wrap items-center gap-2">
      <div className="inline-flex rounded-lg border border-border bg-muted/30 p-0.5" role="group" aria-label="名單範圍">
       <button

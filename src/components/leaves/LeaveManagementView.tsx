@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella, Users, Video } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { Button } from "@/components/ui/button"
@@ -13,6 +14,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm, type ConfirmResult } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -152,6 +154,7 @@ function leaveRowEditable(_r: LeaveManageRow): boolean {
 
 export function LeaveManagementView() {
  const { confirmDialog } = useAppConfirm()
+ const { role } = useAuth()
  const isMobile = useIsMobile()
  const [searchParams, setSearchParams] = useSearchParams()
  const recordFromUrl = searchParams.get("record")
@@ -668,6 +671,24 @@ export function LeaveManagementView() {
 
  return (
   <div className="space-y-4">
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="請假管理"
+     description="處理學生及老師請假紀錄。"
+     titleExtra={<Tag tone="warning" size="sm">{tabCounts.all} 則記錄</Tag>}
+     actions={
+      <Button
+       type="button"
+       className="gap-1 bg-warning text-white hover:bg-warning"
+       onClick={openAdd}
+      >
+       <Plus className="h-4 w-4" />
+       新增請假
+      </Button>
+     }
+    />
+   ) : (
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -686,6 +707,7 @@ export function LeaveManagementView() {
      新增請假
     </Button>
    </header>
+   )}
 
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
