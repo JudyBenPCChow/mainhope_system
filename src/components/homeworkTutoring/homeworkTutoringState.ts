@@ -27,11 +27,13 @@ export type HomeworkTutoringDataCache = {
  hwAccessIds: Set<string>
  loadedMonth: string
  sheetMonth: string
- teacherDutyMonth: string
+ dutyViewMonth: string
+ dutyViewDays: HomeworkDutyDay[]
+ calendarDutyDays: HomeworkDutyDay[]
 }
 
 const cache = createListDataCache<HomeworkTutoringDataCache>({
- isUsable: (d) => d.hwClass != null,
+ isUsable: (d) => d.hwClass != null && Array.isArray(d.calendarDutyDays) && Array.isArray(d.dutyViewDays),
 })
 
 export function getHomeworkTutoringDataCache(): HomeworkTutoringDataCache | null {

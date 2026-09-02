@@ -73,7 +73,7 @@
 
 ### 下一步
 
-無。計糧功輔時薪／Christine 佣金見另題 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)（已接 `/Payroll`）。
+產品本題已關帳。後續頁面缺陷（概覽「今日」跟編更月、管理層「本月當值」、開頁寫庫等）見 [`homework-tutoring-page-logic.md`](./homework-tutoring-page-logic.md)。計糧時薪／Christine 佣金已關帳，見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)。
 
 ### 本期不做
 

@@ -13,6 +13,7 @@ import {
   homeworkScheduleSlotsFromDutyDays,
   mdKeyToIso,
   monthDateRange,
+  toDutyMdKey,
 } from "@/lib/homeworkTutoringSchedules"
 import {
   applyHomeworkOccupancyClassroomMoveToDuty,
@@ -145,9 +146,10 @@ function parseAvailEntries(raw: unknown): Record<string, AvailEntry> {
   for (const [key, val] of Object.entries(raw as Record<string, unknown>)) {
     if (!val || typeof val !== "object") continue
     const v = val as Record<string, unknown>
-    if (v.kind === "full") out[key] = { kind: "full" }
+    const md = toDutyMdKey(key) ?? key
+    if (v.kind === "full") out[md] = { kind: "full" }
     else if (v.kind === "custom" && typeof v.start === "string" && typeof v.end === "string") {
-      out[key] = { kind: "custom", start: v.start, end: v.end }
+      out[md] = { kind: "custom", start: v.start, end: v.end }
     }
   }
   return out
@@ -406,14 +408,16 @@ export async function upsertHomeworkAvailability(input: {
   if (error) throw error
 }
 
+function emptyHomeworkRosterMonth(yearMonth: string): HomeworkRosterMonth {
+  return { id: "", yearMonth: yearMonth.slice(0, 7), status: "未編更", days: [] }
+}
+
 export async function fetchHomeworkRosterMonth(opts: {
   classId: string
   academicYearId: string
   yearMonth: string
 }): Promise<HomeworkRosterMonth> {
-  if (!supabase) {
-    return { id: "", yearMonth: opts.yearMonth, status: "未編更", days: [] }
-  }
+  if (!supabase) return emptyHomeworkRosterMonth(opts.yearMonth)
   const month = monthFirstDay(opts.yearMonth)
   const existing = await supabase
     .from("homework_tutoring_roster_months")
@@ -422,28 +426,8 @@ export async function fetchHomeworkRosterMonth(opts: {
     .eq("roster_month", month)
     .maybeSingle()
   if (existing.error) throw existing.error
-  let roster = existing.data
-  if (!roster) {
-    const inserted = await supabase
-      .from("homework_tutoring_roster_months")
-      .insert({
-        academic_year_id: opts.academicYearId,
-        class_id: opts.classId,
-        roster_month: month,
-        status: "未編更",
-      })
-      .select("id, roster_month, status")
-      .single()
-    // 老師無寫入權；行政尚未開該月工作表時回空，唔阻報更
-    if (inserted.error) {
-      const code = (inserted.error as { code?: string }).code
-      if (code === "42501" || /permission|policy|RLS/i.test(inserted.error.message)) {
-        return { id: "", yearMonth: opts.yearMonth, status: "未編更", days: [] }
-      }
-      throw inserted.error
-    }
-    roster = inserted.data
-  }
+  const roster = existing.data
+  if (!roster) return emptyHomeworkRosterMonth(opts.yearMonth)
   const rosterId = String((roster as { id: string }).id)
   const statusRaw = String((roster as { status?: string }).status ?? "未編更")
   const { data: days, error: daysErr } = await supabase
@@ -511,6 +495,36 @@ export async function fetchHomeworkRosterMonth(opts: {
         assignments,
       }
     }),
+  }
+}
+
+/** 發布／儲存編更時才建立月工作表列；開頁載入不可 insert。 */
+export async function ensureHomeworkRosterMonth(opts: {
+  classId: string
+  academicYearId: string
+  yearMonth: string
+}): Promise<HomeworkRosterMonth> {
+  const existing = await fetchHomeworkRosterMonth(opts)
+  if (existing.id) return existing
+  if (!supabase) throw new Error("Supabase 未設定")
+  const month = monthFirstDay(opts.yearMonth)
+  const inserted = await supabase
+    .from("homework_tutoring_roster_months")
+    .insert({
+      academic_year_id: opts.academicYearId,
+      class_id: opts.classId,
+      roster_month: month,
+      status: "未編更",
+    })
+    .select("id, roster_month, status")
+    .single()
+  if (inserted.error) throw inserted.error
+  const roster = inserted.data as { id: string }
+  return {
+    id: String(roster.id),
+    yearMonth: opts.yearMonth.slice(0, 7),
+    status: "未編更",
+    days: [],
   }
 }
 
@@ -745,7 +759,7 @@ export async function publishHomeworkRosterMonth(opts: {
   yearMonth: string
   dutyDays: PublishHomeworkDutyDayInput[]
 }): Promise<{ scheduleCount: number }> {
-  const roster = await fetchHomeworkRosterMonth({
+  const roster = await ensureHomeworkRosterMonth({
     classId: opts.classId,
     academicYearId: opts.academicYearId,
     yearMonth: opts.yearMonth,

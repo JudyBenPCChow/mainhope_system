@@ -5,9 +5,16 @@ import {
   homeworkScheduleSlotsFromDutyDay,
   mdKeyToIso,
   monthDateRange,
+  toDutyMdKey,
 } from "@/lib/homeworkTutoringSchedules"
 
 describe("homeworkTutoringSchedules", () => {
+  it("toDutyMdKey normalizes ISO, padded, and M/D", () => {
+    expect(toDutyMdKey("2026-09-02")).toBe("9/2")
+    expect(toDutyMdKey("09/02")).toBe("9/2")
+    expect(toDutyMdKey("9/2")).toBe("9/2")
+  })
+
   it("mdKeyToIso maps M/D within yearMonth", () => {
     expect(mdKeyToIso("2026-10", "10/2")).toBe("2026-10-02")
     expect(mdKeyToIso("2026-10", "9/2")).toBeNull()

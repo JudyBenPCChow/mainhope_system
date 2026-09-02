@@ -17,6 +17,7 @@ import {
   listRosterMonthDays,
   myDutyCalendarTone,
   teacherName,
+  dutyDaysByMdKey,
   type HomeworkDutyDay,
   type HomeworkHoliday,
   type HomeworkTeacherRow,
@@ -137,11 +138,7 @@ export function HomeworkDutyMonthCalendar({
     () => listRosterMonthDays(yearMonth, monthHolidays),
     [yearMonth, monthHolidays]
   )
-  const dutyByKey = useMemo(() => {
-    const map = new Map<string, HomeworkDutyDay>()
-    for (const d of dutyDays) map.set(d.date, d)
-    return map
-  }, [dutyDays])
+  const dutyByKey = useMemo(() => dutyDaysByMdKey(dutyDays), [dutyDays])
 
   return (
     <MonthCalendar

@@ -69,6 +69,7 @@ export function AdminHomeworkWorkbench({
   submitStatus,
   onPersistTeacherAvail,
   dutyDays,
+  overviewDutyDays,
   setDutyDays,
   monthRosterStatus,
   persistMonthRosterStatus,
@@ -88,6 +89,7 @@ export function AdminHomeworkWorkbench({
   submitStatus: AllTeacherSubmitStatus
   onPersistTeacherAvail: (teacherId: string, status: "草稿" | "已提交") => Promise<void>
   dutyDays: HomeworkDutyDay[]
+  overviewDutyDays?: HomeworkDutyDay[]
   setDutyDays: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthRosterStatus: Record<string, MonthRosterState>
   persistMonthRosterStatus: (yearMonth: string, state: MonthRosterState) => Promise<void>
@@ -116,8 +118,8 @@ export function AdminHomeworkWorkbench({
   }
 
   const overview = useMemo(
-    () => summarizeOverview(students, fees, dutyDays),
-    [students, fees, dutyDays]
+    () => summarizeOverview(students, fees, overviewDutyDays ?? dutyDays),
+    [students, fees, overviewDutyDays, dutyDays]
   )
   const progress = useMemo(
     () => countSubmitProgress(submitStatus, hwTeachers),
@@ -193,7 +195,7 @@ export function AdminHomeworkWorkbench({
         ]}
       />
       <FilterChipRow
-        label="生效月"
+        label="報讀月份"
         value={monthFilter}
         onChange={setMonthFilter}
         options={[
@@ -280,7 +282,7 @@ export function AdminHomeworkWorkbench({
               </h2>
             </div>
             <Button type="button" variant="outline" onClick={() => onTabChange("roster")}>
-              查看本月編更
+              前往當值編更
             </Button>
           </div>
           {overview.todayDuty && !overview.todayDuty.holiday ? (
@@ -428,7 +430,7 @@ export function AdminHomeworkWorkbench({
                     <th className="px-3 py-2 font-medium">年級</th>
                     <th className="px-3 py-2 font-medium">價目檔</th>
                     <th className="px-3 py-2 font-medium">逢星期幾</th>
-                    <th className="px-3 py-2 font-medium">生效月</th>
+                    <th className="px-3 py-2 font-medium">報讀月份</th>
                     <th className="px-3 py-2 font-medium">狀態</th>
                   </tr>
                 </thead>

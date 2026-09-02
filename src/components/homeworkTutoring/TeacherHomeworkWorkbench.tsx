@@ -1,4 +1,4 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react"
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -21,6 +21,7 @@ import {
   currentYearMonth,
   formatAvailLabel,
   formatYearMonthLabel,
+  getAvailEntry,
   holidaysInYearMonth,
   listRosterMonthDays,
   myDutyDays,
@@ -77,11 +78,15 @@ export function TeacherHomeworkWorkbench({
   const myStatus = submitStatus[teacherId] ?? "未交"
   const locked = rosterPublishStatus === "已發布"
   const readOnly = locked || myStatus === "已提交"
-  const row = avail[teacherId] ?? {}
   const monthLabel = formatYearMonthLabel(rosterMonthKey)
   const monthBounds = academicYearMonthBounds(academicYearLabel)
   const atMonthMin = rosterMonthKey <= monthBounds.min
   const atMonthMax = rosterMonthKey >= monthBounds.max
+  const canShiftMonth = Boolean(onRosterMonthChange)
+
+  useEffect(() => {
+    setSelected(new Set())
+  }, [rosterMonthKey])
 
   const goDutyMonth = (delta: number) => {
     if (!onRosterMonthChange) return
@@ -261,7 +266,35 @@ export function TeacherHomeworkWorkbench({
       {tab === "submit" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-semibold">{monthLabel} 報更</h2>
+            {canShiftMonth ? (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={atMonthMin}
+                  onClick={() => goDutyMonth(-1)}
+                  aria-label="上一個月"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <h2 className="min-w-[7.5rem] text-center text-base font-semibold tabular-nums">
+                  {monthLabel} 報更
+                </h2>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={atMonthMax}
+                  onClick={() => goDutyMonth(1)}
+                  aria-label="下一個月"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <h2 className="text-base font-semibold">{monthLabel} 報更</h2>
+            )}
             <SubmitStatusTag status={locked ? "已提交" : myStatus} />
             {locked ? (
               <Tag tone={statusToTagTone("已鎖定")} size="sm">
@@ -347,7 +380,7 @@ export function TeacherHomeworkWorkbench({
                 if (!day) {
                   return <div key={`pad-${idx}`} className="min-h-[4.5rem] border-b border-r border-border/60 bg-muted/10" />
                 }
-                const entry = row[day.key] ?? null
+                const entry = getAvailEntry(avail, teacherId, day.key)
                 const isSelected = selected.has(day.key)
                 const label = formatAvailLabel(entry)
                 const canPick = day.selectable && !readOnly

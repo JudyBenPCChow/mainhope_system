@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toDutyMdKey } from "@/lib/homeworkTutoringSchedules"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -28,6 +29,7 @@ import {
   closeSecondHomeworkRoom,
   defaultRoomForNextAssignment,
   dutyAssignments,
+  dutyKeyMonth,
   formatAvailLabel,
   formatAssignmentLine,
   formatYearMonthLabel,
@@ -144,9 +146,10 @@ export function RosterMonthSheet({
 
   const upsertDay = (next: HomeworkDutyDay) => {
     const synced = withSyncedLegacyTeachers(next)
+    const key = toDutyMdKey(synced.date)
     onDutyDaysChange((prev) =>
-      prev.some((d) => d.date === synced.date)
-        ? prev.map((d) => (d.date === synced.date ? synced : d))
+      prev.some((d) => toDutyMdKey(d.date) === key)
+        ? prev.map((d) => (toDutyMdKey(d.date) === key ? synced : d))
         : [...prev, synced]
     )
   }
@@ -167,7 +170,7 @@ export function RosterMonthSheet({
       d.holiday || isSecondRoomOpen(d) ? d : openSecondHomeworkRoom(d)
     )
     onDutyDaysChange((prev) => {
-      const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
+      const others = prev.filter((d) => dutyKeyMonth(d.date) !== monthNum)
       return [...others, ...updated]
     })
     pushBanner({
@@ -206,7 +209,7 @@ export function RosterMonthSheet({
       await onPublish(yearMonth, monthDays)
       const monthNum = Number(yearMonth.split("-")[1])
       onDutyDaysChange((prev) => {
-        const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
+        const others = prev.filter((d) => dutyKeyMonth(d.date) !== monthNum)
         return [...others, ...monthDays]
       })
       await onMonthStatusChange(yearMonth, "已編更")
