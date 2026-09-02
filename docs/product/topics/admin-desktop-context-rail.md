@@ -2,13 +2,13 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress`（正式已接線；沙盒／假資料已刪） |
+| 狀態 | `done`（2026-09-02 關帳） |
 | 優先 | 低 |
 | 範圍 | 管理員桌面：列表撳行→右側 slide-in **簡單預覽**；「開完整詳情」→ B 頂欄＋分頁 |
 | 角色 | **admin** 同 **alien**（QA）用預覽側板；manager／老師撳行仍去完整頁 |
 | 不含 | 流動裝置（維持 `DetailLayerShell` bottom sheet）；側板內嵌收款表單；幼「釘學生」欄 |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 工程位置 | 本工作樹 `mainhope_context_rail`；branch `cursor/cloud-agent-1787954165945-ptsrv` |
+| 關帳 | 2026-09-02：正式預覽已接線；側板闊度、老師預覽樣式微調本期不做。完整頁改紀錄頁另題。 |
 
 ## 開工閘
 
@@ -32,16 +32,15 @@
 
 2026-08-31 已刪：`src/prototypes/adminContextRail/`、`/prototype/AdminContextRail`、`sandbox/admin-context-rail/`、`sandbox/record-page-layouts/`、`public/admin-context-rail.html`、`public/record-page-layouts.html`。
 
-## 待決
+## 待決（關帳）
 
-側板闊而家 `min(26rem, 42vw)`；要改再講。幼「釘學生」欄唔做（改列表撳行預覽）。
+側板闊維持 `min(26rem, 42vw)`；幼「釘學生」欄不做（改列表撳行預覽）。老師預覽是否跟學生／班別同一身份區，本期不做。
 
-## 待做
+## 完成紀錄
 
 1. **已做**（2026-08-29 實機＋2026-08-31 去沙盒）：學生／班別／老師列表 → 預覽側板；關聯預覽留頁；完整頁桌面 B 頂欄；流動裝置維持 sheet；老師桌面 overlay 已取消。§14 Overlay 已更新。假資料／示範頁已刪。
-2. **已做**（2026-09-01）：學生預覽置中身份區＋卡片；班別預覽對齊同一節奏（置中課程編號／名稱、指標卡、資料卡）。**班別不用人頭頭像**，改用圓角方形班型圖示。老師預覽仍舊版。
-3. 樣式微調（側板闊）可另開；唔擋正式使用。老師預覽是否跟同一身份區可另開。
-4. 完整頁改普通頁後，學生詳情紀錄頁：見 [`student-detail-record-page.md`](./student-detail-record-page.md)。班別詳情對齊同一套殼：見 [`class-detail-record-page.md`](./class-detail-record-page.md)（**2026-09-02 開工**）。
+2. **已做**（2026-09-01）：學生預覽置中身份區＋卡片；班別預覽對齊同一節奏（置中課程編號／名稱、指標卡、資料卡）。**班別不用人頭頭像**，改用圓角方形班型圖示。老師預覽仍舊版（關帳時不做）。
+3. 完整頁改普通頁後，學生詳情紀錄頁：見 [`student-detail-record-page.md`](./student-detail-record-page.md)。班別詳情對齊同一套殼：見 [`class-detail-record-page.md`](./class-detail-record-page.md)。
 
 ## 業界慣例（從邊度開詳情）
 
