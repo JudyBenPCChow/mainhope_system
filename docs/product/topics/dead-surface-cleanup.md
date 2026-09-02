@@ -7,22 +7,66 @@
 | 範圍 | 前端未掛載模組、沙盒路由、Base44／命名殘渣（技術債 P2-4＋P3-1 前端部分） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點日期 | 2026-07-31 |
-| 上次更新 | 2026-08-31 |
+| 上次更新 | 2026-09-03 |
 
-## 進度摘要（2026-08-01）
+## 進度摘要
 
 | 區塊 | 狀態 |
 | --- | --- |
-| 2026-07-31 沙盒／demo 路由下線 | **歷史 done；其後部分路由加返，需重新清理** |
+| 2026-07-31 沙盒／demo 路由下線 | **歷史 done；其後部分路由加返** |
 | 待辦看板廢除（UI＋歷史資料＋文件） | **done** |
-| 月費獨立頁／queries 殘碼 | **暫緩・勿刪**（之後可能重用／改寫） |
-| `contactUpdate` prototype | **暫緩・勿刪**（正式頁已上；沙盒仍作藍本） |
-| 其餘 Prototype／ReceiptDemo **原始碼**刪除 | **open** |
+| **已上線功能對應之 prototype／沙盒刪除** | **open（2026-09-03 產品定案：要刪）** |
+| 月費獨立頁／queries 殘碼 | **暫緩・勿刪** |
+| `sandbox/tuition-quote`（未產品化） | **暫緩・可留作 HTML 沙盒範本** |
 | `src/api/entities.ts`（可選） | **open** |
 | Base44 `app-params.ts`／Vite env／package 名 | **open** |
 | `/Courses` nav／深連結對齊 | **已併出** [`tech-debt-hardening.md`](./tech-debt-hardening.md) P1-4 |
 | 點名雙入口文案 | **open**（低；功能刻意保留） |
-| 試堂收費路徑 | **已結** [`trial-sessions.md`](./trial-sessions.md)（零頁內收款；統一 `/Payments`） |
+| 試堂收費路徑 | **已結** [`trial-sessions.md`](./trial-sessions.md) |
+
+---
+
+## 產品定案（2026-09-03）
+
+**正式功能已上線者：刪除對應 React prototype／獨立沙盒**（頁面、路由、`src/prototypes/<名>/`、相關假資料）。勿再「暫緩當藍本」——正式碼即真源。
+
+先前 D2a「`contactUpdate` 暫緩勿刪」**撤銷**（正式 [`contact-update-campaign`](./contact-update-campaign.md) 已 `done`）。
+
+### 要刪（已有正式入口）
+
+| 沙盒 | 刪什麼 | 正式入口（保留） |
+| --- | --- | --- |
+| frontDeskWizard | `PrototypeFrontDeskWizard`、`src/prototypes/frontDeskWizard/` | `/FrontDeskWizard` |
+| teacherLeaveWizard | `PrototypeTeacherLeaveWizard`、`src/prototypes/teacherLeaveWizard/` | `/TeacherLeaveWizard` |
+| contactUpdate | `PrototypeContactUpdate*`、`/prototype/ContactUpdateCampaign`、`src/prototypes/contactUpdate/` | `/ContactUpdate/:token`、`/ContactUpdateCampaign` |
+| homeWayfinding | `PrototypeHomeWayfinding`、`/prototype/HomeWayfinding`、`src/prototypes/homeWayfinding/` | 正式行政／老師首頁 |
+| scheduleRollCall | `PrototypeScheduleRollCall`、`src/prototypes/scheduleRollCall/` | `/Schedule`＋點名 |
+| secondaryAttendanceReport | `PrototypeSecondaryAttendanceReport`、`src/prototypes/secondaryAttendanceReport/` | `/SecondaryAttendanceReport` |
+| inboxSystemNotices | `PrototypeInboxSystemNotices`、`src/prototypes/inboxSystemNotices/` | `/Inbox` |
+| payroll-ui | `sandbox/payroll-ui/`、相關 `npm run sandbox:payroll*`（若無其他依賴） | `/Payroll`（及既有 preview 旗標路由若仍要則另判，**勿**留整站假資料沙盒） |
+| （歷史）ReceiptDemo 等 | `src/pages/ReceiptDemo.tsx` 若仍在 | 無正式 demo 路由 |
+
+開工順序建議：
+
+1. 拆 `App.tsx` 仍掛之 `/prototype/*`（現況：`HomeWayfinding`、`ContactUpdateCampaign`）。
+2. 刪上表頁面與 `src/prototypes/**`（整目錄清完則可收窄 `eslint.config.js` 對 `src/prototypes/**` 的 ignore）。
+3. 刪 `sandbox/payroll-ui/` 並清 package scripts／文件引用。
+4. `npm run build`／lint；搜殘餘 `prototype/`、`FlaskConical` 沙盒橫幅連結。
+
+### 暫緩・勿刪
+
+#### D1 — 月費獨立頁（收款路徑已退役；檔案暫留）
+
+路由仍 redirect → `/Payments`。**勿當可收款入口**：
+
+- `src/pages/MonthlyTuition.tsx`
+- `src/components/payments/MonthlyTuitionView.tsx`
+- `src/services/monthlyTuitionQueries.ts`
+- `src/lib/monthlyTuition.ts`（計算／測試／報表仍在用）
+
+#### D2 — `sandbox/tuition-quote`（未產品化）
+
+獨立 HTML 學費試算；`src` 無對應正式頁。可留作 [ui-sandbox-html](../../../.cursor/skills/ui-sandbox-html/SKILL.md) 範本，**非**「已上線未刪沙盒」。
 
 ---
 
@@ -30,20 +74,11 @@
 
 ### 沙盒／demo 路由（2026-07-31；其後已回歸）
 
-- `App.tsx` 移除 `/receipt-demo`、`/prototype/*`
-- 正式頁去掉沙盒連結（前台精靈、老師請假精靈）
-- 手冊／handoff 已改「已下線」
-
-2026-08-14 全盤檢視確認下列路由其後重新出現，故「全部已下線」不再代表現況：
-
-- `/prototype/HomeWayfinding`：免登入、假資料
-- `/prototype/ContactUpdateCampaign`：登入後可 deep-link、假資料
+- 當時曾移除 `/receipt-demo`、`/prototype/*`；其後部分加返（見上方定案，改為刪檔）。
 
 **2026-08-29：** `/prototype/HomeworkTutoring` 已刪（正式走 `/HomeworkTutoring`）。
 
 **2026-08-31：** `/prototype/AdminContextRail` 同 `src/prototypes/adminContextRail/`、對應 HTML 沙盒已刪（正式走 `RecordPreviewRail`）。
-
-檔案可按下方「暫緩」保留，但 production `App.tsx` 是否掛路由要獨立處理；側欄無入口不等於無公開網址。
 
 ### 待辦看板廢除（2026-07-31～08-01）
 
@@ -55,38 +90,11 @@
 
 ---
 
-## 暫緩・先不要改（產品可能重用）
-
-Agent／清碼時**勿刪、勿重構**下列殘碼，直至產品明確決定退役或正式接上：
-
-### D1 — 月費獨立頁（暫緩刪檔；收款路徑已退役）
-
-路由仍 redirect → `/Payments`。**2026-08-09：** `createMonthlyTuitionPayment` 已 throw 拒用（改走收款登記＋權益池）。檔案暫留作藍本，**勿當可收款入口**：
-
-- `src/pages/MonthlyTuition.tsx`
-- `src/components/payments/MonthlyTuitionView.tsx`
-- `src/services/monthlyTuitionQueries.ts`（preview／列表仍可讀；收款函式已拒）
-- `src/lib/monthlyTuition.ts`（計算／測試／報表仍在用，本來就保留）
-
-### D2a — `contactUpdate` prototype（暫緩）
-
-正式 [`contact-update-campaign`](./contact-update-campaign.md) 未接 DB／正式頁；保留作欄位／流程參考：
-
-- `src/pages/PrototypeContactUpdate.tsx`（公開表單；路由已下線）
-- `src/pages/PrototypeContactUpdateCampaign.tsx` + `/prototype/ContactUpdateCampaign`（批量活動頁沙盒）
-- `src/prototypes/contactUpdate/**`
-
----
-
 ## 後續工程（本主題可做）
 
-### D2b — 其餘 Prototype／ReceiptDemo 原始碼（中）
+### D2b — 已上線 Prototype／沙盒刪除（中・優先）
 
-部分路由已重新掛入 `App.tsx`；先拆 production route，再判斷原始碼是否可刪（勿動上方 D2a）：
-
-- `src/pages/ReceiptDemo.tsx`
-- `src/pages/Prototype*.tsx`（除 `PrototypeContactUpdate`）
-- `src/prototypes/**`（除 `contactUpdate/`）
+見上方「產品定案（2026-09-03）」刪除表。完成後本列改 **done**。
 
 ### D3 — `src/api/entities.ts`（低／可選）
 
@@ -117,8 +125,8 @@ DB duplicate index／import table 等 schema 殘渣不放本題，見 [`database
 
 ## 不做本期
 
-- 刪月費獨立頁／`monthlyTuitionQueries`（見上方暫緩）
-- 刪 `contactUpdate` prototype（見上方暫緩）
+- 刪月費獨立頁／`monthlyTuitionQueries`（見 D1）
+- 刪 `sandbox/tuition-quote`（見 D2；未產品化範本）
 - drop `calendar_events`／`admin_todos` 表
 - 重開待辦看板
 - 試堂建立／收費收斂（見 trial-sessions）
