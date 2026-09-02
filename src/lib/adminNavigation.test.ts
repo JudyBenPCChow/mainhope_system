@@ -105,10 +105,10 @@ describe("行政頁內導航", () => {
  })
 
  it("同一工作域共用簡介文案", () => {
-  expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toContain("收款")
-  expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toContain("專科")
-  expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toContain("功輔")
-  expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toContain("日記帳")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toBe("登記學費、檢視繳費紀錄及管理優惠折扣。")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toBe("管理專科班、專科校曆及教學紀錄。")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toBe("管理功課輔導的今日情況、報讀、月費、當值與校曆。")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toBe("查閱日記帳紀錄及新增入帳。")
  })
 })
 
