@@ -1,35 +1,20 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useIsXl } from "@/hooks/use-xl"
 import {
  CalendarDays,
  Check,
- ChevronDown,
- ChevronLeft,
- ChevronRight,
- ChevronUp,
  Download,
- DoorOpen,
  LayoutGrid,
  List,
  Plus,
- SlidersHorizontal,
- User,
- UserRound,
- UserX,
- Users,
- Wand2,
- XCircle,
 } from "lucide-react"
 
 import { RollCallSheet } from "@/components/attendance/RollCallSheet"
-import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
-import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
-import { SkeletonDetailHeader, SkeletonInlineBadge, SkeletonTimetableBlock } from "@/components/ui/skeleton"
-import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import type { TagTone } from "@/components/ui/tag"
+import { SkeletonDetailHeader } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -40,10 +25,36 @@ import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { CancelReasonDialog } from "@/components/schedule/CancelReasonDialog"
 import { AssignSubstituteDialog } from "@/components/schedule/AssignSubstituteDialog"
-import { DayViewGrid } from "@/components/schedule/DayViewGrid"
-import { MobileDayViewGrid } from "@/components/schedule/MobileDayViewGrid"
-import { ScheduleAlertIcons } from "@/components/schedule/ScheduleAlertIcons"
 import { ExtraLessonRosterPicker } from "@/components/schedule/ExtraLessonRosterPicker"
+import { ScheduleByDateList } from "@/components/schedule/ScheduleByDateList"
+import { ScheduleDayViewPanel } from "@/components/schedule/ScheduleDayViewPanel"
+import { ExpandedScheduleRoster } from "@/components/schedule/ScheduleExpandedRoster"
+import { ScheduleFilters } from "@/components/schedule/ScheduleFilters"
+import { ScheduleListTable } from "@/components/schedule/ScheduleListTable"
+import { ScheduleOverview } from "@/components/schedule/ScheduleOverview"
+import {
+ buildScheduleCsv,
+ downloadTextFile,
+ EMPTY_SCHEDULE_HEADER_FILTERS,
+ isScheduleListColumnId,
+ scheduleMatchesHeaderFilters,
+ sortScheduleListRows,
+ type ScheduleListColumnId,
+ type ScheduleListHeaderFilters,
+} from "@/components/schedule/scheduleListColumns"
+import {
+ ISSUE_FILTER_OPTIONS,
+ TEACHER_ISSUE_FILTER_IDS,
+ UNASSIGNED_TEACHER_ID,
+ type ScheduleIssueFilter,
+} from "@/components/schedule/scheduleManageUi"
+import { useFutureCancelledScheduleData } from "@/components/schedule/useFutureCancelledScheduleData"
+import {
+ useOpenScheduleRecord,
+ useSchedulePreviewActive,
+} from "@/components/schedule/useOpenScheduleRecord"
+import { useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
+import type { SortDir } from "@/components/list/listFilterUtils"
 import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { formatScheduleSubstituteTag } from "@/lib/scheduleSubstitute"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -110,30 +121,40 @@ import {
  type ScheduleRosterContext,
 } from "@/services/scheduleRosterQueries"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
-import { consecutivePairFromFirstTimeSlot, isConsecutiveClass, resolveLessonReminderTimes } from "@/lib/consecutiveLesson"
-import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
+import { consecutivePairFromFirstTimeSlot, isConsecutiveClass } from "@/lib/consecutiveLesson"
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
- enrichScheduleRowsWithRosterContext,
  fetchDayViewRosterBySchedules,
  fetchNearestScheduleDate,
- fetchScheduleAlerts,
- fetchSchedulesInRange,
  fetchScheduleStatsSnapshot,
  fetchTeacherScheduleConflicts,
  localYmd,
  scheduleRangeEnd,
  type DayViewRosterStudent,
- type ScheduleAlerts,
  type ScheduleManageRow,
  type ScheduleStatsSnapshot,
  type TeacherScheduleConflict,
 } from "@/services/scheduleQueries"
 import {
  getScheduleListDataCache,
- isScheduleListCacheFresh,
- setScheduleListDataCache,
+ invalidateScheduleManageCaches,
 } from "@/components/schedule/scheduleListState"
+import {
+ applyFutureCancelledSearch,
+ applyScheduleDayViewSearch,
+ calendarDayChanged,
+ captureScheduleListReturnState,
+ decideInitialScheduleDates,
+ FUTURE_CANCELLED_SCOPE,
+ initialUrlDateFromSearch,
+ parseScheduleManageSearch,
+ parseValidScheduleYmd,
+ SCHEDULE_RANGE_DAYS,
+ shouldFetchNearestScheduleDate,
+ type ScheduleListReturnState,
+} from "@/components/schedule/scheduleManageDateState"
+import { useScheduleListData } from "@/components/schedule/useScheduleListData"
+import { bumpRequestGeneration, isLiveKeyedRequest } from "@/lib/requestGeneration"
 import { fetchAcademicCalendarClosures } from "@/services/academicCalendarQueries"
 import { fetchAcademicYearsWithDates } from "@/services/teacherAvailabilityQueries"
 
@@ -142,33 +163,10 @@ type ScheduleStatsUi =
  | { status: "ready"; data: ScheduleStatsSnapshot }
  | { status: "error" }
 
-function statsDisplay(stats: ScheduleStatsUi, key: keyof ScheduleStatsSnapshot): string {
- if (stats.status !== "ready") return "—"
- return String(stats.data[key])
-}
-
-const RANGE_DAYS = 14
+const RANGE_DAYS = SCHEDULE_RANGE_DAYS
+const SCHEDULE_HIGHLIGHT_MS = 2400
 
 type ViewMode = "byDate" | "list" | "day"
-
-/** 排程問題／類型篩選（可多選，條件為 AND） */
-type ScheduleIssueFilter = "noEnroll" | "private" | "noRoom"
-
-const ISSUE_FILTER_OPTIONS: {
- id: ScheduleIssueFilter
- label: string
- icon: typeof UserX
-}[] = [
- { id: "noEnroll", label: "未有學生報讀", icon: UserX },
- { id: "private", label: "私人課程", icon: UserRound },
- { id: "noRoom", label: "未有課室安排", icon: DoorOpen },
-]
-
-/** 專班老師僅保留與自己班務相關的進階篩選 */
-const TEACHER_ISSUE_FILTER_IDS: ReadonlySet<ScheduleIssueFilter> = new Set(["noEnroll"])
-
-/** 老師篩選：未指派 teacher_id 的哨兵值 */
-const UNASSIGNED_TEACHER_ID = "__unassigned__"
 
 type PendingMove = {
  row: ScheduleManageRow
@@ -192,179 +190,6 @@ function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string
  return rid
 }
 
-type ExpandedRosterStudent = {
- studentId: string
- fullName: string
- contactPhone: string | null
-}
-
-type ExpandedScheduleRosterProps = {
- schedule: ScheduleManageRow
- /** 同頁面已載入的排程，用於解析連堂時間 */
- schedulePeers?: ScheduleManageRow[]
- loading: boolean
- enrolled: ExpandedRosterStudent[]
- leave: ExpandedRosterStudent[]
- trial: ExpandedRosterStudent[]
- /** 來此補堂（跨班，makeup_schedule_id 指向本堂） */
- makeup: ExpandedRosterStudent[]
- /** 單堂報讀但本堂未選 */
- notEnrolled: ExpandedRosterStudent[]
- classMeta?: ReactNode
- footer?: ReactNode
-}
-
-function ExpandedScheduleRoster({
- schedule,
- schedulePeers,
- loading,
- enrolled,
- leave,
- trial,
- makeup,
- notEnrolled,
- classMeta,
- footer,
-}: ExpandedScheduleRosterProps) {
- const reminderTimes = resolveLessonReminderTimes(schedule, schedulePeers)
- const sections: {
-  key: string
-  label: string
-  students: ExpandedRosterStudent[]
-  tone: TagTone
-  headerClass: string
-  linkClass: string
-  buttonBorderClass: string
-  isTrial: boolean
-  attendanceStatus: string | null
-  alwaysShow: boolean
-  nameSuffix?: string
- }[] = [
-  {
-   key: "enrolled",
-   label: "班內學生",
-   students: enrolled,
-   tone: "success",
-   headerClass: "text-success",
-   linkClass: "text-success",
-   buttonBorderClass: "border-success/60",
-   isTrial: false,
-   attendanceStatus: null,
-   alwaysShow: true,
-  },
-  {
-   key: "notEnrolled",
-   label: "沒有報讀此堂（單堂生）",
-   students: notEnrolled,
-   tone: statusToTagTone("沒有報讀此堂"),
-   headerClass: "text-info",
-   linkClass: "text-info",
-   buttonBorderClass: "border-info/60",
-   isTrial: false,
-   attendanceStatus: null,
-   alwaysShow: false,
-   nameSuffix: "沒有報讀此堂",
-  },
-  {
-   key: "leave",
-   label: "請假學生",
-   students: leave,
-   tone: "error",
-   headerClass: "text-destructive",
-   linkClass: "text-destructive",
-   buttonBorderClass: "border-destructive/60",
-   isTrial: false,
-   attendanceStatus: "請假",
-   alwaysShow: false,
-  },
-  {
-   key: "trial",
-   label: "試堂學生",
-   students: trial,
-   tone: statusToTagTone("試堂"),
-   headerClass: "text-warning",
-   linkClass: "text-warning",
-   buttonBorderClass: "border-warning/60",
-   isTrial: true,
-   attendanceStatus: null,
-   alwaysShow: false,
-  },
-  {
-   key: "makeup",
-   label: "來此補堂",
-   students: makeup,
-   tone: statusToTagTone("補堂"),
-   headerClass: "text-warning",
-   linkClass: "text-warning",
-   buttonBorderClass: "border-warning/60",
-   isTrial: false,
-   attendanceStatus: "現場",
-   alwaysShow: false,
-  },
- ]
-
- return (
-  <>
-   {classMeta}
-   {loading ? (
-    <p className="mt-3 text-sm text-muted-foreground">載入名單…</p>
-   ) : (
-    sections.map((section, index) => {
-     if (!section.alwaysShow && section.students.length === 0) return null
-     return (
-      <div key={section.key} className={index === 0 && !classMeta ? undefined : "mt-3"}>
-       <p className={cn("mb-2 text-sm font-medium", section.headerClass)}>
-        {section.label}（{section.students.length}）
-       </p>
-       {section.students.length === 0 ? (
-        <p className="text-sm text-muted-foreground">尚無就讀學生。</p>
-       ) : (
-        <div className="flex flex-wrap gap-2">
-         {section.students.map((st) => (
-          <Tag
-           key={`${section.key}-${st.studentId}`}
-           tone={section.tone}
-           size="sm"
-           className="gap-1 py-0.5 pl-2 pr-1"
-          >
-           <Link
-            to={`/Students/${st.studentId}`}
-            className={cn("text-sm font-medium hover:underline", section.linkClass)}
-            onClick={(e) => e.stopPropagation()}
-           >
-            {section.nameSuffix ? `${st.fullName}${section.nameSuffix}` : st.fullName}
-           </Link>
-           <StudentWhatsAppReminderButton
-            compact
-            className={cn("h-7 w-7", section.buttonBorderClass)}
-            contactPhone={st.contactPhone}
-            payload={{
-             studentName: st.fullName,
-             subject: schedule.subject,
-             courseName: schedule.course_name,
-             courseCode: schedule.course_code_full,
-             dateYmd: schedule.scheduled_date,
-             startTime: reminderTimes.startTime,
-             endTime: reminderTimes.endTime,
-             isConsecutive: reminderTimes.isConsecutive,
-             classroomName: schedule.classroom_name,
-             attendanceStatus: section.attendanceStatus,
-             isTrial: section.isTrial,
-            }}
-           />
-          </Tag>
-         ))}
-        </div>
-       )}
-      </div>
-     )
-    })
-   )}
-   {footer}
-  </>
- )
-}
-
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
@@ -374,46 +199,43 @@ export function ScheduleManagePage() {
  /** 行政／外星人：手機可使用日視圖（週條＋課室佔用）；專班老師仍強制按日期 */
  /** 手機日／週曆視圖：行政與老師皆可用（資料仍依角色 scope） */
  const allowMobileDayView = true
- const todayYmd = localYmd()
+ const [todayYmd, setTodayYmd] = useState(() => localYmd())
+ const todayYmdRef = useRef(todayYmd)
+ todayYmdRef.current = todayYmd
  const [searchParams, setSearchParams] = useSearchParams()
  /** 僅在「進頁當下」URL 已帶日期時才沿用（例如儀表板深連結）；之後日視圖自行寫入的今天不得蓋過「未來最近排程」初始化。 */
- const initialUrlDayDateRef = useRef<string | null>((() => {
-  const view = searchParams.get("view")
-  const date = searchParams.get("date")
-  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) return date
-  return null
- })())
+ const initialUrlDayDateRef = useRef<string | null>(
+  initialUrlDateFromSearch(parseScheduleManageSearch(searchParams))
+ )
 
  const initialScheduleCache = getScheduleListDataCache()
  const initialUrlDayDate = initialUrlDayDateRef.current
- const hydrateScheduleCache =
-  initialScheduleCache != null &&
-  initialScheduleCache.rows.length > 0 &&
-  (initialUrlDayDate == null || initialUrlDayDate === initialScheduleCache.displayStart) &&
-  (teacherScopeId === initialScheduleCache.teacherScopeId)
+ const initialDateDecision = decideInitialScheduleDates({
+  urlDate: initialUrlDayDate,
+  cacheDisplayStart: initialScheduleCache?.key.displayStart ?? null,
+  cacheTeacherScopeId: initialScheduleCache?.key.teacherScopeId ?? null,
+  cacheHasData: initialScheduleCache != null,
+  teacherScopeId,
+  todayYmd,
+ })
 
  const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
+ const location = useLocation()
+ const isXl = useIsXl()
+ const { closePreview, preview } = useRecordPreview()
+ const openScheduleRecord = useOpenScheduleRecord()
+ const parsedSearch = parseScheduleManageSearch(searchParams)
+ const futureCancelledMode = parsedSearch.scope === FUTURE_CANCELLED_SCOPE
+ const futureCancelledReturnRef = useRef<ScheduleListReturnState | null>(null)
  const effectiveViewMode: ViewMode =
-  isMobile && (viewMode === "list" || (viewMode === "day" && !allowMobileDayView))
+  futureCancelledMode
    ? "byDate"
-   : viewMode
- const [displayStart, setDisplayStart] = useState(
-  () =>
-   initialUrlDayDate ??
-   (hydrateScheduleCache ? initialScheduleCache!.displayStart : todayYmd)
- )
- const [dayViewDate, setDayViewDate] = useState(
-  () =>
-   initialUrlDayDate ??
-   (hydrateScheduleCache ? initialScheduleCache!.displayStart : todayYmd)
- )
- const [startInitialized, setStartInitialized] = useState(
-  () => hydrateScheduleCache || Boolean(initialUrlDayDate)
- )
- const [quickFilter, setQuickFilter] = usePersistentState<null | "cancelled">(
-  "mgmt_schedule_quickFilter",
-  null
- )
+   : isMobile && (viewMode === "list" || (viewMode === "day" && !allowMobileDayView))
+     ? "byDate"
+     : viewMode
+ const [displayStart, setDisplayStart] = useState(initialDateDecision.displayStart)
+ const [dayViewDate, setDayViewDate] = useState(initialDateDecision.dayViewDate)
+ const [startInitialized, setStartInitialized] = useState(initialDateDecision.initialized)
  const [teacherFilterIds, setTeacherFilterIds] = usePersistentState<string[]>(
   "mgmt_schedule_teacherFilterIds",
   []
@@ -424,32 +246,57 @@ export function ScheduleManagePage() {
   []
  )
  const [filtersOpen, setFiltersOpen] = useState(false)
- const [rows, setRows] = useState<ScheduleManageRow[]>(
-  () => (hydrateScheduleCache ? initialScheduleCache!.rows : [])
+ const [overviewOpenDesktop, setOverviewOpenDesktop] = usePersistentState(
+  "mgmt_schedule_overviewOpen",
+  true
  )
- const [alerts, setAlerts] = useState<Map<string, ScheduleAlerts>>(
-  () => (hydrateScheduleCache ? initialScheduleCache!.alerts : new Map())
+ const [overviewOpenMobile, setOverviewOpenMobile] = useState(false)
+ const overviewOpen = isMobile ? overviewOpenMobile : overviewOpenDesktop
+ const [listSortKey, setListSortKey] = usePersistentState<ScheduleListColumnId>(
+  "mgmt_schedule_listSortKey",
+  "date"
  )
- const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(
-  () => (hydrateScheduleCache ? initialScheduleCache!.rosterContext : null)
+ const [listSortDir, setListSortDir] = usePersistentState<SortDir>("mgmt_schedule_listSortDir", "asc")
+ const [listHeaderFilters, setListHeaderFilters] = usePersistentState<ScheduleListHeaderFilters>(
+  "mgmt_schedule_listHeaderFilters",
+  EMPTY_SCHEDULE_HEADER_FILTERS
  )
+ const [highlightScheduleId, setHighlightScheduleId] = useState<string | null>(null)
+ const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
+ const listData = useScheduleListData({
+  enabled: startInitialized && !futureCancelledMode,
+  teacherScopeId,
+  displayStart,
+  rangeEnd,
+ })
+ const cancelledData = useFutureCancelledScheduleData({
+  enabled: startInitialized,
+  teacherScopeId,
+  asOf: todayYmd,
+ })
+ const rows = futureCancelledMode ? cancelledData.rows : listData.rows
+ const alerts = futureCancelledMode ? cancelledData.alerts : listData.alerts
+ const rooms = futureCancelledMode && cancelledData.rooms.length > 0 ? cancelledData.rooms : listData.rooms
+ const roomOptions =
+  futureCancelledMode && cancelledData.roomOptions.length > 0
+   ? cancelledData.roomOptions
+   : listData.roomOptions
+ const loading = futureCancelledMode ? cancelledData.loading : listData.loading
+ const rosterLoading = futureCancelledMode ? cancelledData.summaryLoading : listData.summaryLoading
+ const rowsStale = futureCancelledMode ? cancelledData.stale : listData.stale
+ const reloadRange = listData.reload
+ const reloadCancelled = cancelledData.reload
+ const reload = useCallback(async () => {
+  invalidateScheduleManageCaches({ futureCancelled: true })
+  await Promise.all([reloadRange(), reloadCancelled()])
+ }, [reloadRange, reloadCancelled])
+ const [actionErr, setActionErr] = useState<string | null>(null)
+ const pageErr = (futureCancelledMode ? cancelledData.error : listData.error) ?? actionErr
+ const listPreviewEnabled = useSchedulePreviewActive(effectiveViewMode === "list")
+ const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
  const [stats, setStats] = useState<ScheduleStatsUi>({ status: "loading" })
  const [closureNameByDate, setClosureNameByDate] = useState<Map<string, string>>(() => new Map())
- const [rooms, setRooms] = useState<RoomRecord[]>(
-  () => (hydrateScheduleCache ? initialScheduleCache!.rooms : [])
- )
- const [roomOptions, setRoomOptions] = useState<{ id: string; label: string }[]>(
-  () => (hydrateScheduleCache ? initialScheduleCache!.roomOptions : [])
- )
- const [loading, setLoading] = useState(false)
- /** 排程列已出、人數／badge 仍在載 */
- const [rosterLoading, setRosterLoading] = useState(false)
- /** 換區間時保留舊列半透明，直到新列到達 */
- const [rowsStale, setRowsStale] = useState(false)
- const [pageErr, setPageErr] = useState<string | null>(null)
- const rowsRef = useRef(rows)
- rowsRef.current = rows
- const reloadGenRef = useRef(0)
+ const statsGenRef = useRef({ current: 0 })
 
  const [detailId, setDetailId] = useState<string | null>(null)
  const [detailRow, setDetailRow] = useState<ScheduleDetailRecord | null>(null)
@@ -501,8 +348,15 @@ export function ScheduleManagePage() {
  const [cancelSaving, setCancelSaving] = useState(false)
  const [substituteTarget, setSubstituteTarget] = useState<ScheduleManageRow | null>(null)
  const [rollCallScheduleId, setRollCallScheduleId] = useState<string | null>(null)
- /** null = 尚未載入；載入後為有可點名對象的排程 id */
- const [rollCallEligibleIds, setRollCallEligibleIds] = useState<Set<string> | null>(null)
+ const rollCallEligibleIds = useMemo(() => {
+  if (rosterLoading) return null
+  const summaries = futureCancelledMode ? cancelledData.rowSummaries : listData.rowSummaries
+  const ids = new Set<string>()
+  for (const [id, summary] of summaries) {
+   if (summary.canTakeAttendance) ids.add(id)
+  }
+  return ids
+ }, [cancelledData.rowSummaries, futureCancelledMode, listData.rowSummaries, rosterLoading])
 
  const canManageSchedules = can(profile?.activeCapabilities, "schedule.reschedule")
  const canRollCall = can(profile?.activeCapabilities, "attendance.take")
@@ -510,103 +364,45 @@ export function ScheduleManagePage() {
  const scheduleMgmtLocked = !canManageSchedules
  const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
 
- const rangeEnd = useMemo(() => scheduleRangeEnd(displayStart, RANGE_DAYS), [displayStart])
-
  const reloadStats = useCallback(async (teacherId?: string | null) => {
+  const asOf = todayYmdRef.current
+  const requestKey = `${teacherId ?? ""}:${asOf}`
+  const gen = bumpRequestGeneration(statsGenRef.current)
   setStats({ status: "loading" })
+  const isLive = () =>
+   isLiveKeyedRequest(
+    statsGenRef.current,
+    gen,
+    `${teacherScopeId ?? ""}:${todayYmdRef.current}`,
+    requestKey,
+    (a, b) => a === b
+   )
   try {
    const result = await fetchScheduleStatsSnapshot(teacherId)
+   if (!isLive()) return
    if ("ok" in result) setStats({ status: "ready", data: result.ok })
    else setStats({ status: "error" })
   } catch {
+   if (!isLive()) return
    setStats({ status: "error" })
   }
- }, [])
-
- const reload = useCallback(async () => {
-  if (!isSupabaseConfigured) return
-  if (!isYmd(displayStart)) return
-  const gen = ++reloadGenRef.current
-  const hasExistingRows = rowsRef.current.length > 0
-  setLoading(!hasExistingRows)
-  setRowsStale(hasExistingRows)
-  setRosterLoading(true)
-  setPageErr(null)
-  try {
-   const [list, rms] = await Promise.all([
-    fetchSchedulesInRange(
-     displayStart,
-     rangeEnd,
-     teacherScopeId ? { teacherId: teacherScopeId } : undefined
-    ),
-    fetchClassrooms(),
-   ])
-   if (reloadGenRef.current !== gen) return
-   setRows(list)
-   setRowsStale(false)
-   setLoading(false)
-   setRooms(rms)
-   const nextRoomOptions = [...rms]
-    .map((r) => ({ id: r.id, label: r.name }))
-    .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
-   setRoomOptions(nextRoomOptions)
-   void reloadStats(teacherScopeId)
-
-   const nextRosterContext = await fetchScheduleRosterContext(list.map((row) => row.id))
-   if (reloadGenRef.current !== gen) return
-   const enriched = enrichScheduleRowsWithRosterContext(list, nextRosterContext)
-   const nextAlerts = await fetchScheduleAlerts(list, nextRosterContext)
-   setRows(enriched)
-   setRosterContext(nextRosterContext)
-   setAlerts(nextAlerts)
-   setScheduleListDataCache({
-    displayStart,
-    rangeEnd,
-    teacherScopeId,
-    rows: enriched,
-    rooms: rms,
-    roomOptions: nextRoomOptions,
-    rosterContext: nextRosterContext,
-    alerts: nextAlerts,
-   })
-  } catch (e) {
-   if (reloadGenRef.current !== gen) return
-   reportUserFacingError(e, { source: "ScheduleManagePage.reload", setErr: setPageErr })
-   if (!hasExistingRows) {
-    setRows([])
-    setRosterContext(null)
-   }
-  } finally {
-   if (reloadGenRef.current === gen) {
-    setLoading(false)
-    setRowsStale(false)
-    setRosterLoading(false)
-   }
-  }
- }, [displayStart, rangeEnd, reloadStats, teacherScopeId])
+ }, [teacherScopeId])
 
  useEffect(() => {
   if (!startInitialized) return
-  if (isScheduleListCacheFresh(teacherScopeId, displayStart, rangeEnd)) {
-   void reloadStats(teacherScopeId)
-   return
-  }
-  void reload()
- }, [reload, startInitialized, teacherScopeId, displayStart, rangeEnd, reloadStats])
+  void reloadStats(teacherScopeId)
+ }, [startInitialized, teacherScopeId, reloadStats])
 
  useEffect(() => {
   const urlDate = initialUrlDayDateRef.current
-  if (urlDate) {
-   setDisplayStart(urlDate)
-   setDayViewDate(urlDate)
-   setStartInitialized(true)
-   return
-  }
   const cached = getScheduleListDataCache()
-  if (
-   cached &&
-   isScheduleListCacheFresh(teacherScopeId, cached.displayStart, cached.rangeEnd)
-  ) {
+  const cacheMatchesTeacherScope =
+   cached != null && cached.key.teacherScopeId === teacherScopeId
+  if (!shouldFetchNearestScheduleDate({ urlDate, cacheMatchesTeacherScope })) {
+   if (urlDate) {
+    setDisplayStart(urlDate)
+    setDayViewDate(urlDate)
+   }
    setStartInitialized(true)
    return
   }
@@ -629,37 +425,33 @@ export function ScheduleManagePage() {
  }, [teacherScopeId])
 
  useEffect(() => {
+  const refreshCalendarDay = () => {
+   const next = localYmd()
+   if (!calendarDayChanged(todayYmdRef.current, next)) return
+   todayYmdRef.current = next
+   setTodayYmd(next)
+   void reloadStats(teacherScopeId)
+  }
+  const onVisibility = () => {
+   if (document.visibilityState === "visible") refreshCalendarDay()
+  }
+  window.addEventListener("focus", refreshCalendarDay)
+  document.addEventListener("visibilitychange", onVisibility)
+  return () => {
+   window.removeEventListener("focus", refreshCalendarDay)
+   document.removeEventListener("visibilitychange", onVisibility)
+  }
+ }, [reloadStats, teacherScopeId])
+
+ useEffect(() => {
   if (!startInitialized) return
-  const view = searchParams.get("view")
-  const date = searchParams.get("date")
-  if (view === "day" && date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-   setDayViewDate(date)
-   setDisplayStart(date)
+  const parsed = parseScheduleManageSearch(searchParams)
+  if (parsed.view === "day" && parsed.date) {
+   setDayViewDate(parsed.date)
+   setDisplayStart(parsed.date)
    if (!isMobile || allowMobileDayView) setViewMode("day")
   }
  }, [searchParams, isMobile, allowMobileDayView, setViewMode, startInitialized])
-
- useEffect(() => {
-  let cancelled = false
-  const candidates = rows.filter(
-   (s) => !String(s.status ?? "").includes("取消") && s.class_id != null && String(s.class_id).length > 0
-  )
-  if (candidates.length === 0) {
-   setRollCallEligibleIds(new Set())
-   return
-  }
-  setRollCallEligibleIds(null)
-  void fetchScheduleIdsWithRollCallTargets(candidates, rosterContext ?? undefined)
-   .then((ids) => {
-    if (!cancelled) setRollCallEligibleIds(ids)
-   })
-   .catch(() => {
-    if (!cancelled) setRollCallEligibleIds(new Set())
-   })
-  return () => {
-   cancelled = true
-  }
- }, [rows, rosterContext])
 
  const openRollCallForSchedule = useCallback(
   (scheduleId: string) => {
@@ -717,8 +509,8 @@ export function ScheduleManagePage() {
    setSearchParams(params, { replace: true })
   }
 
-  const date = searchParams.get("date")
-  if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  const date = parseValidScheduleYmd(searchParams.get("date"))
+  if (date) {
    setDisplayStart(date)
    setDayViewDate(date)
   }
@@ -754,23 +546,20 @@ export function ScheduleManagePage() {
 
  useEffect(() => {
   // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
-  if (!startInitialized) return
-  if (effectiveViewMode === "day") {
-   const params = new URLSearchParams(searchParams)
-   if (params.get("view") !== "day" || params.get("date") !== dayViewDate) {
-    params.set("view", "day")
-    params.set("date", dayViewDate)
-    setSearchParams(params, { replace: true })
-   }
-   return
-  }
-  if (searchParams.get("view") === "day") {
-   const params = new URLSearchParams(searchParams)
-   params.delete("view")
-   params.delete("date")
-   setSearchParams(params, { replace: true })
-  }
- }, [effectiveViewMode, dayViewDate, searchParams, setSearchParams, startInitialized])
+  if (!startInitialized || futureCancelledMode) return
+  const { next, changed } = applyScheduleDayViewSearch(searchParams, {
+   viewMode: effectiveViewMode,
+   dayViewDate,
+  })
+  if (changed) setSearchParams(next, { replace: true })
+ }, [
+  effectiveViewMode,
+  dayViewDate,
+  searchParams,
+  setSearchParams,
+  startInitialized,
+  futureCancelledMode,
+ ])
 
  useEffect(() => {
   if (effectiveViewMode !== "day") return
@@ -1031,10 +820,10 @@ useEffect(() => {
  )
 
  const filtered = useMemo(() => {
+  if (futureCancelledMode) return rows
   const issues = new Set(effectiveIssueFilters)
   const teacherSet = new Set(effectiveTeacherFilterIds)
   return rows.filter((r) => {
-   if (quickFilter === "cancelled" && !r.status.includes("取消")) return false
    if (statusFilter !== "all" && r.status !== statusFilter) return false
    if (issues.has("noEnroll")) {
     if (r.enrollCount == null) return false
@@ -1050,7 +839,13 @@ useEffect(() => {
    }
    return true
   })
- }, [rows, quickFilter, statusFilter, effectiveIssueFilters, effectiveTeacherFilterIds])
+ }, [rows, futureCancelledMode, statusFilter, effectiveIssueFilters, effectiveTeacherFilterIds])
+
+ const listTableRows = useMemo(() => {
+  const headered = filtered.filter((row) => scheduleMatchesHeaderFilters(row, listHeaderFilters))
+  const sortKey = isScheduleListColumnId(listSortKey) ? listSortKey : "date"
+  return sortScheduleListRows(headered, sortKey, listSortDir)
+ }, [filtered, listHeaderFilters, listSortDir, listSortKey])
 
  const rollCallTarget = useMemo(() => {
   if (!rollCallScheduleId) return null
@@ -1094,7 +889,6 @@ useEffect(() => {
  const dayViewFilterActive =
   effectiveTeacherFilterIds.length > 0 ||
   statusFilter !== "all" ||
-  quickFilter != null ||
   effectiveIssueFilters.length > 0
 
  const toggleIssueFilter = useCallback((id: ScheduleIssueFilter) => {
@@ -1111,9 +905,8 @@ useEffect(() => {
  const clearAllFilters = useCallback(() => {
   setTeacherFilterIds([])
   setStatusFilter("all")
-  setQuickFilter(null)
   setIssueFilters([])
- }, [setTeacherFilterIds, setStatusFilter, setQuickFilter, setIssueFilters])
+ }, [setTeacherFilterIds, setStatusFilter, setIssueFilters])
 
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
@@ -1124,7 +917,7 @@ useEffect(() => {
    setDayViewRosterLoading(false)
    return
   }
-  if (dayFiltered.length === 0 || !rosterContext) {
+  if (dayFiltered.length === 0) {
    setDayViewRosterBySchedule(new Map())
    setDayViewLeaveByScheduleId(new Map())
    setDayViewRosterLoading(false)
@@ -1132,12 +925,18 @@ useEffect(() => {
   }
   let cancelled = false
   setDayViewRosterLoading(true)
-  void Promise.all([
-   fetchDayViewRosterBySchedules(dayFiltered, rosterContext),
-   fetchLeaveInfoForSchedules(dayFiltered, rosterContext),
-  ])
-   .then(([rosterMap, leaveMap]) => {
+  void fetchScheduleRosterContext(dayFiltered.map((row) => row.id))
+   .then((context) => {
     if (cancelled) return
+    setRosterContext(context)
+    return Promise.all([
+     fetchDayViewRosterBySchedules(dayFiltered, context),
+     fetchLeaveInfoForSchedules(dayFiltered, context),
+    ])
+   })
+   .then((result) => {
+    if (cancelled || !result) return
+    const [rosterMap, leaveMap] = result
     setDayViewRosterBySchedule(rosterMap)
     setDayViewLeaveByScheduleId(leaveMap)
    })
@@ -1153,7 +952,7 @@ useEffect(() => {
   return () => {
    cancelled = true
   }
- }, [effectiveViewMode, dayFiltered, rosterContext])
+ }, [effectiveViewMode, dayFiltered])
 
  const dayViewRoster = useMemo(() => {
   const m = new Map<string, string[]>()
@@ -1331,31 +1130,57 @@ useEffect(() => {
   }
  }, [pendingMove, dayFiltered, dayViewDate])
 
+ const captureReturn = useCallback((): ScheduleListReturnState => {
+  return captureScheduleListReturnState({
+   search: searchParams.toString(),
+   viewMode: futureCancelledMode ? viewMode : effectiveViewMode,
+   displayStart,
+   dayViewDate,
+   selectedScheduleId: expandedScheduleId,
+   scrollY: window.scrollY,
+  })
+ }, [
+  searchParams,
+  futureCancelledMode,
+  viewMode,
+  effectiveViewMode,
+  displayStart,
+  dayViewDate,
+  expandedScheduleId,
+ ])
+
+ const openRecord = useCallback(
+  (id: string) => {
+   openScheduleRecord(id, {
+    listView: effectiveViewMode === "list" && !futureCancelledMode,
+    returnState: captureReturn(),
+   })
+  },
+  [openScheduleRecord, effectiveViewMode, futureCancelledMode, captureReturn]
+ )
+
  const exportCsv = () => {
-  const header = ["日期", "班別", "代碼", "開始", "結束", "老師", "位置", "狀態", "點名冊人數", "教學紀錄"]
-  const lines = [
-   header.join(","),
-   ...filtered.map((r) =>
-    [
-     r.scheduled_date,
-     `"${r.classLabel.replace(/"/g, '""')}"`,
-     r.course_code_full ?? "",
-     r.start_time ?? "",
-     r.end_time ?? "",
-     `"${(r.teacher_name ?? "").replace(/"/g, '""')}"`,
-     `"${(r.classroom_name ?? "").replace(/"/g, '""')}"`,
-     r.status,
-     String(r.enrollCount ?? ""),
-     `"${(r.teaching_notes ?? "").replace(/"/g, '""').replace(/\n/g, " ")}"`,
-    ].join(",")
-   ),
-  ]
-  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" })
-  const a = document.createElement("a")
-  a.href = URL.createObjectURL(blob)
-  a.download = `schedules-${displayStart}-${rangeEnd}.csv`
-  a.click()
-  URL.revokeObjectURL(a.href)
+  const csvRows = futureCancelledMode ? rows : filtered
+  const filterParts = futureCancelledMode
+   ? ["未來取消堂專用模式"]
+   : [
+      statusFilter !== "all" ? `狀態=${statusFilter}` : "狀態=全部",
+      effectiveIssueFilters.length > 0 ? `進階=${effectiveIssueFilters.join("+")}` : null,
+      effectiveTeacherFilterIds.length > 0 ? `老師=${effectiveTeacherFilterIds.length}` : null,
+     ].filter(Boolean)
+  const csv = buildScheduleCsv(csvRows, {
+   rangeLabel: futureCancelledMode
+    ? `今天起（${todayYmd}）`
+    : `${displayStart}–${rangeEnd}`,
+   filterLabel: filterParts.join("；") || "無",
+   producedAt: new Date().toISOString(),
+  })
+  downloadTextFile(
+   futureCancelledMode
+    ? `schedules-future-cancelled-${todayYmd}.csv`
+    : `schedules-${displayStart}-${rangeEnd}.csv`,
+   csv
+  )
  }
 
  const openAdd = () => {
@@ -1564,7 +1389,7 @@ useEffect(() => {
    } catch (e) {
     reportUserFacingError(e, {
      source: "ScheduleManagePage.confirmCancelSchedule",
-     setErr: setPageErr,
+     setErr: setActionErr,
     })
    } finally {
     setCancelSaving(false)
@@ -1669,7 +1494,7 @@ useEffect(() => {
   } catch (e) {
    reportUserFacingError(e, {
     source: "ScheduleManagePage.oneClickAssign",
-    setErr: setPageErr,
+    setErr: setActionErr,
     userMessage: "一鍵分配失敗",
    })
   } finally {
@@ -1677,23 +1502,72 @@ useEffect(() => {
   }
  }
 
+ const exitFutureCancelled = () => {
+  const saved = futureCancelledReturnRef.current
+  if (saved) {
+   setViewMode(saved.viewMode)
+   setDisplayStart(saved.displayStart)
+   setDayViewDate(saved.dayViewDate)
+   if (saved.selectedScheduleId) setExpandedScheduleId(saved.selectedScheduleId)
+   setSearchParams(new URLSearchParams(saved.search), { replace: true })
+   const y = saved.scrollY
+   if (y != null) {
+    requestAnimationFrame(() => window.scrollTo(0, y))
+   }
+   return
+  }
+  setSearchParams((prev) => applyFutureCancelledSearch(prev, false), { replace: true })
+ }
+
  const jumpToday = () => {
   setDisplayStart(todayYmd)
   setDayViewDate(todayYmd)
-  setQuickFilter(null)
   setViewMode("day")
  }
 
  const onTodayCardClick = () => {
+  if (futureCancelledMode) exitFutureCancelled()
   setDisplayStart(todayYmd)
   setDayViewDate(todayYmd)
-  setQuickFilter(null)
   setViewMode("day")
  }
 
- const onPendingCardClick = () => {
-  setQuickFilter((q) => (q === "cancelled" ? null : "cancelled"))
+ const enterFutureCancelled = () => {
+  if (futureCancelledMode) {
+   exitFutureCancelled()
+   return
+  }
+  const current = new URLSearchParams(searchParams)
+  current.delete("scope")
+  futureCancelledReturnRef.current = captureScheduleListReturnState({
+   search: current.toString(),
+   viewMode: effectiveViewMode,
+   displayStart,
+   dayViewDate,
+   selectedScheduleId: expandedScheduleId,
+   scrollY: window.scrollY,
+  })
+  setSearchParams((prev) => applyFutureCancelledSearch(prev, true), { replace: true })
  }
+
+ useEffect(() => {
+  if (effectiveViewMode !== "list" || !isXl) closePreview()
+ }, [effectiveViewMode, isXl, closePreview])
+
+ useEffect(() => {
+  const st = location.state as { highlightScheduleId?: string; scrollY?: number } | null
+  const id = st?.highlightScheduleId
+  if (!id) return
+  setHighlightScheduleId(id)
+  const timer = window.setTimeout(() => setHighlightScheduleId(null), SCHEDULE_HIGHLIGHT_MS)
+  requestAnimationFrame(() => {
+   document.querySelector(`[data-schedule-anchor="${CSS.escape(id)}"]`)?.scrollIntoView({
+    block: "center",
+   })
+   if (st?.scrollY != null) window.scrollTo(0, st.scrollY)
+  })
+  return () => window.clearTimeout(timer)
+ }, [location.state])
 
  if (!isSupabaseConfigured) {
   return (
@@ -1723,29 +1597,326 @@ useEffect(() => {
   setTeacherFilterIds([])
  }
 
- return (
+ const unassignedRoomCount = rows.filter(
+  (s) => !s.status.includes("取消") && s.classroom_id == null
+ ).length
+ const cancelledKpiStatus = cancelledData.error
+  ? "error"
+  : cancelledData.loading && cancelledData.rows.length === 0
+    ? "loading"
+    : "ready"
+ const todayKpiStatus = stats.status
+ const todayLessonTag =
+  stats.status === "ready" ? `${stats.data.todayLessonCount} 堂今日` : "— 堂今日"
+ const csvDisabled = rosterLoading
+ const previewScheduleId = preview?.kind === "schedule" ? preview.id : null
+
+ const renderExpanded = (s: ScheduleManageRow) => {
+  const occupancy = isHomeworkOccupancySchedule(s)
+  const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
+  if (occupancy) {
+   return (
+    <p className="text-sm text-muted-foreground">
+     功輔佔室：可改課室（會寫返當日編更）。放假請用功輔校曆；加開／收起第二房請到當值編更。
+    </p>
+   )
+  }
+  return (
+   <ExpandedScheduleRoster
+    schedule={s}
+    schedulePeers={rows}
+    loading={listStudentsLoading}
+    enrolled={listStudents}
+    leave={listLeaveStudents}
+    trial={listTrialStudents}
+    makeup={listMakeupStudents}
+    notEnrolled={listNotEnrolledStudents}
+    classMeta={
+     <div className="space-y-2">
+      <p className="text-sm font-medium text-info">
+       班別：{s.classLabel}
+       {s.course_code_full ? `（${s.course_code_full}）` : ""}
+       {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
+      </p>
+      <p className="text-sm text-muted-foreground">
+       位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
+      </p>
+     </div>
+    }
+    footer={
+     s.class_id ? (
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+       <Button type="button" variant="outline" size="default" className="text-base" asChild>
+        <Link to={`/Classes/${s.class_id}`}>班別詳情</Link>
+       </Button>
+      </div>
+     ) : null
+    }
+   />
+  )
+ }
+
+ const renderByDateActions = (s: ScheduleManageRow) => {
+  const occupancy = isHomeworkOccupancySchedule(s)
+  return (
+   <>
+    <Select
+     className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
+     value={s.classroom_id ?? ""}
+     disabled={scheduleRowLocked(s)}
+     onChange={async (e) => {
+      if (scheduleRowLocked(s)) return
+      const v = e.target.value || null
+      if (occupancy) {
+       if (!v) return
+       await updateSchedule(s.id, { classroom_id: v })
+       if (s.class_id) {
+        await applyHomeworkOccupancyClassroomMove({
+         classId: s.class_id,
+         scheduledDate: s.scheduled_date,
+         fromClassroomId: s.classroom_id,
+         toClassroomId: v,
+        })
+       }
+      } else {
+       await updateSchedule(s.id, { classroom_id: v })
+      }
+      await reload()
+     }}
+    >
+     {occupancy ? null : <option value="">課室未定</option>}
+     {roomOptions.map((o) => (
+      <option key={o.id} value={o.id}>
+       {o.label}
+      </option>
+     ))}
+    </Select>
+    {occupancy ? (
+     <p className="text-xs text-muted-foreground">放假請用功輔校曆，唔好取消佔室。</p>
+    ) : (
+     <Select
+      className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
+      value={s.status}
+      disabled={scheduleRowLocked(s)}
+      onChange={(e) => void handleStatusChange(s, e.target.value)}
+     >
+      <option value="正常">正常</option>
+      <option value="完成">完成</option>
+      <option value="取消">取消</option>
+     </Select>
+    )}
+    {occupancy ? null : canManageSchedules ? (
+     <>
+      <Link
+       to="/LeaveManagement"
+       className="rounded-md border border-warning px-3 py-2 text-sm font-medium text-warning transition-colors hover:bg-warning hover:text-warning-foreground"
+       onClick={(e) => e.stopPropagation()}
+      >
+       +請假
+      </Link>
+      <Link
+       to="/TrialSessions"
+       className="rounded-md border border-info px-3 py-2 text-sm font-medium text-info transition-colors hover:bg-info hover:text-info-foreground"
+       onClick={(e) => e.stopPropagation()}
+      >
+       +補堂試堂
+      </Link>
+     </>
+    ) : null}
+    {occupancy ? null : canAssignSubstitute ? (
+     <Button
+      type="button"
+      variant="outline"
+      size="default"
+      className="h-11 text-base"
+      onClick={(e) => {
+       e.stopPropagation()
+       setSubstituteTarget(s)
+      }}
+     >
+      {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+     </Button>
+    ) : null}
+    {occupancy ? null : canRollCall ? (
+     <Button
+      type="button"
+      size="default"
+      className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
+      disabled={!canOpenRollCall(s.id)}
+      title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
+      onClick={(e) => {
+       e.stopPropagation()
+       openRollCallForSchedule(s.id)
+      }}
+     >
+      <Check className="h-4 w-4" aria-hidden />
+      確定點名
+     </Button>
+    ) : null}
+    {occupancy ? null : canManageSchedules ? (
+     <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="h-11 w-11 text-destructive hover:bg-destructive/10"
+      disabled={scheduleRowLocked(s)}
+      aria-label="刪除排程"
+      onClick={async () => {
+       if (scheduleRowLocked(s)) return
+       if (
+        !(await confirmDialog({
+         title: "刪除排程",
+         description: "確定刪除此排程？",
+         confirmText: "確認刪除",
+         tone: "destructive",
+        }))
+       )
+        return
+       await deleteSchedule(s.id)
+       await reload()
+      }}
+     >
+      ×
+     </Button>
+    ) : null}
+   </>
+  )
+ }
+
+ const renderListActions = (s: ScheduleManageRow) => {
+  const occupancy = isHomeworkOccupancySchedule(s)
+  return (
+   <>
+    {occupancy ? null : canManageSchedules ? (
+     <Link
+      to="/LeaveManagement"
+      className="text-sm font-medium text-warning hover:underline"
+      onClick={(e) => e.stopPropagation()}
+     >
+      +請假
+     </Link>
+    ) : null}
+    {occupancy ? null : canRollCall ? (
+     <button
+      type="button"
+      className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+      disabled={!canOpenRollCall(s.id)}
+      title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
+      onClick={(e) => {
+       e.stopPropagation()
+       openRollCallForSchedule(s.id)
+      }}
+     >
+      確定點名
+     </button>
+    ) : null}
+    {occupancy ? null : canAssignSubstitute ? (
+     <Button
+      type="button"
+      variant="link"
+      className="h-auto p-0 text-sm"
+      onClick={(e) => {
+       e.stopPropagation()
+       setSubstituteTarget(s)
+      }}
+     >
+      {s.original_teacher_id ? "更改代堂" : "指派代堂"}
+     </Button>
+    ) : null}
+    {occupancy ? null : canManageSchedules ? (
+     <Button
+      type="button"
+      variant="link"
+      className="h-auto p-0 text-sm text-destructive"
+      disabled={scheduleRowLocked(s)}
+      onClick={async (e) => {
+       if (scheduleRowLocked(s)) return
+       e.stopPropagation()
+       if (
+        !(await confirmDialog({
+         title: "刪除排程",
+         description: "確定刪除？",
+         confirmText: "確認刪除",
+         tone: "destructive",
+        }))
+       )
+        return
+       await deleteSchedule(s.id)
+       await reload()
+      }}
+     >
+      刪除
+     </Button>
+    ) : null}
+   </>
+  )
+ }
+
+ const renderStatusControl = (s: ScheduleManageRow) => {
+  const occupancy = isHomeworkOccupancySchedule(s)
+  if (occupancy) {
+   return <p className="text-xs text-muted-foreground">放假請用功輔校曆</p>
+  }
+  return (
+   <>
+    <Select
+     className="h-10 rounded-md border border-input bg-background px-2 text-sm"
+     value={s.status}
+     disabled={scheduleRowLocked(s)}
+     onChange={(e) => void handleStatusChange(s, e.target.value)}
+    >
+     <option value="正常">正常</option>
+     <option value="完成">完成</option>
+     <option value="取消">取消</option>
+    </Select>
+    {s.is_extra_lesson ? (
+     <Tag tone={statusToTagTone("加堂")} size="sm" className="mt-1.5">
+      加堂
+     </Tag>
+    ) : null}
+    {s.status.includes("取消") && s.cancel_reason ? (
+     <p className="mt-1 text-xs text-muted-foreground" title={s.cancel_reason}>
+      原因：{s.cancel_reason}
+     </p>
+    ) : null}
+   </>
+  )
+ }
+
+ const pageBody = (
   <div className="space-y-5 text-sm leading-relaxed">
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
       <CalendarDays className="h-6 w-6 shrink-0 text-info" aria-hidden />
       排程管理
-      <Tag tone="info">{statsDisplay(stats, "todayLessonCount")} 堂今日</Tag>
+      <Tag tone="info">{todayLessonTag}</Tag>
      </h1>
      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      按日期／列表可點擊卡片展開班內學生、請假學生與試堂學生；日視圖可拖曳或「移動到…」調整課室與時間（需確認），亦可一鍵分配未編課室的排程。日視圖學生列為點名冊（當堂可見報讀＋試堂＋補堂），並以標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影；實際不用上堂的排程以灰色淡化。非標準時間排程會顯示於「其他時段」列。日視圖以每格{" "}
-      <strong>75 分鐘</strong>（09:00 起）對齊。
+      按日期可展開名單；列表開啟預覽或完整詳情；日視圖以拖曳及移動課室為主。
      </p>
     </div>
    </header>
 
+   {futureCancelledMode ? (
+    <div
+     role="status"
+     className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm"
+    >
+     <p className="font-medium text-destructive">未來取消堂（今天起）</p>
+     <Button type="button" variant="outline" size="sm" onClick={exitFutureCancelled}>
+      返回原日期及視圖
+     </Button>
+    </div>
+   ) : null}
+
    {teacherScopeId ? (
-   <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
+    <div className="rounded-xl border border-info bg-info/90 px-4 py-3 text-sm text-info-foreground">
      你正以<strong>{teacherScopeName}</strong>身分瀏覽：僅顯示指派給您的排程與統計。
     </div>
    ) : null}
 
-   {canManageSchedules && blankTeacherCount > 0 ? (
+   {canManageSchedules && blankTeacherCount > 0 && !futureCancelledMode ? (
     <div
      role="status"
      className="rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm text-warning"
@@ -1765,257 +1936,101 @@ useEffect(() => {
     </div>
    ) : null}
 
-   <section className="grid grid-cols-3 gap-2 md:gap-4" aria-label="排程概覽">
-    <button
-     type="button"
-     onClick={onTodayCardClick}
-     className={cn(
-      "rounded-xl border bg-card p-2.5 text-left shadow-sm transition-all duration-200 md:p-6",
-      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
-      displayStart === todayYmd && quickFilter == null ? "ring-2 ring-info/50" : "border-border"
-     )}
-    >
-     <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground md:gap-2 md:text-sm">
-      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-info md:h-5 md:w-5" />
-      <span className="truncate">今日課堂</span>
-     </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-info md:mt-2 md:text-2xl">{statsDisplay(stats, "todayLessonCount")}</p>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊將列表起始日設為今天</p>
-    </button>
-
-    <button
-     type="button"
-     onClick={onPendingCardClick}
-     className={cn(
-      "rounded-xl border bg-card p-2.5 text-left shadow-sm transition-all duration-200 md:p-6",
-      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40",
-      quickFilter === "cancelled" ? "ring-2 ring-destructive/60" : "border-border"
-     )}
-    >
-     <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground md:gap-2 md:text-sm">
-      <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive md:h-5 md:w-5" />
-      <span className="truncate">待處理</span>
-     </div>
-     <p role="alert" className="mt-1 text-xl font-bold tabular-nums text-destructive md:mt-2 md:text-2xl">{statsDisplay(stats, "pendingCancelledCount")}</p>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊篩選「已取消」排程（再點一次還原）</p>
-    </button>
-
-    <button
-     type="button"
-     onClick={onTodayCardClick}
-     className={cn(
-      "rounded-xl border bg-card p-2.5 text-left shadow-sm transition-all duration-200 md:p-6",
-      "hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-success/40",
-      "border-border"
-     )}
-    >
-     <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground md:gap-2 md:text-sm">
-      <Users className="h-3.5 w-3.5 shrink-0 text-success md:h-5 md:w-5" />
-      <span className="truncate">上堂學生</span>
-     </div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-success md:mt-2 md:text-2xl">{statsDisplay(stats, "todayStudentHeadcount")}</p>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">依今天各堂點名冊加總人數</p>
-    </button>
-   </section>
-
-   {stats.status === "error" ? (
-    <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-     排程統計未能載入
-    </div>
-   ) : null}
-
-   <p className="hidden rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 md:block">
-    <span className="font-medium">提醒：</span>
-    按日期／列表的圖示：鈴鐺為總覽；學士帽＝試堂、循環箭頭＝請假／補堂、攝影機＝備註需錄影、叉圈＝請假（滑鼠停上可看說明）。日視圖改以文字標籤標示無人報讀、所有學生請假、請假生、試堂生、網課生、要錄影。
-   </p>
-
-   {isMobile ? (
-    <MobileFilterSheet
-     open={filtersOpen}
-     onClose={() => setFiltersOpen(false)}
-     title="篩選排程"
-     activeCount={activeFilterCount}
-     onReset={resetScheduleFilters}
-    >
-     <div className="space-y-4">
-      <div className="space-y-1.5">
-       <p className="text-xs font-medium text-muted-foreground">狀態</p>
-       <Select
-        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-        value={statusFilter}
-        onChange={(e) => setStatusFilter(e.target.value)}
-       >
-        <option value="all">全部狀態</option>
-        <option value="正常">正常</option>
-        <option value="完成">完成</option>
-        <option value="取消">取消</option>
-       </Select>
-      </div>
-      {issueFilterOptions.length > 0 ? (
-       <div className="space-y-1.5">
-        <p className="text-xs font-medium text-muted-foreground">進階篩選</p>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="進階篩選">
-         {issueFilterOptions.map(({ id, label, icon: Icon }) => {
-          const active = effectiveIssueFilters.includes(id)
-          const disabled = id === "noEnroll" && rosterLoading
-          return (
-           <button
-            key={id}
-            type="button"
-            aria-pressed={active}
-            disabled={disabled}
-            title={disabled ? "點名冊人數載入中，請稍候再篩選" : undefined}
-            onClick={() => toggleIssueFilter(id)}
-            className={cn(
-             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
-             disabled && "cursor-not-allowed opacity-50",
-             active
-              ? "border-info bg-info/10 text-info ring-1 ring-info/40"
-              : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
-            )}
-           >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden />
-            {label}
-           </button>
-          )
-         })}
-        </div>
-       </div>
-      ) : null}
-      {!teacherScopeId && teacherOptions.length > 0 ? (
-       <div className="space-y-1.5">
-        <p className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-         <User className="h-4 w-4 shrink-0" aria-hidden />
-         老師
-        </p>
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="老師篩選">
-         {teacherOptions.map(({ id, label }) => {
-          const active = effectiveTeacherFilterIds.includes(id)
-          return (
-           <button
-            key={id}
-            type="button"
-            aria-pressed={active}
-            onClick={() => toggleTeacherFilter(id)}
-            className={cn(
-             "inline-flex h-10 items-center rounded-md border px-3 text-sm font-medium transition-all",
-             active
-              ? "border-info bg-info/10 text-info ring-1 ring-info/40"
-              : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
-            )}
-           >
-            {label}
-           </button>
-          )
-         })}
-        </div>
-       </div>
-      ) : null}
-     </div>
-    </MobileFilterSheet>
-   ) : null}
+   <ScheduleOverview
+    stats={{
+     todayLesson: {
+      status: todayKpiStatus,
+      value: stats.status === "ready" ? stats.data.todayLessonCount : null,
+     },
+     cancelled: {
+      status: cancelledKpiStatus,
+      value: cancelledKpiStatus === "ready" ? cancelledData.rows.length : null,
+     },
+     todayHeadcount: {
+      status: todayKpiStatus,
+      value: stats.status === "ready" ? stats.data.todayStudentHeadcount : null,
+     },
+    }}
+    statsError={stats.status === "error" || Boolean(cancelledData.error)}
+    open={overviewOpen}
+    onOpenChange={(open) => {
+     if (isMobile) setOverviewOpenMobile(open)
+     else setOverviewOpenDesktop(open)
+    }}
+    todayActive={!futureCancelledMode && displayStart === todayYmd}
+    cancelledActive={futureCancelledMode}
+    onTodayClick={onTodayCardClick}
+    onCancelledClick={enterFutureCancelled}
+   />
 
    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
-     {isMobile ? (
-      <Button type="button" variant="outline" className="w-full min-h-10 gap-2 sm:w-auto" onClick={() => setFiltersOpen(true)}>
-       <SlidersHorizontal className="h-4 w-4" aria-hidden />
-       篩選
-       {activeFilterCount > 0 ? (
-        <Tag tone="info" size="sm">
-         {activeFilterCount}
-        </Tag>
-       ) : null}
-      </Button>
-     ) : (
-     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-      <Select
-       className="h-10 rounded-md border border-input bg-background px-3 text-sm transition-colors hover:border-info/60"
-       value={statusFilter}
-       onChange={(e) => setStatusFilter(e.target.value)}
-      >
-       <option value="all">全部狀態</option>
-       <option value="正常">正常</option>
-       <option value="完成">完成</option>
-       <option value="取消">取消</option>
-      </Select>
-      {issueFilterOptions.length > 0 ? (
-       <div
-        className="flex flex-wrap items-center gap-1.5"
-        role="group"
-        aria-label="進階篩選"
-       >
-        {issueFilterOptions.map(({ id, label, icon: Icon }) => {
-         const active = effectiveIssueFilters.includes(id)
-         const disabled = id === "noEnroll" && rosterLoading
-         return (
-          <button
-           key={id}
-           type="button"
-           aria-pressed={active}
-           disabled={disabled}
-           title={disabled ? "點名冊人數載入中，請稍候再篩選" : undefined}
-           onClick={() => toggleIssueFilter(id)}
-           className={cn(
-            "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-sm font-medium transition-all",
-            disabled && "cursor-not-allowed opacity-50",
-            active
-             ? "border-info bg-info/10 text-info ring-1 ring-info/40"
-             : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
-           )}
-          >
-           <Icon className="h-4 w-4 shrink-0" aria-hidden />
-           {label}
-          </button>
-         )
-        })}
-       </div>
-      ) : null}
-     </div>
-     )}
-
+     <ScheduleFilters
+      isMobile={isMobile}
+      filtersOpen={filtersOpen}
+      onFiltersOpenChange={setFiltersOpen}
+      activeFilterCount={futureCancelledMode ? 0 : activeFilterCount}
+      onReset={resetScheduleFilters}
+      unassignedRoomCount={unassignedRoomCount}
+      unassignedTeacherCount={blankTeacherCount}
+      statusFilter={statusFilter}
+      onStatusChange={setStatusFilter}
+      issueFilterOptions={issueFilterOptions}
+      effectiveIssueFilters={effectiveIssueFilters}
+      onToggleIssue={toggleIssueFilter}
+      noEnrollDisabled={rosterLoading}
+      paused={futureCancelledMode}
+      teacherScopeId={teacherScopeId}
+      teacherOptions={teacherOptions}
+      effectiveTeacherFilterIds={effectiveTeacherFilterIds}
+      onToggleTeacher={toggleTeacherFilter}
+     />
      <div className="flex flex-wrap items-center gap-2">
-      <div
-       className="inline-flex min-h-10 rounded-lg border border-border bg-muted/30 p-0.5"
-       role="tablist"
-       aria-label="檢視模式"
-      >
-       {(
-        [
-         { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
-         ...(!isMobile
-          ? ([
-             { id: "list" as const, label: "列表", icon: List },
-             { id: "day" as const, label: "日視圖", icon: CalendarDays },
-            ] as const)
-          : allowMobileDayView
-            ? ([{ id: "day" as const, label: "週曆", icon: CalendarDays }] as const)
-            : []),
-        ] as const
-       ).map(({ id, label, icon: Icon }) => (
-        <button
-         key={id}
-         type="button"
-         role="tab"
-         aria-selected={effectiveViewMode === id}
-         onClick={() => setViewMode(id)}
-         className={cn(
-          "inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
-          effectiveViewMode === id
-           ? "bg-primary text-primary-foreground shadow-sm"
-           : "text-muted-foreground hover:bg-background hover:text-foreground"
-         )}
-        >
-         <Icon className="h-4 w-4 shrink-0" aria-hidden />
-         {label}
-        </button>
-       ))}
-      </div>
+      {futureCancelledMode ? null : (
+       <div
+        className="inline-flex min-h-10 rounded-lg border border-border bg-muted/30 p-0.5"
+        role="tablist"
+        aria-label="檢視模式"
+       >
+        {(
+         [
+          { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
+          ...(!isMobile
+           ? ([
+              { id: "list" as const, label: "列表", icon: List },
+              { id: "day" as const, label: "日視圖", icon: CalendarDays },
+             ] as const)
+           : allowMobileDayView
+             ? ([{ id: "day" as const, label: "週曆", icon: CalendarDays }] as const)
+             : []),
+         ] as const
+        ).map(({ id, label, icon: Icon }) => (
+         <button
+          key={id}
+          type="button"
+          role="tab"
+          aria-selected={effectiveViewMode === id}
+          onClick={() => setViewMode(id)}
+          className={cn(
+           "inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
+           effectiveViewMode === id
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-background hover:text-foreground"
+          )}
+         >
+          <Icon className="h-4 w-4 shrink-0" aria-hidden />
+          {label}
+         </button>
+        ))}
+       </div>
+      )}
       <Button
        type="button"
        variant="outline"
        size="default"
        className="gap-1.5 text-sm transition-all hover:bg-muted"
+       disabled={csvDisabled}
+       title={csvDisabled ? "點名冊人數尚未完成，請稍候再匯出" : undefined}
        onClick={exportCsv}
       >
        <Download className="h-4 w-4" />
@@ -2033,147 +2048,29 @@ useEffect(() => {
       </Button>
      </div>
     </div>
-
-    {!isMobile && !teacherScopeId && teacherOptions.length > 0 ? (
-     <div
-      className="flex max-h-28 min-w-0 flex-wrap items-center gap-1.5 overflow-y-auto border-t border-border/70 pt-3"
-      role="group"
-      aria-label="老師篩選"
-     >
-      <span className="mr-1 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground">
-       <User className="h-4 w-4 shrink-0" aria-hidden />
-       老師
-      </span>
-      {teacherOptions.map(({ id, label }) => {
-       const active = effectiveTeacherFilterIds.includes(id)
-       return (
-        <button
-         key={id}
-         type="button"
-         aria-pressed={active}
-         onClick={() => toggleTeacherFilter(id)}
-         className={cn(
-          "inline-flex h-10 items-center rounded-md border px-3 text-sm font-medium transition-all",
-          active
-           ? "border-info bg-info/10 text-info ring-1 ring-info/40"
-           : "border-input bg-background text-muted-foreground hover:border-info/60 hover:text-foreground"
-         )}
-        >
-         {label}
-        </button>
-       )
-      })}
-     </div>
-    ) : null}
    </div>
 
-   {isMobile && viewMode === "list" ? (
+   {isMobile && viewMode === "list" && !futureCancelledMode ? (
     <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
      列表建議使用桌面版；手機已改為「按日期」顯示。
     </p>
    ) : null}
-   {isMobile && !allowMobileDayView && (viewMode === "day" || searchParams.get("view") === "day") ? (
-    <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-     日視圖建議使用桌面版或管理員身份；手機已改為「按日期」顯示。
-    </p>
-   ) : null}
 
-   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm">
-    {effectiveViewMode === "day" ? (
-     <>
-      <div className="flex flex-wrap items-center gap-2">
-       {!isMobile ? (
-        <>
-         <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
-         <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-10 w-10 shrink-0"
-          aria-label="前一日"
-          onClick={() => shiftDayViewDate(-1)}
-         >
-          <ChevronLeft className="h-5 w-5" aria-hidden />
-         </Button>
-         <Input
-          type="date"
-          value={dayViewDate}
-          onChange={(e) => handleDayViewDateChange(e.target.value)}
-          className="h-10 w-[12rem] cursor-pointer text-sm"
-         />
-         <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-10 w-10 shrink-0"
-          aria-label="後一日"
-          onClick={() => shiftDayViewDate(1)}
-         >
-          <ChevronRight className="h-5 w-5" aria-hidden />
-         </Button>
-        </>
-       ) : (
-        <Input
-         type="date"
-         value={dayViewDate}
-         onChange={(e) => handleDayViewDateChange(e.target.value)}
-         className="h-10 w-[11rem] cursor-pointer text-sm"
-         aria-label="跳至日期"
-        />
-       )}
-       <Button
-        type="button"
-        variant="outline"
-        size="default"
-        className="border-amber-400/80 text-sm text-amber-900 hover:bg-amber-50"
-        onClick={jumpToday}
-       >
-        今天
-       </Button>
-       <Button
-        type="button"
-        size="default"
-        className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
-        disabled={scheduleMgmtLocked || assigning || loading}
-        onClick={() => void oneClickAssign()}
-       >
-        <Wand2 className="h-4 w-4" aria-hidden />
-        {assigning ? "分配中…" : "一鍵分配"}
-       </Button>
-      </div>
-      <div className={cn("text-right", isMobile && "w-full text-left sm:w-auto sm:text-right")}>
-       <span className="tabular-nums text-muted-foreground">
-        {loading
-         ? "載入中…"
-         : !dayViewDateLoaded
-          ? `正在載入 ${dayViewDate} 的排程…`
-          : dayViewRosterLoading
-           ? `本日 ${dayFiltered.length} 堂 · 點名冊更新中…`
-           : `本日 ${dayFiltered.length} 堂`}
-       </span>
-       {!loading && dayViewDateLoaded && dayUnassignedCount > 0 ? (
-        <p className="mt-0.5 text-sm text-warning">未編課室 {dayUnassignedCount} 堂</p>
-       ) : null}
-       {dayViewFilterActive && dayUnfilteredCount > dayFiltered.length ? (
-        <p className="mt-0.5 text-sm text-warning">
-         已套用篩選（本日共 {dayUnfilteredCount} 堂，顯示 {dayFiltered.length} 堂）
-        </p>
-       ) : null}
-      </div>
-     </>
-    ) : (
-     <>
-      <div className="flex flex-wrap items-center gap-2">
-       <span className="text-muted-foreground">顯示起始日期：</span>
-       <Input
-        type="date"
-        value={displayStart}
-        onChange={(e) => {
-         const next = e.target.value
-         if (isYmd(next)) setDisplayStart(next)
-        }}
-        className="h-10 w-[12rem] cursor-pointer text-sm"
-       />
+   {effectiveViewMode !== "day" ? (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm">
+     <div className="flex flex-wrap items-center gap-2">
+      <span className="text-muted-foreground">顯示起始日期：</span>
+      <Input
+       type="date"
+       value={displayStart}
+       onChange={(e) => {
+        const next = e.target.value
+        if (isYmd(next)) setDisplayStart(next)
+       }}
+       className="h-10 w-[12rem] cursor-pointer text-sm"
+       disabled={futureCancelledMode}
+      />
+      {futureCancelledMode ? null : (
        <Button
         type="button"
         variant="outline"
@@ -2183,685 +2080,115 @@ useEffect(() => {
        >
         回到今天
        </Button>
-      </div>
-      <span className="tabular-nums text-muted-foreground">
-       {loading
-        ? "載入課堂中…"
-        : rosterLoading
+      )}
+     </div>
+     <span className="tabular-nums text-muted-foreground">
+      {rowsStale ? "正在更新 · " : null}
+      {loading
+       ? "載入課堂中…"
+       : rosterLoading
          ? `已顯示 ${filtered.length} 堂 · 標記載入中…`
          : `顯示 ${filtered.length} 個排程`}
-      </span>
-     </>
-    )}
-   </div>
-
-   {effectiveViewMode === "day" && scheduleMgmtLocked ? (
-    <p className="rounded-lg border border-info/30 bg-info/10 px-3 py-2 text-sm text-info">
-     你目前僅能檢視日視圖；拖曳、「移動到…」與一鍵分配需管理員權限。
-    </p>
-   ) : null}
-
-   {effectiveViewMode === "day" && dayViewFilterActive ? (
-    <p className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
-     日視圖已套用上方搜尋或篩選條件。
-     <button
-      type="button"
-      className="ml-2 font-medium underline hover:no-underline"
-      onClick={clearAllFilters}
-     >
-      清除篩選
-     </button>
-    </p>
-   ) : null}
-
-   {effectiveViewMode === "day" && closureNameByDate.get(dayViewDate) ? (
-    <p role="status" className="rounded-lg border border-warning/50 px-3 py-2 text-sm text-warning">
-     {dayViewDate} 為校舍假期（{closureNameByDate.get(dayViewDate)}）。該日沒有課堂，並非取消堂。
-    </p>
+     </span>
+    </div>
    ) : null}
 
    {effectiveViewMode === "byDate" ? (
-    <div className="space-y-6">
-     {byDateGroups.map(([dateYmd, list]) => {
-      const isToday = dateYmd === todayYmd
-      const isRangeStart = dateYmd === displayStart
-      const isHighlightDay = isToday || isRangeStart
-      return (
-       <section
-        key={dateYmd}
-        className={cn(
-         "space-y-3 rounded-xl p-3 shadow-sm",
-         isHighlightDay
-          ? "border-2 border-amber-400 bg-amber-50/50"
-          : "border border-border bg-card"
-        )}
-       >
-        <div
-         className={cn(
-          "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2",
-          isHighlightDay
-           ? "border-amber-300/90 bg-amber-100/60"
-           : "border-border bg-muted/30"
-         )}
-        >
-         <CalendarDays
-          className={cn("h-4 w-4 shrink-0", isHighlightDay ? "text-amber-800" : "text-muted-foreground")}
-          aria-hidden
-         />
-         <span className="text-lg font-semibold tabular-nums text-foreground md:text-xl">{dateYmd}</span>
-         {isToday ? (
-          <Tag tone="warning" size="sm">今天</Tag>
-         ) : isRangeStart ? (
-          <Tag tone="warning" size="sm">起始日</Tag>
-         ) : null}
-         <span className="text-base text-muted-foreground">{list.length} 堂</span>
-        </div>
-        <StaggerList as="ul" className="space-y-2" animate={!loading}>
-         {list.map((s) => {
-          const a = alerts.get(s.id) ?? {
-           trial: false,
-           makeup: false,
-           leave: false,
-           record: false,
-          }
-          const open = expandedScheduleId === s.id
-          const occupancy = isHomeworkOccupancySchedule(s)
-          const classMetaParts = [s.class_day_of_week, s.class_time_slot].filter(Boolean)
-          const enrollKnown = s.enrollCount != null
-          const hasAttendees =
-           (s.enrollCount != null && s.enrollCount > 0) ||
-           a.makeup ||
-           a.trial ||
-           (rollCallEligibleIds?.has(s.id) ?? false)
-          const emptyEnrollOnly =
-           !occupancy &&
-           enrollKnown && s.enrollCount === 0 && !a.makeup && !a.trial && !rosterLoading
-          return (
-           <StaggerItem
-            key={s.id}
-            as="li"
-            className={cn(
-             "overflow-hidden rounded-xl border border-border shadow-sm transition-shadow hover:shadow-md",
-             rowsStale && "opacity-60",
-             enrollKnown && !hasAttendees && !occupancy ? "border-border/80 bg-muted/70" : "bg-card"
-            )}
-           >
-            <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
-             <button
-              type="button"
-              className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/50"
-              aria-expanded={open}
-              onClick={() =>
-               setExpandedScheduleId((id) => (id === s.id ? null : s.id))
-              }
-             >
-              <div className="flex flex-wrap items-center gap-2">
-               <span className="text-lg font-semibold text-foreground md:text-xl">
-                {s.classLabel}
-                {s.course_code_full ? (
-                 <span className="font-mono text-sm text-muted-foreground">
-                  {" "}
-                  ({s.course_code_full})
-                 </span>
-                ) : null}
-               </span>
-               <Tag tone={statusToTagTone(s.status)} size="sm">
-                {s.status}
-               </Tag>
-               {occupancy ? (
-                <Tag tone={statusToTagTone("佔室")} size="sm">
-                 佔室
-                </Tag>
-               ) : null}
-               {emptyEnrollOnly ? (
-                <Tag tone={statusToTagTone("暫未有學生報讀")} size="sm">
-                 暫未有學生報讀
-                </Tag>
-               ) : null}
-               {enrollKnown && s.enrollCount === 0 && (a.makeup || a.trial) ? (
-                <Tag tone={statusToTagTone(a.makeup ? "補堂" : "試堂")} size="sm">
-                 {a.makeup && a.trial ? "補堂／試堂" : a.makeup ? "有補堂生" : "有試堂生"}
-                </Tag>
-               ) : null}
-               {s.is_extra_lesson ? (
-                <Tag tone={statusToTagTone("加堂")} size="sm">加堂</Tag>
-               ) : null}
-               {(() => {
-                const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
-                return subTag ? (
-                 <Tag tone={statusToTagTone(subTag)} size="sm">
-                  {subTag}
-                 </Tag>
-                ) : null
-               })()}
-               {rosterLoading ? (
-                <SkeletonInlineBadge className="h-5 w-16" aria-label="標記載入中" />
-               ) : (
-                <ScheduleAlertIcons alerts={a} />
-               )}
-              </div>
-              {s.status.includes("取消") && s.cancel_reason ? (
-               <p className="mt-1 text-sm text-muted-foreground">
-                取消原因：{s.cancel_reason}
-               </p>
-              ) : null}
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-               <span className="tabular-nums">
-                {s.start_time ?? "—"}–{s.end_time ?? "—"}
-               </span>
-               <span
-                className={cn(
-                 "inline-flex items-center gap-1",
-                 canManageSchedules && isUnassignedTeachingTeacherIssue(s) && "font-medium text-warning"
-                )}
-               >
-                <User className="h-4 w-4 shrink-0" aria-hidden />
-                {scheduleTeacherDisplayName(s, { warnIfUnassigned: canManageSchedules })}
-               </span>
-               <span className="inline-flex items-center gap-1">
-                <DoorOpen className="h-4 w-4 shrink-0" aria-hidden />
-                位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
-               </span>
-               {occupancy ? null : (
-               <span
-                className={cn(
-                 "inline-flex items-center gap-1",
-                 enrollKnown && !hasAttendees ? "text-muted-foreground" : "text-info"
-                )}
-               >
-                <Users className="h-4 w-4 opacity-70" aria-hidden />
-                {rosterLoading || s.enrollCount == null ? (
-                 <SkeletonInlineBadge className="h-4 w-14" aria-label="點名冊人數載入中" />
-                ) : (
-                 `${s.enrollCount} 人`
-                )}
-               </span>
-               )}
-               {s.teaching_notes?.trim() ? (
-                <Tag tone="info" size="sm">
-                 已有教學紀錄
-                </Tag>
-               ) : null}
-              </div>
-             </button>
-             <div
-              className="flex flex-wrap items-center gap-2 border-t border-border pt-3 sm:border-0 sm:pt-0"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-             >
-              <Select
-               className="h-11 max-w-[10rem] rounded-md border border-input bg-background px-2 text-sm transition-colors hover:border-info/50"
-               value={s.classroom_id ?? ""}
-               disabled={scheduleRowLocked(s)}
-               onChange={async (e) => {
-                if (scheduleRowLocked(s)) return
-                const v = e.target.value || null
-                if (occupancy) {
-                 if (!v) return
-                 await updateSchedule(s.id, { classroom_id: v })
-                 if (s.class_id) {
-                  await applyHomeworkOccupancyClassroomMove({
-                   classId: s.class_id,
-                   scheduledDate: s.scheduled_date,
-                   fromClassroomId: s.classroom_id,
-                   toClassroomId: v,
-                  })
-                 }
-                } else {
-                 await updateSchedule(s.id, { classroom_id: v })
-                }
-                await reload()
-               }}
-              >
-               {occupancy ? null : <option value="">課室未定</option>}
-               {roomOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                 {o.label}
-                </option>
-               ))}
-              </Select>
-              {occupancy ? (
-               <p className="text-xs text-muted-foreground">放假請用功輔校曆，唔好取消佔室。</p>
-              ) : (
-              <Select
-               className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
-               value={s.status}
-               disabled={scheduleRowLocked(s)}
-               onChange={(e) => void handleStatusChange(s, e.target.value)}
-              >
-               <option value="正常">正常</option>
-               <option value="完成">完成</option>
-               <option value="取消">取消</option>
-              </Select>
-              )}
-              {occupancy ? null : canManageSchedules ? (
-               <>
-              <Link
-               to="/LeaveManagement"
-              className="rounded-md border border-warning px-3 py-2 text-sm font-medium text-warning transition-colors hover:bg-warning hover:text-warning-foreground"
-               onClick={(e) => e.stopPropagation()}
-              >
-               +請假
-              </Link>
-              <Link
-               to="/TrialSessions"
-              className="rounded-md border border-info px-3 py-2 text-sm font-medium text-info transition-colors hover:bg-info hover:text-info-foreground"
-               onClick={(e) => e.stopPropagation()}
-              >
-               +補堂試堂
-              </Link>
-               </>
-              ) : null}
-              {occupancy ? null : canAssignSubstitute ? (
-               <Button
-                type="button"
-                variant="outline"
-                size="default"
-                className="h-11 text-base"
-                onClick={(e) => {
-                 e.stopPropagation()
-                 setSubstituteTarget(s)
-                }}
-               >
-                {s.original_teacher_id ? "更改代堂" : "指派代堂"}
-               </Button>
-              ) : null}
-              {occupancy ? null : canRollCall ? (
-              <Button
-               type="button"
-               size="default"
-               className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
-               disabled={!canOpenRollCall(s.id)}
-               title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
-               onClick={(e) => {
-                e.stopPropagation()
-                openRollCallForSchedule(s.id)
-               }}
-              >
-               <Check className="h-4 w-4" aria-hidden />
-               確定點名
-              </Button>
-              ) : null}
-              {occupancy ? null : canManageSchedules ? (
-              <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-               className="h-11 w-11 text-destructive hover:bg-destructive/10"
-               disabled={scheduleRowLocked(s)}
-               aria-label="刪除排程"
-               onClick={async () => {
-               if (scheduleRowLocked(s)) return
-               if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除此排程？", confirmText: "確認刪除", tone: "destructive" }))) return
-                await deleteSchedule(s.id)
-                await reload()
-               }}
-              >
-               ×
-              </Button>
-              ) : null}
-              <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-               className="h-11 w-11 shrink-0 text-muted-foreground hover:bg-muted"
-               aria-expanded={open}
-               aria-label={open ? "收合詳情" : "展開詳情"}
-               onClick={() =>
-                setExpandedScheduleId((id) => (id === s.id ? null : s.id))
-               }
-              >
-               {open ? (
-                <ChevronUp className="h-5 w-5" aria-hidden />
-               ) : (
-                <ChevronDown className="h-5 w-5" aria-hidden />
-               )}
-              </Button>
-             </div>
-            </div>
-            {open ? (
-             <div className="border-t border-border bg-success/25 px-4 py-4 md:px-5">
-              {occupancy ? (
-               <p className="text-sm text-muted-foreground">
-                功輔佔室：可改課室（會寫返當日編更）。放假請用功輔校曆；加開／收起第二房請到當值編更。
-               </p>
-              ) : (
-              <ExpandedScheduleRoster
-               schedule={s}
-               schedulePeers={rows}
-               loading={listStudentsLoading}
-               enrolled={listStudents}
-               leave={listLeaveStudents}
-               trial={listTrialStudents}
-               makeup={listMakeupStudents}
-               notEnrolled={listNotEnrolledStudents}
-               classMeta={
-                <div className="space-y-2">
-                 <p className="text-sm font-medium text-info">
-                  班別：{s.classLabel}
-                  {s.course_code_full ? `（${s.course_code_full}）` : ""}
-                  {classMetaParts.length > 0 ? ` · ${classMetaParts.join(" ")}` : ""}
-                 </p>
-                 <p className="text-sm text-muted-foreground">
-                  位置：{s.classroom_name?.trim() ? s.classroom_name : "未定"}
-                 </p>
-                 {s.teaching_notes?.trim() ? (
-                  <div className="rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-sm">
-                   <p className="text-xs font-medium text-info">教學紀錄</p>
-                   <p className="mt-1 whitespace-pre-wrap text-foreground">{s.teaching_notes}</p>
-                  </div>
-                 ) : null}
-                </div>
-               }
-               footer={
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-border/60 pt-3">
-                 <Button
-                  type="button"
-                  variant="outline"
-                  size="default"
-                  className="text-base"
-                  onClick={() => setDetailId(s.id)}
-                 >
-                  快速檢視
-                 </Button>
-                 <Button type="button" variant="outline" size="default" className="text-base" asChild>
-                  <Link to={`/Schedule/${s.id}`}>完整排程頁</Link>
-                 </Button>
-                 {s.class_id ? (
-                  <Button type="button" variant="outline" size="default" className="text-base" asChild>
-                   <Link to={`/Classes/${s.class_id}`}>班別詳情</Link>
-                  </Button>
-                 ) : null}
-                </div>
-               }
-              />
-              )}
-             </div>
-            ) : null}
-           </StaggerItem>
-          )
-         })}
-        </StaggerList>
-       </section>
-      )
-     })}
-     {byDateGroups.length === 0 ? (
-      <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有排程</p>
-     ) : null}
-    </div>
+    <ScheduleByDateList
+     groups={byDateGroups}
+     todayYmd={todayYmd}
+     displayStart={displayStart}
+     alerts={alerts}
+     expandedScheduleId={expandedScheduleId}
+     onToggleExpand={(id) => setExpandedScheduleId((cur) => (cur === id ? null : id))}
+     onOpenRecord={openRecord}
+     rosterLoading={rosterLoading}
+     updating={rowsStale}
+     canManageSchedules={canManageSchedules}
+     teacherScopeId={teacherScopeId}
+     rollCallEligibleIds={rollCallEligibleIds}
+     highlightScheduleId={highlightScheduleId}
+     loading={loading}
+     renderActions={renderByDateActions}
+     renderExpanded={renderExpanded}
+    />
    ) : null}
 
    {effectiveViewMode === "list" ? (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[800px] table-fixed border-collapse text-sm">
-      <thead>
-       <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[11%] px-4 py-3 font-medium">日期</th>
-        <th className="w-[26%] px-4 py-3 font-medium">班別</th>
-        <th className="w-[11%] px-4 py-3 font-medium">時間</th>
-        <th className="w-[14%] px-4 py-3 font-medium">老師</th>
-        <th className="w-[14%] px-4 py-3 font-medium">位置</th>
-        <th className="w-[12%] px-4 py-3 font-medium">狀態</th>
-        <th className="w-[12%] px-4 py-3 font-medium">操作</th>
-       </tr>
-      </thead>
-      <StaggerList as="tbody" animate={!loading}>
-       {filtered.map((s) => {
-        const a = alerts.get(s.id) ?? {
-         trial: false,
-         makeup: false,
-         leave: false,
-         record: false,
-        }
-        const open = expandedScheduleId === s.id
-        const occupancy = isHomeworkOccupancySchedule(s)
-        return (
-         <Fragment key={s.id}>
-          <StaggerItem
-           as="tr"
-           className={cn(
-            "cursor-pointer border-b border-border transition-colors hover:bg-info/40",
-            open && "bg-info/30"
-           )}
-           onClick={() => setExpandedScheduleId((id) => (id === s.id ? null : s.id))}
-          >
-           <td className="min-w-0 align-top px-4 py-3 tabular-nums">
-            <div className="flex flex-wrap items-center gap-1.5">
-             {s.scheduled_date}
-             {s.scheduled_date === todayYmd ? (
-              <span className="rounded bg-amber-200 px-1.5 text-xs font-medium text-amber-950">
-               今天
-              </span>
-             ) : null}
-              {rosterLoading ? (
-               <SkeletonInlineBadge className="h-4 w-12" aria-label="標記載入中" />
-              ) : (
-              <ScheduleAlertIcons alerts={a} />
-             )}
-            </div>
-           </td>
-           <td className="min-w-0 align-top px-4 py-3 font-medium">
-            <span className="block break-words">{s.classLabel}</span>
-            {s.course_code_full ? (
-             <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
-              ({s.course_code_full})
-             </span>
-            ) : null}
-            {occupancy ? (
-             <Tag tone={statusToTagTone("佔室")} size="sm" className="mt-1">
-              佔室
-             </Tag>
-            ) : null}
-           </td>
-           <td className="min-w-0 align-top px-4 py-3 tabular-nums text-muted-foreground">
-            {s.start_time ?? "—"}–{s.end_time ?? "—"}
-           </td>
-           <td className="min-w-0 align-top px-4 py-3">
-            <span
-             className={cn(
-              "block break-words",
-              canManageSchedules && isUnassignedTeachingTeacherIssue(s) && "font-medium text-warning"
-             )}
-            >
-             {scheduleTeacherDisplayName(s, { warnIfUnassigned: canManageSchedules })}
-            </span>
-            {(() => {
-             const subTag = formatScheduleSubstituteTag(s, teacherScopeId)
-             return subTag ? (
-              <Tag tone={statusToTagTone(subTag)} size="sm" className="mt-1">
-               {subTag}
-              </Tag>
-             ) : null
-            })()}
-           </td>
-           <td className="min-w-0 align-top px-4 py-3 text-muted-foreground">
-            <span className="block break-words">{s.classroom_name ?? "—"}</span>
-            {s.teaching_notes?.trim() ? (
-             <Tag tone="info" size="sm" className="mt-1">
-              已有教學紀錄
-             </Tag>
-            ) : null}
-           </td>
-           <td className="align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
-            {occupancy ? (
-             <p className="text-xs text-muted-foreground">放假請用功輔校曆</p>
-            ) : (
-            <Select
-             className="h-10 rounded-md border border-input bg-background px-2 text-sm"
-             value={s.status}
-             disabled={scheduleRowLocked(s)}
-             onChange={(e) => void handleStatusChange(s, e.target.value)}
-            >
-             <option value="正常">正常</option>
-             <option value="完成">完成</option>
-             <option value="取消">取消</option>
-            </Select>
-            )}
-            {occupancy ? null : s.is_extra_lesson ? (
-             <Tag tone={statusToTagTone("加堂")} size="sm" className="mt-1.5">
-              加堂
-             </Tag>
-            ) : null}
-            {s.status.includes("取消") && s.cancel_reason ? (
-             <p className="mt-1 text-xs text-muted-foreground" title={s.cancel_reason}>
-              原因：{s.cancel_reason}
-             </p>
-            ) : null}
-           </td>
-           <td className="min-w-0 align-top px-4 py-3" onClick={(e) => e.stopPropagation()}>
-            <div className="flex flex-wrap items-center gap-2">
-             {occupancy ? null : canManageSchedules ? (
-             <Link
-              to="/LeaveManagement"
-              className="text-sm font-medium text-warning hover:underline"
-              onClick={(e) => e.stopPropagation()}
-             >
-              +請假
-             </Link>
-             ) : null}
-             {occupancy ? null : canRollCall ? (
-             <button
-              type="button"
-              className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-              disabled={!canOpenRollCall(s.id)}
-              title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
-              onClick={(e) => {
-               e.stopPropagation()
-               openRollCallForSchedule(s.id)
-              }}
-             >
-              確定點名
-             </button>
-             ) : null}
-             {occupancy ? null : canAssignSubstitute ? (
-              <Button
-               type="button"
-               variant="link"
-               className="h-auto p-0 text-sm"
-               onClick={(e) => {
-                e.stopPropagation()
-                setSubstituteTarget(s)
-               }}
-              >
-               {s.original_teacher_id ? "更改代堂" : "指派代堂"}
-              </Button>
-             ) : null}
-             {occupancy ? null : canManageSchedules ? (
-             <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-sm text-destructive"
-              disabled={scheduleRowLocked(s)}
-              onClick={async (e) => {
-               if (scheduleRowLocked(s)) return
-               e.stopPropagation()
-              if (!(await confirmDialog({ title: "刪除排程", description: "確定刪除？", confirmText: "確認刪除", tone: "destructive" }))) return
-               await deleteSchedule(s.id)
-               await reload()
-              }}
-             >
-              刪除
-             </Button>
-             ) : null}
-             {open ? (
-              <ChevronUp className="h-5 w-5 text-muted-foreground" aria-hidden />
-             ) : (
-              <ChevronDown className="h-5 w-5 text-muted-foreground" aria-hidden />
-             )}
-            </div>
-           </td>
-          </StaggerItem>
-          {open ? (
-           <tr className="border-b border-border bg-success/30">
-            <td colSpan={7} className="px-4 py-4">
-             {occupancy ? (
-              <p className="text-sm text-muted-foreground">
-               功輔佔室：可改課室（會寫返當日編更）。放假請用功輔校曆；加開／收起第二房請到當值編更。
-              </p>
-             ) : (
-             <ExpandedScheduleRoster
-              schedule={s}
-              schedulePeers={rows}
-              loading={listStudentsLoading}
-              enrolled={listStudents}
-              leave={listLeaveStudents}
-              trial={listTrialStudents}
-              makeup={listMakeupStudents}
-              notEnrolled={listNotEnrolledStudents}
-             />
-             )}
-            </td>
-           </tr>
-          ) : null}
-         </Fragment>
-        )
-       })}
-      </StaggerList>
-     </table>
-     {filtered.length === 0 ? (
-      <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有排程</p>
-     ) : null}
-    </div>
+    <ScheduleListTable
+     rows={listTableRows}
+     filterSourceRows={filtered}
+     alerts={alerts}
+     loading={loading}
+     rosterLoading={rosterLoading}
+     updating={rowsStale}
+     emptyHint="此條件下沒有排程"
+     sortKey={isScheduleListColumnId(listSortKey) ? listSortKey : "date"}
+     sortDir={listSortDir}
+     onToggleSort={(key) => {
+      if (listSortKey === key) setListSortDir((d) => (d === "asc" ? "desc" : "asc"))
+      else {
+       setListSortKey(key)
+       setListSortDir("asc")
+      }
+     }}
+     headerFilters={listHeaderFilters}
+     onHeaderFilterChange={(key, value) =>
+      setListHeaderFilters((prev) => ({ ...prev, [key]: value }))
+     }
+     todayYmd={todayYmd}
+     teacherScopeId={teacherScopeId}
+     canManageSchedules={canManageSchedules}
+     previewId={listPreviewEnabled ? previewScheduleId : null}
+     highlightScheduleId={highlightScheduleId}
+     expandedScheduleId={expandedScheduleId}
+     onToggleExpand={(id) => setExpandedScheduleId((cur) => (cur === id ? null : id))}
+     onOpenRecord={openRecord}
+     renderRowActions={renderListActions}
+     renderStatusControl={renderStatusControl}
+     renderExpanded={renderExpanded}
+    />
    ) : null}
 
    {effectiveViewMode === "day" ? (
-    <div className="space-y-4">
-     {isMobile && allowMobileDayView ? (
-      loading && !dayViewDateLoaded ? (
-       <SkeletonTimetableBlock />
-      ) : (
-       <MobileDayViewGrid
-        dayViewDate={dayViewDate}
-        onDayViewDateChange={handleDayViewDateChange}
-        schedules={dayFiltered}
-        studentRoster={dayViewRoster}
-        rosterLoading={dayViewRosterLoading}
-        emptyScheduleIds={emptyScheduleIds}
-        extraTagsByScheduleId={extraTagsByScheduleId}
-        roomColumns={roomColumns}
-        activeRoomIdSet={activeRoomIdSet}
-        scheduleRowLocked={scheduleRowLocked}
-        inactiveRoomName={inactiveRoomNameForSchedule}
-        onOpenDetail={setDetailId}
-        onMoveRequest={scheduleMgmtLocked ? undefined : openMoveDialog}
-        loading={loading}
-        dateLoaded={dayViewDateLoaded}
-       />
-      )
-     ) : dayFiltered.length === 0 ? (
-      <div className="rounded-xl border border-border bg-card px-4 py-12 text-center text-sm shadow-sm">
-       {loading ? (
-        <SkeletonTimetableBlock />
-       ) : !dayViewDateLoaded ? (
-        <p className="text-muted-foreground">正在載入 {dayViewDate} 的排程…</p>
-       ) : dayViewFilterActive && dayUnfilteredCount > 0 ? (
-        <p className="text-muted-foreground">
-         本日有 {dayUnfilteredCount} 堂排程，但目前篩選條件下沒有符合的項目。
-        </p>
-       ) : (
-        <p className="text-muted-foreground">本日沒有排程</p>
-       )}
-      </div>
-     ) : (
-      <DayViewGrid
-       dayViewDate={dayViewDate}
-       schedules={dayFiltered}
-       studentRoster={dayViewRoster}
-       rosterLoading={dayViewRosterLoading}
-       emptyScheduleIds={emptyScheduleIds}
-       extraTagsByScheduleId={extraTagsByScheduleId}
-       roomColumns={roomColumns}
-       activeRoomIdSet={activeRoomIdSet}
-       roomColPct={dayViewRoomColPct}
-       scheduleRowLocked={scheduleRowLocked}
-       inactiveRoomName={inactiveRoomNameForSchedule}
-       onDropOnCell={handleDropOnCell}
-       onOpenDetail={setDetailId}
-       onMoveRequest={openMoveDialog}
-      />
-     )}
-    </div>
+    <ScheduleDayViewPanel
+     isMobile={isMobile}
+     allowMobileDayView={allowMobileDayView}
+     dayViewDate={dayViewDate}
+     onDayViewDateChange={handleDayViewDateChange}
+     onShiftDate={shiftDayViewDate}
+     onJumpToday={jumpToday}
+     loading={loading}
+     dayViewDateLoaded={dayViewDateLoaded}
+     dayViewRosterLoading={dayViewRosterLoading}
+     dayFiltered={dayFiltered}
+     dayUnfilteredCount={dayUnfilteredCount}
+     dayUnassignedCount={dayUnassignedCount}
+     dayViewFilterActive={dayViewFilterActive}
+     scheduleMgmtLocked={scheduleMgmtLocked}
+     assigning={assigning}
+     onOneClickAssign={() => void oneClickAssign()}
+     onClearFilters={clearAllFilters}
+     closureName={closureNameByDate.get(dayViewDate)}
+     studentRoster={dayViewRoster}
+     emptyScheduleIds={emptyScheduleIds}
+     extraTagsByScheduleId={extraTagsByScheduleId}
+     roomColumns={roomColumns}
+     activeRoomIdSet={activeRoomIdSet}
+     roomColPct={dayViewRoomColPct}
+     scheduleRowLocked={scheduleRowLocked}
+     inactiveRoomName={inactiveRoomNameForSchedule}
+     onOpenDetail={(id) => openRecord(id)}
+     onMoveRequest={openMoveDialog}
+     onDropOnCell={handleDropOnCell}
+    />
    ) : null}
+  </div>
+ )
+
+ return (
+  <>
+   {pageBody}
 
    <Dialog open={detailId != null} onOpenChange={(o) => !o && setDetailId(null)}>
     <DialogContent className="max-w-md border-info text-sm">
@@ -3320,6 +2647,6 @@ useEffect(() => {
      onSaved={() => void reload()}
     />
    ) : null}
-  </div>
+  </>
  )
 }
