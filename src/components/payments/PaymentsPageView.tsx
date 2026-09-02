@@ -89,6 +89,7 @@ import {
  type PaymentFull,
  type PaymentListRow,
 } from "@/services/paymentQueries"
+import { invalidatePaymentHistoryDataCache } from "@/components/payments/paymentHistoryState"
 import { fetchStudentClassLateFeePools } from "@/services/tuitionLateFeeQueries"
 import {
  applyDiscountsToSubtotal,
@@ -1243,6 +1244,7 @@ export function PaymentsPageView() {
     ...buildPaymentExtras(),
    })
    await linkTrialsAfterPayment(id, details)
+   invalidatePaymentHistoryDataCache()
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,
@@ -1317,6 +1319,7 @@ export function PaymentsPageView() {
     ...buildPaymentExtras(),
    })
    await linkTrialsAfterPayment(id, details)
+   invalidatePaymentHistoryDataCache()
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,

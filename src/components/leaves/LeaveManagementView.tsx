@@ -59,6 +59,7 @@ import { fetchStudentPickerOptions } from "@/services/studentQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import {
  getLeaveManagementDataCache,
+ invalidateLeaveManagementDataCache,
  isLeaveManagementCacheFresh,
  setLeaveManagementDataCache,
 } from "@/components/leaves/leaveManagementState"
@@ -215,6 +216,7 @@ export function LeaveManagementView() {
 
  const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
+  if (!opts?.silent) invalidateLeaveManagementDataCache()
   const cached = getLeaveManagementDataCache()
   if (!opts?.silent && !cached) setLoading(true)
   setErr(null)

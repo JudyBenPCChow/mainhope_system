@@ -39,6 +39,7 @@ import {
 import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 import {
  getCoursesListDataCache,
+ invalidateCoursesListDataCache,
  isCoursesListCacheFresh,
  setCoursesListDataCache,
 } from "@/components/courses/coursesListState"
@@ -228,6 +229,7 @@ export function CoursesManagePage() {
    } else {
     await insertCourse(payload)
    }
+   invalidateCoursesListDataCache()
    setOpen(false)
    await load()
   } catch (e) {

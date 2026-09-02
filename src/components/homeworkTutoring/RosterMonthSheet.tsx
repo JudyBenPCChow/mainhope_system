@@ -115,7 +115,7 @@ export function RosterMonthSheet({
   dutyDays: HomeworkDutyDay[]
   onDutyDaysChange: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthStatus: Record<string, MonthRosterState>
-  onMonthStatusChange: (yearMonth: string, state: MonthRosterState) => void
+  onMonthStatusChange: (yearMonth: string, state: MonthRosterState) => void | Promise<void>
   avail: AllTeacherAvailability
   teachers?: readonly HomeworkTeacherRow[]
   holidays?: HomeworkHoliday[]
@@ -209,7 +209,7 @@ export function RosterMonthSheet({
         const others = prev.filter((d) => Number(d.date.split("/")[0]) !== monthNum)
         return [...others, ...monthDays]
       })
-      onMonthStatusChange(yearMonth, "已編更")
+      await onMonthStatusChange(yearMonth, "已編更")
       pushBanner({
         title: "已儲存",
         tone: "success",

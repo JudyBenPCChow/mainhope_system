@@ -114,6 +114,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import { invalidateStudentsListDataCache } from "@/components/students/studentsListState"
+import { invalidateEnrollmentChangesDataCache } from "@/components/enrollment/enrollmentChangesState"
 import { fetchClassSchedules, type ClassScheduleRow } from "@/services/classQueries"
 import {
  fetchLessonBalancesForStudent,
@@ -707,6 +708,7 @@ export function StudentDetailView() {
    setAddEnrollmentDialogOpen(false)
    resetAddEnrollmentDialog()
    invalidateStudentsListDataCache()
+   invalidateEnrollmentChangesDataCache()
    pushBanner({
     tone: "success",
     title: "已加入班別",
@@ -763,6 +765,7 @@ export function StudentDetailView() {
    setWithdrawTarget(null)
    setWithdrawReason("")
    invalidateStudentsListDataCache()
+   invalidateEnrollmentChangesDataCache()
    await reloadSubs()
   } catch (e) {
    reportUserFacingError(e, { source: "StudentDetailView.withdrawEnrollment" })
@@ -933,6 +936,7 @@ export function StudentDetailView() {
      scheduleIds: isSingle ? editFormScheduleIds : undefined,
     })
    }
+   invalidateEnrollmentChangesDataCache()
    setEditFormOpen(false)
    setEditFormTarget(null)
    pushBanner({
@@ -1070,6 +1074,8 @@ export function StudentDetailView() {
    onUpdateStatus={async (row, next) => {
     try {
      await updateEnrollment(row.id, next, sid)
+     invalidateStudentsListDataCache()
+     invalidateEnrollmentChangesDataCache()
      await reloadSubs()
     } catch (err) {
      reportUserFacingError(err, { source: "StudentDetailView.updateEnrollmentStatus" })

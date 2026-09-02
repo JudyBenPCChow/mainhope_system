@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { History, Search, SlidersHorizontal, Wallet, Download } from "lucide-react"
 
@@ -54,9 +54,14 @@ import {
 import { getStudentById, type StudentRecord } from "@/services/studentQueries"
 import {
  getPaymentHistoryDataCache,
+ invalidatePaymentHistoryDataCache,
  isPaymentHistoryCacheFresh,
+ parsePaymentHistoryStatus,
+ resolvePaymentHistoryHydration,
  setPaymentHistoryDataCache,
+ type PaymentHistoryStatusFilter,
 } from "@/components/payments/paymentHistoryState"
+import { bumpRequestGeneration, isLiveRequestGeneration } from "@/lib/requestGeneration"
 
 function downloadPaymentsCsv(filename: string, rows: PaymentListRow[]) {
  const header = ["單號", "日期", "學生", "學號", "金額", "方法", "狀態"]
@@ -91,43 +96,31 @@ export function PaymentHistoryView() {
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [searchParams, setSearchParams] = useSearchParams()
 
- const payCache = getPaymentHistoryDataCache()
- const [historyRows, setHistoryRows] = useState<PaymentListRow[]>(() => payCache?.historyRows ?? [])
- const [histLoading, setHistLoading] = useState(() => payCache == null)
+ const payHydration = resolvePaymentHistoryHydration(searchParams, getPaymentHistoryDataCache())
+ const requestGen = useRef({ current: 0 })
+ const [historyRows, setHistoryRows] = useState<PaymentListRow[]>(() => payHydration.historyRows)
+ const [histLoading, setHistLoading] = useState(() => !payHydration.hydrated)
  const [histLoadingMore, setHistLoadingMore] = useState(false)
- const [histHasMore, setHistHasMore] = useState(() => payCache?.histHasMore ?? false)
- const [histOffset, setHistOffset] = useState(() => payCache?.historyRows.length ?? 0)
+ const [histHasMore, setHistHasMore] = useState(() => payHydration.histHasMore)
+ const [histOffset, setHistOffset] = useState(() => payHydration.historyRows.length)
  const [histErr, setHistErr] = useState<string | null>(null)
- const [histStatus, setHistStatus] = useState<
-  "all" | "received" | "pending" | "pendingPay" | "pendingReceive" | "voided"
- >(() => {
-  const s = payCache?.key.histStatus
-  if (
-   s === "all" ||
-   s === "received" ||
-   s === "pending" ||
-   s === "pendingPay" ||
-   s === "pendingReceive" ||
-   s === "voided"
-  ) {
-   return s
-  }
-  return "all"
- })
- const [histFrom, setHistFrom] = useState(() => payCache?.key.histFrom ?? "")
- const [histTo, setHistTo] = useState(() => payCache?.key.histTo ?? "")
- const [histSearch, setHistSearch] = useState(() => payCache?.key.histSearch ?? "")
- const [histSearchDebounced, setHistSearchDebounced] = useState(() => payCache?.key.histSearch ?? "")
+ const [histStatus, setHistStatus] = useState<PaymentHistoryStatusFilter>(
+  () => payHydration.key.histStatus
+ )
+ const [histFrom, setHistFrom] = useState(() => payHydration.key.histFrom)
+ const [histTo, setHistTo] = useState(() => payHydration.key.histTo)
+ const [histSearch, setHistSearch] = useState(() => payHydration.key.histSearch)
+ const [histSearchDebounced, setHistSearchDebounced] = useState(() => payHydration.key.histSearch)
  const [filterStudentId, setFilterStudentId] = useState<string | null>(
-  () => payCache?.key.filterStudentId ?? null
+  () => payHydration.key.filterStudentId
  )
  const [filterStudent, setFilterStudent] = useState<StudentRecord | null>(null)
  const [includeOlderYears, setIncludeOlderYears] = useState(
-  () => payCache?.key.includeOlderYears ?? false
+  () => payHydration.key.includeOlderYears
  )
- const [hiddenOlderCount, setHiddenOlderCount] = useState(() => payCache?.hiddenOlderCount ?? 0)
+ const [hiddenOlderCount, setHiddenOlderCount] = useState(() => payHydration.hiddenOlderCount)
  const [appliedFromYmd, setAppliedFromYmd] = useState<string | null>(
-  () => payCache?.appliedFromYmd ?? null
+  () => payHydration.appliedFromYmd
  )
  const [exporting, setExporting] = useState(false)
 
@@ -154,29 +147,20 @@ export function PaymentHistoryView() {
  } | null>(null)
 
  useEffect(() => {
-  const hs = searchParams.get("histStatus")
-  if (
-   hs === "all" ||
-   hs === "received" ||
-   hs === "pending" ||
-   hs === "pendingPay" ||
-   hs === "pendingReceive" ||
-   hs === "voided"
-  ) {
-   setHistStatus(hs)
-  }
+  const hs = parsePaymentHistoryStatus(searchParams.get("histStatus"))
+  if (hs) setHistStatus(hs)
   const sid = searchParams.get("studentId")?.trim() ?? ""
-  if (sid) {
-   setFilterStudentId(sid)
-   setSearchParams(
-    (prev) => {
-     const next = new URLSearchParams(prev)
-     next.delete("studentId")
-     return next
-    },
-    { replace: true }
-   )
-  }
+  if (!sid) return
+  setFilterStudentId(sid)
+  setFilterStudent(null)
+  setSearchParams(
+   (prev) => {
+    const next = new URLSearchParams(prev)
+    next.delete("studentId")
+    return next
+   },
+   { replace: true }
+  )
  }, [searchParams, setSearchParams])
 
  useEffect(() => {
@@ -189,6 +173,7 @@ export function PaymentHistoryView() {
    setFilterStudent(null)
    return
   }
+  setFilterStudent(null)
   let cancelled = false
   void getStudentById(filterStudentId)
    .then((row) => {
@@ -204,7 +189,9 @@ export function PaymentHistoryView() {
  }, [filterStudentId])
 
  const loadHistory = useCallback(async (opts?: { silent?: boolean }) => {
+  const generation = bumpRequestGeneration(requestGen.current)
   if (!isSupabaseConfigured) {
+   if (!isLiveRequestGeneration(requestGen.current, generation)) return
    setHistoryRows([])
    setHistLoading(false)
    setHistHasMore(false)
@@ -233,6 +220,7 @@ export function PaymentHistoryView() {
     includeOlderYears,
     includeVoided: includeOlderYears,
    })
+   if (!isLiveRequestGeneration(requestGen.current, generation)) return
    setHistoryRows(rows)
    setHistOffset(rows.length)
    setHistHasMore(hasMore)
@@ -246,17 +234,19 @@ export function PaymentHistoryView() {
     appliedFromYmd: fromYmd,
    })
   } catch (e) {
+   if (!isLiveRequestGeneration(requestGen.current, generation)) return
    reportUserFacingError(e, { source: "PaymentHistoryView.loadHistory", setErr: setHistErr })
    setHistoryRows([])
    setHistHasMore(false)
    setHiddenOlderCount(0)
   } finally {
-   setHistLoading(false)
+   if (isLiveRequestGeneration(requestGen.current, generation)) setHistLoading(false)
   }
  }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, includeOlderYears])
 
  const loadMoreHistory = useCallback(async () => {
   if (!isSupabaseConfigured || histLoadingMore || !histHasMore) return
+  const generation = bumpRequestGeneration(requestGen.current)
   setHistLoadingMore(true)
   try {
    const { rows, hasMore } = await fetchPaymentsPage({
@@ -270,13 +260,15 @@ export function PaymentHistoryView() {
     includeOlderYears,
     includeVoided: includeOlderYears,
    })
+   if (!isLiveRequestGeneration(requestGen.current, generation)) return
    setHistoryRows((prev) => [...prev, ...rows])
    setHistOffset((prev) => prev + rows.length)
    setHistHasMore(hasMore)
   } catch (e) {
+   if (!isLiveRequestGeneration(requestGen.current, generation)) return
    reportUserFacingError(e, { source: "PaymentHistoryView.loadMoreHistory", setErr: setHistErr })
   } finally {
-   setHistLoadingMore(false)
+   if (isLiveRequestGeneration(requestGen.current, generation)) setHistLoadingMore(false)
   }
  }, [histStatus, histFrom, histTo, histSearchDebounced, filterStudentId, histHasMore, histLoadingMore, histOffset, includeOlderYears])
 
@@ -337,6 +329,7 @@ export function PaymentHistoryView() {
   setFormErr(null)
   try {
    await markPaymentReceived(markTarget.id, { paymentMethod: markMethod })
+   invalidatePaymentHistoryDataCache()
    setReceivedDone({
     paymentId: markTarget.id,
     amount: markTarget.totalAmount,
@@ -806,7 +799,10 @@ export function PaymentHistoryView() {
      setVoidOpen(open)
      if (!open) setVoidTarget(null)
     }}
-    onVoided={() => void loadHistory()}
+    onVoided={() => {
+     invalidatePaymentHistoryDataCache()
+     void loadHistory()
+    }}
    />
 
    <Dialog open={detailOpen} onOpenChange={setDetailOpen}>

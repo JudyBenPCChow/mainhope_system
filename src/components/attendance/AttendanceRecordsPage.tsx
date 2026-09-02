@@ -50,6 +50,7 @@ import {
 } from "@/services/attendanceQueries"
 import {
  getAttendanceRecordsDataCache,
+ invalidateAttendanceRecordsDataCache,
  isAttendanceRecordsCacheFresh,
  setAttendanceRecordsDataCache,
 } from "@/components/attendance/attendanceRecordsState"
@@ -202,6 +203,7 @@ export function AttendanceRecordsPage() {
   }
   try {
    await deleteAttendanceDetailAsMgmt(r.id, "mgmt_single_delete_attendance_records")
+   invalidateAttendanceRecordsDataCache()
    pushBanner({
     tone: "success",
     title: "已刪除出席",

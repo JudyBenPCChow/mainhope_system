@@ -46,6 +46,25 @@ supabase projects list   # 確認已 login／linked
 4. `npm run db:apply` 失敗時**立刻**走上方手動 `db query` + `migration repair`；唔好因為腳本印「Need login」就停——該訊息常見於 list timeout，唔等於未登入。
 5. 套用後用簡短 SQL 或功能驗收確認；在回覆交代檔名與結果。
 6. 僅當 `db query`／`projects list` **明確**要求 token／login 時，先請使用者 `supabase login` 或 export `SUPABASE_ACCESS_TOKEN`，再繼續；不要假裝已套用。
+7. **新增／改 RPC 或 PostgREST 可見函式後**：該 migration（或後續可重播檔）須 `NOTIFY pgrst, 'reload schema'`。資料庫已有函式 ≠ Data API schema cache 已更新。套用後用 Data API smoke test（見下），不可只查 `pg_proc`。
+
+## RPC／函式：Data API smoke test
+
+套用含 `create function`／`create or replace function` 且要給前端 `supabase.rpc()` 呼叫的檔之後：
+
+```bash
+# 以空參數呼叫即可；重點是「函式在 schema cache」，不是業務結果。
+# PGRST202 ＝ schema cache 找不到函式，須 NOTIFY 後再試。
+# 401／JWT／RLS／空陣列＝函式已曝光，屬通過。
+curl -sS -o /tmp/rpc-smoke.json -w "%{http_code}" \
+  -X POST "$SUPABASE_URL/rest/v1/rpc/<function_name>" \
+  -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Authorization: Bearer $SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ }'
+```
+
+`<function_name>` 例：`get_class_schedule_summaries`，body 用該函式參數（可傳空陣列）。
 
 ## 已知 CLI 坑（2026-08）
 

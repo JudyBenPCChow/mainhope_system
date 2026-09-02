@@ -20,6 +20,10 @@ export function setTeachingRecordsDataCache(next: TeachingRecordsDataCache, fetc
  cache.set(next, fetchedAt)
 }
 
+export function invalidateTeachingRecordsDataCache(): void {
+ cache.invalidate()
+}
+
 export function isTeachingRecordsCacheFresh(
  from: string,
  to: string,

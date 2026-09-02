@@ -51,6 +51,7 @@ import {
   type HomeworkClassRef,
   type HomeworkEnrollmentRow,
 } from "@/services/homeworkTutoringQueries"
+import { applyHomeworkRosterStatusChange } from "@/lib/homeworkTutoringRosterPersist"
 import {
  getHomeworkTutoringDataCache,
  isHomeworkTutoringCacheFresh,
@@ -214,6 +215,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   availRef.current = avail
   const submitStatusRef = useRef(submitStatus)
   submitStatusRef.current = submitStatus
+  const monthRosterStatusRef = useRef(monthRosterStatus)
+  monthRosterStatusRef.current = monthRosterStatus
   const loadedMonthRef = useRef(hydrateHw ? initialHwCache!.loadedMonth : "")
   const [teacherDutyMonth, setTeacherDutyMonth] = useState(() => {
     if (hydrateHw) return initialHwCache!.teacherDutyMonth
@@ -483,25 +486,26 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     })
   }, [])
 
-  const setMonthRosterStatusPersisted: typeof setMonthRosterStatus = useCallback(
-    (action) => {
-      setMonthRosterStatus((prev) => {
-        const next = typeof action === "function" ? action(prev) : action
-        for (const [ym, state] of Object.entries(next)) {
-          if (prev[ym] === state) continue
-          if (state === "未編更" && hwClass && ym) {
-            void clearHomeworkOccupancySchedules(hwClass.id, ym).catch((e) => {
-              reportUserFacingError(e, { source: "HomeworkTutoringApp.revertSchedules" })
-            })
-          }
-          if (rosterMonthId && ym === sheetMonth && (state === "未編更" || state === "已編更")) {
-            void setHomeworkRosterMonthStatus(rosterMonthId, state).catch((e) => {
-              reportUserFacingError(e, { source: "HomeworkTutoringApp.setRosterStatus" })
-            })
-          }
-        }
-        return next
-      })
+  const persistMonthRosterStatus = useCallback(
+    async (yearMonth: string, nextState: MonthRosterState) => {
+      try {
+        const next = await applyHomeworkRosterStatusChange({
+          previous: monthRosterStatusRef.current,
+          yearMonth,
+          nextState,
+          classId: hwClass?.id ?? null,
+          rosterMonthId,
+          sheetMonth,
+          clearOccupancy: clearHomeworkOccupancySchedules,
+          setRosterStatus: setHomeworkRosterMonthStatus,
+        })
+        monthRosterStatusRef.current = next
+        setMonthRosterStatus(next)
+        patchHomeworkTutoringDataCache((c) => ({ ...c, monthRosterStatus: next }))
+      } catch (e) {
+        reportUserFacingError(e, { source: "HomeworkTutoringApp.persistMonthRosterStatus" })
+        throw e
+      }
     },
     [hwClass, rosterMonthId, sheetMonth]
   )
@@ -616,7 +620,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           dutyDays={dutyDays}
           setDutyDays={setDutyDays}
           monthRosterStatus={monthRosterStatus}
-          setMonthRosterStatus={setMonthRosterStatusPersisted}
+          persistMonthRosterStatus={persistMonthRosterStatus}
           hwTeachers={hwTeachers}
           holidays={holidays}
           sheetMonth={sheetMonth}

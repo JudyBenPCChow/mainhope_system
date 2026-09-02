@@ -1,8 +1,19 @@
 import { createListDataCache } from "@/lib/listDataCache"
 import type { PaymentListRow } from "@/services/paymentQueries"
 
+export const PAYMENT_HISTORY_STATUS_VALUES = [
+ "all",
+ "received",
+ "pending",
+ "pendingPay",
+ "pendingReceive",
+ "voided",
+] as const
+
+export type PaymentHistoryStatusFilter = (typeof PAYMENT_HISTORY_STATUS_VALUES)[number]
+
 export type PaymentHistoryCacheKey = {
- histStatus: string
+ histStatus: PaymentHistoryStatusFilter
  histFrom: string
  histTo: string
  histSearch: string
@@ -16,6 +27,66 @@ export type PaymentHistoryDataCache = {
  histHasMore: boolean
  hiddenOlderCount: number
  appliedFromYmd: string | null
+}
+
+export function parsePaymentHistoryStatus(raw: string | null): PaymentHistoryStatusFilter | null {
+ if (raw && (PAYMENT_HISTORY_STATUS_VALUES as readonly string[]).includes(raw)) {
+  return raw as PaymentHistoryStatusFilter
+ }
+ return null
+}
+
+export function paymentHistoryCacheKeysEqual(
+ a: PaymentHistoryCacheKey,
+ b: PaymentHistoryCacheKey
+): boolean {
+ return (
+  a.histStatus === b.histStatus &&
+  a.histFrom === b.histFrom &&
+  a.histTo === b.histTo &&
+  a.histSearch === b.histSearch &&
+  a.filterStudentId === b.filterStudentId &&
+  a.includeOlderYears === b.includeOlderYears
+ )
+}
+
+export type PaymentHistoryHydration = {
+ key: PaymentHistoryCacheKey
+ historyRows: PaymentListRow[]
+ histHasMore: boolean
+ hiddenOlderCount: number
+ appliedFromYmd: string | null
+ hydrated: boolean
+ consumeStudentIdFromUrl: boolean
+}
+
+/** URL 深連結優先於快取；鍵不符不得 hydrate 上一訪列。 */
+export function resolvePaymentHistoryHydration(
+ searchParams: { get: (key: string) => string | null },
+ cache: PaymentHistoryDataCache | null
+): PaymentHistoryHydration {
+ const urlStudentId = searchParams.get("studentId")?.trim() ?? ""
+ const urlStatus = parsePaymentHistoryStatus(searchParams.get("histStatus"))
+ const key: PaymentHistoryCacheKey = {
+  histStatus: urlStatus ?? cache?.key.histStatus ?? "all",
+  histFrom: cache?.key.histFrom ?? "",
+  histTo: cache?.key.histTo ?? "",
+  histSearch: cache?.key.histSearch ?? "",
+  filterStudentId: urlStudentId || cache?.key.filterStudentId || null,
+  includeOlderYears: cache?.key.includeOlderYears ?? false,
+ }
+ const hydrated = Boolean(
+  cache && cache.historyRows.length > 0 && paymentHistoryCacheKeysEqual(cache.key, key)
+ )
+ return {
+  key,
+  historyRows: hydrated && cache ? cache.historyRows : [],
+  histHasMore: hydrated && cache ? cache.histHasMore : false,
+  hiddenOlderCount: hydrated && cache ? cache.hiddenOlderCount : 0,
+  appliedFromYmd: hydrated && cache ? cache.appliedFromYmd : null,
+  hydrated,
+  consumeStudentIdFromUrl: Boolean(urlStudentId),
+ }
 }
 
 const cache = createListDataCache<PaymentHistoryDataCache>({

@@ -38,6 +38,7 @@ import {
 import { localYmd } from "@/services/teacherQueries"
 import {
  getClassroomsListDataCache,
+ invalidateClassroomsListDataCache,
  isClassroomsRoomsCacheFresh,
  isClassroomsSchedulesCacheFresh,
  patchClassroomsListDataCache,
@@ -329,6 +330,7 @@ export function ClassroomsManagePage() {
     end_time: addEnd || null,
     classroom_id: selectedRoomId,
    })
+   invalidateClassroomsListDataCache()
    setAddOpen(false)
    await reloadSchedules()
   } catch (e) {

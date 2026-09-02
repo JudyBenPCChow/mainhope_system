@@ -30,6 +30,10 @@ export function setEnrollmentChangesDataCache(
  cache.set(next, fetchedAt)
 }
 
+export function invalidateEnrollmentChangesDataCache(): void {
+ cache.invalidate()
+}
+
 export function isEnrollmentChangesCacheFresh(
  key: EnrollmentChangesCacheKey,
  now = Date.now()
