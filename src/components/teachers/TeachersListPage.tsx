@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Mail, Phone, Plus, User, Users } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { useOpenTeacherRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import {
  getTeachersListDataCache,
@@ -253,7 +253,7 @@ export function TeachersListPage() {
  ) : null
 
  return (
-  <div className="space-y-6 p-4 md:p-6">
+  <div className={cn("space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
    {!isSupabaseConfigured ? (
     <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">
      請設定純文字 <code className="rounded bg-muted px-1">.env</code> 後重啟 dev。

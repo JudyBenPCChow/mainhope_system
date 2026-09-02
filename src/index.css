@@ -40,7 +40,8 @@
   --secondary: var(--neutral-100);
   --secondary-foreground: var(--neutral-900);
   --muted: var(--neutral-100);
-  --muted-foreground: var(--neutral-600);
+  /* 內文次級灰：對齊沙盒 #64748b */
+  --muted-foreground: 215 16% 47%;
   --accent: var(--neutral-100);
   --accent-foreground: var(--neutral-900);
   --destructive: var(--utility-red-500);

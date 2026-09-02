@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { KeyRound, ListFilter, Mail, Settings } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { StatusToggle } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ import {
   getMustChangePasswordFlag,
 } from "@/services/authAccountQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
+import { cn } from "@/lib/utils"
 
 export function SettingsView() {
   const { pushBanner } = useAppBanner()
@@ -114,7 +115,7 @@ export function SettingsView() {
   }
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className={cn("space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="行政工作"

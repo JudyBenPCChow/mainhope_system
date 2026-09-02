@@ -5,7 +5,7 @@ import {
  AvailabilityWeekGrid,
  navigateToClassNewFromSlot,
 } from "@/components/teacherAvailability/AvailabilityWeekGrid"
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { AvailabilityRoomDayView } from "@/components/teacherAvailability/AvailabilityRoomDayView"
 import {
  QuickClassFromSlotDialog,
@@ -202,7 +202,7 @@ export function TeacherAvailabilityPage() {
  }
 
  return (
-  <div className="space-y-5 p-4 md:p-6">
+  <div className={cn("space-y-5", pagePadClass(role, "p-4 md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ChevronDown, NotebookPen, Search } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
 import { Button } from "@/components/ui/button"
 import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-input"
@@ -127,12 +131,12 @@ export function TeachingRecordsPage() {
  }
 
  return (
-  <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-8">
+  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "p-4 md:p-8"), role !== "admin" && "mx-auto max-w-5xl")}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="教學紀錄"
-     description="管理專科班、專科校曆及教學紀錄。"
+     description={ADMIN_WORKSPACE_DESCRIPTION.specialty}
     />
    ) : (
     <header className="space-y-1">

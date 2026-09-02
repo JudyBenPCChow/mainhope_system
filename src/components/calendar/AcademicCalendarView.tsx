@@ -3,6 +3,10 @@ import { CalendarX, Plus, Trash2, Upload } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
@@ -13,6 +17,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { cn } from "@/lib/utils"
 import {
  deleteAcademicCalendarClosure,
  fetchAcademicCalendarClosures,
@@ -207,12 +212,12 @@ export function AcademicCalendarView() {
  }
 
  return (
-  <div className="mx-auto max-w-6xl space-y-6">
+  <div className={cn(adminWorkspacePageClass, role !== "admin" && "mx-auto max-w-6xl")}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="專科校曆"
-     description="管理專科班、專科校曆及教學紀錄。"
+     description={ADMIN_WORKSPACE_DESCRIPTION.specialty}
     />
    ) : (
     <header>

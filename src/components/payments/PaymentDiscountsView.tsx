@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { Calculator, GripVertical, Pencil, Percent, Plus, Trash2 } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -563,12 +567,12 @@ export function PaymentDiscountsView() {
    : previewSubtotalN
 
  return (
-  <div className="space-y-6 md:p-6">
+  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="優惠折扣"
-     description="維護收款登記可選的優惠項目及套用次序。"
+     description={ADMIN_WORKSPACE_DESCRIPTION.payments}
      actions={
       canEditDiscounts ? (
        <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>

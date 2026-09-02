@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ClipboardList, RefreshCw } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -156,7 +156,7 @@ export function PortalEnrollmentRequestsView() {
  }
 
  return (
-  <div className="space-y-6 md:p-6">
+  <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

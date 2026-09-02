@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { CheckCircle2, Copy, RotateCcw, UserRoundX } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Field } from "@/components/frontDesk/frontDeskUi"
 import { StudentAvatarWall } from "@/components/schedule/teacherLeave/StudentAvatarWall"
 import {
@@ -430,7 +430,7 @@ export function TeacherLeaveWizardView() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-4 md:p-6">
+    <div className={cn("mx-auto max-w-4xl space-y-5", pagePadClass(role, "p-4 md:p-6"))}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="行政工作"

@@ -10,7 +10,9 @@ import {
  PanelLeftOpen,
 } from "lucide-react"
 
+import { AdminMainTopBar } from "@/components/account/AdminMainTopBar"
 import { AdminSidebarFooter } from "@/components/account/AdminSidebarFooter"
+import { adminContentShellClass, adminPageSurfaceClass } from "@/components/detail/AdminPageHeader"
 import { RecordPreviewProvider } from "@/components/recordPreview/recordPreviewContext"
 import { RecordPreviewRail } from "@/components/recordPreview/RecordPreviewRail"
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
@@ -155,7 +157,7 @@ export function Layout() {
     className={cn(
      "relative z-10 flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r text-white transition-[width] duration-200 ease-out",
      role === "admin"
-      ? "border-white/12 bg-[linear-gradient(180deg,#1e3a6e_0%,#2A4E8A_58%,#3B6AB3_100%)] shadow-[6px_0_28px_-12px_rgba(23,45,87,0.58)]"
+      ? "border-white/[0.12] bg-[linear-gradient(180deg,#1e3a6e_0%,#2A4E8A_58%,#3B6AB3_100%)] shadow-[6px_0_28px_-12px_rgba(23,45,87,0.58)]"
       : "border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)]",
      collapsed ? "w-[4.25rem]" : role === "admin" ? "w-64" : "w-60 md:w-64"
     )}
@@ -164,7 +166,7 @@ export function Layout() {
      className={cn(
       "flex shrink-0 items-center justify-between gap-2 border-b",
       role === "admin"
-       ? "min-h-[4.625rem] border-white/12 py-3.5 pl-4 pr-3"
+       ? "min-h-[4.625rem] border-white/10 py-3.5 pl-4 pr-3"
        : "border-white/10 px-3 py-4"
      )}
     >
@@ -371,9 +373,6 @@ export function Layout() {
     {role === "admin" ? (
      <AdminSidebarFooter
       collapsed={collapsed}
-      pathname={location.pathname}
-      unreadCount={unreadCount}
-      footerNavLeaves={footerNavLeaves}
       onLogout={logout}
      />
     ) : (
@@ -476,12 +475,21 @@ export function Layout() {
    </aside>
 
    <div className="flex min-h-0 min-w-0 flex-1">
-   <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+   <main
+    className={cn(
+     "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+     role === "admin" ? adminPageSurfaceClass : "bg-background"
+    )}
+   >
+    {role === "admin" ? (
+     <AdminMainTopBar pathname={location.pathname} unreadCount={unreadCount} />
+    ) : null}
     <div className="h-full min-h-0 flex-1 overflow-y-auto">
      <div
       className={cn(
-       "mx-auto flex min-h-full w-full max-w-[1600px] flex-col px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden",
-       role === "admin" && "[&>*]:!pt-0"
+       role === "admin"
+        ? adminContentShellClass
+        : "mx-auto flex min-h-full w-full max-w-[1600px] flex-col px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden"
       )}
      >
       <Outlet />

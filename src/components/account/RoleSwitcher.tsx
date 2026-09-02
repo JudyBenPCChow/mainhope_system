@@ -39,8 +39,8 @@ export function RoleSwitcher({ variant = "default" }: RoleSwitcherProps) {
 
  if (variant === "card") {
   return (
-   <div className="rounded-[0.5625rem] border border-white/12 bg-white/8 px-2.5 py-2">
-    <div className="text-[0.7rem] font-semibold tracking-[0.03em] text-white/65">
+   <div className="rounded-[0.5625rem] border border-white/[0.12] bg-white/[0.08] px-2.5 py-2">
+    <div className="text-[0.7rem] font-semibold tracking-[0.03em] text-white/[0.66]">
      目前操作身份
     </div>
     {canSwitch ? (
@@ -48,7 +48,7 @@ export function RoleSwitcher({ variant = "default" }: RoleSwitcherProps) {
       value={role}
       disabled={switching}
       aria-label="目前操作身份"
-      className="mt-1 min-h-8 border-white/15 bg-white/8 px-2 text-[0.84rem] font-semibold text-white shadow-none hover:border-white/30"
+      className="mt-1 min-h-8 rounded-[0.5rem] !border-white/15 !bg-transparent px-2 text-[0.84rem] font-semibold text-white !shadow-none hover:!border-white/25 hover:!bg-white/[0.06] focus:!ring-0 [&>svg]:!text-white/70"
       onChange={(event) => void handleChange(event.target.value as MgmtRole)}
      >
       {profile.availableRoles.map((availableRole) => (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Check, Copy, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -185,7 +185,7 @@ export function ScriptLibraryView() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 sm:p-6">
+    <div className={cn("mx-auto max-w-4xl space-y-6", pagePadClass(role, "p-4 sm:p-6"))}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="行政工作"

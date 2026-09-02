@@ -5,6 +5,10 @@ import { ClipboardList } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { HomeworkTutoringTeacherAccess } from "@/components/homeworkTutoring/HomeworkTutoringTeacherAccess"
 import { useAuth } from "@/lib/authBootstrap"
 import { formatYearMonthLabel } from "@/lib/homeworkTutoringFees"
@@ -670,16 +674,16 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   }
 
   return (
-    <div className="space-y-4">
+    <div className={role === "admin" ? adminWorkspacePageClass : "space-y-4"}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="工作域"
           title={pageTitle}
-          description={
-            <>
-              功課輔導班 · {hwClass?.academicYearLabel ?? "2627"}學年 ·{" "}
-              {formatYearMonthLabel(viewMonth)}
-            </>
+          description={ADMIN_WORKSPACE_DESCRIPTION.homework}
+          titleExtra={
+            <span className="text-sm font-normal text-muted-foreground">
+              {hwClass?.academicYearLabel ?? "2627"}學年 · {formatYearMonthLabel(viewMonth)}
+            </span>
           }
         />
       ) : (

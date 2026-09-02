@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
@@ -21,6 +21,7 @@ import {
 } from "@/lib/entitlementPackage"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { cn } from "@/lib/utils"
 import {
  adjustEntitlementPool,
  fetchPoolsForStudent,
@@ -257,7 +258,7 @@ export function PaymentCorrectionView() {
  }
 
  return (
-  <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
+  <div className={cn("mx-auto max-w-5xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

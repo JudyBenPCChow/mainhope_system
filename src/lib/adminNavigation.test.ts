@@ -4,6 +4,7 @@ import { BellRing, FileText, GraduationCap, Users, Wallet } from "lucide-react"
 import {
  ADMIN_ALL_FEATURES_NAV,
  ADMIN_MAIN_NAV,
+ ADMIN_WORKSPACE_DESCRIPTION,
  adminNavEntryIsActive,
  adminNavPathIsActive,
  filterAdminFeatureSections,
@@ -101,6 +102,13 @@ describe("行政頁內導航", () => {
   expect(resolveAdminWorkspacePath("specialty", "/Classes/abc")).toBe("/Classes")
   expect(resolveAdminWorkspacePath("journal", "/ExpenseJournal")).toBe("/ExpenseJournal")
   expect(resolveAdminWorkspacePath("payments", "/Home")).toBeNull()
+ })
+
+ it("同一工作域共用簡介文案", () => {
+  expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toContain("收款")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toContain("專科")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toContain("功輔")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toContain("日記帳")
  })
 })
 

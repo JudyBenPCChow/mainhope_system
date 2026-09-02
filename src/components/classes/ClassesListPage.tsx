@@ -7,6 +7,7 @@ import {
  adminPageHeaderLayoutClass,
 } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import { ADMIN_WORKSPACE_DESCRIPTION } from "@/lib/adminNavigation"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -735,6 +736,7 @@ export function ClassesListPage() {
     </div>
    ) : null}
 
+   <div className={role === "admin" ? "space-y-6" : undefined}>
    <div
     className={
      role === "admin"
@@ -746,7 +748,7 @@ export function ClassesListPage() {
      <AdminPageHeading
       eyebrow="工作域"
       title="班別管理"
-      description="管理專科班、專科校曆及教學紀錄。"
+      description={ADMIN_WORKSPACE_DESCRIPTION.specialty}
       titleExtra={
        <Tag tone="info" size="sm">
         {loading ? "…" : `${stats.total} 班`}
@@ -825,7 +827,8 @@ export function ClassesListPage() {
      </div>
     </div>
    </div>
-   <AdminWorkspaceNav workspace="specialty" className="mt-3" />
+   <AdminWorkspaceNav workspace="specialty" />
+   </div>
     </>
    }
   >
