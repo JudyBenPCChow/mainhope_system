@@ -17,6 +17,7 @@ import {
   fetchExpenseAccounts,
   type ExpenseLedgerAccount,
 } from "@/services/expenseQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 export function ExpenseJournalRecordsView() {
   const { profile, role } = useAuth()
@@ -43,7 +44,7 @@ export function ExpenseJournalRecordsView() {
 
   return (
     <div className={adminWorkspacePageClass}>
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="工作域"
           title="日記帳紀錄"

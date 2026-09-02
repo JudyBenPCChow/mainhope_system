@@ -31,6 +31,7 @@ import {
  type EntitlementPoolSummary,
 } from "@/services/entitlementAdjustmentQueries"
 import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type GuideKey = "g2a" | "g2b" | "g2d" | "g2c" | "g2e" | "g2f"
 
@@ -259,7 +260,7 @@ export function PaymentCorrectionView() {
 
  return (
   <div className={cn("mx-auto max-w-5xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="單據／堂數更正"

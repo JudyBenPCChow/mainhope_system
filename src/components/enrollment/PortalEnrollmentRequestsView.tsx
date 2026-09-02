@@ -32,6 +32,7 @@ import {
  type PortalEnrollmentRequestRow,
  type PortalEnrollmentRequestStatus,
 } from "@/services/portalEnrollmentRequestQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type StatusFilter = "submitted" | "all"
 type ReviewMode = "approve" | "reject"
@@ -157,7 +158,7 @@ export function PortalEnrollmentRequestsView() {
 
  return (
   <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="家長報讀申請"

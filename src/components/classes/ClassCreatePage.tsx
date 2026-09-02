@@ -16,7 +16,7 @@ import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHead
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/authBootstrap"
 import { classDisplayName } from "@/lib/courseLabel"
-import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
+import { usesSharedAppShell, filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -153,7 +153,7 @@ export function ClassCreatePage() {
 
  return (
   <div className={cn("mx-auto max-w-3xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="新增班別"

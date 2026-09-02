@@ -37,6 +37,7 @@ import { buildPromotionMatchWhatsAppMessage } from "@/lib/promotionMatchWhatsApp
 import { cn } from "@/lib/utils"
 import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 import { fetchPromotionMatchSnapshot } from "@/services/promotionMatchQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type ViewMode = "byClass" | "byStudent"
 type EnrollmentFilter = "all" | "none" | "has"
@@ -927,7 +928,7 @@ export function PromotionMatchView() {
 
   return (
     <div className="space-y-4">
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"
           title="宣傳配對"

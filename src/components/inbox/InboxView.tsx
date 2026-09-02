@@ -34,6 +34,7 @@ import {
  type InboxItem,
  type InboxTypeFilter,
 } from "@/services/inboxQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const OPS_TYPE_FILTER_OPTIONS: { value: InboxTypeFilter; label: string }[] = [
  { value: "", label: "全部類型" },
@@ -334,7 +335,7 @@ export function InboxView() {
 
  return (
   <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="收件匣"

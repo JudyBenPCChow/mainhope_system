@@ -29,6 +29,7 @@ import {
   updateScriptLibraryEntry,
   type ScriptLibraryEntry,
 } from "@/services/scriptLibraryQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type FormState = {
   question: string
@@ -186,7 +187,7 @@ export function ScriptLibraryView() {
 
   return (
     <div className={cn("mx-auto max-w-4xl space-y-6", pagePadClass(role, "p-4 sm:p-6"))}>
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"
           title="話術庫"

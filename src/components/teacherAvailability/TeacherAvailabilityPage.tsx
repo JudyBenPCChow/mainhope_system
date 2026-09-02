@@ -41,6 +41,7 @@ import {
 } from "@/services/roomBookingQueries"
 import type { RoomRecord } from "@/services/classroomQueries"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type Tab = "pattern" | "grid" | "roomDay" | "list"
 
@@ -203,7 +204,7 @@ export function TeacherAvailabilityPage() {
 
  return (
   <div className={cn("space-y-5", pagePadClass(role, "p-4 md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="老師檔期規劃"

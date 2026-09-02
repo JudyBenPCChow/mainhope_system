@@ -14,6 +14,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { getStudentById, type StudentRecord } from "@/services/studentQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 function stepTitle(step: WizardStep | "done"): string {
  if (step === "done") return "完成"
@@ -143,7 +144,7 @@ export function FrontDeskWizardView() {
 
  return (
   <div className={cn("mx-auto max-w-3xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="前台指引精靈"

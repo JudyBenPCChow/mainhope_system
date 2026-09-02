@@ -29,6 +29,7 @@ import {
  fetchAcademicYearsWithDates,
  type AcademicYearRange,
 } from "@/services/teacherAvailabilityQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 function parseImportText(text: string): Array<{ closureDate: string; name: string; notes: string | null }> {
  return text
@@ -213,7 +214,7 @@ export function AcademicCalendarView() {
 
  return (
   <div className={cn(adminWorkspacePageClass, role !== "admin" && "mx-auto max-w-6xl")}>
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="專科校曆"

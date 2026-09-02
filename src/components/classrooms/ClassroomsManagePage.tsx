@@ -46,6 +46,7 @@ import {
  patchClassroomsListDataCache,
  setClassroomsListDataCache,
 } from "@/components/classrooms/classroomsListState"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const DOW_ZH = ["日", "一", "二", "三", "四", "五", "六"] as const
 
@@ -372,7 +373,7 @@ export function ClassroomsManagePage() {
 
  return (
   <div className="space-y-4">
-   {role === "admin" ? (
+   {usesSharedAppShell(role) ? (
     <AdminPageHeader
      eyebrow="行政工作"
      title="課室管理"

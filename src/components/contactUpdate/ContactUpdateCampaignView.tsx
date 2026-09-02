@@ -44,6 +44,7 @@ import {
   type ContactUpdateTokenRow,
 } from "@/services/contactUpdateQueries"
 import { fetchAllStudents, type StudentRecord } from "@/services/studentQueries"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type UiStatus = "未產生" | "未交" | "待審核" | "已核准" | "過期" | "已作廢"
 
@@ -552,7 +553,7 @@ export function ContactUpdateCampaignView() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      {role === "admin" ? (
+      {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"
           title="聯絡資料更新"

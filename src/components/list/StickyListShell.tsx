@@ -3,6 +3,7 @@ import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } fr
 import { pagePadClass, adminPageSurfaceClass } from "@/components/detail/AdminPageHeader"
 import { useAuth } from "@/lib/authBootstrap"
 import { cn } from "@/lib/utils"
+import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const StickyListActiveContext = createContext(false)
 
@@ -29,7 +30,7 @@ type LeadProps = {
 export function StickyListShell({ header, children, sticky = true, className }: ShellProps) {
  const { role } = useAuth()
  const bodyRef = useRef<HTMLDivElement>(null)
- const surfaceClass = role === "admin" ? adminPageSurfaceClass : "bg-background"
+ const surfaceClass = usesSharedAppShell(role) ? adminPageSurfaceClass : "bg-background"
 
  useLayoutEffect(() => {
   if (!sticky) return
@@ -84,7 +85,7 @@ export function StickyListShell({ header, children, sticky = true, className }: 
 export function StickyListLead({ children, className }: LeadProps) {
  const active = useContext(StickyListActiveContext)
  const { role } = useAuth()
- const surfaceClass = role === "admin" ? adminPageSurfaceClass : "bg-background"
+ const surfaceClass = usesSharedAppShell(role) ? adminPageSurfaceClass : "bg-background"
  if (!active) {
   return <div className={cn("space-y-5", className)}>{children}</div>
  }
