@@ -64,10 +64,18 @@ import {
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
+ buildPaymentYearContext,
+ formatCurrentHomeworkPaidText,
+ groupPastPaymentsByAcademicYear,
+ partitionPaymentsByAcademicYear,
+ paymentProductLineTags,
+ summarizeCurrentYearPayments,
+} from "@/lib/studentPaymentYearSummary"
+import {
  fetchPaymentFull,
- fetchTotalPaidLessonsForStudent,
  PAYMENT_STATUS,
 } from "@/services/paymentQueries"
+import { fetchAcademicYearsWithDates, type AcademicYearRange } from "@/services/teacherAvailabilityQueries"
 import { fetchGraduationBlockers } from "@/services/graduationGuardQueries"
 import {
  fetchAllStudents,
@@ -263,7 +271,8 @@ export function StudentDetailView() {
   "四",
   "五",
  ])
- const [totalPaidLessons, setTotalPaidLessons] = useState<number | null>(null)
+ const [academicYears, setAcademicYears] = useState<AcademicYearRange[]>([])
+ const [showPastPayments, setShowPastPayments] = useState(false)
  const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
  const [lessonBalancesState, setLessonBalancesState] = useState<"loading" | "ready" | "error">("loading")
  const [withdrawOpen, setWithdrawOpen] = useState(false)
@@ -359,7 +368,6 @@ export function StudentDetailView() {
      setLessonBalancesState("loading")
      const settled = await Promise.allSettled([
       fetchEnrollmentsForStudent(sid),
-      includeMoney ? fetchTotalPaidLessonsForStudent(sid) : Promise.resolve(null),
       fetchLessonBalancesForStudent(sid, { includePaidLessons: includeMoney }),
       fetchClassOptions(),
      ])
@@ -370,15 +378,14 @@ export function StudentDetailView() {
       reportUserFacingError(settled[0].reason, { source: "StudentDetailView.enrollmentsTab" })
       setEnrollmentsState("error")
      }
-     if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
-     if (settled[2].status === "fulfilled") {
-      setLessonBalances(settled[2].value)
+     if (settled[1].status === "fulfilled") {
+      setLessonBalances(settled[1].value)
       setLessonBalancesState("ready")
      } else {
-      reportUserFacingError(settled[2].reason, { source: "StudentDetailView.lessonBalances" })
+      reportUserFacingError(settled[1].reason, { source: "StudentDetailView.lessonBalances" })
       setLessonBalancesState("error")
      }
-     if (settled[3].status === "fulfilled") setClassOptions(settled[3].value)
+     if (settled[2].status === "fulfilled") setClassOptions(settled[2].value)
     } else if (tabId === "payments") {
      if (!includeMoney) {
       setPayments([])
@@ -386,7 +393,7 @@ export function StudentDetailView() {
      } else {
       const settled = await Promise.allSettled([
        fetchPaymentsForStudent(sid),
-       fetchTotalPaidLessonsForStudent(sid),
+       fetchAcademicYearsWithDates(),
       ])
       if (settled[0].status === "fulfilled") {
        setPayments(settled[0].value)
@@ -395,7 +402,11 @@ export function StudentDetailView() {
        reportUserFacingError(settled[0].reason, { source: "StudentDetailView.payments" })
        setPaymentsState("error")
       }
-      if (settled[1].status === "fulfilled") setTotalPaidLessons(settled[1].value)
+      if (settled[1].status === "fulfilled") setAcademicYears(settled[1].value)
+      else {
+       reportUserFacingError(settled[1].reason, { source: "StudentDetailView.paymentYears" })
+       setAcademicYears([])
+      }
      }
     }
     tabLoadedRef.current.add(tabId)
@@ -429,6 +440,7 @@ export function StudentDetailView() {
   setLoading(true)
   setPayments([])
   setPaymentsState("loading")
+  setShowPastPayments(false)
   tabLoadedRef.current = new Set(["basic"])
   try {
    await reloadCore()
@@ -782,6 +794,19 @@ export function StudentDetailView() {
   () => groupEnrollmentsByAcademicYear(pastYearEnrollments),
   [pastYearEnrollments]
  )
+ const paymentYearCtx = useMemo(() => buildPaymentYearContext(academicYears), [academicYears])
+ const { current: currentYearPayments, past: pastYearPayments } = useMemo(
+  () => partitionPaymentsByAcademicYear(payments, paymentYearCtx),
+  [payments, paymentYearCtx]
+ )
+ const currentYearPaidSummary = useMemo(
+  () => summarizeCurrentYearPayments(payments, paymentYearCtx),
+  [payments, paymentYearCtx]
+ )
+ const pastPaymentGroups = useMemo(
+  () => groupPastPaymentsByAcademicYear(pastYearPayments),
+  [pastYearPayments]
+ )
  const occupiedClassIds =
   enrollmentsState === "ready"
    ? new Set(enrollments.filter((row) => row.status !== "已退讀").map((row) => row.classId))
@@ -1102,6 +1127,88 @@ export function StudentDetailView() {
    onGoLeaveTab={() => setTab("leave")}
   />
  )
+
+ const renderPaymentCard = (p: PaymentRow) => {
+  const lineTags = paymentProductLineTags(p)
+  return (
+  <StaggerItem
+   key={p.id}
+   as="div"
+   className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+  >
+   <div>
+    <div className="text-lg font-bold">{money(p.total_amount)}</div>
+    <div className="text-sm text-muted-foreground">
+     {p.payment_date} · {p.payment_method ?? "—"}
+    </div>
+    {p.receipt_number ? (
+     <div className="text-xs text-muted-foreground">收據：{p.receipt_number}</div>
+    ) : null}
+    {lineTags.length > 0 ? (
+     <div className="mt-2 flex flex-wrap gap-1">
+      {lineTags.map((label) => (
+       <Tag key={label} tone="default" size="sm">
+        {label}
+       </Tag>
+      ))}
+     </div>
+    ) : null}
+   </div>
+   <div className="flex flex-wrap items-center gap-2">
+    <Tag tone={statusToTagTone(p.status)} size="sm">
+     {p.status}
+    </Tag>
+    <Button
+     type="button"
+     variant="outline"
+     size="sm"
+     onClick={async () => {
+      try {
+       const full = await fetchPaymentFull(p.id)
+       if (!full) return
+       if (
+        !(await printPaymentForStatus(full, p.status, [
+         PAYMENT_STATUS.pendingPay,
+         PAYMENT_STATUS.pendingReceive,
+        ]))
+       ) {
+        pushBanner({ tone: "warning", title: "無法列印", message: "請允許開啟彈出視窗以列印。" })
+       }
+      } catch (e) {
+       reportUserFacingError(e, { source: "StudentDetailView.printPayment" })
+      }
+     }}
+    >
+     <Printer className="h-3.5 w-3.5" />
+     列印
+    </Button>
+    {canVoidPayment && p.status !== PAYMENT_STATUS.voided ? (
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="text-destructive hover:text-destructive"
+      onClick={() => {
+       setVoidPayTarget({
+        id: p.id,
+        receiptNumber: p.receipt_number,
+        studentName: student?.full_name ?? "—",
+        studentId: student?.id,
+        totalAmount: p.total_amount,
+        paymentDate: p.payment_date,
+        status: p.status,
+        createdAt: p.created_at ?? null,
+       })
+       setVoidPayOpen(true)
+      }}
+     >
+      作廢
+     </Button>
+    ) : null}
+   </div>
+  </StaggerItem>
+  )
+ }
 
  const showBasicForm = basicEditing && canMutateStudentOps
 
@@ -2325,20 +2432,7 @@ export function StudentDetailView() {
     {tab === "payments" && canViewMoney ? (
      <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-       <div className="space-y-1 text-sm text-muted-foreground">
-        <p>
-         {paymentsState === "error"
-          ? "繳費紀錄"
-          : `共 ${payments.length} 筆繳費紀錄`}
-         {paymentsState === "ready" && totalPaidLessons != null ? (
-          <span className="text-foreground">
-           {" "}
-           · 已收款<strong className="mx-1 text-warning tabular-nums">{totalPaidLessons}</strong>總繳堂數
-          </span>
-         ) : null}
-        </p>
-        <p className="text-xs">總繳堂數依「已收款」單據之明細堂數加總。</p>
-       </div>
+       <p className="text-sm font-medium">本學年繳費</p>
        {canRegisterPayment ? (
         <Button type="button" size="sm" onClick={() => goExternal(`/Payments?studentId=${encodeURIComponent(sid)}`)}>
          <Plus className="h-4 w-4" />
@@ -2365,77 +2459,91 @@ export function StudentDetailView() {
        ) : payments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚無繳費紀錄。</p>
        ) : (
-        <StaggerList as="div" className="space-y-3">
-        {payments.map((p) => (
-         <StaggerItem
-          key={p.id}
-          as="div"
-          className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
-         >
-          <div>
-           <div className="text-lg font-bold">{money(p.total_amount)}</div>
-           <div className="text-sm text-muted-foreground">
-            {p.payment_date} · {p.payment_method ?? "—"}
+        <div className="space-y-6">
+         {currentYearPaidSummary.specialistLessons > 0 ||
+         currentYearPaidSummary.privateLessons > 0 ||
+         currentYearPaidSummary.homeworkMonths.length > 0 ? (
+          <div className="rounded-xl border border-border bg-card p-4">
+           <dl className="space-y-2 text-sm">
+            {currentYearPaidSummary.specialistLessons > 0 ? (
+             <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">專科班</dt>
+              <dd className="tabular-nums text-foreground">
+               本學年共收 {currentYearPaidSummary.specialistLessons} 堂
+              </dd>
+             </div>
+            ) : null}
+            {currentYearPaidSummary.privateLessons > 0 ? (
+             <div className="space-y-1">
+              <div className="flex items-baseline justify-between gap-3">
+               <dt className="text-muted-foreground">私人課程</dt>
+               <dd className="tabular-nums text-foreground">
+                本學年已繳 {currentYearPaidSummary.privateLessons} 堂
+               </dd>
+              </div>
+              <p className="text-xs text-muted-foreground">關係內累計，不隨學年歸零</p>
+             </div>
+            ) : null}
+            {currentYearPaidSummary.homeworkMonths.length > 0 ? (
+             <div className="flex items-baseline justify-between gap-3">
+              <dt className="text-muted-foreground">功課輔導班</dt>
+              <dd className="tabular-nums text-foreground">
+               {formatCurrentHomeworkPaidText(currentYearPaidSummary.homeworkMonths)}
+              </dd>
+             </div>
+            ) : null}
+           </dl>
+          </div>
+         ) : null}
+         <div className="space-y-3">
+          {currentYearPayments.length === 0 ? (
+           <p className="text-sm text-muted-foreground">目前沒有本學年繳費紀錄。</p>
+          ) : (
+           <>
+            <p className="text-sm text-muted-foreground">
+             {currentYearPayments.length} 筆本學年單據
+            </p>
+            <StaggerList as="div" className="space-y-3">
+             {currentYearPayments.map(renderPaymentCard)}
+            </StaggerList>
+           </>
+          )}
+         </div>
+         {pastYearPayments.length > 0 ? (
+          <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+           <div>
+            <p className="text-sm font-medium text-muted-foreground">過往學年</p>
+            {!showPastPayments ? (
+             <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => setShowPastPayments(true)}
+             >
+              顯示全部
+             </Button>
+            ) : (
+             <p className="mt-1 text-xs text-muted-foreground">
+              全庫共 {payments.length} 筆繳費紀錄
+             </p>
+            )}
            </div>
-           {p.receipt_number ? (
-            <div className="text-xs text-muted-foreground">收據：{p.receipt_number}</div>
-           ) : null}
+           {showPastPayments
+            ? pastPaymentGroups.map((group) => (
+               <div key={group.label} className="space-y-3">
+                <p className="text-xs font-medium text-muted-foreground">
+                 {group.label === "未標學年" ? "未標學年" : `${group.label} 學年`}
+                </p>
+                <StaggerList as="div" className="space-y-3">
+                 {group.items.map(renderPaymentCard)}
+                </StaggerList>
+               </div>
+              ))
+            : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-           <Tag tone={statusToTagTone(p.status)} size="sm">
-            {p.status}
-           </Tag>
-           <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-             try {
-              const full = await fetchPaymentFull(p.id)
-              if (!full) return
-              if (
-               !(await printPaymentForStatus(full, p.status, [
-                PAYMENT_STATUS.pendingPay,
-                PAYMENT_STATUS.pendingReceive,
-               ]))
-              ) {
-               pushBanner({ tone: "warning", title: "無法列印", message: "請允許開啟彈出視窗以列印。" })
-              }
-             } catch (e) {
-              reportUserFacingError(e, { source: "StudentDetailView.printPayment" })
-             }
-            }}
-           >
-            <Printer className="h-3.5 w-3.5" />
-            列印
-           </Button>
-           {canVoidPayment && p.status !== PAYMENT_STATUS.voided ? (
-            <Button
-             type="button"
-             variant="outline"
-             size="sm"
-             className="text-destructive hover:text-destructive"
-             onClick={() => {
-              setVoidPayTarget({
-               id: p.id,
-               receiptNumber: p.receipt_number,
-               studentName: student?.full_name ?? "—",
-               studentId: student?.id,
-               totalAmount: p.total_amount,
-               paymentDate: p.payment_date,
-               status: p.status,
-               createdAt: p.created_at ?? null,
-              })
-              setVoidPayOpen(true)
-             }}
-            >
-             作廢
-            </Button>
-           ) : null}
-          </div>
-         </StaggerItem>
-        ))}
-        </StaggerList>
+         ) : null}
+        </div>
        )}
       </div>
      </div>
