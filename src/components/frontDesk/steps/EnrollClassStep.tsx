@@ -16,6 +16,7 @@ import {
  type EnrollmentFormValue,
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
+import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { fetchClassesForOpsList, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
@@ -218,6 +219,11 @@ export function EnrollClassStep({
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
+
+  const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
+   { notice: pickedClassOption?.enrollmentNotice, classLabel: pickedClassOption?.label },
+  ])
+  if (!noticeOk) return
 
   setGroupSaving(true)
   setErr(null)

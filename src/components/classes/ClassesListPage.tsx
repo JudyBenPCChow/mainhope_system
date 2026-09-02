@@ -37,6 +37,7 @@ import {
  weekdaysFromStored,
 } from "@/components/classes/classesUi"
 import {
+ CLASS_LIST_DATA_COLUMNS,
  classMatchesHeaderFilters,
  classSortLabel,
  compareClasses,
@@ -63,17 +64,13 @@ import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { classDisplayName } from "@/lib/courseLabel"
 import { academicYearLabelFromStartDate } from "@/lib/courseCode"
 import { confirmNonCurrentAcademicYearWrite, isOutsideCurrentOrNextAcademicYear } from "@/lib/academicYearSoftGuard"
-import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
  deleteClassCascade,
- duplicateClass,
  fetchAcademicYearOptions,
  fetchClassesForOpsList,
- previewClassDeletionSchedules,
  type ClassRecord,
- updateClass,
 } from "@/services/classQueries"
 import { fetchEnrollmentRosterByClassIds, fetchScheduleSummariesByClassIds, type ClassScheduleSummary } from "@/services/scheduleQueries"
 
@@ -162,10 +159,14 @@ export function ClassesListPage() {
   "mgmt_classes_headerFilters",
   EMPTY_CLASS_HEADER_FILTERS
  )
- const headerFilters = useMemo(
-  () => ({ ...EMPTY_CLASS_HEADER_FILTERS, ...headerFiltersStored }),
-  [headerFiltersStored]
- )
+ const headerFilters = useMemo(() => {
+  const out = { ...EMPTY_CLASS_HEADER_FILTERS }
+  for (const id of CLASS_LIST_DATA_COLUMNS) {
+   const stored = headerFiltersStored[id]
+   out[id] = typeof stored === "string" ? stored : ""
+  }
+  return out
+ }, [headerFiltersStored])
  const [selectedIds, setSelectedIds] = useState<string[]>([])
  const [bulkSaving, setBulkSaving] = useState(false)
  const [includeOlderYears, setIncludeOlderYears] = useState(
@@ -352,22 +353,10 @@ export function ClassesListPage() {
   })
  }, [yearScopedRows, gradeKey, subjectKey, teacherKey, dayKey, statusKey])
 
- const timeLabel = useCallback(
-  (c: ClassRecord) => {
-   const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
-   const dates = scheduleSummaries.get(c.id)?.dates ?? []
-   const dateLabel =
-    dates.length >= 2
-     ? `${formatScheduleDateShort(dates[0]!)}–${formatScheduleDateShort(dates[dates.length - 1]!)}`
-     : dates.length === 1
-      ? formatScheduleDateShort(dates[0]!)
-      : ""
-   if (approx && dateLabel) return `${approx} · ${dateLabel}`
-   if (dateLabel) return dateLabel
-   return approx || "—"
-  },
-  [scheduleSummaries]
- )
+ const timeLabel = useCallback((c: ClassRecord) => {
+  const approx = [formatWeekdaysDisplay(c.day_of_week), c.time_slot].filter(Boolean).join(" ")
+  return approx || "—"
+ }, [])
 
  const listExtras: ClassListExtras = useMemo(
   () => ({
@@ -502,84 +491,6 @@ export function ClassesListPage() {
    .map(([title, items]) => ({ title, items }))
  }, [filtered, kanbanGroup])
 
- const onDelete = async (e: React.MouseEvent, id: string) => {
-  e.stopPropagation()
-  const target = rows.find((c) => c.id === id)
-  if (
-   target &&
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    label: classAcademicYearLabel(target),
-    source: "ClassesListPage.onDelete",
-   }))
-  ) {
-   return
-  }
-  const previewDates = await previewClassDeletionSchedules(id)
-  const dateHint =
-   previewDates.length > 0
-    ? `將同時取消 ${previewDates.length} 筆排程：${previewDates
-       .slice(0, 8)
-       .map(formatScheduleDateShort)
-       .join("、")}${previewDates.length > 8 ? "…" : ""}`
-    : "此班別目前沒有進行中的排程。"
-  if (
-   !(await confirmDialog({
-    title: "刪除班別",
-    description: `確定刪除此班別？${dateHint}`,
-    confirmText: "確認刪除",
-    tone: "destructive",
-   }))
-  )
-   return
-  try {
-   await deleteClassCascade(id)
-   removeClassFromLocalState(id)
-   pushBanner({ tone: "info", title: "已刪除班別" })
-   void load({ silent: true })
-  } catch (er) {
-   reportUserFacingError(er, { source: "ClassesListPage.onDelete", setErr })
-  }
- }
-
- const onCopy = async (e: React.MouseEvent, id: string) => {
-  e.stopPropagation()
-  const target = rows.find((c) => c.id === id)
-  if (
-   target &&
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    label: classAcademicYearLabel(target),
-    source: "ClassesListPage.onCopy",
-   }))
-  ) {
-   return
-  }
-  try {
-   await duplicateClass(id)
-   await load()
-  } catch (er) {
-   reportUserFacingError(er, { source: "ClassesListPage.onCopy", setErr })
-  }
- }
-
- const onStatusChange = async (id: string, status: string) => {
-  const target = rows.find((c) => c.id === id)
-  if (
-   target &&
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    label: classAcademicYearLabel(target),
-    source: "ClassesListPage.onStatusChange",
-   }))
-  ) {
-   return
-  }
-  try {
-   await updateClass(id, { status })
-   await load()
-  } catch (er) {
-   reportUserFacingError(er, { source: "ClassesListPage.onStatusChange", setErr })
-  }
- }
-
  const hasNoActiveSchedule = (c: ClassRecord) => !scheduleSummaries.get(c.id)?.hasActive
 
  const toggleSort = (key: ClassListColumnId) => {
@@ -612,8 +523,6 @@ export function ClassesListPage() {
    "老師",
    "學生人數",
    "學生名單",
-   "報讀須知",
-   "狀態",
   ]
   const lines = selectedRows.map((c) => {
    const roster = enrollRoster.get(c.id)
@@ -625,8 +534,6 @@ export function ClassesListPage() {
     c.teacher_name ?? "",
     String(roster?.count ?? 0),
     (roster?.names ?? []).join("、"),
-    (c.enrollment_notice ?? "").replace(/\r?\n/g, " "),
-    c.status,
    ]
    return cells.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
   })
@@ -1144,13 +1051,8 @@ export function ClassesListPage() {
       selectedIds={selectedIds}
       onToggleSelect={toggleSelect}
       onToggleSelectAll={toggleSelectAllFiltered}
-      teacherScoped={Boolean(teacherTid)}
-      canDeleteClass={canDeleteClass}
       onNavigate={openClass}
       previewId={previewClassId}
-      onStatusChange={(id, status) => void onStatusChange(id, status)}
-      onCopy={onCopy}
-      onDelete={onDelete}
       hasNoActiveSchedule={hasNoActiveSchedule}
      />
     </div>

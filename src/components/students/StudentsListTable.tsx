@@ -166,7 +166,7 @@ export function StudentsListTable({
           as="tr"
           onClick={() => onNavigate(r.id)}
           className={cn(
-           "cursor-pointer transition-colors hover:bg-muted/60",
+           "cursor-pointer transition-colors hover:bg-info/20",
            idx % 2 === 1 ? "bg-muted/20" : "",
            checked ? "bg-info/10" : "",
            previewId === r.id ? "bg-info/15" : ""

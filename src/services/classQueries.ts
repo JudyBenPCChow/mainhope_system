@@ -15,6 +15,7 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { supabase } from "@/lib/supabaseClient"
+import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  gradeLabelsAlignedFromCourse,
  resolveClassGradeLabels,
@@ -275,6 +276,29 @@ export async function getClassById(id: string): Promise<ClassRecord | null> {
  if (error) throw error
  if (!data) return null
  return mapClassRow(data as Record<string, unknown>)
+}
+
+/** 新增報讀提醒用：只取各班的報讀須知（有內容才進 Map） */
+export async function fetchEnrollmentNoticesByClassIds(
+ classIds: string[]
+): Promise<Map<string, string>> {
+ const out = new Map<string, string>()
+ if (!supabase) return out
+ const ids = [...new Set(classIds.map((id) => id.trim()).filter(Boolean))]
+ if (ids.length === 0) return out
+ const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("classes")
+   .select("id, enrollment_notice")
+   .in("id", slice)
+  if (error) throw error
+  return (data ?? []) as Array<{ id: string; enrollment_notice: string | null }>
+ })
+ for (const row of chunks.flat()) {
+  const notice = row.enrollment_notice?.trim()
+  if (notice) out.set(String(row.id), notice)
+ }
+ return out
 }
 
 function sectionCodeFromOrdinal(ord: number): string {

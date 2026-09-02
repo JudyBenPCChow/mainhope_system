@@ -68,8 +68,9 @@ import {
 } from "@/lib/academicYearEditGuard"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
+import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
-import { classDisplayName } from "@/lib/courseLabel"
+import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { classKindLabel, resolveClassKind } from "@/lib/privateClassKind"
 import {
  classGradeDisplayText,
@@ -1180,6 +1181,17 @@ export function ClassDetailView() {
    else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(addStudentForm as EnrollmentPeriod)) {
     period = addStudentForm as EnrollmentPeriod
    }
+   const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
+    {
+     notice: cls?.enrollment_notice,
+     classLabel: formatClassLabel({
+      subject: cls?.subject ?? "",
+      courseCode: cls?.course_code_full,
+      courseName: cls?.course_name,
+     }),
+    },
+   ])
+   if (!noticeOk) return
    await insertEnrollment(
     studentId,
     cid,

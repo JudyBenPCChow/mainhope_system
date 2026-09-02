@@ -1663,7 +1663,7 @@ export function StudentsListPage() {
             openStudent(r.id)
            }
           }}
-          className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm active:bg-muted/40"
+          className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm transition-colors hover:bg-info/20 active:bg-info/25"
          >
          <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2">
@@ -1755,7 +1755,7 @@ export function StudentsListPage() {
            openStudent(r.id)
           }
          }}
-         className="flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:shadow-md"
+         className="flex cursor-pointer flex-col rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-info/40 hover:bg-info/20 hover:shadow-md"
         >
          <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-2">
