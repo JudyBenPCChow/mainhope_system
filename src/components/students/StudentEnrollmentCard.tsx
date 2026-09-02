@@ -74,7 +74,7 @@ export function StudentEnrollmentCard({
       {canViewMoney && !isHomework && e.pricePerLesson != null ? (
        <span>· 每節 {money(e.pricePerLesson)}</span>
       ) : null}
-      {isHomework && e.homeworkDayPlan ? <span>每週{e.homeworkDayPlan}</span> : null}
+      {isHomework ? <span>{e.homeworkDayPlan ? `每週${e.homeworkDayPlan}` : "未設定"}</span> : null}
      </div>
      <div className="mt-1 text-xs text-muted-foreground">報讀日期：{e.enroll_date ?? "—"}</div>
     </div>

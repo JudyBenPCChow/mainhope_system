@@ -15,6 +15,7 @@ import {
   countSubmitProgress,
   currentYearMonth,
   formatDutyPeople,
+  formatHomeworkDayPlanLabel,
   formatYearMonthLabel,
   shiftYearMonth,
   unpaidFeeRows,
@@ -279,7 +280,7 @@ export function ManagerHomeworkWorkbench({
                   <div>
                     <p className="font-medium">{row.student.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {row.student.code} · 每週{row.student.plan} · 應繳 {row.amountLabel}
+                      {row.student.code} · {formatHomeworkDayPlanLabel(row.student.plan)} · 應繳 {row.amountLabel}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">

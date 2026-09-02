@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest"
 import {
   buildMonthDutyDays,
   findDutyDay,
+  formatHomeworkDayPlanLabel,
   getAvailEntry,
   listRosterMonthDays,
+  mapHomeworkEnrollStatus,
   summarizeOverview,
   type HomeworkDutyDay,
 } from "@/lib/homeworkTutoringUi"
@@ -97,5 +99,19 @@ describe("summarizeOverview", () => {
       now
     )
     expect(overview.todayDuty).toBeNull()
+  })
+})
+
+describe("mapHomeworkEnrollStatus / formatHomeworkDayPlanLabel", () => {
+  it("maps 休學 to 暫停 and 就讀中 to 在籍", () => {
+    expect(mapHomeworkEnrollStatus("就讀中")).toBe("在籍")
+    expect(mapHomeworkEnrollStatus("休學")).toBe("暫停")
+    expect(mapHomeworkEnrollStatus("已退讀")).toBe("結束")
+    expect(mapHomeworkEnrollStatus("退選")).toBe("結束")
+  })
+
+  it("labels a missing day plan as 未設定", () => {
+    expect(formatHomeworkDayPlanLabel(null)).toBe("未設定")
+    expect(formatHomeworkDayPlanLabel("四日")).toBe("每週四日")
   })
 })

@@ -4,6 +4,7 @@ import {
   homeworkMonthlyFeeHkd,
   homeworkPaymentCoversMonth,
   isHomeworkMonthlyFeeDescription,
+  isHomeworkDayPlan,
   monthFirstDay,
   type HomeworkDayPlan,
   type HomeworkWeekday,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/homeworkTutoringSchedules"
 import {
   applyHomeworkOccupancyClassroomMoveToDuty,
+  mapHomeworkEnrollStatus,
   type AvailEntry,
   type HomeworkDutyAssignment,
   type HomeworkDutyDay,
@@ -39,7 +41,7 @@ export type HomeworkEnrollmentRow = {
   studentName: string
   studentCode: string
   grade: string
-  plan: HomeworkDayPlan
+  plan: HomeworkDayPlan | null
   weekdays: HomeworkWeekday[]
   enrollDate: string
   status: "在籍" | "暫停" | "結束"
@@ -60,7 +62,7 @@ export type HomeworkFeeRow = {
   studentName: string
   studentCode: string
   grade: string
-  plan: HomeworkDayPlan
+  plan: HomeworkDayPlan | null
   billingMonth: string
   amountHkd: number | null
   amountLabel: string
@@ -99,15 +101,11 @@ export type HomeworkRosterMonth = {
 const WEEKDAY_CHARS = ["日", "一", "二", "三", "四", "五", "六"] as const
 
 function mapEnrollStatus(raw: string): "在籍" | "暫停" | "結束" {
-  if (raw === "就讀中") return "在籍"
-  if (raw === "已退讀") return "結束"
-  if (raw.includes("暫停")) return "暫停"
-  return "在籍"
+  return mapHomeworkEnrollStatus(raw)
 }
 
-function asDayPlan(raw: unknown): HomeworkDayPlan {
-  if (raw === "三日" || raw === "四日" || raw === "五日" || raw === "七日") return raw
-  return "四日"
+function asDayPlan(raw: unknown): HomeworkDayPlan | null {
+  return isHomeworkDayPlan(raw) ? raw : null
 }
 
 function asWeekdays(raw: unknown): HomeworkWeekday[] {
@@ -248,6 +246,7 @@ export async function ensureHomeworkMonthlyCharges(opts: {
   const billingMonth = monthFirstDay(opts.billingMonth)
   const active = opts.enrollments.filter((e) => e.status === "在籍")
   for (const e of active) {
+    if (!e.plan) continue
     const amount = homeworkMonthlyFeeHkd(e.plan, e.grade, billingMonth)
     if (amount == null) continue
     const { error } = await supabase.from("homework_tutoring_monthly_charges").upsert(

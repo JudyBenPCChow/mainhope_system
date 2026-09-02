@@ -106,4 +106,35 @@ describe("功輔月費板由繳費紀錄合成", () => {
       },
     ])
   })
+
+  it("excludes paused enrollments from this month's fees", () => {
+    const rows = composeHomeworkFeeDisplays({
+      classId: "hw-class",
+      billingMonth: "2026-09",
+      enrollments: [
+        { studentId: "a", status: "在籍", plan: "四日", grade: "P4" },
+        { studentId: "b", status: "暫停", plan: "五日", grade: "S3" },
+      ],
+      paidByStudentId: new Map(),
+    })
+    expect(rows.map((r) => r.studentId)).toEqual(["a"])
+  })
+
+  it("shows dash when day plan is unset", () => {
+    const rows = composeHomeworkFeeDisplays({
+      classId: "hw-class",
+      billingMonth: "2026-09",
+      enrollments: [{ studentId: "a", status: "在籍", plan: null, grade: "P4" }],
+      paidByStudentId: new Map(),
+    })
+    expect(rows).toEqual([
+      {
+        studentId: "a",
+        amountLabel: "—",
+        status: "未收款",
+        receiptNumber: null,
+        classId: "hw-class",
+      },
+    ])
+  })
 })
