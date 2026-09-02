@@ -42,6 +42,7 @@ import {
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 import { collectCurrentEnrollmentSubjectTags } from "@/lib/enrollmentYearDisplay"
+import type { PaymentYearDetailFields } from "@/lib/studentPaymentYearSummary"
 import { fetchEnrollableAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -2001,6 +2002,29 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
  return out
 }
 
+function embedRecords(raw: unknown): Record<string, unknown>[] {
+ if (Array.isArray(raw)) return raw as Record<string, unknown>[]
+ if (raw && typeof raw === "object") return [raw as Record<string, unknown>]
+ return []
+}
+
+function mapPaymentDetailRow(row: Record<string, unknown>): PaymentYearDetailFields {
+ const cls = embedRecords(row.classes)[0] ?? null
+ const yearEmbed = cls ? embedRecords(cls.academic_years)[0] ?? null : null
+ const coverageRaw =
+  row.coverage_start_month != null ? String(row.coverage_start_month).slice(0, 10) : ""
+ const lessonN = row.lesson_count != null ? Number(row.lesson_count) : NaN
+ return {
+  lessonCount: Number.isFinite(lessonN) ? lessonN : null,
+  coverageStartMonth: /^\d{4}-\d{2}/.test(coverageRaw) ? coverageRaw.slice(0, 7) : null,
+  description: row.description != null ? String(row.description) : null,
+  classKind: cls?.class_kind != null ? String(cls.class_kind) : null,
+  classSubject: cls?.subject != null ? String(cls.subject) : null,
+  academicYearLabel:
+   yearEmbed?.label != null ? String(yearEmbed.label).trim() || null : null,
+ }
+}
+
 export type PaymentRow = {
  id: string
  receipt_number: string | null
@@ -2009,13 +2033,16 @@ export type PaymentRow = {
  payment_method: string | null
  status: string
  created_at: string
+ details: PaymentYearDetailFields[]
 }
 
 export async function fetchPaymentsForStudent(studentId: string): Promise<PaymentRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("payments")
-  .select("id, receipt_number, payment_date, total_amount, payment_method, status, created_at")
+  .select(
+   "id, receipt_number, payment_date, total_amount, payment_method, status, created_at, payment_details ( lesson_count, coverage_start_month, description, classes ( class_kind, subject, academic_years ( label, start_date, end_date ) ) )"
+  )
   .eq("student_id", studentId)
   .order("payment_date", { ascending: false })
  if (error) throw error
@@ -2029,6 +2056,7 @@ export async function fetchPaymentsForStudent(studentId: string): Promise<Paymen
    payment_method: row.payment_method != null ? String(row.payment_method) : null,
    status: String(row.status ?? ""),
    created_at: String(row.created_at ?? ""),
+   details: embedRecords(row.payment_details).map(mapPaymentDetailRow),
   }
  })
 }

@@ -1,5 +1,6 @@
 /** 功輔月費價目（對齊 HOMEWORK_TUTORING_MONTHLY_FEE.md） */
 
+import { resolveClassKind } from "@/lib/privateClassKind"
 import { formatStudentGrade, isPrimaryStudentGrade } from "@/lib/studentGrade"
 
 export type HomeworkDayPlan = "三日" | "四日" | "五日" | "七日"
@@ -119,6 +120,17 @@ export function homeworkPaymentLineAmount(opts: {
 /** 收款明細備註帶「月費」＝功輔月費行（舊暑期單據無此字，仍當堂數） */
 export function isHomeworkMonthlyFeeDescription(description: string | null | undefined): boolean {
   return /月費/.test(String(description ?? ""))
+}
+
+/** 功輔月費行不計堂數：有覆蓋月、班型為功輔、或備註含「月費」。 */
+export function isHomeworkPaymentDetailSkipLessons(opts: {
+  coverageStartMonth?: string | null
+  description?: string | null
+  classKind?: string | null
+}): boolean {
+  if (normalizeYearMonth(opts.coverageStartMonth)) return true
+  if (resolveClassKind(opts.classKind, null) === "homework") return true
+  return isHomeworkMonthlyFeeDescription(opts.description)
 }
 
 /** 回傳應繳港元；年級未列價則 null */

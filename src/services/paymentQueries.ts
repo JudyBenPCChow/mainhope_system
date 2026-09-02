@@ -12,7 +12,11 @@ import {
 import { createPaymentBatch } from "@/services/paymentBatchQueries"
 import { insertReferralRecord } from "@/services/referralQueries"
 import { formatClassLabel, classDisplayName } from "@/lib/courseLabel"
-import { isHomeworkMonthlyFeeDescription, monthFirstDay } from "@/lib/homeworkTutoringFees"
+import {
+ isHomeworkMonthlyFeeDescription,
+ isHomeworkPaymentDetailSkipLessons,
+ monthFirstDay,
+} from "@/lib/homeworkTutoringFees"
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
 import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
@@ -772,16 +776,6 @@ export type PaymentDetailInput = {
 function coverageStartMonthToDate(raw: string | null | undefined): string | null {
  const ym = String(raw ?? "").slice(0, 7)
  return /^\d{4}-\d{2}$/.test(ym) ? monthFirstDay(ym) : null
-}
-
-function isHomeworkPaymentDetailSkipLessons(opts: {
- coverageStartMonth?: string | null
- description?: string | null
- classKind?: string | null
-}): boolean {
- if (opts.coverageStartMonth) return true
- if (resolveClassKind(opts.classKind, null) === "homework") return true
- return isHomeworkMonthlyFeeDescription(opts.description)
 }
 
 async function assertHomeworkReceiptNotMixed(details: PaymentDetailInput[]): Promise<boolean> {
