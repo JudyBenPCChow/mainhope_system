@@ -1935,6 +1935,7 @@ export type ClassOption = {
  label: string
  courseMode: CourseMode
  classKind: ClassKind
+ enrollmentNotice: string | null
 }
 
 export async function fetchClassOptions(): Promise<ClassOption[]> {
@@ -1945,11 +1946,11 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
  const yearIds = window.ids
  const enrollableLabels = new Set(window.labels)
  const classSelectWithMode =
-  "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name, course_mode )"
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
-  "id, subject, class_kind, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name )"
  const classSelectLegacy =
-  "id, subject, course_code_full, day_of_week, time_slot, academic_years ( label ), courses ( course_name )"
+  "id, subject, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name )"
  const first = await supabase
   .from("classes")
   .select(classSelectWithMode)
@@ -1997,6 +1998,8 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
    label: buildClassOptionLabel(row),
    courseMode,
    classKind: kind,
+   enrollmentNotice:
+    row.enrollment_notice != null ? String(row.enrollment_notice) : null,
   })
  }
  return out

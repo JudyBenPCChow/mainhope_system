@@ -1,10 +1,9 @@
 import { useMemo } from "react"
-import { AlertTriangle, Copy } from "lucide-react"
+import { AlertTriangle } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import {
  GRADE_HEADER_FILTER_OPTIONS,
- STATUS_HEADER_FILTER_OPTIONS,
  CLASS_LIST_COLUMN_LABEL,
  CLASS_LIST_DATA_COLUMNS,
  isPresetClassHeaderFilterColumn,
@@ -24,16 +23,14 @@ import {
  stickyTableWrapClass,
 } from "@/components/list/StickyListShell"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Select } from "@/components/ui/select"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import { STATUS_CHIPS } from "@/components/classes/classesUi"
 import { classDisplayName } from "@/lib/courseLabel"
 import { cn } from "@/lib/utils"
 import type { ClassRecord } from "@/services/classQueries"
 
 const rowInteractive =
- "cursor-pointer transition-colors duration-150 hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+ "cursor-pointer transition-colors duration-150 hover:bg-info/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
 
 type Props = {
  rows: ClassRecord[]
@@ -49,13 +46,8 @@ type Props = {
  selectedIds: string[]
  onToggleSelect: (id: string) => void
  onToggleSelectAll: () => void
- teacherScoped: boolean
- canDeleteClass: boolean
  onNavigate: (id: string) => void
  previewId?: string | null
- onStatusChange: (id: string, status: string) => void
- onCopy: (e: React.MouseEvent, id: string) => void
- onDelete: (e: React.MouseEvent, id: string) => void
  hasNoActiveSchedule: (c: ClassRecord) => boolean
 }
 
@@ -73,19 +65,14 @@ export function ClassesListTable({
  selectedIds,
  onToggleSelect,
  onToggleSelectAll,
- teacherScoped,
- canDeleteClass,
  onNavigate,
  previewId = null,
- onStatusChange,
- onCopy,
- onDelete,
  hasNoActiveSchedule,
 }: Props) {
  const selectedSet = new Set(selectedIds)
  const allSelected = rows.length > 0 && rows.every((r) => selectedSet.has(r.id))
  const someSelected = rows.some((r) => selectedSet.has(r.id)) && !allSelected
- const colSpan = 1 + CLASS_LIST_DATA_COLUMNS.length + 1
+ const colSpan = 1 + CLASS_LIST_DATA_COLUMNS.length
 
  return (
   <div className={stickyTableWrapClass}>
@@ -106,10 +93,10 @@ export function ClassesListTable({
          className={cn(
           stickyTableHeadCellClass,
           "min-w-0 whitespace-nowrap py-3 font-medium text-muted-foreground",
-          id === "course_code" ? "w-[8rem] px-4 pr-2" : "px-3 pr-2",
-          id === "student_count" ? "w-[5.5rem] text-center" : "",
-          id === "student_names" ? "w-[22%]" : "",
-          id === "enrollment_notice" ? "w-[14%]" : ""
+          id === "course_code" ? "w-[11rem] px-4 pr-2" : "px-3 pr-2",
+          id === "grade" ? "w-[3.75rem]" : "",
+          id === "student_count" ? "w-[7.25rem] text-center" : "",
+          id === "student_names" ? "w-[28%]" : ""
          )}
         >
          <SortableColumnHeader
@@ -118,6 +105,7 @@ export function ClassesListTable({
           dir={sortDir}
           onToggle={() => onToggleSort(id)}
           className={id === "student_count" ? "justify-center" : undefined}
+          labelClassName={id === "student_count" ? "whitespace-nowrap" : undefined}
          >
           <ClassHeaderFilter
            column={id}
@@ -130,14 +118,6 @@ export function ClassesListTable({
          </SortableColumnHeader>
         </th>
        ))}
-       <th
-        className={cn(
-         stickyTableHeadCellClass,
-         "w-[6.5rem] min-w-0 whitespace-nowrap px-3 py-3 pl-2 font-medium text-muted-foreground"
-        )}
-       >
-        操作
-       </th>
       </tr>
      </thead>
      {loading ? (
@@ -196,7 +176,7 @@ export function ClassesListTable({
              />
             ) : null}
             <span
-             className="block truncate font-mono text-xs"
+             className="block whitespace-nowrap font-mono text-xs"
              title={c.course_code_full ?? undefined}
             >
              {c.course_code_full ?? "—"}
@@ -204,7 +184,7 @@ export function ClassesListTable({
            </span>
           </td>
           <td className="min-w-0 align-top px-3 py-3 pr-2">
-           <span className="block break-words leading-relaxed">
+           <span className="block break-words text-xs leading-relaxed">
             {(c.grade ?? []).join("、") || "—"}
            </span>
           </td>
@@ -214,7 +194,9 @@ export function ClassesListTable({
            </span>
           </td>
           <td className="min-w-0 align-top px-3 py-3 pr-2 text-muted-foreground">
-           <span className="block break-words leading-relaxed">{extras.timeLabel(c)}</span>
+           <span className="block truncate whitespace-nowrap leading-relaxed" title={extras.timeLabel(c)}>
+            {extras.timeLabel(c)}
+           </span>
           </td>
           <td className="min-w-0 align-top px-3 py-3 pr-2" onClick={(e) => e.stopPropagation()}>
            {c.teacher_id ? (
@@ -236,7 +218,7 @@ export function ClassesListTable({
            {roster?.count ?? 0}
           </td>
           <td
-           className="min-w-0 align-top px-3 py-3 pr-4 text-xs text-muted-foreground"
+           className="min-w-0 align-top px-3 py-3 pr-4 text-sm text-foreground"
            onClick={(e) => e.stopPropagation()}
            title={(roster?.names ?? []).length > 0 ? (roster?.names ?? []).join("、") : undefined}
           >
@@ -245,64 +227,8 @@ export function ClassesListTable({
              {(roster?.names ?? []).join("、")}
             </span>
            ) : (
-            "—"
+            <span className="text-muted-foreground">—</span>
            )}
-          </td>
-          <td
-           className="min-w-0 align-top px-3 py-3 pr-2 text-xs text-muted-foreground"
-           title={c.enrollment_notice?.trim() || undefined}
-          >
-           {c.enrollment_notice?.trim() ? (
-            <span className="line-clamp-2 break-words leading-relaxed [overflow-wrap:anywhere]">
-             {c.enrollment_notice}
-            </span>
-           ) : (
-            "—"
-           )}
-          </td>
-          <td className="align-top px-3 py-3 pr-2" onClick={(e) => e.stopPropagation()}>
-           <Select
-            className="h-8 w-full min-w-0 max-w-full rounded-md border border-input bg-background px-2 text-xs transition-colors hover:border-primary/50"
-            value={c.status}
-            disabled={teacherScoped}
-            onChange={(e) => void onStatusChange(c.id, e.target.value)}
-           >
-            {STATUS_CHIPS.filter((s) => s !== "全部").map((s) => (
-             <option key={s} value={s}>
-              {s}
-             </option>
-            ))}
-           </Select>
-          </td>
-          <td className="align-top px-3 py-3 pl-2" onClick={(e) => e.stopPropagation()}>
-           <div className="flex min-w-0 flex-col items-start gap-y-1.5 leading-none">
-            <button
-             type="button"
-             className="text-left text-primary hover:underline"
-             onClick={() => onNavigate(c.id)}
-            >
-             {teacherScoped ? "查看" : "編輯"}
-            </button>
-            {!teacherScoped ? (
-             <button
-              type="button"
-              className="text-left text-muted-foreground hover:text-foreground hover:underline"
-              onClick={(e) => void onCopy(e, c.id)}
-             >
-              <Copy className="mr-0.5 inline h-3.5 w-3.5" />
-              複製
-             </button>
-            ) : null}
-            {canDeleteClass ? (
-             <button
-              type="button"
-              className="text-left text-destructive hover:underline"
-              onClick={(e) => void onDelete(e, c.id)}
-             >
-              刪除
-             </button>
-            ) : null}
-           </div>
           </td>
          </StaggerItem>
         )
@@ -331,7 +257,6 @@ function ClassHeaderFilter({
 }) {
  const options = useMemo(() => {
   if (column === "grade") return GRADE_HEADER_FILTER_OPTIONS
-  if (column === "status") return STATUS_HEADER_FILTER_OPTIONS
   const subset = rowsMatchingClassHeaderFiltersExcept(sourceRows, headerFilters, column, extras)
   return uniqueClassHeaderFilterValues(column, subset, extras).map((v) => ({ value: v, label: v }))
  }, [column, sourceRows, headerFilters, extras])

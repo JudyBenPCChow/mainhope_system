@@ -8,7 +8,6 @@ import {
 } from "@/components/list/listFilterUtils"
 import {
  CLASS_GRADE_FORM_OPTIONS,
- STATUS_CHIPS,
  formatWeekdaysDisplay,
 } from "@/components/classes/classesUi"
 import { classDisplayName } from "@/lib/courseLabel"
@@ -23,8 +22,6 @@ export const CLASS_LIST_DATA_COLUMNS = [
  "teacher",
  "student_count",
  "student_names",
- "enrollment_notice",
- "status",
 ] as const
 
 export type ClassListColumnId = (typeof CLASS_LIST_DATA_COLUMNS)[number]
@@ -37,8 +34,6 @@ export const CLASS_LIST_COLUMN_LABEL: Record<ClassListColumnId, string> = {
  teacher: "老師",
  student_count: "學生人數",
  student_names: "學生名單",
- enrollment_notice: "報讀須知",
- status: "狀態",
 }
 
 export type ClassListHeaderFilters = Record<ClassListColumnId, string>
@@ -51,11 +46,6 @@ export type ClassListExtras = {
  timeLabel: (c: ClassRecord) => string
 }
 
-export const STATUS_HEADER_FILTER_OPTIONS = [
- { value: "", label: "全部" },
- ...STATUS_CHIPS.filter((s) => s !== "全部").map((s) => ({ value: s, label: s })),
-]
-
 export const GRADE_HEADER_FILTER_OPTIONS = [
  { value: "", label: "全部" },
  ...CLASS_GRADE_FORM_OPTIONS.map((g) => ({ value: g, label: g })),
@@ -66,7 +56,7 @@ export function countActiveClassHeaderFilters(filters: ClassListHeaderFilters): 
 }
 
 export function isPresetClassHeaderFilterColumn(column: ClassListColumnId): boolean {
- return column === "grade" || column === "status"
+ return column === "grade"
 }
 
 export function isClassListColumnId(value: string): value is ClassListColumnId {
@@ -95,8 +85,6 @@ export function headerFilterCellTexts(
   return [String(n)]
  }
  if (column === "student_names") return extras.enrollRoster.get(c.id)?.names ?? []
- if (column === "enrollment_notice") return nonemptyText(c.enrollment_notice)
- if (column === "status") return nonemptyText(c.status)
  return []
 }
 
@@ -123,9 +111,7 @@ export function classMatchesHeaderFilters(
  const teacherQ = filters.teacher.trim().toLowerCase()
  const countQ = filters.student_count.trim().toLowerCase()
  const namesQ = filters.student_names.trim().toLowerCase()
- const noticeQ = filters.enrollment_notice.trim().toLowerCase()
  const gradeKey = filters.grade.trim()
- const statusKey = filters.status.trim()
 
  if (codeQ && !containsIgnoreCase(c.course_code_full, codeQ)) return false
  if (nameQ) {
@@ -142,12 +128,10 @@ export function classMatchesHeaderFilters(
   const joined = (extras.enrollRoster.get(c.id)?.names ?? []).join(" ").toLowerCase()
   if (!joined.includes(namesQ)) return false
  }
- if (noticeQ && !containsIgnoreCase(c.enrollment_notice, noticeQ)) return false
  if (gradeKey) {
   const grades = (c.grade ?? []).map((g) => g.trim())
   if (!grades.some((g) => g === gradeKey || g.includes(gradeKey))) return false
  }
- if (statusKey && (c.status ?? "").trim() !== statusKey) return false
  return true
 }
 
@@ -214,20 +198,11 @@ export function compareClasses(
   if (ca !== cb) return (ca - cb) * m
   return (a.course_code_full ?? "").localeCompare(b.course_code_full ?? "", "zh-Hant")
  }
- if (sortKey === "student_names") {
-  const sa = (extras.enrollRoster.get(a.id)?.names ?? []).join("、")
-  const sb = (extras.enrollRoster.get(b.id)?.names ?? []).join("、")
-  const empty = emptyLast(!sa, !sb)
-  if (empty != null && empty !== 0) return empty
-  return sa.localeCompare(sb, "zh-Hant") * m
- }
- if (sortKey === "enrollment_notice") {
-  const empty = emptyLast(!(a.enrollment_notice ?? "").trim(), !(b.enrollment_notice ?? "").trim())
-  if (empty != null && empty !== 0) return empty
-  return (a.enrollment_notice ?? "").localeCompare(b.enrollment_notice ?? "", "zh-Hant") * m
- }
- const n = (a.status ?? "").localeCompare(b.status ?? "", "zh-Hant")
- return n !== 0 ? n * m : (a.course_code_full ?? "").localeCompare(b.course_code_full ?? "", "zh-Hant")
+ const sa = (extras.enrollRoster.get(a.id)?.names ?? []).join("、")
+ const sb = (extras.enrollRoster.get(b.id)?.names ?? []).join("、")
+ const empty = emptyLast(!sa, !sb)
+ if (empty != null && empty !== 0) return empty
+ return sa.localeCompare(sb, "zh-Hant") * m
 }
 
 export function classSortLabel(sortKey: ClassListColumnId, dir: "asc" | "desc"): string {

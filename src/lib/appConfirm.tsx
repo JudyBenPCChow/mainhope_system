@@ -146,7 +146,7 @@ export function AppConfirmProvider({ children }: PropsWithChildren) {
        {state?.title}
       </DialogPrimitive.Title>
       {state?.description ? (
-       <DialogPrimitive.Description className="mt-4 max-w-[40ch] text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-xl lg:text-2xl">
+       <DialogPrimitive.Description className="mt-4 max-w-[52ch] whitespace-pre-wrap text-base leading-relaxed text-muted-foreground sm:mt-6 sm:text-xl lg:text-2xl">
         {state.description}
        </DialogPrimitive.Description>
       ) : null}

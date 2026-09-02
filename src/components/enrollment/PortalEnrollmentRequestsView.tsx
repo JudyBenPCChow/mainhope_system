@@ -14,11 +14,14 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
+import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
+import { fetchEnrollmentNoticesByClassIds } from "@/services/classQueries"
 import {
  fetchPortalEnrollmentRequests,
  PORTAL_ENROLLMENT_STATUS_LABEL,
@@ -46,6 +49,7 @@ function statusLabel(status: PortalEnrollmentRequestStatus): string {
 
 export function PortalEnrollmentRequestsView() {
  const { pushBanner } = useAppBanner()
+ const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<PortalEnrollmentRequestRow[]>([])
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
@@ -107,8 +111,19 @@ export function PortalEnrollmentRequestsView() {
 
  const submitReview = async () => {
   if (!selected) return
-  setReviewBusy(true)
   try {
+   if (reviewMode === "approve") {
+    const noticeMap = await fetchEnrollmentNoticesByClassIds(selected.lines.map((l) => l.classId))
+    const noticeOk = await confirmEnrollmentNoticeIfPresent(
+     confirmDialog,
+     selected.lines.map((line) => ({
+      notice: noticeMap.get(line.classId) ?? null,
+      classLabel: line.classLabel,
+     }))
+    )
+    if (!noticeOk) return
+   }
+   setReviewBusy(true)
    await reviewRequest(selected.id, reviewMode === "approve", staffNote)
    setReviewOpen(false)
    if (reviewMode === "approve") {

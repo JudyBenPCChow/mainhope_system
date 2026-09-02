@@ -41,6 +41,7 @@ import {
  logUngraduateStudentChange,
 } from "@/lib/graduationGuard"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
+import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
@@ -702,6 +703,10 @@ export function StudentDetailView() {
    setAddEnrollmentError(e instanceof Error ? e.message : String(e))
    return
   }
+  const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
+   { notice: picked?.enrollmentNotice, classLabel: picked?.label },
+  ])
+  if (!noticeOk) return
   setAddEnrollmentSaving(true)
   setAddEnrollmentError(null)
   try {

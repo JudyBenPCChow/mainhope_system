@@ -13,6 +13,7 @@ export type TrialConvertClassOption = {
   id: string
   label: string
   courseMode: CourseMode
+  enrollmentNotice: string | null
 }
 
 export type TrialConvertSessionOption = {

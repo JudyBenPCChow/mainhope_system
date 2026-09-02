@@ -19,6 +19,7 @@ import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -303,6 +304,7 @@ export function TrialSessionsView() {
       courseName: c.course_name,
      }),
      courseMode: c.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
+     enrollmentNotice: c.enrollment_notice,
     }))
    )
   })
@@ -1316,6 +1318,14 @@ export function TrialSessionsView() {
     }}
     onSubmit={async (payload) => {
      if (!convertId || !convertTarget) return
+     const targetOpt = convertClassOptions.find((c) => c.id === payload.targetClassId)
+     const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
+      {
+       notice: targetOpt?.enrollmentNotice,
+       classLabel: targetOpt?.label ?? payload.formLabel,
+      },
+     ])
+     if (!noticeOk) return
      setConvertSaving(true)
      try {
       const result = await convertTrialToEnrollment({
