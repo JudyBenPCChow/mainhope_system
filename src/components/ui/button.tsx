@@ -91,6 +91,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
      <span className="inline-flex shrink-0 items-center justify-center transition-opacity duration-150">
       {loadingIcon ?? <Loader2 className="animate-spin" aria-hidden />}
      </span>
+    ) : isIconOnly ? (
+     children
     ) : null}
     {!isIconOnly ? (
      <span
