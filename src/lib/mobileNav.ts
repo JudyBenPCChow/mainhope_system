@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import { resolveAdminPageTitle } from "@/lib/adminNavigation"
 import {
  filterNavForRole,
  flattenNav,
@@ -91,6 +92,11 @@ export function getMobileBottomTabs(
 
 /** 依目前路由與角色，從導航結構解析頁面標題 */
 export function resolveMobilePageTitle(pathname: string, role: Role): string {
+ if (role === "admin") {
+  const adminTitle = resolveAdminPageTitle(pathname)
+  if (adminTitle) return adminTitle
+ }
+
  const leaves = flattenNav(filterNavForRole(role, NAV_STRUCTURE))
  let best: NavLeafDef | null = null
  let bestLen = -1

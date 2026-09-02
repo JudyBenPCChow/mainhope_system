@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import {
@@ -18,6 +19,7 @@ import { Select } from "@/components/ui/select"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -133,6 +135,7 @@ function trialAttendanceOptionsFromHits(
 export function TrialSessionsView() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
+ const { role } = useAuth()
  const navigate = useNavigate()
  const isMobile = useIsMobile()
 
@@ -784,6 +787,24 @@ export function TrialSessionsView() {
 
  return (
   <div className="space-y-4">
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="試堂紀錄"
+     description="檢視及跟進試堂安排。"
+     titleExtra={<Tag tone="info" size="sm">{rows.length} 筆</Tag>}
+     actions={
+      <Button
+       type="button"
+       className="gap-1 bg-info text-white hover:bg-info"
+       onClick={openAdd}
+      >
+       <Plus className="h-4 w-4" />
+       新增試堂
+      </Button>
+     }
+    />
+   ) : (
    <header className="flex flex-wrap items-start justify-between gap-3">
     <div>
      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -806,6 +827,7 @@ export function TrialSessionsView() {
      </Button>
     </div>
    </header>
+   )}
 
    {err ? (
     <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">

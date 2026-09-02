@@ -13,6 +13,7 @@ import {
   ContactUpdatePrintSlips,
   type ContactUpdatePrintSlip,
 } from "@/components/contactUpdate/ContactUpdatePrintSlips"
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -211,6 +213,7 @@ function RowNotifyButton({
 
 export function ContactUpdateCampaignView() {
   const { pushBanner } = useAppBanner()
+  const { role } = useAuth()
   const [students, setStudents] = useState<StudentRecord[]>([])
   const [tokensByStudent, setTokensByStudent] = useState<Map<string, ContactUpdateTokenRow>>(
     () => new Map()
@@ -549,40 +552,77 @@ export function ContactUpdateCampaignView() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold tracking-tight">聯絡資料更新活動</h1>
-          <p className="text-sm text-muted-foreground">
-            篩選現有學生、批量產生專屬連結、打印一人一頁、WhatsApp 通知、審核 diff。
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || selectedCount === 0}
-            onClick={() => void generateFor([...selected])}
-          >
-            <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
-            為所選產生連結
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() => void openPrintSlips()}
-          >
-            <Printer className="mr-1.5 h-4 w-4" aria-hidden />
-            打印學生更新頁
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
-            <Download className="mr-1.5 h-4 w-4" aria-hidden />
-            匯出 CSV
-          </Button>
-        </div>
-      </header>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="行政工作"
+          title="聯絡資料更新"
+          description="篩選學生、產生專屬連結並審核聯絡資料差異。"
+          className="mb-6"
+          actions={
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || selectedCount === 0}
+                onClick={() => void generateFor([...selected])}
+              >
+                <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
+                為所選產生連結
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => void openPrintSlips()}
+              >
+                <Printer className="mr-1.5 h-4 w-4" aria-hidden />
+                打印學生更新頁
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
+                <Download className="mr-1.5 h-4 w-4" aria-hidden />
+                匯出 CSV
+              </Button>
+            </>
+          }
+        />
+      ) : (
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold tracking-tight">聯絡資料更新活動</h1>
+            <p className="text-sm text-muted-foreground">
+              篩選現有學生、批量產生專屬連結、打印一人一頁、WhatsApp 通知、審核 diff。
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy || selectedCount === 0}
+              onClick={() => void generateFor([...selected])}
+            >
+              <Link2 className="mr-1.5 h-4 w-4" aria-hidden />
+              為所選產生連結
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => void openPrintSlips()}
+            >
+              <Printer className="mr-1.5 h-4 w-4" aria-hidden />
+              打印學生更新頁
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={exportCsv}>
+              <Download className="mr-1.5 h-4 w-4" aria-hidden />
+              匯出 CSV
+            </Button>
+          </div>
+        </header>
+      )}
 
       <section className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <SummaryTile

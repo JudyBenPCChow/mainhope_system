@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarClock, DoorOpen, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus, UserRound } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
@@ -118,7 +119,7 @@ function isCancelledStatus(status: string): boolean {
 export function PrivateTutoringView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const isMobile = useIsMobile()
  const [searchParams, setSearchParams] = useSearchParams()
  const teacherTid = getTeacherScopeTeacherId(profile)
@@ -1045,6 +1046,21 @@ export function PrivateTutoringView() {
 
  return (
   <div className="space-y-5 text-sm leading-relaxed md:p-6">
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="私人課程"
+     description="管理一對一及一對二私人課程。"
+     actions={
+      canManageEnrollment ? (
+       <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
+        <Plus className="mr-1.5 h-4 w-4" />
+        新增私人課程報讀
+       </Button>
+      ) : null
+     }
+    />
+   ) : (
    <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
     <div>
      <h1 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -1063,6 +1079,7 @@ export function PrivateTutoringView() {
      </Button>
     ) : null}
    </header>
+   )}
 
    {!isTeacherPortal && (teacherNullAuditLoading || teacherNullAudit.length > 0) ? (
     <section

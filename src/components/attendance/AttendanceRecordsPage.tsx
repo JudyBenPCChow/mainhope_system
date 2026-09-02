@@ -8,6 +8,7 @@ import {
  Users,
 } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { DateRangeInput, type DateRangeValue } from "@/components/ui/date-range-input"
 import { Input } from "@/components/ui/input"
@@ -109,7 +110,7 @@ export function AttendanceRecordsPage() {
  const isMobile = useIsMobile()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const [searchParams] = useSearchParams()
  const teacherTid = getTeacherScopeTeacherId(profile)
  const canDeleteAttendance = can(profile?.activeCapabilities, "attendance.delete")
@@ -310,21 +311,30 @@ export function AttendanceRecordsPage() {
 
  return (
   <div className="space-y-4">
-   <header>
-    <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight md:text-2xl">
-     <ClipboardList className="h-6 w-6 text-primary md:h-7 md:w-7" aria-hidden />
-     出席紀錄
-    </h1>
-    <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground md:text-base md:text-neutral-700">
-     {isMobile
-      ? "預設本月各班紀錄；可改範圍或撳「今天」。"
-      : "今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。"}
-    </p>
-    <p className="mt-1 text-sm text-muted-foreground">
-     此頁合計（出席／缺席／請假）跟營運點名桶，<strong className="font-medium text-foreground">不等於</strong>
-     計糧頁的扣堂人次。出糧核對請留在計糧。
-    </p>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="出席紀錄"
+     description="查閱已完成課堂的出席資料。"
+    />
+   ) : (
+    <header>
+     <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold tracking-tight md:text-2xl">
+      <ClipboardList className="h-6 w-6 text-primary md:h-7 md:w-7" aria-hidden />
+      出席紀錄
+     </h1>
+     <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground md:text-base md:text-neutral-700">
+      {isMobile
+       ? "預設本月各班紀錄；可改範圍或撳「今天」。"
+       : "今日列表、月彙總與班別看板；預設顯示本月各班紀錄（可改範圍或撳「今天」）。"}
+     </p>
+     <p className="mt-1 text-sm text-muted-foreground">
+      此頁合計（出席／缺席／請假）跟營運點名桶，
+      <strong className="font-medium text-foreground">不等於</strong>
+      計糧頁的扣堂人次。出糧核對請留在計糧。
+     </p>
+    </header>
+   )}
 
    {teacherTid ? (
    <div className="rounded-lg border border-info bg-info px-3 py-2 text-sm leading-relaxed text-info-foreground md:px-4 md:py-3 md:text-base">

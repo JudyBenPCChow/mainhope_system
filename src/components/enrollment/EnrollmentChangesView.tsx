@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { BookOpen, CalendarRange, RefreshCw, ScrollText, Search } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -24,6 +26,7 @@ import {
 type ActionFilter = "" | "enroll" | "withdraw"
 
 export function EnrollmentChangesView() {
+ const { role } = useAuth()
  const initialCache = getEnrollmentChangesDataCache()
  const [rows, setRows] = useState<EnrollmentChangeListRow[]>(() => initialCache?.rows ?? [])
  const [hiddenOlderCount, setHiddenOlderCount] = useState(() => initialCache?.hiddenOlderCount ?? 0)
@@ -115,28 +118,48 @@ export function EnrollmentChangesView() {
 
  return (
   <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4">
-    <div>
-     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <ScrollText className="h-8 w-8 text-info" aria-hidden />
-      增退紀錄
-     </h1>
-     <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-      資料來源為 <code className="rounded bg-muted px-1 text-xs">enrollment_change_events</code>
-      。報讀／退讀由學生詳情與相關流程寫入；此頁供查詢與稽核。
-     </p>
-    </div>
-    <Button
-     type="button"
-     variant="outline"
-     size="sm"
-     onClick={() => void load()}
-     disabled={!isSupabaseConfigured || loading}
-    >
-     <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
-     重新整理
-    </Button>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="增退紀錄"
+     description="查詢報讀及退讀紀錄，供日常稽核。"
+     actions={
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       onClick={() => void load()}
+       disabled={!isSupabaseConfigured || loading}
+      >
+       <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+       重新整理
+      </Button>
+     }
+    />
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+     <div>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+       <ScrollText className="h-8 w-8 text-info" aria-hidden />
+       增退紀錄
+      </h1>
+      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
+       資料來源為 <code className="rounded bg-muted px-1 text-xs">enrollment_change_events</code>
+       。報讀／退讀由學生詳情與相關流程寫入；此頁供查詢與稽核。
+      </p>
+     </div>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void load()}
+      disabled={!isSupabaseConfigured || loading}
+     >
+      <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+      重新整理
+     </Button>
+    </header>
+   )}
 
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm text-warning">

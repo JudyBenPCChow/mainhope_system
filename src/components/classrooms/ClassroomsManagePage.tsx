@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Check, ChevronLeft, ChevronRight, Monitor, Plus, School } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -9,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useAuth } from "@/lib/authBootstrap"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -93,6 +95,7 @@ function formatMdSlash(ymd: string): string {
 }
 
 export function ClassroomsManagePage() {
+ const { role } = useAuth()
  const isMobile = useIsMobile()
  const initialRoomsCache = getClassroomsListDataCache()
  const [rooms, setRooms] = useState<RoomRecord[]>(() => initialRoomsCache?.rooms ?? [])
@@ -369,18 +372,27 @@ export function ClassroomsManagePage() {
 
  return (
   <div className="space-y-4">
-   <header className="flex flex-wrap items-end justify-between gap-3">
-    <div>
-     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
-      <span className="inline-flex items-center gap-1.5">
-       <School className="h-7 w-7 text-info" aria-hidden />
-       課室管理
-      </span>
-      <Tag tone="info" size="sm">{rooms.length} 間</Tag>
-     </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block">依課室檢視週排程，點選欄位或空白格可快速新增。</p>
-    </div>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="課室管理"
+     description="依課室檢視週排程，點選欄位或空白格可快速新增。"
+     titleExtra={<Tag tone="info" size="sm">{rooms.length} 間</Tag>}
+    />
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-3">
+     <div>
+      <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
+       <span className="inline-flex items-center gap-1.5">
+        <School className="h-7 w-7 text-info" aria-hidden />
+        課室管理
+       </span>
+       <Tag tone="info" size="sm">{rooms.length} 間</Tag>
+      </h1>
+      <p className="mt-1 hidden text-sm text-muted-foreground md:block">依課室檢視週排程，點選欄位或空白格可快速新增。</p>
+     </div>
+    </header>
+   )}
 
    {pageErr ? (
     <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">

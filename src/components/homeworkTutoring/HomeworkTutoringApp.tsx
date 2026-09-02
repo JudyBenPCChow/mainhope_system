@@ -3,6 +3,8 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
 import { ClipboardList } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { HomeworkTutoringTeacherAccess } from "@/components/homeworkTutoring/HomeworkTutoringTeacherAccess"
 import { useAuth } from "@/lib/authBootstrap"
 import { formatYearMonthLabel } from "@/lib/homeworkTutoringFees"
@@ -654,7 +656,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   let PageIcon: LucideIcon = ClipboardList
   if (adminPage) {
     const item = ADMIN_NAV.find((p) => p.value === adminPage)
-    pageTitle = item?.label ?? pageTitle
+    pageTitle =
+      role === "admin" && adminPage === "overview" ? "今日情況" : (item?.label ?? pageTitle)
     PageIcon = item?.icon ?? PageIcon
   } else if (managerPage) {
     const item = MANAGER_NAV.find((p) => p.value === managerPage)
@@ -668,15 +671,31 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
   return (
     <div className="space-y-4">
-      <header>
-        <div className="flex items-center gap-2">
-          <PageIcon className="h-6 w-6 text-primary" aria-hidden />
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{pageTitle}</h1>
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          功課輔導班｜{hwClass?.academicYearLabel ?? "2627"}學年｜{formatYearMonthLabel(viewMonth)}
-        </p>
-      </header>
+      {role === "admin" ? (
+        <AdminPageHeader
+          eyebrow="工作域"
+          title={pageTitle}
+          description={
+            <>
+              功課輔導班 · {hwClass?.academicYearLabel ?? "2627"}學年 ·{" "}
+              {formatYearMonthLabel(viewMonth)}
+            </>
+          }
+        />
+      ) : (
+        <header>
+          <div className="flex items-center gap-2">
+            <PageIcon className="h-6 w-6 text-primary" aria-hidden />
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{pageTitle}</h1>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            功課輔導班｜{hwClass?.academicYearLabel ?? "2627"}學年｜
+            {formatYearMonthLabel(viewMonth)}
+          </p>
+        </header>
+      )}
+
+      <AdminWorkspaceNav workspace="homework" />
 
       {loading || monthLoading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
       {loadError ? <p role="alert" className="text-sm text-destructive">{loadError}</p> : null}

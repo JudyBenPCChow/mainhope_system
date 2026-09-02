@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react"
 import { Calculator, GripVertical, Pencil, Percent, Plus, Trash2 } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -134,7 +136,7 @@ const emptyForm = {
 }
 
 export function PaymentDiscountsView() {
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const canEditDiscounts = can(profile?.activeCapabilities, "catalog.manage")
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -562,6 +564,21 @@ export function PaymentDiscountsView() {
 
  return (
   <div className="space-y-6 md:p-6">
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="工作域"
+     title="優惠折扣"
+     description="維護收款登記可選的優惠項目及套用次序。"
+     actions={
+      canEditDiscounts ? (
+       <Button type="button" onClick={openCreate} disabled={!isSupabaseConfigured}>
+        <Plus className="h-4 w-4" />
+        新增優惠
+       </Button>
+      ) : null
+     }
+    />
+   ) : (
    <header className="flex flex-wrap items-end justify-between gap-4">
     <div>
      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
@@ -581,6 +598,9 @@ export function PaymentDiscountsView() {
      </Button>
     ) : null}
    </header>
+   )}
+
+   <AdminWorkspaceNav workspace="payments" />
 
    {!isSupabaseConfigured ? (
     <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm">

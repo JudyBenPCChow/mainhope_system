@@ -9,12 +9,14 @@ import {
  UserRound,
 } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -74,7 +76,9 @@ function lessonChipClass(kind: AggregatedStudentDayLesson["kind"]): string {
 
 export function TomorrowRemindersPage() {
  const { pushBanner } = useAppBanner()
+ const { role } = useAuth()
  const today = localYmd()
+ const PageHeaderShell = role === "admin" ? "div" : "header"
  const [reminderDate, setReminderDate] = useState(() => defaultReminderDateYmd(today))
  const [filter, setFilter] = useState<FilterId>("pending")
  const [rows, setRows] = useState<StudentDayReminderRow[]>([])
@@ -252,7 +256,29 @@ export function TomorrowRemindersPage() {
      </div>
     ) : null}
 
-    <header className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+    <PageHeaderShell
+     className={
+      role === "admin"
+       ? "space-y-4"
+       : "overflow-hidden rounded-2xl border border-border bg-background shadow-sm"
+     }
+    >
+     {role === "admin" ? (
+      <AdminPageHeader
+       eyebrow="行政工作"
+       title="課堂提醒"
+       description={`處理 ${formatShortYmd(reminderDate)} 即將上課及需要行政跟進的項目。`}
+       actions={
+        <div className="min-w-[8.75rem] text-right">
+         <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          {stats.done}
+          <span className="text-lg font-normal text-muted-foreground"> / {stats.total}</span>
+         </p>
+         <p className="text-xs text-muted-foreground">已提醒進度</p>
+        </div>
+       }
+      />
+     ) : (
      <div className="bg-brand-primary px-5 py-5 text-white md:px-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
        <div>
@@ -291,8 +317,16 @@ export function TomorrowRemindersPage() {
        />
       </div>
      </div>
+     )}
 
-     <div className="flex flex-wrap items-end gap-3 border-b border-border px-4 py-3 md:px-5">
+     <div
+      className={cn(
+       "flex flex-wrap items-end gap-3 px-4 py-3 md:px-5",
+       role === "admin"
+        ? "rounded-xl border border-border bg-background shadow-sm"
+        : "border-b border-border"
+      )}
+     >
       <label className="space-y-1 text-sm">
        <span className="text-xs text-muted-foreground">上課日</span>
        <Input
@@ -350,7 +384,7 @@ export function TomorrowRemindersPage() {
        )
       })}
      </div>
-    </header>
+    </PageHeaderShell>
 
     <p className="text-sm text-muted-foreground">
      以學生為單位：一人一則訊息，涵蓋當日所有堂（連堂合併；含補堂／調堂、試堂）。該堂已請假者不列入。

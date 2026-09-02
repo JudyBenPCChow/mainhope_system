@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, CheckCheck, Inbox, RefreshCw, Send } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { LoadMoreFooter } from "@/components/ui/load-more-footer"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
@@ -333,40 +334,72 @@ export function InboxView() {
 
  return (
   <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4">
-    <div>
-     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Inbox className="h-8 w-8 text-info" aria-hidden />
-      收件匣
-     </h1>
-     <p className="mt-1 text-sm text-muted-foreground">
-      營運通知彙整排程／班別、增退讀、請假與點名（預設近 {INBOX_LOOKBACK_DAYS} 日）；系統通知為功能更新。增退管理頁用更長營運窗，與此短窗分開。
-      {unreadCount > 0 ? ` 本分頁未讀 ${unreadCount} 則。` : ""}
-     </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-     <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={() => void markAll()}
-      disabled={loading || busyKey != null || visible.every((i) => i.read)}
-     >
-      <CheckCheck className="mr-1.5 h-4 w-4" aria-hidden />
-      全部已讀
-     </Button>
-     <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      loading={loading}
-      onClick={() => void load()}
-     >
-      <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden />
-      重新整理
-     </Button>
-    </div>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="收件匣"
+     description="彙整營運與系統通知，追蹤排程、報讀、請假及點名等待辦。"
+     actions={
+      <>
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => void markAll()}
+        disabled={loading || busyKey != null || visible.every((i) => i.read)}
+       >
+        <CheckCheck className="mr-1.5 h-4 w-4" aria-hidden />
+        全部已讀
+       </Button>
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        loading={loading}
+        onClick={() => void load()}
+       >
+        <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden />
+        重新整理
+       </Button>
+      </>
+     }
+    />
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+     <div>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+       <Inbox className="h-8 w-8 text-info" aria-hidden />
+       收件匣
+      </h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+       營運通知彙整排程／班別、增退讀、請假與點名（預設近 {INBOX_LOOKBACK_DAYS} 日）；系統通知為功能更新。增退管理頁用更長營運窗，與此短窗分開。
+       {unreadCount > 0 ? ` 本分頁未讀 ${unreadCount} 則。` : ""}
+      </p>
+     </div>
+     <div className="flex flex-wrap gap-2">
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       onClick={() => void markAll()}
+       disabled={loading || busyKey != null || visible.every((i) => i.read)}
+      >
+       <CheckCheck className="mr-1.5 h-4 w-4" aria-hidden />
+       全部已讀
+      </Button>
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       loading={loading}
+       onClick={() => void load()}
+      >
+       <RefreshCw className="mr-1.5 h-4 w-4" aria-hidden />
+       重新整理
+      </Button>
+     </div>
+    </header>
+   )}
 
    <div className="flex flex-wrap gap-2" role="tablist" aria-label="通知分類">
     {(preferSystemFirst

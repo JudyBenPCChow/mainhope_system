@@ -1,7 +1,16 @@
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom"
 import { useEffect, useMemo, useState } from "react"
-import { ChevronDown, ChevronLeft, ChevronRight, Flame, Inbox } from "lucide-react"
+import {
+ ChevronDown,
+ ChevronLeft,
+ ChevronRight,
+ Flame,
+ Inbox,
+ PanelLeftClose,
+ PanelLeftOpen,
+} from "lucide-react"
 
+import { AdminSidebarFooter } from "@/components/account/AdminSidebarFooter"
 import { RecordPreviewProvider } from "@/components/recordPreview/recordPreviewContext"
 import { RecordPreviewRail } from "@/components/recordPreview/RecordPreviewRail"
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
@@ -10,6 +19,11 @@ import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
+import {
+ ADMIN_MAIN_NAV,
+ adminNavEntryIsActive,
+ adminNavPathIsActive,
+} from "@/lib/adminNavigation"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
@@ -31,6 +45,7 @@ import {
  navCollapsedIconClass,
  navFooterIconClass,
  navGroupClass,
+ adminNavL2IconClass,
  navL1Class,
  navL1IconClass,
  navL2Class,
@@ -60,6 +75,7 @@ export function Layout() {
 
  const navEntries = useMemo(() => {
   if (!role) return []
+  if (role === "admin") return ADMIN_MAIN_NAV
   const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
   if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
   if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
@@ -76,9 +92,19 @@ export function Layout() {
  const { unreadCount } = useInboxUnreadCount()
 
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
+ const [adminOpenGroup, setAdminOpenGroup] = useState<string | null>(null)
 
  useEffect(() => {
   const pathname = location.pathname
+  if (role === "admin") {
+   const activeGroup = navEntries.find(
+    (entry) =>
+     entry.kind === "group" &&
+     entry.children.some((child) => adminNavPathIsActive(pathname, child.path))
+   )
+   if (activeGroup?.kind === "group") setAdminOpenGroup(activeGroup.id)
+   return
+  }
   setOpenGroups((prev) => {
    const next = new Set(prev)
    for (const e of navEntries) {
@@ -88,7 +114,7 @@ export function Layout() {
    }
    return next
   })
- }, [location.pathname, navEntries])
+ }, [location.pathname, navEntries, role])
 
  const logout = () => {
   void (async () => {
@@ -119,7 +145,7 @@ export function Layout() {
   return <Navigate to="/Login" replace state={{ from: location.pathname }} />
  }
 
- const collapsedLinks = flattenNav(navEntries)
+ const collapsedLinks = role === "admin" ? [] : flattenNav(navEntries)
 
  return (
   <RecordPreviewProvider>
@@ -127,15 +153,38 @@ export function Layout() {
    <AppBannerViewport />
    <aside
     className={cn(
-     "flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)] transition-[width] duration-200 ease-out",
-     collapsed ? "w-[4.25rem]" : "w-60 md:w-64"
+     "relative z-10 flex h-full min-h-0 shrink-0 flex-col overflow-hidden border-r text-white transition-[width] duration-200 ease-out",
+     role === "admin"
+      ? "border-white/12 bg-[linear-gradient(180deg,#1e3a6e_0%,#2A4E8A_58%,#3B6AB3_100%)] shadow-[6px_0_28px_-12px_rgba(23,45,87,0.58)]"
+      : "border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] shadow-[4px_0_24px_-4px_rgba(30,58,110,0.35)]",
+     collapsed ? "w-[4.25rem]" : role === "admin" ? "w-64" : "w-60 md:w-64"
     )}
    >
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-3 py-4">
+    <div
+     className={cn(
+      "flex shrink-0 items-center justify-between gap-2 border-b",
+      role === "admin"
+       ? "min-h-[4.625rem] border-white/12 py-3.5 pl-4 pr-3"
+       : "border-white/10 px-3 py-4"
+     )}
+    >
      {!collapsed && (
       <div className="min-w-0 leading-tight">
-       <div className="text-[1.00625rem] font-semibold tracking-tight">明學教育</div>
-       <div className="text-[0.8625rem] text-white/80">管理系統</div>
+       <div
+        className={cn(
+         "tracking-tight",
+         role === "admin" ? "text-[1.02rem] font-bold" : "text-[1.00625rem] font-semibold"
+        )}
+       >
+        明學教育
+       </div>
+       <div
+        className={cn(
+         role === "admin" ? "mt-px text-[0.8rem] text-white/72" : "text-[0.8625rem] text-white/80"
+        )}
+       >
+        管理系統
+       </div>
       </div>
      )}
      <Button
@@ -143,31 +192,82 @@ export function Layout() {
       variant="ghost"
       size="icon"
       className={cn(
-       "h-9 w-9 shrink-0 text-white hover:bg-white/10",
+       "shrink-0 text-white",
+       role === "admin"
+        ? "h-[2.375rem] w-[2.375rem] rounded-[0.625rem] bg-white/8 hover:bg-white/18"
+        : "h-9 w-9 hover:bg-white/10",
        collapsed && "mx-auto"
       )}
      onClick={() =>
       setCollapsed((current) => {
        const next = !current
+       if (next && role === "admin") setAdminOpenGroup(null)
        localStorage.setItem("mgmt_sidebar_collapsed", String(next))
        return next
       })
      }
       aria-label={collapsed ? "展開側欄" : "收起側欄"}
      >
-      {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+      {role === "admin" ? (
+       collapsed ? (
+        <PanelLeftOpen className="h-5 w-5" />
+       ) : (
+        <PanelLeftClose className="h-5 w-5" />
+       )
+      ) : collapsed ? (
+       <ChevronRight className="h-4 w-4" />
+      ) : (
+       <ChevronLeft className="h-4 w-4" />
+      )}
      </Button>
     </div>
 
     <nav
      className={cn(
       "flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden px-3 py-4 overscroll-contain",
+      role === "admin" && "py-3.5",
       collapsed && "items-center px-2"
      )}
      aria-label="主選單"
     >
      {collapsed
-      ? collapsedLinks.map((item) => {
+      ? role === "admin"
+       ? navEntries.map((entry) => {
+         const active = adminNavEntryIsActive(location.pathname, entry)
+         const Icon = entry.icon
+         if (entry.kind === "group") {
+          return (
+           <button
+            key={entry.id}
+            type="button"
+            title={entry.label}
+            aria-label={`展開${entry.label}`}
+            aria-expanded={false}
+            className={navCollapsedIconClass({ active, admin: true })}
+            onClick={() => {
+             setCollapsed(false)
+             setAdminOpenGroup(entry.id)
+             localStorage.setItem("mgmt_sidebar_collapsed", "false")
+            }}
+           >
+            <Icon className={navL1IconClass} aria-hidden />
+            <span className="sr-only">{entry.label}</span>
+           </button>
+          )
+         }
+         return (
+          <Link
+           key={`${entry.path}::${entry.label}`}
+           to={entry.path}
+           title={entry.label}
+           className={navCollapsedIconClass({ active, admin: true })}
+          >
+           <Icon className={navL1IconClass} aria-hidden />
+           <span className="sr-only">{entry.label}</span>
+          </Link>
+         )
+        })
+       : collapsedLinks.map((item) => {
         const active = pathIsActive(location.pathname, item.path)
         const Icon = item.icon
         return (
@@ -181,16 +281,19 @@ export function Layout() {
           <span className="sr-only">{item.label}</span>
          </Link>
         )
-       })
+        })
       : navEntries.map((entry) => {
         if (entry.kind === "leaf") {
-         const active = pathIsActive(location.pathname, entry.path)
+         const active =
+          role === "admin"
+           ? adminNavPathIsActive(location.pathname, entry.path)
+           : pathIsActive(location.pathname, entry.path)
          const Icon = entry.icon
          return (
           <Link
            key={`${entry.path}::${entry.label}`}
            to={entry.path}
-           className={navL1Class({ active })}
+           className={navL1Class({ active, admin: role === "admin" })}
           >
            <Icon className={navL1IconClass} aria-hidden />
            <span className="truncate">{entry.label}</span>
@@ -198,24 +301,31 @@ export function Layout() {
          )
         }
 
-        const open = openGroups.has(entry.id)
-        const groupActive = entry.children.some((c) => pathIsActive(location.pathname, c.path))
+        const open = role === "admin" ? adminOpenGroup === entry.id : openGroups.has(entry.id)
+        const groupActive =
+         role === "admin"
+          ? adminNavEntryIsActive(location.pathname, entry)
+          : entry.children.some((c) => pathIsActive(location.pathname, c.path))
         const GroupIcon = entry.icon
 
         return (
          <div key={entry.id} className="flex flex-col gap-0.5">
           <button
            type="button"
-           className={navGroupClass({ childActive: groupActive })}
+           className={navGroupClass({ childActive: groupActive, admin: role === "admin" })}
            aria-expanded={open}
-           onClick={() =>
+           onClick={() => {
+            if (role === "admin") {
+             setAdminOpenGroup((current) => (current === entry.id ? null : entry.id))
+             return
+            }
             setOpenGroups((prev) => {
              const next = new Set(prev)
              if (next.has(entry.id)) next.delete(entry.id)
              else next.add(entry.id)
              return next
             })
-           }
+           }}
           >
            <span className="flex min-w-0 items-center gap-3">
             <GroupIcon className={navL1IconClass} aria-hidden />
@@ -229,18 +339,24 @@ export function Layout() {
             aria-hidden
            />
           </button>
-          <div className={navL2RailClass({ open })}>
+          <div className={navL2RailClass({ open, admin: role === "admin" })}>
            {open
             ? entry.children.map((child) => {
-              const active = pathIsActive(location.pathname, child.path)
+              const active =
+               role === "admin"
+                ? adminNavPathIsActive(location.pathname, child.path)
+                : pathIsActive(location.pathname, child.path)
               const ChildIcon = child.icon
               return (
                <Link
                 key={`${child.path}::${child.label}`}
                 to={child.path}
-                className={navL2Class({ active })}
+                className={navL2Class({ active, admin: role === "admin" })}
                >
-                <ChildIcon className={navL2IconClass} aria-hidden />
+                <ChildIcon
+                 className={role === "admin" ? adminNavL2IconClass : navL2IconClass}
+                 aria-hidden
+                />
                 <span className="truncate">{child.label}</span>
                </Link>
               )
@@ -252,6 +368,15 @@ export function Layout() {
        })}
     </nav>
 
+    {role === "admin" ? (
+     <AdminSidebarFooter
+      collapsed={collapsed}
+      pathname={location.pathname}
+      unreadCount={unreadCount}
+      footerNavLeaves={footerNavLeaves}
+      onLogout={logout}
+     />
+    ) : (
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-3 md:p-4 text-[0.8625rem]">
      {!collapsed ? (
       <div className="mb-3">
@@ -347,12 +472,18 @@ export function Layout() {
       {!collapsed ? "登出" : "出"}
      </Button>
     </div>
+    )}
    </aside>
 
    <div className="flex min-h-0 min-w-0 flex-1">
    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
     <div className="h-full min-h-0 flex-1 overflow-y-auto">
-     <div className="mx-auto flex min-h-full w-full max-w-[1600px] flex-col px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden">
+     <div
+      className={cn(
+       "mx-auto flex min-h-full w-full max-w-[1600px] flex-col px-5 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10 lg:px-10 lg:py-12 has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden",
+       role === "admin" && "[&>*]:!pt-0"
+      )}
+     >
       <Outlet />
      </div>
     </div>

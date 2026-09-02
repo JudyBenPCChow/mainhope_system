@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "r
 import { useNavigate } from "react-router-dom"
 import { AlertTriangle, BookOpen, Images, LayoutGrid, List, Plus, SlidersHorizontal } from "lucide-react"
 
+import {
+ AdminPageHeading,
+ adminPageHeaderLayoutClass,
+} from "@/components/detail/AdminPageHeader"
+import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { formatUnknownError } from "@/lib/formatUnknownError"
@@ -112,7 +117,7 @@ export function ClassesListPage() {
  const navigate = useNavigate()
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
- const { profile } = useAuth()
+ const { profile, role } = useAuth()
  const canDeleteClass = can(profile?.activeCapabilities, "classes.update")
  const teacherTid = getTeacherScopeTeacherId(profile)
  const isMobile = useIsMobile()
@@ -730,12 +735,31 @@ export function ClassesListPage() {
     </div>
    ) : null}
 
-   <div className="flex flex-wrap items-center justify-between gap-4">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     {teacherTid ? "我的班別" : "班別管理"}
-     <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
-    </h1>
+   <div
+    className={
+     role === "admin"
+      ? adminPageHeaderLayoutClass
+      : "flex flex-wrap items-center justify-between gap-4"
+    }
+   >
+    {role === "admin" ? (
+     <AdminPageHeading
+      eyebrow="工作域"
+      title="班別管理"
+      description="管理專科班、專科校曆及教學紀錄。"
+      titleExtra={
+       <Tag tone="info" size="sm">
+        {loading ? "…" : `${stats.total} 班`}
+       </Tag>
+      }
+     />
+    ) : (
+     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+      <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
+      {teacherTid ? "我的班別" : "班別管理"}
+      <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 班`}</Tag>
+     </h1>
+    )}
     <div className="flex flex-wrap items-center gap-2">
      <Select
       className="h-9 min-w-[10rem] rounded-md border border-input bg-background px-2 text-sm"
@@ -801,6 +825,7 @@ export function ClassesListPage() {
      </div>
     </div>
    </div>
+   <AdminWorkspaceNav workspace="specialty" className="mt-3" />
     </>
    }
   >

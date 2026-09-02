@@ -2,9 +2,15 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { Link, useLocation } from "react-router-dom"
 import { ChevronDown, Flame, Inbox, X } from "lucide-react"
 
+import { AdminSidebarFooter } from "@/components/account/AdminSidebarFooter"
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
+import {
+ ADMIN_MAIN_NAV,
+ adminNavEntryIsActive,
+ adminNavPathIsActive,
+} from "@/lib/adminNavigation"
 import {
  filterFooterNavLeaves,
  filterMainNavEntries,
@@ -18,6 +24,7 @@ import {
  type Role,
 } from "@/lib/navStructure"
 import {
+ adminNavL2IconClass,
  navFooterIconClass,
  navGroupClass,
  navL1Class,
@@ -51,6 +58,7 @@ export function MobileNavDrawer({
  const location = useLocation()
  const { unreadCount } = useInboxUnreadCount()
  const navEntries = useMemo(() => {
+  if (role === "admin") return ADMIN_MAIN_NAV
   const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
   if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
   if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
@@ -66,6 +74,7 @@ export function MobileNavDrawer({
   return byRole
  }, [role, homeworkTutorOnly])
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
+ const [adminOpenGroup, setAdminOpenGroup] = useState<string | null>(null)
 
  useEffect(() => {
   if (!open) return
@@ -78,6 +87,15 @@ export function MobileNavDrawer({
 
  useEffect(() => {
   const pathname = location.pathname
+  if (role === "admin") {
+   const activeGroup = navEntries.find(
+    (entry) =>
+     entry.kind === "group" &&
+     entry.children.some((child) => adminNavPathIsActive(pathname, child.path))
+   )
+   if (activeGroup?.kind === "group") setAdminOpenGroup(activeGroup.id)
+   return
+  }
   setOpenGroups((prev) => {
    const next = new Set(prev)
    for (const e of navEntries) {
@@ -87,7 +105,7 @@ export function MobileNavDrawer({
    }
    return next
   })
- }, [location.pathname, navEntries])
+ }, [location.pathname, navEntries, role])
 
  useEffect(() => {
   if (open) {
@@ -111,20 +129,41 @@ export function MobileNavDrawer({
    <aside
     className={cn(
      "absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col overflow-hidden",
-     "border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-xl",
+     role === "admin"
+      ? "border-r border-white/12 bg-[linear-gradient(180deg,#1e3a6e_0%,#2A4E8A_58%,#3B6AB3_100%)] text-white shadow-[6px_0_28px_-12px_rgba(23,45,87,0.58)]"
+      : "border-r border-white/10 bg-gradient-to-b from-[#1e3a6e] via-[#2A4E8A] to-[#3B6AB3] text-white shadow-xl",
      "animate-in slide-in-from-left duration-200"
     )}
    >
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+    <div
+     className={cn(
+      "flex min-h-[4.625rem] shrink-0 items-center justify-between gap-2 border-b px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]",
+      role === "admin" ? "border-white/12" : "border-white/10"
+     )}
+    >
      <div className="min-w-0 leading-tight">
-      <div className="text-[1.00625rem] font-semibold tracking-tight">明學教育</div>
-      <div className="text-[0.8625rem] text-white/80">管理系統</div>
+      <div
+       className={cn(
+        "tracking-tight",
+        role === "admin" ? "text-[1.02rem] font-bold" : "text-[1.00625rem] font-semibold"
+       )}
+      >
+       明學教育
+      </div>
+      <div className={role === "admin" ? "mt-px text-[0.8rem] text-white/72" : "text-[0.8625rem] text-white/80"}>
+       管理系統
+      </div>
      </div>
      <Button
       type="button"
       variant="ghost"
       size="icon"
-      className="h-9 w-9 shrink-0 text-white hover:bg-white/10"
+      className={cn(
+       "shrink-0 text-white",
+       role === "admin"
+        ? "h-[2.375rem] w-[2.375rem] rounded-[0.625rem] bg-white/8 hover:bg-white/18"
+        : "h-9 w-9 hover:bg-white/10"
+      )}
       onClick={onClose}
       aria-label="關閉選單"
      >
@@ -132,7 +171,13 @@ export function MobileNavDrawer({
      </Button>
     </div>
 
-    <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-4" aria-label="主選單">
+    <nav
+     className={cn(
+      "flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 py-4",
+      role === "admin" && "py-3.5"
+     )}
+     aria-label="主選單"
+    >
      {navEntries.map((entry) => (
       <NavEntry
        key={entry.kind === "leaf" ? `${entry.path}::${entry.label}` : entry.id}
@@ -140,11 +185,27 @@ export function MobileNavDrawer({
        pathname={location.pathname}
        openGroups={openGroups}
        setOpenGroups={setOpenGroups}
+       adminOpenGroup={adminOpenGroup}
+       setAdminOpenGroup={setAdminOpenGroup}
+       isAdmin={role === "admin"}
        onNavigate={onClose}
       />
      ))}
     </nav>
 
+    {role === "admin" ? (
+     <AdminSidebarFooter
+      pathname={location.pathname}
+      unreadCount={unreadCount}
+      footerNavLeaves={footerNavLeaves}
+      onNavigate={onClose}
+      className="pb-[max(1rem,env(safe-area-inset-bottom))]"
+      onLogout={() => {
+       onClose()
+       onLogout()
+      }}
+     />
+    ) : (
     <div className="shrink-0 border-t border-white/10 bg-gradient-to-t from-[#1e3a6e]/90 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-[0.8625rem]">
      <div className="mb-3">
       <RoleSwitcher />
@@ -196,6 +257,7 @@ export function MobileNavDrawer({
       登出
      </Button>
     </div>
+    )}
    </aside>
   </div>
  )
@@ -206,18 +268,32 @@ type NavEntryProps = {
  pathname: string
  openGroups: Set<string>
  setOpenGroups: Dispatch<SetStateAction<Set<string>>>
+ adminOpenGroup: string | null
+ setAdminOpenGroup: Dispatch<SetStateAction<string | null>>
+ isAdmin: boolean
  onNavigate: () => void
 }
 
-function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: NavEntryProps) {
+function NavEntry({
+ entry,
+ pathname,
+ openGroups,
+ setOpenGroups,
+ adminOpenGroup,
+ setAdminOpenGroup,
+ isAdmin,
+ onNavigate,
+}: NavEntryProps) {
  if (entry.kind === "leaf") {
-  const active = pathIsActive(pathname, entry.path)
+  const active = isAdmin
+   ? adminNavPathIsActive(pathname, entry.path)
+   : pathIsActive(pathname, entry.path)
   const Icon = entry.icon
   return (
    <Link
     to={entry.path}
     onClick={onNavigate}
-    className={navL1Class({ active })}
+    className={navL1Class({ active, admin: isAdmin })}
    >
     <Icon className={navL1IconClass} aria-hidden />
     <span className="truncate">{entry.label}</span>
@@ -225,24 +301,30 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
   )
  }
 
- const open = openGroups.has(entry.id)
- const groupActive = entry.children.some((c) => pathIsActive(pathname, c.path))
+ const open = isAdmin ? adminOpenGroup === entry.id : openGroups.has(entry.id)
+ const groupActive = isAdmin
+  ? adminNavEntryIsActive(pathname, entry)
+  : entry.children.some((c) => pathIsActive(pathname, c.path))
  const GroupIcon = entry.icon
 
  return (
   <div className="flex flex-col gap-0.5">
    <button
     type="button"
-    className={navGroupClass({ childActive: groupActive })}
+    className={navGroupClass({ childActive: groupActive, admin: isAdmin })}
     aria-expanded={open}
-    onClick={() =>
+    onClick={() => {
+     if (isAdmin) {
+      setAdminOpenGroup((current) => (current === entry.id ? null : entry.id))
+      return
+     }
      setOpenGroups((prev) => {
       const next = new Set(prev)
       if (next.has(entry.id)) next.delete(entry.id)
       else next.add(entry.id)
       return next
      })
-    }
+    }}
    >
     <span className="flex min-w-0 items-center gap-3">
      <GroupIcon className={navL1IconClass} aria-hidden />
@@ -253,19 +335,21 @@ function NavEntry({ entry, pathname, openGroups, setOpenGroups, onNavigate }: Na
      aria-hidden
     />
    </button>
-   <div className={navL2RailClass({ open })}>
+   <div className={navL2RailClass({ open, admin: isAdmin })}>
     {open
      ? entry.children.map((child) => {
-       const active = pathIsActive(pathname, child.path)
+       const active = isAdmin
+        ? adminNavPathIsActive(pathname, child.path)
+        : pathIsActive(pathname, child.path)
        const ChildIcon = child.icon
        return (
         <Link
          key={`${child.path}::${child.label}`}
          to={child.path}
          onClick={onNavigate}
-         className={navL2Class({ active })}
+         className={navL2Class({ active, admin: isAdmin })}
         >
-         <ChildIcon className={navL2IconClass} aria-hidden />
+         <ChildIcon className={isAdmin ? adminNavL2IconClass : navL2IconClass} aria-hidden />
          <span className="truncate">{child.label}</span>
         </Link>
        )

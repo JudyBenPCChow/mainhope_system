@@ -100,6 +100,7 @@ type Props = {
   initialTeacherId?: string | null
   initialLessonId?: string | null
   monthSelect: ReactNode
+  compactHeader?: boolean
 }
 
 const SUBMIT_CHECKS = [
@@ -135,6 +136,7 @@ export function FinancePayrollView({
   initialTeacherId,
   initialLessonId,
   monthSelect,
+  compactHeader = false,
 }: Props) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
@@ -849,6 +851,7 @@ export function FinancePayrollView({
   return (
     <div className="flex flex-col gap-3 pb-8">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        {!compactHeader ? (
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Wallet className="h-5 w-5 text-muted-foreground" aria-hidden />
@@ -859,6 +862,7 @@ export function FinancePayrollView({
             {statusTag(status)}
           </div>
         </div>
+        ) : null}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {monthSelect}
           <div className="flex flex-wrap gap-2">

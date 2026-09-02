@@ -12,7 +12,9 @@ import {
 } from "@/components/classes/ClassCreateForm"
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { invalidateClassesListDataCache } from "@/components/classes/classesListState"
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/lib/authBootstrap"
 import { classDisplayName } from "@/lib/courseLabel"
 import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -24,6 +26,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 export function ClassCreatePage() {
  const navigate = useNavigate()
  const [searchParams] = useSearchParams()
+ const { role } = useAuth()
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [step, setStep] = useState<1 | 2>(1)
@@ -149,17 +152,30 @@ export function ClassCreatePage() {
 
  return (
   <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
-   <div className="flex flex-wrap items-center justify-between gap-3">
-    <div>
-     <h1 className="text-xl font-semibold">新增班別</h1>
-     <p className="text-sm text-muted-foreground">
-      步驟 {step}/2：{step === 1 ? "班別基本資料" : "批量產生排程"}
-     </p>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="新增班別"
+     description={`步驟 ${step}/2：${step === 1 ? "班別基本資料" : "批量產生排程"}`}
+     actions={
+      <Button variant="outline" size="sm" asChild>
+       <Link to="/Classes">返回班別列表</Link>
+      </Button>
+     }
+    />
+   ) : (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+     <div>
+      <h1 className="text-xl font-semibold">新增班別</h1>
+      <p className="text-sm text-muted-foreground">
+       步驟 {step}/2：{step === 1 ? "班別基本資料" : "批量產生排程"}
+      </p>
+     </div>
+     <Button variant="outline" size="sm" asChild>
+      <Link to="/Classes">返回班別列表</Link>
+     </Button>
     </div>
-    <Button variant="outline" size="sm" asChild>
-     <Link to="/Classes">返回班別列表</Link>
-    </Button>
-   </div>
+   )}
 
    {err ? (
     <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

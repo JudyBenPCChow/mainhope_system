@@ -66,6 +66,7 @@ type Props = {
   ) => void
   onCodyApprove: (hours: number) => void
   monthSelect: ReactNode
+  compactHeader?: boolean
 }
 
 /** 列表用：異常一句摘要，唔只寫「有」 */
@@ -93,6 +94,7 @@ export function ManagerPayrollView({
   onResolveTeacherSubmit,
   onCodyApprove,
   monthSelect,
+  compactHeader = false,
 }: Props) {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
@@ -632,6 +634,7 @@ export function ManagerPayrollView({
   return (
     <div className="flex flex-col gap-4">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        {!compactHeader ? (
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <ClipboardCheck className="h-5 w-5 text-muted-foreground" aria-hidden />
@@ -645,6 +648,7 @@ export function ManagerPayrollView({
             核准工時／調整、完成強制抽查後再結算。不可只看總額按核准。
           </p>
         </div>
+        ) : null}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           {monthSelect}
           <Button

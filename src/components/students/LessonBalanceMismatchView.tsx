@@ -2,11 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { BookOpen, RefreshCw, Scale, Search } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatOpsYearScopeCaption } from "@/lib/softArchiveListScope"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -40,6 +42,7 @@ function issueLabel(row: MisalignedLessonBalanceRow): string {
 }
 
 export function LessonBalanceMismatchView() {
+ const { role } = useAuth()
  const [rows, setRows] = useState<MisalignedLessonBalanceRow[]>([])
  const [hiddenOlderCount, setHiddenOlderCount] = useState(0)
  const [opsYearLabels, setOpsYearLabels] = useState<string[]>([])
@@ -109,31 +112,57 @@ export function LessonBalanceMismatchView() {
 
  return (
   <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4">
-    <div>
-     <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-      <Scale className="h-8 w-8 text-amber-700" aria-hidden />
-      堂數對帳
-     </h1>
-     <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
-      彙整就讀中報讀：已繳堂數與已綁排程／待補不一致，或請假尚無補堂日的學生，方便一次跟進。點學生可前往詳情「報讀班別」或請假管理處理。
-     </p>
-     <p className="mt-1 text-xs text-muted-foreground">
+   {role === "admin" ? (
+    <>
+     <AdminPageHeader
+      eyebrow="行政工作"
+      title="堂數對帳"
+      description="彙整已繳堂數不一致或請假待補項目，方便一次跟進。"
+      actions={
+       <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => void load()}
+        disabled={!isSupabaseConfigured || loading}
+       >
+        <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+        重新整理
+       </Button>
+      }
+     />
+     <p className="text-xs text-muted-foreground">
       資料範圍：{includeOlderYears ? "已載入全部就讀中報讀" : formatOpsYearScopeCaption(opsYearLabels)}
       ；待補／請假待安排即使較舊學年仍顯示。年結／核數請用繳費紀錄匯出，勿以本頁當全庫。
      </p>
-    </div>
-    <Button
-     type="button"
-     variant="outline"
-     size="sm"
-     onClick={() => void load()}
-     disabled={!isSupabaseConfigured || loading}
-    >
-     <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
-     重新整理
-    </Button>
-   </header>
+    </>
+   ) : (
+    <header className="flex flex-wrap items-end justify-between gap-4">
+     <div>
+      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+       <Scale className="h-8 w-8 text-amber-700" aria-hidden />
+       堂數對帳
+      </h1>
+      <p className="mt-1 hidden max-w-2xl text-sm text-muted-foreground md:block">
+       彙整就讀中報讀：已繳堂數與已綁排程／待補不一致，或請假尚無補堂日的學生，方便一次跟進。點學生可前往詳情「報讀班別」或請假管理處理。
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+       資料範圍：{includeOlderYears ? "已載入全部就讀中報讀" : formatOpsYearScopeCaption(opsYearLabels)}
+       ；待補／請假待安排即使較舊學年仍顯示。年結／核數請用繳費紀錄匯出，勿以本頁當全庫。
+      </p>
+     </div>
+     <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      onClick={() => void load()}
+      disabled={!isSupabaseConfigured || loading}
+     >
+      <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+      重新整理
+     </Button>
+    </header>
+   )}
 
    {!isSupabaseConfigured ? (
     <div

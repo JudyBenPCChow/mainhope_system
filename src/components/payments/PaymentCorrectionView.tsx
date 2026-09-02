@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAuth } from "@/lib/authBootstrap"
 import {
  ENTITLEMENT_ADJUSTMENT_REASON_CODES,
  ENTITLEMENT_ADJUSTMENT_REASON_LABELS,
@@ -81,6 +83,7 @@ function poolOptionLabel(p: EntitlementPoolSummary): string {
 }
 
 export function PaymentCorrectionView() {
+ const { role } = useAuth()
  const { pushBanner } = useAppBanner()
  const [students, setStudents] = useState<StudentRecord[]>([])
  const [studentQuery, setStudentQuery] = useState("")
@@ -255,12 +258,20 @@ export function PaymentCorrectionView() {
 
  return (
   <div className="mx-auto max-w-5xl space-y-6 p-4 md:p-6">
-   <header className="space-y-1">
-    <h1 className="text-xl font-semibold tracking-tight">單據／堂數更正</h1>
-    <p className="text-sm text-muted-foreground">
-     按錯類型分流：堂數／科班用已繳堂數調動；金額錯先作廢再重開。禁硬刪單據。
-    </p>
-   </header>
+   {role === "admin" ? (
+    <AdminPageHeader
+     eyebrow="行政工作"
+     title="單據／堂數更正"
+     description="按錯誤類型處理堂數調動或作廢重開。"
+    />
+   ) : (
+    <header className="space-y-1">
+     <h1 className="text-xl font-semibold tracking-tight">單據／堂數更正</h1>
+     <p className="text-sm text-muted-foreground">
+      按錯類型分流：堂數／科班用已繳堂數調動；金額錯先作廢再重開。禁硬刪單據。
+     </p>
+    </header>
+   )}
 
    {loadErr ? (
     <p role="alert" className="text-sm text-destructive">
