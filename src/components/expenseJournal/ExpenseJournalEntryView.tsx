@@ -3,6 +3,10 @@ import { NotebookPen } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { ExpenseJournalForm } from "@/components/expenseJournal/ExpenseJournalForm"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
@@ -43,12 +47,12 @@ export function ExpenseJournalEntryView() {
   }, [load])
 
   return (
-    <div className="space-y-6">
+    <div className={adminWorkspacePageClass}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="工作域"
           title="入帳"
-          description="查閱日記帳紀錄及新增入帳。"
+          description={ADMIN_WORKSPACE_DESCRIPTION.journal}
         />
       ) : (
         <header className="space-y-1">

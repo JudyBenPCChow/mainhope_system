@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { EnrollClassStep } from "@/components/frontDesk/steps/EnrollClassStep"
 import { LeaveStep } from "@/components/frontDesk/steps/LeaveStep"
 import { PaymentStep } from "@/components/frontDesk/steps/PaymentStep"
@@ -142,7 +142,7 @@ export function FrontDeskWizardView() {
  }
 
  return (
-  <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+  <div className={cn("mx-auto max-w-3xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

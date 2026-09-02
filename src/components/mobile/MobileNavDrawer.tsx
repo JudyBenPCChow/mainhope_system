@@ -138,7 +138,7 @@ export function MobileNavDrawer({
     <div
      className={cn(
       "flex min-h-[4.625rem] shrink-0 items-center justify-between gap-2 border-b px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]",
-      role === "admin" ? "border-white/12" : "border-white/10"
+      role === "admin" ? "border-white/10" : "border-white/10"
      )}
     >
      <div className="min-w-0 leading-tight">
@@ -195,6 +195,7 @@ export function MobileNavDrawer({
 
     {role === "admin" ? (
      <AdminSidebarFooter
+      showQuickLinks
       pathname={location.pathname}
       unreadCount={unreadCount}
       footerNavLeaves={footerNavLeaves}

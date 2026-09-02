@@ -3,6 +3,10 @@ import { ScrollText } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { ExpenseJournalList } from "@/components/expenseJournal/ExpenseJournalList"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/authBootstrap"
@@ -38,12 +42,12 @@ export function ExpenseJournalRecordsView() {
   }, [loadAccounts])
 
   return (
-    <div className="space-y-6">
+    <div className={adminWorkspacePageClass}>
       {role === "admin" ? (
         <AdminPageHeader
           eyebrow="工作域"
           title="日記帳紀錄"
-          description="查閱日記帳紀錄及新增入帳。"
+          description={ADMIN_WORKSPACE_DESCRIPTION.journal}
           actions={
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <span>月份</span>

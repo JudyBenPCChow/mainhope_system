@@ -114,7 +114,7 @@ export function AdminDashboard() {
  }, [scheduleViewYmd])
 
  return (
-  <div className="space-y-4 md:space-y-6 md:p-6 lg:space-y-8">
+  <div className="space-y-4 md:space-y-6 lg:space-y-8">
    <AdminPageHeader
     eyebrow="管理中心"
     title={`你好，${greetingName}！`}

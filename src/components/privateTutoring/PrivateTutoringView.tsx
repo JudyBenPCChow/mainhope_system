@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarClock, DoorOpen, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus, UserRound } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
@@ -1045,7 +1045,7 @@ export function PrivateTutoringView() {
  )
 
  return (
-  <div className="space-y-5 text-sm leading-relaxed md:p-6">
+  <div className={cn("space-y-5 text-sm leading-relaxed", pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

@@ -2,8 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { History, Search, SlidersHorizontal, Wallet, Download } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import {
  FormField,
@@ -405,24 +409,12 @@ export function PaymentHistoryView() {
  ].filter(Boolean).length
 
  return (
-  <div className="space-y-6 md:p-6">
+  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="繳費紀錄"
-     description={
-      <>
-       查詢收款、下載收據及處理待收款紀錄。
-       <span className="hidden lg:inline">
-        {" "}資料範圍：{includeOlderYears || histFrom || filterStudentId
-         ? "跟目前篩選"
-         : appliedFromYmd
-           ? `日常營運窗（收款日起 ${appliedFromYmd}）`
-           : "目前清單"}
-        。
-       </span>
-      </>
-     }
+     description={ADMIN_WORKSPACE_DESCRIPTION.payments}
      actions={
       <>
        <Button

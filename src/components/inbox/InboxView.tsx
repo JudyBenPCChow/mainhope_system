@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, CheckCheck, Inbox, RefreshCw, Send } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { LoadMoreFooter } from "@/components/ui/load-more-footer"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
@@ -281,7 +281,7 @@ export function InboxView() {
 
  if (detailItem) {
   return (
-   <div className="space-y-6 md:p-6">
+   <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
     <div className="flex flex-wrap items-center gap-2">
      <Button type="button" variant="outline" size="sm" onClick={() => setDetailKey(null)}>
       <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden />
@@ -333,7 +333,7 @@ export function InboxView() {
  }
 
  return (
-  <div className="space-y-6 md:p-6">
+  <div className={cn("space-y-6", pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

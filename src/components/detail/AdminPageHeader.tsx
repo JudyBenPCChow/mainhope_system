@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
+import type { MgmtRole } from "@/lib/mgmtRole"
 
 export type AdminPageEyebrow = "管理中心" | "工作域" | "行政工作" | "網站地圖"
 
@@ -14,7 +15,29 @@ type AdminPageHeaderProps = {
 }
 
 export const adminPageHeaderLayoutClass =
- "flex min-h-[7.25rem] flex-col justify-end gap-4 sm:flex-row sm:items-end sm:justify-between"
+ "flex flex-col justify-end gap-[1.125rem] sm:flex-row sm:items-end sm:justify-between"
+
+/** 行政主欄／清單殼表面色（與沙盒 `--background` 對齊）。 */
+export const adminPageSurfaceClass = "bg-[#f4f7fb]"
+
+/**
+ * 行政主欄內容區：對齊沙盒 `.content`
+ * （寬度上限 1180、padding 28/30/48；窄屏左右 20）。
+ */
+export const adminContentShellClass =
+ "mx-auto flex min-h-full w-full max-w-[1180px] flex-col px-5 pb-12 pt-7 sm:px-[1.875rem] has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden [&>*]:!px-0 [&>*]:!pt-0"
+
+/**
+ * 行政頁留白交由 Layout；非行政保留既有頁級 padding，避免左右內距跨頁跳動。
+ * `adminExtra` 可保留僅行政需要的底部安全距（例如手機底欄）。
+ */
+export function pagePadClass(
+ role: MgmtRole | null | undefined,
+ nonAdminPadClass: string,
+ adminExtra = ""
+): string {
+ return role === "admin" ? adminExtra : nonAdminPadClass
+}
 
 type AdminPageHeadingProps = Pick<
  AdminPageHeaderProps,

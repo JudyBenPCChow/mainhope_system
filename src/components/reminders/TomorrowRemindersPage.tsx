@@ -9,7 +9,7 @@ import {
  UserRound,
 } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -243,7 +243,7 @@ export function TomorrowRemindersPage() {
 
  return (
   <div className="min-h-[70vh] bg-brand-bg">
-   <div className="mx-auto max-w-4xl space-y-5 p-4 pb-16 md:p-6">
+   <div className={cn("mx-auto max-w-4xl space-y-5", pagePadClass(role, "p-4 pb-16 md:p-6", "pb-16"))}>
     {!isSupabaseConfigured ? (
      <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 p-4 text-warning">
       尚未設定 Supabase，無法載入提醒名單。

@@ -12,7 +12,7 @@ import {
 } from "@/components/classes/ClassCreateForm"
 import { timeSlotSelectValueFromStored, weekdaySelectValueFromStored } from "@/components/classes/classesUi"
 import { invalidateClassesListDataCache } from "@/components/classes/classesListState"
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/authBootstrap"
 import { classDisplayName } from "@/lib/courseLabel"
@@ -22,6 +22,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { deleteClassCascade, fetchAcademicYearOptions, fetchSubjectOptions, insertClass, type ClassRecord } from "@/services/classQueries"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { cn } from "@/lib/utils"
 
 export function ClassCreatePage() {
  const navigate = useNavigate()
@@ -151,7 +152,7 @@ export function ClassCreatePage() {
  }
 
  return (
-  <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
+  <div className={cn("mx-auto max-w-3xl space-y-6", pagePadClass(role, "p-4 md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="行政工作"

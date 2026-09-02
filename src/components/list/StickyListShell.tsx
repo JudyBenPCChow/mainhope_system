@@ -1,5 +1,7 @@
 import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react"
 
+import { pagePadClass, adminPageSurfaceClass } from "@/components/detail/AdminPageHeader"
+import { useAuth } from "@/lib/authBootstrap"
 import { cn } from "@/lib/utils"
 
 const StickyListActiveContext = createContext(false)
@@ -25,7 +27,9 @@ type LeadProps = {
  * 流動裝置 `sticky={false}`，不要改 MobileLayout。
  */
 export function StickyListShell({ header, children, sticky = true, className }: ShellProps) {
+ const { role } = useAuth()
  const bodyRef = useRef<HTMLDivElement>(null)
+ const surfaceClass = role === "admin" ? adminPageSurfaceClass : "bg-background"
 
  useLayoutEffect(() => {
   if (!sticky) return
@@ -43,7 +47,7 @@ export function StickyListShell({ header, children, sticky = true, className }: 
  if (!sticky) {
   return (
    <StickyListActiveContext.Provider value={false}>
-    <div className={cn("space-y-5 py-4 md:p-6", className)}>
+    <div className={cn("space-y-5", pagePadClass(role, "py-4 md:p-6"), className)}>
      {header}
      {children}
     </div>
@@ -57,7 +61,7 @@ export function StickyListShell({ header, children, sticky = true, className }: 
     data-sticky-list-shell=""
     className={cn("flex h-full min-h-0 flex-1 flex-col overflow-hidden", className)}
    >
-    <header className="shrink-0 space-y-3 border-b border-border bg-background pb-4">
+    <header className={cn("shrink-0 space-y-3 border-b border-border pb-4", surfaceClass)}>
      {header}
     </header>
     {/* 內距放在內層，勿放在 overflow 容器：否則 sticky 表頭下方會露出滑動中的列 */}
@@ -79,12 +83,14 @@ export function StickyListShell({ header, children, sticky = true, className }: 
  */
 export function StickyListLead({ children, className }: LeadProps) {
  const active = useContext(StickyListActiveContext)
+ const { role } = useAuth()
+ const surfaceClass = role === "admin" ? adminPageSurfaceClass : "bg-background"
  if (!active) {
   return <div className={cn("space-y-5", className)}>{children}</div>
  }
  return (
   <div
-   className={cn("sticky left-0 z-[1] space-y-5 bg-background", className)}
+   className={cn("sticky left-0 z-[1] space-y-5", surfaceClass, className)}
    style={{ width: "var(--sticky-list-viewport-w, 100%)" }}
   >
    {children}

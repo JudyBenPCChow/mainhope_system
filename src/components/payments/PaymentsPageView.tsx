@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { Banknote, BookOpen, ClipboardCheck, FileText, History, MessageCircle, Plus, Printer, Trash2, Wallet } from "lucide-react"
 
-import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
+import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
+import {
+ ADMIN_WORKSPACE_DESCRIPTION,
+ adminWorkspacePageClass,
+} from "@/lib/adminNavigation"
 import {
  DEFAULT_LESSON_COUNT,
  DEFAULT_TRIAL_LESSON_COUNT,
@@ -1450,12 +1454,12 @@ export function PaymentsPageView() {
  )
 
  return (
-  <div className="space-y-6 md:p-6">
+  <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
    {role === "admin" ? (
     <AdminPageHeader
      eyebrow="工作域"
      title="收款登記"
-     description="登記學費、檢視繳費紀錄及管理優惠折扣。"
+     description={ADMIN_WORKSPACE_DESCRIPTION.payments}
     />
    ) : (
     <header className="flex flex-wrap items-end justify-between gap-4">
