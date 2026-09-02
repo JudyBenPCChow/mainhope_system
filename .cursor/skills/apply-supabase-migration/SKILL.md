@@ -57,4 +57,5 @@ Only after `db query`／`projects list` 明確要 token／login：請使用者�
 ## After apply
 
 - Confirm with a short `supabase db query --linked "…"` or feature check.
+- **RPC／新函式給前端 `supabase.rpc()` 用**：migration 須含 `NOTIFY pgrst, 'reload schema'`（已套用的歷史檔則另開後續可重播檔）。然後用 PostgREST Data API smoke test，不可只查 `pg_proc`。見 `docs/meta/SUPABASE_MIGRATION_APPLY.md`「RPC／函式：Data API smoke test」。
 - In the reply: file name, version, applied OK (or blocked on real auth).

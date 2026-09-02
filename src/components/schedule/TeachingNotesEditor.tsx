@@ -11,6 +11,7 @@ import {
  fetchPreviousTeachingNotes,
  type PreviousTeachingNotes,
 } from "@/services/teachingNotesQueries"
+import { invalidateTeachingRecordsDataCache } from "@/components/schedule/teachingRecordsState"
 
 /** 老師常用開頭，一鍵插入加快入田 */
 export const TEACHING_NOTE_QUICK_PHRASES = [
@@ -118,6 +119,7 @@ export function TeachingNotesEditor({
   try {
    const next = draft.trim() || null
    await updateSchedule(scheduleId, { teaching_notes: next })
+   invalidateTeachingRecordsDataCache()
    setBaseline(next ?? "")
    setDraft(next ?? "")
    onSaved?.(next)

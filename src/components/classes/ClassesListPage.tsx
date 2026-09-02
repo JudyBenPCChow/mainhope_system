@@ -213,16 +213,18 @@ export function ClassesListPage() {
    setRows(list)
    setHiddenOlderCount(hidden)
    setOpsYearLabels(labels)
-   setClassesListDataCache({
-    rows: list,
-    yearOptions: cached?.yearOptions ?? [],
-    enrollRoster: cached?.enrollRoster ?? new Map(),
-    scheduleSummaries: cached?.scheduleSummaries ?? new Map(),
-    hiddenOlderCount: hidden,
-    includeOlderYears,
-    opsYearLabels: labels,
-    fetchedAt: 0,
-   })
+   setClassesListDataCache(
+    {
+     rows: list,
+     yearOptions: cached?.yearOptions ?? [],
+     enrollRoster: cached?.enrollRoster ?? new Map(),
+     scheduleSummaries: cached?.scheduleSummaries ?? new Map(),
+     hiddenOlderCount: hidden,
+     includeOlderYears,
+     opsYearLabels: labels,
+    },
+    0
+   )
    if (!skipSpinner) setLoading(false)
 
    const classIds = list.map((c) => c.id)
@@ -242,7 +244,6 @@ export function ClassesListPage() {
     hiddenOlderCount: hidden,
     includeOlderYears,
     opsYearLabels: labels,
-    fetchedAt: Date.now(),
    })
   } catch (e) {
    reportUserFacingError(e, { source: "ClassesListPage.load", setErr })

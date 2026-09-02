@@ -36,6 +36,7 @@ import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
 import {
  getTrialSessionsDataCache,
+ invalidateTrialSessionsDataCache,
  isTrialSessionsCacheFresh,
  setTrialSessionsDataCache,
 } from "@/components/trials/trialSessionsState"
@@ -196,6 +197,7 @@ export function TrialSessionsView() {
 
  const reload = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
+  if (!opts?.silent) invalidateTrialSessionsDataCache()
   const cached = getTrialSessionsDataCache()
   if (!opts?.silent && !cached) setLoading(true)
   setErr(null)

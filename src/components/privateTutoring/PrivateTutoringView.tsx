@@ -78,6 +78,7 @@ import { fetchAllStudents, previewEnrollmentAttendanceImpact, type StudentRecord
 import { PRIVATE_TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 import {
  getPrivateTutoringDataCache,
+ invalidatePrivateTutoringDataCache,
  isPrivateTutoringCacheFresh,
  setPrivateTutoringDataCache,
 } from "@/components/privateTutoring/privateTutoringState"
@@ -214,6 +215,7 @@ export function PrivateTutoringView() {
 
  const reloadStudents = useCallback(async (opts?: { silent?: boolean }) => {
   if (!isSupabaseConfigured) return
+  if (!opts?.silent) invalidatePrivateTutoringDataCache()
   const cached = getPrivateTutoringDataCache()
   if (!opts?.silent && !cached) setLoading(true)
   setErr(null)

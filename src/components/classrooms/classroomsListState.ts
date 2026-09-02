@@ -21,6 +21,10 @@ export function setClassroomsListDataCache(next: ClassroomsListDataCache, fetche
  cache.set(next, fetchedAt)
 }
 
+export function invalidateClassroomsListDataCache(): void {
+ cache.invalidate()
+}
+
 export function patchClassroomsListDataCache(
  patch: (current: ClassroomsListDataCache) => ClassroomsListDataCache
 ): void {

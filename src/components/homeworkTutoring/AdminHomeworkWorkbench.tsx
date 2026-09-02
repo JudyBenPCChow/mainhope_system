@@ -71,7 +71,8 @@ export function AdminHomeworkWorkbench({
   dutyDays,
   setDutyDays,
   monthRosterStatus,
-  setMonthRosterStatus,
+  persistMonthRosterStatus,
+
   hwTeachers,
   holidays = [],
   sheetMonth: sheetMonthProp,
@@ -89,7 +90,7 @@ export function AdminHomeworkWorkbench({
   dutyDays: HomeworkDutyDay[]
   setDutyDays: Dispatch<SetStateAction<HomeworkDutyDay[]>>
   monthRosterStatus: Record<string, MonthRosterState>
-  setMonthRosterStatus: Dispatch<SetStateAction<Record<string, MonthRosterState>>>
+  persistMonthRosterStatus: (yearMonth: string, state: MonthRosterState) => Promise<void>
   hwTeachers: HomeworkTeacherRow[]
   holidays?: HomeworkHoliday[]
   sheetMonth?: string
@@ -639,9 +640,7 @@ export function AdminHomeworkWorkbench({
               dutyDays={dutyDays}
               onDutyDaysChange={setDutyDays}
               monthStatus={monthRosterStatus}
-              onMonthStatusChange={(ym, state) =>
-                setMonthRosterStatus((prev) => ({ ...prev, [ym]: state }))
-              }
+              onMonthStatusChange={(ym, state) => persistMonthRosterStatus(ym, state)}
               avail={avail}
               teachers={hwTeachers}
               holidays={holidays}
