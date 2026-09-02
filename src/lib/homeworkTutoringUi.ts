@@ -40,10 +40,23 @@ export type HomeworkStudentRow = {
   name: string
   code: string
   grade: string
-  plan: DayPlan
+  plan: DayPlan | null
   weekdays: Weekday[]
   effectiveMonth: string
   status: EnrollStatus
+}
+
+/** 報讀列狀態 → 功輔頁。休學＝暫停（不計月費）；就讀中＝在籍。 */
+export function mapHomeworkEnrollStatus(raw: string): EnrollStatus {
+  const s = raw.trim()
+  if (s === "就讀中") return "在籍"
+  if (s === "已退讀" || s === "退選") return "結束"
+  if (s === "休學" || s.includes("暫停")) return "暫停"
+  return "在籍"
+}
+
+export function formatHomeworkDayPlanLabel(plan: DayPlan | null | undefined): string {
+  return plan ? `每週${plan}` : "未設定"
 }
 
 export function formatWeekdays(days: Weekday[]): string {
@@ -690,15 +703,15 @@ export function composeHomeworkFeeDisplays(opts: {
   enrollments: Array<{
     studentId: string
     status: EnrollStatus
-    plan: DayPlan
+    plan: DayPlan | null
     grade: string
   }>
   paidByStudentId: ReadonlyMap<string, { receiptNumber: string }>
 }): HomeworkFeeDisplay[] {
   return opts.enrollments
-    .filter((e) => e.status === "在籍" || e.status === "暫停")
+    .filter((e) => e.status === "在籍")
     .map((e) => {
-      const amount = homeworkMonthlyFeeHkd(e.plan, e.grade, opts.billingMonth)
+      const amount = e.plan ? homeworkMonthlyFeeHkd(e.plan, e.grade, opts.billingMonth) : null
       const paid = opts.paidByStudentId.get(e.studentId)
       return {
         studentId: e.studentId,
@@ -747,7 +760,7 @@ export function unpaidFeeRows(students: HomeworkStudentRow[], fees: HomeworkFeeD
   return fees
     .map((f) => {
       const s = students.find((x) => x.id === f.studentId)
-      if (!s || s.status === "結束" || f.status !== "未收款") return null
+      if (!s || s.status !== "在籍" || f.status !== "未收款") return null
       return { ...f, student: s }
     })
     .filter(Boolean) as Array<HomeworkFeeDisplay & { student: HomeworkStudentRow }>

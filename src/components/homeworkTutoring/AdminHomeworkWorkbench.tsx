@@ -26,6 +26,7 @@ import {
   currentYearMonth,
   dutyAssignments,
   formatDutyDateHeading,
+  formatHomeworkDayPlanLabel,
   formatWeekdays,
   formatWeekdaysShort,
   formatYearMonthLabel,
@@ -181,6 +182,7 @@ export function AdminHomeworkWorkbench({
           { value: "三日", label: "每週三日" },
           { value: "四日", label: "每週四日" },
           { value: "五日", label: "每週五日" },
+          { value: "未設定", label: "未設定" },
         ]}
       />
       <FilterChipRow
@@ -209,7 +211,9 @@ export function AdminHomeworkWorkbench({
   const filteredStudents = useMemo(() => {
     const q = query.trim().toLowerCase()
     return students.filter((s) => {
-      if (planFilter && s.plan !== planFilter) return false
+      if (planFilter === "未設定") {
+        if (s.plan != null) return false
+      } else if (planFilter && s.plan !== planFilter) return false
       if (statusFilter && s.status !== statusFilter) return false
       if (gradeFilter && s.grade !== gradeFilter) return false
       if (monthFilter && s.effectiveMonth !== monthFilter) return false
@@ -222,7 +226,7 @@ export function AdminHomeworkWorkbench({
     return fees
       .map((f) => {
         const s = students.find((x) => x.id === f.studentId)
-        if (!s || s.status === "結束") return null
+        if (!s || s.status !== "在籍") return null
         return { ...f, student: s }
       })
       .filter(Boolean) as Array<HomeworkFeeDisplay & { student: HomeworkStudentRow }>
@@ -268,7 +272,7 @@ export function AdminHomeworkWorkbench({
             />
             <SummaryTile label="在籍" value={String(overview.activeCount)} />
             <SummaryTile label="本月已繳" value={String(overview.paid)} />
-            <SummaryTile label="本月未繳" value={String(overview.unpaid)} hint="不含暫停／結束" />
+            <SummaryTile label="本月未繳" value={String(overview.unpaid)} hint="不含休學／結束" />
           </div>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -440,7 +444,7 @@ export function AdminHomeworkWorkbench({
                       <td className="px-3 py-2.5 font-medium">{s.name}</td>
                       <td className="px-3 py-2.5 tabular-nums text-muted-foreground">{s.code}</td>
                       <td className="px-3 py-2.5">{s.grade}</td>
-                      <td className="px-3 py-2.5">每週{s.plan}</td>
+                      <td className="px-3 py-2.5">{formatHomeworkDayPlanLabel(s.plan)}</td>
                       <td className="px-3 py-2.5">{formatWeekdaysShort(s.weekdays)}</td>
                       <td className="px-3 py-2.5 tabular-nums">{s.effectiveMonth}</td>
                       <td className="px-3 py-2.5">
@@ -478,7 +482,7 @@ export function AdminHomeworkWorkbench({
                 {feeRows.map((row) => (
                   <tr key={row.studentId} className="border-t border-border">
                     <td className="px-3 py-2.5 font-medium">{row.student.name}</td>
-                    <td className="px-3 py-2.5">每週{row.student.plan}</td>
+                    <td className="px-3 py-2.5">{formatHomeworkDayPlanLabel(row.student.plan)}</td>
                     <td className="px-3 py-2.5">{row.amountLabel}</td>
                     <td className="px-3 py-2.5">
                       <Tag tone={statusToTagTone(row.status)} size="sm">
