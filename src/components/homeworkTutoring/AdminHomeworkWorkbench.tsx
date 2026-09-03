@@ -421,11 +421,11 @@ export function AdminHomeworkWorkbench({
             顯示 {filteredStudents.length}／{students.length} 人
           </p>
           {filteredStudents.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+            <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
               沒有符合條件的報讀。
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead className="bg-muted/40 text-xs text-muted-foreground">
                   <tr>
@@ -467,7 +467,7 @@ export function AdminHomeworkWorkbench({
           <p className="text-xs text-muted-foreground">
             已繳／未繳以繳費紀錄為準（單據覆蓋月份）。請到「收款登記」出單，本頁不另開收款。已繳 {overview.paid} · 未繳 {overview.unpaid}
           </p>
-          <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="bg-muted/40 text-xs text-muted-foreground">
                 <tr>
@@ -532,7 +532,7 @@ export function AdminHomeworkWorkbench({
               </p>
               <ul className="space-y-2">
                 {hwTeachers.length === 0 ? (
-                  <li className="rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                  <li className="rounded-xl border border-dashed border-border bg-card px-4 py-8 text-center text-sm text-muted-foreground">
                     尚未剔選有功課輔導班入口的老師。請由管理層「老師入口」剔選。
                   </li>
                 ) : null}
@@ -599,7 +599,7 @@ export function AdminHomeworkWorkbench({
               <p className="text-xs text-muted-foreground">
                 {HW_ROSTER_FLOW_NOTE} · 點格編輯（行政覆寫）；空白＝該日不報 · 顯示該月全部平日
               </p>
-              <div className="overflow-x-auto rounded-xl border border-border">
+              <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
                 <table className="w-full min-w-[520px] text-center text-sm">
                   <thead className="bg-muted/40 text-xs text-muted-foreground">
                     <tr>

@@ -355,7 +355,7 @@ export function RosterMonthSheet({
       ) : null}
 
       <TabsContent value="list" className="mt-0">
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
           <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>
@@ -493,7 +493,7 @@ export function RosterMonthSheet({
                   {editAssignments.map((a, i) => (
                     <li
                       key={`${a.teacherId}-${a.room}-${i}`}
-                      className="rounded-lg border border-border p-3"
+                      className="rounded-lg border border-border bg-card p-3"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium">{teacherName(a.teacherId, teachers)}</p>
