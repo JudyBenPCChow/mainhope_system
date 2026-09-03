@@ -14,6 +14,7 @@ import {
 
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import { resolveAdminPageTitle } from "@/lib/adminNavigation"
+import { resolveFinancePageTitle } from "@/lib/financeNavigation"
 import {
  filterNavForRole,
  flattenNav,
@@ -22,6 +23,7 @@ import {
  type NavLeafDef,
  type Role,
 } from "@/lib/navStructure"
+import { resolveTeacherPageTitle } from "@/lib/teacherNavigation"
 
 export type MobileTabItem = {
  path: string
@@ -91,10 +93,25 @@ export function getMobileBottomTabs(
 }
 
 /** 依目前路由與角色，從導航結構解析頁面標題 */
-export function resolveMobilePageTitle(pathname: string, role: Role): string {
+export function resolveMobilePageTitle(
+ pathname: string,
+ role: Role,
+ opts: MobileBottomTabsOptions = {}
+): string {
  if (role === "admin") {
   const adminTitle = resolveAdminPageTitle(pathname)
   if (adminTitle) return adminTitle
+ }
+ if (role === "teacher") {
+  const teacherTitle = resolveTeacherPageTitle(pathname, {
+   homeworkTutoringNavVisible: true,
+   homeworkTutorOnly: opts.homeworkTutorOnly === true,
+  })
+  if (teacherTitle) return teacherTitle
+ }
+ if (role === "finance") {
+  const financeTitle = resolveFinancePageTitle(pathname)
+  if (financeTitle) return financeTitle
  }
 
  const leaves = flattenNav(filterNavForRole(role, NAV_STRUCTURE))

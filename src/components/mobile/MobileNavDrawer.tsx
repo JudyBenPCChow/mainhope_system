@@ -7,22 +7,20 @@ import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import {
- ADMIN_MAIN_NAV,
- adminNavEntryIsActive,
- adminNavPathIsActive,
-} from "@/lib/adminNavigation"
-import {
  filterFooterNavLeaves,
- filterMainNavEntries,
  filterNavForRole,
  flattenNav,
+ isHomeworkTutorOnlyAllowedPath,
  NAV_STRUCTURE,
  pathIsActive,
- keepHomeworkTutorOnlyNav,
- stripHomeworkTutoringNav,
  type NavEntryDef,
  type Role,
 } from "@/lib/navStructure"
+import {
+ resolveRoleMainNav,
+ roleNavEntryIsActive,
+ roleNavPathIsActive,
+} from "@/lib/roleMainNav"
 import {
  adminNavL2IconClass,
  navFooterIconClass,
@@ -59,25 +57,23 @@ export function MobileNavDrawer({
  const location = useLocation()
  const { unreadCount } = useInboxUnreadCount()
  const useShell = usesSharedAppShell(role)
- const isAdminNav = role === "admin"
- const navEntries = useMemo(() => {
-  if (isAdminNav) return ADMIN_MAIN_NAV
-  const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
-  if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
-  if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
-  return byRole
- }, [role, isAdminNav, homeworkTutoringNavVisible, homeworkTutorOnly])
+ const teacherNavFlags = useMemo(
+  () => ({ homeworkTutoringNavVisible, homeworkTutorOnly }),
+  [homeworkTutoringNavVisible, homeworkTutorOnly]
+ )
+ const navEntries = useMemo(
+  () => resolveRoleMainNav(role, teacherNavFlags),
+  [role, teacherNavFlags]
+ )
  const footerNavLeaves = useMemo(() => {
   const byRole = filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE))
   if (role === "teacher" && homeworkTutorOnly) {
-   return byRole.filter((e) =>
-    e.path === "/TeacherProfile" || e.path === "/Settings" || e.path.startsWith("/HomeworkTutoring")
-   )
+   return byRole.filter((e) => isHomeworkTutorOnlyAllowedPath(e.path))
   }
   return byRole
  }, [role, homeworkTutorOnly])
  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set())
- const [adminOpenGroup, setAdminOpenGroup] = useState<string | null>(null)
+ const [shellOpenGroup, setShellOpenGroup] = useState<string | null>(null)
 
  useEffect(() => {
   if (!open) return
@@ -94,13 +90,9 @@ export function MobileNavDrawer({
    const activeGroup = navEntries.find(
     (entry) =>
      entry.kind === "group" &&
-     entry.children.some((child) =>
-      isAdminNav
-       ? adminNavPathIsActive(pathname, child.path)
-       : pathIsActive(pathname, child.path)
-     )
+     entry.children.some((child) => roleNavPathIsActive(role, pathname, child.path))
    )
-   if (activeGroup?.kind === "group") setAdminOpenGroup(activeGroup.id)
+   if (activeGroup?.kind === "group") setShellOpenGroup(activeGroup.id)
    return
   }
   setOpenGroups((prev) => {
@@ -112,7 +104,7 @@ export function MobileNavDrawer({
    }
    return next
   })
- }, [location.pathname, navEntries, role, useShell, isAdminNav])
+ }, [location.pathname, navEntries, role, useShell])
 
  useEffect(() => {
   if (open) {
@@ -189,13 +181,13 @@ export function MobileNavDrawer({
       <NavEntry
        key={entry.kind === "leaf" ? `${entry.path}::${entry.label}` : entry.id}
        entry={entry}
+       role={role}
        pathname={location.pathname}
        openGroups={openGroups}
        setOpenGroups={setOpenGroups}
-       adminOpenGroup={adminOpenGroup}
-       setAdminOpenGroup={setAdminOpenGroup}
+       shellOpenGroup={shellOpenGroup}
+       setShellOpenGroup={setShellOpenGroup}
        useShell={useShell}
-       isAdminNav={isAdminNav}
        onNavigate={onClose}
       />
      ))}
@@ -274,31 +266,29 @@ export function MobileNavDrawer({
 
 type NavEntryProps = {
  entry: NavEntryDef
+ role: Role
  pathname: string
  openGroups: Set<string>
  setOpenGroups: Dispatch<SetStateAction<Set<string>>>
- adminOpenGroup: string | null
- setAdminOpenGroup: Dispatch<SetStateAction<string | null>>
+ shellOpenGroup: string | null
+ setShellOpenGroup: Dispatch<SetStateAction<string | null>>
  useShell: boolean
- isAdminNav: boolean
  onNavigate: () => void
 }
 
 function NavEntry({
  entry,
+ role,
  pathname,
  openGroups,
  setOpenGroups,
- adminOpenGroup,
- setAdminOpenGroup,
+ shellOpenGroup,
+ setShellOpenGroup,
  useShell,
- isAdminNav,
  onNavigate,
 }: NavEntryProps) {
  if (entry.kind === "leaf") {
-  const active = isAdminNav
-   ? adminNavPathIsActive(pathname, entry.path)
-   : pathIsActive(pathname, entry.path)
+  const active = roleNavPathIsActive(role, pathname, entry.path)
   const Icon = entry.icon
   return (
    <Link
@@ -312,10 +302,8 @@ function NavEntry({
   )
  }
 
- const open = useShell ? adminOpenGroup === entry.id : openGroups.has(entry.id)
- const groupActive = isAdminNav
-  ? adminNavEntryIsActive(pathname, entry)
-  : entry.children.some((c) => pathIsActive(pathname, c.path))
+ const open = useShell ? shellOpenGroup === entry.id : openGroups.has(entry.id)
+ const groupActive = roleNavEntryIsActive(role, pathname, entry)
  const GroupIcon = entry.icon
 
  return (
@@ -326,7 +314,7 @@ function NavEntry({
     aria-expanded={open}
     onClick={() => {
      if (useShell) {
-      setAdminOpenGroup((current) => (current === entry.id ? null : entry.id))
+      setShellOpenGroup((current) => (current === entry.id ? null : entry.id))
       return
      }
      setOpenGroups((prev) => {
@@ -349,9 +337,7 @@ function NavEntry({
    <div className={navL2RailClass({ open, admin: useShell })}>
     {open
      ? entry.children.map((child) => {
-       const active = isAdminNav
-        ? adminNavPathIsActive(pathname, child.path)
-        : pathIsActive(pathname, child.path)
+       const active = roleNavPathIsActive(role, pathname, child.path)
        const ChildIcon = child.icon
        return (
         <Link
