@@ -201,7 +201,7 @@ export function ManagerHomeworkWorkbench({
           {dutyDays.length === 0 ? (
             <p className="text-sm text-muted-foreground">本月尚未有當值資料。</p>
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
               <table className="w-full min-w-[640px] text-left text-sm">
                 <thead className="bg-muted/40 text-xs text-muted-foreground">
                   <tr>

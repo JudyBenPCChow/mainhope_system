@@ -179,7 +179,7 @@ export function ExpenseJournalList({
       ) : entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">本月尚無入帳</p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>

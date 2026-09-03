@@ -636,7 +636,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
   if (role === "teacher" && !teacherNavVisible) {
     return (
-      <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+      <div className="rounded-xl border border-dashed border-border bg-card px-4 py-10 text-center">
         <p className="font-medium text-foreground">沒有功課輔導入口</p>
         <p className="mt-2 text-sm text-muted-foreground">
           管理層尚未剔選你進入功課輔導。側欄亦不會顯示此分組。

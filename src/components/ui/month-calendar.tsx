@@ -72,7 +72,7 @@ export function MonthCalendar<T extends MonthCalendarDayBase>({
   const minH = cellMinHeight(density)
 
   return (
-    <div className={cn("overflow-hidden rounded-xl border border-border", className)}>
+    <div className={cn("overflow-hidden rounded-xl border border-border bg-card shadow-sm", className)}>
       <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
         {MONTH_CALENDAR_WEEK_HEADERS.map((h) => (
           <div key={h} className="px-1 py-2">

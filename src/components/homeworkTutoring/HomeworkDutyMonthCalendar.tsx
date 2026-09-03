@@ -75,7 +75,7 @@ export function HomeworkDutyCalendarRoomCards({
       {roomCards.map((card) => (
         <div
           key={card.room}
-          className="relative rounded-md border border-border bg-background/90 px-1.5 pb-1.5 pt-5 shadow-sm"
+          className="relative rounded-md border border-border bg-card px-1.5 pb-1.5 pt-5 shadow-sm"
         >
           <Tag
             size="sm"

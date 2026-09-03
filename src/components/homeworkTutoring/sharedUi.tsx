@@ -27,18 +27,16 @@ type RoomCardTone = "info" | "success"
 
 const ROOM_CARD_TONE: Record<
   RoomCardTone,
-  { bar: string; border: string; bg: string; label: string }
+  { bar: string; border: string; label: string }
 > = {
   info: {
     bar: "bg-info",
     border: "border-info/30",
-    bg: "bg-info/5",
     label: "text-info",
   },
   success: {
     bar: "bg-success",
     border: "border-success/30",
-    bg: "bg-success/5",
     label: "text-success",
   },
 }
@@ -60,7 +58,7 @@ export function RoomDutyCard({
   const t = ROOM_CARD_TONE[tone]
   return (
     <section
-      className={cn("overflow-hidden rounded-xl border shadow-sm", t.border, t.bg)}
+      className={cn("overflow-hidden rounded-xl border bg-card shadow-sm", t.border)}
       aria-label={`課室 ${room}，${teacher}，${session}`}
     >
       <div className="flex">
