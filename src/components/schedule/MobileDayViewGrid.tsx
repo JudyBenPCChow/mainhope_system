@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
@@ -12,7 +12,10 @@ import {
  DAYTIME_SLOT_INDICES,
  EVENING_SLOT_INDICES,
  LESSON_SLOT_INDICES,
+ WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX,
+ formatMin,
  lessonSlotLabel,
+ lessonSlotStartMinute,
 } from "@/lib/lessonSlots"
 import {
  isStandardSchedulePlacement,
@@ -22,9 +25,18 @@ import {
 import { cn } from "@/lib/utils"
 import { scheduleTeacherDisplayName } from "@/lib/privateClassKind"
 import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
-import { addDaysYmd, formatScheduleDateShort, mondayYmdOfWeekContaining } from "@/lib/weekdayUtils"
+import {
+ addDaysYmd,
+ formatScheduleDateShort,
+ isWeekdayYmd,
+ mondayYmdOfWeekContaining,
+} from "@/lib/weekdayUtils"
 import type { RoomRecord } from "@/services/classroomQueries"
 import { localYmd, type ScheduleManageRow } from "@/services/scheduleQueries"
+
+const EARLIER_RANGE_LABEL = `${formatMin(lessonSlotStartMinute(0))}–${formatMin(
+ lessonSlotStartMinute(WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX)
+)}`
 
 const WEEKDAY_SHORT = ["一", "二", "三", "四", "五", "六", "日"] as const
 
@@ -99,8 +111,14 @@ export function MobileDayViewGrid({
  loading = false,
  dateLoaded = true,
 }: Props) {
+ const weekday = isWeekdayYmd(dayViewDate)
  const [showEvening, setShowEvening] = useState(false)
+ const [showEarlierSlots, setShowEarlierSlots] = useState(false)
  const [hideVacant, setHideVacant] = useState(false)
+
+ useEffect(() => {
+  setShowEarlierSlots(false)
+ }, [dayViewDate])
 
  const weekMonday = useMemo(() => mondayYmdOfWeekContaining(dayViewDate), [dayViewDate])
  const weekDates = useMemo(
@@ -125,10 +143,22 @@ export function MobileDayViewGrid({
   [schedules]
  )
 
- const visibleSlots = useMemo(
-  () => (showEvening ? LESSON_SLOT_INDICES : DAYTIME_SLOT_INDICES),
-  [showEvening]
- )
+ const visibleSlots = useMemo(() => {
+  let slots = showEvening ? LESSON_SLOT_INDICES : DAYTIME_SLOT_INDICES
+  if (weekday && !showEarlierSlots) {
+   const earliest = WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX
+   slots = slots.filter((i) => i >= earliest)
+  }
+  return slots
+ }, [showEvening, weekday, showEarlierSlots])
+
+ const hiddenMorningCount = useMemo(() => {
+  if (!weekday) return 0
+  return standardSchedules.filter((s) => {
+   const start = standardSlotIndexForSchedule(s)
+   return start != null && start < WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX
+  }).length
+ }, [weekday, standardSchedules])
 
  const occupiedRoomCountBySlot = useMemo(() => {
   const map = new Map<number, number>()
@@ -331,6 +361,21 @@ export function MobileDayViewGrid({
    ) : null}
 
    <div className="space-y-3">
+    {weekday && !showEarlierSlots ? (
+     <button
+      type="button"
+      aria-expanded={false}
+      onClick={() => setShowEarlierSlots(true)}
+      className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-muted/25 px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground"
+     >
+      <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      <span>展開較早時段（{EARLIER_RANGE_LABEL}）</span>
+      {hiddenMorningCount > 0 ? (
+       <span className="tabular-nums text-warning">· 已隱藏 {hiddenMorningCount} 堂</span>
+      ) : null}
+     </button>
+    ) : null}
+
     {visibleSlots.map((slotIdx) => {
      const occupied = occupiedRoomCountBySlot.get(slotIdx) ?? 0
      const rows = columns
@@ -340,54 +385,71 @@ export function MobileDayViewGrid({
       }))
       .filter(({ items }) => !hideVacant || items.length > 0)
 
+     const isLastEarlier =
+      weekday &&
+      showEarlierSlots &&
+      slotIdx === WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX - 1
+
      return (
-      <section
-       key={slotIdx}
-       className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
-       aria-label={lessonSlotLabel(slotIdx)}
-      >
-       <header className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
-        <h3 className="text-sm font-semibold tabular-nums text-foreground">
-         {lessonSlotLabel(slotIdx)}
-        </h3>
-        <span className="text-xs text-muted-foreground">
-         {occupied}/{columns.length} 課室使用中
-        </span>
-       </header>
-       {rows.length === 0 ? (
-        <p className="px-3 py-4 text-center text-sm text-muted-foreground">此時段無使用中課室</p>
-       ) : (
-        <ul className="divide-y divide-border">
-         {rows.map(({ col, items }) => (
-          <li
-           key={roomColumnKey(col)}
-           className={cn(
-            "px-3 py-2.5",
-            roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
-           )}
-          >
-           <div
+      <div key={slotIdx} className="space-y-3">
+       <section
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+        aria-label={lessonSlotLabel(slotIdx)}
+       >
+        <header className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+         <h3 className="text-sm font-semibold tabular-nums text-foreground">
+          {lessonSlotLabel(slotIdx)}
+         </h3>
+         <span className="text-xs text-muted-foreground">
+          {occupied}/{columns.length} 課室使用中
+         </span>
+        </header>
+        {rows.length === 0 ? (
+         <p className="px-3 py-4 text-center text-sm text-muted-foreground">此時段無使用中課室</p>
+        ) : (
+         <ul className="divide-y divide-border">
+          {rows.map(({ col, items }) => (
+           <li
+            key={roomColumnKey(col)}
             className={cn(
-             "mb-1.5 inline-flex rounded-md px-2 py-0.5 text-xs font-semibold",
-             roomColumnHeaderBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
+             "px-3 py-2.5",
+             roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
             )}
            >
-            {col.label}
-           </div>
-           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">空置</p>
-           ) : (
-            <div className="flex flex-col gap-1.5">
-             {items.map((s) =>
-              renderCompactCard(s, col.isUnassigned ? "unassigned" : "assigned")
+            <div
+             className={cn(
+              "mb-1.5 inline-flex rounded-md px-2 py-0.5 text-xs font-semibold",
+              roomColumnHeaderBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
              )}
+            >
+             {col.label}
             </div>
-           )}
-          </li>
-         ))}
-        </ul>
-       )}
-      </section>
+            {items.length === 0 ? (
+             <p className="text-sm text-muted-foreground">空置</p>
+            ) : (
+             <div className="flex flex-col gap-1.5">
+              {items.map((s) =>
+               renderCompactCard(s, col.isUnassigned ? "unassigned" : "assigned")
+              )}
+             </div>
+            )}
+           </li>
+          ))}
+         </ul>
+        )}
+       </section>
+       {isLastEarlier ? (
+        <button
+         type="button"
+         aria-expanded
+         onClick={() => setShowEarlierSlots(false)}
+         className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-muted/25 px-3 py-2.5 text-xs text-muted-foreground transition-colors hover:bg-muted/45 hover:text-foreground"
+        >
+         <ChevronUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+         <span>收合較早時段（{EARLIER_RANGE_LABEL}）</span>
+        </button>
+       ) : null}
+      </div>
      )
     })}
 

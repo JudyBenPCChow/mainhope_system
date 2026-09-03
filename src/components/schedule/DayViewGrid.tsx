@@ -1,10 +1,17 @@
-import { useMemo } from "react"
-import { AlertTriangle, Move } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { AlertTriangle, ChevronDown, ChevronUp, Move } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
 import { roomColumnBgClass, roomColumnHeaderBgClass, UNASSIGNED_ROOM_LABEL } from "@/lib/classroomEligibility"
-import { LESSON_SLOT_COUNT, LESSON_SLOT_INDICES, lessonSlotLabel } from "@/lib/lessonSlots"
+import {
+ FROM_AFTERNOON_SLOT_INDICES,
+ LESSON_SLOT_INDICES,
+ WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX,
+ formatMin,
+ lessonSlotLabel,
+ lessonSlotStartMinute,
+} from "@/lib/lessonSlots"
 import {
  isStandardSchedulePlacement,
  nonStandardTimeHint,
@@ -15,6 +22,7 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { scheduleTeacherDisplayName } from "@/lib/privateClassKind"
 import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
 import { cn } from "@/lib/utils"
+import { isWeekdayYmd } from "@/lib/weekdayUtils"
 import type { RoomRecord } from "@/services/classroomQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 
@@ -50,15 +58,28 @@ function schedulesForRoomColumn(
  })
 }
 
+/** 標準排程是否佔用某格（含連堂跨格） */
+function scheduleOccupiesSlot(schedule: ScheduleManageRow, slotIdx: number): boolean {
+ const start = standardSlotIndexForSchedule(schedule)
+ if (start == null) return false
+ const span = slotSpanForStandardSchedule(schedule)
+ return slotIdx >= start && slotIdx < start + span
+}
+
+/**
+ * 依可見時段列建格。若連堂自收合區跨入可見首格，於首格以剩餘 span 顯示，避免隱藏。
+ */
 function buildStandardGridPlan(
  standardSchedules: ScheduleManageRow[],
  columns: RoomColumn[],
- activeRoomIds: ReadonlySet<string>
+ activeRoomIds: ReadonlySet<string>,
+ visibleSlotIndices: readonly number[]
 ): CellPlan[][] {
  const plans: CellPlan[][] = []
  const rowspanRemain: Record<string, number> = {}
+ const firstVisible = visibleSlotIndices[0] ?? 0
 
- for (let slotIdx = 0; slotIdx < LESSON_SLOT_COUNT; slotIdx++) {
+ for (const slotIdx of visibleSlotIndices) {
   const row: CellPlan[] = []
   for (const col of columns) {
    const key = roomColumnKey(col)
@@ -68,20 +89,72 @@ function buildStandardGridPlan(
     continue
    }
 
-   const cellSchedules = schedulesForRoomColumn(
-    standardSchedules,
-    col,
-    activeRoomIds,
-    (s) => standardSlotIndexForSchedule(s) === slotIdx
-   )
-   const rowSpan =
-    cellSchedules.length === 1 ? slotSpanForStandardSchedule(cellSchedules[0]!) : 1
+   const cellSchedules = schedulesForRoomColumn(standardSchedules, col, activeRoomIds, (s) => {
+    const start = standardSlotIndexForSchedule(s)
+    if (start == null) return false
+    if (start === slotIdx) return true
+    // 連堂起點在收合區：於可見首格顯示剩餘佔用
+    return slotIdx === firstVisible && start < firstVisible && scheduleOccupiesSlot(s, slotIdx)
+   })
+   let rowSpan = 1
+   if (cellSchedules.length === 1) {
+    const only = cellSchedules[0]!
+    const start = standardSlotIndexForSchedule(only) ?? slotIdx
+    const fullSpan = slotSpanForStandardSchedule(only)
+    const remain = start + fullSpan - slotIdx
+    const maxRemain = visibleSlotIndices.length - visibleSlotIndices.indexOf(slotIdx)
+    rowSpan = Math.min(Math.max(1, remain), maxRemain)
+   }
    if (rowSpan > 1) rowspanRemain[key] = rowSpan - 1
    row.push({ kind: "render", schedules: cellSchedules, rowSpan })
   }
   plans.push(row)
  }
  return plans
+}
+
+const EARLIER_RANGE_LABEL = `${formatMin(lessonSlotStartMinute(0))}–${formatMin(
+ lessonSlotStartMinute(WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX)
+)}`
+
+function EarlierSlotsToggleRow({
+ expanded,
+ hiddenCount,
+ colSpan,
+ onToggle,
+}: {
+ expanded: boolean
+ hiddenCount: number
+ colSpan: number
+ onToggle: () => void
+}) {
+ return (
+  <tr>
+   <td colSpan={colSpan} className="border border-border p-0">
+    <button
+     type="button"
+     aria-expanded={expanded}
+     onClick={onToggle}
+     className={cn(
+      "group flex w-full items-center justify-center gap-1.5 py-1.5 text-xs transition-colors",
+      "bg-muted/25 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+      "border-y border-dashed border-border"
+     )}
+    >
+     {expanded ? (
+      <ChevronUp className="h-3.5 w-3.5 shrink-0" aria-hidden />
+     ) : (
+      <ChevronDown className="h-3.5 w-3.5 shrink-0" aria-hidden />
+     )}
+     <span>{expanded ? "收合較早時段" : "展開較早時段"}</span>
+     <span className="tabular-nums opacity-80">（{EARLIER_RANGE_LABEL}）</span>
+     {!expanded && hiddenCount > 0 ? (
+      <span className="tabular-nums text-warning">· 已隱藏 {hiddenCount} 堂</span>
+     ) : null}
+    </button>
+   </td>
+  </tr>
+ )
 }
 
 export function DayViewScheduleCard({
@@ -248,6 +321,13 @@ export function DayViewGrid({
  onOpenDetail,
  onMoveRequest,
 }: Props) {
+ const weekday = isWeekdayYmd(dayViewDate)
+ const [showEarlierSlots, setShowEarlierSlots] = useState(false)
+
+ useEffect(() => {
+  setShowEarlierSlots(false)
+ }, [dayViewDate])
+
  const columns: RoomColumn[] = useMemo(
   () => [
    ...roomColumns.map((r) => ({ id: r.id, label: r.name, isUnassigned: false })),
@@ -265,10 +345,32 @@ export function DayViewGrid({
   [schedules]
  )
 
- const gridPlan = useMemo(
-  () => buildStandardGridPlan(standardSchedules, columns, activeRoomIdSet),
-  [standardSchedules, columns, activeRoomIdSet]
+ const collapseEarlier = weekday && !showEarlierSlots
+ const visibleSlotIndices = useMemo(
+  () => (collapseEarlier ? FROM_AFTERNOON_SLOT_INDICES : LESSON_SLOT_INDICES),
+  [collapseEarlier]
  )
+
+ const hiddenMorningCount = useMemo(() => {
+  if (!weekday) return 0
+  return standardSchedules.filter((s) => {
+   const start = standardSlotIndexForSchedule(s)
+   return start != null && start < WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX
+  }).length
+ }, [weekday, standardSchedules])
+
+ const gridPlan = useMemo(
+  () => buildStandardGridPlan(standardSchedules, columns, activeRoomIdSet, visibleSlotIndices),
+  [standardSchedules, columns, activeRoomIdSet, visibleSlotIndices]
+ )
+
+ const planBySlot = useMemo(() => {
+  const map = new Map<number, CellPlan[]>()
+  visibleSlotIndices.forEach((slotIdx, i) => {
+   map.set(slotIdx, gridPlan[i]!)
+  })
+  return map
+ }, [visibleSlotIndices, gridPlan])
 
  const renderCard = (s: ScheduleManageRow, variant: "assigned" | "unassigned") => (
   <DayViewScheduleCard
@@ -294,10 +396,57 @@ export function DayViewGrid({
   />
  )
 
+ const renderSlotRow = (slotIdx: number) => {
+  const rowPlan = planBySlot.get(slotIdx)
+  if (!rowPlan) return null
+  return (
+   <tr key={slotIdx}>
+    <td className="sticky left-0 z-[1] border border-border bg-card px-3 py-3 text-sm tabular-nums text-muted-foreground">
+     {lessonSlotLabel(slotIdx)}
+    </td>
+    {rowPlan.map((plan, colIdx) => {
+     if (plan.kind === "skip") return null
+     const col = columns[colIdx]!
+     return (
+      <td
+       key={roomColumnKey(col)}
+       rowSpan={plan.rowSpan > 1 ? plan.rowSpan : undefined}
+       className={cn(
+        "align-top border border-border p-2 transition-colors",
+        col.isUnassigned ? "hover:bg-warning/10" : "hover:bg-info/5",
+        roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
+       )}
+       data-room-id={col.isUnassigned ? "__none__" : col.id}
+       onDragOver={(e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "move"
+       }}
+       onDrop={(e) => onDropOnCell(e, col.isUnassigned ? null : col.id, slotIdx)}
+      >
+       <div
+        className={cn(
+         "flex flex-col gap-2",
+         plan.rowSpan > 1 ? "min-h-full" : "min-h-[9rem]"
+        )}
+       >
+        {plan.schedules.map((s) =>
+         renderCard(s, col.isUnassigned ? "unassigned" : "assigned")
+        )}
+       </div>
+      </td>
+     )
+    })}
+   </tr>
+  )
+ }
+
+ const colSpan = columns.length + 1
+
  return (
   <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
    <p className="border-b border-border bg-muted/30 px-4 py-3 text-base font-medium">
     {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘 · 拖曳或「移動到…」可調整課室與時段
+    {weekday ? " · 平日預設顯示 14:00 起" : null}
    </p>
    <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
     <colgroup>
@@ -325,45 +474,15 @@ export function DayViewGrid({
      </tr>
     </thead>
     <tbody>
-     {LESSON_SLOT_INDICES.map((slotIdx) => (
-      <tr key={slotIdx}>
-       <td className="sticky left-0 z-[1] border border-border bg-card px-3 py-3 text-sm tabular-nums text-muted-foreground">
-        {lessonSlotLabel(slotIdx)}
-       </td>
-       {gridPlan[slotIdx]!.map((plan, colIdx) => {
-        if (plan.kind === "skip") return null
-        const col = columns[colIdx]!
-        return (
-         <td
-          key={roomColumnKey(col)}
-          rowSpan={plan.rowSpan > 1 ? plan.rowSpan : undefined}
-          className={cn(
-           "align-top border border-border p-2 transition-colors",
-           col.isUnassigned ? "hover:bg-warning/10" : "hover:bg-info/5",
-           roomColumnBgClass(col.isUnassigned ? UNASSIGNED_ROOM_LABEL : col.label)
-          )}
-          data-room-id={col.isUnassigned ? "__none__" : col.id}
-          onDragOver={(e) => {
-           e.preventDefault()
-           e.dataTransfer.dropEffect = "move"
-          }}
-          onDrop={(e) => onDropOnCell(e, col.isUnassigned ? null : col.id, slotIdx)}
-         >
-          <div
-           className={cn(
-            "flex flex-col gap-2",
-            plan.rowSpan > 1 ? "min-h-full" : "min-h-[9rem]"
-           )}
-          >
-           {plan.schedules.map((s) =>
-            renderCard(s, col.isUnassigned ? "unassigned" : "assigned")
-           )}
-          </div>
-         </td>
-        )
-       })}
-      </tr>
-     ))}
+     {weekday ? (
+      <EarlierSlotsToggleRow
+       expanded={showEarlierSlots}
+       hiddenCount={hiddenMorningCount}
+       colSpan={colSpan}
+       onToggle={() => setShowEarlierSlots((v) => !v)}
+      />
+     ) : null}
+     {visibleSlotIndices.map((slotIdx) => renderSlotRow(slotIdx))}
      {nonStandardSchedules.length > 0 ? (
       <tr className="bg-warning/5">
        <td className="sticky left-0 z-[1] border border-border bg-warning/10 px-3 py-3 text-sm font-medium text-warning">

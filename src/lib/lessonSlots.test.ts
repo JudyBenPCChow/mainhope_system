@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  EARLIER_SLOT_INDICES,
+  FROM_AFTERNOON_SLOT_INDICES,
+  WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX,
+  formatMin,
+  lessonSlotStartMinute,
   parseHm,
   standardSlotIndexForStartTime,
 } from "@/lib/lessonSlots"
@@ -47,5 +52,14 @@ describe("isStandardSchedulePlacement", () => {
     expect(isStandardSchedulePlacement({ start_time: "09:00:00" })).toBe(true)
     expect(isStandardSchedulePlacement({ start_time: "14:00:00" })).toBe(true)
     expect(isStandardSchedulePlacement({ start_time: "09:00" })).toBe(true)
+  })
+})
+
+describe("weekday day-view earlier slots", () => {
+  it("defaults visible range from 14:00 (slot index 4)", () => {
+    expect(WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX).toBe(4)
+    expect(formatMin(lessonSlotStartMinute(WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX))).toBe("14:00")
+    expect(EARLIER_SLOT_INDICES).toEqual([0, 1, 2, 3])
+    expect(FROM_AFTERNOON_SLOT_INDICES[0]).toBe(4)
   })
 })

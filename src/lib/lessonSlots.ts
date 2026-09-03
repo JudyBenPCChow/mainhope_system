@@ -80,3 +80,15 @@ export const LESSON_SLOT_INDICES = Array.from({ length: LESSON_SLOT_COUNT }, (_,
 export const DAYTIME_LAST_SLOT_INDEX = 6
 export const DAYTIME_SLOT_INDICES = LESSON_SLOT_INDICES.filter((i) => i <= DAYTIME_LAST_SLOT_INDEX)
 export const EVENING_SLOT_INDICES = LESSON_SLOT_INDICES.filter((i) => i > DAYTIME_LAST_SLOT_INDEX)
+
+/**
+ * 平日（一至五）日視圖預設只顯示 14:00 起（第 5 格，index 4）。
+ * 較早時段可在框線展開鈕展開；週末全日顯示。
+ */
+export const WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX = 4
+export const EARLIER_SLOT_INDICES = LESSON_SLOT_INDICES.filter(
+ (i) => i < WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX
+)
+export const FROM_AFTERNOON_SLOT_INDICES = LESSON_SLOT_INDICES.filter(
+ (i) => i >= WEEKDAY_DEFAULT_FIRST_VISIBLE_SLOT_INDEX
+)
