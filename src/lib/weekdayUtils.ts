@@ -139,6 +139,14 @@ export function weekdayLabelFromYmd(ymd: string): (typeof KANBAN_DAY_COLUMNS)[nu
  return JS_DOW_TO_LABEL[dt.getDay()] ?? null
 }
 
+/** 星期一至五（本機日曆） */
+export function isWeekdayYmd(ymd: string): boolean {
+ const [y, m, d] = ymd.split("-").map(Number)
+ if (!y || !m || !d) return false
+ const dow = new Date(y, m - 1, d).getDay()
+ return dow >= 1 && dow <= 5
+}
+
 /** 列舉 fromYmd..toYmd 內符合 weekday 標籤的所有日期 */
 export function enumerateDatesForWeekday(
  fromYmd: string,
