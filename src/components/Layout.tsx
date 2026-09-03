@@ -21,11 +21,6 @@ import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
-import {
- ADMIN_MAIN_NAV,
- adminNavEntryIsActive,
- adminNavPathIsActive,
-} from "@/lib/adminNavigation"
 import { useAuth } from "@/lib/authBootstrap"
 import { AppBannerViewport } from "@/lib/appBanner"
 import { clearAuthState } from "@/lib/authSession"
@@ -34,15 +29,17 @@ import { usePasswordChangeNudgeBanner } from "@/lib/usePasswordChangeNudgeBanner
 import {
  NAV_STRUCTURE,
  filterFooterNavLeaves,
- filterMainNavEntries,
  filterNavForRole,
  flattenNav,
  isHomeworkTutorOnlyAllowedPath,
- keepHomeworkTutorOnlyNav,
  pathIsActive,
- stripHomeworkTutoringNav,
 } from "@/lib/navStructure"
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import {
+ resolveRoleMainNav,
+ roleNavEntryIsActive,
+ roleNavPathIsActive,
+} from "@/lib/roleMainNav"
 import {
  navCollapsedIconClass,
  navFooterIconClass,
@@ -69,8 +66,11 @@ export function Layout() {
  usePasswordChangeNudgeBanner()
  const role = authRole
  const useShell = usesSharedAppShell(role)
- const isAdminNav = role === "admin"
  const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
+ const teacherNavFlags = useMemo(
+  () => ({ homeworkTutoringNavVisible, homeworkTutorOnly }),
+  [homeworkTutoringNavVisible, homeworkTutorOnly]
+ )
  const userDisplayName =
   profile?.displayName?.trim() ||
   profile?.email ||
@@ -80,12 +80,8 @@ export function Layout() {
 
  const navEntries = useMemo(() => {
   if (!role) return []
-  if (isAdminNav) return ADMIN_MAIN_NAV
-  const byRole = filterMainNavEntries(filterNavForRole(role, NAV_STRUCTURE))
-  if (role === "teacher" && homeworkTutorOnly) return keepHomeworkTutorOnlyNav(byRole)
-  if (role === "teacher" && !homeworkTutoringNavVisible) return stripHomeworkTutoringNav(byRole)
-  return byRole
- }, [role, isAdminNav, homeworkTutoringNavVisible, homeworkTutorOnly])
+  return resolveRoleMainNav(role, teacherNavFlags)
+ }, [role, teacherNavFlags])
  const footerNavLeaves = useMemo(() => {
   if (!role) return []
   const byRole = filterFooterNavLeaves(filterNavForRole(role, NAV_STRUCTURE))
@@ -101,15 +97,11 @@ export function Layout() {
 
  useEffect(() => {
   const pathname = location.pathname
-  if (useShell) {
+  if (useShell && role) {
    const activeGroup = navEntries.find(
     (entry) =>
      entry.kind === "group" &&
-     entry.children.some((child) =>
-      isAdminNav
-       ? adminNavPathIsActive(pathname, child.path)
-       : pathIsActive(pathname, child.path)
-     )
+     entry.children.some((child) => roleNavPathIsActive(role, pathname, child.path))
    )
    if (activeGroup?.kind === "group") setShellOpenGroup(activeGroup.id)
    return
@@ -123,7 +115,7 @@ export function Layout() {
    }
    return next
   })
- }, [location.pathname, navEntries, role, useShell, isAdminNav])
+ }, [location.pathname, navEntries, role, useShell])
 
  const logout = () => {
   void (async () => {
@@ -156,10 +148,10 @@ export function Layout() {
 
  const collapsedLinks = useShell ? [] : flattenNav(navEntries)
  const leafActive = (itemPath: string) =>
-  isAdminNav ? adminNavPathIsActive(location.pathname, itemPath) : pathIsActive(location.pathname, itemPath)
+  role ? roleNavPathIsActive(role, location.pathname, itemPath) : pathIsActive(location.pathname, itemPath)
  const entryActive = (entry: (typeof navEntries)[number]) =>
-  isAdminNav
-   ? adminNavEntryIsActive(location.pathname, entry)
+  role
+   ? roleNavEntryIsActive(role, location.pathname, entry)
    : entry.kind === "leaf"
      ? pathIsActive(location.pathname, entry.path)
      : entry.children.some((c) => pathIsActive(location.pathname, c.path))

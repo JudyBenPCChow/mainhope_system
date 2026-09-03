@@ -7,12 +7,17 @@ import {
  ADMIN_ALL_FEATURES_NAV,
  filterAdminFeatureSections,
 } from "@/lib/adminNavigation"
+import { FINANCE_ALL_FEATURES_NAV } from "@/lib/financeNavigation"
 import {
  NAV_STRUCTURE,
  buildFeatureSections,
- keepHomeworkTutorOnlyNav,
- stripHomeworkTutoringNav,
+ type NavEntryDef,
+ type Role,
 } from "@/lib/navStructure"
+import {
+ resolveTeacherAllFeaturesNav,
+ type TeacherNavFlags,
+} from "@/lib/teacherNavigation"
 import { useAuth } from "@/lib/authBootstrap"
 import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
 import { cn } from "@/lib/utils"
@@ -20,24 +25,37 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
 
+function allFeaturesNavSource(role: Role, flags: TeacherNavFlags): NavEntryDef[] {
+ if (role === "admin") return ADMIN_ALL_FEATURES_NAV
+ if (role === "teacher") return resolveTeacherAllFeaturesNav(flags)
+ if (role === "finance") return FINANCE_ALL_FEATURES_NAV
+ return NAV_STRUCTURE
+}
+
+function allFeaturesDescription(role: Role, shownCount: number, totalCount: number): string {
+ if (role === "admin") {
+  return `完整列出行政可使用的功能；目前顯示 ${shownCount} / ${totalCount} 項。`
+ }
+ if (role === "teacher") {
+  return `完整列出老師可使用的功能；目前顯示 ${shownCount} / ${totalCount} 項。`
+ }
+ if (role === "finance") {
+  return `完整列出財務可使用的功能；目前顯示 ${shownCount} / ${totalCount} 項。`
+ }
+ return `依系統層面分類，共 ${totalCount} 項你可使用的功能。`
+}
+
 export function AllFeaturesView() {
  const { ready, role } = useAuth()
  const { homeworkTutoringNavVisible, homeworkTutorOnly } = useTeacherHomeworkNavFlags()
  const [query, setQuery] = useState("")
  if (!ready || !role) return null
 
- let navSource = NAV_STRUCTURE
- if (role === "teacher" && homeworkTutorOnly) {
-  navSource = keepHomeworkTutorOnlyNav(NAV_STRUCTURE)
- } else if (role === "teacher" && !homeworkTutoringNavVisible) {
-  navSource = stripHomeworkTutoringNav(NAV_STRUCTURE)
- }
- const allSections = buildFeatureSections(
-  role,
-  role === "admin" ? ADMIN_ALL_FEATURES_NAV : navSource
- )
- const sections =
-  role === "admin" ? filterAdminFeatureSections(allSections, query) : allSections
+ const flags: TeacherNavFlags = { homeworkTutoringNavVisible, homeworkTutorOnly }
+ const navSource = allFeaturesNavSource(role, flags)
+ const allSections = buildFeatureSections(role, navSource)
+ const supportsSearch = role === "admin" || role === "teacher" || role === "finance"
+ const sections = supportsSearch ? filterAdminFeatureSections(allSections, query) : allSections
  const totalCount = allSections.reduce((n, s) => n + s.items.length, 0)
  const shownCount = sections.reduce((n, s) => n + s.items.length, 0)
 
@@ -47,7 +65,7 @@ export function AllFeaturesView() {
     <AdminPageHeader
      eyebrow="網站地圖"
      title="所有功能"
-     description={`完整列出行政可使用的功能；目前顯示 ${shownCount} / ${totalCount} 項。`}
+     description={allFeaturesDescription(role, shownCount, totalCount)}
     />
    ) : (
     <header>
@@ -61,7 +79,7 @@ export function AllFeaturesView() {
     </header>
    )}
 
-   {role === "admin" ? (
+   {supportsSearch ? (
     <div className="relative max-w-md">
      <Search
       className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
