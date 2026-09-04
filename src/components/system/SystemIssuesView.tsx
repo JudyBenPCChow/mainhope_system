@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import { AlertTriangle, ChevronLeft, RefreshCw, SlidersHorizontal } from "lucide-react"
+import { RefreshCw, SlidersHorizontal } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
@@ -275,41 +275,30 @@ export function SystemIssuesView() {
 
  return (
   <div className="space-y-6">
-   <header className="flex flex-wrap items-start justify-between gap-4">
-    <div>
-     <Button variant="ghost" size="sm" className="-ml-2 mb-1 gap-1 text-muted-foreground" asChild>
-      <Link to="/Home">
-       <ChevronLeft className="h-4 w-4" aria-hidden />
-       返回首頁
-      </Link>
-     </Button>
-     <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-      <AlertTriangle className="h-8 w-8 text-warning" aria-hidden />
-      報錯與問題
-     </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block md:text-base">
-      操作失敗、例外與系統問題紀錄。實際寫入需於程式中呼叫{" "}
-      <code className="rounded bg-muted px-1">appendMgmtSystemError</code>；種子含演示列。
-     </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-     {isMobile ? (
-      <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
-       <SlidersHorizontal className="h-4 w-4" aria-hidden />
-       篩選
-       {activeFilterCount > 0 ? (
-        <Tag tone="info" size="sm">
-         {activeFilterCount}
-        </Tag>
-       ) : null}
+   <AdminPageHeader
+    eyebrow="行政工作"
+    title="報錯與問題"
+    description="操作失敗、例外與系統問題紀錄。"
+    actions={
+     <>
+      {isMobile ? (
+       <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+        <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        篩選
+        {activeFilterCount > 0 ? (
+         <Tag tone="info" size="sm">
+          {activeFilterCount}
+         </Tag>
+        ) : null}
+       </Button>
+      ) : null}
+      <Button type="button" variant="outline" className="gap-2" onClick={() => void onSearch()} disabled={loading}>
+       <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+       重新整理
       </Button>
-     ) : null}
-     <Button type="button" variant="outline" className="gap-2" onClick={() => void onSearch()} disabled={loading}>
-      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
-      重新整理
-     </Button>
-    </div>
-   </header>
+     </>
+    }
+   />
 
    {!isSupabaseConfigured ? (
     <div role="alert" className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-warning">尚未設定 Supabase。</div>
