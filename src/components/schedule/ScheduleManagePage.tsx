@@ -74,9 +74,11 @@ import {
 } from "@/lib/lessonSlots"
 import {
  durationMinForSchedule,
+ effectiveClassroomIdForDate,
  findScheduleRoomConflicts,
  isDateInInclusiveRange,
  isStandardSchedulePlacement,
+ planOneClickRoomAssign,
  scheduleIntervalMinutes,
  snapTimesToStandardSlot,
  standardSlotIndexForSchedule,
@@ -191,9 +193,7 @@ const EMPTY_LEAVE_SNAPSHOT: ScheduleLeaveSnapshot = {
 
 /** 課室僅在該日開放時才算已編排 */
 function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string>): string | null {
- const rid = s.classroom_id
- if (!rid || !activeRoomIds.has(rid)) return null
- return rid
+ return effectiveClassroomIdForDate(s.classroom_id, activeRoomIds)
 }
 
 export function ScheduleManagePage() {
@@ -1448,6 +1448,14 @@ useEffect(() => {
 
  const oneClickAssign = async () => {
   if (scheduleMgmtLocked || assigning || loading) return
+  if (dayViewRosterLoading) {
+   pushBanner({
+    tone: "info",
+    title: "學生名單載入中",
+    message: "請待點名冊更新完成後再一鍵分配，以免誤判空班。",
+   })
+   return
+  }
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
     dateYmd: dayViewDate,
@@ -1458,37 +1466,65 @@ useEffect(() => {
   }
 
   const dayRows = rows.filter((s) => s.scheduled_date === dayViewDate)
-  const unassigned = dayRows
-   .filter((s) => !s.status.includes("取消"))
-   .filter((s) => !isHomeworkOccupancySchedule(s))
-   .filter((s) => effectiveRoomId(s, activeRoomIdSet) === null)
-   .filter((s) => scheduleIntervalMinutes(s) !== null)
-   .filter((s) => !scheduleRowLocked(s))
-   .slice()
-   .sort((a, b) => (parseHm(a.start_time) ?? 0) - (parseHm(b.start_time) ?? 0))
+  const plan = planOneClickRoomAssign({
+   dayRows,
+   activeRoomIds: activeRoomIdSet,
+   idleScheduleIds: emptyScheduleIds,
+   isLocked: () => scheduleMgmtLocked,
+   isOccupancy: (s) => {
+    const full = dayRows.find((r) => r.id === s.id)
+    return full ? isHomeworkOccupancySchedule(full) : false
+   },
+  })
+  const assignCandidates = plan.assignCandidateIds
+   .map((id) => dayRows.find((s) => s.id === id))
+   .filter((s): s is ScheduleManageRow => s != null)
 
-  if (roomColumns.length === 0) {
-   pushBanner({ tone: "warning", title: "本日沒有可分配的課室", message: "此日期沒有開放的實體課室。" })
+  if (plan.clearClassroomIds.length === 0 && assignCandidates.length === 0) {
+   pushBanner({
+    tone: "info",
+    title: "本日無需一鍵分配",
+    message: "沒有可騰出的空班課室，也沒有待分配的有學生排程。",
+   })
    return
   }
-  if (unassigned.length === 0) {
-   pushBanner({ tone: "info", title: "本日沒有未編課室的排程" })
-   return
+  if (assignCandidates.length > 0 && roomColumns.length === 0) {
+   if (plan.clearClassroomIds.length === 0) {
+    pushBanner({ tone: "warning", title: "本日沒有可分配的課室", message: "此日期沒有開放的實體課室。" })
+    return
+   }
   }
 
+  const descParts: string[] = []
+  if (plan.clearClassroomIds.length > 0) {
+   descParts.push(`將 ${plan.clearClassroomIds.length} 堂無學生（或全員請假）的排程移至未編課室`)
+  }
+  if (assignCandidates.length > 0) {
+   descParts.push(
+    roomColumns.length === 0
+     ? `${assignCandidates.length} 堂有學生的未編排程因本日無開放課室而暫不分配`
+     : `將 ${assignCandidates.length} 堂有學生的未編排程填入同時段空置課室`
+   )
+  }
   const ok = await confirmDialog({
    title: "一鍵分配課室",
-   description: `本日有 ${unassigned.length} 堂未編課室的排程，將自動填入同時段的空置課室。`,
+   description: `${descParts.join("；")}。`,
    confirmText: "開始分配",
   })
   if (ok !== true) return
 
   setAssigning(true)
   try {
+   const clearingIds = new Set(plan.clearClassroomIds)
+   for (const id of plan.clearClassroomIds) {
+    await updateSchedule(id, { classroom_id: null })
+   }
+
    const occupancy = new Map<string, { start: number; end: number }[]>()
    for (const r of roomColumns) occupancy.set(r.id, [])
    for (const s of dayRows) {
     if (s.status.includes("取消")) continue
+    if (clearingIds.has(s.id)) continue
     const rid = effectiveRoomId(s, activeRoomIdSet)
     if (!rid) continue
     const iv = scheduleIntervalMinutes(s)
@@ -1496,7 +1532,7 @@ useEffect(() => {
    }
 
    const assignments: { id: string; roomId: string }[] = []
-   for (const s of unassigned) {
+   for (const s of assignCandidates) {
     const iv = scheduleIntervalMinutes(s)
     if (!iv) continue
     const startStr = formatMin(iv.start)
@@ -1524,19 +1560,35 @@ useEffect(() => {
    }
    await reload()
 
+   const clearedCount = plan.clearClassroomIds.length
    const assignedCount = assignments.length
-   const remaining = unassigned.length - assignedCount
-   if (assignedCount === 0) {
+   const remaining = assignCandidates.length - assignedCount
+
+   if (assignedCount === 0 && clearedCount === 0) {
     pushBanner({
      tone: "warning",
      title: "一鍵分配未能分配任何排程",
      message: "同時段的課室皆已被佔用。",
     })
+   } else if (assignedCount === 0 && assignCandidates.length > 0) {
+    pushBanner({
+     tone: "warning",
+     title: clearedCount > 0 ? `已騰出 ${clearedCount} 堂課室，但未能分配` : "一鍵分配未能分配任何排程",
+     message: "同時段的課室皆已被佔用。",
+    })
    } else {
+    const messageParts: string[] = []
+    if (assignedCount > 0 && clearedCount > 0) {
+     messageParts.push(`已將 ${clearedCount} 堂空班移至未編課室`)
+    }
+    if (remaining > 0) messageParts.push(`尚有 ${remaining} 堂因同時段無空置課室而未分配`)
     pushBanner({
      tone: "success",
-     title: `已分配 ${assignedCount} 堂課室`,
-     message: remaining > 0 ? `尚有 ${remaining} 堂因同時段無空置課室而未分配。` : undefined,
+     title:
+      assignedCount > 0
+       ? `已分配 ${assignedCount} 堂課室`
+       : `已將 ${clearedCount} 堂空班移至未編課室`,
+     message: messageParts.length > 0 ? `${messageParts.join("；")}。` : undefined,
     })
    }
   } catch (e) {

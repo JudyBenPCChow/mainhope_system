@@ -105,3 +105,70 @@ export function snapTimesToStandardSlot(
  const endMin = startMin + durationMinutes
  return { start: formatMin(startMin), end: formatMin(endMin) }
 }
+
+/** 一鍵分配規劃用的最小排程欄位 */
+export type OneClickAssignRow = {
+ id: string
+ classroom_id: string | null
+ start_time: string | null
+ end_time: string | null
+ status: string
+}
+
+/** 課室僅在該日開放時才算已編排 */
+export function effectiveClassroomIdForDate(
+ classroomId: string | null | undefined,
+ activeRoomIds: ReadonlySet<string>
+): string | null {
+ if (!classroomId || !activeRoomIds.has(classroomId)) return null
+ return classroomId
+}
+
+export type OneClickRoomAssignPlan = {
+ /** 無學生（或全員請假）且目前佔用課室：清至未編課室 */
+ clearClassroomIds: string[]
+ /** 有學生且未編課室：按開始時間排序，優先填入空置課室 */
+ assignCandidateIds: string[]
+}
+
+/**
+ * 日視圖一鍵分配規劃：先騰出無學生班別佔用的課室，再只把有學生的未編班別列入分配。
+ * 取消堂、功輔佔室、鎖定列不處理。
+ */
+export function planOneClickRoomAssign(params: {
+ dayRows: readonly OneClickAssignRow[]
+ activeRoomIds: ReadonlySet<string>
+ idleScheduleIds: ReadonlySet<string>
+ isLocked: (row: OneClickAssignRow) => boolean
+ /** 功輔佔室等；傳入列可能含 class_kind／remarks */
+ isOccupancy: (row: OneClickAssignRow) => boolean
+}): OneClickRoomAssignPlan {
+ const actionable = params.dayRows.filter(
+  (s) =>
+   !s.status.includes("取消") && !params.isOccupancy(s) && !params.isLocked(s)
+ )
+
+ const clearClassroomIds: string[] = []
+ const assignCandidates: OneClickAssignRow[] = []
+
+ for (const s of actionable) {
+  const roomId = effectiveClassroomIdForDate(s.classroom_id, params.activeRoomIds)
+  const idle = params.idleScheduleIds.has(s.id)
+  if (idle) {
+   if (roomId) clearClassroomIds.push(s.id)
+   continue
+  }
+  if (roomId == null && scheduleIntervalMinutes(s) != null) {
+   assignCandidates.push(s)
+  }
+ }
+
+ assignCandidates.sort(
+  (a, b) => (parseHm(a.start_time) ?? 0) - (parseHm(b.start_time) ?? 0)
+ )
+
+ return {
+  clearClassroomIds,
+  assignCandidateIds: assignCandidates.map((s) => s.id),
+ }
+}

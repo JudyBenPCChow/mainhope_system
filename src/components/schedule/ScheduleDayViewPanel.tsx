@@ -136,11 +136,11 @@ export function ScheduleDayViewPanel({
      type="button"
      size="default"
      className="gap-1.5 bg-info text-sm text-white shadow-sm hover:bg-info"
-     disabled={scheduleMgmtLocked || assigning || loading}
+     disabled={scheduleMgmtLocked || assigning || loading || dayViewRosterLoading}
      onClick={onOneClickAssign}
     >
      <Wand2 className="h-4 w-4" aria-hidden />
-     {assigning ? "分配中…" : "一鍵分配"}
+     {assigning ? "分配中…" : dayViewRosterLoading ? "名單載入中…" : "一鍵分配"}
     </Button>
    </div>
    <div className={cn("text-right", isMobile && "w-full text-left sm:w-auto sm:text-right")}>
