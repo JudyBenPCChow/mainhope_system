@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import { X } from "lucide-react"
 
 import { ClassPreviewPanel } from "@/components/recordPreview/ClassPreviewPanel"
@@ -7,12 +8,18 @@ import { TeacherPreviewPanel } from "@/components/recordPreview/TeacherPreviewPa
 import { useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import { cn } from "@/lib/utils"
 
-export function RecordPreviewRail() {
- const { preview, closePreview, enabled } = useRecordPreview()
+type Props = {
+ /** 無選定紀錄時顯示（例如行政首頁常用工作）。 */
+ empty?: ReactNode
+}
+
+export function RecordPreviewRail({ empty }: Props) {
+ const { preview, closePreview, enabled, emptyOpen, setEmptyOpen } = useRecordPreview()
 
  if (!enabled) return null
 
- const open = Boolean(preview)
+ const showEmpty = Boolean(empty) && emptyOpen && !preview
+ const open = Boolean(preview) || showEmpty
 
  return (
   <aside
@@ -23,7 +30,7 @@ export function RecordPreviewRail() {
      : "w-0"
    )}
    aria-hidden={!open}
-   aria-label={open ? "紀錄預覽" : undefined}
+   aria-label={preview ? "紀錄預覽" : showEmpty ? "常用工作" : undefined}
   >
    {preview ? (
     <>
@@ -48,6 +55,18 @@ export function RecordPreviewRail() {
        </div>
       )}
      </div>
+    </>
+   ) : showEmpty ? (
+    <>
+     <button
+      type="button"
+      className="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-card/80 text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-muted"
+      onClick={() => setEmptyOpen(false)}
+      aria-label="摺疊常用工作"
+     >
+      <X className="h-5 w-5" aria-hidden />
+     </button>
+     <div className="relative min-h-0 flex-1 overflow-y-auto">{empty}</div>
     </>
    ) : null}
   </aside>

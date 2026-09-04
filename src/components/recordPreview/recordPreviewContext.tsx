@@ -15,6 +15,8 @@ type RecordPreviewContextValue = {
  preview: RecordPreviewTarget | null
  openPreview: (target: RecordPreviewTarget) => void
  closePreview: () => void
+ emptyOpen: boolean
+ setEmptyOpen: (open: boolean) => void
 }
 
 const RecordPreviewContext = createContext<RecordPreviewContextValue | null>(null)
@@ -22,6 +24,7 @@ const RecordPreviewContext = createContext<RecordPreviewContextValue | null>(nul
 export function RecordPreviewProvider({ children }: { children: React.ReactNode }) {
  const location = useLocation()
  const [preview, setPreview] = useState<RecordPreviewTarget | null>(null)
+ const [emptyOpen, setEmptyOpen] = useState(() => location.pathname === "/Home")
 
  const closePreview = useCallback(() => setPreview(null), [])
 
@@ -33,6 +36,7 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
 
  useEffect(() => {
   setPreview(null)
+  setEmptyOpen(location.pathname === "/Home")
  }, [location.pathname])
 
  useEffect(() => {
@@ -45,8 +49,8 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
  }, [preview])
 
  const value = useMemo(
-  () => ({ preview, openPreview, closePreview }),
-  [preview, openPreview, closePreview]
+  () => ({ preview, openPreview, closePreview, emptyOpen, setEmptyOpen }),
+  [preview, openPreview, closePreview, emptyOpen]
  )
 
  return <RecordPreviewContext.Provider value={value}>{children}</RecordPreviewContext.Provider>
@@ -63,6 +67,8 @@ export function useRecordPreview() {
    preview: null as RecordPreviewTarget | null,
    openPreview: (_target: RecordPreviewTarget) => {},
    closePreview: () => {},
+   emptyOpen: false,
+   setEmptyOpen: (_open: boolean) => {},
    enabled: false,
   }
  }

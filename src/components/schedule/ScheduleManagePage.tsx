@@ -89,7 +89,7 @@ import {
  buildDayViewExtraTags,
  isDayViewIdleCard,
 } from "@/lib/scheduleDayViewTags"
-import { addDaysYmd, isYmd } from "@/lib/weekdayUtils"
+import { isYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
@@ -1071,13 +1071,6 @@ useEffect(() => {
    }
   },
   [displayStart, rangeEnd]
- )
-
- const shiftDayViewDate = useCallback(
-  (delta: number) => {
-   handleDayViewDateChange(addDaysYmd(dayViewDate, delta))
-  },
-  [dayViewDate, handleDayViewDateChange]
  )
 
  const proposeScheduleMove = useCallback(
@@ -2301,7 +2294,6 @@ useEffect(() => {
      allowMobileDayView={allowMobileDayView}
      dayViewDate={dayViewDate}
      onDayViewDateChange={handleDayViewDateChange}
-     onShiftDate={shiftDayViewDate}
      onJumpToday={jumpToday}
      loading={loading}
      dayViewDateLoaded={dayViewDateLoaded}

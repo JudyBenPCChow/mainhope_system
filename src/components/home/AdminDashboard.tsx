@@ -3,23 +3,13 @@ import { Link } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
-import { AdminHomeStudentsTrialsPanel } from "@/components/home/AdminHomeStudentsTrialsPanel"
-import { AdminQuickActions } from "@/components/home/AdminQuickActions"
+import { AdminHomeMobileActions } from "@/components/home/AdminHomeActionRail"
 import { DashboardBoard } from "@/components/home/DashboardBoard"
-import { DashboardTopMetrics } from "@/components/home/DashboardTopMetrics"
-import { RecentPaymentsCard } from "@/components/home/RecentPaymentsCard"
-import { RevenueChart } from "@/components/home/RevenueChart"
-import { UnpaidAlert } from "@/components/home/UnpaidAlert"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
-import { Button } from "@/components/ui/button"
 import { Tag } from "@/components/ui/tag"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useIsMobile } from "@/hooks/use-mobile"
 import { DEMO_ADMIN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
-import { clearAuthState } from "@/lib/authSession"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { signOutAuth } from "@/lib/supabaseAuth"
 import {
  fetchAdminDashboard,
  fetchScheduleBoardForDate,
@@ -34,24 +24,11 @@ import {
 const empty: AdminDashboardPayload = {
  todayClassCount: 0,
  pendingPaymentCount: 0,
- monthRevenue: 0,
- unpaid: [],
- unpaidTotal: 0,
- todaySchedules: [],
- recentPayments: [],
- revenueBars: [],
- studentStatusSlices: [],
  todayClassCards: [],
- roomVacancy: [],
  todayLeaves: [],
 }
 
-const HOME_TAB_SCHEDULE = "schedule"
-const HOME_TAB_STUDENTS = "students-trials"
-const HOME_TAB_PAYMENTS = "payments"
-
 export function AdminDashboard() {
- const isMobile = useIsMobile()
  const greetingName =
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
   DEMO_ADMIN_GREETING_NAME
@@ -114,28 +91,11 @@ export function AdminDashboard() {
  }, [scheduleViewYmd])
 
  return (
-  <div className="space-y-4 md:space-y-6 lg:space-y-8">
+  <div className="space-y-4 md:space-y-6">
    <AdminPageHeader
-    eyebrow="管理中心"
+    eyebrow="主頁"
     title={`你好，${greetingName}！`}
-    description={
-     isMobile ? dashboardTitleDate() : <>今日 {dashboardTitleDate()} · 儀表板與班務總覽</>
-    }
-    actions={
-     <Button
-      type="button"
-      variant="outline"
-      size="default"
-      className="hidden md:inline-flex"
-      onClick={async () => {
-       await signOutAuth()
-       clearAuthState()
-       window.location.href = "/Login"
-      }}
-     >
-      登出
-     </Button>
-    }
+    description={`${dashboardTitleDate()} · 校舍課堂與請假`}
    />
 
    {!isSupabaseConfigured ? (
@@ -147,14 +107,6 @@ export function AdminDashboard() {
      ）。數字將為 0；設定後請重啟 <code className="mx-0.5 rounded bg-muted px-1">npm run dev</code>。
     </div>
    ) : null}
-
-   <DashboardTopMetrics
-    todayClassCount={data.todayClassCount}
-    pendingPayCount={data.pendingPaymentCount}
-    loading={loading}
-   />
-
-   <AdminQuickActions />
 
    {teacherNullAudit.length > 0 ? (
     <section
@@ -185,38 +137,21 @@ export function AdminDashboard() {
     </section>
    ) : null}
 
-   <Tabs defaultValue={HOME_TAB_SCHEDULE} className="w-full min-w-0">
-    <TabsList aria-label="管理中心功能" className="grid w-full grid-cols-3 sm:inline-flex sm:w-auto">
-     <TabsTrigger value={HOME_TAB_SCHEDULE}>{isMobile ? "排程" : "排程與今日課堂"}</TabsTrigger>
-     <TabsTrigger value={HOME_TAB_STUDENTS}>{isMobile ? "學生" : "新增學生及試堂"}</TabsTrigger>
-     <TabsTrigger value={HOME_TAB_PAYMENTS}>繳費</TabsTrigger>
-    </TabsList>
+   <div className="lg:hidden">
+    <AdminHomeMobileActions
+     pendingPaymentCount={data.pendingPaymentCount}
+     loading={loading}
+    />
+   </div>
 
-    <TabsContent value={HOME_TAB_SCHEDULE} className="space-y-4">
-     <DashboardBoard
-      scheduleViewYmd={scheduleViewYmd}
-      onScheduleViewYmdChange={setScheduleViewYmd}
-      todayClassCards={scheduleBoardCards}
-      scheduleColumnLoading={scheduleBoardLoading}
-      todayLeaves={data.todayLeaves}
-      loading={loading}
-     />
-    </TabsContent>
-
-    <TabsContent value={HOME_TAB_STUDENTS}>
-     <AdminHomeStudentsTrialsPanel
-      studentStatusSlices={data.studentStatusSlices}
-      loading={loading}
-      compact={isMobile}
-     />
-    </TabsContent>
-
-    <TabsContent value={HOME_TAB_PAYMENTS} className="space-y-4">
-     <UnpaidAlert items={data.unpaid} total={data.unpaidTotal} loading={loading} />
-     <RecentPaymentsCard payments={data.recentPayments} loading={loading} />
-     {!isMobile ? <RevenueChart bars={data.revenueBars} loading={loading} /> : null}
-    </TabsContent>
-   </Tabs>
+   <DashboardBoard
+    scheduleViewYmd={scheduleViewYmd}
+    onScheduleViewYmdChange={setScheduleViewYmd}
+    todayClassCards={scheduleBoardCards}
+    scheduleColumnLoading={scheduleBoardLoading}
+    todayLeaves={data.todayLeaves}
+    loading={loading}
+   />
   </div>
  )
 }
