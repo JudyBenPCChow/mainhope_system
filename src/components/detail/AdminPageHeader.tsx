@@ -10,6 +10,8 @@ type AdminPageHeaderProps = {
  title: ReactNode
  description: ReactNode
  titleExtra?: ReactNode
+ /** 副標正下方（例如首頁儀表板捷徑），不影響右側操作列。 */
+ afterDescription?: ReactNode
  actions?: ReactNode
  className?: string
 }
@@ -41,7 +43,7 @@ export function pagePadClass(
 
 type AdminPageHeadingProps = Pick<
  AdminPageHeaderProps,
- "eyebrow" | "title" | "description" | "titleExtra"
+ "eyebrow" | "title" | "description" | "titleExtra" | "afterDescription"
 >
 
 export function AdminPageHeading({
@@ -49,6 +51,7 @@ export function AdminPageHeading({
  title,
  description,
  titleExtra,
+ afterDescription,
 }: AdminPageHeadingProps) {
  return (
   <div className="min-w-0">
@@ -60,6 +63,7 @@ export function AdminPageHeading({
     {titleExtra}
    </div>
    <div className="mt-1.5 min-h-5 text-sm leading-5 text-muted-foreground">{description}</div>
+   {afterDescription}
   </div>
  )
 }
@@ -73,6 +77,7 @@ export function AdminPageHeader({
  title,
  description,
  titleExtra,
+ afterDescription,
  actions,
  className,
 }: AdminPageHeaderProps) {
@@ -89,6 +94,7 @@ export function AdminPageHeader({
     title={title}
     description={description}
     titleExtra={titleExtra}
+    afterDescription={afterDescription}
    />
    {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
   </header>

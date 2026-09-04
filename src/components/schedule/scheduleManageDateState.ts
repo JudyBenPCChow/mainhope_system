@@ -111,6 +111,27 @@ export function shouldWriteDayViewUrl(startInitialized: boolean, viewMode: Sched
  return startInitialized && viewMode === "day"
 }
 
+/** 進頁 URL 已指定視圖時，優先於 session 殘留，避免側欄「日視圖」與清單狀態互推。 */
+export function initialScheduleViewModeFromSearch(
+ urlView: ScheduleViewMode | null,
+ persistedFallback: ScheduleViewMode
+): ScheduleViewMode {
+ return urlView ?? persistedFallback
+}
+
+/**
+ * URL 剛變成日視圖、畫面狀態尚未跟上時，不要把 view=day 寫回清掉。
+ * 同一頁按「清單」時 previous 已是 day，不會誤擋。
+ */
+export function shouldDeferDayViewUrlWriteback(input: {
+ urlView: ScheduleViewMode | null
+ previousUrlView: ScheduleViewMode | null
+ viewMode: ScheduleViewMode
+}): boolean {
+ const urlJustBecameDay = input.urlView === "day" && input.previousUrlView !== "day"
+ return urlJustBecameDay && input.viewMode !== "day"
+}
+
 export function applyScheduleDayViewSearch(
  params: URLSearchParams,
  input: { viewMode: ScheduleViewMode; dayViewDate: string }

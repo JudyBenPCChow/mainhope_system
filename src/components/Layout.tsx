@@ -208,39 +208,45 @@ export function Layout() {
        </div>
       </div>
      )}
-     <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={cn(
-       "shrink-0 text-white",
-       useShell
-        ? "h-[2.375rem] w-[2.375rem] rounded-[0.625rem] bg-white/8 hover:bg-white/18"
-        : "h-9 w-9 hover:bg-white/10",
-       collapsed && "mx-auto"
-      )}
-     onClick={() =>
-      setCollapsed((current) => {
-       const next = !current
-       if (next && useShell) setShellOpenGroup(null)
-       localStorage.setItem("mgmt_sidebar_collapsed", String(next))
-       return next
-      })
-     }
-      aria-label={collapsed ? "展開側欄" : "收起側欄"}
-     >
-      {useShell ? (
-       collapsed ? (
-        <PanelLeftOpen className="h-5 w-5" />
+     <div className={cn("flex shrink-0 flex-col items-end gap-1", collapsed && "mx-auto items-center")}>
+      <Button
+       type="button"
+       variant="ghost"
+       size="icon"
+       className={cn(
+        "shrink-0 text-white",
+        useShell
+         ? "h-[2.375rem] w-[2.375rem] rounded-[0.625rem] bg-white/8 hover:bg-white/18"
+         : "h-9 w-9 hover:bg-white/10"
+       )}
+       onClick={() =>
+        setCollapsed((current) => {
+         const next = !current
+         if (next && useShell) setShellOpenGroup(null)
+         localStorage.setItem("mgmt_sidebar_collapsed", String(next))
+         return next
+        })
+       }
+       aria-label={collapsed ? "展開側欄" : "收起側欄"}
+      >
+       {useShell ? (
+        collapsed ? (
+         <PanelLeftOpen className="h-5 w-5" />
+        ) : (
+         <PanelLeftClose className="h-5 w-5" />
+        )
+       ) : collapsed ? (
+        <ChevronRight className="h-4 w-4" />
        ) : (
-        <PanelLeftClose className="h-5 w-5" />
-       )
-      ) : collapsed ? (
-       <ChevronRight className="h-4 w-4" />
-      ) : (
-       <ChevronLeft className="h-4 w-4" />
-      )}
-     </Button>
+        <ChevronLeft className="h-4 w-4" />
+       )}
+      </Button>
+      {!collapsed ? (
+       <span className="max-w-[8.5rem] text-right text-xs font-medium leading-snug text-white">
+        ^^上方按鈕可以摺疊左側目錄^^
+       </span>
+      ) : null}
+     </div>
     </div>
 
     <nav

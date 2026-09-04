@@ -22,13 +22,14 @@ function getStorage(kind: StorageKind): Storage | null {
 export function usePersistentState<T>(
  key: string,
  defaultValue: T,
- options?: { storage?: StorageKind }
+ options?: { storage?: StorageKind; initialOverride?: T }
 ): [T, React.Dispatch<React.SetStateAction<T>>] {
  const kind = options?.storage ?? "session"
  // key 在元件生命週期內不應改變；以 ref 鎖定，避免 effect 因 key 變動誤寫。
  const keyRef = useRef(key)
 
  const [state, setState] = useState<T>(() => {
+  if (options?.initialOverride !== undefined) return options.initialOverride
   const storage = getStorage(kind)
   if (!storage) return defaultValue
   try {
