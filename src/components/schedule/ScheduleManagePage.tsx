@@ -89,7 +89,7 @@ import {
  buildDayViewExtraTags,
  isDayViewIdleCard,
 } from "@/lib/scheduleDayViewTags"
-import { isYmd } from "@/lib/weekdayUtils"
+import { addDaysYmd, isYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
