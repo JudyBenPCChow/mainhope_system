@@ -338,6 +338,7 @@
 
 ## 相關
 
+- 補堂特殊例子目錄（已上線／未上線／已定案不做；最終發佈給行政同事）：[`makeup-special-cases.md`](./makeup-special-cases.md)
 - 報讀／點名權益（P6、宣告、調堂掛入所選課堂）：[`summer-enrollment-roster-consistency.md`](./summer-enrollment-roster-consistency.md)
 - 權益池簡報（「指定學生」是擬定句，**未建成**）：[`entitlement-pool-per-student-briefing.md`](./entitlement-pool-per-student-briefing.md)
 - `2627` 時間表（班格 `is_extra_lesson`）：[`2627-september-timetable.md`](./2627-september-timetable.md)
