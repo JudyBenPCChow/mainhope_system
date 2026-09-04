@@ -45,9 +45,13 @@ import {
 } from "@/components/schedule/scheduleListColumns"
 import {
  ISSUE_FILTER_OPTIONS,
- TEACHER_ISSUE_FILTER_IDS,
  UNASSIGNED_TEACHER_ID,
- type ScheduleIssueFilter,
+ classKindFilterLabel,
+ enrollmentFilterLabel,
+ nextClassKindFilter,
+ nextEnrollmentFilter,
+ type ScheduleClassKindFilter,
+ type ScheduleEnrollmentFilter,
 } from "@/components/schedule/scheduleManageUi"
 import { useFutureCancelledScheduleData } from "@/components/schedule/useFutureCancelledScheduleData"
 import {
@@ -243,9 +247,17 @@ export function ScheduleManagePage() {
   []
  )
  const [statusFilter, setStatusFilter] = usePersistentState<string>("mgmt_schedule_statusFilter", "all")
- const [issueFilters, setIssueFilters] = usePersistentState<ScheduleIssueFilter[]>(
-  "mgmt_schedule_issueFilters",
-  []
+ const [enrollmentFilter, setEnrollmentFilter] = usePersistentState<ScheduleEnrollmentFilter>(
+  "mgmt_schedule_enrollmentFilter",
+  "all"
+ )
+ const [classKindFilter, setClassKindFilter] = usePersistentState<ScheduleClassKindFilter>(
+  "mgmt_schedule_classKindFilter",
+  "all"
+ )
+ const [noRoomFilter, setNoRoomFilter] = usePersistentState<boolean>(
+  "mgmt_schedule_noRoomFilter",
+  false
  )
  const [filtersOpen, setFiltersOpen] = useState(false)
  const [overviewOpenDesktop, setOverviewOpenDesktop] = usePersistentState(
@@ -800,39 +812,44 @@ useEffect(() => {
   [scheduleMgmtLocked]
  )
 
- const issueFilterOptions = useMemo(
+ const advancedFilterIds = useMemo(
   () =>
-   teacherScopeId
-    ? ISSUE_FILTER_OPTIONS.filter((o) => TEACHER_ISSUE_FILTER_IDS.has(o.id))
-    : ISSUE_FILTER_OPTIONS,
+   ISSUE_FILTER_OPTIONS.filter((o) => (teacherScopeId ? o.teacherVisible : true)).map(
+    (o) => o.id
+   ),
   [teacherScopeId]
  )
 
- const effectiveIssueFilters = useMemo(
-  () =>
-   teacherScopeId
-    ? issueFilters.filter((id) => TEACHER_ISSUE_FILTER_IDS.has(id))
-    : issueFilters,
-  [teacherScopeId, issueFilters]
- )
+ const effectiveEnrollmentFilter = enrollmentFilter
+ const effectiveClassKindFilter = teacherScopeId ? ("all" as const) : classKindFilter
+ const effectiveNoRoomFilter = teacherScopeId ? false : noRoomFilter
 
  const effectiveTeacherFilterIds = useMemo(
   () => (teacherScopeId ? [] : teacherFilterIds),
   [teacherScopeId, teacherFilterIds]
  )
 
+ const advancedFilterActive =
+  effectiveEnrollmentFilter !== "all" ||
+  effectiveClassKindFilter !== "all" ||
+  effectiveNoRoomFilter
+
  const filtered = useMemo(() => {
   if (futureCancelledMode) return rows
-  const issues = new Set(effectiveIssueFilters)
   const teacherSet = new Set(effectiveTeacherFilterIds)
   return rows.filter((r) => {
    if (statusFilter !== "all" && r.status !== statusFilter) return false
-   if (issues.has("noEnroll")) {
-    if (r.enrollCount == null) return false
-    if ((r.enrollCount ?? 0) > 0) return false
+   if (effectiveEnrollmentFilter === "hasEnroll") {
+    if (r.enrollCount == null || r.enrollCount <= 0) return false
+   } else if (effectiveEnrollmentFilter === "noEnroll") {
+    if (r.enrollCount == null || r.enrollCount > 0) return false
    }
-   if (issues.has("private") && r.class_kind !== "private") return false
-   if (issues.has("noRoom") && r.classroom_id != null) return false
+   if (effectiveClassKindFilter === "group") {
+    if (r.class_kind !== "group") return false
+   } else if (effectiveClassKindFilter === "nonGroup") {
+    if (r.class_kind === "group") return false
+   }
+   if (effectiveNoRoomFilter && r.classroom_id != null) return false
    if (teacherSet.size > 0) {
     const key = isUnassignedTeachingTeacherIssue(r)
      ? UNASSIGNED_TEACHER_ID
@@ -841,7 +858,15 @@ useEffect(() => {
    }
    return true
   })
- }, [rows, futureCancelledMode, statusFilter, effectiveIssueFilters, effectiveTeacherFilterIds])
+ }, [
+  rows,
+  futureCancelledMode,
+  statusFilter,
+  effectiveEnrollmentFilter,
+  effectiveClassKindFilter,
+  effectiveNoRoomFilter,
+  effectiveTeacherFilterIds,
+ ])
 
  const listTableRows = useMemo(() => {
   const headered = filtered.filter((row) => scheduleMatchesHeaderFilters(row, listHeaderFilters))
@@ -889,13 +914,19 @@ useEffect(() => {
  )
 
  const dayViewFilterActive =
-  effectiveTeacherFilterIds.length > 0 ||
-  statusFilter !== "all" ||
-  effectiveIssueFilters.length > 0
+  effectiveTeacherFilterIds.length > 0 || statusFilter !== "all" || advancedFilterActive
 
- const toggleIssueFilter = useCallback((id: ScheduleIssueFilter) => {
-  setIssueFilters((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
- }, [setIssueFilters])
+ const cycleEnrollmentFilter = useCallback(() => {
+  setEnrollmentFilter((prev) => nextEnrollmentFilter(prev))
+ }, [setEnrollmentFilter])
+
+ const cycleClassKindFilter = useCallback(() => {
+  setClassKindFilter((prev) => nextClassKindFilter(prev))
+ }, [setClassKindFilter])
+
+ const toggleNoRoomFilter = useCallback(() => {
+  setNoRoomFilter((prev) => !prev)
+ }, [setNoRoomFilter])
 
  const toggleTeacherFilter = useCallback(
   (id: string) => {
@@ -907,8 +938,16 @@ useEffect(() => {
  const clearAllFilters = useCallback(() => {
   setTeacherFilterIds([])
   setStatusFilter("all")
-  setIssueFilters([])
- }, [setTeacherFilterIds, setStatusFilter, setIssueFilters])
+  setEnrollmentFilter("all")
+  setClassKindFilter("all")
+  setNoRoomFilter(false)
+ }, [
+  setTeacherFilterIds,
+  setStatusFilter,
+  setEnrollmentFilter,
+  setClassKindFilter,
+  setNoRoomFilter,
+ ])
 
  const dayViewDateLoaded = isDateInInclusiveRange(dayViewDate, displayStart, rangeEnd)
 
@@ -1163,11 +1202,18 @@ useEffect(() => {
 
  const exportCsv = () => {
   const csvRows = futureCancelledMode ? rows : filtered
+  const advancedParts = [
+   effectiveEnrollmentFilter !== "all"
+    ? enrollmentFilterLabel(effectiveEnrollmentFilter)
+    : null,
+   effectiveClassKindFilter !== "all" ? classKindFilterLabel(effectiveClassKindFilter) : null,
+   effectiveNoRoomFilter ? "未有課室安排" : null,
+  ].filter(Boolean)
   const filterParts = futureCancelledMode
    ? ["未來取消堂專用模式"]
    : [
       statusFilter !== "all" ? `狀態=${statusFilter}` : "狀態=全部",
-      effectiveIssueFilters.length > 0 ? `進階=${effectiveIssueFilters.join("+")}` : null,
+      advancedParts.length > 0 ? `進階=${advancedParts.join("+")}` : null,
       effectiveTeacherFilterIds.length > 0 ? `老師=${effectiveTeacherFilterIds.length}` : null,
      ].filter(Boolean)
   const csv = buildScheduleCsv(csvRows, {
@@ -1590,12 +1636,16 @@ useEffect(() => {
 
  const activeFilterCount =
   (statusFilter !== "all" ? 1 : 0) +
-  effectiveIssueFilters.length +
+  (effectiveEnrollmentFilter !== "all" ? 1 : 0) +
+  (effectiveClassKindFilter !== "all" ? 1 : 0) +
+  (effectiveNoRoomFilter ? 1 : 0) +
   effectiveTeacherFilterIds.length
 
  const resetScheduleFilters = () => {
   setStatusFilter("all")
-  setIssueFilters([])
+  setEnrollmentFilter("all")
+  setClassKindFilter("all")
+  setNoRoomFilter(false)
   setTeacherFilterIds([])
  }
 
@@ -1986,10 +2036,14 @@ useEffect(() => {
       unassignedTeacherCount={blankTeacherCount}
       statusFilter={statusFilter}
       onStatusChange={setStatusFilter}
-      issueFilterOptions={issueFilterOptions}
-      effectiveIssueFilters={effectiveIssueFilters}
-      onToggleIssue={toggleIssueFilter}
-      noEnrollDisabled={rosterLoading}
+      advancedFilterIds={advancedFilterIds}
+      enrollmentFilter={effectiveEnrollmentFilter}
+      onCycleEnrollment={cycleEnrollmentFilter}
+      classKindFilter={effectiveClassKindFilter}
+      onCycleClassKind={cycleClassKindFilter}
+      noRoomActive={effectiveNoRoomFilter}
+      onToggleNoRoom={toggleNoRoomFilter}
+      enrollmentDisabled={rosterLoading}
       paused={futureCancelledMode}
       teacherScopeId={teacherScopeId}
       teacherOptions={teacherOptions}
