@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { BookOpen, Search } from "lucide-react"
+import { Search } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -250,15 +251,16 @@ export function CoursesManagePage() {
   )
 
  return (
-  <div className="space-y-5 p-4 md:p-6">
-   <div className="flex flex-wrap items-center justify-between gap-3">
-    <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-     <BookOpen className="h-7 w-7 shrink-0 text-primary" aria-hidden />
-     課程管理
+  <div className="space-y-5">
+   <AdminPageHeader
+    eyebrow="工作域"
+    title="課程管理"
+    description="維護課程科目、年級、編號與學費。"
+    titleExtra={
      <Tag tone="info" size="sm">{loading ? "…" : `${stats.total} 課程`}</Tag>
-    </h1>
-    <Button type="button" onClick={openCreate}>新增課程</Button>
-   </div>
+    }
+    actions={<Button type="button" onClick={openCreate}>新增課程</Button>}
+   />
 
    {err ? (
     <div

@@ -1,7 +1,8 @@
 import { useCallback, useState } from "react"
 import { Link } from "react-router-dom"
-import { Bot, Copy, Download, Loader2, RefreshCw, Wallet } from "lucide-react"
+import { Copy, Download, Loader2, RefreshCw, Wallet } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -90,28 +91,28 @@ export function AiReportsView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-6 p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Bot className="h-6 w-6 text-primary" aria-hidden />
-            <h1 className="text-2xl font-semibold tracking-tight">AI 報表</h1>
-          </div>
-          <p className="mt-2 hidden max-w-2xl text-sm text-muted-foreground md:block">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <AdminPageHeader
+        eyebrow="行政工作"
+        title="AI 報表"
+        description={
+          <>
             唯讀報表工作區：資料來自現有系統查詢，不會自動修改任何紀錄。AI 摘要僅供內部參考，實際追收請以
             <Link to="/PaymentHistory" className="mx-1 text-primary underline-offset-2 hover:underline">
               繳費紀錄
             </Link>
             為準。
-          </p>
-        </div>
-        <Button type="button" variant="outline" asChild>
-          <Link to="/PaymentHistory">
-            <Wallet className="h-4 w-4" />
-            前往繳費紀錄
-          </Link>
-        </Button>
-      </div>
+          </>
+        }
+        actions={
+          <Button type="button" variant="outline" asChild>
+            <Link to="/PaymentHistory">
+              <Wallet className="h-4 w-4" />
+              前往繳費紀錄
+            </Link>
+          </Button>
+        }
+      />
 
       <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-4">

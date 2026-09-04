@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import { ChevronLeft, FileSearch, RefreshCw, SlidersHorizontal } from "lucide-react"
+import { RefreshCw, SlidersHorizontal } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { addDaysToYmd, todayYmdLocal } from "@/components/home/format"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
@@ -241,40 +241,30 @@ export function SystemLogsView() {
 
  return (
   <div className="space-y-6">
-   <header className="flex flex-wrap items-start justify-between gap-4">
-    <div>
-     <Button variant="ghost" size="sm" className="-ml-2 mb-1 gap-1 text-muted-foreground" asChild>
-      <Link to="/Home">
-       <ChevronLeft className="h-4 w-4" aria-hidden />
-       返回首頁
-      </Link>
-     </Button>
-     <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight md:text-3xl">
-      <FileSearch className="h-8 w-8 text-info" aria-hidden />
-      系統日志
-     </h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block md:text-base">
-      所有使用者操作紀錄（依篩選；每批最多 {MGMT_LOG_PAGE_SIZE} 筆，可載入更多）。
-     </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-     {isMobile ? (
-      <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
-       <SlidersHorizontal className="h-4 w-4" aria-hidden />
-       篩選
-       {activeFilterCount > 0 ? (
-        <Tag tone="info" size="sm">
-         {activeFilterCount}
-        </Tag>
-       ) : null}
+   <AdminPageHeader
+    eyebrow="行政工作"
+    title="系統日志"
+    description={`所有使用者操作紀錄（依篩選；每批最多 ${MGMT_LOG_PAGE_SIZE} 筆，可載入更多）。`}
+    actions={
+     <>
+      {isMobile ? (
+       <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
+        <SlidersHorizontal className="h-4 w-4" aria-hidden />
+        篩選
+        {activeFilterCount > 0 ? (
+         <Tag tone="info" size="sm">
+          {activeFilterCount}
+         </Tag>
+        ) : null}
+       </Button>
+      ) : null}
+      <Button type="button" variant="outline" className="gap-2" loading={loading} onClick={() => void onSearch()}>
+       <RefreshCw className="h-4 w-4" aria-hidden />
+       重新整理
       </Button>
-     ) : null}
-     <Button type="button" variant="outline" className="gap-2" loading={loading} onClick={() => void onSearch()}>
-      <RefreshCw className="h-4 w-4" aria-hidden />
-      重新整理
-     </Button>
-    </div>
-   </header>
+     </>
+    }
+   />
 
    {!isSupabaseConfigured ? (
     <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-950">尚未設定 Supabase。</div>

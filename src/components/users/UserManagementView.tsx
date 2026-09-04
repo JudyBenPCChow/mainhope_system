@@ -11,10 +11,10 @@ import {
  RefreshCw,
  Shield,
  Sparkles,
- UserCog,
  Wallet,
 } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -432,62 +432,57 @@ export function UserManagementView() {
  }
 
  return (
-  <div className="space-y-6 md:p-6">
-   <header className="flex flex-wrap items-start justify-between gap-4 border-b border-border/80 pb-6">
-    <div className="min-w-0 space-y-2">
-     <h1 className="flex flex-wrap items-center gap-2 text-2xl font-semibold tracking-tight md:text-3xl">
-      <UserCog className="h-8 w-8 shrink-0 text-info" aria-hidden />
-      用戶管理
-     </h1>
-     <p className="hidden max-w-prose text-sm text-muted-foreground md:block md:text-base">
-      資料來自 Supabase 表 <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">app_users</code>
-      ，登入憑證由 Supabase Auth 管理。
-     </p>
-     {canEdit ? (
-      <p className="text-xs font-medium text-info">
-       您目前為<strong>外星人</strong>：可編輯顯示名稱／角色／綁定老師，或為既有用戶「重設密碼」產生臨時密碼。
-      </p>
-     ) : (
-      <p className="text-xs text-muted-foreground">此頁僅供檢視；編輯與重設密碼需外星人角色。</p>
-     )}
-    </div>
-    <div className="flex shrink-0 flex-wrap gap-2">
-     {canEdit ? (
-      <>
-       <Button
-        type="button"
-        size="sm"
-        className="gap-2 bg-success text-white hover:bg-success"
-        onClick={() => openCreate("specialty")}
-       >
-        <Plus className="h-4 w-4" aria-hidden />
-        新增專班老師用戶
-       </Button>
-       <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="gap-2 border-info/50 text-info hover:bg-info/10"
-        onClick={() => openCreate("homework")}
-       >
-        <BookOpen className="h-4 w-4" aria-hidden />
-        新增功輔班導師用戶
-       </Button>
-      </>
-     ) : null}
-     <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="gap-2"
-      onClick={() => void load()}
-      disabled={loading}
-     >
-      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
-      重新載入
-     </Button>
-    </div>
-   </header>
+  <div className="space-y-6">
+   <AdminPageHeader
+    eyebrow="行政工作"
+    title="用戶管理"
+    description="管理登入帳號、角色與綁定老師。"
+    actions={
+     <>
+      {canEdit ? (
+       <>
+        <Button
+         type="button"
+         size="sm"
+         className="gap-2 bg-success text-white hover:bg-success"
+         onClick={() => openCreate("specialty")}
+        >
+         <Plus className="h-4 w-4" aria-hidden />
+         新增專班老師用戶
+        </Button>
+        <Button
+         type="button"
+         size="sm"
+         variant="outline"
+         className="gap-2 border-info/50 text-info hover:bg-info/10"
+         onClick={() => openCreate("homework")}
+        >
+         <BookOpen className="h-4 w-4" aria-hidden />
+         新增功輔班導師用戶
+        </Button>
+       </>
+      ) : null}
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       className="gap-2"
+       onClick={() => void load()}
+       disabled={loading}
+      >
+       <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+       重新載入
+      </Button>
+     </>
+    }
+   />
+   {canEdit ? (
+    <p className="text-xs font-medium text-info">
+     您目前為<strong>外星人</strong>：可編輯顯示名稱／角色／綁定老師，或為既有用戶「重設密碼」產生臨時密碼。
+    </p>
+   ) : (
+    <p className="text-xs text-muted-foreground">此頁僅供檢視；編輯與重設密碼需外星人角色。</p>
+   )}
 
    {err ? (
     <div

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { CheckCircle2, RefreshCw } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -64,19 +65,18 @@ export function ReferralRebatesView() {
  const totalPending = rows.reduce((s, r) => s + r.referrerRebateAmount, 0)
 
  return (
-  <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
-   <div className="flex flex-wrap items-start justify-between gap-3">
-    <div>
-     <h1 className="text-2xl font-semibold tracking-tight">推薦回贈待發</h1>
-     <p className="mt-1 hidden text-sm text-muted-foreground md:block">
-      舊生推薦新生後，被推薦人學費減免於繳費單處理；推薦人現金回贈於此清單標記已付。
-     </p>
-    </div>
-    <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-     <RefreshCw className="h-4 w-4" aria-hidden />
-     重新載入
-    </Button>
-   </div>
+  <div className="space-y-6">
+   <AdminPageHeader
+    eyebrow="行政工作"
+    title="推薦回贈待發"
+    description="舊生推薦新生後，被推薦人學費減免於繳費單處理；推薦人現金回贈於此清單標記已付。"
+    actions={
+     <Button type="button" variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+      <RefreshCw className="h-4 w-4" aria-hidden />
+      重新載入
+     </Button>
+    }
+   />
 
    {err ? (
     <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

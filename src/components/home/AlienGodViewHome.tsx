@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { AlertTriangle, FileSearch, Orbit, RefreshCw } from "lucide-react"
+import { AlertTriangle, FileSearch, RefreshCw } from "lucide-react"
 
+import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { dashboardTitleDate, todayYmdLocal } from "@/components/home/format"
 import { Button } from "@/components/ui/button"
 import { DEMO_ALIEN_GREETING_NAME } from "@/lib/demoMgmtPersonas"
@@ -82,49 +83,47 @@ export function AlienGodViewHome() {
  }, [load])
 
  return (
-  <div className="space-y-6 md:space-y-10 md:p-6">
-   <header className="flex flex-wrap items-end justify-between gap-4 border-b border-info/60 pb-4 md:pb-6">
-    <div>
-     <p className="text-sm font-medium uppercase tracking-wide text-info/90">外星人 · 上帝視角</p>
-     <h1 className="mt-2 flex flex-wrap items-center gap-2 text-2xl font-bold tracking-tight text-foreground md:text-4xl">
-      <Orbit className="h-9 w-9 text-info" aria-hidden />
-      你好，{greetingName}！
-     </h1>
-     <p className="mt-2 text-base text-muted-foreground md:text-lg">
-      本機今日 {todayYmdLocal()}（{dashboardTitleDate()}）· 全系統監看
-     </p>
-    </div>
-    <div className="flex flex-wrap gap-2">
-     <Button type="button" variant="default" size="sm" className="gap-2 bg-info hover:bg-info" asChild>
-      <Link to="/SystemLogs">
-       <FileSearch className="h-4 w-4" aria-hidden />
-       系統日志
-      </Link>
-     </Button>
-     <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
-      <Link to="/SystemIssues">
-       <AlertTriangle className="h-4 w-4" aria-hidden />
-       報錯與問題
-      </Link>
-     </Button>
-     <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void load()} disabled={loading}>
-      <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
-      重新整理
-     </Button>
-     <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={async () => {
-       await signOutAuth()
-       clearAuthState()
-       window.location.href = "/Login"
-      }}
-     >
-      登出
-     </Button>
-    </div>
-   </header>
+  <div className="space-y-6 md:space-y-10">
+   <AdminPageHeader
+    eyebrow="管理中心"
+    title={`你好，${greetingName}！`}
+    description={
+     isMobile ? dashboardTitleDate() : <>本機今日 {todayYmdLocal()}（{dashboardTitleDate()}）· 全系統監看</>
+    }
+    actions={
+     <>
+      <Button type="button" variant="default" size="sm" className="gap-2 bg-info hover:bg-info" asChild>
+       <Link to="/SystemLogs">
+        <FileSearch className="h-4 w-4" aria-hidden />
+        系統日志
+       </Link>
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="gap-2" asChild>
+       <Link to="/SystemIssues">
+        <AlertTriangle className="h-4 w-4" aria-hidden />
+        報錯與問題
+       </Link>
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="gap-2" onClick={() => void load()} disabled={loading}>
+       <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden />
+       重新整理
+      </Button>
+      <Button
+       type="button"
+       variant="outline"
+       size="sm"
+       className="hidden md:inline-flex"
+       onClick={async () => {
+        await signOutAuth()
+        clearAuthState()
+        window.location.href = "/Login"
+       }}
+      >
+       登出
+      </Button>
+     </>
+    }
+   />
 
    {!isSupabaseConfigured ? (
     <div
