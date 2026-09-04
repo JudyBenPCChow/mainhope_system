@@ -84,7 +84,7 @@ describe("decideInitialScheduleDates", () => {
   expect(decided.initialized).toBe(true)
  })
 
- it("快取老師範圍不符時不 hydrate，改查最近排程", () => {
+ it("快取老師範圍不符時不 hydrate，改以今天", () => {
   const decided = decideInitialScheduleDates({
    urlDate: null,
    cacheDisplayStart: "2026-09-08",
@@ -93,13 +93,13 @@ describe("decideInitialScheduleDates", () => {
    teacherScopeId: "t2",
    todayYmd: "2026-09-03",
   })
-  expect(decided.source).toBe("pending-nearest")
+  expect(decided.source).toBe("today")
   expect(decided.hydrateCache).toBe(false)
-  expect(decided.initialized).toBe(false)
+  expect(decided.initialized).toBe(true)
   expect(decided.displayStart).toBe("2026-09-03")
  })
 
- it("無 URL 亦無快取時先以今天佔位，待最近排程", () => {
+ it("無 URL 亦無快取時以今天為顯示日", () => {
   const decided = decideInitialScheduleDates({
    urlDate: null,
    cacheDisplayStart: null,
@@ -108,8 +108,8 @@ describe("decideInitialScheduleDates", () => {
    teacherScopeId: null,
    todayYmd: "2026-09-03",
   })
-  expect(decided.source).toBe("pending-nearest")
-  expect(decided.initialized).toBe(false)
+  expect(decided.source).toBe("today")
+  expect(decided.initialized).toBe(true)
   expect(decided.displayStart).toBe("2026-09-03")
  })
 })
@@ -123,8 +123,8 @@ describe("shouldFetchNearestScheduleDate", () => {
   expect(shouldFetchNearestScheduleDate({ urlDate: null, cacheMatchesTeacherScope: true })).toBe(false)
  })
 
- it("無 URL 且無相符快取才查最近排程", () => {
-  expect(shouldFetchNearestScheduleDate({ urlDate: null, cacheMatchesTeacherScope: false })).toBe(true)
+ it("無 URL 且無相符快取也不再跳最近有課日", () => {
+  expect(shouldFetchNearestScheduleDate({ urlDate: null, cacheMatchesTeacherScope: false })).toBe(false)
  })
 })
 

@@ -4,6 +4,7 @@ import {
  countPendingLeaveRows,
  filterMakeupCandidates,
  leaveTabKind,
+ partitionLeaveByAcademicYear,
  type MakeupCandidateRow,
 } from "@/lib/studentLeaveTab"
 
@@ -36,6 +37,19 @@ describe("studentLeaveTab", () => {
     { id: "2", status: "已安排" },
    ])
   ).toBe(1)
+ })
+
+ it("常規學年期間把暑期請假列為過往學年", () => {
+  const { current, past } = partitionLeaveByAcademicYear(
+   [
+    { academicYearLabel: "2627" },
+    { academicYearLabel: "26SM" },
+    { academicYearLabel: "2526" },
+   ],
+   "2026-09-05"
+  )
+  expect(current.map((r) => r.academicYearLabel)).toEqual(["2627"])
+  expect(past.map((r) => r.academicYearLabel)).toEqual(["26SM", "2526"])
  })
 
  it("補堂搜尋無結果係真空", () => {

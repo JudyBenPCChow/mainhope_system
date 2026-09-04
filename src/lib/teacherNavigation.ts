@@ -37,7 +37,16 @@ export const TEACHER_MAIN_NAV: NavEntryDef[] = [
   icon: CalendarRange,
  },
  { kind: "leaf", path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
- { kind: "leaf", path: "/Schedule", label: "排程", roles: ["teacher"], icon: CalendarDays },
+ {
+  kind: "group",
+  id: "teacher-schedule",
+  label: "排程",
+  icon: CalendarDays,
+  children: [
+   { path: "/Schedule", label: "清單", roles: ["teacher"], icon: CalendarDays },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["teacher"], icon: CalendarDays },
+  ],
+ },
  {
   kind: "group",
   id: "teacher-teaching",
@@ -91,7 +100,8 @@ export const TEACHER_ALL_FEATURES_NAV: NavEntryDef[] = [
   children: [
    { path: "/Attendance", label: "點名", roles: ["teacher"], icon: ClipboardCheck },
    { path: "/TeacherTimetable", label: "時間表", roles: ["teacher"], icon: CalendarRange },
-   { path: "/Schedule", label: "排程", roles: ["teacher"], icon: CalendarDays },
+   { path: "/Schedule", label: "清單", roles: ["teacher"], icon: CalendarDays },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["teacher"], icon: CalendarDays },
    { path: "/AttendanceRecords", label: "出席紀錄", roles: ["teacher"], icon: ClipboardList },
   ],
  },

@@ -692,7 +692,7 @@ export function StudentsListPage() {
     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
      {q && isActiveScope ? (
       <Button type="button" onClick={goRosterWithSearch}>
-       在學生名冊搜尋「{q}」
+       在完整學生名冊搜尋「{q}」
       </Button>
      ) : null}
      {q && !isActiveScope && !showGraduated ? (
@@ -706,6 +706,11 @@ export function StudentsListPage() {
       </Button>
      ) : null}
     </div>
+    {isActiveScope ? (
+     <p className="mt-4 text-xs text-muted-foreground">
+      小提示︰如果在活躍生找不到目標學生，可以在完整學生名冊尋找！
+     </p>
+    ) : null}
    </div>
   )
  }
@@ -1866,11 +1871,6 @@ export function StudentsListPage() {
     )
    )}
 
-   <StickyListLead className="pb-1">
-    <p className="text-xs text-muted-foreground">
-     {isMobile ? "點選學生卡片可進入詳細資料。" : "點選表格列可進入該學生的詳細資料（第二級頁面）。"}
-    </p>
-   </StickyListLead>
   </StickyListShell>
  )
 }

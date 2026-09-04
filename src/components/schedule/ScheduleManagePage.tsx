@@ -6,6 +6,8 @@ import { useIsXl } from "@/hooks/use-xl"
 import {
  CalendarDays,
  Check,
+ ChevronLeft,
+ ChevronRight,
  Download,
  LayoutGrid,
  List,
@@ -132,7 +134,6 @@ import { consecutivePairFromFirstTimeSlot, isConsecutiveClass } from "@/lib/cons
 import { slotIsFreeForBooking } from "@/services/roomBookingQueries"
 import {
  fetchDayViewRosterBySchedules,
- fetchNearestScheduleDate,
  fetchScheduleStatsSnapshot,
  fetchTeacherScheduleConflicts,
  localYmd,
@@ -240,6 +241,8 @@ export function ScheduleManagePage() {
      ? "byDate"
      : viewMode
  const [displayStart, setDisplayStart] = useState(initialDateDecision.displayStart)
+ const displayStartRef = useRef(displayStart)
+ displayStartRef.current = displayStart
  const [dayViewDate, setDayViewDate] = useState(initialDateDecision.dayViewDate)
  const [startInitialized, setStartInitialized] = useState(initialDateDecision.initialized)
  const [teacherFilterIds, setTeacherFilterIds] = usePersistentState<string[]>(
@@ -286,7 +289,7 @@ export function ScheduleManagePage() {
  const cancelledData = useFutureCancelledScheduleData({
   enabled: startInitialized,
   teacherScopeId,
-  asOf: todayYmd,
+  asOf: displayStart,
  })
  const rows = futureCancelledMode ? cancelledData.rows : listData.rows
  const alerts = futureCancelledMode ? cancelledData.alerts : listData.alerts
@@ -378,8 +381,8 @@ export function ScheduleManagePage() {
  const scheduleMgmtLocked = !canManageSchedules
  const [teacherScopeName, setTeacherScopeName] = useState<string>("專班老師")
 
- const reloadStats = useCallback(async (teacherId?: string | null) => {
-  const asOf = todayYmdRef.current
+ const reloadStats = useCallback(async (teacherId?: string | null, asOfYmd?: string) => {
+  const asOf = isYmd(asOfYmd) ? asOfYmd : displayStartRef.current
   const requestKey = `${teacherId ?? ""}:${asOf}`
   const gen = bumpRequestGeneration(statsGenRef.current)
   setStats({ status: "loading" })
@@ -387,12 +390,12 @@ export function ScheduleManagePage() {
    isLiveKeyedRequest(
     statsGenRef.current,
     gen,
-    `${teacherScopeId ?? ""}:${todayYmdRef.current}`,
+    `${teacherScopeId ?? ""}:${displayStartRef.current}`,
     requestKey,
     (a, b) => a === b
    )
   try {
-   const result = await fetchScheduleStatsSnapshot(teacherId)
+   const result = await fetchScheduleStatsSnapshot(teacherId, asOf)
    if (!isLive()) return
    if ("ok" in result) setStats({ status: "ready", data: result.ok })
    else setStats({ status: "error" })
@@ -404,8 +407,8 @@ export function ScheduleManagePage() {
 
  useEffect(() => {
   if (!startInitialized) return
-  void reloadStats(teacherScopeId)
- }, [startInitialized, teacherScopeId, reloadStats])
+  void reloadStats(teacherScopeId, displayStart)
+ }, [startInitialized, teacherScopeId, displayStart, reloadStats])
 
  useEffect(() => {
   const urlDate = initialUrlDayDateRef.current
@@ -420,22 +423,7 @@ export function ScheduleManagePage() {
    setStartInitialized(true)
    return
   }
-  let cancelled = false
-  void fetchNearestScheduleDate(teacherScopeId ? { teacherId: teacherScopeId } : undefined)
-   .then((nearest) => {
-    if (cancelled || !nearest) return
-    setDisplayStart(nearest)
-    setDayViewDate(nearest)
-   })
-   .catch(() => {
-    /* 查詢失敗時維持今天，仍放行載入 */
-   })
-   .finally(() => {
-    if (!cancelled) setStartInitialized(true)
-   })
-  return () => {
-   cancelled = true
-  }
+  setStartInitialized(true)
  }, [teacherScopeId])
 
  useEffect(() => {
@@ -460,11 +448,15 @@ export function ScheduleManagePage() {
  useEffect(() => {
   if (!startInitialized) return
   const parsed = parseScheduleManageSearch(searchParams)
-  if (parsed.view === "day" && parsed.date) {
-   setDayViewDate(parsed.date)
-   setDisplayStart(parsed.date)
+  if (parsed.view === "day") {
+   if (parsed.date) {
+    setDayViewDate(parsed.date)
+    setDisplayStart(parsed.date)
+   }
    if (!isMobile || allowMobileDayView) setViewMode("day")
+   return
   }
+  setViewMode((cur) => (cur === "day" ? "byDate" : cur))
  }, [searchParams, isMobile, allowMobileDayView, setViewMode, startInitialized])
 
  const openRollCallForSchedule = useCallback(
@@ -1625,10 +1617,16 @@ useEffect(() => {
   setViewMode("day")
  }
 
+ const shiftDisplayDate = (delta: number) => {
+  const next = addDaysYmd(displayStart, delta)
+  if (!isYmd(next)) return
+  setDisplayStart(next)
+  setDayViewDate(next)
+ }
+
  const onTodayCardClick = () => {
   if (futureCancelledMode) exitFutureCancelled()
-  setDisplayStart(todayYmd)
-  setDayViewDate(todayYmd)
+  setDayViewDate(displayStart)
   setViewMode("day")
  }
 
@@ -1711,7 +1709,9 @@ useEffect(() => {
     : "ready"
  const todayKpiStatus = stats.status
  const todayLessonTag =
-  stats.status === "ready" ? `${stats.data.todayLessonCount} 堂今日` : "— 堂今日"
+  stats.status === "ready"
+   ? `${stats.data.todayLessonCount} 堂${displayStart === todayYmd ? "今日" : "當日"}`
+   : `— 堂${displayStart === todayYmd ? "今日" : "當日"}`
  const csvDisabled = rosterLoading
  const previewScheduleId = preview?.kind === "schedule" ? preview.id : null
 
@@ -2005,7 +2005,7 @@ useEffect(() => {
        <Tag tone="info">{todayLessonTag}</Tag>
       </h1>
       <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-       按日期可展開名單；列表開啟預覽或完整詳情；日視圖以拖曳及移動課室為主。
+       清單可展開名單；表格開啟預覽或完整詳情；日視圖以拖曳及移動課室為主。
       </p>
      </div>
     </header>
@@ -2050,6 +2050,8 @@ useEffect(() => {
    ) : null}
 
    <ScheduleOverview
+    selectedDate={displayStart}
+    todayYmd={todayYmd}
     stats={{
      todayLesson: {
       status: todayKpiStatus,
@@ -2111,10 +2113,10 @@ useEffect(() => {
        >
         {(
          [
-          { id: "byDate" as const, label: "按日期", icon: LayoutGrid },
+          { id: "byDate" as const, label: "清單", icon: LayoutGrid },
           ...(!isMobile
            ? ([
-              { id: "list" as const, label: "列表", icon: List },
+              { id: "list" as const, label: "表格", icon: List },
               { id: "day" as const, label: "日視圖", icon: CalendarDays },
              ] as const)
            : allowMobileDayView
@@ -2169,24 +2171,50 @@ useEffect(() => {
 
    {isMobile && viewMode === "list" && !futureCancelledMode ? (
     <p className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-     列表建議使用桌面版；手機已改為「按日期」顯示。
+     表格建議使用桌面版；手機已改為「清單」顯示。
     </p>
    ) : null}
 
    {effectiveViewMode !== "day" ? (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border bg-muted/20 px-4 py-3 text-sm">
      <div className="flex flex-wrap items-center gap-2">
-      <span className="text-muted-foreground">顯示起始日期：</span>
-      <Input
-       type="date"
-       value={displayStart}
-       onChange={(e) => {
-        const next = e.target.value
-        if (isYmd(next)) setDisplayStart(next)
-       }}
-       className="h-10 w-[12rem] cursor-pointer text-sm"
-       disabled={futureCancelledMode}
-      />
+      <span className="text-muted-foreground">顯示日期：</span>
+      <div className="flex items-center gap-1">
+       <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-10 w-10 shrink-0"
+        aria-label="前一天"
+        disabled={futureCancelledMode}
+        onClick={() => shiftDisplayDate(-1)}
+       >
+        <ChevronLeft className="h-4 w-4" aria-hidden />
+       </Button>
+       <Input
+        type="date"
+        value={displayStart}
+        onChange={(e) => {
+         const next = e.target.value
+         if (!isYmd(next)) return
+         setDisplayStart(next)
+         setDayViewDate(next)
+        }}
+        className="h-10 w-[12rem] cursor-pointer text-sm"
+        disabled={futureCancelledMode}
+       />
+       <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="h-10 w-10 shrink-0"
+        aria-label="後一天"
+        disabled={futureCancelledMode}
+        onClick={() => shiftDisplayDate(1)}
+       >
+        <ChevronRight className="h-4 w-4" aria-hidden />
+       </Button>
+      </div>
       {futureCancelledMode ? null : (
        <Button
         type="button"

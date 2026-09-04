@@ -1,3 +1,5 @@
+import { isCurrentEnrollmentYear } from "@/lib/enrollmentYearDisplay"
+
 export type LeaveTabRow = {
  id: string
  status: string
@@ -38,4 +40,26 @@ export function filterMakeupCandidates<T extends MakeupCandidateRow>(
   const hay = `${s.classLabel} ${s.course_name ?? ""} ${s.subject} ${s.course_code_full ?? ""} ${s.teacher_name ?? ""} ${s.scheduled_date}`.toLowerCase()
   return hay.includes(q)
  })
+}
+
+export type LeaveYearFields = {
+ academicYearLabel?: string | null
+}
+
+export type LeaveYearPartition<T> = {
+ current: T[]
+ past: T[]
+}
+
+export function partitionLeaveByAcademicYear<T extends LeaveYearFields>(
+ rows: T[],
+ asOfYmd?: string | null
+): LeaveYearPartition<T> {
+ const current: T[] = []
+ const past: T[] = []
+ for (const row of rows) {
+  if (isCurrentEnrollmentYear(row.academicYearLabel, asOfYmd)) current.push(row)
+  else past.push(row)
+ }
+ return { current, past }
 }

@@ -16,7 +16,13 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { countPendingLeaveRows, filterMakeupCandidates, leaveTabKind } from "@/lib/studentLeaveTab"
+import { groupEnrollmentsByAcademicYear } from "@/lib/enrollmentYearDisplay"
+import {
+ countPendingLeaveRows,
+ filterMakeupCandidates,
+ leaveTabKind,
+ partitionLeaveByAcademicYear,
+} from "@/lib/studentLeaveTab"
 import { cn } from "@/lib/utils"
 import {
  fetchEnrolledClassesForStudent,
@@ -100,6 +106,7 @@ export function StudentLeaveTab({
  const [leaveRemarks, setLeaveRemarks] = useState("")
  const [leaveSaving, setLeaveSaving] = useState(false)
  const [leaveErr, setLeaveErr] = useState<string | null>(null)
+ const [showPastLeaves, setShowPastLeaves] = useState(false)
 
  const load = useCallback(async () => {
   setLoadState("loading")
@@ -125,6 +132,14 @@ export function StudentLeaveTab({
  const leaveMakeupFiltered = useMemo(
   () => filterMakeupCandidates(leaveMakeupCandidates, leaveMakeupSearch),
   [leaveMakeupCandidates, leaveMakeupSearch]
+ )
+ const { current: currentYearLeaves, past: pastYearLeaves } = useMemo(
+  () => partitionLeaveByAcademicYear(rows),
+  [rows]
+ )
+ const pastLeaveGroups = useMemo(
+  () => groupEnrollmentsByAcademicYear(pastYearLeaves),
+  [pastYearLeaves]
  )
 
  const openLeaveDialog = async () => {
@@ -257,8 +272,36 @@ export function StudentLeaveTab({
  )
  const pendingCount = countPendingLeaveRows(rows)
 
+ const renderLeaveRow = (x: LeaveRow) => (
+  <StaggerItem key={x.id} as="li">
+   {canOpenLeaveManagement ? (
+    <Link
+     to={`/LeaveManagement?${new URLSearchParams({ studentId, record: x.id }).toString()}`}
+     className="block rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/40"
+    >
+     <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <span className="font-medium text-primary">{x.classLabel}</span>
+      <span className="text-xs text-muted-foreground">請假管理 →</span>
+     </div>
+     <div className="mt-1 text-muted-foreground">
+      {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
+     </div>
+    </Link>
+   ) : (
+    <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
+     <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <span className="font-medium">{x.classLabel}</span>
+     </div>
+     <div className="mt-1 text-muted-foreground">
+      {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
+     </div>
+    </div>
+   )}
+  </StaggerItem>
+ )
+
  return (
-  <div hidden={!active} className="mx-auto max-w-3xl space-y-4">
+  <div hidden={!active} className="space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <p className="text-sm text-muted-foreground">
      {kind === "error" ? (
@@ -446,35 +489,51 @@ export function StudentLeaveTab({
    ) : kind === "empty" ? (
     <p className="py-8 text-center text-sm text-muted-foreground">尚無請假記錄</p>
    ) : (
-    <StaggerList as="ul" className="space-y-2">
-     {rows.map((x) => (
-      <StaggerItem key={x.id} as="li">
-       {canOpenLeaveManagement ? (
-        <Link
-         to={`/LeaveManagement?${new URLSearchParams({ studentId, record: x.id }).toString()}`}
-         className="block rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm transition-colors hover:border-primary/50 hover:bg-muted/40"
-        >
-         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-medium text-primary">{x.classLabel}</span>
-          <span className="text-xs text-muted-foreground">請假管理 →</span>
-         </div>
-         <div className="mt-1 text-muted-foreground">
-          {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
-         </div>
-        </Link>
-       ) : (
-        <div className="rounded-xl border border-border bg-card px-4 py-3 text-sm shadow-sm">
-         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="font-medium">{x.classLabel}</span>
-         </div>
-         <div className="mt-1 text-muted-foreground">
-          {x.leave_date} · {x.leave_reason ?? "—"} · {x.status}
-         </div>
-        </div>
-       )}
-      </StaggerItem>
-     ))}
-    </StaggerList>
+    <div className="space-y-6">
+     <div className="space-y-2">
+      {currentYearLeaves.length === 0 ? (
+       <p className="text-sm text-muted-foreground">目前沒有本學年請假紀錄。</p>
+      ) : (
+       <StaggerList as="ul" className="space-y-2">
+        {currentYearLeaves.map(renderLeaveRow)}
+       </StaggerList>
+      )}
+     </div>
+     {pastYearLeaves.length > 0 ? (
+      <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+       <div>
+        <p className="text-sm font-medium text-muted-foreground">過往學年</p>
+        {!showPastLeaves ? (
+         <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          onClick={() => setShowPastLeaves(true)}
+         >
+          顯示全部
+         </Button>
+        ) : (
+         <p className="mt-1 text-xs text-muted-foreground">
+          全庫共 {rows.length} 筆請假紀錄
+         </p>
+        )}
+       </div>
+       {showPastLeaves
+        ? pastLeaveGroups.map((group) => (
+           <div key={group.label} className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">
+             {group.label === "未標學年" ? "未標學年" : `${group.label} 學年`}
+            </p>
+            <StaggerList as="ul" className="space-y-2">
+             {group.items.map(renderLeaveRow)}
+            </StaggerList>
+           </div>
+          ))
+        : null}
+      </div>
+     ) : null}
+    </div>
    )}
   </div>
  )

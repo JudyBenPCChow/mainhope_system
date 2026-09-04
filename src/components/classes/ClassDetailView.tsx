@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { TriangleAlert } from "lucide-react"
 
+import { adminPageSurfaceClass } from "@/components/detail/AdminPageHeader"
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
 import { DetailLayerChrome } from "@/components/detail/DetailLayerChrome"
 import { RecordField } from "@/components/detail/RecordField"
@@ -1582,7 +1583,7 @@ export function ClassDetailView() {
     />
    }
   >
-   <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
+   <div className={`flex min-h-full flex-col ${adminPageSurfaceClass} px-4 pb-4 md:px-0 md:pb-0`}>
    <RecordPageHeader
     backLabel={
      isPrivateClass || fromPrivateTutoring ? "返回私人課程學生" : "返回班別管理"
@@ -2113,7 +2114,7 @@ export function ClassDetailView() {
         </div>
        </section>
        {showBasicForm ? (
-        <div className="sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border bg-background py-3">
+        <div className={`sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border ${adminPageSurfaceClass} py-3`}>
          <Button type="button" variant="outline" onClick={discardBasicEdits}>
           取消
          </Button>

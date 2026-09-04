@@ -395,8 +395,11 @@ export async function fetchScheduleAlerts(
 
 export type { ScheduleStatsSnapshot, ScheduleStatsLoad }
 
-/** 儀表板數字：以「今天」為準，與目前列表日期區間無關；專班老師可傳 teacherId 僅計自己的排程 */
-export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Promise<ScheduleStatsLoad> {
+/** 儀表板數字：以指定日期為準（未傳則今天）；專班老師可傳 teacherId 僅計自己的排程 */
+export async function fetchScheduleStatsSnapshot(
+ teacherId?: string | null,
+ asOfYmd?: string | null
+): Promise<ScheduleStatsLoad> {
  if (!supabase) {
   return assembleScheduleStatsSnapshot({
    todayLessonsError: new Error("尚未設定 Supabase"),
@@ -408,18 +411,18 @@ export async function fetchScheduleStatsSnapshot(teacherId?: string | null): Pro
   })
  }
 
- const today = localYmd()
+ const asOf = isYmd(asOfYmd) ? asOfYmd : localYmd()
 
  const [statsRes, todaySchedRows] = await Promise.all([
   supabase.rpc("get_schedule_manage_stats", {
-   p_as_of: today,
+   p_as_of: asOf,
    p_teacher_id: teacherId ?? null,
   }),
   (() => {
    let q = supabase
     .from("schedules")
     .select("id")
-    .eq("scheduled_date", today)
+    .eq("scheduled_date", asOf)
     .not("status", "ilike", "%取消%")
    if (teacherId) q = applyTeacherScheduleScope(q, teacherId)
    return q

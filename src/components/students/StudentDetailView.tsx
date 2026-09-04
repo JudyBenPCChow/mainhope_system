@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom"
 import { Loader2, Plus, Printer } from "lucide-react"
 
+import { adminPageSurfaceClass } from "@/components/detail/AdminPageHeader"
 import { AdaptiveDetailLayer } from "@/components/detail/DetailLayerShell"
 import { DetailLayerChrome } from "@/components/detail/DetailLayerChrome"
 import { RecordField as Field } from "@/components/detail/RecordField"
@@ -10,7 +11,9 @@ import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
 import { UnsavedChangesDialog } from "@/components/detail/UnsavedChangesDialog"
 import { ParentPortalInvitePanel } from "@/components/students/ParentPortalInvitePanel"
 import { StudentAttendanceTab } from "@/components/students/StudentAttendanceTab"
+import { EnrollmentChangeTimeline } from "@/components/students/EnrollmentChangeTimeline"
 import { StudentEnrollmentCard } from "@/components/students/StudentEnrollmentCard"
+import { TransferClassTimeDialog } from "@/components/students/TransferClassTimeDialog"
 import { StudentFutureSchedulesTab } from "@/components/students/StudentFutureSchedulesTab"
 import { StudentHistoryTab } from "@/components/students/StudentHistoryTab"
 import { StudentLeaveTab } from "@/components/students/StudentLeaveTab"
@@ -56,6 +59,11 @@ import { useNavGuard } from "@/hooks/useNavGuard"
 import { statusToTagTone } from "@/lib/statusTag"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
+ formatClassTimeSlot,
+ pairStudentEnrollmentChangeLines,
+ type StudentEnrollmentChangeLine,
+} from "@/lib/transferClassTime"
+import {
  formatClassScheduleLabel,
  isCancelledScheduleStatus,
  resolveEnrollmentStartDate,
@@ -97,12 +105,15 @@ import {
  type EnrollmentWithClass,
  type PaymentRow,
  type StudentRecord,
- updateEnrollment,
  updateEnrollmentPeriod,
  updateEnrollmentSessions,
  updateStudent,
  withdrawStudentFromClass,
 } from "@/services/studentQueries"
+import {
+ fetchStudentEnrollmentChangeTimeline,
+ transferStudentClassTime,
+} from "@/services/transferClassTimeQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  deleteStudentRelationship,
@@ -134,8 +145,10 @@ import {
 import { isHomeworkClassKind } from "@/lib/privateClassKind"
 import {
  groupEnrollmentsByAcademicYear,
+ isCurrentEnrollmentYear,
  partitionEnrollmentsByAcademicYear,
 } from "@/lib/enrollmentYearDisplay"
+import { isRegularAcademicYearLabel } from "@/lib/softArchiveWindow"
 
 function formatLeaveError(e: unknown): string {
  if (e instanceof Error) return e.message
@@ -277,6 +290,9 @@ export function StudentDetailView() {
  const [showPastPayments, setShowPastPayments] = useState(false)
  const [lessonBalances, setLessonBalances] = useState<LessonBalanceRow[]>([])
  const [lessonBalancesState, setLessonBalancesState] = useState<"loading" | "ready" | "error">("loading")
+ const [changeLines, setChangeLines] = useState<StudentEnrollmentChangeLine[]>([])
+ const [changeLinesState, setChangeLinesState] = useState<"loading" | "ready" | "error">("loading")
+ const [transferTarget, setTransferTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawOpen, setWithdrawOpen] = useState(false)
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
@@ -372,6 +388,7 @@ export function StudentDetailView() {
       fetchEnrollmentsForStudent(sid),
       fetchLessonBalancesForStudent(sid, { includePaidLessons: includeMoney }),
       fetchClassOptions(),
+      fetchStudentEnrollmentChangeTimeline(sid),
      ])
      if (settled[0].status === "fulfilled") {
       setEnrollments(settled[0].value)
@@ -388,6 +405,13 @@ export function StudentDetailView() {
       setLessonBalancesState("error")
      }
      if (settled[2].status === "fulfilled") setClassOptions(settled[2].value)
+     if (settled[3].status === "fulfilled") {
+      setChangeLines(pairStudentEnrollmentChangeLines(settled[3].value))
+      setChangeLinesState("ready")
+     } else {
+      reportUserFacingError(settled[3].reason, { source: "StudentDetailView.enrollmentChanges" })
+      setChangeLinesState("error")
+     }
     } else if (tabId === "payments") {
      if (!includeMoney) {
       setPayments([])
@@ -802,6 +826,14 @@ export function StudentDetailView() {
   () => groupEnrollmentsByAcademicYear(pastYearEnrollments),
   [pastYearEnrollments]
  )
+ const currentYearWithdrawn = useMemo(
+  () => withdrawnEnrollments.filter((row) => isCurrentEnrollmentYear(row.academicYearLabel)),
+  [withdrawnEnrollments]
+ )
+ const pastYearWithdrawn = useMemo(
+  () => withdrawnEnrollments.filter((row) => !isCurrentEnrollmentYear(row.academicYearLabel)),
+  [withdrawnEnrollments]
+ )
  const paymentYearCtx = useMemo(() => buildPaymentYearContext(academicYears), [academicYears])
  const { current: currentYearPayments, past: pastYearPayments } = useMemo(
   () => partitionPaymentsByAcademicYear(payments, paymentYearCtx),
@@ -910,6 +942,8 @@ export function StudentDetailView() {
  }, [addEnrollmentDialogOpen, pickClass])
 
  const openEditEnrollmentForm = async (e: EnrollmentWithClass) => {
+  const yearLabel = (e.academicYearLabel ?? "").trim()
+  if (!yearLabel || isRegularAcademicYearLabel(yearLabel)) return
   setEditFormTarget(e)
   setEditFormOpen(true)
   const isSummer = e.courseMode === "summer_two_period"
@@ -1101,26 +1135,12 @@ export function StudentDetailView() {
    balance={isHomeworkClassKind(e.classKind) ? undefined : balanceByEnrollment.get(e.id)}
    studentId={sid}
    onEditForm={(row) => void openEditEnrollmentForm(row)}
-   onUpdateStatus={async (row, next) => {
-    try {
-     await updateEnrollment(row.id, next, sid)
-     invalidateStudentsListDataCache()
-     invalidateEnrollmentChangesDataCache()
-     await reloadSubs()
-    } catch (err) {
-     reportUserFacingError(err, { source: "StudentDetailView.updateEnrollmentStatus" })
-     pushBanner({
-      tone: "error",
-      title: "更新報讀狀態失敗",
-      message: err instanceof Error ? err.message : String(err),
-     })
-    }
-   }}
    onWithdraw={(row) => {
     setWithdrawTarget(row)
     setWithdrawReason("")
     setWithdrawOpen(true)
    }}
+   onTransferTime={(row) => setTransferTarget(row)}
    onPurge={(row) => void onPurgeMistakenEnrollment(row)}
    onMarkPendingArranged={async (pendingId) => {
     try {
@@ -1138,6 +1158,62 @@ export function StudentDetailView() {
    onGoLeaveTab={() => setTab("leave")}
   />
  )
+
+ const renderWithdrawnList = (rows: EnrollmentWithClass[], title: string) =>
+  rows.length === 0 ? null : (
+   <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+    <p className="text-sm font-medium text-muted-foreground">
+     {canMutateStudentOps ? `${title}（可重新報讀；手誤才用清除）` : title}
+    </p>
+    <StaggerList as="div" className="space-y-2">
+     {rows.map((e) => (
+      <StaggerItem
+       key={e.id}
+       as="div"
+       className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+      >
+       <div className="min-w-0">
+        <div className="font-medium text-muted-foreground">
+         {formatClassLabel({
+          subject: e.subject,
+          courseCode: e.courseCode,
+          courseName: e.courseName,
+         })}
+        </div>
+        <div className="text-xs text-muted-foreground">
+         {[formatClassTimeSlot(e.dayOfWeek, e.timeSlot), e.enrollmentFormLabel]
+          .filter((x) => x && x !== "—")
+          .join(" · ")}
+        </div>
+        <div className="text-xs text-muted-foreground">
+         報讀日 {e.enroll_date ?? "—"}
+         {e.withdrawEffectiveDate ? ` · ${e.withdrawEffectiveDate} 退讀` : ""}
+         {e.withdrawReason ? ` · ${e.withdrawReason}` : ""}
+        </div>
+       </div>
+       {canMutateStudentOps ? (
+        <details className="relative shrink-0">
+         <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
+          其他操作
+         </summary>
+         <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
+          <Button
+           type="button"
+           variant="ghost"
+           size="sm"
+           className="h-8 w-full justify-start text-xs text-muted-foreground"
+           onClick={() => void onPurgeMistakenEnrollment(e)}
+          >
+           手誤清除
+          </Button>
+         </div>
+        </details>
+       ) : null}
+      </StaggerItem>
+     ))}
+    </StaggerList>
+   </div>
+  )
 
  const renderPaymentCard = (p: PaymentRow) => {
   const lineTags = paymentProductLineTags(p)
@@ -1280,17 +1356,18 @@ export function StudentDetailView() {
    chrome={
     <DetailLayerChrome
      title={student?.full_name ?? (loading ? "載入中…" : "學生詳情")}
-     subtitle={student ? student.student_code || student.id.slice(0, 8) : null}
+     eyebrow={student ? student.student_code || student.id.slice(0, 8) : null}
      onClose={() => void requestLeave()}
     />
    }
   >
-  <div className="flex min-h-full flex-col bg-background px-4 pb-4 md:px-0 md:pb-0">
+  <div className={`flex min-h-full flex-col ${adminPageSurfaceClass} px-4 pb-4 md:px-0 md:pb-0`}>
    <RecordPageHeader
     backLabel={exitPath.startsWith("/Classes") ? "返回班別管理" : "返回學生管理"}
     onBack={() => void requestLeave()}
     loading={loading}
     title={student?.full_name ?? "學生詳情"}
+    metaAboveTitle
     meta={
      student ? (
       <>
@@ -1402,7 +1479,7 @@ export function StudentDetailView() {
      </p>
     ) : null}
     {tab === "basic" && student ? (
-     <div className="mx-auto max-w-4xl space-y-8">
+     <div className="space-y-8">
       <fieldset
        disabled={!showBasicForm}
        className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
@@ -1660,7 +1737,7 @@ export function StudentDetailView() {
       </section>
 
       {showBasicForm ? (
-       <div className="sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border bg-background py-3">
+       <div className={`sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border ${adminPageSurfaceClass} py-3`}>
         <Button type="button" variant="outline" onClick={discardBasicEdits}>
          取消
         </Button>
@@ -1897,7 +1974,7 @@ export function StudentDetailView() {
     ) : null}
 
     {tab === "enrollments" ? (
-     <div className="mx-auto max-w-5xl space-y-4">
+     <div className="space-y-4">
       {lessonBalancesState === "error" ? (
        <div className="space-y-2" role="alert">
         <p role="alert" className="text-sm text-destructive">堂數核對未能載入。</p>
@@ -1931,20 +2008,11 @@ export function StudentDetailView() {
         </span>
        </div>
       ) : null}
+      {enrollmentsState === "ready" ? (
+       <EnrollmentChangeTimeline lines={changeLines} loading={changeLinesState === "loading"} />
+      ) : null}
       {canMutateStudentOps && enrollmentsState === "ready" ? (
       <>
-      <div className="flex flex-wrap items-center gap-2">
-       <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() =>
-         goExternal(`/PrivateTutoring?studentId=${encodeURIComponent(sid ?? "")}&create=1`)
-        }
-       >
-        新增私人課程
-       </Button>
-      </div>
       <SearchableSelect
        combobox
        value=""
@@ -2185,7 +2253,9 @@ export function StudentDetailView() {
         </div>
        ) : enrollmentsState !== "ready" ? (
         <p className="text-sm text-muted-foreground">載入中…</p>
-       ) : currentYearEnrollments.length === 0 && pastYearEnrollments.length === 0 ? (
+       ) : currentYearEnrollments.length === 0 &&
+         pastYearEnrollments.length === 0 &&
+         withdrawnEnrollments.length === 0 ? (
         <p className="text-sm text-muted-foreground">尚未報讀任何班別。</p>
        ) : (
         <div className="space-y-6">
@@ -2199,6 +2269,7 @@ export function StudentDetailView() {
            </StaggerList>
           )}
          </div>
+         {renderWithdrawnList(currentYearWithdrawn, "本學年已退讀")}
          {pastYearGroups.length > 0 ? (
           <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
            <div>
@@ -2217,57 +2288,10 @@ export function StudentDetailView() {
            ))}
           </div>
          ) : null}
+         {renderWithdrawnList(pastYearWithdrawn, "過往學年已退讀")}
         </div>
        )}
       </div>
-
-      {enrollmentsState === "ready" && withdrawnEnrollments.length > 0 ? (
-       <div className="space-y-2 rounded-xl border border-dashed border-border bg-muted/20 p-4">
-        <p className="text-sm font-medium text-muted-foreground">
-         {canMutateStudentOps ? "已退讀（可重新報讀；手誤才用清除）" : "已退讀"}
-        </p>
-        <StaggerList as="div" className="space-y-2">
-         {withdrawnEnrollments.map((e) => (
-          <StaggerItem
-           key={e.id}
-           as="div"
-           className="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/60 px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
-          >
-           <div className="min-w-0">
-            <div className="font-medium text-muted-foreground">
-             {formatClassLabel({
-              subject: e.subject,
-              courseCode: e.courseCode,
-              courseName: e.courseName,
-             })}
-            </div>
-            <div className="text-xs text-muted-foreground">
-             {e.enrollmentFormLabel ?? "—"} · 報讀日 {e.enroll_date ?? "—"}
-            </div>
-           </div>
-           {canMutateStudentOps ? (
-           <details className="relative shrink-0">
-            <summary className="cursor-pointer list-none text-xs text-muted-foreground underline-offset-2 hover:underline [&::-webkit-details-marker]:hidden">
-             其他操作
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 min-w-[8.5rem] rounded-md border border-border bg-background p-1 shadow-sm">
-             <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 w-full justify-start text-xs text-muted-foreground"
-              onClick={() => void onPurgeMistakenEnrollment(e)}
-             >
-              手誤清除
-             </Button>
-            </div>
-           </details>
-           ) : null}
-          </StaggerItem>
-         ))}
-        </StaggerList>
-       </div>
-      ) : null}
 
       <Dialog
        open={editFormOpen}
@@ -2425,6 +2449,41 @@ export function StudentDetailView() {
         ) : null}
        </DialogContent>
       </Dialog>
+      <TransferClassTimeDialog
+       open={transferTarget != null}
+       studentId={sid ?? ""}
+       enrollment={transferTarget}
+       classOptions={classOptions}
+       occupiedClassIds={occupiedClassIds}
+       onOpenChange={(next) => {
+        if (!next) setTransferTarget(null)
+       }}
+       onSubmit={async ({ toClassId, enrollDate, extraReason }) => {
+        if (!sid || !transferTarget) return
+        const studentName = (student?.full_name ?? form.full_name ?? "").trim() || "學生"
+        const hits = await previewEnrollmentAttendanceImpact(sid, transferTarget.classId)
+        const attOpts = await resolveEnrollmentAttendanceOptions(
+         confirmDialog,
+         hits,
+         "withdraw",
+         studentName
+        )
+        if (attOpts === "abort") return
+        await transferStudentClassTime({
+         studentId: sid,
+         enrollmentId: transferTarget.id,
+         fromClassId: transferTarget.classId,
+         toClassId,
+         enrollDate,
+         extraReason,
+         ...attOpts,
+        })
+        invalidateStudentsListDataCache()
+        invalidateEnrollmentChangesDataCache()
+        pushBanner({ tone: "success", title: "已轉時間" })
+        await reloadSubs()
+       }}
+      />
      </div>
     ) : null}
 
@@ -2441,7 +2500,7 @@ export function StudentDetailView() {
     ) : null}
 
     {tab === "payments" && canViewMoney ? (
-     <div className="mx-auto max-w-5xl space-y-4">
+     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
        <p className="text-sm font-medium">本學年繳費</p>
        {canRegisterPayment ? (

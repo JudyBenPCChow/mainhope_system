@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
-import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem } from "@/components/ui/stagger-list"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isHomeworkClassKind } from "@/lib/privateClassKind"
+import { isRegularAcademicYearLabel } from "@/lib/softArchiveWindow"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import type { LessonBalanceRow } from "@/services/pendingLessonQueries"
+import { canOfferTransferClassTime } from "@/lib/transferClassTime"
 import type { EnrollmentWithClass } from "@/services/studentQueries"
 
 function money(n: number) {
@@ -24,8 +25,8 @@ type Props = {
  balance: LessonBalanceRow | undefined
  studentId: string | undefined
  onEditForm: (enrollment: EnrollmentWithClass) => void
- onUpdateStatus: (enrollment: EnrollmentWithClass, next: string) => Promise<void>
  onWithdraw: (enrollment: EnrollmentWithClass) => void
+ onTransferTime?: (enrollment: EnrollmentWithClass) => void
  onPurge: (enrollment: EnrollmentWithClass) => void
  onMarkPendingArranged: (pendingId: string) => Promise<void>
  onGoLeaveTab: () => void
@@ -40,13 +41,15 @@ export function StudentEnrollmentCard({
  balance: bal,
  studentId,
  onEditForm,
- onUpdateStatus,
  onWithdraw,
+ onTransferTime,
  onPurge,
  onMarkPendingArranged,
  onGoLeaveTab,
 }: Props) {
  const isHomework = isHomeworkClassKind(e.classKind)
+ const yearLabel = (e.academicYearLabel ?? "").trim()
+ const canChangeEnrollmentForm = Boolean(yearLabel) && !isRegularAcademicYearLabel(yearLabel)
  return (
   <StaggerItem
    as="div"
@@ -71,6 +74,9 @@ export function StudentEnrollmentCard({
         {e.enrollmentFormLabel}
        </Tag>
       ) : null}
+      <Tag tone={statusToTagTone(e.status)} size="sm">
+       {e.status}
+      </Tag>
       {canViewMoney && !isHomework && e.pricePerLesson != null ? (
        <span>· 每節 {money(e.pricePerLesson)}</span>
       ) : null}
@@ -80,18 +86,16 @@ export function StudentEnrollmentCard({
     </div>
     {canMutateStudentOps ? (
      <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={() => onEditForm(e)}>
-       更改報讀形式
-      </Button>
-      <Select
-       className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-       value={e.status}
-       onChange={(ev) => void onUpdateStatus(e, ev.target.value)}
-      >
-       <option value="就讀中">就讀中</option>
-       <option value="休學">休學</option>
-       <option value="退選">退選</option>
-      </Select>
+      {canChangeEnrollmentForm ? (
+       <Button type="button" variant="outline" size="sm" onClick={() => onEditForm(e)}>
+        更改報讀形式
+       </Button>
+      ) : null}
+      {onTransferTime && canOfferTransferClassTime(e) ? (
+       <Button type="button" variant="outline" size="sm" onClick={() => onTransferTime(e)}>
+        轉時間
+       </Button>
+      ) : null}
       <Button
        type="button"
        variant="outline"
@@ -118,11 +122,7 @@ export function StudentEnrollmentCard({
        </div>
       </details>
      </div>
-    ) : (
-     <Tag tone={statusToTagTone(e.status)} size="sm">
-      {e.status}
-     </Tag>
-    )}
+    ) : null}
    </div>
    {isHomework ? (
     <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
