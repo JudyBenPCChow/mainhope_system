@@ -1073,13 +1073,6 @@ useEffect(() => {
   [displayStart, rangeEnd]
  )
 
- const shiftDayViewDate = useCallback(
-  (delta: number) => {
-   handleDayViewDateChange(addDaysYmd(dayViewDate, delta))
-  },
-  [dayViewDate, handleDayViewDateChange]
- )
-
  const proposeScheduleMove = useCallback(
   (row: ScheduleManageRow, roomId: string | null, slotIndex: number) => {
    if (scheduleMgmtLocked || scheduleRowLocked(row)) return
@@ -2301,7 +2294,6 @@ useEffect(() => {
      allowMobileDayView={allowMobileDayView}
      dayViewDate={dayViewDate}
      onDayViewDateChange={handleDayViewDateChange}
-     onShiftDate={shiftDayViewDate}
      onJumpToday={jumpToday}
      loading={loading}
      dayViewDateLoaded={dayViewDateLoaded}

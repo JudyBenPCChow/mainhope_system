@@ -1,9 +1,10 @@
 import type { ReactNode } from "react"
-import { ChevronLeft, ChevronRight, Wand2 } from "lucide-react"
+import { Wand2 } from "lucide-react"
 
 import { DayViewGrid } from "@/components/schedule/DayViewGrid"
 import { MobileDayViewGrid } from "@/components/schedule/MobileDayViewGrid"
 import { Button } from "@/components/ui/button"
+import { DateStepper } from "@/components/ui/date-stepper"
 import { Input } from "@/components/ui/input"
 import { SkeletonTimetableBlock } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
@@ -15,7 +16,6 @@ type Props = {
  allowMobileDayView: boolean
  dayViewDate: string
  onDayViewDateChange: (ymd: string) => void
- onShiftDate: (delta: number) => void
  onJumpToday: () => void
  loading: boolean
  dayViewDateLoaded: boolean
@@ -47,7 +47,6 @@ export function ScheduleDayViewPanel({
  allowMobileDayView,
  dayViewDate,
  onDayViewDateChange,
- onShiftDate,
  onJumpToday,
  loading,
  dayViewDateLoaded,
@@ -87,32 +86,7 @@ export function ScheduleDayViewPanel({
     {!isMobile ? (
      <>
       <span className="text-sm font-medium text-muted-foreground">日視圖日期</span>
-      <Button
-       type="button"
-       variant="outline"
-       size="icon"
-       className="h-10 w-10 shrink-0"
-       aria-label="前一日"
-       onClick={() => onShiftDate(-1)}
-      >
-       <ChevronLeft className="h-5 w-5" aria-hidden />
-      </Button>
-      <Input
-       type="date"
-       value={dayViewDate}
-       onChange={(e) => onDayViewDateChange(e.target.value)}
-       className="h-10 w-[12rem] cursor-pointer text-sm"
-      />
-      <Button
-       type="button"
-       variant="outline"
-       size="icon"
-       className="h-10 w-10 shrink-0"
-       aria-label="後一日"
-       onClick={() => onShiftDate(1)}
-      >
-       <ChevronRight className="h-5 w-5" aria-hidden />
-      </Button>
+      <DateStepper value={dayViewDate} onChange={onDayViewDateChange} />
      </>
     ) : (
      <Input

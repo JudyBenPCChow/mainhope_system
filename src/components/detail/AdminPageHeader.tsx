@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { usesSharedAppShell, type MgmtRole } from "@/lib/mgmtRole"
 
-export type AdminPageEyebrow = "管理中心" | "工作域" | "行政工作" | "網站地圖"
+export type AdminPageEyebrow = "主頁" | "今日" | "管理中心" | "工作域" | "行政工作" | "網站地圖"
 
 type AdminPageHeaderProps = {
  eyebrow: AdminPageEyebrow

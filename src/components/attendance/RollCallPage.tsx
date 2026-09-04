@@ -8,8 +8,8 @@ import {
  type RollCallPanelStats,
 } from "@/components/attendance/RollCallClassPanel"
 import { Button } from "@/components/ui/button"
+import { DateStepper } from "@/components/ui/date-stepper"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
@@ -264,20 +264,19 @@ export function RollCallPage() {
    </section>
 
    <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
-    <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
+    <div className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
      <span>日期</span>
-     <Input
-      type="date"
+     <DateStepper
       value={dateYmd}
-      onChange={(e) => setDateYmd(e.target.value)}
-      className="h-9 w-full sm:w-[11rem]"
+      onChange={setDateYmd}
+      className="w-full sm:w-auto"
+      inputClassName="w-full min-w-0 sm:w-[12rem]"
      />
-    </label>
+    </div>
     <Button
      type="button"
      variant="outline"
-     size="sm"
-     className="h-9 border-amber-400/80"
+     className="h-10 border-amber-400/80"
      onClick={() => setDateYmd(localYmd())}
     >
      今天
@@ -286,8 +285,7 @@ export function RollCallPage() {
      <Button
       type="button"
       variant="outline"
-      size="sm"
-      className="h-9"
+      className="h-10"
       disabled={rollCallEntries.length === 0}
       onClick={expandAll}
      >
@@ -296,8 +294,7 @@ export function RollCallPage() {
      <Button
       type="button"
       variant="outline"
-      size="sm"
-      className="h-9"
+      className="h-10"
       disabled={expandedKeys.size === 0}
       onClick={collapseAll}
      >

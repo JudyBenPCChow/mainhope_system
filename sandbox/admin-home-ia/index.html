@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>明學教育 — 行政首頁（沙盒）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #2563eb;
+      --background: #f4f7fb;
+      --card: #ffffff;
+      --foreground: #172033;
+      --muted: #64748b;
+      --border: #dde4ee;
+      --warning: #c26908;
+      --info: #2563eb;
+      --shadow: 0 1px 2px rgba(15, 23, 42, .05), 0 8px 24px rgba(15, 23, 42, .05);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      color: var(--foreground);
+      background: var(--background);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+    button { font: inherit; -webkit-tap-highlight-color: transparent; }
+    .shell {
+      display: flex;
+      height: 100vh;
+      min-height: 640px;
+    }
+    .main {
+      flex: 1;
+      min-width: 0;
+      overflow: auto;
+    }
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+    }
+    @media (min-width: 640px) {
+      .page { padding: 28px 30px 48px; }
+    }
+    .sandbox-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .sandbox-bar h1 { margin: 0; font-size: 1rem; font-weight: 700; }
+    .sandbox-bar p { margin: 2px 0 0; font-size: 0.8rem; color: var(--muted); }
+    .badge {
+      display: inline-flex;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .toggles { display: flex; gap: 8px; }
+    .toggles button {
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      cursor: pointer;
+    }
+    .toggles button[aria-pressed="true"] {
+      border-color: var(--primary);
+      background: #eff6ff;
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .eyebrow { margin: 0 0 4px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; color: var(--primary); }
+    .title { margin: 0; font-size: clamp(1.7rem, 3vw, 2.35rem); font-weight: 700; letter-spacing: -0.035em; line-height: 1.2; }
+    .desc { margin: 6px 0 0; font-size: 0.875rem; color: var(--muted); }
+    .mobile-actions {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin: 22px 0 0;
+    }
+    body.is-phone .mobile-actions { display: grid; }
+    .chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-height: 72px;
+      padding: 12px 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+      margin-top: 22px;
+    }
+    .card h2 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      font-size: 1.05rem;
+    }
+    .count {
+      display: inline-flex;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #eef2f6;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .lesson {
+      display: block;
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 16px 18px;
+      border: 1px solid #e4e9f0;
+      border-radius: 10px;
+      background: #fbfdff;
+      text-align: left;
+      cursor: pointer;
+    }
+    .lesson-name { font-weight: 700; }
+    .meta { margin-top: 8px; color: var(--muted); font-size: 0.875rem; }
+    .leave + .leave { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
+    .main-split {
+      display: grid;
+      gap: 16px;
+      margin-top: 8px;
+    }
+    @media (min-width: 1024px) {
+      body:not(.is-phone) .main-split {
+        grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+        align-items: start;
+      }
+    }
+    .day-grid {
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .day-grid table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.8rem; }
+    .day-grid th, .day-grid td {
+      border: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+    }
+    .day-grid th { background: #f4f6f8; }
+    .rail {
+      position: relative;
+      width: min(26rem, 42vw);
+      min-width: min(26rem, 42vw);
+      display: flex;
+      flex-direction: column;
+      overflow: auto;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      box-shadow: -6px 0 24px -4px rgba(15, 23, 42, 0.18);
+    }
+    .preview-close {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      z-index: 2;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
+      background: rgba(255,255,255,.8);
+      color: var(--foreground);
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    body.is-phone .rail { display: none; }
+    @media (max-width: 1023px) {
+      .rail { display: none; }
+      .mobile-actions { display: grid; }
+    }
+    .rail-inner { padding: 48px 16px 20px; }
+    .rail-inner h2 { margin: 0; font-size: 1.3rem; }
+    .rail-inner .hint { margin: 6px 0 0; font-size: 0.875rem; color: var(--muted); }
+    .tiles {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .tile {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      text-align: left;
+    }
+    .tile-icon {
+      display: flex;
+      width: 40px;
+      height: 40px;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: #eef2f6;
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .tile-copy { min-width: 0; flex: 1; }
+    .tile strong { display: block; font-size: 0.95rem; font-weight: 600; }
+    .tile em {
+      display: block;
+      margin-top: 4px;
+      font-style: normal;
+      font-size: 0.8rem;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+    .pending {
+      padding: 1px 7px;
+      border-radius: 8px;
+      background: #fff7ed;
+      color: var(--warning);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .toast {
+      position: fixed;
+      right: 16px;
+      bottom: 16px;
+      display: none;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #172033;
+      color: #fff;
+      font-size: 0.85rem;
+    }
+    .toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="main">
+      <div class="page">
+        <div class="sandbox-bar">
+          <div>
+            <h1>行政首頁沙盒</h1>
+            <p>右側欄對齊學生／班別簡單頁。按鈕不會進入正式頁。</p>
+          </div>
+          <div class="toggles">
+            <span class="badge">沙盒</span>
+            <button type="button" id="deskBtn" aria-pressed="true">桌面</button>
+            <button type="button" id="phoneBtn" aria-pressed="false">手機</button>
+          </div>
+        </div>
+
+        <header>
+          <p class="eyebrow">主頁</p>
+          <h2 class="title">你好，陳詠恩！</h2>
+          <p class="desc">2026年9月5日星期六 · 校舍課堂與請假</p>
+        </header>
+
+        <div class="mobile-actions">
+          <button type="button" class="chip" data-sandbox><strong>新生登記</strong></button>
+          <button type="button" class="chip" data-sandbox><strong>收款登記</strong></button>
+          <button type="button" class="chip" data-sandbox><strong>登記請假</strong></button>
+        </div>
+
+        <div class="main-split">
+          <div>
+            <section class="card" aria-label="今日課堂" style="margin-top:0">
+              <h2>今日課堂 <span class="count">4 堂</span></h2>
+              <button type="button" class="lesson" data-sandbox>
+                <div class="lesson-name">中三英文 A</div>
+                <div class="meta">中三 · 陳老師 · 張善愉、李同學、王同學</div>
+                <div class="meta">17D · 16:00 – 17:15</div>
+              </button>
+              <button type="button" class="lesson" data-sandbox>
+                <div class="lesson-name">中二數學 B</div>
+                <div class="meta">中二 · 林老師 · 莊凱茵、周同學</div>
+                <div class="meta">17E · 16:00 – 17:15</div>
+              </button>
+            </section>
+            <section class="card" aria-label="今日請假學生">
+              <h2>今日請假學生 <span class="count">2 筆</span></h2>
+              <div class="leave">
+                <strong>莊凱茵 · 中二</strong>
+                <div class="meta">中二數學 B · 病假</div>
+              </div>
+            </section>
+          </div>
+          <section class="card" aria-label="日視圖" style="margin-top:0">
+            <h2>日視圖</h2>
+            <div class="day-grid">
+              <table>
+                <thead>
+                  <tr><th>時間</th><th>17D</th><th>17E</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>16:00</td><td>中三英文 A</td><td>中二數學 B</td></tr>
+                  <tr><td>17:30</td><td>—</td><td>—</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <aside class="rail" aria-label="常用工作">
+      <button type="button" class="preview-close" data-sandbox aria-label="摺疊常用工作">×</button>
+      <div class="rail-inner">
+        <h2>常用工作</h2>
+        <p class="hint">直接前往常用的行政工作。</p>
+        <div class="tiles">
+          <button type="button" class="tile" data-sandbox>
+            <span class="tile-icon">登</span>
+            <span class="tile-copy">
+              <strong>新生登記</strong>
+              <em>按情境完成查詢、新生登記及後續安排。</em>
+            </span>
+          </button>
+          <button type="button" class="tile" data-sandbox>
+            <span class="tile-icon">收</span>
+            <span class="tile-copy">
+              <strong>收款登記 <span class="pending">3</span></strong>
+              <em>登記學費、核對堂數並建立收據紀錄。</em>
+            </span>
+          </button>
+          <button type="button" class="tile" data-sandbox>
+            <span class="tile-icon">假</span>
+            <span class="tile-copy">
+              <strong>登記請假</strong>
+              <em>處理學生請假與補堂跟進。</em>
+            </span>
+          </button>
+          <button type="button" class="tile" data-sandbox>
+            <span class="tile-icon">點</span>
+            <span class="tile-copy">
+              <strong>進行點名</strong>
+              <em>開啟即日課堂點名紙並確認出席狀態。</em>
+            </span>
+          </button>
+          <button type="button" class="tile" data-sandbox>
+            <span class="tile-icon">試</span>
+            <span class="tile-copy">
+              <strong>試堂紀錄</strong>
+              <em>查閱試堂並跟進出單確認。</em>
+            </span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <div class="toast" id="toast" role="status">沙盒：不會進入正式頁</div>
+  <script>
+    const toast = document.getElementById("toast")
+    const deskBtn = document.getElementById("deskBtn")
+    const phoneBtn = document.getElementById("phoneBtn")
+    function setPhone(on) {
+      document.body.classList.toggle("is-phone", on)
+      deskBtn.setAttribute("aria-pressed", String(!on))
+      phoneBtn.setAttribute("aria-pressed", String(on))
+    }
+    deskBtn.addEventListener("click", () => setPhone(false))
+    phoneBtn.addEventListener("click", () => setPhone(true))
+    document.querySelectorAll("[data-sandbox]").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault()
+        toast.classList.add("show")
+        window.clearTimeout(toast._t)
+        toast._t = window.setTimeout(() => toast.classList.remove("show"), 1600)
+      })
+    })
+  </script>
+</body>
+</html>

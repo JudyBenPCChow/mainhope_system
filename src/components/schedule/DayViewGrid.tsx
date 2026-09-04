@@ -303,6 +303,8 @@ type Props = {
  onDropOnCell: (e: React.DragEvent, roomId: string | null, slotIndex: number) => void
  onOpenDetail: (id: string) => void
  onMoveRequest: (schedule: ScheduleManageRow) => void
+ /** 僅檢視：不可拖曳／移動；說明亦不提調整 */
+ readOnly?: boolean
 }
 
 export function DayViewGrid({
@@ -320,6 +322,7 @@ export function DayViewGrid({
  onDropOnCell,
  onOpenDetail,
  onMoveRequest,
+ readOnly = false,
 }: Props) {
  const weekday = isWeekdayYmd(dayViewDate)
  const [showEarlierSlots, setShowEarlierSlots] = useState(false)
@@ -381,12 +384,12 @@ export function DayViewGrid({
    variant={variant}
    empty={emptyScheduleIds?.has(s.id) ?? false}
    extraTags={extraTagsByScheduleId?.get(s.id) ?? []}
-   historyReadOnly={scheduleRowLocked(s)}
+   historyReadOnly={readOnly || scheduleRowLocked(s)}
    inactiveRoomName={inactiveRoomName(s)}
    onOpenDetail={() => onOpenDetail(s.id)}
-   onMoveRequest={scheduleRowLocked(s) ? undefined : () => onMoveRequest(s)}
+   onMoveRequest={readOnly || scheduleRowLocked(s) ? undefined : () => onMoveRequest(s)}
    onDragStart={(e) => {
-    if (scheduleRowLocked(s)) {
+    if (readOnly || scheduleRowLocked(s)) {
      e.preventDefault()
      return
     }
@@ -418,10 +421,14 @@ export function DayViewGrid({
        )}
        data-room-id={col.isUnassigned ? "__none__" : col.id}
        onDragOver={(e) => {
+        if (readOnly) return
         e.preventDefault()
         e.dataTransfer.dropEffect = "move"
        }}
-       onDrop={(e) => onDropOnCell(e, col.isUnassigned ? null : col.id, slotIdx)}
+       onDrop={(e) => {
+        if (readOnly) return
+        onDropOnCell(e, col.isUnassigned ? null : col.id, slotIdx)
+       }}
       >
        <div
         className={cn(
@@ -445,7 +452,8 @@ export function DayViewGrid({
  return (
   <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
    <p className="border-b border-border bg-muted/30 px-4 py-3 text-base font-medium">
-    {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘 · 拖曳或「移動到…」可調整課室與時段
+    {dayViewDate} · 日視圖（依課室）· 每格 75 分鐘
+    {readOnly ? null : " · 拖曳或「移動到…」可調整課室與時段"}
     {weekday ? " · 平日預設顯示 14:00 起" : null}
    </p>
    <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">

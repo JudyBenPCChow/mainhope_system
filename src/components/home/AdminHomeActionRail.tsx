@@ -1,0 +1,173 @@
+import { useEffect, useState } from "react"
+import { Link } from "react-router-dom"
+import {
+ CalendarOff,
+ ChevronRight,
+ ClipboardCheck,
+ GraduationCap,
+ HandCoins,
+ ListOrdered,
+ type LucideIcon,
+} from "lucide-react"
+
+import { Tag } from "@/components/ui/tag"
+import { useAuth } from "@/lib/authBootstrap"
+import { can } from "@/lib/authzProfile"
+import { fetchAdminDashboard } from "@/services/dashboard"
+
+type CompactProps = {
+ pendingPaymentCount: number
+ loading?: boolean
+}
+
+type Tile = {
+ path: string
+ label: string
+ description: string
+ icon: LucideIcon
+ need?: "pay" | "leave"
+ badge?: "pending"
+}
+
+const TILES: Tile[] = [
+ {
+  path: "/FrontDeskWizard",
+  label: "新生登記",
+  description: "按情境完成查詢、新生登記及後續安排。",
+  icon: ListOrdered,
+ },
+ {
+  path: "/Payments",
+  label: "收款登記",
+  description: "登記學費、核對堂數並建立收據紀錄。",
+  icon: HandCoins,
+  need: "pay",
+  badge: "pending",
+ },
+ {
+  path: "/LeaveManagement",
+  label: "登記請假",
+  description: "處理學生請假與補堂跟進。",
+  icon: CalendarOff,
+  need: "leave",
+ },
+ {
+  path: "/Attendance",
+  label: "進行點名",
+  description: "開啟即日課堂點名紙並確認出席狀態。",
+  icon: ClipboardCheck,
+ },
+ {
+  path: "/TrialSessions",
+  label: "試堂紀錄",
+  description: "查閱試堂並跟進出單確認。",
+  icon: GraduationCap,
+ },
+]
+
+function PendingBadge({ count, loading }: { count: number; loading?: boolean }) {
+ if (loading || count <= 0) return null
+ return (
+  <Tag tone="warning" size="sm">
+   {count}
+  </Tag>
+ )
+}
+
+/** 手機：三個主鍵，不佔右側預覽欄。 */
+export function AdminHomeMobileActions({ pendingPaymentCount, loading }: CompactProps) {
+ return (
+  <nav aria-label="常用工作" className="grid grid-cols-3 gap-2">
+   {TILES.slice(0, 3).map((tile) => {
+    const Icon = tile.icon
+    return (
+     <Link
+      key={tile.path}
+      to={tile.path}
+      className="flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-2 py-3 text-xs font-medium shadow-sm"
+     >
+      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+       <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      {tile.label}
+      {tile.badge === "pending" ? (
+       <PendingBadge count={pendingPaymentCount} loading={loading} />
+      ) : null}
+     </Link>
+    )
+   })}
+  </nav>
+ )
+}
+
+/** 桌面首頁右側：沿用線上行政首頁「快速功能」卡片樣式。 */
+export function HomeActionsPreviewPanel() {
+ const { profile } = useAuth()
+ const caps = profile?.activeCapabilities
+ const canPay = can(caps, "payments.create") || can(caps, "payments.mark_received")
+ const canLeave = can(caps, "leaves.read") || can(caps, "leaves.manage")
+
+ const [pending, setPending] = useState(0)
+ const [loading, setLoading] = useState(true)
+
+ useEffect(() => {
+  let cancelled = false
+  setLoading(true)
+  void fetchAdminDashboard()
+   .then((d) => {
+    if (!cancelled) setPending(d.pendingPaymentCount)
+   })
+   .finally(() => {
+    if (!cancelled) setLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [])
+
+ const tiles = TILES.filter((tile) => {
+  if (tile.need === "pay") return canPay
+  if (tile.need === "leave") return canLeave
+  return true
+ })
+
+ return (
+  <div className="flex min-h-full flex-col px-4 pb-5 pt-12">
+   <header className="pr-8">
+    <h2 className="text-[1.3rem] font-semibold text-foreground">常用工作</h2>
+    <p className="mt-1 text-sm text-muted-foreground">直接前往常用的行政工作。</p>
+   </header>
+
+   <nav aria-label="常用工作" className="mt-4 flex flex-col gap-3">
+    {tiles.map((tile) => {
+     const Icon = tile.icon
+     const showPending = tile.badge === "pending"
+     return (
+      <Link
+       key={tile.path}
+       to={tile.path}
+       className="group flex min-w-0 items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
+       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-info/10 group-hover:text-info">
+        <Icon className="h-5 w-5" aria-hidden />
+       </span>
+       <span className="min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2 font-medium text-foreground">
+         {tile.label}
+         {showPending ? <PendingBadge count={pending} loading={loading} /> : null}
+        </span>
+        <span className="mt-1 block text-sm leading-5 text-muted-foreground">
+         {tile.description}
+        </span>
+       </span>
+       <ChevronRight
+        className="mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        aria-hidden
+       />
+      </Link>
+     )
+    })}
+   </nav>
+  </div>
+ )
+}

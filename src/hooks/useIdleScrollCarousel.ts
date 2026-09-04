@@ -11,8 +11,8 @@ type Options = {
  pauseAtEndMs?: number
 }
 
-function easeOutQuad(t: number): number {
- return 1 - (1 - t) * (1 - t)
+function easeInOutCubic(t: number): number {
+ return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
 }
 
 /** 以固定時長緩慢捲動（比瀏覽器內建 smooth 更易調速度） */
@@ -34,7 +34,7 @@ function animateScrollTop(
     return
    }
    const t = Math.min(1, (now - start) / durationMs)
-   el.scrollTop = from + delta * easeOutQuad(t)
+   el.scrollTop = from + delta * easeInOutCubic(t)
    if (t < 1) {
     requestAnimationFrame(frame)
    } else {

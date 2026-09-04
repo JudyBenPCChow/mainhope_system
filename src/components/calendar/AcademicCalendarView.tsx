@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { CalendarX, Plus, Trash2, Upload } from "lucide-react"
+import { CalendarX, Trash2 } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminWorkspaceNav } from "@/components/detail/AdminWorkspaceNav"
@@ -9,9 +9,7 @@ import {
 } from "@/lib/adminNavigation"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
@@ -21,8 +19,6 @@ import { cn } from "@/lib/utils"
 import {
  deleteAcademicCalendarClosure,
  fetchAcademicCalendarClosures,
- importAcademicCalendarClosures,
- saveAcademicCalendarClosure,
  type AcademicCalendarClosure,
 } from "@/services/academicCalendarQueries"
 import {
@@ -31,22 +27,6 @@ import {
 } from "@/services/teacherAvailabilityQueries"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
 
-function parseImportText(text: string): Array<{ closureDate: string; name: string; notes: string | null }> {
- return text
-  .split(/\r?\n/)
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line) => {
-   const [date = "", name = "", ...notes] = line.split(/[\t,，]/).map((part) => part.trim())
-   return {
-    closureDate: date.slice(0, 10),
-    name,
-    notes: notes.join("；") || null,
-   }
-  })
-  .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.closureDate) && row.name.length > 0)
-}
-
 export function AcademicCalendarView() {
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
@@ -54,12 +34,7 @@ export function AcademicCalendarView() {
  const [years, setYears] = useState<AcademicYearRange[]>([])
  const [yearId, setYearId] = useState("")
  const [rows, setRows] = useState<AcademicCalendarClosure[]>([])
- const [date, setDate] = useState("")
- const [name, setName] = useState("")
- const [notes, setNotes] = useState("")
- const [importText, setImportText] = useState("")
  const [loading, setLoading] = useState(true)
- const [saving, setSaving] = useState(false)
  const [err, setErr] = useState<string | null>(null)
 
  const selectedYear = useMemo(
@@ -108,80 +83,6 @@ export function AcademicCalendarView() {
   }
  }
 
- const addClosure = async () => {
-  if (!yearId || saving) return
-  if (selectedYear && (date < selectedYear.start_date || date > selectedYear.end_date)) {
-   setErr(`日期必須在 ${selectedYear.start_date} 至 ${selectedYear.end_date} 內`)
-   return
-  }
-  if (
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    label: selectedYear?.label,
-    dateYmd: date,
-    source: "AcademicCalendarView.add",
-   }))
-  ) {
-   return
-  }
-  setSaving(true)
-  setErr(null)
-  try {
-   await saveAcademicCalendarClosure({
-    academicYearId: yearId,
-    closureDate: date,
-    name,
-    notes,
-   })
-   await reloadRows(yearId)
-   setDate("")
-   setName("")
-   setNotes("")
-   pushBanner({ tone: "success", title: "已儲存校舍假期" })
-  } catch (error) {
-   reportUserFacingError(error, { source: "AcademicCalendarView.add", setErr })
-  } finally {
-   setSaving(false)
-  }
- }
-
- const importClosures = async () => {
-  if (!yearId || saving) return
-  const parsed = parseImportText(importText)
-  if (parsed.length === 0) {
-   setErr("請按每行「YYYY-MM-DD, 假期名稱」格式貼上校曆")
-   return
-  }
-  if (
-   selectedYear &&
-   parsed.some(
-    (row) => row.closureDate < selectedYear.start_date || row.closureDate > selectedYear.end_date
-   )
-  ) {
-   setErr(`所有日期必須在 ${selectedYear.start_date} 至 ${selectedYear.end_date} 內`)
-   return
-  }
-  if (
-   !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
-    label: selectedYear?.label,
-    source: "AcademicCalendarView.import",
-   }))
-  ) {
-   return
-  }
-  setSaving(true)
-  setErr(null)
-  try {
-   const count = await importAcademicCalendarClosures(yearId, parsed)
-   await reloadRows(yearId)
-   setImportText("")
-   pushBanner({ tone: "success", title: "校曆匯入完成", message: `已處理 ${count} 個校舍假期` })
-  } catch (error) {
-   reportUserFacingError(error, { source: "AcademicCalendarView.import", setErr })
-  } finally {
-   setSaving(false)
-  }
- }
-
  const removeClosure = async (row: AcademicCalendarClosure) => {
   if (
    !(await confirmNonCurrentAcademicYearWrite(confirmDialog, {
@@ -227,7 +128,7 @@ export function AcademicCalendarView() {
       校曆
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      登記本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
+      列出本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
      </p>
     </header>
    )}
@@ -252,45 +153,6 @@ export function AcademicCalendarView() {
      ))}
     </Select>
    </section>
-
-   <div className="grid gap-4 lg:grid-cols-2">
-    <section className="rounded-xl border border-border bg-card p-4">
-     <h2 className="text-base font-semibold">新增單一校舍假期</h2>
-     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-      <label className="text-sm">
-       <span className="mb-1 block text-muted-foreground">日期</span>
-       <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-      </label>
-      <label className="text-sm">
-       <span className="mb-1 block text-muted-foreground">名稱</span>
-       <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="例如：中秋節翌日" />
-      </label>
-      <label className="text-sm sm:col-span-2">
-       <span className="mb-1 block text-muted-foreground">備註</span>
-       <Input value={notes} onChange={(event) => setNotes(event.target.value)} />
-      </label>
-     </div>
-     <Button className="mt-3" type="button" onClick={() => void addClosure()} disabled={!yearId || saving}>
-      <Plus className="h-4 w-4" />
-      新增校舍假期
-     </Button>
-    </section>
-
-    <section className="rounded-xl border border-border bg-card p-4">
-     <h2 className="text-base font-semibold">批量貼上校曆</h2>
-     <p className="mt-1 text-xs text-muted-foreground">每行：YYYY-MM-DD, 假期名稱, 備註（備註可省略）</p>
-     <Textarea
-      className="mt-3 min-h-28"
-      value={importText}
-      onChange={(event) => setImportText(event.target.value)}
-      placeholder={"2026-10-01, 國慶日\n2026-10-02, 校舍假期"}
-     />
-     <Button className="mt-3" type="button" variant="outline" onClick={() => void importClosures()} disabled={!yearId || saving}>
-      <Upload className="h-4 w-4" />
-      匯入校曆
-     </Button>
-    </section>
-   </div>
 
    {err ? <p role="alert" className="text-sm text-destructive">{err}</p> : null}
 

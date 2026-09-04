@@ -18,6 +18,7 @@ import { RecordPreviewRail } from "@/components/recordPreview/RecordPreviewRail"
 import { RoleSwitcher } from "@/components/account/RoleSwitcher"
 import { ApoAssistant } from "@/components/assistant/ApoAssistant"
 import { ChickenGentlemanNudge } from "@/components/home/ChickenGentlemanNudge"
+import { HomeActionsPreviewPanel } from "@/components/home/AdminHomeActionRail"
 import { Button } from "@/components/ui/button"
 import { useInboxUnreadCount } from "@/hooks/useInboxUnreadCount"
 import { useTeacherHomeworkNavFlags } from "@/hooks/useHomeworkTutoringNavVisible"
@@ -505,7 +506,9 @@ export function Layout() {
      </div>
     </div>
    </main>
-   <RecordPreviewRail />
+   <RecordPreviewRail
+    empty={role === "admin" ? <HomeActionsPreviewPanel /> : undefined}
+   />
    </div>
    <ApoAssistant role={role} />
    <ChickenGentlemanNudge role={role} />
