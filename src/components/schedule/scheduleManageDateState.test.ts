@@ -7,9 +7,11 @@ import {
  captureScheduleListReturnState,
  decideInitialScheduleDates,
  FUTURE_CANCELLED_SCOPE,
+ initialScheduleViewModeFromSearch,
  initialUrlDateFromSearch,
  parseScheduleManageSearch,
  restoreScheduleListReturnState,
+ shouldDeferDayViewUrlWriteback,
  shouldFetchNearestScheduleDate,
  shouldWriteDayViewUrl,
 } from "@/components/schedule/scheduleManageDateState"
@@ -133,6 +135,24 @@ describe("day view URL writeback", () => {
   expect(shouldWriteDayViewUrl(false, "day")).toBe(false)
   expect(shouldWriteDayViewUrl(true, "day")).toBe(true)
   expect(shouldWriteDayViewUrl(true, "byDate")).toBe(false)
+ })
+
+ it("URL 指定視圖時蓋過 session 殘留", () => {
+  expect(initialScheduleViewModeFromSearch("day", "byDate")).toBe("day")
+  expect(initialScheduleViewModeFromSearch("list", "day")).toBe("list")
+  expect(initialScheduleViewModeFromSearch(null, "byDate")).toBe("byDate")
+ })
+
+ it("URL 剛變成日視圖且畫面仍是清單時暫緩寫回", () => {
+  expect(
+   shouldDeferDayViewUrlWriteback({ urlView: "day", previousUrlView: null, viewMode: "byDate" })
+  ).toBe(true)
+  expect(
+   shouldDeferDayViewUrlWriteback({ urlView: "day", previousUrlView: "day", viewMode: "byDate" })
+  ).toBe(false)
+  expect(
+   shouldDeferDayViewUrlWriteback({ urlView: "day", previousUrlView: null, viewMode: "day" })
+  ).toBe(false)
  })
 
  it("日視圖切換日期只在 view/date 變更時才算 changed", () => {

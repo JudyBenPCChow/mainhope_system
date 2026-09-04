@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { TriangleAlert } from "lucide-react"
+import { CalendarDays, LayoutGrid, TriangleAlert } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminHomeMobileActions } from "@/components/home/AdminHomeActionRail"
@@ -28,10 +28,14 @@ const empty: AdminDashboardPayload = {
  todayLeaves: [],
 }
 
+const shortcutCardClass =
+ "group flex min-h-[4.5rem] flex-col justify-center rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm transition-colors hover:border-primary/35 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
 export function AdminDashboard() {
  const greetingName =
   (typeof localStorage !== "undefined" ? localStorage.getItem("mgmt_display_name") : null) ||
   DEMO_ADMIN_GREETING_NAME
+ const todayYmd = todayYmdLocal()
 
  const [data, setData] = useState<AdminDashboardPayload>(empty)
  const [loading, setLoading] = useState(true)
@@ -96,6 +100,39 @@ export function AdminDashboard() {
     eyebrow="主頁"
     title={`你好，${greetingName}！`}
     description={`${dashboardTitleDate()} · 校舍課堂與請假`}
+    afterDescription={
+     <nav className="mt-3 grid w-full max-w-xl grid-cols-2 gap-2" aria-label="今日校舍捷徑">
+      <Link
+       to={`/Schedule?view=byDate&date=${todayYmd}`}
+       className={shortcutCardClass}
+       aria-label={
+        loading ? "今日排程，載入中，前往清單" : `今日排程，${data.todayClassCount} 堂，前往清單`
+       }
+      >
+       <span className="text-2xl font-bold tabular-nums leading-none text-primary">
+        {loading ? "…" : data.todayClassCount}
+        {!loading ? (
+         <span className="ml-1 text-sm font-medium text-muted-foreground">堂</span>
+        ) : null}
+       </span>
+       <span className="mt-1.5 inline-flex items-center gap-1 text-sm text-muted-foreground">
+        <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        今日排程
+       </span>
+      </Link>
+      <Link
+       to={`/Schedule?view=day&date=${todayYmd}`}
+       className={shortcutCardClass}
+       aria-label="課室狀態，前往日視圖"
+      >
+       <span className="inline-flex items-center gap-1.5 text-lg font-semibold leading-none text-foreground">
+        <LayoutGrid className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+        課室狀態
+       </span>
+       <span className="mt-1.5 text-sm text-muted-foreground">前往日視圖</span>
+      </Link>
+     </nav>
+    }
    />
 
    {!isSupabaseConfigured ? (

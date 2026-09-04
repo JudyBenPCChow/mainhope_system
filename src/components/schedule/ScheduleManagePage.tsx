@@ -154,10 +154,13 @@ import {
  captureScheduleListReturnState,
  decideInitialScheduleDates,
  FUTURE_CANCELLED_SCOPE,
+ initialScheduleViewModeFromSearch,
  initialUrlDateFromSearch,
  parseScheduleManageSearch,
+ parseScheduleViewParam,
  parseValidScheduleYmd,
  SCHEDULE_RANGE_DAYS,
+ shouldDeferDayViewUrlWriteback,
  shouldFetchNearestScheduleDate,
  type ScheduleListReturnState,
 } from "@/components/schedule/scheduleManageDateState"
@@ -226,12 +229,20 @@ export function ScheduleManagePage() {
   todayYmd,
  })
 
- const [viewMode, setViewMode] = usePersistentState<ViewMode>("mgmt_schedule_viewMode", "byDate")
+ const landingUrlView = parseScheduleViewParam(searchParams.get("view"))
+ const [viewMode, setViewMode] = usePersistentState<ViewMode>(
+  "mgmt_schedule_viewMode",
+  "byDate",
+  landingUrlView != null
+   ? { initialOverride: initialScheduleViewModeFromSearch(landingUrlView, "byDate") }
+   : undefined
+ )
  const location = useLocation()
  const isXl = useIsXl()
  const { closePreview, preview } = useRecordPreview()
  const openScheduleRecord = useOpenScheduleRecord()
  const parsedSearch = parseScheduleManageSearch(searchParams)
+ const prevUrlViewRef = useRef(parsedSearch.view)
  const futureCancelledMode = parsedSearch.scope === FUTURE_CANCELLED_SCOPE
  const futureCancelledReturnRef = useRef<ScheduleListReturnState | null>(null)
  const effectiveViewMode: ViewMode =
@@ -553,6 +564,17 @@ export function ScheduleManagePage() {
  useEffect(() => {
   // 等「未來最近排程」初始化完成後再同步 URL，避免日視圖先寫入今天、蓋掉最近日期。
   if (!startInitialized || futureCancelledMode) return
+  const urlView = parseScheduleManageSearch(searchParams).view
+  if (
+   shouldDeferDayViewUrlWriteback({
+    urlView,
+    previousUrlView: prevUrlViewRef.current,
+    viewMode: effectiveViewMode,
+   })
+  ) {
+   return
+  }
+  prevUrlViewRef.current = urlView
   const { next, changed } = applyScheduleDayViewSearch(searchParams, {
    viewMode: effectiveViewMode,
    dayViewDate,
@@ -2042,6 +2064,45 @@ useEffect(() => {
     </div>
    ) : null}
 
+   {futureCancelledMode ? null : (
+    <div
+     className="inline-flex min-h-10 rounded-lg border border-border bg-muted/30 p-0.5"
+     role="tablist"
+     aria-label="檢視模式"
+    >
+     {(
+      [
+       { id: "byDate" as const, label: "清單", icon: LayoutGrid },
+       ...(!isMobile
+        ? ([
+           { id: "list" as const, label: "表格", icon: List },
+           { id: "day" as const, label: "日視圖", icon: CalendarDays },
+          ] as const)
+        : allowMobileDayView
+          ? ([{ id: "day" as const, label: "週曆", icon: CalendarDays }] as const)
+          : []),
+      ] as const
+     ).map(({ id, label, icon: Icon }) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={effectiveViewMode === id}
+       onClick={() => setViewMode(id)}
+       className={cn(
+        "inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
+        effectiveViewMode === id
+         ? "bg-primary text-primary-foreground shadow-sm"
+         : "text-muted-foreground hover:bg-background hover:text-foreground"
+       )}
+      >
+       <Icon className="h-4 w-4 shrink-0" aria-hidden />
+       {label}
+      </button>
+     ))}
+    </div>
+   )}
+
    <ScheduleOverview
     selectedDate={displayStart}
     todayYmd={todayYmd}
@@ -2098,44 +2159,6 @@ useEffect(() => {
       onToggleTeacher={toggleTeacherFilter}
      />
      <div className="flex flex-wrap items-center gap-2">
-      {futureCancelledMode ? null : (
-       <div
-        className="inline-flex min-h-10 rounded-lg border border-border bg-muted/30 p-0.5"
-        role="tablist"
-        aria-label="檢視模式"
-       >
-        {(
-         [
-          { id: "byDate" as const, label: "清單", icon: LayoutGrid },
-          ...(!isMobile
-           ? ([
-              { id: "list" as const, label: "表格", icon: List },
-              { id: "day" as const, label: "日視圖", icon: CalendarDays },
-             ] as const)
-           : allowMobileDayView
-             ? ([{ id: "day" as const, label: "週曆", icon: CalendarDays }] as const)
-             : []),
-         ] as const
-        ).map(({ id, label, icon: Icon }) => (
-         <button
-          key={id}
-          type="button"
-          role="tab"
-          aria-selected={effectiveViewMode === id}
-          onClick={() => setViewMode(id)}
-          className={cn(
-           "inline-flex min-h-10 items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-all",
-           effectiveViewMode === id
-            ? "bg-primary text-primary-foreground shadow-sm"
-            : "text-muted-foreground hover:bg-background hover:text-foreground"
-          )}
-         >
-          <Icon className="h-4 w-4 shrink-0" aria-hidden />
-          {label}
-         </button>
-        ))}
-       </div>
-      )}
       <Button
        type="button"
        variant="outline"

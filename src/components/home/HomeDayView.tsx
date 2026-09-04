@@ -86,12 +86,17 @@ export function HomeDayView({ ymd }: Props) {
      <CalendarRange className="h-5 w-5 shrink-0 text-primary" aria-hidden />
      <h2 className="text-base font-semibold text-foreground md:text-lg">日視圖</h2>
     </div>
-    <Button type="button" variant="outline" size="sm" asChild>
-     <Link to={`/Schedule?view=day&date=${encodeURIComponent(ymd)}`}>
-      前往完整日視圖
-      <ArrowUpRight />
-     </Link>
-    </Button>
+    <div className="flex items-center gap-2">
+     <span className="hidden whitespace-nowrap text-sm font-medium text-destructive sm:inline">
+      小提醒︰按這個打開完整日視圖--&gt;
+     </span>
+     <Button type="button" variant="outline" size="sm" asChild>
+      <Link to={`/Schedule?view=day&date=${encodeURIComponent(ymd)}`}>
+       前往完整日視圖
+       <ArrowUpRight />
+      </Link>
+     </Button>
+    </div>
    </div>
    {error ? (
     <p className="text-sm text-destructive" role="alert">
