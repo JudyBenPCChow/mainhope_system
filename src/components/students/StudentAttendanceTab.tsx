@@ -160,7 +160,7 @@ export function StudentAttendanceTab({
  )
 
  return (
-  <div hidden={!active} className="mx-auto max-w-3xl space-y-4">
+  <div hidden={!active} className="space-y-4">
    <div className="grid grid-cols-3 gap-2 md:gap-3">
     <div className="rounded-xl border border-success/30 bg-success/10 p-2.5 text-center md:p-4">
      <div className="text-xl font-bold text-success md:text-2xl">

@@ -146,7 +146,7 @@ describe("老師所有功能", () => {
 })
 
 describe("財務側欄 IA", () => {
- it("固定為 6 個頂層列且無群組", () => {
+ it("固定為 6 個頂層列", () => {
   expect(FINANCE_MAIN_NAV.map((entry) => entry.label)).toEqual([
    "首頁",
    "計糧",
@@ -155,7 +155,7 @@ describe("財務側欄 IA", () => {
    "排程",
    "所有功能",
   ])
-  expect(FINANCE_MAIN_NAV.every((entry) => entry.kind === "leaf")).toBe(true)
+  expect(FINANCE_MAIN_NAV.filter((entry) => entry.kind === "leaf")).toHaveLength(5)
   expect(FINANCE_MAIN_NAV.find((e) => e.kind === "leaf" && e.path === "/Payroll")?.icon).toBe(
    Wallet
   )

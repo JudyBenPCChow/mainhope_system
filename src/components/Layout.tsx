@@ -147,8 +147,19 @@ export function Layout() {
  }
 
  const collapsedLinks = useShell ? [] : flattenNav(navEntries)
- const leafActive = (itemPath: string) =>
-  role ? roleNavPathIsActive(role, location.pathname, itemPath) : pathIsActive(location.pathname, itemPath)
+ const leafActive = (itemPath: string) => {
+  const [path, qs] = itemPath.split("?")
+  const pathOk = role
+   ? roleNavPathIsActive(role, location.pathname, path)
+   : pathIsActive(location.pathname, path)
+  if (!pathOk) return false
+  if (path === "/Schedule") {
+   const wantDay = new URLSearchParams(qs ?? "").get("view") === "day"
+   const haveDay = new URLSearchParams(location.search).get("view") === "day"
+   return wantDay === haveDay
+  }
+  return true
+ }
  const entryActive = (entry: (typeof navEntries)[number]) =>
   role
    ? roleNavEntryIsActive(role, location.pathname, entry)

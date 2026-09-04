@@ -8,6 +8,8 @@ type RecordPageHeaderProps = {
  onBack: () => void
  title: ReactNode
  meta?: ReactNode
+ /** 學號等識別列放在標題之上（學生詳情）。 */
+ metaAboveTitle?: boolean
  exception?: ReactNode
  actions?: ReactNode
  loading?: boolean
@@ -20,6 +22,7 @@ export function RecordPageHeader({
  onBack,
  title,
  meta,
+ metaAboveTitle = false,
  exception,
  actions,
  loading = false,
@@ -44,8 +47,13 @@ export function RecordPageHeader({
       <p className="text-lg">{loadingLabel}</p>
      ) : (
       <>
+       {meta && metaAboveTitle ? (
+        <div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+         {meta}
+        </div>
+       ) : null}
        <h1 className="truncate text-xl font-bold md:text-2xl">{title}</h1>
-       {meta ? (
+       {meta && !metaAboveTitle ? (
         <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
          {meta}
         </div>

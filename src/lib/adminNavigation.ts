@@ -48,7 +48,16 @@ import {
 export const ADMIN_MAIN_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin"], icon: Home },
  { kind: "leaf", path: "/Students", label: "學生", roles: ["admin"], icon: Users },
- { kind: "leaf", path: "/Schedule", label: "排程", roles: ["admin"], icon: CalendarDays },
+ {
+  kind: "group",
+  id: "admin-schedule",
+  label: "排程",
+  icon: CalendarDays,
+  children: [
+   { path: "/Schedule", label: "清單", roles: ["admin"], icon: LayoutGrid },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["admin"], icon: CalendarDays },
+  ],
+ },
  { kind: "leaf", path: "/Attendance", label: "點名", roles: ["admin"], icon: ClipboardCheck },
  { kind: "leaf", path: "/Payments", label: "收款登記", roles: ["admin"], icon: Wallet },
  {
@@ -130,7 +139,8 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
   label: "排程、出席與跟進",
   icon: CalendarDays,
   children: [
-   { path: "/Schedule", label: "排程", roles: ["admin"], icon: CalendarDays },
+   { path: "/Schedule", label: "清單", roles: ["admin"], icon: LayoutGrid },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["admin"], icon: CalendarDays },
    { path: "/Attendance", label: "點名", roles: ["admin"], icon: ClipboardCheck },
    { path: "/TomorrowReminders", label: "課堂提醒", roles: ["admin"], icon: MessageSquareQuote },
    { path: "/LeaveManagement", label: "請假管理", roles: ["admin"], icon: CalendarX },

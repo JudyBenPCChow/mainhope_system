@@ -53,7 +53,7 @@ export function StudentHistoryTab({
  if (!active && !loadedRef.current && loadState === "idle") return null
 
  return (
-  <div hidden={!active} className="mx-auto max-w-3xl space-y-4">
+  <div hidden={!active} className="space-y-4">
    <p className="text-sm text-muted-foreground">顯示所有涉及此學生的變動紀錄。</p>
    {loadState === "loading" && rows.length === 0 ? (
     <p className="text-sm text-muted-foreground">載入中…</p>

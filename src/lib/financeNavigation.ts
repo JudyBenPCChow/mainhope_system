@@ -22,7 +22,16 @@ export const FINANCE_MAIN_NAV: NavEntryDef[] = [
   icon: ClipboardCheck,
  },
  { kind: "leaf", path: "/PaymentHistory", label: "繳費紀錄", roles: ["finance"], icon: Wallet },
- { kind: "leaf", path: "/Schedule", label: "排程", roles: ["finance"], icon: CalendarDays },
+ {
+  kind: "group",
+  id: "finance-schedule",
+  label: "排程",
+  icon: CalendarDays,
+  children: [
+   { path: "/Schedule", label: "清單", roles: ["finance"], icon: CalendarDays },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["finance"], icon: CalendarDays },
+  ],
+ },
  { kind: "leaf", path: "/AllFeatures", label: "所有功能", roles: ["finance"], icon: LayoutGrid },
 ]
 
@@ -46,7 +55,8 @@ export const FINANCE_ALL_FEATURES_NAV: NavEntryDef[] = [
   children: [
    { path: "/Payroll", label: "計糧", roles: ["finance"], icon: Wallet },
    { path: "/AttendanceRecords", label: "出席紀錄", roles: ["finance"], icon: ClipboardCheck },
-   { path: "/Schedule", label: "排程", roles: ["finance"], icon: CalendarDays },
+   { path: "/Schedule", label: "清單", roles: ["finance"], icon: CalendarDays },
+   { path: "/Schedule?view=day", label: "日視圖", roles: ["finance"], icon: CalendarDays },
   ],
  },
  {

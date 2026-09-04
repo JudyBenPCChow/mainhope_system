@@ -103,7 +103,7 @@ export function StudentFutureSchedulesTab({
  if (!active && !loadedRef.current && load.status === "loading") return null
 
  return (
-  <div hidden={!active} className="mx-auto max-w-3xl space-y-4">
+  <div hidden={!active} className="space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <p className="text-sm text-muted-foreground">
      顯示就讀中班別的未來未完成排程，以及已指定的調堂補堂（可跨班）

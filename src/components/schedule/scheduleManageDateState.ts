@@ -1,7 +1,7 @@
 import { isYmd } from "@/lib/weekdayUtils"
 import { scheduleRangeEnd } from "@/services/scheduleQueries"
 
-export const SCHEDULE_RANGE_DAYS = 14
+export const SCHEDULE_RANGE_DAYS = 1
 export const FUTURE_CANCELLED_SCOPE = "future-cancelled"
 
 export type ScheduleViewMode = "byDate" | "list" | "day"
@@ -92,9 +92,9 @@ export function decideInitialScheduleDates(input: {
  return {
   displayStart: input.todayYmd,
   dayViewDate: input.todayYmd,
-  initialized: false,
+  initialized: true,
   hydrateCache: false,
-  source: "pending-nearest",
+  source: "today",
  }
 }
 
@@ -104,7 +104,7 @@ export function shouldFetchNearestScheduleDate(input: {
 }): boolean {
  if (input.urlDate) return false
  if (input.cacheMatchesTeacherScope) return false
- return true
+ return false
 }
 
 export function shouldWriteDayViewUrl(startInitialized: boolean, viewMode: ScheduleViewMode): boolean {

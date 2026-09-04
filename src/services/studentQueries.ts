@@ -721,6 +721,8 @@ export type EnrollmentWithClass = {
  courseMode: CourseMode
  classId: string
  subject: string
+ /** classes.subject 原文，轉時間比對同科用 */
+ classSubject: string
  /** group / private / homework */
  classKind: "group" | "private" | "homework"
  homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
@@ -835,6 +837,7 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
   courseMode,
   classId: String(row.class_id),
   subject: subjectLabel,
+  classSubject: cls?.subject != null ? String(cls.subject) : subjectLabel,
   classKind: resolveClassKind(
    cls?.class_kind != null ? String(cls.class_kind) : null,
    cls?.subject != null ? String(cls.subject) : null
@@ -1390,6 +1393,8 @@ export type InsertEnrollmentOpts = {
  homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
  /** 功輔：慣常到校星期 */
  homeworkWeekdays?: Array<"一" | "二" | "三" | "四" | "五"> | null
+ /** 覆寫增退紀錄原因（例如轉時間） */
+ changeReason?: string | null
 }
 
 export async function insertEnrollment(
@@ -1544,13 +1549,14 @@ export async function insertEnrollment(
    startNote,
    pendingNote.replace(/^；/, ""),
   ].filter((s) => s.trim() !== "")
+  const overrideReason = opts?.changeReason?.trim() || ""
   const { error: evErr } = await supabase.from("enrollment_change_events").insert({
    student_id: studentId,
    class_id: classId,
    enrollment_id: enrollmentId,
    action: "enroll",
    effective_date: today,
-   reason: reasonParts.length > 0 ? reasonParts.join("；") : null,
+   reason: overrideReason || (reasonParts.length > 0 ? reasonParts.join("；") : null),
    enrollment_period: periodValue,
   })
   if (evErr) throw evErr
@@ -2117,13 +2123,30 @@ export type LeaveRow = {
  leave_reason: string | null
  status: string
  classLabel: string
+ academicYearLabel: string | null
+}
+
+function academicYearLabelFromLeaveClass(cls: Record<string, unknown> | null): string | null {
+ if (!cls) return null
+ const yearEmbed = Array.isArray(cls.academic_years)
+  ? (cls.academic_years[0] as Record<string, unknown> | undefined)
+  : (cls.academic_years as Record<string, unknown> | null)
+ const fromYear = yearEmbed?.label != null ? String(yearEmbed.label).trim() : ""
+ if (fromYear) return fromYear
+ const fromClass = cls.academic_year_label != null ? String(cls.academic_year_label).trim() : ""
+ if (fromClass) return fromClass
+ const code = cls.course_code_full != null ? String(cls.course_code_full).trim() : ""
+ const prefix = /^(\d{4}|\d{2}SM)/i.exec(code)?.[1]
+ return prefix ? prefix.toUpperCase() : null
 }
 
 export async function fetchLeaveForStudent(studentId: string): Promise<LeaveRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("leave_makeup_records")
-  .select("id, class_id, leave_date, leave_reason, status, classes ( subject, course_code_full )")
+  .select(
+   "id, class_id, leave_date, leave_reason, status, classes ( subject, course_code_full, academic_year_label, academic_years ( label ) )"
+  )
   .eq("student_id", studentId)
   .order("leave_date", { ascending: false })
  if (error) throw error
@@ -2139,6 +2162,7 @@ export async function fetchLeaveForStudent(studentId: string): Promise<LeaveRow[
    leave_reason: r.leave_reason != null ? String(r.leave_reason) : null,
    status: String(r.status ?? ""),
    classLabel: code ? `${sub} ${code}` : sub,
+   academicYearLabel: academicYearLabelFromLeaveClass(cls),
   }
  })
 }

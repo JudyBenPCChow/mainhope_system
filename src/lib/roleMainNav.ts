@@ -37,10 +37,11 @@ export function resolveRoleMainNav(
 }
 
 export function roleNavPathIsActive(role: Role, pathname: string, itemPath: string): boolean {
- if (role === "admin") return adminNavPathIsActive(pathname, itemPath)
- if (role === "teacher") return teacherNavPathIsActive(pathname, itemPath)
- if (role === "finance") return financeNavPathIsActive(pathname, itemPath)
- return pathIsActive(pathname, itemPath)
+ const pathOnly = itemPath.split("?")[0] || itemPath
+ if (role === "admin") return adminNavPathIsActive(pathname, pathOnly)
+ if (role === "teacher") return teacherNavPathIsActive(pathname, pathOnly)
+ if (role === "finance") return financeNavPathIsActive(pathname, pathOnly)
+ return pathIsActive(pathname, pathOnly)
 }
 
 export function roleNavEntryIsActive(role: Role, pathname: string, entry: NavEntryDef): boolean {

@@ -15,6 +15,8 @@ type Props = {
  statsError: boolean
  open: boolean
  onOpenChange: (open: boolean) => void
+ selectedDate: string
+ todayYmd: string
  todayActive: boolean
  cancelledActive: boolean
  onTodayClick: () => void
@@ -26,15 +28,20 @@ export function ScheduleOverview({
  statsError,
  open,
  onOpenChange,
+ selectedDate,
+ todayYmd,
  todayActive,
  cancelledActive,
  onTodayClick,
  onCancelledClick,
 }: Props) {
+ const isToday = selectedDate === todayYmd
  return (
   <section className="space-y-2" aria-label="排程概覽">
    <div className="flex items-center justify-between gap-2">
-    <p className="text-sm font-medium text-muted-foreground">今日概覽</p>
+    <p className="text-sm font-medium text-muted-foreground">
+     {isToday ? "今日概覽" : `${selectedDate} 概覽`}
+    </p>
     <Button
      type="button"
      variant="ghost"
@@ -60,12 +67,14 @@ export function ScheduleOverview({
      >
       <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground md:gap-2 md:text-sm">
        <CalendarDays className="h-3.5 w-3.5 shrink-0 text-info md:h-5 md:w-5" />
-       <span className="truncate">今日課堂</span>
+       <span className="truncate">{isToday ? "今日課堂" : "當日課堂"}</span>
       </div>
       <p className="mt-1 text-xl font-bold tabular-nums text-info md:mt-2 md:text-2xl">
        {kpiNumberDisplay(stats.todayLesson.status, stats.todayLesson.value)}
       </p>
-      <p className="mt-2 hidden text-sm text-muted-foreground md:block">點擊將列表起始日設為今天</p>
+      <p className="mt-2 hidden text-sm text-muted-foreground md:block">
+       {isToday ? "點擊以日視圖查看今天" : "點擊以日視圖查看此日"}
+      </p>
      </button>
 
      <button
@@ -88,7 +97,7 @@ export function ScheduleOverview({
        {kpiNumberDisplay(stats.cancelled.status, stats.cancelled.value)}
       </p>
       <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-       今天起真正取消的堂；不是可結案待辦
+       {isToday ? "今天起真正取消的堂；不是可結案待辦" : "由此日起真正取消的堂；不是可結案待辦"}
       </p>
      </button>
 
@@ -102,13 +111,13 @@ export function ScheduleOverview({
      >
       <div className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground md:gap-2 md:text-sm">
        <Users className="h-3.5 w-3.5 shrink-0 text-success md:h-5 md:w-5" />
-       <span className="truncate">今日學生人次</span>
+       <span className="truncate">{isToday ? "今日學生人次" : "當日學生人次"}</span>
       </div>
       <p className="mt-1 text-xl font-bold tabular-nums text-success md:mt-2 md:text-2xl">
        {kpiNumberDisplay(stats.todayHeadcount.status, stats.todayHeadcount.value)}
       </p>
       <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-       今天各堂點名冊加總；同一學生兩堂計兩次
+       {isToday ? "今天各堂點名冊加總；同一學生兩堂計兩次" : "該日各堂點名冊加總；同一學生兩堂計兩次"}
       </p>
      </button>
     </div>
