@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 
 import {
  buildPaymentYearContext,
+ countCurrentYearPaidLessons,
  formatCurrentHomeworkPaidText,
  groupPastPaymentsByAcademicYear,
+ isAttendanceInCurrentAcademicYear,
  partitionPaymentsByAcademicYear,
  paymentProductLineTags,
  summarizeCurrentYearPayments,
@@ -431,5 +433,139 @@ describe("paymentProductLineTags", () => {
    ],
   })
   expect(paymentProductLineTags(mixed)).toEqual(["專科班", "私人課程", "功輔"])
+ })
+})
+
+describe("countCurrentYearPaidLessons", () => {
+ it("本學年專科加私人；暑期與功輔不進堂數", () => {
+  const rows = [
+   receipt({
+    id: "g",
+    details: [
+     {
+      lessonCount: 8,
+      coverageStartMonth: null,
+      description: null,
+      classKind: "group",
+      classSubject: "數學",
+      academicYearLabel: "2627",
+     },
+    ],
+   }),
+   receipt({
+    id: "p",
+    payment_date: "2026-10-01",
+    details: [
+     {
+      lessonCount: 4,
+      coverageStartMonth: null,
+      description: null,
+      classKind: "private",
+      classSubject: "一對一英文",
+      academicYearLabel: null,
+     },
+    ],
+   }),
+   receipt({
+    id: "sm",
+    payment_date: "2026-08-01",
+    details: [
+     {
+      lessonCount: 40,
+      coverageStartMonth: null,
+      description: null,
+      classKind: "group",
+      classSubject: "數學",
+      academicYearLabel: "26SM",
+     },
+    ],
+   }),
+   receipt({
+    id: "h",
+    details: [
+     {
+      lessonCount: 2,
+      coverageStartMonth: "2026-09",
+      description: "月費",
+      classKind: "homework",
+      classSubject: "功課輔導",
+      academicYearLabel: "2627",
+     },
+    ],
+   }),
+  ]
+  expect(countCurrentYearPaidLessons(rows, ctx())).toBe(12)
+ })
+})
+
+describe("isAttendanceInCurrentAcademicYear", () => {
+ it("專科／功輔跟班別學年；私人跟出席日；舊學年與無標籤專科不計", () => {
+  const yearCtx = ctx()
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-09-10",
+     classKind: "group",
+     classSubject: "數學",
+     academicYearLabel: "2627",
+    },
+    yearCtx
+   )
+  ).toBe(true)
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-08-10",
+     classKind: "group",
+     classSubject: "數學",
+     academicYearLabel: "26SM",
+    },
+    yearCtx
+   )
+  ).toBe(false)
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-11-01",
+     classKind: "private",
+     classSubject: "一對一英文",
+     academicYearLabel: null,
+    },
+    yearCtx
+   )
+  ).toBe(true)
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-08-15",
+     classKind: "private",
+     classSubject: "一對一英文",
+     academicYearLabel: null,
+    },
+    yearCtx
+   )
+  ).toBe(false)
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-09-10",
+     classKind: "group",
+     classSubject: "數學",
+     academicYearLabel: null,
+    },
+    yearCtx
+   )
+  ).toBe(false)
+  expect(
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: "2026-09-12",
+     classKind: "homework",
+     classSubject: "功課輔導",
+     academicYearLabel: "2627",
+    },
+    yearCtx
+   )
+  ).toBe(true)
  })
 })

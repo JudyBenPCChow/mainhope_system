@@ -13,6 +13,15 @@ import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import type { ScheduleAlerts, ScheduleManageRow } from "@/services/scheduleQueries"
 
+/** 標題與操作永遠上下堆疊。勿改回 sm:flex-row：該斷點跟視口，中等卡寬會把標題壓成一字一行。 */
+export const scheduleByDateCardChromeClass = "flex flex-col gap-3 p-4 md:p-5"
+
+export const scheduleByDateTitleClass =
+ "block max-w-full break-words text-lg font-semibold text-foreground md:text-xl"
+
+export const scheduleByDateActionsClass =
+ "flex min-w-0 flex-wrap items-center gap-2 border-t border-border pt-3"
+
 type Props = {
  groups: [string, ScheduleManageRow[]][]
  todayYmd: string
@@ -115,20 +124,20 @@ export function ScheduleByDateList({
            highlightScheduleId === s.id && "ring-2 ring-info"
           )}
          >
-          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between md:p-5">
+          <div className={scheduleByDateCardChromeClass}>
            <button
             type="button"
-            className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/50"
+            className="min-w-0 w-full rounded-lg text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/50"
             aria-expanded={open}
             onClick={() => onToggleExpand(s.id)}
            >
-            <div className="flex flex-wrap items-center gap-2">
-             <span className="text-lg font-semibold text-foreground md:text-xl">
-              {s.classLabel}
-              {s.course_code_full ? (
-               <span className="font-mono text-sm text-muted-foreground"> ({s.course_code_full})</span>
-              ) : null}
-             </span>
+            <span className={scheduleByDateTitleClass}>
+             {s.classLabel}
+             {s.course_code_full ? (
+              <span className="font-mono text-sm text-muted-foreground"> ({s.course_code_full})</span>
+             ) : null}
+            </span>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
              <Tag tone={statusToTagTone(s.status)} size="sm">
               {s.status}
              </Tag>
@@ -204,7 +213,7 @@ export function ScheduleByDateList({
             </div>
            </button>
            <div
-            className="flex flex-wrap items-center gap-2 border-t border-border pt-3 sm:border-0 sm:pt-0"
+            className={scheduleByDateActionsClass}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
            >

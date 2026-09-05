@@ -24,10 +24,12 @@ export const adminPageSurfaceClass = "bg-[#f4f7fb]"
 
 /**
  * 行政主欄內容區：對齊沙盒 `.content`
- * （寬度上限 1180、padding 28/30/48；窄屏左右 20）。
+ * （寬度上限 1320、padding 28/30/48；窄屏左右 20）。
+ * 寬屏不置中：左側自動留白為舊 `mx-auto` 的一半（(100%-1320px)/4），
+ * 其餘空白留在右側，避免側欄收合後標題離側欄過遠。
  */
 export const adminContentShellClass =
- "mx-auto flex min-h-full w-full max-w-[1180px] flex-col px-5 pb-12 pt-7 sm:px-[1.875rem] has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden [&>*]:!px-0 [&>*]:!pt-0"
+ "ml-[max(0px,calc((100%-1320px)/4))] mr-auto flex min-h-full w-full max-w-[1320px] flex-col px-5 pb-12 pt-7 sm:px-[1.875rem] has-[[data-sticky-list-shell]]:h-full has-[[data-sticky-list-shell]]:min-h-0 has-[[data-sticky-list-shell]]:overflow-hidden [&>*]:!px-0 [&>*]:!pt-0"
 
 /**
  * 共用殼頁留白交由 Layout；未跟殼的角色保留既有頁級 padding。

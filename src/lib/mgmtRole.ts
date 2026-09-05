@@ -58,7 +58,7 @@ export function isAdmin(): boolean {
 }
 
 /**
- * 共用主欄殼（頂部白條、1180 留白、表面色、三層標題等）。
+ * 共用主欄殼（頂部白條、1320 留白、表面色、三層標題等）。
  * 全角色跟同一套殼；側欄頂層列可另定。
  */
 export function usesSharedAppShell(role: MgmtRole | null | undefined): boolean {

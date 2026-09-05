@@ -24,10 +24,10 @@ export function RecordPreviewRail({ empty }: Props) {
  return (
   <aside
    className={cn(
-    "relative z-10 flex h-full min-h-0 shrink-0 flex-col overflow-hidden bg-card transition-[width,box-shadow] duration-200 ease-out",
+    "absolute inset-y-0 right-0 z-30 flex h-full min-h-0 flex-col overflow-hidden bg-card transition-[width,box-shadow] duration-200 ease-out",
     open
      ? "w-[min(26rem,42vw)] border-l border-border shadow-[-6px_0_24px_-4px_rgba(15,23,42,0.18)]"
-     : "w-0"
+     : "pointer-events-none w-0"
    )}
    aria-hidden={!open}
    aria-label={preview ? "紀錄預覽" : showEmpty ? "常用工作" : undefined}

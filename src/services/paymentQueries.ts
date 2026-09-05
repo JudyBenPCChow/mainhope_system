@@ -1,4 +1,11 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
+import {
+ buildPaymentYearContext,
+ countCurrentYearPaidLessons,
+ isAttendanceInCurrentAcademicYear,
+ type PaymentYearDetailFields,
+ type PaymentYearFields,
+} from "@/lib/studentPaymentYearSummary"
 import { evaluateDiscountAvailability } from "@/lib/paymentDiscountEligibility"
 import {
  academicYearLabelsForPaymentGuard,
@@ -1200,56 +1207,119 @@ export async function fetchPaymentDashboardStats(): Promise<PaymentDashboardStat
  return { totalPaidLessons, totalAttendedLessons }
 }
 
-/** 單一學生：已收款繳費單之 payment_details.lesson_count 加總（總繳堂數） */
-export async function fetchTotalPaidLessonsForStudent(studentId: string): Promise<number> {
- if (!supabase) return 0
- const { data: pays, error: e1 } = await supabase
-  .from("payments")
-  .select("id")
-  .eq("student_id", studentId)
-  .eq("status", PAYMENT_STATUS.received)
- if (e1) throw e1
- const pids = (pays ?? []).map((r) => String((r as { id: unknown }).id))
- if (pids.length === 0) return 0
- const { data: det, error: e2 } = await supabase
-  .from("payment_details")
-  .select("lesson_count, coverage_start_month, description, classes ( class_kind )")
-  .in("payment_id", pids)
- if (e2) throw e2
- let sum = 0
- for (const row of det ?? []) {
-  const r = row as {
-   lesson_count?: unknown
-   coverage_start_month?: unknown
-   description?: unknown
-   classes?: { class_kind?: unknown } | null
-  }
-  if (
-   isHomeworkPaymentDetailSkipLessons({
-    coverageStartMonth: r.coverage_start_month != null ? String(r.coverage_start_month) : null,
-    description: r.description != null ? String(r.description) : null,
-    classKind: r.classes?.class_kind != null ? String(r.classes.class_kind) : null,
-   })
-  ) {
-   continue
-  }
-  const n = Number(r.lesson_count)
-  if (Number.isFinite(n) && n > 0) sum += n
- }
- return sum
+async function fetchPaymentYearContext() {
+ if (!supabase) return buildPaymentYearContext([])
+ const { data, error } = await supabase
+  .from("academic_years")
+  .select("label, start_date, end_date, is_current")
+ if (error) throw error
+ return buildPaymentYearContext(
+  (data ?? []).map((r) => {
+   const row = r as Record<string, unknown>
+   return {
+    label: String(row.label ?? ""),
+    start_date: row.start_date != null ? String(row.start_date).slice(0, 10) : null,
+    end_date: row.end_date != null ? String(row.end_date).slice(0, 10) : null,
+    is_current: row.is_current != null ? Boolean(row.is_current) : null,
+   }
+  })
+ )
 }
 
-/** 單一學生：attendance_details 中計為「計費出席」之堂數 */
-export async function fetchTotalAttendedLessonsForStudent(studentId: string): Promise<number> {
- if (!supabase) return 0
- const { data, error } = await supabase.from("attendance_details").select("status").eq("student_id", studentId)
- if (error) throw error
- let total = 0
- for (const row of data ?? []) {
-  const s = String((row as { status: unknown }).status ?? "")
-  if (isBillableAttendanceStatus(s)) total += 1
+function mapPaymentYearDetailRow(row: Record<string, unknown>): PaymentYearDetailFields {
+ const cls = embedOne(row.classes)
+ const year = cls ? embedOne(cls.academic_years) : null
+ const coverageRaw =
+  row.coverage_start_month != null ? String(row.coverage_start_month).slice(0, 10) : ""
+ const lessonN = row.lesson_count != null ? Number(row.lesson_count) : NaN
+ return {
+  lessonCount: Number.isFinite(lessonN) ? lessonN : null,
+  coverageStartMonth: /^\d{4}-\d{2}/.test(coverageRaw) ? coverageRaw.slice(0, 7) : null,
+  description: row.description != null ? String(row.description) : null,
+  classKind: cls?.class_kind != null ? String(cls.class_kind) : null,
+  classSubject: cls?.subject != null ? String(cls.subject) : null,
+  academicYearLabel: year?.label != null ? String(year.label).trim() || null : null,
  }
- return total
+}
+
+function mapPaymentYearFields(row: Record<string, unknown>): PaymentYearFields {
+ const raw = row.payment_details
+ const details = Array.isArray(raw)
+  ? raw.map((d) => mapPaymentYearDetailRow(d as Record<string, unknown>))
+  : raw && typeof raw === "object"
+    ? [mapPaymentYearDetailRow(raw as Record<string, unknown>)]
+    : []
+ return {
+  id: String(row.id ?? ""),
+  payment_date: String(row.payment_date ?? ""),
+  created_at: String(row.created_at ?? ""),
+  status: String(row.status ?? ""),
+  details,
+ }
+}
+
+export type StudentCurrentYearLessonStats = {
+ paidLessons: number
+ attendedLessons: number
+}
+
+/**
+ * 單一學生本學年已繳堂數／計費出席堂數。
+ * 窗跟 `buildPaymentYearContext`（日曆所屬學年，不跟 is_current）；
+ * 專科／功輔跟班別學年標籤，私人跟收款日／出席日。功輔月費不計入已繳堂數。
+ */
+export async function fetchStudentCurrentYearLessonStats(
+ studentId: string
+): Promise<StudentCurrentYearLessonStats> {
+ if (!supabase) return { paidLessons: 0, attendedLessons: 0 }
+ const yearCtxP = fetchPaymentYearContext()
+ const paidP = supabase
+  .from("payments")
+  .select(
+   "id, payment_date, created_at, status, payment_details ( lesson_count, coverage_start_month, description, classes ( class_kind, subject, academic_years ( label ) ) )"
+  )
+  .eq("student_id", studentId)
+  .eq("status", PAYMENT_STATUS.received)
+ const attendedP = supabase
+  .from("attendance_details")
+  .select("status, attendance_date, classes ( class_kind, subject, academic_years ( label ) )")
+  .eq("student_id", studentId)
+ const [yearCtx, paidRes, attendedRes] = await Promise.all([yearCtxP, paidP, attendedP])
+ if (paidRes.error) throw paidRes.error
+ if (attendedRes.error) throw attendedRes.error
+ const receipts = (paidRes.data ?? []).map((r) => mapPaymentYearFields(r as Record<string, unknown>))
+ const paidLessons = countCurrentYearPaidLessons(receipts, yearCtx)
+ let attendedLessons = 0
+ for (const row of attendedRes.data ?? []) {
+  const r = row as Record<string, unknown>
+  if (!isBillableAttendanceStatus(String(r.status ?? ""))) continue
+  const cls = embedOne(r.classes)
+  const year = cls ? embedOne(cls.academic_years) : null
+  if (
+   isAttendanceInCurrentAcademicYear(
+    {
+     attendanceDate: String(r.attendance_date ?? "").slice(0, 10),
+     classKind: cls?.class_kind != null ? String(cls.class_kind) : null,
+     classSubject: cls?.subject != null ? String(cls.subject) : null,
+     academicYearLabel: year?.label != null ? String(year.label).trim() || null : null,
+    },
+    yearCtx
+   )
+  ) {
+   attendedLessons += 1
+  }
+ }
+ return { paidLessons, attendedLessons }
+}
+
+/** 單一學生：本學年已收款繳費單之堂數加總（專科＋私人；功輔月費不計） */
+export async function fetchTotalPaidLessonsForStudent(studentId: string): Promise<number> {
+ return (await fetchStudentCurrentYearLessonStats(studentId)).paidLessons
+}
+
+/** 單一學生：本學年 attendance_details 中計為「計費出席」之堂數 */
+export async function fetchTotalAttendedLessonsForStudent(studentId: string): Promise<number> {
+ return (await fetchStudentCurrentYearLessonStats(studentId)).attendedLessons
 }
 
 /** 最近已收款學生（依收款日期／建立時間；去重後最多 `limit` 人） */

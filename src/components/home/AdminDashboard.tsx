@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { CalendarDays, LayoutGrid, TriangleAlert } from "lucide-react"
+import { CalendarDays, LayoutGrid, TriangleAlert, Wallet } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { AdminHomeMobileActions } from "@/components/home/AdminHomeActionRail"
@@ -101,7 +101,7 @@ export function AdminDashboard() {
     title={`你好，${greetingName}！`}
     description={`${dashboardTitleDate()} · 校舍課堂與請假`}
     afterDescription={
-     <nav className="mt-3 grid w-full max-w-xl grid-cols-2 gap-2" aria-label="今日校舍捷徑">
+     <nav className="mt-3 grid w-full max-w-2xl grid-cols-2 gap-2 sm:grid-cols-3" aria-label="常用捷徑">
       <Link
        to={`/Schedule?view=byDate&date=${todayYmd}`}
        className={shortcutCardClass}
@@ -130,6 +130,17 @@ export function AdminDashboard() {
         課室狀態
        </span>
        <span className="mt-1.5 text-sm text-muted-foreground">前往日視圖</span>
+      </Link>
+      <Link
+       to="/PaymentHistory"
+       className={shortcutCardClass}
+       aria-label="繳費紀錄，前往繳費紀錄"
+      >
+       <span className="inline-flex items-center gap-1.5 text-lg font-semibold leading-none text-foreground">
+        <Wallet className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+        繳費紀錄
+       </span>
+       <span className="mt-1.5 text-sm text-muted-foreground">前往繳費紀錄</span>
       </Link>
      </nav>
     }

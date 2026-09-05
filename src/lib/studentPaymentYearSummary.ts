@@ -48,6 +48,13 @@ export type CurrentYearPaidSummary = {
  homeworkMonths: string[]
 }
 
+export type AttendanceYearFields = {
+ attendanceDate: string
+ classKind: string | null
+ classSubject: string | null
+ academicYearLabel: string | null
+}
+
 export type AcademicYearDateInput = {
  label: string
  start_date?: string | null
@@ -111,10 +118,19 @@ export function buildPaymentYearContext(
  }
 }
 
-function paymentDateInCurrentWindow(paymentDate: string, ctx: PaymentYearContext): boolean {
- const d = ymd(paymentDate)
+function dateInCurrentYearWindow(dateYmd: string, ctx: PaymentYearContext): boolean {
+ const d = ymd(dateYmd)
  if (!d) return false
  return d >= ctx.currentYearStart && d <= ctx.currentYearEnd
+}
+
+function classYearInCurrentLabels(label: string | null | undefined, ctx: PaymentYearContext): boolean {
+ const t = (label ?? "").trim()
+ return Boolean(t) && ctx.currentYearLabels.includes(t)
+}
+
+function paymentDateInCurrentWindow(paymentDate: string, ctx: PaymentYearContext): boolean {
+ return dateInCurrentYearWindow(paymentDate, ctx)
 }
 
 function homeworkMonthsFromDetail(detail: PaymentYearDetailFields): string[] {
@@ -142,12 +158,20 @@ function isCurrentYearDetail(detail: PaymentYearDetailFields, paymentDate: strin
  if (isHomeworkDetail(detail)) {
   const months = homeworkMonthsFromDetail(detail)
   if (months.some((ym) => homeworkMonthInCurrentYear(ym, ctx))) return true
-  const label = (detail.academicYearLabel ?? "").trim()
-  return Boolean(label) && ctx.currentYearLabels.includes(label)
+  return classYearInCurrentLabels(detail.academicYearLabel, ctx)
  }
  if (kind === "private") return paymentDateInCurrentWindow(paymentDate, ctx)
- const label = (detail.academicYearLabel ?? "").trim()
- return Boolean(label) && ctx.currentYearLabels.includes(label)
+ return classYearInCurrentLabels(detail.academicYearLabel, ctx)
+}
+
+/** 點名列是否屬本學年：私人跟出席日；專科／功輔跟班別學年標籤（與繳費摘要同一套窗）。 */
+export function isAttendanceInCurrentAcademicYear(
+ row: AttendanceYearFields,
+ ctx: PaymentYearContext
+): boolean {
+ const kind = resolveClassKind(row.classKind, row.classSubject)
+ if (kind === "private") return dateInCurrentYearWindow(row.attendanceDate, ctx)
+ return classYearInCurrentLabels(row.academicYearLabel, ctx)
 }
 
 function isCurrentYearReceipt<T extends PaymentYearFields>(row: T, ctx: PaymentYearContext): boolean {
@@ -212,6 +236,15 @@ export function summarizeCurrentYearPayments<T extends PaymentYearFields>(
   privateLessons,
   homeworkMonths: [...homeworkSet].sort(),
  }
+}
+
+/** 收款頁「已繳堂數」：本學年專科＋私人堂數（功輔月費不計堂）。 */
+export function countCurrentYearPaidLessons<T extends PaymentYearFields>(
+ receipts: T[],
+ ctx: PaymentYearContext
+): number {
+ const summary = summarizeCurrentYearPayments(receipts, ctx)
+ return summary.specialistLessons + summary.privateLessons
 }
 
 export function formatCurrentHomeworkPaidText(monthsYm: string[]): string {
