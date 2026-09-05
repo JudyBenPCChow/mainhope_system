@@ -65,11 +65,13 @@ import {
 } from "@/lib/transferClassTime"
 import {
  formatClassScheduleLabel,
- isCancelledScheduleStatus,
+ listEnrollmentStartScheduleOptions,
+ listPastSchedulesNeedingAutoLeave,
  resolveEnrollmentStartDate,
  resolveNextClassSchedule,
  type EnrollmentStartMode,
 } from "@/lib/enrollmentStart"
+import { insertPastEnrollmentStartLeaves } from "@/services/leaveQueries"
 import { VoidPaymentDialog, type VoidPaymentTarget } from "@/components/payments/VoidPaymentDialog"
 import { printPaymentForStatus } from "@/lib/paymentPrint"
 import {
@@ -710,46 +712,93 @@ export function StudentDetailView() {
   else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(pickForm as EnrollmentPeriod)) {
    period = pickForm as EnrollmentPeriod
   }
-  let enrollDate: string
-  try {
-   if (isHomework) {
-    enrollDate = todayYmd
-   } else {
-    enrollDate = resolveEnrollmentStartDate({
-     mode: pickStartMode,
-     todayYmd,
-     nextScheduleDate: nextPickSchedule?.scheduled_date,
-     specifiedScheduleDate: pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
-      ?.scheduled_date,
-    })
-   }
-  } catch (e) {
-   setAddEnrollmentError(e instanceof Error ? e.message : String(e))
-   return
+ let enrollDate: string
+ try {
+  if (isHomework) {
+   enrollDate = todayYmd
+  } else {
+   enrollDate = resolveEnrollmentStartDate({
+    mode: pickStartMode,
+    todayYmd,
+    nextScheduleDate: nextPickSchedule?.scheduled_date,
+    specifiedScheduleDate: pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
+     ?.scheduled_date,
+   })
   }
-  const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
-   { notice: picked?.enrollmentNotice, classLabel: picked?.label },
-  ])
-  if (!noticeOk) return
-  setAddEnrollmentSaving(true)
-  setAddEnrollmentError(null)
-  try {
-   await insertEnrollment(
-    sid,
-    pickClass,
-    period,
-    isSingle ? pickScheduleIds : undefined,
-    null,
-    {
-     enrollDate,
-     homeworkDayPlan: isHomework ? pickHwPlan : null,
-     homeworkWeekdays: isHomework ? pickHwWeekdays : null,
-    }
+ } catch (e) {
+  setAddEnrollmentError(e instanceof Error ? e.message : String(e))
+  return
+ }
+ const pastAutoLeaveSchedules =
+  !isHomework && !isSingle
+   ? listPastSchedulesNeedingAutoLeave(pickClassSchedules, enrollDate, todayYmd)
+   : []
+ if (pastAutoLeaveSchedules.length > 0) {
+  const ok = await confirmDialog({
+   title: "首堂已過，將自動請假",
+   description: `選定開始日為 ${enrollDate}，將為首堂至今天前共 ${pastAutoLeaveSchedules.length} 堂建立請假（事假／待安排），並開啟請假管理。`,
+   confirmText: "確認加入並請假",
+   tone: "warning",
+  })
+  if (!ok) return
+ }
+ const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
+  { notice: picked?.enrollmentNotice, classLabel: picked?.label },
+ ])
+ if (!noticeOk) return
+ setAddEnrollmentSaving(true)
+ setAddEnrollmentError(null)
+ try {
+  await insertEnrollment(
+   sid,
+   pickClass,
+   period,
+   isSingle ? pickScheduleIds : undefined,
+   null,
+   {
+    enrollDate,
+    homeworkDayPlan: isHomework ? pickHwPlan : null,
+    homeworkWeekdays: isHomework ? pickHwWeekdays : null,
+   }
+  )
+  let firstLeaveId: string | null = null
+  let autoLeaveCount = 0
+  if (pastAutoLeaveSchedules.length > 0 && sid && pickClass) {
+   const leaveResult = await insertPastEnrollmentStartLeaves({
+    studentId: sid,
+    classId: pickClass,
+    schedules: pastAutoLeaveSchedules.map((row) => ({
+     id: row.id,
+     scheduled_date: row.scheduled_date,
+    })),
+   })
+   firstLeaveId = leaveResult.firstLeaveId
+   autoLeaveCount = leaveResult.createdCount
+  }
+  setAddEnrollmentDialogOpen(false)
+  resetAddEnrollmentDialog()
+  invalidateStudentsListDataCache()
+  invalidateEnrollmentChangesDataCache()
+  if (firstLeaveId && sid) {
+   pushBanner({
+    tone: "success",
+    title: "已加入班別並自動請假",
+    message: `報讀已建立；已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。請安排補堂，並前往收款／出單確認學費。`,
+    action: {
+     pageLabel: "請假管理",
+     to: `/LeaveManagement?${new URLSearchParams({
+      studentId: sid,
+      record: firstLeaveId,
+     }).toString()}`,
+    },
+   })
+   goExternal(
+    `/LeaveManagement?${new URLSearchParams({
+     studentId: sid,
+     record: firstLeaveId,
+    }).toString()}`
    )
-   setAddEnrollmentDialogOpen(false)
-   resetAddEnrollmentDialog()
-   invalidateStudentsListDataCache()
-   invalidateEnrollmentChangesDataCache()
+  } else {
    pushBanner({
     tone: "success",
     title: "已加入班別",
@@ -766,20 +815,21 @@ export function StudentDetailView() {
         to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
        },
    })
-   await reloadSubs()
-  } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.addEnrollment" })
-   const message = e instanceof Error ? e.message : String(e)
-   setAddEnrollmentError(message)
-   pushBanner({
-    tone: "error",
-    title: "加入失敗",
-    message,
-   })
-  } finally {
-   setAddEnrollmentSaving(false)
   }
+  await reloadSubs()
+ } catch (e) {
+  reportUserFacingError(e, { source: "StudentDetailView.addEnrollment" })
+  const message = e instanceof Error ? e.message : String(e)
+  setAddEnrollmentError(message)
+  pushBanner({
+   tone: "error",
+   title: "加入失敗",
+   message,
+  })
+ } finally {
+  setAddEnrollmentSaving(false)
  }
+}
 
  const submitWithdraw = async () => {
   if (!withdrawTarget || !sid) return
@@ -867,17 +917,29 @@ export function StudentDetailView() {
  )
  const todayYmd = localTodayYmd()
  const pickStartScheduleOptions = useMemo(
-  () =>
-   pickClassSchedules.filter(
-    (row) =>
-     !isCancelledScheduleStatus(row.status) && row.scheduled_date.slice(0, 10) >= todayYmd
-   ),
+  () => listEnrollmentStartScheduleOptions(pickClassSchedules, todayYmd),
   [pickClassSchedules, todayYmd]
  )
  const nextPickSchedule = useMemo(
   () => resolveNextClassSchedule(pickClassSchedules, todayYmd),
   [pickClassSchedules, todayYmd]
  )
+ const pickStartPastAutoLeavePreview = useMemo(() => {
+  if (pickStartMode !== "schedule" || !pickStartScheduleId) return []
+  const startRow = pickStartScheduleOptions.find((row) => row.id === pickStartScheduleId)
+  if (!startRow) return []
+  return listPastSchedulesNeedingAutoLeave(
+   pickClassSchedules,
+   startRow.scheduled_date.slice(0, 10),
+   todayYmd
+  )
+ }, [
+  pickStartMode,
+  pickStartScheduleId,
+  pickStartScheduleOptions,
+  pickClassSchedules,
+  todayYmd,
+ ])
 
  const balanceByEnrollment = useMemo(() => {
   const map = new Map<string, LessonBalanceRow>()
@@ -2174,7 +2236,7 @@ export function StudentDetailView() {
             {pickClassSchedulesLoading ? (
              <p className="text-muted-foreground">載入排程中…</p>
             ) : pickStartScheduleOptions.length === 0 ? (
-             <p role="alert" className="text-destructive">此班暫無可選的未來排程。</p>
+             <p role="alert" className="text-destructive">此班暫無可選排程。</p>
             ) : (
              <Select
               className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -2185,10 +2247,17 @@ export function StudentDetailView() {
               {pickStartScheduleOptions.map((row) => (
                <option key={row.id} value={row.id}>
                 {formatClassScheduleLabel(row)}
+                {row.scheduled_date.slice(0, 10) < todayYmd ? "　（已過）" : ""}
                </option>
               ))}
              </Select>
             )}
+            {pickStartPastAutoLeavePreview.length > 0 ? (
+             <p className="text-xs text-warning">
+              此排程已過；加入後將為首堂至今天前共 {pickStartPastAutoLeavePreview.length}{" "}
+              堂自動請假（待安排），並開啟請假管理。
+             </p>
+            ) : null}
            </Field>
           )}
           {showSessionPicker ? (

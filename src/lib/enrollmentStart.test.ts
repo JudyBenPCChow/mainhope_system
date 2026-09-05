@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
  formatClassScheduleLabel,
+ listEnrollmentStartScheduleOptions,
+ listPastSchedulesNeedingAutoLeave,
  resolveEnrollmentStartDate,
  resolveNextClassSchedule,
 } from "@/lib/enrollmentStart"
@@ -27,6 +29,55 @@ describe("resolveNextClassSchedule", () => {
     "2026-08-24"
    )
   ).toBeNull()
+ })
+})
+
+describe("listEnrollmentStartScheduleOptions", () => {
+ it("含過去堂、略過取消，並按日期時間排序", () => {
+  const opts = listEnrollmentStartScheduleOptions(
+   [
+    { scheduled_date: "2026-09-07", status: "正常", start_time: "17:00", session_number: 3 },
+    { scheduled_date: "2026-08-20", status: "正常", start_time: "16:00", session_number: 1 },
+    { scheduled_date: "2026-08-24", status: "已取消", start_time: "16:00", session_number: 2 },
+    { scheduled_date: "2026-09-07", status: "正常", start_time: "16:00", session_number: 2 },
+   ],
+   "2026-09-05"
+  )
+  expect(opts.map((r) => r.session_number)).toEqual([1, 2, 3])
+ })
+})
+
+describe("listPastSchedulesNeedingAutoLeave", () => {
+ it("含首堂日、不含今天，略過取消", () => {
+  const past = listPastSchedulesNeedingAutoLeave(
+   [
+    { scheduled_date: "2026-08-20", status: "正常", start_time: "16:00", session_number: 1 },
+    { scheduled_date: "2026-08-27", status: "正常", start_time: "16:00", session_number: 2 },
+    { scheduled_date: "2026-08-27", status: "已取消", start_time: "17:00", session_number: 99 },
+    { scheduled_date: "2026-09-05", status: "正常", start_time: "16:00", session_number: 3 },
+    { scheduled_date: "2026-09-12", status: "正常", start_time: "16:00", session_number: 4 },
+   ],
+   "2026-08-27",
+   "2026-09-05"
+  )
+  expect(past.map((r) => r.session_number)).toEqual([2])
+ })
+
+ it("首堂日已是今天或未來則空", () => {
+  expect(
+   listPastSchedulesNeedingAutoLeave(
+    [{ scheduled_date: "2026-09-05", status: "正常", start_time: "16:00" }],
+    "2026-09-05",
+    "2026-09-05"
+   )
+  ).toEqual([])
+  expect(
+   listPastSchedulesNeedingAutoLeave(
+    [{ scheduled_date: "2026-09-12", status: "正常", start_time: "16:00" }],
+    "2026-09-12",
+    "2026-09-05"
+   )
+  ).toEqual([])
  })
 })
 

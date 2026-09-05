@@ -148,7 +148,17 @@ import {
  SUMMER_ENROLLMENT_FORM_OPTIONS,
  type EnrollmentPeriod,
 } from "@/lib/enrollmentPeriod"
+import {
+ formatClassScheduleLabel,
+ listEnrollmentStartScheduleOptions,
+ listPastSchedulesNeedingAutoLeave,
+ resolveEnrollmentStartDate,
+ resolveNextClassSchedule,
+ type EnrollmentStartMode,
+} from "@/lib/enrollmentStart"
+import { insertPastEnrollmentStartLeaves } from "@/services/leaveQueries"
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
+import { ChoiceChips } from "@/components/students/studentsUi"
 import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import { CLASS_ADD_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { useNavGuard } from "@/hooks/useNavGuard"
@@ -317,6 +327,8 @@ export function ClassDetailView() {
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
  const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
+ const [addStudentStartMode, setAddStudentStartMode] = useState<EnrollmentStartMode>("next")
+ const [addStudentStartScheduleId, setAddStudentStartScheduleId] = useState("")
  const [addStudentId, setAddStudentId] = useState("")
  const [addingStudentId, setAddingStudentId] = useState<string | null>(null)
  const [addStudentErr, setAddStudentErr] = useState<string | null>(null)
@@ -529,6 +541,33 @@ export function ClassDetailView() {
   if (!isPrivateClass || !cls) return null
   return summarizeClassTeacherScheduleMismatch(cls.teacher_id, schedules)
  }, [isPrivateClass, cls, schedules])
+
+ const addStudentStartScheduleOptions = useMemo(
+  () => listEnrollmentStartScheduleOptions(schedules, today),
+  [schedules, today]
+ )
+ const nextAddStudentSchedule = useMemo(
+  () => resolveNextClassSchedule(schedules, today),
+  [schedules, today]
+ )
+ const addStudentPastAutoLeavePreview = useMemo(() => {
+  if (addStudentStartMode !== "schedule" || !addStudentStartScheduleId) return []
+  const startRow = addStudentStartScheduleOptions.find(
+   (row) => row.id === addStudentStartScheduleId
+  )
+  if (!startRow) return []
+  return listPastSchedulesNeedingAutoLeave(
+   schedules,
+   startRow.scheduled_date.slice(0, 10),
+   today
+  )
+ }, [
+  addStudentStartMode,
+  addStudentStartScheduleId,
+  addStudentStartScheduleOptions,
+  schedules,
+  today,
+ ])
 
  const parts = useMemo(() => {
   let fut = 0
@@ -1182,6 +1221,35 @@ export function ClassDetailView() {
    else if (isSummer && ENROLLMENT_PERIOD_OPTIONS.includes(addStudentForm as EnrollmentPeriod)) {
     period = addStudentForm as EnrollmentPeriod
    }
+   let enrollDate: string | undefined
+   if (!isPrivateClass) {
+    try {
+     enrollDate = resolveEnrollmentStartDate({
+      mode: addStudentStartMode,
+      todayYmd: today,
+      nextScheduleDate: nextAddStudentSchedule?.scheduled_date,
+      specifiedScheduleDate: addStudentStartScheduleOptions.find(
+       (row) => row.id === addStudentStartScheduleId
+      )?.scheduled_date,
+     })
+    } catch (e) {
+     setAddStudentErr(e instanceof Error ? e.message : String(e))
+     return
+    }
+   }
+   const pastAutoLeaveSchedules =
+    !isPrivateClass && !isSingle && enrollDate
+     ? listPastSchedulesNeedingAutoLeave(schedules, enrollDate, today)
+     : []
+   if (pastAutoLeaveSchedules.length > 0) {
+    const ok = await confirmDialog({
+     title: "首堂已過，將自動請假",
+     description: `選定開始日為 ${enrollDate}，將為首堂至今天前共 ${pastAutoLeaveSchedules.length} 堂建立請假（事假／待安排），並開啟請假管理。`,
+     confirmText: "確認加入並請假",
+     tone: "warning",
+    })
+    if (!ok) return
+   }
    const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
     {
      notice: cls?.enrollment_notice,
@@ -1198,27 +1266,67 @@ export function ClassDetailView() {
     cid,
     period,
     isSingle ? addStudentScheduleIds : undefined,
-    null
+    null,
+    enrollDate ? { enrollDate } : null
    )
+   let firstLeaveId: string | null = null
+   let autoLeaveCount = 0
+   if (pastAutoLeaveSchedules.length > 0) {
+    const leaveResult = await insertPastEnrollmentStartLeaves({
+     studentId,
+     classId: cid,
+     schedules: pastAutoLeaveSchedules.map((row) => ({
+      id: row.id,
+      scheduled_date: row.scheduled_date,
+     })),
+    })
+    firstLeaveId = leaveResult.firstLeaveId
+    autoLeaveCount = leaveResult.createdCount
+   }
    invalidateStudentsListDataCache()
    invalidateClassesListDataCache()
    invalidateEnrollmentChangesDataCache()
    const addedName =
     allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
-   pushBanner({
-    tone: "success",
-    title: `已加入報讀：${addedName}`,
-    message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
-    action: {
-     pageLabel: "收款／出單",
-     to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
-    },
-   })
+   if (firstLeaveId) {
+    pushBanner({
+     tone: "success",
+     title: `已加入報讀：${addedName}`,
+     message: `報讀已建立；已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。請安排補堂，並前往收款／出單確認學費。`,
+     action: {
+      pageLabel: "請假管理",
+      to: `/LeaveManagement?${new URLSearchParams({
+       studentId,
+       record: firstLeaveId,
+      }).toString()}`,
+     },
+    })
+   } else {
+    pushBanner({
+     tone: "success",
+     title: `已加入報讀：${addedName}`,
+     message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
+     action: {
+      pageLabel: "收款／出單",
+      to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
+     },
+    })
+   }
    setAddStudentId("")
    setAddStudentForm(isSummer ? "第一期" : "full")
    setAddStudentScheduleIds([])
+   setAddStudentStartMode("next")
+   setAddStudentStartScheduleId("")
    setAddStudentOpen(false)
    await reload()
+   if (firstLeaveId) {
+    goExternal(
+     `/LeaveManagement?${new URLSearchParams({
+      studentId,
+      record: firstLeaveId,
+     }).toString()}`
+    )
+   }
   } catch (e) {
    const msg = formatUnknownError(e)
    reportUserFacingError(e, {
@@ -2168,6 +2276,8 @@ export function ClassDetailView() {
            cls?.course_mode === "summer_two_period" ? "第一期" : "full"
           )
           setAddStudentScheduleIds([])
+          setAddStudentStartMode("next")
+          setAddStudentStartScheduleId("")
           setAddStudentId("")
           setAddStudentErr(null)
          }
@@ -2225,6 +2335,69 @@ export function ClassDetailView() {
             報讀只建立就讀關係。可上課堂數須經收款確認後才入權益池，請勿在此手動填寫堂數。
            </p>
           ) : null}
+          {!isPrivateClass ? (
+           <>
+            <div className="space-y-1">
+             <span className="text-sm text-muted-foreground">開始報讀</span>
+             <ChoiceChips
+              options={["next", "schedule"] as const}
+              value={addStudentStartMode}
+              onChange={(mode) => {
+               setAddStudentStartMode(mode)
+               if (mode === "schedule" && !addStudentStartScheduleId && nextAddStudentSchedule) {
+                setAddStudentStartScheduleId(nextAddStudentSchedule.id)
+               }
+              }}
+              label={(mode) => (mode === "next" ? "下一堂" : "指定排程開始")}
+             />
+            </div>
+            {addStudentStartMode === "next" ? (
+             <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              {nextAddStudentSchedule ? (
+               <>
+                將由{" "}
+                <strong className="text-foreground">
+                 {formatClassScheduleLabel(nextAddStudentSchedule)}
+                </strong>{" "}
+                開始計入報讀
+               </>
+              ) : (
+               "此班暫無未來排程，將以今天為報讀開始日。"
+              )}
+             </div>
+            ) : (
+             <div className="space-y-1">
+              <span className="text-sm text-muted-foreground">選擇開始排程</span>
+              {addStudentStartScheduleOptions.length === 0 ? (
+               <p role="alert" className="text-sm text-destructive">
+                此班暫無可選排程。
+               </p>
+              ) : (
+               <Select
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                value={addStudentStartScheduleId}
+                onChange={(e) => setAddStudentStartScheduleId(e.target.value)}
+                disabled={Boolean(addingStudentId)}
+               >
+                <option value="">請選擇排程…</option>
+                {addStudentStartScheduleOptions.map((row) => (
+                 <option key={row.id} value={row.id}>
+                  {formatClassScheduleLabel(row)}
+                  {row.scheduled_date.slice(0, 10) < today ? "　（已過）" : ""}
+                 </option>
+                ))}
+               </Select>
+              )}
+              {addStudentPastAutoLeavePreview.length > 0 ? (
+               <p className="text-xs text-warning">
+                此排程已過；加入後將為首堂至今天前共 {addStudentPastAutoLeavePreview.length}{" "}
+                堂自動請假（待安排），並開啟請假管理。
+               </p>
+              ) : null}
+             </div>
+            )}
+           </>
+          ) : null}
           {addStudentForm === SINGLE_SESSION_ENROLLMENT && cid && !isPrivateClass ? (
            <EnrollmentSessionPicker
             classId={cid}
@@ -2258,7 +2431,10 @@ export function ClassDetailView() {
             disabled={
              !addStudentId ||
              (addStudentForm === SINGLE_SESSION_ENROLLMENT &&
-              addStudentScheduleIds.length === 0)
+              addStudentScheduleIds.length === 0) ||
+             (!isPrivateClass &&
+              addStudentStartMode === "schedule" &&
+              !addStudentStartScheduleId)
             }
             onClick={() => void onAddStudentToClass(addStudentId)}
            >
