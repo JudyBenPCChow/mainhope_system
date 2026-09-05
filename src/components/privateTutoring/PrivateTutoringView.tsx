@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
-import { CalendarClock, DoorOpen, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus, UserRound } from "lucide-react"
+import { CalendarClock, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus } from "lucide-react"
 
 import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
+import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
 import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
@@ -87,6 +88,11 @@ import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type Tab = "students" | "rooms"
 type PrivateCreateMode = "1to1" | "1to2"
+
+const PRIVATE_TUTORING_TABS: { id: Tab; label: string }[] = [
+ { id: "students", label: "學生列表" },
+ { id: "rooms", label: "查空房" },
+]
 
 const REGISTRATION_FILTERS = [
  { key: "all", label: "全部" },
@@ -1149,26 +1155,12 @@ export function PrivateTutoringView() {
     </section>
    ) : null}
 
-   <div className="flex flex-wrap gap-2 border-b border-border pb-1">
-    <Button
-     type="button"
-     variant={tab === "students" ? "default" : "ghost"}
-     className="gap-1.5 text-sm"
-     onClick={() => setTab("students")}
-    >
-     <UserRound className="h-4 w-4" />
-     學生列表
-    </Button>
-    <Button
-     type="button"
-     variant={tab === "rooms" ? "default" : "ghost"}
-     className="gap-1.5 text-sm"
-     onClick={() => setTab("rooms")}
-    >
-     <DoorOpen className="h-4 w-4" />
-     查空房
-    </Button>
-   </div>
+   <RecordPageTabs
+    tabs={PRIVATE_TUTORING_TABS}
+    value={tab}
+    onChange={setTab}
+    isMobile={isMobile}
+   />
 
    {tab === "students" && (
     <div className="space-y-4">

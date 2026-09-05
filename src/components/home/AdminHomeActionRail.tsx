@@ -175,6 +175,7 @@ export function HomeActionsPreviewPanel() {
     <h2 className="text-[1.3rem] font-semibold text-foreground">常用工作</h2>
     <p className="mt-1 text-sm text-muted-foreground">
      直接前往常用的行政工作。釘選與移走的預設捷徑會記在你的帳戶，換裝置仍保留。
+     <span className="mt-1 block font-medium text-destructive">可以在每頁左上角「釘選」，加入到常用工作區！</span>
     </p>
    </header>
 

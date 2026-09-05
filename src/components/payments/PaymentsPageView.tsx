@@ -88,8 +88,7 @@ import {
  fetchPaymentFull,
  fetchRecentlyPaidStudentIds,
  fetchRecentPaymentsForStudent,
- fetchTotalAttendedLessonsForStudent,
- fetchTotalPaidLessonsForStudent,
+ fetchStudentCurrentYearLessonStats,
  insertPaymentRecord,
  type PaymentDetailInput,
  type PaymentFull,
@@ -666,14 +665,13 @@ export function PaymentsPageView() {
   }
   setStudentCtxLoading(true)
   try {
-   const [recent, paid, attended] = await Promise.all([
+   const [recent, lessonStats] = await Promise.all([
     fetchRecentPaymentsForStudent(studentId, 3),
-    fetchTotalPaidLessonsForStudent(studentId),
-    fetchTotalAttendedLessonsForStudent(studentId),
+    fetchStudentCurrentYearLessonStats(studentId),
    ])
    setRecentPayments(recent)
-   setPaidLessons(paid)
-   setAttendedLessons(attended)
+   setPaidLessons(lessonStats.paidLessons)
+   setAttendedLessons(lessonStats.attendedLessons)
   } catch (e) {
    reportUserFacingError(e, { source: "PaymentsPageView.loadStudentContext", setErr: setFormErr })
    setRecentPayments([])
@@ -1382,7 +1380,7 @@ export function PaymentsPageView() {
   <aside className={cn("space-y-4", sticky && "lg:sticky lg:top-4 lg:self-start")}>
    {!selectedStudent ? (
     <div className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-     請先選擇學生，以顯示上次繳費、已繳堂數與總上堂數。
+     請先選擇學生，以顯示上次繳費、本學年已繳堂數與總上堂數。
     </div>
    ) : studentCtxLoading ? (
     <div className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
@@ -1394,18 +1392,18 @@ export function PaymentsPageView() {
       <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
        <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:gap-2 md:text-xs">
         <BookOpen className="h-3.5 w-3.5" aria-hidden />
-        已繳堂數
+        本學年已繳堂數
        </div>
        <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-2xl">{paidLessons ?? "—"}</p>
-       <p className="mt-1 hidden text-xs text-muted-foreground md:block">已收款單據之堂數加總</p>
+       <p className="mt-1 text-[11px] text-muted-foreground md:text-xs">本學年已收款單據之堂數加總</p>
       </div>
       <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
        <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:gap-2 md:text-xs">
         <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
-        總上堂數
+        本學年總上堂數
        </div>
        <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-2xl">{attendedLessons ?? "—"}</p>
-       <p className="mt-1 hidden text-xs text-muted-foreground md:block">計費出席堂次</p>
+       <p className="mt-1 text-[11px] text-muted-foreground md:text-xs">本學年計費出席堂次</p>
       </div>
      </div>
      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">

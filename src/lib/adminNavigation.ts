@@ -47,7 +47,18 @@ import {
 /** 行政專用主選單：固定 8 個頂層列，與其他角色的 NAV_STRUCTURE 分開。 */
 export const ADMIN_MAIN_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["admin"], icon: Home },
- { kind: "leaf", path: "/Students", label: "學生", roles: ["admin"], icon: Users },
+ {
+  kind: "group",
+  id: "admin-students",
+  label: "學生",
+  icon: Users,
+  children: [
+   { path: "/Students", label: "學生", roles: ["admin"], icon: GraduationCap },
+   { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin"], icon: ScrollText },
+   { path: "/PromotionMatch", label: "宣傳配對", roles: ["admin"], icon: UserPlus },
+   { path: "/ContactUpdateCampaign", label: "聯絡資料更新", roles: ["admin"], icon: Contact },
+  ],
+ },
  {
   kind: "group",
   id: "admin-schedule",
@@ -59,7 +70,16 @@ export const ADMIN_MAIN_NAV: NavEntryDef[] = [
   ],
  },
  { kind: "leaf", path: "/Attendance", label: "點名", roles: ["admin"], icon: ClipboardCheck },
- { kind: "leaf", path: "/Payments", label: "收款登記", roles: ["admin"], icon: Wallet },
+ {
+  kind: "group",
+  id: "admin-payments",
+  label: "收款登記",
+  icon: Wallet,
+  children: [
+   { path: "/Payments", label: "收款登記", roles: ["admin"], icon: HandCoins },
+   { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin"], icon: Wallet },
+  ],
+ },
  {
   kind: "group",
   id: "admin-courses",
@@ -271,7 +291,11 @@ export function resolveAdminWorkspacePath(
 
 /** 行政側欄高亮：主入口可涵蓋已移到頁內導航的兄弟頁。 */
 export function adminNavPathIsActive(pathname: string, itemPath: string): boolean {
- if (itemPath === "/Payments") return resolveAdminWorkspacePath("payments", pathname) != null
+ if (itemPath === "/Payments") {
+  const resolved = resolveAdminWorkspacePath("payments", pathname)
+  // 繳費紀錄已有自己的側欄子項；其餘收款工作域頁（如優惠折扣）仍高亮「收款登記」
+  return resolved != null && resolved !== "/PaymentHistory"
+ }
  if (itemPath === "/Classes") return resolveAdminWorkspacePath("specialty", pathname) != null
  if (itemPath === HW_PATH.overview) return isHomeworkTutoringPath(pathname)
  return pathIsActive(pathname, itemPath)
