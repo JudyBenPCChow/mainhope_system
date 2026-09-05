@@ -305,7 +305,7 @@ function filterActiveDiscountRows(
  return rows.filter((d) => d.isActive && isDiscountInEffect(d, { asOfDate: asOf, academicYear }))
 }
 
-/** 繳費表單用：所有啟用中優惠（不在此過濾有效期／學年，改由 UI 顯示不可選原因） */
+/** 繳費表單載入：啟用中優惠；有效期／學年由 UI 再過濾，不在範圍者不顯示 */
 export async function fetchPaymentFormDiscounts(): Promise<PaymentDiscountRow[]> {
  if (!supabase) return []
  const { data, error } = await supabase

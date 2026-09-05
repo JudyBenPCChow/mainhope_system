@@ -103,6 +103,7 @@ import {
  fetchPaymentFormDiscounts,
  getGlobalMaxStackCount,
  isDiscountCheckboxDisabled,
+ isDiscountInEffect,
  resolveSelectedDiscounts,
  validateDiscountSelection,
  type PaymentDiscountRow,
@@ -361,6 +362,15 @@ export function PaymentsPageView() {
   }
   return map
  }, [discounts, paymentEligibilityCtx, payDate, paymentAcademicYear])
+
+ /** 收款勾選清單：只顯示啟用且在有效期／學年內的優惠（其餘資格不符仍顯示原因）。 */
+ const formDiscountOptions = useMemo(
+  () =>
+   discounts.filter((d) =>
+    isDiscountInEffect(d, { asOfDate: payDate, academicYear: paymentAcademicYear })
+   ),
+  [discounts, payDate, paymentAcademicYear]
+ )
 
  const maxStackCount = useMemo(() => getGlobalMaxStackCount(discounts), [discounts])
 
@@ -1931,10 +1941,10 @@ export function PaymentsPageView() {
          !selectedStudent && "opacity-60"
         )}
        >
-        {discounts.length === 0 ? (
+        {formDiscountOptions.length === 0 ? (
          <p className="text-sm text-muted-foreground">尚無啟用中的優惠。</p>
         ) : (
-         discounts.map((d) => {
+         formDiscountOptions.map((d) => {
           const avail = discountAvailability.get(d.id)
           const eligibilityBlocked = avail != null && !avail.eligible
           const stackBlocked =
