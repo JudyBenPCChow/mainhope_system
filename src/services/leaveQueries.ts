@@ -847,7 +847,7 @@ export async function insertLeaveMakeupRecord(row: {
  remarks?: string | null
  status?: string
  tuition_disposition?: LeaveTuitionDisposition | null
-}): Promise<void> {
+}): Promise<string> {
  if (!supabase) throw new Error("Supabase 未設定")
  assertAcademicYearEditableForDate(row.leave_date)
  if (row.schedule_id) {
@@ -876,8 +876,8 @@ export async function insertLeaveMakeupRecord(row: {
   if (code === "23505") throw new Error(LEAVE_DUPLICATE_MESSAGE)
   throwPostgrest(error)
  }
+ const insertedId = String((inserted as { id: string }).id)
  if (row.tuition_disposition) {
-  const insertedId = String((inserted as { id: string }).id)
   try {
    await setLeaveTuitionDisposition(insertedId, row.tuition_disposition)
   } catch (dispositionError) {
@@ -885,6 +885,51 @@ export async function insertLeaveMakeupRecord(row: {
    throw dispositionError
   }
  }
+ return insertedId
+}
+
+export const PAST_ENROLLMENT_START_LEAVE_REMARKS = "報讀首堂已過，系統自動請假"
+
+/**
+ * 過去首堂報讀：為區間內每堂建立請假（事假／待安排）。
+ * 已有請假的排程略過。回傳第一筆新建請假 id（無則 null）。
+ */
+export async function insertPastEnrollmentStartLeaves(opts: {
+ studentId: string
+ classId: string
+ schedules: Array<{ id: string; scheduled_date: string }>
+ remarks?: string | null
+}): Promise<{ firstLeaveId: string | null; createdCount: number }> {
+ if (opts.schedules.length === 0) return { firstLeaveId: null, createdCount: 0 }
+ const already = await fetchLeaveScheduleIdsForStudent(
+  opts.studentId,
+  opts.schedules.map((s) => s.id)
+ )
+ const remarks = opts.remarks?.trim() || PAST_ENROLLMENT_START_LEAVE_REMARKS
+ let firstLeaveId: string | null = null
+ let createdCount = 0
+ for (const sched of opts.schedules) {
+  if (already.has(sched.id)) continue
+  const leaveDate = sched.scheduled_date.slice(0, 10)
+  try {
+   const id = await insertLeaveMakeupRecord({
+    student_id: opts.studentId,
+    class_id: opts.classId,
+    schedule_id: sched.id,
+    leave_date: leaveDate,
+    leave_reason: "事假",
+    makeup_type: "待安排",
+    status: "待補課",
+    remarks,
+   })
+   createdCount += 1
+   if (!firstLeaveId) firstLeaveId = id
+  } catch (e) {
+   if (e instanceof Error && e.message === LEAVE_DUPLICATE_MESSAGE) continue
+   throw e
+  }
+ }
+ return { firstLeaveId, createdCount }
 }
 
 /** 請假：預設只請本節；consecutiveScope=all 時連堂整組各建一筆 */

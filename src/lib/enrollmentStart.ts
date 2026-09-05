@@ -26,6 +26,43 @@ export function formatClassScheduleLabel(row: {
   .join(" · ")
 }
 
+function sortSchedulesByDateTime<T extends EnrollmentStartScheduleLike>(rows: T[]): T[] {
+ return [...rows].sort((a, b) => {
+  const byDate = a.scheduled_date.slice(0, 10).localeCompare(b.scheduled_date.slice(0, 10))
+  if (byDate !== 0) return byDate
+  return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
+ })
+}
+
+/** 指定排程開始可選：未取消即可（含過去）。 */
+export function listEnrollmentStartScheduleOptions<T extends EnrollmentStartScheduleLike>(
+ rows: T[],
+ _todayYmd?: string
+): T[] {
+ return sortSchedulesByDateTime(rows.filter((row) => !isCancelledScheduleStatus(row.status)))
+}
+
+/**
+ * 過去首堂報讀需自動請假的排程：未取消、首堂日（含）起至今天前（不含今天）。
+ */
+export function listPastSchedulesNeedingAutoLeave<T extends EnrollmentStartScheduleLike>(
+ rows: T[],
+ enrollYmd: string,
+ todayYmd: string
+): T[] {
+ const enroll = enrollYmd.slice(0, 10)
+ const today = todayYmd.slice(0, 10)
+ if (!/^\d{4}-\d{2}-\d{2}$/.test(enroll) || !/^\d{4}-\d{2}-\d{2}$/.test(today)) return []
+ if (enroll >= today) return []
+ return sortSchedulesByDateTime(
+  rows.filter((row) => {
+   if (isCancelledScheduleStatus(row.status)) return false
+   const ymd = row.scheduled_date.slice(0, 10)
+   return ymd >= enroll && ymd < today
+  })
+ )
+}
+
 /** 下一堂＝今天起、未取消、日期最早的一堂（同日依開始時間）。 */
 export function resolveNextClassSchedule<T extends EnrollmentStartScheduleLike>(
  rows: T[],
@@ -35,12 +72,7 @@ export function resolveNextClassSchedule<T extends EnrollmentStartScheduleLike>(
  const eligible = rows.filter(
   (row) => !isCancelledScheduleStatus(row.status) && row.scheduled_date.slice(0, 10) >= today
  )
- eligible.sort((a, b) => {
-  const byDate = a.scheduled_date.slice(0, 10).localeCompare(b.scheduled_date.slice(0, 10))
-  if (byDate !== 0) return byDate
-  return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
- })
- return eligible[0] ?? null
+ return sortSchedulesByDateTime(eligible)[0] ?? null
 }
 
 export function resolveEnrollmentStartDate(opts: {
