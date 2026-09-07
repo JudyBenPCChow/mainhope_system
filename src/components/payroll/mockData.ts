@@ -433,6 +433,11 @@ export function teacherLessonCount(t: PayrollTeacherRow): number {
   return t.grades.reduce((s, g) => s + gradeLessonCount(g), 0)
 }
 
+/** 該人當日授課且為代堂的節數（代入） */
+export function teacherSubstituteGivenCount(t: PayrollTeacherRow): number {
+  return listSubstituteLessons([t]).filter((s) => s.direction === "given").length
+}
+
 export function teacherBillableHc(t: PayrollTeacherRow): number {
   return t.grades.reduce((s, g) => s + gradeBillableHc(g), 0)
 }

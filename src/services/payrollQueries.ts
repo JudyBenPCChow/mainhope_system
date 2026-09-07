@@ -55,6 +55,16 @@ import type {
   TeacherSubmitState,
   WfhMockState,
 } from "@/lib/payroll/viewTypes"
+import {
+  buildUnsettledPayrollSnapshot,
+  formatPayrollCalcAt,
+  hardBlocksFromPayrollSnapshot,
+  shouldReusePayrollDraftSnapshot,
+  teachersFromPayrollSnapshot,
+  type LoadPayrollWorkbenchOptions,
+} from "@/lib/payroll/draftSnapshot"
+
+export type { LoadPayrollWorkbenchOptions }
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v != null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null
@@ -745,7 +755,98 @@ async function computeUiTeachers(
   return { teachers, hardBlockAnomalies: computed.hardBlockAnomalies }
 }
 
-export async function loadPayrollWorkbench(monthKey: string): Promise<PayrollWorkbench> {
+function applyApprovedAdjustments(
+  teachers: PayrollTeacherRow[],
+  adjustments: ManualAdjustment[]
+): PayrollTeacherRow[] {
+  return teachers.map((t) => {
+    const approved = adjustments.filter((a) => a.teacherId === t.id && a.status === "approved")
+    if (approved.length === 0) return t
+    const latest = approved.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]!
+    const mpfOn = teacherNeedsMpf({ teacherName: t.name })
+    const m = mpfOn
+      ? withMpf(latest.toAmount)
+      : { gross: latest.toAmount, employeeMpf: 0, employerMpf: 0, net: latest.toAmount }
+    return { ...t, gross: m.gross, employeeMpf: m.employeeMpf, employerMpf: m.employerMpf, net: m.net }
+  })
+}
+
+function withAdjustmentTeacherNames(
+  adjustments: ManualAdjustment[],
+  teachers: PayrollTeacherRow[]
+): ManualAdjustment[] {
+  const nameById = new Map(teachers.map((t) => [t.id, t.name]))
+  return adjustments.map((a) => ({
+    ...a,
+    teacherName: nameById.get(a.teacherId) ?? a.teacherName,
+  }))
+}
+
+function unsettledWorkbench(args: {
+  monthKey: string
+  monthLabel: string
+  run: PayrollRunRecord
+  teachersWithAdj: PayrollTeacherRow[]
+  teacherStates: PayrollTeacherStateRecord[]
+  adjustments: ManualAdjustment[]
+  manualHours: PayrollWorkbench["manualHours"]
+  hardBlockAnomalies: string[]
+  calcAt: string | null
+}): PayrollWorkbench {
+  const calcLabel = formatPayrollCalcAt(args.calcAt)
+  return {
+    month: {
+      monthKey: args.monthKey,
+      monthLabel: args.monthLabel,
+      status: args.run.status,
+      teachers: args.teachersWithAdj,
+      submittedBy: args.run.submittedBy ?? undefined,
+      submittedAt: args.run.submittedAt ?? undefined,
+      returnReason: args.run.returnReason ?? undefined,
+      calc: {
+        version: args.run.calcVersion,
+        computedAt: calcLabel,
+        dataCutoffAt: calcLabel,
+      },
+    },
+    run: args.run,
+    teacherStates: args.teacherStates,
+    adjustments: withAdjustmentTeacherNames(args.adjustments, args.teachersWithAdj),
+    manualHours: args.manualHours,
+    hardBlockAnomalies: args.hardBlockAnomalies,
+  }
+}
+
+async function persistUnsettledDraftSnapshot(args: {
+  runId: string
+  calcVersion: number
+  calcAt: string
+  teachers: PayrollTeacherRow[]
+  hardBlockAnomalies: string[]
+}): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const { error } = await supabase
+    .from("payroll_runs")
+    .update({
+      snapshot: buildUnsettledPayrollSnapshot({
+        teachers: args.teachers,
+        hardBlockAnomalies: args.hardBlockAnomalies,
+        calcVersion: args.calcVersion,
+        computedAt: args.calcAt,
+      }),
+      calc_at: args.calcAt,
+      calc_version: args.calcVersion,
+      updated_at: args.calcAt,
+    })
+    .eq("id", args.runId)
+    .neq("status", "已結算")
+  if (error) throw new Error(error.message)
+}
+
+export async function loadPayrollWorkbench(
+  monthKey: string,
+  opts: LoadPayrollWorkbenchOptions = {}
+): Promise<PayrollWorkbench> {
   if (!isSupabaseConfigured || !supabase) {
     throw new Error("Supabase 未設定")
   }
@@ -753,13 +854,13 @@ export async function loadPayrollWorkbench(monthKey: string): Promise<PayrollWor
   const { label } = monthBounds(monthKey)
 
   if (run.status === "已結算" && run.snapshot) {
-    const snap = asRecord(run.snapshot)
-    const teachers = (Array.isArray(snap?.teachers) ? snap!.teachers : []) as PayrollTeacherRow[]
+    const teachers = teachersFromPayrollSnapshot(run.snapshot) ?? []
     const [teacherStates, adjustments, manualHours] = await Promise.all([
       fetchTeacherStates(run.id),
       fetchAdjustments(run.id),
       fetchManualHours(monthKey),
     ])
+    const calcLabel = formatPayrollCalcAt(run.calcAt)
     return {
       month: {
         monthKey,
@@ -771,19 +872,46 @@ export async function loadPayrollWorkbench(monthKey: string): Promise<PayrollWor
         returnReason: run.returnReason ?? undefined,
         calc: {
           version: run.calcVersion,
-          computedAt: run.calcAt ?? "—",
-          dataCutoffAt: run.calcAt ?? "—",
+          computedAt: calcLabel,
+          dataCutoffAt: calcLabel,
         },
       },
       run,
       teacherStates,
-      adjustments: adjustments.map((a) => ({
-        ...a,
-        teacherName: teachers.find((t) => t.id === a.teacherId)?.name ?? a.teacherName,
-      })),
+      adjustments: withAdjustmentTeacherNames(adjustments, teachers),
       manualHours,
       hardBlockAnomalies: [],
     }
+  }
+
+  const draftTeachers = teachersFromPayrollSnapshot(run.snapshot)
+  const reuseDraft = shouldReusePayrollDraftSnapshot({
+    status: run.status,
+    hasTeachers: draftTeachers != null,
+    calcAt: run.calcAt,
+    nowMs: Date.now(),
+    force: opts.force,
+    preferDraft: opts.preferDraft,
+  })
+
+  if (reuseDraft && draftTeachers) {
+    const [teacherStates, adjustments, manualHours] = await Promise.all([
+      fetchTeacherStates(run.id),
+      fetchAdjustments(run.id),
+      fetchManualHours(monthKey),
+    ])
+    const withAdj = applyApprovedAdjustments(draftTeachers, adjustments)
+    return unsettledWorkbench({
+      monthKey,
+      monthLabel: label,
+      run,
+      teachersWithAdj: withAdj,
+      teacherStates,
+      adjustments,
+      manualHours,
+      hardBlockAnomalies: hardBlocksFromPayrollSnapshot(run.snapshot),
+      calcAt: run.calcAt,
+    })
   }
 
   const [rates, teacherStates, adjustments, manualHours] = await Promise.all([
@@ -795,66 +923,35 @@ export async function loadPayrollWorkbench(monthKey: string): Promise<PayrollWor
 
   const hoursMap = new Map(manualHours.map((h) => [h.teacherId, h]))
   const { teachers, hardBlockAnomalies } = await computeUiTeachers(monthKey, rates, hoursMap)
-
-  // 套用已核准調整
-  const withAdj = teachers.map((t) => {
-    const approved = adjustments.filter((a) => a.teacherId === t.id && a.status === "approved")
-    if (approved.length === 0) return t
-    const latest = approved.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]!
-    const mpfOn = teacherNeedsMpf({ teacherName: t.name })
-    const m = mpfOn
-      ? withMpf(latest.toAmount)
-      : { gross: latest.toAmount, employeeMpf: 0, employerMpf: 0, net: latest.toAmount }
-    return { ...t, gross: m.gross, employeeMpf: m.employeeMpf, employerMpf: m.employerMpf, net: m.net }
+  const nowIso = new Date().toISOString()
+  const nextVersion = opts.bumpVersion ? run.calcVersion + 1 : run.calcVersion
+  await persistUnsettledDraftSnapshot({
+    runId: run.id,
+    calcVersion: nextVersion,
+    calcAt: nowIso,
+    teachers,
+    hardBlockAnomalies,
   })
 
-  const nameById = new Map(withAdj.map((t) => [t.id, t.name]))
-
-  // bump calc_at
-  const nowIso = new Date().toISOString()
-  await supabase
-    .from("payroll_runs")
-    .update({ calc_at: nowIso, updated_at: nowIso })
-    .eq("id", run.id)
-
-  return {
-    month: {
-      monthKey,
-      monthLabel: label,
-      status: run.status,
-      teachers: withAdj,
-      submittedBy: run.submittedBy ?? undefined,
-      submittedAt: run.submittedAt ?? undefined,
-      returnReason: run.returnReason ?? undefined,
-      calc: {
-        version: run.calcVersion,
-        computedAt: nowIso.replace("T", " ").slice(0, 16),
-        dataCutoffAt: nowIso.replace("T", " ").slice(0, 16),
-      },
-    },
-    run: { ...run, calcAt: nowIso },
+  const withAdj = applyApprovedAdjustments(teachers, adjustments)
+  return unsettledWorkbench({
+    monthKey,
+    monthLabel: label,
+    run: { ...run, calcVersion: nextVersion, calcAt: nowIso, snapshot: run.snapshot },
+    teachersWithAdj: withAdj,
     teacherStates,
-    adjustments: adjustments.map((a) => ({
-      ...a,
-      teacherName: nameById.get(a.teacherId) ?? a.teacherName,
-    })),
+    adjustments,
     manualHours,
     hardBlockAnomalies,
-  }
+    calcAt: nowIso,
+  })
 }
 
 export async function recalcPayrollRun(monthKey: string): Promise<PayrollWorkbench> {
   if (!supabase) throw new Error("Supabase 未設定")
   const run = await ensurePayrollRun(monthKey)
   if (run.status === "已結算") throw new Error("已結算月份不可重算")
-  const nextVersion = run.calcVersion + 1
-  const nowIso = new Date().toISOString()
-  const { error } = await supabase
-    .from("payroll_runs")
-    .update({ calc_version: nextVersion, calc_at: nowIso, updated_at: nowIso })
-    .eq("id", run.id)
-  if (error) throw new Error(error.message)
-  return loadPayrollWorkbench(monthKey)
+  return loadPayrollWorkbench(monthKey, { force: true, bumpVersion: true })
 }
 
 async function upsertTeacherState(

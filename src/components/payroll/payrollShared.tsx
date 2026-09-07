@@ -58,40 +58,45 @@ export function statusTag(status: PayrollRunStatus) {
 export function VersionBar({
   calc,
   onViewDiff,
+  hint,
 }: {
   calc?: CalcVersionMeta
   onViewDiff?: () => void
+  hint?: string
 }) {
   if (!calc) return null
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <span>
-        資料截至 <span className="font-medium text-foreground">{calc.dataCutoffAt}</span>
-      </span>
-      <span aria-hidden>·</span>
-      <span>
-        計算版本{" "}
-        <span className="font-medium text-foreground">#{calc.version}</span>（
-        {calc.computedAt}）
-      </span>
-      {calc.previousVersion != null ? (
-        <>
-          <span aria-hidden>·</span>
-          <span>
-            前版 #{calc.previousVersion}
-            {calc.previousComputedAt ? `（${calc.previousComputedAt}）` : ""}
-          </span>
-          {onViewDiff ? (
-            <button
-              type="button"
-              className="font-medium text-foreground underline-offset-2 hover:underline"
-              onClick={onViewDiff}
-            >
-              查看差異
-            </button>
-          ) : null}
-        </>
-      ) : null}
+    <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span>
+          資料截至 <span className="font-medium text-foreground">{calc.dataCutoffAt}</span>
+        </span>
+        <span aria-hidden>·</span>
+        <span>
+          計算版本{" "}
+          <span className="font-medium text-foreground">#{calc.version}</span>（
+          {calc.computedAt}）
+        </span>
+        {calc.previousVersion != null ? (
+          <>
+            <span aria-hidden>·</span>
+            <span>
+              前版 #{calc.previousVersion}
+              {calc.previousComputedAt ? `（${calc.previousComputedAt}）` : ""}
+            </span>
+            {onViewDiff ? (
+              <button
+                type="button"
+                className="font-medium text-foreground underline-offset-2 hover:underline"
+                onClick={onViewDiff}
+              >
+                查看差異
+              </button>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+      {hint ? <p className="mt-1">{hint}</p> : null}
     </div>
   )
 }

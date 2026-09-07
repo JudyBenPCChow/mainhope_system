@@ -1,6 +1,8 @@
 # 同班偶發代堂 — 營運與開發指引
 
-介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute` / `isClearScheduleSubstituteBlocked`）、`src/lib/scheduleSubstitute.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。  
+> **系統現況：** 代堂只改該堂 `schedules.teacher_id`。更換任教老師時，專科班與私人課程只覆寫尚未開始、未取消且已有老師的排程；空白老師仍可回填。有代堂則只改 `original_teacher_id`。已開始（含連堂組任一節已開始）或已過去、且已有老師的堂不改寫。
+
+介面用語繁體中文。程式錨點：`src/services/scheduleQueries.ts`（`assignScheduleSubstitute` / `clearScheduleSubstitute` / `isClearScheduleSubstituteBlocked`）、`src/lib/scheduleSubstitute.ts`、`src/services/classTeacherScheduleSync.ts`、migration `20260715210933_schedule_substitute_teacher.sql`。  
 營運政策索引：[`OPS_POLICIES.md`](../_INDEX.md)。  
 **前線守則（前台／行政執行）：** [`manual/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md`](../../playbooks/frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md)。
 
@@ -46,7 +48,7 @@ flowchart LR
 
 ### 長期更換任教老師
 
-才改班別 `teacher_id`（現行畫面稱「換主責」）。注意：專科班改班別老師**不會**自動改寫既有排程的 `teacher_id`（歷史可保留）；一對一另有同步邏輯，見 `privateTutoringQueries`。
+才改班別 `teacher_id`（現行畫面稱「換主責」）。專科班與私人課程都會同步**尚未開始、未取消**的排程：無代堂則改 `teacher_id`；有代堂則只改 `original_teacher_id`、保留代堂老師。已開始的堂次不改。排程老師空白的堂仍可回填，不論日期。連堂任一節已開始則整組不改寫。
 
 ---
 
@@ -96,7 +98,7 @@ flowchart LR
 | 撞堂僅警告 | 指派代堂時雙重預約未必硬擋 | 警告後行政可確認繼續 |
 | 連堂 | 代堂以連堂組一併處理 | **只可整組代堂**（產品定案） |
 | 空白排程老師 | 殘留 `teacher_id` null | 排程管理／詳情對行政以上警告 |
-| 更換任教老師 vs 開新班 | 同班更換常任老師應沿用原班，勿停舊開新 | 見前線守則；同步未來堂／一對一只改未來待加強 |
+| 更換任教老師 vs 開新班 | 同班更換常任老師應沿用原班，勿停舊開新 | 見前線守則；系統只同步尚未開始的堂 |
 | 結算後改代堂／任教老師 | 多程序錯誤 | 異常處理；引擎不自動重算 |
 | 提醒點名 | 催促對象是當日老師 | 預期行為 |
 
@@ -109,7 +111,7 @@ flowchart LR
 1. 這份數字要的是 **任教老師** 還是 **實際授課老師**？
 2. 篩選／RLS 是否同時考慮 `schedules.teacher_id` **與** `original_teacher_id`（原任仍需可見）？
 3. 是否會在點名後 `clearScheduleSubstitute`，導致歷史歸屬漂移？
-4. 專科班改 `classes.teacher_id` 時，要不要動未來排程？**已過去堂次應保留當日老師**。
+4. 專科班改 `classes.teacher_id` 時，只動尚未開始的排程；**已過去堂次應保留當日老師**。
 5. 班別愈多、代堂愈頻時：UI／匯出應顯示「任教／當日／代堂」標示，避免只顯示一個老師名造成誤解。
 6. 代堂名單查詢必須以 `schedule_id` 呼叫排程限定 RPC；不可把 `teacher_can_access_class` 擴闊為「曾代過堂即可永久讀整班」。
 

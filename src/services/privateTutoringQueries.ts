@@ -19,6 +19,7 @@ import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { syncFutureSchedulesForClassTeacherChange } from "@/services/classTeacherScheduleSync"
 import {
  insertScheduleForClass,
  insertScheduleRow,
@@ -479,8 +480,7 @@ export async function createPrivateTutoringEnrollment(
 
 /**
  * 更新私人班別老師／學費／班名。
- * 若變更老師：同步未取消排程（無代堂→改 teacher_id；有代堂→改 original_teacher_id，保留代堂老師），
- * 讓老師時間表（依 schedules.teacher_id／original_teacher_id）與班別負責老師一致。
+ * 若變更老師：只同步尚未開始、未取消的排程（無代堂→改 teacher_id；有代堂→改 original_teacher_id）。
  */
 export async function updatePrivateClassSettings(
  classId: string,
@@ -529,47 +529,7 @@ export async function updatePrivateClassSettings(
 
  let syncedScheduleCount = 0
  if (teacherChanging) {
-  const { data: schedRows, error: schedErr } = await supabase
-   .from("schedules")
-   .select("id, status, teacher_id, original_teacher_id")
-   .eq("class_id", classId)
-  if (schedErr) throw new Error(formatUnknownError(schedErr))
-
-  const directIds: string[] = []
-  const substituteIds: string[] = []
-  for (const raw of schedRows ?? []) {
-   const row = raw as {
-    id: string
-    status: string | null
-    teacher_id: string | null
-    original_teacher_id: string | null
-   }
-   if (String(row.status ?? "").includes("取消")) continue
-   const hasSubstitute =
-    row.original_teacher_id != null && String(row.original_teacher_id).trim() !== ""
-   if (hasSubstitute) {
-    if (row.original_teacher_id !== nextTeacherId) substituteIds.push(row.id)
-   } else if (row.teacher_id !== nextTeacherId) {
-    directIds.push(row.id)
-   }
-  }
-
-  if (directIds.length > 0) {
-   const { error: upErr, count } = await supabase
-    .from("schedules")
-    .update({ teacher_id: nextTeacherId }, { count: "exact" })
-    .in("id", directIds)
-   if (upErr) throw new Error(formatUnknownError(upErr))
-   syncedScheduleCount += count ?? directIds.length
-  }
-  if (substituteIds.length > 0) {
-   const { error: upErr, count } = await supabase
-    .from("schedules")
-    .update({ original_teacher_id: nextTeacherId }, { count: "exact" })
-    .in("id", substituteIds)
-   if (upErr) throw new Error(formatUnknownError(upErr))
-   syncedScheduleCount += count ?? substituteIds.length
-  }
+  syncedScheduleCount = await syncFutureSchedulesForClassTeacherChange(classId, nextTeacherId ?? null)
 
   if ((nextTeacherId ?? null) !== prevTeacherId) {
    const label = formatClassLabel({
@@ -580,7 +540,7 @@ export async function updatePrivateClassSettings(
    void recordInboxEvent({
     eventType: "class_teacher_changed",
     title: `私人課程任教老師變更：${label}`,
-    body: syncedScheduleCount > 0 ? `已同步 ${syncedScheduleCount} 堂未來排程老師` : "任教老師已更新",
+    body: syncedScheduleCount > 0 ? `已同步 ${syncedScheduleCount} 堂尚未開始的排程老師` : "任教老師已更新",
     actionPath: `/Classes/${classId}`,
     classId,
     audienceTeacherIds: [prevTeacherId, nextTeacherId],

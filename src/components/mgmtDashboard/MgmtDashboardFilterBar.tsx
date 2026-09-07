@@ -128,6 +128,9 @@ export function MgmtDashboardFilterBar({
        placeholder="全部導師"
        emptyMessage="尚無導師"
       />
+      <p className="mt-1 text-[11px] text-muted-foreground">
+       消堂價值與上堂人次跟當日授課；在讀與報讀跟任教老師。
+      </p>
      </div>
      <div>
       <label className="mb-1 block text-xs text-muted-foreground">班別類型</label>

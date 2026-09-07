@@ -763,6 +763,7 @@ export function TeacherDetailView() {
            <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/60 px-3 py-2 text-sm">
             <span className="font-medium">
               {date} {subj}
+              {list.some((x) => x.isSubstitute) ? " · 代堂" : ""}
             </span>
             <span className="text-muted-foreground">{present} 人出席</span>
            </div>

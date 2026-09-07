@@ -28,6 +28,7 @@ import {
   upsertManualHours,
   upsertHomeworkHourOverride,
   clearHomeworkHourOverride,
+  type LoadPayrollWorkbenchOptions,
   type PayrollWorkbench,
 } from "@/services/payrollQueries"
 
@@ -78,17 +79,18 @@ export function PayrollView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const reload = useCallback(async (key: string) => {
-    setLoading(true)
+  const reload = useCallback(async (key: string, opts?: LoadPayrollWorkbenchOptions) => {
+    const silent = Boolean(opts?.preferDraft)
+    if (!silent) setLoading(true)
     setError(null)
     try {
-      const wb = await loadPayrollWorkbench(key)
+      const wb = await loadPayrollWorkbench(key, opts)
       setWorkbench(wb)
     } catch (e) {
       setError(e instanceof Error ? e.message : "載入計糧失敗")
-      setWorkbench(null)
+      if (!silent) setWorkbench(null)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
@@ -241,7 +243,7 @@ export function PayrollView() {
     void (async () => {
       try {
         await setFinanceReviewed(runId, teacherId, next)
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -257,7 +259,7 @@ export function PayrollView() {
     void (async () => {
       try {
         await setTeacherExcluded(runId, id, next, next ? "財務排除／移交跟進" : undefined)
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -272,7 +274,7 @@ export function PayrollView() {
     void (async () => {
       try {
         await setTeacherRollCallWaiting(runId, teacherId, true)
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
         pushBanner({
           tone: "success",
           title: "已標「已請補點、等重算」",
@@ -304,7 +306,7 @@ export function PayrollView() {
           startTime: target.lesson.startTime,
           endTime: target.lesson.endTime,
         })
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
         pushBanner({
           tone: "success",
           title: "已發送點名提醒",
@@ -325,7 +327,7 @@ export function PayrollView() {
     void (async () => {
       try {
         await submitTeacherForReview(runId, teacherId)
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -345,7 +347,7 @@ export function PayrollView() {
       try {
         if (next === "accepted") await acceptTeacherSubmit(runId, teacherId)
         else await returnTeacherSubmit(runId, teacherId, note ?? "退回")
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -367,7 +369,7 @@ export function PayrollView() {
           reason: adj.reason,
           createdBy: actorLabel(realRole),
         })
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
         pushBanner({ tone: "success", title: "已建立人手調整申請" })
       } catch (e) {
         pushBanner({
@@ -386,7 +388,7 @@ export function PayrollView() {
     void (async () => {
       try {
         await reviewPayrollAdjustment(id, st, actorLabel(realRole))
-        await reload(monthKey)
+        await reload(monthKey, { preferDraft: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -408,7 +410,7 @@ export function PayrollView() {
           status: dbStatus,
           actor: actorLabel(realRole),
         })
-        await reload(monthKey)
+        await reload(monthKey, { force: true })
       } catch (e) {
         pushBanner({
           tone: "error",
@@ -437,7 +439,7 @@ export function PayrollView() {
             actor: actorLabel(realRole),
           })
         }
-        await reload(monthKey)
+        await reload(monthKey, { force: true })
         pushBanner({ tone: "success", title: "已更新功輔工時" })
       } catch (e) {
         reportUserFacingError(e, {
@@ -520,7 +522,7 @@ export function PayrollView() {
           )}
         </div>
         <p className="rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
-          正式資料 · 點名／排程即時計算
+          正式資料 · 顯示上次計算；點名有變請重算
         </p>
       </div>
       ) : null}
