@@ -146,6 +146,7 @@ export function FinancePayrollView({
     () => new Set(initialLessonId ? [initialLessonId] : [])
   )
   const [filter, setFilter] = useState<FilterKey>("all")
+  const [nameQuery, setNameQuery] = useState("")
   const [page, setPage] = useState(0)
   const [mobileShowDetail, setMobileShowDetail] = useState(false)
   /** 桌面：收合左欄名單，擴大右欄審核 */
@@ -196,7 +197,9 @@ export function FinancePayrollView({
   }, [rawTeachers])
 
   const filtered = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase()
     return teachers.filter((t) => {
+      if (q && !t.name.toLowerCase().includes(q)) return false
       if (filter === "anomaly") return t.anomalies.length > 0
       if (filter === "unreviewed") return !reviewedIds.has(t.id)
       if (filter === "reviewed") return reviewedIds.has(t.id)
@@ -211,7 +214,7 @@ export function FinancePayrollView({
       if (filter !== "all") return t.mode === filter
       return true
     })
-  }, [teachers, filter, reviewedIds, substitutes])
+  }, [teachers, filter, reviewedIds, substitutes, nameQuery])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount - 1)
@@ -219,7 +222,7 @@ export function FinancePayrollView({
 
   useEffect(() => {
     setPage(0)
-  }, [filter])
+  }, [filter, nameQuery])
 
   useEffect(() => {
     if (selected?.homework) setHomeworkHoursInput(String(selected.homework.billedHours))
@@ -327,6 +330,13 @@ export function FinancePayrollView({
           收合
         </Button>
       </div>
+      <Input
+        value={nameQuery}
+        onChange={(e) => setNameQuery(e.target.value)}
+        placeholder="搜尋老師姓名"
+        className="h-8"
+        aria-label="搜尋老師姓名"
+      />
       <div className="flex flex-wrap items-center gap-1.5">
         {(
           [
@@ -731,8 +741,23 @@ export function FinancePayrollView({
             onRemindRollcall={onRemindRollcall}
             onJumpNotRolled={() => jumpToTeacherNotRolled(selected)}
           />
-          {editable && teacherNotRolled(selected) ? (
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                navigate(
+                  payrollAttendanceRecordsPath({
+                    month: month.monthKey,
+                    teacherId: selected.id,
+                  })
+                )
+              }
+            >
+              開出席紀錄（該月）
+            </Button>
+            {editable && teacherNotRolled(selected) ? (
               <Button
                 type="button"
                 variant="outline"
@@ -742,23 +767,8 @@ export function FinancePayrollView({
               >
                 標已請補點、等重算
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  navigate(
-                    payrollAttendanceRecordsPath({
-                      month: month.monthKey,
-                      teacherId: selected.id,
-                    })
-                  )
-                }
-              >
-                開出席紀錄（該月）
-              </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </TabsContent>
 
         <TabsContent value="evidence" className="space-y-3">
