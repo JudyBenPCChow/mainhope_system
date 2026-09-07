@@ -177,7 +177,7 @@ export function ManagerPayrollView({
         <>
           <p className="text-sm font-medium">財務尚未全月提交 · {month.monthLabel}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            目前：{status}。上方為即時試算（會隨財務改動變）。可先核准 Cody 工時／單人送核，或等財務提交全月。
+            目前：{status}。上方為上次計算（工時或重算後會更新）。可先核准 Cody 工時／單人送核，或等財務提交全月。
           </p>
         </>
       )}
@@ -669,7 +669,16 @@ export function ManagerPayrollView({
         </div>
       </header>
 
-      <VersionBar calc={month.calc} />
+      <VersionBar
+        calc={month.calc}
+        hint={
+          status === "待管理層核實"
+            ? "此為提交核實時的計算，不會因之後點名自動改數。如需跟最新點名，請退回財務後重算。"
+            : status === "已結算"
+              ? undefined
+              : "金額來自上次計算，不是每次進入都重算。點名、排程或工時有變請先重算。"
+        }
+      />
 
       <Tabs value={workTab} onValueChange={setWorkTab}>
         <TabsList className="w-full justify-start">

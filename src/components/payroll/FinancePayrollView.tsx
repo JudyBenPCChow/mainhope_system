@@ -919,7 +919,15 @@ export function FinancePayrollView({
         </div>
       </header>
 
-      <VersionBar calc={month.calc} onViewDiff={() => setDiffOpen(true)} />
+      <VersionBar
+        calc={month.calc}
+        onViewDiff={() => setDiffOpen(true)}
+        hint={
+          status === "已結算"
+            ? undefined
+            : "金額來自上次計算，不是每次進入都重算。點名、排程或工時有變請按「重算」。"
+        }
+      />
 
       {month.returnReason ? (
         <div role="alert" className="rounded-xl border border-destructive/35 bg-destructive/5 px-3 py-2 text-sm">

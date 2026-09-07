@@ -21,7 +21,7 @@
    - `payroll_adjustments`
 2. **純計算**：`src/lib/payroll/*`＋ golden tests
 3. **Service**：`src/services/payrollQueries.ts`（`schedules.teacher_id`＋扣堂白名單）
-4. **UI**：`/Payroll` 接真資料；側欄「計糧」；標籤「正式資料 · 點名／排程即時計算」
+4. **UI**：`/Payroll` 接真資料；側欄「計糧」；未結算顯示上次計算＋「重算」（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 4）
 5. **流程**：財務審閱 → 提交 → 管理層結算 freeze；退回／重算／調整／排除已落 DB
 
 ### 已知缺口／跟進
