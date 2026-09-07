@@ -32,13 +32,24 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import { cn } from "@/lib/utils"
 import { fetchClassesByTeacherId, type ClassRecord } from "@/services/classQueries"
+import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
 import {
  fetchPendingRollCallRemindersForTeacher,
  findSchedulesMissingAttendance,
  type PendingRollCallReminder,
 } from "@/services/attendanceQueries"
-import { fetchLeaveRowsForClassIds, type TeacherPortalLeaveRow } from "@/services/leaveQueries"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import {
+ filterClassesForCurrentAcademicYear,
+ isYmdInRange,
+ resolveSemesterDateRange,
+ type TeacherHomeSemesterRange,
+} from "@/lib/teacherHomeScope"
+import { resolveCurrentAcademicYearLabel } from "@/lib/softArchiveWindow"
+import { fetchAcademicYearsWithDates } from "@/services/teacherAvailabilityQueries"
+import {
+ enrichScheduleRowsWithRosterCounts,
  fetchScheduleAlerts,
  fetchSchedulesInRange,
  type ScheduleAlerts,
@@ -90,6 +101,8 @@ export function TeacherHomeView() {
  const today = localYmd()
  const [teacherName, setTeacherName] = useState<string>("老師")
  const [classes, setClasses] = useState<ClassRecord[]>([])
+ const [currentYearLabel, setCurrentYearLabel] = useState<string | null>(null)
+ const [semesterRange, setSemesterRange] = useState<TeacherHomeSemesterRange | null>(null)
  const [schedules, setSchedules] = useState<ScheduleManageRow[]>([])
  const [leavesLoad, setLeavesLoad] = useState<ListLoad<TeacherPortalLeaveRow>>({ status: "loading" })
  const [trialsLoad, setTrialsLoad] = useState<ListLoad<TrialBrief>>({ status: "loading" })
@@ -121,7 +134,11 @@ export function TeacherHomeView() {
  }, [])
 
  const loadMetaForSchedules = useCallback(
-  async (schedList: ScheduleManageRow[], classIds: string[]) => {
+  async (
+   schedList: ScheduleManageRow[],
+   classIds: string[],
+   leaveScope?: { classIds: string[]; fromYmd?: string | null; toYmd?: string | null }
+  ) => {
    if (!teacherId) return
    setMetaLoading(true)
    try {
@@ -134,6 +151,7 @@ export function TeacherHomeView() {
      ...pastCandidates.map((s) => s.id),
     ]
     const rosterContext = await fetchScheduleRosterContext([...new Set(rosterIds)])
+    const leaveClassIds = leaveScope?.classIds ?? classIds
 
     setLeavesLoad({ status: "loading" })
     setTrialsLoad({ status: "loading" })
@@ -142,7 +160,9 @@ export function TeacherHomeView() {
     setScheduleAlertsState("loading")
 
     const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
-     classIds.length ? fetchLeaveRowsForClassIds(classIds, 50) : Promise.resolve([]),
+     leaveClassIds.length
+      ? fetchLeaveRowsForClassIds(leaveClassIds, 50, leaveScope?.fromYmd, leaveScope?.toYmd)
+      : Promise.resolve([]),
      fetchUpcomingTrialsForClassIds(classIds, today),
      fetchPendingRollCallRemindersForTeacher(teacherId, today),
      findSchedulesMissingAttendance(pastCandidates, rosterContext),
@@ -212,13 +232,28 @@ export function TeacherHomeView() {
   setErr(null)
   const toYmd = addDaysYmd(today, INITIAL_FUTURE_DAYS)
   try {
-   const [tch, mine, todayRows] = await Promise.all([
+   const [tch, mine, todayRows, years] = await Promise.all([
     getTeacherById(teacherId),
     fetchClassesByTeacherId(teacherId),
     fetchSchedulesInRange(today, today, { teacherId }),
+    fetchAcademicYearsWithDates(),
    ])
    if (tch) setTeacherName(tch.full_name)
-   setClasses(mine.sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant")))
+   const yearLabel =
+    resolveCurrentAcademicYearLabel(years, today) ?? academicYearLabelFromStartDate(today)
+   setCurrentYearLabel(yearLabel)
+   const currentYear = years.find((y) => y.label.trim() === yearLabel)
+   const periods = currentYear
+    ? await fetchAcademicYearPeriods(currentYear.id).catch((e) => {
+       reportUserFacingError(e, { source: "TeacherHomeView.semesterPeriods" })
+       return []
+      })
+    : []
+   const range = resolveSemesterDateRange({ asOfYmd: today, years, periods })
+   setSemesterRange(range)
+   const sorted = [...mine].sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant"))
+   setClasses(sorted)
+   const homeClasses = filterClassesForCurrentAcademicYear(sorted, yearLabel)
    setSchedules(todayRows)
    setLoadedFromYmd(today)
    setLoadedToYmd(today)
@@ -235,11 +270,21 @@ export function TeacherHomeView() {
        )
      : []
    const merged = mergeSchedules(mergeSchedules(todayRows, restFuture), pastForRoll)
-   setSchedules(merged)
+   let withCounts = merged
+   try {
+    withCounts = await enrichScheduleRowsWithRosterCounts(merged)
+   } catch (rosterErr) {
+    reportUserFacingError(rosterErr, { source: "TeacherHomeView.rosterCounts" })
+   }
+   setSchedules(withCounts)
    setLoadedFromYmd(addDaysYmd(today, -PAST_ROLLCALL_LOOKBACK_DAYS))
    setLoadedToYmd(toYmd)
 
-   void loadMetaForSchedules(merged, mine.map((c) => c.id))
+   void loadMetaForSchedules(merged, mine.map((c) => c.id), {
+    classIds: homeClasses.map((c) => c.id),
+    fromYmd: range?.startYmd ?? null,
+    toYmd: range?.endYmd ?? null,
+   })
   } catch (e) {
    reportUserFacingError(e, { source: "TeacherHomeView.load", setErr })
    setClasses([])
@@ -263,13 +308,25 @@ export function TeacherHomeView() {
      const newTo = addDaysYmd(loadedFromYmd, -1)
      if (newTo < newFrom) return
      const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
-     setSchedules((prev) => mergeSchedules(prev, more))
+     let withCounts = more
+     try {
+      withCounts = await enrichScheduleRowsWithRosterCounts(more)
+     } catch (rosterErr) {
+      reportUserFacingError(rosterErr, { source: "TeacherHomeView.extendLoadedRange.rosterCounts" })
+     }
+     setSchedules((prev) => mergeSchedules(prev, withCounts))
      setLoadedFromYmd(newFrom)
     } else {
      const newFrom = addDaysYmd(loadedToYmd, 1)
      const newTo = addDaysYmd(loadedToYmd, EXTEND_DAYS)
      const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
-     setSchedules((prev) => mergeSchedules(prev, more))
+     let withCounts = more
+     try {
+      withCounts = await enrichScheduleRowsWithRosterCounts(more)
+     } catch (rosterErr) {
+      reportUserFacingError(rosterErr, { source: "TeacherHomeView.extendLoadedRange.rosterCounts" })
+     }
+     setSchedules((prev) => mergeSchedules(prev, withCounts))
      setLoadedToYmd(newTo)
     }
    } catch (e) {
@@ -286,15 +343,28 @@ export function TeacherHomeView() {
  }, [load])
 
  const leaves = leavesLoad.status === "ready" ? leavesLoad.rows : []
+ const homeClasses = useMemo(
+  () => filterClassesForCurrentAcademicYear(classes, currentYearLabel),
+  [classes, currentYearLabel]
+ )
+ const homeLeaves = useMemo(
+  () => leaves.filter((r) => isYmdInRange(r.leaveDate, semesterRange)),
+  [leaves, semesterRange]
+ )
  const trials = trialsLoad.status === "ready" ? trialsLoad.rows : []
  const pendingRollCalls = pendingRollCallsLoad.status === "ready" ? pendingRollCallsLoad.rows : []
  const pastPendingRollCalls =
   pastPendingRollCallsLoad.status === "ready" ? pastPendingRollCallsLoad.rows : []
- const pendingLeaveCount = listLoadCount(leavesLoad, (rows) =>
-  rows.filter((l) => l.status.includes("待")).length
- )
+ const pendingLeaveCount =
+  leavesLoad.status !== "ready" ? null : homeLeaves.filter((l) => l.status.includes("待")).length
  const pastPendingCount = listLoadCount(pastPendingRollCallsLoad)
  const leavesKind = listLoadKind(leavesLoad)
+ const homeLeavesKind =
+  leavesKind === "loading" || leavesKind === "error"
+   ? leavesKind
+   : homeLeaves.length === 0
+    ? "empty"
+    : "rows"
  const trialsKind = listLoadKind(trialsLoad)
 
  const trialScheduleIds = useMemo(() => {
@@ -533,8 +603,8 @@ export function TeacherHomeView() {
       <BookOpen className="h-5 w-5 text-info" />
       我的班別
      </div>
-     <p className="mt-2 text-4xl font-bold tabular-nums text-info">{classes.length}</p>
-     <p className="mt-1 text-sm text-muted-foreground md:text-base">僅計指派給您的班級 · 前往班別</p>
+     <p className="mt-2 text-4xl font-bold tabular-nums text-info">{homeClasses.length}</p>
+     <p className="mt-1 text-sm text-muted-foreground md:text-base">僅計本學年指派給您的班別 · 前往班別</p>
     </Link>
     <Link
      to="/Schedule"
@@ -791,7 +861,7 @@ export function TeacherHomeView() {
        <BookOpen className="h-5 w-5 text-info" />
        我的班別
       </span>
-      <span className="text-sm text-muted-foreground">{classes.length} 班 →</span>
+      <span className="text-sm text-muted-foreground">{homeClasses.length} 班 →</span>
      </Link>
      <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
       <Link
@@ -801,18 +871,18 @@ export function TeacherHomeView() {
        <Bell className="h-5 w-5 text-warning" />
        近日請假與補堂
       </Link>
-      {loading || leavesKind === "loading" ? (
+      {loading || homeLeavesKind === "loading" ? (
        <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
         載入中…
        </p>
-      ) : leavesKind === "error" ? (
+      ) : homeLeavesKind === "error" ? (
        <p className="mt-3 text-sm text-destructive" role="alert">請假資料未能載入。</p>
-      ) : leavesKind === "empty" ? (
-       <p className="mt-3 text-sm text-muted-foreground">沒有相關紀錄。</p>
+      ) : homeLeavesKind === "empty" ? (
+       <p className="mt-3 text-sm text-muted-foreground">本學期沒有相關紀錄。</p>
       ) : (
        <StaggerList as="ul" className="mt-3 space-y-2">
-        {leaves.slice(0, 5).map((r) => (
+        {homeLeaves.slice(0, 5).map((r) => (
          <StaggerItem key={r.id} as="li" className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm">
           <div className="font-medium text-foreground">{r.studentName}</div>
           <div className="text-muted-foreground">
@@ -838,11 +908,11 @@ export function TeacherHomeView() {
      </Link>
      {loading ? (
       <p className="mt-3 text-muted-foreground">載入中…</p>
-     ) : classes.length === 0 ? (
-      <p className="mt-3 text-muted-foreground">尚無指派班別。</p>
+     ) : homeClasses.length === 0 ? (
+      <p className="mt-3 text-muted-foreground">尚無本學年班別。</p>
      ) : (
       <StaggerList as="ul" className="mt-4 divide-y divide-border">
-       {classes.map((c) => (
+       {homeClasses.map((c) => (
         <StaggerItem key={c.id} as="li" className="flex flex-wrap items-center justify-between gap-2 py-3">
          <div>
           <Link to={`/Classes/${c.id}`} className="font-semibold text-primary hover:underline">
@@ -874,18 +944,18 @@ export function TeacherHomeView() {
      >
       <span className="underline-offset-4 group-hover:underline">近日請假與補堂</span>
      </Link>
-     {loading || leavesKind === "loading" ? (
+     {loading || homeLeavesKind === "loading" ? (
       <p className="mt-3 flex items-center gap-2 text-muted-foreground">
        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
        載入中…
       </p>
-     ) : leavesKind === "error" ? (
+     ) : homeLeavesKind === "error" ? (
       <p className="mt-3 text-destructive" role="alert">請假資料未能載入。</p>
-     ) : leavesKind === "empty" ? (
-      <p className="mt-3 text-muted-foreground">沒有相關紀錄。</p>
+     ) : homeLeavesKind === "empty" ? (
+      <p className="mt-3 text-muted-foreground">本學期沒有相關紀錄。</p>
      ) : (
       <StaggerList as="ul" className="mt-4 space-y-3">
-       {leaves.slice(0, 8).map((r) => (
+       {homeLeaves.slice(0, 8).map((r) => (
         <StaggerItem key={r.id} as="li" className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm md:text-base">
          <div className="font-medium text-foreground">{r.studentName}</div>
          <div className="text-muted-foreground">

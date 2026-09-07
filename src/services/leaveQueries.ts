@@ -1031,10 +1031,12 @@ export type TeacherPortalLeaveRow = {
 export async function fetchLeaveRowsForClassIds(
  classIds: string[],
  limit = 40,
- fromYmd?: string | null
+ fromYmd?: string | null,
+ toYmd?: string | null
 ): Promise<TeacherPortalLeaveRow[]> {
  if (!supabase || classIds.length === 0) return []
  const from = (fromYmd ?? "").trim().slice(0, 10)
+ const to = (toYmd ?? "").trim().slice(0, 10)
  const chunks = await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
   let q = supabase!
    .from("leave_makeup_records")
@@ -1045,6 +1047,7 @@ export async function fetchLeaveRowsForClassIds(
    .order("leave_date", { ascending: false })
    .limit(limit)
   if (from) q = q.gte("leave_date", from)
+  if (to) q = q.lte("leave_date", to)
   const { data, error } = await q
   if (error) throwPostgrest(error)
   return data ?? []

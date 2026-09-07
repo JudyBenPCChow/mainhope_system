@@ -288,8 +288,12 @@ export type ScheduleRow = {
  sessionNumber: number | null
  subject: string
  courseCode: string | null
+ courseName: string | null
  classroomName: string | null
  teachingNotes: string | null
+ isExtraLesson: boolean
+ enrollCount: number | null
+ studentNames: string[] | null
 }
 
 export async function fetchTeacherSchedules(teacherId: string): Promise<ScheduleRow[]> {
@@ -297,7 +301,7 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
  const { data: sched, error } = await supabase
   .from("schedules")
   .select(
-   "id, class_id, scheduled_date, start_time, end_time, status, session_number, teaching_notes, classes ( subject, course_code_full, courses ( course_name ) ), classrooms ( name )"
+   "id, class_id, scheduled_date, start_time, end_time, status, session_number, teaching_notes, is_extra_lesson, classes ( subject, course_code_full, courses ( course_name ) ), classrooms ( name )"
   )
   .eq("teacher_id", teacherId)
   .order("scheduled_date", { ascending: true })
@@ -324,8 +328,12 @@ export async function fetchTeacherSchedules(teacherId: string): Promise<Schedule
      : null,
    subject: formatClassLabel({ subject: sub, courseCode, courseName }),
    courseCode,
+   courseName,
    classroomName: rm?.name != null ? String(rm.name) : null,
    teachingNotes: r.teaching_notes != null ? String(r.teaching_notes) : null,
+   isExtraLesson: r.is_extra_lesson === true,
+   enrollCount: null,
+   studentNames: null,
   }
  })
 }

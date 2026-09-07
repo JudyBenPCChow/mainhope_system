@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { classDisplayName } from "@/lib/courseLabel"
 import {
  intervalsOverlapMinutes,
  LESSON_SLOT_DURATION_MIN,
@@ -14,7 +15,11 @@ import {
  lessonSlotStartMinute,
  parseHm,
 } from "@/lib/lessonSlots"
-import { cn } from "@/lib/utils"
+import {
+ formatWeekTimetableStudentLine,
+ weekTimetableCardClassName,
+ weekTimetableCardKind,
+} from "@/lib/weekTimetableCard"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import { addDaysYmd, localYmd, type ScheduleRow } from "@/services/teacherQueries"
 
@@ -31,6 +36,11 @@ export type WeekTimetableItem = {
  courseCode: string | null
  classroomName: string | null
  hasTeachingNotes: boolean
+ isExtraLesson: boolean
+ /** null＝點名冊尚未載入，不標空班灰底 */
+ enrollCount: number | null
+ /** null＝點名冊姓名尚未載入 */
+ studentNames: string[] | null
 }
 
 export function weekItemsFromTeacherScheduleRows(rows: ScheduleRow[]): WeekTimetableItem[] {
@@ -40,10 +50,13 @@ export function weekItemsFromTeacherScheduleRows(rows: ScheduleRow[]): WeekTimet
   startTime: r.startTime,
   endTime: r.endTime,
   status: r.status,
-  subject: r.subject,
+  subject: classDisplayName({ subject: r.subject, courseName: r.courseName }),
   courseCode: r.courseCode,
   classroomName: r.classroomName,
   hasTeachingNotes: Boolean(r.teachingNotes?.trim()),
+  isExtraLesson: r.isExtraLesson,
+  enrollCount: r.enrollCount,
+  studentNames: r.studentNames,
  }))
 }
 
@@ -54,10 +67,13 @@ export function weekItemsFromManageRows(rows: ScheduleManageRow[]): WeekTimetabl
   startTime: r.start_time,
   endTime: r.end_time,
   status: r.status,
-  subject: r.classLabel,
+  subject: classDisplayName({ subject: r.subject, courseName: r.course_name }),
   courseCode: r.course_code_full,
   classroomName: r.classroom_name,
   hasTeachingNotes: Boolean(r.teaching_notes?.trim()),
+  isExtraLesson: r.is_extra_lesson,
+  enrollCount: r.enrollCount,
+  studentNames: r.studentNames ?? null,
  }))
 }
 
@@ -98,6 +114,37 @@ type Props = {
  rangeExtending?: boolean
  onRequestLoadEarlier?: () => void | Promise<void>
  onRequestLoadLater?: () => void | Promise<void>
+}
+
+function LessonCard({ item, compact }: { item: WeekTimetableItem; compact: boolean }) {
+ const kind = weekTimetableCardKind(item)
+ const time = `${item.startTime ?? "—"}–${item.endTime ?? "—"}`
+ const room = item.classroomName?.trim() ? item.classroomName : "課室未定"
+ const nameLine = formatWeekTimetableStudentLine(item.studentNames, compact)
+ const nameTitle =
+  item.studentNames && item.studentNames.length > 0 ? item.studentNames.join("、") : undefined
+ const metaCls = compact
+  ? "text-[0.6rem] opacity-80 md:text-[0.65rem]"
+  : "mt-0.5 text-sm opacity-80"
+ return (
+  <Link to={`/Schedule/${item.id}`} className={weekTimetableCardClassName(kind, compact)}>
+   {item.courseCode ? (
+    <div className={compact ? "font-mono text-[0.6rem] opacity-80 md:text-[0.65rem]" : "font-mono text-xs opacity-80"}>
+     {item.courseCode}
+    </div>
+   ) : null}
+   <div className="font-semibold">{item.subject}</div>
+   <div className={compact ? "tabular-nums opacity-80" : "mt-0.5 tabular-nums text-sm opacity-80"}>
+    {time}
+   </div>
+   {nameLine ? (
+    <div className={metaCls} title={nameTitle}>
+     {nameLine}
+    </div>
+   ) : null}
+   <div className={metaCls}>{room}</div>
+  </Link>
+ )
 }
 
 export function TeacherWeekTimetable({
@@ -231,6 +278,24 @@ export function TeacherWeekTimetable({
      : "橫軸為本週一至日；直軸為預設堂數格（每格 75 分鐘）。點卡片可開啟排程詳情。"}
     {rangeExtending ? " 正在載入更多課堂…" : null}
    </p>
+   <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+    <li className="inline-flex items-center gap-1.5">
+     <span className="h-2.5 w-2.5 rounded-sm bg-success/40 ring-1 ring-success/50" aria-hidden />
+     有學生
+    </li>
+    <li className="inline-flex items-center gap-1.5">
+     <span className="h-2.5 w-2.5 rounded-sm bg-muted ring-1 ring-border" aria-hidden />
+     尚無學生
+    </li>
+    <li className="inline-flex items-center gap-1.5">
+     <span className="h-2.5 w-2.5 rounded-sm bg-warning/40 ring-1 ring-warning/50" aria-hidden />
+     加堂
+    </li>
+    <li className="inline-flex items-center gap-1.5">
+     <span className="h-2.5 w-2.5 rounded-sm bg-destructive/40 ring-1 ring-destructive/50" aria-hidden />
+     已取消
+    </li>
+   </ul>
 
    {(needEarlier || needLater) && !rangeExtending ? (
     <div className="flex flex-wrap gap-2">
@@ -261,31 +326,11 @@ export function TeacherWeekTimetable({
         </p>
        ) : (
         <ul className="space-y-2">
-         {group.items.map((s) => {
-          const cancelled = s.status.includes("取消")
-          return (
-           <li key={s.id}>
-            <Link
-             to={`/Schedule/${s.id}`}
-             className={cn(
-              "block rounded-xl border px-4 py-3 transition-colors",
-              cancelled
-               ? "border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground line-through"
-               : "border-border/80 bg-muted/20 hover:border-primary/30"
-             )}
-            >
-             <div className="font-semibold text-foreground">
-              {s.startTime ?? "—"}–{s.endTime ?? "—"} · {s.subject}
-             </div>
-             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span>{s.classroomName?.trim() ? s.classroomName : "課室未定"}</span>
-              {s.hasTeachingNotes ? <span>已有教學紀錄</span> : null}
-              {s.courseCode ? <span className="font-mono text-xs">{s.courseCode}</span> : null}
-             </div>
-            </Link>
-           </li>
-          )
-         })}
+         {group.items.map((s) => (
+          <li key={s.id}>
+           <LessonCard item={s} compact={false} />
+          </li>
+         ))}
         </ul>
        )}
       </div>
@@ -336,35 +381,7 @@ export function TeacherWeekTimetable({
                —
               </span>
              ) : (
-              list.map((s) => {
-               const cancelled = s.status.includes("取消")
-               return (
-                <Link
-                 key={s.id}
-                 to={`/Schedule/${s.id}`}
-                 className={cn(
-                  "block rounded-md border px-1 py-0.5 text-[0.65rem] leading-snug shadow-sm transition-colors hover:border-primary hover:bg-primary/5 md:text-xs",
-                  cancelled
-                   ? "border-dashed border-muted-foreground/40 bg-muted/50 text-muted-foreground line-through"
-                   : "border-info/30 bg-info/10 text-foreground"
-                 )}
-                >
-                 <div className="font-semibold">{s.subject}</div>
-                 <div className="tabular-nums text-muted-foreground">
-                  {s.startTime ?? "—"}–{s.endTime ?? "—"}
-                 </div>
-                 <div className="text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
-                  {s.classroomName?.trim() ? s.classroomName : "課室未定"}
-                  {s.hasTeachingNotes ? " · 已有教學紀錄" : ""}
-                 </div>
-                 {s.courseCode ? (
-                  <div className="font-mono text-[0.6rem] text-muted-foreground md:text-[0.65rem]">
-                   {s.courseCode}
-                  </div>
-                 ) : null}
-                </Link>
-               )
-              })
+              list.map((s) => <LessonCard key={s.id} item={s} compact />)
              )}
             </div>
            </td>

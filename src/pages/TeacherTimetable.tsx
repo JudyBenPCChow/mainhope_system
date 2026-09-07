@@ -13,7 +13,11 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
-import { fetchSchedulesInRange, type ScheduleManageRow } from "@/services/scheduleQueries"
+import {
+ enrichScheduleRowsWithRosterCounts,
+ fetchSchedulesInRange,
+ type ScheduleManageRow,
+} from "@/services/scheduleQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
 
 /** 首屏近 14 天；翻週超出時再加載 */
@@ -59,7 +63,16 @@ export default function TeacherTimetablePage() {
    setLoading(false)
 
    const list = await fetchSchedulesInRange(fromYmd, toYmd, { teacherId })
-   setRows(list)
+   let withCounts = list
+   try {
+    withCounts = await enrichScheduleRowsWithRosterCounts(list)
+   } catch (rosterErr) {
+    reportUserFacingError(rosterErr, {
+     source: "TeacherTimetable.rosterCounts",
+     userMessage: formatUnknownError(rosterErr),
+    })
+   }
+   setRows(withCounts)
    setLoadedFromYmd(fromYmd)
    setLoadedToYmd(toYmd)
   } catch (e) {
@@ -79,13 +92,31 @@ export default function TeacherTimetablePage() {
      const newFrom = addDaysYmd(loadedFromYmd, -EXTEND_DAYS)
      const newTo = addDaysYmd(loadedFromYmd, -1)
      const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
-     setRows((prev) => mergeSchedules(prev, more))
+     let withCounts = more
+     try {
+      withCounts = await enrichScheduleRowsWithRosterCounts(more)
+     } catch (rosterErr) {
+      reportUserFacingError(rosterErr, {
+       source: "TeacherTimetable.extendRange.rosterCounts",
+       userMessage: formatUnknownError(rosterErr),
+      })
+     }
+     setRows((prev) => mergeSchedules(prev, withCounts))
      setLoadedFromYmd(newFrom)
     } else {
      const newFrom = addDaysYmd(loadedToYmd, 1)
      const newTo = addDaysYmd(loadedToYmd, EXTEND_DAYS)
      const more = await fetchSchedulesInRange(newFrom, newTo, { teacherId })
-     setRows((prev) => mergeSchedules(prev, more))
+     let withCounts = more
+     try {
+      withCounts = await enrichScheduleRowsWithRosterCounts(more)
+     } catch (rosterErr) {
+      reportUserFacingError(rosterErr, {
+       source: "TeacherTimetable.extendRange.rosterCounts",
+       userMessage: formatUnknownError(rosterErr),
+      })
+     }
+     setRows((prev) => mergeSchedules(prev, withCounts))
      setLoadedToYmd(newTo)
     }
    } catch (e) {
