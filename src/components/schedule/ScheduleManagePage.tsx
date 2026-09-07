@@ -17,6 +17,7 @@ import {
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { Button } from "@/components/ui/button"
+import { HintTooltip } from "@/components/ui/tooltip"
 import { SkeletonDetailHeader } from "@/components/ui/skeleton"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -1810,9 +1811,7 @@ useEffect(() => {
       </option>
      ))}
     </Select>
-    {occupancy ? (
-     <p className="text-xs text-muted-foreground">放假請用功輔校曆，唔好取消佔室。</p>
-    ) : (
+    {occupancy ? null : (
      <Select
       className="h-11 rounded-md border border-input bg-background px-2 text-sm font-medium text-info transition-colors hover:border-info/50"
       value={s.status}
@@ -1857,20 +1856,21 @@ useEffect(() => {
      </Button>
     ) : null}
     {occupancy ? null : canRollCall ? (
-     <Button
-      type="button"
-      size="default"
-      className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
-      disabled={!canOpenRollCall(s.id)}
-      title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
-      onClick={(e) => {
-       e.stopPropagation()
-       openRollCallForSchedule(s.id)
-      }}
-     >
-      <Check className="h-4 w-4" aria-hidden />
-      確定點名
-     </Button>
+     <HintTooltip hint={canOpenRollCall(s.id) ? null : "暫無可點名學生"}>
+      <Button
+       type="button"
+       size="default"
+       className="h-11 gap-1.5 bg-success px-3 text-base text-white hover:bg-success disabled:opacity-50"
+       disabled={!canOpenRollCall(s.id)}
+       onClick={(e) => {
+        e.stopPropagation()
+        openRollCallForSchedule(s.id)
+       }}
+      >
+       <Check className="h-4 w-4" aria-hidden />
+       確定點名
+      </Button>
+     </HintTooltip>
     ) : null}
     {occupancy ? null : canManageSchedules ? (
      <Button
@@ -1916,18 +1916,19 @@ useEffect(() => {
      </Link>
     ) : null}
     {occupancy ? null : canRollCall ? (
-     <button
-      type="button"
-      className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
-      disabled={!canOpenRollCall(s.id)}
-      title={canOpenRollCall(s.id) ? undefined : "暫無可點名學生"}
-      onClick={(e) => {
-       e.stopPropagation()
-       openRollCallForSchedule(s.id)
-      }}
-     >
-      確定點名
-     </button>
+     <HintTooltip hint={canOpenRollCall(s.id) ? null : "暫無可點名學生"}>
+      <button
+       type="button"
+       className="text-sm font-medium text-success hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+       disabled={!canOpenRollCall(s.id)}
+       onClick={(e) => {
+        e.stopPropagation()
+        openRollCallForSchedule(s.id)
+       }}
+      >
+       確定點名
+      </button>
+     </HintTooltip>
     ) : null}
     {occupancy ? null : canAssignSubstitute ? (
      <Button
@@ -1974,7 +1975,7 @@ useEffect(() => {
  const renderStatusControl = (s: ScheduleManageRow) => {
   const occupancy = isHomeworkOccupancySchedule(s)
   if (occupancy) {
-   return <p className="text-xs text-muted-foreground">放假請用功輔校曆</p>
+   return null
   }
   return (
    <>
@@ -2159,18 +2160,19 @@ useEffect(() => {
       onToggleTeacher={toggleTeacherFilter}
      />
      <div className="flex flex-wrap items-center gap-2">
-      <Button
-       type="button"
-       variant="outline"
-       size="default"
-       className="gap-1.5 text-sm transition-all hover:bg-muted"
-       disabled={csvDisabled}
-       title={csvDisabled ? "點名冊人數尚未完成，請稍候再匯出" : undefined}
-       onClick={exportCsv}
-      >
-       <Download className="h-4 w-4" />
-       匯出
-      </Button>
+      <HintTooltip hint={csvDisabled ? "點名冊人數尚未完成，請稍候再匯出" : null}>
+       <Button
+        type="button"
+        variant="outline"
+        size="default"
+        className="gap-1.5 text-sm transition-all hover:bg-muted"
+        disabled={csvDisabled}
+        onClick={exportCsv}
+       >
+        <Download className="h-4 w-4" />
+        匯出
+       </Button>
+      </HintTooltip>
       <Button
        type="button"
        size="default"

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
+import { HintTooltip } from "@/components/ui/tooltip"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
@@ -610,22 +611,22 @@ export function ClassroomsManagePage() {
               {items.map((s) => {
                const noStudents = s.enrollCount === 0
                return (
-                <Link
-                 key={s.id}
-                 to={`/Schedule/${s.id}`}
-                 title={noStudents ? "暫未有學生報讀" : undefined}
-                 className={cn(
-                  "block truncate rounded-md border px-1.5 py-0.5 text-xs font-medium",
-                  "transition-all hover:shadow-sm active:scale-[0.99]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/40",
-                  noStudents
-                   ? "border-border bg-muted/70 text-muted-foreground hover:border-border hover:bg-muted"
-                   : "border-info/30 bg-info/10 text-foreground hover:border-info hover:bg-info/20"
-                 )}
-                >
-                 {s.classLabel}
-                 {s.start_time ? ` · ${s.start_time}` : ""}
-                </Link>
+                <HintTooltip key={s.id} hint={noStudents ? "暫未有學生報讀" : null} className="min-w-0">
+                 <Link
+                  to={`/Schedule/${s.id}`}
+                  className={cn(
+                   "block truncate rounded-md border px-1.5 py-0.5 text-xs font-medium",
+                   "transition-all hover:shadow-sm active:scale-[0.99]",
+                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/40",
+                   noStudents
+                    ? "border-border bg-muted/70 text-muted-foreground hover:border-border hover:bg-muted"
+                    : "border-info/30 bg-info/10 text-foreground hover:border-info hover:bg-info/20"
+                  )}
+                 >
+                  {s.classLabel}
+                  {s.start_time ? ` · ${s.start_time}` : ""}
+                 </Link>
+                </HintTooltip>
                )
               })}
              </div>

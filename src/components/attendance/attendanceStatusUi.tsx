@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip"
 import {
  ATTENDANCE_STATUS_HELP,
  BILLABLE_ATTENDANCE_OPTIONS,
@@ -38,35 +39,31 @@ export function AttendanceStatusOptionButton({
  onSelect: () => void
  compact?: boolean
 }) {
+ const button = (
+  <button
+   type="button"
+   disabled={disabled}
+   onClick={onSelect}
+   className={cn(
+    "rounded-lg border font-medium transition-all duration-150 active:scale-[0.97] disabled:opacity-50",
+    compact ? "px-2 py-1 text-xs" : "min-h-11 px-3 py-2 text-sm",
+    active
+     ? attendanceStatusActiveClass(status)
+     : "border-border bg-background text-muted-foreground hover:bg-muted/60"
+   )}
+  >
+   {status}
+  </button>
+ )
+
  return (
-  <span className="relative inline-flex">
-   <button
-    type="button"
-    disabled={disabled}
-    onClick={onSelect}
-    className={cn(
-     "peer rounded-lg border font-medium transition-all duration-150 active:scale-[0.97] disabled:opacity-50",
-     compact ? "px-2 py-1 text-xs" : "min-h-11 px-3 py-2 text-sm",
-     active
-      ? attendanceStatusActiveClass(status)
-      : "border-border bg-background text-muted-foreground hover:bg-muted/60"
-    )}
-   >
-    {status}
-   </button>
-   <span
-    role="tooltip"
-    className={cn(
-     "pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-56",
-     "rounded-lg border border-border bg-background px-3 py-2 text-left text-xs leading-relaxed text-foreground shadow-lg",
-     "opacity-0 transition-opacity duration-150",
-     "md:block md:peer-hover:opacity-100 md:peer-focus-visible:opacity-100"
-    )}
-   >
-    <span className="mb-0.5 block font-semibold">{status}</span>
-    {ATTENDANCE_STATUS_HELP[status]}
-   </span>
-  </span>
+  <Tooltip delay={200}>
+   {disabled ? <span className="inline-flex">{button}</span> : button}
+   <Tooltip.Content className="max-w-xs text-left leading-relaxed" placement="bottom">
+    <p className="mb-0.5 font-semibold">{status}</p>
+    <p>{ATTENDANCE_STATUS_HELP[status]}</p>
+   </Tooltip.Content>
+  </Tooltip>
  )
 }
 

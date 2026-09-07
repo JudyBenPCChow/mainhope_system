@@ -11,6 +11,7 @@ import {
 
 import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
 import { Button } from "@/components/ui/button"
+import { HintTooltip } from "@/components/ui/tooltip"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
@@ -553,18 +554,22 @@ export function TomorrowRemindersPage() {
            </div>
 
            <div className="flex shrink-0 flex-row gap-2 sm:w-[148px] sm:flex-col sm:justify-center">
-            <Button
-             type="button"
-             size="sm"
-             variant="success"
+            <HintTooltip
+             hint={row.canMessage ? "開啟 WhatsApp（已預填合併提醒）" : "缺聯絡電話"}
              className="flex-1 sm:flex-none"
-             disabled={!row.canMessage || busy}
-             title={row.canMessage ? "開啟 WhatsApp（已預填合併提醒）" : "缺聯絡電話"}
-             onClick={() => void sendReminder(row.studentId)}
             >
-             <MessageCircle className="h-4 w-4" aria-hidden />
-             WhatsApp
-            </Button>
+             <Button
+              type="button"
+              size="sm"
+              variant="success"
+              className="w-full"
+              disabled={!row.canMessage || busy}
+              onClick={() => void sendReminder(row.studentId)}
+             >
+              <MessageCircle className="h-4 w-4" aria-hidden />
+              WhatsApp
+             </Button>
+            </HintTooltip>
             <Button type="button" size="sm" variant="outline" className="flex-1 sm:flex-none" asChild>
              <Link to={profileTo}>
               <UserRound className="h-4 w-4" aria-hidden />

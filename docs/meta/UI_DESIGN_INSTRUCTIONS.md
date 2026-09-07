@@ -150,7 +150,7 @@
 - 全域顏色只使用設計 token（`neutral` + `utility`）：`success/green`、`info/blue`、`warning/orange`、`destructive(red)`，禁止在新元件直接寫臨時色號。
 - 狀態語意對應固定：成功=`success`、資訊=`info`、警示=`warning`、錯誤=`destructive`；中性容器/文字使用 `neutral` 階。
 - **實心底 vs 淺底（對比）**：`text-*-foreground`（`:root` 為白字）只配**實心**底（`bg-warning`、`bg-success`、`Button` 語意色）。淺底／淡 tint（`bg-warning/10`、`/20`、`/30`、白卡上的警示條）必須用 **`text-warning`／`text-success`／`text-info`／`text-destructive`**（色相本身）或 `text-foreground`。禁止 `bg-warning/10 text-warning-foreground`——白字疊淺橙，白底上看唔到。同一淺底區塊內的子文字同樣禁 `*-foreground`。`npm run ui:check` 會擋同一 `className` 字串內嘅錯誤配對。
-- 共用元件（`Button`、`Input`、`Dialog`、Date Picker）應優先使用 token 顏色，避免頁面各自定義主色導致視覺漂移。
+- 共用元件（`Button`、`Input`、`Dialog`、Date Picker、`Tooltip`）應優先使用 token 顏色，避免頁面各自定義主色導致視覺漂移。圖示／按鈕的短說明用共用 `Tooltip`（`src/components/ui/tooltip.tsx`）；表格截斷文字仍可用原生 `title`。
 - Icon 與箭咀（arrow/chevron）採統一筆觸規格：圓角端點、較一致線寬；若頁面需特殊尺寸，僅調整尺寸，不改筆觸風格。
 - 新增 icon 時優先沿用同一套圖示家族（目前 `lucide-react`），避免混用多套線性 icon 導致風格不一致。
 
@@ -218,7 +218,7 @@
 - **觸控高度**：表單觸發優先 `h-10`／`min-h-10`（對齊共用 `Select`）；**勿**為桌面對齊把 Select 壓成 `h-9`。
 - **品牌 hex**：`Layout`／`MobileHeader`／`MobileNavDrawer`／`MobileBottomNav` 的品牌藍允許保留；勿用 lint 全面禁 hex 誤傷。
 - **主區底部**：`pb-[calc(5.5rem+safe-area)]`；全高彈層需避開底欄。
-- **z-index（勿打亂）**：明學IT狗（阿Po）FAB `90` → 更新橫幅 `100` → DetailLayer／點名紙 `200` → FilterSheet／NavDrawer `250` → Dialog `260/261` → Confirm `270/271` → AppBanner（portal 至 `body`）`280` → Select／DateInput／DateRange `320`。AppBanner 必須高於第二層詳情與 Dialog，否則成功／失敗通知會被蓋住。
+- **z-index（勿打亂）**：明學IT狗（阿Po）FAB `90` → 更新橫幅 `100` → DetailLayer／點名紙 `200` → FilterSheet／NavDrawer `250` → Dialog `260/261` → Confirm `270/271` → AppBanner（portal 至 `body`）`280` → Select／DateInput／DateRange `320` → Tooltip `330`。AppBanner 必須高於第二層詳情與 Dialog，否則成功／失敗通知會被蓋住。
 
 ---
 

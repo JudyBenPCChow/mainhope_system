@@ -19,6 +19,7 @@ import { openPrimaryMessagingTarget, resolvePrimaryMessagingTarget } from "@/lib
 import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
+import { Tooltip } from "@/components/ui/tooltip"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
 import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import {
@@ -116,6 +117,23 @@ const STAGE_FILTERS = [
 const RECENT_ENROLL_LIMIT = 5
 /** 「近期報讀」自動輪播間隔（毫秒） */
 const RECENT_ENROLL_ROTATE_MS = 5000
+
+function FilterHelp({ text }: { text: string }) {
+ return (
+  <Tooltip delay={200}>
+   <span
+    className="ml-1 cursor-help font-normal normal-case text-muted-foreground/80"
+    aria-label="說明"
+    tabIndex={0}
+   >
+    （？）
+   </span>
+   <Tooltip.Content className="max-w-xs text-left font-normal normal-case tracking-normal leading-relaxed">
+    {text}
+   </Tooltip.Content>
+  </Tooltip>
+ )
+}
 
 function monthStartIso(): string {
  const d = new Date()
@@ -854,12 +872,7 @@ export function StudentsListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
      註冊狀態
-     <span
-      className="ml-1 font-normal normal-case text-muted-foreground/80"
-      title="已註冊＝正式學生；非註冊＝試堂／查詢等尚未註冊"
-     >
-      （？）
-     </span>
+     <FilterHelp text="已註冊＝正式學生；非註冊＝試堂／查詢等尚未註冊" />
     </div>
     <div className="flex flex-wrap gap-2">
      {REGISTRATION_FILTERS.map((f) => {
@@ -888,12 +901,7 @@ export function StudentsListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
      在讀狀態
-     <span
-      className="ml-1 font-normal normal-case text-muted-foreground/80"
-      title="目前至少有一個就讀中的報讀"
-     >
-      （？）
-     </span>
+     <FilterHelp text="目前至少有一個就讀中的報讀" />
     </div>
     <div className="flex flex-wrap gap-2">
      {ENROLLMENT_FILTERS.map((f) => {
@@ -923,12 +931,7 @@ export function StudentsListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
      活躍狀態
-     <span
-      className="ml-1 font-normal normal-case text-muted-foreground/80"
-      title="在讀，或近三個月曾報讀／退讀；用於找出未續報或暫停一個月的學生"
-     >
-      （？）
-     </span>
+     <FilterHelp text="在讀，或近三個月曾報讀／退讀；用於找出未續報或暫停一個月的學生" />
     </div>
     <div className="flex flex-wrap gap-2">
      {ACTIVITY_FILTERS.map((f) => {

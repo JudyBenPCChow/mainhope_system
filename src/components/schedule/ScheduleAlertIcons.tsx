@@ -1,3 +1,4 @@
+import type { ReactNode } from "react"
 import {
  Bell,
  GraduationCap,
@@ -6,6 +7,7 @@ import {
  XCircle,
 } from "lucide-react"
 
+import { Tooltip } from "@/components/ui/tooltip"
 import type { ScheduleAlerts } from "@/services/scheduleQueries"
 
 function alertSummary(a: ScheduleAlerts): string {
@@ -29,6 +31,15 @@ const ALERT_TIP_RECORD = "錄影：排程備註含「錄影」「錄像」「錄
 const ALERT_TIP_LEAVE =
  "請假：有學生請假與本堂相關（已連結此排程，或同班且請假日為上課日）。"
 
+function AlertTip({ label, children }: { label: string; children: ReactNode }) {
+ return (
+  <Tooltip delay={200}>
+   <span className="inline-flex cursor-help rounded-sm">{children}</span>
+   <Tooltip.Content>{label}</Tooltip.Content>
+  </Tooltip>
+ )
+}
+
 export function ScheduleAlertIcons({ alerts }: { alerts: ScheduleAlerts }) {
  if (!hasAnyAlert(alerts)) return null
  return (
@@ -37,28 +48,28 @@ export function ScheduleAlertIcons({ alerts }: { alerts: ScheduleAlerts }) {
    role="group"
    aria-label={`排程提醒：${alertSummary(alerts)}`}
   >
-   <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_BELL}>
+   <AlertTip label={ALERT_TIP_BELL}>
     <Bell className="h-4 w-4 shrink-0 drop-shadow-sm" aria-hidden />
-   </span>
+   </AlertTip>
    {alerts.trial ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_TRIAL}>
+    <AlertTip label={ALERT_TIP_TRIAL}>
      <GraduationCap className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
+    </AlertTip>
    ) : null}
    {alerts.makeup ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_MAKEUP}>
+    <AlertTip label={ALERT_TIP_MAKEUP}>
      <RefreshCw className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
+    </AlertTip>
    ) : null}
    {alerts.record ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_RECORD}>
+    <AlertTip label={ALERT_TIP_RECORD}>
      <Video className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
+    </AlertTip>
    ) : null}
    {alerts.leave ? (
-    <span className="inline-flex cursor-help rounded-sm" title={ALERT_TIP_LEAVE}>
+    <AlertTip label={ALERT_TIP_LEAVE}>
      <XCircle className="h-4 w-4 opacity-90" aria-hidden />
-    </span>
+    </AlertTip>
    ) : null}
   </span>
  )
