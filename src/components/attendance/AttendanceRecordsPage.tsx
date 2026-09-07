@@ -32,6 +32,7 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
  compareTeachersByEnglishName,
+ teacherFilterOptionLabel,
  teacherMissingEnglishName,
 } from "@/lib/teacherDisplaySort"
 import { cn } from "@/lib/utils"
@@ -284,6 +285,14 @@ export function AttendanceRecordsPage() {
   return next
  }, [rows, studentKeyword, classFilter, teacherFilter, teacherTid])
 
+ const teacherFilterActive = !teacherTid && teacherFilter !== "all"
+ const emptyRangeHint = teacherFilterActive
+  ? "此範圍／老師篩選尚無紀錄。核對上月工資請先把日期改為該月。"
+  : "此範圍尚無紀錄"
+ const emptyDayHint = teacherFilterActive
+  ? "此日／老師篩選尚無紀錄。核對上月工資請先把日期改為該月。"
+  : "此日尚無紀錄"
+
  const monthAgg = useMemo(() => aggregateAttendanceByDate(displayRows), [displayRows])
  const s = useMemo(() => statusCount(displayRows), [displayRows])
 
@@ -511,7 +520,7 @@ export function AttendanceRecordsPage() {
       <option value="all">全部老師</option>
       {teacherOptions.map((t) => (
        <option key={t.id} value={t.id}>
-        {t.englishName?.trim() || t.name}
+        {teacherFilterOptionLabel(t)}
         {teacherMissingEnglishName(t) ? "（無英文名）" : ""}
        </option>
       ))}
@@ -541,7 +550,7 @@ export function AttendanceRecordsPage() {
       <div className="space-y-2">
        {monthAgg.length === 0 ? (
         <p className="rounded-xl border border-border bg-card px-3 py-12 text-center text-sm text-muted-foreground">
-         此範圍尚無紀錄
+         {emptyRangeHint}
         </p>
        ) : (
         monthAgg.map((d) => (
@@ -577,7 +586,7 @@ export function AttendanceRecordsPage() {
         {monthAgg.length === 0 ? (
          <tr>
           <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
-           此範圍尚無紀錄
+           {emptyRangeHint}
           </td>
          </tr>
         ) : (
@@ -607,7 +616,7 @@ export function AttendanceRecordsPage() {
       看板範圍：<span className="font-medium text-foreground">{rangeLabel}</span>（可於上方更改）
      </p>
      {kanbanMap.size === 0 ? (
-      <p className="py-12 text-center text-sm text-muted-foreground">此日尚無出席紀錄</p>
+      <p className="py-12 text-center text-sm text-muted-foreground">{emptyDayHint}</p>
      ) : (
       <div className={cn(isMobile ? "flex flex-col gap-3" : "flex gap-3 overflow-x-auto pb-2")}>
        {[...kanbanMap.entries()].map(([classId, list]) => {
@@ -675,7 +684,7 @@ export function AttendanceRecordsPage() {
     <div className="space-y-3">
      {displayRows.length === 0 ? (
       <p className="rounded-xl border border-border bg-card px-3 py-12 text-center text-sm text-muted-foreground">
-       此日尚無紀錄
+       {emptyDayHint}
       </p>
      ) : (
       <StaggerList as="div" className="space-y-3">
@@ -739,7 +748,7 @@ export function AttendanceRecordsPage() {
           colSpan={canDeleteAttendance ? 6 : 5}
           className="px-3 py-12 text-center text-muted-foreground"
          >
-          此日尚無紀錄
+          {emptyDayHint}
          </td>
         </tr>
        </tbody>
