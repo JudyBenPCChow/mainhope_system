@@ -4,6 +4,7 @@ import {
   formatHkd,
   teacherBillableHc,
   teacherLessonCount,
+  teacherSubstituteGivenCount,
   type PayrollMonthMock,
 } from "./mockData"
 
@@ -73,6 +74,7 @@ export function downloadPayrollMockCsv(
         "姓名",
         "薪酬模式",
         "堂數",
+        "代入堂數",
         "扣堂人次",
         "總薪酬",
         "僱員強積金",
@@ -92,6 +94,7 @@ export function downloadPayrollMockCsv(
           t.name,
           payrollModeLabel(t.mode),
           teacherLessonCount(t),
+          teacherSubstituteGivenCount(t),
           teacherBillableHc(t),
           t.gross ?? "",
           t.employeeMpf,
@@ -107,7 +110,7 @@ export function downloadPayrollMockCsv(
     const totalNet = month.teachers.reduce((s, t) => s + (t.net ?? 0), 0)
     lines.push("")
     lines.push(
-      ["合計", "", "", "", "", "", "", totalGross, "", "", totalNet, ""]
+      ["合計", "", "", "", "", "", "", "", totalGross, "", "", totalNet, ""]
         .map(csvEscape)
         .join(",")
     )

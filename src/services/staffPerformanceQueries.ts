@@ -480,6 +480,7 @@ async function fetchFirstEnrollDates(studentIds: string[]): Promise<Map<string, 
   return map
 }
 
+/** 退讀人次跟班別任教老師（不是當日授課） */
 async function fetchWithdrawalsByTeacher(
   dateFrom: string,
   dateTo: string,

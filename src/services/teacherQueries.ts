@@ -347,6 +347,8 @@ export type TeacherAttendanceRow = {
  studentGrade: string | null
  subject: string
  courseCode: string | null
+ /** 此列所屬堂次為代堂（此人為當日授課） */
+ isSubstitute: boolean
 }
 
 /** 老師詳情出勤：以 schedules.teacher_id（當日實際）歸屬，勿用 classes.teacher_id（主責） */
@@ -356,17 +358,25 @@ export async function fetchTeacherAttendance(
  if (!supabase) return []
  const { data: sched, error: schedErr } = await supabase
   .from("schedules")
-  .select("id")
+  .select("id, original_teacher_id")
   .eq("teacher_id", teacherId)
  if (schedErr) throw schedErr
- const scheduleIds = (sched ?? []).map((r) => String((r as { id: string }).id))
+ const scheduleIds: string[] = []
+ const substituteIds = new Set<string>()
+ for (const r of sched ?? []) {
+  const id = String((r as { id: string }).id)
+  scheduleIds.push(id)
+  if ((r as { original_teacher_id?: string | null }).original_teacher_id) {
+   substituteIds.add(id)
+  }
+ }
  if (scheduleIds.length === 0) return []
 
  const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("attendance_details")
    .select(
-    "id, attendance_date, status, remarks, classes ( subject, course_code_full, courses ( course_name ) ), students ( full_name, grade )"
+    "id, attendance_date, status, remarks, schedule_id, classes ( subject, course_code_full, courses ( course_name ) ), students ( full_name, grade )"
    )
    .in("schedule_id", slice)
   if (error) throw error
@@ -382,6 +392,7 @@ export async function fetchTeacherAttendance(
    const course = cls?.courses as Record<string, unknown> | null
    const courseName = course?.course_name != null ? String(course.course_name) : null
    const courseCode = cls?.course_code_full != null ? String(cls.course_code_full) : null
+   const scheduleId = r.schedule_id != null ? String(r.schedule_id) : ""
    return {
     id: String(r.id),
     date: String(r.attendance_date ?? ""),
@@ -391,6 +402,7 @@ export async function fetchTeacherAttendance(
     studentGrade: st?.grade != null ? String(st.grade) : null,
     subject: formatClassLabel({ subject: sub, courseCode, courseName }),
     courseCode,
+    isSubstitute: scheduleId ? substituteIds.has(scheduleId) : false,
    }
   })
   .sort((a, b) => b.date.localeCompare(a.date))

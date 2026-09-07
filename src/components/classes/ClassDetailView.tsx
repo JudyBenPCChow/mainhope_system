@@ -624,6 +624,19 @@ export function ClassDetailView() {
    )
     return false
   }
+  const teacherChanging = (form.teacher_id ?? null) !== (cls.teacher_id ?? null)
+  if (teacherChanging) {
+   if (
+    !(await confirmDialog({
+     title: "確認更換任教老師？",
+     description:
+      "尚未開始、未取消的排程會跟新任老師。已開始或已代堂的堂次不變。短時間頂堂請用代堂，不要更換任教老師。",
+     confirmText: "確認更換",
+     tone: "warning",
+    }))
+   )
+    return false
+  }
   const gradeArr = cls.course_id
    ? gradeSelections
    : normalizeStoredClassGradeLabels(gradeSelections.length > 0 ? gradeSelections : null)
@@ -664,7 +677,13 @@ export function ClassDetailView() {
   setBasicEditing(false)
   invalidateClassesListDataCache()
   await reload()
-  pushBanner({ tone: "success", title: "已儲存班別設定", message: "班別資料已更新。" })
+  pushBanner({
+   tone: "success",
+   title: "已儲存班別設定",
+   message: teacherChanging
+    ? "未來尚未開始的排程已跟新任老師；已過去或已代堂的堂次不變。"
+    : "班別資料已更新。",
+  })
   return true
  }
 
@@ -674,6 +693,19 @@ export function ClassDetailView() {
   if (priceNum != null && (Number.isNaN(priceNum) || priceNum < 0)) {
    setEditErr("學費不可為負數")
    return false
+  }
+  const teacherChanging = (form.teacher_id ?? null) !== (cls.teacher_id ?? null)
+  if (teacherChanging) {
+   if (
+    !(await confirmDialog({
+     title: "確認更換任教老師？",
+     description:
+      "尚未開始、未取消的排程會跟新任老師。已開始或已代堂的堂次不變。短時間頂堂請用代堂，不要更換任教老師。",
+     confirmText: "確認更換",
+     tone: "warning",
+    }))
+   )
+    return false
   }
   setSavingEdit(true)
   setEditErr(null)
@@ -687,7 +719,7 @@ export function ClassDetailView() {
     title: "已更新私人班別設定",
     message:
      result.syncedScheduleCount > 0
-      ? `老師／學費已儲存；已同步 ${result.syncedScheduleCount} 堂未取消排程的負責老師。`
+      ? `老師／學費已儲存；已同步 ${result.syncedScheduleCount} 堂尚未開始的排程。`
       : "老師／學費已儲存。",
    })
    setBasicEditing(false)
@@ -795,7 +827,7 @@ export function ClassDetailView() {
     title: "已同步排程老師",
     message:
      result.syncedScheduleCount > 0
-      ? `已更新 ${result.syncedScheduleCount} 堂未取消排程的負責老師。`
+      ? `已更新 ${result.syncedScheduleCount} 堂排程老師（空白已補上；已開始或已代堂的堂次不變）。`
       : "排程老師已與班別一致，無需變更。",
    })
    await reload()
@@ -2063,11 +2095,9 @@ export function ClassDetailView() {
              </option>
             ))}
            </Select>
-           {isPrivateClass ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-             變更老師後，會同步此班所有未取消排程的負責老師（老師時間表依排程老師顯示）。
-            </p>
-           ) : null}
+           <p className="mt-1 text-xs text-muted-foreground">
+            變更老師後，尚未開始、未取消的排程會跟新任老師；已開始或已代堂的堂次不變。
+           </p>
           </>
          </RecordField>
          <RecordField

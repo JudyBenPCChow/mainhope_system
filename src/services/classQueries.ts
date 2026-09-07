@@ -29,6 +29,7 @@ const COURSE_EMBED =
 const CLASS_ROW_SELECT = `*, teachers ( id, full_name ), classrooms ( id, name ), academic_years ( id, label ), ${COURSE_EMBED}`
 import { formatClassLabel } from "@/lib/courseLabel"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
+import { syncFutureSchedulesForClassTeacherChange } from "@/services/classTeacherScheduleSync"
 import { cancelAllSchedulesForClass, fetchActiveScheduleDatesForClass } from "@/services/scheduleQueries"
 import { updateSchedule as patchScheduleRow } from "@/services/scheduleWriteQueries"
 import {
@@ -697,6 +698,9 @@ export async function updateClass(
 
  const teacherChanged =
   "teacher_id" in patch && (patch.teacher_id ?? null) !== (existing.teacher_id ?? null)
+ const syncedScheduleCount = teacherChanged
+  ? await syncFutureSchedulesForClassTeacherChange(id, mapped.teacher_id)
+  : 0
  const statusChanged = "status" in patch && String(patch.status ?? "") !== String(existing.status ?? "")
  if (teacherChanged || statusChanged) {
   const label = formatClassLabel({
@@ -708,14 +712,16 @@ export async function updateClass(
    eventType: teacherChanged ? "class_teacher_changed" : "class_updated",
    title: teacherChanged ? `班別任教老師變更：${label}` : `班別變動：${label}`,
    body: teacherChanged
-    ? `任教老師已更新`
+    ? syncedScheduleCount > 0
+      ? `任教老師已更新；已同步 ${syncedScheduleCount} 堂尚未開始的排程`
+      : "任教老師已更新"
     : statusChanged
       ? `狀態：${String(existing.status ?? "—")} → ${String(patch.status ?? "—")}`
       : null,
    actionPath: `/Classes/${id}`,
    classId: id,
    audienceTeacherIds: [existing.teacher_id, mapped.teacher_id],
-   payload: { teacherChanged, statusChanged },
+   payload: { teacherChanged, statusChanged, syncedScheduleCount },
   })
  }
 

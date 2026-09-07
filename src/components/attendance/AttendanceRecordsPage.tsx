@@ -23,6 +23,10 @@ import { usePersistentState } from "@/hooks/usePersistentState"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { MOBILE_BREAKPOINT } from "@/lib/layoutBreakpoint"
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ attendanceIsSubstitute,
+ formatAttendanceTeacherLine,
+} from "@/lib/attendanceTeacherLine"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -707,6 +711,16 @@ export function AttendanceRecordsPage() {
           {r.classSubject ?? "—"}
          </Link>
          {r.courseCode ? <p className="font-mono text-xs text-muted-foreground">{r.courseCode}</p> : null}
+         {formatAttendanceTeacherLine(r) ? (
+          <p className="text-xs text-muted-foreground">
+           {formatAttendanceTeacherLine(r)}
+           {attendanceIsSubstitute(r) ? (
+            <Tag size="sm" tone={statusToTagTone("代堂")} className="ml-1">
+             代堂
+            </Tag>
+           ) : null}
+          </p>
+         ) : null}
          {r.remarks ? <p className="text-xs text-muted-foreground">備註：{r.remarks}</p> : null}
         </div>
         {canDeleteAttendance ? (
@@ -734,10 +748,11 @@ export function AttendanceRecordsPage() {
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
         <th className="w-[12%] px-3 py-2 font-medium">日期</th>
-        <th className="w-[20%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[22%] px-3 py-2 font-medium">班別</th>
-        <th className="w-[16%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[18%] px-3 py-2 font-medium">備註</th>
+        <th className="w-[18%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[20%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[16%] px-3 py-2 font-medium">實際授課</th>
+        <th className="w-[14%] px-3 py-2 font-medium">狀態</th>
+        <th className="w-[12%] px-3 py-2 font-medium">備註</th>
         {canDeleteAttendance ? <th className="w-[12%] px-3 py-2 font-medium">操作</th> : null}
        </tr>
       </thead>
@@ -745,7 +760,7 @@ export function AttendanceRecordsPage() {
        <tbody>
         <tr>
          <td
-          colSpan={canDeleteAttendance ? 6 : 5}
+          colSpan={canDeleteAttendance ? 7 : 6}
           className="px-3 py-12 text-center text-muted-foreground"
          >
           {emptyDayHint}
@@ -769,6 +784,14 @@ export function AttendanceRecordsPage() {
            </Link>
            {r.courseCode ? (
             <div className="font-mono text-xs text-muted-foreground">{r.courseCode}</div>
+           ) : null}
+          </td>
+          <td className="px-3 py-2 text-xs">
+           <div>{formatAttendanceTeacherLine(r) ?? "—"}</div>
+           {attendanceIsSubstitute(r) ? (
+            <Tag size="sm" tone={statusToTagTone("代堂")} className="mt-1">
+             代堂
+            </Tag>
            ) : null}
           </td>
           <td className="px-3 py-2">

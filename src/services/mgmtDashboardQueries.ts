@@ -158,6 +158,7 @@ async function countEnrollmentEvents(
  if (opts.classKind === "group" || opts.classKind === "private") {
   q = q.eq("classes.class_kind", opts.classKind)
  }
+ // 報讀／退讀跟班別任教老師，不是當日授課
  if (opts.teacherIds.length > 0) {
   q = q.in("classes.teacher_id", opts.teacherIds)
  }
@@ -427,6 +428,7 @@ export async function fetchPaidUnitPriceMaps(
  return { byPair, byClass }
 }
 
+/** 消堂價值：篩老師時跟 schedules.teacher_id（當日授課），不是班別任教老師 */
 export async function sumConsumedLessonValue(
  from: string,
  to: string,
@@ -441,6 +443,13 @@ export async function sumConsumedLessonValue(
   return { value: 0, lessonCount: 0, zeroPriceLessons: 0, byMonth: new Map() }
  }
 
+ const filterByDayTeacher = opts.teacherIds.length > 0
+ const classEmbed =
+  "class_kind, teacher_id, price_per_lesson, courses ( price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods )"
+ const selectCols = filterByDayTeacher
+  ? `id, status, student_id, class_id, attendance_date, classes!inner ( ${classEmbed} ), schedules!inner ( teacher_id )`
+  : `id, status, student_id, class_id, attendance_date, classes!inner ( ${classEmbed} )`
+
  let value = 0
  let lessonCount = 0
  let zeroPriceLessons = 0
@@ -449,9 +458,7 @@ export async function sumConsumedLessonValue(
  for (let offset = 0; ; offset += pageSize) {
   let q = supabase
    .from("attendance_details")
-   .select(
-    "id, status, student_id, class_id, attendance_date, classes!inner ( class_kind, teacher_id, price_per_lesson, courses ( price_per_lesson, price_per_lesson_period_2, price_per_lesson_both_periods ) )"
-   )
+   .select(selectCols)
    .gte("attendance_date", from)
    .lte("attendance_date", to)
    .order("id", { ascending: true })
@@ -460,13 +467,13 @@ export async function sumConsumedLessonValue(
   if (opts.classKind === "group" || opts.classKind === "private") {
    q = q.eq("classes.class_kind", opts.classKind)
   }
-  if (opts.teacherIds.length > 0) {
-   q = q.in("classes.teacher_id", opts.teacherIds)
+  if (filterByDayTeacher) {
+   q = q.in("schedules.teacher_id", opts.teacherIds)
   }
 
   const { data, error } = await q
   if (error) throw new Error(error.message)
-  const chunk = (data ?? []) as Record<string, unknown>[]
+  const chunk = (data ?? []) as unknown as Record<string, unknown>[]
   const billable = chunk.filter((row) => isBillableAttendanceStatus(String(row.status ?? "")))
   if (billable.length > 0) {
    const studentIds = [...new Set(billable.map((r) => String(r.student_id)))]
@@ -801,6 +808,7 @@ async function countActiveEnrollmentSeats(opts: {
  if (opts.classKind === "group" || opts.classKind === "private") {
   q = q.eq("classes.class_kind", opts.classKind)
  }
+ // 在讀座位跟班別任教老師，不是當日授課
  if (opts.teacherIds.length > 0) {
   q = q.in("classes.teacher_id", opts.teacherIds)
  }
@@ -852,12 +860,16 @@ async function countAttendanceVisits(
  }
 
  const pageSize = 1000
+ const filterByDayTeacher = opts.teacherIds.length > 0
+ const classEmbed = "class_kind, teacher_id, grade, courses ( grade_code )"
+ const selectCols = filterByDayTeacher
+  ? `id, status, class_id, classes!inner ( ${classEmbed} ), schedules!inner ( teacher_id )`
+  : `id, status, class_id, classes!inner ( ${classEmbed} )`
+
  for (let offset = 0; ; offset += pageSize) {
   let q = supabase
    .from("attendance_details")
-   .select(
-    "id, status, class_id, classes!inner ( class_kind, teacher_id, grade, courses ( grade_code ) )"
-   )
+   .select(selectCols)
    .gte("attendance_date", from)
    .lte("attendance_date", to)
    .order("id", { ascending: true })
@@ -866,8 +878,8 @@ async function countAttendanceVisits(
   if (opts.classKind === "group" || opts.classKind === "private") {
    q = q.eq("classes.class_kind", opts.classKind)
   }
-  if (opts.teacherIds.length > 0) {
-   q = q.in("classes.teacher_id", opts.teacherIds)
+  if (filterByDayTeacher) {
+   q = q.in("schedules.teacher_id", opts.teacherIds)
   }
   if (opts.classIds.length > 0) {
    q = q.in("class_id", opts.classIds)
@@ -875,7 +887,7 @@ async function countAttendanceVisits(
 
   const { data, error } = await q
   if (error) throw error
-  const chunk = (data ?? []) as Record<string, unknown>[]
+  const chunk = (data ?? []) as unknown as Record<string, unknown>[]
   for (const row of chunk) {
    if (!isAttendedLessonStatus(String(row.status ?? ""))) continue
    acc.total += 1
