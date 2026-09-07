@@ -11,6 +11,7 @@ import {
  type TrialOutcomeDialogTarget,
 } from "@/components/trials/TrialOutcomeDialog"
 import { Button } from "@/components/ui/button"
+import { HintTooltip } from "@/components/ui/tooltip"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
@@ -1036,15 +1037,16 @@ export function TrialSessionsView() {
             <span className="text-xs text-muted-foreground">—</span>
            ) : (
             <>
-             <Button
-              type="button"
-              size="sm"
-              disabled={!canConvert}
-              title={blocked ?? undefined}
-              onClick={() => void openConvert(r.id)}
-             >
-              正式報讀
-             </Button>
+             <HintTooltip hint={blocked}>
+              <Button
+               type="button"
+               size="sm"
+               disabled={!canConvert}
+               onClick={() => void openConvert(r.id)}
+              >
+               正式報讀
+              </Button>
+             </HintTooltip>
              <div className="flex flex-wrap gap-2">
               {canLost ? (
                <button
@@ -1055,9 +1057,9 @@ export function TrialSessionsView() {
                 標流失
                </button>
               ) : r.outcome === "open" && !String(r.status).includes("取消") ? (
-               <span className="text-[11px] text-muted-foreground" title={trialLostBlockedReason(r) ?? undefined}>
-                流失須先取消
-               </span>
+               <HintTooltip hint={trialLostBlockedReason(r)}>
+                <span className="text-[11px] text-muted-foreground">流失須先取消</span>
+               </HintTooltip>
               ) : null}
               {canOther ? (
                <button

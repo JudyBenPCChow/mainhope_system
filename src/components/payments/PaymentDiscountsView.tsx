@@ -8,6 +8,7 @@ import {
  adminWorkspacePageClass,
 } from "@/lib/adminNavigation"
 import { Button } from "@/components/ui/button"
+import { HintTooltip } from "@/components/ui/tooltip"
 import {
  Dialog,
  DialogContent,
@@ -722,23 +723,24 @@ export function PaymentDiscountsView() {
            )}
           </td>
           <td className="px-2 py-2">
-           <button
-            type="button"
-            className={cn(
-             "rounded px-1.5 py-0.5 text-xs font-medium",
-             r.isActive
-              ? "bg-success/15 text-success"
-              : "bg-muted text-muted-foreground"
-            )}
-            onClick={() => {
-             if (!canEditDiscounts) return
-             void onToggleActive(r)
-            }}
-            disabled={!canEditDiscounts}
-            title={canEditDiscounts ? undefined : "此規則僅限管理員修改"}
-           >
-            {r.isActive ? "啟用" : "停用"}
-           </button>
+           <HintTooltip hint={canEditDiscounts ? null : "此規則僅限管理員修改"}>
+            <button
+             type="button"
+             className={cn(
+              "rounded px-1.5 py-0.5 text-xs font-medium",
+              r.isActive
+               ? "bg-success/15 text-success"
+               : "bg-muted text-muted-foreground"
+             )}
+             onClick={() => {
+              if (!canEditDiscounts) return
+              void onToggleActive(r)
+             }}
+             disabled={!canEditDiscounts}
+            >
+             {r.isActive ? "啟用" : "停用"}
+            </button>
+           </HintTooltip>
           </td>
           <td className="px-2 py-2 text-xs tabular-nums text-muted-foreground">
            {formatUpdatedAt(r.updatedAt)}
