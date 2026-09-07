@@ -206,6 +206,19 @@ export function TeacherDetailView() {
   return schedules.filter((s) => s.scheduledDate >= today && !s.status.includes("取消"))
  }, [schedules, schedFilter, today])
 
+ const weekTimetableItems = useMemo(() => {
+  return weekItemsFromTeacherScheduleRows(schedules).map((item) => {
+   const hints = scheduleHints.get(item.id)
+   if (!hints) return item
+   const studentNames = [...hints.attendingNames, ...hints.leaveNames]
+   return {
+    ...item,
+    enrollCount: studentNames.length,
+    studentNames,
+   }
+  })
+ }, [schedules, scheduleHints])
+
  const attInMonth = useMemo(
   () => attendance.filter((a) => a.date.startsWith(attMonth)),
   [attendance, attMonth]
@@ -630,7 +643,7 @@ export function TeacherDetailView() {
     ) : null}
 
     {tab === "timetable" ? (
-     <TeacherWeekTimetable items={weekItemsFromTeacherScheduleRows(schedules)} />
+     <TeacherWeekTimetable items={weekTimetableItems} />
     ) : null}
 
     {tab === "schedule" ? (

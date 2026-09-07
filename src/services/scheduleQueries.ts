@@ -30,6 +30,7 @@ import {
  makeupsForSchedules,
  rosterHeadcountForSchedule,
  rosterStudentsForSchedule,
+ scheduleStudentHintsFromContext,
  type ScheduleRosterContext,
 } from "@/services/scheduleRosterQueries"
 import { addDaysYmd, localYmd } from "@/services/teacherQueries"
@@ -81,6 +82,8 @@ export type ScheduleManageRow = {
  classroom_name: string | null
  /** null＝點名冊人數尚未載入（勿當成 0） */
  enrollCount: number | null
+ /** 點名冊姓名；未載入時不設（時間表卡片用） */
+ studentNames?: string[] | null
 }
 
 export type ScheduleAlerts = {
@@ -337,6 +340,30 @@ export function applyScheduleRowSummaries(
   return summary ? { ...row, enrollCount: summary.rosterCount } : row
  })
  return { rows: next, alerts }
+}
+
+/** 補上各堂點名冊人數與姓名（時間表卡片綠／灰底與名單用）。 */
+export async function enrichScheduleRowsWithRosterCounts(
+ rows: ScheduleManageRow[]
+): Promise<ScheduleManageRow[]> {
+ if (rows.length === 0) return rows
+ const ids = rows.map((row) => row.id)
+ const context = await fetchScheduleRosterContext(ids)
+ const summaries = summarizeScheduleManageRows(
+  context,
+  ids,
+  rows.map((row) => ({ id: row.id, consecutiveGroupId: row.consecutive_group_id ?? null }))
+ )
+ const hints = scheduleStudentHintsFromContext(context, ids)
+ const { rows: counted } = applyScheduleRowSummaries(rows, summaries)
+ return counted.map((row) => {
+  const hint = hints.get(row.id)
+  if (!hint) return { ...row, studentNames: [] }
+  return {
+   ...row,
+   studentNames: [...hint.attendingNames, ...hint.leaveNames],
+  }
+ })
 }
 
 /** 排程列 + 全區間 roster（點名資格／badge／人數）。列表首屏請先用 fetchSchedulesInRange。 */

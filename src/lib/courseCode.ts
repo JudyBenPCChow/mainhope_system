@@ -157,6 +157,13 @@ export function validateCourseCode(code: string): { ok: true } | { ok: false; me
  return { ok: true }
 }
 
+/** 班別顯示碼的學年段（`2627-CHEMS4001-A` → `2627`；`26SM-…` → `26SM`） */
+export function academicYearLabelFromCourseCode(code: string | null | undefined): string | null {
+ const m = (code ?? "").trim().match(COURSE_CODE_REGEX)
+ if (!m?.[1]) return null
+ return m[1].toUpperCase()
+}
+
 /**
  * 由日期推算學年 label（與 public.academic_years 一致）：
  * - 7–8 月 → YYSM（如 2026-07-15 → 26SM）
