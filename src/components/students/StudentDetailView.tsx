@@ -1542,10 +1542,6 @@ export function StudentDetailView() {
     ) : null}
     {tab === "basic" && student ? (
      <div className="space-y-8">
-      <fieldset
-       disabled={!showBasicForm}
-       className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
-      >
       <section className="space-y-4">
        <div className="flex items-start justify-between gap-3">
         <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
@@ -1808,7 +1804,6 @@ export function StudentDetailView() {
         </Button>
        </div>
       ) : null}
-      </fieldset>
 
       {sid ? (
        <ParentPortalInvitePanel
