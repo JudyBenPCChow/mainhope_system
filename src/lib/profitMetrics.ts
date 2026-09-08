@@ -10,6 +10,8 @@ export type MonthProfitPoint = {
  consumedValue: number
  tutorLabor: number
  tutorLaborPosted: boolean
+ /** 未過帳、用計糧草稿填人工 */
+ tutorLaborEstimated: boolean
  totalExpenses: number
  grossProfit: number | null
  grossMarginPct: number | null
@@ -65,19 +67,23 @@ export function computeMonthProfit(input: {
  consumedValue: number
  tutorLabor: number
  tutorLaborPosted: boolean
+ tutorLaborEstimated?: boolean
  totalExpenses: number
 }): MonthProfitPoint {
  const consumed = roundHkd(input.consumedValue)
  const labor = roundHkd(input.tutorLabor)
  const expenses = roundHkd(input.totalExpenses)
- const gross = input.tutorLaborPosted ? roundHkd(consumed - labor) : null
- const net = roundHkd(consumed - expenses)
+ const estimated = Boolean(input.tutorLaborEstimated) && !input.tutorLaborPosted
+ const hasLabor = input.tutorLaborPosted || estimated
+ const gross = hasLabor ? roundHkd(consumed - labor) : null
+ const net = roundHkd(consumed - expenses - (estimated ? labor : 0))
  return {
   monthKey: input.monthKey,
   label: monthKeyLabel(input.monthKey),
   consumedValue: consumed,
   tutorLabor: labor,
   tutorLaborPosted: input.tutorLaborPosted,
+  tutorLaborEstimated: estimated,
   totalExpenses: expenses,
   grossProfit: gross,
   grossMarginPct: gross == null ? null : ratioPct(gross, consumed),

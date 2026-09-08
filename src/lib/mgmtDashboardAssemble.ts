@@ -138,7 +138,7 @@ export type SettledDashboardInput = {
  distribution: MgmtDashboardPayload["distribution"]
  includeLowAttendancePlaceholder: boolean
  consumedValue?: LoadResult<number>
- tutorLabor?: LoadResult<{ amount: number; posted: boolean }>
+ tutorLabor?: LoadResult<{ amount: number; posted: boolean; estimated?: boolean; unpostedAmount?: number }>
  totalExpenses?: LoadResult<number>
  profitSeries?: LoadResult<MonthProfitPoint[]>
 }
@@ -308,7 +308,7 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
   if (labor == null || !isLoadOk(labor)) {
    cards.push(errorKpi("grossProfit", "本月毛利", "hkd"))
    cards.push(errorKpi("grossMargin", "本月毛利率", "percent"))
-  } else if (!labor.ok.posted) {
+  } else if (!labor.ok.posted && !labor.ok.estimated) {
    const pending = (id: string, label: string, format: KpiCardModel["format"]): KpiCardModel => ({
     ...errorKpi(id, label, format),
     hint: "本月導師人工尚未結算過帳",
@@ -317,6 +317,7 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
    cards.push(pending("grossProfit", "本月毛利", "hkd"))
    cards.push(pending("grossMargin", "本月毛利率", "percent"))
   } else {
+   const estimated = Boolean(labor.ok.estimated) && !labor.ok.posted
    const gross = Math.round((consumed.ok - labor.ok.amount) * 100) / 100
    const margin = consumed.ok > 0 ? Math.round((gross / consumed.ok) * 1000) / 10 : null
    const tone: KpiCardModel["tone"] =
@@ -330,9 +331,11 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
     yoyPct: null,
     targetGap: null,
     targetGapUnit: null,
-    status: kpiStatusFromTone(tone),
+    status: estimated ? "預估" : kpiStatusFromTone(tone),
     tone,
-    hint: "消堂價值 − 已過帳導師人工",
+    hint: estimated
+     ? "消堂價值 − 計糧草稿預估導師人工（尚未結算過帳）"
+     : "消堂價值 − 已過帳導師人工",
     loadState: "ready",
    })
    cards.push({
@@ -344,9 +347,13 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
     yoyPct: null,
     targetGap: margin != null ? Math.round((margin - 45) * 10) / 10 : null,
     targetGapUnit: "percent",
-    status: margin == null ? "注意" : kpiStatusFromTone(tone),
+    status: margin == null ? "注意" : estimated ? "預估" : kpiStatusFromTone(tone),
     tone: margin == null ? "warning" : tone,
-    hint: margin == null ? "消堂價值為 0，無法計算利率" : "毛利 ÷ 消堂價值",
+    hint: margin == null
+     ? "消堂價值為 0，無法計算利率"
+     : estimated
+       ? "預估毛利 ÷ 消堂價值"
+       : "毛利 ÷ 消堂價值",
     loadState: margin == null ? "pending" : "ready",
    })
   }
@@ -356,7 +363,10 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
   cards.push(errorKpi("netProfit", "本月純利", "hkd"))
   cards.push(errorKpi("netMargin", "本月純利率", "percent"))
  } else {
-  const net = Math.round((consumed.ok - expenses.ok) * 100) / 100
+  const laborOk = labor != null && isLoadOk(labor) ? labor.ok : null
+  const estimatedNet = laborOk != null && Boolean(laborOk.estimated) && !laborOk.posted
+  const estimatedAdd = estimatedNet ? laborOk.unpostedAmount ?? laborOk.amount : 0
+  const net = Math.round((consumed.ok - expenses.ok - estimatedAdd) * 100) / 100
   const margin = consumed.ok > 0 ? Math.round((net / consumed.ok) * 1000) / 10 : null
   const tone: KpiCardModel["tone"] =
    margin == null ? "default" : margin < 10 ? "destructive" : margin < 20 ? "warning" : "success"
@@ -369,9 +379,11 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
    yoyPct: null,
    targetGap: null,
    targetGapUnit: null,
-   status: kpiStatusFromTone(tone),
+   status: estimatedNet ? "預估" : kpiStatusFromTone(tone),
    tone,
-   hint: "消堂價值 − 已確認開支（按金／作廢唔入）；非老師人工可能未齊",
+   hint: estimatedNet
+    ? "消堂價值 − 已確認開支 − 預估導師人工；非老師人工可能未齊"
+    : "消堂價值 − 已確認開支（按金／作廢唔入）；非老師人工可能未齊",
    loadState: "ready",
   })
   cards.push({
@@ -383,7 +395,7 @@ function assembleProfitKpis(input: SettledDashboardInput): KpiCardModel[] {
    yoyPct: null,
    targetGap: null,
    targetGapUnit: null,
-   status: margin == null ? "注意" : kpiStatusFromTone(tone),
+   status: margin == null ? "注意" : estimatedNet ? "預估" : kpiStatusFromTone(tone),
    tone: margin == null ? "warning" : tone,
    hint: margin == null ? "消堂價值為 0，無法計算利率" : "純利 ÷ 消堂價值",
    loadState: margin == null ? "pending" : "ready",

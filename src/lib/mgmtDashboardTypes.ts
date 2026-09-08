@@ -14,8 +14,8 @@ export type MgmtDashboardFilters = {
  classIds: string[]
 }
 
-/** KPI 營運狀態：綠／橙／紅 */
-export type KpiStatus = "正常" | "注意" | "警示"
+/** KPI 營運狀態：綠／橙／紅；預估＝未結算人工以計糧草稿代替 */
+export type KpiStatus = "正常" | "注意" | "警示" | "預估"
 
 export type KpiBreakdownItem = {
  label: string

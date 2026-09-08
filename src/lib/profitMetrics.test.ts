@@ -28,8 +28,25 @@ describe("profitMetrics", () => {
   })
   expect(p.grossProfit).toBeNull()
   expect(p.grossMarginPct).toBeNull()
+  expect(p.tutorLaborEstimated).toBe(false)
   expect(p.netProfit).toBe(7000)
   expect(p.netMarginPct).toBe(70)
+ })
+
+ it("uses estimated labor when not posted", () => {
+  const p = computeMonthProfit({
+   monthKey: "2026-09",
+   consumedValue: 10000,
+   tutorLabor: 4000,
+   tutorLaborPosted: false,
+   tutorLaborEstimated: true,
+   totalExpenses: 3000,
+  })
+  expect(p.grossProfit).toBe(6000)
+  expect(p.grossMarginPct).toBe(60)
+  expect(p.tutorLaborEstimated).toBe(true)
+  expect(p.netProfit).toBe(3000)
+  expect(p.netMarginPct).toBe(30)
  })
 
  it("gross and net when labor posted", () => {

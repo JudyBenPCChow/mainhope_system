@@ -106,7 +106,7 @@ const HOMEWORK_TUTORING_RULES: StatusTagRule[] = [
 const OPS_DASHBOARD_STATUS_RULES: StatusTagRule[] = [
  // 營運總覽 KPI／警示：綠=正常、橙=注意、紅=警示（置頂優先）
  { tone: "error", keywords: ["警示"] },
- { tone: "warning", keywords: ["注意"] },
+ { tone: "warning", keywords: ["注意", "預估"] },
  { tone: "success", keywords: ["正常"] },
 ]
 

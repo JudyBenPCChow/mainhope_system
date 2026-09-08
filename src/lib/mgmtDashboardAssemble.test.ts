@@ -183,6 +183,22 @@ describe("assembleKpis — 毛利／純利", () => {
   expect(kpis.find((k) => k.id === "netProfit")?.value).toBe(7000)
   expect(kpis.find((k) => k.id === "netProfit")?.loadState).toBe("ready")
  })
+
+ it("導師人工未過帳但有預估：毛利顯示數字並標預估", () => {
+  const kpis = assembleKpis(
+   baseInput({
+    consumedValue: asOk(10000),
+    tutorLabor: asOk({ amount: 4000, posted: false, estimated: true, unpostedAmount: 4000 }),
+    totalExpenses: asOk(3000),
+   })
+  )
+  const gross = kpis.find((k) => k.id === "grossProfit")
+  expect(gross?.loadState).toBe("ready")
+  expect(gross?.value).toBe(6000)
+  expect(gross?.status).toBe("預估")
+  expect(kpis.find((k) => k.id === "netProfit")?.value).toBe(3000)
+  expect(kpis.find((k) => k.id === "netProfit")?.status).toBe("預估")
+ })
 })
 
 describe("mergeMgmtDashboardPayload", () => {
@@ -208,6 +224,7 @@ describe("mergeMgmtDashboardPayload", () => {
       consumedValue: 20000,
       tutorLabor: 8000,
       tutorLaborPosted: true,
+      tutorLaborEstimated: false,
       totalExpenses: 12000,
       grossProfit: 12000,
       grossMarginPct: 60,
