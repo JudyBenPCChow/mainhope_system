@@ -1542,10 +1542,6 @@ export function StudentDetailView() {
     ) : null}
     {tab === "basic" && student ? (
      <div className="space-y-8">
-      <fieldset
-       disabled={!showBasicForm}
-       className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
-      >
       <section className="space-y-4">
        <div className="flex items-start justify-between gap-3">
         <h2 className="text-sm font-semibold text-foreground">基本資料</h2>
@@ -1555,6 +1551,10 @@ export function StudentDetailView() {
          </Button>
         ) : null}
        </div>
+       <fieldset
+        disabled={!showBasicForm}
+        className="min-w-0 space-y-8 border-0 p-0 disabled:opacity-100"
+       >
        <div className="grid gap-4 sm:grid-cols-2">
         <Field label="中文姓名 *" read={showBasicForm ? undefined : (form.full_name || "—")}>
          <Input
@@ -1796,19 +1796,18 @@ export function StudentDetailView() {
          />
         </Field>
        </div>
+       {showBasicForm ? (
+        <div className={`sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border ${adminPageSurfaceClass} py-3`}>
+         <Button type="button" variant="outline" onClick={discardBasicEdits}>
+          取消
+         </Button>
+         <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
+          儲存
+         </Button>
+        </div>
+       ) : null}
+       </fieldset>
       </section>
-
-      {showBasicForm ? (
-       <div className={`sticky bottom-0 z-[1] flex flex-wrap justify-end gap-2 border-t border-border ${adminPageSurfaceClass} py-3`}>
-        <Button type="button" variant="outline" onClick={discardBasicEdits}>
-         取消
-        </Button>
-        <Button type="button" loading={savingBasic} loadingText="儲存中…" onClick={() => void saveBasic()}>
-         儲存
-        </Button>
-       </div>
-      ) : null}
-      </fieldset>
 
       {sid ? (
        <ParentPortalInvitePanel
