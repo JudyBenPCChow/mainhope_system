@@ -134,6 +134,7 @@
 ## 8. Date Picker 設計規範（2026-04-23 起）
 
 - 全專案日期輸入一律使用共用 `Input type="date"`（由 `src/components/ui/input.tsx` 轉接至 `src/components/ui/date-input.tsx`）；禁止在業務頁各自實作日期彈層。
+- 全專案月份輸入一律使用共用 `Input type="month"`（轉接至 `src/components/ui/month-input.tsx` 的 `Select` 下拉）；禁止原生 `<input type="month">`（Firefox／部分桌面瀏覽器不顯示）。選項由近至遠、按年分組；對外值仍為 `YYYY-MM`。
 - Date Picker 面板需維持四段式：**白底圓角容器 + 上方日期顯示區 + 中央月曆 + 底部 Reset**，保持一致視覺語言。
 - Date Picker 內容區需置中：上方日期、月份標題、月曆表格與底部 Reset 按鈕皆需以中線對齊，不得預設靠左排版。
 - Date Picker 面板須以 **fixed／portal** 掛到 `document.body`（z-index ≥ Select／DateRange 的 `320`），避免在 `MobileFilterSheet`、Dialog（`overflow-y-auto`）內被裁切；窄螢幕寬度用 `min(100vw - 16px, 偏好寬度)`。
