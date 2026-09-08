@@ -11,7 +11,7 @@ import type { ManualAdjustment, PayrollTeacherRow } from "@/lib/payroll/viewType
 
 function teacher(partial: Partial<PayrollTeacherRow> & { id: string; name: string }): PayrollTeacherRow {
   return {
-    mode: "按人頭",
+    mode: "兼職 HC",
     gross: null,
     employeeMpf: 0,
     employerMpf: 0,
