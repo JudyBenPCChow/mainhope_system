@@ -99,7 +99,7 @@ export function MgmtAnalysisSection({ data, loading, focus, onFocus }: Props) {
    <div className="grid gap-4 lg:grid-cols-2">
     <PanelShell
      title="毛利率／純利率走勢"
-     subtitle="由 2026-07 起按月；導師人工未過帳嘅月份毛利率顯示缺口。純利扣已確認開支（按金／作廢唔入）"
+     subtitle="由 2026-07 起按月；未過帳月份若有計糧草稿則顯示預估毛利率，否則留空。純利扣已確認開支（未過帳月另扣預估導師人工；按金／作廢唔入）"
      active={focus?.type === "analysis" && focus.panel === "profit"}
      onClick={() => onFocus({ type: "analysis", panel: "profit" })}
     >

@@ -24,6 +24,11 @@ import {
  PROFIT_ANALYSIS_START,
  type MonthProfitPoint,
 } from "@/lib/profitMetrics"
+import {
+ foldPeriodTutorLabor,
+ resolveMonthTutorLabor,
+} from "@/lib/payroll/laborEstimate"
+import { fetchUnsettledPayrollLaborByMonth } from "@/services/payrollLaborEstimateQueries"
 import { buildMgmtDashboardMock } from "@/lib/mgmtDashboardMock"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
@@ -957,7 +962,7 @@ const PROFIT_WINDOW_HINT = "分析窗由 2026-07 起"
 
 async function fetchProfitBlock(filters: MgmtDashboardFilters): Promise<{
  consumedValue: LoadResult<number>
- tutorLabor: LoadResult<{ amount: number; posted: boolean }>
+ tutorLabor: LoadResult<{ amount: number; posted: boolean; estimated?: boolean; unpostedAmount?: number }>
  totalExpenses: LoadResult<number>
  profitSeries: LoadResult<MonthProfitPoint[]>
 }> {
@@ -975,8 +980,10 @@ async function fetchProfitBlock(filters: MgmtDashboardFilters): Promise<{
  const seriesFrom = PROFIT_ANALYSIS_START
  const classOpts = { classKind: filters.classKind, teacherIds: filters.teacherIds }
  const needPeriodScan = periodFrom !== seriesFrom
+ const seriesKeys = monthKeysInclusive(seriesFrom, periodTo)
+ const periodKeys = monthKeysInclusive(periodFrom, periodTo)
 
- const [consumedSeries, expenseSeries, consumedPeriod, expensePeriod] = await Promise.all([
+ const [consumedSeries, expenseSeries, consumedPeriod, expensePeriod, estimateSeries] = await Promise.all([
   settle(sumConsumedLessonValue(seriesFrom, periodTo, classOpts)),
   settle(sumConfirmedExpenseBuckets(seriesFrom, periodTo)),
   needPeriodScan
@@ -985,20 +992,58 @@ async function fetchProfitBlock(filters: MgmtDashboardFilters): Promise<{
   needPeriodScan
    ? settle(sumConfirmedExpenseBuckets(periodFrom, periodTo))
    : Promise.resolve(null),
+  settle(fetchUnsettledPayrollLaborByMonth(seriesKeys)),
  ])
 
  const periodConsumed = consumedPeriod ?? consumedSeries
  const periodExpense = expensePeriod ?? expenseSeries
+ const estimates = isLoadOk(estimateSeries) ? estimateSeries.ok : new Map<string, number>()
+
+ const resolveKey = (
+  monthKey: string,
+  expense: { tutorLabor: number; tutorLaborPosted: boolean; totalConfirmed: number } | undefined
+ ) => {
+  const posted = expense?.tutorLaborPosted ?? false
+  const estimatedAmount = estimates.has(monthKey) ? (estimates.get(monthKey) ?? 0) : null
+  return resolveMonthTutorLabor({
+   posted,
+   postedAmount: expense?.tutorLabor ?? 0,
+   estimatedAmount,
+  })
+ }
 
  const consumedValue: LoadResult<number> = isLoadOk(periodConsumed)
   ? asOk(periodConsumed.ok.value)
   : { error: periodConsumed.error }
- const tutorLabor: LoadResult<{ amount: number; posted: boolean }> = isLoadOk(periodExpense)
-  ? asOk({
-     amount: periodExpense.ok.tutorLabor,
-     posted: periodExpense.ok.tutorLaborPosted,
-    })
-  : { error: periodExpense.error }
+
+ let tutorLabor: LoadResult<{
+  amount: number
+  posted: boolean
+  estimated?: boolean
+  unpostedAmount?: number
+ }>
+ if (!isLoadOk(periodConsumed)) {
+  tutorLabor = { error: periodConsumed.error }
+ } else if (!isLoadOk(periodExpense)) {
+  tutorLabor = { error: periodExpense.error }
+ } else {
+  const folded = foldPeriodTutorLabor(
+   periodKeys.map((monthKey) => {
+    const exp = periodExpense.ok.byMonth.get(monthKey)
+    return {
+     ...resolveKey(monthKey, exp),
+     consumedValue: periodConsumed.ok.byMonth.get(monthKey) ?? 0,
+    }
+   })
+  )
+  tutorLabor = asOk({
+   amount: folded.amount,
+   posted: folded.posted,
+   estimated: folded.estimated,
+   unpostedAmount: folded.unpostedAmount,
+  })
+ }
+
  const totalExpenses: LoadResult<number> = isLoadOk(periodExpense)
   ? asOk(periodExpense.ok.totalConfirmed)
   : { error: periodExpense.error }
@@ -1009,15 +1054,16 @@ async function fetchProfitBlock(filters: MgmtDashboardFilters): Promise<{
  } else if (!isLoadOk(expenseSeries)) {
   profitSeries = asError(expenseSeries.error)
  } else {
-  const keys = monthKeysInclusive(seriesFrom, periodTo)
   profitSeries = asOk(
-   keys.map((monthKey) => {
+   seriesKeys.map((monthKey) => {
     const exp = expenseSeries.ok.byMonth.get(monthKey)
+    const labor = resolveKey(monthKey, exp)
     return computeMonthProfit({
      monthKey,
      consumedValue: consumedSeries.ok.byMonth.get(monthKey) ?? 0,
-     tutorLabor: exp?.tutorLabor ?? 0,
-     tutorLaborPosted: exp?.tutorLaborPosted ?? false,
+     tutorLabor: labor.amount,
+     tutorLaborPosted: labor.source === "posted",
+     tutorLaborEstimated: labor.source === "estimated",
      totalExpenses: exp?.totalConfirmed ?? 0,
     })
    })
