@@ -26,6 +26,7 @@ import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAuth } from "@/lib/authBootstrap"
+import { buildContactUpdateNotifyMessage } from "@/lib/contactUpdateNotifyMessage"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
@@ -100,15 +101,10 @@ function messagingTargetFromStudent(st: StudentRecord): PrimaryMessagingTarget |
 }
 
 function buildNotifyMessage(student: StudentRecord, token: string): string {
-  const url = contactUpdatePublicUrl(token)
-  return [
-    `您好，明學教育請核對「${student.full_name}」（學號 ${student.student_code ?? "—"}）嘅聯絡資料。`,
-    "",
-    "請開啟以下專屬連結，核對／更新電話同通訊偏好：",
-    url,
-    "",
-    "提交後由職員審核，核准後先寫入學生檔案。如有疑問請回覆此訊息，謝謝！",
-  ].join("\n")
+  return buildContactUpdateNotifyMessage({
+    fullName: student.full_name,
+    url: contactUpdatePublicUrl(token),
+  })
 }
 
 type DiffField = {

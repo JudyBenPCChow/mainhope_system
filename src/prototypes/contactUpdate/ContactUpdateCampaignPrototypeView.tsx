@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tag } from "@/components/ui/tag"
+import { buildContactUpdateNotifyMessage } from "@/lib/contactUpdateNotifyMessage"
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
@@ -52,16 +53,11 @@ function messagingTargetFromRow(row: CampaignRow): PrimaryMessagingTarget | null
   })
 }
 
-function buildContactUpdateNotifyMessage(row: CampaignRow & { token: string }): string {
-  const url = mockPublicLink(row.token)
-  return [
-    `您好，明學教育請核對「${row.full_name}」（學號 ${row.student_code}）嘅聯絡資料。`,
-    "",
-    "請開啟以下專屬連結，核對／更新電話同通訊偏好：",
-    url,
-    "",
-    "提交後由職員審核，核准後先寫入學生檔案。如有疑問請回覆此訊息，謝謝！",
-  ].join("\n")
+function buildSandboxNotifyMessage(row: CampaignRow & { token: string }): string {
+  return buildContactUpdateNotifyMessage({
+    fullName: row.full_name,
+    url: mockPublicLink(row.token),
+  })
 }
 
 function RowNotifyButton({
@@ -290,7 +286,7 @@ export function ContactUpdateCampaignPrototypeView() {
       showFlash("無法產生更新連結")
       return
     }
-    const message = buildContactUpdateNotifyMessage(withToken)
+    const message = buildSandboxNotifyMessage(withToken)
 
     if (target.channel === "WeChat") {
       try {
