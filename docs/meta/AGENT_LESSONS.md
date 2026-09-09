@@ -10,11 +10,24 @@
 - **正確做法**：標題列與「編輯」留在 fieldset 外；只鎖欄位。用戶說按鈕變灰／按不了，先查 disabled 祖先，唔好先改角色或 capability。
 - **若已升格**：未升格
 
+### 2026-09-03 — Topic worktree 唔好把 feature commit 留喺本地 `main`，PR 亦唔帶 `dist/`
+- **情境**：排程管理頁工作樹 checkout 咗 `main`，超前 `origin/main` 兩個 commit，未開 PR；其中一個 commit 仲改咗 `dist/`。
+- **錯在邊**：把本題 SHA 推高本地 `main`；build 產出跟功能一齊 commit。
+- **正確做法**：工作樹只停 `feat/…`；本地 `main` 只 ff `origin/main`。若已經錯咗：把 SHA 移去 feat branch，`git branch -f main origin/main`，再 `git checkout origin/main -- dist/` 另 commit 還原，先開 PR。
+- **若已升格**：skill `git-ship` Preflight；`.cursor/rules/feature-branch-hot-files.mdc`；`.cursor/rules/git-hygiene.mdc`
+
+### 2026-09-03 — 載入中／未知數量唔好顯示 0
+- **情境**：排程管理今日概覽同「未有學生報讀」篩選，摘要尚未完成。
+- **錯在邊**：把未到嘅人數當成 0，畫面會誤以為今日無堂或班是空的。
+- **正確做法**：loading／失敗顯示未知，唔好填 0。人數相關篩選同匯出，摘要完成前停用。
+- **若已升格**：未升格（見 `kpiNumberDisplay`、`docs/product/topics/schedule-manage-page-refactor.md` §13.4）
+
 ### 2026-09-02 — UI 改版嘅接手 HANDOFF 唔好刪排版
 - **情境**：學生詳情繳費分頁已拍板三線分列；用戶先要「新局handoff」，短版只寫「唔做三張 KPI 卡」，再問是否夠新 agent 明白 UI。
 - **錯在邊**：為慳行數把定義列、Tag、過往虛線框、空狀態、禁用色都刪走。下一個 agent 仍會猜成儀表板卡。
 - **正確做法**：短開局可以指去 session 檔。若本題就係改畫面，接手檔必須寫清：容器、有才顯示、文案、清單／摺疊、禁止項。用戶要詳細接手時寫 `docs/meta/handoffs/`，唔好只交 5–10 行。
 - **若已升格**：未升格（見本條；skill `new-chat-handoff` 仍適用純續做，UI 規格放 session 檔）
+
 ### 2026-09-03 — 功輔「暫停」＝學生詳情「休學」，唔好當無此狀態
 - **情境**：功輔頁有「暫停」篩選與月費列；學生詳情報讀卡下拉是就讀中／休學／退選，沒有「暫停」。
 - **錯在邊**：只把字串含「暫停」當成暫停，`休學` 落到預設「在籍」，休學仍計本月月費。缺日數檔亦默認四日，畫面睇唔出未填。
