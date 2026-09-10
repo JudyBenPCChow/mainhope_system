@@ -89,10 +89,32 @@ export function computeHcLessonAmount(
   cfg: PayrollRateConfig
 ): { amount: number; billableHc: number; formula: string; note: string | null } {
   const billableCount = lesson.students.filter((s) => s.billable).length
+  if (billableCount <= 0) {
+    return { amount: 0, billableHc: 0, formula: "人頭=0 → 不計薪", note: null }
+  }
+
+  // 兼職／特別 HC 可覆寫私人課程固定價（例：Natalie Kwok 一對一 $350）
+  if (lesson.privateSlot === "one_to_one" && cfg.oneToOne != null && cfg.oneToOne > 0) {
+    return {
+      amount: cfg.oneToOne,
+      billableHc: 1,
+      formula: `一對一固定 $${cfg.oneToOne}`,
+      note: "不套用等效人頭",
+    }
+  }
+  if (lesson.privateSlot === "one_to_two" && cfg.oneToTwo != null && cfg.oneToTwo > 0) {
+    return {
+      amount: cfg.oneToTwo,
+      billableHc: billableCount,
+      formula: `一對二固定 $${cfg.oneToTwo}`,
+      note: "不套用等效人頭",
+    }
+  }
+
   const oneToOneHc = cfg.oneToOneHc ?? 3
   const oneToTwoHc = cfg.oneToTwoHc ?? 4
   const hc = effectiveHc(billableCount, lesson.privateSlot, oneToOneHc, oneToTwoHc)
-  if (hc <= 0 || billableCount <= 0) {
+  if (hc <= 0) {
     return { amount: 0, billableHc: 0, formula: "人頭=0 → 不計薪", note: null }
   }
   const tier = tierForBand(cfg, lesson.gradeBand)

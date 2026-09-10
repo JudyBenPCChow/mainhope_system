@@ -91,6 +91,48 @@ describe("payroll HC formula", () => {
     expect(r.billableHc).toBe(3)
     expect(r.amount).toBe(240)
   })
+
+  it("uses fixed 1:1 amount when one_to_one is set on HC rates", () => {
+    const l = lesson({
+      scheduleId: "s-natalie",
+      teacherId: "natalie",
+      privateSlot: "one_to_one",
+      classKind: "private",
+      gradeBand: "junior",
+      students: [{ studentId: "1", studentName: "A", status: "現場", billable: true, listPrice: 650 }],
+    })
+    const r = computeHcLessonAmount(
+      l,
+      parseRateConfig({
+        junior: { base: 120, per_extra: 60 },
+        senior: { base: 150, per_extra: 70 },
+        one_to_one_hc: 3,
+        one_to_one: 350,
+      })
+    )
+    expect(r.amount).toBe(350)
+    expect(r.billableHc).toBe(1)
+    expect(r.formula).toBe("一對一固定 $350")
+  })
+
+  it("does not pay fixed 1:1 when the lesson is not billable", () => {
+    const l = lesson({
+      scheduleId: "s-natalie-leave",
+      teacherId: "natalie",
+      privateSlot: "one_to_one",
+      classKind: "private",
+      students: [{ studentId: "1", studentName: "A", status: "病假", billable: false, listPrice: 650 }],
+    })
+    const r = computeHcLessonAmount(
+      l,
+      parseRateConfig({
+        junior: { base: 120, per_extra: 60 },
+        one_to_one: 350,
+      })
+    )
+    expect(r.amount).toBe(0)
+    expect(r.billableHc).toBe(0)
+  })
 })
 
 describe("payroll month compute", () => {
