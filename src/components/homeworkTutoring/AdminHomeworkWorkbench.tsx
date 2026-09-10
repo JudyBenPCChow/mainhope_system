@@ -154,12 +154,22 @@ export function AdminHomeworkWorkbench({
 
   const hasStudentFilters = Boolean(query.trim()) || studentChipFilterCount > 0
 
-  const clearStudentFilters = () => {
-    setQuery("")
+  const resetStudentChipFilters = () => {
     setPlanFilter("")
     setStatusFilter("")
     setGradeFilter("")
     setMonthFilter("")
+  }
+
+  const clearStudentFilters = () => {
+    setQuery("")
+    resetStudentChipFilters()
+  }
+
+  /** 開始搜尋時清掉篩選，避免忘記篩選而找不到學生 */
+  const onStudentSearchChange = (value: string) => {
+    setQuery(value)
+    if (value.trim() && studentChipFilterCount > 0) resetStudentChipFilters()
   }
 
   const studentFilterChips = (
@@ -384,7 +394,7 @@ export function AdminHomeworkWorkbench({
             ) : null}
             <Input
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => onStudentSearchChange(e.target.value)}
               placeholder="搜尋姓名／學號"
               className="h-10 sm:max-w-xs"
             />
@@ -408,7 +418,7 @@ export function AdminHomeworkWorkbench({
               onClose={() => setFiltersOpen(false)}
               title="篩選功輔報讀"
               activeCount={studentChipFilterCount}
-              onReset={clearStudentFilters}
+              onReset={resetStudentChipFilters}
             >
               {studentFilterChips}
             </MobileFilterSheet>

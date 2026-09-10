@@ -335,6 +335,8 @@ export function PrivateTutoringView() {
     setSearch(match.fullName)
     setHighlightStudentId(prefId)
     setEnrollRowFilter("all")
+    setRegFilter("all")
+    setActivityFilter("all")
    } else {
     setHighlightStudentId(prefId)
    }
@@ -634,6 +636,18 @@ export function PrivateTutoringView() {
   if (activityFilter !== "all") n++
   return n
  }, [enrollRowFilter, regFilter, activityFilter])
+
+ const resetFilters = () => {
+  setEnrollRowFilter("all")
+  setRegFilter("all")
+  setActivityFilter("all")
+ }
+
+ /** 開始搜尋時清掉篩選，避免忘記篩選而找不到學生 */
+ const onSearchChange = (value: string) => {
+  setSearch(value)
+  if (value.trim() && activeFilterCount > 0) resetFilters()
+ }
 
  const activeStudentIdsByClass = useMemo(() => {
   const map = new Map<string, string[]>()
@@ -1173,7 +1187,7 @@ export function PrivateTutoringView() {
           className="h-10 pl-10 text-sm"
           placeholder="搜尋姓名、學號、科目…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => onSearchChange(e.target.value)}
          />
         </div>
         <Button type="button" variant="outline" className="h-10 shrink-0 gap-2" onClick={() => setFiltersOpen(true)}>
@@ -1193,9 +1207,7 @@ export function PrivateTutoringView() {
         activeCount={activeFilterCount}
         onReset={() => {
          setSearch("")
-         setEnrollRowFilter("all")
-         setRegFilter("all")
-         setActivityFilter("all")
+         resetFilters()
         }}
        >
         <label className="grid gap-1 text-sm">
@@ -1204,7 +1216,7 @@ export function PrivateTutoringView() {
           className="h-10"
           placeholder="姓名、學號、科目、老師…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => onSearchChange(e.target.value)}
          />
         </label>
         <label className="grid gap-1 text-sm">
@@ -1265,7 +1277,7 @@ export function PrivateTutoringView() {
          className="h-10 pl-10 text-sm"
          placeholder="搜尋姓名、學號、科目、老師…"
          value={search}
-         onChange={(e) => setSearch(e.target.value)}
+         onChange={(e) => onSearchChange(e.target.value)}
         />
        </div>
        <Select

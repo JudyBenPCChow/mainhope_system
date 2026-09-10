@@ -576,6 +576,12 @@ export function StudentsListPage() {
   setHeaderFilters(EMPTY_HEADER_FILTERS)
  }
 
+ /** 開始搜尋時清掉篩選，避免忘記篩選而找不到學生 */
+ const onSearchChange = (value: string) => {
+  setSearch(value)
+  if (value.trim() && activeFilterCount > 0) resetFilters()
+ }
+
  const selectedRows = useMemo(
   () => filtered.filter((r) => selectedIds.includes(r.id)),
   [filtered, selectedIds]
@@ -1315,7 +1321,7 @@ export function StudentsListPage() {
       className="pl-9"
       placeholder="搜尋姓名 / 學號 / 學生電話 / 家長電話…"
       value={search}
-      onChange={(e) => setSearch(e.target.value)}
+      onChange={(e) => onSearchChange(e.target.value)}
      />
     </div>
     <div className="flex flex-wrap gap-2">
