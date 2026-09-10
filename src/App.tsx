@@ -23,7 +23,6 @@ import AllFeatures from "@/pages/AllFeatures"
 import Home from "@/pages/Home"
 import Inbox from "@/pages/Inbox"
 import LeaveManagement from "@/pages/LeaveManagement"
-import LessonBalanceMismatch from "@/pages/LessonBalanceMismatch"
 import Login from "@/pages/Login"
 import Courses from "@/pages/Courses"
 import PaymentDiscounts from "@/pages/PaymentDiscounts"
@@ -66,8 +65,6 @@ const ExpenseJournal = lazy(() => import("@/pages/ExpenseJournal"))
 const ExpenseJournalRecords = lazy(() => import("@/pages/ExpenseJournalRecords"))
 const Payroll = lazy(() => import("@/pages/Payroll"))
 const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
-const SecondaryAttendanceReport = lazy(() => import("@/pages/SecondaryAttendanceReport"))
-
 /** 免登入計糧 mock 預覽：本地 DEV，或建置時 VITE_PAYROLL_UI_PREVIEW=1（勿用於正式 production） */
 const enablePayrollUiPreview =
  import.meta.env.DEV || import.meta.env.VITE_PAYROLL_UI_PREVIEW === "1"
@@ -111,10 +108,6 @@ export default function App() {
      <Route
       path="/Students/:studentId"
       element={withCapabilities(["students.read"], <StudentDetail />)}
-     />
-     <Route
-      path="/LessonBalanceMismatch"
-      element={withCapabilities(["entitlements.read"], <LessonBalanceMismatch />)}
      />
      <Route
       path="/FrontDeskWizard"
@@ -213,21 +206,6 @@ export default function App() {
         }
        >
         <EnrollmentReports />
-       </Suspense>
-      )}
-     />
-     <Route
-      path="/SecondaryAttendanceReport"
-      element={withCapabilities(
-       ["audit.read_all"],
-       <Suspense
-        fallback={
-         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-          載入中學出席統計…
-         </div>
-        }
-       >
-        <SecondaryAttendanceReport />
        </Suspense>
       )}
      />

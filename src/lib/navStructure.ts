@@ -117,13 +117,6 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    { path: "/PrivateTutoring", label: "我的私人課程", roles: ["teacher"], icon: UserRound },
    { path: "/EnrollmentReports", label: "人數報表", roles: ["manager", "alien"], icon: BarChart3 },
    {
-    path: "/SecondaryAttendanceReport",
-    label: "中學出席統計",
-    roles: ["manager", "alien"],
-    icon: BarChart3,
-   },
-   { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin", "manager", "alien"], icon: Scale },
-   {
     path: "/PromotionMatch",
     label: "宣傳配對",
     roles: ["admin", "alien"],

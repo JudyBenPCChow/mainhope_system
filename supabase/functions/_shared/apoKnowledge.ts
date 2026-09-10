@@ -93,7 +93,7 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
-admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、私人課程 /PrivateTutoring、人數報表 /EnrollmentReports、中學出席統計 /SecondaryAttendanceReport、堂數對帳 /LessonBalanceMismatch、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／堂數更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、私人課程 /PrivateTutoring、人數報表 /EnrollmentReports、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／堂數更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard、計糧 /Payroll
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的私人課程 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
@@ -144,8 +144,6 @@ ${APO_SYSTEM_DIRECTIVES}
 - /TrialSessions 試堂紀錄（轉正／流失復盤）
 - /PrivateTutoring 私人課程（含一對一／一對二）
 - /EnrollmentReports 人數報表
-- /SecondaryAttendanceReport 中學出席統計
-- /LessonBalanceMismatch 堂數對帳
 - /PromotionMatch 宣傳配對
 - /Teachers 老師管理
 - /Classes 班別管理
@@ -161,7 +159,8 @@ ${APO_SYSTEM_DIRECTIVES}
 - /PaymentHistory 繳費紀錄（含作廢）
 - /PaymentCorrection 單據／堂數更正（已繳堂數調動）
 - /PaymentDiscounts 優惠折扣（編輯多半 alien）
-- /MgmtDashboard 營運總覽
+- /MgmtDashboard 營運總覽（含堂數缺口／待補跟進）
+- /Payroll 計糧（含授課堂數／出席統計）
 
 ### teacher
 - /TeacherTimetable 時間表
@@ -258,7 +257,7 @@ ${APO_SYSTEM_DIRECTIVES}
 
 ## 堂數對帳與待補堂
 
-- 全站列表：/LessonBalanceMismatch「堂數對帳」— 就讀中報讀中，已繳 vs 已綁排程／待補不一致、仍有待補，或請假尚無補堂日。
+- 全站跟進：/MgmtDashboard「營運總覽」堂數缺口分頁 — 就讀中報讀中，已繳 vs 已綁排程／待補不一致、仍有待補，或請假尚無補堂日。
 - 學生詳情「報讀班別」亦可睇該班對帳、手動「記錄待補堂」。
 - 「待補堂」（student_pending_lessons）≠ 請假管理「待補課」分頁：前者係遲報／缺排程堂數差額；後者係請假後要補嘅課堂。
 
@@ -302,7 +301,7 @@ ${APO_SYSTEM_DIRECTIVES}
 - 點名：/Attendance 或排程頁「確定點名」（單堂未報讀會有文字提醒）
 - 請假：/LeaveManagement、學生詳情，或前台精靈第 4 步
 - 課堂取消後安排補堂：班別詳情 → 已取消堂次 →「安排補堂」（補回加堂；單堂選堂會改掛；唔好用「新增排程」代替）
-- 堂數對帳跟進：/LessonBalanceMismatch
+- 堂數對帳跟進：/MgmtDashboard（營運總覽堂數缺口）；單一學生見詳情「報讀班別」
 - 試堂：/TrialSessions（全價／半價／免費一律出單確認後先上點名紙；免費 $0、堂數 1；半價＝正價＋50% 優惠）
 - 試堂轉正式報讀：未點名仍可轉（會警告）→「轉正式報讀」（同班；可揀常規報讀／期數／單堂；學費去收款登記）→ 結果「已轉化」
 - 試堂復盤：可「標流失」或「其他結果」（改期／轉介等）；與 status（已預約／已完成／取消）分開；流失須先取消
