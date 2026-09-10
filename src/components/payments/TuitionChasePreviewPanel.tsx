@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { ArrowUpRight, Banknote, CalendarDays, ChevronDown, HandCoins } from "lucide-react"
 
 import { money } from "@/components/payments/paymentsUi"
@@ -26,6 +26,7 @@ import {
  tuitionChaseBalanceWhy,
  tuitionChaseSuggestedOnceCaption,
 } from "@/lib/tuitionChaseLabels"
+import { studentDetailLinkState } from "@/lib/studentDetailNav"
 import { cn } from "@/lib/utils"
 import {
  fetchTuitionChaseStudentDetail,
@@ -117,6 +118,7 @@ export function TuitionChasePreviewPanel(props: {
  showBack?: boolean
  onClose?: () => void
 }) {
+ const location = useLocation()
  const { row } = props
  const thisPeriodLabel = props.currentPeriod?.label ?? "本期"
  const nextPeriodLabel = props.nextPeriod?.label ?? "下期"
@@ -421,7 +423,9 @@ export function TuitionChasePreviewPanel(props: {
       </Link>
      </Button>
      <Button asChild variant="outline" className="w-full">
-      <Link to={detailHref}>開完整詳情</Link>
+      <Link to={detailHref} state={studentDetailLinkState(location)}>
+       開完整詳情
+      </Link>
      </Button>
     </div>
   </div>
