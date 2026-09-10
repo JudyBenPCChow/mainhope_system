@@ -282,8 +282,6 @@ const adminCritical = [
   "/TrialSessions",
   "/PrivateTutoring",
   "/EnrollmentReports",
-  "/SecondaryAttendanceReport",
-  "/LessonBalanceMismatch",
   "/PromotionMatch",
   "/Classes",
   "/Teachers",

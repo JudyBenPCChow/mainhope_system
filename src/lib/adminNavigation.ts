@@ -203,7 +203,6 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
   label: "報表與分析",
   icon: BarChart3,
   children: [
-   { path: "/LessonBalanceMismatch", label: "堂數對帳", roles: ["admin"], icon: Scale },
    { path: "/PaymentCorrection", label: "單據／堂數更正", roles: ["admin"], icon: Scale },
   ],
  },
