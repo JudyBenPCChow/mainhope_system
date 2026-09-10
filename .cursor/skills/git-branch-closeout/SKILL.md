@@ -44,12 +44,21 @@ description: >-
 
 SHA 不在 `origin/main` 仍可能已 squash／由另一 PR 合入。核對已合 PR 或 `git cat-file -e origin/main:<關鍵檔>`。
 
+## 多 agent／分題隔離
+
+收尾只清 **本輪已合入 PR 的 head branch／本題 worktree**。
+
+- 不要刪其他 open PR、其他 agent 的 dirty worktree、stash、或仍有未合獨特內容的 branch。
+- 為對齊 `main` 而 `checkout` 時：若有**非本題**未提交檔會被蓋掉 → 停、報告路徑，等使用者；不要為清場而 reset／restore／`worktree remove --force`。
+- 盤點時把「別人未合的工作」列為保留，不要當成垃圾清掉。
+
 ## 不要
 
 - 刪**仍有未合獨特內容**的 branch（先對最新 `main` 重做或開 PR）
 - 把落後 `origin/main` 的舊 dirty 工作樹 commit 上去（會倒退）
 - 刪 `docs/year/2627/timetable/versions/` 歷史方案檔
 - 改 git config、`--force` push `main`、未獲指示的 `worktree remove --force`
+- 為「開工乾淨」而動到其他 agent／其他分題的未提交內容
 
 ## 工具
 

@@ -49,7 +49,10 @@ import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
-import { resolveStudentDetailExitPath } from "@/lib/studentDetailNav"
+import {
+ navigateStudentDetailLeave,
+ resolveStudentDetailBackLabel,
+} from "@/lib/studentDetailNav"
 import {
  parseStudentDetailTab,
  STUDENT_DETAIL_TABS,
@@ -213,7 +216,13 @@ export function StudentDetailView() {
  const [searchParams, setSearchParams] = useSearchParams()
  const isMobile = useIsMobile()
  const { ready: authReady, role: authRole, profile } = useAuth()
- const exitPath = useMemo(() => resolveStudentDetailExitPath(location, authRole), [location, authRole])
+ const leaveDetail = useCallback(() => {
+  navigateStudentDetailLeave(navigate, location, authRole)
+ }, [navigate, location, authRole])
+ const backLabel = useMemo(
+  () => resolveStudentDetailBackLabel(location, authRole),
+  [location, authRole]
+ )
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [tab, setTabState] = useState<TabId>(() =>
@@ -627,8 +636,8 @@ export function StudentDetailView() {
  const requestLeave = useCallback(async () => {
   const ok = await confirmUnsavedIfNeeded()
   if (!ok) return
-  navigate(exitPath)
- }, [confirmUnsavedIfNeeded, navigate, exitPath])
+  leaveDetail()
+ }, [confirmUnsavedIfNeeded, leaveDetail])
 
  const setTab = useCallback(
   (next: TabId) => {
@@ -1369,10 +1378,10 @@ export function StudentDetailView() {
   return (
    <AdaptiveDetailLayer
     variant="student"
-    onDismiss={() => navigate(exitPath)}
+    onDismiss={leaveDetail}
     layerLabel={null}
     chrome={
-     <DetailLayerChrome title="學生詳情" onClose={() => navigate(exitPath)} />
+     <DetailLayerChrome title="學生詳情" onClose={leaveDetail} />
     }
    >
     <p className="p-6 text-muted-foreground">無效的學生編號</p>
@@ -1385,10 +1394,10 @@ export function StudentDetailView() {
   return (
    <AdaptiveDetailLayer
     variant="student"
-    onDismiss={() => navigate(exitPath)}
+    onDismiss={leaveDetail}
     layerLabel={null}
     chrome={
-     <DetailLayerChrome title="學生詳情" onClose={() => navigate(exitPath)} />
+     <DetailLayerChrome title="學生詳情" onClose={leaveDetail} />
     }
    >
     <div className="p-6">
@@ -1406,8 +1415,8 @@ export function StudentDetailView() {
      ) : (
       <p className="text-muted-foreground">找不到此學生。</p>
      )}
-     <Button type="button" variant="outline" className="mt-4" asChild>
-      <Link to={exitPath}>返回</Link>
+     <Button type="button" variant="outline" className="mt-4" onClick={leaveDetail}>
+      返回
      </Button>
     </div>
    </AdaptiveDetailLayer>
@@ -1429,7 +1438,7 @@ export function StudentDetailView() {
   >
   <div className={`flex min-h-full flex-col ${adminPageSurfaceClass} px-4 pb-4 md:px-0 md:pb-0`}>
    <RecordPageHeader
-    backLabel={exitPath.startsWith("/Classes") ? "返回班別管理" : "返回學生管理"}
+    backLabel={backLabel}
     onBack={() => void requestLeave()}
     loading={loading}
     title={student?.full_name ?? "學生詳情"}
