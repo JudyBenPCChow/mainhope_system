@@ -59,10 +59,12 @@ describe("行政側欄 IA", () => {
   ])
   expect(payments?.kind === "group" ? payments.children.map((child) => child.path) : []).toEqual([
    "/Payments",
+   "/TuitionChase",
    "/PaymentHistory",
   ])
   expect(payments?.kind === "group" ? payments.children.map((child) => child.label) : []).toEqual([
    "收款登記",
+   "學費追收",
    "繳費紀錄",
   ])
   expect(courses?.kind === "group" ? courses.children.map((child) => child.label) : []).toEqual([
@@ -123,6 +125,8 @@ describe("行政側欄 IA", () => {
   expect(adminNavPathIsActive("/Payments", "/Payments")).toBe(true)
   expect(adminNavPathIsActive("/PaymentHistory", "/Payments")).toBe(false)
   expect(adminNavPathIsActive("/PaymentHistory", "/PaymentHistory")).toBe(true)
+  expect(adminNavPathIsActive("/TuitionChase", "/Payments")).toBe(false)
+  expect(adminNavPathIsActive("/TuitionChase", "/TuitionChase")).toBe(true)
   expect(adminNavPathIsActive("/PaymentDiscounts", "/Payments")).toBe(true)
   expect(adminNavPathIsActive("/AcademicCalendar", "/Classes")).toBe(true)
   expect(adminNavPathIsActive("/TeachingRecords", "/Classes")).toBe(true)
@@ -136,6 +140,7 @@ describe("行政側欄 IA", () => {
   )
   expect(payments && adminNavEntryIsActive("/Payments", payments)).toBe(true)
   expect(payments && adminNavEntryIsActive("/PaymentHistory", payments)).toBe(true)
+  expect(payments && adminNavEntryIsActive("/TuitionChase", payments)).toBe(true)
   expect(payments && adminNavEntryIsActive("/PaymentDiscounts", payments)).toBe(true)
   expect(courses && adminNavEntryIsActive("/TeachingRecords", courses)).toBe(true)
 
@@ -161,6 +166,7 @@ describe("行政側欄 IA", () => {
   const payments = topLevel.find((entry) => entry.kind === "group" && entry.id === "admin-payments")
   expect(payments?.kind === "group" ? payments.children.map((child) => child.label) : []).toEqual([
    "收款登記",
+   "學費追收",
    "繳費紀錄",
   ])
  })
@@ -200,19 +206,22 @@ describe("行政側欄 IA", () => {
 })
 
 describe("行政頁內導航", () => {
- it("頁內收款工作區仍保留三個分頁", () => {
+ it("頁內收款工作區含學費追收分頁", () => {
   expect(ADMIN_WORKSPACE_TABS.payments.map((tab) => tab.path)).toEqual([
    "/Payments",
+   "/TuitionChase",
    "/PaymentHistory",
    "/PaymentDiscounts",
   ])
   expect(ADMIN_WORKSPACE_TABS.payments.map((tab) => tab.label)).toEqual([
    "收款登記",
+   "學費追收",
    "繳費紀錄",
    "優惠折扣",
   ])
   expect(workspaceTabsForRole("payments", "admin").map((t) => t.path)).toEqual([
    "/Payments",
+   "/TuitionChase",
    "/PaymentHistory",
    "/PaymentDiscounts",
   ])
@@ -227,7 +236,7 @@ describe("行政頁內導航", () => {
  })
 
  it("同一工作域共用簡介文案", () => {
-  expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toBe("登記學費、檢視繳費紀錄及管理優惠折扣。")
+  expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toBe("登記學費、追收堂數、檢視繳費紀錄及管理優惠折扣。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toBe("管理專科班、專科校曆及教學紀錄。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toBe("管理功課輔導的今日情況、報讀、月費、當值與校曆。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toBe("查閱日記帳紀錄及新增入帳。")

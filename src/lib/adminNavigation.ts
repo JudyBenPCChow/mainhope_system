@@ -1,4 +1,5 @@
 import {
+ Banknote,
  BarChart3,
  BellRing,
  BookOpen,
@@ -77,6 +78,7 @@ export const ADMIN_MAIN_NAV: NavEntryDef[] = [
   icon: Wallet,
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin"], icon: HandCoins },
+   { path: "/TuitionChase", label: "學費追收", roles: ["admin"], icon: Banknote },
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin"], icon: Wallet },
   ],
  },
@@ -175,6 +177,7 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
   icon: Wallet,
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin"], icon: HandCoins },
+   { path: "/TuitionChase", label: "學費追收", roles: ["admin"], icon: Banknote },
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin"], icon: Wallet },
    { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin"], icon: Percent },
    { path: "/ExpenseJournalRecords", label: "日記帳紀錄", roles: ["admin"], icon: ScrollText },
@@ -228,6 +231,7 @@ export type AdminWorkspaceTab = {
 export const ADMIN_WORKSPACE_TABS: Record<AdminWorkspaceId, readonly AdminWorkspaceTab[]> = {
  payments: [
   { path: "/Payments", label: "收款登記" },
+  { path: "/TuitionChase", label: "學費追收" },
   { path: "/PaymentHistory", label: "繳費紀錄" },
   { path: "/PaymentDiscounts", label: "優惠折扣" },
  ],
@@ -252,7 +256,7 @@ export const ADMIN_WORKSPACE_TABS: Record<AdminWorkspaceId, readonly AdminWorksp
 
 /** 同一工作域兄弟頁共用簡介，切換分頁時標題區文案穩定。 */
 export const ADMIN_WORKSPACE_DESCRIPTION: Record<AdminWorkspaceId, string> = {
- payments: "登記學費、檢視繳費紀錄及管理優惠折扣。",
+ payments: "登記學費、追收堂數、檢視繳費紀錄及管理優惠折扣。",
  specialty: "管理專科班、專科校曆及教學紀錄。",
  homework: "管理功課輔導的今日情況、報讀、月費、當值與校曆。",
  journal: "查閱日記帳紀錄及新增入帳。",
@@ -293,8 +297,8 @@ export function resolveAdminWorkspacePath(
 export function adminNavPathIsActive(pathname: string, itemPath: string): boolean {
  if (itemPath === "/Payments") {
   const resolved = resolveAdminWorkspacePath("payments", pathname)
-  // 繳費紀錄已有自己的側欄子項；其餘收款工作域頁（如優惠折扣）仍高亮「收款登記」
-  return resolved != null && resolved !== "/PaymentHistory"
+  // 繳費紀錄／學費追收已有自己的側欄子項；優惠折扣等仍高亮「收款登記」
+  return resolved === "/Payments" || resolved === "/PaymentDiscounts"
  }
  if (itemPath === "/Classes") return resolveAdminWorkspacePath("specialty", pathname) != null
  if (itemPath === HW_PATH.overview) return isHomeworkTutoringPath(pathname)

@@ -67,6 +67,7 @@ import {
  setPaymentHistoryDataCache,
  type PaymentHistoryStatusFilter,
 } from "@/components/payments/paymentHistoryState"
+import { invalidateTuitionChaseListDataCache } from "@/components/payments/tuitionChaseListState"
 import { bumpRequestGeneration, isLiveRequestGeneration } from "@/lib/requestGeneration"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
 
@@ -337,6 +338,7 @@ export function PaymentHistoryView() {
   try {
    await markPaymentReceived(markTarget.id, { paymentMethod: markMethod })
    invalidatePaymentHistoryDataCache()
+   invalidateTuitionChaseListDataCache()
    setReceivedDone({
     paymentId: markTarget.id,
     amount: markTarget.totalAmount,
@@ -840,6 +842,7 @@ export function PaymentHistoryView() {
     }}
     onVoided={() => {
      invalidatePaymentHistoryDataCache()
+     invalidateTuitionChaseListDataCache()
      void loadHistory()
     }}
    />

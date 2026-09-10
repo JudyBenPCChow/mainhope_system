@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { X } from "lucide-react"
 
+import { TuitionChasePreviewPanel } from "@/components/payments/TuitionChasePreviewPanel"
 import { ClassPreviewPanel } from "@/components/recordPreview/ClassPreviewPanel"
 import { SchedulePreviewPanel } from "@/components/recordPreview/SchedulePreviewPanel"
 import { StudentPreviewPanel } from "@/components/recordPreview/StudentPreviewPanel"
@@ -49,6 +50,14 @@ export function RecordPreviewRail({ empty }: Props) {
        <ClassPreviewPanel classId={preview.id} />
       ) : preview.kind === "schedule" ? (
        <SchedulePreviewPanel scheduleId={preview.id} />
+      ) : preview.kind === "tuitionChase" ? (
+       <TuitionChasePreviewPanel
+        row={preview.row}
+        poolKey={preview.poolKey}
+        currentPeriod={preview.currentPeriod}
+        nextPeriod={preview.nextPeriod}
+        academicYearLabel={preview.academicYearLabel}
+       />
       ) : (
        <div className="px-3 py-3 pr-10">
         <TeacherPreviewPanel teacherId={preview.id} />

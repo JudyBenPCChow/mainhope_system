@@ -17,6 +17,7 @@ import { TransferClassTimeDialog } from "@/components/students/TransferClassTime
 import { StudentFutureSchedulesTab } from "@/components/students/StudentFutureSchedulesTab"
 import { StudentHistoryTab } from "@/components/students/StudentHistoryTab"
 import { StudentLeaveTab } from "@/components/students/StudentLeaveTab"
+import { StudentTuitionChaseTab } from "@/components/students/StudentTuitionChaseTab"
 import { Button } from "@/components/ui/button"
 import {
  Dialog,
@@ -233,7 +234,10 @@ export function StudentDetailView() {
  const canRegisterPayment = can(caps, "payments.create") || can(caps, "payments.mark_received")
 
  const visibleTabs = useMemo(
-  () => STUDENT_DETAIL_TABS.filter((t) => canViewMoney || t.id !== "payments"),
+  () =>
+   STUDENT_DETAIL_TABS.filter(
+    (t) => canViewMoney || (t.id !== "payments" && t.id !== "tuitionChase")
+   ),
   [canViewMoney]
  )
 
@@ -370,7 +374,7 @@ export function StudentDetailView() {
  const ensureTabData = useCallback(
   async (tabId: TabId, force = false) => {
    if (!sid) return
-   if (tabId === "attendance" || tabId === "leave" || tabId === "history" || tabId === "futureSchedules") return
+   if (tabId === "attendance" || tabId === "leave" || tabId === "history" || tabId === "futureSchedules" || tabId === "tuitionChase") return
    if (!force && tabLoadedRef.current.has(tabId)) return
    const includeMoney = canViewMoney
    setTabLoading(true)
@@ -1534,7 +1538,7 @@ export function StudentDetailView() {
       </button>
      </div>
     ) : null}
-    {tabLoading && tab !== "basic" && tab !== "futureSchedules" && tab !== "attendance" && tab !== "leave" && tab !== "history" ? (
+    {tabLoading && tab !== "basic" && tab !== "futureSchedules" && tab !== "attendance" && tab !== "leave" && tab !== "history" && tab !== "tuitionChase" ? (
      <p className="mb-4 flex items-center gap-2 text-sm text-muted-foreground" role="status">
       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
       載入此分頁…
@@ -2681,6 +2685,15 @@ export function StudentDetailView() {
        )}
       </div>
      </div>
+    ) : null}
+
+    {canViewMoney ? (
+     <StudentTuitionChaseTab
+      studentId={sid}
+      active={tab === "tuitionChase"}
+      reloadToken={islandReloadToken}
+      canRegisterPayment={canRegisterPayment}
+     />
     ) : null}
 
     <StudentAttendanceTab

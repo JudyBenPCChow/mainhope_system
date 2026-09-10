@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
  AlertCircle,
  AlertTriangle,
+ Banknote,
  BarChart3,
  BookOpen,
  Bot,
@@ -202,6 +203,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Wallet,
   children: [
    { path: "/Payments", label: "收款登記", roles: ["admin", "alien"], icon: HandCoins },
+   { path: "/TuitionChase", label: "學費追收", roles: ["admin", "alien"], icon: Banknote },
    { path: "/PaymentHistory", label: "繳費紀錄", roles: ["admin", "manager", "finance", "alien"], icon: Wallet },
    {
     path: "/PaymentCorrection",

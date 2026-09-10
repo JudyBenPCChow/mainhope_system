@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import { Loader2, MessageCircle } from "lucide-react"
 
 import { Skeleton } from "@/components/ui/skeleton"
+import { HintTooltip } from "@/components/ui/tooltip"
 import { useAppBanner } from "@/lib/appBanner"
 import { cn } from "@/lib/utils"
 import {
@@ -134,10 +135,13 @@ export function PreviewStat({
  label,
  value,
  tone = "default",
+ hint,
 }: {
  label: string
  value: React.ReactNode
- tone?: "default" | "info" | "warning"
+ tone?: "default" | "info" | "warning" | "destructive"
+ /** 有值時標籤可 hover 顯示說明 */
+ hint?: string
 }) {
  return (
   <div
@@ -145,6 +149,7 @@ export function PreviewStat({
     "rounded-xl border px-2 py-2 text-center",
     tone === "warning" && "border-warning/40 bg-warning/10",
     tone === "info" && "border-info/30 bg-info/10",
+    tone === "destructive" && "border-destructive/40 bg-destructive/10",
     tone === "default" && "border-border bg-muted/30"
    )}
   >
@@ -152,14 +157,25 @@ export function PreviewStat({
     className={cn(
      "text-lg font-semibold tabular-nums leading-tight",
      tone === "warning" && "text-warning",
-     tone === "info" && "text-info"
+     tone === "info" && "text-info",
+     tone === "destructive" && "text-destructive"
     )}
    >
     {value}
    </p>
-   <p className={cn("mt-0.5 text-[11px]", tone === "warning" ? "text-warning" : "text-muted-foreground")}>
-    {label}
-   </p>
+   <HintTooltip hint={hint} className="mt-0.5 w-full justify-center">
+    <span
+     className={cn(
+      "text-[11px]",
+      hint && "cursor-help underline decoration-dotted underline-offset-2",
+      tone === "warning" && "text-warning",
+      tone === "destructive" && "text-destructive",
+      (tone === "default" || tone === "info") && "text-muted-foreground"
+     )}
+    >
+     {label}
+    </span>
+   </HintTooltip>
   </div>
  )
 }

@@ -3,23 +3,46 @@ import { useLocation, useNavigate } from "react-router-dom"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
+import type { TuitionChasePeriodRef, TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
 
-export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule"
+export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase"
 
-export type RecordPreviewTarget = {
- kind: RecordPreviewKind
- id: string
-}
+export type RecordPreviewTarget =
+ | { kind: "student" | "class" | "teacher" | "schedule"; id: string }
+ | {
+    kind: "tuitionChase"
+    id: string
+    poolKey?: string
+    row: TuitionChaseStudentRow
+    currentPeriod: TuitionChasePeriodRef | null
+    nextPeriod: TuitionChasePeriodRef | null
+    academicYearLabel?: string
+   }
 
 type RecordPreviewContextValue = {
  preview: RecordPreviewTarget | null
  openPreview: (target: RecordPreviewTarget) => void
+ /** 不切換關閉，用於更新同一預覽（例如學費追收改組別）。 */
+ replacePreview: (target: RecordPreviewTarget) => void
  closePreview: () => void
  emptyOpen: boolean
  setEmptyOpen: (open: boolean) => void
 }
 
 const RecordPreviewContext = createContext<RecordPreviewContextValue | null>(null)
+
+const disabledPreview: Omit<RecordPreviewContextValue, "preview"> & {
+ preview: RecordPreviewTarget | null
+ enabled: false
+} = {
+ preview: null,
+ openPreview: () => {},
+ replacePreview: () => {},
+ closePreview: () => {},
+ emptyOpen: false,
+ setEmptyOpen: () => {},
+ enabled: false,
+}
 
 export function RecordPreviewProvider({ children }: { children: React.ReactNode }) {
  const location = useLocation()
@@ -32,6 +55,10 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
   setPreview((prev) =>
    prev && prev.kind === target.kind && prev.id === target.id ? null : target
   )
+ }, [])
+
+ const replacePreview = useCallback((target: RecordPreviewTarget) => {
+  setPreview(target)
  }, [])
 
  useEffect(() => {
@@ -49,8 +76,8 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
  }, [preview])
 
  const value = useMemo(
-  () => ({ preview, openPreview, closePreview, emptyOpen, setEmptyOpen }),
-  [preview, openPreview, closePreview, emptyOpen]
+  () => ({ preview, openPreview, replacePreview, closePreview, emptyOpen, setEmptyOpen }),
+  [preview, openPreview, replacePreview, closePreview, emptyOpen]
  )
 
  return <RecordPreviewContext.Provider value={value}>{children}</RecordPreviewContext.Provider>
@@ -63,20 +90,16 @@ export function useRecordPreview() {
  const enabled = Boolean(ctx) && !isMobile && (role === "admin" || role === "alien")
 
  if (!ctx || !enabled) {
-  return {
-   preview: null as RecordPreviewTarget | null,
-   openPreview: (_target: RecordPreviewTarget) => {},
-   closePreview: () => {},
-   emptyOpen: false,
-   setEmptyOpen: (_open: boolean) => {},
-   enabled: false,
-  }
+  return { ...disabledPreview, enabled: false as const }
  }
 
- return { ...ctx, enabled: true }
+ return { ...ctx, enabled: true as const }
 }
 
-function useOpenRecord(kind: RecordPreviewKind, pathPrefix: string) {
+function useOpenRecord(
+ kind: Exclude<RecordPreviewKind, "tuitionChase">,
+ pathPrefix: string
+) {
  const navigate = useNavigate()
  const location = useLocation()
  const { enabled, openPreview } = useRecordPreview()
