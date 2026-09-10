@@ -21,9 +21,11 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   attachExpenseJournalFile,
   createExpenseEntry,
+  fetchExpenseOwnerOptions,
   suggestExpenseAccount,
   type ExpenseCategoryRule,
   type ExpenseLedgerAccount,
+  type ExpenseOwnerOption,
 } from "@/services/expenseQueries"
 
 type Props = {
@@ -53,7 +55,8 @@ export function ExpenseJournalForm({
   const [amount, setAmount] = useState("")
   const [payMethod, setPayMethod] = useState<ExpensePayMethod>("cashbox")
   const [accountId, setAccountId] = useState("")
-  const [ownerLabel, setOwnerLabel] = useState("")
+  const [ownerKey, setOwnerKey] = useState("")
+  const [ownerOptions, setOwnerOptions] = useState<ExpenseOwnerOption[]>([])
   const [notes, setNotes] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [fileKey, setFileKey] = useState(0)
@@ -77,11 +80,46 @@ export function ExpenseJournalForm({
     [accounts, canReadFullLedger]
   )
 
+  const staffOwnerOptions = useMemo(
+    () => ownerOptions.filter((o) => o.group === "staff"),
+    [ownerOptions]
+  )
+  const teacherOwnerOptions = useMemo(
+    () => ownerOptions.filter((o) => o.group === "teacher"),
+    [ownerOptions]
+  )
+
   useEffect(() => {
     if (accountId && !accountOptions.some((a) => a.id === accountId)) {
       setAccountId("")
     }
   }, [accountId, accountOptions])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await fetchExpenseOwnerOptions()
+        if (!cancelled) setOwnerOptions(rows)
+      } catch (e) {
+        if (!cancelled) {
+          reportUserFacingError(e, {
+            source: "ExpenseJournalForm.loadOwners",
+            setErr,
+          })
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (ownerKey && !ownerOptions.some((o) => o.key === ownerKey)) {
+      setOwnerKey("")
+    }
+  }, [ownerKey, ownerOptions])
 
   const applyTitleSuggest = () => {
     if (!title.trim() || rules.length === 0) return
@@ -117,6 +155,11 @@ export function ExpenseJournalForm({
         setErr("請選擇費用類別")
         return
       }
+      const owner = ownerOptions.find((o) => o.key === ownerKey) ?? null
+      if (payMethod === "staff_advance" && !owner) {
+        setErr("職員墊支請選擇負責人")
+        return
+      }
       if (file) {
         const fileErr = expenseAttachmentValidationError(file)
         if (fileErr) {
@@ -129,7 +172,8 @@ export function ExpenseJournalForm({
         title,
         amountHkd,
         payMethod,
-        ownerLabel: payMethod === "staff_advance" ? ownerLabel || null : null,
+        ownerLabel: owner?.ownerLabel ?? null,
+        teacherId: owner?.teacherId ?? null,
         ledgerAccountId: accountId,
         notes: notes || null,
         canReadFullLedger,
@@ -150,7 +194,7 @@ export function ExpenseJournalForm({
       setTitle("")
       setAmount("")
       setNotes("")
-      setOwnerLabel("")
+      setOwnerKey("")
       setFile(null)
       setFileKey((k) => k + 1)
       setSuggestHint(null)
@@ -214,16 +258,32 @@ export function ExpenseJournalForm({
             ))}
           </Select>
         </label>
-        {payMethod === "staff_advance" ? (
-          <label className="space-y-1 text-sm">
-            <span className="text-muted-foreground">邊個墊支</span>
-            <Input
-              value={ownerLabel}
-              onChange={(e) => setOwnerLabel(e.target.value)}
-              placeholder="職員姓名"
-            />
-          </label>
-        ) : null}
+        <label className="space-y-1 text-sm">
+          <span className="text-muted-foreground">
+            {payMethod === "staff_advance" ? "負責人（墊支人）" : "負責人"}
+          </span>
+          <Select value={ownerKey} onChange={(e) => setOwnerKey(e.target.value)}>
+            <option value="">請選擇</option>
+            {staffOwnerOptions.length > 0 ? (
+              <optgroup label="行政人員">
+                {staffOwnerOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+            {teacherOwnerOptions.length > 0 ? (
+              <optgroup label="老師">
+                {teacherOwnerOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+          </Select>
+        </label>
         <label className="space-y-1 text-sm">
           <span className="text-muted-foreground">備註</span>
           <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="選填" />
@@ -244,7 +304,7 @@ export function ExpenseJournalForm({
       </div>
       {payMethod === "staff_advance" ? (
         <p className="text-xs text-muted-foreground">
-          墊支只記支付渠道；公司還款時唔好再當成本入多一筆。
+          墊支只記支付渠道；公司還款時不要再當成成本多入一筆。負責人請選實際墊支人。
         </p>
       ) : null}
       {suggestHint ? (
