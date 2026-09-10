@@ -5,6 +5,8 @@ import {
  Banknote,
  BookOpen,
  CalendarOff,
+ Check,
+ Copy,
  GraduationCap,
  Loader2,
  Phone,
@@ -25,6 +27,8 @@ import { StudentClassificationTags } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerStack } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
+import { HintTooltip } from "@/components/ui/tooltip"
+import { useAppBanner } from "@/lib/appBanner"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { formatClassTimeDisplay } from "@/lib/consecutiveLesson"
@@ -67,6 +71,46 @@ function enrollmentTimeLine(e: EnrollmentWithClass): string | null {
 
 type Props = {
  studentId: string
+}
+
+function CopyTextButton({
+ text,
+ label,
+}: {
+ text: string
+ label: string
+}) {
+ const { pushBanner } = useAppBanner()
+ const [copied, setCopied] = useState(false)
+
+ useEffect(() => {
+  if (!copied) return
+  const t = window.setTimeout(() => setCopied(false), 1500)
+  return () => window.clearTimeout(t)
+ }, [copied])
+
+ return (
+  <HintTooltip hint="複製到剪貼板">
+   <button
+    type="button"
+    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    aria-label={label}
+    onClick={() => {
+     void navigator.clipboard.writeText(text).then(
+      () => {
+       setCopied(true)
+       pushBanner({ tone: "success", title: `已${label}` })
+      },
+      () => {
+       pushBanner({ tone: "warning", title: "無法複製", message: "請手動選取文字。" })
+      }
+     )
+    }}
+   >
+    {copied ? <Check className="h-3.5 w-3.5 text-success" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+   </button>
+  </HintTooltip>
+ )
 }
 
 export function StudentPreviewPanel({ studentId }: Props) {
@@ -191,6 +235,7 @@ export function StudentPreviewPanel({ studentId }: Props) {
    ? `${student.parent_relationship} · ${contactName}`
    : contactName
  const messaging = resolvePrimaryMessagingTarget(student)
+ const studentCode = student.student_code ?? student.id.slice(0, 8)
  const secondaryActions = [
   canPay ? (
    <Button key="pay" asChild variant="outline" className="w-full">
@@ -221,12 +266,16 @@ export function StudentPreviewPanel({ studentId }: Props) {
       aria-hidden="true"
       className="h-24 w-24 rounded-full object-cover shadow-sm ring-4 ring-card"
      />
-     <p className="mt-3">
+     <p className="mt-3 inline-flex items-center gap-1">
       <Tag tone="default" size="sm" className="font-mono tabular-nums">
-       {student.student_code ?? student.id.slice(0, 8)}
+       {studentCode}
       </Tag>
+      <CopyTextButton text={studentCode} label="複製學生編號" />
      </p>
-     <h2 className="mt-1.5 text-2xl font-bold leading-tight">{student.full_name}</h2>
+     <div className="mt-1.5 inline-flex items-center gap-1.5">
+      <h2 className="text-2xl font-bold leading-tight">{student.full_name}</h2>
+      <CopyTextButton text={student.full_name} label="複製姓名" />
+     </div>
      {student.english_name ? (
       <p className="mt-0.5 text-xs text-neutral-700">{student.english_name}</p>
      ) : null}
