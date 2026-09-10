@@ -32,6 +32,7 @@ import ReferralRebates from "@/pages/ReferralRebates"
 import PaymentHistory from "@/pages/PaymentHistory"
 import PaymentCorrection from "@/pages/PaymentCorrection"
 import Payments from "@/pages/Payments"
+import TuitionChase from "@/pages/TuitionChase"
 import Schedule from "@/pages/Schedule"
 import ScheduleDetail from "@/pages/ScheduleDetail"
 import ScriptLibrary from "@/pages/ScriptLibrary"
@@ -172,6 +173,10 @@ export default function App() {
       element={withCapabilities(["payments.create", "payments.mark_received"], <Payments />)}
      />
      <Route path="/MonthlyTuition" element={<Navigate to="/Payments" replace />} />
+     <Route
+      path="/TuitionChase"
+      element={withCapabilities(["payments.create", "payments.mark_received"], <TuitionChase />)}
+     />
      <Route
       path="/PaymentHistory"
       element={withCapabilities(["payments.read"], <PaymentHistory />)}

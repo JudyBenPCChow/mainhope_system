@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest"
 
-import { suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"
+import { suggestedClassPeriodPendingLessons, suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"
+
+describe("suggestedClassPeriodPendingLessons", () => {
+ it("uses this-class pending units and never subtracts remaining", () => {
+  expect(suggestedClassPeriodPendingLessons(4)).toBe(4)
+  expect(suggestedClassPeriodPendingLessons(0)).toBe(0)
+ })
+})
 
 describe("suggestedTuitionLessons", () => {
  it("suggests difference when schedule exceeds remaining", () => {

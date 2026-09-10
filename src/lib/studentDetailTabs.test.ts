@@ -16,7 +16,17 @@ describe("parseStudentDetailTab", () => {
   expect(parseStudentDetailTab("payments", { canViewMoney: false, capsReady: true })).toBe("basic")
  })
 
+ it("corrects tuitionChase when money is not readable", () => {
+  expect(parseStudentDetailTab("tuitionChase", { canViewMoney: false, capsReady: true })).toBe("basic")
+ })
+
  it("does not correct payments before capabilities load", () => {
   expect(parseStudentDetailTab("payments", { canViewMoney: false, capsReady: false })).toBe("payments")
+ })
+
+ it("does not correct tuitionChase before capabilities load", () => {
+  expect(parseStudentDetailTab("tuitionChase", { canViewMoney: false, capsReady: false })).toBe(
+   "tuitionChase"
+  )
  })
 })

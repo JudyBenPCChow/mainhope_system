@@ -29,6 +29,10 @@ import {
  type LineRow,
  type TrialPayType,
 } from "@/components/payments/paymentsUi"
+import {
+ TuitionChaseDuePair,
+ TuitionChaseStatusTag,
+} from "@/components/payments/tuitionChaseDueUi"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
@@ -95,6 +99,7 @@ import {
  type PaymentListRow,
 } from "@/services/paymentQueries"
 import { invalidatePaymentHistoryDataCache } from "@/components/payments/paymentHistoryState"
+import { invalidateTuitionChaseListDataCache } from "@/components/payments/tuitionChaseListState"
 import { fetchStudentClassLateFeePools } from "@/services/tuitionLateFeeQueries"
 import {
  applyDiscountsToSubtotal,
@@ -114,6 +119,8 @@ import {
  studentHasOpenTrialForClass,
 } from "@/services/trialQueries"
 import { fetchTuitionPaymentSuggestion } from "@/services/entitlementQueries"
+import { fetchTuitionChaseForStudent, type TuitionChasePeriodRef, type TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
+import { tuitionChaseBalanceWhy, tuitionChaseThisPeriodSkipReason } from "@/lib/tuitionChaseLabels"
 import {
  fetchAllStudents,
  fetchEnrollmentsForStudent,
@@ -190,6 +197,11 @@ export function PaymentsPageView() {
  const [recentPayments, setRecentPayments] = useState<PaymentListRow[]>([])
  const [paidLessons, setPaidLessons] = useState<number | null>(null)
  const [attendedLessons, setAttendedLessons] = useState<number | null>(null)
+ const [chaseRow, setChaseRow] = useState<TuitionChaseStudentRow | null>(null)
+ const [chaseCurrentPeriod, setChaseCurrentPeriod] = useState<TuitionChasePeriodRef | null>(null)
+ const [chaseNextPeriod, setChaseNextPeriod] = useState<TuitionChasePeriodRef | null>(null)
+ const [chaseErr, setChaseErr] = useState<string | null>(null)
+ const [chaseLoading, setChaseLoading] = useState(false)
 
  const [lateFeePools, setLateFeePools] = useState<LateFeePoolRow[]>([])
  const [lateFeePoolsLoading, setLateFeePoolsLoading] = useState(false)
@@ -661,9 +673,19 @@ export function PaymentsPageView() {
    setRecentPayments([])
    setPaidLessons(null)
    setAttendedLessons(null)
+   setChaseRow(null)
+   setChaseCurrentPeriod(null)
+   setChaseNextPeriod(null)
+   setChaseErr(null)
+   setChaseLoading(false)
    return
   }
   setStudentCtxLoading(true)
+  setChaseErr(null)
+  setChaseRow(null)
+  setChaseCurrentPeriod(null)
+  setChaseNextPeriod(null)
+  setChaseLoading(true)
   try {
    const [recent, lessonStats] = await Promise.all([
     fetchRecentPaymentsForStudent(studentId, 3),
@@ -679,6 +701,22 @@ export function PaymentsPageView() {
    setAttendedLessons(null)
   } finally {
    setStudentCtxLoading(false)
+  }
+  try {
+   const chase = await fetchTuitionChaseForStudent(studentId)
+   setChaseRow(chase.row)
+   setChaseCurrentPeriod(chase.currentPeriod)
+   setChaseNextPeriod(chase.nextPeriod)
+  } catch (e) {
+   setChaseRow(null)
+   setChaseCurrentPeriod(null)
+   setChaseNextPeriod(null)
+   reportUserFacingError(e, {
+    source: "PaymentsPageView.loadTuitionChase",
+    setErr: setChaseErr,
+   })
+  } finally {
+   setChaseLoading(false)
   }
  }, [])
 
@@ -727,6 +765,11 @@ export function PaymentsPageView() {
    setRecentPayments([])
    setPaidLessons(null)
    setAttendedLessons(null)
+   setChaseRow(null)
+   setChaseCurrentPeriod(null)
+   setChaseNextPeriod(null)
+   setChaseErr(null)
+   setChaseLoading(false)
    setLateFeePools([])
    setLateFeePoolsWarn(null)
    setLateFeeWaivers({})
@@ -958,11 +1001,7 @@ export function PaymentsPageView() {
     classId,
    })
    if (!suggestion) return
-   const lessons =
-    suggestion.suggestedLessons > 0
-     ? String(suggestion.suggestedLessons)
-     : DEFAULT_LESSON_COUNT
-   updateLine(rowKey, { lessons })
+   updateLine(rowKey, { lessons: String(suggestion.suggestedLessons) })
   } catch (e) {
    console.warn("[PaymentsPageView] tuition suggestion", e)
   }
@@ -1260,6 +1299,7 @@ export function PaymentsPageView() {
    })
    await linkTrialsAfterPayment(id, details)
    invalidatePaymentHistoryDataCache()
+   invalidateTuitionChaseListDataCache()
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,
@@ -1335,6 +1375,7 @@ export function PaymentsPageView() {
    })
    await linkTrialsAfterPayment(id, details)
    invalidatePaymentHistoryDataCache()
+   invalidateTuitionChaseListDataCache()
    const full = await fetchPaymentFull(id)
    setReceivedDone({
     paymentId: id,
@@ -1388,6 +1429,93 @@ export function PaymentsPageView() {
     </div>
    ) : (
     <>
+     <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
+      <div className="flex items-center justify-between gap-2">
+       <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 className="text-sm font-semibold">學費追收</h3>
+        {chaseRow ? <TuitionChaseStatusTag status={chaseRow.status} /> : null}
+       </div>
+       <Button type="button" size="sm" variant="ghost" asChild>
+        <Link to={`/Students/${encodeURIComponent(selectedStudent.id)}?tab=tuitionChase`}>
+         詳情
+        </Link>
+       </Button>
+      </div>
+      {chaseErr ? (
+       <p className="mt-2 text-xs text-destructive">{chaseErr}</p>
+      ) : chaseLoading ? (
+       <p className="mt-2 text-xs text-muted-foreground">載入學費追收…</p>
+      ) : chaseRow ? (
+       <>
+        <p className="mt-1 text-xs text-muted-foreground">
+         本期：{chaseCurrentPeriod?.label ?? "本期"}
+         {chaseNextPeriod ? ` · 下期：${chaseNextPeriod.label}` : " · 本學年已無下期"}
+         。單位為常規第 N 期，不是下方堂數欄的曆月建議。
+        </p>
+        <TuitionChaseDuePair
+         className="mt-2"
+         thisPeriodLabel={chaseCurrentPeriod?.label ?? "本期"}
+         nextPeriodLabel={chaseNextPeriod?.label ?? "下期"}
+         thisPeriodDueLessons={chaseRow.thisPeriodDueLessons}
+         nextPeriodDueLessons={chaseRow.nextPeriodDueLessons}
+         remainingLessons={chaseRow.remainingLessons}
+         remainingKnown={chaseRow.remainingKnown}
+        />
+        <p className="mt-2 text-xs leading-relaxed text-foreground">
+         {tuitionChaseBalanceWhy({
+          thisPeriodLabel: chaseCurrentPeriod?.label ?? "本期",
+          nextPeriodLabel: chaseNextPeriod?.label ?? "下期",
+          remainingLessons: chaseRow.remainingLessons,
+          thisPeriodPendingUnits: chaseRow.thisPeriodPendingUnits,
+          thisPeriodDueLessons: chaseRow.thisPeriodDueLessons,
+          remainingAfterThisPeriod: chaseRow.remainingLessons - chaseRow.thisPeriodPendingUnits,
+          nextPeriodUnits: chaseRow.nextPeriodUnits,
+          nextPeriodDueLessons: chaseRow.nextPeriodDueLessons,
+          remainingKnown: chaseRow.remainingKnown,
+          thisPeriodDeductedUnits: chaseRow.thisPeriodDeductedUnits,
+          thisPeriodNondeductUnits: chaseRow.thisPeriodNondeductUnits,
+         })}
+        </p>
+        {chaseRow.pools.length > 1 ? (
+         <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+          {chaseRow.pools.map((p) => {
+           const skip = tuitionChaseThisPeriodSkipReason({
+            remainingLessons: p.remainingLessons,
+            remainingAfterThisPeriod: p.remainingAfterThisPeriod,
+            thisPeriodPendingUnits: p.thisPeriodPendingUnits,
+            thisPeriodDueLessons: p.thisPeriodDueLessons,
+            thisPeriodDeductedUnits: p.thisPeriodDeductedUnits,
+            thisPeriodNondeductUnits: p.thisPeriodNondeductUnits,
+            remainingKnown: p.remainingKnown,
+           })
+           return (
+           <li key={p.poolKey}>
+            {p.label}：
+            {!p.remainingKnown
+             ? "未有結餘資料"
+             : p.thisPeriodDueLessons > 0
+               ? `本期 ${p.thisPeriodDueLessons} 堂`
+               : skip
+                 ? `本期不用收（${skip}）`
+                 : "本期不用收"}
+            {p.remainingKnown ? (
+             <>
+              {" · "}
+              {p.nextPeriodDueLessons > 0 ? `下期 ${p.nextPeriodDueLessons} 堂` : "下期不用收"}
+             </>
+            ) : null}
+           </li>
+           )
+          })}
+         </ul>
+        ) : null}
+       </>
+      ) : (
+       <p className="mt-2 text-xs text-muted-foreground">
+        本學年沒有可追收的專科班／私人課程組別。
+       </p>
+      )}
+     </div>
      <div className="grid grid-cols-2 gap-2 md:gap-3 lg:grid-cols-1">
       <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-4">
        <div className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:gap-2 md:text-xs">
@@ -1821,7 +1949,7 @@ export function PaymentsPageView() {
              </p>
             ) : row.kind === "enrollment" ? (
              <p className="mt-1 text-xs text-muted-foreground">
-              建議＝同組別本月會扣堂 − 剩餘（可改；0＝本月唔使交）
+              建議＝此班本期尚未扣的排程堂數（不減尚餘、不加總同組其他班；可改）。池缺口見上方「學費追收」。功課輔導班仍為曆月月費。
              </p>
             ) : null}
            </FormField>

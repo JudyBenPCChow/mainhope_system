@@ -1,7 +1,6 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import {
  classNamespaceKey,
- namespacesEqual,
  resolveEntitlementNamespace,
  type EntitlementCourseGroup,
  type EntitlementNamespace,
@@ -21,8 +20,13 @@ import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { normalizeRosterPolicy } from "@/lib/scheduleRosterPolicy"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
-import { suggestedTuitionLessons } from "@/lib/tuitionPaymentSuggestion"
+import {
+ resolveSpecialistTuitionPeriods,
+ specialistTuitionPeriodDateSet,
+} from "@/lib/specialistTuitionPeriods"
+import { suggestedClassPeriodPendingLessons } from "@/lib/tuitionPaymentSuggestion"
 import { supabase } from "@/lib/supabaseClient"
+import { todayYmdLocal } from "@/lib/weekdayUtils"
 
 const POOL_COLUMNS =
  "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, course_group, namespace_key, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
@@ -1224,16 +1228,19 @@ export async function clawbackEntitlementsForPayment(opts: {
   return { clawedBackDetails, lessonsRemoved }
 }
 
-async function chargeableUnitsForClassInMonth(
- classId: string,
- from: string,
+async function pendingUnitsForClassInPeriod(opts: {
+ studentId: string
+ classId: string
+ from: string
  to: string
-): Promise<number> {
+ dateSet: ReadonlySet<string>
+}): Promise<number> {
+ /** 專科：只計該生本期 active 宣告（單堂不會把全班未扣都建議出去）。 */
  if (!supabase) return 0
  const { data: classRow, error: cErr } = await supabase
   .from("classes")
   .select("lesson_slots_per_session")
-  .eq("id", classId)
+  .eq("id", opts.classId)
   .maybeSingle()
  if (cErr) throw cErr
  const perSession = lessonUnits(
@@ -1241,25 +1248,63 @@ async function chargeableUnitsForClassInMonth(
  )
  const { data: schedRows, error: sErr } = await supabase
   .from("schedules")
-  .select("id, status")
-  .eq("class_id", classId)
-  .gte("scheduled_date", from)
-  .lte("scheduled_date", to)
+  .select("id, scheduled_date, status")
+  .eq("class_id", opts.classId)
+  .gte("scheduled_date", opts.from)
+  .lte("scheduled_date", opts.to)
  if (sErr) throw sErr
- let units = 0
+ const ids: string[] = []
+ const unitsById = new Map<string, number>()
  for (const raw of schedRows ?? []) {
-  const status = String((raw as { status?: string }).status ?? "")
-  if (status.includes("取消")) continue
-  units += perSession
+  const row = raw as { id?: string; scheduled_date?: string; status?: string }
+  const id = String(row.id ?? "")
+  const date = String(row.scheduled_date ?? "").slice(0, 10)
+  if (!id || !opts.dateSet.has(date)) continue
+  if (String(row.status ?? "").includes("取消")) continue
+  ids.push(id)
+  unitsById.set(id, perSession)
+ }
+ if (ids.length === 0) return 0
+ const { data: declRows, error: dErr } = await supabase
+  .from("attendance_declarations")
+  .select("schedule_id")
+  .eq("student_id", opts.studentId)
+  .eq("status", "active")
+  .in("schedule_id", ids)
+ if (dErr) throw dErr
+ const declared = new Set<string>()
+ for (const raw of declRows ?? []) {
+  const schId = String((raw as { schedule_id?: string }).schedule_id ?? "")
+  if (schId) declared.add(schId)
+ }
+ const countableIds = ids.filter((id) => declared.has(id))
+ if (countableIds.length === 0) return 0
+ const { data: attRows, error: aErr } = await supabase
+  .from("attendance_details")
+  .select("schedule_id, status")
+  .eq("student_id", opts.studentId)
+  .in("schedule_id", countableIds)
+  .not("schedule_id", "is", null)
+ if (aErr) throw aErr
+ const marked = new Set<string>()
+ for (const raw of attRows ?? []) {
+  const schId = String((raw as { schedule_id?: string }).schedule_id ?? "")
+  const status = String((raw as { status?: string }).status ?? "").trim()
+  if (schId && status) marked.add(schId)
+ }
+ let units = 0
+ for (const id of countableIds) {
+  if (marked.has(id)) continue
+  units += unitsById.get(id) ?? 1
  }
  return units
 }
 
-/** 收款建議：本月會扣堂排程單位 − 池餘（可為 0；可調）。非 gated 學年回 null。 */
+/** 收款建議：該行班別本期未扣排程數（不減尚餘、不加總同組其他班）。功輔不走此函式。 */
 export async function fetchTuitionPaymentSuggestion(opts: {
  studentId: string
  classId: string
- /** YYYY-MM；預設本月 */
+ /** YYYY-MM；功輔／舊呼叫保留，專科／私人改以期內未扣為準 */
  yearMonth?: string
 }): Promise<{
  suggestedLessons: number
@@ -1271,53 +1316,29 @@ export async function fetchTuitionPaymentSuggestion(opts: {
  if (!classCtx || !usesEntitlementRosterModel(classCtx.academicYearLabel)) return null
  if (classCtx.namespace.courseGroup === "homework") return null
 
- const ym = (opts.yearMonth ?? new Date().toISOString().slice(0, 7)).slice(0, 7)
- if (!/^\d{4}-\d{2}$/.test(ym)) return null
- const from = `${ym}-01`
- const lastDay = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate()
- const to = `${ym}-${String(lastDay).padStart(2, "0")}`
-
- const classIds = new Set<string>([opts.classId])
- if (classCtx.namespace.sharesAcrossClasses) {
-  const { data: enrs, error: eErr } = await supabase
-   .from("student_class_enrollments")
-   .select(
-    "class_id, classes!inner ( class_kind, subject, grade, academic_year_id, courses ( course_name, grade_code ) )"
-   )
-   .eq("student_id", opts.studentId)
-   .eq("status", "就讀中")
-   .eq("classes.academic_year_id", classCtx.academicYearId)
-  if (eErr) throw eErr
-  for (const raw of enrs ?? []) {
-   const row = raw as Record<string, unknown>
-   const siblingId = row.class_id != null ? String(row.class_id) : ""
-   if (!siblingId || siblingId === opts.classId) continue
-   const cls = row.classes as Record<string, unknown> | null
-   if (!cls) continue
-   const siblingNs = namespaceFromClassRow(siblingId, cls, false)
-   if (namespacesEqual(siblingNs, classCtx.namespace)) classIds.add(siblingId)
-  }
- }
-
- let chargeableUnits = 0
- for (const classId of classIds) {
-  chargeableUnits += await chargeableUnitsForClassInMonth(classId, from, to)
- }
-
+ const yearLabel = (classCtx.academicYearLabel ?? "").trim()
+ const { current } = resolveSpecialistTuitionPeriods({
+  todayYmd: todayYmdLocal(),
+  academicYearLabel: yearLabel,
+ })
+ if (!current) return null
+ const dateSet = specialistTuitionPeriodDateSet(current)
+ const pendingUnits = await pendingUnitsForClassInPeriod({
+  studentId: opts.studentId,
+  classId: opts.classId,
+  from: current.from,
+  to: current.to,
+  dateSet,
+ })
  const pool = await fetchPoolByNamespace({
   studentId: opts.studentId,
   academicYearId: classCtx.academicYearId,
   namespace: classCtx.namespace,
  })
- const remainingLessons = pool?.remainingLessons ?? 0
-
  return {
-  suggestedLessons: suggestedTuitionLessons({
-   chargeableScheduleUnits: chargeableUnits,
-   remainingLessons,
-  }),
-  chargeableUnits,
-  remainingLessons,
+  suggestedLessons: suggestedClassPeriodPendingLessons(pendingUnits),
+  chargeableUnits: pendingUnits,
+  remainingLessons: pool?.remainingLessons ?? 0,
  }
 }
 

@@ -49,6 +49,10 @@ const SCHEDULE_AND_TASK_RULES: StatusTagRule[] = [
 ]
 
 const PAYMENT_RULES: StatusTagRule[] = [
+ { tone: "warning", keywords: ["現在要追"] },
+ { tone: "info", keywords: ["下期要追"] },
+ { tone: "success", keywords: ["已預繳"] },
+ { tone: "default", keywords: ["未有結餘資料"] },
  // 繳費：成功入帳態
  { tone: "success", keywords: ["已收款", "已批核", "已收", "已繳費"] },
  { tone: "warning", keywords: ["未繳費", "待繳費", "待收款", "未收款"] },
