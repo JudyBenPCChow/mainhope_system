@@ -105,6 +105,16 @@ export type CreateExpenseEntryInput = {
   applySuggest?: boolean
 }
 
+/** 日記帳「負責人」下拉選項（行政人員＋在職老師） */
+export type ExpenseOwnerOption = {
+  /** `staff:<app_user_id>` 或 `teacher:<teacher_id>` */
+  key: string
+  label: string
+  group: "staff" | "teacher"
+  ownerLabel: string
+  teacherId: string | null
+}
+
 export type ExpenseEntryFilters = {
   monthKey?: string
   ledgerStatus?: ExpenseLedgerStatus | "all"
@@ -280,6 +290,75 @@ export async function fetchExpenseCategoryRules(): Promise<ExpenseCategoryRule[]
     .order("priority", { ascending: true })
   if (error) throw new Error(error.message)
   return (data ?? []).map((r) => asRule(r as RawRow))
+}
+
+function isActiveTeacherStatus(status: string | null): boolean {
+  const s = (status ?? "").trim()
+  if (!s) return true
+  return !/非在職|離職|離任|停職|已離開|不再續|終止|離校/.test(s)
+}
+
+function isTestTeacherName(name: string): boolean {
+  return /test\b|測試/i.test(name.trim())
+}
+
+function isSystemStaffLabel(label: string): boolean {
+  return /系統管理員|system\s*admin/i.test(label.trim())
+}
+
+/** 負責人選單：行政／管理層／財務＋在職老師（排除測試帳）。 */
+export async function fetchExpenseOwnerOptions(): Promise<ExpenseOwnerOption[]> {
+  const client = requireClient()
+  const [staffRes, teacherRes] = await Promise.all([
+    client
+      .from("app_users")
+      .select("id, display_name, email, role")
+      .in("role", ["admin", "manager", "finance"])
+      .order("display_name", { ascending: true }),
+    client
+      .from("teachers")
+      .select("id, full_name, status")
+      .order("full_name", { ascending: true }),
+  ])
+  if (staffRes.error) throw new Error(staffRes.error.message)
+  if (teacherRes.error) throw new Error(teacherRes.error.message)
+
+  const staff: ExpenseOwnerOption[] = []
+  for (const row of staffRes.data ?? []) {
+    const id = String((row as { id: string }).id)
+    const display =
+      (row as { display_name?: string | null }).display_name?.trim() ||
+      (row as { email?: string | null }).email?.trim() ||
+      ""
+    if (!display || isSystemStaffLabel(display)) continue
+    staff.push({
+      key: `staff:${id}`,
+      label: display,
+      group: "staff",
+      ownerLabel: display,
+      teacherId: null,
+    })
+  }
+
+  const teachers: ExpenseOwnerOption[] = []
+  for (const row of teacherRes.data ?? []) {
+    const id = String((row as { id: string }).id)
+    const name = String((row as { full_name?: string | null }).full_name ?? "").trim()
+    const status =
+      (row as { status?: string | null }).status != null
+        ? String((row as { status: string | null }).status)
+        : null
+    if (!name || isTestTeacherName(name) || !isActiveTeacherStatus(status)) continue
+    teachers.push({
+      key: `teacher:${id}`,
+      label: name,
+      group: "teacher",
+      ownerLabel: name,
+      teacherId: id,
+    })
+  }
+
+  return [...staff, ...teachers]
 }
 
 export function suggestExpenseAccount(
