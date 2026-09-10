@@ -2,14 +2,30 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarClock, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus } from "lucide-react"
 
-import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
+import {
+ AdminPageHeading,
+ adminPageHeaderLayoutClass,
+} from "@/components/detail/AdminPageHeader"
 import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
+import { HeaderFilterButton } from "@/components/list/HeaderFilterButton"
+import {
+ StickyListLead,
+ StickyListShell,
+ stickyTableHeadCellClass,
+ stickyTableHeadClass,
+ stickyTableWrapClass,
+} from "@/components/list/StickyListShell"
+import {
+ containsIgnoreCase,
+ uniqueSortedTexts,
+} from "@/components/list/listFilterUtils"
 import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
 } from "@/components/privateTutoring/PrivateTutoringStudentDisclosure"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
+import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
 import { SkeletonTableRows } from "@/components/ui/skeleton"
 import {
  Dialog,
@@ -112,6 +128,16 @@ const ENROLLMENT_ROW_FILTERS = [
  { key: "已退讀", label: "已退讀" },
 ] as const
 
+const EMPTY_PRIVATE_HEADER_FILTERS = {
+ grade: "",
+ teacher: "",
+} as const
+
+type PrivateHeaderFilters = {
+ grade: string
+ teacher: string
+}
+
 function weekdayLabel(ymd: string): string {
  const [y, m, d] = ymd.split("-").map(Number)
  const dt = new Date(y, m - 1, d)
@@ -154,6 +180,9 @@ export function PrivateTutoringView() {
  const [activityFilter, setActivityFilter] = useState<(typeof ACTIVITY_FILTERS)[number]["key"]>("all")
  const [enrollRowFilter, setEnrollRowFilter] =
   useState<(typeof ENROLLMENT_ROW_FILTERS)[number]["key"]>("all")
+ const [headerFilters, setHeaderFilters] = useState<PrivateHeaderFilters>({
+  ...EMPTY_PRIVATE_HEADER_FILTERS,
+ })
  const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [roomDate, setRoomDate] = useState(() => localYmd())
@@ -337,6 +366,7 @@ export function PrivateTutoringView() {
     setEnrollRowFilter("all")
     setRegFilter("all")
     setActivityFilter("all")
+    setHeaderFilters({ ...EMPTY_PRIVATE_HEADER_FILTERS })
    } else {
     setHighlightStudentId(prefId)
    }
@@ -583,15 +613,39 @@ export function PrivateTutoringView() {
   [confirmDialog, pushBanner, reloadStudents]
  )
 
- /** 狀態篩選後的報讀列（搜尋稍後以班別為單位套用，避免一對二被拆開） */
+ /** 狀態／表頭篩選後的報讀列（搜尋稍後以班別為單位套用，避免一對二被拆開） */
  const statusFilteredRows = useMemo(() => {
   return rows.filter((r) => {
    if (enrollRowFilter !== "all" && r.enrollmentRowStatus !== enrollRowFilter) return false
    if (regFilter !== "all" && r.registrationStatus !== regFilter) return false
    if (activityFilter !== "all" && r.activityStatus !== activityFilter) return false
+   if (headerFilters.grade && formatStudentGrade(r.grade) !== headerFilters.grade) return false
+   if (headerFilters.teacher && !containsIgnoreCase(r.teacherName, headerFilters.teacher)) {
+    return false
+   }
    return true
   })
- }, [rows, regFilter, activityFilter, enrollRowFilter])
+ }, [rows, regFilter, activityFilter, enrollRowFilter, headerFilters])
+
+ const gradeHeaderOptions = useMemo(
+  () =>
+   uniqueSortedTexts(
+    rows.map((r) => formatStudentGrade(r.grade)).filter((g) => g !== "—")
+   ).map((v) => ({
+    value: v,
+    label: v,
+   })),
+  [rows]
+ )
+
+ const teacherHeaderOptions = useMemo(
+  () =>
+   uniqueSortedTexts(rows.map((r) => r.teacherName ?? "")).map((v) => ({
+    value: v,
+    label: v,
+   })),
+  [rows]
+ )
 
  /** 同一私人班別（含一對二）合併為一列；搜尋命中任一學生則整班保留 */
  const filteredClassGroups = useMemo(() => {
@@ -634,13 +688,20 @@ export function PrivateTutoringView() {
   if (enrollRowFilter !== "all") n++
   if (regFilter !== "all") n++
   if (activityFilter !== "all") n++
+  if (headerFilters.grade.trim()) n++
+  if (headerFilters.teacher.trim()) n++
   return n
- }, [enrollRowFilter, regFilter, activityFilter])
+ }, [enrollRowFilter, regFilter, activityFilter, headerFilters])
 
  const resetFilters = () => {
   setEnrollRowFilter("all")
   setRegFilter("all")
   setActivityFilter("all")
+  setHeaderFilters({ ...EMPTY_PRIVATE_HEADER_FILTERS })
+ }
+
+ const setHeaderFilter = (key: keyof PrivateHeaderFilters, value: string) => {
+  setHeaderFilters((prev) => ({ ...prev, [key]: value }))
  }
 
  /** 開始搜尋時清掉篩選，避免忘記篩選而找不到學生 */
@@ -1065,47 +1126,134 @@ export function PrivateTutoringView() {
   [upcomingSchedules]
  )
 
- return (
-  <div className={cn("space-y-5 text-sm leading-relaxed", pagePadClass(role, "md:p-6"))}>
-   {usesSharedAppShell(role) ? (
-    <AdminPageHeader
-     eyebrow="行政工作"
-     title={isTeacherPortal ? "我的私人課程" : "私人課程"}
-     description={
-      isTeacherPortal
-       ? "查看指派給你的私人課程（一對一／一對二）學生與排程。"
-       : "管理一對一及一對二私人課程。"
-     }
-     actions={
-      canManageEnrollment ? (
-       <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
-        <Plus className="mr-1.5 h-4 w-4" />
-        新增私人課程報讀
-       </Button>
-      ) : null
-     }
-    />
-   ) : (
-   <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-     <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-      {isTeacherPortal ? "我的私人課程學生" : "私人課程學生"}
-     </h1>
-     <p className="mt-2 hidden text-sm text-muted-foreground md:block">
-      {isTeacherPortal
-       ? "查看指派給你的私人課程（一對一／一對二）學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
-       : "此頁顯示私人課程（一對一／一對二）學生。若要查專科班，請到學生詳情的「管理專科班報讀」。列表可新增報讀、預約與退讀。"}
-     </p>
+ const renderPrivateFilterPanel = () => (
+  <>
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">報讀狀態</div>
+    <div className="flex flex-wrap gap-2" role="group" aria-label="報讀狀態">
+     {ENROLLMENT_ROW_FILTERS.map((f) => {
+      const active = enrollRowFilter === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        aria-pressed={active}
+        onClick={() => setEnrollRowFilter(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+       </button>
+      )
+     })}
     </div>
-    {canManageEnrollment ? (
-     <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
-      <Plus className="mr-1.5 h-4 w-4" />
-      新增私人課程報讀
-     </Button>
-    ) : null}
-   </header>
-   )}
+   </div>
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">註冊</div>
+    <div className="flex flex-wrap gap-2" role="group" aria-label="註冊">
+     {REGISTRATION_FILTERS.map((f) => {
+      const active = regFilter === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        aria-pressed={active}
+        onClick={() => setRegFilter(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+       </button>
+      )
+     })}
+    </div>
+   </div>
+   <div className="space-y-2">
+    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">活躍</div>
+    <div className="flex flex-wrap gap-2" role="group" aria-label="活躍">
+     {ACTIVITY_FILTERS.map((f) => {
+      const active = activityFilter === f.key
+      return (
+       <button
+        key={f.key}
+        type="button"
+        aria-pressed={active}
+        onClick={() => setActivityFilter(f.key)}
+        className={cn(
+         "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+         active
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-border bg-card text-foreground hover:bg-muted/80"
+        )}
+       >
+        {f.label}
+       </button>
+      )
+     })}
+    </div>
+   </div>
+  </>
+ )
 
+ const pageTitle = isTeacherPortal ? "我的私人課程" : "私人課程"
+ const pageDescription = isTeacherPortal
+  ? "查看指派給你的私人課程（一對一／一對二）學生與排程。"
+  : "管理一對一及一對二私人課程。"
+ const createAction =
+  canManageEnrollment ? (
+   <Button type="button" className="text-sm" onClick={() => void openCreateDialog()}>
+    <Plus className="mr-1.5 h-4 w-4" />
+    新增私人課程報讀
+   </Button>
+  ) : null
+
+ return (
+  <StickyListShell
+   sticky={!isMobile}
+   className="text-sm leading-relaxed"
+   header={
+    <>
+     {usesSharedAppShell(role) ? (
+      <div className={adminPageHeaderLayoutClass}>
+       <AdminPageHeading
+        eyebrow="行政工作"
+        title={pageTitle}
+        description={pageDescription}
+       />
+       {createAction ? <div className="flex shrink-0 flex-wrap items-center gap-2">{createAction}</div> : null}
+      </div>
+     ) : (
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+       <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+         {isTeacherPortal ? "我的私人課程學生" : "私人課程學生"}
+        </h1>
+        <p className="mt-2 hidden text-sm text-muted-foreground md:block">
+         {isTeacherPortal
+          ? "查看指派給你的私人課程（一對一／一對二）學生、查空房並預約上堂。點列展開可看未來排程；點班名可進入班別詳情。"
+          : "此頁顯示私人課程（一對一／一對二）學生。若要查專科班，請到學生詳情的「管理專科班報讀」。列表可新增報讀、預約與退讀。"}
+        </p>
+       </div>
+       {createAction}
+      </header>
+     )}
+     <RecordPageTabs
+      tabs={PRIVATE_TUTORING_TABS}
+      value={tab}
+      onChange={setTab}
+      isMobile={isMobile}
+     />
+    </>
+   }
+  >
    {!isTeacherPortal && (teacherNullAuditLoading || teacherNullAudit.length > 0) ? (
     <section
      role="alert"
@@ -1169,164 +1317,110 @@ export function PrivateTutoringView() {
     </section>
    ) : null}
 
-   <RecordPageTabs
-    tabs={PRIVATE_TUTORING_TABS}
-    value={tab}
-    onChange={setTab}
-    isMobile={isMobile}
-   />
-
    {tab === "students" && (
-    <div className="space-y-4">
-     {isMobile ? (
-      <>
-       <div className="flex items-center gap-2">
-        <div className="relative min-w-0 flex-1">
+    <>
+     <StickyListLead>
+      <div className="space-y-3">
+       {isMobile ? (
+        <div className="flex items-center gap-2">
+         <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+           className="h-10 pl-10 text-sm"
+           placeholder="搜尋姓名、學號、科目…"
+           value={search}
+           onChange={(e) => onSearchChange(e.target.value)}
+          />
+         </div>
+         <Button type="button" variant="outline" className="h-10 shrink-0 gap-2" onClick={() => setFiltersOpen(true)}>
+          <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          篩選
+          {activeFilterCount > 0 ? (
+           <Tag tone="info" size="sm">
+            {activeFilterCount}
+           </Tag>
+          ) : null}
+         </Button>
+        </div>
+       ) : (
+        <div className="relative min-w-[12rem] max-w-xl">
          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
          <Input
           className="h-10 pl-10 text-sm"
-          placeholder="搜尋姓名、學號、科目…"
+          placeholder="搜尋姓名、學號、科目、老師…"
           value={search}
           onChange={(e) => onSearchChange(e.target.value)}
          />
         </div>
-        <Button type="button" variant="outline" className="h-10 shrink-0 gap-2" onClick={() => setFiltersOpen(true)}>
-         <SlidersHorizontal className="h-4 w-4" aria-hidden />
-         篩選
-         {activeFilterCount > 0 ? (
-          <Tag tone="info" size="sm">
-           {activeFilterCount}
-          </Tag>
-         ) : null}
-        </Button>
-       </div>
-       <MobileFilterSheet
-        open={filtersOpen}
-        onClose={() => setFiltersOpen(false)}
-        title="篩選私人課程"
-        activeCount={activeFilterCount}
-        onReset={() => {
-         setSearch("")
-         resetFilters()
-        }}
-       >
-        <label className="grid gap-1 text-sm">
-         <span className="text-muted-foreground">搜尋</span>
-         <Input
-          className="h-10"
-          placeholder="姓名、學號、科目、老師…"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-         />
-        </label>
-        <label className="grid gap-1 text-sm">
-         <span className="text-muted-foreground">報讀狀態</span>
-         <Select
-          className="h-10 text-sm"
-          value={enrollRowFilter}
-          onChange={(e) =>
-           setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
-          }
-         >
-          {ENROLLMENT_ROW_FILTERS.map((f) => (
-           <option key={f.key} value={f.key}>
-            {f.label}
-           </option>
-          ))}
-         </Select>
-        </label>
-        <label className="grid gap-1 text-sm">
-         <span className="text-muted-foreground">註冊</span>
-         <Select
-          className="h-10 text-sm"
-          value={regFilter}
-          onChange={(e) =>
-           setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
-          }
-         >
-          {REGISTRATION_FILTERS.map((f) => (
-           <option key={f.key} value={f.key}>
-            {f.label}
-           </option>
-          ))}
-         </Select>
-        </label>
-        <label className="grid gap-1 text-sm">
-         <span className="text-muted-foreground">活躍</span>
-         <Select
-          className="h-10 text-sm"
-          value={activityFilter}
-          onChange={(e) =>
-           setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
-          }
-         >
-          {ACTIVITY_FILTERS.map((f) => (
-           <option key={f.key} value={f.key}>
-            {f.label}
-           </option>
-          ))}
-         </Select>
-        </label>
-       </MobileFilterSheet>
-      </>
-     ) : (
-      <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-       <div className="relative min-w-[12rem] flex-1">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-         className="h-10 pl-10 text-sm"
-         placeholder="搜尋姓名、學號、科目、老師…"
-         value={search}
-         onChange={(e) => onSearchChange(e.target.value)}
-        />
-       </div>
-       <Select
-        className="h-10 text-sm"
-        value={enrollRowFilter}
-        onChange={(e) =>
-         setEnrollRowFilter(e.target.value as (typeof ENROLLMENT_ROW_FILTERS)[number]["key"])
-        }
-       >
-        {ENROLLMENT_ROW_FILTERS.map((f) => (
-         <option key={f.key} value={f.key}>
-          {f.label}
-         </option>
-        ))}
-       </Select>
-       <Select
-        className="h-10 text-sm"
-        value={regFilter}
-        onChange={(e) =>
-         setRegFilter(e.target.value as (typeof REGISTRATION_FILTERS)[number]["key"])
-        }
-       >
-        {REGISTRATION_FILTERS.map((f) => (
-         <option key={f.key} value={f.key}>
-          {f.label}
-         </option>
-        ))}
-       </Select>
-       <Select
-        className="h-10 text-sm"
-        value={activityFilter}
-        onChange={(e) =>
-         setActivityFilter(e.target.value as (typeof ACTIVITY_FILTERS)[number]["key"])
-        }
-       >
-        {ACTIVITY_FILTERS.map((f) => (
-         <option key={f.key} value={f.key}>
-          {f.label}
-         </option>
-        ))}
-       </Select>
-      </div>
-     )}
+       )}
 
-     {err && (
-      <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-       {err}
+       {isMobile ? (
+        <MobileFilterSheet
+         open={filtersOpen}
+         onClose={() => setFiltersOpen(false)}
+         title="篩選私人課程"
+         activeCount={activeFilterCount}
+         onReset={() => {
+          setSearch("")
+          resetFilters()
+         }}
+        >
+         <label className="grid gap-1 text-sm">
+          <span className="text-muted-foreground">搜尋</span>
+          <Input
+           className="h-10"
+           placeholder="姓名、學號、科目、老師…"
+           value={search}
+           onChange={(e) => onSearchChange(e.target.value)}
+          />
+         </label>
+         {renderPrivateFilterPanel()}
+         <label className="grid gap-1 text-sm">
+          <span className="text-muted-foreground">年級</span>
+          <Select
+           className="h-10 text-sm"
+           value={headerFilters.grade || "all"}
+           onChange={(e) => setHeaderFilter("grade", e.target.value === "all" ? "" : e.target.value)}
+          >
+           <option value="all">全部</option>
+           {gradeHeaderOptions.map((o) => (
+            <option key={o.value} value={o.value}>
+             {o.label}
+            </option>
+           ))}
+          </Select>
+         </label>
+         {!isTeacherPortal ? (
+          <label className="grid gap-1 text-sm">
+           <span className="text-muted-foreground">老師</span>
+           <Select
+            className="h-10 text-sm"
+            value={headerFilters.teacher || "all"}
+            onChange={(e) =>
+             setHeaderFilter("teacher", e.target.value === "all" ? "" : e.target.value)
+            }
+           >
+            <option value="all">全部</option>
+            {teacherHeaderOptions.map((o) => (
+             <option key={o.value} value={o.value}>
+              {o.label}
+             </option>
+            ))}
+           </Select>
+          </label>
+         ) : null}
+        </MobileFilterSheet>
+       ) : (
+        <CollapsibleFilterCard activeCount={activeFilterCount}>{renderPrivateFilterPanel()}</CollapsibleFilterCard>
+       )}
+
+       {err ? (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+         {err}
+        </div>
+       ) : null}
       </div>
-     )}
+     </StickyListLead>
 
      {loading ? (
       <SkeletonTableRows rows={6} columns={5} />
@@ -1452,25 +1546,56 @@ export function PrivateTutoringView() {
        })}
       </StaggerList>
      ) : (
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+      <div className={stickyTableWrapClass}>
        <div className="min-w-[56rem]">
-        <div
-         className={cn(
-          PRIVATE_TUTORING_ROW_GRID,
-          "border-b border-border bg-muted/40 text-left text-sm text-muted-foreground"
-         )}
-        >
-         <div className="px-1 py-3" aria-hidden />
-         <div className="px-4 py-3 font-medium">學生</div>
-         <div className="px-4 py-3 font-medium">學號</div>
-         <div className="px-4 py-3 font-medium">年級</div>
-         <div className="px-4 py-3 font-medium">私人班別</div>
-         <div className="px-4 py-3 font-medium">老師</div>
-         <div className="px-4 py-3 font-medium">狀態</div>
-         <div className="px-4 py-3 font-medium">下一堂</div>
-         <div className="px-4 py-3 font-medium">操作</div>
+        <div className={cn(PRIVATE_TUTORING_ROW_GRID, stickyTableHeadClass)}>
+         <div className={cn(stickyTableHeadCellClass, "px-1 py-3")} aria-hidden />
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          學生
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          學號
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          <div className="flex items-center gap-1">
+           <span>年級</span>
+           <HeaderFilterButton
+            columnLabel="年級"
+            value={headerFilters.grade}
+            onChange={(v) => setHeaderFilter("grade", v)}
+            mode="preset"
+            options={gradeHeaderOptions}
+           />
+          </div>
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          私人班別
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          <div className="flex items-center gap-1">
+           <span>老師</span>
+           {!isTeacherPortal ? (
+            <HeaderFilterButton
+             columnLabel="老師"
+             value={headerFilters.teacher}
+             onChange={(v) => setHeaderFilter("teacher", v)}
+             mode="text"
+             options={teacherHeaderOptions}
+            />
+           ) : null}
+          </div>
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          狀態
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          下一堂
+         </div>
+         <div className={cn(stickyTableHeadCellClass, "px-4 py-3 font-medium text-muted-foreground")}>
+          操作
+         </div>
         </div>
-        <StaggerList as="div">
+        <StaggerList as="div" className="relative z-0">
          {filteredClassGroups.map((group) => {
           const primary =
            group.find((r) => r.enrollmentRowStatus !== "已退讀") ?? group[0]
@@ -1503,7 +1628,7 @@ export function PrivateTutoringView() {
       共 {filteredClassGroups.length} 班／{filteredRows.length} 筆報讀（全部 {rows.length}{" "}
       筆私人課程報讀，含已退讀）
      </p>
-    </div>
+    </>
    )}
 
    {tab === "rooms" && (
@@ -2036,6 +2161,6 @@ export function PrivateTutoringView() {
      )}
     </DialogContent>
    </Dialog>
-  </div>
+  </StickyListShell>
  )
 }
