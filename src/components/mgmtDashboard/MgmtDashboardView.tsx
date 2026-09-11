@@ -24,7 +24,6 @@ import {
  mergeMgmtDashboardPayload,
 } from "@/services/mgmtDashboardQueries"
 import { FIRST_SCREEN_KPI_IDS } from "@/lib/mgmtDashboardAssemble"
-import { PROFIT_ANALYSIS_START } from "@/lib/profitMetrics"
 import { fetchAllTeachers } from "@/services/teacherQueries"
 
 const emptyPayload: MgmtDashboardPayload = {
@@ -187,14 +186,6 @@ export function MgmtDashboardView() {
      <BarChart3 className="h-6 w-6 text-primary" aria-hidden />
      <h1 className="text-2xl font-semibold tracking-tight">營運總覽</h1>
     </div>
-    <p className="max-w-3xl text-sm text-muted-foreground">
-     營運決策中台：先看健康度 KPI，再看收款／招生／流失／欠費原因，最後處理警示與跟進清單。
-     {!isSupabaseConfigured ? "（尚未設定 Supabase，目前顯示示範資料。）" : null}
-    </p>
-    <p className="max-w-3xl text-xs text-muted-foreground">
-     資料範圍：KPI／收款／出席跟上方日期區間（{filters.dateFrom} 至 {filters.dateTo}）；毛利／純利走勢自{" "}
-     {PROFIT_ANALYSIS_START.slice(0, 7)} 起。堂數不符為日常營運窗（待補／請假待安排仍顯示）。年結核數請用繳費紀錄「匯出全部」。
-    </p>
    </header>
 
    <MgmtDashboardFilterBar
