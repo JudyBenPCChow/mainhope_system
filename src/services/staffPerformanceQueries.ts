@@ -3,12 +3,13 @@ import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
-import {
-  findJuly2026LaborByTeacherName,
-  laborEmployerCost,
-  STAFF_LABOR_JULY_2026_MONTH,
-} from "@/data/staffLaborJuly2026"
 import type { KpiCardModel, KpiStatus } from "@/lib/mgmtDashboardTypes"
+import {
+  describeSettledLaborSource,
+  laborForSettledMonth,
+  laborForSettledPeriod,
+} from "@/lib/staffPerformanceLabor"
+import { fetchSettledPayrollLaborByTeacher } from "@/services/payrollLaborEstimateQueries"
 import type {
   StaffAnomalyCard,
   StaffHeatCell,
@@ -554,35 +555,6 @@ async function fetchRetentionByTeacher(
   return map
 }
 
-function laborForMonth(
-  monthKey: string,
-  teacherName: string
-): { cost: number; missing: boolean } {
-  if (monthKey !== STAFF_LABOR_JULY_2026_MONTH) return { cost: 0, missing: true }
-  const snap = findJuly2026LaborByTeacherName(teacherName)
-  if (!snap) return { cost: 0, missing: true }
-  return { cost: laborEmployerCost(snap), missing: false }
-}
-
-function laborForPeriod(
-  monthKeys: string[],
-  teacherName: string
-): { cost: number | null; missing: boolean } {
-  let total = 0
-  let any = false
-  let allMissing = true
-  for (const mk of monthKeys) {
-    const { cost, missing } = laborForMonth(mk, teacherName)
-    if (!missing) {
-      total += cost
-      any = true
-      allMissing = false
-    }
-  }
-  if (allMissing) return { cost: null, missing: true }
-  return { cost: any ? Math.round(total * 100) / 100 : null, missing: false }
-}
-
 function kpiStatus(tone: KpiCardModel["tone"]): KpiStatus {
   if (tone === "destructive") return "警示"
   if (tone === "warning") return "注意"
@@ -603,7 +575,9 @@ function buildKpis(rows: StaffPerformanceRow[], teachingHoursTotal: number): Kpi
       : 0
 
   const laborMissingHint =
-    withLabor.length < rows.length ? "部分老師未有月結人工" : "人工＝離線計糧 gross＋僱主MPF"
+    withLabor.length < rows.length
+      ? "部分老師未有已結算計糧人工"
+      : "人工＝已結算計糧 gross＋僱主MPF"
 
   const mk = (
     id: string,
@@ -665,7 +639,7 @@ function buildAnomalies(rows: StaffPerformanceRow[]): StaffAnomalyCard[] {
         id: `labor-missing-${r.teacherId}`,
         severity: "注意",
         title: `${r.teacherName} 未有月結人工`,
-        detail: "目前僅 2026-07 有離線計糧快照；其他月份待補。",
+        detail: "所選期間尚未有已結算計糧，或該老師未列入結算。",
         teacherId: r.teacherId,
         href: `/Teachers/${r.teacherId}`,
       })
@@ -804,16 +778,25 @@ export async function fetchStaffPerformance(
 
   const { byTeacher, classOptions } = await aggregateRevenueByTeacher(dateFrom, dateTo, filters)
 
-  // 補入七月有人工但無收入的老師（固定月薪等）
-  if (monthKeys.includes(STAFF_LABOR_JULY_2026_MONTH)) {
+  const laborIndex = await fetchSettledPayrollLaborByTeacher(monthKeys)
+
+  // 補入已結算有人工但無收入的老師（固定月薪等）
+  if (laborIndex.settledMonths.size > 0) {
     const teachers = await fetchAllTeachers()
-    for (const t of teachers) {
-      if (t.status === "非在職") continue
-      if (filters.teacherIds.length > 0 && !filters.teacherIds.includes(t.id)) continue
-      const snap = findJuly2026LaborByTeacherName(t.full_name)
-      if (!snap) continue
-      if (!byTeacher.has(t.id)) {
-        ensureTeacher(byTeacher, t.id, t.full_name, t.abbr)
+    const byId = new Map(teachers.map((t) => [t.id, t]))
+    for (const mk of monthKeys) {
+      if (!laborIndex.settledMonths.has(mk)) continue
+      const costs = laborIndex.costByMonthTeacher.get(mk)
+      const names = laborIndex.namesByMonthTeacher.get(mk)
+      if (!costs) continue
+      for (const [teacherId, cost] of costs) {
+        if (cost <= 0) continue
+        if (filters.teacherIds.length > 0 && !filters.teacherIds.includes(teacherId)) continue
+        if (byTeacher.has(teacherId)) continue
+        const t = byId.get(teacherId)
+        if (t?.status === "非在職") continue
+        const name = t?.full_name ?? names?.get(teacherId) ?? teacherId
+        ensureTeacher(byTeacher, teacherId, name, t?.abbr ?? null)
       }
     }
   }
@@ -826,7 +809,7 @@ export async function fetchStaffPerformance(
 
   const rows: StaffPerformanceRow[] = []
   for (const t of byTeacher.values()) {
-    const labor = laborForPeriod(monthKeys, t.teacherName)
+    const labor = laborForSettledPeriod(laborIndex, monthKeys, t.teacherId)
     const revenue = Math.round(t.revenue * 100) / 100
     const laborCost = labor.cost
     const laborMissing = labor.missing
@@ -897,7 +880,7 @@ export async function fetchStaffPerformance(
     const months: StaffMonthlyPoint[] = []
     for (const mk of monthKeys) {
       const bucket = t.byMonth.get(mk) ?? { revenue: 0, teachingHours: 0 }
-      const labor = laborForMonth(mk, t.teacherName)
+      const labor = laborForSettledMonth(laborIndex, mk, t.teacherId)
       const rev = Math.round(bucket.revenue * 100) / 100
       const laborCost = labor.missing ? null : labor.cost
       const profit =
@@ -926,12 +909,7 @@ export async function fetchStaffPerformance(
 
   const visibleRows = applyOwnerExclusion(rows, filters.excludeOwners)
 
-  const hasJuly = monthKeys.includes(STAFF_LABOR_JULY_2026_MONTH)
-  const laborParts = [
-    hasJuly
-      ? "人工來自 2026-07 離線計糧快照（gross＋僱主MPF）；其他月份未有月結"
-      : "所選期間未有離線計糧快照（目前僅 2026-07）",
-  ]
+  const laborParts = [describeSettledLaborSource(monthKeys, laborIndex.settledMonths)]
   if (filters.excludeOwners) {
     laborParts.push("已排除老闆（Mark Yu、Christine Fan）")
   }
