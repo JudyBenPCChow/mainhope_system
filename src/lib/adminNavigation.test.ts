@@ -50,12 +50,16 @@ describe("行政側欄 IA", () => {
    "/EnrollmentChanges",
    "/PromotionMatch",
    "/ContactUpdateCampaign",
+   "/TrialInviteCampaign",
+   "/TrialInviteCatalog",
   ])
   expect(students?.kind === "group" ? students.children.map((child) => child.label) : []).toEqual([
    "學生",
    "增退紀錄",
    "宣傳配對",
    "聯絡資料更新",
+   "試堂邀請",
+   "試堂名單控管",
   ])
   expect(payments?.kind === "group" ? payments.children.map((child) => child.path) : []).toEqual([
    "/Payments",
@@ -180,6 +184,8 @@ describe("行政側欄 IA", () => {
    "/EnrollmentChanges",
    "/PromotionMatch",
    "/ContactUpdateCampaign",
+   "/TrialInviteCampaign",
+   "/TrialInviteCatalog",
   ])
   expect(flattenNav(topLevel).some((leaf) => leaf.path === "/PortalEnrollmentRequests")).toBe(false)
   expect(topLevel.some((entry) => entry.label === "家長報讀申請")).toBe(false)
