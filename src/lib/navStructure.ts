@@ -128,6 +128,18 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
     roles: ["admin", "alien"],
     icon: Contact,
    },
+   {
+    path: "/TrialInviteCampaign",
+    label: "試堂邀請",
+    roles: ["admin", "alien"],
+    icon: Sparkles,
+   },
+   {
+    path: "/TrialInviteCatalog",
+    label: "試堂名單控管",
+    roles: ["admin", "alien"],
+    icon: Sparkles,
+   },
   ],
  },
  {

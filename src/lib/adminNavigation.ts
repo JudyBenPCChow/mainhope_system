@@ -26,6 +26,7 @@ import {
  School,
  ScrollText,
  Settings,
+ Sparkles,
  UserPlus,
  UserRound,
  UserRoundX,
@@ -58,6 +59,8 @@ export const ADMIN_MAIN_NAV: NavEntryDef[] = [
    { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin"], icon: ScrollText },
    { path: "/PromotionMatch", label: "宣傳配對", roles: ["admin"], icon: UserPlus },
    { path: "/ContactUpdateCampaign", label: "聯絡資料更新", roles: ["admin"], icon: Contact },
+   { path: "/TrialInviteCampaign", label: "試堂邀請", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCatalog", label: "試堂名單控管", roles: ["admin"], icon: Sparkles },
   ],
  },
  {
@@ -134,6 +137,8 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
    { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin"], icon: ScrollText },
    { path: "/PromotionMatch", label: "宣傳配對", roles: ["admin"], icon: UserPlus },
    { path: "/ContactUpdateCampaign", label: "聯絡資料更新", roles: ["admin"], icon: Contact },
+   { path: "/TrialInviteCampaign", label: "試堂邀請", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCatalog", label: "試堂名單控管", roles: ["admin"], icon: Sparkles },
   ],
  },
  {

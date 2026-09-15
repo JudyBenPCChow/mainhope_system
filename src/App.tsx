@@ -11,6 +11,9 @@ import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import ContactUpdate from "@/pages/ContactUpdate"
 import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
+import TrialInvite from "@/pages/TrialInvite"
+import TrialInviteCampaign from "@/pages/TrialInviteCampaign"
+import TrialInviteCatalog from "@/pages/TrialInviteCatalog"
 import FrontDeskIntake from "@/pages/FrontDeskIntake"
 import FrontDeskWizard from "@/pages/FrontDeskWizard"
 import PortalEnrollmentRequests from "@/pages/PortalEnrollmentRequests"
@@ -82,6 +85,7 @@ export default function App() {
     {/* 家長連結填表：公開頁，不經側欄／登入閘 */}
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route path="/ContactUpdate/:token" element={<ContactUpdate />} />
+    <Route path="/TrialInvite/:token" element={<TrialInvite />} />
     {enablePayrollUiPreview ? (
      <Route
       path="/PayrollUiPreview"
@@ -322,6 +326,14 @@ export default function App() {
      <Route
       path="/ContactUpdateCampaign"
       element={withCapabilities(["students.update"], <ContactUpdateCampaign />)}
+     />
+     <Route
+      path="/TrialInviteCampaign"
+      element={withCapabilities(["students.enroll"], <TrialInviteCampaign />)}
+     />
+     <Route
+      path="/TrialInviteCatalog"
+      element={withCapabilities(["students.enroll"], <TrialInviteCatalog />)}
      />
      <Route
       path="/PortalEnrollmentRequests"
