@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { MultiSelect } from "@/components/ui/multi-select"
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -34,7 +35,7 @@ import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Textarea } from "@/components/ui/textarea"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips } from "@/components/students/studentsUi"
-import { formatStudentGrade } from "@/lib/studentGrade"
+import { formatStudentGrade, isSeniorStudentGrade } from "@/lib/studentGrade"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import {
@@ -47,6 +48,7 @@ import {
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { formatElectedSubjectLabels, normalizeElectedSubjectCodes } from "@/lib/studentElectives"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import {
@@ -141,7 +143,7 @@ import {
 import { EnrollmentSessionPicker } from "@/components/enrollment/EnrollmentSessionPicker"
 import { invalidateStudentsListDataCache } from "@/components/students/studentsListState"
 import { invalidateEnrollmentChangesDataCache } from "@/components/enrollment/enrollmentChangesState"
-import { fetchClassSchedules, type ClassScheduleRow } from "@/services/classQueries"
+import { fetchClassSchedules, fetchSeniorElectiveSubjectOptions, type ClassScheduleRow, type SubjectOption } from "@/services/classQueries"
 import {
  fetchLessonBalancesForStudent,
  isLessonBalanceNeedsFollowUp,
@@ -502,10 +504,26 @@ export function StudentDetailView() {
  const [form, setForm] = useState<Partial<StudentRecord>>({})
  const [savingBasic, setSavingBasic] = useState(false)
  const savingBasicRef = useRef(false)
+ const [seniorElectiveOptions, setSeniorElectiveOptions] = useState<SubjectOption[]>([])
 
  useEffect(() => {
   if (student) setForm(student)
  }, [student])
+
+ useEffect(() => {
+  if (tab !== "basic") return
+  let cancelled = false
+  void fetchSeniorElectiveSubjectOptions()
+   .then((rows) => {
+    if (!cancelled) setSeniorElectiveOptions(rows)
+   })
+   .catch((e) => {
+    reportUserFacingError(e, { source: "StudentDetailView.electives" })
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [tab])
 
  const saveBasic = useCallback(async (): Promise<boolean> => {
   if (!sid || !student || savingBasicRef.current) return false
@@ -563,6 +581,7 @@ export function StudentDetailView() {
     primary_contact_person: form.primary_contact_person || null,
     address: form.address,
     remarks: form.remarks,
+    elected_subject_codes: normalizeElectedSubjectCodes(form.elected_subject_codes),
    })
    setStudent(updated)
    setForm(updated)
@@ -1596,6 +1615,34 @@ export function StudentDetailView() {
           onChange={(grade) => setForm((f) => ({ ...f, grade }))}
          />
         </Field>
+        {isSeniorStudentGrade(form.grade) ||
+        normalizeElectedSubjectCodes(form.elected_subject_codes).length > 0 ? (
+         <Field
+          label="選修科目"
+          className="sm:col-span-2"
+          read={
+           showBasicForm
+            ? undefined
+            : formatElectedSubjectLabels(
+               form.elected_subject_codes ?? [],
+               seniorElectiveOptions
+              )
+          }
+         >
+          <MultiSelect
+           value={normalizeElectedSubjectCodes(form.elected_subject_codes)}
+           onChange={(next) =>
+            setForm((f) => ({ ...f, elected_subject_codes: next }))
+           }
+           options={seniorElectiveOptions.map((opt) => ({
+            value: opt.code,
+            label: opt.name_zh || opt.code,
+           }))}
+           placeholder="請選擇目前選修科目"
+           emptyMessage="未能載入選修科目"
+          />
+         </Field>
+        ) : null}
         <Field
          label="客戶身份（註冊）"
          read={

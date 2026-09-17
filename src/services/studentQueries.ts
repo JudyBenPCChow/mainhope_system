@@ -1,6 +1,7 @@
 import { normalizeStudentGrade } from "@/lib/studentGrade"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import { normalizeElectedSubjectCodes } from "@/lib/studentElectives"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  enrollmentVisibleOnSchedule,
@@ -71,6 +72,8 @@ export type StudentRecord = {
  activity_status: "活躍生" | "非活躍生"
  academic_stage: "中學階段" | "已畢業"
  status: string | null
+ /** 高中目前選修科目（subjects.code） */
+ elected_subject_codes: string[]
  parent_name: string | null
  parent_relationship: string | null
  parent_phone: string | null
@@ -340,6 +343,7 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   enrollment_status: state.enrollment_status,
   activity_status: state.activity_status,
   academic_stage: state.academic_stage,
+  elected_subject_codes: normalizeElectedSubjectCodes(row.elected_subject_codes),
   status:
    row.status != null && String(row.status).trim()
     ? String(row.status)
@@ -616,6 +620,7 @@ export async function insertStudent(
    address: row.address ?? null,
    remarks: row.remarks ?? null,
    student_code: row.student_code ?? null,
+   elected_subject_codes: normalizeElectedSubjectCodes(row.elected_subject_codes),
   })
   .select("*")
   .single()
@@ -660,6 +665,9 @@ export async function updateStudent(
  }
  if (patch.parent_wechat_id !== undefined) {
   payload.parent_wechat_id = (patch.parent_wechat_id ?? "").trim() || null
+ }
+ if (patch.elected_subject_codes !== undefined) {
+  payload.elected_subject_codes = normalizeElectedSubjectCodes(patch.elected_subject_codes)
  }
  delete payload.enrollment_status
  delete payload.activity_status

@@ -1,5 +1,6 @@
 import { forEachIdChunk, DEFAULT_ID_CHUNK } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import { trialInviteTypeOrDefault, type TrialInviteType } from "@/lib/trialInviteTypes"
 
 export type TrialInviteTokenStatus =
   | "open"
@@ -75,6 +76,7 @@ export type TrialInviteTokenRow = {
   token: string
   student_id: string
   status: TrialInviteTokenStatus
+  trial_type: TrialInviteType
   expires_at: string
   submitted_at: string | null
   approved_at: string | null
@@ -118,6 +120,9 @@ function asTokenRow(raw: Record<string, unknown>): TrialInviteTokenRow {
     token: String(raw.token ?? ""),
     student_id: String(raw.student_id ?? ""),
     status: String(raw.status ?? "open") as TrialInviteTokenStatus,
+    trial_type: trialInviteTypeOrDefault(
+      raw.trial_type != null ? String(raw.trial_type) : null
+    ),
     expires_at: String(raw.expires_at ?? ""),
     submitted_at: raw.submitted_at != null ? String(raw.submitted_at) : null,
     approved_at: raw.approved_at != null ? String(raw.approved_at) : null,
@@ -207,7 +212,8 @@ export function trialInvitePublicUrl(token: string, origin = window.location.ori
 }
 
 export async function createTrialInviteTokens(
-  studentIds: string[]
+  studentIds: string[],
+  trialType: TrialInviteType
 ): Promise<TrialInviteTokenRow[]> {
   if (!supabase) throw new Error("Supabase 未設定")
   const ids = [...new Set(studentIds.map((id) => id.trim()).filter(Boolean))]
@@ -216,6 +222,7 @@ export async function createTrialInviteTokens(
   const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
     const { data, error } = await supabase!.rpc("trial_invite_create", {
       p_student_ids: slice,
+      p_trial_type: trialType,
     })
     if (error) throw rpcError(error)
     const arr = Array.isArray(data) ? data : []
@@ -343,7 +350,7 @@ export async function fetchTrialInviteTokensByStudentIds(
   const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
     const { data, error } = await supabase!
       .from("trial_invite_tokens")
-      .select("id, token, student_id, status, expires_at, submitted_at, approved_at, created_at")
+      .select("id, token, student_id, status, trial_type, expires_at, submitted_at, approved_at, created_at")
       .in("student_id", slice)
       .order("created_at", { ascending: false })
     if (error) throw rpcError(error)

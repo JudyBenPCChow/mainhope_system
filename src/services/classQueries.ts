@@ -1167,6 +1167,21 @@ export async function fetchSubjectOptions(opts?: {
  })
 }
 
+export async function fetchSeniorElectiveSubjectOptions(): Promise<SubjectOption[]> {
+ if (!supabase) return []
+ const { data, error } = await supabase
+  .from("subjects")
+  .select("id, code, name_zh")
+  .eq("category", "senior_elective")
+  .order("name_zh", { ascending: true })
+ if (error) throw error
+ return (data ?? []).map((r) => ({
+  id: String((r as { id: string }).id),
+  code: String((r as { code: string }).code).trim().toUpperCase(),
+  name_zh: String((r as { name_zh: string }).name_zh),
+ }))
+}
+
 export async function fetchAcademicYearOptions(): Promise<AcademicYearOption[]> {
  if (!supabase) return []
  const { data, error } = await supabase
