@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Copy, Link2, MessageCircle, Search } from "lucide-react"
+import { Ban, Copy, Link2, MessageCircle, Search } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
@@ -26,6 +26,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -33,7 +34,18 @@ import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { buildTrialInviteNotifyMessage } from "@/lib/trialInviteNotifyMessage"
+import {
+  trialInviteTokenHasPublicUrl,
+  trialInviteTokenVoidable,
+} from "@/lib/trialInviteToken"
+import {
+  isTrialInviteType,
+  trialInviteTypeOrDefault,
+  TRIAL_INVITE_TYPES,
+  type TrialInviteType,
+} from "@/lib/trialInviteTypes"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -135,9 +147,19 @@ function formatSchedule(ln: TrialInviteRequestListRow["lines"][number]): string 
 
 type StatusTabId = "所有" | "待審核" | "已確認"
 type SortKey = "student" | "status"
+type GenerateAfter = "none" | "copy" | "notify"
+type GenerateIntent = {
+  studentIds: string[]
+  after: GenerateAfter
+}
+
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+}
 
 export function TrialInviteCampaignView() {
   const { pushBanner } = useAppBanner()
+  const { confirmDialog } = useAppConfirm()
   const isMobile = useIsMobile()
   const openStudent = useOpenStudentRecord()
   const { preview } = useRecordPreview()
@@ -158,6 +180,8 @@ export function TrialInviteCampaignView() {
   const [reviewRow, setReviewRow] = useState<TrialInviteRequestListRow | null>(null)
   const [approveHeadcount, setApproveHeadcount] = useState<"1" | "0" | "">("")
   const [approveTrialType, setApproveTrialType] = useState("免費試堂")
+  const [generateIntent, setGenerateIntent] = useState<GenerateIntent | null>(null)
+  const [generateTrialType, setGenerateTrialType] = useState("")
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -275,38 +299,97 @@ export function TrialInviteCampaignView() {
     })
   }
 
-  const ensureTokensFor = async (studentIds: string[]) => {
-    const needVoid: string[] = []
-    for (const id of studentIds) {
+  const generateEligibleIds = (studentIds: string[]) => {
+    const blocked: string[] = []
+    const eligible: string[] = []
+    for (const id of uniqueIds(studentIds)) {
       const existing = tokensByStudent.get(id)
-      if (
-        existing &&
-        existing.status === "open" &&
-        existing.expires_at &&
-        new Date(existing.expires_at).getTime() < Date.now()
-      ) {
-        needVoid.push(existing.token)
-      }
+      if (existing?.status === "submitted") blocked.push(id)
+      else eligible.push(id)
     }
-    for (const token of needVoid) {
-      await voidTrialInviteToken(token)
-    }
-    const created = await createTrialInviteTokens(studentIds)
-    mergeTokens(created)
-    return created
+    return { blocked, eligible }
   }
 
-  const generateFor = async (studentIds: string[]) => {
-    if (studentIds.length === 0) return
-    setBusy(true)
-    try {
-      const created = await ensureTokensFor(studentIds)
+  const openGenerate = (studentIds: string[], after: GenerateAfter = "none") => {
+    const ids = uniqueIds(studentIds)
+    if (ids.length === 0) return
+    const { blocked, eligible } = generateEligibleIds(ids)
+    if (eligible.length === 0) {
+      pushBanner({
+        tone: "error",
+        title: "無法產生連結",
+        message: "所選學生均有待審核申請，請先作廢現有連結。",
+      })
+      return
+    }
+    if (blocked.length > 0) {
+      pushBanner({
+        tone: "warning",
+        title: "部分學生已有待審核申請",
+        message: `已剔除 ${blocked.length} 人；請先作廢其連結後再產生。`,
+      })
+    }
+    setGenerateIntent({ studentIds: eligible, after })
+    setGenerateTrialType("")
+  }
+
+  const sendNotify = async (student: StudentRecord, token: string, trialType: TrialInviteType) => {
+    const url = trialInvitePublicUrl(token)
+    const message = buildTrialInviteNotifyMessage({
+      fullName: student.full_name,
+      url,
+      trialType,
+    })
+    const target = messagingTargetFromStudent(student)
+    if (!target) throw new Error("第一聯絡人未有電話／WeChat ID")
+    if (target.channel === "WeChat") {
+      await navigator.clipboard.writeText(message)
       pushBanner({
         tone: "success",
-        title: "已產生連結",
-        message: `共 ${created.length} 個（含重用進行中連結）`,
+        title: "已複製 WeChat 話術",
+        message: target.wechatId ? `WeChat ID：${target.wechatId}` : student.full_name,
       })
+      return
+    }
+    openPrimaryMessagingTarget(target, message)
+    pushBanner({ tone: "success", title: "已開啟 WhatsApp", message: student.full_name })
+  }
+
+  const confirmGenerate = async () => {
+    if (!generateIntent) return
+    if (!isTrialInviteType(generateTrialType)) {
+      pushBanner({ tone: "error", title: "請選擇試堂類型", message: "免費、半價或原價試堂。" })
+      return
+    }
+    const studentById = new Map(students.map((s) => [s.id, s]))
+    setBusy(true)
+    try {
+      const created = await createTrialInviteTokens(generateIntent.studentIds, generateTrialType)
+      mergeTokens(created)
+      const after = generateIntent.after
+      const firstId = generateIntent.studentIds[0]
+      const firstStudent = firstId ? studentById.get(firstId) : undefined
+      const firstToken =
+        created.find((t) => t.student_id === firstId) ?? created[0] ?? null
+      setGenerateIntent(null)
+      setGenerateTrialType("")
       setSelected(new Set())
+      if (after === "copy" && firstStudent && firstToken) {
+        await navigator.clipboard.writeText(trialInvitePublicUrl(firstToken.token))
+        pushBanner({
+          tone: "success",
+          title: "已產生並複製連結",
+          message: `${firstStudent.full_name} · ${generateTrialType}`,
+        })
+      } else if (after === "notify" && firstStudent && firstToken) {
+        await sendNotify(firstStudent, firstToken.token, generateTrialType)
+      } else {
+        pushBanner({
+          tone: "success",
+          title: "已產生連結",
+          message: `共 ${created.length} 個 · ${generateTrialType}`,
+        })
+      }
     } catch (e) {
       reportUserFacingError(e, { source: "TrialInviteCampaignView.generate" })
       pushBanner({
@@ -319,16 +402,14 @@ export function TrialInviteCampaignView() {
     }
   }
 
-  const copyLink = async (student: StudentRecord, token: string | null) => {
+  const copyLink = async (student: StudentRecord, tokenRow: TrialInviteTokenRow | null) => {
+    if (!trialInviteTokenHasPublicUrl(tokenRow)) {
+      openGenerate([student.id], "copy")
+      return
+    }
     setBusy(true)
     try {
-      let t = token
-      if (!t) {
-        const created = await ensureTokensFor([student.id])
-        t = created[0]?.token ?? null
-      }
-      if (!t) throw new Error("未能取得連結")
-      await navigator.clipboard.writeText(trialInvitePublicUrl(t))
+      await navigator.clipboard.writeText(trialInvitePublicUrl(tokenRow.token))
       pushBanner({ tone: "success", title: "已複製連結", message: student.full_name })
     } catch (e) {
       reportUserFacingError(e, { source: "TrialInviteCampaignView.copy" })
@@ -342,38 +423,63 @@ export function TrialInviteCampaignView() {
     }
   }
 
-  const notify = async (student: StudentRecord, token: string | null) => {
+  const notify = async (student: StudentRecord, tokenRow: TrialInviteTokenRow | null) => {
+    if (!trialInviteTokenHasPublicUrl(tokenRow)) {
+      openGenerate([student.id], "notify")
+      return
+    }
     setBusy(true)
     try {
-      let t = token
-      if (!t) {
-        const created = await ensureTokensFor([student.id])
-        t = created[0]?.token ?? null
-      }
-      if (!t) throw new Error("未能取得連結")
-      const url = trialInvitePublicUrl(t)
-      const message = buildTrialInviteNotifyMessage({
-        fullName: student.full_name,
-        url,
-      })
-      const target = messagingTargetFromStudent(student)
-      if (!target) throw new Error("第一聯絡人未有電話／WeChat ID")
-      if (target.channel === "WeChat") {
-        await navigator.clipboard.writeText(message)
-        pushBanner({
-          tone: "success",
-          title: "已複製 WeChat 話術",
-          message: target.wechatId ? `WeChat ID：${target.wechatId}` : student.full_name,
-        })
-      } else {
-        openPrimaryMessagingTarget(target, message)
-        pushBanner({ tone: "success", title: "已開啟 WhatsApp", message: student.full_name })
-      }
+      await sendNotify(student, tokenRow.token, trialInviteTypeOrDefault(tokenRow.trial_type))
     } catch (e) {
       reportUserFacingError(e, { source: "TrialInviteCampaignView.notify" })
       pushBanner({
         tone: "error",
         title: "通知失敗",
+        message: e instanceof Error ? e.message : String(e),
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const voidTokensFor = async (studentIds: string[]) => {
+    const tokens = uniqueIds(studentIds)
+      .map((id) => tokensByStudent.get(id) ?? null)
+      .filter(trialInviteTokenVoidable)
+    if (tokens.length === 0) {
+      pushBanner({ tone: "error", title: "沒有可作廢的連結", message: "" })
+      return
+    }
+    const hasSubmitted = tokens.some((t) => t.status === "submitted")
+    const ok = await confirmDialog({
+      title: "作廢邀請連結",
+      description: hasSubmitted
+        ? `將作廢 ${tokens.length} 個連結；待審核申請會一併取消，家長無法再使用舊連結。`
+        : `將作廢 ${tokens.length} 個連結，家長無法再使用舊連結。`,
+      confirmText: "確認作廢",
+      tone: "destructive",
+    })
+    if (!ok) return
+    setBusy(true)
+    try {
+      const voided: TrialInviteTokenRow[] = []
+      for (const row of tokens) {
+        voided.push(await voidTrialInviteToken(row.token))
+      }
+      mergeTokens(voided)
+      if (hasSubmitted) await reload()
+      setSelected(new Set())
+      pushBanner({
+        tone: "success",
+        title: "已作廢連結",
+        message: `共 ${voided.length} 個`,
+      })
+    } catch (e) {
+      reportUserFacingError(e, { source: "TrialInviteCampaignView.void" })
+      pushBanner({
+        tone: "error",
+        title: "作廢失敗",
         message: e instanceof Error ? e.message : String(e),
       })
     } finally {
@@ -473,7 +579,7 @@ export function TrialInviteCampaignView() {
           <AdminPageHeader
             eyebrow="行政工作"
             title="試堂邀請"
-            description="為既有學生產生專屬連結；家長選堂提交後，於此審核。核准後仍須收款確認才上點名紙。"
+            description="為既有學生產生專屬連結，產生前須選擇免費／半價／原價試堂。家長選堂提交後，於此審核。核准後仍須收款確認才上點名紙。"
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
@@ -552,7 +658,9 @@ export function TrialInviteCampaignView() {
               <Tag tone={statusToTagTone("待審核")}>{pending.length}</Tag>
             </div>
             <ul className="divide-y divide-border">
-              {pending.map((req) => (
+              {pending.map((req) => {
+                const pendingType = tokensByStudent.get(req.student_id)?.trial_type
+                return (
                 <li
                   key={req.id}
                   className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
@@ -571,6 +679,9 @@ export function TrialInviteCampaignView() {
                         .map((ln) => `${ln.class_label}（${formatSchedule(ln)}）`)
                         .join("；")}
                     </p>
+                    {pendingType ? (
+                      <p className="mt-1 text-xs text-muted-foreground">試堂類型：{pendingType}</p>
+                    ) : null}
                     {req.elected_subject_codes.length > 0 ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         選修：{req.elected_subject_codes.join("、")}
@@ -583,13 +694,14 @@ export function TrialInviteCampaignView() {
                     onClick={() => {
                       setReviewRow(req)
                       setApproveHeadcount("")
-                      setApproveTrialType("免費試堂")
+                      setApproveTrialType(trialInviteTypeOrDefault(pendingType))
                     }}
                   >
                     審核
                   </Button>
                 </li>
-              ))}
+                )
+              })}
             </ul>
           </section>
         ) : null}
@@ -606,10 +718,23 @@ export function TrialInviteCampaignView() {
             variant="outline"
             size="sm"
             disabled={busy || selected.size === 0}
-            onClick={() => void generateFor([...selected])}
+            onClick={() => openGenerate([...selected])}
           >
             <Link2 className="mr-1 h-4 w-4" aria-hidden />
             產生連結
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={
+              busy ||
+              ![...selected].some((id) => trialInviteTokenVoidable(tokensByStudent.get(id) ?? null))
+            }
+            onClick={() => void voidTokensFor([...selected])}
+          >
+            <Ban className="mr-1 h-4 w-4" aria-hidden />
+            作廢連結
           </Button>
         </BulkSelectionBar>
       </StickyListLead>
@@ -654,13 +779,14 @@ export function TrialInviteCampaignView() {
             </thead>
             <tbody className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}>
               {sorted.map((row) => {
-                const token = row.tokenRow?.token ?? null
+                const tokenRow = row.tokenRow
                 const target = messagingTargetFromStudent(row.student)
                 const channel = target?.channel ?? "WhatsApp"
                 const canNotify =
                   channel === "WeChat"
                     ? Boolean(target?.wechatId?.trim())
                     : Boolean(target?.phone?.trim())
+                const canVoid = trialInviteTokenVoidable(tokenRow)
                 return (
                   <tr
                     key={row.student.id}
@@ -694,7 +820,12 @@ export function TrialInviteCampaignView() {
                       </button>
                     </td>
                     <td className="px-3 py-2">
-                      <Tag tone={statusTone(row.uiStatus)}>{row.uiStatus}</Tag>
+                      <div className="space-y-1">
+                        <Tag tone={statusTone(row.uiStatus)}>{row.uiStatus}</Tag>
+                        {tokenRow && row.uiStatus !== "未產生" ? (
+                          <p className="text-xs text-muted-foreground">{tokenRow.trial_type}</p>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex flex-wrap gap-1.5">
@@ -703,10 +834,10 @@ export function TrialInviteCampaignView() {
                           variant="outline"
                           size="sm"
                           disabled={busy}
-                          onClick={() => void copyLink(row.student, token)}
+                          onClick={() => void copyLink(row.student, tokenRow)}
                         >
                           <Copy className="mr-1 h-3.5 w-3.5" aria-hidden />
-                          複製連結
+                          生成連結
                         </Button>
                         <Button
                           type="button"
@@ -718,11 +849,23 @@ export function TrialInviteCampaignView() {
                               ? "border-sky-500/40 text-sky-700 hover:bg-sky-600 hover:text-white"
                               : "border-success/40 text-success hover:bg-success"
                           }
-                          onClick={() => void notify(row.student, token)}
+                          onClick={() => void notify(row.student, tokenRow)}
                         >
                           <MessageCircle className="mr-1 h-3.5 w-3.5" aria-hidden />
                           {channel === "WeChat" ? "WeChat" : "WhatsApp"}
                         </Button>
+                        {canVoid ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void voidTokensFor([row.student.id])}
+                          >
+                            <Ban className="mr-1 h-3.5 w-3.5" aria-hidden />
+                            作廢
+                          </Button>
+                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -801,10 +944,81 @@ export function TrialInviteCampaignView() {
                 <Button type="button" variant="outline" disabled={busy} onClick={() => void onReject()}>
                   駁回
                 </Button>
-                <Button type="button" disabled={busy} onClick={() => void onApprove()}>
+                <Button type="button" loading={busy} onClick={() => void onApprove()}>
                   核准並建立試堂
                 </Button>
               </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(generateIntent)}
+        onOpenChange={(open) => {
+          if (!open && !busy) {
+            setGenerateIntent(null)
+            setGenerateTrialType("")
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>選擇試堂類型</DialogTitle>
+          </DialogHeader>
+          {generateIntent ? (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                此次將為 {generateIntent.studentIds.length}{" "}
+                名學生產生專屬連結。若該生已有未提交連結，將作廢舊連結並產生新連結。
+              </p>
+              {generateIntent.studentIds.some((id) => {
+                const existing = tokensByStudent.get(id)
+                return existing?.status === "open" || existing?.status === "expired"
+              }) ? (
+                <p className="text-sm text-warning">
+                  部分學生已有未提交連結，確認後舊連結即時失效。
+                </p>
+              ) : null}
+              <label className="block space-y-1.5 text-sm">
+                <span className="font-medium">這次屬於</span>
+                <Select
+                  value={generateTrialType}
+                  onChange={(e) => setGenerateTrialType(e.target.value)}
+                  aria-label="試堂類型"
+                >
+                  <option value="">請選擇</option>
+                  {TRIAL_INVITE_TYPES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    setGenerateIntent(null)
+                    setGenerateTrialType("")
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="button"
+                  loading={busy}
+                  disabled={!isTrialInviteType(generateTrialType)}
+                  onClick={() => void confirmGenerate()}
+                >
+                  {generateIntent.after === "copy"
+                    ? "產生並複製"
+                    : generateIntent.after === "notify"
+                      ? "產生並通知"
+                      : "產生連結"}
+                </Button>
+              </DialogFooter>
             </div>
           ) : null}
         </DialogContent>

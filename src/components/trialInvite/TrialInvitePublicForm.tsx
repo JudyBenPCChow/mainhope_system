@@ -107,7 +107,9 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
           setErr(
             s.status === "expired"
               ? "此連結已過期，請向職員索取新連結"
-              : `此連結無法使用（${s.status}）`
+              : s.status === "voided"
+                ? "此連結已作廢，請向職員索取新連結"
+                : `此連結無法使用（${s.status}）`
           )
         }
       })
