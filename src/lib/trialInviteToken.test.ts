@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { trialInviteTokenUsable, trialInviteTokenVoidable } from "./trialInviteToken"
+import { trialInviteTokenHasPublicUrl, trialInviteTokenUsable, trialInviteTokenVoidable } from "./trialInviteToken"
 import { isTrialInviteType, trialInviteTypeOrDefault } from "./trialInviteTypes"
 import type { TrialInviteTokenRow } from "@/services/trialInviteQueries"
 
@@ -37,6 +37,7 @@ describe("trialInviteToken", () => {
 
   it("does not treat submitted or expired as usable, but they can be voided", () => {
     expect(trialInviteTokenUsable(token({ status: "submitted" }))).toBe(false)
+    expect(trialInviteTokenHasPublicUrl(token({ status: "submitted" }))).toBe(true)
     expect(trialInviteTokenVoidable(token({ status: "submitted" }))).toBe(true)
     expect(
       trialInviteTokenUsable(

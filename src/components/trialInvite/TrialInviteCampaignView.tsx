@@ -37,7 +37,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { buildTrialInviteNotifyMessage } from "@/lib/trialInviteNotifyMessage"
 import {
-  trialInviteTokenUsable,
+  trialInviteTokenHasPublicUrl,
   trialInviteTokenVoidable,
 } from "@/lib/trialInviteToken"
 import {
@@ -403,44 +403,44 @@ export function TrialInviteCampaignView() {
   }
 
   const copyLink = async (student: StudentRecord, tokenRow: TrialInviteTokenRow | null) => {
-    if (trialInviteTokenUsable(tokenRow) || tokenRow?.status === "submitted") {
-      setBusy(true)
-      try {
-        await navigator.clipboard.writeText(trialInvitePublicUrl(tokenRow.token))
-        pushBanner({ tone: "success", title: "已複製連結", message: student.full_name })
-      } catch (e) {
-        reportUserFacingError(e, { source: "TrialInviteCampaignView.copy" })
-        pushBanner({
-          tone: "error",
-          title: "複製失敗",
-          message: e instanceof Error ? e.message : String(e),
-        })
-      } finally {
-        setBusy(false)
-      }
+    if (!trialInviteTokenHasPublicUrl(tokenRow)) {
+      openGenerate([student.id], "copy")
       return
     }
-    openGenerate([student.id], "copy")
+    setBusy(true)
+    try {
+      await navigator.clipboard.writeText(trialInvitePublicUrl(tokenRow.token))
+      pushBanner({ tone: "success", title: "已複製連結", message: student.full_name })
+    } catch (e) {
+      reportUserFacingError(e, { source: "TrialInviteCampaignView.copy" })
+      pushBanner({
+        tone: "error",
+        title: "複製失敗",
+        message: e instanceof Error ? e.message : String(e),
+      })
+    } finally {
+      setBusy(false)
+    }
   }
 
   const notify = async (student: StudentRecord, tokenRow: TrialInviteTokenRow | null) => {
-    if (trialInviteTokenUsable(tokenRow) || tokenRow?.status === "submitted") {
-      setBusy(true)
-      try {
-        await sendNotify(student, tokenRow.token, trialInviteTypeOrDefault(tokenRow.trial_type))
-      } catch (e) {
-        reportUserFacingError(e, { source: "TrialInviteCampaignView.notify" })
-        pushBanner({
-          tone: "error",
-          title: "通知失敗",
-          message: e instanceof Error ? e.message : String(e),
-        })
-      } finally {
-        setBusy(false)
-      }
+    if (!trialInviteTokenHasPublicUrl(tokenRow)) {
+      openGenerate([student.id], "notify")
       return
     }
-    openGenerate([student.id], "notify")
+    setBusy(true)
+    try {
+      await sendNotify(student, tokenRow.token, trialInviteTypeOrDefault(tokenRow.trial_type))
+    } catch (e) {
+      reportUserFacingError(e, { source: "TrialInviteCampaignView.notify" })
+      pushBanner({
+        tone: "error",
+        title: "通知失敗",
+        message: e instanceof Error ? e.message : String(e),
+      })
+    } finally {
+      setBusy(false)
+    }
   }
 
   const voidTokensFor = async (studentIds: string[]) => {
