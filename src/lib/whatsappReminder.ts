@@ -269,6 +269,83 @@ export function buildStudentDayReminderMessage(p: StudentDayReminderPayload): st
  return lines.join("\n")
 }
 
+export type TeacherDayLessonReminderItem = {
+ subject: string
+ courseCode?: string | null
+ courseName?: string | null
+ startTime?: string | null
+ endTime?: string | null
+ isConsecutive?: boolean
+ classroomName?: string | null
+ isExtraLesson?: boolean
+ originalTeacherName?: string | null
+}
+
+export type TeacherDayReminderPayload = {
+ teacherName: string
+ dateYmd: string
+ lessons: TeacherDayLessonReminderItem[]
+}
+
+function formatTeacherDayLessonTitle(item: TeacherDayLessonReminderItem): string {
+ const head = item.courseName?.trim() ? item.courseName.trim() : item.subject
+ return item.courseCode ? `${head}（${item.courseCode}）` : head
+}
+
+function teacherDayLessonNotes(item: TeacherDayLessonReminderItem): string[] {
+ const notes: string[] = []
+ const original = item.originalTeacherName?.trim()
+ if (original) notes.push(`代堂（原：${original}）`)
+ if (item.isExtraLesson) notes.push("加堂")
+ return notes
+}
+
+function teacherReminderWho(name: string): string {
+ const n = name.trim() || "老師"
+ return /老師$/.test(n) ? n : `${n}老師`
+}
+
+/** 產生「老師 × 某日」多堂合併 WhatsApp 正文（提醒明日排程） */
+export function buildTeacherDayReminderMessage(p: TeacherDayReminderPayload): string {
+ const lines: string[] = []
+ const who = teacherReminderWho(p.teacherName)
+ const lessons = p.lessons.filter(Boolean)
+ lines.push(`您好，這裡是明學教育通知。`)
+ lines.push("")
+ if (lessons.length <= 1) {
+  const only = lessons[0]
+  if (!only) {
+   lines.push(`${who} 課堂排程：`)
+   lines.push(`日期：${p.dateYmd}`)
+  } else {
+   lines.push(`${who} 課堂排程：`)
+   lines.push(`班別：${formatTeacherDayLessonTitle(only)}`)
+   lines.push(`日期：${p.dateYmd}`)
+   const time = formatLessonReminderTimeLine(only.startTime, only.endTime, only.isConsecutive)
+   if (time) lines.push(`時間：${time}`)
+   if (only.classroomName) lines.push(`課室：${only.classroomName}`)
+   const notes = teacherDayLessonNotes(only)
+   if (notes.length > 0) lines.push(`備註：${notes.join(" · ")}`)
+  }
+ } else {
+  lines.push(`${who} 課堂排程（共 ${lessons.length} 堂）：`)
+  lines.push(`日期：${p.dateYmd}`)
+  lines.push("")
+  lessons.forEach((item, i) => {
+   lines.push(`${i + 1}. ${formatTeacherDayLessonTitle(item)}`)
+   const time = formatLessonReminderTimeLine(item.startTime, item.endTime, item.isConsecutive)
+   if (time) lines.push(`   時間：${time}`)
+   if (item.classroomName) lines.push(`   課室：${item.classroomName}`)
+   const notes = teacherDayLessonNotes(item)
+   if (notes.length > 0) lines.push(`   備註：${notes.join(" · ")}`)
+   if (i < lessons.length - 1) lines.push("")
+  })
+ }
+ lines.push("")
+ lines.push(`請準時到校。如有調動請回覆此訊息，謝謝！`)
+ return lines.join("\n")
+}
+
 export function buildWhatsAppMeUrl(phoneDigits: string, message: string, defaultCc = "852"): string | null {
  const digits = digitsForWhatsAppMe(phoneDigits, defaultCc)
  if (!digits) return null

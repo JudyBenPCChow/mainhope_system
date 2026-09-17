@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import {
  Check,
  Clock,
@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
+import { TomorrowTeacherReminderList } from "@/components/reminders/TomorrowTeacherReminderList"
 import { Button } from "@/components/ui/button"
 import { HintTooltip } from "@/components/ui/tooltip"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
@@ -25,6 +26,7 @@ import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import {
  buildStudentDayReminderMessage,
+ buildTeacherDayReminderMessage,
  formatLessonReminderTimeLine,
  openWhatsAppWithPrefilledText,
 } from "@/lib/whatsappReminder"
@@ -32,14 +34,23 @@ import type { AggregatedStudentDayLesson } from "@/lib/studentDayReminders"
 import {
  defaultReminderDateYmd,
  fetchStudentDayReminderRows,
+ fetchTeacherDayReminderRows,
  markStudentDayReminded,
+ markTeacherDayReminded,
  unmarkStudentDayReminded,
+ unmarkTeacherDayReminded,
  type StudentDayReminderRow,
+ type TeacherDayReminderRow,
 } from "@/services/lessonReminderQueries"
 import { localYmd } from "@/services/teacherQueries"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 type FilterId = "all" | "pending" | "done" | "noPhone"
+type AudienceId = "students" | "teachers"
+
+function parseAudience(value: string | null): AudienceId {
+ return value === "teachers" ? "teachers" : "students"
+}
 
 function weekdayZh(ymd: string): string {
  const d = new Date(`${ymd}T12:00:00`)
@@ -76,26 +87,71 @@ function lessonChipClass(kind: AggregatedStudentDayLesson["kind"]): string {
  return "border-info/40 bg-info/5"
 }
 
+function reminderStats(list: { canMessage: boolean; remindedAt: string | null }[]) {
+ const total = list.length
+ const noPhone = list.filter((r) => !r.canMessage).length
+ const done = list.filter((r) => r.remindedAt != null).length
+ const pending = list.filter((r) => r.canMessage && r.remindedAt == null).length
+ const progress = total === 0 ? 0 : Math.round((done / total) * 100)
+ return { total, noPhone, done, pending, progress }
+}
+
+function filterReminderRows<T extends { canMessage: boolean; remindedAt: string | null }>(
+ list: T[],
+ filter: FilterId
+): T[] {
+ return list.filter((r) => {
+  const done = r.remindedAt != null
+  if (filter === "pending") return r.canMessage && !done
+  if (filter === "done") return done
+  if (filter === "noPhone") return !r.canMessage
+  return true
+ })
+}
+
 export function TomorrowRemindersPage() {
  const { pushBanner } = useAppBanner()
  const { role } = useAuth()
+ const [searchParams, setSearchParams] = useSearchParams()
  const today = localYmd()
  const PageHeaderShell = usesSharedAppShell(role) ? "div" : "header"
+ const audience = parseAudience(searchParams.get("audience"))
  const [reminderDate, setReminderDate] = useState(() => defaultReminderDateYmd(today))
  const [filter, setFilter] = useState<FilterId>("pending")
  const [rows, setRows] = useState<StudentDayReminderRow[]>([])
+ const [teacherRows, setTeacherRows] = useState<TeacherDayReminderRow[]>([])
+ const [unassignedCount, setUnassignedCount] = useState(0)
  const [loading, setLoading] = useState(false)
  const [err, setErr] = useState<string | null>(null)
  const [busyId, setBusyId] = useState<string | null>(null)
  const [previewId, setPreviewId] = useState<string | null>(null)
+
+ const setAudience = (next: AudienceId) => {
+  setFilter("pending")
+  setPreviewId(null)
+  setSearchParams(
+   (prev) => {
+    const nextParams = new URLSearchParams(prev)
+    if (next === "teachers") nextParams.set("audience", "teachers")
+    else nextParams.delete("audience")
+    return nextParams
+   },
+   { replace: true }
+  )
+ }
 
  const load = useCallback(async () => {
   if (!isSupabaseConfigured) return
   setLoading(true)
   setErr(null)
   try {
-   const data = await fetchStudentDayReminderRows(reminderDate)
-   setRows(data)
+   const [studentData, teacherData] = await Promise.all([
+    fetchStudentDayReminderRows(reminderDate),
+    fetchTeacherDayReminderRows(reminderDate),
+   ])
+   setRows(studentData)
+   setTeacherRows(teacherData.rows)
+   setUnassignedCount(teacherData.unassignedCount)
   } catch (e) {
    reportUserFacingError(e, {
     source: "TomorrowRemindersPage.load",
@@ -111,24 +167,15 @@ export function TomorrowRemindersPage() {
   void load()
  }, [load])
 
- const stats = useMemo(() => {
-  const total = rows.length
-  const noPhone = rows.filter((r) => !r.canMessage).length
-  const done = rows.filter((r) => r.remindedAt != null).length
-  const pending = rows.filter((r) => r.canMessage && r.remindedAt == null).length
-  const progress = total === 0 ? 0 : Math.round((done / total) * 100)
-  return { total, noPhone, done, pending, progress }
- }, [rows])
+ const studentStats = useMemo(() => reminderStats(rows), [rows])
+ const teacherStats = useMemo(() => reminderStats(teacherRows), [teacherRows])
+ const stats = audience === "teachers" ? teacherStats : studentStats
 
- const visible = useMemo(() => {
-  return rows.filter((r) => {
-   const done = r.remindedAt != null
-   if (filter === "pending") return r.canMessage && !done
-   if (filter === "done") return done
-   if (filter === "noPhone") return !r.canMessage
-   return true
-  })
- }, [rows, filter])
+ const visibleStudents = useMemo(() => filterReminderRows(rows, filter), [rows, filter])
+ const visibleTeachers = useMemo(
+  () => filterReminderRows(teacherRows, filter),
+  [teacherRows, filter]
+ )
 
  const patchRow = (studentId: string, patch: Partial<StudentDayReminderRow>) => {
   setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, ...patch } : r)))
@@ -236,6 +283,119 @@ export function TomorrowRemindersPage() {
   }
  }
 
+ const patchTeacherRow = (teacherId: string, patch: Partial<TeacherDayReminderRow>) => {
+  setTeacherRows((prev) => prev.map((r) => (r.teacherId === teacherId ? { ...r, ...patch } : r)))
+ }
+
+ const sendTeacherReminder = async (teacherId: string) => {
+  const row = teacherRows.find((r) => r.teacherId === teacherId)
+  if (!row?.contactPhone) {
+   pushBanner({
+    tone: "warning",
+    title: "無法開啟 WhatsApp",
+    message: "此老師缺聯絡電話。",
+   })
+   return
+  }
+  const message = buildTeacherDayReminderMessage({
+   teacherName: row.fullName,
+   dateYmd: reminderDate,
+   lessons: row.lessons,
+  })
+  const opened = openWhatsAppWithPrefilledText(row.contactPhone, message)
+  if (!opened) {
+   pushBanner({
+    tone: "warning",
+    title: "無法組出 WhatsApp 連結",
+    message: "請檢查電話格式。",
+   })
+   return
+  }
+  setBusyId(teacherId)
+  try {
+   await markTeacherDayReminded({
+    teacherId,
+    reminderDate,
+    channel: "whatsapp",
+    detail: `${row.lessonCount} 堂`,
+   })
+   const refreshed = await fetchTeacherDayReminderRows(reminderDate)
+   setTeacherRows(refreshed.rows)
+   setUnassignedCount(refreshed.unassignedCount)
+   pushBanner({
+    tone: "success",
+    title: "已開啟 WhatsApp",
+    message: `已將「${row.fullName}」標記為已提醒。請在 WhatsApp 內確認後發送。`,
+   })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "TomorrowRemindersPage.sendTeacherReminder",
+    setErr,
+    userMessage: formatUnknownError(e),
+   })
+  } finally {
+   setBusyId(null)
+  }
+ }
+
+ const markTeacherManual = async (teacherId: string) => {
+  const row = teacherRows.find((r) => r.teacherId === teacherId)
+  if (!row) return
+  setBusyId(teacherId)
+  try {
+   await markTeacherDayReminded({
+    teacherId,
+    reminderDate,
+    channel: "manual",
+    detail: `${row.lessonCount} 堂`,
+   })
+   const refreshed = await fetchTeacherDayReminderRows(reminderDate)
+   setTeacherRows(refreshed.rows)
+   setUnassignedCount(refreshed.unassignedCount)
+   pushBanner({
+    tone: "info",
+    title: "已手動標記",
+    message: `「${row.fullName}」標為已提醒。`,
+   })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "TomorrowRemindersPage.markTeacherManual",
+    setErr,
+    userMessage: formatUnknownError(e),
+   })
+  } finally {
+   setBusyId(null)
+  }
+ }
+
+ const unmarkTeacher = async (teacherId: string) => {
+  const row = teacherRows.find((r) => r.teacherId === teacherId)
+  if (!row) return
+  setBusyId(teacherId)
+  try {
+   await unmarkTeacherDayReminded({ teacherId, reminderDate })
+   patchTeacherRow(teacherId, { remindedAt: null, remindedBy: null })
+   pushBanner({
+    tone: "info",
+    title: "已取消標記",
+    message: `「${row.fullName}」改回未提醒。`,
+   })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "TomorrowRemindersPage.unmarkTeacher",
+    setErr,
+    userMessage: formatUnknownError(e),
+   })
+  } finally {
+   setBusyId(null)
+  }
+ }
+
+ const audienceTabs: { id: AudienceId; label: string; count: number }[] = [
+  { id: "students", label: "學生", count: studentStats.total },
+  { id: "teachers", label: "老師", count: teacherStats.total },
+ ]
+
  const filterTabs: { id: FilterId; label: string; count: number; tone?: string }[] = [
   { id: "pending", label: "未提醒", count: stats.pending, tone: "text-warning" },
   { id: "done", label: "已提醒", count: stats.done, tone: "text-success" },
@@ -269,7 +429,11 @@ export function TomorrowRemindersPage() {
       <AdminPageHeader
        eyebrow="行政工作"
        title="課堂提醒"
-       description={`處理 ${formatShortYmd(reminderDate)} 即將上課及需要行政跟進的項目。`}
+       description={
+        audience === "teachers"
+         ? `按任教老師合併 ${formatShortYmd(reminderDate)} 排程，以 WhatsApp 提醒到校。`
+         : `按學生合併 ${formatShortYmd(reminderDate)} 課堂，以 WhatsApp 提醒家長。`
+       }
        actions={
         <div className="min-w-[8.75rem] text-right">
          <p className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
@@ -358,6 +522,32 @@ export function TomorrowRemindersPage() {
       </Button>
      </div>
 
+     <div className="flex flex-wrap items-center gap-2 px-4 pt-3 md:px-5" role="tablist" aria-label="提醒對象">
+      {audienceTabs.map((tab) => {
+       const active = audience === tab.id
+       return (
+        <button
+         key={tab.id}
+         type="button"
+         role="tab"
+         aria-selected={active}
+         onClick={() => setAudience(tab.id)}
+         className={cn(
+          "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+          active
+           ? "border-brand-primary bg-brand-primary text-white"
+           : "border-border bg-background text-foreground hover:bg-neutral-100"
+         )}
+        >
+         <span>{tab.label}</span>
+         <span className={cn("tabular-nums text-xs", active ? "text-white/85" : "text-muted-foreground")}>
+          {tab.count}
+         </span>
+        </button>
+       )
+      })}
+     </div>
+
      <div className="flex flex-wrap items-center gap-2 px-4 py-3 md:px-5">
       {filterTabs.map((tab) => {
        const active = filter === tab.id
@@ -389,21 +579,43 @@ export function TomorrowRemindersPage() {
     </PageHeaderShell>
 
     <p className="text-sm text-muted-foreground">
-     以學生為單位：一人一則訊息，涵蓋當日所有堂（連堂合併；含補堂／調堂、試堂）。該堂已請假者不列入。
+     {audience === "teachers"
+      ? "以任教老師為單位：一人一則訊息，涵蓋當日排程（連堂合併；含代堂／加堂）。取消堂不列入。功輔未指定任教者不列入。"
+      : "以學生為單位：一人一則訊息，涵蓋當日所有堂（連堂合併；含補堂／調堂、試堂）。該堂已請假者不列入。"}
     </p>
 
-    {loading && rows.length === 0 ? (
+    {audience === "teachers" && unassignedCount > 0 ? (
+     <p className="text-sm text-warning" role="status">
+      尚有 {unassignedCount} 堂專科班或私人課程未指定任教老師，無法列入提醒。
+     </p>
+    ) : null}
+
+    {audience === "teachers" ? (
+     <TomorrowTeacherReminderList
+      rows={teacherRows}
+      visible={visibleTeachers}
+      reminderDate={reminderDate}
+      loading={loading}
+      filter={filter}
+      busyId={busyId}
+      previewId={previewId}
+      onSend={(id) => void sendTeacherReminder(id)}
+      onMarkManual={(id) => void markTeacherManual(id)}
+      onUnmark={(id) => void unmarkTeacher(id)}
+      onTogglePreview={(id) => setPreviewId(previewId === id ? null : id)}
+     />
+    ) : loading && rows.length === 0 ? (
      <SkeletonCardGrid count={4} />
     ) : (
      <StaggerList as="ul" className="space-y-4" aria-label="需提醒學生">
-      {visible.length === 0 ? (
+      {visibleStudents.length === 0 ? (
        <li className="rounded-2xl border border-dashed border-border bg-background px-4 py-12 text-center text-sm text-muted-foreground">
         {filter === "pending"
          ? "未提醒已清空，可切換「全部」或「已提醒」。"
          : "此篩選下沒有學生。"}
        </li>
       ) : (
-       visible.map((row) => {
+       visibleStudents.map((row) => {
         const done = row.remindedAt != null
         const showPreview = previewId === row.studentId
         const message = buildStudentDayReminderMessage({

@@ -1,9 +1,16 @@
+import { isUnassignedTeachingTeacherIssue } from "@/lib/privateClassKind"
 import {
  aggregateStudentDayLessons,
  type AggregatedStudentDayLesson,
  type StudentDayLessonInput,
  type StudentDayLessonKind,
 } from "@/lib/studentDayReminders"
+import {
+ aggregateTeacherDayLessons,
+ type AggregatedTeacherDayLesson,
+ type TeacherDayLessonInput,
+} from "@/lib/teacherDayReminders"
+import { compareTeachersByEnglishName } from "@/lib/teacherDisplaySort"
 import { forEachIdChunk, DEFAULT_ID_CHUNK } from "@/lib/supabaseInChunks"
 import { trimTimeHm } from "@/lib/consecutiveLesson"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
@@ -32,6 +39,33 @@ export type StudentDayReminderRow = {
 
 export type LessonReminderLogRow = {
  studentId: string
+ reminderDate: string
+ remindedAt: string
+ remindedBy: string | null
+ channel: string
+}
+
+export type TeacherDayReminderRow = {
+ teacherId: string
+ fullName: string
+ englishName: string | null
+ contactPhone: string | null
+ lessons: AggregatedTeacherDayLesson[]
+ lessonCount: number
+ hasSubstitute: boolean
+ hasExtra: boolean
+ canMessage: boolean
+ remindedAt: string | null
+ remindedBy: string | null
+}
+
+export type TeacherDayReminderLoad = {
+ rows: TeacherDayReminderRow[]
+ unassignedCount: number
+}
+
+export type TeacherLessonReminderLogRow = {
+ teacherId: string
  reminderDate: string
  remindedAt: string
  remindedBy: string | null
@@ -307,6 +341,173 @@ export async function fetchStudentDayReminderRows(
  })
 }
 
+function scheduleToTeacherLessonFields(s: ScheduleManageRow): TeacherDayLessonInput {
+ return {
+  scheduleId: s.id,
+  subject: s.subject,
+  courseCode: s.course_code_full,
+  courseName: s.course_name,
+  startTime: trimTimeHm(s.start_time),
+  endTime: trimTimeHm(s.end_time),
+  classroomName: s.classroom_name,
+  consecutiveGroupId: s.consecutive_group_id,
+  consecutiveSlotIndex: s.consecutive_slot_index,
+  isExtraLesson: s.is_extra_lesson,
+  originalTeacherName: s.original_teacher_id
+   ? s.original_teacher_name?.trim() || "—"
+   : null,
+ }
+}
+
+async function fetchTeacherContactsByIds(teacherIds: string[]): Promise<
+ Map<string, { fullName: string; englishName: string | null; contactPhone: string | null }>
+> {
+ const map = new Map<
+  string,
+  { fullName: string; englishName: string | null; contactPhone: string | null }
+ >()
+ if (!supabase || teacherIds.length === 0) return map
+
+ const [nameChunks, phoneChunks] = await Promise.all([
+  forEachIdChunk(teacherIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("teachers")
+    .select("id, full_name, english_name")
+    .in("id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+  forEachIdChunk(teacherIds, DEFAULT_ID_CHUNK, async (slice) => {
+   const { data, error } = await supabase!
+    .from("teachers_private")
+    .select("teacher_id, phone")
+    .in("teacher_id", slice)
+   if (error) throw error
+   return data ?? []
+  }),
+ ])
+
+ const phoneById = new Map<string, string | null>()
+ for (const data of phoneChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const id = r.teacher_id != null ? String(r.teacher_id) : ""
+   if (!id) continue
+   phoneById.set(id, r.phone != null ? String(r.phone).trim() || null : null)
+  }
+ }
+
+ for (const data of nameChunks) {
+  for (const row of data) {
+   const r = row as Record<string, unknown>
+   const id = String(r.id)
+   map.set(id, {
+    fullName: r.full_name != null ? String(r.full_name).trim() || "—" : "—",
+    englishName: r.english_name != null ? String(r.english_name).trim() || null : null,
+    contactPhone: phoneById.get(id) ?? null,
+   })
+  }
+ }
+ return map
+}
+
+export async function fetchTeacherLessonReminderLogsForDate(
+ reminderDate: string
+): Promise<Map<string, TeacherLessonReminderLogRow>> {
+ const map = new Map<string, TeacherLessonReminderLogRow>()
+ if (!supabase) return map
+ const { data, error } = await supabase
+  .from("teacher_lesson_reminder_logs")
+  .select("teacher_id, reminder_date, reminded_at, reminded_by, channel")
+  .eq("reminder_date", reminderDate)
+ if (error) throw error
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const teacherId = String(r.teacher_id)
+  map.set(teacherId, {
+   teacherId,
+   reminderDate: String(r.reminder_date),
+   remindedAt: String(r.reminded_at),
+   remindedBy: r.reminded_by != null ? String(r.reminded_by) : null,
+   channel: r.channel != null ? String(r.channel) : "whatsapp",
+  })
+ }
+ return map
+}
+
+/**
+ * 載入指定上課日「應提醒」老師清單（當日實際授課老師；含代堂／加堂；排除取消堂）。
+ * 無 teacher_id 的專科／私人排程計入 unassignedCount；功輔未指定任教者不列入、亦不計缺口。
+ */
+export async function fetchTeacherDayReminderRows(
+ reminderDate: string
+): Promise<TeacherDayReminderLoad> {
+ if (!supabase) return { rows: [], unassignedCount: 0 }
+
+ const schedulesAll = await fetchSchedulesInRange(reminderDate, reminderDate)
+ const schedules = schedulesAll.filter((s) => !isCancelledSchedule(s.status))
+ if (schedules.length === 0) return { rows: [], unassignedCount: 0 }
+
+ const unassignedCount = schedules.filter((s) => isUnassignedTeachingTeacherIssue(s)).length
+ const assigned = schedules.filter((s) => Boolean(s.teacher_id))
+ if (assigned.length === 0) return { rows: [], unassignedCount }
+
+ const lessonsByTeacher = new Map<string, TeacherDayLessonInput[]>()
+ const nameHintByTeacher = new Map<string, string>()
+
+ for (const schedule of assigned) {
+  const teacherId = schedule.teacher_id
+  if (!teacherId) continue
+  if (schedule.teacher_name?.trim()) {
+   nameHintByTeacher.set(teacherId, schedule.teacher_name.trim())
+  }
+  const list = lessonsByTeacher.get(teacherId) ?? []
+  list.push(scheduleToTeacherLessonFields(schedule))
+  lessonsByTeacher.set(teacherId, list)
+ }
+
+ const teacherIds = [...lessonsByTeacher.keys()]
+ const [contactById, logsByTeacher] = await Promise.all([
+  fetchTeacherContactsByIds(teacherIds),
+  fetchTeacherLessonReminderLogsForDate(reminderDate),
+ ])
+
+ const rows: TeacherDayReminderRow[] = []
+ for (const teacherId of teacherIds) {
+  const lessons = aggregateTeacherDayLessons(lessonsByTeacher.get(teacherId) ?? [])
+  if (lessons.length === 0) continue
+  const contact = contactById.get(teacherId)
+  const log = logsByTeacher.get(teacherId)
+  const fullName = contact?.fullName ?? nameHintByTeacher.get(teacherId) ?? "—"
+  const contactPhone = contact?.contactPhone ?? null
+  rows.push({
+   teacherId,
+   fullName,
+   englishName: contact?.englishName ?? null,
+   contactPhone,
+   lessons,
+   lessonCount: lessons.length,
+   hasSubstitute: lessons.some((l) => Boolean(l.originalTeacherName)),
+   hasExtra: lessons.some((l) => l.isExtraLesson),
+   canMessage: Boolean(contactPhone?.trim()),
+   remindedAt: log?.remindedAt ?? null,
+   remindedBy: log?.remindedBy ?? null,
+  })
+ }
+
+ rows.sort((a, b) => {
+  const tA = a.lessons[0]?.startTime ?? ""
+  const tB = b.lessons[0]?.startTime ?? ""
+  if (tA !== tB) return tA.localeCompare(tB)
+  return compareTeachersByEnglishName(
+   { id: a.teacherId, name: a.fullName, englishName: a.englishName },
+   { id: b.teacherId, name: b.fullName, englishName: b.englishName }
+  )
+ })
+
+ return { rows, unassignedCount }
+}
+
 /** 預設提醒日＝本地日曆翌日 */
 export function defaultReminderDateYmd(todayYmd = localYmd()): string {
  return addDaysYmd(todayYmd, 1)
@@ -341,6 +542,39 @@ export async function unmarkStudentDayReminded(params: {
   .from("lesson_reminder_logs")
   .delete()
   .eq("student_id", params.studentId)
+  .eq("reminder_date", params.reminderDate)
+ if (error) throw error
+}
+
+export async function markTeacherDayReminded(params: {
+ teacherId: string
+ reminderDate: string
+ channel?: "whatsapp" | "manual"
+ detail?: string | null
+}): Promise<void> {
+ if (!supabase) throw new Error("尚未設定 Supabase")
+ const payload = {
+  teacher_id: params.teacherId,
+  reminder_date: params.reminderDate,
+  reminded_at: new Date().toISOString(),
+  channel: params.channel ?? "whatsapp",
+  detail: params.detail ?? null,
+ }
+ const { error } = await supabase.from("teacher_lesson_reminder_logs").upsert(payload, {
+  onConflict: "teacher_id,reminder_date",
+ })
+ if (error) throw error
+}
+
+export async function unmarkTeacherDayReminded(params: {
+ teacherId: string
+ reminderDate: string
+}): Promise<void> {
+ if (!supabase) throw new Error("尚未設定 Supabase")
+ const { error } = await supabase
+  .from("teacher_lesson_reminder_logs")
+  .delete()
+  .eq("teacher_id", params.teacherId)
   .eq("reminder_date", params.reminderDate)
  if (error) throw error
 }

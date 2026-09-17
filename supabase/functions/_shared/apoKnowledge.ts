@@ -136,7 +136,7 @@ ${APO_SYSTEM_DIRECTIVES}
 
 ### admin
 - /FrontDeskWizard 前台指引精靈（新生登記→報讀→收款／出單→請假）
-- /TomorrowReminders 明日課堂提醒（WhatsApp 提醒家長）
+- /TomorrowReminders 明日課堂提醒（WhatsApp 提醒家長／老師排程）
 - /ScriptLibrary 話術庫
 - /Students 學生管理
 - /PortalEnrollmentRequests 家長報讀申請（核准唔自動開單）
