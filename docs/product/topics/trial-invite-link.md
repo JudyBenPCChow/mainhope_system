@@ -41,6 +41,7 @@ Production 走完整邀請流程（測試生 `麥曦文／00000001`；未部署�
   - 就讀中人數 **超過 5 人**（≥ 6）的班別不出現
   - 該排程已有 **未取消** 試堂紀錄（`trial_sessions`）則該堂次不出現；班別因此沒有可選堂次則整班不出現
   - 學生在本學年（`academic_years.is_current`，現為 2627）**就讀中已報讀**的科目：同一產品線（專科班／功課輔導班）不再出現該科
+  - 學生半年內有 **未取消** 試堂紀錄的科目：對比該生全部 `trial_sessions`（不問學年）；同一產品線同一科目不再出現。取消不計；職員後台仍可人手建試堂
 - **公開名單控管（預設全部可出現）**：
   - 某一班可不納入（`classes.trial_invite_listed`，預設 true）
   - 某一堂排程可剔除（`schedules.trial_invite_excluded`，預設 false）
@@ -52,6 +53,7 @@ Production 走完整邀請流程（測試生 `麥曦文／00000001`；未部署�
 - **高中（S4–S6）**：公開頁先多選「目前選修科目」；提交後寫入學生主檔 `elected_subject_codes`，學生詳細頁可看／改；「本社有開設」＝目前學年有專科班（不問家長年級、不問該班是否納入試堂名單）；其後專科班目錄只顯示主科＋已選選修（功課輔導班仍可選）
 - **雙閘**：① 職員核准 → 建 `trial_sessions`（帶入產生連結時選定的免費／半價／原價，審核可改）；② 確認收款後上點名紙。**免費／體驗**：核准當下自動出 $0 已收款單（仍有收據，不上未出單之名）。**半價／原價**：轉往收款登記，確認後才上紙
 - **職員產連結**：選學生、**先選免費／半價／原價試堂**、產／複製連結、第一聯絡人 WhatsApp／WeChat 話術；可作廢未核准的舊連結（待審核申請一併取消）；審核佇列核准／駁回
+- **職員名冊曾試堂科目**：「所有／已確認」於學生名下顯示半年內未取消的專科班／功課輔導班科目（與公開隱藏同一套；按科目去重；功輔另標）。取消不顯示。待審核不另開欄。不含本學年已報讀科目
 - **權限**：`students.enroll`（同試堂紀錄）
 
 ## 已落（未合入）
@@ -60,12 +62,13 @@ Production 走完整邀請流程（測試生 `麥曦文／00000001`；未部署�
 - 名單控管 migration：`20260911120000_trial_invite_catalog_controls.sql`、`20260911155300_trial_invite_catalog_class_only.sql`（公開目錄改為只看班別 listed）
 - `/TrialInvite/:token`、`/TrialInviteCampaign`、`/TrialInviteCatalog`；流程＝S4+ 先選修 → 一次多選科目 → 各科選班並展開堂次 → 提交
 - 選修「本社有開設」改為目前學年有專科班（物理／M2 不因家長年級或未納入試堂名單而落到「其他選修」）
-- 公開目錄額外隱藏：就讀中 > 5 人的班別；該堂已有未取消試堂的排程；本學年已報讀同科
+- 公開目錄額外隱藏：就讀中 > 5 人的班別；該堂已有未取消試堂的排程；本學年已報讀同科；半年內未取消同科試堂
+- **待審核分頁**：改為單一審核佇列（學生／申請堂次／試堂類型／審核），不再疊學生名冊與產生連結表
+- **職員名冊**：學生名下顯示半年內未取消試堂科目（與公開隱藏同一套）
 - 公開頁進度列／返回上一步／進度預覽（仍可能再調）
 - WhatsApp／WeChat 話術依產生連結時選定的試堂類型（免費／半價／原價）改標題；完成試堂內三天內報讀減免 HKD100
 - 產生連結前必選試堂類型；產生新連結會作廢該生未提交的舊連結；職員可手動作廢未核准連結
 - 免費試堂核准時自動出 $0 已收款單並上點名紙；半價／原價轉往收款登記；連堂收據改為同日多筆一併掛
-- 高中提交問卷時，所選選修寫入學生主檔，並顯示於學生詳細頁
 
 ## 相關路徑
 
@@ -75,6 +78,7 @@ Production 走完整邀請流程（測試生 `麥曦文／00000001`；未部署�
 | 公開名單控管 | `/TrialInviteCatalog` |
 | 公開頁 | `/TrialInvite/:token` |
 | Service | `src/services/trialInviteQueries.ts` |
+| 曾試堂科目 | `src/lib/trialInviteRecentSubjects.ts` |
 | 公開流程 | `src/lib/trialInvitePublicFlow.ts` |
-| Migration | `supabase/migrations/20260911023000_trial_invite_tokens.sql`、`20260911044100_trial_invite_senior_electives.sql`、`20260911120000_trial_invite_catalog_controls.sql`、`20260911155300_trial_invite_catalog_class_only.sql`、`20260911160000_trial_invite_set_classes_listed.sql`、`20260911163200_trial_invite_class_meeting_label.sql`、`20260912031200_trial_invite_elective_offered.sql`、`20260915143000_trial_invite_hide_full_and_occupied.sql`、`20260915143600_trial_invite_hide_enrolled_subjects.sql`、`20260917140000_trial_invite_token_trial_type.sql`、`20260917145000_students_elected_subject_codes.sql`、`20260919033000_trial_invite_review_session_ids.sql` |
+| Migration | `supabase/migrations/20260911023000_trial_invite_tokens.sql`、`20260911044100_trial_invite_senior_electives.sql`、`20260911120000_trial_invite_catalog_controls.sql`、`20260911155300_trial_invite_catalog_class_only.sql`、`20260911160000_trial_invite_set_classes_listed.sql`、`20260911163200_trial_invite_class_meeting_label.sql`、`20260912031200_trial_invite_elective_offered.sql`、`20260915143000_trial_invite_hide_full_and_occupied.sql`、`20260915143600_trial_invite_hide_enrolled_subjects.sql`、`20260917140000_trial_invite_token_trial_type.sql`、`20260917145000_students_elected_subject_codes.sql`、`20260919033000_trial_invite_review_session_ids.sql`、`20260919044500_trial_invite_hide_recent_trial_subjects.sql` |
 | 類比 | 聯絡資料更新；家長報讀申請線條 |
