@@ -1,0 +1,304 @@
+-- 公開試堂目錄：該生半年內未取消的試堂科目不再出現（專科／功輔各自比對）
+
+begin;
+
+create index if not exists trial_sessions_student_id_trial_date_idx
+  on public.trial_sessions (student_id, trial_date);
+
+create or replace function public.trial_invite_subject_recent_trial_open_for_student(
+  p_class_id uuid,
+  p_student_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select not exists (
+    select 1
+    from public.classes cand
+    left join public.courses cand_co on cand_co.id = cand.course_id
+    left join public.subjects cand_sub on cand_sub.id = cand_co.subject_id
+    join public.trial_sessions ts
+      on ts.student_id = p_student_id
+     and ts.trial_date >= (current_date - interval '6 months')::date
+     and coalesce(ts.status, '') not ilike '%取消%'
+    join public.classes tried on tried.id = ts.class_id
+    left join public.courses tried_co on tried_co.id = tried.course_id
+    left join public.subjects tried_sub on tried_sub.id = tried_co.subject_id
+    where cand.id = p_class_id
+      and cand.class_kind in ('group', 'homework')
+      and tried.class_kind = cand.class_kind
+      and (
+        (cand_co.subject_id is not null and cand_co.subject_id = tried_co.subject_id)
+        or (
+          nullif(upper(btrim(coalesce(cand_sub.code, ''))), '') is not null
+          and upper(btrim(cand_sub.code)) = upper(btrim(coalesce(tried_sub.code, '')))
+        )
+        or (
+          nullif(btrim(coalesce(cand.subject, '')), '') is not null
+          and btrim(cand.subject) = btrim(coalesce(tried.subject, ''))
+        )
+      )
+  );
+$$;
+
+comment on function public.trial_invite_subject_recent_trial_open_for_student(uuid, uuid) is
+  '試堂邀請公開目錄：學生半年內有未取消試堂紀錄（對比該生全部 trial_sessions）且同一產品線同一科目則不顯示。取消不計。';
+
+revoke all on function public.trial_invite_subject_recent_trial_open_for_student(uuid, uuid) from public;
+revoke all on function public.trial_invite_subject_recent_trial_open_for_student(uuid, uuid) from anon;
+grant execute on function public.trial_invite_subject_recent_trial_open_for_student(uuid, uuid) to authenticated;
+
+create or replace function public.trial_invite_subject_open_for_student(
+  p_class_id uuid,
+  p_student_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    not exists (
+      select 1
+      from public.classes cand
+      left join public.courses cand_co on cand_co.id = cand.course_id
+      left join public.subjects cand_sub on cand_sub.id = cand_co.subject_id
+      join public.student_class_enrollments e
+        on e.student_id = p_student_id
+       and e.status = '就讀中'
+      join public.classes enrolled on enrolled.id = e.class_id
+      join public.academic_years ay
+        on ay.id = enrolled.academic_year_id
+       and ay.is_current
+      left join public.courses enr_co on enr_co.id = enrolled.course_id
+      left join public.subjects enr_sub on enr_sub.id = enr_co.subject_id
+      where cand.id = p_class_id
+        and cand.class_kind in ('group', 'homework')
+        and enrolled.class_kind = cand.class_kind
+        and (
+          (cand_co.subject_id is not null and cand_co.subject_id = enr_co.subject_id)
+          or (
+            nullif(upper(btrim(coalesce(cand_sub.code, ''))), '') is not null
+            and upper(btrim(cand_sub.code)) = upper(btrim(coalesce(enr_sub.code, '')))
+          )
+          or (
+            nullif(btrim(coalesce(cand.subject, '')), '') is not null
+            and btrim(cand.subject) = btrim(coalesce(enrolled.subject, ''))
+          )
+        )
+    )
+    and public.trial_invite_subject_recent_trial_open_for_student(p_class_id, p_student_id);
+$$;
+
+comment on function public.trial_invite_subject_open_for_student(uuid, uuid) is
+  '試堂邀請公開目錄：本學年就讀中已報讀同一產品線同一科目，或半年內已有未取消同科試堂，則不顯示。';
+
+create or replace function public.trial_invite_submit(
+  p_token text,
+  p_lines jsonb,
+  p_parent_note text default null,
+  p_elected_subject_codes text[] default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r public.trial_invite_tokens%rowtype;
+  s public.students%rowtype;
+  v_request_id uuid;
+  v_item jsonb;
+  v_class_id uuid;
+  v_schedule_id uuid;
+  v_seen uuid[] := '{}'::uuid[];
+  v_count int := 0;
+  v_grade text;
+  v_needs_electives boolean := false;
+  v_elected text[] := '{}'::text[];
+  v_code text;
+  v_cat text;
+  v_kind text;
+begin
+  if p_token is null or length(trim(p_token)) < 8 then
+    raise exception '連結無效';
+  end if;
+  if p_lines is null or jsonb_typeof(p_lines) <> 'array' or jsonb_array_length(p_lines) < 1 then
+    raise exception '請至少選一科試堂';
+  end if;
+  if jsonb_array_length(p_lines) > 20 then
+    raise exception '一次最多選 20 科';
+  end if;
+
+  select * into r
+  from public.trial_invite_tokens
+  where token = trim(p_token)
+  for update;
+  if not found then
+    raise exception '找不到此邀請連結';
+  end if;
+
+  if r.expires_at < now() then
+    update public.trial_invite_tokens set status = 'expired' where id = r.id;
+    raise exception '此連結已過期，請向職員索取新連結';
+  end if;
+
+  if r.status <> 'open' then
+    raise exception '此連結已無法再提交（狀態：%）', r.status;
+  end if;
+
+  select * into s from public.students where id = r.student_id;
+  if not found then
+    raise exception '找不到對應學生';
+  end if;
+
+  v_grade := upper(btrim(coalesce(s.grade, '')));
+  v_needs_electives := v_grade in ('S4', 'S5', 'S6');
+
+  if p_elected_subject_codes is not null then
+    select coalesce(array_agg(distinct upper(btrim(x))), '{}'::text[])
+    into v_elected
+    from unnest(p_elected_subject_codes) as x
+    where nullif(btrim(x), '') is not null;
+  end if;
+
+  if v_needs_electives and cardinality(v_elected) > 0 then
+    if exists (
+      select 1
+      from unnest(v_elected) as code
+      where not exists (
+        select 1
+        from public.subjects sub
+        where sub.code = code
+          and sub.category = 'senior_elective'
+      )
+    ) then
+      raise exception '選修科目無效';
+    end if;
+  end if;
+
+  insert into public.trial_invite_requests (
+    token_id, student_id, status, parent_note, elected_subject_codes
+  )
+  values (
+    r.id,
+    r.student_id,
+    'submitted',
+    nullif(btrim(coalesce(p_parent_note, '')), ''),
+    coalesce(v_elected, '{}'::text[])
+  )
+  returning id into v_request_id;
+
+  for v_item in select * from jsonb_array_elements(p_lines)
+  loop
+    begin
+      v_class_id := (v_item->>'class_id')::uuid;
+      v_schedule_id := (v_item->>'schedule_id')::uuid;
+    exception when others then
+      raise exception '班別或堂次格式無效';
+    end;
+
+    if v_class_id = any (v_seen) then
+      raise exception '同一科請只選一個堂次';
+    end if;
+    v_seen := array_append(v_seen, v_class_id);
+
+    if not public.trial_invite_class_matches_student(v_class_id, r.student_id) then
+      raise exception '所選班別不適用於此學生年級';
+    end if;
+
+    if not public.trial_invite_catalog_allows_class(v_class_id) then
+      raise exception '所選班別目前未開放試堂邀請';
+    end if;
+
+    if not public.trial_invite_class_under_enrolled_cap(v_class_id) then
+      raise exception '所選班別目前人數已滿，未能申請試堂';
+    end if;
+
+    select c.class_kind, coalesce(subj.code, ''), coalesce(subj.category, 'other')
+    into v_kind, v_code, v_cat
+    from public.classes c
+    left join public.courses co on co.id = c.course_id
+    left join public.subjects subj on subj.id = co.subject_id
+    where c.id = v_class_id;
+
+    if not found then
+      raise exception '班別不存在';
+    end if;
+
+    if v_needs_electives and v_kind = 'group' then
+      if v_cat is distinct from 'main'
+         and not (v_code = any (v_elected))
+      then
+        raise exception '高中試堂僅可選主科或你已勾選的選修科目';
+      end if;
+    end if;
+
+    if not exists (
+      select 1
+      from public.schedules sch
+      where sch.id = v_schedule_id
+        and sch.class_id = v_class_id
+    ) then
+      raise exception '所選堂次無效、已取消或未開放試堂邀請';
+    end if;
+
+    if not public.trial_invite_schedule_open_for_parent(v_schedule_id) then
+      raise exception '所選堂次無效、已取消、未開放試堂邀請或已有試堂學生';
+    end if;
+
+    if exists (
+      select 1
+      from public.student_class_enrollments e
+      where e.student_id = r.student_id
+        and e.class_id = v_class_id
+        and e.status = '就讀中'
+    ) then
+      raise exception '已報讀「%」，無需再申請試堂', public.trial_invite_class_label(v_class_id);
+    end if;
+
+    if not public.trial_invite_subject_recent_trial_open_for_student(v_class_id, r.student_id) then
+      raise exception '半年內已參與此科目試堂，暫不開放再申請';
+    end if;
+
+    if not public.trial_invite_subject_open_for_student(v_class_id, r.student_id) then
+      raise exception '本學年已報讀此科目，無需再申請試堂';
+    end if;
+
+    insert into public.trial_invite_request_lines (
+      request_id, class_id, schedule_id, class_label
+    ) values (
+      v_request_id,
+      v_class_id,
+      v_schedule_id,
+      public.trial_invite_class_label(v_class_id)
+    );
+    v_count := v_count + 1;
+  end loop;
+
+  if v_count < 1 then
+    raise exception '請至少選一科試堂';
+  end if;
+
+  update public.trial_invite_tokens
+  set status = 'submitted', submitted_at = now()
+  where id = r.id;
+
+  return public.trial_invite_get(p_token);
+end;
+$$;
+
+revoke all on function public.trial_invite_submit(text, jsonb, text) from public;
+revoke all on function public.trial_invite_submit(text, jsonb, text) from anon;
+revoke all on function public.trial_invite_submit(text, jsonb, text) from authenticated;
+
+revoke all on function public.trial_invite_submit(text, jsonb, text, text[]) from public;
+grant execute on function public.trial_invite_submit(text, jsonb, text, text[]) to anon, authenticated;
+
+notify pgrst, 'reload schema';
+
+commit;

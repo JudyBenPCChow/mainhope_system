@@ -49,6 +49,7 @@ import {
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
+import { formatRecentTrialSubjectsCaption } from "@/lib/trialInviteRecentSubjects"
 import { cn } from "@/lib/utils"
 import {
   openPrimaryMessagingTarget,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/whatsappReminder"
 import {
   createTrialInviteTokens,
+  fetchRecentInviteTrialSubjects,
   fetchTrialInviteRequests,
   fetchTrialInviteTokensByStudentIds,
   fetchUnpaidInviteTrialIds,
@@ -150,6 +152,28 @@ function formatSchedule(ln: TrialInviteRequestListRow["lines"][number]): string 
   return date
 }
 
+function formatSubmittedAt(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 16).replace("T", " ")
+  return d.toLocaleString("zh-HK", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function requestTrialType(
+  req: TrialInviteRequestListRow,
+  token: TrialInviteTokenRow | null | undefined
+): string | null {
+  const fromRequest = req.trial_type?.trim()
+  if (fromRequest) return fromRequest
+  const fromToken = token?.trial_type?.trim()
+  return fromToken || null
+}
+
 type StatusTabId = "所有" | "待審核" | "已確認"
 type SortKey = "student" | "status"
 type GenerateAfter = "none" | "copy" | "notify"
@@ -175,6 +199,9 @@ export function TrialInviteCampaignView() {
     () => new Map()
   )
   const [pending, setPending] = useState<TrialInviteRequestListRow[]>([])
+  const [recentSubjectsByStudent, setRecentSubjectsByStudent] = useState<Map<string, string[]>>(
+    () => new Map()
+  )
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusTabId>("所有")
@@ -195,14 +222,16 @@ export function TrialInviteCampaignView() {
       const all = await fetchAllStudents()
       const list = all.filter((s) => s.academic_stage !== "已畢業")
       setStudents(list)
-      const [tokens, requests] = await Promise.all([
+      const [tokens, requests, recentSubjects] = await Promise.all([
         fetchTrialInviteTokensByStudentIds(list.map((s) => s.id)),
         fetchTrialInviteRequests(["submitted"]),
+        fetchRecentInviteTrialSubjects(),
       ])
       const map = new Map<string, TrialInviteTokenRow>()
       for (const t of tokens) map.set(t.student_id, t)
       setTokensByStudent(map)
       setPending(requests)
+      setRecentSubjectsByStudent(recentSubjects)
     } catch (e) {
       reportUserFacingError(e, { source: "TrialInviteCampaignView.load" })
       pushBanner({
@@ -245,10 +274,15 @@ export function TrialInviteCampaignView() {
     return { all: rows.length, enrolled, notEnrolled }
   }, [rows])
 
+  const isReviewTab = statusFilter === "待審核"
+  const studentById = useMemo(
+    () => new Map(students.map((s) => [s.id, s])),
+    [students]
+  )
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return enrollmentScopedRows.filter((row) => {
-      if (statusFilter === "待審核" && row.uiStatus !== "待審核") return false
       if (statusFilter === "已確認" && row.uiStatus !== "已核准") return false
       if (!q) return true
       const hay = [
@@ -256,12 +290,32 @@ export function TrialInviteCampaignView() {
         row.student.student_code,
         row.student.grade,
         row.student.school,
+        ...(recentSubjectsByStudent.get(row.student.id) ?? []),
       ]
         .join(" ")
         .toLowerCase()
       return hay.includes(q)
     })
-  }, [enrollmentScopedRows, query, statusFilter])
+  }, [enrollmentScopedRows, query, recentSubjectsByStudent, statusFilter])
+
+  const pendingFiltered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return pending
+    return pending.filter((req) => {
+      const hay = [
+        req.student_name,
+        req.student_code,
+        req.student_grade,
+        req.trial_type,
+        req.parent_note,
+        req.elected_subject_codes.join(" "),
+        ...req.lines.map((ln) => `${ln.class_label} ${formatSchedule(ln)}`),
+      ]
+        .join(" ")
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [pending, query])
 
   const sorted = useMemo(() => {
     const mul = dirMul(sortDir)
@@ -284,18 +338,16 @@ export function TrialInviteCampaignView() {
   const someFilteredSelected = sorted.some((r) => selected.has(r.student.id))
 
   const statusTabs = useMemo(() => {
-    let pendingCount = 0
     let confirmedCount = 0
     for (const row of enrollmentScopedRows) {
-      if (row.uiStatus === "待審核") pendingCount += 1
       if (row.uiStatus === "已核准") confirmedCount += 1
     }
     return [
       { id: "所有" as const, label: `所有（${enrollmentScopedRows.length}）` },
-      { id: "待審核" as const, label: `待審核（${pendingCount}）` },
+      { id: "待審核" as const, label: `待審核（${pending.length}）` },
       { id: "已確認" as const, label: `已確認（${confirmedCount}）` },
     ]
-  }, [enrollmentScopedRows])
+  }, [enrollmentScopedRows, pending.length])
 
   const mergeTokens = (created: TrialInviteTokenRow[]) => {
     setTokensByStudent((prev) => {
@@ -367,7 +419,6 @@ export function TrialInviteCampaignView() {
       pushBanner({ tone: "error", title: "請選擇試堂類型", message: "免費、半價或原價試堂。" })
       return
     }
-    const studentById = new Map(students.map((s) => [s.id, s]))
     setBusy(true)
     try {
       const created = await createTrialInviteTokens(generateIntent.studentIds, generateTrialType)
@@ -410,7 +461,11 @@ export function TrialInviteCampaignView() {
 
   const copyLink = async (student: StudentRecord, tokenRow: TrialInviteTokenRow | null) => {
     if (!trialInviteTokenHasPublicUrl(tokenRow)) {
-      openGenerate([student.id], "copy")
+      pushBanner({
+        tone: "error",
+        title: "沒有可複製的連結",
+        message: "請先產生連結。",
+      })
       return
     }
     setBusy(true)
@@ -627,6 +682,13 @@ export function TrialInviteCampaignView() {
     setSelected(new Set(sorted.map((r) => r.student.id)))
   }
 
+  const openReview = (req: TrialInviteRequestListRow) => {
+    const pendingType = requestTrialType(req, tokensByStudent.get(req.student_id))
+    setReviewRow(req)
+    setApproveHeadcount("")
+    setApproveTrialType(trialInviteTypeOrDefault(pendingType))
+  }
+
   const onToggleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"))
@@ -644,7 +706,11 @@ export function TrialInviteCampaignView() {
           <AdminPageHeader
             eyebrow="行政工作"
             title="試堂邀請"
-            description="為既有學生產生專屬連結，產生前須選擇免費／半價／原價試堂。家長選堂提交後，於此審核。免費試堂核准時自動出 $0 單並上點名紙；半價／原價仍須完成收款確認。"
+            description={
+              isReviewTab
+                ? "家長已選堂並提交的申請。核准後才建立試堂；免費試堂會自動出 $0 單並上點名紙，半價／原價須完成收款確認。"
+                : "為既有學生產生專屬連結，產生前須選擇免費／半價／原價試堂。家長選堂提交後，請到「待審核」處理。免費試堂核准時自動出 $0 單並上點名紙；半價／原價仍須完成收款確認。"
+            }
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
@@ -670,44 +736,46 @@ export function TrialInviteCampaignView() {
           />
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                在讀狀態
-              </p>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="在讀狀態">
-                {ENROLLMENT_FILTERS.map((f) => {
-                  const active = enrollmentFilter === f.key
-                  const count =
-                    f.key === "all"
-                      ? enrollmentCounts.all
-                      : f.key === "在讀"
-                        ? enrollmentCounts.enrolled
-                        : enrollmentCounts.notEnrolled
-                  return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setEnrollmentFilter(f.key)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                        active
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-foreground hover:bg-muted/80"
-                      )}
-                    >
-                      {f.label}（{count}）
-                    </button>
-                  )
-                })}
+            {isReviewTab ? null : (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  在讀狀態
+                </p>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="在讀狀態">
+                  {ENROLLMENT_FILTERS.map((f) => {
+                    const active = enrollmentFilter === f.key
+                    const count =
+                      f.key === "all"
+                        ? enrollmentCounts.all
+                        : f.key === "在讀"
+                          ? enrollmentCounts.enrolled
+                          : enrollmentCounts.notEnrolled
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setEnrollmentFilter(f.key)}
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card text-foreground hover:bg-muted/80"
+                        )}
+                      >
+                        {f.label}（{count}）
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-            <div className="relative w-full max-w-md">
+            )}
+            <div className={cn("relative w-full max-w-md", isReviewTab && "sm:ml-auto")}>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜尋姓名／學號／年級"
+                placeholder={isReviewTab ? "搜尋姓名／學號／班別" : "搜尋姓名／學號／年級"}
                 className="pl-9"
               />
             </div>
@@ -715,97 +783,152 @@ export function TrialInviteCampaignView() {
         </>
       }
     >
-      <StickyListLead>
-        {pending.length > 0 ? (
-          <section className="space-y-3 rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-foreground">待審核申請</h2>
-              <Tag tone={statusToTagTone("待審核")}>{pending.length}</Tag>
-            </div>
-            <ul className="divide-y divide-border">
-              {pending.map((req) => {
-                const pendingType = tokensByStudent.get(req.student_id)?.trial_type
-                return (
-                <li
-                  key={req.id}
-                  className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">
-                      {req.student_name}
-                      <span className="ml-2 text-xs font-normal text-muted-foreground">
-                        {[req.student_code, formatStudentGrade(req.student_grade)]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {req.lines
-                        .map((ln) => `${ln.class_label}（${formatSchedule(ln)}）`)
-                        .join("；")}
-                    </p>
-                    {pendingType ? (
-                      <p className="mt-1 text-xs text-muted-foreground">試堂類型：{pendingType}</p>
-                    ) : null}
-                    {req.elected_subject_codes.length > 0 ? (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        選修：{req.elected_subject_codes.join("、")}
-                      </p>
-                    ) : null}
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      setReviewRow(req)
-                      setApproveHeadcount("")
-                      setApproveTrialType(trialInviteTypeOrDefault(pendingType))
-                    }}
-                  >
-                    審核
-                  </Button>
-                </li>
-                )
-              })}
-            </ul>
-          </section>
-        ) : null}
-
-        <BulkSelectionBar
-          selectedCount={selected.size}
-          unitLabel="人"
-          allFilteredSelected={allFilteredSelected}
-          onToggleSelectAll={toggleSelectAllFiltered}
-          onClear={() => setSelected(new Set())}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={busy || selected.size === 0}
-            onClick={() => openGenerate([...selected])}
+      {isReviewTab ? null : (
+        <StickyListLead>
+          <BulkSelectionBar
+            selectedCount={selected.size}
+            unitLabel="人"
+            allFilteredSelected={allFilteredSelected}
+            onToggleSelectAll={toggleSelectAllFiltered}
+            onClear={() => setSelected(new Set())}
           >
-            <Link2 className="mr-1 h-4 w-4" aria-hidden />
-            產生連結
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={
-              busy ||
-              ![...selected].some((id) => trialInviteTokenVoidable(tokensByStudent.get(id) ?? null))
-            }
-            onClick={() => void voidTokensFor([...selected])}
-          >
-            <Ban className="mr-1 h-4 w-4" aria-hidden />
-            作廢連結
-          </Button>
-        </BulkSelectionBar>
-      </StickyListLead>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy || selected.size === 0}
+              onClick={() => openGenerate([...selected])}
+            >
+              <Link2 className="mr-1 h-4 w-4" aria-hidden />
+              產生連結
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={
+                busy ||
+                ![...selected].some((id) => trialInviteTokenVoidable(tokensByStudent.get(id) ?? null))
+              }
+              onClick={() => void voidTokensFor([...selected])}
+            >
+              <Ban className="mr-1 h-4 w-4" aria-hidden />
+              作廢連結
+            </Button>
+          </BulkSelectionBar>
+        </StickyListLead>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">載入中…</p>
+      ) : isReviewTab ? (
+        pendingFiltered.length === 0 ? (
+          <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
+            {pending.length === 0 ? "目前沒有待審核的申請。" : "沒有符合的申請。"}
+          </p>
+        ) : (
+          <div className={stickyTableWrapClass}>
+            <table className="w-full min-w-[48rem] table-fixed border-separate border-spacing-0 text-sm isolate">
+              <thead className={stickyTableHeadClass}>
+                <tr className={cn(stickyTableHeadRowClass, "text-xs font-medium text-muted-foreground")}>
+                  <th className={cn(stickyTableHeadCellClass, "w-[22%] px-3 py-2")}>學生</th>
+                  <th className={cn(stickyTableHeadCellClass, "w-[40%] px-3 py-2")}>申請堂次</th>
+                  <th className={cn(stickyTableHeadCellClass, "w-[16%] px-3 py-2")}>試堂類型</th>
+                  <th className={cn(stickyTableHeadCellClass, "w-[22%] px-3 py-2")}>操作</th>
+                </tr>
+              </thead>
+              <tbody className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}>
+                {pendingFiltered.map((req) => {
+                  const tokenRow = tokensByStudent.get(req.student_id) ?? null
+                  const trialType = requestTrialType(req, tokenRow)
+                  const student = studentById.get(req.student_id)
+                  const canVoid = trialInviteTokenVoidable(tokenRow)
+                  return (
+                    <tr
+                      key={req.id}
+                      className={cn(previewStudentId === req.student_id && "bg-info/15")}
+                    >
+                      <td className="align-top px-3 py-3">
+                        <button
+                          type="button"
+                          className="block min-w-0 text-left"
+                          onClick={() => openStudent(req.student_id)}
+                        >
+                          <p className="font-medium text-foreground hover:underline">
+                            {req.student_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {[
+                              req.student_code,
+                              formatStudentGrade(req.student_grade),
+                              student?.school,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </button>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          提交 {formatSubmittedAt(req.created_at)}
+                        </p>
+                      </td>
+                      <td className="align-top px-3 py-3">
+                        {req.lines.length === 0 ? (
+                          <p className="text-muted-foreground">沒有堂次</p>
+                        ) : (
+                          <ul className="space-y-1.5">
+                            {req.lines.map((ln) => (
+                              <li key={ln.id}>
+                                <p className="font-medium text-foreground">{ln.class_label}</p>
+                                <p className="text-xs text-muted-foreground">{formatSchedule(ln)}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {req.elected_subject_codes.length > 0 ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            選修：{req.elected_subject_codes.join("、")}
+                          </p>
+                        ) : null}
+                        {req.parent_note?.trim() ? (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            家長備註：{req.parent_note.trim()}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="align-top px-3 py-3">
+                        <p className="font-medium text-foreground">{trialType ?? "—"}</p>
+                      </td>
+                      <td className="align-top px-3 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => openReview(req)}
+                          >
+                            審核
+                          </Button>
+                          {canVoid ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => void voidTokensFor([req.student_id])}
+                            >
+                              <Ban className="mr-1 h-3.5 w-3.5" aria-hidden />
+                              作廢
+                            </Button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : sorted.length === 0 ? (
         <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">
           沒有符合的學生。
@@ -823,7 +946,7 @@ export function TrialInviteCampaignView() {
                     aria-label="全選目前列表"
                   />
                 </th>
-                <th className={cn(stickyTableHeadCellClass, "w-[42%] px-3 py-2")}>
+                <th className={cn(stickyTableHeadCellClass, "w-[34%] px-3 py-2")}>
                   <SortableColumnHeader
                     label="學生"
                     active={sortKey === "student"}
@@ -831,7 +954,7 @@ export function TrialInviteCampaignView() {
                     onToggle={() => onToggleSort("student")}
                   />
                 </th>
-                <th className={cn(stickyTableHeadCellClass, "w-[18%] px-3 py-2")}>
+                <th className={cn(stickyTableHeadCellClass, "w-[16%] px-3 py-2")}>
                   <SortableColumnHeader
                     label="狀態"
                     active={sortKey === "status"}
@@ -839,18 +962,22 @@ export function TrialInviteCampaignView() {
                     onToggle={() => onToggleSort("status")}
                   />
                 </th>
-                <th className={cn(stickyTableHeadCellClass, "w-[30%] px-3 py-2")}>操作</th>
+                <th className={cn(stickyTableHeadCellClass, "w-[40%] px-3 py-2")}>操作</th>
               </tr>
             </thead>
             <tbody className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}>
               {sorted.map((row) => {
                 const tokenRow = row.tokenRow
+                const recentCaption = formatRecentTrialSubjectsCaption(
+                  recentSubjectsByStudent.get(row.student.id) ?? []
+                )
                 const target = messagingTargetFromStudent(row.student)
                 const channel = target?.channel ?? "WhatsApp"
                 const canNotify =
                   channel === "WeChat"
                     ? Boolean(target?.wechatId?.trim())
                     : Boolean(target?.phone?.trim())
+                const canCopy = trialInviteTokenHasPublicUrl(tokenRow)
                 const canVoid = trialInviteTokenVoidable(tokenRow)
                 return (
                   <tr
@@ -883,6 +1010,9 @@ export function TrialInviteCampaignView() {
                             .join(" · ")}
                         </p>
                       </button>
+                      {recentCaption ? (
+                        <p className="mt-1 text-xs text-muted-foreground">{recentCaption}</p>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2">
                       <div className="space-y-1">
@@ -899,10 +1029,20 @@ export function TrialInviteCampaignView() {
                           variant="outline"
                           size="sm"
                           disabled={busy}
+                          onClick={() => openGenerate([row.student.id])}
+                        >
+                          <Link2 className="mr-1 h-3.5 w-3.5" aria-hidden />
+                          生成連結
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={busy || !canCopy}
                           onClick={() => void copyLink(row.student, tokenRow)}
                         >
                           <Copy className="mr-1 h-3.5 w-3.5" aria-hidden />
-                          生成連結
+                          複製連結
                         </Button>
                         <Button
                           type="button"
@@ -958,6 +1098,9 @@ export function TrialInviteCampaignView() {
                   {[reviewRow.student_code, formatStudentGrade(reviewRow.student_grade)]
                     .filter(Boolean)
                     .join(" · ")}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  提交 {formatSubmittedAt(reviewRow.created_at)}
                 </p>
               </div>
               <ul className="space-y-2 rounded-lg border border-border p-3 text-sm">

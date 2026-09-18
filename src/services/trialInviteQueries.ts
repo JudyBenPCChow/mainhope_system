@@ -1,5 +1,10 @@
 import { forEachIdChunk, DEFAULT_ID_CHUNK } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
+import {
+  aggregateRecentTrialSubjects,
+  recentTrialSubjectCutoffYmd,
+  type RecentTrialSessionInput,
+} from "@/lib/trialInviteRecentSubjects"
 import { trialInviteTypeOrDefault, type TrialInviteType } from "@/lib/trialInviteTypes"
 
 export type TrialInviteTokenStatus =
@@ -370,6 +375,47 @@ export async function fetchUnpaidInviteTrialIds(params: {
       return !status.includes("完成") && !status.includes("取消")
     })
     .map((row) => String((row as { id: string }).id))
+}
+
+function asEmbeddedRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
+function asRecentTrialSessionInput(raw: Record<string, unknown>): RecentTrialSessionInput | null {
+  const studentId = String(raw.student_id ?? "").trim()
+  if (!studentId) return null
+  const cls = asEmbeddedRecord(raw.classes)
+  const course = asEmbeddedRecord(cls?.courses)
+  const subjectRow = asEmbeddedRecord(course?.subjects)
+  return {
+    studentId,
+    trialDate: String(raw.trial_date ?? "").slice(0, 10),
+    status: String(raw.status ?? ""),
+    classKind: cls?.class_kind != null ? String(cls.class_kind) : "",
+    subject: cls?.subject != null ? String(cls.subject) : "",
+    subjectId: subjectRow?.id != null ? String(subjectRow.id) : null,
+    subjectCode: subjectRow?.code != null ? String(subjectRow.code) : null,
+  }
+}
+
+/** 職員名冊：半年內未取消的專科班／功課輔導班試堂科目（與公開目錄隱藏同一時間窗）。 */
+export async function fetchRecentInviteTrialSubjects(): Promise<Map<string, string[]>> {
+  if (!supabase) return new Map()
+  const cutoff = recentTrialSubjectCutoffYmd()
+  const { data, error } = await supabase
+    .from("trial_sessions")
+    .select(
+      "student_id, trial_date, status, classes!inner ( class_kind, subject, courses ( subjects ( id, code ) ) )"
+    )
+    .gte("trial_date", cutoff)
+    .not("status", "ilike", "%取消%")
+    .in("classes.class_kind", ["group", "homework"])
+  if (error) throw rpcError(error)
+  const rows = (data ?? [])
+    .map((row) => asRecentTrialSessionInput(row as Record<string, unknown>))
+    .filter((row): row is RecentTrialSessionInput => row != null)
+  return aggregateRecentTrialSubjects(rows, { cutoffYmd: cutoff })
 }
 
 export async function fetchTrialInviteTokensByStudentIds(
