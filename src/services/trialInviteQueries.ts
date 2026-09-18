@@ -320,7 +320,12 @@ export async function reviewTrialInviteRequest(params: {
   countsTowardHeadcount?: boolean
   trialType?: string
   rejectReason?: string | null
-}): Promise<{ request_id: string; status: string; trial_sessions_created?: number }> {
+}): Promise<{
+  request_id: string
+  status: string
+  trial_sessions_created?: number
+  trial_session_ids: string[]
+}> {
   if (!supabase) throw new Error("Supabase 未設定")
   const { data, error } = await supabase.rpc("trial_invite_review", {
     p_request_id: params.requestId,
@@ -332,12 +337,39 @@ export async function reviewTrialInviteRequest(params: {
   })
   if (error) throw rpcError(error)
   const raw = (data ?? {}) as Record<string, unknown>
+  const idsRaw = raw.trial_session_ids
   return {
     request_id: String(raw.request_id ?? ""),
     status: String(raw.status ?? ""),
     trial_sessions_created:
       raw.trial_sessions_created != null ? Number(raw.trial_sessions_created) : undefined,
+    trial_session_ids: Array.isArray(idsRaw)
+      ? idsRaw.map((id) => String(id)).filter(Boolean)
+      : [],
   }
+}
+
+export async function fetchUnpaidInviteTrialIds(params: {
+  studentId: string
+  classIds: string[]
+}): Promise<string[]> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const classIds = [...new Set(params.classIds.map((id) => id.trim()).filter(Boolean))]
+  if (!params.studentId || classIds.length === 0) return []
+  const { data, error } = await supabase
+    .from("trial_sessions")
+    .select("id, status, payment_id")
+    .eq("student_id", params.studentId)
+    .in("class_id", classIds)
+    .is("payment_id", null)
+    .eq("remarks", "試堂邀請核准")
+  if (error) throw error
+  return (data ?? [])
+    .filter((row) => {
+      const status = String((row as { status?: string }).status ?? "")
+      return !status.includes("完成") && !status.includes("取消")
+    })
+    .map((row) => String((row as { id: string }).id))
 }
 
 export async function fetchTrialInviteTokensByStudentIds(
