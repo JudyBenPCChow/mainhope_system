@@ -488,6 +488,21 @@ function isTrialStatusOpen(status: string | null | undefined): boolean {
  return !s.includes("完成") && !s.includes("取消")
 }
 
+/** 同班多筆未掛收據時，掛最近試堂日那一組（連堂同日會一併掛）。 */
+export function pickOpenTrialIdsForPaymentLink(
+ open: Array<{ id: string; trialDate: string }>
+): { trialIds: string[]; leftoverCount: number } {
+ if (open.length === 0) return { trialIds: [], leftoverCount: 0 }
+ const latest = open.reduce((max, row) => {
+  const d = String(row.trialDate ?? "").slice(0, 10)
+  return d > max ? d : max
+ }, "")
+ const trialIds = open
+  .filter((row) => String(row.trialDate ?? "").slice(0, 10) === latest)
+  .map((row) => row.id)
+ return { trialIds, leftoverCount: open.length - trialIds.length }
+}
+
 function parseTrialHm(raw: string | null | undefined): number | null {
  if (!raw) return null
  return parseHm(String(raw).slice(0, 5))
@@ -758,7 +773,7 @@ export type LinkOpenTrialsToPaymentResult = {
 
 /**
  * 收款出單後回寫開著試堂的 payment_id。
- * 同生＋班；僅一筆可掛則掛；多筆拒掛。由 PaymentsPageView caller 呼叫。
+ * 同生＋班：掛最近試堂日那一組（連堂同日多筆一併掛）；較早的未掛列會提示。
  */
 export async function linkOpenTrialsToPayment(params: {
  paymentId: string
@@ -786,28 +801,131 @@ export async function linkOpenTrialsToPayment(params: {
    .is("payment_id", null)
    .order("trial_date", { ascending: false })
   if (error) throw error
-  const open = (data ?? []).filter((row) => isTrialStatusOpen((row as { status?: string }).status))
-  if (open.length === 0) {
+  const open = (data ?? [])
+   .filter((row) => isTrialStatusOpen((row as { status?: string }).status))
+   .map((row) => ({
+    id: String((row as { id: string }).id),
+    trialDate: String((row as { trial_date?: string }).trial_date ?? ""),
+   }))
+  const picked = pickOpenTrialIdsForPaymentLink(open)
+  if (picked.trialIds.length === 0) {
    skippedMessages.push(`該班無未關聯收據的開著試堂`)
    continue
   }
-  if (open.length > 1) {
-   skippedMessages.push(`同班有 ${open.length} 筆開著試堂未掛收據，無法自動關聯`)
-   continue
-  }
-  const trialId = String((open[0] as { id: string }).id)
   const { error: upErr } = await supabase
    .from("trial_sessions")
    .update({ payment_id: params.paymentId, updated_at: new Date().toISOString() })
-   .eq("id", trialId)
+   .in("id", picked.trialIds)
    .is("payment_id", null)
   if (upErr) throw upErr
-  linkedTrialIds.push(trialId)
+  linkedTrialIds.push(...picked.trialIds)
+  if (picked.leftoverCount > 0) {
+   skippedMessages.push(`同班另有 ${picked.leftoverCount} 筆較早的開著試堂未掛此單`)
+  }
  }
  if (linkedTrialIds.length > 0) {
   void notifyTeachersOfConfirmedTrials(linkedTrialIds)
  }
  return { linkedTrialIds, skippedMessages }
+}
+
+/**
+ * 免費／體驗試堂出 $0 已收款單並掛上指定試堂，令學生出現在點名紙。
+ */
+export async function issueZeroReceiptForTrialSessions(params: {
+ studentId: string
+ trialIds: string[]
+ trialType: string
+}): Promise<{ paymentId: string; linkedTrialIds: string[] }> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const ids = [...new Set(params.trialIds.map((id) => id.trim()).filter(Boolean))]
+ if (ids.length === 0) throw new Error("沒有可出單的試堂")
+
+ const { data, error } = await supabase
+  .from("trial_sessions")
+  .select(
+   "id, student_id, class_id, status, payment_id, classes ( subject, course_code_full, courses ( course_name ) )"
+  )
+  .in("id", ids)
+ if (error) throw error
+
+ const open = (data ?? []).filter((raw) => {
+  const row = raw as {
+   student_id?: string
+   status?: string
+   payment_id?: string | null
+  }
+  return (
+   String(row.student_id ?? "") === params.studentId &&
+   isTrialStatusOpen(row.status) &&
+   row.payment_id == null
+  )
+ })
+ if (open.length === 0) throw new Error("找不到未掛收據的開著試堂")
+
+ const byClass = new Map<
+  string,
+  { lessonCount: number; subject: string; courseCode: string; courseName: string | null }
+ >()
+ const linkedTrialIds: string[] = []
+ for (const raw of open) {
+  const row = raw as Record<string, unknown>
+  const classId = String(row.class_id ?? "")
+  if (!classId) continue
+  const cls = row.classes as Record<string, unknown> | null
+  const course = cls?.courses as Record<string, unknown> | null
+  const prev = byClass.get(classId)
+  if (prev) {
+   prev.lessonCount += 1
+  } else {
+   byClass.set(classId, {
+    lessonCount: 1,
+    subject: cls?.subject != null ? String(cls.subject) : "—",
+    courseCode: cls?.course_code_full != null ? String(cls.course_code_full) : "",
+    courseName: course?.course_name != null ? String(course.course_name) : null,
+   })
+  }
+  linkedTrialIds.push(String(row.id))
+ }
+ if (byClass.size === 0 || linkedTrialIds.length === 0) {
+  throw new Error("找不到可出單的試堂班別")
+ }
+
+ const { insertPaymentRecord, PAYMENT_STATUS } = await import("@/services/paymentQueries")
+ const details = [...byClass.entries()].map(([classId, info]) => {
+  const classLabel = formatClassLabel({
+   subject: info.subject,
+   courseCode: info.courseCode,
+   courseName: info.courseName,
+  })
+  return {
+   classId,
+   lessonCount: info.lessonCount,
+   amount: 0,
+   description: `試堂（${params.trialType}）· ${classLabel}`,
+  }
+ })
+ const paymentId = await insertPaymentRecord({
+  studentId: params.studentId,
+  paymentDate: localYmd(),
+  totalAmount: 0,
+  subtotalAmount: 0,
+  paymentMethod: "其他",
+  status: PAYMENT_STATUS.received,
+  remarks: `試堂邀請核准（${params.trialType}）`,
+  receiptKind: "RC",
+  details,
+ })
+
+ const { error: upErr } = await supabase
+  .from("trial_sessions")
+  .update({ payment_id: paymentId, updated_at: new Date().toISOString() })
+  .in("id", linkedTrialIds)
+  .is("payment_id", null)
+ if (upErr) throw upErr
+
+ void notifyTeachersOfConfirmedTrials(linkedTrialIds)
+ return { paymentId, linkedTrialIds }
 }
 
 export function trialConfirmedInboxCopy(input: {

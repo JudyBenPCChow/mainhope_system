@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Ban, Copy, Link2, MessageCircle, Search } from "lucide-react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { RecordPageTabs } from "@/components/detail/RecordPageTabs"
@@ -59,12 +59,17 @@ import {
   createTrialInviteTokens,
   fetchTrialInviteRequests,
   fetchTrialInviteTokensByStudentIds,
+  fetchUnpaidInviteTrialIds,
   reviewTrialInviteRequest,
   trialInvitePublicUrl,
   voidTrialInviteToken,
   type TrialInviteRequestListRow,
   type TrialInviteTokenRow,
 } from "@/services/trialInviteQueries"
+import {
+  issueZeroReceiptForTrialSessions,
+  trialTypeCategory,
+} from "@/services/trialQueries"
 import { fetchAllStudents, normalizeEnrollmentStatus, type StudentRecord } from "@/services/studentQueries"
 
 type UiStatus = "未產生" | "未交" | "待審核" | "已核准" | "過期" | "已作廢"
@@ -160,6 +165,7 @@ function uniqueIds(ids: string[]): string[] {
 export function TrialInviteCampaignView() {
   const { pushBanner } = useAppBanner()
   const { confirmDialog } = useAppConfirm()
+  const navigate = useNavigate()
   const isMobile = useIsMobile()
   const openStudent = useOpenStudentRecord()
   const { preview } = useRecordPreview()
@@ -495,17 +501,76 @@ export function TrialInviteCampaignView() {
     }
     setBusy(true)
     try {
+      const studentId = reviewRow.student_id
+      const classIds = reviewRow.lines.map((ln) => ln.class_id).filter(Boolean)
       const result = await reviewTrialInviteRequest({
         requestId: reviewRow.id,
         action: "approve",
         countsTowardHeadcount: approveHeadcount === "1",
         trialType: approveTrialType,
       })
-      pushBanner({
-        tone: "success",
-        title: "已核准試堂",
-        message: `已建立 ${result.trial_sessions_created ?? 0} 筆試堂；請再到試堂紀錄／收款完成上紙手續。`,
-      })
+      const createdCount = result.trial_sessions_created ?? 0
+      const isFree = trialTypeCategory(approveTrialType) === "free"
+      if (isFree) {
+        let trialIds = result.trial_session_ids
+        if (trialIds.length === 0) {
+          trialIds = await fetchUnpaidInviteTrialIds({ studentId, classIds })
+        }
+        try {
+          await issueZeroReceiptForTrialSessions({
+            studentId,
+            trialIds,
+            trialType: approveTrialType,
+          })
+          pushBanner({
+            tone: "success",
+            title: "已核准試堂",
+            message: `已建立 ${createdCount} 筆試堂，並出 $0 單確認收款；學生將出現在對應堂次的點名紙。`,
+          })
+        } catch (receiptErr) {
+          reportUserFacingError(receiptErr, {
+            source: "TrialInviteCampaignView.approve.receipt",
+          })
+          const trialPay = "free"
+          const q = new URLSearchParams({
+            studentId,
+            mode: "receive",
+            trialPay,
+          })
+          const firstClassId = classIds[0]
+          if (firstClassId) q.set("classId", firstClassId)
+          pushBanner({
+            tone: "warning",
+            title: "試堂已核准，但尚未上點名紙",
+            message:
+              "免費試堂 $0 單未能自動完成。請在收款登記確認後，學生才會出現在點名紙。",
+          })
+          setReviewRow(null)
+          setApproveHeadcount("")
+          await reload()
+          navigate(`/Payments?${q.toString()}`)
+          return
+        }
+      } else {
+        const trialPay = trialTypeCategory(approveTrialType) === "half" ? "half" : "full"
+        const q = new URLSearchParams({
+          studentId,
+          mode: "receive",
+          trialPay,
+        })
+        const firstClassId = classIds[0]
+        if (firstClassId) q.set("classId", firstClassId)
+        pushBanner({
+          tone: "success",
+          title: "已核准試堂",
+          message: `已建立 ${createdCount} 筆試堂；請完成收款確認後，學生才會出現在點名紙。`,
+        })
+        setReviewRow(null)
+        setApproveHeadcount("")
+        await reload()
+        navigate(`/Payments?${q.toString()}`)
+        return
+      }
       setReviewRow(null)
       setApproveHeadcount("")
       await reload()
@@ -579,7 +644,7 @@ export function TrialInviteCampaignView() {
           <AdminPageHeader
             eyebrow="行政工作"
             title="試堂邀請"
-            description="為既有學生產生專屬連結，產生前須選擇免費／半價／原價試堂。家長選堂提交後，於此審核。核准後仍須收款確認才上點名紙。"
+            description="為既有學生產生專屬連結，產生前須選擇免費／半價／原價試堂。家長選堂提交後，於此審核。免費試堂核准時自動出 $0 單並上點名紙；半價／原價仍須完成收款確認。"
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
@@ -877,11 +942,7 @@ export function TrialInviteCampaignView() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        核准後請到{" "}
-        <Link to="/TrialSessions" className="underline">
-          試堂紀錄
-        </Link>
-        ／收款完成上紙。政策：收據確認已收款才上點名紙。
+        免費試堂核准後會自動出 $0 單並上點名紙。半價／原價核准後請到收款登記確認，確認後才上紙。
       </p>
 
       <Dialog open={Boolean(reviewRow)} onOpenChange={(open) => !open && setReviewRow(null)}>

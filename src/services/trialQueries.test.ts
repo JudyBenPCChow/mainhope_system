@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { trialConfirmedInboxCopy } from "@/services/trialQueries"
+import { pickOpenTrialIdsForPaymentLink, trialConfirmedInboxCopy } from "@/services/trialQueries"
 
 describe("trialConfirmedInboxCopy", () => {
  it("確認收款後上紙，並標計人頭", () => {
@@ -26,5 +26,29 @@ describe("trialConfirmedInboxCopy", () => {
    countsTowardHeadcount: false,
   })
   expect(copy.body).toContain("唔計人頭")
+ })
+})
+
+describe("pickOpenTrialIdsForPaymentLink", () => {
+ it("連堂同日兩筆一併掛", () => {
+  expect(
+   pickOpenTrialIdsForPaymentLink([
+    { id: "a", trialDate: "2026-09-20" },
+    { id: "b", trialDate: "2026-09-20" },
+   ])
+  ).toEqual({ trialIds: ["a", "b"], leftoverCount: 0 })
+ })
+
+ it("只掛最近試堂日，較早的留下", () => {
+  expect(
+   pickOpenTrialIdsForPaymentLink([
+    { id: "old", trialDate: "2026-09-13" },
+    { id: "new", trialDate: "2026-09-20" },
+   ])
+  ).toEqual({ trialIds: ["new"], leftoverCount: 1 })
+ })
+
+ it("沒有開著試堂", () => {
+  expect(pickOpenTrialIdsForPaymentLink([])).toEqual({ trialIds: [], leftoverCount: 0 })
  })
 })
