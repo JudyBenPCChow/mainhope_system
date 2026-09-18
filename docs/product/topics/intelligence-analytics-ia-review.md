@@ -19,6 +19,7 @@
 | 統一毛利人工真源 | 新 plan 或掛 [`hk-expense-cost-stats.md`](./hk-expense-cost-stats.md)＋績效頁 | 績效改接費用帳／計糧過帳 |
 | 總覽現金↔消堂對帳、KPI 1–7／8–14 | [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)＋[`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md) | 規格已有、未落地 |
 | 按金 void／非老師人工 | [`hk-expense-cost-stats.md`](./hk-expense-cost-stats.md) | 已在該題下一步 |
+| 費用現金審計 vs 內部月攤 | [`expense-cash-vs-monthly-cost.md`](./expense-cash-vs-monthly-cost.md) | 日記帳／成本分析雙視角；未拍板 |
 | 側欄命名／finance 入口 | [`nav-capability-entry.md`](./nav-capability-entry.md) | IA1 |
 
 ## 目標（一句）

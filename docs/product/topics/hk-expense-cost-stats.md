@@ -38,3 +38,4 @@
 - 員工績效（毛利）`/StaffPerformance`
 - 營運總覽 KPI（毛利／純利列）：[`mgmt-dashboard-kpi-spec.md`](./mgmt-dashboard-kpi-spec.md)
 - 角色 [`mgmt-manager-role.md`](./mgmt-manager-role.md)
+- 現金審計 vs 內部月攤（**另題**；本檔仍不含間接攤分）：[`expense-cash-vs-monthly-cost.md`](./expense-cash-vs-monthly-cost.md)
