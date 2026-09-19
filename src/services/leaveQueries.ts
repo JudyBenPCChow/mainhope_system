@@ -15,6 +15,10 @@ import {
 import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig, fetchClassEnrollmentConfigsByIds } from "@/services/enrollmentPeriodQueries"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
+ trialQualifiesForStudentUpcoming,
+ type UpcomingScheduleSource,
+} from "@/lib/studentFutureSchedulesTab"
+import {
  LESSON_SLOT_DURATION_MIN,
  intervalsOverlapMinutes,
  parseHm,
@@ -1210,8 +1214,8 @@ export type StudentUpcomingScheduleRow = {
  subject: string
  course_code_full: string | null
  teacher_name: string | null
- /** enrolled＝就讀班；makeup＝請假調堂目標（可跨班） */
- source: "enrolled" | "makeup"
+ /** enrolled＝就讀班；makeup＝請假調堂目標（可跨班）；trial＝已確認收款的試堂 */
+ source: UpcomingScheduleSource
 }
 
 const UPCOMING_SCHEDULE_SELECT =
@@ -1219,7 +1223,7 @@ const UPCOMING_SCHEDULE_SELECT =
 
 function mapUpcomingScheduleRow(
  row: Record<string, unknown>,
- source: "enrolled" | "makeup"
+ source: UpcomingScheduleSource
 ): StudentUpcomingScheduleRow & { courseMode: string; academicYearId: string | null } {
  const cls = row.classes as Record<string, unknown> | null
  const teacher = row.teachers as Record<string, unknown> | null
@@ -1251,7 +1255,33 @@ function isActiveUpcomingScheduleStatus(status: string): boolean {
  return !status.includes("取消") && !status.includes("完成")
 }
 
-/** 學生未來排程：就讀中班別（暑期兩期依報讀期數過濾）＋已指定的調堂補堂排程（可跨班） */
+function embedPaymentStatus(raw: unknown): string | null {
+ if (raw == null) return null
+ const rec = Array.isArray(raw) ? raw[0] : raw
+ if (!rec || typeof rec !== "object") return null
+ const status = (rec as Record<string, unknown>).status
+ return status != null ? String(status) : null
+}
+
+async function fetchUpcomingScheduleRowsByIds(
+ ids: string[],
+ fromYmd: string,
+ source: UpcomingScheduleSource
+): Promise<StudentUpcomingScheduleRow[]> {
+ if (!supabase || ids.length === 0) return []
+ const { data, error } = await supabase
+  .from("schedules")
+  .select(UPCOMING_SCHEDULE_SELECT)
+  .in("id", ids)
+  .gte("scheduled_date", fromYmd)
+ if (error) throwPostgrest(error)
+ return ((data ?? []) as Record<string, unknown>[])
+  .map((row) => mapUpcomingScheduleRow(row, source))
+  .filter((s) => isActiveUpcomingScheduleStatus(s.status))
+  .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
+}
+
+/** 學生未來排程：就讀中班別（暑期兩期依報讀期數過濾）＋已指定的調堂補堂＋已確認收款的試堂 */
 export async function fetchUpcomingSchedulesForStudent(
  studentId: string,
  fromYmd: string
@@ -1283,15 +1313,21 @@ export async function fetchUpcomingSchedulesForStudent(
  const singleEnrollmentIds = [...enrollmentByClass.values()]
   .filter((e) => isSingleSessionEnrollment(e.period))
   .map((e) => e.enrollmentId)
- const [singleScheduleMap, makeupLeavesRes] = await Promise.all([
+ const [singleScheduleMap, makeupLeavesRes, trialsRes] = await Promise.all([
   fetchEnrolledScheduleIdsByEnrollmentIds(singleEnrollmentIds),
   supabase
    .from("leave_makeup_records")
    .select("makeup_schedule_id, status")
    .eq("student_id", studentId)
    .not("makeup_schedule_id", "is", null),
+  supabase
+   .from("trial_sessions")
+   .select("schedule_id, status, payment_id, payments!payment_id ( status )")
+   .eq("student_id", studentId)
+   .not("schedule_id", "is", null),
  ])
  if (makeupLeavesRes.error) throwPostgrest(makeupLeavesRes.error)
+ if (trialsRes.error) throwPostgrest(trialsRes.error)
 
  const makeupScheduleIds = [
   ...new Set(
@@ -1349,22 +1385,36 @@ export async function fetchUpcomingSchedulesForStudent(
   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
 
  const enrolledIds = new Set(enrolled.map((s) => s.id))
+ const trialScheduleIds = [
+  ...new Set(
+   (trialsRes.data ?? [])
+    .filter((row) => {
+     const r = row as {
+      schedule_id?: string
+      status?: string
+      payment_id?: string | null
+      payments?: unknown
+     }
+     return trialQualifiesForStudentUpcoming({
+      trialStatus: String(r.status ?? ""),
+      paymentId: r.payment_id,
+      paymentStatus: embedPaymentStatus(r.payments),
+     })
+    })
+    .map((row) => String((row as { schedule_id: string }).schedule_id))
+    .filter(Boolean)
+  ),
+ ]
  const makeupIdsToFetch = makeupScheduleIds.filter((id) => !enrolledIds.has(id))
- let makeupRows: StudentUpcomingScheduleRow[] = []
- if (makeupIdsToFetch.length > 0) {
-  const { data: makeupData, error: makeupErr } = await supabase
-   .from("schedules")
-   .select(UPCOMING_SCHEDULE_SELECT)
-   .in("id", makeupIdsToFetch)
-   .gte("scheduled_date", fromYmd)
-  if (makeupErr) throwPostgrest(makeupErr)
-  makeupRows = ((makeupData ?? []) as Record<string, unknown>[])
-   .map((row) => mapUpcomingScheduleRow(row, "makeup"))
-   .filter((s) => isActiveUpcomingScheduleStatus(s.status))
-   .map(({ courseMode: _cm, academicYearId: _ay, ...rest }) => rest)
- }
+ const trialIdsToFetch = trialScheduleIds.filter(
+  (id) => !enrolledIds.has(id) && !makeupScheduleIds.includes(id)
+ )
+ const [makeupRows, trialRows] = await Promise.all([
+  fetchUpcomingScheduleRowsByIds(makeupIdsToFetch, fromYmd, "makeup"),
+  fetchUpcomingScheduleRowsByIds(trialIdsToFetch, fromYmd, "trial"),
+ ])
 
- return [...enrolled, ...makeupRows].sort((a, b) => {
+ return [...enrolled, ...makeupRows, ...trialRows].sort((a, b) => {
   if (a.scheduled_date !== b.scheduled_date) return a.scheduled_date.localeCompare(b.scheduled_date)
   return String(a.start_time ?? "").localeCompare(String(b.start_time ?? ""))
  })

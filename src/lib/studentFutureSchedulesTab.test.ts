@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { buildFutureSchedulesCsv, futureSchedulesTabKind } from "@/lib/studentFutureSchedulesTab"
+import {
+ buildFutureSchedulesCsv,
+ futureSchedulesTabKind,
+ trialQualifiesForStudentUpcoming,
+} from "@/lib/studentFutureSchedulesTab"
 
 describe("studentFutureSchedulesTab", () => {
  it("失敗／真空／成功三種畫面語意", () => {
@@ -46,5 +50,46 @@ describe("studentFutureSchedulesTab", () => {
   expect(csv).toContain("就讀")
   expect(csv).toContain("補堂")
   expect(csv).not.toMatch(/(^|,)0(,|$)/)
+ })
+
+ it("試堂列匯出類型為試堂，未收款／已取消不計入未來排程", () => {
+  expect(
+   trialQualifiesForStudentUpcoming({
+    trialStatus: "已預約",
+    paymentId: "pay-1",
+    paymentStatus: "已收款",
+   })
+  ).toBe(true)
+  expect(
+   trialQualifiesForStudentUpcoming({
+    trialStatus: "已預約",
+    paymentId: null,
+    paymentStatus: null,
+   })
+  ).toBe(false)
+  expect(
+   trialQualifiesForStudentUpcoming({
+    trialStatus: "已取消",
+    paymentId: "pay-1",
+    paymentStatus: "已收款",
+   })
+  ).toBe(false)
+
+  const csv = buildFutureSchedulesCsv([
+   {
+    session_number: 42,
+    scheduled_date: "2026-09-22",
+    start_time: "16:30",
+    end_time: "17:45",
+    subject: "中四級常規物理班",
+    course_code_full: "2627-PHYS4001-B",
+    teacher_name: "老師",
+    status: "正常",
+    source: "trial",
+   },
+  ])
+  expect(csv).toContain("試堂")
+  expect(csv).not.toContain("就讀")
+  expect(csv).not.toContain("補堂")
  })
 })
