@@ -35,6 +35,29 @@ export function classNamespaceKey(classId: string): string {
  return `class:${classId}`
 }
 
+/** 專科共用組別年級碼（S1／P3）；唔含 `class:<uuid>`。 */
+export function isGradeScopeNamespaceKey(namespaceKey: string | null | undefined): boolean {
+ return /^[PS][1-6]$/.test(String(namespaceKey ?? "").trim())
+}
+
+/**
+ * 混級班現行 namespace 為 `class:<uuid>`，但舊鑄池可能仍用 course.grade_code（S4）。
+ * 追收／對帳讀尚餘時，把該班上的年級碼池餘額一併歸入 class 鍵，避免雙池假預繳／假缺池。
+ * 單級班（應共用年級碼）唔別名。
+ */
+export function legacyGradePoolClassScopedAliasKey(opts: {
+ namespaceKey: string
+ classId: string | null | undefined
+ /** `classes.grade` 標準化後長度；>1＝混級 */
+ classGradeLabelCount: number
+}): string | null {
+ const classId = String(opts.classId ?? "").trim()
+ if (!classId) return null
+ if (!isGradeScopeNamespaceKey(opts.namespaceKey)) return null
+ if (opts.classGradeLabelCount <= 1) return null
+ return classNamespaceKey(classId)
+}
+
 export function isHomeworkClassSubject(
  subject: string | null | undefined,
  courseName: string | null | undefined

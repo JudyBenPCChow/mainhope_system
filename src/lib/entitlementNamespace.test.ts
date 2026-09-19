@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
  classNamespaceKey,
  entitlementNamespaceLabel,
+ isGradeScopeNamespaceKey,
+ legacyGradePoolClassScopedAliasKey,
  namespacesEqual,
  resolveEntitlementNamespace,
  specialistGradeScopeKey,
@@ -133,5 +135,35 @@ describe("entitlementNamespaceLabel", () => {
     "中文 S1A"
    )
   ).toBe("專科班（中一）")
+ })
+})
+
+describe("legacyGradePoolClassScopedAliasKey", () => {
+ it("aliases grade-key pools on mixed-grade classes to class scope", () => {
+  expect(
+   legacyGradePoolClassScopedAliasKey({
+    namespaceKey: "S4",
+    classId: CHI,
+    classGradeLabelCount: 3,
+   })
+  ).toBe(classNamespaceKey(CHI))
+  expect(isGradeScopeNamespaceKey("S4")).toBe(true)
+ })
+
+ it("does not alias single-grade or class-scoped keys", () => {
+  expect(
+   legacyGradePoolClassScopedAliasKey({
+    namespaceKey: "S4",
+    classId: CHI,
+    classGradeLabelCount: 1,
+   })
+  ).toBeNull()
+  expect(
+   legacyGradePoolClassScopedAliasKey({
+    namespaceKey: classNamespaceKey(CHI),
+    classId: CHI,
+    classGradeLabelCount: 3,
+   })
+  ).toBeNull()
  })
 })
