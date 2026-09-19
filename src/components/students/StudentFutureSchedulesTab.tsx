@@ -106,7 +106,7 @@ export function StudentFutureSchedulesTab({
   <div hidden={!active} className="space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2">
     <p className="text-sm text-muted-foreground">
-     顯示就讀中班別的未來未完成排程，以及已指定的調堂補堂（可跨班）
+     顯示就讀中班別的未來未完成排程、已指定的調堂補堂（可跨班），以及已確認收款的試堂
      {kind === "rows" ? `，共 ${rows.length} 筆。` : "。"}
     </p>
     <Button
@@ -158,6 +158,11 @@ export function StudentFutureSchedulesTab({
           {row.source === "makeup" ? (
            <Tag tone={statusToTagTone("補堂")} size="sm">
             補堂
+           </Tag>
+          ) : null}
+          {row.source === "trial" ? (
+           <Tag tone={statusToTagTone("試堂")} size="sm">
+            試堂
            </Tag>
           ) : null}
          </span>
