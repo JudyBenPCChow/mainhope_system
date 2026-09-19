@@ -7,6 +7,7 @@ import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { classDisplayName } from "@/lib/courseLabel"
 import {
  resolveEntitlementNamespace,
+ legacyGradePoolClassScopedAliasKey,
  type EntitlementNamespace,
 } from "@/lib/entitlementNamespace"
 import { listCurrentEnrollmentYearLabels } from "@/lib/enrollmentYearDisplay"
@@ -495,7 +496,9 @@ async function fetchRemainingIndex(
  await forEachIdChunk(studentIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("student_entitlement_pools")
-   .select("student_id, academic_year_id, course_group, namespace_key, remaining_lessons, class_id")
+   .select(
+    "student_id, academic_year_id, course_group, namespace_key, remaining_lessons, class_id, classes ( grade )"
+   )
    .in("student_id", slice)
   if (error) throw error
   for (const raw of data ?? []) {
@@ -503,20 +506,40 @@ async function fetchRemainingIndex(
    const courseGroup = String(row.course_group ?? "")
    if (courseGroup === "homework" || courseGroup === "trial") continue
    const sid = String(row.student_id ?? "")
+   const classId = row.class_id != null ? String(row.class_id) : ""
    const namespaceKey =
     row.namespace_key != null && String(row.namespace_key) !== ""
      ? String(row.namespace_key)
-     : row.class_id != null
-       ? `class:${String(row.class_id)}`
+     : classId
+       ? `class:${classId}`
        : ""
    if (!sid || !namespaceKey) continue
+   const remainingLessons = Number(row.remaining_lessons ?? 0)
+   const academicYearId = row.academic_year_id != null ? String(row.academic_year_id) : null
    rows.push({
     studentId: sid,
-    academicYearId: row.academic_year_id != null ? String(row.academic_year_id) : null,
+    academicYearId,
     courseGroup,
     namespaceKey,
-    remainingLessons: Number(row.remaining_lessons ?? 0),
+    remainingLessons,
    })
+   const cls = row.classes as Record<string, unknown> | null
+   const gradeRaw = cls?.grade
+   const gradeLen = Array.isArray(gradeRaw) ? gradeRaw.length : 0
+   const aliasKey = legacyGradePoolClassScopedAliasKey({
+    namespaceKey,
+    classId: classId || null,
+    classGradeLabelCount: gradeLen,
+   })
+   if (aliasKey && aliasKey !== namespaceKey) {
+    rows.push({
+     studentId: sid,
+     academicYearId,
+     courseGroup,
+     namespaceKey: aliasKey,
+     remainingLessons,
+    })
+   }
   }
  })
  return indexEntitlementPoolRemainings(rows, currentYearIds)

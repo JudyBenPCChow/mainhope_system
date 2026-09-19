@@ -1,6 +1,7 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import {
  classNamespaceKey,
+ isGradeScopeNamespaceKey,
  resolveEntitlementNamespace,
  type EntitlementCourseGroup,
  type EntitlementNamespace,
@@ -233,6 +234,144 @@ async function fetchPoolByNamespace(opts: {
  return data ? mapPool(data as Record<string, unknown>) : null
 }
 
+/**
+ * 混級專科：現行 namespace＝`class:<uuid>`，但舊鑄可能留下同年級碼池（S4）且宣告仍綁舊池。
+ * 寫入路徑（鑄池／抬池）把同班年級碼池併入 class 池並重綁宣告／事件，避免再造雙池。
+ */
+async function mergeLegacyGradePoolsIntoClassScoped(opts: {
+ studentId: string
+ classId: string
+ academicYearId: string
+ classScopedNamespace: EntitlementNamespace
+ preferredPool: EntitlementPoolRow
+}): Promise<EntitlementPoolRow> {
+ if (!supabase) return opts.preferredPool
+ if (opts.classScopedNamespace.sharesAcrossClasses) return opts.preferredPool
+ if (opts.classScopedNamespace.courseGroup !== "group_specialist") return opts.preferredPool
+ if (!opts.classScopedNamespace.namespaceKey.startsWith("class:")) return opts.preferredPool
+
+ const { data: legacyRows, error: legErr } = await supabase
+  .from("student_entitlement_pools")
+  .select(POOL_COLUMNS)
+  .eq("student_id", opts.studentId)
+  .eq("academic_year_id", opts.academicYearId)
+  .eq("course_group", "group_specialist")
+  .eq("class_id", opts.classId)
+ if (legErr) throw legErr
+
+ const legacy = (legacyRows ?? [])
+  .map((r) => mapPool(r as Record<string, unknown>))
+  .filter(
+   (p) => p.id !== opts.preferredPool.id && isGradeScopeNamespaceKey(p.namespaceKey)
+  )
+ if (legacy.length === 0) return opts.preferredPool
+
+ let target = opts.preferredPool
+ const now = new Date().toISOString()
+ for (const old of legacy) {
+  const nextInitial = target.initialLessons + old.initialLessons
+  const nextRemaining = target.remainingLessons + old.remainingLessons
+  const { error: updErr } = await supabase
+   .from("student_entitlement_pools")
+   .update({
+    initial_lessons: nextInitial,
+    remaining_lessons: nextRemaining,
+    updated_at: now,
+   })
+   .eq("id", target.id)
+  if (updErr) throw updErr
+
+  const { error: declErr } = await supabase
+   .from("attendance_declarations")
+   .update({ pool_id: target.id, updated_at: now })
+   .eq("pool_id", old.id)
+  if (declErr) throw declErr
+
+  const { error: evErr } = await supabase
+   .from("entitlement_consumption_events")
+   .update({ pool_id: target.id })
+   .eq("pool_id", old.id)
+  if (evErr) throw evErr
+
+  const { error: adjErr } = await supabase
+   .from("entitlement_pool_adjustments")
+   .update({ pool_id: target.id })
+   .eq("pool_id", old.id)
+  if (adjErr) throw adjErr
+
+  const { error: relErr } = await supabase
+   .from("entitlement_pool_adjustments")
+   .update({ related_pool_id: target.id })
+   .eq("related_pool_id", old.id)
+  if (relErr) throw relErr
+
+  const { error: delErr } = await supabase
+   .from("student_entitlement_pools")
+   .delete()
+   .eq("id", old.id)
+  if (delErr) throw delErr
+
+  target = {
+   ...target,
+   initialLessons: nextInitial,
+   remainingLessons: nextRemaining,
+   updatedAt: now,
+  }
+ }
+ return target
+}
+
+/**
+ * 若 class 池尚無列、但同班仍有舊年級碼池：先把舊池 namespace 改成 class 鍵（唔另建空池）。
+ */
+async function adoptLegacyGradePoolAsClassScoped(opts: {
+ studentId: string
+ classId: string
+ academicYearId: string
+ classScopedNamespace: EntitlementNamespace
+}): Promise<EntitlementPoolRow | null> {
+ if (!supabase) return null
+ if (opts.classScopedNamespace.sharesAcrossClasses) return null
+ if (opts.classScopedNamespace.courseGroup !== "group_specialist") return null
+
+ const { data, error } = await supabase
+  .from("student_entitlement_pools")
+  .select(POOL_COLUMNS)
+  .eq("student_id", opts.studentId)
+  .eq("academic_year_id", opts.academicYearId)
+  .eq("course_group", "group_specialist")
+  .eq("class_id", opts.classId)
+ if (error) throw error
+ const legacy = (data ?? [])
+  .map((r) => mapPool(r as Record<string, unknown>))
+  .filter((p) => isGradeScopeNamespaceKey(p.namespaceKey))
+ if (legacy.length === 0) return null
+
+ const primary = legacy[0]!
+ const now = new Date().toISOString()
+ const { data: updated, error: renErr } = await supabase
+  .from("student_entitlement_pools")
+  .update({
+   namespace_key: opts.classScopedNamespace.namespaceKey,
+   updated_at: now,
+  })
+  .eq("id", primary.id)
+  .select(POOL_COLUMNS)
+  .single()
+ if (renErr) throw renErr
+ let pool = mapPool(updated as Record<string, unknown>)
+ if (legacy.length > 1) {
+  pool = await mergeLegacyGradePoolsIntoClassScoped({
+   studentId: opts.studentId,
+   classId: opts.classId,
+   academicYearId: opts.academicYearId,
+   classScopedNamespace: opts.classScopedNamespace,
+   preferredPool: pool,
+  })
+ }
+ return pool
+}
+
 async function studentHasOpenTrialOnSchedule(
  studentId: string,
  scheduleId: string
@@ -390,6 +529,20 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
  })
  const now = new Date().toISOString()
 
+ if (
+  !pool
+  && !ns.sharesAcrossClasses
+  && ns.courseGroup === "group_specialist"
+  && ns.namespaceKey.startsWith("class:")
+ ) {
+  pool = await adoptLegacyGradePoolAsClassScoped({
+   studentId: opts.studentId,
+   classId: opts.classId,
+   academicYearId: classCtx.academicYearId,
+   classScopedNamespace: ns,
+  })
+ }
+
  if (!pool) {
   const { data, error } = await supabase
    .from("student_entitlement_pools")
@@ -421,6 +574,21 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
   } else {
    pool = mapPool(data as Record<string, unknown>)
   }
+ }
+
+ if (
+  pool
+  && !ns.sharesAcrossClasses
+  && ns.courseGroup === "group_specialist"
+  && ns.namespaceKey.startsWith("class:")
+ ) {
+  pool = await mergeLegacyGradePoolsIntoClassScoped({
+   studentId: opts.studentId,
+   classId: opts.classId,
+   academicYearId: classCtx.academicYearId,
+   classScopedNamespace: ns,
+   preferredPool: pool,
+  })
  }
 
  if (targets.scheduleIds.length === 0) return pool
