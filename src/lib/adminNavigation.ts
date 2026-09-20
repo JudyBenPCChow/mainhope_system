@@ -18,6 +18,7 @@ import {
  LayoutDashboard,
  LayoutGrid,
  ListOrdered,
+ MessageSquare,
  MessageSquareQuote,
  NotebookPen,
  Percent,
@@ -92,6 +93,7 @@ export const ADMIN_MAIN_NAV: NavEntryDef[] = [
   icon: BookOpen,
   children: [
    { path: "/Classes", label: "專科班", roles: ["admin"], icon: BookOpen },
+   { path: "/AdminOps", label: "班務助手", roles: ["admin"], icon: MessageSquare },
    { path: "/PrivateTutoring", label: "私人課程", roles: ["admin"], icon: Users },
    { path: HW_PATH.overview, label: "功課輔導", roles: ["admin"], icon: ClipboardList },
   ],
@@ -149,6 +151,7 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
   children: [
    { path: "/Classes", label: "班別管理", roles: ["admin"], icon: BookOpen },
    { path: "/Classes/New", label: "新增班別", roles: ["admin"], icon: Plus },
+   { path: "/AdminOps", label: "班務助手", roles: ["admin"], icon: MessageSquare },
    { path: "/AcademicCalendar", label: "專科校曆", roles: ["admin"], icon: CalendarX },
    { path: "/TeachingRecords", label: "教學紀錄", roles: ["admin"], icon: NotebookPen },
    { path: "/PrivateTutoring", label: "私人課程", roles: ["admin"], icon: UserRound },

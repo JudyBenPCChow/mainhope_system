@@ -24,6 +24,7 @@ import {
  LayoutDashboard,
  LayoutGrid,
  ListOrdered,
+ MessageSquare,
  MessageSquareQuote,
  NotebookPen,
  Percent,
@@ -150,6 +151,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   children: [
    { path: "/Classes", label: "班別管理", roles: ["admin", "manager", "alien"], icon: BookOpen },
    { path: "/Classes/New", label: "新增班別", roles: ["admin", "manager", "alien"], icon: Plus },
+   { path: "/AdminOps", label: "班務助手", roles: ["admin"], icon: MessageSquare },
    { path: "/Classes", label: "我的班別", roles: ["teacher"], icon: BookOpen },
    { path: "/Teachers", label: "老師管理", roles: ["admin", "manager", "alien"], icon: UserRound },
    { path: "/TeacherAvailability", label: "老師檔期規劃", roles: ["admin", "manager", "alien"], icon: CalendarClock },

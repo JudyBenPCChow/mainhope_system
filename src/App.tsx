@@ -54,6 +54,7 @@ import TomorrowReminders from "@/pages/TomorrowReminders"
 import TrialSessions from "@/pages/TrialSessions"
 import UserManagement from "@/pages/UserManagement"
 import ApoPo from "@/pages/ApoPo"
+import AdminOpsAssistant from "@/pages/AdminOpsAssistant"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
@@ -140,6 +141,10 @@ export default function App() {
      />
      <Route path="/Classes" element={withCapabilities(["classes.read"], <Classes />)} />
      <Route path="/Classes/New" element={withCapabilities(["classes.create"], <ClassNew />)} />
+     <Route
+      path="/AdminOps"
+      element={withCapabilities(["classes.create", "classes.update"], <AdminOpsAssistant />)}
+     />
      <Route path="/Courses" element={withCapabilities(["catalog.manage"], <Courses />)} />
      <Route
       path="/Classes/:classId"
