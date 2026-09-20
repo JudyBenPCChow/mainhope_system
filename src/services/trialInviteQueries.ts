@@ -1,3 +1,7 @@
+import {
+  parseEligibleGradeCodesFromDb,
+  resolveClassGradeLabels,
+} from "@/lib/classGrade"
 import { forEachIdChunk, DEFAULT_ID_CHUNK } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import {
@@ -512,6 +516,8 @@ export type TrialInviteCatalogScheduleControl = {
   endTime: string
   sessionNumber: number | null
   excluded: boolean
+  /** 未取消的試堂人次；>0 則公開頁不會出現此堂 */
+  trialCount: number
 }
 
 export type TrialInviteCatalogEnrolledStudent = {
@@ -524,6 +530,8 @@ export type TrialInviteCatalogClassControl = {
   id: string
   label: string
   classKind: string
+  subject: string
+  grades: string[]
   courseCodeFull: string
   listed: boolean
   teacherId: string | null
@@ -557,6 +565,16 @@ function classControlLabel(row: Record<string, unknown>): string {
   return code ? `${base}（${code}）` : base
 }
 
+function classControlGrades(row: Record<string, unknown>): string[] {
+  const course = asEmbeddedRecord(row.courses)
+  const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
+  const eligible = parseEligibleGradeCodesFromDb(course?.eligible_grade_codes, gradeCode)
+  const stored = Array.isArray(row.grade)
+    ? (row.grade as unknown[]).map((x) => String(x ?? ""))
+    : null
+  return resolveClassGradeLabels(stored, gradeCode, eligible.length > 0 ? eligible : null)
+}
+
 /** 目前學年的專科／功輔班＋未來堂次，供後台控管公開試堂名單。 */
 export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCatalogControls> {
   if (!supabase) throw new Error("Supabase 未設定")
@@ -576,7 +594,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
   const { data: classRows, error: classErr } = await supabase
     .from("classes")
     .select(
-      "id, class_kind, subject, course_code_full, teacher_id, trial_invite_listed, status, day_of_week, time_slot, courses ( course_name ), teachers ( id, full_name, abbr, trial_invite_participating )"
+      "id, class_kind, subject, grade, course_code_full, teacher_id, trial_invite_listed, status, day_of_week, time_slot, courses ( course_name, grade_code, eligible_grade_codes ), teachers ( id, full_name, abbr, trial_invite_participating )"
     )
     .in("class_kind", ["group", "homework"])
     .eq("academic_year_id", academicYearId)
@@ -618,6 +636,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
             endTime: String(s.end_time ?? "").slice(0, 5),
             sessionNumber: s.session_number != null ? Number(s.session_number) : null,
             excluded: Boolean(s.trial_invite_excluded),
+            trialCount: 0,
           })
           scheduleByClass.set(classId, list)
         }
@@ -651,6 +670,30 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
     for (const list of enrolledByClass.values()) {
       list.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
     }
+
+    const scheduleIds = [...scheduleByClass.values()].flatMap((list) => list.map((s) => s.id))
+    const trialCountBySchedule = new Map<string, number>()
+    if (scheduleIds.length > 0) {
+      await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+        const { data, error } = await supabase!
+          .from("trial_sessions")
+          .select("schedule_id, status")
+          .in("schedule_id", slice)
+        if (error) throw rpcError(error)
+        for (const raw of data ?? []) {
+          const r = raw as Record<string, unknown>
+          if (String(r.status ?? "").includes("取消")) continue
+          const scheduleId = String(r.schedule_id ?? "")
+          if (!scheduleId) continue
+          trialCountBySchedule.set(scheduleId, (trialCountBySchedule.get(scheduleId) ?? 0) + 1)
+        }
+      })
+      for (const list of scheduleByClass.values()) {
+        for (const s of list) {
+          s.trialCount = trialCountBySchedule.get(s.id) ?? 0
+        }
+      }
+    }
   }
 
   const byTeacher = new Map<string, TrialInviteCatalogTeacherControl>()
@@ -681,6 +724,8 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
       id: String(row.id),
       label: classControlLabel(row),
       classKind: String(row.class_kind ?? ""),
+      subject: String(row.subject ?? "").trim(),
+      grades: classControlGrades(row),
       courseCodeFull: String(row.course_code_full ?? ""),
       listed: row.trial_invite_listed !== false,
       teacherId,
@@ -740,10 +785,23 @@ export async function setTrialInviteScheduleExcluded(
   scheduleId: string,
   excluded: boolean
 ): Promise<void> {
+  await setTrialInviteSchedulesExcluded([scheduleId], excluded)
+}
+
+export async function setTrialInviteSchedulesExcluded(
+  scheduleIds: string[],
+  excluded: boolean
+): Promise<number> {
   if (!supabase) throw new Error("Supabase 未設定")
-  const { error } = await supabase.rpc("trial_invite_set_schedule_excluded", {
-    p_schedule_id: scheduleId,
-    p_excluded: excluded,
+  const ids = [...new Set(scheduleIds.map((id) => id.trim()).filter(Boolean))]
+  if (ids.length === 0) return 0
+  const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!.rpc("trial_invite_set_schedules_excluded", {
+      p_schedule_ids: slice,
+      p_excluded: excluded,
+    })
+    if (error) throw rpcError(error)
+    return Number(data ?? slice.length)
   })
-  if (error) throw rpcError(error)
+  return chunks.reduce((sum, n) => sum + n, 0)
 }
