@@ -73,6 +73,7 @@ describe("行政側欄 IA", () => {
   ])
   expect(courses?.kind === "group" ? courses.children.map((child) => child.label) : []).toEqual([
    "專科班",
+   "班務助手",
    "私人課程",
    "功課輔導",
   ])
@@ -209,6 +210,14 @@ describe("行政側欄 IA", () => {
   expect(finance.some((leaf) => leaf.path === "/Payments")).toBe(false)
   expect(alien.some((leaf) => leaf.path === "/Payments")).toBe(true)
  })
+
+ it("班務助手僅出現在行政側欄", () => {
+  expect(flattenNav(resolveRoleMainNav("admin")).some((leaf) => leaf.path === "/AdminOps")).toBe(true)
+  expect(flattenNav(resolveRoleMainNav("manager")).some((leaf) => leaf.path === "/AdminOps")).toBe(false)
+  expect(flattenNav(resolveRoleMainNav("finance")).some((leaf) => leaf.path === "/AdminOps")).toBe(false)
+  expect(flattenNav(resolveRoleMainNav("alien")).some((leaf) => leaf.path === "/AdminOps")).toBe(false)
+  expect(flattenNav(resolveRoleMainNav("teacher")).some((leaf) => leaf.path === "/AdminOps")).toBe(false)
+ })
 })
 
 describe("行政頁內導航", () => {
@@ -289,5 +298,8 @@ describe("行政所有功能", () => {
     s.items.map((item) => item.label)
    )
   ).toEqual(["繳費紀錄"])
+  expect(
+   filterAdminFeatureSections(sections, "班務助手").flatMap((s) => s.items.map((item) => item.path))
+  ).toEqual(["/AdminOps"])
  })
 })
