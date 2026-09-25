@@ -94,7 +94,7 @@ export default function FrontDeskIntake() {
      <p className="text-xs font-medium uppercase tracking-wide text-primary">明學 · 新生資料</p>
      <h1 className="text-xl font-semibold">請填寫學生資料</h1>
      <p className="text-sm text-muted-foreground">
-      填妥後按「提交給前台」。職員核對後才會正式建立學籍。
+      填妥後按「提交給前台」。職員會在收件匣收到通知，核對後才會正式建立學籍。
      </p>
     </header>
 
