@@ -11,6 +11,7 @@ export type InboxWriteEventType =
  | "leave_created"
  | "trial_confirmed"
  | "attendance_reminder"
+ | "student_intake_submitted"
  | "system_update"
 
 export type InboxEventCategory = "ops" | "system"

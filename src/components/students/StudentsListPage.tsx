@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
-import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Plus, Search, Sheet, SlidersHorizontal } from "lucide-react"
+import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
 import {
  AdminPageHeading,
@@ -20,6 +20,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { Tooltip } from "@/components/ui/tooltip"
+import { AddStudentDialog } from "@/components/students/AddStudentDialog"
 import { StudentsListTable } from "@/components/students/StudentsListTable"
 import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 import {
@@ -52,37 +53,21 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SkeletonCardGrid } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
-import {
- Dialog,
- DialogContent,
- DialogHeader,
- DialogTitle,
- DialogTrigger,
-} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { useAppConfirm } from "@/lib/appConfirm"
-import { confirmCreateGraduatedStudent, logCreateGraduatedStudent } from "@/lib/graduationGuard"
-import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
-import { ChoiceChips, GENDER_CHIPS, ParentRelationshipChips, StatusToggle, StudentClassificationTags, StudentGradeChips, formatStudentGrade } from "@/components/students/studentsUi"
-import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
+import { StudentClassificationTags, formatStudentGrade } from "@/components/students/studentsUi"
+import { isPrimaryStudentGrade } from "@/lib/studentGrade"
 import {
  deleteStudent,
  fetchEnrollmentSubjectsByStudentIds,
  fetchRecentClassEnrollments,
  fetchStudentsForOpsList,
- allocateNextStudentCode,
- insertStudent,
- isUniqueViolation,
  normalizeRegistrationStatus,
  normalizeEnrollmentStatus,
  normalizeActivityStatus,
  normalizeAcademicStage,
- PHONE_COUNTRY_CODES,
- PREFERRED_CONTACT_METHODS,
- PRIMARY_CONTACT_PERSONS,
  type RecentClassEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
@@ -140,58 +125,6 @@ function monthStartIso(): string {
  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`
 }
 
-function emptyAddForm(): Partial<StudentRecord> {
- return {
-  full_name: "",
-  english_name: "",
-  student_code: "",
-  gender: "",
-  grade: "",
-  registration_status: "已註冊",
-  academic_stage: "中學階段",
-  school: "",
-  date_of_birth: "",
-  parent_name: "",
-  parent_relationship: "",
-  student_phone: "",
-  student_phone_country_code: "+852",
-  parent_phone: "",
-  parent_phone_country_code: "+852",
-  student_preferred_contact_method: "",
-  parent_preferred_contact_method: "",
-  student_wechat_id: "",
-  parent_wechat_id: "",
-  primary_contact_person: "",
-  address: "",
-  remarks: "",
- }
-}
-
-/** 依區號驗證電話位數（+852=8 位、+86=11 位，可含空格或連字號），允許留空 */
-function isValidPhoneForCode(raw: string | null | undefined, countryCode: string | null | undefined): boolean {
- const s = (raw ?? "").trim()
- if (!s) return true
- const digits = s.replace(/[\s-]/g, "")
- if (!/^\d+$/.test(digits)) return false
- if (countryCode === "+86") return digits.length === 11
- return digits.length === 8
-}
-
-/** 出生日期不可為未來日期 */
-function isValidBirthDate(raw: string | null | undefined): boolean {
- const s = (raw ?? "").trim()
- if (!s) return true
- if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false
- return s <= localYmd()
-}
-
-function localYmd(d = new Date()): string {
- const y = d.getFullYear()
- const m = String(d.getMonth() + 1).padStart(2, "0")
- const day = String(d.getDate()).padStart(2, "0")
- return `${y}-${m}-${day}`
-}
-
 /** 將 created_at（UTC timestamptz ISO）換成本機日期 YYYY-MM-DD；無法解析時回退取前 10 字元。 */
 function createdAtLocalYmd(createdAt: string | null | undefined): string {
  const s = (createdAt ?? "").trim()
@@ -199,6 +132,13 @@ function createdAtLocalYmd(createdAt: string | null | undefined): string {
  const d = new Date(s)
  if (Number.isNaN(d.getTime())) return s.slice(0, 10)
  return localYmd(d)
+}
+
+function localYmd(d = new Date()): string {
+ const y = d.getFullYear()
+ const m = String(d.getMonth() + 1).padStart(2, "0")
+ const day = String(d.getDate()).padStart(2, "0")
+ return `${y}-${m}-${day}`
 }
 
 function formatCsv(rows: StudentRecord[]): string {
@@ -329,9 +269,23 @@ export function StudentsListPage() {
  const [recentIndex, setRecentIndex] = useState(0)
  const [search, setSearch] = usePersistentState<string>("mgmt_students_search", "")
  const [addOpen, setAddOpen] = useState(false)
- const [addForm, setAddForm] = useState<Partial<StudentRecord>>(emptyAddForm())
- const [addErr, setAddErr] = useState<string | null>(null)
- const [addSaving, setAddSaving] = useState(false)
+ const intakeTokenFromUrl = (searchParams.get("intakeToken") ?? "").trim() || null
+
+ useEffect(() => {
+  if (intakeTokenFromUrl) setAddOpen(true)
+ }, [intakeTokenFromUrl])
+
+ const clearIntakeTokenFromUrl = useCallback(() => {
+  setSearchParams(
+   (prev) => {
+    if (!prev.has("intakeToken")) return prev
+    const next = new URLSearchParams(prev)
+    next.delete("intakeToken")
+    return next
+   },
+   { replace: true }
+  )
+ }, [setSearchParams])
 
  const setListScope = (next: "active" | "roster") => {
   setSearchParams(
@@ -737,116 +691,6 @@ export function StudentsListPage() {
     ) : null}
    </div>
   )
- }
-
- const onAddStudent = async () => {
-  if (addSaving) return
-  const fullName = (addForm.full_name ?? "").trim()
-  if (!fullName) {
-   setAddErr("請填寫中文姓名")
-   return
-  }
-  if (!isValidPhoneForCode(addForm.student_phone, addForm.student_phone_country_code)) {
-   setAddErr(
-    addForm.student_phone_country_code === "+86"
-     ? "學生電話格式不正確（+86 需為 11 位數字）"
-     : "學生電話格式不正確（+852 需為 8 位數字）"
-   )
-   return
-  }
-  if (!isValidPhoneForCode(addForm.parent_phone, addForm.parent_phone_country_code)) {
-   setAddErr(
-    addForm.parent_phone_country_code === "+86"
-     ? "家長電話格式不正確（+86 需為 11 位數字）"
-     : "家長電話格式不正確（+852 需為 8 位數字）"
-   )
-   return
-  }
-  if (!isValidBirthDate(addForm.date_of_birth)) {
-   setAddErr("出生日期不可為未來日期")
-   return
-  }
-
-  if (addForm.academic_stage === "已畢業") {
-   const ok = await confirmCreateGraduatedStudent(confirmDialog, {
-    studentName: fullName,
-   })
-   if (!ok) return
-  }
-
-  setAddSaving(true)
-  setAddErr(null)
-  const reg = addForm.registration_status === "非注冊" ? "非注冊" : "已註冊"
-  const payload = {
-   full_name: fullName,
-   english_name: (addForm.english_name ?? "").trim() || null,
-   gender: (addForm.gender ?? "").trim() || null,
-   grade: normalizeStudentGrade(addForm.grade),
-   registration_status: reg,
-   academic_stage: addForm.academic_stage === "已畢業" ? "已畢業" : "中學階段",
-   school: (addForm.school ?? "").trim() || null,
-   date_of_birth: (addForm.date_of_birth ?? "").trim() || null,
-   parent_name: (addForm.parent_name ?? "").trim() || null,
-   parent_relationship: (addForm.parent_relationship ?? "").trim() || null,
-   student_phone: (addForm.student_phone ?? "").trim() || null,
-   student_phone_country_code: addForm.student_phone_country_code === "+86" ? "+86" : "+852",
-   parent_phone: (addForm.parent_phone ?? "").trim() || null,
-   parent_phone_country_code: addForm.parent_phone_country_code === "+86" ? "+86" : "+852",
-   student_preferred_contact_method:
-    addForm.student_preferred_contact_method === "WeChat" ||
-    addForm.student_preferred_contact_method === "WhatsApp"
-     ? addForm.student_preferred_contact_method
-     : null,
-   parent_preferred_contact_method:
-    addForm.parent_preferred_contact_method === "WeChat" ||
-    addForm.parent_preferred_contact_method === "WhatsApp"
-     ? addForm.parent_preferred_contact_method
-     : null,
-   student_wechat_id:
-    addForm.student_preferred_contact_method === "WeChat"
-     ? (addForm.student_wechat_id ?? "").trim() || null
-     : null,
-   parent_wechat_id:
-    addForm.parent_preferred_contact_method === "WeChat"
-     ? (addForm.parent_wechat_id ?? "").trim() || null
-     : null,
-   primary_contact_person:
-    addForm.primary_contact_person === "學生" || addForm.primary_contact_person === "家長"
-     ? addForm.primary_contact_person
-     : null,
-   address: (addForm.address ?? "").trim() || null,
-   remarks: (addForm.remarks ?? "").trim() || null,
-  } as const
-
-  try {
-   try {
-    await insertStudent({ ...payload, student_code: (addForm.student_code ?? "").trim() || null })
-   } catch (e) {
-    // 學號可能因競態而重複：以最新清單重算後重試一次
-    if (isUniqueViolation(e)) {
-     await insertStudent({ ...payload, student_code: await allocateNextStudentCode() })
-    } else {
-     throw e
-    }
-   }
-   if (payload.academic_stage === "已畢業") {
-    logCreateGraduatedStudent({
-     studentName: fullName,
-     source: "StudentsListPage.onAddStudent",
-    })
-   }
-   setAddOpen(false)
-   setAddForm(emptyAddForm())
-   await load()
-  } catch (e) {
-   if (isUniqueViolation(e)) {
-    setAddErr("學號重複，請關閉視窗重新整理後再試。")
-   } else {
-    reportUserFacingError(e, { source: "StudentsListPage.onAddStudent", setErr: setAddErr })
-   }
-  } finally {
-   setAddSaving(false)
-  }
  }
 
  const extraSchools = useMemo(
@@ -1379,254 +1223,14 @@ export function StudentsListPage() {
       <Sheet className="h-4 w-4" />
       匯出 CSV
      </Button>
-     <Dialog
+     <AddStudentDialog
       open={addOpen}
-      onOpenChange={(open) => {
-       if (open && addSaving) return
-       setAddOpen(open)
-       setAddErr(null)
-       if (open) {
-        void allocateNextStudentCode()
-         .then((code) => {
-          setAddForm({ ...emptyAddForm(), student_code: code })
-         })
-         .catch((e) => {
-          reportUserFacingError(e, { source: "StudentsListPage.openAdd", setErr: setAddErr })
-          setAddForm(emptyAddForm())
-         })
-       } else {
-        setAddForm(emptyAddForm())
-       }
-      }}
-     >
-      <DialogTrigger asChild>
-       <Button type="button">
-        <Plus className="h-4 w-4" />
-        新增學生
-       </Button>
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-       <DialogHeader>
-        <DialogTitle>新增學生</DialogTitle>
-       </DialogHeader>
-       <p className="text-sm text-muted-foreground">
-        新增僅建立學生基本資料，不包含報讀班別；完成後請到學生詳細頁「報讀班別」分頁再新增班別。
-       </p>
-       {addErr ? (
-        <div
-         role="alert"
-         className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-         {addErr}
-        </div>
-       ) : null}
-       <div className="space-y-6">
-        <section className="space-y-4">
-         <h3 className="text-sm font-semibold text-foreground">基本資料</h3>
-         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="中文姓名 *">
-           <Input
-            value={addForm.full_name ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
-           />
-          </Field>
-          <Field label="英文姓名">
-           <Input
-            value={addForm.english_name ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, english_name: e.target.value }))}
-           />
-          </Field>
-          <Field label="學生編號">
-           <Input
-            value={addForm.student_code ?? ""}
-            readOnly
-            className="bg-muted/30"
-            placeholder="系統自動生成"
-           />
-          </Field>
-          <Field label="性別">
-           <ChoiceChips
-            options={GENDER_CHIPS}
-            value={addForm.gender ?? ""}
-            onChange={(gender) => setAddForm((f) => ({ ...f, gender }))}
-           />
-          </Field>
-          <Field label="年級">
-           <StudentGradeChips
-            value={addForm.grade}
-            onChange={(grade) => setAddForm((f) => ({ ...f, grade }))}
-           />
-          </Field>
-          <Field label="註冊狀態">
-           <StatusToggle
-            checked={(addForm.registration_status ?? "已註冊") === "已註冊"}
-            onCheckedChange={(on) =>
-             setAddForm((f) => ({ ...f, registration_status: on ? "已註冊" : "非注冊" }))
-            }
-            offLabel="非註冊（試堂／查詢）"
-            onLabel="註冊"
-           />
-          </Field>
-          <Field label="學業階段">
-           <StatusToggle
-            checked={(addForm.academic_stage ?? "中學階段") === "中學階段"}
-            onCheckedChange={(on) =>
-             setAddForm((f) => ({ ...f, academic_stage: on ? "中學階段" : "已畢業" }))
-            }
-            offLabel="已畢業"
-            onLabel="中學階段"
-           />
-          </Field>
-          <p className="sm:col-span-2 text-xs text-muted-foreground">
-           「在讀／非在讀」與「活躍生／非活躍生」會依報讀班別自動計算，無需手動設定。
-          </p>
-          <Field label="學校" className="sm:col-span-2">
-           <SchoolSearchableSelect
-            value={addForm.school ?? ""}
-            extraSchools={extraSchools}
-            onChange={(school) => setAddForm((f) => ({ ...f, school }))}
-           />
-          </Field>
-          <Field label="出生日期">
-           <Input
-            type="date"
-            value={(addForm.date_of_birth ?? "").slice(0, 10)}
-            onChange={(e) => setAddForm((f) => ({ ...f, date_of_birth: e.target.value }))}
-           />
-          </Field>
-         </div>
-        </section>
-
-        <section className="space-y-4">
-         <h3 className="text-sm font-semibold text-foreground">家長聯絡</h3>
-         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="家長姓名">
-           <Input
-            value={addForm.parent_name ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, parent_name: e.target.value }))}
-           />
-          </Field>
-          <Field label="關係">
-           <ParentRelationshipChips
-            value={addForm.parent_relationship}
-            onChange={(rel) => setAddForm((f) => ({ ...f, parent_relationship: rel }))}
-           />
-          </Field>
-          <Field label="第一聯絡人" className="sm:col-span-2">
-           <ChoiceChips
-            options={PRIMARY_CONTACT_PERSONS}
-            value={addForm.primary_contact_person ?? ""}
-            onChange={(v) => setAddForm((f) => ({ ...f, primary_contact_person: v }))}
-           />
-          </Field>
-          <Field label="學生電話">
-           <div className="space-y-2">
-            <ChoiceChips
-             options={PHONE_COUNTRY_CODES}
-             value={addForm.student_phone_country_code ?? "+852"}
-             onChange={(code) => setAddForm((f) => ({ ...f, student_phone_country_code: code }))}
-            />
-            <Input
-             inputMode="numeric"
-             value={addForm.student_phone ?? ""}
-             onChange={(e) => setAddForm((f) => ({ ...f, student_phone: e.target.value }))}
-            />
-           </div>
-          </Field>
-          <Field label="學生偏好通訊方式">
-           <div className="space-y-2">
-            <ChoiceChips
-             options={PREFERRED_CONTACT_METHODS}
-             value={addForm.student_preferred_contact_method ?? ""}
-             onChange={(m) =>
-              setAddForm((f) => ({
-               ...f,
-               student_preferred_contact_method: m,
-               ...(m !== "WeChat" ? { student_wechat_id: "" } : {}),
-              }))
-             }
-            />
-            {addForm.student_preferred_contact_method === "WeChat" ? (
-             <Input
-              placeholder="學生 WeChat ID"
-              value={addForm.student_wechat_id ?? ""}
-              onChange={(e) => setAddForm((f) => ({ ...f, student_wechat_id: e.target.value }))}
-             />
-            ) : null}
-           </div>
-          </Field>
-          <Field label="家長電話">
-           <div className="space-y-2">
-            <ChoiceChips
-             options={PHONE_COUNTRY_CODES}
-             value={addForm.parent_phone_country_code ?? "+852"}
-             onChange={(code) => setAddForm((f) => ({ ...f, parent_phone_country_code: code }))}
-            />
-            <Input
-             inputMode="numeric"
-             value={addForm.parent_phone ?? ""}
-             onChange={(e) => setAddForm((f) => ({ ...f, parent_phone: e.target.value }))}
-            />
-           </div>
-          </Field>
-          <Field label="家長偏好通訊方式">
-           <div className="space-y-2">
-            <ChoiceChips
-             options={PREFERRED_CONTACT_METHODS}
-             value={addForm.parent_preferred_contact_method ?? ""}
-             onChange={(m) =>
-              setAddForm((f) => ({
-               ...f,
-               parent_preferred_contact_method: m,
-               ...(m !== "WeChat" ? { parent_wechat_id: "" } : {}),
-              }))
-             }
-            />
-            {addForm.parent_preferred_contact_method === "WeChat" ? (
-             <Input
-              placeholder="家長 WeChat ID"
-              value={addForm.parent_wechat_id ?? ""}
-              onChange={(e) => setAddForm((f) => ({ ...f, parent_wechat_id: e.target.value }))}
-             />
-            ) : null}
-           </div>
-          </Field>
-          <Field label="地址" className="sm:col-span-2">
-           <Input
-            value={addForm.address ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, address: e.target.value }))}
-           />
-          </Field>
-          <Field label="備註" className="sm:col-span-2">
-           <Textarea
-            value={addForm.remarks ?? ""}
-            onChange={(e) => setAddForm((f) => ({ ...f, remarks: e.target.value }))}
-            rows={3}
-           />
-          </Field>
-         </div>
-        </section>
-
-        <div className="flex justify-end gap-2">
-         <Button
-          type="button"
-          variant="outline"
-          disabled={addSaving}
-          onClick={() => setAddOpen(false)}
-         >
-          取消
-         </Button>
-         <Button
-          type="button"
-          onClick={() => void onAddStudent()}
-          disabled={addSaving || !(addForm.full_name ?? "").trim()}
-         >
-          {addSaving ? "建立中…" : "建立"}
-         </Button>
-        </div>
-       </div>
-      </DialogContent>
-     </Dialog>
+      onOpenChange={setAddOpen}
+      extraSchools={extraSchools}
+      initialIntakeToken={intakeTokenFromUrl}
+      onCreated={() => void load()}
+      onClearIntakeToken={clearIntakeTokenFromUrl}
+     />
     </div>
    </div>
 
@@ -1881,22 +1485,5 @@ export function StudentsListPage() {
    )}
 
   </StickyListShell>
- )
-}
-
-function Field({
- label,
- children,
- className,
-}: {
- label: string
- children: React.ReactNode
- className?: string
-}) {
- return (
-  <div className={cn("space-y-1", className)}>
-   <label className="text-xs font-medium text-muted-foreground">{label}</label>
-   {children}
-  </div>
  )
 }

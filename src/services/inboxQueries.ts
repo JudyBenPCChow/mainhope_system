@@ -39,6 +39,7 @@ export type InboxItemType =
  | "enrollment_session_change"
  | "attendance_reminder"
  | "trial_confirmed"
+ | "student_intake_submitted"
  | "system_update"
 
 export type InboxItem = {
@@ -79,6 +80,7 @@ const TYPE_STATUS_LABEL: Record<InboxItemType, string> = {
  enrollment_session_change: "選堂變更",
  attendance_reminder: "提醒點名",
  trial_confirmed: "試堂",
+ student_intake_submitted: "新生資料",
  system_update: "系統更新",
 }
 

@@ -45,6 +45,7 @@ const OPS_TYPE_FILTER_OPTIONS: { value: InboxTypeFilter; label: string }[] = [
  { value: "class_updated", label: "班別變動" },
  { value: "class_teacher_changed", label: "任教老師變更" },
  { value: "trial_confirmed", label: "試堂" },
+ { value: "student_intake_submitted", label: "新生資料" },
  { value: "enrollment_enroll", label: "新增報讀" },
  { value: "enrollment_withdraw", label: "學生退讀" },
  { value: "enrollment_period_change", label: "報讀形式" },

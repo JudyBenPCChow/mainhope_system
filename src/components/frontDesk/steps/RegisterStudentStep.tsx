@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
-import { Copy, Link2, MessageCircle, RefreshCw } from "lucide-react"
+import { Link2 } from "lucide-react"
 
+import { ParentIntakeLinkPanel } from "@/components/frontDesk/ParentIntakeLinkPanel"
 import {
  emptyIntakeForm,
  normalizeIntakeForInsert,
@@ -9,7 +10,6 @@ import {
  StudentIntakeFormFields,
 } from "@/components/frontDesk/StudentIntakeFormFields"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { useAppBanner } from "@/lib/appBanner"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { nextStudentCode } from "@/lib/studentCode"
@@ -179,7 +179,7 @@ export function RegisterStudentStep({ onRegistered }: Props) {
    pushBanner({
     tone: "info",
     title: "已產生家長填表連結",
-    message: "可先離開做其他事；家長填完後回來按「檢查是否已提交」即可。",
+    message: "可先傳給家長；填完後收件匣會通知，或回來按「檢查是否已提交」。",
    })
   } catch (e) {
    reportUserFacingError(e, { source: "RegisterStudentStep.createLink", setErr })
@@ -300,64 +300,19 @@ export function RegisterStudentStep({ onRegistered }: Props) {
    </div>
 
    {mode === "parent" ? (
-    <div className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm">
-     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-       <h3 className="text-sm font-semibold">家長填表連結</h3>
-       <p className="mt-1 text-xs text-muted-foreground">
-        <strong>不必一直留在本頁。</strong>
-        連結約 4 小時有效；可先傳給家長、去做其他事，之後再回來按「檢查是否已提交」。
-       </p>
-      </div>
-      <Button type="button" variant="outline" size="sm" disabled={intakeLoading} onClick={() => void createLinkSession()}>
-       <RefreshCw className="h-4 w-4" aria-hidden />
-       {intake ? "重新產生" : "產生連結"}
-      </Button>
-     </div>
-     {intakeLoading ? <p className="text-sm text-muted-foreground">產生中…</p> : null}
-     {intake && intakeUrl ? (
-      <div className="space-y-3 text-sm">
-       <p>
-        狀態：
-        <span className="font-medium">
-         {parentSubmitted || intake.status === "submitted" ? "家長已提交，請核對" : "等待家長填寫中"}
-        </span>
-       </p>
-       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-        <Input readOnly value={intakeUrl} className="font-mono text-xs" aria-label="家長填表連結" />
-        <div className="flex shrink-0 flex-wrap gap-2">
-         <Button type="button" size="sm" onClick={() => void copyLink()}>
-          <Copy className="h-4 w-4" aria-hidden />
-          複製連結
-         </Button>
-         <Button type="button" size="sm" variant="outline" onClick={shareWhatsApp}>
-          <MessageCircle className="h-4 w-4" aria-hidden />
-          用 WhatsApp 傳送
-         </Button>
-        </div>
-       </div>
-       {!parentSubmitted ? (
-        <Button
-         type="button"
-         variant="secondary"
-         size="sm"
-         disabled={checking}
-         onClick={() => void checkIntakeStatus(intake.token, { notify: true })}
-        >
-         <RefreshCw className="h-4 w-4" aria-hidden />
-         {checking ? "檢查中…" : "檢查是否已提交"}
-        </Button>
-       ) : null}
-      </div>
-     ) : null}
-     {parentSubmitted ? (
-      <p className="text-sm text-success" role="status">
-       已收到家長資料，請核對下方欄位後按「確認無誤並建立學生」。
-      </p>
-     ) : (
-      <p className="text-sm text-muted-foreground">亦可切換「前台填寫」自行輸入。</p>
-     )}
-    </div>
+    <ParentIntakeLinkPanel
+     intake={intake}
+     intakeUrl={intakeUrl}
+     intakeLoading={intakeLoading}
+     checking={checking}
+     parentSubmitted={parentSubmitted}
+     onCreateLink={() => void createLinkSession()}
+     onCopyLink={() => void copyLink()}
+     onShareWhatsApp={shareWhatsApp}
+     onCheckStatus={() => {
+      if (intake?.token) void checkIntakeStatus(intake.token, { notify: true })
+     }}
+    />
    ) : null}
 
    {err ? (
