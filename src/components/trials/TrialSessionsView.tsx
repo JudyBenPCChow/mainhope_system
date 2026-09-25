@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
@@ -34,7 +34,7 @@ import {
 import { cn } from "@/lib/utils"
 import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
-import { fetchStudentPickerOptions } from "@/services/studentQueries"
+import { fetchStudentPickerOptions, getStudentById } from "@/services/studentQueries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
@@ -177,6 +177,7 @@ export function TrialSessionsView() {
  const [filterSubject, setFilterSubject] = useState("all")
  const [filterTeacherId, setFilterTeacherId] = useState("all")
  const [filterGrade, setFilterGrade] = useState("all")
+ const [registrationTab, setRegistrationTab] = useState<"all" | "registered" | "unregistered">("all")
 
  const [teachers, setTeachers] = useState<TeacherRecord[]>(
   () => getTrialSessionsDataCache()?.teachers ?? []
@@ -186,6 +187,18 @@ export function TrialSessionsView() {
  const [studentSearch, setStudentSearch] = useState("")
  const [studentPickerOpen, setStudentPickerOpen] = useState(false)
  const [addStudentId, setAddStudentId] = useState("")
+ const [prefillName, setPrefillName] = useState("")
+ const [searchParams] = useSearchParams()
+ useEffect(() => {
+  const studentId = searchParams.get("studentId")?.trim()
+  if (!studentId) return
+  setAddStudentId(studentId)
+  setAddOpen(true)
+  void getStudentById(studentId).then((student) => {
+   if (!student) return
+   setPrefillName(`${student.full_name || "—"}（${student.grade ?? "—"}）`)
+  })
+ }, [searchParams])
  const [classSearch, setClassSearch] = useState("")
  const [classPickerOpen, setClassPickerOpen] = useState(false)
  const [addClassId, setAddClassId] = useState("")
@@ -522,6 +535,8 @@ export function TrialSessionsView() {
    if (filterSubject !== "all" && (r.class_subject ?? "") !== filterSubject) return false
    if (filterTeacherId !== "all" && (r.teacher_id ?? "") !== filterTeacherId) return false
    if (filterGrade !== "all" && (r.student_grade ?? "") !== filterGrade) return false
+   if (registrationTab === "registered" && r.student_registration !== "已註冊") return false
+   if (registrationTab === "unregistered" && r.student_registration !== "非注冊") return false
    if (filterDateFrom && r.trial_date < filterDateFrom) return false
    if (filterDateTo && r.trial_date > filterDateTo) return false
    return true
@@ -536,6 +551,7 @@ export function TrialSessionsView() {
   filterGrade,
   filterDateFrom,
   filterDateTo,
+  registrationTab,
  ])
 
  const activeFilterCount = useMemo(() => {
@@ -548,6 +564,7 @@ export function TrialSessionsView() {
   if (filterSubject !== "all") n += 1
   if (filterTeacherId !== "all") n += 1
   if (filterGrade !== "all") n += 1
+  if (registrationTab !== "all") n += 1
   return n
  }, [
   statusTab,
@@ -558,6 +575,7 @@ export function TrialSessionsView() {
   filterSubject,
   filterTeacherId,
   filterGrade,
+  registrationTab,
  ])
 
  const resetFilters = useCallback(() => {
@@ -569,6 +587,7 @@ export function TrialSessionsView() {
   setFilterSubject("all")
   setFilterTeacherId("all")
   setFilterGrade("all")
+  setRegistrationTab("all")
  }, [])
 
  const renderTrialFilterPanel = () => (
@@ -623,6 +642,34 @@ export function TrialSessionsView() {
        className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
         outcomeTab === id
+         ? "border-info bg-info text-white shadow-sm"
+         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+       )}
+      >
+       {label}
+      </button>
+     ))}
+    </div>
+   </div>
+   <div className="flex flex-col gap-2">
+    <span className="text-xs font-medium text-muted-foreground">註冊</span>
+    <div className="flex flex-wrap gap-2" role="tablist">
+     {(
+      [
+       ["all", "全部"],
+       ["unregistered", "非註冊"],
+       ["registered", "已註冊"],
+      ] as const
+     ).map(([id, label]) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={registrationTab === id}
+       onClick={() => setRegistrationTab(id)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+        registrationTab === id
          ? "border-info bg-info text-white shadow-sm"
          : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
        )}
@@ -1161,7 +1208,7 @@ export function TrialSessionsView() {
          placeholder="輸入姓名或年級搜尋…"
          value={
           addStudentId
-           ? (studentPickList.find((s) => s.id === addStudentId)?.label ?? "")
+           ? (studentPickList.find((s) => s.id === addStudentId)?.label || prefillName)
            : studentSearch
          }
          onChange={(e) => {

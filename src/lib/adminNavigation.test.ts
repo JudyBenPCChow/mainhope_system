@@ -47,6 +47,7 @@ describe("行政側欄 IA", () => {
 
   expect(students?.kind === "group" ? students.children.map((child) => child.path) : []).toEqual([
    "/Students",
+   "/Leads",
    "/EnrollmentChanges",
    "/PromotionMatch",
    "/ContactUpdateCampaign",
@@ -55,11 +56,12 @@ describe("行政側欄 IA", () => {
   ])
   expect(students?.kind === "group" ? students.children.map((child) => child.label) : []).toEqual([
    "學生",
+   "潛在客戶",
    "增退紀錄",
    "宣傳配對",
    "聯絡資料更新",
-   "試堂邀請",
-   "試堂名單控管",
+   "舊生試堂邀請",
+   "試堂班別管理",
   ])
   expect(payments?.kind === "group" ? payments.children.map((child) => child.path) : []).toEqual([
    "/Payments",
@@ -181,6 +183,7 @@ describe("行政側欄 IA", () => {
   const students = topLevel.find((entry) => entry.kind === "group" && entry.id === "admin-students")
   expect(students?.kind === "group" ? students.children.map((child) => child.path) : []).toEqual([
    "/Students",
+   "/Leads",
    "/EnrollmentChanges",
    "/PromotionMatch",
    "/ContactUpdateCampaign",

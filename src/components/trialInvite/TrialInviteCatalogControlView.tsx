@@ -66,6 +66,8 @@ import {
   setTrialInviteClassesListed,
   setTrialInviteScheduleExcluded,
   setTrialInviteSchedulesExcluded,
+  setAdTrialClassesListed,
+  setAdTrialSchedulesExcluded,
   type TrialInviteCatalogClassControl,
   type TrialInviteCatalogTeacherControl,
 } from "@/services/trialInviteQueries"
@@ -80,7 +82,7 @@ const COLUMN_WIDTH: Record<CatalogListColumnId, string> = {
   count: "w-[5.5rem]",
   students: "w-[18%]",
   time: "w-[14%]",
-  listed: "w-[6.5rem]",
+  listed: "w-[11rem]",
 }
 
 export function TrialInviteCatalogControlView() {
@@ -122,6 +124,8 @@ export function TrialInviteCatalogControlView() {
   }, [headerFiltersStored])
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [classBulkChannel, setClassBulkChannel] = useState<"invite" | "ad" | "both">("invite")
+  const [scheduleEditChannel, setScheduleEditChannel] = useState<"invite" | "ad">("invite")
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [selectedSchedules, setSelectedSchedules] = useState<Set<string>>(() => new Set())
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
@@ -249,30 +253,48 @@ export function TrialInviteCatalogControlView() {
     })
   }
 
-  const applyListed = (classIds: Set<string> | string[], listed: boolean) => {
+  const applyListed = (
+    classIds: Set<string> | string[],
+    listed: boolean,
+    channel: "invite" | "ad" | "both" = "invite"
+  ) => {
     const ids = classIds instanceof Set ? classIds : new Set(classIds)
     setTeachers((cur) =>
       cur.map((t) => ({
         ...t,
-        classes: t.classes.map((c) => (ids.has(c.id) ? { ...c, listed } : c)),
+        classes: t.classes.map((c) => {
+          if (!ids.has(c.id)) return c
+          return {
+            ...c,
+            listed: channel === "ad" ? c.listed : listed,
+            adListed: channel === "invite" ? c.adListed : listed,
+          }
+        }),
       }))
     )
   }
 
-  const applyScheduleExcluded = (scheduleIds: Iterable<string>, excluded: boolean) => {
+  const applyScheduleExcluded = (
+    scheduleIds: Iterable<string>,
+    excluded: boolean,
+    field: "excluded" | "adExcluded" = "excluded"
+  ) => {
     const ids = scheduleIds instanceof Set ? scheduleIds : new Set(scheduleIds)
     setTeachers((cur) =>
       cur.map((t) => ({
         ...t,
         classes: t.classes.map((c) => ({
           ...c,
-          schedules: c.schedules.map((s) => (ids.has(s.id) ? { ...s, excluded } : s)),
+          schedules: c.schedules.map((s) => (ids.has(s.id) ? { ...s, [field]: excluded } : s)),
         })),
       }))
     )
   }
 
-  const applyNearestOpen = (cls: TrialInviteCatalogClassControl) => {
+  const applyNearestOpen = (
+    cls: TrialInviteCatalogClassControl,
+    field: "excluded" | "adExcluded" = "excluded"
+  ) => {
     const { keep, drop } = nearestScheduleSplit(cls.schedules, TRIAL_INVITE_NEAR_LIMIT)
     const keepIds = new Set(keep.map((s) => s.id))
     const dropIds = new Set(drop.map((s) => s.id))
@@ -286,7 +308,7 @@ export function TrialInviteCatalogControlView() {
                 ...c,
                 schedules: c.schedules.map((s) => ({
                   ...s,
-                  excluded: dropIds.has(s.id) ? true : keepIds.has(s.id) ? false : s.excluded,
+                  [field]: dropIds.has(s.id) ? true : keepIds.has(s.id) ? false : s[field],
                 })),
               }
         ),
@@ -334,21 +356,53 @@ export function TrialInviteCatalogControlView() {
     }
   }
 
+  const onClassAdListed = async (cls: TrialInviteCatalogClassControl, next: boolean) => {
+    const key = `class-ad:${cls.id}`
+    setSavingKey(key)
+    setErr(null)
+    const prev = teachers
+    applyListed([cls.id], next, "ad")
+    try {
+      await setAdTrialClassesListed([cls.id], next)
+      pushBanner({
+        title: next ? "已納入廣告公開" : "已關閉廣告公開",
+        tone: "success",
+        message: next
+          ? "此班會出現在廣告試堂頁（仍受未剔除的未來堂次與滿班隱藏約束）。已有試堂不會鎖定此開關。"
+          : "此班暫不出現在廣告試堂頁。",
+      })
+    } catch (e) {
+      setTeachers(prev)
+      reportUserFacingError(e, {
+        source: "TrialInviteCatalogControlView.onClassAdListed",
+        setErr,
+        userMessage: formatUnknownError(e),
+      })
+    } finally {
+      setSavingKey(null)
+    }
+  }
+
   const onBulkListed = async (listed: boolean) => {
     const ids = [...selected]
     if (ids.length === 0) return
     setBusy(true)
     setErr(null)
     const prev = teachers
-    applyListed(selected, listed)
+    applyListed(selected, listed, classBulkChannel)
+    const channelNote =
+      classBulkChannel === "ad" ? "僅廣告公開" : classBulkChannel === "both" ? "兩者" : "僅舊生邀請"
     try {
-      await setTrialInviteClassesListed(ids, listed)
+      if (classBulkChannel === "invite" || classBulkChannel === "both") {
+        await setTrialInviteClassesListed(ids, listed)
+      }
+      if (classBulkChannel === "ad" || classBulkChannel === "both") {
+        await setAdTrialClassesListed(ids, listed)
+      }
       pushBanner({
         title: listed ? "已批量納入" : "已批量剔走",
         tone: "success",
-        message: listed
-          ? `共 ${ids.length} 班會出現在公開試堂名單。`
-          : `共 ${ids.length} 班暫不出現在公開試堂名單。`,
+        message: `${channelNote}：共 ${ids.length} 班。`,
       })
       setSelected(new Set())
     } catch (e) {
@@ -368,15 +422,21 @@ export function TrialInviteCatalogControlView() {
     setSavingKey(key)
     setErr(null)
     const prev = teachers
-    applyScheduleExcluded([scheduleId], !openInCatalog)
+    const ad = scheduleEditChannel === "ad"
+    applyScheduleExcluded([scheduleId], !openInCatalog, ad ? "adExcluded" : "excluded")
     try {
-      await setTrialInviteScheduleExcluded(scheduleId, !openInCatalog)
+      if (ad) await setAdTrialSchedulesExcluded([scheduleId], !openInCatalog)
+      else await setTrialInviteScheduleExcluded(scheduleId, !openInCatalog)
       pushBanner({
         title: openInCatalog ? "已開放堂次" : "已剔除堂次",
         tone: "success",
-        message: openInCatalog
-          ? "家長可在邀請連結中選取此堂次。"
-          : "此堂次不再出現於公開試堂名單。",
+        message: ad
+          ? openInCatalog
+            ? "廣告試堂頁可選取此堂次。已有試堂不會因此關閉。"
+            : "此堂次不再出現於廣告試堂頁。"
+          : openInCatalog
+            ? "家長可在邀請連結中選取此堂次。"
+            : "此堂次不再出現於舊生邀請名單。",
       })
     } catch (e) {
       setTeachers(prev)
@@ -395,15 +455,15 @@ export function TrialInviteCatalogControlView() {
     setBusy(true)
     setErr(null)
     const prev = teachers
-    applyScheduleExcluded(ids, excluded)
+    const ad = scheduleEditChannel === "ad"
+    applyScheduleExcluded(ids, excluded, ad ? "adExcluded" : "excluded")
     try {
-      await setTrialInviteSchedulesExcluded(ids, excluded)
+      if (ad) await setAdTrialSchedulesExcluded(ids, excluded)
+      else await setTrialInviteSchedulesExcluded(ids, excluded)
       pushBanner({
         title: excluded ? "已剔除堂次" : "已開放堂次",
         tone: "success",
-        message: excluded
-          ? `共 ${ids.length} 堂不再出現於公開試堂名單。`
-          : `共 ${ids.length} 堂可供家長選取。`,
+        message: `${ad ? "僅廣告公開" : "僅舊生邀請"}：共 ${ids.length} 堂。`,
       })
       setSelectedSchedules(new Set())
     } catch (e) {
@@ -425,15 +485,15 @@ export function TrialInviteCatalogControlView() {
     setSavingKey(key)
     setErr(null)
     const prev = teachers
-    applyScheduleExcluded(ids, !open)
+    const ad = scheduleEditChannel === "ad"
+    applyScheduleExcluded(ids, !open, ad ? "adExcluded" : "excluded")
     try {
-      await setTrialInviteSchedulesExcluded(ids, !open)
+      if (ad) await setAdTrialSchedulesExcluded(ids, !open)
+      else await setTrialInviteSchedulesExcluded(ids, !open)
       pushBanner({
         title: open ? "已全部開放" : "已全部剔除",
         tone: "success",
-        message: open
-          ? `${cls.label} 的未來堂次均可供家長選取。`
-          : `${cls.label} 的未來堂次已全部剔除。`,
+        message: `${ad ? "僅廣告公開" : "僅舊生邀請"}：${cls.label} 的未來堂次。`,
       })
     } catch (e) {
       setTeachers(prev)
@@ -454,16 +514,18 @@ export function TrialInviteCatalogControlView() {
     setSavingKey(key)
     setErr(null)
     const prev = teachers
-    applyNearestOpen(cls)
+    const ad = scheduleEditChannel === "ad"
+    applyNearestOpen(cls, ad ? "adExcluded" : "excluded")
+    const setExcluded = ad ? setAdTrialSchedulesExcluded : setTrialInviteSchedulesExcluded
     try {
       await Promise.all([
-        keep.length > 0 ? setTrialInviteSchedulesExcluded(keep.map((s) => s.id), false) : Promise.resolve(),
-        drop.length > 0 ? setTrialInviteSchedulesExcluded(drop.map((s) => s.id), true) : Promise.resolve(),
+        keep.length > 0 ? setExcluded(keep.map((s) => s.id), false) : Promise.resolve(),
+        drop.length > 0 ? setExcluded(drop.map((s) => s.id), true) : Promise.resolve(),
       ])
       pushBanner({
         title: "已只開放最近堂次",
         tone: "success",
-        message: `已開放最近 ${keep.length} 堂，其餘 ${drop.length} 堂已剔除。`,
+        message: `${ad ? "僅廣告公開" : "僅舊生邀請"}：已開放最近 ${keep.length} 堂，其餘 ${drop.length} 堂已剔除。`,
       })
     } catch (e) {
       setTeachers(prev)
@@ -507,16 +569,12 @@ export function TrialInviteCatalogControlView() {
         <>
           <AdminPageHeader
             eyebrow="行政工作"
-            title="試堂名單控管"
-            description={
-              academicYearLabel
-                ? `只列出目前學年（${academicYearLabel}）的專科班與功課輔導班。預設全部可出現。可剔選單班或批量納入／剔走試堂資格；展開列可勾選未來堂次。變更即時影響未提交的公開邀請連結。`
-                : "只列出目前學年的專科班與功課輔導班。預設全部可出現。可剔選單班或批量納入／剔走試堂資格；展開列可勾選未來堂次。變更即時影響未提交的公開邀請連結。"
-            }
+            title="試堂班別管理"
+            description={`控制對外公開頁可選的班與堂${academicYearLabel ? `（目前學年 ${academicYearLabel}）` : ""}。舊生邀請與廣告公開各自獨立；廣告預設關閉，須逐班打開。滿班（就讀中超過 5 人）兩邊都會自動隱藏。已有試堂只供查看，不會鎖定廣告開關。`}
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
-                  <Link to="/TrialInviteCampaign">返回試堂邀請</Link>
+                  <Link to="/TrialInviteCampaign">返回舊生試堂邀請</Link>
                 </Button>
                 <Button
                   type="button"
@@ -567,6 +625,23 @@ export function TrialInviteCatalogControlView() {
       ) : null}
 
       <StickyListLead>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground">
+            {scheduleSelectMode ? "堂次編輯" : "批量班別"}
+          </span>
+          {scheduleSelectMode ? (
+            <>
+              <button type="button" className={cn("rounded-full border px-3 py-1", scheduleEditChannel === "invite" ? "border-primary bg-primary text-primary-foreground" : "border-border")} onClick={() => setScheduleEditChannel("invite")}>舊生邀請</button>
+              <button type="button" className={cn("rounded-full border px-3 py-1", scheduleEditChannel === "ad" ? "border-primary bg-primary text-primary-foreground" : "border-border")} onClick={() => setScheduleEditChannel("ad")}>廣告公開</button>
+            </>
+          ) : (
+            <>
+              <button type="button" className={cn("rounded-full border px-3 py-1", classBulkChannel === "invite" ? "border-primary bg-primary text-primary-foreground" : "border-border")} onClick={() => setClassBulkChannel("invite")}>僅舊生邀請</button>
+              <button type="button" className={cn("rounded-full border px-3 py-1", classBulkChannel === "ad" ? "border-primary bg-primary text-primary-foreground" : "border-border")} onClick={() => setClassBulkChannel("ad")}>僅廣告</button>
+              <button type="button" className={cn("rounded-full border px-3 py-1", classBulkChannel === "both" ? "border-primary bg-primary text-primary-foreground" : "border-border")} onClick={() => setClassBulkChannel("both")}>兩者</button>
+            </>
+          )}
+        </div>
         {countActiveCatalogHeaderFilters(headerFilters) > 0 ||
         sortKey !== "teacher" ||
         sortDir !== "asc" ? (
@@ -601,7 +676,7 @@ export function TrialInviteCatalogControlView() {
               disabled={busy || selectedSchedules.size === 0}
               onClick={() => void onBulkSchedulesExcluded([...selectedSchedules], false)}
             >
-              開放此堂
+              {scheduleEditChannel === "ad" ? "開放此堂（僅廣告）" : "開放此堂（僅舊生邀請）"}
             </Button>
             <Button
               type="button"
@@ -610,7 +685,7 @@ export function TrialInviteCatalogControlView() {
               disabled={busy || selectedSchedules.size === 0}
               onClick={() => void onBulkSchedulesExcluded([...selectedSchedules], true)}
             >
-              剔除堂次
+              {scheduleEditChannel === "ad" ? "剔除堂次（僅廣告）" : "剔除堂次（僅舊生邀請）"}
             </Button>
           </BulkSelectionBar>
         ) : (
@@ -628,7 +703,11 @@ export function TrialInviteCatalogControlView() {
               disabled={busy || selected.size === 0}
               onClick={() => void onBulkListed(true)}
             >
-              納入試堂
+              {classBulkChannel === "ad"
+                ? "納入（僅廣告）"
+                : classBulkChannel === "both"
+                  ? "納入（兩者）"
+                  : "納入（僅舊生邀請）"}
             </Button>
             <Button
               type="button"
@@ -637,7 +716,11 @@ export function TrialInviteCatalogControlView() {
               disabled={busy || selected.size === 0}
               onClick={() => void onBulkListed(false)}
             >
-              剔走試堂
+              {classBulkChannel === "ad"
+                ? "關閉（僅廣告）"
+                : classBulkChannel === "both"
+                  ? "關閉（兩者）"
+                  : "關閉（僅舊生邀請）"}
             </Button>
           </BulkSelectionBar>
         )}
@@ -705,9 +788,11 @@ export function TrialInviteCatalogControlView() {
             <tbody className={cn(stickyTableBodyClass, "[&_td]:border-b [&_td]:border-border")}>
               {sorted.map((row) => {
                 const { teacher, cls } = row
-                const classBusy = savingKey === `class:${cls.id}`
+                const classBusy =
+                  savingKey === `class:${cls.id}` || savingKey === `class-ad:${cls.id}`
                 const time = catalogClassTimeLabel(cls)
-                const excludedCount = cls.schedules.filter((s) => s.excluded).length
+                const inviteExcluded = cls.schedules.filter((s) => s.excluded).length
+                const adExcluded = cls.schedules.filter((s) => s.adExcluded).length
                 const open = expanded.has(cls.id)
                 const hideReason = publicAutoHideReason(cls)
                 return (
@@ -759,7 +844,12 @@ export function TrialInviteCatalogControlView() {
                         <div className="mt-1 flex flex-wrap gap-1">
                           {!cls.listed ? (
                             <Tag tone={statusToTagTone("取消")} size="sm">
-                              已剔走
+                              邀請已關
+                            </Tag>
+                          ) : null}
+                          {cls.adListed ? (
+                            <Tag tone={statusToTagTone("安排")} size="sm">
+                              廣告公開
                             </Tag>
                           ) : null}
                           {hideReason === "full" ? (
@@ -827,21 +917,30 @@ export function TrialInviteCatalogControlView() {
                           />
                           {cls.schedules.length === 0
                             ? "沒有未來堂次"
-                            : excludedCount > 0
-                              ? `未來 ${cls.schedules.length} 堂 · 已剔除 ${excludedCount}`
-                              : `未來 ${cls.schedules.length} 堂`}
+                            : `未來 ${cls.schedules.length} 堂 · 邀請剔除 ${inviteExcluded} · 廣告剔除 ${adExcluded}`}
                         </button>
                       </td>
                       <td className="align-top px-3 py-2">
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={cls.listed}
-                            disabled={classBusy || busy}
-                            onCheckedChange={(next) => void onClassListed(cls, next)}
-                            aria-label={`${cls.label}納入試堂名單`}
-                          />
-                          <span className={cn(!cls.listed && "text-muted-foreground")}>納入</span>
-                        </label>
+                        <div className="space-y-1">
+                          <label className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={cls.listed}
+                              disabled={classBusy || busy}
+                              onCheckedChange={(next) => void onClassListed(cls, next)}
+                              aria-label={`${cls.label}舊生邀請`}
+                            />
+                            <span className={cn(!cls.listed && "text-muted-foreground")}>舊生邀請</span>
+                          </label>
+                          <label className="flex items-center gap-2 text-sm">
+                            <Checkbox
+                              checked={cls.adListed}
+                              disabled={classBusy || busy}
+                              onCheckedChange={(next) => void onClassAdListed(cls, next)}
+                              aria-label={`${cls.label}廣告公開`}
+                            />
+                            <span className={cn(!cls.adListed && "text-muted-foreground")}>廣告公開</span>
+                          </label>
+                        </div>
                       </td>
                     </tr>
                     {open ? (
@@ -849,6 +948,7 @@ export function TrialInviteCatalogControlView() {
                         <td colSpan={COL_SPAN} className="px-0 py-0">
                           <TrialInviteCatalogSchedulePanel
                             cls={cls}
+                            editChannel={scheduleEditChannel}
                             selectedIds={selectedSchedules}
                             savingKey={savingKey}
                             busy={busy}

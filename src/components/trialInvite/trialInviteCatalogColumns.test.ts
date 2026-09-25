@@ -36,6 +36,7 @@ function cls(
     grades: ["中四"],
     courseCodeFull: "2627-CHIS4001-A",
     listed: true,
+    adListed: false,
     teacherId: "t1",
     dayOfWeek: "星期二",
     timeSlot: "16:30-17:45",
@@ -61,6 +62,49 @@ describe("studentCountBucket", () => {
 })
 
 describe("publicAutoHideReason", () => {
+  it("只開廣告、已有試堂仍不算無可選堂", () => {
+    expect(
+      publicAutoHideReason(
+        cls({
+          id: "1",
+          label: "甲",
+          listed: false,
+          adListed: true,
+          schedules: [
+            {
+              id: "s1",
+              scheduledDate: "2026-09-22",
+              startTime: "16:30",
+              endTime: "17:45",
+              sessionNumber: null,
+              excluded: false,
+              adExcluded: false,
+              trialCount: 1,
+            },
+          ],
+        })
+      )
+    ).toBeNull()
+  })
+
+  it("只開廣告且滿班仍標滿班", () => {
+    expect(
+      publicAutoHideReason(
+        cls({
+          id: "1",
+          label: "甲",
+          listed: false,
+          adListed: true,
+          enrolledStudents: Array.from({ length: 6 }, (_, i) => ({
+            id: String(i),
+            fullName: `生${i}`,
+            studentCode: "",
+          })),
+        })
+      )
+    ).toBe("full")
+  })
+
   it("職員剔走不算公開頁自動隱藏", () => {
     expect(publicAutoHideReason(cls({ id: "1", label: "甲", listed: false }))).toBeNull()
   })
@@ -95,6 +139,7 @@ describe("publicAutoHideReason", () => {
               endTime: "17:45",
               sessionNumber: null,
               excluded: true,
+              adExcluded: false,
               trialCount: 0,
             },
             {
@@ -104,6 +149,7 @@ describe("publicAutoHideReason", () => {
               endTime: "17:45",
               sessionNumber: null,
               excluded: false,
+              adExcluded: false,
               trialCount: 1,
             },
           ],

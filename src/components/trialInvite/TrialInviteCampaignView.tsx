@@ -705,7 +705,7 @@ export function TrialInviteCampaignView() {
         <>
           <AdminPageHeader
             eyebrow="行政工作"
-            title="試堂邀請"
+            title="舊生試堂邀請"
             description={
               isReviewTab
                 ? "家長已選堂並提交的申請。核准後才建立試堂；免費試堂會自動出 $0 單並上點名紙，半價／原價須完成收款確認。"
@@ -714,7 +714,7 @@ export function TrialInviteCampaignView() {
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>
-                  <Link to="/TrialInviteCatalog">試堂名單控管</Link>
+                  <Link to="/TrialInviteCatalog">試堂班別管理</Link>
                 </Button>
                 <Button
                   type="button"

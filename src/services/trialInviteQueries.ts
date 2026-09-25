@@ -516,7 +516,8 @@ export type TrialInviteCatalogScheduleControl = {
   endTime: string
   sessionNumber: number | null
   excluded: boolean
-  /** 未取消的試堂人次；>0 則公開頁不會出現此堂 */
+  adExcluded: boolean
+  /** 未取消的試堂人次。邀請公開頁會因此隱藏；廣告開關不鎖定。 */
   trialCount: number
 }
 
@@ -534,6 +535,7 @@ export type TrialInviteCatalogClassControl = {
   grades: string[]
   courseCodeFull: string
   listed: boolean
+  adListed: boolean
   teacherId: string | null
   dayOfWeek: string
   timeSlot: string
@@ -594,7 +596,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
   const { data: classRows, error: classErr } = await supabase
     .from("classes")
     .select(
-      "id, class_kind, subject, grade, course_code_full, teacher_id, trial_invite_listed, status, day_of_week, time_slot, courses ( course_name, grade_code, eligible_grade_codes ), teachers ( id, full_name, abbr, trial_invite_participating )"
+      "id, class_kind, subject, grade, course_code_full, teacher_id, trial_invite_listed, ad_trial_listed, status, day_of_week, time_slot, courses ( course_name, grade_code, eligible_grade_codes ), teachers ( id, full_name, abbr, trial_invite_participating )"
     )
     .in("class_kind", ["group", "homework"])
     .eq("academic_year_id", academicYearId)
@@ -616,7 +618,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
         const { data, error } = await supabase!
           .from("schedules")
           .select(
-            "id, class_id, scheduled_date, start_time, end_time, session_number, status, trial_invite_excluded"
+            "id, class_id, scheduled_date, start_time, end_time, session_number, status, trial_invite_excluded, ad_trial_excluded"
           )
           .in("class_id", slice)
           .gte("scheduled_date", today)
@@ -636,6 +638,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
             endTime: String(s.end_time ?? "").slice(0, 5),
             sessionNumber: s.session_number != null ? Number(s.session_number) : null,
             excluded: Boolean(s.trial_invite_excluded),
+            adExcluded: Boolean(s.ad_trial_excluded),
             trialCount: 0,
           })
           scheduleByClass.set(classId, list)
@@ -728,6 +731,7 @@ export async function fetchTrialInviteCatalogControls(): Promise<TrialInviteCata
       grades: classControlGrades(row),
       courseCodeFull: String(row.course_code_full ?? ""),
       listed: row.trial_invite_listed !== false,
+      adListed: row.ad_trial_listed === true,
       teacherId,
       dayOfWeek: String(row.day_of_week ?? "").trim(),
       timeSlot: String(row.time_slot ?? "").trim(),
@@ -797,6 +801,42 @@ export async function setTrialInviteSchedulesExcluded(
   if (ids.length === 0) return 0
   const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
     const { data, error } = await supabase!.rpc("trial_invite_set_schedules_excluded", {
+      p_schedule_ids: slice,
+      p_excluded: excluded,
+    })
+    if (error) throw rpcError(error)
+    return Number(data ?? slice.length)
+  })
+  return chunks.reduce((sum, n) => sum + n, 0)
+}
+
+export async function setAdTrialClassesListed(
+  classIds: string[],
+  listed: boolean
+): Promise<number> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const ids = [...new Set(classIds.map((id) => id.trim()).filter(Boolean))]
+  if (ids.length === 0) return 0
+  const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!.rpc("ad_trial_set_classes_listed", {
+      p_class_ids: slice,
+      p_listed: listed,
+    })
+    if (error) throw rpcError(error)
+    return Number(data ?? slice.length)
+  })
+  return chunks.reduce((sum, n) => sum + n, 0)
+}
+
+export async function setAdTrialSchedulesExcluded(
+  scheduleIds: string[],
+  excluded: boolean
+): Promise<number> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const ids = [...new Set(scheduleIds.map((id) => id.trim()).filter(Boolean))]
+  if (ids.length === 0) return 0
+  const chunks = await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (slice) => {
+    const { data, error } = await supabase!.rpc("ad_trial_set_schedules_excluded", {
       p_schedule_ids: slice,
       p_excluded: excluded,
     })

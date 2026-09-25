@@ -56,11 +56,12 @@ export const ADMIN_MAIN_NAV: NavEntryDef[] = [
   icon: Users,
   children: [
    { path: "/Students", label: "學生", roles: ["admin"], icon: GraduationCap },
+   { path: "/Leads", label: "潛在客戶", roles: ["admin"], icon: Contact },
    { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin"], icon: ScrollText },
    { path: "/PromotionMatch", label: "宣傳配對", roles: ["admin"], icon: UserPlus },
    { path: "/ContactUpdateCampaign", label: "聯絡資料更新", roles: ["admin"], icon: Contact },
-   { path: "/TrialInviteCampaign", label: "試堂邀請", roles: ["admin"], icon: Sparkles },
-   { path: "/TrialInviteCatalog", label: "試堂名單控管", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCampaign", label: "舊生試堂邀請", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCatalog", label: "試堂班別管理", roles: ["admin"], icon: Sparkles },
   ],
  },
  {
@@ -133,12 +134,13 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
   icon: Users,
   children: [
    { path: "/Students", label: "學生", roles: ["admin"], icon: GraduationCap },
+   { path: "/Leads", label: "潛在客戶", roles: ["admin"], icon: Contact },
    { path: "/PortalEnrollmentRequests", label: "家長報讀申請", roles: ["admin"], icon: ClipboardList },
    { path: "/EnrollmentChanges", label: "增退紀錄", roles: ["admin"], icon: ScrollText },
    { path: "/PromotionMatch", label: "宣傳配對", roles: ["admin"], icon: UserPlus },
    { path: "/ContactUpdateCampaign", label: "聯絡資料更新", roles: ["admin"], icon: Contact },
-   { path: "/TrialInviteCampaign", label: "試堂邀請", roles: ["admin"], icon: Sparkles },
-   { path: "/TrialInviteCatalog", label: "試堂名單控管", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCampaign", label: "舊生試堂邀請", roles: ["admin"], icon: Sparkles },
+   { path: "/TrialInviteCatalog", label: "試堂班別管理", roles: ["admin"], icon: Sparkles },
   ],
  },
  {
