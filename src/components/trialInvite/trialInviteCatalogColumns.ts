@@ -39,7 +39,7 @@ export const CATALOG_LIST_COLUMN_LABEL: Record<CatalogListColumnId, string> = {
   count: "人數",
   students: "學生名單",
   time: "時間日期",
-  listed: "納入",
+  listed: "公開",
 }
 
 export type CatalogListHeaderFilters = Record<CatalogListColumnId, string>
@@ -114,13 +114,20 @@ export function isScheduleParentOpen(s: TrialInviteCatalogScheduleControl): bool
   return !s.excluded && s.trialCount === 0
 }
 
+function adScheduleOpen(s: TrialInviteCatalogScheduleControl): boolean {
+  return !s.adExcluded
+}
+
+/** 任一通道有開才標自動隱藏。滿班兩邊都算；已有試堂只令舊生邀請視為無可選堂。 */
 export function publicAutoHideReason(
   cls: TrialInviteCatalogClassControl
 ): "full" | "no_open_schedule" | null {
-  if (!cls.listed) return null
+  if (!cls.listed && !cls.adListed) return null
   if (cls.enrolledStudents.length > 5) return "full"
-  if (!cls.schedules.some(isScheduleParentOpen)) return "no_open_schedule"
-  return null
+  const inviteOpen = cls.listed && cls.schedules.some(isScheduleParentOpen)
+  const adOpen = cls.adListed && cls.schedules.some(adScheduleOpen)
+  if (inviteOpen || adOpen) return null
+  return "no_open_schedule"
 }
 
 export function isCatalogPresetColumn(column: CatalogListColumnId): boolean {

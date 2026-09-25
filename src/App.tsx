@@ -11,10 +11,13 @@ import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import ContactUpdate from "@/pages/ContactUpdate"
 import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
+import AdInterest from "@/pages/AdInterest"
+import AdTrial from "@/pages/AdTrial"
 import TrialInvite from "@/pages/TrialInvite"
 import TrialInviteCampaign from "@/pages/TrialInviteCampaign"
 import TrialInviteCatalog from "@/pages/TrialInviteCatalog"
 import FrontDeskIntake from "@/pages/FrontDeskIntake"
+import Leads from "@/pages/Leads"
 import FrontDeskWizard from "@/pages/FrontDeskWizard"
 import PortalEnrollmentRequests from "@/pages/PortalEnrollmentRequests"
 import Classrooms from "@/pages/Classrooms"
@@ -86,6 +89,8 @@ export default function App() {
     <Route path="/FrontDeskIntake/:token" element={<FrontDeskIntake />} />
     <Route path="/ContactUpdate/:token" element={<ContactUpdate />} />
     <Route path="/TrialInvite/:token" element={<TrialInvite />} />
+    <Route path="/AdTrial" element={<AdTrial />} />
+    <Route path="/AdInterest" element={<AdInterest />} />
     {enablePayrollUiPreview ? (
      <Route
       path="/PayrollUiPreview"
@@ -335,6 +340,7 @@ export default function App() {
       path="/TrialInviteCatalog"
       element={withCapabilities(["students.enroll"], <TrialInviteCatalog />)}
      />
+     <Route path="/Leads" element={withCapabilities(["students.enroll"], <Leads />)} />
      <Route
       path="/PortalEnrollmentRequests"
       element={withCapabilities(["students.enroll"], <PortalEnrollmentRequests />)}

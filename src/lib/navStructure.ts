@@ -105,6 +105,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: Users,
   children: [
    { path: "/Students", label: "學生管理", roles: ["admin", "manager", "alien"], icon: GraduationCap },
+   { path: "/Leads", label: "潛在客戶", roles: ["admin", "alien"], icon: Contact },
    {
     path: "/PortalEnrollmentRequests",
     label: "家長報讀申請",
@@ -130,13 +131,13 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    },
    {
     path: "/TrialInviteCampaign",
-    label: "試堂邀請",
+    label: "舊生試堂邀請",
     roles: ["admin", "alien"],
     icon: Sparkles,
    },
    {
     path: "/TrialInviteCatalog",
-    label: "試堂名單控管",
+    label: "試堂班別管理",
     roles: ["admin", "alien"],
     icon: Sparkles,
    },

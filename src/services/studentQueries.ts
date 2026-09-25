@@ -125,6 +125,13 @@ export function registrationStatusLabel(value: "已註冊" | "非注冊"): strin
  return value === "非注冊" ? "非註冊（試堂／查詢）" : "註冊"
 }
 
+/** 正式報讀成功後不可維持非注冊。已註冊則不必再寫。 */
+export function mustPromoteRegistrationOnEnrollment(
+ current: string | null | undefined
+): boolean {
+ return normalizeRegistrationStatus(current) === "非注冊"
+}
+
 export function normalizeRegistrationStatus(value: string | null | undefined): "已註冊" | "非注冊" {
  const s = (value ?? "").trim()
  if (/非注冊|僅查詢|查詢|試堂/.test(s)) return "非注冊"
@@ -1352,6 +1359,28 @@ async function assertNoEnrollmentTimeConflicts(opts: {
  if (conflicts.length > 0) throw new Error(formatEnrollmentConflictError(conflicts))
 }
 
+/** 有報讀則不可維持非注冊。已註冊不寫。失敗須由呼叫方回滾報讀。 */
+async function promoteRegistrationOnEnrollment(studentId: string): Promise<void> {
+ if (!supabase) return
+ const { data, error } = await supabase
+  .from("students")
+  .select("registration_status")
+  .eq("id", studentId)
+  .maybeSingle()
+ if (error) throw error
+ if (!data) throw new Error("找不到學生，無法完成報讀")
+ const current = String((data as { registration_status?: string }).registration_status ?? "")
+ if (!mustPromoteRegistrationOnEnrollment(current)) return
+ const { error: upErr } = await supabase
+  .from("students")
+  .update({
+   registration_status: "已註冊",
+   updated_at: new Date().toISOString(),
+  })
+  .eq("id", studentId)
+ if (upErr) throw upErr
+}
+
 /** 報讀成功後：同班未結案試堂標為已完成並寫轉化結果，避免試堂列表殘留 */
 async function closeOpenTrialsAfterEnrollment(
  studentId: string,
@@ -1579,6 +1608,22 @@ export async function insertEnrollment(
     remarks: pending.remarks ?? null,
    })
   }
+ } catch (err) {
+  if (createdNew) {
+   await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)
+  } else if (withdrawn) {
+   await supabase
+    .from("student_class_enrollments")
+    .update({
+     status: "已退讀",
+     updated_at: new Date().toISOString(),
+    })
+    .eq("id", enrollmentId)
+  }
+  throw err
+ }
+ try {
+  await promoteRegistrationOnEnrollment(studentId)
  } catch (err) {
   if (createdNew) {
    await supabase.from("student_class_enrollments").delete().eq("id", enrollmentId)

@@ -11,6 +11,7 @@ import type { TrialInviteCatalogClassControl } from "@/services/trialInviteQueri
 
 type Props = {
   cls: TrialInviteCatalogClassControl
+  editChannel: "invite" | "ad"
   selectedIds: Set<string>
   savingKey: string | null
   busy: boolean
@@ -23,6 +24,7 @@ type Props = {
 
 export function TrialInviteCatalogSchedulePanel({
   cls,
+  editChannel,
   selectedIds,
   savingKey,
   busy,
@@ -38,8 +40,12 @@ export function TrialInviteCatalogSchedulePanel({
   const classBusy = savingKey === `class-schedules:${cls.id}` || busy
   let windowCount = 0
 
+  const channelLabel = editChannel === "ad" ? "僅廣告公開" : "僅舊生邀請"
   return (
     <div className="space-y-2 px-3 py-2">
+      <p className="text-xs text-muted-foreground">
+        正在編輯{channelLabel}。已有試堂只供查看，不會鎖定廣告開關。
+      </p>
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-2 text-xs">
           <Checkbox
@@ -81,10 +87,12 @@ export function TrialInviteCatalogSchedulePanel({
       ) : (
         <ul className="max-h-64 space-y-1 overflow-y-auto">
           {cls.schedules.map((sch) => {
-            const openInCatalog = !sch.excluded
+            const openInCatalog = editChannel === "ad" ? !sch.adExcluded : !sch.excluded
             const schBusy = savingKey === `schedule:${sch.id}` || classBusy
             const inWindow =
-              isScheduleParentOpen(sch) && windowCount < TRIAL_INVITE_NEAR_LIMIT
+              editChannel === "ad"
+                ? openInCatalog && windowCount < TRIAL_INVITE_NEAR_LIMIT
+                : isScheduleParentOpen(sch) && windowCount < TRIAL_INVITE_NEAR_LIMIT
             if (inWindow) windowCount += 1
             return (
               <li
