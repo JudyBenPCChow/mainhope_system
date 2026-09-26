@@ -5,10 +5,10 @@
 | 狀態 | `done` |
 | 優先 | 中 |
 | 範圍 | 多來源潛在客戶主檔；Meta 廣告公開試堂登記頁；試堂班別管理（舊生邀請＋廣告公開雙通道）；談妥後建非註冊主檔走既有試堂＋收款上紙 |
-| 不含 | 訪客無主檔收款；自動改已註冊；一鍵正式報讀；官網留言公開表單（只預留來源）；與既有試堂邀請 token 合併；獨立「廣告試堂名單」頁；Meta pixel／UTM（可下波） |
+| 不含 | 訪客無主檔收款；自動改已註冊；一鍵正式報讀；官網留言公開表單（只預留來源）；與既有試堂邀請 token 合併；獨立「廣告試堂名單」頁；**Meta Pixel／CAPI／GA4 腳本實作（ID 佔位已開，等營運填入）** |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 盤點日期 | 2026-09-25 |
-| 上次更新 | 2026-09-25（公開表單防護：IP 限速、Edge submit、Turnstile／子網域準備） |
+| 上次更新 | 2026-09-26（轉化資料：聯絡常數／私隱暫頁／sticky 電話＋WhatsApp；追蹤 env 佔位） |
 | 開工閘 | 無硬依賴。與 [試堂邀請公開連結](./trial-invite-link.md) 並列，**勿合併** token／審核流程；班別控管可同頁雙開關。開工前先消化分題「模擬檢查」H1–H5 及「第二輪訂正」 |
 
 ## 結論
@@ -300,6 +300,43 @@ repo 已有家長公開填表 → 職員接稿建檔：`front_desk_intake_sessio
 8.（可選）前端穩定後請我開 migration：**撤銷 anon 對 submit RPC 的 execute**，只留 Edge  
 
 Edge function 已部署：`ad-public-submit`（`--no-verify-jwt`）。
+
+## 轉化落地頁資料清單（2026-09-26）
+
+對齊官網 [`mainhope_web/src/lib/contact.ts`](../../../../mainhope_web/src/lib/contact.ts)；系統內常數 [`src/lib/adPublicContact.ts`](../../../src/lib/adPublicContact.ts)。
+
+### 已補入公開頁（可直接用）
+
+| 項目 | 值／位置 |
+| --- | --- |
+| 品牌／公司 | 明學教育；明學教育有限公司／MAIN HOPE EDUCATION LTD. |
+| 電話 | `3705 5140`（`tel:37055140`）；sticky＋感謝頁＋footer |
+| WhatsApp | `9484 9539`（`94849539`）；sticky＋感謝頁＋footer |
+| 微信 | `mh_edu_HK`（footer） |
+| 地址 | 粉嶺綠悠軒商場 2 樓 11 號鋪（鄰近聯和墟總站） |
+| 註冊教育編號 | `620211` |
+| 官網 | `https://mainhope.edu.hk/` |
+| 私隱 | 暫用頁 `/Privacy`；確認步須勾選同意；footer 連結 |
+| 防垃圾 | Turnstile／蜜罐／IP 限速（既有） |
+
+### 待營運／廣告帳號提供（填入後再開腳本）
+
+| 項目 | 放哪裡 | 狀態 |
+| --- | --- | --- |
+| Meta Pixel ID | Vercel `VITE_META_PIXEL_ID`＝`1169300568159537` | **已提供**（Edge secret `META_PIXEL_ID` 已設；Vercel 前端 env 待部署時加上） |
+| Meta CAPI Access Token | Supabase Edge secret `META_CAPI_ACCESS_TOKEN`（勿放前端） | **已設入 production Edge**（曾貼對話，建議 Meta 輪替後重設） |
+| GA4 Measurement ID | Vercel `VITE_GA_MEASUREMENT_ID`＝`G-DP44HBG5TD` | **已提供**（串流網址：`https://ad.mainhope.edu.hk`） |
+| 完整私隱政策法務正文 | 取代 `/Privacy` 暫用說明 | 待填 |
+| 廣告最終網址／是否用感謝頁當轉化 | Meta Ads 後台 | 待定（建議 `/AdTrial/thanks` 下波） |
+| UTM／fbclid 入庫 | migration＋submit | 未做 |
+| 前端 Pixel／GA4 腳本＋Edge CAPI Lead | 程式實作 | **已接**（需 Vercel 設 `VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID` 並 redeploy） |
+| 感謝頁 URL | `/AdTrial/thanks`、`/AdInterest/thanks` | **已接**（提交成功後導向；可供 Meta「到達網址」轉化） |
+
+### 程式佔位
+
+- [`.env.example`](../../../.env.example)：`VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID`
+- 路由：`/Privacy`（與 `/AdTrial`、`/AdInterest` 同為 Layout 外；canonical ad 子網域一併轉址）
+
 ## 相關
 
 | 用途 | 路徑 |

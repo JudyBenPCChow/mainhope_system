@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { useLocation, useNavigate } from "react-router-dom"
-import { CheckCircle2, ChevronDown, ChevronLeft, MessageCircle } from "lucide-react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { CheckCircle2, ChevronDown, ChevronLeft, MessageCircle, Phone } from "lucide-react"
 
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
 import { AdPublicTurnstile, resetAdPublicTurnstile } from "@/components/adTrial/AdPublicTurnstile"
@@ -8,11 +8,18 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { collectAdAttribution } from "@/lib/adAttribution"
+import {
+  AD_PUBLIC_CONTACT,
+  adPublicTelHref,
+  adPublicWhatsAppBrowsePrefill,
+} from "@/lib/adPublicContact"
 import {
   adPublicSubmitCooldownRemainingMs,
   adPublicTurnstileSiteKey,
   markAdPublicSubmitCooldown,
 } from "@/lib/adPublicOrigin"
+import { trackAdPublicLead } from "@/lib/adTracking"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade, type StudentGradeCode } from "@/lib/studentGrade"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -50,9 +57,6 @@ type StepId = "details" | "electives" | "subject" | "confirm"
 
 const GRADE_OPTIONS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const satisfies readonly StudentGradeCode[]
 const SENIOR_GRADES = new Set<string>(["S4", "S5", "S6"])
-
-/** 與收據對外聯絡一致（paymentPrint COMPANY.whatsapp）。 */
-const MAINHOPE_PUBLIC_WHATSAPP = "94849539"
 
 const GROUP_SUBJECT_INTRO =
   "固定逢星期，按該科上課。主科為中文、英文、數學；初中另有科學；高中另有物理、化學、生物、企業、會計與財務、數學延伸。"
@@ -106,6 +110,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   const [note, setNote] = useState("")
   const [company, setCompany] = useState("")
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+  const [privacyConsent, setPrivacyConsent] = useState(false)
   const [classes, setClasses] = useState<TrialInviteClassOption[]>([])
   const [requiresElectiveSurvey, setRequiresElectiveSurvey] = useState(false)
   const [electiveOptions, setElectiveOptions] = useState<TrialInviteElectiveOption[]>([])
@@ -118,7 +123,6 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   const [loadingCatalog, setLoadingCatalog] = useState(() => Boolean(!interestOnly && carried))
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
   const [bookTrialSubjectKey, setBookTrialSubjectKey] = useState<string | null>(null)
 
   const electedSet = useMemo(() => new Set(electedCodes), [electedCodes])
@@ -414,8 +418,13 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
       setErr("請完成人機驗證")
       return
     }
+    if (!privacyConsent) {
+      setErr("請先閱讀並同意私隱政策")
+      return
+    }
     setSaving(true)
     setErr(null)
+    const attribution = collectAdAttribution()
     try {
       if (interestOnly) {
         await submitAdTrialInterest({
@@ -429,6 +438,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           contactMethod,
           wechatId,
           turnstileToken: turnstileToken ?? "",
+          attribution,
         })
       } else {
         await submitAdTrial({
@@ -443,10 +453,24 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           contactMethod,
           wechatId,
           turnstileToken: turnstileToken ?? "",
+          attribution,
         })
       }
       markAdPublicSubmitCooldown()
-      setDone(true)
+      await trackAdPublicLead({
+        eventId: attribution.eventId,
+        mode: interestOnly ? "interest" : "trial",
+        phone,
+        contactMethod,
+        phoneCountryCode: "+852",
+      })
+      const summaryLines = interestOnly
+        ? interestLabels
+        : picks.map((p) => `${p.classLabel} · ${p.scheduleLabel}`)
+      navigate(interestOnly ? "/AdInterest/thanks" : "/AdTrial/thanks", {
+        replace: true,
+        state: { fullName: fullName.trim(), summaryLines },
+      })
     } catch (e) {
       resetAdPublicTurnstile()
       setTurnstileToken(null)
@@ -496,24 +520,27 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
       ]
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8 pb-24">
+    <div className="mx-auto max-w-lg px-4 py-8 pb-28">
       <Honeypot value={company} onChange={setCompany} />
       <header className="space-y-1">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground">明學教育</p>
+        <p className="text-xs font-medium tracking-wide text-muted-foreground">{AD_PUBLIC_CONTACT.brandZh}</p>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">
           {interestOnly ? "查詢登記" : "新生試堂登記"}
         </h1>
-        {step === "details" && !done ? (
+        {step === "details" ? (
           <div className="space-y-2 pt-2 text-sm leading-relaxed text-muted-foreground">
-            <p>明學教育為中一至中六學生提供專科班與功課輔導班，堂數少、小組上課。</p>
+            <p>
+              {AD_PUBLIC_CONTACT.brandZh}為中一至中六學生提供專科班與功課輔導班，堂數少、小組上課。校舍位於
+              {AD_PUBLIC_CONTACT.addressZh}。
+            </p>
             {interestOnly ? (
               <>
-                <p>此頁留下聯絡資料，並選擇有興趣的科目。提交後由職員以 WhatsApp 聯絡，再安排時間與收費。</p>
+                <p>留下聯絡資料並選擇有興趣的科目；提交後由職員以 WhatsApp 回覆，再安排時間與收費。</p>
                 <p>可只選一科或多科，不必每科都選。此頁不用選擇上課日期。</p>
               </>
             ) : (
               <>
-                <p>此頁可先登記有興趣的試堂。提交後由職員以 WhatsApp 聯絡，確認時間與收費。</p>
+                <p>可先登記有興趣的試堂；提交後由職員以 WhatsApp 聯絡，確認時間與收費。</p>
                 <p>可只選一科或多科，不必每科都選；稍後再決定是否繼續。</p>
               </>
             )}
@@ -521,8 +548,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         ) : null}
       </header>
 
-      {!done ? (
-        <ol className="mt-6 flex gap-1" aria-label="登記進度">
+      <ol className="mt-6 flex gap-1" aria-label="登記進度">
           {steps.map((item, index) => {
             const current = item.id === step
             const past = steps.findIndex((s) => s.id === step) > index
@@ -545,7 +571,6 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
             )
           })}
         </ol>
-      ) : null}
 
       {err ? (
         <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -553,7 +578,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </p>
       ) : null}
 
-      {!done && (step === "subject" || step === "electives") ? (
+      {(step === "subject" || step === "electives") ? (
         <section
           className="mt-6 rounded-xl border border-border bg-muted/40 px-4 py-3"
           aria-label="已填寫的個人資料"
@@ -580,46 +605,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </section>
       ) : null}
 
-      {done ? (
-        <section className="mt-8 space-y-3 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-success" aria-hidden />
-          <p className="text-lg font-semibold text-foreground">
-            {interestOnly ? "已收到查詢" : "已收到試堂登記"}
-          </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {interestOnly
-              ? "職員會以 WhatsApp 聯絡，按你有興趣的科目說明安排與收費。此頁不會即時留位或收款。"
-              : "職員會以 WhatsApp 聯絡，核對學校與年級、確認試堂日期，並說明該堂收費。此頁不會即時留位或收款。"}
-          </p>
-          <ul className="space-y-2 rounded-xl border border-border bg-card p-4 text-left text-sm">
-            {interestOnly
-              ? [...selectedGroups.map((g) => g.label), ...chosenElectiveLabels].map((label) => (
-                  <li key={label} className="font-medium text-foreground">
-                    {label}
-                  </li>
-                ))
-              : picks.map((p) => (
-                  <li key={p.scheduleId}>
-                    <p className="font-medium text-foreground">{p.classLabel}</p>
-                    <p className="text-muted-foreground">{p.scheduleLabel}</p>
-                  </li>
-                ))}
-          </ul>
-          <Button
-            type="button"
-            className="w-full gap-2"
-            onClick={() => {
-              const name = fullName.trim() || "家長"
-              const kind = interestOnly ? "查詢登記" : "新生試堂登記"
-              const message = `你好，我是${name}，剛在網上提交了${kind}，想跟進確認。`
-              openWhatsAppWithPrefilledText(MAINHOPE_PUBLIC_WHATSAPP, message)
-            }}
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden />
-            WhatsApp 聯絡我們
-          </Button>
-        </section>
-      ) : step === "details" && loadingCatalog && carried ? (
+      {step === "details" && loadingCatalog && carried ? (
         <p className="mt-8 text-center text-sm text-muted-foreground">載入可選班別…</p>
       ) : step === "details" ? (
         <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
@@ -830,18 +816,38 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
             />
           </Field>
           <AdPublicTurnstile onToken={setTurnstileToken} />
+          <label className="flex items-start gap-2 text-sm leading-relaxed text-foreground">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 shrink-0 rounded border-input"
+              checked={privacyConsent}
+              onChange={(e) => setPrivacyConsent(e.target.checked)}
+            />
+            <span>
+              本人已閱讀{" "}
+              <Link to="/Privacy" className="underline underline-offset-2" target="_blank" rel="noopener noreferrer">
+                私隱政策
+              </Link>
+              ，並同意以 WhatsApp／電話聯絡跟進本登記。
+            </span>
+          </label>
           {err ? (
             <p role="alert" className="text-sm text-destructive">
               {err}
             </p>
           ) : null}
-          <Button type="button" className="w-full" disabled={saving} onClick={() => void onSubmit()}>
+          <Button
+            type="button"
+            className="w-full"
+            disabled={saving || !privacyConsent}
+            onClick={() => void onSubmit()}
+          >
             {saving ? "提交中…" : "提交登記"}
           </Button>
         </section>
       )}
 
-      {!done && step !== "details" ? (
+      {step !== "details" ? (
         <button
           type="button"
           className="mt-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -876,6 +882,60 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <footer className="mt-10 space-y-2 border-t border-border pt-6 text-xs leading-relaxed text-muted-foreground">
+        <p className="font-medium text-foreground">
+          {AD_PUBLIC_CONTACT.companyZh}
+          <span className="font-normal text-muted-foreground"> · {AD_PUBLIC_CONTACT.companyEn}</span>
+        </p>
+        <p>{AD_PUBLIC_CONTACT.addressZh}</p>
+        <p>
+          電話 {AD_PUBLIC_CONTACT.phoneDisplay} · WhatsApp {AD_PUBLIC_CONTACT.whatsappDisplay} · 微信{" "}
+          {AD_PUBLIC_CONTACT.wechat}
+        </p>
+        <p>註冊教育編號 {AD_PUBLIC_CONTACT.educationRegNo}</p>
+        <p>
+          <Link to="/Privacy" className="underline underline-offset-2 hover:text-foreground">
+            私隱政策
+          </Link>
+          <span className="mx-1.5">·</span>
+          <a
+            href={AD_PUBLIC_CONTACT.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-foreground"
+          >
+            官網
+          </a>
+        </p>
+      </footer>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        aria-label="快速聯絡"
+      >
+        <div className="mx-auto flex max-w-lg gap-2">
+          <Button type="button" variant="outline" className="flex-1 gap-1.5" asChild>
+            <a href={adPublicTelHref()}>
+              <Phone className="h-4 w-4" aria-hidden />
+              電話
+            </a>
+          </Button>
+          <Button
+            type="button"
+            className="flex-1 gap-1.5"
+            onClick={() =>
+              openWhatsAppWithPrefilledText(
+                AD_PUBLIC_CONTACT.whatsappDigits,
+                adPublicWhatsAppBrowsePrefill()
+              )
+            }
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden />
+            WhatsApp
+          </Button>
+        </div>
+      </nav>
     </div>
   )
 }

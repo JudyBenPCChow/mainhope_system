@@ -12,7 +12,10 @@ import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import ContactUpdate from "@/pages/ContactUpdate"
 import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
 import AdInterest from "@/pages/AdInterest"
+import AdInterestThanks from "@/pages/AdInterestThanks"
+import AdPublicPrivacy from "@/pages/AdPublicPrivacy"
 import AdTrial from "@/pages/AdTrial"
+import AdTrialThanks from "@/pages/AdTrialThanks"
 import TrialInvite from "@/pages/TrialInvite"
 import TrialInviteCampaign from "@/pages/TrialInviteCampaign"
 import TrialInviteCatalog from "@/pages/TrialInviteCatalog"
@@ -90,7 +93,10 @@ export default function App() {
     <Route path="/ContactUpdate/:token" element={<ContactUpdate />} />
     <Route path="/TrialInvite/:token" element={<TrialInvite />} />
     <Route path="/AdTrial" element={<AdTrial />} />
+    <Route path="/AdTrial/thanks" element={<AdTrialThanks />} />
     <Route path="/AdInterest" element={<AdInterest />} />
+    <Route path="/AdInterest/thanks" element={<AdInterestThanks />} />
+    <Route path="/Privacy" element={<AdPublicPrivacy />} />
     {enablePayrollUiPreview ? (
      <Route
       path="/PayrollUiPreview"

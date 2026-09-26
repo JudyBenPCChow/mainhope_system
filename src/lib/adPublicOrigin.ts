@@ -9,7 +9,7 @@ export function adPublicTurnstileSiteKey(): string {
 }
 
 /**
- * 若已設定正規 origin，且目前不在該 origin，則把 /AdTrial、/AdInterest 轉過去。
+ * 若已設定正規 origin，且目前不在該 origin，則把廣告公開路徑轉過去。
  * 須先完成 DNS／Vercel 綁定再設 env，否則會轉到無法開啟的網域。
  */
 export function maybeRedirectAdPublicToCanonical(): void {
@@ -24,9 +24,13 @@ export function maybeRedirectAdPublicToCanonical(): void {
   }
   if (window.location.origin === canonicalUrl.origin) return
   const path = window.location.pathname
-  if (path !== "/AdTrial" && path !== "/AdInterest" && !path.startsWith("/AdTrial/") && !path.startsWith("/AdInterest/")) {
-    return
-  }
+  const isAdPublic =
+    path === "/AdTrial" ||
+    path === "/AdInterest" ||
+    path === "/Privacy" ||
+    path.startsWith("/AdTrial/") ||
+    path.startsWith("/AdInterest/")
+  if (!isAdPublic) return
   const next = `${canonicalUrl.origin}${path}${window.location.search}${window.location.hash}`
   window.location.replace(next)
 }

@@ -20,6 +20,16 @@ type Body = {
   lines?: unknown
   electedSubjectCodes?: unknown
   subjects?: unknown
+  eventId?: unknown
+  fbp?: unknown
+  fbc?: unknown
+  fbclid?: unknown
+  landingPath?: unknown
+  utm_source?: unknown
+  utm_medium?: unknown
+  utm_campaign?: unknown
+  utm_content?: unknown
+  utm_term?: unknown
 }
 
 function asString(v: unknown, max = 500): string {
@@ -34,6 +44,10 @@ function clientKeyFromRequest(req: Request): string {
   const xff = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
   if (xff) return xff.slice(0, 80).toLowerCase()
   return "unknown"
+}
+
+function clientUserAgent(req: Request): string {
+  return (req.headers.get("user-agent") ?? "").slice(0, 512)
 }
 
 async function verifyTurnstile(token: string, remoteIp: string): Promise<boolean> {
@@ -54,6 +68,86 @@ async function verifyTurnstile(token: string, remoteIp: string): Promise<boolean
   if (!res.ok) return false
   const data = (await res.json()) as { success?: boolean }
   return data.success === true
+}
+
+function normalizePhoneDigits(phone: string, countryCode: string): string {
+  const digits = phone.replace(/\D/g, "")
+  if (!digits) return ""
+  if (countryCode === "+86" || countryCode === "86") {
+    return digits.startsWith("86") ? digits : `86${digits}`
+  }
+  if (digits.startsWith("852")) return digits
+  if (digits.length === 8) return `852${digits}`
+  return digits
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const data = new TextEncoder().encode(value.trim().toLowerCase())
+  const digest = await crypto.subtle.digest("SHA-256", data)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")
+}
+
+/** CAPI 失敗不影響提交成功；僅 log。 */
+async function sendMetaCapiLead(params: {
+  eventId: string
+  mode: "trial" | "interest"
+  phone: string
+  phoneCountryCode: string
+  contactMethod: ContactMethod
+  fbp: string
+  fbc: string
+  clientIp: string
+  userAgent: string
+  eventSourceUrl: string
+}): Promise<void> {
+  const pixelId = Deno.env.get("META_PIXEL_ID")?.trim()
+  const token = Deno.env.get("META_CAPI_ACCESS_TOKEN")?.trim()
+  if (!pixelId || !token || !params.eventId) return
+
+  const userData: Record<string, unknown> = {}
+  if (params.contactMethod === "WhatsApp" && params.phone) {
+    const digits = normalizePhoneDigits(params.phone, params.phoneCountryCode)
+    if (digits) userData.ph = [await sha256Hex(digits)]
+  }
+  if (params.fbp) userData.fbp = params.fbp
+  if (params.fbc) userData.fbc = params.fbc
+  if (params.clientIp && params.clientIp !== "unknown") userData.client_ip_address = params.clientIp
+  if (params.userAgent) userData.client_user_agent = params.userAgent
+
+  const body = {
+    data: [
+      {
+        event_name: "Lead",
+        event_time: Math.floor(Date.now() / 1000),
+        event_id: params.eventId,
+        event_source_url: params.eventSourceUrl.slice(0, 1000) || undefined,
+        action_source: "website",
+        user_data: userData,
+        custom_data: {
+          content_name: params.mode === "interest" ? "ad_interest" : "ad_trial",
+        },
+      },
+    ],
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${encodeURIComponent(pixelId)}/events?access_token=${encodeURIComponent(token)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    )
+    if (!res.ok) {
+      const text = await res.text()
+      console.error("meta_capi_lead_failed", res.status, text.slice(0, 500))
+    }
+  } catch (e) {
+    console.error("meta_capi_lead_error", e)
+  }
 }
 
 Deno.serve(async (req) => {
@@ -100,11 +194,18 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
+  const fullName = asString(body.fullName, 80)
+  const phone = asString(body.phone, 40)
+  const eventId = asString(body.eventId, 80)
+  const fbp = asString(body.fbp, 200)
+  const fbc = asString(body.fbc, 200)
+  const landingPath = asString(body.landingPath, 120)
+
   const baseArgs = {
-    p_full_name: asString(body.fullName, 80),
+    p_full_name: fullName,
     p_school: asString(body.school, 120),
     p_grade: asString(body.grade, 10),
-    p_phone: asString(body.phone, 40),
+    p_phone: phone,
     p_note: asString(body.note, 500) || null,
     p_company: asString(body.company, 120),
     p_contact_method: contactMethod,
@@ -134,5 +235,25 @@ Deno.serve(async (req) => {
   if (error) {
     return jsonResponse({ error: error.message || "提交失敗" }, 400)
   }
+
+  const origin = req.headers.get("origin")?.trim() || Deno.env.get("AD_PUBLIC_ORIGIN")?.trim() || ""
+  const eventSourceUrl = origin
+    ? `${origin.replace(/\/$/, "")}${landingPath || (mode === "interest" ? "/AdInterest" : "/AdTrial")}`
+    : landingPath
+
+  // 不 await 阻塞回應亦可；短 await 以確保大部分情況送出
+  await sendMetaCapiLead({
+    eventId,
+    mode,
+    phone,
+    phoneCountryCode,
+    contactMethod,
+    fbp,
+    fbc,
+    clientIp: rateKey,
+    userAgent: clientUserAgent(req),
+    eventSourceUrl,
+  })
+
   return jsonResponse(data ?? { accepted: true })
 })
