@@ -81,58 +81,85 @@ export async function getAdTrialCatalog(grade: string): Promise<AdTrialCatalog> 
   }
 }
 
-export async function submitAdTrial(input: {
+type AdPublicSubmitBase = {
   fullName: string
   school: string
   grade: string
   phone: string
   note: string
-  lines: { class_id: string; schedule_id: string }[]
-  electedSubjectCodes: string[]
   company: string
   contactMethod: "WhatsApp" | "WeChat"
   wechatId: string
-}): Promise<void> {
-  if (!supabase) throw new Error("Supabase 未設定")
-  const { error } = await supabase.rpc("ad_trial_submit", {
-    p_full_name: input.fullName.trim(),
-    p_school: input.school.trim(),
-    p_grade: input.grade.trim(),
-    p_phone: input.phone.trim(),
-    p_note: input.note.trim() || null,
-    p_lines: input.lines,
-    p_elected_subject_codes: input.electedSubjectCodes
-      .map((c) => c.trim().toUpperCase())
-      .filter(Boolean),
-    p_company: input.company,
-    p_contact_method: input.contactMethod,
-    p_wechat_id: input.contactMethod === "WeChat" ? input.wechatId.trim() : null,
-  })
-  if (error) throw rpcError(error)
+  /** Cloudflare Turnstile token；未啟用 widget 時可空字串 */
+  turnstileToken: string
+  /** 預設 +852；與 production leads.phone_country_code 對齊 */
+  phoneCountryCode?: "+852" | "+86"
 }
 
-export async function submitAdTrialInterest(input: {
-  fullName: string
-  school: string
-  grade: string
-  phone: string
-  note: string
-  subjects: string[]
-  company: string
-  contactMethod: "WhatsApp" | "WeChat"
-  wechatId: string
-}): Promise<void> {
+async function readAdPublicSubmitError(error: unknown, response?: Response): Promise<string | null> {
+  const res = response ?? (error as { context?: Response } | null)?.context
+  if (!res || typeof res.json !== "function") return null
+  try {
+    const body = (await res.clone().json()) as { error?: unknown }
+    if (typeof body.error === "string" && body.error.trim()) return body.error.trim()
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+async function invokeAdPublicSubmit(body: Record<string, unknown>): Promise<void> {
   if (!supabase) throw new Error("Supabase 未設定")
-  const { error } = await supabase.rpc("ad_trial_interest_submit", {
-    p_full_name: input.fullName.trim(),
-    p_school: input.school.trim(),
-    p_grade: input.grade.trim(),
-    p_phone: input.phone.trim(),
-    p_note: input.note.trim() || null,
-    p_subjects: input.subjects.map((s) => s.trim()).filter(Boolean),
-    p_company: input.company,
-    p_contact_method: input.contactMethod,
-    p_wechat_id: input.contactMethod === "WeChat" ? input.wechatId.trim() : null,
+  const { data, error, response } = await supabase.functions.invoke("ad-public-submit", { body })
+  if (error) {
+    const detail = await readAdPublicSubmitError(error, response ?? undefined)
+    throw new Error(detail || error.message || "提交失敗")
+  }
+  if (data && typeof data === "object" && "error" in data && (data as { error?: unknown }).error) {
+    throw new Error(String((data as { error: unknown }).error))
+  }
+}
+
+export async function submitAdTrial(
+  input: AdPublicSubmitBase & {
+    lines: { class_id: string; schedule_id: string }[]
+    electedSubjectCodes: string[]
+  }
+): Promise<void> {
+  await invokeAdPublicSubmit({
+    mode: "trial",
+    turnstileToken: input.turnstileToken,
+    fullName: input.fullName.trim(),
+    school: input.school.trim(),
+    grade: input.grade.trim(),
+    phone: input.phone.trim(),
+    note: input.note.trim(),
+    company: input.company,
+    contactMethod: input.contactMethod,
+    wechatId: input.wechatId.trim(),
+    phoneCountryCode: input.phoneCountryCode ?? "+852",
+    lines: input.lines,
+    electedSubjectCodes: input.electedSubjectCodes
+      .map((c) => c.trim().toUpperCase())
+      .filter(Boolean),
   })
-  if (error) throw rpcError(error)
+}
+
+export async function submitAdTrialInterest(
+  input: AdPublicSubmitBase & { subjects: string[] }
+): Promise<void> {
+  await invokeAdPublicSubmit({
+    mode: "interest",
+    turnstileToken: input.turnstileToken,
+    fullName: input.fullName.trim(),
+    school: input.school.trim(),
+    grade: input.grade.trim(),
+    phone: input.phone.trim(),
+    note: input.note.trim(),
+    company: input.company,
+    contactMethod: input.contactMethod,
+    wechatId: input.wechatId.trim(),
+    phoneCountryCode: input.phoneCountryCode ?? "+852",
+    subjects: input.subjects.map((s) => s.trim()).filter(Boolean),
+  })
 }

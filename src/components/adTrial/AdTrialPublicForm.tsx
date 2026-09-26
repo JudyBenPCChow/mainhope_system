@@ -3,10 +3,16 @@ import { useLocation, useNavigate } from "react-router-dom"
 import { CheckCircle2, ChevronDown, ChevronLeft, MessageCircle } from "lucide-react"
 
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
+import { AdPublicTurnstile, resetAdPublicTurnstile } from "@/components/adTrial/AdPublicTurnstile"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import {
+  adPublicSubmitCooldownRemainingMs,
+  adPublicTurnstileSiteKey,
+  markAdPublicSubmitCooldown,
+} from "@/lib/adPublicOrigin"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade, type StudentGradeCode } from "@/lib/studentGrade"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -99,6 +105,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   const [wechatId, setWechatId] = useState(carried?.wechatId ?? "")
   const [note, setNote] = useState("")
   const [company, setCompany] = useState("")
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [classes, setClasses] = useState<TrialInviteClassOption[]>([])
   const [requiresElectiveSurvey, setRequiresElectiveSurvey] = useState(false)
   const [electiveOptions, setElectiveOptions] = useState<TrialInviteElectiveOption[]>([])
@@ -397,6 +404,16 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
       setErr("備註過長")
       return
     }
+    const cooldownMs = adPublicSubmitCooldownRemainingMs()
+    if (cooldownMs > 0) {
+      setErr(`請稍候 ${Math.ceil(cooldownMs / 1000)} 秒再提交`)
+      return
+    }
+    const needTurnstile = Boolean(adPublicTurnstileSiteKey())
+    if (needTurnstile && !turnstileToken) {
+      setErr("請完成人機驗證")
+      return
+    }
     setSaving(true)
     setErr(null)
     try {
@@ -411,6 +428,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           company,
           contactMethod,
           wechatId,
+          turnstileToken: turnstileToken ?? "",
         })
       } else {
         await submitAdTrial({
@@ -424,10 +442,14 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           company,
           contactMethod,
           wechatId,
+          turnstileToken: turnstileToken ?? "",
         })
       }
+      markAdPublicSubmitCooldown()
       setDone(true)
     } catch (e) {
+      resetAdPublicTurnstile()
+      setTurnstileToken(null)
       reportUserFacingError(e, { source: "AdTrialPublicForm.submit", setErr })
     } finally {
       setSaving(false)
@@ -807,6 +829,12 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
               onChange={(e) => setNote(e.target.value)}
             />
           </Field>
+          <AdPublicTurnstile onToken={setTurnstileToken} />
+          {err ? (
+            <p role="alert" className="text-sm text-destructive">
+              {err}
+            </p>
+          ) : null}
           <Button type="button" className="w-full" disabled={saving} onClick={() => void onSubmit()}>
             {saving ? "提交中…" : "提交登記"}
           </Button>
