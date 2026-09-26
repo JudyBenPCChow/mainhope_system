@@ -7,6 +7,10 @@ interface ImportMetaEnv {
  readonly VITE_SUPABASE_URL?: string
  readonly VITE_SUPABASE_ANON_KEY?: string
  readonly VITE_PORTAL_BASE_URL?: string
+ /** 廣告公開表單正規 origin，例如 https://ad.mainhope.edu.hk（設了才會從 system 轉址） */
+ readonly VITE_AD_PUBLIC_ORIGIN?: string
+ /** Cloudflare Turnstile site key；與 Edge secret 成對 */
+ readonly VITE_TURNSTILE_SITE_KEY?: string
  readonly VITE_BASE44_APP_ID?: string
  readonly VITE_BASE44_APP_BASE_URL?: string
  readonly VITE_BASE44_FUNCTIONS_VERSION?: string

@@ -8,7 +8,7 @@
 | 不含 | 訪客無主檔收款；自動改已註冊；一鍵正式報讀；官網留言公開表單（只預留來源）；與既有試堂邀請 token 合併；獨立「廣告試堂名單」頁；Meta pixel／UTM（可下波） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) 進行中 |
 | 盤點日期 | 2026-09-25 |
-| 上次更新 | 2026-09-25（切塊 7：側欄改名舊生試堂邀請） |
+| 上次更新 | 2026-09-25（公開表單防護：IP 限速、Edge submit、Turnstile／子網域準備） |
 | 開工閘 | 無硬依賴。與 [試堂邀請公開連結](./trial-invite-link.md) 並列，**勿合併** token／審核流程；班別控管可同頁雙開關。開工前先消化分題「模擬檢查」H1–H5 及「第二輪訂正」 |
 
 ## 結論
@@ -274,6 +274,32 @@ repo 已有家長公開填表 → 職員接稿建檔：`front_desk_intake_sessio
 - 官網留言表單 UI（schema 留 `website`）
 - 轉正一鍵報讀、名冊預設隱藏非註冊、試堂紀錄「來源」Tag（可列下波）
 
+## 公開表單防護（2026-09-25）
+
+範圍僅 `/AdTrial`、`/AdInterest`。
+
+| 層 | 行為 |
+| --- | --- |
+| 目錄 | `ad_trial_catalog_get` 仍 anon；每 IP 限速（事件表 `ad_public_rate_events`） |
+| 提交 | 新前端打 Edge `ad-public-submit`（可接 Turnstile）；RPC 內有 IP／全域限速＋蜜罐＋24h 去重。過渡期 anon 仍可直呼 RPC（舊前端不中斷）；前端全面發佈後應撤銷 anon execute |
+| Turnstile | 設 `VITE_TURNSTILE_SITE_KEY`＋Edge secret `TURNSTILE_SECRET_KEY` 後強制驗證；未設 secret 時 Edge 暫放行 |
+| 子網域 | 設 `VITE_AD_PUBLIC_ORIGIN=https://ad.mainhope.edu.hk` 後，system 上開這兩頁會轉到 ad；**須先完成 DNS／Vercel 綁定再設 env** |
+| 監控 | 職員可 `select public.ad_public_abuse_stats(24)`（需 `students.enroll`） |
+
+### 你必須自行完成
+
+1. **DNS**：`ad.mainhope.edu.hk` CNAME 到 Vercel 指定目標  
+2. **Vercel Domains**：加入 `ad.mainhope.edu.hk`（與 `system` 同一專案即可）  
+3. **Vercel Environment Variables**（Production）後 **重新部署**：  
+   - `VITE_AD_PUBLIC_ORIGIN=https://ad.mainhope.edu.hk`（DNS 就緒後才設，否則表單會轉到打不開的網域）  
+   - `VITE_TURNSTILE_SITE_KEY=`（Cloudflare Turnstile 的 site key）  
+4. **Supabase Edge secret**：`TURNSTILE_SECRET_KEY=`（與上成對；未設則人機驗證不會真正擋）  
+5. **Cloudflare Turnstile**：建立 widget（網域含 `system.mainhope.edu.hk` 與 `ad.mainhope.edu.hk`）  
+6. **Meta 廣告連結**改為 `https://ad.mainhope.edu.hk/AdTrial` 或 `/AdInterest`  
+7. **合入／部署本分支前端**（否則線上仍走舊的直呼 RPC；限速已生效，Edge／Turnstile／子網域轉址要等新前端）  
+8.（可選）前端穩定後請我開 migration：**撤銷 anon 對 submit RPC 的 execute**，只留 Edge  
+
+Edge function 已部署：`ad-public-submit`（`--no-verify-jwt`）。
 ## 相關
 
 | 用途 | 路徑 |
