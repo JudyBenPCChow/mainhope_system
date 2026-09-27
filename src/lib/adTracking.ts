@@ -68,23 +68,30 @@ function ensureMetaPixel(pixelId: string): void {
   window.fbq("init", pixelId)
 }
 
+/**
+ * 安裝官方 gtag 佇列。必須 `dataLayer.push(arguments)`（Arguments 物件），
+ * 不可 push rest array——否則 gtag.js 載入後不會送出 g/collect，GA 一直無資料。
+ */
 function ensureGa4(measurementId: string): void {
   if (typeof window === "undefined" || !measurementId) return
   window.dataLayer = window.dataLayer || []
   if (!window.gtag) {
-    window.gtag = function gtag(...args: unknown[]) {
-      window.dataLayer?.push(args)
+    window.gtag = function gtag() {
+      // 官方片段：push(arguments)，勿改成 push([...args])
+      // eslint-disable-next-line prefer-rest-params
+      window.dataLayer!.push(arguments)
     }
   }
-  if (!document.getElementById(GA_SCRIPT_ID)) {
-    const t = document.createElement("script")
-    t.id = GA_SCRIPT_ID
-    t.async = true
-    t.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`
-    document.head.appendChild(t)
-    window.gtag("js", new Date())
-    window.gtag("config", measurementId, { send_page_view: false })
-  }
+  if (document.getElementById(GA_SCRIPT_ID)) return
+
+  window.gtag("js", new Date())
+  window.gtag("config", measurementId, { send_page_view: false })
+
+  const t = document.createElement("script")
+  t.id = GA_SCRIPT_ID
+  t.async = true
+  t.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`
+  document.head.appendChild(t)
 }
 
 /** 僅在廣告公開路由呼叫：載入 SDK 並送 PageView。 */
@@ -97,7 +104,12 @@ export function initAdPublicTracking(): void {
   }
   if (gaId) {
     ensureGa4(gaId)
-    window.gtag?.("event", "page_view", { page_location: window.location.href })
+    window.gtag?.("event", "page_view", {
+      page_title: document.title,
+      page_location: window.location.href,
+      page_path: window.location.pathname + window.location.search,
+      send_to: gaId,
+    })
   }
 }
 
