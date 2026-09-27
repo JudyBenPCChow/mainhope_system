@@ -505,7 +505,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </h1>
         {step === "details" && !done ? (
           <div className="space-y-2 pt-2 text-sm leading-relaxed text-muted-foreground">
-            <p>明學教育為中一至中六學生提供專科班與功課輔導班，堂數少、小組上課。</p>
+            <p>明學教育為中一至中六學生提供專科班與功課輔導班。</p>
             {interestOnly ? (
               <>
                 <p>此頁留下聯絡資料，並選擇有興趣的科目。提交後由職員以 WhatsApp 聯絡，再安排時間與收費。</p>
