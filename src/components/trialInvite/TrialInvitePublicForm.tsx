@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { CheckCircle2, ChevronDown, ChevronLeft, Trash2 } from "lucide-react"
+import { CheckCircle2, ChevronDown, ChevronLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -9,15 +9,11 @@ import { partitionTrialInviteElectives } from "@/lib/trialInviteElectives"
 import {
   assemblePicks,
   buildSubjectGroups,
-  classKindLabel,
   classLabelOf,
   classSubLabel,
-  dropSelectedSubject,
   filterCatalogClasses,
   formatScheduleLine,
   nearestUpcomingSchedules,
-  pickedClassCount,
-  pickedScheduleCount,
   pruneAndAutofillClasses,
   pruneAndAutofillSchedules,
   selectedClassIdsForGroups,
@@ -35,7 +31,7 @@ import {
   type TrialInviteSubmittedRequest,
 } from "@/services/trialInviteQueries"
 
-type FlowStepId = "electives" | "subject" | "class" | "confirm"
+type FlowStepId = "electives" | "subject" | "confirm"
 
 type FlowStepDef = {
   id: FlowStepId
@@ -44,19 +40,23 @@ type FlowStepDef = {
 
 const SENIOR_FLOW_STEPS: FlowStepDef[] = [
   { id: "electives", label: "選修" },
-  { id: "subject", label: "科目" },
-  { id: "class", label: "班別" },
+  { id: "subject", label: "選堂" },
   { id: "confirm", label: "提交" },
 ]
 
 const STANDARD_FLOW_STEPS: FlowStepDef[] = [
-  { id: "subject", label: "科目" },
-  { id: "class", label: "班別" },
+  { id: "subject", label: "選堂" },
   { id: "confirm", label: "提交" },
 ]
 
+const GROUP_SUBJECT_INTRO =
+  "固定逢星期，按該科上課。主科為中文、英文、數學；初中另有科學；高中另有物理、化學、生物、企業、會計與財務、數學延伸。"
+
+const HOMEWORK_SUBJECT_INTRO = "課後完成學校功課並溫習，不屬某一科專科班。"
+
 /**
- * 家長公開頁：高中先選選修 → 一次多選科目 → 各科選班並展開堂次。
+ * 家長公開頁：高中先選選修（可跳過）→ 一次選科目並展開班別／堂次 → 確認提交。
+ * 選堂步驟與 /AdTrial 相同：科目與班別合併為一頁。
  */
 export function TrialInvitePublicForm({ token }: { token: string }) {
   const [identity, setIdentity] = useState<TrialInviteIdentity | null>(null)
@@ -142,27 +142,13 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
     [subjectGroups, selectedSubjectKeys]
   )
 
-  const classProgress = useMemo(
-    () => pickedClassCount(selectedSubjectKeys, subjectGroups, classBySubject),
-    [selectedSubjectKeys, subjectGroups, classBySubject]
-  )
-
-  const selectedClassIds = useMemo(
-    () => selectedClassIdsForGroups(selectedGroups, classBySubject),
-    [selectedGroups, classBySubject]
-  )
-
-  const scheduleProgress = useMemo(
-    () => pickedScheduleCount(selectedClassIds, catalogClasses, scheduleByClass),
-    [selectedClassIds, catalogClasses, scheduleByClass]
-  )
-
   const picks = useMemo(
     () => assemblePicks(subjectGroups, selectedSubjectKeys, classBySubject, scheduleByClass),
     [subjectGroups, selectedSubjectKeys, classBySubject, scheduleByClass]
   )
 
-  const picksComplete = selectedGroups.length > 0 && picks.length === selectedGroups.length
+  const picksComplete = picks.length > 0
+  const incompleteSubjectCount = Math.max(0, selectedGroups.length - picks.length)
 
   const showElectiveStep = requiresElectiveSurvey && !electivesConfirmed && !done
 
@@ -197,6 +183,13 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
     setElectivesConfirmed(true)
   }
 
+  const skipElectives = () => {
+    setErr(null)
+    setElectedCodes([])
+    resetSelections()
+    setElectivesConfirmed(true)
+  }
+
   const editElectives = () => {
     setErr(null)
     resetSelections()
@@ -205,13 +198,50 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
 
   const toggleSubject = (key: string) => {
     setErr(null)
-    setSelectedSubjectKeys((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    )
+    const isOn = selectedSubjectKeys.includes(key)
+    if (isOn) {
+      const prevClassId = classBySubject[key]
+      setSelectedSubjectKeys((prev) => prev.filter((k) => k !== key))
+      setClassBySubject((map) => {
+        const next = { ...map }
+        delete next[key]
+        return next
+      })
+      if (prevClassId) {
+        setScheduleByClass((map) => {
+          const next = { ...map }
+          delete next[prevClassId]
+          return next
+        })
+      }
+      setExpandedClassBySubject((map) => {
+        const next = { ...map }
+        delete next[key]
+        return next
+      })
+      return
+    }
+
+    setSelectedSubjectKeys((prev) => [...prev, key])
+    const group = subjectGroups.find((g) => g.key === key)
+    if (!group) return
+    const autofilled = pruneAndAutofillClasses([key], [group], classBySubject)
+    const classId = autofilled[key]
+    if (!classId) return
+    setClassBySubject((map) => ({ ...map, [key]: classId }))
+    setExpandedClassBySubject((map) => ({ ...map, [key]: classId }))
+    const cls = catalogClasses.find((c) => c.id === classId)
+    const upcoming = cls ? nearestUpcomingSchedules(cls) : []
+    if (upcoming.length === 1) {
+      setScheduleByClass((map) => ({ ...map, [classId]: upcoming[0].id }))
+    }
   }
 
-  const pickClassForSubject = (subjectKey: string, classId: string) => {
+  const pickClass = (subjectKey: string, classId: string) => {
     setErr(null)
+    if (!selectedSubjectKeys.includes(subjectKey)) {
+      setSelectedSubjectKeys((prev) => [...prev, subjectKey])
+    }
     setExpandedClassBySubject((map) => ({ ...map, [subjectKey]: classId }))
     const prevClassId = classBySubject[subjectKey]
     setClassBySubject((map) => ({ ...map, [subjectKey]: classId }))
@@ -230,65 +260,32 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
     setScheduleByClass((map) => ({ ...map, [classId]: scheduleId }))
   }
 
-  const removeSubject = (subjectKey: string) => {
-    if (locked || saving) return
-    const keys = dropSelectedSubject(selectedSubjectKeys, subjectKey)
-    if (keys.length === selectedSubjectKeys.length) return
-    setErr(null)
-    setSelectedSubjectKeys(keys)
-    const nextClass = pruneAndAutofillClasses(keys, subjectGroups, classBySubject)
-    const nextClassIds = selectedClassIdsForGroups(
-      selectedSubjectGroups(subjectGroups, keys),
-      nextClass
-    )
-    setClassBySubject(nextClass)
-    setScheduleByClass(pruneAndAutofillSchedules(nextClassIds, catalogClasses, scheduleByClass))
-    setExpandedClassBySubject((map) => {
-      const next = { ...map }
-      for (const key of Object.keys(next)) {
-        if (!keys.includes(key)) delete next[key]
-      }
-      return next
-    })
-  }
-
-  const canRemoveSubject = selectedGroups.length > 1 && !locked && !saving
-
   const confirmSubjects = () => {
     const keys = selectedSubjectKeys.filter((k) => subjectGroups.some((g) => g.key === k))
-    if (keys.length === 0) {
-      setErr("請至少選擇一科")
-      return
-    }
-    if (keys.length !== selectedSubjectKeys.length) {
-      setSelectedSubjectKeys(keys)
-    }
     const nextClass = pruneAndAutofillClasses(keys, subjectGroups, classBySubject)
     const nextClassIds = selectedClassIdsForGroups(
       selectedSubjectGroups(subjectGroups, keys),
       nextClass
     )
-    setClassBySubject(nextClass)
-    setScheduleByClass(pruneAndAutofillSchedules(nextClassIds, catalogClasses, scheduleByClass))
-    setExpandedClassBySubject((map) => {
-      const next = { ...map }
-      for (const key of Object.keys(next)) {
-        if (!keys.includes(key)) delete next[key]
-      }
-      for (const [key, classId] of Object.entries(nextClass)) {
-        if (!next[key]) next[key] = classId
-      }
-      return next
-    })
-    setFlowPhase("class")
-    setErr(null)
-  }
-
-  const confirmClasses = () => {
-    if (!picksComplete) {
-      setErr("請為每一科選擇班別與堂次")
+    const nextSchedules = pruneAndAutofillSchedules(nextClassIds, catalogClasses, scheduleByClass)
+    const assembled = assemblePicks(subjectGroups, keys, nextClass, nextSchedules)
+    if (assembled.length === 0) {
+      setErr("請至少選擇一科班別與堂次")
       return
     }
+    const completeKeys = keys.filter((key) => {
+      const classId = nextClass[key]
+      return Boolean(classId && nextSchedules[classId])
+    })
+    setSelectedSubjectKeys(completeKeys)
+    setClassBySubject(pruneAndAutofillClasses(completeKeys, subjectGroups, nextClass))
+    setScheduleByClass(
+      pruneAndAutofillSchedules(
+        selectedClassIdsForGroups(selectedSubjectGroups(subjectGroups, completeKeys), nextClass),
+        catalogClasses,
+        nextSchedules
+      )
+    )
     setFlowPhase("confirm")
     setErr(null)
   }
@@ -296,10 +293,6 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
   const goBackOneStep = () => {
     setErr(null)
     if (currentStepId === "confirm") {
-      setFlowPhase("class")
-      return
-    }
-    if (currentStepId === "class") {
       setFlowPhase("subject")
       return
     }
@@ -324,7 +317,7 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
       editElectives()
       return
     }
-    if (stepId === "subject" || stepId === "class" || stepId === "confirm") {
+    if (stepId === "subject" || stepId === "confirm") {
       setFlowPhase(stepId)
     }
   }
@@ -356,16 +349,18 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
 
   const electivePreview =
     electedCodes.length === 0
-      ? "未選選修（僅顯示主科／功輔）"
+      ? "已跳過（不顯示選修科）"
       : electiveOptions
           .filter((o) => electedCodes.includes(o.code))
           .map((o) => o.short_name || o.name_zh)
           .join("、")
 
   const subjectPreview =
-    selectedGroups.length === 0
-      ? "尚未選擇"
-      : selectedGroups.map((g) => g.label).join("、") + `（${selectedGroups.length} 科）`
+    picks.length === 0
+      ? selectedGroups.length === 0
+        ? "尚未選擇"
+        : `已勾 ${selectedGroups.length} 科（尚需選堂次）`
+      : picks.map((p) => p.subjectLabel).join("、") + `（${picks.length} 科）`
 
   if (loading) {
     return (
@@ -413,7 +408,6 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
               if (targetIndex < 0 || targetIndex >= currentStepIndex) return false
               if (stepId === "electives") return requiresElectiveSurvey
               if (stepId === "subject") return true
-              if (stepId === "class") return selectedSubjectKeys.length > 0
               if (stepId === "confirm") return picksComplete
               return false
             }}
@@ -424,9 +418,6 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
             electivesConfirmed={electivesConfirmed}
             electivePreview={electivePreview}
             subjectPreview={subjectPreview}
-            currentStepId={currentStepId}
-            classProgress={classProgress}
-            scheduleProgress={scheduleProgress}
             currentStepLabel={currentStepLabel}
             currentStepIndex={currentStepIndex}
             totalSteps={flowSteps.length}
@@ -485,7 +476,7 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
           <div>
             <h2 className="text-base font-semibold text-foreground">目前選修科目</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              為讓我們作出更好的試堂推薦，請告知你目前的選修科目（多選）。
+              可勾選目前選修（多選）。若不選任何一科，可跳過；其後只顯示主科與功課輔導班，不顯示選修科試堂。
             </p>
           </div>
           {electiveOptions.length === 0 ? (
@@ -512,10 +503,22 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
               ) : null}
             </div>
           )}
-          <Button type="button" className="w-full" disabled={locked || saving} onClick={confirmElectives}>
-            繼續選擇試堂
-            {electedCodes.length > 0 ? `（已選 ${electedCodes.length} 科選修）` : ""}
-          </Button>
+          <div className="space-y-2">
+            {electedCodes.length > 0 ? (
+              <Button type="button" className="w-full" disabled={locked || saving} onClick={confirmElectives}>
+                繼續選堂（已選 {electedCodes.length} 科選修）
+              </Button>
+            ) : (
+              <>
+                <Button type="button" className="w-full" disabled={locked || saving} onClick={skipElectives}>
+                  跳過，只看主科與功課輔導班
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  跳過後不會顯示選修科試堂；之後仍可返回修改。
+                </p>
+              </>
+            )}
+          </div>
         </section>
       ) : classes.length === 0 ? (
         <p className="mt-8 text-center text-sm text-muted-foreground">
@@ -525,9 +528,9 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
         <>
           {currentStepId === "subject" ? (
             <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
-              <PickerHeader title="選擇科目" />
+              <h2 className="text-base font-semibold text-foreground">選擇科目與班別</h2>
               <p className="text-sm text-muted-foreground">
-                請勾選所有想試堂的科目，下一步會同時為各科選擇班別與堂次。
+                可只選有興趣的科目，不必每科都選。點選後再選班別與堂次。
               </p>
               {subjectGroups.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
@@ -535,64 +538,40 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  <OptionGroup
-                    title="專科班（主科／你的選修）"
-                    options={groupSubjects.map((g) => ({
-                      id: g.key,
-                      title: g.label,
-                      subtitle: `${g.classes.length} 個班別`,
-                    }))}
-                    selectedIds={selectedSubjectKeys}
+                  <SubjectClassList
+                    title="專科班"
+                    description={GROUP_SUBJECT_INTRO}
+                    groups={groupSubjects}
+                    selectedKeys={selectedSubjectKeys}
+                    classBySubject={classBySubject}
+                    expandedClassBySubject={expandedClassBySubject}
+                    scheduleByClass={scheduleByClass}
                     disabled={locked || saving}
-                    onPick={toggleSubject}
+                    onToggleSubject={toggleSubject}
+                    onPickClass={pickClass}
+                    onPickSchedule={pickScheduleForClass}
                   />
-                  <OptionGroup
+                  <SubjectClassList
                     title="功課輔導班"
-                    options={homeworkSubjects.map((g) => ({
-                      id: g.key,
-                      title: g.label,
-                      subtitle: `${g.classes.length} 個班別`,
-                    }))}
-                    selectedIds={selectedSubjectKeys}
+                    description={HOMEWORK_SUBJECT_INTRO}
+                    groups={homeworkSubjects}
+                    selectedKeys={selectedSubjectKeys}
+                    classBySubject={classBySubject}
+                    expandedClassBySubject={expandedClassBySubject}
+                    scheduleByClass={scheduleByClass}
                     disabled={locked || saving}
-                    onPick={toggleSubject}
+                    onToggleSubject={toggleSubject}
+                    onPickClass={pickClass}
+                    onPickSchedule={pickScheduleForClass}
                   />
                 </div>
               )}
-            </section>
-          ) : null}
-
-          {currentStepId === "class" ? (
-            <div className="mt-6 space-y-4">
-              <div className="space-y-1">
-                <PickerHeader title="選擇班別" />
-                <p className="text-sm text-muted-foreground">
-                  請為每一科選擇一個班別，並在該班選一次試堂堂次。每科只顯示最近 4 個班別。
+              {incompleteSubjectCount > 0 && picksComplete ? (
+                <p className="text-center text-xs text-muted-foreground">
+                  已選齊 {picks.length} 科；未選堂次的科目不會列入申請
                 </p>
-              </div>
-              {selectedGroups.map((group) => {
-                const selectedClassId = classBySubject[group.key] ?? null
-                const expandedClassId =
-                  expandedClassBySubject[group.key] ?? selectedClassId
-                const selectedCls = selectedClassId
-                  ? group.classes.find((c) => c.id === selectedClassId)
-                  : undefined
-                const scheduleId = selectedCls ? scheduleByClass[selectedCls.id] ?? null : null
-                return (
-                  <SubjectClassPicker
-                    key={group.key}
-                    group={group}
-                    selectedClassId={selectedClassId}
-                    expandedClassId={expandedClassId}
-                    selectedScheduleId={scheduleId}
-                    disabled={locked || saving}
-                    onPickClass={pickClassForSubject}
-                    onPickSchedule={pickScheduleForClass}
-                    onRemove={canRemoveSubject ? () => removeSubject(group.key) : undefined}
-                  />
-                )
-              })}
-            </div>
+              ) : null}
+            </section>
           ) : null}
 
           {currentStepId === "confirm" ? (
@@ -600,7 +579,7 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
               <section className="space-y-2">
                 <h2 className="text-sm font-medium text-muted-foreground">已選試堂</h2>
                 {picks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">尚未選擇試堂。請返回選擇科目。</p>
+                  <p className="text-sm text-muted-foreground">尚未選擇試堂。請返回選堂。</p>
                 ) : (
                   <ul className="space-y-2">
                     {picks.map((pick) => (
@@ -633,29 +612,19 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
 
           <StickyAction>
             {currentStepId === "subject" ? (
-              <Button
-                type="button"
-                className="w-full"
-                disabled={locked || saving || selectedSubjectKeys.length === 0}
-                onClick={confirmSubjects}
-              >
-                {selectedSubjectKeys.length === 0
-                  ? "請先選擇科目"
-                  : `繼續選擇班別（${selectedSubjectKeys.length} 科）`}
-              </Button>
-            ) : null}
-            {currentStepId === "class" ? (
               <div className="space-y-2">
                 {!picksComplete ? (
                   <p className="text-center text-xs text-muted-foreground">
-                    尚有 {selectedGroups.length - picks.length} 科未選班別或堂次
+                    {selectedSubjectKeys.length === 0
+                      ? "請先選擇科目並選班別與堂次"
+                      : `尚有 ${incompleteSubjectCount} 科未選班別或堂次`}
                   </p>
                 ) : null}
                 <Button
                   type="button"
                   className="w-full"
                   disabled={locked || saving || !picksComplete}
-                  onClick={confirmClasses}
+                  onClick={confirmSubjects}
                 >
                   下一步：確認申請
                 </Button>
@@ -680,47 +649,98 @@ export function TrialInvitePublicForm({ token }: { token: string }) {
   )
 }
 
-function SubjectCardHeader({
+function SubjectClassList({
   title,
-  hint,
-  picked,
-  pendingLabel,
-  onRemove,
+  description,
+  groups,
+  selectedKeys,
+  classBySubject,
+  expandedClassBySubject,
+  scheduleByClass,
+  disabled,
+  onToggleSubject,
+  onPickClass,
+  onPickSchedule,
 }: {
   title: string
-  hint: string
-  picked: boolean
-  pendingLabel: string
-  onRemove?: () => void
+  description?: string
+  groups: SubjectGroup[]
+  selectedKeys: string[]
+  classBySubject: Record<string, string>
+  expandedClassBySubject: Record<string, string>
+  scheduleByClass: Record<string, string>
+  disabled?: boolean
+  onToggleSubject: (key: string) => void
+  onPickClass: (subjectKey: string, classId: string) => void
+  onPickSchedule: (classId: string, scheduleId: string) => void
 }) {
+  if (groups.length === 0) return null
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h3 className="text-base font-semibold text-foreground">{title}</h3>
-        {hint ? <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p> : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-0.5">
-        <span className={cn("text-xs", picked ? "text-muted-foreground" : "text-warning")}>
-          {picked ? "已選" : pendingLabel}
-        </span>
-        {onRemove ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-            aria-label={`刪除${title}`}
-            onClick={onRemove}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
-          </Button>
+    <div className="space-y-2">
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        {description ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
         ) : null}
       </div>
-    </header>
+      {groups.map((group) => {
+        const on = selectedKeys.includes(group.key)
+        const selectedClassId = classBySubject[group.key] ?? null
+        const expandedClassId = expandedClassBySubject[group.key] ?? selectedClassId
+        const selectedScheduleId = selectedClassId ? (scheduleByClass[selectedClassId] ?? null) : null
+        const picked = Boolean(selectedClassId && selectedScheduleId)
+        return (
+          <div
+            key={group.key}
+            className={cn(
+              "rounded-lg border text-left",
+              on ? "border-primary bg-background" : "border-border bg-background"
+            )}
+          >
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={on}
+              aria-expanded={on}
+              onClick={() => onToggleSubject(group.key)}
+              className="flex w-full items-start gap-2 px-3 py-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-lg font-medium text-foreground">{group.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {group.classes.length} 個班別
+                  {on ? (picked ? " · 已選堂次" : " · 請選班別與堂次") : ""}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn(
+                  "mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                  on && "rotate-180"
+                )}
+                aria-hidden
+              />
+            </button>
+            {on ? (
+              <div className="space-y-2 border-t border-border px-3 py-3">
+                <ClassOptions
+                  group={group}
+                  selectedClassId={selectedClassId}
+                  expandedClassId={expandedClassId}
+                  selectedScheduleId={selectedScheduleId}
+                  disabled={disabled}
+                  onPickClass={onPickClass}
+                  onPickSchedule={onPickSchedule}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
-function SubjectClassPicker({
+function ClassOptions({
   group,
   selectedClassId,
   expandedClassId,
@@ -728,7 +748,6 @@ function SubjectClassPicker({
   disabled,
   onPickClass,
   onPickSchedule,
-  onRemove,
 }: {
   group: SubjectGroup
   selectedClassId: string | null
@@ -737,91 +756,72 @@ function SubjectClassPicker({
   disabled?: boolean
   onPickClass: (subjectKey: string, classId: string) => void
   onPickSchedule: (classId: string, scheduleId: string) => void
-  onRemove?: () => void
 }) {
-  const picked = Boolean(selectedClassId && selectedScheduleId)
-  const visibleClasses = visibleTrialClasses(group.classes, selectedClassId)
+  const visible = visibleTrialClasses(group.classes, selectedClassId)
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label={`${group.label} 班別`}>
-      <SubjectCardHeader
-        title={group.label}
-        hint={classKindLabel(group.classKind)}
-        picked={picked}
-        pendingLabel={selectedClassId ? "未選堂次" : "未選班別"}
-        onRemove={onRemove}
-      />
-      <div className="flex flex-col gap-2">
-        {visibleClasses.map((cls) => {
-          const expanded = expandedClassId === cls.id
-          const active = selectedClassId === cls.id
-          const subtitle = classSubLabel(cls) || classKindLabel(cls.class_kind)
-          const upcoming = nearestUpcomingSchedules(cls)
-          return (
-            <div key={cls.id} className="space-y-2">
-              <button
-                type="button"
-                disabled={disabled}
-                aria-pressed={active}
-                aria-expanded={expanded}
-                onClick={() => onPickClass(group.key, cls.id)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  active
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background hover:border-primary hover:bg-primary/5"
-                )}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium">{classLabelOf(cls)}</span>
-                  {subtitle ? (
-                    <span
-                      className={cn(
-                        "mt-0.5 block text-xs",
-                        active ? "text-primary-foreground/80" : "text-muted-foreground"
-                      )}
-                    >
-                      {subtitle}
-                    </span>
-                  ) : null}
-                </span>
-                <ChevronDown
-                  className={cn("h-4 w-4 shrink-0 transition-transform", expanded && "rotate-180")}
-                  aria-hidden
-                />
-              </button>
-              {expanded ? (
-                <div className="ml-2 space-y-2 border-l border-border pl-3">
-                  {upcoming.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">暫時沒有可選堂次</p>
-                  ) : (
-                    upcoming.map((sch) => {
-                      const schActive = selectedScheduleId === sch.id
-                      return (
-                        <button
-                          key={sch.id}
-                          type="button"
-                          disabled={disabled}
-                          aria-pressed={schActive}
-                          onClick={() => onPickSchedule(cls.id, sch.id)}
-                          className={cn(
-                            "w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors",
-                            schActive
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background hover:border-primary hover:bg-primary/5"
-                          )}
-                        >
-                          {formatScheduleLine(sch)}
-                        </button>
-                      )
-                    })
+    <div className="space-y-2">
+      {visible.map((cls) => {
+        const active = selectedClassId === cls.id
+        const expanded = expandedClassId === cls.id
+        const upcoming = nearestUpcomingSchedules(cls)
+        return (
+          <div key={cls.id} className="space-y-2">
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={active}
+              aria-expanded={expanded}
+              onClick={() => onPickClass(group.key, cls.id)}
+              className={cn(
+                "flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left",
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card"
+              )}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-medium">{classLabelOf(cls)}</span>
+                <span
+                  className={cn(
+                    "mt-0.5 block text-xs",
+                    active ? "text-primary-foreground/80" : "text-muted-foreground"
                   )}
-                </div>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-    </section>
+                >
+                  {classSubLabel(cls)}
+                </span>
+              </span>
+              <ChevronDown className={cn("h-4 w-4 shrink-0", expanded && "rotate-180")} aria-hidden />
+            </button>
+            {expanded
+              ? upcoming.length === 0
+                ? (
+                    <p className="ml-2 text-xs text-muted-foreground">暫時沒有可選堂次</p>
+                  )
+                : upcoming.map((sch) => {
+                    const schActive = selectedScheduleId === sch.id
+                    return (
+                      <button
+                        key={sch.id}
+                        type="button"
+                        disabled={disabled}
+                        aria-pressed={schActive}
+                        onClick={() => onPickSchedule(cls.id, sch.id)}
+                        className={cn(
+                          "ml-2 w-[calc(100%-0.5rem)] rounded-lg border px-3 py-2 text-left text-sm",
+                          schActive
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-card"
+                        )}
+                      >
+                        {formatScheduleLine(sch)}
+                      </button>
+                    )
+                  })
+              : null}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -899,9 +899,6 @@ function ProgressPreview({
   electivesConfirmed,
   electivePreview,
   subjectPreview,
-  currentStepId,
-  classProgress,
-  scheduleProgress,
   currentStepLabel,
   currentStepIndex,
   totalSteps,
@@ -910,15 +907,10 @@ function ProgressPreview({
   electivesConfirmed: boolean
   electivePreview: string
   subjectPreview: string
-  currentStepId: FlowStepId
-  classProgress: { picked: number; total: number }
-  scheduleProgress: { picked: number; total: number }
   currentStepLabel: string
   currentStepIndex: number
   totalSteps: number
 }) {
-  const showClass = currentStepId === "class" || currentStepId === "confirm"
-  const showSchedule = currentStepId === "class" || currentStepId === "confirm"
   return (
     <section
       className="rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm"
@@ -936,32 +928,12 @@ function ProgressPreview({
           </li>
         ) : null}
         <li>
-          <span className="text-muted-foreground">科目：</span>
+          <span className="text-muted-foreground">選堂：</span>
           {subjectPreview}
         </li>
-        {showClass ? (
-          <li>
-            <span className="text-muted-foreground">班別：</span>
-            {classProgress.total === 0
-              ? "尚未選擇"
-              : `已選 ${classProgress.picked}／${classProgress.total}`}
-          </li>
-        ) : null}
-        {showSchedule ? (
-          <li>
-            <span className="text-muted-foreground">排程：</span>
-            {scheduleProgress.total === 0
-              ? "尚未選擇"
-              : `已選 ${scheduleProgress.picked}／${scheduleProgress.total}`}
-          </li>
-        ) : null}
       </ul>
     </section>
   )
-}
-
-function PickerHeader({ title }: { title: string }) {
-  return <h2 className="text-base font-semibold text-foreground">{title}</h2>
 }
 
 function ElectiveOptionGrid({
@@ -998,62 +970,6 @@ function ElectiveOptionGrid({
               )}
             >
               <span className="font-medium">{opt.short_name || opt.name_zh}</span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function OptionGroup({
-  title,
-  options,
-  disabled,
-  selectedId,
-  selectedIds,
-  onPick,
-}: {
-  title?: string
-  options: { id: string; title: string; subtitle?: string }[]
-  disabled?: boolean
-  selectedId?: string | null
-  selectedIds?: string[]
-  onPick: (id: string) => void
-}) {
-  if (options.length === 0) return null
-  const selectedSet = selectedIds ? new Set(selectedIds) : null
-  return (
-    <div className="space-y-2">
-      {title ? <p className="text-xs font-medium text-muted-foreground">{title}</p> : null}
-      <div className="flex flex-col gap-2">
-        {options.map((opt) => {
-          const active = selectedSet ? selectedSet.has(opt.id) : selectedId === opt.id
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              disabled={disabled}
-              aria-pressed={active}
-              onClick={() => onPick(opt.id)}
-              className={cn(
-                "rounded-lg border px-3 py-2.5 text-left transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background hover:border-primary hover:bg-primary/5"
-              )}
-            >
-              <p className="text-sm font-medium">{opt.title}</p>
-              {opt.subtitle ? (
-                <p
-                  className={cn(
-                    "mt-0.5 text-xs",
-                    active ? "text-primary-foreground/80" : "text-muted-foreground"
-                  )}
-                >
-                  {opt.subtitle}
-                </p>
-              ) : null}
             </button>
           )
         })}

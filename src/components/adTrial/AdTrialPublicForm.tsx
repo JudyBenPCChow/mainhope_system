@@ -529,10 +529,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </h1>
         {step === "details" ? (
           <div className="space-y-2 pt-2 text-sm leading-relaxed text-muted-foreground">
-            <p>
-              {AD_PUBLIC_CONTACT.brandZh}為中一至中六學生提供專科班與功課輔導班，堂數少、小組上課。校舍位於
-              {AD_PUBLIC_CONTACT.addressZh}。
-            </p>
+            <p>{AD_PUBLIC_CONTACT.brandZh}為中一至中六學生提供專科班與功課輔導班。</p>
             {interestOnly ? (
               <>
                 <p>留下聯絡資料並選擇有興趣的科目；提交後由職員以 WhatsApp 回覆，再安排時間與收費。</p>
