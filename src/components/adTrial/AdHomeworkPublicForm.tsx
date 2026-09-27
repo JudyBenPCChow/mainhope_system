@@ -7,12 +7,14 @@ import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSe
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { collectAdAttribution } from "@/lib/adAttribution"
 import { homeworkDateChoices, type HomeworkDateChoice } from "@/lib/adHomeworkPublic"
 import {
   adPublicSubmitCooldownRemainingMs,
   adPublicTurnstileSiteKey,
   markAdPublicSubmitCooldown,
 } from "@/lib/adPublicOrigin"
+import { trackAdPublicLead } from "@/lib/adTracking"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   formatStudentGrade,
@@ -116,6 +118,7 @@ export function AdHomeworkPublicForm() {
     setSaving(true)
     setErr(null)
     try {
+      const attribution = collectAdAttribution()
       const id = await submitAdHomeworkDetails({
         fullName,
         school,
@@ -127,8 +130,16 @@ export function AdHomeworkPublicForm() {
         wechatId,
         phoneCountryCode,
         turnstileToken: turnstileToken ?? "",
+        attribution,
       })
       markAdPublicSubmitCooldown()
+      await trackAdPublicLead({
+        eventId: attribution.eventId,
+        mode: "homework",
+        phone,
+        phoneCountryCode,
+        contactMethod,
+      })
       setLeadId(id)
       try {
         const classes = await getAdHomeworkCatalog()
@@ -238,7 +249,7 @@ export function AdHomeworkPublicForm() {
           <p className="text-sm leading-relaxed text-muted-foreground">
             {intent === "later"
               ? "職員會聯絡你，說明功課輔導班的安排與收費。此頁不會即時留位或收款。"
-              : "職員會聯絡你，確認試堂日期並說明該堂收費。此頁不會即時留位或收款。"}
+              : "我們會盡快與你聯絡，以確認試堂日期。你亦可以透過下方 WhatsApp 按鈕與我們聯絡"}
           </p>
           <ul className="space-y-2 rounded-xl border border-border bg-card p-4 text-left text-sm">
             <li className="font-medium text-foreground">功課輔導班</li>
@@ -364,11 +375,8 @@ export function AdHomeworkPublicForm() {
         <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">選擇試堂日子</h2>
           <p className="text-sm text-muted-foreground">
-            資料已提交。可選擇一個已開放的日子，或請職員先聯絡你。提交日子只是時間偏好，須由職員確認後才算預約。
+            請選擇可試堂的日子（期間兩小時），又可跳過等候我們聯絡。
           </p>
-          {meetingLabels.length > 0 ? (
-            <p className="text-sm text-foreground">{meetingLabels.join("；")}</p>
-          ) : null}
           {dates.length === 0 ? (
             <p className="text-sm text-muted-foreground">暫時沒有已開放的試堂日子。</p>
           ) : (

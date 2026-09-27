@@ -32,30 +32,54 @@ function cls(opts: {
 
 describe("homeworkDateChoices", () => {
   it("只留功課輔導班，並按日期排序", () => {
-    const rows = homeworkDateChoices([
-      cls({
-        id: "hw",
-        schedules: [
-          { id: "b", date: "2026-09-30" },
-          { id: "a", date: "2026-09-28" },
-        ],
-      }),
-      cls({
-        id: "math",
-        kind: "group",
-        schedules: [{ id: "g", date: "2026-09-28" }],
-      }),
-    ])
+    const rows = homeworkDateChoices(
+      [
+        cls({
+          id: "hw",
+          schedules: [
+            { id: "b", date: "2026-09-30" },
+            { id: "a", date: "2026-09-28" },
+          ],
+        }),
+        cls({
+          id: "math",
+          kind: "group",
+          schedules: [{ id: "g", date: "2026-09-28" }],
+        }),
+      ],
+      "2026-09-28"
+    )
     expect(rows.map((row) => row.scheduleId)).toEqual(["a", "b"])
     expect(rows[0]?.line).toContain("2026-09-28")
   })
 
   it("同一堂次只出現一次", () => {
-    const rows = homeworkDateChoices([
-      cls({ id: "hw", schedules: [{ id: "a", date: "2026-09-28" }] }),
-      cls({ id: "hw-dup", schedules: [{ id: "a", date: "2026-09-29" }] }),
-    ])
+    const rows = homeworkDateChoices(
+      [
+        cls({ id: "hw", schedules: [{ id: "a", date: "2026-09-28" }] }),
+        cls({ id: "hw-dup", schedules: [{ id: "a", date: "2026-09-29" }] }),
+      ],
+      "2026-09-28"
+    )
     expect(rows).toHaveLength(1)
     expect(rows[0]?.date).toBe("2026-09-28")
+  })
+
+  it("只列今天起最多未來 30 日", () => {
+    const rows = homeworkDateChoices(
+      [
+        cls({
+          id: "hw",
+          schedules: [
+            { id: "past", date: "2026-09-27" },
+            { id: "today", date: "2026-09-28" },
+            { id: "edge", date: "2026-10-28" },
+            { id: "beyond", date: "2026-10-29" },
+          ],
+        }),
+      ],
+      "2026-09-28"
+    )
+    expect(rows.map((row) => row.scheduleId)).toEqual(["today", "edge"])
   })
 })

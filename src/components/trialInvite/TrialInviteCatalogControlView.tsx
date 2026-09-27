@@ -33,6 +33,7 @@ import {
   catalogClassKindLabel,
   catalogClassTimeLabel,
   catalogMatchesHeaderFilters,
+  catalogMatchesSchoolBand,
   catalogMatchesSearch,
   catalogSortLabel,
   compareCatalogRows,
@@ -47,6 +48,7 @@ import {
   type CatalogListColumnId,
   type CatalogListHeaderFilters,
   type CatalogRow,
+  type CatalogSchoolBandFilter,
 } from "@/components/trialInvite/trialInviteCatalogColumns"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -102,6 +104,10 @@ export function TrialInviteCatalogControlView() {
   const [q, setQ] = usePersistentState("mgmt_trialInviteCatalog_q", "")
   const [classKind, setClassKind] = usePersistentState<CatalogClassKindFilter>(
     "mgmt_trialInviteCatalog_classKind",
+    "all"
+  )
+  const [schoolBand, setSchoolBand] = usePersistentState<CatalogSchoolBandFilter>(
+    "mgmt_trialInviteCatalog_schoolBand",
     "all"
   )
   const [sortKeyStored, setSortKey] = usePersistentState<CatalogListColumnId>(
@@ -164,9 +170,10 @@ export function TrialInviteCatalogControlView() {
     const needle = q.trim().toLowerCase()
     return allRows.filter((row) => {
       if (classKind !== "all" && row.cls.classKind !== classKind) return false
+      if (!catalogMatchesSchoolBand(row, schoolBand)) return false
       return catalogMatchesSearch(row, needle)
     })
-  }, [allRows, classKind, q])
+  }, [allRows, classKind, q, schoolBand])
 
   const filtered = useMemo(
     () => searched.filter((row) => catalogMatchesHeaderFilters(row, headerFilters)),
@@ -540,25 +547,33 @@ export function TrialInviteCatalogControlView() {
   }
 
   const emptyHint = (() => {
-    if (q.trim() || classKind !== "all" || countActiveCatalogHeaderFilters(headerFilters) > 0) {
+    if (
+      q.trim() ||
+      classKind !== "all" ||
+      schoolBand !== "all" ||
+      countActiveCatalogHeaderFilters(headerFilters) > 0
+    ) {
       return "沒有符合篩選的專科班或功課輔導班。"
     }
     return "目前學年沒有專科班或功課輔導班。"
   })()
 
-  const kindChip = (id: CatalogClassKindFilter, label: string) => (
+  const filterChip = (opts: {
+    active: boolean
+    label: string
+    onClick: () => void
+  }) => (
     <button
-      key={id}
       type="button"
       className={cn(
         "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
-        classKind === id
+        opts.active
           ? "border-info bg-info text-white shadow-sm"
           : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
       )}
-      onClick={() => setClassKind(id)}
+      onClick={opts.onClick}
     >
-      {label}
+      {opts.label}
     </button>
   )
 
@@ -597,9 +612,31 @@ export function TrialInviteCatalogControlView() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {kindChip("all", "全部班型")}
-            {kindChip("group", "專科班")}
-            {kindChip("homework", "功課輔導班")}
+            {filterChip({ active: classKind === "all", label: "全部班型", onClick: () => setClassKind("all") })}
+            {filterChip({ active: classKind === "group", label: "專科班", onClick: () => setClassKind("group") })}
+            {filterChip({
+              active: classKind === "homework",
+              label: "功課輔導班",
+              onClick: () => setClassKind("homework"),
+            })}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {filterChip({
+              active: schoolBand === "all",
+              label: "全部學段",
+              onClick: () => setSchoolBand("all"),
+            })}
+            {filterChip({
+              active: schoolBand === "primary",
+              label: "小學試堂",
+              onClick: () => setSchoolBand("primary"),
+            })}
+            {filterChip({
+              active: schoolBand === "secondary",
+              label: "中學試堂",
+              onClick: () => setSchoolBand("secondary"),
+            })}
           </div>
 
           <div className="relative max-w-md">

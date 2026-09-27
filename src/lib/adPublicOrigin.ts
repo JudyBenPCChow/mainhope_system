@@ -25,9 +25,19 @@ export function maybeRedirectAdPublicToCanonical(): void {
   if (window.location.origin === canonicalUrl.origin) return
   const path = window.location.pathname
   const adPaths = ["/AdTrial", "/AdInterest", "/AdHomework", "/Privacy"]
-  const onAdPath = adPaths.some((item) => path === item || path.startsWith(`${item}/`))
+  const pathLower = path.toLowerCase()
+  const onAdPath = adPaths.some((item) => {
+    const base = item.toLowerCase()
+    return pathLower === base || pathLower.startsWith(`${base}/`)
+  })
   if (!onAdPath) return
-  const next = `${canonicalUrl.origin}${path}${window.location.search}${window.location.hash}`
+  // 轉址時正規化大小寫，避免正式網域仍落在 /ADINTEREST 等路徑
+  const matched = adPaths.find((item) => {
+    const base = item.toLowerCase()
+    return pathLower === base || pathLower.startsWith(`${base}/`)
+  })!
+  const suffix = path.length > matched.length ? path.slice(matched.length) : ""
+  const next = `${canonicalUrl.origin}${matched}${suffix}${window.location.search}${window.location.hash}`
   window.location.replace(next)
 }
 
