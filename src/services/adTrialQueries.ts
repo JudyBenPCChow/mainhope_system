@@ -94,6 +94,37 @@ type AdPublicSubmitBase = {
   turnstileToken: string
   /** 預設 +852；與 production leads.phone_country_code 對齊 */
   phoneCountryCode?: "+852" | "+86"
+  /** Meta／GA 歸因；Edge 用於 CAPI，缺省不擋提交 */
+  attribution?: {
+    eventId: string
+    fbp?: string
+    fbc?: string
+    fbclid?: string
+    landingPath?: string
+    utm_source?: string
+    utm_medium?: string
+    utm_campaign?: string
+    utm_content?: string
+    utm_term?: string
+  }
+}
+
+function attributionBody(
+  attribution: AdPublicSubmitBase["attribution"]
+): Record<string, string> {
+  if (!attribution?.eventId) return {}
+  return {
+    eventId: attribution.eventId,
+    fbp: attribution.fbp ?? "",
+    fbc: attribution.fbc ?? "",
+    fbclid: attribution.fbclid ?? "",
+    landingPath: attribution.landingPath ?? "",
+    utm_source: attribution.utm_source ?? "",
+    utm_medium: attribution.utm_medium ?? "",
+    utm_campaign: attribution.utm_campaign ?? "",
+    utm_content: attribution.utm_content ?? "",
+    utm_term: attribution.utm_term ?? "",
+  }
 }
 
 async function readAdPublicSubmitError(error: unknown, response?: Response): Promise<string | null> {
@@ -142,6 +173,7 @@ export async function submitAdTrial(
     electedSubjectCodes: input.electedSubjectCodes
       .map((c) => c.trim().toUpperCase())
       .filter(Boolean),
+    ...attributionBody(input.attribution),
   })
 }
 
@@ -161,5 +193,6 @@ export async function submitAdTrialInterest(
     wechatId: input.wechatId.trim(),
     phoneCountryCode: input.phoneCountryCode ?? "+852",
     subjects: input.subjects.map((s) => s.trim()).filter(Boolean),
+    ...attributionBody(input.attribution),
   })
 }

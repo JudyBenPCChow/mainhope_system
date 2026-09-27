@@ -11,6 +11,10 @@ interface ImportMetaEnv {
  readonly VITE_AD_PUBLIC_ORIGIN?: string
  /** Cloudflare Turnstile site key；與 Edge secret 成對 */
  readonly VITE_TURNSTILE_SITE_KEY?: string
+ /** Meta Pixel ID（僅廣告公開頁；未設不載入） */
+ readonly VITE_META_PIXEL_ID?: string
+ /** GA4 Measurement ID，例如 G-XXXXXXXX（僅廣告公開頁；未設不載入） */
+ readonly VITE_GA_MEASUREMENT_ID?: string
  readonly VITE_BASE44_APP_ID?: string
  readonly VITE_BASE44_APP_BASE_URL?: string
  readonly VITE_BASE44_FUNCTIONS_VERSION?: string
