@@ -1,10 +1,11 @@
-import { lazy, Suspense, type ReactElement } from "react"
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { lazy, Suspense, useEffect, type ReactElement } from "react"
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom"
 import { SpeedInsights } from "@vercel/speed-insights/react"
 
 import { AdaptiveLayout } from "@/components/AdaptiveLayout"
 import { RequireCapabilities } from "@/components/auth/RequireCapabilities"
 import TeacherDetail from "@/components/teachers/TeacherDetail"
+import { documentTitleForLocation } from "@/lib/adPublicDocument"
 import Attendance from "@/pages/Attendance"
 import AttendanceRecords from "@/pages/AttendanceRecords"
 import ClassDetail from "@/pages/ClassDetail"
@@ -67,6 +68,14 @@ import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampai
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
 
+function DocumentTitle() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    document.title = documentTitleForLocation(pathname, window.location.hostname)
+  }, [pathname])
+  return null
+}
+
 const AiReports = lazy(() => import("@/pages/AiReports"))
 const EnrollmentReports = lazy(() => import("@/pages/EnrollmentReports"))
 const MgmtDashboard = lazy(() => import("@/pages/MgmtDashboard"))
@@ -87,6 +96,7 @@ function withCapabilities(anyOf: readonly string[], element: ReactElement): Reac
 export default function App() {
  return (
   <BrowserRouter>
+   <DocumentTitle />
    <Routes>
     <Route path="/" element={<Navigate to="/Home" replace />} />
     <Route path="/Login" element={<Login />} />

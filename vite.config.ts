@@ -26,6 +26,14 @@ export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(appBuildId),
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        ad: path.resolve(__dirname, "ad.html"),
+      },
+    },
+  },
   plugins: [react(), emitAppVersionPlugin(appBuildId)],
   resolve: {
     alias: {

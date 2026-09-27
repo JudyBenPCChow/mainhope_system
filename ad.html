@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <title>明學教育</title>
+    <meta
+      name="description"
+      content="明學教育為中一至中六學生提供專科班與功課輔導班。可網上登記新生試堂或查詢。"
+    />
+    <meta property="og:locale" content="zh_HK" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="明學教育" />
+    <meta property="og:title" content="明學教育" />
+    <meta
+      property="og:description"
+      content="明學教育為中一至中六學生提供專科班與功課輔導班。可網上登記新生試堂或查詢。"
+    />
+    <meta property="og:image" content="https://ad.mainhope.edu.hk/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="明學教育" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        var path = location.pathname.replace(/\/+$/, "") || "/"
+        var titles = {
+          "/AdTrial": "新生試堂登記 — 明學教育",
+          "/AdTrial/thanks": "已收到試堂登記 — 明學教育",
+          "/AdInterest": "查詢登記 — 明學教育",
+          "/AdInterest/thanks": "已收到查詢 — 明學教育",
+          "/AdHomework": "功課輔導班查詢 — 明學教育",
+          "/Privacy": "私隱政策 — 明學教育",
+        }
+        if (path.indexOf("/AdHomework/") === 0) path = "/AdHomework"
+        if (titles[path]) document.title = titles[path]
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
