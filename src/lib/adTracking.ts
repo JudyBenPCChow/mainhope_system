@@ -40,9 +40,17 @@ function ensureMetaPixel(pixelId: string): void {
     return
   }
   const n = function (...args: unknown[]) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const fn = n as any
-    fn.callMethod ? fn.callMethod.apply(fn, args) : fn.queue.push(args)
+    const fn = n as Window["fbq"] & {
+      callMethod?: (...a: unknown[]) => void
+      queue: unknown[]
+      loaded: boolean
+      version: string
+    }
+    if (typeof fn.callMethod === "function") {
+      fn.callMethod(...args)
+    } else {
+      fn.queue.push(args)
+    }
   } as Window["fbq"] & { callMethod?: (...a: unknown[]) => void; queue: unknown[]; loaded: boolean; version: string }
   n.queue = []
   n.loaded = true
