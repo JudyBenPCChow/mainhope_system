@@ -16,14 +16,18 @@ type RecordFieldProps = {
  className?: string
  /** 有值時顯示唯讀；`undefined` 時顯示 `children`（編輯控件） */
  read?: ReactNode
+ /** 唯讀時不包 `ReadValue` 灰框（例如 Tag 列已有自己的視覺） */
+ readUnboxed?: boolean
 }
 
 /** 紀錄頁欄位：先讀後編。傳 `read` 則只顯示文字，不顯示表單控件。 */
-export function RecordField({ label, children, className, read }: RecordFieldProps) {
+export function RecordField({ label, children, className, read, readUnboxed }: RecordFieldProps) {
+ const readNode =
+  read === undefined ? null : readUnboxed ? <>{read}</> : <ReadValue>{read}</ReadValue>
  return (
   <div className={cn("space-y-1", className)}>
    <label className="text-xs font-medium text-muted-foreground">{label}</label>
-   {read !== undefined ? <ReadValue>{read}</ReadValue> : children}
+   {readNode ?? children}
   </div>
  )
 }

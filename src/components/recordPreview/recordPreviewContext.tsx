@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
+import type { LeadRow } from "@/services/leadQueries"
 import type { TuitionChasePeriodRef, TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
 
-export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase"
+export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase" | "lead"
 
 export type RecordPreviewTarget =
  | { kind: "student" | "class" | "teacher" | "schedule"; id: string }
@@ -17,6 +18,14 @@ export type RecordPreviewTarget =
     currentPeriod: TuitionChasePeriodRef | null
     nextPeriod: TuitionChasePeriodRef | null
     academicYearLabel?: string
+   }
+ | {
+    kind: "lead"
+    id: string
+    row: LeadRow
+    onChanged: () => void
+    onConverted: (studentId: string) => void
+    onScheduleTrial: (studentId: string, intentions: LeadRow["intentions"]) => void
    }
 
 type RecordPreviewContextValue = {
@@ -97,7 +106,7 @@ export function useRecordPreview() {
 }
 
 function useOpenRecord(
- kind: Exclude<RecordPreviewKind, "tuitionChase">,
+ kind: Exclude<RecordPreviewKind, "tuitionChase" | "lead">,
  pathPrefix: string
 ) {
  const navigate = useNavigate()

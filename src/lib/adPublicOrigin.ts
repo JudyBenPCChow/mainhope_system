@@ -24,13 +24,9 @@ export function maybeRedirectAdPublicToCanonical(): void {
   }
   if (window.location.origin === canonicalUrl.origin) return
   const path = window.location.pathname
-  const isAdPublic =
-    path === "/AdTrial" ||
-    path === "/AdInterest" ||
-    path === "/Privacy" ||
-    path.startsWith("/AdTrial/") ||
-    path.startsWith("/AdInterest/")
-  if (!isAdPublic) return
+  const adPaths = ["/AdTrial", "/AdInterest", "/AdHomework", "/Privacy"]
+  const onAdPath = adPaths.some((item) => path === item || path.startsWith(`${item}/`))
+  if (!onAdPath) return
   const next = `${canonicalUrl.origin}${path}${window.location.search}${window.location.hash}`
   window.location.replace(next)
 }

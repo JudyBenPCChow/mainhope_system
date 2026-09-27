@@ -31,6 +31,15 @@ import {
  outcomeTagTone,
  type TrialOutcome,
 } from "@/lib/trialOutcome"
+import {
+ TRIAL_RECEIPT_GATE_LABEL,
+ matchesReceiptTab,
+ nextScheduleSelection,
+ trialAddPrefill,
+ trialMatchesPersonQuery,
+ trialReceiptGate,
+ type TrialReceiptGate,
+} from "@/lib/trialReceiptGate"
 import { cn } from "@/lib/utils"
 import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
@@ -70,6 +79,17 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
+
+function weekBounds(now = new Date()): { from: string; to: string } {
+ const day = now.getDay()
+ const mondayOffset = day === 0 ? -6 : 1 - day
+ const start = new Date(now)
+ start.setHours(12, 0, 0, 0)
+ start.setDate(start.getDate() + mondayOffset)
+ const end = new Date(start)
+ end.setDate(start.getDate() + 6)
+ return { from: localYmd(start), to: localYmd(end) }
+}
 
 type StatusTab = "all" | "booked" | "done" | "cancel"
 type TypeTab = "all" | "free" | "half" | "full"
@@ -178,6 +198,10 @@ export function TrialSessionsView() {
  const [filterTeacherId, setFilterTeacherId] = useState("all")
  const [filterGrade, setFilterGrade] = useState("all")
  const [registrationTab, setRegistrationTab] = useState<"all" | "registered" | "unregistered">("all")
+ const [personQuery, setPersonQuery] = useState("")
+ const [receiptTab, setReceiptTab] = useState<"all" | "unpaid" | TrialReceiptGate>("all")
+ const [intentHint, setIntentHint] = useState<string | null>(null)
+ const [moreRowId, setMoreRowId] = useState<string | null>(null)
 
  const [teachers, setTeachers] = useState<TeacherRecord[]>(
   () => getTrialSessionsDataCache()?.teachers ?? []
@@ -190,14 +214,8 @@ export function TrialSessionsView() {
  const [prefillName, setPrefillName] = useState("")
  const [searchParams] = useSearchParams()
  useEffect(() => {
-  const studentId = searchParams.get("studentId")?.trim()
-  if (!studentId) return
-  setAddStudentId(studentId)
+  if (!searchParams.get("studentId")?.trim()) return
   setAddOpen(true)
-  void getStudentById(studentId).then((student) => {
-   if (!student) return
-   setPrefillName(`${student.full_name || "—"}（${student.grade ?? "—"}）`)
-  })
  }, [searchParams])
  const [classSearch, setClassSearch] = useState("")
  const [classPickerOpen, setClassPickerOpen] = useState(false)
@@ -205,7 +223,7 @@ export function TrialSessionsView() {
  const [addScheduleId, setAddScheduleId] = useState("")
  const [addRemarks, setAddRemarks] = useState("")
  const [addTrialType, setAddTrialType] = useState<string>("免費試堂")
- /** ""＝未選；"1"＝計；"0"＝唔計 */
+ /** ""＝未選；"1"＝計；"0"＝不計 */
  const [addCountsHeadcount, setAddCountsHeadcount] = useState<"" | "1" | "0">("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
@@ -415,13 +433,24 @@ export function TrialSessionsView() {
 
  useEffect(() => {
   if (!addOpen) return
+  const prefill = trialAddPrefill(searchParams)
+  setIntentHint(prefill.hint)
   setAddErr(null)
   setStudentSearch("")
   setStudentPickerOpen(false)
-  setAddStudentId("")
+  setAddStudentId(prefill.studentId)
   setClassSearch("")
   setClassPickerOpen(false)
-  setAddClassId("")
+  setAddClassId(prefill.classId)
+  setAddScheduleId(prefill.scheduleId)
+  if (prefill.studentId) {
+   void getStudentById(prefill.studentId).then((student) => {
+    if (!student) return
+    setPrefillName(`${student.full_name || "—"}（${student.grade ?? "—"}）`)
+   })
+  } else {
+   setPrefillName("")
+  }
   void fetchClassesForOpsList().then((result) => {
    setClassPickList(
     result.classes.map((c) => ({
@@ -445,11 +474,10 @@ export function TrialSessionsView() {
    .catch((e) => {
     reportUserFacingError(e, { source: "TrialSessionsView.studentPicker", setErr: setAddErr })
    })
-  setAddScheduleId("")
   setAddRemarks("")
   setAddTrialType("免費試堂")
   setAddCountsHeadcount("")
- }, [addOpen])
+ }, [addOpen, searchParams])
 
  const studentsFiltered = useMemo(() => {
   const q = studentSearch.trim().toLowerCase()
@@ -464,24 +492,31 @@ export function TrialSessionsView() {
  }, [classPickList, classSearch])
 
  useEffect(() => {
-  if (!addOpen || !addClassId) {
+  if (!addOpen) {
    setSchedOptions([])
-   setAddScheduleId("")
    return
   }
+  if (!addClassId) return
+  let cancelled = false
   void fetchUpcomingSchedulesForClass(addClassId, localYmd()).then((sched) => {
+   if (cancelled) return
    const opts = sched.slice(0, 10).map((s) => ({
     id: s.id,
     date: s.scheduled_date,
     label: `${s.scheduled_date} ${s.start_time ?? "—"}–${s.end_time ?? "—"}`,
    }))
    setSchedOptions(opts)
-   setAddScheduleId((prev) => {
-    if (prev && opts.some((o) => o.id === prev)) return prev
-    return opts[0]?.id ?? ""
-   })
+   const ids = opts.map((o) => o.id)
+   const wanted = searchParams.get("scheduleId")?.trim() ?? ""
+   if (wanted && !ids.includes(wanted)) {
+    setIntentHint("原先想試的堂次不在可選列表，已改為最近堂次，請核對。")
+   }
+   setAddScheduleId((prev) => nextScheduleSelection(prev, ids).id)
   })
- }, [addOpen, addClassId])
+  return () => {
+   cancelled = true
+  }
+ }, [addOpen, addClassId, searchParams])
 
  const subjectOptions = useMemo(() => {
   const s = new Set<string>()
@@ -537,6 +572,10 @@ export function TrialSessionsView() {
    if (filterGrade !== "all" && (r.student_grade ?? "") !== filterGrade) return false
    if (registrationTab === "registered" && r.student_registration !== "已註冊") return false
    if (registrationTab === "unregistered" && r.student_registration !== "非注冊") return false
+   if (!matchesReceiptTab(trialReceiptGate({ paymentId: r.payment_id, paymentStatus: r.payment_status }), receiptTab)) {
+    return false
+   }
+   if (!trialMatchesPersonQuery(r, personQuery)) return false
    if (filterDateFrom && r.trial_date < filterDateFrom) return false
    if (filterDateTo && r.trial_date > filterDateTo) return false
    return true
@@ -552,6 +591,8 @@ export function TrialSessionsView() {
   filterDateFrom,
   filterDateTo,
   registrationTab,
+  receiptTab,
+  personQuery,
  ])
 
  const activeFilterCount = useMemo(() => {
@@ -565,6 +606,8 @@ export function TrialSessionsView() {
   if (filterTeacherId !== "all") n += 1
   if (filterGrade !== "all") n += 1
   if (registrationTab !== "all") n += 1
+  if (receiptTab !== "all") n += 1
+  if (personQuery.trim()) n += 1
   return n
  }, [
   statusTab,
@@ -576,6 +619,8 @@ export function TrialSessionsView() {
   filterTeacherId,
   filterGrade,
   registrationTab,
+  receiptTab,
+  personQuery,
  ])
 
  const resetFilters = useCallback(() => {
@@ -588,6 +633,8 @@ export function TrialSessionsView() {
   setFilterTeacherId("all")
   setFilterGrade("all")
   setRegistrationTab("all")
+  setReceiptTab("all")
+  setPersonQuery("")
  }, [])
 
  const renderTrialFilterPanel = () => (
@@ -708,6 +755,35 @@ export function TrialSessionsView() {
      ))}
     </div>
    </div>
+   <div className="flex flex-col gap-2">
+    <span className="text-xs font-medium text-muted-foreground">收款／上紙</span>
+    <div className="flex flex-wrap gap-2" role="tablist">
+     {(
+      [
+       ["all", "全部"],
+       ["unissued", TRIAL_RECEIPT_GATE_LABEL.unissued],
+       ["pending", TRIAL_RECEIPT_GATE_LABEL.pending],
+       ["received", TRIAL_RECEIPT_GATE_LABEL.received],
+      ] as const
+     ).map(([id, label]) => (
+      <button
+       key={id}
+       type="button"
+       role="tab"
+       aria-selected={receiptTab === id}
+       onClick={() => setReceiptTab(id)}
+       className={cn(
+        "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm",
+        receiptTab === id
+         ? "border-info bg-info text-white shadow-sm"
+         : "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50"
+       )}
+      >
+       {label}
+      </button>
+     ))}
+    </div>
+   </div>
    <div className="grid gap-3 sm:grid-cols-2">
     <label className="grid gap-1 text-xs text-muted-foreground">
      <span>試堂日起</span>
@@ -778,6 +854,43 @@ export function TrialSessionsView() {
 
  const openAdd = () => setAddOpen(true)
 
+ const todayYmd = localYmd()
+ const thisWeek = weekBounds()
+ const todayOn = filterDateFrom === todayYmd && filterDateTo === todayYmd
+ const weekOn = filterDateFrom === thisWeek.from && filterDateTo === thisWeek.to
+
+ const toggleOutcome = (next: Exclude<OutcomeTab, "all">) => {
+  setOutcomeTab((current) => (current === next ? "all" : next))
+ }
+ const toggleToday = () => {
+  if (todayOn) {
+   setFilterDateFrom("")
+   setFilterDateTo("")
+   return
+  }
+  setFilterDateFrom(todayYmd)
+  setFilterDateTo(todayYmd)
+ }
+ const toggleWeek = () => {
+  if (weekOn) {
+   setFilterDateFrom("")
+   setFilterDateTo("")
+   return
+  }
+  setFilterDateFrom(thisWeek.from)
+  setFilterDateTo(thisWeek.to)
+ }
+ const goCollect = (row: TrialManageRow) => {
+  const trialPay = row.trial_type === "半價試堂" ? "half" : row.trial_type === "原價試堂" ? "full" : "free"
+  const q = new URLSearchParams({
+   studentId: row.student_id,
+   mode: "receive",
+   trialPay,
+   classId: row.class_id,
+  })
+  navigate(`/Payments?${q.toString()}`)
+ }
+
  const submitAdd = async () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
   if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
@@ -808,7 +921,7 @@ export function TrialSessionsView() {
     tone: "success",
     title: "已建立試堂",
     message:
-     "請到收款登記出單並確認收款後，學生先會出現喺點名紙（含 $0 免費試堂）。連堂請核對堂數。",
+     "請到收款登記出單並確認收款後，學生才會出現在點名紙（含 $0 免費試堂）。連堂請核對堂數。",
    })
    await reload()
    const q = new URLSearchParams({
@@ -898,37 +1011,62 @@ export function TrialSessionsView() {
      </p>
      <p className="mt-0.5 text-[11px] text-muted-foreground">轉化 ÷（轉化＋流失＋其他）</p>
     </div>
-    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
-     <div className="text-[11px] text-muted-foreground md:text-xs">已轉化</div>
-     <p className="mt-1 text-xl font-bold tabular-nums text-success md:text-2xl">{outcomeStats.converted}</p>
-    </div>
-    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
-     <div className="text-[11px] text-muted-foreground md:text-xs">流失</div>
-     <p role="alert" className="mt-1 text-xl font-bold tabular-nums text-destructive md:text-2xl">{outcomeStats.lost}</p>
-    </div>
-    <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm md:p-3">
-     <div className="text-[11px] text-muted-foreground md:text-xs">待跟進</div>
-     <p className="mt-1 text-xl font-bold tabular-nums md:text-2xl">{outcomeStats.open}</p>
-    </div>
+    {(
+     [
+      ["converted", "已轉化", outcomeStats.converted, "text-success"],
+      ["lost", "流失", outcomeStats.lost, "text-destructive"],
+      ["open", "待跟進", outcomeStats.open, ""],
+     ] as const
+    ).map(([id, label, count, tone]) => (
+     <button
+      key={id}
+      type="button"
+      aria-pressed={outcomeTab === id}
+      onClick={() => toggleOutcome(id)}
+      className={cn(
+       "rounded-xl border bg-card p-2.5 text-left shadow-sm md:p-3",
+       outcomeTab === id ? "border-primary" : "border-border"
+      )}
+     >
+      <div className="text-[11px] text-muted-foreground md:text-xs">{label}</div>
+      <p className={cn("mt-1 text-xl font-bold tabular-nums md:text-2xl", tone)}>{count}</p>
+     </button>
+    ))}
    </section>
 
    <section className="grid grid-cols-2 gap-2 md:gap-3" aria-label="試堂概覽">
-    <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
+    <button
+     type="button"
+     aria-pressed={todayOn}
+     onClick={toggleToday}
+     className={cn(
+      "rounded-xl border border-info bg-info p-2.5 text-left text-info-foreground shadow-sm md:p-4",
+      todayOn && "outline outline-2 outline-offset-2 outline-primary"
+     )}
+    >
      <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
       <CalendarDays className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
       今天試堂
      </div>
      <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.todayCount}</p>
      <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">試堂日期為今天之筆數（含各狀態）</p>
-    </div>
-    <div className="rounded-xl border border-info bg-info p-2.5 text-info-foreground shadow-sm md:p-4">
+    </button>
+    <button
+     type="button"
+     aria-pressed={weekOn}
+     onClick={toggleWeek}
+     className={cn(
+      "rounded-xl border border-info bg-info p-2.5 text-left text-info-foreground shadow-sm md:p-4",
+      weekOn && "outline outline-2 outline-offset-2 outline-primary"
+     )}
+    >
      <div className="flex items-center gap-1 text-[11px] font-medium text-info-foreground/90 md:gap-2 md:text-sm">
       <GraduationCap className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden />
       本星期試堂
      </div>
      <p className="mt-1 text-xl font-bold tabular-nums md:mt-2 md:text-3xl">{stats.weekCount}</p>
      <p className="mt-1 hidden text-xs text-info-foreground/85 md:block">本週一至週日（依試堂日期）之筆數</p>
-    </div>
+    </button>
    </section>
 
    {!loading ? (
@@ -938,32 +1076,67 @@ export function TrialSessionsView() {
     </p>
    ) : null}
 
-   {isMobile ? (
-    <>
-     <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen(true)}>
-      <SlidersHorizontal className="h-4 w-4" aria-hidden />
-      篩選
-      {activeFilterCount > 0 ? (
-       <Tag tone="info" size="sm">
-        {activeFilterCount}
-       </Tag>
-      ) : null}
-     </Button>
-     <MobileFilterSheet
-      open={filtersOpen}
-      onClose={() => setFiltersOpen(false)}
-      title="篩選試堂"
-      activeCount={activeFilterCount}
-      onReset={resetFilters}
+   <label className="grid gap-1 text-sm">
+    <span className="text-xs font-medium text-muted-foreground">搜尋學生</span>
+    <Input
+     value={personQuery}
+     placeholder="姓名或電話"
+     aria-label="搜尋姓名或電話"
+     onChange={(e) => setPersonQuery(e.target.value)}
+    />
+   </label>
+
+   <div className="flex flex-wrap items-center gap-2">
+    {(
+     [
+      ["open", "待跟進", outcomeTab === "open"],
+      ["today", "今日", todayOn],
+      ["unpaid", "未可上紙", receiptTab === "unpaid"],
+     ] as const
+    ).map(([id, label, on]) => (
+     <button
+      key={id}
+      type="button"
+      aria-pressed={on}
+      className={cn(
+       "rounded-full border px-3 py-1.5 text-sm",
+       on ? "border-primary bg-primary text-primary-foreground" : "border-border"
+      )}
+      onClick={() => {
+       if (id === "open") toggleOutcome("open")
+       else if (id === "today") toggleToday()
+       else setReceiptTab((current) => (current === "unpaid" ? "all" : "unpaid"))
+      }}
      >
-      {renderTrialFilterPanel()}
-     </MobileFilterSheet>
-    </>
-   ) : (
+      {label}
+     </button>
+    ))}
+    <Button type="button" variant="outline" className="gap-2" onClick={() => setFiltersOpen((open) => !open)}>
+     <SlidersHorizontal className="h-4 w-4" aria-hidden />
+     更多篩選
+     {activeFilterCount > 0 ? (
+      <Tag tone="info" size="sm">
+       {activeFilterCount}
+      </Tag>
+     ) : null}
+    </Button>
+   </div>
+
+   {isMobile ? (
+    <MobileFilterSheet
+     open={filtersOpen}
+     onClose={() => setFiltersOpen(false)}
+     title="篩選試堂"
+     activeCount={activeFilterCount}
+     onReset={resetFilters}
+    >
+     {renderTrialFilterPanel()}
+    </MobileFilterSheet>
+   ) : filtersOpen ? (
     <div className="space-y-3 rounded-xl border border-border bg-card p-3 shadow-sm">
      {renderTrialFilterPanel()}
     </div>
-   )}
+   ) : null}
 
    {loading ? (
     <p className="text-sm text-muted-foreground">載入中…</p>
@@ -971,17 +1144,18 @@ export function TrialSessionsView() {
     <p className="py-12 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
    ) : (
     <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-     <table className="w-full min-w-[960px] table-fixed border-collapse text-sm">
+     <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
       <thead>
        <tr className="border-b border-border bg-muted/40 text-left text-muted-foreground">
-        <th className="w-[11%] px-3 py-2 font-medium">日期</th>
-        <th className="w-[13%] px-3 py-2 font-medium">學生</th>
-        <th className="w-[16%] px-3 py-2 font-medium">班別</th>
-        <th className="w-[9%] px-3 py-2 font-medium">時間</th>
+        <th className="w-[10%] px-3 py-2 font-medium">日期</th>
+        <th className="w-[12%] px-3 py-2 font-medium">學生</th>
+        <th className="w-[14%] px-3 py-2 font-medium">班別</th>
+        <th className="w-[8%] px-3 py-2 font-medium">時間</th>
         <th className="w-[8%] px-3 py-2 font-medium">類型</th>
         <th className="w-[8%] px-3 py-2 font-medium">狀態</th>
-        <th className="w-[14%] px-3 py-2 font-medium">結果</th>
-        <th className="w-[21%] px-3 py-2 font-medium">操作</th>
+        <th className="w-[12%] px-3 py-2 font-medium">收款／上紙</th>
+        <th className="w-[12%] px-3 py-2 font-medium">結果</th>
+        <th className="w-[16%] px-3 py-2 font-medium">操作</th>
        </tr>
       </thead>
       <StaggerList as="tbody">
@@ -993,6 +1167,9 @@ export function TrialSessionsView() {
         const closed = r.outcome !== "open"
         const canReschedule =
          r.outcome === "open" && !String(r.status).includes("取消") && !r.roll_call_done
+        const receiptGate = trialReceiptGate({ paymentId: r.payment_id, paymentStatus: r.payment_status })
+        const receiptLabel = TRIAL_RECEIPT_GATE_LABEL[receiptGate]
+        const needsReceipt = receiptGate !== "received"
         return (
         <StaggerItem
          key={r.id}
@@ -1065,6 +1242,16 @@ export function TrialSessionsView() {
            <option value="取消">取消</option>
           </Select>
          </td>
+         <td className="px-3 py-2 align-top text-xs">
+          <div className="space-y-1">
+           <Tag tone={statusToTagTone(receiptLabel)} size="sm">
+            {receiptLabel}
+           </Tag>
+           {r.receipt_number ? (
+            <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
+           ) : null}
+          </div>
+         </td>
          <td className="px-3 py-2 align-top text-xs text-muted-foreground">
           <div className="space-y-1">
            <Tag tone={outcomeTagTone(r.outcome)} size="sm">
@@ -1072,9 +1259,6 @@ export function TrialSessionsView() {
            </Tag>
            {r.outcome_reason ? <div>{r.outcome_reason}</div> : null}
            {r.outcome_note ? <div className="text-[11px]">{r.outcome_note}</div> : null}
-           {r.receipt_number ? (
-            <div className="font-mono text-[11px] text-foreground">收據 {r.receipt_number}</div>
-           ) : null}
            {r.remarks && r.outcome === "open" ? <div className="line-clamp-2">{r.remarks}</div> : null}
           </div>
          </td>
@@ -1084,17 +1268,43 @@ export function TrialSessionsView() {
             <span className="text-xs text-muted-foreground">—</span>
            ) : (
             <>
-             <HintTooltip hint={blocked}>
-              <Button
-               type="button"
-               size="sm"
-               disabled={!canConvert}
-               onClick={() => void openConvert(r.id)}
-              >
-               正式報讀
+             {needsReceipt ? (
+              <Button type="button" size="sm" onClick={() => goCollect(r)}>
+               前往收款
               </Button>
-             </HintTooltip>
+             ) : (
+              <HintTooltip hint={blocked}>
+               <Button
+                type="button"
+                size="sm"
+                disabled={!canConvert}
+                onClick={() => void openConvert(r.id)}
+               >
+                正式報讀
+               </Button>
+              </HintTooltip>
+             )}
+             <button
+              type="button"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => setMoreRowId((current) => (current === r.id ? null : r.id))}
+             >
+              {moreRowId === r.id ? "收起" : "更多"}
+             </button>
+             {moreRowId === r.id ? (
              <div className="flex flex-wrap gap-2">
+              {needsReceipt ? (
+               <HintTooltip hint={blocked}>
+                <button
+                 type="button"
+                 className="text-xs font-medium text-info hover:underline disabled:opacity-50"
+                 disabled={!canConvert}
+                 onClick={() => void openConvert(r.id)}
+                >
+                 正式報讀
+                </button>
+               </HintTooltip>
+              ) : null}
               {canLost ? (
                <button
                 type="button"
@@ -1126,10 +1336,6 @@ export function TrialSessionsView() {
                 改期
                </button>
               ) : null}
-             </div>
-             {blocked && !canConvert ? (
-              <span className="text-xs text-muted-foreground">{blocked}</span>
-             ) : null}
              <button
               type="button"
               className="text-xs font-medium text-destructive hover:underline"
@@ -1179,6 +1385,11 @@ export function TrialSessionsView() {
              >
               刪除
              </button>
+             </div>
+             ) : null}
+             {blocked && !canConvert && !needsReceipt ? (
+              <span className="text-xs text-muted-foreground">{blocked}</span>
+             ) : null}
             </>
            )}
           </div>
@@ -1200,6 +1411,7 @@ export function TrialSessionsView() {
      <DialogHeader>
       <DialogTitle>新增試堂</DialogTitle>
      </DialogHeader>
+     {intentHint ? <p className="text-sm text-warning">{intentHint}</p> : null}
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
        <span className="text-muted-foreground">學生（可搜尋姓名／年級）</span>
@@ -1348,8 +1560,8 @@ export function TrialSessionsView() {
         onChange={(e) => setAddCountsHeadcount(e.target.value as "" | "1" | "0")}
        >
         <option value="">請選擇（無預設）</option>
-        <option value="1">計人頭</option>
-        <option value="0">唔計人頭</option>
+        <option value="1">計入老師人頭</option>
+        <option value="0">不計入老師人頭</option>
        </Select>
       </label>
       <label className="grid gap-1">
@@ -1357,7 +1569,7 @@ export function TrialSessionsView() {
        <Input value={addRemarks} onChange={(e) => setAddRemarks(e.target.value)} className="h-9" />
       </label>
       <p className="rounded-md border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
-       試堂頁只登記試堂。建立後會前往收款登記出單（免費亦出 $0 單）；確認收款後先上點名紙。對帳請睇繳費紀錄。
+       試堂頁只登記試堂。建立後會前往收款登記出單（免費亦出 $0 單）；確認收款後才上點名紙。對帳請以繳費紀錄為準。
       </p>
       {addErr ? <p role="alert" className="text-destructive">{addErr}</p> : null}
       <div className="flex justify-end gap-2 pt-2">
@@ -1408,12 +1620,16 @@ export function TrialSessionsView() {
       })
       setConvertId(null)
       await reload()
+      const trial = rows.find((row) => row.id === convertId)
       pushBanner({
        tone: "success",
        title: "已轉正式報讀",
        message: result.rollCallPending
-        ? `${payload.formLabel}（轉正時尚未完成試堂點名）· 學費請到收款頁處理`
-        : `${payload.formLabel} · 學費請到收款頁處理`,
+        ? `${payload.formLabel}（轉正時尚未完成試堂點名）。學費請到收款登記處理。`
+        : `${payload.formLabel}。學費請到收款登記處理。`,
+       action: trial
+        ? { pageLabel: "收款登記", to: `/Payments?studentId=${encodeURIComponent(trial.student_id)}` }
+        : undefined,
       })
      } finally {
       setConvertSaving(false)

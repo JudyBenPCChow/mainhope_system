@@ -56,9 +56,10 @@ function asElective(raw: Record<string, unknown>): TrialInviteElectiveOption {
   }
 }
 
-/** 8 位香港電話；可帶 852。 */
-export function adTrialPhoneLooksValid(raw: string): boolean {
+/** 香港 8 位或內地 11 位；號碼本身可再帶區號數字。 */
+export function adTrialPhoneLooksValid(raw: string, countryCode: "+852" | "+86" = "+852"): boolean {
   const digits = raw.replace(/\D/g, "")
+  if (countryCode === "+86") return /^86\d{11}$/.test(digits) || /^\d{11}$/.test(digits)
   return /^852\d{8}$/.test(digits) || /^\d{8}$/.test(digits)
 }
 
@@ -139,7 +140,7 @@ async function readAdPublicSubmitError(error: unknown, response?: Response): Pro
   return null
 }
 
-async function invokeAdPublicSubmit(body: Record<string, unknown>): Promise<void> {
+async function invokeAdPublicSubmit(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (!supabase) throw new Error("Supabase 未設定")
   const { data, error, response } = await supabase.functions.invoke("ad-public-submit", { body })
   if (error) {
@@ -149,6 +150,7 @@ async function invokeAdPublicSubmit(body: Record<string, unknown>): Promise<void
   if (data && typeof data === "object" && "error" in data && (data as { error?: unknown }).error) {
     throw new Error(String((data as { error: unknown }).error))
   }
+  return data && typeof data === "object" ? (data as Record<string, unknown>) : {}
 }
 
 export async function submitAdTrial(
@@ -174,6 +176,47 @@ export async function submitAdTrial(
       .map((c) => c.trim().toUpperCase())
       .filter(Boolean),
     ...attributionBody(input.attribution),
+  })
+}
+
+export async function getAdHomeworkCatalog(): Promise<TrialInviteClassOption[]> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const { data, error } = await supabase.rpc("ad_homework_catalog_get")
+  if (error) throw rpcError(error)
+  const raw = (data ?? {}) as Record<string, unknown>
+  const classesRaw = Array.isArray(raw.classes) ? raw.classes : []
+  return classesRaw.map((c) => asClass((c ?? {}) as Record<string, unknown>))
+}
+
+export async function submitAdHomeworkDetails(input: AdPublicSubmitBase): Promise<string | null> {
+  const data = await invokeAdPublicSubmit({
+    mode: "homework_details",
+    turnstileToken: input.turnstileToken,
+    fullName: input.fullName.trim(),
+    school: input.school.trim(),
+    grade: input.grade.trim(),
+    phone: input.phone.trim(),
+    note: input.note.trim(),
+    company: input.company,
+    contactMethod: input.contactMethod,
+    wechatId: input.wechatId.trim(),
+    phoneCountryCode: input.phoneCountryCode ?? "+852",
+  })
+  const leadId = data.lead_id
+  return typeof leadId === "string" && leadId.trim() ? leadId.trim() : null
+}
+
+export async function attachAdHomeworkDate(input: {
+  leadId: string
+  classId: string
+  scheduleId: string
+  company: string
+}): Promise<void> {
+  await invokeAdPublicSubmit({
+    mode: "homework_date",
+    leadId: input.leadId,
+    company: input.company,
+    lines: [{ class_id: input.classId, schedule_id: input.scheduleId }],
   })
 }
 

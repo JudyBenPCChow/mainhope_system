@@ -49,6 +49,11 @@ import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceCo
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatElectedSubjectLabels, normalizeElectedSubjectCodes } from "@/lib/studentElectives"
+import {
+  interestedSubjectsToTextarea,
+  normalizeInterestedSubjects,
+  parseInterestedSubjectsText,
+} from "@/lib/interestedSubjects"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import {
@@ -197,16 +202,38 @@ const BASIC_FORM_KEYS = [
  "primary_contact_person",
  "address",
  "remarks",
+ "interested_subjects",
 ] as const satisfies readonly (keyof StudentRecord)[]
 
 function formFieldNorm(value: unknown): string | null {
  if (value == null) return null
+ if (Array.isArray(value)) {
+  const joined = value
+   .map((item) => String(item ?? "").trim())
+   .filter(Boolean)
+   .join("\u0001")
+  return joined === "" ? null : joined
+ }
  const s = String(value).trim()
  return s === "" ? null : s
 }
 
 function isStudentBasicFormDirty(student: StudentRecord, form: Partial<StudentRecord>): boolean {
  return BASIC_FORM_KEYS.some((key) => formFieldNorm(student[key]) !== formFieldNorm(form[key]))
+}
+
+function interestedSubjectsRead(subjects: string[] | undefined) {
+ const list = normalizeInterestedSubjects(subjects ?? [])
+ if (list.length === 0) return "—"
+ return (
+  <span className="flex flex-wrap gap-1.5">
+   {list.map((subject) => (
+    <Tag key={subject} tone="info" size="sm">
+     {subject}
+    </Tag>
+   ))}
+  </span>
+ )
 }
 
 type UnsavedLeaveChoice = "save" | "discard" | "cancel"
@@ -277,6 +304,10 @@ export function StudentDetailView() {
   if (searchParams.get("tab") !== parsed) writeTabParam(parsed)
  }, [searchParams, canViewMoney, authReady, writeTabParam])
  const [student, setStudent] = useState<StudentRecord | null>(null)
+ const canScheduleTrial =
+  can(caps, "students.enroll") &&
+  student != null &&
+  normalizeRegistrationStatus(student.registration_status) === "非注冊"
  const [studentState, setStudentState] = useState<"loading" | "ready" | "error">("loading")
  const [loading, setLoading] = useState(true)
  const [enrollments, setEnrollments] = useState<EnrollmentWithClass[]>([])
@@ -582,6 +613,7 @@ export function StudentDetailView() {
     address: form.address,
     remarks: form.remarks,
     elected_subject_codes: normalizeElectedSubjectCodes(form.elected_subject_codes),
+    interested_subjects: normalizeInterestedSubjects(form.interested_subjects),
    })
    setStudent(updated)
    setForm(updated)
@@ -1482,12 +1514,24 @@ export function StudentDetailView() {
      ) : null
     }
     actions={
-     canRegisterPayment || canOpenLeaveManagement ? (
+     canRegisterPayment || canOpenLeaveManagement || canScheduleTrial ? (
       <>
+       {canScheduleTrial ? (
+        <Button
+         type="button"
+         size="sm"
+         onClick={() =>
+          goExternal(`/TrialSessions?studentId=${encodeURIComponent(sid ?? "")}`)
+         }
+        >
+         新增試堂
+        </Button>
+       ) : null}
        {canRegisterPayment ? (
         <Button
          type="button"
          size="sm"
+         variant={canScheduleTrial ? "outline" : "default"}
          onClick={() => goExternal(`/Payments?studentId=${encodeURIComponent(sid ?? "")}`)}
         >
          收款登記
@@ -1517,8 +1561,17 @@ export function StudentDetailView() {
     isMobile={isMobile}
    />
 
-   {isMobile && (canRegisterPayment || canOpenLeaveManagement) ? (
+   {isMobile && (canRegisterPayment || canOpenLeaveManagement || canScheduleTrial) ? (
     <div className="flex flex-wrap gap-2 pt-3">
+     {canScheduleTrial ? (
+      <Button
+       type="button"
+       size="sm"
+       onClick={() => goExternal(`/TrialSessions?studentId=${encodeURIComponent(sid ?? "")}`)}
+      >
+       新增試堂
+      </Button>
+     ) : null}
      {canRegisterPayment ? (
       <Button
        type="button"
@@ -1843,6 +1896,24 @@ export function StudentDetailView() {
          <Input
           value={form.address ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+         />
+        </Field>
+        <Field
+         label="有興趣科目"
+         className="sm:col-span-2"
+         read={showBasicForm ? undefined : interestedSubjectsRead(form.interested_subjects)}
+         readUnboxed
+        >
+         <Textarea
+          value={interestedSubjectsToTextarea(form.interested_subjects ?? [])}
+          onChange={(e) =>
+           setForm((f) => ({
+            ...f,
+            interested_subjects: parseInterestedSubjectsText(e.target.value),
+           }))
+          }
+          placeholder="每行一科，或用、分隔（查詢／廣告登記帶入）"
+          rows={3}
          />
         </Field>
         <Field label="備註" className="sm:col-span-2" read={showBasicForm ? undefined : (form.remarks || "—")}>

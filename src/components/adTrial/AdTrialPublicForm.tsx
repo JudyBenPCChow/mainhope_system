@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { CheckCircle2, ChevronDown, ChevronLeft, MessageCircle, Phone } from "lucide-react"
 
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
+import { AdPublicCampusAddress, AdPublicCollectionNotice } from "@/components/adTrial/AdPublicCollectionNotice"
 import { AdPublicTurnstile, resetAdPublicTurnstile } from "@/components/adTrial/AdPublicTurnstile"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -98,7 +99,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   const interestOnly = mode === "interest"
   const location = useLocation()
   const navigate = useNavigate()
-  const carried = interestOnly ? null : readAdTrialCarry(location.state)
+  const carried = readAdTrialCarry(location.state)
   /** 成功完成帶資料跳轉後才標 true；勿在 effect 開頭標，否則 StrictMode 第二次會跳過載入。 */
   const carryBootstrappedRef = useRef(false)
   const [fullName, setFullName] = useState(carried?.fullName ?? "")
@@ -529,6 +530,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </h1>
         {step === "details" ? (
           <div className="space-y-2 pt-2 text-sm leading-relaxed text-muted-foreground">
+            <AdPublicCampusAddress />
             <p>{AD_PUBLIC_CONTACT.brandZh}為中一至中六學生提供專科班與功課輔導班。</p>
             {interestOnly ? (
               <>
@@ -537,7 +539,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
               </>
             ) : (
               <>
-                <p>可先登記有興趣的試堂；提交後由職員以 WhatsApp 聯絡，確認時間與收費。</p>
+                <p>此頁登記想試的時間偏好。提交後由職員以 WhatsApp 聯絡，確認時間與收費。此頁不會即時留位。</p>
                 <p>可只選一科或多科，不必每科都選；稍後再決定是否繼續。</p>
               </>
             )}
@@ -672,6 +674,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
               />
             </Field>
           )}
+          <AdPublicCollectionNotice />
           <Button type="button" className="w-full" disabled={loadingCatalog} onClick={() => void continueFromDetails()}>
             {loadingCatalog ? "載入科目…" : interestOnly ? "繼續選擇科目" : "繼續選堂"}
           </Button>
@@ -707,18 +710,61 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           </Button>
         </section>
       ) : classes.length === 0 ? (
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          {formatStudentGrade(grade)}暫時沒有已開放的試堂班別。請聯絡職員，或返回更改年級。
-        </p>
+        <section className="mt-8 space-y-3 text-center">
+          <p className="text-sm text-muted-foreground">
+            {formatStudentGrade(grade)}暫時沒有已開放的試堂班別。
+          </p>
+          <Button
+            type="button"
+            className="w-full gap-2"
+            onClick={() => {
+              const name = fullName.trim() || "家長"
+              openWhatsAppWithPrefilledText(
+                AD_PUBLIC_CONTACT.whatsappDigits,
+                `你好，我是${name}，想查詢${formatStudentGrade(grade)}可選的班別。`
+              )
+            }}
+          >
+            <MessageCircle className="h-4 w-4" aria-hidden />
+            WhatsApp 聯絡我們
+          </Button>
+          {!interestOnly ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() =>
+                navigate("/AdInterest", {
+                  state: {
+                    adTrialCarry: {
+                      fullName,
+                      school,
+                      grade,
+                      phone,
+                      contactMethod,
+                      wechatId,
+                      electedCodes,
+                    },
+                  },
+                })
+              }
+            >
+              改為查詢登記
+            </Button>
+          ) : null}
+          <Button type="button" variant="outline" className="w-full" onClick={() => setStep("details")}>
+            返回更改年級
+          </Button>
+        </section>
       ) : step === "subject" ? (
         <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
           <h2 className="text-base font-semibold text-foreground">
-            {interestOnly ? "感興趣科目" : "選擇科目與班別"}
+            {interestOnly ? "感興趣科目" : "選擇想試的科目與時間"}
           </h2>
           <p className="text-sm text-muted-foreground">
             {interestOnly
               ? "選擇有興趣的科目即可，不必每科都選。我們會發送相關資料供你參考。"
-              : "可只選有興趣的科目，不必每科都選。點選後再選班別與堂次。"}
+              : "選擇想試的科目，再選班別與堂次。提交只是時間偏好，須由職員確認後才算預約。"}
           </p>
           {interestOnly ? (
             <>

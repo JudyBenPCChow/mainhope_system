@@ -80,16 +80,17 @@ function mapLead(row: Record<string, unknown>, intentions: LeadIntention[]): Lea
   }
 }
 
-export async function fetchLeads(status: LeadStatus): Promise<LeadRow[]> {
+export async function fetchLeads(status: LeadStatus | "all" = "all"): Promise<LeadRow[]> {
   if (!supabase) return []
-  const { data, error } = await supabase
+  let query = supabase
     .from("leads")
     .select(
       "id, full_name, school, grade, phone, contact_method, wechat_id, note, source, status, elected_subject_codes, interested_subjects, converted_student_id, created_at"
     )
-    .eq("status", status)
     .order("created_at", { ascending: false })
-    .limit(200)
+    .limit(500)
+  if (status !== "all") query = query.eq("status", status)
+  const { data, error } = await query
   if (error) throw error
   const rows = (data ?? []) as Record<string, unknown>[]
   const ids = rows.map((r) => String(r.id))
@@ -150,6 +151,43 @@ export async function setLeadStatus(id: string, status: LeadStatus): Promise<voi
   if (!supabase) throw new Error("Supabase 未設定")
   const { error } = await supabase.from("leads").update({ status }).eq("id", id)
   if (error) throw error
+}
+
+export async function markLeadContacted(id: string, result: string, existingNote: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const trimmed = result.trim()
+  if (!trimmed) throw new Error("請填寫聯絡結果")
+  const stamp = `已聯絡：${trimmed}`
+  const note = existingNote.trim() ? `${existingNote.trim()}\n${stamp}` : stamp
+  const { error } = await supabase.from("leads").update({ status: "contacted", note }).eq("id", id)
+  if (error) throw error
+}
+
+export async function closeLead(id: string, reason: string, existingNote: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const trimmed = reason.trim()
+  if (!trimmed) throw new Error("請填寫結束原因")
+  const stamp = `結束：${trimmed}`
+  const note = existingNote.trim() ? `${existingNote.trim()}\n${stamp}` : stamp
+  const { error } = await supabase.from("leads").update({ status: "closed", note }).eq("id", id)
+  if (error) throw error
+}
+
+export async function fetchLeadStatusCounts(): Promise<Record<LeadStatus, number>> {
+  const empty: Record<LeadStatus, number> = { new: 0, contacted: 0, converted: 0, closed: 0 }
+  if (!supabase) return empty
+  const statuses = Object.keys(empty) as LeadStatus[]
+  const pairs = await Promise.all(
+    statuses.map(async (status) => {
+      const { count, error } = await supabase!
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("status", status)
+      if (error) throw error
+      return [status, count ?? 0] as const
+    })
+  )
+  return { ...empty, ...Object.fromEntries(pairs) }
 }
 
 export async function findPhoneMatches(phone: string, exceptLeadId?: string): Promise<PhoneMatch[]> {
@@ -279,6 +317,7 @@ export async function convertLeadToStudent(lead: LeadRow): Promise<string> {
       registration_status: "非注冊",
       ...contactFields,
       elected_subject_codes: lead.electedSubjectCodes,
+      interested_subjects: lead.interestedSubjects,
       remarks: lead.note.trim() || null,
     })
   } catch (e) {
@@ -292,6 +331,7 @@ export async function convertLeadToStudent(lead: LeadRow): Promise<string> {
       registration_status: "非注冊",
       ...contactFields,
       elected_subject_codes: lead.electedSubjectCodes,
+      interested_subjects: lead.interestedSubjects,
       remarks: lead.note.trim() || null,
     })
   }
