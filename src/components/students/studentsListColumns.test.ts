@@ -39,6 +39,7 @@ function rec(partial: Partial<StudentRecord> & Pick<StudentRecord, "id" | "full_
   remarks: null,
   assigned_agent_user_id: null,
   elected_subject_codes: [],
+  interested_subjects: [],
   created_at: "2026-08-01T12:00:00.000Z",
   updated_at: "2026-08-01T12:00:00.000Z",
   ...partial,

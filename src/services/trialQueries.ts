@@ -102,8 +102,13 @@ export type TrialManageRow = {
  remarks: string | null
  payment_id: string | null
  receipt_number: string | null
+ /** payments.status；無單為 null */
+ payment_status: string | null
  student_name: string | null
  student_grade: string | null
+ student_whatsapp: string | null
+ student_phone: string | null
+ parent_phone: string | null
  student_registration: "已註冊" | "非注冊"
  class_subject: string | null
  course_code_full: string | null
@@ -153,8 +158,12 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   remarks: r.remarks != null ? String(r.remarks) : null,
   payment_id: r.payment_id != null ? String(r.payment_id) : null,
   receipt_number: pay?.receipt_number != null ? String(pay.receipt_number) : null,
+  payment_status: pay?.status != null ? String(pay.status) : null,
   student_name: st?.full_name != null ? String(st.full_name) : null,
   student_grade: st?.grade != null ? String(st.grade) : null,
+  student_whatsapp: st?.whatsapp != null ? String(st.whatsapp) : null,
+  student_phone: st?.student_phone != null ? String(st.student_phone) : null,
+  parent_phone: st?.parent_phone != null ? String(st.parent_phone) : null,
   student_registration:
    String(st?.registration_status ?? "").includes("非注冊") ? "非注冊" : "已註冊",
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
@@ -226,10 +235,10 @@ export async function fetchUpcomingTrialsForClassIds(
 }
 
 const TRIAL_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status ), classes ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status ), classes!inner ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
 

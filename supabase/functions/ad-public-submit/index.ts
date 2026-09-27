@@ -20,6 +20,7 @@ type Body = {
   lines?: unknown
   electedSubjectCodes?: unknown
   subjects?: unknown
+  leadId?: unknown
   eventId?: unknown
   fbp?: unknown
   fbc?: unknown
@@ -172,15 +173,17 @@ Deno.serve(async (req) => {
   }
 
   const mode = asString(body.mode, 20)
-  if (mode !== "trial" && mode !== "interest") {
+  if (mode !== "trial" && mode !== "interest" && mode !== "homework" && mode !== "homework_details" && mode !== "homework_date") {
     return jsonResponse({ error: "mode 無效" }, 400)
   }
 
   const rateKey = clientKeyFromRequest(req)
   const turnstileToken = asString(body.turnstileToken, 2048)
-  const turnstileOk = await verifyTurnstile(turnstileToken, rateKey)
-  if (!turnstileOk) {
-    return jsonResponse({ error: "人機驗證失敗，請重新整理後再試" }, 403)
+  if (mode !== "homework_date") {
+    const turnstileOk = await verifyTurnstile(turnstileToken, rateKey)
+    if (!turnstileOk) {
+      return jsonResponse({ error: "人機驗證失敗，請重新整理後再試" }, 403)
+    }
   }
 
   const contactMethod: ContactMethod =
@@ -214,7 +217,18 @@ Deno.serve(async (req) => {
     p_rate_client_key: rateKey,
   }
 
-  const rpcName = mode === "interest" ? "ad_trial_interest_submit" : "ad_trial_submit"
+  const line = Array.isArray(body.lines) ? body.lines[0] : null
+  const lineRec = line && typeof line === "object" ? (line as Record<string, unknown>) : null
+  const rpcName =
+    mode === "interest"
+      ? "ad_trial_interest_submit"
+      : mode === "homework"
+        ? "ad_homework_trial_submit"
+        : mode === "homework_details"
+          ? "ad_homework_details_submit"
+          : mode === "homework_date"
+            ? "ad_homework_attach_date"
+            : "ad_trial_submit"
   const rpcArgs =
     mode === "interest"
       ? {
@@ -223,13 +237,28 @@ Deno.serve(async (req) => {
             ? body.subjects.map((s) => asString(s, 40)).filter(Boolean)
             : [],
         }
-      : {
-          ...baseArgs,
-          p_lines: Array.isArray(body.lines) ? body.lines : [],
-          p_elected_subject_codes: Array.isArray(body.electedSubjectCodes)
-            ? body.electedSubjectCodes.map((c) => asString(c, 20).toUpperCase()).filter(Boolean)
-            : [],
-        }
+      : mode === "homework_details"
+        ? baseArgs
+        : mode === "homework_date"
+          ? {
+              p_lead_id: asString(body.leadId, 40),
+              p_class_id: asString(lineRec?.class_id, 40),
+              p_schedule_id: asString(lineRec?.schedule_id, 40),
+              p_company: asString(body.company, 120),
+              p_rate_client_key: rateKey,
+            }
+          : mode === "homework"
+            ? {
+                ...baseArgs,
+                p_lines: Array.isArray(body.lines) ? body.lines : [],
+              }
+            : {
+                ...baseArgs,
+                p_lines: Array.isArray(body.lines) ? body.lines : [],
+                p_elected_subject_codes: Array.isArray(body.electedSubjectCodes)
+                  ? body.electedSubjectCodes.map((c) => asString(c, 20).toUpperCase()).filter(Boolean)
+                  : [],
+              }
 
   const { data, error } = await admin.rpc(rpcName, rpcArgs)
   if (error) {
@@ -241,19 +270,21 @@ Deno.serve(async (req) => {
     ? `${origin.replace(/\/$/, "")}${landingPath || (mode === "interest" ? "/AdInterest" : "/AdTrial")}`
     : landingPath
 
-  // 不 await 阻塞回應亦可；短 await 以確保大部分情況送出
-  await sendMetaCapiLead({
-    eventId,
-    mode,
-    phone,
-    phoneCountryCode,
-    contactMethod,
-    fbp,
-    fbc,
-    clientIp: rateKey,
-    userAgent: clientUserAgent(req),
-    eventSourceUrl,
-  })
+  // 試堂／查詢維持既有 CAPI；功輔模式不另送，避免把新頁算進試堂轉化。
+  if (mode === "trial" || mode === "interest") {
+    await sendMetaCapiLead({
+      eventId,
+      mode,
+      phone,
+      phoneCountryCode,
+      contactMethod,
+      fbp,
+      fbc,
+      clientIp: rateKey,
+      userAgent: clientUserAgent(req),
+      eventSourceUrl,
+    })
+  }
 
   return jsonResponse(data ?? { accepted: true })
 })

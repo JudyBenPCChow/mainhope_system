@@ -1,6 +1,7 @@
 import { normalizeStudentGrade } from "@/lib/studentGrade"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import { normalizeInterestedSubjects } from "@/lib/interestedSubjects"
 import { normalizeElectedSubjectCodes } from "@/lib/studentElectives"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
@@ -74,6 +75,8 @@ export type StudentRecord = {
  status: string | null
  /** 高中目前選修科目（subjects.code） */
  elected_subject_codes: string[]
+ /** 查詢／廣告有興趣科目名稱（非選修代碼） */
+ interested_subjects: string[]
  parent_name: string | null
  parent_relationship: string | null
  parent_phone: string | null
@@ -351,6 +354,7 @@ function asStudent(row: Record<string, unknown>): StudentRecord {
   activity_status: state.activity_status,
   academic_stage: state.academic_stage,
   elected_subject_codes: normalizeElectedSubjectCodes(row.elected_subject_codes),
+  interested_subjects: normalizeInterestedSubjects(row.interested_subjects),
   status:
    row.status != null && String(row.status).trim()
     ? String(row.status)
@@ -628,6 +632,7 @@ export async function insertStudent(
    remarks: row.remarks ?? null,
    student_code: row.student_code ?? null,
    elected_subject_codes: normalizeElectedSubjectCodes(row.elected_subject_codes),
+   interested_subjects: normalizeInterestedSubjects(row.interested_subjects),
   })
   .select("*")
   .single()
@@ -675,6 +680,9 @@ export async function updateStudent(
  }
  if (patch.elected_subject_codes !== undefined) {
   payload.elected_subject_codes = normalizeElectedSubjectCodes(patch.elected_subject_codes)
+ }
+ if (patch.interested_subjects !== undefined) {
+  payload.interested_subjects = normalizeInterestedSubjects(patch.interested_subjects)
  }
  delete payload.enrollment_status
  delete payload.activity_status

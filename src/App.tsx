@@ -11,6 +11,7 @@ import ClassDetail from "@/pages/ClassDetail"
 import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import ContactUpdate from "@/pages/ContactUpdate"
 import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
+import AdHomework from "@/pages/AdHomework"
 import AdInterest from "@/pages/AdInterest"
 import AdInterestThanks from "@/pages/AdInterestThanks"
 import AdPublicPrivacy from "@/pages/AdPublicPrivacy"
@@ -97,6 +98,7 @@ export default function App() {
     <Route path="/AdTrial/thanks" element={<AdTrialThanks />} />
     <Route path="/AdInterest" element={<AdInterest />} />
     <Route path="/AdInterest/thanks" element={<AdInterestThanks />} />
+    <Route path="/AdHomework" element={<AdHomework />} />
     <Route path="/Privacy" element={<AdPublicPrivacy />} />
     {enablePayrollUiPreview ? (
      <Route

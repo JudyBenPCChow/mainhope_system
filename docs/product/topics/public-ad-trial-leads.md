@@ -47,6 +47,8 @@ Meta 廣告用固定公開網址；可選班別／堂次用**廣告專用**控�
 - 欄位：姓名、學校、年級、聯絡電話（WhatsApp）、備註（可選）
 - 選堂：年級過濾 →（S4–S6 選修）→ 科目 → 班／堂次 → 確認；流程對照試堂邀請公開頁，但無 token／既有生身分
 - 提交只寫 `leads`（＋試堂意向行）；**不**建學生、不建試堂、不出單
+- 第一步頁首寫明校舍地址（新界粉嶺馬適路 3 號綠悠軒商場 2 樓 11 號），與收據、功輔月曆相同
+- 同頁、提交前附收集個人資料聲明：用途、必須欄與不提供的後果、只供跟進職員及代存系統供應商、查閱改正（電話或書面寄校舍，40 日內回覆）。不設直銷同意，亦不以繼續瀏覽視作同意。老師姓名與堂次維持公開（與紙本傳單相同）
 
 ### 廣告公開目錄欄（資料與邀請分開；界面同頁）
 
@@ -127,7 +129,7 @@ Meta 廣告用固定公開網址；可選班別／堂次用**廣告專用**控�
 - **列上**：姓名｜年級｜學校｜電話（WhatsApp）｜來源｜想試摘要｜狀態｜時間｜主操作
 - **主操作**：標已聯絡；建檔（非註冊）；已建檔則連學生詳情／試堂紀錄（`converted_student_id`）
 - **人手新增**對話框：姓名、聯絡、年級、學校、來源、備註；想試只作提示，**不**在 lead 階段硬綁必須建的 `schedule`
-- 建檔成功：**留在本頁**，橫幅＋「前往排試堂」；不要在本頁建試堂或收款
+- 建檔成功：導向該生詳情頁（`/Students/:id`）；查詢頁有興趣科目寫入 `students.interested_subjects`；不要在本頁建試堂或收款
 - 想試意向僅灰字提示；真正排堂以試堂紀錄為準（建檔當下重驗堂次，見 H5）
 
 ### 試堂紀錄（前台找各種試堂的主頁）
@@ -231,7 +233,7 @@ repo 已有家長公開填表 → 職員接稿建檔：`front_desk_intake_sessio
 | M10 | 廣告目錄學年／堂次窗未寫死 | 邀請控管只列 `academic_years.is_current`、未來未取消堂。廣告公開目錄應對齊，否則可能列出非目前學年班 |
 | M11 | 廣告電話只寫 `whatsapp` 則收款搜尋找不到 | 點名紙聯絡＝`coalesce(whatsapp, student_phone, parent_phone)`；`studentSearchText` **不含** `whatsapp`。建檔須同時寫 `whatsapp` 與 `parent_phone`（或學生電話） |
 | M12 | 非註冊生仍出現在舊生邀請活動頁 | `TrialInviteCampaignView` 用 `fetchAllStudents` 只濾已畢業。建檔後職員可能誤產邀請連結。首版可提示／過濾非註冊，或接受兩條都能建 `trial_sessions` |
-| M13 | 試堂紀錄新增 picker 搜尋弱、無 URL 預填 | 只搜姓名／年級，無學號／電話；無 `?studentId=`（收款頁有）。建檔橫幅「前往排試堂」必須帶 `studentId` 並預填新增對話，否則同名易揀錯 |
+| M13 | 試堂紀錄新增 picker 搜尋弱、無 URL 預填 | 只搜姓名／年級，無學號／電話；無 `?studentId=`（收款頁有）。建檔後導向學生詳情；職員再進試堂紀錄時應帶 `studentId` 並預填新增對話，否則同名易揀錯 |
 
 ### 低／已知可接受
 
@@ -259,7 +261,7 @@ repo 已有家長公開填表 → 職員接稿建檔：`front_desk_intake_sessio
 1. Migration：`leads`／試堂意向行／`ad_trial_listed`／`ad_trial_excluded`；anon RPC `ad_trial_catalog_get`／`ad_trial_submit`；職員 RLS（建議 capability `students.enroll`）。目錄只列目前學年＋未來堂（M10）
 2. 公開頁 `/AdTrial`＋ service（含 H4 防呆）
 3. 擴充 `/TrialInviteCatalog` → **試堂班別管理**（舊生邀請＋廣告公開雙開關／堂次剔除）；側欄改名；**不**另開 `/AdTrialCatalog`；「已有試堂」標示不鎖定廣告開關
-4. `/Leads`：清單、篩來源／狀態、WhatsApp、人手新增；**建檔捷徑強制非註冊＋學號＋電話寫入 whatsapp 與 parent_phone＋選修複製＋重驗堂次（H1–H5、M3、M6、M11）**；建檔後捷徑進試堂紀錄（帶 `studentId`，M13）
+4. `/Leads`：清單、篩來源／狀態、WhatsApp、人手新增；**建檔捷徑強制非註冊＋學號＋電話寫入 whatsapp 與 parent_phone＋選修／有興趣科目複製＋重驗堂次（H1–H5、M3、M6、M11）**；建檔後導向學生詳情（`/Students/:id`）
 5. `/TrialSessions`：加註冊狀態等篩選；新增對話支援 `?studentId=` 預填；來源 Tag 可下波
 6. 正式報讀閘：落在 `insertEnrollment`——有報讀則不可維持 `非注冊`（H2）
 7. 側欄文案（潛在客戶／舊生試堂邀請／試堂班別管理／試堂紀錄）；相關單測；`npm run build`
