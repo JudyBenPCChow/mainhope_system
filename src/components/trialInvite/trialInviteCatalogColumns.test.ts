@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   catalogMatchesHeaderFilters,
+  catalogMatchesSchoolBand,
   compareCatalogRows,
   EMPTY_CATALOG_HEADER_FILTERS,
   publicAutoHideReason,
@@ -262,5 +263,27 @@ describe("compareCatalogRows", () => {
       })
     )
     expect(compareCatalogRows(a, b, "count", "asc")).toBeGreaterThan(0)
+  })
+})
+
+describe("catalogMatchesSchoolBand", () => {
+  const t = teacher({ name: "陳老師" })
+
+  it("小學試堂只留小學年級專科；功輔兩邊都留", () => {
+    const primary = row(t, cls({ id: "p", label: "小五英", grades: ["小五"] }))
+    const secondary = row(t, cls({ id: "s", label: "中一中", grades: ["中一"] }))
+    const homework = row(t, cls({ id: "h", label: "功輔", classKind: "homework", grades: [] }))
+    expect(catalogMatchesSchoolBand(primary, "primary")).toBe(true)
+    expect(catalogMatchesSchoolBand(secondary, "primary")).toBe(false)
+    expect(catalogMatchesSchoolBand(homework, "primary")).toBe(true)
+  })
+
+  it("中學試堂只留中學年級專科；功輔兩邊都留", () => {
+    const primary = row(t, cls({ id: "p", label: "小五英", grades: ["小五"] }))
+    const secondary = row(t, cls({ id: "s", label: "中一中", grades: ["中一"] }))
+    const homework = row(t, cls({ id: "h", label: "功輔", classKind: "homework", grades: [] }))
+    expect(catalogMatchesSchoolBand(primary, "secondary")).toBe(false)
+    expect(catalogMatchesSchoolBand(secondary, "secondary")).toBe(true)
+    expect(catalogMatchesSchoolBand(homework, "secondary")).toBe(true)
   })
 })

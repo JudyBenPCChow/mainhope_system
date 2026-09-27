@@ -103,17 +103,23 @@ export function initAdPublicTracking(): void {
 
 export type AdLeadTrackInput = {
   eventId: string
-  mode: "trial" | "interest"
+  mode: "trial" | "interest" | "homework"
   phone?: string
   phoneCountryCode?: "+852" | "+86"
   contactMethod?: "WhatsApp" | "WeChat"
 }
 
-/** 提交成功後打 Lead（與 CAPI 共用 event_id）。 */
+function leadContentName(mode: AdLeadTrackInput["mode"]): string {
+  if (mode === "interest") return "ad_interest"
+  if (mode === "homework") return "ad_homework"
+  return "ad_trial"
+}
+
+/** 提交成功後打 Lead（試堂／查詢與 CAPI 共用 event_id；功輔只打瀏覽器 Pixel／GA）。 */
 export async function trackAdPublicLead(input: AdLeadTrackInput): Promise<void> {
   const pixelId = metaPixelId()
   const gaId = gaMeasurementId()
-  const contentName = input.mode === "interest" ? "ad_interest" : "ad_trial"
+  const contentName = leadContentName(input.mode)
 
   if (pixelId) {
     ensureMetaPixel(pixelId)

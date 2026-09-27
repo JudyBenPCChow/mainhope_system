@@ -9,6 +9,7 @@ import {
   type HeaderFilterOption,
   type SortDir,
 } from "@/components/list/listFilterUtils"
+import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
 import { formatWeekdaysDisplay } from "@/lib/weekdayUtils"
 import {
   type TrialInviteCatalogClassControl,
@@ -49,9 +50,30 @@ export const EMPTY_CATALOG_HEADER_FILTERS: CatalogListHeaderFilters =
 
 export type CatalogClassKindFilter = "all" | "group" | "homework"
 
+/** 試堂對象學段：專科跟班別年級；功輔混級兩邊都可選。 */
+export type CatalogSchoolBandFilter = "all" | "primary" | "secondary"
+
 export type CatalogRow = {
   teacher: TrialInviteCatalogTeacherControl
   cls: TrialInviteCatalogClassControl
+}
+
+function isSecondaryGradeLabel(raw: string): boolean {
+  const code = normalizeStudentGrade(raw)
+  return code != null && /^S[1-6]$/.test(code)
+}
+
+export function catalogMatchesSchoolBand(
+  row: CatalogRow,
+  band: CatalogSchoolBandFilter
+): boolean {
+  if (band === "all") return true
+  // 功課輔導班混級，小學／中學試堂皆可納入
+  if (row.cls.classKind === "homework") return true
+  const grades = row.cls.grades.map((g) => g.trim()).filter(Boolean)
+  if (grades.length === 0) return false
+  if (band === "primary") return grades.some((g) => isPrimaryStudentGrade(g))
+  return grades.some((g) => isSecondaryGradeLabel(g))
 }
 
 export const COUNT_BUCKET_OPTIONS: HeaderFilterOption[] = [

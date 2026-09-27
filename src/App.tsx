@@ -109,6 +109,13 @@ export default function App() {
     <Route path="/AdInterest" element={<AdInterest />} />
     <Route path="/AdInterest/thanks" element={<AdInterestThanks />} />
     <Route path="/AdHomework" element={<AdHomework />} />
+    {/* 廣告連結大小寫不一：導向正式路徑，避免追蹤／表單漏接 */}
+    <Route path="/adtrial" element={<Navigate to="/AdTrial" replace />} />
+    <Route path="/ADTRIAL" element={<Navigate to="/AdTrial" replace />} />
+    <Route path="/adinterest" element={<Navigate to="/AdInterest" replace />} />
+    <Route path="/ADINTEREST" element={<Navigate to="/AdInterest" replace />} />
+    <Route path="/adhomework" element={<Navigate to="/AdHomework" replace />} />
+    <Route path="/ADHOMEWORK" element={<Navigate to="/AdHomework" replace />} />
     <Route path="/Privacy" element={<AdPublicPrivacy />} />
     {enablePayrollUiPreview ? (
      <Route

@@ -201,6 +201,7 @@ export async function submitAdHomeworkDetails(input: AdPublicSubmitBase): Promis
     contactMethod: input.contactMethod,
     wechatId: input.wechatId.trim(),
     phoneCountryCode: input.phoneCountryCode ?? "+852",
+    ...attributionBody(input.attribution),
   })
   const leadId = data.lead_id
   return typeof leadId === "string" && leadId.trim() ? leadId.trim() : null
