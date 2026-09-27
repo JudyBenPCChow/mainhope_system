@@ -13,6 +13,11 @@
   "rewrites": [
     {
       "source": "/(.*)",
+      "has": [{ "type": "host", "value": "ad.mainhope.edu.hk" }],
+      "destination": "/ad.html"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]

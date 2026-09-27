@@ -2,12 +2,30 @@
 <html lang="zh-Hant">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>明學教育 — 管理系統</title>
+    <script>
+      (function () {
+        var host = location.hostname
+        var path = location.pathname.replace(/\/+$/, "") || "/"
+        var titles = {
+          "/AdTrial": "新生試堂登記 — 明學教育",
+          "/AdTrial/thanks": "已收到試堂登記 — 明學教育",
+          "/AdInterest": "查詢登記 — 明學教育",
+          "/AdInterest/thanks": "已收到查詢 — 明學教育",
+          "/AdHomework": "功課輔導班查詢 — 明學教育",
+          "/Privacy": "私隱政策 — 明學教育",
+        }
+        if (path.indexOf("/AdHomework/") === 0) path = "/AdHomework"
+        if (titles[path]) document.title = titles[path]
+        else if (host === "ad.mainhope.edu.hk") document.title = "明學教育"
+      })()
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
