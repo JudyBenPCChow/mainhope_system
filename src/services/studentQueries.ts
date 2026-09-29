@@ -44,6 +44,7 @@ import {
 } from "@/services/attendanceLifecycleQueries"
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 import { collectCurrentEnrollmentSubjectTags } from "@/lib/enrollmentYearDisplay"
+import { classEmbedExemptFromStudentTimeConflict } from "@/lib/studentTimeConflict"
 import type { PaymentYearDetailFields } from "@/lib/studentPaymentYearSummary"
 import { fetchEnrollableAcademicYearWindow } from "@/services/softArchiveQueries"
 
@@ -1179,7 +1180,7 @@ export type EnrollmentScheduleConflict = {
  existingTime: string
 }
 
-/** 該生就讀中班別、未來應出席的排程時段（含單堂選堂／暑期期數過濾） */
+/** 該生就讀中班別、未來應出席的排程時段（含單堂選堂／暑期期數過濾；不含功課輔導班） */
 export async function fetchStudentMustAttendScheduleSlots(
  studentId: string,
  opts?: { excludeClassId?: string | null }
@@ -1194,15 +1195,19 @@ async function loadStudentMustAttendSlots(
  if (!supabase) return []
  const { data: enrs, error: enrErr } = await supabase
   .from("student_class_enrollments")
-  .select("id, class_id, enrollment_period")
+  .select(
+   "id, class_id, enrollment_period, classes ( class_kind, subject, course_code_full, courses ( course_name ) )"
+  )
   .eq("student_id", studentId)
   .eq("status", "就讀中")
  if (enrErr) throw enrErr
 
  const excludeClassId = opts?.excludeClassId ?? null
- const rows = (enrs ?? []).filter(
-  (e) => String((e as { class_id: string }).class_id) !== excludeClassId
- ) as Array<{ id: string; class_id: string; enrollment_period: string | null }>
+ const rows = (enrs ?? []).filter((e) => {
+  const classId = String((e as { class_id: string }).class_id)
+  if (classId === excludeClassId) return false
+  return !classEmbedExemptFromStudentTimeConflict((e as { classes?: unknown }).classes)
+ }) as Array<{ id: string; class_id: string; enrollment_period: string | null }>
  if (rows.length === 0) return []
 
  const enrollmentIds = rows.map((e) => e.id)
@@ -1283,6 +1288,17 @@ export async function findStudentEnrollmentScheduleConflicts(opts: {
  fromDate?: string | null
 }): Promise<EnrollmentScheduleConflict[]> {
  if (!supabase) return []
+ const { data: targetClass, error: targetClassErr } = await supabase
+  .from("classes")
+  .select("class_kind, subject, course_code_full, courses ( course_name )")
+  .eq("id", opts.classId)
+  .maybeSingle()
+ if (targetClassErr) throw targetClassErr
+ if (
+  classEmbedExemptFromStudentTimeConflict(targetClass)
+ ) {
+  return []
+ }
  const fromDate = (opts.fromDate ?? "").slice(0, 10)
  let targetSlots = await filterSlotsForEnrollmentPeriod(
   opts.classId,
@@ -1456,7 +1472,7 @@ export async function insertEnrollment(
  const enrollDate = /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) ? enrollDateRaw : today
  const { data: classRow, error: classErr } = await supabase
   .from("classes")
-  .select("academic_year_label, start_date, class_kind, subject")
+  .select("academic_year_label, start_date, class_kind, subject, course_code_full, courses ( course_name )")
   .eq("id", classId)
   .maybeSingle()
  if (classErr) throw classErr
@@ -1471,6 +1487,7 @@ export async function insertEnrollment(
   (classRow as { subject?: string | null } | null)?.subject ?? null
  )
  const isHomework = classKind === "homework"
+ const skipStudentTimeConflict = classEmbedExemptFromStudentTimeConflict(classRow)
  if (isHomework) {
   const plan = opts?.homeworkDayPlan
   const days = opts?.homeworkWeekdays ?? []
@@ -1518,7 +1535,7 @@ export async function insertEnrollment(
  }
  const withdrawn = existing.find((r) => r.status === "已退讀")
 
- if (!isHomework) {
+ if (!skipStudentTimeConflict) {
   await assertNoEnrollmentTimeConflicts({
    studentId,
    classId,
