@@ -15,6 +15,7 @@ import {
  parseHm,
 } from "@/lib/lessonSlots"
 import { resolveClassKind } from "@/lib/privateClassKind"
+import { classEmbedExemptFromStudentTimeConflict } from "@/lib/studentTimeConflict"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
@@ -889,7 +890,9 @@ export async function checkPrivateBookingConflicts(params: {
    const chunks = await forEachIdChunk(classIds, 60, async (slice) => {
     const { data, error } = await supabase!
      .from("schedules")
-     .select("id, start_time, end_time, status, classes ( subject )")
+     .select(
+      "id, start_time, end_time, status, classes ( class_kind, subject, course_code_full, courses ( course_name ) )"
+     )
      .in("class_id", slice)
      .eq("scheduled_date", dateYmd)
     if (error) throw new Error(formatUnknownError(error))
@@ -906,6 +909,7 @@ export async function checkPrivateBookingConflicts(params: {
      const bEff = b == null || b <= a ? a + LESSON_SLOT_DURATION_MIN : b
      if (!intervalsOverlapMinutes(slotA, slotB, a, bEff)) continue
      const cls = s.classes as Record<string, unknown> | null
+     if (classEmbedExemptFromStudentTimeConflict(cls)) continue
      conflicts.push({
       kind: "student",
       label: `學生時段衝突：${cls?.subject != null ? String(cls.subject) : "其他課堂"}`,
