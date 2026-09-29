@@ -16,15 +16,24 @@ export function isExemptFromStudentTimeConflict(cls: StudentTimeConflictClassFie
  return code.includes("HWK")
 }
 
-export function classEmbedExemptFromStudentTimeConflict(
- cls: Record<string, unknown> | null | undefined
-): boolean {
- if (!cls) return false
- const course = cls.courses as Record<string, unknown> | null
+function firstRecord(raw: unknown): Record<string, unknown> | null {
+ if (raw == null) return null
+ if (Array.isArray(raw)) {
+  const first = raw[0]
+  return first && typeof first === "object" ? (first as Record<string, unknown>) : null
+ }
+ if (typeof raw === "object") return raw as Record<string, unknown>
+ return null
+}
+
+export function classEmbedExemptFromStudentTimeConflict(cls: unknown): boolean {
+ const rec = firstRecord(cls)
+ if (!rec) return false
+ const course = firstRecord(rec.courses)
  return isExemptFromStudentTimeConflict({
-  classKind: cls.class_kind != null ? String(cls.class_kind) : null,
-  subject: cls.subject != null ? String(cls.subject) : null,
+  classKind: rec.class_kind != null ? String(rec.class_kind) : null,
+  subject: rec.subject != null ? String(rec.subject) : null,
   courseName: course?.course_name != null ? String(course.course_name) : null,
-  courseCode: cls.course_code_full != null ? String(cls.course_code_full) : null,
+  courseCode: rec.course_code_full != null ? String(rec.course_code_full) : null,
  })
 }

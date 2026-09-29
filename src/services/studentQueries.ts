@@ -1206,9 +1206,7 @@ async function loadStudentMustAttendSlots(
  const rows = (enrs ?? []).filter((e) => {
   const classId = String((e as { class_id: string }).class_id)
   if (classId === excludeClassId) return false
-  return !classEmbedExemptFromStudentTimeConflict(
-   (e as { classes?: Record<string, unknown> | null }).classes
-  )
+  return !classEmbedExemptFromStudentTimeConflict((e as { classes?: unknown }).classes)
  }) as Array<{ id: string; class_id: string; enrollment_period: string | null }>
  if (rows.length === 0) return []
 
@@ -1297,7 +1295,7 @@ export async function findStudentEnrollmentScheduleConflicts(opts: {
   .maybeSingle()
  if (targetClassErr) throw targetClassErr
  if (
-  classEmbedExemptFromStudentTimeConflict(targetClass as Record<string, unknown> | null)
+  classEmbedExemptFromStudentTimeConflict(targetClass)
  ) {
   return []
  }
@@ -1489,9 +1487,7 @@ export async function insertEnrollment(
   (classRow as { subject?: string | null } | null)?.subject ?? null
  )
  const isHomework = classKind === "homework"
- const skipStudentTimeConflict = classEmbedExemptFromStudentTimeConflict(
-  classRow as Record<string, unknown> | null
- )
+ const skipStudentTimeConflict = classEmbedExemptFromStudentTimeConflict(classRow)
  if (isHomework) {
   const plan = opts?.homeworkDayPlan
   const days = opts?.homeworkWeekdays ?? []

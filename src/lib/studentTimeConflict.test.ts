@@ -58,4 +58,17 @@ describe("classEmbedExemptFromStudentTimeConflict", () => {
    })
   ).toBe(true)
  })
+
+ it("unwraps PostgREST array embeds", () => {
+  expect(
+   classEmbedExemptFromStudentTimeConflict([
+    {
+     class_kind: "homework",
+     subject: "功課輔導",
+     course_code_full: "2627-HWKS1099-A",
+     courses: [{ course_name: "常規功課輔導班" }],
+    },
+   ])
+  ).toBe(true)
+ })
 })
