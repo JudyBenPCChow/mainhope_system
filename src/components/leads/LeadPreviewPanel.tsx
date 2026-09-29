@@ -15,6 +15,7 @@ import {
   leadHasTrialSchedule,
   leadIsStaleNew,
 } from "@/lib/leadQueue"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils"
 import {
   closeLead,
   convertLeadToStudent,
+  deleteLead,
   findPhoneMatches,
   markLeadContacted,
   staleAdIntentions,
@@ -38,6 +40,7 @@ type Props = {
 }
 
 export function LeadPreviewPanel({ row, onChanged, onConverted, onScheduleTrial }: Props) {
+  const { confirmDialog } = useAppConfirm()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [matches, setMatches] = useState<PhoneMatch[] | null>(null)
@@ -51,6 +54,26 @@ export function LeadPreviewPanel({ row, onChanged, onConverted, onScheduleTrial 
   const age = formatLeadAge(row.createdAt)
   const staleNew = leadIsStaleNew(row)
   const trial = leadHasTrialSchedule(row)
+
+  const remove = async () => {
+    const ok = await confirmDialog({
+      title: "刪除潛在客戶",
+      description: `確定刪除「${row.fullName}」？試堂意向一併刪除，此操作無法復原。已建檔的學生主檔不受影響。`,
+      confirmText: "確認刪除",
+      tone: "destructive",
+    })
+    if (!ok) return
+    setBusy(true)
+    setErr(null)
+    try {
+      await deleteLead(row.id)
+      onChanged()
+    } catch (e) {
+      reportUserFacingError(e, { source: "LeadPreviewPanel.remove", setErr })
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const convert = async () => {
     setBusy(true)
@@ -187,6 +210,9 @@ export function LeadPreviewPanel({ row, onChanged, onConverted, onScheduleTrial 
             仍要建檔
           </Button>
         ) : null}
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void remove()}>
+          刪除
+        </Button>
       </div>
 
       <Dialog open={contactOpen} onOpenChange={setContactOpen}>
