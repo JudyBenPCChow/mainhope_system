@@ -190,6 +190,12 @@ export async function fetchLeadStatusCounts(): Promise<Record<LeadStatus, number
   return { ...empty, ...Object.fromEntries(pairs) }
 }
 
+export async function deleteLead(id: string): Promise<void> {
+  if (!supabase) throw new Error("Supabase 未設定")
+  const { error } = await supabase.from("leads").delete().eq("id", id)
+  if (error) throw error
+}
+
 export async function findPhoneMatches(phone: string, exceptLeadId?: string): Promise<PhoneMatch[]> {
   if (!supabase) return []
   const digits = leadPhoneDigits(phone)
