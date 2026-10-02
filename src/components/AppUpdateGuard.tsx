@@ -9,6 +9,7 @@ import {
   getClientBuildId,
   hardReloadPage,
   isStaleChunkError,
+  shouldEnforceAppUpdate,
   type AppUpdateReason,
 } from "@/lib/appUpdateGuard"
 
@@ -34,6 +35,7 @@ function reasonCopy(reason: AppUpdateReason): { title: string; message: string }
 /**
  * 生產環境：定期比對 `/version.json`；部署後或開著超過 6 小時即提示並強制重載。
  * 開發環境略過（避免干擾 HMR）。
+ * 廣告公開網域略過，避免訪客填表時被強制重載。
  */
 export function AppUpdateGuard() {
   const [pending, setPending] = useState<AppUpdateReason | null>(null)
@@ -43,6 +45,7 @@ export function AppUpdateGuard() {
 
   useEffect(() => {
     if (import.meta.env.DEV) return
+    if (!shouldEnforceAppUpdate(window.location.hostname)) return
 
     const arm = (reason: AppUpdateReason) => {
       if (armedRef.current) return
