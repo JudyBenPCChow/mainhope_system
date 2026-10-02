@@ -340,7 +340,8 @@ export async function fetchTrialStudentsForSchedule(
   .filter((row) => {
    const s = String((row as { status?: string }).status ?? "")
    const paymentId = (row as { payment_id?: string | null }).payment_id
-   return Boolean(paymentId) && !s.includes("完成") && !s.includes("取消")
+   // 已完成仍上紙（與 activeTrialsForSchedules 一致）；取消不上紙
+   return Boolean(paymentId) && !s.includes("取消")
   })
   .map((row) => {
   const r = row as Record<string, unknown>
@@ -948,7 +949,8 @@ export async function fetchTrialStudentsForSchedules(
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
   const status = String(r.status ?? "")
-  if (!r.payment_id || status.includes("完成") || status.includes("取消")) continue
+  // 已完成仍上紙（與 activeTrialsForSchedules 一致）；取消不上紙
+  if (!r.payment_id || status.includes("取消")) continue
   const studentId = String(r.student_id)
   if (seen.has(studentId)) continue
   seen.add(studentId)
@@ -973,7 +975,7 @@ export type RollCallTargetScheduleRef = {
 }
 
 /**
- * 哪些排程有「可點名對象」：可見就讀中報讀（含暑期／單堂）＋未完成試堂＋補堂目標。
+ * 哪些排程有「可點名對象」：可見就讀中報讀（含暑期／單堂）＋已收款試堂（含已完成）＋補堂目標。
  * 不把全員請假當成無對象（請假生仍在報讀名單內）。
  */
 export async function fetchScheduleIdsWithRollCallTargets(

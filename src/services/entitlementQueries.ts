@@ -19,6 +19,10 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
+import {
+ paidTrialObligesSchedule,
+ resolveConsumptionPoolId,
+} from "@/lib/trialLessonObligation"
 import { normalizeRosterPolicy } from "@/lib/scheduleRosterPolicy"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
@@ -372,21 +376,74 @@ async function adoptLegacyGradePoolAsClassScoped(opts: {
  return pool
 }
 
-async function studentHasOpenTrialOnSchedule(
+function paymentStatusFromEmbed(raw: unknown): string {
+ if (raw == null) return ""
+ if (Array.isArray(raw)) {
+  const first = raw[0] as { status?: string } | undefined
+  return first?.status != null ? String(first.status) : ""
+ }
+ const status = (raw as { status?: string }).status
+ return status != null ? String(status) : ""
+}
+
+function rowHasPaidTrialObligation(row: { status?: string; payments?: unknown }): boolean {
+ return paidTrialObligesSchedule(
+  String(row.status ?? ""),
+  paymentStatusFromEmbed(row.payments) === "已收款"
+ )
+}
+
+/** 該堂有已收款、未取消試堂（含已完成）。取消或缺單不算。 */
+async function studentHasPaidTrialOnSchedule(
  studentId: string,
  scheduleId: string
 ): Promise<boolean> {
  if (!supabase) return false
  const { data, error } = await supabase
   .from("trial_sessions")
-  .select("status")
+  .select("status, payments!payment_id(status)")
   .eq("student_id", studentId)
   .eq("schedule_id", scheduleId)
+ if (error) throw error
+ return (data ?? []).some((row) => rowHasPaidTrialObligation(row as { status?: string; payments?: unknown }))
+}
+
+/** 這些排程已有該生的試堂票，鑄報讀宣告時要跳過。 */
+async function scheduleIdsWithPaidTrial(
+ studentId: string,
+ scheduleIds: string[]
+): Promise<Set<string>> {
+ const out = new Set<string>()
+ if (!supabase || scheduleIds.length === 0) return out
+ await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (chunk) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select("schedule_id, status, payments!payment_id(status)")
+   .eq("student_id", studentId)
+   .in("schedule_id", chunk)
+  if (error) throw error
+  for (const raw of data ?? []) {
+   const row = raw as { schedule_id?: string; status?: string; payments?: unknown }
+   const scheduleId = row.schedule_id != null ? String(row.schedule_id) : ""
+   if (!scheduleId || !rowHasPaidTrialObligation(row)) continue
+   out.add(scheduleId)
+  }
+ })
+ return out
+}
+
+async function poolIdFromEarliestConsumption(attendanceDetailId: string): Promise<string | null> {
+ if (!supabase) return null
+ const { data, error } = await supabase
+  .from("entitlement_consumption_events")
+  .select("pool_id")
+  .eq("attendance_detail_id", attendanceDetailId)
+  .in("reason", ["entitlement_consumed", "entitlement_reinstated"])
+  .order("created_at", { ascending: true })
+  .limit(1)
   .maybeSingle()
  if (error) throw error
- const status = data != null ? String((data as { status?: string }).status ?? "") : ""
- if (!status) return false
- return !status.includes("完成") && !status.includes("取消")
+ return data?.pool_id != null ? String(data.pool_id) : null
 }
 
 /** 計算某包裝應對應的未來／期內排程（用於鑄池與自動宣告） */
@@ -600,8 +657,9 @@ export async function ensureEntitlementPoolAndDeclarations(opts: {
    .map((d) => d.scheduleId)
  )
 
+ const paidTrialSchedules = await scheduleIdsWithPaidTrial(opts.studentId, targets.scheduleIds)
  const toInsert = targets.scheduleIds
-  .filter((scheduleId) => !already.has(scheduleId))
+  .filter((scheduleId) => !already.has(scheduleId) && !paidTrialSchedules.has(scheduleId))
   .map((scheduleId) => ({
    schedule_id: scheduleId,
    student_id: opts.studentId,
@@ -730,6 +788,8 @@ export async function mintDeclarationsForScheduleStudents(opts: {
 
  for (const student of opts.students) {
   if (already.has(student.studentId)) continue
+  const paidTrialSchedules = await scheduleIdsWithPaidTrial(student.studentId, [opts.scheduleId])
+  if (paidTrialSchedules.has(opts.scheduleId)) continue
   let pool = await fetchPoolForStudentClass(student.studentId, opts.classId)
   if (!pool) {
    pool = await ensureEntitlementPoolAndDeclarations({
@@ -967,7 +1027,7 @@ async function resolvePoolIdForStudentClass(
    .maybeSingle()
   if (anyErr) throw anyErr
   if (anyDecl?.pool_id) return String(anyDecl.pool_id)
-  if (await studentHasOpenTrialOnSchedule(studentId, preferScheduleId)) {
+  if (await studentHasPaidTrialOnSchedule(studentId, preferScheduleId)) {
    const trialPool = await fetchPoolForStudentClass(studentId, classId, { isTrial: true })
    if (trialPool) return trialPool.id
   }
@@ -1111,20 +1171,45 @@ export async function applyEntitlementConsumptionDelta(opts: {
  const units = opts.lessonUnits != null && opts.lessonUnits > 0 ? opts.lessonUnits : 1
  const delta = isBillable && !wasBillable ? -units : units
 
- const { data: decl, error: declErr } = await supabase
-  .from("attendance_declarations")
-  .select("id, pool_id")
-  .eq("student_id", opts.studentId)
-  .eq("schedule_id", opts.scheduleId)
-  .eq("status", "active")
-  .maybeSingle()
- if (declErr) throw declErr
- let poolId = decl?.pool_id != null ? String(decl.pool_id) : null
- const declarationId = decl?.id != null ? String(decl.id) : null
- if (!poolId) {
-  poolId = await resolvePoolIdForStudentClass(opts.studentId, opts.classId, opts.scheduleId)
+ const pinnedPoolId = opts.attendanceDetailId
+  ? await poolIdFromEarliestConsumption(opts.attendanceDetailId)
+  : null
+
+ let paidTrialPoolId: string | null = null
+ if (!pinnedPoolId && (await studentHasPaidTrialOnSchedule(opts.studentId, opts.scheduleId))) {
+  const trialPool = await fetchPoolForStudentClass(opts.studentId, opts.classId, { isTrial: true })
+  // 有試堂票但池未鑄：不要改扣專科池
+  if (!trialPool) return
+  paidTrialPoolId = trialPool.id
  }
+
+ let declarationPoolId: string | null = null
+ let declarationId: string | null = null
+ let fallbackPoolId: string | null = null
+ if (!pinnedPoolId && !paidTrialPoolId) {
+  const { data: decl, error: declErr } = await supabase
+   .from("attendance_declarations")
+   .select("id, pool_id")
+   .eq("student_id", opts.studentId)
+   .eq("schedule_id", opts.scheduleId)
+   .eq("status", "active")
+   .maybeSingle()
+  if (declErr) throw declErr
+  declarationPoolId = decl?.pool_id != null ? String(decl.pool_id) : null
+  declarationId = decl?.id != null ? String(decl.id) : null
+  if (!declarationPoolId) {
+   fallbackPoolId = await resolvePoolIdForStudentClass(opts.studentId, opts.classId, opts.scheduleId)
+  }
+ }
+
+ const poolId = resolveConsumptionPoolId({
+  pinnedPoolId,
+  paidTrialPoolId,
+  declarationPoolId,
+  fallbackPoolId,
+ })
  if (!poolId) return
+ const eventDeclarationId = pinnedPoolId || paidTrialPoolId ? null : declarationId
 
  const { data: poolRow, error: poolErr } = await supabase
   .from("student_entitlement_pools")
@@ -1150,7 +1235,7 @@ export async function applyEntitlementConsumptionDelta(opts: {
   student_id: opts.studentId,
   schedule_id: opts.scheduleId,
   attendance_detail_id: opts.attendanceDetailId ?? null,
-  declaration_id: declarationId,
+  declaration_id: eventDeclarationId,
   delta_lessons: delta,
   reason: delta < 0 ? "entitlement_consumed" : "entitlement_reinstated",
  })
