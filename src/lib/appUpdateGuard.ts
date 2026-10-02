@@ -1,3 +1,5 @@
+import { isAdPublicHost } from "./adPublicDocument"
+
 /** 輪詢遠端版本的間隔（有更新時盡快發現，不必等滿 6 小時）。 */
 export const APP_UPDATE_POLL_MS = 5 * 60 * 1000
 
@@ -15,6 +17,11 @@ type VersionPayload = {
 
 export function getClientBuildId(): string {
   return typeof __APP_BUILD_ID__ === "string" && __APP_BUILD_ID__ ? __APP_BUILD_ID__ : "dev"
+}
+
+/** 廣告公開網域是對外頁，不要因部署或分頁開太久而強制重載。 */
+export function shouldEnforceAppUpdate(hostname: string): boolean {
+  return !isAdPublicHost(hostname)
 }
 
 export function isStaleChunkError(message: string): boolean {
