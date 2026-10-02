@@ -47,10 +47,10 @@ export default function AdPublicPrivacy() {
 
         <h2 className="pt-2 text-base font-semibold">用途</h2>
         <p className="text-muted-foreground">
-          僅用於回覆查詢、安排試堂、說明收費與跟進報讀；不會出售予無關第三方。若你同意本政策並提交表單，我們可能為廣告成效歸因與再營銷，將電話號碼以雜湊方式提供 Meta（Facebook／Instagram）等廣告平台；細節見完整政策定稿後更新。
+          僅用於回覆查詢、安排試堂、說明收費與跟進報讀；不會出售予無關第三方。若你同意本政策並提交表單，本社可能為廣告成效歸因與再營銷，將電話號碼以雜湊方式提供 Meta（Facebook／Instagram）等廣告平台；細節見完整政策定稿後更新。
         </p>
 
-        <h2 className="pt-2 text-base font-semibold">聯絡我們</h2>
+        <h2 className="pt-2 text-base font-semibold">聯絡本社</h2>
         <p className="text-muted-foreground">
           電話：{" "}
           <a className="text-foreground underline underline-offset-2" href={adPublicTelHref()}>

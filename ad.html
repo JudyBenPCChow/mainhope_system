@@ -41,9 +41,10 @@
           "/AdInterest": "查詢登記 — 明學教育",
           "/AdInterest/thanks": "已收到查詢 — 明學教育",
           "/AdHomework": "功課輔導班查詢 — 明學教育",
+          "/AdHomework/thanks": "已收到登記 — 明學教育",
           "/Privacy": "私隱政策 — 明學教育",
         }
-        if (path.indexOf("/AdHomework/") === 0) path = "/AdHomework"
+        if (!titles[path] && path.indexOf("/AdHomework/") === 0) path = "/AdHomework"
         if (titles[path]) document.title = titles[path]
       })()
     </script>

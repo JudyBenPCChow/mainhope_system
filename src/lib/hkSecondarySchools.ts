@@ -509,13 +509,14 @@ export type SchoolSelectOption = { value: string; label: string }
 
 const EMPTY_SCHOOL_OPTION: SchoolSelectOption = { value: "", label: "請選擇學校" }
 
-/** 全港中學 + 既有／目前校名，並在最頂提供空白項以便明確清走。 */
+/** 指定校名冊 + 既有／目前校名，並在最頂提供空白項以便明確清走。預設用全港中學。 */
 export function buildSchoolSelectOptions(
  extraSchools: readonly string[] = [],
- currentSchool = ""
+ currentSchool = "",
+ catalog: readonly string[] = HK_SECONDARY_SCHOOLS
 ): SchoolSelectOption[] {
  const extras = [...extraSchools, currentSchool].map((s) => s.trim()).filter(Boolean)
- const names = [...new Set([...HK_SECONDARY_SCHOOLS, ...extras])].sort((a, b) =>
+ const names = [...new Set([...catalog, ...extras])].sort((a, b) =>
   a.localeCompare(b, "zh-Hant")
  )
  return [EMPTY_SCHOOL_OPTION, ...names.map((s) => ({ value: s, label: s }))]
