@@ -1,6 +1,7 @@
 import { downloadBlob } from "@/lib/paymentReceiptPdf"
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
 import { payrollModeLabel } from "@/lib/payroll/modeLabel"
+import { planRowRanges } from "@/lib/payroll/payslipPagination"
 
 import {
   isPresentStatus,
@@ -391,6 +392,93 @@ function buildHtml(month: PayrollMonthMock, teachers: PayrollTeacherRow[]): stri
 </body></html>`
 }
 
+/** A4 內容區（已扣 .pdf-page 上下 padding）。頁尾在 padding 內，不佔這段高度。 */
+const PAGE_INNER_H = 1123 - 28 - 48
+const BLOCK_MARGIN = 14
+const FLOW_LIMIT = PAGE_INNER_H - 16
+const MAX_BLOCK_H = FLOW_LIMIT - BLOCK_MARGIN
+const A4_WIDTH_MM = 210
+const A4_HEIGHT_MM = 297
+
+function blockHeight(el: HTMLElement): number {
+  return Math.ceil(el.getBoundingClientRect().height)
+}
+
+function tableBodyRows(block: HTMLElement): HTMLElement[] {
+  const tbody = block.querySelector("table.data tbody")
+  if (!tbody) return []
+  // 列在 iframe 文件內，不能用外層 window 的 instanceof HTMLElement。
+  return Array.from(tbody.children).filter((node): node is HTMLElement => node.tagName === "TR")
+}
+
+function makeTablePiece(
+  block: HTMLElement,
+  rows: HTMLElement[],
+  start: number,
+  end: number,
+  isLast: boolean,
+  continued: boolean,
+): HTMLElement {
+  const piece = block.cloneNode(true) as HTMLElement
+  const tbody = piece.querySelector("table.data tbody")
+  if (!tbody) return piece
+  tbody.replaceChildren(...rows.slice(start, end).map((row) => row.cloneNode(true)))
+  if (!isLast) piece.querySelectorAll(".amount-box, .footnote").forEach((node) => node.remove())
+  if (continued) {
+    const title = piece.querySelector(".section-title")
+    const text = title?.textContent ?? ""
+    if (title && !text.endsWith("（續）")) title.append("（續）")
+  }
+  return piece
+}
+
+/** 年級明細整表高過一頁時按列切開，並在續頁重複表頭。 */
+function splitTallKeepBlock(slot: HTMLElement, block: HTMLElement): HTMLElement[] {
+  const rows = tableBodyRows(block)
+  if (rows.length <= 1) return [block.cloneNode(true) as HTMLElement]
+
+  const probe = block.cloneNode(true) as HTMLElement
+  slot.replaceChildren(probe)
+  if (blockHeight(probe) <= MAX_BLOCK_H) return [block.cloneNode(true) as HTMLElement]
+
+  const ranges = planRowRanges(
+    rows.length,
+    (start, end, isLast) => {
+      const piece = makeTablePiece(block, rows, start, end, isLast, start > 0)
+      slot.replaceChildren(piece)
+      return blockHeight(piece)
+    },
+    MAX_BLOCK_H,
+  )
+  slot.replaceChildren()
+  return ranges.map((range) =>
+    makeTablePiece(block, rows, range.start, range.end, range.end === rows.length, range.start > 0),
+  )
+}
+
+function drawPageImage(
+  pdf: import("jspdf").jsPDF,
+  imgData: string,
+  imgH: number,
+  addPageFirst: boolean,
+) {
+  if (addPageFirst) pdf.addPage()
+  if (imgH <= A4_HEIGHT_MM + 1) {
+    pdf.addImage(imgData, "JPEG", 0, 0, A4_WIDTH_MM, Math.min(imgH, A4_HEIGHT_MM))
+    return
+  }
+  let heightLeft = imgH
+  let position = 0
+  pdf.addImage(imgData, "JPEG", 0, position, A4_WIDTH_MM, imgH)
+  heightLeft -= A4_HEIGHT_MM
+  while (heightLeft > 1) {
+    position -= A4_HEIGHT_MM
+    pdf.addPage()
+    pdf.addImage(imgData, "JPEG", 0, position, A4_WIDTH_MM, imgH)
+    heightLeft -= A4_HEIGHT_MM
+  }
+}
+
 async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Blob> {
   const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
     import("html2canvas"),
@@ -433,12 +521,15 @@ async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Bl
     const pagesRoot = doc.getElementById("pages-root")
     if (!measureRoot || !pagesRoot) throw new Error("工資單結構不完整")
 
-    const blocks = Array.from(measureRoot.querySelectorAll<HTMLElement>(".keep-block"))
-    const PAGE_CONTENT_H = 980
-    const GAP = 8
+    const blocks = Array.from(measureRoot.querySelectorAll<HTMLElement>(":scope > .keep-block"))
     const pages: HTMLElement[] = []
     let current: HTMLElement | null = null
     let used = 0
+
+    const slot = doc.createElement("div")
+    slot.setAttribute("data-payslip-measure", "1")
+    slot.style.cssText = "width:734px;position:absolute;left:0;top:0;visibility:hidden;"
+    doc.body.appendChild(slot)
 
     const newPage = () => {
       const page = doc.createElement("div")
@@ -450,13 +541,26 @@ async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Bl
       return page
     }
 
-    for (const block of blocks) {
-      const h = Math.ceil(block.getBoundingClientRect().height)
-      if (!current) newPage()
-      if (used > 0 && used + GAP + h > PAGE_CONTENT_H) newPage()
-      current!.appendChild(block.cloneNode(true))
-      used += (used > 0 ? GAP : 0) + h
+    const measureOffscreen = (el: HTMLElement) => {
+      if (!el.parentElement) slot.replaceChildren(el)
+      return blockHeight(el)
     }
+
+    for (const block of blocks) {
+      const pieces = splitTallKeepBlock(slot, block)
+      for (const piece of pieces) {
+        const h = measureOffscreen(piece)
+        if (!current || (used > 0 && used + h + BLOCK_MARGIN > FLOW_LIMIT)) newPage()
+        current!.appendChild(piece)
+        used += h + BLOCK_MARGIN
+        if (current!.scrollHeight > 1123 + 4 && current!.childElementCount > 1) {
+          newPage()
+          current!.appendChild(piece)
+          used = h + BLOCK_MARGIN
+        }
+      }
+    }
+    slot.remove()
     measureRoot.remove()
 
     pages.forEach((page, i) => {
@@ -469,9 +573,6 @@ async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Bl
     await new Promise<void>((r) => requestAnimationFrame(() => r()))
 
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
-    const marginX = 0
-    const marginY = 0
-    const contentW = 210
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i]!
@@ -482,13 +583,13 @@ async function buildPayslipPdfBlob(html: string, footerBase: string): Promise<Bl
         backgroundColor: "#ffffff",
         logging: false,
         width: 794,
+        height: Math.max(page.scrollHeight, 1123),
         windowWidth: 794,
         windowHeight: Math.max(page.scrollHeight, 1123),
       })
       const imgData = canvas.toDataURL("image/jpeg", 0.95)
-      const imgH = (canvas.height * contentW) / canvas.width
-      if (i > 0) pdf.addPage()
-      pdf.addImage(imgData, "JPEG", marginX, marginY, contentW, imgH)
+      const imgH = (canvas.height * A4_WIDTH_MM) / canvas.width
+      drawPageImage(pdf, imgData, imgH, i > 0)
     }
 
     return pdf.output("blob")
