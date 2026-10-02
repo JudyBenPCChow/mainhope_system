@@ -328,16 +328,17 @@ Edge function 已部署：`ad-public-submit`（`--no-verify-jwt`）。
 | Meta Pixel ID | Vercel `VITE_META_PIXEL_ID`＝`1169300568159537` | **已提供**（Edge secret `META_PIXEL_ID` 已設；Vercel 前端 env 待部署時加上） |
 | Meta CAPI Access Token | Supabase Edge secret `META_CAPI_ACCESS_TOKEN`（勿放前端） | **已設入 production Edge**（曾貼對話，建議 Meta 輪替後重設） |
 | GA4 Measurement ID | Vercel `VITE_GA_MEASUREMENT_ID`＝`G-DP44HBG5TD` | **已提供**（串流網址：`https://ad.mainhope.edu.hk`） |
+| GTM 容器 ID | Vercel `VITE_GTM_CONTAINER_ID`＝`GTM-566H32ZD` | **已提供**（Meta 建議接 GTM；廣告公開頁載入；容器內勿重複加已直接安裝的 Pixel／GA4） |
 | 完整私隱政策法務正文 | 取代 `/Privacy` 暫用說明 | 待填 |
 | 廣告最終網址／是否用感謝頁當轉化 | Meta Ads 後台 | 待定（建議 `/AdTrial/thanks` 下波） |
 | UTM／fbclid 入庫 | migration＋submit | 未做 |
-| 前端 Pixel／GA4 腳本＋Edge CAPI Lead | 程式實作 | **已接**（需 Vercel 設 `VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID` 並 redeploy） |
+| 前端 Pixel／GA4／GTM 腳本＋Edge CAPI Lead | 程式實作 | **已接**（需 Vercel 設 `VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID`、`VITE_GTM_CONTAINER_ID` 並 redeploy） |
 | 感謝頁 URL | `/AdTrial/thanks`、`/AdInterest/thanks` | **已接**（提交成功後導向；可供 Meta「到達網址」轉化） |
 
 ### 程式佔位
 
-- [`.env.example`](../../../.env.example)：`VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID`
-- 路由：`/Privacy`（與 `/AdTrial`、`/AdInterest` 同為 Layout 外；canonical ad 子網域一併轉址）
+- [`.env.example`](../../../.env.example)：`VITE_META_PIXEL_ID`、`VITE_GA_MEASUREMENT_ID`、`VITE_GTM_CONTAINER_ID`
+- 路由：`/Privacy`（與 `/AdTrial`、`/AdInterest`、`/AdHomework` 同為 Layout 外；canonical ad 子網域一併轉址）
 
 ## 相關
 

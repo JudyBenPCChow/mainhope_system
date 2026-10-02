@@ -1,5 +1,5 @@
 /**
- * 廣告公開頁追蹤：Meta Pixel + GA4。
+ * 廣告公開頁追蹤：Meta Pixel + GA4 + Google Tag Manager。
  * 未設定對應 VITE_ env 時為 no-op，不擋表單。
  */
 
@@ -16,6 +16,8 @@ declare global {
 
 const PIXEL_SCRIPT_ID = "meta-pixel-sdk"
 const GA_SCRIPT_ID = "ga4-gtag"
+const GTM_SCRIPT_ID = "gtm-js"
+const GTM_NOSCRIPT_ID = "gtm-noscript"
 
 function metaPixelId(): string {
   return (import.meta.env.VITE_META_PIXEL_ID as string | undefined)?.trim() ?? ""
@@ -23,6 +25,10 @@ function metaPixelId(): string {
 
 function gaMeasurementId(): string {
   return (import.meta.env.VITE_GA_MEASUREMENT_ID as string | undefined)?.trim() ?? ""
+}
+
+function gtmContainerId(): string {
+  return (import.meta.env.VITE_GTM_CONTAINER_ID as string | undefined)?.trim() ?? ""
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -94,10 +100,45 @@ function ensureGa4(measurementId: string): void {
   document.head.appendChild(t)
 }
 
+/**
+ * 安裝 Google Tag Manager（官方 head／body 片段的同等行為）。
+ * 與 gtag 共用 dataLayer；容器內勿再重複加已由本檔直接安裝的 Pixel／GA4。
+ */
+function ensureGtm(containerId: string): void {
+  if (typeof window === "undefined" || !containerId) return
+  window.dataLayer = window.dataLayer || []
+  if (document.getElementById(GTM_SCRIPT_ID)) return
+
+  window.dataLayer.push({ "gtm.start": new Date().getTime(), event: "gtm.js" })
+
+  const j = document.createElement("script")
+  j.id = GTM_SCRIPT_ID
+  j.async = true
+  j.src = `https://www.googletagmanager.com/gtm.js?id=${encodeURIComponent(containerId)}`
+  const f = document.getElementsByTagName("script")[0]
+  f?.parentNode?.insertBefore(j, f)
+
+  if (!document.getElementById(GTM_NOSCRIPT_ID) && document.body) {
+    const ns = document.createElement("noscript")
+    ns.id = GTM_NOSCRIPT_ID
+    const iframe = document.createElement("iframe")
+    iframe.src = `https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(containerId)}`
+    iframe.height = "0"
+    iframe.width = "0"
+    iframe.setAttribute("style", "display:none;visibility:hidden")
+    ns.appendChild(iframe)
+    document.body.insertBefore(ns, document.body.firstChild)
+  }
+}
+
 /** 僅在廣告公開路由呼叫：載入 SDK 並送 PageView。 */
 export function initAdPublicTracking(): void {
   const pixelId = metaPixelId()
   const gaId = gaMeasurementId()
+  const gtmId = gtmContainerId()
+  if (gtmId) {
+    ensureGtm(gtmId)
+  }
   if (pixelId) {
     ensureMetaPixel(pixelId)
     window.fbq?.("track", "PageView")
@@ -161,6 +202,10 @@ export async function trackAdPublicLead(input: AdLeadTrackInput): Promise<void> 
   }
 }
 
-export function adPublicTrackingConfigured(): { pixel: boolean; ga4: boolean } {
-  return { pixel: Boolean(metaPixelId()), ga4: Boolean(gaMeasurementId()) }
+export function adPublicTrackingConfigured(): { pixel: boolean; ga4: boolean; gtm: boolean } {
+  return {
+    pixel: Boolean(metaPixelId()),
+    ga4: Boolean(gaMeasurementId()),
+    gtm: Boolean(gtmContainerId()),
+  }
 }
