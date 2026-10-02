@@ -2,6 +2,7 @@ import { createListDataCache } from "@/lib/listDataCache"
 import type {
  AllTeacherAvailability,
  AllTeacherSubmitStatus,
+ HomeworkCompanionRoster,
  HomeworkDutyDay,
  HomeworkFeeDisplay,
  HomeworkHoliday,
@@ -14,7 +15,9 @@ import type { HomeworkClassRef } from "@/services/homeworkTutoringQueries"
 
 export type HomeworkTutoringDataCache = {
  role: MgmtRole
+ hwClasses?: HomeworkClassRef[]
  hwClass: HomeworkClassRef | null
+ companion?: HomeworkCompanionRoster | null
  students: HomeworkStudentRow[]
  fees: HomeworkFeeDisplay[]
  holidays: HomeworkHoliday[]

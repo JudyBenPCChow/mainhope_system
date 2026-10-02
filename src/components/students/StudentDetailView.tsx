@@ -969,6 +969,19 @@ export function StudentDetailView() {
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const isHomeworkPick = pickedClassOption?.classKind === "homework"
+ const isPrimaryHomeworkPick =
+  isHomeworkPick &&
+  String(pickedClassOption?.courseCode ?? "")
+   .toUpperCase()
+   .includes("HWKP")
+ const homeworkPlanOptions = (
+  isPrimaryHomeworkPick
+   ? (["三日", "四日", "五日"] as const)
+   : (["三日", "四日", "五日", "七日"] as const)
+ )
+ useEffect(() => {
+  if (isPrimaryHomeworkPick && pickHwPlan === "七日") setPickHwPlan("五日")
+ }, [isPrimaryHomeworkPick, pickHwPlan])
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
  const classSearchableOptions = useMemo(
   () =>
@@ -2239,7 +2252,7 @@ export function StudentDetailView() {
             </p>
             <Field label="每週日數檔">
              <div className="flex flex-wrap gap-2">
-              {(["三日", "四日", "五日", "七日"] as const).map((p) => (
+              {homeworkPlanOptions.map((p) => (
                <button
                 key={p}
                 type="button"

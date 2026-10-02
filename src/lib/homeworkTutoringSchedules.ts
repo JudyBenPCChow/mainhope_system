@@ -1,9 +1,22 @@
 /** 功輔編更 → schedules 佔室（對齊 SCHEDULING_RULES §4） */
 
+import type { HomeworkDivision } from "@/lib/homeworkTutoringFees"
+
 export const HOMEWORK_OCCUPANCY_START = "15:15"
 export const HOMEWORK_SCHEDULE_REMARKS = "功輔佔室"
 export const HOMEWORK_DEFAULT_ROOM_A = "17D"
 export const HOMEWORK_DEFAULT_ROOM_B = "17E"
+export const HOMEWORK_PRIMARY_DEFAULT_ROOM_A = "17E"
+export const HOMEWORK_SESSION_END = "20:00"
+
+export function homeworkDefaultRoomA(division: HomeworkDivision): string {
+  return division === "primary" ? HOMEWORK_PRIMARY_DEFAULT_ROOM_A : HOMEWORK_DEFAULT_ROOM_A
+}
+
+export function homeworkDefaultRoomB(division: HomeworkDivision): string {
+  // 兩邊預設單室；加開第二室時中學用 17E、小學暫用 17D（可編更改）
+  return division === "primary" ? HOMEWORK_DEFAULT_ROOM_A : HOMEWORK_DEFAULT_ROOM_B
+}
 
 export type HomeworkDutyForSchedule = {
   date: string
@@ -118,7 +131,7 @@ export function homeworkScheduleSlotsFromDutyDay(
   const iso = mdKeyToIso(yearMonth, dutyDay.date)
   if (!iso) return []
 
-  const end = dutyDay.end?.trim() || "19:30"
+  const end = dutyDay.end?.trim() || HOMEWORK_SESSION_END
   return homeworkOccupancyRooms(dutyDay).map(({ name, teacherId }) => ({
     scheduled_date: iso,
     start_time: HOMEWORK_OCCUPANCY_START,

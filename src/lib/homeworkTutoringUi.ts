@@ -4,11 +4,21 @@ import { formatYearMonthLabel, homeworkMonthlyFeeHkd } from "@/lib/homeworkTutor
 import {
   HOMEWORK_DEFAULT_ROOM_A,
   HOMEWORK_DEFAULT_ROOM_B,
+  HOMEWORK_SESSION_END,
+  homeworkDefaultRoomA,
+  homeworkDefaultRoomB,
   toDutyMdKey,
 } from "@/lib/homeworkTutoringSchedules"
+import type { HomeworkDivision } from "@/lib/homeworkTutoringFees"
 import { MONTH_CALENDAR_WEEK_HEADERS } from "@/lib/monthCalendar"
 
-export { formatYearMonthLabel, HOMEWORK_DEFAULT_ROOM_A, HOMEWORK_DEFAULT_ROOM_B }
+export {
+  formatYearMonthLabel,
+  HOMEWORK_DEFAULT_ROOM_A,
+  HOMEWORK_DEFAULT_ROOM_B,
+  homeworkDefaultRoomA,
+  homeworkDefaultRoomB,
+}
 export { MONTH_CALENDAR_WEEK_HEADERS as CALENDAR_WEEK_HEADERS }
 
 export type DayPlan = "三日" | "四日" | "五日" | "七日"
@@ -18,6 +28,15 @@ export type FeeStatus = "已收款" | "未收款"
 export type RosterPublishStatus = "草稿" | "已發布"
 export type MonthRosterState = "未編更" | "已編更"
 export type SubmitStatus = "未交" | "草稿" | "已提交"
+
+export type { HomeworkDivision }
+
+export const HOMEWORK_DIVISION_LABEL: Record<HomeworkDivision, string> = {
+  secondary: "中學部",
+  primary: "小學部",
+}
+
+export const HOMEWORK_DIVISION_ORDER: readonly HomeworkDivision[] = ["secondary", "primary"]
 
 export function monthRosterToLock(state: MonthRosterState): RosterPublishStatus {
   return state === "已編更" ? "已發布" : "草稿"
@@ -31,9 +50,9 @@ export type AvailEntry =
 export const WEEKDAY_OPTIONS: Weekday[] = ["一", "二", "三", "四", "五"]
 
 export const DEFAULT_CUSTOM_START = "15:30"
-export const DEFAULT_CUSTOM_END = "19:30"
+export const DEFAULT_CUSTOM_END = HOMEWORK_SESSION_END
 export const HW_SESSION_START = "15:30"
-export const HW_SESSION_END = "19:30"
+export const HW_SESSION_END = HOMEWORK_SESSION_END
 
 export type HomeworkStudentRow = {
   id: string
@@ -590,6 +609,45 @@ export function homeworkDutyRoomCards(
   }))
 }
 
+/** 月工作表對照用：另一學部同月的報讀＋編更（唯讀） */
+export type HomeworkCompanionRoster = {
+  division: HomeworkDivision
+  classroomName: string | null
+  yearMonth: string
+  status: MonthRosterState
+  students: HomeworkStudentRow[]
+  dutyDays: HomeworkDutyDay[]
+}
+
+function hmMinutes(value: string): number {
+  const [h, m] = value.slice(0, 5).split(":").map(Number)
+  return (h ?? 0) * 60 + (m ?? 0)
+}
+
+/** 兩學部同日：共用課室、同一老師時段重疊 */
+export function crossDivisionDutyClashes(
+  day: HomeworkDutyDay | null | undefined,
+  other: HomeworkDutyDay | null | undefined
+): { sharedRooms: string[]; overlappingTeacherIds: string[] } {
+  if (!day || !other || day.holiday || other.holiday) {
+    return { sharedRooms: [], overlappingTeacherIds: [] }
+  }
+  const otherRooms = new Set(openedHomeworkRoomNames(other))
+  const sharedRooms = openedHomeworkRoomNames(day).filter((r) => otherRooms.has(r))
+  const otherPeople = dutyAssignments(other)
+  const overlapping = new Set<string>()
+  for (const a of dutyAssignments(day)) {
+    const clash = otherPeople.some(
+      (b) =>
+        b.teacherId === a.teacherId &&
+        hmMinutes(a.start) < hmMinutes(b.end) &&
+        hmMinutes(b.start) < hmMinutes(a.end)
+    )
+    if (clash) overlapping.add(a.teacherId)
+  }
+  return { sharedRooms, overlappingTeacherIds: [...overlapping] }
+}
+
 export function formatDutyPeople(
   day: HomeworkDutyDay | null | undefined,
   teachers: readonly HomeworkTeacherRow[]
@@ -604,14 +662,17 @@ export function myAssignments(day: HomeworkDutyDay, teacherId: string): Homework
   return dutyAssignments(day).filter((a) => a.teacherId === teacherId)
 }
 
-export function emptyDutyFromRosterDay(day: RosterDay): HomeworkDutyDay {
+export function emptyDutyFromRosterDay(
+  day: RosterDay,
+  opts?: { roomA?: string; start?: string; end?: string }
+): HomeworkDutyDay {
   return {
     date: day.key,
     weekday: day.weekdayChar,
     holiday: day.holidayLabel,
-    start: HW_SESSION_START,
-    end: HW_SESSION_END,
-    secondaryRoom: HOMEWORK_DEFAULT_ROOM_A,
+    start: opts?.start ?? HW_SESSION_START,
+    end: opts?.end ?? HW_SESSION_END,
+    secondaryRoom: opts?.roomA ?? HOMEWORK_DEFAULT_ROOM_A,
     primaryRoom: null,
     assignments: [],
     secondaryTeacherId: undefined,
@@ -649,10 +710,12 @@ export function dutyDaysByMdKey(
 export function buildMonthDutyDays(
   yearMonth: string,
   existing: HomeworkDutyDay[] = [],
-  holidays: { date: string; label: string }[] = []
+  holidays: { date: string; label: string }[] = [],
+  opts?: { roomA?: string; division?: HomeworkDivision }
 ): HomeworkDutyDay[] {
   const cal = listRosterMonthDays(yearMonth, holidays)
   const monthNum = Number(yearMonth.split("-")[1])
+  const roomA = opts?.roomA ?? homeworkDefaultRoomA(opts?.division ?? "secondary")
   const byKey = new Map<string, HomeworkDutyDay>()
   for (const d of existing) {
     const key = toDutyMdKey(d.date)
@@ -663,7 +726,7 @@ export function buildMonthDutyDays(
     .filter((d) => d.selectable || Boolean(d.holidayLabel))
     .map((d) => {
       const found = byKey.get(d.key)
-      if (!found) return emptyDutyFromRosterDay(d)
+      if (!found) return emptyDutyFromRosterDay(d, { roomA })
       return { ...found, holiday: d.holidayLabel ?? found.holiday }
     })
 }
@@ -700,6 +763,7 @@ export function formatDutyDateHeading(day: HomeworkDutyDay): string {
 export function composeHomeworkFeeDisplays(opts: {
   classId: string
   billingMonth: string
+  division?: HomeworkDivision
   enrollments: Array<{
     studentId: string
     status: EnrollStatus
@@ -708,10 +772,13 @@ export function composeHomeworkFeeDisplays(opts: {
   }>
   paidByStudentId: ReadonlyMap<string, { receiptNumber: string }>
 }): HomeworkFeeDisplay[] {
+  const division = opts.division ?? "secondary"
   return opts.enrollments
     .filter((e) => e.status === "在籍")
     .map((e) => {
-      const amount = e.plan ? homeworkMonthlyFeeHkd(e.plan, e.grade, opts.billingMonth) : null
+      const amount = e.plan
+        ? homeworkMonthlyFeeHkd(e.plan, e.grade, opts.billingMonth, division)
+        : null
       const paid = opts.paidByStudentId.get(e.studentId)
       return {
         studentId: e.studentId,

@@ -18,9 +18,17 @@ describe("功輔月費價目年級", () => {
     expect(homeworkMonthlyFeeHkd("三日", "S1", "2026-09")).toBe(2800)
   })
 
-  it("小學跟中一", () => {
+  it("小學跟中一（中學部）", () => {
     expect(homeworkMonthlyFeeHkd("四日", "P4", "2026-09")).toBe(3100)
     expect(homeworkMonthlyFeeHkd("四日", "小四", "2026-09")).toBe(3100)
+  })
+
+  it("小學部獨立價目", () => {
+    expect(homeworkMonthlyFeeHkd("三日", "P1", "2026-10", "primary")).toBe(2500)
+    expect(homeworkMonthlyFeeHkd("四日", "P4", "2026-10", "primary")).toBe(2700)
+    expect(homeworkMonthlyFeeHkd("五日", "P6", "2026-10", "primary")).toBe(2800)
+    expect(homeworkMonthlyFeeHkd("五日", "P6", "2026-12", "primary")).toBe(2100)
+    expect(homeworkMonthlyFeeHkd("七日", "P1", "2026-10", "primary")).toBeNull()
   })
 
   it("中四未列價", () => {
@@ -36,6 +44,15 @@ describe("功輔月費價目年級", () => {
         monthCount: 1,
       })
     ).toBe("3100")
+    expect(
+      homeworkPaymentLineAmount({
+        dayPlan: "五日",
+        grade: "P2",
+        billingMonth: "2026-10",
+        monthCount: 1,
+        courseCode: "2627-HWKP1099-A",
+      })
+    ).toBe("2800")
   })
 
   it("明細備註帶月費先當功輔月費行", () => {

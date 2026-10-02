@@ -5,6 +5,8 @@ import { formatStudentGrade, isPrimaryStudentGrade } from "@/lib/studentGrade"
 
 export type HomeworkDayPlan = "三日" | "四日" | "五日" | "七日"
 export type HomeworkWeekday = "一" | "二" | "三" | "四" | "五"
+/** 功輔學部：獨立班／價目；勿與 duty_days.primary_room（第二課室）混淆 */
+export type HomeworkDivision = "secondary" | "primary"
 
 const FEE_TABLE: Record<HomeworkDayPlan, Record<string, number>> = {
   三日: { 中一: 2800, 中二: 2900, 中三: 3000 },
@@ -13,14 +15,35 @@ const FEE_TABLE: Record<HomeworkDayPlan, Record<string, number>> = {
   七日: { 中一: 3400, 中二: 3500, 中三: 3600 },
 }
 
+/** 小學部獨立價目（不分年級）；無七日檔 */
+const PRIMARY_FEE_TABLE: Partial<Record<HomeworkDayPlan, number>> = {
+  三日: 2500,
+  四日: 2700,
+  五日: 2800,
+}
+
 export const HOMEWORK_FEE_GRADES = ["中一", "中二", "中三"] as const
 export const HOMEWORK_FEE_PLANS: HomeworkDayPlan[] = ["三日", "四日", "五日", "七日"]
+export const HOMEWORK_PRIMARY_FEE_PLANS: HomeworkDayPlan[] = ["三日", "四日", "五日"]
+
+/** 由 course_code_full／course_code_base 推學部（HWKP＝小學） */
+export function homeworkDivisionFromCourseCode(
+  courseCode: string | null | undefined
+): HomeworkDivision {
+  const code = String(courseCode ?? "").toUpperCase()
+  if (code.includes("HWKP")) return "primary"
+  return "secondary"
+}
 
 /** 全額月費（不含 12／2 月四分三）；設定頁價目表用 */
 export function homeworkFeeBaseHkd(
   dayPlan: HomeworkDayPlan,
-  gradeLabel: string
+  gradeLabel: string,
+  division: HomeworkDivision = "secondary"
 ): number | null {
+  if (division === "primary") {
+    return PRIMARY_FEE_TABLE[dayPlan] ?? null
+  }
   return FEE_TABLE[dayPlan]?.[feeGradeKey(gradeLabel)] ?? null
 }
 
@@ -29,7 +52,7 @@ export function isHomeworkQuarterRateMonth(billingMonth: string): boolean {
   return m.endsWith("-12") || m.endsWith("-02")
 }
 
-/** 價目年級：小學跟中一；S1／中一等寫法都對到表 */
+/** 中學部價目年級：留在中學班的小學生仍跟中一；S1／中一等寫法都對到表 */
 function feeGradeKey(gradeLabel: string): string {
   if (isPrimaryStudentGrade(gradeLabel)) return "中一"
   return formatStudentGrade(gradeLabel)
@@ -103,14 +126,19 @@ export function homeworkPaymentLineAmount(opts: {
   billingMonth?: string
   coverageStartMonth?: string | null
   monthCount?: number
+  /** 缺省 secondary；小學班請傳 primary 或 courseCode */
+  division?: HomeworkDivision
+  courseCode?: string | null
 }): string {
   if (!opts.dayPlan || !opts.grade) return ""
+  const division =
+    opts.division ?? homeworkDivisionFromCourseCode(opts.courseCode)
   const start = opts.coverageStartMonth || opts.billingMonth || ""
   const months = homeworkCoverageMonths(start, opts.monthCount ?? 1)
   if (months.length === 0) return ""
   let sum = 0
   for (const m of months) {
-    const unit = homeworkMonthlyFeeHkd(opts.dayPlan, opts.grade, m)
+    const unit = homeworkMonthlyFeeHkd(opts.dayPlan, opts.grade, m, division)
     if (unit == null) return ""
     sum += unit
   }
@@ -133,13 +161,17 @@ export function isHomeworkPaymentDetailSkipLessons(opts: {
   return isHomeworkMonthlyFeeDescription(opts.description)
 }
 
-/** 回傳應繳港元；年級未列價則 null */
+/** 回傳應繳港元；年級／日數檔未列價則 null */
 export function homeworkMonthlyFeeHkd(
   dayPlan: HomeworkDayPlan,
   gradeLabel: string,
-  billingMonth: string
+  billingMonth: string,
+  division: HomeworkDivision = "secondary"
 ): number | null {
-  const base = FEE_TABLE[dayPlan]?.[feeGradeKey(gradeLabel)]
+  const base =
+    division === "primary"
+      ? (PRIMARY_FEE_TABLE[dayPlan] ?? null)
+      : (FEE_TABLE[dayPlan]?.[feeGradeKey(gradeLabel)] ?? null)
   if (base == null) return null
   if (isHomeworkQuarterRateMonth(billingMonth)) {
     return Math.round((base * 3) / 4)

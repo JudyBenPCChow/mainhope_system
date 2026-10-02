@@ -5,7 +5,7 @@
 | 狀態 | `done`（2026-08-29 關帳；計糧見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)） |
 | 優先 | 中 |
 | 範圍 | 一班制（中學部場次）、按月繳費報讀、課室佔用、導師月度編更、獨立功輔校曆；三角色畫面 |
-| 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；宣傳物料；專科式請假／補堂／扣堂；**獨立小學部功輔**（2627 不開）。每日功課進度另題 [`homework-tutoring-daily-logs.md`](./homework-tutoring-daily-logs.md)（未上線前仍用 Notion） |
+| 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；宣傳物料；專科式請假／補堂／扣堂。小學部場次見 [`homework-tutoring-primary-division.md`](./homework-tutoring-primary-division.md)。每日功課進度另題 [`homework-tutoring-daily-logs.md`](./homework-tutoring-daily-logs.md)（未上線前仍用 Notion） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
 | 上次更新 | 2026-08-31（排更跟報更時段、一日可多人；月費覆蓋月份＋與專科分單） |
