@@ -16,6 +16,7 @@ const AD_PUBLIC_PATH_TITLES: Record<string, string> = {
   "/AdInterest": "查詢登記 — 明學教育",
   "/AdInterest/thanks": "已收到查詢 — 明學教育",
   "/AdHomework": "功課輔導班查詢 — 明學教育",
+  "/AdHomework/thanks": "已收到登記 — 明學教育",
   "/Privacy": "私隱政策 — 明學教育",
 }
 
@@ -25,10 +26,9 @@ export function isAdPublicHost(hostname: string): boolean {
 
 export function adPublicPathDocumentTitle(pathname: string): string | null {
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname
-  if (path.startsWith("/AdHomework/") || path === "/AdHomework") {
-    return AD_PUBLIC_PATH_TITLES["/AdHomework"]
-  }
-  return AD_PUBLIC_PATH_TITLES[path] ?? null
+  if (AD_PUBLIC_PATH_TITLES[path]) return AD_PUBLIC_PATH_TITLES[path]
+  if (path.startsWith("/AdHomework/")) return AD_PUBLIC_PATH_TITLES["/AdHomework"]
+  return null
 }
 
 /** 廣告公開頁用對外名稱；廣告網域其餘路徑也不再用管理系統名稱。 */

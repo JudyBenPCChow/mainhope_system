@@ -13,6 +13,7 @@ import EnrollmentChanges from "@/pages/EnrollmentChanges"
 import ContactUpdate from "@/pages/ContactUpdate"
 import ContactUpdateCampaign from "@/pages/ContactUpdateCampaign"
 import AdHomework from "@/pages/AdHomework"
+import AdHomeworkThanks from "@/pages/AdHomeworkThanks"
 import AdInterest from "@/pages/AdInterest"
 import AdInterestThanks from "@/pages/AdInterestThanks"
 import AdPublicPrivacy from "@/pages/AdPublicPrivacy"
@@ -109,6 +110,7 @@ export default function App() {
     <Route path="/AdInterest" element={<AdInterest />} />
     <Route path="/AdInterest/thanks" element={<AdInterestThanks />} />
     <Route path="/AdHomework" element={<AdHomework />} />
+    <Route path="/AdHomework/thanks" element={<AdHomeworkThanks />} />
     {/* 廣告連結大小寫不一：導向正式路徑，避免追蹤／表單漏接 */}
     <Route path="/adtrial" element={<Navigate to="/AdTrial" replace />} />
     <Route path="/ADTRIAL" element={<Navigate to="/AdTrial" replace />} />

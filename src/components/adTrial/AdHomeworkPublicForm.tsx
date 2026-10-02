@@ -1,14 +1,19 @@
 import { useMemo, useState, type ReactNode } from "react"
-import { CheckCircle2, MessageCircle } from "lucide-react"
+import { Link, useNavigate } from "react-router-dom"
 
-import { AdPublicCampusAddress, AdPublicCollectionNotice } from "@/components/adTrial/AdPublicCollectionNotice"
+import { AdPublicCollectionNotice } from "@/components/adTrial/AdPublicCollectionNotice"
+import { AdHomeworkLanding } from "@/components/adTrial/AdPublicMarketing"
 import { AdPublicTurnstile, resetAdPublicTurnstile } from "@/components/adTrial/AdPublicTurnstile"
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
-import { Button } from "@/components/ui/button"
+import { HK_PRIMARY_SCHOOLS } from "@/lib/hkPrimarySchools"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { AD_PUBLIC_CONTACT } from "@/lib/adPublicContact"
+import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
+import "@/components/adTrial/adHomeworkPublic.css"
 import { collectAdAttribution } from "@/lib/adAttribution"
 import { homeworkDateChoices, type HomeworkDateChoice } from "@/lib/adHomeworkPublic"
+import { AD_ENROLL_FORM_ID, scrollToAdEnrollForm } from "@/lib/adPublicFormAnchor"
 import {
   adPublicSubmitCooldownRemainingMs,
   adPublicTurnstileSiteKey,
@@ -22,8 +27,6 @@ import {
   type StudentGradeCode,
 } from "@/lib/studentGrade"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
-import { cn } from "@/lib/utils"
-import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 import {
   adTrialPhoneLooksValid,
   attachAdHomeworkDate,
@@ -32,21 +35,14 @@ import {
 } from "@/services/adTrialQueries"
 
 type StepId = "details" | "dates"
-type Intent = "later" | "trial"
 type ContactMethod = "WhatsApp" | "WeChat"
 type SchoolBand = "" | "primary" | "secondary"
 type PhoneCountryCode = "+852" | "+86"
 
 const SECONDARY_GRADE_OPTIONS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const satisfies readonly StudentGradeCode[]
 
-const MAINHOPE_PUBLIC_WHATSAPP = "94849539"
-
-const STEPS: { id: StepId; label: string }[] = [
-  { id: "details", label: "資料" },
-  { id: "dates", label: "選日子" },
-]
-
 export function AdHomeworkPublicForm() {
+  const navigate = useNavigate()
   const [fullName, setFullName] = useState("")
   const [schoolBand, setSchoolBand] = useState<SchoolBand>("")
   const [school, setSchool] = useState("")
@@ -58,13 +54,11 @@ export function AdHomeworkPublicForm() {
   const [company, setCompany] = useState("")
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [step, setStep] = useState<StepId>("details")
-  const [intent, setIntent] = useState<Intent>("later")
   const [leadId, setLeadId] = useState<string | null>(null)
   const [dates, setDates] = useState<HomeworkDateChoice[]>([])
   const [selectedScheduleId, setSelectedScheduleId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
 
   const selectedDate = useMemo(
     () => dates.find((row) => row.scheduleId === selectedScheduleId) ?? null,
@@ -88,7 +82,7 @@ export function AdHomeworkPublicForm() {
     if (!fullName.trim() || fullName.trim().length > 80) return "請填寫稱呼"
     if (schoolBand !== "primary" && schoolBand !== "secondary") return "請選擇小學或中學"
     if (!school.trim() || school.trim().length > 120) {
-      return schoolBand === "primary" ? "請填寫學校" : "請選擇學校"
+      return "請選擇學校"
     }
     if (!(gradeOptions as readonly string[]).includes(grade)) return "請選擇年級"
     if (contactMethod === "WeChat") {
@@ -162,8 +156,12 @@ export function AdHomeworkPublicForm() {
 
   const finishLater = () => {
     setErr(null)
-    setIntent("later")
-    setDone(true)
+    navigate("/AdHomework/thanks", {
+      state: {
+        fullName: fullName.trim(),
+        summaryLines: ["功課輔導班", "暫不約堂，請先聯絡我"],
+      },
+    })
   }
 
   const submitDate = async () => {
@@ -172,7 +170,7 @@ export function AdHomeworkPublicForm() {
       return
     }
     if (!leadId) {
-      setErr("資料已提交。如要預約試堂日子，請用 WhatsApp 聯絡我們。")
+      setErr("資料已提交。如要預約試堂日子，請用 WhatsApp 聯絡本社。")
       return
     }
     setSaving(true)
@@ -184,8 +182,12 @@ export function AdHomeworkPublicForm() {
         scheduleId: selectedDate.scheduleId,
         company,
       })
-      setIntent("trial")
-      setDone(true)
+      navigate("/AdHomework/thanks", {
+        state: {
+          fullName: fullName.trim(),
+          summaryLines: ["功課輔導班", selectedDate.line],
+        },
+      })
     } catch (e) {
       reportUserFacingError(e, { source: "AdHomeworkPublicForm.date", setErr })
     } finally {
@@ -193,232 +195,217 @@ export function AdHomeworkPublicForm() {
     }
   }
 
+  const askWhatsApp = () => openWhatsAppWithPrefilledText(AD_PUBLIC_CONTACT.whatsappDigits, "想查詢功課輔導班")
+
   return (
-    <div className="mx-auto max-w-lg px-4 py-8 pb-24">
+    <div className="ad-hw">
       <Honeypot value={company} onChange={setCompany} />
-      <header className="space-y-1">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground">明學教育</p>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">功課輔導班查詢</h1>
-        {step === "details" && !done ? (
-          <div className="space-y-2 pt-2 text-sm leading-relaxed text-muted-foreground">
-            <AdPublicCampusAddress />
-            <p>請先提交聯絡資料。提交後可選擇試堂日子，或請職員先聯絡你。</p>
-            <p>此頁不會即時留位或收款。</p>
-          </div>
-        ) : null}
-      </header>
-
-      {!done ? (
-        <ol className="mt-6 flex gap-1" aria-label="登記進度">
-          {STEPS.map((item, index) => {
-            const current = item.id === step
-            const past = STEPS.findIndex((s) => s.id === step) > index
-            return (
-              <li key={item.id} className="min-w-0 flex-1 text-center">
-                <span
-                  className={cn(
-                    "mx-auto flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    current
-                      ? "bg-primary text-primary-foreground"
-                      : past
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {index + 1}
-                </span>
-                <span className="mt-1 block truncate text-[11px] text-muted-foreground">{item.label}</span>
-              </li>
-            )
-          })}
-        </ol>
-      ) : null}
-
-      {err ? (
-        <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {err}
-        </p>
-      ) : null}
-
-      {done ? (
-        <section className="mt-8 space-y-3 text-center">
-          <CheckCircle2 className="mx-auto h-12 w-12 text-success" aria-hidden />
-          <p className="text-lg font-semibold text-foreground">
-            {intent === "later" ? "已收到查詢" : "已收到試堂登記"}
-          </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            {intent === "later"
-              ? "職員會聯絡你，說明功課輔導班的安排與收費。此頁不會即時留位或收款。"
-              : "我們會盡快與你聯絡，以確認試堂日期。你亦可以透過下方 WhatsApp 按鈕與我們聯絡"}
-          </p>
-          <ul className="space-y-2 rounded-xl border border-border bg-card p-4 text-left text-sm">
-            <li className="font-medium text-foreground">功課輔導班</li>
-            {intent === "trial" && selectedDate ? (
-              <li className="text-muted-foreground">{selectedDate.line}</li>
-            ) : (
-              <li className="text-muted-foreground">暫不約堂，請先聯絡我</li>
-            )}
-          </ul>
-          <Button
-            type="button"
-            className="w-full gap-2"
-            onClick={() => {
-              const name = fullName.trim() || "家長"
-              const message =
-                intent === "later"
-                  ? `你好，我是${name}，剛在網上提交了功課輔導班查詢，請先聯絡我。`
-                  : `你好，我是${name}，剛在網上提交了功課輔導班試堂登記，想跟進確認。`
-              openWhatsAppWithPrefilledText(MAINHOPE_PUBLIC_WHATSAPP, message)
-            }}
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden />
-            WhatsApp 聯絡我們
-          </Button>
-        </section>
-      ) : step === "details" ? (
-        <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
-          <Field label="稱呼">
-            <Input value={fullName} maxLength={80} autoComplete="name" onChange={(e) => setFullName(e.target.value)} />
-          </Field>
-          <Field label="就讀">
-            <Select
-              value={schoolBand}
-              onChange={(e) =>
-                chooseSchoolBand(
-                  e.target.value === "primary" ? "primary" : e.target.value === "secondary" ? "secondary" : ""
-                )
-              }
-            >
-              <option value="">請選擇小學或中學</option>
-              <option value="primary">小學</option>
-              <option value="secondary">中學</option>
-            </Select>
-          </Field>
-          <Field label="學校">
-            {schoolBand === "secondary" ? (
-              <SchoolSearchableSelect value={school} onChange={setSchool} />
-            ) : (
-              <Input
-                value={school}
-                maxLength={120}
-                disabled={!schoolBand}
-                placeholder={schoolBand === "primary" ? "請輸入學校名稱" : "請先選擇小學或中學"}
-                onChange={(e) => setSchool(e.target.value)}
-              />
-            )}
-          </Field>
-          <Field label="年級">
-            <Select
-              value={grade}
-              disabled={!schoolBand}
-              onChange={(e) => setGrade(e.target.value)}
-            >
-              <option value="">{schoolBand ? "請選擇" : "請先選擇小學或中學"}</option>
-              {schoolBand
-                ? gradeOptions.map((code) => (
-                    <option key={code} value={code}>
-                      {formatStudentGrade(code)}
-                    </option>
-                  ))
-                : null}
-            </Select>
-          </Field>
-          <Field label="聯絡方式">
-            <Select
-              value={contactMethod}
-              onChange={(e) => setContactMethod(e.target.value === "WeChat" ? "WeChat" : "WhatsApp")}
-            >
-              <option value="WhatsApp">WhatsApp</option>
-              <option value="WeChat">WeChat</option>
-            </Select>
-          </Field>
-          {contactMethod === "WeChat" ? (
-            <Field label="WeChat ID">
-              <Input
-                value={wechatId}
-                maxLength={40}
-                autoComplete="off"
-                placeholder="WeChat ID"
-                onChange={(e) => setWechatId(e.target.value)}
-              />
-            </Field>
-          ) : (
-            <Field label="電話號碼">
-              <div className="flex gap-2">
-                <Select
-                  className="w-[7.25rem] shrink-0"
-                  aria-label="區碼"
-                  value={phoneCountryCode}
-                  onChange={(e) => setPhoneCountryCode(e.target.value === "+86" ? "+86" : "+852")}
-                >
-                  <option value="+852">+852</option>
-                  <option value="+86">+86</option>
-                </Select>
-                <Input
-                  className="min-w-0 flex-1"
-                  value={phone}
-                  inputMode="tel"
-                  autoComplete="tel"
-                  placeholder={phoneCountryCode === "+86" ? "11 位數字" : "8 位數字"}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-            </Field>
-          )}
-          <AdPublicCollectionNotice />
-          <AdPublicTurnstile onToken={setTurnstileToken} />
-          <Button type="button" className="w-full" disabled={saving} onClick={() => void submitDetails()}>
-            {saving ? "提交中…" : "下一步"}
-          </Button>
-        </section>
+      {step === "details" ? (
+        <AdHomeworkLanding onPrimary={scrollToAdEnrollForm} />
       ) : (
-        <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
-          <h2 className="text-base font-semibold text-foreground">選擇試堂日子</h2>
-          <p className="text-sm text-muted-foreground">
-            請選擇可試堂的日子（期間兩小時），又可跳過等候我們聯絡。
-          </p>
-          {dates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">暫時沒有已開放的試堂日子。</p>
-          ) : (
-            <div className="space-y-2">
-              {dates.map((row) => {
-                const on = row.scheduleId === selectedScheduleId
-                return (
-                  <button
-                    key={row.scheduleId}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => {
-                      setErr(null)
-                      setSelectedScheduleId(row.scheduleId)
-                    }}
-                    className={cn(
-                      "w-full rounded-lg border px-3 py-3 text-left text-sm",
-                      on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background"
-                    )}
-                  >
-                    <span className="block font-medium">{row.line}</span>
-                    {meetingLabels.length > 1 && row.meetingLabel ? (
-                      <span className={cn("mt-0.5 block text-xs", on ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                        {row.meetingLabel}
-                      </span>
-                    ) : null}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-          {dates.length > 0 ? (
-            <Button type="button" className="w-full" disabled={saving} onClick={() => void submitDate()}>
-              {saving ? "提交中…" : "提交此試堂日子"}
-            </Button>
-          ) : null}
-          <Button type="button" variant="outline" className="w-full" disabled={saving} onClick={finishLater}>
-            暫不約堂，請先聯絡我
-          </Button>
-        </section>
+        <header className="hero is-compact">
+          <div className="shell hero-inner">
+            <p className="eyebrow">明學教育 · 功課輔導班</p>
+            <h1>選擇試堂日子</h1>
+            <p className="hero-lead">資料已收到。可選一個試堂日子，或請本社先聯絡。</p>
+          </div>
+        </header>
       )}
+
+      <section className="section section-tint" id={AD_ENROLL_FORM_ID}>
+        <div className="shell">
+          {step === "details" ? (
+            <div className="section-head">
+              <h2>登記／查詢功輔班</h2>
+              <p>提交後可再選試堂日子，或請本社先聯絡。此頁不會即時留位或收款。</p>
+            </div>
+          ) : null}
+
+          <div className="form-card">
+            {err ? (
+              <p role="alert" className="form-error">
+                {err}
+              </p>
+            ) : null}
+
+            {step === "details" ? (
+              <>
+                <Field label="稱呼">
+                  <Input value={fullName} maxLength={80} autoComplete="name" onChange={(e) => setFullName(e.target.value)} />
+                </Field>
+                <Field label="就讀">
+                  <Select
+                    value={schoolBand}
+                    onChange={(e) =>
+                      chooseSchoolBand(
+                        e.target.value === "primary" ? "primary" : e.target.value === "secondary" ? "secondary" : ""
+                      )
+                    }
+                  >
+                    <option value="">請選擇小學或中學</option>
+                    <option value="primary">小學</option>
+                    <option value="secondary">中學</option>
+                  </Select>
+                </Field>
+                <Field label="學校">
+                  {schoolBand === "secondary" ? (
+                    <SchoolSearchableSelect value={school} onChange={setSchool} />
+                  ) : schoolBand === "primary" ? (
+                    <SchoolSearchableSelect value={school} onChange={setSchool} schools={HK_PRIMARY_SCHOOLS} />
+                  ) : (
+                    <Input value="" disabled placeholder="請先選擇小學或中學" />
+                  )}
+                </Field>
+                <Field label="年級">
+                  <Select value={grade} disabled={!schoolBand} onChange={(e) => setGrade(e.target.value)}>
+                    <option value="">{schoolBand ? "請選擇" : "請先選擇小學或中學"}</option>
+                    {schoolBand
+                      ? gradeOptions.map((code) => (
+                          <option key={code} value={code}>
+                            {formatStudentGrade(code)}
+                          </option>
+                        ))
+                      : null}
+                  </Select>
+                </Field>
+                <Field label="聯絡方式">
+                  <Select
+                    value={contactMethod}
+                    onChange={(e) => setContactMethod(e.target.value === "WeChat" ? "WeChat" : "WhatsApp")}
+                  >
+                    <option value="WhatsApp">WhatsApp</option>
+                    <option value="WeChat">WeChat</option>
+                  </Select>
+                </Field>
+                {contactMethod === "WeChat" ? (
+                  <Field label="WeChat ID">
+                    <Input
+                      value={wechatId}
+                      maxLength={40}
+                      autoComplete="off"
+                      placeholder="WeChat ID"
+                      onChange={(e) => setWechatId(e.target.value)}
+                    />
+                  </Field>
+                ) : (
+                  <Field label="電話號碼">
+                    <div className="phone-row">
+                      <Select
+                        aria-label="區碼"
+                        value={phoneCountryCode}
+                        onChange={(e) => setPhoneCountryCode(e.target.value === "+86" ? "+86" : "+852")}
+                      >
+                        <option value="+852">+852</option>
+                        <option value="+86">+86</option>
+                      </Select>
+                      <Input
+                        value={phone}
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder={phoneCountryCode === "+86" ? "11 位數字" : "8 位數字"}
+                        onChange={(e) => setPhone(e.target.value)}
+                      />
+                    </div>
+                  </Field>
+                )}
+                <AdPublicCollectionNotice />
+                <AdPublicTurnstile onToken={setTurnstileToken} />
+                <div className="form-actions">
+                  <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void submitDetails()}>
+                    {saving ? "提交中…" : "下一步"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {dates.length === 0 ? (
+                  <p className="fee-note">暫時沒有已開放的試堂日子。</p>
+                ) : (
+                  <div className="date-list">
+                    {dates.map((row) => {
+                      const on = row.scheduleId === selectedScheduleId
+                      return (
+                        <button
+                          key={row.scheduleId}
+                          type="button"
+                          aria-pressed={on}
+                          onClick={() => {
+                            setErr(null)
+                            setSelectedScheduleId(row.scheduleId)
+                          }}
+                          className={on ? "date-choice is-on" : "date-choice"}
+                        >
+                          {row.line}
+                          {meetingLabels.length > 1 && row.meetingLabel ? <small>{row.meetingLabel}</small> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="form-actions">
+                  {dates.length > 0 ? (
+                    <button type="button" className="btn btn-primary" disabled={saving} onClick={() => void submitDate()}>
+                      {saving ? "提交中…" : "提交此試堂日子"}
+                    </button>
+                  ) : null}
+                  <button type="button" className="escape" disabled={saving} onClick={finishLater}>
+                    暫不約堂，請先聯絡我
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
+      <AdHomeworkSiteFooter />
+      <nav className="sticky-bar" aria-label="登記與聯絡">
+        <button type="button" className="btn btn-primary" onClick={scrollToAdEnrollForm}>
+          {step === "details" ? "立即登記半價試堂" : "選擇日子"}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={askWhatsApp}>
+          WhatsApp
+        </button>
+      </nav>
     </div>
+  )
+}
+
+function AdHomeworkSiteFooter() {
+  return (
+    <footer className="site">
+      <div className="shell">
+        <p className="brand-lockup">
+          {AD_PUBLIC_CONTACT.brandZh}
+          <span>{AD_PUBLIC_CONTACT.brandEn}</span>
+        </p>
+        <dl>
+          <dt>地址</dt>
+          <dd>{AD_PUBLIC_CONTACT.addressZh}</dd>
+          <dt>電話</dt>
+          <dd>
+            <a href={`tel:${AD_PUBLIC_CONTACT.phoneTel}`}>{AD_PUBLIC_CONTACT.phoneDisplay}</a>
+          </dd>
+          <dt>WhatsApp</dt>
+          <dd>
+            <a href={`https://wa.me/852${AD_PUBLIC_CONTACT.whatsappDigits}`} target="_blank" rel="noopener noreferrer">
+              {AD_PUBLIC_CONTACT.whatsappDisplay}
+            </a>
+          </dd>
+          <dt>微信</dt>
+          <dd>{AD_PUBLIC_CONTACT.wechat}</dd>
+          <dt>註冊教育機構編號</dt>
+          <dd>{AD_PUBLIC_CONTACT.educationRegNo}</dd>
+        </dl>
+        <p>
+          <Link to="/Privacy">私隱政策</Link>
+          <span> · </span>
+          <a href={AD_PUBLIC_CONTACT.website} target="_blank" rel="noopener noreferrer">
+            官網
+          </a>
+        </p>
+      </div>
+    </footer>
   )
 }
 
@@ -442,9 +429,9 @@ function Honeypot({ value, onChange }: { value: string; onChange: (v: string) =>
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block space-y-1.5 text-sm">
-      <span className="font-medium text-foreground">{label}</span>
+    <div className="field">
+      <span className="field-label">{label}</span>
       {children}
-    </label>
+    </div>
   )
 }
