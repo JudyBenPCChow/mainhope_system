@@ -37,7 +37,6 @@ import { partitionTrialInviteElectives } from "@/lib/trialInviteElectives"
 import {
   assemblePicks,
   buildSubjectGroups,
-  classMeetingLabel,
   classLabelOf,
   classSubLabel,
   filterCatalogClasses,
@@ -1285,125 +1284,6 @@ function ToggleChip({
     >
       {label}
     </button>
-  )
-}
-
-function OptionList({
-  title,
-  description,
-  groups,
-  selected,
-  onToggle,
-  onRequestBookTrial,
-  skin = "default",
-}: {
-  title: string
-  description?: string
-  groups: SubjectGroup[]
-  selected: string[]
-  onToggle: (key: string) => void
-  onRequestBookTrial?: (subjectKey: string) => void
-  skin?: "default" | "interest"
-}) {
-  if (groups.length === 0) return null
-  if (skin === "interest") {
-    return (
-      <div className="opt-group">
-        <h3>{title}</h3>
-        {description ? <p className="opt-desc">{description}</p> : null}
-        {groups.map((g) => {
-          const on = selected.includes(g.key)
-          const times = [...new Set(g.classes.map((cls) => classMeetingLabel(cls)).filter(Boolean))]
-          return (
-            <div key={g.key} className={cn("subject-card", on && "is-on")}>
-              <button type="button" aria-pressed={on} aria-expanded={on} onClick={() => onToggle(g.key)} className="w-full text-left">
-                <span className="subject-label">{g.label}</span>
-                <span className="subject-meta">{g.classes.length} 個班別</span>
-                {on && times.length > 0 ? (
-                  <span className="subject-times">
-                    {times.map((line) => (
-                      <span key={line} className="block">
-                        {line}
-                      </span>
-                    ))}
-                  </span>
-                ) : null}
-              </button>
-              {on && onRequestBookTrial ? (
-                <button
-                  type="button"
-                  className="book-trial"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onRequestBookTrial(g.key)
-                  }}
-                >
-                  已有心水時間？即時預約試堂
-                </button>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-    )
-  }
-  return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        {description ? (
-          <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      {groups.map((g) => {
-        const on = selected.includes(g.key)
-        const times = [...new Set(g.classes.map((cls) => classMeetingLabel(cls)).filter(Boolean))]
-        return (
-          <div
-            key={g.key}
-            className={cn(
-              "relative w-full rounded-lg border px-3 py-3 text-left",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
-              on && onRequestBookTrial ? "pb-14" : ""
-            )}
-          >
-            <button
-              type="button"
-              aria-pressed={on}
-              aria-expanded={on}
-              onClick={() => onToggle(g.key)}
-              className="w-full text-left"
-            >
-              <span className="block text-lg font-medium">{g.label}</span>
-              <span className={cn("mt-0.5 block text-xs", on ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                {g.classes.length} 個班別
-              </span>
-              {on && times.length > 0 ? (
-                <span className="mt-2 block space-y-1 pr-2 text-sm text-primary-foreground/90">
-                  {times.map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </button>
-            {on && onRequestBookTrial ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRequestBookTrial(g.key)
-                }}
-                className="absolute bottom-2 right-2 inline-flex items-center rounded-md border border-background/40 bg-background px-2.5 py-1.5 text-xs font-medium text-primary shadow-sm hover:bg-background/90"
-              >
-                已有心水時間？即時預約試堂
-              </button>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
   )
 }
 
