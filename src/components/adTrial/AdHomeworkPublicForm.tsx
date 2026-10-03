@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react"
+import { useMemo, useRef, useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 import { AdPublicCollectionNotice } from "@/components/adTrial/AdPublicCollectionNotice"
@@ -8,6 +8,7 @@ import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSe
 import { HK_PRIMARY_SCHOOLS } from "@/lib/hkPrimarySchools"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { useAdHomeworkScrollEffects } from "@/hooks/useAdHomeworkScrollEffects"
 import { AD_PUBLIC_CONTACT } from "@/lib/adPublicContact"
 import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 import "@/components/adTrial/adHomeworkPublic.css"
@@ -42,6 +43,8 @@ type PhoneCountryCode = "+852" | "+86"
 const SECONDARY_GRADE_OPTIONS = ["S1", "S2", "S3", "S4", "S5", "S6"] as const satisfies readonly StudentGradeCode[]
 
 export function AdHomeworkPublicForm() {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const motionMode = useAdHomeworkScrollEffects(rootRef)
   const navigate = useNavigate()
   const [fullName, setFullName] = useState("")
   const [schoolBand, setSchoolBand] = useState<SchoolBand>("")
@@ -198,13 +201,13 @@ export function AdHomeworkPublicForm() {
   const askWhatsApp = () => openWhatsAppWithPrefilledText(AD_PUBLIC_CONTACT.whatsappDigits, "想查詢功課輔導班")
 
   return (
-    <div className="ad-hw">
+    <div ref={rootRef} className="ad-hw" data-motion={motionMode}>
       <Honeypot value={company} onChange={setCompany} />
       {step === "details" ? (
         <AdHomeworkLanding onPrimary={scrollToAdEnrollForm} />
       ) : (
         <header className="hero is-compact">
-          <div className="shell hero-inner">
+          <div className="shell hero-inner hero-enter">
             <p className="eyebrow">明學教育 · 功課輔導班</p>
             <h1>選擇試堂日子</h1>
             <p className="hero-lead">資料已收到。可選一個試堂日子，或請本社先聯絡。</p>
@@ -212,7 +215,7 @@ export function AdHomeworkPublicForm() {
         </header>
       )}
 
-      <section className="section section-tint" id={AD_ENROLL_FORM_ID}>
+      <section className="section section-tint" id={AD_ENROLL_FORM_ID} data-reveal>
         <div className="shell">
           {step === "details" ? (
             <div className="section-head">
