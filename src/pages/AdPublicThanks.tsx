@@ -4,6 +4,7 @@ import { CheckCircle2, MessageCircle, Phone } from "lucide-react"
 
 import { AdPublicSiteFooter } from "@/components/adTrial/AdPublicChrome"
 import { Button } from "@/components/ui/button"
+import "@/components/adTrial/adInterestPublic.css"
 import { AD_TRUST_BULLETS } from "@/lib/adPublicLandingCopy"
 import {
   AD_PUBLIC_CONTACT,
@@ -17,6 +18,7 @@ import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 export type AdThanksState = {
   fullName?: string
   summaryLines?: string[]
+  contactMethod?: "WhatsApp" | "WeChat"
 }
 
 export type AdThanksMode = "trial" | "interest" | "homework"
@@ -33,8 +35,112 @@ export default function AdPublicThanks({ mode }: { mode: AdThanksMode }) {
   }, [])
 
   const lines = Array.isArray(state.summaryLines) ? state.summaryLines.filter(Boolean) : []
+  const contactLabel = state.contactMethod === "WeChat" ? "WeChat" : "WhatsApp"
   const openWhatsApp = () =>
     openWhatsAppWithPrefilledText(AD_PUBLIC_CONTACT.whatsappDigits, adPublicWhatsAppPrefill(mode, state.fullName))
+
+  if (mode === "interest") {
+    return (
+      <div className="ad-int" data-motion="off">
+        <div className="topbar">
+          <div className="shell">
+            <Link className="brand" to="/AdInterest">
+              <img src="/images/ad/mainhope-logo-mark.png" alt="明學教育標誌" width={34} height={34} />
+              <span>
+                <b>{AD_PUBLIC_CONTACT.brandZh}</b>
+                <small>MAIN HOPE EDUCATION</small>
+              </span>
+            </Link>
+            <a className="tel" href={adPublicTelHref()}>
+              電話 {AD_PUBLIC_CONTACT.phoneDisplay}
+            </a>
+          </div>
+        </div>
+
+        <main id="top">
+          <section className="band">
+            <div className="shell thanks-wrap">
+              <div className="thanks-card">
+                <p className="thanks-mark" aria-hidden="true">
+                  ✓
+                </p>
+                <h1>已收到查詢登記</h1>
+                <p className="thanks-lead">
+                  本社會盡快以你指定的聯絡方式（{contactLabel}）確認。此頁沒有即時留位或收款。
+                </p>
+                {state.fullName ? <p className="thanks-name">{state.fullName}</p> : null}
+                {lines.length > 0 ? (
+                  <ul className="thanks-subjects">
+                    {lines.map((label) => (
+                      <li key={label}>{label}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                <div className="cta">
+                  {state.contactMethod === "WeChat" ? (
+                    <p className="thanks-wechat">
+                      請留意 WeChat「{AD_PUBLIC_CONTACT.wechat}」。如需改用 WhatsApp，可按下方按鈕。
+                    </p>
+                  ) : null}
+                  <button type="button" className="btn btn-primary" onClick={openWhatsApp}>
+                    WhatsApp 本社
+                  </button>
+                  <a className="btn btn-ghost" href={adPublicTelHref()}>
+                    致電 {AD_PUBLIC_CONTACT.phoneDisplay}
+                  </a>
+                </div>
+                <p className="thanks-back">
+                  <Link to={backTo}>返回查詢頁</Link>
+                  {" · "}
+                  <Link to="/Privacy">私隱政策</Link>
+                </p>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <footer className="site-foot">
+          <div className="shell foot-grid">
+            <div>
+              <p className="foot-brand">
+                {AD_PUBLIC_CONTACT.companyZh}
+                <small>{AD_PUBLIC_CONTACT.companyEn}</small>
+              </p>
+              <p>{AD_PUBLIC_CONTACT.addressZh}</p>
+              <p>註冊教育編號 {AD_PUBLIC_CONTACT.educationRegNo}</p>
+            </div>
+            <div>
+              <p>
+                電話 <a href={adPublicTelHref()}>{AD_PUBLIC_CONTACT.phoneDisplay}</a>
+                {" · "}
+                WhatsApp{" "}
+                <a
+                  href={`https://wa.me/${AD_PUBLIC_CONTACT.whatsappDigitsIntl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {AD_PUBLIC_CONTACT.whatsappDisplay}
+                </a>
+                {" · "}
+                微信 {AD_PUBLIC_CONTACT.wechat}
+              </p>
+            </div>
+          </div>
+        </footer>
+
+        <nav className="sticky-bar" aria-label="跟進聯絡">
+          <div className="shell">
+            <button type="button" className="btn btn-primary" onClick={openWhatsApp}>
+              WhatsApp 即時問
+            </button>
+            <a className="btn btn-ghost" href={adPublicTelHref()}>
+              致電
+            </a>
+          </div>
+        </nav>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 pb-28">
