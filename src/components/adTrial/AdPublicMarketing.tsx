@@ -298,7 +298,7 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         <div className="hero-bg" aria-hidden="true">
           <img src={hero.src} alt="" />
         </div>
-        <div className="shell hero-inner">
+        <div className="shell hero-inner hero-enter">
           <p className="eyebrow">{AD_HOMEWORK_HERO.eyebrow}</p>
           <h1>{AD_HOMEWORK_HERO.title}</h1>
           <p className="hero-lead">{AD_HOMEWORK_HERO.lead}</p>
@@ -321,9 +321,9 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </header>
 
-      <section className="section">
+      <section className="section" data-reveal>
         <div className="shell">
-          <div className="feature-grid">
+          <div className="feature-grid" data-reveal-stagger>
             {AD_HOMEWORK_HIGHLIGHTS.map((item, index) => (
               <article key={item.title} className="feature">
                 <h3>
@@ -337,7 +337,7 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section section-tint" id="fees">
+      <section className="section section-tint" id="fees" data-reveal>
         <div className="shell">
           <div className="fee-wrap">
             <table>
@@ -367,7 +367,7 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section" data-reveal>
         <div className="shell">
           <div className="section-head">
             <h2>家長可了解當日情況</h2>
@@ -402,7 +402,7 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section section-tint">
+      <section className="section section-tint" data-reveal>
         <div className="shell">
           <div className="section-head">
             <h2>現有學生來自（例子）</h2>
@@ -411,9 +411,9 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section" data-reveal>
         <div className="shell">
-          <div className="quotes">
+          <div className="quotes" data-reveal-stagger>
             {AD_HOMEWORK_QUOTES.map((quote) => (
               <blockquote key={quote}>
                 <p>{quote}</p>
@@ -436,7 +436,7 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section section-tint">
+      <section className="section section-tint" data-reveal>
         <div className="shell">
           <div className="section-head">
             <h2>常見問題</h2>
@@ -449,12 +449,12 @@ export function AdHomeworkLanding({ onPrimary }: { onPrimary: () => void }) {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section" data-reveal>
         <div className="shell">
           <div className="section-head">
             <h2>上課地點</h2>
           </div>
-          <ul className="transit">
+          <ul className="transit" data-reveal-stagger>
             {AD_HOMEWORK_TRANSIT.map((item) => (
               <li key={item.title}>
                 <strong>{item.title}</strong>
