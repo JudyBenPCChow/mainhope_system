@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 
 import { AdPublicCatalogPreview } from "@/components/adTrial/AdPublicCatalogPreview"
@@ -28,7 +28,17 @@ import {
   AD_TRUST_BULLETS,
 } from "@/lib/adPublicLandingCopy"
 import { AD_PUBLIC_CONTACT } from "@/lib/adPublicContact"
+import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion"
 import type { StudentGradeCode } from "@/lib/studentGrade"
+
+const AD_INTEREST_SLIDES = [
+  AD_CAMPUS_PHOTOS.followup,
+  AD_CAMPUS_PHOTOS.table,
+  AD_CAMPUS_PHOTOS.entrance,
+  AD_CAMPUS_PHOTOS.class,
+  AD_CAMPUS_PHOTOS.homework,
+  AD_CAMPUS_PHOTOS.about,
+] as const
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return <h2 className="text-lg font-semibold text-foreground">{children}</h2>
@@ -235,35 +245,230 @@ export function AdTrialLanding({
 }
 
 export function AdInterestLanding({ onPrimary }: { onPrimary: () => void }) {
+  const hero = AD_CAMPUS_PHOTOS.consult
+  const sub = AD_CAMPUS_PHOTOS.logoSign
   return (
-    <div>
-      <p className="text-xs font-medium tracking-wide text-muted-foreground">粉嶺綠悠軒 · 北區中學補習</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">尚未決定？留下資料即可</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        說明年級與想了解的科目，本社會按本學年開辦班別建議合適時段，再約試堂。
-      </p>
-      <p className="mt-2 text-sm text-muted-foreground">只需姓名、電話、年級，無須即時選班。</p>
-      <Button type="button" className="mt-4 w-full" onClick={onPrimary}>
-        只留名
-      </Button>
-
-      <section className="mt-8 space-y-1 text-sm text-foreground">
-        <SectionTitle>學費</SectionTitle>
-        <p>{AD_GROUP_FEE_LINES[0]}</p>
-        <p>{AD_GROUP_FEE_LINES[1]}</p>
-        <p className="text-muted-foreground">{AD_TRIAL_HALF_PRICE}</p>
+    <>
+      <section className="hero">
+        <div className="shell hero-grid">
+          <div className="hero-copy hero-enter">
+            <p className="eyebrow">粉嶺綠悠軒 · 北區中學補習</p>
+            <h1>
+              想補習？
+              <span className="hero-sub">即時索取最新課程時間！</span>
+            </h1>
+            <p className="lead">
+              留下姓名、電話與年級，本社即按本學年開辦班別，把合適時段發給你。無須即時選班。
+            </p>
+            <div className="cta">
+              <button type="button" className="btn btn-primary" onClick={onPrimary}>
+                留下聯絡方式 專人跟進
+              </button>
+            </div>
+          </div>
+          <div className="hero-art hero-art-enter">
+            <span className="hero-blob" aria-hidden="true" />
+            <figure className="ph ph-main">
+              <img src={hero.src} alt={hero.alt} width={hero.width} height={hero.height} />
+            </figure>
+            <figure className="ph ph-sub">
+              <img src={sub.src} alt={sub.alt} width={sub.width} height={sub.height} loading="lazy" />
+            </figure>
+          </div>
+        </div>
       </section>
 
-      <TrustList />
-      <HowToStart />
-      <FaqList items={AD_INTEREST_FAQS} />
-      <LocationBlock showPhoto={false} />
+      <section className="band band-cream" id="campus-photos" aria-label="校舍相片">
+        <div className="shell" data-reveal>
+          <AdInterestCampusCarousel />
+        </div>
+      </section>
 
-      <p className="mt-8 text-center">
-        <Link to="/AdTrial" className="text-sm text-primary underline underline-offset-2">
-          已經有心儀時間？直接預約試堂
-        </Link>
-      </p>
+      <section className="band">
+        <div className="shell" data-reveal>
+          <div className="sec-head">
+            <h2>如何開始</h2>
+            <p>由留名到試堂，一般三步完成。</p>
+          </div>
+          <ol className="steps" data-reveal-stagger>
+            {AD_HOW_TO_START.map((step, index) => (
+              <li key={step.title}>
+                <span className="step-n" aria-hidden="true">
+                  {index + 1}
+                </span>
+                <h3>{step.title}</h3>
+                <p>{step.body}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="band band-cream">
+        <div className="shell" data-reveal>
+          <div className="sec-head">
+            <h2>為何選擇明學教育</h2>
+          </div>
+          <div className="trust-split">
+            <ul className="trust" data-reveal-stagger>
+              {AD_TRUST_BULLETS.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+            <figure className="trust-photo">
+              <img
+                src={AD_CAMPUS_PHOTOS.about.src}
+                alt={AD_CAMPUS_PHOTOS.about.alt}
+                width={AD_CAMPUS_PHOTOS.about.width}
+                height={AD_CAMPUS_PHOTOS.about.height}
+                loading="lazy"
+              />
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <section className="band">
+        <div className="shell" data-reveal>
+          <div className="sec-head">
+            <h2>導師</h2>
+            <p>各科實際任教老師以本學年安排為準，歡迎查詢。</p>
+          </div>
+          <ul className="teachers" data-reveal-stagger>
+            {AD_TRIAL_TEACHERS.map((teacher) => (
+              <li key={teacher.name}>
+                <h3>
+                  {teacher.name}
+                  <span> · {teacher.role}</span>
+                </h3>
+                <p>{teacher.point}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="teachers-note">另有中文、英文、數學、生物、企會財等其他導師，歡迎查詢。</p>
+        </div>
+      </section>
+
+      <section className="band">
+        <div className="shell" data-reveal>
+          <div className="sec-head">
+            <h2>常見問題</h2>
+          </div>
+          <div className="faq" data-reveal-stagger>
+            {AD_INTEREST_FAQS.map((item, index) => (
+              <HomeworkFaq key={item.q} item={item} startOpen={index === 0} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="band band-cream">
+        <div className="shell" data-reveal>
+          <div className="sec-head">
+            <h2>上課地點</h2>
+          </div>
+          <p className="addr">{AD_PUBLIC_CONTACT.addressZh}</p>
+          <ul className="transit" data-reveal-stagger>
+            {AD_TRANSIT.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <div className="map-frame">
+            <iframe
+              title="明學教育校舍位置"
+              src={AD_PUBLIC_MAP_EMBED_SRC}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
+      </section>
+    </>
+  )
+}
+
+function AdInterestCampusCarousel() {
+  const reduced = usePrefersReducedMotion()
+  const [index, setIndex] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const count = AD_INTEREST_SLIDES.length
+
+  const go = (next: number) => {
+    setIndex(((next % count) + count) % count)
+  }
+
+  useEffect(() => {
+    if (reduced || paused) return
+    const timer = window.setInterval(() => {
+      setIndex((prev) => (prev + 1) % count)
+    }, 5000)
+    return () => window.clearInterval(timer)
+  }, [reduced, paused, count])
+
+  return (
+    <div
+      className="campus-carousel"
+      role="region"
+      aria-roledescription="carousel"
+      aria-label="校舍相片"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setPaused(false)
+      }}
+    >
+      <div
+        className="campus-carousel-viewport"
+        onTouchStart={(event) => setTouchStartX(event.changedTouches[0]?.clientX ?? null)}
+        onTouchEnd={(event) => {
+          if (touchStartX == null) return
+          const delta = (event.changedTouches[0]?.clientX ?? touchStartX) - touchStartX
+          setTouchStartX(null)
+          if (Math.abs(delta) < 40) return
+          go(index + (delta < 0 ? 1 : -1))
+        }}
+      >
+        <div className="campus-carousel-track" style={{ transform: `translateX(-${index * 100}%)` }}>
+          {AD_INTEREST_SLIDES.map((photo, slideIndex) => (
+            <figure
+                key={photo.src}
+                className={[slideIndex === index ? "is-active" : "", photo.src === AD_CAMPUS_PHOTOS.about.src ? "is-portrait" : ""]
+                  .filter(Boolean)
+                  .join(" ") || undefined}
+                aria-hidden={slideIndex !== index}
+              >
+              <img
+                src={photo.src}
+                alt={slideIndex === index ? photo.alt : ""}
+                width={photo.width}
+                height={photo.height}
+                loading={slideIndex === 0 ? "eager" : "lazy"}
+              />
+            </figure>
+          ))}
+        </div>
+      </div>
+      <div className="campus-carousel-nav">
+        <button type="button" className="campus-carousel-arrow" aria-label="上一張" onClick={() => go(index - 1)}>
+          ‹
+        </button>
+        <div className="campus-carousel-dots">
+          {AD_INTEREST_SLIDES.map((photo, slideIndex) => (
+            <button
+              key={photo.src}
+              type="button"
+              aria-label={`第 ${slideIndex + 1} 張`}
+              aria-current={slideIndex === index}
+              onClick={() => go(slideIndex)}
+            />
+          ))}
+        </div>
+        <button type="button" className="campus-carousel-arrow" aria-label="下一張" onClick={() => go(index + 1)}>
+          ›
+        </button>
+      </div>
     </div>
   )
 }

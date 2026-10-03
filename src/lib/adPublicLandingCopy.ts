@@ -14,11 +14,19 @@ export const AD_GROUP_FEE_LINES = [
   "高中專科班（中四至中六）HKD$1,200／4 堂（單堂 $300）",
 ] as const
 
+/** 查詢頁學費卡（與 AD_GROUP_FEE_LINES 同價）。 */
+export const AD_GROUP_FEE_CARDS = [
+  { grade: "初中專科班（中一至中三）", amount: "1,100", unit: "／4 堂（單堂 $275）" },
+  { grade: "高中專科班（中四至中六）", amount: "1,200", unit: "／4 堂（單堂 $300）" },
+] as const
+
+export const AD_GROUP_FEE_PERIOD_NOTE = "每期 4 堂、每週 1 堂，每堂約 75 分鐘。"
+
 export const AD_TRUST_BULLETS = [
   "粉嶺綠悠軒實體校舍，鄰近聯和墟，地點方便",
   "北區地區型教學，溝通更直接",
-  "小班安排（約 1:7），較易跟進學生進度",
-  "可按年級查詢本學年專科班",
+  "小班安排，較易跟進學生進度",
+  "專科專級專教",
   "重視家長溝通與學習跟進",
 ] as const
 
@@ -64,9 +72,9 @@ export const AD_TRANSIT = [
 export const AD_TRIAL_FAQS = [
   {
     q: "每堂多久？",
-    a: "每堂約 75 分鐘。平日初中最早由下午 4:30 起，高中最早由下午 5:45 起；週末最早一節為上午 10:15。",
+    a: "每堂約 75 分鐘。",
   },
-  { q: "一班幾人？", a: "小班教學，師生比例最多約 1:7。" },
+  { q: "一班幾人？", a: "小班教學，每班約四人。報讀前可與職員查詢目前就讀人數。" },
   {
     q: "學費如何計算？",
     a: "初中 HKD$1,100／4 堂（單堂 $275）；高中 HKD$1,200／4 堂（單堂 $300）。每期 4 堂、每週 1 堂。",
@@ -79,7 +87,28 @@ export const AD_TRIAL_FAQS = [
   { q: "有沒有優惠？", a: "現行優惠可向職員查詢。" },
 ] as const
 
-export const AD_INTEREST_FAQS = AD_TRIAL_FAQS.slice(0, 5)
+export const AD_INTEREST_FAQS = [
+  ...AD_TRIAL_FAQS.slice(0, 4),
+  {
+    q: "是否必須一次報一期四堂？",
+    a: "不需要。歡迎隨時插班；學費按堂計算，如本期已開課，只需繳交餘下堂數。",
+  },
+] as const
+
+const AD_INTEREST_SUBJECT_CORE = ["中文", "英文", "數學"] as const
+const AD_INTEREST_SUBJECT_JUNIOR = ["科學", "功課輔導班"] as const
+const AD_INTEREST_SUBJECT_SENIOR = ["物理", "化學", "生物", "企會財", "數學延伸", "功課輔導班"] as const
+
+/** 查詢頁剔選科目：固定名單，不讀開班／排程。 */
+export function adInterestSubjectsForGrade(grade: string): readonly string[] {
+  if (grade === "S1" || grade === "S2" || grade === "S3") {
+    return [...AD_INTEREST_SUBJECT_CORE, ...AD_INTEREST_SUBJECT_JUNIOR]
+  }
+  if (grade === "S4" || grade === "S5" || grade === "S6") {
+    return [...AD_INTEREST_SUBJECT_CORE, ...AD_INTEREST_SUBJECT_SENIOR]
+  }
+  return []
+}
 
 export const AD_HOMEWORK_HOURS = "星期一至五下午 3:30 至 7:30"
 
@@ -176,9 +205,24 @@ export const AD_HOMEWORK_FAQS = [
 export const AD_CAMPUS_PHOTOS = {
   class: { src: "/images/ad/campus-class.jpg", alt: "導師於白板前講課", width: 1024, height: 576 },
   homework: { src: "/images/ad/campus-homework.jpg", alt: "學生於課室完成練習", width: 1024, height: 576 },
+  followup: { src: "/images/ad/campus-followup.jpg", alt: "導師在課室旁協助學生練習", width: 1024, height: 571 },
+  about: { src: "/images/ad/campus-about.jpg", alt: "校舍內「學行修明　明學致遠」字幅", width: 768, height: 1024 },
   table: { src: "/images/ad/campus-table.jpg", alt: "小組數學課", width: 1024, height: 576 },
   students: { src: "/images/ad/campus-students.jpg", alt: "學生專心溫習", width: 1024, height: 576 },
   entrance: { src: "/images/ad/campus-entrance.jpg", alt: "粉嶺綠悠軒校舍門口", width: 1024, height: 576 },
+  /** 查詢頁 hero：背影為主，避免可辨認未成年正面 */
+  consult: {
+    src: "/images/ad/campus-consult.jpg",
+    alt: "家長與學生在校舍內向職員查詢",
+    width: 1024,
+    height: 576,
+  },
+  logoSign: {
+    src: "/images/ad/campus-logo-sign.png",
+    alt: "明學教育粉嶺綠悠軒校舍招牌",
+    width: 1024,
+    height: 576,
+  },
 } as const
 
 /** 試堂預覽只顯示專科班，最多 6 班。空年級不可查全部。 */

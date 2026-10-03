@@ -10,13 +10,16 @@ import {
 import { AdPublicCollectionNotice } from "@/components/adTrial/AdPublicCollectionNotice"
 import { AdInterestLanding, AdTrialLanding } from "@/components/adTrial/AdPublicMarketing"
 import { AdPublicTurnstile, resetAdPublicTurnstile } from "@/components/adTrial/AdPublicTurnstile"
+import "@/components/adTrial/adInterestPublic.css"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { useAdHomeworkScrollEffects } from "@/hooks/useAdHomeworkScrollEffects"
 import { collectAdAttribution } from "@/lib/adAttribution"
 import {
   AD_PUBLIC_CONTACT,
+  adPublicTelHref,
   adPublicWhatsAppBrowsePrefill,
 } from "@/lib/adPublicContact"
 import { AD_ENROLL_FORM_ID, scrollToAdEnrollForm } from "@/lib/adPublicFormAnchor"
@@ -27,13 +30,13 @@ import {
 } from "@/lib/adPublicOrigin"
 import { trackAdPublicLead } from "@/lib/adTracking"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { adInterestSubjectsForGrade } from "@/lib/adPublicLandingCopy"
 import { formatStudentGrade, type StudentGradeCode } from "@/lib/studentGrade"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { partitionTrialInviteElectives } from "@/lib/trialInviteElectives"
 import {
   assemblePicks,
   buildSubjectGroups,
-  classMeetingLabel,
   classLabelOf,
   classSubLabel,
   filterCatalogClasses,
@@ -104,6 +107,8 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   const interestOnly = mode === "interest"
   const location = useLocation()
   const navigate = useNavigate()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const motionMode = useAdHomeworkScrollEffects(rootRef)
   const carried = readAdTrialCarry(location.state)
   /** 成功完成帶資料跳轉後才標 true；勿在 effect 開頭標，否則 StrictMode 第二次會跳過載入。 */
   const carryBootstrappedRef = useRef(false)
@@ -171,6 +176,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
     .filter(Boolean)
 
   useEffect(() => {
+    if (interestOnly) return
     if (!SENIOR_GRADES.has(grade)) {
       setElectiveOptions([])
       setElectedCodes([])
@@ -243,6 +249,12 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot bootstrap from interest handoff
   }, [])
+
+  useEffect(() => {
+    if (!interestOnly) return
+    const allowed = new Set(adInterestSubjectsForGrade(grade))
+    setSelectedSubjectKeys((prev) => prev.filter((item) => allowed.has(item)))
+  }, [grade, interestOnly])
 
   const resetSelections = () => {
     setSelectedSubjectKeys([])
@@ -400,10 +412,38 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
   }
 
   const onSubmit = async () => {
-    const interestLabels = [...new Set([...selectedGroups.map((g) => g.label), ...chosenElectiveLabels])]
+    const interestLabels = interestOnly
+      ? [...new Set(selectedSubjectKeys)]
+      : [...new Set([...selectedGroups.map((g) => g.label), ...chosenElectiveLabels])]
     if (interestOnly) {
+      if (!fullName.trim() || fullName.trim().length > 80) {
+        setErr("請填寫姓名")
+        return
+      }
+      if (!school.trim() || school.trim().length > 120) {
+        setErr("請選擇學校")
+        return
+      }
+      if (!GRADE_OPTIONS.includes(grade as (typeof GRADE_OPTIONS)[number])) {
+        setErr("請選擇中一至中六")
+        return
+      }
+      if (contactMethod === "WeChat") {
+        const id = wechatId.trim()
+        if (!id || id.length > 40) {
+          setErr("請填寫 WeChat ID")
+          return
+        }
+      } else if (!adTrialPhoneLooksValid(phone)) {
+        setErr("請填寫 8 位聯絡電話")
+        return
+      }
+      if (!isSupabaseConfigured) {
+        setErr("系統尚未設定，請聯絡職員。")
+        return
+      }
       if (interestLabels.length === 0) {
-        setErr("請至少選擇一科")
+        setErr("請至少剔選一科")
         return
       }
     } else if (!picksComplete) {
@@ -475,7 +515,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         : picks.map((p) => `${p.classLabel} · ${p.scheduleLabel}`)
       navigate(interestOnly ? "/AdInterest/thanks" : "/AdTrial/thanks", {
         replace: true,
-        state: { fullName: fullName.trim(), summaryLines },
+        state: { fullName: fullName.trim(), summaryLines, contactMethod },
       })
     } catch (e) {
       resetAdPublicTurnstile()
@@ -544,58 +584,303 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
     scrollToAdEnrollForm()
   }
 
+  const stepIndex = steps.findIndex((item) => item.id === step)
+
+  const stepper = interestOnly ? (
+    <ol className="stepper" aria-label="登記進度">
+      {steps.map((item, index) => (
+        <li
+          key={item.id}
+          data-step={index + 1}
+          data-on={item.id === step ? "1" : "0"}
+          data-done={index < stepIndex ? "1" : "0"}
+        >
+          <span>{index + 1}</span>
+          {item.label}
+        </li>
+      ))}
+    </ol>
+  ) : (
+    <ol className="mt-6 flex gap-1" aria-label="登記進度">
+      {steps.map((item, index) => {
+        const current = item.id === step
+        const past = stepIndex > index
+        return (
+          <li key={item.id} className="min-w-0 flex-1 text-center">
+            <span
+              className={cn(
+                "mx-auto flex h-6 w-6 items-center justify-center rounded-full text-xs",
+                current
+                  ? "bg-primary text-primary-foreground"
+                  : past
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground"
+              )}
+            >
+              {index + 1}
+            </span>
+            <span className="mt-1 block truncate text-[11px] text-muted-foreground">{item.label}</span>
+          </li>
+        )
+      })}
+    </ol>
+  )
+
+  const errBanner = err ? (
+    interestOnly ? (
+      <p role="alert" className="form-err">
+        {err}
+      </p>
+    ) : (
+      <p
+        role="alert"
+        className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+      >
+        {err}
+      </p>
+    )
+  ) : null
+
+  if (interestOnly) {
+    return (
+      <div ref={rootRef} className="ad-int" data-motion={motionMode}>
+        <Honeypot value={company} onChange={setCompany} />
+        <a className="skip" href={`#${AD_ENROLL_FORM_ID}`}>
+          跳到查詢登記表
+        </a>
+        <div className="topbar">
+          <div className="shell">
+            <a className="brand" href="#top">
+              <img src="/images/ad/mainhope-logo-mark.png" alt="明學教育標誌" width={34} height={34} />
+              <span>
+                <b>{AD_PUBLIC_CONTACT.brandZh}</b>
+                <small>MAIN HOPE EDUCATION</small>
+              </span>
+            </a>
+            <a className="tel" href={adPublicTelHref()}>
+              電話 {AD_PUBLIC_CONTACT.phoneDisplay}
+            </a>
+          </div>
+        </div>
+
+        <main id="top">
+          <AdInterestLanding onPrimary={scrollToAdEnrollForm} />
+
+          <section className="band enroll" id={AD_ENROLL_FORM_ID} data-reveal>
+            <div className="shell enroll-grid" data-reveal-stagger>
+              <div className="enroll-aside">
+                <h2>查詢登記</h2>
+                <p>未肯定時間也可以先留名。本社會按本學年開辦班別建議合適時段，再約試堂。</p>
+                <ul className="aside-list">
+                  <li>填寫姓名、學校、年級與聯絡方式</li>
+                  <li>剔選所有想了解的科目</li>
+                  <li>本社將以指定形式聯絡閣下進一步跟進</li>
+                </ul>
+              </div>
+
+              <div className="form-card">
+                {errBanner}
+
+                <p className="form-intro">提交後由本社以指定聯絡方式確認。此頁不會即時留位或收款。</p>
+                    <Field label="姓名" skin="interest">
+                      <Input
+                        value={fullName}
+                        maxLength={80}
+                        autoComplete="name"
+                        placeholder="家長或學生姓名"
+                        onChange={(e) => setFullName(e.target.value)}
+                      />
+                    </Field>
+                    <Field label="學校" skin="interest">
+                      <SchoolSearchableSelect value={school} onChange={setSchool} />
+                    </Field>
+                    <Field label="年級" skin="interest">
+                      <Select value={grade} onChange={(e) => setGrade(e.target.value)}>
+                        <option value="">請選擇</option>
+                        {GRADE_OPTIONS.map((code) => (
+                          <option key={code} value={code}>
+                            {formatStudentGrade(code)}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <div className="field">
+                      <span>
+                        感興趣科目 <span className="hint">可剔選多於一科，無須選堂。</span>
+                      </span>
+                      {adInterestSubjectsForGrade(grade).length === 0 ? (
+                        <p className="form-intro" style={{ marginBottom: 0 }}>
+                          請先選擇年級。
+                        </p>
+                      ) : (
+                        <div className="chip-row">
+                          {adInterestSubjectsForGrade(grade).map((label) => (
+                            <ToggleChip
+                              key={label}
+                              skin="interest"
+                              pressed={selectedSubjectKeys.includes(label)}
+                              label={label}
+                              onClick={() =>
+                                setSelectedSubjectKeys((prev) =>
+                                  prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label]
+                                )
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <Field label="聯絡方式" skin="interest">
+                      <Select
+                        value={contactMethod}
+                        onChange={(e) => setContactMethod(e.target.value === "WeChat" ? "WeChat" : "WhatsApp")}
+                      >
+                        <option value="WhatsApp">WhatsApp</option>
+                        <option value="WeChat">WeChat</option>
+                      </Select>
+                    </Field>
+                    {contactMethod === "WeChat" ? (
+                      <Field label="WeChat ID" skin="interest">
+                        <Input
+                          value={wechatId}
+                          maxLength={40}
+                          autoComplete="off"
+                          placeholder="WeChat ID"
+                          onChange={(e) => setWechatId(e.target.value)}
+                        />
+                      </Field>
+                    ) : (
+                      <Field label="電話號碼" skin="interest">
+                        <Input
+                          value={phone}
+                          inputMode="tel"
+                          autoComplete="tel"
+                          placeholder="8 位數字"
+                          onChange={(e) => setPhone(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                    <Field label="備註（可選）" skin="interest">
+                      <textarea
+                        value={note}
+                        maxLength={500}
+                        rows={3}
+                        placeholder="例如：想安排星期六、想了解英文科"
+                        onChange={(e) => setNote(e.target.value)}
+                      />
+                    </Field>
+                    <AdPublicCollectionNotice />
+                    <AdPublicTurnstile onToken={setTurnstileToken} />
+                    <label className="consent">
+                      <input
+                        type="checkbox"
+                        checked={privacyConsent}
+                        onChange={(e) => setPrivacyConsent(e.target.checked)}
+                      />
+                      <span>
+                        本人已閱讀{" "}
+                        <Link to="/Privacy" target="_blank" rel="noopener noreferrer">
+                          私隱政策
+                        </Link>
+                        ，並同意以指定聯絡方式跟進本登記。
+                      </span>
+                    </label>
+                    <div className="form-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={saving || !privacyConsent}
+                        onClick={() => void onSubmit()}
+                      >
+                        {saving ? "提交中…" : "提交登記"}
+                      </button>
+                    </div>
+              </div>
+            </div>
+          </section>
+
+          <p className="trial-jump" data-reveal>
+            <Link to="/AdTrial" state={interestState}>
+              已經有心儀時間？直接預約試堂
+            </Link>
+          </p>
+        </main>
+
+        <footer className="site-foot" data-reveal>
+          <div className="shell foot-grid">
+            <div>
+              <p className="foot-brand">
+                {AD_PUBLIC_CONTACT.companyZh}
+                <small>{AD_PUBLIC_CONTACT.companyEn}</small>
+              </p>
+              <p>{AD_PUBLIC_CONTACT.addressZh}</p>
+              <p>註冊教育編號 {AD_PUBLIC_CONTACT.educationRegNo}</p>
+            </div>
+            <div>
+              <p>
+                電話 <a href={adPublicTelHref()}>{AD_PUBLIC_CONTACT.phoneDisplay}</a>
+                {" · "}
+                WhatsApp{" "}
+                <a
+                  href={`https://wa.me/${AD_PUBLIC_CONTACT.whatsappDigitsIntl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {AD_PUBLIC_CONTACT.whatsappDisplay}
+                </a>
+                {" · "}
+                微信 {AD_PUBLIC_CONTACT.wechat}
+              </p>
+              <p>
+                <Link to="/Privacy">私隱政策</Link>
+                {" · "}
+                <a href={AD_PUBLIC_CONTACT.website} target="_blank" rel="noopener noreferrer">
+                  官網
+                </a>
+              </p>
+            </div>
+          </div>
+        </footer>
+
+        <nav className="sticky-bar" aria-label="登記與聯絡">
+          <div className="shell">
+            <button type="button" className="btn btn-primary" onClick={scrollToAdEnrollForm}>
+              留下聯絡方式 專人跟進
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() =>
+                openWhatsAppWithPrefilledText(AD_PUBLIC_CONTACT.whatsappDigits, adPublicWhatsAppBrowsePrefill())
+              }
+            >
+              WhatsApp 即時問
+            </button>
+          </div>
+        </nav>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-lg px-4 py-8 pb-28">
       <Honeypot value={company} onChange={setCompany} />
       {step === "details" ? (
-        interestOnly ? (
-          <AdInterestLanding onPrimary={scrollToAdEnrollForm} />
-        ) : (
-          <AdTrialLanding
-            onPrimary={scrollToAdEnrollForm}
-            onUseGrade={usePreviewGrade}
-            interestState={interestState}
-          />
-        )
+        <AdTrialLanding
+          onPrimary={scrollToAdEnrollForm}
+          onUseGrade={usePreviewGrade}
+          interestState={interestState}
+        />
       ) : (
         <header className="space-y-1">
           <p className="text-xs font-medium tracking-wide text-muted-foreground">{AD_PUBLIC_CONTACT.brandZh}</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            {interestOnly ? "查詢登記" : "預約試堂"}
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">預約試堂</h1>
         </header>
       )}
 
       <div id={AD_ENROLL_FORM_ID}>
-      <ol className="mt-6 flex gap-1" aria-label="登記進度">
-          {steps.map((item, index) => {
-            const current = item.id === step
-            const past = steps.findIndex((s) => s.id === step) > index
-            return (
-              <li key={item.id} className="min-w-0 flex-1 text-center">
-                <span
-                  className={cn(
-                    "mx-auto flex h-6 w-6 items-center justify-center rounded-full text-xs",
-                    current
-                      ? "bg-primary text-primary-foreground"
-                      : past
-                        ? "bg-foreground text-background"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {index + 1}
-                </span>
-                <span className="mt-1 block truncate text-[11px] text-muted-foreground">{item.label}</span>
-              </li>
-            )
-          })}
-        </ol>
-
-      {err ? (
-        <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          {err}
-        </p>
-      ) : null}
+        {stepper}
+        {errBanner}
 
       {(step === "subject" || step === "electives") ? (
         <section
@@ -699,7 +984,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           )}
           <AdPublicCollectionNotice />
           <Button type="button" className="w-full" disabled={loadingCatalog} onClick={() => void continueFromDetails()}>
-            {loadingCatalog ? "載入科目…" : interestOnly ? "繼續選擇科目" : "繼續選堂"}
+            {loadingCatalog ? "載入科目…" : "繼續選堂"}
           </Button>
         </section>
       ) : step === "electives" ? (
@@ -737,19 +1022,17 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           <p className="text-sm text-muted-foreground">
             {formatStudentGrade(grade)}暫時沒有已開放的試堂班別。
           </p>
-          {!interestOnly ? (
-            <Button
-              type="button"
-              className="w-full"
-              onClick={() =>
-                navigate("/AdInterest", {
-                  state: interestState,
-                })
-              }
-            >
-              未肯定時間？只留名，本社建議班別
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            className="w-full"
+            onClick={() =>
+              navigate("/AdInterest", {
+                state: interestState,
+              })
+            }
+          >
+            未肯定時間？只留名，本社建議班別
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -771,76 +1054,44 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
         </section>
       ) : step === "subject" ? (
         <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
-          <h2 className="text-base font-semibold text-foreground">
-            {interestOnly ? "感興趣科目" : "選擇想試的科目與時間"}
-          </h2>
+          <h2 className="text-base font-semibold text-foreground">選擇想試的科目與時間</h2>
           <p className="text-sm text-muted-foreground">
-            {interestOnly
-              ? "選擇有興趣的科目即可，不必每科都選。本社會發送相關資料供你參考。"
-              : "選擇想試的科目，再選班別與堂次。提交只是時間偏好，須由職員確認後才算預約。"}
+            選擇想試的科目，再選班別與堂次。提交只是時間偏好，須由職員確認後才算預約。
           </p>
-          {interestOnly && chosenElectiveLabels.length > 0 ? (
-            <p className="text-sm text-foreground">你已選的選修科：{chosenElectiveLabels.join("、")}</p>
-          ) : null}
-          {!interestOnly ? (
-            <p>
-              <Link to="/AdInterest" state={interestState} className="text-sm text-primary underline underline-offset-2">
-                未肯定時間？只留名，本社建議班別
-              </Link>
-            </p>
-          ) : null}
-          {interestOnly ? (
-            <>
-              <OptionList
-                title="專科班"
-                description=""
-                groups={groupSubjects}
-                selected={selectedSubjectKeys}
-                onToggle={toggleSubject}
-                onRequestBookTrial={setBookTrialSubjectKey}
-              />
-              <OptionList
-                title="功課輔導班"
-                description={HOMEWORK_SUBJECT_INTRO}
-                groups={homeworkSubjects}
-                selected={selectedSubjectKeys}
-                onToggle={toggleSubject}
-                onRequestBookTrial={setBookTrialSubjectKey}
-              />
-            </>
-          ) : (
-            <>
-              <SubjectClassList
-                title="專科班"
-                description={GROUP_SUBJECT_INTRO}
-                groups={groupSubjects}
-                selectedKeys={selectedSubjectKeys}
-                classBySubject={classBySubject}
-                expandedClassBySubject={expandedClassBySubject}
-                scheduleByClass={scheduleByClass}
-                onToggleSubject={toggleSubject}
-                onPickClass={pickClass}
-                onPickSchedule={(classId, scheduleId) =>
-                  setScheduleByClass((map) => ({ ...map, [classId]: scheduleId }))
-                }
-              />
-              <SubjectClassList
-                title="功課輔導班"
-                description={HOMEWORK_SUBJECT_INTRO}
-                groups={homeworkSubjects}
-                selectedKeys={selectedSubjectKeys}
-                classBySubject={classBySubject}
-                expandedClassBySubject={expandedClassBySubject}
-                scheduleByClass={scheduleByClass}
-                onToggleSubject={toggleSubject}
-                onPickClass={pickClass}
-                onPickSchedule={(classId, scheduleId) =>
-                  setScheduleByClass((map) => ({ ...map, [classId]: scheduleId }))
-                }
-              />
-            </>
-          )}
-          {!interestOnly && incompleteSubjectCount > 0 && picksComplete ? (
+          <p>
+            <Link to="/AdInterest" state={interestState} className="text-sm text-primary underline underline-offset-2">
+              未肯定時間？只留名，本社建議班別
+            </Link>
+          </p>
+          <SubjectClassList
+            title="專科班"
+            description={GROUP_SUBJECT_INTRO}
+            groups={groupSubjects}
+            selectedKeys={selectedSubjectKeys}
+            classBySubject={classBySubject}
+            expandedClassBySubject={expandedClassBySubject}
+            scheduleByClass={scheduleByClass}
+            onToggleSubject={toggleSubject}
+            onPickClass={pickClass}
+            onPickSchedule={(classId, scheduleId) =>
+              setScheduleByClass((map) => ({ ...map, [classId]: scheduleId }))
+            }
+          />
+          <SubjectClassList
+            title="功課輔導班"
+            description={HOMEWORK_SUBJECT_INTRO}
+            groups={homeworkSubjects}
+            selectedKeys={selectedSubjectKeys}
+            classBySubject={classBySubject}
+            expandedClassBySubject={expandedClassBySubject}
+            scheduleByClass={scheduleByClass}
+            onToggleSubject={toggleSubject}
+            onPickClass={pickClass}
+            onPickSchedule={(classId, scheduleId) =>
+              setScheduleByClass((map) => ({ ...map, [classId]: scheduleId }))
+            }
+          />
+          {incompleteSubjectCount > 0 && picksComplete ? (
             <p className="text-center text-xs text-muted-foreground">
               已選齊 {picks.length} 科；未選堂次的科目不會列入登記
             </p>
@@ -848,13 +1099,11 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
           <Button type="button" className="w-full" onClick={confirmSubjects}>
             下一步：確認
           </Button>
-          {!interestOnly ? (
-            <p className="text-center">
-              <Link to="/AdInterest" state={interestState} className="text-sm text-primary underline underline-offset-2">
-                未肯定時間？只留名，本社建議班別
-              </Link>
-            </p>
-          ) : null}
+          <p className="text-center">
+            <Link to="/AdInterest" state={interestState} className="text-sm text-primary underline underline-offset-2">
+              未肯定時間？只留名，本社建議班別
+            </Link>
+          </p>
         </section>
       ) : (
         <section className="mt-6 space-y-4 rounded-xl border border-border bg-card p-4">
@@ -864,20 +1113,14 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
             {contactMethod === "WeChat" ? wechatId.trim() : phone.trim()}
           </p>
           <ul className="space-y-2 text-sm">
-            {interestOnly
-              ? [...selectedGroups.map((g) => g.label), ...chosenElectiveLabels].map((label) => (
-                  <li key={label} className="font-medium">
-                    {label}
-                  </li>
-                ))
-              : picks.map((p) => (
-                  <li key={p.scheduleId}>
-                    <p className="font-medium">{p.subjectLabel}</p>
-                    <p className="text-muted-foreground">
-                      {p.classLabel} · {p.scheduleLabel}
-                    </p>
-                  </li>
-                ))}
+            {picks.map((p) => (
+              <li key={p.scheduleId}>
+                <p className="font-medium">{p.subjectLabel}</p>
+                <p className="text-muted-foreground">
+                  {p.classLabel} · {p.scheduleLabel}
+                </p>
+              </li>
+            ))}
           </ul>
           <Field label="備註（可選）">
             <textarea
@@ -960,7 +1203,7 @@ export function AdTrialPublicForm({ mode = "trial" }: { mode?: "trial" | "intere
       <AdPublicSiteFooter />
 
       <AdPublicStickyBar
-        primaryLabel={interestOnly ? "只留名" : "預約試堂"}
+        primaryLabel="預約試堂"
         onPrimary={scrollToAdEnrollForm}
         whatsappText={adPublicWhatsAppBrowsePrefill()}
       />
@@ -986,7 +1229,23 @@ function Honeypot({ value, onChange }: { value: string; onChange: (v: string) =>
   )
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  skin = "default",
+}: {
+  label: string
+  children: ReactNode
+  skin?: "default" | "interest"
+}) {
+  if (skin === "interest") {
+    return (
+      <label className="field">
+        <span>{label}</span>
+        {children}
+      </label>
+    )
+  }
   return (
     <label className="block space-y-1.5 text-sm">
       <span className="font-medium text-foreground">{label}</span>
@@ -999,11 +1258,20 @@ function ToggleChip({
   pressed,
   label,
   onClick,
+  skin = "default",
 }: {
   pressed: boolean
   label: string
   onClick: () => void
+  skin?: "default" | "interest"
 }) {
+  if (skin === "interest") {
+    return (
+      <button type="button" className="chip" aria-pressed={pressed} onClick={onClick}>
+        {label}
+      </button>
+    )
+  }
   return (
     <button
       type="button"
@@ -1016,82 +1284,6 @@ function ToggleChip({
     >
       {label}
     </button>
-  )
-}
-
-function OptionList({
-  title,
-  description,
-  groups,
-  selected,
-  onToggle,
-  onRequestBookTrial,
-}: {
-  title: string
-  description?: string
-  groups: SubjectGroup[]
-  selected: string[]
-  onToggle: (key: string) => void
-  onRequestBookTrial?: (subjectKey: string) => void
-}) {
-  if (groups.length === 0) return null
-  return (
-    <div className="space-y-2">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">{title}</p>
-        {description ? (
-          <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-      {groups.map((g) => {
-        const on = selected.includes(g.key)
-        const times = [...new Set(g.classes.map((cls) => classMeetingLabel(cls)).filter(Boolean))]
-        return (
-          <div
-            key={g.key}
-            className={cn(
-              "relative w-full rounded-lg border px-3 py-3 text-left",
-              on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
-              on && onRequestBookTrial ? "pb-14" : ""
-            )}
-          >
-            <button
-              type="button"
-              aria-pressed={on}
-              aria-expanded={on}
-              onClick={() => onToggle(g.key)}
-              className="w-full text-left"
-            >
-              <span className="block text-lg font-medium">{g.label}</span>
-              <span className={cn("mt-0.5 block text-xs", on ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                {g.classes.length} 個班別
-              </span>
-              {on && times.length > 0 ? (
-                <span className="mt-2 block space-y-1 pr-2 text-sm text-primary-foreground/90">
-                  {times.map((line) => (
-                    <span key={line} className="block">
-                      {line}
-                    </span>
-                  ))}
-                </span>
-              ) : null}
-            </button>
-            {on && onRequestBookTrial ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRequestBookTrial(g.key)
-                }}
-                className="absolute bottom-2 right-2 inline-flex items-center rounded-md border border-background/40 bg-background px-2.5 py-1.5 text-xs font-medium text-primary shadow-sm hover:bg-background/90"
-              >
-                已有心水時間？即時預約試堂
-              </button>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
   )
 }
 
