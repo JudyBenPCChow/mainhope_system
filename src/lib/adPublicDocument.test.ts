@@ -36,6 +36,9 @@ describe("ad public document title", () => {
     expect(documentTitleForLocation("/AdHomework", "ad.mainhope.edu.hk")).toBe(
       "功課輔導班查詢 — 明學教育",
     )
+    expect(documentTitleForLocation("/AdHomework/thanks", "ad.mainhope.edu.hk")).toBe(
+      "已收到登記 — 明學教育",
+    )
     expect(documentTitleForLocation("/Privacy", "ad.mainhope.edu.hk")).toBe(
       "私隱政策 — 明學教育",
     )
@@ -51,6 +54,7 @@ describe("ad public document title", () => {
       "查詢登記 — 明學教育",
       "已收到查詢 — 明學教育",
       "功課輔導班查詢 — 明學教育",
+      "已收到登記 — 明學教育",
       "私隱政策 — 明學教育",
     ]) {
       expect(indexHtml).toContain(title)

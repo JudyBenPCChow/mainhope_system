@@ -7,6 +7,7 @@ import {
  type EnrollmentFormValue,
 } from "@/lib/enrollmentPeriod"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
+import { paidTrialObligesSchedule } from "@/lib/trialLessonObligation"
 import {
  parseMakeupOfScheduleId,
  parseMakeupOriginalDate,
@@ -444,7 +445,10 @@ export function enrollmentsForSchedules(
  )
 }
 
-/** 點名紙用：未完成／未取消，且已有確認收款（出單先上紙） */
+/**
+ * 點名紙用：未取消，且已有確認收款（出單先上紙）。
+ * 已完成仍保留——報讀後自動結案不應令該試堂日回看缺名。
+ */
 export function activeTrialsForSchedules(
  context: ScheduleRosterContext,
  scheduleIds: string[]
@@ -452,9 +456,7 @@ export function activeTrialsForSchedules(
  const idSet = new Set(scheduleIds)
  return context.trials.filter((trial) =>
   idSet.has(trial.scheduleId)
-  && !trial.status.includes("完成")
-  && !trial.status.includes("取消")
-  && Boolean(trial.paymentId)
+  && paidTrialObligesSchedule(trial.status, Boolean(trial.paymentId))
  )
 }
 

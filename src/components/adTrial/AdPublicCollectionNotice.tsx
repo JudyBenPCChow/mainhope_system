@@ -15,7 +15,7 @@ export function AdPublicCampusAddress() {
 
 export function AdPublicCollectionNotice() {
   return (
-    <div className="space-y-2 text-sm leading-relaxed text-muted-foreground">
+    <div className="collection-notice space-y-2 text-sm leading-relaxed text-muted-foreground">
       <p className="font-medium text-foreground">收集個人資料聲明</p>
       {AD_PUBLIC_COLLECTION_NOTICE.map((paragraph) => (
         <p key={paragraph}>

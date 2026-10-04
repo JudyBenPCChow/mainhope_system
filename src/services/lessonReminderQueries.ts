@@ -13,6 +13,7 @@ import {
 import { compareTeachersByEnglishName } from "@/lib/teacherDisplaySort"
 import { forEachIdChunk, DEFAULT_ID_CHUNK } from "@/lib/supabaseInChunks"
 import { trimTimeHm } from "@/lib/consecutiveLesson"
+import { paidTrialObligesSchedule } from "@/lib/trialLessonObligation"
 import { pickStudentContactFromDbRow } from "@/lib/whatsappReminder"
 import { supabase } from "@/lib/supabaseClient"
 import { fetchLeaveStudentIdsForSchedules } from "@/services/attendanceQueries"
@@ -149,7 +150,7 @@ async function fetchTrialStudentIdsByScheduleIds(
  const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("trial_sessions")
-   .select("schedule_id, student_id, status")
+   .select("schedule_id, student_id, status, payments!payment_id(status)")
    .in("schedule_id", slice)
   if (error) throw error
   return data ?? []
@@ -161,8 +162,11 @@ async function fetchTrialStudentIdsByScheduleIds(
    const scheduleId = r.schedule_id != null ? String(r.schedule_id) : ""
    const studentId = r.student_id != null ? String(r.student_id) : ""
    const status = String(r.status ?? "")
+   const payments = r.payments as { status?: string } | { status?: string }[] | null
+   const payStatus = Array.isArray(payments) ? payments[0]?.status : payments?.status
    if (!scheduleId || !studentId || !out.has(scheduleId)) continue
-   if (status.includes("完成") || status.includes("取消")) continue
+   // 與點名紙同一條件；呼叫端已排除取消堂。已完成仍標試堂。
+   if (!paidTrialObligesSchedule(status, payStatus === "已收款")) continue
    out.get(scheduleId)!.add(studentId)
   }
  }

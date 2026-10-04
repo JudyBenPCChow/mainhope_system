@@ -39,3 +39,6 @@ import-output/
 
 # Word lock files
 ~$*.docx
+
+# Vercel CLI local link
+.vercel

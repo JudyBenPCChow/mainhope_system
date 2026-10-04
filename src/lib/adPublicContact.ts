@@ -28,9 +28,10 @@ export function adPublicTelHref(): string {
   return `tel:${AD_PUBLIC_CONTACT.phoneTel}`
 }
 
-export function adPublicWhatsAppPrefill(kind: "interest" | "trial", name?: string): string {
+export function adPublicWhatsAppPrefill(kind: "interest" | "trial" | "homework", name?: string): string {
   const who = (name ?? "").trim() || "家長"
-  const label = kind === "interest" ? "查詢登記" : "新生試堂登記"
+  const label =
+    kind === "interest" ? "查詢登記" : kind === "homework" ? "功課輔導班查詢" : "新生試堂登記"
   return `你好，我是${who}，剛在網上提交了${label}，想跟進確認。`
 }
 
