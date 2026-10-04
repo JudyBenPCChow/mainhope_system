@@ -2,12 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `in_progress` |
+| 狀態 | `done` |
 | 優先 | 高 |
 | 範圍 | 獨立小學 homework 班＋同一 `/HomeworkTutoring` 學部切換；小學月費三日／四日／五日；10 月編更；中小學場次至 20:00 |
 | 不含 | 宣傳／試堂公開表改動；按學部老師 ACL；強制轉既有中學班內小學生；自動調走 17E 專科班 |
-| 索引 | 合入後在 main 搬 [`BACKLOG.md`](../BACKLOG.md) |
-| 上次更新 | 2026-10-02 |
+| 索引 | 已於 main 搬 [`BACKLOG.md`](../BACKLOG.md) |
+| 上次更新 | 2026-10-04 |
 | 相關 | [`homework-tutoring.md`](./homework-tutoring.md)、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、[`SCHEDULING_RULES.md`](../../policies/scheduling/SCHEDULING_RULES.md) §4 |
 
 ## 開工閘
@@ -32,4 +32,4 @@
 - [x] fetchHomeworkClasses＋學部切換＋小學價目
 - [x] 政策／ops-guide／vault 鏡像
 - [x] 10 月小學佔室按當日空房寫入（三五 17E；一二四英仙座）
-- [ ] 合 PR 後於 main 搬 BACKLOG
+- [x] 合 PR 後於 main 搬 BACKLOG（PR #189）
