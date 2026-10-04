@@ -13,7 +13,9 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import {
   HOMEWORK_FEE_GRADES,
   HOMEWORK_FEE_PLANS,
+  HOMEWORK_PRIMARY_FEE_PLANS,
   homeworkFeeBaseHkd,
+  type HomeworkDivision,
 } from "@/lib/homeworkTutoringFees"
 import { statusToTagTone } from "@/lib/statusTag"
 
@@ -37,6 +39,7 @@ import {
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
+  type HomeworkCompanionRoster,
   type HomeworkDutyDay,
   type HomeworkFeeDisplay,
   type HomeworkHoliday,
@@ -63,6 +66,12 @@ function formatHkd(n: number | null): string {
 export function AdminHomeworkWorkbench({
   tab,
   onTabChange,
+  division = "secondary",
+  defaultRoomA,
+  companion = null,
+  onEditCompanionDay,
+  initialEditDate = null,
+  onInitialEditHandled,
   students,
   fees,
   avail,
@@ -83,6 +92,12 @@ export function AdminHomeworkWorkbench({
 }: {
   tab: AdminPageId
   onTabChange: (tab: AdminPageId) => void
+  division?: HomeworkDivision
+  defaultRoomA?: string
+  companion?: HomeworkCompanionRoster | null
+  onEditCompanionDay?: (date: string) => void
+  initialEditDate?: string | null
+  onInitialEditHandled?: () => void
   students: HomeworkStudentRow[]
   fees: HomeworkFeeDisplay[]
   avail: AllTeacherAvailability
@@ -661,6 +676,11 @@ export function AdminHomeworkWorkbench({
               teachers={hwTeachers}
               holidays={holidays}
               students={students}
+              division={division}
+              companion={companion}
+              onEditCompanionDay={onEditCompanionDay}
+              initialEditDate={initialEditDate}
+              onInitialEditHandled={onInitialEditHandled}
               onPublish={onPublishRoster}
             />
           </TabsContent>
@@ -694,38 +714,76 @@ export function AdminHomeworkWorkbench({
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">時段</h2>
             <p className="mt-2 text-sm">
-              場次 15:30–19:30（課室佔用自 15:15）。排更時段默認跟報更，可改；一日可排多於一位，唔使全日都有人。課室預設 17D／17E。
+              場次 15:30–20:00（課室佔用自 15:15）。排更時段默認跟報更，可改；一日可排多於一位，唔使全日都有人。
+              {division === "primary"
+                ? `小學部預設課室 ${defaultRoomA ?? "17E"}（可編更調動）。`
+                : `中學部預設課室 ${defaultRoomA ?? "17D"}（可加開第二室）。`}
             </p>
           </section>
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">價目表</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              港元／月；小一至小六跟中一。12 月、2 月收四分三。中四至中六未列價。
-            </p>
-            <table className="mt-3 w-full text-sm">
-              <thead className="text-xs text-muted-foreground">
-                <tr>
-                  <th className="py-1 text-left">年級</th>
-                  {HOMEWORK_FEE_PLANS.map((p) => (
-                    <th key={p} className="py-1 text-left">
-                      {p}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {HOMEWORK_FEE_GRADES.map((g) => (
-                  <tr key={g} className="border-t border-border/70">
-                    <td className="py-2">{g}{g === "中一" ? "（含小學）" : ""}</td>
-                    {HOMEWORK_FEE_PLANS.map((p) => (
-                      <td key={p} className="py-2 tabular-nums">
-                        {formatHkd(homeworkFeeBaseHkd(p, g))}
-                      </td>
+            {division === "primary" ? (
+              <>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  港元／月；小學部全體年級同一價。12 月、2 月收四分三。無七日檔。
+                </p>
+                <table className="mt-3 w-full text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr>
+                      <th className="py-1 text-left">日數檔</th>
+                      {HOMEWORK_PRIMARY_FEE_PLANS.map((p) => (
+                        <th key={p} className="py-1 text-left">
+                          {p}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-t border-border/70">
+                      <td className="py-2">小一至小六</td>
+                      {HOMEWORK_PRIMARY_FEE_PLANS.map((p) => (
+                        <td key={p} className="py-2 tabular-nums">
+                          {formatHkd(homeworkFeeBaseHkd(p, "P1", "primary"))}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  港元／月；留在中學部的小學生跟中一。12 月、2 月收四分三。中四至中六未列價。
+                </p>
+                <table className="mt-3 w-full text-sm">
+                  <thead className="text-xs text-muted-foreground">
+                    <tr>
+                      <th className="py-1 text-left">年級</th>
+                      {HOMEWORK_FEE_PLANS.map((p) => (
+                        <th key={p} className="py-1 text-left">
+                          {p}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {HOMEWORK_FEE_GRADES.map((g) => (
+                      <tr key={g} className="border-t border-border/70">
+                        <td className="py-2">
+                          {g}
+                          {g === "中一" ? "（含併入中學部之小學）" : ""}
+                        </td>
+                        {HOMEWORK_FEE_PLANS.map((p) => (
+                          <td key={p} className="py-2 tabular-nums">
+                            {formatHkd(homeworkFeeBaseHkd(p, g, "secondary"))}
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  </tbody>
+                </table>
+              </>
+            )}
           </section>
           <section className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
             每日功課進度（影相＋打字）不進本系統，繼續使用 Notion。末節讓房不做。

@@ -44,8 +44,8 @@ function day(partial: Partial<HomeworkDutyDay> & Pick<HomeworkDutyDay, "date">):
 
 describe("availWindow", () => {
   it("maps full and empty to the session window", () => {
-    expect(availWindow(null)).toEqual({ start: "15:30", end: "19:30" })
-    expect(availWindow({ kind: "full" })).toEqual({ start: "15:30", end: "19:30" })
+    expect(availWindow(null)).toEqual({ start: "15:30", end: "20:00" })
+    expect(availWindow({ kind: "full" })).toEqual({ start: "15:30", end: "20:00" })
   })
 
   it("keeps custom times", () => {

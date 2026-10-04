@@ -1,12 +1,14 @@
 import { supabase } from "@/lib/supabaseClient"
 import {
   formatYearMonthLabel,
+  homeworkDivisionFromCourseCode,
   homeworkMonthlyFeeHkd,
   homeworkPaymentCoversMonth,
   isHomeworkMonthlyFeeDescription,
   isHomeworkDayPlan,
   monthFirstDay,
   type HomeworkDayPlan,
+  type HomeworkDivision,
   type HomeworkWeekday,
 } from "@/lib/homeworkTutoringFees"
 import {
@@ -33,6 +35,9 @@ export type HomeworkClassRef = {
   academicYearLabel: string
   classroomId: string | null
   classroomName: string | null
+  courseCodeFull: string | null
+  division: "secondary" | "primary"
+  timeSlot: string | null
 }
 
 export type HomeworkEnrollmentRow = {
@@ -153,26 +158,13 @@ function parseAvailEntries(raw: unknown): Record<string, AvailEntry> {
   return out
 }
 
-/** 取 2627（或指定學年）功輔班；無則 null */
-export async function fetchHomeworkClass(
-  academicYearLabel = "2627"
-): Promise<HomeworkClassRef | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from("classes")
-    .select(
-      "id, subject, academic_year_id, academic_year_label, classroom_id, classrooms ( id, name )"
-    )
-    .eq("class_kind", "homework")
-    .eq("academic_year_label", academicYearLabel)
-    .eq("status", "進行中")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (error) throw error
-  if (!data) return null
-  const row = data as Record<string, unknown>
+function mapHomeworkClassRow(
+  row: Record<string, unknown>,
+  academicYearLabel: string
+): HomeworkClassRef {
   const room = row.classrooms as { id?: string; name?: string } | null
+  const courseCodeFull =
+    row.course_code_full != null ? String(row.course_code_full) : null
   return {
     id: String(row.id),
     subject: String(row.subject ?? "功課輔導"),
@@ -180,7 +172,41 @@ export async function fetchHomeworkClass(
     academicYearLabel: String(row.academic_year_label ?? academicYearLabel),
     classroomId: row.classroom_id != null ? String(row.classroom_id) : null,
     classroomName: room?.name ?? null,
+    courseCodeFull,
+    division: homeworkDivisionFromCourseCode(courseCodeFull),
+    timeSlot: row.time_slot != null ? String(row.time_slot) : null,
   }
+}
+
+/** 取指定學年全部進行中功輔班（中學／小學） */
+export async function fetchHomeworkClasses(
+  academicYearLabel = "2627"
+): Promise<HomeworkClassRef[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase
+    .from("classes")
+    .select(
+      "id, subject, academic_year_id, academic_year_label, classroom_id, course_code_full, time_slot, classrooms ( id, name )"
+    )
+    .eq("class_kind", "homework")
+    .eq("academic_year_label", academicYearLabel)
+    .eq("status", "進行中")
+    .order("created_at", { ascending: true })
+  if (error) throw error
+  return (data ?? []).map((raw) =>
+    mapHomeworkClassRow(raw as Record<string, unknown>, academicYearLabel)
+  )
+}
+
+/** 取 2627（或指定學年）功輔班；優先中學部，無則第一班；無則 null */
+export async function fetchHomeworkClass(
+  academicYearLabel = "2627",
+  division?: HomeworkDivision
+): Promise<HomeworkClassRef | null> {
+  const list = await fetchHomeworkClasses(academicYearLabel)
+  if (list.length === 0) return null
+  if (division) return list.find((c) => c.division === division) ?? null
+  return list.find((c) => c.division === "secondary") ?? list[0] ?? null
 }
 
 export async function fetchHomeworkEnrollments(

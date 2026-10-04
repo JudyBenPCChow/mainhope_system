@@ -622,6 +622,7 @@ export function PaymentsPageView() {
       amount: homework
        ? homeworkPaymentLineAmount({
           dayPlan: prefEnroll.homeworkDayPlan,
+          courseCode: prefEnroll.courseCode,
           grade: students.find((s) => s.id === studentId)?.grade,
           coverageStartMonth: coverageMonthFromPayDate(payDate),
           monthCount: 1,
@@ -644,6 +645,7 @@ export function PaymentsPageView() {
            coverageStartMonth: coverageMonthFromPayDate(payDate),
            amount: homeworkPaymentLineAmount({
             dayPlan: hw.homeworkDayPlan,
+            courseCode: hw.courseCode,
             grade: students.find((s) => s.id === studentId)?.grade,
             coverageStartMonth: coverageMonthFromPayDate(payDate),
             monthCount: 1,
@@ -847,6 +849,7 @@ export function PaymentsPageView() {
        }
        next.amount = homeworkPaymentLineAmount({
         dayPlan: enroll.homeworkDayPlan,
+        courseCode: enroll.courseCode,
         grade: selectedStudent?.grade,
         coverageStartMonth: next.coverageStartMonth,
         monthCount: Number(next.lessons),
@@ -906,6 +909,7 @@ export function PaymentsPageView() {
      coverageStartMonth: coverageMonthFromPayDate(payDate),
      amount: homeworkPaymentLineAmount({
       dayPlan: nextEnrollment.homeworkDayPlan,
+      courseCode: nextEnrollment.courseCode,
       grade: selectedStudent?.grade,
       coverageStartMonth: coverageMonthFromPayDate(payDate),
       monthCount: 1,
@@ -952,6 +956,7 @@ export function PaymentsPageView() {
         coverageStartMonth: start,
         amount: homeworkPaymentLineAmount({
          dayPlan: hw.homeworkDayPlan,
+            courseCode: hw.courseCode,
          grade: selectedStudent?.grade,
          coverageStartMonth: start,
          monthCount: 1,
@@ -988,6 +993,7 @@ export function PaymentsPageView() {
     coverageStartMonth: start,
     amount: homeworkPaymentLineAmount({
      dayPlan: enroll.homeworkDayPlan,
+        courseCode: enroll.courseCode,
      grade: selectedStudent.grade,
      coverageStartMonth: start,
      monthCount: 1,

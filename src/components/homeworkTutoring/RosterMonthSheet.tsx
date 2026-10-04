@@ -1,4 +1,12 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from "react"
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -20,15 +28,23 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 
-import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
-  HOMEWORK_DEFAULT_ROOM_B,
+  HomeworkDutyMonthCalendar,
+  type HomeworkCalendarDivisionLane,
+} from "./HomeworkDutyMonthCalendar"
+import {
+  HOMEWORK_DIVISION_LABEL,
+  HOMEWORK_DIVISION_ORDER,
+  homeworkDefaultRoomA,
+  homeworkDefaultRoomB,
   WEEKDAY_OPTIONS,
   assignedTeacherIds,
   buildMonthDutyDays,
   closeSecondHomeworkRoom,
+  crossDivisionDutyClashes,
   defaultRoomForNextAssignment,
   dutyAssignments,
+  dutyDaysByMdKey,
   dutyKeyMonth,
   formatAvailLabel,
   formatAssignmentLine,
@@ -47,6 +63,8 @@ import {
   teachersAvailableOnDay,
   withSyncedLegacyTeachers,
   type AllTeacherAvailability,
+  type HomeworkCompanionRoster,
+  type HomeworkDivision,
   type HomeworkDutyAssignment,
   type HomeworkDutyDay,
   type HomeworkHoliday,
@@ -89,13 +107,35 @@ function DutyPeopleLines({
     )
   }
   return (
-    <ul className="space-y-0.5">
+    <span className="block space-y-0.5">
       {list.map((a, i) => (
-        <li key={`${a.teacherId}-${a.room}-${i}`} className="tabular-nums">
+        <span key={`${a.teacherId}-${a.room}-${i}`} className="block tabular-nums">
           {formatAssignmentLine(a, teachers)}
-        </li>
+        </span>
       ))}
-    </ul>
+    </span>
+  )
+}
+
+function DutyCellButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="-mx-2 -my-1 block w-[calc(100%+1rem)] rounded-md px-2 py-1 text-left transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </button>
   )
 }
 
@@ -110,6 +150,11 @@ export function RosterMonthSheet({
   teachers = [],
   holidays = [],
   students = [],
+  division = "secondary",
+  companion = null,
+  onEditCompanionDay,
+  initialEditDate = null,
+  onInitialEditHandled,
   onPublish,
 }: {
   yearMonth: string
@@ -122,6 +167,14 @@ export function RosterMonthSheet({
   teachers?: readonly HomeworkTeacherRow[]
   holidays?: HomeworkHoliday[]
   students?: readonly HomeworkStudentRow[]
+  division?: HomeworkDivision
+  /** 另一學部同月資料；本頁只顯示，修改須切換學部 */
+  companion?: HomeworkCompanionRoster | null
+  /** 點對照學部當值格：切換學部後開該日編輯 */
+  onEditCompanionDay?: (date: string) => void
+  /** 載入後自動開啟編輯的日期（M/D） */
+  initialEditDate?: string | null
+  onInitialEditHandled?: () => void
   /** 確定編更／已編更後改派：持久化＋寫 schedules 佔室 */
   onPublish?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
 }) {
@@ -132,7 +185,10 @@ export function RosterMonthSheet({
   const [addTeacherId, setAddTeacherId] = useState("")
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [dirty, setDirty] = useState(false)
   const published = (monthStatus[yearMonth] ?? "未編更") === "已編更"
+  const roomA = homeworkDefaultRoomA(division)
+  const roomB = homeworkDefaultRoomB(division)
 
   const monthHolidays = useMemo(
     () => holidaysInYearMonth(yearMonth, holidays),
@@ -140,8 +196,11 @@ export function RosterMonthSheet({
   )
 
   const monthDays = useMemo(
-    () => buildMonthDutyDays(yearMonth, dutyDays, monthHolidays).map(withSyncedLegacyTeachers),
-    [yearMonth, dutyDays, monthHolidays]
+    () =>
+      buildMonthDutyDays(yearMonth, dutyDays, monthHolidays, { division, roomA }).map(
+        withSyncedLegacyTeachers
+      ),
+    [yearMonth, dutyDays, monthHolidays, division, roomA]
   )
 
   const upsertDay = (next: HomeworkDutyDay) => {
@@ -152,9 +211,11 @@ export function RosterMonthSheet({
         ? prev.map((d) => (toDutyMdKey(d.date) === key ? synced : d))
         : [...prev, synced]
     )
+    setDirty(true)
   }
 
   const goMonth = (delta: number) => {
+    setDirty(false)
     onYearMonthChange(clampMonth(shiftYearMonth(yearMonth, delta)))
   }
 
@@ -164,19 +225,45 @@ export function RosterMonthSheet({
   const expectedCount = (day: HomeworkDutyDay): number =>
     studentsComingOnWeekday([...students], weekdayOf(day)).length
 
+  const activeLabel = HOMEWORK_DIVISION_LABEL[division]
+  const companionLabel = companion ? HOMEWORK_DIVISION_LABEL[companion.division] : ""
+  const companionPublished = companion?.status === "已編更"
+  const companionByKey = useMemo(() => {
+    if (!companion || companion.yearMonth !== yearMonth) return null
+    const days = buildMonthDutyDays(yearMonth, companion.dutyDays, monthHolidays, {
+      division: companion.division,
+      roomA: companion.classroomName ?? homeworkDefaultRoomA(companion.division),
+    }).map(withSyncedLegacyTeachers)
+    return dutyDaysByMdKey(days)
+  }, [companion, yearMonth, monthHolidays])
+
+  const companionDayOf = (day: HomeworkDutyDay): HomeworkDutyDay | null =>
+    companionByKey?.get(toDutyMdKey(day.date) ?? "") ?? null
+
+  const companionCount = (day: HomeworkDutyDay): number =>
+    companion ? studentsComingOnWeekday(companion.students, weekdayOf(day)).length : 0
+
+  const companionAssignmentOf = (day: HomeworkDutyDay, teacherId: string) =>
+    dutyAssignments(companionDayOf(day)).filter((a) => a.teacherId === teacherId)
+
+  const divisionGroups = HOMEWORK_DIVISION_ORDER.filter(
+    (d) => d === division || (companion != null && d === companion.division)
+  )
+
   const openSecondAllWeekdays = () => {
     const monthNum = Number(yearMonth.split("-")[1])
     const updated = monthDays.map((d) =>
-      d.holiday || isSecondRoomOpen(d) ? d : openSecondHomeworkRoom(d)
+      d.holiday || isSecondRoomOpen(d) ? d : openSecondHomeworkRoom(d, roomB)
     )
     onDutyDaysChange((prev) => {
       const others = prev.filter((d) => dutyKeyMonth(d.date) !== monthNum)
       return [...others, ...updated]
     })
+    setDirty(true)
     pushBanner({
       title: "已加開第二課室",
       tone: "success",
-      message: `本月平日已加開 ${HOMEWORK_DEFAULT_ROOM_B}。請再派導師，然後儲存以寫入佔室。`,
+      message: `${activeLabel}本月平日已加開 ${roomB}。請再派導師，然後儲存以寫入佔室。`,
     })
   }
 
@@ -185,15 +272,15 @@ export function RosterMonthSheet({
     const ok = await confirmDialog(
       published
         ? {
-            title: "儲存當值變更？",
-            description: `${monthLabel} 將更新當值老師，並重寫課室佔用（15:15 起）。`,
+            title: `儲存${activeLabel}當值變更？`,
+            description: `${activeLabel} ${monthLabel} 將更新當值老師，並重寫課室佔用（15:15 起）。`,
             confirmText: "儲存變更",
             cancelText: "取消",
             tone: "warning",
           }
         : {
-            title: "確定本月編更？",
-            description: `${monthLabel} 儲存後即確定編更，並寫入課室佔用（15:15 起）。未派人的日子會顯示暫時空缺。`,
+            title: `確定${activeLabel}本月編更？`,
+            description: `${activeLabel} ${monthLabel} 儲存後即確定編更，並寫入課室佔用（15:15 起）。未派人的日子會顯示暫時空缺。`,
             confirmText: "確定編更",
             cancelText: "取消",
             tone: "warning",
@@ -213,12 +300,13 @@ export function RosterMonthSheet({
         return [...others, ...monthDays]
       })
       await onMonthStatusChange(yearMonth, "已編更")
+      setDirty(false)
       pushBanner({
         title: "已儲存",
         tone: "success",
         message: published
-          ? `${monthLabel} 當值已更新，課室佔用已寫入排程。`
-          : `${monthLabel} 編更已確定，課室佔用已寫入排程。`,
+          ? `${activeLabel} ${monthLabel} 當值已更新，課室佔用已寫入排程。`
+          : `${activeLabel} ${monthLabel} 編更已確定，課室佔用已寫入排程。`,
       })
     } catch (err) {
       const message = formatUnknownError(err)
@@ -239,7 +327,22 @@ export function RosterMonthSheet({
 
   const addOptions = (day: HomeworkDutyDay) => {
     const assigned = new Set(assignedTeacherIds(day))
-    return teachersAvailableOnDay(avail, day.date, teachers).filter((t) => !assigned.has(t.id))
+    const reported = teachersAvailableOnDay(avail, day.date, teachers).filter(
+      (t) => !assigned.has(t.id)
+    )
+    const reportedIds = new Set(reported.map((t) => t.id))
+    const unreported = teachers.filter((t) => !assigned.has(t.id) && !reportedIds.has(t.id))
+    return { reported, unreported }
+  }
+
+  const addOptionLabel = (day: HomeworkDutyDay, t: HomeworkTeacherRow, reported: boolean) => {
+    const elsewhere = companionAssignmentOf(day, t.id)
+    const base = reported
+      ? `${t.name}（${formatAvailLabel(getAvailEntry(avail, t.id, day.date))}）`
+      : `${t.name}（未報更）`
+    return elsewhere.length > 0
+      ? `${base}｜已在${companionLabel} ${elsewhere.map((a) => `${a.start}–${a.end}`).join("、")}`
+      : base
   }
 
   const reportedLine = (day: HomeworkDutyDay) => {
@@ -254,6 +357,54 @@ export function RosterMonthSheet({
     setEditDay(withSyncedLegacyTeachers(day))
     setAddTeacherId("")
   }
+
+  useEffect(() => {
+    if (!initialEditDate) return
+    const want = toDutyMdKey(initialEditDate)
+    const target = monthDays.find((d) => toDutyMdKey(d.date) === want)
+    if (target && !target.holiday) openEdit(target)
+    onInitialEditHandled?.()
+  }, [initialEditDate, monthDays, onInitialEditHandled])
+
+  const editCompanionDay = async (day: HomeworkDutyDay) => {
+    if (!onEditCompanionDay) return
+    if (dirty) {
+      const ok = await confirmDialog({
+        title: `切換到${companionLabel}？`,
+        description: `本頁${activeLabel}有未儲存的改動，切換後會消失。`,
+        confirmText: "切換",
+        cancelText: "留在本頁",
+        tone: "warning",
+      })
+      if (ok !== true) return
+    }
+    onEditCompanionDay(day.date)
+  }
+
+  const activeLane: HomeworkCalendarDivisionLane = {
+    division,
+    dutyDays: monthDays,
+    defaultRoom: roomA,
+    emptyLabel: published ? "暫時空缺" : "—",
+    countOf: expectedCount,
+    onSelect: openEdit,
+    selectLabel: (d) => `修改${activeLabel} ${d.date} 當值`,
+  }
+  const companionLane: HomeworkCalendarDivisionLane | null =
+    companion && companionByKey
+      ? {
+          division: companion.division,
+          dutyDays: [...companionByKey.values()],
+          defaultRoom: companion.classroomName ?? homeworkDefaultRoomA(companion.division),
+          emptyLabel: companionPublished ? "暫時空缺" : "未編更",
+          countOf: companionCount,
+          onSelect: onEditCompanionDay ? (d) => void editCompanionDay(d) : undefined,
+          selectLabel: (d) => `切換到${companionLabel}並修改 ${d.date} 當值`,
+        }
+      : null
+  const calendarLanes = [activeLane, ...(companionLane ? [companionLane] : [])].sort(
+    (a, b) => HOMEWORK_DIVISION_ORDER.indexOf(a.division) - HOMEWORK_DIVISION_ORDER.indexOf(b.division)
+  )
 
   const editAssignments = editDay ? dutyAssignments(editDay) : []
   const editInvalid = editAssignments.some(assignmentInvalid)
@@ -317,8 +468,13 @@ export function RosterMonthSheet({
           <ChevronRight className="h-4 w-4" />
         </Button>
         <Tag tone={statusToTagTone(published ? "已編更" : "未編更")} size="sm">
-          {published ? "已編更" : "未編更"}
+          {activeLabel}{published ? "已編更" : "未編更"}
         </Tag>
+        {companion ? (
+          <Tag tone={statusToTagTone(companionPublished ? "已編更" : "未編更")} size="sm">
+            {companionLabel}{companionPublished ? "已編更" : "未編更"}
+          </Tag>
+        ) : null}
         <TabsList className="ml-auto w-full justify-start sm:w-auto">
           <TabsTrigger value="list">列表</TabsTrigger>
           <TabsTrigger value="calendar">月曆</TabsTrigger>
@@ -326,9 +482,13 @@ export function RosterMonthSheet({
       </div>
 
       <p className="text-xs text-muted-foreground">
+        正在編輯 <span className="font-medium text-foreground">{activeLabel}</span>
         {published
-          ? "已確定的當值清單。預設一間課室（17D）；人數多或當日需要先加開第二間。改派後請按「儲存變更」寫入課室佔用。"
-          : "未編更：預設一間課室（17D）。儲存後即確定本月編更，並只佔已開的房。"}
+          ? `：已確定的當值清單。預設一間課室（${roomA}）；人數多或當日需要先加開第二間。改派後請按「儲存變更」寫入課室佔用。`
+          : `：未編更，預設一間課室（${roomA}）。儲存後即確定本月編更，並只佔已開的房。`}
+        {`按當值老師一格即可修改${
+          companion ? `；按${companionLabel}一格會先切換到${companionLabel}` : ""
+        }。`}
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -339,10 +499,10 @@ export function RosterMonthSheet({
           loadingText="儲存中…"
           onClick={() => void saveMonth()}
         >
-          {published ? "儲存變更" : "儲存"}
+          {published ? `儲存${activeLabel}變更` : `儲存${activeLabel}`}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={openSecondAllWeekdays}>
-          本月平日加開 {HOMEWORK_DEFAULT_ROOM_B}
+          {activeLabel}本月平日加開 {roomB}
         </Button>
       </div>
       {saveError ? (
@@ -356,20 +516,61 @@ export function RosterMonthSheet({
 
       <TabsContent value="list" className="mt-0">
         <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-          <table className="w-full min-w-[640px] text-left text-sm">
+          <table
+            className={`w-full text-left text-sm ${divisionGroups.length > 1 ? "min-w-[1040px]" : "min-w-[640px]"}`}
+          >
             <thead className="bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="px-3 py-2 font-medium">日期</th>
-                <th className="px-3 py-2 font-medium">約到校</th>
-                <th className="px-3 py-2 font-medium">課室</th>
-                <th className="px-3 py-2 font-medium">當值</th>
-                <th className="px-3 py-2 font-medium">{published ? "可頂替" : "已報更"}</th>
-                <th className="px-3 py-2 font-medium">操作</th>
+                <th rowSpan={2} className="px-3 py-2 align-bottom font-medium">
+                  日期
+                </th>
+                {divisionGroups.map((g) => (
+                  <th
+                    key={g}
+                    colSpan={3}
+                    className={`border-l border-border px-3 pt-2 pb-1 font-semibold ${
+                      g === division ? "bg-primary/10 text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
+                    {HOMEWORK_DIVISION_LABEL[g]}
+                    <span className="ml-2 font-normal">
+                      {g === division ? "（編輯中）" : "（對照）"}
+                    </span>
+                  </th>
+                ))}
+                <th rowSpan={2} className="border-l border-border px-3 py-2 align-bottom font-medium">
+                  {published ? "可頂替" : "已報更"}
+                </th>
+                <th rowSpan={2} className="px-3 py-2 align-bottom font-medium">
+                  操作
+                </th>
+              </tr>
+              <tr>
+                {divisionGroups.map((g) => (
+                  <Fragment key={g}>
+                    <th
+                      className={`border-l border-border px-3 pb-2 font-medium ${g === division ? "bg-primary/10" : ""}`}
+                    >
+                      到校人數
+                    </th>
+                    <th className={`px-3 pb-2 font-medium ${g === division ? "bg-primary/10" : ""}`}>課室</th>
+                    <th className={`px-3 pb-2 font-medium ${g === division ? "bg-primary/10" : ""}`}>
+                      當值老師
+                    </th>
+                  </Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
               {monthDays.map((d) => {
-                const subs = substituteTeachers(avail, d.date, assignedTeacherIds(d), teachers)
+                const other = companionDayOf(d)
+                const subs = substituteTeachers(
+                  avail,
+                  d.date,
+                  [...assignedTeacherIds(d), ...assignedTeacherIds(other)],
+                  teachers
+                )
+                const clashes = crossDivisionDutyClashes(d, other)
                 return (
                   <tr key={d.date} className="border-t border-border">
                     <td className="px-3 py-2.5 tabular-nums">
@@ -380,16 +581,81 @@ export function RosterMonthSheet({
                         </Tag>
                       ) : null}
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums text-muted-foreground">
-                      {d.holiday ? "—" : `${expectedCount(d)} 人`}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {d.holiday ? "—" : openedHomeworkRoomNames(d).join("／")}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {d.holiday ? "—" : <DutyPeopleLines day={d} teachers={teachers} published={published} />}
-                    </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">
+                    {divisionGroups.map((g) =>
+                      g === division ? (
+                        <Fragment key={g}>
+                          <td className="border-l border-border bg-primary/5 px-3 py-2.5 tabular-nums">
+                            {d.holiday ? "—" : `${expectedCount(d)} 人`}
+                          </td>
+                          <td className="bg-primary/5 px-3 py-2.5">
+                            {d.holiday ? (
+                              "—"
+                            ) : (
+                              <>
+                                {openedHomeworkRoomNames(d).join("／")}
+                                {clashes.sharedRooms.length > 0 ? (
+                                  <p className="mt-0.5 text-xs text-warning">
+                                    與{companionLabel}同用 {clashes.sharedRooms.join("／")}
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
+                          </td>
+                          <td className="bg-primary/5 px-3 py-2.5">
+                            {d.holiday ? (
+                              "—"
+                            ) : (
+                              <>
+                                <DutyCellButton
+                                  label={`修改${activeLabel} ${d.date} 當值`}
+                                  onClick={() => openEdit(d)}
+                                >
+                                  <DutyPeopleLines day={d} teachers={teachers} published={published} />
+                                </DutyCellButton>
+                                {clashes.overlappingTeacherIds.length > 0 ? (
+                                  <p className="mt-0.5 text-xs text-warning">
+                                    {clashes.overlappingTeacherIds
+                                      .map((id) => teacherName(id, teachers))
+                                      .join("、")}
+                                    同時段已在{companionLabel}當值
+                                  </p>
+                                ) : null}
+                              </>
+                            )}
+                          </td>
+                        </Fragment>
+                      ) : (
+                        <Fragment key={g}>
+                          <td className="border-l border-border px-3 py-2.5 tabular-nums text-muted-foreground">
+                            {d.holiday || !other ? "—" : `${companionCount(d)} 人`}
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground">
+                            {d.holiday || !other ? "—" : openedHomeworkRoomNames(other).join("／")}
+                          </td>
+                          <td className="px-3 py-2.5 text-muted-foreground">
+                            {d.holiday || !other ? (
+                              "—"
+                            ) : onEditCompanionDay ? (
+                              <DutyCellButton
+                                label={`切換到${companionLabel}並修改 ${d.date} 當值`}
+                                onClick={() => void editCompanionDay(d)}
+                              >
+                                {companionPublished ? (
+                                  <DutyPeopleLines day={other} teachers={teachers} published />
+                                ) : (
+                                  "未編更"
+                                )}
+                              </DutyCellButton>
+                            ) : companionPublished ? (
+                              <DutyPeopleLines day={other} teachers={teachers} published />
+                            ) : (
+                              "未編更"
+                            )}
+                          </td>
+                        </Fragment>
+                      )
+                    )}
+                    <td className="border-l border-border px-3 py-2.5 text-muted-foreground">
                       {d.holiday
                         ? "—"
                         : published
@@ -411,7 +677,7 @@ export function RosterMonthSheet({
                         disabled={Boolean(d.holiday)}
                         onClick={() => openEdit(d)}
                       >
-                        改
+                        改{companion ? activeLabel : ""}
                       </Button>
                     </td>
                   </tr>
@@ -428,12 +694,7 @@ export function RosterMonthSheet({
           dutyDays={monthDays}
           teachers={teachers}
           showIdleLabels={published}
-          onSelectDutyDay={openEdit}
-          dayCaption={(d) =>
-            d.holiday ? null : (
-              <span className="text-muted-foreground">約 {expectedCount(d)} 人</span>
-            )
-          }
+          lanes={calendarLanes}
         />
       </TabsContent>
 
@@ -448,7 +709,9 @@ export function RosterMonthSheet({
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>編輯當值 — {editDay?.date}</DialogTitle>
+            <DialogTitle>
+              編輯{activeLabel}當值 — {editDay?.date}
+            </DialogTitle>
             {editDay ? (
               <p className="text-sm text-muted-foreground">
                 時段默認跟報更，可改。可排多於一位；唔使全日都有人。預設一間課室；人數多先加開第二間。
@@ -459,9 +722,20 @@ export function RosterMonthSheet({
             <div className="space-y-3">
               <p className="text-xs text-muted-foreground">{reportedLine(editDay)}</p>
               <p className="text-sm">
-                當日約 {expectedCount(editDay)} 人到校
+                {activeLabel}當日約 {expectedCount(editDay)} 人到校
                 <span className="text-muted-foreground">（跟慣常到校星期；唔會自動加開）</span>
               </p>
+              {companion && companionDayOf(editDay) ? (
+                <p className="rounded-lg bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  {companionLabel}對照：約 {companionCount(editDay)} 人；課室{" "}
+                  {openedHomeworkRoomNames(companionDayOf(editDay)!).join("／")}；當值{" "}
+                  {companionPublished
+                    ? dutyAssignments(companionDayOf(editDay))
+                        .map((a) => formatAssignmentLine(a, teachers))
+                        .join("、") || "暫時空缺"
+                    : "未編更"}
+                </p>
+              ) : null}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">
                   已開：{openedHomeworkRoomNames(editDay).join("／")}
@@ -480,9 +754,9 @@ export function RosterMonthSheet({
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setEditDay(openSecondHomeworkRoom(editDay))}
+                    onClick={() => setEditDay(openSecondHomeworkRoom(editDay, roomB))}
                   >
-                    加開 {HOMEWORK_DEFAULT_ROOM_B}
+                    加開 {roomB}
                   </Button>
                 )}
               </div>
@@ -554,12 +828,30 @@ export function RosterMonthSheet({
                   value={addTeacherId}
                   onChange={(e) => addEditAssignment(e.target.value)}
                 >
-                  <option value="">選擇已報更同事</option>
-                  {addOptions(editDay).map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}（{formatAvailLabel(getAvailEntry(avail, t.id, editDay.date))}）
-                    </option>
-                  ))}
+                  <option value="">選擇同事</option>
+                  {(() => {
+                    const { reported, unreported } = addOptions(editDay)
+                    return [
+                      reported.length > 0 ? (
+                        <optgroup key="reported" label="已報更">
+                          {reported.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {addOptionLabel(editDay, t, true)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null,
+                      unreported.length > 0 ? (
+                        <optgroup key="unreported" label="未報更（預設全節，可改）">
+                          {unreported.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {addOptionLabel(editDay, t, false)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null,
+                    ]
+                  })()}
                 </Select>
               </label>
             </div>
