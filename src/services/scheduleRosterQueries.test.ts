@@ -214,13 +214,14 @@ describe("schedule roster selectors", () => {
   expect(rows.map((row) => row.studentId)).toEqual(["單堂未選"])
  })
 
- it("試堂只保留未完成／未取消且已確認收款", () => {
+ it("試堂保留已確認收款（含已完成）；取消／無單不上紙", () => {
   expect(activeTrialsForSchedules(context(), ["schedule-2"]).map((row) => row.id)).toEqual([
    "trial-active",
+   "trial-completed",
   ])
   const unpaid = context()
   unpaid.trials = unpaid.trials.map((t) =>
-   t.id === "trial-active" ? { ...t, paymentId: null } : t
+   t.id === "trial-active" || t.id === "trial-completed" ? { ...t, paymentId: null } : t
   )
   expect(activeTrialsForSchedules(unpaid, ["schedule-2"]).map((row) => row.id)).toEqual([])
  })
@@ -293,9 +294,9 @@ describe("schedule roster selectors", () => {
    ["同班同日請假", "兩期生", "單堂未選", "第一期生"].sort()
   )
   expect(rosterStudentsForSchedule(ctx, "schedule-2").map((row) => row.fullName).sort()).toEqual(
-   ["兩期生", "單堂已選", "第二期生", "試堂生"].sort()
+   ["兩期生", "單堂已選", "第二期生", "試堂生", "已完成試堂"].sort()
   )
-  expect(rosterHeadcountForSchedule(ctx, "schedule-2")).toBe(4)
+  expect(rosterHeadcountForSchedule(ctx, "schedule-2")).toBe(5)
  })
 
  it("補回加堂跨期時沿用原取消堂日期判定期數（第一期生仍應出現）", () => {
