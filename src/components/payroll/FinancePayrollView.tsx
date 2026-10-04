@@ -294,7 +294,8 @@ export function FinancePayrollView({
     void (async () => {
       const ok = await confirmDialog({
         title: "確定重新計算？",
-        description: "版本會遞增，並清空本版所有「已審」標記，須重新審核。",
+        description:
+          "將依最新點名／排程重算本月薪酬，並遞增計算版本。各員工的「已審」標記會保留；如金額有變，請按人再核對。",
         confirmText: "重算",
         cancelText: "取消",
         tone: "warning",
@@ -305,7 +306,7 @@ export function FinancePayrollView({
       pushBanner({
         tone: "success",
         title: "已重新計算（示範）",
-        message: "版本已遞增；已審標記已清空（須對新版重審）。",
+        message: "版本已遞增；「已審」標記仍保留，請按人核對有變動者。",
       })
     })()
   }
@@ -1520,7 +1521,9 @@ export function FinancePayrollView({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">審核狀態已重置，請重審受影響教師。</p>
+          <p className="text-xs text-muted-foreground">
+            「已審」標記仍保留；請按人核對金額有變動的員工。
+          </p>
           <DialogFooter>
             <Button type="button" onClick={() => setDiffOpen(false)}>
               關閉
