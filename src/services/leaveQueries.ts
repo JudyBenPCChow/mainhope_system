@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { fetchClassLabelPatchesByIds, type ClassLabelPatch } from "@/services/classLabelLookup"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
 import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
@@ -169,15 +170,47 @@ export type LeaveOpsListResult = {
  hiddenOlderCount: number
 }
 
+function leaveRowHasClassLabel(row: LeaveManageRow): boolean {
+ const label = (row.class_subject ?? "").trim()
+ return label !== "" && label !== "—"
+}
+
 function mergeLeaveRows(parts: LeaveManageRow[][]): LeaveManageRow[] {
  const byId = new Map<string, LeaveManageRow>()
  for (const part of parts) {
-  for (const row of part) byId.set(row.id, row)
+  for (const row of part) {
+   const prev = byId.get(row.id)
+   if (prev && leaveRowHasClassLabel(prev) && !leaveRowHasClassLabel(row)) continue
+   byId.set(row.id, row)
+  }
  }
  return [...byId.values()].sort((a, b) => {
   if (a.leave_date !== b.leave_date) return a.leave_date.localeCompare(b.leave_date)
   return a.id.localeCompare(b.id)
  })
+}
+
+export function applyClassLabelsToLeaveRows(
+ rows: LeaveManageRow[],
+ byClassId: Map<string, ClassLabelPatch>
+): LeaveManageRow[] {
+ if (byClassId.size === 0) return rows
+ return rows.map((row) => {
+  const hit = byClassId.get(row.class_id)
+  if (!hit) return row
+  return {
+   ...row,
+   class_subject: hit.class_subject,
+   course_code_full: hit.course_code_full,
+   teacher_name: hit.teacher_name ?? row.teacher_name,
+  }
+ })
+}
+
+async function fillLeaveClassLabels(rows: LeaveManageRow[]): Promise<LeaveManageRow[]> {
+ if (rows.length === 0) return rows
+ const byClassId = await fetchClassLabelPatchesByIds(rows.map((r) => r.class_id))
+ return applyClassLabelsToLeaveRows(rows, byClassId)
 }
 
 async function mapLeaveListResult(result: {
@@ -200,7 +233,8 @@ async function mapLeaveListResultOptional(
 }
 
 /**
- * 請假管理列表。預設：待處理／待補不限年；已完成／放棄跟日常營運窗。
+ * 請假管理列表。已完成／已補課／放棄仍回傳，並寫明原班別。
+ * 預設：待處理／待補不限年；已完成／放棄跟日常營運窗。
  * 深連結以 extraIds／extraStudentIds bypass。唔改堂數對帳／學生詳情 fetch。
  */
 export async function fetchLeaveMakeupWithRelations(opts?: {
@@ -219,7 +253,7 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
    .select(LEAVE_LIST_COLUMNS)
    .order("leave_date", { ascending: true })
    .order("created_at", { ascending: true })
-  return { rows: await mapLeaveListResult({ data, error }), hiddenOlderCount: 0 }
+  return { rows: await fillLeaveClassLabels(await mapLeaveListResult({ data, error })), hiddenOlderCount: 0 }
  }
 
  if (includeOlder) return runFull()
@@ -243,9 +277,10 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
   .select(LEAVE_LIST_COLUMNS)
   .or(LEAVE_COMPLETED_STATUS_OR)
   .is("class_id", null)
+ // 學年空白必須 classes!inner，否則已完成列合併後會失去班別名稱。
  const completedNullYearQ = supabase
   .from("leave_makeup_records")
-  .select(LEAVE_LIST_COLUMNS)
+  .select(LEAVE_LIST_COLUMNS_INNER_CLASS)
   .or(LEAVE_COMPLETED_STATUS_OR)
   .not("class_id", "is", null)
   .is("classes.academic_year_id", null)
@@ -273,7 +308,7 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
   .is("class_id", null)
  const nullYearCountQ = supabase
   .from("leave_makeup_records")
-  .select("id, classes(academic_year_id)", { count: "exact", head: true })
+  .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
   .or(LEAVE_COMPLETED_STATUS_OR)
   .not("class_id", "is", null)
   .is("classes.academic_year_id", null)
@@ -315,7 +350,7 @@ export async function fetchLeaveMakeupWithRelations(opts?: {
  ])
 
  return {
-  rows: mergeLeaveRows(parts),
+  rows: await fillLeaveClassLabels(mergeLeaveRows(parts)),
   hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
  }
 }

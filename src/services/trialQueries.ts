@@ -1,5 +1,10 @@
 import { supabase } from "@/lib/supabaseClient"
 import { formatClassLabel } from "@/lib/courseLabel"
+import {
+ classLabelPatchFromClassRow,
+ fetchClassLabelPatchesByIds,
+ type ClassLabelPatch,
+} from "@/services/classLabelLookup"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
@@ -247,15 +252,46 @@ export type TrialOpsListResult = {
  hiddenOlderCount: number
 }
 
+function trialRowHasClassLabel(row: TrialManageRow): boolean {
+ const label = (row.class_subject ?? "").trim()
+ return label !== "" && label !== "—"
+}
+
 function mergeTrialRows(parts: TrialManageRow[][]): TrialManageRow[] {
  const byId = new Map<string, TrialManageRow>()
  for (const part of parts) {
-  for (const row of part) byId.set(row.id, row)
+  for (const row of part) {
+   const prev = byId.get(row.id)
+   if (prev && trialRowHasClassLabel(prev) && !trialRowHasClassLabel(row)) continue
+   byId.set(row.id, row)
+  }
  }
  return [...byId.values()].sort((a, b) => {
   if (a.trial_date !== b.trial_date) return b.trial_date.localeCompare(a.trial_date)
   return b.id.localeCompare(a.id)
  })
+}
+
+export type TrialClassLabelPatch = ClassLabelPatch
+export { classLabelPatchFromClassRow }
+
+/** 試堂列的班名以 class_id 為準（已完成／已轉化同樣寫明）。 */
+export function applyClassLabelsToTrialRows(
+ rows: TrialManageRow[],
+ byClassId: Map<string, ClassLabelPatch>
+): TrialManageRow[] {
+ if (byClassId.size === 0) return rows
+ return rows.map((row) => {
+  const hit = byClassId.get(row.class_id)
+  if (!hit) return row
+  return { ...row, ...hit }
+ })
+}
+
+async function fillTrialClassLabels(rows: TrialManageRow[]): Promise<TrialManageRow[]> {
+ if (rows.length === 0) return rows
+ const byClassId = await fetchClassLabelPatchesByIds(rows.map((r) => r.class_id))
+ return applyClassLabelsToTrialRows(rows, byClassId)
 }
 
 async function mapTrialListResult(
@@ -293,7 +329,8 @@ async function attachAttendance(rows: TrialManageRow[]): Promise<TrialManageRow[
 }
 
 /**
- * 試堂管理列表。預設：未完成（已預約等）不限年；已完成／取消跟日常營運窗。
+ * 試堂管理列表。試堂列是歷史紀錄：已完成／已轉化仍回傳，並寫明原試堂班別。
+ * 預設：未完成不限年；已完成／取消跟日常營運窗（更舊學年另載入，不是刪除）。
  */
 export async function fetchTrialsWithRelations(opts?: {
  includeOlderYears?: boolean
@@ -313,11 +350,12 @@ export async function fetchTrialsWithRelations(opts?: {
    ...new Set(raw.map((x) => String((x as { schedule_id?: string }).schedule_id ?? "")).filter(Boolean)),
   ]
   const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
+  const mapped = raw.map((x) => {
+   const row = x as Record<string, unknown>
+   return mapRow(row, attended.has(String(row.schedule_id ?? "")))
+  })
   return {
-   rows: raw.map((x) => {
-    const row = x as Record<string, unknown>
-    return mapRow(row, attended.has(String(row.schedule_id ?? "")))
-   }),
+   rows: await fillTrialClassLabels(mapped),
    hiddenOlderCount: 0,
   }
  }
@@ -342,9 +380,11 @@ export async function fetchTrialsWithRelations(opts?: {
   .select(TRIAL_LIST_COLUMNS)
   .or(TRIAL_CLOSED_STATUS_OR)
   .is("class_id", null)
+ // 學年空白必須 classes!inner：否則 PostgREST 只過濾 embed、父列仍全回。
+ // 已完成列仍回傳；班名另以 class_id 補上。
  const closedNullYearQ = supabase
   .from("trial_sessions")
-  .select(TRIAL_LIST_COLUMNS)
+  .select(TRIAL_LIST_COLUMNS_INNER_CLASS)
   .or(TRIAL_CLOSED_STATUS_OR)
   .not("class_id", "is", null)
   .is("classes.academic_year_id", null)
@@ -364,7 +404,7 @@ export async function fetchTrialsWithRelations(opts?: {
   .is("class_id", null)
  const nullYearCountQ = supabase
   .from("trial_sessions")
-  .select("id, classes(academic_year_id)", { count: "exact", head: true })
+  .select("id, classes!inner(academic_year_id)", { count: "exact", head: true })
   .or(TRIAL_CLOSED_STATUS_OR)
   .not("class_id", "is", null)
   .is("classes.academic_year_id", null)
@@ -404,7 +444,7 @@ export async function fetchTrialsWithRelations(opts?: {
  ])
 
  return {
-  rows: await attachAttendance(merged),
+  rows: await attachAttendance(await fillTrialClassLabels(merged)),
   hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
  }
 }
