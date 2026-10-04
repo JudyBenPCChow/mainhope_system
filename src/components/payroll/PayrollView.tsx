@@ -218,7 +218,8 @@ export function PayrollView() {
     void (async () => {
       const ok = await confirmDialog({
         title: "重新計算？",
-        description: "將依最新點名／排程重算本月薪酬，並遞增計算版本。已標記的「已審核」會保留於資料庫。",
+        description:
+          "將依最新點名／排程重算本月薪酬，並遞增計算版本。各員工的「已審」標記會保留；如金額有變，請按人再核對。",
         confirmText: "重算",
         cancelText: "取消",
         tone: "warning",
