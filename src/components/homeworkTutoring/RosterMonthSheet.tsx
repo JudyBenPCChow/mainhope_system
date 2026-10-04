@@ -831,28 +831,26 @@ export function RosterMonthSheet({
                   <option value="">選擇同事</option>
                   {(() => {
                     const { reported, unreported } = addOptions(editDay)
-                    return (
-                      <>
-                        {reported.length > 0 ? (
-                          <optgroup label="已報更">
-                            {reported.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {addOptionLabel(editDay, t, true)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null}
-                        {unreported.length > 0 ? (
-                          <optgroup label="未報更（預設全節，可改）">
-                            {unreported.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {addOptionLabel(editDay, t, false)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ) : null}
-                      </>
-                    )
+                    return [
+                      reported.length > 0 ? (
+                        <optgroup key="reported" label="已報更">
+                          {reported.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {addOptionLabel(editDay, t, true)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null,
+                      unreported.length > 0 ? (
+                        <optgroup key="unreported" label="未報更（預設全節，可改）">
+                          {unreported.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {addOptionLabel(editDay, t, false)}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ) : null,
+                    ]
                   })()}
                 </Select>
               </label>
