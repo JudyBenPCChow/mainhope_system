@@ -4,7 +4,6 @@ import {
   academicYearMonthBounds,
   availWindow,
   clampYearMonth,
-  crossDivisionDutyClashes,
   dutyAssignments,
   formatCalendarAssignmentLine,
   formatDutyPeople,
