@@ -52,6 +52,24 @@ describe("軟封存查詢契約（列表收窄 vs id 全量）", () => {
   expect(fn).toContain("academicYearIdOpsOrFilter")
  })
 
+ it("fetchTrialsWithRelations 已完成仍回傳，並以 class_id 補上班名", () => {
+  const fn = fnSlice(readSrc("src/services/trialQueries.ts"), "fetchTrialsWithRelations")
+  expect(fn).toContain("TRIAL_LIST_COLUMNS_INNER_CLASS")
+  expect(fn).toContain("fillTrialClassLabels")
+  expect(fn).toContain("TRIAL_CLOSED_STATUS_OR")
+  expect(fn).not.toContain('.select("id, classes(academic_year_id)"')
+  expect((fn.match(/classes!inner/g) ?? []).length).toBeGreaterThanOrEqual(2)
+ })
+
+ it("fetchLeaveMakeupWithRelations 已完成仍回傳，並以 class_id 補上班名", () => {
+  const fn = fnSlice(readSrc("src/services/leaveQueries.ts"), "fetchLeaveMakeupWithRelations")
+  expect(fn).toContain("LEAVE_LIST_COLUMNS_INNER_CLASS")
+  expect(fn).toContain("fillLeaveClassLabels")
+  expect(fn).toContain("LEAVE_COMPLETED_STATUS_OR")
+  expect(fn).not.toContain('.select("id, classes(academic_year_id)"')
+  expect((fn.match(/classes!inner/g) ?? []).length).toBeGreaterThanOrEqual(2)
+ })
+
  it("fetchClassOptions 新增報讀只跟目前學年窗，唔跟 ops 窗／flag", () => {
   const fn = fnSlice(readSrc("src/services/studentQueries.ts"), "fetchClassOptions")
   expect(fn).toContain("fetchEnrollableAcademicYearWindow")
