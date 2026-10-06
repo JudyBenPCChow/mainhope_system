@@ -161,6 +161,7 @@
 | Sophie Yu | 行政人員 | 固定月薪 $16,000 | 要 |
 | Katie Lee | 專科老師 | 固定月薪 $20,000 | 要 |
 | Cheryl Ng、Billy Shek、Liam Lai、Leo Chan、Kenneth Li、Emma Cai、Phoebe Tam | 兼職專科老師 | 按人頭計薪 | 否 |
+| Elaine Yao | 兼職專科老師 | 按人頭計薪（初中其後每人頭 +$50；見第 7.6 節） | 否 |
 | Natalie Kwok | 兼職專科老師 | 專科班按人頭；私人課程一對一固定 $350／節 | 否 |
 | Judy Chu | 兼職專科老師 | 特別費率按人頭計薪 | 否 |
 | Jackson Lau（Sum） | 專科老師 | 獨立定價 | 否 |
@@ -295,7 +296,7 @@ Christine Fan：該節無 60%；另得佣金 $1,000 × 10% = $100
 
 Cheryl Ng、Billy Shek、Liam Lai、Leo Chan、Natalie Kwok、Kenneth Li、Emma Cai、Phoebe Tam
 
-（Judy Chu 見第 8 章；其費率不同。Natalie Kwok 的專科班按本章；私人課程一對一見第 7.5 節。）
+（Judy Chu 見第 8 章；其費率不同。Elaine Yao 見第 7.6 節；初中人頭獎不同。Natalie Kwok 的專科班按本章；私人課程一對一見第 7.5 節。）
 
 ### 7.2 專科班公式
 
@@ -396,6 +397,26 @@ Natalie Kwok 的**專科班**仍按第 7.2 節人頭計法。其**私人課程�
 
 2026-07 已結算後補正：3 節由 $240 改 $350（+$330）；實際已補發。糧單快照與成本帳已一併改正。
 
+### 7.6 Elaine Yao：初中人頭獎不同
+
+Elaine Yao 適用兼職專科班規則，但**初中**其後每人頭為 +$50（一般兼職為 +$60）。高中與一般兼職相同。合約生效日 2026-09-13；系統費率自 2026-09-01 起生效（涵蓋 9 月計糧）。
+
+初中（中一至中三）：
+
+```text
+每節薪酬 = $120 ＋ $50 ×（實際扣堂人頭 − 1）
+```
+
+高中（中四至中六）：
+
+```text
+每節薪酬 = $150 ＋ $70 ×（實際扣堂人頭 − 1）
+```
+
+一對一／一對二仍按第 7.3 節等效 3／4 人頭，但初中用上表 +$50。
+
+另有初中功輔時薪 $100／小時（見第 16.1 節）。
+
 ---
 
 ## 8. Judy Chu：兼職專科特別費率
@@ -485,6 +506,7 @@ Cody Cheong 不計算強積金。
 目前常見情況：
 
 - **Leo Chan**：兼職專科班人頭薪酬 ＋ 功輔時薪（見第 16 章）
+- **Elaine Yao**：兼職專科班人頭薪酬（初中 +$50；見第 7.6 節）＋ 功輔時薪（見第 16 章）
 - **Judy Chu**：特別費率專科班薪酬 ＋ 功輔時薪（見第 16 章）
 - **Natalie Kwok**：兼職專科班人頭薪酬 ＋ 私人課程一對一固定 $350／節（見第 7.5 節）
 - **Christine Fan**：專科分成 ＋ 功輔時薪 ＋ 功輔佣金（見第 16 章）
@@ -644,7 +666,7 @@ Cody Cheong 不計算強積金。
 | 時薪 | 同事 |
 | --- | --- |
 | $70 | Jeffrey Lee、Ken Tam、Leo Chan |
-| $100 | Rain Kwok、Annie Leung、Erika Fok、Wing Chan、Liam Lai、Christine Fan、Kenneth Li |
+| $100 | Rain Kwok、Annie Leung、Erika Fok、Wing Chan、Liam Lai、Christine Fan、Kenneth Li、Elaine Yao |
 | $110 | Judy Chu |
 | $115 | Diana Kwok |
 
@@ -685,31 +707,42 @@ Christine Fan 本人若當值，另取第 16.1 節時薪 $100；功輔佣金與�
 
 一對一＝3 人頭；一對二＝4 人頭。
 
-Natalie Kwok 的**專科班**用上表；其**私人課程一對一**不用上表，見第 17.7 節。
+Natalie Kwok 的**專科班**用上表；其**私人課程一對一**不用上表，見第 17.8 節。
 
-### 17.4 Judy Chu
+Elaine Yao **不用**上表初中欄；見第 17.4 節。
+
+### 17.4 Elaine Yao
+
+| 級別 | 第一人頭 | 其後每人頭 |
+| --- | --- | --- |
+| 初中 | $120 | +$50 |
+| 高中 | $150 | +$70 |
+
+一對一＝3 人頭；一對二＝4 人頭。功輔時薪 $100／小時。
+
+### 17.5 Judy Chu
 
 | 級別 | 第一人頭 | 其後每人頭 |
 | --- | --- | --- |
 | 初中 | $120 | +$70 |
 | 高中 | $160 | +$80 |
 
-### 17.5 Jackson Lau（Sum）／Cyndi Ng
+### 17.6 Jackson Lau（Sum）／Cyndi Ng
 
 | 同事 | 專科班 | 一對一 | 一對二 |
 | --- | --- | --- | --- |
 | Jackson Lau（Sum） | $110 × 人頭 | $454 | $550 |
 | Cyndi Ng | 原價 × 50% | $400 | $550 |
 
-### 17.6 Cody Cheong
+### 17.7 Cody Cheong
 
 $60 × 已核准在家工作小時數
 
-### 17.7 Natalie Kwok 私人課程一對一
+### 17.8 Natalie Kwok 私人課程一對一
 
 $350／節（固定價；不按人頭、不跟該生學費）
 
-### 17.8 強積金速查
+### 17.9 強積金速查
 
 只適用 Mark Yu、Christine Fan、Sophie Yu、Katie Lee：
 
