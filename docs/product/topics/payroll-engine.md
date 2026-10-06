@@ -27,6 +27,7 @@
 ### 已知缺口／跟進
 
 - **Sophie Yu**（2026-08-07）：已入 `teachers`＋`payroll_rates` 固定月薪 $16,000（MPF 前；`mpf: true`）；migration `20260807094500_sophie_yu_payroll_enrollment.sql`
+- **Elaine Yao**（2026-10-06）：`payroll_rates` 兼職 HC（初中 $120+$50／人頭；高中 $150+$70／人頭）＋功輔時薪 $100；合約 2026-09-13；migration `20261006144000_elaine_yao_payroll_rates.sql`
 - **Cody Cheong** 不在 `teachers` 表 → WFH 列暫不會出現
 - 功輔時薪／Christine 功輔佣金 → [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)
 - 費率管理 UI（`/Payroll/Rates`）未做
