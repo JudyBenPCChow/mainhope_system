@@ -26,6 +26,8 @@ export type EntitlementNamespaceClassInput = {
  courseName?: string | null
  grade?: string[] | null
  gradeCode?: string | null
+ /** 課程模板接受年級；多於一級則專科不共用（即使 `grade_code` 是 S4） */
+ eligibleGradeCodes?: string[] | null
  isTrial?: boolean
 }
 
@@ -68,9 +70,10 @@ export function isHomeworkClassSubject(
 /** 單一適用年級 → S1 等；混級／不明 → null（唔共用） */
 export function specialistGradeScopeKey(
  grade: string[] | null | undefined,
- gradeCode: string | null | undefined
+ gradeCode: string | null | undefined,
+ eligibleGradeCodes?: string[] | null
 ): string | null {
- const labels = resolveClassGradeLabels(grade, gradeCode)
+ const labels = resolveClassGradeLabels(grade, gradeCode, eligibleGradeCodes)
  if (labels.length !== 1) return null
  const fromLabel = GRADE_TO_COURSE_CODE[labels[0]!]
  if (fromLabel) return fromLabel
@@ -99,7 +102,11 @@ export function resolveEntitlementNamespace(
  if (kind === "private") {
   return { courseGroup: "private", namespaceKey: classKey, sharesAcrossClasses: false }
  }
- const gradeKey = specialistGradeScopeKey(input.grade, input.gradeCode)
+ const gradeKey = specialistGradeScopeKey(
+  input.grade,
+  input.gradeCode,
+  input.eligibleGradeCodes
+ )
  if (gradeKey) {
   return {
    courseGroup: "group_specialist",

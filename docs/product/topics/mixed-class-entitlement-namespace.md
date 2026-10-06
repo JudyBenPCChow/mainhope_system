@@ -14,9 +14,9 @@
 `resolveEntitlementNamespace`（v3）：
 
 - **單級**專科 → `namespace_key = S4`（同級跨班共用）
-- **混級**（`classes.grade` 多於一級，如中四至中六）→ `namespace_key = class:<班別uuid>`（不共用）
+- **混級**（班別 `grade` **或** 課程 `eligible_grade_codes` 多於一級，如中四至中六）→ `namespace_key = class:<班別uuid>`（不共用）
 
-`ENGS4004-B`／`ENGS5004-B` 為混級。早期鑄池／宣告曾用 **course.grade_code**（S4／S5）建池；其後寫入與學費追收改跟現行解析 → `class:…`。
+`ENGS4004-B`／`ENGS5004-B` 為混級。早期鑄池／宣告曾用 **course.grade_code**（S4／S5）建池；其後寫入與學費追收改跟現行解析 → `class:…`。若鑄池只讀 `grade_code`、不讀 `eligible_grade_codes`，班別 `grade` 一旦被收成單一級，會再鑄出年級碼池。
 
 | 路徑 | 讀寫哪個池 |
 | --- | --- |
@@ -31,10 +31,15 @@
 ## 修復
 
 1. **讀徑（學費追收）**：混級班上年級碼池餘額別名加總到 `class:` 鍵。
-2. **寫徑（鑄池／抬池）**：發現同班舊年級碼池則改名或併入 `class:`，並重綁宣告／消費事件。
-3. **Migration**：production 合併既有雙池。
+2. **寫徑（鑄池／抬池）**：發現同班舊年級碼池則改名或併入 `class:`，並重綁宣告／消費事件。鑄／追收一律用 `resolveClassGradeLabels`（含 `eligible_grade_codes`），混級不鑄年級碼池。
+3. **Migration（2026-09-19）**：production 合併既有雙池。
+4. **防回歸（2026-10-07）**：`BEFORE INSERT/UPDATE` 觸發器拒絕混級專科班寫入 `^[PS][1-6]$` namespace。單測釘「課程接受 S4–S6、班別只存中四」仍解析為 `class:`。
+
+本題不改轉班／手誤清除／整堂補回繼承；不把池改成初中／高中一大口或每科一池；不清理張以諾／蔡曉朗殘留宣告。
 
 ## 驗收
 
 - 五名就讀生（梁景維、陳善珈、陳心然、徐思思、關智博）只剩一個 `class:` 池；宣告綁該池；尚餘＝原 class 餘＋年級餘（例如 4+(-3)=1）。
 - 學費追收「現在要追」能反映混級班欠費（合併後／別名後）。
+- 2026-10-07 查庫：兩班混級英文就讀／退讀池與有效宣告均為 `class:<該班id>`；同班無殘留 S4／S5 池。陳心然／徐思思另有單級中文 S6 池，屬正確共用，不是雙池。
+- `npx vitest run src/lib/entitlementNamespace.test.ts`

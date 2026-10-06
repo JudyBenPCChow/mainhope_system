@@ -1,4 +1,5 @@
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
+import { parseEligibleGradeCodesFromDb } from "@/lib/classGrade"
 import {
  classNamespaceKey,
  isGradeScopeNamespaceKey,
@@ -181,16 +182,26 @@ function namespaceFromClassRow(
  row: Record<string, unknown>,
  isTrial: boolean
 ): EntitlementNamespace {
- const course = row.courses as Record<string, unknown> | null
+ const courseRaw = row.courses
+ const course = (
+  Array.isArray(courseRaw)
+   ? courseRaw[0]
+   : courseRaw
+ ) as Record<string, unknown> | null
  const gradeRaw = row.grade
  const grade = Array.isArray(gradeRaw) ? gradeRaw.map((g) => String(g)) : null
+ const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
  return resolveEntitlementNamespace({
   classId,
   classKind: row.class_kind != null ? String(row.class_kind) : null,
   subject: row.subject != null ? String(row.subject) : null,
   courseName: course?.course_name != null ? String(course.course_name) : null,
   grade,
-  gradeCode: course?.grade_code != null ? String(course.grade_code) : null,
+  gradeCode,
+  eligibleGradeCodes: parseEligibleGradeCodesFromDb(
+   course?.eligible_grade_codes,
+   gradeCode
+  ),
   isTrial,
  })
 }
@@ -203,7 +214,7 @@ async function fetchClassEntitlementContext(
  const { data, error } = await supabase
   .from("classes")
   .select(
-   "class_kind, subject, grade, academic_year_id, academic_years ( label ), courses ( course_name, grade_code, course_mode )"
+   "class_kind, subject, grade, academic_year_id, academic_years ( label ), courses ( course_name, grade_code, course_mode, eligible_grade_codes )"
   )
   .eq("id", classId)
   .maybeSingle()
