@@ -28,6 +28,11 @@ describe("specialistGradeScopeKey", () => {
   expect(specialistGradeScopeKey(["中一", "中二"], "S1")).toBe(null)
   expect(specialistGradeScopeKey([], null)).toBe(null)
  })
+
+ it("does not share when the course accepts multiple grades", () => {
+  expect(specialistGradeScopeKey(["中四"], "S4", ["S4", "S5", "S6"])).toBe(null)
+  expect(specialistGradeScopeKey([], "S5", ["S4", "S5", "S6"])).toBe(null)
+ })
 })
 
 describe("resolveEntitlementNamespace", () => {
@@ -124,6 +129,35 @@ describe("resolveEntitlementNamespace", () => {
   })
   expect(ns.sharesAcrossClasses).toBe(false)
   expect(ns.namespaceKey).toBe(classNamespaceKey(CHI))
+ })
+
+ it("uses class scope for mixed senior English even if stored grade or grade_code is single", () => {
+  const ns = resolveEntitlementNamespace({
+   classId: CHI,
+   classKind: "group",
+   subject: "英文",
+   grade: ["中四"],
+   gradeCode: "S4",
+   eligibleGradeCodes: ["S4", "S5", "S6"],
+  })
+  expect(ns).toEqual({
+   courseGroup: "group_specialist",
+   namespaceKey: classNamespaceKey(CHI),
+   sharesAcrossClasses: false,
+  })
+ })
+
+ it("still shares a true single-grade specialist class", () => {
+  const ns = resolveEntitlementNamespace({
+   classId: CHI,
+   classKind: "group",
+   subject: "中文",
+   grade: ["中四"],
+   gradeCode: "S4",
+   eligibleGradeCodes: ["S4"],
+  })
+  expect(ns.namespaceKey).toBe("S4")
+  expect(ns.sharesAcrossClasses).toBe(true)
  })
 })
 

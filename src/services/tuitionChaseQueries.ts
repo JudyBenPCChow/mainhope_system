@@ -4,6 +4,7 @@
  * 專科計堂以 active 宣告為準（單堂／中途報讀／調堂）；私人課程無宣告則用該班排程。
  */
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
+import { parseEligibleGradeCodesFromDb, resolveClassGradeLabels } from "@/lib/classGrade"
 import { classDisplayName } from "@/lib/courseLabel"
 import {
  resolveEntitlementNamespace,
@@ -165,7 +166,7 @@ async function fetchActiveNonHomeworkEnrollments(
   let q = supabase
    .from("student_class_enrollments")
    .select(
-    "id, student_id, class_id, students ( student_code, full_name, english_name, grade ), classes ( subject, class_kind, grade, academic_year_id, course_code_full, academic_years ( label ), courses ( course_name, grade_code ) )"
+    "id, student_id, class_id, students ( student_code, full_name, english_name, grade ), classes ( subject, class_kind, grade, academic_year_id, course_code_full, academic_years ( label ), courses ( course_name, grade_code, eligible_grade_codes ) )"
    )
    .eq("status", "就讀中")
    .order("id", { ascending: true })
@@ -184,21 +185,26 @@ async function fetchActiveNonHomeworkEnrollments(
   if (!cls) continue
   const classKind = cls.class_kind != null ? String(cls.class_kind) : null
   if (isHomeworkClassKind(classKind)) continue
-  const course = cls.courses as Record<string, unknown> | null
-  const year = cls.academic_years as Record<string, unknown> | null
+  const course = embedOne(cls.courses)
+  const year = embedOne(cls.academic_years)
   const classId = row.class_id != null ? String(row.class_id) : ""
   const studentId = row.student_id != null ? String(row.student_id) : ""
   if (!classId || !studentId) continue
 
   const gradeRaw = cls.grade
   const gradeArr = Array.isArray(gradeRaw) ? gradeRaw.map((g) => String(g)) : null
+  const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
   const ns = resolveEntitlementNamespace({
    classId,
    classKind,
    subject: cls.subject != null ? String(cls.subject) : null,
    courseName: course?.course_name != null ? String(course.course_name) : null,
    grade: gradeArr,
-   gradeCode: course?.grade_code != null ? String(course.grade_code) : null,
+   gradeCode,
+   eligibleGradeCodes: parseEligibleGradeCodesFromDb(
+    course?.eligible_grade_codes,
+    gradeCode
+   ),
    isTrial: false,
   })
   if (ns.courseGroup === "homework" || ns.courseGroup === "trial") continue
@@ -497,7 +503,7 @@ async function fetchRemainingIndex(
   const { data, error } = await supabase!
    .from("student_entitlement_pools")
    .select(
-    "student_id, academic_year_id, course_group, namespace_key, remaining_lessons, class_id, classes ( grade )"
+    "student_id, academic_year_id, course_group, namespace_key, remaining_lessons, class_id, classes ( grade, courses ( grade_code, eligible_grade_codes ) )"
    )
    .in("student_id", slice)
   if (error) throw error
@@ -524,8 +530,15 @@ async function fetchRemainingIndex(
     remainingLessons,
    })
    const cls = row.classes as Record<string, unknown> | null
+   const course = embedOne(cls?.courses)
    const gradeRaw = cls?.grade
-   const gradeLen = Array.isArray(gradeRaw) ? gradeRaw.length : 0
+   const gradeArr = Array.isArray(gradeRaw) ? gradeRaw.map((g) => String(g)) : null
+   const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
+   const gradeLen = resolveClassGradeLabels(
+    gradeArr,
+    gradeCode,
+    parseEligibleGradeCodesFromDb(course?.eligible_grade_codes, gradeCode)
+   ).length
    const aliasKey = legacyGradePoolClassScopedAliasKey({
     namespaceKey,
     classId: classId || null,
@@ -1123,7 +1136,7 @@ async function fetchReceivedPaymentCandidates(studentId: string): Promise<Paymen
  const { data, error } = await supabase
   .from("payments")
   .select(
-   "id, receipt_number, payment_date, status, payment_details ( id, class_id, lesson_count, amount, description, coverage_start_month, classes ( subject, class_kind, grade, academic_year_id, academic_years ( label ), courses ( course_name, grade_code ) ) )"
+   "id, receipt_number, payment_date, status, payment_details ( id, class_id, lesson_count, amount, description, coverage_start_month, classes ( subject, class_kind, grade, academic_year_id, academic_years ( label ), courses ( course_name, grade_code, eligible_grade_codes ) ) )"
   )
   .eq("student_id", studentId)
   .eq("status", PAYMENT_STATUS.received)
@@ -1148,13 +1161,18 @@ async function fetchReceivedPaymentCandidates(studentId: string): Promise<Paymen
    const course = cls ? embedOne(cls.courses) : null
    const description = d.description != null ? String(d.description) : null
    const isTrial = isTrialPaymentDetailDescription(description)
+   const gradeCode = course?.grade_code != null ? String(course.grade_code) : null
    const ns = resolveEntitlementNamespace({
     classId,
     classKind: cls?.class_kind != null ? String(cls.class_kind) : null,
     subject: cls?.subject != null ? String(cls.subject) : null,
     courseName: course?.course_name != null ? String(course.course_name) : null,
     grade: classGradeArr(cls?.grade),
-    gradeCode: course?.grade_code != null ? String(course.grade_code) : null,
+    gradeCode,
+    eligibleGradeCodes: parseEligibleGradeCodesFromDb(
+     course?.eligible_grade_codes,
+     gradeCode
+    ),
     isTrial,
    })
    const lessonN = d.lesson_count != null ? Number(d.lesson_count) : NaN
