@@ -665,8 +665,8 @@ Cody Cheong 不計算強積金。
 
 | 時薪 | 同事 |
 | --- | --- |
-| $70 | Jeffrey Lee、Ken Tam、Leo Chan |
-| $100 | Rain Kwok、Annie Leung、Erika Fok、Wing Chan、Liam Lai、Christine Fan、Kenneth Li、Elaine Yao |
+| $70 | Jeffrey Lee、Ken Tam |
+| $100 | Rain Kwok、Annie Leung、Erika Fok、Wing Chan、Liam Lai、Christine Fan、Kenneth Li、Elaine Yao、Leo Chan |
 | $110 | Judy Chu |
 | $115 | Diana Kwok |
 
