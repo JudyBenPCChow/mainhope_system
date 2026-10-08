@@ -1,4 +1,3 @@
-import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { parseEligibleGradeCodesFromDb } from "@/lib/classGrade"
 import {
  classNamespaceKey,
@@ -20,10 +19,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { fetchAcademicYearPeriods } from "@/services/enrollmentPeriodQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
-import {
- paidTrialObligesSchedule,
- resolveConsumptionPoolId,
-} from "@/lib/trialLessonObligation"
+import { paidTrialObligesSchedule } from "@/lib/trialLessonObligation"
 import { normalizeRosterPolicy } from "@/lib/scheduleRosterPolicy"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
@@ -441,20 +437,6 @@ async function scheduleIdsWithPaidTrial(
   }
  })
  return out
-}
-
-async function poolIdFromEarliestConsumption(attendanceDetailId: string): Promise<string | null> {
- if (!supabase) return null
- const { data, error } = await supabase
-  .from("entitlement_consumption_events")
-  .select("pool_id")
-  .eq("attendance_detail_id", attendanceDetailId)
-  .in("reason", ["entitlement_consumed", "entitlement_reinstated"])
-  .order("created_at", { ascending: true })
-  .limit(1)
-  .maybeSingle()
- if (error) throw error
- return data?.pool_id != null ? String(data.pool_id) : null
 }
 
 /** 計算某包裝應對應的未來／期內排程（用於鑄池與自動宣告） */
@@ -1160,7 +1142,7 @@ export async function syncDeclarationsAfterSchedulesAdded(classId: string): Prom
  }
 }
 
-/** 營運消耗／返還（≠ 收入認列）；僅 gated 學年 */
+/** 營運消耗／返還（≠ 收入認列）；僅 gated 學年。記帳在資料庫函式，不跟點名人權限。 */
 export async function applyEntitlementConsumptionDelta(opts: {
  studentId: string
  scheduleId: string
@@ -1172,85 +1154,17 @@ export async function applyEntitlementConsumptionDelta(opts: {
  lessonUnits?: number
 }): Promise<void> {
  if (!supabase) return
- const label = await classLabel(opts.classId)
- if (!usesEntitlementRosterModel(label)) return
-
- const wasBillable = isBillableAttendanceStatus(opts.previousStatus)
- const isBillable = isBillableAttendanceStatus(opts.nextStatus)
- if (wasBillable === isBillable) return
-
  const units = opts.lessonUnits != null && opts.lessonUnits > 0 ? opts.lessonUnits : 1
- const delta = isBillable && !wasBillable ? -units : units
-
- const pinnedPoolId = opts.attendanceDetailId
-  ? await poolIdFromEarliestConsumption(opts.attendanceDetailId)
-  : null
-
- let paidTrialPoolId: string | null = null
- if (!pinnedPoolId && (await studentHasPaidTrialOnSchedule(opts.studentId, opts.scheduleId))) {
-  const trialPool = await fetchPoolForStudentClass(opts.studentId, opts.classId, { isTrial: true })
-  // 有試堂票但池未鑄：不要改扣專科池
-  if (!trialPool) return
-  paidTrialPoolId = trialPool.id
- }
-
- let declarationPoolId: string | null = null
- let declarationId: string | null = null
- let fallbackPoolId: string | null = null
- if (!pinnedPoolId && !paidTrialPoolId) {
-  const { data: decl, error: declErr } = await supabase
-   .from("attendance_declarations")
-   .select("id, pool_id")
-   .eq("student_id", opts.studentId)
-   .eq("schedule_id", opts.scheduleId)
-   .eq("status", "active")
-   .maybeSingle()
-  if (declErr) throw declErr
-  declarationPoolId = decl?.pool_id != null ? String(decl.pool_id) : null
-  declarationId = decl?.id != null ? String(decl.id) : null
-  if (!declarationPoolId) {
-   fallbackPoolId = await resolvePoolIdForStudentClass(opts.studentId, opts.classId, opts.scheduleId)
-  }
- }
-
- const poolId = resolveConsumptionPoolId({
-  pinnedPoolId,
-  paidTrialPoolId,
-  declarationPoolId,
-  fallbackPoolId,
+ const { error } = await supabase.rpc("apply_attendance_entitlement_delta", {
+  p_student_id: opts.studentId,
+  p_schedule_id: opts.scheduleId,
+  p_class_id: opts.classId,
+  p_attendance_detail_id: opts.attendanceDetailId ?? null,
+  p_previous_status: opts.previousStatus ?? null,
+  p_next_status: opts.nextStatus ?? null,
+  p_lesson_units: units,
  })
- if (!poolId) return
- const eventDeclarationId = pinnedPoolId || paidTrialPoolId ? null : declarationId
-
- const { data: poolRow, error: poolErr } = await supabase
-  .from("student_entitlement_pools")
-  .select("id, remaining_lessons")
-  .eq("id", poolId)
-  .maybeSingle()
- if (poolErr) throw poolErr
- if (!poolRow) return
-
- const remaining = Number(
-  (poolRow as { remaining_lessons?: number }).remaining_lessons ?? 0
- )
- const nextRemaining = remaining + delta
- const now = new Date().toISOString()
- const { error: updErr } = await supabase
-  .from("student_entitlement_pools")
-  .update({ remaining_lessons: nextRemaining, updated_at: now })
-  .eq("id", poolId)
- if (updErr) throw updErr
-
- const { error: evErr } = await supabase.from("entitlement_consumption_events").insert({
-  pool_id: poolId,
-  student_id: opts.studentId,
-  schedule_id: opts.scheduleId,
-  attendance_detail_id: opts.attendanceDetailId ?? null,
-  declaration_id: eventDeclarationId,
-  delta_lessons: delta,
-  reason: delta < 0 ? "entitlement_consumed" : "entitlement_reinstated",
- })
- if (evErr) throw evErr
+ if (error) throw error
 }
 
 /** 報讀形式變更：共用池唔刪；只重同步本班宣告 */
