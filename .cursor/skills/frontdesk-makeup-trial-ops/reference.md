@@ -31,6 +31,16 @@ set teaching_notes = '補堂（{SOURCE_CODE}）：{姓名}',
 where id = '<makeup_schedule_id>';
 ```
 
+綁 `makeup_schedule_id` 後核對宣告（trigger 會寫 `student_makeup`，池跟請假原班）：
+
+```sql
+select d.status, d.source_event_type, d.pool_id
+from attendance_declarations d
+where d.student_id = '<student_id>'
+  and d.schedule_id = '<makeup_schedule_id>'
+  and d.status = 'active';
+```
+
 ## 調堂：同年級空宿主新開加堂
 
 ```sql

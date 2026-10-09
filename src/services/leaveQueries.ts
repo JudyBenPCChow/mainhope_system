@@ -916,6 +916,16 @@ export async function insertLeaveMakeupRecord(row: {
   throwPostgrest(error)
  }
  const insertedId = String((inserted as { id: string }).id)
+ if (row.makeup_schedule_id && row.student_id && row.class_id) {
+  await syncStudentMakeupDeclaration({
+   studentId: row.student_id,
+   classId: row.class_id,
+   leaveScheduleId: row.schedule_id ?? null,
+   leaveRecordId: insertedId,
+   prevMakeupScheduleId: null,
+   nextMakeupScheduleId: row.makeup_schedule_id,
+  })
+ }
  if (row.tuition_disposition) {
   try {
    await setLeaveTuitionDisposition(insertedId, row.tuition_disposition)
