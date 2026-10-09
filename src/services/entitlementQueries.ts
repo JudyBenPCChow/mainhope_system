@@ -1031,8 +1031,9 @@ async function resolvePoolIdForStudentClass(
 }
 
 /**
- * 個別請假調堂：補回堂建／改掛宣告（繼承原池）；清調堂則 void 補回堂宣告。
+ * 個別請假調堂：補回堂建／改掛宣告（繼承原班池）；清調堂則 void 補回堂宣告。
  * 請假日本身宣告預設保留（預填事／病假不扣）。
+ * 資料庫 trigger 亦會在綁／改 makeup_schedule_id 時寫入（含直寫 SQL）；此函式與 trigger 冪等。
  */
 export async function syncStudentMakeupDeclaration(opts: {
  studentId: string

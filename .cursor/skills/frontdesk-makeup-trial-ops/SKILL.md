@@ -68,6 +68,8 @@ description: >-
 
 `leave_makeup_records`：`schedule_id`＝原堂（取消／請假堂）；`makeup_schedule_id`＝補堂；`leave_reason`／`makeup_type=調堂`／`tuition_disposition=調堂`／`status=已批核`；取消堂補建可 `remarks=補回取消堂`。
 
+綁／改 `makeup_schedule_id` 後，系統會為該生該補堂格寫入到課宣告（`student_makeup`，池跟**請假原班**年級）。直寫 SQL 不必另插宣告，但完成後須核對該格有 active 宣告；不要只改請假表就當完成。跨年級調堂扣原班已繳堂數，不扣宿主班年級。
+
 `schedules`：日期欄係 **`scheduled_date`**（不是 `date`）。時間存 `HH:MM` 或 `HH:MM:SS` 皆見，查詢用 `in.(17:45,17:45:00)`。
 
 ### 完成回覆表
