@@ -1,7 +1,10 @@
 import QRCode from "qrcode"
 
 import { MAINHOPE_LOGO_DATA_URL } from "@/lib/mainhopeLogoDataUrl"
-import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
+import {
+ buildPaymentAmountBreakdown,
+ LATE_FEE_LOAD_FAILED_MESSAGE,
+} from "@/lib/paymentAmountBreakdown"
 import { isHomeworkMonthlyFeeDescription } from "@/lib/homeworkTutoringFees"
 import { buildPortalActivateUrl, getPortalBaseUrl } from "@/lib/portalConfig"
 import { PAYMENT_STATUS, type PaymentFull } from "@/services/paymentQueries"
@@ -478,16 +481,19 @@ function buildChargesTableHtml(p: PaymentFull): string {
   )
   .join("")
 
- const lateFeeRows = (p.lateFeeItems ?? [])
-  .filter((lf) => !lf.waived && lf.amount > 0)
-  .map(
-   (lf) =>
-    `<div class="row">
+ const lateFeeRows =
+  p.lateFeeItems == null
+   ? `<div class="row"><span class="label">${escHtml(LATE_FEE_LOAD_FAILED_MESSAGE)}</span></div>`
+   : p.lateFeeItems
+      .filter((lf) => !lf.waived && lf.amount > 0)
+      .map(
+       (lf) =>
+        `<div class="row">
       <span class="label">逾期罰款 · ${escHtml(lf.classLabel)}</span>
       <span class="value">${escHtml(hkd(lf.amount))}</span>
     </div>`
-  )
-  .join("")
+      )
+      .join("")
 
  return `<table class="data">
   <thead>

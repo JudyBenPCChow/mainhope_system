@@ -14,6 +14,20 @@ export function specialistLastLessonYmd(academicYearLabel: string | null | undef
   return academicYearLabel?.trim() === "2627" ? SPECIALIST_LAST_LESSON_YMD_2627 : null
 }
 
+/** 批量排程結束日。只截 2627 專科班；功課輔導班與私人課程沿用班別或學年結束日。 */
+export function batchScheduleEndYmd(opts: {
+  classKind: string | null | undefined
+  academicYearLabel: string | null | undefined
+  classEndYmd?: string | null
+  yearEndYmd: string
+}): string {
+  const stored = (opts.classEndYmd?.slice(0, 10) || opts.yearEndYmd).slice(0, 10)
+  if (opts.classKind !== "group") return stored
+  const last = specialistLastLessonYmd(opts.academicYearLabel)
+  if (last && stored > last) return last
+  return stored
+}
+
 export function slotChangeWriteMode(
   currentDayOfWeek: string | null | undefined,
   nextDayOfWeek: string | null | undefined

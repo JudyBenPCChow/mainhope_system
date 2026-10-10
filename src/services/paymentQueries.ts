@@ -174,7 +174,8 @@ export type PaymentFull = PaymentListRow & {
  studentGrade: string | null
  details: PaymentDetailRow[]
  discountApplications: PaymentDiscountApplicationRow[]
- lateFeeItems: PaymentLateFeeFullRow[]
+ /** null＝逾期罰款明細未能載入，不可當成沒有罰款 */
+ lateFeeItems: PaymentLateFeeFullRow[] | null
  /** @deprecated 請改用 discountApplications */
  discountPercentOff: number | null
  /** @deprecated 請改用 discountApplications */
@@ -581,7 +582,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
   payRow.subtotal_amount != null ? Number(payRow.subtotal_amount) : null
  const firstApp = discountApplications[0]
 
- let lateFeeItems: PaymentLateFeeFullRow[] = []
+ let lateFeeItems: PaymentLateFeeFullRow[] | null = null
  try {
   const { data: lfRows, error: lfErr } = await supabase
    .from("payment_late_fee_items")
@@ -608,9 +609,7 @@ export async function fetchPaymentFull(id: string): Promise<PaymentFull | null> 
    }
   })
  } catch (e) {
-  // 表未套用 migration 時唔阻舊單讀取
   console.warn("[fetchPaymentFull] late fee items", e)
-  lateFeeItems = []
  }
 
  return {

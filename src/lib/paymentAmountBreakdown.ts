@@ -14,11 +14,15 @@ export type PaymentAmountLine = {
  tone?: "normal" | "deduction" | "total"
 }
 
+export const LATE_FEE_LOAD_FAILED_MESSAGE = "逾期罰款未能載入"
+
 export type PaymentAmountBreakdown = {
  subtotal: number
  discountSteps: PaymentDiscountApplicationRow[]
  total: number
  lines: PaymentAmountLine[]
+ /** 明細查詢失敗。成功且沒有罰款列時為 false。 */
+ lateFeeLoadFailed: boolean
 }
 
 export function paymentSubtotalFromDetails(p: PaymentFull): number {
@@ -71,7 +75,10 @@ export function buildDiscountSteps(
 export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakdown {
  const subtotal = resolvePaymentSubtotal(p)
  const discountSteps = buildDiscountSteps(subtotal, p.discountApplications)
- const lateFees = (p.lateFeeItems ?? []).filter((lf) => !lf.waived && lf.amount > 0)
+ const lateFeeItems = p.lateFeeItems
+ const lateFeeLoadFailed = lateFeeItems == null
+ const lateFees =
+  lateFeeItems == null ? [] : lateFeeItems.filter((lf) => !lf.waived && lf.amount > 0)
  const total = Math.round(p.totalAmount * 100) / 100
 
  const lines: PaymentAmountLine[] = [{ key: "subtotal", label: "項目小計", amount: subtotal }]
@@ -93,7 +100,7 @@ export function buildPaymentAmountBreakdown(p: PaymentFull): PaymentAmountBreakd
  }
  lines.push({ key: "total", label: "應繳總額", amount: total, tone: "total" })
 
- return { subtotal, discountSteps, total, lines }
+ return { subtotal, discountSteps, total, lines, lateFeeLoadFailed }
 }
 
 /** 表單建立時，依選取順序與資格上下文計算各項扣減 */

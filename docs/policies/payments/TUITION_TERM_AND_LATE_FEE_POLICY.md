@@ -73,6 +73,6 @@
 
 ---
 
-## 5. 待系統化項目（工程）
+## 5. 系統接線（工程）
 
-見 backlog：[`backlog/tuition-late-fee-enforcement.md`](backlog/tuition-late-fee-enforcement.md)。
+已接線：收款會自動加入逾期罰款，生效日 2026-10-01。見 [`tuition-late-fee-enforcement.md`](../../product/topics/tuition-late-fee-enforcement.md)。

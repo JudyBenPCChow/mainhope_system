@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
 import { AdminPageHeader, pagePadClass } from "@/components/detail/AdminPageHeader"
+import { invalidateTuitionChaseListDataCache } from "@/components/payments/tuitionChaseListState"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Input } from "@/components/ui/input"
@@ -196,6 +197,7 @@ export function PaymentCorrectionView() {
     reasonCode,
     notes,
    })
+   invalidateTuitionChaseListDataCache()
    pushBanner({
     tone: "success",
     title: "已調整已繳堂數",
@@ -230,6 +232,7 @@ export function PaymentCorrectionView() {
     reasonCode,
     notes,
    })
+   invalidateTuitionChaseListDataCache()
    pushBanner({
     tone: "success",
     title: "已搬堂",

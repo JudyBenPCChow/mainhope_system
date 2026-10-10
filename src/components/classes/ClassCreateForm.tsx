@@ -7,6 +7,7 @@ import {
  STATUS_CHIPS,
  weekdaysToStored,
 } from "@/components/classes/classesUi"
+import { batchScheduleEndYmd } from "@/lib/adminOpsAssistant/rules"
 import { canUseConsecutiveFromTimeSlot } from "@/lib/consecutiveLesson"
 import { gradeChineseToCode } from "@/lib/courseCode"
 import { filterAcademicYearOptionsForEdit } from "@/lib/mgmtRole"
@@ -44,6 +45,15 @@ export type ClassCreateFormValues = {
  start_date: string
  end_date: string
  enrollment_notice: string
+}
+
+/** 此表單只開專科班。2627 預設結束日不晚於專科最後上課日。 */
+function defaultEndDateForSpecialistClass(yr: Pick<AcademicYearRange, "label" | "end_date">): string {
+ return batchScheduleEndYmd({
+  classKind: "group",
+  academicYearLabel: yr.label,
+  yearEndYmd: yr.end_date,
+ })
 }
 
 export const emptyClassCreateForm = (): ClassCreateFormValues => ({
@@ -116,7 +126,7 @@ export function ClassCreateForm({
    academic_year_id: picked.id,
    academic_year_label: picked.label,
    start_date: yr?.start_date.slice(0, 10) ?? "",
-   end_date: yr?.end_date.slice(0, 10) ?? "",
+   end_date: yr ? defaultEndDateForSpecialistClass(yr) : "",
   })
  }, [values.academic_year_id, yearOptions, yearRanges, onChange])
 
@@ -127,7 +137,7 @@ export function ClassCreateForm({
   if (values.start_date && values.end_date) return
   onChange({
    start_date: yr.start_date.slice(0, 10),
-   end_date: yr.end_date.slice(0, 10),
+   end_date: defaultEndDateForSpecialistClass(yr),
   })
  }, [values.academic_year_id, values.start_date, values.end_date, yearRanges, onChange])
 
@@ -155,7 +165,7 @@ export function ClassCreateForm({
    academic_year_id: yearId,
    academic_year_label: y?.label ?? "",
    start_date: yr?.start_date.slice(0, 10) ?? "",
-   end_date: yr?.end_date.slice(0, 10) ?? "",
+   end_date: yr ? defaultEndDateForSpecialistClass(yr) : "",
   })
  }
 

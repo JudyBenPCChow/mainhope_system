@@ -106,6 +106,21 @@ describe("resolveEntitlementNamespace", () => {
   expect(namespacesEqual(priv, trial)).toBe(false)
  })
 
+ it("keeps class_kind homework out of the specialist grade pool when the subject has no homework wording", () => {
+  const ns = resolveEntitlementNamespace({
+   classId: CHI,
+   classKind: "homework",
+   subject: "中文",
+   grade: ["中一"],
+   gradeCode: "S1",
+  })
+  expect(ns).toEqual({
+   courseGroup: "homework",
+   namespaceKey: classNamespaceKey(CHI),
+   sharesAcrossClasses: false,
+  })
+ })
+
  it("does not mix trial into specialist even on the same class", () => {
   const regular = resolveEntitlementNamespace({
    classId: CHI,

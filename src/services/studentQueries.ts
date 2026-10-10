@@ -38,6 +38,10 @@ import { deriveActivityStatus, enrollmentEventYmdFromRow } from "@/lib/studentAc
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { supabase } from "@/lib/supabaseClient"
 import {
+ WrittenSideEffectError,
+ writtenSideEffectDetail,
+} from "@/lib/writtenSideEffectError"
+import {
  deleteAttendanceHitsWithAuditOrThrow,
  fetchAttendanceHitsForStudentClass,
  type AttendanceLifecycleHit,
@@ -887,12 +891,13 @@ function mapEnrollmentWithClassRow(row: Record<string, unknown>): EnrollmentWith
  }
 }
 
-/** student_id -> 科目標籤（報讀班別；只含目前學年，私人課程除外） */
+/** student_id -> 科目標籤（報讀班別；只含目前學年，私人課程除外）。查詢失敗時拋出。 */
 export async function fetchEnrollmentSubjectsByStudentIds(
  studentIds: string[]
 ): Promise<Map<string, string[]>> {
  const map = new Map<string, string[]>()
- if (!supabase || studentIds.length === 0) return map
+ if (studentIds.length === 0) return map
+ if (!supabase) throw new Error("Supabase 未設定")
 
  const enrollmentSelect =
   "student_id, classes ( subject, class_kind, course_code_full, academic_year_label, academic_years ( label ), courses ( course_name, subjects ( name_zh ) ) )"
@@ -933,8 +938,8 @@ export async function fetchEnrollmentSubjectsByStudentIds(
   return collectCurrentEnrollmentSubjectTags(inputs)
  } catch (error) {
   console.error("[fetchEnrollmentSubjectsByStudentIds]", error)
+  throw error
  }
- return map
 }
 
 /** 儀表板「最新報讀班別」一筆：某學生報讀某班別的事件（依建檔時間新→舊） */
@@ -949,12 +954,12 @@ export type RecentClassEnrollment = {
 
 /**
  * 最近的「報讀班別」事件（含既有學生報讀新班別），依 created_at 新→舊。
- * 只計 status='就讀中'（真正報讀，排除已退選/取消）。錯誤時回傳空陣列、不阻斷頁面。
+ * 只計 status='就讀中'（真正報讀，排除已退選/取消）。查詢失敗時拋出。
  */
 export async function fetchRecentClassEnrollments(
  limit = 5
 ): Promise<RecentClassEnrollment[]> {
- if (!supabase) return []
+ if (!supabase) throw new Error("Supabase 未設定")
  const select =
   "id, status, enroll_date, created_at, student_id, students ( full_name ), classes ( subject, course_code_full, courses ( course_name, subjects ( name_zh ) ) )"
  try {
@@ -980,7 +985,7 @@ export async function fetchRecentClassEnrollments(
   })
  } catch (error) {
   console.error("[fetchRecentClassEnrollments]", error)
-  return []
+  throw error
  }
 }
 
@@ -1664,11 +1669,14 @@ export async function insertEnrollment(
   throw err
  }
  await syncStudentEnrollmentState(studentId)
+ let trialErr: unknown = null
  try {
   await closeOpenTrialsAfterEnrollment(studentId, classId, enrollmentId)
- } catch (trialErr) {
-  console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", trialErr)
+ } catch (err) {
+  console.warn("[insertEnrollment] closeOpenTrialsAfterEnrollment", err)
+  trialErr = err
  }
+ let poolErr: unknown = null
  if (!isHomework) {
   try {
    await ensureEntitlementPoolAndDeclarations({
@@ -1680,9 +1688,23 @@ export async function insertEnrollment(
     scheduleIds: isSingle ? scheduleIds : undefined,
     sourceEventType: "enrollment_auto",
    })
-  } catch (poolErr) {
-   console.warn("[insertEnrollment] ensureEntitlementPoolAndDeclarations", poolErr)
+  } catch (err) {
+   console.warn("[insertEnrollment] ensureEntitlementPoolAndDeclarations", err)
+   poolErr = err
   }
+ }
+ if (trialErr || poolErr) {
+  const parts: string[] = []
+  if (trialErr) parts.push("未能結束未結案試堂")
+  if (poolErr) parts.push("到課宣告未能完成")
+  const details = [trialErr, poolErr]
+   .map((err) => (err ? writtenSideEffectDetail(err) : undefined))
+   .filter((detail): detail is string => Boolean(detail))
+  throw new WrittenSideEffectError(`報讀已寫入，但${parts.join("，且")}`, {
+   cause: poolErr ?? trialErr,
+   detail: details.length > 0 ? details.join("；") : undefined,
+   enrollmentId,
+  })
  }
  return enrollmentId
 }
@@ -1751,6 +1773,11 @@ export async function updateEnrollmentPeriod(
   })
  } catch (poolErr) {
   console.warn("[updateEnrollmentPeriod] remintPoolAfterPeriodChange", poolErr)
+  throw new WrittenSideEffectError("報讀形式已更新，但到課宣告未能完成", {
+   cause: poolErr,
+   detail: writtenSideEffectDetail(poolErr),
+   enrollmentId: id,
+  })
  }
 }
 
@@ -1789,6 +1816,11 @@ export async function updateEnrollmentSessions(
   })
  } catch (poolErr) {
   console.warn("[updateEnrollmentSessions] syncSingleLessonDeclarations", poolErr)
+  throw new WrittenSideEffectError("選堂已更新，但到課宣告未能完成", {
+   cause: poolErr,
+   detail: writtenSideEffectDetail(poolErr),
+   enrollmentId,
+  })
  }
 }
 
@@ -2254,13 +2286,22 @@ export type HistoryRow = {
  tone: "green" | "blue" | "muted" | "amber"
 }
 
+export type StudentActivityResult = {
+ rows: HistoryRow[]
+ /** 該段查詢失敗。成功但沒有列不會列入。 */
+ failedKinds: HistoryRow["kind"][]
+}
+
 export async function fetchStudentActivity(
  studentId: string,
  opts?: { includePayments?: boolean }
-): Promise<HistoryRow[]> {
+): Promise<StudentActivityResult> {
  const items: HistoryRow[] = []
- if (!supabase) return items
  const includePayments = opts?.includePayments ?? true
+ const queriedKinds: HistoryRow["kind"][] = includePayments
+  ? ["status", "payment", "enrollment", "withdrawal"]
+  : ["status", "enrollment", "withdrawal"]
+ if (!supabase) return { rows: items, failedKinds: queriedKinds }
 
  const [hist, pays, enrs, evWithdraw] = await Promise.all([
   supabase
@@ -2290,7 +2331,11 @@ export async function fetchStudentActivity(
    .order("created_at", { ascending: false }),
  ])
 
- if (!hist.error && hist.data) {
+ const failedKinds: HistoryRow["kind"][] = []
+ if (hist.error) {
+  console.warn("[fetchStudentActivity] student_status_history:", hist.error.message)
+  failedKinds.push("status")
+ } else if (hist.data) {
   for (const r of hist.data as Record<string, unknown>[]) {
    items.push({
     id: `h-${r.id}`,
@@ -2302,20 +2347,28 @@ export async function fetchStudentActivity(
    })
   }
  }
- if (includePayments && !pays.error && pays.data) {
-  for (const r of pays.data as Record<string, unknown>[]) {
-   const amt = Number(r.total_amount ?? 0)
-   items.push({
-    id: `p-${r.id}`,
-    kind: "payment",
-    title: `繳費 HKD $${amt.toLocaleString("zh-Hant-TW")}`,
-    subtitle: `${String(r.payment_date)} · ${String(r.payment_method ?? "")} · ${String(r.status ?? "")}`,
-    date: String(r.payment_date ?? "").slice(0, 10),
-    tone: "green",
-   })
+ if (includePayments) {
+  if (pays.error) {
+   console.warn("[fetchStudentActivity] payments:", pays.error.message)
+   failedKinds.push("payment")
+  } else if (pays.data) {
+   for (const r of pays.data as Record<string, unknown>[]) {
+    const amt = Number(r.total_amount ?? 0)
+    items.push({
+     id: `p-${r.id}`,
+     kind: "payment",
+     title: `繳費 HKD $${amt.toLocaleString("zh-Hant-TW")}`,
+     subtitle: `${String(r.payment_date)} · ${String(r.payment_method ?? "")} · ${String(r.status ?? "")}`,
+     date: String(r.payment_date ?? "").slice(0, 10),
+     tone: "green",
+    })
+   }
   }
  }
- if (!enrs.error && enrs.data) {
+ if (enrs.error) {
+  console.warn("[fetchStudentActivity] student_class_enrollments:", enrs.error.message)
+  failedKinds.push("enrollment")
+ } else if (enrs.data) {
   for (const r of enrs.data as Record<string, unknown>[]) {
    // 已退讀由 withdraw 事件呈現；手誤清除後此列亦不存在
    if (String(r.status ?? "") === "已退讀") continue
@@ -2334,6 +2387,7 @@ export async function fetchStudentActivity(
  }
  if (evWithdraw.error) {
   console.warn("[fetchStudentActivity] enrollment_change_events:", evWithdraw.error.message)
+  failedKinds.push("withdrawal")
  } else if (evWithdraw.data) {
   for (const r of evWithdraw.data as Record<string, unknown>[]) {
    const cls = r.classes as Record<string, unknown> | null
@@ -2353,7 +2407,7 @@ export async function fetchStudentActivity(
  }
 
  items.sort((a, b) => b.date.localeCompare(a.date))
- return items
+ return { rows: items, failedKinds }
 }
 
 export type StudentTuitionArrearsInfo = {

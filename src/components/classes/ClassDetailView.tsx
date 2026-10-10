@@ -61,6 +61,7 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { gradeChineseToCode } from "@/lib/courseCode"
@@ -249,6 +250,8 @@ type TabId = ClassDetailTabId
 
 type UnsavedLeaveChoice = "save" | "discard" | "cancel"
 
+const ADD_SCHED_ROSTER_LOAD_ERROR = "就讀生名單未能載入，暫時不能儲存。"
+
 export function ClassDetailView() {
  const { classId } = useParams<{ classId: string }>()
  const navigate = useNavigate()
@@ -324,6 +327,7 @@ export function ClassDetailView() {
  >([])
  const [addSchedRosterIds, setAddSchedRosterIds] = useState<string[]>([])
  const [addSchedRosterLoading, setAddSchedRosterLoading] = useState(false)
+ const [addSchedRosterLoadFailed, setAddSchedRosterLoadFailed] = useState(false)
  const [addStudentOpen, setAddStudentOpen] = useState(false)
  const [addStudentForm, setAddStudentForm] = useState<string>("兩期全報")
  const [addStudentScheduleIds, setAddStudentScheduleIds] = useState<string[]>([])
@@ -1062,10 +1066,17 @@ export function ClassDetailView() {
    setPrivateBookOpen(false)
    await reload()
   } catch (e) {
-   reportUserFacingError(e, {
-    source: "ClassDetailView.submitPrivateBook",
-    setErr: setPrivateBookErr,
-   })
+   if (e instanceof WrittenSideEffectError) {
+    setPrivateBookOpen(false)
+    await reload()
+    reportUserFacingError(e, { source: "ClassDetailView.submitPrivateBook" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+   } else {
+    reportUserFacingError(e, {
+     source: "ClassDetailView.submitPrivateBook",
+     setErr: setPrivateBookErr,
+    })
+   }
   } finally {
    setPrivateBookSaving(false)
   }
@@ -1095,6 +1106,7 @@ export function ClassDetailView() {
   setAddSchedExtra(false)
   setAddSchedRosterCandidates([])
   setAddSchedRosterIds([])
+  setAddSchedRosterLoadFailed(false)
   void nextSessionNumberForClass(cid).then(setNewSchedSession)
  }, [addSchedOpen, cls?.time_slot, cid])
 
@@ -1103,21 +1115,28 @@ export function ClassDetailView() {
    setAddSchedRosterCandidates([])
    setAddSchedRosterIds([])
    setAddSchedRosterLoading(false)
+   setAddSchedRosterLoadFailed(false)
+   setAddSchedErr((current) => (current === ADD_SCHED_ROSTER_LOAD_ERROR ? null : current))
    return
   }
   let cancelled = false
+  setAddSchedRosterCandidates([])
+  setAddSchedRosterIds([])
   setAddSchedRosterLoading(true)
+  setAddSchedRosterLoadFailed(false)
+  setAddSchedErr((current) => (current === ADD_SCHED_ROSTER_LOAD_ERROR ? null : current))
   void listExtraLessonRosterCandidates({ classId: cid, scheduleDate: newSchedDate })
    .then((rows) => {
     if (cancelled) return
     setAddSchedRosterCandidates(rows)
     setAddSchedRosterIds(rows.map((row) => row.studentId))
+    setAddSchedRosterLoadFailed(false)
     setAddSchedRosterLoading(false)
    })
    .catch(() => {
     if (cancelled) return
-    setAddSchedRosterCandidates([])
-    setAddSchedRosterIds([])
+    setAddSchedRosterLoadFailed(true)
+    setAddSchedErr(ADD_SCHED_ROSTER_LOAD_ERROR)
     setAddSchedRosterLoading(false)
    })
   return () => {
@@ -1137,22 +1156,37 @@ export function ClassDetailView() {
    setAddSchedErr("時段格式無效，請重新選擇")
    return
   }
+  if (addSchedExtra && (addSchedRosterLoading || addSchedRosterLoadFailed)) {
+   if (addSchedRosterLoadFailed) setAddSchedErr(ADD_SCHED_ROSTER_LOAD_ERROR)
+   return
+  }
   setSavingAddSched(true)
   setAddSchedErr(null)
   try {
-   await insertSchedulesForClassSession(
-    cid,
-    { ...cls, time_slot: timeSlot },
-    {
-     scheduled_date: newSchedDate,
-     start_time: start,
-     end_time: end,
-     session_number: newSchedSession,
-     classroom_id: cls.classroom_id,
-     is_extra_lesson: addSchedExtra,
-     rosterStudentIds: addSchedExtra ? addSchedRosterIds : undefined,
-    }
-   )
+   try {
+    await insertSchedulesForClassSession(
+     cid,
+     { ...cls, time_slot: timeSlot },
+     {
+      scheduled_date: newSchedDate,
+      start_time: start,
+      end_time: end,
+      session_number: newSchedSession,
+      classroom_id: cls.classroom_id,
+      is_extra_lesson: addSchedExtra,
+      rosterStudentIds: addSchedExtra ? addSchedRosterIds : undefined,
+     }
+    )
+   } catch (e) {
+    if (!(e instanceof WrittenSideEffectError)) throw e
+    setAddSchedOpen(false)
+    setNewSchedDate(localYmd())
+    setNewSchedTimeSlot("")
+    await reload()
+    reportUserFacingError(e, { source: "ClassDetailView.addSched" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+    return
+   }
    setAddSchedOpen(false)
    setNewSchedDate(localYmd())
    setNewSchedTimeSlot("")
@@ -1293,14 +1327,20 @@ export function ClassDetailView() {
     },
    ])
    if (!noticeOk) return
-   await insertEnrollment(
-    studentId,
-    cid,
-    period,
-    isSingle ? addStudentScheduleIds : undefined,
-    null,
-    enrollDate ? { enrollDate } : null
-   )
+   let sideEffect: WrittenSideEffectError | null = null
+   try {
+    await insertEnrollment(
+     studentId,
+     cid,
+     period,
+     isSingle ? addStudentScheduleIds : undefined,
+     null,
+     enrollDate ? { enrollDate } : null
+    )
+   } catch (e) {
+    if (!(e instanceof WrittenSideEffectError)) throw e
+    sideEffect = e
+   }
    let firstLeaveId: string | null = null
    let autoLeaveCount = 0
    if (pastAutoLeaveSchedules.length > 0) {
@@ -1320,7 +1360,18 @@ export function ClassDetailView() {
    invalidateEnrollmentChangesDataCache()
    const addedName =
     allStudents.find((s) => s.id === studentId)?.full_name?.trim() || "學生"
-   if (firstLeaveId) {
+   if (sideEffect) {
+    const leaveNote =
+     firstLeaveId && autoLeaveCount > 0
+      ? ` 已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。`
+      : ""
+    reportUserFacingError(sideEffect, { source: "ClassDetailView.onAddStudentToClass" })
+    pushBanner({
+     tone: "error",
+     title: sideEffect.headline,
+     message: `${sideEffect.message}${leaveNote}`,
+    })
+   } else if (firstLeaveId) {
     pushBanner({
      tone: "success",
      title: `已加入報讀：${addedName}`,
@@ -1351,7 +1402,7 @@ export function ClassDetailView() {
    setAddStudentStartScheduleId("")
    setAddStudentOpen(false)
    await reload()
-   if (firstLeaveId) {
+   if (!sideEffect && firstLeaveId) {
     goExternal(
      `/LeaveManagement?${new URLSearchParams({
       studentId,
@@ -2750,7 +2801,7 @@ export function ClassDetailView() {
           {addSchedExtra ? (
            addSchedRosterLoading ? (
             <p className="text-sm text-muted-foreground">載入就讀生名單…</p>
-           ) : (
+           ) : addSchedRosterLoadFailed ? null : (
             <ExtraLessonRosterPicker
              candidates={addSchedRosterCandidates}
              selectedIds={addSchedRosterIds}
@@ -2761,7 +2812,11 @@ export function ClassDetailView() {
           ) : null}
           <Button
            type="button"
-           disabled={savingAddSched || !newSchedTimeSlot.trim()}
+           disabled={
+            savingAddSched ||
+            !newSchedTimeSlot.trim() ||
+            (addSchedExtra && (addSchedRosterLoading || addSchedRosterLoadFailed))
+           }
            onClick={() => void addSched()}
           >
            {savingAddSched ? "建立中…" : "建立"}

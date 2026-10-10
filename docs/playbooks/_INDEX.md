@@ -46,11 +46,11 @@
 
 | 篇章 | 簡介 |
 | --- | --- |
-| [2627 常規學年營運指引（md）](../year/2627/ops-guide.md) | 全公司守則 v1.15；列印／WhatsApp 發佈用 |
+| [2627 常規學年營運指引（md）](../year/2627/ops-guide.md) | 全公司守則 v1.21；列印／WhatsApp 發佈用 |
 | [2627 常規學年營運指引（PDF）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) | 列印版 |
 | [2627 常規學年營運指引（Word）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) | 可編輯版 |
 | [2627 校曆手冊（PDF）](../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) | 專科／功輔假期對照 |
-| [2627 九月時間表索引](../year/2627/timetable/2627_timetable_schemes.md) | ver. 3.6 方案；[簽收紀錄](../year/2627/timetable/2627_timetable_signoff_v3.6.md) |
+| [2627 九月時間表索引](../year/2627/timetable/2627_timetable_schemes.md) | ver. 4.0 已簽收關帳；其後以系統為準 |
 | [2627 學年包入口](../year/2627/README.md) | 本學年物料總門牌 |
 
 ## 與其他文件

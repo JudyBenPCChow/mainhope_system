@@ -15,6 +15,7 @@ import { fetchCurrentAuthzProfile } from "@/services/authzProfileQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { syncDeclarationsAfterSchedulesAdded } from "@/services/entitlementQueries"
+import { writtenSideEffectFrom } from "@/lib/writtenSideEffectError"
 import {
  applySoftCancelScheduleSideEffects,
  type SoftCancelScheduleOptions,
@@ -141,6 +142,7 @@ export async function insertScheduleRow(
    }
   } catch (err) {
    console.error("syncDeclarationsAfterSchedulesAdded failed", opts.class_id, err)
+   throw writtenSideEffectFrom(err, { scheduleId: id })
   }
  }
  return id
@@ -301,6 +303,7 @@ export async function insertSchedulesForClassSession(
   },
   { skipInboxEvent: true, skipDeclarationSync: true }
  )
+ let declarationErr: unknown = null
  try {
   if ((row.is_extra_lesson ?? false) && defaultRosterPolicyForNewSchedule({ isExtraLesson: true }) === "selected") {
    const {
@@ -329,6 +332,7 @@ export async function insertSchedulesForClassSession(
   }
  } catch (err) {
   console.error("syncDeclarationsAfterSchedulesAdded failed", classId, err)
+  declarationErr = err
  }
  void recordInboxEvent({
   eventType: "schedule_created",
@@ -340,6 +344,7 @@ export async function insertSchedulesForClassSession(
   audienceTeacherIds: [teacherId],
   payload: { consecutive: true, scheduleIds: [id1, id2] },
  })
+ if (declarationErr) throw writtenSideEffectFrom(declarationErr, { scheduleId: id1 })
  return [id1, id2]
 }
 

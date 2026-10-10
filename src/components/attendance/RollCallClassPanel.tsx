@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2, ChevronDown, Download, ListChecks, NotebookPen, Sparkles } from "lucide-react"
 
+import { invalidateAttendanceRecordsDataCache } from "@/components/attendance/attendanceRecordsState"
 import { AttendanceStatusPicker } from "@/components/attendance/attendanceStatusUi"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
@@ -26,6 +27,7 @@ import {
 import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import {
+ AttendanceSideEffectError,
  buildPrefillStatusMap,
  fetchExistingAttendanceMap,
  fetchLeavePrefillForLesson,
@@ -305,6 +307,9 @@ export function RollCallClassPanel({
   return false
  }, [students, statusMap, savedMap])
 
+ const sideEffectFailed =
+  !!sheetErr && (sheetErr.includes("扣堂未能完成") || sheetErr.includes("返還未能完成"))
+
  const rollCallSaved = useMemo(
   () => students.length > 0 && savedFilledCount === students.length,
   [students.length, savedFilledCount]
@@ -442,6 +447,7 @@ export function RollCallClassPanel({
      return
     }
    }
+   const sideEffectFailures: string[] = []
    let singleSlotMakeupCount = 0
    for (const row of toSave) {
     const st = statusMap.get(row.studentId) ?? ""
@@ -452,15 +458,27 @@ export function RollCallClassPanel({
       ? [row.makeupScheduleId]
       : scheduleIds
     if (writeIds.length === 1 && scheduleIds.length > 1) singleSlotMakeupCount += 1
-    await saveAttendanceStatusForStudentScheduleScope({
-     studentId: row.studentId,
-     classId,
-     attendanceDate: lessonDate,
-     writeScheduleIds: writeIds,
-     peerScheduleIds: scheduleIds,
-     status: st,
-    })
+    try {
+     await saveAttendanceStatusForStudentScheduleScope({
+      studentId: row.studentId,
+      classId,
+      attendanceDate: lessonDate,
+      writeScheduleIds: writeIds,
+      peerScheduleIds: scheduleIds,
+      status: st,
+     })
+    } catch (e) {
+     if (e instanceof AttendanceSideEffectError) {
+      sideEffectFailures.push(`${row.fullName}：${e.message}`)
+      continue
+     }
+     throw e
+    }
    }
+   if (sideEffectFailures.length > 0) {
+    throw new AttendanceSideEffectError(sideEffectFailures.join("；"))
+   }
+   invalidateAttendanceRecordsDataCache()
    void logMgmtAuditAction({
     action: "完成點名",
     detail: `schedule_ids=${scheduleIds.join(",")}; class_id=${classId}; date=${lessonDate}; students=${toSave.length}; skipped=${skipped.length}; single_slot_makeup=${singleSlotMakeupCount}`,
@@ -483,6 +501,19 @@ export function RollCallClassPanel({
    onConfirmed?.()
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallClassPanel.saveAll", setErr: setSheetErr })
+   if (e instanceof AttendanceSideEffectError) {
+    invalidateAttendanceRecordsDataCache()
+    const text = e.message
+    const consumeFailed = text.includes("扣堂未能完成")
+    const reinstateFailed = text.includes("返還未能完成")
+    const title =
+     consumeFailed && reinstateFailed
+      ? "點名已記錄，但扣堂或返還未能完成"
+      : reinstateFailed
+        ? "點名已刪除，但返還未能完成"
+        : "點名已記錄，但扣堂未能完成"
+    pushBanner({ tone: "error", title, message: text })
+   }
   } finally {
    setConfirmSaving(false)
   }
@@ -529,6 +560,14 @@ export function RollCallClassPanel({
      <Tag tone="default" size="sm">
       載入中…
      </Tag>
+    ) : sideEffectFailed ? (
+     <Tag tone="warning" size="sm">
+      {sheetErr?.includes("扣堂未能完成") && sheetErr.includes("返還未能完成")
+       ? "扣堂或返還未完成"
+       : sheetErr?.includes("返還未能完成")
+         ? "返還未完成"
+         : "扣堂未完成"}
+     </Tag>
     ) : rollCallSaved ? (
      <Tag tone={statusToTagTone("已點名")} size="sm">
       已點名
@@ -538,7 +577,7 @@ export function RollCallClassPanel({
       未點名
      </Tag>
     )}
-    {isDirty ? (
+    {isDirty && !sideEffectFailed ? (
      <Tag tone="warning" size="sm">
       未儲存變更
      </Tag>
@@ -584,7 +623,9 @@ export function RollCallClassPanel({
        <span className="mt-1 block text-amber-900/90">
         {!canEditRollCall && dateEditable
          ? "此堂已指派代堂，僅代堂老師可修改點名；您可閱覽現有紀錄。"
-         : rollCallSaved
+         : sideEffectFailed
+           ? "出席已寫入或已刪除，但扣堂或返還未完成。"
+           : rollCallSaved
            ? "本堂已完成點名；若要修改狀態，變更後再按「確定」儲存。"
            : autoPrefillWhenEmpty
              ? "已依請假／預設帶入狀態，可直接改選後按「確定」寫入。有請假單者按「全部現場」不會覆蓋。"
@@ -776,7 +817,11 @@ export function RollCallClassPanel({
     {!sheetLoading && students.length > 0 ? (
      <div className="mt-2 flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-muted-foreground">
-       {isDirty ? (
+       {sideEffectFailed ? (
+        <span className="font-medium text-destructive">
+         出席已寫入或已刪除，但扣堂或返還未完成。
+        </span>
+       ) : isDirty ? (
         <span className="font-medium text-amber-800">目前變更尚未儲存，請確認無誤後按「確定」。</span>
        ) : (
         <span>與上次儲存內容一致；若要修改請變更狀態後再按「確定」。</span>

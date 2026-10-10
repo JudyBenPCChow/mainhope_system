@@ -29,6 +29,7 @@ import {
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { fetchClassesForOpsList, getClassById } from "@/services/classQueries"
 import { insertScheduleForClass } from "@/services/scheduleWriteQueries"
 import {
@@ -339,7 +340,21 @@ export function ClassroomsManagePage() {
    setAddOpen(false)
    await reloadSchedules()
   } catch (e) {
-   reportUserFacingError(e, { source: "ClassroomsManagePage.addSchedule", setErr: setAddErr, userMessage: "新增失敗" })
+   if (e instanceof WrittenSideEffectError) {
+    invalidateClassroomsListDataCache()
+    setAddOpen(false)
+    await reloadSchedules()
+    reportUserFacingError(e, {
+     source: "ClassroomsManagePage.addSchedule",
+     setErr: setPageErr,
+    })
+   } else {
+    reportUserFacingError(e, {
+     source: "ClassroomsManagePage.addSchedule",
+     setErr: setAddErr,
+     userMessage: "新增失敗",
+    })
+   }
   } finally {
    setAddSaving(false)
   }

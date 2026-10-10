@@ -8,6 +8,7 @@ import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -63,8 +64,13 @@ export function RoomBookingAdminView() {
    await approveRoomBookingRequest(id)
    await reload()
   } catch (e) {
+   if (e instanceof WrittenSideEffectError) await reload()
    reportUserFacingError(e, { source: "RoomBookingAdminView.onApprove" })
-   pushBanner({ tone: "error", title: "核准失敗", message: formatUnknownError(e) })
+   pushBanner({
+    tone: "error",
+    title: e instanceof WrittenSideEffectError ? e.headline : "核准失敗",
+    message: formatUnknownError(e),
+   })
   } finally {
    setBusyId(null)
   }

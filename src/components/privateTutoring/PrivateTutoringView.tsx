@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarClock, Plus, Search, SlidersHorizontal, TriangleAlert, UserMinus } from "lucide-react"
 
@@ -45,6 +45,7 @@ import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -128,6 +129,9 @@ const ENROLLMENT_ROW_FILTERS = [
  { key: "已退讀", label: "已退讀" },
 ] as const
 
+const BOOK_CONTEXT_LOAD_ERR =
+ "排程或課室佔用未能載入，暫時不能確認預約或改約。"
+
 const EMPTY_PRIVATE_HEADER_FILTERS = {
  grade: "",
  teacher: "",
@@ -208,6 +212,14 @@ export function PrivateTutoringView() {
  const [teacherOptions, setTeacherOptions] = useState<{ id: string; label: string }[]>([])
  const [bookSaving, setBookSaving] = useState(false)
  const [bookErr, setBookErr] = useState<string | null>(null)
+ /** 該班排程已成功載入；失敗時不要把空清單當成沒有堂 */
+ const [bookSchedulesReady, setBookSchedulesReady] = useState(false)
+ /** 排程或課室佔用尚未成功載入，確認預約／改約須停用 */
+ const [bookContextBlocked, setBookContextBlocked] = useState(false)
+ const bookLoadSeq = useRef(0)
+ const bookSchedulesReadyRef = useRef(false)
+ const bookRowRef = useRef<PrivateTutoringStudentRow | null>(null)
+ bookRowRef.current = bookRow
  const [upcomingSchedules, setUpcomingSchedules] = useState<PrivateClassScheduleRow[]>([])
  const [rescheduleScheduleId, setRescheduleScheduleId] = useState<string | null>(null)
  /** 列表 disclosure 展開後快取的未來排程（依 classId） */
@@ -524,6 +536,7 @@ export function PrivateTutoringView() {
    try {
     result = await createPrivateTutoringEnrollment(payload)
    } catch (e) {
+    if (e instanceof WrittenSideEffectError) throw e
     const msg = e instanceof Error ? e.message : String(e)
     if (!msg.includes("已有同科目")) throw e
     const ok = await confirmDialog({
@@ -553,7 +566,14 @@ export function PrivateTutoringView() {
    setCreateOpen(false)
    void reloadStudents()
   } catch (e) {
-   reportUserFacingError(e, { source: "PrivateTutoringView.submitCreate", setErr: setCreateErr })
+   if (e instanceof WrittenSideEffectError) {
+    reportUserFacingError(e, { source: "PrivateTutoringView.submitCreate" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+    setCreateOpen(false)
+    void reloadStudents()
+   } else {
+    reportUserFacingError(e, { source: "PrivateTutoringView.submitCreate", setErr: setCreateErr })
+   }
   } finally {
    setCreateSaving(false)
   }
@@ -807,25 +827,51 @@ export function PrivateTutoringView() {
   setBookWeekCount("4")
   setRescheduleScheduleId(null)
   setBookErr(null)
+  bookSchedulesReadyRef.current = false
+  setBookSchedulesReady(false)
+  setBookContextBlocked(true)
  }, [teacherTid])
+
+ const finishBookRoomLoad = useCallback((seq: number, schedulesReady: boolean) => {
+  if (bookLoadSeq.current !== seq) return
+  if (schedulesReady) {
+   setBookContextBlocked(false)
+   setBookErr(null)
+   return
+  }
+  setBookContextBlocked(true)
+  setBookErr(BOOK_CONTEXT_LOAD_ERR)
+ }, [])
 
  const openBookDialog = useCallback(
   async (row: PrivateTutoringStudentRow) => {
+   bookRowRef.current = row
    setBookRow(row)
    resetBookForm(row)
+   const seq = ++bookLoadSeq.current
+   const ymd = localYmd()
    setBookOpen(true)
    try {
     const [schedules, bundle] = await Promise.all([
      fetchPrivateClassSchedules(row.classId),
-     fetchRoomCalendarBundle(localYmd(), localYmd()),
+     fetchRoomCalendarBundle(ymd, ymd),
     ])
+    if (bookLoadSeq.current !== seq) return
     setUpcomingSchedules(schedules)
     setRowSchedulesByClassId((prev) => ({ ...prev, [row.classId]: schedules }))
     setRooms(bundle.rooms)
     setRoomSchedules(bundle.schedules)
     setRoomPending(bundle.pending)
+    bookSchedulesReadyRef.current = true
+    setBookSchedulesReady(true)
+    setBookContextBlocked(false)
+    setBookErr(null)
    } catch {
-    setUpcomingSchedules([])
+    if (bookLoadSeq.current !== seq) return
+    bookSchedulesReadyRef.current = false
+    setBookSchedulesReady(false)
+    setBookContextBlocked(true)
+    setBookErr(BOOK_CONTEXT_LOAD_ERR)
    }
   },
   [resetBookForm]
@@ -834,23 +880,47 @@ export function PrivateTutoringView() {
  const onBookDateChange = useCallback(async (ymd: string) => {
   setBookDate(ymd)
   setBookRoomId("")
-  if (!ymd) return
+  const seq = ++bookLoadSeq.current
+  setBookContextBlocked(true)
+  if (!ymd) {
+   setBookErr(BOOK_CONTEXT_LOAD_ERR)
+   return
+  }
   try {
+   let schedulesReady = bookSchedulesReadyRef.current
+   if (!schedulesReady) {
+    const row = bookRowRef.current
+    if (!row) {
+     setBookContextBlocked(true)
+     setBookErr(BOOK_CONTEXT_LOAD_ERR)
+     return
+    }
+    const schedules = await fetchPrivateClassSchedules(row.classId)
+    if (bookLoadSeq.current !== seq) return
+    setUpcomingSchedules(schedules)
+    setRowSchedulesByClassId((prev) => ({ ...prev, [row.classId]: schedules }))
+    bookSchedulesReadyRef.current = true
+    setBookSchedulesReady(true)
+    schedulesReady = true
+   }
    const bundle = await fetchRoomCalendarBundle(ymd, ymd)
+   if (bookLoadSeq.current !== seq) return
    setRooms(bundle.rooms)
    setRoomSchedules(bundle.schedules)
    setRoomPending(bundle.pending)
+   finishBookRoomLoad(seq, schedulesReady)
   } catch {
-   /* ignore */
+   if (bookLoadSeq.current !== seq) return
+   setBookContextBlocked(true)
+   setBookErr(BOOK_CONTEXT_LOAD_ERR)
   }
- }, [])
+ }, [finishBookRoomLoad])
 
  const enterRescheduleMode = useCallback(
   async (s: PrivateClassScheduleRow) => {
    setRescheduleScheduleId(s.id)
    setBookMode("single")
    setBookConsecutive(false)
-   setBookErr(null)
    const ymd = s.scheduledDate
    setBookDate(ymd)
    setBookRoomId(s.classroomId ?? "")
@@ -863,31 +933,42 @@ export function PrivateTutoringView() {
    } else {
     setBookSlotIdx(0)
    }
-   if (ymd) {
-    try {
-     const bundle = await fetchRoomCalendarBundle(ymd, ymd)
-     setRooms(bundle.rooms)
-     setRoomSchedules(bundle.schedules)
-     setRoomPending(bundle.pending)
-    } catch {
-     /* ignore */
-    }
+   const seq = ++bookLoadSeq.current
+   setBookContextBlocked(true)
+   if (!ymd) {
+    setBookErr(BOOK_CONTEXT_LOAD_ERR)
+    return
+   }
+   try {
+    const bundle = await fetchRoomCalendarBundle(ymd, ymd)
+    if (bookLoadSeq.current !== seq) return
+    setRooms(bundle.rooms)
+    setRoomSchedules(bundle.schedules)
+    setRoomPending(bundle.pending)
+    finishBookRoomLoad(seq, bookSchedulesReadyRef.current)
+   } catch {
+    if (bookLoadSeq.current !== seq) return
+    setBookContextBlocked(true)
+    setBookErr(BOOK_CONTEXT_LOAD_ERR)
    }
   },
-  [bookRow]
+  [bookRow, finishBookRoomLoad]
  )
 
  const cancelRescheduleMode = useCallback(() => {
   if (!bookRow) return
   setRescheduleScheduleId(null)
-  setBookDate(localYmd())
   setBookSlotIdx(0)
   setBookRoomId("")
   setBookTeacherId(bookRow.teacherId ?? "")
-  setBookErr(null)
- }, [bookRow])
+  void onBookDateChange(localYmd())
+ }, [bookRow, onBookDateChange])
 
  const submitBooking = useCallback(async () => {
+  if (bookContextBlocked || !bookSchedulesReady) {
+   setBookErr(BOOK_CONTEXT_LOAD_ERR)
+   return
+  }
   if (!bookRow || !bookDate) {
    setBookErr("請選擇日期")
    return
@@ -1061,7 +1142,20 @@ export function PrivateTutoringView() {
    setBookMode("single")
    setBookWeekCount("4")
   } catch (e) {
-   reportUserFacingError(e, { source: "PrivateTutoringView.submitBooking", setErr: setBookErr })
+   if (e instanceof WrittenSideEffectError) {
+    await Promise.all([reloadUpcomingSchedules(bookRow.classId), reloadStudents()])
+    setBookDate(localYmd())
+    setBookSlotIdx(0)
+    setBookConsecutive(false)
+    setBookRoomId("")
+    setBookTeacherId(bookRow.teacherId ?? "")
+    setBookMode("single")
+    setBookWeekCount("4")
+    reportUserFacingError(e, { source: "PrivateTutoringView.submitBooking" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+   } else {
+    reportUserFacingError(e, { source: "PrivateTutoringView.submitBooking", setErr: setBookErr })
+   }
   } finally {
    setBookSaving(false)
   }
@@ -1081,6 +1175,8 @@ export function PrivateTutoringView() {
   reloadStudents,
   reloadUpcomingSchedules,
   activeStudentIdsByClass,
+  bookContextBlocked,
+  bookSchedulesReady,
  ])
 
  const onCancelLesson = useCallback(
@@ -2052,7 +2148,7 @@ export function PrivateTutoringView() {
            </option>
           ))}
         </Select>
-        {bookDate && freeRoomIdsForBook.size === 0 && (
+        {bookDate && bookSchedulesReady && !bookContextBlocked && freeRoomIdsForBook.size === 0 && (
          <p className="text-sm text-warning">此時段沒有空房；可暫不指定課室並確認預約。</p>
         )}
        </div>
@@ -2076,7 +2172,7 @@ export function PrivateTutoringView() {
         ) : null}
        </div>
 
-       {activeUpcomingSchedules.length > 0 && (
+       {bookSchedulesReady && activeUpcomingSchedules.length > 0 && (
         <div className="space-y-2">
          <p className="text-sm font-medium text-muted-foreground">已排課堂</p>
          <ul className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-border p-2">
@@ -2143,7 +2239,11 @@ export function PrivateTutoringView() {
           關閉
          </Button>
         )}
-        <Button type="button" onClick={() => void submitBooking()} disabled={bookSaving}>
+        <Button
+         type="button"
+         onClick={() => void submitBooking()}
+         disabled={bookSaving || bookContextBlocked || !bookSchedulesReady}
+        >
          {bookSaving
           ? rescheduleScheduleId
             ? "改約中…"

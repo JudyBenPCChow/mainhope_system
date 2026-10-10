@@ -93,6 +93,7 @@ import {
 import { addDaysYmd, isYmd } from "@/lib/weekdayUtils"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
 import { formatClassLabel } from "@/lib/courseLabel"
@@ -200,6 +201,9 @@ const EMPTY_LEAVE_SNAPSHOT: ScheduleLeaveSnapshot = {
 function effectiveRoomId(s: ScheduleManageRow, activeRoomIds: ReadonlySet<string>): string | null {
  return effectiveClassroomIdForDate(s.classroom_id, activeRoomIds)
 }
+
+const ADD_ROSTER_LOAD_ERROR = "就讀生名單未能載入，暫時不能儲存。"
+const ADD_CONFLICT_CHECK_ERROR = "未能核對老師時段，暫時不能儲存。"
 
 export function ScheduleManagePage() {
  const { confirmDialog } = useAppConfirm()
@@ -369,9 +373,11 @@ export function ScheduleManagePage() {
  const [addRosterCandidates, setAddRosterCandidates] = useState<ExtraLessonRosterCandidate[]>([])
  const [addRosterIds, setAddRosterIds] = useState<string[]>([])
  const [addRosterLoading, setAddRosterLoading] = useState(false)
+ const [addRosterLoadFailed, setAddRosterLoadFailed] = useState(false)
  const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
  const [addClassRecords, setAddClassRecords] = useState<ClassRecord[]>([])
  const [addConflicts, setAddConflicts] = useState<TeacherScheduleConflict[]>([])
+ const [addConflictCheckFailed, setAddConflictCheckFailed] = useState(false)
 
  const [cancelTarget, setCancelTarget] = useState<ScheduleManageRow | null>(null)
  const [cancelSaving, setCancelSaving] = useState(false)
@@ -701,14 +707,19 @@ export function ScheduleManagePage() {
  }, [addOpen, teacherScopeId])
 
  useEffect(() => {
-  if (!addOpen || !addClassId || !addDate) {
+  const resetConflictCheck = () => {
    setAddConflicts([])
+   setAddConflictCheckFailed(false)
+   setAddErr((current) => (current === ADD_CONFLICT_CHECK_ERROR ? null : current))
+  }
+  if (!addOpen || !addClassId || !addDate) {
+   resetConflictCheck()
    return
   }
   const cls = addClassRecords.find((c) => c.id === addClassId)
   const teacherId = cls?.teacher_id ?? null
   if (!teacherId) {
-   setAddConflicts([])
+   resetConflictCheck()
    return
   }
   let start = addStart || null
@@ -724,7 +735,7 @@ export function ScheduleManagePage() {
    }
   }
   if (!start) {
-   setAddConflicts([])
+   resetConflictCheck()
    return
   }
   let cancelled = false
@@ -735,10 +746,19 @@ export function ScheduleManagePage() {
    endTime: end,
   })
    .then((list) => {
-    if (!cancelled) setAddConflicts(list)
+    if (cancelled) return
+    setAddConflicts(list)
+    setAddConflictCheckFailed(false)
+    setAddErr((current) => (current === ADD_CONFLICT_CHECK_ERROR ? null : current))
    })
-   .catch(() => {
-    if (!cancelled) setAddConflicts([])
+   .catch((e: unknown) => {
+    if (cancelled) return
+    setAddConflictCheckFailed(true)
+    reportUserFacingError(e, {
+     source: "ScheduleManagePage.addTeacherConflictCheck",
+     setErr: setAddErr,
+     userMessage: ADD_CONFLICT_CHECK_ERROR,
+    })
    })
   return () => {
    cancelled = true
@@ -750,21 +770,28 @@ export function ScheduleManagePage() {
    setAddRosterCandidates([])
    setAddRosterIds([])
    setAddRosterLoading(false)
+   setAddRosterLoadFailed(false)
+   setAddErr((current) => (current === ADD_ROSTER_LOAD_ERROR ? null : current))
    return
   }
   let cancelled = false
+  setAddRosterCandidates([])
+  setAddRosterIds([])
   setAddRosterLoading(true)
+  setAddRosterLoadFailed(false)
+  setAddErr((current) => (current === ADD_ROSTER_LOAD_ERROR ? null : current))
   void listExtraLessonRosterCandidates({ classId: addClassId, scheduleDate: addDate })
    .then((rows) => {
     if (cancelled) return
     setAddRosterCandidates(rows)
     setAddRosterIds(rows.map((row) => row.studentId))
+    setAddRosterLoadFailed(false)
     setAddRosterLoading(false)
    })
    .catch(() => {
     if (cancelled) return
-    setAddRosterCandidates([])
-    setAddRosterIds([])
+    setAddRosterLoadFailed(true)
+    setAddErr(ADD_ROSTER_LOAD_ERROR)
     setAddRosterLoading(false)
    })
   return () => {
@@ -1248,6 +1275,8 @@ useEffect(() => {
   setAddExtra(false)
   setAddRosterCandidates([])
   setAddRosterIds([])
+  setAddRosterLoadFailed(false)
+  setAddConflictCheckFailed(false)
   setAddOpen(true)
  }
 
@@ -1255,6 +1284,14 @@ useEffect(() => {
   if (scheduleMgmtLocked) return
   if (!addClassId) {
    setAddErr("請選擇班別")
+   return
+  }
+  if (addExtra && (addRosterLoading || addRosterLoadFailed)) {
+   if (addRosterLoadFailed) setAddErr(ADD_ROSTER_LOAD_ERROR)
+   return
+  }
+  if (addConflictCheckFailed) {
+   setAddErr(ADD_CONFLICT_CHECK_ERROR)
    return
   }
   if (
@@ -1291,7 +1328,14 @@ useEffect(() => {
    setAddOpen(false)
    await reload()
   } catch (e) {
-   reportUserFacingError(e, { source: "ScheduleManagePage.submitAdd", setErr: setAddErr })
+   if (e instanceof WrittenSideEffectError) {
+    setAddOpen(false)
+    await reload()
+    reportUserFacingError(e, { source: "ScheduleManagePage.submitAdd" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+   } else {
+    reportUserFacingError(e, { source: "ScheduleManagePage.submitAdd", setErr: setAddErr })
+   }
   } finally {
    setAddSaving(false)
   }
@@ -2755,7 +2799,7 @@ useEffect(() => {
       {addExtra ? (
        addRosterLoading ? (
         <p className="text-sm text-muted-foreground">載入就讀生名單…</p>
-       ) : (
+       ) : addRosterLoadFailed ? null : (
         <ExtraLessonRosterPicker
          candidates={addRosterCandidates}
          selectedIds={addRosterIds}
@@ -2764,7 +2808,7 @@ useEffect(() => {
         />
        )
       ) : null}
-      {addConflicts.length > 0 ? (
+      {!addConflictCheckFailed && addConflicts.length > 0 ? (
        <div
         role="alert"
         className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
@@ -2790,7 +2834,15 @@ useEffect(() => {
        <Button type="button" variant="outline" disabled={addSaving} onClick={() => setAddOpen(false)}>
         取消
        </Button>
-       <Button type="button" disabled={addSaving} onClick={() => void submitAdd()}>
+       <Button
+        type="button"
+        disabled={
+         addSaving ||
+         addConflictCheckFailed ||
+         (addExtra && (addRosterLoading || addRosterLoadFailed))
+        }
+        onClick={() => void submitAdd()}
+       >
         {addSaving ? "儲存中…" : "儲存"}
        </Button>
       </div>

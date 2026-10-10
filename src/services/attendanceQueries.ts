@@ -9,6 +9,7 @@ import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
+import { formatUnknownError } from "@/lib/formatUnknownError"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import {
  pickStudentContactFromDbRow,
@@ -693,6 +694,20 @@ export function buildPrefillStatusMap(params: {
  return m
 }
 
+/** 出席列已寫入或已刪除，但扣堂／返還未完成。呼叫端應顯示，且不要回滾出席列。 */
+export class AttendanceSideEffectError extends Error {
+ constructor(message: string, cause?: unknown) {
+  super(message, cause !== undefined ? { cause } : undefined)
+  this.name = "AttendanceSideEffectError"
+ }
+}
+
+function entitlementSideEffectMessage(headline: string, err: unknown): string {
+ const detail = formatUnknownError(err).trim()
+ if (!detail || detail === "未知錯誤" || detail === "發生錯誤") return headline
+ return `${headline}（${detail}）`
+}
+
 export async function saveAttendanceStatus(
  studentId: string,
  classId: string,
@@ -763,7 +778,10 @@ export async function saveAttendanceStatus(
     nextStatus: status,
    })
   } catch (err) {
-   console.error("applyEntitlementConsumptionDelta failed", scheduleId, err)
+   throw new AttendanceSideEffectError(
+    entitlementSideEffectMessage("點名已記錄，但扣堂未能完成", err),
+    err
+   )
   }
  }
 }
@@ -851,7 +869,10 @@ export async function deleteAttendanceStatusForSchedule(
     nextStatus: null,
    })
   } catch (err) {
-   console.error("applyEntitlementConsumptionDelta (delete) failed", scheduleId, err)
+   throw new AttendanceSideEffectError(
+    entitlementSideEffectMessage("點名已刪除，但返還未能完成", err),
+    err
+   )
   }
  }
 }

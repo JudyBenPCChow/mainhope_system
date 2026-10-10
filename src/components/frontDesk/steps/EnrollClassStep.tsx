@@ -18,6 +18,7 @@ import {
 } from "@/lib/enrollmentPeriod"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { fetchClassesForOpsList, fetchSubjectOptions, fetchTeacherOptions } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import { createPrivateTutoringEnrollment } from "@/services/privateTutoringQueries"
@@ -247,6 +248,13 @@ export function EnrollClassStep({
    })
    onEnrollmentCountChange(count)
   } catch (e) {
+   if (e instanceof WrittenSideEffectError) {
+    setPickClass("")
+    setPickForm(isSummer ? "第一期" : "full")
+    setPickScheduleIds([])
+    const list = await reloadEnrollments()
+    onEnrollmentCountChange(list.filter((row) => row.status !== "已退讀").length)
+   }
    reportUserFacingError(e, { source: "EnrollClassStep.addGroup", setErr })
   } finally {
    setGroupSaving(false)
@@ -282,6 +290,7 @@ export function EnrollClassStep({
    try {
     await createPrivateTutoringEnrollment(payload)
    } catch (e) {
+    if (e instanceof WrittenSideEffectError) throw e
     const msg = e instanceof Error ? e.message : String(e)
     if (/重複|已存在|duplicate/i.test(msg)) {
      const ok = await confirmDialog({
@@ -304,6 +313,10 @@ export function EnrollClassStep({
    pushBanner({ tone: "success", title: "已建立一對一報讀", message: "可再新增其他班別，或繼續收款。" })
    onEnrollmentCountChange(count)
   } catch (e) {
+   if (e instanceof WrittenSideEffectError) {
+    const list = await reloadEnrollments()
+    onEnrollmentCountChange(list.filter((row) => row.status !== "已退讀").length)
+   }
    reportUserFacingError(e, { source: "EnrollClassStep.addPrivate", setErr })
   } finally {
    setPrivateSaving(false)

@@ -26,6 +26,79 @@ const empty: AdminDashboardPayload = {
  pendingPaymentCount: 0,
  todayClassCards: [],
  todayLeaves: [],
+ failureDetail: null,
+}
+
+const failedDashboard: AdminDashboardPayload = {
+ todayClassCount: null,
+ pendingPaymentCount: null,
+ todayClassCards: null,
+ todayLeaves: null,
+ failureDetail: null,
+}
+
+function LoadFailedNotice({ message }: { message: string }) {
+ return (
+  <div
+   role="alert"
+   className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-base text-destructive"
+  >
+   {message}
+  </div>
+ )
+}
+
+type AdminHomeBoardProps = {
+ scheduleViewYmd: string
+ onScheduleViewYmdChange: (ymd: string) => void
+ viewingToday: boolean
+ dashboardLoading: boolean
+ todayClassCards: AdminDashboardPayload["todayClassCards"]
+ todayLeaves: AdminDashboardPayload["todayLeaves"]
+ otherDayCards: DashboardTodayClassCard[]
+ otherDayLoading: boolean
+ otherDayFailed: boolean
+}
+
+/** 課堂與請假的空狀態在看板內。失敗時藏起該欄，改顯示「未能載入」。 */
+function AdminHomeBoard({
+ scheduleViewYmd,
+ onScheduleViewYmdChange,
+ viewingToday,
+ dashboardLoading,
+ todayClassCards,
+ todayLeaves,
+ otherDayCards,
+ otherDayLoading,
+ otherDayFailed,
+}: AdminHomeBoardProps) {
+ const classBoardFailed = viewingToday
+  ? !dashboardLoading && todayClassCards == null
+  : otherDayFailed && !otherDayLoading
+ const leavesFailed = !dashboardLoading && todayLeaves == null
+ const boardCards = classBoardFailed ? [] : viewingToday ? (todayClassCards ?? []) : otherDayCards
+ const boardLeaves = leavesFailed ? [] : (todayLeaves ?? [])
+ const hideFailedSections =
+  (classBoardFailed ? '[data-admin-home-board] [aria-label="今日課堂"]{display:none}' : "") +
+  (leavesFailed ? '[data-admin-home-board] [aria-label="今日請假學生"]{display:none}' : "")
+
+ return (
+  <div className="flex flex-col gap-4">
+   {hideFailedSections ? <style>{hideFailedSections}</style> : null}
+   {classBoardFailed ? <LoadFailedNotice message="課堂未能載入。" /> : null}
+   {leavesFailed ? <LoadFailedNotice message="今日請假未能載入。" /> : null}
+   <div data-admin-home-board="">
+    <DashboardBoard
+     scheduleViewYmd={scheduleViewYmd}
+     onScheduleViewYmdChange={onScheduleViewYmdChange}
+     todayClassCards={boardCards}
+     scheduleColumnLoading={viewingToday ? false : otherDayLoading}
+     todayLeaves={boardLeaves}
+     loading={dashboardLoading}
+    />
+   </div>
+  </div>
+ )
 }
 
 const shortcutCardClass =
@@ -42,6 +115,7 @@ export function AdminDashboard() {
  const [scheduleViewYmd, setScheduleViewYmd] = useState(todayYmdLocal)
  const [scheduleBoardCards, setScheduleBoardCards] = useState<DashboardTodayClassCard[]>([])
  const [scheduleBoardLoading, setScheduleBoardLoading] = useState(false)
+ const [scheduleBoardError, setScheduleBoardError] = useState(false)
  const [teacherNullAudit, setTeacherNullAudit] = useState<PrivateScheduleTeacherNullAuditRow[]>(
   []
  )
@@ -51,6 +125,23 @@ export function AdminDashboard() {
   try {
    const d = await fetchAdminDashboard()
    setData(d)
+   if (d.failureDetail) {
+    const parts: string[] = []
+    if (d.todayClassCards == null) parts.push("課堂未能載入")
+    if (d.todayLeaves == null) parts.push("今日請假未能載入")
+    if (d.pendingPaymentCount == null) parts.push("待收款未能載入")
+    reportUserFacingError(new Error(d.failureDetail), {
+     source: "AdminDashboard.load",
+     userMessage: parts.length > 0 ? `${parts.join("。")}。` : "未能載入。",
+     detailFrom: d.failureDetail,
+    })
+   }
+  } catch (e) {
+   setData(failedDashboard)
+   reportUserFacingError(e, {
+    source: "AdminDashboard.load",
+    userMessage: "未能載入。",
+   })
   } finally {
    setLoading(false)
   }
@@ -75,20 +166,37 @@ export function AdminDashboard() {
  }, [load, loadTeacherNullAudit])
 
  useEffect(() => {
-  if (scheduleViewYmd !== todayYmdLocal()) return
-  setScheduleBoardCards(data.todayClassCards)
-  setScheduleBoardLoading(false)
- }, [scheduleViewYmd, data.todayClassCards])
-
- useEffect(() => {
   if (scheduleViewYmd === todayYmdLocal()) return
   let cancelled = false
   setScheduleBoardLoading(true)
-  void fetchScheduleBoardForDate(scheduleViewYmd).then((r) => {
-   if (cancelled) return
-   setScheduleBoardCards(r.todayClassCards)
-   setScheduleBoardLoading(false)
-  })
+  setScheduleBoardError(false)
+  void fetchScheduleBoardForDate(scheduleViewYmd)
+   .then((r) => {
+    if (cancelled) return
+    if (r.ok) {
+     setScheduleBoardCards(r.todayClassCards)
+     setScheduleBoardError(false)
+     return
+    }
+    setScheduleBoardCards([])
+    setScheduleBoardError(true)
+    reportUserFacingError(new Error("fetchScheduleBoardForDate"), {
+     source: "AdminDashboard.loadScheduleBoard",
+     userMessage: "課堂未能載入。",
+    })
+   })
+   .catch((e: unknown) => {
+    if (cancelled) return
+    setScheduleBoardCards([])
+    setScheduleBoardError(true)
+    reportUserFacingError(e, {
+     source: "AdminDashboard.loadScheduleBoard",
+     userMessage: "課堂未能載入。",
+    })
+   })
+   .finally(() => {
+    if (!cancelled) setScheduleBoardLoading(false)
+   })
   return () => {
    cancelled = true
   }
@@ -106,15 +214,25 @@ export function AdminDashboard() {
        to={`/Schedule?view=byDate&date=${todayYmd}`}
        className={shortcutCardClass}
        aria-label={
-        loading ? "今日排程，載入中，前往清單" : `今日排程，${data.todayClassCount} 堂，前往清單`
+        loading
+         ? "今日排程，載入中，前往清單"
+         : data.todayClassCount == null
+           ? "今日排程，未能載入，前往清單"
+           : `今日排程，${data.todayClassCount} 堂，前往清單`
        }
       >
-       <span className="text-2xl font-bold tabular-nums leading-none text-primary">
-        {loading ? "…" : data.todayClassCount}
-        {!loading ? (
+       {loading ? (
+        <span className="text-2xl font-bold tabular-nums leading-none text-primary">…</span>
+       ) : data.todayClassCount == null ? (
+        <span className="text-base font-semibold leading-snug text-destructive" role="alert">
+         未能載入
+        </span>
+       ) : (
+        <span className="text-2xl font-bold tabular-nums leading-none text-primary">
+         {data.todayClassCount}
          <span className="ml-1 text-sm font-medium text-muted-foreground">堂</span>
-        ) : null}
-       </span>
+        </span>
+       )}
        <span className="mt-1.5 inline-flex items-center gap-1 text-sm text-muted-foreground">
         <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
         今日排程
@@ -192,13 +310,16 @@ export function AdminDashboard() {
     />
    </div>
 
-   <DashboardBoard
+   <AdminHomeBoard
     scheduleViewYmd={scheduleViewYmd}
     onScheduleViewYmdChange={setScheduleViewYmd}
-    todayClassCards={scheduleBoardCards}
-    scheduleColumnLoading={scheduleBoardLoading}
+    viewingToday={scheduleViewYmd === todayYmd}
+    dashboardLoading={loading}
+    todayClassCards={data.todayClassCards}
     todayLeaves={data.todayLeaves}
-    loading={loading}
+    otherDayCards={scheduleBoardCards}
+    otherDayLoading={scheduleBoardLoading}
+    otherDayFailed={scheduleBoardError}
    />
   </div>
  )

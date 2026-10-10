@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react"
 
 import { Field, localTodayYmd } from "@/components/frontDesk/frontDeskUi"
+import { invalidateLeaveManagementDataCache } from "@/components/leaves/leaveManagementState"
 import { Button } from "@/components/ui/button"
 import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -199,6 +200,7 @@ export function LeaveStep({ student, leaveCount, onLeaveAdded, onSkip, onFinish 
      status: "待補課",
      consecutiveScope: scope,
     })
+    invalidateLeaveManagementDataCache()
     dates.push(sched.scheduled_date)
     onLeaveAdded()
    }

@@ -24,6 +24,7 @@ import { useAuth } from "@/lib/authBootstrap"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
@@ -1630,6 +1631,17 @@ export function TrialSessionsView() {
        action: trial
         ? { pageLabel: "收款登記", to: `/Payments?studentId=${encodeURIComponent(trial.student_id)}` }
         : undefined,
+      })
+     } catch (e) {
+      if (e instanceof WrittenSideEffectError) {
+       setConvertId(null)
+       await reload()
+      }
+      reportUserFacingError(e, { source: "TrialSessionsView.convert", setErr })
+      pushBanner({
+       tone: "error",
+       title: e instanceof WrittenSideEffectError ? e.headline : "轉正未完成",
+       message: e instanceof Error ? e.message : String(e),
       })
      } finally {
       setConvertSaving(false)
