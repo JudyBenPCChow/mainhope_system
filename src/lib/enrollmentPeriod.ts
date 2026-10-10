@@ -34,7 +34,7 @@ export function isSingleSessionEnrollment(
 
 /** 報讀期數是否涵蓋指定 period_code（1 或 2）；單堂一律 false（改看選堂） */
 export function enrollmentCoversPeriod(
- enrollmentPeriod: EnrollmentFormValue | null | undefined,
+ enrollmentPeriod: string | null | undefined,
  periodCode: 1 | 2
 ): boolean {
  if (isSingleSessionEnrollment(enrollmentPeriod)) return false
