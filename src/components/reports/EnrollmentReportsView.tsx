@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react"
 import { Link } from "react-router-dom"
 import { BarChart3, Download, RefreshCw } from "lucide-react"
 
@@ -80,6 +80,28 @@ function SummaryStat({ label, value }: { label: string; value: number }) {
  )
 }
 
+function EnrollmentFigures({
+ academicYearId,
+ yearsReady,
+ yearsFailed,
+ children,
+}: {
+ academicYearId: string
+ yearsReady: boolean
+ yearsFailed: boolean
+ children: ReactNode
+}) {
+ if (academicYearId) return <>{children}</>
+ const message = !isSupabaseConfigured
+  ? "無法顯示報讀人數。"
+  : !yearsReady
+    ? "載入中…"
+    : yearsFailed
+      ? "學年清單未能載入，無法顯示報讀人數。"
+      : "尚無學年，無法顯示報讀人數。"
+ return <p className="text-sm text-muted-foreground">{message}</p>
+}
+
 export function EnrollmentReportsView() {
  const [years, setYears] = useState<AcademicYearOption[]>([])
  const [academicYearId, setAcademicYearId] = useState("")
@@ -89,6 +111,7 @@ export function EnrollmentReportsView() {
  const [overall, setOverall] = useState<OverallStudentAnalysis>(emptyOverall)
  const [loading, setLoading] = useState(true)
  const [err, setErr] = useState<string | null>(null)
+ const [yearsErr, setYearsErr] = useState<string | null>(null)
  const [yearsReady, setYearsReady] = useState(false)
 
  useEffect(() => {
@@ -102,11 +125,12 @@ export function EnrollmentReportsView() {
     const opts = await fetchEnrollmentReportAcademicYears()
     if (cancelled) return
     setYears(opts)
+    setYearsErr(null)
     const current = opts.find((y) => y.is_current) ?? opts[0]
     setAcademicYearId(current?.id ?? "")
    } catch (e) {
     if (!cancelled) {
-     reportUserFacingError(e, { source: "EnrollmentReportsView.loadYears", setErr })
+     reportUserFacingError(e, { source: "EnrollmentReportsView.loadYears", setErr: setYearsErr })
     }
    } finally {
     if (!cancelled) setYearsReady(true)
@@ -128,17 +152,20 @@ export function EnrollmentReportsView() {
   setLoading(true)
   setErr(null)
   try {
+   if (!academicYearId) {
+    const overallData = await fetchOverallStudentAnalysis()
+    setOverall(overallData)
+    return
+   }
    const [reportData, overallData] = await Promise.all([
-    academicYearId
-     ? fetchEnrollmentReport({ academicYearId, classKind })
-     : Promise.resolve(emptyReport),
+    fetchEnrollmentReport({ academicYearId, classKind }),
     fetchOverallStudentAnalysis(),
    ])
    setReport(reportData)
    setOverall(overallData)
   } catch (e) {
    reportUserFacingError(e, { source: "EnrollmentReportsView.load", setErr })
-   setReport(emptyReport)
+   if (academicYearId) setReport(emptyReport)
    setOverall(emptyOverall)
   } finally {
    setLoading(false)
@@ -198,7 +225,7 @@ export function EnrollmentReportsView() {
       variant="outline"
       size="sm"
       onClick={onExport}
-      disabled={loading || !isSupabaseConfigured}
+      disabled={loading || !isSupabaseConfigured || !academicYearId}
      >
       <Download className="mr-1.5 h-4 w-4" />
       匯出 CSV
@@ -222,10 +249,14 @@ export function EnrollmentReportsView() {
     </p>
    ) : null}
 
-   {err ? (
-    <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-     {err}
-    </p>
+   {yearsErr || err ? (
+    <div
+     role="alert"
+     className="space-y-1 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive"
+    >
+     {yearsErr ? <p>{yearsErr}</p> : null}
+     {err ? <p>{err}</p> : null}
+    </div>
    ) : null}
 
    <div className="flex flex-wrap items-end gap-3">
@@ -236,7 +267,9 @@ export function EnrollmentReportsView() {
       onChange={(e) => setAcademicYearId(e.target.value)}
       disabled={!yearsReady || years.length === 0}
      >
-      {years.length === 0 ? <option value="">尚無學年</option> : null}
+      {years.length === 0 ? (
+       <option value="">{yearsErr ? "學年未能載入" : "尚無學年"}</option>
+      ) : null}
       {years.map((y) => (
        <option key={y.id} value={y.id}>
         {y.label}
@@ -290,30 +323,36 @@ export function EnrollmentReportsView() {
     </TabsContent>
 
     <TabsContent value="subject" className="space-y-4">
-     <div className="grid gap-3 sm:grid-cols-3">
-      <SummaryStat label="科目數" value={report.subjects.length} />
-      <SummaryStat label="報讀筆數" value={report.totals.enrollmentCount} />
-      <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
-     </div>
-     <SubjectTable rows={report.subjects} loading={loading} />
+     <EnrollmentFigures academicYearId={academicYearId} yearsReady={yearsReady} yearsFailed={Boolean(yearsErr)}>
+      <div className="grid gap-3 sm:grid-cols-3">
+       <SummaryStat label="科目數" value={report.subjects.length} />
+       <SummaryStat label="報讀筆數" value={report.totals.enrollmentCount} />
+       <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
+      </div>
+      <SubjectTable rows={report.subjects} loading={loading} />
+     </EnrollmentFigures>
     </TabsContent>
 
     <TabsContent value="class" className="space-y-4">
-     <div className="grid gap-3 sm:grid-cols-3">
-      <SummaryStat label="班別數" value={report.totals.classCount} />
-      <SummaryStat label="就讀中報讀" value={report.totals.enrollmentCount} />
-      <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
-     </div>
-     <ClassTable rows={report.classes} loading={loading} />
+     <EnrollmentFigures academicYearId={academicYearId} yearsReady={yearsReady} yearsFailed={Boolean(yearsErr)}>
+      <div className="grid gap-3 sm:grid-cols-3">
+       <SummaryStat label="班別數" value={report.totals.classCount} />
+       <SummaryStat label="就讀中報讀" value={report.totals.enrollmentCount} />
+       <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
+      </div>
+      <ClassTable rows={report.classes} loading={loading} />
+     </EnrollmentFigures>
     </TabsContent>
 
     <TabsContent value="teacher" className="space-y-4">
-     <div className="grid gap-3 sm:grid-cols-3">
-      <SummaryStat label="老師數" value={report.teachers.length} />
-      <SummaryStat label="報讀筆數" value={report.totals.enrollmentCount} />
-      <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
-     </div>
-     <TeacherTable rows={report.teachers} loading={loading} />
+     <EnrollmentFigures academicYearId={academicYearId} yearsReady={yearsReady} yearsFailed={Boolean(yearsErr)}>
+      <div className="grid gap-3 sm:grid-cols-3">
+       <SummaryStat label="老師數" value={report.teachers.length} />
+       <SummaryStat label="報讀筆數" value={report.totals.enrollmentCount} />
+       <SummaryStat label="不重複學生" value={report.totals.distinctStudents} />
+      </div>
+      <TeacherTable rows={report.teachers} loading={loading} />
+     </EnrollmentFigures>
     </TabsContent>
    </Tabs>
   </div>

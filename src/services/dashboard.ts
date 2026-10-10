@@ -29,11 +29,16 @@ export type DashboardTodayLeaveRow = {
 }
 
 export type AdminDashboardPayload = {
- todayClassCount: number
- /** 狀態為「待收款」之筆數（未入帳） */
- pendingPaymentCount: number
- todayClassCards: DashboardTodayClassCard[]
- todayLeaves: DashboardTodayLeaveRow[]
+ /** 當日課堂數。查詢失敗為 null；成功且沒有堂為 0 */
+ todayClassCount: number | null
+ /** 狀態為「待收款」之筆數（未入帳）。查詢失敗為 null */
+ pendingPaymentCount: number | null
+ /** 查詢失敗為 null；成功且沒有堂為空陣列 */
+ todayClassCards: DashboardTodayClassCard[] | null
+ /** 查詢失敗為 null；成功且沒有請假為空陣列 */
+ todayLeaves: DashboardTodayLeaveRow[] | null
+ /** 僅供上報，畫面不顯示原文 */
+ failureDetail: string | null
 }
 
 function localYmd(d = new Date()): string {
@@ -49,7 +54,25 @@ function emptyPayload(): AdminDashboardPayload {
   pendingPaymentCount: 0,
   todayClassCards: [],
   todayLeaves: [],
+  failureDetail: null,
  }
+}
+
+function failedPayload(detail: string): AdminDashboardPayload {
+ return {
+  todayClassCount: null,
+  pendingPaymentCount: null,
+  todayClassCards: null,
+  todayLeaves: null,
+  failureDetail: detail,
+ }
+}
+
+function supabaseErrorMessage(error: unknown): string {
+ if (error && typeof error === "object" && "message" in error) {
+  return String((error as { message: unknown }).message)
+ }
+ return String(error)
 }
 
 function formatGrade(g: unknown): string {
@@ -138,11 +161,11 @@ function mapScheduleRowsToDashboardClassCards(
  })
 }
 
-/** 指定日期之課堂卡片（行政首頁主欄換日檢視） */
-export async function fetchScheduleBoardForDate(ymd: string): Promise<{
- todayClassCards: DashboardTodayClassCard[]
-}> {
- if (!supabase) return { todayClassCards: [] }
+/** 指定日期之課堂卡片（行政首頁主欄換日檢視）。失敗時 ok 為 false，不當成當日沒有堂。 */
+export async function fetchScheduleBoardForDate(
+ ymd: string
+): Promise<{ ok: true; todayClassCards: DashboardTodayClassCard[] } | { ok: false }> {
+ if (!supabase) return { ok: true, todayClassCards: [] }
  try {
   const schedRes = await supabase
    .from("schedules")
@@ -152,7 +175,7 @@ export async function fetchScheduleBoardForDate(ymd: string): Promise<{
 
   if (schedRes.error) {
    console.warn("[dashboard] schedules:", schedRes.error.message)
-   return { todayClassCards: [] }
+   return { ok: false }
   }
 
   const scheduleRows = (schedRes.data ?? []) as Record<string, unknown>[]
@@ -165,11 +188,12 @@ export async function fetchScheduleBoardForDate(ymd: string): Promise<{
   ]
   const enrollMap = await loadEnrollmentNameMapForClassIds(classIds)
   return {
+   ok: true,
    todayClassCards: mapScheduleRowsToDashboardClassCards(scheduleRows, enrollMap),
   }
  } catch (e) {
   console.error("[dashboard] fetchScheduleBoardForDate", e)
-  return { todayClassCards: [] }
+  return { ok: false }
  }
 }
 
@@ -220,57 +244,80 @@ export async function fetchAdminDashboard(): Promise<AdminDashboardPayload> {
    supabase.from("leave_makeup_records").select(leaveSelect).eq("leave_date", today),
   ])
 
-  const scheduleRows = (schedTodayRes.data ?? []) as Record<string, unknown>[]
-  const scheduleIdsToday = scheduleRows.map((r) => String(r.id))
+  const failureNotes: string[] = []
 
-  const leaveSchedRes =
-   scheduleIdsToday.length > 0
-    ? await supabase.from("leave_makeup_records").select(leaveSelect).in("schedule_id", scheduleIdsToday)
-    : { data: [] as Record<string, unknown>[], error: null }
-
-  const classIds = [
-   ...new Set(
-    scheduleRows
-     .map((r) => r.class_id as string | null | undefined)
-     .filter((x): x is string => x != null && x !== "")
-   ),
-  ]
-
-  const enrollMap = await loadEnrollmentNameMapForClassIds(classIds)
-  const todayClassCards = mapScheduleRowsToDashboardClassCards(scheduleRows, enrollMap)
-
-  const leaveById = new Map<string, Record<string, unknown>>()
-  for (const row of (leaveTodayRes.data ?? []) as Record<string, unknown>[]) {
-   leaveById.set(String(row.id), row)
+  let todayClassCards: DashboardTodayClassCard[] | null = null
+  let todayClassCount: number | null = null
+  let scheduleRows: Record<string, unknown>[] = []
+  if (schedTodayRes.error) {
+   const msg = supabaseErrorMessage(schedTodayRes.error)
+   console.error("[dashboard] supabase:", msg)
+   failureNotes.push(msg)
+   failureNotes.push("當日排程未能載入，請假名單未一併顯示")
+  } else {
+   scheduleRows = (schedTodayRes.data ?? []) as Record<string, unknown>[]
+   const classIds = [
+    ...new Set(
+     scheduleRows
+      .map((r) => r.class_id as string | null | undefined)
+      .filter((x): x is string => x != null && x !== "")
+    ),
+   ]
+   const enrollMap = await loadEnrollmentNameMapForClassIds(classIds)
+   todayClassCards = mapScheduleRowsToDashboardClassCards(scheduleRows, enrollMap)
+   todayClassCount = todayClassCards.length
   }
-  for (const row of (leaveSchedRes.data ?? []) as Record<string, unknown>[]) {
-   leaveById.set(String(row.id), row)
-  }
-  const todayLeaves = [...leaveById.values()]
-   .map(mapLeaveDashboardRow)
-   .sort((a, b) => a.studentName.localeCompare(b.studentName, "zh-Hant"))
 
-  const errs = [
-   pendingPayCountRes.error,
-   schedTodayRes.error,
-   leaveTodayRes.error,
-   leaveSchedRes.error,
-  ].filter(Boolean)
-  if (errs.length) {
-   for (const e of errs) {
-    const msg = e && typeof e === "object" && "message" in e ? String(e.message) : String(e)
+  let pendingPaymentCount: number | null = null
+  if (pendingPayCountRes.error) {
+   const msg = supabaseErrorMessage(pendingPayCountRes.error)
+   console.error("[dashboard] supabase:", msg)
+   failureNotes.push(msg)
+  } else {
+   pendingPaymentCount = pendingPayCountRes.count ?? 0
+  }
+
+  let todayLeaves: DashboardTodayLeaveRow[] | null = null
+  if (!schedTodayRes.error) {
+   if (leaveTodayRes.error) {
+    const msg = supabaseErrorMessage(leaveTodayRes.error)
     console.error("[dashboard] supabase:", msg)
+    failureNotes.push(msg)
+   } else {
+    const scheduleIdsToday = scheduleRows.map((r) => String(r.id))
+    const leaveSchedRes =
+     scheduleIdsToday.length > 0
+      ? await supabase.from("leave_makeup_records").select(leaveSelect).in("schedule_id", scheduleIdsToday)
+      : { data: [] as Record<string, unknown>[], error: null }
+
+    if (leaveSchedRes.error) {
+     const msg = supabaseErrorMessage(leaveSchedRes.error)
+     console.error("[dashboard] supabase:", msg)
+     failureNotes.push(msg)
+    } else {
+     const leaveById = new Map<string, Record<string, unknown>>()
+     for (const row of (leaveTodayRes.data ?? []) as Record<string, unknown>[]) {
+      leaveById.set(String(row.id), row)
+     }
+     for (const row of (leaveSchedRes.data ?? []) as Record<string, unknown>[]) {
+      leaveById.set(String(row.id), row)
+     }
+     todayLeaves = [...leaveById.values()]
+      .map(mapLeaveDashboardRow)
+      .sort((a, b) => a.studentName.localeCompare(b.studentName, "zh-Hant"))
+    }
    }
   }
 
   return {
-   todayClassCount: todayClassCards.length,
-   pendingPaymentCount: pendingPayCountRes.count ?? 0,
+   todayClassCount,
+   pendingPaymentCount,
    todayClassCards,
    todayLeaves,
+   failureDetail: failureNotes.length > 0 ? failureNotes.join("；") : null,
   }
  } catch (e) {
   console.error("[dashboard]", e)
-  return emptyPayload()
+  return failedPayload(e instanceof Error ? e.message : String(e))
  }
 }

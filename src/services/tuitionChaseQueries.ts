@@ -25,6 +25,7 @@ import { supabase } from "@/lib/supabaseClient"
 import {
  chaseDeclarationAppliesToPool,
  classifyChaseSchedule,
+ lessonUnitsForScheduleRow,
  paymentDetailMatchesPool,
  type ChaseAttendanceMark,
  type ChaseDeclarationPoolRef,
@@ -131,10 +132,6 @@ export type TuitionChasePoolDetail = {
  thisPeriodPending: TuitionChaseScheduleLine[]
  nextPeriod: TuitionChaseScheduleLine[]
  thisPeriodNondeduct: TuitionChaseScheduleLine[]
-}
-
-function lessonUnits(slots: number | null | undefined): number {
- return Number(slots) === 2 ? 2 : 1
 }
 
 /** PostgREST 預設每響應最多 1000 列；父層 `.in(id)` 分塊不夠。 */
@@ -278,30 +275,10 @@ type ScheduleUnit = {
  units: number
 }
 
-async function fetchClassLessonUnits(classIds: string[]): Promise<Map<string, number>> {
- const out = new Map<string, number>()
- if (!supabase || classIds.length === 0) return out
- await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
-  const { data, error } = await supabase!
-   .from("classes")
-   .select("id, lesson_slots_per_session")
-   .in("id", slice)
-  if (error) throw error
-  for (const raw of data ?? []) {
-   const row = raw as { id?: string; lesson_slots_per_session?: number | null }
-   const id = String(row.id ?? "")
-   if (!id) continue
-   out.set(id, lessonUnits(row.lesson_slots_per_session))
-  }
- })
- return out
-}
-
 async function fetchScheduleUnitsInRange(
  classIds: string[],
  from: string,
- to: string,
- unitsByClass: ReadonlyMap<string, number>
+ to: string
 ): Promise<ScheduleUnit[]> {
  const out: ScheduleUnit[] = []
  if (!supabase || classIds.length === 0) return out
@@ -323,7 +300,7 @@ async function fetchScheduleUnitsInRange(
     id,
     classId,
     scheduledDate: String(row.scheduled_date ?? "").slice(0, 10),
-    units: unitsByClass.get(classId) ?? 1,
+    units: lessonUnitsForScheduleRow(),
    })
   }
  })
@@ -614,7 +591,6 @@ function declarationBucketsForPool(
   namespace: EntitlementNamespace
   classIds: ReadonlySet<string>
  },
- unitsByClass: ReadonlyMap<string, number>,
  attendance?: ReadonlyMap<string, AttendanceMark>
 ): PeriodUnitBuckets {
  const buckets = emptyPeriodUnitBuckets()
@@ -637,7 +613,7 @@ function declarationBucketsForPool(
   if (seen.has(d.scheduleId)) continue
   seen.add(d.scheduleId)
   const mark = attendance?.get(`${studentId}|${d.scheduleId}`)
-  addPeriodUnit(buckets, unitsByClass.get(d.classId) ?? 1, mark, countAttendance)
+  addPeriodUnit(buckets, lessonUnitsForScheduleRow(), mark, countAttendance)
  }
  return buckets
 }
@@ -783,7 +759,6 @@ export async function fetchTuitionChaseList(opts?: {
   })
  }
 
- const allClassIds = [...new Set([...poolsByKey.values()].flatMap((p) => p.classIds))]
  const rangeFrom =
   currentPeriodFull && nextPeriodFull
    ? currentPeriodFull.from < nextPeriodFull.from
@@ -810,12 +785,9 @@ export async function fetchTuitionChaseList(opts?: {
    ? fetchActiveChaseDeclarations(studentIds, rangeFrom, rangeTo)
    : Promise.resolve([] as ChaseDeclarationUnit[]),
  ])
- const unitsByClass = await fetchClassLessonUnits([
-  ...new Set([...allClassIds, ...declarations.map((d) => d.classId)]),
- ])
  const rangeSchedules =
   rangeFrom && rangeTo && privateClassIds.length > 0
-   ? await fetchScheduleUnitsInRange(privateClassIds, rangeFrom, rangeTo, unitsByClass)
+   ? await fetchScheduleUnitsInRange(privateClassIds, rangeFrom, rangeTo)
    : ([] as ScheduleUnit[])
 
  const thisAttendance =
@@ -853,7 +825,6 @@ export async function fetchTuitionChaseList(opts?: {
       declarations,
       currentPeriodDates,
       poolRef,
-      unitsByClass,
       thisAttendance
      )
    : scheduleBucketsForStudent(
@@ -868,8 +839,7 @@ export async function fetchTuitionChaseList(opts?: {
       acc.studentId,
       declarations,
       nextPeriodDates,
-      poolRef,
-      unitsByClass
+      poolRef
      ).pending
    : sumUnitsForClasses(nextPeriodSchedules, classIdSet)
   const due = remainingKnown
@@ -1005,7 +975,7 @@ function classDisplayLabel(cls: Record<string, unknown> | null, fallback = ""): 
  return courseName || fallback
 }
 
-type ClassMeta = { units: number; label: string }
+type ClassMeta = { label: string }
 
 async function fetchClassMeta(classIds: string[]): Promise<Map<string, ClassMeta>> {
  const out = new Map<string, ClassMeta>()
@@ -1013,7 +983,7 @@ async function fetchClassMeta(classIds: string[]): Promise<Map<string, ClassMeta
  await forEachIdChunk(classIds, DEFAULT_ID_CHUNK, async (slice) => {
   const { data, error } = await supabase!
    .from("classes")
-   .select("id, lesson_slots_per_session, subject, courses ( course_name )")
+   .select("id, subject, courses ( course_name )")
    .in("id", slice)
   if (error) throw error
   for (const raw of data ?? []) {
@@ -1021,7 +991,6 @@ async function fetchClassMeta(classIds: string[]): Promise<Map<string, ClassMeta
    const id = String(row.id ?? "")
    if (!id) continue
    out.set(id, {
-    units: lessonUnits(row.lesson_slots_per_session as number | null),
     label: classDisplayLabel(row, id),
    })
   }
@@ -1037,8 +1006,7 @@ type DetailSchedule = ScheduleUnit & {
 async function fetchDetailSchedulesInRange(
  classIds: string[],
  from: string,
- to: string,
- metaByClass: ReadonlyMap<string, ClassMeta>
+ to: string
 ): Promise<DetailSchedule[]> {
  const out: DetailSchedule[] = []
  if (!supabase || classIds.length === 0) return out
@@ -1064,7 +1032,7 @@ async function fetchDetailSchedulesInRange(
     scheduledDate: String(row.scheduled_date ?? "").slice(0, 10),
     startTime: start && start !== "" ? start : null,
     endTime: end && end !== "" ? end : null,
-    units: metaByClass.get(classId)?.units ?? 1,
+    units: lessonUnitsForScheduleRow(),
    })
   }
  })
@@ -1260,7 +1228,7 @@ export async function fetchTuitionChaseStudentDetail(opts: {
  ]
  const schedules =
   hasPrivate && from && to
-   ? await fetchDetailSchedulesInRange(privateClassIds, from, to, metaByClass)
+   ? await fetchDetailSchedulesInRange(privateClassIds, from, to)
    : []
  const attendance =
   from && to
@@ -1317,7 +1285,7 @@ export async function fetchTuitionChaseStudentDetail(opts: {
       scheduledDate: d.scheduledDate,
       startTime: d.startTime,
       endTime: d.endTime,
-      units: metaByClass.get(d.classId)?.units ?? 1,
+      units: lessonUnitsForScheduleRow(),
      },
      attendance.get(d.scheduleId)
     )

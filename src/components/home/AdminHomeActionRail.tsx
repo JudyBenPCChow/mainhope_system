@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils"
 import { fetchAdminDashboard } from "@/services/dashboard"
 
 type CompactProps = {
- pendingPaymentCount: number
+ /** 查詢失敗為 null；成功且沒有待收款為 0 */
+ pendingPaymentCount: number | null
  loading?: boolean
 }
 
@@ -83,8 +84,19 @@ const TILES: Tile[] = [
 const tileLinkClass =
  "group flex min-w-0 items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
-function PendingBadge({ count, loading }: { count: number; loading?: boolean }) {
- if (loading || count <= 0) return null
+function PendingBadge({ count, loading }: { count: number | null; loading?: boolean }) {
+ if (loading) return null
+ if (count == null) {
+  return (
+   <span
+    role="alert"
+    className="rounded-md border border-destructive/40 bg-destructive/5 px-1.5 py-0.5 text-xs font-medium text-destructive"
+   >
+    未能載入
+   </span>
+  )
+ }
+ if (count <= 0) return null
  return (
   <Tag tone="warning" size="sm">
    {count}
@@ -144,7 +156,7 @@ export function HomeActionsPreviewPanel() {
   })
  }
 
- const [pending, setPending] = useState(0)
+ const [pending, setPending] = useState<number | null>(null)
  const [loading, setLoading] = useState(true)
 
  useEffect(() => {
@@ -152,7 +164,23 @@ export function HomeActionsPreviewPanel() {
   setLoading(true)
   void fetchAdminDashboard()
    .then((d) => {
-    if (!cancelled) setPending(d.pendingPaymentCount)
+    if (cancelled) return
+    setPending(d.pendingPaymentCount)
+    if (d.pendingPaymentCount == null) {
+     reportUserFacingError(new Error(d.failureDetail ?? "待收款筆數查詢失敗"), {
+      source: "HomeActionsPreviewPanel.loadPending",
+      userMessage: "待收款未能載入。",
+      detailFrom: d.failureDetail,
+     })
+    }
+   })
+   .catch((e: unknown) => {
+    if (cancelled) return
+    setPending(null)
+    reportUserFacingError(e, {
+     source: "HomeActionsPreviewPanel.loadPending",
+     userMessage: "待收款未能載入。",
+    })
    })
    .finally(() => {
     if (!cancelled) setLoading(false)

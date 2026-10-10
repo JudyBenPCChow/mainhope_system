@@ -95,10 +95,10 @@ export function resolveEntitlementNamespace(
  if (input.isTrial) {
   return { courseGroup: "trial", namespaceKey: classKey, sharesAcrossClasses: false }
  }
- if (isHomeworkClassSubject(input.subject, input.courseName)) {
+ const kind = resolveClassKind(input.classKind, input.subject)
+ if (kind === "homework" || isHomeworkClassSubject(input.subject, input.courseName)) {
   return { courseGroup: "homework", namespaceKey: classKey, sharesAcrossClasses: false }
  }
- const kind = resolveClassKind(input.classKind, input.subject)
  if (kind === "private") {
   return { courseGroup: "private", namespaceKey: classKey, sharesAcrossClasses: false }
  }

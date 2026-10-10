@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabaseClient"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  classLabelPatchFromClassRow,
@@ -1299,13 +1300,24 @@ export async function convertTrialToEnrollment(params: {
  }
 
  const { insertEnrollment } = await import("@/services/studentQueries")
- const enrollmentId = await insertEnrollment(
-  t.student_id,
-  targetClassId,
-  params.enrollmentPeriod,
-  params.scheduleIds,
-  params.pending ?? null
- )
+ let enrollmentId: string
+ let sideEffect: WrittenSideEffectError | null = null
+ try {
+  enrollmentId = await insertEnrollment(
+   t.student_id,
+   targetClassId,
+   params.enrollmentPeriod,
+   params.scheduleIds,
+   params.pending ?? null
+  )
+ } catch (err) {
+  if (err instanceof WrittenSideEffectError && err.enrollmentId) {
+   enrollmentId = err.enrollmentId
+   sideEffect = err
+  } else {
+   throw err
+  }
+ }
 
  const periodLabel = formatEnrollmentFormLabel(params.enrollmentPeriod)
  const now = new Date().toISOString()
@@ -1370,6 +1382,14 @@ export async function convertTrialToEnrollment(params: {
    .update({ registration_status: "已註冊", updated_at: now })
    .eq("id", t.student_id)
   if (regErr) console.warn("[convertTrialToEnrollment] registration_status", regErr)
+ }
+
+ if (sideEffect?.headline.includes("到課宣告")) {
+  throw new WrittenSideEffectError("報讀已寫入，但到課宣告未能完成", {
+   cause: sideEffect,
+   detail: sideEffect.detailNote,
+   enrollmentId,
+  })
  }
 
  return {

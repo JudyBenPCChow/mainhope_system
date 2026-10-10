@@ -60,7 +60,11 @@ import {
  normalizeSpecialDiscountAmount,
  SPECIAL_DISCOUNT_LABEL,
 } from "@/lib/paymentSpecialDiscount"
-import { buildPaymentAmountBreakdown, computeDiscountApplicationsForSave } from "@/lib/paymentAmountBreakdown"
+import {
+ buildPaymentAmountBreakdown,
+ computeDiscountApplicationsForSave,
+ LATE_FEE_LOAD_FAILED_MESSAGE,
+} from "@/lib/paymentAmountBreakdown"
 import {
  buildPaymentEligibilityContext,
  evaluateDiscountAvailability,
@@ -1596,6 +1600,8 @@ export function PaymentsPageView() {
   </aside>
  )
 
+ const receiptBreakdown = receiptPreview ? buildPaymentAmountBreakdown(receiptPreview) : null
+
  return (
   <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
    {usesSharedAppShell(role) ? (
@@ -2427,9 +2433,14 @@ export function PaymentsPageView() {
          關閉
         </Button>
        </div>
-       {receiptPreview ? (
+       {receiptBreakdown ? (
         <div className="rounded-md border border-border bg-muted/15 p-3 text-xs text-muted-foreground">
-         {buildPaymentAmountBreakdown(receiptPreview).lines.map((line) => (
+         {receiptBreakdown.lateFeeLoadFailed ? (
+          <p role="alert" className="mb-2 text-sm text-destructive">
+           {LATE_FEE_LOAD_FAILED_MESSAGE}
+          </p>
+         ) : null}
+         {receiptBreakdown.lines.map((line) => (
           <div key={line.key} className="flex justify-between gap-2 py-0.5">
            <span>{line.label}</span>
            <span className="tabular-nums">

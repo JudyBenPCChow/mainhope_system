@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Search, Sheet, SlidersHorizontal } from "lucide-react"
@@ -26,6 +26,7 @@ import { useOpenStudentRecord, useRecordPreview } from "@/components/recordPrevi
 import {
  dropStaleEnrollmentYearTags,
  getStudentsListDataCache,
+ invalidateStudentsListDataCache,
  isStudentsListCacheFresh,
  patchStudentsListDataCache,
  setStudentsListDataCache,
@@ -218,6 +219,10 @@ export function StudentsListPage() {
  const [recentEnrollments, setRecentEnrollments] = useState<RecentClassEnrollment[]>(
   () => initialCache?.recentEnrollments ?? []
  )
+ const [recentEnrollmentsError, setRecentEnrollmentsError] = useState<string | null>(null)
+ const [subjectTagsError, setSubjectTagsError] = useState<string | null>(null)
+ const [subjectTagsAttempt, setSubjectTagsAttempt] = useState(0)
+ const subjectTagsFailedAttemptRef = useRef<number | null>(null)
  const [loading, setLoading] = useState(() => initialCache == null)
  const [err, setErr] = useState<string | null>(null)
  const [registrationKey, setRegistrationKey] = usePersistentState<
@@ -321,15 +326,41 @@ export function StudentsListPage() {
    setRows(list)
    setHiddenGraduatedCount(hiddenCount)
    if (!reuseTags) setTags(new Map())
-   const recentEnr = await fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT)
-   setRecentEnrollments(recentEnr)
-   setStudentsListDataCache({
-    key,
-    rows: list,
-    tags: reuseTags ? (cached?.tags ?? new Map()) : new Map(),
-    recentEnrollments: recentEnr,
-    hiddenGraduatedCount: hiddenCount,
-   })
+   let recentEnr: RecentClassEnrollment[] | null = null
+   try {
+    recentEnr = await fetchRecentClassEnrollments(RECENT_ENROLL_LIMIT)
+    setRecentEnrollments(recentEnr)
+    setRecentEnrollmentsError(null)
+   } catch (recentErr) {
+    setRecentEnrollmentsError(formatUnknownError(recentErr))
+    reportUserFacingError(recentErr, { source: "StudentsListPage.recentEnrollments" })
+   }
+   if (recentEnr !== null) {
+    setStudentsListDataCache({
+     key,
+     rows: list,
+     tags: reuseTags ? (cached?.tags ?? new Map()) : new Map(),
+     recentEnrollments: recentEnr,
+     hiddenGraduatedCount: hiddenCount,
+    })
+   } else {
+    const prev = getStudentsListDataCache()
+    const sameKey =
+     prev != null &&
+     prev.key.isActiveScope === key.isActiveScope &&
+     prev.key.showGraduated === key.showGraduated &&
+     prev.key.enrollmentYear === key.enrollmentYear
+    if (sameKey && prev) {
+     setStudentsListDataCache({
+      key,
+      rows: list,
+      tags: prev.tags,
+      recentEnrollments: prev.recentEnrollments,
+      hiddenGraduatedCount: hiddenCount,
+     })
+     invalidateStudentsListDataCache()
+    }
+   }
   } catch (e) {
    reportUserFacingError(e, { source: "StudentsListPage.load", setErr })
   } finally {
@@ -450,9 +481,32 @@ export function StudentsListPage() {
  ])
 
  const filtered = useMemo(() => {
-  const list = scoped.filter((r) => studentMatchesHeaderFilters(r, headerFilters, tags))
-  return [...list].sort((a, b) => compareStudents(a, b, sortKey, sortDir, tags))
- }, [scoped, headerFilters, sortKey, sortDir, tags])
+  const subjectQuery = headerFilters.subjects.trim()
+  const list = scoped.filter((r) => {
+   if (subjectTagsError && subjectQuery && !tags.has(r.id)) {
+    return studentMatchesHeaderFilters(r, { ...headerFilters, subjects: "" }, tags)
+   }
+   return studentMatchesHeaderFilters(r, headerFilters, tags)
+  })
+  return [...list].sort((a, b) => {
+   if (subjectTagsError && sortKey === "subjects") {
+    const aMissing = !tags.has(a.id)
+    const bMissing = !tags.has(b.id)
+    if (aMissing !== bMissing) return aMissing ? 1 : -1
+    if (aMissing && bMissing) return a.full_name.localeCompare(b.full_name, "zh-Hant")
+   }
+   return compareStudents(a, b, sortKey, sortDir, tags)
+  })
+ }, [scoped, headerFilters, sortKey, sortDir, tags, subjectTagsError])
+
+ const tableTags = useMemo(() => {
+  if (!subjectTagsError) return tags
+  const next = new Map(tags)
+  for (const row of filtered) {
+   if (!next.has(row.id)) next.set(row.id, ["未能載入"])
+  }
+  return next
+ }, [filtered, subjectTagsError, tags])
 
  const taggedIdKey = useMemo(() => [...tags.keys()].sort().join(","), [tags])
 
@@ -463,23 +517,37 @@ export function StudentsListPage() {
  useEffect(() => {
   const have = new Set(taggedIdKey ? taggedIdKey.split(",") : [])
   const missing = filtered.map((r) => r.id).filter((id) => !have.has(id))
-  if (missing.length === 0) return
+  if (missing.length === 0) {
+   subjectTagsFailedAttemptRef.current = null
+   setSubjectTagsError((prev) => (prev ? null : prev))
+   return
+  }
+  if (subjectTagsFailedAttemptRef.current === subjectTagsAttempt) return
   let cancelled = false
-  void fetchEnrollmentSubjectsByStudentIds(missing).then((tagMap) => {
-   if (cancelled) return
-   setTags((prev) => {
-    const next = new Map(prev)
-    for (const id of missing) {
-     if (!next.has(id)) next.set(id, tagMap.get(id) ?? [])
-    }
-    patchStudentsListDataCache((c) => ({ ...c, tags: next }))
-    return next
+  void fetchEnrollmentSubjectsByStudentIds(missing)
+   .then((tagMap) => {
+    if (cancelled) return
+    subjectTagsFailedAttemptRef.current = null
+    setSubjectTagsError(null)
+    setTags((prev) => {
+     const next = new Map(prev)
+     for (const id of missing) {
+      if (!next.has(id)) next.set(id, tagMap.get(id) ?? [])
+     }
+     patchStudentsListDataCache((c) => ({ ...c, tags: next }))
+     return next
+    })
    })
-  })
+   .catch((e) => {
+    if (cancelled) return
+    subjectTagsFailedAttemptRef.current = subjectTagsAttempt
+    setSubjectTagsError(formatUnknownError(e))
+    reportUserFacingError(e, { source: "StudentsListPage.enrollmentSubjects" })
+   })
   return () => {
    cancelled = true
   }
- }, [filtered, taggedIdKey])
+ }, [filtered, taggedIdKey, subjectTagsAttempt])
 
  const classificationCounts = useMemo(() => {
   const registration = new Map<string, number>()
@@ -910,6 +978,18 @@ export function StudentsListPage() {
     </Button>
    </div>
 
+   {recentEnrollmentsError ? (
+    <div
+     role="alert"
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+    >
+     近期報讀未能載入。
+     <button type="button" className="ml-2 font-medium text-primary hover:underline" onClick={() => void load()}>
+      重試
+     </button>
+    </div>
+   ) : null}
+
    {!dashboardCollapsed ? (
     <>
      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 md:gap-3">
@@ -944,7 +1024,7 @@ export function StudentsListPage() {
       </button>
      </div>
 
-     {recentCurrent ? (
+     {!recentEnrollmentsError && recentCurrent ? (
       <div className="flex flex-wrap items-center gap-4 rounded-xl bg-primary px-4 py-4 text-primary-foreground shadow-md">
        <button
         type="button"
@@ -1263,11 +1343,27 @@ export function StudentsListPage() {
    ) : null}
    </StickyListLead>
 
+   {subjectTagsError ? (
+    <div
+     role="alert"
+     className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+    >
+     報讀班別標籤未能載入。
+     <button
+      type="button"
+      className="ml-2 font-medium text-primary hover:underline"
+      onClick={() => setSubjectTagsAttempt((n) => n + 1)}
+     >
+      重試
+     </button>
+    </div>
+   ) : null}
+
    {viewMode === "table" && !isMobile ? (
     <StudentsListTable
      rows={filtered}
      filterSourceRows={scoped}
-     tags={tags}
+     tags={tableTags}
      loading={loading}
      emptyHint={renderEmptyState()}
      visible={visibleColumns}
@@ -1334,9 +1430,12 @@ export function StudentsListPage() {
             <h3 className="truncate font-semibold">{r.full_name}</h3>
            <p className="text-sm text-muted-foreground">
             {formatStudentGrade(r.grade)}
-            {(tags.get(r.id) ?? []).length > 0
+            {tags.has(r.id) && (tags.get(r.id) ?? []).length > 0
              ? ` · ${(tags.get(r.id) ?? []).slice(0, 2).join("、")}`
              : ""}
+            {subjectTagsError && !tags.has(r.id) ? (
+             <span className="text-destructive"> · 未能載入</span>
+            ) : null}
            </p>
            </div>
           </div>
@@ -1432,9 +1531,13 @@ export function StudentsListPage() {
           <p className="tabular-nums">家長電話：{r.parent_phone ?? "—"}</p>
          </div>
          <div className="mt-3 flex flex-wrap gap-1">
-          {(tags.get(r.id) ?? []).slice(0, 4).map((sub) => (
-           <Tag key={sub} tone="info" size="sm">{sub}</Tag>
-          ))}
+          {subjectTagsError && !tags.has(r.id) ? (
+           <span className="text-xs text-destructive">未能載入</span>
+          ) : (
+           (tags.get(r.id) ?? []).slice(0, 4).map((sub) => (
+            <Tag key={sub} tone="info" size="sm">{sub}</Tag>
+           ))
+          )}
          </div>
          <div className="mt-4 flex items-center justify-between">
           <Link

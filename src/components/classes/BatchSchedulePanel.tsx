@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { formatScheduleDateShort } from "@/lib/weekdayUtils"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { cn } from "@/lib/utils"
 import {
  buildBatchScheduleCandidates,
@@ -183,7 +184,12 @@ export function BatchSchedulePanel({ classId, cls, onComplete, compact }: Props)
    }
    await load({ quiet: true })
   } catch (e) {
-   reportUserFacingError(e, { source: "BatchSchedulePanel.submit", setErr, userMessage: "批量排程失敗" })
+   if (e instanceof WrittenSideEffectError) {
+    reportUserFacingError(e, { source: "BatchSchedulePanel.submit", setErr })
+    await load({ quiet: true })
+   } else {
+    reportUserFacingError(e, { source: "BatchSchedulePanel.submit", setErr, userMessage: "批量排程失敗" })
+   }
   } finally {
    setSubmitting(false)
   }

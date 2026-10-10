@@ -4,7 +4,18 @@ import { formatUnknownError } from "@/lib/formatUnknownError"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { cn } from "@/lib/utils"
-import { fetchStudentActivity, type HistoryRow } from "@/services/studentQueries"
+import { fetchStudentActivity, type HistoryRow, type StudentActivityResult } from "@/services/studentQueries"
+
+const ACTIVITY_KIND_LABEL: Record<HistoryRow["kind"], string> = {
+ status: "狀態變更",
+ payment: "繳費",
+ enrollment: "報讀",
+ withdrawal: "退讀",
+}
+
+function failedActivityMessage(kinds: StudentActivityResult["failedKinds"]): string {
+ return `${kinds.map((kind) => ACTIVITY_KIND_LABEL[kind]).join("、")}未能載入。`
+}
 
 export function StudentHistoryTab({
  studentId,
@@ -18,6 +29,7 @@ export function StudentHistoryTab({
  includePayments: boolean
 }) {
  const [rows, setRows] = useState<HistoryRow[]>([])
+ const [failedKinds, setFailedKinds] = useState<StudentActivityResult["failedKinds"]>([])
  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle")
  const [err, setErr] = useState<string | null>(null)
  const loadedRef = useRef(false)
@@ -25,6 +37,7 @@ export function StudentHistoryTab({
  useEffect(() => {
   loadedRef.current = false
   setRows([])
+  setFailedKinds([])
   setLoadState("idle")
   setErr(null)
  }, [studentId])
@@ -32,9 +45,11 @@ export function StudentHistoryTab({
  const load = useCallback(async () => {
   setLoadState("loading")
   setErr(null)
+  setFailedKinds([])
   try {
    const data = await fetchStudentActivity(studentId, { includePayments })
-   setRows(data)
+   setRows(data.rows)
+   setFailedKinds(data.failedKinds)
    setLoadState("ready")
    loadedRef.current = true
   } catch (e) {
@@ -59,14 +74,24 @@ export function StudentHistoryTab({
     <p className="text-sm text-muted-foreground">載入中…</p>
    ) : loadState === "error" ? (
     <div className="space-y-2" role="alert">
-     <p role="alert" className="text-sm text-destructive">更動紀錄未能載入{err ? `：${err}` : "。"}</p>
+     <p className="text-sm text-destructive">更動紀錄未能載入{err ? `：${err}` : "。"}</p>
      <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
       重試
      </button>
     </div>
-   ) : rows.length === 0 ? (
-    <p className="text-sm text-muted-foreground">尚無紀錄。</p>
    ) : (
+    <>
+   {failedKinds.length > 0 ? (
+    <div className="space-y-2" role="alert">
+     <p className="text-sm text-destructive">{failedActivityMessage(failedKinds)}</p>
+     <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
+      重試
+     </button>
+    </div>
+   ) : null}
+   {rows.length === 0 && failedKinds.length === 0 ? (
+    <p className="text-sm text-muted-foreground">尚無紀錄。</p>
+   ) : rows.length > 0 ? (
     <StaggerList as="ul" className="space-y-3">
      {rows.map((h) => (
       <StaggerItem
@@ -98,6 +123,8 @@ export function StudentHistoryTab({
       </StaggerItem>
      ))}
     </StaggerList>
+   ) : null}
+    </>
    )}
   </div>
  )

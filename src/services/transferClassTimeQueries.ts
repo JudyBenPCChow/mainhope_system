@@ -3,6 +3,7 @@ import { isRegularAcademicYearLabel } from "@/lib/softArchiveWindow"
 import { isBillableAttendanceStatus } from "@/lib/attendanceBilling"
 import { resolveClassKind } from "@/lib/privateClassKind"
 import { supabase } from "@/lib/supabaseClient"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import {
  formatClassTimeSlot,
  formatTransferClassTimeReason,
@@ -362,6 +363,7 @@ export async function transferStudentClassTime(opts: {
    changeReason: reason,
   })
  } catch (err) {
+  if (err instanceof WrittenSideEffectError) throw err
   const msg = err instanceof Error ? err.message : String(err)
   throw new Error(`原班已退讀，請用新增報讀完成。${msg}`)
  }

@@ -29,6 +29,7 @@ import {
 } from "@/services/studentQueries"
 
 const INTAKE_STORAGE_KEY = "frontDeskIntakeToken"
+const NEXT_STUDENT_CODE_UNAVAILABLE = "無法取得下一個學號，請重新整理後再試。"
 
 function isValidPhoneForCode(raw: string | null | undefined, countryCode: string | null | undefined): boolean {
  const s = (raw ?? "").trim()
@@ -139,7 +140,14 @@ export function RegisterStudentStep({ onRegistered }: Props) {
     setExtraSchools(rows.map((r) => (r.school ?? "").trim()).filter(Boolean))
     setStudentCode(nextStudentCode(rows))
    })
-   .catch(() => setStudentCode(nextStudentCode([])))
+   .catch((e) => {
+    setStudentCode("")
+    reportUserFacingError(e, {
+     source: "RegisterStudentStep.loadStudents",
+     setErr,
+     userMessage: NEXT_STUDENT_CODE_UNAVAILABLE,
+    })
+   })
  }, [])
 
  // 進入頁面時還原進行中的家長連結（URL 或本分頁 sessionStorage）
@@ -223,6 +231,10 @@ export function RegisterStudentStep({ onRegistered }: Props) {
 
  const onSubmit = async () => {
   if (saving) return
+  if (!studentCode.trim()) {
+   setErr(NEXT_STUDENT_CODE_UNAVAILABLE)
+   return
+  }
   const v = validateForm()
   if (v) {
    setErr(v)
@@ -237,7 +249,18 @@ export function RegisterStudentStep({ onRegistered }: Props) {
     created = await insertStudent({ ...payload, student_code: studentCode.trim() || null })
    } catch (e) {
     if (isUniqueViolation(e)) {
-     const fresh = await fetchAllStudents()
+     let fresh: StudentRecord[]
+     try {
+      fresh = await fetchAllStudents()
+     } catch (fetchErr) {
+      setStudentCode("")
+      reportUserFacingError(fetchErr, {
+       source: "RegisterStudentStep.onSubmit",
+       setErr,
+       userMessage: NEXT_STUDENT_CODE_UNAVAILABLE,
+      })
+      return
+     }
      created = await insertStudent({ ...payload, student_code: nextStudentCode(fresh) })
     } else {
      throw e
@@ -332,7 +355,7 @@ export function RegisterStudentStep({ onRegistered }: Props) {
      />
      <Button
       type="button"
-      disabled={saving || !(form.full_name ?? "").trim()}
+      disabled={saving || !studentCode.trim() || !(form.full_name ?? "").trim()}
       onClick={() => void onSubmit()}
      >
       {saving ? "建立中…" : parentSubmitted ? "確認無誤並建立學生" : "建立並繼續報讀"}

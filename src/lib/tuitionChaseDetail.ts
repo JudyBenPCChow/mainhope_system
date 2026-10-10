@@ -113,6 +113,14 @@ export function formatTuitionChaseSubjectSubtotals(
   .join("、")
 }
 
+/**
+ * 追收與收款建議：每一列排程計一堂。
+ * 連堂同一日已是兩列，兩列共兩堂。傳入班別 lesson_slots_per_session 也不再乘到該列。
+ */
+export function lessonUnitsForScheduleRow(_lessonSlotsPerSession?: number | null): number {
+ return 1
+}
+
 export function defaultTuitionChasePoolKey(
  pools: readonly { poolKey: string; suggestedLessons: number; remainingKnown?: boolean }[]
 ): string | null {

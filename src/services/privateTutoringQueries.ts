@@ -1,5 +1,6 @@
 import { assertAcademicYearEditableForDate } from "@/lib/academicYearEditGuard"
 import { formatUnknownError } from "@/lib/formatUnknownError"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { normalizeStoredClassGradeLabel } from "@/lib/classGrade"
 import {
  canUseConsecutiveFromSlotIndex,
@@ -462,6 +463,7 @@ export async function createPrivateTutoringEnrollment(
    await insertEnrollment(student.id, classId)
   }
  } catch (e) {
+  if (e instanceof WrittenSideEffectError) throw e
   await supabase.from("classes").delete().eq("id", classId)
   throw e
  }

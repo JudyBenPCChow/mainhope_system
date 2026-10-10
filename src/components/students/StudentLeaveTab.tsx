@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { Plus } from "lucide-react"
 
+import { invalidateLeaveManagementDataCache } from "@/components/leaves/leaveManagementState"
 import { Button } from "@/components/ui/button"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import {
@@ -251,6 +252,7 @@ export function StudentLeaveTab({
     status: "待補課",
     consecutiveScope,
    })
+   invalidateLeaveManagementDataCache()
    setLeaveDialogOpen(false)
    await onChanged()
    pushBanner({ tone: "success", title: "已新增請假", message: "請假紀錄已建立。" })

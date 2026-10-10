@@ -48,6 +48,7 @@ import {
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { formatElectedSubjectLabels, normalizeElectedSubjectCodes } from "@/lib/studentElectives"
 import {
   interestedSubjectsToTextarea,
@@ -813,18 +814,24 @@ export function StudentDetailView() {
  setAddEnrollmentSaving(true)
  setAddEnrollmentError(null)
  try {
-  await insertEnrollment(
-   sid,
-   pickClass,
-   period,
-   isSingle ? pickScheduleIds : undefined,
-   null,
-   {
-    enrollDate,
-    homeworkDayPlan: isHomework ? pickHwPlan : null,
-    homeworkWeekdays: isHomework ? pickHwWeekdays : null,
-   }
-  )
+  let sideEffect: WrittenSideEffectError | null = null
+  try {
+   await insertEnrollment(
+    sid,
+    pickClass,
+    period,
+    isSingle ? pickScheduleIds : undefined,
+    null,
+    {
+     enrollDate,
+     homeworkDayPlan: isHomework ? pickHwPlan : null,
+     homeworkWeekdays: isHomework ? pickHwWeekdays : null,
+    }
+   )
+  } catch (e) {
+   if (!(e instanceof WrittenSideEffectError)) throw e
+   sideEffect = e
+  }
   let firstLeaveId: string | null = null
   let autoLeaveCount = 0
   if (pastAutoLeaveSchedules.length > 0 && sid && pickClass) {
@@ -843,7 +850,18 @@ export function StudentDetailView() {
   resetAddEnrollmentDialog()
   invalidateStudentsListDataCache()
   invalidateEnrollmentChangesDataCache()
-  if (firstLeaveId && sid) {
+  if (sideEffect) {
+   const leaveNote =
+    firstLeaveId && autoLeaveCount > 0
+     ? `已為 ${autoLeaveCount} 堂過去排程建立請假（待安排）。`
+     : ""
+   reportUserFacingError(sideEffect, { source: "StudentDetailView.addEnrollment" })
+   pushBanner({
+    tone: "error",
+    title: sideEffect.headline,
+    message: leaveNote ? `${sideEffect.message} ${leaveNote}` : sideEffect.message,
+   })
+  } else if (firstLeaveId && sid) {
    pushBanner({
     tone: "success",
     title: "已加入班別並自動請假",
@@ -1155,12 +1173,21 @@ export function StudentDetailView() {
    })
    await reloadSubs()
   } catch (e) {
-   reportUserFacingError(e, { source: "StudentDetailView.editEnrollmentForm" })
-   pushBanner({
-    tone: "error",
-    title: "更新失敗",
-    message: e instanceof Error ? e.message : String(e),
-   })
+   if (e instanceof WrittenSideEffectError) {
+    invalidateEnrollmentChangesDataCache()
+    setEditFormOpen(false)
+    setEditFormTarget(null)
+    reportUserFacingError(e, { source: "StudentDetailView.editEnrollmentForm" })
+    pushBanner({ tone: "error", title: e.headline, message: e.message })
+    await reloadSubs()
+   } else {
+    reportUserFacingError(e, { source: "StudentDetailView.editEnrollmentForm" })
+    pushBanner({
+     tone: "error",
+     title: "更新失敗",
+     message: e instanceof Error ? e.message : String(e),
+    })
+   }
   } finally {
    setEditFormSaving(false)
   }
@@ -2677,18 +2704,24 @@ export function StudentDetailView() {
          studentName
         )
         if (attOpts === "abort") return
-        await transferStudentClassTime({
-         studentId: sid,
-         enrollmentId: transferTarget.id,
-         fromClassId: transferTarget.classId,
-         toClassId,
-         enrollDate,
-         extraReason,
-         ...attOpts,
-        })
+        try {
+         await transferStudentClassTime({
+          studentId: sid,
+          enrollmentId: transferTarget.id,
+          fromClassId: transferTarget.classId,
+          toClassId,
+          enrollDate,
+          extraReason,
+          ...attOpts,
+         })
+         pushBanner({ tone: "success", title: "已轉時間" })
+        } catch (e) {
+         if (!(e instanceof WrittenSideEffectError)) throw e
+         reportUserFacingError(e, { source: "StudentDetailView.transferClassTime" })
+         pushBanner({ tone: "error", title: e.headline, message: e.message })
+        }
         invalidateStudentsListDataCache()
         invalidateEnrollmentChangesDataCache()
-        pushBanner({ tone: "success", title: "已轉時間" })
         await reloadSubs()
        }}
       />

@@ -40,7 +40,10 @@ import { can } from "@/lib/authzProfile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { buildPaymentAmountBreakdown } from "@/lib/paymentAmountBreakdown"
+import {
+ buildPaymentAmountBreakdown,
+ LATE_FEE_LOAD_FAILED_MESSAGE,
+} from "@/lib/paymentAmountBreakdown"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { RECEIPT_DOWNLOAD_FOLDER_DISPLAY_PATH } from "@/lib/receiptDownloadFolder"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -410,6 +413,8 @@ export function PaymentHistoryView() {
   Boolean(histSearch.trim()),
   Boolean(filterStudentId),
  ].filter(Boolean).length
+
+ const detailBreakdown = detailPay ? buildPaymentAmountBreakdown(detailPay) : null
 
  return (
   <div className={cn(adminWorkspacePageClass, pagePadClass(role, "md:p-6"))}>
@@ -872,8 +877,13 @@ export function PaymentHistoryView() {
        </div>
        <div className="rounded-md border border-border bg-muted/15 p-3">
         <div className="mb-2 font-medium">金額明細</div>
+        {detailBreakdown?.lateFeeLoadFailed ? (
+         <p role="alert" className="mb-2 text-sm text-destructive">
+          {LATE_FEE_LOAD_FAILED_MESSAGE}
+         </p>
+        ) : null}
         <div className="space-y-1.5">
-         {buildPaymentAmountBreakdown(detailPay).lines.map((line) => (
+         {(detailBreakdown?.lines ?? []).map((line) => (
           <div key={line.key} className="flex justify-between gap-2">
            <span className={line.tone === "deduction" ? "text-warning" : "text-muted-foreground"}>
             {line.label}

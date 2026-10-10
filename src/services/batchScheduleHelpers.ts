@@ -9,6 +9,7 @@ import {
  lessonSlotStartMinute,
  LESSON_SLOT_INDICES,
 } from "@/lib/lessonSlots"
+import { batchScheduleEndYmd } from "@/lib/adminOpsAssistant/rules"
 import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
 import { enumerateDatesForWeekday, weekdaysFromStored } from "@/lib/weekdayUtils"
 import { type ClassRecord } from "@/services/classQueries"
@@ -53,13 +54,18 @@ export function parseTimeSlotBounds(timeSlot: string): { start: string; end: str
 }
 
 export function listCandidateDatesForClass(
- cls: Pick<ClassRecord, "day_of_week" | "start_date" | "end_date">,
+ cls: Pick<ClassRecord, "day_of_week" | "start_date" | "end_date" | "class_kind" | "academic_year_label">,
  year: AcademicYearRange
 ): string[] {
  const weekdays = weekdaysFromStored(cls.day_of_week)
  if (weekdays.length === 0) return []
  const from = cls.start_date?.slice(0, 10) || year.start_date
- const to = cls.end_date?.slice(0, 10) || year.end_date
+ const to = batchScheduleEndYmd({
+  classKind: cls.class_kind,
+  academicYearLabel: cls.academic_year_label || year.label,
+  classEndYmd: cls.end_date,
+  yearEndYmd: year.end_date,
+ })
  const seen = new Set<string>()
  for (const dow of weekdays) {
   for (const date of enumerateDatesForWeekday(from, to, dow)) {

@@ -26,9 +26,15 @@ import {
  resolveSpecialistTuitionPeriods,
  specialistTuitionPeriodDateSet,
 } from "@/lib/specialistTuitionPeriods"
+import { lessonUnitsForScheduleRow } from "@/lib/tuitionChaseDetail"
 import { suggestedClassPeriodPendingLessons } from "@/lib/tuitionPaymentSuggestion"
 import { supabase } from "@/lib/supabaseClient"
 import { todayYmdLocal } from "@/lib/weekdayUtils"
+import {
+ WrittenSideEffectError,
+ writtenSideEffectDetail,
+ writtenSideEffectFrom,
+} from "@/lib/writtenSideEffectError"
 
 const POOL_COLUMNS =
  "id, student_id, class_id, academic_year_id, package_type, source_enrollment_id, course_group, namespace_key, initial_lessons, remaining_lessons, valid_from, valid_to, created_at, updated_at"
@@ -1083,63 +1089,81 @@ export async function syncStudentMakeupDeclaration(opts: {
  */
 export async function syncDeclarationsAfterSchedulesAdded(classId: string): Promise<void> {
  if (!supabase || !classId) return
- const label = await classLabel(classId)
- if (!usesEntitlementRosterModel(label)) return
+ try {
+  const label = await classLabel(classId)
+  if (!usesEntitlementRosterModel(label)) return
 
- const { data: enrs, error } = await supabase
-  .from("student_class_enrollments")
-  .select("id, student_id, enrollment_period, enroll_date")
-  .eq("class_id", classId)
-  .eq("status", "就讀中")
- if (error) throw error
- if (!enrs || enrs.length === 0) return
+  const { data: enrs, error } = await supabase
+   .from("student_class_enrollments")
+   .select("id, student_id, enrollment_period, enroll_date")
+   .eq("class_id", classId)
+   .eq("status", "就讀中")
+  if (error) throw error
+  if (!enrs || enrs.length === 0) return
 
- const sessionMap = new Map<string, string[]>()
- const singleIds: string[] = []
- for (const raw of enrs) {
-  const period = normalizeEnrollmentPeriod(
-   (raw as { enrollment_period?: string | null }).enrollment_period
-  )
-  if (isSingleSessionEnrollment(period)) singleIds.push(String((raw as { id: string }).id))
- }
- if (singleIds.length > 0) {
-  await forEachIdChunk(singleIds, DEFAULT_ID_CHUNK, async (chunk) => {
-   const { data, error: sessErr } = await supabase!
-    .from("student_enrollment_sessions")
-    .select("enrollment_id, schedule_id")
-    .in("enrollment_id", chunk)
-   if (sessErr) throw sessErr
-   for (const row of data ?? []) {
-    const r = row as { enrollment_id: string; schedule_id: string }
-    const list = sessionMap.get(r.enrollment_id) ?? []
-    list.push(String(r.schedule_id))
-    sessionMap.set(r.enrollment_id, list)
-   }
-  })
- }
-
- for (const raw of enrs) {
-  const e = raw as {
-   id: string
-   student_id: string
-   enrollment_period: string | null
-   enroll_date: string | null
+  const sessionMap = new Map<string, string[]>()
+  const singleIds: string[] = []
+  for (const raw of enrs) {
+   const period = normalizeEnrollmentPeriod(
+    (raw as { enrollment_period?: string | null }).enrollment_period
+   )
+   if (isSingleSessionEnrollment(period)) singleIds.push(String((raw as { id: string }).id))
   }
-  const period = normalizeEnrollmentPeriod(e.enrollment_period)
-  try {
-   await ensureEntitlementPoolAndDeclarations({
-    enrollmentId: e.id,
-    studentId: e.student_id,
-    classId,
-    enrollmentPeriod: period,
-    enrollDate: e.enroll_date,
-    scheduleIds: isSingleSessionEnrollment(period) ? sessionMap.get(e.id) : undefined,
-    sourceEventType: "enrollment_auto",
-    allowRaisePool: false,
+  if (singleIds.length > 0) {
+   await forEachIdChunk(singleIds, DEFAULT_ID_CHUNK, async (chunk) => {
+    const { data, error: sessErr } = await supabase!
+     .from("student_enrollment_sessions")
+     .select("enrollment_id, schedule_id")
+     .in("enrollment_id", chunk)
+    if (sessErr) throw sessErr
+    for (const row of data ?? []) {
+     const r = row as { enrollment_id: string; schedule_id: string }
+     const list = sessionMap.get(r.enrollment_id) ?? []
+     list.push(String(r.schedule_id))
+     sessionMap.set(r.enrollment_id, list)
+    }
    })
-  } catch (err) {
-   console.error("syncDeclarationsAfterSchedulesAdded failed", e.id, err)
   }
+
+  const failures: unknown[] = []
+  for (const raw of enrs) {
+   const e = raw as {
+    id: string
+    student_id: string
+    enrollment_period: string | null
+    enroll_date: string | null
+   }
+   const period = normalizeEnrollmentPeriod(e.enrollment_period)
+   try {
+    await ensureEntitlementPoolAndDeclarations({
+     enrollmentId: e.id,
+     studentId: e.student_id,
+     classId,
+     enrollmentPeriod: period,
+     enrollDate: e.enroll_date,
+     scheduleIds: isSingleSessionEnrollment(period) ? sessionMap.get(e.id) : undefined,
+     sourceEventType: "enrollment_auto",
+     allowRaisePool: false,
+    })
+   } catch (err) {
+    console.error("syncDeclarationsAfterSchedulesAdded failed", e.id, err)
+    failures.push(err)
+   }
+  }
+  if (failures.length > 0) {
+   const detailParts = [
+    failures.length > 1 ? `共 ${failures.length} 筆` : null,
+    writtenSideEffectDetail(failures[0]),
+   ].filter((part): part is string => Boolean(part))
+   throw new WrittenSideEffectError("排程已寫入，但到課宣告未能完成", {
+    cause: failures[0],
+    detail: detailParts.length > 0 ? detailParts.join("；") : undefined,
+   })
+  }
+ } catch (err) {
+  if (err instanceof WrittenSideEffectError) throw err
+  console.error("syncDeclarationsAfterSchedulesAdded failed", classId, err)
+  throw writtenSideEffectFrom(err)
  }
 }
 
@@ -1416,15 +1440,6 @@ async function pendingUnitsForClassInPeriod(opts: {
 }): Promise<number> {
  /** 專科：只計該生本期 active 宣告（單堂不會把全班未扣都建議出去）。 */
  if (!supabase) return 0
- const { data: classRow, error: cErr } = await supabase
-  .from("classes")
-  .select("lesson_slots_per_session")
-  .eq("id", opts.classId)
-  .maybeSingle()
- if (cErr) throw cErr
- const perSession = lessonUnits(
-  (classRow as { lesson_slots_per_session?: number | null } | null)?.lesson_slots_per_session
- )
  const { data: schedRows, error: sErr } = await supabase
   .from("schedules")
   .select("id, scheduled_date, status")
@@ -1441,7 +1456,7 @@ async function pendingUnitsForClassInPeriod(opts: {
   if (!id || !opts.dateSet.has(date)) continue
   if (String(row.status ?? "").includes("取消")) continue
   ids.push(id)
-  unitsById.set(id, perSession)
+  unitsById.set(id, lessonUnitsForScheduleRow())
  }
  if (ids.length === 0) return 0
  const { data: declRows, error: dErr } = await supabase

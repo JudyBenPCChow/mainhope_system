@@ -7,7 +7,6 @@ import {
   homeworkMonthlyFeeHkd,
   isHomeworkDayPlan,
   monthFirstDay,
-  type HomeworkDayPlan,
 } from "@/lib/homeworkTutoringFees"
 import { supabase } from "@/lib/supabaseClient"
 
@@ -220,6 +219,64 @@ export async function fetchHomeworkRosterHoursByTeacher(monthKey: string): Promi
   return rosterHoursByTeacher(shifts, closures)
 }
 
+export type HomeworkClassCommissionInput = {
+  /** 該班當月未作廢月費應收。有列則用列上金額，不用後備。 */
+  charges: readonly { studentId: string; amountHkd: number }[]
+  /** 沒有應收列時的後備人數與原價。日數檔計價由呼叫端負責。 */
+  enrollmentFallback: { enrolledCount: number; originalPriceTotal: number }
+}
+
+/**
+ * 沒有月費應收列時，就讀中報讀的後備人數與原價。
+ * 每週日數檔不是三日、四日、五日、七日時不計入，不以四日計價。
+ */
+export function homeworkCommissionFallbackFromEnrollments(
+  rows: readonly Record<string, unknown>[],
+  monthKey: string
+): { enrolledCount: number; originalPriceTotal: number } {
+  const students = new Set<string>()
+  let original = 0
+  for (const row of rows) {
+    const studentId = String(row.student_id)
+    if (students.has(studentId)) continue
+    const enrollDate = String(row.enroll_date ?? "").slice(0, 10)
+    if (enrollDate && enrollDate.slice(0, 7) > monthKey) continue
+    const stu = asRecord(row.students)
+    const grade = stu?.grade != null ? String(stu.grade) : ""
+    const planRaw = row.homework_day_plan
+    if (!isHomeworkDayPlan(planRaw)) continue
+    const fee = homeworkMonthlyFeeHkd(planRaw, grade, monthKey)
+    if (fee == null) continue
+    students.add(studentId)
+    original += fee
+  }
+  return { enrolledCount: students.size, originalPriceTotal: original }
+}
+
+/** 進行中各功課輔導班各自計價後，人數與原價加總。 */
+export function sumInProgressHomeworkCommission(
+  classes: readonly HomeworkClassCommissionInput[]
+): { enrolledCount: number; originalPriceTotal: number } {
+  let enrolledCount = 0
+  let originalPriceTotal = 0
+  for (const cls of classes) {
+    if (cls.charges.length > 0) {
+      const students = new Set<string>()
+      let original = 0
+      for (const row of cls.charges) {
+        students.add(row.studentId)
+        original += Number(row.amountHkd) || 0
+      }
+      enrolledCount += students.size
+      originalPriceTotal += original
+      continue
+    }
+    enrolledCount += cls.enrollmentFallback.enrolledCount
+    originalPriceTotal += cls.enrollmentFallback.originalPriceTotal
+  }
+  return { enrolledCount, originalPriceTotal }
+}
+
 export async function fetchHomeworkCommissionBase(monthKey: string): Promise<{
   teacherId: string
   enrolledCount: number
@@ -236,61 +293,70 @@ export async function fetchHomeworkCommissionBase(monthKey: string): Promise<{
   const teacherId = christine?.id != null ? String(christine.id) : null
   if (!teacherId) return null
 
-  const { data: hwClass, error: cErr } = await supabase
+  const { data: hwClasses, error: cErr } = await supabase
     .from("classes")
     .select("id")
     .eq("class_kind", "homework")
     .eq("status", "進行中")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle()
   if (cErr) throw new Error(cErr.message)
-  if (!hwClass) return { teacherId, enrolledCount: 0, originalPriceTotal: 0 }
-  const classId = String(hwClass.id)
+  const classIds = [
+    ...new Set(
+      ((hwClasses ?? []) as Record<string, unknown>[]).map((row) => String(row.id ?? "")).filter(Boolean)
+    ),
+  ]
+  if (classIds.length === 0) return { teacherId, enrolledCount: 0, originalPriceTotal: 0 }
   const month = monthFirstDay(monthKey)
   const to = monthEnd(monthKey)
 
   const { data: charges, error: chErr } = await supabase
     .from("homework_tutoring_monthly_charges")
-    .select("student_id, amount_hkd, status")
-    .eq("class_id", classId)
+    .select("class_id, student_id, amount_hkd, status")
+    .in("class_id", classIds)
     .eq("billing_month", month)
     .neq("status", "作廢")
   if (chErr) throw new Error(chErr.message)
-  const chargeRows = (charges ?? []) as Record<string, unknown>[]
-  if (chargeRows.length > 0) {
-    const students = new Set<string>()
-    let original = 0
-    for (const row of chargeRows) {
-      students.add(String(row.student_id))
-      original += Number(row.amount_hkd) || 0
-    }
-    return { teacherId, enrolledCount: students.size, originalPriceTotal: original }
+  const chargesByClass = new Map<string, { studentId: string; amountHkd: number }[]>()
+  for (const raw of charges ?? []) {
+    const row = raw as Record<string, unknown>
+    const classId = String(row.class_id ?? "")
+    if (!classId) continue
+    const list = chargesByClass.get(classId) ?? []
+    list.push({ studentId: String(row.student_id), amountHkd: Number(row.amount_hkd) })
+    chargesByClass.set(classId, list)
   }
 
-  const { data: enrolls, error: eErr } = await supabase
-    .from("student_class_enrollments")
-    .select("student_id, status, enroll_date, homework_day_plan, students ( grade )")
-    .eq("class_id", classId)
-    .eq("status", "就讀中")
-    .lte("enroll_date", to)
-  if (eErr) throw new Error(eErr.message)
-  const students = new Set<string>()
-  let original = 0
-  for (const raw of enrolls ?? []) {
-    const row = raw as Record<string, unknown>
-    const studentId = String(row.student_id)
-    if (students.has(studentId)) continue
-    const enrollDate = String(row.enroll_date ?? "").slice(0, 10)
-    if (enrollDate && enrollDate.slice(0, 7) > monthKey) continue
-    const stu = asRecord(row.students)
-    const grade = stu?.grade != null ? String(stu.grade) : ""
-    const planRaw = row.homework_day_plan
-    const plan: HomeworkDayPlan = isHomeworkDayPlan(planRaw) ? planRaw : "四日"
-    const fee = homeworkMonthlyFeeHkd(plan, grade, monthKey)
-    if (fee == null) continue
-    students.add(studentId)
-    original += fee
+  const classesWithoutCharges = classIds.filter((id) => (chargesByClass.get(id)?.length ?? 0) === 0)
+  const fallbackByClass = new Map<string, { enrolledCount: number; originalPriceTotal: number }>()
+  if (classesWithoutCharges.length > 0) {
+    const { data: enrolls, error: eErr } = await supabase
+      .from("student_class_enrollments")
+      .select("class_id, student_id, status, enroll_date, homework_day_plan, students ( grade )")
+      .in("class_id", classesWithoutCharges)
+      .eq("status", "就讀中")
+      .lte("enroll_date", to)
+    if (eErr) throw new Error(eErr.message)
+    const enrollsByClass = new Map<string, Record<string, unknown>[]>()
+    for (const raw of enrolls ?? []) {
+      const row = raw as Record<string, unknown>
+      const classId = String(row.class_id ?? "")
+      if (!classId) continue
+      const list = enrollsByClass.get(classId) ?? []
+      list.push(row)
+      enrollsByClass.set(classId, list)
+    }
+    for (const classId of classesWithoutCharges) {
+      fallbackByClass.set(
+        classId,
+        homeworkCommissionFallbackFromEnrollments(enrollsByClass.get(classId) ?? [], monthKey)
+      )
+    }
   }
-  return { teacherId, enrolledCount: students.size, originalPriceTotal: original }
+
+  const totals = sumInProgressHomeworkCommission(
+    classIds.map((classId) => ({
+      charges: chargesByClass.get(classId) ?? [],
+      enrollmentFallback: fallbackByClass.get(classId) ?? { enrolledCount: 0, originalPriceTotal: 0 },
+    }))
+  )
+  return { teacherId, enrolledCount: totals.enrolledCount, originalPriceTotal: totals.originalPriceTotal }
 }

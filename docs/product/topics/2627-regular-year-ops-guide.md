@@ -2,11 +2,11 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-30 工程關帳：v1.14 md＋docx／pdf；playbooks 已掛。WhatsApp／列印發佈屬營運） |
+| 狀態 | `done`（2026-08-30 工程關帳：v1.21 md＋docx／pdf；playbooks 已掛。WhatsApp／列印發佈屬營運） |
 | 優先 | 中 |
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
-| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.20**／2026-09-01）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.21**／2026-09-03）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
 | 上次更新 | 2026-09-01 |

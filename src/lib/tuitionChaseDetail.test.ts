@@ -10,6 +10,7 @@ import {
  classifyChaseSchedule,
  defaultTuitionChasePoolKey,
  formatTuitionChaseSubjectSubtotals,
+ lessonUnitsForScheduleRow,
  paymentDetailMatchesPool,
 } from "@/lib/tuitionChaseDetail"
 
@@ -266,6 +267,18 @@ describe("formatTuitionChaseSubjectSubtotals", () => {
     { classLabel: "英文", units: 2 },
    ])
   ).toBe("英文 4 堂、數學 4 堂")
+ })
+})
+
+describe("lessonUnitsForScheduleRow", () => {
+ it("連堂兩列各計 1 堂，不是各乘班別 2 堂", () => {
+  const consecutiveSlots = 2
+  const first = lessonUnitsForScheduleRow(consecutiveSlots)
+  const second = lessonUnitsForScheduleRow(consecutiveSlots)
+  expect(first).toBe(1)
+  expect(second).toBe(1)
+  expect(first + second).toBe(2)
+  expect(lessonUnitsForScheduleRow(1)).toBe(1)
  })
 })
 

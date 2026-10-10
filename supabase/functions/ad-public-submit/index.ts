@@ -54,8 +54,8 @@ function clientUserAgent(req: Request): string {
 async function verifyTurnstile(token: string, remoteIp: string): Promise<boolean> {
   const secret = Deno.env.get("TURNSTILE_SECRET_KEY")?.trim()
   if (!secret) {
-    // 未設定 secret：仍允許提交（僅靠 DB 限速／蜜罐）。正式環境請設定。
-    return true
+    // 未設定密鑰：驗證失敗，不接受提交。
+    return false
   }
   if (!token) return false
   const form = new URLSearchParams()

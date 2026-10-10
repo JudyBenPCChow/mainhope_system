@@ -10,6 +10,7 @@ import {
  LESSON_SLOT_DURATION_MIN,
 } from "@/lib/lessonSlots"
 import { insertScheduleRow } from "@/services/scheduleWriteQueries"
+import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { fetchClassrooms, type RoomRecord } from "@/services/classroomQueries"
 import { formatClassLabel } from "@/lib/courseLabel"
 
@@ -458,16 +459,27 @@ export async function approveRoomBookingRequest(requestId: string): Promise<void
   remarks = reason
  }
 
- const newScheduleId = await insertScheduleRow({
-  class_id: isOther || !targetClassId ? null : targetClassId,
-  teacher_id: String(r.requesting_teacher_id ?? ""),
-  scheduled_date: String(r.scheduled_date ?? ""),
-  start_time: String(r.start_time ?? ""),
-  end_time: String(r.end_time ?? ""),
-  classroom_id: String(r.classroom_id ?? ""),
-  remarks,
-  status: "正常",
- })
+ let newScheduleId: string
+ let sideEffect: WrittenSideEffectError | null = null
+ try {
+  newScheduleId = await insertScheduleRow({
+   class_id: isOther || !targetClassId ? null : targetClassId,
+   teacher_id: String(r.requesting_teacher_id ?? ""),
+   scheduled_date: String(r.scheduled_date ?? ""),
+   start_time: String(r.start_time ?? ""),
+   end_time: String(r.end_time ?? ""),
+   classroom_id: String(r.classroom_id ?? ""),
+   remarks,
+   status: "正常",
+  })
+ } catch (err) {
+  if (err instanceof WrittenSideEffectError && err.scheduleId) {
+   newScheduleId = err.scheduleId
+   sideEffect = err
+  } else {
+   throw err
+  }
+ }
 
  const { error: upErr } = await supabase
   .from("classroom_booking_requests")
@@ -479,6 +491,7 @@ export async function approveRoomBookingRequest(requestId: string): Promise<void
   })
   .eq("id", requestId)
  if (upErr) throw new Error(formatUnknownError(upErr))
+ if (sideEffect) throw sideEffect
 }
 
 export async function rejectRoomBookingRequest(requestId: string): Promise<void> {
