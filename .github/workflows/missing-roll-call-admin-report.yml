@@ -1,0 +1,50 @@
+# 每天香港時間 08:00 寄出「尚未點名」行政總結（暫不寄老師）。
+# 觸發：cron（UTC 00:00＝HKT 08:00）＋可人手 workflow_dispatch。
+# Secrets：MISSING_ROLL_CALL_CRON_SECRET（須與 Supabase Edge Function secret 相同）
+
+name: Missing roll-call admin report
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只查庫組文、不寄信（true／false）"
+        required: false
+        default: "false"
+
+concurrency:
+  group: missing-roll-call-admin-report
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Call Edge Function
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke missing-roll-call-admin-report
+        env:
+          CRON_SECRET: ${{ secrets.MISSING_ROLL_CALL_CRON_SECRET }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "缺少 GitHub secret：MISSING_ROLL_CALL_CRON_SECRET" >&2
+            exit 1
+          fi
+          BODY='{}'
+          if [ "${DRY_RUN}" = "true" ]; then
+            BODY='{"dry_run":true}'
+          fi
+          CODE=$(curl -sS -o /tmp/mrc-out.json -w "%{http_code}" \
+            -X POST \
+            "https://gudmbilboyhouotilrvt.supabase.co/functions/v1/missing-roll-call-admin-report" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "${BODY}")
+          echo "HTTP ${CODE}"
+          cat /tmp/mrc-out.json
+          echo
+          test "${CODE}" = "200"
