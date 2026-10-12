@@ -1,0 +1,78 @@
+# 每天香港時間 20:00 寄出「明日課堂」老師電郵（自動寄出由 2026-10-13 起；函式內閘）。
+# cron：UTC 12:00＝HKT 20:00；可人手 workflow_dispatch。
+# Secrets：TOMORROW_LESSON_CRON_SECRET
+
+name: Tomorrow teacher lesson reminder
+
+on:
+  schedule:
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只查庫組文、不寄信（true／false）"
+        required: false
+        default: "false"
+      simulate_to:
+        description: "模擬收件信箱（有填則全部寄去此址，不寄老師）"
+        required: false
+        default: ""
+      force:
+        description: "略過自動開始日閘（true／false）"
+        required: false
+        default: "false"
+      target_date:
+        description: "指定目標上課日 YYYY-MM-DD（預設＝香港翌日）"
+        required: false
+        default: ""
+
+concurrency:
+  group: tomorrow-teacher-lesson-reminder
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Call Edge Function
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Invoke tomorrow-teacher-lesson-reminder
+        env:
+          CRON_SECRET: ${{ secrets.TOMORROW_LESSON_CRON_SECRET }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          SIMULATE_TO: ${{ github.event_name == 'workflow_dispatch' && inputs.simulate_to || '' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || 'false' }}
+          TARGET_DATE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_date || '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CRON_SECRET:-}" ]; then
+            echo "缺少 GitHub secret：TOMORROW_LESSON_CRON_SECRET" >&2
+            exit 1
+          fi
+          BODY='{}'
+          if [ "${DRY_RUN}" = "true" ]; then
+            BODY=$(jq -cn \
+              --argjson dry true \
+              --arg td "${TARGET_DATE}" \
+              '{dry_run:$dry} + (if $td != "" then {target_date:$td} else {} end)')
+          elif [ -n "${SIMULATE_TO}" ]; then
+            BODY=$(jq -cn \
+              --arg to "$SIMULATE_TO" \
+              --arg td "${TARGET_DATE}" \
+              '{simulate_to:$to} + (if $td != "" then {target_date:$td} else {} end)')
+          elif [ "${FORCE}" = "true" ] || [ -n "${TARGET_DATE}" ]; then
+            BODY=$(jq -cn \
+              --argjson force "$([ "${FORCE}" = "true" ] && echo true || echo false)" \
+              --arg td "${TARGET_DATE}" \
+              '{force:$force} + (if $td != "" then {target_date:$td} else {} end)')
+          fi
+          CODE=$(curl -sS -o /tmp/ttl-out.json -w "%{http_code}" \
+            -X POST \
+            "https://gudmbilboyhouotilrvt.supabase.co/functions/v1/tomorrow-teacher-lesson-reminder" \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            --data "${BODY}")
+          echo "HTTP ${CODE}"
+          cat /tmp/ttl-out.json
+          echo
+          test "${CODE}" = "200"

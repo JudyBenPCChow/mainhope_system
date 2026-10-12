@@ -20,3 +20,7 @@ verify_jwt = true
 
 [functions.admin-ops-assistant]
 verify_jwt = true
+
+# 由 GitHub Actions cron 以 TOMORROW_LESSON_CRON_SECRET（或共用 MISSING_ROLL_CALL_CRON_SECRET）呼叫。
+[functions.tomorrow-teacher-lesson-reminder]
+verify_jwt = false
