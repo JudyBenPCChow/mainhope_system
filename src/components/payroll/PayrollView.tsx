@@ -6,7 +6,8 @@ import { Select } from "@/components/ui/select"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
-import type { MgmtRole } from "@/lib/mgmtRole"
+import { can } from "@/lib/authzProfile"
+import { formatMgmtActorLabel, type MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   acceptTeacherSubmit,
@@ -48,21 +49,17 @@ import {
 } from "./mockData"
 
 function actorLabel(role: MgmtRole | null): string {
-  if (role === "finance") return "Cody Cheong（財務）"
-  if (role === "manager") return "管理層"
-  if (role === "alien") return "外星人"
-  return "行政"
+  return formatMgmtActorLabel(role)
 }
 
 export function PayrollView() {
   const { confirmDialog } = useAppConfirm()
   const { pushBanner } = useAppBanner()
-  const { role: realRole } = useAuth()
+  const { role: realRole, profile } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const isFinanceUser = realRole === "finance"
-  const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>(
-    realRole === "manager" ? "manager" : "finance"
-  )
+  const canReviewPayroll = can(profile?.activeCapabilities, "payroll.review")
+  const [previewRole, setPreviewRole] = useState<PayrollPreviewRole>("finance")
   const effectiveRole: PayrollPreviewRole = isFinanceUser ? "finance" : previewRole
 
   const monthOptions = useMemo(() => listPayrollMonthOptions(), [])
@@ -504,20 +501,26 @@ export function PayrollView() {
           ) : (
             <>
               <label className="block min-w-[12rem]">
-                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">預覽身份</span>
+                <span className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                  {canReviewPayroll ? "工作台" : "預覽身份"}
+                </span>
                 <Select
-                  aria-label="預覽身份"
+                  aria-label={canReviewPayroll ? "工作台" : "預覽身份"}
                   value={previewRole}
                   onChange={(e) => setPreviewRole(e.target.value as PayrollPreviewRole)}
                 >
-                  <option value="finance">財務 — 計糧工作台</option>
-                  <option value="manager">管理層 — 計糧核實</option>
+                  <option value="finance">
+                    {canReviewPayroll ? "審批及提交" : "財務 — 計糧工作台"}
+                  </option>
+                  <option value="manager">
+                    {canReviewPayroll ? "核實及結算" : "管理層 — 計糧核實"}
+                  </option>
                 </Select>
               </label>
               <p className="pb-1 text-xs text-muted-foreground sm:max-w-md">
                 {effectiveRole === "finance"
-                  ? "此頁面協助你審核及提交每月教師薪酬（分頁：概覽 → 審核 → 調整 → 提交）"
-                  : "管理層：概覽 → 待核佇列 → 抽查 → 結算"}
+                  ? "審核及提交每月老師薪酬（分頁：概覽 → 審核 → 調整 → 提交）"
+                  : "核實：概覽 → 待核佇列 → 抽查 → 結算"}
               </p>
             </>
           )}
