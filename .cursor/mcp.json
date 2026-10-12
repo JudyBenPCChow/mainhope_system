@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "mainhope-mail": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mcp/resend-mail-server.mjs"]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+---
+description: 使用者明確要求代寄電郵時，用 mainhope-mail；沒有收件地址或金鑰就停。
+alwaysApply: true
+---
+
+# 代寄電郵
+
+使用者在本則訊息明確要求寄出，且寫了收件地址時，用 MCP `mainhope-mail` 的 `send_email`。發件人固定為明學教育 `noreply@mainhope.edu.hk`，不要改。
+
+未寫收件地址、或 `mail_status` 顯示未設定金鑰：停下並說明，不要改用其他方式硬寄。
+
+金鑰只放專案根目錄 `.env.mail`。不要讀出金鑰、不要貼進對話、不要提交該檔。附件只限工作區內檔案。

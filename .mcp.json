@@ -3,6 +3,11 @@
     "supabase": {
       "type": "http",
       "url": "https://mcp.supabase.com/mcp?project_ref=gudmbilboyhouotilrvt&features=docs,database,debugging,development,functions"
+    },
+    "mainhope-mail": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/mcp/resend-mail-server.mjs"]
     }
   }
 }
