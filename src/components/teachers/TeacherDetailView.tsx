@@ -260,6 +260,7 @@ export function TeacherDetailView() {
     english_name: form.english_name,
     phone: form.phone,
     email: form.email,
+    notification_email: (form.notification_email ?? "").trim() || null,
     status: form.status,
     subject_speciality: subjects.length ? subjects : null,
     remarks: form.remarks,
@@ -517,6 +518,19 @@ export function TeacherDetailView() {
          type="email"
          value={form.email ?? ""}
          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+        />
+       </div>
+      </div>
+      <div className="flex min-w-0 items-start gap-2 text-sm">
+       <Mail className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
+       <div className="min-w-0 flex-1">
+        <span className="text-muted-foreground">通訊電郵</span>
+        <Input
+         className="mt-1"
+         type="email"
+         value={form.notification_email ?? ""}
+         onChange={(e) => setForm((f) => ({ ...f, notification_email: e.target.value }))}
+         placeholder="用於系統通知，例如尚未點名提醒"
         />
        </div>
       </div>
