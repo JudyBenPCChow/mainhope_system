@@ -64,6 +64,7 @@ Mr./Ms. Rain Kwok
 備註（如有）︰朱曉晴因學校活動請假，將於x月x日xxxxxxx補回此堂
 
 煩請上堂後及時點名，方便前台同事跟進。如有問題，請聯絡Christine Fan
+（此乃系統自動生成提醒，請勿回覆本電郵）
 ```
 
 只有一節時首句改為「明天閣下有一節課堂紀錄」，課堂仍用 `1.` 編號。時間行若範本多寫一個結尾 `-`，以庫內結束時間為準寫成 `HH:mm-HH:mm`（不要多一個多餘連字號）。空名單欄位標題仍要寫出，值可留空。
@@ -76,7 +77,7 @@ Mr./Ms. Rain Kwok
 
 - Edge Function：`tomorrow-teacher-lesson-reminder`
 - 排程：GitHub Actions 每天 **香港時間 20:00**（UTC `0 12 * * *`）
-- 自動真寄由香港曆日 **2026-10-14** 起（函式閘）；此前 cron 會回 `skipped`
+- 自動真寄由香港曆日 **2026-10-13** 起每晚 20:00（函式閘；10/12 已人手寄過，當晚不再自動）
 - 人手真寄：`{"force":true,"target_date":"YYYY-MM-DD"}`（可略 `target_date`＝翌日）
 - 正式寄出：各老師 `teachers_private.notification_email`（無則跳過）；每封 BCC `cfan@mainhope.edu.hk`
 - 模擬：`{"simulate_to":"someone@example.com"}`；dry_run：`{"dry_run":true}`

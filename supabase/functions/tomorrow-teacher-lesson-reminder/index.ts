@@ -70,8 +70,8 @@ type TeacherPayload = {
   lessons: LessonPayload[]
 }
 
-/** 自動排程由香港曆日此日起每晚 20:00 寄出（含當日） */
-const AUTO_SEND_FROM_YMD = "2026-10-14"
+/** 自動排程由香港曆日此日起每晚 20:00 寄出（含當日）；10/12 已人手寄過，自 10/13 晚起自動 */
+const AUTO_SEND_FROM_YMD = "2026-10-13"
 
 function hkYmd(d = new Date()): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -194,6 +194,7 @@ function buildTeacherEmailText(t: TeacherPayload): { subject: string; text: stri
     blocks.join("\n\n"),
     "",
     "煩請上堂後及時點名，方便前台同事跟進。如有問題，請聯絡Christine Fan",
+    "（此乃系統自動生成提醒，請勿回覆本電郵）",
   ].join("\n")
 
   return { subject, text }
