@@ -11,6 +11,8 @@ export type TeacherRecord = {
  abbr: string | null
  phone: string | null
  email: string | null
+ /** 通訊電郵：系統通知收件地址。不是登入電郵。 */
+ notification_email: string | null
  status: string | null
  subject_speciality: string[] | null
  salary_per_lesson: number | null
@@ -31,6 +33,7 @@ type TeacherPrivateRow = {
  teacher_id: string
  phone: string | null
  email: string | null
+ notification_email: string | null
  salary_per_lesson: number | null
  remarks: string | null
 }
@@ -47,6 +50,7 @@ function asTeacher(
   abbr: row.abbr != null && String(row.abbr).trim() !== "" ? String(row.abbr).trim() : null,
   phone: priv?.phone != null ? String(priv.phone) : null,
   email: priv?.email != null ? String(priv.email) : null,
+  notification_email: priv?.notification_email != null ? String(priv.notification_email) : null,
   status: normalizeTeacherEmploymentStatus(row.status != null ? String(row.status) : null),
   subject_speciality: Array.isArray(subj) ? (subj as string[]) : null,
   salary_per_lesson: priv?.salary_per_lesson != null ? Number(priv.salary_per_lesson) : null,
@@ -61,6 +65,7 @@ function mapPrivateRow(r: Record<string, unknown>): TeacherPrivateRow {
   teacher_id: String(r.teacher_id),
   phone: r.phone != null ? String(r.phone) : null,
   email: r.email != null ? String(r.email) : null,
+  notification_email: r.notification_email != null ? String(r.notification_email) : null,
   salary_per_lesson: r.salary_per_lesson != null ? Number(r.salary_per_lesson) : null,
   remarks: r.remarks != null ? String(r.remarks) : null,
  }
@@ -74,7 +79,7 @@ async function fetchTeachersPrivateByIds(
  if (!supabase || ids.length === 0) return map
  const { data, error } = await supabase
   .from("teachers_private")
-  .select("teacher_id, phone, email, salary_per_lesson, remarks")
+  .select("teacher_id, phone, email, notification_email, salary_per_lesson, remarks")
   .in("teacher_id", ids)
  if (error) {
   console.warn("[fetchTeachersPrivateByIds]", error.message)
@@ -136,6 +141,7 @@ export async function insertTeacher(
    teacher_id: id,
    phone: row.phone ?? null,
    email: row.email ?? null,
+   notification_email: row.notification_email ?? null,
    salary_per_lesson: row.salary_per_lesson ?? null,
    remarks: row.remarks ?? null,
    updated_at: new Date().toISOString(),
@@ -147,6 +153,7 @@ export async function insertTeacher(
   teacher_id: id,
   phone: row.phone ?? null,
   email: row.email ?? null,
+  notification_email: row.notification_email ?? null,
   salary_per_lesson: row.salary_per_lesson ?? null,
   remarks: row.remarks ?? null,
  })
@@ -189,6 +196,9 @@ export async function updateTeacher(
   }
   if (Object.prototype.hasOwnProperty.call(patch, "phone")) privatePatch.phone = patch.phone
   if (Object.prototype.hasOwnProperty.call(patch, "email")) privatePatch.email = patch.email
+  if (Object.prototype.hasOwnProperty.call(patch, "notification_email")) {
+   privatePatch.notification_email = patch.notification_email
+  }
   if (Object.prototype.hasOwnProperty.call(patch, "salary_per_lesson")) {
    privatePatch.salary_per_lesson = patch.salary_per_lesson
   }

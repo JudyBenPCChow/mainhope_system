@@ -57,6 +57,7 @@ export function TeachersListPage() {
   abbr: "",
   phone: "",
   email: "",
+  notification_email: "",
   status: "在職",
  })
  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([])
@@ -94,6 +95,7 @@ export function TeachersListPage() {
     abbr: canEditAbbr ? form.abbr.trim() || null : null,
     phone: form.phone.trim() || null,
     email: form.email.trim() || null,
+    notification_email: form.notification_email.trim() || null,
     status: form.status,
     subject_speciality: subjects.length ? subjects : null,
    })
@@ -104,6 +106,7 @@ export function TeachersListPage() {
     abbr: "",
     phone: "",
     email: "",
+    notification_email: "",
     status: "在職",
    })
    setSelectedSubjects([])
@@ -194,6 +197,16 @@ export function TeachersListPage() {
        type="email"
        value={form.email}
        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+      />
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">通訊電郵</label>
+      <Input
+       className="mt-1"
+       type="email"
+       value={form.notification_email}
+       onChange={(e) => setForm((f) => ({ ...f, notification_email: e.target.value }))}
+       placeholder="用於系統通知，例如尚未點名提醒"
       />
      </div>
      <div>
@@ -343,6 +356,13 @@ export function TeachersListPage() {
          <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
           <Mail className="h-4 w-4 shrink-0" />
           <span className="truncate text-foreground">{t.email}</span>
+         </div>
+        ) : null}
+        {t.notification_email ? (
+         <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+          <Mail className="h-4 w-4 shrink-0" />
+          <span className="shrink-0">通訊</span>
+          <span className="truncate text-foreground">{t.notification_email}</span>
          </div>
         ) : null}
         <div className="flex flex-wrap gap-1 pt-1">
