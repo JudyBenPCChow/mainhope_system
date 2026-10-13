@@ -5,6 +5,7 @@ import { emptyReplyFallback, tryDelegateActionReply } from "../_shared/apoDelega
 import { tryDirectHowtoAnswer } from "../_shared/apoHowtoGuides.ts"
 import { cannotAnswerWithoutDbReply, requiresDatabaseAnswer } from "../_shared/apoNoHallucination.ts"
 import {
+  buildGradeSubjectCatalogueReply,
   buildGroundingAnchors,
   buildSearchStudentsStructuredReply,
   buildStudentProfileStructuredReply,
@@ -354,6 +355,22 @@ async function parseDbAnswerFromTools(
   const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
   const lastPayload = toolPayloads[toolPayloads.length - 1]
 
+  if (lastPayload && lastPayload.ok === false) {
+    const error = String(lastPayload.error ?? "")
+    if (error.startsWith("財務帳號")) {
+      return {
+        reply: error,
+        suggestions: ["中四級中文"],
+        paths: [{ label: "班別管理", path: "/Classes" }],
+      }
+    }
+  }
+
+  if (lastPayload && lastTool === "grade_subject_classes") {
+    const structured = buildGradeSubjectCatalogueReply(lastPayload)
+    if (structured) return structured
+  }
+
   if (
     lastPayload &&
     (lastTool === "teacher_classes" || lastTool === "my_teacher_classes")
@@ -536,6 +553,7 @@ async function respondFromDbDirect(
   if (parsed.reply && toolPayloads.length > 0) {
     const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
     const skipGrounding =
+      lastTool === "grade_subject_classes" ||
       lastTool === "teacher_classes" ||
       lastTool === "my_teacher_classes" ||
       lastTool === "student_profile" ||
@@ -772,6 +790,7 @@ Deno.serve(async (req) => {
       if (parsed.reply && toolPayloads.length > 0) {
     const lastTool = toolsUsed[toolsUsed.length - 1] ?? ""
     const skipGrounding =
+      lastTool === "grade_subject_classes" ||
       lastTool === "teacher_classes" ||
       lastTool === "my_teacher_classes" ||
       lastTool === "student_profile" ||
