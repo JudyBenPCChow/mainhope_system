@@ -22,7 +22,6 @@ export const TRIAL_LOST_REASON_OPTIONS = [
 
 export const TRIAL_OTHER_RESULT_OPTIONS = [
  "改期再試",
- "轉介其他班／科目",
  "家長考慮中（暫掛）",
  "只試不報（明確）",
  "其他",

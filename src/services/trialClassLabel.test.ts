@@ -25,6 +25,7 @@ function blankRow(over: Partial<TrialManageRow>): TrialManageRow {
   student_registration: "已註冊",
   class_subject: "—",
   course_code_full: null,
+  class_kind: "group",
   teacher_id: null,
   teacher_name: null,
   sched_date: "2026-10-03",

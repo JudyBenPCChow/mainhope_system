@@ -13,6 +13,7 @@ import {
  intervalsOverlapMinutes,
  parseHm,
 } from "@/lib/lessonSlots"
+import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import {
  normalizeTrialOutcome,
  trialOutcomeClosed,
@@ -118,6 +119,7 @@ export type TrialManageRow = {
  student_registration: "已註冊" | "非注冊"
  class_subject: string | null
  course_code_full: string | null
+ class_kind: ClassKind
  teacher_id: string | null
  teacher_name: string | null
  sched_date: string | null
@@ -174,6 +176,10 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
    String(st?.registration_status ?? "").includes("非注冊") ? "非注冊" : "已註冊",
   class_subject: formatClassLabel({ subject: sub, courseCode: code, courseName }),
   course_code_full: code,
+  class_kind: resolveClassKind(
+   cls?.class_kind != null ? String(cls.class_kind) : null,
+   sub === "—" ? null : sub
+  ),
   teacher_id: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
@@ -241,10 +247,10 @@ export async function fetchUpcomingTrialsForClassIds(
 }
 
 const TRIAL_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
 
@@ -825,8 +831,9 @@ export type LinkOpenTrialsToPaymentResult = {
 }
 
 /**
- * 收款出單後回寫開著試堂的 payment_id。
+ * 已收款單據回寫開著試堂的 payment_id，並通知老師（上點名紙條件）。
  * 同生＋班：掛最近試堂日那一組（連堂同日多筆一併掛）；較早的未掛列會提示。
+ * 待收款／未收款單據不可呼叫（應在確認收款後才掛）。
  */
 export async function linkOpenTrialsToPayment(params: {
  paymentId: string
@@ -836,6 +843,16 @@ export async function linkOpenTrialsToPayment(params: {
  if (!supabase) throw new Error("Supabase 未設定")
  const linkedTrialIds: string[] = []
  const skippedMessages: string[] = []
+ const { data: payRow, error: payErr } = await supabase
+  .from("payments")
+  .select("id, status")
+  .eq("id", params.paymentId)
+  .maybeSingle()
+ if (payErr) throw payErr
+ if (!payRow) throw new Error("找不到繳費紀錄")
+ if (!String((payRow as { status?: string }).status ?? "").includes("已收款")) {
+  throw new Error("僅已收款單據可掛試堂；請先確認收款")
+ }
  const classIds = [
   ...new Set(
    params.details
@@ -997,7 +1014,7 @@ export function trialConfirmedInboxCopy(input: {
     : "人頭未選"
  return {
   title: `${input.studentName} 試堂（${input.classLabel}）`,
-  body: `${input.trialDate}${time ? ` ${time}` : ""} · ${head}。確認收款後已上點名紙。`,
+  body: `${input.trialDate}${time ? ` ${time}` : ""} · ${head}。已確認收款並上點名紙。`,
  }
 }
 
@@ -1189,7 +1206,7 @@ export function trialCanRecordLost(
  row: Pick<TrialManageRow, "outcome" | "status">
 ): boolean {
  if (trialOutcomeClosed(row.outcome)) return false
- return String(row.status).includes("取消")
+ return true
 }
 
 export function trialLostBlockedReason(
@@ -1198,8 +1215,14 @@ export function trialLostBlockedReason(
  if (row.outcome === "converted") return "已轉正式報讀"
  if (row.outcome === "lost") return "已標流失"
  if (row.outcome === "other") return "已有其他結果"
- if (!String(row.status).includes("取消")) return "請先取消試堂，再標流失"
  return null
+}
+
+/** 未取消時標流失會一併取消試堂（須先處理可刪出席）。 */
+export function trialLostWillCancel(
+ row: Pick<TrialManageRow, "outcome" | "status">
+): boolean {
+ return trialCanRecordLost(row) && !String(row.status).includes("取消")
 }
 
 export function trialCanRecordOutcome(
@@ -1230,7 +1253,7 @@ export async function recordTrialOutcome(params: {
  if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
  const status = String((row as { status?: string }).status ?? "")
  if (params.outcome === "lost" && !status.includes("取消")) {
-  throw new Error("請先取消試堂，再標流失")
+  throw new Error("請先取消試堂，再標流失（或使用一鍵標流失）")
  }
  const now = new Date().toISOString()
  const { error } = await supabase
@@ -1247,6 +1270,51 @@ export async function recordTrialOutcome(params: {
  if (error) throw error
 }
 
+/**
+ * 一鍵標流失：若尚未取消，先處理出席閘並改為取消，再寫流失結果。
+ */
+export async function cancelAndRecordTrialLost(
+ params: {
+  trialId: string
+  reason: string
+  note?: string | null
+ } & TrialAttendanceChangeOptions
+): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const reason = params.reason.trim()
+ if (!reason) throw new Error("請選擇原因／結果")
+ const { data: row, error: loadErr } = await supabase
+  .from("trial_sessions")
+  .select("id, status, outcome")
+  .eq("id", params.trialId)
+  .maybeSingle()
+ if (loadErr) throw loadErr
+ if (!row) throw new Error("找不到試堂紀錄")
+ const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
+ if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
+ const status = String((row as { status?: string }).status ?? "")
+ if (!status.includes("取消")) {
+  const hits = await previewTrialAttendanceImpact(params.trialId)
+  await applyTrialAttendanceDeletes(params.trialId, hits, params, "trial_cancel")
+  const { error: cancelErr } = await supabase
+   .from("trial_sessions")
+   .update({ status: "取消", updated_at: new Date().toISOString() })
+   .eq("id", params.trialId)
+  if (cancelErr) {
+   if (hits.length > 0 && params.attendanceAction === "delete") {
+    throw new Error(`出席已刪、試堂未改為取消，請重試。原錯誤：${cancelErr.message}`)
+   }
+   throw cancelErr
+  }
+ }
+ await recordTrialOutcome({
+  trialId: params.trialId,
+  outcome: "lost",
+  reason,
+  note: params.note,
+ })
+}
+
 /** 試堂轉正式報讀；學費請到 /Payments。未點名可轉，回傳 rollCallPending 供 UI 事前警告。 */
 export async function convertTrialToEnrollment(params: {
  trialId: string
@@ -1255,6 +1323,12 @@ export async function convertTrialToEnrollment(params: {
  enrollmentPeriod: EnrollmentFormValue | null
  scheduleIds?: string[]
  pending?: { owedCount: number; reason?: string; remarks?: string | null } | null
+ /** 轉化備註，寫入 outcome_note（與未點名提示一併顯示） */
+ note?: string | null
+ /** 報讀開始日。省略則由 insertEnrollment 用今天 */
+ enrollDate?: string | null
+ /** 功輔：每週日數檔。慣常到校星期容後補選 */
+ homeworkDayPlan?: "三日" | "四日" | "五日" | "七日" | null
 }): Promise<{
  enrollmentId: string
  rollCallPending: boolean
@@ -1295,31 +1369,63 @@ export async function convertTrialToEnrollment(params: {
   .eq("status", "就讀中")
   .limit(1)
  if (enrErr) throw enrErr
- if ((enr ?? []).length > 0) {
-  throw new Error("此學生已報讀該班別")
- }
+ const existingEnrollmentId =
+  (enr ?? []).length > 0 ? String((enr![0] as { id: string }).id) : null
 
  const { insertEnrollment } = await import("@/services/studentQueries")
  let enrollmentId: string
  let sideEffect: WrittenSideEffectError | null = null
- try {
-  enrollmentId = await insertEnrollment(
-   t.student_id,
-   targetClassId,
-   params.enrollmentPeriod,
-   params.scheduleIds,
-   params.pending ?? null
-  )
- } catch (err) {
-  if (err instanceof WrittenSideEffectError && err.enrollmentId) {
-   enrollmentId = err.enrollmentId
-   sideEffect = err
-  } else {
-   throw err
+ if (existingEnrollmentId) {
+  // 報讀已存在（例如宣告失敗後重試）：只補結試堂結果，不再 insertEnrollment
+  enrollmentId = existingEnrollmentId
+ } else {
+  try {
+   const enrollDateRaw = (params.enrollDate ?? "").slice(0, 10)
+   const enrollDate = /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) ? enrollDateRaw : null
+   const homeworkDayPlan = params.homeworkDayPlan ?? null
+   enrollmentId = await insertEnrollment(
+    t.student_id,
+    targetClassId,
+    params.enrollmentPeriod,
+    params.scheduleIds,
+    params.pending ?? null,
+    homeworkDayPlan || enrollDate
+     ? {
+        ...(enrollDate ? { enrollDate } : {}),
+        ...(homeworkDayPlan
+         ? { homeworkDayPlan, homeworkWeekdays: [] }
+         : {}),
+       }
+     : null
+   )
+  } catch (err) {
+   if (err instanceof WrittenSideEffectError && err.enrollmentId) {
+    enrollmentId = err.enrollmentId
+    sideEffect = err
+   } else {
+    throw err
+   }
   }
  }
 
- const periodLabel = formatEnrollmentFormLabel(params.enrollmentPeriod)
+ const periodLabel = params.homeworkDayPlan
+  ? `功課輔導班（每週${params.homeworkDayPlan}）`
+  : formatEnrollmentFormLabel(params.enrollmentPeriod)
+ const staffNote = params.note?.trim() ?? ""
+ const enrollDateRaw = (params.enrollDate ?? "").slice(0, 10)
+ const startNote =
+  /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) && enrollDateRaw !== localYmd()
+   ? `由 ${enrollDateRaw} 起報讀`
+   : ""
+ const hwWeekdayNote = params.homeworkDayPlan ? "慣常到校星期待補選" : ""
+ const outcomeNote = [
+  staffNote,
+  startNote,
+  hwWeekdayNote,
+  rollCallPending ? "轉正時尚未完成試堂點名" : "",
+ ]
+  .filter(Boolean)
+  .join("；")
  const now = new Date().toISOString()
  const crossNote =
   targetClassId !== t.class_id ? "跨班轉化：歸因至新報讀" : null
@@ -1358,7 +1464,7 @@ export async function convertTrialToEnrollment(params: {
    .update({
     outcome: "converted",
     outcome_reason: periodLabel,
-    outcome_note: rollCallPending ? "轉正時尚未完成試堂點名" : null,
+    outcome_note: outcomeNote || null,
     outcome_at: now,
     converted_enrollment_id: enrollmentId,
     status: String(row.status).includes("取消") ? row.status : "已完成",

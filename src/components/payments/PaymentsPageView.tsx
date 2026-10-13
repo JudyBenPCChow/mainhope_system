@@ -578,6 +578,11 @@ export function PaymentsPageView() {
   })
  }, [lines])
 
+ const trialClassesRef = useRef(trialClasses)
+ trialClassesRef.current = trialClasses
+ const trialClassesLoadingRef = useRef(trialClassesLoading)
+ trialClassesLoadingRef.current = trialClassesLoading
+
  const loadEnrollments = useCallback(async (studentId: string) => {
   if (!isSupabaseConfigured) {
    setEnrollments([])
@@ -590,15 +595,19 @@ export function PaymentsPageView() {
    )
    setEnrollments(list)
    const pref = pendingTrialPrefRef.current
-   pendingTrialPrefRef.current = null
+   // 試堂 URL 預填須等班價列表載完再套用；未就緒時保留 ref，避免稍後被非預填分支蓋掉。
+   if (pref && trialClassesLoadingRef.current) {
+    return
+   }
    if (pref) {
+    pendingTrialPrefRef.current = null
     const trialType: TrialPayType =
      pref.trialPay === "half" ? "半價試堂" : pref.trialPay === "full" ? "原價試堂" : "免費試堂"
     const line = newLine("trial")
     line.trialType = trialType
     if (pref.classId) {
      line.classId = pref.classId
-     const trialMap = new Map(trialClasses.map((c) => [c.id, c]))
+     const trialMap = new Map(trialClassesRef.current.map((c) => [c.id, c]))
      line.amount = lineAmountFor(pref.classId, line.lessons, new Map(), {
       kind: "trial",
       trialType,
@@ -672,7 +681,15 @@ export function PaymentsPageView() {
   } finally {
    setEnrollLoading(false)
   }
- }, [trialClasses, students, payDate])
+ }, [students, payDate])
+
+ /** 班價列表晚於學生選取時，補跑一次以套用仍掛著的試堂預填。 */
+ useEffect(() => {
+  if (!selectedStudent?.id) return
+  if (trialClassesLoading) return
+  if (!pendingTrialPrefRef.current) return
+  void loadEnrollments(selectedStudent.id)
+ }, [selectedStudent, trialClassesLoading, trialClasses, loadEnrollments])
 
  const loadStudentContext = useCallback(async (studentId: string) => {
   if (!isSupabaseConfigured) {
@@ -1383,7 +1400,15 @@ export function PaymentsPageView() {
     details,
     ...buildPaymentExtras(),
    })
-   await linkTrialsAfterPayment(id, details)
+   // 待收款不掛試堂、不上點名紙；確認收款（markPaymentReceived）時才掛單並通知老師。
+   const hasTrialLine = details.some((d) => String(d.description ?? "").includes("試堂"))
+   if (hasTrialLine) {
+    pushBanner({
+     tone: "info",
+     title: "待收款單已建立",
+     message: "試堂須確認收款後才會掛單並上點名紙。請到繳費紀錄將此單標記為已收款。",
+    })
+   }
    invalidatePaymentHistoryDataCache()
    invalidateTuitionChaseListDataCache()
    const full = await fetchPaymentFull(id)

@@ -1353,15 +1353,10 @@ export async function findStudentConflictsWithScheduleSlot(opts: {
 }
 
 function formatEnrollmentConflictError(conflicts: EnrollmentScheduleConflict[]): string {
- const sample = conflicts
-  .slice(0, 3)
-  .map(
-   (c) =>
-    `${c.date} ${c.newTime}（${c.newClassLabel}）與「${c.existingClassLabel}」${c.existingTime}`
-  )
-  .join("；")
- const more = conflicts.length > 3 ? `…另有 ${conflicts.length - 3} 堂` : ""
- return `報讀時段與學生其他班別衝突（共 ${conflicts.length} 堂）：${sample}${more}`
+ const first = conflicts[0]
+ if (!first) return "學生在該時間已有其他班別報讀中。"
+ const more = conflicts.length > 1 ? `另有 ${conflicts.length - 1} 堂時段衝突。` : ""
+ return `學生在該時間已有「${first.existingClassLabel}」報讀中（${first.date} ${first.existingTime}）。${more}`
 }
 
 function formatMakeupConflictError(conflicts: EnrollmentScheduleConflict[]): string {
@@ -1499,7 +1494,8 @@ export async function insertEnrollment(
   if (!plan) throw new Error("功課輔導班請選擇每週日數檔")
   const need =
    plan === "三日" ? 3 : plan === "四日" ? 4 : plan === "五日" ? 5 : 7
-  if (plan !== "七日" && days.length !== need) {
+  // 空陣列＝慣常到校星期容後補選（試堂轉化）。有填則須與日數檔一致。
+  if (plan !== "七日" && days.length > 0 && days.length !== need) {
    throw new Error(`每週${plan}請選 ${need} 個慣常到校星期（已選 ${days.length}）`)
   }
  }

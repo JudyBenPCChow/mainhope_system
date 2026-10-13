@@ -1,13 +1,32 @@
 import { useEffect, useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 
+import { ChoiceChips } from "@/components/students/studentsUi"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { Select } from "@/components/ui/select"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
-import { cn } from "@/lib/utils"
 import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
-import { SINGLE_SESSION_ENROLLMENT } from "@/lib/enrollmentPeriod"
+import {
+  formatClassScheduleLabel,
+  listEnrollmentStartScheduleOptions,
+  resolveEnrollmentStartDate,
+  resolveNextClassSchedule,
+  type EnrollmentStartMode,
+} from "@/lib/enrollmentStart"
+import { classKindLabel, type ClassKind } from "@/lib/privateClassKind"
+
+function formatLocalYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+function formatLocalHm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+export type HomeworkDayPlan = "三日" | "四日" | "五日" | "七日"
 
 export type TrialConvertClassOption = {
   id: string
@@ -36,6 +55,8 @@ export type TrialConvertDialogTarget = {
   schedEnd: string | null
   rollCallDone: boolean
   courseMode: CourseMode
+  classKind: ClassKind
+  courseCode: string | null
 }
 
 export type TrialConvertSubmitPayload = {
@@ -43,15 +64,24 @@ export type TrialConvertSubmitPayload = {
   enrollmentPeriod: EnrollmentFormValue | null
   scheduleIds: string[]
   formLabel: string
+  /** 轉化備註；寫入試堂結果說明 */
+  note: string | null
+  /** 專科：報讀開始日。功輔／私人為 null（今天） */
+  enrollDate: string | null
+  homeworkDayPlan: HomeworkDayPlan | null
 }
 
 type Props = {
   open: boolean
   target: TrialConvertDialogTarget | null
   classOptions: TrialConvertClassOption[]
-  /** 目標班單堂選項；由父層依 convertClassId 載入 */
+  classOptionsLoading?: boolean
+  /** 目標班排程；由父層依 convertClassId 載入 */
   sessions: TrialConvertSessionOption[]
   sessionsLoading?: boolean
+  sessionsError?: string | null
+  /** 目前 sessions 對應的班別；與選擇不一致時不准提交 */
+  sessionsForClassId?: string | null
   onTargetClassChange?: (classId: string) => void
   onOpenChange: (open: boolean) => void
   onSubmit: (payload: TrialConvertSubmitPayload) => void | Promise<void>
@@ -62,77 +92,190 @@ export function TrialConvertDialog({
   open,
   target,
   classOptions,
+  classOptionsLoading = false,
   sessions,
   sessionsLoading = false,
+  sessionsError = null,
+  sessionsForClassId = null,
   onTargetClassChange,
   onOpenChange,
   onSubmit,
   saving = false,
 }: Props) {
   const [targetClassId, setTargetClassId] = useState("")
-  const [enrollForm, setEnrollForm] = useState<"full" | "single" | "第一期" | "第二期" | "兩期全報">(
-    "full"
-  )
-  const [pickedSessions, setPickedSessions] = useState<string[]>([])
+  const [enrollForm, setEnrollForm] = useState<"full" | "第一期" | "第二期" | "兩期全報">("full")
+  const [startMode, setStartMode] = useState<EnrollmentStartMode>("next")
+  const [startScheduleId, setStartScheduleId] = useState("")
+  const [hwPlan, setHwPlan] = useState<HomeworkDayPlan | "">("")
+  const [note, setNote] = useState("")
   const [dlgErr, setDlgErr] = useState<string | null>(null)
 
   const selectedClass = useMemo(
     () => classOptions.find((c) => c.id === targetClassId) ?? null,
     [classOptions, targetClassId]
   )
+  const classKind: ClassKind = target?.classKind ?? "group"
+  const isGroup = classKind === "group"
+  const isHomework = classKind === "homework"
+  const isPrivate = classKind === "private"
   const courseMode: CourseMode = selectedClass?.courseMode ?? target?.courseMode ?? "regular"
 
-  useEffect(() => {
-    if (!open || !target) return
-    setTargetClassId(target.trialClassId)
-    setEnrollForm(target.courseMode === "summer_two_period" ? "兩期全報" : "full")
-    setPickedSessions([])
-    setDlgErr(null)
-    onTargetClassChange?.(target.trialClassId)
-  }, [open, target, onTargetClassChange])
+  const trialId = target?.id ?? null
+  const trialClassId = target?.trialClassId ?? ""
+  const trialCourseMode = target?.courseMode
+  const isPrimaryHomework =
+    isHomework && String(target?.courseCode ?? "").toUpperCase().includes("HWKP")
+  const homeworkPlanOptions = (
+    isPrimaryHomework ? (["三日", "四日", "五日"] as const) : (["三日", "四日", "五日", "七日"] as const)
+  )
 
-  const toggleSession = (id: string) => {
-    setPickedSessions((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+  useEffect(() => {
+    if (!open || !trialId) return
+    setEnrollForm(trialCourseMode === "summer_two_period" ? "兩期全報" : "full")
+    setStartMode("next")
+    setStartScheduleId("")
+    setHwPlan("")
+    setNote("")
+    setDlgErr(null)
+    if (isHomework || isPrivate) {
+      setTargetClassId(trialClassId)
+    } else {
+      setTargetClassId("")
+    }
+    // 只在開啟或換一筆試堂時重設。父層回呼每次 render 都是新函式，放進依賴會把已選的其他班打回試堂班。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, trialId])
+
+  useEffect(() => {
+    if (!open || !isGroup || classOptionsLoading) return
+    const nextId = classOptions.some((c) => c.id === targetClassId)
+      ? targetClassId
+      : classOptions.some((c) => c.id === trialClassId)
+        ? trialClassId
+        : (classOptions[0]?.id ?? "")
+    if (nextId === targetClassId) return
+    setTargetClassId(nextId)
+    setStartMode("next")
+    setStartScheduleId("")
+    setEnrollForm(
+      (classOptions.find((c) => c.id === nextId)?.courseMode ?? trialCourseMode) ===
+        "summer_two_period"
+        ? "兩期全報"
+        : "full"
     )
-  }
+    if (nextId) onTargetClassChange?.(nextId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isGroup, classOptions, classOptionsLoading, trialClassId])
+
+  const classSearchOptions = useMemo(
+    () =>
+      classOptions.map((c) => {
+        const label = c.id === trialClassId ? `${c.label}（試堂班）` : c.label
+        return { value: c.id, label, searchText: c.label, displayText: label }
+      }),
+    [classOptions, trialClassId]
+  )
+
+  const now = new Date()
+  const todayYmd = formatLocalYmd(now)
+  const nowHm = formatLocalHm(now)
+  const startRows = useMemo(
+    () =>
+      sessions.map((s) => ({
+        id: s.id,
+        scheduled_date: s.date,
+        status: "正常",
+        start_time: s.start,
+        session_number: s.sessionNumber,
+      })),
+    [sessions]
+  )
+  const nextSchedule = useMemo(
+    () => resolveNextClassSchedule(startRows, todayYmd, nowHm),
+    [startRows, todayYmd, nowHm]
+  )
+  const futureSchedules = useMemo(
+    () =>
+      listEnrollmentStartScheduleOptions(startRows).filter(
+        (row) => row.scheduled_date.slice(0, 10) >= todayYmd
+      ),
+    [startRows, todayYmd]
+  )
+  const sessionsReady =
+    !isGroup ||
+    (!sessionsLoading && !sessionsError && sessionsForClassId === targetClassId && Boolean(targetClassId))
+  const hasFutureStart = Boolean(nextSchedule) && futureSchedules.length > 0
+  const resolvedEnrollDate = useMemo(() => {
+    if (!isGroup) return null
+    if (startMode === "next") {
+      return nextSchedule?.scheduled_date.slice(0, 10) ?? null
+    }
+    try {
+      return resolveEnrollmentStartDate({
+        mode: "schedule",
+        todayYmd,
+        nextScheduleDate: nextSchedule?.scheduled_date,
+        specifiedScheduleDate: futureSchedules.find((row) => row.id === startScheduleId)
+          ?.scheduled_date,
+      })
+    } catch {
+      return null
+    }
+  }, [futureSchedules, isGroup, nextSchedule, startMode, startScheduleId, todayYmd])
 
   const formLabel = useMemo(() => {
     if (!target) return ""
-    if (enrollForm === "single") {
-      const nums = pickedSessions
-        .map((id) => sessions.find((s) => s.id === id)?.sessionNumber)
-        .filter((n): n is number => n != null)
-        .sort((a, b) => a - b)
-      return nums.length ? `單堂（第${nums.join("、")}堂）` : "單堂"
-    }
+    if (isHomework) return hwPlan ? `功課輔導班（每週${hwPlan}）` : "功課輔導班"
+    if (isPrivate) return "私人課程"
+    const startSuffix =
+      resolvedEnrollDate && resolvedEnrollDate !== todayYmd ? `（由 ${resolvedEnrollDate} 起）` : ""
     if (courseMode === "summer_two_period") {
-      if (enrollForm === "第一期") return "暑期第一期"
-      if (enrollForm === "第二期") return "暑期第二期"
-      if (enrollForm === "兩期全報") return "暑期兩期全報"
+      if (enrollForm === "第一期") return `暑期第一期${startSuffix}`
+      if (enrollForm === "第二期") return `暑期第二期${startSuffix}`
+      if (enrollForm === "兩期全報") return `暑期兩期全報${startSuffix}`
     }
-    return "報讀"
-  }, [courseMode, enrollForm, pickedSessions, sessions, target])
+    return `報讀${startSuffix}`
+  }, [
+    courseMode,
+    enrollForm,
+    hwPlan,
+    isHomework,
+    isPrivate,
+    resolvedEnrollDate,
+    target,
+    todayYmd,
+  ])
 
   const submit = async () => {
     if (!target || !targetClassId) return
-    if (enrollForm === "single" && pickedSessions.length === 0) {
-      setDlgErr("單堂請至少勾選一堂")
+    if (isHomework && !hwPlan) {
+      setDlgErr("請選擇每週日數檔")
+      return
+    }
+    if (isGroup && !sessionsReady) {
+      setDlgErr(sessionsError || "請等待排程載入完成")
+      return
+    }
+    if (isGroup && !hasFutureStart) {
+      setDlgErr("此班別未有未來排程")
+      return
+    }
+    if (isGroup && startMode === "schedule" && !resolvedEnrollDate) {
+      setDlgErr("請選擇開始報讀的未來排程")
       return
     }
     const enrollmentPeriod: EnrollmentFormValue | null =
-      enrollForm === "full"
-        ? null
-        : enrollForm === "single"
-          ? SINGLE_SESSION_ENROLLMENT
-          : enrollForm
+      enrollForm === "full" || isHomework || isPrivate ? null : enrollForm
     setDlgErr(null)
     try {
       await onSubmit({
         targetClassId,
         enrollmentPeriod,
-        scheduleIds: enrollForm === "single" ? pickedSessions : [],
+        scheduleIds: [],
         formLabel,
+        note: note.trim() || null,
+        enrollDate: isGroup ? resolvedEnrollDate : null,
+        homeworkDayPlan: isHomework && hwPlan ? hwPlan : null,
       })
     } catch (e) {
       reportUserFacingError(e, {
@@ -142,6 +285,18 @@ export function TrialConvertDialog({
       })
     }
   }
+
+  const startOk =
+    !isGroup ||
+    (sessionsReady &&
+      hasFutureStart &&
+      (startMode !== "schedule" || Boolean(startScheduleId && resolvedEnrollDate)))
+  const canSubmit =
+    !saving &&
+    Boolean(targetClassId) &&
+    (isPrivate ||
+      (isHomework && Boolean(hwPlan)) ||
+      (isGroup && !classOptionsLoading && startOk))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,7 +319,10 @@ export function TrialConvertDialog({
                   <span className="ml-2 text-muted-foreground">{target.studentGrade}</span>
                 ) : null}
               </div>
-              <div className="mt-0.5 text-muted-foreground">試堂班：{target.trialClassLabel}</div>
+              <div className="mt-0.5 text-muted-foreground">
+                試堂班：{target.trialClassLabel}
+                <span className="ml-2">（{classKindLabel(classKind)}）</span>
+              </div>
               <div className="mt-0.5 tabular-nums text-xs text-muted-foreground">
                 試堂 {target.trialDate}
                 {target.schedStart && target.schedEnd
@@ -182,90 +340,182 @@ export function TrialConvertDialog({
               </div>
             ) : null}
 
-            <label className="grid gap-1 text-xs text-muted-foreground">
-              <span>報讀班別 *</span>
-              <Select
-                className="h-10 min-h-10 w-full"
-                value={targetClassId}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setTargetClassId(id)
-                  setPickedSessions([])
-                  const cls = classOptions.find((c) => c.id === id)
-                  setEnrollForm(cls?.courseMode === "summer_two_period" ? "兩期全報" : "full")
-                  onTargetClassChange?.(id)
-                }}
-              >
-                {classOptions.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
-                    {c.id === target.trialClassId ? "（試堂班）" : ""}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <fieldset className="grid gap-2">
-              <legend className="text-xs font-medium text-muted-foreground">報讀形式</legend>
-              {courseMode === "regular" ? (
-                <Select
-                  className="h-10 min-h-10"
-                  value={enrollForm === "single" ? "single" : "full"}
-                  onChange={(e) => setEnrollForm(e.target.value === "single" ? "single" : "full")}
-                >
-                  <option value="full">報讀（常規學年）</option>
-                  <option value="single">單堂（自選堂數）</option>
-                </Select>
-              ) : (
-                <Select
-                  className="h-10 min-h-10"
-                  value={enrollForm}
-                  onChange={(e) =>
-                    setEnrollForm(
-                      e.target.value as "full" | "single" | "第一期" | "第二期" | "兩期全報"
-                    )
+            {isGroup ? (
+              <div className="grid gap-1 text-xs text-muted-foreground">
+                <span>報讀班別 *</span>
+                <SearchableSelect
+                  combobox
+                  className="min-h-10 w-full"
+                  value={targetClassId}
+                  options={classSearchOptions}
+                  placeholder="搜尋班別名稱或代碼…"
+                  searchPlaceholder="搜尋班別名稱或代碼…"
+                  emptyMessage={
+                    classOptionsLoading
+                      ? "載入班別…"
+                      : classOptions.length === 0
+                        ? "沒有可報讀的專科班"
+                        : "找不到班別"
                   }
-                >
-                  <option value="第一期">暑期第一期</option>
-                  <option value="第二期">暑期第二期</option>
-                  <option value="兩期全報">暑期兩期全報</option>
-                  <option value="single">單堂（自選堂數）</option>
-                </Select>
-              )}
-              {enrollForm === "single" ? (
-                <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-                  <p className="mb-1 text-xs text-muted-foreground">勾選要報讀的堂次</p>
-                  {sessionsLoading ? (
-                    <p className="text-xs text-muted-foreground">載入排程…</p>
-                  ) : sessions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">此班暫無可選堂次</p>
+                  aria-label="報讀班別"
+                  onChange={(id) => {
+                    if (!id) return
+                    setTargetClassId(id)
+                    setStartMode("next")
+                    setStartScheduleId("")
+                    setDlgErr(null)
+                    const cls = classOptions.find((c) => c.id === id)
+                    setEnrollForm(cls?.courseMode === "summer_two_period" ? "兩期全報" : "full")
+                    onTargetClassChange?.(id)
+                  }}
+                />
+                <span>可搜尋改選其他尚未報讀的專科班，預設為這次試堂的班。</span>
+              </div>
+            ) : (
+              <div className="grid gap-1 text-xs text-muted-foreground">
+                <span>報讀班別</span>
+                <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
+                  {target.trialClassLabel}
+                </div>
+                <span>
+                  {isHomework
+                    ? "此試堂為功課輔導班，轉化後報讀此班。慣常到校星期可到學生詳情稍後補選。"
+                    : "此試堂為私人課程，轉化後報讀此班，開始日為今天。改老師或加堂請到私人課程頁。"}
+                </span>
+              </div>
+            )}
+
+            {isHomework ? (
+              <fieldset className="grid gap-2">
+                <legend className="text-xs font-medium text-muted-foreground">每週日數檔 *</legend>
+                <ChoiceChips
+                  options={homeworkPlanOptions}
+                  value={hwPlan}
+                  onChange={setHwPlan}
+                  label={(plan) => plan}
+                />
+              </fieldset>
+            ) : null}
+
+            {isGroup ? (
+              <fieldset className="grid gap-2">
+                <legend className="text-xs font-medium text-muted-foreground">報讀形式</legend>
+                {courseMode === "summer_two_period" ? (
+                  <Select
+                    className="h-10 min-h-10"
+                    value={enrollForm === "full" ? "兩期全報" : enrollForm}
+                    onChange={(e) =>
+                      setEnrollForm(e.target.value as "第一期" | "第二期" | "兩期全報")
+                    }
+                  >
+                    <option value="第一期">暑期第一期</option>
+                    <option value="第二期">暑期第二期</option>
+                    <option value="兩期全報">暑期兩期全報</option>
+                  </Select>
+                ) : (
+                  <p className="text-muted-foreground">報讀（常規學年）</p>
+                )}
+                <div className="grid gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">開始報讀</span>
+                  <ChoiceChips
+                    options={["next", "schedule"] as const}
+                    value={startMode}
+                    onChange={(mode) => {
+                      setStartMode(mode)
+                      if (mode === "schedule" && !startScheduleId && nextSchedule) {
+                        setStartScheduleId(nextSchedule.id)
+                      }
+                    }}
+                    label={(mode) => (mode === "next" ? "下一堂" : "指定未來排程")}
+                  />
+                  {startMode === "next" ? (
+                    <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-muted-foreground">
+                      {!sessionsReady && sessionsError ? (
+                        <p role="alert" className="text-destructive">
+                          無法載入排程，請重試。
+                          {targetClassId ? (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                className="text-info underline-offset-4 hover:underline"
+                                onClick={() => onTargetClassChange?.(targetClassId)}
+                              >
+                                重試
+                              </button>
+                            </>
+                          ) : null}
+                        </p>
+                      ) : !sessionsReady ? (
+                        "載入排程中…"
+                      ) : nextSchedule ? (
+                        <>
+                          將由{" "}
+                          <strong className="text-foreground">
+                            {formatClassScheduleLabel(nextSchedule)}
+                          </strong>{" "}
+                          開始計入報讀
+                        </>
+                      ) : (
+                        <p role="status" className="text-warning">
+                          此班別未有未來排程。
+                        </p>
+                      )}
+                    </div>
                   ) : (
-                    sessions.map((s) => {
-                      const checked = pickedSessions.includes(s.id)
-                      return (
-                        <label
-                          key={s.id}
-                          className={cn(
-                            "flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-muted/60",
-                            checked && "bg-muted/40"
-                          )}
+                    <label className="grid gap-1">
+                      <span className="text-xs font-medium text-muted-foreground">選擇開始排程</span>
+                      {!sessionsReady && sessionsError ? (
+                        <p role="alert" className="text-destructive">
+                          無法載入排程，請重試。
+                          {targetClassId ? (
+                            <>
+                              {" "}
+                              <button
+                                type="button"
+                                className="text-info underline-offset-4 hover:underline"
+                                onClick={() => onTargetClassChange?.(targetClassId)}
+                              >
+                                重試
+                              </button>
+                            </>
+                          ) : null}
+                        </p>
+                      ) : !sessionsReady ? (
+                        <p className="text-muted-foreground">載入排程中…</p>
+                      ) : futureSchedules.length === 0 ? (
+                        <p role="status" className="text-warning">
+                          此班別未有未來排程。
+                        </p>
+                      ) : (
+                        <Select
+                          className="h-10 min-h-10"
+                          value={startScheduleId}
+                          onChange={(e) => setStartScheduleId(e.target.value)}
                         >
-                          <input
-                            type="checkbox"
-                            className="size-4 rounded border-border"
-                            checked={checked}
-                            onChange={() => toggleSession(s.id)}
-                          />
-                          <span>
-                            第{s.sessionNumber}堂 · {s.date} {s.start}–{s.end}
-                          </span>
-                        </label>
-                      )
-                    })
+                          <option value="">請選擇排程…</option>
+                          {futureSchedules.map((row) => (
+                            <option key={row.id} value={row.id}>
+                              {formatClassScheduleLabel(row)}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                    </label>
                   )}
                 </div>
-              ) : null}
-            </fieldset>
+              </fieldset>
+            ) : null}
+
+            <label className="grid gap-1 text-xs text-muted-foreground">
+              <span>備註（選填）</span>
+              <Input
+                className="h-10"
+                placeholder={isGroup ? "例如改選班別的原因" : "補充說明"}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </label>
 
             <p className="text-xs text-muted-foreground">
               學費請到{" "}
@@ -293,7 +543,7 @@ export function TrialConvertDialog({
               >
                 取消
               </Button>
-              <Button type="button" disabled={saving || !targetClassId} onClick={() => void submit()}>
+              <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
                 {saving ? "處理中…" : "確認轉正"}
               </Button>
             </div>

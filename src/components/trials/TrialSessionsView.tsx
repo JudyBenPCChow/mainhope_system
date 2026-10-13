@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { CalendarDays, GraduationCap, Plus, SlidersHorizontal, Sparkles } from "lucide-react"
 
@@ -44,7 +44,11 @@ import {
 import { cn } from "@/lib/utils"
 import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
-import { fetchStudentPickerOptions, getStudentById } from "@/services/studentQueries"
+import {
+ fetchEnrollmentsForStudent,
+ fetchStudentPickerOptions,
+ getStudentById,
+} from "@/services/studentQueries"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
@@ -55,6 +59,7 @@ import {
  setTrialSessionsDataCache,
 } from "@/components/trials/trialSessionsState"
 import {
+ cancelAndRecordTrialLost,
  convertTrialToEnrollment,
  deleteTrialSession,
  fetchTrialDashboardStats,
@@ -65,9 +70,11 @@ import {
  rescheduleTrialSession,
  trialCanConvert,
  trialCanRecordLost,
+ trialCanRecordOutcome,
  trialConvertBlockedReason,
  trialConvertRollCallWarning,
  trialLostBlockedReason,
+ trialLostWillCancel,
  trialStatusCategory,
  trialTypeCategory,
  updateTrialSession,
@@ -178,8 +185,13 @@ export function TrialSessionsView() {
  const [convertId, setConvertId] = useState<string | null>(null)
  const [convertSaving, setConvertSaving] = useState(false)
  const [convertClassOptions, setConvertClassOptions] = useState<TrialConvertClassOption[]>([])
+ const [convertClassOptionsLoading, setConvertClassOptionsLoading] = useState(false)
  const [convertSessions, setConvertSessions] = useState<TrialConvertSessionOption[]>([])
  const [convertSessionsLoading, setConvertSessionsLoading] = useState(false)
+ const [convertSessionsError, setConvertSessionsError] = useState<string | null>(null)
+ const [convertSessionsClassId, setConvertSessionsClassId] = useState<string | null>(null)
+ const convertSessionsReqRef = useRef(0)
+ const convertClassOptsReqRef = useRef(0)
  const [rescheduleId, setRescheduleId] = useState<string | null>(null)
  const [rescheduleScheduleId, setRescheduleScheduleId] = useState("")
  const [rescheduleOptions, setRescheduleOptions] = useState<
@@ -287,6 +299,8 @@ export function TrialSessionsView() {
    schedEnd: r.sched_end,
    rollCallDone: r.roll_call_done,
    courseMode: r.course_mode,
+   classKind: r.class_kind ?? "group",
+   courseCode: r.course_code_full,
   }
  }, [convertId, rows])
 
@@ -303,14 +317,30 @@ export function TrialSessionsView() {
   }
  }, [outcomeId, rows])
 
+ const resetConvertSessionState = useCallback(() => {
+  convertSessionsReqRef.current += 1
+  setConvertSessions([])
+  setConvertSessionsLoading(false)
+  setConvertSessionsError(null)
+  setConvertSessionsClassId(null)
+ }, [])
+
  const loadConvertSessions = useCallback(async (classId: string) => {
+  const req = ++convertSessionsReqRef.current
   if (!classId) {
    setConvertSessions([])
+   setConvertSessionsError(null)
+   setConvertSessionsClassId(null)
+   setConvertSessionsLoading(false)
    return
   }
+  setConvertSessions([])
+  setConvertSessionsClassId(null)
+  setConvertSessionsError(null)
   setConvertSessionsLoading(true)
   try {
    const list = await fetchClassSchedules(classId)
+   if (req !== convertSessionsReqRef.current) return
    setConvertSessions(
     list
      .filter((s) => !String(s.status ?? "").includes("取消"))
@@ -322,30 +352,56 @@ export function TrialSessionsView() {
       end: String(s.end_time ?? "").slice(0, 5),
      }))
    )
-  } catch {
+   setConvertSessionsClassId(classId)
+  } catch (e) {
+   if (req !== convertSessionsReqRef.current) return
    setConvertSessions([])
+   setConvertSessionsClassId(null)
+   setConvertSessionsError(e instanceof Error ? e.message : "無法載入排程")
   } finally {
-   setConvertSessionsLoading(false)
+   if (req === convertSessionsReqRef.current) setConvertSessionsLoading(false)
   }
  }, [])
 
  useEffect(() => {
   if (!convertId) return
-  void fetchClassesForOpsList().then((result) => {
-   setConvertClassOptions(
-    result.classes.map((c) => ({
-     id: c.id,
-     label: formatClassLabel({
-      subject: c.subject,
-      courseCode: c.course_code_full,
-      courseName: c.course_name,
-     }),
-     courseMode: c.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
-     enrollmentNotice: c.enrollment_notice,
-    }))
-   )
-  })
- }, [convertId])
+  const trial = rows.find((x) => x.id === convertId)
+  const req = ++convertClassOptsReqRef.current
+  setConvertClassOptions([])
+  setConvertClassOptionsLoading(true)
+  void Promise.all([
+   fetchClassesForOpsList({ extraIds: trial ? [trial.class_id] : [] }),
+   trial ? fetchEnrollmentsForStudent(trial.student_id) : Promise.resolve([]),
+  ])
+   .then(([result, enrollments]) => {
+    if (req !== convertClassOptsReqRef.current) return
+    const occupied = new Set(
+     enrollments.filter((e) => e.status !== "已退讀").map((e) => e.classId)
+    )
+    const mapped: TrialConvertClassOption[] = result.classes
+     .filter((c) => c.class_kind !== "homework" && c.class_kind !== "private")
+     .filter((c) => !occupied.has(c.id))
+     .map((c) => ({
+      id: c.id,
+      label: formatClassLabel({
+       subject: c.subject,
+       courseCode: c.course_code_full,
+       courseName: c.course_name,
+      }),
+      courseMode: c.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
+      enrollmentNotice: c.enrollment_notice,
+     }))
+    setConvertClassOptions(mapped)
+   })
+   .catch((e) => {
+    if (req !== convertClassOptsReqRef.current) return
+    setConvertClassOptions([])
+    reportUserFacingError(e, { source: "TrialSessionsView.convertClasses" })
+   })
+   .finally(() => {
+    if (req === convertClassOptsReqRef.current) setConvertClassOptionsLoading(false)
+   })
+ }, [convertId, rows])
 
  const openOutcome = (id: string, kind: "lost" | "other") => {
   const r = rows.find((x) => x.id === id)
@@ -356,6 +412,13 @@ export function TrialSessionsView() {
     pushBanner({ tone: "warning", title: "無法標流失", message: blocked })
     return
    }
+  } else if (!trialCanRecordOutcome(r)) {
+   pushBanner({
+    tone: "warning",
+    title: "無法登記其他結果",
+    message: "請先完成試堂點名，或先取消試堂後再登記。",
+   })
+   return
   }
   setOutcomeDefault(kind)
   setOutcomeId(id)
@@ -380,8 +443,8 @@ export function TrialSessionsView() {
    })
    if (!ok) return
   }
+  resetConvertSessionState()
   setConvertId(id)
-  void loadConvertSessions(r.class_id)
  }
 
  const openReschedule = async (id: string) => {
@@ -1164,7 +1227,7 @@ export function TrialSessionsView() {
         const canConvert = trialCanConvert(r)
         const blocked = trialConvertBlockedReason(r)
         const canLost = trialCanRecordLost(r)
-        const canOther = r.outcome === "open"
+        const canOther = trialCanRecordOutcome(r)
         const closed = r.outcome !== "open"
         const canReschedule =
          r.outcome === "open" && !String(r.status).includes("取消") && !r.roll_call_done
@@ -1294,18 +1357,6 @@ export function TrialSessionsView() {
              </button>
              {moreRowId === r.id ? (
              <div className="flex flex-wrap gap-2">
-              {needsReceipt ? (
-               <HintTooltip hint={blocked}>
-                <button
-                 type="button"
-                 className="text-xs font-medium text-info hover:underline disabled:opacity-50"
-                 disabled={!canConvert}
-                 onClick={() => void openConvert(r.id)}
-                >
-                 正式報讀
-                </button>
-               </HintTooltip>
-              ) : null}
               {canLost ? (
                <button
                 type="button"
@@ -1314,10 +1365,6 @@ export function TrialSessionsView() {
                >
                 標流失
                </button>
-              ) : r.outcome === "open" && !String(r.status).includes("取消") ? (
-               <HintTooltip hint={trialLostBlockedReason(r)}>
-                <span className="text-[11px] text-muted-foreground">流失須先取消</span>
-               </HintTooltip>
               ) : null}
               {canOther ? (
                <button
@@ -1327,6 +1374,10 @@ export function TrialSessionsView() {
                >
                 其他結果
                </button>
+              ) : r.outcome === "open" && !String(r.status).includes("取消") && !r.roll_call_done ? (
+               <HintTooltip hint="請先完成試堂點名，或先取消試堂後再登記其他結果">
+                <span className="text-[11px] text-muted-foreground">其他結果須已點名</span>
+               </HintTooltip>
               ) : null}
               {canReschedule ? (
                <button
@@ -1589,9 +1640,13 @@ export function TrialSessionsView() {
     open={convertId != null && convertTarget != null}
     target={convertTarget}
     classOptions={convertClassOptions}
+    classOptionsLoading={convertClassOptionsLoading}
     sessions={convertSessions}
     sessionsLoading={convertSessionsLoading}
+    sessionsError={convertSessionsError}
+    sessionsForClassId={convertSessionsClassId}
     onTargetClassChange={(classId) => {
+     if (convertTarget?.classKind !== "group") return
      void loadConvertSessions(classId)
     }}
     saving={convertSaving}
@@ -1599,6 +1654,8 @@ export function TrialSessionsView() {
      if (!open) {
       setConvertId(null)
       setConvertSaving(false)
+      setConvertClassOptions([])
+      resetConvertSessionState()
      }
     }}
     onSubmit={async (payload) => {
@@ -1607,7 +1664,7 @@ export function TrialSessionsView() {
      const noticeOk = await confirmEnrollmentNoticeIfPresent(confirmDialog, [
       {
        notice: targetOpt?.enrollmentNotice,
-       classLabel: targetOpt?.label ?? payload.formLabel,
+       classLabel: targetOpt?.label ?? convertTarget.trialClassLabel,
       },
      ])
      if (!noticeOk) return
@@ -1618,6 +1675,9 @@ export function TrialSessionsView() {
        targetClassId: payload.targetClassId,
        enrollmentPeriod: payload.enrollmentPeriod,
        scheduleIds: payload.scheduleIds,
+       note: payload.note,
+       enrollDate: payload.enrollDate,
+       homeworkDayPlan: payload.homeworkDayPlan,
       })
       setConvertId(null)
       await reload()
@@ -1625,22 +1685,45 @@ export function TrialSessionsView() {
       pushBanner({
        tone: "success",
        title: "已轉正式報讀",
-       message: result.rollCallPending
-        ? `${payload.formLabel}（轉正時尚未完成試堂點名）。學費請到收款登記處理。`
-        : `${payload.formLabel}。學費請到收款登記處理。`,
+       message: [
+        targetOpt?.label ? `${targetOpt.label} · ${payload.formLabel}` : payload.formLabel,
+        payload.note ? `備註：${payload.note}` : null,
+        result.rollCallPending ? "轉正時尚未完成試堂點名" : null,
+        "學費請到收款登記處理。",
+       ]
+        .filter(Boolean)
+        .join("。"),
        action: trial
         ? { pageLabel: "收款登記", to: `/Payments?studentId=${encodeURIComponent(trial.student_id)}` }
         : undefined,
       })
      } catch (e) {
       if (e instanceof WrittenSideEffectError) {
+       const studentId = convertTarget?.studentId
        setConvertId(null)
        await reload()
+       pushBanner({
+        tone: "warning",
+        title: e.headline,
+        message: [
+         e.message,
+         "報讀已建立；若試堂仍待跟進，可再開正式報讀只補結結果。到課宣告請到學生詳情跟進。",
+        ]
+         .filter(Boolean)
+         .join(" "),
+        action: studentId
+         ? {
+            pageLabel: "學生詳情",
+            to: `/Students/${encodeURIComponent(studentId)}`,
+           }
+         : undefined,
+       })
+       return
       }
       reportUserFacingError(e, { source: "TrialSessionsView.convert", setErr })
       pushBanner({
        tone: "error",
-       title: e instanceof WrittenSideEffectError ? e.headline : "轉正未完成",
+       title: "轉正未完成",
        message: e instanceof Error ? e.message : String(e),
       })
      } finally {
@@ -1653,22 +1736,58 @@ export function TrialSessionsView() {
     open={outcomeId != null && outcomeTarget != null}
     target={outcomeTarget}
     defaultOutcome={outcomeDefault}
+    lostWillCancel={
+     outcomeId != null
+      ? (() => {
+         const row = rows.find((x) => x.id === outcomeId)
+         return row ? trialLostWillCancel(row) : false
+        })()
+      : false
+    }
     onOpenChange={(open) => {
      if (!open) setOutcomeId(null)
     }}
     onSubmit={async (payload) => {
      if (!outcomeId) return
+     const row = rows.find((x) => x.id === outcomeId)
+     if (!row) throw new Error("找不到試堂紀錄")
      const summary = formatOutcomeSummary({
       outcome: payload.outcome,
       reason: payload.reason,
       note: payload.note,
      })
-     await recordTrialOutcome({
-      trialId: outcomeId,
-      outcome: payload.outcome === "lost" ? "lost" : "other",
-      reason: payload.reason,
-      note: payload.note,
-     })
+     if (payload.outcome === "lost") {
+      const hits = trialLostWillCancel(row)
+       ? await previewTrialAttendanceImpact(outcomeId)
+       : []
+      if (hits.length > 0) {
+       const choice = await resolveTrialAttendanceDelete(
+        confirmDialog,
+        hits,
+        "標流失會取消試堂並刪除出席"
+       )
+       if (choice === "abort") throw new Error("已取消操作")
+       await cancelAndRecordTrialLost({
+        trialId: outcomeId,
+        reason: payload.reason,
+        note: payload.note,
+        ...trialAttendanceOptionsFromHits(choice, hits),
+       })
+      } else {
+       await cancelAndRecordTrialLost({
+        trialId: outcomeId,
+        reason: payload.reason,
+        note: payload.note,
+       })
+      }
+     } else {
+      await recordTrialOutcome({
+       trialId: outcomeId,
+       outcome: "other",
+       reason: payload.reason,
+       note: payload.note,
+      })
+     }
      setOutcomeId(null)
      await reload()
      pushBanner({

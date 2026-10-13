@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
+import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 
 import {
  TRIAL_LOST_REASON_OPTIONS,
@@ -30,6 +31,8 @@ type Props = {
  target: TrialOutcomeDialogTarget | null
  /** 預設開啟的結果類型 */
  defaultOutcome?: "lost" | "other"
+ /** 標流失且尚未取消時，提示會一併取消試堂 */
+ lostWillCancel?: boolean
  onOpenChange: (open: boolean) => void
  onSubmit: (payload: TrialOutcomeSubmitPayload) => void | Promise<void>
 }
@@ -38,6 +41,7 @@ export function TrialOutcomeDialog({
  open,
  target,
  defaultOutcome = "lost",
+ lostWillCancel = false,
  onOpenChange,
  onSubmit,
 }: Props) {
@@ -45,6 +49,7 @@ export function TrialOutcomeDialog({
  const [reason, setReason] = useState<string>(TRIAL_LOST_REASON_OPTIONS[0])
  const [note, setNote] = useState("")
  const [err, setErr] = useState<string | null>(null)
+ const [saving, setSaving] = useState(false)
 
  useEffect(() => {
   if (!open) return
@@ -54,24 +59,38 @@ export function TrialOutcomeDialog({
   )
   setNote("")
   setErr(null)
+  setSaving(false)
  }, [open, defaultOutcome, target?.id])
 
  const reasonOptions = outcome === "lost" ? TRIAL_LOST_REASON_OPTIONS : TRIAL_OTHER_RESULT_OPTIONS
 
- const submit = () => {
+ const submit = async () => {
   if (!reason.trim()) {
    setErr("請選擇原因／結果")
    return
   }
-  onSubmit({
-   outcome,
-   reason: reason.trim(),
-   note: note.trim() || null,
-  })
+  if (saving) return
+  setSaving(true)
+  setErr(null)
+  try {
+   await onSubmit({
+    outcome,
+    reason: reason.trim(),
+    note: note.trim() || null,
+   })
+  } catch (e) {
+   reportUserFacingError(e, {
+    source: "TrialOutcomeDialog.submit",
+    setErr,
+    userMessage: e instanceof Error ? e.message : "登記失敗",
+   })
+  } finally {
+   setSaving(false)
+  }
  }
 
  return (
-  <Dialog open={open} onOpenChange={onOpenChange}>
+  <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
    <DialogContent className="max-w-md">
     <DialogHeader>
      <DialogTitle>登記試堂結果</DialogTitle>
@@ -94,6 +113,7 @@ export function TrialOutcomeDialog({
        <Select
         className="h-9"
         value={outcome}
+        disabled={saving}
         onChange={(e) => {
          const next = e.target.value as "lost" | "other"
          setOutcome(next)
@@ -107,8 +127,10 @@ export function TrialOutcomeDialog({
        </Select>
        <p className="text-xs text-muted-foreground">
         {outcome === "lost"
-         ? "明確不會報讀：記入流失，方便統計原因。"
-         : "非轉正、亦非單純流失：例如改期、轉介、暫掛跟進。"}
+         ? lostWillCancel
+           ? "明確不會報讀。確認後會一併取消此試堂並記入流失。"
+           : "明確不會報讀：記入流失，方便統計原因。"
+         : "非轉正、亦非單純流失：例如改期、暫掛跟進。改報其他班請用「正式報讀」。"}
        </p>
       </fieldset>
 
@@ -116,7 +138,12 @@ export function TrialOutcomeDialog({
        <span className="text-xs font-medium text-muted-foreground">
         {outcome === "lost" ? "流失原因" : "結果說明"}
        </span>
-       <Select className="h-9" value={reason} onChange={(e) => setReason(e.target.value)}>
+       <Select
+        className="h-9"
+        value={reason}
+        disabled={saving}
+        onChange={(e) => setReason(e.target.value)}
+       >
         {reasonOptions.map((opt) => (
          <option key={opt} value={opt}>
           {opt}
@@ -131,6 +158,7 @@ export function TrialOutcomeDialog({
         className="h-9"
         placeholder="例如比較對象、跟進日期…"
         value={note}
+        disabled={saving}
         onChange={(e) => setNote(e.target.value)}
        />
       </label>
@@ -145,11 +173,16 @@ export function TrialOutcomeDialog({
       ) : null}
 
       <div className="flex justify-end gap-2">
-       <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+       <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>
         取消
        </Button>
-       <Button type="button" variant={outcome === "lost" ? "destructive" : "default"} onClick={submit}>
-        確認登記
+       <Button
+        type="button"
+        variant={outcome === "lost" ? "destructive" : "default"}
+        disabled={saving}
+        onClick={() => void submit()}
+       >
+        {saving ? "處理中…" : "確認登記"}
        </Button>
       </div>
      </div>
