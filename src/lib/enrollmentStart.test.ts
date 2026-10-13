@@ -30,6 +30,30 @@ describe("resolveNextClassSchedule", () => {
    )
   ).toBeNull()
  })
+
+ it("有現在時間時略過今天已開課的堂", () => {
+  const next = resolveNextClassSchedule(
+   [
+    { scheduled_date: "2026-10-13", status: "正常", start_time: "16:00", session_number: 1 },
+    { scheduled_date: "2026-10-20", status: "正常", start_time: "16:00", session_number: 2 },
+   ],
+   "2026-10-13",
+   "16:01"
+  )
+  expect(next?.session_number).toBe(2)
+ })
+
+ it("今天尚未開課仍取今天", () => {
+  const next = resolveNextClassSchedule(
+   [
+    { scheduled_date: "2026-10-13", status: "正常", start_time: "16:00", session_number: 1 },
+    { scheduled_date: "2026-10-20", status: "正常", start_time: "16:00", session_number: 2 },
+   ],
+   "2026-10-13",
+   "15:59"
+  )
+  expect(next?.session_number).toBe(1)
+ })
 })
 
 describe("listEnrollmentStartScheduleOptions", () => {

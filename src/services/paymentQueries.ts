@@ -1403,6 +1403,38 @@ export async function markPaymentReceived(id: string, opts?: { paymentMethod?: s
  const studentId = String((row as { student_id?: string }).student_id ?? "")
  if (studentId) {
   await topUpEntitlementsForPayment({ paymentId: id, studentId })
+  const { data: det, error: detErr } = await supabase
+   .from("payment_details")
+   .select("class_id, description")
+   .eq("payment_id", id)
+  if (detErr) {
+   console.warn("[markPaymentReceived] payment_details for trial link", detErr.message)
+  } else {
+   const trialDetails = (det ?? [])
+    .map((d) => {
+     const r = d as { class_id?: string | null; description?: string | null }
+     return {
+      classId: r.class_id != null ? String(r.class_id) : null,
+      description: r.description != null ? String(r.description) : null,
+     }
+    })
+    .filter((d) => String(d.description ?? "").includes("試堂") && d.classId)
+   if (trialDetails.length > 0) {
+    const { linkOpenTrialsToPayment } = await import("@/services/trialQueries")
+    try {
+     await linkOpenTrialsToPayment({
+      paymentId: id,
+      studentId,
+      details: trialDetails,
+     })
+    } catch (e) {
+     console.warn(
+      "[markPaymentReceived] linkOpenTrialsToPayment",
+      e instanceof Error ? e.message : e
+     )
+    }
+   }
+  }
  }
 }
 

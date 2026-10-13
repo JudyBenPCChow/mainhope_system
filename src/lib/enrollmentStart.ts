@@ -63,15 +63,27 @@ export function listPastSchedulesNeedingAutoLeave<T extends EnrollmentStartSched
  )
 }
 
-/** 下一堂＝今天起、未取消、日期最早的一堂（同日依開始時間）。 */
+/**
+ * 下一堂＝今天起、未取消、日期最早的一堂（同日依開始時間）。
+ * 傳 `nowHm` 時略過今天已開課的堂（開始時間早於現在）。
+ */
 export function resolveNextClassSchedule<T extends EnrollmentStartScheduleLike>(
  rows: T[],
- todayYmd: string
+ todayYmd: string,
+ nowHm?: string | null
 ): T | null {
  const today = todayYmd.slice(0, 10)
- const eligible = rows.filter(
-  (row) => !isCancelledScheduleStatus(row.status) && row.scheduled_date.slice(0, 10) >= today
- )
+ const now = nowHm ? String(nowHm).slice(0, 5) : ""
+ const eligible = rows.filter((row) => {
+  if (isCancelledScheduleStatus(row.status)) return false
+  const ymd = row.scheduled_date.slice(0, 10)
+  if (ymd > today) return true
+  if (ymd < today) return false
+  if (!now) return true
+  const start = String(row.start_time ?? "").slice(0, 5)
+  if (!start) return true
+  return start >= now
+ })
  return sortSchedulesByDateTime(eligible)[0] ?? null
 }
 
