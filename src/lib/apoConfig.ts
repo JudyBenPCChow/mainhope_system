@@ -11,9 +11,9 @@ export const APO_WELCOME_TEXT =
  "你好，我係明學IT狗。訴求係返工，最鍾意返工——順便幫你查學生上堂、請假、狀態同試堂，或者教你點用系統。請問有咩可以幫到你？"
 
 export const APO_STARTER_SUGGESTIONS = [
+ "中四級中文",
  "今日有邊個學生請假？",
  "如何進行點名？",
- "單堂報讀係咩？",
  "如何新增報讀班別？",
 ] as const
 

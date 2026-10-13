@@ -7,6 +7,7 @@ import {
   type AssistantDbContext,
 } from "./apoDbTools.ts"
 import { extractTeacherNameQuery, isTeacherRelatedQuery } from "./apoTeacherQuery.ts"
+import { parseGradeSubjectCatalogue } from "./apoGradeSubjectCatalogue.ts"
 import {
   extractClassQueryFromText,
   extractStudentNameQuery,
@@ -34,6 +35,11 @@ export async function tryDirectDbQuery(
     ) {
       return invoke(ctx, "overdue_tuition_list", { offset })
     }
+  }
+
+  const gradeSubject = parseGradeSubjectCatalogue(t)
+  if (gradeSubject) {
+    return invoke(ctx, "grade_subject_classes", { filters: gradeSubject })
   }
 
   // 專班老師：只查自己班別，唔搜其他老師

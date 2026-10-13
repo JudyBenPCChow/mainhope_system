@@ -217,6 +217,25 @@ export const APO_DB_TOOL_DEFINITIONS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "grade_subject_classes",
+      description:
+        "查目前學年進行中的專科班。用戶說出年級加科目（可多於一級、多於一科、可指定 A班）時用，例如「中四級中文」「中三級英文同中四級數學」。不要用 teacher_classes 或 class_roster 回答這類問題。",
+      parameters: {
+        type: "object",
+        properties: {
+          filters: {
+            type: "array",
+            description: "每項含 gradeCode、gradeLabel、subjectCode、subjectShort、subjectNames、sections",
+            items: { type: "object" },
+          },
+        },
+        required: ["filters"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "overdue_tuition_list",
       description:
         "查詢需追收學費的在讀／活躍學生名單（計費出席堂數 ≥ 已繳堂數）。每頁 20 筆；僅 admin／alien。不回傳金額。",
@@ -250,6 +269,9 @@ const MY_TEACHER_CLASSES_TOOL: ApoToolDef = {
 
 /** 依角色回傳可用 tools（專班老師唔會見到查其他老師／繳費工具） */
 export function toolsForRole(userRole: string): ApoToolDef[] {
+  if (userRole === "finance") {
+    return APO_DB_TOOL_DEFINITIONS.filter((t) => t.function.name === "grade_subject_classes")
+  }
   if (userRole === "teacher") {
     const base = APO_DB_TOOL_DEFINITIONS.filter((t) => !TEACHER_DENIED_TOOL_NAMES.has(t.function.name))
     return [...base, MY_TEACHER_CLASSES_TOOL]
@@ -257,7 +279,16 @@ export function toolsForRole(userRole: string): ApoToolDef[] {
   return [...APO_DB_TOOL_DEFINITIONS]
 }
 
+/** 管理層讀取不少於行政。明學IT狗只讀，既有 RPC 仍以 admin 放行。 */
+function roleForExistingRpc(role: string): string {
+  if (role === "manager") return "admin"
+  return role || "admin"
+}
+
 function assertToolAllowed(toolName: string, ctx: AssistantDbContext): string | null {
+  if (ctx.userRole === "finance" && toolName !== "grade_subject_classes") {
+    return JSON.stringify({ ok: false, error: "財務帳號只可查年級同科目的班別，例如「中四級中文」。" })
+  }
   if (ctx.userRole === "teacher" && TEACHER_DENIED_TOOL_NAMES.has(toolName)) {
     return JSON.stringify({ ok: false, error: "你沒有權限使用此查詢功能" })
   }
@@ -284,6 +315,7 @@ export const APO_DB_TOOLS_PROMPT = `
 **專班老師**：只用 my_teacher_classes、teacher_day_schedule 查自己；search_students 只會返回自己班學生；不可用 search_teachers、student_tuition、overdue_tuition_list。
 
 適用場景：
+- 年級加科目的班別目錄（grade_subject_classes；例如「中四級中文」，可多於一級）
 - 老師班別（admin 用 search_teachers；teacher 用 my_teacher_classes）
 - 老師今日各堂點名狀態（teacher_day_attendance；必須先查再答，不可憑班別星期時間推斷）
 - 學生今日上堂、請假、狀態、出席
@@ -294,9 +326,10 @@ export const APO_DB_TOOLS_PROMPT = `
 **分頁名單**（pending_makeups、overdue_tuition_list）：每頁 20 筆；若 has_more 為 true，必須告知用戶仲有幾多筆未列出，並問是否繼續；用戶答「繼續」時用 next_offset 再查。
 
 **流程：**
-1. 問**老師**班別：admin 用 search_teachers → teacher_classes；teacher 用 my_teacher_classes。
-2. 問**學生**：search_students → student_*；**禁止**用 search_students 查老師。
-3. 根據查詢結果回答；不可捏造。
+1. 問某年級某科有哪些班（「中四級中文」）：用 grade_subject_classes。
+2. 問**老師**班別：admin 用 search_teachers → teacher_classes；teacher 用 my_teacher_classes。
+3. 問**學生**：search_students → student_*；**禁止**用 search_students 查老師。
+4. 根據查詢結果回答；不可捏造。
 
 lesson_state 含義：expected=應上堂、on_leave=已請假、excused=請假已點、absent=缺席、cancelled=排程取消、marked=已點名其他狀態。
 `.trim()
@@ -507,6 +540,12 @@ export function trimToolResult(
         record_count: result.record_count,
         records: Array.isArray(result.records) ? result.records.slice(0, APO_LIST_PAGE_SIZE) : [],
       }
+    case "grade_subject_classes":
+      return {
+        ok: true,
+        requests: Array.isArray(result.requests) ? result.requests : [],
+        classes: Array.isArray(result.classes) ? result.classes.slice(0, 80) : [],
+      }
     default:
       return result
   }
@@ -638,7 +677,7 @@ export async function executeApoDbTool(
     return JSON.stringify({ ok: false, error: "資料庫連線未設定" })
   }
 
-  const role = ctx.userRole || "admin"
+  const role = roleForExistingRpc(ctx.userRole || "admin")
   const teacherId = ctx.teacherId
 
   try {
@@ -795,6 +834,18 @@ export async function executeApoDbTool(
           p_teacher_id: teacherId,
         })
         return JSON.stringify(trimToolResult(name, result))
+      }
+      case "grade_subject_classes": {
+        const filters = Array.isArray(args.filters) ? args.filters : []
+        if (filters.length === 0) {
+          return JSON.stringify({ ok: false, error: "請指出年級同科目" })
+        }
+        const result = await rpcJson(client, "apo_assistant_grade_subject_classes", {
+          p_filters: filters,
+          p_user_role: ctx.userRole || "admin",
+          p_teacher_id: teacherId,
+        })
+        return JSON.stringify(trimToolResult(name, { ...result, requests: filters }))
       }
       default:
         return JSON.stringify({ ok: false, error: `未知工具：${name}` })

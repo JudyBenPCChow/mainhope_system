@@ -1,5 +1,6 @@
 /** 明學IT狗：意圖分流（免 LLM，慳 token） */
 
+import { parseGradeSubjectCatalogue } from "./apoGradeSubjectCatalogue.ts"
 import { extractStudentNameQuery } from "./apoStudentQuery.ts"
 
 export type ApoIntent = "chitchat" | "howto" | "db_query"
@@ -28,6 +29,7 @@ export function classifyApoIntent(
 ): ApoIntent {
   const t = text.trim()
   if (!t) return "howto"
+  if (parseGradeSubjectCatalogue(t)) return "db_query"
 
   const followUp = isFollowUpQuestion(t)
   if (followUp && hasEntityContext) return "db_query"

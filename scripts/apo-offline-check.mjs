@@ -214,6 +214,10 @@ for (const c of dbCases) {
   )
 }
 
+expectEq("資料查詢抽取", "中四級中文 · 意圖", classifyApoIntent("中四級中文", false), "db_query")
+expectEq("資料查詢抽取", "中四級中文、中三級英文 · 意圖", classifyApoIntent("中四級中文、中三級英文", false), "db_query")
+expectEq("資料查詢抽取", "如何新增中四中文班 · 意圖", classifyApoIntent("如何新增中四中文班", false), "howto")
+
 expectEq(
   "資料查詢抽取",
   "Mark Yu 老師名",

@@ -1,6 +1,12 @@
 import { hkTodayYmd } from "./apoDate.ts"
 import { cannotAnswerWithoutDbReply } from "./apoNoHallucination.ts"
 import { classDisplayName, formatClassListLine, formatEnrollmentListLine } from "./apoClassLabel.ts"
+import {
+  catalogueFollowUpSuggestions,
+  formatGradeSubjectCatalogue,
+  type CatalogueClassRow,
+  type GradeSubjectRequest,
+} from "./apoGradeSubjectCatalogue.ts"
 
 export type GroundingAnchors = {
   hkToday: string
@@ -148,6 +154,57 @@ function formatTeacherClassLine(
   index: number
 ): string {
   return formatClassListLine(row, rows, index)
+}
+
+function asCatalogueRequests(raw: unknown): GradeSubjectRequest[] {
+  if (!Array.isArray(raw)) return []
+  const out: GradeSubjectRequest[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue
+    const row = item as Record<string, unknown>
+    const gradeLabel = String(row.gradeLabel ?? "").trim()
+    const gradeCode = String(row.gradeCode ?? "").trim()
+    const subjectCode = String(row.subjectCode ?? "").trim()
+    const subjectShort = String(row.subjectShort ?? "").trim()
+    if (!gradeLabel || !gradeCode || !subjectCode || !subjectShort) continue
+    const names = Array.isArray(row.subjectNames) ? row.subjectNames.map((name) => String(name)) : []
+    const sections = Array.isArray(row.sections)
+      ? row.sections.map((section) => String(section).trim()).filter(Boolean)
+      : []
+    out.push({
+      gradeLabel,
+      gradeCode,
+      subjectCode,
+      subjectShort,
+      subjectNames: names,
+      sections,
+    })
+  }
+  return out
+}
+
+/** 年級＋科目班別目錄：固定版式，不經 LLM 重寫 */
+export function buildGradeSubjectCatalogueReply(
+  payload: Record<string, unknown>
+): ParsedReply | null {
+  if (payload.ok === false) {
+    const error = String(payload.error ?? "").trim()
+    if (!error) return null
+    const safe = /請指出|無權限|財務帳號/.test(error) ? error : "暫時查不到班別，請稍後再試。"
+    return {
+      reply: safe,
+      suggestions: ["中四級中文"],
+      paths: [{ label: "班別管理", path: "/Classes" }],
+    }
+  }
+  const requests = asCatalogueRequests(payload.requests)
+  if (requests.length === 0) return null
+  const classes = (Array.isArray(payload.classes) ? payload.classes : []) as CatalogueClassRow[]
+  return {
+    reply: formatGradeSubjectCatalogue(requests, classes),
+    suggestions: catalogueFollowUpSuggestions(requests),
+    paths: [{ label: "班別管理", path: "/Classes" }],
+  }
 }
 
 /** 老師班別列表：由查詢結果直接組裝，避免 LLM 只列科目或代碼 */
@@ -363,6 +420,10 @@ export function fallbackReplyFromToolPayloads(
 
   if (toolName === "teacher_classes" || toolName === "my_teacher_classes") {
     return buildTeacherClassesStructuredReply(last)
+  }
+
+  if (toolName === "grade_subject_classes") {
+    return buildGradeSubjectCatalogueReply(last)
   }
 
   if (toolName === "student_profile") {

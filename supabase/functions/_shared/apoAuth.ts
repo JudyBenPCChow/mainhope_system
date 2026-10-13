@@ -1,6 +1,6 @@
 import { createClient } from "jsr:@supabase/supabase-js@2"
 
-export type MgmtRole = "admin" | "teacher" | "alien"
+export type MgmtRole = "admin" | "manager" | "finance" | "teacher" | "alien"
 
 export type ResolvedCaller = {
   userRole: MgmtRole
@@ -14,7 +14,7 @@ export type ResolveCallerResult =
 
 function normalizeRole(raw: unknown): MgmtRole | null {
   const r = String(raw ?? "").trim().toLowerCase()
-  if (r === "admin" || r === "teacher" || r === "alien") return r
+  if (r === "admin" || r === "manager" || r === "finance" || r === "teacher" || r === "alien") return r
   return null
 }
 
