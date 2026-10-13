@@ -299,7 +299,7 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "缺少 SUPABASE_URL 或 SERVICE_ROLE_KEY" }, 500)
   }
 
-  // 自動 cron：香港 2026-10-14 起才真寄；人手 force／dry_run／simulate 不受限
+  // 自動 cron：香港 AUTO_SEND_FROM_YMD 起每晚真寄；人手 force／dry_run／simulate 不受限
   const todayHk = hkYmd()
   if (!force && !dryRun && !simulateTo && todayHk < AUTO_SEND_FROM_YMD) {
     return jsonResponse({

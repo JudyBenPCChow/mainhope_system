@@ -1,11 +1,13 @@
 # 每天香港時間 20:00 寄出「明日課堂」老師電郵（自動寄出由 2026-10-13 起；函式內閘）。
 # cron：UTC 12:00＝HKT 20:00；可人手 workflow_dispatch。
 # Secrets：TOMORROW_LESSON_CRON_SECRET
+# 備註：新 schedule workflow 若從未跑過，GitHub 可能漏第一次 cron；以 workflow_dispatch 或改檔重註冊補救。
 
 name: Tomorrow teacher lesson reminder
 
 on:
   schedule:
+    # HKT 20:00
     - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
