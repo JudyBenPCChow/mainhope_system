@@ -180,7 +180,7 @@ export function MgmtDashboardView() {
  const restKpis = data.kpis.filter((k) => !firstScreenIds.has(k.id))
 
  return (
-  <div className="flex min-h-0 flex-1 flex-col gap-8 p-6">
+  <div className="flex min-h-0 flex-1 flex-col gap-8">
    <header className="space-y-2">
     <div className="flex items-center gap-2">
      <BarChart3 className="h-6 w-6 text-primary" aria-hidden />

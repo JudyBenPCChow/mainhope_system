@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom"
 import { Menu } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -31,12 +30,6 @@ export function MobileHeader({ pathname, role, onOpenNav }: MobileHeaderProps) {
      <p className="truncate text-base font-semibold tracking-tight">{title}</p>
      <p className="truncate text-xs text-white/75">明學教育</p>
     </div>
-    <Link
-     to="/Home"
-     className="shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-white/90 transition-colors hover:bg-white/10"
-    >
-     首頁
-    </Link>
    </div>
   </header>
  )

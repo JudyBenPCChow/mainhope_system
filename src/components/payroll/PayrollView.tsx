@@ -468,7 +468,7 @@ export function PayrollView() {
   )
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
+    <div className="mx-auto w-full max-w-7xl">
       {realRole === "admin" ? (
         <AdminPageHeader
           eyebrow="行政工作"
