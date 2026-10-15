@@ -258,6 +258,7 @@ export function TeacherDetailView() {
    const patch: Parameters<typeof updateTeacher>[1] = {
     full_name: form.full_name ?? teacher.full_name,
     english_name: form.english_name,
+    honorific: form.honorific === "Ms." || form.honorific === "Mr." ? form.honorific : null,
     phone: form.phone,
     email: form.email,
     notification_email: (form.notification_email ?? "").trim() || null,
@@ -589,16 +590,37 @@ export function TeacherDetailView() {
        </div>
       </div>
 
-      <div className="max-w-md">
-       <label className="text-xs font-medium text-muted-foreground">狀態</label>
-       <Select
-        className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
-        value={form.status === "非在職" ? "非在職" : "在職"}
-        onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-       >
-        <option value="在職">在職</option>
-        <option value="非在職">非在職</option>
-       </Select>
+      <div className="grid max-w-md gap-3 sm:grid-cols-2">
+       <div>
+        <label className="text-xs font-medium text-muted-foreground">電郵稱謂</label>
+        <Select
+         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+         value={form.honorific === "Ms." || form.honorific === "Mr." ? form.honorific : ""}
+         onChange={(e) => {
+          const v = e.target.value
+          setForm((f) => ({
+           ...f,
+           honorific: v === "Ms." || v === "Mr." ? v : null,
+          }))
+         }}
+        >
+         <option value="">未設定（Mr./Ms.）</option>
+         <option value="Ms.">Ms.</option>
+         <option value="Mr.">Mr.</option>
+        </Select>
+        <p className="mt-1 text-xs text-muted-foreground">用於明日課堂提醒等系統電郵稱呼。</p>
+       </div>
+       <div>
+        <label className="text-xs font-medium text-muted-foreground">狀態</label>
+        <Select
+         className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+         value={form.status === "非在職" ? "非在職" : "在職"}
+         onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+        >
+         <option value="在職">在職</option>
+         <option value="非在職">非在職</option>
+        </Select>
+       </div>
       </div>
       <div>
        <label className="text-xs font-medium text-muted-foreground">備註</label>
