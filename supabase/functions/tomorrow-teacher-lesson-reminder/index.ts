@@ -113,7 +113,7 @@ function joinNames(names: string[] | null | undefined): string {
 
 const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
 
-/** 已知老師稱謂（庫無 gender；未知則退回 Mr./Ms.） */
+/** 稱謂對照（2026-10-15 營運確認；庫無 gender；未知則退回 Mr./Ms.） */
 const TEACHER_HONORIFIC: Record<string, "Ms." | "Mr."> = {
   "annie leung": "Ms.",
   "billy shek": "Mr.",
@@ -144,6 +144,7 @@ const TEACHER_HONORIFIC: Record<string, "Ms." | "Mr."> = {
   "sophie yu": "Ms.",
   "thom cheong": "Mr.",
   "tim cheung": "Mr.",
+  "wing chan": "Ms.",
 }
 
 function displayName(t: TeacherPayload): string {
