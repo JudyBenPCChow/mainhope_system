@@ -54,6 +54,7 @@ export function TeachersListPage() {
  const [form, setForm] = useState({
   full_name: "",
   english_name: "",
+  honorific: "" as "" | "Ms." | "Mr.",
   abbr: "",
   phone: "",
   email: "",
@@ -92,6 +93,7 @@ export function TeachersListPage() {
    await insertTeacher({
     full_name: form.full_name.trim(),
     english_name: form.english_name.trim() || null,
+    honorific: form.honorific === "Ms." || form.honorific === "Mr." ? form.honorific : null,
     abbr: canEditAbbr ? form.abbr.trim() || null : null,
     phone: form.phone.trim() || null,
     email: form.email.trim() || null,
@@ -103,6 +105,7 @@ export function TeachersListPage() {
    setForm({
     full_name: "",
     english_name: "",
+    honorific: "",
     abbr: "",
     phone: "",
     email: "",
@@ -165,6 +168,24 @@ export function TeachersListPage() {
        value={form.english_name}
        onChange={(e) => setForm((f) => ({ ...f, english_name: e.target.value }))}
       />
+     </div>
+     <div>
+      <label className="text-xs font-medium text-muted-foreground">電郵稱謂</label>
+      <Select
+       className="mt-1 flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+       value={form.honorific}
+       onChange={(e) => {
+        const v = e.target.value
+        setForm((f) => ({
+         ...f,
+         honorific: v === "Ms." || v === "Mr." ? v : "",
+        }))
+       }}
+      >
+       <option value="">未設定（Mr./Ms.）</option>
+       <option value="Ms.">Ms.</option>
+       <option value="Mr.">Mr.</option>
+      </Select>
      </div>
      {canEditAbbr ? (
      <div>

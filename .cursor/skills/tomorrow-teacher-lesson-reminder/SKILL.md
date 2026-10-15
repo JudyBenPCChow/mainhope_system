@@ -40,9 +40,7 @@ description: >-
 每人一封。
 
 - 主旨：`【明學教育】明日(D/M）課堂提醒（{english_name}）`——日期不補零（例 `16/10`）；括號為半形開、全形關；姓名用 `english_name`（缺則 `full_name`），**主旨不加** Mr./Ms.
-- 正文稱呼：分辨 `Ms.`／`Mr.`（Edge Function 對照表，2026-10-15 營運確認；未知才用 `Mr./Ms.`），後接姓名，無逗號。
-  - Ms.：Annie Leung、Cheryl Ng、Christine Fan、Colette Li、Cyndi Ng、Diana Kwok、Elaine Yao、Emma Cai、Erika Fok、Judy Chu、Katie Lee、Natalie Kwok、Phoebe／Phoebe Tam、Rain Kwok、Sophie Yu、Wing Chan
-  - Mr.：Billy Shek、Henry Wong、Jackson Lau、Jeffrey Lee、Ken Tam、Kenneth Li、Leo Chan、Liam Lai、Ling Yat Sum／Rafael Ling、Mark Yu、Thom Cheong、Tim Cheung
+- 正文稱呼：讀 `teachers.honorific`（`Ms.`／`Mr.`）；空則 `Mr./Ms.`。後接姓名，無逗號。可在老師詳情維護。
 - 首句：`明天(YYYY年M月D日星期X），閣下有{中文節數}節排程紀錄。`（括號同樣半形開、全形關）
 - 不用上堂：班別行末加 ` 【不用上堂】`，並另起一行 `狀態︰不用上堂`
 - 節數用中文（一、兩、三…）。時間 `HH:mm-HH:mm`。班別行：`{course_code_full} {course_name}`（無 `course_name` 則用 `subject`）。結語不要改寫。

@@ -66,6 +66,8 @@ type TeacherPayload = {
   teacher_id: string
   teacher_name: string | null
   teacher_english_name: string | null
+  /** teachers.honorific：Ms.／Mr.；缺則 Mr./Ms. */
+  honorific?: string | null
   notification_email: string | null
   lessons: LessonPayload[]
 }
@@ -113,53 +115,13 @@ function joinNames(names: string[] | null | undefined): string {
 
 const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
 
-/** 稱謂對照（2026-10-15 營運確認；庫無 gender；未知則退回 Mr./Ms.） */
-const TEACHER_HONORIFIC: Record<string, "Ms." | "Mr."> = {
-  "annie leung": "Ms.",
-  "billy shek": "Mr.",
-  "cheryl ng": "Ms.",
-  "christine fan": "Ms.",
-  "colette li": "Ms.",
-  "cyndi ng": "Ms.",
-  "diana kwok": "Ms.",
-  "elaine yao": "Ms.",
-  "emma cai": "Ms.",
-  "erika fok": "Ms.",
-  "henry wong": "Mr.",
-  "jackson lau": "Mr.",
-  "jeffrey lee": "Mr.",
-  "judy chu": "Ms.",
-  "katie lee": "Ms.",
-  "ken tam": "Mr.",
-  "kenneth li": "Mr.",
-  "leo chan": "Mr.",
-  "liam lai": "Mr.",
-  "ling yat sum": "Mr.",
-  "mark yu": "Mr.",
-  "natalie kwok": "Ms.",
-  "phoebe": "Ms.",
-  "phoebe tam": "Ms.",
-  "rafael ling": "Mr.",
-  "rain kwok": "Ms.",
-  "sophie yu": "Ms.",
-  "thom cheong": "Mr.",
-  "tim cheung": "Mr.",
-  "wing chan": "Ms.",
-}
-
 function displayName(t: TeacherPayload): string {
   return String(t.teacher_english_name ?? t.teacher_name ?? "").trim() || "老師"
 }
 
 function honorific(t: TeacherPayload): "Ms." | "Mr." | "Mr./Ms." {
-  const keys = [
-    String(t.teacher_english_name ?? "").trim().toLowerCase(),
-    String(t.teacher_name ?? "").trim().toLowerCase(),
-  ].filter(Boolean)
-  for (const key of keys) {
-    const hit = TEACHER_HONORIFIC[key]
-    if (hit) return hit
-  }
+  const raw = String(t.honorific ?? "").trim()
+  if (raw === "Ms." || raw === "Mr.") return raw
   return "Mr./Ms."
 }
 
@@ -403,6 +365,7 @@ Deno.serve(async (req) => {
       teacher_id: t.teacher_id,
       teacher_name: t.teacher_name,
       teacher_english_name: t.teacher_english_name,
+      honorific: t.honorific ?? null,
       notification_email: t.notification_email,
       lesson_count: t.lessons?.length ?? 0,
       subject: built.subject,

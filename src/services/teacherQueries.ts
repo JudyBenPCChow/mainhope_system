@@ -3,10 +3,14 @@ import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd, todayYmdLocal as localYmd } from "@/lib/weekdayUtils"
 
+export type TeacherHonorific = "Ms." | "Mr."
+
 export type TeacherRecord = {
  id: string
  full_name: string
  english_name: string | null
+ /** 電郵稱謂 Ms.／Mr.；空則系統用 Mr./Ms. */
+ honorific: TeacherHonorific | null
  /** 內部簡稱／代碼（ABBR）；僅外星人可於前端修改 */
  abbr: string | null
  phone: string | null
@@ -19,6 +23,12 @@ export type TeacherRecord = {
  remarks: string | null
  created_at: string
  updated_at: string
+}
+
+function asHonorific(raw: unknown): TeacherHonorific | null {
+ const s = raw != null ? String(raw).trim() : ""
+ if (s === "Ms." || s === "Mr.") return s
+ return null
 }
 
 /** 老師在職狀態：詳情／列表僅使用「在職」與「非在職」兩種；舊資料會收斂至此 */
@@ -47,6 +57,7 @@ function asTeacher(
   id: String(row.id),
   full_name: String(row.full_name ?? ""),
   english_name: row.english_name != null ? String(row.english_name) : null,
+  honorific: asHonorific(row.honorific),
   abbr: row.abbr != null && String(row.abbr).trim() !== "" ? String(row.abbr).trim() : null,
   phone: priv?.phone != null ? String(priv.phone) : null,
   email: priv?.email != null ? String(priv.email) : null,
@@ -96,7 +107,7 @@ export async function fetchAllTeachers(): Promise<TeacherRecord[]> {
  if (!supabase) return []
  const { data, error } = await supabase
   .from("teachers")
-  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
+  .select("id, full_name, english_name, honorific, abbr, status, subject_speciality, created_at, updated_at")
   .order("full_name", { ascending: true })
  if (error) throw error
  const rows = (data ?? []) as Record<string, unknown>[]
@@ -108,7 +119,7 @@ export async function getTeacherById(id: string): Promise<TeacherRecord | null> 
  if (!supabase) return null
  const { data, error } = await supabase
   .from("teachers")
-  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
+  .select("id, full_name, english_name, honorific, abbr, status, subject_speciality, created_at, updated_at")
   .eq("id", id)
   .maybeSingle()
  if (error) throw error
@@ -128,11 +139,12 @@ export async function insertTeacher(
   .insert({
    full_name: row.full_name,
    english_name: row.english_name ?? null,
+   honorific: asHonorific(row.honorific),
    abbr: abbrVal,
    status: normalizeTeacherEmploymentStatus(row.status != null ? String(row.status) : null),
    subject_speciality: row.subject_speciality ?? [],
   })
-  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
+  .select("id, full_name, english_name, honorific, abbr, status, subject_speciality, created_at, updated_at")
   .single()
  if (error) throw error
  const id = String((data as { id: string }).id)
@@ -181,6 +193,9 @@ export async function updateTeacher(
   if (Object.prototype.hasOwnProperty.call(patch, "english_name")) {
    publicPatch.english_name = patch.english_name
   }
+  if (Object.prototype.hasOwnProperty.call(patch, "honorific")) {
+   publicPatch.honorific = asHonorific(patch.honorific)
+  }
   if (Object.prototype.hasOwnProperty.call(patch, "status")) {
    publicPatch.status = normalizeTeacherEmploymentStatus(
     patch.status != null ? String(patch.status) : null
@@ -209,7 +224,7 @@ export async function updateTeacher(
   .from("teachers")
   .update(publicPatch)
   .eq("id", id)
-  .select("id, full_name, english_name, abbr, status, subject_speciality, created_at, updated_at")
+  .select("id, full_name, english_name, honorific, abbr, status, subject_speciality, created_at, updated_at")
   .single()
  if (error) throw error
 
