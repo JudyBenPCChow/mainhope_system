@@ -26,6 +26,7 @@ import {
  LESSON_SLOT_INDICES,
  parseHm,
 } from "@/lib/lessonSlots"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -244,7 +245,7 @@ export function ClassroomsManagePage() {
    let list = await fetchClassesUsingRoom(selectedRoomId)
    if (list.length === 0) {
     const all = await fetchClassesForOpsList()
-    list = all.classes.map((c) => ({
+    list = all.classes.filter((c) => !isEndedClassStatus(c.status)).map((c) => ({
      id: c.id,
      label: `${formatClassLabel({
       subject: c.subject,

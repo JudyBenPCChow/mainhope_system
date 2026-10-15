@@ -96,6 +96,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { buildRollCallScheduleEntries } from "@/lib/consecutiveLesson"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { isUnassignedTeachingTeacherIssue, scheduleTeacherDisplayName } from "@/lib/privateClassKind"
 import { isHomeworkOccupancySchedule } from "@/lib/homeworkTutoringSchedules"
@@ -687,7 +688,8 @@ export function ScheduleManagePage() {
   if (!addOpen) return
   void fetchClassesForOpsList().then((result) => {
    const all = result.classes
-   const scoped = teacherScopeId ? all.filter((c) => c.teacher_id === teacherScopeId) : all
+   const scoped = (teacherScopeId ? all.filter((c) => c.teacher_id === teacherScopeId) : all)
+    .filter((c) => !isEndedClassStatus(c.status))
    setAddClassRecords(scoped)
    setClassPickList(
     scoped.map((c) => ({

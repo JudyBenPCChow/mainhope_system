@@ -21,6 +21,7 @@ import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatClassLabel } from "@/lib/courseLabel"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
@@ -380,6 +381,7 @@ export function TrialSessionsView() {
     )
     const mapped: TrialConvertClassOption[] = result.classes
      .filter((c) => c.class_kind !== "homework" && c.class_kind !== "private")
+     .filter((c) => !isEndedClassStatus(c.status) || c.id === trial?.class_id)
      .filter((c) => !occupied.has(c.id))
      .map((c) => ({
       id: c.id,
@@ -517,7 +519,7 @@ export function TrialSessionsView() {
   }
   void fetchClassesForOpsList().then((result) => {
    setClassPickList(
-    result.classes.map((c) => ({
+    result.classes.filter((c) => !isEndedClassStatus(c.status)).map((c) => ({
      id: c.id,
      label: formatClassLabel({
       subject: c.subject,

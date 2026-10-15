@@ -16,6 +16,7 @@ import {
  XCircle,
 } from "lucide-react"
 
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatWeekdaysDisplay } from "@/components/classes/classesUi"
 import { TeacherWeekTimetable, weekItemsFromManageRows } from "@/components/teachers/TeacherWeekTimetable"
 import { Button } from "@/components/ui/button"
@@ -253,7 +254,9 @@ export function TeacherHomeView() {
    setSemesterRange(range)
    const sorted = [...mine].sort((a, b) => a.subject.localeCompare(b.subject, "zh-Hant"))
    setClasses(sorted)
-   const homeClasses = filterClassesForCurrentAcademicYear(sorted, yearLabel)
+   const homeClasses = filterClassesForCurrentAcademicYear(sorted, yearLabel).filter(
+    (c) => !isEndedClassStatus(c.status)
+   )
    setSchedules(todayRows)
    setLoadedFromYmd(today)
    setLoadedToYmd(today)
@@ -344,7 +347,10 @@ export function TeacherHomeView() {
 
  const leaves = leavesLoad.status === "ready" ? leavesLoad.rows : []
  const homeClasses = useMemo(
-  () => filterClassesForCurrentAcademicYear(classes, currentYearLabel),
+  () =>
+   filterClassesForCurrentAcademicYear(classes, currentYearLabel).filter(
+    (c) => !isEndedClassStatus(c.status)
+   ),
   [classes, currentYearLabel]
  )
  const homeLeaves = useMemo(

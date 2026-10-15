@@ -21,6 +21,7 @@ import {
  intervalsOverlapMinutes,
  parseHm,
 } from "@/lib/lessonSlots"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { resolveClassKind, type ClassKind } from "@/lib/privateClassKind"
 import { normalizeTrialOutcome, trialOutcomeClosed } from "@/lib/trialOutcome"
 import { fetchAcademicYearPeriods, fetchClassEnrollmentConfig } from "@/services/enrollmentPeriodQueries"
@@ -1472,10 +1473,13 @@ export async function insertEnrollment(
  const enrollDate = /^\d{4}-\d{2}-\d{2}$/.test(enrollDateRaw) ? enrollDateRaw : today
  const { data: classRow, error: classErr } = await supabase
   .from("classes")
-  .select("academic_year_label, start_date, class_kind, subject, course_code_full, courses ( course_name )")
+  .select("academic_year_label, start_date, class_kind, subject, course_code_full, status, courses ( course_name )")
   .eq("id", classId)
   .maybeSingle()
  if (classErr) throw classErr
+ if (isEndedClassStatus((classRow as { status?: string | null } | null)?.status)) {
+  throw new Error("此班已結束，不能新增報讀")
+ }
  if (classRow) assertClassRecordEditable(classRow as {
   academic_year_label?: string | null
   start_date?: string | null
@@ -2058,11 +2062,11 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
  const yearIds = window.ids
  const enrollableLabels = new Set(window.labels)
  const classSelectWithMode =
-  "id, subject, class_kind, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name, course_mode )"
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, status, enrollment_notice, academic_years ( label ), courses ( course_name, course_mode )"
  const classSelectBase =
-  "id, subject, class_kind, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name )"
+  "id, subject, class_kind, course_code_full, day_of_week, time_slot, status, enrollment_notice, academic_years ( label ), courses ( course_name )"
  const classSelectLegacy =
-  "id, subject, course_code_full, day_of_week, time_slot, enrollment_notice, academic_years ( label ), courses ( course_name )"
+  "id, subject, course_code_full, day_of_week, time_slot, status, enrollment_notice, academic_years ( label ), courses ( course_name )"
  const first = await supabase
   .from("classes")
   .select(classSelectWithMode)
@@ -2097,6 +2101,9 @@ export async function fetchClassOptions(): Promise<ClassOption[]> {
    subject
   )
   if (kind === "private") {
+   continue
+  }
+  if (isEndedClassStatus(row.status != null ? String(row.status) : null)) {
    continue
   }
   const course = row.courses as Record<string, unknown> | null

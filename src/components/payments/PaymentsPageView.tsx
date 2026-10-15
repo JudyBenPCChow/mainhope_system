@@ -55,6 +55,7 @@ import { useAppConfirm } from "@/lib/appConfirm"
 import { PAYMENT_RECENT_STUDENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { openNextTuitionReminder } from "@/lib/tuitionPaymentReminder"
 import { confirmNonCurrentAcademicYearWrite, academicYearLabelsForPaymentGuard } from "@/lib/academicYearSoftGuard"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatClassLabel } from "@/lib/courseLabel"
 import {
  normalizeSpecialDiscountAmount,
@@ -252,7 +253,9 @@ export function PaymentsPageView() {
   void fetchClassesForOpsList()
    .then((result) => {
     if (cancelled) return
-    setTrialClasses(result.classes.map(classRecordToPriceInfo))
+    setTrialClasses(
+     result.classes.filter((c) => !isEndedClassStatus(c.status)).map(classRecordToPriceInfo)
+    )
    })
    .catch((e) => {
     if (!cancelled) {
