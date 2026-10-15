@@ -10,7 +10,7 @@ description: >-
 
 以各人作為單位，每人一則。給同事轉發老師。文案用繁體中文書面語，用詞跟 `.cursor/rules/terminology.mdc`。
 
-無 MCP `execute_sql`：**停、通知使用者**。不要用對話裡的舊名單充當今日結果。見 `.cursor/rules/no-forced-output-without-access.mdc`。不要代寄；用戶另給收件地址並明講寄出，才用 `mainhope-mail`。
+無 MCP `execute_sql`：**停、通知使用者**。不要用對話裡的舊名單充當今日結果。見 `.cursor/rules/no-forced-output-without-access.mdc`。不要代寄；用戶另給收件地址並明講寄出，才寄。
 
 ## 何時用
 
@@ -23,6 +23,25 @@ description: >-
 3. 只計已下課、未取消、點名紙有人、該 `schedule_id` 沒有 `attendance_details` 的堂。今日未下課不計。空班不計。測試班、老師名或班號含 Test／HWKP 不計。已取消（含老師病假）不計。
 4. 老師用該堂 `schedules.teacher_id`（代堂後的實際授課老師）。
 5. 對話貼文用「系統訊息」。用戶要求寄電郵時，改用「電郵通知」，並另寫一封「行政總結」。測試時只寄用戶指定的老師與行政總結，收件地址用用戶給的信箱，不要寄去老師本人。
+6. **寄信（固定走 CLI，不要等 MCP）**：先 `node scripts/mcp/resend-mail-server.mjs --status`；未就緒就停。就緒則每人一封老師信＋一封行政總結，用 `--send`（見下）。不要因 `mainhope-mail` MCP loading／discovery timeout 而卡住。
+
+```bash
+node scripts/mcp/resend-mail-server.mjs --status
+node scripts/mcp/resend-mail-server.mjs --send \
+  --to "<notification_email>" \
+  --cc "<行政1>" \
+  --cc "<行政2>" \
+  --subject "十月尚未點名提醒（Mr. Liam Lai)" \
+  --text "<電郵通知正文>"
+
+node scripts/mcp/resend-mail-server.mjs --send \
+  --to "<行政1>" \
+  --to "<行政2>" \
+  --subject "系統報告︰十月尚未點名紀錄報告" \
+  --text "<行政總結正文>"
+```
+
+正式寄老師本人時，收件用 `teachers_private.notification_email`；用戶本則有指定地址則以本則為準。CC／行政收件以用戶本則為準。
 
 ## 文案
 
