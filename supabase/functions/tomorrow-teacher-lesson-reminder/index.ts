@@ -111,18 +111,83 @@ function joinNames(names: string[] | null | undefined): string {
   return (names ?? []).map((n) => String(n).trim()).filter(Boolean).join("、")
 }
 
+const WEEKDAY_ZH = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"]
+
+/** 已知老師稱謂（庫無 gender；未知則退回 Mr./Ms.） */
+const TEACHER_HONORIFIC: Record<string, "Ms." | "Mr."> = {
+  "annie leung": "Ms.",
+  "billy shek": "Mr.",
+  "cheryl ng": "Ms.",
+  "christine fan": "Ms.",
+  "colette li": "Ms.",
+  "cyndi ng": "Ms.",
+  "diana kwok": "Ms.",
+  "elaine yao": "Ms.",
+  "emma cai": "Ms.",
+  "erika fok": "Ms.",
+  "henry wong": "Mr.",
+  "jackson lau": "Mr.",
+  "jeffrey lee": "Mr.",
+  "judy chu": "Ms.",
+  "katie lee": "Ms.",
+  "ken tam": "Mr.",
+  "kenneth li": "Mr.",
+  "leo chan": "Mr.",
+  "liam lai": "Mr.",
+  "ling yat sum": "Mr.",
+  "mark yu": "Mr.",
+  "natalie kwok": "Ms.",
+  "phoebe": "Ms.",
+  "phoebe tam": "Ms.",
+  "rafael ling": "Mr.",
+  "rain kwok": "Ms.",
+  "sophie yu": "Ms.",
+  "thom cheong": "Mr.",
+  "tim cheung": "Mr.",
+}
+
 function displayName(t: TeacherPayload): string {
   return String(t.teacher_english_name ?? t.teacher_name ?? "").trim() || "老師"
 }
 
+function honorific(t: TeacherPayload): "Ms." | "Mr." | "Mr./Ms." {
+  const keys = [
+    String(t.teacher_english_name ?? "").trim().toLowerCase(),
+    String(t.teacher_name ?? "").trim().toLowerCase(),
+  ].filter(Boolean)
+  for (const key of keys) {
+    const hit = TEACHER_HONORIFIC[key]
+    if (hit) return hit
+  }
+  return "Mr./Ms."
+}
+
 function salutation(t: TeacherPayload): string {
-  return `Mr./Ms. ${displayName(t)}`
+  return `${honorific(t)} ${displayName(t)}`
 }
 
 function formatYmdZh(ymd: string | null | undefined): string | null {
   const m = String(ymd ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!m) return null
   return `${Number(m[2])}月${Number(m[3])}日`
+}
+
+/** 2026-10-16 → 16/10（主旨用；不補零） */
+function formatYmdSlashDm(ymd: string): string {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return ymd
+  return `${Number(m[3])}/${Number(m[2])}`
+}
+
+/** 2026-10-16 → 2026年10月16日星期五 */
+function formatYmdFullZhWithWeekday(ymd: string): string {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return ymd
+  const y = Number(m[1])
+  const mo = Number(m[2])
+  const d = Number(m[3])
+  const weekday = WEEKDAY_ZH[new Date(`${ymd}T12:00:00+08:00`).getUTCDay()] ?? ""
+  return `${y}年${mo}月${d}日${weekday}`
 }
 
 function buildRemarks(lesson: LessonPayload): string {
@@ -155,22 +220,28 @@ function buildRemarks(lesson: LessonPayload): string {
   return parts.join("；")
 }
 
-function buildTeacherEmailText(t: TeacherPayload): { subject: string; text: string } {
+function buildTeacherEmailText(
+  t: TeacherPayload,
+  targetDateYmd: string,
+): { subject: string; text: string } {
   const lessons = [...(t.lessons ?? [])].sort((a, b) =>
     formatHm(a.start_time).localeCompare(formatHm(b.start_time)),
   )
   const n = lessons.length
   const who = salutation(t)
-  const subject = `明日課堂提醒（${who}）`
+  const name = displayName(t)
+  const subject =
+    `【明學教育】明日(${formatYmdSlashDm(targetDateYmd)}）課堂提醒（${name}）`
 
   const blocks = lessons.map((lesson, i) => {
     const code = String(lesson.course_code_full ?? "").trim()
     const course =
       String(lesson.course_name ?? lesson.subject ?? "課堂").trim() || "課堂"
-    const title = code ? `${code} ${course}` : course
+    const baseTitle = code ? `${code} ${course}` : course
+    const idle = isNoTeachingNeeded(lesson)
+    const title = idle ? `${baseTitle} 【不用上堂】` : baseTitle
     const time = `${formatHm(lesson.start_time)}-${formatHm(lesson.end_time)}`
     const room = String(lesson.classroom_name ?? "").trim()
-    const idle = isNoTeachingNeeded(lesson)
     const lines = [
       `${i + 1}. ${title}`,
       `時間︰${time}`,
@@ -189,7 +260,7 @@ function buildTeacherEmailText(t: TeacherPayload): { subject: string; text: stri
   const text = [
     who,
     "",
-    `明天閣下有${cnCount(n)}節課堂紀錄`,
+    `明天(${formatYmdFullZhWithWeekday(targetDateYmd)}），閣下有${cnCount(n)}節排程紀錄。`,
     "",
     blocks.join("\n\n"),
     "",
@@ -326,7 +397,7 @@ Deno.serve(async (req) => {
   const teachers = (Array.isArray(data) ? data : []) as TeacherPayload[]
 
   const emails = teachers.map((t) => {
-    const built = buildTeacherEmailText(t)
+    const built = buildTeacherEmailText(t, dateYmd)
     return {
       teacher_id: t.teacher_id,
       teacher_name: t.teacher_name,
