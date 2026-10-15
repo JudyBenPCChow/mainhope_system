@@ -1,12 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useState } from "react"
 
-import { AdPublicCatalogPreview } from "@/components/adTrial/AdPublicCatalogPreview"
-import { Button } from "@/components/ui/button"
 import {
   AD_CAMPUS_PHOTOS,
-  AD_GROUP_FEE_LINES,
-  AD_GROUP_RULES,
   AD_HOMEWORK_DAILY,
   AD_HOMEWORK_FAQS,
   AD_HOMEWORK_FEE_NOTE,
@@ -19,17 +14,13 @@ import {
   AD_HOMEWORK_TRANSIT,
   AD_HOW_TO_START,
   AD_INTEREST_FAQS,
-  AD_PARENT_QUOTES,
   AD_PUBLIC_MAP_EMBED_SRC,
   AD_TRANSIT,
-  AD_TRIAL_FAQS,
-  AD_TRIAL_HALF_PRICE,
   AD_TRIAL_TEACHERS,
   AD_TRUST_BULLETS,
 } from "@/lib/adPublicLandingCopy"
 import { AD_PUBLIC_CONTACT } from "@/lib/adPublicContact"
 import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion"
-import type { StudentGradeCode } from "@/lib/studentGrade"
 
 const AD_INTEREST_SLIDES = [
   AD_CAMPUS_PHOTOS.followup,
@@ -39,210 +30,6 @@ const AD_INTEREST_SLIDES = [
   AD_CAMPUS_PHOTOS.homework,
   AD_CAMPUS_PHOTOS.about,
 ] as const
-
-function SectionTitle({ children }: { children: ReactNode }) {
-  return <h2 className="text-lg font-semibold text-foreground">{children}</h2>
-}
-
-function TrustList() {
-  return (
-    <section className="mt-8 space-y-2">
-      <SectionTitle>為何選擇明學教育</SectionTitle>
-      <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
-        {AD_TRUST_BULLETS.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
-function HowToStart() {
-  return (
-    <section className="mt-8 space-y-3">
-      <SectionTitle>如何開始</SectionTitle>
-      <ol className="space-y-3">
-        {AD_HOW_TO_START.map((step, index) => (
-          <li key={step.title} className="text-sm">
-            <p className="font-medium text-foreground">
-              {index + 1}. {step.title}
-            </p>
-            <p className="text-muted-foreground">{step.body}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
-}
-
-function FaqList({ items }: { items: readonly { q: string; a: string }[] }) {
-  return (
-    <section className="mt-8 space-y-2">
-      <SectionTitle>常見問題</SectionTitle>
-      <div className="space-y-2">
-        {items.map((item) => (
-          <details key={item.q} className="rounded-lg border border-border bg-card px-3 py-2">
-            <summary className="cursor-pointer text-sm font-medium text-foreground">{item.q}</summary>
-            <p className="pt-2 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
-          </details>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function Quotes() {
-  return (
-    <section className="mt-8 space-y-2">
-      <SectionTitle>家長分享</SectionTitle>
-      {AD_PARENT_QUOTES.map((quote) => (
-        <blockquote key={quote} className="rounded-lg border border-border bg-card px-3 py-2 text-sm leading-relaxed text-muted-foreground">
-          「{quote}」
-          <footer className="mt-1 text-xs">家長分享</footer>
-        </blockquote>
-      ))}
-    </section>
-  )
-}
-
-function LocationBlock({ showPhoto }: { showPhoto: boolean }) {
-  return (
-    <section className="mt-8 space-y-3">
-      <SectionTitle>上課地點</SectionTitle>
-      <p className="text-sm text-foreground">{AD_PUBLIC_CONTACT.addressZh}</p>
-      <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-        {AD_TRANSIT.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      {showPhoto ? (
-        <img
-          src={AD_CAMPUS_PHOTOS.entrance.src}
-          alt={AD_CAMPUS_PHOTOS.entrance.alt}
-          width={AD_CAMPUS_PHOTOS.entrance.width}
-          height={AD_CAMPUS_PHOTOS.entrance.height}
-          loading="lazy"
-          className="aspect-video w-full rounded-xl object-cover"
-        />
-      ) : null}
-      <iframe
-        title="明學教育校舍位置"
-        src={AD_PUBLIC_MAP_EMBED_SRC}
-        loading="lazy"
-        className="h-60 w-full rounded-xl border border-border"
-        referrerPolicy="no-referrer-when-downgrade"
-      />
-    </section>
-  )
-}
-
-function PhotoStrip() {
-  const photos = [AD_CAMPUS_PHOTOS.table, AD_CAMPUS_PHOTOS.students, AD_CAMPUS_PHOTOS.entrance]
-  return (
-    <div className="mt-8 grid grid-cols-3 gap-2">
-      {photos.map((photo) => (
-        <img
-          key={photo.src}
-          src={photo.src}
-          alt={photo.alt}
-          width={photo.width}
-          height={photo.height}
-          loading="lazy"
-          className="aspect-video w-full rounded-lg object-cover"
-        />
-      ))}
-    </div>
-  )
-}
-
-export function AdTrialLanding({
-  onPrimary,
-  onUseGrade,
-  interestState,
-}: {
-  onPrimary: () => void
-  onUseGrade: (grade: StudentGradeCode) => void
-  interestState?: unknown
-}) {
-  const hero = AD_CAMPUS_PHOTOS.class
-  return (
-    <div>
-      <p className="text-xs font-medium tracking-wide text-muted-foreground">粉嶺綠悠軒 · 北區中學補習</p>
-      <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">先試一堂，再決定</h1>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        中一至中六專科班，每堂約 75 分鐘，師生比例最多約 1:7。預約試堂，先了解導師教法與課堂節奏是否適合。
-      </p>
-      <p className="mt-3 text-sm font-medium text-foreground">{AD_TRIAL_HALF_PRICE}</p>
-      <img
-        src={hero.src}
-        alt={hero.alt}
-        width={hero.width}
-        height={hero.height}
-        className="mt-4 aspect-video w-full rounded-xl object-cover"
-      />
-      <div className="mt-4 flex flex-col gap-2">
-        <Button type="button" className="w-full" onClick={onPrimary}>
-          預約試堂
-        </Button>
-        <Link
-          to="/AdInterest"
-          state={interestState}
-          className="text-center text-sm text-primary underline underline-offset-2"
-        >
-          未肯定時間？只留名，本社建議班別
-        </Link>
-      </div>
-
-      <AdPublicCatalogPreview onUseGrade={onUseGrade} />
-
-      <section className="mt-8 space-y-2">
-        <SectionTitle>學費</SectionTitle>
-        <ul className="space-y-1 text-sm text-foreground">
-          {AD_GROUP_FEE_LINES.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <p className="text-sm text-muted-foreground">每期 4 堂、每週 1 堂、每堂約 75 分鐘。{AD_TRIAL_HALF_PRICE}。</p>
-        <p className="text-sm text-muted-foreground">歡迎隨時插班；如無適合時段，可聯絡本社了解其他時間之班別。</p>
-      </section>
-
-      <TrustList />
-      <HowToStart />
-
-      <section className="mt-8 space-y-3">
-        <SectionTitle>導師</SectionTitle>
-        <ul className="space-y-3">
-          {AD_TRIAL_TEACHERS.map((teacher) => (
-            <li key={teacher.name} className="text-sm">
-              <p className="font-medium text-foreground">
-                {teacher.name}
-                <span className="font-normal text-muted-foreground"> · {teacher.role}</span>
-              </p>
-              <p className="text-muted-foreground">{teacher.point}</p>
-            </li>
-          ))}
-        </ul>
-        <p className="text-xs text-muted-foreground">各科實際任教老師見選班時顯示。</p>
-        <p className="text-xs text-muted-foreground">另有中文、英文、數學、生物、企會財等其他導師，歡迎查詢。</p>
-      </section>
-
-      <Quotes />
-      <PhotoStrip />
-
-      <section className="mt-8 space-y-2">
-        <SectionTitle>報讀須知</SectionTitle>
-        <ol className="list-decimal space-y-1 pl-5 text-sm leading-relaxed text-muted-foreground">
-          {AD_GROUP_RULES.map((rule) => (
-            <li key={rule}>{rule}</li>
-          ))}
-        </ol>
-      </section>
-
-      <FaqList items={AD_TRIAL_FAQS} />
-      <LocationBlock showPhoto />
-    </div>
-  )
-}
 
 export function AdInterestLanding({ onPrimary }: { onPrimary: () => void }) {
   const hero = AD_CAMPUS_PHOTOS.consult

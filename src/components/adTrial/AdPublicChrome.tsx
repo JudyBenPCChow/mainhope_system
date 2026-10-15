@@ -1,9 +1,6 @@
 import { Link } from "react-router-dom"
-import { MessageCircle } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { AD_PUBLIC_CONTACT } from "@/lib/adPublicContact"
-import { openWhatsAppWithPrefilledText } from "@/lib/whatsappReminder"
 
 export function AdPublicSiteFooter() {
   return (
@@ -33,38 +30,5 @@ export function AdPublicSiteFooter() {
         </a>
       </p>
     </footer>
-  )
-}
-
-/** 主按鈕留在頁內；WhatsApp 為副按鈕。電話放在頁尾。 */
-export function AdPublicStickyBar({
-  primaryLabel,
-  onPrimary,
-  whatsappText,
-}: {
-  primaryLabel: string
-  onPrimary: () => void
-  whatsappText: string
-}) {
-  return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-3 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80"
-      aria-label="登記與聯絡"
-    >
-      <div className="mx-auto flex max-w-lg gap-2">
-        <Button type="button" className="flex-1" onClick={onPrimary}>
-          {primaryLabel}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="flex-1 gap-1.5"
-          onClick={() => openWhatsAppWithPrefilledText(AD_PUBLIC_CONTACT.whatsappDigits, whatsappText)}
-        >
-          <MessageCircle className="h-4 w-4" aria-hidden />
-          WhatsApp 即時問
-        </Button>
-      </div>
-    </nav>
   )
 }
