@@ -9,4 +9,6 @@ alwaysApply: true
 
 未寫收件地址、或 `mail_status` 顯示未設定金鑰：停下並說明，不要改用其他方式硬寄。
 
+**例外（已預先授權）：** agent 非畫面改 production 後的通知，跟 `.cursor/rules/agent-db-change-notify.mdc` 與 skill `agent-db-change-notify`，固定寄 `cfan@mainhope.edu.hk`，主旨 `【AGENT】修改…`，不必每則再寫「請寄出」。
+
 金鑰只放專案根目錄 `.env.mail`。不要讀出金鑰、不要貼進對話、不要提交該檔。附件只限工作區內檔案。
