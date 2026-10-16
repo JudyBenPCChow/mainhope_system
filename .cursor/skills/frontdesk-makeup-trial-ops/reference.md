@@ -108,9 +108,65 @@ where id = '<trial_id>'
 
 新排程必須同班、未取消、非過去日；保留原 `payment_id`。
 
+## 退讀
+
+```sql
+-- 對上就讀中報讀
+select e.id, e.status, e.withdraw_effective_date, c.course_code_full, c.id as class_id
+from student_class_enrollments e
+join classes c on c.id = e.class_id
+join students s on s.id = e.student_id
+where s.id = '<student_id>'
+  and e.status = '就讀中';
+
+insert into enrollment_change_events (
+  student_id, class_id, enrollment_id, action, effective_date, reason
+) values (
+  '<student_id>', '<class_id>', '<enrollment_id>', 'withdraw', '<ymd>', null
+);
+
+update student_class_enrollments
+set status = '<已退讀或就讀中>',  -- 生效日 > 今日香港日則維持就讀中
+    withdraw_effective_date = '<ymd>',
+    withdraw_reason = null,
+    updated_at = now()
+where id = '<enrollment_id>';
+
+update attendance_declarations d
+set status = 'void', updated_at = now()
+from schedules sch
+where d.schedule_id = sch.id
+  and d.student_id = '<student_id>'
+  and sch.class_id = '<class_id>'
+  and sch.scheduled_date >= '<ymd>'
+  and d.status = 'active'
+  and coalesce(sch.status, '') not like '%取消%';
+```
+
+預設不刪 `attendance_details`。寫完再 select 該日起是否仍有 active 宣告。
+
+## 試堂已有單據
+
+```sql
+select p.id, p.receipt_number, p.status, p.total_amount, p.subtotal_amount,
+       p.created_at, ts.id as trial_id, ts.trial_type, ts.payment_id
+from trial_sessions ts
+join students s on s.id = ts.student_id
+left join payments p on p.id = ts.payment_id
+  or (
+    p.student_id = ts.student_id
+    and p.status is distinct from '作廢'
+  )
+where ts.id = '<trial_id>';
+```
+
+再以明細 `description` 含「試堂」、同一 `class_id`／試堂日收窄。列出全部未作廢單後才決定作廢或新開。
+
 ## 相關文件
 
 - 試堂出單：`docs/playbooks/frontdesk/TRIAL_RECEIPT_FRONTLINE.md`
 - 出單先上紙：`docs/policies/enrollment/TRIAL_RECEIPT_BEFORE_ROSTER.md`
+- 作廢：`docs/policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md`
 - 未完成補堂 PDF：skill `leave-makeup-followup`
 - `makeup_of=` 標記：`.cursor/rules/makeup-of-marker.mdc`
+- 寫庫通知：AGENTS.md 鐵則「Agent 非畫面改庫」

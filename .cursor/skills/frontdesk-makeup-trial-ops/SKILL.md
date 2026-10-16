@@ -1,30 +1,36 @@
 ---
 name: frontdesk-makeup-trial-ops
 description: >-
-  前台對話直接寫入 production：個別學生調堂／補堂、試堂排程／改期、半價試堂出單與確認收款。
-  Use when the user asks 安排補堂、調堂、補回取消堂、試堂、改期試堂、半價試堂、確認收款、
-  改付款方式, or names students + date/time for makeup or trial on MainHope_production.
+  前台對話直接寫入 production：個別學生調堂／補堂、試堂排程／改期、半價或正價出單與確認收款、
+  退讀、改試堂價、重複單據診斷。Use when the user asks 安排補堂、調堂、補回取消堂、試堂、
+  改期試堂、半價試堂、確認收款、改付款方式、停退、退讀、改為正價、作廢這張單,
+  or names students + date/time for makeup, trial, withdraw, or receipt fix on MainHope_production.
   Not for 未完成補堂 PDF (leave-makeup-followup) or schema migrations.
 ---
 
-# 前台補堂／試堂寫入（production）
+# 前台寫入（production：補堂／試堂／退讀／單據）
 
 用戶講完學生、科／班、日時後，**自己查 production、自己寫入**。不要只教人手點掣。
 
-真源：**MainHope_production**（project ref `gudmbilboyhouotilrvt`）。優先 Supabase MCP `execute_sql`；MCP 不可用則 CLI `projects api-keys` 取 **service_role** + REST。anon／RLS 空陣列 ≠ 庫真係空。缺權限：**停、通知**，不要假資料交差。
+真源：**MainHope_production**（project ref `gudmbilboyhouotilrvt`）。優先 Supabase MCP `execute_sql`；MCP 不可用則 CLI `projects api-keys` 取 **service_role** + REST。anon／RLS 空陣列 ≠ 庫真係空。缺權限：**停、通知**，不要假資料交差。Cloud Agent 無查庫通道時同樣停；不要改用本對話舊名單。
 
 回覆用語：繁體中文書面語。術語見 `.cursor/rules/terminology.mdc`。
+
+寫入業務列後，同一輪必須做 AGENTS.md「Agent 非畫面改庫」通知（`mgmt_audit_log`＋寄 `cfan@mainhope.edu.hk`，主旨 `【AGENT】修改…`）。
 
 ---
 
 ## 分流
 
-| 用戶意圖 | 做什麼 | 唔好做 |
+| 用戶意圖 | 做什麼 | 不要做 |
 | --- | --- | --- |
 | 某生請假／取消堂 → 約補堂日時 | 調堂：綁 `leave_makeup_records.makeup_schedule_id` | 當全班改期；喺原班加堂（除非原班就讀＝全部補堂生） |
 | 未完成補堂總表／PDF | skill `leave-makeup-followup` | 本 skill |
 | 試堂新排／改期／出單／確認收款 | 試堂流程（下） | 當補堂請假處理 |
 | 全班取消堂改日 | 班別詳情「安排補堂」（`makeup_of=`） | 逐個當個別調堂（除非用戶只要部分學生） |
+| 某生停退／退讀某班 | **E. 退讀** | 手誤清除（刪報讀列）；同科改時段（那是轉時間） |
+| 試堂改正價／半價、重複出單 | **F.** 先列已有單再改 | 直接改已收款金額；當沒有舊單再出一張 |
+| 作廢失敗／請作廢這張單 | **G. 診斷**；不要直改 `status` | `DELETE` payments；`UPDATE status=作廢` |
 
 ---
 
@@ -157,5 +163,80 @@ description: >-
 6. **確認收款唔抬試堂池** → 點名扣堂可能對唔上；確認後補 pool＋top_up event。  
 7. **已取消試堂走正式改期 API** → 會拒；應原地改 `schedule_id`／復「已預約」。  
 8. **付款方式用錯字「轉賬」** → 用預設「銀行轉帳」。
+9. **停退當成手誤清除** → 退讀保留報讀列與出席；清除會刪歷史。
+10. **改價不先列已有單** → 重複單、作廢失敗都從這裡來。
+11. **`UPDATE payments.status='作廢'`** → 禁硬改狀態；走作廢流程或停下來列原因。
 
 詳細欄位樣板見 [reference.md](reference.md)。
+
+---
+
+## E. 退讀
+
+用戶說停退、退讀、自某日起不讀該班。對齊 `withdrawStudentFromClass`（`src/services/studentQueries.ts`）。**不要**走 `purgeMistakenEnrollment`（手誤清除）。
+
+### 硬閘
+
+1. 對上學生＋班：`student_class_enrollments.status=就讀中`。同名多人或同科多班 → **停、列候選**。
+2. 生效日：用戶指定的曆日。已過或即日 → 報讀改 `已退讀`；未來日 → 維持 `就讀中`，只寫 `withdraw_effective_date`（預約退讀）。
+3. 出席：**預設保留**。用戶明講刪除該班出席才刪。不要因有出席就停住不退讀。
+4. 同科只改逢星期／時段 → 不是本題（轉時間）。用戶要離開且未有新班才退讀。
+
+### 寫入
+
+1. `enrollment_change_events`：`action=withdraw`、`effective_date`、`reason`（用戶未寫原因可空）。若已有該報讀、未來日的 withdraw 事件，先刪再插（與畫面一致）。
+2. `student_class_enrollments`：`withdraw_effective_date`、`withdraw_reason`；`status` 依生效日是否已到。
+3. 作廢宣告：該生該班、`schedules.scheduled_date >= 生效日`、排程狀態不含「取消」的 **active** `attendance_declarations` → `status=void`。不改池餘額。預約退讀也要做，否則生效日後的堂仍上紙。
+4. 核對宣告：`voidStudentDeclarationsOnClassFromDate` 在畫面路徑若失敗只記 log、退讀仍算完成。Agent 直寫則**寫完必須再查**該日起仍 active 的宣告；仍有就補 void 並在回覆標明。
+5. 私人課程：政策上通常一併取消尚未上的未來課堂。專科班不要為退讀而取消全班排程。
+
+### 完成回覆
+
+| 學生 | 班別 | 生效日 | 報讀狀態 | 作廢宣告（該日起） | 出席 |
+| --- | --- | --- | --- | --- | --- |
+| 姓名 | `course_code_full` | YYYY-MM-DD | 已退讀／就讀中（預約） | N 筆 | 保留／已刪 |
+
+---
+
+## F. 改試堂價／重複出單（先列再開寫）
+
+改為正價、改半價、再出一張單：**先列出該試堂已有單據，等用戶確認要動哪一張**，除非用戶已指明單號且庫裡只有一張未作廢單。
+
+### 先查
+
+同一 `trial_sessions.id` 的 `payment_id`，以及同學生、同班、同試堂日、說明含「試堂」的其他 `payments`（含待收款／已收款／作廢）。表列：單號、狀態、`trial_type`、正價／實收、是否已掛在 `trial_sessions.payment_id`。
+
+### 半價 → 正價（金額／優惠錯＝G2d）
+
+政策：已開單**不要改原單金額**；作廢錯單再出正確單。見 `docs/policies/payments/PAYMENT_RECEIPT_VOID_POLICY.md`。
+
+1. 未作廢多於一張 → 進 **G**，不要再出第三張。
+2. 僅一張 **待收款** 半價：向用戶列該單；確認後作廢（G）再出原價單（`trial_type=原價試堂`；無半價優惠列；`total_amount=subtotal_amount=明細正價`）。把新單掛回 `trial_sessions.payment_id`。
+3. 僅一張 **已收款** 半價：先列；作廢有時間窗／第二人（G）。確認收款過的單作廢後須 clawback 試堂池。用戶未授權作廢已收款單 → 停。
+4. 出新單前再次查未作廢試堂單；仍有就停。
+
+### 新排試堂出單
+
+第 B 節「一定要出學費單」之前，先跑本節「先查」。已有未作廢單 → 不要再 insert `payments`。
+
+---
+
+## G. 作廢失敗／請作廢這張單
+
+**禁止**：`DELETE FROM payments`；`UPDATE payments SET status='作廢'`。畫面與 Edge `void-payment` 才改狀態並連動轉介／月費／通知。
+
+### 診斷（畫面說失敗或用戶說作廢不了）
+
+查該 `payment_id`（及同試堂其他單）後，對上原因再回覆，不要猜「請稍後再試」：
+
+| 觀察 | 原因 |
+| --- | --- |
+| `status` 已是作廢 | 已作廢；告訴用戶單號，不要再作廢 |
+| 開單超過 30 分鐘 | 需要 manager／alien **第二人**確認；agent 沒有對方密碼 → 停，請用戶在畫面完成 |
+| 已收款且要整單作廢 | Edge 會寄管理層；已耗堂數大於作廢後應留堂 → 政策拒整單。列已扣堂數 |
+| 角色不是 admin／alien | 畫面本來就不可作廢 |
+| 學年編輯鎖 | 非現行／下一學年，admin 不可作廢 |
+
+Agent **不要**用 service_role 繞過密碼／第二人去改狀態。把診斷表交給用戶；待收款、開單 ≤30 分鐘：請用戶在收款紀錄按作廢（密碼＋原因）。用戶要 agent 代作廢已收款或逾時單 → 停。
+
+作廢成功後（用戶在畫面完成、或確認庫已作廢）：核對 `trial_sessions.payment_id` 不要掛著已作廢單；出正確新單後改掛。已收款作廢須有 clawback；沒有就標明缺口，不要當完成。
