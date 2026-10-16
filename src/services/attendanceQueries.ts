@@ -16,6 +16,7 @@ import {
  resolvePrimaryMessagingTargetFromDbRow,
  type PrimaryMessagingTarget,
 } from "@/lib/whatsappReminder"
+import { paidTrialObligesSchedule } from "@/lib/trialLessonObligation"
 import { supabase } from "@/lib/supabaseClient"
 import { addDaysYmd } from "@/lib/weekdayUtils"
 import {
@@ -341,8 +342,8 @@ export async function fetchTrialStudentsForSchedule(
   .filter((row) => {
    const s = String((row as { status?: string }).status ?? "")
    const paymentId = (row as { payment_id?: string | null }).payment_id
-   // 已完成仍上紙（與 activeTrialsForSchedules 一致）；取消不上紙
-   return Boolean(paymentId) && !s.includes("取消")
+   // 已完成仍上紙；取消與待改期不上紙
+   return paidTrialObligesSchedule(s, Boolean(paymentId))
   })
   .map((row) => {
   const r = row as Record<string, unknown>
@@ -970,8 +971,8 @@ export async function fetchTrialStudentsForSchedules(
  for (const row of data ?? []) {
   const r = row as Record<string, unknown>
   const status = String(r.status ?? "")
-  // 已完成仍上紙（與 activeTrialsForSchedules 一致）；取消不上紙
-  if (!r.payment_id || status.includes("取消")) continue
+  // 已完成仍上紙；取消與待改期不上紙
+  if (!paidTrialObligesSchedule(status, Boolean(r.payment_id))) continue
   const studentId = String(r.student_id)
   if (seen.has(studentId)) continue
   seen.add(studentId)

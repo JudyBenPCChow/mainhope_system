@@ -11,8 +11,9 @@ describe("paidTrialObligesSchedule", () => {
   expect(paidTrialObligesSchedule("已預約", true)).toBe(true)
  })
 
- it("取消或未確認收款不算", () => {
+ it("取消、待改期或未確認收款不算", () => {
   expect(paidTrialObligesSchedule("已取消", true)).toBe(false)
+  expect(paidTrialObligesSchedule("待改期", true)).toBe(false)
   expect(paidTrialObligesSchedule("已完成", false)).toBe(false)
   expect(paidTrialObligesSchedule("已預約", false)).toBe(false)
  })

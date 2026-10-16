@@ -12,6 +12,15 @@ export function isCancelledScheduleStatus(status: string): boolean {
  return status.includes("取消")
 }
 
+/** 試堂轉正式報讀、且目標就是試堂班時，拿掉試堂當堂，避免試堂費與學費疊在同一堂。 */
+export function excludeScheduleById<T extends { id: string }>(
+ rows: T[],
+ scheduleId: string | null | undefined
+): T[] {
+ if (!scheduleId) return rows
+ return rows.filter((row) => row.id !== scheduleId)
+}
+
 export function formatClassScheduleLabel(row: {
  session_number?: number | null
  scheduled_date: string

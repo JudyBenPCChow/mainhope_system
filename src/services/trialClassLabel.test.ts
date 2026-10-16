@@ -40,6 +40,7 @@ function blankRow(over: Partial<TrialManageRow>): TrialManageRow {
   course_mode: "regular",
   price_per_lesson: null,
   roll_call_done: true,
+  counts_toward_headcount: true,
   ...over,
  }
 }

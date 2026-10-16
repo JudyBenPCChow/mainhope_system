@@ -69,6 +69,10 @@ export function TrialOutcomeDialog({
    setErr("請選擇原因／結果")
    return
   }
+  if (outcome === "other" && !note.trim()) {
+   setErr("其他結果須填補充備註（此結果會離開待跟進）")
+   return
+  }
   if (saving) return
   setSaving(true)
   setErr(null)
@@ -130,7 +134,7 @@ export function TrialOutcomeDialog({
          ? lostWillCancel
            ? "明確不會報讀。確認後會一併取消此試堂並記入流失。"
            : "明確不會報讀：記入流失，方便統計原因。"
-         : "非轉正、亦非單純流失：例如改期、暫掛跟進。改報其他班請用「正式報讀」。"}
+         : "登記後會離開待跟進，不能再改期或正式報讀。改期請用「更多」裡的改期；改報其他班或家長仍在考慮，請勿登記其他結果。"}
        </p>
       </fieldset>
 
@@ -153,10 +157,12 @@ export function TrialOutcomeDialog({
       </label>
 
       <label className="grid gap-1">
-       <span className="text-xs font-medium text-muted-foreground">補充備註（選填）</span>
+       <span className="text-xs font-medium text-muted-foreground">
+        {outcome === "other" ? "補充備註 *" : "補充備註（選填）"}
+       </span>
        <Input
         className="h-9"
-        placeholder="例如比較對象、跟進日期…"
+        placeholder={outcome === "other" ? "說明為何不是正式報讀也不是流失" : "例如比較對象、跟進日期…"}
         value={note}
         disabled={saving}
         onChange={(e) => setNote(e.target.value)}

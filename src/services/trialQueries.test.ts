@@ -70,7 +70,7 @@ describe("trial lost / outcome gates", () => {
 
  it("已結案不可再標流失", () => {
   expect(trialCanRecordLost({ outcome: "converted", status: "已完成" })).toBe(false)
-  expect(trialLostBlockedReason({ outcome: "lost", status: "取消" })).toBe("已標流失")
+  expect(trialLostBlockedReason({ outcome: "lost", status: "取消" })).toBe("已流失")
  })
 
  it("其他結果須已點名或已取消", () => {

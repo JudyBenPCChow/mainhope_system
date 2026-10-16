@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+ excludeScheduleById,
  formatClassScheduleLabel,
  listEnrollmentStartScheduleOptions,
  listPastSchedulesNeedingAutoLeave,
@@ -142,6 +143,18 @@ describe("resolveEnrollmentStartDate", () => {
     specifiedScheduleDate: null,
    })
   ).toThrow("請選擇開始報讀的排程")
+ })
+})
+
+describe("excludeScheduleById", () => {
+ it("拿掉試堂當堂後，下一堂是其後的排程", () => {
+  const rows = [
+   { id: "trial", scheduled_date: "2026-10-20", status: "正常", start_time: "16:30", session_number: 8 },
+   { id: "next", scheduled_date: "2026-10-27", status: "正常", start_time: "16:30", session_number: 9 },
+  ]
+  const kept = excludeScheduleById(rows, "trial")
+  expect(resolveNextClassSchedule(kept, "2026-10-16")?.id).toBe("next")
+  expect(excludeScheduleById(rows, null)).toHaveLength(2)
  })
 })
 

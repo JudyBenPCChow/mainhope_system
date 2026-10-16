@@ -148,6 +148,19 @@ function context(): ScheduleRosterContext {
     grade: "S3",
     contactPhone: null,
    },
+   {
+    id: "trial-awaiting",
+    scheduleId: "schedule-2",
+    classId: "class-a",
+    studentId: "trial-awaiting-student",
+    status: "待改期",
+    paymentId: "pay-trial-4",
+    countsTowardHeadcount: true,
+    fullName: "待改期試堂",
+    englishName: null,
+    grade: "S3",
+    contactPhone: null,
+   },
   ],
   leaves: [
    {
@@ -214,7 +227,7 @@ describe("schedule roster selectors", () => {
   expect(rows.map((row) => row.studentId)).toEqual(["單堂未選"])
  })
 
- it("試堂保留已確認收款（含已完成）；取消／無單不上紙", () => {
+ it("試堂保留已確認收款（含已完成）；取消、待改期、無單不上紙", () => {
   expect(activeTrialsForSchedules(context(), ["schedule-2"]).map((row) => row.id)).toEqual([
    "trial-active",
    "trial-completed",

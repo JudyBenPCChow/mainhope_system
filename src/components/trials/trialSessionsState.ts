@@ -1,12 +1,11 @@
 import { createListDataCache } from "@/lib/listDataCache"
 import type { TeacherRecord } from "@/services/teacherQueries"
-import type { TrialDashboardStats, TrialManageRow } from "@/services/trialQueries"
+import type { TrialManageRow } from "@/services/trialQueries"
 
 export type TrialSessionsDataCache = {
  includeOlderYears: boolean
  rows: TrialManageRow[]
  hiddenOlderCount: number
- stats: TrialDashboardStats
  teachers: TeacherRecord[]
 }
 
