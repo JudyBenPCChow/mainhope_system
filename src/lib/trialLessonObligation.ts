@@ -1,10 +1,14 @@
+import { trialIsAwaitingReschedule, trialIsCancelled } from "@/lib/trialFollowupAction"
+
 /**
- * 已綁該堂、學費已收款、未取消的試堂，該堂仍算試堂。
+ * 已綁該堂、學費已收款、未取消、亦非待改期的試堂，該堂仍算試堂。
  * 「已完成」只表示試堂列表結案，不拿掉這一堂的義務。
+ * 「待改期」已離開這次排程，不上這堂點名紙。
  */
 export function paidTrialObligesSchedule(status: string, paymentConfirmed: boolean): boolean {
  if (!paymentConfirmed) return false
- return !status.includes("取消")
+ if (trialIsCancelled(status) || trialIsAwaitingReschedule(status)) return false
+ return true
 }
 
 /**

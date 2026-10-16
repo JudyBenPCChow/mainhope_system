@@ -4,7 +4,7 @@ export type TrialOutcome = "open" | "converted" | "lost" | "other"
 
 export const TRIAL_OUTCOME_LABELS: Record<TrialOutcome, string> = {
  open: "待跟進",
- converted: "已轉化",
+ converted: "已正式報讀",
  lost: "已流失",
  other: "其他結果",
 }
@@ -17,15 +17,12 @@ export const TRIAL_LOST_REASON_OPTIONS = [
  "沒興趣／不需要",
  "聯絡不上",
  "試堂體驗不佳",
+ "只試不報",
  "其他",
 ] as const
 
-export const TRIAL_OTHER_RESULT_OPTIONS = [
- "改期再試",
- "家長考慮中（暫掛）",
- "只試不報（明確）",
- "其他",
-] as const
+/** 稀有逃生口。登記後離開待跟進，不能再改期或正式報讀。 */
+export const TRIAL_OTHER_RESULT_OPTIONS = ["其他"] as const
 
 export function normalizeTrialOutcome(raw: string | null | undefined): TrialOutcome {
  const s = String(raw ?? "open").trim()

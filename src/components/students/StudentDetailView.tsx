@@ -328,7 +328,7 @@ export function StudentDetailView() {
  const [pickStartScheduleId, setPickStartScheduleId] = useState("")
  const [pickClassSchedules, setPickClassSchedules] = useState<ClassScheduleRow[]>([])
  const [pickClassSchedulesLoading, setPickClassSchedulesLoading] = useState(false)
- const [pickHwPlan, setPickHwPlan] = useState<"三日" | "四日" | "五日" | "七日">("四日")
+ const [pickHwPlan, setPickHwPlan] = useState<"三日" | "四日" | "五日">("四日")
  const [pickHwWeekdays, setPickHwWeekdays] = useState<Array<"一" | "二" | "三" | "四" | "五">>([
   "一",
   "二",
@@ -765,9 +765,8 @@ export function StudentDetailView() {
    return
   }
   if (isHomework) {
-   const need =
-    pickHwPlan === "三日" ? 3 : pickHwPlan === "四日" ? 4 : pickHwPlan === "五日" ? 5 : 7
-   if (pickHwPlan !== "七日" && pickHwWeekdays.length !== need) {
+   const need = pickHwPlan === "三日" ? 3 : pickHwPlan === "四日" ? 4 : 5
+   if (pickHwWeekdays.length !== need) {
     setAddEnrollmentError(`每週${pickHwPlan}請選 ${need} 日（已選 ${pickHwWeekdays.length}）`)
     return
    }
@@ -987,19 +986,7 @@ export function StudentDetailView() {
  const pickedClassOption = classOptions.find((o) => o.id === pickClass)
  const isSummerPick = pickedClassOption?.courseMode === "summer_two_period"
  const isHomeworkPick = pickedClassOption?.classKind === "homework"
- const isPrimaryHomeworkPick =
-  isHomeworkPick &&
-  String(pickedClassOption?.courseCode ?? "")
-   .toUpperCase()
-   .includes("HWKP")
- const homeworkPlanOptions = (
-  isPrimaryHomeworkPick
-   ? (["三日", "四日", "五日"] as const)
-   : (["三日", "四日", "五日", "七日"] as const)
- )
- useEffect(() => {
-  if (isPrimaryHomeworkPick && pickHwPlan === "七日") setPickHwPlan("五日")
- }, [isPrimaryHomeworkPick, pickHwPlan])
+ const homeworkPlanOptions = ["三日", "四日", "五日"] as const
  const showSessionPicker = Boolean(pickClass) && pickForm === SINGLE_SESSION_ENROLLMENT
  const classSearchableOptions = useMemo(
   () =>
@@ -2285,9 +2272,8 @@ export function StudentDetailView() {
                 type="button"
                 onClick={() => {
                  setPickHwPlan(p)
-                 const need = p === "三日" ? 3 : p === "四日" ? 4 : p === "五日" ? 5 : 7
+                 const need = p === "三日" ? 3 : p === "四日" ? 4 : 5
                  setPickHwWeekdays((prev) => {
-                  if (p === "七日") return ["一", "二", "三", "四", "五"]
                   if (prev.length === need) return prev
                   if (prev.length > need) return prev.slice(0, need)
                   const extras = (["一", "二", "三", "四", "五"] as const).filter(

@@ -753,7 +753,7 @@ export function AdminHomeworkWorkbench({
             ) : (
               <>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  港元／月；留在中學部的小學生跟中一。12 月、2 月收四分三。中四至中六未列價。
+                  港元／月；留在中學部的小學生跟中一。12 月、2 月收四分三。中四至中六未列價。新報讀只可選三日、四日、五日；七日列供既有報讀計價。
                 </p>
                 <table className="mt-3 w-full text-sm">
                   <thead className="text-xs text-muted-foreground">

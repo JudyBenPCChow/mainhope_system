@@ -66,7 +66,7 @@ const TRIAL_AND_ENROLLMENT_RULES: StatusTagRule[] = [
  { tone: "success", keywords: ["已點名"] },
  { tone: "info", keywords: ["未點名"] },
  // 試堂結果
- { tone: "success", keywords: ["已轉化"] },
+ { tone: "success", keywords: ["已正式報讀", "已轉化"] },
  { tone: "error", keywords: ["流失", "不報讀"] },
  // 試堂類型
  { tone: "success", keywords: ["免費試堂", "免費"] },

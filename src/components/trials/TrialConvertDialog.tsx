@@ -10,6 +10,7 @@ import { Select } from "@/components/ui/select"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import type { CourseMode, EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import {
+  excludeScheduleById,
   formatClassScheduleLabel,
   listEnrollmentStartScheduleOptions,
   resolveEnrollmentStartDate,
@@ -28,11 +29,24 @@ function formatLocalHm(d: Date): string {
 
 export type HomeworkDayPlan = "三日" | "四日" | "五日" | "七日"
 
+const NEW_HOMEWORK_PLANS = ["三日", "四日", "五日"] as const
+
+function trialClockLabel(start: string | null, end: string | null): string | null {
+  const a = start ? String(start).slice(0, 5) : ""
+  const b = end ? String(end).slice(0, 5) : ""
+  if (!a || !b) return null
+  return `${a}–${b}`
+}
+
 export type TrialConvertClassOption = {
   id: string
   label: string
   courseMode: CourseMode
   enrollmentNotice: string | null
+  classKind: ClassKind
+  courseCode: string | null
+  /** 學生已有該班就讀中報讀：只連結，不新增 */
+  existingEnrollment: boolean
 }
 
 export type TrialConvertSessionOption = {
@@ -53,6 +67,7 @@ export type TrialConvertDialogTarget = {
   trialDate: string
   schedStart: string | null
   schedEnd: string | null
+  trialScheduleId: string
   rollCallDone: boolean
   courseMode: CourseMode
   classKind: ClassKind
@@ -118,16 +133,13 @@ export function TrialConvertDialog({
   const isGroup = classKind === "group"
   const isHomework = classKind === "homework"
   const isPrivate = classKind === "private"
+  const isLinking = Boolean(selectedClass?.existingEnrollment)
   const courseMode: CourseMode = selectedClass?.courseMode ?? target?.courseMode ?? "regular"
 
   const trialId = target?.id ?? null
   const trialClassId = target?.trialClassId ?? ""
   const trialCourseMode = target?.courseMode
-  const isPrimaryHomework =
-    isHomework && String(target?.courseCode ?? "").toUpperCase().includes("HWKP")
-  const homeworkPlanOptions = (
-    isPrimaryHomework ? (["三日", "四日", "五日"] as const) : (["三日", "四日", "五日", "七日"] as const)
-  )
+  const homeworkPlanOptions = NEW_HOMEWORK_PLANS
 
   useEffect(() => {
     if (!open || !trialId) return
@@ -137,7 +149,7 @@ export function TrialConvertDialog({
     setHwPlan("")
     setNote("")
     setDlgErr(null)
-    if (isHomework || isPrivate) {
+    if (isPrivate) {
       setTargetClassId(trialClassId)
     } else {
       setTargetClassId("")
@@ -147,7 +159,7 @@ export function TrialConvertDialog({
   }, [open, trialId])
 
   useEffect(() => {
-    if (!open || !isGroup || classOptionsLoading) return
+    if (!open || isPrivate || classOptionsLoading) return
     const nextId = classOptions.some((c) => c.id === targetClassId)
       ? targetClassId
       : classOptions.some((c) => c.id === trialClassId)
@@ -165,12 +177,15 @@ export function TrialConvertDialog({
     )
     if (nextId) onTargetClassChange?.(nextId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, isGroup, classOptions, classOptionsLoading, trialClassId])
+  }, [open, isPrivate, classOptions, classOptionsLoading, trialClassId])
 
   const classSearchOptions = useMemo(
     () =>
       classOptions.map((c) => {
-        const label = c.id === trialClassId ? `${c.label}（試堂班）` : c.label
+        const bits = [c.label]
+        if (c.id === trialClassId) bits.push("試堂班")
+        if (c.existingEnrollment) bits.push("連結現有報讀")
+        const label = bits.length > 1 ? `${bits[0]}（${bits.slice(1).join(" · ")}）` : bits[0]
         return { value: c.id, label, searchText: c.label, displayText: label }
       }),
     [classOptions, trialClassId]
@@ -190,16 +205,21 @@ export function TrialConvertDialog({
       })),
     [sessions]
   )
+  const trialScheduleId = target?.trialScheduleId ?? ""
+  const enrollStartRows = useMemo(() => {
+    if (!trialScheduleId || !targetClassId || targetClassId !== trialClassId) return startRows
+    return excludeScheduleById(startRows, trialScheduleId)
+  }, [startRows, trialScheduleId, targetClassId, trialClassId])
   const nextSchedule = useMemo(
-    () => resolveNextClassSchedule(startRows, todayYmd, nowHm),
-    [startRows, todayYmd, nowHm]
+    () => resolveNextClassSchedule(enrollStartRows, todayYmd, nowHm),
+    [enrollStartRows, todayYmd, nowHm]
   )
   const futureSchedules = useMemo(
     () =>
-      listEnrollmentStartScheduleOptions(startRows).filter(
+      listEnrollmentStartScheduleOptions(enrollStartRows).filter(
         (row) => row.scheduled_date.slice(0, 10) >= todayYmd
       ),
-    [startRows, todayYmd]
+    [enrollStartRows, todayYmd]
   )
   const sessionsReady =
     !isGroup ||
@@ -246,42 +266,45 @@ export function TrialConvertDialog({
     todayYmd,
   ])
 
+  const allowedHomeworkPlans: readonly string[] = homeworkPlanOptions
+  const hwPlanOk = hwPlan !== "" && allowedHomeworkPlans.includes(hwPlan)
+
   const submit = async () => {
     if (!target || !targetClassId) return
-    if (isHomework && !hwPlan) {
+    if (!isLinking && isHomework && !hwPlanOk) {
       setDlgErr("請選擇每週日數檔")
       return
     }
-    if (isGroup && !sessionsReady) {
+    if (!isLinking && isGroup && !sessionsReady) {
       setDlgErr(sessionsError || "請等待排程載入完成")
       return
     }
-    if (isGroup && !hasFutureStart) {
+    if (!isLinking && isGroup && !hasFutureStart) {
       setDlgErr("此班別未有未來排程")
       return
     }
-    if (isGroup && startMode === "schedule" && !resolvedEnrollDate) {
+    if (!isLinking && isGroup && startMode === "schedule" && !resolvedEnrollDate) {
       setDlgErr("請選擇開始報讀的未來排程")
       return
     }
     const enrollmentPeriod: EnrollmentFormValue | null =
-      enrollForm === "full" || isHomework || isPrivate ? null : enrollForm
+      isLinking || enrollForm === "full" || isHomework || isPrivate ? null : enrollForm
     setDlgErr(null)
     try {
       await onSubmit({
         targetClassId,
         enrollmentPeriod,
         scheduleIds: [],
-        formLabel,
+        formLabel: isLinking ? "連結現有報讀" : formLabel,
         note: note.trim() || null,
-        enrollDate: isGroup ? resolvedEnrollDate : null,
-        homeworkDayPlan: isHomework && hwPlan ? hwPlan : null,
+        enrollDate: isLinking || !isGroup ? null : resolvedEnrollDate,
+        homeworkDayPlan: isLinking || !isHomework || !hwPlanOk ? null : hwPlan,
       })
     } catch (e) {
       reportUserFacingError(e, {
         source: "TrialConvertDialog.submit",
         setErr: setDlgErr,
-        userMessage: e instanceof Error ? e.message : "轉正失敗",
+        userMessage: e instanceof Error ? e.message : "正式報讀失敗",
       })
     }
   }
@@ -294,15 +317,16 @@ export function TrialConvertDialog({
   const canSubmit =
     !saving &&
     Boolean(targetClassId) &&
-    (isPrivate ||
-      (isHomework && Boolean(hwPlan)) ||
+    (isLinking ||
+      isPrivate ||
+      (isHomework && hwPlanOk) ||
       (isGroup && !classOptionsLoading && startOk))
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>正式報讀（轉化）</DialogTitle>
+          <DialogTitle>正式報讀</DialogTitle>
         </DialogHeader>
         {target ? (
           <div className="grid gap-4 text-sm">
@@ -325,8 +349,8 @@ export function TrialConvertDialog({
               </div>
               <div className="mt-0.5 tabular-nums text-xs text-muted-foreground">
                 試堂 {target.trialDate}
-                {target.schedStart && target.schedEnd
-                  ? ` ${target.schedStart}–${target.schedEnd}`
+                {trialClockLabel(target.schedStart, target.schedEnd)
+                  ? ` ${trialClockLabel(target.schedStart, target.schedEnd)}`
                   : null}
               </div>
             </div>
@@ -336,11 +360,11 @@ export function TrialConvertDialog({
                 role="status"
                 className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
               >
-                學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認轉正前請再核對。
+                學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認正式報讀前請再核對。
               </div>
             ) : null}
 
-            {isGroup ? (
+            {isGroup || isHomework ? (
               <div className="grid gap-1 text-xs text-muted-foreground">
                 <span>報讀班別 *</span>
                 <SearchableSelect
@@ -354,7 +378,9 @@ export function TrialConvertDialog({
                     classOptionsLoading
                       ? "載入班別…"
                       : classOptions.length === 0
-                        ? "沒有可報讀的專科班"
+                        ? isHomework
+                          ? "沒有可報讀的功課輔導班"
+                          : "沒有可報讀的專科班"
                         : "找不到班別"
                   }
                   aria-label="報讀班別"
@@ -369,7 +395,11 @@ export function TrialConvertDialog({
                     onTargetClassChange?.(id)
                   }}
                 />
-                <span>可搜尋改選其他尚未報讀的專科班，預設為這次試堂的班。</span>
+                <span>
+                  {isHomework
+                    ? "可改選其他功課輔導班（例如小學部／中學部）。已就讀則連結現有報讀，不會再新增。"
+                    : "可搜尋改選其他專科班。已就讀則連結現有報讀，不會再新增。"}
+                </span>
               </div>
             ) : (
               <div className="grid gap-1 text-xs text-muted-foreground">
@@ -377,15 +407,17 @@ export function TrialConvertDialog({
                 <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-sm text-foreground">
                   {target.trialClassLabel}
                 </div>
-                <span>
-                  {isHomework
-                    ? "此試堂為功課輔導班，轉化後報讀此班。慣常到校星期可到學生詳情稍後補選。"
-                    : "此試堂為私人課程，轉化後報讀此班，開始日為今天。改老師或加堂請到私人課程頁。"}
-                </span>
+                <span>此試堂為私人課程，轉化後報讀此班，開始日為今天。改老師或加堂請到私人課程頁。</span>
               </div>
             )}
 
-            {isHomework ? (
+            {isLinking ? (
+              <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                學生已在此班就讀。確認後只把本筆試堂標為已正式報讀並連結該報讀，不會再新增一筆。
+              </p>
+            ) : null}
+
+            {!isLinking && isHomework ? (
               <fieldset className="grid gap-2">
                 <legend className="text-xs font-medium text-muted-foreground">每週日數檔 *</legend>
                 <ChoiceChips
@@ -397,7 +429,7 @@ export function TrialConvertDialog({
               </fieldset>
             ) : null}
 
-            {isGroup ? (
+            {!isLinking && isGroup ? (
               <fieldset className="grid gap-2">
                 <legend className="text-xs font-medium text-muted-foreground">報讀形式</legend>
                 {courseMode === "summer_two_period" ? (
@@ -428,6 +460,11 @@ export function TrialConvertDialog({
                     }}
                     label={(mode) => (mode === "next" ? "下一堂" : "指定未來排程")}
                   />
+                  {targetClassId === trialClassId ? (
+                    <p className="text-xs text-muted-foreground">
+                      開始日不會用試堂當堂，避免試堂費與學費疊在同一堂。
+                    </p>
+                  ) : null}
                   {startMode === "next" ? (
                     <div className="rounded-md border border-border bg-muted/20 px-3 py-2 text-muted-foreground">
                       {!sessionsReady && sessionsError ? (
@@ -520,9 +557,10 @@ export function TrialConvertDialog({
             <p className="text-xs text-muted-foreground">
               學費請到{" "}
               <Link className="text-info hover:underline" to={`/Payments?studentId=${target.studentId}`}>
-                收款頁
+                收款登記
               </Link>{" "}
-              處理；本對話框只建立報讀並標轉化。
+              處理；本對話框
+              {isLinking ? "只把試堂標為已正式報讀。" : "只建立報讀並標為已正式報讀。"}
             </p>
 
             {dlgErr ? (
@@ -544,7 +582,7 @@ export function TrialConvertDialog({
                 取消
               </Button>
               <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
-                {saving ? "處理中…" : "確認轉正"}
+                {saving ? "處理中…" : isLinking ? "確認連結並結案" : "確認正式報讀"}
               </Button>
             </div>
           </div>

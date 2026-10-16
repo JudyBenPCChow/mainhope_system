@@ -20,6 +20,10 @@ import {
  type TrialOutcome,
 } from "@/lib/trialOutcome"
 import {
+ trialIsAwaitingReschedule,
+ trialStatusAfterReschedule,
+} from "@/lib/trialFollowupAction"
+import {
  formatEnrollmentFormLabel,
  type CourseMode,
  type EnrollmentFormValue,
@@ -27,7 +31,6 @@ import {
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
-import { addDaysYmd } from "@/services/teacherQueries"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
 import { hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
 import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
@@ -88,16 +91,6 @@ export async function previewTrialAttendanceImpact(trialId: string): Promise<Att
  })
 }
 
-/** 以週一為一週起始（與本地日曆一致） */
-export function mondayYmdOfWeekContaining(ymd: string): string {
- const [y, mo, da] = ymd.split("-").map(Number)
- const dt = new Date(y, mo - 1, da)
- const day = dt.getDay()
- const diff = day === 0 ? -6 : 1 - day
- dt.setDate(dt.getDate() + diff)
- return localYmd(dt)
-}
-
 export type TrialManageRow = {
  id: string
  student_id: string
@@ -135,6 +128,8 @@ export type TrialManageRow = {
  price_per_lesson: number | null
  /** 該試堂排程是否已有點名列 */
  roll_call_done: boolean
+ /** 建立時手選；列表用小標。無資料則 null */
+ counts_toward_headcount: boolean | null
 }
 
 function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageRow {
@@ -195,6 +190,8 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   course_mode: course?.course_mode === "summer_two_period" ? "summer_two_period" : "regular",
   price_per_lesson: classPrice != null && classPrice > 0 ? classPrice : coursePrice,
   roll_call_done: rollCallDone,
+  counts_toward_headcount:
+   r.counts_toward_headcount === true ? true : r.counts_toward_headcount === false ? false : null,
  }
 }
 
@@ -247,10 +244,10 @@ export async function fetchUpcomingTrialsForClassIds(
 }
 
 const TRIAL_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
 
 const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
 
@@ -456,33 +453,6 @@ export async function fetchTrialsWithRelations(opts?: {
  }
 }
 
-export type TrialDashboardStats = {
- todayCount: number
- weekCount: number
-}
-
-export async function fetchTrialDashboardStats(): Promise<TrialDashboardStats> {
- const empty: TrialDashboardStats = { todayCount: 0, weekCount: 0 }
- if (!supabase) return empty
- const today = localYmd()
- const weekStart = mondayYmdOfWeekContaining(today)
- const weekEnd = addDaysYmd(weekStart, 6)
- const [todayRes, weekRes] = await Promise.all([
-  supabase.from("trial_sessions").select("id", { count: "exact", head: true }).eq("trial_date", today),
-  supabase
-   .from("trial_sessions")
-   .select("id", { count: "exact", head: true })
-   .gte("trial_date", weekStart)
-   .lte("trial_date", weekEnd),
- ])
- if (todayRes.error) throw todayRes.error
- if (weekRes.error) throw weekRes.error
- return {
-  todayCount: todayRes.count ?? 0,
-  weekCount: weekRes.count ?? 0,
- }
-}
-
 export async function updateTrialSession(
  id: string,
  patch: { status?: string; remarks?: string | null },
@@ -491,17 +461,25 @@ export async function updateTrialSession(
  if (!supabase) throw new Error("Supabase 未設定")
  const nextStatus = patch.status != null ? String(patch.status) : ""
  const cancelling = nextStatus.includes("取消")
- if (cancelling) {
+ const releasingSchedule = trialIsAwaitingReschedule(nextStatus)
+ if (cancelling || releasingSchedule) {
   const hits = await previewTrialAttendanceImpact(id)
-  await applyTrialAttendanceDeletes(id, hits, options, "trial_cancel")
+  await applyTrialAttendanceDeletes(
+   id,
+   hits,
+   options,
+   cancelling ? "trial_cancel" : "trial_release_schedule"
+  )
  }
  const { error } = await supabase
   .from("trial_sessions")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
  if (error) {
-  if (cancelling && options?.attendanceAction === "delete") {
-   throw new Error(`出席已刪、試堂未改為取消，請重試。原錯誤：${error.message}`)
+  if ((cancelling || releasingSchedule) && options?.attendanceAction === "delete") {
+   throw new Error(
+    `出席已刪、試堂狀態未更新，請重試。原錯誤：${error.message}`
+   )
   }
   throw error
  }
@@ -1186,10 +1164,10 @@ export function trialCanConvert(row: Pick<TrialManageRow, "outcome" | "status">)
 export function trialConvertBlockedReason(
  row: Pick<TrialManageRow, "outcome" | "status">
 ): string | null {
- if (row.outcome === "converted") return "已轉正式報讀"
- if (row.outcome === "lost") return "已標流失"
+ if (row.outcome === "converted") return "已正式報讀"
+ if (row.outcome === "lost") return "已流失"
  if (row.outcome === "other") return "已有其他結果"
- if (String(row.status).includes("取消")) return "已取消，不可轉正"
+ if (String(row.status).includes("取消")) return "已取消，不可正式報讀"
  return null
 }
 
@@ -1199,7 +1177,7 @@ export function trialConvertRollCallWarning(
 ): string | null {
  if (String(row.status).includes("取消")) return null
  if (row.roll_call_done) return null
- return "學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。仍要繼續轉正？"
+ return "學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。仍要繼續正式報讀？"
 }
 
 export function trialCanRecordLost(
@@ -1212,8 +1190,8 @@ export function trialCanRecordLost(
 export function trialLostBlockedReason(
  row: Pick<TrialManageRow, "outcome" | "status">
 ): string | null {
- if (row.outcome === "converted") return "已轉正式報讀"
- if (row.outcome === "lost") return "已標流失"
+ if (row.outcome === "converted") return "已正式報讀"
+ if (row.outcome === "lost") return "已流失"
  if (row.outcome === "other") return "已有其他結果"
  return null
 }
@@ -1242,6 +1220,9 @@ export async function recordTrialOutcome(params: {
  if (!supabase) throw new Error("Supabase 未設定")
  const reason = params.reason.trim()
  if (!reason) throw new Error("請選擇原因／結果")
+ if (params.outcome === "other" && !params.note?.trim()) {
+  throw new Error("其他結果須填補充備註（此結果會離開待跟進）")
+ }
  const { data: row, error: loadErr } = await supabase
   .from("trial_sessions")
   .select("id, status, outcome")
@@ -1352,8 +1333,8 @@ export async function convertTrialToEnrollment(params: {
   outcome: string | null
  }
  const outcome = normalizeTrialOutcome(t.outcome)
- if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可再轉正")
- if (String(t.status).includes("取消")) throw new Error("已取消試堂不可轉正")
+ if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可再正式報讀")
+ if (String(t.status).includes("取消")) throw new Error("已取消試堂不可正式報讀")
 
  const targetClassId = (params.targetClassId ?? t.class_id).trim()
  if (!targetClassId) throw new Error("請選擇報讀班別")
@@ -1408,9 +1389,11 @@ export async function convertTrialToEnrollment(params: {
   }
  }
 
- const periodLabel = params.homeworkDayPlan
-  ? `功課輔導班（每週${params.homeworkDayPlan}）`
-  : formatEnrollmentFormLabel(params.enrollmentPeriod)
+ const periodLabel = existingEnrollmentId
+  ? "連結現有報讀"
+  : params.homeworkDayPlan
+    ? `功課輔導班（每週${params.homeworkDayPlan}）`
+    : formatEnrollmentFormLabel(params.enrollmentPeriod)
  const staffNote = params.note?.trim() ?? ""
  const enrollDateRaw = (params.enrollDate ?? "").slice(0, 10)
  const startNote =
@@ -1422,7 +1405,7 @@ export async function convertTrialToEnrollment(params: {
   staffNote,
   startNote,
   hwWeekdayNote,
-  rollCallPending ? "轉正時尚未完成試堂點名" : "",
+  rollCallPending ? "正式報讀時尚未完成試堂點名" : "",
  ]
   .filter(Boolean)
   .join("；")
@@ -1506,7 +1489,7 @@ export async function convertTrialToEnrollment(params: {
  }
 }
 
-/** 改期：只換 schedule_id／trial_date；status 不變；舊堂名單自然消失 */
+/** 改期：換 schedule_id／trial_date。待改期回復已預約；其餘狀態不變。舊堂名單自然消失。 */
 export async function rescheduleTrialSession(params: {
  trialId: string
  newScheduleId: string
@@ -1572,6 +1555,7 @@ export async function rescheduleTrialSession(params: {
   .update({
    schedule_id: params.newScheduleId,
    trial_date: newDate,
+   status: trialStatusAfterReschedule(t.status),
    updated_at: new Date().toISOString(),
   })
   .eq("id", t.id)

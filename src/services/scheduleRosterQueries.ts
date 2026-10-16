@@ -446,7 +446,7 @@ export function enrollmentsForSchedules(
 }
 
 /**
- * 點名紙用：未取消，且已有確認收款（出單先上紙）。
+ * 點名紙用：已確認收款，且未取消、亦非待改期（出單先上紙）。
  * 已完成仍保留——報讀後自動結案不應令該試堂日回看缺名。
  */
 export function activeTrialsForSchedules(
