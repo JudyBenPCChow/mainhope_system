@@ -4,6 +4,12 @@
 
 ## 教訓
 
+### 2026-10-15 — 老師電郵稱謂 Ms./Mr. 入庫，勿硬編碼
+- **情境**：明日課堂提醒要分辨 Ms./Mr.；`teachers` 原先無性別／稱謂欄，一度寫在 Edge Function 對照表。
+- **錯在邊**：對照表只活在函式內，與營運維護脫節；新老師或改稱謂要改碼再部署。
+- **正確做法**：`teachers.honorific`（`Ms.`／`Mr.`，可空→`Mr./Ms.`）；電郵 payload／Edge Function 讀庫；老師詳情可改。
+- **若已升格**：migration `20261015141000_teacher_honorific.sql`；`.cursor/skills/tomorrow-teacher-lesson-reminder/SKILL.md`
+
 ### 2026-09-27 — 前台調堂／試堂寫 production：對齊原班取消日、宿主、半價單、收款狀態
 - **情境**：對話直接安排補堂（調堂）與試堂（含半價出單、確認收款、改付款方式）；MCP 時斷時續，改用 service_role REST。
 - **錯在邊**：口頭取消日未核對該生原班就硬綁；補堂掛原班拉齊其他就讀生；半價只填實收；未收款標已收款；付款方式用「銀行轉賬」；確認收款後未抬試堂權益池；已取消試堂走正式改期 API。
