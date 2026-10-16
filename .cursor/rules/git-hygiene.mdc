@@ -9,8 +9,8 @@ alwaysApply: true
 
 ## 合 PR／關帳後（必做）
 
-1. `git fetch origin`；本工作樹 `checkout main` 並 `--ff-only`。
-2. 刪該題 **遠端＋本地** head branch（`git push origin --delete`／`git branch -d`）。
+1. `git fetch origin`。先 `git branch --show-current`。目前不是 `main`、也不是本 PR 的 head：停，寫出分支名稱，不要在別題分支上 `merge --ff-only`。確認已在 `main` 才 `--ff-only`。非本題未提交檔會被 checkout 蓋掉時：停並報告路徑。
+2. 只刪該題 **遠端＋本地** head branch（`git push origin --delete`／`git branch -d`）。
 3. `git worktree remove` 該題資料夾（含 Desktop 上 `mainhope_*` 工作樹）。
 4. Feature 不要改 `BACKLOG.md` 索引；合入後才在 `main` 搬列。見 `feature-branch-hot-files.mdc`。
 

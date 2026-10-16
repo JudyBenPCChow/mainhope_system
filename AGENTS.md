@@ -47,7 +47,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **Feature 熱檔**：不要 commit `BACKLOG.md` 索引表（只在 `main` 搬列；分題表頭狀態＝該題真源）。不要帶 `dist/`、`docs/generated/**`。`ops-guide` 只在本題 PR 才改。見 `.cursor/rules/feature-branch-hot-files.mdc`。
 - **缺權限就停**：任務要 production 現況（查庫／即時 PDF）但無 MCP／token／service role，**停下並通知使用者**。不要為交差改寫腳本、假資料或空表。見 `.cursor/rules/no-forced-output-without-access.mdc`。
 - **Agent 非畫面改庫**：改完 production 業務資料後同一輪跑 `scripts/agent-db-change-notify.mjs`（入 `mgmt_audit_log`＋寄 `cfan@mainhope.edu.hk`，主旨 `【AGENT】修改…`）。見 `.cursor/rules/agent-db-change-notify.mdc` 與 skill `agent-db-change-notify`。
-- **Git 收尾**：合入 `main` 後由 agent 對齊 `main`、刪該題 branch／worktree，不要叫使用者下次記得。見 `.cursor/rules/git-hygiene.mdc` 與 skill `git-branch-closeout`。
+- **Git 收尾**：合入 `main` 後由 agent 對齊 `main`、刪該題 branch／worktree，不要叫使用者下次記得。對齊前先確認目前分支是 `main`。見 `.cursor/rules/git-hygiene.mdc` 與 skill `git-branch-closeout`。整桌未合、分類逐步用個人 skill `git-desk-clear`，不要整樹一次 commit。
 
 ## 讀檔階梯
 
