@@ -2,12 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（Wave 1 DDL 已喺 production 生效；generated types／分類帳未做；repo 無對應 migration） |
-| 優先 | 高 |
+| 狀態 | `open`（2026-10-15：優先改為中。下一刀只補 idempotent migration；generated types 與分類帳其後再做） |
+| 優先 | 中 |
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次；**2026-08-29** 再掃：Wave 1 目標態已在 production，但本 repo 無單檔 migration |
+| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次；**2026-08-29** 再掃：Wave 1 目標態已在 production，但本 repo 無單檔 migration；**2026-10-15** 討論後降為中優先，下一刀收窄為一條 migration |
 
 ## 點解合併
 
@@ -72,9 +72,39 @@ Production `MainHope_production`。Staging `mainhope-staging` 仍 INACTIVE。
 | duplicate email index | `app_users_email_lower_uidx` 仍在 | **只剩 `app_users_email_unique`** | Wave 1 已生效 |
 | Leaked password | 關 | **仍關** | 另題 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md) |
 
-**缺口：** 本 repo `supabase/migrations/` **無**對應「REVOKE trigger／ALTER search_path／DROP 重複 index」單檔。production 已係目標態，新環境／重建會漂返。下一刀先補一條 **idempotent** migration 對齊歷史，再做 generated types。
+**缺口：** 本 repo `supabase/migrations/` **無**對應「REVOKE trigger／ALTER search_path／DROP 重複 index」單檔。production 已係目標態，新環境／重建會漂返。2026-10-15 起，執行順序改以下一節為準。
 
-## 建議波次（2026-08-21 模擬後修訂；08-29 註）
+## 2026-10-15 討論
+
+維持 `open`。優先由高改為中。Wave 1 的執行權、`search_path` 與重複 email index 已在正式環境生效（2026-08-29；2026-10-09 結構審查未見退回）。現有收費與點名不依賴本題。
+
+Git 仍沒有對齊那批狀態的 migration。10 月審查另見兩處後來漂回的警告，併入同一條 migration，不另開題：
+
+| 項目 | 依據 | 處置 |
+| --- | --- | --- |
+| `forbid_grade_scope_pool_on_mixed_class` | `20261007044500_forbid_mixed_class_grade_scope_pools.sql`；審查 A2-07 | trigger。`REVOKE EXECUTE` FROM PUBLIC、anon、authenticated。不要用 `CREATE OR REPLACE` |
+| `leads_sync_interested_subjects_on_convert` | `20260927032100_leads_sync_interested_subjects_trigger.sql`；審查 A2-07 | 同上 |
+| `leads_set_updated_at` | 審查 A2-08。當時唯一的 `function_search_path_mutable` | 只 `ALTER FUNCTION … SET search_path = public` |
+
+不放入本題：廣告提交函式仍可由未登入身分執行（A2-01）、對話回饋表對已登入身分全開（A2-05）、洩露密碼保護（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）。
+
+### 下一刀（只此一件）
+
+一條 idempotent migration：
+
+- 8 月 29 日已在正式環境生效、repo 沒有的 `REVOKE`、八支 INVOKER 的 `ALTER … SET search_path`、`DROP INDEX IF EXISTS app_users_email_lower_uidx`
+- 上表兩支 trigger 的 `REVOKE`，以及 `leads_set_updated_at` 的 `search_path`
+- 不用 `CREATE OR REPLACE`
+- 套用後只讀驗證 trigger 仍在、擁有者仍可 EXECUTE。禁止在正式環境插入測試列
+
+同一輪把「`CREATE OR REPLACE FUNCTION` 會還原 `PUBLIC` EXECUTE，改完 trigger 必須再 `REVOKE`」寫入 migration skill。10 月的兩支 trigger 就是這條沒寫下來而再次發生。
+
+### 其後再做（不與上一條綁在同一輪）
+
+- generated `Database` 型別：`src/types/database.ts`、`createClient<Database>`、`db:types`。第一刀仍不加 CI types drift check。
+- 每個剩餘 security 警告一行分類（已修／接受並寫理由／不適用）。效能黃燈維持接受；外鍵 index 等表變大或 EXPLAIN 證實再加。
+
+## 建議波次（2026-08-21 模擬後修訂；08-29 註；2026-10-15 起順序以上一節為準）
 
 原 08-14 波次係「型別 → 安全分類 → 效能 → hygiene」。模擬落實後改為：
 
@@ -87,9 +117,14 @@ Production `MainHope_production`。Staging `mainhope-staging` 仍 INACTIVE。
 
 ## 驗收
 
-- 三支 trigger：anon／authenticated 不可 EXECUTE；trigger 定義仍在。
-- Token RPC（上表禁止名單）：anon 仍可 EXECUTE。
-- duplicate index advisor 消失；8 支 INVOKER 不再報 mutable search_path。
+下一刀（migration）：
+
+- 三支原 trigger，加上 `forbid_grade_scope_pool_on_mixed_class`、`leads_sync_interested_subjects_on_convert`：anon／authenticated 不可 EXECUTE；trigger 定義仍在。
+- Token RPC（禁止名單）：anon 仍可 EXECUTE。
+- duplicate index advisor 消失；八支 INVOKER 與 `leads_set_updated_at` 不再報 mutable search_path。
+- 上述改動在單檔 migration；無為清零而盲刪 policy／DEFINER。
+
+其後再做：
+
 - Client 用 generated `Database`（或逃生艙已記錄）；`npm run build` 過。
-- 每個剩餘 security WARN 有分類；新增／刪除 index 有理由（本輪只刪重複 email index）。
-- 所有 schema 改動逐檔 migration 套用；無為清零而盲刪 policy／DEFINER。
+- 每個剩餘 security 警告有分類；新增或刪除 index 有理由。
