@@ -128,6 +128,10 @@ import {
  fetchStudentEnrollmentChangeTimeline,
  transferStudentClassTime,
 } from "@/services/transferClassTimeQueries"
+import {
+ fetchWithdrawFromScheduleOptions,
+ type WithdrawFromScheduleOption,
+} from "@/services/withdrawFromScheduleQueries"
 import { fetchEnrolledScheduleIdsByEnrollmentIds } from "@/services/enrollmentSessionQueries"
 import {
  deleteStudentRelationship,
@@ -346,6 +350,9 @@ export function StudentDetailView() {
  const [withdrawTarget, setWithdrawTarget] = useState<EnrollmentWithClass | null>(null)
  const [withdrawReason, setWithdrawReason] = useState("")
  const [withdrawSaving, setWithdrawSaving] = useState(false)
+ const [withdrawFromScheduleId, setWithdrawFromScheduleId] = useState("")
+ const [withdrawFromOptions, setWithdrawFromOptions] = useState<WithdrawFromScheduleOption[]>([])
+ const [withdrawFromLoading, setWithdrawFromLoading] = useState(false)
  const [voidPayOpen, setVoidPayOpen] = useState(false)
  const [voidPayTarget, setVoidPayTarget] = useState<VoidPaymentTarget | null>(null)
 
@@ -810,6 +817,40 @@ export function StudentDetailView() {
   { notice: picked?.enrollmentNotice, classLabel: picked?.label },
  ])
  if (!noticeOk) return
+
+ // D5：同科已有就讀中專科 → 引導轉時間
+ if (
+  picked &&
+  picked.classKind === "group" &&
+  picked.courseMode !== "summer_two_period" &&
+  picked.subject
+ ) {
+  const sameSubject = enrollments.find(
+   (row) =>
+    row.status === "就讀中" &&
+    row.classKind === "group" &&
+    row.classSubject === picked.subject &&
+    row.classId !== pickClass
+  )
+  if (sameSubject) {
+   const guide = await confirmDialog({
+    title: "同科已有就讀中報讀",
+    description: `「${sameSubject.subject}」已就讀中。同科改時段請用「轉時間」，不要另報一班或先手誤清除。`,
+    confirmText: "改開轉時間",
+    alternateText: "仍要另報一班",
+    cancelText: "取消",
+    tone: "warning",
+   })
+   if (guide === true) {
+    setAddEnrollmentDialogOpen(false)
+    resetAddEnrollmentDialog()
+    setTransferTarget(sameSubject)
+    return
+   }
+   if (guide !== "alternate") return
+  }
+ }
+
  setAddEnrollmentSaving(true)
  setAddEnrollmentError(null)
  try {
@@ -914,6 +955,11 @@ export function StudentDetailView() {
 
  const submitWithdraw = async () => {
   if (!withdrawTarget || !sid) return
+  const leaveOpt = withdrawFromOptions.find((o) => o.id === withdrawFromScheduleId)
+  if (!leaveOpt) {
+   pushBanner({ tone: "warning", title: "請選擇從哪一堂起不上" })
+   return
+  }
   setWithdrawSaving(true)
   try {
    const studentName = (student?.full_name ?? form.full_name ?? "").trim() || "學生"
@@ -929,13 +975,16 @@ export function StudentDetailView() {
     enrollmentId: withdrawTarget.id,
     studentId: sid,
     classId: withdrawTarget.classId,
-    effectiveDate: localTodayYmd(),
+    effectiveDate: leaveOpt.scheduledDate,
+    leaveFromScheduleId: leaveOpt.id,
     reason: withdrawReason.trim() || null,
     ...attOpts,
    })
    setWithdrawOpen(false)
    setWithdrawTarget(null)
    setWithdrawReason("")
+   setWithdrawFromScheduleId("")
+   setWithdrawFromOptions([])
    invalidateStudentsListDataCache()
    invalidateEnrollmentChangesDataCache()
    await reloadSubs()
@@ -1193,7 +1242,7 @@ export function StudentDetailView() {
      subject: e.subject,
      courseCode: e.courseCode,
      courseName: e.courseName,
-    })}」的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡。若要保留紀錄請改用「退讀」。`,
+    })}」的報讀？會刪除該筆報讀及增退紀錄，並作廢該班到課宣告。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
     confirmText: "確認清除",
     tone: "destructive",
     confirmInput: {
@@ -1207,14 +1256,15 @@ export function StudentDetailView() {
   }
   try {
    const hits = await previewEnrollmentAttendanceImpact(sid, e.classId)
-   const attOpts = await resolveEnrollmentAttendanceOptions(
-    confirmDialog,
-    hits,
-    "purge",
-    studentName
-   )
-   if (attOpts === "abort") return
-   await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid, ...attOpts })
+   if (hits.length > 0) {
+    pushBanner({
+     tone: "warning",
+     title: "不可手誤清除",
+     message: `此班已有 ${hits.length} 筆出席，請改用退讀或轉時間。`,
+    })
+    return
+   }
+   await purgeMistakenEnrollment({ enrollmentId: e.id, studentId: sid })
    pushBanner({ tone: "success", title: "已清除手誤報讀" })
    await reloadSubs()
   } catch (err) {
@@ -1291,7 +1341,22 @@ export function StudentDetailView() {
    onWithdraw={(row) => {
     setWithdrawTarget(row)
     setWithdrawReason("")
+    setWithdrawFromScheduleId("")
+    setWithdrawFromOptions([])
     setWithdrawOpen(true)
+    setWithdrawFromLoading(true)
+    void fetchWithdrawFromScheduleOptions(row.classId)
+     .then((opts) => {
+      setWithdrawFromOptions(opts)
+      const today = localTodayYmd()
+      const prefer =
+       opts.find((o) => !o.isCancelled && o.scheduledDate >= today) ??
+       opts.find((o) => o.scheduledDate >= today) ??
+       opts[opts.length - 1]
+      if (prefer) setWithdrawFromScheduleId(prefer.id)
+     })
+     .catch(() => setWithdrawFromOptions([]))
+     .finally(() => setWithdrawFromLoading(false))
    }}
    onTransferTime={(row) => setTransferTarget(row)}
    onPurge={(row) => void onPurgeMistakenEnrollment(row)}
@@ -2628,9 +2693,9 @@ export function StudentDetailView() {
         {withdrawTarget ? (
          <div className="space-y-3 text-sm">
           <p>
-           確定讓 <strong>{student?.full_name ?? "此學生"}</strong> 自{" "}
-           <strong className="tabular-nums">{localTodayYmd()}</strong> 起退出以下班別？此操作會寫入增退紀錄。
-           若只是手誤選錯，請改用「手誤清除」。
+           確定讓 <strong>{student?.full_name ?? "此學生"}</strong> 退出以下班別？請選擇
+           <strong>從哪一堂起不上</strong>（含該堂）。會寫入增退紀錄並作廢該日起到課宣告。
+           若只是手誤選錯且尚無出席，請改用「手誤清除」。
           </p>
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 font-medium">
            {formatClassLabel({
@@ -2639,6 +2704,31 @@ export function StudentDetailView() {
             courseName: withdrawTarget.courseName,
            })}
           </div>
+          <Field label="從哪一堂起不上">
+           {withdrawFromLoading ? (
+            <p className="text-muted-foreground">載入排程中…</p>
+           ) : withdrawFromOptions.length === 0 ? (
+            <p role="alert" className="text-destructive">
+             此班暫無可選排程。
+            </p>
+           ) : (
+            <Select
+             className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+             value={withdrawFromScheduleId}
+             onChange={(e) => setWithdrawFromScheduleId(e.target.value)}
+            >
+             <option value="">請選擇…</option>
+             {withdrawFromOptions.map((o) => (
+              <option key={o.id} value={o.id}>
+               {o.label}
+              </option>
+             ))}
+            </Select>
+           )}
+           <p className="mt-1 text-xs text-muted-foreground">
+            若選已取消堂且尚未安排補回，其後補回亦不上紙。
+           </p>
+          </Field>
           <Field label="退讀原因（選填）">
            <Textarea
             value={withdrawReason}
@@ -2660,7 +2750,7 @@ export function StudentDetailView() {
            <Button
             type="button"
             variant="destructive"
-            disabled={withdrawSaving}
+            disabled={withdrawSaving || !withdrawFromScheduleId}
             onClick={() => void submitWithdraw()}
            >
             {withdrawSaving ? "處理中…" : "確認退讀"}
@@ -2679,7 +2769,13 @@ export function StudentDetailView() {
        onOpenChange={(next) => {
         if (!next) setTransferTarget(null)
        }}
-       onSubmit={async ({ toClassId, enrollDate, extraReason }) => {
+       onSubmit={async ({
+        toClassId,
+        enrollDate,
+        leaveFromScheduleId,
+        leaveFromEffectiveDate,
+        extraReason,
+       }) => {
         if (!sid || !transferTarget) return
         const studentName = (student?.full_name ?? form.full_name ?? "").trim() || "學生"
         const hits = await previewEnrollmentAttendanceImpact(sid, transferTarget.classId)
@@ -2697,6 +2793,8 @@ export function StudentDetailView() {
           fromClassId: transferTarget.classId,
           toClassId,
           enrollDate,
+          leaveFromScheduleId,
+          leaveFromEffectiveDate,
           extraReason,
           ...attOpts,
          })

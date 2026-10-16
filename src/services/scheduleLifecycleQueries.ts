@@ -185,7 +185,9 @@ export async function applySoftCancelScheduleSideEffects(
  }
 
  // Wave 2：取消原堂 → active 宣告 void；不扣池
- await voidActiveDeclarationsForSchedules(impact.scheduleIds)
+ await voidActiveDeclarationsForSchedules(impact.scheduleIds, {
+  voidReason: "class_cancelled",
+ })
 
  return impact
 }

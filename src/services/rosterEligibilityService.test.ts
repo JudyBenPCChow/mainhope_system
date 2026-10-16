@@ -66,6 +66,7 @@ function gatedContext(withDeclaration: boolean): ScheduleRosterContext {
        sourceEventType: "enrollment_auto",
        sourceEventId: null,
        manualReason: null,
+       voidReason: null,
        createdAt: "2026-09-01T00:00:00Z",
       },
      ]

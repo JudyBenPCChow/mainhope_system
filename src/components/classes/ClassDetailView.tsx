@@ -143,6 +143,7 @@ import {
  withdrawStudentFromClass,
  type StudentRecord,
 } from "@/services/studentQueries"
+import { fetchWithdrawFromScheduleOptions } from "@/services/withdrawFromScheduleQueries"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
  SINGLE_SESSION_ENROLLMENT,
@@ -1468,11 +1469,30 @@ export function ClassDetailView() {
      ...attOpts,
     })
    } else {
+    const opts = await fetchWithdrawFromScheduleOptions(cid)
+    const today = localYmd()
+    const prefer =
+     opts.find((o) => !o.isCancelled && o.scheduledDate >= today) ??
+     opts.find((o) => o.scheduledDate >= today) ??
+     opts[opts.length - 1]
+    if (!prefer) {
+     pushBanner({ tone: "warning", title: "無法退讀", message: "此班暫無可選排程。" })
+     return
+    }
+    const okDate = await confirmDialog({
+     title: "確認退讀起始堂",
+     description: `將自「${prefer.label}」起不上紙（含該堂）。若需選其他堂，請到學生詳情退讀。`,
+     confirmText: "確認以此堂退讀",
+     cancelText: "取消",
+     tone: "warning",
+    })
+    if (!okDate) return
     await withdrawStudentFromClass({
      enrollmentId: s.enrollmentId,
      studentId: s.studentId,
      classId: cid,
-     effectiveDate: localYmd(),
+     effectiveDate: prefer.scheduledDate,
+     leaveFromScheduleId: prefer.id,
      reason: null,
      ...attOpts,
     })
@@ -1501,7 +1521,7 @@ export function ClassDetailView() {
   if (
    !(await confirmDialog({
     title: "手誤清除報讀",
-    description: `確定清除「${studentName}」在此班的報讀？會刪除該筆報讀及相關增退紀錄，不留下任何痕跡。若要保留紀錄請改用「退讀」。`,
+    description: `確定清除「${studentName}」在此班的報讀？會刪除該筆報讀及增退紀錄，並作廢該班到課宣告。已扣堂數不會退回。若本班已有出席，請改用退讀或轉時間。`,
     confirmText: "確認清除",
     tone: "destructive",
     confirmInput: {
@@ -1515,19 +1535,19 @@ export function ClassDetailView() {
   }
   try {
    const hits = await previewEnrollmentAttendanceImpact(s.studentId, cid)
-   const attOpts = await resolveEnrollmentAttendanceOptions(
-    confirmDialog,
-    hits,
-    "purge",
-    studentName
-   )
-   if (attOpts === "abort") return
+   if (hits.length > 0) {
+    pushBanner({
+     tone: "warning",
+     title: "不可手誤清除",
+     message: `此班已有 ${hits.length} 筆出席，請改用退讀或轉時間。`,
+    })
+    return
+   }
    await purgeMistakenEnrollment({
     enrollmentId: s.enrollmentId,
     studentId: s.studentId,
-    ...attOpts,
    })
-   pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${studentName} 已自本班名單移除，無增退紀錄。` })
+   pushBanner({ tone: "success", title: "已清除手誤報讀", message: `${studentName} 已自本班名單移除。` })
    await reload()
   } catch (e) {
    const msg = formatUnknownError(e)

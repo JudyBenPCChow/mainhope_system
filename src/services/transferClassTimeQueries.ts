@@ -25,13 +25,6 @@ function ymd(raw: string | null | undefined): string {
  return String(raw ?? "").slice(0, 10)
 }
 
-function localTodayYmd(d = new Date()): string {
- const y = d.getFullYear()
- const m = String(d.getMonth() + 1).padStart(2, "0")
- const day = String(d.getDate()).padStart(2, "0")
- return `${y}-${m}-${day}`
-}
-
 export type TransferLeavePreviewRow = {
  id: string
  leaveDate: string
@@ -279,6 +272,9 @@ export async function transferStudentClassTime(opts: {
  fromClassId: string
  toClassId: string
  enrollDate: string
+ /** 舊班「從哪一堂起不上」；預設＝新班第一堂日（避免空窗） */
+ leaveFromScheduleId?: string | null
+ leaveFromEffectiveDate?: string | null
  extraReason?: string | null
 } & EnrollmentAttendanceChangeOptions): Promise<{ fromWithdrawn: boolean }> {
  if (!supabase) throw new Error("Supabase 未設定")
@@ -286,6 +282,11 @@ export async function transferStudentClassTime(opts: {
 
  const enrollDate = ymd(opts.enrollDate)
  if (!/^\d{4}-\d{2}-\d{2}$/.test(enrollDate)) throw new Error("請選擇開始報讀的排程")
+
+ const withdrawEffective = ymd(opts.leaveFromEffectiveDate) || enrollDate
+ if (!/^\d{4}-\d{2}-\d{2}$/.test(withdrawEffective)) {
+  throw new Error("請選擇舊班從哪一堂起不上")
+ }
 
  const [fromClass, toClass, ctx] = await Promise.all([
   fetchClassGate(opts.fromClassId),
@@ -351,7 +352,8 @@ export async function transferStudentClassTime(opts: {
   enrollmentId: opts.enrollmentId,
   studentId: opts.studentId,
   classId: opts.fromClassId,
-  effectiveDate: localTodayYmd(),
+  effectiveDate: withdrawEffective,
+  leaveFromScheduleId: opts.leaveFromScheduleId ?? null,
   reason,
   attendanceAction: opts.attendanceAction,
   deleteAttendanceIds: opts.deleteAttendanceIds,

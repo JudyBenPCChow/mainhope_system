@@ -29,3 +29,4 @@
 3. 兩筆增退原因以「轉時間」開頭，畫面配成「自某日由時段 A 轉為時段 B」。
 4. 已約在新班尚未上的補堂：報讀第一堂必須晚於該日；該日仍以調堂上紙。
 5. 未約補堂：確認後可轉；欠堂不消失。
+6. （2026-10-07 延伸）須選舊班「從哪一堂起不上」；生效日＝該堂日；建議對齊新班第一堂。詳見 [enrollment-declaration-transfer-and-purge](./enrollment-declaration-transfer-and-purge.md) D4。

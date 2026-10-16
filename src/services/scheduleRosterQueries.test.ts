@@ -379,6 +379,7 @@ describe("schedule roster selectors", () => {
     sourceEventType: "enrollment_auto",
     sourceEventId: null,
     manualReason: null,
+    voidReason: null,
     createdAt: "2026-09-01T00:00:00Z",
    },
    {
@@ -391,6 +392,7 @@ describe("schedule roster selectors", () => {
     sourceEventType: "enrollment_auto",
     sourceEventId: null,
     manualReason: null,
+    voidReason: null,
     createdAt: "2026-09-01T00:00:00Z",
    },
    {
@@ -403,6 +405,7 @@ describe("schedule roster selectors", () => {
     sourceEventType: "enrollment_auto",
     sourceEventId: null,
     manualReason: null,
+    voidReason: null,
     createdAt: "2026-09-01T00:00:00Z",
    },
   ]
@@ -458,6 +461,7 @@ describe("schedule roster selectors", () => {
      sourceEventType: "class_cancel",
      sourceEventId: null,
      manualReason: null,
+     voidReason: null,
      createdAt: "2026-09-01T00:00:00Z",
     },
     {
@@ -470,6 +474,7 @@ describe("schedule roster selectors", () => {
      sourceEventType: "class_reschedule",
      sourceEventId: null,
      manualReason: null,
+     voidReason: null,
      createdAt: "2026-09-11T00:00:00Z",
     },
    ],

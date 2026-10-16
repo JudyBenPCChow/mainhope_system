@@ -66,8 +66,16 @@ export type AttendanceDeclarationRow = {
  sourceEventType: string | null
  sourceEventId: string | null
  manualReason: string | null
+ /** 作廢原因；僅 status=void 有意義。見 D8。 */
+ voidReason: DeclarationVoidReason | null
  createdAt: string
 }
+
+/** 宣告作廢原因（attendance_declarations.void_reason） */
+export type DeclarationVoidReason =
+ | "enrollment_withdrawn"
+ | "enrollment_purged"
+ | "class_cancelled"
 
 export type DeclarationSourceEventType =
  | "enrollment_auto"
@@ -77,6 +85,18 @@ export type DeclarationSourceEventType =
  | "manual_roster_add"
  | "backfill"
  | "class_cancelled"
+
+function parseVoidReason(raw: unknown): DeclarationVoidReason | null {
+ const s = raw != null ? String(raw) : ""
+ if (
+  s === "enrollment_withdrawn" ||
+  s === "enrollment_purged" ||
+  s === "class_cancelled"
+ ) {
+  return s
+ }
+ return null
+}
 
 function isTrialPaymentDetailDescription(description: string | null | undefined): boolean {
  return String(description ?? "").includes("試堂")
@@ -124,6 +144,7 @@ function mapDeclaration(row: Record<string, unknown>): AttendanceDeclarationRow 
   sourceEventType: row.source_event_type != null ? String(row.source_event_type) : null,
   sourceEventId: row.source_event_id != null ? String(row.source_event_id) : null,
   manualReason: row.manual_reason != null ? String(row.manual_reason) : null,
+  voidReason: parseVoidReason(row.void_reason),
   createdAt: String(row.created_at ?? ""),
  }
 }
@@ -827,37 +848,45 @@ async function insertActiveDeclarationsIgnoringConflicts(
   source_event_id?: string | null
   updated_at: string
  }>
-): Promise<void> {
- if (!supabase || rows.length === 0) return
+): Promise<number> {
+ if (!supabase || rows.length === 0) return 0
  const { error } = await supabase.from("attendance_declarations").insert(rows)
- if (!error) return
+ if (!error) return rows.length
  if (!String(error.message).includes("attendance_declarations_active_schedule_student")) {
   throw error
  }
+ let inserted = 0
  for (const row of rows) {
   const { error: oneErr } = await supabase.from("attendance_declarations").insert(row)
-  if (
-   oneErr
-   && !String(oneErr.message).includes("attendance_declarations_active_schedule_student")
-  ) {
+  if (!oneErr) {
+   inserted += 1
+   continue
+  }
+  if (!String(oneErr.message).includes("attendance_declarations_active_schedule_student")) {
    throw oneErr
   }
  }
+ return inserted
 }
 
 /** 軟取消／作廢：將排程上 active 宣告改 void（不改池餘額） */
 export async function voidActiveDeclarationsForSchedules(
  scheduleIds: string[],
- opts?: { studentIds?: string[] }
+ opts?: { studentIds?: string[]; voidReason?: DeclarationVoidReason }
 ): Promise<number> {
  const ids = [...new Set(scheduleIds.filter(Boolean))]
  if (!supabase || ids.length === 0) return 0
  const now = new Date().toISOString()
+ const patch: { status: string; updated_at: string; void_reason?: DeclarationVoidReason } = {
+  status: "void",
+  updated_at: now,
+ }
+ if (opts?.voidReason) patch.void_reason = opts.voidReason
  let voided = 0
  await forEachIdChunk(ids, DEFAULT_ID_CHUNK, async (chunk) => {
   let q = supabase!
    .from("attendance_declarations")
-   .update({ status: "void", updated_at: now })
+   .update(patch)
    .in("schedule_id", chunk)
    .eq("status", "active")
   const studentIds = opts?.studentIds?.filter(Boolean)
@@ -872,8 +901,31 @@ export async function voidActiveDeclarationsForSchedules(
 }
 
 /**
+ * 手誤清除：作廢該生該班全部有效宣告（含已取消堂上尚未作廢的）。
+ */
+export async function voidAllStudentDeclarationsOnClass(opts: {
+ studentId: string
+ classId: string
+ voidReason: DeclarationVoidReason
+}): Promise<number> {
+ if (!supabase) return 0
+ const { data: schedules, error } = await supabase
+  .from("schedules")
+  .select("id")
+  .eq("class_id", opts.classId)
+ if (error) throw error
+ const scheduleIds = (schedules ?? []).map((raw) => String((raw as { id: string }).id))
+ if (scheduleIds.length === 0) return 0
+ return voidActiveDeclarationsForSchedules(scheduleIds, {
+  studentIds: [opts.studentId],
+  voidReason: opts.voidReason,
+ })
+}
+
+/**
  * 退讀：void 該生該班自生效日起（含）未取消排程上的 active 宣告；不改池餘額。
  * 預約退讀（status 仍就讀中）亦應呼叫，避免生效日後堂仍掛宣告。
+ * 另：已因堂取消而 void、仍標 class_cancelled 的列，改寫為 enrollment_withdrawn（D4／D8）。
  */
 export async function voidStudentDeclarationsOnClassFromDate(opts: {
  studentId: string
@@ -891,22 +943,111 @@ export async function voidStudentDeclarationsOnClassFromDate(opts: {
   .gte("scheduled_date", fromDate)
  if (error) throw error
 
- const scheduleIds = (schedules ?? [])
+ const allScheduleIds = (schedules ?? []).map((raw) => String((raw as { id: string }).id))
+ const activeScheduleIds = (schedules ?? [])
   .filter((raw) => {
    const status = String((raw as { status?: string }).status ?? "")
    return !status.includes("取消")
   })
   .map((raw) => String((raw as { id: string }).id))
- if (scheduleIds.length === 0) return 0
 
- return voidActiveDeclarationsForSchedules(scheduleIds, {
-  studentIds: [opts.studentId],
- })
+ let voided = 0
+ if (activeScheduleIds.length > 0) {
+  voided += await voidActiveDeclarationsForSchedules(activeScheduleIds, {
+   studentIds: [opts.studentId],
+   voidReason: "enrollment_withdrawn",
+  })
+ }
+
+ if (allScheduleIds.length > 0) {
+  const now = new Date().toISOString()
+  await forEachIdChunk(allScheduleIds, DEFAULT_ID_CHUNK, async (chunk) => {
+   const { error: rewriteErr } = await supabase!
+    .from("attendance_declarations")
+    .update({ void_reason: "enrollment_withdrawn", updated_at: now })
+    .in("schedule_id", chunk)
+    .eq("student_id", opts.studentId)
+    .eq("status", "void")
+    .or("void_reason.is.null,void_reason.eq.class_cancelled")
+   if (rewriteErr) throw rewriteErr
+  })
+ }
+
+ return voided
 }
 
 /**
- * 全班改期／補回：原堂 active（或取消後已 void）→ void；新堂建 active，繼承原 pool_id（補回≠轉池）。
- * 注意：軟取消已先 void 原堂宣告，故補回時須讀 void 列以繼承 pool。
+ * 補回日應鑄宣告的就讀生（報讀日閘；不含試堂／調堂生）。
+ * 與點名紙日閘同源語意（enrollmentPassesDateGates），避開 circular import 故內聯。
+ */
+export async function listEnrollmentStudentsForMakeupRemint(opts: {
+ classId: string
+ scheduledDate: string
+}): Promise<Array<{ studentId: string; fullName: string; enrollDate: string | null; withdrawEffectiveDate: string | null }>> {
+ if (!supabase || !opts.classId) return []
+ const scheduledDate = opts.scheduledDate.slice(0, 10)
+ if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) return []
+
+ const { data, error } = await supabase
+  .from("student_class_enrollments")
+  .select("student_id, class_id, enroll_date, withdraw_effective_date, students(full_name)")
+  .eq("class_id", opts.classId)
+  .eq("status", "就讀中")
+ if (error) throw error
+
+ const out: Array<{
+  studentId: string
+  fullName: string
+  enrollDate: string | null
+  withdrawEffectiveDate: string | null
+ }> = []
+ for (const raw of data ?? []) {
+  const row = raw as {
+   student_id: string
+   class_id: string
+   enroll_date: string | null
+   withdraw_effective_date: string | null
+   students: { full_name?: string | null } | { full_name?: string | null }[] | null
+  }
+  const enrollDate = row.enroll_date != null ? String(row.enroll_date).slice(0, 10) : null
+  const withdrawEffectiveDate =
+   row.withdraw_effective_date != null ? String(row.withdraw_effective_date).slice(0, 10) : null
+  if (enrollDate && scheduledDate < enrollDate) continue
+  if (withdrawEffectiveDate && scheduledDate >= withdrawEffectiveDate) continue
+  const studentJoin = Array.isArray(row.students) ? row.students[0] : row.students
+  out.push({
+   studentId: String(row.student_id),
+   fullName: String(studentJoin?.full_name ?? "").trim() || String(row.student_id),
+   enrollDate,
+   withdrawEffectiveDate,
+  })
+ }
+ return out.sort((a, b) => a.fullName.localeCompare(b.fullName, "zh-Hant"))
+}
+
+async function preferPoolIdFromScheduleDeclarations(
+ studentId: string,
+ scheduleId: string
+): Promise<string | null> {
+ if (!supabase) return null
+ const { data, error } = await supabase
+  .from("attendance_declarations")
+  .select("pool_id, status, created_at")
+  .eq("student_id", studentId)
+  .eq("schedule_id", scheduleId)
+  .in("status", ["active", "void"])
+  .order("created_at", { ascending: false })
+ if (error) throw error
+ const rows = data ?? []
+ const active = rows.find((r) => String((r as { status: string }).status) === "active")
+ const pick = active ?? rows[0]
+ return pick?.pool_id != null ? String(pick.pool_id) : null
+}
+
+/**
+ * 全班改期／補回：按**補回日**就讀名冊重鑄宣告（D2）；不過濾舊 void 再抄。
+ * 取池先讀原堂宣告 pool_id，讀不到才退回 namespace（D11）。
+ * source_event_type 由呼叫端傳入（整堂補回用 class_reschedule，D10）。
  */
 export async function inheritDeclarationsAcrossSchedules(
  pairs: Array<{ fromScheduleId: string; toScheduleId: string }>,
@@ -916,74 +1057,78 @@ export async function inheritDeclarationsAcrossSchedules(
  }
 ): Promise<number> {
  if (!supabase || pairs.length === 0) return 0
+ const toIds = [...new Set(pairs.map((p) => p.toScheduleId).filter(Boolean))]
  const fromIds = [...new Set(pairs.map((p) => p.fromScheduleId).filter(Boolean))]
- if (fromIds.length === 0) return 0
+ if (toIds.length === 0) return 0
 
- const sourceDecls: AttendanceDeclarationRow[] = []
- await forEachIdChunk(fromIds, DEFAULT_ID_CHUNK, async (chunk) => {
-  const { data, error } = await supabase!
-   .from("attendance_declarations")
-   .select(
-    "id, schedule_id, student_id, pool_id, status, superseded_by, source_event_type, source_event_id, manual_reason, created_at"
-   )
-   .in("schedule_id", chunk)
-   .in("status", ["active", "void"])
-  if (error) throw error
-  for (const raw of data ?? []) {
-   sourceDecls.push(mapDeclaration(raw as Record<string, unknown>))
-  }
- })
- if (sourceDecls.length === 0) return 0
-
- // 同生同原堂：優先 active，否則取最新 void
- const bestByKey = new Map<string, AttendanceDeclarationRow>()
- for (const d of sourceDecls) {
-  const key = `${d.scheduleId}|${d.studentId}`
-  const prev = bestByKey.get(key)
-  if (!prev) {
-   bestByKey.set(key, d)
-   continue
-  }
-  if (prev.status === "active") continue
-  if (d.status === "active") {
-   bestByKey.set(key, d)
-   continue
-  }
-  if (d.createdAt > prev.createdAt) bestByKey.set(key, d)
- }
- const decls = [...bestByKey.values()]
-
- const toByFrom = new Map(pairs.map((p) => [p.fromScheduleId, p.toScheduleId]))
- const now = new Date().toISOString()
- const stillActive = decls.filter((d) => d.status === "active").map((d) => d.id)
- if (stillActive.length > 0) {
-  await forEachIdChunk(stillActive, DEFAULT_ID_CHUNK, async (chunk) => {
-   const { error } = await supabase!
-    .from("attendance_declarations")
-    .update({ status: "void", updated_at: now })
-    .in("id", chunk)
-   if (error) throw error
+ const { data: toSchedules, error: toErr } = await supabase
+  .from("schedules")
+  .select("id, class_id, scheduled_date")
+  .in("id", toIds)
+ if (toErr) throw toErr
+ const toMeta = new Map(
+  (toSchedules ?? []).map((raw) => {
+   const r = raw as { id: string; class_id: string; scheduled_date: string }
+   return [
+    String(r.id),
+    {
+     classId: String(r.class_id),
+     scheduledDate: String(r.scheduled_date).slice(0, 10),
+    },
+   ] as const
   })
+ )
+
+ const now = new Date().toISOString()
+ // 原堂仍 active 者先作廢（堂取消語意）；已 void 者不動
+ if (fromIds.length > 0) {
+  await voidActiveDeclarationsForSchedules(fromIds, { voidReason: "class_cancelled" })
  }
 
- const toInsert = decls
-  .map((d) => {
-   const toId = toByFrom.get(d.scheduleId)
-   if (!toId) return null
-   return {
-    schedule_id: toId,
-    student_id: d.studentId,
-    pool_id: d.poolId,
+ const toInsert: Array<{
+  schedule_id: string
+  student_id: string
+  pool_id: string
+  status: string
+  source_event_type: string
+  source_event_id: string | null
+  updated_at: string
+ }> = []
+
+ for (const pair of pairs) {
+  const meta = toMeta.get(pair.toScheduleId)
+  if (!meta) continue
+  const eligible = await listEnrollmentStudentsForMakeupRemint({
+   classId: meta.classId,
+   scheduledDate: meta.scheduledDate,
+  })
+  for (const student of eligible) {
+   let poolId = await preferPoolIdFromScheduleDeclarations(student.studentId, pair.fromScheduleId)
+   if (!poolId) {
+    poolId = await resolvePoolIdForStudentClass(
+     student.studentId,
+     meta.classId,
+     pair.fromScheduleId
+    )
+   }
+   if (!poolId) {
+    const pool = await fetchPoolForStudentClass(student.studentId, meta.classId)
+    poolId = pool?.id ?? null
+   }
+   if (!poolId) continue
+   toInsert.push({
+    schedule_id: pair.toScheduleId,
+    student_id: student.studentId,
+    pool_id: poolId,
     status: "active",
     source_event_type: opts.sourceEventType,
     source_event_id: opts.sourceEventId ?? null,
     updated_at: now,
-   }
-  })
-  .filter((row): row is NonNullable<typeof row> => row != null)
+   })
+  }
+ }
 
- await insertActiveDeclarationsIgnoringConflicts(toInsert)
- return toInsert.length
+ return insertActiveDeclarationsIgnoringConflicts(toInsert)
 }
 
 async function fetchPoolForStudentClass(

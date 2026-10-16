@@ -32,6 +32,10 @@ import {
  type TransferClassTimeContext,
  type TransferLeavePreviewRow,
 } from "@/services/transferClassTimeQueries"
+import {
+ fetchWithdrawFromScheduleOptions,
+ type WithdrawFromScheduleOption,
+} from "@/services/withdrawFromScheduleQueries"
 
 type Props = {
  open: boolean
@@ -43,6 +47,8 @@ type Props = {
  onSubmit: (opts: {
   toClassId: string
   enrollDate: string
+  leaveFromScheduleId: string
+  leaveFromEffectiveDate: string
   extraReason: string
  }) => Promise<void>
 }
@@ -69,6 +75,9 @@ export function TransferClassTimeDialog({
  const [toClassId, setToClassId] = useState("")
  const [startMode, setStartMode] = useState<EnrollmentStartMode>("next")
  const [startScheduleId, setStartScheduleId] = useState("")
+ const [leaveFromScheduleId, setLeaveFromScheduleId] = useState("")
+ const [leaveFromOptions, setLeaveFromOptions] = useState<WithdrawFromScheduleOption[]>([])
+ const [leaveFromLoading, setLeaveFromLoading] = useState(false)
  const [extraReason, setExtraReason] = useState("")
  const [ackUnscheduled, setAckUnscheduled] = useState(false)
  const [schedules, setSchedules] = useState<ClassScheduleRow[]>([])
@@ -95,6 +104,8 @@ export function TransferClassTimeDialog({
    setToClassId("")
    setStartMode("next")
    setStartScheduleId("")
+   setLeaveFromScheduleId("")
+   setLeaveFromOptions([])
    setExtraReason("")
    setAckUnscheduled(false)
    setSchedules([])
@@ -103,6 +114,35 @@ export function TransferClassTimeDialog({
    setSaving(false)
   }
  }, [open])
+
+ useEffect(() => {
+  if (!open || !enrollment) {
+   setLeaveFromOptions([])
+   return
+  }
+  let cancelled = false
+  setLeaveFromLoading(true)
+  void fetchWithdrawFromScheduleOptions(enrollment.classId)
+   .then((opts) => {
+    if (cancelled) return
+    setLeaveFromOptions(opts)
+    const today = todayYmd
+    const prefer =
+     opts.find((o) => !o.isCancelled && o.scheduledDate >= today) ??
+     opts.find((o) => o.scheduledDate >= today) ??
+     opts[opts.length - 1]
+    if (prefer) setLeaveFromScheduleId(prefer.id)
+   })
+   .catch(() => {
+    if (!cancelled) setLeaveFromOptions([])
+   })
+   .finally(() => {
+    if (!cancelled) setLeaveFromLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [open, enrollment, todayYmd])
 
  useEffect(() => {
   if (!open || !toClassId || !enrollment || !studentId) {
@@ -167,16 +207,19 @@ export function TransferClassTimeDialog({
  )
 
  const needsAck = Boolean(ctx && ctx.unscheduled.length > 0)
+ const leaveFrom = leaveFromOptions.find((o) => o.id === leaveFromScheduleId)
  const canSubmit =
   Boolean(toClassId) &&
+  Boolean(leaveFrom) &&
   !saving &&
   !schedulesLoading &&
   !ctxLoading &&
+  !leaveFromLoading &&
   (!needsAck || ackUnscheduled) &&
   (startMode === "next" ? Boolean(nextSchedule) : Boolean(startScheduleId))
 
  const submit = async () => {
-  if (!enrollment) return
+  if (!enrollment || !leaveFrom) return
   setError(null)
   try {
    const enrollDate = resolveEnrollmentStartDate({
@@ -187,7 +230,13 @@ export function TransferClassTimeDialog({
      .scheduled_date,
    })
    setSaving(true)
-   await onSubmit({ toClassId, enrollDate, extraReason })
+   await onSubmit({
+    toClassId,
+    enrollDate,
+    leaveFromScheduleId: leaveFrom.id,
+    leaveFromEffectiveDate: leaveFrom.scheduledDate,
+    extraReason,
+   })
    onOpenChange(false)
   } catch (e) {
    reportUserFacingError(e, {
@@ -284,6 +333,34 @@ export function TransferClassTimeDialog({
          </div>
         ) : null}
        </div>
+      ) : null}
+
+      {enrollment ? (
+       <Field label="舊班從哪一堂起不上">
+        {leaveFromLoading ? (
+         <p className="text-muted-foreground">載入舊班排程中…</p>
+        ) : leaveFromOptions.length === 0 ? (
+         <p role="alert" className="text-destructive">
+          舊班暫無可選排程。
+         </p>
+        ) : (
+         <Select
+          className="h-10 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={leaveFromScheduleId}
+          onChange={(e) => setLeaveFromScheduleId(e.target.value)}
+         >
+          <option value="">請選擇…</option>
+          {leaveFromOptions.map((o) => (
+           <option key={o.id} value={o.id}>
+            {o.label}
+           </option>
+          ))}
+         </Select>
+        )}
+        <p className="mt-1 text-xs text-muted-foreground">
+         含該堂起舊班不上紙。建議對齊新班第一堂，避免空窗。
+        </p>
+       </Field>
       ) : null}
 
       {toClassId ? (
