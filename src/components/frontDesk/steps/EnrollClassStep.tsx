@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useAppBanner } from "@/lib/appBanner"
 import { useAppConfirm } from "@/lib/appConfirm"
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
 import {
  ENROLLMENT_PERIOD_OPTIONS,
@@ -116,7 +117,7 @@ export function EnrollClassStep({
     if (cancelled) return
     setClassOptions(classes)
     setTrialClassOptions(
-     opsClasses.classes.map((c) => ({
+     opsClasses.classes.filter((c) => !isEndedClassStatus(c.status)).map((c) => ({
       id: c.id,
       label: formatClassLabel({
        subject: c.subject,

@@ -1,3 +1,4 @@
+import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { normalizeStoredClassGradeLabel, resolveClassGradeLabels } from "@/lib/classGrade"
 import { SUBJECT_TO_COURSE_ABBR, subjectChineseToAbbr } from "@/lib/courseCode"
 import { academicYearLabelForClass } from "@/lib/academicYearEditGuard"
@@ -179,8 +180,8 @@ export function classMatchesSubject(
 }
 
 export function classMatchesStatus(c: { status: string }, key: string): boolean {
- if (key === "全部") return true
  const status = c.status.trim()
+ if (key === "全部") return !isEndedClassStatus(status)
  return status === key || status.includes(key)
 }
 
