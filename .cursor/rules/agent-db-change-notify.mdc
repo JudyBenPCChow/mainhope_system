@@ -1,0 +1,31 @@
+---
+description: Agent 非畫面改 production 後必須入帳並寄【AGENT】通知給 cfan
+alwaysApply: true
+---
+
+# Agent 非畫面改庫通知
+
+凡 **agent**（對話／MCP `execute_sql`／service role 腳本／Edge 代開戶等）改了 **production 業務資料**，而**不是**使用者在系統畫面上操作，改完後**同一輪必須**：
+
+1. 讀 skill `.cursor/skills/agent-db-change-notify/SKILL.md`
+2. 跑 `node scripts/agent-db-change-notify.mjs`（入 `mgmt_audit_log`＋寄 `cfan@mainhope.edu.hk`）
+
+主旨固定：`【AGENT】修改`＋短標題（無空格銜接），例如 `【AGENT】修改馮宇BAFS試堂改正價`。
+
+## 要通知
+
+- INSERT／UPDATE／DELETE 業務表（報讀、排程、試堂、收款、當值、老師、點名等）
+- 作廢單據、取消堂、改試堂結果／類型、開帳戶寫入 teachers／auth
+- 代使用者「直接改庫」的確認執行
+
+## 唔使通知
+
+- 只讀查詢、dry-run、本地／staging
+- 只改 repo 檔案、只套 migration／schema（無業務列變更）
+- 使用者在畫面完成、agent 僅旁觀
+
+## 失敗
+
+腳本／寄信失敗：**立刻告訴使用者**（缺 service role／`.env.mail`），不要當已完成通知。可先用 MCP 補寫 audit，但仍要寄出或說明寄不出。
+
+本規則＝使用者已預先授權此類通知寄往 `cfan@mainhope.edu.hk`，**不必**每則再寫「請寄出」。一般代寄仍跟 `agent-mail.mdc`。
