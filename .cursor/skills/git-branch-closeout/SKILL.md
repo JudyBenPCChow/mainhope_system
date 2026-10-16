@@ -24,12 +24,14 @@ description: >-
 在**主工作樹**執行（不要在即將拆走的 worktree 裡刪自己）：
 
 1. `git fetch origin`
-2. `git checkout main && git merge --ff-only origin/main`（有未提交且會擋 checkout：先 stash 本題無關的改動，pop 回 `main`）
-3. 刪遠端 head：`git push origin --delete <branch>`（已自動刪則略過）
-4. 刪本地：`git branch -d <branch>`（已合但 SHA 不是祖先時用 `-D`，先確認內容已在 `origin/main`）
-5. `git worktree list`：該題路徑 `git worktree remove`（dirty 且確認是過期稿才 `--force`）
-6. 分題表頭狀態已關則可在 **`main`** 搬 `BACKLOG.md` 索引列（feature 分支不要搬）
-7. `git worktree list` 與 `git branch` 只應留下 `main` 與**仍有未合獨特內容**的 branch
+2. `git branch --show-current`。目前不是 `main`、也不是本 PR 的 head：**停**，回覆寫出分支名稱。不要在別題分支上 `merge --ff-only`（曾因此把計糧分支快轉到最新 `main`）。
+3. 要離開本 PR head 時：非本題未提交檔會被 checkout 蓋掉 → 停、報告路徑。不要為了對齊而 reset／restore。
+4. `git checkout main` 之後再確認 `git branch --show-current` 是 `main`，才 `git merge --ff-only origin/main`。
+5. 刪遠端 head：`git push origin --delete <branch>`（已自動刪則略過）。只刪本 PR 的 head。
+6. 刪本地：`git branch -d <branch>`（已合但 SHA 不是祖先時用 `-D`，先確認內容已在 `origin/main`）。只刪本 PR 的 head。
+7. `git worktree list`：只對本題路徑 `git worktree remove`（dirty 且確認是過期稿才 `--force`）。別題 stash、dirty worktree 留在原處。
+8. 分題表頭狀態已關則可在 **`main`** 搬 `BACKLOG.md` 索引列（feature 分支不要搬）
+9. `git worktree list` 與 `git branch` 只應留下 `main` 與**仍有未合獨特內容**的 branch
 
 合入（commit → PR → 等 CI → merge）由個人 skill `git-ship` 執行。本 skill 在 **已合入** 後跑。`gh`：`export PATH="$HOME/.local/bin:$PATH"`。勿 `gh pr merge --admin`（除非使用者明講）。本倉未必開得 `enablePullRequestAutoMerge`，不要依賴 `--auto`。
 
