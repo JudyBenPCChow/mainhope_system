@@ -13,12 +13,13 @@ import { timeSlotSelectValueFromStored } from "@/lib/classTimeSlot"
 import { parseTimeSlotBounds } from "@/services/batchScheduleHelpers"
 import {
  fetchConsecutiveScheduleIds,
- fetchScheduleStudentHintsForClass,
 } from "@/services/classQueries"
 import { insertScheduleRow, nextSessionNumberForClass } from "@/services/scheduleWriteQueries"
 import {
  inheritDeclarationsAcrossSchedules,
+ listEnrollmentStudentsForMakeupRemint,
  syncSingleLessonDeclarations,
+ syncStudentMakeupDeclaration,
 } from "@/services/entitlementQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 
@@ -169,22 +170,19 @@ export async function previewMakeupForCancelledSchedule(
  if (!primary.class_id) throw new Error("此排程無班別，無法安排補堂")
  const cancelledIds = slots.map((s) => s.id)
  const alreadyHasMakeupIds = await findExistingMakeupScheduleIds(primary.class_id, cancelledIds)
- const hints = await fetchScheduleStudentHintsForClass(
-  primary.class_id,
-  slots.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
- )
- const nameSet = new Set<string>()
- for (const s of slots) {
-  for (const n of hints.get(s.id)?.attendingNames ?? []) nameSet.add(n)
- }
  const singleSessionMoveCount = await countSingleSessionEnrollmentsOnSchedules(cancelledIds)
+ const remintPreview = await listEnrollmentStudentsForMakeupRemint({
+  classId: primary.class_id,
+  scheduledDate: primary.scheduled_date,
+ })
  return {
   cancelledScheduleIds: cancelledIds,
   originalDate: primary.scheduled_date,
   originalTimeSlot: timeSlotLabelFromBounds(primary.start_time, primary.end_time),
   cancelReason: primary.cancel_reason,
   isConsecutive: slots.length > 1,
-  attendingNames: [...nameSet].sort((a, b) => a.localeCompare(b, "zh-Hant")),
+  // 預覽尚無補回日：暫以取消堂日閘估算；安排時以用戶所選補回日重鑄為準
+  attendingNames: remintPreview.map((s) => s.fullName),
   singleSessionMoveCount,
   alreadyHasMakeupIds,
  }
@@ -198,6 +196,51 @@ async function countSingleSessionEnrollmentsOnSchedules(scheduleIds: string[]): 
   .in("schedule_id", scheduleIds)
  if (error) throw error
  return new Set((data ?? []).map((r) => String((r as { enrollment_id: string }).enrollment_id))).size
+}
+
+async function remountIncompleteLeaveMakeups(
+ pairs: Array<{ oldId: string; newId: string }>,
+ newDate: string
+): Promise<number> {
+ if (!supabase || pairs.length === 0) return 0
+ const oldIds = pairs.map((p) => p.oldId)
+ const newByOld = new Map(pairs.map((p) => [p.oldId, p.newId]))
+ const { data, error } = await supabase
+  .from("leave_makeup_records")
+  .select("id, student_id, class_id, makeup_schedule_id, status")
+  .in("makeup_schedule_id", oldIds)
+ if (error) throw error
+ let n = 0
+ for (const raw of data ?? []) {
+  const row = raw as {
+   id: string
+   student_id: string
+   class_id: string
+   makeup_schedule_id: string | null
+   status: string
+  }
+  if (String(row.status) === "已完成") continue
+  const oldSid = row.makeup_schedule_id != null ? String(row.makeup_schedule_id) : ""
+  const newSid = newByOld.get(oldSid)
+  if (!newSid) continue
+  const { error: updErr } = await supabase
+   .from("leave_makeup_records")
+   .update({
+    makeup_schedule_id: newSid,
+    makeup_date: newDate,
+    updated_at: new Date().toISOString(),
+   })
+   .eq("id", row.id)
+  if (updErr) throw updErr
+  await syncStudentMakeupDeclaration({
+   studentId: String(row.student_id),
+   classId: String(row.class_id),
+   prevMakeupScheduleId: oldSid,
+   nextMakeupScheduleId: newSid,
+  })
+  n += 1
+ }
+ return n
 }
 
 /**
@@ -314,16 +357,6 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
 
  const timeBounds = resolveMakeupTimeBounds(opts.timeSlot, slots.length)
 
- const hints = await fetchScheduleStudentHintsForClass(
-  primary.class_id,
-  slots.map((s) => ({ id: s.id, scheduled_date: s.scheduled_date }))
- )
- const nameSet = new Set<string>()
- for (const s of slots) {
-  for (const n of hints.get(s.id)?.attendingNames ?? []) nameSet.add(n)
- }
- const attendingNames = [...nameSet].sort((a, b) => a.localeCompare(b, "zh-Hant"))
-
  const sessionStart = await nextSessionNumberForClass(primary.class_id)
  const reasonHint = primary.cancel_reason?.trim()
  const newScheduleIds: string[] = []
@@ -390,11 +423,20 @@ export async function arrangeMakeupForCancelledSchedule(opts: {
   }
  }
 
- // Wave 2：原堂宣告 void；新堂繼承原 pool_id（補回≠轉池）
+ // Wave 2：按補回日就讀名冊重鑄（D2）；來源 class_reschedule（D10）
  await inheritDeclarationsAcrossSchedules(
   pairs.map((p) => ({ fromScheduleId: p.oldId, toScheduleId: p.newId })),
   { sourceEventType: "class_reschedule" }
  )
+
+ // D3：未完成調堂改掛到新補回堂
+ await remountIncompleteLeaveMakeups(pairs, newDate)
+
+ const remintStudents = await listEnrollmentStudentsForMakeupRemint({
+  classId: primary.class_id,
+  scheduledDate: newDate,
+ })
+ const attendingNames = remintStudents.map((s) => s.fullName)
 
  const singleSessionMoved = await remountSingleSessionSelections(pairs)
  const primaryNewId = newScheduleIds[0]!

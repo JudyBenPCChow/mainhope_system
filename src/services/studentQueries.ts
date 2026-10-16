@@ -31,8 +31,10 @@ import {
  fetchActiveDeclarationsForSchedules,
  remintPoolAfterPeriodChange,
  syncSingleLessonDeclarations,
+ voidAllStudentDeclarationsOnClass,
  voidStudentDeclarationsOnClassFromDate,
 } from "@/services/entitlementQueries"
+import { logMgmtAuditActionOrThrow } from "@/services/mgmtGodViewQueries"
 import { usesEntitlementRosterModel } from "@/lib/rosterEligibilityGate"
 import { nextStudentCode } from "@/lib/studentCode"
 import { deriveActivityStatus, enrollmentEventYmdFromRow } from "@/lib/studentActivityStatus"
@@ -1834,15 +1836,9 @@ export async function updateEnrollment(id: string, status: string, studentId?: s
  if (studentId) await syncStudentEnrollmentState(studentId)
 }
 
-export async function deleteEnrollment(id: string): Promise<void> {
- if (!supabase) throw new Error("Supabase 未設定")
- const { error } = await supabase.from("student_class_enrollments").delete().eq("id", id)
- if (error) throw error
-}
-
 /**
- * 手誤選錯：硬刪報讀列及其增退事件／選堂明細，不寫入任何新紀錄。
- * 用於誤加學生（與「退讀」不同：退讀會保留歷史）。
+ * 手誤選錯：硬刪報讀列及其增退事件／選堂明細。
+ * 僅允許該班零出席；有出席須改退讀／轉時間。會作廢該班全部有效宣告。
  */
 export type EnrollmentAttendanceChangeOptions = {
  attendanceAction?: "delete" | "keep"
@@ -1879,14 +1875,19 @@ async function applyEnrollmentAttendanceDeletes(
  await deleteAttendanceHitsWithAuditOrThrow(toDelete, reason)
 }
 
+/** @deprecated 死碼；請用 purgeMistakenEnrollment（含作廢宣告）。 */
+export async function deleteEnrollment(_id: string): Promise<void> {
+ throw new Error("請改用手誤清除（purgeMistakenEnrollment），不要直接硬刪報讀。")
+}
+
 export async function purgeMistakenEnrollment(opts: {
  enrollmentId: string
  studentId: string
-} & EnrollmentAttendanceChangeOptions): Promise<void> {
+}): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const { data: row, error: fetchErr } = await supabase
   .from("student_class_enrollments")
-  .select("id, student_id, class_id")
+  .select("id, student_id, class_id, classes ( class_kind, course_code_full )")
   .eq("id", opts.enrollmentId)
   .maybeSingle()
  if (fetchErr) throw fetchErr
@@ -1898,8 +1899,75 @@ export async function purgeMistakenEnrollment(opts: {
   throw new Error("報讀紀錄與學生不符")
  }
 
+ const cls = (row as { classes?: { class_kind?: string | null; course_code_full?: string | null } | null })
+  .classes
+ const kind = resolveClassKind(cls?.class_kind ?? null, null)
+ if (kind === "homework") {
+  throw new Error("功輔班請用退讀，不可手誤清除（月費列會擋住刪報讀）。")
+ }
+
  const hits = await previewEnrollmentAttendanceImpact(studentId, classId)
- await applyEnrollmentAttendanceDeletes(hits, opts, "purge_mistaken_enrollment")
+ if (hits.length > 0) {
+  throw new Error(
+   `此生在本班已有 ${hits.length} 筆出席，不算手誤。請改用退讀或轉時間。`
+  )
+ }
+
+ const { count: monthlyCount, error: monthlyErr } = await supabase
+  .from("homework_tutoring_monthly_charges")
+  .select("id", { count: "exact", head: true })
+  .eq("enrollment_id", enrollmentId)
+ if (monthlyErr) throw monthlyErr
+ if ((monthlyCount ?? 0) > 0) {
+  throw new Error("此報讀仍有功輔月費列，不可手誤清除。請改用退讀。")
+ }
+
+ // 先作廢宣告，再刪報讀（前置檢查已擋下常見半途失敗）
+ await voidAllStudentDeclarationsOnClass({
+  studentId,
+  classId,
+  voidReason: "enrollment_purged",
+ })
+
+ const { error: pendingErr } = await supabase
+  .from("student_pending_lessons")
+  .update({
+   status: "取消",
+   updated_at: new Date().toISOString(),
+  })
+  .eq("enrollment_id", enrollmentId)
+  .eq("status", "待補")
+ if (pendingErr) throw pendingErr
+
+ const { data: leaveRows, error: leaveFetchErr } = await supabase
+  .from("leave_makeup_records")
+  .select("id, status, remarks, makeup_schedule_id")
+  .eq("student_id", studentId)
+  .eq("class_id", classId)
+ if (leaveFetchErr) throw leaveFetchErr
+ for (const raw of leaveRows ?? []) {
+  const leave = raw as {
+   id: string
+   status: string
+   remarks: string | null
+   makeup_schedule_id: string | null
+  }
+  if (String(leave.status) === "已完成") continue
+  const note = "報讀已手誤清除"
+  const remarks = leave.remarks?.includes(note)
+   ? leave.remarks
+   : [leave.remarks?.trim(), note].filter(Boolean).join("；")
+  const { error: leaveUpdErr } = await supabase
+   .from("leave_makeup_records")
+   .update({
+    makeup_schedule_id: null,
+    makeup_date: null,
+    remarks,
+    updated_at: new Date().toISOString(),
+   })
+   .eq("id", leave.id)
+  if (leaveUpdErr) throw leaveUpdErr
+ }
 
  const { error: evErr } = await supabase
   .from("enrollment_change_events")
@@ -1917,7 +1985,16 @@ export async function purgeMistakenEnrollment(opts: {
   .from("student_class_enrollments")
   .delete()
   .eq("id", enrollmentId)
- if (delErr) throw delErr
+ if (delErr) {
+  throw new Error(
+   `報讀刪除失敗（該班到課宣告可能已作廢）：${delErr.message}`
+  )
+ }
+
+ await logMgmtAuditActionOrThrow({
+  action: "手誤清除報讀",
+  detail: `enrollment_id=${enrollmentId}; student_id=${studentId}; class_id=${classId}; course=${cls?.course_code_full ?? ""}`,
+ })
 
  await syncStudentEnrollmentState(studentId)
 }
@@ -1929,6 +2006,8 @@ export async function withdrawStudentFromClass(opts: {
  classId: string
  effectiveDate: string
  reason: string | null
+ /** 若由排程選堂帶入，僅作稽核；生效日仍以 effectiveDate 為準 */
+ leaveFromScheduleId?: string | null
 } & EnrollmentAttendanceChangeOptions): Promise<void> {
  if (!supabase) throw new Error("Supabase 未設定")
  const reason = opts.reason?.trim() || null
@@ -1976,15 +2055,17 @@ export async function withdrawStudentFromClass(opts: {
   await supabase.from("enrollment_change_events").delete().eq("id", eventId)
   throw e2
  }
- // Wave 2：退讀生效日起 void 該班宣告（預約退讀亦清未來堂）
- try {
-  await voidStudentDeclarationsOnClassFromDate({
-   studentId: opts.studentId,
-   classId: opts.classId,
-   fromDate: effectiveDate,
+ // D7：作廢失敗則中止（與手誤清除同嚴級）
+ await voidStudentDeclarationsOnClassFromDate({
+  studentId: opts.studentId,
+  classId: opts.classId,
+  fromDate: effectiveDate,
+ })
+ if (opts.leaveFromScheduleId) {
+  await logMgmtAuditActionOrThrow({
+   action: "退讀選堂",
+   detail: `enrollment_id=${opts.enrollmentId}; leave_from_schedule_id=${opts.leaveFromScheduleId}; effective_date=${effectiveDate}`,
   })
- } catch (err) {
-  console.error("voidStudentDeclarationsOnClassFromDate failed", opts.enrollmentId, err)
  }
  await syncStudentEnrollmentState(opts.studentId)
 }
