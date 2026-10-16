@@ -49,15 +49,25 @@ python3 scripts/generate_2627_trial_followup_pdf.py \
 4. **寄電郵**：用戶本則訊息已寫收件地址，且明確要求寄出 → MCP `mainhope-mail` 的 `send_email`。
    - 發件人固定 `noreply@mainhope.edu.hk`
    - 附件用工作區內剛產出的 PDF
-   - 定期報告主旨：`系統報告︰試堂及轉正（D/M)`（香港當日，例如 `13/10`）
-   - 定期報告收件（用戶 2026-10-13 定）：`markyu@mainhope.edu.hk`、`526956762@qq.com`、`cfan@mainhope.edu.hk`
+   - 定期報告主旨：`【系統報告】試堂及轉正（D/M)`（香港當日，不補零；全形前括號、半形後括號。例：`【系統報告】試堂及轉正（20/10)`）
+   - 定期報告收件：To `526956762@qq.com`（Sophie Yu）；CC `markyu@mainhope.edu.hk`、`cfan@mainhope.edu.hk`
+   - 正文末兩句固定，日期換成**下一次**星期二或五的香港日期與星期，時間固定上午 10:00：
+
+```
+下次發送日期：2026年10月23日（星期五）上午10:00
+本電郵自動逢星期二及五產生。
+
+(以上乃系統發出之提醒，切勿回覆本電郵）
+```
+
    - 未寫地址、或 `mail_status` 未就緒：停下說明，不要改用其他方式硬寄
 
-## 定期（Cursor Automation）
+## 定期
 
-- 觸發：逢星期二、五 香港時間 14:00
-- 每次先查庫再出 PDF，再寄上列三人
-- 產出腳本須已在自動化所用分支（通常 `main`）可取；未入庫則不要假設腳本存在
+- GitHub Actions `.github/workflows/admin-pdf-reports.yml`：逢星期二、五香港時間 10:00（UTC `0 2 * * 2,5`）。
+- 正文「下次發送日期」為下一個星期二或五（當日若星期二，下次為星期五；當日若星期五，下次為下星期二）。
+- 腳本：`python3 scripts/send_admin_pdf_reports.py`（`--dry-run` 不寄）。收件 To Sophie Yu，CC Mark Yu、Christine Fan。
+- 排程只在 workflow 已在 `main` 時才會跑。
 
 ## 勿做
 

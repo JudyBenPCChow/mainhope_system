@@ -72,8 +72,10 @@ type TeacherPayload = {
   lessons: LessonPayload[]
 }
 
-/** 自動排程由香港曆日此日起每晚 20:00 寄出（含當日）；10/12 已人手寄過，自 10/13 晚起自動 */
+/** 自動排程由香港曆日此日起寄出（含當日）；10/12 已人手寄過，自 10/13 起自動 */
 const AUTO_SEND_FROM_YMD = "2026-10-13"
+/** 此日（含）起改香港 18:00；之前仍 20:00。當日寄出的是翌日課堂。 */
+const SEND_AT_18_FROM_YMD = "2026-10-18"
 
 function hkYmd(d = new Date()): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -310,12 +312,14 @@ Deno.serve(async (req) => {
   let force = false
   let simulateTo: string | null = null
   let targetDate: string | null = null
+  let slot: "18" | "20" | null = null
   try {
     const body = await req.json().catch(() => ({})) as {
       dry_run?: unknown
       force?: unknown
       simulate_to?: unknown
       target_date?: unknown
+      slot?: unknown
     }
     dryRun = body?.dry_run === true
     force = body?.force === true
@@ -323,6 +327,8 @@ Deno.serve(async (req) => {
     simulateTo = sim.includes("@") ? sim : null
     const td = String(body?.target_date ?? "").trim()
     targetDate = /^\d{4}-\d{2}-\d{2}$/.test(td) ? td : null
+    const rawSlot = String(body?.slot ?? "").trim()
+    if (rawSlot === "18" || rawSlot === "20") slot = rawSlot
   } catch {
     dryRun = false
   }
@@ -333,7 +339,8 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "缺少 SUPABASE_URL 或 SERVICE_ROLE_KEY" }, 500)
   }
 
-  // 自動 cron：香港 AUTO_SEND_FROM_YMD 起每晚真寄；人手 force／dry_run／simulate 不受限
+  // 自動 cron：香港 AUTO_SEND_FROM_YMD 起真寄；人手 force／dry_run／simulate 不受限。
+  // slot 由 Actions 帶入：18＝香港 18:00，20＝香港 20:00。未帶 slot 的舊排程仍照寄。
   const todayHk = hkYmd()
   if (!force && !dryRun && !simulateTo && todayHk < AUTO_SEND_FROM_YMD) {
     return jsonResponse({
@@ -342,6 +349,27 @@ Deno.serve(async (req) => {
       reason: `自動寄出由 ${AUTO_SEND_FROM_YMD} 起；今日香港 ${todayHk} 未開始`,
       today_hk: todayHk,
     })
+  }
+  if (!force && !dryRun && !simulateTo && slot) {
+    const use18 = todayHk >= SEND_AT_18_FROM_YMD
+    if (use18 && slot === "20") {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: `${SEND_AT_18_FROM_YMD} 起改為香港 18:00；略過 20:00`,
+        today_hk: todayHk,
+        slot,
+      })
+    }
+    if (!use18 && slot === "18") {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: `${SEND_AT_18_FROM_YMD} 前仍為香港 20:00；略過 18:00`,
+        today_hk: todayHk,
+        slot,
+      })
+    }
   }
 
   const dateYmd = targetDate ?? hkTomorrowYmd()
