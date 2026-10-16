@@ -10,33 +10,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = Path(__file__).resolve().parent
+if str(SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS))
+from cjk_pdf_font import ensure_cjk_font
+
 DEFAULT_DATA = ROOT / "docs" / "generated" / "2627" / "2627_TRIAL_FOLLOWUP_2026-10.json"
 OUTPUT = ROOT / "docs" / "generated" / "2627" / "2627_TRIAL_FOLLOWUP_2026-10.pdf"
-FONT_DIR = ROOT / "scripts" / ".fonts"
-FONT_FILE = FONT_DIR / "PMingLiU.ttf"
-MINGLIU_TTC_CANDIDATES = [
-    Path("/Applications/Microsoft Word.app/Contents/Resources/DFonts/mingliu.ttc"),
-    Path("/Applications/Microsoft Word.app/Contents/Resources/OtherFonts/mingliu.ttc"),
-]
 
 
 def ensure_pmingliu() -> Path:
-    FONT_DIR.mkdir(parents=True, exist_ok=True)
-    if FONT_FILE.exists() and FONT_FILE.stat().st_size > 1_000_000:
-        return FONT_FILE
-
-    from fontTools.ttLib import TTCollection
-
-    source = next((path for path in MINGLIU_TTC_CANDIDATES if path.exists()), None)
-    if source is None:
-        raise FileNotFoundError("找不到 mingliu.ttc（新細明體）。請安裝 Microsoft Word 後重試。")
-    collection = TTCollection(str(source))
-    collection.fonts[1].save(str(FONT_FILE))
-    return FONT_FILE
+    return ensure_cjk_font()
 
 
 def class_cell(row: dict) -> str:

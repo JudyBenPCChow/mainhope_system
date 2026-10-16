@@ -1,13 +1,17 @@
-# 每天香港時間 20:00 寄出「明日課堂」老師電郵（自動寄出由 2026-10-13 起；函式內閘）。
-# cron：UTC 12:00＝HKT 20:00；可人手 workflow_dispatch。
-# Secrets：TOMORROW_LESSON_CRON_SECRET
+# 每天寄出「明日課堂」老師電郵（自動寄出由 2026-10-13 起；函式內閘）。
+# 2026-10-17 及之前：香港 20:00（UTC 12:00）。
+# 2026-10-18 起：香港 18:00（UTC 10:00），當日寄出的是翌日課堂。
+# 兩條 cron 都保留；函式看 body.slot，未到切換日略過 18:00，切換日及之後略過 20:00。
+# 可人手 workflow_dispatch。Secrets：TOMORROW_LESSON_CRON_SECRET
 # 備註：新 schedule workflow 若從未跑過，GitHub 可能漏第一次 cron；以 workflow_dispatch 或改檔重註冊補救。
 
 name: Tomorrow teacher lesson reminder
 
 on:
   schedule:
-    # HKT 20:00
+    # HKT 18:00（2026-10-18 起由函式採用）
+    - cron: "0 10 * * *"
+    # HKT 20:00（2026-10-17 及之前由函式採用）
     - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
@@ -51,6 +55,13 @@ jobs:
             echo "缺少 GitHub secret：TOMORROW_LESSON_CRON_SECRET" >&2
             exit 1
           fi
+          SLOT=""
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            case "${{ github.event.schedule }}" in
+              "0 10 * * *") SLOT="18" ;;
+              "0 12 * * *") SLOT="20" ;;
+            esac
+          fi
           BODY='{}'
           if [ "${DRY_RUN}" = "true" ]; then
             BODY=$(jq -cn \
@@ -67,6 +78,9 @@ jobs:
               --argjson force "$([ "${FORCE}" = "true" ] && echo true || echo false)" \
               --arg td "${TARGET_DATE}" \
               '{force:$force} + (if $td != "" then {target_date:$td} else {} end)')
+          fi
+          if [ -n "${SLOT}" ]; then
+            BODY=$(printf '%s' "${BODY}" | jq -c --arg slot "${SLOT}" '. + {slot:$slot}')
           fi
           CODE=$(curl -sS -o /tmp/ttl-out.json -w "%{http_code}" \
             -X POST \

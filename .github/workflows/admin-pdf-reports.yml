@@ -1,0 +1,73 @@
+# 逢星期二、五香港時間 10:00 寄出試堂及轉正、追收學費兩封 PDF。
+# cron：UTC 02:00＝HKT 10:00；星期二＝2、星期五＝5。可人手 workflow_dispatch。
+# Secrets：SUPABASE_ACCESS_TOKEN（Management API 查庫）、RESEND_API_KEY（寄信）
+# 收件 Sophie Yu；副本 Mark Yu、Christine Fan。
+# 備註：新 schedule workflow 若從未跑過，GitHub 可能漏第一次 cron；以 workflow_dispatch 或改檔重註冊補救。
+
+name: Admin PDF reports
+
+on:
+  schedule:
+    - cron: "0 2 * * 2,5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只查庫組文、不寄信（true／false）"
+        required: false
+        default: "false"
+
+concurrency:
+  group: admin-pdf-reports
+  cancel-in-progress: false
+
+jobs:
+  send:
+    name: Build PDFs and send
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Chinese font
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PDF libraries
+        run: pip install reportlab fonttools
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.110.0
+
+      - name: Link production project ref
+        run: |
+          mkdir -p supabase/.temp
+          echo gudmbilboyhouotilrvt > supabase/.temp/project-ref
+          printf '%s\n' '{"ref":"gudmbilboyhouotilrvt","name":"MainHope_production","organization_id":"qbuyalxfxbhqtjsuflce","organization_slug":"qbuyalxfxbhqtjsuflce"}' > supabase/.temp/linked-project.json
+
+      - name: Query, build, send
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
+            echo "缺少 GitHub secret：SUPABASE_ACCESS_TOKEN" >&2
+            exit 1
+          fi
+          if [ "${DRY_RUN}" != "true" ] && [ -z "${RESEND_API_KEY:-}" ]; then
+            echo "缺少 GitHub secret：RESEND_API_KEY" >&2
+            exit 1
+          fi
+          ARGS=()
+          if [ "${DRY_RUN}" = "true" ]; then
+            ARGS+=(--dry-run)
+          fi
+          python3 scripts/send_admin_pdf_reports.py "${ARGS[@]}"
