@@ -1210,6 +1210,22 @@ export function ClassDetailView() {
    lessonSlotsPerSession: c.lesson_slots_per_session,
   })
 
+ const makeupScheduleId = searchParams.get("makeup")?.trim() ?? ""
+ const makeupFilterRef = useRef("")
+ const makeupOpenedRef = useRef("")
+ const openArrangeMakeupRef = useRef<(scheduleId: string) => Promise<void>>(async () => {})
+ useEffect(() => {
+  if (!cid || !makeupScheduleId) return
+  if (makeupFilterRef.current !== makeupScheduleId) {
+   makeupFilterRef.current = makeupScheduleId
+   setSchedFilter("cancel")
+  }
+  if (!canManageClass || classYearLocked) return
+  if (makeupOpenedRef.current === makeupScheduleId) return
+  makeupOpenedRef.current = makeupScheduleId
+  void openArrangeMakeupRef.current(makeupScheduleId)
+ }, [cid, makeupScheduleId, canManageClass, classYearLocked])
+
  if (!cid) {
   return (
    <AdaptiveDetailLayer
@@ -1607,6 +1623,7 @@ export function ClassDetailView() {
    setMakeupLoading(false)
   }
  }
+ openArrangeMakeupRef.current = openArrangeMakeup
 
  const closeArrangeMakeup = () => {
   if (makeupSaving) return
