@@ -2,16 +2,18 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-30 工程關帳：v1.21 md＋docx／pdf；playbooks 已掛。WhatsApp／列印發佈屬營運） |
+| 狀態 | `done`（2026-08-30 工程關帳：v1.21 md＋docx／pdf；playbooks 已掛。**v1.22（2026-10-16）** §8 逾期罰款改暫不生效。WhatsApp／列印發佈屬營運） |
 | 優先 | 中 |
 | 範圍 | `2627`（2026-09-01 → 2027-06-30）常規學年全公司員工守則（繁中書面語、可列印） |
 | 不含 | 技術實作、給 AI 指示、暑期兩期制全文、計糧全文、機構稱呼專章、每周課表、個別老師名單 |
-| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.21**／2026-09-03）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) |
+| 產物 | [`ops-guide.md`](../year/2627/ops-guide.md)（**v1.22**／2026-10-16）；[`2627_REGULAR_YEAR_OPS_GUIDE.docx`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx)／[`.pdf`](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf)（列印版仍為舊稿，要發佈 Word／PDF 須另行明示） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 立案 | 2026-08-08 |
-| 上次更新 | 2026-09-01 |
+| 上次更新 | 2026-10-16 |
 
 ## 結論
+
+**v1.22（2026-10-16）：** §8 逾期罰款改為暫不生效（原定 10/1 未真正施行，恢復日未定）。只改 md；docx／pdf 未重出。
 
 **v1.20（2026-09-01）：** §2.3 新增報讀班別名單只顯示本學年（2627），不含已結束的 26SM。docx 已重出。
 

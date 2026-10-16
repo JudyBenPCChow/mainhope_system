@@ -19,7 +19,7 @@
 | [繳費收據](frontdesk/PAYMENT_RECEIPTS.md) | 列印／PDF／WhatsApp；開錯按類型走已繳堂數調動或作廢 |
 | [收件匣](frontdesk/INBOX.md) | 營運／系統通知、已讀 |
 | [請假與補堂（連堂）](frontdesk/LEAVE_MAKEUP_CONSECUTIVE.md) | 連堂只欠／只補；取消請假 |
-| [逾期學費罰款（前線）](frontdesk/TUITION_LATE_FEE_FRONTLINE.md) | 家長解說與執行 |
+| [逾期學費罰款（前線）](frontdesk/TUITION_LATE_FEE_FRONTLINE.md) | 家長解說與執行（**目前暫不生效**） |
 | [代堂與更換任教老師（前線）](frontdesk/SUBSTITUTE_AND_CLASS_TEACHER_FRONTLINE.md) | 何時代堂／何時更換任教老師 |
 
 ### 財務（`finance/`）
@@ -46,7 +46,7 @@
 
 | 篇章 | 簡介 |
 | --- | --- |
-| [2627 常規學年營運指引（md）](../year/2627/ops-guide.md) | 全公司守則 v1.21；列印／WhatsApp 發佈用 |
+| [2627 常規學年營運指引（md）](../year/2627/ops-guide.md) | 全公司守則 v1.22；列印／WhatsApp 發佈用 |
 | [2627 常規學年營運指引（PDF）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.pdf) | 列印版 |
 | [2627 常規學年營運指引（Word）](../generated/2627/2627_REGULAR_YEAR_OPS_GUIDE.docx) | 可編輯版 |
 | [2627 校曆手冊（PDF）](../generated/2627/2627_ACADEMIC_CALENDAR_HANDOUT.pdf) | 專科／功輔假期對照 |
