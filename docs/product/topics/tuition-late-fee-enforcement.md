@@ -2,11 +2,11 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `done`（2026-08-01：收款自動加罰已上線；2026-10-01 起生效） |
+| 狀態 | `done`（2026-08-01：收款自動加罰已上線；**2026-10-16 改暫不生效**，原定 2026-10-01 未真正施行） |
 | 優先 | 高 |
 | 範圍 | 正規小組課：已繳／已扣池判定拖欠 → 收款自動加 HK$50；同一科每曆月最多一次；豁免須原因並可統計 |
 | 不含 | 禁止入室警示／門禁；暑期；試堂；一對一；家長 WhatsApp 自動通告（可後做） |
-| 施行 | **2026-10-01** 起；此前拖欠不追溯 |
+| 施行 | **暫不生效**（原定 2026-10-01；恢復日未定）。此前及延期期間拖欠不追溯 |
 | 前線指引 | [`../manual/TUITION_LATE_FEE_FRONTLINE.md`](../playbooks/frontdesk/TUITION_LATE_FEE_FRONTLINE.md) |
 | 政策錨點 | [`../TUITION_TERM_AND_LATE_FEE_POLICY.md`](../policies/payments/TUITION_TERM_AND_LATE_FEE_POLICY.md) |
 | 實作計劃 | Cursor plan `late_fee_fifty_63951e4b` |
@@ -15,7 +15,7 @@
 
 ## 結論
 
-`/Payments` **已收款**會按池模型自動加入逾期罰款（獨立表 `payment_late_fee_items`）；豁免必填原因；優惠不打罰款。前端以 `localToday()` 曆月做 Rule B；系統化開關日為 **2026-10-01**（`LATE_FEE_EFFECTIVE_DATE`）。
+程式已接線，但 **2026-10-16 起關閉**：`LATE_FEE_ENFORCEMENT_SUSPENDED`。`/Payments` **已收款不會**自動加入逾期罰款。規則（池模型、每月每科一次、豁免須原因）保留；恢復時改回該開關。原定系統化開關日 **2026-10-01** 未真正施行。
 
 ## 已完成
 

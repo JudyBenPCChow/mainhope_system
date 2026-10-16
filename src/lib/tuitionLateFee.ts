@@ -1,13 +1,19 @@
 /**
- * 正規課程逾期學費罰款（收款自動加 $50）。
+ * 常規專科班逾期學費罰款（規則：收款加 $50；目前暫不施行）。
  * 前線口徑：docs/playbooks/frontdesk/TUITION_LATE_FEE_FRONTLINE.md
  */
 
 /** 固定金額；日後可改 config／DB */
 export const LATE_FEE_AMOUNT = 50
 
-/** 系統化生效日（含當日） */
+/** 原定系統化生效日（含當日）。恢復施行時先改 `LATE_FEE_ENFORCEMENT_SUSPENDED`。 */
 export const LATE_FEE_EFFECTIVE_DATE = "2026-10-01"
+
+/**
+ * 逾期罰款暫不生效。
+ * 2026-10-16 定案：原定 2026-10-01 未真正施行，政策延期，恢復日未定。
+ */
+export const LATE_FEE_ENFORCEMENT_SUSPENDED = true
 
 export const LATE_FEE_LABEL = "逾期罰款"
 
@@ -21,6 +27,7 @@ export function billingMonthFromYmd(ymd: string): string {
 }
 
 export function isLateFeeSystemActive(todayYmd: string = localTodayYmd()): boolean {
+ if (LATE_FEE_ENFORCEMENT_SUSPENDED) return false
  return todayYmd >= LATE_FEE_EFFECTIVE_DATE
 }
 
