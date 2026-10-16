@@ -13,6 +13,7 @@ import {
  type LucideIcon,
 } from "lucide-react"
 
+import { AdminSlaReminderSection } from "@/components/home/AdminSlaReminderSection"
 import { Tag } from "@/components/ui/tag"
 import { usePinnedPages } from "@/hooks/usePinnedPages"
 import { useAppBanner } from "@/lib/appBanner"
@@ -247,6 +248,8 @@ export function HomeActionsPreviewPanel() {
    ) : (
     <p className="mt-4 text-sm text-muted-foreground">可在各頁左上角按「釘選」，把常用頁面放在這裡。</p>
    )}
+
+   <AdminSlaReminderSection />
 
    {hiddenDefaults.length > 0 ? (
     <button

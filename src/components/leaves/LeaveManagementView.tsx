@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella, Users, Video } from "lucide-react"
 
@@ -434,7 +434,7 @@ export function LeaveManagementView() {
   setAddOpen(true)
  }
 
- const openDetail = (row: LeaveManageRow) => {
+ const openDetail = useCallback((row: LeaveManageRow) => {
   setDetailRow(row)
   setDetailStatus(row.status || "待補課")
   setDetailReason((row.leave_reason as (typeof LEAVE_REASON_OPTIONS)[number]) || "病假")
@@ -442,7 +442,20 @@ export function LeaveManagementView() {
   setDetailRemarks(row.remarks ?? "")
   setDetailErr(null)
   setDetailOpen(true)
- }
+ }, [])
+
+ const openedLeaveRef = useRef("")
+ useEffect(() => {
+  if (!recordFromUrl) {
+   openedLeaveRef.current = ""
+   return
+  }
+  if (loading) return
+  const row = rows.find((r) => r.id === recordFromUrl)
+  if (!row || openedLeaveRef.current === recordFromUrl) return
+  openedLeaveRef.current = recordFromUrl
+  openDetail(row)
+ }, [recordFromUrl, loading, rows, openDetail])
 
  const deleteLeaveRow = async (r: LeaveManageRow) => {
   try {
@@ -725,9 +738,9 @@ export function LeaveManagementView() {
    {studentIdFromUrl || recordFromUrl ? (
    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-info bg-info/80 px-3 py-2 text-sm text-info-foreground dark:border-info dark:bg-info/40 dark:text-info">
      <span>
-      已由學生詳情帶入篩選
-      {recordFromUrl ? "（並嘗試捲動至該筆）" : ""}
-      。
+      {recordFromUrl && !studentIdFromUrl
+       ? "已帶入這一筆請假。"
+       : `已由學生詳情帶入篩選${recordFromUrl ? "（並嘗試捲動至該筆）" : ""}。`}
      </span>
      <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={clearDeepLinkFilters}>
       清除網址篩選

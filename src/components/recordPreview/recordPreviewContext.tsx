@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
 
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
+import { keepsHomeActionsOpen } from "@/lib/homeActionsRail"
 import type { LeadRow } from "@/services/leadQueries"
 import type { TuitionChasePeriodRef, TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
 
@@ -57,6 +58,8 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
  const location = useLocation()
  const [preview, setPreview] = useState<RecordPreviewTarget | null>(null)
  const [emptyOpen, setEmptyOpen] = useState(() => location.pathname === "/Home")
+ const locationStateRef = useRef(location.state)
+ locationStateRef.current = location.state
 
  const closePreview = useCallback(() => setPreview(null), [])
 
@@ -72,7 +75,8 @@ export function RecordPreviewProvider({ children }: { children: React.ReactNode 
 
  useEffect(() => {
   setPreview(null)
-  setEmptyOpen(location.pathname === "/Home")
+  const keep = keepsHomeActionsOpen(locationStateRef.current)
+  setEmptyOpen(keep || location.pathname === "/Home")
  }, [location.pathname])
 
  useEffect(() => {
