@@ -548,7 +548,7 @@ export function ContactUpdateCampaignView() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6">
+    <div className="mx-auto w-full max-w-6xl">
       {usesSharedAppShell(role) ? (
         <AdminPageHeader
           eyebrow="行政工作"

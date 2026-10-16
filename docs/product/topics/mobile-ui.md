@@ -48,7 +48,7 @@
 | 已併出 | 營運總覽 MgmtDashboard | 2026-08-21 交 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md) 波次 3（原 08-05 M-1） |
 | 已落 | 外星人 AlienGodViewHome、SystemIssues、SystemLogs | 2026-08-29 手機卡片＋Issues／Logs FilterSheet（M-2～M-4） |
 | 已落 | 老師 P3 排程捷徑／scope；Inbox 底欄；Schedule FilterSheet；觸控 `h-10` | 2026-08-29（M-5～M-9、M-11）；收款頁係長流程，改 pill 高度＋回桌面提示，唔硬套 FilterSheet |
-| 低 | 約房多步、次要 CRUD／報表、雙重 padding、行政底欄學生／收款 | §D；M-10／M-12／M-13 |
+| 低 | 約房多步、次要 CRUD／報表、行政底欄學生／收款 | §D；M-10／M-12／M-13 |
 
 低嚴重度模擬取捨（非擋操作，可選收斂）：W2-1～W2-4、W3-1～W3-3；08-05 M-13～M-18。
 
@@ -58,12 +58,12 @@
 
 | 嚴重度 | 問題 | 依據 |
 | --- | --- | --- |
-| 中 | 主區鎖 `max-w-lg`；多欄作業仍可能擠（高頻列表已改卡片後影響下降） | [`MobileLayout.tsx`](../../src/components/mobile/MobileLayout.tsx) |
+| ~~中~~ | ~~主區鎖 `max-w-lg`~~ | **已修**（2026-10-15）：768px 以下跟視窗同寬 |
 | 中 | 底欄 IA 偏角色：行政有排程＋**收件匣**，仍無學生／收款；老師有時間表＋**收件匣**，排程改由首頁捷徑；外星人有報錯＋**收件匣** | [`mobileNav.ts`](../../src/lib/mobileNav.ts)；2026-08-29 Inbox 已加 |
 | ~~中~~ | ~~更新橫幅蓋底欄~~ | **已修** |
 | ~~中~~ | ~~阿Po 蓋詳情／點名 sheet~~ | **已修** |
 | ~~中~~ | ~~FilterSheet／NavDrawer 蓋 Dialog~~ | **已修** |
-| 低 | 雙重 padding；Header／底欄「首頁」重複 | 多頁／[`MobileHeader.tsx`](../../src/components/mobile/MobileHeader.tsx) |
+| ~~低~~ | ~~雙重 padding；Header／底欄「首頁」重複~~ | **已修**（2026-10-15）：頂欄不再放首頁；營運總覽、計糧、聯絡資料更新去掉頁級內距 |
 | ~~低~~ | ~~部分觸控 &lt; `h-10`~~ | **已修**（Button／Input／DateInput／底欄 2026-08-29） |
 
 ---
