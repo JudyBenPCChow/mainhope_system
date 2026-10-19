@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { filterSearchableOptions, highlightedOptionIndex } from "@/components/ui/searchable-select"
+import {
+ filterSearchableOptions,
+ highlightedOptionIndex,
+ searchableSelectScrollShouldReposition,
+} from "@/components/ui/searchable-select"
 import { normalizeSchoolSearchKey } from "@/lib/hkSecondarySchools"
 
 const schools = [
@@ -87,5 +91,17 @@ describe("highlightedOptionIndex", () => {
 
  it("已選項唔在篩選結果時回到第一項", () => {
   expect(highlightedOptionIndex(schools, "聖保羅書院")).toBe(0)
+ })
+})
+
+describe("searchableSelectScrollShouldReposition", () => {
+ it("清單內部捲動不重算位置", () => {
+  const item = {} as EventTarget
+  const outside = {} as EventTarget
+  const panel = {
+   contains: (node: Node) => node === item,
+  } as unknown as EventTarget
+  expect(searchableSelectScrollShouldReposition(panel, item)).toBe(false)
+  expect(searchableSelectScrollShouldReposition(panel, outside)).toBe(true)
  })
 })

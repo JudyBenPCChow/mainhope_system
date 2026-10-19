@@ -23,7 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { isEndedClassStatus } from "@/lib/classOperatingStatus"
-import { formatClassLabel } from "@/lib/courseLabel"
+import { formatClassLabel, formatClassPickLabel, formatClassWhenLabel } from "@/lib/courseLabel"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
@@ -33,6 +33,7 @@ import {
  TRIAL_OUTCOME_LABELS,
  outcomeTagTone,
 } from "@/lib/trialOutcome"
+import { classAllowedForNewTrial } from "@/lib/trialAddClasses"
 import { classAllowedForTrialConvert } from "@/lib/trialConvertClasses"
 import {
  displayTrialTypeLabel,
@@ -52,13 +53,14 @@ import {
  type TrialReceiptGate,
 } from "@/lib/trialReceiptGate"
 import { cn } from "@/lib/utils"
-import { fetchClassesForOpsList, fetchClassSchedules } from "@/services/classQueries"
+import { fetchClassesForOpsList, fetchClassSchedules, fetchClassStudents } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
 import {
  fetchEnrollmentsForStudent,
  fetchStudentPickerOptions,
  getStudentById,
 } from "@/services/studentQueries"
+import { formatScheduleOptionLabel } from "@/lib/weekdayUtils"
 import { localYmd } from "@/services/scheduleQueries"
 import { fetchAllTeachers, type TeacherRecord } from "@/services/teacherQueries"
 import { useAppBanner } from "@/lib/appBanner"
@@ -255,9 +257,20 @@ export function TrialSessionsView() {
  const [addCountsHeadcount, setAddCountsHeadcount] = useState<"" | "1" | "0">("")
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
- const [classPickList, setClassPickList] = useState<{ id: string; label: string }[]>([])
+ const [classPickList, setClassPickList] = useState<
+  {
+   id: string
+   label: string
+   classLabel: string
+   teacherName: string
+   timeLabel: string
+  }[]
+ >([])
  const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
+ const [addClassRoster, setAddClassRoster] = useState<{ id: string; label: string }[]>([])
+ const [addClassRosterLoading, setAddClassRosterLoading] = useState(false)
+ const [addClassRosterError, setAddClassRosterError] = useState(false)
 
 
  const reload = useCallback(async (opts?: { silent?: boolean }) => {
@@ -578,17 +591,43 @@ export function TrialSessionsView() {
   } else {
    setPrefillName("")
   }
+  const today = localYmd()
   void fetchClassesForOpsList().then((result) => {
-   setClassPickList(
-    result.classes.filter((c) => !isEndedClassStatus(c.status)).map((c) => ({
+   const picks = result.classes
+    .filter((c) =>
+     classAllowedForNewTrial(
+      {
+       status: c.status,
+       classKind: c.class_kind,
+       subject: c.subject,
+       academicYearLabel: c.academic_year_label,
+      },
+      today
+     )
+    )
+    .map((c) => ({
      id: c.id,
-     label: formatClassLabel({
+     label: formatClassPickLabel({
+      subject: c.subject,
+      courseCode: c.course_code_full,
+      courseName: c.course_name,
+      dayOfWeek: c.day_of_week,
+      timeSlot: c.time_slot,
+     }),
+     classLabel: formatClassLabel({
       subject: c.subject,
       courseCode: c.course_code_full,
       courseName: c.course_name,
      }),
+     teacherName: (c.teacher_name ?? "").trim(),
+     timeLabel: formatClassWhenLabel(c.day_of_week, c.time_slot),
     }))
-   )
+   setClassPickList(picks)
+   if (prefill.classId && !picks.some((c) => c.id === prefill.classId)) {
+    setIntentHint("原先指定的班別不在可選清單。新增試堂只列目前學年，不含私人課程。")
+    setAddClassId("")
+    setAddScheduleId("")
+   }
   })
   void fetchStudentPickerOptions()
    .then((rows) => {
@@ -607,6 +646,42 @@ export function TrialSessionsView() {
  }, [addOpen, searchParams])
 
  useEffect(() => {
+  if (!addOpen || !addClassId) {
+   setAddClassRoster([])
+   setAddClassRosterLoading(false)
+   setAddClassRosterError(false)
+   return
+  }
+  let cancelled = false
+  setAddClassRosterLoading(true)
+  setAddClassRosterError(false)
+  void fetchClassStudents(addClassId, { activeOnly: true })
+   .then((rows) => {
+    if (cancelled) return
+    const names = rows
+     .map((s) => {
+      const name = s.fullName.trim() || "—"
+      const grade = (s.grade ?? "").trim()
+      return { id: s.enrollmentId, label: grade ? `${name}（${grade}）` : name }
+     })
+     .sort((a, b) => a.label.localeCompare(b.label, "zh-Hant"))
+    setAddClassRoster(names)
+   })
+   .catch((e) => {
+    if (cancelled) return
+    setAddClassRoster([])
+    setAddClassRosterError(true)
+    reportUserFacingError(e, { source: "TrialSessionsView.addClassRoster" })
+   })
+   .finally(() => {
+    if (!cancelled) setAddClassRosterLoading(false)
+   })
+  return () => {
+   cancelled = true
+  }
+ }, [addOpen, addClassId])
+
+ useEffect(() => {
   if (!addOpen) {
    setSchedOptions([])
    return
@@ -618,7 +693,7 @@ export function TrialSessionsView() {
    const opts = sched.slice(0, 10).map((s) => ({
     id: s.id,
     date: s.scheduled_date,
-    label: `${s.scheduled_date} ${String(s.start_time ?? "").slice(0, 5) || "—"}–${String(s.end_time ?? "").slice(0, 5) || "—"}`,
+    label: formatScheduleOptionLabel(s.scheduled_date, s.start_time, s.end_time),
    }))
    setSchedOptions(opts)
    const ids = opts.map((o) => o.id)
@@ -632,6 +707,11 @@ export function TrialSessionsView() {
    cancelled = true
   }
  }, [addOpen, addClassId, searchParams])
+
+ const selectedAddClass = useMemo(
+  () => classPickList.find((c) => c.id === addClassId) ?? null,
+  [classPickList, addClassId]
+ )
 
  const subjectOptions = useMemo(() => {
   const s = new Set<string>()
@@ -1563,7 +1643,7 @@ export function TrialSessionsView() {
        />
       </label>
       <label className="grid gap-1">
-       <span className="text-muted-foreground">班別（可搜尋科目／課程代碼／名稱）</span>
+       <span className="text-muted-foreground">班別（只列目前學年，不含私人課程）</span>
        <SearchableSelect
         combobox
         className="min-h-10 w-full"
@@ -1574,8 +1654,8 @@ export function TrialSessionsView() {
          searchText: c.label,
          displayText: c.label,
         }))}
-        placeholder="搜尋班別名稱或代碼…"
-        searchPlaceholder="搜尋班別名稱或代碼…"
+        placeholder="搜尋班別名稱、代碼或星期…"
+        searchPlaceholder="搜尋班別名稱、代碼或星期…"
         emptyMessage="找不到班別"
         aria-label="班別"
         onChange={(id) => {
@@ -1584,6 +1664,35 @@ export function TrialSessionsView() {
         }}
        />
       </label>
+      {selectedAddClass ? (
+       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 rounded-md border border-border bg-muted/40 px-3 py-2">
+        <dt className="text-muted-foreground">班別</dt>
+        <dd className="min-w-0 break-words">{selectedAddClass.classLabel}</dd>
+        <dt className="text-muted-foreground">任教老師</dt>
+        <dd className="min-w-0 break-words">{selectedAddClass.teacherName || "—"}</dd>
+        <dt className="text-muted-foreground">時間</dt>
+        <dd className="min-w-0 break-words">{selectedAddClass.timeLabel || "—"}</dd>
+        <dt className="text-muted-foreground">學生名單（目前）</dt>
+        <dd className="min-w-0 break-words">
+         {addClassRosterLoading ? (
+          "載入中…"
+         ) : addClassRosterError ? (
+          "學生名單未能載入"
+         ) : addClassRoster.length === 0 ? (
+          "目前沒有就讀中學生"
+         ) : (
+          <div>
+           <p className="text-muted-foreground">{addClassRoster.length} 人</p>
+           <ul className="mt-0.5">
+            {addClassRoster.map((s) => (
+             <li key={s.id}>{s.label}</li>
+            ))}
+           </ul>
+          </div>
+         )}
+        </dd>
+       </dl>
+      ) : null}
       <label className="grid gap-1">
        <span className="text-muted-foreground">對應排程（未來 10 堂）</span>
        <Select

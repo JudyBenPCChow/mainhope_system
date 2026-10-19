@@ -131,6 +131,32 @@ const JS_DOW_TO_LABEL: Record<number, (typeof KANBAN_DAY_COLUMNS)[number]> = {
  6: "星期六",
 }
 
+/** YYYY-MM-DD → 「2026年10月23日（星期五）」 */
+export function formatChineseYmdWithWeekday(ymd: string): string {
+ const raw = String(ymd ?? "").trim().slice(0, 10)
+ const [ys, ms, ds] = raw.split("-")
+ const y = Number(ys)
+ const m = Number(ms)
+ const d = Number(ds)
+ if (!y || !m || !d) return String(ymd ?? "").trim()
+ const date = `${y}年${m}月${d}日`
+ const wd = weekdayLabelFromYmd(raw)
+ return wd ? `${date}（${wd}）` : date
+}
+
+/** 排程選項：2026年10月23日（星期五） 17:45-19:00 */
+export function formatScheduleOptionLabel(
+ ymd: string,
+ startTime?: string | null,
+ endTime?: string | null
+): string {
+ const date = formatChineseYmdWithWeekday(ymd)
+ const start = String(startTime ?? "").trim().slice(0, 5)
+ const end = String(endTime ?? "").trim().slice(0, 5)
+ const time = start && end ? `${start}-${end}` : start || end
+ return time ? `${date} ${time}` : date
+}
+
 /** YYYY-MM-DD → 「星期一」…「星期日」 */
 export function weekdayLabelFromYmd(ymd: string): (typeof KANBAN_DAY_COLUMNS)[number] | null {
  const [y, m, d] = ymd.split("-").map(Number)
