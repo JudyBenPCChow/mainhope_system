@@ -5,6 +5,7 @@ import {
  resolveStudentDetailBackLabel,
  resolveStudentDetailExitPath,
  resolveStudentDetailLeaveTo,
+ studentAfterCreatePath,
  studentDetailLinkState,
 } from "./studentDetailNav"
 
@@ -79,5 +80,25 @@ describe("studentDetailLinkState", () => {
   expect(
    studentDetailLinkState({ pathname: "/TuitionChase", search: "?q=a" })
   ).toEqual({ from: "/TuitionChase?q=a" })
+ })
+})
+
+describe("studentAfterCreatePath", () => {
+ it("opens 報讀班別 for a newly registered student", () => {
+  expect(studentAfterCreatePath({ studentId: "s1", academicStage: "中學階段" })).toBe(
+   "/Students/s1?tab=enrollments"
+  )
+ })
+
+ it("encodes the student id", () => {
+  expect(studentAfterCreatePath({ studentId: "a/b" })).toBe(
+   "/Students/a%2Fb?tab=enrollments"
+  )
+ })
+
+ it("skips 報讀班別 for a graduated record", () => {
+  expect(studentAfterCreatePath({ studentId: "s1", academicStage: "已畢業" })).toBe(
+   "/Students/s1"
+  )
  })
 })

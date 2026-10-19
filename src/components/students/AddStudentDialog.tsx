@@ -29,7 +29,12 @@ import {
   type FrontDeskIntakePayload,
   type FrontDeskIntakeSession,
 } from "@/services/frontDeskIntakeQueries"
-import { allocateNextStudentCode, insertStudent, isUniqueViolation } from "@/services/studentQueries"
+import {
+  allocateNextStudentCode,
+  insertStudent,
+  isUniqueViolation,
+  type StudentRecord,
+} from "@/services/studentQueries"
 
 type FillMode = "staff" | "parent"
 
@@ -56,7 +61,7 @@ type Props = {
   extraSchools: string[]
   /** 收件匣／URL 帶入的家長填表 token */
   initialIntakeToken?: string | null
-  onCreated: () => void | Promise<void>
+  onCreated: (created: StudentRecord) => void | Promise<void>
   /** 關閉時清掉 URL 上的 intakeToken */
   onClearIntakeToken?: () => void
 }
@@ -249,11 +254,12 @@ export function AddStudentDialog({
     setErr(null)
     const payload = normalizeIntakeForInsert(form)
     try {
+      let created: StudentRecord
       try {
-        await insertStudent({ ...payload, student_code: studentCode.trim() || null })
+        created = await insertStudent({ ...payload, student_code: studentCode.trim() || null })
       } catch (e) {
         if (isUniqueViolation(e)) {
-          await insertStudent({ ...payload, student_code: await allocateNextStudentCode() })
+          created = await insertStudent({ ...payload, student_code: await allocateNextStudentCode() })
         } else {
           throw e
         }
@@ -268,13 +274,14 @@ export function AddStudentDialog({
           /* 非關鍵 */
         }
       }
+      const graduated = created.academic_stage === "已畢業"
       pushBanner({
         tone: "success",
-        title: "已建立學生",
-        message: "請到學生詳細頁「報讀班別」分頁再新增班別。",
+        title: `已建立${fullName}`,
+        message: graduated ? "僅建立基本資料，不新增報讀。" : "請在此新增報讀班別。",
       })
       handleOpenChange(false)
-      await onCreated()
+      await onCreated(created)
     } catch (e) {
       if (isUniqueViolation(e)) {
         setErr("學號重複，請關閉視窗重新整理後再試。")
