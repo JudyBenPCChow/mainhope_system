@@ -22,6 +22,8 @@ import type {
 } from "@/lib/payroll/types"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { asTableInsert } from "@/lib/tableWrite"
+import type { Json } from "@/types/database"
 import { normalizeEnrollmentPeriod, type EnrollmentFormValue } from "@/lib/enrollmentPeriod"
 import {
   coursePricesFromClassEmbed,
@@ -833,7 +835,7 @@ async function persistUnsettledDraftSnapshot(args: {
         hardBlockAnomalies: args.hardBlockAnomalies,
         calcVersion: args.calcVersion,
         computedAt: args.calcAt,
-      }),
+      }) as Json,
       calc_at: args.calcAt,
       calc_version: args.calcVersion,
       updated_at: args.calcAt,
@@ -1234,7 +1236,7 @@ export async function upsertManualHours(input: {
     payload.reviewed_by = input.actor
     payload.reviewed_at = nowIso
   }
-  const { error } = await supabase.from("payroll_manual_hours").upsert(payload, {
+  const { error } = await supabase.from("payroll_manual_hours").upsert(asTableInsert<"payroll_manual_hours">(payload), {
     onConflict: "month_key,teacher_id",
   })
   if (error) throw new Error(error.message)

@@ -14,6 +14,7 @@
     "apo:check": "node --experimental-strip-types scripts/apo-offline-check.mjs",
     "makeup:regression": "node scripts/makeup-visibility-regression.mjs",
     "db:apply": "node scripts/apply-one-migration.mjs",
+    "db:types": "supabase gen types --linked --lang typescript --schema public > src/types/database.ts",
     "preview": "vite preview",
     "sandbox:payroll": "vite --config sandbox/payroll-ui/vite.config.ts",
     "sandbox:payroll:build": "vite build --config sandbox/payroll-ui/vite.config.ts",

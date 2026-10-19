@@ -443,7 +443,7 @@ export async function fetchScheduleStatsSnapshot(
  const [statsRes, todaySchedRows] = await Promise.all([
   supabase.rpc("get_schedule_manage_stats", {
    p_as_of: asOf,
-   p_teacher_id: teacherId ?? null,
+   p_teacher_id: teacherId ?? undefined,
   }),
   (() => {
    let q = supabase

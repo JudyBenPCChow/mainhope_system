@@ -1329,9 +1329,9 @@ export async function applyEntitlementConsumptionDelta(opts: {
   p_student_id: opts.studentId,
   p_schedule_id: opts.scheduleId,
   p_class_id: opts.classId,
-  p_attendance_detail_id: opts.attendanceDetailId ?? null,
-  p_previous_status: opts.previousStatus ?? null,
-  p_next_status: opts.nextStatus ?? null,
+  p_attendance_detail_id: opts.attendanceDetailId ?? undefined,
+  p_previous_status: opts.previousStatus ?? undefined,
+  p_next_status: opts.nextStatus ?? undefined,
   p_lesson_units: units,
  })
  if (error) throw error

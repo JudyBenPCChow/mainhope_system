@@ -282,7 +282,7 @@ export async function submitTrialInviteSession(
   const { data, error } = await supabase.rpc("trial_invite_submit", {
     p_token: token.trim(),
     p_lines: lines,
-    p_parent_note: parentNote?.trim() || null,
+    p_parent_note: parentNote?.trim() || undefined,
     p_elected_subject_codes: electedSubjectCodes?.length
       ? electedSubjectCodes.map((c) => c.trim().toUpperCase()).filter(Boolean)
       : [],
@@ -340,9 +340,9 @@ export async function reviewTrialInviteRequest(params: {
     p_request_id: params.requestId,
     p_action: params.action,
     p_counts_toward_headcount:
-      params.action === "approve" ? Boolean(params.countsTowardHeadcount) : null,
+      params.action === "approve" ? Boolean(params.countsTowardHeadcount) : undefined,
     p_trial_type: params.trialType ?? "免費試堂",
-    p_reject_reason: params.rejectReason ?? null,
+    p_reject_reason: params.rejectReason ?? undefined,
   })
   if (error) throw rpcError(error)
   const raw = (data ?? {}) as Record<string, unknown>

@@ -1,13 +1,19 @@
+import type { SupabaseClient } from "@supabase/supabase-js"
+import type { Database } from "@/types/database"
 import { supabase } from "@/lib/supabaseClient"
 
+type PublicTable = keyof Database["public"]["Tables"]
+
 /** 依表名讀取全表（依 `created_at` 新到舊）。未設定 Supabase 時回傳空陣列。 */
-export async function listTable(table: string): Promise<unknown[]> {
+export async function listTable(table: PublicTable): Promise<unknown[]> {
  if (!supabase) {
   console.warn(`[api] 未設定 VITE_SUPABASE_URL／VITE_SUPABASE_ANON_KEY，${table} 回傳 []`)
   return []
  }
 
- const { data, error } = await supabase
+ // 參數是全部 public 表的聯集。帶 Relationships 的 from() 會令 tsc instantiation 過深。
+ const client = supabase as unknown as SupabaseClient
+ const { data, error } = await client
   .from(table)
   .select("*")
   .order("created_at", { ascending: false })

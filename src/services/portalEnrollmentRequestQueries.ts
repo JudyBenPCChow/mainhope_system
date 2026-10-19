@@ -146,7 +146,7 @@ export async function reviewRequest(
  const { data, error } = await supabase.rpc("review_portal_enrollment_request", {
   p_request_id: requestId,
   p_approve: approve,
-  p_staff_note: note,
+  p_staff_note: note ?? undefined,
  })
  if (error) throw new Error(formatUnknownError(error))
  return data != null ? String(data) : requestId
