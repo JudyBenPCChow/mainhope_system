@@ -2534,7 +2534,7 @@ export function ClassDetailView() {
              value={addStudentId}
              rememberKey={CLASS_ADD_STUDENT_RECENT_STORAGE_KEY}
              disabled={Boolean(addingStudentId)}
-             searchPlaceholder="最近選過，或輸入姓名／學號／電話"
+             searchPlaceholder="最近選過，或輸入姓名／學號／年級／電話"
              onChange={setAddStudentId}
             />
            </div>

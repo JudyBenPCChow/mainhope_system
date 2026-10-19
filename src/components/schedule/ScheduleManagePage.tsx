@@ -19,7 +19,7 @@ import { RollCallSheet } from "@/components/attendance/RollCallSheet"
 import { Button } from "@/components/ui/button"
 import { HintTooltip } from "@/components/ui/tooltip"
 import { SkeletonDetailHeader } from "@/components/ui/skeleton"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
@@ -2572,17 +2572,17 @@ useEffect(() => {
      }
     }}
    >
-    <DialogContent className="max-w-md border-amber-100 text-sm">
+    <DialogContent className="max-w-md text-sm">
      <DialogHeader>
       <DialogTitle className="text-lg font-semibold">確認變更排程</DialogTitle>
      </DialogHeader>
      {pendingMove ? (
       <div className="space-y-3 text-sm">
-       <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+       <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
         即將調整「{pendingMove.row.classLabel}
         {pendingMove.row.course_code_full ? `（${pendingMove.row.course_code_full}）` : ""}」：
         <br />
-        課室 → <strong>{pendingMove.roomLabel}</strong>
+        課室 → <span className="font-medium">{pendingMove.roomLabel}</span>
         {isHomeworkOccupancySchedule(pendingMove.row) ? (
          <>
           <br />
@@ -2591,13 +2591,13 @@ useEffect(() => {
         ) : (
          <>
         <br />
-        時間 → <strong className="tabular-nums">
+        時間 → <span className="font-medium tabular-nums">
          {pendingMove.newStart}–{pendingMove.newEnd}
-        </strong>
+        </span>
         {pendingMove.alignedToStandard ? (
          <>
           <br />
-          <span className="text-sm">時間將對齊標準格（09:00 起每 75 分鐘）。</span>
+          <span>時間將對齊標準格（09:00 起每 75 分鐘）。</span>
          </>
         ) : null}
          </>
@@ -2637,7 +2637,7 @@ useEffect(() => {
          {moveErr}
         </div>
        ) : null}
-       <div className="flex justify-end gap-2">
+       <DialogFooter className="gap-2 sm:gap-0">
         <Button
          type="button"
          variant="outline"
@@ -2651,18 +2651,19 @@ useEffect(() => {
         </Button>
         <Button
          type="button"
-         className="bg-amber-600 text-white hover:bg-amber-700"
+         variant="warning"
+         loading={moveSaving}
+         loadingText="儲存中…"
          disabled={
-          moveSaving ||
           moveChecking ||
           moveConflicts.length > 0 ||
           moveRemoteBlocked === true
          }
          onClick={() => void confirmMove()}
         >
-         {moveSaving ? "儲存中…" : "確定變更"}
+         確定變更
         </Button>
-       </div>
+       </DialogFooter>
       </div>
      ) : null}
     </DialogContent>

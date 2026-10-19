@@ -23,6 +23,7 @@ import {
  PRIVATE_TUTORING_ROW_GRID,
  PrivateTutoringStudentDisclosure,
 } from "@/components/privateTutoring/PrivateTutoringStudentDisclosure"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { Button } from "@/components/ui/button"
 import { CollapsibleFilterCard } from "@/components/ui/collapsible-filter-card"
@@ -46,6 +47,7 @@ import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceCo
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
+import { PRIVATE_TUTORING_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -231,13 +233,9 @@ export function PrivateTutoringView() {
  const [createOpen, setCreateOpen] = useState(false)
  const [allStudents, setAllStudents] = useState<StudentRecord[]>([])
  const [subjects, setSubjects] = useState<SubjectOption[]>([])
- const [createStudentSearch, setCreateStudentSearch] = useState("")
  const [createMode, setCreateMode] = useState<PrivateCreateMode>("1to1")
  const [createStudentId, setCreateStudentId] = useState("")
  const [createSecondStudentId, setCreateSecondStudentId] = useState("")
- const [createStudentPickerOpen, setCreateStudentPickerOpen] = useState(false)
- const [createSecondStudentSearch, setCreateSecondStudentSearch] = useState("")
- const [createSecondStudentPickerOpen, setCreateSecondStudentPickerOpen] = useState(false)
  const [createSubjectQuery, setCreateSubjectQuery] = useState("")
  const [createSubjectPickerOpen, setCreateSubjectPickerOpen] = useState(false)
  const [createTeacherId, setCreateTeacherId] = useState("")
@@ -339,12 +337,8 @@ export function PrivateTutoringView() {
   setCreateOpen(true)
   setCreateErr(null)
   setCreateMode("1to1")
-  setCreateStudentSearch("")
   setCreateStudentId(preselectStudentId?.trim() || "")
-  setCreateSecondStudentSearch("")
   setCreateSecondStudentId("")
-  setCreateStudentPickerOpen(false)
-  setCreateSecondStudentPickerOpen(false)
   setCreateSubjectQuery("")
   setCreateSubjectPickerOpen(false)
   setCreateTeacherId("")
@@ -399,34 +393,10 @@ export function PrivateTutoringView() {
   )
  }, [searchParams, setSearchParams, loading, rows, canManageEnrollment, openCreateDialog])
 
- const createStudentOptions = useMemo(() => {
-  const q = createStudentSearch.trim().toLowerCase()
-  if (!q) return []
-  return allStudents
-   .filter((s) => {
-    return (
-     s.full_name.toLowerCase().includes(q) ||
-     (s.student_code ?? "").toLowerCase().includes(q) ||
-     formatStudentGrade(s.grade).toLowerCase().includes(q)
-    )
-   })
-   .slice(0, 40)
- }, [allStudents, createStudentSearch])
-
- const createSecondStudentOptions = useMemo(() => {
-  const q = createSecondStudentSearch.trim().toLowerCase()
-  if (!q) return []
-  return allStudents
-   .filter((s) => {
-    if (s.id === createStudentId) return false
-    return (
-     s.full_name.toLowerCase().includes(q) ||
-     (s.student_code ?? "").toLowerCase().includes(q) ||
-     formatStudentGrade(s.grade).toLowerCase().includes(q)
-    )
-   })
-   .slice(0, 40)
- }, [allStudents, createSecondStudentSearch, createStudentId])
+ const createSecondStudentChoices = useMemo(
+  () => allStudents.filter((s) => s.id !== createStudentId),
+  [allStudents, createStudentId]
+ )
 
  const createSubjectOptions = useMemo(() => {
   const q = createSubjectQuery.trim().toLowerCase()
@@ -438,32 +408,6 @@ export function PrivateTutoringView() {
    )
    .slice(0, 40)
  }, [subjects, createSubjectQuery])
-
- const createStudentLabel = useCallback((s: StudentRecord) => {
-  const grade = formatStudentGrade(s.grade)
-  return [
-   s.full_name,
-   s.student_code ? `（${s.student_code}）` : "",
-   grade !== "—" ? ` · ${grade}` : "",
-   s.registration_status === "非注冊" ? " · 非註冊" : "",
-  ].join("")
- }, [])
-
- const pickCreateStudent = useCallback((s: StudentRecord) => {
-  setCreateStudentId(s.id)
-  if (createSecondStudentId === s.id) {
-   setCreateSecondStudentId("")
-   setCreateSecondStudentSearch("")
-  }
-  setCreateStudentSearch("")
-  setCreateStudentPickerOpen(false)
- }, [createSecondStudentId])
-
- const pickCreateSecondStudent = useCallback((s: StudentRecord) => {
-  setCreateSecondStudentId(s.id)
-  setCreateSecondStudentSearch("")
-  setCreateSecondStudentPickerOpen(false)
- }, [])
 
  const pickCreateSubject = useCallback((name: string) => {
   setCreateSubjectQuery(name)
@@ -1814,8 +1758,6 @@ export function PrivateTutoringView() {
          setCreateMode(next)
          if (next === "1to1") {
           setCreateSecondStudentId("")
-          setCreateSecondStudentSearch("")
-          setCreateSecondStudentPickerOpen(false)
          }
         }}
        >
@@ -1826,52 +1768,21 @@ export function PrivateTutoringView() {
 
       <div className="space-y-1">
        <label className="text-sm font-medium text-muted-foreground">第一位學生（可搜尋姓名／學號／年級）</label>
-       <div className="relative">
-        <Input
-         placeholder="輸入姓名、學號或年級搜尋…"
-         value={
-          createStudentId
-           ? selectedCreateStudent
-             ? createStudentLabel(selectedCreateStudent)
-             : ""
-           : createStudentSearch
-         }
-         onChange={(e) => {
-          setCreateStudentId("")
-          setCreateStudentSearch(e.target.value)
-          setCreateStudentPickerOpen(true)
-         }}
-         onFocus={() => setCreateStudentPickerOpen(true)}
-        />
-        {createStudentPickerOpen && !createStudentId && createStudentSearch.trim() ? (
-         <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
-          {createStudentOptions.length === 0 ? (
-           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
-          ) : (
-           createStudentOptions.map((s) => (
-            <button
-             key={s.id}
-             type="button"
-             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
-             onMouseDown={(e) => e.preventDefault()}
-             onClick={() => pickCreateStudent(s)}
-            >
-             {createStudentLabel(s)}
-            </button>
-           ))
-          )}
-         </div>
-        ) : null}
-       </div>
+       <StudentSearchableSelect
+        students={allStudents}
+        value={createStudentId}
+        rememberKey={PRIVATE_TUTORING_STUDENT_RECENT_STORAGE_KEY}
+        searchPlaceholder="輸入姓名、學號或年級搜尋…"
+        onChange={(studentId) => {
+         setCreateStudentId(studentId)
+         if (createSecondStudentId === studentId) setCreateSecondStudentId("")
+        }}
+       />
        {createStudentId ? (
         <button
          type="button"
          className="text-left text-sm text-primary underline-offset-4 hover:underline"
-         onClick={() => {
-          setCreateStudentId("")
-          setCreateStudentSearch("")
-          setCreateStudentPickerOpen(false)
-         }}
+         onClick={() => setCreateStudentId("")}
         >
          清除選取
         </button>
@@ -1881,54 +1792,18 @@ export function PrivateTutoringView() {
       {createMode === "1to2" ? (
        <div className="space-y-1">
         <label className="text-sm font-medium text-muted-foreground">第二位學生（不可與第一位重複）</label>
-        <div className="relative">
-         <Input
-          placeholder="輸入姓名、學號或年級搜尋…"
-          value={
-           createSecondStudentId
-            ? selectedCreateSecondStudent
-              ? createStudentLabel(selectedCreateSecondStudent)
-              : ""
-            : createSecondStudentSearch
-          }
-          onChange={(e) => {
-           setCreateSecondStudentId("")
-           setCreateSecondStudentSearch(e.target.value)
-           setCreateSecondStudentPickerOpen(true)
-          }}
-          onFocus={() => setCreateSecondStudentPickerOpen(true)}
-         />
-         {createSecondStudentPickerOpen &&
-         !createSecondStudentId &&
-         createSecondStudentSearch.trim() ? (
-          <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-popover shadow-md">
-           {createSecondStudentOptions.length === 0 ? (
-            <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
-           ) : (
-            createSecondStudentOptions.map((s) => (
-             <button
-              key={s.id}
-              type="button"
-              className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pickCreateSecondStudent(s)}
-             >
-              {createStudentLabel(s)}
-             </button>
-            ))
-           )}
-          </div>
-         ) : null}
-        </div>
+        <StudentSearchableSelect
+         students={createSecondStudentChoices}
+         value={createSecondStudentId}
+         rememberKey={PRIVATE_TUTORING_STUDENT_RECENT_STORAGE_KEY}
+         searchPlaceholder="輸入姓名、學號或年級搜尋…"
+         onChange={setCreateSecondStudentId}
+        />
         {createSecondStudentId ? (
          <button
           type="button"
           className="text-left text-sm text-primary underline-offset-4 hover:underline"
-          onClick={() => {
-           setCreateSecondStudentId("")
-           setCreateSecondStudentSearch("")
-           setCreateSecondStudentPickerOpen(false)
-          }}
+          onClick={() => setCreateSecondStudentId("")}
          >
           清除第二位學生
          </button>

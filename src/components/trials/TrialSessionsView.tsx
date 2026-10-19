@@ -5,6 +5,7 @@ import { Plus, SlidersHorizontal } from "lucide-react"
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import {
  TrialOutcomeDialog,
  formatOutcomeSummary,
@@ -52,6 +53,7 @@ import {
  trialReceiptGate,
  type TrialReceiptGate,
 } from "@/lib/trialReceiptGate"
+import { TRIAL_ADD_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { cn } from "@/lib/utils"
 import { fetchClassesForOpsList, fetchClassSchedules, fetchClassStudents } from "@/services/classQueries"
 import { fetchUpcomingSchedulesForClass } from "@/services/leaveQueries"
@@ -59,6 +61,7 @@ import {
  fetchEnrollmentsForStudent,
  fetchStudentPickerOptions,
  getStudentById,
+ type StudentPickerOption,
 } from "@/services/studentQueries"
 import { formatScheduleOptionLabel } from "@/lib/weekdayUtils"
 import { localYmd } from "@/services/scheduleQueries"
@@ -266,7 +269,7 @@ export function TrialSessionsView() {
    timeLabel: string
   }[]
  >([])
- const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
+ const [studentPickList, setStudentPickList] = useState<StudentPickerOption[]>([])
  const [schedOptions, setSchedOptions] = useState<{ id: string; label: string; date: string }[]>([])
  const [addClassRoster, setAddClassRoster] = useState<{ id: string; label: string }[]>([])
  const [addClassRosterLoading, setAddClassRosterLoading] = useState(false)
@@ -631,11 +634,7 @@ export function TrialSessionsView() {
   })
   void fetchStudentPickerOptions()
    .then((rows) => {
-    const sl = rows.map((r) => ({
-     id: r.id,
-     label: `${r.full_name || "—"}（${r.grade ?? "—"}）`,
-    }))
-    setStudentPickList(sl)
+    setStudentPickList(rows)
    })
    .catch((e) => {
     reportUserFacingError(e, { source: "TrialSessionsView.studentPicker", setErr: setAddErr })
@@ -1624,22 +1623,15 @@ export function TrialSessionsView() {
      {intentHint ? <p className="text-sm text-warning">{intentHint}</p> : null}
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
-       <span className="text-muted-foreground">學生（可搜尋姓名／年級）</span>
-       <SearchableSelect
-        combobox
-        className="min-h-10 w-full"
+       <span className="text-muted-foreground">學生（可搜尋姓名／學號／年級）</span>
+       <StudentSearchableSelect
+        students={studentPickList}
         value={addStudentId}
-        options={studentPickList.map((s) => ({
-         value: s.id,
-         label: s.label,
-         searchText: s.label,
-         displayText: s.label,
-        }))}
-        placeholder={prefillName || "搜尋姓名或年級…"}
-        searchPlaceholder="搜尋姓名或年級…"
-        emptyMessage="找不到學生"
+        rememberKey={TRIAL_ADD_STUDENT_RECENT_STORAGE_KEY}
+        placeholder={prefillName || "請選擇學生"}
+        searchPlaceholder="輸入姓名、學號或年級搜尋…"
         aria-label="學生"
-        onChange={(id) => setAddStudentId(id)}
+        onChange={setAddStudentId}
        />
       </label>
       <label className="grid gap-1">

@@ -5,6 +5,7 @@ import { CalendarDays, Camera, Clock, Plus, Search, SlidersHorizontal, Umbrella,
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { MobileFilterSheet } from "@/components/mobile/MobileFilterSheet"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import { Button } from "@/components/ui/button"
 import { SkeletonCardGrid, SkeletonTableRows } from "@/components/ui/skeleton"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -19,6 +20,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { statusToTagTone } from "@/lib/statusTag"
 import { confirmNonCurrentAcademicYearWrite } from "@/lib/academicYearSoftGuard"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { LEAVE_ADD_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { cn } from "@/lib/utils"
 import {
  deleteLeaveMakeupRecord,
@@ -57,7 +59,7 @@ import {
  hitsHaveBillable,
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
-import { fetchStudentPickerOptions } from "@/services/studentQueries"
+import { fetchStudentPickerOptions, type StudentPickerOption } from "@/services/studentQueries"
 import type { ScheduleManageRow } from "@/services/scheduleQueries"
 import {
  getLeaveManagementDataCache,
@@ -182,8 +184,6 @@ export function LeaveManagementView() {
  const [filtersOpen, setFiltersOpen] = useState(false)
 
  const [addOpen, setAddOpen] = useState(false)
- const [studentSearch, setStudentSearch] = useState("")
- const [studentPickerOpen, setStudentPickerOpen] = useState(false)
  const [addStudentId, setAddStudentId] = useState("")
  const [addClassId, setAddClassId] = useState("")
  const [addScheduleId, setAddScheduleId] = useState("")
@@ -197,7 +197,7 @@ export function LeaveManagementView() {
  const [addSaving, setAddSaving] = useState(false)
  const [addErr, setAddErr] = useState<string | null>(null)
 
- const [studentPickList, setStudentPickList] = useState<{ id: string; label: string }[]>([])
+ const [studentPickList, setStudentPickList] = useState<StudentPickerOption[]>([])
  const [enrolledClasses, setEnrolledClasses] = useState<EnrolledClassOption[]>([])
  const [scheduleOptions, setScheduleOptions] = useState<ClassScheduleOption[]>([])
  const [makeupCandidates, setMakeupCandidates] = useState<ScheduleManageRow[]>([])
@@ -286,8 +286,6 @@ export function LeaveManagementView() {
  useEffect(() => {
   if (!addOpen) return
   setAddErr(null)
-  setStudentSearch("")
-  setStudentPickerOpen(false)
   setAddStudentId("")
   setAddClassId("")
   setAddScheduleId("")
@@ -302,11 +300,7 @@ export function LeaveManagementView() {
   setScheduleOptions([])
   void fetchStudentPickerOptions()
    .then((rows) => {
-    const sl = rows.map((r) => ({
-     id: r.id,
-     label: `${r.full_name || "—"}（${r.grade ?? "—"}）`,
-    }))
-    setStudentPickList(sl)
+    setStudentPickList(rows)
    })
    .catch((e) => {
     reportUserFacingError(e, { source: "LeaveManagementView.studentPicker", setErr: setAddErr })
@@ -352,12 +346,6 @@ export function LeaveManagementView() {
    setAddMakeupScheduleId((prev) => (prev && list.some((s) => s.id === prev) ? prev : ""))
   })
  }, [addOpen, addMakeupArrange, addStudentId, addScheduleId])
-
- const studentsFiltered = useMemo(() => {
-  const q = studentSearch.trim().toLowerCase()
-  if (!q) return studentPickList.slice(0, 20)
-  return studentPickList.filter((s) => s.label.toLowerCase().includes(q)).slice(0, 20)
- }, [studentPickList, studentSearch])
 
  const makeupFiltered = useMemo(() => {
   const q = addMakeupSearch.trim().toLowerCase()
@@ -1154,54 +1142,19 @@ export function LeaveManagementView() {
      </DialogHeader>
      <div className="grid gap-3 text-sm">
       <label className="grid gap-1">
-       <span className="text-muted-foreground">學生（可搜尋姓名／年級）</span>
-       <div className="relative">
-        <Input
-         placeholder="輸入姓名或年級搜尋…"
-         value={
-          addStudentId
-           ? (studentPickList.find((s) => s.id === addStudentId)?.label ?? "")
-           : studentSearch
-         }
-         onChange={(e) => {
-          setAddStudentId("")
-          setStudentSearch(e.target.value)
-          setStudentPickerOpen(true)
-         }}
-         onFocus={() => setStudentPickerOpen(true)}
-         className="h-9"
-        />
-        {studentPickerOpen && !addStudentId && studentSearch.trim() ? (
-         <div className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded-md border bg-popover shadow-md">
-          {studentsFiltered.length === 0 ? (
-           <div className="px-3 py-2 text-sm text-muted-foreground">找不到學生</div>
-          ) : (
-           studentsFiltered.map((s) => (
-            <button
-             key={s.id}
-             type="button"
-             className="flex w-full px-3 py-2 text-left text-sm hover:bg-muted"
-             onClick={() => {
-              setAddStudentId(s.id)
-              setStudentSearch("")
-              setStudentPickerOpen(false)
-             }}
-            >
-             {s.label}
-            </button>
-           ))
-          )}
-         </div>
-        ) : null}
-       </div>
+       <span className="text-muted-foreground">學生（可搜尋姓名／學號／年級）</span>
+       <StudentSearchableSelect
+        students={studentPickList}
+        value={addStudentId}
+        rememberKey={LEAVE_ADD_STUDENT_RECENT_STORAGE_KEY}
+        searchPlaceholder="輸入姓名、學號或年級搜尋…"
+        onChange={setAddStudentId}
+       />
        {addStudentId ? (
         <button
          type="button"
          className="text-left text-xs text-primary underline-offset-4 hover:underline"
-         onClick={() => {
-          setAddStudentId("")
-          setStudentSearch("")
-         }}
+         onClick={() => setAddStudentId("")}
         >
          清除選取
         </button>

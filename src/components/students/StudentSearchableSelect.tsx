@@ -8,6 +8,7 @@ import {
  touchRecentStudentId,
  writeRecentStudentIds,
 } from "@/lib/recentStudentIds"
+import { formatStudentGrade } from "@/lib/studentGrade"
 import { studentDisplayText, studentSearchText } from "@/lib/studentSearchableText"
 
 export type StudentSearchableOption = {
@@ -17,6 +18,8 @@ export type StudentSearchableOption = {
  english_name?: string | null
  student_phone?: string | null
  parent_phone?: string | null
+ grade?: string | null
+ registration_status?: string | null
 }
 
 type Props = {
@@ -32,15 +35,24 @@ type Props = {
  id?: string
  placeholder?: string
  searchPlaceholder?: string
+ emptyMessage?: string
+ emptyQueryMessage?: string
  "aria-label"?: string
 }
 
 function studentSearchableLabel(s: StudentSearchableOption): ReactNode {
  const code = s.student_code?.trim() ?? ""
+ const gradeLabel = formatStudentGrade(s.grade)
+ const bits: string[] = []
+ if (code) bits.push(`學號 ${code}`)
+ if (gradeLabel && gradeLabel !== "—") bits.push(gradeLabel)
+ if (s.registration_status === "非注冊") bits.push("非註冊")
  return (
   <span className="flex min-w-0 flex-col gap-0.5">
    <span className="font-medium">{s.full_name}</span>
-   {code ? <span className="text-xs text-muted-foreground">學號 {code}</span> : null}
+   {bits.length > 0 ? (
+    <span className="text-xs text-muted-foreground">{bits.join(" · ")}</span>
+   ) : null}
   </span>
  )
 }
@@ -59,7 +71,9 @@ export function StudentSearchableSelect({
  className,
  id,
  placeholder = "請選擇學生",
- searchPlaceholder = "最近收款／最近選過，或輸入姓名／學號",
+ searchPlaceholder = "最近選過，或輸入姓名／學號／年級",
+ emptyMessage = "找不到學生",
+ emptyQueryMessage = "尚無最近使用的學生，請輸入姓名、學號或年級搜尋",
  "aria-label": ariaLabel,
 }: Props) {
  const [rememberedIds, setRememberedIds] = useState<string[]>(() =>
@@ -116,8 +130,8 @@ export function StudentSearchableSelect({
    emptyQueryOptions={emptyQueryOptions}
    placeholder={placeholder}
    searchPlaceholder={searchPlaceholder}
-   emptyMessage="找不到學生"
-   emptyQueryMessage="尚無最近使用的學生，請輸入姓名或學號搜尋"
+   emptyMessage={emptyMessage}
+   emptyQueryMessage={emptyQueryMessage}
    maxResults={40}
    aria-label={ariaLabel ?? placeholder}
   />
