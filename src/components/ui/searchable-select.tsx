@@ -71,6 +71,16 @@ export function highlightedOptionIndex(options: SearchableSelectOption[], value:
  return idx >= 0 ? idx : 0
 }
 
+/** 清單自己在捲時不要重算位置，否則選單會被拉回頂。 */
+export function searchableSelectScrollShouldReposition(
+ panel: EventTarget | null,
+ eventTarget: EventTarget | null
+): boolean {
+ if (panel == null || eventTarget == null) return true
+ if (typeof (panel as Node).contains !== "function") return true
+ return !(panel as Node).contains(eventTarget as Node)
+}
+
 export function filterSearchableOptions(
  options: SearchableSelectOption[],
  query: string,
@@ -191,7 +201,17 @@ export function SearchableSelect({
    ? undefined
    : window.setTimeout(() => searchRef.current?.focus(), 0)
   const onResize = () => computePlacement()
-  const onScroll = () => computePlacement()
+  const onScroll = (event: Event) => {
+   if (!searchableSelectScrollShouldReposition(panelRef.current, event.target)) return
+   computePlacement()
+  }
+  // 面板掛在 body，不在 Dialog 裡。對話框的捲動鎖會取消外面的滾輪，這裡擋住冒泡才拉得動。
+  const panel = panelRef.current
+  const stopScrollLock = (event: Event) => {
+   event.stopPropagation()
+  }
+  panel?.addEventListener("wheel", stopScrollLock, { passive: true })
+  panel?.addEventListener("touchmove", stopScrollLock, { passive: true })
   const onDocMouseDown = (event: MouseEvent) => {
    const target = event.target as Node
    if (wrapRef.current?.contains(target)) return
@@ -209,6 +229,8 @@ export function SearchableSelect({
    if (focusTimer != null) window.clearTimeout(focusTimer)
    window.removeEventListener("resize", onResize)
    window.removeEventListener("scroll", onScroll, true)
+   panel?.removeEventListener("wheel", stopScrollLock)
+   panel?.removeEventListener("touchmove", stopScrollLock)
    document.removeEventListener("mousedown", onDocMouseDown)
    document.removeEventListener("keydown", onKeyDown)
   }
@@ -333,7 +355,7 @@ export function SearchableSelect({
          />
         </div>
        )}
-       <div className="overflow-y-auto p-1" style={{ maxHeight: listMaxHeight }}>
+       <div className="overflow-y-auto overscroll-contain p-1" style={{ maxHeight: listMaxHeight }}>
         {optionList}
        </div>
       </div>,
