@@ -54,6 +54,12 @@ Only after `db query`／`projects list` 明確要 token／login：請使用者�
 
 缺 token／MCP 而任務要 **production 現況**：停、通知使用者，唔好改做替代腳本或假產出。見 `.cursor/rules/no-forced-output-without-access.mdc`。
 
+## CREATE OR REPLACE 會把執行權還原
+
+`CREATE OR REPLACE FUNCTION` 會把該函式的 `PUBLIC` EXECUTE 還原。改 trigger 函式之後，同一檔必須再 `REVOKE EXECUTE` FROM PUBLIC、anon、authenticated（token 函式除外，那些要留 anon）。
+
+不要為了「補一句註解」去 REPLACE 一支已經收回執行權的 trigger。10 月 `forbid_grade_scope_pool_on_mixed_class` 與 `leads_sync_interested_subjects_on_convert` 就是 REPLACE 之後再次對公眾開放。只改 `search_path` 用 `ALTER FUNCTION … SET search_path`，不要 REPLACE。
+
 ## After apply
 
 - Confirm with a short `supabase db query --linked "…"` or feature check.
