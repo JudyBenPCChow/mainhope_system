@@ -2,12 +2,12 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（2026-10-15：優先改為中。下一刀只補 idempotent migration；generated types 與分類帳其後再做） |
+| 狀態 | `open`（2026-10-20：下一刀 migration `20261020004500` 已落。其後仍是 generated types 與警告分類） |
 | 優先 | 中 |
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
-| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次；**2026-08-29** 再掃：Wave 1 目標態已在 production，但本 repo 無單檔 migration；**2026-10-15** 討論後降為中優先，下一刀收窄為一條 migration |
+| 記錄 | 2026-08-14 盤點；**2026-08-21** production 再掃＋模擬落實後改波次；**2026-08-29** 再掃：Wave 1 目標態已在 production，但本 repo 無單檔 migration；**2026-10-15** 討論後降為中優先，下一刀收窄為一條 migration；**2026-10-20** 該檔已落 `20261020004500_database_contract_privilege_snapshot.sql` |
 
 ## 點解合併
 
@@ -72,7 +72,7 @@ Production `MainHope_production`。Staging `mainhope-staging` 仍 INACTIVE。
 | duplicate email index | `app_users_email_lower_uidx` 仍在 | **只剩 `app_users_email_unique`** | Wave 1 已生效 |
 | Leaked password | 關 | **仍關** | 另題 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md) |
 
-**缺口：** 本 repo `supabase/migrations/` **無**對應「REVOKE trigger／ALTER search_path／DROP 重複 index」單檔。production 已係目標態，新環境／重建會漂返。2026-10-15 起，執行順序改以下一節為準。
+**2026-10-20：** 對齊檔是 [`20261020004500_database_contract_privilege_snapshot.sql`](../../../supabase/migrations/20261020004500_database_contract_privilege_snapshot.sql)。新環境重跑該檔即可，不必再靠人手在正式環境補權限。
 
 ## 2026-10-15 討論
 
