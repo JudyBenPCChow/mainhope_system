@@ -25,6 +25,10 @@ verify_jwt = true
 [functions.missing-roll-call-admin-report]
 verify_jwt = false
 
-# 由 GitHub Actions cron 以 TOMORROW_LESSON_CRON_SECRET（或共用 MISSING_ROLL_CALL_CRON_SECRET）呼叫。
+# 由 Supabase pg_cron 以 SCHEDULED_EMAIL_CRON_SECRET 呼叫；人手仍可用舊 cron secret。
 [functions.tomorrow-teacher-lesson-reminder]
+verify_jwt = false
+
+# 星期二、五行政 PDF：排程呼叫後轉觸發 GitHub Actions 產生附件。
+[functions.admin-pdf-reports]
 verify_jwt = false

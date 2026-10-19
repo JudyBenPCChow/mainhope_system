@@ -1,8 +1,8 @@
-# 逢星期二、五香港時間 10:00 寄出試堂及轉正、追收學費兩封 PDF。
-# cron：UTC 02:00＝HKT 10:00；星期二＝2、星期五＝5。可人手 workflow_dispatch。
-# Secrets：SUPABASE_ACCESS_TOKEN（Management API 查庫）、RESEND_API_KEY（寄信）
-# 收件 Sophie Yu；副本 Mark Yu、Christine Fan。
-# 備註：新 schedule workflow 若從未跑過，GitHub 可能漏第一次 cron；以 workflow_dispatch 或改檔重註冊補救。
+# 逢星期二、五寄出試堂及轉正、追收學費兩封 PDF。
+# 準時觸發改由 Supabase pg_cron 呼叫 admin-pdf-reports，再 workflow_dispatch 本檔。
+# 本檔仍保留 GitHub schedule，作為權杖未設定時的後備；寄出紀錄會擋住重複。
+# cron：UTC 02:00＝香港 10:00；星期二＝2、星期五＝5。
+# Secrets：SUPABASE_ACCESS_TOKEN、RESEND_API_KEY
 
 name: Admin PDF reports
 
@@ -13,6 +13,18 @@ on:
     inputs:
       dry_run:
         description: "只查庫組文、不寄信（true／false）"
+        required: false
+        default: "false"
+      send_day:
+        description: "香港發送日 YYYY-MM-DD（空＝香港今日）"
+        required: false
+        default: ""
+      scheduled:
+        description: "Supabase 排程觸發（true／false）"
+        required: false
+        default: "false"
+      force:
+        description: "已寄出仍再寄（true／false）"
         required: false
         default: "false"
 
@@ -56,6 +68,9 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          SEND_DAY: ${{ github.event_name == 'workflow_dispatch' && inputs.send_day || '' }}
+          SCHEDULED: ${{ github.event_name == 'workflow_dispatch' && inputs.scheduled || 'false' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force || 'false' }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ]; then
@@ -69,5 +84,14 @@ jobs:
           ARGS=()
           if [ "${DRY_RUN}" = "true" ]; then
             ARGS+=(--dry-run)
+          fi
+          if [ "${SCHEDULED}" = "true" ]; then
+            ARGS+=(--scheduled)
+          fi
+          if [ "${FORCE}" = "true" ]; then
+            ARGS+=(--force)
+          fi
+          if [ -n "${SEND_DAY}" ]; then
+            ARGS+=(--send-day "${SEND_DAY}")
           fi
           python3 scripts/send_admin_pdf_reports.py "${ARGS[@]}"

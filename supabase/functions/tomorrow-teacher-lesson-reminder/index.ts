@@ -2,6 +2,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts"
+import {
+  addDaysYmd,
+  authorizeCron,
+  claimScheduledEmail,
+  finishScheduledEmail,
+  hkClock,
+  inMinuteWindow,
+  isYmd,
+} from "../_shared/scheduledEmailLedger.ts"
 
 const CN_COUNT = [
   "零",
@@ -236,17 +245,6 @@ function buildTeacherEmailText(
   return { subject, text }
 }
 
-function authorize(req: Request): boolean {
-  const expected = Deno.env.get("TOMORROW_LESSON_CRON_SECRET")?.trim()
-    || Deno.env.get("MISSING_ROLL_CALL_CRON_SECRET")?.trim()
-  if (!expected) return false
-  const auth = req.headers.get("authorization")?.trim() ?? ""
-  const bearer = auth.toLowerCase().startsWith("bearer ")
-    ? auth.slice(7).trim()
-    : ""
-  const headerSecret = req.headers.get("x-cron-secret")?.trim() ?? ""
-  return bearer === expected || headerSecret === expected
-}
 
 const BCC_ADMIN = ["cfan@mainhope.edu.hk"]
 
@@ -306,19 +304,21 @@ Deno.serve(async (req) => {
     })
   }
   if (req.method !== "POST") return jsonResponse({ error: "僅支援 POST" }, 405)
-  if (!authorize(req)) return jsonResponse({ error: "未授權" }, 401)
+  if (!authorizeCron(req)) return jsonResponse({ error: "未授權" }, 401)
 
   let dryRun = false
   let force = false
   let simulateTo: string | null = null
   let targetDate: string | null = null
   let slot: "1737" | "skip" | null = null
+  let sendDay: string | null = null
   try {
     const body = await req.json().catch(() => ({})) as {
       dry_run?: unknown
       force?: unknown
       simulate_to?: unknown
       target_date?: unknown
+      send_day?: unknown
       slot?: unknown
     }
     dryRun = body?.dry_run === true
@@ -326,7 +326,9 @@ Deno.serve(async (req) => {
     const sim = String(body?.simulate_to ?? "").trim().replace(/＠/g, "@")
     simulateTo = sim.includes("@") ? sim : null
     const td = String(body?.target_date ?? "").trim()
-    targetDate = /^\d{4}-\d{2}-\d{2}$/.test(td) ? td : null
+    targetDate = isYmd(td) ? td : null
+    const sd = String(body?.send_day ?? "").trim()
+    sendDay = isYmd(sd) ? sd : null
     const rawSlot = String(body?.slot ?? "").trim()
     if (rawSlot === "1737") slot = "1737"
     else if (rawSlot) slot = "skip"
@@ -368,6 +370,38 @@ Deno.serve(async (req) => {
       today_hk: todayHk,
       slot,
     })
+  }
+  if (!force && !dryRun && !simulateTo && slot === "1737") {
+    const clock = hkClock()
+    if (sendDay && sendDay !== clock.ymd) {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: "已過香港當日，不再寄出",
+        send_day: sendDay,
+        today_hk: clock.ymd,
+      })
+    }
+    if (!inMinuteWindow(clock, 17 * 60 + 30, 19 * 60 + 30)) {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: "不在香港 17:30–19:30",
+        today_hk: clock.ymd,
+      })
+    }
+    const day = sendDay ?? clock.ymd
+    const expected = addDaysYmd(day, 1)
+    if (targetDate && targetDate !== expected) {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: "目標上課日與發送日不一致",
+        send_day: day,
+        target_date: targetDate,
+      })
+    }
+    targetDate = expected
   }
 
   const dateYmd = targetDate ?? hkTomorrowYmd()
@@ -462,7 +496,39 @@ Deno.serve(async (req) => {
       })
       continue
     }
+    if (!force && !dryRun && !simulateTo) {
+      try {
+        const action = await claimScheduledEmail(admin, "tomorrow-lesson", dateYmd, to)
+        if (action === "skip") {
+          results.push({
+            teacher_id: e.teacher_id,
+            to,
+            ok: true,
+            skipped: "已寄出",
+          })
+          continue
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return jsonResponse({ error: `寄出紀錄失敗：${message}` }, 500)
+      }
+    }
     const sent = await sendEmail({ to: [to], subject: e.subject, text: e.text })
+    if (!force && !dryRun && !simulateTo) {
+      try {
+        await finishScheduledEmail(
+          admin,
+          "tomorrow-lesson",
+          dateYmd,
+          to,
+          sent.ok,
+          sent.ok ? sent.id ?? null : null,
+          sent.ok ? null : sent.message,
+        )
+      } catch (err) {
+        console.error("finish tomorrow-lesson failed", err)
+      }
+    }
     if (!sent.ok) {
       results.push({
         teacher_id: e.teacher_id,
@@ -484,7 +550,7 @@ Deno.serve(async (req) => {
     ok: true,
     target_date: dateYmd,
     teacher_count: emails.length,
-    sent: results.filter((r) => r.ok).length,
+    sent: results.filter((r) => r.ok && !r.skipped).length,
     skipped: results.filter((r) => r.skipped).length,
     failed: results.filter((r) => !r.ok && !r.skipped).length,
     results,

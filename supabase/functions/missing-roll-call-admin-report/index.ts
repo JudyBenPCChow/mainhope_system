@@ -2,6 +2,14 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts"
+import {
+  authorizeCron,
+  claimScheduledEmail,
+  finishScheduledEmail,
+  hkClock,
+  inMinuteWindow,
+  isYmd,
+} from "../_shared/scheduledEmailLedger.ts"
 
 const TO = ["526956762@qq.com"]
 const CC = ["cfan@mainhope.edu.hk", "markyu@mainhope.edu.hk"]
@@ -148,16 +156,6 @@ function buildAdminReport(rows: LessonRow[], asOf: { m: number; day: number }): 
   }
 }
 
-function authorize(req: Request): boolean {
-  const expected = Deno.env.get("MISSING_ROLL_CALL_CRON_SECRET")?.trim()
-  if (!expected) return false
-  const auth = req.headers.get("authorization")?.trim() ?? ""
-  const bearer = auth.toLowerCase().startsWith("bearer ")
-    ? auth.slice(7).trim()
-    : ""
-  const headerSecret = req.headers.get("x-cron-secret")?.trim() ?? ""
-  return bearer === expected || headerSecret === expected
-}
 
 async function sendAdminEmail(input: {
   subject: string
@@ -208,16 +206,46 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return jsonResponse({ error: "僅支援 POST" }, 405)
   }
-  if (!authorize(req)) {
+  if (!authorizeCron(req)) {
     return jsonResponse({ error: "未授權" }, 401)
   }
 
   let dryRun = false
+  let force = false
+  let sendDay: string | null = null
   try {
-    const body = await req.json().catch(() => ({})) as { dry_run?: unknown }
+    const body = await req.json().catch(() => ({})) as {
+      dry_run?: unknown
+      force?: unknown
+      send_day?: unknown
+    }
     dryRun = body?.dry_run === true
+    force = body?.force === true
+    const raw = String(body?.send_day ?? "").trim()
+    sendDay = isYmd(raw) ? raw : null
   } catch {
     dryRun = false
+  }
+
+  const clock = hkClock()
+  if (!force && !dryRun) {
+    if (sendDay && sendDay !== clock.ymd) {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: "已過香港當日，不再寄出",
+        send_day: sendDay,
+        today_hk: clock.ymd,
+      })
+    }
+    if (sendDay && !inMinuteWindow(clock, 7 * 60 + 50, 9 * 60 + 30)) {
+      return jsonResponse({
+        ok: true,
+        skipped: true,
+        reason: "不在香港 07:50–09:30",
+        today_hk: clock.ymd,
+      })
+    }
   }
 
   const url = Deno.env.get("SUPABASE_URL")?.trim()
@@ -227,16 +255,38 @@ Deno.serve(async (req) => {
   }
 
   const asOf = hkNowParts()
-  const bounds = monthBoundsHk()
+  const reportDay = sendDay ?? asOf.ymd
   const admin = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 
+  if (!force && !dryRun) {
+    try {
+      const action = await claimScheduledEmail(admin, "missing-roll-call", reportDay, TO[0]!)
+      if (action === "skip") {
+        return jsonResponse({
+          ok: true,
+          skipped: true,
+          reason: "本日已寄出",
+          as_of: reportDay,
+        })
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return jsonResponse({ error: `寄出紀錄失敗：${message}` }, 500)
+    }
+  }
+
+  const bounds = monthBoundsHk()
   const { data, error } = await admin.rpc("list_missing_roll_call_lessons", {
     p_month_start: bounds.start,
     p_month_end_exclusive: bounds.endExclusive,
   })
   if (error) {
+    if (!force && !dryRun) {
+      await finishScheduledEmail(admin, "missing-roll-call", reportDay, TO[0]!, false, null, error.message)
+        .catch((err) => console.error("finish missing-roll-call failed", err))
+    }
     console.error("list_missing_roll_call_lessons failed", error)
     return jsonResponse({ error: `查詢失敗：${error.message}` }, 500)
   }
@@ -248,7 +298,7 @@ Deno.serve(async (req) => {
     return jsonResponse({
       ok: true,
       dry_run: true,
-      as_of: asOf.ymd,
+      as_of: reportDay,
       month_start: bounds.start,
       teacher_count: report.teacherCount,
       lesson_count: report.lessonCount,
@@ -261,13 +311,24 @@ Deno.serve(async (req) => {
     subject: report.subject,
     text: report.text,
   })
+  if (!force) {
+    await finishScheduledEmail(
+      admin,
+      "missing-roll-call",
+      reportDay,
+      TO[0]!,
+      sent.ok,
+      sent.ok ? sent.id ?? null : null,
+      sent.ok ? null : sent.message,
+    ).catch((err) => console.error("finish missing-roll-call failed", err))
+  }
   if (!sent.ok) {
     return jsonResponse({ error: sent.message }, 502)
   }
 
   return jsonResponse({
     ok: true,
-    as_of: asOf.ymd,
+    as_of: reportDay,
     month_start: bounds.start,
     teacher_count: report.teacherCount,
     lesson_count: report.lessonCount,

@@ -1,12 +1,10 @@
-# 每天香港時間 08:00 寄出「尚未點名」行政總結（暫不寄老師）。
-# 觸發：cron（UTC 00:00＝HKT 08:00）＋可人手 workflow_dispatch。
-# Secrets：MISSING_ROLL_CALL_CRON_SECRET（須與 Supabase Edge Function secret 相同）
+# 每天香港時間 08:00 起寄出「尚未點名」行政總結（暫不寄老師）。
+# 排程在 Supabase pg_cron：08:00、08:10、08:30、09:00。已寄出則跳過。
+# 本 workflow 只留人手 workflow_dispatch。Secrets：MISSING_ROLL_CALL_CRON_SECRET
 
 name: Missing roll-call admin report
 
 on:
-  schedule:
-    - cron: "0 0 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
