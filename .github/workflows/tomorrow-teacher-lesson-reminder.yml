@@ -1,16 +1,10 @@
-# 每天寄出「明日課堂」老師電郵（自動寄出由 2026-10-13 起；函式內閘）。
-# 2026-10-20 起：香港 17:37 寄出翌日課堂（cron 帶時區，避開整點）。
-# 舊的香港 18:00／20:00 若仍送到，slot=retired，函式略過。
-# 可人手 workflow_dispatch。Secrets：TOMORROW_LESSON_CRON_SECRET
-# 備註：新 schedule 若從未跑過，GitHub 可能漏第一次 cron；以 workflow_dispatch 或改檔重註冊補救。
+# 每天寄出「明日課堂」老師電郵。
+# 排程在 Supabase pg_cron：香港 17:37、17:47、18:07、19:00。已寄出的老師不會再寄。
+# 本 workflow 只留人手 workflow_dispatch。Secrets：TOMORROW_LESSON_CRON_SECRET
 
 name: Tomorrow teacher lesson reminder
 
 on:
-  schedule:
-    # 香港 17:37（2026-10-20 起）。分鐘避開整點，減輕 Actions 排程擠塞。
-    - cron: "37 17 * * *"
-      timezone: Asia/Hong_Kong
   workflow_dispatch:
     inputs:
       dry_run:

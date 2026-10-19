@@ -12,6 +12,7 @@ import base64
 import importlib.util
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -28,6 +29,9 @@ TO = ["526956762@qq.com"]
 CC = ["markyu@mainhope.edu.hk", "cfan@mainhope.edu.hk"]
 DEFAULT_FROM = "明學教育 <noreply@mainhope.edu.hk>"
 WEEKDAY = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"]
+JOB_TRIAL = "trial-followup-pdf"
+JOB_TUITION = "tuition-chase-pdf"
+RECIPIENT = TO[0]
 
 
 def load_module(filename: str):
@@ -184,12 +188,62 @@ def send_email(*, api_key: str, from_addr: str, subject: str, text: str, pdf: Pa
     return str(payload.get("id") or "")
 
 
+def sql_literal(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9_@.+-]{1,200}", value):
+        raise SystemExit(f"拒絕寫入寄出紀錄：{value}")
+    return "'" + value.replace("'", "''") + "'"
+
+
+def claim_send(run_sql, job: str, day: str, recipient: str) -> str:
+    rows = run_sql(
+        "select public.claim_scheduled_email_send("
+        f"{sql_literal(job)}, {sql_literal(day)}::date, {sql_literal(recipient)}) as action"
+    )
+    if not rows:
+        raise SystemExit("寄出紀錄沒有回應")
+    action = str(rows[0].get("action") or "")
+    if action not in ("send", "skip"):
+        raise SystemExit(f"寄出紀錄回應無法辨識：{action}")
+    return action
+
+
+def finish_send(run_sql, job: str, day: str, recipient: str, ok: bool, resend_id: str, error: str) -> None:
+    flag = "true" if ok else "false"
+    resend_sql = "null" if not resend_id else sql_literal(resend_id)
+    error_sql = "null" if not error else "$mh$" + error.replace("$mh$", "")[:500] + "$mh$"
+    run_sql(
+        "select public.finish_scheduled_email_send("
+        f"{sql_literal(job)}, {sql_literal(day)}::date, {sql_literal(recipient)}, {flag}, "
+        f"{resend_sql}, {error_sql})"
+    )
+
+
+def within_pdf_window(now: datetime) -> bool:
+    minutes = now.hour * 60 + now.minute
+    return 10 * 60 <= minutes <= 11 * 60 + 30
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="寄出試堂及追收學費行政 PDF")
     parser.add_argument("--as-of", default=None, help="查庫日 YYYY-MM-DD（預設香港今日）")
+    parser.add_argument("--send-day", default=None, help="香港發送日 YYYY-MM-DD")
     parser.add_argument("--dry-run", action="store_true", help="查庫並組文，不寄信")
+    parser.add_argument("--scheduled", action="store_true", help="排程呼叫：只在星期二、五 10:00–11:30")
+    parser.add_argument("--force", action="store_true", help="已寄出仍再寄")
     parser.add_argument("--workdir", type=Path, default=None, help="PDF 輸出目錄")
     args = parser.parse_args()
+
+    now = datetime.now(ZoneInfo("Asia/Hong_Kong"))
+    if args.send_day and not args.force and args.send_day != now.date().isoformat():
+        print(f"已過香港當日（發送日 {args.send_day}，今日 {now.date().isoformat()}），不寄出")
+        return
+    if args.scheduled and not args.force:
+        if now.weekday() not in (1, 4):
+            print("不是星期二或星期五，不寄出")
+            return
+        if not within_pdf_window(now):
+            print("不在香港 10:00–11:30，不寄出")
+            return
 
     sent_on = date.fromisoformat(args.as_of) if args.as_of else hk_today()
     as_of = sent_on.isoformat()
@@ -230,22 +284,28 @@ def main() -> None:
     api_key, from_addr = read_mail_key()
     if not api_key:
         raise SystemExit("未設定 RESEND_API_KEY，無法寄出。")
-    trial_id = send_email(
-        api_key=api_key,
-        from_addr=from_addr,
-        subject=trial_subject,
-        text=trial_body,
-        pdf=trial_pdf,
-    )
-    tuition_id = send_email(
-        api_key=api_key,
-        from_addr=from_addr,
-        subject=tuition_subject,
-        text=tuition_body,
-        pdf=tuition_pdf,
-    )
-    print(f"已寄出試堂 {trial_id}")
-    print(f"已寄出追收 {tuition_id}")
+    run_sql = tuition_mod.run_sql
+    day = sent_on.isoformat()
+    jobs = ((JOB_TRIAL, trial_subject, trial_body, trial_pdf), (JOB_TUITION, tuition_subject, tuition_body, tuition_pdf))
+    for job, subject, body, pdf in jobs:
+        if not args.force and claim_send(run_sql, job, day, RECIPIENT) == "skip":
+            print(f"已寄出，跳過 {job}")
+            continue
+        try:
+            resend_id = send_email(
+                api_key=api_key,
+                from_addr=from_addr,
+                subject=subject,
+                text=body,
+                pdf=pdf,
+            )
+        except SystemExit as exc:
+            if not args.force:
+                finish_send(run_sql, job, day, RECIPIENT, False, "", str(exc)[:500])
+            raise
+        if not args.force:
+            finish_send(run_sql, job, day, RECIPIENT, True, resend_id, "")
+        print(f"已寄出 {job} {resend_id}")
     print(f"收件 {', '.join(TO)}；副本 {', '.join(CC)}")
 
 
