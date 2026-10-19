@@ -149,7 +149,7 @@ export function ScheduleDayViewPanel({
    ) : null}
    {closureName ? (
     <p role="status" className="rounded-lg border border-warning/50 px-3 py-2 text-sm text-warning">
-     {dayViewDate} 為校舍假期（{closureName}）。該日沒有課堂，並非取消堂。
+     {dayViewDate} 為校舍假期（{closureName}）。一般不排常規專科堂；補堂／人手排程仍可，並非取消堂。
     </p>
    ) : null}
    {isMobile && allowMobileDayView ? (

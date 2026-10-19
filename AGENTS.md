@@ -41,7 +41,7 @@ Vite + React 18 + TypeScript + Tailwind；react-router-dom v6；Supabase JS。
 - **角色**：`localStorage.mgmt_role` ≠ Auth；讀權限 manager ≥ admin（`finance` 可讀職員資料、入口收窄至計糧／繳費＋排程／出席核對）；分流見 `docs/product/topics/mgmt-manager-role.md`／計糧見 `docs/product/topics/payroll-engine.md`。
 - **代堂**：只改該堂 `schedules.teacher_id`，勿改 `classes.teacher_id`。見 `docs/policies/scheduling/SCHEDULE_SUBSTITUTE_TEACHER.md`。
 - **`makeup_of=`：不要刪。** `schedules.remarks` 標記（`makeup_of=<取消堂id>`）不要從程式抽走，也不要清除 `26SM` 歷史。`2627` 點名紙不靠它入場，但安排補回靠它查重。見 `.cursor/rules/makeup-of-marker.mdc`。
-- **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。不要用 `academic_years.end_date`（6/30）當專科最後一堂——6/29、6/30 專科已完課（功輔仍開）。校舍假期不建立排程列，不是取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
+- **2627 專科排程**：跟 `docs/year/2627/ops-guide.md` 附件甲。每星期幾扣假後 **40** 堂（十期×四）；最後上課日 **2027-06-28**。不要用 `academic_years.end_date`（6/30）當專科最後一堂——6/29、6/30 專科已完課（功輔仍開）。校舍假期批量預設跳過；補堂／人手可排；不是取消堂。見 `.cursor/rules/2627-timetable-doc.mdc`。
 - **查庫／模擬運作**：不要把空班、暑期未續常規、學期結束仍「就讀中」、未繳仍出現在點名紙當成缺陷。見 `.cursor/rules/ops-data-check.mdc`。
 - **Migration**：寫完即單檔套用；優先 `npm run db:apply -- <檔>`；禁全量 `db push`。見 `.cursor/rules/supabase-migrations.mdc` 與 skill `apply-supabase-migration`。
 - **Feature 熱檔**：不要 commit `BACKLOG.md` 索引表（只在 `main` 搬列；分題表頭狀態＝該題真源）。不要帶 `dist/`、`docs/generated/**`。`ops-guide` 只在本題 PR 才改。見 `.cursor/rules/feature-branch-hot-files.mdc`。

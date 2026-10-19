@@ -128,7 +128,7 @@ export function AcademicCalendarView() {
       校曆
      </h1>
      <p className="mt-1 text-sm text-muted-foreground">
-      列出本社沒有任何課堂的校舍假期；批量排程會自動排除，月費亦按最終上課日計算。
+      列出校舍假期（批量排程預設排除；補堂／人手仍可在該日建堂）。月費按最終上課日計算。
      </p>
     </header>
    )}
