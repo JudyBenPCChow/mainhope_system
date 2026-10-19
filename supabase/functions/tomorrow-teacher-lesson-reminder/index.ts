@@ -74,8 +74,8 @@ type TeacherPayload = {
 
 /** 自動排程由香港曆日此日起寄出（含當日）；10/12 已人手寄過，自 10/13 起自動 */
 const AUTO_SEND_FROM_YMD = "2026-10-13"
-/** 此日（含）起改香港 18:00；之前仍 20:00。當日寄出的是翌日課堂。 */
-const SEND_AT_18_FROM_YMD = "2026-10-18"
+/** 此日（含）起自動排程改香港 17:37，寄出翌日課堂。18:00／20:00 舊槽一律略過。 */
+const SEND_AT_1737_FROM_YMD = "2026-10-20"
 
 function hkYmd(d = new Date()): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
   let force = false
   let simulateTo: string | null = null
   let targetDate: string | null = null
-  let slot: "18" | "20" | null = null
+  let slot: "1737" | "skip" | null = null
   try {
     const body = await req.json().catch(() => ({})) as {
       dry_run?: unknown
@@ -328,7 +328,8 @@ Deno.serve(async (req) => {
     const td = String(body?.target_date ?? "").trim()
     targetDate = /^\d{4}-\d{2}-\d{2}$/.test(td) ? td : null
     const rawSlot = String(body?.slot ?? "").trim()
-    if (rawSlot === "18" || rawSlot === "20") slot = rawSlot
+    if (rawSlot === "1737") slot = "1737"
+    else if (rawSlot) slot = "skip"
   } catch {
     dryRun = false
   }
@@ -340,7 +341,7 @@ Deno.serve(async (req) => {
   }
 
   // 自動 cron：香港 AUTO_SEND_FROM_YMD 起真寄；人手 force／dry_run／simulate 不受限。
-  // slot 由 Actions 帶入：18＝香港 18:00，20＝香港 20:00。未帶 slot 的舊排程仍照寄。
+  // slot 由 Actions 帶入：1737＝香港 17:37。18／20／retired 等舊槽略過。未帶 slot 的人手呼叫仍照寄。
   const todayHk = hkYmd()
   if (!force && !dryRun && !simulateTo && todayHk < AUTO_SEND_FROM_YMD) {
     return jsonResponse({
@@ -350,26 +351,23 @@ Deno.serve(async (req) => {
       today_hk: todayHk,
     })
   }
-  if (!force && !dryRun && !simulateTo && slot) {
-    const use18 = todayHk >= SEND_AT_18_FROM_YMD
-    if (use18 && slot === "20") {
-      return jsonResponse({
-        ok: true,
-        skipped: true,
-        reason: `${SEND_AT_18_FROM_YMD} 起改為香港 18:00；略過 20:00`,
-        today_hk: todayHk,
-        slot,
-      })
-    }
-    if (!use18 && slot === "18") {
-      return jsonResponse({
-        ok: true,
-        skipped: true,
-        reason: `${SEND_AT_18_FROM_YMD} 前仍為香港 20:00；略過 18:00`,
-        today_hk: todayHk,
-        slot,
-      })
-    }
+  if (!force && !dryRun && !simulateTo && slot === "skip") {
+    return jsonResponse({
+      ok: true,
+      skipped: true,
+      reason: "已改為香港 17:37；略過舊排程",
+      today_hk: todayHk,
+      slot,
+    })
+  }
+  if (!force && !dryRun && !simulateTo && slot === "1737" && todayHk < SEND_AT_1737_FROM_YMD) {
+    return jsonResponse({
+      ok: true,
+      skipped: true,
+      reason: `香港 17:37 由 ${SEND_AT_1737_FROM_YMD} 起；今日香港 ${todayHk} 未開始`,
+      today_hk: todayHk,
+      slot,
+    })
   }
 
   const dateYmd = targetDate ?? hkTomorrowYmd()

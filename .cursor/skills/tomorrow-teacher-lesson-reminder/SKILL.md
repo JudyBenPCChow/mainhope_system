@@ -82,8 +82,8 @@ Ms. Rain Kwok
 ## 自動化
 
 - Edge Function：`tomorrow-teacher-lesson-reminder`
-- 排程：GitHub Actions 每天寄出。**2026-10-17 及之前**為香港時間 20:00（UTC `0 12 * * *`）；**2026-10-18 起**改為香港時間 18:00（UTC `0 10 * * *`）。兩條 cron 都在；函式看 `slot`（`18`／`20`），未到切換日略過 18:00，當日及之後略過 20:00。
-- 目標日始終是香港翌日。例如 10 月 18 日 18:00 寄出的是 10 月 19 日課堂。
+- 排程：GitHub Actions 每天寄出。**2026-10-20 起**為香港時間 17:37（`cron: "37 17 * * *"`，`timezone: Asia/Hong_Kong`）。函式看 `slot`：`1737` 才自動寄；`18`／`20`／`retired` 略過。17:37 在香港曆日 2026-10-20 之前亦略過。
+- 目標日始終是香港翌日。例如 10 月 20 日 17:37 寄出的是 10 月 21 日課堂。
 - 自動真寄由香港曆日 **2026-10-13** 起（函式閘；10/12 已人手寄過，當晚不再自動）
 - 人手真寄：`{"force":true,"target_date":"YYYY-MM-DD"}`（可略 `target_date`＝翌日）
 - 正式寄出：各老師 `teachers_private.notification_email`（無則跳過）；每封 BCC `cfan@mainhope.edu.hk`
