@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient"
+import { asTableUpdate } from "@/lib/tableWrite"
 
 export type ScriptLibraryEntry = {
   id: string
@@ -111,7 +112,7 @@ export async function updateScriptLibraryEntry(
 
   const { data, error } = await client
     .from("script_library_entries")
-    .update(patch)
+    .update(asTableUpdate<"script_library_entries">(patch))
     .eq("id", id)
     .select("*")
     .single()

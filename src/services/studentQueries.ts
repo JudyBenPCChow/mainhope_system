@@ -40,6 +40,7 @@ import { nextStudentCode } from "@/lib/studentCode"
 import { deriveActivityStatus, enrollmentEventYmdFromRow } from "@/lib/studentActivityStatus"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { supabase } from "@/lib/supabaseClient"
+import { asTableUpdate } from "@/lib/tableWrite"
 import {
  WrittenSideEffectError,
  writtenSideEffectDetail,
@@ -520,6 +521,7 @@ export async function allocateNextStudentCode(): Promise<string> {
 export type StudentPickerOption = {
  id: string
  full_name: string
+ student_code: string | null
  grade: string | null
 }
 
@@ -531,7 +533,7 @@ export async function fetchStudentPickerOptions(opts?: {
  const includeGraduated = Boolean(opts?.includeGraduated) || !isSoftArchiveQueriesEnabled()
  let query = supabase
   .from("students")
-  .select("id, full_name, grade, academic_stage")
+  .select("id, full_name, student_code, grade, academic_stage")
   .order("full_name", { ascending: true })
  if (!includeGraduated) {
   query = query.neq("academic_stage", "已畢業").or("grade.is.null,grade.neq.GD")
@@ -543,6 +545,7 @@ export async function fetchStudentPickerOptions(opts?: {
   return {
    id: String(row.id),
    full_name: String(row.full_name ?? ""),
+   student_code: row.student_code != null ? String(row.student_code) : null,
    grade: row.grade != null ? String(row.grade) : null,
   }
  })
@@ -718,7 +721,7 @@ export async function updateStudent(
  }
  const { data, error } = await supabase
   .from("students")
-  .update(payload)
+  .update(asTableUpdate<"students">(payload))
   .eq("id", id)
   .select("*")
   .single()

@@ -1,5 +1,6 @@
 import { todayYmdLocal } from "@/lib/weekdayUtils"
 import { supabase } from "@/lib/supabaseClient"
+import { asTableInsert } from "@/lib/tableWrite"
 
 export type MgmtAuditLogRow = {
  id: string
@@ -75,11 +76,13 @@ export type AppendMgmtAuditInput = {
 /** 寫入一筆稽核（登入／操作）；失敗時靜默不擋流程。actor／role 由 stamp_actor 依 JWT 蓋印。 */
 export async function appendMgmtAuditLog(input: AppendMgmtAuditInput): Promise<void> {
  if (!supabase) return
- const { error } = await supabase.from("mgmt_audit_log").insert({
-  action: input.action,
-  path: input.path ?? null,
-  detail: input.detail ?? null,
- })
+ const { error } = await supabase.from("mgmt_audit_log").insert(
+  asTableInsert<"mgmt_audit_log">({
+   action: input.action,
+   path: input.path ?? null,
+   detail: input.detail ?? null,
+  }),
+ )
  if (error) console.warn("[mgmt_audit_log]", error.message)
 }
 
@@ -114,11 +117,13 @@ export async function logMgmtAuditActionOrThrow(input: {
   input.path ??
   (typeof window !== "undefined" ? window.location.pathname : null) ??
   "/"
- const { error } = await supabase.from("mgmt_audit_log").insert({
-  action: input.action,
-  path,
-  detail: input.detail ?? null,
- })
+ const { error } = await supabase.from("mgmt_audit_log").insert(
+  asTableInsert<"mgmt_audit_log">({
+   action: input.action,
+   path,
+   detail: input.detail ?? null,
+  }),
+ )
  if (error) throw new Error(`稽核寫入失敗，已中止操作：${error.message}`)
 }
 

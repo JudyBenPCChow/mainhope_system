@@ -2,7 +2,7 @@
 
 | 欄位 | 值 |
 | --- | --- |
-| 狀態 | `open`（2026-10-20：下一刀 migration `20261020004500` 已落。其後仍是 generated types 與警告分類） |
+| 狀態 | `done`（2026-10-20：`src/types/database.ts` 已接 `createClient<Database>`；同日 security advisor 剩餘 111 項已逐項分類。效能黃燈整組接受，沒有為清零而刪政策或索引） |
 | 優先 | 中 |
 | 範圍 | P1-3、P2-1、P3-1（DB 部分）：generated Database types、Supabase security／performance advisor、重複 index／殘留表 |
 | 不含 | 角色 capability／RLS 權限模型重設（見 [`tech-debt-hardening.md`](./tech-debt-hardening.md)）；Base44 前端殘碼（見 [`dead-surface-cleanup.md`](./dead-surface-cleanup.md)）；Auth leaked password（見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)）；Edge Function 型別化；計糧／總覽慢查詢（見 [`mgmt-dashboard-overhaul.md`](./mgmt-dashboard-overhaul.md)） |
@@ -99,7 +99,7 @@ Git 仍沒有對齊那批狀態的 migration。10 月審查另見兩處後來漂
 
 同一輪把「`CREATE OR REPLACE FUNCTION` 會還原 `PUBLIC` EXECUTE，改完 trigger 必須再 `REVOKE`」寫入 migration skill。10 月的兩支 trigger 就是這條沒寫下來而再次發生。
 
-### 其後再做（不與上一條綁在同一輪）
+### 其後再做（2026-10-20 已做；分類見文末）
 
 - generated `Database` 型別：`src/types/database.ts`、`createClient<Database>`、`db:types`。第一刀仍不加 CI types drift check。
 - 每個剩餘 security 警告一行分類（已修／接受並寫理由／不適用）。效能黃燈維持接受；外鍵 index 等表變大或 EXPLAIN 證實再加。
@@ -124,7 +124,132 @@ Git 仍沒有對齊那批狀態的 migration。10 月審查另見兩處後來漂
 - duplicate index advisor 消失；八支 INVOKER 與 `leads_set_updated_at` 不再報 mutable search_path。
 - 上述改動在單檔 migration；無為清零而盲刪 policy／DEFINER。
 
-其後再做：
+其後再做（2026-10-20）：
 
-- Client 用 generated `Database`（或逃生艙已記錄）；`npm run build` 過。
-- 每個剩餘 security 警告有分類；新增或刪除 index 有理由。
+- Client 已用 generated `Database`；`npm run build` 已過。`listTable` 的表名是全部 public 表聯集，帶 Relationships 的 `from()` 會令 instantiation 過深，該函式單獨改用不帶 `Database` 的客戶端。
+- 每個剩餘 security 警告已分類（見下節）。沒有新增或刪除 index。
+
+## 2026-10-20 security 分類
+
+來源：Supabase security advisor，`MainHope_production`，`observed_at` 2026-10-19T17:24:15Z。共 111 項（WARN 97、INFO 14）。效能 advisor 整組接受，不在下表。沒有為了清零而刪政策、索引或 SECURITY DEFINER。
+
+下列項目顧問已不再列出，分類為**已修**（`20261020004500`）：
+
+- `function_search_path_mutable`：八支 INVOKER 與 `leads_set_updated_at` 已釘 `search_path`
+- 重複索引 `app_users_email_lower_uidx` 已刪，留 `app_users_email_unique`
+- 五支 trigger 的 anon／authenticated EXECUTE 已收回：`classes_backfill_null_schedule_teachers`、`schedules_default_teacher_from_class`、`teachers_ensure_private_row`、`forbid_grade_scope_pool_on_mixed_class`、`leads_sync_interested_subjects_on_convert`
+- `list_portal_class_schedules` 的 anon EXECUTE 已收回（authenticated 仍在下表）
+
+| 級別 | 警告 | 對象 | 分類 | 原因 |
+| --- | --- | --- | --- | --- |
+| INFO | RLS 已開、無政策 | `private.authz_capabilities` | 接受 | 刻意不設政策，等同拒絕全部直讀。 |
+| INFO | RLS 已開、無政策 | `private.authz_meta` | 接受 | 刻意不設政策，等同拒絕全部直讀。 |
+| INFO | RLS 已開、無政策 | `private.authz_role_capabilities` | 接受 | 刻意不設政策，等同拒絕全部直讀。 |
+| INFO | RLS 已開、無政策 | `private.mgmt_session_roles` | 接受 | 刻意不設政策，等同拒絕全部直讀。 |
+| INFO | RLS 已開、無政策 | `public.ad_public_rate_events` | 接受 | `20260925151000` 已撤銷表權限，刻意拒絕直讀。 |
+| INFO | RLS 已開、無政策 | `public.class_restructure_audit_logs` | 接受 | helper 或暫存表；本輪不刪表、不加政策。 |
+| INFO | RLS 已開、無政策 | `public.mgmt_active_roles` | 接受 | P0-2 雙寫後備，保留空政策。 |
+| INFO | RLS 已開、無政策 | `public.tmp_students_import` | 接受 | helper 或暫存表；本輪不刪表、不加政策。 |
+| INFO | RLS 已開、無政策 | `public.weekday_aliases` | 接受 | helper 或暫存表；本輪不刪表、不加政策。 |
+| INFO | RLS 已開、無政策 | `staging.attendance_import` | 接受 | 匯入暫存表，刻意無政策。 |
+| INFO | RLS 已開、無政策 | `staging.classes_import` | 接受 | 匯入暫存表，刻意無政策。 |
+| INFO | RLS 已開、無政策 | `staging.enrollments_import` | 接受 | 匯入暫存表，刻意無政策。 |
+| INFO | RLS 已開、無政策 | `staging.schedules_import` | 接受 | 匯入暫存表，刻意無政策。 |
+| INFO | RLS 已開、無政策 | `staging.students_import` | 接受 | 匯入暫存表，刻意無政策。 |
+| WARN | extension 在 public | `public.pg_net` | 接受 | `20261020001500` 裝在 public，排程電郵使用 `net.http_post`；搬 schema 要重建 extension，本輪不搬。 |
+| WARN | anon 可執行 DEFINER | `ad_homework_catalog_get`（anon） | 接受 | 公開頁直接呼叫目錄（`adTrialQueries`），須保留未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `ad_trial_catalog_get`（anon） | 接受 | 公開頁直接呼叫目錄（`adTrialQueries`），須保留未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `ad_trial_interest_submit`（anon） | 不適用 | 結構審查 A2-01：畫面已走 Edge，是否收回不在本題。 |
+| WARN | anon 可執行 DEFINER | `ad_trial_submit`（anon） | 不適用 | 結構審查 A2-01：畫面已走 Edge，是否收回不在本題。 |
+| WARN | anon 可執行 DEFINER | `contact_update_get`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `contact_update_submit`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `front_desk_intake_get`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `front_desk_intake_submit`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `peek_portal_invite`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `trial_invite_get`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | anon 可執行 DEFINER | `trial_invite_submit`（anon） | 接受 | 憑 token 的公開頁，禁止收回未登入執行權。 |
+| WARN | authenticated 可執行 DEFINER | `ad_homework_catalog_get`（authenticated） | 接受 | 公開目錄，已登入亦可呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `ad_public_abuse_stats`（authenticated） | 接受 | 函式內檢查 `is_mgmt_staff` 與 `students.enroll`，維持 DEFINER。 |
+| WARN | authenticated 可執行 DEFINER | `ad_trial_catalog_get`（authenticated） | 接受 | 公開目錄，已登入亦可呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `ad_trial_interest_submit`（authenticated） | 不適用 | 結構審查 A2-01：與 anon 同一對提交函式，本題不收回。 |
+| WARN | authenticated 可執行 DEFINER | `ad_trial_set_classes_listed`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `ad_trial_set_schedules_excluded`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `ad_trial_submit`（authenticated） | 不適用 | 結構審查 A2-01：與 anon 同一對提交函式，本題不收回。 |
+| WARN | authenticated 可執行 DEFINER | `apply_attendance_entitlement_delta`（authenticated） | 接受 | 函式內檢查 `attendance.take`，維持 DEFINER。 |
+| WARN | authenticated 可執行 DEFINER | `can_access_homework_day_logs`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `cancel_portal_enrollment_request`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `clear_my_mgmt_session_role`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `contact_update_approve`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `contact_update_create`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `contact_update_get`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `contact_update_submit`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `contact_update_void`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `current_app_role`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `current_app_user_id`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `current_inbox_actor_key`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `current_portal_student_id`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `current_portal_view_as_student_id`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `current_teacher_id`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `front_desk_intake_consume`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `front_desk_intake_create`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `front_desk_intake_get`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `front_desk_intake_submit`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `get_attendance_records_in_range`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_class_schedule_summaries`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_enrollment_effective_dates`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_my_mgmt_profile`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_my_mgmt_profile_v2`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_portal_view_as`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_schedule_manage_stats`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `get_teacher_schedule_roster_context`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `is_admin`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `is_alien`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `is_portal`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `list_homework_tutoring_enrollments`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `list_pending_room_booking_occupancy`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `list_portal_class_schedules`（authenticated） | 接受 | 2026-08-29 已收回 anon；體內有 `is_portal()`，authenticated 保留。 |
+| WARN | authenticated 可執行 DEFINER | `list_portal_enrollable_class_ids`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `list_portal_my_trial_schedules`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `list_room_schedule_occupancy`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `peek_portal_invite`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `portal_allocate_invoice_number`（authenticated） | 接受 | 已收回 anon 與 public；已登入仍可呼叫。本輪不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `portal_build_quote_from_lines`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `portal_can_access_class`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `portal_class_matches_current_student_grade`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `portal_class_matches_student_grade`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `portal_count_lessons_for_period`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `portal_student_grade_label`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `preview_portal_enrollment_quote`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `redeem_portal_invite`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `review_portal_enrollment_request`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `start_portal_view_as`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `stop_portal_view_as`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `submit_portal_enrollment_request`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `switch_my_mgmt_role`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `switch_my_mgmt_role_v2`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_access_calendar_event`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_access_class`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_access_schedule`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_access_student`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_read_attendance`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_can_write_attendance`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_has_homework_tutoring_nav`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `teacher_owns_schedule_row`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_catalog_allows_class`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_class_matches_student`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_class_under_enrolled_cap`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_create`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_get`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_review`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_schedule_open_for_parent`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_set_class_listed`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_set_classes_listed`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_set_schedule_excluded`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_set_schedules_excluded`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_set_teacher_participating`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_subject_open_for_student`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_subject_recent_trial_open_for_student`（authenticated） | 接受 | 身分或資格判斷，供 RLS 或其他 RPC 使用；不改 INVOKER。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_submit`（authenticated） | 接受 | 與未登入同一套 token 流程，已登入身份亦須能呼叫。 |
+| WARN | authenticated 可執行 DEFINER | `trial_invite_void`（authenticated） | 接受 | 應用 RPC，維持 SECURITY DEFINER；本輪不改 INVOKER、不收執行權。 |
+| WARN | authenticated 可執行 DEFINER | `void_payment_command`（authenticated） | 接受 | 函式內檢查 `payments.void`，維持 DEFINER。 |
+| WARN | Auth | 洩露密碼保護 | 不適用 | Auth 設定，見 [`auth-leaked-password-protection.md`](./auth-leaked-password-protection.md)。 |

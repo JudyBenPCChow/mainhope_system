@@ -28,6 +28,7 @@ import { resolveClassKind } from "@/lib/privateClassKind"
 import { LATE_FEE_AMOUNT } from "@/lib/tuitionLateFee"
 import { sanitizeIlikeFragment } from "@/lib/ilikeFragment"
 import { supabase } from "@/lib/supabaseClient"
+import { asTableUpdate } from "@/lib/tableWrite"
 import { forEachIdChunk } from "@/lib/supabaseInChunks"
 import { isSoftArchiveQueriesEnabled } from "@/lib/softArchiveFlag"
 import { paymentOpsListOrFilter } from "@/lib/softArchiveListScope"
@@ -1144,7 +1145,7 @@ export async function updatePaymentRecord(
  if (patch.receiptNumber !== undefined) payload.receipt_number = patch.receiptNumber
  if (patch.remarks !== undefined) payload.remarks = patch.remarks
  if (patch.totalAmount !== undefined) payload.total_amount = patch.totalAmount
- const { error } = await supabase.from("payments").update(payload).eq("id", id).neq("status", PAYMENT_STATUS.voided)
+ const { error } = await supabase.from("payments").update(asTableUpdate<"payments">(payload)).eq("id", id).neq("status", PAYMENT_STATUS.voided)
  if (error) throw error
 }
 

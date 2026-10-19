@@ -27,7 +27,8 @@ describe("applyEntitlementConsumptionDelta", () => {
    p_schedule_id: "sched-1",
    p_class_id: "class-1",
    p_attendance_detail_id: "att-1",
-   p_previous_status: null,
+   // 產生型別只收 string | undefined；省略後由 SQL default null 補上
+   p_previous_status: undefined,
    p_next_status: "現場",
    p_lesson_units: 1,
   })
