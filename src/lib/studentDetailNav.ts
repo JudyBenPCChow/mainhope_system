@@ -53,6 +53,16 @@ export function studentDetailLinkState(
  return { from: `${location.pathname}${location.search}` }
 }
 
+/** 學生管理新增成功後的詳細頁路徑：一般新生開報讀班別；已畢業只開基本資料。 */
+export function studentAfterCreatePath(opts: {
+ studentId: string
+ academicStage?: string | null
+}): string {
+ const id = encodeURIComponent(opts.studentId)
+ if (opts.academicStage === "已畢業") return `/Students/${id}`
+ return `/Students/${id}?tab=enrollments`
+}
+
 function navLabelForPathname(pathname: string): string | null {
  const exact = flattenNav(NAV_STRUCTURE).find((leaf) => leaf.path.split("?")[0] === pathname)
  return exact?.label ?? null

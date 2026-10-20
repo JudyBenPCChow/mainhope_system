@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { usePersistentState } from "@/hooks/usePersistentState"
 import { ChevronDown, ChevronUp, Columns3, GraduationCap, LayoutGrid, List, MessageCircle, Search, Sheet, SlidersHorizontal } from "lucide-react"
 
@@ -72,6 +72,7 @@ import {
  type RecentClassEnrollment,
  type StudentRecord,
 } from "@/services/studentQueries"
+import { studentAfterCreatePath, studentDetailLinkState } from "@/lib/studentDetailNav"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
 
 const REGISTRATION_FILTERS = [
@@ -194,6 +195,7 @@ export function StudentsListPage() {
  const { confirmDialog } = useAppConfirm()
  const { pushBanner } = useAppBanner()
  const { profile, role } = useAuth()
+ const navigate = useNavigate()
  const canDeleteStudent = can(profile?.activeCapabilities, "students.update")
  const openStudent = useOpenStudentRecord()
  const { preview } = useRecordPreview()
@@ -1308,7 +1310,16 @@ export function StudentsListPage() {
       onOpenChange={setAddOpen}
       extraSchools={extraSchools}
       initialIntakeToken={intakeTokenFromUrl}
-      onCreated={() => void load()}
+      onCreated={(created) => {
+       invalidateStudentsListDataCache()
+       navigate(
+        studentAfterCreatePath({
+         studentId: created.id,
+         academicStage: created.academic_stage,
+        }),
+        { state: studentDetailLinkState({ pathname: "/Students", search: "" }) }
+       )
+      }}
       onClearIntakeToken={clearIntakeTokenFromUrl}
      />
     </div>
