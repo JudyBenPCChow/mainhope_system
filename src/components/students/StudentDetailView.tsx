@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { MultiSelect } from "@/components/ui/multi-select"
 import { SchoolSearchableSelect } from "@/components/students/SchoolSearchableSelect"
+import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import { Select } from "@/components/ui/select"
 import { Tag } from "@/components/ui/tag"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
@@ -57,6 +58,7 @@ import {
 } from "@/lib/interestedSubjects"
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
+import { STUDENT_RELATIVE_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import {
  navigateStudentDetailLeave,
  resolveStudentDetailBackLabel,
@@ -367,7 +369,6 @@ export function StudentDetailView() {
  const [relativesState, setRelativesState] = useState<"loading" | "ready" | "error">("loading")
  const [relativeDialogOpen, setRelativeDialogOpen] = useState(false)
  const [allStudentsForPick, setAllStudentsForPick] = useState<StudentRecord[]>([])
- const [relativeQuery, setRelativeQuery] = useState("")
  const [relativePick, setRelativePick] = useState<StudentRecord | null>(null)
  const [relativePreset, setRelativePreset] = useState<string>(RELATIONSHIP_PRESETS[0])
  const [relativeCustom, setRelativeCustom] = useState("")
@@ -1279,21 +1280,13 @@ export function StudentDetailView() {
 
  const relatedIds = useMemo(() => new Set(relatives.map((r) => r.relatedStudentId)), [relatives])
 
- const relativePickerOptions = useMemo(() => {
-  const q = relativeQuery.trim().toLowerCase()
-  return allStudentsForPick
-   .filter((s) => s.id !== sid && !relatedIds.has(s.id))
-   .filter((s) => {
-    if (!q) return true
-    const hay = `${s.full_name} ${s.student_code ?? ""} ${s.english_name ?? ""}`.toLowerCase()
-    return hay.includes(q)
-   })
-   .slice(0, 24)
- }, [allStudentsForPick, sid, relatedIds, relativeQuery])
+ const relativeCandidates = useMemo(
+  () => allStudentsForPick.filter((s) => s.id !== sid && !relatedIds.has(s.id)),
+  [allStudentsForPick, sid, relatedIds]
+ )
 
  const openAddRelative = () => {
   setRelativePick(null)
-  setRelativeQuery("")
   setRelativePreset(RELATIONSHIP_PRESETS[0])
   setRelativeCustom("")
   setRelativeDialogOpen(true)
@@ -2076,44 +2069,19 @@ export function StudentDetailView() {
          </DialogHeader>
          <div className="grid gap-3 text-sm">
           <Field label="選擇學生 *">
-           <div className="relative">
-            <Input
-             placeholder="搜尋姓名或學號…"
-             value={
-              relativePick
-               ? `${relativePick.full_name}${relativePick.student_code ? `（${relativePick.student_code}）` : ""}`
-               : relativeQuery
-             }
-             onChange={(e) => {
-              setRelativePick(null)
-              setRelativeQuery(e.target.value)
+           {relativeCandidates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">沒有可選學生（或已全部連結）</p>
+           ) : (
+            <StudentSearchableSelect
+             students={relativeCandidates}
+             value={relativePick?.id ?? ""}
+             rememberKey={STUDENT_RELATIVE_RECENT_STORAGE_KEY}
+             searchPlaceholder="輸入姓名、學號或年級搜尋…"
+             onChange={(studentId) => {
+              setRelativePick(relativeCandidates.find((s) => s.id === studentId) ?? null)
              }}
             />
-            {!relativePick && relativeQuery.trim() ? (
-             <div className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border bg-popover shadow-md">
-              {relativePickerOptions.length === 0 ? (
-               <div className="px-3 py-2 text-muted-foreground">沒有可選學生（或已全部連結）</div>
-              ) : (
-               relativePickerOptions.map((s) => (
-                <button
-                 key={s.id}
-                 type="button"
-                 className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-muted"
-                 onClick={() => {
-                  setRelativePick(s)
-                  setRelativeQuery("")
-                 }}
-                >
-                 <span className="font-medium">{s.full_name}</span>
-                 {s.student_code ? (
-                  <span className="text-xs text-muted-foreground">{s.student_code}</span>
-                 ) : null}
-                </button>
-               ))
-              )}
-             </div>
-            ) : null}
-           </div>
+           )}
           </Field>
           <Field label="關係標籤 *">
            <Select

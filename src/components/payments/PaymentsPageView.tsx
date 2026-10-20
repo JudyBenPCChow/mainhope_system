@@ -1745,6 +1745,7 @@ export function PaymentsPageView() {
           value={selectedStudent?.id ?? ""}
           recentPaidStudentIds={recentPaidStudentIds}
           rememberKey={PAYMENT_RECENT_STUDENT_STORAGE_KEY}
+          searchPlaceholder="最近收款／最近選過，或輸入姓名／學號／年級"
           onChange={(studentId) => {
            const found = students.find((s) => s.id === studentId) ?? null
            setSelectedStudent(found)

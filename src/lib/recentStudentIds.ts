@@ -7,6 +7,18 @@ export const PAYMENT_RECENT_STUDENT_STORAGE_KEY = "mgmt_recent_payment_students"
 /** 班別詳情「增加學生」：本機記住最近選過的學生 */
 export const CLASS_ADD_STUDENT_RECENT_STORAGE_KEY = "mgmt_recent_class_add_students"
 
+/** 私人課程新增報讀 */
+export const PRIVATE_TUTORING_STUDENT_RECENT_STORAGE_KEY = "mgmt_recent_private_tutoring_students"
+
+/** 請假管理新增請假 */
+export const LEAVE_ADD_STUDENT_RECENT_STORAGE_KEY = "mgmt_recent_leave_add_students"
+
+/** 學生詳情新增親友 */
+export const STUDENT_RELATIVE_RECENT_STORAGE_KEY = "mgmt_recent_student_relative_students"
+
+/** 試堂紀錄新增試堂 */
+export const TRIAL_ADD_STUDENT_RECENT_STORAGE_KEY = "mgmt_recent_trial_add_students"
+
 export function parseRecentStudentIds(raw: string | null | undefined): string[] {
  if (raw == null || raw === "") return []
  try {
