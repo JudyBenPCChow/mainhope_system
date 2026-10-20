@@ -581,8 +581,14 @@ export function TrialConvertDialog({
               >
                 取消
               </Button>
-              <Button type="button" disabled={!canSubmit} onClick={() => void submit()}>
-                {saving ? "處理中…" : isLinking ? "確認連結並結案" : "確認正式報讀"}
+              <Button
+                type="button"
+                disabled={!canSubmit}
+                loading={saving}
+                loadingText="處理中…"
+                onClick={() => void submit()}
+              >
+                {isLinking ? "確認連結並結案" : "確認正式報讀"}
               </Button>
             </div>
           </div>
