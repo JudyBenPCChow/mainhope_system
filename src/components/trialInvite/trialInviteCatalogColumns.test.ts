@@ -126,6 +126,35 @@ describe("publicAutoHideReason", () => {
     ).toBe("full")
   })
 
+  it("功課輔導班就讀中超過 5 人不標滿班", () => {
+    expect(
+      publicAutoHideReason(
+        cls({
+          id: "1",
+          label: "功輔",
+          classKind: "homework",
+          enrolledStudents: Array.from({ length: 7 }, (_, i) => ({
+            id: String(i),
+            fullName: `生${i}`,
+            studentCode: "",
+          })),
+          schedules: [
+            {
+              id: "s1",
+              scheduledDate: "2026-10-22",
+              startTime: "15:15",
+              endTime: "20:00",
+              sessionNumber: null,
+              excluded: false,
+              adExcluded: false,
+              trialCount: 0,
+            },
+          ],
+        })
+      )
+    ).toBeNull()
+  })
+
   it("沒有未剔除且未佔用的未來堂則標無可選堂", () => {
     expect(
       publicAutoHideReason(

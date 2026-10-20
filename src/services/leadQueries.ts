@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabaseClient"
 import { normalizeStudentGrade } from "@/lib/studentGrade"
+import { trialPublicEnrolledCapHidesClass } from "@/lib/trialPublicEnrolledCap"
 import { allocateNextStudentCode, insertStudent, isUniqueViolation } from "@/services/studentQueries"
 
 export type LeadSource = "ad_trial" | "phone" | "front_desk" | "website" | "other"
@@ -279,13 +280,16 @@ export async function staleAdIntentions(intentions: LeadIntention[]): Promise<st
       stale.push(`${label}：已不能按廣告目錄排堂`)
       continue
     }
+    if (cls?.class_kind === "homework") continue
     const { count, error: countErr } = await supabase
       .from("student_class_enrollments")
       .select("id", { count: "exact", head: true })
       .eq("class_id", line.classId)
       .eq("status", "就讀中")
     if (countErr) throw countErr
-    if ((count ?? 0) > 5) stale.push(`${label}：就讀中已超過 5 人`)
+    if (trialPublicEnrolledCapHidesClass(String(cls?.class_kind ?? ""), count ?? 0)) {
+      stale.push(`${label}：就讀中已超過 5 人`)
+    }
   }
   return stale
 }
