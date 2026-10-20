@@ -375,7 +375,9 @@ export function TrialInviteCatalogControlView() {
         title: next ? "已納入廣告公開" : "已關閉廣告公開",
         tone: "success",
         message: next
-          ? "此班會出現在廣告試堂頁（仍受未剔除的未來堂次與滿班隱藏約束）。已有試堂不會鎖定此開關。"
+          ? cls.classKind === "homework"
+            ? "此班會出現在廣告試堂頁（仍受未剔除的未來堂次約束）。功課輔導班不因就讀人數隱藏。已有試堂不會鎖定此開關。"
+            : "此班會出現在廣告試堂頁（仍受未剔除的未來堂次與滿班隱藏約束）。已有試堂不會鎖定此開關。"
           : "此班暫不出現在廣告試堂頁。",
       })
     } catch (e) {
@@ -585,7 +587,7 @@ export function TrialInviteCatalogControlView() {
           <AdminPageHeader
             eyebrow="行政工作"
             title="試堂班別管理"
-            description={`控制對外公開頁可選的班與堂${academicYearLabel ? `（目前學年 ${academicYearLabel}）` : ""}。舊生邀請與廣告公開各自獨立；廣告預設關閉，須逐班打開。滿班（就讀中超過 5 人）兩邊都會自動隱藏。已有試堂只供查看，不會鎖定廣告開關。`}
+            description={`控制對外公開頁可選的班與堂${academicYearLabel ? `（目前學年 ${academicYearLabel}）` : ""}。舊生邀請與廣告公開各自獨立；廣告預設關閉，須逐班打開。專科班就讀中超過 5 人會在兩邊自動隱藏；功課輔導班不因人數隱藏。已有試堂只供查看，不會鎖定廣告開關。`}
             actions={
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" asChild>

@@ -10,6 +10,7 @@ import {
   type SortDir,
 } from "@/components/list/listFilterUtils"
 import { isPrimaryStudentGrade, normalizeStudentGrade } from "@/lib/studentGrade"
+import { trialPublicEnrolledCapHidesClass } from "@/lib/trialPublicEnrolledCap"
 import { formatWeekdaysDisplay } from "@/lib/weekdayUtils"
 import {
   type TrialInviteCatalogClassControl,
@@ -79,8 +80,8 @@ export function catalogMatchesSchoolBand(
 export const COUNT_BUCKET_OPTIONS: HeaderFilterOption[] = [
   { value: "", label: "全部" },
   { value: "0", label: "0 人" },
-  { value: "1-5", label: "1–5 人（公開頁可出現）" },
-  { value: "6+", label: "6 人以上（公開頁自動隱藏）" },
+  { value: "1-5", label: "1–5 人" },
+  { value: "6+", label: "6 人以上（僅專科班自動隱藏）" },
 ]
 
 export const LISTED_FILTER_OPTIONS: HeaderFilterOption[] = [
@@ -140,12 +141,12 @@ function adScheduleOpen(s: TrialInviteCatalogScheduleControl): boolean {
   return !s.adExcluded
 }
 
-/** 任一通道有開才標自動隱藏。滿班兩邊都算；已有試堂只令舊生邀請視為無可選堂。 */
+/** 任一通道有開才標自動隱藏。專科滿班兩邊都算；功輔不因人數隱藏。已有試堂只令舊生邀請視為無可選堂。 */
 export function publicAutoHideReason(
   cls: TrialInviteCatalogClassControl
 ): "full" | "no_open_schedule" | null {
   if (!cls.listed && !cls.adListed) return null
-  if (cls.enrolledStudents.length > 5) return "full"
+  if (trialPublicEnrolledCapHidesClass(cls.classKind, cls.enrolledStudents.length)) return "full"
   const inviteOpen = cls.listed && cls.schedules.some(isScheduleParentOpen)
   const adOpen = cls.adListed && cls.schedules.some(adScheduleOpen)
   if (inviteOpen || adOpen) return null
