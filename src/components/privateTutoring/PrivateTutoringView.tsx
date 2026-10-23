@@ -46,6 +46,7 @@ import { classroomsActiveOnDate } from "@/lib/classroomEligibility"
 import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { PRIVATE_TUTORING_STUDENT_RECENT_STORAGE_KEY } from "@/lib/recentStudentIds"
 import { formatStudentGrade } from "@/lib/studentGrade"
@@ -503,7 +504,10 @@ export function PrivateTutoringView() {
     action: payStudentId
      ? {
         pageLabel: "收款／出單",
-        to: `/Payments?studentId=${encodeURIComponent(payStudentId)}&mode=receive`,
+        to: paymentsReceiveHref({
+         studentId: payStudentId,
+         enrollmentClassIds: [result.classId],
+        }),
        }
      : undefined,
    })

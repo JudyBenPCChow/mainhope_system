@@ -27,6 +27,7 @@ import { isEndedClassStatus } from "@/lib/classOperatingStatus"
 import { formatClassLabel, formatClassPickLabel, formatClassWhenLabel } from "@/lib/courseLabel"
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { statusToTagTone } from "@/lib/statusTag"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
@@ -1035,14 +1036,12 @@ export function TrialSessionsView() {
   setFilterDateTo(todayYmd)
  }
  const goCollect = (row: TrialManageRow) => {
-  const trialPay = row.trial_type === "半價試堂" ? "half" : row.trial_type === "原價試堂" ? "full" : "free"
-  const q = new URLSearchParams({
-   studentId: row.student_id,
-   mode: "receive",
-   trialPay,
-   classId: row.class_id,
-  })
-  navigate(`/Payments?${q.toString()}`)
+  navigate(
+   paymentsReceiveHref({
+    studentId: row.student_id,
+    trials: [{ classId: row.class_id, trialType: row.trial_type }],
+   })
+  )
  }
 
  const submitAdd = async () => {
@@ -1069,8 +1068,6 @@ export function TrialSessionsView() {
     counts_toward_headcount: addCountsHeadcount === "1",
    })
    setAddOpen(false)
-   const trialPay =
-    addTrialType === "半價試堂" ? "half" : addTrialType === "原價試堂" ? "full" : "free"
    pushBanner({
     tone: "success",
     title: "已建立試堂",
@@ -1078,13 +1075,12 @@ export function TrialSessionsView() {
      "請到收款登記出單並確認收款後，學生才會出現在點名紙（含 $0 免費試堂）。連堂請核對堂數。",
    })
    await reload()
-   const q = new URLSearchParams({
-    studentId: addStudentId,
-    mode: "receive",
-    trialPay,
-    classId: addClassId,
-   })
-   navigate(`/Payments?${q.toString()}`)
+   navigate(
+    paymentsReceiveHref({
+     studentId: addStudentId,
+     trials: [{ classId: addClassId, trialType: addTrialType }],
+    })
+   )
   } catch (e) {
    const msg = e instanceof Error ? e.message : "建立試堂失敗"
    reportUserFacingError(e, { source: "TrialSessionsView.submitAdd", setErr: setAddErr, userMessage: msg })
@@ -1841,7 +1837,6 @@ export function TrialSessionsView() {
       })
       setConvertId(null)
       await reload()
-      const trial = rows.find((row) => row.id === convertId)
       pushBanner({
        tone: "success",
        title: "已正式報讀",
@@ -1853,8 +1848,14 @@ export function TrialSessionsView() {
        ]
         .filter(Boolean)
         .join("。"),
-       action: trial
-        ? { pageLabel: "收款登記", to: `/Payments?studentId=${encodeURIComponent(trial.student_id)}` }
+       action: convertTarget.studentId
+        ? {
+           pageLabel: "收款登記",
+           to: paymentsReceiveHref({
+            studentId: convertTarget.studentId,
+            enrollmentClassIds: [payload.targetClassId],
+           }),
+          }
         : undefined,
       })
      } catch (e) {

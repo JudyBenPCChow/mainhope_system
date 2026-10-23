@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { useAppConfirm } from "@/lib/appConfirm"
 import { useAuth } from "@/lib/authBootstrap"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import { cn } from "@/lib/utils"
 import { getStudentById, type StudentRecord } from "@/services/studentQueries"
@@ -34,6 +35,7 @@ export function FrontDeskWizardView() {
   paymentStatus: "none",
   leaveCount: 0,
  })
+ const [collectHref, setCollectHref] = useState<string | null>(null)
  const [hydrateErr, setHydrateErr] = useState<string | null>(null)
 
  const syncStudentId = useCallback(
@@ -90,6 +92,7 @@ export function FrontDeskWizardView() {
   setStudent(created)
   syncStudentId(created.id)
   setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setCollectHref(null)
   advanceTo(2)
  }
 
@@ -101,8 +104,21 @@ export function FrontDeskWizardView() {
   setSummary((s) => ({ ...s, trialCount: count }))
  }
 
- const onContinueToPayment = (counts: { enrolledCount: number; trialCount: number }) => {
+ const onContinueToPayment = (counts: {
+  enrolledCount: number
+  trialCount: number
+  trials: { classId: string; trialType: string }[]
+  enrollmentClassIds: string[]
+ }) => {
+  if (!student) return
   setSummary((s) => ({ ...s, enrolledCount: counts.enrolledCount, trialCount: counts.trialCount }))
+  setCollectHref(
+   paymentsReceiveHref({
+    studentId: student.id,
+    trials: counts.trialCount > 0 ? counts.trials : undefined,
+    enrollmentClassIds: counts.trialCount > 0 ? undefined : counts.enrollmentClassIds,
+   })
+  )
   advanceTo(3)
  }
 
@@ -129,6 +145,7 @@ export function FrontDeskWizardView() {
   setStep(1)
   setMaxReached(1)
   setSummary({ enrolledCount: 0, trialCount: 0, paymentStatus: "none", leaveCount: 0 })
+  setCollectHref(null)
   setHydrateErr(null)
   syncStudentId(null)
   clearIntakeResume()
@@ -247,7 +264,15 @@ export function FrontDeskWizardView() {
    ) : null}
 
    {step === 3 && student ? (
-    <PaymentStep student={student} onPaymentDone={onPaymentDone} onSkipPayment={onSkipPayment} />
+    <PaymentStep
+     student={student}
+     paymentsUrl={
+      collectHref ??
+      paymentsReceiveHref({ studentId: student.id })
+     }
+     onPaymentDone={onPaymentDone}
+     onSkipPayment={onSkipPayment}
+    />
    ) : null}
 
    {step === 4 && student ? (
@@ -285,7 +310,7 @@ export function FrontDeskWizardView() {
        <Link to={`/Students/${encodeURIComponent(student.id)}`}>前往學生詳細頁面</Link>
       </Button>
       <Button type="button" variant="outline" asChild>
-       <Link to={`/Payments?studentId=${encodeURIComponent(student.id)}`}>前往收款登記頁面</Link>
+       <Link to={collectHref ?? `/Payments?studentId=${encodeURIComponent(student.id)}`}>前往收款登記頁面</Link>
       </Button>
       <Button type="button" variant="outline" asChild>
        <Link to={`/TrialSessions?studentId=${encodeURIComponent(student.id)}`}>前往試堂紀錄</Link>

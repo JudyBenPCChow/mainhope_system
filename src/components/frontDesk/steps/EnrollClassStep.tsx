@@ -44,7 +44,12 @@ type Props = {
  /** 試堂筆數變更（不跳步） */
  onTrialCountChange: (count: number) => void
  /** 使用者確認進入收款 */
- onContinueToPayment: (counts: { enrolledCount: number; trialCount: number }) => void
+ onContinueToPayment: (counts: {
+  enrolledCount: number
+  trialCount: number
+  trials: { classId: string; trialType: string }[]
+  enrollmentClassIds: string[]
+ }) => void
 }
 
 const TRIAL_TYPE_OPTIONS = ["免費試堂", "半價試堂", "原價試堂", "體驗課"] as const
@@ -202,10 +207,15 @@ export function EnrollClassStep({
 
  const syncCounts = async () => {
   const [enrList, trialList] = await Promise.all([reloadEnrollments(), reloadTrials()])
-  const enr = enrList.filter((e) => e.status !== "已退讀").length
-  onEnrollmentCountChange(enr)
+  const active = enrList.filter((e) => e.status !== "已退讀")
+  onEnrollmentCountChange(active.length)
   onTrialCountChange(trialList.length)
-  return { enrolledCount: enr, trialCount: trialList.length }
+  return {
+   enrolledCount: active.length,
+   trialCount: trialList.length,
+   trials: trialList.map((trial) => ({ classId: trial.classId, trialType: trial.trialType })),
+   enrollmentClassIds: active.map((e) => e.classId),
+  }
  }
 
  const addGroupEnrollment = async () => {

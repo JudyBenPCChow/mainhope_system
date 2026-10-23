@@ -6,6 +6,7 @@ import type { StudentRecord } from "@/services/studentQueries"
 
 type Props = {
  student: StudentRecord
+ paymentsUrl: string
  onPaymentDone: () => void
  onSkipPayment: () => void
 }
@@ -14,9 +15,8 @@ type Props = {
  * 精靈收款步：唔再內嵌出單（UI §15 單一入口）。
  * 導向 `/Payments`；略過或確認已收後繼續請假步。
  */
-export function PaymentStep({ student, onPaymentDone, onSkipPayment }: Props) {
+export function PaymentStep({ student, paymentsUrl, onPaymentDone, onSkipPayment }: Props) {
  const navigate = useNavigate()
- const paymentsUrl = `/Payments?studentId=${encodeURIComponent(student.id)}&mode=receive`
 
  return (
   <div className="space-y-4">

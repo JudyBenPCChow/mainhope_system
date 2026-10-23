@@ -78,6 +78,7 @@ import {
 import { useAuth } from "@/lib/authBootstrap"
 import { can } from "@/lib/authzProfile"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { parsePaymentReceivePref, type TrialPayQuery } from "@/lib/paymentsReceiveHref"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
 import {
  LATE_FEE_AMOUNT,
@@ -169,6 +170,9 @@ export function PaymentsPageView() {
  const [trialClasses, setTrialClasses] = useState<ClassPriceInfo[]>([])
  const [trialClassesLoading, setTrialClassesLoading] = useState(false)
  const [lines, setLines] = useState<LineRow[]>([])
+ const linkedClassIdsRef = useRef(
+  [...new Set(searchParams.getAll("classId").map((id) => id.trim()).filter(Boolean))]
+ )
 
  const [discounts, setDiscounts] = useState<PaymentDiscountRow[]>([])
  const [discountIds, setDiscountIds] = useState<string[]>([])
@@ -249,12 +253,16 @@ export function PaymentsPageView() {
    return
   }
   let cancelled = false
+  const extraIds = linkedClassIdsRef.current
   setTrialClassesLoading(true)
-  void fetchClassesForOpsList()
+  void fetchClassesForOpsList(extraIds.length > 0 ? { extraIds } : undefined)
    .then((result) => {
     if (cancelled) return
+    const extra = new Set(extraIds)
     setTrialClasses(
-     result.classes.filter((c) => !isEndedClassStatus(c.status)).map(classRecordToPriceInfo)
+     result.classes
+      .filter((c) => !isEndedClassStatus(c.status) || extra.has(c.id))
+      .map(classRecordToPriceInfo)
     )
    })
    .catch((e) => {
@@ -534,11 +542,9 @@ export function PaymentsPageView() {
  }, [discounts])
 
  const prefStudentId = searchParams.get("studentId")?.trim() ?? ""
- const pendingTrialPrefRef = useRef<{
-  trialPay: "free" | "half" | "full"
-  classId: string
- } | null>(null)
- const pendingEnrollmentClassRef = useRef("")
+ const pendingTrialPrefRef = useRef<{ classId: string; trialPay: TrialPayQuery }[] | null>(null)
+ const pendingEnrollmentClassRef = useRef<string[]>([])
+ const loadGenRef = useRef(0)
 
  useEffect(() => {
   const mode = searchParams.get("mode") ?? searchParams.get("tab")
@@ -552,12 +558,13 @@ export function PaymentsPageView() {
   const found = students.find((s) => s.id === prefStudentId)
   if (!found) return
   setSelectedStudent(found)
-  const trialPay = searchParams.get("trialPay")?.trim()
-  const classId = searchParams.get("classId")?.trim() ?? ""
-  if (trialPay === "free" || trialPay === "half" || trialPay === "full") {
-   pendingTrialPrefRef.current = { trialPay, classId }
-  } else if (classId) {
-   pendingEnrollmentClassRef.current = classId
+  const parsed = parsePaymentReceivePref(searchParams)
+  if (parsed?.kind === "trial") {
+   pendingTrialPrefRef.current = parsed.lines
+   pendingEnrollmentClassRef.current = []
+  } else if (parsed?.kind === "enrollment") {
+   pendingTrialPrefRef.current = null
+   pendingEnrollmentClassRef.current = parsed.classIds
   }
   setSearchParams(
    (prev) => {
@@ -591,62 +598,112 @@ export function PaymentsPageView() {
    setEnrollments([])
    return
   }
+  const gen = ++loadGenRef.current
   setEnrollLoading(true)
   try {
    const list = (await fetchEnrollmentsForStudent(studentId)).filter((e) =>
     isCollectableEnrollment(e)
    )
+   if (gen !== loadGenRef.current) return
    setEnrollments(list)
    const pref = pendingTrialPrefRef.current
-   // 試堂 URL 預填須等班價列表載完再套用；未就緒時保留 ref，避免稍後被非預填分支蓋掉。
-   if (pref && trialClassesLoadingRef.current) {
+   // 班價未載完時保留預填。後到的載入若序號已舊，不得改寫已套用的列。
+   if (pref && pref.length > 0 && trialClassesLoadingRef.current) {
     return
    }
-   if (pref) {
-    pendingTrialPrefRef.current = null
-    const trialType: TrialPayType =
-     pref.trialPay === "half" ? "半價試堂" : pref.trialPay === "full" ? "原價試堂" : "免費試堂"
-    const line = newLine("trial")
-    line.trialType = trialType
-    if (pref.classId) {
-     line.classId = pref.classId
-     const trialMap = new Map(trialClassesRef.current.map((c) => [c.id, c]))
-     line.amount = lineAmountFor(pref.classId, line.lessons, new Map(), {
-      kind: "trial",
-      trialType,
-      trialClasses: trialMap,
-     })
-     if (trialType === "免費試堂" && !line.amount) line.amount = "0"
-    } else if (trialType === "免費試堂") {
-     line.amount = "0"
+   if (pref && pref.length > 0) {
+    const known = new Set(trialClassesRef.current.map((c) => c.id))
+    const missing = [...new Set(pref.map((item) => item.classId).filter((id) => id && !known.has(id)))]
+    if (missing.length > 0) {
+     try {
+      const extra = await fetchClassesForOpsList({ extraIds: missing })
+      if (gen !== loadGenRef.current) return
+      const have = new Set(trialClassesRef.current.map((c) => c.id))
+      const add = extra.classes
+       .filter((c) => !have.has(c.id))
+       .map(classRecordToPriceInfo)
+      if (add.length > 0) {
+       const nextClasses = [...trialClassesRef.current, ...add]
+       trialClassesRef.current = nextClasses
+       setTrialClasses(nextClasses)
+      }
+     } catch (e) {
+      console.warn("[PaymentsPageView.loadEnrollments] extra trial class", e)
+     }
     }
-    setLines([line])
-    setDiscountIds(trialType === "半價試堂" ? [TRIAL_HALF_PRICE_DISCOUNT_ID] : [])
+    if (gen !== loadGenRef.current) return
+    const trialMap = new Map(trialClassesRef.current.map((c) => [c.id, c]))
+    const built: LineRow[] = []
+    for (const item of pref) {
+     const trialType: TrialPayType =
+      item.trialPay === "half" ? "半價試堂" : item.trialPay === "full" ? "原價試堂" : "免費試堂"
+     const line = newLine("trial")
+     line.trialType = trialType
+     if (item.classId) {
+      line.classId = item.classId
+      try {
+       const hint = await fetchOpenTrialLessonCountHint({
+        studentId,
+        classId: item.classId,
+       })
+       if (gen !== loadGenRef.current) return
+       if (hint != null && hint > 0) line.lessons = String(hint)
+      } catch {
+       /* 堂數預填失敗仍帶班別 */
+      }
+      line.amount = lineAmountFor(item.classId, line.lessons, new Map(), {
+       kind: "trial",
+       trialType,
+       trialClasses: trialMap,
+      })
+      if (trialType === "免費試堂" && !line.amount) line.amount = "0"
+     } else if (trialType === "免費試堂") {
+      line.amount = "0"
+     }
+     built.push(line)
+    }
+    if (gen !== loadGenRef.current) return
+    pendingTrialPrefRef.current = null
+    setLines(built)
+    setDiscountIds(built.some((line) => line.trialType === "半價試堂") ? [TRIAL_HALF_PRICE_DISCOUNT_ID] : [])
     setCollectKind("specialist")
    } else {
-    const prefClassId = pendingEnrollmentClassRef.current
-    pendingEnrollmentClassRef.current = ""
-    const prefEnroll = prefClassId ? list.find((e) => e.classId === prefClassId) : null
-    if (prefEnroll) {
-     const homework = isHomeworkEnrollment(prefEnroll)
-     setCollectKind(homework ? "homework" : "specialist")
-     const line = {
-      ...newLine("enrollment"),
-      classId: prefEnroll.classId,
-      lessons: homework ? HOMEWORK_DEFAULT_MONTH_COUNT : DEFAULT_LESSON_COUNT,
-      coverageStartMonth: homework ? coverageMonthFromPayDate(payDate) : "",
-      amount: homework
-       ? homeworkPaymentLineAmount({
-          dayPlan: prefEnroll.homeworkDayPlan,
-          courseCode: prefEnroll.courseCode,
-          grade: students.find((s) => s.id === studentId)?.grade,
-          coverageStartMonth: coverageMonthFromPayDate(payDate),
-          monthCount: 1,
-         })
-       : lineAmountFor(prefEnroll.classId, DEFAULT_LESSON_COUNT, new Map(list.map((e) => [e.classId, e]))),
-     }
-     setLines([line])
+    const prefClassIds = pendingEnrollmentClassRef.current
+    const matched = prefClassIds
+     .map((id) => list.find((e) => e.classId === id))
+     .filter((e): e is EnrollmentWithClass => Boolean(e))
+    const homeworkOnly = matched.length > 0 && matched.every(isHomeworkEnrollment)
+    const chosen = homeworkOnly ? matched : matched.filter((e) => !isHomeworkEnrollment(e))
+    if (chosen.length > 0) {
+     if (gen !== loadGenRef.current) return
+     pendingEnrollmentClassRef.current = []
+     setCollectKind(homeworkOnly ? "homework" : "specialist")
+     const grade = students.find((s) => s.id === studentId)?.grade
+     const enrollByClass = new Map(list.map((e) => [e.classId, e]))
+     setLines(
+      chosen.map((prefEnroll) => {
+       const homework = isHomeworkEnrollment(prefEnroll)
+       const coverageStartMonth = homework ? coverageMonthFromPayDate(payDate) : ""
+       return {
+        ...newLine("enrollment"),
+        classId: prefEnroll.classId,
+        lessons: homework ? HOMEWORK_DEFAULT_MONTH_COUNT : DEFAULT_LESSON_COUNT,
+        coverageStartMonth,
+        amount: homework
+         ? homeworkPaymentLineAmount({
+            dayPlan: prefEnroll.homeworkDayPlan,
+            courseCode: prefEnroll.courseCode,
+            grade,
+            coverageStartMonth,
+            monthCount: 1,
+           })
+         : lineAmountFor(prefEnroll.classId, DEFAULT_LESSON_COUNT, enrollByClass),
+       }
+      })
+     )
     } else {
+     if (gen !== loadGenRef.current) return
+     if (prefClassIds.length > 0) pendingEnrollmentClassRef.current = []
      const onlyHomework =
       list.some(isHomeworkEnrollment) && !list.some((e) => !isHomeworkEnrollment(e))
      setCollectKind(onlyHomework ? "homework" : "specialist")
@@ -678,11 +735,12 @@ export function PaymentsPageView() {
    setSpecialDiscountEnabled(false)
    setSpecialDiscountAmount("")
   } catch (e) {
+   if (gen !== loadGenRef.current) return
    reportUserFacingError(e, { source: "PaymentsPageView.loadEnrollments", setErr: setFormErr })
    setEnrollments([])
    setLines([newLine("trial")])
   } finally {
-   setEnrollLoading(false)
+   if (gen === loadGenRef.current) setEnrollLoading(false)
   }
  }, [students, payDate])
 
@@ -690,7 +748,7 @@ export function PaymentsPageView() {
  useEffect(() => {
   if (!selectedStudent?.id) return
   if (trialClassesLoading) return
-  if (!pendingTrialPrefRef.current) return
+  if (!pendingTrialPrefRef.current?.length) return
   void loadEnrollments(selectedStudent.id)
  }, [selectedStudent, trialClassesLoading, trialClasses, loadEnrollments])
 

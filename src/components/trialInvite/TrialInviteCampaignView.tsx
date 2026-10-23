@@ -47,6 +47,7 @@ import {
   type TrialInviteType,
 } from "@/lib/trialInviteTypes"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { formatStudentGrade } from "@/lib/studentGrade"
 import { statusToTagTone } from "@/lib/statusTag"
 import { formatRecentTrialSubjectsCaption } from "@/lib/trialInviteRecentSubjects"
@@ -586,14 +587,17 @@ export function TrialInviteCampaignView() {
           reportUserFacingError(receiptErr, {
             source: "TrialInviteCampaignView.approve.receipt",
           })
-          const trialPay = "free"
-          const q = new URLSearchParams({
-            studentId,
-            mode: "receive",
-            trialPay,
-          })
-          const firstClassId = classIds[0]
-          if (firstClassId) q.set("classId", firstClassId)
+          const goPay = () => {
+            navigate(
+              paymentsReceiveHref({
+                studentId,
+                trials:
+                  classIds.length > 0
+                    ? classIds.map((classId) => ({ classId, trialType: approveTrialType }))
+                    : [{ classId: "", trialType: approveTrialType }],
+              }),
+            )
+          }
           pushBanner({
             tone: "warning",
             title: "試堂已核准，但尚未上點名紙",
@@ -603,18 +607,10 @@ export function TrialInviteCampaignView() {
           setReviewRow(null)
           setApproveHeadcount("")
           await reload()
-          navigate(`/Payments?${q.toString()}`)
+          goPay()
           return
         }
       } else {
-        const trialPay = trialTypeCategory(approveTrialType) === "half" ? "half" : "full"
-        const q = new URLSearchParams({
-          studentId,
-          mode: "receive",
-          trialPay,
-        })
-        const firstClassId = classIds[0]
-        if (firstClassId) q.set("classId", firstClassId)
         pushBanner({
           tone: "success",
           title: "已核准試堂",
@@ -623,7 +619,15 @@ export function TrialInviteCampaignView() {
         setReviewRow(null)
         setApproveHeadcount("")
         await reload()
-        navigate(`/Payments?${q.toString()}`)
+        navigate(
+          paymentsReceiveHref({
+            studentId,
+            trials:
+              classIds.length > 0
+                ? classIds.map((classId) => ({ classId, trialType: approveTrialType }))
+                : [{ classId: "", trialType: approveTrialType }],
+          }),
+        )
         return
       }
       setReviewRow(null)

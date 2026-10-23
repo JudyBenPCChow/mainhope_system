@@ -72,6 +72,7 @@ import { replaceTabSearchParam } from "@/lib/detailTabSearch"
 import { useNavGuard } from "@/hooks/useNavGuard"
 import { statusToTagTone } from "@/lib/statusTag"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import {
  formatClassTimeSlot,
  pairStudentEnrollmentChangeLines,
@@ -935,7 +936,10 @@ export function StudentDetailView() {
        }
      : {
         pageLabel: "收款／出單",
-        to: `/Payments?studentId=${encodeURIComponent(sid)}&mode=receive`,
+        to: paymentsReceiveHref({
+         studentId: sid,
+         enrollmentClassIds: [pickClass],
+        }),
        },
    })
   }

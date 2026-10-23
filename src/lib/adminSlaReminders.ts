@@ -1,6 +1,7 @@
 import { leaveNeedsMakeupDate } from "@/services/leaveQueries"
 import { gradeLabelFromCourseCode } from "@/lib/classGrade"
 import { COURSE_CODE_REGEX } from "@/lib/courseCode"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { parseMakeupOfScheduleId } from "@/lib/scheduleMakeupMarkers"
 import type { TagTone } from "@/lib/tagTone"
 import { trialReceiptGate } from "@/lib/trialReceiptGate"
@@ -153,14 +154,6 @@ export function formatAdminSlaReminderFailure(failedKinds: readonly AdminSlaRemi
  return `有部分提醒未能載入（缺${names}）。`
 }
 
-export type TrialPayQuery = "free" | "half" | "full"
-
-export function trialPayQueryValue(trialType: string | null | undefined): TrialPayQuery {
- if (trialType === "半價試堂") return "half"
- if (trialType === "原價試堂") return "full"
- return "free"
-}
-
 /** 與試堂頁「前往收款」相同：帶學生、班別與試堂價到收款登記。 */
 export function trialUnpaidCollectHref(input: {
  studentId: string | null
@@ -168,13 +161,10 @@ export function trialUnpaidCollectHref(input: {
  trialType: string | null
 }): string {
  if (!input.studentId) return "/TrialSessions"
- const q = new URLSearchParams({
+ return paymentsReceiveHref({
   studentId: input.studentId,
-  mode: "receive",
-  trialPay: trialPayQueryValue(input.trialType),
+  trials: [{ classId: input.classId ?? "", trialType: input.trialType }],
  })
- if (input.classId) q.set("classId", input.classId)
- return `/Payments?${q.toString()}`
 }
 
 /** 打開該班排程，並進入這一堂的「安排補堂」。 */
