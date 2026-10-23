@@ -86,26 +86,21 @@ export function AdminMainTopBar({ pathname, unreadCount }: AdminMainTopBarProps)
    </div>
    <div className="flex items-center gap-1.5" aria-label="快捷入口">
     {showHomeActions ? (
-     <>
-      <span className="hidden whitespace-nowrap text-sm font-medium text-destructive sm:inline">
-       小提醒︰這裡可以打開常用功能---&gt;
-      </span>
-      <button
-       type="button"
-       title={homeActionsOpen ? "摺疊常用功能" : "展開常用功能"}
-       aria-label={homeActionsOpen ? "摺疊常用功能" : "展開常用功能"}
-       aria-pressed={homeActionsOpen}
-       onClick={toggleHomeActions}
-       className={cn(
-        topBarButtonClass,
-        "gap-1.5 px-2.5 text-sm font-medium",
-        homeActionsOpen && "border-sky-300 bg-sky-50 text-primary"
-       )}
-      >
-       <PanelRight className="h-[1.125rem] w-[1.125rem]" aria-hidden />
-       常用功能
-      </button>
-     </>
+     <button
+      type="button"
+      title={homeActionsOpen ? "摺疊常用功能" : "展開常用功能"}
+      aria-label={homeActionsOpen ? "摺疊常用功能" : "展開常用功能"}
+      aria-pressed={homeActionsOpen}
+      onClick={toggleHomeActions}
+      className={cn(
+       topBarButtonClass,
+       "gap-1.5 px-2.5 text-sm font-medium",
+       homeActionsOpen && "border-sky-300 bg-sky-50 text-primary"
+      )}
+     >
+      <PanelRight className="h-[1.125rem] w-[1.125rem]" aria-hidden />
+      常用功能
+     </button>
     ) : null}
     <Link
      to="/Inbox"
