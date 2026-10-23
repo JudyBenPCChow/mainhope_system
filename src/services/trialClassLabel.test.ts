@@ -41,6 +41,13 @@ function blankRow(over: Partial<TrialManageRow>): TrialManageRow {
   price_per_lesson: null,
   roll_call_done: true,
   counts_toward_headcount: true,
+  teacher_comment: null,
+  teacher_comment_at: null,
+  teacher_comment_by: null,
+  teacher_comment_by_name: null,
+  teacher_comment_edited_at: null,
+  teacher_comment_edited_by: null,
+  attendance_status: null,
   ...over,
  }
 }

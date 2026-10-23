@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>明學教育 — 試堂評語流程（沙盒）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f4f4f5;
+      --card: #ffffff;
+      --border: #e4e4e7;
+      --muted: #71717a;
+      --fg: #18181b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --info: #2563eb;
+      --warning: #d97706;
+      --success: #16a34a;
+      --destructive: #dc2626;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans TC", "PingFang TC", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      color: var(--fg);
+      background: var(--bg);
+    }
+    .page { max-width: 960px; margin: 0 auto; padding: 20px 16px 56px; }
+    .banner { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .banner h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+    .banner p { margin: 4px 0 0; font-size: 0.8125rem; color: var(--muted); }
+    .badge {
+      display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px;
+      font-size: 0.75rem; font-weight: 600; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d;
+    }
+    .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .tabs button {
+      min-height: 40px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; font: inherit; cursor: pointer;
+    }
+    .tabs button[aria-current="true"] { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .hint { font-size: 0.8125rem; color: var(--muted); margin: 0 0 12px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .sheet {
+      background: #fff; border: 1px solid var(--border); border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(15,23,42,.18); overflow: hidden;
+    }
+    .sheet-head {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border); background: #fafafa;
+    }
+    .sheet-head strong { font-size: 0.95rem; }
+    .sheet-body { padding: 16px; }
+    .row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .row:last-child { border-bottom: 0; }
+    .tag {
+      display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: #eff6ff; color: #1d4ed8;
+    }
+    .tag.neutral { background: #f4f4f5; color: #52525b; }
+    .tag.success { background: #dcfce7; color: #15803d; }
+    .btn {
+      min-height: 40px; padding: 8px 14px; border-radius: 8px; font: inherit; font-weight: 600;
+      cursor: pointer; border: 1px solid transparent;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); }
+    .btn-outline { background: #fff; border-color: var(--border); }
+    .btn-ghost { background: transparent; border: 0; color: var(--muted); min-height: 32px; }
+    .btn-row { display: flex; justify-content: space-between; gap: 8px; margin-top: 16px; }
+    .info-block {
+      border: 1px solid rgba(37,99,235,.3); background: rgba(37,99,235,.05);
+      border-radius: 16px; padding: 16px 20px;
+    }
+    .info-block h2 { margin: 0 0 8px; font-size: 1.1rem; color: var(--fg); }
+    textarea {
+      width: 100%; min-height: 88px; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: 8px; font: inherit; resize: vertical;
+    }
+    textarea:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+    .count { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    .count.warn { color: var(--warning); }
+    .purpose { font-size: 0.8125rem; color: var(--muted); margin: 0 0 8px; }
+    .slot { margin-bottom: 16px; }
+    .slot h3 { margin: 0; font-size: 1rem; }
+    .slot .meta { font-size: 0.8125rem; color: var(--muted); margin: 2px 0 8px; }
+    .overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 20;
+      display: flex; align-items: center; justify-content: center; padding: 16px;
+    }
+    .dialog {
+      width: min(560px, 100%); background: #fff; border-radius: 16px; padding: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.25); max-height: 90vh; overflow: auto;
+    }
+    .quote {
+      margin: 0 0 6px; padding: 8px 10px; border-left: 3px solid var(--primary);
+      background: #f8fafc; font-size: 0.9rem; white-space: pre-wrap;
+    }
+    .quote-meta { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .next-col { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: 0.75rem; color: var(--muted); font-weight: 600; }
+    .notes {
+      margin-top: 16px; padding-top: 12px; border-top: 1px dashed var(--border);
+    }
+    .notes label { font-size: 0.8125rem; font-weight: 600; }
+    .hidden { display: none !important; }
+    @media (max-width: 767px) {
+      .desktop-only { display: none !important; }
+    }
+    @media (min-width: 768px) {
+      .mobile-only { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="banner">
+      <div>
+        <h1>試堂評語流程</h1>
+        <p>假資料、只留在此分頁。不會寫入 production，也不接系統登入。</p>
+      </div>
+      <span class="badge">沙盒</span>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" data-view="rollcall" aria-current="true">1. 老師點名紙</button>
+      <button type="button" data-view="home">2. 老師首頁</button>
+      <button type="button" data-view="trials">3. 前台試堂頁</button>
+    </div>
+    <p class="hint" id="stepHint">先按「確定」儲存點名。沙盒會立刻進入評語，不會出「點名已儲存」橫幅。</p>
+    <p><button type="button" class="btn btn-outline" id="resetBtn">重設沙盒</button></p>
+
+    <section id="view-rollcall">
+      <div class="sheet" id="rollSheet">
+        <div class="sheet-head">
+          <div>
+            <strong>點名紙 · 中一中文 C（沙盒班）</strong>
+            <div class="hint" style="margin:0">2026-10-31 · 17:45–19:00 · 沙盒老師</div>
+          </div>
+          <button type="button" class="btn-ghost" id="closeSheet" hidden>關閉</button>
+        </div>
+        <div class="sheet-body" id="rosterStep">
+          <div class="row"><span>陳同學（就讀中）</span><span>現場</span></div>
+          <div class="row"><span>沙盒甲 <span class="tag">試堂</span></span><span>現場</span></div>
+          <div class="row"><span>沙盒乙 <span class="tag">試堂</span></span><span>現場</span></div>
+          <div class="notes">
+            <label>本堂教學紀錄（選填，整班）</label>
+            <textarea id="teachingNotes" placeholder="進度：／下次："></textarea>
+          </div>
+          <div class="btn-row">
+            <span></span>
+            <button type="button" class="btn btn-primary" id="confirmRoll">確定</button>
+          </div>
+        </div>
+        <div class="sheet-body hidden mobile-only" id="mobileComment"></div>
+      </div>
+    </section>
+
+    <section id="view-home" class="hidden">
+      <div class="info-block hidden" id="pendingBlock">
+        <h2 id="pendingTitle">待寫試堂評語（0）</h2>
+        <div id="pendingList"></div>
+      </div>
+      <div class="card" id="pendingEmpty">
+        <p class="hint" style="margin:0">沒有待寫評語時，這塊不會出現。下面「即將試堂」僅作對照。</p>
+      </div>
+      <div class="info-block" style="margin-top:12px">
+        <h2>即將試堂（我的班）</h2>
+        <p class="hint" style="margin:0">沙盒丙 · 中一中文 C · 2026-11-07</p>
+      </div>
+    </section>
+
+    <section id="view-trials" class="hidden">
+      <div class="card" style="overflow:auto">
+        <table>
+          <thead>
+            <tr><th>日期</th><th>學生</th><th>班別</th><th>下一步</th></tr>
+          </thead>
+          <tbody id="trialRows"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay hidden" id="dialogOverlay">
+    <div class="dialog" id="dialogBox" role="dialog" aria-modal="true" aria-label="試堂評語"></div>
+  </div>
+
+  <script>
+    const LIVE = "2026-10-23"
+    const CLASS_META = "中一 · 中一中文 C · 2026-10-31 17:45–19:00"
+    const seed = () => ([
+      { id: "a", name: "沙盒甲", grade: "中一", present: true, inScope: true, comment: "", by: "", at: "" },
+      { id: "b", name: "沙盒乙", grade: "中一", present: true, inScope: true, comment: "", by: "", at: "" },
+    ])
+    const seedLegacy = () => ({ name: "沙盒丁", comment: "", by: "", at: "" })
+    let students = seed()
+    let legacyDing = seedLegacy()
+    let drafts = { a: "", b: "" }
+    let view = "rollcall"
+    let rollStep = "roster"
+    let commentSource = "rollcall"
+    let confirmOpen = null
+
+    const $ = (id) => document.getElementById(id)
+    const charCount = (s) => Array.from(s).length
+    const written = (s) => charCount(String(s).trim()) > 0
+    const pending = () => students.filter((s) => s.inScope && s.present && !written(s.comment))
+
+    function setView(next) {
+      view = next
+      document.querySelectorAll(".tabs button").forEach((b) => {
+        b.setAttribute("aria-current", b.dataset.view === next ? "true" : "false")
+      })
+      $("view-rollcall").classList.toggle("hidden", next !== "rollcall")
+      $("view-home").classList.toggle("hidden", next !== "home")
+      $("view-trials").classList.toggle("hidden", next !== "trials")
+      const hints = {
+        rollcall: "先按「確定」儲存點名。沙盒會立刻進入評語，不會出「點名已儲存」橫幅。",
+        home: "略過後才會出現資訊色待辦。按「撰寫」開同一套表單，完成後留在首頁。",
+        trials: "實際出席的「正式報讀」列才有評語區塊。上線日前可代貼，但不標「評語未到」、也不進老師待辦。",
+      }
+      $("stepHint").textContent = hints[next]
+      renderAll()
+    }
+
+    function formHtml(ids) {
+      return ids.map((id) => {
+        const s = students.find((x) => x.id === id)
+        const val = drafts[id] ?? s.comment ?? ""
+        const n = charCount(val)
+        const tone = n >= 31 ? " warn" : ""
+        return `<div class="slot" data-id="${id}">
+          <h3>${s.name}</h3>
+          <div class="meta">${CLASS_META}</div>
+          <p class="purpose">約 30 字。前台會用這段向家長說明學習情況，以及補習如何幫到他。請寫可對家長說的話。</p>
+          <textarea maxlength="80" placeholder="代數基礎弱、計算尚可；每週跟校進度可補上。">${val.replace(/</g,"&lt;")}</textarea>
+          <div class="count${tone}">${n}／約 30 · 上限 80</div>
+        </div>`
+      }).join("")
+    }
+
+    function formButtons(canSave) {
+      return `<div class="btn-row">
+        <button type="button" class="btn btn-outline" data-act="later">稍後再寫</button>
+        <button type="button" class="btn btn-primary" data-act="save" ${canSave ? "" : "disabled"}>儲存評語</button>
+      </div>`
+    }
+
+    function openComment(ids, source) {
+      commentSource = source
+      ids.forEach((id) => { if (drafts[id] == null) drafts[id] = students.find((s) => s.id === id).comment || "" })
+      const canSave = ids.some((id) => written(drafts[id]))
+      const body = `<p class="purpose" style="margin-top:0">${source === "rollcall" ? "點名已儲存，請為試堂生寫評語。" : "請為試堂生寫評語。"}</p>
+        <h2 style="margin:0 0 12px;font-size:1.1rem">試堂評語</h2>
+        ${formHtml(ids)}${formButtons(canSave)}`
+      if (window.matchMedia("(max-width: 767px)").matches && source === "rollcall") {
+        $("rosterStep").classList.add("hidden")
+        $("mobileComment").classList.remove("hidden")
+        $("mobileComment").innerHTML = body
+        bindForm($("mobileComment"), ids)
+        rollStep = "comment"
+      } else {
+        $("dialogBox").innerHTML = body
+        $("dialogOverlay").classList.remove("hidden")
+        bindForm($("dialogBox"), ids)
+        rollStep = source === "rollcall" ? "comment" : rollStep
+      }
+    }
+
+    function bindForm(root, ids) {
+      root.querySelectorAll(".slot").forEach((slot) => {
+        const id = slot.dataset.id
+        const ta = slot.querySelector("textarea")
+        const count = slot.querySelector(".count")
+        ta.addEventListener("input", () => {
+          drafts[id] = ta.value.slice(0, 80)
+          const n = charCount(drafts[id])
+          count.textContent = `${n}／約 30 · 上限 80`
+          count.classList.toggle("warn", n >= 31)
+          const save = root.querySelector("[data-act=save]")
+          save.disabled = !ids.some((x) => written(drafts[x]))
+        })
+      })
+      root.querySelector("[data-act=later]").addEventListener("click", () => closeComment(false))
+      root.querySelector("[data-act=save]").addEventListener("click", () => {
+        const now = "2026-10-31 19:02"
+        ids.forEach((id) => {
+          if (written(drafts[id])) {
+            const s = students.find((x) => x.id === id)
+            s.comment = drafts[id].trim()
+            s.by = "沙盒老師"
+            s.at = now
+          }
+        })
+        closeComment(true)
+      })
+    }
+
+    function closeComment(saved) {
+      $("dialogOverlay").classList.add("hidden")
+      $("mobileComment").classList.add("hidden")
+      $("mobileComment").innerHTML = ""
+      $("rosterStep").classList.remove("hidden")
+      rollStep = "roster"
+      if (commentSource === "rollcall" && saved) {
+        $("closeSheet").hidden = false
+      }
+      if (commentSource === "home") setView("home")
+      else renderAll()
+    }
+
+    function renderHome() {
+      const rows = pending()
+      $("pendingBlock").classList.toggle("hidden", rows.length === 0)
+      $("pendingEmpty").classList.toggle("hidden", rows.length > 0)
+      $("pendingTitle").textContent = `待寫試堂評語（${rows.length}）`
+      $("pendingList").innerHTML = rows.map((s) =>
+        `<div class="row"><span>${s.name} · 中一中文 C · 2026-10-31 17:45–19:00</span>
+         <button type="button" class="btn btn-primary" data-write="${s.id}">撰寫</button></div>`
+      ).join("")
+      $("pendingList").querySelectorAll("[data-write]").forEach((b) => {
+        b.addEventListener("click", () => openComment([b.dataset.write], "home"))
+      })
+    }
+
+    function renderTrials() {
+      const extra = [
+        { name: "沙盒丙", date: "2026-10-25", note: "試堂日已過，尚未點名", show: "none", comment: "", by: "", at: "" },
+        { name: "沙盒丁", date: "2026-10-10", note: "上線日前已出席", show: written(legacyDing.comment) ? "has" : "legacy", comment: legacyDing.comment, by: legacyDing.by, at: legacyDing.at },
+      ]
+      const inScope = students.map((s) => ({
+        name: s.name, date: "2026-10-31", note: "上線日後已出席",
+        show: written(s.comment) ? "has" : "missing",
+        comment: s.comment, by: s.by, at: s.at,
+      }))
+      $("trialRows").innerHTML = [...inScope, ...extra].map((r) => {
+        let block = ""
+        if (r.show === "has") {
+          block = `<blockquote class="quote">${r.comment}</blockquote>
+            <div class="quote-meta">${r.by} · ${r.at}</div>
+            <button type="button" class="btn btn-outline" data-copy="${r.name}">複製</button>`
+        } else if (r.show === "missing") {
+          block = `<span class="tag neutral">評語未到</span> <span class="hint">仍可正式報讀</span>`
+        } else if (r.show === "legacy") {
+          if (written(r.comment)) {
+            block = `<blockquote class="quote">${r.comment}</blockquote>
+              <div class="quote-meta">${r.by} · ${r.at}</div>
+              <button type="button" class="btn btn-outline" data-copy="${r.name}">複製</button>`
+          } else {
+            block = `<span class="tag neutral">尚無評語</span> <span class="hint">可代貼，不催老師</span>`
+          }
+        }
+        return `<tr>
+          <td>${r.date}<div class="hint">17:45–19:00</div></td>
+          <td>${r.name}<div class="hint">中一${r.note ? " · " + r.note : ""}</div></td>
+          <td>中一中文 C</td>
+          <td><div class="next-col">${block}
+            <button type="button" class="btn btn-primary" data-convert="${r.name}">正式報讀</button>
+            <button type="button" class="btn btn-outline">標流失</button>
+            ${r.show !== "none" ? `<button type="button" class="btn-ghost" data-paste="${r.name}">更多 · 貼上老師評語</button>` : ""}
+          </div></td>
+        </tr>`
+      }).join("")
+      $("trialRows").querySelectorAll("[data-copy]").forEach((b) => {
+        b.addEventListener("click", () => {
+          const s = students.find((x) => x.name === b.dataset.copy) || extra.find((x) => x.name === b.dataset.copy)
+          navigator.clipboard.writeText((s && s.comment) || "")
+          b.textContent = "已複製"
+          setTimeout(() => { b.textContent = "複製" }, 1200)
+        })
+      })
+      $("trialRows").querySelectorAll("[data-convert]").forEach((b) => {
+        b.addEventListener("click", () => {
+          const s = students.find((x) => x.name === b.dataset.convert)
+          const legacy = extra.find((x) => x.name === b.dataset.convert)
+          let extraHtml = ""
+          if (s && written(s.comment)) extraHtml = `<p>老師評語：${s.comment}</p>`
+          else if (s) extraHtml = `<p class="hint">尚未收到老師評語</p>`
+          else if (legacy && written(legacy.comment)) extraHtml = `<p>老師評語：${legacy.comment}</p>`
+          $("dialogBox").innerHTML = `<h2 style="margin:0 0 8px;font-size:1.1rem">正式報讀</h2>
+            ${extraHtml}<p class="hint">沙盒：不會進入正式頁。</p>
+            <div class="btn-row"><button type="button" class="btn btn-outline" id="cvtCancel">取消</button>
+            <button type="button" class="btn btn-primary" id="cvtOk">確認</button></div>`
+          $("dialogOverlay").classList.remove("hidden")
+          $("cvtCancel").onclick = $("cvtOk").onclick = () => $("dialogOverlay").classList.add("hidden")
+        })
+      })
+      $("trialRows").querySelectorAll("[data-paste]").forEach((b) => {
+        b.addEventListener("click", () => {
+          const s = students.find((x) => x.name === b.dataset.paste) || (b.dataset.paste === "沙盒丁" ? legacyDing : null)
+          const warn = written(s.comment) ? `<p class="purpose">已有評語。貼上會覆寫，請確認這是老師原文。</p>` : `<p class="purpose">這是老師評語，不是備註。</p>`
+          $("dialogBox").innerHTML = `<h2 style="margin:0 0 8px;font-size:1.1rem">貼上老師評語</h2>${warn}
+            <textarea id="pasteTa" maxlength="80" placeholder="把 WhatsApp 收到的評語貼這裡">${(s.comment || "").replace(/</g,"&lt;")}</textarea>
+            <div class="btn-row"><button type="button" class="btn btn-outline" id="pasteCancel">取消</button>
+            <button type="button" class="btn btn-primary" id="pasteOk">儲存評語</button></div>`
+          $("dialogOverlay").classList.remove("hidden")
+          $("pasteCancel").onclick = () => $("dialogOverlay").classList.add("hidden")
+          $("pasteOk").onclick = () => {
+            const v = $("pasteTa").value.trim()
+            if (!written(v)) return
+            const go = () => {
+              s.comment = v; s.by = "行政代貼"; s.at = "2026-10-31 20:10"
+              $("dialogOverlay").classList.add("hidden"); renderAll()
+            }
+            if (written(s.comment) && s.comment !== v) {
+              $("dialogBox").innerHTML = `<h2 style="margin:0 0 8px;font-size:1.1rem">覆寫老師評語？</h2>
+                <p>將取代現有評語。</p>
+                <div class="btn-row"><button type="button" class="btn btn-outline" id="ovNo">取消</button>
+                <button type="button" class="btn btn-primary" id="ovYes">確認覆寫</button></div>`
+              $("ovNo").onclick = () => $("dialogOverlay").classList.add("hidden")
+              $("ovYes").onclick = go
+            } else go()
+          }
+        })
+      })
+    }
+
+    function renderAll() {
+      renderHome()
+      renderTrials()
+    }
+
+    $("confirmRoll").addEventListener("click", () => {
+      const ids = pending().map((s) => s.id)
+      if (ids.length) openComment(ids, "rollcall")
+    })
+    $("resetBtn").addEventListener("click", () => {
+      students = seed(); legacyDing = seedLegacy(); drafts = { a: "", b: "" }; rollStep = "roster"
+      $("dialogOverlay").classList.add("hidden")
+      $("mobileComment").classList.add("hidden")
+      $("rosterStep").classList.remove("hidden")
+      $("teachingNotes").value = ""
+      $("closeSheet").hidden = true
+      setView("rollcall")
+    })
+    document.querySelectorAll(".tabs button").forEach((b) => {
+      b.addEventListener("click", () => setView(b.dataset.view))
+    })
+    $("dialogOverlay").addEventListener("click", (e) => {
+      if (e.target === $("dialogOverlay")) return
+    })
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("dialogOverlay").classList.contains("hidden")) {
+        e.preventDefault()
+        closeComment(false)
+      }
+    })
+    renderAll()
+  </script>
+</body>
+</html>

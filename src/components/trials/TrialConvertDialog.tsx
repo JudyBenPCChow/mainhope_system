@@ -17,7 +17,12 @@ import {
   resolveNextClassSchedule,
   type EnrollmentStartMode,
 } from "@/lib/enrollmentStart"
+import { isActualPresentStatus } from "@/lib/attendancePresence"
 import { classKindLabel, type ClassKind } from "@/lib/privateClassKind"
+import {
+  isTeacherCommentNudgeInScope,
+  isWrittenTrialComment,
+} from "@/lib/trialTeacherComment"
 
 function formatLocalYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
@@ -69,6 +74,11 @@ export type TrialConvertDialogTarget = {
   schedEnd: string | null
   trialScheduleId: string
   rollCallDone: boolean
+  teacherComment: string | null
+  teacherCommentAt: string | null
+  teacherCommentByName: string | null
+  teacherCommentEditedAt: string | null
+  attendanceStatus: string | null
   courseMode: CourseMode
   classKind: ClassKind
   courseCode: string | null
@@ -362,6 +372,22 @@ export function TrialConvertDialog({
               >
                 學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認正式報讀前請再核對。
               </div>
+            ) : null}
+
+            {isActualPresentStatus(target.attendanceStatus) ? (
+              isWrittenTrialComment(target.teacherCommentAt) && target.teacherComment?.trim() ? (
+                <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
+                  <p className="whitespace-pre-wrap">老師評語：{target.teacherComment}</p>
+                  {target.teacherCommentByName ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {target.teacherCommentByName}
+                      {target.teacherCommentEditedAt ? " · 其後改過" : null}
+                    </p>
+                  ) : null}
+                </div>
+              ) : isTeacherCommentNudgeInScope(target.trialDate) ? (
+                <p className="text-sm text-muted-foreground">尚未收到老師評語</p>
+              ) : null
             ) : null}
 
             {isGroup || isHomework ? (
