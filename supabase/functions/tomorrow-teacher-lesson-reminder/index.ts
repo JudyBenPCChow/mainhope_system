@@ -56,6 +56,8 @@ type LessonPayload = {
   is_extra_lesson: boolean
   original_teacher_name: string | null
   schedule_remarks: string | null
+  /** 功輔當值（同房其餘人）；要到場，不標不用上堂 */
+  is_duty_shift?: boolean
   no_teaching_needed?: boolean
   student_names: string[]
   zoom_or_record_names: string[]
@@ -63,8 +65,9 @@ type LessonPayload = {
   leave_details: LeaveDetail[]
 }
 
-/** 無人現場應到且無需錄影／Zoom（含空班、全員僅事假／病假）→ 標明不用上堂 */
+/** 無人現場應到且無需錄影／Zoom（含空班、全員僅事假／病假）→ 標明不用上堂。功輔當值仍要到場。 */
 function isNoTeachingNeeded(lesson: LessonPayload): boolean {
+  if (lesson.is_duty_shift === true) return false
   if (lesson.no_teaching_needed === true) return true
   const attending = (lesson.student_names ?? []).filter((n) => String(n).trim()).length
   const zoom = (lesson.zoom_or_record_names ?? []).filter((n) => String(n).trim()).length
@@ -166,6 +169,7 @@ function formatYmdFullZhWithWeekday(ymd: string): string {
 
 function buildRemarks(lesson: LessonPayload): string {
   const parts: string[] = []
+  if (lesson.is_duty_shift === true) parts.push("功輔當值")
   const zoom = (lesson.zoom_or_record_names ?? []).map((n) => String(n).trim()).filter(Boolean)
   if (zoom.length > 0) parts.push(`請錄影給${zoom.join("、")}`)
 
