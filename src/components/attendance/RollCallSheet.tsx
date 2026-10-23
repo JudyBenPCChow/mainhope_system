@@ -33,6 +33,7 @@ export function RollCallSheet({
 }: Props) {
  const { confirmDialog } = useAppConfirm()
  const dirtyRef = useRef(false)
+ const commentStepRef = useRef(false)
 
  useEffect(() => {
   const prev = document.body.style.overflow
@@ -58,7 +59,9 @@ export function RollCallSheet({
 
  useEffect(() => {
   const onKey = (e: KeyboardEvent) => {
-   if (e.key === "Escape") void requestClose()
+   if (e.key !== "Escape") return
+   if (commentStepRef.current) return
+   void requestClose()
   }
   window.addEventListener("keydown", onKey)
   return () => window.removeEventListener("keydown", onKey)
@@ -114,6 +117,9 @@ export function RollCallSheet({
       autoPrefillWhenEmpty
       onStats={handleStats}
       onConfirmed={onSaved}
+      onCommentStepChange={(open) => {
+       commentStepRef.current = open
+      }}
      />
     </div>
    </div>

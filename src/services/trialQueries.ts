@@ -21,6 +21,7 @@ import {
 } from "@/lib/trialOutcome"
 import {
  trialIsAwaitingReschedule,
+ trialIsCancelled,
  trialStatusAfterReschedule,
 } from "@/lib/trialFollowupAction"
 import {
@@ -32,6 +33,8 @@ import { localYmd } from "@/services/scheduleQueries"
 import { fetchConsecutiveScheduleIds } from "@/services/classQueries"
 import { recordInboxEvent } from "@/services/inboxEventWrite"
 import { fetchScheduleIdsThatHaveAttendance } from "@/services/attendanceQueries"
+import { isActualPresentStatus } from "@/lib/attendancePresence"
+import { TRIAL_TEACHER_COMMENT_LIVE_DATE } from "@/lib/trialTeacherComment"
 import { hiddenOlderCountFromParts } from "@/lib/softArchiveListScope"
 import { fetchOpsAcademicYearWindow, headCountOrNull } from "@/services/softArchiveQueries"
 import {
@@ -130,6 +133,14 @@ export type TrialManageRow = {
  roll_call_done: boolean
  /** 建立時手選；列表用小標。無資料則 null */
  counts_toward_headcount: boolean | null
+ teacher_comment: string | null
+ teacher_comment_at: string | null
+ teacher_comment_by: string | null
+ teacher_comment_by_name: string | null
+ teacher_comment_edited_at: string | null
+ teacher_comment_edited_by: string | null
+ /** 該生該堂 attendance_details.status；未點名為 null */
+ attendance_status: string | null
 }
 
 function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageRow {
@@ -138,6 +149,10 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
  const tch = cls?.teachers as Record<string, unknown> | null
  const sc = r.schedules as Record<string, unknown> | null
  const pay = r.payments as Record<string, unknown> | null
+ const commentAuthorRaw = r.comment_author
+ const commentAuthor = (
+  Array.isArray(commentAuthorRaw) ? commentAuthorRaw[0] : commentAuthorRaw
+ ) as Record<string, unknown> | null
  const sub = cls?.subject != null ? String(cls.subject) : "—"
  const course = cls?.courses as Record<string, unknown> | null
  const courseName = course?.course_name != null ? String(course.course_name) : null
@@ -192,6 +207,15 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   roll_call_done: rollCallDone,
   counts_toward_headcount:
    r.counts_toward_headcount === true ? true : r.counts_toward_headcount === false ? false : null,
+  teacher_comment: r.teacher_comment != null ? String(r.teacher_comment) : null,
+  teacher_comment_at: r.teacher_comment_at != null ? String(r.teacher_comment_at) : null,
+  teacher_comment_by: r.teacher_comment_by != null ? String(r.teacher_comment_by) : null,
+  teacher_comment_by_name: commentAuthor?.full_name != null ? String(commentAuthor.full_name) : null,
+  teacher_comment_edited_at:
+   r.teacher_comment_edited_at != null ? String(r.teacher_comment_edited_at) : null,
+  teacher_comment_edited_by:
+   r.teacher_comment_edited_by != null ? String(r.teacher_comment_edited_by) : null,
+  attendance_status: null,
  }
 }
 
@@ -243,11 +267,14 @@ export async function fetchUpcomingTrialsForClassIds(
  })
 }
 
+const TRIAL_COMMENT_COLUMNS =
+ "teacher_comment, teacher_comment_at, teacher_comment_by, teacher_comment_edited_at, teacher_comment_edited_by, comment_author:teachers!trial_sessions_teacher_comment_by_fkey ( full_name )"
+
 const TRIAL_LIST_COLUMNS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
- "id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )"
+ `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
 
 const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
 
@@ -329,7 +356,42 @@ async function mapTrialListResultOptional(
 async function attachAttendance(rows: TrialManageRow[]): Promise<TrialManageRow[]> {
  const scheduleIds = [...new Set(rows.map((r) => r.schedule_id).filter(Boolean))]
  const attended = await fetchScheduleIdsThatHaveAttendance(scheduleIds)
- return rows.map((r) => ({ ...r, roll_call_done: attended.has(r.schedule_id) }))
+ const statusByPair = await fetchAttendanceStatusByStudentSchedule(rows)
+ return rows.map((r) => ({
+  ...r,
+  roll_call_done: attended.has(r.schedule_id),
+  attendance_status: statusByPair.get(`${r.schedule_id}\t${r.student_id}`) ?? null,
+ }))
+}
+
+async function fetchAttendanceStatusByStudentSchedule(
+ rows: { schedule_id: string; student_id: string }[]
+): Promise<Map<string, string>> {
+ const out = new Map<string, string>()
+ if (!supabase || rows.length === 0) return out
+ const scheduleIds = [...new Set(rows.map((r) => r.schedule_id).filter(Boolean))]
+ const studentIds = [...new Set(rows.map((r) => r.student_id).filter(Boolean))]
+ if (scheduleIds.length === 0 || studentIds.length === 0) return out
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("attendance_details")
+   .select("schedule_id, student_id, status")
+   .in("schedule_id", slice)
+   .in("student_id", studentIds)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const row of chunks.flat()) {
+  const r = row as { schedule_id?: string; student_id?: string; status?: string | null }
+  const key = `${String(r.schedule_id ?? "")}\t${String(r.student_id ?? "")}`
+  const status = String(r.status ?? "").trim()
+  if (!key.trim() || !status) continue
+  const prev = out.get(key)
+  if (!prev || (isActualPresentStatus(status) && !isActualPresentStatus(prev))) {
+   out.set(key, status)
+  }
+ }
+ return out
 }
 
 /**
@@ -359,7 +421,7 @@ export async function fetchTrialsWithRelations(opts?: {
    return mapRow(row, attended.has(String(row.schedule_id ?? "")))
   })
   return {
-   rows: await fillTrialClassLabels(mapped),
+   rows: await attachAttendance(await fillTrialClassLabels(mapped)),
    hiddenOlderCount: 0,
   }
  }
@@ -451,6 +513,176 @@ export async function fetchTrialsWithRelations(opts?: {
   rows: await attachAttendance(await fillTrialClassLabels(merged)),
   hiddenOlderCount: hiddenOlderCountFromParts(allClosed, inWindowCount, keptWithoutYear),
  }
+}
+
+function trialClockLabel(start: string | null | undefined, end: string | null | undefined): string | null {
+ const a = start ? String(start).slice(0, 5) : ""
+ const b = end ? String(end).slice(0, 5) : ""
+ if (!a || !b) return null
+ return `${a}–${b}`
+}
+
+function isTrialStatusEligibleForComment(status: string): boolean {
+ return !trialIsCancelled(status) && !trialIsAwaitingReschedule(status)
+}
+
+export type PendingTrialCommentRow = {
+ trialId: string
+ scheduleId: string
+ studentId: string
+ classId: string
+ studentName: string
+ studentGrade: string | null
+ classLabel: string
+ trialDate: string
+ timeLabel: string | null
+}
+
+type PendingTrialCommentQueryOpts = {
+ teacherId?: string
+ scheduleIds?: string[]
+ studentIds?: string[]
+ /** 首頁待辦：不含未來試堂日 */
+ throughYmd?: string | null
+}
+
+async function fetchPendingTrialCommentCandidates(
+ opts: PendingTrialCommentQueryOpts
+): Promise<PendingTrialCommentRow[]> {
+ if (!supabase) return []
+ let q = supabase
+  .from("trial_sessions")
+  .select(
+   "id, student_id, class_id, schedule_id, trial_date, status, outcome, teacher_comment, students ( full_name, grade ), classes ( subject, course_code_full, courses ( course_name ) ), schedules!inner ( scheduled_date, start_time, end_time, teacher_id )"
+  )
+  .eq("outcome", "open")
+  .is("teacher_comment", null)
+  .gt("trial_date", TRIAL_TEACHER_COMMENT_LIVE_DATE)
+ if (opts.throughYmd) q = q.lte("trial_date", opts.throughYmd)
+ if (opts.teacherId) q = q.eq("schedules.teacher_id", opts.teacherId)
+ if (opts.scheduleIds && opts.scheduleIds.length > 0) q = q.in("schedule_id", opts.scheduleIds)
+ if (opts.studentIds && opts.studentIds.length > 0) q = q.in("student_id", opts.studentIds)
+ const { data, error } = await q
+ if (error) throw error
+ const mapped: PendingTrialCommentRow[] = []
+ for (const row of data ?? []) {
+  const r = row as Record<string, unknown>
+  const status = String(r.status ?? "")
+  if (!isTrialStatusEligibleForComment(status)) continue
+  const st = r.students as Record<string, unknown> | null
+  const cls = r.classes as Record<string, unknown> | null
+  const sc = r.schedules as Record<string, unknown> | null
+  const sub = cls?.subject != null ? String(cls.subject) : "—"
+  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+  const course = cls?.courses as Record<string, unknown> | null
+  const courseName = course?.course_name != null ? String(course.course_name) : null
+  mapped.push({
+   trialId: String(r.id),
+   scheduleId: String(r.schedule_id ?? ""),
+   studentId: String(r.student_id ?? ""),
+   classId: String(r.class_id ?? ""),
+   studentName: st?.full_name != null ? String(st.full_name) : "—",
+   studentGrade: st?.grade != null ? String(st.grade) : null,
+   classLabel: formatClassLabel({ subject: sub, courseCode: code, courseName }),
+   trialDate: String(r.trial_date ?? ""),
+   timeLabel: trialClockLabel(
+    sc?.start_time != null ? String(sc.start_time) : null,
+    sc?.end_time != null ? String(sc.end_time) : null
+   ),
+  })
+ }
+ return mapped
+}
+
+async function keepActuallyPresentUnenrolled(
+ rows: PendingTrialCommentRow[]
+): Promise<PendingTrialCommentRow[]> {
+ if (!supabase || rows.length === 0) return []
+ const statusByPair = await fetchAttendanceStatusByStudentSchedule(
+  rows.map((r) => ({ schedule_id: r.scheduleId, student_id: r.studentId }))
+ )
+ const present = rows.filter((r) =>
+  isActualPresentStatus(statusByPair.get(`${r.scheduleId}\t${r.studentId}`))
+ )
+ if (present.length === 0) return []
+ const studentIds = [...new Set(present.map((r) => r.studentId))]
+ const { data, error } = await supabase
+  .from("student_class_enrollments")
+  .select("student_id, class_id")
+  .eq("status", "就讀中")
+  .in("student_id", studentIds)
+ if (error) throw error
+ const enrolled = new Set(
+  (data ?? []).map((row) => {
+   const r = row as { student_id?: string; class_id?: string }
+   return `${String(r.class_id ?? "")}\t${String(r.student_id ?? "")}`
+  })
+ )
+ return present.filter((r) => !enrolled.has(`${r.classId}\t${r.studentId}`))
+}
+
+export async function fetchPendingTrialCommentsForTeacher(
+ teacherId: string,
+ todayYmd: string
+): Promise<PendingTrialCommentRow[]> {
+ if (!teacherId) return []
+ const rows = await fetchPendingTrialCommentCandidates({
+  teacherId,
+  throughYmd: todayYmd,
+ })
+ return keepActuallyPresentUnenrolled(rows)
+}
+
+export async function fetchUnwrittenTrialCommentsForPresentStudents(opts: {
+ scheduleIds: string[]
+ studentIds: string[]
+}): Promise<PendingTrialCommentRow[]> {
+ if (opts.scheduleIds.length === 0 || opts.studentIds.length === 0) return []
+ const rows = await fetchPendingTrialCommentCandidates({
+  scheduleIds: opts.scheduleIds,
+  studentIds: opts.studentIds,
+ })
+ return keepActuallyPresentUnenrolled(rows)
+}
+
+export async function fetchTrialCommentFieldsForSchedules(
+ scheduleIds: string[]
+): Promise<Map<string, { trialId: string; trialDate: string; teacherCommentAt: string | null }>> {
+ const out = new Map<string, { trialId: string; trialDate: string; teacherCommentAt: string | null }>()
+ if (!supabase || scheduleIds.length === 0) return out
+ const chunks = await forEachIdChunk(scheduleIds, DEFAULT_ID_CHUNK, async (slice) => {
+  const { data, error } = await supabase!
+   .from("trial_sessions")
+   .select("id, student_id, trial_date, teacher_comment_at")
+   .in("schedule_id", slice)
+  if (error) throw error
+  return data ?? []
+ })
+ for (const row of chunks.flat()) {
+  const r = row as {
+   id?: string
+   student_id?: string
+   trial_date?: string
+   teacher_comment_at?: string | null
+  }
+  const studentId = String(r.student_id ?? "")
+  if (!studentId || out.has(studentId)) continue
+  out.set(studentId, {
+   trialId: String(r.id ?? ""),
+   trialDate: String(r.trial_date ?? ""),
+   teacherCommentAt: r.teacher_comment_at != null ? String(r.teacher_comment_at) : null,
+  })
+ }
+ return out
+}
+
+export async function saveTrialTeacherComment(trialId: string, comment: string): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { error } = await supabase.rpc("save_trial_teacher_comment", {
+  p_trial_id: trialId,
+  p_comment: comment,
+ })
+ if (error) throw error
 }
 
 export async function updateTrialSession(

@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { CheckCircle2, ChevronDown, Download, ListChecks, NotebookPen, Sparkles } from "lucide-react"
 
 import { invalidateAttendanceRecordsDataCache } from "@/components/attendance/attendanceRecordsState"
+import { invalidateTrialSessionsDataCache } from "@/components/trials/trialSessionsState"
 import { AttendanceStatusPicker } from "@/components/attendance/attendanceStatusUi"
 import { StudentWhatsAppReminderButton } from "@/components/reminders/StudentWhatsAppReminderButton"
 import { TeachingNotesEditor } from "@/components/schedule/TeachingNotesEditor"
+import { TrialTeacherCommentForm, type TrialTeacherCommentTarget } from "@/components/trials/TrialTeacherCommentForm"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { StaggerItem, StaggerList } from "@/components/ui/stagger-list"
 import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
@@ -19,7 +22,13 @@ import {
  trimTimeHm,
  type RollCallScheduleEntry,
 } from "@/lib/consecutiveLesson"
+import { isActualPresentStatus } from "@/lib/attendancePresence"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import {
+ isTeacherCommentNudgeInScope,
+ isWrittenTrialComment,
+ newPendingTrialCommentIds,
+} from "@/lib/trialTeacherComment"
 import {
  canTeacherEditScheduleRollCall,
  formatScheduleSubstituteTag,
@@ -40,6 +49,12 @@ import {
 } from "@/services/attendanceQueries"
 import { logMgmtAuditAction } from "@/services/mgmtGodViewQueries"
 import {
+ fetchTrialCommentFieldsForSchedules,
+ fetchUnwrittenTrialCommentsForPresentStudents,
+ saveTrialTeacherComment,
+ type PendingTrialCommentRow,
+} from "@/services/trialQueries"
+import {
  fetchScheduleRosterContext,
  singleSessionNotOnSchedule,
  type ScheduleRosterContext,
@@ -54,6 +69,33 @@ type DisplayStudent = RollCallStudentRow & {
  reminderStartTime?: string | null
  reminderEndTime?: string | null
  reminderIsConsecutive?: boolean
+ trialSessionId?: string | null
+ trialDate?: string | null
+ teacherCommentAt?: string | null
+}
+
+function pendingTrialCommentIdsFromSheet(
+ students: DisplayStudent[],
+ statuses: Map<string, string>
+): string[] {
+ return students.flatMap((row) => {
+  if (row.source !== "trial" || !row.trialSessionId || !row.trialDate) return []
+  if (!isTeacherCommentNudgeInScope(row.trialDate)) return []
+  if (isWrittenTrialComment(row.teacherCommentAt)) return []
+  if (!isActualPresentStatus(statuses.get(row.studentId))) return []
+  return [row.trialSessionId]
+ })
+}
+
+function toCommentFormTargets(rows: PendingTrialCommentRow[]): TrialTeacherCommentTarget[] {
+ return rows.map((r) => ({
+  trialId: r.trialId,
+  studentName: r.studentName,
+  studentGrade: r.studentGrade,
+  classLabel: r.classLabel,
+  trialDate: r.trialDate,
+  timeLabel: r.timeLabel,
+ }))
 }
 
 export type RollCallPanelStats = {
@@ -80,6 +122,8 @@ type Props = {
  autoPrefillWhenEmpty?: boolean
  /** 成功寫入資料庫後回呼（排程點名紙用來刷新列表） */
  onConfirmed?: () => void
+ /** 評語步驟進行中：點名紙不要用 Esc 關閉整張紙 */
+ onCommentStepChange?: (open: boolean) => void
 }
 
 export function RollCallClassPanel({
@@ -94,6 +138,7 @@ export function RollCallClassPanel({
  presentation = "accordion",
  autoPrefillWhenEmpty = false,
  onConfirmed,
+ onCommentStepChange,
 }: Props) {
  const isSheet = presentation === "sheet"
  const { pushBanner } = useAppBanner()
@@ -124,7 +169,17 @@ export function RollCallClassPanel({
  const [sheetErr, setSheetErr] = useState<string | null>(null)
  const [rosterContext, setRosterContext] = useState<ScheduleRosterContext | null>(null)
  const [notesSavedLocal, setNotesSavedLocal] = useState<string | null | undefined>(undefined)
+ const [commentTargets, setCommentTargets] = useState<TrialTeacherCommentTarget[]>([])
+ const [commentSaving, setCommentSaving] = useState(false)
+ const [commentErr, setCommentErr] = useState<string | null>(null)
  const didAutoPrefillRef = useRef(false)
+
+ const closeCommentStep = () => {
+  setCommentTargets([])
+  setCommentErr(null)
+  setCommentSaving(false)
+  onCommentStepChange?.(false)
+ }
 
  useEffect(() => {
   didAutoPrefillRef.current = false
@@ -154,13 +209,14 @@ export function RollCallClassPanel({
     const primaryScheduleId = scheduleIds[0] ?? ""
     const rosterContext = await fetchScheduleRosterContext(scheduleIds)
     setRosterContext(rosterContext)
-    const [roster, trials, makeups, leaveByStudent] = await Promise.all([
+    const [roster, trials, makeups, leaveByStudent, trialCommentFields] = await Promise.all([
      fetchRosterForRollCall(classId, lessonDate, scheduleIds, rosterContext),
      fetchTrialStudentsForSchedules(scheduleIds, rosterContext),
      scheduleIds.length > 0
       ? fetchMakeupStudentsForSchedules(scheduleIds, rosterContext)
       : Promise.resolve([]),
      fetchLeavePrefillForLesson(scheduleIds, classId, lessonDate, rosterContext),
+     fetchTrialCommentFieldsForSchedules(scheduleIds),
     ])
 
     const completeWhenHas = new Map<string, string[]>()
@@ -196,6 +252,9 @@ export function RollCallClassPanel({
       contactPhone: t.contactPhone,
       messagingTarget: t.messagingTarget,
       isSingleSession: false,
+      trialSessionId: trialCommentFields.get(t.studentId)?.trialId ?? null,
+      trialDate: trialCommentFields.get(t.studentId)?.trialDate ?? null,
+      teacherCommentAt: trialCommentFields.get(t.studentId)?.teacherCommentAt ?? null,
      })
     }
     const onSheetIds = new Set(display.map((d) => d.studentId))
@@ -493,11 +552,34 @@ export function RollCallClassPanel({
     skipped.length > 0
      ? `；已略過 ${skipped.length} 位已不在名冊的學生（${skipped.map((s) => s.fullName).join("、")}）`
      : ""
-   pushBanner({
-    tone: "success",
-    title: "點名已儲存",
-    message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${toSave.length} 位學生${entry.isConsecutive ? "（連堂原班計 2 節）" : ""}${makeupNote}${skipNote}。`,
-   })
+   const beforeIds = pendingTrialCommentIdsFromSheet(toSave, savedMap)
+   const afterIds = pendingTrialCommentIdsFromSheet(toSave, statusMap)
+   const newIds = newPendingTrialCommentIds(beforeIds, afterIds)
+   let openedComment = false
+   if (newIds.length > 0) {
+    try {
+     const pending = await fetchUnwrittenTrialCommentsForPresentStudents({
+      scheduleIds,
+      studentIds: toSave.filter((row) => newIds.includes(row.trialSessionId ?? "")).map((row) => row.studentId),
+     })
+     const targets = toCommentFormTargets(pending.filter((row) => newIds.includes(row.trialId)))
+     if (targets.length > 0) {
+      setCommentErr(null)
+      setCommentTargets(targets)
+      onCommentStepChange?.(true)
+      openedComment = true
+     }
+    } catch (e) {
+     reportUserFacingError(e, { source: "RollCallClassPanel.trialCommentAfterSave" })
+    }
+   }
+   if (!openedComment) {
+    pushBanner({
+     tone: "success",
+     title: "點名已儲存",
+     message: `${entry.classLabel} · ${sessionLabel} · ${lessonDate}：已記錄 ${toSave.length} 位學生${entry.isConsecutive ? "（連堂原班計 2 節）" : ""}${makeupNote}${skipNote}。`,
+    })
+   }
    onConfirmed?.()
   } catch (e) {
    reportUserFacingError(e, { source: "RollCallClassPanel.saveAll", setErr: setSheetErr })
@@ -518,6 +600,42 @@ export function RollCallClassPanel({
    setConfirmSaving(false)
   }
  }
+
+ const saveComments = async (entries: { trialId: string; comment: string }[]) => {
+  setCommentSaving(true)
+  setCommentErr(null)
+  try {
+   for (const entry of entries) {
+    await saveTrialTeacherComment(entry.trialId, entry.comment)
+   }
+   invalidateTrialSessionsDataCache()
+   const written = new Set(entries.map((e) => e.trialId))
+   setStudents((prev) =>
+    prev.map((row) =>
+     row.trialSessionId && written.has(row.trialSessionId)
+      ? { ...row, teacherCommentAt: new Date().toISOString() }
+      : row
+    )
+   )
+   closeCommentStep()
+  } catch (e) {
+   reportUserFacingError(e, { source: "RollCallClassPanel.saveTrialComment", setErr: setCommentErr })
+  } finally {
+   setCommentSaving(false)
+  }
+ }
+
+ const commentForm =
+  commentTargets.length > 0 ? (
+   <TrialTeacherCommentForm
+    targets={commentTargets}
+    saving={commentSaving}
+    error={commentErr}
+    headingNote="點名已儲存，請為試堂生寫評語。"
+    onSave={saveComments}
+    onLater={closeCommentStep}
+   />
+  ) : null
 
  const exportCsv = () => {
   if (!entry.class_id) return
@@ -614,6 +732,14 @@ export function RollCallClassPanel({
      isMobile && students.length > 0 && "pb-4"
     )}
    >
+    {isMobile && commentForm ? (
+     <div className="space-y-3">
+      <h3 className="text-base font-semibold text-foreground">試堂評語</h3>
+      {commentForm}
+     </div>
+    ) : null}
+    {isMobile && commentForm ? null : (
+    <>
     <div className="flex flex-wrap items-start justify-between gap-2">
      <div className="min-w-0">
       <p className="text-xs text-muted-foreground">
@@ -848,7 +974,7 @@ export function RollCallClassPanel({
      </div>
     ) : null}
 
-    {canEditRollCall && scheduleMeta ? (
+    {canEditRollCall && scheduleMeta && !(isMobile && commentForm) ? (
      <div className="mt-4 space-y-2 border-t border-border pt-4">
       <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
        <NotebookPen className="h-4 w-4 text-info" aria-hidden />
@@ -876,35 +1002,64 @@ export function RollCallClassPanel({
       />
      </div>
     ) : null}
+    </>
+    )}
    </div>
  )
 
+ const commentDialog =
+  !isMobile && commentForm ? (
+   <Dialog
+    open
+    onOpenChange={(next) => {
+     if (!next) closeCommentStep()
+    }}
+   >
+    <DialogContent
+     className="max-w-2xl"
+     onPointerDownOutside={(e) => e.preventDefault()}
+     onInteractOutside={(e) => e.preventDefault()}
+    >
+     <DialogHeader>
+      <DialogTitle>試堂評語</DialogTitle>
+     </DialogHeader>
+     {commentForm}
+    </DialogContent>
+   </Dialog>
+  ) : null
+
  if (isSheet) {
   return (
-   <div className="space-y-3">
-    <div className="min-w-0 px-1">{titleMeta}</div>
-    {body}
-   </div>
+   <>
+    <div className="space-y-3">
+     <div className="min-w-0 px-1">{titleMeta}</div>
+     {body}
+    </div>
+    {commentDialog}
+   </>
   )
  }
 
  return (
-  <details
-   className="group rounded-xl border border-border bg-card shadow-sm open:shadow-md"
-   open={open}
-   onToggle={(e) => {
-    const next = (e.currentTarget as HTMLDetailsElement).open
-    if (next !== open) onOpenChange(next)
-   }}
-  >
-   <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
-    <ChevronDown
-     className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
-     aria-hidden
-    />
-    <div className="min-w-0 flex-1">{titleMeta}</div>
-   </summary>
-   {body}
-  </details>
+  <>
+   <details
+    className="group rounded-xl border border-border bg-card shadow-sm open:shadow-md"
+    open={open}
+    onToggle={(e) => {
+     const next = (e.currentTarget as HTMLDetailsElement).open
+     if (next !== open) onOpenChange(next)
+    }}
+   >
+    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+     <ChevronDown
+      className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+      aria-hidden
+     />
+     <div className="min-w-0 flex-1">{titleMeta}</div>
+    </summary>
+    {body}
+   </details>
+   {commentDialog}
+  </>
  )
 }

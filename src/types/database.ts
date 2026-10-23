@@ -5057,6 +5057,11 @@ export type Database = {
           schedule_id: string
           status: string | null
           student_id: string
+          teacher_comment: string | null
+          teacher_comment_at: string | null
+          teacher_comment_by: string | null
+          teacher_comment_edited_at: string | null
+          teacher_comment_edited_by: string | null
           trial_date: string
           trial_type: string
           updated_at: string
@@ -5077,6 +5082,11 @@ export type Database = {
           schedule_id: string
           status?: string | null
           student_id: string
+          teacher_comment?: string | null
+          teacher_comment_at?: string | null
+          teacher_comment_by?: string | null
+          teacher_comment_edited_at?: string | null
+          teacher_comment_edited_by?: string | null
           trial_date: string
           trial_type: string
           updated_at?: string
@@ -5097,6 +5107,11 @@ export type Database = {
           schedule_id?: string
           status?: string | null
           student_id?: string
+          teacher_comment?: string | null
+          teacher_comment_at?: string | null
+          teacher_comment_by?: string | null
+          teacher_comment_edited_at?: string | null
+          teacher_comment_edited_by?: string | null
           trial_date?: string
           trial_type?: string
           updated_at?: string
@@ -5142,6 +5157,20 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trial_sessions_teacher_comment_by_fkey"
+            columns: ["teacher_comment_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trial_sessions_teacher_comment_edited_by_fkey"
+            columns: ["teacher_comment_edited_by"]
+            isOneToOne: false
+            referencedRelation: "teachers"
             referencedColumns: ["id"]
           },
         ]
@@ -5858,6 +5887,10 @@ export type Database = {
           paid_lessons: number
           student_id: string
         }[]
+      }
+      save_trial_teacher_comment: {
+        Args: { p_comment: string; p_trial_id: string }
+        Returns: undefined
       }
       submit_portal_enrollment_request: {
         Args: { p_lines: Json; p_parent_note?: string }

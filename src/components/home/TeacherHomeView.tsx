@@ -58,8 +58,14 @@ import {
 } from "@/services/scheduleQueries"
 import { fetchScheduleRosterContext } from "@/services/scheduleRosterQueries"
 import { addDaysYmd, getTeacherById, localYmd } from "@/services/teacherQueries"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { TrialTeacherCommentForm } from "@/components/trials/TrialTeacherCommentForm"
+import { invalidateTrialSessionsDataCache } from "@/components/trials/trialSessionsState"
 import {
+ fetchPendingTrialCommentsForTeacher,
  fetchUpcomingTrialsForClassIds,
+ saveTrialTeacherComment,
+ type PendingTrialCommentRow,
  type UpcomingTrialBrief,
 } from "@/services/trialQueries"
 
@@ -117,6 +123,12 @@ export function TeacherHomeView() {
  const [pastPendingRollCallsLoad, setPastPendingRollCallsLoad] = useState<
   ListLoad<PendingRollCallReminder>
  >({ status: "loading" })
+ const [pendingCommentsLoad, setPendingCommentsLoad] = useState<ListLoad<PendingTrialCommentRow>>({
+  status: "loading",
+ })
+ const [commentWriteRow, setCommentWriteRow] = useState<PendingTrialCommentRow | null>(null)
+ const [commentSaving, setCommentSaving] = useState(false)
+ const [commentErr, setCommentErr] = useState<string | null>(null)
  const [loading, setLoading] = useState(true)
  const [metaLoading, setMetaLoading] = useState(false)
  const [rangeExtending, setRangeExtending] = useState(false)
@@ -158,9 +170,10 @@ export function TeacherHomeView() {
     setTrialsLoad({ status: "loading" })
     setPendingRollCallsLoad({ status: "loading" })
     setPastPendingRollCallsLoad({ status: "loading" })
+    setPendingCommentsLoad({ status: "loading" })
     setScheduleAlertsState("loading")
 
-    const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes] = await Promise.allSettled([
+    const [leaveRes, trialRes, rollRes, pastRollRes, alertsRes, commentRes] = await Promise.allSettled([
      leaveClassIds.length
       ? fetchLeaveRowsForClassIds(leaveClassIds, 50, leaveScope?.fromYmd, leaveScope?.toYmd)
       : Promise.resolve([]),
@@ -171,6 +184,7 @@ export function TeacherHomeView() {
       schedList.filter((s) => s.scheduled_date >= today && s.scheduled_date <= addDaysYmd(today, 2)),
       rosterContext
      ),
+     fetchPendingTrialCommentsForTeacher(teacherId, today),
     ])
 
     let partialFailed = false
@@ -206,6 +220,12 @@ export function TeacherHomeView() {
      partialFailed = true
      setScheduleAlertsState("error")
     }
+    if (commentRes.status === "fulfilled") setPendingCommentsLoad({ status: "ready", rows: commentRes.value })
+    else {
+     reportUserFacingError(commentRes.reason, { source: "TeacherHomeView.loadPendingTrialComments" })
+     partialFailed = true
+     setPendingCommentsLoad({ status: "error" })
+    }
     if (partialFailed) {
      setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
     }
@@ -215,6 +235,7 @@ export function TeacherHomeView() {
     setTrialsLoad({ status: "error" })
     setPendingRollCallsLoad({ status: "error" })
     setPastPendingRollCallsLoad({ status: "error" })
+    setPendingCommentsLoad({ status: "error" })
     setScheduleAlertsState("error")
     setErr("部分首頁資料暫時未能載入（請假／試堂／點名提醒），其餘資料已正常顯示。")
    } finally {
@@ -227,6 +248,7 @@ export function TeacherHomeView() {
  const load = useCallback(async () => {
   if (!isSupabaseConfigured || !teacherId) {
    setLoading(false)
+   setPendingCommentsLoad({ status: "ready", rows: [] })
    return
   }
   setLoading(true)
@@ -297,6 +319,7 @@ export function TeacherHomeView() {
    setScheduleAlertsState("error")
    setPendingRollCallsLoad({ status: "error" })
    setPastPendingRollCallsLoad({ status: "error" })
+   setPendingCommentsLoad({ status: "error" })
    setLoading(false)
   }
  }, [teacherId, today, mergeSchedules, loadMetaForSchedules])
@@ -372,6 +395,8 @@ export function TeacherHomeView() {
     ? "empty"
     : "rows"
  const trialsKind = listLoadKind(trialsLoad)
+ const pendingComments = pendingCommentsLoad.status === "ready" ? pendingCommentsLoad.rows : []
+ const pendingCommentsKind = listLoadKind(pendingCommentsLoad)
 
  const trialScheduleIds = useMemo(() => {
   if (trialsLoad.status !== "ready") return new Set<string>()
@@ -651,6 +676,36 @@ export function TeacherHomeView() {
      </p>
     </Link>
    </section>
+
+   {trialsKind === "error" ? (
+    <section className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 shadow-sm md:p-6" role="alert">
+     <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
+      <Sparkles className="h-6 w-6 text-info" />
+      即將試堂（我的班）
+     </h2>
+     <p role="alert" className="mt-3 text-sm text-destructive">試堂資料未能載入。</p>
+    </section>
+   ) : trialsKind === "rows" ? (
+    <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">
+     <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
+      <Sparkles className="h-6 w-6 text-info" />
+      即將試堂（我的班）
+     </h2>
+     <StaggerList as="ul" className="mt-4 space-y-2">
+      {trials.map((t) => (
+       <StaggerItem key={t.id} as="li" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+        <span>
+         <span className="font-medium">{t.studentName}</span>
+         <span className="text-muted-foreground"> · {t.classLabel} · {t.trialDate}</span>
+        </span>
+        <Tag tone={statusToTagTone(t.status)} size="sm">
+         {t.status}
+        </Tag>
+       </StaggerItem>
+      ))}
+     </StaggerList>
+    </section>
+   ) : null}
 
    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow duration-200 hover:shadow-md md:p-6">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2 md:mb-4">
@@ -981,35 +1036,116 @@ export function TeacherHomeView() {
    </div>
    )}
 
-   {trialsKind === "error" ? (
+   {pendingCommentsKind === "error" ? (
     <section className="rounded-2xl border border-destructive/40 bg-destructive/5 p-5 shadow-sm md:p-6" role="alert">
      <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
       <Sparkles className="h-6 w-6 text-info" />
-      即將試堂（我的班）
+      待寫試堂評語
      </h2>
-     <p role="alert" className="mt-3 text-sm text-destructive">試堂資料未能載入。</p>
+     <p role="alert" className="mt-3 text-sm text-destructive">
+      待寫評語未能載入。
+     </p>
     </section>
-   ) : trialsKind === "rows" ? (
+   ) : pendingCommentsKind === "rows" ? (
     <section className="rounded-2xl border border-info/30 bg-info/5 p-5 shadow-sm md:p-6">
      <h2 className="flex items-center gap-2 text-xl font-semibold md:text-2xl">
       <Sparkles className="h-6 w-6 text-info" />
-      即將試堂（我的班）
+      待寫試堂評語（{pendingComments.length}）
      </h2>
      <StaggerList as="ul" className="mt-4 space-y-2">
-      {trials.map((t) => (
-       <StaggerItem key={t.id} as="li" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+      {pendingComments.map((row) => (
+       <StaggerItem
+        key={row.trialId}
+        as="li"
+        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2"
+       >
         <span>
-         <span className="font-medium">{t.studentName}</span>
-         <span className="text-muted-foreground"> · {t.classLabel} · {t.trialDate}</span>
+         <span className="font-medium">{row.studentName}</span>
+         <span className="text-muted-foreground">
+          {" "}
+          · {row.classLabel} · {row.trialDate}
+          {row.timeLabel ? ` ${row.timeLabel}` : ""}
+         </span>
         </span>
-        <Tag tone={statusToTagTone(t.status)} size="sm">
-         {t.status}
-        </Tag>
+        <Button type="button" size="sm" onClick={() => {
+         setCommentErr(null)
+         setCommentWriteRow(row)
+        }}>
+         撰寫
+        </Button>
        </StaggerItem>
       ))}
      </StaggerList>
     </section>
    ) : null}
+
+   <Dialog
+    open={commentWriteRow != null}
+    onOpenChange={(open) => {
+     if (!open && !commentSaving) {
+      setCommentWriteRow(null)
+      setCommentErr(null)
+     }
+    }}
+   >
+    <DialogContent
+     className="max-w-lg"
+     onPointerDownOutside={(e) => e.preventDefault()}
+     onInteractOutside={(e) => e.preventDefault()}
+    >
+     <DialogHeader>
+      <DialogTitle>試堂評語</DialogTitle>
+     </DialogHeader>
+     {commentWriteRow ? (
+      <TrialTeacherCommentForm
+       key={commentWriteRow.trialId}
+       targets={[
+        {
+         trialId: commentWriteRow.trialId,
+         studentName: commentWriteRow.studentName,
+         studentGrade: commentWriteRow.studentGrade,
+         classLabel: commentWriteRow.classLabel,
+         trialDate: commentWriteRow.trialDate,
+         timeLabel: commentWriteRow.timeLabel,
+        },
+       ]}
+       saving={commentSaving}
+       error={commentErr}
+       onLater={() => {
+        if (commentSaving) return
+        setCommentWriteRow(null)
+        setCommentErr(null)
+       }}
+       onSave={async (entries) => {
+        setCommentSaving(true)
+        setCommentErr(null)
+        try {
+         for (const entry of entries) {
+          await saveTrialTeacherComment(entry.trialId, entry.comment)
+         }
+         invalidateTrialSessionsDataCache()
+         setCommentWriteRow(null)
+         if (teacherId) {
+          try {
+           const next = await fetchPendingTrialCommentsForTeacher(teacherId, today)
+           setPendingCommentsLoad({ status: "ready", rows: next })
+          } catch (e) {
+           reportUserFacingError(e, { source: "TeacherHomeView.refreshPendingTrialComments" })
+          }
+         }
+        } catch (e) {
+         reportUserFacingError(e, {
+          source: "TeacherHomeView.saveTrialComment",
+          setErr: setCommentErr,
+         })
+        } finally {
+         setCommentSaving(false)
+        }
+       }}
+      />
+     ) : null}
+    </DialogContent>
+   </Dialog>
 
   </div>
  )

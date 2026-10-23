@@ -4,6 +4,8 @@ import { Plus, SlidersHorizontal } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
+import { TrialTeacherCommentBlock } from "@/components/trials/TrialTeacherCommentBlock"
+import { TrialTeacherCommentForm } from "@/components/trials/TrialTeacherCommentForm"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
 import { StudentSearchableSelect } from "@/components/students/StudentSearchableSelect"
 import {
@@ -30,7 +32,9 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { statusToTagTone } from "@/lib/statusTag"
+import { isActualPresentStatus } from "@/lib/attendancePresence"
 import { isSupabaseConfigured } from "@/lib/supabaseClient"
+import { isWrittenTrialComment } from "@/lib/trialTeacherComment"
 import {
  TRIAL_OUTCOME_LABELS,
  outcomeTagTone,
@@ -80,6 +84,7 @@ import {
  deleteTrialSession,
  fetchTrialsWithRelations,
  insertTrialSession,
+ saveTrialTeacherComment,
  previewTrialAttendanceImpact,
  recordTrialOutcome,
  rescheduleTrialSession,
@@ -233,6 +238,9 @@ export function TrialSessionsView() {
  const [receiptTab, setReceiptTab] = useState<"all" | "unpaid" | TrialReceiptGate>("all")
  const [intentHint, setIntentHint] = useState<string | null>(null)
  const [moreRowId, setMoreRowId] = useState<string | null>(null)
+ const [pasteId, setPasteId] = useState<string | null>(null)
+ const [pasteSaving, setPasteSaving] = useState(false)
+ const [pasteErr, setPasteErr] = useState<string | null>(null)
 
  const [teachers, setTeachers] = useState<TeacherRecord[]>(
   () => getTrialSessionsDataCache()?.teachers ?? []
@@ -312,6 +320,26 @@ export function TrialSessionsView() {
   void reload({ silent: cached != null && cached.includeOlderYears === includeOlderYears })
  }, [reload, includeOlderYears])
 
+ useEffect(() => {
+  const onVis = () => {
+   if (document.visibilityState === "visible") void reload({ silent: true })
+  }
+  const onFocus = () => {
+   void reload({ silent: true })
+  }
+  document.addEventListener("visibilitychange", onVis)
+  window.addEventListener("focus", onFocus)
+  return () => {
+   document.removeEventListener("visibilitychange", onVis)
+   window.removeEventListener("focus", onFocus)
+  }
+ }, [reload])
+
+ const pasteTarget = useMemo(() => {
+  if (!pasteId) return null
+  return rows.find((x) => x.id === pasteId) ?? null
+ }, [pasteId, rows])
+
  const convertTarget: TrialConvertDialogTarget | null = useMemo(() => {
   if (!convertId) return null
   const r = rows.find((x) => x.id === convertId)
@@ -328,6 +356,11 @@ export function TrialSessionsView() {
    schedEnd: r.sched_end,
    trialScheduleId: r.schedule_id,
    rollCallDone: r.roll_call_done,
+   teacherComment: r.teacher_comment,
+   teacherCommentAt: r.teacher_comment_at,
+   teacherCommentByName: r.teacher_comment_by_name,
+   teacherCommentEditedAt: r.teacher_comment_edited_at,
+   attendanceStatus: r.attendance_status,
    courseMode: r.course_mode,
    classKind: r.class_kind ?? "group",
    courseCode: r.course_code_full,
@@ -1424,7 +1457,9 @@ export function TrialSessionsView() {
               <p className="text-xs text-muted-foreground">上課日 {r.trial_date}，先等試堂</p>
              ) : null}
              {followup === "convert" ? (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-col items-start gap-2">
+               <TrialTeacherCommentBlock followup={followup} row={r} />
+               <div className="flex flex-wrap items-center gap-2">
                <Button type="button" size="sm" onClick={() => void openConvert(r.id)}>
                 正式報讀
                </Button>
@@ -1438,6 +1473,7 @@ export function TrialSessionsView() {
                  標流失
                 </Button>
                ) : null}
+               </div>
               </div>
              ) : null}
              {followup === "mark_lost" ? (
@@ -1544,6 +1580,27 @@ export function TrialSessionsView() {
               >
                寫備註
               </button>
+              {isActualPresentStatus(r.attendance_status) ? (
+               <button
+                type="button"
+                className="text-xs font-medium text-info hover:underline"
+                onClick={async () => {
+                 if (isWrittenTrialComment(r.teacher_comment_at) && r.teacher_comment?.trim()) {
+                  const ok = await confirmDialog({
+                   title: "覆寫老師評語？",
+                   description: "已有評語。貼上後會保留首次撰寫紀錄，並記為其後改過。",
+                   confirmText: "覆寫",
+                   cancelText: "取消",
+                  })
+                  if (!ok) return
+                 }
+                 setPasteErr(null)
+                 setPasteId(r.id)
+                }}
+               >
+                貼上老師評語
+               </button>
+              ) : null}
              <button
               type="button"
               className="text-xs font-medium text-destructive hover:underline"
@@ -1789,6 +1846,64 @@ export function TrialSessionsView() {
        {remarkSaving ? "儲存中…" : "儲存"}
       </Button>
      </div>
+    </DialogContent>
+   </Dialog>
+
+   <Dialog
+    open={pasteTarget != null}
+    onOpenChange={(open) => {
+     if (!open && !pasteSaving) {
+      setPasteId(null)
+      setPasteErr(null)
+     }
+    }}
+   >
+    <DialogContent className="max-w-lg">
+     <DialogHeader>
+      <DialogTitle>貼上老師評語</DialogTitle>
+     </DialogHeader>
+     <p className="text-sm text-muted-foreground">
+      這是老師評語，給前台回訪家長用，不是備註，也不是本堂教學紀錄。
+     </p>
+     {pasteTarget ? (
+      <TrialTeacherCommentForm
+       key={pasteTarget.id}
+       targets={[
+        {
+         trialId: pasteTarget.id,
+         studentName: pasteTarget.student_name ?? "—",
+         studentGrade: pasteTarget.student_grade,
+         classLabel: pasteTarget.class_subject ?? "—",
+         trialDate: pasteTarget.trial_date,
+         timeLabel: null,
+         initialComment: pasteTarget.teacher_comment ?? "",
+        },
+       ]}
+       saving={pasteSaving}
+       error={pasteErr}
+       onLater={() => {
+        if (pasteSaving) return
+        setPasteId(null)
+        setPasteErr(null)
+       }}
+       onSave={async (entries) => {
+        setPasteSaving(true)
+        setPasteErr(null)
+        try {
+         for (const entry of entries) {
+          await saveTrialTeacherComment(entry.trialId, entry.comment)
+         }
+         invalidateTrialSessionsDataCache()
+         setPasteId(null)
+         await reload({ silent: true })
+        } catch (err) {
+         reportUserFacingError(err, { source: "TrialSessionsView.pasteTeacherComment", setErr: setPasteErr })
+        } finally {
+         setPasteSaving(false)
+        }
+       }}
+      />
+     ) : null}
     </DialogContent>
    </Dialog>
 
