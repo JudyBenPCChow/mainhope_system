@@ -152,3 +152,55 @@ where t.id = any(array[
   '00000000-0000-0000-0000-000000000000'::uuid
 ]);
 ```
+
+## 5) 功輔當值（同房其餘人）
+
+已編更、非假期。佔室列上的老師已在查詢 1，不要再加一節。其餘人用自己的當值時段與課室；學生名單用該班當日佔室堂（查詢 2、3 的 `schedule_id`）。備註寫「功輔當值」，不標不用上堂。
+
+```sql
+with target as (
+  select date '2026-10-13' as d
+)
+select
+  a.teacher_id,
+  t.full_name as teacher_name,
+  t.english_name as teacher_english_name,
+  t.honorific,
+  to_char(a.session_start, 'HH24:MI') as duty_start,
+  to_char(a.session_end, 'HH24:MI') as duty_end,
+  a.room as duty_room,
+  c.course_code_full,
+  co.course_name,
+  occ.schedule_id
+from public.homework_tutoring_duty_days d
+join public.homework_tutoring_roster_months rm on rm.id = d.roster_month_id
+join public.homework_tutoring_duty_assignments a on a.duty_day_id = d.id
+join public.classes c on c.id = rm.class_id
+join public.teachers t on t.id = a.teacher_id
+left join public.courses co on co.id = c.course_id
+left join lateral (
+  select s.id as schedule_id
+  from public.schedules s
+  where s.class_id = c.id
+    and s.scheduled_date = d.duty_date
+    and coalesce(s.status, '') not like '%取消%'
+    and coalesce(s.remarks, '') like '%功輔佔室%'
+  order by s.start_time
+  limit 1
+) occ on true
+cross join target
+where d.duty_date = target.d
+  and rm.status = '已編更'
+  and nullif(btrim(d.holiday_label), '') is null
+  and coalesce(t.full_name, '') not ilike '%test%'
+  and coalesce(c.course_code_full, '') not ilike '%test%'
+  and not exists (
+    select 1
+    from public.schedules s
+    where s.class_id = c.id
+      and s.scheduled_date = d.duty_date
+      and s.teacher_id = a.teacher_id
+      and coalesce(s.status, '') not like '%取消%'
+  )
+order by t.english_name nulls last, t.full_name, a.session_start;
+```
