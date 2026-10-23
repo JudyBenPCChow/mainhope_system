@@ -73,6 +73,7 @@ import { resolveEnrollmentAttendanceOptions } from "@/lib/enrollmentAttendanceCo
 import { confirmEnrollmentNoticeIfPresent } from "@/lib/enrollmentNoticeConfirm"
 import { resolveSoftCancelScheduleOptions } from "@/lib/scheduleSoftCancelConfirm"
 import { classDisplayName, formatClassLabel } from "@/lib/courseLabel"
+import { paymentsReceiveHref } from "@/lib/paymentsReceiveHref"
 import { classKindLabel, resolveClassKind } from "@/lib/privateClassKind"
 import {
  classGradeDisplayText,
@@ -1408,7 +1409,10 @@ export function ClassDetailView() {
      message: "報讀已建立。請前往收款／出單確認學費，權益池才會增加可上課堂數。",
      action: {
       pageLabel: "收款／出單",
-      to: `/Payments?studentId=${encodeURIComponent(studentId)}&mode=receive`,
+      to: paymentsReceiveHref({
+       studentId,
+       enrollmentClassIds: [cid],
+      }),
      },
     })
    }
