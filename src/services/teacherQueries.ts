@@ -238,8 +238,9 @@ export async function updateTeacher(
     .eq("teacher_id", id)
    if (privErr) throw privErr
   } else {
+   // 單筆 upsert 的型別沒有 defaultToNull；用陣列才不會把未送出的欄位寫成 null。
    const { error: privErr } = await supabase.from("teachers_private").upsert(
-    { teacher_id: id, ...privatePatch },
+    [{ teacher_id: id, ...privatePatch }],
     { onConflict: "teacher_id", defaultToNull: false }
    )
    if (privErr) throw privErr
