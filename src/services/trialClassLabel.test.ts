@@ -28,6 +28,7 @@ function blankRow(over: Partial<TrialManageRow>): TrialManageRow {
   class_kind: "group",
   teacher_id: null,
   teacher_name: null,
+  teacher_whatsapp_group_url: null,
   sched_date: "2026-10-03",
   sched_start: "14:00:00",
   sched_end: "15:15:00",

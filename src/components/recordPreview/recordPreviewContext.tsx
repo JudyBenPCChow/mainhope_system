@@ -5,9 +5,10 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { useAuth } from "@/lib/authBootstrap"
 import { keepsHomeActionsOpen } from "@/lib/homeActionsRail"
 import type { LeadRow } from "@/services/leadQueries"
+import type { TrialManageRow } from "@/services/trialQueries"
 import type { TuitionChasePeriodRef, TuitionChaseStudentRow } from "@/services/tuitionChaseQueries"
 
-export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase" | "lead"
+export type RecordPreviewKind = "student" | "class" | "teacher" | "schedule" | "tuitionChase" | "lead" | "trial"
 
 export type RecordPreviewTarget =
  | { kind: "student" | "class" | "teacher" | "schedule"; id: string }
@@ -27,6 +28,12 @@ export type RecordPreviewTarget =
     onChanged: () => void
     onConverted: (studentId: string) => void
     onScheduleTrial: (studentId: string, intentions: LeadRow["intentions"]) => void
+   }
+ | {
+    kind: "trial"
+    id: string
+    row: TrialManageRow
+    onChanged: () => void | Promise<void>
    }
 
 type RecordPreviewContextValue = {
@@ -110,7 +117,7 @@ export function useRecordPreview() {
 }
 
 function useOpenRecord(
- kind: Exclude<RecordPreviewKind, "tuitionChase" | "lead">,
+ kind: Exclude<RecordPreviewKind, "tuitionChase" | "lead" | "trial">,
  pathPrefix: string
 ) {
  const navigate = useNavigate()

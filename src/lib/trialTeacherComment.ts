@@ -43,6 +43,24 @@ export function newPendingTrialCommentIds(beforeIds: string[], afterIds: string[
   return afterIds.filter((id) => id && !seen.has(id))
 }
 
+/** 評語尚未撰寫時，複製到該老師 WhatsApp 群組的文案。 */
+export function trialCommentWhatsappDraft(input: {
+  studentName: string | null
+  gradeLabel: string
+  trialDate: string
+  subject: string | null
+}): string {
+  const name = input.studentName?.trim() || "學生"
+  const grade = input.gradeLabel.trim()
+  const gradePart = grade && grade !== "—" ? `（${grade}）` : ""
+  const date = input.trialDate.trim()
+  const subject = input.subject?.trim() ?? ""
+  const subjectPart = subject && subject !== "—" ? subject : ""
+  const when = [date, subjectPart].filter(Boolean).join(" ")
+  const whenPart = when ? ` ${when}` : ""
+  return `${name}${gradePart}${whenPart}試堂已出席，請撰寫約 30 字評語，說明學習情況，以及補習如何幫到這位學生。謝謝。`
+}
+
 export function formatTrialTeacherCommentAt(iso: string | null | undefined): string {
   if (!iso) return "—"
   const d = new Date(iso)

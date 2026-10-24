@@ -1,15 +1,17 @@
 import { formatClassLabel } from "@/lib/courseLabel"
 import { supabase } from "@/lib/supabaseClient"
 import { DEFAULT_ID_CHUNK, forEachIdChunk } from "@/lib/supabaseInChunks"
+import { whatsappGroupUrlFromTeacherEmbed } from "@/lib/whatsappGroupUrl"
 
 export const CLASS_LABEL_LOOKUP_SELECT =
- "id, subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name )"
+ "id, subject, course_code_full, teacher_id, courses ( course_name ), teachers ( full_name, teachers_private ( whatsapp_group_url ) )"
 
 export type ClassLabelPatch = {
  class_subject: string
  course_code_full: string | null
  teacher_id: string | null
  teacher_name: string | null
+ teacher_whatsapp_group_url: string | null
 }
 
 export function classLabelPatchFromClassRow(cls: Record<string, unknown>): ClassLabelPatch {
@@ -23,6 +25,7 @@ export function classLabelPatchFromClassRow(cls: Record<string, unknown>): Class
   course_code_full: code,
   teacher_id: cls.teacher_id != null ? String(cls.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+  teacher_whatsapp_group_url: whatsappGroupUrlFromTeacherEmbed(tch),
  }
 }
 

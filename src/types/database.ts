@@ -4801,6 +4801,7 @@ export type Database = {
           salary_per_lesson: number | null
           teacher_id: string
           updated_at: string
+          whatsapp_group_url: string | null
         }
         Insert: {
           email?: string | null
@@ -4810,6 +4811,7 @@ export type Database = {
           salary_per_lesson?: number | null
           teacher_id: string
           updated_at?: string
+          whatsapp_group_url?: string | null
         }
         Update: {
           email?: string | null
@@ -4819,6 +4821,7 @@ export type Database = {
           salary_per_lesson?: number | null
           teacher_id?: string
           updated_at?: string
+          whatsapp_group_url?: string | null
         }
         Relationships: [
           {
