@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabaseClient"
 import { WrittenSideEffectError } from "@/lib/writtenSideEffectError"
 import { formatClassLabel } from "@/lib/courseLabel"
+import { whatsappGroupUrlFromTeacherEmbed } from "@/lib/whatsappGroupUrl"
 import {
  classLabelPatchFromClassRow,
  fetchClassLabelPatchesByIds,
@@ -118,6 +119,8 @@ export type TrialManageRow = {
  class_kind: ClassKind
  teacher_id: string | null
  teacher_name: string | null
+ /** 班別任教老師的 WhatsApp 群組邀請連結；未設定為 null */
+ teacher_whatsapp_group_url: string | null
  sched_date: string | null
  sched_start: string | null
  sched_end: string | null
@@ -192,6 +195,7 @@ function mapRow(r: Record<string, unknown>, rollCallDone: boolean): TrialManageR
   ),
   teacher_id: cls?.teacher_id != null ? String(cls.teacher_id) : null,
   teacher_name: tch?.full_name != null ? String(tch.full_name) : null,
+  teacher_whatsapp_group_url: whatsappGroupUrlFromTeacherEmbed(tch),
   sched_date: sc?.scheduled_date != null ? String(sc.scheduled_date) : null,
   sched_start: sc?.start_time != null ? String(sc.start_time) : null,
   sched_end: sc?.end_time != null ? String(sc.end_time) : null,
@@ -271,10 +275,10 @@ const TRIAL_COMMENT_COLUMNS =
  "teacher_comment, teacher_comment_at, teacher_comment_by, teacher_comment_edited_at, teacher_comment_edited_by, comment_author:teachers!trial_sessions_teacher_comment_by_fkey ( full_name )"
 
 const TRIAL_LIST_COLUMNS =
- `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
+ `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name, teachers_private ( whatsapp_group_url ) ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
 
 const TRIAL_LIST_COLUMNS_INNER_CLASS =
- `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
+ `id, student_id, class_id, schedule_id, trial_date, trial_type, status, remarks, payment_id, outcome, outcome_reason, outcome_note, outcome_at, converted_enrollment_id, converted_payment_id, counts_toward_headcount, ${TRIAL_COMMENT_COLUMNS}, students ( full_name, grade, registration_status, whatsapp, student_phone, parent_phone ), classes!inner ( subject, class_kind, course_code_full, academic_year_id, price_per_lesson, courses ( course_name, course_mode, price_per_lesson ), teacher_id, teachers ( full_name, teachers_private ( whatsapp_group_url ) ) ), schedules ( scheduled_date, start_time, end_time ), payments!payment_id ( receipt_number, status )`
 
 const TRIAL_CLOSED_STATUS_OR = "status.ilike.%取消%,status.ilike.%完成%"
 

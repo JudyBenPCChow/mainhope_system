@@ -4,6 +4,7 @@ import { Plus, SlidersHorizontal } from "lucide-react"
 
 import { AdminPageHeader } from "@/components/detail/AdminPageHeader"
 import { TrialConvertDialog, type TrialConvertDialogTarget, type TrialConvertClassOption, type TrialConvertSessionOption } from "@/components/trials/TrialConvertDialog"
+import { TrialPreviewPanel } from "@/components/trials/TrialPreviewPanel"
 import { TrialTeacherCommentBlock } from "@/components/trials/TrialTeacherCommentBlock"
 import { TrialTeacherCommentForm } from "@/components/trials/TrialTeacherCommentForm"
 import { SoftArchiveScopeBanner } from "@/components/softArchive/SoftArchiveScopeBanner"
@@ -106,6 +107,7 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { usesSharedAppShell } from "@/lib/mgmtRole"
+import { useRecordPreview } from "@/components/recordPreview/recordPreviewContext"
 
 function weekBounds(now = new Date()): { from: string; to: string } {
  const day = now.getDay()
@@ -187,6 +189,8 @@ export function TrialSessionsView() {
  const { role } = useAuth()
  const navigate = useNavigate()
  const isMobile = useIsMobile()
+ const { enabled: previewEnabled, preview, openPreview, replacePreview, closePreview } = useRecordPreview()
+ const [mobileTrialId, setMobileTrialId] = useState<string | null>(null)
 
  const [rows, setRows] = useState<TrialManageRow[]>(() => getTrialSessionsDataCache()?.rows ?? [])
  const [hiddenOlderCount, setHiddenOlderCount] = useState(
@@ -314,11 +318,31 @@ export function TrialSessionsView() {
   }
  }, [includeOlderYears])
 
+ const reloadRef = useRef(reload)
+ reloadRef.current = reload
+ const refreshTrials = useCallback(() => reloadRef.current(), [])
+
  useEffect(() => {
   if (isTrialSessionsCacheFresh(includeOlderYears)) return
   const cached = getTrialSessionsDataCache()
   void reload({ silent: cached != null && cached.includeOlderYears === includeOlderYears })
  }, [reload, includeOlderYears])
+
+ useEffect(() => {
+  if (!previewEnabled || preview?.kind !== "trial") return
+  const fresh = rows.find((row) => row.id === preview.id)
+  if (!fresh) {
+   closePreview()
+   return
+  }
+  if (JSON.stringify(fresh) === JSON.stringify(preview.row)) return
+  replacePreview({ kind: "trial", id: fresh.id, row: fresh, onChanged: refreshTrials })
+ }, [rows, previewEnabled, preview, replacePreview, closePreview, refreshTrials])
+
+ useEffect(() => {
+  if (!mobileTrialId) return
+  if (!rows.some((row) => row.id === mobileTrialId)) setMobileTrialId(null)
+ }, [rows, mobileTrialId])
 
  useEffect(() => {
   const onVis = () => {
@@ -1077,6 +1101,17 @@ export function TrialSessionsView() {
   )
  }
 
+ const openTrial = (row: TrialManageRow) => {
+  if (previewEnabled) {
+   openPreview({ kind: "trial", id: row.id, row, onChanged: refreshTrials })
+   return
+  }
+  setMobileTrialId(row.id)
+ }
+
+ const previewTrialId = preview?.kind === "trial" ? preview.id : null
+ const mobileTrial = rows.find((row) => row.id === mobileTrialId) ?? null
+
  const submitAdd = async () => {
   const selectedSched = schedOptions.find((o) => o.id === addScheduleId)
   if (!addStudentId || !addClassId || !addScheduleId || !selectedSched) {
@@ -1375,13 +1410,16 @@ export function TrialSessionsView() {
          r.sched_start && r.sched_end
           ? `${String(r.sched_start).slice(0, 5)}–${String(r.sched_end).slice(0, 5)}`
           : "看排程"
+        const selected = previewTrialId === r.id || mobileTrialId === r.id
         return (
         <StaggerItem
          key={r.id}
          as="tr"
+         onClick={() => openTrial(r)}
          className={cn(
-          "border-b border-border last:border-0 transition-colors hover:bg-muted/60",
-          idx % 2 === 1 ? "bg-muted/20" : ""
+          "cursor-pointer border-b border-border last:border-0 transition-colors",
+          selected ? "bg-info/15 hover:bg-info/20" : "hover:bg-muted/60",
+          !selected && idx % 2 === 1 && "bg-muted/20"
          )}
         >
          <td className="px-3 py-2 align-top">
@@ -1390,20 +1428,34 @@ export function TrialSessionsView() {
             <div className="font-medium">待改期</div>
             <div className="text-xs text-muted-foreground">
              原訂{" "}
-             <Link
-              to={`/Schedule/${r.schedule_id}`}
-              className="tabular-nums text-info hover:underline"
-             >
-              {r.trial_date}
-              {timeLabel !== "看排程" ? ` ${timeLabel}` : ""}
-             </Link>
+             {previewEnabled ? (
+              <span className="tabular-nums">
+               {r.trial_date}
+               {timeLabel !== "看排程" ? ` ${timeLabel}` : ""}
+              </span>
+             ) : (
+              <Link
+               to={`/Schedule/${r.schedule_id}`}
+               className="tabular-nums text-info hover:underline"
+               onClick={(event) => event.stopPropagation()}
+              >
+               {r.trial_date}
+               {timeLabel !== "看排程" ? ` ${timeLabel}` : ""}
+              </Link>
+             )}
             </div>
+           </>
+          ) : previewEnabled ? (
+           <>
+            <div className="font-medium tabular-nums">{r.trial_date}</div>
+            <div className="text-xs tabular-nums text-muted-foreground">{timeLabel}</div>
            </>
           ) : (
            <>
             <Link
              to={`/Schedule/${r.schedule_id}`}
              className="font-medium tabular-nums text-info hover:underline"
+             onClick={(event) => event.stopPropagation()}
             >
              {r.trial_date}
             </Link>
@@ -1418,15 +1470,31 @@ export function TrialSessionsView() {
           </div>
          </td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Students/${r.student_id}`} className="font-medium text-info hover:underline">
-           {r.student_name ?? "—"}
-          </Link>
+          {previewEnabled ? (
+           <div className="font-medium">{r.student_name ?? "—"}</div>
+          ) : (
+           <Link
+            to={`/Students/${r.student_id}`}
+            className="font-medium text-info hover:underline"
+            onClick={(event) => event.stopPropagation()}
+           >
+            {r.student_name ?? "—"}
+           </Link>
+          )}
           <div className="text-xs text-muted-foreground">{r.student_grade ?? "—"}</div>
          </td>
          <td className="px-3 py-2 align-top">
-          <Link to={`/Classes/${r.class_id}`} className="font-medium text-info hover:underline">
-           {r.class_subject ?? "—"}
-          </Link>
+          {previewEnabled ? (
+           <div className="font-medium">{r.class_subject ?? "—"}</div>
+          ) : (
+           <Link
+            to={`/Classes/${r.class_id}`}
+            className="font-medium text-info hover:underline"
+            onClick={(event) => event.stopPropagation()}
+           >
+            {r.class_subject ?? "—"}
+           </Link>
+          )}
           {r.teacher_name ? (
            <div className="text-xs text-muted-foreground">{r.teacher_name}</div>
           ) : null}
@@ -1436,7 +1504,7 @@ export function TrialSessionsView() {
            {displayTrialTypeLabel(r.trial_type)}
           </Tag>
          </td>
-         <td className="px-3 py-2 align-top">
+         <td className="px-3 py-2 align-top" onClick={(event) => event.stopPropagation()}>
           <div className="flex flex-col items-start gap-1">
            {followup === "closed" ? (
             <div className="space-y-1 text-xs text-muted-foreground">
@@ -1667,6 +1735,17 @@ export function TrialSessionsView() {
      </div>
     </div>
    )}
+
+   {mobileTrial && !previewEnabled ? (
+    <Dialog open onOpenChange={(open) => { if (!open) setMobileTrialId(null) }}>
+     <DialogContent className="max-h-[85vh] overflow-y-auto p-0">
+      <DialogHeader className="sr-only">
+       <DialogTitle>{mobileTrial.student_name ?? "試堂紀錄"}</DialogTitle>
+      </DialogHeader>
+      <TrialPreviewPanel row={mobileTrial} onChanged={refreshTrials} />
+     </DialogContent>
+    </Dialog>
+   ) : null}
 
    <Dialog open={addOpen} onOpenChange={setAddOpen}>
     <DialogContent className="max-w-md">

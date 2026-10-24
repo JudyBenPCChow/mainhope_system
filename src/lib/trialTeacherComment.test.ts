@@ -10,6 +10,7 @@ import {
   isTeacherCommentNudgeInScope,
   isWrittenTrialComment,
   newPendingTrialCommentIds,
+  trialCommentWhatsappDraft,
 } from "./trialTeacherComment"
 
 describe("commentCharCount", () => {
@@ -72,6 +73,32 @@ describe("isTeacherCommentNudgeInScope", () => {
 
   it("上線日之後才催老師", () => {
     expect(isTeacherCommentNudgeInScope("2026-10-24")).toBe(true)
+  })
+})
+
+describe("trialCommentWhatsappDraft", () => {
+  it("填入學生、年級、日期與班別", () => {
+    expect(
+      trialCommentWhatsappDraft({
+        studentName: "陳大文",
+        gradeLabel: "中五",
+        trialDate: "2026-11-14",
+        subject: "中五生物（2627-BIOS5001-B）",
+      })
+    ).toBe(
+      "陳大文（中五） 2026-11-14 中五生物（2627-BIOS5001-B）試堂已出席，請撰寫約 30 字評語，說明學習情況，以及補習如何幫到這位學生。謝謝。"
+    )
+  })
+
+  it("缺姓名與年級時仍成句", () => {
+    expect(
+      trialCommentWhatsappDraft({
+        studentName: "  ",
+        gradeLabel: "—",
+        trialDate: "2026-11-14",
+        subject: "—",
+      })
+    ).toBe("學生 2026-11-14試堂已出席，請撰寫約 30 字評語，說明學習情況，以及補習如何幫到這位學生。謝謝。")
   })
 })
 

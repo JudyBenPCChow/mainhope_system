@@ -240,7 +240,7 @@ export async function updateTeacher(
   } else {
    const { error: privErr } = await supabase.from("teachers_private").upsert(
     { teacher_id: id, ...privatePatch },
-    { onConflict: "teacher_id" }
+    { onConflict: "teacher_id", defaultToNull: false }
    )
    if (privErr) throw privErr
   }
