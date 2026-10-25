@@ -1,9 +1,80 @@
+import { academicYearOrderKey } from "@/lib/academicYearAccess"
+import { academicYearLabelFromStartDate } from "@/lib/courseCode"
+import { resolveClassKind } from "@/lib/privateClassKind"
+import {
+ buildPaymentYearContext,
+ type AcademicYearDateInput,
+ type PaymentYearContext,
+} from "@/lib/studentPaymentYearSummary"
+
 export type AttendanceTabRow = {
  id: string
  classId: string
  attendance_date: string
  status: string
  classLabel: string
+ academicYearLabel?: string | null
+ classKind?: string | null
+ classSubject?: string | null
+}
+
+export type AttendanceYearId = AcademicYearDateInput & { id: string }
+
+export type StudentAttendanceFetchPlan = {
+ currentYearIds: string[]
+ ctx: PaymentYearContext
+}
+
+/** 學生詳情上課紀錄：本學年跟繳費摘要同一套窗（專科／功輔跟班別學年，私人跟出席日）。 */
+export function planStudentAttendanceFetch(
+ years: AttendanceYearId[],
+ asOfYmd?: string | null
+): StudentAttendanceFetchPlan {
+ const ctx = buildPaymentYearContext(years, asOfYmd)
+ const wanted = new Set(ctx.currentYearLabels)
+ const currentYearIds = years.filter((y) => wanted.has(y.label.trim())).map((y) => y.id)
+ return { currentYearIds, ctx }
+}
+
+const UNLABELED_ATTENDANCE_YEAR = "未標學年"
+
+export function attendanceAcademicYearLabel(row: {
+ academicYearLabel?: string | null
+ classKind?: string | null
+ classSubject?: string | null
+ attendance_date: string
+}): string {
+ const kind = resolveClassKind(row.classKind, row.classSubject)
+ if (kind === "private") {
+  const fromDate = academicYearLabelFromStartDate(row.attendance_date).trim()
+  return fromDate || UNLABELED_ATTENDANCE_YEAR
+ }
+ const label = (row.academicYearLabel ?? "").trim()
+ return label || UNLABELED_ATTENDANCE_YEAR
+}
+
+export function groupAttendanceByAcademicYear<
+ T extends {
+  academicYearLabel?: string | null
+  classKind?: string | null
+  classSubject?: string | null
+  attendance_date: string
+ },
+>(rows: T[]): { label: string; items: T[] }[] {
+ const map = new Map<string, T[]>()
+ for (const row of rows) {
+  const label = attendanceAcademicYearLabel(row)
+  const list = map.get(label) ?? []
+  list.push(row)
+  map.set(label, list)
+ }
+ return [...map.entries()]
+  .sort((a, b) => {
+   if (a[0] === UNLABELED_ATTENDANCE_YEAR) return 1
+   if (b[0] === UNLABELED_ATTENDANCE_YEAR) return -1
+   return academicYearOrderKey(b[0]) - academicYearOrderKey(a[0])
+  })
+  .map(([label, items]) => ({ label, items }))
 }
 
 export type AttendanceStatusFilter = "all" | "present" | "absent" | "other"

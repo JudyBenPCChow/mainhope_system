@@ -13,6 +13,7 @@ import {
  attendanceClassOptions,
  attendanceTabKind,
  filterSortAttendance,
+ groupAttendanceByAcademicYear,
  summarizeAttendanceStats,
  type AttendanceSort,
  type AttendanceStatusFilter,
@@ -26,6 +27,71 @@ import {
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
 import { fetchAttendanceForStudent, type AttendanceRow } from "@/services/studentQueries"
+
+function AttendanceRecordList({
+ rows,
+ canDeleteAttendance,
+ onDelete,
+}: {
+ rows: AttendanceRow[]
+ canDeleteAttendance: boolean
+ onDelete: (row: AttendanceRow) => void
+}) {
+ return (
+  <div className="overflow-hidden rounded-xl border border-border bg-card">
+   <div
+    className={cn(
+     "hidden gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid",
+     canDeleteAttendance
+      ? "grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+      : "grid-cols-[minmax(0,1fr)_auto_auto]"
+    )}
+   >
+    <span>班別</span>
+    <span className="text-right">日期</span>
+    <span className="text-right">狀態</span>
+    {canDeleteAttendance ? <span className="text-right">操作</span> : null}
+   </div>
+   <StaggerList as="ul" className="divide-y divide-border">
+    {rows.map((a) => (
+     <StaggerItem
+      key={a.id}
+      as="li"
+      className={cn(
+       "grid items-center gap-x-3 gap-y-1 px-4 py-3 text-sm",
+       canDeleteAttendance
+        ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+        : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+      )}
+     >
+      <span className="min-w-0 truncate font-medium">
+       {a.classId ? (
+        <Link to={`/Classes/${a.classId}`} className="block truncate text-primary hover:underline">
+         {a.classLabel}
+        </Link>
+       ) : (
+        a.classLabel
+       )}
+      </span>
+      <span className="text-right tabular-nums text-muted-foreground">{a.attendance_date}</span>
+      <span className="col-span-2 text-right text-xs text-muted-foreground sm:col-span-1">{a.status}</span>
+      {canDeleteAttendance ? (
+       <span className="col-span-2 text-right sm:col-span-1">
+        <button
+         type="button"
+         className="text-xs font-medium text-destructive hover:underline"
+         onClick={() => onDelete(a)}
+        >
+         刪除
+        </button>
+       </span>
+      ) : null}
+     </StaggerItem>
+    ))}
+   </StaggerList>
+  </div>
+ )
+}
 
 export function StudentAttendanceTab({
  studentId,
@@ -45,15 +111,29 @@ export function StudentAttendanceTab({
  const { pushBanner } = useAppBanner()
  const { confirmDialog } = useAppConfirm()
  const [rows, setRows] = useState<AttendanceRow[]>([])
+ const [otherRows, setOtherRows] = useState<AttendanceRow[]>([])
  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "error">("idle")
+ const [otherState, setOtherState] = useState<"idle" | "loading" | "ready" | "error">("idle")
  const [err, setErr] = useState<string | null>(null)
+ const [otherErr, setOtherErr] = useState<string | null>(null)
+ const [showOther, setShowOther] = useState(false)
  const loadedRef = useRef(false)
+ const showOtherRef = useRef(false)
+ const currentReq = useRef(0)
+ const otherReq = useRef(0)
 
  useEffect(() => {
+  currentReq.current += 1
+  otherReq.current += 1
   loadedRef.current = false
+  showOtherRef.current = false
   setRows([])
+  setOtherRows([])
   setLoadState("idle")
+  setOtherState("idle")
   setErr(null)
+  setOtherErr(null)
+  setShowOther(false)
  }, [studentId])
 
  const [attClassFilter, setAttClassFilter] = useState("all")
@@ -62,15 +142,18 @@ export function StudentAttendanceTab({
  const [attDateTo, setAttDateTo] = useState("")
  const [attSort, setAttSort] = useState<AttendanceSort>("dateDesc")
 
- const load = useCallback(async () => {
+ const loadCurrent = useCallback(async () => {
+  const requestId = ++currentReq.current
   setLoadState("loading")
   setErr(null)
   try {
-   const data = await fetchAttendanceForStudent(studentId)
+   const data = await fetchAttendanceForStudent(studentId, { scope: "current" })
+   if (currentReq.current !== requestId) return
    setRows(data)
    setLoadState("ready")
    loadedRef.current = true
   } catch (e) {
+   if (currentReq.current !== requestId) return
    const message = formatUnknownError(e)
    setErr(message)
    setLoadState("error")
@@ -78,10 +161,35 @@ export function StudentAttendanceTab({
   }
  }, [studentId])
 
+ const loadOther = useCallback(async () => {
+  const requestId = ++otherReq.current
+  setOtherState("loading")
+  setOtherErr(null)
+  try {
+   const data = await fetchAttendanceForStudent(studentId, { scope: "other" })
+   if (otherReq.current !== requestId) return
+   setOtherRows(data)
+   setOtherState("ready")
+  } catch (e) {
+   if (otherReq.current !== requestId) return
+   const message = formatUnknownError(e)
+   setOtherErr(message)
+   setOtherState("error")
+   reportUserFacingError(e, { source: "StudentAttendanceTab.loadOther" })
+  }
+ }, [studentId])
+
  useEffect(() => {
   if (!active && !loadedRef.current) return
-  void load()
- }, [active, reloadToken, load])
+  void loadCurrent()
+  if (showOtherRef.current) void loadOther()
+ }, [active, reloadToken, loadCurrent, loadOther])
+
+ const revealOtherYears = () => {
+  showOtherRef.current = true
+  setShowOther(true)
+  void loadOther()
+ }
 
  const attStats = useMemo(() => summarizeAttendanceStats(rows), [rows])
  const classOptions = useMemo(() => attendanceClassOptions(rows), [rows])
@@ -96,6 +204,7 @@ export function StudentAttendanceTab({
    }),
   [rows, attClassFilter, attStatusFilter, attDateFrom, attDateTo, attSort]
  )
+ const otherYearGroups = useMemo(() => groupAttendanceByAcademicYear(otherRows), [otherRows])
 
  const deleteAttendanceRow = async (row: AttendanceRow) => {
   const surname = studentName.trim().slice(0, 1)
@@ -182,7 +291,7 @@ export function StudentAttendanceTab({
     </div>
    </div>
    <p className="hidden text-xs text-muted-foreground md:block">
-    上方數字為<strong className="text-foreground">全部</strong>紀錄統計；下方列表可依條件篩選與排序。
+    上方數字為<strong className="text-foreground">本學年</strong>紀錄統計；下方列表可依條件篩選與排序。
     {canDeleteAttendance ? " 管理員／外星人可刪單筆出席（須確認；計費列會影響已扣堂數）。" : null}
    </p>
    {kind === "loading" ? (
@@ -190,14 +299,20 @@ export function StudentAttendanceTab({
    ) : kind === "error" ? (
     <div className="space-y-2 py-8 text-center" role="alert">
      <p role="alert" className="text-sm text-destructive">上課紀錄未能載入{err ? `：${err}` : "。"}</p>
-     <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void load()}>
+     <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => void loadCurrent()}>
       重試
      </button>
     </div>
-   ) : kind === "empty" ? (
-    <p className="py-8 text-center text-sm text-muted-foreground">尚無出勤紀錄</p>
    ) : (
     <>
+     <div className="space-y-3">
+      <p className="text-sm font-medium">本學年</p>
+      {rows.length === 0 ? (
+       <p className="text-sm text-muted-foreground">目前沒有本學年上課紀錄。</p>
+      ) : null}
+     </div>
+     {rows.length === 0 ? null : (
+     <>
      <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 shadow-sm sm:flex-row sm:flex-wrap sm:items-end">
       <label className="grid w-full gap-1 text-xs text-muted-foreground sm:w-auto">
        <span>班別</span>
@@ -277,64 +392,60 @@ export function StudentAttendanceTab({
      </div>
      <p className="text-sm text-muted-foreground">
       篩選結果：<strong className="text-foreground">{filteredSortedAttendance.length}</strong> 筆
-      （共 {rows.length} 筆）
+      （本學年共 {rows.length} 筆）
      </p>
      {filteredSortedAttendance.length === 0 ? (
       <p className="py-8 text-center text-sm text-muted-foreground">此條件下沒有紀錄</p>
      ) : (
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-       <div
-        className={cn(
-         "hidden gap-x-3 border-b border-border bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground sm:grid",
-         canDeleteAttendance
-          ? "grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-          : "grid-cols-[minmax(0,1fr)_auto_auto]"
-        )}
-       >
-        <span>班別</span>
-        <span className="text-right">日期</span>
-        <span className="text-right">狀態</span>
-        {canDeleteAttendance ? <span className="text-right">操作</span> : null}
-       </div>
-       <StaggerList as="ul" className="divide-y divide-border">
-        {filteredSortedAttendance.map((a) => (
-         <StaggerItem
-          key={a.id}
-          as="li"
-          className={cn(
-           "grid items-center gap-x-3 gap-y-1 px-4 py-3 text-sm",
-           canDeleteAttendance
-            ? "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
-            : "grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_auto_auto]"
-          )}
-         >
-          <span className="min-w-0 truncate font-medium">
-           {a.classId ? (
-            <Link to={`/Classes/${a.classId}`} className="block truncate text-primary hover:underline">
-             {a.classLabel}
-            </Link>
-           ) : (
-            a.classLabel
-           )}
-          </span>
-          <span className="text-right tabular-nums text-muted-foreground">{a.attendance_date}</span>
-          <span className="col-span-2 text-right text-xs text-muted-foreground sm:col-span-1">{a.status}</span>
-          {canDeleteAttendance ? (
-           <span className="col-span-2 text-right sm:col-span-1">
-            <button
-             type="button"
-             className="text-xs font-medium text-destructive hover:underline"
-             onClick={() => void deleteAttendanceRow(a)}
-            >
-             刪除
-            </button>
-           </span>
-          ) : null}
-         </StaggerItem>
-        ))}
-       </StaggerList>
-      </div>
+      <AttendanceRecordList
+       rows={filteredSortedAttendance}
+       canDeleteAttendance={canDeleteAttendance}
+       onDelete={(row) => void deleteAttendanceRow(row)}
+      />
      )}
+     </>
+     )}
+     <div className="space-y-3 rounded-xl border border-dashed border-border bg-muted/20 p-4">
+      <p className="text-sm font-medium text-muted-foreground">非本學年</p>
+      {!showOther ? (
+       <Button type="button" variant="outline" size="sm" onClick={revealOtherYears}>
+        展示非本學年上堂紀錄
+       </Button>
+      ) : (
+       <>
+        {otherState === "loading" ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
+        {otherState === "error" ? (
+         <div className="space-y-2" role="alert">
+          <p role="alert" className="text-sm text-destructive">
+           非本學年上課紀錄未能載入{otherErr ? `：${otherErr}` : "。"}
+          </p>
+          <button
+           type="button"
+           className="text-sm font-medium text-primary hover:underline"
+           onClick={() => void loadOther()}
+          >
+           重試
+          </button>
+         </div>
+        ) : null}
+        {otherState === "ready" && otherYearGroups.length === 0 ? (
+         <p className="text-sm text-muted-foreground">沒有非本學年上課紀錄。</p>
+        ) : null}
+        {otherYearGroups.map((group) => (
+         <div key={group.label} className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+           {group.label === "未標學年" ? "未標學年" : `${group.label} 學年`}（{group.items.length} 筆）
+          </p>
+          <AttendanceRecordList
+           rows={group.items}
+           canDeleteAttendance={canDeleteAttendance}
+           onDelete={(row) => void deleteAttendanceRow(row)}
+          />
+         </div>
+        ))}
+       </>
+      )}
+     </div>
     </>
    )}
   </div>
