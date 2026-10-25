@@ -2,13 +2,11 @@ import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from
 import { CalendarPlus, ChevronLeft, ChevronRight } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Tag } from "@/components/ui/tag"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { downloadHomeworkDutyCalendarIcs } from "@/lib/homeworkDutyCalendarExport"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { MONTH_CALENDAR_WEEK_HEADERS, padMonthCalendarDays } from "@/lib/monthCalendar"
-import { statusToTagTone } from "@/lib/statusTag"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
@@ -76,8 +74,8 @@ export function TeacherHomeworkWorkbench({
   const [customOpen, setCustomOpen] = useState(false)
   const [persisting, setPersisting] = useState(false)
   const myStatus = submitStatus[teacherId] ?? "未交"
-  const locked = rosterPublishStatus === "已發布"
-  const readOnly = locked || myStatus === "已提交"
+  const published = rosterPublishStatus === "已發布"
+  const readOnly = myStatus === "已提交"
   const monthLabel = formatYearMonthLabel(rosterMonthKey)
   const monthBounds = academicYearMonthBounds(academicYearLabel)
   const atMonthMin = rosterMonthKey <= monthBounds.min
@@ -108,13 +106,13 @@ export function TeacherHomeworkWorkbench({
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
 
   const dutyEmptyHint =
-    rosterPublishStatus !== "已發布"
+    !published
       ? "本月尚未有已發布的當值。"
       : duties.length === 0
         ? "本月未編入你的當值。"
         : null
 
-  const canAddToIosCalendar = rosterPublishStatus === "已發布" && duties.length > 0
+  const canAddToIosCalendar = published && duties.length > 0
 
   const addToIosCalendar = () => {
     if (!canAddToIosCalendar) {
@@ -163,9 +161,7 @@ export function TeacherHomeworkWorkbench({
       pushBanner({
         title: "無法修改",
         tone: "warning",
-        message: locked
-          ? "該月編更已確定，報更已鎖定。"
-          : "已提交後請先「撤回修改」再改。",
+        message: "已提交後請先「撤回修改」再改。",
       })
       return false
     }
@@ -236,14 +232,12 @@ export function TeacherHomeworkWorkbench({
   const clearSelection = () => setSelected(new Set())
 
   const saveDraft = async () => {
-    if (locked) return
     const ok = await persistDraftOrSubmit("草稿")
     if (!ok) return
     pushBanner({ title: "已儲存", tone: "success", message: "草稿已儲存。" })
   }
 
   const submit = async () => {
-    if (locked) return
     const ok = await persistDraftOrSubmit("已提交")
     if (!ok) return
     setSelected(new Set())
@@ -255,7 +249,6 @@ export function TeacherHomeworkWorkbench({
   }
 
   const withdraw = async () => {
-    if (locked) return
     const ok = await persistDraftOrSubmit("草稿")
     if (!ok) return
     pushBanner({ title: "已撤回", tone: "info", message: "已改回草稿，可繼續修改。" })
@@ -295,12 +288,7 @@ export function TeacherHomeworkWorkbench({
             ) : (
               <h2 className="text-base font-semibold">{monthLabel} 報更</h2>
             )}
-            <SubmitStatusTag status={locked ? "已提交" : myStatus} />
-            {locked ? (
-              <Tag tone={statusToTagTone("已鎖定")} size="sm">
-                已鎖定
-              </Tag>
-            ) : null}
+            <SubmitStatusTag status={myStatus} />
             {teacherDisplayName ? (
               <span className="text-sm text-muted-foreground">{teacherDisplayName}</span>
             ) : null}
@@ -461,7 +449,7 @@ export function TeacherHomeworkWorkbench({
             >
               儲存草稿
             </Button>
-            {myStatus === "已提交" && !locked ? (
+            {myStatus === "已提交" ? (
               <Button
                 type="button"
                 variant="outline"
@@ -555,7 +543,7 @@ export function TeacherHomeworkWorkbench({
             dutyDays={dutyDays}
             teachers={teachers}
             highlightTeacherId={teacherId}
-            showIdleLabels={locked}
+            showIdleLabels={published}
           />
         </div>
       ) : null}

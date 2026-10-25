@@ -38,7 +38,8 @@ export const HOMEWORK_DIVISION_LABEL: Record<HomeworkDivision, string> = {
 
 export const HOMEWORK_DIVISION_ORDER: readonly HomeworkDivision[] = ["secondary", "primary"]
 
-export function monthRosterToLock(state: MonthRosterState): RosterPublishStatus {
+/** 月工作表是否已發布。發布後老師仍可提交報更；此狀態只表示當值是否已發出。 */
+export function monthRosterPublishStatus(state: MonthRosterState): RosterPublishStatus {
   return state === "已編更" ? "已發布" : "草稿"
 }
 
@@ -124,9 +125,10 @@ export type HomeworkDutyDay = {
 export type HomeworkHoliday = { date: string; label: string }
 
 export const SUBMIT_DEADLINE_NOTE =
-  "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）；過期仍可補交至月工作表發布前。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"
+  "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）。過期仍可補交。編更發布後仍可提交或修改，以便補上空缺後再出下一版。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"
 
-export const HW_ROSTER_FLOW_NOTE = "老師提交可當值日子與時段；行政匯總後發布月工作表。"
+export const HW_ROSTER_FLOW_NOTE =
+  "老師提交可當值日子與時段。行政可先發布第一版；發布後老師仍可補交，再出下一版。"
 
 export const HOMEWORK_GRADE_FILTER_FALLBACK = [
   "小一",
