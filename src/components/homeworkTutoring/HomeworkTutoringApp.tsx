@@ -24,7 +24,7 @@ import {
   clampYearMonth,
   currentYearMonth,
   composeHomeworkFeeDisplays,
-  monthRosterToLock,
+  monthRosterPublishStatus,
   shiftYearMonth,
   withSyncedLegacyTeachers,
   HOMEWORK_DIVISION_LABEL,
@@ -718,8 +718,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const teacherPage = TEACHER_BY_PATH[pathname]
   const displayedMonth = teacherPage === "myDuty" ? dutyViewMonth : sheetMonth
   const teacherDutyDays = teacherPage === "myDuty" ? dutyViewDays : dutyDays
-  const rosterPublishStatus = monthRosterToLock(monthRosterStatus[displayedMonth] ?? "未編更")
-  const dutyViewPublishStatus = monthRosterToLock(monthRosterStatus[dutyViewMonth] ?? "未編更")
+  const rosterPublishStatus = monthRosterPublishStatus(monthRosterStatus[displayedMonth] ?? "未編更")
+  const dutyViewPublishStatus = monthRosterPublishStatus(monthRosterStatus[dutyViewMonth] ?? "未編更")
 
   if (!role) return null
 
