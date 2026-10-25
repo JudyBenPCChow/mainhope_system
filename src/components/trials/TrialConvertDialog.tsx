@@ -22,6 +22,7 @@ import { classKindLabel, type ClassKind } from "@/lib/privateClassKind"
 import {
   isTeacherCommentNudgeInScope,
   isWrittenTrialComment,
+  trialCommentAuthorLabel,
 } from "@/lib/trialTeacherComment"
 
 function formatLocalYmd(d: Date): string {
@@ -378,12 +379,10 @@ export function TrialConvertDialog({
               isWrittenTrialComment(target.teacherCommentAt) && target.teacherComment?.trim() ? (
                 <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
                   <p className="whitespace-pre-wrap">老師評語：{target.teacherComment}</p>
-                  {target.teacherCommentByName ? (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {target.teacherCommentByName}
-                      {target.teacherCommentEditedAt ? " · 其後改過" : null}
-                    </p>
-                  ) : null}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {trialCommentAuthorLabel(target.teacherCommentByName)}
+                    {target.teacherCommentEditedAt ? " · 其後改過" : null}
+                  </p>
                 </div>
               ) : isTeacherCommentNudgeInScope(target.trialDate) ? (
                 <p className="text-sm text-muted-foreground">尚未收到老師評語</p>

@@ -10,6 +10,7 @@ import {
   isTeacherCommentNudgeInScope,
   isWrittenTrialComment,
   newPendingTrialCommentIds,
+  trialCommentAuthorLabel,
   trialCommentWhatsappDraft,
 } from "./trialTeacherComment"
 
@@ -41,6 +42,14 @@ describe("hasNonBlankTrialComment / isWrittenTrialComment", () => {
     expect(hasNonBlankTrialComment("。")).toBe(true)
     expect(commentCharCount("。")).toBe(1)
     expect(isWrittenTrialComment("2026-10-24T02:00:00.000Z")).toBe(true)
+  })
+})
+
+describe("trialCommentAuthorLabel", () => {
+  it("有老師姓名用姓名，職員代貼沒有編號時用職員代貼", () => {
+    expect(trialCommentAuthorLabel("Katie Lee")).toBe("Katie Lee")
+    expect(trialCommentAuthorLabel("  ")).toBe("職員代貼")
+    expect(trialCommentAuthorLabel(null)).toBe("職員代貼")
   })
 })
 
