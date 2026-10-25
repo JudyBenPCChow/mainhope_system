@@ -61,6 +61,12 @@ export function trialCommentWhatsappDraft(input: {
   return `${name}${gradePart}${whenPart}試堂已出席，請撰寫約 30 字評語，說明學習情況，以及補習如何幫到這位學生。謝謝。`
 }
 
+/** 有老師署名用老師姓名。職員代貼沒有老師編號時用此標籤。 */
+export function trialCommentAuthorLabel(name: string | null | undefined): string {
+  const trimmed = name?.trim()
+  return trimmed ? trimmed : "職員代貼"
+}
+
 export function formatTrialTeacherCommentAt(iso: string | null | undefined): string {
   if (!iso) return "—"
   const d = new Date(iso)

@@ -137,6 +137,8 @@ check (
 | 有 `students.enroll` 的職員（行政／管理層／外星人） | 可（代貼） | 可 | 可 |
 | 財務、其他老師 | 否 | 否 | 否 |
 
+`current_teacher_id()` 只在現用角色為老師時有值。代貼不要求老師編號：`teacher_comment_by`／`teacher_comment_edited_by` 留空，試堂列署名「職員代貼」。操作者仍寫入 `mgmt_audit_log.actor_label`。財務沒有 `students.enroll`，不能代貼。
+
 讀取：
 
 - 職員：維持現有 `rls_cap_select_trial_sessions`。

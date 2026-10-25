@@ -6,6 +6,7 @@ import {
   formatTrialTeacherCommentAt,
   isTeacherCommentNudgeInScope,
   isWrittenTrialComment,
+  trialCommentAuthorLabel,
 } from "@/lib/trialTeacherComment"
 import { isActualPresentStatus } from "@/lib/attendancePresence"
 import type { TrialFollowupKind } from "@/lib/trialFollowupAction"
@@ -47,7 +48,7 @@ export function TrialTeacherCommentBlock({
       <div className="rounded-md border border-border bg-card px-2.5 py-2 text-sm">
         <p className="whitespace-pre-wrap text-foreground">{text}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {row.teacher_comment_by_name ?? "老師"}
+          {trialCommentAuthorLabel(row.teacher_comment_by_name)}
           {" · "}
           {formatTrialTeacherCommentAt(row.teacher_comment_at)}
           {row.teacher_comment_edited_at ? " · 其後改過" : null}

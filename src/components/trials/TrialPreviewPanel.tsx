@@ -29,6 +29,7 @@ import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import {
   formatTrialTeacherCommentAt,
   isWrittenTrialComment,
+  trialCommentAuthorLabel,
   trialCommentWhatsappDraft,
 } from "@/lib/trialTeacherComment"
 import { updateTrialSession, type TrialManageRow } from "@/services/trialQueries"
@@ -329,7 +330,7 @@ export function TrialPreviewPanel({ row, onChanged }: Props) {
             <>
               <p className="whitespace-pre-wrap text-sm">{row.teacher_comment}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {row.teacher_comment_by_name ?? "老師"}
+                {trialCommentAuthorLabel(row.teacher_comment_by_name)}
                 {" · "}
                 {formatTrialTeacherCommentAt(row.teacher_comment_at)}
                 {row.teacher_comment_edited_at
