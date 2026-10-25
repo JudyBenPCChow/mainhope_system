@@ -53,7 +53,15 @@ import {
 import { assertClassRecordEditable } from "@/lib/academicYearEditGuard"
 import { collectCurrentEnrollmentSubjectTags } from "@/lib/enrollmentYearDisplay"
 import { classEmbedExemptFromStudentTimeConflict } from "@/lib/studentTimeConflict"
-import type { PaymentYearDetailFields } from "@/lib/studentPaymentYearSummary"
+import {
+ isAttendanceInCurrentAcademicYear,
+ type PaymentYearContext,
+ type PaymentYearDetailFields,
+} from "@/lib/studentPaymentYearSummary"
+import {
+ planStudentAttendanceFetch,
+ type AttendanceYearId,
+} from "@/lib/studentAttendanceTab"
 import { fetchEnrollableAcademicYearWindow } from "@/services/softArchiveQueries"
 
 function coerceStudentGrade(raw: string | null | undefined): string | null {
@@ -2281,36 +2289,208 @@ export type AttendanceRow = {
  /** DB 原字串；樂觀鎖用 */
  updatedAt: string | null
  classLabel: string
+ academicYearLabel: string | null
+ classKind: string | null
+ classSubject: string | null
 }
 
-export async function fetchAttendanceForStudent(
- studentId: string
-): Promise<AttendanceRow[]> {
+/** 學生詳情上課紀錄。預設只取本學年，以縮短前台載入。 */
+export type StudentAttendanceScope = "current" | "other"
+
+const ATTENDANCE_PAGE_SIZE = 1000
+const ATTENDANCE_SELECT =
+ "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, classes!inner ( subject, course_code_full, class_kind, academic_year_id, academic_year_label, academic_years ( label ) )"
+
+function attendanceYearLabelFromClass(
+ cls: Record<string, unknown> | null,
+ yearLabelById: Map<string, string>
+): string | null {
+ if (!cls) return null
+ const yearEmbed = embedRecords(cls.academic_years)[0] ?? null
+ const fromEmbed = yearEmbed?.label != null ? String(yearEmbed.label).trim() : ""
+ if (fromEmbed) return fromEmbed
+ const fromColumn = cls.academic_year_label != null ? String(cls.academic_year_label).trim() : ""
+ if (fromColumn) return fromColumn
+ const yearId = cls.academic_year_id != null ? String(cls.academic_year_id) : ""
+ const fromId = yearId ? (yearLabelById.get(yearId) ?? "").trim() : ""
+ if (fromId) return fromId
+ const code = cls.course_code_full != null ? String(cls.course_code_full).trim() : ""
+ const prefix = /^(\d{4}|\d{2}SM)/i.exec(code)?.[1]
+ return prefix ? prefix.toUpperCase() : null
+}
+
+function mapAttendanceRow(
+ row: Record<string, unknown>,
+ studentId: string,
+ yearLabelById: Map<string, string>
+): AttendanceRow {
+ const cls = embedRecords(row.classes)[0] ?? null
+ const sub = cls?.subject != null ? String(cls.subject) : "—"
+ const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
+ return {
+  id: String(row.id),
+  studentId: row.student_id != null ? String(row.student_id) : studentId,
+  classId: row.class_id != null ? String(row.class_id) : "",
+  scheduleId: row.schedule_id != null ? String(row.schedule_id) : null,
+  attendance_date: String(row.attendance_date ?? "").slice(0, 10),
+  status: String(row.status ?? ""),
+  updatedAt: row.updated_at != null ? String(row.updated_at) : null,
+  classLabel: code ? `${sub} ${code}` : sub,
+  academicYearLabel: attendanceYearLabelFromClass(cls, yearLabelById),
+  classKind: cls?.class_kind != null ? String(cls.class_kind) : null,
+  classSubject: cls?.subject != null ? String(cls.subject) : null,
+ }
+}
+
+function attendanceBaseQuery() {
+ return supabase!
+  .from("attendance_details")
+  .select(ATTENDANCE_SELECT)
+  .order("attendance_date", { ascending: false })
+  .order("id", { ascending: false })
+}
+
+async function readAttendancePages(
+ studentId: string,
+ build: () => ReturnType<typeof attendanceBaseQuery>
+): Promise<Record<string, unknown>[]> {
+ const out: Record<string, unknown>[] = []
+ for (let from = 0; ; from += ATTENDANCE_PAGE_SIZE) {
+  const { data, error } = await build().eq("student_id", studentId).range(from, from + ATTENDANCE_PAGE_SIZE - 1)
+  if (error) throw error
+  const chunk = (data ?? []) as Record<string, unknown>[]
+  out.push(...chunk)
+  if (chunk.length < ATTENDANCE_PAGE_SIZE) break
+ }
+ return out
+}
+
+function mergeAttendanceRaw(parts: Record<string, unknown>[][]): Record<string, unknown>[] {
+ const byId = new Map<string, Record<string, unknown>>()
+ for (const part of parts) {
+  for (const row of part) byId.set(String(row.id), row)
+ }
+ return [...byId.values()]
+}
+
+function keepAttendanceScope(
+ rows: AttendanceRow[],
+ scope: StudentAttendanceScope,
+ ctx: PaymentYearContext
+): AttendanceRow[] {
+ return rows.filter((row) => {
+  const current = isAttendanceInCurrentAcademicYear(
+   {
+    attendanceDate: row.attendance_date,
+    classKind: row.classKind,
+    classSubject: row.classSubject,
+    academicYearLabel: row.academicYearLabel,
+   },
+   ctx
+  )
+  return scope === "current" ? current : !current
+ })
+}
+
+async function fetchAttendanceYearIds(): Promise<AttendanceYearId[]> {
  if (!supabase) return []
  const { data, error } = await supabase
-  .from("attendance_details")
-  .select(
-   "id, student_id, class_id, schedule_id, attendance_date, status, updated_at, classes ( subject, course_code_full )"
-  )
-  .eq("student_id", studentId)
-  .order("attendance_date", { ascending: false })
+  .from("academic_years")
+  .select("id, label, start_date, end_date, is_current")
  if (error) throw error
  return (data ?? []).map((row) => {
   const r = row as Record<string, unknown>
-  const cls = r.classes as Record<string, unknown> | null
-  const sub = cls?.subject != null ? String(cls.subject) : "—"
-  const code = cls?.course_code_full != null ? String(cls.course_code_full) : ""
   return {
    id: String(r.id),
-   studentId: r.student_id != null ? String(r.student_id) : studentId,
-   classId: r.class_id != null ? String(r.class_id) : "",
-   scheduleId: r.schedule_id != null ? String(r.schedule_id) : null,
-   attendance_date: String(r.attendance_date ?? "").slice(0, 10),
-   status: String(r.status ?? ""),
-   updatedAt: r.updated_at != null ? String(r.updated_at) : null,
-   classLabel: code ? `${sub} ${code}` : sub,
+   label: String(r.label ?? "").trim(),
+   start_date: r.start_date != null ? String(r.start_date) : null,
+   end_date: r.end_date != null ? String(r.end_date) : null,
+   is_current: r.is_current != null ? Boolean(r.is_current) : null,
   }
  })
+}
+
+export async function fetchAttendanceForStudent(
+ studentId: string,
+ opts?: { scope?: StudentAttendanceScope; asOfYmd?: string | null }
+): Promise<AttendanceRow[]> {
+ if (!supabase) return []
+ const scope = opts?.scope ?? "current"
+ const years = await fetchAttendanceYearIds()
+ const plan = planStudentAttendanceFetch(years, opts?.asOfYmd)
+ const yearLabelById = new Map(years.map((y) => [y.id, y.label]))
+ const labels = plan.ctx.currentYearLabels
+ const ids = plan.currentYearIds
+ const privateStart = plan.ctx.currentYearStart
+ const privateEnd = plan.ctx.currentYearEnd
+
+ const parts: Record<string, unknown>[][] = []
+ if (scope === "current") {
+  const jobs = [
+   ids.length > 0
+    ? readAttendancePages(studentId, () =>
+       attendanceBaseQuery()
+        .neq("classes.class_kind", "private")
+        .in("classes.academic_year_id", ids)
+      )
+    : labels.length > 0
+      ? readAttendancePages(studentId, () =>
+         attendanceBaseQuery()
+          .neq("classes.class_kind", "private")
+          .in("classes.academic_year_label", labels)
+        )
+      : Promise.resolve([]),
+   ids.length > 0 && labels.length > 0
+    ? readAttendancePages(studentId, () =>
+       attendanceBaseQuery()
+        .neq("classes.class_kind", "private")
+        .is("classes.academic_year_id", null)
+        .in("classes.academic_year_label", labels)
+      )
+    : Promise.resolve([]),
+   readAttendancePages(studentId, () =>
+    attendanceBaseQuery()
+     .eq("classes.class_kind", "private")
+     .gte("attendance_date", privateStart)
+     .lte("attendance_date", privateEnd)
+   ),
+  ]
+  parts.push(...(await Promise.all(jobs)))
+ } else if (ids.length === 0) {
+  const jobs = [
+   readAttendancePages(studentId, () => attendanceBaseQuery().neq("classes.class_kind", "private")),
+   readAttendancePages(studentId, () =>
+    attendanceBaseQuery()
+     .eq("classes.class_kind", "private")
+     .or(`attendance_date.lt.${privateStart},attendance_date.gt.${privateEnd}`)
+   ),
+  ]
+  parts.push(...(await Promise.all(jobs)))
+ } else {
+  const jobs = [
+   readAttendancePages(studentId, () =>
+    attendanceBaseQuery()
+     .neq("classes.class_kind", "private")
+     .not("classes.academic_year_id", "in", `(${ids.join(",")})`)
+   ),
+   readAttendancePages(studentId, () =>
+    attendanceBaseQuery().neq("classes.class_kind", "private").is("classes.academic_year_id", null)
+   ),
+   readAttendancePages(studentId, () =>
+    attendanceBaseQuery()
+     .eq("classes.class_kind", "private")
+     .or(`attendance_date.lt.${privateStart},attendance_date.gt.${privateEnd}`)
+   ),
+  ]
+  parts.push(...(await Promise.all(jobs)))
+ }
+
+ const mapped = mergeAttendanceRaw(parts).map((row) => mapAttendanceRow(row, studentId, yearLabelById))
+ mapped.sort((a, b) => {
+  if (a.attendance_date !== b.attendance_date) return b.attendance_date.localeCompare(a.attendance_date)
+  return b.id.localeCompare(a.id)
+ })
+ return keepAttendanceScope(mapped, scope, plan.ctx)
 }
 
 export type LeaveRow = {
