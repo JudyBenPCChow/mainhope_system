@@ -8,6 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tag } from "@/components/ui/tag"
 import { statusToTagTone } from "@/lib/statusTag"
 
+import { HomeworkDayLogOverviewStrip } from "./HomeworkDayLogOverviewStrip"
+import { HomeworkDayLogsSection } from "./HomeworkDayLogsSection"
 import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
   academicYearMonthBounds,
@@ -19,6 +21,7 @@ import {
   formatYearMonthLabel,
   shiftYearMonth,
   unpaidFeeRows,
+  summarizeOverview,
   type AllTeacherSubmitStatus,
   type HomeworkDutyDay,
   type HomeworkFeeDisplay,
@@ -40,6 +43,7 @@ export function ManagerHomeworkWorkbench({
   hwTeachers,
   hwAccessIds,
   dutyDays = [],
+  overviewDutyDays,
   dutyMonth,
   onDutyMonthChange,
   rosterMonth = currentYearMonth(),
@@ -58,6 +62,7 @@ export function ManagerHomeworkWorkbench({
   hwTeachers: HomeworkTeacherRow[]
   hwAccessIds: ReadonlySet<string>
   dutyDays?: HomeworkDutyDay[]
+  overviewDutyDays?: HomeworkDutyDay[]
   dutyMonth?: string
   onDutyMonthChange?: (yearMonth: string) => void
   rosterMonth?: string
@@ -72,6 +77,10 @@ export function ManagerHomeworkWorkbench({
     [submitStatus, hwTeachers]
   )
   const unpaid = useMemo(() => unpaidFeeRows(students, fees), [students, fees])
+  const dayLogOverview = useMemo(
+    () => summarizeOverview(students, fees, overviewDutyDays ?? dutyDays),
+    [students, fees, overviewDutyDays, dutyDays]
+  )
   const dutyCovered = dutyDays.filter((d) => !d.holiday).length
   const prepMonth = rosterMonth
   const viewDutyMonth = dutyMonth ?? rosterMonth
@@ -120,6 +129,12 @@ export function ManagerHomeworkWorkbench({
             />
           </div>
 
+          <HomeworkDayLogOverviewStrip
+            students={students}
+            todayWeekday={dayLogOverview.todayWeekday}
+            onGoDayLogs={() => onTabChange("dayLogs")}
+          />
+
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">關注項</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
@@ -153,6 +168,18 @@ export function ManagerHomeworkWorkbench({
             </Button>
           ) : null}
         </div>
+      ) : null}
+
+      {tab === "dayLogs" ? (
+        <HomeworkDayLogsSection
+          students={students}
+          hwTeachers={hwTeachers}
+          todayDuty={dayLogOverview.todayDuty}
+          todayWeekday={dayLogOverview.todayWeekday}
+          holidays={[...holidays]}
+          academicYearLabel={academicYearLabel}
+          canDelete
+        />
       ) : null}
 
       {tab === "duty" ? (

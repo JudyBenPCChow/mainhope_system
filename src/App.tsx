@@ -67,6 +67,7 @@ import AdminOpsAssistant from "@/pages/AdminOpsAssistant"
 import PromotionMatch from "@/pages/PromotionMatch"
 import PrototypeContactUpdateCampaign from "@/pages/PrototypeContactUpdateCampaign"
 import PrototypeHomeWayfinding from "@/pages/PrototypeHomeWayfinding"
+import HomeworkDayLogs from "@/pages/HomeworkDayLogs"
 import HomeworkTutoring from "@/pages/HomeworkTutoring"
 
 function DocumentTitle() {
@@ -163,8 +164,20 @@ export default function App() {
       element={withCapabilities(["classes.read", "schedule.read"], <HomeworkTutoring />)}
      />
      <Route
+      path="/HomeworkTutoring/DayLogs/:studentId"
+      element={withCapabilities(["classes.read", "schedule.read"], <HomeworkTutoring />)}
+     />
+     <Route
       path="/HomeworkTutoring/:page"
       element={withCapabilities(["classes.read", "schedule.read"], <HomeworkTutoring />)}
+     />
+     <Route
+      path="/HomeworkDayLogs"
+      element={withCapabilities(["classes.read", "schedule.read"], <HomeworkDayLogs />)}
+     />
+     <Route
+      path="/HomeworkDayLogs/:studentId"
+      element={withCapabilities(["classes.read", "schedule.read"], <HomeworkDayLogs />)}
      />
      <Route path="/Teachers" element={withCapabilities(["classes.update"], <Teachers />)} />
      <Route

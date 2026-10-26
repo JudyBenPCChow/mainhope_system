@@ -19,6 +19,8 @@ import {
 } from "@/lib/homeworkTutoringFees"
 import { statusToTagTone } from "@/lib/statusTag"
 
+import { HomeworkDayLogOverviewStrip } from "./HomeworkDayLogOverviewStrip"
+import { HomeworkDayLogsSection } from "./HomeworkDayLogsSection"
 import { AvailCellButton, AvailEditDialog } from "./availEditor"
 import {
   HOMEWORK_GRADE_FILTER_FALLBACK,
@@ -89,6 +91,9 @@ export function AdminHomeworkWorkbench({
   sheetMonth: sheetMonthProp,
   onSheetMonthChange,
   onPublishRoster,
+  academicYearLabel = "2627",
+  canDeleteDayLogs = false,
+  preferredTeacherId = null,
 }: {
   tab: AdminPageId
   onTabChange: (tab: AdminPageId) => void
@@ -114,6 +119,9 @@ export function AdminHomeworkWorkbench({
   sheetMonth?: string
   onSheetMonthChange?: (yearMonth: string) => void
   onPublishRoster?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
+  academicYearLabel?: string
+  canDeleteDayLogs?: boolean
+  preferredTeacherId?: string | null
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -341,6 +349,12 @@ export function AdminHomeworkWorkbench({
             <p className="text-sm text-muted-foreground">今日無開放日或尚未編更。</p>
           )}
 
+          <HomeworkDayLogOverviewStrip
+            students={students}
+            todayWeekday={overview.todayWeekday}
+            onGoDayLogs={() => onTabChange("dayLogs")}
+          />
+
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">提醒</h2>
             <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
@@ -386,6 +400,19 @@ export function AdminHomeworkWorkbench({
             </ul>
           </section>
         </div>
+      ) : null}
+
+      {tab === "dayLogs" ? (
+        <HomeworkDayLogsSection
+          students={students}
+          hwTeachers={hwTeachers}
+          todayDuty={overview.todayDuty}
+          todayWeekday={overview.todayWeekday}
+          holidays={holidays}
+          academicYearLabel={academicYearLabel}
+          canDelete={canDeleteDayLogs}
+          preferredTeacherId={preferredTeacherId}
+        />
       ) : null}
 
       {tab === "students" ? (
@@ -786,7 +813,7 @@ export function AdminHomeworkWorkbench({
             )}
           </section>
           <section className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            每日功課進度（影相＋打字）不進本系統，繼續使用 Notion。末節讓房不做。
+            每日學生紀錄已改由系統「功課紀錄」填寫；上線後停用 Notion。末節讓房不做。
           </section>
         </div>
       ) : null}

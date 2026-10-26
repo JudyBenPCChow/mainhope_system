@@ -15,7 +15,7 @@ import {
  UserRound,
 } from "lucide-react"
 
-import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import { HW_DAY_LOGS_PATH, HW_PATH } from "@/lib/homeworkTutoringNav"
 import {
  flattenNav,
  pathIsActive,
@@ -29,6 +29,7 @@ const TEACHER_HOMEWORK_GROUP_ID = "teacher-homework"
 export const TEACHER_MAIN_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["teacher"], icon: Home },
  { kind: "leaf", path: "/Attendance", label: "點名", roles: ["teacher"], icon: ClipboardCheck },
+ { kind: "leaf", path: HW_DAY_LOGS_PATH, label: "功課紀錄", roles: ["teacher"], icon: NotebookPen },
  {
   kind: "leaf",
   path: "/TeacherTimetable",
@@ -75,6 +76,7 @@ export const TEACHER_MAIN_NAV: NavEntryDef[] = [
 /** 純功輔導師：只保留功輔日常入口。 */
 export const TEACHER_HOMEWORK_TUTOR_ONLY_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["teacher"], icon: Home },
+ { kind: "leaf", path: HW_DAY_LOGS_PATH, label: "功課紀錄", roles: ["teacher"], icon: NotebookPen },
  { kind: "leaf", path: HW_PATH.submit, label: "功輔報更", roles: ["teacher"], icon: ClipboardList },
  { kind: "leaf", path: HW_PATH.myDuty, label: "我的當值", roles: ["teacher"], icon: CalendarCheck },
  { kind: "leaf", path: "/AllFeatures", label: "所有功能", roles: ["teacher"], icon: LayoutGrid },
@@ -125,6 +127,15 @@ export const TEACHER_ALL_FEATURES_NAV: NavEntryDef[] = [
  },
  {
   kind: "group",
+  id: "teacher-map-day-logs",
+  label: "功課紀錄",
+  icon: NotebookPen,
+  children: [
+   { path: HW_DAY_LOGS_PATH, label: "功課紀錄", roles: ["teacher"], icon: NotebookPen },
+  ],
+ },
+ {
+  kind: "group",
   id: "teacher-map-homework",
   label: "功課輔導",
   icon: ClipboardList,
@@ -159,6 +170,15 @@ export const TEACHER_HOMEWORK_TUTOR_ONLY_ALL_FEATURES_NAV: NavEntryDef[] = [
  },
  {
   kind: "group",
+  id: "teacher-hw-map-day-logs",
+  label: "功課紀錄",
+  icon: NotebookPen,
+  children: [
+   { path: HW_DAY_LOGS_PATH, label: "功課紀錄", roles: ["teacher"], icon: NotebookPen },
+  ],
+ },
+ {
+  kind: "group",
   id: "teacher-hw-map-homework",
   label: "功課輔導",
   icon: ClipboardList,
@@ -188,9 +208,11 @@ export type TeacherNavFlags = {
 export function resolveTeacherMainNav(flags: TeacherNavFlags): NavEntryDef[] {
  if (flags.homeworkTutorOnly) return TEACHER_HOMEWORK_TUTOR_ONLY_NAV
  if (!flags.homeworkTutoringNavVisible) {
-  return TEACHER_MAIN_NAV.filter(
-   (entry) => !(entry.kind === "group" && entry.id === TEACHER_HOMEWORK_GROUP_ID)
-  )
+  return TEACHER_MAIN_NAV.filter((entry) => {
+   if (entry.kind === "leaf" && entry.path === HW_DAY_LOGS_PATH) return false
+   if (entry.kind === "group" && entry.id === TEACHER_HOMEWORK_GROUP_ID) return false
+   return true
+  })
  }
  return TEACHER_MAIN_NAV
 }
@@ -200,7 +222,11 @@ export function resolveTeacherAllFeaturesNav(flags: TeacherNavFlags): NavEntryDe
  if (flags.homeworkTutorOnly) return TEACHER_HOMEWORK_TUTOR_ONLY_ALL_FEATURES_NAV
  if (!flags.homeworkTutoringNavVisible) {
   return TEACHER_ALL_FEATURES_NAV.filter(
-   (entry) => !(entry.kind === "group" && entry.id === "teacher-map-homework")
+   (entry) =>
+    !(
+     entry.kind === "group" &&
+     (entry.id === "teacher-map-homework" || entry.id === "teacher-map-day-logs")
+    )
   )
  }
  return TEACHER_ALL_FEATURES_NAV

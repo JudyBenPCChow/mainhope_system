@@ -5,11 +5,13 @@ import { Button } from "@/components/ui/button"
 import { useAppBanner } from "@/lib/appBanner"
 import { formatUnknownError } from "@/lib/formatUnknownError"
 import { downloadHomeworkDutyCalendarIcs } from "@/lib/homeworkDutyCalendarExport"
+import { HW_DAY_LOGS_PATH } from "@/lib/homeworkTutoringNav"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { MONTH_CALENDAR_WEEK_HEADERS, padMonthCalendarDays } from "@/lib/monthCalendar"
 import { cn } from "@/lib/utils"
 import { useIsMobile } from "@/hooks/use-mobile"
 
+import { HomeworkDayLogsSection } from "./HomeworkDayLogsSection"
 import { BulkCustomTimeDialog } from "./availEditor"
 import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
@@ -28,6 +30,7 @@ import {
   myDutyDays,
   myDutyRoomLabel,
   shiftYearMonth,
+  summarizeOverview,
   teacherVisibleDutyDays,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
@@ -35,6 +38,7 @@ import {
   type HomeworkDivisionDutyBoard,
   type HomeworkDutyDay,
   type HomeworkHoliday,
+  type HomeworkStudentRow,
   type HomeworkTeacherRow,
   type RosterPublishStatus,
 } from "@/lib/homeworkTutoringUi"
@@ -51,12 +55,14 @@ export function TeacherHomeworkWorkbench({
   onPersistTeacherAvail,
   rosterPublishStatus,
   dutyDays = [],
+  overviewDutyDays,
   rosterMonthKey = currentYearMonth(),
   onRosterMonthChange,
   academicYearLabel = "2627",
   holidays = [],
   teachers = [],
   dutyBoards,
+  students = [],
 }: {
   tab: TeacherPageId
   onTabChange: (tab: TeacherPageId) => void
@@ -68,6 +74,7 @@ export function TeacherHomeworkWorkbench({
   onPersistTeacherAvail: (teacherId: string, status: "草稿" | "已提交") => Promise<void>
   rosterPublishStatus: RosterPublishStatus
   dutyDays?: HomeworkDutyDay[]
+  overviewDutyDays?: HomeworkDutyDay[]
   rosterMonthKey?: string
   onRosterMonthChange?: (yearMonth: string) => void
   academicYearLabel?: string
@@ -75,6 +82,7 @@ export function TeacherHomeworkWorkbench({
   teachers?: readonly HomeworkTeacherRow[]
   /** 有值時「我的當值」按中學部、小學部分卡，課室仍標在卡上 */
   dutyBoards?: ReadonlyArray<HomeworkDivisionDutyBoard & { ready?: boolean }>
+  students?: HomeworkStudentRow[]
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -141,6 +149,11 @@ export function TeacherHomeworkWorkbench({
   }, [dutyBoards])
 
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
+
+  const dayLogOverview = useMemo(
+    () => summarizeOverview(students, [], overviewDutyDays ?? dutyDays),
+    [students, overviewDutyDays, dutyDays]
+  )
 
   const dutyEmptyHint = divisionMode
     ? null
@@ -310,6 +323,20 @@ export function TeacherHomeworkWorkbench({
 
   return (
     <div className="space-y-4">
+      {tab === "dayLogs" ? (
+        <HomeworkDayLogsSection
+          students={students}
+          hwTeachers={[...teachers]}
+          todayDuty={dayLogOverview.todayDuty}
+          todayWeekday={dayLogOverview.todayWeekday}
+          holidays={holidays}
+          academicYearLabel={academicYearLabel}
+          canDelete={false}
+          preferredTeacherId={teacherId}
+          listPath={HW_DAY_LOGS_PATH}
+        />
+      ) : null}
+
       {tab === "submit" ? (
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">

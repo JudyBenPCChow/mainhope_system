@@ -70,7 +70,11 @@ export function MobileLayout() {
      <Outlet />
     </div>
    </main>
-   <MobileBottomNav role={role} homeworkTutorOnly={homeworkTutorOnly} />
+   <MobileBottomNav
+    role={role}
+    homeworkTutorOnly={homeworkTutorOnly}
+    homeworkTutoringNavVisible={homeworkTutoringNavVisible}
+   />
    <MobileNavDrawer
     open={navOpen}
     onClose={() => setNavOpen(false)}

@@ -7,11 +7,16 @@ import { cn } from "@/lib/utils"
 type MobileBottomNavProps = {
  role: Role
  homeworkTutorOnly?: boolean
+ homeworkTutoringNavVisible?: boolean
 }
 
-export function MobileBottomNav({ role, homeworkTutorOnly = false }: MobileBottomNavProps) {
+export function MobileBottomNav({
+ role,
+ homeworkTutorOnly = false,
+ homeworkTutoringNavVisible = false,
+}: MobileBottomNavProps) {
  const { pathname } = useLocation()
- const tabs = getMobileBottomTabs(role, { homeworkTutorOnly })
+ const tabs = getMobileBottomTabs(role, { homeworkTutorOnly, homeworkTutoringNavVisible })
 
  return (
   <nav
