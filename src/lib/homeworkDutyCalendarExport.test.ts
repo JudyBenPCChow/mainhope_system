@@ -5,6 +5,7 @@ import {
   HOMEWORK_DUTY_CAMPUS_ADDRESS_ZH,
   buildHomeworkDutyCalendarIcs,
   homeworkDutyCalendarEvents,
+  homeworkDutyCalendarEventsForDivisions,
 } from "@/lib/homeworkDutyCalendarExport"
 import type { HomeworkDutyDay } from "@/lib/homeworkTutoringUi"
 
@@ -67,6 +68,61 @@ describe("homeworkDutyCalendarEvents", () => {
 
   it("drops dates that do not belong to the displayed month", () => {
     expect(homeworkDutyCalendarEvents("a", "2026-10", DAYS)).toEqual([])
+  })
+
+  it("keeps one event per division when the same day is in both", () => {
+    const events = homeworkDutyCalendarEventsForDivisions("a", "2026-10", [
+      {
+        division: "primary",
+        days: [
+          day({
+            date: "10/6",
+            assignments: [{ teacherId: "a", start: "15:30", end: "17:00", room: "17E" }],
+          }),
+        ],
+      },
+      {
+        division: "secondary",
+        days: [
+          day({
+            date: "10/6",
+            assignments: [{ teacherId: "a", start: "17:00", end: "20:00", room: "17D" }],
+          }),
+        ],
+      },
+    ])
+    expect(events.map((event) => event.division)).toEqual(["secondary", "primary"])
+    expect(events.map((event) => event.rooms)).toEqual([["17D"], ["17E"]])
+    const ics = buildHomeworkDutyCalendarIcs({
+      teacherId: "a",
+      yearMonth: "2026-10",
+      days: [],
+      divisions: [
+        {
+          division: "secondary",
+          days: [
+            day({
+              date: "10/6",
+              assignments: [{ teacherId: "a", start: "17:00", end: "20:00", room: "17D" }],
+            }),
+          ],
+        },
+        {
+          division: "primary",
+          days: [
+            day({
+              date: "10/6",
+              assignments: [{ teacherId: "a", start: "15:30", end: "17:00", room: "17E" }],
+            }),
+          ],
+        },
+      ],
+      now: new Date("2026-10-01T00:00:00Z"),
+    })
+    expect(ics).toContain("UID:homework-duty-a-secondary-2026-10-06@mainhope.edu.hk")
+    expect(ics).toContain("UID:homework-duty-a-primary-2026-10-06@mainhope.edu.hk")
+    expect(ics).toContain("學部：中學部")
+    expect(ics).toContain("學部：小學部")
   })
 })
 

@@ -3,6 +3,7 @@ import type {
  AllTeacherAvailability,
  AllTeacherSubmitStatus,
  HomeworkCompanionRoster,
+ HomeworkDivisionDutyBoard,
  HomeworkDutyDay,
  HomeworkFeeDisplay,
  HomeworkHoliday,
@@ -33,6 +34,8 @@ export type HomeworkTutoringDataCache = {
  dutyViewMonth: string
  dutyViewDays: HomeworkDutyDay[]
  calendarDutyDays: HomeworkDutyDay[]
+ /** 老師「我的當值」兩個學部。未載入為 null／缺欄。 */
+ teacherDutyBoards?: HomeworkDivisionDutyBoard[] | null
 }
 
 const cache = createListDataCache<HomeworkTutoringDataCache>({
