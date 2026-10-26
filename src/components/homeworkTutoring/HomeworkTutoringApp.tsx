@@ -12,12 +12,25 @@ import {
 import { HomeworkTutoringTeacherAccess } from "@/components/homeworkTutoring/HomeworkTutoringTeacherAccess"
 import { useAuth } from "@/lib/authBootstrap"
 import { formatYearMonthLabel, type HomeworkDivision } from "@/lib/homeworkTutoringFees"
-import { HW_PATH, homeworkTutoringHomePath, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
+import {
+  HW_DAY_LOGS_PATH,
+  HW_PATH,
+  homeworkTutoringHomePath,
+  isHomeworkTutoringPath,
+  isHwDayLogsPath,
+  isTeacherDayLogsPath,
+  isWorkspaceDayLogsPath,
+  parseHwDayLogStudentId,
+  teacherDayLogsTargetFromWorkspace,
+  workspaceDayLogsTargetFromTeacher,
+} from "@/lib/homeworkTutoringNav"
 import { usesSharedAppShell, type MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
 import { Select } from "@/components/ui/select"
 import { AdminHomeworkWorkbench } from "@/components/homeworkTutoring/AdminHomeworkWorkbench"
+import { HomeworkDayLogStudentPage } from "@/components/homeworkTutoring/HomeworkDayLogStudentPage"
 import { ManagerHomeworkWorkbench } from "@/components/homeworkTutoring/ManagerHomeworkWorkbench"
+import { TeacherHomeworkDayLogsShell } from "@/components/homeworkTutoring/TeacherHomeworkDayLogsShell"
 import { TeacherHomeworkWorkbench } from "@/components/homeworkTutoring/TeacherHomeworkWorkbench"
 import {
   academicYearMonthBounds,
@@ -26,6 +39,7 @@ import {
   composeHomeworkFeeDisplays,
   monthRosterPublishStatus,
   shiftYearMonth,
+  summarizeOverview,
   withSyncedLegacyTeachers,
   HOMEWORK_DIVISION_LABEL,
   HOMEWORK_DIVISION_ORDER,
@@ -75,6 +89,7 @@ import {
 
 const ADMIN_BY_PATH: Record<string, AdminPageId> = {
   [HW_PATH.overview]: "overview",
+  [HW_PATH.dayLogs]: "dayLogs",
   [HW_PATH.students]: "students",
   [HW_PATH.fees]: "fees",
   [HW_PATH.roster]: "roster",
@@ -84,6 +99,7 @@ const ADMIN_BY_PATH: Record<string, AdminPageId> = {
 
 const MANAGER_BY_PATH: Record<string, ManagerPageId> = {
   [HW_PATH.supervise]: "home",
+  [HW_PATH.dayLogs]: "dayLogs",
   [HW_PATH.duty]: "duty",
   [HW_PATH.progress]: "progress",
   [HW_PATH.feeAlerts]: "fees",
@@ -91,12 +107,14 @@ const MANAGER_BY_PATH: Record<string, ManagerPageId> = {
 }
 
 const TEACHER_BY_PATH: Record<string, TeacherPageId> = {
+  [HW_PATH.dayLogs]: "dayLogs",
   [HW_PATH.submit]: "submit",
   [HW_PATH.myDuty]: "myDuty",
 }
 
 const ADMIN_PATH: Record<AdminPageId, string> = {
   overview: HW_PATH.overview,
+  dayLogs: HW_PATH.dayLogs,
   students: HW_PATH.students,
   fees: HW_PATH.fees,
   roster: HW_PATH.roster,
@@ -106,6 +124,7 @@ const ADMIN_PATH: Record<AdminPageId, string> = {
 
 const MANAGER_PATH: Record<ManagerPageId, string> = {
   home: HW_PATH.supervise,
+  dayLogs: HW_PATH.dayLogs,
   duty: HW_PATH.duty,
   progress: HW_PATH.progress,
   fees: HW_PATH.feeAlerts,
@@ -113,11 +132,20 @@ const MANAGER_PATH: Record<ManagerPageId, string> = {
 }
 
 const TEACHER_PATH: Record<TeacherPageId, string> = {
+  dayLogs: HW_DAY_LOGS_PATH,
   submit: HW_PATH.submit,
   myDuty: HW_PATH.myDuty,
 }
 
 function pathAllowedForRole(pathname: string, role: MgmtRole): boolean {
+  if (isHwDayLogsPath(pathname)) {
+    return (
+      role === "admin" ||
+      role === "manager" ||
+      role === "alien" ||
+      role === "teacher"
+    )
+  }
   if (ADMIN_BY_PATH[pathname]) return role === "admin" || role === "alien"
   if (MANAGER_BY_PATH[pathname]) return role === "manager" || role === "alien"
   if (TEACHER_BY_PATH[pathname]) return role === "teacher"
@@ -469,8 +497,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         ),
       ]
       loadedMonthRef.current = sheetTarget
+      // 老師亦需報讀名冊（功課紀錄）；月費仍只給非老師。
       const [enrolls, closures, access] = await Promise.all([
-        isTeacher ? Promise.resolve([] as HomeworkEnrollmentRow[]) : fetchHomeworkEnrollments(cls.id),
+        fetchHomeworkEnrollments(cls.id),
         fetchHomeworkClosures(cls.academicYearId),
         fetchHomeworkTutoringTeacherAccess(),
       ])
@@ -571,6 +600,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   )
 
   useEffect(() => {
+    if (!role) return
     const cached = getHomeworkTutoringDataCache()
     const teacherBoardsMissing =
       role === "teacher" && cached?.hwClass != null && cached.teacherDutyBoards == null
@@ -765,7 +795,18 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     [hwClass, hwTeachers, loadMonthData, loadDutyViewMonth, persistDraftAvailSnapshot]
   )
 
-  const teacherPage = TEACHER_BY_PATH[pathname]
+  const dayLogStudentId = parseHwDayLogStudentId(pathname)
+  const onDayLogs = isWorkspaceDayLogsPath(pathname)
+  const dayLogOverview = useMemo(
+    () => summarizeOverview(students, fees, calendarDutyDays),
+    [students, fees, calendarDutyDays]
+  )
+  const dayLogTodayDuty = dayLogOverview.todayDuty
+
+  const teacherPage =
+    role === "teacher"
+      ? TEACHER_BY_PATH[pathname] ?? (onDayLogs ? ("dayLogs" as const) : undefined)
+      : undefined
   const displayedMonth = teacherPage === "myDuty" ? dutyViewMonth : sheetMonth
   const teacherDutyDays = teacherPage === "myDuty" ? dutyViewDays : dutyDays
   const rosterPublishStatus = monthRosterPublishStatus(monthRosterStatus[displayedMonth] ?? "未編更")
@@ -773,11 +814,21 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
   if (!role) return null
 
-  if (pathname === "/HomeworkTutoring" || !isHomeworkTutoringPath(pathname)) {
+  if (role === "teacher" && isWorkspaceDayLogsPath(pathname)) {
+    return <Navigate to={teacherDayLogsTargetFromWorkspace(pathname)} replace />
+  }
+
+  if (role !== "teacher" && isTeacherDayLogsPath(pathname)) {
+    return <Navigate to={workspaceDayLogsTargetFromTeacher(pathname)} replace />
+  }
+
+  const onTeacherDayLogs = role === "teacher" && isTeacherDayLogsPath(pathname)
+
+  if (!onTeacherDayLogs && (pathname === "/HomeworkTutoring" || !isHomeworkTutoringPath(pathname))) {
     return <Navigate to={homeworkTutoringHomePath(role)} replace />
   }
 
-  if (!pathAllowedForRole(pathname, role)) {
+  if (!onTeacherDayLogs && !pathAllowedForRole(pathname, role)) {
     return <Navigate to={homeworkTutoringHomePath(role)} replace />
   }
 
@@ -798,14 +849,46 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     )
   }
 
-  const adminPage = ADMIN_BY_PATH[pathname]
-  const managerPage = MANAGER_BY_PATH[pathname]
+  const adminPage =
+    role === "admin" || role === "alien"
+      ? ADMIN_BY_PATH[pathname] ?? (onDayLogs ? ("dayLogs" as const) : undefined)
+      : undefined
+  const managerPage =
+    role === "manager" || (role === "alien" && !adminPage)
+      ? MANAGER_BY_PATH[pathname] ?? (onDayLogs ? ("dayLogs" as const) : undefined)
+      : undefined
   const teacherId = profile?.teacherId ?? hwTeachers[0]?.id ?? ""
   const teacherDisplayName = hwTeachers.find((t) => t.id === teacherId)?.name ?? ""
+  const dayLogStudent = dayLogStudentId
+    ? students.find((s) => s.id === dayLogStudentId) ?? null
+    : null
+
+  if (onTeacherDayLogs) {
+    return (
+      <TeacherHomeworkDayLogsShell
+        loading={loading || monthLoading}
+        loadError={loadError}
+        students={students}
+        hwTeachers={hwTeachers}
+        todayDuty={dayLogTodayDuty}
+        todayWeekday={dayLogOverview.todayWeekday}
+        todayCount={dayLogOverview.todayCount}
+        holidayLabel={dayLogTodayDuty?.holiday ?? null}
+        holidays={holidays}
+        academicYearLabel={hwClass?.academicYearLabel ?? "2627"}
+        preferredTeacherId={profile?.teacherId ?? null}
+        studentId={dayLogStudentId}
+        student={dayLogStudent}
+      />
+    )
+  }
 
   let pageTitle = "功課輔導班"
   let PageIcon: LucideIcon = ClipboardList
-  if (adminPage) {
+  if (dayLogStudent) {
+    pageTitle = `${dayLogStudent.name} · 功課紀錄`
+    PageIcon = ADMIN_NAV.find((p) => p.value === "dayLogs")?.icon ?? PageIcon
+  } else if (adminPage) {
     const item = ADMIN_NAV.find((p) => p.value === adminPage)
     pageTitle =
       role === "admin" && adminPage === "overview" ? "今日情況" : (item?.label ?? pageTitle)
@@ -879,7 +962,32 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       {loading || monthLoading ? <p className="text-sm text-muted-foreground">載入中…</p> : null}
       {loadError ? <p role="alert" className="text-sm text-destructive">{loadError}</p> : null}
 
-      {!loading && !loadError && adminPage ? (
+      {!loading && !loadError && dayLogStudentId ? (
+        dayLogStudent ? (
+          <HomeworkDayLogStudentPage
+            student={dayLogStudent}
+            hwTeachers={hwTeachers}
+            todayDuty={dayLogTodayDuty}
+            holidays={holidays}
+            academicYearLabel={hwClass?.academicYearLabel ?? "2627"}
+            canDelete={role === "admin" || role === "manager" || role === "alien"}
+            preferredTeacherId={profile?.teacherId ?? teacherId ?? null}
+          />
+        ) : (
+          <div className="space-y-3 rounded-xl border border-dashed border-border bg-card p-6">
+            <p className="text-sm text-muted-foreground">找不到此學生的功輔報讀紀錄。</p>
+            <button
+              type="button"
+              className="text-sm font-medium text-primary hover:underline"
+              onClick={() => navigate(HW_PATH.dayLogs)}
+            >
+              返回圖庫
+            </button>
+          </div>
+        )
+      ) : null}
+
+      {!loading && !loadError && !dayLogStudentId && adminPage ? (
         <AdminHomeworkWorkbench
           tab={adminPage}
           onTabChange={(tab) => navigate(ADMIN_PATH[tab])}
@@ -909,12 +1017,17 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
             void handleSheetMonthChange(ym)
           }}
           onPublishRoster={handlePublishRoster}
+          academicYearLabel={hwClass?.academicYearLabel ?? "2627"}
+          canDeleteDayLogs={role === "admin" || role === "manager" || role === "alien"}
+          preferredTeacherId={profile?.teacherId ?? null}
         />
       ) : null}
 
-      {managerPage === "access" ? <HomeworkTutoringTeacherAccess /> : null}
+      {!loading && !loadError && !dayLogStudentId && managerPage === "access" ? (
+        <HomeworkTutoringTeacherAccess />
+      ) : null}
 
-      {!loading && !loadError && managerPage && managerPage !== "access" ? (
+      {!loading && !loadError && !dayLogStudentId && managerPage && managerPage !== "access" ? (
         <ManagerHomeworkWorkbench
           tab={managerPage}
           onTabChange={(tab) => navigate(MANAGER_PATH[tab])}
@@ -925,6 +1038,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           hwTeachers={hwTeachers}
           hwAccessIds={hwAccessIds}
           dutyDays={dutyViewDays}
+          overviewDutyDays={calendarDutyDays}
           dutyMonth={dutyViewMonth}
           onDutyMonthChange={(ym) => {
             void handleDutyViewMonthChange(ym)
@@ -938,7 +1052,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         />
       ) : null}
 
-      {!loading && !loadError && teacherPage && teacherId ? (
+      {!loading && !loadError && !dayLogStudentId && teacherPage && teacherId ? (
         <TeacherHomeworkWorkbench
           tab={teacherPage}
           onTabChange={(tab) => navigate(TEACHER_PATH[tab])}
@@ -984,6 +1098,8 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
                 })
               : undefined
           }
+          students={students}
+          overviewDutyDays={calendarDutyDays}
         />
       ) : null}
     </div>

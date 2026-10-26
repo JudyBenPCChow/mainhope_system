@@ -158,6 +158,7 @@ export const ADMIN_ALL_FEATURES_NAV: NavEntryDef[] = [
    { path: "/TeachingRecords", label: "教學紀錄", roles: ["admin"], icon: NotebookPen },
    { path: "/PrivateTutoring", label: "私人課程", roles: ["admin"], icon: UserRound },
    { path: HW_PATH.overview, label: "今日情況", roles: ["admin"], icon: LayoutDashboard },
+   { path: HW_PATH.dayLogs, label: "功課紀錄", roles: ["admin"], icon: NotebookPen },
    { path: HW_PATH.students, label: "功輔報讀學生", roles: ["admin"], icon: Users },
    { path: HW_PATH.fees, label: "功輔月費", roles: ["admin"], icon: Wallet },
    { path: HW_PATH.roster, label: "功輔當值編更", roles: ["admin"], icon: ClipboardList },
@@ -251,6 +252,7 @@ export const ADMIN_WORKSPACE_TABS: Record<AdminWorkspaceId, readonly AdminWorksp
  ],
  homework: [
   { path: HW_PATH.overview, label: "今日情況" },
+  { path: HW_PATH.dayLogs, label: "功課紀錄" },
   { path: HW_PATH.students, label: "報讀學生" },
   { path: HW_PATH.fees, label: "月費" },
   { path: HW_PATH.roster, label: "當值編更" },
@@ -267,7 +269,7 @@ export const ADMIN_WORKSPACE_TABS: Record<AdminWorkspaceId, readonly AdminWorksp
 export const ADMIN_WORKSPACE_DESCRIPTION: Record<AdminWorkspaceId, string> = {
  payments: "登記學費、追收堂數、檢視繳費紀錄及管理優惠折扣。",
  specialty: "管理專科班、專科校曆及教學紀錄。",
- homework: "管理功課輔導的今日情況、報讀、月費、當值與校曆。",
+ homework: "管理功課輔導的今日情況、功課紀錄、報讀、月費、當值與校曆。",
  journal: "查閱日記帳紀錄及新增入帳。",
 }
 

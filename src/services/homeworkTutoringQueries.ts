@@ -213,24 +213,21 @@ export async function fetchHomeworkEnrollments(
   classId: string
 ): Promise<HomeworkEnrollmentRow[]> {
   if (!supabase) return []
-  const { data, error } = await supabase
-    .from("student_class_enrollments")
-    .select(
-      "id, status, enroll_date, homework_day_plan, homework_weekdays, student_id, students ( id, full_name, student_code, grade )"
-    )
-    .eq("class_id", classId)
-    .order("enroll_date", { ascending: false })
+  // 走 security definer RPC：功輔導師不一定是該班 classes.teacher_id，
+  // 直查 enrollments＋students embed 會被 RLS 擋或極慢。
+  const { data, error } = await supabase.rpc("list_homework_tutoring_enrollments", {
+    p_class_id: classId,
+  })
   if (error) throw error
-  return (data ?? []).map((raw) => {
+  return (data ?? []).map((raw: unknown) => {
     const r = raw as Record<string, unknown>
-    const st = r.students as Record<string, unknown> | null
     const enrollDate = String(r.enroll_date ?? "").slice(0, 10)
     return {
-      enrollmentId: String(r.id),
+      enrollmentId: String(r.enrollment_id),
       studentId: String(r.student_id),
-      studentName: st?.full_name != null ? String(st.full_name) : "—",
-      studentCode: st?.student_code != null ? String(st.student_code) : "—",
-      grade: st?.grade != null ? String(st.grade) : "—",
+      studentName: r.student_name != null ? String(r.student_name) : "—",
+      studentCode: r.student_code != null ? String(r.student_code) : "—",
+      grade: r.grade != null ? String(r.grade) : "—",
       plan: asDayPlan(r.homework_day_plan),
       weekdays: asWeekdays(r.homework_weekdays),
       enrollDate,

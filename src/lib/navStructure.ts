@@ -47,7 +47,7 @@ import {
  Wallet,
 } from "lucide-react"
 
-import { HW_PATH, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
+import { HW_DAY_LOGS_PATH, HW_PATH, isHomeworkTutoringPath } from "@/lib/homeworkTutoringNav"
 
 export type Role = "admin" | "manager" | "finance" | "teacher" | "alien"
 
@@ -168,6 +168,7 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
   icon: ClipboardList,
   children: [
    { path: HW_PATH.overview, label: "概覽", roles: ["admin", "alien"], icon: LayoutDashboard },
+   { path: HW_PATH.dayLogs, label: "功課紀錄", roles: ["admin", "manager", "alien", "teacher"], icon: NotebookPen },
    { path: HW_PATH.students, label: "報讀學生", roles: ["admin", "alien"], icon: Users },
    { path: HW_PATH.fees, label: "月費", roles: ["admin", "alien"], icon: Wallet },
    { path: HW_PATH.roster, label: "當值編更", roles: ["admin", "alien"], icon: ClipboardList },
@@ -324,7 +325,7 @@ export function stripHomeworkTutoringNav(entries: NavEntryDef[]): NavEntryDef[] 
 }
 
 /**
- * 純功輔導師允許路徑：首頁／所有功能／收件匣／功課輔導／個人資料／設定。
+ * 純功輔導師允許路徑：首頁／所有功能／收件匣／功課紀錄／功課輔導／個人資料／設定。
  * （唔含專科點名、班別、排程、時間表、私人課程、約房、出席紀錄等）
  */
 const HOMEWORK_TUTOR_ONLY_PATH_PREFIXES = [
@@ -332,6 +333,7 @@ const HOMEWORK_TUTOR_ONLY_PATH_PREFIXES = [
  "/AllFeatures",
  "/Inbox",
  "/HomeworkTutoring",
+ HW_DAY_LOGS_PATH,
  "/TeacherProfile",
  "/Settings",
 ] as const

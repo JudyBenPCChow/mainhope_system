@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 
-import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import {
+  HW_DAY_LOGS_PATH,
+  HW_PATH,
+  homeworkTutoringHomePath,
+  teacherDayLogsTargetFromWorkspace,
+  workspaceDayLogsTargetFromTeacher,
+} from "@/lib/homeworkTutoringNav"
 import {
   NAV_STRUCTURE,
   filterMainNavEntries,
@@ -39,6 +45,7 @@ describe("功課輔導側欄", () => {
     )
     expect(teacher?.kind === "group" && teacher.label).toBe("功課輔導")
     expect(teacher?.kind === "group" && teacher.children.map((c) => c.path)).toEqual([
+      HW_PATH.dayLogs,
       HW_PATH.submit,
       HW_PATH.myDuty,
     ])
@@ -64,6 +71,7 @@ describe("功課輔導側欄", () => {
     expect(paths).toContain("/Inbox")
     expect(paths).toContain(HW_PATH.submit)
     expect(paths).toContain(HW_PATH.myDuty)
+    expect(paths).toContain(HW_PATH.dayLogs)
     expect(paths).not.toContain("/Attendance")
     expect(paths).not.toContain("/Classes")
     expect(paths).not.toContain("/TeacherTimetable")
@@ -76,7 +84,23 @@ describe("功課輔導側欄", () => {
 
   it("純功輔允許路徑判斷", () => {
     expect(isHomeworkTutorOnlyAllowedPath("/HomeworkTutoring/Submit")).toBe(true)
+    expect(isHomeworkTutorOnlyAllowedPath("/HomeworkDayLogs")).toBe(true)
+    expect(isHomeworkTutorOnlyAllowedPath("/HomeworkDayLogs/student-1")).toBe(true)
     expect(isHomeworkTutorOnlyAllowedPath("/Attendance")).toBe(false)
     expect(isHomeworkTutorOnlyAllowedPath("/Settings")).toBe(true)
+  })
+})
+
+describe("老師功課紀錄路徑", () => {
+  it("老師預設落地與舊路徑轉向新路徑", () => {
+    expect(homeworkTutoringHomePath("teacher")).toBe(HW_DAY_LOGS_PATH)
+    expect(homeworkTutoringHomePath("admin")).toBe(HW_PATH.overview)
+    expect(teacherDayLogsTargetFromWorkspace("/HomeworkTutoring/DayLogs")).toBe(HW_DAY_LOGS_PATH)
+    expect(teacherDayLogsTargetFromWorkspace("/HomeworkTutoring/DayLogs/stu-1")).toBe(
+      `${HW_DAY_LOGS_PATH}/stu-1`
+    )
+    expect(workspaceDayLogsTargetFromTeacher("/HomeworkDayLogs/stu-1")).toBe(
+      "/HomeworkTutoring/DayLogs/stu-1"
+    )
   })
 })

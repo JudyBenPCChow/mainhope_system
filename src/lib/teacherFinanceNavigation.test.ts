@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { BookOpen, ClipboardList, NotebookPen, Wallet } from "lucide-react"
 
 import { FINANCE_ALL_FEATURES_NAV, FINANCE_MAIN_NAV } from "@/lib/financeNavigation"
-import { HW_PATH } from "@/lib/homeworkTutoringNav"
+import { HW_DAY_LOGS_PATH, HW_PATH } from "@/lib/homeworkTutoringNav"
 import { filterAdminFeatureSections } from "@/lib/adminNavigation"
 import { buildFeatureSections } from "@/lib/navStructure"
 import { resolveRoleMainNav } from "@/lib/roleMainNav"
@@ -15,7 +15,7 @@ import {
 import { resolveMobilePageTitle } from "@/lib/mobileNav"
 
 describe("老師側欄 IA", () => {
- it("有功輔入口時固定 8 個頂層列", () => {
+ it("有功輔入口時功課紀錄為頂層，功輔群組只留報更與當值", () => {
   expect(
    resolveTeacherMainNav({
     homeworkTutoringNavVisible: true,
@@ -24,6 +24,7 @@ describe("老師側欄 IA", () => {
   ).toEqual([
    "首頁",
    "點名",
+   "功課紀錄",
    "時間表",
    "我的班別",
    "排程",
@@ -31,6 +32,8 @@ describe("老師側欄 IA", () => {
    "功課輔導",
    "所有功能",
   ])
+  const dayLogs = TEACHER_MAIN_NAV.find((e) => e.kind === "leaf" && e.path === HW_DAY_LOGS_PATH)
+  expect(dayLogs?.kind === "leaf" ? dayLogs.label : null).toBe("功課紀錄")
  })
 
  it("無功輔入口時去掉功課輔導群組", () => {
@@ -48,7 +51,7 @@ describe("老師側欄 IA", () => {
     homeworkTutoringNavVisible: true,
     homeworkTutorOnly: true,
    }).map((entry) => entry.label)
-  ).toEqual(["首頁", "功輔報更", "我的當值", "所有功能"])
+  ).toEqual(["首頁", "功課紀錄", "功輔報更", "我的當值", "所有功能"])
  })
 
  it("教學與資源／功輔群組次序正確", () => {
@@ -98,6 +101,8 @@ describe("老師側欄 IA", () => {
    })
   ).toBe("我的私人課程")
   expect(resolveMobilePageTitle(HW_PATH.submit, "teacher")).toBe("功輔報更")
+  expect(resolveMobilePageTitle(HW_DAY_LOGS_PATH, "teacher")).toBe("功課紀錄")
+  expect(resolveMobilePageTitle(`${HW_DAY_LOGS_PATH}/student-1`, "teacher")).toBe("功課紀錄")
  })
 })
 
@@ -115,6 +120,7 @@ describe("老師所有功能", () => {
    "課堂與點名",
    "班別與教學",
    "課室",
+   "功課紀錄",
    "功課輔導",
    "帳戶",
   ])
@@ -129,6 +135,7 @@ describe("老師所有功能", () => {
    })
   )
   expect(sections.map((s) => s.label)).not.toContain("功課輔導")
+  expect(sections.map((s) => s.label)).not.toContain("功課紀錄")
  })
 
  it("可搜尋功能名", () => {
