@@ -71,6 +71,45 @@ from roster r
 order by r.course_code_full;
 ```
 
+## 某人當值（純文字，不出 PDF）
+
+把姓名與月份換成該次請求。`ilike` 用使用者給的姓名片段。
+
+```sql
+select d.duty_date::text as day,
+  case when cl.course_code_full like '%HWKP%' then '小學部' else '中學部' end as division,
+  a.room,
+  to_char(a.session_start, 'HH24:MI') as start_hm,
+  to_char(a.session_end, 'HH24:MI') as end_hm,
+  t.full_name
+from public.homework_tutoring_duty_assignments a
+join public.homework_tutoring_duty_days d on d.id = a.duty_day_id
+join public.homework_tutoring_roster_months rm on rm.id = d.roster_month_id
+join public.classes cl on cl.id = rm.class_id
+join public.teachers t on t.id = a.teacher_id
+where t.full_name ilike '%Rain Kwok%'
+  and d.duty_date >= date '2026-10-01'
+  and d.duty_date < date '2026-11-01'
+order by d.duty_date, a.session_start, a.room;
+```
+
+## 某月報更是否可交
+
+把 `2026-11-01` 換成該月 1 日。沒有編更列仍可報。`eligible` 是有功輔入口的老師；`submitted` 是該月狀態為已提交的人數。
+
+```sql
+select
+  count(*) filter (where t.homework_tutoring_nav is true) as eligible,
+  count(*) filter (
+    where t.homework_tutoring_nav is true and a.status = '已提交'
+  ) as submitted
+from public.teachers t
+left join public.homework_tutoring_availability a
+  on a.teacher_id = t.id
+ and a.target_month = date '2026-11-01'
+where coalesce(t.full_name, '') !~* 'test';
+```
+
 ## 字型
 
 ```bash
