@@ -125,7 +125,7 @@ export type HomeworkDutyDay = {
 export type HomeworkHoliday = { date: string; label: string }
 
 export const SUBMIT_DEADLINE_NOTE =
-  "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）。過期仍可補交。編更發布後仍可提交或修改，以便補上空缺後再出下一版。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"
+  "請於該月最後一日起倒數第 3 日前提交（例：31→29、30→28）。過期仍可補交。編更發布後仍可提交或修改，以便補上空缺後再出下一版。按月份與日期填寫，不區分中學部與小學部。剔選日子後批量設全節或自訂時間；不報的日子不剔即可。"
 
 export const HW_ROSTER_FLOW_NOTE =
   "老師提交可當值日子與時段。行政可先發布第一版；發布後老師仍可補交，再出下一版。"
@@ -611,6 +611,15 @@ export function homeworkDutyRoomCards(
   }))
 }
 
+/** 老師「我的當值」：一個學部該月的已存編更（中學部、小學部分開） */
+export type HomeworkDivisionDutyBoard = {
+  division: HomeworkDivision
+  classroomName: string | null
+  yearMonth: string
+  status: MonthRosterState
+  dutyDays: HomeworkDutyDay[]
+}
+
 /** 月工作表對照用：另一學部同月的報讀＋編更（唯讀） */
 export type HomeworkCompanionRoster = {
   division: HomeworkDivision
@@ -835,11 +844,20 @@ export function unpaidFeeRows(students: HomeworkStudentRow[], fees: HomeworkFeeD
     .filter(Boolean) as Array<HomeworkFeeDisplay & { student: HomeworkStudentRow }>
 }
 
-export function myDutyDays(teacherId: string, days: HomeworkDutyDay[]) {
+export function myDutyDays(teacherId: string, days: readonly HomeworkDutyDay[]) {
   return days.filter((d) => {
     if (d.holiday) return false
     return myAssignments(d, teacherId).length > 0
   })
+}
+
+/** 已發布編更裡，這位老師在該學部的當值日。未發布不列入個人清單。 */
+export function teacherVisibleDutyDays(
+  teacherId: string,
+  board: Pick<HomeworkDivisionDutyBoard, "status" | "dutyDays">
+): HomeworkDutyDay[] {
+  if (monthRosterPublishStatus(board.status) !== "已發布") return []
+  return myDutyDays(teacherId, board.dutyDays)
 }
 
 export function myDutyRoomLabel(day: HomeworkDutyDay, teacherId: string): string {

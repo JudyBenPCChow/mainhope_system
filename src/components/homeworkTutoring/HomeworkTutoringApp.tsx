@@ -28,9 +28,11 @@ import {
   shiftYearMonth,
   withSyncedLegacyTeachers,
   HOMEWORK_DIVISION_LABEL,
+  HOMEWORK_DIVISION_ORDER,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type HomeworkCompanionRoster,
+  type HomeworkDivisionDutyBoard,
   type HomeworkDutyDay,
   type HomeworkFeeDisplay,
   type HomeworkHoliday,
@@ -222,6 +224,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const [dutyViewDays, setDutyViewDays] = useState<HomeworkDutyDay[]>(
     () => (hydrateHw ? initialHwCache!.dutyViewDays ?? [] : [])
   )
+  const [teacherDutyBoards, setTeacherDutyBoards] = useState<HomeworkDivisionDutyBoard[]>(
+    () => (hydrateHw ? initialHwCache!.teacherDutyBoards ?? [] : [])
+  )
   const [calendarDutyDays, setCalendarDutyDays] = useState<HomeworkDutyDay[]>(
     () => (hydrateHw ? initialHwCache!.calendarDutyDays ?? [] : [])
   )
@@ -357,6 +362,44 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     [applyRosterDays]
   )
 
+  const dutyBoardRequestRef = useRef(0)
+  const loadTeacherDutyBoards = useCallback(
+    async (classes: HomeworkClassRef[], yearMonth: string) => {
+      if (role !== "teacher") {
+        setTeacherDutyBoards([])
+        patchHomeworkTutoringDataCache((c) => ({ ...c, teacherDutyBoards: [] }))
+        return
+      }
+      const request = ++dutyBoardRequestRef.current
+      const ordered = HOMEWORK_DIVISION_ORDER.flatMap((division) => {
+        const cls = classes.find((c) => c.division === division)
+        return cls ? [cls] : []
+      })
+      const boards = await Promise.all(
+        ordered.map(async (cls) => {
+          const roster = await fetchHomeworkRosterMonth({
+            classId: cls.id,
+            academicYearId: cls.academicYearId,
+            yearMonth,
+          })
+          const board: HomeworkDivisionDutyBoard = {
+            division: cls.division,
+            classroomName: cls.classroomName,
+            yearMonth,
+            status: roster.status,
+            dutyDays: mapDutyDays(roster.days),
+          }
+          return board
+        })
+      )
+      if (request !== dutyBoardRequestRef.current) return
+      if (yearMonth !== dutyViewMonthRef.current) return
+      setTeacherDutyBoards(boards)
+      patchHomeworkTutoringDataCache((c) => ({ ...c, teacherDutyBoards: boards }))
+    },
+    [role]
+  )
+
   const loadCompanion = useCallback(
     async (classes: HomeworkClassRef[], active: HomeworkClassRef, yearMonth: string) => {
       const other =
@@ -411,6 +454,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         setHolidays([])
         setDutyDays([])
         setDutyViewDays([])
+        setTeacherDutyBoards([])
         setCalendarDutyDays([])
         setCompanion(null)
         setLoadError("尚未建立 2627 功課輔導班（請確認 migration 已套用）。")
@@ -475,6 +519,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           dutyDays: [],
           dutyViewDays: [],
           calendarDutyDays: [],
+          teacherDutyBoards: role === "teacher" ? null : [],
           rosterMonthId: "",
           monthRosterStatus: {},
           hwTeachers: teacherList,
@@ -489,6 +534,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       await Promise.all([
         ...extraMonths.map((m) => loadDutyViewMonth(cls, m)),
         loadCompanion(classes, cls, sheetTarget),
+        loadTeacherDutyBoards(classes, dutyViewMonthRef.current),
       ])
     } catch (e) {
       reportUserFacingError(e, { source: "HomeworkTutoringApp.reload" })
@@ -496,7 +542,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     } finally {
       setLoading(false)
     }
-  }, [role, defaultRosterMonth, viewMonth, loadMonthData, loadDutyViewMonth, loadCompanion])
+  }, [role, defaultRosterMonth, viewMonth, loadMonthData, loadDutyViewMonth, loadCompanion, loadTeacherDutyBoards])
 
   const handleDivisionChange = useCallback(
     (next: string) => {
@@ -525,8 +571,11 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   )
 
   useEffect(() => {
-    if (isHomeworkTutoringCacheFresh(role)) return
-    void reload({ silent: hydrateHw })
+    const cached = getHomeworkTutoringDataCache()
+    const teacherBoardsMissing =
+      role === "teacher" && cached?.hwClass != null && cached.teacherDutyBoards == null
+    if (isHomeworkTutoringCacheFresh(role) && !teacherBoardsMissing) return
+    void reload({ silent: hydrateHw || teacherBoardsMissing })
   }, [reload, role, hydrateHw])
 
   const changeLoadedMonth = useCallback(
@@ -570,14 +619,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
       dutyViewMonthRef.current = next
       patchHomeworkTutoringDataCache((c) => ({ ...c, dutyViewMonth: next }))
       if (!hwClass) return
-      if (next === sheetMonthRef.current) {
-        setDutyViewDays(dutyDays)
-        return
-      }
+      if (next === sheetMonthRef.current) setDutyViewDays(dutyDays)
+      const jobs: Promise<void>[] = []
+      if (role === "teacher") jobs.push(loadTeacherDutyBoards(hwClasses, next))
+      if (next !== sheetMonthRef.current) jobs.push(loadDutyViewMonth(hwClass, next))
+      if (jobs.length === 0) return
       setMonthLoading(true)
       setLoadError(null)
       try {
-        await loadDutyViewMonth(hwClass, next)
+        await Promise.all(jobs)
       } catch (e) {
         reportUserFacingError(e, { source: "HomeworkTutoringApp.changeDutyViewMonth" })
         setLoadError(e instanceof Error ? e.message : String(e))
@@ -585,7 +635,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         setMonthLoading(false)
       }
     },
-    [hwClass, dutyDays, loadDutyViewMonth]
+    [hwClass, hwClasses, dutyDays, loadDutyViewMonth, loadTeacherDutyBoards, role]
   )
 
   useEffect(() => {
@@ -798,7 +848,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
       <AdminWorkspaceNav workspace="homework" />
 
-      {hwClasses.length > 1 ? (
+      {hwClasses.length > 1 && role !== "teacher" ? (
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-sm text-muted-foreground" htmlFor="hw-division">
             學部
@@ -913,6 +963,27 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           academicYearLabel={hwClass?.academicYearLabel ?? "2627"}
           holidays={holidays}
           teachers={hwTeachers}
+          dutyBoards={
+            teacherPage === "myDuty"
+              ? HOMEWORK_DIVISION_ORDER.flatMap((division) => {
+                  const cls = hwClasses.find((c) => c.division === division)
+                  if (!cls) return []
+                  const loaded = teacherDutyBoards.find(
+                    (b) => b.division === division && b.yearMonth === dutyViewMonth
+                  )
+                  return [
+                    {
+                      division,
+                      classroomName: loaded?.classroomName ?? cls.classroomName,
+                      yearMonth: dutyViewMonth,
+                      status: loaded?.status ?? "未編更",
+                      dutyDays: loaded?.dutyDays ?? [],
+                      ready: Boolean(loaded),
+                    },
+                  ]
+                })
+              : undefined
+          }
         />
       ) : null}
     </div>

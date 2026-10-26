@@ -14,6 +14,7 @@ import {
   myDutyRoomLabel,
   myDutyRoomShort,
   myDutyTimeLabel,
+  teacherVisibleDutyDays,
   teacherName,
   openSecondHomeworkRoom,
   closeSecondHomeworkRoom,
@@ -199,6 +200,19 @@ describe("myDutyDays", () => {
       }),
     ]
     expect(myDutyDays("a", days).map((d) => d.date)).toEqual(["9/1", "9/2"])
+  })
+})
+
+describe("teacherVisibleDutyDays", () => {
+  it("lists the teacher only after that division is published", () => {
+    const dutyDays = [
+      day({ date: "10/6", assignments: [{ teacherId: "a", start: "15:30", end: "19:30", room: "17D" }] }),
+      day({ date: "10/7", assignments: [{ teacherId: "b", start: "15:30", end: "19:30", room: "17E" }] }),
+    ]
+    expect(teacherVisibleDutyDays("a", { status: "未編更", dutyDays })).toEqual([])
+    expect(teacherVisibleDutyDays("a", { status: "已編更", dutyDays }).map((d) => d.date)).toEqual([
+      "10/6",
+    ])
   })
 })
 

@@ -1,7 +1,14 @@
 /** 老師「我的當值」一次性加入 iOS 月曆（.ics）。 */
 
 import { mdKeyToIso } from "@/lib/homeworkTutoringSchedules"
-import { myAssignments, myDutyDays, type HomeworkDutyDay } from "@/lib/homeworkTutoringUi"
+import {
+  HOMEWORK_DIVISION_LABEL,
+  HOMEWORK_DIVISION_ORDER,
+  myAssignments,
+  myDutyDays,
+  type HomeworkDivision,
+  type HomeworkDutyDay,
+} from "@/lib/homeworkTutoringUi"
 
 const CALENDAR_PROD_ID = "-//MainHope//Homework Duty//zh-Hant"
 const CALENDAR_NAME = "功輔當值"
@@ -19,6 +26,7 @@ export type HomeworkDutyCalendarEvent = {
   end: string
   rooms: string[]
   slotLines: string[]
+  division?: HomeworkDivision
 }
 
 function pad(value: number): string {
@@ -78,11 +86,12 @@ function asHm(value: string): string {
   return /^\d{2}:\d{2}$/.test(sliced) ? sliced : value
 }
 
-/** 該老師該月當值：一日多段合併為最早開始至最遲結束。 */
+/** 該老師該月當值：一日多段合併為最早開始至最遲結束。同一學部一日一筆。 */
 export function homeworkDutyCalendarEvents(
   teacherId: string,
   yearMonth: string,
-  days: HomeworkDutyDay[]
+  days: HomeworkDutyDay[],
+  division?: HomeworkDivision
 ): HomeworkDutyCalendarEvent[] {
   const out: HomeworkDutyCalendarEvent[] = []
   for (const day of myDutyDays(teacherId, days)) {
@@ -101,15 +110,32 @@ export function homeworkDutyCalendarEvents(
       end: ends[ends.length - 1] ?? "19:30",
       rooms,
       slotLines: mine.map((a) => `${a.room} ${asHm(a.start)}–${asHm(a.end)}`),
+      ...(division ? { division } : {}),
     })
   }
   return out
+}
+
+export function homeworkDutyCalendarEventsForDivisions(
+  teacherId: string,
+  yearMonth: string,
+  divisions: readonly { division: HomeworkDivision; days: HomeworkDutyDay[] }[]
+): HomeworkDutyCalendarEvent[] {
+  const events = divisions.flatMap((board) =>
+    homeworkDutyCalendarEvents(teacherId, yearMonth, board.days, board.division)
+  )
+  const rank = (division: HomeworkDivision | undefined) =>
+    division ? HOMEWORK_DIVISION_ORDER.indexOf(division) : -1
+  return events.sort(
+    (a, b) => a.isoDate.localeCompare(b.isoDate) || rank(a.division) - rank(b.division)
+  )
 }
 
 function eventDescription(event: HomeworkDutyCalendarEvent): string {
   const roomLabel = event.rooms.length > 0 ? event.rooms.join("／") : "—"
   return [
     "明學教育功課輔導班當值",
+    event.division ? `學部：${HOMEWORK_DIVISION_LABEL[event.division]}` : null,
     `課室：${roomLabel}`,
     `時段：${event.start}–${event.end}`,
     event.slotLines.length > 1 ? `分時段：${event.slotLines.join("；")}` : null,
@@ -122,7 +148,13 @@ function eventDescription(event: HomeworkDutyCalendarEvent): string {
 
 function eventLines(event: HomeworkDutyCalendarEvent, teacherId: string, nowStamp: string): string[] {
   const lines = ["BEGIN:VEVENT"]
-  pushRawProp(lines, "UID", `homework-duty-${teacherId}-${event.isoDate}@mainhope.edu.hk`)
+  pushRawProp(
+    lines,
+    "UID",
+    event.division
+      ? `homework-duty-${teacherId}-${event.division}-${event.isoDate}@mainhope.edu.hk`
+      : `homework-duty-${teacherId}-${event.isoDate}@mainhope.edu.hk`
+  )
   pushRawProp(lines, "DTSTAMP", nowStamp)
   pushProp(lines, "SUMMARY", EVENT_SUMMARY)
   pushProp(lines, "DESCRIPTION", eventDescription(event))
@@ -146,9 +178,12 @@ export function buildHomeworkDutyCalendarIcs(opts: {
   teacherId: string
   yearMonth: string
   days: HomeworkDutyDay[]
+  divisions?: readonly { division: HomeworkDivision; days: HomeworkDutyDay[] }[]
   now?: Date
 }): string {
-  const events = homeworkDutyCalendarEvents(opts.teacherId, opts.yearMonth, opts.days)
+  const events = opts.divisions
+    ? homeworkDutyCalendarEventsForDivisions(opts.teacherId, opts.yearMonth, opts.divisions)
+    : homeworkDutyCalendarEvents(opts.teacherId, opts.yearMonth, opts.days)
   const nowStamp = formatUtcTimestamp(opts.now ?? new Date())
   const lines = [
     "BEGIN:VCALENDAR",
@@ -188,8 +223,11 @@ export function downloadHomeworkDutyCalendarIcs(opts: {
   teacherId: string
   yearMonth: string
   days: HomeworkDutyDay[]
+  divisions?: readonly { division: HomeworkDivision; days: HomeworkDutyDay[] }[]
 }): void {
-  const events = homeworkDutyCalendarEvents(opts.teacherId, opts.yearMonth, opts.days)
+  const events = opts.divisions
+    ? homeworkDutyCalendarEventsForDivisions(opts.teacherId, opts.yearMonth, opts.divisions)
+    : homeworkDutyCalendarEvents(opts.teacherId, opts.yearMonth, opts.days)
   if (events.length === 0) {
     throw new Error("本月沒有可加入月曆的當值。")
   }

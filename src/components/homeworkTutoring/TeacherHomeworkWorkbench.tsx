@@ -13,6 +13,8 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { BulkCustomTimeDialog } from "./availEditor"
 import { HomeworkDutyMonthCalendar } from "./HomeworkDutyMonthCalendar"
 import {
+  HOMEWORK_DIVISION_LABEL,
+  HOMEWORK_DIVISION_ORDER,
   SUBMIT_DEADLINE_NOTE,
   academicYearMonthBounds,
   clampYearMonth,
@@ -21,13 +23,16 @@ import {
   formatYearMonthLabel,
   getAvailEntry,
   holidaysInYearMonth,
+  homeworkDefaultRoomA,
   listRosterMonthDays,
   myDutyDays,
   myDutyRoomLabel,
   shiftYearMonth,
+  teacherVisibleDutyDays,
   type AllTeacherAvailability,
   type AllTeacherSubmitStatus,
   type AvailEntry,
+  type HomeworkDivisionDutyBoard,
   type HomeworkDutyDay,
   type HomeworkHoliday,
   type HomeworkTeacherRow,
@@ -51,6 +56,7 @@ export function TeacherHomeworkWorkbench({
   academicYearLabel = "2627",
   holidays = [],
   teachers = [],
+  dutyBoards,
 }: {
   tab: TeacherPageId
   onTabChange: (tab: TeacherPageId) => void
@@ -67,6 +73,8 @@ export function TeacherHomeworkWorkbench({
   academicYearLabel?: string
   holidays?: HomeworkHoliday[]
   teachers?: readonly HomeworkTeacherRow[]
+  /** 有值時「我的當值」按中學部、小學部分卡，課室仍標在卡上 */
+  dutyBoards?: ReadonlyArray<HomeworkDivisionDutyBoard & { ready?: boolean }>
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -103,32 +111,78 @@ export function TeacherHomeworkWorkbench({
     [rosterMonthKey, monthHolidays]
   )
 
+  const divisionMode = dutyBoards != null
+  const dutySections = useMemo(() => {
+    if (!dutyBoards) return []
+    return [...dutyBoards]
+      .sort(
+        (a, b) =>
+          HOMEWORK_DIVISION_ORDER.indexOf(a.division) - HOMEWORK_DIVISION_ORDER.indexOf(b.division)
+      )
+      .map((board) => ({
+        board,
+        days: board.ready === false ? [] : teacherVisibleDutyDays(teacherId, board),
+      }))
+  }, [dutyBoards, teacherId])
+  const calendarLanes = useMemo(() => {
+    if (!dutyBoards) return []
+    return [...dutyBoards]
+      .sort(
+        (a, b) =>
+          HOMEWORK_DIVISION_ORDER.indexOf(a.division) - HOMEWORK_DIVISION_ORDER.indexOf(b.division)
+      )
+      .map((board) => ({
+        division: board.division,
+        dutyDays: board.ready === false ? [] : board.dutyDays,
+        defaultRoom: board.classroomName?.trim() || homeworkDefaultRoomA(board.division),
+        emptyLabel:
+          board.ready === false ? "—" : board.status === "已編更" ? "暫時空缺" : "未編更",
+      }))
+  }, [dutyBoards])
+
   const duties = useMemo(() => myDutyDays(teacherId, dutyDays), [teacherId, dutyDays])
 
-  const dutyEmptyHint =
-    !published
+  const dutyEmptyHint = divisionMode
+    ? null
+    : !published
       ? "本月尚未有已發布的當值。"
       : duties.length === 0
         ? "本月未編入你的當值。"
         : null
 
-  const canAddToIosCalendar = published && duties.length > 0
+  const canAddToIosCalendar = divisionMode
+    ? dutySections.some((section) => section.days.length > 0)
+    : published && duties.length > 0
 
   const addToIosCalendar = () => {
     if (!canAddToIosCalendar) {
       pushBanner({
         title: "無法加入月曆",
         tone: "warning",
-        message: dutyEmptyHint ?? "本月沒有你的當值。",
+        message: dutyEmptyHint ?? "本月沒有你的已發布當值。",
       })
       return
     }
     try {
-      downloadHomeworkDutyCalendarIcs({
-        teacherId,
-        yearMonth: rosterMonthKey,
-        days: dutyDays,
-      })
+      downloadHomeworkDutyCalendarIcs(
+        divisionMode
+          ? {
+              teacherId,
+              yearMonth: rosterMonthKey,
+              days: [],
+              divisions: dutySections
+                .filter((section) => section.board.status === "已編更" && section.board.ready !== false)
+                .map((section) => ({
+                  division: section.board.division,
+                  days: section.board.dutyDays,
+                })),
+            }
+          : {
+              teacherId,
+              yearMonth: rosterMonthKey,
+              days: dutyDays,
+            }
+      )
       pushBanner({
         title: "已下載日曆檔",
         tone: "success",
@@ -517,7 +571,40 @@ export function TeacherHomeworkWorkbench({
             只加入畫面顯示月份、屬於你的當值。下載後以 Safari 或「檔案」開啟並加入日曆。
           </p>
 
-          {dutyEmptyHint ? (
+          {divisionMode ? (
+            <div className="space-y-4">
+              {dutySections.map(({ board, days }) => (
+                <section key={board.division} className="space-y-2">
+                  <h3 className="text-sm font-semibold">
+                    {HOMEWORK_DIVISION_LABEL[board.division]}
+                  </h3>
+                  {board.ready === false ? (
+                    <p className="text-sm text-muted-foreground">載入中…</p>
+                  ) : board.status !== "已編更" ? (
+                    <p className="text-sm text-muted-foreground">本月尚未有已發布的當值。</p>
+                  ) : days.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">本月未編入你的當值。</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {days.map((d) => (
+                        <li
+                          key={`${board.division}-${d.date}`}
+                          className="rounded-xl border border-border bg-card px-4 py-3 shadow-sm"
+                        >
+                          <p className="font-medium tabular-nums">
+                            {d.date}（{d.weekday}）
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {myDutyRoomLabel(d, teacherId)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              ))}
+            </div>
+          ) : dutyEmptyHint ? (
             <p className="text-sm text-muted-foreground">{dutyEmptyHint}</p>
           ) : (
             <ul className="space-y-2">
@@ -544,6 +631,7 @@ export function TeacherHomeworkWorkbench({
             teachers={teachers}
             highlightTeacherId={teacherId}
             showIdleLabels={published}
+            lanes={divisionMode ? calendarLanes : undefined}
           />
         </div>
       ) : null}

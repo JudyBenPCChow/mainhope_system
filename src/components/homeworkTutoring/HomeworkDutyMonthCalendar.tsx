@@ -97,19 +97,43 @@ function HomeworkDutyCalendarDivisionCard({
 
 function dutyTone(opts: {
   day: RosterDay
-  duty: HomeworkDutyDay | undefined
+  duty?: HomeworkDutyDay
   highlightTeacherId?: string
+  isMine?: boolean
 }): MonthCalendarTone {
   const mapped = myDutyCalendarTone({
     selectable: opts.day.selectable,
     holidayLabel: opts.day.holidayLabel,
-    isMine: opts.highlightTeacherId
-      ? isTeacherOnDutyDay(opts.duty, opts.highlightTeacherId)
-      : false,
+    isMine:
+      opts.isMine ??
+      (opts.highlightTeacherId
+        ? isTeacherOnDutyDay(opts.duty, opts.highlightTeacherId)
+        : false),
   })
   if (mapped === "closed") return "closed"
   if (mapped === "mine") return "accent"
   return "info"
+}
+
+function divisionDutyAriaLabel(
+  day: RosterDay,
+  laneMaps: readonly {
+    lane: HomeworkCalendarDivisionLane
+    byKey: Map<string, HomeworkDutyDay>
+  }[],
+  teachers: readonly HomeworkTeacherRow[]
+): string {
+  if (!day.selectable || day.holidayLabel) {
+    return `${day.key} 星期${day.weekdayChar}，${day.holidayLabel ? "放假" : "週末"}`
+  }
+  if (laneMaps.length === 0) return `${day.key} 星期${day.weekdayChar}，未排`
+  const parts = laneMaps.map(({ lane, byKey }) => {
+    const people = dutyAssignments(byKey.get(day.key))
+    const label = HOMEWORK_DIVISION_LABEL[lane.division]
+    if (people.length === 0) return `${label}未排`
+    return `${label} ${people.map((a) => formatCalendarAssignmentLine(a, teachers)).join("、")}`
+  })
+  return `${day.key} 星期${day.weekdayChar}，${parts.join("；")}`
 }
 
 function dutyAriaLabel(
@@ -213,12 +237,22 @@ export function HomeworkDutyMonthCalendar({
     [lanes]
   )
 
-  if (lanes && lanes.length > 0) {
+  if (lanes) {
     return (
       <MonthCalendar
         days={rosterDays}
-        getTone={(day) => dutyTone({ day, duty: dutyByKey.get(day.key), highlightTeacherId })}
-        getAriaLabel={(day) => dutyAriaLabel(day, dutyByKey.get(day.key), teachers)}
+        getTone={(day) =>
+          dutyTone({
+            day,
+            isMine: Boolean(
+              highlightTeacherId &&
+                laneMaps.some(({ byKey }) =>
+                  isTeacherOnDutyDay(byKey.get(day.key), highlightTeacherId)
+                )
+            ),
+          })
+        }
+        getAriaLabel={(day) => divisionDutyAriaLabel(day, laneMaps, teachers)}
         renderBody={(day) => {
           if (day.holidayLabel) return <span>放假</span>
           if (!day.selectable) return <span>週末</span>
