@@ -54,6 +54,49 @@ describe("deriveActivityStatus", () => {
   ).toBe("活躍生")
  })
 
+ it("沒有報讀，但近一個月新登記 ⇒ 活躍", () => {
+  expect(
+   deriveActivityStatus({
+    hasActiveEnrollment: false,
+    enrollments: [],
+    studentCreatedAt: "2026-08-15T04:00:00Z",
+    asOf,
+   })
+  ).toBe("活躍生")
+ })
+
+ it("沒有報讀，主檔建立日剛好在一個月界線當日 ⇒ 活躍", () => {
+  expect(
+   deriveActivityStatus({
+    hasActiveEnrollment: false,
+    enrollments: [],
+    studentCreatedAt: "2026-07-29T16:00:00Z",
+    asOf,
+   })
+  ).toBe("活躍生")
+ })
+
+ it("沒有報讀，主檔建立日早於一個月 ⇒ 非活躍", () => {
+  expect(
+   deriveActivityStatus({
+    hasActiveEnrollment: false,
+    enrollments: [],
+    studentCreatedAt: "2026-07-29T15:00:00Z",
+    asOf,
+   })
+  ).toBe("非活躍生")
+ })
+
+ it("未提供主檔建立日、亦無近期報讀 ⇒ 非活躍", () => {
+  expect(
+   deriveActivityStatus({
+    hasActiveEnrollment: false,
+    enrollments: [],
+    asOf,
+   })
+  ).toBe("非活躍生")
+ })
+
  it("兩年前報讀且已退讀、無近期退讀 ⇒ 非活躍", () => {
   expect(
    deriveActivityStatus({

@@ -14,15 +14,15 @@
 | **註冊** | `students.registration_status` | 是否為本社正式客戶；資料值為 `已註冊` / `非注冊`（後者是現行舊值，意義為「非註冊」）；試堂／查詢屬 `非注冊`。職員可手動改；**正式報讀成功時系統改為已註冊**（見鐵則）。 |
 | **報讀** | `student_class_enrollments` | 學生報讀某一班的紀錄；**一筆 = 一個班別報讀**，不是學生主檔建立日。 |
 | **在讀** | `students.enrollment_status` | 現時是否有任一筆 `status = 就讀中` 的班別報讀。**自動計算**。 |
-| **活躍** | `students.activity_status` | 在讀，或近三個月曾報讀／退讀（見第 3 節）。**自動計算**。 |
+| **活躍** | `students.activity_status` | 在讀，或近三個月曾報讀／退讀，或近一個月新登記（即使尚未報讀；見第 3 節）。**自動計算**。 |
 | **學業階段** | `students.academic_stage` | `中學階段` / `已畢業`。**手動維護**。日常列表預設不載入已畢業，見 [`SOFT_ARCHIVE.md`](../academic/SOFT_ARCHIVE.md)。 |
 | **legacy 摘要** | `students.status` | 舊欄位；由 DB 函式依上列維度衍生，供舊報表／匯出相容。**勿在 UI 當唯一真相**。 |
 
 **鐵則：**
 
-- **註冊日期 ≠ 報讀日期**。不得用 `students.created_at` 判定活躍或報讀。
+- **註冊日期 ≠ 報讀日期**。不得用 `students.created_at` 判定報讀或在讀。活躍的「近一個月新登記」是例外，只看學生主檔建立日。
 - **在讀 ⇒ 活躍**。不得出現「在讀但非活躍」。
-- **僅匯入學生主檔、未匯入班別報讀**時，在讀／活躍應為 `非在讀` / `非活躍生`（除非之後新增報讀紀錄）。
+- **僅匯入學生主檔、未匯入班別報讀**時，在讀為 `非在讀`。活躍：主檔建立日在過去一個月內為 `活躍生`，否則 `非活躍生`。匯入舊生須保留原來的建立日，避免整批被當成新登記。
 - **有就讀中報讀 ⇒ 已註冊**。`insertEnrollment` 寫入成功後，若原為 `非注冊`，先改 `已註冊` 再重算在讀／活躍。不得出現「有報讀但仍非注冊」（否則在讀會被強制成非在讀，活躍卻可因報讀變成活躍生）。只建主檔、尚未報讀，可維持非注冊。
 
 ---
@@ -43,7 +43,7 @@ UI（Tag、篩選、統計）                   ← 顯示；信任 DB 列舉值
 
 | 層級 | 可以做 | 不可以做 |
 | --- | --- | --- |
-| **DB 函式** | 依報讀紀錄重算 `enrollment_status`、`activity_status`、legacy `status` | 用學生主檔 `created_at` 代替報讀 |
+| **DB 函式** | 依報讀紀錄，以及主檔建立日是否在近一個月，重算 `enrollment_status`、`activity_status`、legacy `status` | 用學生主檔 `created_at` 代替報讀或在讀 |
 | **service 映射** | 將 DB 字串 map 成 TS union；舊 CSV **匯入相容** | 用 legacy `status` 推斷活躍（除非 `activity_status` 欄位真的不存在） |
 | **component** | 顯示 `StudentClassificationTags`、篩選 | 在頁面內另寫 `/活躍/` 等 regex 判斷 |
 
@@ -51,7 +51,7 @@ UI（Tag、篩選、統計）                   ← 顯示；信任 DB 列舉值
 
 ---
 
-## 3. 現行自動計算規則（2026-08）
+## 3. 現行自動計算規則（2026-10）
 
 ### 3.1 `enrollment_status`（在讀 / 非在讀）
 
@@ -60,9 +60,15 @@ UI（Tag、篩選、統計）                   ← 顯示；信任 DB 列舉值
 
 ### 3.2 `activity_status`（活躍生 / 非活躍生）
 
-- **活躍生**：現時在讀，**或**過去 **3 個月**內至少一筆班別報讀事件，**或**過去 **3 個月**內有退讀生效日（`withdraw_effective_date`）。
-- 報讀事件日期：`coalesce(enroll_date, created_at 轉香港日期)`；不限該筆而家就讀中或已退讀。
-- 用途：學期中段仍就讀中的學生保持活躍；暑期未續常規、或正式退讀未滿三個月的學生仍留在日常活躍名單。
+- **活躍生**（符合任一項）：
+  1. 現時在讀；
+  2. 過去 **3 個月**內至少一筆班別報讀事件；
+  3. 過去 **3 個月**內有退讀生效日（`withdraw_effective_date`）；
+  4. 學生主檔建立日（`students.created_at` 的香港日期）在過去 **1 個月**內。此即近一個月註冊或新生登記，**即使當下沒有報讀**，即使仍為非註冊。
+- 報讀事件日期：`coalesce(enroll_date, 該筆報讀的 created_at 轉香港日期)`；不限該筆而家就讀中或已退讀。報讀列的建立日只用於該筆報讀事件，不用來判斷新登記。
+- 新登記只看學生主檔建立日。系統沒有獨立的註冊生效日。
+- 滿一個月、且從未有任何班別報讀的學生，每日重算後改為非活躍生。已有報讀者仍按第 1–3 項，不因主檔建立日而提前跌出。
+- 用途：學期中段仍就讀中的學生保持活躍；暑期未續常規、或正式退讀未滿三個月的學生仍留在日常活躍名單；近一個月新登記、尚未報讀的新生亦留在活躍名單以便跟進。
 
 ### 3.3 報讀事件日誌（建議語意）
 
@@ -139,7 +145,7 @@ normalizeActivityStatus("非活躍生") // → 誤判為「活躍生」
 `asStudent` 邏輯：
 
 - `row.activity_status != null` → **直接用 DB 值**，不再從 legacy 推活躍。
-- 活躍與否**只能**來自報讀紀錄重算結果，不能來自學生主檔的 `status` 或匯入預設。
+- 活躍與否來自報讀紀錄，或近一個月的學生主檔建立日。不能來自學生主檔的 `status` 或匯入預設。
 
 ---
 
@@ -173,7 +179,7 @@ normalizeActivityStatus("非活躍生") // → 誤判為「活躍生」
 
 - [ ] 業務規則變更是否已寫入**新 migration**（`create or replace function recompute_student_enrollment_state`）？
 - [ ] `computeDerivedFromEnrollments` 是否與 DB 邏輯一致？
-- [ ] 是否誤用 `students.created_at` 或註冊欄位代表報讀？
+- [ ] 是否誤用 `students.created_at` 代表報讀或在讀？（近一個月新登記可使用主檔建立日判斷活躍）
 - [ ] `normalize*` 對固定列舉是否**精確比對**或**否定詞優先**？
 - [ ] `STATUS_TAG_RULES` 是否將 `非*` 規則放在肯定詞之前？
 - [ ] 匯入／seed 是否避免無報讀卻預設 `在讀`？
@@ -196,6 +202,7 @@ normalizeEnrollmentStatus("非在讀") === "非在讀"     // 不可因含「在
 | --- | --- |
 | `supabase/migrations/20260707193000_students_four_dimension_classification.sql` | 四維欄位、首版重算函式 |
 | `supabase/migrations/20260707200000_enrollment_status_any_active_enrollment.sql` | 在讀改為「現時就讀中」 |
+| `supabase/migrations/20261029140000_activity_status_recent_registration.sql` | 活躍另加近一個月新登記；每日收回從未報讀者 |
 | `src/services/studentQueries.ts` | 型別、`normalize*`、`computeDerivedFromEnrollments`、`syncStudentEnrollmentState` |
 | `src/lib/statusTag.ts` | 標籤色字典 |
 | `src/components/students/studentsUi.tsx` | `StudentClassificationTags` |
@@ -207,5 +214,6 @@ normalizeEnrollmentStatus("非在讀") === "非在讀"     // 不可因含「在
 
 | 日期 | 摘要 |
 | --- | --- |
+| 2026-10-29 | 活躍另加近一個月新登記（主檔建立日；即使尚未報讀）。滿一個月且從未報讀則每日改回非活躍生 |
 | 2026-08-30 | 活躍＝在讀 **或** 近三個月報讀 **或** 近三個月退讀生效；學生管理拆活躍／名冊 |
 | 2026-07-07 | 初版：釐清註冊 vs 報讀、子字串誤判、`非活躍生` 顯示 bug 與防呆清單 |

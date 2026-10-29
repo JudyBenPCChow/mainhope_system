@@ -719,7 +719,7 @@ export function StudentsListPage() {
  const emptyListHint = isActiveScope
   ? "活躍名單沒有符合條件的學生"
   : activityKey !== "all"
-    ? "沒有符合條件的學生。活躍狀態包含在讀，以及近三個月曾報讀或退讀的學生。"
+    ? "沒有符合條件的學生。活躍生包含在讀、近三個月曾報讀或退讀，以及近一個月新登記（即使尚未報讀）的學生。"
     : "沒有符合條件的學生"
 
  const goRosterWithSearch = () => {
@@ -851,7 +851,7 @@ export function StudentsListPage() {
    <div className="space-y-2">
     <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
      活躍狀態
-     <FilterHelp text="在讀，或近三個月曾報讀／退讀；用於找出未續報或暫停一個月的學生" />
+     <FilterHelp text="在讀，或近三個月曾報讀／退讀，或近一個月新登記（即使尚未報讀）" />
     </div>
     <div className="flex flex-wrap gap-2">
      {ACTIVITY_FILTERS.map((f) => {
@@ -963,7 +963,7 @@ export function StudentsListPage() {
       <>
        <Tag tone="default" size="sm">目前排序：{sortLabel(sortKey, sortDir)}</Tag>
        <span className="text-xs text-muted-foreground">
-        {isActiveScope ? "統計為活躍名單（在讀或近三個月報讀／退讀）" : "統計為學生名冊；預設不含已畢業生"}
+        {isActiveScope ? "統計為活躍名單（在讀、近三個月報讀／退讀，或近一個月新登記）" : "統計為學生名冊；預設不含已畢業生"}
        </span>
       </>
      ) : null}
