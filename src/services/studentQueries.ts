@@ -213,7 +213,8 @@ export function enrollmentEventYmd(row: EnrollmentEventDateRow): string {
 function computeDerivedFromEnrollments(
  registration_status: "已註冊" | "非注冊",
  academic_stage: "中學階段" | "已畢業",
- enrollments: EnrollmentStateRow[]
+ enrollments: EnrollmentStateRow[],
+ studentCreatedAt?: string | null
 ): {
  enrollment_status: "在讀" | "非在讀"
  activity_status: "活躍生" | "非活躍生"
@@ -221,7 +222,11 @@ function computeDerivedFromEnrollments(
 } {
  const hasActiveEnrollment = enrollments.some((row) => row.status === "就讀中")
  let enrollment_status: "在讀" | "非在讀" = hasActiveEnrollment ? "在讀" : "非在讀"
- const activity_status = deriveActivityStatus({ hasActiveEnrollment, enrollments })
+ const activity_status = deriveActivityStatus({
+  hasActiveEnrollment,
+  enrollments,
+  studentCreatedAt,
+ })
  if (registration_status === "非注冊") enrollment_status = "非在讀"
  return {
   enrollment_status,
@@ -286,7 +291,7 @@ const ENROLLMENT_STATE_SELECT = "status, enroll_date, created_at, withdraw_effec
 async function syncStudentEnrollmentState(studentId: string): Promise<void> {
  if (!supabase) return
  const [{ data: studentRow, error: sErr }, { data: enrRows, error: eErr }] = await Promise.all([
-  supabase.from("students").select("registration_status, academic_stage").eq("id", studentId).maybeSingle(),
+  supabase.from("students").select("registration_status, academic_stage, created_at").eq("id", studentId).maybeSingle(),
   supabase.from("student_class_enrollments").select(ENROLLMENT_STATE_SELECT).eq("student_id", studentId),
  ])
  if (sErr) throw sErr
@@ -299,10 +304,12 @@ async function syncStudentEnrollmentState(studentId: string): Promise<void> {
  const academic_stage = normalizeAcademicStage(
   String((studentRow as Record<string, unknown>).academic_stage ?? "中學階段")
  )
+ const studentCreatedAt = String((studentRow as Record<string, unknown>).created_at ?? "")
  const derived = computeDerivedFromEnrollments(
   registration_status,
   academic_stage,
-  (enrRows ?? []) as unknown as EnrollmentStateRow[]
+  (enrRows ?? []) as unknown as EnrollmentStateRow[],
+  studentCreatedAt
  )
 
  const { error: uErr } = await supabase
@@ -469,7 +476,7 @@ export type StudentsOpsListResult = {
  */
 export async function fetchStudentsForOpsList(opts?: {
  includeGraduated?: boolean
- /** 日常頁：只取活躍生（在讀或近三個月報讀／退讀） */
+ /** 日常頁：只取活躍生（在讀、近三個月報讀／退讀，或近一個月新登記） */
  activityStatus?: "活躍生"
  limit?: number
  offset?: number
@@ -599,7 +606,7 @@ export async function insertStudent(
  const baseState = normalizeStudentState({
   registration_status: row.registration_status,
   enrollment_status: "非在讀",
-  activity_status: "非活躍生",
+  activity_status: "活躍生",
   academic_stage: row.academic_stage,
  })
  const grade = coerceStudentGrade(row.grade)
@@ -607,10 +614,11 @@ export async function insertStudent(
   row.status != null ? String(row.status) : null,
   grade
  )
+ // 剛建立的主檔屬近一個月新登記，即使尚未報讀也是活躍生。資料庫重算會再核對建立日。
  const state = normalizeStudentState({
   registration_status: row.registration_status ?? inferred.registration_status ?? baseState.registration_status,
   enrollment_status: "非在讀",
-  activity_status: "非活躍生",
+  activity_status: "活躍生",
   academic_stage: row.academic_stage ?? inferred.academic_stage ?? baseState.academic_stage,
  })
  const { data, error } = await supabase

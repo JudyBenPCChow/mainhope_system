@@ -205,7 +205,7 @@ export function StudentClassificationTags({
   {
    key: "activity",
    label: activity,
-   title: "活躍：在讀，或近三個月曾報讀／退讀（自動計算）",
+   title: "活躍：在讀，或近三個月曾報讀／退讀，或近一個月新登記（即使尚未報讀；自動計算）",
    tone: statusToTagTone(activity),
   },
   {
