@@ -8,7 +8,7 @@
 | 不含 | 計糧功輔時薪及 Christine 功輔佣金（見 [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)）；暑期功輔產品化；學生點名紙；宣傳物料；專科式請假／補堂／扣堂。小學部場次見 [`homework-tutoring-primary-division.md`](./homework-tutoring-primary-division.md)。每日功課進度另題 [`homework-tutoring-daily-logs.md`](./homework-tutoring-daily-logs.md)（後台填寫進行中；家長 Portal 未上線前前線仍用 Notion） |
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 盤點／定案 | 2026-08-01；待決回覆吸納 2026-08-11；**2627 學部／課室／收費** 2026-08-25 |
-| 上次更新 | 2026-10-25（編更發布後報更不鎖定，可再出下一版） |
+| 上次更新 | 2026-10-30（當值編更可同時修改中學部與小學部） |
 | 相關 | [`homework-tutoring-payroll.md`](./homework-tutoring-payroll.md)、[`payroll-engine.md`](./payroll-engine.md)、[`SCHEDULING_RULES.md`](../policies/scheduling/SCHEDULING_RULES.md) §4、[`ACADEMIC_CALENDAR.md`](../policies/academic/ACADEMIC_CALENDAR.md) §3、[`HOMEWORK_TUTORING_MONTHLY_FEE.md`](../policies/payments/HOMEWORK_TUTORING_MONTHLY_FEE.md)、下游員工守則 [`2627-regular-year-ops-guide.md`](./2627-regular-year-ops-guide.md)（§7 校曆＋月費＋編更已寫；工程已關帳） |
 | 營運事實整理（vault） | `Mainhope_admin/40-課程/功課輔導班-產品特點與工作流程.md`（2026-08-09；客觀事實，非產品定案；請假段勿當功輔） |
 | 待決 WIP | [`homework-tutoring-decisions-wip.md`](./homework-tutoring-decisions-wip.md)（H1–H11 已收；可刪） |
@@ -144,7 +144,7 @@
 - **報更截止**：該月最後一日起倒數第 3 日（含末日）＝末日 − 2（例：31→29、30→28）（H8）。
 - 過截止仍可補交。月工作表發布後不鎖定報更：第一版可先發出並保留空缺，未報的老師補交後，行政再發布下一版。本人已提交者若要改內容，須先撤回。
 - 排更時段**默認跟報更**，行政可改。一日可排多於一位老師。唔使全日每個時段都有導師。
-- 行政「當值編更」默認**月工作表**。箭咀切月份；列表＋月曆。月曆列出當日所有當值同事及上班時間。未編更只顯示當日已報更人名；儲存＝確定編更。已編更顯示確認當值＋有報更未編入（可頂替）；改派後按「儲存變更」再寫入佔室。已編更但當日無人＝暫時空缺。課室佔用仍全日 15:15–19:30（兩室），唔跟個人時段拆佔室。
+- 行政「當值編更」默認**月工作表**。箭咀切月份；列表＋月曆。月曆列出當日所有當值同事及上班時間。未編更只顯示當日已報更人名；儲存＝確定編更。已編更顯示確認當值＋有報更未編入（可頂替）；改派後按「儲存變更」再寫入佔室。已編更但當日無人＝暫時空缺。課室佔用仍全日 15:15–19:30（兩室），唔跟個人時段拆佔室。中學部與小學部在同一張月工作表同時修改，各自儲存，不必切換學部。
 
 ### 導航（H11）
 

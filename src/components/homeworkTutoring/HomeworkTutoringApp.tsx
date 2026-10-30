@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react"
 import { Navigate, useLocation, useNavigate } from "react-router-dom"
 import type { LucideIcon } from "lucide-react"
 import { ClipboardList } from "lucide-react"
@@ -26,6 +26,7 @@ import {
 } from "@/lib/homeworkTutoringNav"
 import { usesSharedAppShell, type MgmtRole } from "@/lib/mgmtRole"
 import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { useAppConfirm } from "@/lib/appConfirm"
 import { Select } from "@/components/ui/select"
 import { AdminHomeworkWorkbench } from "@/components/homeworkTutoring/AdminHomeworkWorkbench"
 import { HomeworkDayLogStudentPage } from "@/components/homeworkTutoring/HomeworkDayLogStudentPage"
@@ -77,6 +78,7 @@ import {
   upsertHomeworkAvailability,
   type HomeworkClassRef,
   type HomeworkEnrollmentRow,
+  type PublishHomeworkDutyDayInput,
 } from "@/services/homeworkTutoringQueries"
 import { applyHomeworkRosterStatusChange } from "@/lib/homeworkTutoringRosterPersist"
 import {
@@ -159,6 +161,24 @@ function holidayDisplayDate(isoDate: string): string {
   return `${m}/${d}`
 }
 
+function toPublishDutyDays(monthDays: HomeworkDutyDay[]): PublishHomeworkDutyDayInput[] {
+  return monthDays.map((d) => {
+    const synced = withSyncedLegacyTeachers(d)
+    return {
+      date: synced.date,
+      weekday: synced.weekday,
+      holiday: synced.holiday,
+      start: synced.start,
+      end: synced.end,
+      secondaryRoom: synced.secondaryRoom,
+      primaryRoom: synced.primaryRoom,
+      secondaryTeacherId: synced.secondaryTeacherId,
+      primaryTeacherId: synced.primaryTeacherId,
+      assignments: synced.assignments ?? [],
+    }
+  })
+}
+
 function mapDutyDays(
   days: Array<{
     date: string
@@ -206,6 +226,7 @@ function toStudentRows(enrolls: HomeworkEnrollmentRow[]): HomeworkStudentRow[] {
  */
 export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: boolean }) {
   const { role, profile } = useAuth()
+  const { confirmDialog } = useAppConfirm()
   const location = useLocation()
   const navigate = useNavigate()
   const pathname = location.pathname
@@ -223,6 +244,9 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   const [companion, setCompanion] = useState<HomeworkCompanionRoster | null>(
     () => (hydrateHw ? initialHwCache!.companion ?? null : null)
   )
+  const companionRef = useRef(companion)
+  companionRef.current = companion
+  const [dirtyRosterDivisions, setDirtyRosterDivisions] = useState<HomeworkDivision[]>([])
   const [division, setDivision] = useState<HomeworkDivision>(
     () => initialHwCache?.hwClass?.division ?? "secondary"
   )
@@ -574,30 +598,45 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
   }, [role, defaultRosterMonth, viewMonth, loadMonthData, loadDutyViewMonth, loadCompanion, loadTeacherDutyBoards])
 
   const handleDivisionChange = useCallback(
-    (next: string) => {
+    async (next: string) => {
       const d = next === "primary" ? "primary" : "secondary"
       if (d === divisionRef.current) return
+      if (dirtyRosterDivisions.length > 0) {
+        const ok = await confirmDialog({
+          title: "切換學部？",
+          description: "當值編更有未儲存的修改，切換學部後會消失。",
+          confirmText: "切換",
+          cancelText: "留下",
+          tone: "warning",
+        })
+        if (ok !== true) return
+      }
+      setDirtyRosterDivisions([])
       setDivision(d)
       divisionRef.current = d
       invalidateHomeworkTutoringDataCache()
       void reload({ divisionOverride: d })
     },
-    [reload]
+    [confirmDialog, dirtyRosterDivisions, reload]
   )
 
-  const [pendingEdit, setPendingEdit] = useState<{ date: string; division: HomeworkDivision } | null>(
-    null
-  )
-  const clearPendingEdit = useCallback(() => setPendingEdit(null), [])
+  const handleCompanionDutyDaysChange = useCallback((action: SetStateAction<HomeworkDutyDay[]>) => {
+    setCompanion((prev) => {
+      if (!prev) return prev
+      const dutyDays = typeof action === "function" ? action(prev.dutyDays) : action
+      const next = { ...prev, dutyDays }
+      patchHomeworkTutoringDataCache((c) => ({ ...c, companion: next }))
+      return next
+    })
+  }, [])
 
-  const handleEditCompanionDay = useCallback(
-    (date: string) => {
-      if (!companion) return
-      setPendingEdit({ date, division: companion.division })
-      handleDivisionChange(companion.division)
-    },
-    [companion, handleDivisionChange]
-  )
+  const setSheetDutyDays = useCallback((action: SetStateAction<HomeworkDutyDay[]>) => {
+    setDutyDays((prev) => {
+      const next = typeof action === "function" ? action(prev) : action
+      patchHomeworkTutoringDataCache((c) => ({ ...c, dutyDays: next }))
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!role) return
@@ -706,6 +745,27 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
     [persistTeacherAvail]
   )
 
+  const handlePublishCompanion = useCallback(
+    async (yearMonth: string, monthDays: HomeworkDutyDay[]) => {
+      const active = hwClass
+      const other = companionRef.current
+      if (!active || !other || other.division === active.division) {
+        throw new Error("尚未載入另一學部編更")
+      }
+      const cls = hwClasses.find((c) => c.division === other.division)
+      if (!cls) throw new Error("尚未建立該學部功課輔導班")
+      await persistDraftAvailSnapshot(availRef.current, submitStatusRef.current, yearMonth)
+      await publishHomeworkRosterMonth({
+        classId: cls.id,
+        academicYearId: cls.academicYearId,
+        yearMonth,
+        dutyDays: toPublishDutyDays(monthDays),
+      })
+      await loadCompanion(hwClasses, active, yearMonth)
+    },
+    [hwClass, hwClasses, loadCompanion, persistDraftAvailSnapshot]
+  )
+
   const persistTeacherAvailNow = useCallback(
     async (teacherId: string, status: "草稿" | "已提交") => {
       try {
@@ -768,21 +828,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
         classId: hwClass.id,
         academicYearId: hwClass.academicYearId,
         yearMonth,
-        dutyDays: monthDays.map((d) => {
-          const synced = withSyncedLegacyTeachers(d)
-          return {
-            date: synced.date,
-            weekday: synced.weekday,
-            holiday: synced.holiday,
-            start: synced.start,
-            end: synced.end,
-            secondaryRoom: synced.secondaryRoom,
-            primaryRoom: synced.primaryRoom,
-            secondaryTeacherId: synced.secondaryTeacherId,
-            primaryTeacherId: synced.primaryTeacherId,
-            assignments: synced.assignments,
-          }
-        }),
+        dutyDays: toPublishDutyDays(monthDays),
       })
       await loadMonthData(hwClass, yearMonth, hwTeachers)
       const extras = [
@@ -931,7 +977,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
       <AdminWorkspaceNav workspace="homework" />
 
-      {hwClasses.length > 1 && role !== "teacher" ? (
+      {hwClasses.length > 1 && role !== "teacher" && adminPage !== "roster" ? (
         <div className="flex flex-wrap items-center gap-2">
           <label className="text-sm text-muted-foreground" htmlFor="hw-division">
             學部
@@ -940,7 +986,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
             id="hw-division"
             className="w-40"
             value={division}
-            onChange={(e) => handleDivisionChange(e.target.value)}
+            onChange={(e) => void handleDivisionChange(e.target.value)}
             aria-label="功輔學部"
           >
             {hwClasses.some((c) => c.division === "secondary") ? (
@@ -994,11 +1040,10 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           division={hwClass?.division ?? division}
           defaultRoomA={hwClass?.classroomName ?? undefined}
           companion={companion}
-          onEditCompanionDay={handleEditCompanionDay}
-          initialEditDate={
-            pendingEdit && pendingEdit.division === hwClass?.division ? pendingEdit.date : null
-          }
-          onInitialEditHandled={clearPendingEdit}
+          onCompanionDutyDaysChange={handleCompanionDutyDaysChange}
+          onPublishCompanion={handlePublishCompanion}
+          dirtyRosterDivisions={dirtyRosterDivisions}
+          onDirtyRosterDivisionsChange={setDirtyRosterDivisions}
           students={students}
           fees={fees}
           avail={avail}
@@ -1007,7 +1052,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           onPersistTeacherAvail={persistTeacherAvailNow}
           dutyDays={dutyDays}
           overviewDutyDays={calendarDutyDays}
-          setDutyDays={setDutyDays}
+          setDutyDays={setSheetDutyDays}
           monthRosterStatus={monthRosterStatus}
           persistMonthRosterStatus={persistMonthRosterStatus}
           hwTeachers={hwTeachers}

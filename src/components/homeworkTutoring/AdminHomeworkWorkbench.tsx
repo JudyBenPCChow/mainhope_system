@@ -71,9 +71,10 @@ export function AdminHomeworkWorkbench({
   division = "secondary",
   defaultRoomA,
   companion = null,
-  onEditCompanionDay,
-  initialEditDate = null,
-  onInitialEditHandled,
+  onCompanionDutyDaysChange,
+  onPublishCompanion,
+  dirtyRosterDivisions = [],
+  onDirtyRosterDivisionsChange,
   students,
   fees,
   avail,
@@ -100,9 +101,10 @@ export function AdminHomeworkWorkbench({
   division?: HomeworkDivision
   defaultRoomA?: string
   companion?: HomeworkCompanionRoster | null
-  onEditCompanionDay?: (date: string) => void
-  initialEditDate?: string | null
-  onInitialEditHandled?: () => void
+  onCompanionDutyDaysChange?: Dispatch<SetStateAction<HomeworkDutyDay[]>>
+  onPublishCompanion?: (yearMonth: string, monthDays: HomeworkDutyDay[]) => Promise<void>
+  dirtyRosterDivisions?: readonly HomeworkDivision[]
+  onDirtyRosterDivisionsChange?: (next: HomeworkDivision[]) => void
   students: HomeworkStudentRow[]
   fees: HomeworkFeeDisplay[]
   avail: AllTeacherAvailability
@@ -137,6 +139,7 @@ export function AdminHomeworkWorkbench({
 
   const sheetMonth = sheetMonthProp ?? localSheetMonth
   const setSheetMonth = (ym: string) => {
+    onDirtyRosterDivisionsChange?.([])
     if (onSheetMonthChange) onSheetMonthChange(ym)
     else setLocalSheetMonth(ym)
   }
@@ -705,9 +708,10 @@ export function AdminHomeworkWorkbench({
               students={students}
               division={division}
               companion={companion}
-              onEditCompanionDay={onEditCompanionDay}
-              initialEditDate={initialEditDate}
-              onInitialEditHandled={onInitialEditHandled}
+              onCompanionDutyDaysChange={onCompanionDutyDaysChange}
+              onPublishCompanion={onPublishCompanion}
+              dirtyDivisions={dirtyRosterDivisions}
+              onDirtyDivisionsChange={onDirtyRosterDivisionsChange}
               onPublish={onPublishRoster}
             />
           </TabsContent>

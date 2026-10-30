@@ -620,7 +620,7 @@ export type HomeworkDivisionDutyBoard = {
   dutyDays: HomeworkDutyDay[]
 }
 
-/** 月工作表對照用：另一學部同月的報讀＋編更（唯讀） */
+/** 另一學部同月的報讀與編更。當值編更可直接修改，不必切換學部。 */
 export type HomeworkCompanionRoster = {
   division: HomeworkDivision
   classroomName: string | null
