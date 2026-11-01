@@ -32,3 +32,7 @@ verify_jwt = false
 # 星期二、五行政 PDF：排程呼叫後轉觸發 GitHub Actions 產生附件。
 [functions.admin-pdf-reports]
 verify_jwt = false
+
+# 每月 1 日新報讀整體報告：排程呼叫後轉觸發 GitHub Actions 產生附件。
+[functions.monthly-new-enrollment-report]
+verify_jwt = false
