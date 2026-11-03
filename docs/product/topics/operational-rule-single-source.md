@@ -71,7 +71,7 @@
 | 實作 | 位置 | 口徑 |
 | --- | --- | --- |
 | 畫面點名紙（留這份） | `rosterStudentsForSchedule`（`src/services/scheduleRosterQueries.ts`），資料來自 `get_teacher_schedule_roster_context` | `2627` 起常規學年：有效宣告 ∩ 該班就讀中 ∩ 報讀日／退讀生效日，再加試堂與補堂目標。暑期與較舊學年走 `legacyRosterStudentsForSchedule`：就讀中報讀，並用 `enrollmentVisibleOnSchedule`（`src/lib/enrollmentPeriod.ts`）擋暑期期數與單堂。試堂用 `paidTrialObligesSchedule`（`src/lib/trialLessonObligation.ts`）：已收款、未取消、**排除待改期**。請假套到哪一節用 `leaveAppliesToSchedule`：已綁其他排程的假，不可再用同班同日套到連堂另一節 |
-| 正式明日電郵（衝突） | `teacher_tomorrow_lesson_email_payload` 的 `roster`／`leaves`（最新定義 `supabase/migrations/20261023231000_tomorrow_lesson_include_duty_shifts.sql`）；Edge `tomorrow-teacher-lesson-reminder` 呼叫此函式 | 專科：宣告 ∩ 就讀中 ∩ 日期閘。功輔／私人：只看就讀中報讀，不要求宣告。試堂只排除狀態含「取消」，**不排除待改期**。不看學年硬閘，暑期小組班也走宣告。請假的同班同日後備要求 `schedule_id` 為空，這點與畫面一致 |
+| 正式明日電郵（衝突） | `teacher_tomorrow_lesson_email_payload` 的 `roster`／`leaves`（最新定義 `supabase/migrations/20261104030000_tomorrow_lesson_duty_own_time.sql`）；Edge `tomorrow-teacher-lesson-reminder` 呼叫此函式 | 專科：宣告 ∩ 就讀中 ∩ 日期閘。私人課程：只看就讀中報讀，不要求宣告。功課輔導班佔室排程不列入。功輔當值用該段時段，學生只計當日星期的就讀中報讀。試堂只排除狀態含「取消」，**不排除待改期**。不看學年硬閘，暑期小組班也走宣告。請假的同班同日後備要求 `schedule_id` 為空，這點與畫面一致 |
 | 對話查詢（衝突） | `.cursor/skills/tomorrow-teacher-lesson-reminder/SKILL.md` 與 `queries.md` 查詢 2、查詢 3 | 說明寫專科用宣告、功輔／私人用就讀中報讀。查詢 2 卻對所有班型只 join 宣告，功輔與私人課程會漏人。試堂同樣只排除「取消」。查詢 3 的同班同日條件沒有要求 `schedule_id` 為空，已綁另一節的假會套到連堂的另一節 |
 
 `2627` 專科、已收款且未取消的試堂、補堂目標、就讀中加報讀日／退讀日：畫面與電郵函式這幾段一致。衝突在下面四個條件。
