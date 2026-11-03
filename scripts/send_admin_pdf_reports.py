@@ -176,6 +176,7 @@ def send_email(*, api_key: str, from_addr: str, subject: str, text: str, pdf: Pa
         headers={
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
+            "User-Agent": "mainhope-admin-pdf-reports",
         },
         method="POST",
     )
