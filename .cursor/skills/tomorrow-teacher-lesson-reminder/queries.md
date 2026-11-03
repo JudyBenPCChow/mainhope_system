@@ -40,9 +40,14 @@ where s.scheduled_date = target.d
   and coalesce(c.course_code_full, '') not ilike '%test%'
   and coalesce(c.subject, '') not ilike '%test%'
   and coalesce(co.course_name, '') not ilike '%test%'
+  and coalesce(c.class_kind, '') <> 'homework'
+  and coalesce(c.course_code_full, '') !~* 'HWK'
+  and coalesce(c.subject, '') !~* '(功課輔導|homework)'
+  and coalesce(co.course_name, '') !~* '(功課輔導|homework)'
+  and coalesce(s.remarks, '') not like '%功輔佔室%'
 order by t.english_name nulls last, t.full_name, s.start_time;
 ```
--- 含功輔（HWKP／HWKS）與私人一對一；正式寄出時每封 BCC cfan@mainhope.edu.hk。
+-- 不含功課輔導班佔室（15:15 起，不是當值）。私人一對一仍列入。正式寄出時每封 BCC cfan@mainhope.edu.hk。
 
 
 ## 2) 點名紙學生（應到）
@@ -153,54 +158,63 @@ where t.id = any(array[
 ]);
 ```
 
-## 5) 功輔當值（同房其餘人）
+## 5) 功輔當值（每人自己的時段）
 
-已編更、非假期。佔室列上的老師已在查詢 1，不要再加一節。其餘人用自己的當值時段與課室；學生名單用該班當日佔室堂（查詢 2、3 的 `schedule_id`）。備註寫「功輔當值」，不標不用上堂。
+已編更、非假期。時間用當值段，不使用佔室排程的 15:15。不寫課室。學生只計該日星期在 `homework_weekdays` 內的就讀中報讀。備註寫「功輔當值」，不標不用上堂。
 
 ```sql
 with target as (
   select date '2026-10-13' as d
+),
+duty as (
+  select
+    a.id as assignment_id,
+    a.teacher_id,
+    t.full_name as teacher_name,
+    t.english_name as teacher_english_name,
+    t.honorific,
+    to_char(a.session_start, 'HH24:MI') as duty_start,
+    to_char(a.session_end, 'HH24:MI') as duty_end,
+    c.id as class_id,
+    c.course_code_full,
+    co.course_name,
+    d.duty_date,
+    (array['日','一','二','三','四','五','六'])[extract(dow from d.duty_date)::int + 1] as weekday_char
+  from public.homework_tutoring_duty_days d
+  join public.homework_tutoring_roster_months rm on rm.id = d.roster_month_id
+  join public.homework_tutoring_duty_assignments a on a.duty_day_id = d.id
+  join public.classes c on c.id = rm.class_id
+  join public.teachers t on t.id = a.teacher_id
+  left join public.courses co on co.id = c.course_id
+  cross join target
+  where d.duty_date = target.d
+    and rm.status = '已編更'
+    and nullif(btrim(d.holiday_label), '') is null
+    and coalesce(t.full_name, '') not ilike '%test%'
+    and coalesce(c.course_code_full, '') not ilike '%test%'
 )
 select
-  a.teacher_id,
-  t.full_name as teacher_name,
-  t.english_name as teacher_english_name,
-  t.honorific,
-  to_char(a.session_start, 'HH24:MI') as duty_start,
-  to_char(a.session_end, 'HH24:MI') as duty_end,
-  a.room as duty_room,
-  c.course_code_full,
-  co.course_name,
-  occ.schedule_id
-from public.homework_tutoring_duty_days d
-join public.homework_tutoring_roster_months rm on rm.id = d.roster_month_id
-join public.homework_tutoring_duty_assignments a on a.duty_day_id = d.id
-join public.classes c on c.id = rm.class_id
-join public.teachers t on t.id = a.teacher_id
-left join public.courses co on co.id = c.course_id
-left join lateral (
-  select s.id as schedule_id
-  from public.schedules s
-  where s.class_id = c.id
-    and s.scheduled_date = d.duty_date
-    and coalesce(s.status, '') not like '%取消%'
-    and coalesce(s.remarks, '') like '%功輔佔室%'
-  order by s.start_time
-  limit 1
-) occ on true
-cross join target
-where d.duty_date = target.d
-  and rm.status = '已編更'
-  and nullif(btrim(d.holiday_label), '') is null
-  and coalesce(t.full_name, '') not ilike '%test%'
-  and coalesce(c.course_code_full, '') not ilike '%test%'
-  and not exists (
-    select 1
-    from public.schedules s
-    where s.class_id = c.id
-      and s.scheduled_date = d.duty_date
-      and s.teacher_id = a.teacher_id
-      and coalesce(s.status, '') not like '%取消%'
-  )
-order by t.english_name nulls last, t.full_name, a.session_start;
+  duty.teacher_id,
+  duty.teacher_name,
+  duty.teacher_english_name,
+  duty.honorific,
+  duty.duty_start,
+  duty.duty_end,
+  duty.course_code_full,
+  duty.course_name,
+  coalesce((
+    select jsonb_agg(x.student_name order by x.student_name)
+    from (
+      select distinct st.full_name as student_name
+      from public.student_class_enrollments e
+      join public.students st on st.id = e.student_id
+      where e.class_id = duty.class_id
+        and e.status = '就讀中'
+        and (e.enroll_date is null or duty.duty_date >= e.enroll_date)
+        and (e.withdraw_effective_date is null or duty.duty_date < e.withdraw_effective_date)
+        and duty.weekday_char = any(coalesce(e.homework_weekdays, '{}'::text[]))
+    ) x
+  ), '[]'::jsonb) as student_names
+from duty
+order by duty.teacher_english_name nulls last, duty.teacher_name, duty.duty_start;
 ```
