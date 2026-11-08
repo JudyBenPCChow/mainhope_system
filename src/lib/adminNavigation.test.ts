@@ -258,7 +258,7 @@ describe("行政頁內導航", () => {
   expect(ADMIN_WORKSPACE_DESCRIPTION.payments).toBe("登記學費、追收堂數、檢視繳費紀錄及管理優惠折扣。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.specialty).toBe("管理專科班、專科校曆及教學紀錄。")
   expect(ADMIN_WORKSPACE_DESCRIPTION.homework).toBe(
-    "管理功課輔導的今日情況、功課紀錄、報讀、月費、當值與校曆。"
+    "管理功課輔導的今日情況、報讀、月費、當值與校曆。"
   )
   expect(ADMIN_WORKSPACE_DESCRIPTION.journal).toBe("查閱日記帳紀錄及新增入帳。")
  })
@@ -275,6 +275,10 @@ describe("行政頁內導航", () => {
   expect(workspaceTabsForRole("homework", "manager").map((t) => t.path)).toEqual([
    HW_PATH.dayLogs,
   ])
+  expect(workspaceTabsForRole("homework", "admin").map((t) => t.path)).not.toContain(
+   HW_PATH.dayLogs
+  )
+  expect(workspaceTabsForRole("homework", "alien").map((t) => t.path)).toContain(HW_PATH.dayLogs)
  })
 })
 
@@ -309,5 +313,6 @@ describe("行政所有功能", () => {
   expect(
    filterAdminFeatureSections(sections, "班務助手").flatMap((s) => s.items.map((item) => item.path))
   ).toEqual(["/AdminOps"])
+  expect(filterAdminFeatureSections(sections, "功課紀錄")).toEqual([])
  })
 })

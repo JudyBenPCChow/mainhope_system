@@ -74,8 +74,16 @@ export function isHomeworkTutoringPath(pathname: string): boolean {
   )
 }
 
+/**
+ * 功課紀錄仍在測試。入口只留給管理層與外星人；
+ * 老師與行政的選單、工作域分頁與直接網址都不開放。
+ */
+export function homeworkDayLogsEntryVisible(role: MgmtRole | null | undefined): boolean {
+  return role === "manager" || role === "alien"
+}
+
 export function homeworkTutoringHomePath(role: MgmtRole): string {
-  if (role === "teacher") return HW_DAY_LOGS_PATH
+  if (role === "teacher") return HW_PATH.submit
   if (role === "manager") return HW_PATH.supervise
   return HW_PATH.overview
 }
