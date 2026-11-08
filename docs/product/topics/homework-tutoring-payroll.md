@@ -41,7 +41,9 @@
 | $100 | Rain Kwok、Annie Leung、Erika Fok、Wing Chan、Liam Lai、Christine Fan、Kenneth Li |
 | $110 | Judy Chu |
 | $115 | Diana Kwok |
-| 唔用時薪 | **Katie Lee**（固定月薪；可編更） |
+| 唔用時薪 | （2026-09-30 或之前）**Katie Lee**（當時固定月薪；可編更） |
+
+2026-10-01 起 Katie Lee 改計功輔時薪 **$100**（與專科人頭計薪一併生效；見 [`payroll-engine.md`](./payroll-engine.md)）。
 
 **不再做功輔、只做專科**（唔入時薪名單，同王俊皓）：Henry Wong、Phoebe Tam、Cheryl Ng。
 
