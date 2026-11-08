@@ -56,7 +56,7 @@ type LessonPayload = {
   is_extra_lesson: boolean
   original_teacher_name: string | null
   schedule_remarks: string | null
-  /** 功輔當值（同房其餘人）；要到場，不標不用上堂 */
+  /** 功輔當值：時間是該段當值，正文不寫課室。要到場，不標不用上堂。 */
   is_duty_shift?: boolean
   no_teaching_needed?: boolean
   student_names: string[]
@@ -223,8 +223,8 @@ function buildTeacherEmailText(
     const lines = [
       `${i + 1}. ${title}`,
       `時間︰${time}`,
-      `課堂︰${room}`,
     ]
+    if (lesson.is_duty_shift !== true) lines.push(`課堂︰${room}`)
     if (idle) lines.push("狀態︰不用上堂")
     lines.push(
       `學生名單︰${joinNames(lesson.student_names)}`,
