@@ -95,6 +95,7 @@ export function AdminHomeworkWorkbench({
   academicYearLabel = "2627",
   canDeleteDayLogs = false,
   preferredTeacherId = null,
+  showDayLogsEntry = false,
 }: {
   tab: AdminPageId
   onTabChange: (tab: AdminPageId) => void
@@ -124,6 +125,8 @@ export function AdminHomeworkWorkbench({
   academicYearLabel?: string
   canDeleteDayLogs?: boolean
   preferredTeacherId?: string | null
+  /** 功課紀錄仍在測試時，行政概覽不顯示前往入口。 */
+  showDayLogsEntry?: boolean
 }) {
   const { pushBanner } = useAppBanner()
   const isMobile = useIsMobile()
@@ -352,11 +355,13 @@ export function AdminHomeworkWorkbench({
             <p className="text-sm text-muted-foreground">今日無開放日或尚未編更。</p>
           )}
 
-          <HomeworkDayLogOverviewStrip
-            students={students}
-            todayWeekday={overview.todayWeekday}
-            onGoDayLogs={() => onTabChange("dayLogs")}
-          />
+          {showDayLogsEntry ? (
+            <HomeworkDayLogOverviewStrip
+              students={students}
+              todayWeekday={overview.todayWeekday}
+              onGoDayLogs={() => onTabChange("dayLogs")}
+            />
+          ) : null}
 
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <h2 className="text-sm font-semibold">提醒</h2>
@@ -817,7 +822,9 @@ export function AdminHomeworkWorkbench({
             )}
           </section>
           <section className="rounded-xl border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            每日學生紀錄已改由系統「功課紀錄」填寫；上線後停用 Notion。末節讓房不做。
+            {showDayLogsEntry
+              ? "每日學生紀錄已改由系統「功課紀錄」填寫；上線後停用 Notion。末節讓房不做。"
+              : "末節讓房不做。"}
           </section>
         </div>
       ) : null}

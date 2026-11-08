@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { HW_DAY_LOGS_PATH, HW_PATH } from "@/lib/homeworkTutoringNav"
+import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import { getMobileBottomTabs } from "@/lib/mobileNav"
 
 describe("流動底欄", () => {
@@ -16,17 +16,16 @@ describe("流動底欄", () => {
   expect(getMobileBottomTabs("teacher").map((t) => t.path)).not.toContain("/Schedule")
  })
 
- it("有功輔入口的老師底欄以紀錄取代時間表", () => {
+ it("有功輔入口的老師底欄仍是時間表，沒有功課紀錄", () => {
   expect(
    getMobileBottomTabs("teacher", { homeworkTutoringNavVisible: true }).map((t) => t.path)
-  ).toEqual(["/Home", "/Attendance", HW_DAY_LOGS_PATH, "/Inbox", "/AllFeatures"])
+  ).toEqual(["/Home", "/Attendance", "/TeacherTimetable", "/Inbox", "/AllFeatures"])
  })
 
- it("純功輔導師底欄有收件匣，無點名／時間表", () => {
+ it("純功輔導師底欄有報更與當值，無點名／時間表／功課紀錄", () => {
   const paths = getMobileBottomTabs("teacher", { homeworkTutorOnly: true }).map((t) => t.path)
   expect(paths).toEqual([
    "/Home",
-   HW_DAY_LOGS_PATH,
    HW_PATH.submit,
    HW_PATH.myDuty,
    "/AllFeatures",

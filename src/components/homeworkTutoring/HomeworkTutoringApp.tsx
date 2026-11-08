@@ -15,6 +15,7 @@ import { formatYearMonthLabel, type HomeworkDivision } from "@/lib/homeworkTutor
 import {
   HW_DAY_LOGS_PATH,
   HW_PATH,
+  homeworkDayLogsEntryVisible,
   homeworkTutoringHomePath,
   isHomeworkTutoringPath,
   isHwDayLogsPath,
@@ -140,14 +141,7 @@ const TEACHER_PATH: Record<TeacherPageId, string> = {
 }
 
 function pathAllowedForRole(pathname: string, role: MgmtRole): boolean {
-  if (isHwDayLogsPath(pathname)) {
-    return (
-      role === "admin" ||
-      role === "manager" ||
-      role === "alien" ||
-      role === "teacher"
-    )
-  }
+  if (isHwDayLogsPath(pathname)) return homeworkDayLogsEntryVisible(role)
   if (ADMIN_BY_PATH[pathname]) return role === "admin" || role === "alien"
   if (MANAGER_BY_PATH[pathname]) return role === "manager" || role === "alien"
   if (TEACHER_BY_PATH[pathname]) return role === "teacher"
@@ -860,6 +854,15 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
 
   if (!role) return null
 
+  if (isHwDayLogsPath(pathname) && !homeworkDayLogsEntryVisible(role)) {
+    return (
+      <Navigate
+        to={role === "teacher" ? HW_PATH.submit : homeworkTutoringHomePath(role)}
+        replace
+      />
+    )
+  }
+
   if (role === "teacher" && isWorkspaceDayLogsPath(pathname)) {
     return <Navigate to={teacherDayLogsTargetFromWorkspace(pathname)} replace />
   }
@@ -1065,6 +1068,7 @@ export function HomeworkTutoringApp({ teacherNavVisible }: { teacherNavVisible: 
           academicYearLabel={hwClass?.academicYearLabel ?? "2627"}
           canDeleteDayLogs={role === "admin" || role === "manager" || role === "alien"}
           preferredTeacherId={profile?.teacherId ?? null}
+          showDayLogsEntry={homeworkDayLogsEntryVisible(role)}
         />
       ) : null}
 

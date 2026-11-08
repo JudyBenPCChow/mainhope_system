@@ -9,11 +9,10 @@ import {
  Inbox,
  LayoutGrid,
  CalendarRange,
- NotebookPen,
  Wallet,
 } from "lucide-react"
 
-import { HW_DAY_LOGS_PATH, HW_PATH } from "@/lib/homeworkTutoringNav"
+import { HW_PATH } from "@/lib/homeworkTutoringNav"
 import { resolveAdminPageTitle } from "@/lib/adminNavigation"
 import { resolveFinancePageTitle } from "@/lib/financeNavigation"
 import {
@@ -35,7 +34,7 @@ export type MobileTabItem = {
 export type MobileBottomTabsOptions = {
  /** 純功輔導師：底欄改功輔報更／我的當值 */
  homeworkTutorOnly?: boolean
- /** 有功輔入口的一般老師：底欄以功課紀錄取代時間表 */
+ /** 保留給呼叫端；功課紀錄入口暫不佔底欄。 */
  homeworkTutoringNavVisible?: boolean
 }
 
@@ -46,7 +45,6 @@ export function getMobileBottomTabs(
  if (role === "teacher" && opts.homeworkTutorOnly) {
   return [
    { path: "/Home", label: "首頁", icon: Home },
-   { path: HW_DAY_LOGS_PATH, label: "紀錄", icon: NotebookPen },
    { path: HW_PATH.submit, label: "報更", icon: ClipboardList },
    { path: HW_PATH.myDuty, label: "當值", icon: CalendarCheck },
    { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
@@ -54,15 +52,6 @@ export function getMobileBottomTabs(
  }
  switch (role) {
   case "teacher":
-   if (opts.homeworkTutoringNavVisible) {
-    return [
-     { path: "/Home", label: "首頁", icon: Home },
-     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
-     { path: HW_DAY_LOGS_PATH, label: "紀錄", icon: NotebookPen },
-     { path: "/Inbox", label: "收件匣", icon: Inbox },
-     { path: "/AllFeatures", label: "更多", icon: LayoutGrid },
-    ]
-   }
    return [
     { path: "/Home", label: "首頁", icon: Home },
     { path: "/Attendance", label: "點名", icon: ClipboardCheck },
