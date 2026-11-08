@@ -92,7 +92,7 @@ type Props = {
   onRemindRollcall: (target: LessonVerifyTarget) => void
   onStatusChange: (next: PayrollRunStatus, meta?: Partial<PayrollMonthMock>) => void
   onAddAdjustment: (adj: ManualAdjustment) => void
-  onCodyChange: (hours: number | null, status: WfhMockState["status"]) => void
+  onWfhHoursChange: (teacherId: string, hours: number, status: WfhMockState["status"]) => void
   onHomeworkHoursChange: (teacherId: string, save: { kind: "override"; hours: number } | { kind: "clear" }) => void
   onRecalc: () => void
   onSubmitTeacher: (teacherId: string) => void
@@ -127,7 +127,7 @@ export function FinancePayrollView({
   onRemindRollcall,
   onStatusChange,
   onAddAdjustment,
-  onCodyChange,
+  onWfhHoursChange,
   onHomeworkHoursChange,
   onRecalc,
   teacherSubmits,
@@ -161,7 +161,7 @@ export function FinancePayrollView({
   const [diffOpen, setDiffOpen] = useState(false)
   const [submitChecks, setSubmitChecks] = useState<Record<string, boolean>>({})
   const [submitDeclare, setSubmitDeclare] = useState(false)
-  const [codyHoursInput, setCodyHoursInput] = useState("")
+  const [wfhHoursInput, setWfhHoursInput] = useState<Record<string, string>>({})
   const [homeworkHoursInput, setHomeworkHoursInput] = useState("")
   const [pdfBusy, setPdfBusy] = useState(false)
   const [singleSubmitOpen, setSingleSubmitOpen] = useState(false)
@@ -188,7 +188,7 @@ export function FinancePayrollView({
     const ids = new Set<string>()
     for (const t of rawTeachers) {
       if (t.missingRate) ids.add(t.id)
-      if (t.id === "cody" && !(t.wfh?.status === "approved" && (t.wfh.hours ?? 0) > 0)) {
+      if (t.mode === "WFH 時薪" && !(t.wfh?.status === "approved" && (t.wfh.hours ?? 0) > 0)) {
         ids.add(t.id)
       }
       if (teacherNotRolled(t)) ids.add(t.id)
@@ -311,8 +311,10 @@ export function FinancePayrollView({
     })()
   }
 
-  const codyEstimate =
-    Number(codyHoursInput) > 0 ? Math.round(Number(codyHoursInput) * 60 * 100) / 100 : null
+  const wfhTeachers = useMemo(
+    () => teachers.filter((t) => t.wfh != null),
+    [teachers]
+  )
 
   const leftPane = (
     <aside className="flex min-h-0 flex-col gap-3">
@@ -1237,52 +1239,82 @@ export function FinancePayrollView({
         </TabsContent>
 
         <TabsContent value="adjust" className="space-y-3">
-          <div className="space-y-2 rounded-xl border border-border bg-card p-3 sm:p-4">
-            <h2 className="text-sm font-semibold">Cody 在家工作時數</h2>
+          <div className="space-y-3 rounded-xl border border-border bg-card p-3 sm:p-4">
+            <h2 className="text-sm font-semibold">在家工作時數</h2>
             <p className="text-xs text-muted-foreground">
-              財務只可申報；核准由管理層處理。亦可喺「逐人審核」揀 Cody。
+              財務只申報時數；時薪已定。核准由管理層處理，核准後須按「重算」才入帳。
             </p>
-            {editable ? (
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs text-muted-foreground">時數</span>
-                  <Input
-                    type="number"
-                    className="w-28"
-                    value={codyHoursInput}
-                    onChange={(e) => setCodyHoursInput(e.target.value)}
-                  />
-                </label>
-                {codyEstimate != null ? (
-                  <p className="pb-2 text-sm tabular-nums text-muted-foreground">
-                    預估 {formatHkd(codyEstimate)}
-                  </p>
-                ) : null}
-                <Button
-                  type="button"
-                  onClick={() => {
-                    const h = Number(codyHoursInput)
-                    if (!Number.isFinite(h) || h <= 0) {
-                      pushBanner({
-                        tone: "warning",
-                        title: "請輸入有效時數",
-                        message: "須為大於 0 的數字。",
-                      })
-                      return
-                    }
-                    onCodyChange(h, "submitted")
-                    pushBanner({
-                      tone: "info",
-                      title: "已提交工時予管理層核准",
-                      message: "金額待核准後才計入。",
-                    })
-                  }}
-                >
-                  提交工時予管理層核准
-                </Button>
-              </div>
+            {wfhTeachers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">本月沒有可申報在家工作時數的同事。</p>
             ) : (
-              <p className="text-sm text-muted-foreground">此月份唯讀。</p>
+              <ul className="space-y-3">
+                {wfhTeachers.map((t) => {
+                  const rate = t.wfh?.ratePerHour ?? 0
+                  const typed = wfhHoursInput[t.id] ?? ""
+                  const estimate =
+                    Number(typed) > 0 ? Math.round(Number(typed) * rate * 100) / 100 : null
+                  const statusText =
+                    t.wfh?.status === "approved"
+                      ? `已核准 ${t.wfh.hours ?? 0} 小時`
+                      : t.wfh?.status === "submitted"
+                        ? `已申報 ${t.wfh.hours ?? 0} 小時，待核准`
+                        : "本月未申報"
+                  return (
+                    <li key={t.id} className="rounded-lg border border-border px-3 py-3">
+                      <p className="text-sm font-medium">
+                        {t.name}
+                        <span className="ml-2 font-normal text-muted-foreground">
+                          ${rate}／小時 · {statusText}
+                        </span>
+                      </p>
+                      {editable ? (
+                        <div className="mt-2 flex flex-wrap items-end gap-2">
+                          <label className="block text-sm">
+                            <span className="mb-1 block text-xs text-muted-foreground">時數</span>
+                            <Input
+                              type="number"
+                              className="w-28"
+                              value={typed}
+                              onChange={(e) =>
+                                setWfhHoursInput((prev) => ({ ...prev, [t.id]: e.target.value }))
+                              }
+                            />
+                          </label>
+                          {estimate != null ? (
+                            <p className="pb-2 text-sm tabular-nums text-muted-foreground">
+                              預估 {formatHkd(estimate)}
+                            </p>
+                          ) : null}
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const h = Number(typed)
+                              if (!Number.isFinite(h) || h <= 0) {
+                                pushBanner({
+                                  tone: "warning",
+                                  title: "請輸入有效時數",
+                                  message: "須為大於 0 的數字。",
+                                })
+                                return
+                              }
+                              onWfhHoursChange(t.id, h, "submitted")
+                              pushBanner({
+                                tone: "info",
+                                title: "已提交工時予管理層核准",
+                                message: `${t.name} 的金額待核准後才計入。`,
+                              })
+                            }}
+                          >
+                            提交工時予管理層核准
+                          </Button>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-muted-foreground">此月份唯讀。</p>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
             )}
           </div>
 

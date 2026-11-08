@@ -396,14 +396,13 @@ export function PayrollView() {
     })()
   }
 
-  const onCodyChange = (hours: number | null, st: WfhMockState["status"]) => {
-    if (!codyTeacher || hours == null) return
+  const onWfhHoursChange = (teacherId: string, hours: number, st: WfhMockState["status"]) => {
     void (async () => {
       try {
         const dbStatus = st === "approved" ? "approved" : st === "submitted" ? "submitted" : "draft"
         await upsertManualHours({
           monthKey,
-          teacherId: codyTeacher.id,
+          teacherId,
           hours,
           status: dbStatus,
           actor: actorLabel(realRole),
@@ -419,7 +418,8 @@ export function PayrollView() {
   }
 
   const onCodyApprove = (hours: number) => {
-    onCodyChange(hours, "approved")
+    if (!codyTeacher) return
+    onWfhHoursChange(codyTeacher.id, hours, "approved")
   }
 
   const onHomeworkHoursChange = (
@@ -553,7 +553,7 @@ export function PayrollView() {
           onRemindRollcall={onRemindRollcall}
           onStatusChange={onStatusChange}
           onAddAdjustment={onAddAdjustment}
-          onCodyChange={onCodyChange}
+          onWfhHoursChange={onWfhHoursChange}
           onHomeworkHoursChange={onHomeworkHoursChange}
           onRecalc={onRecalc}
           teacherSubmits={teacherSubmits}

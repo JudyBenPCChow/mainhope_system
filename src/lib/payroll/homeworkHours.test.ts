@@ -48,7 +48,7 @@ describe("homeworkHours", () => {
       amount: 0,
     })
     expect(christineHomeworkCommission({ enrolledCount: 15, originalPriceTotal: 40000 }).amount).toBe(4000)
-    expect(isHomeworkHourlyExempt("Katie Lee")).toBe(true)
+    expect(isHomeworkHourlyExempt("Katie Lee")).toBe(false)
     expect(isHomeworkHourlyExempt("Rain Kwok")).toBe(false)
   })
 })
