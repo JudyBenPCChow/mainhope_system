@@ -698,21 +698,18 @@ export async function updateTrialSession(
  const nextStatus = patch.status != null ? String(patch.status) : ""
  const cancelling = nextStatus.includes("取消")
  const releasingSchedule = trialIsAwaitingReschedule(nextStatus)
- if (cancelling || releasingSchedule) {
+ if (releasingSchedule) {
+  await assertTrialReleaseKeepsAttendance(id)
+ } else if (cancelling) {
   const hits = await previewTrialAttendanceImpact(id)
-  await applyTrialAttendanceDeletes(
-   id,
-   hits,
-   options,
-   cancelling ? "trial_cancel" : "trial_release_schedule"
-  )
+  await applyTrialAttendanceDeletes(id, hits, options, "trial_cancel")
  }
  const { error } = await supabase
   .from("trial_sessions")
   .update({ ...patch, updated_at: new Date().toISOString() })
   .eq("id", id)
  if (error) {
-  if ((cancelling || releasingSchedule) && options?.attendanceAction === "delete") {
+  if (cancelling && options?.attendanceAction === "delete") {
    throw new Error(
     `出席已刪、試堂狀態未更新，請重試。原錯誤：${error.message}`
    )
@@ -1407,13 +1404,54 @@ export function trialConvertBlockedReason(
  return null
 }
 
-/** 未點名仍可轉正，但 UI 必須先警告（堂數／點名／學費對帳風險） */
+const TRIAL_RELEASE_BLOCKED_MESSAGE =
+ "此試堂生已有出席，不可取消這次排程。請改用正式報讀或標流失。"
+
+/** 取消這次排程只可在此生沒有出席列時進行，避免刪掉已點名出席。 */
+async function assertTrialReleaseKeepsAttendance(trialId: string): Promise<void> {
+ if (!supabase) throw new Error("Supabase 未設定")
+ const { data: trial, error } = await supabase
+  .from("trial_sessions")
+  .select("id, student_id, schedule_id")
+  .eq("id", trialId)
+  .maybeSingle()
+ if (error) throw error
+ if (!trial) throw new Error("找不到試堂紀錄")
+ const t = trial as { student_id: string; schedule_id: string }
+ const { data: own, error: ownErr } = await supabase
+  .from("attendance_details")
+  .select("id")
+  .eq("student_id", t.student_id)
+  .eq("schedule_id", t.schedule_id)
+  .limit(1)
+ if (ownErr) throw ownErr
+ if ((own ?? []).length > 0) throw new Error(TRIAL_RELEASE_BLOCKED_MESSAGE)
+ const hits = await previewTrialAttendanceImpact(trialId)
+ if (hits.length > 0) throw new Error(TRIAL_RELEASE_BLOCKED_MESSAGE)
+}
+
+/** 此試堂生自己沒有出席列。整堂已有其他人的點名列仍算未點名。 */
+export function trialStudentRollCallMissing(
+ row: Pick<TrialManageRow, "attendance_status" | "status">
+): boolean {
+ if (String(row.status).includes("取消")) return false
+ return !String(row.attendance_status ?? "").trim()
+}
+
+/** 未點名仍可正式報讀，但 UI 必須先警告。以試堂生自己的出席為準。 */
 export function trialConvertRollCallWarning(
- row: Pick<TrialManageRow, "roll_call_done" | "status">
+ row: Pick<TrialManageRow, "attendance_status" | "status">
 ): string | null {
- if (String(row.status).includes("取消")) return null
- if (row.roll_call_done) return null
- return "學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。仍要繼續正式報讀？"
+ if (!trialStudentRollCallMissing(row)) return null
+ return "試堂排程未點名。確認後仍可正式報讀。若已收學費但未點名，堂數與出席會對不上。"
+}
+
+/** 未取消、非待改期，且此生沒有出席列，才可取消這次排程。 */
+export function trialCanReleaseSchedule(
+ row: Pick<TrialManageRow, "status" | "attendance_status">
+): boolean {
+ if (trialIsCancelled(row.status) || trialIsAwaitingReschedule(row.status)) return false
+ return !String(row.attendance_status ?? "").trim()
 }
 
 export function trialCanRecordLost(
@@ -1432,12 +1470,6 @@ export function trialLostBlockedReason(
  return null
 }
 
-/** 未取消時標流失會一併取消試堂（須先處理可刪出席）。 */
-export function trialLostWillCancel(
- row: Pick<TrialManageRow, "outcome" | "status">
-): boolean {
- return trialCanRecordLost(row) && !String(row.status).includes("取消")
-}
 
 export function trialCanRecordOutcome(
  row: Pick<TrialManageRow, "outcome" | "status" | "roll_call_done">
@@ -1469,9 +1501,6 @@ export async function recordTrialOutcome(params: {
  const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
  if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
  const status = String((row as { status?: string }).status ?? "")
- if (params.outcome === "lost" && !status.includes("取消")) {
-  throw new Error("請先取消試堂，再標流失（或使用一鍵標流失）")
- }
  const now = new Date().toISOString()
  const { error } = await supabase
   .from("trial_sessions")
@@ -1480,56 +1509,12 @@ export async function recordTrialOutcome(params: {
    outcome_reason: reason,
    outcome_note: params.note?.trim() || null,
    outcome_at: now,
+   // 流失只結跟進，不取消已上試堂、不刪出席。已取消的維持取消。
    status: status.includes("取消") ? status : "已完成",
    updated_at: now,
   })
   .eq("id", params.trialId)
  if (error) throw error
-}
-
-/**
- * 一鍵標流失：若尚未取消，先處理出席閘並改為取消，再寫流失結果。
- */
-export async function cancelAndRecordTrialLost(
- params: {
-  trialId: string
-  reason: string
-  note?: string | null
- } & TrialAttendanceChangeOptions
-): Promise<void> {
- if (!supabase) throw new Error("Supabase 未設定")
- const reason = params.reason.trim()
- if (!reason) throw new Error("請選擇原因／結果")
- const { data: row, error: loadErr } = await supabase
-  .from("trial_sessions")
-  .select("id, status, outcome")
-  .eq("id", params.trialId)
-  .maybeSingle()
- if (loadErr) throw loadErr
- if (!row) throw new Error("找不到試堂紀錄")
- const outcome = normalizeTrialOutcome((row as { outcome?: string }).outcome)
- if (trialOutcomeClosed(outcome)) throw new Error("此試堂已有結果，不可重複登記")
- const status = String((row as { status?: string }).status ?? "")
- if (!status.includes("取消")) {
-  const hits = await previewTrialAttendanceImpact(params.trialId)
-  await applyTrialAttendanceDeletes(params.trialId, hits, params, "trial_cancel")
-  const { error: cancelErr } = await supabase
-   .from("trial_sessions")
-   .update({ status: "取消", updated_at: new Date().toISOString() })
-   .eq("id", params.trialId)
-  if (cancelErr) {
-   if (hits.length > 0 && params.attendanceAction === "delete") {
-    throw new Error(`出席已刪、試堂未改為取消，請重試。原錯誤：${cancelErr.message}`)
-   }
-   throw cancelErr
-  }
- }
- await recordTrialOutcome({
-  trialId: params.trialId,
-  outcome: "lost",
-  reason,
-  note: params.note,
- })
 }
 
 /** 試堂轉正式報讀；學費請到 /Payments。未點名可轉，回傳 rollCallPending 供 UI 事前警告。 */
@@ -1575,8 +1560,14 @@ export async function convertTrialToEnrollment(params: {
  const targetClassId = (params.targetClassId ?? t.class_id).trim()
  if (!targetClassId) throw new Error("請選擇報讀班別")
 
- const attended = await fetchScheduleIdsThatHaveAttendance([t.schedule_id])
- const rollCallPending = !attended.has(t.schedule_id)
+ const { data: ownAttendance, error: ownAttErr } = await supabase
+  .from("attendance_details")
+  .select("id")
+  .eq("student_id", t.student_id)
+  .eq("schedule_id", t.schedule_id)
+  .limit(1)
+ if (ownAttErr) throw ownAttErr
+ const rollCallPending = (ownAttendance ?? []).length === 0
 
  const { data: enr, error: enrErr } = await supabase
   .from("student_class_enrollments")
@@ -1641,7 +1632,7 @@ export async function convertTrialToEnrollment(params: {
   staffNote,
   startNote,
   hwWeekdayNote,
-  rollCallPending ? "正式報讀時尚未完成試堂點名" : "",
+  rollCallPending ? "正式報讀時試堂排程未點名" : "",
  ]
   .filter(Boolean)
   .join("；")

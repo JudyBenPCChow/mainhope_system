@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest"
 import {
  pickOpenTrialIdsForPaymentLink,
  trialCanRecordLost,
+ trialCanReleaseSchedule,
  trialCanRecordOutcome,
  trialConfirmedInboxCopy,
+ trialConvertRollCallWarning,
  trialLostBlockedReason,
- trialLostWillCancel,
+ trialStudentRollCallMissing,
 } from "@/services/trialQueries"
 
 describe("trialConfirmedInboxCopy", () => {
@@ -61,16 +63,41 @@ describe("pickOpenTrialIdsForPaymentLink", () => {
 })
 
 describe("trial lost / outcome gates", () => {
- it("未取消亦可標流失，並標示會一併取消", () => {
+ it("未取消亦可標流失，且不因流失取消試堂", () => {
   expect(trialCanRecordLost({ outcome: "open", status: "已預約" })).toBe(true)
+  expect(trialCanRecordLost({ outcome: "open", status: "已完成" })).toBe(true)
   expect(trialLostBlockedReason({ outcome: "open", status: "已預約" })).toBeNull()
-  expect(trialLostWillCancel({ outcome: "open", status: "已預約" })).toBe(true)
-  expect(trialLostWillCancel({ outcome: "open", status: "取消" })).toBe(false)
  })
 
  it("已結案不可再標流失", () => {
   expect(trialCanRecordLost({ outcome: "converted", status: "已完成" })).toBe(false)
   expect(trialLostBlockedReason({ outcome: "lost", status: "取消" })).toBe("已流失")
+ })
+
+ it("試堂生自己未點名才警告，班上其他人已點名仍要警告", () => {
+  expect(
+   trialStudentRollCallMissing({ status: "已預約", attendance_status: null })
+  ).toBe(true)
+  expect(
+   trialStudentRollCallMissing({ status: "已預約", attendance_status: "現場" })
+  ).toBe(false)
+  expect(
+   trialConvertRollCallWarning({ status: "已預約", attendance_status: null })
+  ).toContain("試堂排程未點名")
+  expect(
+   trialConvertRollCallWarning({ status: "已預約", attendance_status: "現場" })
+  ).toBeNull()
+  expect(
+   trialConvertRollCallWarning({ status: "取消", attendance_status: null })
+  ).toBeNull()
+ })
+
+ it("此生已有出席不可取消這次排程；其他人已點名仍可", () => {
+  expect(trialCanReleaseSchedule({ status: "已預約", attendance_status: "現場" })).toBe(false)
+  expect(trialCanReleaseSchedule({ status: "已預約", attendance_status: "no show" })).toBe(false)
+  expect(trialCanReleaseSchedule({ status: "已預約", attendance_status: null })).toBe(true)
+  expect(trialCanReleaseSchedule({ status: "待改期", attendance_status: null })).toBe(false)
+  expect(trialCanReleaseSchedule({ status: "取消", attendance_status: null })).toBe(false)
  })
 
  it("其他結果須已點名或已取消", () => {

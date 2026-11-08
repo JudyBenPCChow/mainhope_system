@@ -80,7 +80,6 @@ import {
  setTrialSessionsDataCache,
 } from "@/components/trials/trialSessionsState"
 import {
- cancelAndRecordTrialLost,
  convertTrialToEnrollment,
  deleteTrialSession,
  fetchTrialsWithRelations,
@@ -90,12 +89,12 @@ import {
  recordTrialOutcome,
  rescheduleTrialSession,
  trialCanConvert,
+ trialCanReleaseSchedule,
  trialCanRecordLost,
  trialCanRecordOutcome,
  trialConvertBlockedReason,
  trialConvertRollCallWarning,
  trialLostBlockedReason,
- trialLostWillCancel,
  trialStatusCategory,
  trialTypeCategory,
  updateTrialSession,
@@ -379,7 +378,6 @@ export function TrialSessionsView() {
    schedStart: r.sched_start,
    schedEnd: r.sched_end,
    trialScheduleId: r.schedule_id,
-   rollCallDone: r.roll_call_done,
    teacherComment: r.teacher_comment,
    teacherCommentAt: r.teacher_comment_at,
    teacherCommentByName: r.teacher_comment_by_name,
@@ -533,7 +531,7 @@ export function TrialSessionsView() {
   const warn = trialConvertRollCallWarning(r)
   if (warn) {
    const ok = await confirmDialog({
-    title: "尚未完成試堂點名",
+    title: "試堂排程未點名",
     description: warn,
     confirmText: "仍要正式報讀",
     cancelText: "返回",
@@ -579,20 +577,19 @@ export function TrialSessionsView() {
  }
 
  const holdTrialSchedule = async (id: string) => {
+  const row = rows.find((item) => item.id === id)
+  if (row && !trialCanReleaseSchedule(row)) {
+   setReleaseScheduleId(null)
+   pushBanner({
+    tone: "warning",
+    title: "不可取消這次排程",
+    message: "此試堂生已有出席。請改用正式報讀或標流失。",
+   })
+   return
+  }
   setReleaseSaving(true)
   try {
-   const hits = await previewTrialAttendanceImpact(id)
-   const choice = await resolveTrialAttendanceDelete(
-    confirmDialog,
-    hits,
-    "取消這次排程會刪除出席"
-   )
-   if (choice === "abort") return
-   await updateTrialSession(
-    id,
-    { status: TRIAL_AWAITING_RESCHEDULE_STATUS },
-    trialAttendanceOptionsFromHits(choice, hits)
-   )
+   await updateTrialSession(id, { status: TRIAL_AWAITING_RESCHEDULE_STATUS })
    setReleaseScheduleId(null)
    await reload()
    pushBanner({
@@ -1626,7 +1623,7 @@ export function TrialSessionsView() {
                 改期
                </button>
               ) : null}
-              {!trialIsCancelled(r.status) && !awaitingReschedule ? (
+              {trialCanReleaseSchedule(r) ? (
                <button
                 type="button"
                 className="text-xs font-medium text-destructive hover:underline"
@@ -2037,7 +2034,7 @@ export function TrialSessionsView() {
        message: [
         targetOpt?.label ? `${targetOpt.label} · ${payload.formLabel}` : payload.formLabel,
         payload.note ? `備註：${payload.note}` : null,
-        result.rollCallPending ? "正式報讀時尚未完成試堂點名" : null,
+        result.rollCallPending ? "正式報讀時試堂排程未點名" : null,
         "學費請到收款登記處理。",
        ]
         .filter(Boolean)
@@ -2091,14 +2088,6 @@ export function TrialSessionsView() {
     open={outcomeId != null && outcomeTarget != null}
     target={outcomeTarget}
     defaultOutcome={outcomeDefault}
-    lostWillCancel={
-     outcomeId != null
-      ? (() => {
-         const row = rows.find((x) => x.id === outcomeId)
-         return row ? trialLostWillCancel(row) : false
-        })()
-      : false
-    }
     onOpenChange={(open) => {
      if (!open) setOutcomeId(null)
     }}
@@ -2111,38 +2100,12 @@ export function TrialSessionsView() {
       reason: payload.reason,
       note: payload.note,
      })
-     if (payload.outcome === "lost") {
-      const hits = trialLostWillCancel(row)
-       ? await previewTrialAttendanceImpact(outcomeId)
-       : []
-      if (hits.length > 0) {
-       const choice = await resolveTrialAttendanceDelete(
-        confirmDialog,
-        hits,
-        "標流失會取消試堂並刪除出席"
-       )
-       if (choice === "abort") throw new Error("已取消操作")
-       await cancelAndRecordTrialLost({
-        trialId: outcomeId,
-        reason: payload.reason,
-        note: payload.note,
-        ...trialAttendanceOptionsFromHits(choice, hits),
-       })
-      } else {
-       await cancelAndRecordTrialLost({
-        trialId: outcomeId,
-        reason: payload.reason,
-        note: payload.note,
-       })
-      }
-     } else {
-      await recordTrialOutcome({
-       trialId: outcomeId,
-       outcome: "other",
-       reason: payload.reason,
-       note: payload.note,
-      })
-     }
+     await recordTrialOutcome({
+      trialId: outcomeId,
+      outcome: payload.outcome,
+      reason: payload.reason,
+      note: payload.note,
+     })
      setOutcomeId(null)
      await reload()
      pushBanner({
@@ -2165,7 +2128,7 @@ export function TrialSessionsView() {
      </DialogHeader>
      <div className="grid gap-3 text-sm">
       <p className="text-muted-foreground">
-       只拿掉這一次上課，試堂仍待跟進。可即時改另一天，或先不排、之後再選。若已點名，確認離開這堂時會刪除該堂出席。這不是標流失。
+       只拿掉這一次上課，試堂仍待跟進。可即時改另一天，或先不排、之後再選。此試堂生已有出席時不可使用，也不會刪除出席。這不是標流失。
       </p>
       <div className="flex flex-wrap justify-end gap-2">
        <Button
