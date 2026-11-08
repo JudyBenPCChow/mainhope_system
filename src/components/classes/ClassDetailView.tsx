@@ -79,7 +79,7 @@ import {
  classGradeDisplayText,
  normalizeStoredClassGradeLabels,
 } from "@/lib/classGrade"
-import { TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
+import { PRIVATE_TUITION_PRICE_PRESETS_HKD, TUITION_PRICE_PRESETS_HKD } from "@/lib/tuitionPricePresets"
 import { cn } from "@/lib/utils"
 import { getTeacherScopeTeacherId } from "@/lib/teacherScope"
 import {
@@ -2249,7 +2249,7 @@ export function ClassDetailView() {
          >
           <>
            <div className="flex flex-wrap gap-2">
-            {TUITION_PRICE_PRESETS_HKD.map((p) => (
+            {(isPrivateClass ? PRIVATE_TUITION_PRICE_PRESETS_HKD : TUITION_PRICE_PRESETS_HKD).map((p) => (
              <Button
               key={p}
               type="button"
