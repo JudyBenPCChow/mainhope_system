@@ -564,7 +564,7 @@ export function EnrollClassStep({
       </Select>
      </Field>
      <Field label="每堂學費（選填）">
-      <Input inputMode="decimal" value={privatePrice} onChange={(e) => setPrivatePrice(e.target.value)} placeholder="例如 825" />
+      <Input inputMode="decimal" value={privatePrice} onChange={(e) => setPrivatePrice(e.target.value)} placeholder="例如 850" />
      </Field>
      <div className="flex flex-wrap gap-2">
       <Button type="button" disabled={privateSaving} onClick={() => void addPrivateEnrollment()}>
