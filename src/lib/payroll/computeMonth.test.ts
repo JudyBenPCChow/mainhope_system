@@ -355,4 +355,45 @@ describe("payroll month compute", () => {
     })
     expect(cfan.grossBeforeAdj).toBe(0)
   })
+
+  it("adds approved home-work hours on top of a specialist rate", () => {
+    const judy = computePayrollMonth({
+      monthKey: "2026-10",
+      teachers: [
+        {
+          teacherId: "judy",
+          teacherName: "Judy Chu",
+          rate: rate("judy", "特別 HC", {
+            junior: { base: 200, per_extra: 80 },
+            senior: { base: 240, per_extra: 100 },
+          }),
+          approvedHours: 20,
+          extraWfhHourlyRate: 100,
+        },
+      ],
+      lessons: [],
+    }).teachers[0]!
+    expect(judy.lines.find((line) => line.kind === "wfh")?.amount).toBe(2000)
+    expect(judy.grossBeforeAdj).toBe(2000)
+  })
+
+  it("uses the standing home-work rate on the payroll config", () => {
+    const judy = computePayrollMonth({
+      monthKey: "2026-10",
+      teachers: [
+        {
+          teacherId: "judy",
+          teacherName: "Judy Chu",
+          rate: rate("judy", "特別 HC", {
+            junior: { base: 120, per_extra: 70 },
+            senior: { base: 160, per_extra: 80 },
+            extra_wfh_hourly_rate: 100,
+          }),
+          approvedHours: 20,
+        },
+      ],
+      lessons: [],
+    }).teachers[0]!
+    expect(judy.lines.find((line) => line.kind === "wfh")?.amount).toBe(2000)
+  })
 })

@@ -207,7 +207,7 @@ export type PayrollTeacherRow = {
     amount: number
     items: CommissionPoolItem[]
   }
-  /** WFH（Cody） */
+  /** 在家工作時數（主模式或另加時薪） */
   wfh?: WfhMockState
   /** 功輔時薪 */
   homework?: {

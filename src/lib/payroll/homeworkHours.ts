@@ -4,7 +4,8 @@ import { roundMoney } from "@/lib/payroll/gradeBand"
 
 export const HOMEWORK_COMMISSION_MIN_ENROLLED = 15
 export const HOMEWORK_COMMISSION_PCT = 0.1
-export const HOMEWORK_HOURLY_EXEMPT_NAMES = ["Katie Lee"] as const
+/** 有功輔當值但不可用時薪（另有不計工時的安排）。目前沒有。 */
+export const HOMEWORK_HOURLY_EXEMPT_NAMES = [] as const
 export const CHRISTINE_HOMEWORK_COMMISSION_NAME = "Christine Fan"
 
 export type HomeworkDutyShift = {

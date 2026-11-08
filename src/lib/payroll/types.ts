@@ -34,6 +34,11 @@ export type PayrollRateConfig = {
   oneToOne?: number
   oneToTwo?: number
   hourlyRate?: number
+  /**
+   * 主模式不是在家工作時，另加的在家工作時薪。
+   * 有已核准工時才計入；未設定則不另加。
+   */
+  extraWfhHourlyRate?: number
   mpf?: boolean
 }
 
@@ -88,6 +93,11 @@ export type PayrollTeacherInput = {
   rate: PayrollRateRow | null
   /** 已核准 WFH／人手工時（小時） */
   approvedHours: number
+  /**
+   * 主模式不是在家工作時，已核准額外在家工作的時薪。
+   * 有工時且大於 0 才另加一筆；主模式已是 WFH 時用費率本身，不再加這筆。
+   */
+  extraWfhHourlyRate?: number | null
   /** 功輔時薪（無則唔計功輔工時） */
   homeworkHourlyRate?: number | null
   /** 已發布編更合計小時 */

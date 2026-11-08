@@ -13,7 +13,7 @@ import {
 import { computePayrollMonth } from "@/lib/payroll/computeMonth"
 import { attendanceStatusToHc, isActualPresentHc } from "@/lib/payroll/hcStatus"
 import { teacherNeedsMpf, withMpf } from "@/lib/payroll/mpf"
-import { parsePayrollMode, parseRateConfig, pickRateForMonth } from "@/lib/payroll/rates"
+import { parseExtraWfhHourlyRate, parsePayrollMode, parseRateConfig, pickRateForMonth } from "@/lib/payroll/rates"
 import type {
   ComputedTeacherResult,
   PayrollLessonInput,
@@ -388,8 +388,12 @@ function mapComputedToUiRow(
   computed: ComputedTeacherResult,
   opts: {
     previousGross: number | null
-    approvedHours: number
+    hours: number
     hoursStatus: WfhMockState["status"]
+    /** 主模式不是在家工作時，費率上的另加時薪。有值才開放申報。 */
+    standingExtraWfhRate: number | null
+    /** 主模式為在家工作時的時薪 */
+    primaryHourlyRate: number | null
   }
 ): PayrollTeacherRow {
   const needsMpf = teacherNeedsMpf({
@@ -514,11 +518,16 @@ function mapComputedToUiRow(
     }
   }
 
-  if (computed.mode === "WFH 時薪") {
+  const standingExtra =
+    opts.standingExtraWfhRate != null && opts.standingExtraWfhRate > 0
+      ? opts.standingExtraWfhRate
+      : null
+  if (computed.mode === "WFH 時薪" || standingExtra != null) {
     row.wfh = {
-      hours: opts.approvedHours || null,
+      hours: opts.hours > 0 ? opts.hours : null,
       status: opts.hoursStatus,
-      ratePerHour: 60,
+      ratePerHour:
+        computed.mode === "WFH 時薪" ? (opts.primaryHourlyRate ?? 60) : standingExtra!,
     }
   }
 
@@ -645,7 +654,7 @@ async function fetchAdjustments(runId: string): Promise<ManualAdjustment[]> {
 }
 
 async function fetchManualHours(monthKey: string): Promise<
-  { teacherId: string; hours: number; status: WfhMockState["status"] }[]
+  { teacherId: string; hours: number; status: WfhMockState["status"]; extraWfhHourlyRate: number | null }[]
 > {
   if (!supabase) return []
   const { data, error } = await supabase.from("payroll_manual_hours").select("*").eq("month_key", monthKey)
@@ -658,6 +667,7 @@ async function fetchManualHours(monthKey: string): Promise<
       teacherId: String(row.teacher_id),
       hours: Number(row.hours) || 0,
       status: uiStatus,
+      extraWfhHourlyRate: parseExtraWfhHourlyRate(row.note != null ? String(row.note) : null),
     }
   })
 }
@@ -665,7 +675,7 @@ async function fetchManualHours(monthKey: string): Promise<
 async function computeUiTeachers(
   monthKey: string,
   rates: PayrollRateRow[],
-  hoursByTeacher: Map<string, { hours: number; status: WfhMockState["status"] }>
+  hoursByTeacher: Map<string, { hours: number; status: WfhMockState["status"]; extraWfhHourlyRate: number | null }>
 ): Promise<{ teachers: PayrollTeacherRow[]; hardBlockAnomalies: string[] }> {
   const allTeachers = await fetchAllTeachers()
   const active = allTeachers.filter((t) => normalizeTeacherEmploymentStatus(t.status) === "在職")
@@ -697,6 +707,7 @@ async function computeUiTeachers(
       teacherName: t.full_name,
       rate: pickRateForMonth(rates, t.id, monthKey),
       approvedHours: h?.status === "approved" ? h.hours : 0,
+      extraWfhHourlyRate: h?.status === "approved" ? h.extraWfhHourlyRate : null,
       homeworkHourlyRate: hwRates.get(t.id) ?? null,
       homeworkRosterHours: hwRosterHours.get(t.id) ?? 0,
       homeworkOverrideHours: override ?? null,
@@ -727,22 +738,28 @@ async function computeUiTeachers(
     homeworkCommission: hwCommission,
   })
 
+  const inputByTeacher = new Map(teacherInputs.map((t) => [t.teacherId, t]))
   const teachers = computed.teachers
     .map((c) => {
       const h = hoursByTeacher.get(c.teacherId)
+      const rate = inputByTeacher.get(c.teacherId)?.rate
+      const standing = rate?.config.extraWfhHourlyRate
       return mapComputedToUiRow(c, {
         previousGross: prevGross[c.teacherId] ?? null,
-        approvedHours: h?.hours ?? 0,
+        hours: h?.hours ?? 0,
         hoursStatus: h?.status ?? "missing",
+        standingExtraWfhRate: standing != null && standing > 0 ? standing : null,
+        primaryHourlyRate: rate?.config.hourlyRate ?? null,
       })
     })
-    // 只顯示：有金額、有堂、有異常、或固定月薪／WFH
+    // 只顯示：有金額、有堂、有異常、固定月薪／在家工作，或已開放另加在家工作時薪
     .filter(
       (t) =>
         (t.gross != null && t.gross > 0) ||
         t.anomalies.length > 0 ||
         t.mode === "固定月薪" ||
         t.mode === "WFH 時薪" ||
+        t.wfh != null ||
         t.missingRate ||
         (t.homework != null && (t.homework.amount > 0 || t.homework.rosterHours > 0)) ||
         (t.homeworkCommission != null && t.homeworkCommission.amount > 0)

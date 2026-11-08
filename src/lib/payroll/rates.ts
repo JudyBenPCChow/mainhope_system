@@ -51,6 +51,12 @@ export function parseRateConfig(raw: unknown): PayrollRateConfig {
     oneToTwo: o.one_to_two != null ? asNum(o.one_to_two) : o.oneToTwo != null ? asNum(o.oneToTwo) : undefined,
     hourlyRate:
       o.hourly_rate != null ? asNum(o.hourly_rate) : o.hourlyRate != null ? asNum(o.hourlyRate) : undefined,
+    extraWfhHourlyRate:
+      o.extra_wfh_hourly_rate != null
+        ? asNum(o.extra_wfh_hourly_rate)
+        : o.extraWfhHourlyRate != null
+          ? asNum(o.extraWfhHourlyRate)
+          : undefined,
     mpf: typeof o.mpf === "boolean" ? o.mpf : undefined,
   }
 }
@@ -244,6 +250,14 @@ export function buildLessonLine(
     commissionPoolBase: partial.commissionPoolBase ?? 0,
     subjectCode: lesson.subjectCode,
   }
+}
+
+/** 在家工作備註中的「時薪100」。沒有則不另加。 */
+export function parseExtraWfhHourlyRate(note: string | null | undefined): number | null {
+  const matched = String(note ?? "").match(/時薪\s*(\d+(?:\.\d+)?)/)
+  if (!matched) return null
+  const rate = Number(matched[1])
+  return Number.isFinite(rate) && rate > 0 ? rate : null
 }
 
 export function pickRateForMonth(

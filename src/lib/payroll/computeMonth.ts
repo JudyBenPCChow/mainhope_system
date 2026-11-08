@@ -211,6 +211,21 @@ export function computeTeacherMonth(
     }
   }
 
+  if (mode !== "WFH 時薪" && teacher.approvedHours > 0) {
+    const configured = cfg.extraWfhHourlyRate
+    const extraRate =
+      configured != null && configured > 0 ? configured : teacher.extraWfhHourlyRate
+    if (extraRate != null && extraRate > 0) {
+      lines.push({
+        label: `在家工作 ${teacher.approvedHours} 小時 × $${extraRate}`,
+        amount: roundMoney(extraRate * teacher.approvedHours),
+        kind: "wfh",
+      })
+    } else {
+      anomalies.push("有已核准在家工作時數但未設定時薪")
+    }
+  }
+
   const homework = applyHomeworkPay(teacher, lines, anomalies)
 
   const lessonSum = roundMoney(lessons.reduce((s, l) => s + l.amount, 0))
