@@ -318,27 +318,25 @@ Deno.serve(async (req) => {
   }
 
   const now = new Date().toISOString()
-  const { data: updated, error: updErr } = await admin
-    .from("payments")
-    .update({
-      status: VOID_STATUS,
-      voided_at: now,
-      voided_by_email: caller.email,
-      voided_by_name: actorName,
-      void_reason: reason.slice(0, 500),
-      void_second_confirmer_email: secondConfirmerEmail,
-      void_second_confirmer_name: secondConfirmerName,
-      updated_at: now,
-    })
-    .eq("id", paymentId)
-    .neq("status", VOID_STATUS)
-    .select("id")
-    .maybeSingle()
-  if (updErr) {
-    console.error("void-payment update", updErr.message)
+  // 觸發器拒絕直接改 status。須在同一交易設 app.payment_void_command。
+  const { data: applied, error: applyErr } = await admin.rpc("void_payment_apply", {
+    p_payment_id: paymentId,
+    p_reason: reason.slice(0, 500),
+    p_actor_email: caller.email,
+    p_actor_name: actorName,
+    p_second_email: secondConfirmerEmail,
+    p_second_name: secondConfirmerName,
+  })
+  if (applyErr) {
+    console.error("void-payment apply", applyErr.message)
     return jsonResponse({ error: "作廢失敗，請稍後再試。" }, 502)
   }
-  if (!updated) {
+  const appliedRow = (applied ?? null) as { ok?: boolean; alreadyVoided?: boolean } | null
+  if (!appliedRow?.ok) {
+    console.error("void-payment apply empty", applied)
+    return jsonResponse({ error: "作廢失敗，請稍後再試。" }, 502)
+  }
+  if (appliedRow.alreadyVoided) {
     return jsonResponse({
       ok: true,
       alreadyVoided: true,
@@ -348,14 +346,6 @@ Deno.serve(async (req) => {
       previousStatus: VOID_STATUS,
     })
   }
-
-  // 取消轉介 pending rebate
-  const { error: refErr } = await admin
-    .from("referral_records")
-    .update({ rebate_status: "cancelled" })
-    .eq("payment_id", paymentId)
-    .eq("rebate_status", "pending")
-  if (refErr) console.error("void-payment referral cancel", refErr.message)
 
   // 試堂解掛：作廢後唔再喺試堂列表顯示收據號
   const { error: trialUnlinkErr } = await admin
