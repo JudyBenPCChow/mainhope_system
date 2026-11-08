@@ -1,6 +1,7 @@
 # 逢星期二、五寄出試堂及轉正、追收學費兩封 PDF。
-# 準時觸發改由 Supabase pg_cron 呼叫 admin-pdf-reports，再 workflow_dispatch 本檔。
-# 本檔仍保留 GitHub schedule，作為權杖未設定時的後備；寄出紀錄會擋住重複。
+# PDF 用系統中文字型（新細明體或 Noto CJK），不在 Edge Function 組檔。
+# 準時觸發由 Supabase pg_cron 呼叫 admin-pdf-reports，再 workflow_dispatch 本檔。
+# 本檔仍保留 GitHub schedule，作為後備；寄出紀錄會擋住重複。
 # cron：UTC 02:00＝香港 10:00；星期二＝2、星期五＝5。
 # Secrets：SUPABASE_ACCESS_TOKEN、RESEND_API_KEY
 
