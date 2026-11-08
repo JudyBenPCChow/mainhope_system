@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
-import { reportUserFacingError } from "@/lib/mgmtErrorReporting"
+import { reportUserFacingError, userMessageFromUnknown } from "@/lib/mgmtErrorReporting"
 
 import {
  TRIAL_LOST_REASON_OPTIONS,
@@ -31,8 +31,6 @@ type Props = {
  target: TrialOutcomeDialogTarget | null
  /** 預設開啟的結果類型 */
  defaultOutcome?: "lost" | "other"
- /** 標流失且尚未取消時，提示會一併取消試堂 */
- lostWillCancel?: boolean
  onOpenChange: (open: boolean) => void
  onSubmit: (payload: TrialOutcomeSubmitPayload) => void | Promise<void>
 }
@@ -41,7 +39,6 @@ export function TrialOutcomeDialog({
  open,
  target,
  defaultOutcome = "lost",
- lostWillCancel = false,
  onOpenChange,
  onSubmit,
 }: Props) {
@@ -86,7 +83,7 @@ export function TrialOutcomeDialog({
    reportUserFacingError(e, {
     source: "TrialOutcomeDialog.submit",
     setErr,
-    userMessage: e instanceof Error ? e.message : "登記失敗",
+    userMessage: userMessageFromUnknown(e),
    })
   } finally {
    setSaving(false)
@@ -131,9 +128,7 @@ export function TrialOutcomeDialog({
        </Select>
        <p className="text-xs text-muted-foreground">
         {outcome === "lost"
-         ? lostWillCancel
-           ? "明確不會報讀。確認後會一併取消此試堂並記入流失。"
-           : "明確不會報讀：記入流失，方便統計原因。"
+         ? "明確不會報讀。只記入流失；不取消試堂、不刪除出席、不作廢學費單。尚未上課而不來，請改用取消試堂。"
          : "登記後會離開待跟進，不能再改期或正式報讀。改期請用「更多」裡的改期；改報其他班或家長仍在考慮，請勿登記其他結果。"}
        </p>
       </fieldset>

@@ -74,7 +74,6 @@ export type TrialConvertDialogTarget = {
   schedStart: string | null
   schedEnd: string | null
   trialScheduleId: string
-  rollCallDone: boolean
   teacherComment: string | null
   teacherCommentAt: string | null
   teacherCommentByName: string | null
@@ -366,12 +365,12 @@ export function TrialConvertDialog({
               </div>
             </div>
 
-            {!target.rollCallDone ? (
+            {!String(target.attendanceStatus ?? "").trim() ? (
               <div
                 role="status"
-                className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning"
+                className="rounded-lg border border-warning/40 px-3 py-2 text-sm text-warning"
               >
-                學生尚未完成試堂點名。若已收學費但未點名，堂數與出席會對不上。確認正式報讀前請再核對。
+                試堂排程未點名。確認後仍可正式報讀。若已收學費但未點名，堂數與出席會對不上。
               </div>
             ) : null}
 

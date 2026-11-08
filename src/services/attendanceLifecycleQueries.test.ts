@@ -4,6 +4,7 @@ import {
  filterDeletableHits,
  formatAttendanceHitsDescription,
  hitsHaveBillable,
+ leaveIdToExclude,
  shouldRetainOtherMakeupSchedule,
  type AttendanceLifecycleHit,
 } from "@/services/attendanceLifecycleQueries"
@@ -51,6 +52,13 @@ describe("attendanceLifecycleQueries helpers", () => {
   expect(hitsHaveBillable(nonBillable)).toBe(false)
   expect(formatAttendanceHitsDescription(billable)).toContain("計費出席")
   expect(formatAttendanceHitsDescription(nonBillable)).toContain("非計費")
+ })
+
+ it("試堂沒有請假單時不排除空白 uuid", () => {
+  expect(leaveIdToExclude("")).toBeNull()
+  expect(leaveIdToExclude("   ")).toBeNull()
+  expect(leaveIdToExclude(null)).toBeNull()
+  expect(leaveIdToExclude("leave-1")).toBe("leave-1")
  })
 
  it("GAP-P0-1：已取消／完成 schedule 唔因 otherMakeup retain", () => {

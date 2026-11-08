@@ -122,6 +122,12 @@ function scheduleStatusEndsMakeupRetain(status: string | null | undefined): bool
  return st.includes("取消") || st.includes("完成")
 }
 
+/** 試堂取消沒有請假單，傳入空字串。空值不可送進 uuid 欄，否則 PostgREST 回 400。 */
+export function leaveIdToExclude(excludeLeaveId: string | null | undefined): string | null {
+ const id = (excludeLeaveId ?? "").trim()
+ return id.length > 0 ? id : null
+}
+
 export async function fetchRetainScheduleIdsForStudent(params: {
  studentId: string
  excludeLeaveId: string
@@ -292,12 +298,14 @@ export async function fetchRetainScheduleIdsForStudent(params: {
   }
  }
 
- const { data: otherLeaves, error } = await supabase
+ let leaveQuery = supabase
   .from("leave_makeup_records")
   .select("id, makeup_schedule_id, status")
   .eq("student_id", params.studentId)
-  .neq("id", params.excludeLeaveId)
   .not("makeup_schedule_id", "is", null)
+ const excludeLeaveId = leaveIdToExclude(params.excludeLeaveId)
+ if (excludeLeaveId) leaveQuery = leaveQuery.neq("id", excludeLeaveId)
+ const { data: otherLeaves, error } = await leaveQuery
  if (error) throw error
 
  const otherMakeupIds: string[] = []
