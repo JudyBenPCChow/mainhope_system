@@ -10,10 +10,9 @@ import {
 
 import { pathIsActive, type NavEntryDef, type NavLeafDef } from "@/lib/navStructure"
 
-/** 財務專用主選單：固定 6 個頂層列，與 NAV_STRUCTURE 分開。 */
+/** 財務專用主選單：不再含計糧；角色已停用，僅防舊帳戶殘留。 */
 export const FINANCE_MAIN_NAV: NavEntryDef[] = [
  { kind: "leaf", path: "/Home", label: "首頁", roles: ["finance"], icon: Home },
- { kind: "leaf", path: "/Payroll", label: "計糧", roles: ["finance"], icon: Wallet },
  {
   kind: "leaf",
   path: "/AttendanceRecords",
@@ -50,10 +49,9 @@ export const FINANCE_ALL_FEATURES_NAV: NavEntryDef[] = [
  {
   kind: "group",
   id: "finance-map-payroll",
-  label: "計糧與核對",
-  icon: Wallet,
+  label: "出席與排程",
+  icon: ClipboardCheck,
   children: [
-   { path: "/Payroll", label: "計糧", roles: ["finance"], icon: Wallet },
    { path: "/AttendanceRecords", label: "出席紀錄", roles: ["finance"], icon: ClipboardCheck },
    { path: "/Schedule", label: "清單", roles: ["finance"], icon: CalendarDays },
    { path: "/Schedule?view=day", label: "日視圖", roles: ["finance"], icon: CalendarDays },

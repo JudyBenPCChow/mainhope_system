@@ -223,12 +223,6 @@ export const NAV_STRUCTURE: NavEntryDef[] = [
    },
    { path: "/PaymentDiscounts", label: "優惠折扣", roles: ["admin", "alien"], icon: Percent },
    { path: "/ReferralRebates", label: "推薦回贈", roles: ["alien"], icon: HandCoins },
-   {
-    path: "/Payroll",
-    label: "計糧",
-    roles: ["admin", "manager", "finance", "alien"],
-    icon: Wallet,
-   },
   ],
  },
  {

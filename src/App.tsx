@@ -85,11 +85,6 @@ const StaffPerformance = lazy(() => import("@/pages/StaffPerformance"))
 const HkExpenses = lazy(() => import("@/pages/HkExpenses"))
 const ExpenseJournal = lazy(() => import("@/pages/ExpenseJournal"))
 const ExpenseJournalRecords = lazy(() => import("@/pages/ExpenseJournalRecords"))
-const Payroll = lazy(() => import("@/pages/Payroll"))
-const PayrollUiPreview = lazy(() => import("@/pages/PayrollUiPreview"))
-/** 免登入計糧 mock 預覽：本地 DEV，或建置時 VITE_PAYROLL_UI_PREVIEW=1（勿用於正式 production） */
-const enablePayrollUiPreview =
- import.meta.env.DEV || import.meta.env.VITE_PAYROLL_UI_PREVIEW === "1"
 
 function withCapabilities(anyOf: readonly string[], element: ReactElement): ReactElement {
  return <RequireCapabilities anyOf={anyOf}>{element}</RequireCapabilities>
@@ -120,22 +115,6 @@ export default function App() {
     <Route path="/adhomework" element={<Navigate to="/AdHomework" replace />} />
     <Route path="/ADHOMEWORK" element={<Navigate to="/AdHomework" replace />} />
     <Route path="/Privacy" element={<AdPublicPrivacy />} />
-    {enablePayrollUiPreview ? (
-     <Route
-      path="/PayrollUiPreview"
-      element={
-       <Suspense
-        fallback={
-         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-          載入計糧預覽…
-         </div>
-        }
-       >
-        <PayrollUiPreview />
-       </Suspense>
-      }
-     />
-    ) : null}
     {/* 首頁 wayfinding UX 沙盒：免登入、不掛側欄、不接 DB */}
     <Route path="/prototype/HomeWayfinding" element={<PrototypeHomeWayfinding />} />
     <Route element={<AdaptiveLayout />}>
@@ -338,21 +317,7 @@ export default function App() {
        </Suspense>
       )}
      />
-     <Route
-      path="/Payroll"
-      element={withCapabilities(
-       ["payroll.read"],
-       <Suspense
-        fallback={
-         <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-          載入計糧預覽…
-         </div>
-        }
-       >
-        <Payroll />
-       </Suspense>
-      )}
-     />
+     <Route path="/Payroll" element={<Navigate to="/Home" replace />} />
      <Route
       path="/PaymentDiscounts"
       element={withCapabilities(["payments.create"], <PaymentDiscounts />)}

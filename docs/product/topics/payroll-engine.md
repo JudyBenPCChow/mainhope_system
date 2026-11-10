@@ -9,6 +9,10 @@
 | 索引 | [`BACKLOG.md`](../BACKLOG.md) |
 | 營運指南（財務／管理層） | [`PAYROLL_GUIDE.md`](../policies/staffing/PAYROLL_GUIDE.md)（另有 `.docx`） |
 
+## 2026-11-06：無畫面出糧
+
+`/Payroll` 工作台已拆；財務角色停用。計算引擎、`payroll_runs`、結算過帳、營運總覽預估、員工績效仍用。每月流程見 [`payroll-ops-without-ui.md`](./payroll-ops-without-ui.md) 與指南第 14 章。本題狀態維持 `done`，不要當引擎未完成而重開。
+
 ## 目前進度（2026-08-04 晚）
 
 ### 已完成：正式引擎（端到端第一波）

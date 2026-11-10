@@ -583,6 +583,7 @@ export type PayrollWorkbench = {
     teacherId: string
     hours: number
     status: WfhMockState["status"]
+    extraWfhHourlyRate: number | null
   }[]
   hardBlockAnomalies: string[]
   loadingError?: string
@@ -653,9 +654,7 @@ async function fetchAdjustments(runId: string): Promise<ManualAdjustment[]> {
   }))
 }
 
-async function fetchManualHours(monthKey: string): Promise<
-  { teacherId: string; hours: number; status: WfhMockState["status"]; extraWfhHourlyRate: number | null }[]
-> {
+async function fetchManualHours(monthKey: string): Promise<PayrollWorkbench["manualHours"]> {
   if (!supabase) return []
   const { data, error } = await supabase.from("payroll_manual_hours").select("*").eq("month_key", monthKey)
   if (error) throw new Error(error.message)
@@ -675,7 +674,7 @@ async function fetchManualHours(monthKey: string): Promise<
 async function computeUiTeachers(
   monthKey: string,
   rates: PayrollRateRow[],
-  hoursByTeacher: Map<string, { hours: number; status: WfhMockState["status"]; extraWfhHourlyRate: number | null }>
+  hoursByTeacher: Map<string, PayrollWorkbench["manualHours"][number]>
 ): Promise<{ teachers: PayrollTeacherRow[]; hardBlockAnomalies: string[] }> {
   const allTeachers = await fetchAllTeachers()
   const active = allTeachers.filter((t) => normalizeTeacherEmploymentStatus(t.status) === "在職")

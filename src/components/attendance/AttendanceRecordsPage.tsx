@@ -345,7 +345,7 @@ export function AttendanceRecordsPage() {
      <p className="mt-1 text-sm text-muted-foreground">
       此頁合計（出席／缺席／請假）跟營運點名桶，
       <strong className="font-medium text-foreground">不等於</strong>
-      計糧頁的扣堂人次。出糧核對請留在計糧。
+      出糧扣堂人次。出糧核對以當月工資單為準。
      </p>
     </header>
    )}

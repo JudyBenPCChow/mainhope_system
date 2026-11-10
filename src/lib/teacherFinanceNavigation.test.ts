@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { BookOpen, ClipboardList, NotebookPen, Wallet } from "lucide-react"
+import { BookOpen, ClipboardList, NotebookPen } from "lucide-react"
 
 import { FINANCE_ALL_FEATURES_NAV, FINANCE_MAIN_NAV } from "@/lib/financeNavigation"
 import { HW_PATH } from "@/lib/homeworkTutoringNav"
@@ -149,25 +149,21 @@ describe("老師所有功能", () => {
 })
 
 describe("財務側欄 IA", () => {
- it("固定為 6 個頂層列", () => {
+ it("固定為 5 個頂層列，不含計糧", () => {
   expect(FINANCE_MAIN_NAV.map((entry) => entry.label)).toEqual([
    "首頁",
-   "計糧",
    "出席紀錄",
    "繳費紀錄",
    "排程",
    "所有功能",
   ])
-  expect(FINANCE_MAIN_NAV.filter((entry) => entry.kind === "leaf")).toHaveLength(5)
-  expect(FINANCE_MAIN_NAV.find((e) => e.kind === "leaf" && e.path === "/Payroll")?.icon).toBe(
-   Wallet
-  )
+  expect(FINANCE_MAIN_NAV.filter((entry) => entry.kind === "leaf")).toHaveLength(4)
+  expect(FINANCE_MAIN_NAV.some((e) => e.kind === "leaf" && e.path === "/Payroll")).toBe(false)
  })
 
  it("角色主選單解析走財務真源", () => {
   expect(resolveRoleMainNav("finance").map((e) => e.label)).toEqual([
    "首頁",
-   "計糧",
    "出席紀錄",
    "繳費紀錄",
    "排程",
@@ -179,13 +175,13 @@ describe("財務側欄 IA", () => {
   const sections = buildFeatureSections("finance", FINANCE_ALL_FEATURES_NAV)
   expect(sections.map((s) => s.label)).toEqual([
    "首頁與通知",
-   "計糧與核對",
+   "出席與排程",
    "繳費",
    "設定",
   ])
   expect(
    filterAdminFeatureSections(sections, "Payroll").flatMap((s) => s.items.map((i) => i.label))
-  ).toEqual(["計糧"])
+  ).toEqual([])
  })
 
  it("手機標題跟財務 IA", () => {

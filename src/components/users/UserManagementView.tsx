@@ -116,7 +116,6 @@ function roleMeta(role: string): { label: string; tone: TagTone; Icon: LucideIco
 const ROLE_OPTIONS = [
  { value: "admin", label: "管理員" },
  { value: "manager", label: "管理層" },
- { value: "finance", label: "財務" },
  { value: "teacher", label: "專班老師" },
  { value: "alien", label: "外星人" },
 ] as const

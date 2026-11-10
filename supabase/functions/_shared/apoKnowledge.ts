@@ -93,7 +93,7 @@ ${APO_NO_HALLUCINATION_RULE}
 export const APO_ROUTES_COMPACT = `
 ## 主要頁面（paths 用右側路由）
 全角色：首頁 /Home、所有功能 /AllFeatures、進行點名 /Attendance、排程 /Schedule、出席紀錄 /AttendanceRecords、收件匣 /Inbox、教學紀錄 /TeachingRecords
-admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、私人課程 /PrivateTutoring、人數報表 /EnrollmentReports、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／堂數更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard、計糧 /Payroll
+admin：前台指引 /FrontDeskWizard、明日提醒 /TomorrowReminders、話術庫 /ScriptLibrary、學生 /Students、家長報讀申請 /PortalEnrollmentRequests、增退 /EnrollmentChanges、試堂 /TrialSessions、私人課程 /PrivateTutoring、人數報表 /EnrollmentReports、宣傳配對 /PromotionMatch、班別 /Classes、老師 /Teachers、檔期 /TeacherAvailability、課室 /Classrooms、校曆 /AcademicCalendar、老師請假處理 /TeacherLeaveWizard、請假 /LeaveManagement、約房審批 /RoomBookingAdmin、收款 /Payments、繳費紀錄 /PaymentHistory、單據／堂數更正 /PaymentCorrection、優惠 /PaymentDiscounts、營運總覽 /MgmtDashboard
 teacher：時間表 /TeacherTimetable、我的班別 /Classes、我的私人課程 /PrivateTutoring、預約空房 /RoomBooking（收件匣見全角色）
 alien 另加：用戶 /Users、課程 /Courses、話術／優惠亦可、系統問題 /SystemIssues、AI報表 /AiReports、推薦回贈 /ReferralRebates
 `.trim()
@@ -160,7 +160,6 @@ ${APO_SYSTEM_DIRECTIVES}
 - /PaymentCorrection 單據／堂數更正（已繳堂數調動）
 - /PaymentDiscounts 優惠折扣（編輯多半 alien）
 - /MgmtDashboard 營運總覽（含堂數缺口／待補跟進）
-- /Payroll 計糧（含授課堂數／出席統計）
 
 ### teacher
 - /TeacherTimetable 時間表
